@@ -53,7 +53,6 @@
   --radius: 0.5rem;
   /* Warm off-white magazine palette */
   --background: oklch(0.985 0.008 90);
-  --foreground: oklch(0.２ 0.02 60);
   --foreground: oklch(0.22 0.02 60);
   --card: oklch(0.99 0.005 90);
   --card-foreground: oklch(0.22 0.02 60);
