@@ -1,0 +1,55 @@
+import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+export function SiteHeader() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
+      const user = data.user;
+      setSignedIn(!!user);
+      if (!user) return setIsAdmin(false);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      if (cancelled) return;
+      setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    }
+    check();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => check());
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  return (
+    <header className="border-b border-border/60">
+      <div className="mx-auto flex max-w-3xl items-baseline justify-between px-6 py-6">
+        <Link to="/" className="font-serif text-2xl tracking-tight">
+          笔记
+        </Link>
+        <nav className="flex items-center gap-5 text-sm text-muted-foreground">
+          <Link to="/" activeOptions={{ exact: true }} className="hover:text-foreground">
+            文章
+          </Link>
+          {isAdmin ? (
+            <Link to="/admin" className="hover:text-foreground">
+              后台
+            </Link>
+          ) : signedIn ? null : (
+            <Link to="/auth" className="hover:text-foreground">
+              登录
+            </Link>
+          )}
+        </nav>
+      </div>
+    </header>
+  );
+}
