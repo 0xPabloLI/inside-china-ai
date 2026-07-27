@@ -21,14 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { SiteHeader } from "@/components/site-header";
-import {
-  Upload,
-  Copy,
-  FileText,
-  ExternalLink,
-  Trash2,
-  Link as LinkIcon,
-} from "lucide-react";
+import { Upload, Copy, FileText, ExternalLink, Trash2, Link as LinkIcon } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Inside China AI" }] }),
@@ -138,7 +131,7 @@ function AdminPage() {
               ) : (
                 <PostEditor
                   key={editingId || "new"}
-                  initial={editingId ? editQuery.data ?? null : null}
+                  initial={editingId ? (editQuery.data ?? null) : null}
                   onCancel={() => setEditingId(null)}
                   onSave={async (values) => {
                     try {
@@ -462,9 +455,7 @@ function AttachmentUploader({
                   size="icon"
                   className="h-7 w-7"
                   title="Insert link into content"
-                  onClick={() =>
-                    onInsertLink(`[${att.file_name}](${att.url})`)
-                  }
+                  onClick={() => onInsertLink(`[${att.file_name}](${att.url})`)}
                 >
                   <LinkIcon className="h-3.5 w-3.5" />
                 </Button>
@@ -601,7 +592,9 @@ function PostEditor({
       <div className="flex items-center justify-between rounded-md border border-border/60 bg-background p-3">
         <div>
           <div className="text-sm font-medium">Publish</div>
-          <div className="text-xs text-muted-foreground">Once on, this post is visible to everyone</div>
+          <div className="text-xs text-muted-foreground">
+            Once on, this post is visible to everyone
+          </div>
         </div>
         <Switch checked={published} onCheckedChange={setPublished} />
       </div>

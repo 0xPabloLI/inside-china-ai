@@ -4,6 +4,14 @@ import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+const STORAGE_BUCKET = "post-attachments";
+
+/** Build the public URL for a file in the post-attachments bucket. */
+export function attachmentPublicUrl(storagePath: string): string {
+  const url = process.env.SUPABASE_URL!;
+  return `${url}/storage/v1/object/public/${STORAGE_BUCKET}/${storagePath}`;
+}
+
 function publicClient() {
   const url = process.env.SUPABASE_URL!;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
@@ -12,7 +20,8 @@ function publicClient() {
     global: {
       fetch: (input, init) => {
         const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`)
+          h.delete("Authorization");
         h.set("apikey", key);
         return fetch(input, { ...init, headers: h });
       },
@@ -43,7 +52,23 @@ export const getPublishedPost = createServerFn({ method: "GET" })
       .eq("published", true)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return row;
+    if (!row) return null;
+
+    // Fetch attachments for this post
+    const { data: attachments, error: attErr } = await sb
+      .from("post_attachments")
+      .select("id, file_name, storage_path, file_size, mime_type, created_at")
+      .eq("post_id", row.id)
+      .order("created_at", { ascending: true });
+    if (attErr) throw new Error(attErr.message);
+
+    return {
+      ...row,
+      attachments: (attachments ?? []).map((a) => ({
+        ...a,
+        url: attachmentPublicUrl(a.storage_path),
+      })),
+    };
   });
 
 // ---- Admin ----
@@ -109,7 +134,7 @@ export const savePost = createServerFn({ method: "POST" })
         .eq("id", data.id)
         .maybeSingle();
       const published_at =
-        data.published && !existing?.published_at ? now : existing?.published_at ?? null;
+        data.published && !existing?.published_at ? now : (existing?.published_at ?? null);
       const { data: row, error } = await context.supabase
         .from("posts")
         .update({
@@ -153,7 +178,66 @@ export const deletePost = createServerFn({ method: "POST" })
       _role: "admin",
     });
     if (!isAdmin) throw new Error("Forbidden");
+
+    // Gather attachment storage paths before deleting (CASCADE will remove rows)
+    const { data: atts } = await context.supabase
+      .from("post_attachments")
+      .select("storage_path")
+      .eq("post_id", data.id);
+    if (atts && atts.length > 0) {
+      const paths = atts.map((a) => a.storage_path);
+      await context.supabase.storage.from(STORAGE_BUCKET).remove(paths);
+    }
+
     const { error } = await context.supabase.from("posts").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---- Attachments (Admin) ----
+
+export const listAttachmentsAdmin = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { postId: string }) => z.object({ postId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden");
+    const { data: rows, error } = await context.supabase
+      .from("post_attachments")
+      .select("id, post_id, file_name, storage_path, file_size, mime_type, created_at")
+      .eq("post_id", data.postId)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (rows ?? []).map((a) => ({ ...a, url: attachmentPublicUrl(a.storage_path) }));
+  });
+
+export const deleteAttachment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden");
+
+    const { data: row, error: fetchErr } = await context.supabase
+      .from("post_attachments")
+      .select("storage_path")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (fetchErr) throw new Error(fetchErr.message);
+    if (row) {
+      await context.supabase.storage.from(STORAGE_BUCKET).remove([row.storage_path]);
+    }
+
+    const { error: delErr } = await context.supabase
+      .from("post_attachments")
+      .delete()
+      .eq("id", data.id);
+    if (delErr) throw new Error(delErr.message);
     return { ok: true };
   });

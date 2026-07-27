@@ -4,6 +4,13 @@ import { getPublishedPost } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { MarkdownContent } from "@/components/markdown-content";
+import { FileText, ExternalLink } from "lucide-react";
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const postQuery = (slug: string) =>
   queryOptions({
@@ -61,6 +68,33 @@ function PostPage() {
             <MarkdownContent content={post.content} />
           </div>
         </article>
+        {post.attachments && post.attachments.length > 0 ? (
+          <section className="mt-12 border-t border-border/60 pt-8">
+            <h2 className="mb-4 font-serif text-2xl">Attachments</h2>
+            <ul className="space-y-3">
+              {post.attachments.map((att) => (
+                <li key={att.id}>
+                  <a
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-lg border border-border/60 p-4 transition-colors hover:border-border hover:bg-muted/40"
+                  >
+                    <FileText className="h-6 w-6 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{att.file_name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {att.mime_type === "application/pdf" ? "PDF" : att.mime_type || "File"}
+                        {att.file_size ? ` · ${formatSize(att.file_size)}` : ""}
+                      </div>
+                    </div>
+                    <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         <div className="mt-16">
           <SubscribeForm />
         </div>
