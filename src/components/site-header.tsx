@@ -43,10 +43,6 @@ export function SiteHeader() {
             <Link to="/admin" className="hover:text-foreground">
               Admin
             </Link>
-          ) : signedIn ? (
-            <Link to="/admin" className="hover:text-foreground">
-              Admin
-            </Link>
           ) : null}
         </nav>
       </div>
