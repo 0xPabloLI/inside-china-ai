@@ -16,10 +16,10 @@ export function SubscribeForm() {
     setLoading(true);
     try {
       await sub({ data: { email: email.trim() } });
-      toast.success("订阅成功,期待每周与你相见。");
+      toast.success("Subscribed. New articles will arrive weekly.");
       setEmail("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "订阅失败,请稍后再试。");
+      toast.error(err instanceof Error ? err.message : "Subscription failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -27,9 +27,9 @@ export function SubscribeForm() {
 
   return (
     <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
-      <h3 className="font-serif text-2xl">订阅新文章</h3>
+      <h3 className="font-serif text-2xl">Subscribe</h3>
       <p className="mt-2 text-sm text-muted-foreground">
-        每周一次,把这里新写的东西寄给你。随时可以退订。
+        One email a week. New writing on China's AI industry. Unsubscribe anytime.
       </p>
       <form onSubmit={onSubmit} className="mt-5 flex flex-col gap-2 sm:flex-row">
         <Input
@@ -41,7 +41,7 @@ export function SubscribeForm() {
           className="flex-1"
         />
         <Button type="submit" disabled={loading}>
-          {loading ? "订阅中…" : "订阅"}
+          {loading ? "Subscribing…" : "Subscribe"}
         </Button>
       </form>
     </div>
