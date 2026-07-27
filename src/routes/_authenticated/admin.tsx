@@ -20,7 +20,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SiteHeader } from "@/components/site-header";
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  head: () => ({ meta: [{ title: "后台 — 笔记" }] }),
+  head: () => ({ meta: [{ title: "Admin — Inside China AI" }] }),
   component: AdminPage,
 });
 
@@ -76,12 +76,12 @@ function AdminPage() {
   });
 
   if (isAdmin === null) {
-    return <div className="p-10 text-muted-foreground">加载中…</div>;
+    return <div className="p-10 text-muted-foreground">Loading…</div>;
   }
   if (isAdmin === false) {
     return (
       <div className="mx-auto max-w-md p-10 text-center">
-        <p className="text-muted-foreground">你的账号没有管理员权限。</p>
+        <p className="text-muted-foreground">Your account does not have admin access.</p>
         <Button
           className="mt-4"
           onClick={async () => {
@@ -100,7 +100,7 @@ function AdminPage() {
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="font-serif text-3xl">后台</h1>
+          <h1 className="font-serif text-3xl">Admin</h1>
           <Button
             variant="ghost"
             onClick={async () => {
@@ -114,9 +114,9 @@ function AdminPage() {
 
         <Tabs defaultValue="posts">
           <TabsList>
-            <TabsTrigger value="posts">文章</TabsTrigger>
+            <TabsTrigger value="posts">Posts</TabsTrigger>
             <TabsTrigger value="subscribers">
-              订阅者{subsQuery.data ? ` (${subsQuery.data.length})` : ""}
+              Subscribers{subsQuery.data ? ` (${subsQuery.data.length})` : ""}
             </TabsTrigger>
           </TabsList>
 
@@ -130,19 +130,19 @@ function AdminPage() {
                 onSave={async (values) => {
                   try {
                     await save({ data: values });
-                    toast.success("已保存");
+                    toast.success("Saved");
                     qc.invalidateQueries({ queryKey: ["admin-posts"] });
                     qc.invalidateQueries({ queryKey: ["published-posts"] });
                     setEditingId(null);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "保存失败");
+                    toast.error(e instanceof Error ? e.message : "Save failed");
                   }
                 }}
               />
             ) : (
               <>
                 <div className="mb-4 flex justify-end">
-                  <Button onClick={() => setEditingId("")}>写新文章</Button>
+                  <Button onClick={() => setEditingId("")}>New post</Button>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-card">
                   {postsQuery.data?.length ? (
@@ -155,7 +155,7 @@ function AdminPage() {
                               <span
                                 className={`rounded px-1.5 py-0.5 text-xs ${p.published ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
                               >
-                                {p.published ? "已发布" : "草稿"}
+                                {p.published ? "Published" : "Draft"}
                               </span>
                             </div>
                             <div className="mt-1 text-xs text-muted-foreground">/{p.slug}</div>
@@ -177,14 +177,14 @@ function AdminPage() {
                               size="sm"
                               variant="ghost"
                               onClick={async () => {
-                                if (!confirm(`删除《${p.title}》?`)) return;
+                                if (!confirm(`Delete "${p.title}"?`)) return;
                                 try {
                                   await del({ data: { id: p.id } });
                                   qc.invalidateQueries({ queryKey: ["admin-posts"] });
                                   qc.invalidateQueries({ queryKey: ["published-posts"] });
-                                  toast.success("已删除");
+                                  toast.success("Deleted");
                                 } catch (e) {
-                                  toast.error(e instanceof Error ? e.message : "删除失败");
+                                  toast.error(e instanceof Error ? e.message : "Delete failed");
                                 }
                               }}
                             >
@@ -196,7 +196,7 @@ function AdminPage() {
                     </ul>
                   ) : (
                     <div className="p-10 text-center text-muted-foreground">
-                      还没有文章。点右上角"写新文章"开始。
+                      还没有文章。点右上角"New post"开始。
                     </div>
                   )}
                 </div>
@@ -213,20 +213,20 @@ function AdminPage() {
                       <div>
                         <div className="font-medium">{s.email}</div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(s.created_at).toLocaleString("zh-CN")}
+                          {new Date(s.created_at).toLocaleString("en-US")}
                         </div>
                       </div>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={async () => {
-                          if (!confirm(`删除订阅 ${s.email}?`)) return;
+                          if (!confirm(`Remove subscriber ${s.email}?`)) return;
                           try {
                             await delSub({ data: { id: s.id } });
                             qc.invalidateQueries({ queryKey: ["admin-subscribers"] });
-                            toast.success("已删除");
+                            toast.success("Deleted");
                           } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "删除失败");
+                            toast.error(e instanceof Error ? e.message : "Delete failed");
                           }
                         }}
                       >
@@ -236,7 +236,7 @@ function AdminPage() {
                   ))}
                 </ul>
               ) : (
-                <div className="p-10 text-center text-muted-foreground">还没有订阅者。</div>
+                <div className="p-10 text-center text-muted-foreground">No subscribers yet.</div>
               )}
             </div>
             {subsQuery.data && subsQuery.data.length > 0 ? (
@@ -256,7 +256,7 @@ function AdminPage() {
                     URL.revokeObjectURL(url);
                   }}
                 >
-                  导出 CSV
+                  Export CSV
                 </Button>
               </div>
             ) : null}
@@ -305,7 +305,7 @@ function PostEditor({
   const autoSlug = useMemo(() => slugify(title), [title]);
   const effectiveSlug = slugTouched ? slug : autoSlug;
 
-  if (loading) return <div className="p-10 text-muted-foreground">加载中…</div>;
+  if (loading) return <div className="p-10 text-muted-foreground">Loading…</div>;
 
   return (
     <form
@@ -325,7 +325,7 @@ function PostEditor({
       className="space-y-5 rounded-lg border border-border/70 bg-card p-6"
     >
       <div>
-        <Label>标题</Label>
+        <Label>Title</Label>
         <Input
           className="mt-1"
           value={title}
@@ -350,7 +350,7 @@ function PostEditor({
         <p className="mt-1 text-xs text-muted-foreground">/posts/{effectiveSlug || "..."}</p>
       </div>
       <div>
-        <Label>摘要 (可选)</Label>
+        <Label>Excerpt (optional)</Label>
         <Textarea
           className="mt-1"
           value={excerpt}
@@ -360,18 +360,18 @@ function PostEditor({
         />
       </div>
       <div>
-        <Label>正文</Label>
+        <Label>Content</Label>
         <Textarea
           className="mt-1 min-h-[400px] font-mono text-sm"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="用空行分段。"
+          placeholder="Separate paragraphs with blank lines."
         />
       </div>
       <div className="flex items-center justify-between rounded-md border border-border/60 bg-background p-3">
         <div>
-          <div className="text-sm font-medium">发布</div>
-          <div className="text-xs text-muted-foreground">开启后所有人可见</div>
+          <div className="text-sm font-medium">Publish</div>
+          <div className="text-xs text-muted-foreground">Once on, this post is visible to everyone</div>
         </div>
         <Switch checked={published} onCheckedChange={setPublished} />
       </div>
@@ -380,7 +380,7 @@ function PostEditor({
           取消
         </Button>
         <Button type="submit" disabled={saving}>
-          {saving ? "保存中…" : "保存"}
+          {saving ? "Saving…" : "保存"}
         </Button>
       </div>
     </form>
