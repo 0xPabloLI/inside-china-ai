@@ -117,6 +117,25 @@ function AuthPage() {
     }
   }
 
+  /* ---- Magic link: send sign-in link ---- */
+  async function handleSendMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/admin` },
+      });
+      if (error) throw error;
+      setEmailSent(true);
+      toast.success("Check your email for the sign-in link.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   /* ---- Sign in / Sign up ---- */
   async function handleSignInUp(e: React.FormEvent) {
     e.preventDefault();
