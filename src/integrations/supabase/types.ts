@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      post_attachments: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          post_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          post_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          post_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_attachments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           author_id: string | null
