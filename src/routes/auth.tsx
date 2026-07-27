@@ -17,7 +17,7 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-type Mode = "signin" | "signup" | "forgot" | "recovery";
+type Mode = "signin" | "signup" | "forgot" | "recovery" | "magic";
 
 /** Extract the recovery token from a pasted Supabase email link. */
 function extractTokenFromLink(pasted: string): string | null {
@@ -117,6 +117,25 @@ function AuthPage() {
     }
   }
 
+  /* ---- Magic link: send sign-in link ---- */
+  async function handleSendMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/admin` },
+      });
+      if (error) throw error;
+      setEmailSent(true);
+      toast.success("Check your email for the sign-in link.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   /* ---- Sign in / Sign up ---- */
   async function handleSignInUp(e: React.FormEvent) {
     e.preventDefault();
@@ -151,8 +170,9 @@ function AuthPage() {
         window.location.hostname === "127.0.0.1";
 
       if (isLocal) {
-        const { error } = await supabase.auth.signInWithOAuth("google", {
-          redirectTo: `${window.location.origin}/admin`,
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${window.location.origin}/admin` },
         });
         if (error) throw error;
         return;
@@ -202,6 +222,60 @@ function AuthPage() {
                 {loading ? "Please wait…" : "Update password"}
               </Button>
             </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "magic") {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6 py-16">
+        <div className="w-full max-w-sm">
+          <Link to="/" className="mb-8 block text-center font-serif text-2xl">
+            Inside China AI
+          </Link>
+          <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
+            <h1 className="font-serif text-2xl">Email me a sign-in link</h1>
+            {!emailSent ? (
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  We'll send a one-tap sign-in link to your email. No password needed.
+                </p>
+                <form onSubmit={handleSendMagicLink} className="mt-6 space-y-3">
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="mt-1"
+                      autoFocus
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Sending…" : "Send sign-in link"}
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Link sent to <strong>{email}</strong>. Open it on this device to
+                sign in here.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin");
+                setEmailSent(false);
+              }}
+              className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
+            >
+              ← Back to sign in
+            </button>
           </div>
         </div>
       </div>
@@ -358,13 +432,25 @@ function AuthPage() {
           </form>
 
           {mode === "signin" && (
-            <button
-              type="button"
-              onClick={() => setMode("forgot")}
-              className="mt-3 w-full text-center text-sm text-muted-foreground hover:text-foreground"
-            >
-              Forgot password?
-            </button>
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("magic");
+                  setEmailSent(false);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Email me a link instead
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("forgot")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Forgot password?
+              </button>
+            </div>
           )}
 
           <button
