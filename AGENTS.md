@@ -48,6 +48,7 @@
 3. **push 后改写历史用 `--force-with-lease`，绝不用 `--force`** — 仅适用于改写历史（amend/rebase/squash）。新增 commit 一律用普通 `git push`。
 4. **新增 commit 用普通 `git push`** — 不要对新增 commit 用 `--force-with-lease`，那会掩盖应该先 `git pull --rebase` 的正确流程。
 5. **stage 时显式列出自己改的文件，绝不 `git add -A` / `git add .`** — 先 `git status --short` 确认，只 add 自己改的路径。
+6. **同一文件混合本 session 与其他 session 改动时，用 `git add -p` 分块 stage 只选本 session 的 hunk** — 绝不把其他 session 的未提交改动一起 commit；不还原他人改动，不替他人 commit。
 
 ### 工作流速查
 ```bash
@@ -62,6 +63,13 @@ git add <修改路径>
 git commit --amend --no-edit
 git push --force-with-lease   # 仅限改写历史场景
 ```
+
+## PR / Merge Guardrails
+- Commits: 简洁的 conventional 格式;不在 message 里放 URL。
+- 不要 "cosmetically resolve" review thread,要么真修要么留待 maintainer 拍板。
+- For PRs, summarize only commits relative to `origin/main`; use English for PR titles and bodies.
+- If a PR includes a Testing section, include only items that are already verified (so all items are checked); otherwise omit Testing.
+- After opening/pushing a PR, do not amend/rebase that history; use new commits for follow-ups.
 
 ## Validation Gate (修改后必跑 — 强制)
 每次代码改动后按序跑 3 项,**全部通过**才算完成。任一失败 → 修根因 → 从头重跑。
@@ -112,7 +120,7 @@ git diff main..lovable -- path/to/file
 ```
 
 ## Session Boundary
-不修非本 session 引入的问题；`git diff` 确认来源，已有问题告知用户决定。
+**只 commit 本 session 的改动，非本 session 的不碰。** 不修非本 session 引入的问题；`git diff` 确认来源，已有问题告知用户决定。同一文件混合改动时用 `git add -p` 只选本 session 的 hunk。
 
 ## High-Risk Areas (Coordinate Carefully)
 - **Admin editor**: `src/routes/_authenticated/admin.tsx` — PostEditor 组件的 state 初始化与 query 数据时序（参考 useState 初始化陷阱）。
@@ -128,6 +136,9 @@ git diff main..lovable -- path/to/file
 - Commit messages: 简洁的 conventional 格式;不在 message 里放 URL。
 
 ## Agent Skills
+
+### Domain Docs
+Single-context layout: `CONTEXT.md` (domain language) at root + `docs/adr/` (architectural decisions). Update when domain or architecture changes.
 
 ### Matt Pocock Skills v1.1 workflow
 Main flow: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement` (per ticket).
