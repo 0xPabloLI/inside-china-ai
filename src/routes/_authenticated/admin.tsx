@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import {
   getPostAdmin,
   savePost,
   deletePost,
+  listAttachmentsAdmin,
+  deleteAttachment,
 } from "@/lib/posts.functions";
 import { listSubscribers, deleteSubscriber } from "@/lib/subscribers.functions";
 import { Button } from "@/components/ui/button";
@@ -19,6 +21,14 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { SiteHeader } from "@/components/site-header";
+import {
+  Upload,
+  Copy,
+  FileText,
+  ExternalLink,
+  Trash2,
+  Link as LinkIcon,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Inside China AI" }] }),
@@ -123,23 +133,26 @@ function AdminPage() {
 
           <TabsContent value="posts" className="mt-6">
             {editingId !== null ? (
-              <PostEditor
-                key={editingId || "new"}
-                initial={editQuery.data ?? null}
-                loading={!!editingId && editQuery.isLoading}
-                onCancel={() => setEditingId(null)}
-                onSave={async (values) => {
-                  try {
-                    await save({ data: values });
-                    toast.success("Saved");
-                    qc.invalidateQueries({ queryKey: ["admin-posts"] });
-                    qc.invalidateQueries({ queryKey: ["published-posts"] });
-                    setEditingId(null);
-                  } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Save failed");
-                  }
-                }}
-              />
+              editingId && editQuery.isPending ? (
+                <div className="p-10 text-muted-foreground">Loading…</div>
+              ) : (
+                <PostEditor
+                  key={editingId || "new"}
+                  initial={editingId ? editQuery.data ?? null : null}
+                  onCancel={() => setEditingId(null)}
+                  onSave={async (values) => {
+                    try {
+                      await save({ data: values });
+                      toast.success("Saved");
+                      qc.invalidateQueries({ queryKey: ["admin-posts"] });
+                      qc.invalidateQueries({ queryKey: ["published-posts"] });
+                      setEditingId(null);
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Save failed");
+                    }
+                  }}
+                />
+              )
             ) : (
               <>
                 <div className="mb-4 flex justify-end">
@@ -277,9 +290,211 @@ type PostForm = {
   published: boolean;
 };
 
+function formatFileSize(bytes: number | null): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+type AttachmentItem = {
+  id: string;
+  post_id: string;
+  file_name: string;
+  storage_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  url: string;
+};
+
+function AttachmentUploader({
+  postId,
+  onInsertLink,
+}: {
+  postId: string;
+  onInsertLink: (markdown: string) => void;
+}) {
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const listAtt = useServerFn(listAttachmentsAdmin);
+  const delAtt = useServerFn(deleteAttachment);
+
+  const { data: attachments, refetch } = useQuery({
+    queryKey: ["admin-attachments", postId],
+    queryFn: () => listAtt({ data: { postId } }),
+  });
+
+  async function handleUpload(file: File) {
+    const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+    if (file.size > MAX_SIZE) {
+      toast.error("File too large (max 50 MB)");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
+      const uuid = crypto.randomUUID();
+      const storagePath = `${postId}/${uuid}${ext ? `.${ext}` : ""}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("post-attachments")
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadErr) throw uploadErr;
+
+      const { error: insertErr } = await supabase.from("post_attachments").insert({
+        post_id: postId,
+        file_name: file.name,
+        storage_path: storagePath,
+        file_size: file.size,
+        mime_type: file.type || null,
+      });
+
+      if (insertErr) {
+        // Clean up orphaned file
+        await supabase.storage.from("post-attachments").remove([storagePath]);
+        throw insertErr;
+      }
+
+      toast.success("File uploaded");
+      refetch();
+      qc.invalidateQueries({ queryKey: ["post"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDelete(att: AttachmentItem) {
+    if (!confirm(`Delete "${att.file_name}"?`)) return;
+    try {
+      await delAtt({ data: { id: att.id } });
+      toast.success("Deleted");
+      refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  }
+
+  function copyUrl(url: string) {
+    navigator.clipboard.writeText(url);
+    toast.success("URL copied to clipboard");
+  }
+
+  const list = attachments as AttachmentItem[] | undefined;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label>Attachments</Label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleUpload(f);
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload className="mr-1.5 h-3.5 w-3.5" />
+          {uploading ? "Uploading…" : "Upload file"}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Upload PDFs, documents, or images. After uploading, use "Copy URL" to paste the link into
+        your content, or "Insert link" to append it directly.
+      </p>
+      {list && list.length > 0 ? (
+        <ul className="space-y-2">
+          {list.map((att) => (
+            <li
+              key={att.id}
+              className="flex items-center gap-3 rounded-md border border-border/60 bg-background p-3"
+            >
+              <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{att.file_name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {formatFileSize(att.file_size)}
+                  {att.mime_type ? ` · ${att.mime_type}` : ""}
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Open in new tab"
+                  onClick={() => window.open(att.url, "_blank")}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Copy URL"
+                  onClick={() => copyUrl(att.url)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Insert link into content"
+                  onClick={() =>
+                    onInsertLink(`[${att.file_name}](${att.url})`)
+                  }
+                >
+                  <LinkIcon className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  title="Delete"
+                  onClick={() => handleDelete(att)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        !uploading && (
+          <p className="rounded-md border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+            No attachments yet. Click "Upload file" to add one.
+          </p>
+        )
+      )}
+    </div>
+  );
+}
+
 function PostEditor({
   initial,
-  loading,
   onCancel,
   onSave,
 }: {
@@ -291,7 +506,6 @@ function PostEditor({
     content: string;
     published: boolean;
   } | null;
-  loading: boolean;
   onCancel: () => void;
   onSave: (v: PostForm) => void | Promise<void>;
 }) {
@@ -306,7 +520,13 @@ function PostEditor({
   const autoSlug = useMemo(() => slugify(title), [title]);
   const effectiveSlug = slugTouched ? slug : autoSlug;
 
-  if (loading) return <div className="p-10 text-muted-foreground">Loading…</div>;
+  const insertMarkdown = (md: string) => {
+    setContent((prev) => {
+      const sep = prev && !prev.endsWith("\n") ? "\n" : "";
+      return prev + sep + md;
+    });
+    toast.success("Link inserted into content");
+  };
 
   return (
     <form
@@ -369,6 +589,15 @@ function PostEditor({
           placeholder="Write in Markdown… Use **bold**, *italic*, > quotes, - lists, `code`, ## headings, [links](https://…)."
         />
       </div>
+      {initial?.id ? (
+        <div className="rounded-md border border-border/60 p-4">
+          <AttachmentUploader postId={initial.id} onInsertLink={insertMarkdown} />
+        </div>
+      ) : (
+        <div className="rounded-md border border-dashed border-border/60 p-4 text-center text-sm text-muted-foreground">
+          Save the post first to upload attachments.
+        </div>
+      )}
       <div className="flex items-center justify-between rounded-md border border-border/60 bg-background p-3">
         <div>
           <div className="text-sm font-medium">Publish</div>
