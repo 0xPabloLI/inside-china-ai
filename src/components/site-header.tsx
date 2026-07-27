@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function SiteHeader() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -12,7 +11,6 @@ export function SiteHeader() {
       const { data } = await supabase.auth.getUser();
       if (cancelled) return;
       const user = data.user;
-      setSignedIn(!!user);
       if (!user) return setIsAdmin(false);
       const { data: roles } = await supabase
         .from("user_roles")
