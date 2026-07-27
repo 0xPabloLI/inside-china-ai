@@ -89,7 +89,7 @@ function AdminPage() {
             navigate({ to: "/auth" });
           }}
         >
-          退出登录
+          Sign out
         </Button>
       </div>
     );
@@ -108,7 +108,7 @@ function AdminPage() {
               navigate({ to: "/" });
             }}
           >
-            退出
+            Sign out
           </Button>
         </div>
 
@@ -167,11 +167,11 @@ function AdminPage() {
                                 params={{ slug: p.slug }}
                                 className="text-sm text-muted-foreground hover:text-foreground"
                               >
-                                预览
+                                Preview
                               </Link>
                             ) : null}
                             <Button size="sm" variant="outline" onClick={() => setEditingId(p.id)}>
-                              编辑
+                              Edit
                             </Button>
                             <Button
                               size="sm"
@@ -188,7 +188,7 @@ function AdminPage() {
                                 }
                               }}
                             >
-                              删除
+                              Delete
                             </Button>
                           </div>
                         </li>
@@ -196,7 +196,7 @@ function AdminPage() {
                     </ul>
                   ) : (
                     <div className="p-10 text-center text-muted-foreground">
-                      还没有文章。点右上角"New post"开始。
+                      No posts yet. Click "New post" to start.
                     </div>
                   )}
                 </div>
@@ -230,7 +230,7 @@ function AdminPage() {
                           }
                         }}
                       >
-                        删除
+                        Delete
                       </Button>
                     </li>
                   ))}
@@ -377,10 +377,10 @@ function PostEditor({
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
-          取消
+          Cancel
         </Button>
         <Button type="submit" disabled={saving}>
-          {saving ? "Saving…" : "保存"}
+          {saving ? "Saving…" : "Save"}
         </Button>
       </div>
     </form>
