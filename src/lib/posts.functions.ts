@@ -56,7 +56,7 @@ const postInput = z.object({
     .trim()
     .min(1)
     .max(200)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug 只能包含小写字母、数字和连字符"),
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug may contain lowercase letters, numbers and hyphens"),
   excerpt: z.string().trim().max(500).optional().nullable(),
   content: z.string().max(200000).default(""),
   published: z.boolean().default(false),

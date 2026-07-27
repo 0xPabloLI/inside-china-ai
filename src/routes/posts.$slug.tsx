@@ -19,7 +19,7 @@ export const Route = createFileRoute("/posts/$slug")({
   head: ({ loaderData }) => ({
     meta: loaderData
       ? [
-          { title: `${loaderData.title} — 笔记` },
+          { title: `${loaderData.title} — Inside China AI` },
           { name: "description", content: loaderData.excerpt ?? loaderData.title },
           { property: "og:title", content: loaderData.title },
           { property: "og:description", content: loaderData.excerpt ?? loaderData.title },
@@ -36,7 +36,7 @@ function PostPage() {
   if (!post) return null;
 
   const date = post.published_at
-    ? new Date(post.published_at).toLocaleDateString("zh-CN", {
+    ? new Date(post.published_at).toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",
@@ -48,7 +48,7 @@ function PostPage() {
       <SiteHeader />
       <main className="mx-auto max-w-2xl px-6 pt-12 pb-24">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-          ← 返回目录
+          ← Back to articles
         </Link>
         <article className="mt-8">
           <div className="text-xs uppercase tracking-wider text-muted-foreground">{date}</div>
