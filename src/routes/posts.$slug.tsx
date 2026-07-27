@@ -5,6 +5,13 @@ import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { MarkdownContent } from "@/components/markdown-content";
 import { FileText, ExternalLink } from "lucide-react";
+import { lazy, Suspense } from "react";
+
+const DeepSeekDashboard = lazy(() =>
+  import("@/components/dashboard/views/index").then((m) => ({ default: m.DeepSeekDashboard })),
+);
+
+const DASHBOARD_SLUGS = new Set(["deepseek-leaked-investor-meeting"]);
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -68,6 +75,14 @@ function PostPage() {
             <MarkdownContent content={post.content} />
           </div>
         </article>
+        {DASHBOARD_SLUGS.has(post.slug) ? (
+          <section className="mt-12 border-t border-border/60 pt-8">
+            <h2 className="mb-4 font-serif text-2xl">Interactive Dashboard</h2>
+            <Suspense fallback={<div className="animate-pulse text-sm text-muted-foreground">Loading dashboard…</div>}>
+              <DeepSeekDashboard />
+            </Suspense>
+          </section>
+        ) : null}
         {post.attachments && post.attachments.length > 0 ? (
           <section className="mt-12 border-t border-border/60 pt-8">
             <h2 className="mb-4 font-serif text-2xl">Attachments</h2>
