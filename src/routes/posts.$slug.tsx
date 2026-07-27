@@ -3,6 +3,7 @@ import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getPublishedPost } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
+import { MarkdownContent } from "@/components/markdown-content";
 
 const postQuery = (slug: string) =>
   queryOptions({
@@ -56,12 +57,8 @@ function PostPage() {
           {post.excerpt ? (
             <p className="mt-4 text-lg italic text-muted-foreground">{post.excerpt}</p>
           ) : null}
-          <div className="prose-article mt-10 text-[17px] leading-relaxed">
-            {post.content.split(/\n{2,}/).map((para, i) => (
-              <p key={i} style={{ whiteSpace: "pre-wrap" }}>
-                {para}
-              </p>
-            ))}
+          <div className="mt-10 text-[17px] leading-relaxed">
+            <MarkdownContent content={post.content} />
           </div>
         </article>
         <div className="mt-16">

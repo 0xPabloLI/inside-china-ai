@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { SiteHeader } from "@/components/site-header";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -361,11 +362,11 @@ function PostEditor({
       </div>
       <div>
         <Label>Content</Label>
-        <Textarea
-          className="mt-1 min-h-[400px] font-mono text-sm"
+        <MarkdownEditor
+          className="mt-1"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Separate paragraphs with blank lines."
+          onChange={setContent}
+          placeholder="Write in Markdown… Use **bold**, *italic*, > quotes, - lists, `code`, ## headings, [links](https://…)."
         />
       </div>
       <div className="flex items-center justify-between rounded-md border border-border/60 bg-background p-3">
