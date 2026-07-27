@@ -12,10 +12,10 @@ const postsQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "笔记 — 文章目录" },
-      { name: "description", content: "写作与订阅。每周一封新文章。" },
-      { property: "og:title", content: "笔记 — 文章目录" },
-      { property: "og:description", content: "写作与订阅。每周一封新文章。" },
+      { title: "Inside China AI — Articles" },
+      { name: "description", content: "Independent writing on China's AI industry. One email a week." },
+      { property: "og:title", content: "Inside China AI — Articles" },
+      { property: "og:description", content: "Independent writing on China's AI industry. One email a week." },
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(postsQuery),
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
 
 function formatDate(d: string | null) {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("zh-CN", {
+  return new Date(d).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -40,12 +40,12 @@ function Index() {
       <main className="mx-auto max-w-3xl px-6 pt-16 pb-24">
         <section className="mb-16">
           <h1 className="font-serif text-5xl leading-tight tracking-tight sm:text-6xl">
-            一个安静的
+            Reporting from
             <br />
-            <span className="italic text-muted-foreground">写作空间。</span>
+            <span className="italic text-muted-foreground">inside China's AI industry.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-            这里发布我的文章。留下邮箱,每周会收到一次新内容的汇总。
+            Independent writing on the labs, the people, and the policy shaping AI in China. Leave your email and I'll send one new piece a week.
           </p>
         </section>
 
@@ -54,9 +54,9 @@ function Index() {
         </section>
 
         <section>
-          <h2 className="mb-8 font-serif text-3xl">最近的文章</h2>
+          <h2 className="mb-8 font-serif text-3xl">Recent articles</h2>
           {posts.length === 0 ? (
-            <p className="text-muted-foreground">还没有已发布的文章。</p>
+            <p className="text-muted-foreground">No articles published yet.</p>
           ) : (
             <ul className="divide-y divide-border/60">
               {posts.map((p) => (
@@ -83,7 +83,7 @@ function Index() {
         </section>
       </main>
       <footer className="border-t border-border/60 py-8 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} · 用心写字
+        © {new Date().getFullYear()} · Inside China AI
       </footer>
     </div>
   );

@@ -10,8 +10,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "登录 — 笔记" },
-      { name: "description", content: "登录管理后台" },
+      { title: "Sign in — Inside China AI" },
+      { name: "description", content: "Admin sign in" },
     ],
   }),
   component: AuthPage,
@@ -35,14 +35,14 @@ function AuthPage() {
           options: { emailRedirectTo: `${window.location.origin}/admin` },
         });
         if (error) throw error;
-        toast.success("注册成功");
+        toast.success("Account created");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
       navigate({ to: "/admin" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -58,7 +58,7 @@ function AuthPage() {
       if (result.redirected) return;
       navigate({ to: "/admin" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "登录失败");
+      toast.error(err instanceof Error ? err.message : "Sign-in failed");
       setLoading(false);
     }
   }
@@ -67,12 +67,12 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         <Link to="/" className="mb-8 block text-center font-serif text-2xl">
-          笔记
+          Inside China AI
         </Link>
         <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
-          <h1 className="font-serif text-2xl">{mode === "signin" ? "登录" : "创建账号"}</h1>
+          <h1 className="font-serif text-2xl">{mode === "signin" ? "Sign in" : "Create account"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin" ? "使用邮箱或 Google 登录后台" : "首个注册者自动成为管理员"}
+            {mode === "signin" ? "Sign in to the admin dashboard" : "The first account becomes admin"}
           </p>
 
           <Button
@@ -82,18 +82,18 @@ function AuthPage() {
             onClick={signInGoogle}
             disabled={loading}
           >
-            使用 Google 继续
+            Continue with Google
           </Button>
 
           <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" />
-            <span>或</span>
+            <span>or</span>
             <div className="h-px flex-1 bg-border" />
           </div>
 
           <form onSubmit={onSubmit} className="space-y-3">
             <div>
-              <Label htmlFor="email">邮箱</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -104,7 +104,7 @@ function AuthPage() {
               />
             </div>
             <div>
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -116,7 +116,7 @@ function AuthPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "请稍候…" : mode === "signin" ? "登录" : "注册"}
+              {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Sign up"}
             </Button>
           </form>
 
@@ -125,7 +125,7 @@ function AuthPage() {
             onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
             className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
           >
-            {mode === "signin" ? "没有账号? 注册" : "已有账号? 登录"}
+            {mode === "signin" ? "No account? Sign up" : "Have an account? Sign in"}
           </button>
         </div>
       </div>
