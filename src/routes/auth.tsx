@@ -151,8 +151,9 @@ function AuthPage() {
         window.location.hostname === "127.0.0.1";
 
       if (isLocal) {
-        const { error } = await supabase.auth.signInWithOAuth("google", {
-          redirectTo: `${window.location.origin}/admin`,
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${window.location.origin}/admin` },
         });
         if (error) throw error;
         return;
