@@ -432,13 +432,25 @@ function AuthPage() {
           </form>
 
           {mode === "signin" && (
-            <button
-              type="button"
-              onClick={() => setMode("forgot")}
-              className="mt-3 w-full text-center text-sm text-muted-foreground hover:text-foreground"
-            >
-              Forgot password?
-            </button>
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("magic");
+                  setEmailSent(false);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Email me a link instead
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("forgot")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Forgot password?
+              </button>
+            </div>
           )}
 
           <button
