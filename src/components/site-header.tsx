@@ -33,21 +33,21 @@ export function SiteHeader() {
     <header className="border-b border-border/60">
       <div className="mx-auto flex max-w-3xl items-baseline justify-between px-6 py-6">
         <Link to="/" className="font-serif text-2xl tracking-tight">
-          笔记
+          Inside China AI
         </Link>
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
           <Link to="/" activeOptions={{ exact: true }} className="hover:text-foreground">
-            文章
+            Articles
           </Link>
           {isAdmin ? (
             <Link to="/admin" className="hover:text-foreground">
-              后台
+              Admin
             </Link>
-          ) : signedIn ? null : (
-            <Link to="/auth" className="hover:text-foreground">
-              登录
+          ) : signedIn ? (
+            <Link to="/admin" className="hover:text-foreground">
+              Admin
             </Link>
-          )}
+          ) : null}
         </nav>
       </div>
     </header>
