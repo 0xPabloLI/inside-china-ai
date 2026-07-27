@@ -228,6 +228,60 @@ function AuthPage() {
     );
   }
 
+  if (mode === "magic") {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6 py-16">
+        <div className="w-full max-w-sm">
+          <Link to="/" className="mb-8 block text-center font-serif text-2xl">
+            Inside China AI
+          </Link>
+          <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
+            <h1 className="font-serif text-2xl">Email me a sign-in link</h1>
+            {!emailSent ? (
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  We'll send a one-tap sign-in link to your email. No password needed.
+                </p>
+                <form onSubmit={handleSendMagicLink} className="mt-6 space-y-3">
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="mt-1"
+                      autoFocus
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Sending…" : "Send sign-in link"}
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Link sent to <strong>{email}</strong>. Open it on this device to
+                sign in here.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin");
+                setEmailSent(false);
+              }}
+              className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
+            >
+              ← Back to sign in
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (mode === "forgot") {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-16">
