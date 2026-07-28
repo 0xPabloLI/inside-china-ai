@@ -8,7 +8,9 @@ await page.goto(URL, { waitUntil: "networkidle" });
 await page.waitForTimeout(3000);
 
 // Find the funding widget - it contains "Fundraising" or "Round 1"
-const fundingWidget = page.locator("text=Round 1 Investors").locator("xpath=ancestor::div[contains(@class,'my-10')]");
+const fundingWidget = page
+  .locator("text=Round 1 Investors")
+  .locator("xpath=ancestor::div[contains(@class,'my-10')]");
 const fundingBox = await fundingWidget.boundingBox();
 console.log("Funding widget found:", !!fundingBox, JSON.stringify(fundingBox));
 
@@ -20,7 +22,9 @@ for (let i = 0; i < fundingLinks.length; i++) {
   const text = (await fundingLinks[i].textContent())?.trim();
   const href = await fundingLinks[i].getAttribute("href");
   const box = await fundingLinks[i].boundingBox();
-  console.log(`  Link ${i}: text="${text?.slice(0, 40)}" href="${href?.slice(0, 60)}" visible=${!!box} box=${JSON.stringify(box)}`);
+  console.log(
+    `  Link ${i}: text="${text?.slice(0, 40)}" href="${href?.slice(0, 60)}" visible=${!!box} box=${JSON.stringify(box)}`,
+  );
 }
 
 // Check if there's a detail panel that needs to be clicked first
@@ -41,7 +45,7 @@ for (let i = 0; i < Math.min(5, roundButtons.length); i++) {
 if (roundButtons.length > 0) {
   await roundButtons[0].click();
   await page.waitForTimeout(500);
-  
+
   // Now check for links in the expanded detail
   const detailLinks = await fundingWidget.locator("a").all();
   console.log("\nAfter clicking round button, links:", detailLinks.length);
@@ -49,7 +53,9 @@ if (roundButtons.length > 0) {
     const text = (await detailLinks[i].textContent())?.trim();
     const href = await detailLinks[i].getAttribute("href");
     const box = await detailLinks[i].boundingBox();
-    console.log(`  Link ${i}: text="${text?.slice(0, 40)}" href="${href?.slice(0, 60)}" visible=${!!box}`);
+    console.log(
+      `  Link ${i}: text="${text?.slice(0, 40)}" href="${href?.slice(0, 60)}" visible=${!!box}`,
+    );
   }
 }
 

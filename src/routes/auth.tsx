@@ -166,8 +166,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const isLocal =
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1";
+        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
       if (isLocal) {
         const { error } = await supabase.auth.signInWithOAuth({
@@ -262,8 +261,7 @@ function AuthPage() {
               </>
             ) : (
               <p className="mt-4 text-sm text-muted-foreground">
-                Link sent to <strong>{email}</strong>. Open it on this device to
-                sign in here.
+                Link sent to <strong>{email}</strong>. Open it on this device to sign in here.
               </p>
             )}
             <button
@@ -318,8 +316,8 @@ function AuthPage() {
             ) : (
               <>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Email sent! Now you need to <strong>copy</strong> the link from
-                  the email (don't click it) and paste it below.
+                  Email sent! Now you need to <strong>copy</strong> the link from the email (don't
+                  click it) and paste it below.
                 </p>
                 <form onSubmit={handleVerifyLink} className="mt-6 space-y-3">
                   <div>

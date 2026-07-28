@@ -13,9 +13,15 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Inside China AI — Articles" },
-      { name: "description", content: "Independent writing on China's AI industry. One email a week." },
+      {
+        name: "description",
+        content: "Independent writing on China's AI industry. One email a week.",
+      },
       { property: "og:title", content: "Inside China AI — Articles" },
-      { property: "og:description", content: "Independent writing on China's AI industry. One email a week." },
+      {
+        property: "og:description",
+        content: "Independent writing on China's AI industry. One email a week.",
+      },
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(postsQuery),
@@ -45,7 +51,8 @@ function Index() {
             <span className="italic text-muted-foreground">inside China's AI industry.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-            Independent writing on the labs, the people, and the policy shaping AI in China. Leave your email and I'll send one new piece a week.
+            Independent writing on the labs, the people, and the policy shaping AI in China. Leave
+            your email and I'll send one new piece a week.
           </p>
         </section>
 
@@ -61,20 +68,14 @@ function Index() {
             <ul className="divide-y divide-border/60">
               {posts.map((p) => (
                 <li key={p.id} className="py-6">
-                  <Link
-                    to="/posts/$slug"
-                    params={{ slug: p.slug }}
-                    className="group block"
-                  >
+                  <Link to="/posts/$slug" params={{ slug: p.slug }} className="group block">
                     <div className="text-xs uppercase tracking-wider text-muted-foreground">
                       {formatDate(p.published_at)}
                     </div>
                     <h3 className="mt-1 font-serif text-2xl leading-snug group-hover:underline">
                       {p.title}
                     </h3>
-                    {p.excerpt ? (
-                      <p className="mt-2 text-muted-foreground">{p.excerpt}</p>
-                    ) : null}
+                    {p.excerpt ? <p className="mt-2 text-muted-foreground">{p.excerpt}</p> : null}
                   </Link>
                 </li>
               ))}

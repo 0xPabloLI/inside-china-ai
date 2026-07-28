@@ -10,9 +10,7 @@ export const subscribe = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => emailSchema.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
-      .from("subscribers")
-      .insert({ email: data.email });
+    const { error } = await supabaseAdmin.from("subscribers").insert({ email: data.email });
     if (error && !error.message.toLowerCase().includes("duplicate")) {
       throw new Error(error.message);
     }

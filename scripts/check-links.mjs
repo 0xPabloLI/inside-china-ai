@@ -16,7 +16,9 @@ for (let i = 0; i < Math.min(5, links.length); i++) {
   const text = (await links[i].textContent())?.trim();
   const href = await links[i].getAttribute("href");
   const box = await links[i].boundingBox();
-  console.log(`Link ${i}: text="${text?.slice(0, 30)}" href="${href?.slice(0, 50)}" visible=${!!box}`);
+  console.log(
+    `Link ${i}: text="${text?.slice(0, 30)}" href="${href?.slice(0, 50)}" visible=${!!box}`,
+  );
 }
 
 // Try clicking the first widget link
