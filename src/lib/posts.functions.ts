@@ -241,3 +241,30 @@ export const deleteAttachment = createServerFn({ method: "POST" })
     if (delErr) throw new Error(delErr.message);
     return { ok: true };
   });
+
+export const renameAttachment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string; fileName: string }) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        fileName: z.string().trim().min(1).max(255),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden");
+
+    const { data: row, error } = await context.supabase
+      .from("post_attachments")
+      .update({ file_name: data.fileName })
+      .eq("id", data.id)
+      .select("id, file_name")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });

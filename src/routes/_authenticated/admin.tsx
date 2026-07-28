@@ -11,6 +11,7 @@ import {
   deletePost,
   listAttachmentsAdmin,
   deleteAttachment,
+  renameAttachment,
 } from "@/lib/posts.functions";
 import { listSubscribers, deleteSubscriber } from "@/lib/subscribers.functions";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,17 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { SiteHeader } from "@/components/site-header";
-import { Upload, Copy, FileText, ExternalLink, Trash2, Link as LinkIcon } from "lucide-react";
+import {
+  Upload,
+  Copy,
+  FileText,
+  ExternalLink,
+  Trash2,
+  Link as LinkIcon,
+  Pencil,
+  Check,
+  X,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Inside China AI" }] }),
@@ -311,9 +322,13 @@ function AttachmentUploader({
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   const listAtt = useServerFn(listAttachmentsAdmin);
   const delAtt = useServerFn(deleteAttachment);
+  const renameAtt = useServerFn(renameAttachment);
 
   const { data: attachments, refetch } = useQuery({
     queryKey: ["admin-attachments", postId],
@@ -383,6 +398,35 @@ function AttachmentUploader({
     toast.success("URL copied to clipboard");
   }
 
+  function startRename(att: AttachmentItem) {
+    setEditingId(att.id);
+    setEditingName(att.file_name);
+  }
+
+  function cancelRename() {
+    setEditingId(null);
+    setEditingName("");
+  }
+
+  async function confirmRename(id: string) {
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      toast.error("File name cannot be empty");
+      return;
+    }
+    setRenaming(true);
+    try {
+      await renameAtt({ data: { id, fileName: trimmed } });
+      toast.success("Renamed");
+      cancelRename();
+      refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rename failed");
+    } finally {
+      setRenaming(false);
+    }
+  }
+
   const list = attachments as AttachmentItem[] | undefined;
 
   return (
@@ -415,63 +459,123 @@ function AttachmentUploader({
       </p>
       {list && list.length > 0 ? (
         <ul className="space-y-2">
-          {list.map((att) => (
-            <li
-              key={att.id}
-              className="flex items-center gap-3 rounded-md border border-border/60 bg-background p-3"
-            >
-              <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{att.file_name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {formatFileSize(att.file_size)}
-                  {att.mime_type ? ` · ${att.mime_type}` : ""}
+          {list.map((att) => {
+            const isEditing = editingId === att.id;
+            return (
+              <li
+                key={att.id}
+                className="flex items-center gap-3 rounded-md border border-border/60 bg-background p-3"
+              >
+                <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  {isEditing ? (
+                    <Input
+                      className="h-7 text-sm"
+                      value={editingName}
+                      autoFocus
+                      disabled={renaming}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          confirmRename(att.id);
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      maxLength={255}
+                    />
+                  ) : (
+                    <div className="truncate text-sm font-medium">{att.file_name}</div>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    {formatFileSize(att.file_size)}
+                    {att.mime_type ? ` · ${att.mime_type}` : ""}
+                  </div>
                 </div>
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title="Open in new tab"
-                  onClick={() => window.open(att.url, "_blank")}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title="Copy URL"
-                  onClick={() => copyUrl(att.url)}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title="Insert link into content"
-                  onClick={() => onInsertLink(`[${att.file_name}](${att.url})`)}
-                >
-                  <LinkIcon className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
-                  title="Delete"
-                  onClick={() => handleDelete(att)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </li>
-          ))}
+                {isEditing ? (
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Confirm rename"
+                      disabled={renaming}
+                      onClick={() => confirmRename(att.id)}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Cancel"
+                      disabled={renaming}
+                      onClick={cancelRename}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Open in new tab"
+                      onClick={() => window.open(att.url, "_blank")}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Copy URL"
+                      onClick={() => copyUrl(att.url)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Insert link into content"
+                      onClick={() => onInsertLink(`[${att.file_name}](${att.url})`)}
+                    >
+                      <LinkIcon className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Rename"
+                      onClick={() => startRename(att)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      title="Delete"
+                      onClick={() => handleDelete(att)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         !uploading && (
