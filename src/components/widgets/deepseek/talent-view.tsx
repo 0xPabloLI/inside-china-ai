@@ -131,9 +131,19 @@ export function TalentView() {
       </div>
 
       {/* Disclaimer */}
-      <div className="mt-3 text-[11px] leading-relaxed text-muted-foreground/60">
-        {t.sourceText}
-        <br />
+      <div className="mt-3 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground/60">
+        {t.sourceText.map((s, i) => (
+          <div key={i}>
+            <a
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground hover:underline"
+            >
+              {s.label} ↗
+            </a>
+          </div>
+        ))}
         <br />
         {t.disclaimer}
       </div>

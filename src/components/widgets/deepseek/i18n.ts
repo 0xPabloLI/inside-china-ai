@@ -9,7 +9,7 @@ export interface I18NTexts {
   salaryRumored: string;
   infoBoxTitle: string;
   infoBoxItems: { highlight: string; text: string }[];
-  sourceText: string;
+  sourceText: { label: string; url: string }[];
   disclaimer: string;
   companiesSource: string;
   companiesDisclaimer: string;
@@ -67,8 +67,17 @@ export const I18N: Record<Lang, I18NTexts> = {
         text: ": China's AI talent gap exceeds 5.8M, core tech roles gap exceeds 800K",
       },
     ],
-    sourceText:
-      'Sources: NetEase/iHeima "DeepSeek V4 Technical Report Reveals Departure List" (2026-04-28) · 36kr reports (2026-06) · "AI Industry Talent Development Report (2025-2026)"',
+    sourceText: [
+      {
+        label: 'NetEase — "DeepSeek V4 Technical Report Reveals Departure List" (2026-04-28)',
+        url: "https://www.163.com/dy/article/KRF1LGE505566SCS.html",
+      },
+      { label: "36kr — AI talent reports (2026-06)", url: "https://36kr.com" },
+      {
+        label: "AI Industry Talent Development Report (2025-2026)",
+        url: "https://www.caict.ac.cn",
+      },
+    ],
     disclaimer:
       'Disclaimer: Information compiled from public media reports. V4 report marks 10 as "departed"; public reports name only 5 core members. Wei Haoran\'s move to "Baidu (suspected)" is inferred from a 36kr report.',
     companiesSource:
@@ -145,8 +154,14 @@ export const I18N: Record<Lang, I18NTexts> = {
       },
       { highlight: "行业背景", text: "：中国 AI 人才缺口超 580 万人，核心技术岗缺口超 80 万人" },
     ],
-    sourceText:
-      "数据来源：网易/i黑马《DeepSeek V4技术报告现离职名单》(2026-04-28) · 36氪相关报道 (2026-06) · 《人工智能产业人才发展报告（2025至2026）》",
+    sourceText: [
+      {
+        label: "网易 —《DeepSeek V4技术报告现离职名单》(2026-04-28)",
+        url: "https://www.163.com/dy/article/KRF1LGE505566SCS.html",
+      },
+      { label: "36氪 — 相关报道 (2026-06)", url: "https://36kr.com" },
+      { label: "《人工智能产业人才发展报告（2025至2026）》", url: "https://www.caict.ac.cn" },
+    ],
     disclaimer:
       '免责声明：本页信息基于公开媒体报道整理。V4 技术报告标注 10 人"已离职"，公开报道仅点名 5 位核心成员。魏浩然去向"百度（疑似）"基于 36氪报道推断。年龄信息除罗福莉外均为传闻。',
     companiesSource:
