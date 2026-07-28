@@ -1,6 +1,25 @@
 import { useState } from "react";
-import { COMPANIES, COMPANY_GROUPS } from "./companies";
+import { COMPANIES, COMPANY_GROUPS } from "./data/companies";
 import { I18N, type Lang } from "./i18n";
+
+function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5">
+      <button
+        onClick={() => onChange("zh")}
+        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "zh" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+      >
+        中文
+      </button>
+      <button
+        onClick={() => onChange("en")}
+        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "en" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+      >
+        EN
+      </button>
+    </div>
+  );
+}
 
 const TONE_STYLES: Record<string, string> = {
   "tone-compare": "bg-blue-500/10 text-blue-600",
@@ -10,13 +29,17 @@ const TONE_STYLES: Record<string, string> = {
   "tone-analogy": "bg-amber-500/10 text-amber-700",
 };
 
-export function CompaniesView({ lang }: { lang: Lang }) {
+export function CompaniesView() {
+  const [lang, setLang] = useState<Lang>("en");
   const t = I18N[lang];
   const isZh = lang === "zh";
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <LangToggle lang={lang} onChange={setLang} />
+      </div>
       <div className="text-[11px] text-muted-foreground/70">{t.companiesSource}</div>
       <div className="text-[11px] leading-relaxed text-muted-foreground/70">
         {t.companiesDisclaimer}

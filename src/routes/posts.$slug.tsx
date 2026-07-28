@@ -57,7 +57,7 @@ function PostPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-4xl px-6 pt-12 pb-24">
+      <main className="mx-auto px-6 pt-12 pb-24" style={{ maxWidth: "min(92vw, 1100px)" }}>
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to articles
         </Link>
@@ -67,37 +67,39 @@ function PostPage() {
           {post.excerpt ? (
             <p className="mt-4 text-lg italic text-muted-foreground">{post.excerpt}</p>
           ) : null}
-          <div className="mt-10 text-[17px] leading-relaxed">
-            {splitContent(post.content).map((segment, i) => {
-              if (segment.type === "markdown") {
-                return <MarkdownContent key={i} content={segment.content} />;
-              }
-              // Widget segment
-              if (!isRegisteredWidget(segment.name)) {
+          <div className="mt-10">
+            <div className="text-[17px] leading-relaxed">
+              {splitContent(post.content).map((segment, i) => {
+                if (segment.type === "markdown") {
+                  return <MarkdownContent key={i} content={segment.content} />;
+                }
+                // Widget segment
+                if (!isRegisteredWidget(segment.name)) {
+                  return (
+                    <div
+                      key={i}
+                      className="my-8 rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-center text-sm text-muted-foreground"
+                    >
+                      Unknown widget: {segment.name}
+                    </div>
+                  );
+                }
+                const Widget = WIDGETS[segment.name];
                 return (
-                  <div
-                    key={i}
-                    className="my-8 rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-center text-sm text-muted-foreground"
-                  >
-                    Unknown widget: {segment.name}
+                  <div key={i} className="my-10">
+                    <Suspense
+                      fallback={
+                        <div className="animate-pulse text-sm text-muted-foreground">
+                          Loading widget…
+                        </div>
+                      }
+                    >
+                      <Widget lang="en" />
+                    </Suspense>
                   </div>
                 );
-              }
-              const Widget = WIDGETS[segment.name];
-              return (
-                <div key={i} className="my-10 mx-auto" style={{ maxWidth: "min(90vw, 1200px)" }}>
-                  <Suspense
-                    fallback={
-                      <div className="animate-pulse text-sm text-muted-foreground">
-                        Loading widget…
-                      </div>
-                    }
-                  >
-                    <Widget lang="en" />
-                  </Suspense>
-                </div>
-              );
-            })}
+              })}
+            </div>
           </div>
         </article>
         {post.attachments && post.attachments.length > 0 ? (

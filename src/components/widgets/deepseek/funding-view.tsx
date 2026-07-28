@@ -1,6 +1,25 @@
 import { useState } from "react";
-import { FUNDING_ROUNDS, INVESTOR_DATA, type FundingStatus } from "./funding";
+import { FUNDING_ROUNDS, INVESTOR_DATA, type FundingStatus } from "./data/funding";
 import { I18N, type Lang } from "./i18n";
+
+function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5">
+      <button
+        onClick={() => onChange("zh")}
+        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "zh" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+      >
+        中文
+      </button>
+      <button
+        onClick={() => onChange("en")}
+        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "en" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+      >
+        EN
+      </button>
+    </div>
+  );
+}
 
 const STATUS_MAP: Record<FundingStatus, { zh: string; en: string; cls: string }> = {
   "self-funded": { zh: "自筹", en: "Self-funded", cls: "bg-muted text-muted-foreground" },
@@ -11,7 +30,8 @@ const STATUS_MAP: Record<FundingStatus, { zh: string; en: string; cls: string }>
 
 const MAX_VAL = 71;
 
-export function FundingView({ lang }: { lang: Lang }) {
+export function FundingView() {
+  const [lang, setLang] = useState<Lang>("en");
   const t = I18N[lang];
   const isZh = lang === "zh";
   const [selectedRound, setSelectedRound] = useState<number | null>(3); // default to the completed round
@@ -62,6 +82,9 @@ export function FundingView({ lang }: { lang: Lang }) {
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end">
+        <LangToggle lang={lang} onChange={setLang} />
+      </div>
       {/* Summary cards */}
       <div className="flex flex-wrap gap-2.5">
         {summaryCards.map((c, i) => (

@@ -45,7 +45,7 @@ export function CloudView({ lang = "en" }: { lang: Lang }) {
 
   const items = KEYWORDS.map((kw, i) => {
     const t = (kw.freq - minFreq) / Math.max(1, maxFreq - minFreq);
-    const fontSize = Math.round(16 + Math.pow(t, 0.6) * 32);
+    const fontSize = Math.round(14 + Math.pow(t, 0.6) * 40);
     return { ...kw, fontSize, t, idx: i };
   });
 
@@ -56,7 +56,10 @@ export function CloudView({ lang = "en" }: { lang: Lang }) {
       </div>
 
       {/* Tag cloud */}
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 py-4">
+      <div
+        className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-3 py-6"
+        style={{ lineHeight: 1.8 }}
+      >
         {items.map((item) => {
           const displayWord = currentLang === "zh" ? item.zh : item.en;
           const otherWord = currentLang === "zh" ? item.en : item.zh;
