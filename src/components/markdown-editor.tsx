@@ -1,4 +1,4 @@
-import { useRef, useCallback, type KeyboardEvent, type ComponentType } from "react";
+import { useRef, useCallback, useState, type KeyboardEvent, type ComponentType } from "react";
 import {
   Bold,
   Italic,
@@ -12,11 +12,13 @@ import {
   Code2,
   Minus,
   Strikethrough,
+  LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/markdown-content";
 import { cn } from "@/lib/utils";
+import { getWidgetNames } from "@/components/widgets/registry";
 
 /* ------------------------------------------------------------------ */
 /* Text manipulation helpers                                          */
@@ -36,11 +38,7 @@ type InsertAction = {
   linePrefix?: string;
 };
 
-function applyAction(
-  ta: HTMLTextAreaElement,
-  action: InsertAction,
-  onChange: (v: string) => void,
-) {
+function applyAction(ta: HTMLTextAreaElement, action: InsertAction, onChange: (v: string) => void) {
   const { selectionStart: start, selectionEnd: end, value } = ta;
 
   /* ---- Line-prefix mode (headings, quotes, lists) ---- */
@@ -54,11 +52,8 @@ function applyAction(
     // Check if every line already starts with the prefix
     const lines = selectedLines.split("\n");
     const allHave = lines.every((l) => l.startsWith(prefix));
-    const newLines = lines.map((l) =>
-      allHave ? l.slice(prefix.length) : prefix + l,
-    );
-    const newText =
-      value.slice(0, expandedStart) + newLines.join("\n") + value.slice(expandedEnd);
+    const newLines = lines.map((l) => (allHave ? l.slice(prefix.length) : prefix + l));
+    const newText = value.slice(0, expandedStart) + newLines.join("\n") + value.slice(expandedEnd);
     onChange(newText);
     // Restore selection
     requestAnimationFrame(() => {
@@ -90,11 +85,7 @@ function applyAction(
   });
 }
 
-function insertBlock(
-  ta: HTMLTextAreaElement,
-  block: string,
-  onChange: (v: string) => void,
-) {
+function insertBlock(ta: HTMLTextAreaElement, block: string, onChange: (v: string) => void) {
   const { selectionStart: start, value } = ta;
   const needsNewlineBefore = start > 0 && value[start - 1] !== "\n";
   const prefix = needsNewlineBefore ? "\n\n" : "";
@@ -233,11 +224,7 @@ export function MarkdownEditor({
           label="Link (Ctrl+K)"
           onClick={() => act({ before: "[", after: "](https://)", placeholder: "link text" })}
         />
-        <ToolbarButton
-          icon={Quote}
-          label="Quote"
-          onClick={() => act({ linePrefix: "> " })}
-        />
+        <ToolbarButton icon={Quote} label="Quote" onClick={() => act({ linePrefix: "> " })} />
         <ToolbarButton
           icon={List}
           label="Unordered list"
@@ -249,16 +236,10 @@ export function MarkdownEditor({
           onClick={() => act({ linePrefix: "1. " })}
         />
         <Divider />
-        <ToolbarButton
-          icon={Code2}
-          label="Code block"
-          onClick={() => block("```\ncode\n```")}
-        />
-        <ToolbarButton
-          icon={Minus}
-          label="Horizontal rule"
-          onClick={() => block("---")}
-        />
+        <ToolbarButton icon={Code2} label="Code block" onClick={() => block("```\ncode\n```")} />
+        <ToolbarButton icon={Minus} label="Horizontal rule" onClick={() => block("---")} />
+        <Divider />
+        <WidgetButton onSelect={(name) => block(`<!-- widget:${name} -->`)} />
       </div>
 
       {/* Editor + Preview split */}
@@ -285,4 +266,50 @@ export function MarkdownEditor({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Widget Button — inserts <!-- widget:xxx --> marker                 */
+/* ------------------------------------------------------------------ */
 
+function WidgetButton({ onSelect }: { onSelect: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const widgetNames = getWidgetNames();
+
+  return (
+    <div className="relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title="Insert widget"
+        aria-label="Insert widget"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <LayoutGrid className="h-4 w-4" />
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-border/60 bg-card shadow-md">
+            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+              Insert widget
+            </div>
+            {widgetNames.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="block w-full px-2 py-1.5 text-left text-sm font-mono hover:bg-muted/60"
+                onClick={() => {
+                  onSelect(name);
+                  setOpen(false);
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

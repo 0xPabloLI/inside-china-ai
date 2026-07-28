@@ -5,13 +5,9 @@ import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { MarkdownContent } from "@/components/markdown-content";
 import { FileText, ExternalLink } from "lucide-react";
-import { lazy, Suspense } from "react";
-
-const DeepSeekDashboard = lazy(() =>
-  import("@/components/dashboard/views/index").then((m) => ({ default: m.DeepSeekDashboard })),
-);
-
-const DASHBOARD_SLUGS = new Set(["deepseek-leaked-investor-meeting"]);
+import { Suspense } from "react";
+import { splitContent } from "@/components/widgets/content-splitter";
+import { WIDGETS, isRegisteredWidget } from "@/components/widgets/registry";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -61,7 +57,7 @@ function PostPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-2xl px-6 pt-12 pb-24">
+      <main className="mx-auto max-w-4xl px-6 pt-12 pb-24">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to articles
         </Link>
@@ -72,17 +68,38 @@ function PostPage() {
             <p className="mt-4 text-lg italic text-muted-foreground">{post.excerpt}</p>
           ) : null}
           <div className="mt-10 text-[17px] leading-relaxed">
-            <MarkdownContent content={post.content} />
+            {splitContent(post.content).map((segment, i) => {
+              if (segment.type === "markdown") {
+                return <MarkdownContent key={i} content={segment.content} />;
+              }
+              // Widget segment
+              if (!isRegisteredWidget(segment.name)) {
+                return (
+                  <div
+                    key={i}
+                    className="my-8 rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-center text-sm text-muted-foreground"
+                  >
+                    Unknown widget: {segment.name}
+                  </div>
+                );
+              }
+              const Widget = WIDGETS[segment.name];
+              return (
+                <div key={i} className="my-10 mx-auto" style={{ maxWidth: "min(90vw, 1200px)" }}>
+                  <Suspense
+                    fallback={
+                      <div className="animate-pulse text-sm text-muted-foreground">
+                        Loading widget…
+                      </div>
+                    }
+                  >
+                    <Widget lang="en" />
+                  </Suspense>
+                </div>
+              );
+            })}
           </div>
         </article>
-        {DASHBOARD_SLUGS.has(post.slug) ? (
-          <section className="mt-12 border-t border-border/60 pt-8">
-            <h2 className="mb-4 font-serif text-2xl">Interactive Dashboard</h2>
-            <Suspense fallback={<div className="animate-pulse text-sm text-muted-foreground">Loading dashboard…</div>}>
-              <DeepSeekDashboard />
-            </Suspense>
-          </section>
-        ) : null}
         {post.attachments && post.attachments.length > 0 ? (
           <section className="mt-12 border-t border-border/60 pt-8">
             <h2 className="mb-4 font-serif text-2xl">Attachments</h2>
