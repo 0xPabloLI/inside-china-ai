@@ -309,7 +309,16 @@ export function FundingView() {
       <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
         <div className="space-y-0.5 text-[10px] leading-relaxed text-muted-foreground/70">
           {t.fundingSourceList.map((s, i) => (
-            <div key={i}>{s}</div>
+            <div key={i}>
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground hover:underline"
+              >
+                {s.label} ↗
+              </a>
+            </div>
           ))}
         </div>
         <div className="mt-2 border-t border-border/40 pt-2 text-[9px] leading-relaxed text-muted-foreground/60">

@@ -18,7 +18,7 @@ export interface I18NTexts {
   tcLabelSalary: string;
   // Funding
   fundingDetailTitle: string;
-  fundingSourceList: string[];
+  fundingSourceList: { label: string; url: string }[];
   fundingDisclaimer: string;
   // Pricing
   pricingSubtitle: string;
@@ -80,15 +80,33 @@ export const I18N: Record<Lang, I18NTexts> = {
     tcLabelSalary: "Salary",
     fundingDetailTitle: "Funding Details",
     fundingSourceList: [
-      "elsewhere — The DeepSeek Financing Story (2026-06-17): elsewhere.news/en/elsewhere/deepseek",
-      "elsewhere — Wenfeng Liang Investor Meeting Transcript (2026-07-22): elsewhere.news/en/elsewhere/wenfeng-liangs-four-hour-investor-meeting-full-transcript",
-      "Bloomberg — Funding Pause Report (2026-07-25): bloomberg.com · Haze Fan & Pei Li",
-      "Financial Times — Round 2 Valuation (2026-07-14): ft.com",
-      "The Information — First Round Report (2026-04-17): theinformation.com",
-      "The Silicon Review — $45B Valuation (2026-05-07): thesiliconreview.com",
-      "TechStartups — $7.4B at $50B valuation (2026-06-16): techstartups.com",
-      "Cryptonomist — Round 2 Report (2026-07-14): en.cryptonomist.ch",
-      "Wikipedia — DeepSeek / High-Flyer: en.wikipedia.org/wiki/DeepSeek",
+      {
+        label: "elsewhere — The DeepSeek Financing Story (2026-06-17)",
+        url: "https://elsewhere.news/en/elsewhere/deepseek",
+      },
+      {
+        label: "elsewhere — Wenfeng Liang Investor Meeting Transcript (2026-07-22)",
+        url: "https://elsewhere.news/en/elsewhere/wenfeng-liangs-four-hour-investor-meeting-full-transcript",
+      },
+      {
+        label: "Bloomberg — Funding Pause Report (2026-07-25) · Haze Fan & Pei Li",
+        url: "https://www.bloomberg.com/news/articles/2026-07-25/deepseek-said-to-tell-backers-of-funding-pause-after-viral-posts",
+      },
+      { label: "Financial Times — Round 2 Valuation (2026-07-14)", url: "https://www.ft.com" },
+      {
+        label: "The Information — First Round Report (2026-04-17)",
+        url: "https://www.theinformation.com",
+      },
+      {
+        label: "The Silicon Review — $45B Valuation (2026-05-07)",
+        url: "https://www.thesiliconreview.com",
+      },
+      {
+        label: "TechStartups — $7.4B at $50B valuation (2026-06-16)",
+        url: "https://techstartups.com",
+      },
+      { label: "Cryptonomist — Round 2 Report (2026-07-14)", url: "https://en.cryptonomist.ch" },
+      { label: "Wikipedia — DeepSeek / High-Flyer", url: "https://en.wikipedia.org/wiki/DeepSeek" },
     ],
     fundingDisclaimer:
       "Disclaimer: Timeline, investor list, and pure RMB structure verified by elsewhere. Total amount ($7.4B) and valuation ($50B) from English tech media TechStartups (not a major outlet; may be derived from 50B RMB conversion), elsewhere did not disclose specific totals. July 25 funding pause reported by Bloomberg (Haze Fan & Pei Li; syndicated via Fortune, etc.), caused by leaked investor meeting remarks going viral. $71B round 2 target from FT/Cryptonomist. ~100 institutions is an elsewhere estimate. Hillhouse/HSG absence confirmed by multiple sources.",
@@ -140,15 +158,36 @@ export const I18N: Record<Lang, I18NTexts> = {
     tcLabelSalary: "薪酬",
     fundingDetailTitle: "融资详情",
     fundingSourceList: [
-      "elsewhere别处发生 — DeepSeek 融资故事 (2026-06-17): elsewhere.news/en/elsewhere/deepseek",
-      "elsewhere别处发生 — 梁文锋投资者交流会实录 (2026-07-22): elsewhere.news/en/elsewhere/wenfeng-liangs-four-hour-investor-meeting-full-transcript",
-      "Bloomberg — 融资暂停报道 (2026-07-25): bloomberg.com · Haze Fan & Pei Li",
-      "Financial Times — 二轮估值报道 (2026-07-14): ft.com",
-      "The Information — 首轮融资报道 (2026-04-17): theinformation.com",
-      "The Silicon Review — $450 亿估值 (2026-05-07): thesiliconreview.com",
-      "TechStartups — $7.4B at $50B valuation (2026-06-16): techstartups.com",
-      "Cryptonomist — 二轮融资报道 (2026-07-14): en.cryptonomist.ch",
-      "Wikipedia — DeepSeek / High-Flyer 词条: en.wikipedia.org/wiki/DeepSeek",
+      {
+        label: "elsewhere别处发生 — DeepSeek 融资故事 (2026-06-17)",
+        url: "https://elsewhere.news/en/elsewhere/deepseek",
+      },
+      {
+        label: "elsewhere别处发生 — 梁文锋投资者交流会实录 (2026-07-22)",
+        url: "https://elsewhere.news/en/elsewhere/wenfeng-liangs-four-hour-investor-meeting-full-transcript",
+      },
+      {
+        label: "Bloomberg — 融资暂停报道 (2026-07-25) · Haze Fan & Pei Li",
+        url: "https://www.bloomberg.com/news/articles/2026-07-25/deepseek-said-to-tell-backers-of-funding-pause-after-viral-posts",
+      },
+      { label: "Financial Times — 二轮估值报道 (2026-07-14)", url: "https://www.ft.com" },
+      {
+        label: "The Information — 首轮融资报道 (2026-04-17)",
+        url: "https://www.theinformation.com",
+      },
+      {
+        label: "The Silicon Review — $450 亿估值 (2026-05-07)",
+        url: "https://www.thesiliconreview.com",
+      },
+      {
+        label: "TechStartups — $7.4B at $50B valuation (2026-06-16)",
+        url: "https://techstartups.com",
+      },
+      { label: "Cryptonomist — 二轮融资报道 (2026-07-14)", url: "https://en.cryptonomist.ch" },
+      {
+        label: "Wikipedia — DeepSeek / High-Flyer 词条",
+        url: "https://en.wikipedia.org/wiki/DeepSeek",
+      },
     ],
     fundingDisclaimer:
       "免责声明：融资时间线、投资方名单、纯人民币结构由 elsewhere 别处发生验证。融资金额（$7.4B）和估值（$50B）来自英文科技媒体 TechStartups（非大媒体，信服力有限，可能由 500 亿 RMB 换算得出），elsewhere 未披露具体总额。7 月 25 日融资暂停来自 Bloomberg（Haze Fan & Pei Li，Fortune 等转载），原因为梁文锋投资者交流会言论泄露并病毒传播。$71B 二轮目标来自 FT/Cryptonomist。~100 家机构为 elsewhere 估算值。高瓴/红杉缺席经多方确认。",
