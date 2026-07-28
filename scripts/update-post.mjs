@@ -1,88 +1,62 @@
 #!/usr/bin/env node
 /**
- * Update a post's content via Supabase REST API using refresh token.
+ * Update a post's content via Supabase REST API using admin email/password.
  *
  * Usage:
  *   node scripts/update-post.mjs <slug> <field> <value>
+ *   node scripts/update-post.mjs <slug>            (fetch & print current content)
  *
  * Examples:
  *   node scripts/update-post.mjs deepseek-leaked-investor-meeting title "New Title"
  *   node scripts/update-post.mjs deepseek-leaked-investor-meeting content "$(cat content.md)"
  *
- * The refresh token is read from .env.local (SUPABASE_REFRESH_TOKEN).
- * After each run, the new refresh token is written back to .env.local.
+ * Credentials read from .env.local (ADMIN_EMAIL, ADMIN_PASSWORD).
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
-// Read env files
 function readEnv() {
-  const envPath = resolve(projectRoot, ".env");
-  const envLocalPath = resolve(projectRoot, ".env.local");
   const vars = {};
-  for (const p of [envPath, envLocalPath]) {
-    if (existsSync(p)) {
-      const content = readFileSync(p, "utf-8");
-      for (const line of content.split("\n")) {
-        const match = line.match(/^([A-Z_]+)="?(.*?)"?\s*$/);
-        if (match) vars[match[1]] = match[2];
+  for (const p of [".env", ".env.local"]) {
+    const fp = resolve(projectRoot, p);
+    if (existsSync(fp)) {
+      for (const line of readFileSync(fp, "utf-8").split("\n")) {
+        const m = line.match(/^([A-Z_]+)="?(.*?)"?\s*$/);
+        if (m) vars[m[1]] = m[2];
       }
     }
   }
   return vars;
 }
 
-function writeEnvLocal(updates) {
-  const envLocalPath = resolve(projectRoot, ".env.local");
-  let content = "";
-  if (existsSync(envLocalPath)) {
-    content = readFileSync(envLocalPath, "utf-8");
-  }
-  for (const [key, value] of Object.entries(updates)) {
-    const regex = new RegExp(`^${key}=.*$`, "m");
-    if (regex.test(content)) {
-      content = content.replace(regex, `${key}="${value}"`);
-    } else {
-      content += `\n${key}="${value}"`;
-    }
-  }
-  writeFileSync(envLocalPath, content.trim() + "\n");
-}
-
 const SUPABASE_URL = "https://zjsjrghmhcmwvkfpbqap.supabase.co";
 const ANON_KEY = "sb_publishable_KNu1cr9jcesU7e197KBxRA_fTYxu7XK";
 
-async function refreshAccessToken(refreshToken) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+async function signIn(email, password) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: ANON_KEY,
-    },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    headers: { "Content-Type": "application/json", apikey: ANON_KEY },
+    body: JSON.stringify({ email, password }),
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Token refresh failed: ${res.status} ${body}`);
+    throw new Error(`Auth failed: ${res.status} ${body}`);
   }
   const data = await res.json();
-  return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-  };
+  return data.access_token;
 }
 
-async function updatePost(slug, field, value, accessToken) {
+async function updatePost(slug, field, value, token) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?slug=eq.${slug}`, {
     method: "PATCH",
     headers: {
       apikey: ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       Prefer: "return=minimal",
     },
@@ -95,12 +69,9 @@ async function updatePost(slug, field, value, accessToken) {
   return res.status === 204;
 }
 
-async function getPostContent(slug, accessToken) {
+async function getPostContent(slug, token) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/posts?slug=eq.${slug}&select=content`, {
-    headers: {
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
   const data = await res.json();
@@ -110,20 +81,24 @@ async function getPostContent(slug, accessToken) {
 async function main() {
   const [slug, field, ...valueParts] = process.argv.slice(2);
 
-  if (!slug || !field || valueParts.length === 0) {
-    // Interactive mode: just fetch current content
-    const env = readEnv();
-    if (!env.SUPABASE_REFRESH_TOKEN) {
-      console.error("Error: SUPABASE_REFRESH_TOKEN not found in .env.local");
-      process.exit(1);
-    }
+  if (!slug) {
+    console.error("Usage: node scripts/update-post.mjs <slug> [field] [value]");
+    process.exit(1);
+  }
 
-    console.log("Refreshing token...");
-    const { access_token, refresh_token } = await refreshAccessToken(env.SUPABASE_REFRESH_TOKEN);
-    writeEnvLocal({ SUPABASE_REFRESH_TOKEN: refresh_token });
+  const env = readEnv();
+  if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) {
+    console.error("Error: ADMIN_EMAIL/ADMIN_PASSWORD not found in .env.local");
+    process.exit(1);
+  }
 
+  console.log("Signing in...");
+  const token = await signIn(env.ADMIN_EMAIL, env.ADMIN_PASSWORD);
+  console.log("Authenticated.");
+
+  if (!field || valueParts.length === 0) {
     console.log("Fetching current content...");
-    const content = await getPostContent(slug || "deepseek-leaked-investor-meeting", access_token);
+    const content = await getPostContent(slug, token);
     if (content) {
       console.log(content);
     } else {
@@ -133,25 +108,9 @@ async function main() {
   }
 
   const value = valueParts.join(" ");
-
-  const env = readEnv();
-  if (!env.SUPABASE_REFRESH_TOKEN) {
-    console.error("Error: SUPABASE_REFRESH_TOKEN not found in .env.local");
-    process.exit(1);
-  }
-
-  console.log(`Refreshing token...`);
-  const { access_token, refresh_token } = await refreshAccessToken(env.SUPABASE_REFRESH_TOKEN);
-  writeEnvLocal({ SUPABASE_REFRESH_TOKEN: refresh_token });
-  console.log("Token refreshed and saved.");
-
   console.log(`Updating post '${slug}' field '${field}'...`);
-  const success = await updatePost(slug, field, value, access_token);
-  if (success) {
-    console.log("Update successful.");
-  } else {
-    console.error("Update may have failed (no rows affected).");
-  }
+  const success = await updatePost(slug, field, value, token);
+  console.log(success ? "Update successful." : "Update may have failed (no rows affected).");
 }
 
 main().catch((err) => {
