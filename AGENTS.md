@@ -136,26 +136,39 @@ git diff main..lovable -- path/to/file
 - Commit messages: 简洁的 conventional 格式;不在 message 里放 URL。
 
 ## Video Production
-做短视频时（YouTube Shorts / TikTok / Reels），`short-video-pipeline` skill 会自动加载——它包含完整工作流（调研 → 写 scene-data → 跑管线 → 缩略图 → 质检）。`brand-system` skill 同时加载，控制视觉一致性（色板、字体、场景模板来自 `docs/brand-system.md`）。项目特定内容（发布策略、最佳实践、文件路径）在 `docs/video-workflow.md`。
+做短视频时（**默认 TikTok**），`short-video-pipeline` skill 会自动加载——它包含完整 7 步工作流（调研 → 写 scene-data → 跑管线 → 缩略图 → 质检 → **verify-video.mjs 验收** → 手动发布清单）。`brand-system` skill 同时加载，控制视觉一致性。项目特定内容（发布策略、最佳实践、文件路径）在 `docs/video-workflow.md`。
+
+**默认平台：TikTok**。除非用户特别指定 YouTube Shorts 或其他平台，否则按 TikTok 规格制作（60-70s，9:16 竖屏）。verify-video.mjs 默认跑 `--tiktok` 模式。
+
+**7 步工作流**（SKILL.md 定义，闭环 loop）：
+1. Research（调研素材，验证数据来源）
+2. Write scene-data（遵循 Best Practices Checklist — Hook、SEO 关键词、来源标注、Share-worthy 数据、算法安全）
+3. Run pipeline（TTS → HTML → Record → Assemble）
+4. Generate thumbnail
+5. Quality check（人工观看）
+6. **verify-video.mjs**（MANDATORY 验收 — 12 项自动检查 + 算法惩罚拦截。FAIL → agent 自动修复 → 重跑 → 重验，循环到 0 失败）
+7. Manual publishing checklist（10 项手动项，每项有具体填什么/在哪填/为什么）
+
+**Step 2 ↔ Step 6 闭环**：写 scene-data 时的每项规则在 verify-video.mjs 中有对应检查。不做对就会被 loop 拦住。
 
 **优化视频工作流时**：先读 `docs/video-workflow.md`——它是完整文件清单（所有代码、skill、文档的路径和职责）。所有优化都从那里开始。
 
 ## Web Scraping & Content Fetching
 
-**默认方案：`web-access` skill（Chrome CDP）**。当用户要求爬取网页内容、搜索信息、抓取文章、获取需要登录的页面时，优先使用 `web-access` skill。
+**默认方案：`web-access` skill**。当用户要求爬取网页内容、搜索信息、抓取文章、获取需要登录的页面时，优先使用 `web-access` skill。
 
 ### 工具选择优先级
 
 | 场景 | 工具 | 说明 |
 |------|------|------|
-| 搜索/抓取网页/需要登录态 | **web-access (Chrome CDP)** | 连接用户本地 Chrome，有 session/cookie，反爬检测率低 |
+| 搜索/抓取网页/需要登录态 | **web-access** | 连接用户本地 Chrome，有 session/cookie，反爬检测率低 |
 | 已知 URL 的静态内容提取 | `web_fetch` 工具 | 简单快速，但无法处理 JS 渲染或反爬站点 |
-| Playwright headless | ⚠️ **不推荐** | 无 session/cookie，反爬检测率高（实测 18 个网站全失败） |
+| Playwright headless | ⚠️ **不推荐** | 无 session/cookie，反爬检测率高 |
 
 ### 使用 web-access skill
 
 ```bash
-# 1. 检查 CDP proxy 是否可用
+# 1. 检查 proxy 是否可用
 node ~/.cursor/skills/web-access/scripts/check-deps.mjs
 
 # 2. 通过 proxy 创建后台 tab（不影响用户操作）
@@ -168,9 +181,7 @@ curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.inn
 curl -s "http://localhost:3456/targets"
 ```
 
-**端口说明**：Chrome 监听 `9222`（原生 CDP），web-access proxy 在 `3456` 提供 HTTP API 封装。
-
-**用户须知**：使用 CDP 时不影响用户操作电脑——所有操作在后台 tab 中进行。用户需先在 Chrome 中启用 Remote Debugging（`chrome://inspect/#remote-debugging`）。
+**用户须知**：所有操作在后台 tab 中进行，不影响用户操作电脑。用户需先在 Chrome 中启用 Remote Debugging（`chrome://inspect/#remote-debugging`）。
 
 ## Agent Skills
 

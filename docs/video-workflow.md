@@ -125,7 +125,7 @@ Based on platform research and session learnings:
 - **Full logo**: `assets/china-ai-news-logo-gpt.png` (image + text, 1024×1024)
 - **Pure graphic**: `assets/china-ai-news-logo-image-only.png` (no text, for flexible use)
 - **Vector SVG**: `assets/china-ai-news-logo-vector.svg` (true vector, scalable)
-- **Watermark**: Same logo at 55px, `opacity: 0.18`, `bottom: 50px, right: 50px`
+- **In-video logo**: Same logo at 55px, `opacity: 0.18`, `bottom: 50px, right: 50px`
 - **CTA scene**: Logo at 200px centered
 
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
