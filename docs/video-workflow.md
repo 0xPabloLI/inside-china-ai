@@ -91,7 +91,7 @@ Based on platform research and session learnings:
 - **Tone**: Intelligence briefing. Authoritative, fast, no fluff.
 - **Pace**: XTTS v2 (Craig Gutsy, speed=1.15) or Kokoro (am_michael, speed=1.1), silenceremove post-process
 - **Visual**: Cyber Intelligence Briefing — dark, grid, glow, scanlines
-- **Colors**: Consistent entity-color mapping across all videos
+- **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (Subscribe for more) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
 
 ## TTS Engine Configuration
 

@@ -50,7 +50,7 @@ function baseStyles(duration) {
       --d: ${duration}s;
       --blue: #4d8bff; --purple: #6d4eff; --red: #ef4444;
       --amber: #f59e0b; --green: #34d399; --cyan: #22d3ee;
-      --white: #ffffff; --sec: #94a3b8; --muted: #475569;
+      --white: #f5f5f5; --sec: #94a3b8; --muted: #475569;
     }
     .scene { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
     .grid-bg {
@@ -156,14 +156,14 @@ ${baseStyles(duration)}
 /* Headline — giant number, the ONE core message */
 .s1 .headline { position: absolute; top: 480px; left: 0; right: 0; text-align: center; }
 .s1 .big-number {
-  font-size: 260px; font-weight: 900; color: var(--red); letter-spacing: -10px; line-height: 0.9;
-  text-shadow: 0 0 60px rgba(239,68,68,0.5), 0 0 120px rgba(239,68,68,0.3);
+  font-size: 260px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9;
+  text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3);
   animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.8s forwards, numberPulse 2s ease-in-out 1.5s infinite;
   opacity: 0;
 }
 @keyframes numberPulse {
-  0%, 100% { text-shadow: 0 0 60px rgba(239,68,68,0.5), 0 0 120px rgba(239,68,68,0.3); }
-  50% { text-shadow: 0 0 80px rgba(239,68,68,0.7), 0 0 160px rgba(239,68,68,0.4); }
+  0%, 100% { text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); }
+  50% { text-shadow: 0 0 80px rgba(245,158,11,0.7), 0 0 160px rgba(245,158,11,0.4); }
 }
 .s1 .subtitle {
   font-size: 52px; font-weight: 800; color: var(--white); letter-spacing: 3px; margin-top: 12px;
@@ -660,7 +660,7 @@ ${baseStyles(duration)}
 .s12 .brand-name { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 4px; margin-bottom: 16px; animation: scaleIn 0.6s ease-out 0.3s forwards; opacity: 0; }
 .s12 .brand-name .hl { color: var(--blue); }
 .s12 .tagline { font-size: 32px; font-weight: 600; color: var(--sec); letter-spacing: 3px; margin-bottom: 80px; animation: fadeIn 0.5s ease-out 0.7s forwards; opacity: 0; }
-.s12 .line1 { font-size: 64px; font-weight: 800; color: var(--white); letter-spacing: 2px; margin-bottom: 16px; animation: slideUp 0.5s ease-out 1.0s forwards; opacity: 0; }
+.s12 .line1 { font-size: 64px; font-weight: 800; color: var(--amber); letter-spacing: 2px; margin-bottom: 16px; animation: slideUp 0.5s ease-out 1.0s forwards; opacity: 0; text-shadow: 0 0 30px rgba(245,158,11,0.4); }
 .s12 .subscribe { position: absolute; bottom: 120px; text-align: center; font-size: 30px; font-weight: 700; color: var(--muted); letter-spacing: 3px; animation: fadeIn 0.5s ease-out 1.4s forwards; opacity: 0; }
 .s12 .fade-to-black { position: absolute; inset: 0; background: #050508; pointer-events: none; animation: fadeOut 0.8s ease-in ${Math.max(duration - 1.2, 1.5).toFixed(1)}s forwards; opacity: 0; }
 @keyframes fadeOut { to { opacity: 1; } }

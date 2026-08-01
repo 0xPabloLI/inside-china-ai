@@ -41,7 +41,7 @@ Consistent color coding across all content — same entity always same color.
 |-------|-----|----------|
 | `--blue` | `#4d8bff` | Protagonist, tech, brand |
 | `--red` | `#ef4444` | Threat, breaking, negative |
-| `--amber` | `#f59e0b` | Warning, caution |
+| `--amber` | `#f59e0b` | Warning, caution; **also: key data highlights & CTA** (highest visibility on dark bg) |
 | `--green` | `#34d399` | Positive, advantage, success |
 | `--purple` | `#6d4eff` | Neutral data, secondary |
 | `--cyan` | `#22d3ee` | Technical concept |
@@ -50,13 +50,17 @@ Consistent color coding across all content — same entity always same color.
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `--white` | `#ffffff` | Headlines |
+| `--white` | `#f5f5f5` | Headlines (off-white, reduces glare vs pure #ffffff) |
 | `--sec` | `#94a3b8` | Labels, descriptions |
 | `--muted` | `#475569` | Footnotes |
 
 ### Background
 
 Base: `#050508`. Cards: `rgba(255,255,255,0.03)`. Borders: `rgba(255,255,255,0.08)`.
+
+> **Why `#f5f5f5` not `#ffffff`?** Pure white on a near-black background creates harsh glare that causes eye fatigue during extended viewing. `#f5f5f5` is visually indistinguishable from white but reduces glare — a standard dark-mode design practice (AlmostZero 2025, AdminLTE 2026).
+>
+> **Why amber for key data & CTA?** Yellow/amber is the most luminous color visible to the human eye (peak photoreceptor sensitivity ~570nm). On dark backgrounds it has maximum contrast and is the standard for high-visibility data highlighting (Bloomberg Terminal's amber-on-black scheme). Research shows yellow/amber is the most effective color for stopping scroll in feeds and driving CTA engagement (Instagram Growth Coach, visioncrafter.yt — 2025-2026).
 
 ## Typography
 
