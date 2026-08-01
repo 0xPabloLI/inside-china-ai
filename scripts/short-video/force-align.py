@@ -103,11 +103,16 @@ def align_text_to_audio(text, segments, duration):
                 start = seg_slice[0][0]
                 end = seg_slice[-1][1]
             else:
-                start = end = duration
+                # No more silence segments — extend from previous end to audio duration
+                start = results[-1]["end"] if results else 0.0
+                end = duration
+            # Ensure minimum 1s display time
+            if end - start < 1.0:
+                end = start + 1.0
             results.append({
                 "text": clause,
                 "start": round(start, 3),
-                "end": round(end, 3),
+                "end": round(min(end, duration), 3),
             })
             seg_idx += seg_count
     else:

@@ -697,26 +697,56 @@ export function splitSubtitles(voiceover, duration, sceneId) {
 }
 
 /**
- * Align subtitles using whisper word-level timestamps.
- * Groups words into 3-7 word chunks based on actual audio timing.
+ * Align subtitles using force-align timing data.
+ * Splits long segments (>7 words) into smaller chunks for readability.
+ * Ensures no chunk has 0 duration.
  */
 function alignWithWhisper(segments, duration) {
+  // First, split any segment with >7 words into sub-chunks
+  const splitSegments = [];
+  for (const seg of segments) {
+    const words = seg.text.split(/\s+/);
+    if (words.length <= 7) {
+      // Ensure minimum 0.5s duration
+      const end = Math.max(seg.end, seg.start + 0.5);
+      splitSegments.push({ ...seg, end });
+    } else {
+      // Split long segment into 3-7 word sub-chunks
+      const subChunks = Math.ceil(words.length / 5); // ~5 words per chunk
+      const wordsPerChunk = Math.ceil(words.length / subChunks);
+      const segDuration = seg.end - seg.start;
+      const timePerWord = segDuration / words.length;
+      for (let i = 0; i < words.length; i += wordsPerChunk) {
+        const chunkWords = words.slice(i, i + wordsPerChunk);
+        const chunkStart = seg.start + i * timePerWord;
+        const chunkEnd = seg.start + Math.min(i + wordsPerChunk, words.length) * timePerWord;
+        splitSegments.push({
+          text: chunkWords.join(' '),
+          start: chunkStart,
+          end: Math.max(chunkEnd, chunkStart + 0.5),
+        });
+      }
+    }
+  }
+
+  // Group sub-segments into 3-7 word chunks
   const chunks = [];
   let currentChunk = [];
   const maxWords = 7;
   const minWords = 3;
 
-  for (const seg of segments) {
+  for (const seg of splitSegments) {
     currentChunk.push(seg);
 
+    const chunkWordCount = currentChunk.reduce((n, s) => n + s.text.split(/\s+/).length, 0);
     const isSentenceEnd = /[.!?:;]$/.test(seg.text);
     const isComma = /,$/.test(seg.text);
-    const reachedMax = currentChunk.length >= maxWords;
-    const reachedMin = currentChunk.length >= minWords;
+    const reachedMax = chunkWordCount >= maxWords;
+    const reachedMin = chunkWordCount >= minWords;
 
     if (isSentenceEnd || reachedMax || (isComma && reachedMin)) {
       const start = currentChunk[0].start;
-      const end = currentChunk[currentChunk.length - 1].end;
+      const end = Math.max(currentChunk[currentChunk.length - 1].end, start + 0.5);
       const text = currentChunk.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
       chunks.push({
         text,
@@ -729,7 +759,7 @@ function alignWithWhisper(segments, duration) {
   // Remaining words
   if (currentChunk.length > 0) {
     const start = currentChunk[0].start;
-    const end = currentChunk[currentChunk.length - 1].end;
+    const end = Math.max(currentChunk[currentChunk.length - 1].end, start + 0.5);
     const text = currentChunk.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
     chunks.push({
       text,
