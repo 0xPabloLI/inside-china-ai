@@ -1,104 +1,159 @@
 #!/usr/bin/env python3
 """
-Whisper-based subtitle alignment for video scenes.
-Uses OpenAI Whisper to transcribe scene audio with word-level timestamps,
-then aligns the original voiceover text to the audio timeline.
+Whisper-based forced alignment using initial_prompt.
+Passes the KNOWN text as Whisper's initial_prompt to bias recognition,
+then uses word_timestamps=True for accurate word-level timing.
+
+This is NOT recognition — it's guided alignment. Whisper "knows" what
+text to expect, so it produces accurate word boundaries.
 
 Usage:
-  python3 whisper-align.py --audio-dir <path> --manifest <path> --output <path>
+  source ~/.xtts-env/bin/activate
+  python3 whisper-align.py --manifest <manifest.json> --output <timing.json>
 
-Manifest format (JSON array):
-  [{"sceneId": 1, "text": "Hello world", "audioPath": "/path/to/scene-1.mp3"}, ...]
-
-Output format (JSON):
-  [
-    {
-      "sceneId": 1,
-      "segments": [
-        {"text": "Hello", "start": 0.0, "end": 0.5},
-        {"text": "world", "start": 0.5, "end": 1.0}
-      ]
-    }
-  ]
+Models: base (145MB, cached at ~/.cache/whisper/base.pt)
 """
 import argparse
 import json
 import os
+import re
 import sys
+import warnings
 
-# Fix SSL certificate verification on macOS
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-os.environ["CURL_CA_BUNDLE"] = ""
-os.environ["REQUESTS_CA_BUNDLE"] = ""
+warnings.filterwarnings("ignore")
 
-def align_audio(manifest_path, output_path, model_name="base"):
-    import whisper
-    import torch
+import torch
+import whisper
 
-    device = "cpu"  # MPS crashes in add_word_timestamps; CPU is reliable
-    print(f"Loading Whisper model '{model_name}' on {device}...", file=sys.stderr)
-    model = whisper.load_model(model_name, device=device)
-    print("Model loaded!", file=sys.stderr)
+DEVICE = "cpu"  # word_timestamps crashes on MPS, CPU is reliable
+MODEL_NAME = os.environ.get("WHISPER_MODEL", "base")
 
-    with open(manifest_path, "r") as f:
-        scenes = json.load(f)
 
-    results = []
+def load_model():
+    print(f"Loading Whisper {MODEL_NAME} model on {DEVICE}...", file=sys.stderr)
+    model = whisper.load_model(MODEL_NAME, device=DEVICE)
+    print("Model loaded.", file=sys.stderr)
+    return model
 
-    for scene in scenes:
-        scene_id = scene["sceneId"]
-        audio_path = scene.get("audioPath") or scene.get("audio")
-        original_text = scene.get("text", "")
 
-        print(f"  Scene {scene_id}: transcribing {len(original_text)} chars...", file=sys.stderr)
+def align_scene(model, audio_path, text):
+    """Transcribe audio with known text as initial_prompt, get word timestamps."""
+    result = model.transcribe(
+        audio_path,
+        initial_prompt=text,  # Guide Whisper toward the known text
+        word_timestamps=True,
+        language="en",
+        verbose=False,
+    )
 
-        # Transcribe with word-level timestamps
-        result = model.transcribe(
-            audio_path,
-            word_timestamps=True,
-            language="en",
-            initial_prompt=original_text[:200],  # Help Whisper with context
-        )
+    # Extract word-level timestamps from segments
+    word_timestamps = []
+    for seg in result.get("segments", []):
+        for w in seg.get("words", []):
+            word_timestamps.append({
+                "text": w["word"].strip(),
+                "start": round(w["start"], 3),
+                "end": round(w["end"], 3),
+            })
 
-        # Extract word-level segments
-        segments = []
-        for segment in result.get("segments", []):
-            for word_info in segment.get("words", []):
-                word = word_info.get("word", "").strip()
-                start = word_info.get("start", 0.0)
-                end = word_info.get("end", 0.0)
-                if word and end > start:
-                    segments.append({
-                        "text": word,
-                        "start": round(start, 3),
-                        "end": round(end, 3),
-                    })
+    # If Whisper didn't produce word timestamps, fall back to segment-level
+    if not word_timestamps:
+        for seg in result.get("segments", []):
+            word_timestamps.append({
+                "text": seg["text"].strip(),
+                "start": round(seg["start"], 3),
+                "end": round(seg["end"], 3),
+            })
 
-        print(f"    Got {len(segments)} word timestamps", file=sys.stderr)
+    return word_timestamps
 
-        results.append({
-            "sceneId": scene_id,
-            "segments": segments,
-        })
 
-    # Save results
-    with open(output_path, "w") as f:
-        json.dump(results, f, indent=2)
+def group_chunks(word_ts, max_words=7, min_words=3):
+    """Group words into 3-7 word subtitle chunks."""
+    if not word_ts:
+        return []
 
-    print(f"\nResults saved to: {output_path}", file=sys.stderr)
-    print(json.dumps(results))
-    return results
+    chunks = []
+    current = []
+
+    for wt in word_ts:
+        current.append(wt)
+        count = len(current)
+        ends_sentence = re.search(r"[.!?:;]$", wt["text"])
+        is_comma = re.search(r",$", wt["text"])
+        reached_max = count >= max_words
+        reached_min = count >= min_words
+
+        if ends_sentence or reached_max or (is_comma and reached_min):
+            text = " ".join(w["text"] for w in current)
+            text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+            start = current[0]["start"]
+            end = max(current[-1]["end"], start + 0.5)
+            chunks.append({"text": text, "start": round(start, 3), "end": round(end, 3)})
+            current = []
+
+    if current:
+        text = " ".join(w["text"] for w in current)
+        text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+        start = current[0]["start"]
+        end = max(current[-1]["end"], start + 0.5)
+        chunks.append({"text": text, "start": round(start, 3), "end": round(end, 3)})
+
+    # Deduplicate: remove overlapping/repeated segments (Whisper hallucination)
+    seen_text = set()
+    deduped = []
+    for c in chunks:
+        # Skip if this segment starts before the previous one ends (overlap)
+        if deduped and c["start"] < deduped[-1]["end"]:
+            continue
+        # Skip if we've seen this exact text before
+        key = c["text"].lower().strip()
+        if key in seen_text:
+            continue
+        seen_text.add(key)
+        deduped.append(c)
+
+    return deduped
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Whisper-based subtitle alignment")
-    parser.add_argument("--manifest", required=True, help="Path to JSON manifest")
-    parser.add_argument("--output", required=True, help="Output JSON path")
-    parser.add_argument("--model", default="base", help="Whisper model size (tiny/base/small/medium)")
-
+    parser = argparse.ArgumentParser(description="Whisper initial_prompt alignment")
+    parser.add_argument("--manifest", required=True)
+    parser.add_argument("--output", required=True)
     args = parser.parse_args()
-    align_audio(args.manifest, args.output, args.model)
+
+    with open(args.manifest) as f:
+        scenes = json.load(f)
+
+    model = load_model()
+
+    results = []
+    for scene in scenes:
+        sid = scene["sceneId"]
+        audio = scene["audioPath"]
+        text = scene["text"]
+
+        if not os.path.exists(audio):
+            print(f"  Scene {sid}: audio not found", file=sys.stderr)
+            results.append({"sceneId": sid, "segments": []})
+            continue
+
+        print(f"  Scene {sid}: aligning {len(text)} chars...", file=sys.stderr)
+        try:
+            word_ts = align_scene(model, audio, text)
+            chunks = group_chunks(word_ts)
+            print(f"    {len(chunks)} chunks from {len(word_ts)} words", file=sys.stderr)
+            results.append({"sceneId": sid, "segments": chunks})
+        except Exception as e:
+            print(f"    Error: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            results.append({"sceneId": sid, "segments": []})
+
+    with open(args.output, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\nSaved: {args.output}", file=sys.stderr)
+    print(json.dumps(results))
 
 
 if __name__ == "__main__":

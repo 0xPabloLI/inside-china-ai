@@ -123,8 +123,11 @@ async function getDurationWithFfprobe(audioPath) {
 
 // FFmpeg silenceremove filter to compress sentence-boundary pauses.
 // threshold 0.018 ≈ -35dB amplitude. Compress gaps >0.25s, keep 0.08s.
+// Optional atempo for clone voice speed-up (TTS_ATEMPO env var, e.g. TTS_ATEMPO=1.3)
+const TTS_ATEMPO = parseFloat(process.env.TTS_ATEMPO) || null;
 const SILENCE_FILTER =
-  "silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018";
+"silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018" +
+(TTS_ATEMPO ? `,atempo=${TTS_ATEMPO}` : "");
 
 // ── XTTS batch mode: load model once, process all scenes ──
 async function generateBatchWithXTTS(scenes, outputDir) {
@@ -295,7 +298,7 @@ if (forceEngine === "kokoro" && kokoroAvailable) {
   }
 
   console.log(`  TTS engine: ${engineInfo}`);
-  console.log(`  Post-process: FFmpeg silenceremove (compress pauses >0.25s → 0.08s)`);
+  console.log(`  Post-process: FFmpeg silenceremove (compress pauses >0.25s → 0.08s)${TTS_ATEMPO ? ` + atempo ${TTS_ATEMPO}x` : ""}`);
 
   const results = [];
 
@@ -350,7 +353,7 @@ if (forceEngine === "kokoro" && kokoroAvailable) {
 // Output: output/audio/subtitle-timing.json — used by generate-scenes.mjs
 async function runWhisperAlignment(scenes, ttsResults, outputDir) {
   const { existsSync } = await import("fs");
-  const alignScript = join(__dirname, "force-align.py");
+  const alignScript = join(__dirname, "whisper-align.py");
   if (!existsSync(alignScript)) {
     console.log("  ⚠️ Force-align script not found, skipping");
     return;

@@ -82,15 +82,16 @@ function baseStyles(duration) {
     @keyframes stampIn { from { opacity: 0; transform: scale(2); } to { opacity: 1; transform: scale(1); } }
     .brand-watermark { position: absolute; bottom: 50px; right: 50px; width: 55px; height: 55px; opacity: 0.18; z-index: 100; pointer-events: none; }
     .brand-watermark svg { width: 100%; height: 100%; }
-    .subtitle-bar {
-      position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%);
-      max-width: 950px; text-align: center;
-      background: rgba(0,0,0,0.75); border-radius: 10px; padding: 16px 36px;
-      font-size: 42px; font-weight: 800; color: var(--white); line-height: 1.3;
-      z-index: 200; pointer-events: none; opacity: 0;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.9);
-      border: 1px solid rgba(255,255,255,0.1);
-    }
+.subtitle-bar {
+position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%);
+max-width: 950px; text-align: center;
+font-size: 42px; font-weight: 800; color: var(--white); line-height: 1.3;
+z-index: 200; pointer-events: none; opacity: 0;
+/* TikTok-style: no background box, just heavy text outline */
+background: transparent; padding: 0;
+text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 3px 6px rgba(0,0,0,0.9);
+-webkit-text-stroke: 2px rgba(0,0,0,0.7);
+}
     .subtitle-bar .sub-hl { color: var(--blue); }
   `;
 }
