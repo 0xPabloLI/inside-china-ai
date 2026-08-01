@@ -31,9 +31,11 @@ const XTTS_VENV = join(process.env.HOME || "", ".xtts-env");
 const XTTS_LANGUAGE = "en";
 const XTTS_SPEED = 1.15; // Match Kokoro's pace
 const XTTS_SPEAKER = "Craig Gutsy"; // Authoritative male voice
-// Optional: path to a speaker WAV file for voice cloning.
-// If set, XTTS will clone this voice. If null, uses XTTS_SPEAKER.
-const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV || null;
+// Voice cloning: uses the cloned voice sample by default.
+// If the WAV file exists, XTTS clones this voice. If null, uses XTTS_SPEAKER.
+// Override with: TTS_SPEAKER_WAV=/path/to/voice.wav
+const DEFAULT_SPEAKER_WAV = join(__dirname, "assets", "voice-sample.wav");
+const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV || (existsSync(DEFAULT_SPEAKER_WAV) ? DEFAULT_SPEAKER_WAV : null);
 
 // Path to Kokoro Python TTS script and venv
 // Checks persistent location (~/.tts-env) first, then temp (/tmp/tts-env)

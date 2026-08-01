@@ -102,10 +102,10 @@ Based on platform research and session learnings:
 | 3 | edge-tts | en-US-BrianNeural | +8% | npm | Network-dependent, retry 3x |
 | 4 | macOS say | Daniel | 190 wpm | built-in | Last resort |
 
-**Voice cloning**: `export TTS_SPEAKER_WAV=assets/voice-sample.wav` — XTTS clones from denoised WAV sample.
-- Source: M4A file → ffmpeg denoise (afftdn) + resample 22050Hz mono → WAV
-- Clone test: 10.8s per sentence (MPS hybrid), quality confirmed
-- Cloned voices sound more natural than built-in speakers (less robotic)
+**Voice cloning** (DEFAULT — pipeline auto-detects `assets/voice-sample.wav`):
+- XTTS clones timbre only; pronunciation is standard English from language model
+- Override: `export TTS_SPEAKER_WAV=/path/to/other.wav` or set empty to disable
+- To replace the sample: put M4A in `assets/`, extract 10-15s clear speech segment, convert with `ffmpeg -ar 22050 -ac 1`
 
 **MPS hybrid mode** (2x faster than CPU):
 - Patch XTTS source: `tts/models/xtts.py` line 577 + line 320 (add `.cpu()` to gpt_latents/speaker_embedding/speaker_encoder input)
@@ -122,15 +122,13 @@ Based on platform research and session learnings:
 
 ## Logo Handling
 
-- **Source**: GPT-generated PNG (`assets/china-ai-news-logo-gpt.png`, 1024×1024)
-- **Vector SVG**: `vtracer` converts PNG to SVG (867 paths after noise removal)
-  - Command: `vtracer --input logo.png --output logo.svg --filter_speckle 8 --color_precision 3`
-  - Post-process: Python script removes gray anti-aliasing artifacts (1415→867 paths)
-- **PNG split**: Two versions available:
-  - `china-ai-news-logo-gpt.png` — full logo (image + text)
-  - `china-ai-news-logo-image-only.png` — pure graphic only (no text, 92K pixels)
+- **Full logo**: `assets/china-ai-news-logo-gpt.png` (image + text, 1024×1024)
+- **Pure graphic**: `assets/china-ai-news-logo-image-only.png` (no text, for flexible use)
+- **Vector SVG**: `assets/china-ai-news-logo-vector.svg` (true vector, scalable)
 - **Watermark**: Same logo at 55px, `opacity: 0.18`, `bottom: 50px, right: 50px`
 - **CTA scene**: Logo at 200px centered
+
+> Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 
 ## Publishing Strategy
 
@@ -270,45 +268,11 @@ scripts/
 scripts/short-video/assets/
 ├── china-ai-news-logo-gpt.png        # GPT-generated original PNG (full logo)
 ├── china-ai-news-logo-image-only.png # Pure graphic only (no text)
-├── china-ai-news-logo-vector.svg     # vtracer SVG (867 paths, noise removed)
-├── china-ai-news-logo-clean.svg      # vtracer SVG before noise removal (1134 paths)
-├── china-ai-news-logo-vtracer.svg    # vtracer original output (1415 paths)
-├── voice-sample.wav                   # Denoised voice sample for XTTS cloning
-├── audio4507181385.m4a                # Original M4A recording (6 min)
+├── china-ai-news-logo-vector.svg     # Vector SVG (true vector, scalable)
+├── voice-sample.wav                   # Best voice sample for XTTS cloning (15s, no filter)
+├── audio6507181385.m4a                # Original M4A recording (18 min)
+├── voice-samples/                     # Clone test variants + processed samples
 └── deepseek-logo.svg                  # DeepSeek logo for video
 ```
 
-## Pipeline Optimization Lessons
 
-### Session 2026-07-31
-1. **XTTS per-scene model reload** → batch script loads model once (7 min vs 60+ min)
-2. **XTTS stdout JSON pollution** → search for `[{"sceneId"` prefix
-3. **BGM default off** → documented `--bgm` flag
-
-### Session 2026-08-01
-4. **XTTS MPS hybrid mode** → patch lines 577+320, GPT on MPS + HiFi-GAN on CPU (2x speedup: 8s vs 16s/sentence)
-5. **Voice cloning** → M4A→WAV denoise→XTTS clone. Patched speaker_encoder for MPS. 10.8s/sentence.
-6. **Subtitle sync** → force-align.py (ffmpeg silencedetect), NOT Whisper recognition. We already know the text.
-7. **Scene 1 subtitles** → removed skip condition, subtitles now appear from the start
-8. **SVG logo** → vtracer (867 paths) replaces potrace/PNG-base64. True vector, noise removed.
-9. **PNG split** → pure-image version + full version for different use cases
-10. **render-only.mjs** → re-render HTML+record+assemble without re-running TTS
-11. **Chrome CDP** → web-access skill for TikTok best practices research (Playwright fails on most sites)
-
-### 2025 TikTok Best Practices (from Google + Hootsuite + Buffer via CDP)
-- **Hook**: first 3 seconds — shocking statement, visual cue, or clear promise
-- **Length**: 5-12s for looping or 60-70s for storytelling (our 170s is for YouTube Shorts only)
-- **Pattern interrupts**: rapid cuts, text overlays, dynamic visual transitions
-- **SEO**: keywords in on-screen text, captions, verbal hooks
-- **Hashtags**: avoid #FYP, mix broad + niche
-- **Shares**: most highly-weighted metric in TikTok algorithm
-- **Captions**: burned-in subtitles (accessibility + engagement)
-- **Authenticity**: casual, relatable > polished corporate
-- **In-app editing**: edit within TikTok for algorithm favor (manual step)
-
-### Open TODOs
-- [ ] Create 60-70s TikTok-optimized cut (select 6-8 key scenes from full video)
-- [ ] Try `vtracer --filter_speckle 16+` for even cleaner SVG
-- [ ] Update generate-tts.mjs to call force-align.py instead of whisper-align.py
-- [ ] Voice clone: try 15-20s sample + lighter denoise (nr=8) for higher speaker similarity
-- [ ] Sprout Social 2026 articles (algorithm, video specs) — URL 404, need correct URLs from site navigation
