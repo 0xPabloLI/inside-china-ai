@@ -36,7 +36,7 @@ Based on platform research and session learnings:
 
 85% of social media videos start muted. The video must be compelling without sound:
 
-- Burned-in subtitles on all analysis scenes (skipped on hook & CTA which have full-screen text)
+- Burned-in subtitles on all scenes except CTA (hook scene now included)
 - Visual data anchors (big numbers, colored bars) that convey meaning without audio
 - If the first 3 seconds only make sense with sound, rework them
 
@@ -49,7 +49,8 @@ Based on platform research and session learnings:
 | Chunks | **3-7 words** per display | Users read ~2.5 words/sec; longer chunks get skipped |
 | Background | `rgba(0,0,0,0.75)` + 1px border | Ensures contrast on any scene |
 | Position | `bottom: 200px` | Above platform UI zone (~180px from bottom) |
-| Timing | Estimated by word count (~2.8 words/sec) | TODO: use whisper/aeneas for actual audio alignment |
+| Timing | **Force-aligned** via ffmpeg silencedetect | Actual audio silence boundaries, not word-count estimate |
+| Scene 1 | ✅ Now has subtitles (was skipped) | User feedback: subtitles should appear from the start |
 
 ### Pacing
 
@@ -96,23 +97,38 @@ Based on platform research and session learnings:
 
 | Priority | Engine | Config | Speed | Venv | Notes |
 |----------|--------|--------|-------|------|-------|
-| 1 | XTTS v2 | speaker="Craig Gutsy" | 1.15 | `~/.xtts-env` (Python 3.11) | Batch mode (load once); CPU only (MPS crashes HiFi-GAN) |
-| 2 | Kokoro | voice="am_michael" | 1.1 | `~/.tts-env` (Python 3.12) | 54 voices available; fastest |
+| 1 | XTTS v2 | speaker_wav (cloned) or "Craig Gutsy" | 1.15 | `~/.xtts-env` (Python 3.11) | Batch mode; **MPS hybrid** (GPT on MPS, HiFi-GAN on CPU) |
+| 2 | Kokoro | voice="am_michael" | 1.1 | `~/.tts-env` (Python 3.12) | 54 voices available; fastest on CPU |
 | 3 | edge-tts | en-US-BrianNeural | +8% | npm | Network-dependent, retry 3x |
 | 4 | macOS say | Daniel | 190 wpm | built-in | Last resort |
 
-**Voice cloning**: `export TTS_SPEAKER_WAV=/path/to/voice.wav` — XTTS will clone from 3-10s sample.
+**Voice cloning**: `export TTS_SPEAKER_WAV=assets/voice-sample.wav` — XTTS clones from denoised WAV sample.
+- Source: M4A file → ffmpeg denoise (afftdn) + resample 22050Hz mono → WAV
+- Clone test: 10.8s per sentence (MPS hybrid), quality confirmed
+- Cloned voices sound more natural than built-in speakers (less robotic)
+
+**MPS hybrid mode** (2x faster than CPU):
+- Patch XTTS source: `tts/models/xtts.py` line 577 + line 320 (add `.cpu()` to gpt_latents/speaker_embedding/speaker_encoder input)
+- GPT runs on MPS (Apple GPU), HiFi-GAN decoder runs on CPU (avoids conv1d crash)
+- PyTorch 2.5.1 required (2.13.0 breaks model loading via `weights_only` default change)
+
+**Subtitle alignment**: Uses `force-align.py` (ffmpeg silencedetect) — NOT Whisper recognition.
+- We already know the text (machine-generated), so we align known text to known audio via silence boundaries
+- Whisper recognition approach was wrong (TTS audio ≠ natural speech, recognition errors)
 
 **Known issues**:
-- XTTS MPS mode → HiFi-GAN decoder crash → **must use CPU** (~1 min/scene)
 - XTTS batch script outputs JSON to stdout, but TTS engine also prints sentence-split `["text"]` → JSON parser must look for `[{"sceneId"` prefix
 - XTTS has 59 built-in speakers (list with `tts.synthesizer.tts_model.speaker_manager.name_to_id`)
 
 ## Logo Handling
 
-- **Source**: GPT-generated PNG (`assets/Weixin Image_*.png`)
-- **Pipeline**: Read PNG as base64, embed in SVG `<image>` wrapper → inlined into HTML
-- **Why not potrace?**: GPT-generated images have gradients + anti-aliasing → potrace color-layer tracing produces visually different results
+- **Source**: GPT-generated PNG (`assets/china-ai-news-logo-gpt.png`, 1024×1024)
+- **Vector SVG**: `vtracer` converts PNG to SVG (867 paths after noise removal)
+  - Command: `vtracer --input logo.png --output logo.svg --filter_speckle 8 --color_precision 3`
+  - Post-process: Python script removes gray anti-aliasing artifacts (1415→867 paths)
+- **PNG split**: Two versions available:
+  - `china-ai-news-logo-gpt.png` — full logo (image + text)
+  - `china-ai-news-logo-image-only.png` — pure graphic only (no text, 92K pixels)
 - **Watermark**: Same logo at 55px, `opacity: 0.18`, `bottom: 50px, right: 50px`
 - **CTA scene**: Logo at 200px centered
 
@@ -122,18 +138,71 @@ Based on platform research and session learnings:
 
 | Platform | Max Duration | Optimal | Action |
 |----------|-------------|---------|--------|
-| YouTube Shorts | 3min | 30-60s | Upload full video + custom thumbnail |
-| TikTok | 10min | 15-30s | Upload full video (same cut as YouTube) |
+| YouTube Shorts | 3min | 60-170s | Upload full video + custom thumbnail |
+| TikTok | 10min | **60-70s** | Upload shortened cut (6-8 key scenes) |
 | Instagram Reels | 90s | 15-30s | Upload full video if ≤90s; otherwise create shortened cut |
 
-**Cross-platform default**: Write for 30-60s. One cut works for all three platforms. If a topic needs more depth, accept up to 90s max — never exceed Reels' hard limit.
+**Cross-platform default**: Write for 60-90s. YouTube Shorts gets the full version; TikTok needs a shortened cut.
 
-### Posting checklist
+### TikTok Best Practices Integration
 
-- [ ] Title: compelling, under 60 characters
-- [ ] Description: 2-3 sentence summary + hashtags
-- [ ] Pinned comment: link to full article (when domain is live)
-- [ ] Hashtags: #chinaai #deepseek #ai #technews
+> Based on 2025-2026 research via Chrome CDP. Full details: `docs/tiktok-best-practices.md` and `docs/tiktok-do-dont.md`.
+>
+> **Enforcement**: `scripts/short-video/verify-video.mjs` runs automated checks after every video. This is **Step 6** of the pipeline workflow (see `short-video-pipeline` SKILL.md). Do NOT publish until all automated checks pass.
+
+#### ✅ Fully automated (checked by verify-video.mjs)
+
+| Check | How | Fail action |
+|-------|-----|-------------|
+| Resolution 1080×1920 | ffprobe | Fix record-scenes.mjs viewport |
+| Duration (YouTube ≤180s / TikTok ≤70s) | ffprobe | Cut scenes |
+| Frame rate 23-60fps | ffprobe | Check assemble.mjs |
+| Hook has compelling element (number/strong word) | Scan scene-data Scene 1 | Rewrite hook voiceover |
+| Source attribution (≥2 scenes mention sources) | Scan all scene voiceovers | Add "Bloomberg reported..." etc. |
+| SEO keywords in ≥2 scenes (China/AI/DeepSeek) | Scan voiceover + texts | Add keywords to more scenes |
+| Share-worthy data points (≥50% scenes have numbers) | Scan voiceover + texts | Add concrete numbers |
+| All scenes have subtitle timing | Check subtitle-timing.json | Re-run force-align.py |
+| Scene 1 (hook) has subtitles | Check timing for sceneId=1 | Re-run force-align.py |
+| No cross-platform watermark references | Scan scene data | Remove references |
+| No clickbait patterns in hook | Regex check Scene 1 voiceover | Rewrite to be factual |
+| No unverified "sources say" claims | Scan voiceovers | Add specific source attribution |
+
+#### 🔧 Agent-assisted at scene-data creation time (prompt-driven, not code)
+
+These are enforced by the agent when writing `scene-data.mjs`, not by code. The agent should follow these rules when creating content:
+
+| Rule | Agent prompt | Checked by verify-video.mjs? |
+|------|------------|------------------------------|
+| SEO keywords in voiceover | Include "China AI", "DeepSeek" naturally | ✅ Yes (keyword count check) |
+| SEO keywords on screen | Add to `texts` array | ✅ Yes (keyword count check) |
+| Share-worthy data points | Design hook with surprising numbers | ✅ Yes (number count check) |
+| Source attribution | "Bloomberg reported...", "Liang said..." | ✅ Yes (source count check) |
+| Hook is factual not clickbait | Compelling but factual | ✅ Yes (clickbait regex check) |
+| Every scene has a concrete fact | No filler scenes | ⚠️ Manual (agent judgment) |
+| Causal flow between scenes | Cause → effect → implication | ⚠️ Manual (agent judgment) |
+
+#### 👤 Manual at publish time (output of verify-video.mjs, presented as checklist)
+
+| Item | Detail |
+|------|-------|
+| 3-5 hashtags | `#chinaai #deepseek #ai #technews #chinatech` |
+| Geographic tag | China/US location tag |
+| In-app editing | Upload to TikTok, add sticker/effect, then publish |
+| Reply to comments (first hour) | Post → monitor → respond |
+| Post at off-peak hours | Check TikTok analytics |
+| Pinned comment | Article URL |
+| Title under 60 chars | Write in TikTok UI |
+| AIGC label | Label as AI-generated if AI voice used |
+| Trending audio | Add from TikTok audio library |
+
+#### ❌ Algorithm penalty (auto-checked, blocks publish)
+
+| Don't | Check | Fail action |
+|-------|-------|-------------|
+| Cross-platform watermarks | Scan scene data for @instagram etc. | Remove references |
+| Clickbait hooks | Regex: "you won't believe" etc. | Rewrite hook |
+| Unverified "sources say" | Scan for attribution | Add specific source |
+| Duration >90s for TikTok | ffprobe duration | Create shortened cut |
 
 ## File Locations
 
@@ -173,12 +242,15 @@ scripts/short-video/
 ├── render-only.mjs         # Re-render HTML + record + assemble (skip TTS)
 ├── main.mjs                # Pipeline orchestrator (--bgm flag for BGM)
 ├── preview.mjs             # Single-scene preview (validate before full pipeline)
-├── png-to-svg.py           # Logo PNG→SVG converter (potrace, deprecated)
+├── force-align.py          # Subtitle alignment via ffmpeg silencedetect (replaces whisper)
+├── verify-video.mjs        # TikTok best practices compliance gate (Step 6, MANDATORY)
+├── whisper-align.py        # [deprecated] Whisper word-level timestamps — use force-align.py instead
+├── run-whisper.mjs         # [deprecated] Run whisper-align on existing audio
 ├── setup-tts.sh            # TTS environment setup script
 ├── tts-test.mjs            # TTS voice comparison tester
 ├── tts-config-log.md       # TTS config history (voice/speed per run)
 └── output/
-    ├── audio/              # TTS audio per scene
+    ├── audio/              # TTS audio per scene + subtitle-timing.json
     ├── scenes/             # HTML scene files
     ├── video/              # Recorded WebM per scene
     └── deepseek-short.mp4  # Final video
@@ -192,17 +264,51 @@ scripts/
 └── generate-thumbnail.mjs  # Thumbnail renderer
 ```
 
-## Pipeline Optimization Lessons (Session 2026-07-31)
+### Assets
 
-### Fixed issues
+```text
+scripts/short-video/assets/
+├── china-ai-news-logo-gpt.png        # GPT-generated original PNG (full logo)
+├── china-ai-news-logo-image-only.png # Pure graphic only (no text)
+├── china-ai-news-logo-vector.svg     # vtracer SVG (867 paths, noise removed)
+├── china-ai-news-logo-clean.svg      # vtracer SVG before noise removal (1134 paths)
+├── china-ai-news-logo-vtracer.svg    # vtracer original output (1415 paths)
+├── voice-sample.wav                   # Denoised voice sample for XTTS cloning
+├── audio4507181385.m4a                # Original M4A recording (6 min)
+└── deepseek-logo.svg                  # DeepSeek logo for video
+```
+
+## Pipeline Optimization Lessons
+
+### Session 2026-07-31
 1. **XTTS per-scene model reload** → batch script loads model once (7 min vs 60+ min)
-2. **XTTS MPS HiFi-GAN crash** → CPU mode (reliable but slower)
-3. **XTTS stdout JSON pollution** → search for `[{"sceneId"` prefix
-4. **SVG conversion lossy** → embed original PNG as base64 in SVG wrapper
-5. **BGM default off** → documented `--bgm` flag
+2. **XTTS stdout JSON pollution** → search for `[{"sceneId"` prefix
+3. **BGM default off** → documented `--bgm` flag
+
+### Session 2026-08-01
+4. **XTTS MPS hybrid mode** → patch lines 577+320, GPT on MPS + HiFi-GAN on CPU (2x speedup: 8s vs 16s/sentence)
+5. **Voice cloning** → M4A→WAV denoise→XTTS clone. Patched speaker_encoder for MPS. 10.8s/sentence.
+6. **Subtitle sync** → force-align.py (ffmpeg silencedetect), NOT Whisper recognition. We already know the text.
+7. **Scene 1 subtitles** → removed skip condition, subtitles now appear from the start
+8. **SVG logo** → vtracer (867 paths) replaces potrace/PNG-base64. True vector, noise removed.
+9. **PNG split** → pure-image version + full version for different use cases
+10. **render-only.mjs** → re-render HTML+record+assemble without re-running TTS
+11. **Chrome CDP** → web-access skill for TikTok best practices research (Playwright fails on most sites)
+
+### 2025 TikTok Best Practices (from Google + Hootsuite + Buffer via CDP)
+- **Hook**: first 3 seconds — shocking statement, visual cue, or clear promise
+- **Length**: 5-12s for looping or 60-70s for storytelling (our 170s is for YouTube Shorts only)
+- **Pattern interrupts**: rapid cuts, text overlays, dynamic visual transitions
+- **SEO**: keywords in on-screen text, captions, verbal hooks
+- **Hashtags**: avoid #FYP, mix broad + niche
+- **Shares**: most highly-weighted metric in TikTok algorithm
+- **Captions**: burned-in subtitles (accessibility + engagement)
+- **Authenticity**: casual, relatable > polished corporate
+- **In-app editing**: edit within TikTok for algorithm favor (manual step)
 
 ### Open TODOs
-- [ ] Subtitle timing: replace word-count estimate with actual audio alignment (whisper/aeneas)
-- [ ] Scene re-render without re-doing TTS (currently must re-run full pipeline for HTML changes)
-- [ ] Single-scene preview mode (validate before full pipeline run)
-- [ ] XTTS MPS support (wait for PyTorch fix or use CUDA GPU)
+- [ ] Create 60-70s TikTok-optimized cut (select 6-8 key scenes from full video)
+- [ ] Try `vtracer --filter_speckle 16+` for even cleaner SVG
+- [ ] Update generate-tts.mjs to call force-align.py instead of whisper-align.py
+- [ ] Voice clone: try 15-20s sample + lighter denoise (nr=8) for higher speaker similarity
+- [ ] Sprout Social 2026 articles (algorithm, video specs) — URL 404, need correct URLs from site navigation

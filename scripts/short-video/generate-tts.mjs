@@ -1,0 +1,359 @@
+/**
+ * TTS voiceover generation.
+ *
+ * Engine priority:
+ *   1. XTTS v2 (voice cloning, most natural) — requires Python 3.11 venv at ~/.xtts-env
+ *   2. Kokoro (neural TTS, natural) — requires Python venv at ~/.tts-env
+ *   3. edge-tts (Microsoft neural TTS) — falls back if above unavailable
+ *   4. macOS `say` — last resort
+ *
+ * All engines are post-processed with FFmpeg silenceremove to compress
+ * sentence-boundary pauses (>0.25s → 0.08s retained).
+ *
+ * Returns audio file paths and exact durations (durations drive video timing).
+ */
+
+import { execSync, exec } from "child_process";
+import { writeFileSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { tmpdir } from "os";
+import { promisify } from "util";
+import { fileURLToPath } from "url";
+
+const execAsync = promisify(exec);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// ── XTTS v2 config ──
+// Uses batch script to load model ONCE for all scenes (avoids 60+ min reload penalty)
+const XTTS_BATCH_SCRIPT = join(__dirname, "xtts_batch_tts.py");
+const XTTS_VENV = join(process.env.HOME || "", ".xtts-env");
+const XTTS_LANGUAGE = "en";
+const XTTS_SPEED = 1.15; // Match Kokoro's pace
+const XTTS_SPEAKER = "Craig Gutsy"; // Authoritative male voice
+// Optional: path to a speaker WAV file for voice cloning.
+// If set, XTTS will clone this voice. If null, uses XTTS_SPEAKER.
+const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV || null;
+
+// Path to Kokoro Python TTS script and venv
+// Checks persistent location (~/.tts-env) first, then temp (/tmp/tts-env)
+const KOKORO_SCRIPT = join(__dirname, "kokoro_tts.py");
+const KOKORO_VENV_CANDIDATES = [
+  join(process.env.HOME || "", ".tts-env"),
+  "/tmp/tts-env",
+];
+const KOKORO_VOICE = "am_michael"; // Clear, authoritative male
+const KOKORO_SPEED = 1.1; // ~10% faster than normal
+
+async function isCommandAvailable(cmd) {
+  try {
+    await execAsync(`which ${cmd}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Path to XTTS v2 model directory (checks if model is downloaded, not just package installed)
+const XTTS_MODEL_DIR = join(process.env.HOME || "", "Library", "Application Support", "tts", "tts_models--multilingual--multi-dataset--xtts_v2");
+
+async function isXTTSAvailable() {
+  if (!existsSync(XTTS_BATCH_SCRIPT)) return false;
+  if (!existsSync(XTTS_VENV)) return false;
+  // Check if model is actually downloaded (not just Python package installed)
+  if (!existsSync(XTTS_MODEL_DIR)) return false;
+  try {
+    await execAsync(
+      `source ${XTTS_VENV}/bin/activate && python3 -c "import TTS" 2>/dev/null`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isKokoroAvailable() {
+  if (!existsSync(KOKORO_SCRIPT)) return null;
+  for (const venvPath of KOKORO_VENV_CANDIDATES) {
+    if (!existsSync(venvPath)) continue;
+    try {
+      await execAsync(
+        `source ${venvPath}/bin/activate && python3 -c "import kokoro" 2>/dev/null`,
+      );
+      return venvPath;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function isEdgeTTSAvailable() {
+  if (await isCommandAvailable("edge-tts")) return "edge-tts";
+  try {
+    await execAsync("python3 -m edge_tts --version");
+    return "python3 -m edge_tts";
+  } catch {
+    return null;
+  }
+}
+
+async function getDurationWithFfprobe(audioPath) {
+  const { stdout } = await execAsync(
+    `ffprobe -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
+  );
+  return parseFloat(stdout.trim());
+}
+
+// FFmpeg silenceremove filter to compress sentence-boundary pauses.
+// threshold 0.018 ≈ -35dB amplitude. Compress gaps >0.25s, keep 0.08s.
+const SILENCE_FILTER =
+  "silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018";
+
+// ── XTTS batch mode: load model once, process all scenes ──
+async function generateBatchWithXTTS(scenes, outputDir) {
+  const { writeFileSync: writeSync } = await import("fs");
+  const manifestPath = join(outputDir, "xtts-manifest.json");
+  const manifest = scenes.map((s) => ({
+    sceneId: s.id,
+    text: s.voiceover,
+    output: `scene-${s.id}.mp3`,
+  }));
+  writeSync(manifestPath, JSON.stringify(manifest));
+
+  const speakerArg = XTTS_SPEAKER_WAV ? `--speaker "${XTTS_SPEAKER_WAV}"` : "";
+  console.log("  Loading XTTS v2 model (once for all scenes)...");
+  const { stdout } = await execAsync(
+    `source ${XTTS_VENV}/bin/activate && COQUI_TOS_AGREED=1 python3 "${XTTS_BATCH_SCRIPT}" ` +
+      `--manifest "${manifestPath}" --output-dir "${outputDir}" ` +
+      `--language ${XTTS_LANGUAGE} --speed ${XTTS_SPEED} ${speakerArg} 2>&1`,
+  );
+
+  // Parse results from stdout — look for JSON array of objects (not the TTS sentence-split output)
+  const lines = stdout.trim().split("\n");
+  // The real results array starts with [{"sceneId" — not ["sentence"]
+  const jsonLine = lines.find((l) => l.trim().startsWith('[{"'));
+  let batchResults = [];
+  if (jsonLine) {
+    try {
+      batchResults = JSON.parse(jsonLine.trim());
+    } catch (e) {
+      console.error("  Failed to parse XTTS JSON output:", e.message);
+      console.error("  JSON line:", jsonLine.substring(0, 200));
+    }
+  } else {
+    // Fallback: try each line that looks like JSON array
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("[") && trimmed.includes("sceneId") && trimmed.includes("audioPath")) {
+        try {
+          batchResults = JSON.parse(trimmed);
+          break;
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+  }
+  if (batchResults.length === 0) {
+    throw new Error("No XTTS results parsed from batch output");
+  }
+
+  // Post-process each with silenceremove
+  const finalResults = [];
+  for (const r of batchResults) {
+    const audioPath = r.audioPath;
+    const processedPath = audioPath.replace(".mp3", "-processed.mp3");
+    await execAsync(
+      `ffmpeg -y -i "${audioPath}" -af "${SILENCE_FILTER}" -ar 44100 -b:a 192k "${processedPath}" 2>/dev/null`,
+    );
+    await execAsync(`mv "${processedPath}" "${audioPath}"`);
+
+    // Get exact duration
+    const duration = await getDurationWithFfprobe(audioPath);
+    finalResults.push({ sceneId: r.sceneId, audioPath, duration });
+    console.log(`  Scene ${r.sceneId}: ${duration.toFixed(2)}s`);
+  }
+
+  return finalResults;
+}
+
+async function generateWithKokoro(scene, tempFile, outputDir, venvPath) {
+  const wavPath = join(outputDir, `scene-${scene.id}-kokoro.wav`);
+  const audioPath = join(outputDir, `scene-${scene.id}.mp3`);
+
+  // Generate WAV with Kokoro
+  await execAsync(
+    `source ${venvPath}/bin/activate && python3 "${KOKORO_SCRIPT}" ` +
+      `--file "${tempFile}" --output "${wavPath}" ` +
+      `--voice ${KOKORO_VOICE} --speed ${KOKORO_SPEED} 2>&1`,
+  );
+
+  // Convert WAV → MP3 with silenceremove + resample
+  await execAsync(
+    `ffmpeg -y -i "${wavPath}" -af "${SILENCE_FILTER}" -ar 44100 -b:a 192k "${audioPath}" 2>/dev/null`,
+  );
+
+  return audioPath;
+}
+
+async function generateWithEdgeTTS(scene, tempFile, outputDir, edgeTTSCommand) {
+  const voice = "en-US-BrianNeural";
+  const rate = "+8%";
+  const rawPath = join(outputDir, `scene-${scene.id}-raw.mp3`);
+  const audioPath = join(outputDir, `scene-${scene.id}.mp3`);
+
+  // Generate raw TTS audio (with retry for network instability)
+  let ttsSuccess = false;
+  for (let attempt = 1; attempt <= 3 && !ttsSuccess; attempt++) {
+    try {
+      await execAsync(
+        `${edgeTTSCommand} --voice ${voice} --rate=${rate} --file "${tempFile}" --write-media "${rawPath}"`,
+      );
+      ttsSuccess = true;
+    } catch (e) {
+      if (attempt < 3) {
+        console.log(`    [retry ${attempt}/3] Scene ${scene.id} TTS failed, retrying...`);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  // Post-process to compress silence gaps
+  await execAsync(
+    `ffmpeg -y -i "${rawPath}" -af "${SILENCE_FILTER}" "${audioPath}" 2>/dev/null`,
+  );
+
+  return audioPath;
+}
+
+async function generateWithSay(scene, tempFile, outputDir) {
+  const voice = "Daniel";
+  const rate = "190";
+  const rawPath = join(outputDir, `scene-${scene.id}-raw.aiff`);
+  const audioPath = join(outputDir, `scene-${scene.id}.mp3`);
+
+  execSync(`say -v ${voice} -r ${rate} -f "${tempFile}" -o "${rawPath}"`);
+  await execAsync(
+    `ffmpeg -y -i "${rawPath}" -af "${SILENCE_FILTER}" -ar 44100 -b:a 192k "${audioPath}" 2>/dev/null`,
+  );
+
+  return audioPath;
+}
+
+export async function generateTTS(scenes, outputDir) {
+  const xttsAvailable = await isXTTSAvailable();
+  const kokoroVenv = xttsAvailable ? null : await isKokoroAvailable();
+  const kokoroAvailable = kokoroVenv !== null;
+  const edgeTTSCommand = !xttsAvailable && !kokoroAvailable ? await isEdgeTTSAvailable() : null;
+  const hasFfprobe = await isCommandAvailable("ffprobe");
+  const hasSay = process.platform === "darwin";
+
+  if (!xttsAvailable && !kokoroAvailable && !edgeTTSCommand && !hasSay) {
+    throw new Error(
+      "No TTS engine available. Install XTTS (pip install TTS), Kokoro (pip install kokoro), or edge-tts, or run on macOS.",
+    );
+  }
+
+  // Select engine
+  let engine, engineInfo;
+  if (xttsAvailable) {
+    engine = "xtts";
+    const speakerInfo = XTTS_SPEAKER_WAV ? `cloned from ${XTTS_SPEAKER_WAV}` : XTTS_SPEAKER;
+    engineInfo = `XTTS v2 (${speakerInfo}, speed=${XTTS_SPEED})`;
+  } else if (kokoroAvailable) {
+    engine = "kokoro";
+    engineInfo = `Kokoro neural TTS (${KOKORO_VOICE}, speed=${KOKORO_SPEED})`;
+  } else if (edgeTTSCommand) {
+    engine = "edge-tts";
+    engineInfo = `edge-tts (en-US-BrianNeural, rate=+8%)`;
+  } else {
+    engine = "say";
+    engineInfo = `macOS say (Daniel, rate=190)`;
+  }
+
+  console.log(`  TTS engine: ${engineInfo}`);
+  console.log(`  Post-process: FFmpeg silenceremove (compress pauses >0.25s → 0.08s)`);
+
+  const results = [];
+
+  if (engine === "xtts") {
+    // XTTS uses batch mode — load model once, process all scenes
+    const xttsResults = await generateBatchWithXTTS(scenes, outputDir);
+    // Run whisper alignment for accurate subtitle timing
+    await runWhisperAlignment(scenes, xttsResults, outputDir);
+    return xttsResults;
+  }
+
+  for (const scene of scenes) {
+    const tempFile = join(tmpdir(), `tts-scene-${scene.id}.txt`);
+    writeFileSync(tempFile, scene.voiceover);
+
+    let audioPath;
+
+    if (engine === "kokoro") {
+      audioPath = await generateWithKokoro(scene, tempFile, outputDir, kokoroVenv);
+    } else if (engine === "edge-tts") {
+      audioPath = await generateWithEdgeTTS(scene, tempFile, outputDir, edgeTTSCommand);
+    } else {
+      audioPath = await generateWithSay(scene, tempFile, outputDir);
+    }
+
+    // Get exact duration of the processed audio
+    let duration;
+    if (hasFfprobe) {
+      duration = await getDurationWithFfprobe(audioPath);
+    } else {
+      const wordCount = scene.voiceover.split(" ").length;
+      duration = wordCount / 2.5;
+    }
+
+    results.push({
+      sceneId: scene.id,
+      audioPath,
+      duration,
+    });
+
+    console.log(`  Scene ${scene.id}: ${duration.toFixed(2)}s`);
+  }
+
+  // Run whisper alignment for accurate subtitle timing
+  await runWhisperAlignment(scenes, results, outputDir);
+
+  return results;
+}
+
+// ── Force-align subtitle timing ──
+// Uses ffmpeg silencedetect to align KNOWN text to KNOWN audio.
+// Output: output/audio/subtitle-timing.json — used by generate-scenes.mjs
+async function runWhisperAlignment(scenes, ttsResults, outputDir) {
+  const { existsSync } = await import("fs");
+  const alignScript = join(__dirname, "force-align.py");
+  if (!existsSync(alignScript)) {
+    console.log("  ⚠️ Force-align script not found, skipping");
+    return;
+  }
+
+  console.log("  🎯 Running force-align subtitle timing...");
+
+  const manifest = ttsResults.map(r => ({
+    sceneId: r.sceneId,
+    text: scenes.find(s => s.id === r.sceneId)?.voiceover || "",
+    audioPath: r.audioPath,
+  }));
+  const manifestPath = join(outputDir, "whisper-manifest.json");
+  const timingPath = join(outputDir, "subtitle-timing.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+
+  try {
+    await execAsync(
+      `python3 "${alignScript}" ` +
+      `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
+    );
+    console.log("  ✅ Subtitle timing saved (force-aligned)");
+  } catch (e) {
+    console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
+  }
+}

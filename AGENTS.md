@@ -140,6 +140,38 @@ git diff main..lovable -- path/to/file
 
 **优化视频工作流时**：先读 `docs/video-workflow.md`——它是完整文件清单（所有代码、skill、文档的路径和职责）。所有优化都从那里开始。
 
+## Web Scraping & Content Fetching
+
+**默认方案：`web-access` skill（Chrome CDP）**。当用户要求爬取网页内容、搜索信息、抓取文章、获取需要登录的页面时，优先使用 `web-access` skill。
+
+### 工具选择优先级
+
+| 场景 | 工具 | 说明 |
+|------|------|------|
+| 搜索/抓取网页/需要登录态 | **web-access (Chrome CDP)** | 连接用户本地 Chrome，有 session/cookie，反爬检测率低 |
+| 已知 URL 的静态内容提取 | `web_fetch` 工具 | 简单快速，但无法处理 JS 渲染或反爬站点 |
+| Playwright headless | ⚠️ **不推荐** | 无 session/cookie，反爬检测率高（实测 18 个网站全失败） |
+
+### 使用 web-access skill
+
+```bash
+# 1. 检查 CDP proxy 是否可用
+node ~/.cursor/skills/web-access/scripts/check-deps.mjs
+
+# 2. 通过 proxy 创建后台 tab（不影响用户操作）
+curl -s "http://localhost:3456/new?url=https://example.com"
+
+# 3. 用 eval 提取页面内容
+curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
+
+# 4. 查看所有打开的 tab
+curl -s "http://localhost:3456/targets"
+```
+
+**端口说明**：Chrome 监听 `9222`（原生 CDP），web-access proxy 在 `3456` 提供 HTTP API 封装。
+
+**用户须知**：使用 CDP 时不影响用户操作电脑——所有操作在后台 tab 中进行。用户需先在 Chrome 中启用 Remote Debugging（`chrome://inspect/#remote-debugging`）。
+
 ## Agent Skills
 
 ### Domain Docs

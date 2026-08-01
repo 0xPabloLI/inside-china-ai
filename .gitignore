@@ -30,3 +30,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+scripts/short-video/output/
+scripts/short-video/assets/*.m4a
+scripts/short-video/assets/*.wav
+scripts/short-video/assets/audio*.m4a
+scripts/youtube-thumbnail.png
+scripts/youtube-thumbnail-2x.png
