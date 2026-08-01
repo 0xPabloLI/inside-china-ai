@@ -65,7 +65,6 @@ git push --force-with-lease   # 仅限改写历史场景
 ```
 
 ## PR / Merge Guardrails
-- Commits: 简洁的 conventional 格式;不在 message 里放 URL。
 - 不要 "cosmetically resolve" review thread,要么真修要么留待 maintainer 拍板。
 - For PRs, summarize only commits relative to `origin/main`; use English for PR titles and bodies.
 - If a PR includes a Testing section, include only items that are already verified (so all items are checked); otherwise omit Testing.
@@ -133,7 +132,6 @@ git diff main..lovable -- path/to/file
 - Prefer evidence-based debugging (logs/API/runtime artifacts) over speculation.
 - If user requests "先给方案", provide plan first before coding.
 - Keep implementation scoped; avoid unrelated refactors.
-- Commit messages: 简洁的 conventional 格式;不在 message 里放 URL。
 
 ## Video Production
 做短视频时（**默认 TikTok**），`short-video-pipeline` skill 会自动加载——它包含完整 7 步工作流（调研 → 写 scene-data → 跑管线 → 缩略图 → 质检 → **verify-video.mjs 验收** → 手动发布清单）。`brand-system` skill 同时加载，控制视觉一致性。项目特定内容（发布策略、最佳实践、文件路径）在 `docs/video-workflow.md`。
@@ -183,19 +181,4 @@ curl -s "http://localhost:3456/targets"
 
 **用户须知**：所有操作在后台 tab 中进行，不影响用户操作电脑。用户需先在 Chrome 中启用 Remote Debugging（`chrome://inspect/#remote-debugging`）。
 
-## Agent Skills
 
-### Domain Docs
-Single-context layout: `CONTEXT.md` (domain language) at root + `docs/adr/` (architectural decisions). Update when domain or architecture changes.
-
-### Matt Pocock Skills v1.1 workflow
-Main flow: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement` (per ticket).
-
-- `/grill-with-docs` — sharpen idea via interview + ADR/glossary (has codebase). No codebase? Use `/grill-me`.
-- `/grilling` — the underlying interview primitive; `grill-me` and `grill-with-docs` both delegate to it.
-- `/to-spec` — synthesize conversation into spec (was `/to-prd`).
-- `/to-tickets` — split spec into tracer-bullet tickets with blocking edges (replaces `/to-issues`).
-- `/implement` — build per ticket; internally drives `/tdd` + `/code-review`.
-- `/wayfinder` — on-ramp for huge/foggy efforts; charts investigation map, merges onto main flow at `/to-spec`.
-- `/research` — delegate reading to a background agent; keeps you working while it reads.
-- `/ask-matt` — router: describe your situation, get the right skill path.
