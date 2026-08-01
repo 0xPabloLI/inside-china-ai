@@ -35,7 +35,7 @@
    3. **To Tickets** — 用 `to-tickets` skill 将 spec 拆分为带依赖边的 tracer-bullet tickets
    4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。
    5. **Code Review** — 实施完成后用 `code-review` skill 做双轴审查（Standards + Spec）
-   6. **Dev Server 验证** — 涉及 UI 交互/布局/样式的改动，CI gate 后必须在 dev server 中验证
+   6. **Validation Gate** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证。
    7. **Commit** — 通过验证后 commit（遵循 Commit Cadence 规则）
    8. **更新相关文档及 Issue** — 同步更新 docs、Linear issue 状态
 
@@ -69,15 +69,6 @@ git push --force-with-lease   # 仅限改写历史场景
 - For PRs, summarize only commits relative to `origin/main`; use English for PR titles and bodies.
 - If a PR includes a Testing section, include only items that are already verified (so all items are checked); otherwise omit Testing.
 - After opening/pushing a PR, do not amend/rebase that history; use new commits for follow-ups.
-
-## Validation Gate (修改后必跑 — 强制)
-每次代码改动后按序跑 3 项,**全部通过**才算完成。任一失败 → 修根因 → 从头重跑。
-
-```bash
-npm run lint && npm run build && npx tsc --noEmit
-```
-
-**前端浏览器验证**：涉及 UI 交互/布局/样式的改动，CI gate 后需在 dev server 中确认。
 
 ## Coding Conventions
 - TypeScript + functional React components/hooks.
@@ -134,22 +125,7 @@ git diff main..lovable -- path/to/file
 - Keep implementation scoped; avoid unrelated refactors.
 
 ## Video Production
-做短视频时（**默认 TikTok**），`short-video-pipeline` skill 会自动加载——它包含完整 7 步工作流（调研 → 写 scene-data → 跑管线 → 缩略图 → 质检 → **verify-video.mjs 验收** → 手动发布清单）。`brand-system` skill 同时加载，控制视觉一致性。项目特定内容（发布策略、最佳实践、文件路径）在 `docs/video-workflow.md`。
-
-**默认平台：TikTok**。除非用户特别指定 YouTube Shorts 或其他平台，否则按 TikTok 规格制作（60-70s，9:16 竖屏）。verify-video.mjs 默认跑 `--tiktok` 模式。
-
-**7 步工作流**（SKILL.md 定义，闭环 loop）：
-1. Research（调研素材，验证数据来源）
-2. Write scene-data（遵循 Best Practices Checklist — Hook、SEO 关键词、来源标注、Share-worthy 数据、算法安全）
-3. Run pipeline（TTS → HTML → Record → Assemble）
-4. Generate thumbnail
-5. Quality check（人工观看）
-6. **verify-video.mjs**（MANDATORY 验收 — 12 项自动检查 + 算法惩罚拦截。FAIL → agent 自动修复 → 重跑 → 重验，循环到 0 失败）
-7. Manual publishing checklist（10 项手动项，每项有具体填什么/在哪填/为什么）
-
-**Step 2 ↔ Step 6 闭环**：写 scene-data 时的每项规则在 verify-video.mjs 中有对应检查。不做对就会被 loop 拦住。
-
-**优化视频工作流时**：先读 `docs/video-workflow.md`——它是完整文件清单（所有代码、skill、文档的路径和职责）。所有优化都从那里开始。
+做短视频时（**默认 TikTok**），`short-video-pipeline` skill 会自动加载。`brand-system` skill 同时加载，控制视觉一致性。项目特定配置（发布策略、TTS 引擎、文件路径）在 `docs/video-workflow.md`。
 
 ## Web Scraping & Content Fetching
 
