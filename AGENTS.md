@@ -12,7 +12,7 @@
 # Repository Guidelines
 
 ## Project Snapshot
-- **App**: Inside China AI — a content/blog platform (articles + subscribers) with an admin editor.
+- **App**: China AI News — a content/blog platform (articles + subscribers) with an admin editor and short video production pipeline.
 - **Stack**: React 19 + TypeScript + TanStack Start (file-based routing, server functions) + TanStack Query + Supabase (auth + database) + TailwindCSS v4 + shadcn/ui components.
 - **Core directories**: `src/routes/` (TanStack file routes), `src/components/` (UI + shared), `src/lib/` (server functions & utils), `src/integrations/supabase/` (client), `supabase/migrations/` (DB schema).
 - **Auth model**: Supabase Auth + RPC `has_role(_user_id, _role)` for admin gating. The `_authenticated` layout route guards all admin pages.
@@ -134,6 +134,11 @@ git diff main..lovable -- path/to/file
 - If user requests "先给方案", provide plan first before coding.
 - Keep implementation scoped; avoid unrelated refactors.
 - Commit messages: 简洁的 conventional 格式;不在 message 里放 URL。
+
+## Video Production
+做短视频时（YouTube Shorts / TikTok / Reels），`short-video-pipeline` skill 会自动加载——它包含完整工作流（调研 → 写 scene-data → 跑管线 → 缩略图 → 质检）。`brand-system` skill 同时加载，控制视觉一致性（色板、字体、场景模板来自 `docs/brand-system.md`）。项目特定内容（发布策略、最佳实践、文件路径）在 `docs/video-workflow.md`。
+
+**优化视频工作流时**：先读 `docs/video-workflow.md`——它是完整文件清单（所有代码、skill、文档的路径和职责）。所有优化都从那里开始。
 
 ## Agent Skills
 
