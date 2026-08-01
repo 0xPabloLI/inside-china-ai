@@ -30,7 +30,7 @@ const XTTS_BATCH_SCRIPT = join(__dirname, "xtts_batch_tts.py");
 const XTTS_VENV = join(process.env.HOME || "", ".xtts-env");
 const XTTS_LANGUAGE = "en";
 const XTTS_SPEED = parseFloat(process.env.XTTS_SPEED) || 1.15;
-const XTTS_SPEAKER = "Craig Gutsy"; // Authoritative male voice
+const XTTS_SPEAKER = process.env.XTTS_SPEAKER || "Craig Gutsy"; // Configurable via env var
 // Voice cloning: uses multi-WAV conditioning by default (3 clips from different positions).
 // Multi-WAV averaging produces more stable speaker embeddings than single clip.
 // Override: TTS_SPEAKER_WAV=none → built-in speaker; TTS_SPEAKER_WAV=/path → single file; TTS_SPEAKER_WAV="a.wav,b.wav" → custom multi
@@ -353,7 +353,7 @@ if (forceEngine === "kokoro" && kokoroAvailable) {
 // Output: output/audio/subtitle-timing.json — used by generate-scenes.mjs
 async function runWhisperAlignment(scenes, ttsResults, outputDir) {
   const { existsSync } = await import("fs");
-  const alignScript = join(__dirname, "whisper-align.py");
+  const alignScript = join(__dirname, "whisperx-align.py");
   if (!existsSync(alignScript)) {
     console.log("  ⚠️ Force-align script not found, skipping");
     return;
@@ -370,12 +370,12 @@ async function runWhisperAlignment(scenes, ttsResults, outputDir) {
   const timingPath = join(outputDir, "subtitle-timing.json");
   writeFileSync(manifestPath, JSON.stringify(manifest));
 
-  try {
-    await execAsync(
-      `python3 "${alignScript}" ` +
-      `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
-    );
-    console.log("  ✅ Subtitle timing saved (force-aligned)");
+try {
+await execAsync(
+`HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python3 "${alignScript}" ` +
+`--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
+);
+console.log("  ✅ Subtitle timing saved (WhisperX wav2vec2 aligned)");
   } catch (e) {
     console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
   }
