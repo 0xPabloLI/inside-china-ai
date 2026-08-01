@@ -56,6 +56,17 @@ def generate_batch(manifest_path, output_dir, speaker_wav=None, language="en", s
     print(f"\nProcessing {len(scenes)} scenes...\n", file=sys.stderr)
 
     results = []
+    # Parse speaker_wav: support comma-separated list for multi-WAV conditioning
+    speaker_wavs = None
+    if speaker_wav and os.path.exists(speaker_wav):
+        speaker_wavs = [speaker_wav]
+    elif speaker_wav and "," in speaker_wav:
+        paths = [p.strip() for p in speaker_wav.split(",") if p.strip()]
+        existing = [p for p in paths if os.path.exists(p)]
+        if existing:
+            speaker_wavs = existing
+            print(f"Multi-WAV conditioning: {len(speaker_wavs)} clips", file=sys.stderr)
+
     for scene in scenes:
         scene_id = scene["sceneId"]
         text = scene["text"]
@@ -64,10 +75,10 @@ def generate_batch(manifest_path, output_dir, speaker_wav=None, language="en", s
 
         print(f"  Scene {scene_id}: generating {len(text)} chars...", file=sys.stderr)
 
-        if speaker_wav and os.path.exists(speaker_wav):
+        if speaker_wavs:
             wav = tts.tts(
                 text=text,
-                speaker_wav=speaker_wav,
+                speaker_wav=speaker_wavs,
                 language=language,
                 speed=speed,
             )

@@ -31,10 +31,25 @@ const XTTS_VENV = join(process.env.HOME || "", ".xtts-env");
 const XTTS_LANGUAGE = "en";
 const XTTS_SPEED = parseFloat(process.env.XTTS_SPEED) || 1.15;
 const XTTS_SPEAKER = "Craig Gutsy"; // Authoritative male voice
-// Voice cloning: uses the cloned voice sample by default.
-// Override: TTS_SPEAKER_WAV=none → use built-in speaker; TTS_SPEAKER_WAV=/path → custom sample
+// Voice cloning: uses multi-WAV conditioning by default (3 clips from different positions).
+// Multi-WAV averaging produces more stable speaker embeddings than single clip.
+// Override: TTS_SPEAKER_WAV=none → built-in speaker; TTS_SPEAKER_WAV=/path → single file; TTS_SPEAKER_WAV="a.wav,b.wav" → custom multi
+const VOICE_SAMPLES_DIR = join(__dirname, "assets", "voice-samples");
+const multiClips = existsSync(VOICE_SAMPLES_DIR)
+  ? ["multi_clip1.wav", "multi_clip2.wav", "multi_clip3.wav"]
+      .map(f => join(VOICE_SAMPLES_DIR, f))
+      .filter(f => existsSync(f))
+  : [];
 const DEFAULT_SPEAKER_WAV = join(__dirname, "assets", "voice-sample.wav");
-const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV === "none" ? null : (process.env.TTS_SPEAKER_WAV || (existsSync(DEFAULT_SPEAKER_WAV) ? DEFAULT_SPEAKER_WAV : null));
+const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV === "none"
+  ? null
+  : process.env.TTS_SPEAKER_WAV
+    ? process.env.TTS_SPEAKER_WAV
+    : multiClips.length >= 2
+      ? multiClips.join(",")
+      : existsSync(DEFAULT_SPEAKER_WAV)
+        ? DEFAULT_SPEAKER_WAV
+        : null;
 
 // Path to Kokoro Python TTS script and venv
 // Checks persistent location (~/.tts-env) first, then temp (/tmp/tts-env)
