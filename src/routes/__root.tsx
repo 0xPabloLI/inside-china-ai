@@ -79,32 +79,30 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Inside China AI — Articles" },
+      { title: "China AI News — Articles" },
       {
         name: "description",
         content: "Independent writing on China's AI industry. One email a week.",
       },
-      { property: "og:title", content: "Inside China AI — Articles" },
+      { property: "og:title", content: "China AI News — Articles" },
       {
         property: "og:description",
         content: "Independent writing on China's AI industry. One email a week.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Inside China AI — Articles" },
+      { name: "twitter:title", content: "China AI News — Articles" },
       {
         name: "twitter:description",
         content: "Independent writing on China's AI industry. One email a week.",
       },
       {
         property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/20fd749d-402d-4ca6-a3f6-a1a739ea8b17/id-preview-f1ebafe6--58fa133b-483c-44eb-a34b-44dd3b0df5ae.lovable.app-1785133685758.png",
+        content: "/china-ai-news-logo-gpt.png",
       },
       {
         name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/20fd749d-402d-4ca6-a3f6-a1a739ea8b17/id-preview-f1ebafe6--58fa133b-483c-44eb-a34b-44dd3b0df5ae.lovable.app-1785133685758.png",
+        content: "/china-ai-news-logo-gpt.png",
       },
     ],
     links: [

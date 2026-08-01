@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  head: () => ({ meta: [{ title: "Admin — Inside China AI" }] }),
+  head: () => ({ meta: [{ title: "Admin — China AI News" }] }),
   component: AdminPage,
 });
 

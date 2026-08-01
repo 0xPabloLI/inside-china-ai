@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { BrandName } from "./brand-name";
 
 export function SiteHeader() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -31,7 +32,7 @@ export function SiteHeader() {
     <header className="border-b border-border/60">
       <div className="mx-auto flex max-w-3xl items-baseline justify-between px-6 py-6">
         <Link to="/" className="font-serif text-2xl tracking-tight">
-          Inside China AI
+          <BrandName />
         </Link>
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
           <Link to="/" activeOptions={{ exact: true }} className="hover:text-foreground">

@@ -1,4 +1,4 @@
-# Inside China AI
+# China AI News
 
 A content/blog platform covering China's AI industry, with an admin editor and interactive article widgets.
 

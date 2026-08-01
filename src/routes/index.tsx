@@ -12,12 +12,12 @@ const postsQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Inside China AI — Articles" },
+      { title: "China AI News — Articles" },
       {
         name: "description",
         content: "Independent writing on China's AI industry. One email a week.",
       },
-      { property: "og:title", content: "Inside China AI — Articles" },
+      { property: "og:title", content: "China AI News — Articles" },
       {
         property: "og:description",
         content: "Independent writing on China's AI industry. One email a week.",
@@ -48,7 +48,9 @@ function Index() {
           <h1 className="font-serif text-5xl leading-tight tracking-tight sm:text-6xl">
             Reporting from
             <br />
-            <span className="italic text-muted-foreground">inside China's AI industry.</span>
+            <span className="italic text-muted-foreground">
+              the front lines of China's AI industry.
+            </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-muted-foreground">
             Independent writing on the labs, the people, and the policy shaping AI in China. Leave
@@ -84,7 +86,7 @@ function Index() {
         </section>
       </main>
       <footer className="border-t border-border/60 py-8 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} · Inside China AI
+        © {new Date().getFullYear()} · China AI News
       </footer>
     </div>
   );

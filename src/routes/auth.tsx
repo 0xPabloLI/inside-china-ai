@@ -6,13 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { BrandName } from "@/components/brand-name";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
-    meta: [
-      { title: "Sign in — Inside China AI" },
-      { name: "description", content: "Admin sign in" },
-    ],
+    meta: [{ title: "Sign in — China AI News" }, { name: "description", content: "Admin sign in" }],
   }),
   component: AuthPage,
 });
@@ -196,7 +194,7 @@ function AuthPage() {
       <div className="flex min-h-screen items-center justify-center px-6 py-16">
         <div className="w-full max-w-sm">
           <Link to="/" className="mb-8 block text-center font-serif text-2xl">
-            Inside China AI
+            <BrandName />
           </Link>
           <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
             <h1 className="font-serif text-2xl">Set new password</h1>
@@ -232,7 +230,7 @@ function AuthPage() {
       <div className="flex min-h-screen items-center justify-center px-6 py-16">
         <div className="w-full max-w-sm">
           <Link to="/" className="mb-8 block text-center font-serif text-2xl">
-            Inside China AI
+            <BrandName />
           </Link>
           <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
             <h1 className="font-serif text-2xl">Email me a sign-in link</h1>
@@ -285,7 +283,7 @@ function AuthPage() {
       <div className="flex min-h-screen items-center justify-center px-6 py-16">
         <div className="w-full max-w-md">
           <Link to="/" className="mb-8 block text-center font-serif text-2xl">
-            Inside China AI
+            <BrandName />
           </Link>
           <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
             <h1 className="font-serif text-2xl">Reset password</h1>
@@ -372,7 +370,7 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         <Link to="/" className="mb-8 block text-center font-serif text-2xl">
-          Inside China AI
+          <BrandName />
         </Link>
         <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
           <h1 className="font-serif text-2xl">
