@@ -29,13 +29,12 @@ const __dirname = dirname(__filename);
 const XTTS_BATCH_SCRIPT = join(__dirname, "xtts_batch_tts.py");
 const XTTS_VENV = join(process.env.HOME || "", ".xtts-env");
 const XTTS_LANGUAGE = "en";
-const XTTS_SPEED = 1.15; // Match Kokoro's pace
+const XTTS_SPEED = parseFloat(process.env.XTTS_SPEED) || 1.15;
 const XTTS_SPEAKER = "Craig Gutsy"; // Authoritative male voice
 // Voice cloning: uses the cloned voice sample by default.
-// If the WAV file exists, XTTS clones this voice. If null, uses XTTS_SPEAKER.
-// Override with: TTS_SPEAKER_WAV=/path/to/voice.wav
+// Override: TTS_SPEAKER_WAV=none → use built-in speaker; TTS_SPEAKER_WAV=/path → custom sample
 const DEFAULT_SPEAKER_WAV = join(__dirname, "assets", "voice-sample.wav");
-const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV || (existsSync(DEFAULT_SPEAKER_WAV) ? DEFAULT_SPEAKER_WAV : null);
+const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV === "none" ? null : (process.env.TTS_SPEAKER_WAV || (existsSync(DEFAULT_SPEAKER_WAV) ? DEFAULT_SPEAKER_WAV : null));
 
 // Path to Kokoro Python TTS script and venv
 // Checks persistent location (~/.tts-env) first, then temp (/tmp/tts-env)
@@ -259,9 +258,13 @@ export async function generateTTS(scenes, outputDir) {
     );
   }
 
-  // Select engine
-  let engine, engineInfo;
-  if (xttsAvailable) {
+// Select engine (TTS_ENGINE env var can force kokoro or xtts)
+let engine, engineInfo;
+const forceEngine = process.env.TTS_ENGINE || null;
+if (forceEngine === "kokoro" && kokoroAvailable) {
+  engine = "kokoro";
+  engineInfo = `Kokoro neural TTS (${KOKORO_VOICE}, speed=${KOKORO_SPEED})`;
+} else if (forceEngine === "xtts" || (!forceEngine && xttsAvailable)) {
     engine = "xtts";
     const speakerInfo = XTTS_SPEAKER_WAV ? `cloned from ${XTTS_SPEAKER_WAV}` : XTTS_SPEAKER;
     engineInfo = `XTTS v2 (${speakerInfo}, speed=${XTTS_SPEED})`;

@@ -32,9 +32,10 @@ const checkTikTok = process.argv.includes("--tiktok");
 
 // ─── Results tracking ───
 const results = {
-  pass: [],
-  fail: [],
-  manual: [],
+pass: [],
+warn: [],
+fail: [],
+manual: [],
 };
 
 function pass(category, check, detail = "") {
@@ -43,9 +44,15 @@ function pass(category, check, detail = "") {
 }
 
 function fail(category, check, detail, fix = "") {
-  results.fail.push({ category, check, detail, fix });
-  console.log(`  ❌ ${check}${detail ? ` — ${detail}` : ""}`);
-  if (fix) console.log(`     → FIX: ${fix}`);
+results.fail.push({ category, check, detail, fix });
+console.log(`  ❌ ${check}${detail ? ` — ${detail}` : ""}`);
+if (fix) console.log(`     → FIX: ${fix}`);
+}
+
+function warn(category, check, detail, fix = "") {
+results.warn.push({ category, check, detail, fix });
+console.log(`  ⚠️  ${check}${detail ? ` — ${detail}` : ""}`);
+if (fix) console.log(`     → FIX: ${fix}`);
 }
 
 function manual(category, check, detail = "") {
@@ -100,11 +107,11 @@ if (width === 1080 && height === 1920) {
 if (checkTikTok) {
   if (duration <= 70) {
     pass("Duration", "TikTok optimal (60-70s)", `${duration.toFixed(1)}s`);
-  } else if (duration <= 90) {
-    fail("Duration", "TikTok optimal (60-70s)", `${duration.toFixed(1)}s > 70s`, "Create shortened TikTok cut: select 6-8 key scenes");
-  } else {
-    fail("Duration", "TikTok max (90s)", `${duration.toFixed(1)}s > 90s`, "MUST shorten for TikTok. Use for YouTube Shorts only.");
-  }
+} else if (duration <= 600) {
+warn("Duration", "TikTok optimal (60-70s)", `${duration.toFixed(1)}s > 70s (within TikTok 10min limit)`, "Create shortened TikTok cut: select 6-8 key scenes for optimal performance");
+} else {
+fail("Duration", "TikTok max (600s/10min)", `${duration.toFixed(1)}s > 600s`, "MUST shorten — exceeds TikTok 10-minute upload limit.");
+}
 } else {
   if (duration <= 180) {
     pass("Duration", "YouTube Shorts duration (≤180s)", `${duration.toFixed(1)}s`);
@@ -361,9 +368,10 @@ function printSummary() {
   console.log("\n" + "=".repeat(60));
   console.log("VERIFICATION SUMMARY");
   console.log("=".repeat(60));
-  console.log(`  ✅ PASS:   ${results.pass.length}`);
-  console.log(`  ❌ FAIL:   ${results.fail.length}`);
-  console.log(`  👤 MANUAL: ${results.manual.length}`);
+console.log(`  ✅ PASS:   ${results.pass.length}`);
+console.log(`  ⚠️  WARN:    ${results.warn.length}`);
+console.log(`  ❌ FAIL:   ${results.fail.length}`);
+console.log(`  👤 MANUAL: ${results.manual.length}`);
 
   if (results.fail.length > 0) {
     console.log("\n❌ FAILED CHECKS (agent must fix before publishing):");
