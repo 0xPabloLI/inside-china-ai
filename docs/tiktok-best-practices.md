@@ -1,6 +1,6 @@
 # TikTok 短视频最佳实践（2025-2026）
 
-> 数据来源：Hootsuite Blog（2025-01, 2026-06）、Buffer（2025-10, 2025-12）、Social Media Examiner（2025-11）、Influencer Marketing Hub（2026-04）、Sprout Social（2026-03）、Google AI 概览。通过 Chrome CDP 抓取于 2026-08-01。
+> 数据来源：Hootsuite（2025-01, 2026-06）、Buffer（2025-10, 2025-12）、Social Media Examiner（2025-11）、Influencer Marketing Hub（2026-04）、Sprout Social（2026-02, 2026-03）、TikTok 官方（2025-06）。通过 web-access skill 抓取于 2026-08-01。
 
 ## 算法机制
 
@@ -16,9 +16,12 @@
 
 - **社区对齐 > 广泛传播**：niche relevance 比 broad reach 更重要
 - **分享和重播**权重高于点赞
-- TikTok 能**分析屏幕文字和口播内容**做分类（不只是 metadata）
+- TikTok 能**分析屏幕文字和口播内容**做分类（包括 auto-captions 和文字叠加）—称为 "Search Value"
 - **不原创内容**（带水印、简单 GIF）不会推荐
 - 16 岁以下创作者内容不推荐
+- **60-90s 视频**现在被算法奖励（Creator Rewards Program + 高留存）— Sprout 2026
+- **Qualified Views**：超过 5 秒的观看才算有效 — Sprout 2026
+- 删除视频会影响账号（移除算法数据点，大量删除触发 spam 过滤）— Sprout 2026
 
 ### 200-View Jail
 
@@ -29,8 +32,9 @@
 | 规则 | 详情 | 来源 |
 |------|------|------|
 | 前 3 秒决定一切 | 问问题、倒计时、预览结果 | TikTok 官方 + Hootsuite 2026 |
+| 前 6 秒 hook | 制造悬念、惊喜或情绪 | TikTok 官方 2025 |
 | 播放时长最重要 | 宁可 60s 高完成率，不要长视频低完成率 | SME 2025 |
-| 短循环 vs 长故事 | 5-12s 循环 或 60-70s 叙事 | Google AI 概览 |
+| 60-90s 最优 | Creator Rewards Program 奖励 1min+ 视频，更高留存和 RPM | Sprout 2026 |
 | 可保存内容 | 让人想"保存稍后看" → 高完成率 + 重播 | SME 2025 |
 | 短而精 | 快速剪辑、高密度信息 | Hootsuite 2025 |
 
@@ -69,7 +73,20 @@
 | 视频寿命 | 大部分观看集中在前几天，偶尔 30 天后复活 | SME 2025 |
 | 两个账号策略 | 一个休闲刷、一个专注研究领域内容 | SME 2025 |
 
-## 不推荐内容（Hootsuite 2026）
+## TikTok 官方创意最佳实践（2025-06）
+
+| 原则 | 详情 |
+|------|------|
+| TikTok first | 用声音/音乐、竖屏 9:16、≥720P、UI 安全区域内 |
+| 真实性 | DIY 或不过度精修风格，匹配 UGC 调性 |
+| 趋势 | 用趋势、meme、challenge 制作新内容 |
+| Hook | 前 6 秒制造悬念/惊喜/情绪，前 3 秒引入内容主张 |
+| 文字叠加 | 每秒 5-10 词，提供上下文 |
+| 转场效果 | 用贴纸、图形、转场保持参与度 |
+| 强 CTA | 引导观众思考、感受或行动 |
+| 多样化素材 | 每个 ad group 3-5 个不同创意 |
+
+## 不推荐内容（Hootsuite 2026 + Sprout 2026）
 
 - 带水印的内容、简单 GIF
 - "Like-for-like" 假互动（互相点赞交换）
