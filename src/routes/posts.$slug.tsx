@@ -70,7 +70,7 @@ export const Route = createFileRoute("/posts/$slug")({
             mainEntityOfPage: { "@type": "WebPage", "@id": url },
             url,
             datePublished: loaderData.published_at ?? undefined,
-            dateModified: loaderData.updated_at ?? loaderData.published_at ?? undefined,
+            dateModified: loaderData.published_at ?? undefined,
             publisher: {
               "@type": "Organization",
               name: "China AI News",
