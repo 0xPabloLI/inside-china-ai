@@ -21,25 +21,73 @@ const postQuery = (slug: string) =>
     queryFn: () => getPublishedPost({ data: { slug } }),
   });
 
+const SUFFIX = " — China AI News";
+
+/** Keep the rendered <title> under 60 characters. */
+function buildTitle(title: string): string {
+  const full = `${title}${SUFFIX}`;
+  if (full.length <= 60) return full;
+  const room = 60 - SUFFIX.length - 1;
+  if (room < 20) return title.length <= 60 ? title : `${title.slice(0, 59).trimEnd()}…`;
+  return `${title.slice(0, room).trimEnd()}…${SUFFIX}`;
+}
+
+function clampDescription(text: string): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length <= 160 ? clean : `${clean.slice(0, 157).trimEnd()}…`;
+}
+
 export const Route = createFileRoute("/posts/$slug")({
   loader: async ({ context, params }) => {
     const post = await context.queryClient.ensureQueryData(postQuery(params.slug));
     if (!post) throw notFound();
     return post;
   },
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          { title: `${loaderData.title} — China AI News` },
-          { name: "description", content: loaderData.excerpt ?? loaderData.title },
-          { property: "og:title", content: loaderData.title },
-          { property: "og:description", content: loaderData.excerpt ?? loaderData.title },
-          { property: "og:type", content: "article" },
-        ]
-      : [],
-  }),
+  head: ({ params, loaderData }) => {
+    if (!loaderData) return { meta: [] };
+    const url = `https://chinaai.lovable.app/posts/${params.slug}`;
+    const description = clampDescription(loaderData.excerpt ?? loaderData.title);
+    return {
+      meta: [
+        { title: buildTitle(loaderData.title) },
+        { name: "description", content: description },
+        { property: "og:title", content: loaderData.title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "article" },
+        { property: "og:url", content: url },
+        { name: "twitter:title", content: loaderData.title },
+        { name: "twitter:description", content: description },
+      ],
+      links: [{ rel: "canonical", href: url }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Article",
+            headline: loaderData.title,
+            description,
+            mainEntityOfPage: { "@type": "WebPage", "@id": url },
+            url,
+            datePublished: loaderData.published_at ?? undefined,
+            dateModified: loaderData.updated_at ?? loaderData.published_at ?? undefined,
+            publisher: {
+              "@type": "Organization",
+              name: "China AI News",
+              url: "https://chinaai.lovable.app/",
+              logo: {
+                "@type": "ImageObject",
+                url: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png",
+              },
+            },
+          }),
+        },
+      ],
+    };
+  },
   component: PostPage,
 });
+
 
 function PostPage() {
   const params = Route.useParams();
