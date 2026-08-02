@@ -438,7 +438,7 @@ if (forceEngine === "f5" || (!forceEngine && f5mlxAvailable)) {
 // Output: output/audio/subtitle-timing.json — used by generate-scenes.mjs
 async function runWhisperAlignment(scenes, ttsResults, outputDir) {
   const { existsSync } = await import("fs");
-  const alignScript = join(__dirname, "whisperx-align.py");
+  const alignScript = join(__dirname, "text-align.py");
   if (!existsSync(alignScript)) {
     console.log("  ⚠️ Force-align script not found, skipping");
     return;
