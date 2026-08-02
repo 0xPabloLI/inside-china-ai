@@ -24,6 +24,27 @@ const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// ── F5-TTS-MLX config (default engine, best quality on Apple Silicon) ──
+const F5_MLX_BATCH_SCRIPT = join(__dirname, "f5_mlx_batch_tts.py");
+const F5_MLX_VENV = join(process.env.HOME || "", ".f5-tts-env");
+const F5_MLX_SPEED = parseFloat(process.env.F5_SPEED) || 1.0;
+const F5_REF_AUDIO = join(__dirname, "assets", "voice-sample-24k.wav");
+const F5_REF_TEXT_FILE = join(__dirname, "assets", "voice-sample-ref-text.txt");
+
+async function isF5MLXAvailable() {
+  if (!existsSync(F5_MLX_BATCH_SCRIPT)) return false;
+  if (!existsSync(F5_MLX_VENV)) return false;
+  if (!existsSync(F5_REF_AUDIO)) return false;
+  try {
+    await execAsync(
+      `source ${F5_MLX_VENV}/bin/activate && python3 -c "import f5_tts_mlx" 2>/dev/null`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── XTTS v2 config ──
 // Uses batch script to load model ONCE for all scenes (avoids 60+ min reload penalty)
 const XTTS_BATCH_SCRIPT = join(__dirname, "xtts_batch_tts.py");
@@ -128,6 +149,59 @@ const TTS_ATEMPO = parseFloat(process.env.TTS_ATEMPO) || null;
 const SILENCE_FILTER =
 "silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018" +
 (TTS_ATEMPO ? `,atempo=${TTS_ATEMPO}` : "");
+
+// ── F5-TTS-MLX batch mode: load model once, process all scenes ──
+async function generateBatchWithF5MLX(scenes, outputDir) {
+  const { writeFileSync: writeSync, readFileSync: readSync } = await import("fs");
+  const manifestPath = join(outputDir, "f5-manifest.json");
+  const manifest = scenes.map((s) => ({
+    sceneId: s.id,
+    text: s.voiceover,
+    output: `scene-${s.id}.mp3`,
+  }));
+  writeSync(manifestPath, JSON.stringify(manifest));
+
+  // Read ref-text from file
+  const refText = readSync(F5_REF_TEXT_FILE, "utf-8").trim();
+
+  console.log("  Loading F5-TTS-MLX model (once for all scenes)...");
+  const { stdout } = await execAsync(
+    `source ${F5_MLX_VENV}/bin/activate && HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 F5_REF_AUDIO="${F5_REF_AUDIO}" F5_REF_TEXT="${refText.replace(/"/g, '\\"')}" python3 "${F5_MLX_BATCH_SCRIPT}" ` +
+      `--manifest "${manifestPath}" --output-dir "${outputDir}" --speed ${F5_MLX_SPEED} 2>&1`,
+  );
+
+  // Parse results from stdout
+  const lines = stdout.trim().split("\n");
+  const jsonLine = lines.find((l) => l.trim().startsWith("[{"));
+  let batchResults = [];
+  if (jsonLine) {
+    try {
+      batchResults = JSON.parse(jsonLine.trim());
+    } catch (e) {
+      console.error("  Failed to parse F5-MLX JSON output:", e.message);
+    }
+  }
+  if (batchResults.length === 0) {
+    throw new Error("No F5-MLX results parsed from batch output");
+  }
+
+  // Post-process each with silenceremove
+  const finalResults = [];
+  for (const r of batchResults) {
+    const audioPath = r.audioPath;
+    const processedPath = audioPath.replace(".mp3", "-processed.mp3");
+    await execAsync(
+      `ffmpeg -y -i "${audioPath}" -af "${SILENCE_FILTER}" -ar 44100 -b:a 192k "${processedPath}" 2>/dev/null`,
+    );
+    await execAsync(`mv "${processedPath}" "${audioPath}"`);
+
+    const duration = await getDurationWithFfprobe(audioPath);
+    finalResults.push({ sceneId: r.sceneId, audioPath, duration });
+    console.log(`  Scene ${r.sceneId}: ${duration.toFixed(2)}s`);
+  }
+
+  return finalResults;
+}
 
 // ── XTTS batch mode: load model once, process all scenes ──
 async function generateBatchWithXTTS(scenes, outputDir) {
@@ -263,23 +337,27 @@ async function generateWithSay(scene, tempFile, outputDir) {
 }
 
 export async function generateTTS(scenes, outputDir) {
-  const xttsAvailable = await isXTTSAvailable();
-  const kokoroVenv = xttsAvailable ? null : await isKokoroAvailable();
+  const f5mlxAvailable = await isF5MLXAvailable();
+  const xttsAvailable = !f5mlxAvailable ? await isXTTSAvailable() : false;
+  const kokoroVenv = !f5mlxAvailable && !xttsAvailable ? await isKokoroAvailable() : null;
   const kokoroAvailable = kokoroVenv !== null;
-  const edgeTTSCommand = !xttsAvailable && !kokoroAvailable ? await isEdgeTTSAvailable() : null;
+  const edgeTTSCommand = !f5mlxAvailable && !xttsAvailable && !kokoroAvailable ? await isEdgeTTSAvailable() : null;
   const hasFfprobe = await isCommandAvailable("ffprobe");
   const hasSay = process.platform === "darwin";
 
-  if (!xttsAvailable && !kokoroAvailable && !edgeTTSCommand && !hasSay) {
+  if (!f5mlxAvailable && !xttsAvailable && !kokoroAvailable && !edgeTTSCommand && !hasSay) {
     throw new Error(
-      "No TTS engine available. Install XTTS (pip install TTS), Kokoro (pip install kokoro), or edge-tts, or run on macOS.",
+      "No TTS engine available. Install F5-TTS-MLX (pip install f5-tts-mlx), XTTS (pip install TTS), Kokoro (pip install kokoro), or edge-tts, or run on macOS.",
     );
   }
 
 // Select engine (TTS_ENGINE env var can force kokoro or xtts)
 let engine, engineInfo;
 const forceEngine = process.env.TTS_ENGINE || null;
-if (forceEngine === "kokoro" && kokoroAvailable) {
+if (forceEngine === "f5" || (!forceEngine && f5mlxAvailable)) {
+  engine = "f5-mlx";
+  engineInfo = `F5-TTS-MLX (cloned from ${F5_REF_AUDIO}, speed=${F5_MLX_SPEED})`;
+} else if (forceEngine === "kokoro" && kokoroAvailable) {
   engine = "kokoro";
   engineInfo = `Kokoro neural TTS (${KOKORO_VOICE}, speed=${KOKORO_SPEED})`;
 } else if (forceEngine === "xtts" || (!forceEngine && xttsAvailable)) {
@@ -301,6 +379,13 @@ if (forceEngine === "kokoro" && kokoroAvailable) {
   console.log(`  Post-process: FFmpeg silenceremove (compress pauses >0.25s → 0.08s)${TTS_ATEMPO ? ` + atempo ${TTS_ATEMPO}x` : ""}`);
 
   const results = [];
+
+  if (engine === "f5-mlx") {
+    // F5-TTS-MLX uses batch mode — load model once, process all scenes
+    const f5Results = await generateBatchWithF5MLX(scenes, outputDir);
+    await runWhisperAlignment(scenes, f5Results, outputDir);
+    return f5Results;
+  }
 
   if (engine === "xtts") {
     // XTTS uses batch mode — load model once, process all scenes
