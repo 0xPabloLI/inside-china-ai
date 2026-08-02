@@ -35,7 +35,24 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  head: () => ({ meta: [{ title: "Admin — China AI News" }] }),
+  head: () => ({
+    meta: [
+      { title: "Editorial Dashboard — China AI News" },
+      {
+        name: "description",
+        content:
+          "Private editorial dashboard for China AI News: draft and publish articles, manage attachments, and export newsletter subscribers.",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+      { property: "og:title", content: "Editorial Dashboard — China AI News" },
+      {
+        property: "og:description",
+        content: "Private editorial dashboard for China AI News staff.",
+      },
+      { property: "og:url", content: "https://chinaai.lovable.app/admin" },
+    ],
+    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/admin" }],
+  }),
   component: AdminPage,
 });
 

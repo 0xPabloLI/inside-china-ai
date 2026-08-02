@@ -7,12 +7,21 @@ export const Route = createFileRoute("/privacy")({
       { title: "Privacy Policy — China AI News" },
       {
         name: "description",
-        content: "Privacy Policy for China AI News.",
+        content:
+          "How China AI News collects, stores, and uses newsletter subscriber emails, and how you can unsubscribe or request deletion at any time.",
       },
+      { property: "og:title", content: "Privacy Policy — China AI News" },
+      {
+        property: "og:description",
+        content: "How China AI News handles subscriber emails and personal data.",
+      },
+      { property: "og:url", content: "https://chinaai.lovable.app/privacy" },
     ],
+    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/privacy" }],
   }),
   component: PrivacyPage,
 });
+
 
 function PrivacyPage() {
   return (
