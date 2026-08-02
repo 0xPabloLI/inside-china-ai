@@ -238,17 +238,17 @@ ISSUE-09 (常青模板)               ISSUE-12 (A/B) ← ISSUE-10
 |-------|-------|------|---------|--------|
 | 1 | ISSUE-02 (Caption 输出) | DONE | 2026-08-02 | feat(video): add caption generation + trend discovery |
 | 1 | ISSUE-04 (趋势监控) | DONE | 2026-08-02 | feat(video): add caption generation + trend discovery |
-| 2 | ISSUE-01 (API 发布) | TODO | - | - |
-| 2 | ISSUE-03 (跨平台排期) | TODO | - | - |
-| 3 | ISSUE-05 (竞品情报) | TODO | - | - |
-| 3 | ISSUE-06 (内容日历) | TODO | - | - |
-| 4 | ISSUE-07 (批量脚本) | TODO | - | - |
-| 4 | ISSUE-08 (批量制作) | TODO | - | - |
-| 4 | ISSUE-09 (常青模板) | TODO | - | - |
-| 5 | ISSUE-10 (分析追踪) | TODO | - | - |
-| 5 | ISSUE-11 (优化闭环) | TODO | - | - |
-| 5 | ISSUE-12 (A/B 测试) | TODO | - | - |
-| 6 | ISSUE-13 (内容再利用) | TODO | - | - |
+| 2 | ISSUE-01 (API 发布) | DONE | 2026-08-02 | feat(video): add TikTok publish via Publora |
+| 2 | ISSUE-03 (跨平台排期) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 3 | ISSUE-05 (竞品情报) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 3 | ISSUE-06 (内容日历) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 4 | ISSUE-07 (批量脚本) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 4 | ISSUE-08 (批量制作) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 4 | ISSUE-09 (常青模板) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 5 | ISSUE-10 (分析追踪) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 5 | ISSUE-11 (优化闭环) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 5 | ISSUE-12 (A/B 测试) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 6 | ISSUE-13 (内容再利用) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
 
 ---
 

@@ -144,7 +144,7 @@ Based on platform research and session learnings:
 
 ### TikTok Best Practices Integration
 
-> Based on 2025-2026 research via Chrome CDP. Full details: `docs/tiktok-best-practices.md` and `docs/tiktok-do-dont.md`.
+> Based on 2025-2026 research via Chrome CDP + community skill absorption (sergebulaev/tiktok-skills). Full details: `docs/tiktok-best-practices.md` (signal weights, voice rules, hook formulas, audit checklist, news strategy) and `docs/refs/tiktok-skills/` (34 community reference files).
 >
 > **Enforcement**: `scripts/short-video/verify-video.mjs` runs automated checks after every video. This is **Step 6** of the pipeline workflow (see `short-video-pipeline` SKILL.md). Do NOT publish until all automated checks pass.
 
@@ -164,6 +164,12 @@ Based on platform research and session learnings:
 | No cross-platform watermark references | Scan scene data | Remove references |
 | No clickbait patterns in hook | Regex check Scene 1 voiceover | Rewrite to be factual |
 | No unverified "sources say" claims | Scan voiceovers | Add specific source attribution |
+| **No em/en/double dashes** | Regex scan all voiceover + texts | Replace with `..` or line break |
+| **No AI vocabulary blacklist** | Scan for leverage/delve/harness/etc. | Replace with spoken equivalent |
+| **No written-style openers** | Regex Scene 1 for "In this video I will..." | Rewrite to open on payoff |
+| **Hook VO != on-screen text** | Compare Scene 1 voiceover vs texts | Rewrite one to different angle |
+| **No dead closers** | Regex last scene for "thanks for watching" etc. | End on loop-close line |
+| **No CTA stacking** | Count CTAs per scene (warn if 3+) | Use one clear ask |
 
 #### 🔧 Agent-assisted at scene-data creation time (prompt-driven, not code)
 
@@ -178,6 +184,12 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 | Hook is factual not clickbait | Compelling but factual | ✅ Yes (clickbait regex check) |
 | Every scene has a concrete fact | No filler scenes | ⚠️ Manual (agent judgment) |
 | Causal flow between scenes | Cause → effect → implication | ⚠️ Manual (agent judgment) |
+| Hook formula selected (T1/T3/T4/T6/T7/T9) | Choose by goal (completion/saves/comments) | ✅ Yes (compelling element check) |
+| Loop-close in last scene | Last line recontextualizes the opening | ⚠️ Warning (keyword overlap check) |
+| Voiceover line length variation | No teleprompter rhythm | ⚠️ Warning (length variation check) |
+| Article-to-video workflow | Extract spine → open on payoff → make sayable | ⚠️ Manual (agent judgment) |
+| News trend discovery | Monitor X/36Kr/Bloomberg for trending China AI | ⚠️ Manual (agent judgment) |
+| Content calendar rhythm | Breaking/Analysis/Data/Explainer mix | ⚠️ Manual (agent judgment) |
 
 #### 👤 Manual at publish time (output of verify-video.mjs, presented as checklist)
 
@@ -192,6 +204,10 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 | Title under 60 chars | Write in TikTok UI |
 | AIGC label | Label as AI-generated if AI voice used |
 | Trending audio | Add from TikTok audio library |
+| **Read-aloud test** | Read voiceover at TikTok pace, flag stumbles |
+| **Caption ≤ 2,200 chars** | API limit, hashtags included |
+| **Hook formula goal tag** | Identify T1/T3/T4/T6/T7/T9 + primary goal |
+| **Loop-close verification** | Last 3s → first 3s transition check |
 
 #### ❌ Algorithm penalty (auto-checked, blocks publish)
 
@@ -276,3 +292,47 @@ scripts/short-video/assets/
 ```
 
 
+## Step 8: Analytics & Optimization (Post-Publish)
+
+After publishing, track performance and feed insights back into the next batch of scripts.
+
+### Analytics Export
+
+```bash
+node scripts/short-video/export-analytics.mjs
+# -> output/analytics-export.json (post status/metadata from Publora)
+```
+
+> **Note**: Publora provides post status/metadata only. For view/engagement metrics
+> (views, completion rate, shares, saves, comments), use the TikTok Analytics dashboard
+> or TikTok API directly. Record them manually via the A/B test tracker.
+
+### A/B Test Tracking
+
+```bash
+# Track a new test variant
+node scripts/short-video/ab-test-tracker.mjs add --variable hook --variant A --description "Question hook"
+
+# Record results
+node scripts/short-video/ab-test-tracker.mjs result --id ab-001 --views 5000 --completion 0.45 --shares 120 --saves 80
+
+# View report (shows winner per variable)
+node scripts/short-video/ab-test-tracker.mjs report
+```
+
+### Optimization Loop
+
+1. **Export analytics** -- run `export-analytics.mjs` weekly
+2. **Record results** -- manually enter TikTok dashboard metrics into ab-test-tracker
+3. **Identify patterns** -- compare top 3 vs bottom 3 videos
+   - Which hook type performed best?
+   - Which duration had highest completion rate?
+   - Which publish time got most shares?
+4. **Adjust next batch** -- feed insights into `generate-calendar.mjs` output
+   - Prioritize topics in the winning content type
+   - Use the winning hook formula more often
+   - Schedule at the best-performing time
+5. **Content repurposing** -- run `repurpose-content.mjs` on top performers
+   - Blog post -> website SEO
+   - Newsletter -> email list
+   - X thread -> social reach
