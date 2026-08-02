@@ -84,27 +84,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "description",
         content: "Independent writing on China's AI industry. One email a week.",
       },
-      { property: "og:title", content: "China AI News — Articles" },
-      {
-        property: "og:description",
-        content: "Independent writing on China's AI industry. One email a week.",
-      },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "China AI News" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "China AI News — Articles" },
-      {
-        name: "twitter:description",
-        content: "Independent writing on China's AI industry. One email a week.",
-      },
-      {
-        property: "og:image",
-        content: "/china-ai-news-logo-gpt.png",
-      },
-      {
-        name: "twitter:image",
-        content: "/china-ai-news-logo-gpt.png",
-      },
     ],
+
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },

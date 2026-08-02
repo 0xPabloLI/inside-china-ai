@@ -10,10 +10,26 @@ import { BrandName } from "@/components/brand-name";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
-    meta: [{ title: "Sign in — China AI News" }, { name: "description", content: "Admin sign in" }],
+    meta: [
+      { title: "Sign in — China AI News" },
+      {
+        name: "description",
+        content:
+          "Administrative access for China AI News. Editors sign in here to write, edit, and publish articles and manage newsletter subscribers.",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+      { property: "og:title", content: "Sign in — China AI News" },
+      {
+        property: "og:description",
+        content: "Administrative access for China AI News editors.",
+      },
+      { property: "og:url", content: "https://chinaai.lovable.app/auth" },
+    ],
+    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/auth" }],
   }),
   component: AuthPage,
 });
+
 
 type Mode = "signin" | "signup" | "forgot" | "recovery" | "magic";
 
