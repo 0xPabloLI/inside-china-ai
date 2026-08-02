@@ -89,7 +89,7 @@ def group_chunks(word_ts, max_words=7, min_words=3):
             text = re.sub(r"\s+([,.;:!?])", r"\1", text)
             start = current[0]["start"]
             end = max(current[-1]["end"], start + 0.5)
-            chunks.append({"text": text, "start": round(start, 3), "end": round(end, 3)})
+            chunks.append({"text": text, "start": round(start, 3), "end": round(end, 3), "words": list(current)})
             current = []
 
     if current:
@@ -97,7 +97,7 @@ def group_chunks(word_ts, max_words=7, min_words=3):
         text = re.sub(r"\s+([,.;:!?])", r"\1", text)
         start = current[0]["start"]
         end = max(current[-1]["end"], start + 0.5)
-        chunks.append({"text": text, "start": round(start, 3), "end": round(end, 3)})
+        chunks.append({"text": text, "start": round(start, 3), "end": round(end, 3), "words": list(current)})
 
     # Deduplicate: remove overlapping/repeated segments (hallucination)
     seen_text = set()

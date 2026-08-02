@@ -92,8 +92,9 @@ background: transparent; padding: 0;
 text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 3px 6px rgba(0,0,0,0.9);
 -webkit-text-stroke: 2px rgba(0,0,0,0.7);
 }
-    .subtitle-bar .sub-hl { color: var(--blue); }
-  `;
+.subtitle-bar .sub-word { color: rgba(255,255,255,0.25); display: inline; }
+@keyframes wordHL { 0% { color: rgba(255,255,255,0.25); } 100% { color: var(--white); } }
+`;
 }
 
 /* ── S1: Hook (v4 — Clean & bold, one core message, mobile-first) ── */
@@ -710,7 +711,9 @@ function alignWithWhisper(segments, duration) {
     if (words.length <= 7) {
       // Ensure minimum 0.5s duration
       const end = Math.max(seg.end, seg.start + 0.5);
-      splitSegments.push({ ...seg, end });
+      // For karaoke: keep word-level timing from whisperx
+      const end = Math.max(seg.end, seg.start + 0.5);
+      splitSegments.push({ ...seg, end, words: seg.words || [] });
     } else {
       // Split long segment into 3-7 word sub-chunks
       const subChunks = Math.ceil(words.length / 5); // ~5 words per chunk
@@ -749,10 +752,36 @@ function alignWithWhisper(segments, duration) {
       const start = currentChunk[0].start;
       const end = Math.max(currentChunk[currentChunk.length - 1].end, start + 0.5);
       const text = currentChunk.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+      // Collect word-level timestamps for karaoke-style highlighting
+      const words = [];
+      for (const seg of currentChunk) {
+        if (seg.words) {
+          for (const w of seg.words) {
+            words.push({
+              text: w.text || w.word || '',
+              startPct: Math.min((w.start / duration) * 100, 92),
+              endPct: Math.min((w.end / duration) * 100, 98),
+            });
+          }
+        } else {
+          // Fallback: split segment text into words with proportional timing
+          const segWords = seg.text.split(/\s+/);
+          const segDur = seg.end - seg.start;
+          const perWord = segDur / segWords.length;
+          for (let wi = 0; wi < segWords.length; wi++) {
+            words.push({
+              text: segWords[wi],
+              startPct: Math.min(((seg.start + wi * perWord) / duration) * 100, 92),
+              endPct: Math.min(((seg.start + (wi + 1) * perWord) / duration) * 100, 98),
+            });
+          }
+        }
+      }
       chunks.push({
         text,
         startPct: Math.min((start / duration) * 100, 92),
         endPct: Math.min((end / duration) * 100, 98),
+        words,
       });
       currentChunk = [];
     }
@@ -762,10 +791,34 @@ function alignWithWhisper(segments, duration) {
     const start = currentChunk[0].start;
     const end = Math.max(currentChunk[currentChunk.length - 1].end, start + 0.5);
     const text = currentChunk.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+    const words = [];
+    for (const seg of currentChunk) {
+      if (seg.words) {
+        for (const w of seg.words) {
+          words.push({
+            text: w.text || w.word || '',
+            startPct: Math.min((w.start / duration) * 100, 92),
+            endPct: Math.min((w.end / duration) * 100, 98),
+          });
+        }
+      } else {
+        const segWords = seg.text.split(/\s+/);
+        const segDur = seg.end - seg.start;
+        const perWord = segDur / segWords.length;
+        for (let wi = 0; wi < segWords.length; wi++) {
+          words.push({
+            text: segWords[wi],
+            startPct: Math.min(((seg.start + wi * perWord) / duration) * 100, 92),
+            endPct: Math.min(((seg.start + (wi + 1) * perWord) / duration) * 100, 98),
+          });
+        }
+      }
+    }
     chunks.push({
       text,
       startPct: Math.min((start / duration) * 100, 92),
       endPct: Math.min((end / duration) * 100, 98),
+      words,
     });
   }
 
@@ -858,16 +911,25 @@ function buildSubtitleCSS(subtitles, duration) {
  * Build the subtitle HTML elements with timed visibility.
  */
 function buildSubtitleHTML(subtitles, duration) {
-  if (!subtitles || subtitles.length === 0) return "";
-  let html = "";
-  for (let i = 0; i < subtitles.length; i++) {
-    const sub = subtitles[i];
-    const startSec = (sub.startPct / 100) * duration;
-    const endSec = (sub.endPct / 100) * duration;
-    const totalDur = endSec - startSec + 0.6; // include fade time
-    html += `<div class="subtitle-bar" style="animation: sub${i} ${totalDur.toFixed(1)}s linear ${startSec.toFixed(1)}s forwards;">${sub.text}</div>`;
-  }
-  return html;
+if (!subtitles || subtitles.length === 0) return "";
+let html = "";
+for (let i = 0; i < subtitles.length; i++) {
+const sub = subtitles[i];
+const startSec = (sub.startPct / 100) * duration;
+const endSec = (sub.endPct / 100) * duration;
+const totalDur = endSec - startSec + 0.6;
+// Karaoke-style: each word is a span that highlights at its start time
+if (sub.words && sub.words.length > 0) {
+const wordsHTML = sub.words.map(w => {
+const wStart = (w.startPct / 100) * duration;
+return `<span class="sub-word" style="animation: wordHL 0.15s linear ${wStart.toFixed(2)}s forwards;">${w.text}</span>`;
+}).join(' ');
+html += `<div class="subtitle-bar" style="animation: sub${i} ${totalDur.toFixed(1)}s linear ${startSec.toFixed(1)}s forwards;">${wordsHTML}</div>`;
+} else {
+html += `<div class="subtitle-bar" style="animation: sub${i} ${totalDur.toFixed(1)}s linear ${startSec.toFixed(1)}s forwards;">${sub.text}</div>`;
+}
+}
+return html;
 }
 
 export function generateSceneHTML(sceneId, duration, voiceover = null) {
