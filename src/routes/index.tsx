@@ -12,21 +12,61 @@ const postsQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "China AI News — Articles" },
+      { title: "China AI News — Inside China's AI Labs & Policy" },
       {
         name: "description",
-        content: "Independent writing on China's AI industry. One email a week.",
+        content:
+          "Independent reporting on China's AI industry: the labs, the people, and the policy shaping AI in China. One new piece a week, straight to your inbox.",
       },
-      { property: "og:title", content: "China AI News — Articles" },
+      { property: "og:title", content: "China AI News — Inside China's AI Labs & Policy" },
       {
         property: "og:description",
-        content: "Independent writing on China's AI industry. One email a week.",
+        content:
+          "Independent reporting on China's AI industry: the labs, the people, and the policy shaping AI in China. One new piece a week.",
+      },
+      { property: "og:url", content: "https://chinaai.lovable.app/" },
+      { property: "og:image", content: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png" },
+      { name: "twitter:image", content: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png" },
+      { name: "twitter:title", content: "China AI News — Inside China's AI Labs & Policy" },
+      {
+        name: "twitter:description",
+        content: "Independent reporting on China's AI industry. One new piece a week.",
+      },
+    ],
+    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "WebSite",
+              "@id": "https://chinaai.lovable.app/#website",
+              name: "China AI News",
+              url: "https://chinaai.lovable.app/",
+              description: "Independent writing on China's AI industry.",
+              publisher: { "@id": "https://chinaai.lovable.app/#organization" },
+            },
+            {
+              "@type": "Organization",
+              "@id": "https://chinaai.lovable.app/#organization",
+              name: "China AI News",
+              url: "https://chinaai.lovable.app/",
+              logo: {
+                "@type": "ImageObject",
+                url: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png",
+              },
+            },
+          ],
+        }),
       },
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(postsQuery),
   component: Index,
 });
+
 
 function formatDate(d: string | null) {
   if (!d) return "";

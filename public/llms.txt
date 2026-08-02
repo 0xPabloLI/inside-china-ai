@@ -1,0 +1,13 @@
+# China AI News
+
+> Independent writing on China's AI industry — the labs, the people, and the policy shaping AI in China. One email a week.
+
+## Pages
+
+- [Home](/): Latest articles and newsletter signup.
+- [Privacy Policy](/privacy): How subscriber emails are handled.
+- [Terms of Service](/terms): Terms for using the site.
+
+## Articles
+
+- [DeepSeek's leaked investor meeting](/posts/deepseek-leaked-investor-meeting): Inside a leaked DeepSeek investor meeting, with data on funding, pricing, and talent.

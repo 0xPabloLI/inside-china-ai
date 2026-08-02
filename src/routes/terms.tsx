@@ -7,12 +7,21 @@ export const Route = createFileRoute("/terms")({
       { title: "Terms of Service — China AI News" },
       {
         name: "description",
-        content: "Terms of Service for China AI News.",
+        content:
+          "The terms that govern your use of China AI News, including acceptable use of articles, newsletter subscriptions, and site content.",
       },
+      { property: "og:title", content: "Terms of Service — China AI News" },
+      {
+        property: "og:description",
+        content: "Terms governing use of China AI News articles and newsletter.",
+      },
+      { property: "og:url", content: "https://chinaai.lovable.app/terms" },
     ],
+    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/terms" }],
   }),
   component: TermsPage,
 });
+
 
 function TermsPage() {
   return (
