@@ -19,7 +19,7 @@ The brand uses **one visual identity, two surface treatments** — same semantic
 
 ### What's shared across both surfaces
 
-- **Semantic color mapping**: red = threat, green = positive, blue = tech/brand, amber = caution. The *meaning* is identical; the *hex value* adapts to the surface.
+- **Semantic color mapping**: red = threat/breaking, green = positive, blue = tech/brand, amber = caution + key data highlights + CTA. The *meaning* is identical; the *hex value* adapts to the surface.
 - **Entity color consistency**: DeepSeek is always blue, Huawei is always red, government is always amber — in both video and web.
 - **Brand name presentation**: `AI` is always emphasized in blue (`#4d8bff`), on both surfaces. The typographic treatment adapts to the surface:
   - **Video**: `CHINA AI NEWS` — uppercase, Helvetica Neue 900, sans-serif.
@@ -94,9 +94,25 @@ All animations: `opacity: 0` initial, `forwards` fill mode. Stagger delays 0.3-0
 | `scaleIn` | 0.5-0.6s | ease-out | Big numbers, key data |
 | `stampIn` | 0.3-0.5s | ease-out | Verdicts (scale 2→1) |
 
+## Color Usage Guide (60-30-10 Principle)
+
+Based on TikTok color best practices research (2025-2026):
+
+| Role | Ratio | Color | Usage |
+|------|-------|-------|-------|
+| **Dominant** | 60% | `#050508` (dark bg) | Background, negative space |
+| **Supporting** | 30% | `#f5f5f5` text + blue/red/green semantic colors | Headlines, body, entity colors |
+| **Accent** | 10% | `#f59e0b` amber | Key numbers, CTA, data highlights |
+
+- **Red** `#ef4444` → breaking news badges, threat/negative entities, danger stamps
+- **Amber** `#f59e0b` → big numbers in Hook, CTA "Subscribe", key data points (Bloomberg amber-on-black pattern)
+- **Blue** `#4d8bff` → brand color, tech/protagonist entities, structural elements
+- **Green** `#34d399` → positive outcomes, advantages
+- **White** `#f5f5f5` → general text, titles (never pure `#ffffff`)
+
 ## Content Patterns
 
-- **Data anchors**: oversized numbers (64-280px) as focal points
+- **Data anchors**: oversized numbers (64-280px) as focal points — amber for Hook, semantic color elsewhere
 - **Quotes**: left-border accent color, italic, keyword highlighted
 - **Verdicts**: full-width stamp with text-shadow glow
 - **Color coding**: consistent — same entity always same color across all scenes
@@ -107,13 +123,14 @@ All animations: `opacity: 0` initial, `forwards` fill mode. Stagger delays 0.3-0
 
 ### 1. Hook Scene
 
-Breaking news opener. Red dominant.
+Breaking news opener. Amber-dominant (key data) + red accent (breaking badge).
 
-- Breaking news badge at top (red pill, `⚠ BREAKING`)
+- Breaking news badge at top (red pill, `⚠ BREAKING`) — red for urgency
 - Logo + entity name row
-- Large two-line headline: context line (sec) + impact line (red, 130px)
-- Glitch flash effect (0.4s, red→blue overlay)
-- Animation: badge fadeIn → logo fadeIn → line1 slideUp → line2 scaleIn
+- Large headline: context line (sec) + **big number in amber** (260px, amber glow) — amber for maximum visibility on dark bg
+- Key stat cards below (amber + blue borders)
+- Scan line sweep (blue)
+- Animation: badge stampIn → logo slideDown → subject slideUp → big-number scaleIn + numberPulse
 
 ### 2. Timeline Scene
 
@@ -192,7 +209,7 @@ Brand closer. No URL (testing phase).
 
 - Brand name: `CHINA AI NEWS` (72px, 900, "AI" in blue)
 - Tagline: `China's AI, decoded.` (32px, sec)
-- "Subscribe for more" (64px, 800, white)
+- "Subscribe for more" (64px, 800, amber — highest CTA visibility color)
 - Bottom: "Follow for daily China AI deep dives" (30px, muted)
 - Fade-to-black at end (0.8s before duration ends)
 
