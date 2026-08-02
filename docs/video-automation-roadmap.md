@@ -213,51 +213,68 @@
 
 ### ISSUE-14: 源素材读取与结构化
 - **状态**: TODO
-- **现状**: agent 手动读 PDF/网页，手动提取结构化信息
-- **目标**: 脚本/工作流自动读取 PDF/网页 → 提取关键信息 → 输出结构化 JSON（人物/时间线/数据点/引用）
-- **方案**:
-  - PDF: 用 `pdf-parse` 或 `pdfjs-dist` 提取文本
-  - 网页: 用 `web-access` skill (CDP) 抓取
-  - 输出: `output/source-extract.json`（结构化数据）
-- **文件**: `scripts/short-video/extract-source.mjs`（新建）
+- **现状**: agent 手动读 PDF/网页/报告，手动提取结构化信息
+- **目标**: agent 工作流 — 给定任意源素材（PDF/URL/话题/报告）→ agent 读取 → 提取关键信息 → 输出结构化内容
+- **素材类型**: PDF 转文本、新闻 URL、研究报告、社交媒体帖子、视频脚本 — 任何包含信息的输入
+- **方案**: **Agent 工作流（非脚本）**
+  - PDF: agent 用 `web-access` skill 或 `pdf-parse` 读取
+  - 网页: agent 用 `web-access` skill (CDP) 抓取
+  - 输出: agent 直接理解素材，不需要中间 JSON
+  - 参考: DeepSeek 文章创作过程 — 读 42 页投资者会议录音 → 提取核心叙事、人物、数据点
+- **文件**: AGENTS.md 工作流文档更新（非脚本）
 - **依赖**: 无
-- **完成标志**: 给定 PDF/URL → 输出结构化 JSON
+- **完成标志**: 给 agent 任意源素材 → agent 能读取并提取核心信息
 
-### ISSUE-15: 富文章生成（markdown + widget 标记）
+### ISSUE-15: 富文章生成（markdown + widget 标记 + 扩展内容）
 - **状态**: TODO
-- **现状**: agent 手动写 markdown + 手动嵌入 `<!-- widget:xxx -->` 标记
-- **目标**: 基于 source-extract.json + 已有 widget 注册表 → 生成带 widget 标记的 markdown 文章草稿
-- **方案**:
-  - 读取 `src/components/widgets/registry.ts` 获取可用 widget 列表
-  - agent 根据 source-extract.json 内容选择合适 widget
-  - 生成 markdown 草稿，在合适位置嵌入 widget 标记
-  - 输出: `output/article-draft.md`
-- **文件**: `scripts/short-video/generate-article.mjs`（新建）
+- **现状**: agent 手动写 markdown + 手动嵌入 widget 标记 + 手动 curate widget 数据
+- **目标**: agent 工作流 — 读源素材 → 总结核心叙事 → **根据内容主动扩展** → 选择/创建增强 widget → 写富文章
+- **参考模式**: DeepSeek 文章创作过程
+  1. 读源素材（投资者会议录音转文本 PDF）
+  2. 总结核心叙事 → 拆分为章节
+  3. 对每个章节思考：「什么交互内容能增强这段？」
+     - 引言后 → 词云（全文关键词可视化）
+     - 融资讨论后 → 融资时间线 + 媒体来源
+     - 定价讨论后 → API 定价对比表
+     - 团队讨论后 → 人才流动卡片
+     - 「My Take」后 → 公司生态图
+  4. 为每个 widget curate 数据（从素材提取 + 外部调研补充）
+  5. 写 markdown + 在合适位置嵌入 `<!-- widget:xxx -->` 标记
+  6. 加原创分析章节（「My Take」）
+- **方案**: **Agent 工作流（非脚本）**
+  - agent 读 `src/components/widgets/registry.ts` 获取已有 widget 列表
+  - agent 根据素材内容决定用哪些 widget + 在哪里插入
+  - agent 可以创建新 widget（需要写 React 组件 + 注册）
+  - agent curate widget 数据（从素材提取 + 补充调研）
+  - 输出: 直接写入 Supabase（ISSUE-16）或输出 markdown 供审阅
+- **关键**: 不是纯总结，是 **总结 + 扩展**。agent 要根据素材主动增加交互内容和原创分析
+- **文件**: AGENTS.md 工作流文档更新 + 可能的 `docs/article-workflow.md`（参考指南）
 - **依赖**: ISSUE-14
-- **完成标志**: 运行后生成带 widget 标记的 markdown 文章
+- **完成标志**: 给 agent 源素材 → agent 写出带 widget 标记 + 原创分析的富文章
 
 ### ISSUE-16: 文章发布到网站（Supabase API）
 - **状态**: TODO
 - **现状**: 手动 copy markdown 到 admin editor → 点发布
 - **目标**: 脚本直接写入 Supabase `posts` 表 → 自动发布
-- **方案**:
+- **方案**: **代码实现**
   - 调用 Supabase REST API 或 server function `createPost`
   - 字段: title, slug, excerpt, content (markdown), published=true
-- **文件**: `scripts/short-video/publish-article.mjs`（新建）
+- **文件**: `scripts/publish-article.mjs`（新建）
 - **依赖**: ISSUE-15
 - **完成标志**: 运行脚本后文章出现在网站 `/posts/{slug}`
 
 ### ISSUE-17: 文章 → scene-data 桥接
 - **状态**: TODO
 - **现状**: agent 手动从文章内容提炼视频脚本
-- **目标**: 读取已发布文章的 content → 提取核心叙事 → 生成 scene-data 草稿
-- **方案**:
-  - 从 Supabase 读取文章 content
-  - 按文章结构拆分为场景
-  - 生成 scene-data.mjs 草稿（agent 审阅后调整）
-- **文件**: `scripts/short-video/article-to-video.mjs`（新建）
+- **目标**: agent 工作流 — 读已发布文章 → 提炼核心叙事 → 写 scene-data
+- **方案**: **Agent 工作流（非脚本）**
+  - agent 从 Supabase 或 admin editor 读取文章 content
+  - 按文章结构提炼核心叙事线
+  - 直接写 scene-data.mjs（不需要中间脚本）
+  - 参考: DeepSeek 文章 → 视频的过程
+- **文件**: AGENTS.md 工作流文档更新
 - **依赖**: ISSUE-16
-- **完成标志**: 从网站文章生成可用的 scene-data 草稿
+- **完成标志**: 给 agent 一篇已发布文章 → agent 生成可用的 scene-data
 
 **Phase 7 完成标志**: ISSUE-14 + ISSUE-15 + ISSUE-16 + ISSUE-17 均为 DONE
 
