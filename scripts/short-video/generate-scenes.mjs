@@ -709,8 +709,6 @@ function alignWithWhisper(segments, duration) {
   for (const seg of segments) {
     const words = seg.text.split(/\s+/);
     if (words.length <= 7) {
-      // Ensure minimum 0.5s duration
-      const end = Math.max(seg.end, seg.start + 0.5);
       // For karaoke: keep word-level timing from whisperx
       const end = Math.max(seg.end, seg.start + 0.5);
       splitSegments.push({ ...seg, end, words: seg.words || [] });
