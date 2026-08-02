@@ -236,7 +236,155 @@ if (existsSync(SUBTITLE_TIMING_PATH)) {
   fail("Subtitles", "subtitle-timing.json exists", "File not found", "Run force-align.py after TTS generation");
 }
 
-// ─── 5. Algorithm penalty checks ───
+// ─── 5. Voice rules & de-AI checks (blockers) ───
+console.log("\n🗣️ Voice Rules & De-AI Checks");
+console.log("─".repeat(50));
+
+// B1: Em/en/double dash detection
+const emDashPattern = /\u2014|\u2013|--/;
+let emDashCount = 0;
+for (const scene of scenes) {
+  const vo = scene.voiceover || "";
+  const texts = JSON.stringify(scene.texts || "");
+  if (emDashPattern.test(vo) || emDashPattern.test(texts)) emDashCount++;
+}
+if (emDashCount === 0) {
+  pass("De-AI", "No em/en/double dashes in voiceover or on-screen text");
+} else {
+  fail("De-AI", "No em/en/double dashes", `${emDashCount} scenes contain dashes`, "Replace with '..' or a line break");
+}
+
+// B3: Written-not-spoken hook ("In this video I will.." style)
+const writtenOpenerPattern = /in this video,? i will|today i want to talk about|in this video,? we will|today we're going to/i;
+const hookVO = scenes[0]?.voiceover || "";
+if (!writtenOpenerPattern.test(hookVO)) {
+  pass("De-AI", "Hook is spoken, not written (no 'In this video I will..')");
+} else {
+  fail("De-AI", "Hook is spoken not written", `Scene 1 opens with written-style opener`, "Open on the payoff, not a setup phrase");
+}
+
+// B4: Hook voiceover == on-screen text identical
+const hookTexts = JSON.stringify(scenes[0]?.texts || "").toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+const hookVO_norm = hookVO.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+if (hookTexts && hookVO_norm && hookTexts !== hookVO_norm) {
+  pass("De-AI", "Hook voiceover and on-screen text differ");
+} else if (hookTexts && hookTexts === hookVO_norm) {
+  fail("De-AI", "Hook differs from on-screen text", "Identical words in both layers", "Rewrite on-screen text to a different angle on the same promise");
+} else {
+  pass("De-AI", "Hook voiceover and on-screen text differ", "(no on-screen text to compare)");
+}
+
+// B7: AI vocabulary blacklist
+const aiBlacklist = [
+  "leverage", "utilize", "facilitate", "streamline", "robust", "seamless",
+  "delve", "navigate", "unlock", "harness", "foster", "cultivate",
+  "fundamentally", "essentially", "ultimately", "crucially", "notably",
+  "myriad", "paradigm", "ecosystem", "landscape",
+  "game-changer", "deep dive", "at the end of the day", "dive in",
+  "hey guys", "without further ado",
+];
+let aiVocabHits = [];
+for (const scene of scenes) {
+  const vo = (scene.voiceover || "").toLowerCase();
+  for (const word of aiBlacklist) {
+    if (vo.includes(word)) aiVocabHits.push({ scene: scene.id, word });
+  }
+}
+if (aiVocabHits.length === 0) {
+  pass("De-AI", "No AI vocabulary blacklist words");
+} else {
+  const wordList = aiVocabHits.map(h => `"${h.word}" (scene ${h.scene})`).join(", ");
+  fail("De-AI", "No AI vocabulary blacklist words", wordList, "Replace with spoken equivalent (leverage→use, delve→look at, etc.)");
+}
+
+// B9: Dead closer detection
+const deadCloserPattern = /thanks for watching|don't forget to (like|subscribe)|subscribe for more|what do you think|drop your thoughts|let me know in the comments/i;
+const lastSceneVO = scenes[scenes.length - 1]?.voiceover || "";
+if (!deadCloserPattern.test(lastSceneVO)) {
+  pass("De-AI", "No dead closer ('thanks for watching' etc.)");
+} else {
+  fail("De-AI", "No dead closer in last scene", "Last scene ends on generic engagement bait", "End on the loop-close line or one specific ask");
+}
+
+// W3: No loop-close warning
+const lastScene = scenes[scenes.length - 1];
+const firstScene = scenes[0];
+const lastVO = (lastScene?.voiceover || "").toLowerCase();
+const firstVO = (firstScene?.voiceover || "").toLowerCase();
+// Check if last scene references back to the hook topic (simple keyword overlap)
+const firstWords = firstVO.split(/\s+/).filter(w => w.length > 4).slice(0, 5);
+const hasLoopClose = firstWords.some(w => lastVO.includes(w));
+if (hasLoopClose || lastScene?.id === firstScene?.id + scenes.length - 1) {
+  warn("De-AI", "Loop-close design", "Last scene may reference the hook", "Verify the last frame makes the first frame land differently on rewatch");
+} else {
+  warn("De-AI", "Loop-close design", "Last scene does not clearly reference the hook", "End on a line that recontextualizes the opening for natural rewatch");
+}
+
+// W4: Teleprompter rhythm warning
+const voLengths = scenes.filter(s => s.voiceover).map(s => s.voiceover.split(/\s+/).length);
+if (voLengths.length > 2) {
+  const avg = voLengths.reduce((a, b) => a + b, 0) / voLengths.length;
+  const allSimilar = voLengths.every(l => Math.abs(l - avg) / avg < 0.15);
+  if (allSimilar) {
+    warn("De-AI", "Teleprompter rhythm", "All voiceover lines are similar length (~15% of each other)", "Add a short punch line between long ones to break the rhythm");
+  } else {
+    pass("De-AI", "Voiceover line length variation", "Lines vary in length (natural rhythm)");
+  }
+}
+
+// W6: One-breath line check (lines > 25 words may need two breaths)
+let longLines = [];
+for (const scene of scenes) {
+  const vo = scene.voiceover || "";
+  // Split by sentence-ending punctuation
+  const sentences = vo.split(/[.!?\n]+/).filter(s => s.trim().length > 0);
+  for (const sentence of sentences) {
+    const wordCount = sentence.trim().split(/\s+/).length;
+    if (wordCount > 25) {
+      longLines.push({ scene: scene.id, words: wordCount, text: sentence.trim().substring(0, 60) });
+    }
+  }
+}
+if (longLines.length === 0) {
+  pass("De-AI", "All voiceover lines are sayable in one breath (≤25 words)");
+} else {
+  const detail = longLines.slice(0, 3).map(l => `scene ${l.scene}: ${l.words} words`).join(", ");
+  warn("De-AI", "One-breath check", `${longLines.length} lines exceed 25 words (${detail})`, "Split long lines at natural breath points");
+}
+
+// W7: CTA stack warning
+const ctaPattern = /follow|subscribe|like|comment|share|save|download|click|sign up|check out|visit/gi;
+let ctaStacks = 0;
+for (const scene of scenes) {
+  const vo = scene.voiceover || "";
+  const ctaCount = (vo.match(ctaPattern) || []).length;
+  if (ctaCount >= 3) ctaStacks++;
+}
+if (ctaStacks === 0) {
+  pass("De-AI", "No CTA stacking (≥3 CTAs in one scene)");
+} else {
+  warn("De-AI", "CTA stacking", `${ctaStacks} scenes have 3+ calls to action`, "Use one clear ask per scene");
+}
+
+// W9: Primary goal check (video should target one primary goal)
+const goalIndicators = {
+  completion: /watch|see|look|here is|this is/i,
+  saves: /save|remember|note|keep|reference/i,
+  comments: /comment|tell|ask|question|what do/i,
+  shares: /share|send|forward|tag/i,
+};
+let goalCount = 0;
+const allVO = scenes.map(s => s.voiceover || "").join(" ");
+for (const [goal, pattern] of Object.entries(goalIndicators)) {
+  if (pattern.test(allVO)) goalCount++;
+}
+if (goalCount <= 2) {
+  pass("De-AI", "Clear primary goal (≤2 goal signals)", `${goalCount} goals detected`);
+} else {
+  warn("De-AI", "Primary goal focus", `${goalCount} goal signals detected (completion+saves+comments+shares)`, "Focus on one primary goal per video");
+}
+
+// ─── 6. Algorithm penalty checks ───
 console.log("\n⚠️ Algorithm Penalty Checks");
 console.log("─".repeat(50));
 
@@ -397,4 +545,18 @@ console.log(`  👤 MANUAL: ${results.manual.length}`);
 }
 
 printSummary();
+
+// ─── Auto-generate caption if all checks pass ───
+if (results.fail.length === 0) {
+  console.log("\n📝 Generating TikTok caption...");
+  try {
+    execSync(`node "${join(__dirname, "generate-caption.mjs")}"`, {
+      stdio: "inherit",
+    });
+  } catch (e) {
+    console.warn(`⚠️  Caption generation failed: ${e.message}`);
+    console.warn("   You can run it manually: node scripts/short-video/generate-caption.mjs");
+  }
+}
+
 process.exit(results.fail.length > 0 ? 1 : 0);
