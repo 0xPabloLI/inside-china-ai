@@ -35,6 +35,8 @@ export function SubscribeForm() {
         <Input
           type="email"
           required
+          id="subscribe-email"
+          aria-label="Email address"
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
