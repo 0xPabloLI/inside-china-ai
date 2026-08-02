@@ -131,6 +131,10 @@ git diff main..lovable -- path/to/file
 
 **默认方案：`web-access` skill**。当用户要求爬取网页内容、搜索信息、抓取文章、获取需要登录的页面时，优先使用 `web-access` skill。
 
+### Deep Research
+
+进行深度调研（多源交叉验证、带引用的结构化报告）时，使用 `web-deep-research` skill。它组合了 deep-research 的 8 阶段方法论（SCOPE → PLAN → RETRIEVE → TRIANGULATE → SYNTHESIZE → CRITIQUE → REFINE → PACKAGE）与 web-access 的 CDP 抓取能力。触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。
+
 ### 工具选择优先级
 
 | 场景 | 工具 | 说明 |
