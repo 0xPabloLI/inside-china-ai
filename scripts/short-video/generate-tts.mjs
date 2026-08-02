@@ -143,7 +143,7 @@ async function generateBatchWithXTTS(scenes, outputDir) {
   const speakerArg = XTTS_SPEAKER_WAV ? `--speaker "${XTTS_SPEAKER_WAV}"` : "";
   console.log("  Loading XTTS v2 model (once for all scenes)...");
   const { stdout } = await execAsync(
-    `source ${XTTS_VENV}/bin/activate && COQUI_TOS_AGREED=1 python3 "${XTTS_BATCH_SCRIPT}" ` +
+    `source ${XTTS_VENV}/bin/activate && COQUI_TOS_AGREED=1 XTTS_SPEAKER="${XTTS_SPEAKER}" python3 "${XTTS_BATCH_SCRIPT}" ` +
       `--manifest "${manifestPath}" --output-dir "${outputDir}" ` +
       `--language ${XTTS_LANGUAGE} --speed ${XTTS_SPEED} ${speakerArg} 2>&1`,
   );
