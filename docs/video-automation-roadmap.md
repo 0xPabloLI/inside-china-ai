@@ -192,8 +192,8 @@
 > 依赖：无（可独立做）
 
 ### ISSUE-13: 视频内容 -> 文章/Newsletter/社交媒体
-- **状态**: TODO
-- **现状**: 视频做完就完了，无再利用
+- **状态**: DONE
+- **现状**: repurpose-content.mjs 已实现，仅在明确要求时运行（不在默认工作流中）
 - **目标**: 从视频 scene-data 反向生成 blog 文章、newsletter、X thread
 - **参考**: ManiClones "Repurpose top-performing scripts into blog posts, newsletters, Twitter threads"
 - **方案**: agent 读取 scene-data -> 按平台格式重写 -> 输出到各平台模板
@@ -202,6 +202,94 @@
 - **完成标志**: 运行后从 scene-data 生成 blog + newsletter + X thread 三种格式
 
 **Phase 6 完成标志**: ISSUE-13 为 DONE
+
+---
+
+## Phase 7: 文章创作管线（源素材 → 富文章 → 网站发布）
+
+> 目标：从源素材（PDF/链接/调研）自动生成带可交互 widget 的富文章，并发布到网站。
+> 这是一条独立工作流，与视频管线并行存在。
+> 大多数内容先有文章，再从文章做视频。
+
+### ISSUE-14: 源素材读取与结构化
+- **状态**: TODO
+- **现状**: agent 手动读 PDF/网页，手动提取结构化信息
+- **目标**: 脚本/工作流自动读取 PDF/网页 → 提取关键信息 → 输出结构化 JSON（人物/时间线/数据点/引用）
+- **方案**:
+  - PDF: 用 `pdf-parse` 或 `pdfjs-dist` 提取文本
+  - 网页: 用 `web-access` skill (CDP) 抓取
+  - 输出: `output/source-extract.json`（结构化数据）
+- **文件**: `scripts/short-video/extract-source.mjs`（新建）
+- **依赖**: 无
+- **完成标志**: 给定 PDF/URL → 输出结构化 JSON
+
+### ISSUE-15: 富文章生成（markdown + widget 标记）
+- **状态**: TODO
+- **现状**: agent 手动写 markdown + 手动嵌入 `<!-- widget:xxx -->` 标记
+- **目标**: 基于 source-extract.json + 已有 widget 注册表 → 生成带 widget 标记的 markdown 文章草稿
+- **方案**:
+  - 读取 `src/components/widgets/registry.ts` 获取可用 widget 列表
+  - agent 根据 source-extract.json 内容选择合适 widget
+  - 生成 markdown 草稿，在合适位置嵌入 widget 标记
+  - 输出: `output/article-draft.md`
+- **文件**: `scripts/short-video/generate-article.mjs`（新建）
+- **依赖**: ISSUE-14
+- **完成标志**: 运行后生成带 widget 标记的 markdown 文章
+
+### ISSUE-16: 文章发布到网站（Supabase API）
+- **状态**: TODO
+- **现状**: 手动 copy markdown 到 admin editor → 点发布
+- **目标**: 脚本直接写入 Supabase `posts` 表 → 自动发布
+- **方案**:
+  - 调用 Supabase REST API 或 server function `createPost`
+  - 字段: title, slug, excerpt, content (markdown), published=true
+- **文件**: `scripts/short-video/publish-article.mjs`（新建）
+- **依赖**: ISSUE-15
+- **完成标志**: 运行脚本后文章出现在网站 `/posts/{slug}`
+
+### ISSUE-17: 文章 → scene-data 桥接
+- **状态**: TODO
+- **现状**: agent 手动从文章内容提炼视频脚本
+- **目标**: 读取已发布文章的 content → 提取核心叙事 → 生成 scene-data 草稿
+- **方案**:
+  - 从 Supabase 读取文章 content
+  - 按文章结构拆分为场景
+  - 生成 scene-data.mjs 草稿（agent 审阅后调整）
+- **文件**: `scripts/short-video/article-to-video.mjs`（新建）
+- **依赖**: ISSUE-16
+- **完成标志**: 从网站文章生成可用的 scene-data 草稿
+
+**Phase 7 完成标志**: ISSUE-14 + ISSUE-15 + ISSUE-16 + ISSUE-17 均为 DONE
+
+---
+
+## Phase 8: 分析自动化（消除手动录入）
+
+> 目标：自动获取 TikTok 播放数据，不再手动从 dashboard 录入。
+> 依赖：Phase 2（ISSUE-01 发布能力）
+
+### ISSUE-18: TikTok Analytics 自动获取
+- **状态**: TODO
+- **现状**: 手动从 TikTok Analytics dashboard 看 views/completion/shares，再录入 ab-test-tracker
+- **目标**: 脚本自动获取已发布视频的播放数据
+- **方案**:
+  - 方案 A: 注册自己的 TikTok 开发者 App → Content Posting API → analytics 端点（需要 App Review）
+  - 方案 B: CDP 抓取 TikTok Analytics 页面（需要登录态，fragile）
+  - 方案 C: 手动导出 CSV → 脚本解析（半自动）
+- **文件**: `scripts/short-video/fetch-tiktok-analytics.mjs`（新建）
+- **依赖**: ISSUE-01
+- **完成标志**: 运行脚本后输出含 views/completion/shares/saves 的 JSON
+
+### ISSUE-19: 发布后自动触发分析
+- **状态**: TODO
+- **现状**: export-analytics.mjs 和 ab-test-tracker.mjs 需要手动运行
+- **目标**: publish-tiktok.mjs 发布成功后 → 自动提示运行分析（或自动延迟运行）
+- **方案**: 在 publish-tiktok.mjs 末尾加提示 + 输出建议命令
+- **文件**: `scripts/short-video/publish-tiktok.mjs`（扩展）
+- **依赖**: ISSUE-18
+- **完成标志**: 发布后 agent 自动提示分析步骤
+
+**Phase 8 完成标志**: ISSUE-18 + ISSUE-19 均为 DONE
 
 ---
 
@@ -249,6 +337,12 @@ ISSUE-09 (常青模板)               ISSUE-12 (A/B) ← ISSUE-10
 | 5 | ISSUE-11 (优化闭环) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
 | 5 | ISSUE-12 (A/B 测试) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
 | 6 | ISSUE-13 (内容再利用) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
+| 7 | ISSUE-14 (源素材读取) | TODO | - | - |
+| 7 | ISSUE-15 (富文章生成) | TODO | - | - |
+| 7 | ISSUE-16 (网站发布) | TODO | - | - |
+| 7 | ISSUE-17 (文章→视频) | TODO | - | - |
+| 8 | ISSUE-18 (Analytics自动) | TODO | - | - |
+| 8 | ISSUE-19 (发布后触发) | TODO | - | - |
 
 ---
 
