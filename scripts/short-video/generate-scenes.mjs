@@ -931,26 +931,15 @@ function splitByWordCount(voiceover, duration) {
 function buildSubtitleHTML(subtitles, duration) {
   if (!subtitles || subtitles.length === 0) return "";
   let html = "";
-  // Build subtitle elements
+  // Build subtitle elements — show full chunk text, no per-word highlighting
   for (let i = 0; i < subtitles.length; i++) {
     const sub = subtitles[i];
-    if (sub.words && sub.words.length > 0) {
-      // Karaoke: each word is a span
-      const wordsHTML = sub.words
-        .map((w, j) => {
-          return `<span class="sub-word" id="word-${i}-${j}">${w.text}</span>`;
-        })
-        .join(" ");
-      html += `<div class="subtitle-bar" id="sub-${i}">${wordsHTML}</div>`;
-    } else {
-      html += `<div class="subtitle-bar" id="sub-${i}">${sub.text}</div>`;
-    }
+    html += `<div class="subtitle-bar" id="sub-${i}">${sub.text}</div>`;
   }
-  // Build JS timing data
+  // Build JS timing data — show at startPct, hide at next chunk startPct (or 99% for last)
   const subsData = subtitles.map((s, i) => ({
     s: s.startPct,
     e: i < subtitles.length - 1 ? subtitles[i + 1].startPct : 99,
-    w: (s.words || []).map((w, j) => ({ s: w.startPct, e: w.endPct, j })),
   }));
   html += `<script>
 (function(){
@@ -967,12 +956,6 @@ if (pct >= SUBS[i].s && pct < SUBS[i].e) { cur = i; break; }
 for (let i = 0; i < SUBS.length; i++) {
 const e = document.getElementById('sub-' + i);
 if (e) e.style.opacity = (i === cur) ? '1' : '0';
-}
-if (cur >= 0 && SUBS[cur].w.length > 0) {
-for (const w of SUBS[cur].w) {
-const we = document.getElementById('word-' + cur + '-' + w.j);
-if (we) we.classList.toggle('active', pct >= w.s && pct < w.e);
-}
 }
 if (el < DUR) requestAnimationFrame(tick);
 }
