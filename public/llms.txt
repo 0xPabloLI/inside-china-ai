@@ -5,7 +5,9 @@
 ## Pages
 
 - [Home](/): Latest articles and newsletter signup.
+- [Chinese AI Companies](/companies): Directory of China's top AI labs and open model labs — DeepSeek, Qwen, Zhipu, Moonshot, MiniMax, StepFun, plus chip and robotics firms.
 - [Privacy Policy](/privacy): How subscriber emails are handled.
+
 - [Terms of Service](/terms): Terms for using the site.
 
 ## Articles
