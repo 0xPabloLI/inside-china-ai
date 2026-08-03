@@ -53,6 +53,7 @@ def generate_batch(manifest_path, output_dir, ref_audio=None, ref_text=None, spe
 
         audio = f5_generate(
             generation_text=text,
+            estimate_duration=True,
             ref_audio_path=ref_audio,
             ref_audio_text=ref_text,
             speed=speed,
