@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandName } from "@/components/brand-name";
 
-const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY ?? "aw2ysgzda4tmp28b";
+const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY ?? "";
 const REDIRECT_URI = "https://chinaai.news/api/tiktok/callback";
 const SCOPES = "user.info.basic,video.upload,video.publish";
 const BASE_URL = "https://chinaai.news";
