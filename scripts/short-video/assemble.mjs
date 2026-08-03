@@ -12,7 +12,7 @@ function run(cmd) {
   execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
-export function assembleVideo(scenes, outputDir, bgmPath = null) {
+export function assembleVideo(scenes, outputDir, bgmPath = null, srtPath = null) {
   const finalPath = join(outputDir, "deepseek-short.mp4");
   const concatFile = join(outputDir, "concat.txt");
   const sceneFiles = [];
@@ -43,13 +43,27 @@ export function assembleVideo(scenes, outputDir, bgmPath = null) {
   }
 
   // Create concat list file
-  const concatContent = sceneFiles
-    .map((f) => `file '${f.replace(/'/g, "'\\''")}'`)
-    .join("\n");
+  const concatContent = sceneFiles.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join("\n");
   writeFileSync(concatFile, concatContent);
 
   // Concatenate all scenes
   run(`ffmpeg -y -f concat -safe 0 -i "${concatFile}" -c copy "${finalPath}"`);
+
+  // Burn in subtitles via SRT if provided
+  if (srtPath && existsSync(srtPath)) {
+    const noSubsPath = finalPath.replace(".mp4", "-nosubs.mp4");
+    renameSync(finalPath, noSubsPath);
+    // FFmpeg subtitles filter with TikTok-style formatting
+    const subStyle =
+      "force_style='FontName=Helvetica Neue,FontSize=18,PrimaryColour=&H00F5F5F5,OutlineColour=&H66000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=120'";
+    run(
+      `ffmpeg -y -i "${noSubsPath}" -vf "subtitles='${srtPath}':${subStyle}" -c:a copy "${finalPath}"`,
+    );
+    try {
+      unlinkSync(noSubsPath);
+    } catch {}
+    console.log("  Subtitles burned in (FFmpeg native)");
+  }
 
   // Mix background music if provided
   if (bgmPath) {
@@ -70,23 +84,38 @@ export function assembleVideo(scenes, outputDir, bgmPath = null) {
     // Use execFileSync to bypass shell quoting issues with filter_complex
     const bgmFadeOutStart = Math.max(videoDuration - 3, 1).toFixed(2);
     const filterComplex = `[1:a]afade=t=in:st=0:d=2,afade=t=out:st=${bgmFadeOutStart}:d=3,volume=0.12[bgm];[0:a]volume=1.0[tts];[tts][bgm]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
-    execFileSync("ffmpeg", [
-      "-y",
-      "-i", noBgmPath,
-      "-i", bgmPath,
-      "-filter_complex", filterComplex,
-      "-map", "0:v",
-      "-map", "[aout]",
-      "-c:v", "copy",
-      "-c:a", "aac",
-      "-b:a", "192k",
-      "-ar", "44100",
-      finalPath,
-    ], { stdio: ["pipe", "pipe", "pipe"] });
+    execFileSync(
+      "ffmpeg",
+      [
+        "-y",
+        "-i",
+        noBgmPath,
+        "-i",
+        bgmPath,
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "0:v",
+        "-map",
+        "[aout]",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-ar",
+        "44100",
+        finalPath,
+      ],
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
     console.log("  Background music mixed in");
 
     // Clean up temp
-    try { unlinkSync(noBgmPath); } catch {}
+    try {
+      unlinkSync(noBgmPath);
+    } catch {}
   }
 
   // Clean up temp files

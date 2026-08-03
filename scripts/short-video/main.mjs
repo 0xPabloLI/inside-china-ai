@@ -15,7 +15,7 @@
  *   scripts/short-video/output/deepseek-short.mp4
  */
 
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
@@ -24,6 +24,7 @@ import { generateSceneHTML } from "./generate-scenes.mjs";
 import { recordScenes } from "./record-scenes.mjs";
 import { assembleVideo } from "./assemble.mjs";
 import { generateBGM } from "./generate-bgm.mjs";
+import { generateSRT } from "./generate-srt.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -140,9 +141,19 @@ async function main() {
     console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
   }
 
-  // ── Step 4: Assemble final video ──
-  console.log("🔧 Step 4: Assembling final video with FFmpeg...\n");
-  const result = assembleVideo(videoResults, outputDir, bgmPath);
+  // ── Step 4: Generate SRT from ASR timing data ──
+  const timingPath = join(outputDir, "audio", "subtitle-timing.json");
+  const srtPath = join(outputDir, "subtitles.srt");
+  let srtFile = null;
+  if (existsSync(timingPath)) {
+    const timingData = JSON.parse(readFileSync(timingPath, "utf8"));
+    const sceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
+    srtFile = generateSRT(timingData, sceneDurations, srtPath);
+  }
+
+  // ── Step 5: Assemble final video ──
+  console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
+  const result = assembleVideo(videoResults, outputDir, bgmPath, srtFile);
 
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`✅ Pipeline complete!`);

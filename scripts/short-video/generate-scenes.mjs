@@ -971,15 +971,9 @@ export function generateSceneHTML(sceneId, duration, voiceover = null) {
   if (!gen) throw new Error(`Unknown scene ID: ${sceneId}`);
   let html = gen(duration);
 
-  // Build subtitles if voiceover is provided (skip for hook scene 1 and CTA scene 12)
-  let subtitleHTML = "";
-  if (voiceover && sceneId !== 12) {
-    const subtitles = splitSubtitles(voiceover, duration, sceneId);
-    subtitleHTML = buildSubtitleHTML(subtitles, duration);
-  }
-
-  // Inject brand watermark + subtitles before closing scene div
+  // Subtitles are now burned in by FFmpeg via SRT (not in HTML)
+  // Inject brand watermark before closing scene div
   const watermark = `<div class="brand-watermark">${BRAND_MARK_SVG}</div>`;
-  html = html.replace(/<\/div><\/body>/, `${watermark}${subtitleHTML}</div></body>`);
+  html = html.replace(/<\/div><\/body>/, `${watermark}</div></body>`);
   return html;
 }
