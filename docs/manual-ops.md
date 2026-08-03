@@ -2,12 +2,32 @@
 
 > 创建于 2026-08-03。集中所有需要人工执行的步骤，按频率分类。
 > Agent 在相关工作流中会引用此文档。
+> HITL 检查点定义见 `docs/content-pipeline.md` 的「Human-in-the-Loop (HITL) 检查点」章节。
+
+---
+
+## HITL 人工确认检查点
+
+> 管线设 3 个强制人工确认点。Agent 到达时必须暂停，等待用户确认后才继续。
+
+| 检查点 | 位置 | 审阅内容 | 确认语 |
+|--------|------|----------|--------|
+| **HITL-1** 文章审阅 | Stage 1 完成后 | 文章全文（frontmatter + markdown + widget 标记） | 「文章 OK，继续」 |
+| **HITL-2** 视频脚本审阅 | Stage 3 完成后 | scene-data.mjs（场景脚本、voiceover、视觉描述） | 「脚本 OK，做视频」 |
+| **HITL-3** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 | 「视频 OK，发布」 |
+
+**用户审阅要点**：
+
+- **HITL-1**：叙事逻辑、数据准确性、Widget 选择、「My Take」章节质量
+- **HITL-2**：Hook 吸引力、叙事逻辑、数据准确性、场景数量和总时长、CTA 有效性
+- **HITL-3**：实际观看视频、TTS 语音自然度、字幕准确性、视觉动画流畅度、有无渲染问题
 
 ---
 
 ## 每次发布视频时
 
-> 视频通过 `verify-video.mjs` 检查后，在 TikTok 发布界面需要手动完成的操作。
+> **前置条件**：HITL-3 已通过 + `publish-tiktok.mjs` 已执行（视频已发布到 TikTok）。
+> 视频通过 `verify-video.mjs` 检查 → 用户确认 → 脚本发布后，在 TikTok App 中需要手动完成的操作。
 
 | # | 操作 | 说明 | 为什么 |
 |---|------|------|--------|
@@ -28,13 +48,14 @@
 
 ## 每次发布文章时
 
+> **前置条件**：HITL-1 已通过（文章已审阅确认）。
+
 | # | 操作 | 说明 |
 |---|------|------|
-| 1 | **审阅文章** | Agent 生成 frontmatter markdown 后，人工审阅内容 |
-| 2 | **检查 widget** | 确认文中引用的 widget 已注册且已部署 |
-| 3 | **部署新 widget** | 如有新 widget，需 `npm run build` + 部署后再发布文章 |
-| 4 | **运行发布脚本** | `node scripts/article/publish-article.mjs --file <path>` |
-| 5 | **验证** | 访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确 |
+| 1 | **检查 widget** | 确认文中引用的 widget 已注册且已部署 |
+| 2 | **部署新 widget** | 如有新 widget，需 `npm run build` + 部署后再发布文章 |
+| 3 | **运行发布脚本** | `node scripts/article/publish-article.mjs --file <path>` |
+| 4 | **验证** | 访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确 |
 
 ### 发布脚本用法
 

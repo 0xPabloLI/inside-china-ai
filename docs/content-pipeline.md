@@ -6,11 +6,22 @@
 ## 管线概览
 
 ```
-入口（话题 / 素材）→ 文章生成 → 网站发布 → scene-data → 视频 → TikTok → Analytics
-                      Stage 1     Stage 2     Stage 3    Stage 4  Stage 5  Stage 6
+入口 → [Stage 1 文章生成] → ⏸️ HITL-1 文章审阅 → [Stage 2 网站发布] → [Stage 3 scene-data] → ⏸️ HITL-2 脚本审阅 → [Stage 4 视频制作] → [Stage 5: 验证 → ⏸️ HITL-3 视频审阅 → 发布] → [Stage 6 Analytics]
 ```
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
+
+### Human-in-the-Loop (HITL) 检查点
+
+管线设 3 个强制人工确认点。Agent 到达 HITL 检查点时 **必须暂停**，输出审阅内容，等待用户在对话中明确确认后方可继续。
+
+| 检查点 | 位置 | 审阅内容 | 确认方式 |
+|--------|------|----------|----------|
+| **HITL-1** | Stage 1 完成后 | 文章全文（frontmatter + markdown + widget 标记） | 用户说「文章 OK，继续」 |
+| **HITL-2** | Stage 3 完成后 | scene-data.mjs（场景脚本、voiceover、视觉描述） | 用户说「脚本 OK，做视频」 |
+| **HITL-3** | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 | 用户说「视频 OK，发布」 |
+
+> **Agent 行为约束**：用户未明确确认前，Agent 不得执行后续 Stage。确认必须是用户主动发出（如「继续」「OK」「确认」「发布」等），Agent 不得自行假设确认。
 
 ## 如何启动
 
@@ -142,12 +153,20 @@ More content...
 - 提供独家视角或预测
 - 引用素材中的数据点支撑论点
 
-#### ⏸️ 用户审阅检查点
+#### ⏸️ HITL-1: 文章审阅检查点
 
-Agent 生成 frontmatter markdown 后**必须暂停**，输出文章内容请用户审阅。
-用户确认后才能进入 Stage 2。
+Agent 生成 frontmatter markdown 后 **必须暂停**，执行以下步骤：
 
-如果有新 widget：用户需要 `npm run build` + 部署后才能发布。
+1. **输出完整文章内容**（frontmatter + markdown body + widget 标记位置）供用户审阅
+2. **提示审阅要点**：
+   - 叙事逻辑是否通顺
+   - 数据点是否准确
+   - Widget 选择是否合适
+   - 「My Take」章节是否有独立见解
+3. **如有新 widget**：提示用户需要 `npm run build` + 部署后才能发布
+4. **等待用户确认** — 用户说「文章 OK，继续」或类似确认语后才可进入 Stage 2
+
+> ⚠️ Agent 不得在用户未确认前自动执行 Stage 2 发布脚本。
 
 ---
 
@@ -171,6 +190,8 @@ node scripts/article/publish-article.mjs --file <path> --draft
 ---
 
 ## Stage 3: 文章 → scene-data（ISSUE-17）
+
+> **前置条件**：HITL-1 已通过（文章已发布到网站）。
 
 从已发布文章提炼视频脚本。
 
@@ -202,9 +223,32 @@ node scripts/article/publish-article.mjs --file <path> --draft
 - 文章的数据点 → 视频的视觉强调元素
 - 视频时长：TikTok 60-70s，YouTube Shorts ≤170s
 
+### ⏸️ HITL-2: 视频脚本审阅检查点
+
+Agent 写完 `scene-data.mjs` 后 **必须暂停**，执行以下步骤：
+
+1. **输出场景概览表**供用户审阅：
+
+   | Scene | Voiceover 摘要 | 视觉描述 | 时长(估) |
+   |-------|---------------|----------|----------|
+   | 1 (Hook) | ... | ... | ... |
+   | ... | ... | ... | ... |
+
+2. **提示审阅要点**：
+   - Hook 是否足够吸引人（前 3 秒）
+   - 叙事逻辑是否从文章自然提炼
+   - 数据点是否准确
+   - 场景数量和总时长是否在目标范围（TikTok 60-70s）
+   - CTA 场景是否有效
+3. **等待用户确认** — 用户说「脚本 OK，做视频」或类似确认语后才可进入 Stage 4
+
+> ⚠️ 视频渲染是最耗时的步骤（TTS + HTML + Playwright 录制 + FFmpeg 合成，通常 5-10 分钟）。脚本审阅只需 1-2 分钟，能显著减少返工。Agent 不得在用户未确认前自动启动视频制作管线。
+
 ---
 
 ## Stage 4: 视频制作
+
+> **前置条件**：HITL-2 已通过（视频脚本已确认）。
 
 `short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。
 
@@ -218,6 +262,8 @@ node scripts/short-video/main.mjs --bgm          # TTS → HTML → 录制 → �
 
 ## Stage 5: 视频验证 + TikTok 发布
 
+> **前置条件**：HITL-2 已通过（视频脚本已确认）。
+
 ### 验证（MANDATORY）
 
 ```bash
@@ -225,6 +271,24 @@ node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查
 ```
 
 验证不通过时 Agent 自动修复并重跑，直到 0 failures。
+
+### ⏸️ HITL-3: 视频成品审阅检查点
+
+`verify-video.mjs` 通过后，Agent **必须暂停**，执行以下步骤：
+
+1. **输出视频文件路径**：`output/deepseek-short.mp4`（或实际文件名）
+2. **输出 verify-video.mjs 合规报告**（所有检查项的 pass/fail 状态）
+3. **提示用户审阅要点**：
+   - 实际观看视频，检查整体观感
+   - TTS 语音是否清晰、自然
+   - 字幕是否准确、可读
+   - 视觉动画是否流畅
+   - Hook 场景是否抓人
+   - CTA 场景是否有效
+   - 有无明显的渲染问题（黑屏、错位、卡顿）
+4. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
+
+> ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。`verify-video.mjs` 的自动合规检查是必要条件但非充分条件 — 自动检查无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。
 
 ### 发布
 
@@ -260,12 +324,19 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 
 ## 检查点总结
 
-| 检查点 | 位置 | 谁操作 | 必须？ |
-|--------|------|--------|--------|
-| 文章审阅 | Stage 1 → Stage 2 之间 | 用户 | ✅ 必须 |
-| 新 widget 部署 | Stage 1 → Stage 2 之间 | 用户 | 仅当有新 widget |
-| 视频验证 | Stage 4 → Stage 5 之间 | Agent（自动） | ✅ 必须 |
-| TikTok 手工操作 | Stage 5 之后 | 用户 | ✅ 必须 |
-| Analytics 导出 | Stage 6 | 用户 | ✅ 必须 |
+| 检查点 | 位置 | 类型 | 谁操作 | 必须？ |
+|--------|------|------|--------|--------|
+| **HITL-1** 文章审阅 | Stage 1 → Stage 2 | 人工确认 | 用户 | ✅ 必须 |
+| 新 widget 部署 | Stage 1 → Stage 2 | 人工操作 | 用户 | 仅当有新 widget |
+| **HITL-2** 视频脚本审阅 | Stage 3 → Stage 4 | 人工确认 | 用户 | ✅ 必须 |
+| 视频自动验证 | Stage 5 内部 | 自动检查 | Agent | ✅ 必须 |
+| **HITL-3** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户 | ✅ 必须 |
+| TikTok 手工操作 | Stage 5 之后 | 人工操作 | 用户 | ✅ 必须 |
+| Analytics 导出 | Stage 6 | 人工操作 | 用户 | ✅ 必须 |
 
-Agent 驱动的 stage 全自动，在需要用户介入时会暂停提醒。
+### Agent 行为准则
+
+1. **到达 HITL 检查点时必须暂停** — 输出审阅内容 + 提示审阅要点 + 等待用户确认
+2. **不得自行假设确认** — 确认必须是用户主动发出（「继续」「OK」「确认」「发布」等）
+3. **用户提出修改意见时** — 按意见修改后重新进入该 HITL 检查点
+4. **Agent 驱动的 stage 全自动** — 在需要用户介入时会暂停提醒，不连续跨越 HITL 检查点

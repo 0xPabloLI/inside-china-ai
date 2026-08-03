@@ -125,14 +125,16 @@ git diff main..lovable -- path/to/file
 - Keep implementation scoped; avoid unrelated refactors.
 
 ## Content Pipeline
-统一内容管线（入口 → 文章 → 网站发布 → scene-data → 视频 → TikTok → Analytics）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。
+统一内容管线（入口 → 文章 → 网站发布 → scene-data → 视频 → TikTok → Analytics），设 3 个 **HITL 人工确认检查点**（文章审阅 / 脚本审阅 / 视频审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。
+
+> **HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续。不得自行假设确认。详见 `docs/content-pipeline.md` 的 HITL 章节。
 
 做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载。`brand-system` skill 同时加载，控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。
 
 ## Session Start Checklist
 **每次新 session 启动时，Agent 被动检查**（Agent 不是常驻进程，只在用户打开 session 时检查）：
 1. 读 `scripts/short-video/output/pending-analysis.json`（如存在）→ 检查 `publishedAt` 是否 >48h → 如是，提醒用户导出 Analytics CSV
-2. 检查是否有未完成的管线（如上一 session 的文章审阅待确认、视频待发布）
+2. 检查是否有未完成的管线（如上一 session 的 HITL 检查点待确认、视频待发布）
 3. 如用户未指定任务，简要提示可用入口：「写文章（给素材）」或「做视频（给话题/跑 trends）」
 
 ## Web Scraping & Content Fetching
