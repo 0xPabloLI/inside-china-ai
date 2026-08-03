@@ -25,9 +25,9 @@ interface NewsletterEmailProps {
 }
 
 const NewsletterEmail = ({
-  siteName = 'Inside China AI',
+  siteName = 'China AI News',
   siteUrl = 'https://chinaai.news',
-  subject = 'Latest from Inside China AI',
+  subject = 'Latest from China AI News',
   title,
   excerpt,
   content,
@@ -82,17 +82,17 @@ const NewsletterEmail = ({
 export const template = {
   component: NewsletterEmail,
   subject: (data: Record<string, any>) =>
-    data.subject || data.title || 'Latest from Inside China AI',
+    data.subject || data.title || 'Latest from China AI News',
   displayName: 'Weekly Newsletter',
   previewData: {
-    siteName: 'Inside China AI',
+    siteName: 'China AI News',
     siteUrl: 'https://chinaai.news',
     subject: "DeepSeek's next move, Alibaba Qwen 3, and ByteDance Seed",
     title: "DeepSeek's next move, Alibaba Qwen 3, and ByteDance Seed",
     excerpt:
       'This week: leaked investor notes from DeepSeek, Alibaba open-sources Qwen 3, and ByteDance Seed ships a new video model.',
     content:
-      'Inside China AI tracks the labs, startups, and policy shifts shaping the Chinese AI landscape. Here is what mattered this week.',
+      'China AI News tracks the labs, startups, and policy shifts shaping the Chinese AI landscape. Here is what mattered this week.',
     postUrl: 'https://chinaai.news/posts/weekly-roundup',
     publishedAt: 'August 3, 2026',
   },
