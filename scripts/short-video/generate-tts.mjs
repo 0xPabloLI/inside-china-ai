@@ -185,13 +185,15 @@ async function generateBatchWithF5MLX(scenes, outputDir) {
     throw new Error("No F5-MLX results parsed from batch output");
   }
 
-  // Post-process each with silenceremove
+  // Post-process each: F5 generates clean audio, no silenceremove needed.
+  // Only apply atempo if TTS_ATEMPO is set (for speed-up).
+  const f5Filter = TTS_ATEMPO ? `-af atempo=${TTS_ATEMPO}` : "";
   const finalResults = [];
   for (const r of batchResults) {
     const audioPath = r.audioPath;
     const processedPath = audioPath.replace(".mp3", "-processed.mp3");
     await execAsync(
-      `ffmpeg -y -i "${audioPath}" -af "${SILENCE_FILTER}" -ar 44100 -b:a 192k "${processedPath}" 2>/dev/null`,
+      `ffmpeg -y -i "${audioPath}" ${f5Filter} -ar 44100 -b:a 192k "${processedPath}" 2>/dev/null`,
     );
     await execAsync(`mv "${processedPath}" "${audioPath}"`);
 
