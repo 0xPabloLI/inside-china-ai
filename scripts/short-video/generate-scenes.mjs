@@ -20,10 +20,7 @@ try {
   }
 } catch {}
 
-const LOGO_SVG = readFileSync(
-  new URL("assets/deepseek-logo.svg", import.meta.url),
-  "utf8",
-)
+const LOGO_SVG = readFileSync(new URL("assets/deepseek-logo.svg", import.meta.url), "utf8")
   .replace(/<\?xml[^>]*\?>\s*/, "")
   .replace(/<!--[\s\S]*?-->/g, "");
 
@@ -92,8 +89,8 @@ background: transparent; padding: 0;
 text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 0 3px #000, 0 3px 6px rgba(0,0,0,0.9);
 -webkit-text-stroke: 2px rgba(0,0,0,0.7);
 }
-.subtitle-bar .sub-word { color: rgba(255,255,255,0.25); display: inline; }
-@keyframes wordHL { 0% { color: rgba(255,255,255,0.25); } 100% { color: var(--white); } }
+.subtitle-bar .sub-word { color: rgba(255,255,255,0.25); display: inline; transition: color 0.1s; }
+.subtitle-bar .sub-word.active { color: var(--white); }
 `;
 }
 
@@ -688,7 +685,7 @@ ${baseStyles(duration)}
 export function splitSubtitles(voiceover, duration, sceneId) {
   // Try whisper-based alignment first
   if (WHISPER_TIMING && sceneId) {
-    const sceneTiming = WHISPER_TIMING.find(t => t.sceneId === sceneId);
+    const sceneTiming = WHISPER_TIMING.find((t) => t.sceneId === sceneId);
     if (sceneTiming && sceneTiming.segments && sceneTiming.segments.length > 0) {
       return alignWithWhisper(sceneTiming.segments, duration);
     }
@@ -723,7 +720,7 @@ function alignWithWhisper(segments, duration) {
         const chunkStart = seg.start + i * timePerWord;
         const chunkEnd = seg.start + Math.min(i + wordsPerChunk, words.length) * timePerWord;
         splitSegments.push({
-          text: chunkWords.join(' '),
+          text: chunkWords.join(" "),
           start: chunkStart,
           end: Math.max(chunkEnd, chunkStart + 0.5),
         });
@@ -749,14 +746,18 @@ function alignWithWhisper(segments, duration) {
     if (isSentenceEnd || reachedMax || (isComma && reachedMin)) {
       const start = currentChunk[0].start;
       const end = Math.max(currentChunk[currentChunk.length - 1].end, start + 0.5);
-      const text = currentChunk.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+      const text = currentChunk
+        .map((s) => s.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
       // Collect word-level timestamps for karaoke-style highlighting
       const words = [];
       for (const seg of currentChunk) {
         if (seg.words) {
           for (const w of seg.words) {
             words.push({
-              text: w.text || w.word || '',
+              text: w.text || w.word || "",
               startPct: Math.min((w.start / duration) * 100, 92),
               endPct: Math.min((w.end / duration) * 100, 98),
             });
@@ -788,13 +789,17 @@ function alignWithWhisper(segments, duration) {
   if (currentChunk.length > 0) {
     const start = currentChunk[0].start;
     const end = Math.max(currentChunk[currentChunk.length - 1].end, start + 0.5);
-    const text = currentChunk.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+    const text = currentChunk
+      .map((s) => s.text)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
     const words = [];
     for (const seg of currentChunk) {
       if (seg.words) {
         for (const w of seg.words) {
           words.push({
-            text: w.text || w.word || '',
+            text: w.text || w.word || "",
             startPct: Math.min((w.start / duration) * 100, 92),
             endPct: Math.min((w.end / duration) * 100, 98),
           });
@@ -854,94 +859,127 @@ function splitByWordCount(voiceover, duration) {
     const word = words[i];
     currentChunk.push(word);
 
-    // Check if we should break here
     const isSentenceEnd = /[.!?:;]$/.test(word);
     const isComma = /,$/.test(word);
     const reachedMax = currentChunk.length >= maxWords;
     const reachedMin = currentChunk.length >= minWords;
 
     if (isSentenceEnd) {
-      // Always break at sentence end
-      chunks.push(currentChunk.join(' '));
+      chunks.push(currentChunk.join(" "));
       currentChunk = [];
     } else if (reachedMax) {
-      // Force break at max words
-      chunks.push(currentChunk.join(' '));
+      chunks.push(currentChunk.join(" "));
       currentChunk = [];
     } else if (isComma && reachedMin) {
-      // Break at commas if we have enough words
-      chunks.push(currentChunk.join(' '));
+      chunks.push(currentChunk.join(" "));
       currentChunk = [];
     }
   }
-  // Don't forget remaining words
   if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join(' '));
+    chunks.push(currentChunk.join(" "));
   }
 
-  // Estimate timing: ~2.8 words per second for TTS at normal speed
-  const wordCounts = chunks.map((c) => c.split(/\s+/).length);
-  const totalWords = wordCounts.reduce((a, b) => a + b, 0);
-  const secondsPerWord = duration / totalWords;
+  // Character-weighted timing: longer words get more time
+  const chunkWordArrays = chunks.map((c) => c.split(/\s+/));
+  const chunkCharCounts = chunkWordArrays.map((ws) =>
+    ws.reduce((sum, w) => sum + Math.max(w.length, 1), 0),
+  );
+  const totalChars = chunkCharCounts.reduce((a, b) => a + b, 0);
+  const secondsPerChar = duration / totalChars;
 
   let elapsed = 0;
   return chunks.map((text, i) => {
-    const wordCount = wordCounts[i];
-    const chunkDuration = wordCount * secondsPerWord;
+    const charCount = chunkCharCounts[i];
+    const chunkDuration = Math.max(charCount * secondsPerChar, 0.5);
     const startPct = (elapsed / duration) * 100;
     const endPct = ((elapsed + chunkDuration) / duration) * 100;
+
+    // Generate word-level timestamps for fallback karaoke (character-weighted)
+    const ws = chunkWordArrays[i];
+    const wordTimes = [];
+    let wElapsed = elapsed;
+    for (const w of ws) {
+      const wDur = Math.max(w.length, 1) * secondsPerChar;
+      wordTimes.push({
+        text: w,
+        startPct: (wElapsed / duration) * 100,
+        endPct: ((wElapsed + wDur) / duration) * 100,
+      });
+      wElapsed += wDur;
+    }
+
     elapsed += chunkDuration;
-    return { text, startPct: Math.min(startPct, 92), endPct: Math.min(endPct, 98) };
+    return {
+      text,
+      startPct: Math.min(startPct, 92),
+      endPct: Math.min(endPct, 98),
+      words: wordTimes,
+    };
   });
 }
 
 /**
- * Build CSS animation for subtitle chunks.
- * Each chunk fades in at its start time and fades out at its end time.
+ * CSS for subtitles is now static (no per-chunk @keyframes).
+ * JS controls visibility via requestAnimationFrame.
  */
-function buildSubtitleCSS(subtitles, duration) {
-  if (!subtitles || subtitles.length === 0) return "";
-  let css = "";
-  for (let i = 0; i < subtitles.length; i++) {
-    const sub = subtitles[i];
-    const startSec = (sub.startPct / 100) * duration;
-    const endSec = (sub.endPct / 100) * duration;
-    const fadeDur = 0.3;
-    css += `@keyframes sub${i} { `;
-    css += `0% { opacity: 0; } `;
-    css += `${Math.max(startSec / duration * 100, 0.1).toFixed(1)}% { opacity: 0; } `;
-    css += `${(startSec / duration * 100 + fadeDur / duration * 100).toFixed(1)}% { opacity: 1; } `;
-    css += `${(endSec / duration * 100).toFixed(1)}% { opacity: 1; } `;
-    css += `${Math.min((endSec / duration * 100 + fadeDur / duration * 100), 100).toFixed(1)}% { opacity: 0; } `;
-    css += `100% { opacity: 0; } `;
-    css += `}\n`;
-  }
-  return css;
-}
 
 /**
- * Build the subtitle HTML elements with timed visibility.
+ * Build subtitle HTML with JS-based visibility control.
+ * Uses requestAnimationFrame + performance.now() for precise timing.
+ * Subtitles show at startPct, hide at next chunk's startPct (or 99% for last).
  */
 function buildSubtitleHTML(subtitles, duration) {
-if (!subtitles || subtitles.length === 0) return "";
-let html = "";
-for (let i = 0; i < subtitles.length; i++) {
-const sub = subtitles[i];
-const startSec = (sub.startPct / 100) * duration;
-const endSec = (sub.endPct / 100) * duration;
-const totalDur = endSec - startSec + 0.6;
-// Karaoke-style: each word is a span that highlights at its start time
-if (sub.words && sub.words.length > 0) {
-const wordsHTML = sub.words.map(w => {
-const wStart = (w.startPct / 100) * duration;
-return `<span class="sub-word" style="animation: wordHL 0.15s linear ${wStart.toFixed(2)}s forwards;">${w.text}</span>`;
-}).join(' ');
-html += `<div class="subtitle-bar" style="animation: sub${i} ${totalDur.toFixed(1)}s linear ${startSec.toFixed(1)}s forwards;">${wordsHTML}</div>`;
-} else {
-html += `<div class="subtitle-bar" style="animation: sub${i} ${totalDur.toFixed(1)}s linear ${startSec.toFixed(1)}s forwards;">${sub.text}</div>`;
+  if (!subtitles || subtitles.length === 0) return "";
+  let html = "";
+  // Build subtitle elements
+  for (let i = 0; i < subtitles.length; i++) {
+    const sub = subtitles[i];
+    if (sub.words && sub.words.length > 0) {
+      // Karaoke: each word is a span
+      const wordsHTML = sub.words
+        .map((w, j) => {
+          return `<span class="sub-word" id="word-${i}-${j}">${w.text}</span>`;
+        })
+        .join(" ");
+      html += `<div class="subtitle-bar" id="sub-${i}">${wordsHTML}</div>`;
+    } else {
+      html += `<div class="subtitle-bar" id="sub-${i}">${sub.text}</div>`;
+    }
+  }
+  // Build JS timing data
+  const subsData = subtitles.map((s, i) => ({
+    s: s.startPct,
+    e: i < subtitles.length - 1 ? subtitles[i + 1].startPct : 99,
+    w: (s.words || []).map((w, j) => ({ s: w.startPct, e: w.endPct, j })),
+  }));
+  html += `<script>
+(function(){
+const SUBS = ${JSON.stringify(subsData)};
+const DUR = ${duration.toFixed(2)};
+const t0 = performance.now();
+function tick(){
+const el = (performance.now() - t0) / 1000;
+const pct = (el / DUR) * 100;
+let cur = -1;
+for (let i = 0; i < SUBS.length; i++) {
+if (pct >= SUBS[i].s && pct < SUBS[i].e) { cur = i; break; }
+}
+for (let i = 0; i < SUBS.length; i++) {
+const e = document.getElementById('sub-' + i);
+if (e) e.style.opacity = (i === cur) ? '1' : '0';
+}
+if (cur >= 0 && SUBS[cur].w.length > 0) {
+for (const w of SUBS[cur].w) {
+const we = document.getElementById('word-' + cur + '-' + w.j);
+if (we) we.classList.toggle('active', pct >= w.s && pct < w.e);
 }
 }
-return html;
+if (el < DUR) requestAnimationFrame(tick);
+}
+tick();
+})();
+</script>`;
+  return html;
 }
 
 export function generateSceneHTML(sceneId, duration, voiceover = null) {
@@ -951,17 +989,10 @@ export function generateSceneHTML(sceneId, duration, voiceover = null) {
   let html = gen(duration);
 
   // Build subtitles if voiceover is provided (skip for hook scene 1 and CTA scene 12)
-  let subtitleCSS = "";
   let subtitleHTML = "";
   if (voiceover && sceneId !== 12) {
     const subtitles = splitSubtitles(voiceover, duration, sceneId);
-    subtitleCSS = buildSubtitleCSS(subtitles, duration);
     subtitleHTML = buildSubtitleHTML(subtitles, duration);
-  }
-
-  // Inject subtitle CSS into <style> block
-  if (subtitleCSS) {
-    html = html.replace("</style>", `${subtitleCSS}</style>`);
   }
 
   // Inject brand watermark + subtitles before closing scene div
