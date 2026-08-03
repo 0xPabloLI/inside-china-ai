@@ -22,12 +22,11 @@ export const Route = createFileRoute("/privacy")({
   component: PrivacyPage,
 });
 
-
 function PrivacyPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-6 pt-16 pb-24">
+      <main className="mx-auto max-w-4xl px-6 pt-16 pb-24">
         <h1 className="font-serif text-4xl mb-8">Privacy Policy</h1>
         <p className="text-sm text-muted-foreground mb-8">
           Last updated:{" "}

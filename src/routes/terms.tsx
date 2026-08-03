@@ -22,12 +22,11 @@ export const Route = createFileRoute("/terms")({
   component: TermsPage,
 });
 
-
 function TermsPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-6 pt-16 pb-24">
+      <main className="mx-auto max-w-4xl px-6 pt-16 pb-24">
         <h1 className="font-serif text-4xl mb-8">Terms of Service</h1>
         <p className="text-sm text-muted-foreground mb-8">
           Last updated:{" "}
@@ -42,9 +41,9 @@ function TermsPage() {
           <section>
             <h2 className="font-serif text-2xl mb-3">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground">
-              By accessing or using China AI News ("we," "us," or "our") website at
-              chinaai.news (the "Service"), you agree to be bound by these Terms of Service.
-              If you do not agree, please do not use the Service.
+              By accessing or using China AI News ("we," "us," or "our") website at chinaai.news
+              (the "Service"), you agree to be bound by these Terms of Service. If you do not agree,
+              please do not use the Service.
             </p>
           </section>
 

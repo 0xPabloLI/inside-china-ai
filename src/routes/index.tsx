@@ -82,7 +82,7 @@ function Index() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-6 pt-16 pb-24">
+      <main className="mx-auto max-w-4xl px-6 pt-16 pb-24">
         <section className="mb-16">
           <h1 className="font-serif text-5xl leading-tight tracking-tight sm:text-6xl">
             Reporting from

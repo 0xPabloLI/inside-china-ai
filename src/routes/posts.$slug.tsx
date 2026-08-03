@@ -8,6 +8,7 @@ import { FileText, ExternalLink } from "lucide-react";
 import { Suspense } from "react";
 import { splitContent } from "@/components/widgets/content-splitter";
 import { WIDGETS, isRegisteredWidget } from "@/components/widgets/registry";
+import { ReadingProgress } from "@/components/reading-progress";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -88,7 +89,6 @@ export const Route = createFileRoute("/posts/$slug")({
   component: PostPage,
 });
 
-
 function PostPage() {
   const params = Route.useParams();
   const { data: post } = useSuspenseQuery(postQuery(params.slug));
@@ -104,8 +104,9 @@ function PostPage() {
 
   return (
     <div className="min-h-screen">
+      <ReadingProgress />
       <SiteHeader />
-      <main className="mx-auto px-6 pt-12 pb-24" style={{ maxWidth: "min(92vw, 1100px)" }}>
+      <main className="mx-auto max-w-4xl px-6 pt-12 pb-24">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to articles
         </Link>

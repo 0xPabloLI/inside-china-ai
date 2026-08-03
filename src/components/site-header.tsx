@@ -42,7 +42,7 @@ export function SiteHeader() {
 
   return (
     <header className="border-b border-border/60">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2.5">
           <img src="/favicon.svg" alt="China AI News" className="h-8 w-auto" />
           <span className="font-serif text-2xl tracking-tight">
@@ -53,17 +53,29 @@ export function SiteHeader() {
           <Link
             to="/"
             activeOptions={{ exact: true }}
+            activeProps={{ className: "text-foreground font-medium" }}
+            inactiveProps={{ className: "text-muted-foreground" }}
             className="hover:text-foreground"
             onClick={handleArticlesClick}
           >
             Articles
           </Link>
-          <Link to="/companies" className="hover:text-foreground">
+          <Link
+            to="/companies"
+            activeProps={{ className: "text-foreground font-medium" }}
+            inactiveProps={{ className: "text-muted-foreground" }}
+            className="hover:text-foreground"
+          >
             Companies
           </Link>
 
           {isAdmin ? (
-            <Link to="/admin" className="hover:text-foreground">
+            <Link
+              to="/admin"
+              activeProps={{ className: "text-foreground font-medium" }}
+              inactiveProps={{ className: "text-muted-foreground" }}
+              className="hover:text-foreground"
+            >
               Admin
             </Link>
           ) : null}

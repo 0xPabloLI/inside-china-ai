@@ -375,7 +375,7 @@ function CompaniesPage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-6 pt-16 pb-24">
+      <main className="mx-auto max-w-4xl px-6 pt-16 pb-24">
         <article>
           <header className="mb-12">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">Guide</div>
@@ -397,14 +397,20 @@ function CompaniesPage() {
             <ul className="space-y-1 text-sm">
               {GROUPS.map((g) => (
                 <li key={g.id}>
-                  <a href={`#${g.id}`} className="underline decoration-border hover:decoration-foreground">
+                  <a
+                    href={`#${g.id}`}
+                    className="underline decoration-border hover:decoration-foreground"
+                  >
                     {g.heading}
                   </a>{" "}
                   <span className="text-muted-foreground">({g.items.length})</span>
                 </li>
               ))}
               <li>
-                <a href="#how-to-read" className="underline decoration-border hover:decoration-foreground">
+                <a
+                  href="#how-to-read"
+                  className="underline decoration-border hover:decoration-foreground"
+                >
                   How to read this landscape
                 </a>
               </li>
@@ -429,7 +435,8 @@ function CompaniesPage() {
               <p>
                 Three forces explain almost every move on this list. The first is compute: export
                 controls push every lab toward efficiency work and toward domestic silicon, which is
-                why Chinese labs so often lead on training-cost-per-capability rather than raw scale.
+                why Chinese labs so often lead on training-cost-per-capability rather than raw
+                scale.
               </p>
               <p>
                 The second is openness as strategy. Publishing weights buys global mindshare that
@@ -481,8 +488,8 @@ function CompaniesPage() {
         <section className="border-t border-border/60 pt-10">
           <h2 className="mb-4 font-serif text-2xl">Track these labs weekly</h2>
           <p className="mb-6 text-muted-foreground">
-            I write one piece a week on the companies above — releases, funding, policy, and what
-            it means. Leave your email.
+            I write one piece a week on the companies above — releases, funding, policy, and what it
+            means. Leave your email.
           </p>
           <SubscribeForm />
         </section>
