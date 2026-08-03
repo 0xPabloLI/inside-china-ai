@@ -48,9 +48,9 @@ Agent 从 Stage 1 开始执行。
 
 Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1 开始执行。
 
-#### 趋势发现源（11 个）
+#### 趋势发现源（15 个）
 
-`discover-trends.mjs` 通过 CDP 抓取 11 个源，覆盖新闻媒体和自媒体平台：
+`discover-trends.mjs` 通过 CDP 抓取 15 个源，覆盖新闻媒体、自媒体平台、技术社区和定向公众号监控：
 
 | 类型 | 源 | 平台 | 登录需求 |
 |------|---|------|---------|
@@ -59,14 +59,32 @@ Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1
 | 新闻 | 36氪 | 36kr.com | 无 |
 | 新闻 | TechCrunch AI | techcrunch.com | 无 |
 | 新闻 | Bloomberg Tech | bloomberg.com | 无 |
+| 新闻 | 观察者网 | guancha.cn | 无 |
+| 新闻 | iThome | ithome.com | 无 |
 | 自媒体 | 小红书 | xiaohongshu.com | 需要 |
 | 自媒体 | 搜狗微信 | weixin.sogou.com | 无 |
 | 自媒体 | 微博热搜 | s.weibo.com | 无 |
 | 自媒体 | B站搜索 | search.bilibili.com | 无 |
 | 自媒体 | 抖音搜索 | douyin.com | 需要 |
 | 自媒体 | TikTok Creator | tiktok.com/creator-center | 需要 |
+| 社区 | 知乎 | zhihu.com | 无（搜索无需登录） |
+| 定向监控 | 动察Beating（公众号） | Google 搜索转载平台 | 无 |
 
 源定义在 `scripts/short-video/lib/trend-sources.mjs`，可插拔架构，新增源只需添加 collector 对象。
+
+##### 定向公众号监控
+
+通过 Google 搜索 `"来自微信公众号" "公众号名称"` 实现定向监控。微信文章通过虎嗅、新浪、ZAKER 等平台转载后可被 Google 索引。
+
+**为什么不用搜狗微信 / 微信网页版？**
+- 搜狗微信搜索反爬严重，CDP 访问返回空结果（实测 3 次均失败）
+- `mp.weixin.qq.com/mp/profile_ext` 要求微信客户端内打开，Chrome 登录态无效
+- Google `site:mp.weixin.qq.com` 索引率极低（只搜到 1 篇）
+
+**增强方案（可选）：微信后台 API 直爬**
+如果有微信公众平台的 cookie + token（登录 `mp.weixin.qq.com` 后获取，有效期约 2 小时），可启用 `WECHAT_API_CONFIG` 直接调后台 API 获取完整文章列表。参考 `mashukui/wechat_official_account_crawler`。设置环境变量 `WX_COOKIE` 和 `WX_TOKEN` 后将 `WECHAT_API_CONFIG.enabled` 设为 `true`。
+
+**添加新公众号监控**：在 `trend-sources.mjs` 的 `WECHAT_ACCOUNT_SOURCES` 数组中复制一条，修改 `name`、`label`、`account` 即可。
 
 ```bash
 # 运行趋势发现（默认关键词 "AI大模型"）
@@ -127,11 +145,34 @@ docs/refs/source-materials/
 
 1. **总结核心叙事** → 拆分为 6-10 个章节
 2. **对每个章节思考**：「什么交互内容能增强这段？」
-3. **为每个 widget curate 数据** → 从素材提取 + 外部调研补充
+3. **为每个 widget curate 数据** → 从素材提取 + 外部调研补充（见下方「调研搜索矩阵」）
 4. **写 widget 组件**（如需新的）→ 注册 → 部署（**英文 only，不需要双语 toggle**）
 5. **写 markdown 文章**（**英文**） → 在合适位置嵌入 `<!-- widget:widget-id -->` 标记
 6. **（可选）加原创分析章节**（「My Take」）→ 敏感内容不添加
 7. **输出 frontmatter markdown 文件** → 供 `publish-article.mjs` 消费
+
+#### 调研搜索矩阵
+
+Stage 1b 中的「外部调研补充」和 Widget 数据 curate 需要覆盖中文和英文双维度。Agent 使用 `web-access` skill (CDP) 搜索以下渠道：
+
+| 信息类型 | 搜索渠道 | 方法 | 说明 |
+|----------|----------|------|------|
+| **中文综合** | Google 中文关键词 | CDP 直接搜 | 搜中文关键词，覆盖观察者网、中国网、Yahoo財經等 |
+| **深度技术讨论** | 知乎 | `site:zhihu.com` + 站内搜索 | 原始分析帖、行业深度讨论、测评博主内容 |
+| **微信公众号** | 搜狗微信 + 百度 | `weixin.sogou.com`（CDP，可能有验证码）+ `site:mp.weixin.qq.com`（Google/百度） | 微信文章被删除快，需及时抓取留档 |
+| **小红书** | 百度 + 站内搜索 | `site:xiaohongshu.com`（Google/百度覆盖率低）+ CDP 站内搜（需登录） | 小红书内容 Google 基本不索引 |
+| **视频内容** | B站 | `site:bilibili.com` + 站内搜索 | AI 相关视频和评论区讨论 |
+| **微博舆情** | 微博 | `s.weibo.com`（CDP 直接搜） | 热搜、大 V 评论、实时舆情 |
+| **英文社区** | Reddit | `site:reddit.com` + 站内搜索 | r/LocalLLM、r/MachineLearning 等英文技术讨论 |
+| **代码/文档存档** | GitHub | `site:github.com` + 站内搜索 | 技术事件常有代码仓库/文档留档（可能被删） |
+| **英文权威媒体** | Google + Context7 | 原有流程 | Anthropic 博客、Bloomberg、PCMag、SCMP、BBC 等 |
+
+**搜索策略**：
+
+1. **先中文后英文** — 先搜中文关键词获取国内视角，再搜英文获取国际报道
+2. **交叉验证** — 同一事件至少两个独立来源确认后才写入文章
+3. **及时留档** — 微信文章/小红书帖子可能被删，抓取后保存到 `docs/refs/source-materials/`
+4. **引用来源** — 文章中标注每个关键信息的来源（媒体名 + 日期），敏感信息标注「据素材记录」
 
 #### Widget 定位：补充背景信息
 
@@ -240,10 +281,40 @@ More content...
 2. **网页/外部文章引用** → 在文章正文中用 Markdown 链接 `[文字](URL)` 注明出处
 3. **数据点引用** → 在数据附近标注来源（如「据 Bloomberg 2026 年 7 月 29 日报道」）
 4. **引用语句** → 使用 Markdown 引用块 `> 原话` 并注明说话人和来源
+5. **禁止域名级别链接** → 所有链接必须指向**具体文章/页面的完整 URL**，不允许只链接到域名根目录（如 ❌ `https://www.bloomberg.com`）。如果因付费墙无法获取完整 URL，改用报道相同数据的其他可访问来源
 
 > 💡 **设计原则**：读者可以点击文章底部的 Attachments 区域下载原始素材，也可以通过文中链接验证每个数据点。每篇文章的引用来源必须可追溯。
 
 参考现有 DeepSeek 文章的引用模式：Widget 中标注「Data Sources (All Verified)」，正文数据标注媒体来源和日期。
+
+#### 声明验证标注规范（Claim Verification Annotation）
+
+当文章基于匿名/内部信源，并与公开报道交叉验证时，使用四级标注体系标注每个关键声明的验证状态。标注应**简洁、内联**，不使用大段引用块。
+
+**四级标注：**
+
+| 标记 | 含义 | 使用场景 | 格式 |
+|------|------|---------|------|
+| ✅ | 公开源验证 | 有可靠公开信息支持 | `*(✅ Verified: [source](url))*` |
+| ⚠️ | 部分验证 | 公开信息部分支持，或有细节差异 | `*(⚠️ Partially verified: 简要说明)*` |
+| ❌ | 未验证 | 无公开信息支持（可能为非公开内部信息） | `*(❌ Unverified: 简要说明)*` |
+| 🔴 | 矛盾 | 公开信息与素材声明不一致 | `*(🔴 Contradicts public data: 简要说明)*` |
+
+**使用规则：**
+
+1. **标注位置**：放在声明所在段落的末尾，用斜体括号包裹
+2. **简洁原则**：每条标注不超过 1-2 句话，包含来源链接（如有）
+3. **不使用大段引用块**：避免 `> ✅ **Verified**: [长段落]` 的格式，改用内联标注
+4. **文末汇总**：文章末尾附 Verification Summary 表（统计各类标注数量 + 整体评估）
+5. **适用范围**：所有基于匿名信源、内部记录、行业传闻的文章。纯公开报道的文章不需要标注。
+
+**示例：**
+
+```markdown
+Anthropic framed this as a national security risk. *(✅ Verified: [Anthropic blog](https://anthropic.com/...))*
+
+CEO Yang Zhilin cited "cost reduction" as the rationale for downsizing the RL team. *(🔴 Contradicts public data: no public reports of RL team layoffs; Yang still described as leading RL per [Business Insider](https://businessinsider.com/...))*
+```
 
 #### ⏸️ HITL-1: 文章审阅检查点
 

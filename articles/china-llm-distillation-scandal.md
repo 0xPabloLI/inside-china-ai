@@ -7,7 +7,7 @@ published: true
 
 # The Distillation Storm: Inside China's LLM Distillation Controversy
 
-> **Source**: This article is based on an anonymized insider account [posted on Reddit r/LocalLLM](https://www.reddit.com/r/LocalLLM/comments/1v8fk6s/) by u/feelspeaceman (~July 28, 2026, 110+ comments), cross-referenced with public reporting from [Anthropic](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks), [Bloomberg](https://www.bloomberg.com), [PCMag](https://www.pcmag.com), [SCMP](https://www.scmp.com), [AP News](https://apnews.com/article/kimi-k3-china-ai-model), [The Information](https://theinformation.com), [Hacker News](https://news.ycombinator.com/item?id=49076001), [LessWrong](https://www.lesswrong.com/posts/dQyKzHaGqvdqpekJr/does-distilling-claude-carry-the-persona-with-it), [Artificial Analysis](https://artificialanalysis.ai), and [A Few Thoughts on Cryptographic Engineering](https://blog.cryptographyengineering.com/2026/05/29/lets-talk-about-encrypted-reasoning/). Claims are annotated with verification status: ✅ verified, ⚠️ partially verified, ❌ unverified, 🔴 contradicts public data.
+> **Source**: This article is based on an anonymized insider account [posted on Reddit r/LocalLLM](https://www.reddit.com/r/LocalLLM/comments/1v8fk6s/) by u/feelspeaceman (~July 28, 2026, 110+ comments), cross-referenced with public reporting from [Anthropic](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks), [Bloomberg](https://www.bloomberg.com/technology-ai), [PCMag](https://www.pcmag.com/news/white-house-chinas-kimi-k3-ai-model-cheated-by-cloning-us-tech), [SCMP](https://www.scmp.com/tech/tech-war/article/3361711/chinas-kimi-k3-significantly-below-us-rivals-hacking-power-uk-us-study-shows), [AP News](https://apnews.com/article/kimi-k3-china-ai-model), [The Information](https://www.theinformation.com/articles/tencents-new-model-shows-improvement-partly-thanks-anthropic), [Hacker News](https://news.ycombinator.com/item?id=49076001), [LessWrong](https://www.lesswrong.com/posts/dQyKzHaGqvdqpekJr/does-distilling-claude-carry-the-persona-with-it), [Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5), and [A Few Thoughts on Cryptographic Engineering](https://blog.cryptographyengineering.com/2026/05/29/lets-talk-about-encrypted-reasoning/). Claims are annotated with verification status: ✅ verified, ⚠️ partially verified, ❌ unverified, 🔴 contradicts public data.
 
 ---
 
@@ -53,7 +53,7 @@ Notably, Qwen (Alibaba) and Z.ai were not named. Moonshot never publicly respond
 
 Around March–April 2026, Zhipu AI (GLM) reportedly became the first to crack the frontier model's encrypted CoT, obtaining complete thinking-chain data. Rather than keeping it private, GLM shared both the method and data with other domestic labs. *(❌ Unverified: no public reporting confirms GLM was first to crack CoT or that it shared the method. The cost estimate of "tens of thousands of USD" is also unverified)*
 
-What is publicly known: GLM-5.2 is a 744B total / 40B active parameter MoE model with a 1-million-token context, [open-sourced in 2026](https://www.trendingtopics.eu). Independent evaluations noted it approached frontier-model performance on select tasks.
+What is publicly known: GLM-5.2 is a 744B total / 40B active parameter MoE model with a 1-million-token context, [open-sourced in 2026](https://www.trendingtopics.eu/glm-5-2-chinas-zhipu-ai-beats-even-googles-top-models-with-its-new-open-llm/). Independent evaluations noted it approached frontier-model performance on select tasks.
 
 ---
 
@@ -67,7 +67,7 @@ With GLM's groundwork (per the source), distillation spread rapidly:
 | ~Apr–May 2026 | Hunyuan (Tencent) | Followed with distillation |
 | ~May–Jun 2026 | Kimi K3 (Moonshot), MiniMax, Qwen (Alibaba), DeepSeek | Began large-scale distillation |
 
-*(✅ Tencent/Hunyuan verified: [The Information](https://theinformation.com) reported on April 28, 2026 that "Tencent's New Model Shows Improvement, Partly Thanks to Anthropic" — leaked records showed Tencent employees used Claude to evaluate and fine-tune internal models)*
+*(✅ Tencent/Hunyuan verified: [The Information](https://www.theinformation.com/articles/tencents-new-model-shows-improvement-partly-thanks-anthropic) reported on April 28, 2026 that "Tencent's New Model Shows Improvement, Partly Thanks to Anthropic" — leaked records showed Tencent employees used Claude to evaluate and fine-tune internal models)*
 
 ### DeepSeek's Timeline
 
@@ -83,7 +83,7 @@ The source claims Qwen was simultaneously distilling both Claude and GPT, while 
 
 ### RL Team Changes
 
-The source claims that from K2.x onward, Kimi discontinued reinforcement learning. CEO Yang Zhilin cited "cost reduction and efficiency" for downsizing the RL team, with displaced members flowing to Qwen. *(🔴 Contradicts public data: no public reports of RL team layoffs at Moonshot; [Business Insider](https://www.businessinsider.com) (July 18, 2026) describes Yang as leading RL and agentic capabilities; Moonshot's K3 release included an RL sandbox (AgentENV))* ⚠️ This is the source material's most significant unverified claim.
+The source claims that from K2.x onward, Kimi discontinued reinforcement learning. CEO Yang Zhilin cited "cost reduction and efficiency" for downsizing the RL team, with displaced members flowing to Qwen. *(🔴 Contradicts public data: no public reports of RL team layoffs at Moonshot; [Business Insider](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7) (July 18, 2026) describes Yang as leading RL and agentic capabilities; Moonshot's K3 release included an RL sandbox (AgentENV))* ⚠️ This is the source material's most significant unverified claim.
 
 ### K3 Architecture
 
@@ -113,7 +113,7 @@ The source records several evaluation phenomena:
 3. **Targeting evaluators**: A Zhihu blogger known as "Cat Boss" (猫老板) had test questions allegedly extracted from system logs. *(✅ Cat Boss verified as a real Zhihu LLM evaluator known for analyzing benchmark gaming; ❌ the specific log-extraction claim is unverified)*
 4. **Coding score distribution anomalies**: Some scores extremely high, others extremely low. *(❌ Unverified)*
 
-Public data reflected this complexity. K3 jumped 17 places on Arena Frontend Code to claim #1. But Moonshot's own evaluation showed K3 below Claude on coding, agents, and frontier SWE. [HackerNoon](https://hackernoon.com) noted K3's top scores relied on maximum reasoning effort modes. [SCMP](https://www.scmp.com) (July 24) reported K3 was "significantly below" US rivals in security testing. [PCMag](https://www.pcmag.com) (July 22) reported a White House official accused K3 of "cloning US tech." *(✅ All public reporting verified)*
+Public data reflected this complexity. K3 jumped 17 places on Arena Frontend Code to claim #1. But Moonshot's own evaluation showed K3 below Claude on coding, agents, and frontier SWE. [HackerNoon](https://hackernoon.com/why-kimi-k3s-launch-week-scores-need-a-portability-audit) noted K3's top scores relied on maximum reasoning effort modes. [SCMP](https://www.scmp.com/tech/tech-war/article/3361711/chinas-kimi-k3-significantly-below-us-rivals-hacking-power-uk-us-study-shows) (July 24) reported K3 was "significantly below" US rivals in security testing. [PCMag](https://www.pcmag.com/news/white-house-chinas-kimi-k3-ai-model-cheated-by-cloning-us-tech) (July 22) reported a White House official accused K3 of "cloning US tech." *(✅ All public reporting verified)*
 
 <!-- widget:kimi-benchmark-controversy -->
 
@@ -127,7 +127,7 @@ The technical community split on interpretation — some called it normal traini
 
 ### Hallucination Rate
 
-The source claimed ~30% hallucination rate. Public data tells a different story: [Artificial Analysis](https://artificialanalysis.ai) measured K3's hallucination rate at **51%** on AA-Omniscience (up from K2.6's 39%), confirmed by [Emergent](https://emergent.sh) and [Kili Technology](https://kili-technology.com). *(🔴 Contradicts: source's 30% vs. public 51%)*
+The source claimed ~30% hallucination rate. Public data tells a different story: [Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5) measured K3's hallucination rate at **51%** on AA-Omniscience (up from K2.6's 39%), confirmed by [Emergent](https://emergent.sh/learn/kimi-k3-benchmark) and [Kili Technology](https://kili-technology.com/blog/kimi-k3s-benchmarks-and-hallucinations----what-that-tells-us-about-ai-evaluation). *(🔴 Contradicts: source's 30% vs. public 51%)*
 
 ### Shipping First
 
@@ -147,7 +147,7 @@ The distillation route meant any lab following the playbook could reach near-fro
 
 ### Moonshot AI (Kimi)
 
-**Business context**: [Bloomberg](https://www.bloomberg.com) (July 29) reported Moonshot raised $3.5B at a $35B post-money valuation. KrASIA reported a $50B IPO target. [The Standard (HK)](https://www.thestandard.com.hk) (August 3) reported Moonshot denied August IPO filing. Alibaba reportedly backing with ~20,000 Nvidia chips. *(✅ Verified)*
+**Business context**: [Bloomberg](https://www.bloomberg.com/technology-ai) (July 29) reported Moonshot raised $3.5B at a $35B post-money valuation. KrASIA reported a $50B IPO target. [The Standard (HK)](https://www.thestandard.com.hk/finance/article/338896/Moonshot-AI-denies-plans-to-file-Hong-Kong-IPO-in-August) (August 3) reported Moonshot denied August IPO filing. Alibaba reportedly backing with ~20,000 Nvidia chips. *(✅ Verified)*
 
 Accused by Anthropic in February; never publicly responded. Open-sourced K3 weights on July 29.
 
@@ -199,7 +199,7 @@ The source argues that domestic labs pushed benchmark gaming further than Wester
 
 ## Technical Sidebar
 
-The source suggests GPT is likely a production-grade Looped Transformer with several-fold higher data efficiency. *(⚠️ Speculative: no official confirmation from OpenAI; [arXiv](https://arxiv.org) discusses looped transformers academically, but OpenAI has never confirmed GPT uses this architecture)*
+The source suggests GPT is likely a production-grade Looped Transformer with several-fold higher data efficiency. *(⚠️ Speculative: no official confirmation from OpenAI; [arXiv](https://arxiv.org/abs/2604.21254) discusses looped transformers academically, but OpenAI has never confirmed GPT uses this architecture)*
 
 The source observes that the industry rhythm has become "wait for the frontier lab to release, make architectural improvements, publish papers, and distill." *(⚠️ Analytical observation)*
 
@@ -235,7 +235,7 @@ The source observes that the industry rhythm has become "wait for the frontier l
 | Claim | Source says | Public data says |
 |-------|------------|-----------------|
 | K3 parameter count | 1T | 2.8T ([Moonshot](https://huggingface.co/blog/ResterChed/kimi-k3-model-overview) / Hugging Face) |
-| K3 hallucination rate | ~30% | 51% ([Artificial Analysis](https://artificialanalysis.ai)) |
-| Kimi RL team layoffs | Entire RL team dismissed | No public reports; Yang still described as leading RL ([Business Insider](https://www.businessinsider.com)) |
+| K3 hallucination rate | ~30% | 51% ([Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5)) |
+| Kimi RL team layoffs | Entire RL team dismissed | No public reports; Yang still described as leading RL ([Business Insider](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7)) |
 
 **Overall assessment**: The core narrative — Chinese labs engaging in large-scale distillation, Anthropic's public accusations, Kimi K3's benchmark controversies — is **well-supported by public reporting**. Many specific insider details (GLM cracking and sharing, RL team changes, test set contamination, specific routing allegations) **could not be independently verified**. Three factual details **contradict public data** and have been corrected in this article.
