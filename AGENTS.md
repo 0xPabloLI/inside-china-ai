@@ -30,8 +30,8 @@
 3. **Hook policy**: do not bypass `pre-commit`/`pre-push`; if a gate fails, fix root cause.
 4. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
 5. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
-   1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案。**必须主动做场景风险分析**：穷举边界场景，验证跨消费者一致性。
-   2. **To Spec** — 用 `to-spec` skill 合成 spec。**必须包含 Scenario & Risk Verification 章节**（场景矩阵），矩阵行直接成为测试用例。**无矩阵 = spec 不完整**。
+   1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案。**必须主动做场景风险分析**：穷举边界场景，验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），详见 `docs/conventions/scenario-matrix.md`。
+   2. **To Spec** — 用 `to-spec` skill 合成 spec。**必须包含 Scenario & Risk Verification 章节**（场景矩阵），含两个必填 section：Modified Files Impact + Behavioral Scenarios，矩阵行直接成为测试用例。**无矩阵 = spec 不完整**。格式见 `docs/conventions/scenario-matrix.md`。
    3. **To Tickets** — 用 `to-tickets` skill 将 spec 拆分为带依赖边的 tracer-bullet tickets
    4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。
    5. **Code Review** — 实施完成后用 `code-review` skill 做双轴审查（Standards + Spec）
@@ -124,11 +124,16 @@ git diff main..lovable -- path/to/file
 - If user requests "先给方案", provide plan first before coding.
 - Keep implementation scoped; avoid unrelated refactors.
 
-## Video Production
-做短视频时（**默认 TikTok**），`short-video-pipeline` skill 会自动加载。`brand-system` skill 同时加载，控制视觉一致性。项目特定配置（发布策略、TTS 引擎、文件路径）在 `docs/video-workflow.md`。
+## Content Pipeline
+统一内容管线（入口 → 文章 → 网站发布 → scene-data → 视频 → TikTok → Analytics）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。
 
-## Article Workflow
-文章创作管线（源素材 → 富文章 → 网站发布 → 视频）工作流文档：`docs/article-workflow.md`。手工操作清单（视频发布、文章发布、定期分析）：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。
+做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载。`brand-system` skill 同时加载，控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。
+
+## Session Start Checklist
+**每次新 session 启动时，Agent 被动检查**（Agent 不是常驻进程，只在用户打开 session 时检查）：
+1. 读 `scripts/short-video/output/pending-analysis.json`（如存在）→ 检查 `publishedAt` 是否 >48h → 如是，提醒用户导出 Analytics CSV
+2. 检查是否有未完成的管线（如上一 session 的文章审阅待确认、视频待发布）
+3. 如用户未指定任务，简要提示可用入口：「写文章（给素材）」或「做视频（给话题/跑 trends）」
 
 ## Web Scraping & Content Fetching
 
