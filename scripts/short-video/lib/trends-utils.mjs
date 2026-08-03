@@ -9,15 +9,50 @@
 
 const CHINA_AI_KEYWORDS = [
   // English
-  "ai", "artificial intelligence",
-  "china ai", "deepseek", "bytedance", "baidu", "alibaba",
-  "tencent", "huawei", "chip", "semiconductor",
-  "qwen", "ernie", "kimi", "zhipu", "moonshot",
+  "ai",
+  "artificial intelligence",
+  "china ai",
+  "deepseek",
+  "bytedance",
+  "baidu",
+  "alibaba",
+  "tencent",
+  "huawei",
+  "chip",
+  "semiconductor",
+  "qwen",
+  "ernie",
+  "kimi",
+  "zhipu",
+  "moonshot",
   // Chinese
-  "ai", "人工智能", "大模型", "deepseek", "深度求索",
-  "字节跳动", "百度", "阿里", "腾讯", "华为",
-  "芯片", "算力", "智谱", "月之暗面", "kimi",
-  "通义千问", "文心一言",
+  "ai",
+  "人工智能",
+  "大模型",
+  "deepseek",
+  "深度求索",
+  "字节跳动",
+  "百度",
+  "阿里",
+  "腾讯",
+  "华为",
+  "芯片",
+  "算力",
+  "智谱",
+  "月之暗面",
+  "kimi",
+  "通义千问",
+  "文心一言",
+  // Self-media common expressions (TE-T1)
+  "蒸馏",
+  "微调",
+  "推理",
+  "训练",
+  "开源模型",
+  "智能体",
+  "agent",
+  "rag",
+  "多模态",
 ];
 
 // ─── Classification keyword tables ───
@@ -31,7 +66,18 @@ const CLASSIFY_KEYWORDS = {
   },
   data: {
     zh: ["报告", "数据", "亿", "%", "增长", "下降", "融资", "估值", "$"],
-    en: ["report", "data", "billion", "million", "%", "growth", "decline", "funding", "valuation", "$"],
+    en: [
+      "report",
+      "data",
+      "billion",
+      "million",
+      "%",
+      "growth",
+      "decline",
+      "funding",
+      "valuation",
+      "$",
+    ],
   },
   fermenting: {
     zh: ["解读", "分析", "深度", "背后", "评论", "发酵"],
@@ -108,11 +154,12 @@ export function classifyTopic(title) {
  */
 function tokenize(s) {
   return new Set(
-    s.toLowerCase()
+    s
+      .toLowerCase()
       .replace(/[^\w\s\u4e00-\u9fff]/g, " ")
       .split(/\s+/)
       .filter((t) => t.length > 0)
-      .map((t) => (/[0-9]/.test(t) ? "NUM" : t))
+      .map((t) => (/[0-9]/.test(t) ? "NUM" : t)),
   );
 }
 
@@ -262,4 +309,64 @@ function extractKeywords(title) {
     }
   }
   return matched;
+}
+
+// ─── TE-T1: cleanTitle ───
+
+/**
+ * Emoji regex — covers main Unicode emoji ranges.
+ * Includes: emoticons, symbols & pictographs, transport & map, flags, etc.
+ */
+const EMOJI_REGEX =
+  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{1F200}-\u{1F251}]/gu;
+
+/**
+ * Clean a title from self-media platforms.
+ *
+ * - Removes emoji
+ * - Removes #hashtag# format (XHS style)
+ * - Removes 【】brackets and their content (Bilibili style)
+ * - Collapses multiple spaces into one
+ * - Trims leading/trailing whitespace
+ * - Truncates to 200 characters
+ * - Returns empty string for null/undefined/empty input
+ *
+ * @param {string|null|undefined} title - Raw title from social platform
+ * @returns {string} Cleaned title
+ */
+export function cleanTitle(title) {
+  if (!title || typeof title !== "string") {
+    return "";
+  }
+
+  let cleaned = title;
+
+  // Remove emoji
+  cleaned = cleaned.replace(EMOJI_REGEX, "");
+
+  // Remove #hashtag# format (XHS style: #topic# pairs)
+  // Repeatedly remove paired #...# until no more matches
+  let prev;
+  do {
+    prev = cleaned;
+    cleaned = cleaned.replace(/#[^#\s]+#/g, "");
+  } while (cleaned !== prev);
+  // Remove remaining lone # characters (trailing/leading/orphans)
+  cleaned = cleaned.replace(/#/g, "");
+
+  // Remove 【】brackets and their content (Bilibili style)
+  cleaned = cleaned.replace(/【[^】]*】/g, "");
+
+  // Collapse multiple spaces into one
+  cleaned = cleaned.replace(/\s+/g, " ");
+
+  // Trim leading/trailing whitespace
+  cleaned = cleaned.trim();
+
+  // Truncate to 200 characters
+  if (cleaned.length > 200) {
+    cleaned = cleaned.substring(0, 200);
+  }
+
+  return cleaned;
 }

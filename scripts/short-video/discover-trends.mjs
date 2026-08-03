@@ -2,11 +2,15 @@
 /**
  * China AI News Trend Discovery
  *
- * Scrapes 5 sources (量子位/机器之心/36氪/TechCrunch AI/Bloomberg Tech)
- * via Chrome CDP proxy, filters for China AI topics, classifies into
- * breaking/fermenting/data/explainer, deduplicates, and outputs JSON.
+ * Scrapes 11 sources (5 news + 6 self-media) via Chrome CDP proxy,
+ * filters for China AI topics, classifies into breaking/fermenting/data/explainer,
+ * deduplicates, and outputs JSON.
  *
- * Usage: node scripts/short-video/discover-trends.mjs
+ * Sources:
+ *   News: 量子位/机器之心/36氪/TechCrunch AI/Bloomberg Tech
+ *   Self-media: 小红书/搜狗微信/微博热搜/B站/抖音/TikTok Creator Center
+ *
+ * Usage: node scripts/short-video/discover-trends.mjs [--keyword <kw>]
  *
  * Requires: Chrome Remote Debugging enabled + CDP proxy at localhost:3456
  *
@@ -22,7 +26,9 @@ import {
   classifyTopic,
   deduplicateTopics,
   buildOutputJson,
+  cleanTitle,
 } from "./lib/trends-utils.mjs";
+import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/trend-sources.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -34,147 +40,17 @@ const CDP_BASE = "http://localhost:3456";
 const PAGE_LOAD_WAIT_MS = 3000;
 const RETRY_WAIT_MS = 3000;
 
-// ─── Source configurations ───
+// ─── CLI args ───
 
-const SOURCES = [
-  {
-    name: "qbitai",
-    label: "量子位",
-    url: "https://www.qbitai.com/",
-    extractScript: `
-      var items = document.querySelectorAll('.article-item, .post-item, .list-item, article');
-      var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.article-item-title, .post-item-title, h2, h3, .title');
-          if (link && title) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
-        });
-      }
-      if (results.length === 0) {
-        document.querySelectorAll('a[href]').forEach(function(a) {
-          var text = a.textContent.trim();
-          if (text.length > 10 && text.length < 200 && a.href.includes('qbitai.com')) {
-            results.push({ title: text, url: a.href });
-          }
-        });
-      }
-      return results;
-    `,
-  },
-  {
-    name: "jiqizhixin",
-    label: "机器之心",
-    url: "https://www.jiqizhixin.com/",
-    extractScript: `
-      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
-      var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.article__title, h2, h3, .title');
-          if (link && title) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
-        });
-      }
-      if (results.length === 0) {
-        document.querySelectorAll('a[href]').forEach(function(a) {
-          var text = a.textContent.trim();
-          if (text.length > 10 && text.length < 200 && a.href.includes('jiqizhixin.com')) {
-            results.push({ title: text, url: a.href });
-          }
-        });
-      }
-      return results;
-    `,
-  },
-  {
-    name: "36kr",
-    label: "36氪",
-    url: "https://36kr.com/",
-    extractScript: `
-      var items = document.querySelectorAll('.kr-flow-item, .article-item, .recommend-item, article');
-      var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.kr-flow-item-title, .article-item-title, h2, h3, .title, .pcach-name');
-          if (link && title) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
-        });
-      }
-      if (results.length === 0) {
-        document.querySelectorAll('a[href]').forEach(function(a) {
-          var text = a.textContent.trim();
-          if (text.length > 10 && text.length < 200 && a.href.includes('36kr.com')) {
-            results.push({ title: text, url: a.href });
-          }
-        });
-      }
-      return results;
-    `,
-  },
-  {
-    name: "techcrunch",
-    label: "TechCrunch AI",
-    url: "https://techcrunch.com/category/artificial-intelligence/",
-    extractScript: `
-      var items = document.querySelectorAll('article.post, article, .post-block');
-      var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('h2.article__title, h2, h3, .article__title');
-          if (link && title) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
-        });
-      }
-      if (results.length === 0) {
-        document.querySelectorAll('a[href]').forEach(function(a) {
-          var text = a.textContent.trim();
-          if (text.length > 15 && text.length < 200 && a.href.includes('techcrunch.com')) {
-            results.push({ title: text, url: a.href });
-          }
-        });
-      }
-      return results;
-    `,
-  },
-  {
-    name: "bloomberg",
-    label: "Bloomberg Tech",
-    url: "https://www.bloomberg.com/technology",
-    extractScript: `
-      var items = document.querySelectorAll('article, .story-package, .lede-package');
-      var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('h3.lede-text-v2, h2, h3, .headline');
-          if (link && title) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
-        });
-      }
-      if (results.length === 0) {
-        document.querySelectorAll('a[href]').forEach(function(a) {
-          var text = a.textContent.trim();
-          if (text.length > 15 && text.length < 200 && a.href.includes('bloomberg.com')) {
-            results.push({ title: text, url: a.href });
-          }
-        });
-      }
-      return results;
-    `,
-  },
-];
+const args = process.argv.slice(2);
+function getArg(name) {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+}
 
-// ─── CDP helper functions (using fetch — no shell escaping issues) ───
+const keywordArg = getArg("keyword");
+
+// ─── CDP helper functions ───
 
 async function cdpNewTab(url) {
   const resp = await fetch(`${CDP_BASE}/new?url=${encodeURIComponent(url)}`);
@@ -245,13 +121,99 @@ async function extractFromTab(tabId, extractScript) {
   }
 }
 
+async function checkLogin(tabId, loginCheckScript) {
+  if (!loginCheckScript) return "ok";
+  try {
+    const wrappedScript = `(function(){${loginCheckScript}})()`;
+    const resp = await cdpEval(tabId, wrappedScript);
+    return resp?.result?.value || resp?.value || "ok";
+  } catch {
+    return "ok";
+  }
+}
+
+// ─── Source collection ───
+
+async function collectFromSource(source, keyword) {
+  const url = source.url(keyword || DEFAULT_KEYWORDS[0]);
+  console.log(`\n🔍 Scraping ${source.label} (${source.name})...`);
+
+  let tabId;
+  try {
+    tabId = await cdpNewTab(url);
+    console.log(`  📑 Opened tab: ${tabId.substring(0, 12)}...`);
+  } catch (e) {
+    console.warn(`  ⚠️  Failed to open ${source.label}: ${e.message}`);
+    return [];
+  }
+
+  // Wait for page to load
+  await new Promise((r) => setTimeout(r, PAGE_LOAD_WAIT_MS));
+  const loaded = await waitForPageLoad(tabId);
+
+  if (!loaded) {
+    console.warn(`  ⚠️  Page did not finish loading, attempting extraction anyway...`);
+  }
+
+  // Check login if needed
+  if (source.needsAuth && source.loginCheckScript) {
+    const status = await checkLogin(tabId, source.loginCheckScript);
+    if (status === "need_login") {
+      console.warn(`  ⚠️  ${source.label} requires login — skipping`);
+      await cdpCloseTab(tabId);
+      return [];
+    } else if (status === "captcha") {
+      console.warn(`  ⚠️  ${source.label} triggered captcha — skipping`);
+      await cdpCloseTab(tabId);
+      return [];
+    }
+  }
+
+  // Extract articles
+  let articles = await extractFromTab(tabId, source.extractScript);
+  console.log(`  📊 Extracted ${articles.length} articles`);
+
+  if (articles.length === 0) {
+    // Retry once
+    console.log("  ⏳ No articles found, retrying...");
+    await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
+    articles = await extractFromTab(tabId, source.extractScript);
+    console.log(`  📊 Retry extracted ${articles.length} articles`);
+  }
+
+  // Clean titles if needed
+  if (source.useCleanTitle) {
+    articles = articles.map((a) => ({
+      ...a,
+      title: cleanTitle(a.title || ""),
+    }));
+    // Filter out empty titles after cleaning
+    articles = articles.filter((a) => a.title.length > 0);
+  }
+
+  // Add source name
+  for (const a of articles) {
+    a.source = source.name;
+  }
+
+  // Close tab
+  await cdpCloseTab(tabId);
+  console.log("  🚪 Tab closed");
+
+  return articles;
+}
+
 // ─── Main ───
 
 async function main() {
   console.log("📡 China AI News Trend Discovery");
   console.log("=".repeat(60));
+  console.log(`  Sources: ${ALL_SOURCES.length} (5 news + 6 self-media)`);
+  if (keywordArg) {
+    console.log(`  Keyword: ${keywordArg}`);
+  }
 
-  // T2: Check CDP proxy
+  // Check CDP proxy
   console.log("\n🔌 Checking CDP proxy...");
   try {
     const resp = await fetch(`${CDP_BASE}/targets`);
@@ -263,55 +225,24 @@ async function main() {
     process.exit(1);
   }
 
-  // Scrape each source
+  // Collect from all sources
   const allArticles = [];
+  const failedSources = [];
 
-  for (const source of SOURCES) {
-    console.log(`\n🔍 Scraping ${source.label} (${source.name})...`);
-
-    let tabId;
+  for (const source of ALL_SOURCES) {
     try {
-      tabId = await cdpNewTab(source.url);
-      console.log(`  📑 Opened tab: ${tabId.substring(0, 12)}...`);
+      const articles = await collectFromSource(source, keywordArg);
+      allArticles.push(...articles);
     } catch (e) {
-      console.warn(`  ⚠️  Failed to open ${source.label}: ${e.message}`);
-      continue;
+      console.warn(`  ⚠️  ${source.label} failed: ${e.message}`);
+      failedSources.push(source.name);
     }
-
-    // Wait for page to load
-    await new Promise((r) => setTimeout(r, PAGE_LOAD_WAIT_MS));
-    const loaded = await waitForPageLoad(tabId);
-
-    if (!loaded) {
-      console.warn(`  ⚠️  Page did not finish loading, attempting extraction anyway...`);
-    }
-
-    // Extract articles
-    const articles = await extractFromTab(tabId, source.extractScript);
-    console.log(`  📊 Extracted ${articles.length} articles`);
-
-    if (articles.length === 0) {
-      // T11: Retry once
-      console.log("  ⏳ No articles found, retrying...");
-      await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
-      const retryArticles = await extractFromTab(tabId, source.extractScript);
-      console.log(`  📊 Retry extracted ${retryArticles.length} articles`);
-
-      for (const a of retryArticles) {
-        allArticles.push({ ...a, source: source.name });
-      }
-    } else {
-      for (const a of articles) {
-        allArticles.push({ ...a, source: source.name });
-      }
-    }
-
-    // Close tab
-    await cdpCloseTab(tabId);
-    console.log("  🚪 Tab closed");
   }
 
   console.log(`\n📊 Total articles scraped: ${allArticles.length}`);
+  if (failedSources.length > 0) {
+    console.warn(`⚠️  Failed sources: ${failedSources.join(", ")}`);
+  }
 
   // Filter for China AI topics
   const filtered = filterChinaAI(allArticles);
@@ -337,7 +268,7 @@ async function main() {
   // Build output
   const output = buildOutputJson(deduplicated);
 
-  // T6: Warn if fewer than 5 topics
+  // Warn if fewer than 5 topics
   if (output.totalTopics < 5) {
     console.warn(`⚠️  Only ${output.totalTopics} topics found (minimum 5 recommended)`);
   }

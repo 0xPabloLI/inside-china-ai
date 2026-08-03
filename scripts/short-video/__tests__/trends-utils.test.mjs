@@ -4,17 +4,34 @@ import {
   classifyTopic,
   deduplicateTopics,
   buildOutputJson,
+  cleanTitle,
 } from "../lib/trends-utils.mjs";
 
 // ─── Mock article data ───
 
 const mockArticles = [
-  { title: "DeepSeek pauses $1.4B funding round after leaked meeting", source: "qbitai", url: "https://qbitai.com/1" },
+  {
+    title: "DeepSeek pauses $1.4B funding round after leaked meeting",
+    source: "qbitai",
+    url: "https://qbitai.com/1",
+  },
   { title: "字节跳动发布最新AI大模型", source: "36kr", url: "https://36kr.com/1" },
-  { title: "Baidu announces new chip for AI workloads", source: "jiqizhixin", url: "https://jiqizhixin.com/1" },
+  {
+    title: "Baidu announces new chip for AI workloads",
+    source: "jiqizhixin",
+    url: "https://jiqizhixin.com/1",
+  },
   { title: "Best restaurants in New York", source: "techcrunch", url: "https://techcrunch.com/1" },
-  { title: "Alibaba's Qwen model tops open-source leaderboard", source: "techcrunch", url: "https://techcrunch.com/2" },
-  { title: "Tencent invests $10B in AI infrastructure", source: "bloomberg", url: "https://bloomberg.com/1" },
+  {
+    title: "Alibaba's Qwen model tops open-source leaderboard",
+    source: "techcrunch",
+    url: "https://techcrunch.com/2",
+  },
+  {
+    title: "Tencent invests $10B in AI infrastructure",
+    source: "bloomberg",
+    url: "https://bloomberg.com/1",
+  },
 ];
 
 // ─── T5: filterChinaAI ───
@@ -92,14 +109,30 @@ describe("classifyTopic", () => {
 describe("deduplicateTopics", () => {
   it("merges articles with similar titles (>= 80% similarity)", () => {
     const articles = [
-      { title: "DeepSeek pauses $1.4B funding round after leaked meeting", source: "qbitai", url: "https://qbitai.com/1" },
-      { title: "DeepSeek pauses $1.4B funding round after leaked meeting", source: "bloomberg", url: "https://bloomberg.com/1" },
-      { title: "DeepSeek pauses $1.4B funding round after leaked meeting", source: "techcrunch", url: "https://techcrunch.com/1" },
+      {
+        title: "DeepSeek pauses $1.4B funding round after leaked meeting",
+        source: "qbitai",
+        url: "https://qbitai.com/1",
+      },
+      {
+        title: "DeepSeek pauses $1.4B funding round after leaked meeting",
+        source: "bloomberg",
+        url: "https://bloomberg.com/1",
+      },
+      {
+        title: "DeepSeek pauses $1.4B funding round after leaked meeting",
+        source: "techcrunch",
+        url: "https://techcrunch.com/1",
+      },
     ];
     const result = deduplicateTopics(articles);
     expect(result.length).toBe(1);
     expect(result[0].sources).toEqual(["qbitai", "bloomberg", "techcrunch"]);
-    expect(result[0].urls).toEqual(["https://qbitai.com/1", "https://bloomberg.com/1", "https://techcrunch.com/1"]);
+    expect(result[0].urls).toEqual([
+      "https://qbitai.com/1",
+      "https://bloomberg.com/1",
+      "https://techcrunch.com/1",
+    ]);
   });
 
   it("keeps articles with different titles", () => {
@@ -124,7 +157,11 @@ describe("deduplicateTopics", () => {
   it("preserves longer title when merging", () => {
     const articles = [
       { title: "DeepSeek funding paused", source: "qbitai", url: "http://1" },
-      { title: "DeepSeek funding paused after leaked investor meeting", source: "bloomberg", url: "http://2" },
+      {
+        title: "DeepSeek funding paused after leaked investor meeting",
+        source: "bloomberg",
+        url: "http://2",
+      },
     ];
     const result = deduplicateTopics(articles);
     expect(result.length).toBe(1);
@@ -156,7 +193,12 @@ describe("buildOutputJson", () => {
     const articles = [
       { title: "DeepSeek just announced", source: "qbitai", url: "http://1", category: "breaking" },
       { title: "Baidu $5B investment data", source: "36kr", url: "http://2", category: "data" },
-      { title: "What is AI: a guide", source: "techcrunch", url: "http://3", category: "explainer" },
+      {
+        title: "What is AI: a guide",
+        source: "techcrunch",
+        url: "http://3",
+        category: "explainer",
+      },
     ];
     const result = buildOutputJson(articles);
 
@@ -187,5 +229,63 @@ describe("buildOutputJson", () => {
     expect(result.topics.fermenting).toEqual([]);
     expect(result.topics.data).toEqual([]);
     expect(result.topics.explainer).toEqual([]);
+  });
+});
+
+// ─── TE-T1: cleanTitle ───
+
+describe("cleanTitle", () => {
+  it("returns empty string for null", () => {
+    expect(cleanTitle(null)).toBe("");
+  });
+
+  it("returns empty string for undefined", () => {
+    expect(cleanTitle(undefined)).toBe("");
+  });
+
+  it("returns empty string for empty string", () => {
+    expect(cleanTitle("")).toBe("");
+  });
+
+  it("removes emoji from title", () => {
+    expect(cleanTitle("DeepSeek 🔥发布新模型")).toBe("DeepSeek 发布新模型");
+    expect(cleanTitle("🚀字节跳动AI突破🎉")).toBe("字节跳动AI突破");
+  });
+
+  it("removes #hashtag# format (XHS style)", () => {
+    // #AI大模型# is a paired hashtag → removed; trailing # is lone → removed
+    expect(cleanTitle("DeepSeek发布新模型#AI大模型#DeepSeek#")).toBe("DeepSeek发布新模型DeepSeek");
+    // #热点# and #国产芯片# are paired hashtags → removed; AI芯片突破 between them is kept
+    expect(cleanTitle("#热点#AI芯片突破#国产芯片#")).toBe("AI芯片突破");
+  });
+
+  it("removes 【】brackets (Bilibili style)", () => {
+    expect(cleanTitle("【最新】DeepSeek发布新模型")).toBe("DeepSeek发布新模型");
+    expect(cleanTitle("【AI】【科技】百度发布文心一言")).toBe("百度发布文心一言");
+  });
+
+  it("collapses multiple spaces", () => {
+    expect(cleanTitle("DeepSeek   发布   新模型")).toBe("DeepSeek 发布 新模型");
+  });
+
+  it("trims leading/trailing whitespace", () => {
+    expect(cleanTitle("  DeepSeek发布新模型  ")).toBe("DeepSeek发布新模型");
+  });
+
+  it("truncates titles longer than 200 characters", () => {
+    const long = "AI".repeat(150); // 300 chars
+    const result = cleanTitle(long);
+    expect(result.length).toBe(200);
+  });
+
+  it("preserves normal titles unchanged", () => {
+    expect(cleanTitle("DeepSeek pauses $1.4B funding round")).toBe(
+      "DeepSeek pauses $1.4B funding round",
+    );
+  });
+
+  it("handles mixed dirty data (emoji + hashtag + brackets)", () => {
+    // 【热点】removed, emoji removed, #AI大模型# removed
+    expect(cleanTitle("【热点】DeepSeek 🔥发布新模型#AI大模型#")).toBe("DeepSeek 发布新模型");
   });
 });
