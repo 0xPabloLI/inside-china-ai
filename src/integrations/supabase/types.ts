@@ -14,6 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
+      newsletter_sends: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          newsletter_id: string
+          recipient_email: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          newsletter_id: string
+          recipient_email: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          newsletter_id?: string
+          recipient_email?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_sends_newsletter_id_fkey"
+            columns: ["newsletter_id"]
+            isOneToOne: false
+            referencedRelation: "newsletters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletters: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          excerpt: string | null
+          failed_count: number
+          id: string
+          post_url: string | null
+          scheduled_at: string | null
+          sent_at: string | null
+          sent_count: number
+          status: Database["public"]["Enums"]["newsletter_status"]
+          subject: string
+          suppressed_count: number
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          excerpt?: string | null
+          failed_count?: number
+          id?: string
+          post_url?: string | null
+          scheduled_at?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          status?: Database["public"]["Enums"]["newsletter_status"]
+          subject: string
+          suppressed_count?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          excerpt?: string | null
+          failed_count?: number
+          id?: string
+          post_url?: string | null
+          scheduled_at?: string | null
+          sent_at?: string | null
+          sent_count?: number
+          status?: Database["public"]["Enums"]["newsletter_status"]
+          subject?: string
+          suppressed_count?: number
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       post_attachments: {
         Row: {
           created_at: string
@@ -115,18 +204,21 @@ export type Database = {
           email: string
           id: string
           last_sent_at: string | null
+          unsubscribed_at: string | null
         }
         Insert: {
           created_at?: string
           email: string
           id?: string
           last_sent_at?: string | null
+          unsubscribed_at?: string | null
         }
         Update: {
           created_at?: string
           email?: string
           id?: string
           last_sent_at?: string | null
+          unsubscribed_at?: string | null
         }
         Relationships: []
       }
@@ -166,6 +258,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      newsletter_status: "draft" | "scheduled" | "sending" | "sent" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -294,6 +387,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      newsletter_status: ["draft", "scheduled", "sending", "sent", "failed"],
     },
   },
 } as const
