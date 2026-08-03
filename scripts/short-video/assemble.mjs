@@ -53,10 +53,11 @@ export function assembleVideo(scenes, outputDir, bgmPath = null, srtPath = null)
   if (srtPath && existsSync(srtPath)) {
     const noSubsPath = finalPath.replace(".mp4", "-nosubs.mp4");
     renameSync(finalPath, noSubsPath);
-    // Use execFileSync to avoid shell quoting issues with subtitles filter
+    // Use ffmpeg-full for subtitles filter (has libass support)
+    const ffmpegFull = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
     const subFilter = `subtitles=${srtPath}:force_style='FontName=Helvetica Neue,FontSize=18,PrimaryColour=&H00F5F5F5,OutlineColour=&H66000000,BorderStyle=1,Outline=2,Alignment=2,MarginV=120'`;
     execFileSync(
-      "ffmpeg",
+      ffmpegFull,
       ["-y", "-i", noSubsPath, "-vf", subFilter, "-c:a", "copy", finalPath],
       { stdio: ["pipe", "pipe", "pipe"] },
     );
