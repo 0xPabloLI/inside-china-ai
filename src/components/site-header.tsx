@@ -38,6 +38,10 @@ export function SiteHeader() {
           <Link to="/" activeOptions={{ exact: true }} className="hover:text-foreground">
             Articles
           </Link>
+          <Link to="/companies" className="hover:text-foreground">
+            Companies
+          </Link>
+
           {isAdmin ? (
             <Link to="/admin" className="hover:text-foreground">
               Admin
