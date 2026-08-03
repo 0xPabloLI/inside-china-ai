@@ -67,7 +67,6 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-
 function formatDate(d: string | null) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-US", {
@@ -102,7 +101,7 @@ function Index() {
           <SubscribeForm />
         </section>
 
-        <section>
+        <section id="articles" className="scroll-mt-20">
           <h2 className="mb-8 font-serif text-3xl">Recent articles</h2>
           {posts.length === 0 ? (
             <p className="text-muted-foreground">No articles published yet.</p>

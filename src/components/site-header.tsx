@@ -1,10 +1,11 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BrandName } from "./brand-name";
 
 export function SiteHeader() {
   const [isAdmin, setIsAdmin] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     let cancelled = false;
@@ -28,14 +29,39 @@ export function SiteHeader() {
     };
   }, []);
 
+  /**
+   * When already on the home page, clicking "Articles" scrolls to the
+   * articles list instead of being a no-op. On other pages it navigates home.
+   */
+  function handleArticlesClick(e: React.MouseEvent) {
+    if (location.pathname === "/") {
+      e.preventDefault();
+      document.getElementById("articles")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }
+
   return (
     <header className="border-b border-border/60">
-      <div className="mx-auto flex max-w-3xl items-baseline justify-between px-6 py-6">
-        <Link to="/" className="font-serif text-2xl tracking-tight">
-          <BrandName />
+      <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
+        <Link to="/" className="flex items-center gap-2.5">
+          <img
+            src="/logo.png"
+            alt="China AI News logo"
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded"
+          />
+          <span className="font-serif text-2xl tracking-tight">
+            <BrandName />
+          </span>
         </Link>
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-          <Link to="/" activeOptions={{ exact: true }} className="hover:text-foreground">
+          <Link
+            to="/"
+            activeOptions={{ exact: true }}
+            className="hover:text-foreground"
+            onClick={handleArticlesClick}
+          >
             Articles
           </Link>
           <Link to="/companies" className="hover:text-foreground">
