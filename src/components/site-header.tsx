@@ -44,13 +44,7 @@ export function SiteHeader() {
     <header className="border-b border-border/60">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2.5">
-          <img
-            src="/logo.png"
-            alt="China AI News logo"
-            width={32}
-            height={32}
-            className="h-8 w-8 rounded"
-          />
+          <img src="/favicon.svg" alt="China AI News" className="h-8 w-auto" />
           <span className="font-serif text-2xl tracking-tight">
             <BrandName />
           </span>
