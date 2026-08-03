@@ -3,6 +3,8 @@ import {
   buildCaption,
   buildTiktokSettings,
   validateVideoFile,
+  buildPendingAnalysis,
+  buildAnalyticsGuidance,
 } from "../lib/publish-utils.mjs";
 
 const mockMetadata = {
@@ -117,5 +119,65 @@ describe("validateVideoFile", () => {
     // Use the actual video file from output
     const result = validateVideoFile("scripts/short-video/output/deepseek-short.mp4");
     expect(result.valid).toBe(true);
+  });
+});
+
+// ─── buildPendingAnalysis (ISSUE-19) ───
+
+describe("buildPendingAnalysis", () => {
+  it("builds pending analysis with +48h suggested time (scenario 28)", () => {
+    const postGroupId = "grp-123";
+    const publishedAt = "2026-08-03T12:00:00Z";
+    const result = buildPendingAnalysis(postGroupId, publishedAt);
+
+    expect(result.postGroupId).toBe("grp-123");
+    expect(result.publishedAt).toBe("2026-08-03T12:00:00Z");
+    expect(result.status).toBe("pending");
+
+    // suggestedAnalysisTime should be +48h
+    const suggested = new Date(result.suggestedAnalysisTime);
+    const published = new Date(publishedAt);
+    const diffHours = (suggested - published) / (1000 * 60 * 60);
+    expect(diffHours).toBe(48);
+  });
+
+  it("sets status to pending", () => {
+    const result = buildPendingAnalysis("grp", "2026-01-01T00:00:00Z");
+    expect(result.status).toBe("pending");
+  });
+
+  it("produces valid ISO timestamps", () => {
+    const result = buildPendingAnalysis("grp", "2026-08-03T12:00:00Z");
+    expect(new Date(result.publishedAt).toString()).not.toBe("Invalid Date");
+    expect(new Date(result.suggestedAnalysisTime).toString()).not.toBe("Invalid Date");
+  });
+});
+
+// ─── buildAnalyticsGuidance (ISSUE-19) ───
+
+describe("buildAnalyticsGuidance", () => {
+  it("includes 24-48h reminder text", () => {
+    const msg = buildAnalyticsGuidance("output");
+    expect(msg).toContain("24-48h");
+  });
+
+  it("includes fetch-tiktok-analytics command", () => {
+    const msg = buildAnalyticsGuidance("output");
+    expect(msg).toContain("fetch-tiktok-analytics.mjs");
+  });
+
+  it("includes ab-test-tracker command", () => {
+    const msg = buildAnalyticsGuidance("output");
+    expect(msg).toContain("ab-test-tracker.mjs");
+  });
+
+  it("includes pending-analysis.json path", () => {
+    const msg = buildAnalyticsGuidance("output");
+    expect(msg).toContain("pending-analysis.json");
+  });
+
+  it("includes analytics.tiktok.com URL", () => {
+    const msg = buildAnalyticsGuidance("output");
+    expect(msg).toContain("analytics.tiktok.com");
   });
 });

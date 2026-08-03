@@ -18,12 +18,18 @@
  * Requires: PUBLORA_API_KEY env var OR CatPaw MCP config fallback
  */
 
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { readFile } from "fs/promises";
 
-import { buildCaption, buildTiktokSettings, validateVideoFile } from "./lib/publish-utils.mjs";
+import {
+  buildCaption,
+  buildTiktokSettings,
+  validateVideoFile,
+  buildPendingAnalysis,
+  buildAnalyticsGuidance,
+} from "./lib/publish-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -195,11 +201,15 @@ async function main() {
 
   // 7. Step 1: Create draft
   console.log("\n📦 Step 1: Creating draft post...");
-  const draft = await publoraPost("/create-post", {
-    content: caption,
-    platforms: [platformId],
-    platformSettings: tiktokSettings,
-  }, apiKey);
+  const draft = await publoraPost(
+    "/create-post",
+    {
+      content: caption,
+      platforms: [platformId],
+      platformSettings: tiktokSettings,
+    },
+    apiKey,
+  );
   const postGroupId = draft.postGroupId;
   if (!postGroupId) {
     console.error("❌ No postGroupId returned:", draft);
@@ -210,12 +220,16 @@ async function main() {
   // 8. Step 2: Get upload URL
   console.log("\n📦 Step 2: Getting upload URL...");
   const fileName = resolve(videoPath).split("/").pop();
-  const uploadResp = await publoraPost("/get-upload-url", {
-    fileName,
-    contentType: "video/mp4",
-    type: "video",
-    postGroupId,
-  }, apiKey);
+  const uploadResp = await publoraPost(
+    "/get-upload-url",
+    {
+      fileName,
+      contentType: "video/mp4",
+      type: "video",
+      postGroupId,
+    },
+    apiKey,
+  );
   const { uploadUrl, mediaId } = uploadResp;
   if (!uploadUrl) {
     console.error("❌ No uploadUrl returned:", uploadResp);
@@ -235,19 +249,27 @@ async function main() {
     console.log("   Publish later: node publish-tiktok.mjs --schedule <iso>");
   } else if (scheduleTime) {
     console.log(`\n📅 Scheduling for ${scheduleTime}...`);
-    await publoraPut(`/update-post/${postGroupId}`, {
-      status: "scheduled",
-      scheduledTime: scheduleTime,
-    }, apiKey);
+    await publoraPut(
+      `/update-post/${postGroupId}`,
+      {
+        status: "scheduled",
+        scheduledTime: scheduleTime,
+      },
+      apiKey,
+    );
     console.log("  ✅ Scheduled");
   } else {
     // Default: schedule for now (immediate publish)
     const now = new Date().toISOString();
     console.log(`\n🚀 Scheduling for immediate publish (${now})...`);
-    await publoraPut(`/update-post/${postGroupId}`, {
-      status: "scheduled",
-      scheduledTime: now,
-    }, apiKey);
+    await publoraPut(
+      `/update-post/${postGroupId}`,
+      {
+        status: "scheduled",
+        scheduledTime: now,
+      },
+      apiKey,
+    );
     console.log("  ✅ Published (may take a few minutes to appear)");
   }
 
@@ -259,6 +281,16 @@ async function main() {
   console.log(`  Caption:     ${caption.length} chars`);
   console.log(`  Video:       ${(videoValidation.size / 1024 / 1024).toFixed(1)}MB`);
   console.log("=".repeat(60));
+
+  // 11. Write pending-analysis.json (ISSUE-19) — only for non-draft
+  if (!isDraft) {
+    const publishedAt = new Date().toISOString();
+    const pending = buildPendingAnalysis(postGroupId, publishedAt);
+    const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
+    if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+    writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
+    console.log(buildAnalyticsGuidance(OUTPUT_DIR));
+  }
 }
 
 main().catch((e) => {

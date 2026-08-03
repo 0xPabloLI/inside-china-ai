@@ -82,7 +82,7 @@ export function buildTiktokSettings(options = {}) {
   // TikTok commercial disclosure rule
   if (commercialContent && !(brandOrganic || brandedContent)) {
     throw new Error(
-      "commercialContent=true requires brandOrganic or brandedContent to also be true (TikTok commercial disclosure rule)."
+      "commercialContent=true requires brandOrganic or brandedContent to also be true (TikTok commercial disclosure rule).",
     );
   }
 
@@ -134,4 +134,42 @@ export function validateVideoFile(videoPath) {
   }
 
   return { valid: true, size: stat.size };
+}
+
+// ─── Pending Analysis (ISSUE-19) ───
+
+/**
+ * Build the pending-analysis.json content for a published video.
+ * suggestedAnalysisTime = publishedAt + 48 hours.
+ *
+ * @param {string} postGroupId - Publora post group ID
+ * @param {string} publishedAt - ISO timestamp of publish time
+ * @returns {{ postGroupId: string, publishedAt: string, suggestedAnalysisTime: string, status: string }}
+ */
+export function buildPendingAnalysis(postGroupId, publishedAt) {
+  const publishedDate = new Date(publishedAt);
+  const suggestedDate = new Date(publishedDate.getTime() + 48 * 60 * 60 * 1000); // +48h
+
+  return {
+    postGroupId,
+    publishedAt,
+    suggestedAnalysisTime: suggestedDate.toISOString(),
+    status: "pending",
+  };
+}
+
+/**
+ * Build the analytics guidance message printed after successful publish.
+ */
+export function buildAnalyticsGuidance(outputDir) {
+  return [
+    "",
+    "📊 Analytics Reminder:",
+    "  TikTok analytics data typically takes 24-48h to populate.",
+    "  Once available:",
+    `    1. Export CSV from https://analytics.tiktok.com`,
+    `    2. Run: node scripts/short-video/fetch-tiktok-analytics.mjs --csv <csv-path>`,
+    `    3. Run: node scripts/short-video/ab-test-tracker.mjs --result ${outputDir}/analytics-export.json`,
+    `  Pending analysis file: ${outputDir}/pending-analysis.json`,
+  ].join("\n");
 }

@@ -127,6 +127,9 @@ git diff main..lovable -- path/to/file
 ## Video Production
 做短视频时（**默认 TikTok**），`short-video-pipeline` skill 会自动加载。`brand-system` skill 同时加载，控制视觉一致性。项目特定配置（发布策略、TTS 引擎、文件路径）在 `docs/video-workflow.md`。
 
+## Article Workflow
+文章创作管线（源素材 → 富文章 → 网站发布 → 视频）工作流文档：`docs/article-workflow.md`。手工操作清单（视频发布、文章发布、定期分析）：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。
+
 ## Web Scraping & Content Fetching
 
 **默认方案：`web-access` skill**。当用户要求爬取网页内容、搜索信息、抓取文章、获取需要登录的页面时，优先使用 `web-access` skill。

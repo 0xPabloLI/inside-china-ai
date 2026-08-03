@@ -212,8 +212,8 @@
 > 大多数内容先有文章，再从文章做视频。
 
 ### ISSUE-14: 源素材读取与结构化
-- **状态**: TODO
-- **现状**: agent 手动读 PDF/网页/报告，手动提取结构化信息
+- **状态**: DONE
+- **现状**: `docs/article-workflow.md` Part 1 文档化了 agent 读取 PDF/网页/文本的工作流
 - **目标**: agent 工作流 — 给定任意源素材（PDF/URL/话题/报告）→ agent 读取 → 提取关键信息 → 输出结构化内容
 - **素材类型**: PDF 转文本、新闻 URL、研究报告、社交媒体帖子、视频脚本 — 任何包含信息的输入
 - **方案**: **Agent 工作流（非脚本）**
@@ -221,58 +221,47 @@
   - 网页: agent 用 `web-access` skill (CDP) 抓取
   - 输出: agent 直接理解素材，不需要中间 JSON
   - 参考: DeepSeek 文章创作过程 — 读 42 页投资者会议录音 → 提取核心叙事、人物、数据点
-- **文件**: AGENTS.md 工作流文档更新（非脚本）
+- **文件**: `docs/article-workflow.md` Part 1
 - **依赖**: 无
 - **完成标志**: 给 agent 任意源素材 → agent 能读取并提取核心信息
 
 ### ISSUE-15: 富文章生成（markdown + widget 标记 + 扩展内容）
-- **状态**: TODO
-- **现状**: agent 手动写 markdown + 手动嵌入 widget 标记 + 手动 curate widget 数据
+- **状态**: DONE
+- **现状**: `docs/article-workflow.md` Part 2 文档化了富文章生成工作流
 - **目标**: agent 工作流 — 读源素材 → 总结核心叙事 → **根据内容主动扩展** → 选择/创建增强 widget → 写富文章
-- **参考模式**: DeepSeek 文章创作过程
-  1. 读源素材（投资者会议录音转文本 PDF）
-  2. 总结核心叙事 → 拆分为章节
-  3. 对每个章节思考：「什么交互内容能增强这段？」
-     - 引言后 → 词云（全文关键词可视化）
-     - 融资讨论后 → 融资时间线 + 媒体来源
-     - 定价讨论后 → API 定价对比表
-     - 团队讨论后 → 人才流动卡片
-     - 「My Take」后 → 公司生态图
-  4. 为每个 widget curate 数据（从素材提取 + 外部调研补充）
-  5. 写 markdown + 在合适位置嵌入 `<!-- widget:xxx -->` 标记
-  6. 加原创分析章节（「My Take」）
 - **方案**: **Agent 工作流（非脚本）**
   - agent 读 `src/components/widgets/registry.ts` 获取已有 widget 列表
   - agent 根据素材内容决定用哪些 widget + 在哪里插入
   - agent 可以创建新 widget（需要写 React 组件 + 注册）
   - agent curate widget 数据（从素材提取 + 补充调研）
-  - 输出: 直接写入 Supabase（ISSUE-16）或输出 markdown 供审阅
+  - 输出: frontmatter markdown 文件，供 `publish-article.mjs` 消费
 - **关键**: 不是纯总结，是 **总结 + 扩展**。agent 要根据素材主动增加交互内容和原创分析
-- **文件**: AGENTS.md 工作流文档更新 + 可能的 `docs/article-workflow.md`（参考指南）
+- **文件**: `docs/article-workflow.md` Part 2
 - **依赖**: ISSUE-14
 - **完成标志**: 给 agent 源素材 → agent 写出带 widget 标记 + 原创分析的富文章
 
 ### ISSUE-16: 文章发布到网站（Supabase API）
-- **状态**: TODO
-- **现状**: 手动 copy markdown 到 admin editor → 点发布
+- **状态**: DONE
+- **现状**: `scripts/article/publish-article.mjs` 已实现，通过 Admin 账号登录 Supabase Auth，REST API upsert by slug
 - **目标**: 脚本直接写入 Supabase `posts` 表 → 自动发布
 - **方案**: **代码实现**
-  - 调用 Supabase REST API 或 server function `createPost`
-  - 字段: title, slug, excerpt, content (markdown), published=true
-- **文件**: `scripts/publish-article.mjs`（新建）
+  - 用 Admin 账号（`.env.local` 中 ADMIN_EMAIL/ADMIN_PASSWORD）登录 Supabase Auth 拿 access token
+  - 调用 Supabase REST API upsert by slug（INSERT 或 UPDATE，保留 published_at）
+  - 输入: frontmatter markdown 文件（title, slug, excerpt, content, published）
+- **文件**: `scripts/article/publish-article.mjs` + `scripts/article/lib/supabase-auth.mjs` + `scripts/article/lib/publish-utils.mjs`
 - **依赖**: ISSUE-15
 - **完成标志**: 运行脚本后文章出现在网站 `/posts/{slug}`
 
 ### ISSUE-17: 文章 → scene-data 桥接
-- **状态**: TODO
-- **现状**: agent 手动从文章内容提炼视频脚本
+- **状态**: DONE
+- **现状**: `docs/article-workflow.md` Part 3 文档化了文章→视频的桥接工作流
 - **目标**: agent 工作流 — 读已发布文章 → 提炼核心叙事 → 写 scene-data
 - **方案**: **Agent 工作流（非脚本）**
   - agent 从 Supabase 或 admin editor 读取文章 content
   - 按文章结构提炼核心叙事线
   - 直接写 scene-data.mjs（不需要中间脚本）
   - 参考: DeepSeek 文章 → 视频的过程
-- **文件**: AGENTS.md 工作流文档更新
+- **文件**: `docs/article-workflow.md` Part 3
 - **依赖**: ISSUE-16
 - **完成标志**: 给 agent 一篇已发布文章 → agent 生成可用的 scene-data
 
@@ -286,23 +275,23 @@
 > 依赖：Phase 2（ISSUE-01 发布能力）
 
 ### ISSUE-18: TikTok Analytics 自动获取
-- **状态**: TODO
-- **现状**: 手动从 TikTok Analytics dashboard 看 views/completion/shares，再录入 ab-test-tracker
+- **状态**: DONE（方案 C 先行）
+- **现状**: `scripts/short-video/fetch-tiktok-analytics.mjs` 已实现，解析 TikTok Analytics CSV 导出为标准化 JSON
 - **目标**: 脚本自动获取已发布视频的播放数据
-- **方案**:
+- **方案**: 方案 C（CSV 解析）先行，方案 A（TikTok 开发者 API）待 App Review 通过后切换
   - 方案 A: 注册自己的 TikTok 开发者 App → Content Posting API → analytics 端点（需要 App Review）
   - 方案 B: CDP 抓取 TikTok Analytics 页面（需要登录态，fragile）
-  - 方案 C: 手动导出 CSV → 脚本解析（半自动）
-- **文件**: `scripts/short-video/fetch-tiktok-analytics.mjs`（新建）
+  - 方案 C: 手动导出 CSV → 脚本解析（半自动）✅ 已实现
+- **文件**: `scripts/short-video/fetch-tiktok-analytics.mjs` + `scripts/short-video/lib/analytics-utils.mjs`
 - **依赖**: ISSUE-01
 - **完成标志**: 运行脚本后输出含 views/completion/shares/saves 的 JSON
 
 ### ISSUE-19: 发布后自动触发分析
-- **状态**: TODO
-- **现状**: export-analytics.mjs 和 ab-test-tracker.mjs 需要手动运行
-- **目标**: publish-tiktok.mjs 发布成功后 → 自动提示运行分析（或自动延迟运行）
-- **方案**: 在 publish-tiktok.mjs 末尾加提示 + 输出建议命令
-- **文件**: `scripts/short-video/publish-tiktok.mjs`（扩展）
+- **状态**: DONE
+- **现状**: `publish-tiktok.mjs` 发布成功后自动写入 `pending-analysis.json` + 打印分析指引
+- **目标**: publish-tiktok.mjs 发布成功后 → 自动写入 pending-analysis.json + 输出操作指引
+- **方案**: 在 publish-tiktok.mjs 末尾加 pending-analysis.json 写入 + 控制台提示（agent 后续 session 检查）
+- **文件**: `scripts/short-video/publish-tiktok.mjs`（扩展）+ `scripts/short-video/lib/publish-utils.mjs`（buildPendingAnalysis + buildAnalyticsGuidance）
 - **依赖**: ISSUE-18
 - **完成标志**: 发布后 agent 自动提示分析步骤
 
@@ -354,12 +343,12 @@ ISSUE-09 (常青模板)               ISSUE-12 (A/B) ← ISSUE-10
 | 5 | ISSUE-11 (优化闭环) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
 | 5 | ISSUE-12 (A/B 测试) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
 | 6 | ISSUE-13 (内容再利用) | DONE | 2026-08-02 | feat(video): add batch roadmap scripts (Phase 2-6) |
-| 7 | ISSUE-14 (源素材读取) | TODO | - | - |
-| 7 | ISSUE-15 (富文章生成) | TODO | - | - |
-| 7 | ISSUE-16 (网站发布) | TODO | - | - |
-| 7 | ISSUE-17 (文章→视频) | TODO | - | - |
-| 8 | ISSUE-18 (Analytics自动) | TODO | - | - |
-| 8 | ISSUE-19 (发布后触发) | TODO | - | - |
+| 7 | ISSUE-14 (源素材读取) | DONE | 2026-08-03 | feat(article): Phase 2 roadmap — article pipeline + analytics automation |
+| 7 | ISSUE-15 (富文章生成) | DONE | 2026-08-03 | feat(article): Phase 2 roadmap — article pipeline + analytics automation |
+| 7 | ISSUE-16 (网站发布) | DONE | 2026-08-03 | feat(article): Phase 2 roadmap — article pipeline + analytics automation |
+| 7 | ISSUE-17 (文章→视频) | DONE | 2026-08-03 | feat(article): Phase 2 roadmap — article pipeline + analytics automation |
+| 8 | ISSUE-18 (Analytics自动) | DONE | 2026-08-03 | feat(article): Phase 2 roadmap — article pipeline + analytics automation |
+| 8 | ISSUE-19 (发布后触发) | DONE | 2026-08-03 | feat(article): Phase 2 roadmap — article pipeline + analytics automation |
 
 ---
 
