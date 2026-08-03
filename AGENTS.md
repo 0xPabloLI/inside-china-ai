@@ -118,6 +118,17 @@ git diff main..lovable -- path/to/file
 - **Post rendering**: `src/routes/posts.$slug.tsx` + `src/components/markdown-content.tsx` — Markdown 渲染 + SEO meta。
 - **Supabase migrations**: `supabase/migrations/` — schema 变更需谨慎，不可逆操作需确认。
 
+## Audio File Handling (M4A → WAV)
+Apple 设备默认录制 M4A (AAC) 格式。Python 音频库（`soundfile`/`torchaudio`/`librosa`）基于 libsndfile，**不支持 M4A**。处理前必须先转 WAV：
+```bash
+# M4A → 24kHz mono WAV（F5-TTS-MLX 要求 24kHz）
+ffmpeg -y -i input.m4a -af "volume=-7dB" -ar 24000 -ac 1 output.wav
+
+# M4A → 44.1kHz mono WAV（通用）
+ffmpeg -y -i input.m4a -ar 44100 -ac 1 output.wav
+```
+注意：`soundfile.LibsndfileError: Format not recognised` = 传了 M4A 给 Python。先转 WAV。
+
 ## Learned Preferences
 - Prefer Chinese for collaboration text and direct execution once confirmed.
 - Prefer evidence-based debugging (logs/API/runtime artifacts) over speculation.

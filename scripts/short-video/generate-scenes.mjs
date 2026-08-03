@@ -820,6 +820,20 @@ function alignWithWhisper(segments, duration) {
     });
   }
 
+  // Extend chunk end times to fill gaps: each chunk stays visible until next chunk starts
+  for (let i = 0; i < chunks.length - 1; i++) {
+    const nextStart = (chunks[i + 1].startPct / 100) * duration;
+    const currentEnd = (chunks[i].endPct / 100) * duration;
+    if (nextStart > currentEnd) {
+      // Extend end to next chunk's start (minus 0.1s gap)
+      chunks[i].endPct = Math.min(((nextStart - 0.1) / duration) * 100, 99);
+    }
+  }
+  // Last chunk: extend to end of scene
+  if (chunks.length > 0) {
+    chunks[chunks.length - 1].endPct = 99;
+  }
+
   return chunks;
 }
 
