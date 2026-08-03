@@ -54,8 +54,8 @@ export function loadEnvFile(content) {
  * Load .env and .env.local from the project root.
  * Returns a merged object ( .env.local overrides .env ).
  */
-function loadDotEnvFiles() {
-  const projectRoot = join(__dirname, "..", "..");
+export function loadDotEnvFiles() {
+  const projectRoot = join(__dirname, "..", "..", "..");
   const merged = {};
 
   for (const file of [".env", ".env.local"]) {

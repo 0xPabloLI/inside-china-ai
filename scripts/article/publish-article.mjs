@@ -25,9 +25,8 @@ import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-import { loginAdmin } from "./lib/supabase-auth.mjs";
-import { parseArticleFile, upsertPost, getEnvVar } from "./lib/publish-utils.mjs";
-import { loadEnvFile } from "./lib/supabase-auth.mjs";
+import { loginAdmin, getEnvVar, loadDotEnvFiles } from "./lib/supabase-auth.mjs";
+import { parseArticleFile, upsertPost } from "./lib/publish-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -84,7 +83,7 @@ async function main() {
   console.log(`  ✅ Authenticated (user: ${auth.user.id})`);
 
   // 3. Get Supabase URL and key from env
-  const dotenv = loadEnvFile();
+  const dotenv = loadDotEnvFiles();
   const supabaseUrl = getEnvVar("SUPABASE_URL", dotenv);
   const supabaseKey = getEnvVar("SUPABASE_PUBLISHABLE_KEY", dotenv);
 
