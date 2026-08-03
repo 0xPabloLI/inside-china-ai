@@ -87,8 +87,8 @@ export const template = {
   previewData: {
     siteName: 'Inside China AI',
     siteUrl: 'https://chinaai.news',
-    subject: 'DeepSeek's next move, Alibaba Qwen 3, and ByteDance Seed',
-    title: 'DeepSeek's next move, Alibaba Qwen 3, and ByteDance Seed',
+    subject: "DeepSeek's next move, Alibaba Qwen 3, and ByteDance Seed",
+    title: "DeepSeek's next move, Alibaba Qwen 3, and ByteDance Seed",
     excerpt:
       'This week: leaked investor notes from DeepSeek, Alibaba open-sources Qwen 3, and ByteDance Seed ships a new video model.',
     content:
