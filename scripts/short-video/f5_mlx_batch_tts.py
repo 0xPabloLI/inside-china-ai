@@ -51,9 +51,21 @@ def generate_batch(manifest_path, output_dir, ref_audio=None, ref_text=None, spe
         # Generate WAV first
         wav_path = output_path.replace(".mp3", ".wav")
 
+        # Calculate duration: F5 needs total = ref_duration + target_duration
+        # Target: ~2.5 words/sec speaking rate
+        word_count = len(text.split())
+        target_dur = word_count / 2.5
+        # Get ref audio duration
+        ref_dur_result = subprocess.run(
+            ["ffprobe", "-i", ref_audio, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
+            capture_output=True, text=True
+        )
+        ref_dur = float(ref_dur_result.stdout.strip()) if ref_dur_result.stdout.strip() else 10.0
+        total_dur = ref_dur + target_dur
+
         audio = f5_generate(
             generation_text=text,
-            estimate_duration=True,
+            duration=total_dur,
             ref_audio_path=ref_audio,
             ref_audio_text=ref_text,
             speed=speed,
