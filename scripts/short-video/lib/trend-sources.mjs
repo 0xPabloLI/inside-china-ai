@@ -173,6 +173,17 @@ export const SELF_MEDIA_SOURCES = [
     useCleanTitle: true,
     url: (keyword) =>
       `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
+    mcpFallback: {
+      command: "python",
+      args: ["-m", "xiaohongshu_mcp_server"],
+      toolName: "search_feeds",
+      toolArgs: (keyword) => ({ keyword, limit: 20 }),
+      resultMapper: (items) =>
+        items.map((item) => ({
+          title: item.title || item.desc || item.note_card?.title || "",
+          url: item.url || item.link || item.note_id || "",
+        })),
+    },
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
       (body.includes('请先登录') || body.includes('扫码登录')) ? 'need_login' : 'ok'
@@ -206,6 +217,21 @@ export const SELF_MEDIA_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://weixin.sogou.com/weixin?type=2&query=${encodeURIComponent(keyword)}`,
+    mcpFallback: {
+      command: "uvx",
+      args: [
+        "--from",
+        "git+https://github.com/ptbsare/sogou-weixin-mcp-server",
+        "sogou_weixin_mcp",
+      ],
+      toolName: "search_wechat_articles",
+      toolArgs: (keyword) => ({ keyword, count: 20 }),
+      resultMapper: (items) =>
+        items.map((item) => ({
+          title: item.title || item.article_title || "",
+          url: item.url || item.link || item.article_url || "",
+        })),
+    },
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
       (body.includes('请输入验证码') || document.querySelector('img[src*="captcha"]') || document.querySelector('#seccodeForm')) ? 'captcha' : 'ok'
@@ -239,6 +265,20 @@ export const SELF_MEDIA_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: () => "https://s.weibo.com/top/summary",
+    mcpFallback: {
+      command: "python",
+      args: ["-m", "mcp_server_weibo"],
+      toolName: "get_hot_search",
+      toolArgs: () => ({}),
+      resultMapper: (items) =>
+        items.map((item) => ({
+          title: item.word || item.title || item.query || "",
+          url:
+            item.url ||
+            item.link ||
+            `https://s.weibo.com/weibo?q=${encodeURIComponent(item.word || item.title || "")}`,
+        })),
+    },
     extractScript: `
       var items = document.querySelectorAll('td.td-02 a');
       var results = [];
@@ -257,6 +297,17 @@ export const SELF_MEDIA_SOURCES = [
     needsAuth: false,
     useCleanTitle: true,
     url: (keyword) => `https://search.bilibili.com/all?keyword=${encodeURIComponent(keyword)}`,
+    mcpFallback: {
+      command: "python",
+      args: ["-m", "bilibili_mcp_server"],
+      toolName: "search_videos",
+      toolArgs: (keyword) => ({ keyword, count: 20 }),
+      resultMapper: (items) =>
+        items.map((item) => ({
+          title: item.title || item.name || "",
+          url: item.url || item.link || item.bvid || "",
+        })),
+    },
     extractScript: `
       var items = document.querySelectorAll('.video-list-item, .bili-video-card, .video-item');
       var results = [];
@@ -289,6 +340,17 @@ export const SELF_MEDIA_SOURCES = [
     needsAuth: true,
     useCleanTitle: true,
     url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}`,
+    mcpFallback: {
+      command: "python",
+      args: ["-m", "douyin_mcp"],
+      toolName: "search_videos",
+      toolArgs: (keyword) => ({ keyword, count: 20 }),
+      resultMapper: (items) =>
+        items.map((item) => ({
+          title: item.title || item.desc || "",
+          url: item.url || item.link || item.video_id || "",
+        })),
+    },
     loginCheckScript: `
       var loginModal = document.querySelector('[class*="login"], [class*="Login"]');
       var body = document.body ? document.body.innerText : '';

@@ -227,3 +227,82 @@ describe("Default keywords", () => {
     expect(DEFAULT_KEYWORDS).toContain("China AI");
   });
 });
+
+// ─── MCP fallback configuration (MF-T2) ───
+
+describe("MCP fallback configuration", () => {
+  it("xhs has mcpFallback", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+    expect(src.mcpFallback).toBeDefined();
+    expect(src.mcpFallback.command).toBe("python");
+    expect(src.mcpFallback.toolName).toBe("search_feeds");
+    expect(typeof src.mcpFallback.toolArgs).toBe("function");
+    expect(typeof src.mcpFallback.resultMapper).toBe("function");
+  });
+
+  it("sogou_weixin has mcpFallback", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "sogou_weixin");
+    expect(src.mcpFallback).toBeDefined();
+    expect(src.mcpFallback.command).toBe("uvx");
+    expect(src.mcpFallback.toolName).toBe("search_wechat_articles");
+  });
+
+  it("weibo_hot has mcpFallback", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_hot");
+    expect(src.mcpFallback).toBeDefined();
+    expect(src.mcpFallback.toolName).toBe("get_hot_search");
+  });
+
+  it("bilibili has mcpFallback", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "bilibili");
+    expect(src.mcpFallback).toBeDefined();
+    expect(src.mcpFallback.toolName).toBe("search_videos");
+  });
+
+  it("douyin has mcpFallback", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "douyin");
+    expect(src.mcpFallback).toBeDefined();
+    expect(src.mcpFallback.toolName).toBe("search_videos");
+  });
+
+  it("tiktok_creator does NOT have mcpFallback (CDP-only)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    expect(src.mcpFallback).toBeUndefined();
+  });
+
+  it("news sources do NOT have mcpFallback", () => {
+    for (const src of NEWS_SOURCES) {
+      expect(src.mcpFallback).toBeUndefined();
+    }
+  });
+
+  it("mcpFallback toolArgs returns correct arguments", () => {
+    const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+    const args = xhs.mcpFallback.toolArgs("DeepSeek");
+    expect(args.keyword).toBe("DeepSeek");
+    expect(args.limit).toBe(20);
+  });
+
+  it("mcpFallback resultMapper normalizes items", () => {
+    const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+    const mockItems = [
+      { title: "DeepSeek新模型", url: "https://xhs.com/1" },
+      { desc: "AI芯片突破", link: "https://xhs.com/2" },
+    ];
+    const mapped = xhs.mcpFallback.resultMapper(mockItems);
+    expect(mapped).toHaveLength(2);
+    expect(mapped[0].title).toBe("DeepSeek新模型");
+    expect(mapped[0].url).toBe("https://xhs.com/1");
+    expect(mapped[1].title).toBe("AI芯片突破");
+    expect(mapped[1].url).toBe("https://xhs.com/2");
+  });
+
+  it("weibo_hot resultMapper builds URL from query", () => {
+    const weibo = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_hot");
+    const mockItems = [{ word: "AI热搜" }];
+    const mapped = weibo.mcpFallback.resultMapper(mockItems);
+    expect(mapped[0].title).toBe("AI热搜");
+    expect(mapped[0].url).toContain("s.weibo.com");
+    expect(mapped[0].url).toContain(encodeURIComponent("AI热搜"));
+  });
+});

@@ -29,6 +29,7 @@ import {
   cleanTitle,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/trend-sources.mjs";
+import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -134,9 +135,9 @@ async function checkLogin(tabId, loginCheckScript) {
 
 // ─── Source collection ───
 
-async function collectFromSource(source, keyword) {
+async function collectFromCdp(source, keyword) {
   const url = source.url(keyword || DEFAULT_KEYWORDS[0]);
-  console.log(`\n🔍 Scraping ${source.label} (${source.name})...`);
+  console.log(`\n🔍 Scraping ${source.label} (${source.name}) via CDP...`);
 
   let tabId;
   try {
@@ -159,11 +160,11 @@ async function collectFromSource(source, keyword) {
   if (source.needsAuth && source.loginCheckScript) {
     const status = await checkLogin(tabId, source.loginCheckScript);
     if (status === "need_login") {
-      console.warn(`  ⚠️  ${source.label} requires login — skipping`);
+      console.warn(`  ⚠️  ${source.label} requires login — CDP failed`);
       await cdpCloseTab(tabId);
       return [];
     } else if (status === "captcha") {
-      console.warn(`  ⚠️  ${source.label} triggered captcha — skipping`);
+      console.warn(`  ⚠️  ${source.label} triggered captcha — CDP failed`);
       await cdpCloseTab(tabId);
       return [];
     }
@@ -181,7 +182,50 @@ async function collectFromSource(source, keyword) {
     console.log(`  📊 Retry extracted ${articles.length} articles`);
   }
 
-  // Clean titles if needed
+  // Close tab
+  await cdpCloseTab(tabId);
+  console.log("  🚪 Tab closed");
+
+  return articles;
+}
+
+async function collectFromMcp(source, keyword) {
+  const fb = source.mcpFallback;
+  if (!fb) return [];
+
+  console.log(`  📡 Trying MCP fallback for ${source.label}...`);
+
+  const result = await callMcpTool({
+    command: fb.command,
+    args: fb.args,
+    toolName: fb.toolName,
+    toolArgs: fb.toolArgs(keyword || DEFAULT_KEYWORDS[0]),
+    timeoutMs: 30000,
+  });
+
+  if (!result.success) {
+    console.warn(`  ⚠️  MCP fallback failed: ${result.error}`);
+    return [];
+  }
+
+  const parsed = parseMcpResult(result.data);
+  const articles = fb.resultMapper(parsed);
+  console.log(`  📊 MCP extracted ${articles.length} articles`);
+
+  return articles;
+}
+
+async function collectFromSource(source, keyword) {
+  // Step 1: Try CDP (primary)
+  let articles = await collectFromCdp(source, keyword);
+
+  // Step 2: If CDP failed and MCP fallback is configured, try MCP
+  if (articles.length === 0 && source.mcpFallback) {
+    const mcpArticles = await collectFromMcp(source, keyword);
+    articles = mcpArticles;
+  }
+
+  // Step 3: Clean titles if needed
   if (source.useCleanTitle) {
     articles = articles.map((a) => ({
       ...a,
@@ -195,10 +239,6 @@ async function collectFromSource(source, keyword) {
   for (const a of articles) {
     a.source = source.name;
   }
-
-  // Close tab
-  await cdpCloseTab(tabId);
-  console.log("  🚪 Tab closed");
 
   return articles;
 }
