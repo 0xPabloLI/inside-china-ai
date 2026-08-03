@@ -399,13 +399,21 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 ```
 
 **评估器输出**：
-- `recommendedParts`（1-5）
+- `recommendedParts`（1-5，但 Agent 强制 cap 为 3，见下方规则）
 - `splitMethod`（"none" | "thematic" | "narrative"）
 - `reasoning`（人类可读理由数组）
 
+**三集上限规则**：
+
+根据多视频拆分最佳实践调研（`docs/research/multi-video-splitting-best-practices.md`），2-3 集为最佳，超过 3 集观众流失率显著上升。因此：
+
+- 评估器输出 `recommendedParts > 3` 时，Agent **强制 cap 为 3**，并在报告中说明「评估器推荐 N 集，已调整为 3 集（最佳实践上限）」
+- 除非用户明确要求更多集数，否则不超过 3 集
+- 发布节奏：1-3 天内发完所有集，超过 1 周观众会忘记上下文
+
 **Agent 行为**：
 - `recommendedParts === 1`：走单集流程（当前步骤 1-5）
-- `recommendedParts > 1`：输出分集评估报告，等待用户确认后生成 N 份 scene-data
+- `recommendedParts > 1`：cap 为 3 后输出分集评估报告，等待用户确认后生成 N 份 scene-data
 
 **分集评估报告格式**（Agent 输出给用户）：
 
@@ -427,13 +435,48 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 | 1  | ... | ... | ... | ... |
 | ... | ... | ... | ... | ... |
 ━━━━━━━━━━━━━━━━━━━━
-合集计划：
-- 合集形态：[A拼接 / B重构]
-- 合集发布时间：所有集发完后 3-5 天
+发布节奏：
+- Day 1: Part 1 (TikTok)
+- Day 2: Part 2 (TikTok)
+- Day 3: Part 3 (TikTok)
+- 每集间隔不超过 3 天，超过 1 周观众会忘记上下文
 ━━━━━━━━━━━━━━━━━━━━
 ```
 
 **多集 scene-data 命名**：`scene-data-pt1.mjs`、`scene-data-pt2.mjs` 等，每份含 `seriesMeta` 字段。
+
+### 管线进度追踪
+
+每次启动管线时，Agent 在 `scripts/short-video/output/` 下创建 `pipeline-status.json`，记录当前管线的进度状态。用户随时可以打开此文件查看「现在到哪了，下一步做什么」。
+
+```json
+{
+  "articleSlug": "china-llm-distillation-storm",
+  "articleTitle": "The Distillation Storm: Inside China's LLM Distillation Controversy",
+  "startedAt": "2026-08-04T10:00:00Z",
+  "currentStage": "stage-3",
+  "stages": {
+    "stage-1": { "status": "done", "completedAt": "2026-08-04T10:30:00Z" },
+    "stage-2": { "status": "done", "completedAt": "2026-08-04T10:35:00Z", "postId": "9d05cf9b-..." },
+    "stage-2b": { "status": "done", "completedAt": "2026-08-04T10:36:00Z" },
+    "stage-3": { "status": "in-progress", "note": "scene-data generation, 3 parts" },
+    "stage-4": { "status": "pending" },
+    "stage-5": { "status": "pending" },
+    "stage-6": { "status": "pending" }
+  },
+  "videoParts": [
+    { "part": 1, "sceneData": "scene-data-pt1.mjs", "status": "pending" },
+    { "part": 2, "sceneData": "scene-data-pt2.mjs", "status": "pending" },
+    { "part": 3, "sceneData": "scene-data-pt3.mjs", "status": "pending" }
+  ],
+  "nextAction": "HITL-2: 等待用户确认 scene-data"
+}
+```
+
+**Agent 行为**：
+- 每个 stage 完成后更新 `pipeline-status.json`
+- HITL 检查点暂停时，`nextAction` 字段写明等待什么
+- 新 session 启动时，Agent 先读此文件判断是否有未完成管线
 
 **`main.mjs` 支持**：`node main.mjs --scene scene-data-pt1.mjs`
 
@@ -463,7 +506,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 - 文章的 SEO 关键词也应出现在视频 voiceover 中
 - 文章的「My Take」章节（如有）→ 视频的结论/CTA 场景
 - 文章的数据点 → 视频的视觉强调元素
-- 视频时长：TikTok 60-70s，YouTube Shorts ≤170s
+- 视频时长：TikTok 60-70s
 
 ### ⏸️ HITL-2: 视频脚本审阅检查点
 
