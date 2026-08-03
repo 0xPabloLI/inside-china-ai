@@ -11,7 +11,9 @@ const SCOPES = "user.info.basic,video.upload,video.publish";
 const BASE_URL = "https://chinaai.news";
 
 function tiktokAuthUrl() {
-  const clientKey = import.meta.env.VITE_TIKTOK_CLIENT_KEY ?? "";
+  // TikTok client_key is a public App ID (like Supabase publishable key), safe to expose in client code.
+  // Source: https://developers.tiktok.com/doc/tiktok-api-os-get-client-key/
+  const clientKey = import.meta.env.VITE_TIKTOK_CLIENT_KEY ?? "aw2ysgzda4tmp28b";
   const state = Math.random().toString(36).slice(2);
   const params = new URLSearchParams({
     client_key: clientKey,
