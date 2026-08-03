@@ -53,11 +53,12 @@ export function assembleVideo(scenes, outputDir, bgmPath = null, srtPath = null)
   if (srtPath && existsSync(srtPath)) {
     const noSubsPath = finalPath.replace(".mp4", "-nosubs.mp4");
     renameSync(finalPath, noSubsPath);
-    // FFmpeg subtitles filter with TikTok-style formatting
-    const subStyle =
-      "force_style='FontName=Helvetica Neue,FontSize=18,PrimaryColour=&H00F5F5F5,OutlineColour=&H66000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=120'";
-    run(
-      `ffmpeg -y -i "${noSubsPath}" -vf "subtitles='${srtPath}':${subStyle}" -c:a copy "${finalPath}"`,
+    // Use execFileSync to avoid shell quoting issues with subtitles filter
+    const subFilter = `subtitles=${srtPath}:force_style='FontName=Helvetica Neue,FontSize=18,PrimaryColour=&H00F5F5F5,OutlineColour=&H66000000,BorderStyle=1,Outline=2,Alignment=2,MarginV=120'`;
+    execFileSync(
+      "ffmpeg",
+      ["-y", "-i", noSubsPath, "-vf", subFilter, "-c:a", "copy", finalPath],
+      { stdio: ["pipe", "pipe", "pipe"] },
     );
     try {
       unlinkSync(noSubsPath);

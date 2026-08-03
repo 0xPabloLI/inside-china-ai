@@ -239,3 +239,32 @@ The source observes that the industry rhythm has become "wait for the frontier l
 | Kimi RL team layoffs | Entire RL team dismissed | No public reports; Yang still described as leading RL ([Business Insider](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7)) |
 
 **Overall assessment**: The core narrative — Chinese labs engaging in large-scale distillation, Anthropic's public accusations, Kimi K3's benchmark controversies — is **well-supported by public reporting**. Many specific insider details (GLM cracking and sharing, RL team changes, test set contamination, specific routing allegations) **could not be independently verified**. Three factual details **contradict public data** and have been corrected in this article.
+
+---
+
+## Sources
+
+**Primary source (insider account):**
+
+- [Reddit r/LocalLLM — "The Full Story of the 'Distillation Storm' Among China's Large-Model Companies"](https://www.reddit.com/r/LocalLLM/comments/1v8fk6s/) by u/feelspeaceman (~July 28, 2026, 110+ comments) — anonymized insider account, the basis of this article. Source PDF attached below.
+
+**Public reporting referenced:**
+
+1. [Anthropic — "Detecting and preventing distillation attacks"](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks) (February 23, 2026) — official blog post accusing DeepSeek, Moonshot, and MiniMax
+2. [Bloomberg — Moonshot AI $35B valuation coverage](https://www.bloomberg.com/technology-ai) (July 29, 2026) — funding round and valuation data
+3. [PCMag — "White House: China's Kimi K3 AI Model Cheated by Cloning US Tech"](https://www.pcmag.com/news/white-house-chinas-kimi-k3-ai-model-cheated-by-cloning-us-tech) (July 22, 2026) — White House accusation
+4. [SCMP — "China's Kimi K3 'significantly below' US rivals in hacking power"](https://www.scmp.com/tech/tech-war/article/3361711/chinas-kimi-k3-significantly-below-us-rivals-hacking-power-uk-us-study-shows) (July 24, 2026) — security testing results
+5. [AP News — "China's new AI model halts new subscriptions as demand soars"](https://apnews.com/article/kimi-k3-china-ai-model) (July 20, 2026) — subscription suspension
+6. [The Information — "Tencent's New Model Shows Improvement, Partly Thanks to Anthropic"](https://www.theinformation.com/articles/tencents-new-model-shows-improvement-partly-thanks-anthropic) (April 28, 2026) — Tencent distillation evidence
+7. [The Standard (HK) — "Moonshot AI denies plans to file Hong Kong IPO in August"](https://www.thestandard.com.hk/finance/article/338896/Moonshot-AI-denies-plans-to-file-Hong-Kong-IPO-in-August) (August 3, 2026) — IPO denial
+8. [Business Insider — "Who Is Yang Zhilin, the CEO Behind China's Latest AI"](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7) (July 18, 2026) — CEO profile
+9. [HackerNoon — "Why Kimi K3's Launch-Week Scores Need a Portability Audit"](https://hackernoon.com/why-kimi-k3s-launch-week-scores-need-a-portability-audit) — benchmark analysis
+10. [Hacker News — Kimi K3 identifying as Claude](https://news.ycombinator.com/item?id=49076001) — user testing report
+11. [LessWrong — "Does distilling Claude carry the persona with it?"](https://www.lesswrong.com/posts/dQyKzHaGqvdqpekJr/does-distilling-claude-carry-the-persona-with-it) — GLM 5.2 identity bleed
+12. [Artificial Analysis — Kimi K3 Intelligence Index](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5) — hallucination rate data
+13. [Emergent — "Kimi K3 Benchmarks: Every Score, What It Means"](https://emergent.sh/learn/kimi-k3-benchmark) — benchmark breakdown
+14. [Kili Technology — "Kimi K3's Benchmarks and Hallucinations"](https://kili-technology.com/blog/kimi-k3s-benchmarks-and-hallucinations----what-that-tells-us-about-ai-evaluation) — hallucination analysis
+15. [A Few Thoughts on Cryptographic Engineering — "Let's talk about encrypted reasoning"](https://blog.cryptographyengineering.com/2026/05/29/lets-talk-about-encrypted-reasoning/) (May 29, 2026) — Fernet/Blob technical verification
+16. [Hugging Face — Kimi K3 Model Overview](https://huggingface.co/blog/ResterChed/kimi-k3-model-overview) — architecture specs
+17. [Trending Topics — "GLM-5.2: China's Zhipu AI Beats Even Google's Top Models"](https://www.trendingtopics.eu/glm-5-2-chinas-zhipu-ai-beats-even-googles-top-models-with-its-new-open-llm/) — GLM-5.2 performance
+18. [arXiv — "Hyperloop Transformers"](https://arxiv.org/abs/2604.21254) (July 2, 2026) — looped transformer architecture paper
