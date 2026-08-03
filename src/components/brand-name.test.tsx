@@ -22,8 +22,9 @@ describe("BrandName", () => {
   });
 
   // S1: Does not contain the old brand name
-  it("does not contain old brand name China AI News", () => {
+  it("does not contain old brand name Inside China AI", () => {
     const html = renderToStaticMarkup(<BrandName />);
-    expect(html).not.toContain("China AI News");
+    expect(html).not.toContain("Inside China AI");
   });
+
 });
