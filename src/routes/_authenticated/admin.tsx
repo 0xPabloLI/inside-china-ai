@@ -147,10 +147,16 @@ function AdminPage() {
         <Tabs defaultValue="posts">
           <TabsList>
             <TabsTrigger value="posts">Posts</TabsTrigger>
+            <TabsTrigger value="newsletter">Newsletter</TabsTrigger>
             <TabsTrigger value="subscribers">
               Subscribers{subsQuery.data ? ` (${subsQuery.data.length})` : ""}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="newsletter" className="mt-6">
+            <NewsletterAdmin />
+          </TabsContent>
+
 
           <TabsContent value="posts" className="mt-6">
             {editingId !== null ? (
