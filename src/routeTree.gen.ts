@@ -25,6 +25,7 @@ import { Route as ApiTiktokCallbackRouteImport } from './routes/api/tiktok/callb
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ApiPublicHooksDispatchNewslettersRouteImport } from './routes/api/public/hooks/dispatch-newsletters'
 
 const Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute =
   Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport.update({
@@ -107,6 +108,12 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksDispatchNewslettersRoute =
+  ApiPublicHooksDispatchNewslettersRouteImport.update({
+    id: '/api/public/hooks/dispatch-newsletters',
+    path: '/api/public/hooks/dispatch-newsletters',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/posts/$slug': typeof PostsSlugRoute
   '/api/tiktok/callback': typeof ApiTiktokCallbackRoute
   '/lovable/email/events': typeof LovableEmailEventsRoute
+  '/api/public/hooks/dispatch-newsletters': typeof ApiPublicHooksDispatchNewslettersRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
   '/posts/$slug': typeof PostsSlugRoute
   '/api/tiktok/callback': typeof ApiTiktokCallbackRoute
   '/lovable/email/events': typeof LovableEmailEventsRoute
+  '/api/public/hooks/dispatch-newsletters': typeof ApiPublicHooksDispatchNewslettersRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -157,6 +166,7 @@ export interface FileRoutesById {
   '/posts/$slug': typeof PostsSlugRoute
   '/api/tiktok/callback': typeof ApiTiktokCallbackRoute
   '/lovable/email/events': typeof LovableEmailEventsRoute
+  '/api/public/hooks/dispatch-newsletters': typeof ApiPublicHooksDispatchNewslettersRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/posts/$slug'
     | '/api/tiktok/callback'
     | '/lovable/email/events'
+    | '/api/public/hooks/dispatch-newsletters'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/posts/$slug'
     | '/api/tiktok/callback'
     | '/lovable/email/events'
+    | '/api/public/hooks/dispatch-newsletters'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -211,6 +223,7 @@ export interface FileRouteTypes {
     | '/posts/$slug'
     | '/api/tiktok/callback'
     | '/lovable/email/events'
+    | '/api/public/hooks/dispatch-newsletters'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -229,6 +242,7 @@ export interface RootRouteChildren {
   PostsSlugRoute: typeof PostsSlugRoute
   ApiTiktokCallbackRoute: typeof ApiTiktokCallbackRoute
   LovableEmailEventsRoute: typeof LovableEmailEventsRoute
+  ApiPublicHooksDispatchNewslettersRoute: typeof ApiPublicHooksDispatchNewslettersRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -348,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/dispatch-newsletters': {
+      id: '/api/public/hooks/dispatch-newsletters'
+      path: '/api/public/hooks/dispatch-newsletters'
+      fullPath: '/api/public/hooks/dispatch-newsletters'
+      preLoaderRoute: typeof ApiPublicHooksDispatchNewslettersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -376,6 +397,8 @@ const rootRouteChildren: RootRouteChildren = {
   PostsSlugRoute: PostsSlugRoute,
   ApiTiktokCallbackRoute: ApiTiktokCallbackRoute,
   LovableEmailEventsRoute: LovableEmailEventsRoute,
+  ApiPublicHooksDispatchNewslettersRoute:
+    ApiPublicHooksDispatchNewslettersRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
