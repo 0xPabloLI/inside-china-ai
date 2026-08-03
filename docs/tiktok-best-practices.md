@@ -1,6 +1,8 @@
 # TikTok 短视频最佳实践（2025-2026）
 
 > 数据来源：Hootsuite（2025-01, 2026-06）、Buffer（2025-10, 2025-12）、Social Media Examiner（2025-11）、Influencer Marketing Hub（2026-04）、Sprout Social（2026-02, 2026-03）、TikTok 官方（2025-06）。通过 web-access skill 抓取于 2026-08-01。
+>
+> 社区参考：sergebulaev/tiktok-skills（algorithm-heuristics.md, hook-formulas.md, voice-rules.md, scrub-rules.md, audit-checklist.md）。吸收于 2026-08-02。
 
 ## 算法机制
 
@@ -12,6 +14,23 @@
 | **视频信息** | 中等 | 字幕、hashtag、音频、效果、屏幕文字、口播内容、视频长度 |
 | **用户信息** | 最低 | 语言、国家、设备类型、时区 |
 
+### 信号权重细分（2026 排名信号）
+
+来源：TikTok "How TikTok recommends content" + Creator Portal + 创作者测试数据。
+
+| 信号 | 相对权重 | 说明 |
+|------|---------|------|
+| **完成率 / 全片观看** | 最高 | 排名器的基础；看到最后一帧 |
+| **重播 / 循环** | 很高 | 一次重播 ≈ 一次新观看，信号"值得再看" |
+| **分享（发给好友/转发）** | 高 | 将视频注入新的关注者图谱 |
+| **收藏** | 高 | 私密的"稍后看"信号；参考价值内容 |
+| **评论** | 中高 | 真实评论线程信号"引发对话" |
+| **关注（从视频触发）** | 高（长期） | 复合信号；一个关注 > 多个点赞 |
+| **点赞** | 低 | 廉价肯定，轻量触达 |
+| **负面："<2s 划走、隐藏、举报"** | 重罚 | 快速划走是最强负面信号 |
+
+**核心原则**：优化完成率、重播、分享、收藏，而非点赞。
+
 ### 2026 年关键变化
 
 - **社区对齐 > 广泛传播**：niche relevance 比 broad reach 更重要
@@ -22,6 +41,23 @@
 - **60-90s 视频**现在被算法奖励（Creator Rewards Program + 高留存）— Sprout 2026
 - **Qualified Views**：超过 5 秒的观看才算有效 — Sprout 2026
 - 删除视频会影响账号（移除算法数据点，大量删除触发 spam 过滤）— Sprout 2026
+
+### 触达放大器
+
+- **强力循环**：设计最后一帧让视频干净重启。重播是将平均观看时长推过 100% 的最廉价方式。
+- **趋势声音（早期使用）**：声音上升期前 1-3 天有触达加成。
+- **原生文字和字幕**：屏幕文字、自动字幕、强封面都提升完成率和可达性。
+- **评论回复视频**：视频回复既重启对话又给你一个免费的预热 Hook。
+- **一致性和清晰 niche**：可识别的 niche 训练排名器知道给谁看你，提高每条视频的底线。
+
+### 触达抑制器（避免）
+
+- **慢或模糊的 Hook**：视频死亡的第一原因是第一秒没给留的理由。
+- **其他平台水印**：TikTok 据报会降权带有其他平台 logo 的重新上传内容。导出干净。
+- **互动诱饵**（"评论 YES"、"关注看下集"但没下集）被降权。
+- **近似重复视频**：触发相似度惩罚。
+- **15+ hashtag / 标签堆砌**：读起来像 spam，不买触达。
+- **视频中段无聊长段**：注意力下降时剪更快或加 pattern break。
 
 ### 200-View Jail
 
@@ -38,6 +74,85 @@
 | 可保存内容 | 让人想"保存稍后看" → 高完成率 + 重播 | SME 2025 |
 | 短而精 | 快速剪辑、高密度信息 | Hootsuite 2025 |
 
+### Hook 解剖：三层开场 + 时间预算
+
+TikTok Hook 不是一个东西，而是前 1-3 秒同时开火的**三层**：
+
+| 层 | 作用 | 规则 |
+|---|------|------|
+| **1. 口播线** | 为 ~70% 开声音的观众着陆承诺 | 一口气说完；缩写+片段优于完整句；大声说数字；砍掉寒暄 |
+| **2. 屏幕文字** | 为静音观众承载承诺 | 3-7 词；与口播词不同（两个角度）；无 em dash，最少标点 |
+| **3. 开场画面** | 用动作/结果/意外物停住拇指 | 第一帧展示结果(T1)/张力(T8)/打断(T2)；无 logo、无问候、无慢推 |
+
+**时间预算**：
+
+| 节拍 | 时间 | 发生什么 |
+|------|------|---------|
+| 第一帧 | 0.0s | 画面击中（结果/张力/打断） |
+| 口播线 | 0.0-1.5s | 声音承诺着陆 |
+| 屏幕文字 | 0.0-2.0s | 静音承诺可读 |
+| 转折 | 3.0s 前 | 建立留下去的理由 |
+
+**循环闭合**：最后一帧和第一帧一样重要。重播 ≈ 新观看。设计结尾让第一帧第二次看起来不同。不要以"感谢观看"或 logo 结尾——那会杀死循环。
+
+### 10 种 Hook 公式（适配新闻账号）
+
+来源：sergebulaev/tiktok-skills `hook-formulas.md`。标注哪些适合新闻账号。
+
+| 公式 | 目标 | 适合新闻? | 新闻场景示例 |
+|------|------|----------|------------|
+| **T1 冷开场结果** | 完成率 | ✅ 高频 | "DeepSeek 融了 140 亿。这是泄露的投资者会议。" 画面：大数字 + 新闻徽章 |
+| **T2 模式打断** | 完成率 | ⚠️ 偶尔 | "别再相信中国 AI 落后的叙事了。" 画面：打破的刻板印象 |
+| **T3 具体数字揭示** | 收藏 | ✅ 高频 | "47 家中国 AI 公司拿到了 20 亿美元融资。大多数人猜偏了。" |
+| **T4 开放式问题** | 评论 | ✅ 中频 | "为什么 DeepSeek 的模型成本只有 GPT-4 的 1/20？我测试了。" |
+| **T5 共鸣点名** | 分享 | ❌ 低适配 | （个人共鸣场景，新闻账号少用） |
+| **T6 大胆断言** | 评论 | ✅ 中频 | "DeepSeek 不是创业公司。它是量化基金的秘密武器。" |
+| **T7 清单承诺** | 收藏 | ✅ 中频 | "5 个你不知道的中国 AI 独角兽。第 3 个让我震惊。" |
+| **T8 故事中段切入** | 完成率 | ⚠️ 偶尔 | （深度报道场景可用，但新闻多是数据驱动） |
+| **T9 教程冷开场** | 收藏 | ✅ 低频 | "这是用 DeepSeek API 搭建聊天机器人的方法。第一步，现在。" |
+| **T10 趋势借力** | 分享 | ❌ 低适配 | （trending sound 场景，新闻账号少用） |
+
+**新闻账号 Hook 公式选择**：
+- **首选**：T1 冷开场结果 + T3 具体数字揭示（新闻天然有数字和结果）
+- **次选**：T4 开放式问题 + T6 大胆断言（引发评论和讨论）
+- **偶尔**：T7 清单承诺（独角兽榜单、融资排行）
+- **少用**：T5 共鸣、T8 故事、T10 趋势（这些偏个人创作者/娱乐方向）
+
+### 视频长度
+
+- **没有唯一最佳长度，只有最佳完成率**。选能完整交付一个想法的最短长度。15-34s 全看完的经常打败 3 分钟看 40% 的。
+- **长视频（API 1-10 分钟）** 可用于教程和深度报道，但只有在留存能撑住时。不要为了凑长度注水。
+- **API 限制**：caption ≤ 2,200 chars，视频 ≤ 10 分钟，≤ 4GB，MP4/MOV/WebM，最低 23 FPS。原生 App 允许更长 caption（4,000）和更长视频（60 分钟），但发布 API 执行更严格限制。
+
+### 声音选择
+
+- **趋势声音是分发杠杆，不是装饰。** TikTok 按声音分组视频；在上升期借用该集群的触达。
+- **趁早抓住声音。** 上升前 1-3 天声音有最大加成。到处都是时，加成消失。
+- **原创音频构建 niche 资产。** 你创建的被他人复用的声音成为指向你的分发渠道。
+- **匹配声音到 niche。** 强行将趋势声音贴到冲突的 niche 读起来尴尬且损失信任。
+
+### 发布频率限制
+
+| 限制 | 值 |
+|------|---|
+| 每天 API 发布上限 | 15-20 |
+| 每分钟视频数 | 最多 2 |
+| 最短视频 | 3 秒 |
+| 最长视频（API） | 10 分钟 |
+
+间隔发布，不要批量倾倒。1-3 条优质视频/天 胜过 10 条赶制的。
+
+### 发布时间
+
+| 受众 | 最佳窗口（当地时间） |
+|------|-------------------|
+| 美国通用 / 生活方式 | 周二-周四 6-9 AM 和 7-10 PM |
+| Gen-Z / 夜猫子 | 工作日晚 8 PM-午夜 |
+| 创作者 / B2B / 教程 | 工作日上午晚些 10 AM-1 PM |
+| **中国 AI 新闻受众** | 美东早 7-9 AM（亚洲收盘后）/ 晚 7-10 PM（亚洲开盘前） |
+
+TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数天或数周，所以"糟糕时间"发布很少浪费。一致性打败完美时机。
+
 ## SEO & 发现
 
 | 规则 | 详情 | 来源 |
@@ -49,7 +164,22 @@
 | Google 索引 TikTok | TikTok 视频被 Google 索引 | Hootsuite 2025 |
 | 屏幕外关键词无效 | TikTok 官方说只有屏幕上/描述中的文字才被使用 | SME 2025 |
 
+### Caption 和 Hashtag
+
+- **Caption ≤ 2,200 chars（API）**。前置一行理由让人读或评论。Caption 支撑视频，不替代它。
+- **3-5 个 hashtag，混合 reach**。1 个大类、1-2 个 niche 定义、1-2 个视频特定。堆砌在 2026 无效。
+- **Caption 可以引导评论。** Caption 里的具体问题（"哪个让你最惊讶？"）赚取评论线程，反馈触达。
+
+### 发布设置（platformSettings.tiktok）
+
+- **viewerSetting 实际必需。** 用 `PUBLIC_TO_EVERYONE` 获取触达。`SELF_ONLY` 是端到端测试草稿的安全方式。
+- **已知布尔反转 bug**。allowComments/allowDuet/allowStitch 可能映射到 TikTok 的 `disable_*` 标志，所以布尔值可能反转。用 `SELF_ONLY` 草稿测试后再信任。
+- **commercialContent 披露**。如果视频推广品牌或付费合作，设置 `commercialContent` + `brandOrganic`（自有品牌）或 `brandedContent`（付费）。仅 `commercialContent` 会被拒绝。
+- **未审核 App 只能发 PRIVATE**。发布 App 通过 TikTok 审核前，所有帖子强制 `SELF_ONLY`。
+
 ## 内容策略
+
+### 通用策略
 
 | 策略 | 详情 | 来源 |
 |------|------|------|
@@ -62,6 +192,173 @@
 | 应用内编辑 | 在 TikTok/CapCut 内编辑，算法优先推 | Google AI + Buffer |
 | Pattern Interrupts | 快速切换、文字叠加、动态转场 | Google AI |
 | 字幕和视觉元素 | 增加可达性 + 参与度 | Hootsuite 2025 |
+
+### 新闻账号专用策略
+
+社区 skill 的内容策略偏个人创作者。以下是适配 China AI News 的等价方案：
+
+#### 内容支柱（替代个人 Creator Pillar）
+
+| 支柱 | 占比 | 说明 | Hook 公式 |
+|------|------|------|----------|
+| **突发新闻** | 40% | 融资、政策、重大事件首发 | T1 冷开场结果、T3 数字揭示 |
+| **深度分析** | 30% | 拆解事件背景、影响、因果链 | T4 开放式问题、T6 大胆断言 |
+| **数据揭示** | 20% | 排行榜、对比、可视化数据 | T3 数字揭示、T7 清单承诺 |
+| **科普解释** | 10% | AI 概念解释、技术原理 | T9 教程冷开场、T4 开放式问题 |
+
+#### 文章转视频工作流（替代 tt-repurposer）
+
+社区 skill 的 Repurposer 将 LinkedIn/blog 转为 TikTok 脚本。我们的等价方案：
+
+1. **提取骨架**：从文章中提取唯一的核心事实/数字/因果链。不要保留所有文字，只保留点。
+2. **打开就给结果**：TikTok 第一秒决定。先给结果，不是背景。原文的开头几乎永远活不下来。
+3. **重新设计 Hook**：用 T1/T3/T4/T6 公式写前三秒。
+4. **每行一口气说完**：改写每句让它能一口气说出。缩写、片段、短句。如果一口气读不完，砍。
+5. **砍掉书面化痕迹**：去掉"据报道"→改为"Bloomberg 报道"；去掉"值得注意的是"→砍掉；去掉书面从句→改短。
+6. **加趋势角度（可选）**：如果当前有 trending 话题可以关联，加入。不强求。
+
+#### 新闻趋势发现（替代 tt-trend-mapper）
+
+社区 skill 的 Trend Mapper 将 trending sound 适配到 niche。新闻账号不需要跟 trending sound，但需要监控哪些 China AI 话题正在热：
+
+| 监控渠道 | 检查什么 | 频率 |
+|---------|---------|------|
+| X/Twitter | #ChinaAI #DeepSeek 热门帖 | 每日 |
+| 36氪 / 量子位 / 机器之心 | 头条文章 | 每日 |
+| TechCrunch / Bloomberg / Reuters | China AI 标签 | 每日 |
+| TikTok 搜索 | "China AI" 搜索热度 + 热门视频 | 每周 |
+| 天眼查 / 企查查 | 融资事件 | 每周 |
+
+**决策框架**：
+- 话题正在爆发（24h 内多源报道）→ **立即做突发新闻**（T1 Hook）
+- 话题持续发酵（48h+ 多角度分析出现）→ **做深度分析**（T4/T6 Hook）
+- 有排行榜/对比数据可用 → **做数据揭示**（T3/T7 Hook）
+- 话题冷却但有科普价值 → **做解释视频**（T9 Hook）
+
+#### 内容日历（替代 tt-content-planner）
+
+社区 skill 的 Content Planner 按支柱混合做周计划。新闻账号的事件驱动特性意味着无法完全预排，但仍可建立节奏：
+
+| 周 | 突发新闻 | 深度分析 | 数据揭示 | 科普 |
+|---|---------|---------|---------|------|
+| 频率 | 2-3 条/周（事件驱动） | 1-2 条/周 | 1 条/周 | 0-1 条/月 |
+| 制作窗口 | 事件发生后 6h 内 | 事件后 24-48h | 周末/数据发布日 | 无事件空闲时 |
+| 时长目标 | 30-45s | 60-70s | 45-60s | 60-90s |
+
+**Hook 批处理**：社区 skill 的 hook-batching 概念对新闻账号意味着——在无突发新闻时，预先准备好 3-5 个常青话题的 scene-data 草稿（独角兽榜单、技术原理解释、行业对比），事件来时只需改 Hook 即可快速发布。
+
+#### 品牌账号设置（替代 tt-profile-optimizer）
+
+社区 skill 的 Profile Optimizer 针对个人创作者。品牌账号适配：
+
+| 要素 | 品牌账号建议 |
+|------|------------|
+| **头像** | 品牌 logo（纯图标版 `china-ai-news-mark.svg`），高对比，小圆内可读 |
+| **名称（可搜索）** | "China AI News" — 名称字段被 TikTok 搜索索引 |
+| **用户名** | @chinaainews — 短、可说、无乱数字 |
+| **Bio（80 chars）** | "China AI news, data, and analysis. Follow for what Western media misses." |
+| **链接** | 1k 粉以下：Bio 引导 + 置顶视频评论区放链接。1k+：放官网链接 |
+| **置顶视频** | 前 3 条 = 最佳证明：1 条突发新闻、1 条深度分析、1 条数据揭示 |
+| **定位语** | "We cover what Western media misses about China AI" — 所有内容服务这句话 |
+
+#### 竞品情报（替代 tt-audience-insights）
+
+社区 skill 用 Apify 付费服务读 TikTok 数据。免费等价方案：
+
+| 监控对象 | 方法 | 频率 |
+|---------|------|------|
+| 竞品 TikTok 账号 | 手动搜索 "China AI" / "Chinese tech" 相关账号，看哪些视频播放高 | 每周 |
+| 热门 hashtag | TikTok 搜索 "China AI" 看推荐 hashtag | 每周 |
+| 高播放视频结构 | 看竞品爆款的前 3 秒、时长、字幕风格 | 每月 |
+| 评论区需求 | 看竞品评论区高频问题 → 做成视频 | 每月 |
+
+## 语音规则与去 AI 味
+
+来源：sergebulaev/tiktok-skills `voice-rules.md` + `scrub-rules.md`。适配 TTS 语音合成场景。
+
+### 硬规则
+
+1. **无 em dash（`—`）、en dash（`—`）、双 dash（`--`）** 在口播或屏幕文字中。2026 年最大 AI 痕迹，屏幕上读起来像错字。用 `..` 或换行代替。
+2. **写口语，不写书面语。** 缩写、短句、句子片段。如果你不会对朋友大声说出来，砍掉。
+3. **大写品牌名**（DeepSeek、Bloomberg、TikTok）。小写品牌名读起来像粗心。
+4. **具体数字胜过形容词。** "3 次尝试"胜过"几次尝试"。"47 分钟"胜过"很久"。Hook 里一个具体数字赚观看。
+5. **一个视频一个想法。** 30 秒承载一个承诺。两个想法意味着两个视频。
+6. **说 Hook，不要埋它。** 第一句口播和第一条屏幕文字都在前 1-3 秒。
+
+### 口播脚本规则
+
+- **大声朗读后再信任它。** 页面上看着没问题但说出来结巴的句子，上镜头也会结巴。砍掉让你结巴的从句。
+- **砍掉寒暄。** "Hey guys, so today..." 是三秒无用。直接打开给结果或张力。
+- **句子片段是好事。** "No tripod. No mic. One light." 读起来像真人，不像提词器。
+- **一口气一行。** 如果一行需要两口气，在自然呼吸处拆分。TikTok 的节奏比你以为的快。
+- **说出数字。** "two point four times" 说出来比屏幕上闪 "2.4x" 但没配音更有力。
+
+### 词汇黑名单
+
+口播或 caption 中**永不使用**：
+
+| 类别 | 黑名单词 |
+|------|---------|
+| AI 工具标记 | `oaicite`, `contentReference`, `turn0search0`, `:contentReference[...]` |
+| AI 知识截止 | "As of my last update", "I cannot browse" |
+| AI 模板 | `[Your Name]`, `[insert hook]`, `[brand]` |
+| AI 包装语 | "Certainly!", "Sure, here is", "I hope this helps" |
+| 书面化动词 | leverage, utilize, facilitate, streamline, robust, seamless, delve, navigate, unlock, harness, foster, cultivate |
+| 书面化副词 | fundamentally, essentially, ultimately, crucially, notably, moreover, furthermore |
+| 书面化名词 | landscape, ecosystem, paradigm, realm, tapestry, journey, myriad |
+| 陈词滥调 | "It's not just X, it's Y", "In today's fast-paced world", "game-changer", "deep dive", "at the end of the day", "dive in" |
+| 开场废话 | "Hey guys", "what's up everyone", "In this video, I will...", "without further ado", "don't forget to like and subscribe" |
+| 死板收尾 | "thanks for watching", "What do you think?", "Drop your thoughts below", "Let me know in the comments" |
+
+### 词汇替换表
+
+| AI 词 | 说成 |
+|-------|------|
+| leverage | use |
+| utilize | use |
+| facilitate | help / run |
+| streamline | speed up / simplify |
+| robust | solid |
+| seamless | smooth |
+| delve into | look at / get into |
+| navigate | handle / deal with |
+| unlock | get / open up |
+| harness | use |
+| foster | build |
+| fundamentally / essentially / ultimately | （直接删掉） |
+| in order to | to |
+
+### 口语化修复（文字 humanizer 容易漏的部分）
+
+| 痕迹 | 修复 |
+|------|------|
+| 完整语法句 | 缩写+片段："It is important to note that" → "and here is the thing" |
+| 完美三段式（"faster, cheaper, easier"） | 打破：保留两个，一个具体化 |
+| 提词器节奏（每行长度相近） | 在长行之间加一句短拳 |
+| 需要两口气说的行 | 在自然呼吸处拆分 |
+| 被动语态（"mistakes were made"） | 改主动："i messed up the first take" |
+| 堆叠对冲（"I think maybe it could possibly"） | 一个自信断言 |
+| Hook 和屏幕文字完全相同 | 改写一个成不同角度 |
+
+### 回填目录（Pass 3 指纹）
+
+在去 AI 味后回填至少前两项（内容允许时）：
+
+- **1 个具体数字** 在 Hook 中（"47 minutes", "3 takes", "$12"）
+- **1 个命名实体**（真实工具、App、人名、地点）
+- **1 个第一人称具体细节**（"the third take", "my 2am edit"）
+- **说话者的真实语调**（他们的俚语、节奏）。如有声音样本则匹配。
+
+**永不编造数字或细节。** 如果脚本需要一个但用户没给，问。
+
+### 朗读测试（最后执行）
+
+以 TikTok 节奏（比你以为的快）大声朗读最终脚本。标记任何：
+- 唯一口气到末尾就断气的行
+- 读结巴的从句
+- 听到一个你永远不会对朋友说的词
+
+如果一行没通过朗读测试，它就不合格，不管页面上看着多干净。
 
 ## 发布策略
 
@@ -85,6 +382,44 @@
 | 转场效果 | 用贴纸、图形、转场保持参与度 |
 | 强 CTA | 引导观众思考、感受或行动 |
 | 多样化素材 | 每个 ad group 3-5 个不同创意 |
+
+## 拍摄前审计清单（阈值化）
+
+来源：sergebulaev/tiktok-skills `audit-checklist.md`。阈值明确，可重复执行。
+
+### Blocker（任一 = FAIL）
+
+| # | 检查项 | 阈值 |
+|---|--------|------|
+| B1 | Em/en/double dash | 口播或屏幕文字中存在任何 |
+| B2 | 结果前有开场 | 第一秒有问候、logo 或慢推 |
+| B3 | 书面非口播 Hook | "In this video I will.." 式开头 |
+| B4 | Hook == 屏幕文字 | 两层完全相同词语 |
+| B5 | 未兑现承诺 | Hook 承诺了视频从不展示的结果 |
+| B6 | Caption 长度 | > 2,200 chars（含 hashtag） |
+| B7 | AI 词汇 | 任何黑名单词 |
+| B8 | 商业披露 | commercialContent=true 但品牌标志均 false |
+| B9 | 死板收尾 | 以"thanks for watching"/"subscribe"结尾 |
+
+### Warning（标记修复建议，不 fail）
+
+| # | 检查项 | 阈值 |
+|---|--------|------|
+| W1 | Hook 无数字 | 零个可放数字的地方未放 |
+| W2 | Hashtag 数量 | 6 个或更多，或任何句中 hashtag |
+| W3 | 无循环闭合 | 最后一帧不重启视频 |
+| W4 | 提词器节奏 | 所有行长度在 ~15% 内 |
+| W5 | 空三段式 | 无具体项的 rule-of-three |
+| W6 | 两口气行 | 任何无法一口气说完的行 |
+| W7 | CTA 堆叠 | 3 个或更多行动号召 |
+| W8 | viewerSetting | 未设，或在未审核 App 上声称 public |
+| W9 | 无主要目标 | 同时追完成率+收藏+评论+分享 |
+
+### 评分
+
+- **任一 blocker 存在**：FAIL。先返回 blocker，提供自动改写选项。
+- **无 blocker，有 warning**：PASS WITH WARNINGS。按对完成率的影响排序列出 warning 及修复。
+- **无 blocker，无 warning**：PASS。加 info 注释和长度/循环注释。
 
 ## 不推荐内容（Hootsuite 2026 + Sprout 2026）
 

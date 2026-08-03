@@ -9,35 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport } from './routes/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny[.]txt'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PostsSlugRouteImport } from './routes/posts.$slug'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TiktokConnectRouteImport } from './routes/tiktok-connect'
+import { Route as Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport } from './routes/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny[.]txt'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as PostsSlugRouteImport } from './routes/posts.$slug'
+import { Route as ApiTiktokCallbackRouteImport } from './routes/api/tiktok/callback'
 
-const Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute =
-  Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport.update({
-    id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
-    path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -45,24 +35,46 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TiktokConnectRoute = TiktokConnectRouteImport.update({
+  id: '/tiktok-connect',
+  path: '/tiktok-connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute =
+  Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport.update({
+    id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
+    path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const PostsSlugRoute = PostsSlugRouteImport.update({
   id: '/posts/$slug',
   path: '/posts/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const ApiTiktokCallbackRoute = ApiTiktokCallbackRouteImport.update({
+  id: '/api/tiktok/callback',
+  path: '/api/tiktok/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -71,9 +83,11 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/tiktok-connect': typeof TiktokConnectRoute
   '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt': typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/posts/$slug': typeof PostsSlugRoute
+  '/api/tiktok/callback': typeof ApiTiktokCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -81,9 +95,11 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/tiktok-connect': typeof TiktokConnectRoute
   '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt': typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/posts/$slug': typeof PostsSlugRoute
+  '/api/tiktok/callback': typeof ApiTiktokCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -93,9 +109,11 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/tiktok-connect': typeof TiktokConnectRoute
   '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt': typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/posts/$slug': typeof PostsSlugRoute
+  '/api/tiktok/callback': typeof ApiTiktokCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -105,9 +123,11 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sitemap.xml'
     | '/terms'
+    | '/tiktok-connect'
     | '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
     | '/admin'
     | '/posts/$slug'
+    | '/api/tiktok/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -115,9 +135,11 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sitemap.xml'
     | '/terms'
+    | '/tiktok-connect'
     | '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
     | '/admin'
     | '/posts/$slug'
+    | '/api/tiktok/callback'
   id:
     | '__root__'
     | '/'
@@ -126,9 +148,11 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sitemap.xml'
     | '/terms'
+    | '/tiktok-connect'
     | '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
     | '/_authenticated/admin'
     | '/posts/$slug'
+    | '/api/tiktok/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -138,45 +162,19 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
+  TiktokConnectRoute: typeof TiktokConnectRoute
   Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute: typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute
   PostsSlugRoute: typeof PostsSlugRoute
+  ApiTiktokCallbackRoute: typeof ApiTiktokCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt': {
-      id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
-      path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
-      fullPath: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
-      preLoaderRoute: typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -186,18 +184,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/posts/$slug': {
-      id: '/posts/$slug'
-      path: '/posts/$slug'
-      fullPath: '/posts/$slug'
-      preLoaderRoute: typeof PostsSlugRouteImport
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tiktok-connect': {
+      id: '/tiktok-connect'
+      path: '/tiktok-connect'
+      fullPath: '/tiktok-connect'
+      preLoaderRoute: typeof TiktokConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt': {
+      id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
+      path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
+      fullPath: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
+      preLoaderRoute: typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -206,6 +232,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin'
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/posts/$slug': {
+      id: '/posts/$slug'
+      path: '/posts/$slug'
+      fullPath: '/posts/$slug'
+      preLoaderRoute: typeof PostsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tiktok/callback': {
+      id: '/api/tiktok/callback'
+      path: '/api/tiktok/callback'
+      fullPath: '/api/tiktok/callback'
+      preLoaderRoute: typeof ApiTiktokCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -228,9 +268,11 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
+  TiktokConnectRoute: TiktokConnectRoute,
   Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute:
     Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute,
   PostsSlugRoute: PostsSlugRoute,
+  ApiTiktokCallbackRoute: ApiTiktokCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
