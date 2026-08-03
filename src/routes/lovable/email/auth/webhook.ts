@@ -9,7 +9,7 @@ import { EmailChangeEmail } from '@/lib/email-templates/email-change'
 import { ReauthenticationEmail } from '@/lib/email-templates/reauthentication'
 
 // Configuration
-const SITE_NAME = "chinaai"
+const SITE_NAME = "Inside China AI"
 const SENDER_DOMAIN = "notify.chinaai.news"
 const ROOT_DOMAIN = "chinaai.news"
 const FROM_DOMAIN = "chinaai.news"
