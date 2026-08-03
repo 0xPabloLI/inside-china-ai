@@ -34,6 +34,31 @@ export const WIDGETS: Record<string, LazyWidget> = {
       default: m.CompaniesView,
     })),
   ),
+  "distillation-news-coverage": lazy(() =>
+    import("./distillation/news-coverage-view").then((m) => ({
+      default: m.NewsCoverageView,
+    })),
+  ),
+  "kimi-benchmark-controversy": lazy(() =>
+    import("./distillation/benchmark-controversy-view").then((m) => ({
+      default: m.BenchmarkControversyView,
+    })),
+  ),
+  "kimi-identity-bleed": lazy(() =>
+    import("./distillation/identity-bleed-view").then((m) => ({
+      default: m.IdentityBleedView,
+    })),
+  ),
+  "moonshot-funding-timeline": lazy(() =>
+    import("./distillation/moonshot-funding-view").then((m) => ({
+      default: m.MoonshotFundingView,
+    })),
+  ),
+  "minimax-stock-timeline": lazy(() =>
+    import("./distillation/minimax-stock-view").then((m) => ({
+      default: m.MinimaxStockView,
+    })),
+  ),
 };
 
 /** Get the list of available widget names (for editor dropdown). */
