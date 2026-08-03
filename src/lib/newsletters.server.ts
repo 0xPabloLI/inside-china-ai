@@ -148,3 +148,33 @@ export async function dispatchDueNewsletters(): Promise<{ dispatched: string[] }
   }
   return { dispatched };
 }
+
+/** Renders the newsletter email HTML for in-admin preview. */
+export async function renderNewsletterPreview(input: {
+  subject: string;
+  title?: string | null;
+  excerpt?: string | null;
+  content?: string | null;
+  postUrl?: string | null;
+}): Promise<string> {
+  const React = await import("react");
+  const { render } = await import("@react-email/render");
+  const { default: NewsletterEmail } = await import("./email-templates/newsletter");
+
+  return render(
+    React.createElement(NewsletterEmail, {
+      siteName: SITE_NAME,
+      siteUrl: SITE_URL,
+      subject: input.subject,
+      title: input.title ?? input.subject,
+      excerpt: input.excerpt ?? undefined,
+      content: input.content ?? undefined,
+      postUrl: input.postUrl ?? undefined,
+      publishedAt: new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    }),
+  );
+}
