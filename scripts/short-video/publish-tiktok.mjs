@@ -25,6 +25,8 @@ import { readFile } from "fs/promises";
 
 import {
   buildCaption,
+  buildSeriesCaption,
+  buildSeriesPinnedComment,
   buildTiktokSettings,
   validateVideoFile,
   buildPendingAnalysis,
@@ -57,6 +59,12 @@ const scheduleTime = getArg("schedule");
 const isDraft = hasFlag("draft");
 const isSelfOnly = hasFlag("self-only");
 const platformIdOverride = getArg("platform-id");
+
+// Series args (optional — when present, enables series caption + pinned comment)
+const seriesId = getArg("series-id");
+const partArg = getArg("part"); // format: "n/total" e.g. "1/3"
+const prevUrl = getArg("prev-url");
+const nextUrl = getArg("next-url");
 
 // ─── API key resolution ───
 
@@ -181,9 +189,27 @@ async function main() {
   const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
   console.log(`📋 Metadata: ${metadata.title?.substring(0, 50)}...`);
 
-  // 4. Build caption
-  const caption = buildCaption(metadata);
-  console.log(`📝 Caption: ${caption.length} chars (limit: 2200)`);
+  // 4. Build caption (with optional series info)
+  let caption;
+  let pinnedComment = null;
+  if (seriesId && partArg) {
+    // Parse part "n/total"
+    const [partNum, totalParts] = partArg.split("/").map(Number);
+    const seriesMeta = {
+      seriesId,
+      partNumber: partNum,
+      totalParts,
+      prevPartSlug: prevUrl,
+      nextPartSlug: nextUrl,
+    };
+    caption = buildSeriesCaption(metadata, seriesMeta);
+    pinnedComment = buildSeriesPinnedComment(seriesMeta);
+    console.log(`📝 Caption (series): ${caption.length} chars (limit: 2200)`);
+    console.log(`🏷️  Series: ${seriesId} Part ${partNum}/${totalParts}`);
+  } else {
+    caption = buildCaption(metadata);
+    console.log(`📝 Caption: ${caption.length} chars (limit: 2200)`);
+  }
 
   // 5. Validate video
   const videoValidation = validateVideoFile(videoPath);
@@ -290,6 +316,14 @@ async function main() {
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
     writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
     console.log(buildAnalyticsGuidance(OUTPUT_DIR));
+  }
+
+  // 12. Output pinned comment for series (user must manually pin it)
+  if (pinnedComment) {
+    console.log("\n📌 Pinned Comment (copy & pin manually):");
+    console.log("─".repeat(40));
+    console.log(pinnedComment);
+    console.log("─".repeat(40));
   }
 }
 

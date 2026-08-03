@@ -7,6 +7,7 @@
 
 import { existsSync, statSync } from "fs";
 import { resolve } from "path";
+import { validateSeriesMeta, getSeriesHashtag } from "./series-meta.mjs";
 
 const CAPTION_MAX = 2200;
 
@@ -172,4 +173,54 @@ export function buildAnalyticsGuidance(outputDir) {
     `    3. Run: node scripts/short-video/ab-test-tracker.mjs --result ${outputDir}/analytics-export.json`,
     `  Pending analysis file: ${outputDir}/pending-analysis.json`,
   ].join("\n");
+}
+
+// ─── Series Support (ISSUE-22) ───
+
+/**
+ * Build caption with series hashtag and part number.
+ *
+ * @param {Object} metadata - { title, description, hashtags }
+ * @param {Object} seriesMeta - { seriesId, partNumber, totalParts, ... }
+ * @returns {string} Caption with series info, <= 2200 chars
+ */
+export function buildSeriesCaption(metadata, seriesMeta) {
+  const validation = validateSeriesMeta(seriesMeta);
+  if (!validation.valid) {
+    throw new Error(`Invalid seriesMeta: ${validation.errors.join(", ")}`);
+  }
+
+  const baseCaption = buildCaption(metadata);
+  const hashtag = getSeriesHashtag(seriesMeta);
+  const partInfo = `Part ${seriesMeta.partNumber}/${seriesMeta.totalParts}`;
+  const seriesLine = `${partInfo} ${hashtag}`;
+
+  const caption = `${baseCaption}\n\n${seriesLine}`;
+  return truncateAtSentence(caption, CAPTION_MAX);
+}
+
+/**
+ * Build pinned comment content linking to prev/next parts.
+ *
+ * @param {Object} seriesMeta - { partNumber, totalParts, prevPartSlug?, nextPartSlug? }
+ * @returns {string} Pinned comment text
+ */
+export function buildSeriesPinnedComment(seriesMeta) {
+  const validation = validateSeriesMeta(seriesMeta);
+  if (!validation.valid) {
+    throw new Error(`Invalid seriesMeta: ${validation.errors.join(", ")}`);
+  }
+
+  const { partNumber, totalParts, prevPartSlug, nextPartSlug, seriesId } = seriesMeta;
+  const lines = [`Part ${partNumber}/${totalParts} of the ${seriesId} series`];
+
+  if (partNumber > 1 && prevPartSlug) {
+    lines.unshift(`Part 1: ${prevPartSlug}`);
+  }
+
+  if (partNumber < totalParts && nextPartSlug) {
+    lines.push(`Part ${partNumber + 1} coming soon!`);
+  }
+
+  return lines.join("\n\n");
 }

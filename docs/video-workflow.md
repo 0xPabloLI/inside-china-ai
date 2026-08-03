@@ -336,3 +336,107 @@ node scripts/short-video/ab-test-tracker.mjs report
    - Blog post -> website SEO
    - Newsletter -> email list
    - X thread -> social reach
+
+---
+
+## Multi-Video Series Strategy
+
+> 当一篇文章内容太丰富无法在 60 秒内讲完时，拆分为多集系列。
+> 调研报告：`docs/research/multi-video-splitting-best-practices.md`
+
+### When to Split
+
+Agent 在 Stage 3 Step 0 运行 `episode-evaluator.mjs`，自动判断：
+- 估算单条时长 ≤ 60s → 单集
+- > 60s → 拆分（2-5 集，上限 5 集）
+
+### Series Types
+
+| 类型 | 适用场景 | 长度 |
+|------|---------|------|
+| Explicit Part N | 复杂事件分析 | 2-3 集 |
+| Loop-and-Flashback | 突发新闻 | 1-2 集 |
+| Deep Dive | 技术解析 | 2-4 集 |
+| 对比系列 | 多公司对比 | 2-3 集 |
+
+### Inter-Episode Linking
+
+| 方法 | 操作 |
+|------|------|
+| Pin Part 1 | 将 Part 1 pin 在主页顶部 |
+| Pinned Comment 互链 | 每集 pinned comment 放上下集链接 |
+| Stitch 自身视频 | Part 2 开头 Stitch Part 1 作为「上集回顾」 |
+| 统一 Hashtag | 所有集用同一个 `#seriesId` |
+| Part 编号 | 画面标注 "Part X/Y" |
+
+### Coherence Rules
+
+- **每集独立可看** — 不看前集也能看懂
+- **不同 Hook** — 每集不同角度的 Hook
+- **信息间隔** — Part 1 提出问题，Part 2 解答
+- **Payoff 兑现** — 每集的承诺必须兑现
+- **间隔 ≤ 3 天** — 超过 1 周观众流失
+
+---
+
+## Compilation Video
+
+> 所有集发完后 3-5 天，合并为合集发布到 YouTube 长视频。
+
+### Plan A: FFmpeg 拼接
+
+```bash
+# 自动拼接 + 交叉淡入淡出
+node scripts/short-video/compile-series.mjs --videos part1.mp4 part2.mp4 part3.mp4
+```
+
+适合 2 集快速出合集。
+
+### Plan B: 重构叙事
+
+```bash
+# 合并 scene-data，去掉每集 hook/CTA
+node scripts/short-video/compile-series-reconstruct.mjs --scenes scene-data-pt1.mjs scene-data-pt2.mjs scene-data-pt3.mjs
+
+# 然后跑合集版 scene-data
+node scripts/short-video/main.mjs --scene scene-data-compilation.mjs
+```
+
+适合 3+ 集高质量合集。
+
+### Compilation Publishing
+
+合集 mp4 发布到 YouTube 长视频（2-5 分钟），网站文章更新嵌入合集视频。
+
+---
+
+## Series Publishing Workflow
+
+### 发布节奏
+
+| 策略 | 间隔 | 适用 |
+|------|------|------|
+| 快速连续 | 1-3 天 | 2-3 集系列 |
+| 同日发布 | 同日不同时段 | 2 集系列 |
+
+### 系列发布命令
+
+```bash
+# 发布 Part 1
+node scripts/short-video/publish-tiktok.mjs --series-id deepseek-distillation --part 1/3
+
+# 发布 Part 2（带上一集链接）
+node scripts/short-video/publish-tiktok.mjs --series-id deepseek-distillation --part 2/3 --prev-url "https://tiktok.com/@chinaainews/video/xxx"
+
+# 发布 Part 3（最后一集）
+node scripts/short-video/publish-tiktok.mjs --series-id deepseek-distillation --part 3/3 --prev-url "https://tiktok.com/@chinaainews/video/yyy"
+```
+
+脚本自动：
+1. Caption 加 `Part X/Y #seriesId`
+2. 输出 pinned comment 内容（含上下集链接），用户手动 pin
+
+### 批量生产
+
+决定拆分后一次性生成所有 scene-data，批量跑 TTS → 渲染 → 合成。相比逐条制作节省 60-70% 时间。
+

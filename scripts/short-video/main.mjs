@@ -19,7 +19,6 @@ import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
-import { scenes } from "./scene-data.mjs";
 import { generateTTS } from "./generate-tts.mjs";
 import { generateSceneHTML } from "./generate-scenes.mjs";
 import { recordScenes } from "./record-scenes.mjs";
@@ -28,6 +27,38 @@ import { generateBGM } from "./generate-bgm.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ─── CLI args ───
+const args = process.argv.slice(2);
+function getArg(name) {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+}
+
+// ─── Dynamic scene-data loading ───
+async function loadScenes() {
+  const scenePath = getArg("scene");
+  if (scenePath) {
+    try {
+      const absPath = resolve(scenePath);
+      const mod = await import(absPath);
+      if (!mod.scenes || !Array.isArray(mod.scenes) || mod.scenes.length === 0) {
+        console.error(`❌ No valid scenes array found in: ${absPath}`);
+        process.exit(1);
+      }
+      console.log(`📋 Scene data loaded from: ${absPath}\n`);
+      return mod.scenes;
+    } catch (e) {
+      console.error(`❌ Failed to load scene file: ${scenePath}`);
+      console.error(`   ${e.message}`);
+      console.error("   Use --scene <path> to specify a scene-data file.");
+      process.exit(1);
+    }
+  }
+  // Default: load from ./scene-data.mjs
+  const { scenes } = await import("./scene-data.mjs");
+  return scenes;
+}
 
 function checkCommand(cmd) {
   try {
@@ -41,6 +72,9 @@ function checkCommand(cmd) {
 async function main() {
   console.log("🎬 DeepSeek Short Video Pipeline");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+  // ── Load scene data (supports --scene flag for multi-part series) ──
+  const scenes = await loadScenes();
 
   // ── Prerequisite checks ──
   const hasFfmpeg = checkCommand("ffmpeg");

@@ -230,6 +230,21 @@ More content...
 - 提供独家视角或预测
 - 引用素材中的数据点支撑论点
 
+#### 源引用要求（Source Citation Requirement）
+
+**所有参考过的资料必须作为 source attach 到文章中，并在文中注明出处。**
+
+具体要求：
+
+1. **原始素材文件**（PDF、报告、录音转文本等）→ 通过 `upload-attachments.mjs` 上传到文章的 attachments
+2. **网页/外部文章引用** → 在文章正文中用 Markdown 链接 `[文字](URL)` 注明出处
+3. **数据点引用** → 在数据附近标注来源（如「据 Bloomberg 2026 年 7 月 29 日报道」）
+4. **引用语句** → 使用 Markdown 引用块 `> 原话` 并注明说话人和来源
+
+> 💡 **设计原则**：读者可以点击文章底部的 Attachments 区域下载原始素材，也可以通过文中链接验证每个数据点。每篇文章的引用来源必须可追溯。
+
+参考现有 DeepSeek 文章的引用模式：Widget 中标注「Data Sources (All Verified)」，正文数据标注媒体来源和日期。
+
 #### ⏸️ HITL-1: 文章审阅检查点
 
 Agent 生成 frontmatter markdown 后 **必须暂停**，执行以下步骤：
@@ -240,6 +255,7 @@ Agent 生成 frontmatter markdown 后 **必须暂停**，执行以下步骤：
    - 数据点是否准确
    - Widget 选择是否合适
    - 如有「My Take」章节：是否有独立见解（My Take 为可选）
+   - **源引用是否完整**：所有参考过的资料是否已列出、是否已上传为 attachment 或在文中标注了出处
 3. **如有新 widget**：提示用户需要 `npm run build` + 部署后才能发布
 4. **等待用户确认** — 用户说「文章 OK，继续」或类似确认语后才可进入 Stage 2
 
@@ -260,9 +276,39 @@ node scripts/article/publish-article.mjs --file <path> --draft
 
 脚本通过 Supabase Auth API 登录（Admin 账号），REST API upsert by slug。
 
+### 上传源文件附件（Stage 2b）
+
+文章发布成功后，将所有引用的原始素材文件上传为 article attachments：
+
+```bash
+# 上传单个文件
+node scripts/article/upload-attachments.mjs --post <slug> --files <path/to/source.pdf>
+
+# 上传多个文件
+node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <path2.csv> <path3.docx>
+
+# 使用 post ID 直接指定
+node scripts/article/upload-attachments.mjs --post-id <uuid> --files <path>
+
+# 查看已有附件
+node scripts/article/upload-attachments.mjs --post <slug> --list
+
+# 详细输出
+node scripts/article/upload-attachments.mjs --post <slug> --files <path> --verbose
+```
+
+脚本流程：
+1. Admin 登录 → 通过 slug 查找 post ID（或直接用 `--post-id`）
+2. 验证文件（存在性、大小 ≤50MB、MIME 类型合规）
+3. 逐个上传到 Supabase Storage `post-attachments` bucket（路径：`{postId}/{fileName}`）
+4. 逐个插入 `post_attachments` 元数据行
+5. 如遇错误，停止后续上传并报告已上传的文件
+
+上传后文件显示在文章页底部的「Attachments」区域，读者可点击下载。
+
 详见 `docs/manual-ops.md` 的「每次发布文章时」部分。
 
-发布后验证：访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确。
+发布后验证：访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确，attachments 列表完整。
 
 ---
 
@@ -271,6 +317,54 @@ node scripts/article/publish-article.mjs --file <path> --draft
 > **前置条件**：HITL-1 已通过（文章已发布到网站）。
 
 从已发布文章提炼视频脚本。
+
+### Step 0: 分集评估（新增）
+
+Agent 在生成 scene-data 前，先运行分集评估器：
+
+```bash
+# Agent 在 Node.js 中调用评估器
+node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-evaluator.mjs'; const r = evaluateArticle(articleText); console.log(JSON.stringify(r, null, 2));"
+```
+
+**评估器输出**：
+- `recommendedParts`（1-5）
+- `splitMethod`（"none" | "thematic" | "narrative"）
+- `reasoning`（人类可读理由数组）
+
+**Agent 行为**：
+- `recommendedParts === 1`：走单集流程（当前步骤 1-5）
+- `recommendedParts > 1`：输出分集评估报告，等待用户确认后生成 N 份 scene-data
+
+**分集评估报告格式**（Agent 输出给用户）：
+
+```
+📊 分集评估报告
+━━━━━━━━━━━━━━━━━━━━
+文章：[标题]
+估算单条时长：[X] 秒
+推荐集数：[N] 集
+拆分方式：[主题拆分 / 叙事拆分]
+━━━━━━━━━━━━━━━━━━━━
+理由：
+1. [评估器 reasoning]
+2. [Agent 补充的语义分析]
+3. ...
+━━━━━━━━━━━━━━━━━━━━
+各集概览：
+| 集 | 标题 | 核心内容 | Hook 类型 | 时长(估) |
+| 1  | ... | ... | ... | ... |
+| ... | ... | ... | ... | ... |
+━━━━━━━━━━━━━━━━━━━━
+合集计划：
+- 合集形态：[A拼接 / B重构]
+- 合集发布时间：所有集发完后 3-5 天
+━━━━━━━━━━━━━━━━━━━━
+```
+
+**多集 scene-data 命名**：`scene-data-pt1.mjs`、`scene-data-pt2.mjs` 等，每份含 `seriesMeta` 字段。
+
+**`main.mjs` 支持**：`node main.mjs --scene scene-data-pt1.mjs`
 
 ### 步骤
 
@@ -405,6 +499,7 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 |--------|------|------|--------|--------|
 | **HITL-1** 文章审阅 | Stage 1 → Stage 2 | 人工确认 | 用户 | ✅ 必须 |
 | 新 widget 部署 | Stage 1 → Stage 2 | 人工操作 | 用户 | 仅当有新 widget |
+| 源文件附件上传 | Stage 2b | 脚本执行 | Agent | ✅ 必须 |
 | **HITL-2** 视频脚本审阅 | Stage 3 → Stage 4 | 人工确认 | 用户 | ✅ 必须 |
 | 视频自动验证 | Stage 5 内部 | 自动检查 | Agent | ✅ 必须 |
 | **HITL-3** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户 | ✅ 必须 |
