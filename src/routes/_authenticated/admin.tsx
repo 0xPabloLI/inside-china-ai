@@ -49,9 +49,9 @@ export const Route = createFileRoute("/_authenticated/admin")({
         property: "og:description",
         content: "Private editorial dashboard for China AI News staff.",
       },
-      { property: "og:url", content: "https://chinaai.lovable.app/admin" },
+      { property: "og:url", content: "https://chinaai.news/admin" },
     ],
-    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/admin" }],
+    links: [{ rel: "canonical", href: "https://chinaai.news/admin" }],
   }),
   component: AdminPage,
 });

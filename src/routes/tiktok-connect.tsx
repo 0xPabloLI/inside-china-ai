@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandName } from "@/components/brand-name";
 
-const TIKTOK_CLIENT_KEY = "awaaaaaaXXXXXXXXXXXXXXXX"; // placeholder — replace with real client_key from developer portal
-const REDIRECT_URI = "https://chinaai.lovable.app/api/tiktok/callback";
+const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY ?? "aw2ysgzda4tmp28b";
+const REDIRECT_URI = "https://chinaai.news/api/tiktok/callback";
 const SCOPES = "user.info.basic,video.upload,video.publish";
-const BASE_URL = "https://chinaai.lovable.app";
+const BASE_URL = "https://chinaai.news";
 
 function tiktokAuthUrl() {
   const state = Math.random().toString(36).slice(2);

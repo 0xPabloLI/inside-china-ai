@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 
-const BASE_URL = "https://chinaai.lovable.app";
+const BASE_URL = "https://chinaai.news";
 
 function htmlResponse(title: string, body: string) {
   const html = `<!DOCTYPE html>

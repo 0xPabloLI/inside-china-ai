@@ -24,16 +24,16 @@ export const Route = createFileRoute("/")({
         content:
           "Independent reporting on China's AI industry: the labs, the people, and the policy shaping AI in China. One new piece a week.",
       },
-      { property: "og:url", content: "https://chinaai.lovable.app/" },
-      { property: "og:image", content: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png" },
-      { name: "twitter:image", content: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png" },
+      { property: "og:url", content: "https://chinaai.news/" },
+      { property: "og:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
+      { name: "twitter:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
       { name: "twitter:title", content: "China AI News — Inside China's AI Labs & Policy" },
       {
         name: "twitter:description",
         content: "Independent reporting on China's AI industry. One new piece a week.",
       },
     ],
-    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/" }],
+    links: [{ rel: "canonical", href: "https://chinaai.news/" }],
     scripts: [
       {
         type: "application/ld+json",
@@ -42,20 +42,20 @@ export const Route = createFileRoute("/")({
           "@graph": [
             {
               "@type": "WebSite",
-              "@id": "https://chinaai.lovable.app/#website",
+              "@id": "https://chinaai.news/#website",
               name: "China AI News",
-              url: "https://chinaai.lovable.app/",
+              url: "https://chinaai.news/",
               description: "Independent writing on China's AI industry.",
-              publisher: { "@id": "https://chinaai.lovable.app/#organization" },
+              publisher: { "@id": "https://chinaai.news/#organization" },
             },
             {
               "@type": "Organization",
-              "@id": "https://chinaai.lovable.app/#organization",
+              "@id": "https://chinaai.news/#organization",
               name: "China AI News",
-              url: "https://chinaai.lovable.app/",
+              url: "https://chinaai.news/",
               logo: {
                 "@type": "ImageObject",
-                url: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png",
+                url: "https://chinaai.news/china-ai-news-logo-gpt.png",
               },
             },
           ],

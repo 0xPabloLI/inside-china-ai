@@ -23,9 +23,9 @@ export const Route = createFileRoute("/auth")({
         property: "og:description",
         content: "Administrative access for China AI News editors.",
       },
-      { property: "og:url", content: "https://chinaai.lovable.app/auth" },
+      { property: "og:url", content: "https://chinaai.news/auth" },
     ],
-    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/auth" }],
+    links: [{ rel: "canonical", href: "https://chinaai.news/auth" }],
   }),
   component: AuthPage,
 });

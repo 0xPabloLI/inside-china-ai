@@ -15,9 +15,9 @@ export const Route = createFileRoute("/terms")({
         property: "og:description",
         content: "Terms governing use of China AI News articles and newsletter.",
       },
-      { property: "og:url", content: "https://chinaai.lovable.app/terms" },
+      { property: "og:url", content: "https://chinaai.news/terms" },
     ],
-    links: [{ rel: "canonical", href: "https://chinaai.lovable.app/terms" }],
+    links: [{ rel: "canonical", href: "https://chinaai.news/terms" }],
   }),
   component: TermsPage,
 });
@@ -43,7 +43,7 @@ function TermsPage() {
             <h2 className="font-serif text-2xl mb-3">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground">
               By accessing or using China AI News ("we," "us," or "our") website at
-              chinaai.lovable.app (the "Service"), you agree to be bound by these Terms of Service.
+              chinaai.news (the "Service"), you agree to be bound by these Terms of Service.
               If you do not agree, please do not use the Service.
             </p>
           </section>
@@ -124,7 +124,7 @@ function TermsPage() {
           <section>
             <h2 className="font-serif text-2xl mb-3">10. Contact</h2>
             <p className="text-muted-foreground">
-              Questions about these Terms? Contact us at chinaai.lovable.app.
+              Questions about these Terms? Contact us at chinaai.news.
             </p>
           </section>
         </div>

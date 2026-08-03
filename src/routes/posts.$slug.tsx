@@ -45,7 +45,7 @@ export const Route = createFileRoute("/posts/$slug")({
   },
   head: ({ params, loaderData }) => {
     if (!loaderData) return { meta: [] };
-    const url = `https://chinaai.lovable.app/posts/${params.slug}`;
+    const url = `https://chinaai.news/posts/${params.slug}`;
     const description = clampDescription(loaderData.excerpt ?? loaderData.title);
     return {
       meta: [
@@ -74,10 +74,10 @@ export const Route = createFileRoute("/posts/$slug")({
             publisher: {
               "@type": "Organization",
               name: "China AI News",
-              url: "https://chinaai.lovable.app/",
+              url: "https://chinaai.news/",
               logo: {
                 "@type": "ImageObject",
-                url: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png",
+                url: "https://chinaai.news/china-ai-news-logo-gpt.png",
               },
             },
           }),
