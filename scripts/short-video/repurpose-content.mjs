@@ -2,6 +2,10 @@
 /**
  * Content Repurposing Script (ISSUE-13)
  *
+ * [辅助工具] 只做 voiceover 文本拼接，输出为快速草稿。
+ * 真正的 repurposing（重写、扩写、适配平台风格）应由 agent 完成。
+ * 仅在用户明确要求时运行，不在默认工作流中。
+ *
  * Reads scene-data.mjs and generates:
  * 1. Blog post (markdown)
  * 2. Newsletter (plain text)

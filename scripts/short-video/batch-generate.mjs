@@ -2,8 +2,9 @@
 /**
  * Batch Scene Data Generator (ISSUE-07)
  *
- * Reads weekly-plan.json and generates scene-data template files
- * for each topic. Agent then fills in the details.
+ * [辅助工具] 只生成空模板文件，真正的内容由 agent 填写。
+ * Agent 可以直接创建 scene-data 文件而不经过此脚本。
+ * 保留此脚本用于批量从 weekly-plan 生成骨架文件的便捷场景。
  *
  * Usage: node scripts/short-video/batch-generate.mjs
  * Output: scripts/short-video/scene-data-{slug}.mjs

@@ -37,7 +37,8 @@ const PILLAR_ORDER = ["breaking", "fermenting", "data", "explainer"];
  * @param {Object} topicsData - Output from discover-trends.mjs
  * @returns {Array} 7 day objects with { day, type, topic, hookFormula, duration }
  */
-export function distributeTopics(topicsData) {
+export function distributeTopics(topicsData, customRatio) {
+  const ratio = customRatio || PILLAR_RATIO;
   const topics = topicsData?.topics || {};
   const total = topicsData?.totalTopics || 0;
 
@@ -57,7 +58,7 @@ export function distributeTopics(topicsData) {
   for (const pillar of PILLAR_ORDER) {
     const pool = topics[pillar] || [];
     // Proportion of 7 days for this pillar
-    const count = Math.min(pool.length, Math.round(DAYS * PILLAR_RATIO[pillar]));
+    const count = Math.min(pool.length, Math.round(DAYS * ratio[pillar]));
     for (let i = 0; i < count; i++) {
       assignments.push({ type: pillar, topic: pool[i] });
     }
@@ -94,8 +95,8 @@ export function distributeTopics(topicsData) {
  * @param {Object} topicsData - Output from discover-trends.mjs
  * @returns {Object} { generatedAt, totalTopics, sourceStats, days }
  */
-export function buildWeeklyPlan(topicsData) {
-  const days = distributeTopics(topicsData);
+export function buildWeeklyPlan(topicsData, customRatio) {
+  const days = distributeTopics(topicsData, customRatio);
 
   // Add dates (starting tomorrow)
   const today = new Date();

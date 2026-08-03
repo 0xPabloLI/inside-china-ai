@@ -2,9 +2,8 @@
 /**
  * Cross-Platform Schedule Script (ISSUE-03)
  *
- * Thin wrapper around publish-tiktok.mjs that supports multiple platforms.
- * Currently only TikTok is connected via Publora.
- * Add more platforms by connecting them in Publora dashboard.
+ * [辅助工具] Agent 可直接跑 publish-tiktok.mjs，此脚本为多平台场景预留。
+ * 目前仅 TikTok 连接，等 YouTube/Instagram 连接后才有实际多平台价值。
  *
  * Usage:
  *   node scripts/short-video/schedule.mjs --schedule 2026-08-03T12:00:00Z
