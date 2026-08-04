@@ -1,26 +1,24 @@
 /**
- * DeepSeek Short Video — Full Automated Pipeline
+ * Short Video Pipeline — Multi-Content Architecture
  *
- * Flow:
- *   1. Generate TTS voiceover (edge-tts or macOS `say`)
- *   2. Render HTML scene templates (1080×1920, CSS animations)
- *   3. Record each scene with Playwright (WebM video)
- *   4. Assemble final video with FFmpeg (combine video+audio, concatenate)
+ * Supports multiple content pipelines, each isolated in output/{pipelineId}/.
+ * Content (scene data + visual templates) lives in content/{article}/.
+ * Infrastructure (TTS, recording, assembly) is shared and content-agnostic.
  *
  * Usage:
- *   node scripts/short-video/main.mjs           # No BGM (platforms auto-add)
- *   node scripts/short-video/main.mjs --bgm     # With procedural BGM
+ *   node scripts/short-video/main.mjs --content deepseek --bgm
+ *   node scripts/short-video/main.mjs --content distillation/pt1 --bgm
+ *   node scripts/short-video/main.mjs              # defaults to deepseek
  *
  * Output:
- *   scripts/short-video/output/deepseek-short.mp4
+ *   scripts/short-video/output/{pipelineId}/final.mp4
  */
 
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { generateTTS } from "./generate-tts.mjs";
-import { generateSceneHTML } from "./generate-scenes.mjs";
 import { recordScenes } from "./record-scenes.mjs";
 import { assembleVideo } from "./assemble.mjs";
 import { generateBGM } from "./generate-bgm.mjs";
@@ -36,31 +34,6 @@ function getArg(name) {
   return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
 }
 
-// ─── Dynamic scene-data loading ───
-async function loadScenes() {
-  const scenePath = getArg("scene");
-  if (scenePath) {
-    try {
-      const absPath = resolve(scenePath);
-      const mod = await import(absPath);
-      if (!mod.scenes || !Array.isArray(mod.scenes) || mod.scenes.length === 0) {
-        console.error(`❌ No valid scenes array found in: ${absPath}`);
-        process.exit(1);
-      }
-      console.log(`📋 Scene data loaded from: ${absPath}\n`);
-      return mod.scenes;
-    } catch (e) {
-      console.error(`❌ Failed to load scene file: ${scenePath}`);
-      console.error(`   ${e.message}`);
-      console.error("   Use --scene <path> to specify a scene-data file.");
-      process.exit(1);
-    }
-  }
-  // Default: load from ./scene-data.mjs
-  const { scenes } = await import("./scene-data.mjs");
-  return scenes;
-}
-
 function checkCommand(cmd) {
   try {
     execSync(`which ${cmd}`, { stdio: "pipe" });
@@ -71,23 +44,44 @@ function checkCommand(cmd) {
 }
 
 async function main() {
-  console.log("🎬 DeepSeek Short Video Pipeline");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+  // ── Load content pipeline ──
+  const contentDir = getArg("content") || "deepseek";
+  const contentPath = `./content/${contentDir}`;
 
-  // ── Load scene data (supports --scene flag for multi-part series) ──
-  const scenes = await loadScenes();
+  let meta, scenes, generateScene;
+  try {
+    const metaMod = await import(`${contentPath}/meta.mjs`);
+    meta = metaMod.meta;
+    const dataMod = await import(`${contentPath}/scene-data.mjs`);
+    scenes = dataMod.scenes;
+    const scenesMod = await import(`${contentPath}/scenes.mjs`);
+    generateScene = scenesMod.generateScene;
+  } catch (e) {
+    console.error(`❌ Failed to load content pipeline: ${contentPath}`);
+    console.error(`   ${e.message}`);
+    console.error(`   Ensure content/${contentDir}/ has meta.mjs, scene-data.mjs, scenes.mjs`);
+    process.exit(1);
+  }
+
+  if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
+    console.error(`❌ No valid scenes array in content/${contentDir}/scene-data.mjs`);
+    process.exit(1);
+  }
+
+  console.log(`🎬 Short Video Pipeline`);
+  console.log(`   Content: ${meta.title || contentDir}`);
+  console.log(`   Pipeline ID: ${meta.pipelineId}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
   // ── Prerequisite checks ──
   const hasFfmpeg = checkCommand("ffmpeg");
-  const hasPlaywright = checkCommand("npx");
-
   if (!hasFfmpeg) {
     console.error("❌ FFmpeg is required but not found. Install with: brew install ffmpeg");
     process.exit(1);
   }
 
-  // ── Create directories ──
-  const outputDir = join(__dirname, "output");
+  // ── Isolated output directory ──
+  const outputDir = join(__dirname, "output", meta.pipelineId);
   const audioDir = join(outputDir, "audio");
   const videoDir = join(outputDir, "video");
   const scenesDir = join(outputDir, "scenes");
@@ -109,7 +103,7 @@ async function main() {
     const tts = ttsResults.find((t) => t.sceneId === scene.id);
     if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
 
-    const html = generateSceneHTML(scene.id, tts.duration, scene.voiceover);
+    const html = generateScene(scene.id, tts.duration, scene.voiceover);
     const htmlPath = join(scenesDir, `scene-${scene.id}.html`);
     writeFileSync(htmlPath, html);
 
@@ -141,9 +135,9 @@ async function main() {
     console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
   }
 
-  // ── Step 4: Generate SRT from ASR timing data ──
+  // ── Step 4: Generate SRT/ASS from ASR timing data ──
   const timingPath = join(outputDir, "audio", "subtitle-timing.json");
-  const srtPath = join(outputDir, "subtitles.srt");
+  const srtPath = join(outputDir, "subtitles.ass");
   let srtFile = null;
   if (existsSync(timingPath)) {
     const timingData = JSON.parse(readFileSync(timingPath, "utf8"));
@@ -161,6 +155,7 @@ async function main() {
   console.log(`   ⏱  Duration: ${result.duration}`);
   console.log(`   📐 Resolution: 1080×1920 (9:16)`);
   console.log(`   🎬 Scenes: ${scenes.length}`);
+  console.log(`   🏷  Pipeline: ${meta.pipelineId}`);
   console.log("");
 }
 
