@@ -161,6 +161,70 @@ export const NEWS_SOURCES = [
       return results;
     `,
   },
+  {
+    name: "guancha",
+    label: "观察者网",
+    needsAuth: false,
+    useCleanTitle: false,
+    url: () => "https://www.guancha.cn/",
+    extractScript: `
+      var items = document.querySelectorAll('.article-list li, .content-list .item, .module-art .item, article');
+      var results = [];
+      if (items.length > 0) {
+        items.forEach(function(el) {
+          var link = el.querySelector('a[href]');
+          var title = el.querySelector('h4, h3, .title, .re-title, a');
+          if (link) {
+            var titleText = title ? title.textContent.trim() : link.textContent.trim();
+            if (titleText && titleText.length > 5 && titleText.length < 200) {
+              results.push({ title: titleText, url: link.href });
+            }
+          }
+        });
+      }
+      if (results.length === 0) {
+        document.querySelectorAll('a[href]').forEach(function(a) {
+          var text = a.textContent.trim();
+          if (text.length > 10 && text.length < 200 && a.href.includes('guancha.cn')) {
+            results.push({ title: text, url: a.href });
+          }
+        });
+      }
+      return results;
+    `,
+  },
+  {
+    name: "ithome",
+    label: "iThome",
+    needsAuth: false,
+    useCleanTitle: false,
+    url: () => "https://www.ithome.com/",
+    extractScript: `
+      var items = document.querySelectorAll('.list .item, .news-list .item, .lst .item, article');
+      var results = [];
+      if (items.length > 0) {
+        items.forEach(function(el) {
+          var link = el.querySelector('a[href]');
+          var title = el.querySelector('.title, h3, h2, a[title]');
+          if (link) {
+            var titleText = title ? title.textContent.trim() : (link.getAttribute('title') || link.textContent.trim());
+            if (titleText && titleText.length > 5 && titleText.length < 200) {
+              results.push({ title: titleText, url: link.href });
+            }
+          }
+        });
+      }
+      if (results.length === 0) {
+        document.querySelectorAll('a[href]').forEach(function(a) {
+          var text = a.textContent.trim();
+          if (text.length > 10 && text.length < 200 && a.href.includes('ithome.com')) {
+            results.push({ title: text, url: a.href });
+          }
+        });
+      }
+      return results;
+    `,
+  },
 ];
 
 // ─── New self-media sources (TE-T2) ───
@@ -422,11 +486,166 @@ export const SELF_MEDIA_SOURCES = [
       return results;
     `,
   },
+  {
+    name: "zhihu",
+    label: "知乎",
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) => `https://www.zhihu.com/search?type=content&q=${encodeURIComponent(keyword)}`,
+    loginCheckScript: `
+      var body = document.body ? document.body.innerText : '';
+      (body.includes('登录') && body.includes('注册') && !body.includes('退出')) ? 'need_login' : 'ok'
+    `,
+    extractScript: `
+      var items = document.querySelectorAll('.SearchResult-Card, .List-item, .Card.SearchResult-Card');
+      var results = [];
+      if (items.length > 0) {
+        items.forEach(function(el) {
+          var link = el.querySelector('a[href*="/question/"], a[href*="/p/"], a[href*="/answer/"]');
+          var title = el.querySelector('.ContentItem-title, h2, .title');
+          if (link && title) {
+            results.push({ title: title.textContent.trim(), url: link.href });
+          }
+        });
+      }
+      if (results.length === 0) {
+        document.querySelectorAll('a[href*="/question/"], a[href*="/p/"]').forEach(function(a) {
+          var text = a.textContent.trim();
+          if (text.length > 5 && text.length < 200) {
+            results.push({ title: text, url: a.href });
+          }
+        });
+      }
+      return results;
+    `,
+  },
+  {
+    name: "x_search",
+    label: "X (Twitter)",
+    needsAuth: true,
+    useCleanTitle: false,
+    url: (keyword) => `https://x.com/search?q=${encodeURIComponent(keyword)}&f=live`,
+    loginCheckScript: `
+      var body = document.body ? document.body.innerText : '';
+      var url = window.location.href;
+      (url.includes('/login') || url.includes('/i/flow/login') ||
+       (body.includes('Sign in') && body.length < 500)) ? 'need_login' : 'ok'
+    `,
+    extractScript: `
+      var tweets = document.querySelectorAll('[data-testid="tweet"]');
+      var results = [];
+      tweets.forEach(function(t) {
+        var textEl = t.querySelector('[data-testid="tweetText"]');
+        var timeEl = t.querySelector('time');
+        var link = timeEl ? timeEl.closest('a') : null;
+        var userEl = t.querySelector('a[href] [dir]');
+        if (textEl) {
+          var text = textEl.textContent.trim();
+          results.push({
+            title: text.substring(0, 150) + (text.length > 150 ? '...' : ''),
+            url: link ? link.href : '',
+            author: userEl ? userEl.textContent.trim() : '',
+            publishedAt: timeEl ? timeEl.getAttribute('datetime') : ''
+          });
+        }
+      });
+      return results;
+    `,
+    cdpFallback: {
+      url: (keyword) =>
+        `https://www.google.com/search?q=${encodeURIComponent("site:x.com " + keyword)}`,
+      extractScript: `
+        var results = [];
+        document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
+          var link = el.querySelector('a[href]');
+          var title = el.querySelector('h3, .LC20lb');
+          if (link && title) {
+            var url = link.href;
+            if (url.includes('x.com') || url.includes('twitter.com')) {
+              results.push({ title: title.textContent.trim(), url: url });
+            }
+          }
+        });
+        return results;
+      `,
+    },
+  },
 ];
+
+// ─── Directed WeChat account monitors ───
+//
+// Each entry monitors a specific WeChat Official Account by searching
+// Google for republished articles (via 虎嗅, 新浪, ZAKER etc.) that cite
+// the account. This is the most reliable method since:
+//   - Sogou WeChat Search has aggressive anti-bot (returns empty via CDP)
+//   - mp.weixin.qq.com profile_ext requires WeChat client (not Chrome)
+//   - Google site:mp.weixin.qq.com indexes very few articles
+//
+// To add a new account, copy an entry and change name/label/account.
+// If you have mp.weixin.qq.com backend cookie+token, also see WECHAT_API_CONFIG below.
+
+export const WECHAT_ACCOUNT_SOURCES = [
+  {
+    name: "wechat_dongchabeating",
+    label: "动察Beating（公众号）",
+    account: "动察Beating",
+    needsAuth: false,
+    useCleanTitle: false,
+    // Search for articles citing this WeChat account via republish platforms
+    url: () =>
+      `https://www.google.com/search?q=${encodeURIComponent('"来自微信公众号" "动察Beating"')}`,
+    extractScript: `
+      var results = [];
+      // Google search results
+      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h3, .LC20lb');
+        var snippet = el.querySelector('.VwiC3b, .IsZvec, [data-sncf]');
+        if (link && title) {
+          var url = link.href;
+          // Only include articles from republish platforms or WeChat directly
+          if (url.includes('mp.weixin.qq.com') || url.includes('huxiu.com') ||
+              url.includes('sina.com.cn') || url.includes('myzaker.com') ||
+              url.includes('qq.com') || url.includes('ifeng.com') ||
+              url.includes('bohaishibei.com') || url.includes('eastmoney.com') ||
+              url.includes('binance.com') || url.includes('t.me') ||
+              url.includes('x.com') || url.includes('ithome.com')) {
+            results.push({
+              title: title.textContent.trim(),
+              url: url,
+              snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+            });
+          }
+        }
+      });
+      return results;
+    `,
+  },
+];
+
+// WeChat Platform API configuration (optional, for direct article list crawling)
+// Requires cookie + token from mp.weixin.qq.com login session.
+// See: https://github.com/mashukui/wechat_official_account_crawler
+// To enable: set env vars WX_COOKIE and WX_TOKEN, then the discover-trends
+// script will call the WeChat API directly for each monitored account.
+export const WECHAT_API_CONFIG = {
+  enabled: false,
+  searchApi: "https://mp.weixin.qq.com/cgi-bin/searchbiz",
+  articleApi: "https://mp.weixin.qq.com/cgi-bin/appmsgpublish",
+  // env vars: WX_COOKIE, WX_TOKEN
+  // Flow: search account name → get fakeid
+  //
+  // Verified 2026-08-04:
+  //   searchbiz (search account) — ✅ works, returns fakeid + nickname
+  //   appmsgpublish?sub=list — ✅ works, but ONLY for own account's publish history
+  //   appmsg?action=list_ex&fakeid=xxx — ❌ DISABLED by WeChat (returns "invalid args")
+  //   Conclusion: cannot fetch other accounts' article lists via platform API.
+  //   Use WECHAT_ACCOUNT_SOURCES (Google search for republished articles) instead.
+};
 
 // ─── All sources combined ───
 
-export const ALL_SOURCES = [...NEWS_SOURCES, ...SELF_MEDIA_SOURCES];
+export const ALL_SOURCES = [...NEWS_SOURCES, ...SELF_MEDIA_SOURCES, ...WECHAT_ACCOUNT_SOURCES];
 
 /**
  * Default search keywords for self-media sources that require a keyword.

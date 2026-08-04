@@ -4,21 +4,22 @@ import {
   SELF_MEDIA_SOURCES,
   ALL_SOURCES,
   DEFAULT_KEYWORDS,
+  WECHAT_API_CONFIG,
 } from "../lib/trend-sources.mjs";
 
 // ─── Source structure validation ───
 
 describe("Source structure", () => {
-  it("NEWS_SOURCES has 5 sources", () => {
-    expect(NEWS_SOURCES).toHaveLength(5);
+  it("NEWS_SOURCES has 7 sources", () => {
+    expect(NEWS_SOURCES).toHaveLength(7);
   });
 
-  it("SELF_MEDIA_SOURCES has 6 sources", () => {
-    expect(SELF_MEDIA_SOURCES).toHaveLength(6);
+  it("SELF_MEDIA_SOURCES has 8 sources", () => {
+    expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 11 sources", () => {
-    expect(ALL_SOURCES).toHaveLength(11);
+  it("ALL_SOURCES has 16 sources", () => {
+    expect(ALL_SOURCES).toHaveLength(16);
   });
 
   it("each source has required fields", () => {
@@ -48,13 +49,15 @@ describe("News sources", () => {
     expect(src.needsAuth).toBe(false);
   });
 
-  it("includes all 5 original sources", () => {
+  it("includes all 7 original news sources", () => {
     const names = NEWS_SOURCES.map((s) => s.name);
     expect(names).toContain("qbitai");
     expect(names).toContain("jiqizhixin");
     expect(names).toContain("36kr");
     expect(names).toContain("techcrunch");
     expect(names).toContain("bloomberg");
+    expect(names).toContain("guancha");
+    expect(names).toContain("ithome");
   });
 
   it("news sources do not use cleanTitle", () => {
@@ -119,6 +122,13 @@ describe("Self-media sources", () => {
     expect(src.label).toBe("TikTok Creator");
     expect(src.needsAuth).toBe(true);
   });
+
+  it("includes x_search (X / Twitter)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src).toBeDefined();
+    expect(src.label).toBe("X (Twitter)");
+    expect(src.needsAuth).toBe(true);
+  });
 });
 
 // ─── URL building ───
@@ -165,6 +175,15 @@ describe("URL building", () => {
     const url = src.url("test");
     expect(url).toBe("https://www.tiktok.com/creator-center");
   });
+
+  it("x_search builds search URL with keyword", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    const url = src.url("DeepSeek");
+    expect(url).toContain("x.com/search");
+    expect(url).toContain("q=");
+    expect(url).toContain(encodeURIComponent("DeepSeek"));
+    expect(url).toContain("f=live");
+  });
 });
 
 // ─── Login check scripts ───
@@ -188,6 +207,13 @@ describe("Login check scripts", () => {
   it("xhs login check detects login prompt", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
     expect(src.loginCheckScript).toContain("请先登录");
+  });
+
+  it("x_search login check detects login redirect", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.loginCheckScript).toBeTruthy();
+    expect(src.loginCheckScript).toContain("/login");
+    expect(src.loginCheckScript).toContain("Sign in");
   });
 });
 
@@ -215,6 +241,13 @@ describe("Extract scripts", () => {
   it("bilibili extract includes video card selectors", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "bilibili");
     expect(src.extractScript).toContain("bili-video-card");
+  });
+
+  it("x_search extract uses data-testid=tweet selector", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.extractScript).toContain('data-testid="tweet"');
+    expect(src.extractScript).toContain('data-testid="tweetText"');
+    expect(src.extractScript).toContain("return results");
   });
 });
 
@@ -304,5 +337,56 @@ describe("MCP fallback configuration", () => {
     expect(mapped[0].title).toBe("AI热搜");
     expect(mapped[0].url).toContain("s.weibo.com");
     expect(mapped[0].url).toContain(encodeURIComponent("AI热搜"));
+  });
+});
+
+// ─── CDP fallback configuration ───
+
+describe("CDP fallback configuration", () => {
+  it("x_search has cdpFallback", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.cdpFallback).toBeDefined();
+    expect(typeof src.cdpFallback.url).toBe("function");
+    expect(typeof src.cdpFallback.extractScript).toBe("string");
+  });
+
+  it("x_search cdpFallback builds Google site:x.com URL", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    const url = src.cdpFallback.url("DeepSeek");
+    expect(url).toContain("google.com/search");
+    expect(url).toContain(encodeURIComponent("site:x.com "));
+    expect(url).toContain(encodeURIComponent("DeepSeek"));
+  });
+
+  it("x_search cdpFallback extractScript returns results", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.cdpFallback.extractScript).toContain("return results");
+    expect(src.cdpFallback.extractScript).toContain("x.com");
+    expect(src.cdpFallback.extractScript).toContain("twitter.com");
+  });
+
+  it("sources without cdpFallback are unaffected", () => {
+    for (const src of SELF_MEDIA_SOURCES) {
+      if (src.name !== "x_search") {
+        expect(src.cdpFallback).toBeUndefined();
+      }
+    }
+    for (const src of NEWS_SOURCES) {
+      expect(src.cdpFallback).toBeUndefined();
+    }
+  });
+});
+
+// ─── WeChat API config ───
+
+describe("WECHAT_API_CONFIG", () => {
+  it("has searchApi and articleApi", () => {
+    expect(WECHAT_API_CONFIG.searchApi).toContain("searchbiz");
+    expect(WECHAT_API_CONFIG.articleApi).toContain("appmsgpublish");
+  });
+
+  it("documents verified API status", () => {
+    // The config should document which APIs are verified working
+    expect(WECHAT_API_CONFIG.enabled).toBe(false);
   });
 });

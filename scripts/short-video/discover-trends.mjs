@@ -2,13 +2,14 @@
 /**
  * China AI News Trend Discovery
  *
- * Scrapes 11 sources (5 news + 6 self-media) via Chrome CDP proxy,
+ * Scrapes 16 sources (7 news + 8 self-media + 1 wechat) via Chrome CDP proxy,
  * filters for China AI topics, classifies into breaking/fermenting/data/explainer,
  * deduplicates, and outputs JSON.
  *
  * Sources:
- *   News: 量子位/机器之心/36氪/TechCrunch AI/Bloomberg Tech
- *   Self-media: 小红书/搜狗微信/微博热搜/B站/抖音/TikTok Creator Center
+ *   News: 量子位/机器之心/36氪/TechCrunch AI/Bloomberg Tech/观察者网/IT之家
+ *   Self-media: 小红书/搜狗微信/微博热搜/B站/抖音/TikTok Creator Center/知乎/X(Twitter)
+ *   WeChat: 公众号转载搜索
  *
  * Usage: node scripts/short-video/discover-trends.mjs [--keyword <kw>]
  *
@@ -164,7 +165,7 @@ async function collectFromCdp(source, keyword) {
       await cdpCloseTab(tabId);
       return [];
     } else if (status === "captcha") {
-      console.warn(`  ⚠️  ${source.label} triggered captcha — CDP failed`);
+      console.warn(`  ⚠️  ${source.label} 触发验证码，请在 Chrome 中手动通过验证码后重试`);
       await cdpCloseTab(tabId);
       return [];
     }
@@ -219,7 +220,22 @@ async function collectFromSource(source, keyword) {
   // Step 1: Try CDP (primary)
   let articles = await collectFromCdp(source, keyword);
 
-  // Step 2: If CDP failed and MCP fallback is configured, try MCP
+  // Step 2: If CDP failed and CDP fallback is configured, try it
+  if (articles.length === 0 && source.cdpFallback) {
+    console.log(`  📡 Trying CDP fallback for ${source.label}...`);
+    const fallbackSource = {
+      ...source,
+      name: source.name + "_fallback",
+      label: source.label + " (fallback)",
+      url: source.cdpFallback.url,
+      extractScript: source.cdpFallback.extractScript,
+      loginCheckScript: null,
+      needsAuth: false,
+    };
+    articles = await collectFromCdp(fallbackSource, keyword);
+  }
+
+  // Step 3: If still failed and MCP fallback is configured, try MCP
   if (articles.length === 0 && source.mcpFallback) {
     const mcpArticles = await collectFromMcp(source, keyword);
     articles = mcpArticles;
@@ -248,7 +264,7 @@ async function collectFromSource(source, keyword) {
 async function main() {
   console.log("📡 China AI News Trend Discovery");
   console.log("=".repeat(60));
-  console.log(`  Sources: ${ALL_SOURCES.length} (5 news + 6 self-media)`);
+  console.log(`  Sources: ${ALL_SOURCES.length} (7 news + 8 self-media + 1 wechat)`);
   if (keywordArg) {
     console.log(`  Keyword: ${keywordArg}`);
   }
