@@ -212,6 +212,13 @@ async function main() {
     }
   }
 
+  if (result.skipped && result.skipped.length > 0) {
+    console.log(`\n⏭️  Skipped ${result.skipped.length} file(s) (already exists):`);
+    for (const s of result.skipped) {
+      console.log(`  • ${s.fileName} (${s.reason})`);
+    }
+  }
+
   if (result.errors.length > 0) {
     console.log(`\n❌ ${result.errors.length} error(s):`);
     for (const err of result.errors) {
