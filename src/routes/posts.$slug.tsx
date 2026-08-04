@@ -7,7 +7,7 @@ import { MarkdownContent } from "@/components/markdown-content";
 import { FileText, ExternalLink } from "lucide-react";
 import { Suspense } from "react";
 import { splitContent } from "@/components/widgets/content-splitter";
-import { WIDGETS, isRegisteredWidget } from "@/components/widgets/registry";
+import { WIDGETS, isRegisteredWidget, isBreakoutWidget } from "@/components/widgets/registry";
 import { ReadingProgress } from "@/components/reading-progress";
 
 function formatSize(bytes: number): string {
@@ -135,8 +135,12 @@ function PostPage() {
                   );
                 }
                 const Widget = WIDGETS[segment.name];
+                const isBreakout = isBreakoutWidget(segment.name);
                 return (
-                  <div key={i} className="my-10">
+                  <div
+                    key={i}
+                    className={`my-10 ${isBreakout ? "max-w-none" : "max-w-prose"}`}
+                  >
                     <Suspense
                       fallback={
                         <div className="animate-pulse text-sm text-muted-foreground">

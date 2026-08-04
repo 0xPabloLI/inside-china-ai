@@ -12,10 +12,23 @@ export type LazyWidget = LazyExoticComponent<WidgetComponent>;
  * To add a new widget:
  * 1. Create the component under `src/components/widgets/<package>/`
  * 2. Import it here and add one line to the WIDGETS record
+ * 3. If the widget needs more width than the article text column (65ch),
+ *    add its name to BREAKOUT_WIDGETS below
  *
  * The article page's content renderer and the editor dropdown both read from
  * this registry. No other registration is needed.
  */
+
+/**
+ * Widgets that need a wider container than the prose text column (65ch).
+ * These render at the full article width (max-w-4xl, ~896px).
+ * Typically: two-column layouts, wide matrices, or complex chart panels
+ * that look cramped at 65ch.
+ */
+export const BREAKOUT_WIDGETS = new Set<string>([
+  "deepseek-funding", // donut chart + investor legend side-by-side
+]);
+
 export const WIDGETS: Record<string, LazyWidget> = {
   "deepseek-cloud": lazy(() =>
     import("./deepseek/cloud-view").then((m) => ({ default: m.CloudView })),
@@ -74,4 +87,9 @@ export function getWidget(id: string): LazyWidget | null {
 /** Check if a widget name is registered. */
 export function isRegisteredWidget(name: string): boolean {
   return name in WIDGETS;
+}
+
+/** Check if a widget should render at the full article width (breakout). */
+export function isBreakoutWidget(name: string): boolean {
+  return BREAKOUT_WIDGETS.has(name);
 }
