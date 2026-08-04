@@ -55,7 +55,7 @@ export function assembleVideo(scenes, outputDir, bgmPath = null, srtPath = null)
     renameSync(finalPath, noSubsPath);
     // Use ffmpeg-full for subtitles filter (has libass support)
     const ffmpegFull = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
-    const subFilter = `subtitles=${srtPath}:force_style='FontName=Helvetica Neue,FontSize=42,PrimaryColour=&H00F5F5F5,OutlineColour=&H66000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=200'`;
+    const subFilter = `ass=${srtPath}`;
     execFileSync(
       ffmpegFull,
       ["-y", "-i", noSubsPath, "-vf", subFilter, "-c:a", "copy", finalPath],

@@ -1,23 +1,16 @@
 /**
- * Generate SRT subtitle file from wav2vec2 alignment data + scene durations.
- * Converts per-scene relative timestamps to absolute timestamps across the full video.
+ * Generate ASS subtitle file from wav2vec2 alignment data + scene durations.
+ * Uses explicit PlayResX=1080, PlayResY=1920 so FontSize/MarginV are in actual pixels.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
+import { writeFileSync } from "fs";
 
-/**
- * @param {Array} timingData - subtitle-timing.json [{sceneId, segments: [{text, start, end, words}]}]
- * @param {Array} sceneDurations - [{sceneId, duration}]
- * @param {string} outputPath - path to write SRT file
- * @returns {string} SRT file path
- */
 export function generateSRT(timingData, sceneDurations, outputPath) {
   if (!timingData || timingData.length === 0) return null;
 
   const subtitles = [];
   let sceneOffset = 0;
-  const START_OFFSET = -0.3; // subtitles appear 0.3s before audio (never late)
+  const START_OFFSET = -0.3;
 
   for (const scene of timingData) {
     const sceneId = scene.sceneId;
@@ -26,16 +19,11 @@ export function generateSRT(timingData, sceneDurations, outputPath) {
     for (const seg of scene.segments || []) {
       const startAbs = Math.max(sceneOffset + seg.start + START_OFFSET, 0);
       const endAbs = sceneOffset + Math.min(seg.end, sceneDur);
-      // Split long segments (>7 words) into smaller chunks
+
       const words = seg.text.split(/\s+/);
       if (words.length <= 7) {
-        subtitles.push({
-          start: startAbs,
-          end: endAbs,
-          text: seg.text,
-        });
+        subtitles.push({ start: startAbs, end: endAbs, text: seg.text });
       } else {
-        // Split into 3-7 word chunks
         const subChunks = Math.ceil(words.length / 5);
         const wordsPerChunk = Math.ceil(words.length / subChunks);
         const segDur = endAbs - startAbs;
@@ -52,14 +40,12 @@ export function generateSRT(timingData, sceneDurations, outputPath) {
         }
       }
     }
-    // 0.5s buffer between scenes (matches Playwright recording buffer)
     sceneOffset += sceneDur + 0.5;
   }
 
-  // Sort by start time
   subtitles.sort((a, b) => a.start - b.start);
 
-  // Extend each subtitle to next subtitle's start (gap-fill)
+  // Gap-fill: extend each subtitle to next subtitle's start
   for (let i = 0; i < subtitles.length - 1; i++) {
     const nextStart = subtitles[i + 1].start;
     if (nextStart > subtitles[i].end) {
@@ -67,22 +53,33 @@ export function generateSRT(timingData, sceneDurations, outputPath) {
     }
   }
 
-  // Generate SRT format
-  const srt = subtitles
-    .map((sub, i) => {
-      return `${i + 1}\n${formatSRTTime(sub.start)} --> ${formatSRTTime(sub.end)}\n${sub.text}\n`;
-    })
-    .join("\n");
+  // Generate ASS file with explicit PlayResX=1080, PlayResY=1920
+  // This ensures FontSize and MarginV are in actual pixels
+  const assPath = outputPath.replace(/\.srt$/, ".ass");
+  let ass = "[Script Info]\n";
+  ass += "ScriptType: v4.00+\n";
+  ass += "PlayResX: 1080\n";
+  ass += "PlayResY: 1920\n";
+  ass += "WrapStyle: 2\n\n";
+  ass += "[V4+ Styles]\n";
+  ass += "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n";
+  ass += "Style: Default,Helvetica Neue,42,&H00F5F5F5,&H000000FF,&H66000000,&H66000000,1,0,0,0,100,100,0,0,1,3,1,2,65,65,200,1\n\n";
+  ass += "[Events]\n";
+  ass += "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
 
-  writeFileSync(outputPath, srt, "utf8");
-  console.log(`  📝 SRT generated: ${subtitles.length} cues → ${outputPath}`);
-  return outputPath;
+  for (const sub of subtitles) {
+    ass += `Dialogue: 0,${formatASSTime(sub.start)},${formatASSTime(sub.end)},Default,,0,0,0,,${sub.text.replace(/,/g, "\\,")}\n`;
+  }
+
+  writeFileSync(assPath, ass, "utf8");
+  console.log(`  📝 ASS generated: ${subtitles.length} cues → ${assPath}`);
+  return assPath;
 }
 
-function formatSRTTime(seconds) {
+function formatASSTime(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  const ms = Math.floor((seconds % 1) * 1000);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")},${String(ms).padStart(3, "0")}`;
+  const cs = Math.floor((seconds % 1) * 100);
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
 }
