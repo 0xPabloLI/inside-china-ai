@@ -19,7 +19,7 @@ The brand uses **one visual identity, two surface treatments** — same semantic
 
 ### What's shared across both surfaces
 
-- **Semantic color mapping**: red = threat/breaking, green = positive, blue = tech/brand, amber = caution + key data highlights + CTA. The *meaning* is identical; the *hex value* adapts to the surface.
+- **Semantic color mapping**: red = threat/breaking, green = positive, blue = tech/brand, amber = caution + key data highlights + CTA. The _meaning_ is identical; the _hex value_ adapts to the surface.
 - **Entity color consistency**: DeepSeek is always blue, Huawei is always red, government is always amber — in both video and web.
 - **Brand name presentation**: `AI` is always emphasized in blue (`#4d8bff`), on both surfaces. The typographic treatment adapts to the surface:
   - **Video**: `CHINA AI NEWS` — uppercase, Helvetica Neue 900, sans-serif.
@@ -37,22 +37,22 @@ Consistent color coding across all content — same entity always same color.
 
 ### Core
 
-| Token | Hex | Semantic |
-|-------|-----|----------|
-| `--blue` | `#4d8bff` | Protagonist, tech, brand |
-| `--red` | `#ef4444` | Threat, breaking, negative |
-| `--amber` | `#f59e0b` | Warning, caution; **also: key data highlights & CTA** (highest visibility on dark bg) |
-| `--green` | `#34d399` | Positive, advantage, success |
-| `--purple` | `#6d4eff` | Neutral data, secondary |
-| `--cyan` | `#22d3ee` | Technical concept |
+| Token      | Hex       | Semantic                                                                              |
+| ---------- | --------- | ------------------------------------------------------------------------------------- |
+| `--blue`   | `#4d8bff` | Protagonist, tech, brand                                                              |
+| `--red`    | `#ef4444` | Threat, breaking, negative                                                            |
+| `--amber`  | `#f59e0b` | Warning, caution; **also: key data highlights & CTA** (highest visibility on dark bg) |
+| `--green`  | `#34d399` | Positive, advantage, success                                                          |
+| `--purple` | `#6d4eff` | Neutral data, secondary                                                               |
+| `--cyan`   | `#22d3ee` | Technical concept                                                                     |
 
 ### Text
 
-| Token | Hex | Usage |
-|-------|-----|-------|
+| Token     | Hex       | Usage                                                |
+| --------- | --------- | ---------------------------------------------------- |
 | `--white` | `#f5f5f5` | Headlines (off-white, reduces glare vs pure #ffffff) |
-| `--sec` | `#94a3b8` | Labels, descriptions |
-| `--muted` | `#475569` | Footnotes |
+| `--sec`   | `#94a3b8` | Labels, descriptions                                 |
+| `--muted` | `#475569` | Footnotes                                            |
 
 ### Background
 
@@ -66,12 +66,35 @@ Base: `#050508`. Cards: `rgba(255,255,255,0.03)`. Borders: `rgba(255,255,255,0.0
 
 Font stack: `'Helvetica Neue', 'Arial Black', Arial, sans-serif`
 
-| Context | Size | Weight | Spacing |
-|---------|------|--------|---------|
-| Headlines | 48-130px | 800-900 | 2-5px |
-| Body | 28-40px | 600-800 | normal |
-| Labels | 22-28px | 700 | 2-3px, uppercase |
-| Data anchors | 64-280px | 900 | tight |
+| Context      | Size     | Weight  | Spacing          |
+| ------------ | -------- | ------- | ---------------- |
+| Headlines    | 48-130px | 800-900 | 2-5px            |
+| Body         | 28-40px  | 600-800 | normal           |
+| Labels       | 22-28px  | 700     | 2-3px, uppercase |
+| Data anchors | 64-280px | 900     | tight            |
+
+## Subtitle Specification (Video)
+
+Burned-in subtitles via FFmpeg ASS filter. All values in actual pixels (PlayResX=1080, PlayResY=1920).
+
+| Property       | Value                                   |
+| -------------- | --------------------------------------- |
+| Font           | Helvetica Neue                          |
+| Font size      | 42px                                    |
+| Weight         | Bold                                    |
+| Color          | White (#F5F5F5, ASS: &H00F5F5F5)        |
+| Outline        | Black, 3px (ASS: &H66000000, semi-transparent) |
+| Shadow         | 1px                                     |
+| Position       | Bottom-center (Alignment=2)             |
+| Margin from bottom | 200px (MarginV=200)                 |
+| Max width      | ~950px (65px margins L/R)               |
+| Background     | None (transparent, text outline only)  |
+| Timing offset  | -0.3s (subtitles appear slightly before audio) |
+
+ASS Style line:
+```
+Style: Default,Helvetica Neue,42,&H00F5F5F5,&H000000FF,&H66000000,&H66000000,1,0,0,0,100,100,0,0,1,3,1,2,65,65,200,1
+```
 
 ## Background Layers
 
@@ -86,23 +109,23 @@ Every scene/thumbnail layers these four effects:
 
 All animations: `opacity: 0` initial, `forwards` fill mode. Stagger delays 0.3-0.7s.
 
-| Name | Duration | Easing | Use |
-|------|----------|--------|-----|
-| `fadeIn` | 0.3-0.5s | ease-out | Subtle appearance |
-| `slideUp` | 0.4-0.6s | ease-out | Headlines, titles |
-| `slideLeft` | 0.4-0.5s | cubic-bezier(0.16,1,0.3,1) | Cards, list items |
-| `scaleIn` | 0.5-0.6s | ease-out | Big numbers, key data |
-| `stampIn` | 0.3-0.5s | ease-out | Verdicts (scale 2→1) |
+| Name        | Duration | Easing                     | Use                   |
+| ----------- | -------- | -------------------------- | --------------------- |
+| `fadeIn`    | 0.3-0.5s | ease-out                   | Subtle appearance     |
+| `slideUp`   | 0.4-0.6s | ease-out                   | Headlines, titles     |
+| `slideLeft` | 0.4-0.5s | cubic-bezier(0.16,1,0.3,1) | Cards, list items     |
+| `scaleIn`   | 0.5-0.6s | ease-out                   | Big numbers, key data |
+| `stampIn`   | 0.3-0.5s | ease-out                   | Verdicts (scale 2→1)  |
 
 ## Color Usage Guide (60-30-10 Principle)
 
 Based on TikTok color best practices research (2025-2026):
 
-| Role | Ratio | Color | Usage |
-|------|-------|-------|-------|
-| **Dominant** | 60% | `#050508` (dark bg) | Background, negative space |
-| **Supporting** | 30% | `#f5f5f5` text + blue/red/green semantic colors | Headlines, body, entity colors |
-| **Accent** | 10% | `#f59e0b` amber | Key numbers, CTA, data highlights |
+| Role           | Ratio | Color                                           | Usage                             |
+| -------------- | ----- | ----------------------------------------------- | --------------------------------- |
+| **Dominant**   | 60%   | `#050508` (dark bg)                             | Background, negative space        |
+| **Supporting** | 30%   | `#f5f5f5` text + blue/red/green semantic colors | Headlines, body, entity colors    |
+| **Accent**     | 10%   | `#f59e0b` amber                                 | Key numbers, CTA, data highlights |
 
 - **Red** `#ef4444` → breaking news badges, threat/negative entities, danger stamps
 - **Amber** `#f59e0b` → big numbers in Hook, CTA "Subscribe", key data points (Bloomberg amber-on-black pattern)
@@ -216,6 +239,7 @@ Brand closer. No URL (testing phase).
 ## Implementation
 
 The CSS implementation of these specs lives in:
+
 - `scripts/short-video/generate-scenes.mjs` — video scene HTML/CSS
 - `scripts/youtube-thumbnail.html` — thumbnail HTML/CSS
 
