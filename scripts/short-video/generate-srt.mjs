@@ -63,7 +63,7 @@ export function generateSRT(timingData, sceneDurations, outputPath) {
   ass += "WrapStyle: 2\n\n";
   ass += "[V4+ Styles]\n";
   ass += "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n";
-  ass += "Style: Default,Helvetica Neue,42,&H00F5F5F5,&H000000FF,&H66000000,&H66000000,1,0,0,0,100,100,0,0,1,3,1,2,65,65,200,1\n\n";
+  ass += "Style: Default,Helvetica Neue,42,&H00F5F5F5,&H000000FF,&H66000000,&H66000000,1,0,0,0,100,100,0,0,1,3,1,2,65,65,450,1\n\n";
   ass += "[Events]\n";
   ass += "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
 

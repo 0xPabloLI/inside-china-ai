@@ -86,14 +86,14 @@ Burned-in subtitles via FFmpeg ASS filter. All values in actual pixels (PlayResX
 | Outline        | Black, 3px (ASS: &H66000000, semi-transparent) |
 | Shadow         | 1px                                     |
 | Position       | Bottom-center (Alignment=2)             |
-| Margin from bottom | 200px (MarginV=200)                 |
+| Margin from bottom | 450px (above TikTok bottom UI zone)   |
 | Max width      | ~950px (65px margins L/R)               |
 | Background     | None (transparent, text outline only)  |
 | Timing offset  | -0.3s (subtitles appear slightly before audio) |
 
 ASS Style line:
 ```
-Style: Default,Helvetica Neue,42,&H00F5F5F5,&H000000FF,&H66000000,&H66000000,1,0,0,0,100,100,0,0,1,3,1,2,65,65,200,1
+Style: Default,Helvetica Neue,42,&H00F5F5F5,&H000000FF,&H66000000,&H66000000,1,0,0,0,100,100,0,0,1,3,1,2,65,65,450,1
 ```
 
 ## Background Layers
