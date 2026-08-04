@@ -1,95 +1,177 @@
-import type { Lang } from "../deepseek/i18n";
+import { useState } from "react";
+import { METRICS, MODEL_META, type MetricRow } from "./data/benchmarks";
 
-export interface BenchmarkItem {
-  source: string;
-  date: string;
-  headline: string;
-  summary: string;
-  url: string;
+function Bar({
+  value,
+  max,
+  color,
+  unit,
+  higherIsBetter,
+  best,
+  worst,
+}: {
+  value: number;
+  max: number;
+  color: string;
+  unit: string;
+  higherIsBetter: boolean;
+  best: boolean;
+  worst: boolean;
+}) {
+  const pct = Math.max(2, (value / max) * 100);
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative h-6 flex-1 overflow-hidden rounded">
+        <div
+          className="flex h-full items-center justify-end rounded pr-2 text-[10px] font-bold text-white transition-all duration-300"
+          style={{
+            width: `${pct}%`,
+            background: color,
+            opacity: worst ? 0.5 : 1,
+            boxShadow: best ? `0 0 0 2px ${color}44` : "none",
+          }}
+        >
+          {value}
+          {unit}
+        </div>
+      </div>
+      {best && (
+        <span className="shrink-0 text-[9px] font-bold text-green-600">
+          ★ Best
+        </span>
+      )}
+      {worst && !best && (
+        <span className="shrink-0 text-[9px] font-bold text-red-500">
+          ▼ Worst
+        </span>
+      )}
+    </div>
+  );
 }
 
-export const BENCHMARK_ITEMS: BenchmarkItem[] = [
-  {
-    source: "Artificial Analysis",
-    date: "July 2026",
-    headline: "K3 Hallucination Rate at 51% on AA-Omniscience",
-    summary:
-      "Independent benchmarking by Artificial Analysis measured Kimi K3's hallucination rate at 51% (up from K2.6's 39%). While accuracy improved from 33% to 46%, the hallucination rate also climbed significantly. K3 scored below Claude on coding, agents, and frontier SWE — leading only in codebase cleaning and long-horizon engineering.",
-    url: "https://artificialanalysis.ai",
-  },
-  {
-    source: "SCMP",
-    date: "July 24, 2026",
-    headline: "Kimi K3 'Significantly Below' US Rivals in Security Testing",
-    summary:
-      "The South China Morning Post reported that Kimi K3 was 'significantly below' US rivals in security testing, raising concerns about safety guardrails in distilled models.",
-    url: "https://www.scmp.com/tech/big-tech/article/kimi-k3-developer-suspends-new-subscriptions",
-  },
-  {
-    source: "PCMag",
-    date: "July 22, 2026",
-    headline: "White House Official Accuses Kimi K3 of 'Cloning US Tech'",
-    summary:
-      "A White House official publicly accused Kimi K3 of cloning US technology, elevating the distillation controversy from an industry dispute to a geopolitical issue. Microsoft and Nvidia CEOs subsequently backed Moonshot.",
-    url: "https://www.pcmag.com/news/chinas-kimi-k3-ai-model-cheated-by-cloning-us-tech",
-  },
-  {
-    source: "HackerNoon",
-    date: "July 2026",
-    headline: "K3 Top Benchmark Runs Rely on Maximum Reasoning Effort",
-    summary:
-      "Independent technical analysis noted that K3's top benchmark results were achieved only when using maximum reasoning/thinking effort modes, raising questions about whether the benchmark scores reflected typical user experience.",
-    url: "https://hackernoon.com",
-  },
-  {
-    source: "Zhihu (猫老板 / Cat Boss)",
-    date: "Ongoing 2026",
-    headline: "LLM Evaluation Blogger Tracks Benchmark Manipulation",
-    summary:
-      "A well-known Zhihu platform blogger known as '猫老板' (Cat Boss) runs independent LLM evaluations and has publicly analyzed benchmark manipulation patterns, including test set contamination and targeting of private evaluation questions by lab teams.",
-    url: "https://www.zhihu.com",
-  },
-  {
-    source: "Arena (LMSYS)",
-    date: "July 2026",
-    headline: "K3 Jumps 17 Places on Arena Frontend Code",
-    summary:
-      "On the Arena Frontend Code leaderboard, Kimi K3 jumped 17 places from K2.x to claim the #1 spot. However, Moonshot's own evaluation report showed K3 below Claude on coding, agents, and frontier SWE, leading to questions about score consistency.",
-    url: "https://lmarena.ai",
-  },
-];
+export function BenchmarkControversyView() {
+  const [activeRow, setActiveRow] = useState<MetricRow | null>(null);
 
-export function BenchmarkControversyView(_props: { lang: Lang }) {
   return (
-    <div className="space-y-3">
-      <div className="text-[11px] text-muted-foreground/70">
-        Independent benchmark results and public reporting on Kimi K3 evaluation controversies.
-      </div>
-      <div className="space-y-2.5">
-        {BENCHMARK_ITEMS.map((item, i) => (
-          <a
-            key={i}
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block overflow-hidden rounded-lg border border-border/40 bg-background/40 p-4 transition-colors hover:border-border/70 hover:bg-muted/30"
+    <div className="space-y-4">
+      {/* Model legend */}
+      <div className="flex flex-wrap items-center gap-4">
+        {Object.entries(MODEL_META).map(([key, meta]) => (
+          <div
+            key={key}
+            className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"
           >
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              <span className="font-semibold text-foreground/80">{item.source}</span>
-              <span>·</span>
-              <span>{item.date}</span>
-            </div>
-            <h4 className="mt-1 text-sm font-bold leading-snug text-foreground">
-              {item.headline}
-            </h4>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
-              {item.summary}
-            </p>
-            <span className="mt-2 inline-block text-[10px] text-primary hover:underline">
-              Read source ↗
-            </span>
-          </a>
+            <span
+              className="h-3 w-6 rounded-sm"
+              style={{ background: meta.color }}
+            />
+            {meta.name}
+          </div>
         ))}
+        <div className="ml-auto text-[10px] text-muted-foreground/60">
+          Hover bars for analysis
+        </div>
+      </div>
+
+      {/* Grouped horizontal bars */}
+      <div className="space-y-3.5">
+        {METRICS.map((row) => {
+          const values = [row.k3, row.k26, row.claude];
+          const max = Math.max(...values) * 1.15;
+          const bestVal = row.higherIsBetter ? Math.max(...values) : Math.min(...values);
+          const worstVal = row.higherIsBetter ? Math.min(...values) : Math.max(...values);
+          const isActive = activeRow === row;
+
+          return (
+            <div
+              key={row.dimension}
+              className="cursor-pointer rounded-lg p-2 transition-colors hover:bg-muted/20"
+              onMouseEnter={() => setActiveRow(row)}
+              onMouseLeave={() => setActiveRow(null)}
+            >
+              {/* Dimension label */}
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="text-[12px] font-bold text-foreground/80">
+                  {row.dimension}
+                </span>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[8px] font-bold ${
+                    row.higherIsBetter
+                      ? "bg-green-500/10 text-green-600"
+                      : "bg-red-500/10 text-red-500"
+                  }`}
+                >
+                  {row.higherIsBetter ? "↑ higher better" : "↓ lower better"}
+                </span>
+              </div>
+
+              {/* Bars */}
+              <div className="ml-1 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 text-[10px] font-semibold text-muted-foreground">
+                    {MODEL_META.k3.name}
+                  </span>
+                  <div className="flex-1">
+                    <Bar
+                      value={row.k3}
+                      max={max}
+                      color={MODEL_META.k3.color}
+                      unit={row.unit}
+                      higherIsBetter={row.higherIsBetter}
+                      best={row.k3 === bestVal}
+                      worst={row.k3 === worstVal}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 text-[10px] font-semibold text-muted-foreground">
+                    {MODEL_META.k26.name}
+                  </span>
+                  <div className="flex-1">
+                    <Bar
+                      value={row.k26}
+                      max={max}
+                      color={MODEL_META.k26.color}
+                      unit={row.unit}
+                      higherIsBetter={row.higherIsBetter}
+                      best={row.k26 === bestVal}
+                      worst={row.k26 === worstVal}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 text-[10px] font-semibold text-muted-foreground">
+                    {MODEL_META.claude.name}
+                  </span>
+                  <div className="flex-1">
+                    <Bar
+                      value={row.claude}
+                      max={max}
+                      color={MODEL_META.claude.color}
+                      unit={row.unit}
+                      higherIsBetter={row.higherIsBetter}
+                      best={row.claude === bestVal}
+                      worst={row.claude === worstVal}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Analysis note */}
+              {isActive && (
+                <div className="mt-2 rounded-md bg-amber-500/5 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                  💡 {row.note}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Sources */}
+      <div className="border-t border-border/30 pt-3 text-[10px] leading-relaxed text-muted-foreground/60">
+        Sources: Artificial Analysis · SCMP · PCMag · HackerNoon · LMSYS Arena ·
+        Moonshot evaluation report
       </div>
     </div>
   );

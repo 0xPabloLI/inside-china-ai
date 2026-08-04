@@ -1,150 +1,203 @@
-import type { Lang } from "../deepseek/i18n";
+import { useState } from "react";
+import {
+  STOCK_POINTS,
+  SUMMARY_CARDS,
+  type StockPoint,
+} from "./data/minimax-stock";
 
-export interface StockEvent {
-  date: string;
-  price: string;
-  event: string;
-  detail: string;
-  source: string;
-  url: string;
-  highlight?: boolean;
+const W = 520;
+const H = 220;
+const PAD_L = 45;
+const PAD_R = 20;
+const PAD_T = 15;
+const PAD_B = 35;
+const CHART_W = W - PAD_L - PAD_R;
+const CHART_H = H - PAD_T - PAD_B;
+
+const PRICED = STOCK_POINTS.filter((p): p is StockPoint & { price: number } => p.price !== null);
+const MAX_P = Math.max(...PRICED.map((p) => p.price)) * 1.1;
+const MIN_P = 0;
+
+function priceToY(price: number): number {
+  return PAD_T + CHART_H - (price / MAX_P) * CHART_H;
 }
 
-export const MINIMAX_EVENTS: StockEvent[] = [
-  {
-    date: "March 2026",
-    price: "HK$1,330",
-    event: "Peak Stock Price",
-    detail:
-      "MiniMax Group Inc (HKEX: 0100.HK) reached its all-time high of HK$1,330, riding the AI boom and investor enthusiasm for Chinese AI companies.",
-    source: "Google Finance",
-    url: "https://www.google.com/finance/quote/0100:HKG",
-    highlight: true,
-  },
-  {
-    date: "February 2026",
-    price: "—",
-    event: "Accused by Anthropic of Largest Distillation Volume",
-    detail:
-      "Anthropic's February 23 blog post accused MiniMax of 13M+ exchanges with Claude — the largest distillation volume among the three named labs. The accusation targeted agentic coding, tool use, and orchestration capabilities.",
-    source: "Anthropic Official Blog",
-    url: "https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks",
-  },
-  {
-    date: "July 9, 2026",
-    price: "~HK$1,090",
-    event: "Lock-up Expiry Triggers 18% Single-Day Drop",
-    detail:
-      "Lock-up expiry released ~153 million shares (~48.9% of capital), triggering an 18% single-day drop. This was the beginning of the accelerated decline.",
-    source: "Google Finance / HKEX filings",
-    url: "https://www.google.com/finance/quote/0100:HKG",
-    highlight: true,
-  },
-  {
-    date: "July 2026",
-    price: "—",
-    event: "M3 Model Price Cut Within One Week",
-    detail:
-      "MiniMax's M3 model permanently cut its price within a week of launch, signaling weak market positioning and intensifying price competition in the Chinese LLM market.",
-    source: "Industry reports",
-    url: "https://www.google.com/finance/quote/0100:HKG",
-  },
-  {
-    date: "July 2026",
-    price: "—",
-    event: "Emergency HK$16 Billion Capital Raise",
-    detail:
-      "MiniMax conducted an emergency HK$16 billion capital raise amid the stock collapse, seeking to shore up its financial position.",
-    source: "HKEX filings",
-    url: "https://www.google.com/finance/quote/0100:HKG",
-  },
-  {
-    date: "Late July 2026",
-    price: "~HK$186",
-    event: "Stock Hits Low — Over 80% Decline from Peak",
-    detail:
-      "MiniMax stock fell to approximately HK$186, a decline of over 80% from its March peak. Drivers included: Anthropic's distillation accusations, M3 price cut, low consumer business margins, new AI companion regulations, and significant annual losses.",
-    source: "Google Finance",
-    url: "https://www.google.com/finance/quote/0100:HKG",
-    highlight: true,
-  },
-  {
-    date: "August 3, 2026",
-    price: "~HK$247",
-    event: "Partial Recovery",
-    detail:
-      "As of August 3, MiniMax stock partially recovered to approximately HK$247, but remained over 81% below its March peak. Moonshot's IPO preparations continued to pressure MiniMax's stock as the market anticipated intensified competition.",
-    source: "Google Finance",
-    url: "https://www.google.com/finance/quote/0100:HKG",
-  },
-];
+function idxToX(idx: number, total: number): number {
+  if (total <= 1) return PAD_L + CHART_W / 2;
+  return PAD_L + (idx / (total - 1)) * CHART_W;
+}
 
-export function MinimaxStockView(_props: { lang: Lang }) {
-  const prices = MINIMAX_EVENTS.filter((e) => e.price !== "—" && e.price.startsWith("HK$"));
-  const maxPrice = Math.max(
-    ...prices.map((e) => parseFloat(e.price.replace("HK$", "").replace("~", "").replace(",", ""))),
-  );
+// Build SVG path for the line
+const linePath = PRICED.map((p, i) => {
+  const x = idxToX(i, PRICED.length);
+  const y = priceToY(p.price);
+  return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+}).join(" ");
+
+// Build area fill path
+const areaPath =
+  linePath +
+  ` L${idxToX(PRICED.length - 1, PRICED.length).toFixed(1)},${(PAD_T + CHART_H).toFixed(1)} L${idxToX(0, PRICED.length).toFixed(1)},${(PAD_T + CHART_H).toFixed(1)} Z`;
+
+export function MinimaxStockView() {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const active = hovered !== null ? PRICED[hovered] : null;
+
+  // Y-axis ticks
+  const ticks = [0, 300, 600, 900, 1200, 1500].filter((t) => t <= MAX_P);
 
   return (
     <div className="space-y-4">
-      <div className="text-[11px] text-muted-foreground/70">
-        MiniMax Group Inc (HKEX: 0100.HK) stock collapse timeline. All data from Google Finance and HKEX filings.
-      </div>
-
-      {/* Price bar chart */}
-      <div className="flex items-end gap-2 border-b border-border/40 pb-1" style={{ height: 120 }}>
-        {prices.map((ev, i) => {
-          const val = parseFloat(ev.price.replace("HK$", "").replace("~", "").replace(",", ""));
-          const barH = Math.max(4, (val / maxPrice) * 90);
-          return (
-            <div key={i} className="flex h-full flex-1 flex-col items-center justify-end">
-              <div className="text-[9px] font-bold text-muted-foreground">{ev.price}</div>
-              <div
-                className={`w-full max-w-[60px] rounded-t ${
-                  ev.highlight
-                    ? "bg-gradient-to-t from-red-500 to-red-400"
-                    : "bg-gradient-to-t from-primary to-primary/70"
-                }`}
-                style={{ height: barH }}
-              />
-              <div className="mt-1 text-[8px] text-muted-foreground">{ev.date}</div>
+      {/* Summary cards */}
+      <div className="flex flex-wrap gap-2.5">
+        {SUMMARY_CARDS.map((c, i) => (
+          <div
+            key={i}
+            className="flex-1 min-w-[100px] rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-center"
+          >
+            <div className={`text-base font-bold ${c.color}`}>{c.val}</div>
+            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">
+              {c.label}
             </div>
-          );
-        })}
-      </div>
-
-      {/* Timeline */}
-      <div className="relative space-y-0">
-        <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border/40" />
-        {MINIMAX_EVENTS.map((ev, i) => (
-          <div key={i} className="relative pl-7 pb-4 last:pb-0">
-            <div
-              className={`absolute left-0 top-1.5 h-[15px] w-[15px] rounded-full border-2 ${
-                ev.highlight
-                  ? "border-red-500 bg-red-500/20"
-                  : "border-border bg-background"
-              }`}
-            />
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-muted-foreground">{ev.date}</span>
-              {ev.price !== "—" && (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold text-foreground">
-                  {ev.price}
-                </span>
-              )}
-            </div>
-            <div className="mt-0.5 text-sm font-bold text-foreground">{ev.event}</div>
-            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{ev.detail}</p>
-            <a
-              href={ev.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-block text-[10px] text-primary hover:underline"
-            >
-              {ev.source} ↗
-            </a>
           </div>
         ))}
+      </div>
+
+      {/* SVG line chart */}
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full min-w-[400px]"
+          style={{ maxHeight: 260 }}
+        >
+          <defs>
+            <linearGradient id="stockArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="stockLine" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#22c55e" />
+              <stop offset="50%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#ef4444" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid lines */}
+          {ticks.map((t) => (
+            <g key={t}>
+              <line
+                x1={PAD_L}
+                y1={priceToY(t)}
+                x2={W - PAD_R}
+                y2={priceToY(t)}
+                stroke="currentColor"
+                strokeOpacity="0.08"
+                strokeWidth="1"
+              />
+              <text
+                x={PAD_L - 6}
+                y={priceToY(t) + 3}
+                textAnchor="end"
+                className="fill-muted-foreground"
+                fontSize="8"
+              >
+                ${t}
+              </text>
+            </g>
+          ))}
+
+          {/* Area fill */}
+          <path d={areaPath} fill="url(#stockArea)" />
+
+          {/* Line */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="url(#stockLine)"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {/* Data points */}
+          {PRICED.map((p, i) => {
+            const x = idxToX(i, PRICED.length);
+            const y = priceToY(p.price);
+            const isHovered = hovered === i;
+            const isHighlight = p.highlight;
+            return (
+              <g key={i}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isHovered ? 6 : isHighlight ? 5 : 4}
+                  fill={isHighlight ? "#ef4444" : "#f59e0b"}
+                  stroke="white"
+                  strokeWidth="1.5"
+                  className="cursor-pointer transition-all"
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered(null)}
+                />
+                {/* Price label for highlight points */}
+                {(isHighlight || isHovered) && (
+                  <text
+                    x={x}
+                    y={y - 10}
+                    textAnchor="middle"
+                    className="fill-foreground font-bold"
+                    fontSize="9"
+                  >
+                    ${p.price}
+                  </text>
+                )}
+                {/* X-axis label */}
+                <text
+                  x={x}
+                  y={H - PAD_B + 14}
+                  textAnchor="middle"
+                  className="fill-muted-foreground"
+                  fontSize="8"
+                >
+                  {p.shortDate}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Hover detail */}
+      {active && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold text-foreground">
+              HK${active.price}
+            </span>
+            <span className="text-[10px] font-semibold text-muted-foreground">
+              {active.date}
+            </span>
+          </div>
+          <div className="mt-1 text-sm font-bold text-foreground">
+            {active.event}
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            {active.detail}
+          </p>
+          <a
+            href={active.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-block text-[10px] text-primary hover:underline"
+          >
+            {active.source} ↗
+          </a>
+        </div>
+      )}
+
+      {/* Ticker label */}
+      <div className="text-center text-[10px] text-muted-foreground/60">
+        HKEX: 0100.HK · MiniMax Group Inc · Source: Google Finance & HKEX
+        filings
       </div>
     </div>
   );

@@ -1,79 +1,142 @@
-import type { Lang } from "../deepseek/i18n";
+import { useState } from "react";
 
-export interface IdentityBleedItem {
-  source: string;
-  date: string;
-  headline: string;
-  summary: string;
-  url: string;
-}
-
-export const IDENTITY_BLEED_ITEMS: IdentityBleedItem[] = [
-  {
-    source: "Hacker News (user ataoz)",
-    date: "July 2026",
-    headline: "K3 Responds: 'I'm Claude, an AI assistant created by Anthropic'",
-    summary:
-      "Hacker News user ataoz posted test results showing that Kimi K3 identifies itself as 'I'm Claude, an AI assistant created by Anthropic' in approximately 15% of interactions when asked 'Tell me about yourself' on HuggingFace. The post generated significant discussion about distillation as an indirect cause.",
-    url: "https://news.ycombinator.com/item?id=49076001",
-  },
-  {
-    source: "LessWrong",
-    date: "July 2026",
-    headline: "Does Distilling Claude Carry the Persona With It?",
-    summary:
-      "A LessWrong analysis explored whether distilling Claude's outputs inherently transfers Claude's persona and self-identification. The post noted that GLM 5.2 exhibited similar identity bleed behavior, suggesting the phenomenon is not unique to Kimi K3.",
-    url: "https://www.lesswrong.com/posts/dQyKzHaGqvdqpekJr/does-distilling-claude-carry-the-persona-with-it",
-  },
-  {
-    source: "YouTube",
-    date: "July 2026",
-    headline: "Video Demonstrations of K3 Identity Bleed",
-    summary:
-      "Multiple YouTube creators published video demonstrations of Kimi K3 identifying itself as Claude, making the phenomenon accessible to a broader audience and fueling public debate about distillation practices.",
-    url: "https://www.youtube.com",
-  },
-  {
-    source: "Technical Community Discussion",
-    date: "July 2026",
-    headline: "'Models Usually Don't Know Their Own Name'",
-    summary:
-      "Some technical commentators argued that identity bleed is a natural consequence of training data containing large amounts of Claude-generated content, noting that 'models usually don't know about their own name.' Others viewed it as strong indirect evidence of distillation.",
-    url: "https://news.ycombinator.com",
-  },
+const BLEED_DATA = [
+  { model: "Kimi K3", rate: 15, color: "#3b82f6", note: "Hacker News user ataoz tested 'Tell me about yourself' on HuggingFace." },
+  { model: "GLM 5.2", rate: 8, color: "#8b5cf6", note: "LessWrong reported similar identity bleed in GLM 5.2." },
+  { model: "Kimi K2.6", rate: 2, color: "#93c5fd", note: "Minimal bleed in previous version — pre-distillation era." },
+  { model: "Claude", rate: 0, color: "#f59e0b", note: "Reference model — identifies correctly by design." },
 ];
 
-export function IdentityBleedView(_props: { lang: Lang }) {
+export function IdentityBleedView() {
+  const [hovered, setHovered] = useState<number | null>(null);
+
   return (
-    <div className="space-y-3">
-      <div className="text-[11px] text-muted-foreground/70">
-        Reports of Kimi K3 and GLM 5.2 identifying themselves as Claude — considered indirect evidence of distillation.
-      </div>
-      <div className="space-y-2.5">
-        {IDENTITY_BLEED_ITEMS.map((item, i) => (
-          <a
-            key={i}
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block overflow-hidden rounded-lg border border-border/40 bg-background/40 p-4 transition-colors hover:border-border/70 hover:bg-muted/30"
+    <div className="space-y-5">
+      {/* Concept flow diagram */}
+      <div className="flex items-center justify-center gap-3 py-4">
+        {/* Claude box */}
+        <div className="flex flex-col items-center gap-1.5">
+          <div
+            className="flex h-16 w-20 items-center justify-center rounded-xl border-2 text-[11px] font-bold"
+            style={{ borderColor: "#f59e0b", background: "#f59e0b10" }}
           >
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              <span className="font-semibold text-foreground/80">{item.source}</span>
-              <span>·</span>
-              <span>{item.date}</span>
+            Claude
+          </div>
+          <span className="text-[8px] uppercase tracking-wide text-muted-foreground">
+            Source Model
+          </span>
+        </div>
+
+        {/* Arrow + annotations */}
+        <div className="flex flex-col items-center gap-1">
+          <div className="text-[9px] font-bold text-muted-foreground">
+            Distillation
+          </div>
+          <div className="relative h-0.5 w-16 bg-gradient-to-r from-amber-500 to-blue-500">
+            <div className="absolute right-0 top-1/2 h-0 w-0 -translate-y-1/2 border-y-[4px] border-l-[6px] border-y-transparent border-l-blue-500" />
+          </div>
+          <div className="text-[8px] text-muted-foreground/70">
+            ~3.4M exchanges
+          </div>
+        </div>
+
+        {/* K3 box */}
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="relative">
+            <div
+              className="flex h-16 w-20 items-center justify-center rounded-xl border-2 text-[11px] font-bold"
+              style={{ borderColor: "#3b82f6", background: "#3b82f610" }}
+            >
+              Kimi K3
             </div>
-            <h4 className="mt-1 text-sm font-bold leading-snug text-foreground">
-              {item.headline}
-            </h4>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
-              {item.summary}
-            </p>
-            <span className="mt-2 inline-block text-[10px] text-primary hover:underline">
-              Read source ↗
-            </span>
-          </a>
-        ))}
+            {/* Speech bubble */}
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-amber-400/40 bg-amber-50 px-2.5 py-1 text-[9px] font-medium text-amber-900 shadow-sm dark:bg-amber-950/40 dark:text-amber-200">
+              "I'm Claude, made by Anthropic"
+            </div>
+          </div>
+          <span className="mt-3 text-[8px] uppercase tracking-wide text-muted-foreground">
+            Distilled Model
+          </span>
+        </div>
+      </div>
+
+      {/* Bleed rate badge */}
+      <div className="flex justify-center">
+        <div className="rounded-full border border-red-500/30 bg-red-500/5 px-4 py-1.5 text-[11px] font-bold text-red-600">
+          15% of K3 interactions self-identify as Claude
+        </div>
+      </div>
+
+      {/* Bleed rate comparison bars */}
+      <div>
+        <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-foreground/80">
+          <span className="h-2 w-2 rounded-sm bg-blue-500" />
+          Identity Bleed Rate by Model
+        </div>
+
+        <div className="space-y-2.5">
+          {BLEED_DATA.map((item, i) => {
+            const isHovered = hovered === i;
+            return (
+              <div
+                key={item.model}
+                className="flex items-center gap-3"
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+              >
+                <span className="w-20 shrink-0 text-[11px] font-semibold text-foreground/70">
+                  {item.model}
+                </span>
+                <div className="relative h-7 flex-1 overflow-hidden rounded">
+                  <div
+                    className="flex h-full items-center justify-end rounded pr-2 text-[10px] font-bold text-white transition-all duration-300"
+                    style={{
+                      width: `${Math.max(3, item.rate * 6)}%`,
+                      background: item.color,
+                      opacity: hovered === null || isHovered ? 1 : 0.4,
+                    }}
+                  >
+                    {item.rate > 0 ? `${item.rate}%` : "0%"}
+                  </div>
+                </div>
+                {item.rate === 0 && (
+                  <span className="shrink-0 text-[10px] text-green-600">
+                    ✓ Correct
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Hover detail */}
+        {hovered !== null && (
+          <div className="mt-2 rounded-md bg-muted/40 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            {BLEED_DATA[hovered].note}
+          </div>
+        )}
+      </div>
+
+      {/* Sources */}
+      <div className="border-t border-border/30 pt-3 text-[10px] leading-relaxed text-muted-foreground/60">
+        Sources:{" "}
+        <a
+          href="https://news.ycombinator.com/item?id=49076001"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline"
+        >
+          Hacker News (ataoz) ↗
+        </a>{" "}
+        ·{" "}
+        <a
+          href="https://www.lesswrong.com/posts/dQyKzHaGqvdqpekJr/does-distilling-claude-carry-the-persona-with-it"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline"
+        >
+          LessWrong analysis ↗
+        </a>
       </div>
     </div>
   );
