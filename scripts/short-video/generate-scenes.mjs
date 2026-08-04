@@ -965,10 +965,36 @@ tick();
   return html;
 }
 
-export function generateSceneHTML(sceneId, duration, voiceover = null) {
-  const generators = [null, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12];
-  const gen = generators[sceneId];
-  if (!gen) throw new Error(`Unknown scene ID: ${sceneId}`);
+// Registry: visualType → scene generator function
+// Existing DeepSeek templates + generic fallbacks for common types
+const templates = {
+  hook: s1,
+  timeline: s2,
+  contrast: s3,
+  "price-comparison": s4,
+  "open-source": s5,
+  "deployment-cost": s6,
+  staircase: s7,
+  "talent-drain": s8,
+  "compute-gap": s9,
+  "huawei-ecosystem": s10,
+  "three-factors": s11,
+  cta: s12,
+  // Generic fallback templates (reusable across articles)
+  "data-table": s3, // reuse contrast layout
+  quote: s1, // reuse hook layout (big text)
+  teaser: s12, // reuse CTA layout
+};
+
+export function generateSceneHTML(sceneOrId, duration, voiceover = null) {
+  // Support both old (sceneId number) and new (scene object with visualType) API
+  const visualType = typeof sceneOrId === "object" ? sceneOrId.visualType : null;
+  const sceneId = typeof sceneOrId === "number" ? sceneOrId : sceneOrId?.id;
+  // Try visualType first, fall back to sceneId array
+  const gen =
+    (visualType && templates[visualType]) ||
+    [null, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12][sceneId];
+  if (!gen) throw new Error(`Unknown visualType: ${visualType} or sceneId: ${sceneId}`);
   let html = gen(duration);
 
   // Subtitles are now burned in by FFmpeg via SRT (not in HTML)

@@ -103,7 +103,7 @@ async function main() {
     const tts = ttsResults.find((t) => t.sceneId === scene.id);
     if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
 
-    const html = generateScene(scene.id, tts.duration, scene.voiceover);
+    const html = generateScene(scene, tts.duration, scene.voiceover);
     const htmlPath = join(scenesDir, `scene-${scene.id}.html`);
     writeFileSync(htmlPath, html);
 
