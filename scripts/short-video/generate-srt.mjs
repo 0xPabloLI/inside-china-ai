@@ -17,13 +17,14 @@ export function generateSRT(timingData, sceneDurations, outputPath) {
 
   const subtitles = [];
   let sceneOffset = 0;
+  const START_OFFSET = -0.3; // subtitles appear 0.3s before audio (never late)
 
   for (const scene of timingData) {
     const sceneId = scene.sceneId;
     const sceneDur = sceneDurations.find((s) => s.sceneId === sceneId)?.duration || 0;
 
     for (const seg of scene.segments || []) {
-      const startAbs = sceneOffset + seg.start;
+      const startAbs = Math.max(sceneOffset + seg.start + START_OFFSET, 0);
       const endAbs = sceneOffset + Math.min(seg.end, sceneDur);
       // Split long segments (>7 words) into smaller chunks
       const words = seg.text.split(/\s+/);
