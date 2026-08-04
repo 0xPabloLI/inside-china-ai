@@ -6,7 +6,7 @@
 ## 管线概览
 
 ```
-入口 → [Stage 1 文章生成] → ⏸️ HITL-1 文章审阅 → [Stage 2 网站发布] → [Stage 3 scene-data] → ⏸️ HITL-2 脚本审阅 → [Stage 4 视频制作] → [Stage 5: 验证 → ⏸️ HITL-3 视频审阅 → 发布] → [Stage 6 Analytics]
+入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → ⏸️ HITL-1 文章审阅 → [Stage 2 网站发布] → [Stage 3 scene-data] → 🔄 MRL-2 自审 → ⏸️ HITL-2 脚本审阅 → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL-3 视频审阅 → 发布] → [Stage 6 Analytics]
 ```
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
@@ -21,19 +21,58 @@
 
 管线设 3 个强制人工确认点。Agent 到达 HITL 检查点时 **必须暂停**，输出审阅内容，等待用户在对话中明确确认后方可继续。
 
-| 检查点 | 位置 | 审阅内容 | 确认方式 |
-|--------|------|----------|----------|
-| **HITL-1** | Stage 1 完成后 | 文章全文（frontmatter + markdown + widget 标记） | 用户说「文章 OK，继续」 |
-| **HITL-2** | Stage 3 完成后 | scene-data.mjs（场景脚本、voiceover、视觉描述） | 用户说「脚本 OK，做视频」 |
-| **HITL-3** | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 | 用户说「视频 OK，发布」 |
+| 检查点     | 位置                           | 审阅内容                                         | 确认方式                  |
+| ---------- | ------------------------------ | ------------------------------------------------ | ------------------------- |
+| **HITL-1** | Stage 1 完成后                 | 文章全文（frontmatter + markdown + widget 标记） | 用户说「文章 OK，继续」   |
+| **HITL-2** | Stage 3 完成后                 | scene-data.mjs（场景脚本、voiceover、视觉描述）  | 用户说「脚本 OK，做视频」 |
+| **HITL-3** | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告             | 用户说「视频 OK，发布」   |
 
 > **Agent 行为约束**：用户未明确确认前，Agent 不得执行后续 Stage。确认必须是用户主动发出（如「继续」「OK」「确认」「发布」等），Agent 不得自行假设确认。
+
+### Machine Review Loop (MRL) — 机器自审循环
+
+每个 HITL 检查点前，Agent **必须先运行 MRL**。MRL 是一轮纯机器自审：Agent 按检查清单逐项验证自己的输出，发现 Blocker 立即修复，然后重新验证，**循环直到 0 Blockers** 才输出 MRL 报告并进入 HITL。
+
+```
+[Agent 生成输出] → 🔄 MRL 检查
+  ├─ Blocker FAIL → 修复 → 重新检查（循环）
+  ├─ Blocker PASS, Warning 存在 → 输出 MRL 报告（PASS with warnings）
+  └─ Blocker PASS, Warning 0 → 输出 MRL 报告（PASS）
+→ ⏸️ HITL（附 MRL 报告供用户参考）
+```
+
+**设计理念**：机器能检查的全自动检查完，用户只需审阅机器无法判断的主观维度（叙事流畅度、语气、观感等）。减少 HITL 往返次数。
+
+| MRL       | 位置                | 检查对象                    | Blocker 数              | Warning 数 |
+| --------- | ------------------- | --------------------------- | ----------------------- | ---------- |
+| **MRL-1** | Stage 1 → HITL-1 前 | 文章 frontmatter + markdown | 8                       | 5          |
+| **MRL-2** | Stage 3 → HITL-2 前 | scene-data.mjs（每集）      | 10                      | 6          |
+| **MRL-3** | Stage 5 → HITL-3 前 | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查  |
+
+**MRL 报告格式**（Agent 在 HITL 输出中附带）：
+
+```
+🤖 MRL-N 报告
+━━━━━━━━━━━━━━━
+状态：✅ PASS（或 ✅ PASS with warnings）
+Blockers：0/8 通过
+Warnings：2 项（列出但不阻塞）
+━━━━━━━━━━━━━━━
+✅ B1 Frontmatter — 通过
+✅ B2 语言 — 通过
+⚠️ W1 字数 3200（建议 800-3000）
+...
+━━━━━━━━━━━━━━━
+```
+
+> **MRL 与 HITL 的关系**：MRL 是 HITL 的前置过滤器。MRL 不替代 HITL — 机器无法判断叙事质量、语气得体性、主观观感等维度。MRL 通过后，用户仍需审阅。但 MRL 确保用户看到的不是「草稿」，而是「经机器校验的草稿」，显著减少「数据错了」「链接不对」「字数超标」这类机械性返工。
 
 ## 如何启动
 
 ### 入口 1：有源素材（PDF / 报告 / 长文 / URL）
 
 **用户对 Agent 说**：
+
 > "读这个素材写一篇文章：[PDF 路径 / URL / 文本]"
 
 Agent 从 Stage 1 开始执行。
@@ -41,9 +80,11 @@ Agent 从 Stage 1 开始执行。
 ### 入口 2：只有话题或趋势
 
 **用户对 Agent 说**：
+
 > "跑 discover-trends，选一个话题做内容"
 
 或直接给话题：
+
 > "用「华为 AI 芯片突破」这个话题做一条内容"
 
 Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1 开始执行。
@@ -52,23 +93,23 @@ Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1
 
 `discover-trends.mjs` 通过 CDP 抓取 15 个源，覆盖新闻媒体、自媒体平台、技术社区和定向公众号监控：
 
-| 类型 | 源 | 平台 | 登录需求 |
-|------|---|------|---------|
-| 新闻 | 量子位 | qbitai.com | 无 |
-| 新闻 | 机器之心 | jiqizhixin.com | 无 |
-| 新闻 | 36氪 | 36kr.com | 无 |
-| 新闻 | TechCrunch AI | techcrunch.com | 无 |
-| 新闻 | Bloomberg Tech | bloomberg.com | 无 |
-| 新闻 | 观察者网 | guancha.cn | 无 |
-| 新闻 | iThome | ithome.com | 无 |
-| 自媒体 | 小红书 | xiaohongshu.com | 需要 |
-| 自媒体 | 搜狗微信 | weixin.sogou.com | 无 |
-| 自媒体 | 微博热搜 | s.weibo.com | 无 |
-| 自媒体 | B站搜索 | search.bilibili.com | 无 |
-| 自媒体 | 抖音搜索 | douyin.com | 需要 |
-| 自媒体 | TikTok Creator | tiktok.com/creator-center | 需要 |
-| 社区 | 知乎 | zhihu.com | 无（搜索无需登录） |
-| 定向监控 | 动察Beating（公众号） | Google 搜索转载平台 | 无 |
+| 类型     | 源                    | 平台                      | 登录需求           |
+| -------- | --------------------- | ------------------------- | ------------------ |
+| 新闻     | 量子位                | qbitai.com                | 无                 |
+| 新闻     | 机器之心              | jiqizhixin.com            | 无                 |
+| 新闻     | 36氪                  | 36kr.com                  | 无                 |
+| 新闻     | TechCrunch AI         | techcrunch.com            | 无                 |
+| 新闻     | Bloomberg Tech        | bloomberg.com             | 无                 |
+| 新闻     | 观察者网              | guancha.cn                | 无                 |
+| 新闻     | iThome                | ithome.com                | 无                 |
+| 自媒体   | 小红书                | xiaohongshu.com           | 需要               |
+| 自媒体   | 搜狗微信              | weixin.sogou.com          | 无                 |
+| 自媒体   | 微博热搜              | s.weibo.com               | 无                 |
+| 自媒体   | B站搜索               | search.bilibili.com       | 无                 |
+| 自媒体   | 抖音搜索              | douyin.com                | 需要               |
+| 自媒体   | TikTok Creator        | tiktok.com/creator-center | 需要               |
+| 社区     | 知乎                  | zhihu.com                 | 无（搜索无需登录） |
+| 定向监控 | 动察Beating（公众号） | Google 搜索转载平台       | 无                 |
 
 源定义在 `scripts/short-video/lib/trend-sources.mjs`，可插拔架构，新增源只需添加 collector 对象。
 
@@ -77,6 +118,7 @@ Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1
 通过 Google 搜索 `"来自微信公众号" "公众号名称"` 实现定向监控。微信文章通过虎嗅、新浪、ZAKER 等平台转载后可被 Google 索引。
 
 **为什么不用搜狗微信 / 微信网页版？**
+
 - 搜狗微信搜索反爬严重，CDP 访问返回空结果（实测 3 次均失败）
 - `mp.weixin.qq.com/mp/profile_ext` 要求微信客户端内打开，Chrome 登录态无效
 - Google `site:mp.weixin.qq.com` 索引率极低（只搜到 1 篇）
@@ -97,6 +139,7 @@ node scripts/short-video/discover-trends.mjs --keyword "DeepSeek"
 ### 入口 3：新 session，未指定任务
 
 Agent 读 `AGENTS.md` Session Start Checklist → 检查 `pending-analysis.json` → 检查未完成工作流 → 简要提示：
+
 > "可以写文章（给素材）或做视频（给话题/跑 trends）"
 
 ---
@@ -107,14 +150,14 @@ Agent 读 `AGENTS.md` Session Start Checklist → 检查 `pending-analysis.json`
 
 Agent 接收任意格式的源素材，读取并理解核心内容。
 
-| 素材类型 | 读取方法 | 工具 |
-|---------|---------|------|
-| PDF | 用 `pdf-parse` 或 `web-access` skill 读取文本 | `npm install pdf-parse` 或 CDP |
-| 网页 URL | 用 `web-access` skill (CDP) 抓取 | Chrome 后台 tab |
-| 纯文本 | 直接 `read_file` | 内置工具 |
-| 研究报告 | 同 PDF 或网页 | 同上 |
-| 社交媒体帖子 | 用 `web-access` skill 抓取 | CDP |
-| 话题/趋势（无素材） | Agent 用 `web-access` skill 调研 | CDP |
+| 素材类型            | 读取方法                                      | 工具                           |
+| ------------------- | --------------------------------------------- | ------------------------------ |
+| PDF                 | 用 `pdf-parse` 或 `web-access` skill 读取文本 | `npm install pdf-parse` 或 CDP |
+| 网页 URL            | 用 `web-access` skill (CDP) 抓取              | Chrome 后台 tab                |
+| 纯文本              | 直接 `read_file`                              | 内置工具                       |
+| 研究报告            | 同 PDF 或网页                                 | 同上                           |
+| 社交媒体帖子        | 用 `web-access` skill 抓取                    | CDP                            |
+| 话题/趋势（无素材） | Agent 用 `web-access` skill 调研              | CDP                            |
 
 读素材后，agent 在记忆中提取（不需要输出 JSON）：
 
@@ -155,17 +198,17 @@ docs/refs/source-materials/
 
 Stage 1b 中的「外部调研补充」和 Widget 数据 curate 需要覆盖中文和英文双维度。Agent 使用 `web-access` skill (CDP) 搜索以下渠道：
 
-| 信息类型 | 搜索渠道 | 方法 | 说明 |
-|----------|----------|------|------|
-| **中文综合** | Google 中文关键词 | CDP 直接搜 | 搜中文关键词，覆盖观察者网、中国网、Yahoo財經等 |
-| **深度技术讨论** | 知乎 | `site:zhihu.com` + 站内搜索 | 原始分析帖、行业深度讨论、测评博主内容 |
-| **微信公众号** | 搜狗微信 + 百度 | `weixin.sogou.com`（CDP，可能有验证码）+ `site:mp.weixin.qq.com`（Google/百度） | 微信文章被删除快，需及时抓取留档 |
-| **小红书** | 百度 + 站内搜索 | `site:xiaohongshu.com`（Google/百度覆盖率低）+ CDP 站内搜（需登录） | 小红书内容 Google 基本不索引 |
-| **视频内容** | B站 | `site:bilibili.com` + 站内搜索 | AI 相关视频和评论区讨论 |
-| **微博舆情** | 微博 | `s.weibo.com`（CDP 直接搜） | 热搜、大 V 评论、实时舆情 |
-| **英文社区** | Reddit | `site:reddit.com` + 站内搜索 | r/LocalLLM、r/MachineLearning 等英文技术讨论 |
-| **代码/文档存档** | GitHub | `site:github.com` + 站内搜索 | 技术事件常有代码仓库/文档留档（可能被删） |
-| **英文权威媒体** | Google + Context7 | 原有流程 | Anthropic 博客、Bloomberg、PCMag、SCMP、BBC 等 |
+| 信息类型          | 搜索渠道          | 方法                                                                            | 说明                                            |
+| ----------------- | ----------------- | ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| **中文综合**      | Google 中文关键词 | CDP 直接搜                                                                      | 搜中文关键词，覆盖观察者网、中国网、Yahoo財經等 |
+| **深度技术讨论**  | 知乎              | `site:zhihu.com` + 站内搜索                                                     | 原始分析帖、行业深度讨论、测评博主内容          |
+| **微信公众号**    | 搜狗微信 + 百度   | `weixin.sogou.com`（CDP，可能有验证码）+ `site:mp.weixin.qq.com`（Google/百度） | 微信文章被删除快，需及时抓取留档                |
+| **小红书**        | 百度 + 站内搜索   | `site:xiaohongshu.com`（Google/百度覆盖率低）+ CDP 站内搜（需登录）             | 小红书内容 Google 基本不索引                    |
+| **视频内容**      | B站               | `site:bilibili.com` + 站内搜索                                                  | AI 相关视频和评论区讨论                         |
+| **微博舆情**      | 微博              | `s.weibo.com`（CDP 直接搜）                                                     | 热搜、大 V 评论、实时舆情                       |
+| **英文社区**      | Reddit            | `site:reddit.com` + 站内搜索                                                    | r/LocalLLM、r/MachineLearning 等英文技术讨论    |
+| **代码/文档存档** | GitHub            | `site:github.com` + 站内搜索                                                    | 技术事件常有代码仓库/文档留档（可能被删）       |
+| **英文权威媒体**  | Google + Context7 | 原有流程                                                                        | Anthropic 博客、Bloomberg、PCMag、SCMP、BBC 等  |
 
 **搜索策略**：
 
@@ -192,30 +235,60 @@ Widget 的核心定位是**补充背景信息**，不是文章正文的替代或
 - 无法公开验证的内部信息
 - 纯主观评价
 
-> 💡 **设计原则**：读者看完正文章节后，Widget 提供"想了解更多？这里是公开报道/数据"的入口。Widget 数据由 Agent 在 Stage 1b 中通过 web-access 调研获取，硬编码在组件中。Widget 数据和 UI 文案统一使用英文。
+> 💡 **设计原则**：
+> 1. **可视化优先**：Widget 应以图表、图形、数据可视化为主，文字量最小化。避免纯文本列表。
+> 2. **交互性**：Widget 应提供 hover、click、toggle 等交互方式，让用户探索数据。
+> 3. **多样性**：一篇文章的多个 widget 应使用不同的可视化技术（矩阵、柱状图、流程图、折线图等），避免同质化。
+> 4. **英文 only**：Widget 数据和 UI 文案统一使用英文，不需要双语 toggle（遗留的双语 toggle 是技术债务）。
+> 5. **数据硬编码**：Widget 数据由 Agent 在 Stage 1b 中通过 web-access 调研获取，硬编码在组件代码中（不存数据库）。
 
 #### Widget 决策树
 
-| 章节内容 | 推荐 Widget 类型 | 已有注册？ |
-|---------|-------------|-----------|
-| 大量文本/发言（全文概览） | 词云 | ✅ `deepseek-cloud` |
-| 融资/投资 | 融资时间线 + 媒体来源 | ✅ `deepseek-funding` |
-| 定价/对比 | 定价对比表 | ✅ `deepseek-pricing` |
-| 人事变动 | 人才流动卡片 | ✅ `deepseek-talent` |
-| 多公司关系 | 公司生态图 | ✅ `deepseek-companies` |
-| 新闻报道/公开事件 | 新闻链接卡片（标题+摘要+链接+日期） | ❌ 需创建通用 widget |
-| 股价/市场数据 | 股价时间线（日期+价格+事件标注） | ❌ 需创建 |
-| 融资轮次 | 融资时间线（日期+金额+估值+投资方） | ❌ 可复用 `deepseek-funding` 模式 |
-| 其他类型 | 需创建新 widget | ❌ 需开发 |
+| 章节内容                  | 推荐 Widget 类型                    | 已有注册？                        |
+| ------------------------- | ----------------------------------- | --------------------------------- |
+| 大量文本/发言（全文概览） | 词云                                | ✅ `deepseek-cloud`               |
+| 融资/投资                 | 融资时间线 + 媒体来源               | ✅ `deepseek-funding`             |
+| 定价/对比                 | 定价对比表                          | ✅ `deepseek-pricing`             |
+| 人事变动                  | 人才流动卡片                        | ✅ `deepseek-talent`              |
+| 多公司关系                | 公司生态图                          | ✅ `deepseek-companies`           |
+| 新闻报道/公开事件         | 新闻链接卡片（标题+摘要+链接+日期） | ❌ 需创建通用 widget              |
+| 股价/市场数据             | 股价时间线（日期+价格+事件标注）    | ❌ 需创建                         |
+| 融资轮次                  | 融资时间线（日期+金额+估值+投资方） | ❌ 可复用 `deepseek-funding` 模式 |
+| 其他类型                  | 需创建新 widget                     | ❌ 需开发                         |
 
 #### 已有 Widget 注册表
 
 见 `src/components/widgets/registry.ts`。当前注册的 widget：
+
 - `deepseek-cloud` — 词云
 - `deepseek-talent` — 人才流动
-- `deepseek-funding` — 融资时间线
+- `deepseek-funding` — 融资时间线 _(breakout)_
 - `deepseek-pricing` — API 定价对比
 - `deepseek-companies` — 公司生态
+- `distillation-news-coverage` — 新闻覆盖矩阵
+- `kimi-benchmark-controversy` — 基准测试争议
+- `kimi-identity-bleed` — 身份泄露
+- `moonshot-funding-timeline` — Moonshot 融资时间线
+- `minimax-stock-timeline` — MiniMax 股价时间线
+
+#### Widget 宽度规则
+
+文章正文约束在 `65ch`（约 620px）阅读列宽度。Widget 默认也使用 `max-w-prose`（65ch）与正文对齐，保证视觉一致。
+
+**Breakout Widget**：少数 widget 因布局需要（如双列图表、宽矩阵）标记为 breakout，渲染时使用文章全宽（`max-w-4xl` ≈ 896px）。在 `registry.ts` 的 `BREAKOUT_WIDGETS` 集合中注册：
+
+```typescript
+export const BREAKOUT_WIDGETS = new Set<string>([
+  "deepseek-funding", // donut chart + investor legend side-by-side
+]);
+```
+
+**判断标准**：
+- widget 含双列并排布局（如图表 + 图例）且在 65ch 内会换行挤压 → breakout
+- widget 含宽表格/矩阵且 `min-w` > 600px → breakout
+- 单列、卡片列表、柱状图等 → 默认 65ch
+
+创建新 widget 时，先按 65ch 设计；如确实需要更宽，在 `BREAKOUT_WIDGETS` 中添加 ID 并在注释中说明理由。
 
 #### 创建新 Widget 流程
 
@@ -224,8 +297,9 @@ Widget 的核心定位是**补充背景信息**，不是文章正文的替代或
 1. 在 `src/components/widgets/{topic}/` 创建组件（**英文 only，不需要双语 toggle**）
 2. 在 `src/components/widgets/{topic}/data/` 写数据文件（英文）
 3. 在 `src/components/widgets/registry.ts` 注册
-4. **`npm run build` + 部署** — Widget 是前端代码，必须打包部署后才可用
-5. 然后才能运行 `publish-article.mjs` 发布含该 widget 的文章
+4. 如 widget 需要超出 65ch 的宽度，在 `BREAKOUT_WIDGETS` 中添加 ID（见上方「Widget 宽度规则」）
+5. **`npm run build` + 部署** — Widget 是前端代码，必须打包部署后才可用
+6. 然后才能运行 `publish-article.mjs` 发布含该 widget 的文章
 
 > ⚠️ Widget 数据是代码硬编码，不存数据库。这是架构约束（见 Phase 2 Grill 纪录）。
 
@@ -266,6 +340,7 @@ More content...
 - **不适合添加 My Take 的情况**：涉及敏感话题、争议性事件、仍在发展中的新闻
 
 如果添加「My Take」章节：
+
 - 不是总结，是 agent 的原创分析
 - 回答「为什么这件事重要？」
 - 提供独家视角或预测
@@ -293,12 +368,12 @@ More content...
 
 **四级标注：**
 
-| 标记 | 含义 | 使用场景 | 格式 |
-|------|------|---------|------|
-| ✅ | 公开源验证 | 有可靠公开信息支持 | `*(✅ Verified: [source](url))*` |
-| ⚠️ | 部分验证 | 公开信息部分支持，或有细节差异 | `*(⚠️ Partially verified: 简要说明)*` |
-| ❌ | 未验证 | 无公开信息支持（可能为非公开内部信息） | `*(❌ Unverified: 简要说明)*` |
-| 🔴 | 矛盾 | 公开信息与素材声明不一致 | `*(🔴 Contradicts public data: 简要说明)*` |
+| 标记 | 含义       | 使用场景                               | 格式                                       |
+| ---- | ---------- | -------------------------------------- | ------------------------------------------ |
+| ✅   | 公开源验证 | 有可靠公开信息支持                     | `*(✅ Verified: [source](url))*`           |
+| ⚠️   | 部分验证   | 公开信息部分支持，或有细节差异         | `*(⚠️ Partially verified: 简要说明)*`      |
+| ❌   | 未验证     | 无公开信息支持（可能为非公开内部信息） | `*(❌ Unverified: 简要说明)*`              |
+| 🔴   | 矛盾       | 公开信息与素材声明不一致               | `*(🔴 Contradicts public data: 简要说明)*` |
 
 **使用规则：**
 
@@ -311,24 +386,56 @@ More content...
 **示例：**
 
 ```markdown
-Anthropic framed this as a national security risk. *(✅ Verified: [Anthropic blog](https://anthropic.com/...))*
+Anthropic framed this as a national security risk. _(✅ Verified: [Anthropic blog](https://anthropic.com/...))_
 
-CEO Yang Zhilin cited "cost reduction" as the rationale for downsizing the RL team. *(🔴 Contradicts public data: no public reports of RL team layoffs; Yang still described as leading RL per [Business Insider](https://businessinsider.com/...))*
+CEO Yang Zhilin cited "cost reduction" as the rationale for downsizing the RL team. _(🔴 Contradicts public data: no public reports of RL team layoffs; Yang still described as leading RL per [Business Insider](https://businessinsider.com/...))_
 ```
+
+#### 🔄 MRL-1: 文章自审（HITL-1 前置）
+
+Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blockers 后才进入 HITL-1。
+
+**Blockers（任一 FAIL = 必须修复后重新检查）：**
+
+| #   | 检查项           | 阈值 / 规则                                                                                       | 修复方式                      |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------- | ----------------------------- |
+| B1  | Frontmatter 格式 | 必须有 `title`, `slug`, `excerpt`, `published: true`                                              | 补全缺失字段                  |
+| B2  | 语言             | 文章 body 必须为英文（不允许中文字符出现在正文中，中文人名/公司名除外）                           | 翻译中文段落为英文            |
+| B3  | Widget 注册     | 所有 `<!-- widget:xxx -->` 的 ID 必须在 `registry.ts` 中已注册                                    | 修正 ID 或创建+注册新 widget  |
+| B3a | Widget 可视化  | Widget 必须使用图表、图形等可视化方式呈现，纯文本链接列表不通过（至少使用柱状图、矩阵、流程图等任一） | 重设计 widget 为可视化形式  |
+| B4  | 源引用           | 每个数据点（金额、日期、比例、引用语）必须有内联来源标注（媒体名+日期 或 URL）                    | 补充来源                      |
+| B5  | 链接完整性       | 所有 URL 必须指向具体文章/页面，禁止域名根链接（如 ❌ `https://bloomberg.com`）                   | 替换为完整 URL 或换可访问来源 |
+| B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注                                          | 补充标注                      |
+| B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                    | 删除 My Take                  |
+| B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等） | 替换为口语化表达              |
+
+**Warnings（列出但不阻塞 HITL）：**
+
+| #   | 检查项       | 阈值                             |
+| --- | ------------ | -------------------------------- |
+| W1  | 正文字数     | < 800 或 > 3000 词               |
+| W2  | Excerpt 长度 | > 160 字符                       |
+| W3  | Widget 数量  | > 5 个（可能信息过载）           |
+| W4  | 章节数量     | < 6 或 > 10                      |
+| W5  | SEO 关键词   | slug 或 excerpt 中缺少核心关键词 |
+
+**循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → 进入 HITL-1。
 
 #### ⏸️ HITL-1: 文章审阅检查点
 
-Agent 生成 frontmatter markdown 后 **必须暂停**，执行以下步骤：
+MRL-1 通过后，Agent **暂停**，执行以下步骤：
 
-1. **输出完整文章内容**（frontmatter + markdown body + widget 标记位置）供用户审阅
-2. **提示审阅要点**：
+1. **输出 MRL-1 报告**（状态 + Blocker/Warning 列表）
+2. **输出完整文章内容**（frontmatter + markdown body + widget 标记位置）供用户审阅
+3. **提示审阅要点**（MRL 已检查的机械性项目不重复列出，聚焦主观维度）：
    - 叙事逻辑是否通顺
    - 数据点是否准确
    - Widget 选择是否合适
+   - **Widget 可视化质量**：是否以图表/图形为主而非纯文本列表，是否有交互性，多个 widget 是否使用了不同的可视化技术（避免同质化）
    - 如有「My Take」章节：是否有独立见解（My Take 为可选）
    - **源引用是否完整**：所有参考过的资料是否已列出、是否已上传为 attachment 或在文中标注了出处
-3. **如有新 widget**：提示用户需要 `npm run build` + 部署后才能发布
-4. **等待用户确认** — 用户说「文章 OK，继续」或类似确认语后才可进入 Stage 2
+4. **如有新 widget**：提示用户需要 `npm run build` + 部署后才能发布
+5. **等待用户确认** — 用户说「文章 OK，继续」或类似确认语后才可进入 Stage 2
 
 > ⚠️ Agent 不得在用户未确认前自动执行 Stage 2 发布脚本。
 
@@ -369,6 +476,7 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path> --verbo
 ```
 
 脚本流程：
+
 1. Admin 登录 → 通过 slug 查找 post ID（或直接用 `--post-id`）
 2. 验证文件（存在性、大小 ≤50MB、MIME 类型合规）
 3. 逐个上传到 Supabase Storage `post-attachments` bucket（路径：`{postId}/{fileName}`）
@@ -399,6 +507,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 ```
 
 **评估器输出**：
+
 - `recommendedParts`（1-5，但 Agent 强制 cap 为 3，见下方规则）
 - `splitMethod`（"none" | "thematic" | "narrative"）
 - `reasoning`（人类可读理由数组）
@@ -412,6 +521,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 - 发布节奏：1-3 天内发完所有集，超过 1 周观众会忘记上下文
 
 **Agent 行为**：
+
 - `recommendedParts === 1`：走单集流程（当前步骤 1-5）
 - `recommendedParts > 1`：cap 为 3 后输出分集评估报告，等待用户确认后生成 N 份 scene-data
 
@@ -456,27 +566,56 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
   "startedAt": "2026-08-04T10:00:00Z",
   "currentStage": "stage-3",
   "stages": {
-    "stage-1": { "status": "done", "completedAt": "2026-08-04T10:30:00Z" },
-    "stage-2": { "status": "done", "completedAt": "2026-08-04T10:35:00Z", "postId": "9d05cf9b-..." },
+    "stage-1": {
+      "status": "done",
+      "completedAt": "2026-08-04T10:30:00Z",
+      "mrl": { "status": "pass", "blockers": 0, "warnings": 1 }
+    },
+    "stage-2": {
+      "status": "done",
+      "completedAt": "2026-08-04T10:35:00Z",
+      "postId": "9d05cf9b-..."
+    },
     "stage-2b": { "status": "done", "completedAt": "2026-08-04T10:36:00Z" },
-    "stage-3": { "status": "in-progress", "note": "scene-data generation, 3 parts" },
+    "stage-3": {
+      "status": "in-progress",
+      "note": "scene-data generation, 3 parts",
+      "mrl": { "status": "pass", "blockers": 0, "warnings": 2 }
+    },
     "stage-4": { "status": "pending" },
     "stage-5": { "status": "pending" },
     "stage-6": { "status": "pending" }
   },
   "videoParts": [
-    { "part": 1, "sceneData": "scene-data-pt1.mjs", "status": "pending" },
-    { "part": 2, "sceneData": "scene-data-pt2.mjs", "status": "pending" },
-    { "part": 3, "sceneData": "scene-data-pt3.mjs", "status": "pending" }
+    {
+      "part": 1,
+      "sceneData": "scene-data-pt1.mjs",
+      "status": "review-ready",
+      "mrl": { "status": "pass", "blockers": 0, "warnings": 1 }
+    },
+    {
+      "part": 2,
+      "sceneData": "scene-data-pt2.mjs",
+      "status": "review-ready",
+      "mrl": { "status": "pass", "blockers": 0, "warnings": 0 }
+    },
+    {
+      "part": 3,
+      "sceneData": "scene-data-pt3.mjs",
+      "status": "review-ready",
+      "mrl": { "status": "pass", "blockers": 0, "warnings": 1 }
+    }
   ],
-  "nextAction": "HITL-2: 等待用户确认 scene-data"
+  "nextAction": "HITL-2: 等待用户确认 scene-data（MRL-2 已通过）"
 }
 ```
 
 **Agent 行为**：
+
 - 每个 stage 完成后更新 `pipeline-status.json`
-- HITL 检查点暂停时，`nextAction` 字段写明等待什么
-- 新 session 启动时，Agent 先读此文件判断是否有未完成管线
+- MRL 通过后，在对应 stage 或 videoPart 中写入 `mrl` 状态（`pass` / `fail` / `pending`）
+- HITL 检查点暂停时，`nextAction` 字段写明等待什么，并标注 MRL 状态
+- 新 session 启动时，Agent 先读此文件判断是否有未完成管线，以及 MRL 是否已通过
 
 **`main.mjs` 支持**：`node main.mjs --scene scene-data-pt1.mjs`
 
@@ -493,13 +632,13 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 
 ### 文章 → 视频的节奏适配
 
-| 文章 | 视频 |
-|------|------|
-| 6-10 个章节 | 10-12 个场景 |
-| 详细论述 | 精简为 1-2 句 voiceover |
-| 数据表格 | 数据可视化场景 |
-| 引用语句 | 大字引用场景 |
-| Widget | 不出现（视频无法交互） |
+| 文章        | 视频                    |
+| ----------- | ----------------------- |
+| 6-10 个章节 | 10-12 个场景            |
+| 详细论述    | 精简为 1-2 句 voiceover |
+| 数据表格    | 数据可视化场景          |
+| 引用语句    | 大字引用场景            |
+| Widget      | 不出现（视频无法交互）  |
 
 ### 注意事项
 
@@ -508,24 +647,56 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 - 文章的数据点 → 视频的视觉强调元素
 - 视频时长：TikTok 60-70s
 
+### 🔄 MRL-2: 脚本自审（HITL-2 前置）
+
+Agent 写完所有 `scene-data-pt*.mjs` 后，**先运行 MRL-2 自审循环**（每集单独检查），0 Blockers 后才进入 HITL-2。
+
+**Blockers（任一 FAIL = 必须修复后重新检查）：**
+
+| #   | 检查项          | 阈值 / 规则                                                                              | 修复方式           |
+| --- | --------------- | ---------------------------------------------------------------------------------------- | ------------------ |
+| B1  | Voiceover 字数  | 每集 ≤ 180 词（目标 ~165 词 = 60-70s @ 2.5 wps）                                         | 精简 voiceover     |
+| B2  | 场景数          | 每集 8-12 个 scene                                                                       | 合并或拆分场景     |
+| B3  | Hook 场景       | 第一个 scene 的 `visualType` 必须为 `"hook"`                                             | 调整场景顺序或类型 |
+| B4  | CTA 场景        | 最后一个 scene 的 `visualType` 必须为 `"cta"`                                            | 调整场景顺序或类型 |
+| B5  | 无 Widget 引用  | voiceover 文本中不得包含 `<!-- widget:xxx -->`                                           | 删除 widget 标记   |
+| B6  | 数据一致性      | voiceover 中的数字/日期/金额必须与文章正文一致                                           | 修正数据           |
+| B7  | 集数上限        | 总集数 ≤ 3（最佳实践上限）                                                               | 合并集数           |
+| B8  | AI 词汇         | 不得出现 scrub-rules Tier 2 黑名单词                                                     | 替换为口语化表达   |
+| B9  | 无 Dead Closers | 不得以 "thanks for watching" / "don't forget to subscribe" / 裸 "what do you think" 结尾 | 改写为具体 CTA     |
+| B10 | Series Meta     | `seriesMeta` 存在，`partNumber`/`totalParts`/`prevPartSlug`/`nextPartSlug` 正确          | 修正 seriesMeta    |
+
+**Warnings（列出但不阻塞 HITL）：**
+
+| #   | 检查项        | 阈值                                                     |
+| --- | ------------- | -------------------------------------------------------- |
+| W1  | 估算时长      | 每集 < 55s 或 > 75s（字数 / 2.5 wps）                    |
+| W2  | Hook 具体性   | Hook voiceover 中无具体数字                              |
+| W3  | 节奏均一      | 所有 voiceover 句子长度差异 < 15%（teleprompter rhythm） |
+| W4  | 长句          | 任何单句 > 25 词（一口气读不完）                         |
+| W5  | Hook = 字幕   | spoken hook 与 on-screen text 完全相同                   |
+| W6  | 无 Loop-close | CTA 前最后一个内容场景未回扣 Hook                        |
+
+**循环流程**：Agent 对每集 scene-data 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部集数全部 Blocker PASS → 输出 MRL-2 报告 → 进入 HITL-2。
+
 ### ⏸️ HITL-2: 视频脚本审阅检查点
 
-Agent 写完 `scene-data.mjs` 后 **必须暂停**，执行以下步骤：
+MRL-2 通过后，Agent **暂停**，执行以下步骤：
 
-1. **输出场景概览表**供用户审阅：
+1. **输出 MRL-2 报告**（每集状态 + Blocker/Warning 列表）
+2. **输出场景概览表**供用户审阅：
 
-   | Scene | Voiceover 摘要 | 视觉描述 | 时长(估) |
-   |-------|---------------|----------|----------|
-   | 1 (Hook) | ... | ... | ... |
-   | ... | ... | ... | ... |
+   | Scene    | Voiceover 摘要 | 视觉描述 | 时长(估) |
+   | -------- | -------------- | -------- | -------- |
+   | 1 (Hook) | ...            | ...      | ...      |
+   | ...      | ...            | ...      | ...      |
 
-2. **提示审阅要点**：
+3. **提示审阅要点**（MRL 已检查的机械性项目不重复列出，聚焦主观维度）：
    - Hook 是否足够吸引人（前 3 秒）
    - 叙事逻辑是否从文章自然提炼
-   - 数据点是否准确
-   - 场景数量和总时长是否在目标范围（TikTok 60-70s）
    - CTA 场景是否有效
-3. **等待用户确认** — 用户说「脚本 OK，做视频」或类似确认语后才可进入 Stage 4
+   - 各集之间的连贯性（Part 1 → 2 → 3 的叙事钩子）
+4. **等待用户确认** — 用户说「脚本 OK，做视频」或类似确认语后才可进入 Stage 4
 
 > ⚠️ 视频渲染是最耗时的步骤（TTS + HTML + Playwright 录制 + FFmpeg 合成，通常 5-10 分钟）。脚本审阅只需 1-2 分钟，能显著减少返工。Agent 不得在用户未确认前自动启动视频制作管线。
 
@@ -549,21 +720,35 @@ node scripts/short-video/main.mjs --bgm          # TTS → HTML → 录制 → �
 
 > **前置条件**：HITL-2 已通过（视频脚本已确认）。
 
-### 验证（MANDATORY）
+### 🔄 MRL-3: 视频自审（HITL-3 前置）
+
+MRL-3 即现有的 `verify-video.mjs` 流程，正式命名为 MRL-3。验证不通过时 Agent 自动修复并重跑，**循环直到 0 failures** 才进入 HITL-3。
 
 ```bash
-node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查
+node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查 = MRL-3
 ```
 
-验证不通过时 Agent 自动修复并重跑，直到 0 failures。
+**MRL-3 Blockers**（verify-video.mjs 已覆盖）：
+
+- 视频文件存在且为有效 mp4
+- 视频时长在 TikTok 60-70s 范围
+- 分辨率、码率、编码合规
+- 字幕文件存在且时间轴对齐
+- 无黑屏/空帧检测
+
+**MRL-3 内容补充检查**（Agent 手动执行，verify-video.mjs 无法自动检测的）：
+
+- TTS 音频时长与 voiceover 估算一致（±5s）
+- 字幕文本与 scene-data voiceover 一致（无 Whisper 识别误差导致的 "deep seeks" vs "DeepSeek's"）
+- 品牌元素（logo、配色）符合 brand-system 规范
 
 ### ⏸️ HITL-3: 视频成品审阅检查点
 
-`verify-video.mjs` 通过后，Agent **必须暂停**，执行以下步骤：
+MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
-1. **输出视频文件路径**：`output/deepseek-short.mp4`（或实际文件名）
-2. **输出 verify-video.mjs 合规报告**（所有检查项的 pass/fail 状态）
-3. **提示用户审阅要点**：
+1. **输出 MRL-3 报告**（verify-video.mjs 合规报告 + 内容补充检查结果）
+2. **输出视频文件路径**：`output/deepseek-short.mp4`（或实际文件名）
+3. **提示用户审阅要点**（聚焦主观维度）：
    - 实际观看视频，检查整体观感
    - TTS 语音是否清晰、自然
    - 字幕是否准确、可读
@@ -573,7 +758,7 @@ node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查
    - 有无明显的渲染问题（黑屏、错位、卡顿）
 4. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
 
-> ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。`verify-video.mjs` 的自动合规检查是必要条件但非充分条件 — 自动检查无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。
+> ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。MRL-3 的自动合规检查是必要条件但非充分条件 — 机器无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。
 
 ### 发布
 
@@ -609,20 +794,23 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 
 ## 检查点总结
 
-| 检查点 | 位置 | 类型 | 谁操作 | 必须？ |
-|--------|------|------|--------|--------|
-| **HITL-1** 文章审阅 | Stage 1 → Stage 2 | 人工确认 | 用户 | ✅ 必须 |
-| 新 widget 部署 | Stage 1 → Stage 2 | 人工操作 | 用户 | 仅当有新 widget |
-| 源文件附件上传 | Stage 2b | 脚本执行 | Agent | ✅ 必须 |
-| **HITL-2** 视频脚本审阅 | Stage 3 → Stage 4 | 人工确认 | 用户 | ✅ 必须 |
-| 视频自动验证 | Stage 5 内部 | 自动检查 | Agent | ✅ 必须 |
-| **HITL-3** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户 | ✅ 必须 |
-| TikTok 手工操作 | Stage 5 之后 | 人工操作 | 用户 | ✅ 必须 |
-| Analytics 导出 | Stage 6 | 人工操作 | 用户 | ✅ 必须 |
+| 检查点                  | 位置                           | 类型     | 谁操作 | 必须？          |
+| ----------------------- | ------------------------------ | -------- | ------ | --------------- |
+| **🔄 MRL-1** 文章自审   | Stage 1 → HITL-1 前            | 机器循环 | Agent  | ✅ 必须         |
+| **HITL-1** 文章审阅     | Stage 1 → Stage 2              | 人工确认 | 用户   | ✅ 必须         |
+| 新 widget 部署          | Stage 1 → Stage 2              | 人工操作 | 用户   | 仅当有新 widget |
+| 源文件附件上传          | Stage 2b                       | 脚本执行 | Agent  | ✅ 必须         |
+| **🔄 MRL-2** 脚本自审   | Stage 3 → HITL-2 前            | 机器循环 | Agent  | ✅ 必须         |
+| **HITL-2** 视频脚本审阅 | Stage 3 → Stage 4              | 人工确认 | 用户   | ✅ 必须         |
+| **🔄 MRL-3** 视频自审   | Stage 5 → HITL-3 前            | 机器循环 | Agent  | ✅ 必须         |
+| **HITL-3** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户   | ✅ 必须         |
+| TikTok 手工操作         | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
+| Analytics 导出          | Stage 6                        | 人工操作 | 用户   | ✅ 必须         |
 
 ### Agent 行为准则
 
-1. **到达 HITL 检查点时必须暂停** — 输出审阅内容 + 提示审阅要点 + 等待用户确认
-2. **不得自行假设确认** — 确认必须是用户主动发出（「继续」「OK」「确认」「发布」等）
-3. **用户提出修改意见时** — 按意见修改后重新进入该 HITL 检查点
-4. **Agent 驱动的 stage 全自动** — 在需要用户介入时会暂停提醒，不连续跨越 HITL 检查点
+1. **HITL 前必须先跑 MRL** — Agent 到达 HITL 检查点前，先运行对应 MRL 自审循环，0 Blockers 后才输出 MRL 报告并进入 HITL
+2. **到达 HITL 检查点时必须暂停** — 输出 MRL 报告 + 审阅内容 + 提示审阅要点 + 等待用户确认
+3. **不得自行假设确认** — 确认必须是用户主动发出（「继续」「OK」「确认」「发布」等）
+4. **用户提出修改意见时** — 按意见修改后重新运行 MRL → 重新进入该 HITL 检查点
+5. **Agent 驱动的 stage 全自动** — MRL + HITL 是双重门：机器先过滤机械性错误，人工再审主观质量
