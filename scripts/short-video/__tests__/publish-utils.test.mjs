@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { writeFileSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import {
   buildCaption,
   buildTiktokSettings,
@@ -117,9 +120,12 @@ describe("validateVideoFile", () => {
   });
 
   it("returns valid for existing MP4", () => {
-    // Use the actual video file from output
-    const result = validateVideoFile("scripts/short-video/output/deepseek-short.mp4");
+    // Create a temporary MP4 file to test validation
+    const tmpPath = join(tmpdir(), `test-${Date.now()}.mp4`);
+    writeFileSync(tmpPath, Buffer.alloc(1024)); // 1KB dummy file
+    const result = validateVideoFile(tmpPath);
     expect(result.valid).toBe(true);
+    rmSync(tmpPath);
   });
 });
 
