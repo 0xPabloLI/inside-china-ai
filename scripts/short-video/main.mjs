@@ -18,11 +18,11 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
-import { generateTTS } from "./generate-tts.mjs";
-import { recordScenes } from "./record-scenes.mjs";
-import { assembleVideo } from "./assemble.mjs";
-import { generateBGM } from "./generate-bgm.mjs";
-import { generateSRT } from "./generate-srt.mjs";
+import { generateTTS } from "./lib/generate-tts.mjs";
+import { recordScenes } from "./lib/record-scenes.mjs";
+import { assembleVideo } from "./lib/assemble.mjs";
+import { generateBGM } from "./lib/generate-bgm.mjs";
+import { generateSRT } from "./lib/generate-srt.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -128,7 +128,7 @@ async function main() {
   if (useBGM) {
     console.log("🎵 Step 3.5: Generating background music...\n");
     const bgmDuration = Math.ceil(totalDuration + 10);
-    const bgm = generateBGM(bgmDuration);
+    const bgm = generateBGM(bgmDuration, outputDir);
     bgmPath = bgm.bgmPath;
     console.log();
   } else {
@@ -147,7 +147,7 @@ async function main() {
 
   // ── Step 5: Assemble final video ──
   console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
-  const result = assembleVideo(videoResults, outputDir, bgmPath, srtFile);
+  const result = assembleVideo(videoResults, outputDir, meta.pipelineId, bgmPath, srtFile);
 
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`✅ Pipeline complete!`);

@@ -12,8 +12,8 @@ function run(cmd) {
   execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
-export function assembleVideo(scenes, outputDir, bgmPath = null, srtPath = null) {
-  const finalPath = join(outputDir, "deepseek-short.mp4");
+export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srtPath = null) {
+  const finalPath = join(outputDir, `${pipelineId}-short.mp4`);
   const concatFile = join(outputDir, "concat.txt");
   const sceneFiles = [];
 

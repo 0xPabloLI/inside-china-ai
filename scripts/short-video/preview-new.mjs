@@ -1,5 +1,6 @@
 import { chromium } from "@playwright/test";
-import { generateSceneHTML } from "./generate-scenes.mjs";
+import { generateScene } from "./content/deepseek/scenes.mjs";
+import { scenes } from "./content/deepseek/scene-data.mjs";
 import { writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -8,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Generate scene 1 HTML
-const html = generateSceneHTML(1, 6.0);
+const html = generateScene(scenes[0], 6.0);
 const htmlPath = join(__dirname, "output", "scenes", "scene-1.html");
 writeFileSync(htmlPath, html);
 console.log("Scene 1 HTML generated");
@@ -25,7 +26,7 @@ await page.screenshot({
 console.log("Scene 1 preview saved");
 
 // Also preview scene 12 (CTA with logo)
-const html12 = generateSceneHTML(12, 4.0);
+const html12 = generateScene(scenes[11], 4.0);
 const html12Path = join(__dirname, "output", "scenes", "scene-12.html");
 writeFileSync(html12Path, html12);
 await page.goto(`file://${html12Path}`, { waitUntil: "networkidle" });

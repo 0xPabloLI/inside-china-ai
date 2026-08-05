@@ -23,13 +23,14 @@ import { fileURLToPath } from "url";
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const ROOT_DIR = join(__dirname, "..");
 
 // ── F5-TTS-MLX config (default engine, best quality on Apple Silicon) ──
-const F5_MLX_BATCH_SCRIPT = join(__dirname, "f5_mlx_batch_tts.py");
+const F5_MLX_BATCH_SCRIPT = join(ROOT_DIR, "f5_mlx_batch_tts.py");
 const F5_MLX_VENV = join(process.env.HOME || "", ".f5-tts-env");
 const F5_MLX_SPEED = parseFloat(process.env.F5_SPEED) || 1.0;
-const F5_REF_AUDIO = join(__dirname, "assets", "voice-sample-24k.wav");
-const F5_REF_TEXT_FILE = join(__dirname, "assets", "voice-sample-ref-text.txt");
+const F5_REF_AUDIO = join(ROOT_DIR, "assets", "voice-sample-24k.wav");
+const F5_REF_TEXT_FILE = join(ROOT_DIR, "assets", "voice-sample-ref-text.txt");
 
 async function isF5MLXAvailable() {
   if (!existsSync(F5_MLX_BATCH_SCRIPT)) return false;
@@ -47,7 +48,7 @@ async function isF5MLXAvailable() {
 
 // ── XTTS v2 config ──
 // Uses batch script to load model ONCE for all scenes (avoids 60+ min reload penalty)
-const XTTS_BATCH_SCRIPT = join(__dirname, "xtts_batch_tts.py");
+const XTTS_BATCH_SCRIPT = join(ROOT_DIR, "xtts_batch_tts.py");
 const XTTS_VENV = join(process.env.HOME || "", ".xtts-env");
 const XTTS_LANGUAGE = "en";
 const XTTS_SPEED = parseFloat(process.env.XTTS_SPEED) || 1.15;
@@ -55,13 +56,13 @@ const XTTS_SPEAKER = process.env.XTTS_SPEAKER || "Craig Gutsy"; // Configurable 
 // Voice cloning: uses multi-WAV conditioning by default (3 clips from different positions).
 // Multi-WAV averaging produces more stable speaker embeddings than single clip.
 // Override: TTS_SPEAKER_WAV=none → built-in speaker; TTS_SPEAKER_WAV=/path → single file; TTS_SPEAKER_WAV="a.wav,b.wav" → custom multi
-const VOICE_SAMPLES_DIR = join(__dirname, "assets", "voice-samples");
+const VOICE_SAMPLES_DIR = join(ROOT_DIR, "assets", "voice-samples");
 const multiClips = existsSync(VOICE_SAMPLES_DIR)
   ? ["multi_clip1.wav", "multi_clip2.wav", "multi_clip3.wav"]
       .map((f) => join(VOICE_SAMPLES_DIR, f))
       .filter((f) => existsSync(f))
   : [];
-const DEFAULT_SPEAKER_WAV = join(__dirname, "assets", "voice-sample.wav");
+const DEFAULT_SPEAKER_WAV = join(ROOT_DIR, "assets", "voice-sample.wav");
 const XTTS_SPEAKER_WAV =
   process.env.TTS_SPEAKER_WAV === "none"
     ? null
@@ -75,7 +76,7 @@ const XTTS_SPEAKER_WAV =
 
 // Path to Kokoro Python TTS script and venv
 // Checks persistent location (~/.tts-env) first, then temp (/tmp/tts-env)
-const KOKORO_SCRIPT = join(__dirname, "kokoro_tts.py");
+const KOKORO_SCRIPT = join(ROOT_DIR, "kokoro_tts.py");
 const KOKORO_VENV_CANDIDATES = [join(process.env.HOME || "", ".tts-env"), "/tmp/tts-env"];
 const KOKORO_VOICE = "am_michael"; // Clear, authoritative male
 const KOKORO_SPEED = 1.1; // ~10% faster than normal
@@ -438,10 +439,10 @@ export async function generateTTS(scenes, outputDir) {
 
 // ── Force-align subtitle timing ──
 // Uses ffmpeg silencedetect to align KNOWN text to KNOWN audio.
-// Output: output/audio/subtitle-timing.json — used by generate-scenes.mjs
+// Output: output/{pipelineId}/audio/subtitle-timing.json — used by generate-srt.mjs
 async function runWhisperAlignment(scenes, ttsResults, outputDir) {
   const { existsSync } = await import("fs");
-  const alignScript = join(__dirname, "text-align.py");
+  const alignScript = join(ROOT_DIR, "text-align.py");
   if (!existsSync(alignScript)) {
     console.log("  ⚠️ Force-align script not found, skipping");
     return;

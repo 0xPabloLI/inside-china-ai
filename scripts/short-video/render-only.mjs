@@ -11,11 +11,11 @@ import { execSync } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { writeFileSync } from "fs";
-import { scenes } from "./scene-data.mjs";
-import { generateSceneHTML } from "./generate-scenes.mjs";
-import { recordScenes } from "./record-scenes.mjs";
-import { assembleVideo } from "./assemble.mjs";
-import { generateBGM } from "./generate-bgm.mjs";
+import { scenes } from "./content/deepseek/scene-data.mjs";
+import { generateScene } from "./content/deepseek/scenes.mjs";
+import { recordScenes } from "./lib/record-scenes.mjs";
+import { assembleVideo } from "./lib/assemble.mjs";
+import { generateBGM } from "./lib/generate-bgm.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -57,7 +57,7 @@ console.log(`  Total: ${totalDuration.toFixed(1)}s\n`);
 console.log("🎨 Re-generating HTML scene templates...\n");
 for (const sd of sceneData) {
   const scene = scenes.find((s) => s.id === sd.sceneId);
-  const html = generateSceneHTML(sd.sceneId, sd.duration, scene.voiceover);
+  const html = generateScene(scene, sd.duration);
   const htmlPath = join(scenesDir, `scene-${sd.sceneId}.html`);
   writeFileSync(htmlPath, html);
   console.log(`  Scene ${sd.sceneId} (${scene.label || "scene"}): ${sd.duration.toFixed(1)}s`);
@@ -73,7 +73,7 @@ const useBGM = process.argv.includes("--bgm");
 let bgmPath = null;
 if (useBGM) {
   console.log("🎵 Generating background music...\n");
-  const bgm = generateBGM(Math.ceil(totalDuration + 10));
+  const bgm = generateBGM(Math.ceil(totalDuration + 10), outputDir);
   bgmPath = bgm.bgmPath;
   console.log();
 } else {
@@ -82,7 +82,7 @@ if (useBGM) {
 
 // Step 4: Assemble
 console.log("🔧 Assembling final video...\n");
-const result = assembleVideo(videoResults, outputDir, bgmPath);
+const result = assembleVideo(videoResults, outputDir, "deepseek", bgmPath);
 
 console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 console.log(`✅ Render complete!`);

@@ -14,8 +14,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export function generateBGM(duration = 180) {
-  const audioDir = join(__dirname, "output", "audio");
+export function generateBGM(duration = 180, outputDir) {
+  const audioDir = join(outputDir || join(__dirname, "..", "output"), "audio");
   mkdirSync(audioDir, { recursive: true });
   const bgmPath = join(audioDir, "bgm.wav");
 
