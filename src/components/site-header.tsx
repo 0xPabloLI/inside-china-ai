@@ -52,10 +52,11 @@ export function SiteHeader() {
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
           <Link
             to="/"
-            activeOptions={{ exact: true }}
-            activeProps={{ className: "text-foreground font-medium" }}
-            inactiveProps={{ className: "text-muted-foreground" }}
-            className="hover:text-foreground"
+            className={`hover:text-foreground ${
+              location.pathname === "/" || location.pathname.startsWith("/posts/")
+                ? "text-foreground font-medium"
+                : "text-muted-foreground"
+            }`}
             onClick={handleArticlesClick}
           >
             Articles
