@@ -36,3 +36,10 @@ scripts/short-video/assets/*.wav
 scripts/short-video/assets/audio*.m4a
 scripts/youtube-thumbnail.png
 scripts/youtube-thumbnail-2x.png
+scripts/short-video/*.bak
+scripts/short-video/xtts_tts.py
+scripts/short-video/record-tiktok-demo.mjs
+scripts/short-video/assets/tiktok*.txt
+output/
+test-results/
+.playwright-cli/
