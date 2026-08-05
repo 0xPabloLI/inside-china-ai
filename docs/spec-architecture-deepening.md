@@ -1,17 +1,59 @@
 # Architecture Deepening Spec
 
 > **Origin**: `improve-codebase-architecture` skill review (2026-08-05)
-> **Method**: Skill grilling loop → lightweight spec → TDD implement → code review → runtime verify
 > **Scope**: 8 refactoring candidates across website + video pipeline. Behavior-preserving — no new features.
+
+## How to Use This Document (For New Sessions)
+
+1. 读 **Session Plan** 表格 → 找到状态为 🔲 Pending 的下一个 session
+2. 读对应 Candidate 的 **Problem / Solution / Interface** → 理解设计意图
+3. 读 **Modified Files Impact** + **Behavioral Scenarios** → 场景矩阵就是测试用例清单
+4. 按 **Workflow** 执行 → 每步完成后更新 **Progress Checklist** 和 Session Plan 状态
+5. 验证全绿后 commit + push → 用新 commit（amend 仅限未 push 且非 Lovable 连接分支）
+
+## Workflow (Per Session)
+
+本 spec 已完成 Grill + To Spec 阶段（设计 + 场景矩阵已固化）。新 session 从 TDD Implement 开始：
+
+```
+1. TDD Implement  — 逐 Candidate 实施
+   ├─ 先读当前代码确认设计仍然匹配
+   ├─ 按 Behavioral Scenarios 矩阵逐行实现
+   └─ 关键逻辑先写测试（矩阵每行 = 一个测试用例）
+
+2. Code Review    — 对照 spec 场景矩阵逐项验证
+   ├─ Standards: 遵循 AGENTS.md coding conventions
+   └─ Spec: 每个 Behavioral Scenario 行为是否匹配
+
+3. Runtime Verify
+   ├─ npm run lint   （仅改动的文件零新错误）
+   ├─ npx tsc --noEmit  （零新增 TS 错误）
+   ├─ npm run build  （构建通过）
+   └─ UI 改动需 dev server 浏览器验证
+
+4. Commit & Push
+   ├─ git add <具体路径>   （绝不 git add -A）
+   ├─ git commit -m "refactor(scope): ..."
+   └─ git push
+
+5. Update This Document
+   ├─ Session Plan 表格状态 → ✅ Done
+   └─ Progress Checklist 打勾
+```
+
+**跳过的标准工作流步骤**（因为这是行为保持的重构，不是新功能）：
+- ~~Grill with Docs~~ — 已在初始 session 完成
+- ~~To Spec~~ — 本文档就是 spec
+- ~~To Tickets~~ — 每个 Candidate 就是一个 ticket，无需额外拆分
 
 ## Session Plan
 
-| Session | Candidates | Domain | Status |
-|---------|-----------|--------|--------|
-| S1 | 1 + 2 (requireAdmin + useIsAdmin) | Website — auth | ✅ Done |
-| S2 | 5 (TTS engine strategy) | Video pipeline | 🔲 Pending |
-| S3 | 6 + 7 (Publora client + CDP scraper) | Video pipeline | 🔲 Pending |
-| S4 | 8 → 3 → 4 (PostEditor → attachment upload → Supabase factory) | Website | 🔲 Pending |
+| Session | Candidates | Domain | Status | Commit |
+|---------|-----------|--------|--------|--------|
+| S1 | 1 + 2 (requireAdmin + useIsAdmin) | Website — auth | ✅ Done | `2eda390` |
+| S2 | 5 (TTS engine strategy) | Video pipeline | 🔲 Pending | — |
+| S3 | 6 + 7 (Publora client + CDP scraper) | Video pipeline | 🔲 Pending | — |
+| S4 | 8 → 3 → 4 (PostEditor → attachment upload → Supabase factory) | Website | 🔲 Pending | — |
 
 ---
 
@@ -337,8 +379,8 @@ ADR-0005 states `auth-middleware.ts` is auto-generated and immutable. This candi
 
 ## Progress Checklist
 
-- [x] S1: Candidate 1 — `requireAdmin` middleware ✅ (also fixed missing admin check on `getPostAdmin`)
-- [x] S1: Candidate 2 — `useIsAdmin` hook ✅ (unified auth state subscription + RPC method)
+- [x] S1: Candidate 1 — `requireAdmin` middleware ✅ (commit `2eda390`, 2026-08-05 — also fixed missing admin check on `getPostAdmin`)
+- [x] S1: Candidate 2 — `useIsAdmin` hook ✅ (commit `2eda390`, 2026-08-05 — unified auth state subscription + RPC method)
 - [ ] S2: Candidate 5 — TTS engine strategy
 - [ ] S3: Candidate 6 — Publora API client
 - [ ] S3: Candidate 7 — CDP scraper
