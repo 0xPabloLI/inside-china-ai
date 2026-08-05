@@ -47,9 +47,9 @@ Based on platform research and session learnings:
 | Font size   | **42px** (was 34px)                        | Must be readable at phone size + thumbnail scale         |
 | Font weight | **800** (bold)                             | Thin text vanishes on bright backgrounds                 |
 | Chunks      | **3-7 words** per display                  | Users read ~2.5 words/sec; longer chunks get skipped     |
-| Background  | `rgba(0,0,0,0.75)` + 1px border            | Ensures contrast on any scene                            |
-| Position    | `bottom: 200px`                            | Above platform UI zone (~180px from bottom)              |
-| Timing      | **Force-aligned** via ffmpeg silencedetect | Actual audio silence boundaries, not word-count estimate |
+| Rendering   | **FFmpeg ASS native burn-in** (ffmpeg-full) | CSS/JS approaches abandoned; ASS gives pixel-perfect control |
+| Position    | `MarginV=450` (ASS)                        | Above TikTok bottom UI zone (buttons, description, username) |
+| Timing      | **wav2vec2 forced alignment** + -0.3s offset | Subtitles appear slightly before audio; text-align.py   |
 | Scene 1     | ✅ Now has subtitles (was skipped)         | User feedback: subtitles should appear from the start    |
 
 ### Pacing
@@ -96,34 +96,39 @@ Based on platform research and session learnings:
 
 ## TTS Engine Configuration
 
-| Priority | Engine    | Config                                | Speed   | Venv                        | Notes                                                    |
-| -------- | --------- | ------------------------------------- | ------- | --------------------------- | -------------------------------------------------------- |
-| 1        | XTTS v2   | speaker_wav (cloned) or "Craig Gutsy" | 1.15    | `~/.xtts-env` (Python 3.11) | Batch mode; **MPS hybrid** (GPT on MPS, HiFi-GAN on CPU) |
-| 2        | Kokoro    | voice="am_michael"                    | 1.1     | `~/.tts-env` (Python 3.12)  | 54 voices available; fastest on CPU                      |
-| 3        | edge-tts  | en-US-BrianNeural                     | +8%     | npm                         | Network-dependent, retry 3x                              |
-| 4        | macOS say | Daniel                                | 190 wpm | built-in                    | Last resort                                              |
+| Priority | Engine      | Config                          | Speed   | Venv                        | Notes                                                              |
+| -------- | ----------- | ------------------------------- | ------- | --------------------------- | ------------------------------------------------------------------ |
+| 1        | F5-TTS-MLX  | ref_audio + ref_text (cloned)   | 1.0     | `~/.f5-tts-env` (Python 3.11) | Best quality on Apple Silicon; batch mode; no silenceremove needed |
+| 2        | XTTS v2     | speaker_wav (cloned) or "Craig Gutsy" | 1.15 | `~/.xtts-env` (Python 3.11) | Batch mode; **MPS hybrid** (GPT on MPS, HiFi-GAN on CPU)          |
+| 3        | Kokoro      | voice="am_michael"              | 1.1     | `~/.tts-env` (Python 3.12)  | 54 voices available; fastest on CPU                               |
+| 4        | edge-tts    | en-US-BrianNeural               | +8%     | npm                         | Network-dependent, retry 3x                                        |
+| 5        | macOS say   | Daniel                          | 190 wpm | built-in                    | Last resort                                                        |
 
-**Voice cloning** (DEFAULT — pipeline auto-detects `assets/voice-sample.wav`):
+**F5-TTS-MLX** (DEFAULT — best quality on Apple Silicon):
+
+- Voice cloning via reference audio + reference text
+- Ref audio: `assets/voice-sample-24k.wav`（24kHz mono WAV）
+- Ref text: `assets/voice-sample-ref-text.txt`（必须精确匹配 ref audio 的文字内容）
+- Duration formula: `duration = ref_dur + target_dur`（不设会导致 0.03s 音频）
+- F5 音频振幅低，**跳过 silenceremove**（-35dB 阈值会全删）
+- Optional atempo: `export TTS_ATEMPO=1.3`（加速语音）
+- M4A 不被 Python 音频库支持，必须先转 WAV：`ffmpeg -y -i input.m4a -ar 24000 -ac 1 output.wav`
+
+**XTTS v2** (fallback):
 
 - XTTS clones timbre only; pronunciation is standard English from language model
 - Override: `export TTS_SPEAKER_WAV=/path/to/other.wav` or set empty to disable
 - To replace the sample: put M4A in `assets/`, extract 10-15s clear speech segment, convert with `ffmpeg -ar 22050 -ac 1`
+- MPS hybrid mode: patch `tts/models/xtts.py` line 577 + 320 (add `.cpu()`), GPT on MPS, HiFi-GAN on CPU
+- PyTorch 2.5.1 required (2.13.0 breaks `weights_only` default)
 
-**MPS hybrid mode** (2x faster than CPU):
+**Force engine**: `export TTS_ENGINE=f5` / `xtts` / `kokoro`
 
-- Patch XTTS source: `tts/models/xtts.py` line 577 + line 320 (add `.cpu()` to gpt_latents/speaker_embedding/speaker_encoder input)
-- GPT runs on MPS (Apple GPU), HiFi-GAN decoder runs on CPU (avoids conv1d crash)
-- PyTorch 2.5.1 required (2.13.0 breaks model loading via `weights_only` default change)
+**Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition.
 
-**Subtitle alignment**: Uses `force-align.py` (ffmpeg silencedetect) — NOT Whisper recognition.
-
-- We already know the text (machine-generated), so we align known text to known audio via silence boundaries
-- Whisper recognition approach was wrong (TTS audio ≠ natural speech, recognition errors)
-
-**Known issues**:
-
-- XTTS batch script outputs JSON to stdout, but TTS engine also prints sentence-split `["text"]` → JSON parser must look for `[{"sceneId"` prefix
-- XTTS has 59 built-in speakers (list with `tts.synthesizer.tts_model.speaker_manager.name_to_id`)
+- We already know the text (from scene-data.mjs), so we align known text to known audio directly
+- Whisper recognition approach was abandoned (TTS audio ≠ natural speech, recognition errors like "DeepSeek" → "deep seeks")
+- Output: `output/{pipelineId}/audio/subtitle-timing.json`
 
 ## Logo Handling
 
@@ -249,31 +254,52 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 
 ```text
 scripts/short-video/
-├── scene-data.mjs          # EDIT THIS — scene definitions
-├── generate-tts.mjs        # TTS engine config (XTTS > Kokoro > edge-tts > say)
-├── xtts_batch_tts.py       # XTTS v2 batch TTS (loads model once for all scenes)
-├── kokoro_tts.py            # Kokoro TTS single-scene script
-├── generate-scenes.mjs     # HTML/CSS scene templates + burned-in subtitles
-├── generate-bgm.mjs        # Procedural cyber-ambient BGM
-├── record-scenes.mjs       # Playwright recording
-├── assemble.mjs            # FFmpeg assembly + BGM mix
-├── assemble-only.mjs       # Re-assemble from existing audio+video (skip TTS+recording)
-├── render-only.mjs         # Re-render HTML + record + assemble (skip TTS)
-├── main.mjs                # Pipeline orchestrator (--bgm flag for BGM)
-├── preview.mjs             # Single-scene preview (validate before full pipeline)
-├── force-align.py          # Subtitle alignment via ffmpeg silencedetect (replaces whisper)
-├── verify-video.mjs        # TikTok best practices compliance gate (Step 6, MANDATORY)
-├── whisper-align.py        # [deprecated] Whisper word-level timestamps — use force-align.py instead
-├── run-whisper.mjs         # [deprecated] Run whisper-align on existing audio
-├── setup-tts.sh            # TTS environment setup script
-├── tts-test.mjs            # TTS voice comparison tester
-├── tts-config-log.md       # TTS config history (voice/speed per run)
-└── output/
-    ├── audio/              # TTS audio per scene + subtitle-timing.json
-    ├── scenes/             # HTML scene files
-    ├── video/              # Recorded WebM per scene
-    └── deepseek-short.mp4  # Final video
+├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify)
+├── verify-subtitles.mjs    # CLI wrapper — subtitle verification (coverage + sync)
+├── text-align.py           # wav2vec2 forced alignment (known text → audio)
+├── f5_mlx_batch_tts.py     # F5-TTS-MLX batch TTS (load model once, all scenes)
+├── xtts_batch_tts.py       # XTTS v2 batch TTS (fallback engine)
+├── kokoro_tts.py           # Kokoro TTS (fallback engine)
+├── lib/                    # Shared infrastructure (content-agnostic)
+│   ├── generate-tts.mjs    # TTS engine selector (F5 > XTTS > Kokoro > edge > say)
+│   ├── generate-srt.mjs    # ASS subtitle generation (PlayResX=1080, MarginV=450, -0.3s offset)
+│   ├── assemble.mjs        # FFmpeg assembly + ASS burn-in + BGM mix
+│   ├── record-scenes.mjs   # Playwright recording (1080×1920)
+│   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
+│   ├── verify-subtitles.mjs # Subtitle verification (coverage, duration, sync)
+│   └── base-styles.mjs     # Shared visual system (CSS vars, backgrounds, animations, brand SVG)
+├── content/                # Content pipelines (each article = one dir)
+│   ├── deepseek/           # DeepSeek story
+│   │   ├── meta.mjs        # { pipelineId: "deepseek" }
+│   │   ├── scene-data.mjs  # 12 scenes (voiceover, texts, visualType)
+│   │   └── scenes.mjs      # 12 visual templates (read scene.texts)
+│   └── distillation/       # LLM distillation series
+│       ├── pt1/            # Part 1 (8 unique scenes, red/glitch DNA)
+│       ├── pt2/            # Part 2 (scene-data + meta, scenes = stub)
+│       └── pt3/            # Part 3 (scene-data + meta, scenes = stub)
+├── assets/
+│   ├── voice-sample-24k.wav # F5 ref audio (24kHz mono)
+│   ├── voice-sample-ref-text.txt # F5 ref text (must match ref audio exactly)
+│   ├── voice-samples/      # Multi-clip XTTS cloning samples
+│   └── logos/              # Company logos (deepseek.svg, ...)
+└── output/                 # Pipeline outputs (isolated per pipelineId)
+    └── {pipelineId}/
+        ├── audio/          # TTS audio + subtitle-timing.json
+        ├── scenes/         # HTML scene files
+        ├── video/          # Recorded WebM per scene
+        ├── subtitles.ass   # ASS subtitle file
+        ├── verification-report.json # Subtitle verification report
+        └── {pipelineId}-short.mp4  # Final video
 ```
+
+### Key Paths & Environment
+
+| Item | Path / Value | Notes |
+|------|-------------|-------|
+| ffmpeg-full | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
+| F5 venv | `~/.f5-tts-env` (Python 3.11) | F5-TTS-MLX + whisperx (for text-align.py) |
+| XTTS venv | `~/.xtts-env` (Python 3.11) | XTTS v2 (fallback TTS) |
+| Kokoro venv | `~/.tts-env` (Python 3.12) | Kokoro TTS (fallback) |
 
 ### Code — Thumbnail
 
@@ -287,13 +313,14 @@ scripts/
 
 ```text
 scripts/short-video/assets/
+├── voice-sample-24k.wav              # F5-TTS ref audio (24kHz mono, required)
+├── voice-sample-ref-text.txt         # F5-TTS ref text (must match ref audio exactly)
+├── voice-sample.wav                  # XTTS cloning sample (15s)
+├── voice-samples/                    # Multi-clip XTTS cloning samples
+├── logos/                            # Company logos (deepseek.svg, ...)
 ├── china-ai-news-logo-gpt.png        # GPT-generated original PNG (full logo)
 ├── china-ai-news-logo-image-only.png # Pure graphic only (no text)
-├── china-ai-news-logo-vector.svg     # Vector SVG (true vector, scalable)
-├── voice-sample.wav                   # Best voice sample for XTTS cloning (15s, no filter)
-├── audio6507181385.m4a                # Original M4A recording (18 min)
-├── voice-samples/                     # Clone test variants + processed samples
-└── deepseek-logo.svg                  # DeepSeek logo for video
+└── china-ai-news-logo-vector.svg     # Vector SVG (true vector, scalable)
 ```
 
 ## Step 8: Analytics & Optimization (Post-Publish)
@@ -445,3 +472,36 @@ node scripts/short-video/publish-tiktok.mjs --series-id deepseek-distillation --
 ### 批量生产
 
 决定拆分后一次性生成所有 scene-data，批量跑 TTS → 渲染 → 合成。相比逐条制作节省 60-70% 时间。
+
+---
+
+## Running the Pipeline
+
+```bash
+# DeepSeek video (default content)
+node scripts/short-video/main.mjs --content deepseek --bgm
+
+# Distillation pt1
+node scripts/short-video/main.mjs --content distillation/pt1 --bgm
+
+# Skip BGM
+node scripts/short-video/main.mjs --content deepseek
+
+# Skip subtitle verification (fast iteration)
+node scripts/short-video/main.mjs --content deepseek --bgm --skip-verify
+
+# Standalone subtitle verification
+node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitle-timing.json> [scene-durations.json]
+```
+
+### Pipeline Steps
+
+| Step | Action | Output |
+|------|--------|--------|
+| 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
+| 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
+| 3 | Record scene videos (Playwright) | `output/{id}/video/scene-*.webm` |
+| 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
+| 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
+| 5 | Assemble final video (FFmpeg) | `output/{id}/{id}-short.mp4` |
+| 6 | Verify subtitles (auto, `--skip-verify` to skip) | `output/{id}/verification-report.json` |
