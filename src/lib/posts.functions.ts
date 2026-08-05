@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-admin";
-import { createPublicClient } from "@/integrations/supabase/client";
+import { createPublicClient } from "@/integrations/supabase/public-client";
 
 const STORAGE_BUCKET = "post-attachments";
 

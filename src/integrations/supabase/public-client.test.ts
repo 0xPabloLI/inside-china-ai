@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createPublicClient } from "./client";
+import { createPublicClient } from "./public-client";
 
 describe("createPublicClient", () => {
   const originalEnv = { ...process.env };

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
-import { createPublicClient } from "@/integrations/supabase/client";
+import { createPublicClient } from "@/integrations/supabase/public-client";
 
 const BASE_URL = "https://chinaai.news";
 
