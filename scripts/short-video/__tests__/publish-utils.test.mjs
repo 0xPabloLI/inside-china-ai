@@ -9,7 +9,8 @@ import {
 
 const mockMetadata = {
   title: "DeepSeek's $1.4B Funding Round Paused",
-  description: "A leaked investor meeting reveals DeepSeek's strategy.\nFollow for more China AI news.\n\n#chinaai #deepseek #ai",
+  description:
+    "A leaked investor meeting reveals DeepSeek's strategy.\nFollow for more China AI news.\n\n#chinaai #deepseek #ai",
   hashtags: ["#chinaai", "#deepseek", "#ai"],
   generatedAt: "2026-08-02T11:28:25.152Z",
   source: "auto-derived",
@@ -19,7 +20,7 @@ describe("buildCaption", () => {
   it("assembles title + description into caption", () => {
     const result = buildCaption(mockMetadata);
     expect(result).toBe(
-      "DeepSeek's $1.4B Funding Round Paused\n\nA leaked investor meeting reveals DeepSeek's strategy.\nFollow for more China AI news.\n\n#chinaai #deepseek #ai"
+      "DeepSeek's $1.4B Funding Round Paused\n\nA leaked investor meeting reveals DeepSeek's strategy.\nFollow for more China AI news.\n\n#chinaai #deepseek #ai",
     );
   });
 

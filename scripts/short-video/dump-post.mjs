@@ -12,7 +12,10 @@ for (const f of [".env", ".env.local"]) {
       const m = line.match(/^([A-Z_]+)=(.*)$/);
       if (m) {
         let val = m[2].trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        )
           val = val.slice(1, -1);
         env[m[1]] = val;
       }

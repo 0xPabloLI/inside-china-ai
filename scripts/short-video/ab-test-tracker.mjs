@@ -56,7 +56,6 @@ if (command === "add") {
   results.tests.push(test);
   saveResults(results);
   console.log(`✅ Added: ${id} — ${test.variable}/${test.variant}: ${test.description}`);
-
 } else if (command === "result") {
   const id = getArg("id");
   const results = loadResults();
@@ -75,7 +74,6 @@ if (command === "add") {
   };
   saveResults(results);
   console.log(`✅ Recorded results for ${id}`);
-
 } else if (command === "report") {
   const results = loadResults();
   console.log("\n📊 A/B Test Report");
@@ -96,19 +94,20 @@ if (command === "add") {
       continue;
     }
     const best = completed.reduce((a, b) =>
-      (b.result.completion * b.result.views) > (a.result.completion * a.result.views) ? b : a
+      b.result.completion * b.result.views > a.result.completion * a.result.views ? b : a,
     );
     for (const t of completed) {
       const score = (t.result.completion * t.result.views).toFixed(0);
       const marker = t.id === best.id ? " 🏆" : "";
-      console.log(`  ${t.variant}: ${t.result.views} views, ${(t.result.completion * 100).toFixed(0)}% completion, ${t.result.shares} shares — score ${score}${marker} — ${t.description}`);
+      console.log(
+        `  ${t.variant}: ${t.result.views} views, ${(t.result.completion * 100).toFixed(0)}% completion, ${t.result.shares} shares — score ${score}${marker} — ${t.description}`,
+      );
     }
   }
   console.log(`\n📁 ${RESULTS_PATH}`);
-
 } else {
   console.log("Usage: ab-test-tracker.mjs [add|result|report] [options]");
-  console.log("  add --variable <hook|length|time|caption> --variant A --description \"...\"");
+  console.log('  add --variable <hook|length|time|caption> --variant A --description "..."');
   console.log("  result --id ab-001 --views 5000 --completion 0.45 --shares 120 --saves 80");
   console.log("  report");
 }

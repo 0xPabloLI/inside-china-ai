@@ -28,14 +28,15 @@ let count = 0;
 for (const day of plan.days) {
   if (!day.topic) continue;
 
-  const slug = day.topic.title
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .substring(0, 40) || `topic-${day.day}`;
+  const slug =
+    day.topic.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .substring(0, 40) || `topic-${day.day}`;
 
   const filePath = join(__dirname, `scene-data-${slug}.mjs`);
-  
+
   if (existsSync(filePath)) {
     console.log(`  ⏭️  Day ${day.day}: ${slug} (already exists)`);
     continue;

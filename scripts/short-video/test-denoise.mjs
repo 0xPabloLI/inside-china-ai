@@ -13,13 +13,22 @@ const input = "scripts/short-video/output/audio/scene-4.mp3";
 const output = `${outDir}/scene-4-denoised.mp3`;
 
 // silenceremove: detect silence below -35dB, if longer than 0.3s, remove everything except 0.15s
-const filter = "silenceremove=window=0:detection=peak:threshold=-35dB:stop_periods=-1:stop_duration=0.3:stop_silence=0.15";
+const filter =
+  "silenceremove=window=0:detection=peak:threshold=-35dB:stop_periods=-1:stop_duration=0.3:stop_silence=0.15";
 
 execSync(`ffmpeg -y -i "${input}" -af "${filter}" "${output}" 2>&1`);
 
 // Compare durations
-const origDur = execSync(`ffprobe -i "${input}" -show_entries format=duration -v quiet -of csv="p=0"`).toString().trim();
-const newDur = execSync(`ffprobe -i "${output}" -show_entries format=duration -v quiet -of csv="p=0"`).toString().trim();
+const origDur = execSync(
+  `ffprobe -i "${input}" -show_entries format=duration -v quiet -of csv="p=0"`,
+)
+  .toString()
+  .trim();
+const newDur = execSync(
+  `ffprobe -i "${output}" -show_entries format=duration -v quiet -of csv="p=0"`,
+)
+  .toString()
+  .trim();
 
 console.log(`Original: ${origDur}s`);
 console.log(`Processed: ${newDur}s`);

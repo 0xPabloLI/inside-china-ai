@@ -137,9 +137,7 @@ export function NewsletterAdmin() {
     setBusy(true);
     try {
       const res = await sendNow({ data: { id } });
-      toast.success(
-        `Sent ${res.sent} · blocked ${res.suppressed} · failed ${res.failed}`,
-      );
+      toast.success(`Sent ${res.sent} · blocked ${res.suppressed} · failed ${res.failed}`);
       qc.invalidateQueries({ queryKey: ["admin-newsletters"] });
       qc.invalidateQueries({ queryKey: ["admin-newsletter-sends"] });
       loadForm(null);

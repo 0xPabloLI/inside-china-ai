@@ -31,9 +31,13 @@ if (ratioIdx >= 0 && ratioIdx + 1 < args.length) {
       data: parts[2] / sum,
       explainer: parts[3] / sum,
     };
-    console.log(`⚙️  Custom ratio: breaking ${parts[0]}% / fermenting ${parts[1]}% / data ${parts[2]}% / explainer ${parts[3]}%`);
+    console.log(
+      `⚙️  Custom ratio: breaking ${parts[0]}% / fermenting ${parts[1]}% / data ${parts[2]}% / explainer ${parts[3]}%`,
+    );
   } else {
-    console.error('❌ Invalid --ratio. Use format: "40,30,20,10" (breaking,fermenting,data,explainer)');
+    console.error(
+      '❌ Invalid --ratio. Use format: "40,30,20,10" (breaking,fermenting,data,explainer)',
+    );
     process.exit(1);
   }
 }
@@ -54,7 +58,9 @@ console.log("=".repeat(50));
 console.log(`  Total topics: ${plan.totalTopics}`);
 for (const day of plan.days) {
   if (day.topic) {
-    console.log(`  Day ${day.day} (${day.date}): ${day.type} — ${day.topic.title.substring(0, 60)}`);
+    console.log(
+      `  Day ${day.day} (${day.date}): ${day.type} — ${day.topic.title.substring(0, 60)}`,
+    );
   } else {
     console.log(`  Day ${day.day} (${day.date}): — (no topic)`);
   }

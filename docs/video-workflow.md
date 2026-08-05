@@ -21,16 +21,16 @@ The first 3 seconds determine 70% of completion rate. Rules:
 
 Based on platform research and session learnings:
 
-| Principle | Rule | Why |
-|-----------|------|-----|
-| **One core message** | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work" |
-| **Text ≥ 32px** | Minimum 32px on a 1080×1920 canvas; titles ≥ 60px | At thumbnail size in-feed, < 32px is invisible |
-| **Upper 2/3 rule** | Critical content in top 1280px (of 1920) | Bottom 640px gets covered by platform UI (buttons, captions, title overlay) |
-| **No dead space** | Fill the full 1920px height — no > 200px gaps | Blank zones signal "no content" → scroll past |
-| **Bold color blocks** | Use solid-color areas (not gradients) for contrast | Gradients compress poorly at thumbnail size; solid blocks pop |
-| **Asymmetric layout** | Offset the main element left or right of center | Centered layouts read as "AI-generated"; asymmetry feels human-designed |
-| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse) | A static frame in autoplay feed looks like a still image, not a video |
-| **Max 2 stat cards** | Don't stack 3+ data points on the hook frame | Users can't parse 3+ numbers in 1 second; 2 is the limit |
+| Principle              | Rule                                                  | Why                                                                         |
+| ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"    |
+| **Text ≥ 32px**        | Minimum 32px on a 1080×1920 canvas; titles ≥ 60px     | At thumbnail size in-feed, < 32px is invisible                              |
+| **Upper 2/3 rule**     | Critical content in top 1280px (of 1920)              | Bottom 640px gets covered by platform UI (buttons, captions, title overlay) |
+| **No dead space**      | Fill the full 1920px height — no > 200px gaps         | Blank zones signal "no content" → scroll past                               |
+| **Bold color blocks**  | Use solid-color areas (not gradients) for contrast    | Gradients compress poorly at thumbnail size; solid blocks pop               |
+| **Asymmetric layout**  | Offset the main element left or right of center       | Centered layouts read as "AI-generated"; asymmetry feels human-designed     |
+| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)       | A static frame in autoplay feed looks like a still image, not a video       |
+| **Max 2 stat cards**   | Don't stack 3+ data points on the hook frame          | Users can't parse 3+ numbers in 1 second; 2 is the limit                    |
 
 ### Silent Autoplay
 
@@ -42,15 +42,15 @@ Based on platform research and session learnings:
 
 #### Subtitle Best Practices
 
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Font size | **42px** (was 34px) | Must be readable at phone size + thumbnail scale |
-| Font weight | **800** (bold) | Thin text vanishes on bright backgrounds |
-| Chunks | **3-7 words** per display | Users read ~2.5 words/sec; longer chunks get skipped |
-| Background | `rgba(0,0,0,0.75)` + 1px border | Ensures contrast on any scene |
-| Position | `bottom: 200px` | Above platform UI zone (~180px from bottom) |
-| Timing | **Force-aligned** via ffmpeg silencedetect | Actual audio silence boundaries, not word-count estimate |
-| Scene 1 | ✅ Now has subtitles (was skipped) | User feedback: subtitles should appear from the start |
+| Parameter   | Value                                      | Rationale                                                |
+| ----------- | ------------------------------------------ | -------------------------------------------------------- |
+| Font size   | **42px** (was 34px)                        | Must be readable at phone size + thumbnail scale         |
+| Font weight | **800** (bold)                             | Thin text vanishes on bright backgrounds                 |
+| Chunks      | **3-7 words** per display                  | Users read ~2.5 words/sec; longer chunks get skipped     |
+| Background  | `rgba(0,0,0,0.75)` + 1px border            | Ensures contrast on any scene                            |
+| Position    | `bottom: 200px`                            | Above platform UI zone (~180px from bottom)              |
+| Timing      | **Force-aligned** via ffmpeg silencedetect | Actual audio silence boundaries, not word-count estimate |
+| Scene 1     | ✅ Now has subtitles (was skipped)         | User feedback: subtitles should appear from the start    |
 
 ### Pacing
 
@@ -73,6 +73,7 @@ Based on platform research and session learnings:
 - Instagram Reels: 1080×1920 (9:16), 90s max
 
 **Design rules for vertical:**
+
 - Content flows top-to-bottom in a natural reading order
 - Never put critical info in the bottom 180px (platform UI overlay zone)
 - Use absolute positioning with explicit `top:` values — not flex centering (which can shift with dynamic content)
@@ -95,28 +96,32 @@ Based on platform research and session learnings:
 
 ## TTS Engine Configuration
 
-| Priority | Engine | Config | Speed | Venv | Notes |
-|----------|--------|--------|-------|------|-------|
-| 1 | XTTS v2 | speaker_wav (cloned) or "Craig Gutsy" | 1.15 | `~/.xtts-env` (Python 3.11) | Batch mode; **MPS hybrid** (GPT on MPS, HiFi-GAN on CPU) |
-| 2 | Kokoro | voice="am_michael" | 1.1 | `~/.tts-env` (Python 3.12) | 54 voices available; fastest on CPU |
-| 3 | edge-tts | en-US-BrianNeural | +8% | npm | Network-dependent, retry 3x |
-| 4 | macOS say | Daniel | 190 wpm | built-in | Last resort |
+| Priority | Engine    | Config                                | Speed   | Venv                        | Notes                                                    |
+| -------- | --------- | ------------------------------------- | ------- | --------------------------- | -------------------------------------------------------- |
+| 1        | XTTS v2   | speaker_wav (cloned) or "Craig Gutsy" | 1.15    | `~/.xtts-env` (Python 3.11) | Batch mode; **MPS hybrid** (GPT on MPS, HiFi-GAN on CPU) |
+| 2        | Kokoro    | voice="am_michael"                    | 1.1     | `~/.tts-env` (Python 3.12)  | 54 voices available; fastest on CPU                      |
+| 3        | edge-tts  | en-US-BrianNeural                     | +8%     | npm                         | Network-dependent, retry 3x                              |
+| 4        | macOS say | Daniel                                | 190 wpm | built-in                    | Last resort                                              |
 
 **Voice cloning** (DEFAULT — pipeline auto-detects `assets/voice-sample.wav`):
+
 - XTTS clones timbre only; pronunciation is standard English from language model
 - Override: `export TTS_SPEAKER_WAV=/path/to/other.wav` or set empty to disable
 - To replace the sample: put M4A in `assets/`, extract 10-15s clear speech segment, convert with `ffmpeg -ar 22050 -ac 1`
 
 **MPS hybrid mode** (2x faster than CPU):
+
 - Patch XTTS source: `tts/models/xtts.py` line 577 + line 320 (add `.cpu()` to gpt_latents/speaker_embedding/speaker_encoder input)
 - GPT runs on MPS (Apple GPU), HiFi-GAN decoder runs on CPU (avoids conv1d crash)
 - PyTorch 2.5.1 required (2.13.0 breaks model loading via `weights_only` default change)
 
 **Subtitle alignment**: Uses `force-align.py` (ffmpeg silencedetect) — NOT Whisper recognition.
+
 - We already know the text (machine-generated), so we align known text to known audio via silence boundaries
 - Whisper recognition approach was wrong (TTS audio ≠ natural speech, recognition errors)
 
 **Known issues**:
+
 - XTTS batch script outputs JSON to stdout, but TTS engine also prints sentence-split `["text"]` → JSON parser must look for `[{"sceneId"` prefix
 - XTTS has 59 built-in speakers (list with `tts.synthesizer.tts_model.speaker_manager.name_to_id`)
 
@@ -134,11 +139,11 @@ Based on platform research and session learnings:
 
 ### Platform adaptations
 
-| Platform | Max Duration | Optimal | Action |
-|----------|-------------|---------|--------|
-| YouTube Shorts | 3min | 60-170s | Upload full video + custom thumbnail |
-| TikTok | 10min | **60-70s** | Upload shortened cut (6-8 key scenes) |
-| Instagram Reels | 90s | 15-30s | Upload full video if ≤90s; otherwise create shortened cut |
+| Platform        | Max Duration | Optimal    | Action                                                    |
+| --------------- | ------------ | ---------- | --------------------------------------------------------- |
+| YouTube Shorts  | 3min         | 60-170s    | Upload full video + custom thumbnail                      |
+| TikTok          | 10min        | **60-70s** | Upload shortened cut (6-8 key scenes)                     |
+| Instagram Reels | 90s          | 15-30s     | Upload full video if ≤90s; otherwise create shortened cut |
 
 **Cross-platform default**: Write for 60-90s. YouTube Shorts gets the full version; TikTok needs a shortened cut.
 
@@ -150,94 +155,94 @@ Based on platform research and session learnings:
 
 #### ✅ Fully automated (checked by verify-video.mjs)
 
-| Check | How | Fail action |
-|-------|-----|-------------|
-| Resolution 1080×1920 | ffprobe | Fix record-scenes.mjs viewport |
-| Duration (YouTube ≤180s / TikTok ≤70s) | ffprobe | Cut scenes |
-| Frame rate 23-60fps | ffprobe | Check assemble.mjs |
-| Hook has compelling element (number/strong word) | Scan scene-data Scene 1 | Rewrite hook voiceover |
-| Source attribution (≥2 scenes mention sources) | Scan all scene voiceovers | Add "Bloomberg reported..." etc. |
-| SEO keywords in ≥2 scenes (China/AI/DeepSeek) | Scan voiceover + texts | Add keywords to more scenes |
-| Share-worthy data points (≥50% scenes have numbers) | Scan voiceover + texts | Add concrete numbers |
-| All scenes have subtitle timing | Check subtitle-timing.json | Re-run force-align.py |
-| Scene 1 (hook) has subtitles | Check timing for sceneId=1 | Re-run force-align.py |
-| No cross-platform watermark references | Scan scene data | Remove references |
-| No clickbait patterns in hook | Regex check Scene 1 voiceover | Rewrite to be factual |
-| No unverified "sources say" claims | Scan voiceovers | Add specific source attribution |
-| **No em/en/double dashes** | Regex scan all voiceover + texts | Replace with `..` or line break |
-| **No AI vocabulary blacklist** | Scan for leverage/delve/harness/etc. | Replace with spoken equivalent |
-| **No written-style openers** | Regex Scene 1 for "In this video I will..." | Rewrite to open on payoff |
-| **Hook VO != on-screen text** | Compare Scene 1 voiceover vs texts | Rewrite one to different angle |
-| **No dead closers** | Regex last scene for "thanks for watching" etc. | End on loop-close line |
-| **No CTA stacking** | Count CTAs per scene (warn if 3+) | Use one clear ask |
+| Check                                               | How                                             | Fail action                      |
+| --------------------------------------------------- | ----------------------------------------------- | -------------------------------- |
+| Resolution 1080×1920                                | ffprobe                                         | Fix record-scenes.mjs viewport   |
+| Duration (YouTube ≤180s / TikTok ≤70s)              | ffprobe                                         | Cut scenes                       |
+| Frame rate 23-60fps                                 | ffprobe                                         | Check assemble.mjs               |
+| Hook has compelling element (number/strong word)    | Scan scene-data Scene 1                         | Rewrite hook voiceover           |
+| Source attribution (≥2 scenes mention sources)      | Scan all scene voiceovers                       | Add "Bloomberg reported..." etc. |
+| SEO keywords in ≥2 scenes (China/AI/DeepSeek)       | Scan voiceover + texts                          | Add keywords to more scenes      |
+| Share-worthy data points (≥50% scenes have numbers) | Scan voiceover + texts                          | Add concrete numbers             |
+| All scenes have subtitle timing                     | Check subtitle-timing.json                      | Re-run force-align.py            |
+| Scene 1 (hook) has subtitles                        | Check timing for sceneId=1                      | Re-run force-align.py            |
+| No cross-platform watermark references              | Scan scene data                                 | Remove references                |
+| No clickbait patterns in hook                       | Regex check Scene 1 voiceover                   | Rewrite to be factual            |
+| No unverified "sources say" claims                  | Scan voiceovers                                 | Add specific source attribution  |
+| **No em/en/double dashes**                          | Regex scan all voiceover + texts                | Replace with `..` or line break  |
+| **No AI vocabulary blacklist**                      | Scan for leverage/delve/harness/etc.            | Replace with spoken equivalent   |
+| **No written-style openers**                        | Regex Scene 1 for "In this video I will..."     | Rewrite to open on payoff        |
+| **Hook VO != on-screen text**                       | Compare Scene 1 voiceover vs texts              | Rewrite one to different angle   |
+| **No dead closers**                                 | Regex last scene for "thanks for watching" etc. | End on loop-close line           |
+| **No CTA stacking**                                 | Count CTAs per scene (warn if 3+)               | Use one clear ask                |
 
 #### 🔧 Agent-assisted at scene-data creation time (prompt-driven, not code)
 
 These are enforced by the agent when writing `scene-data.mjs`, not by code. The agent should follow these rules when creating content:
 
-| Rule | Agent prompt | Checked by verify-video.mjs? |
-|------|------------|------------------------------|
-| SEO keywords in voiceover | Include "China AI", "DeepSeek" naturally | ✅ Yes (keyword count check) |
-| SEO keywords on screen | Add to `texts` array | ✅ Yes (keyword count check) |
-| Share-worthy data points | Design hook with surprising numbers | ✅ Yes (number count check) |
-| Source attribution | "Bloomberg reported...", "Liang said..." | ✅ Yes (source count check) |
-| Hook is factual not clickbait | Compelling but factual | ✅ Yes (clickbait regex check) |
-| Every scene has a concrete fact | No filler scenes | ⚠️ Manual (agent judgment) |
-| Causal flow between scenes | Cause → effect → implication | ⚠️ Manual (agent judgment) |
-| Hook formula selected (T1/T3/T4/T6/T7/T9) | Choose by goal (completion/saves/comments) | ✅ Yes (compelling element check) |
-| Loop-close in last scene | Last line recontextualizes the opening | ⚠️ Warning (keyword overlap check) |
-| Voiceover line length variation | No teleprompter rhythm | ⚠️ Warning (length variation check) |
-| Article-to-video workflow | Extract spine → open on payoff → make sayable | ⚠️ Manual (agent judgment) |
-| News trend discovery | Monitor X/36Kr/Bloomberg for trending China AI | ⚠️ Manual (agent judgment) |
-| Content calendar rhythm | Breaking/Analysis/Data/Explainer mix | ⚠️ Manual (agent judgment) |
+| Rule                                      | Agent prompt                                   | Checked by verify-video.mjs?        |
+| ----------------------------------------- | ---------------------------------------------- | ----------------------------------- |
+| SEO keywords in voiceover                 | Include "China AI", "DeepSeek" naturally       | ✅ Yes (keyword count check)        |
+| SEO keywords on screen                    | Add to `texts` array                           | ✅ Yes (keyword count check)        |
+| Share-worthy data points                  | Design hook with surprising numbers            | ✅ Yes (number count check)         |
+| Source attribution                        | "Bloomberg reported...", "Liang said..."       | ✅ Yes (source count check)         |
+| Hook is factual not clickbait             | Compelling but factual                         | ✅ Yes (clickbait regex check)      |
+| Every scene has a concrete fact           | No filler scenes                               | ⚠️ Manual (agent judgment)          |
+| Causal flow between scenes                | Cause → effect → implication                   | ⚠️ Manual (agent judgment)          |
+| Hook formula selected (T1/T3/T4/T6/T7/T9) | Choose by goal (completion/saves/comments)     | ✅ Yes (compelling element check)   |
+| Loop-close in last scene                  | Last line recontextualizes the opening         | ⚠️ Warning (keyword overlap check)  |
+| Voiceover line length variation           | No teleprompter rhythm                         | ⚠️ Warning (length variation check) |
+| Article-to-video workflow                 | Extract spine → open on payoff → make sayable  | ⚠️ Manual (agent judgment)          |
+| News trend discovery                      | Monitor X/36Kr/Bloomberg for trending China AI | ⚠️ Manual (agent judgment)          |
+| Content calendar rhythm                   | Breaking/Analysis/Data/Explainer mix           | ⚠️ Manual (agent judgment)          |
 
 #### 👤 Manual at publish time (output of verify-video.mjs, presented as checklist)
 
-| Item | Detail |
-|------|-------|
-| 3-5 hashtags | `#chinaai #deepseek #ai #technews #chinatech` |
-| Geographic tag | China/US location tag |
-| In-app editing | Upload to TikTok, add sticker/effect, then publish |
-| Reply to comments (first hour) | Post → monitor → respond |
-| Post at off-peak hours | Check TikTok analytics |
-| Pinned comment | Article URL |
-| Title under 60 chars | Write in TikTok UI |
-| AIGC label | Label as AI-generated if AI voice used |
-| Trending audio | Add from TikTok audio library |
-| **Read-aloud test** | Read voiceover at TikTok pace, flag stumbles |
-| **Caption ≤ 2,200 chars** | API limit, hashtags included |
-| **Hook formula goal tag** | Identify T1/T3/T4/T6/T7/T9 + primary goal |
-| **Loop-close verification** | Last 3s → first 3s transition check |
+| Item                           | Detail                                             |
+| ------------------------------ | -------------------------------------------------- |
+| 3-5 hashtags                   | `#chinaai #deepseek #ai #technews #chinatech`      |
+| Geographic tag                 | China/US location tag                              |
+| In-app editing                 | Upload to TikTok, add sticker/effect, then publish |
+| Reply to comments (first hour) | Post → monitor → respond                           |
+| Post at off-peak hours         | Check TikTok analytics                             |
+| Pinned comment                 | Article URL                                        |
+| Title under 60 chars           | Write in TikTok UI                                 |
+| AIGC label                     | Label as AI-generated if AI voice used             |
+| Trending audio                 | Add from TikTok audio library                      |
+| **Read-aloud test**            | Read voiceover at TikTok pace, flag stumbles       |
+| **Caption ≤ 2,200 chars**      | API limit, hashtags included                       |
+| **Hook formula goal tag**      | Identify T1/T3/T4/T6/T7/T9 + primary goal          |
+| **Loop-close verification**    | Last 3s → first 3s transition check                |
 
 #### ❌ Algorithm penalty (auto-checked, blocks publish)
 
-| Don't | Check | Fail action |
-|-------|-------|-------------|
-| Cross-platform watermarks | Scan scene data for @instagram etc. | Remove references |
-| Clickbait hooks | Regex: "you won't believe" etc. | Rewrite hook |
-| Unverified "sources say" | Scan for attribution | Add specific source |
-| Duration >90s for TikTok | ffprobe duration | Create shortened cut |
+| Don't                     | Check                               | Fail action          |
+| ------------------------- | ----------------------------------- | -------------------- |
+| Cross-platform watermarks | Scan scene data for @instagram etc. | Remove references    |
+| Clickbait hooks           | Regex: "you won't believe" etc.     | Rewrite hook         |
+| Unverified "sources say"  | Scan for attribution                | Add specific source  |
+| Duration >90s for TikTok  | ffprobe duration                    | Create shortened cut |
 
 ## File Locations
 
 ### Skills (2)
 
-| Skill | Path | Role |
-|-------|------|------|
-| `short-video-pipeline` | `~/.catpaw/skills/short-video-pipeline/SKILL.md` | Workflow steps + Defaults + Architecture reference |
-| `brand-system` | `~/.catpaw/skills/brand-system/SKILL.md` | Brand methodology — reads `docs/brand-system.md` and enforces tokens |
+| Skill                  | Path                                             | Role                                                                 |
+| ---------------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
+| `short-video-pipeline` | `~/.catpaw/skills/short-video-pipeline/SKILL.md` | Workflow steps + Defaults + Architecture reference                   |
+| `brand-system`         | `~/.catpaw/skills/brand-system/SKILL.md`         | Brand methodology — reads `docs/brand-system.md` and enforces tokens |
 
 ### Docs (2)
 
-| Doc | Path | Role |
-|-----|------|------|
+| Doc            | Path                     | Role                                                                                        |
+| -------------- | ------------------------ | ------------------------------------------------------------------------------------------- |
 | Video workflow | `docs/video-workflow.md` | ← **THIS FILE** — best practices, publishing strategy, file inventory, optimization lessons |
-| Brand system | `docs/brand-system.md` | Color tokens, typography, animation library, 9 scene templates, media strategy (Route C) |
+| Brand system   | `docs/brand-system.md`   | Color tokens, typography, animation library, 9 scene templates, media strategy (Route C)    |
 
 ### AGENTS.md (1)
 
-| Section | Path | Role |
-|--------|------|------|
+| Section          | Path                                | Role                                                                       |
+| ---------------- | ----------------------------------- | -------------------------------------------------------------------------- |
 | Video Production | `AGENTS.md` → `## Video Production` | Entry point — tells agent to load skills + read this file for optimization |
 
 ### Code — Pipeline
@@ -290,7 +295,6 @@ scripts/short-video/assets/
 ├── voice-samples/                     # Clone test variants + processed samples
 └── deepseek-logo.svg                  # DeepSeek logo for video
 ```
-
 
 ## Step 8: Analytics & Optimization (Post-Publish)
 
@@ -347,27 +351,28 @@ node scripts/short-video/ab-test-tracker.mjs report
 ### When to Split
 
 Agent 在 Stage 3 Step 0 运行 `episode-evaluator.mjs`，自动判断：
+
 - 估算单条时长 ≤ 60s → 单集
 - > 60s → 拆分（2-5 集，上限 5 集）
 
 ### Series Types
 
-| 类型 | 适用场景 | 长度 |
-|------|---------|------|
-| Explicit Part N | 复杂事件分析 | 2-3 集 |
-| Loop-and-Flashback | 突发新闻 | 1-2 集 |
-| Deep Dive | 技术解析 | 2-4 集 |
-| 对比系列 | 多公司对比 | 2-3 集 |
+| 类型               | 适用场景     | 长度   |
+| ------------------ | ------------ | ------ |
+| Explicit Part N    | 复杂事件分析 | 2-3 集 |
+| Loop-and-Flashback | 突发新闻     | 1-2 集 |
+| Deep Dive          | 技术解析     | 2-4 集 |
+| 对比系列           | 多公司对比   | 2-3 集 |
 
 ### Inter-Episode Linking
 
-| 方法 | 操作 |
-|------|------|
-| Pin Part 1 | 将 Part 1 pin 在主页顶部 |
-| Pinned Comment 互链 | 每集 pinned comment 放上下集链接 |
-| Stitch 自身视频 | Part 2 开头 Stitch Part 1 作为「上集回顾」 |
-| 统一 Hashtag | 所有集用同一个 `#seriesId` |
-| Part 编号 | 画面标注 "Part X/Y" |
+| 方法                | 操作                                       |
+| ------------------- | ------------------------------------------ |
+| Pin Part 1          | 将 Part 1 pin 在主页顶部                   |
+| Pinned Comment 互链 | 每集 pinned comment 放上下集链接           |
+| Stitch 自身视频     | Part 2 开头 Stitch Part 1 作为「上集回顾」 |
+| 统一 Hashtag        | 所有集用同一个 `#seriesId`                 |
+| Part 编号           | 画面标注 "Part X/Y"                        |
 
 ### Coherence Rules
 
@@ -414,10 +419,10 @@ node scripts/short-video/main.mjs --scene scene-data-compilation.mjs
 
 ### 发布节奏
 
-| 策略 | 间隔 | 适用 |
-|------|------|------|
-| 快速连续 | 1-3 天 | 2-3 集系列 |
-| 同日发布 | 同日不同时段 | 2 集系列 |
+| 策略     | 间隔         | 适用       |
+| -------- | ------------ | ---------- |
+| 快速连续 | 1-3 天       | 2-3 集系列 |
+| 同日发布 | 同日不同时段 | 2 集系列   |
 
 ### 系列发布命令
 
@@ -433,10 +438,10 @@ node scripts/short-video/publish-tiktok.mjs --series-id deepseek-distillation --
 ```
 
 脚本自动：
+
 1. Caption 加 `Part X/Y #seriesId`
 2. 输出 pinned comment 内容（含上下集链接），用户手动 pin
 
 ### 批量生产
 
 决定拆分后一次性生成所有 scene-data，批量跑 TTS → 渲染 → 合成。相比逐条制作节省 60-70% 时间。
-

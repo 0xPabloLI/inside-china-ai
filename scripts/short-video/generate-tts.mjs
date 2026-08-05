@@ -58,27 +58,25 @@ const XTTS_SPEAKER = process.env.XTTS_SPEAKER || "Craig Gutsy"; // Configurable 
 const VOICE_SAMPLES_DIR = join(__dirname, "assets", "voice-samples");
 const multiClips = existsSync(VOICE_SAMPLES_DIR)
   ? ["multi_clip1.wav", "multi_clip2.wav", "multi_clip3.wav"]
-      .map(f => join(VOICE_SAMPLES_DIR, f))
-      .filter(f => existsSync(f))
+      .map((f) => join(VOICE_SAMPLES_DIR, f))
+      .filter((f) => existsSync(f))
   : [];
 const DEFAULT_SPEAKER_WAV = join(__dirname, "assets", "voice-sample.wav");
-const XTTS_SPEAKER_WAV = process.env.TTS_SPEAKER_WAV === "none"
-  ? null
-  : process.env.TTS_SPEAKER_WAV
-    ? process.env.TTS_SPEAKER_WAV
-    : multiClips.length >= 2
-      ? multiClips.join(",")
-      : existsSync(DEFAULT_SPEAKER_WAV)
-        ? DEFAULT_SPEAKER_WAV
-        : null;
+const XTTS_SPEAKER_WAV =
+  process.env.TTS_SPEAKER_WAV === "none"
+    ? null
+    : process.env.TTS_SPEAKER_WAV
+      ? process.env.TTS_SPEAKER_WAV
+      : multiClips.length >= 2
+        ? multiClips.join(",")
+        : existsSync(DEFAULT_SPEAKER_WAV)
+          ? DEFAULT_SPEAKER_WAV
+          : null;
 
 // Path to Kokoro Python TTS script and venv
 // Checks persistent location (~/.tts-env) first, then temp (/tmp/tts-env)
 const KOKORO_SCRIPT = join(__dirname, "kokoro_tts.py");
-const KOKORO_VENV_CANDIDATES = [
-  join(process.env.HOME || "", ".tts-env"),
-  "/tmp/tts-env",
-];
+const KOKORO_VENV_CANDIDATES = [join(process.env.HOME || "", ".tts-env"), "/tmp/tts-env"];
 const KOKORO_VOICE = "am_michael"; // Clear, authoritative male
 const KOKORO_SPEED = 1.1; // ~10% faster than normal
 
@@ -92,7 +90,13 @@ async function isCommandAvailable(cmd) {
 }
 
 // Path to XTTS v2 model directory (checks if model is downloaded, not just package installed)
-const XTTS_MODEL_DIR = join(process.env.HOME || "", "Library", "Application Support", "tts", "tts_models--multilingual--multi-dataset--xtts_v2");
+const XTTS_MODEL_DIR = join(
+  process.env.HOME || "",
+  "Library",
+  "Application Support",
+  "tts",
+  "tts_models--multilingual--multi-dataset--xtts_v2",
+);
 
 async function isXTTSAvailable() {
   if (!existsSync(XTTS_BATCH_SCRIPT)) return false;
@@ -100,9 +104,7 @@ async function isXTTSAvailable() {
   // Check if model is actually downloaded (not just Python package installed)
   if (!existsSync(XTTS_MODEL_DIR)) return false;
   try {
-    await execAsync(
-      `source ${XTTS_VENV}/bin/activate && python3 -c "import TTS" 2>/dev/null`,
-    );
+    await execAsync(`source ${XTTS_VENV}/bin/activate && python3 -c "import TTS" 2>/dev/null`);
     return true;
   } catch {
     return false;
@@ -114,9 +116,7 @@ async function isKokoroAvailable() {
   for (const venvPath of KOKORO_VENV_CANDIDATES) {
     if (!existsSync(venvPath)) continue;
     try {
-      await execAsync(
-        `source ${venvPath}/bin/activate && python3 -c "import kokoro" 2>/dev/null`,
-      );
+      await execAsync(`source ${venvPath}/bin/activate && python3 -c "import kokoro" 2>/dev/null`);
       return venvPath;
     } catch {
       continue;
@@ -147,8 +147,8 @@ async function getDurationWithFfprobe(audioPath) {
 // Optional atempo for clone voice speed-up (TTS_ATEMPO env var, e.g. TTS_ATEMPO=1.3)
 const TTS_ATEMPO = parseFloat(process.env.TTS_ATEMPO) || null;
 const SILENCE_FILTER =
-"silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018" +
-(TTS_ATEMPO ? `,atempo=${TTS_ATEMPO}` : "");
+  "silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018" +
+  (TTS_ATEMPO ? `,atempo=${TTS_ATEMPO}` : "");
 
 // ── F5-TTS-MLX batch mode: load model once, process all scenes ──
 async function generateBatchWithF5MLX(scenes, outputDir) {
@@ -317,9 +317,7 @@ async function generateWithEdgeTTS(scene, tempFile, outputDir, edgeTTSCommand) {
   }
 
   // Post-process to compress silence gaps
-  await execAsync(
-    `ffmpeg -y -i "${rawPath}" -af "${SILENCE_FILTER}" "${audioPath}" 2>/dev/null`,
-  );
+  await execAsync(`ffmpeg -y -i "${rawPath}" -af "${SILENCE_FILTER}" "${audioPath}" 2>/dev/null`);
 
   return audioPath;
 }
@@ -343,7 +341,8 @@ export async function generateTTS(scenes, outputDir) {
   const xttsAvailable = !f5mlxAvailable ? await isXTTSAvailable() : false;
   const kokoroVenv = !f5mlxAvailable && !xttsAvailable ? await isKokoroAvailable() : null;
   const kokoroAvailable = kokoroVenv !== null;
-  const edgeTTSCommand = !f5mlxAvailable && !xttsAvailable && !kokoroAvailable ? await isEdgeTTSAvailable() : null;
+  const edgeTTSCommand =
+    !f5mlxAvailable && !xttsAvailable && !kokoroAvailable ? await isEdgeTTSAvailable() : null;
   const hasFfprobe = await isCommandAvailable("ffprobe");
   const hasSay = process.platform === "darwin";
 
@@ -353,16 +352,16 @@ export async function generateTTS(scenes, outputDir) {
     );
   }
 
-// Select engine (TTS_ENGINE env var can force kokoro or xtts)
-let engine, engineInfo;
-const forceEngine = process.env.TTS_ENGINE || null;
-if (forceEngine === "f5" || (!forceEngine && f5mlxAvailable)) {
-  engine = "f5-mlx";
-  engineInfo = `F5-TTS-MLX (cloned from ${F5_REF_AUDIO}, speed=${F5_MLX_SPEED})`;
-} else if (forceEngine === "kokoro" && kokoroAvailable) {
-  engine = "kokoro";
-  engineInfo = `Kokoro neural TTS (${KOKORO_VOICE}, speed=${KOKORO_SPEED})`;
-} else if (forceEngine === "xtts" || (!forceEngine && xttsAvailable)) {
+  // Select engine (TTS_ENGINE env var can force kokoro or xtts)
+  let engine, engineInfo;
+  const forceEngine = process.env.TTS_ENGINE || null;
+  if (forceEngine === "f5" || (!forceEngine && f5mlxAvailable)) {
+    engine = "f5-mlx";
+    engineInfo = `F5-TTS-MLX (cloned from ${F5_REF_AUDIO}, speed=${F5_MLX_SPEED})`;
+  } else if (forceEngine === "kokoro" && kokoroAvailable) {
+    engine = "kokoro";
+    engineInfo = `Kokoro neural TTS (${KOKORO_VOICE}, speed=${KOKORO_SPEED})`;
+  } else if (forceEngine === "xtts" || (!forceEngine && xttsAvailable)) {
     engine = "xtts";
     const speakerInfo = XTTS_SPEAKER_WAV ? `cloned from ${XTTS_SPEAKER_WAV}` : XTTS_SPEAKER;
     engineInfo = `XTTS v2 (${speakerInfo}, speed=${XTTS_SPEED})`;
@@ -378,7 +377,9 @@ if (forceEngine === "f5" || (!forceEngine && f5mlxAvailable)) {
   }
 
   console.log(`  TTS engine: ${engineInfo}`);
-  console.log(`  Post-process: FFmpeg silenceremove (compress pauses >0.25s → 0.08s)${TTS_ATEMPO ? ` + atempo ${TTS_ATEMPO}x` : ""}`);
+  console.log(
+    `  Post-process: FFmpeg silenceremove (compress pauses >0.25s → 0.08s)${TTS_ATEMPO ? ` + atempo ${TTS_ATEMPO}x` : ""}`,
+  );
 
   const results = [];
 
@@ -448,21 +449,21 @@ async function runWhisperAlignment(scenes, ttsResults, outputDir) {
 
   console.log("  🎯 Running force-align subtitle timing...");
 
-  const manifest = ttsResults.map(r => ({
+  const manifest = ttsResults.map((r) => ({
     sceneId: r.sceneId,
-    text: scenes.find(s => s.id === r.sceneId)?.voiceover || "",
+    text: scenes.find((s) => s.id === r.sceneId)?.voiceover || "",
     audioPath: r.audioPath,
   }));
   const manifestPath = join(outputDir, "whisper-manifest.json");
   const timingPath = join(outputDir, "subtitle-timing.json");
   writeFileSync(manifestPath, JSON.stringify(manifest));
 
-try {
-await execAsync(
-`HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ~/.f5-tts-env/bin/python3 "${alignScript}" ` +
-`--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
-);
-console.log("  ✅ Subtitle timing saved (WhisperX wav2vec2 aligned)");
+  try {
+    await execAsync(
+      `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ~/.f5-tts-env/bin/python3 "${alignScript}" ` +
+        `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
+    );
+    console.log("  ✅ Subtitle timing saved (WhisperX wav2vec2 aligned)");
   } catch (e) {
     console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
   }

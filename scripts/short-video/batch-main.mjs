@@ -41,7 +41,9 @@ for (let i = 0; i < sceneFiles.length; i++) {
 
   try {
     // Temporarily copy to scene-data.mjs (main.mjs reads this)
-    execSync(`cp "${join(__dirname, "scene-data.mjs")}" "${join(__dirname, "scene-data-backup.mjs")}"`);
+    execSync(
+      `cp "${join(__dirname, "scene-data.mjs")}" "${join(__dirname, "scene-data-backup.mjs")}"`,
+    );
     execSync(`cp "${file}" "${join(__dirname, "scene-data.mjs")}"`);
 
     // Run pipeline
@@ -62,7 +64,9 @@ for (let i = 0; i < sceneFiles.length; i++) {
     failed++;
   } finally {
     // Restore original scene-data
-    execSync(`cp "${join(__dirname, "scene-data-backup.mjs")}" "${join(__dirname, "scene-data.mjs")}"`);
+    execSync(
+      `cp "${join(__dirname, "scene-data-backup.mjs")}" "${join(__dirname, "scene-data.mjs")}"`,
+    );
     execSync(`rm -f "${join(__dirname, "scene-data-backup.mjs")}"`);
   }
 }

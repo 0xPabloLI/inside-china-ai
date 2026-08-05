@@ -51,9 +51,14 @@ const html2 = `<!DOCTYPE html><html><head><meta charset="UTF-8">
   ${svgContent}
 </body></html>`;
 writeFileSync(join(__dirname, "output", "svg-only-render.html"), html2);
-await page.goto(`file://${join(__dirname, "output", "svg-only-render.html")}`, { waitUntil: "networkidle" });
+await page.goto(`file://${join(__dirname, "output", "svg-only-render.html")}`, {
+  waitUntil: "networkidle",
+});
 await page.waitForTimeout(300);
-await page.screenshot({ path: join(__dirname, "output", "svg-only-render.png"), clip: { x: 0, y: 0, width: 1024, height: 1024 } });
+await page.screenshot({
+  path: join(__dirname, "output", "svg-only-render.png"),
+  clip: { x: 0, y: 0, width: 1024, height: 1024 },
+});
 
 // Render the original PNG alone for pixel comparison
 const html3 = `<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -65,9 +70,14 @@ const html3 = `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <img src="file://${pngPath}">
 </body></html>`;
 writeFileSync(join(__dirname, "output", "png-only-render.html"), html3);
-await page.goto(`file://${join(__dirname, "output", "png-only-render.html")}`, { waitUntil: "networkidle" });
+await page.goto(`file://${join(__dirname, "output", "png-only-render.html")}`, {
+  waitUntil: "networkidle",
+});
 await page.waitForTimeout(300);
-await page.screenshot({ path: join(__dirname, "output", "png-only-render.png"), clip: { x: 0, y: 0, width: 1024, height: 1024 } });
+await page.screenshot({
+  path: join(__dirname, "output", "png-only-render.png"),
+  clip: { x: 0, y: 0, width: 1024, height: 1024 },
+});
 
 await browser.close();
 console.log("Verification screenshots saved");

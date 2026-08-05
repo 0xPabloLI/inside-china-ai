@@ -24,11 +24,18 @@ for (const url of urls) {
       await page.waitForTimeout(3000);
       const title = await page.title();
       const text = await page.evaluate(() => {
-        document.querySelectorAll("script, style, nav, footer, header, aside, iframe, .ad, .ads, .popup, .cookie, .newsletter, .related").forEach(el => el.remove());
+        document
+          .querySelectorAll(
+            "script, style, nav, footer, header, aside, iframe, .ad, .ads, .popup, .cookie, .newsletter, .related",
+          )
+          .forEach((el) => el.remove());
         return document.body.innerText;
       });
       if (text && text.length > 500) {
-        const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 10);
+        const lines = text
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => l.length > 10);
         allContent += `\n\n=== ${url} ===\nTITLE: ${title}\n${lines.slice(0, 100).join("\n")}\n`;
         console.log(`  OK: ${title} (${lines.length} lines)`);
       } else {

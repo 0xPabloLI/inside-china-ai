@@ -159,7 +159,6 @@ function AdminPage() {
             <NewsletterAdmin />
           </TabsContent>
 
-
           <TabsContent value="posts" className="mt-6">
             {editingId !== null ? (
               editingId && editQuery.isPending ? (

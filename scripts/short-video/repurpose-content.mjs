@@ -36,11 +36,13 @@ if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
 // ─── 1. Blog Post (Markdown) ───
 const blogPost = `# ${scenes[0]?.texts?.line1 || scenes[0]?.texts?.title || "China AI News"}
 
-${scenes.map((s, i) => {
-  const heading = s.texts?.line1 || s.texts?.title || `Section ${i + 1}`;
-  const body = s.voiceover || "";
-  return `## ${heading}\n\n${body}\n`;
-}).join("\n")}
+${scenes
+  .map((s, i) => {
+    const heading = s.texts?.line1 || s.texts?.title || `Section ${i + 1}`;
+    const body = s.voiceover || "";
+    return `## ${heading}\n\n${body}\n`;
+  })
+  .join("\n")}
 
 ---
 
@@ -56,7 +58,10 @@ ${"=".repeat(50)}
 
 ${scenes[0]?.voiceover || ""}
 
-${scenes.slice(1, -1).map((s, i) => `${i + 2}. ${s.voiceover || ""}`).join("\n\n")}
+${scenes
+  .slice(1, -1)
+  .map((s, i) => `${i + 2}. ${s.voiceover || ""}`)
+  .join("\n\n")}
 
 ${scenes[scenes.length - 1]?.voiceover || ""}
 

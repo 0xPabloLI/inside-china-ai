@@ -84,7 +84,8 @@ slug: "test"
   });
 
   it("chooses thematic split when chapterCount >= 2 and duration > 60s", () => {
-    const article = "## Topic One\n\n" + "word ".repeat(100) + "\n\n## Topic Two\n\n" + "word ".repeat(100);
+    const article =
+      "## Topic One\n\n" + "word ".repeat(100) + "\n\n## Topic Two\n\n" + "word ".repeat(100);
     const result = evaluateArticle(article);
     expect(result.estimatedDuration).toBeGreaterThan(60);
     expect(result.splitMethod).toBe("thematic");

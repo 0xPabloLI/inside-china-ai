@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  deriveTitle,
-  deriveDescription,
-  deriveHashtags,
-} from "../lib/caption-utils.mjs";
+import { deriveTitle, deriveDescription, deriveHashtags } from "../lib/caption-utils.mjs";
 
 // ─── Mock scene data (mirrors real scene-data.mjs format) ───
 
@@ -51,7 +47,8 @@ const mockScenes = [
 
 const fullMetadata = {
   title: "DeepSeek's $1.4B Funding Round Paused",
-  description: "A leaked investor meeting reveals DeepSeek's strategy.\nFollow for more China AI news.",
+  description:
+    "A leaked investor meeting reveals DeepSeek's strategy.\nFollow for more China AI news.",
   hashtags: ["#deepseek", "#chinaai", "#ai", "#technews", "#chinatech"],
 };
 

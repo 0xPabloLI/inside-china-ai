@@ -84,17 +84,17 @@ Tasks:
 - CSV 解析逻辑（提取到 `lib/analytics-utils.mjs`）：
   - 列名 normalize：小写 + 去空格 + 去特殊字符
   - 模糊匹配表：
-    | 标准字段 | 匹配关键词 |
-    |---------|-----------|
-    | title | "title", "video", "名称" |
-    | postedAt | "post", "time", "date", "发布" |
-    | views | "view", "播放", "观看" |
-    | avgWatchTime | "watch", "time", "观看时长" |
-    | completionRate | "completion", "完成", "rate" |
-    | shares | "share", "分享" |
-    | saves | "save", "收藏", "favorite" |
-    | comments | "comment", "评论" |
-    | likes | "like", "点赞" |
+    | 标准字段       | 匹配关键词                     |
+    | -------------- | ------------------------------ |
+    | title          | "title", "video", "名称"       |
+    | postedAt       | "post", "time", "date", "发布" |
+    | views          | "view", "播放", "观看"         |
+    | avgWatchTime   | "watch", "time", "观看时长"    |
+    | completionRate | "completion", "完成", "rate"   |
+    | shares         | "share", "分享"                |
+    | saves          | "save", "收藏", "favorite"     |
+    | comments       | "comment", "评论"              |
+    | likes          | "like", "点赞"                 |
   - 数值字段解析失败 → null（scenario 27）
   - 缺失列 → null（scenario 19）
 - 输出 JSON schema（见 spec）
@@ -146,12 +146,14 @@ Tasks:
 - 创建 `docs/article-workflow.md`，包含三部分：
 
 ### Part 1: 源素材读取（ISSUE-14）
+
 - PDF 读取方法（web-access skill / pdf-parse）
 - 网页抓取方法（web-access skill CDP）
 - 纯文本直接读取
 - Agent 提取要点：叙事线、人物/公司、数据点、引用
 
 ### Part 2: 富文章生成（ISSUE-15）
+
 - 总结 → 拆分章节 → 选择 widget → curate 数据 → 写文章
 - Widget 决策树：
   - 大量文本/发言 → 词云
@@ -164,6 +166,7 @@ Tasks:
 - 「My Take」原创分析章节要求
 
 ### Part 3: 文章 → 视频（ISSUE-17）
+
 - 读文章 content → 去掉 widget 标记 → 提炼叙事
 - 按 TikTok 节奏重构 10-12 场景
 - 写 scene-data.mjs → 走 main.mjs → verify → publish-tiktok
@@ -180,29 +183,32 @@ Tasks:
 - 创建 `docs/manual-ops.md`，按频率分三部分：
 
 ### 每次发布视频时
-| 操作 | 说明 |
-|------|------|
-| AIGC 标签 | TikTok 发布界面打开 "AI-generated content" |
-| 趋势音频 | 从 TikTok 音频库选热门音乐，音量 5-10% |
-| 地理标签 | 添加 China/US 位置标签 |
-| Pinned comment | 发布后置顶含文章 URL 的评论 |
-| 回复评论 | 发布后 1 小时内回复所有评论 |
-| 非高峰时段 | 查看粉丝活跃时间，选低峰发布 |
+
+| 操作           | 说明                                       |
+| -------------- | ------------------------------------------ |
+| AIGC 标签      | TikTok 发布界面打开 "AI-generated content" |
+| 趋势音频       | 从 TikTok 音频库选热门音乐，音量 5-10%     |
+| 地理标签       | 添加 China/US 位置标签                     |
+| Pinned comment | 发布后置顶含文章 URL 的评论                |
+| 回复评论       | 发布后 1 小时内回复所有评论                |
+| 非高峰时段     | 查看粉丝活跃时间，选低峰发布               |
 
 ### 每次发布文章时
-| 操作 | 说明 |
-|------|------|
-| 审阅文章 | agent 生成后人工审阅 frontmatter markdown |
-| 部署新 widget | 如有新 widget，`npm run build` + 部署后再发布文章 |
-| 运行发布脚本 | `node scripts/article/publish-article.mjs --file <path>` |
+
+| 操作          | 说明                                                     |
+| ------------- | -------------------------------------------------------- |
+| 审阅文章      | agent 生成后人工审阅 frontmatter markdown                |
+| 部署新 widget | 如有新 widget，`npm run build` + 部署后再发布文章        |
+| 运行发布脚本  | `node scripts/article/publish-article.mjs --file <path>` |
 
 ### 定期检查（每周）
-| 操作 | 说明 |
-|------|------|
-| 检查 pending-analysis.json | 新 session 时 agent 自动检查，超 48h 提醒 |
-| 导出 TikTok Analytics CSV | 登录 analytics.tiktok.com → Export |
-| 运行分析脚本 | `node scripts/short-video/fetch-tiktok-analytics.mjs --csv <path>` |
-| 录入 A/B 测试 | `node scripts/short-video/ab-test-tracker.mjs --result <json>` |
+
+| 操作                       | 说明                                                               |
+| -------------------------- | ------------------------------------------------------------------ |
+| 检查 pending-analysis.json | 新 session 时 agent 自动检查，超 48h 提醒                          |
+| 导出 TikTok Analytics CSV  | 登录 analytics.tiktok.com → Export                                 |
+| 运行分析脚本               | `node scripts/short-video/fetch-tiktok-analytics.mjs --csv <path>` |
+| 录入 A/B 测试              | `node scripts/short-video/ab-test-tracker.mjs --result <json>`     |
 
 ---
 
@@ -216,6 +222,7 @@ Tasks:
 - `AGENTS.md` 新增 section：
   ```markdown
   ## Article Workflow
+
   文章创作管线（源素材 → 富文章 → 网站发布 → 视频）工作流文档：`docs/article-workflow.md`
   手工操作清单：`docs/manual-ops.md`
   ```

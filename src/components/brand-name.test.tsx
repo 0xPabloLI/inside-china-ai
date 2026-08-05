@@ -26,5 +26,4 @@ describe("BrandName", () => {
     const html = renderToStaticMarkup(<BrandName />);
     expect(html).not.toContain("Inside China AI");
   });
-
 });

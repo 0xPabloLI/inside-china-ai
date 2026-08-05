@@ -30,7 +30,6 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-
 type Mode = "signin" | "signup" | "forgot" | "recovery" | "magic";
 
 /** Extract the recovery token from a pasted Supabase email link. */

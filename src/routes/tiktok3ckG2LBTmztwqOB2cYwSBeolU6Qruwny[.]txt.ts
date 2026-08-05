@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute(
-  "/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt"
-)({
+export const Route = createFileRoute("/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt")({
   server: {
     handlers: {
       GET: () => {
@@ -13,7 +11,7 @@ export const Route = createFileRoute(
               "Content-Type": "text/plain; charset=utf-8",
               "Cache-Control": "public, max-age=86400",
             },
-          }
+          },
         );
       },
     },

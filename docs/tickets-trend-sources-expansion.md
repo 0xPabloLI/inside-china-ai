@@ -23,10 +23,12 @@ TE-T4 (集成测试 + 文档更新)
 **目标**：在 `trends-utils.mjs` 中新增 `cleanTitle()` 函数和扩展关键词表，TDD 先写测试。
 
 **文件**：
+
 - 修改 `scripts/short-video/lib/trends-utils.mjs`
 - 修改 `scripts/short-video/__tests__/trends-utils.test.mjs`
 
 **任务**：
+
 1. 新增 `cleanTitle(title)` 纯函数：
    - 移除 emoji（Unicode emoji 范围）
    - 移除 #hashtag# 格式（小红书风格）
@@ -38,6 +40,7 @@ TE-T4 (集成测试 + 文档更新)
 3. `cleanTitle` 导出
 
 **测试用例**（覆盖场景矩阵 S8, S13）：
+
 - emoji 标题 → 清理
 - #hashtag# 标题 → 清理
 - 【标记】标题 → 清理
@@ -56,12 +59,14 @@ TE-T4 (集成测试 + 文档更新)
 **目标**：新建 `trend-sources.mjs`，定义 6 个新 source collector 的 extract script 和配置。
 
 **文件**：
+
 - 新建 `scripts/short-video/lib/trend-sources.mjs`
 - 新建 `scripts/short-video/__tests__/trend-sources.test.mjs`
 
 **依赖**：TE-T1（需要 `cleanTitle`）
 
 **任务**：
+
 1. 定义 source collector 对象格式：
    ```javascript
    {
@@ -84,6 +89,7 @@ TE-T4 (集成测试 + 文档更新)
 3. 每个 collector 的 extract script 在 mock DOM 上测试
 
 **测试用例**（覆盖场景矩阵 S1-S6, S11, S14）：
+
 - 各 collector 的 url() 返回正确 URL
 - 各 collector 的 extractScript 在 mock DOM 上返回正确数据
 - 登录检测脚本正确识别登录页
@@ -100,12 +106,14 @@ TE-T4 (集成测试 + 文档更新)
 **目标**：重构 `discover-trends.mjs`，将现有 5 源和新 6 源统一为可插拔 collector 模式。
 
 **文件**：
+
 - 修改 `scripts/short-video/discover-trends.mjs`
 - 修改 `scripts/short-video/lib/trend-sources.mjs`（补充现有 5 源的 collector 定义）
 
 **依赖**：TE-T2
 
 **任务**：
+
 1. 将现有 `SOURCES` 数组迁移到 `trend-sources.mjs`，转为 collector 格式
 2. 提取 CDP helper 函数（cdpNewTab/cdpEval/cdpCloseTab/waitForPageLoad/extractFromTab）为公共模块
 3. `discover-trends.mjs` 主循环改为：
@@ -124,6 +132,7 @@ TE-T4 (集成测试 + 文档更新)
 6. `cleanTitle` 集成：collector 标记 `cleanTitle: true` 的源，提取后调用 `cleanTitle`
 
 **测试用例**（覆盖场景矩阵 S7, S9, S10, S15）：
+
 - 11 个源全部正常 → 输出合并结果
 - 某源失败 → warn + 继续
 - CDP 不可用 → exit(1)
@@ -131,6 +140,7 @@ TE-T4 (集成测试 + 文档更新)
 - 跨源去重正确（新源 + 现有源重叠）
 
 **完成标志**：
+
 - `node scripts/short-video/discover-trends.mjs` 正常运行
 - 输出 `trending-topics.json` 格式不变
 - `sourceStats` 包含 11 个源的统计
@@ -142,6 +152,7 @@ TE-T4 (集成测试 + 文档更新)
 **目标**：端到端集成验证 + 更新文档。
 
 **文件**：
+
 - 修改 `docs/content-pipeline.md`（Stage 0 趋势发现部分）
 - 修改 `docs/manual-ops.md`（趋势源列表）
 - 修改 `docs/tiktok-best-practices.md`（趋势发现渠道表）
@@ -149,6 +160,7 @@ TE-T4 (集成测试 + 文档更新)
 **依赖**：TE-T3
 
 **任务**：
+
 1. 运行 `discover-trends.mjs` 验证 11 源正常工作
 2. 检查输出 JSON 格式与之前兼容
 3. 更新 `content-pipeline.md` 的趋势发现部分
@@ -157,6 +169,7 @@ TE-T4 (集成测试 + 文档更新)
 6. 运行全部测试套件确认无 regression
 
 **完成标志**：
+
 - `npx vitest run scripts/short-video/__tests__/` 全绿
 - `npm run lint && npx tsc --noEmit` 通过
 - 文档更新完成

@@ -1,192 +1,326 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=1280, initial-scale=1.0">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    width: 1280px; height: 720px; overflow: hidden;
-    font-family: 'Helvetica Neue', 'Arial Black', Arial, sans-serif;
-    background: #050508;
-  }
-  .thumbnail {
-    width: 1280px; height: 720px; position: relative; overflow: hidden;
-    background: linear-gradient(135deg, #050508 0%, #0d0a1e 40%, #0a1535 70%, #050508 100%);
-  }
-  /* Brand system background layers */
-  .grid-bg {
-    position: absolute; inset: 0;
-    background-image:
-      linear-gradient(rgba(77,139,255,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(77,139,255,0.04) 1px, transparent 1px);
-    background-size: 40px 40px;
-  }
-  .glow-red {
-    position: absolute; top: -100px; right: -100px;
-    width: 500px; height: 500px;
-    background: radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 60%);
-    border-radius: 50%;
-  }
-  .glow-blue {
-    position: absolute; bottom: -150px; left: -100px;
-    width: 600px; height: 600px;
-    background: radial-gradient(circle, rgba(77,139,255,0.1) 0%, transparent 60%);
-    border-radius: 50%;
-  }
-  .scanlines {
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(255,255,255,0.008) 3px, rgba(255,255,255,0.008) 4px);
-    pointer-events: none;
-  }
-  .danger-stripe {
-    position: absolute; top: 180px; right: -60px;
-    width: 500px; height: 80px;
-    background: linear-gradient(90deg, rgba(239,68,68,0) 0%, rgba(239,68,68,0.12) 30%, rgba(239,68,68,0.12) 70%, rgba(239,68,68,0) 100%);
-    transform: rotate(-8deg);
-  }
-  .content {
-    position: relative; z-index: 10;
-    padding: 45px 60px; height: 100%;
-    display: flex; flex-direction: column; justify-content: space-between;
-  }
-  /* Top: brand + badge */
-  .top-section { display: flex; justify-content: space-between; align-items: flex-start; }
-  .brand { display: flex; align-items: center; gap: 14px; }
-  .brand-icon {
-    width: 52px; height: 52px;
-    background: linear-gradient(135deg, #4d8bff 0%, #6d4eff 100%);
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 28px; font-weight: 900; color: white;
-  }
-  .brand-name {
-    font-size: 24px; font-weight: 800; color: #f5f5f5; letter-spacing: 2px;
-  }
-  .brand-name .hl { color: #4d8bff; }
-  .brand-tagline {
-    font-size: 14px; font-weight: 600; color: #475569; letter-spacing: 2px; margin-top: 2px;
-  }
-  .leaked-badge {
-    background: #ef4444; color: white;
-    padding: 10px 28px; font-size: 26px; font-weight: 900;
-    letter-spacing: 3px; border-radius: 6px;
-    box-shadow: 0 0 30px rgba(239,68,68,0.5), 0 4px 15px rgba(0,0,0,0.4);
-    text-transform: uppercase;
-  }
-  /* Middle: headline */
-  .middle-section {
-    flex: 1; display: flex; flex-direction: column; justify-content: center; padding-top: 10px;
-  }
-  .headline-amount {
-    font-size: 130px; font-weight: 900; color: #f59e0b;
-    line-height: 1; text-shadow: 0 0 40px rgba(245,158,11,0.4);
-    letter-spacing: -3px; margin-bottom: 12px;
-  }
-  .headline-amount .dollar { color: #4d8bff; }
-  .headline-amount .b { color: #60a5fa; font-size: 95px; }
-  .headline-text {
-    font-size: 50px; font-weight: 800; color: #e2e8f0;
-    line-height: 1.15; max-width: 950px;
-  }
-  .headline-text .highlight { color: #ef4444; }
-  .headline-text .deepseek { color: #60a5fa; }
-  /* Bottom: key points + source */
-  .bottom-section { display: flex; justify-content: space-between; align-items: flex-end; }
-  .key-points { display: flex; gap: 24px; }
-  .key-point {
-    display: flex; align-items: center; gap: 8px;
-    color: #94a3b8; font-size: 20px; font-weight: 600;
-  }
-  .key-point .dot { width: 8px; height: 8px; border-radius: 50%; background: #4d8bff; }
-  .key-point:nth-child(2) .dot { background: #6d4eff; }
-  .key-point:nth-child(3) .dot { background: #f59e0b; }
-  .key-point:nth-child(4) .dot { background: #34d399; }
-  .source-badge {
-    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
-    padding: 8px 16px; border-radius: 20px;
-    color: #cbd5e1; font-size: 16px; font-weight: 600;
-  }
-  /* Decorative doc icon */
-  .doc-icon {
-    position: absolute; right: 80px; top: 220px;
-    width: 200px; height: 240px; opacity: 0.08; z-index: 1;
-  }
-  /* Accent line */
-  .accent-line {
-    position: absolute; left: 60px; top: 270px;
-    width: 6px; height: 200px;
-    background: linear-gradient(180deg, #ef4444 0%, rgba(239,68,68,0) 100%);
-    border-radius: 3px; z-index: 5;
-  }
-  /* Classified stamp */
-  .stamp {
-    position: absolute; bottom: 75px; right: 70px;
-    transform: rotate(-12deg);
-    border: 3px solid rgba(239,68,68,0.5);
-    color: rgba(239,68,68,0.6);
-    font-size: 24px; font-weight: 900;
-    padding: 8px 24px; letter-spacing: 4px;
-    border-radius: 4px; text-transform: uppercase; z-index: 8;
-  }
-</style>
-</head>
-<body>
-<div class="thumbnail">
-  <div class="grid-bg"></div>
-  <div class="glow-red"></div>
-  <div class="glow-blue"></div>
-  <div class="scanlines"></div>
-  <div class="danger-stripe"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280, initial-scale=1.0" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 1280px;
+        height: 720px;
+        overflow: hidden;
+        font-family: "Helvetica Neue", "Arial Black", Arial, sans-serif;
+        background: #050508;
+      }
+      .thumbnail {
+        width: 1280px;
+        height: 720px;
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(135deg, #050508 0%, #0d0a1e 40%, #0a1535 70%, #050508 100%);
+      }
+      /* Brand system background layers */
+      .grid-bg {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(77, 139, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(77, 139, 255, 0.04) 1px, transparent 1px);
+        background-size: 40px 40px;
+      }
+      .glow-red {
+        position: absolute;
+        top: -100px;
+        right: -100px;
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 60%);
+        border-radius: 50%;
+      }
+      .glow-blue {
+        position: absolute;
+        bottom: -150px;
+        left: -100px;
+        width: 600px;
+        height: 600px;
+        background: radial-gradient(circle, rgba(77, 139, 255, 0.1) 0%, transparent 60%);
+        border-radius: 50%;
+      }
+      .scanlines {
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 3px,
+          rgba(255, 255, 255, 0.008) 3px,
+          rgba(255, 255, 255, 0.008) 4px
+        );
+        pointer-events: none;
+      }
+      .danger-stripe {
+        position: absolute;
+        top: 180px;
+        right: -60px;
+        width: 500px;
+        height: 80px;
+        background: linear-gradient(
+          90deg,
+          rgba(239, 68, 68, 0) 0%,
+          rgba(239, 68, 68, 0.12) 30%,
+          rgba(239, 68, 68, 0.12) 70%,
+          rgba(239, 68, 68, 0) 100%
+        );
+        transform: rotate(-8deg);
+      }
+      .content {
+        position: relative;
+        z-index: 10;
+        padding: 45px 60px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      /* Top: brand + badge */
+      .top-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand-icon {
+        width: 52px;
+        height: 52px;
+        background: linear-gradient(135deg, #4d8bff 0%, #6d4eff 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 900;
+        color: white;
+      }
+      .brand-name {
+        font-size: 24px;
+        font-weight: 800;
+        color: #f5f5f5;
+        letter-spacing: 2px;
+      }
+      .brand-name .hl {
+        color: #4d8bff;
+      }
+      .brand-tagline {
+        font-size: 14px;
+        font-weight: 600;
+        color: #475569;
+        letter-spacing: 2px;
+        margin-top: 2px;
+      }
+      .leaked-badge {
+        background: #ef4444;
+        color: white;
+        padding: 10px 28px;
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: 3px;
+        border-radius: 6px;
+        box-shadow:
+          0 0 30px rgba(239, 68, 68, 0.5),
+          0 4px 15px rgba(0, 0, 0, 0.4);
+        text-transform: uppercase;
+      }
+      /* Middle: headline */
+      .middle-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-top: 10px;
+      }
+      .headline-amount {
+        font-size: 130px;
+        font-weight: 900;
+        color: #f59e0b;
+        line-height: 1;
+        text-shadow: 0 0 40px rgba(245, 158, 11, 0.4);
+        letter-spacing: -3px;
+        margin-bottom: 12px;
+      }
+      .headline-amount .dollar {
+        color: #4d8bff;
+      }
+      .headline-amount .b {
+        color: #60a5fa;
+        font-size: 95px;
+      }
+      .headline-text {
+        font-size: 50px;
+        font-weight: 800;
+        color: #e2e8f0;
+        line-height: 1.15;
+        max-width: 950px;
+      }
+      .headline-text .highlight {
+        color: #ef4444;
+      }
+      .headline-text .deepseek {
+        color: #60a5fa;
+      }
+      /* Bottom: key points + source */
+      .bottom-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+      }
+      .key-points {
+        display: flex;
+        gap: 24px;
+      }
+      .key-point {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #94a3b8;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .key-point .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #4d8bff;
+      }
+      .key-point:nth-child(2) .dot {
+        background: #6d4eff;
+      }
+      .key-point:nth-child(3) .dot {
+        background: #f59e0b;
+      }
+      .key-point:nth-child(4) .dot {
+        background: #34d399;
+      }
+      .source-badge {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        padding: 8px 16px;
+        border-radius: 20px;
+        color: #cbd5e1;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      /* Decorative doc icon */
+      .doc-icon {
+        position: absolute;
+        right: 80px;
+        top: 220px;
+        width: 200px;
+        height: 240px;
+        opacity: 0.08;
+        z-index: 1;
+      }
+      /* Accent line */
+      .accent-line {
+        position: absolute;
+        left: 60px;
+        top: 270px;
+        width: 6px;
+        height: 200px;
+        background: linear-gradient(180deg, #ef4444 0%, rgba(239, 68, 68, 0) 100%);
+        border-radius: 3px;
+        z-index: 5;
+      }
+      /* Classified stamp */
+      .stamp {
+        position: absolute;
+        bottom: 75px;
+        right: 70px;
+        transform: rotate(-12deg);
+        border: 3px solid rgba(239, 68, 68, 0.5);
+        color: rgba(239, 68, 68, 0.6);
+        font-size: 24px;
+        font-weight: 900;
+        padding: 8px 24px;
+        letter-spacing: 4px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        z-index: 8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="thumbnail">
+      <div class="grid-bg"></div>
+      <div class="glow-red"></div>
+      <div class="glow-blue"></div>
+      <div class="scanlines"></div>
+      <div class="danger-stripe"></div>
 
-  <div class="doc-icon">
-    <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="20" y="10" width="160" height="220" rx="8" stroke="rgba(77,139,255,0.3)" stroke-width="2" fill="rgba(77,139,255,0.05)"/>
-      <line x1="40" y1="50" x2="160" y2="50" stroke="rgba(77,139,255,0.2)" stroke-width="2"/>
-      <line x1="40" y1="80" x2="160" y2="80" stroke="rgba(77,139,255,0.2)" stroke-width="2"/>
-      <line x1="40" y1="110" x2="140" y2="110" stroke="rgba(77,139,255,0.2)" stroke-width="2"/>
-      <line x1="40" y1="140" x2="160" y2="140" stroke="rgba(77,139,255,0.2)" stroke-width="2"/>
-      <line x1="40" y1="170" x2="130" y2="170" stroke="rgba(77,139,255,0.2)" stroke-width="2"/>
-      <line x1="40" y1="200" x2="150" y2="200" stroke="rgba(77,139,255,0.2)" stroke-width="2"/>
-    </svg>
-  </div>
+      <div class="doc-icon">
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect
+            x="20"
+            y="10"
+            width="160"
+            height="220"
+            rx="8"
+            stroke="rgba(77,139,255,0.3)"
+            stroke-width="2"
+            fill="rgba(77,139,255,0.05)"
+          />
+          <line x1="40" y1="50" x2="160" y2="50" stroke="rgba(77,139,255,0.2)" stroke-width="2" />
+          <line x1="40" y1="80" x2="160" y2="80" stroke="rgba(77,139,255,0.2)" stroke-width="2" />
+          <line x1="40" y1="110" x2="140" y2="110" stroke="rgba(77,139,255,0.2)" stroke-width="2" />
+          <line x1="40" y1="140" x2="160" y2="140" stroke="rgba(77,139,255,0.2)" stroke-width="2" />
+          <line x1="40" y1="170" x2="130" y2="170" stroke="rgba(77,139,255,0.2)" stroke-width="2" />
+          <line x1="40" y1="200" x2="150" y2="200" stroke="rgba(77,139,255,0.2)" stroke-width="2" />
+        </svg>
+      </div>
 
-  <div class="accent-line"></div>
+      <div class="accent-line"></div>
 
-  <div class="content">
-    <div class="top-section">
-      <div class="brand">
-        <div class="brand-icon">CN</div>
-        <div>
-          <div class="brand-name">CHINA <span class="hl">AI</span> NEWS</div>
-          <div class="brand-tagline">China's AI, decoded.</div>
+      <div class="content">
+        <div class="top-section">
+          <div class="brand">
+            <div class="brand-icon">CN</div>
+            <div>
+              <div class="brand-name">CHINA <span class="hl">AI</span> NEWS</div>
+              <div class="brand-tagline">China's AI, decoded.</div>
+            </div>
+          </div>
+          <div class="leaked-badge">⚠ LEAKED</div>
+        </div>
+
+        <div class="middle-section">
+          <div class="headline-amount">
+            <span class="dollar">$1.4</span><span class="b">B</span>
+          </div>
+          <div class="headline-text">
+            Funding Round <span class="highlight">HALTED</span><br />
+            After <span class="deepseek">DeepSeek's</span> Investor Meeting Leaked
+          </div>
+        </div>
+
+        <div class="bottom-section">
+          <div class="key-points">
+            <div class="key-point"><span class="dot"></span>Pricing</div>
+            <div class="key-point"><span class="dot"></span>AGI Roadmap</div>
+            <div class="key-point"><span class="dot"></span>Talent Drain</div>
+            <div class="key-point"><span class="dot"></span>Compute Gap</div>
+          </div>
+          <div class="source-badge">via Bloomberg</div>
         </div>
       </div>
-      <div class="leaked-badge">⚠ LEAKED</div>
-    </div>
 
-    <div class="middle-section">
-      <div class="headline-amount">
-        <span class="dollar">$1.4</span><span class="b">B</span>
-      </div>
-      <div class="headline-text">
-        Funding Round <span class="highlight">HALTED</span><br>
-        After <span class="deepseek">DeepSeek's</span> Investor Meeting Leaked
-      </div>
+      <div class="stamp">CLASSIFIED</div>
     </div>
-
-    <div class="bottom-section">
-      <div class="key-points">
-        <div class="key-point"><span class="dot"></span>Pricing</div>
-        <div class="key-point"><span class="dot"></span>AGI Roadmap</div>
-        <div class="key-point"><span class="dot"></span>Talent Drain</div>
-        <div class="key-point"><span class="dot"></span>Compute Gap</div>
-      </div>
-      <div class="source-badge">via Bloomberg</div>
-    </div>
-  </div>
-
-  <div class="stamp">CLASSIFIED</div>
-</div>
-</body>
+  </body>
 </html>
