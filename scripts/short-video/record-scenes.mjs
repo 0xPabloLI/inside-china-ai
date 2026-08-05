@@ -49,9 +49,7 @@ export async function recordScenes(scenes, outputDir) {
       duration: scene.duration,
     });
 
-    console.log(
-      `  Scene ${scene.sceneId}: recorded (${scene.duration.toFixed(1)}s + 0.5s buffer)`,
-    );
+    console.log(`  Scene ${scene.sceneId}: recorded (${scene.duration.toFixed(1)}s + 0.5s buffer)`);
   }
 
   await browser.close();
