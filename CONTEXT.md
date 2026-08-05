@@ -1,11 +1,25 @@
 # China AI News
 
-A content/blog platform covering China's AI industry, with an admin editor and interactive article widgets.
+A content/blog platform covering China's AI industry, with an admin editor, interactive article widgets, a short video pipeline, and an email newsletter system.
 
-## Language
+## Content
 
-**Post**: A published article with title, slug, excerpt, markdown content, and attachments.
-_Avoid_: Article, entry, blog post (use Post in code and docs)
+**Article**: The content itself — a frontmatter markdown file with title, slug, excerpt, and body. Exists before publication as a draft and after publication as the source of a Post. The pipeline script `publish-article.mjs` publishes an Article to create or update a Post.
+_Avoid_: Draft (too narrow — an Article is an Article whether drafted or published)
+
+**Post**: The database entity representing a published Article on the website. A Post has an id, slug, status, content, and attachments. An Article becomes a Post when published via the pipeline.
+_Avoid_: Article, entry, blog post (use Post for the database row; use Article for the content file)
+
+**Frontmatter**: YAML metadata block at the top of an Article file, containing `title`, `slug`, `excerpt`, and `published` flag. Consumed by `publish-article.mjs` to create or update a Post.
+_Avoid_: Metadata, header
+
+**Source Material**: A raw input file (PDF, report, transcript, URL content) used by the content pipeline to generate an Article. Stored in `docs/refs/source-materials/`.
+_Avoid_: Source file, reference (too generic)
+
+**Attachment**: A file uploaded to a Post's storage path (`{postId}/{fileName}`) and listed on the article page for readers to download. Tracked in the `post_attachments` table.
+_Avoid_: Media, file (too generic)
+
+## Widgets
 
 **Widget**: An interactive React component embedded inside a Post's markdown content via an HTML comment marker (e.g., `<!-- widget:deepseek-talent -->`). Each widget is a self-contained component with its own hardcoded data. Widgets are registered in a central registry and lazy-loaded on demand.
 _Avoid_: Dashboard (legacy term from the standalone HTML prototype), embed, block
@@ -21,3 +35,51 @@ _Avoid_: Parser, renderer (those are too generic)
 
 **Data Package**: A named grouping of widgets that share a common data source (e.g., `deepseek` widgets all use data from the DeepSeek investor meeting). Widget names use a `package:view` convention (e.g., `deepseek:talent`), though single-name widgets without a package prefix are also valid.
 _Avoid_: Dataset, module
+
+## Subscribers & Newsletters
+
+**Subscriber**: A person who provided their email to receive newsletters. Stored in the `subscribers` table. Anyone can subscribe; only admins can view or remove subscribers.
+_Avoid_: Member, contact, user (use Subscriber for email list entries)
+
+**Newsletter**: An email campaign — content, subject line, and optional scheduling. Created by an admin, dispatched to all Subscribers. Stored in the `newsletters` table with status `draft` / `scheduled` / `sent` / `failed`.
+_Avoid_: Email, campaign, blast
+
+**Newsletter Send**: A single delivery record for one recipient within a Newsletter dispatch. Tracked in the `newsletter_sends` table with per-recipient status (`sent` / `failed` / `suppressed`).
+_Avoid_: Delivery, send log
+
+**Suppression List**: The set of email addresses blocked from receiving Newsletters due to bounces, complaints, or unsubscribes. Managed by Lovable's email infrastructure and synced via email events.
+_Avoid_: Blocklist, deny list
+
+## Video Pipeline
+
+**Scene**: A single visual segment in a short video, with a `visualType` (hook, content, cta), voiceover text, on-screen texts, and duration. A video is composed of 8-12 Scenes.
+_Avoid_: Shot, frame, clip
+
+**Scene Data**: A `.mjs` file (`scene-data.mjs` or `scene-data-ptN.mjs`) containing all Scene definitions for one video. Written by the agent from an Article, consumed by the video pipeline (`main.mjs`).
+_Avoid_: Script, storyboard (too generic)
+
+**Part**: A single video in a multi-part series. When an Article is too rich for one 60s video, it splits into Parts (max 3). Each Part has its own Scene Data file. Published with `Part X/Y` labels.
+_Avoid_: Episode (use Episode only when referencing the evaluator's internal concept)
+
+**Series**: A collection of Parts sharing a `seriesMeta` block (part number, total parts, prev/next part slugs). Published over 1-3 days with inter-episode linking (pinned comments, hashtags).
+_Avoid_: Playlist, collection
+
+**Trend**: A trending topic discovered by scanning news media, social platforms, and monitored accounts via `discover-trends.mjs`. Used as input to the content pipeline when no Source Material is provided.
+_Avoid_: Topic (too generic), keyword
+
+**Trend Source**: A configurable source in `trend-sources.mjs` that `discover-trends.mjs` scrapes for Trends. 15 sources across news media, social platforms, and monitored WeChat accounts. Pluggable: adding a source = adding a collector object.
+_Avoid_: Feed, scraper
+
+## Content Pipeline
+
+**HITL Checkpoint**: A mandatory human-review gate in the content pipeline. The agent must pause, output the review content, and wait for explicit user confirmation before proceeding. Three checkpoints: HITL-1 (Article), HITL-2 (Scene Data), HITL-3 (Video).
+_Avoid_: Review, approval (too generic)
+
+**MRL** (Machine Review Loop): An automated self-review cycle that runs before each HITL Checkpoint. The agent checks its output against a Blocker/Warning checklist, fixes all Blockers, and loops until 0 Blockers before presenting to the user.
+_Avoid_: Lint, validation (those are too narrow)
+
+**Pipeline Status**: A JSON file (`scripts/short-video/output/pipeline-status.json`) tracking the current stage, per-stage completion, MRL results, and next action for an in-progress content pipeline run.
+_Avoid_: Progress tracker, state file
+
+**Pending Analysis**: A JSON file (`scripts/short-video/output/pending-analysis.json`) written after TikTok publishing, recording that analytics data is not yet available. Checked at session start; if >48h since publish, the user is prompted to export the analytics CSV.
+_Avoid_: Analytics tracker, metrics file
