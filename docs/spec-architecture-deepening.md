@@ -52,7 +52,7 @@
 |---------|-----------|--------|--------|--------|
 | S1 | 1 + 2 (requireAdmin + useIsAdmin) | Website — auth | ✅ Done | `2eda390` |
 | S2 | 5 (TTS engine strategy) | Video pipeline | ✅ Done | `cef738d` |
-| S3 | 6 + 7 (Publora client + CDP scraper) | Video pipeline | ✅ Done | _pending_ |
+| S3 | 6 + 7 (Publora client + CDP scraper) | Video pipeline | ✅ Done | `70541c9` |
 | S4 | 8 → 3 → 4 (PostEditor → attachment upload → Supabase factory) | Website | 🔲 Pending | — |
 
 ---
