@@ -53,7 +53,7 @@
 | S1 | 1 + 2 (requireAdmin + useIsAdmin) | Website — auth | ✅ Done | `2eda390` |
 | S2 | 5 (TTS engine strategy) | Video pipeline | ✅ Done | `cef738d` |
 | S3 | 6 + 7 (Publora client + CDP scraper) | Video pipeline | ✅ Done | `70541c9` |
-| S4 | 8 → 3 → 4 (PostEditor → attachment upload → Supabase factory) | Website | 🔲 Pending | — |
+| S4 | 8 → 3 → 4 (PostEditor → attachment upload → Supabase factory) | Website | ✅ Done | `7ebc78f` |
 
 ---
 
@@ -384,6 +384,6 @@ ADR-0005 states `auth-middleware.ts` is auto-generated and immutable. This candi
 - [x] S2: Candidate 5 — TTS engine strategy ✅ (commit `cef738d`, 2026-08-05 — 470-line monolith → 8 adapter modules + registry + 25 tests)
 - [x] S3: Candidate 6 — Publora API client ✅ (2026-08-05 — extracted getApiKey/publoraPost/publoraPut/uploadToS3/getPlatformId; 16 tests)
 - [x] S3: Candidate 7 — CDP scraper ✅ (2026-08-05 — extracted cdpNewTab/cdpEval/cdpCloseTab/waitForPageLoad/extractFromTab/checkLogin; 21 tests)
-- [ ] S4: Candidate 8 — PostEditor extraction
-- [ ] S4: Candidate 3 — Attachment upload server fn
-- [ ] S4: Candidate 4 — Supabase client factory
+- [x] S4: Candidate 8 — PostEditor extraction ✅ (commit `7ebc78f`, 2026-08-05 — extracted PostEditor + AttachmentUploader into src/components/; admin.tsx 740→264 lines; 14 tests)
+- [x] S4: Candidate 3 — Attachment upload server fn ✅ (commit `7ebc78f`, 2026-08-05 — uploadAttachment server fn with base64 decode; orphan cleanup server-side; 13 Zod validation tests)
+- [x] S4: Candidate 4 — Supabase client factory ✅ (commit `7ebc78f`, 2026-08-05 — createPublicClient() in client.ts; replaced publicClient() in posts.functions.ts + sitemap.xml.ts; 3 tests)
