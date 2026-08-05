@@ -68,3 +68,25 @@ export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>,
     return Reflect.get(_supabase, prop, receiver);
   },
 });
+
+/**
+ * Create a server-side public Supabase client (no session, no auth).
+ *
+ * Used by server functions that query public data (e.g. `listPublishedPosts`).
+ * Reuses the same `createSupabaseFetch` header logic as the browser client.
+ *
+ * ```ts
+ * import { createPublicClient } from "@/integrations/supabase/client";
+ * const sb = createPublicClient();
+ * ```
+ */
+export function createPublicClient() {
+  const url = process.env.SUPABASE_URL!;
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
+  return createClient<Database>(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: createSupabaseFetch(key),
+    },
+  });
+}

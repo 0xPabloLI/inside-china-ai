@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
+import { createPublicClient } from "@/integrations/supabase/client";
 
 const BASE_URL = "https://chinaai.news";
 
@@ -9,23 +9,6 @@ interface SitemapEntry {
   lastmod?: string;
   changefreq?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
   priority?: string;
-}
-
-function publicClient() {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      fetch: (input, init) => {
-        const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`)
-          h.delete("Authorization");
-        h.set("apikey", key);
-        return fetch(input, { ...init, headers: h });
-      },
-    },
-  });
 }
 
 export const Route = createFileRoute("/sitemap.xml")({
@@ -41,7 +24,7 @@ export const Route = createFileRoute("/sitemap.xml")({
         ];
 
         try {
-          const sb = publicClient();
+          const sb = createPublicClient();
           const { data } = await sb
             .from("posts")
             .select("slug, updated_at, published_at")

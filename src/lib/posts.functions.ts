@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
 import { requireAdmin } from "@/integrations/supabase/require-admin";
+import { createPublicClient } from "@/integrations/supabase/client";
 
 const STORAGE_BUCKET = "post-attachments";
 
@@ -12,25 +11,8 @@ export function attachmentPublicUrl(storagePath: string): string {
   return `${url}/storage/v1/object/public/${STORAGE_BUCKET}/${storagePath}`;
 }
 
-function publicClient() {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
-  return createClient<Database>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      fetch: (input, init) => {
-        const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`)
-          h.delete("Authorization");
-        h.set("apikey", key);
-        return fetch(input, { ...init, headers: h });
-      },
-    },
-  });
-}
-
 export const listPublishedPosts = createServerFn({ method: "GET" }).handler(async () => {
-  const sb = publicClient();
+  const sb = createPublicClient();
   const { data, error } = await sb
     .from("posts")
     .select("id, title, slug, excerpt, published_at")
@@ -44,7 +26,7 @@ export const listPublishedPosts = createServerFn({ method: "GET" }).handler(asyn
 export const getPublishedPost = createServerFn({ method: "GET" })
   .inputValidator((d: { slug: string }) => z.object({ slug: z.string().min(1).max(200) }).parse(d))
   .handler(async ({ data }) => {
-    const sb = publicClient();
+    const sb = createPublicClient();
     const { data: row, error } = await sb
       .from("posts")
       .select("id, title, slug, excerpt, content, published_at")
@@ -178,6 +160,55 @@ export const deletePost = createServerFn({ method: "POST" })
   });
 
 // ---- Attachments (Admin) ----
+
+export const uploadAttachmentInput = z.object({
+  postId: z.string().uuid(),
+  fileName: z.string().trim().min(1).max(255),
+  fileSize: z
+    .number()
+    .int()
+    .positive()
+    .max(50 * 1024 * 1024, "File too large (max 50 MB)"),
+  mimeType: z.string().nullable().optional(),
+  fileBase64: z.string().min(1),
+});
+
+export const uploadAttachment = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => uploadAttachmentInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const ext = data.fileName.includes(".") ? data.fileName.split(".").pop() : "";
+    const uuid = crypto.randomUUID();
+    const storagePath = `${data.postId}/${uuid}${ext ? `.${ext}` : ""}`;
+
+    const fileBuffer = Buffer.from(data.fileBase64, "base64");
+
+    const { error: uploadErr } = await context.supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, fileBuffer, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: data.mimeType || undefined,
+      });
+
+    if (uploadErr) throw new Error(uploadErr.message);
+
+    const { error: insertErr } = await context.supabase.from("post_attachments").insert({
+      post_id: data.postId,
+      file_name: data.fileName,
+      storage_path: storagePath,
+      file_size: data.fileSize,
+      mime_type: data.mimeType ?? null,
+    });
+
+    if (insertErr) {
+      // Clean up orphaned file
+      await context.supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+      throw new Error(insertErr.message);
+    }
+
+    return { storagePath, url: attachmentPublicUrl(storagePath) };
+  });
 
 export const listAttachmentsAdmin = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
