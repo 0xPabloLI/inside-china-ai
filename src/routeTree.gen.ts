@@ -9,53 +9,31 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport } from './routes/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny[.]txt'
-import { Route as TiktokConnectRouteImport } from './routes/tiktok-connect'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as CompaniesRouteImport } from './routes/companies'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PostsSlugRouteImport } from './routes/posts.$slug'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CompaniesRouteImport } from './routes/companies'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TiktokConnectRouteImport } from './routes/tiktok-connect'
+import { Route as Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport } from './routes/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny[.]txt'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
-import { Route as LovableEmailEventsRouteImport } from './routes/lovable/email/events'
+import { Route as PostsSlugRouteImport } from './routes/posts.$slug'
 import { Route as ApiTiktokCallbackRouteImport } from './routes/api/tiktok/callback'
-import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
-import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
-import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as LovableEmailEventsRouteImport } from './routes/lovable/email/events'
 import { Route as ApiPublicHooksDispatchNewslettersRouteImport } from './routes/api/public/hooks/dispatch-newsletters'
+import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 
-const Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute =
-  Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport.update({
-    id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
-    path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const TiktokConnectRoute = TiktokConnectRouteImport.update({
-  id: '/tiktok-connect',
-  path: '/tiktok-connect',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CompaniesRoute = CompaniesRouteImport.update({
-  id: '/companies',
-  path: '/companies',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -63,28 +41,45 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const CompaniesRoute = CompaniesRouteImport.update({
+  id: '/companies',
+  path: '/companies',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PostsSlugRoute = PostsSlugRouteImport.update({
-  id: '/posts/$slug',
-  path: '/posts/$slug',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TiktokConnectRoute = TiktokConnectRouteImport.update({
+  id: '/tiktok-connect',
+  path: '/tiktok-connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRoute =
+  Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport.update({
+    id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
+    path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const LovableEmailEventsRoute = LovableEmailEventsRouteImport.update({
-  id: '/lovable/email/events',
-  path: '/lovable/email/events',
+const PostsSlugRoute = PostsSlugRouteImport.update({
+  id: '/posts/$slug',
+  path: '/posts/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTiktokCallbackRoute = ApiTiktokCallbackRouteImport.update({
@@ -92,26 +87,31 @@ const ApiTiktokCallbackRoute = ApiTiktokCallbackRouteImport.update({
   path: '/api/tiktok/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LovableEmailTransactionalPreviewRoute =
-  LovableEmailTransactionalPreviewRouteImport.update({
-    id: '/lovable/email/transactional/preview',
-    path: '/lovable/email/transactional/preview',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
-  id: '/lovable/email/auth/webhook',
-  path: '/lovable/email/auth/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
-  id: '/lovable/email/auth/preview',
-  path: '/lovable/email/auth/preview',
+const LovableEmailEventsRoute = LovableEmailEventsRouteImport.update({
+  id: '/lovable/email/events',
+  path: '/lovable/email/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicHooksDispatchNewslettersRoute =
   ApiPublicHooksDispatchNewslettersRouteImport.update({
     id: '/api/public/hooks/dispatch-newsletters',
     path: '/api/public/hooks/dispatch-newsletters',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
+  id: '/lovable/email/auth/preview',
+  path: '/lovable/email/auth/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -250,53 +250,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt': {
-      id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
-      path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
-      fullPath: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
-      preLoaderRoute: typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tiktok-connect': {
-      id: '/tiktok-connect'
-      path: '/tiktok-connect'
-      fullPath: '/tiktok-connect'
-      preLoaderRoute: typeof TiktokConnectRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/companies': {
-      id: '/companies'
-      path: '/companies'
-      fullPath: '/companies'
-      preLoaderRoute: typeof CompaniesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -306,18 +264,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/posts/$slug': {
-      id: '/posts/$slug'
-      path: '/posts/$slug'
-      fullPath: '/posts/$slug'
-      preLoaderRoute: typeof PostsSlugRouteImport
+    '/companies': {
+      id: '/companies'
+      path: '/companies'
+      fullPath: '/companies'
+      preLoaderRoute: typeof CompaniesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tiktok-connect': {
+      id: '/tiktok-connect'
+      path: '/tiktok-connect'
+      fullPath: '/tiktok-connect'
+      preLoaderRoute: typeof TiktokConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt': {
+      id: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
+      path: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
+      fullPath: '/tiktok3ckG2LBTmztwqOB2cYwSBeolU6Qruwny.txt'
+      preLoaderRoute: typeof Tiktok3ckG2LBTmztwqOB2cYwSBeolU6QruwnyDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -327,11 +320,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/lovable/email/events': {
-      id: '/lovable/email/events'
-      path: '/lovable/email/events'
-      fullPath: '/lovable/email/events'
-      preLoaderRoute: typeof LovableEmailEventsRouteImport
+    '/posts/$slug': {
+      id: '/posts/$slug'
+      path: '/posts/$slug'
+      fullPath: '/posts/$slug'
+      preLoaderRoute: typeof PostsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tiktok/callback': {
@@ -341,18 +334,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTiktokCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/transactional/preview': {
-      id: '/lovable/email/transactional/preview'
-      path: '/lovable/email/transactional/preview'
-      fullPath: '/lovable/email/transactional/preview'
-      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+    '/lovable/email/events': {
+      id: '/lovable/email/events'
+      path: '/lovable/email/events'
+      fullPath: '/lovable/email/events'
+      preLoaderRoute: typeof LovableEmailEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/auth/webhook': {
-      id: '/lovable/email/auth/webhook'
-      path: '/lovable/email/auth/webhook'
-      fullPath: '/lovable/email/auth/webhook'
-      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+    '/api/public/hooks/dispatch-newsletters': {
+      id: '/api/public/hooks/dispatch-newsletters'
+      path: '/api/public/hooks/dispatch-newsletters'
+      fullPath: '/api/public/hooks/dispatch-newsletters'
+      preLoaderRoute: typeof ApiPublicHooksDispatchNewslettersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/auth/preview': {
@@ -362,11 +355,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/dispatch-newsletters': {
-      id: '/api/public/hooks/dispatch-newsletters'
-      path: '/api/public/hooks/dispatch-newsletters'
-      fullPath: '/api/public/hooks/dispatch-newsletters'
-      preLoaderRoute: typeof ApiPublicHooksDispatchNewslettersRouteImport
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
