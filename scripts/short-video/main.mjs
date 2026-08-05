@@ -23,6 +23,7 @@ import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { generateBGM } from "./lib/generate-bgm.mjs";
 import { generateSRT } from "./lib/generate-srt.mjs";
+import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -148,6 +149,19 @@ async function main() {
   // ── Step 5: Assemble final video ──
   console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
   const result = assembleVideo(videoResults, outputDir, meta.pipelineId, bgmPath, srtFile);
+
+  // ── Step 6: Verify subtitles (optional, --skip-verify to skip) ──
+  const skipVerify = process.argv.includes("--skip-verify");
+  if (skipVerify) {
+    console.log("🔍 Step 6: Subtitle verification skipped (--skip-verify)\n");
+  } else if (!existsSync(timingPath)) {
+    console.log("🔍 Step 6: Subtitle verification skipped (no subtitle-timing.json)\n");
+  } else {
+    console.log("🔍 Step 6: Verifying subtitle coverage and sync...\n");
+    const verifyTimingData = JSON.parse(readFileSync(timingPath, "utf8"));
+    const verifySceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
+    verifySubtitles(result.path, verifyTimingData, verifySceneDurations, outputDir);
+  }
 
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`✅ Pipeline complete!`);
