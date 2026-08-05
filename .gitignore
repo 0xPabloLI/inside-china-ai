@@ -43,3 +43,4 @@ scripts/short-video/assets/tiktok*.txt
 output/
 test-results/
 .playwright-cli/
+docs/refs/postiz-app/
