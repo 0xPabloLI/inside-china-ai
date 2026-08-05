@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/integrations/supabase/require-admin";
 
 const newsletterInput = z.object({
   id: z.string().uuid().optional(),
@@ -12,18 +12,9 @@ const newsletterInput = z.object({
   scheduledAt: z.string().datetime().optional().nullable(),
 });
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
-  const { data: isAdmin } = await context.supabase.rpc("has_role", {
-    _user_id: context.userId,
-    _role: "admin",
-  });
-  if (!isAdmin) throw new Error("Forbidden");
-}
-
 export const listNewsletters = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
     const { data, error } = await context.supabase
       .from("newsletters")
       .select(
@@ -35,10 +26,9 @@ export const listNewsletters = createServerFn({ method: "GET" })
   });
 
 export const saveNewsletter = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) => newsletterInput.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
     const row = {
       subject: data.subject,
       title: data.title || null,
@@ -68,17 +58,16 @@ export const saveNewsletter = createServerFn({ method: "POST" })
   });
 
 export const deleteNewsletter = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
     const { error } = await context.supabase.from("newsletters").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 export const previewNewsletter = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) =>
     z
       .object({
@@ -91,24 +80,21 @@ export const previewNewsletter = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
     const { renderNewsletterPreview } = await import("./newsletters.server");
     return { html: await renderNewsletterPreview(data) };
   });
 
 export const sendNewsletterNow = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
     const { dispatchNewsletter } = await import("./newsletters.server");
     return dispatchNewsletter(data.id);
   });
 
 export const listNewsletterSends = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
     const { data, error } = await context.supabase
       .from("newsletter_sends")
       .select("id, newsletter_id, recipient_email, status, error_message, created_at")

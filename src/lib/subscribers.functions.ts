@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/integrations/supabase/require-admin";
 
 const emailSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -18,13 +18,8 @@ export const subscribe = createServerFn({ method: "POST" })
   });
 
 export const listSubscribers = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .handler(async ({ context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
     const { data, error } = await context.supabase
       .from("subscribers")
       .select("id, email, created_at")
@@ -34,14 +29,9 @@ export const listSubscribers = createServerFn({ method: "GET" })
   });
 
 export const deleteSubscriber = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
     const { error } = await context.supabase.from("subscribers").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };

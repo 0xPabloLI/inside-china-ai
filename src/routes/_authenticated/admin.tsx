@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   listAllPostsAdmin,
   getPostAdmin,
@@ -72,7 +73,7 @@ function AdminPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const { isAdmin } = useIsAdmin();
 
   const list = useServerFn(listAllPostsAdmin);
   const get = useServerFn(getPostAdmin);
@@ -80,18 +81,6 @@ function AdminPage() {
   const del = useServerFn(deletePost);
   const listSubs = useServerFn(listSubscribers);
   const delSub = useServerFn(deleteSubscriber);
-
-  useEffect(() => {
-    (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return setIsAdmin(false);
-      const { data } = await supabase.rpc("has_role", {
-        _user_id: u.user.id,
-        _role: "admin",
-      });
-      setIsAdmin(!!data);
-    })();
-  }, []);
 
   const postsQuery = useQuery({
     queryKey: ["admin-posts"],

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin } from "@/integrations/supabase/require-admin";
 
 const STORAGE_BUCKET = "post-attachments";
 
@@ -88,13 +88,8 @@ const postInput = z.object({
 });
 
 export const listAllPostsAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .handler(async ({ context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
     const { data, error } = await context.supabase
       .from("posts")
       .select("id, title, slug, published, published_at, updated_at")
@@ -104,7 +99,7 @@ export const listAllPostsAdmin = createServerFn({ method: "GET" })
   });
 
 export const getPostAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
@@ -117,15 +112,9 @@ export const getPostAdmin = createServerFn({ method: "GET" })
   });
 
 export const savePost = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: unknown) => postInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
-
     const now = new Date().toISOString();
     if (data.id) {
       const { data: existing } = await context.supabase
@@ -170,15 +159,9 @@ export const savePost = createServerFn({ method: "POST" })
   });
 
 export const deletePost = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
-
     // Gather attachment storage paths before deleting (CASCADE will remove rows)
     const { data: atts } = await context.supabase
       .from("post_attachments")
@@ -197,14 +180,9 @@ export const deletePost = createServerFn({ method: "POST" })
 // ---- Attachments (Admin) ----
 
 export const listAttachmentsAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { postId: string }) => z.object({ postId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
     const { data: rows, error } = await context.supabase
       .from("post_attachments")
       .select("id, post_id, file_name, storage_path, file_size, mime_type, created_at")
@@ -215,15 +193,9 @@ export const listAttachmentsAdmin = createServerFn({ method: "GET" })
   });
 
 export const deleteAttachment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
-
     const { data: row, error: fetchErr } = await context.supabase
       .from("post_attachments")
       .select("storage_path")
@@ -243,7 +215,7 @@ export const deleteAttachment = createServerFn({ method: "POST" })
   });
 
 export const renameAttachment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAdmin])
   .inputValidator((d: { id: string; fileName: string }) =>
     z
       .object({
@@ -253,12 +225,6 @@ export const renameAttachment = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
-
     const { data: row, error } = await context.supabase
       .from("post_attachments")
       .update({ file_name: data.fileName })

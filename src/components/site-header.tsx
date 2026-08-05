@@ -1,33 +1,10 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { BrandName } from "./brand-name";
 
 export function SiteHeader() {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAdmin } = useIsAdmin();
   const location = useLocation();
-
-  useEffect(() => {
-    let cancelled = false;
-    async function check() {
-      const { data } = await supabase.auth.getUser();
-      if (cancelled) return;
-      const user = data.user;
-      if (!user) return setIsAdmin(false);
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-      if (cancelled) return;
-      setIsAdmin(!!roles?.some((r) => r.role === "admin"));
-    }
-    check();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => check());
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
 
   /**
    * When already on the home page, clicking "Articles" scrolls to the
