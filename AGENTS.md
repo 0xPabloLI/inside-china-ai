@@ -19,6 +19,7 @@
 - **Stack**: React 19 + TypeScript + TanStack Start (file-based routing, server functions) + TanStack Query + Supabase (auth + database) + TailwindCSS v4 + shadcn/ui components.
 - **Core directories**: `src/routes/` (TanStack file routes), `src/components/` (UI + shared), `src/lib/` (server functions & utils), `src/integrations/supabase/` (client), `supabase/migrations/` (DB schema).
 - **Auth model**: Supabase Auth + RPC `has_role(_user_id, _role)` for admin gating. The `_authenticated` layout route guards all admin pages.
+- **Publishable stack conventions**: `docs/tanstack-lovable-conventions.md` — rules for routing, server functions, env/secrets, RLS, storage, email, SEO, and deployment.
 
 ## Core Commands
 
