@@ -31,6 +31,15 @@ import {
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/trend-sources.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
+import {
+  cdpNewTab,
+  cdpCloseTab,
+  waitForPageLoad,
+  extractFromTab,
+  checkLogin,
+  CDP_BASE,
+  RETRY_WAIT_MS,
+} from "./lib/cdp-client.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -38,9 +47,7 @@ const __dirname = dirname(__filename);
 const OUTPUT_DIR = join(__dirname, "output");
 const OUTPUT_PATH = join(OUTPUT_DIR, "trending-topics.json");
 
-const CDP_BASE = "http://localhost:3456";
 const PAGE_LOAD_WAIT_MS = 3000;
-const RETRY_WAIT_MS = 3000;
 
 // ─── CLI args ───
 
@@ -51,88 +58,6 @@ function getArg(name) {
 }
 
 const keywordArg = getArg("keyword");
-
-// ─── CDP helper functions ───
-
-async function cdpNewTab(url) {
-  const resp = await fetch(`${CDP_BASE}/new?url=${encodeURIComponent(url)}`);
-  const data = await resp.json();
-  if (!data.targetId) {
-    throw new Error(`Failed to create tab for ${url}`);
-  }
-  return data.targetId;
-}
-
-async function cdpEval(tabId, script) {
-  const resp = await fetch(`${CDP_BASE}/eval?target=${tabId}`, {
-    method: "POST",
-    body: script,
-  });
-  return resp.json();
-}
-
-async function cdpCloseTab(tabId) {
-  try {
-    await fetch(`${CDP_BASE}/close?target=${tabId}`);
-  } catch {
-    // Ignore close errors
-  }
-}
-
-async function waitForPageLoad(tabId, retries = 2) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const resp = await cdpEval(tabId, "document.readyState");
-      const ready = resp?.result?.value || resp?.value || "";
-      if (ready === "complete" || ready === "interactive") {
-        return true;
-      }
-    } catch {
-      // Tab not ready yet
-    }
-    if (i < retries) {
-      await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
-    }
-  }
-  return false;
-}
-
-async function extractFromTab(tabId, extractScript) {
-  try {
-    // Wrap in IIFE — CDP eval doesn't support top-level return
-    const wrappedScript = `(function(){${extractScript}})()`;
-    const resp = await cdpEval(tabId, wrappedScript);
-    // CDP eval returns { value: ... } — value may be array, string, or null
-    let articles = resp?.result?.value || resp?.value || resp;
-    if (Array.isArray(articles)) {
-      return articles;
-    }
-    // Try parsing if it's a string (some CDP proxies serialize arrays as JSON strings)
-    if (typeof articles === "string") {
-      try {
-        const parsed = JSON.parse(articles);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {
-        // Not JSON — return empty
-      }
-    }
-    return [];
-  } catch (e) {
-    console.warn(`  ⚠️  Extract failed: ${e.message}`);
-    return [];
-  }
-}
-
-async function checkLogin(tabId, loginCheckScript) {
-  if (!loginCheckScript) return "ok";
-  try {
-    const wrappedScript = `(function(){${loginCheckScript}})()`;
-    const resp = await cdpEval(tabId, wrappedScript);
-    return resp?.result?.value || resp?.value || "ok";
-  } catch {
-    return "ok";
-  }
-}
 
 // ─── Source collection ───
 

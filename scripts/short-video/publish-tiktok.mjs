@@ -21,7 +21,6 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { readFile } from "fs/promises";
 
 import {
   buildCaption,
@@ -32,6 +31,13 @@ import {
   buildPendingAnalysis,
   buildAnalyticsGuidance,
 } from "./lib/publish-utils.mjs";
+import {
+  getApiKey,
+  publoraPost,
+  publoraPut,
+  uploadToS3,
+  getPlatformId,
+} from "./lib/publora-client.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -39,8 +45,6 @@ const __dirname = dirname(__filename);
 const OUTPUT_DIR = join(__dirname, "output");
 const DEFAULT_VIDEO = join(OUTPUT_DIR, "deepseek-short.mp4");
 const DEFAULT_METADATA = join(OUTPUT_DIR, "tiktok-metadata.json");
-
-const PUB_BASE_URL = "https://api.publora.com/api/v1";
 
 // ─── CLI args ───
 
@@ -66,106 +70,6 @@ const partArg = getArg("part"); // format: "n/total" e.g. "1/3"
 const prevUrl = getArg("prev-url");
 const nextUrl = getArg("next-url");
 
-// ─── API key resolution ───
-
-async function getApiKey() {
-  // 1. Env var
-  if (process.env.PUBLORA_API_KEY) {
-    return process.env.PUBLORA_API_KEY;
-  }
-
-  // 2. CatPaw MCP settings fallback
-  const home = process.env.HOME || process.env.USERPROFILE;
-  const mcpSettingsPaths = [
-    `${home}/Library/Application Support/CatPawAI/User/globalStorage/mt-idekit.mt-idekit-code/settings/mcopilot_mcp_settings.json`,
-    `${home}/.cursor/skills/web-access/mcp_settings.json`, // legacy
-  ];
-
-  for (const p of mcpSettingsPaths) {
-    try {
-      if (existsSync(p)) {
-        const raw = await readFile(p, "utf8");
-        const config = JSON.parse(raw);
-        const authHeader = config?.mcpServers?.publora?.headers?.Authorization;
-        if (authHeader?.startsWith("Bearer ")) {
-          return authHeader.slice(7);
-        }
-      }
-    } catch {
-      // try next path
-    }
-  }
-
-  console.error("❌ PUBLORA_API_KEY not found.");
-  console.error("   Set it: export PUBLORA_API_KEY=sk_...");
-  console.error("   Or configure Publora MCP in CatPaw settings.");
-  process.exit(1);
-}
-
-// ─── Publora API client ───
-
-async function publoraPost(path, body, apiKey) {
-  const resp = await fetch(`${PUB_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "x-publora-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await resp.json();
-  if (!resp.ok) {
-    throw new Error(`Publora POST ${path} failed: HTTP ${resp.status} — ${JSON.stringify(data)}`);
-  }
-  return data;
-}
-
-async function publoraPut(path, body, apiKey) {
-  const resp = await fetch(`${PUB_BASE_URL}${path}`, {
-    method: "PUT",
-    headers: {
-      "x-publora-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await resp.json();
-  if (!resp.ok) {
-    throw new Error(`Publora PUT ${path} failed: HTTP ${resp.status} — ${JSON.stringify(data)}`);
-  }
-  return data;
-}
-
-async function uploadToS3(uploadUrl, filePath, contentType) {
-  const buffer = readFileSync(filePath);
-  const resp = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: buffer,
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`S3 upload failed: HTTP ${resp.status} — ${text.slice(0, 300)}`);
-  }
-}
-
-async function getPlatformId(apiKey) {
-  if (platformIdOverride) return platformIdOverride;
-
-  const resp = await fetch(`${PUB_BASE_URL}/platform-connections`, {
-    headers: { "x-publora-key": apiKey },
-  });
-  const data = await resp.json();
-  const tiktokConn = data.connections?.find((c) => c.platformId?.startsWith("tiktok-"));
-  if (!tiktokConn) {
-    throw new Error("No TikTok connection found in Publora. Run list_connections first.");
-  }
-  if (tiktokConn.tokenStatus !== "valid") {
-    console.warn(`⚠️  TikTok token status: ${tiktokConn.tokenStatus}`);
-  }
-  return tiktokConn.platformId;
-}
-
 // ─── Main ───
 
 async function main() {
@@ -176,8 +80,8 @@ async function main() {
   const apiKey = await getApiKey();
   console.log("🔑 API key: found ✅");
 
-  // 2. Get platform ID
-  const platformId = await getPlatformId(apiKey);
+  // 2. Get platform ID (CLI override or from Publora)
+  const platformId = platformIdOverride || (await getPlatformId("tiktok-", apiKey));
   console.log(`📱 TikTok platform: ${platformId}`);
 
   // 3. Read metadata

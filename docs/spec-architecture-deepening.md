@@ -52,7 +52,7 @@
 |---------|-----------|--------|--------|--------|
 | S1 | 1 + 2 (requireAdmin + useIsAdmin) | Website — auth | ✅ Done | `2eda390` |
 | S2 | 5 (TTS engine strategy) | Video pipeline | ✅ Done | `cef738d` |
-| S3 | 6 + 7 (Publora client + CDP scraper) | Video pipeline | 🔲 Pending | — |
+| S3 | 6 + 7 (Publora client + CDP scraper) | Video pipeline | ✅ Done | _pending_ |
 | S4 | 8 → 3 → 4 (PostEditor → attachment upload → Supabase factory) | Website | 🔲 Pending | — |
 
 ---
@@ -382,8 +382,8 @@ ADR-0005 states `auth-middleware.ts` is auto-generated and immutable. This candi
 - [x] S1: Candidate 1 — `requireAdmin` middleware ✅ (commit `2eda390`, 2026-08-05 — also fixed missing admin check on `getPostAdmin`)
 - [x] S1: Candidate 2 — `useIsAdmin` hook ✅ (commit `2eda390`, 2026-08-05 — unified auth state subscription + RPC method)
 - [x] S2: Candidate 5 — TTS engine strategy ✅ (commit `cef738d`, 2026-08-05 — 470-line monolith → 8 adapter modules + registry + 25 tests)
-- [ ] S3: Candidate 6 — Publora API client
-- [ ] S3: Candidate 7 — CDP scraper
+- [x] S3: Candidate 6 — Publora API client ✅ (2026-08-05 — extracted getApiKey/publoraPost/publoraPut/uploadToS3/getPlatformId; 16 tests)
+- [x] S3: Candidate 7 — CDP scraper ✅ (2026-08-05 — extracted cdpNewTab/cdpEval/cdpCloseTab/waitForPageLoad/extractFromTab/checkLogin; 21 tests)
 - [ ] S4: Candidate 8 — PostEditor extraction
 - [ ] S4: Candidate 3 — Attachment upload server fn
 - [ ] S4: Candidate 4 — Supabase client factory
