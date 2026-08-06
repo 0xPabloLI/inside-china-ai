@@ -22,7 +22,7 @@ import { generateTTS } from "./lib/generate-tts.mjs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { generateBGM } from "./lib/generate-bgm.mjs";
-import { generateSRT } from "./lib/generate-srt.mjs";
+// generate-srt.mjs replaced by generate-ass.py (pysubs2 + word-level timestamps)
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -69,9 +69,13 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Version number (timestamp-based, for output file naming) ──
+  const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
   console.log(`🎬 Short Video Pipeline`);
   console.log(`   Content: ${meta.title || contentDir}`);
   console.log(`   Pipeline ID: ${meta.pipelineId}`);
+  console.log(`   Version: ${version}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
   // ── Pre-Render Verification (validates scene-data against SKILL.md rules) ──
@@ -154,19 +158,40 @@ async function main() {
     console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
   }
 
-  // ── Step 4: Generate SRT/ASS from ASR timing data ──
+  // ── Step 4: Generate ASS subtitles from word-level timing (pysubs2) ──
   const timingPath = join(outputDir, "audio", "subtitle-timing.json");
-  const srtPath = join(outputDir, "subtitles.ass");
+  const assPath = join(outputDir, "subtitles.ass");
   let srtFile = null;
   if (existsSync(timingPath)) {
-    const timingData = JSON.parse(readFileSync(timingPath, "utf8"));
+    // Write scene durations to temp JSON for generate-ass.py
+    const durationsPath = join(outputDir, "audio", "scene-durations.json");
     const sceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
-    srtFile = generateSRT(timingData, sceneDurations, srtPath);
+    writeFileSync(durationsPath, JSON.stringify(sceneDurations, null, 2));
+
+    // Call generate-ass.py with pysubs2 (uses word-level timestamps)
+    const genAssScript = join(__dirname, "generate-ass.py");
+    try {
+      const result = execSync(
+        `~/.f5-tts-env/bin/python3 "${genAssScript}" ` +
+          `--timing "${timingPath}" --durations "${durationsPath}" --output "${assPath}" 2>&1`,
+      )
+        .toString()
+        .trim();
+      const parsed = JSON.parse(result.split("\n").pop());
+      srtFile = parsed.assPath;
+      console.log(`  📝 ASS generated via pysubs2: ${parsed.count} cues`);
+    } catch (e) {
+      console.error(`  ⚠️ generate-ass.py failed: ${e.message.substring(0, 200)}`);
+      console.error("  Falling back to lib/generate-srt.mjs");
+      const { generateSRT } = await import("./lib/generate-srt.mjs");
+      const timingData = JSON.parse(readFileSync(timingPath, "utf8"));
+      srtFile = generateSRT(timingData, sceneDurations, assPath);
+    }
   }
 
   // ── Step 5: Assemble final video ──
   console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
-  const result = assembleVideo(videoResults, outputDir, meta.pipelineId, bgmPath, srtFile);
+  const result = assembleVideo(videoResults, outputDir, meta.pipelineId, bgmPath, srtFile, version, meta.subject);
 
   // ── Step 6: Verify subtitles (optional, --skip-verify to skip) ──
   const skipVerify = process.argv.includes("--skip-verify");
@@ -177,7 +202,10 @@ async function main() {
   } else {
     console.log("🔍 Step 6: Verifying subtitle coverage and sync...\n");
     const verifyTimingData = JSON.parse(readFileSync(timingPath, "utf8"));
-    const verifySceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
+    const verifySceneDurations = ttsResults.map((r) => ({
+      sceneId: r.sceneId,
+      duration: r.duration,
+    }));
     verifySubtitles(result.path, verifyTimingData, verifySceneDurations, outputDir);
   }
 
@@ -188,6 +216,7 @@ async function main() {
   console.log(`   📐 Resolution: 1080×1920 (9:16)`);
   console.log(`   🎬 Scenes: ${scenes.length}`);
   console.log(`   🏷  Pipeline: ${meta.pipelineId}`);
+  console.log(`   🔖 Version: ${version}`);
   console.log("");
 }
 

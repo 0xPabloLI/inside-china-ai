@@ -1,4 +1,5 @@
 export const meta = {
+  subject: "china-llm",
   pipelineId: "distillation-pt2",
   title: "The Distillation Storm — Part 2: The Fallout",
   article: "china-llm-distillation-scandal",

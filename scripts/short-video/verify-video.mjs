@@ -39,9 +39,18 @@ const preMode = args.includes("--pre");
 const checkTikTok = args.includes("--tiktok");
 
 const OUTPUT_DIR = join(__dirname, "output", pipelineId);
-const VIDEO_PATH = join(OUTPUT_DIR, `${pipelineId}-short.mp4`);
 const SCENE_DATA_PATH = join(__dirname, "content", contentDir, "scene-data.mjs");
+const META_PATH = join(__dirname, "content", contentDir, "meta.mjs");
 const SUBTITLE_TIMING_PATH = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
+
+// Try to load meta.mjs for subject field (file naming)
+let filePrefix = pipelineId;
+try {
+  const metaMod = await import(`file://${META_PATH}`);
+  const subject = metaMod.meta?.subject;
+  if (subject && subject !== pipelineId) filePrefix = `${subject}-${pipelineId}`;
+} catch {}
+const VIDEO_PATH = join(OUTPUT_DIR, `${filePrefix}-short.mp4`);
 
 // ─── Results tracking ───
 const results = {

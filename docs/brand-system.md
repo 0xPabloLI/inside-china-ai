@@ -75,25 +75,28 @@ Font stack: `'Helvetica Neue', 'Arial Black', Arial, sans-serif`
 
 ## Subtitle Specification (Video)
 
-Burned-in subtitles via FFmpeg ASS filter. All values in actual pixels (PlayResX=1080, PlayResY=1920).
+Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word highlighting using `\kf` tags. All values in actual pixels (PlayResX=1080, PlayResY=1920).
 
 | Property       | Value                                   |
 | -------------- | --------------------------------------- |
 | Font           | Helvetica Neue                          |
 | Font size      | 42px                                    |
 | Weight         | Bold                                    |
-| Color          | White (#F5F5F5, ASS: &H00F5F5F5)        |
+| Primary color  | White (#F5F5F5, ASS: &H00F5F5F5) — spoken words |
+| Secondary color| Gray (#94A3B8, ASS: &H00B8A394) — unspoken words |
 | Outline        | Black, 3px (ASS: &H66000000, semi-transparent) |
 | Shadow         | 1px                                     |
 | Position       | Bottom-center (Alignment=2)             |
 | Margin from bottom | 450px (above TikTok bottom UI zone)   |
 | Max width      | ~950px (65px margins L/R)               |
 | Background     | None (transparent, text outline only)  |
-| Timing offset  | -0.3s (subtitles appear slightly before audio) |
+| Style          | Karaoke `\kf` (word-by-word highlight)  |
+| Timing         | wav2vec2 forced alignment (`text-align.py`), per-word timestamps |
+| Generation     | `generate-ass.py` (pysubs2)             |
 
 ASS Style line:
 ```
-Style: Default,Helvetica Neue,42,&H00F5F5F5,&H000000FF,&H66000000,&H66000000,1,0,0,0,100,100,0,0,1,3,1,2,65,65,450,1
+Style: Default,Helvetica Neue,42,&H00F5F5F5,&H00B8A394,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,65,65,450,1
 ```
 
 ## Background Layers
@@ -132,6 +135,45 @@ Based on TikTok color best practices research (2025-2026):
 - **Blue** `#4d8bff` → brand color, tech/protagonist entities, structural elements
 - **Green** `#34d399` → positive outcomes, advantages
 - **White** `#f5f5f5` → general text, titles (never pure `#ffffff`)
+
+## Subject Visibility (Company Logo & Name Sizing)
+
+> **Rule**: Viewers must be able to identify WHO the video is about within the first 3 seconds. The company logo + name must be large enough to read at thumbnail scale in a feed.
+
+### Sizing Rules
+
+| Context | Logo (SVG container) | Company Name (text) | Weight | Color | Rationale |
+|---------|---------------------|---------------------|--------|-------|-----------|
+| **Hook scene (Scene 1)** | ≥ 120px | ≥ 80px | 900 | `--white` with brand-color glow | First 3s = 70% of completion. Logo must be readable at feed thumbnail size (~200px wide on phone). 120px on 1080px canvas = ~22px at thumbnail scale — minimum for recognition. |
+| **Featured scenes** (company is the topic) | ≥ 100px | ≥ 48px | 800 | `--white` or entity color | Mid-video reinforcement. Slightly smaller is OK since viewer already committed. |
+| **Comparison scenes** (company vs another) | ≥ 80px | ≥ 40px | 800 | Entity color | Two logos side by side, each can be slightly smaller. |
+| **Channel brand bar** (top-left, all scenes) | 48px | 24px ("CHINA AI NEWS") | 900 | `--white`, "AI" in `--blue` | Channel identity, not subject. Small and consistent — doesn't compete with content. |
+
+### Placement Rules
+
+1. **Hook scene**: Logo + name in a centered row, positioned in the upper-middle zone (top 180-400px on 1920px canvas). Must appear by 0.3s.
+2. **Featured scenes**: Logo can be centered or top-aligned, depending on layout. Name below or beside logo.
+3. **Never use muted gray** (`--muted` / `#475569`) for the subject company name — use `--white` or the entity's semantic color.
+4. **Drop shadow**: Logo SVG gets `filter: drop-shadow(0 0 25-30px rgba(brand-color, 0.3))` for depth on dark background.
+
+### Entity Color Mapping
+
+Same as color tokens — each company has a consistent semantic color:
+
+| Entity | Color | Token |
+|--------|-------|-------|
+| DeepSeek | Blue | `--blue` `#4d8bff` |
+| Huawei | Red | `--red` `#ef4444` |
+| Zhipu | Blue | `--blue` `#4d8bff` |
+| Baidu | Blue | `--blue` `#4d8bff` |
+| Alibaba | Amber | `--amber` `#f59e0b` |
+| Tencent | Green | `--green` `#34d399` |
+
+### Compliance Check
+
+`verify-video.mjs` checks subject visibility in `checkSubjectVisibility()` (from `lib/scene-rules.mjs`):
+- **Warn** if no known company name appears in Scene 1's on-screen text
+- The warning is non-blocking (scene may use logo-only design), but if warned, the logo MUST meet the ≥120px sizing rule above
 
 ## Content Patterns
 

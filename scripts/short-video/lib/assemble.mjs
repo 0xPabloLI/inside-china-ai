@@ -12,8 +12,12 @@ function run(cmd) {
   execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
-export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srtPath = null) {
-  const finalPath = join(outputDir, `${pipelineId}-short.mp4`);
+export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srtPath = null, version = null, subject = null) {
+  // File prefix: {subject}-{pipelineId} if subject exists and differs from pipelineId, else {pipelineId}
+  const filePrefix = subject && subject !== pipelineId ? `${subject}-${pipelineId}` : pipelineId;
+  // Versioned output: {filePrefix}-v{version}-short.mp4, or {filePrefix}-short.mp4 if no version
+  const versionSuffix = version ? `-v${version}` : "";
+  const finalPath = join(outputDir, `${filePrefix}${versionSuffix}-short.mp4`);
   const concatFile = join(outputDir, "concat.txt");
   const sceneFiles = [];
 
@@ -47,7 +51,11 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srt
   writeFileSync(concatFile, concatContent);
 
   // Concatenate all scenes
-  run(`ffmpeg -y -f concat -safe 0 -i "${concatFile}" -c copy "${finalPath}"`);
+  // IMPORTANT: -c:v copy -c:a aac (NOT -c copy)
+  // AAC frames have ~2048 samples encoder delay per segment.
+  // Using -c copy for audio causes ~46ms/scene cumulative drift.
+  // Re-encoding audio during concat eliminates this.
+  run(`ffmpeg -y -f concat -safe 0 -i "${concatFile}" -c:v copy -c:a aac -b:a 192k "${finalPath}"`);
 
   // Burn in subtitles via SRT if provided
   if (srtPath && existsSync(srtPath)) {
@@ -122,6 +130,26 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srt
 
   // Clean up temp files
   unlinkSync(concatFile);
+
+  // Create symlink for stable 'latest' path (points to versioned file, no disk waste)
+  const latestPath = join(outputDir, `${filePrefix}-short.mp4`);
+  try {
+    // Remove old symlink or file if exists
+    try { unlinkSync(latestPath); } catch {}
+    execSync(`ln -sf "${finalPath.replace(outputDir + "/", "")}" "${latestPath}"`);
+  } catch {}
+
+  // Clean up old versioned files (keep latest 3)
+  try {
+    const versionedFiles = execSync(`ls -1 "${outputDir}" | grep '${filePrefix}-v.*-short.mp4' | sort -r`, { encoding: "utf8" })
+      .trim().split("\n").filter(Boolean);
+    if (versionedFiles.length > 3) {
+      for (const oldFile of versionedFiles.slice(3)) {
+        const oldPath = join(outputDir, oldFile);
+        try { unlinkSync(oldPath); console.log(`  🗑️ Cleaned old version: ${oldFile}`); } catch {}
+      }
+    }
+  } catch {}
 
   // Get final duration
   let finalDuration = "unknown";

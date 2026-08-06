@@ -45,11 +45,16 @@ Based on platform research and session learnings:
 | Parameter   | Value                                      | Rationale                                                |
 | ----------- | ------------------------------------------ | -------------------------------------------------------- |
 | Font size   | **42px** (was 34px)                        | Must be readable at phone size + thumbnail scale         |
-| Font weight | **800** (bold)                             | Thin text vanishes on bright backgrounds                 |
+| Font weight | **Bold**                                   | Thin text vanishes on bright backgrounds                 |
+| Style       | **Karaoke `\kf`** (word-by-word highlight) | TikTok-native feel; spoken words change color as audio progresses |
 | Chunks      | **3-7 words** per display                  | Users read ~2.5 words/sec; longer chunks get skipped     |
 | Rendering   | **FFmpeg ASS native burn-in** (ffmpeg-full) | CSS/JS approaches abandoned; ASS gives pixel-perfect control |
 | Position    | `MarginV=450` (ASS)                        | Above TikTok bottom UI zone (buttons, description, username) |
-| Timing      | **wav2vec2 forced alignment** + -0.3s offset | Subtitles appear slightly before audio; text-align.py   |
+| Timing      | **wav2vec2 forced alignment** (`text-align.py`) | Per-word timestamps; `\kf` tags use actual audio timing |
+| Primary color | White `#F5F5F5`                           | Spoken words (highlighted)                               |
+| Secondary color | Gray `#94A3B8`                          | Unspoken words (waiting to be spoken)                    |
+| Background  | **None** (transparent, 3px black outline)  | Clean look; outline provides contrast on any scene       |
+| Generation  | `generate-ass.py` (pysubs2)                | Proper ASS escaping, `\kf` tags from word timestamps     |
 | Scene 1     | ✅ Now has subtitles (was skipped)         | User feedback: subtitles should appear from the start    |
 
 ### Pacing
@@ -503,5 +508,202 @@ node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitle-timing.json>
 | 3 | Record scene videos (Playwright) | `output/{id}/video/scene-*.webm` |
 | 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
-| 5 | Assemble final video (FFmpeg) | `output/{id}/{id}-short.mp4` |
+| 5 | Assemble final video (FFmpeg) | `output/{id}/{id}-v{version}-short.mp4` + `{id}-short.mp4` (latest copy) |
 | 6 | Verify subtitles (auto, `--skip-verify` to skip) | `output/{id}/verification-report.json` |
+
+### Version Numbers
+
+Every pipeline run generates a **versioned output file**: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`.
+
+A **latest copy** (`{pipelineId}-short.mp4`) is also created for compatibility with verify-video.mjs and other tools.
+
+**Why version numbers?** When iterating on video quality (subtitles, visuals, timing), you need to confirm which version you're watching. Without version numbers, the file looks the same after each run.
+
+**How to check which version you're watching:**
+```bash
+# List all versions, newest first
+ls -lt output/restraint-pt1/restraint-pt1-v*-short.mp4
+
+# Check creation time of latest
+stat -f "%Sm" output/restraint-pt1/restraint-pt1-short.mp4
+```
+
+### Audio Concat Drift Fix (AAC Priming)
+
+**Critical**: FFmpeg concat with `-c copy` causes **~46ms/scene cumulative audio drift** because AAC frames have encoder delay (priming samples). After 11 scenes, subtitles drift ~500ms behind audio.
+
+**Fix** (in `assemble.mjs`): Always use `-c:v copy -c:a aac -b:a 192k` for concat, never `-c copy`.
+
+### Running in Background (MANDATORY for F5-TTS)
+
+F5-TTS-MLX model loading takes 2-3 minutes alone, and full pipeline runs 7-10 minutes.
+Agent commands have a 3-minute timeout for foreground execution. **Always run the pipeline in background:**
+
+```bash
+# ✅ Correct — background execution, no timeout
+node scripts/short-video/main.mjs --content restraint/pt1 --bgm 2>&1 | tee /tmp/pipeline.log &
+
+# ❌ Wrong — foreground, will timeout after 3 minutes
+node scripts/short-video/main.mjs --content restraint/pt1 --bgm
+```
+
+After starting, poll progress with `cat /tmp/pipeline.log | tail -30` at 2-minute intervals.
+Do NOT start a second pipeline while the first is still running — check `ps aux | grep main.mjs` first.
+
+---
+
+## Creating a New Content Pipeline (From Scratch)
+
+When creating a new video content pipeline, follow this checklist. Each video can have its own visual style — the templates below are starting points, not rigid constraints.
+
+### 1. Create directory structure
+
+```
+scripts/short-video/content/{article-slug}/
+├── meta.mjs         # Pipeline metadata
+├── scene-data.mjs   # Scene definitions (voiceover + texts)
+└── scenes.mjs       # Visual templates (HTML/CSS per scene)
+```
+
+For multi-part series, use subdirectories:
+
+```
+scripts/short-video/content/{series-slug}/
+├── pt1/
+│   ├── meta.mjs
+│   ├── scene-data.mjs
+│   └── scenes.mjs
+├── pt2/
+│   └── ...
+```
+
+### 2. meta.mjs template
+
+```javascript
+export const meta = {
+  pipelineId: "my-article",        // Used for output directory: output/my-article/
+  title: "My Article Title",       // Display name
+  article: "my-article-slug",      // Website article slug (for reference)
+  // For series:
+  // seriesId: "my-series",
+  // partNumber: 1,
+};
+```
+
+### 3. scene-data.mjs template
+
+```javascript
+export const scenes = [
+  {
+    id: 1,
+    name: "hook",           // Scene name for logging
+    visualType: "hook",     // Visual type (hook, narrative, data, quote, etc.)
+    voiceover: "One breath of text. Max 25 words.",  // Drives TTS duration
+    texts: {                 // On-screen text (read by scenes.mjs)
+      line1: "BIG TEXT",
+      line2: "SUPPORTING",
+    },
+  },
+  // ... 6-10 more scenes
+  {
+    id: N,
+    name: "cta",
+    visualType: "cta",
+    voiceover: "Follow for more.",
+    texts: {
+      brand: "CHINA AI NEWS",
+      tagline: "CHINA AI, DECODED",
+      action: "FOLLOW FOR MORE",
+    },
+  },
+];
+```
+
+**Rules** (enforced by `verify-video.mjs`):
+- Each `voiceover` ≤ 25 words (one breath)
+- No em/en/double dashes (`—`, `–`, `--`)
+- No AI vocabulary (leverage, delve, harness, etc.)
+- Hook (Scene 1) must have a number or strong word
+- ≥2 scenes mention sources
+- "China", "AI", and main subject each appear in ≥2 scenes
+
+### 4. scenes.mjs template
+
+```javascript
+import { baseStyles, BRAND_MARK_SVG, withWatermark } from "../../../lib/base-styles.mjs";
+
+// Safe text accessor
+function t(texts, key) { return texts?.[key] ?? ""; }
+
+function scene1(scene, duration) {
+  const txt = scene.texts || {};
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}
+.s1 { /* Your scene CSS here */ }
+/* IMPORTANT: Check text width!
+   - Canvas: 1080px wide
+   - With padding: available width varies
+   - At 42px bold: ~25px avg char width → max ~38 chars per 950px line
+   - At 56px bold: ~33px avg char width → max ~28 chars per 950px line
+   - ALWAYS add `word-break: break-word` as safety net
+*/
+</style></head><body>
+<div class="scene s1">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
+  <!-- Your content here -->
+</div></body></html>`;
+}
+
+// ... more scene functions
+
+const sceneGenerators = { 1: scene1, /* ... */ };
+export function generateScene(scene, duration) {
+  const gen = sceneGenerators[scene.id];
+  if (!gen) throw new Error(`No scene generator for id ${scene.id}`);
+  return withWatermark(gen(scene, duration));  // MUST wrap with withWatermark
+}
+```
+
+**CSS overflow checklist (check before running pipeline):**
+
+| Font size | Max chars per 950px line | Max chars per 360px card |
+|-----------|-------------------------|------------------------|
+| 32px bold | ~50 chars | ~19 chars |
+| 42px bold | ~38 chars | ~14 chars |
+| 48px bold | ~33 chars | ~12 chars |
+| 56px bold | ~28 chars | ~10 chars |
+| 72px bold | ~22 chars | ~8 chars |
+
+- For flex columns with `gap: 40px`: each column = `(available - 40) / 2`
+- For cards with padding: text area = `card_width - padding * 2`
+- Always add `word-break: break-word` as safety net
+- Test at thumbnail size (240×426) — if text is unreadable, it's too small
+
+### 5. Visual style flexibility
+
+Each video can have a different visual DNA while sharing the same brand system:
+
+| Video type | Color dominance | Animation style | Logo usage |
+|------------|----------------|-----------------|------------|
+| Breaking news | Red, urgent | Glitch, stamp-in | Brand bar at top |
+| Deep analysis | Blue, authoritative | Slide, fade | Watermark only |
+| Data reveal | Amber, focused | Number pulse, bar grow | Minimal |
+| Explainer | Blue + cyan | Sequential reveal | Brand at CTA |
+
+**Mandatory across all styles:**
+- Use CSS variables from `base-styles.mjs` (`var(--blue)`, `var(--red)`, etc.) — never hardcode hex
+- Call `withWatermark()` on every scene's HTML
+- Use `baseStyles(duration)` as the CSS foundation
+- Brand logo appears in CTA scene at 130px+
+
+### 6. Run and verify
+
+```bash
+# Run pipeline (ALWAYS in background — see "Running in Background" above)
+node scripts/short-video/main.mjs --content my-article --bgm 2>&1 | tee /tmp/my-article.log &
+
+# After completion, verify
+node scripts/short-video/verify-video.mjs --tiktok --content my-article
+```
+
+Fix all FAIL items before presenting to user. WARN items are acceptable.
