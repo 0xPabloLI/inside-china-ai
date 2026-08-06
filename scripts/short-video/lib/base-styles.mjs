@@ -2,29 +2,32 @@
  * Shared visual system for short video scenes.
  *
  * Exports:
- *   - baseStyles(duration): CSS reset + variables + background layers + animations
- *   - BRAND_MARK_SVG: Channel brand logo SVG (cleaned)
+ *   - baseStyles(duration): CSS reset + variables + background layers +
+ *     shared keyframes + watermark positioning
  *   - withWatermark(html): Inject brand watermark into scene HTML
- *   - UI components: brandBar, breakingBadge, statCard, fadeToBlack
+ *   - BRAND_MARK_SVG: Channel brand logo SVG (cleaned)
+ *   - UI components (brandBar, breakingBadge, statCard, fadeToBlack):
+ *     re-exported from lib/scene-templates.mjs (kept here for API compat;
+ *     new content should import from scene-templates.mjs directly)
  *
- * All video pipelines share this module to maintain consistent channel identity.
- * Content-specific scene designs live in content/{article}/scenes.mjs and import from here.
+ * All video pipelines share this module to maintain consistent channel
+ * identity. Content-specific scene designs live in content/{article}/scenes.mjs
+ * and import from here.
  */
 
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-
-// ── Brand assets ──
-// Channel brand logo — shared across ALL videos
-const BRAND_MARK_SVG = readFileSync(
-  new URL("../assets/china-ai-news-logo-vector.svg", import.meta.url),
-  "utf8",
-)
-  .replace(/<\?xml[^>]*\?>\s*/, "")
-  .replace(/<!--[\s\S]*?-->/g, "");
+import {
+  BRAND_MARK_SVG,
+  brandBar,
+  breakingBadge,
+  statCard,
+  fadeToBlack,
+} from "./scene-templates.mjs";
+import { WATERMARK_POS } from "./safe-zones.mjs";
 
 /**
- * Base CSS for all scenes: reset, variables, background layers, animations.
+ * Base CSS for all scenes: reset, variables, background layers, shared
+ * keyframes, watermark position. Scene templates (lib/scene-templates.mjs)
+ * style their own classes via templateCss().
  * @param {number} duration - Scene duration in seconds (drives --d variable)
  * @returns {string} CSS string
  */
@@ -70,64 +73,30 @@ function baseStyles(duration) {
     @keyframes slideLeft { from { opacity: 0; transform: translateX(-50px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes scaleIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
     @keyframes stampIn { from { opacity: 0; transform: scale(2); } to { opacity: 1; transform: scale(1); } }
-    .brand-watermark { position: absolute; bottom: 50px; right: 50px; width: 55px; height: 55px; opacity: 0.18; z-index: 100; pointer-events: none; }
+    /* Shared template keyframes — scenes must NOT redeclare these
+       (single definition per video, drift-guarded by scene-drift.test.mjs) */
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.7); } }
+    @keyframes numberPulse { 0%, 100% { text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); } 50% { text-shadow: 0 0 80px rgba(245,158,11,0.7), 0 0 160px rgba(245,158,11,0.4); } }
+    @keyframes glowPulse { 0%, 100% { text-shadow: 0 0 60px rgba(77,139,255,0.5), 0 0 120px rgba(77,139,255,0.3); } 50% { text-shadow: 0 0 80px rgba(77,139,255,0.7), 0 0 160px rgba(77,139,255,0.4); } }
+    @keyframes logoPulse { 0%, 100% { filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); } 50% { filter: drop-shadow(0 0 50px rgba(77,139,255,0.6)); } }
+    @keyframes hookIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
+    /* Channel watermark — top-left corner, clear of the TikTok action rail
+       (right) and the caption/subtitle zone (bottom). See lib/safe-zones.mjs. */
+    .brand-watermark { position: absolute; top: ${WATERMARK_POS.top}px; left: ${WATERMARK_POS.left}px; width: 55px; height: 55px; opacity: 0.18; z-index: 100; pointer-events: none; }
     .brand-watermark svg { width: 100%; height: 100%; }
   `;
 }
 
-// ── UI component building blocks (optional, content scenes use as needed) ──
-
-/**
- * Top brand bar: logo + CHINA AI NEWS + briefing tag.
- * @param {string} tagText - Text for the briefing tag (e.g. "INTELLIGENCE BRIEFING")
- * @returns {string} HTML string
- */
-function brandBar(tagText) {
-  return `<div class="brand-bar">
-    <div class="b-logo">${BRAND_MARK_SVG}</div>
-    <div class="b-text">CHINA <span class="hl">AI</span> NEWS</div>
-    <div class="briefing-tag">${tagText}</div>
-  </div>`;
-}
-
-/**
- * Breaking news badge with pulsing dot.
- * @param {string} text - Badge text (e.g. "BREAKING", "EXCLUSIVE")
- * @returns {string} HTML string
- */
-function breakingBadge(text) {
-  return `<div class="breaking-badge"><span class="pulse-dot"></span> ${text}</div>`;
-}
-
-/**
- * Stat card with number, unit, and label.
- * @param {object} opts - { num, unit, label, color }
- * @returns {string} HTML string
- */
-function statCard({ num, unit = "", label, color = "blue" }) {
-  const unitHtml = unit ? `<span class="unit">${unit}</span>` : "";
-  return `<div class="stat-card" style="border-top: 4px solid var(--${color});">
-    <div class="stat-num" style="color: var(--${color});">${num}${unitHtml}</div>
-    <div class="stat-label">${label}</div>
-  </div>`;
-}
-
-/**
- * Fade-to-black overlay for scene endings.
- * @param {number} duration - Scene duration in seconds
- * @returns {string} HTML string
- */
-function fadeToBlack(duration) {
-  const start = Math.max(duration - 1.2, 1.5).toFixed(1);
-  return `<div class="fade-to-black" style="position: absolute; inset: 0; background: #050508; pointer-events: none; animation: fadeOut 0.8s ease-in ${start}s forwards; opacity: 0;"></div>`;
-}
-
 /**
  * Inject brand watermark into scene HTML before closing </div></body>.
+ * Skips scenes that already render a brand bar (channel identity present —
+ * avoids double branding in the top-left corner).
  * @param {string} html - Scene HTML string
- * @returns {string} HTML with watermark injected
+ * @returns {string} HTML with watermark injected (or unchanged when skipped)
  */
 function withWatermark(html) {
+  if (html.includes("brand-bar")) return html;
   const watermark = `<div class="brand-watermark">${BRAND_MARK_SVG}</div>`;
   return html.replace(/<\/div><\/body>/, `${watermark}</div></body>`);
 }
