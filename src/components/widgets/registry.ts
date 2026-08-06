@@ -72,6 +72,26 @@ export const WIDGETS: Record<string, LazyWidget> = {
       default: m.MinimaxStockView,
     })),
   ),
+  "deepseek-vision-keywords": lazy(() =>
+    import("./deepseek-vision").then((m) => ({
+      default: m.VisionKeywordsView,
+    })),
+  ),
+  "deepseek-agi-roadmap": lazy(() =>
+    import("./deepseek-agi-roadmap").then((m) => ({
+      default: m.AGIRoadmapView,
+    })),
+  ),
+  "deepseek-oss-comparison": lazy(() =>
+    import("./deepseek-oss-comparison").then((m) => ({
+      default: m.OSSComparisonView,
+    })),
+  ),
+  "deepseek-api-pricing": lazy(() =>
+    import("./deepseek-api-pricing").then((m) => ({
+      default: m.APIPricingView,
+    })),
+  ),
 };
 
 /** Get the list of available widget names (for editor dropdown). */
