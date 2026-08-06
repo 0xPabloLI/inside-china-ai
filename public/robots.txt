@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /auth
 
-Sitemap: https://chinaai.lovable.app/sitemap.xml
+Sitemap: https://chinaai.news/sitemap.xml

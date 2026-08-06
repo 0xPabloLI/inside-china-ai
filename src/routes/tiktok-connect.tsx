@@ -44,6 +44,83 @@ export const Route = createFileRoute("/tiktok-connect")({
       { property: "og:url", content: "https://chinaai.news/tiktok-connect" },
     ],
     links: [{ rel: "canonical", href: "https://chinaai.news/tiktok-connect" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "WebApplication",
+              name: "TikTok Connect — China AI News",
+              url: "https://chinaai.news/tiktok-connect",
+              applicationCategory: "MultimediaApplication",
+              operatingSystem: "Web",
+              description:
+                "Link a TikTok account to China AI News to upload short videos, set captions and publish China AI news clips from the newsroom.",
+              offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+            },
+            {
+              "@type": "HowTo",
+              name: "How to publish a video to TikTok from China AI News",
+              step: [
+                {
+                  "@type": "HowToStep",
+                  position: 1,
+                  name: "Connect TikTok account",
+                  text: "Authorize China AI News to publish videos to your TikTok account.",
+                },
+                {
+                  "@type": "HowToStep",
+                  position: 2,
+                  name: "Upload video",
+                  text: "Select an MP4 file and write a caption with hashtags, up to 2200 characters.",
+                },
+                {
+                  "@type": "HowToStep",
+                  position: 3,
+                  name: "Publish to TikTok",
+                  text: "Publish the clip straight to the connected TikTok account.",
+                },
+              ],
+            },
+            {
+              "@type": "BreadcrumbList",
+              itemListElement: [
+                { "@type": "ListItem", position: 1, name: "Home", item: "https://chinaai.news/" },
+                {
+                  "@type": "ListItem",
+                  position: 2,
+                  name: "TikTok Connect",
+                  item: "https://chinaai.news/tiktok-connect",
+                },
+              ],
+            },
+            {
+              "@type": "FAQPage",
+              mainEntity: [
+                {
+                  "@type": "Question",
+                  name: "What permissions does the TikTok connection need?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Basic profile info plus video upload and publish scopes, so clips can be posted on your behalf.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "What video format does TikTok publishing accept?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "MP4 files up to 150MB, with captions of up to 2200 characters including hashtags.",
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    ],
   }),
   component: TikTokConnectPage,
 });
