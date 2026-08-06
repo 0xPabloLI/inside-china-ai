@@ -56,7 +56,7 @@ export function MinimaxStockView() {
             className="flex-1 min-w-[100px] rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-center"
           >
             <div className={`text-base font-bold ${c.color}`}>{c.val}</div>
-            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {c.label}
             </div>
           </div>
@@ -170,7 +170,7 @@ export function MinimaxStockView() {
       {active && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
           <div className="flex items-center gap-2">
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold text-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-foreground">
               HK${active.price}
             </span>
             <span className="text-[10px] font-semibold text-muted-foreground">

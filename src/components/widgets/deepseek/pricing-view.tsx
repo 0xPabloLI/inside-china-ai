@@ -1,25 +1,7 @@
 import { useState } from "react";
 import { PRICING_DATA } from "./data/pricing";
 import { I18N, type Lang } from "./i18n";
-
-function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  return (
-    <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5">
-      <button
-        onClick={() => onChange("zh")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "zh" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        中文
-      </button>
-      <button
-        onClick={() => onChange("en")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "en" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        EN
-      </button>
-    </div>
-  );
-}
+import { LangToggle } from "../shared/lang-toggle";
 
 const EXCHANGE_RATE = 6.78;
 
@@ -148,7 +130,7 @@ export function PricingView() {
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: m.color }} />
                 <span className="truncate">
                   {vendorName} {modelName}
-                  <span className="ml-1 rounded px-1 py-0.5 text-[8px] font-semibold bg-muted text-muted-foreground">
+                  <span className="ml-1 rounded px-1 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
                     {isOverseas ? (isZh ? "海外" : "OS") : isZh ? "国内" : "CN"}
                   </span>
                 </span>

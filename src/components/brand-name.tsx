@@ -11,7 +11,7 @@
 export function BrandName() {
   return (
     <>
-      China <span style={{ color: "#4d8bff" }}>AI</span> News
+      China <span className="text-brand">AI</span> News
     </>
   );
 }

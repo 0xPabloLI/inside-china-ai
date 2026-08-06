@@ -11,12 +11,12 @@ describe("BrandName", () => {
     expect(html).toContain("News");
   });
 
-  // S1: "AI" is wrapped in a span with blue color
-  it("wraps AI in a span with blue color", () => {
+  // S1: "AI" is wrapped in a span with brand color class
+  it("wraps AI in a span with brand color class", () => {
     const html = renderToStaticMarkup(<BrandName />);
-    // The AI should be in a separate span with a blue color style
+    // The AI should be in a separate span with the text-brand class
     const aiSpanMatch = html.match(
-      /<span[^>]*style="[^"]*color:[^"]*#4d8bff[^"]*"[^>]*>AI<\/span>/,
+      /<span[^>]*class="[^"]*text-brand[^"]*"[^>]*>AI<\/span>/,
     );
     expect(aiSpanMatch).not.toBeNull();
   });

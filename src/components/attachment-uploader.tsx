@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Upload,
   Copy,
@@ -80,6 +81,7 @@ export function AttachmentUploader({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AttachmentItem | null>(null);
 
   const listAtt = useServerFn(listAttachmentsAdmin);
   const delAtt = useServerFn(deleteAttachment);
@@ -124,7 +126,6 @@ export function AttachmentUploader({
   }
 
   async function handleDelete(att: AttachmentItem) {
-    if (!confirm(`Delete "${att.file_name}"?`)) return;
     try {
       await delAtt({ data: { id: att.id } });
       toast.success("Deleted");
@@ -308,7 +309,7 @@ export function AttachmentUploader({
                       size="icon"
                       className="h-7 w-7 text-destructive hover:text-destructive"
                       title="Delete"
-                      onClick={() => handleDelete(att)}
+                      onClick={() => setDeleteTarget(att)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -325,6 +326,18 @@ export function AttachmentUploader({
           </p>
         )
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={`Delete "${deleteTarget?.file_name ?? ""}"?`}
+        description="This will permanently remove the file from storage. Links in existing content will break."
+        confirmText="Delete"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          await handleDelete(deleteTarget);
+        }}
+      />
     </div>
   );
 }

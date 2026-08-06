@@ -22,20 +22,20 @@ export function IdentityBleedView() {
           >
             Claude
           </div>
-          <span className="text-[8px] uppercase tracking-wide text-muted-foreground">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Source Model
           </span>
         </div>
 
         {/* Arrow + annotations */}
         <div className="flex flex-col items-center gap-1">
-          <div className="text-[9px] font-bold text-muted-foreground">
+          <div className="text-[10px] font-bold text-muted-foreground">
             Distillation
           </div>
           <div className="relative h-0.5 w-16 bg-gradient-to-r from-amber-500 to-blue-500">
             <div className="absolute right-0 top-1/2 h-0 w-0 -translate-y-1/2 border-y-[4px] border-l-[6px] border-y-transparent border-l-blue-500" />
           </div>
-          <div className="text-[8px] text-muted-foreground/70">
+          <div className="text-[10px] text-muted-foreground/70">
             ~3.4M exchanges
           </div>
         </div>
@@ -50,11 +50,11 @@ export function IdentityBleedView() {
               Kimi K3
             </div>
             {/* Speech bubble */}
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-amber-400/40 bg-amber-50 px-2.5 py-1 text-[9px] font-medium text-amber-900 shadow-sm dark:bg-amber-950/40 dark:text-amber-200">
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-amber-400/40 bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-900 shadow-sm dark:bg-amber-950/40 dark:text-amber-200">
               "I'm Claude, made by Anthropic"
             </div>
           </div>
-          <span className="mt-3 text-[8px] uppercase tracking-wide text-muted-foreground">
+          <span className="mt-3 text-[10px] uppercase tracking-wide text-muted-foreground">
             Distilled Model
           </span>
         </div>

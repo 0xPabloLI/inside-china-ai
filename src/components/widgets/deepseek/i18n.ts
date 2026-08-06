@@ -1,4 +1,5 @@
-export type Lang = "en" | "zh";
+import type { Lang } from "../shared/lang-toggle";
+export type { Lang };
 
 export interface I18NTexts {
   sectionPeople: string;

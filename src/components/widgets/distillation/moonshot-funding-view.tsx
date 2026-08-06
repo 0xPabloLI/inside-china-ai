@@ -23,7 +23,7 @@ export function MoonshotFundingView() {
             className="flex-1 min-w-[110px] rounded-lg border border-border/60 bg-muted/30 px-3.5 py-3 text-center"
           >
             <div className="text-lg font-bold text-foreground">{c.val}</div>
-            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {c.label}
             </div>
           </div>
@@ -82,7 +82,7 @@ export function MoonshotFundingView() {
                   className={`w-full max-w-[52px] rounded-t transition-all duration-200 ${st.bar} ${isSelected ? "ring-2 ring-primary/40 ring-offset-1" : ""}`}
                   style={{ height: barH }}
                 />
-                <div className="mt-1.5 text-[9px] font-bold text-foreground/70">
+                <div className="mt-1.5 text-[10px] font-bold text-foreground/70">
                   {ev.shortDate}
                 </div>
               </button>
@@ -94,7 +94,7 @@ export function MoonshotFundingView() {
         <div className="flex gap-2.5 mt-1">
           {FUNDING_EVENTS.map((ev, i) => (
             <div key={i} className="flex-1 text-center min-w-0">
-              <div className="text-[8px] leading-tight text-muted-foreground max-w-[80px] mx-auto">
+              <div className="text-[10px] leading-tight text-muted-foreground max-w-[80px] mx-auto">
                 {ev.event}
               </div>
               <span
@@ -115,12 +115,12 @@ export function MoonshotFundingView() {
               {selected.date} · {selected.event}
             </strong>
             <span
-              className={`rounded px-1 py-0.5 text-[8px] font-bold ${STATUS_STYLE[selected.status].badge}`}
+              className={`rounded px-1 py-0.5 text-[10px] font-bold ${STATUS_STYLE[selected.status].badge}`}
             >
               {STATUS_STYLE[selected.status].label}
             </span>
             {selected.valuation != null && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold text-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-foreground">
                 ${selected.valuation}B
               </span>
             )}

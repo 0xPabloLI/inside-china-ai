@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { BrandName } from "./brand-name";
+import { ThemeToggle } from "./theme-toggle";
 
 export function SiteHeader() {
   const { isAdmin } = useIsAdmin();
@@ -57,6 +58,7 @@ export function SiteHeader() {
               Admin
             </Link>
           ) : null}
+          <ThemeToggle />
         </nav>
       </div>
     </header>

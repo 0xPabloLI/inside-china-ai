@@ -36,12 +36,12 @@ function Bar({
         </div>
       </div>
       {best && (
-        <span className="shrink-0 text-[9px] font-bold text-green-600">
+        <span className="shrink-0 text-[10px] font-bold text-green-600">
           ★ Best
         </span>
       )}
       {worst && !best && (
-        <span className="shrink-0 text-[9px] font-bold text-red-500">
+        <span className="shrink-0 text-[10px] font-bold text-red-500">
           ▼ Worst
         </span>
       )}
@@ -95,7 +95,7 @@ export function BenchmarkControversyView() {
                   {row.dimension}
                 </span>
                 <span
-                  className={`rounded px-1.5 py-0.5 text-[8px] font-bold ${
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
                     row.higherIsBetter
                       ? "bg-green-500/10 text-green-600"
                       : "bg-red-500/10 text-red-500"

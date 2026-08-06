@@ -25,6 +25,8 @@ export function calcReadingProgress(
  *
  * Mounts only on article pages. Uses passive scroll listener.
  * Respects prefers-reduced-motion (transition disabled).
+ *
+ * Uses --color-brand token (Dispatch Blue) for brand consistency.
  */
 export function ReadingProgress() {
   const [progress, setProgress] = useState(0);
@@ -53,8 +55,8 @@ export function ReadingProgress() {
   return (
     <div className="fixed top-0 left-0 z-50 h-0.5 w-full" aria-hidden="true">
       <div
-        className="reading-progress-bar h-full transition-[width] duration-75 ease-out"
-        style={{ width: `${progress}%`, backgroundColor: "#4d8bff" }}
+        className="reading-progress-bar h-full bg-brand transition-[width] duration-75 ease-out"
+        style={{ width: `${progress}%` }}
       />
     </div>
   );

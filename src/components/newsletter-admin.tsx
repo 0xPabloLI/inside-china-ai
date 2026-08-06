@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Newsletter = {
   id: string;
@@ -56,6 +57,8 @@ export function NewsletterAdmin() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sendTarget, setSendTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; subject: string } | null>(null);
 
   const newslettersQuery = useQuery({
     queryKey: ["admin-newsletters"],
@@ -133,7 +136,6 @@ export function NewsletterAdmin() {
   }
 
   async function handleSendNow(id: string) {
-    if (!confirm("Send this newsletter to all active subscribers now?")) return;
     setBusy(true);
     try {
       const res = await sendNow({ data: { id } });
@@ -150,7 +152,7 @@ export function NewsletterAdmin() {
 
   return (
     <div className="space-y-8">
-      <div className="rounded-lg border border-border/70 bg-card p-6">
+      <div className="rounded-lg border border-border/60 bg-card p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-xl">
             {editing ? "Edit newsletter" : "Compose newsletter"}
@@ -223,7 +225,7 @@ export function NewsletterAdmin() {
               Preview
             </Button>
             {editing && editing.status !== "sent" ? (
-              <Button variant="secondary" onClick={() => handleSendNow(editing.id)} disabled={busy}>
+              <Button variant="secondary" onClick={() => setSendTarget(editing.id)} disabled={busy}>
                 Send now
               </Button>
             ) : null}
@@ -244,7 +246,7 @@ export function NewsletterAdmin() {
 
       <div>
         <h2 className="mb-3 font-serif text-xl">Newsletters</h2>
-        <div className="rounded-lg border border-border/70 bg-card">
+        <div className="rounded-lg border border-border/60 bg-card">
           {newslettersQuery.data?.length ? (
             <ul className="divide-y divide-border/60">
               {newslettersQuery.data.map((n) => (
@@ -274,16 +276,7 @@ export function NewsletterAdmin() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={async () => {
-                        if (!confirm(`Delete "${n.subject}"?`)) return;
-                        try {
-                          await remove({ data: { id: n.id } });
-                          qc.invalidateQueries({ queryKey: ["admin-newsletters"] });
-                          toast.success("Deleted");
-                        } catch (e) {
-                          toast.error(e instanceof Error ? e.message : "Delete failed");
-                        }
-                      }}
+                      onClick={() => setDeleteTarget({ id: n.id, subject: n.subject })}
                     >
                       Delete
                     </Button>
@@ -299,7 +292,7 @@ export function NewsletterAdmin() {
 
       <div>
         <h2 className="mb-3 font-serif text-xl">Send history</h2>
-        <div className="rounded-lg border border-border/70 bg-card">
+        <div className="rounded-lg border border-border/60 bg-card">
           {(sendsQuery.data as any[] | undefined)?.length ? (
             <ul className="divide-y divide-border/60">
               {(sendsQuery.data as any[]).map((s) => (
@@ -328,6 +321,36 @@ export function NewsletterAdmin() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={sendTarget !== null}
+        onOpenChange={(open) => !open && setSendTarget(null)}
+        title="Send newsletter now?"
+        description="This will immediately send the newsletter to all active subscribers. This action cannot be undone."
+        confirmText="Send now"
+        destructive={false}
+        onConfirm={async () => {
+          if (!sendTarget) return;
+          await handleSendNow(sendTarget);
+        }}
+      />
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={`Delete "${deleteTarget?.subject ?? ""}"?`}
+        description="This will permanently remove the newsletter and its send history."
+        confirmText="Delete"
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          try {
+            await remove({ data: { id: deleteTarget.id } });
+            qc.invalidateQueries({ queryKey: ["admin-newsletters"] });
+            toast.success("Deleted");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Delete failed");
+          }
+        }}
+      />
     </div>
   );
 }

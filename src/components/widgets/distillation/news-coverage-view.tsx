@@ -104,7 +104,7 @@ export function NewsCoverageView() {
         >
           <div className="mb-1.5 flex items-center gap-2">
             <span
-              className="rounded px-1.5 py-0.5 text-[8px] font-bold text-white"
+              className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white"
               style={{ background: EVENT_TYPE_META[active.type].color }}
             >
               {EVENT_TYPE_META[active.type].label}

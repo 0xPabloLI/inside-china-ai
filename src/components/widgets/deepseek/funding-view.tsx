@@ -1,25 +1,7 @@
 import { useState } from "react";
 import { FUNDING_ROUNDS, INVESTOR_DATA, type FundingStatus } from "./data/funding";
 import { I18N, type Lang } from "./i18n";
-
-function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  return (
-    <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5">
-      <button
-        onClick={() => onChange("zh")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "zh" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        中文
-      </button>
-      <button
-        onClick={() => onChange("en")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "en" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        EN
-      </button>
-    </div>
-  );
-}
+import { LangToggle } from "../shared/lang-toggle";
 
 const STATUS_MAP: Record<FundingStatus, { zh: string; en: string; cls: string }> = {
   "self-funded": { zh: "自筹", en: "Self-funded", cls: "bg-muted text-muted-foreground" },
@@ -93,7 +75,7 @@ export function FundingView() {
             className="flex-1 min-w-[120px] rounded-lg border border-border/60 bg-muted/30 px-3.5 py-3 text-center"
           >
             <div className="text-lg font-bold text-foreground">{c.val}</div>
-            <div className="text-[9px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {c.label}
             </div>
           </div>
@@ -218,7 +200,7 @@ export function FundingView() {
               <button
                 key={i}
                 onClick={() => setSelectedRound(selectedRound === i ? null : i)}
-                className="flex h-full flex-1 flex-col items-center justify-end"
+                className="flex h-full flex-1 flex-col items-center justify-end focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand rounded"
               >
                 <div
                   className={`text-[11px] font-bold whitespace-nowrap ${
@@ -260,11 +242,11 @@ export function FundingView() {
             const st = STATUS_MAP[r.status];
             return (
               <div key={i} className="flex-1 text-center min-w-0">
-                <div className="text-[9px] text-muted-foreground leading-tight max-w-[80px] mx-auto">
+                <div className="text-[10px] text-muted-foreground leading-tight max-w-[80px] mx-auto">
                   {event}
                 </div>
                 <span
-                  className={`mt-0.5 inline-block rounded px-1 py-0.5 text-[8px] font-bold ${st.cls}`}
+                  className={`mt-0.5 inline-block rounded px-1 py-0.5 text-[10px] font-bold ${st.cls}`}
                 >
                   {isZh ? st.zh : st.en}
                 </span>
@@ -281,7 +263,7 @@ export function FundingView() {
                 {selected.date} · {isZh ? selected.eventZh : selected.eventEn}
               </strong>
               <span
-                className={`rounded px-1 py-0.5 text-[8px] font-bold ${STATUS_MAP[selected.status].cls}`}
+                className={`rounded px-1 py-0.5 text-[10px] font-bold ${STATUS_MAP[selected.status].cls}`}
               >
                 {isZh ? STATUS_MAP[selected.status].zh : STATUS_MAP[selected.status].en}
               </span>
@@ -321,7 +303,7 @@ export function FundingView() {
             </div>
           ))}
         </div>
-        <div className="mt-2 border-t border-border/40 pt-2 text-[9px] leading-relaxed text-muted-foreground/60">
+        <div className="mt-2 border-t border-border/40 pt-2 text-[10px] leading-relaxed text-muted-foreground/60">
           {t.fundingDisclaimer}
         </div>
       </div>

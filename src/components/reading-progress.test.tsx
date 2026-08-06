@@ -35,10 +35,10 @@ describe("calcReadingProgress", () => {
 });
 
 describe("ReadingProgress (static render)", () => {
-  // S10: Renders a bar element with brand blue
-  it("renders a progress bar with brand blue background", () => {
+  // S10: Renders a bar element with brand color class
+  it("renders a progress bar with brand color class", () => {
     const html = renderToStaticMarkup(<ReadingProgress />);
-    expect(html).toContain("#4d8bff");
+    expect(html).toContain("bg-brand");
   });
 
   // S10: Initial width is 0% (useState initial)

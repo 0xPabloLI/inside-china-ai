@@ -8,10 +8,12 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listAllPostsAdmin, getPostAdmin, savePost, deletePost } from "@/lib/posts.functions";
 import { listSubscribers, deleteSubscriber } from "@/lib/subscribers.functions";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SiteHeader } from "@/components/site-header";
 import { NewsletterAdmin } from "@/components/newsletter-admin";
 import { PostEditor } from "@/components/post-editor";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -39,6 +41,12 @@ function AdminPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletePostTarget, setDeletePostTarget] = useState<{ id: string; title: string } | null>(
+    null,
+  );
+  const [deleteSubTarget, setDeleteSubTarget] = useState<{ id: string; email: string } | null>(
+    null,
+  );
   const { isAdmin } = useIsAdmin();
 
   const list = useServerFn(listAllPostsAdmin);
@@ -65,7 +73,20 @@ function AdminPage() {
   });
 
   if (isAdmin === null) {
-    return <div className="p-10 text-muted-foreground">Loading…</div>;
+    return (
+      <div className="min-h-screen">
+        <SiteHeader />
+        <main className="mx-auto max-w-5xl px-6 py-10">
+          <Skeleton className="mb-8 h-8 w-32" />
+          <Skeleton className="mb-4 h-10 w-full" />
+          <div className="space-y-4">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </main>
+      </div>
+    );
   }
   if (isAdmin === false) {
     return (
@@ -117,7 +138,11 @@ function AdminPage() {
           <TabsContent value="posts" className="mt-6">
             {editingId !== null ? (
               editingId && editQuery.isPending ? (
-                <div className="p-10 text-muted-foreground">Loading…</div>
+                <div className="space-y-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
               ) : (
                 <PostEditor
                   key={editingId || "new"}
@@ -141,7 +166,7 @@ function AdminPage() {
                 <div className="mb-4 flex justify-end">
                   <Button onClick={() => setEditingId("")}>New post</Button>
                 </div>
-                <div className="rounded-lg border border-border/70 bg-card">
+                <div className="rounded-lg border border-border/60 bg-card">
                   {postsQuery.data?.length ? (
                     <ul className="divide-y divide-border/60">
                       {postsQuery.data.map((p) => (
@@ -173,17 +198,7 @@ function AdminPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={async () => {
-                                if (!confirm(`Delete "${p.title}"?`)) return;
-                                try {
-                                  await del({ data: { id: p.id } });
-                                  qc.invalidateQueries({ queryKey: ["admin-posts"] });
-                                  qc.invalidateQueries({ queryKey: ["published-posts"] });
-                                  toast.success("Deleted");
-                                } catch (e) {
-                                  toast.error(e instanceof Error ? e.message : "Delete failed");
-                                }
-                              }}
+                              onClick={() => setDeletePostTarget({ id: p.id, title: p.title })}
                             >
                               Delete
                             </Button>
@@ -192,8 +207,11 @@ function AdminPage() {
                       ))}
                     </ul>
                   ) : (
-                    <div className="p-10 text-center text-muted-foreground">
-                      No posts yet. Click "New post" to start.
+                    <div className="p-10 text-center">
+                      <p className="text-muted-foreground">No posts yet.</p>
+                      <p className="mt-1 text-sm text-muted-foreground/70">
+                        Click "New post" above to create your first article.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -202,7 +220,7 @@ function AdminPage() {
           </TabsContent>
 
           <TabsContent value="subscribers" className="mt-6">
-            <div className="rounded-lg border border-border/70 bg-card">
+            <div className="rounded-lg border border-border/60 bg-card">
               {subsQuery.data?.length ? (
                 <ul className="divide-y divide-border/60">
                   {subsQuery.data.map((s) => (
@@ -216,16 +234,7 @@ function AdminPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={async () => {
-                          if (!confirm(`Remove subscriber ${s.email}?`)) return;
-                          try {
-                            await delSub({ data: { id: s.id } });
-                            qc.invalidateQueries({ queryKey: ["admin-subscribers"] });
-                            toast.success("Deleted");
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "Delete failed");
-                          }
-                        }}
+                        onClick={() => setDeleteSubTarget({ id: s.id, email: s.email })}
                       >
                         Delete
                       </Button>
@@ -233,7 +242,12 @@ function AdminPage() {
                   ))}
                 </ul>
               ) : (
-                <div className="p-10 text-center text-muted-foreground">No subscribers yet.</div>
+                <div className="p-10 text-center">
+                  <p className="text-muted-foreground">No subscribers yet.</p>
+                  <p className="mt-1 text-sm text-muted-foreground/70">
+                    Subscribers will appear here once they sign up via the subscribe form.
+                  </p>
+                </div>
               )}
             </div>
             {subsQuery.data && subsQuery.data.length > 0 ? (
@@ -259,6 +273,42 @@ function AdminPage() {
             ) : null}
           </TabsContent>
         </Tabs>
+
+        <ConfirmDialog
+          open={deletePostTarget !== null}
+          onOpenChange={(open) => !open && setDeletePostTarget(null)}
+          title={`Delete "${deletePostTarget?.title ?? ""}"?`}
+          description="This action cannot be undone. The post and all its content will be permanently removed."
+          confirmText="Delete"
+          onConfirm={async () => {
+            if (!deletePostTarget) return;
+            try {
+              await del({ data: { id: deletePostTarget.id } });
+              qc.invalidateQueries({ queryKey: ["admin-posts"] });
+              qc.invalidateQueries({ queryKey: ["published-posts"] });
+              toast.success("Deleted");
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Delete failed");
+            }
+          }}
+        />
+        <ConfirmDialog
+          open={deleteSubTarget !== null}
+          onOpenChange={(open) => !open && setDeleteSubTarget(null)}
+          title={`Remove subscriber ${deleteSubTarget?.email ?? ""}?`}
+          description="This will permanently remove the subscriber from your mailing list."
+          confirmText="Remove"
+          onConfirm={async () => {
+            if (!deleteSubTarget) return;
+            try {
+              await delSub({ data: { id: deleteSubTarget.id } });
+              qc.invalidateQueries({ queryKey: ["admin-subscribers"] });
+              toast.success("Removed");
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Remove failed");
+            }
+          }}
+        />
       </main>
     </div>
   );

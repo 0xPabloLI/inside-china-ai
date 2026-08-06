@@ -1,25 +1,7 @@
 import { useState } from "react";
 import { COMPANIES, COMPANY_GROUPS } from "./data/companies";
 import { I18N, type Lang } from "./i18n";
-
-function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  return (
-    <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5">
-      <button
-        onClick={() => onChange("zh")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "zh" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        中文
-      </button>
-      <button
-        onClick={() => onChange("en")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "en" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        EN
-      </button>
-    </div>
-  );
-}
+import { LangToggle } from "../shared/lang-toggle";
 
 const TONE_STYLES: Record<string, string> = {
   "tone-compare": "bg-blue-500/10 text-blue-600",

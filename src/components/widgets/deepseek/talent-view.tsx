@@ -1,25 +1,7 @@
 import { useState } from "react";
 import { PEOPLE } from "./data/people";
 import { I18N, type Lang } from "./i18n";
-
-function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  return (
-    <div className="flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40 p-0.5">
-      <button
-        onClick={() => onChange("zh")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "zh" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        中文
-      </button>
-      <button
-        onClick={() => onChange("en")}
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === "en" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
-      >
-        EN
-      </button>
-    </div>
-  );
-}
+import { LangToggle } from "../shared/lang-toggle";
 
 export function TalentView() {
   const [lang, setLang] = useState<Lang>("en");
@@ -66,13 +48,13 @@ export function TalentView() {
             {/* Cols */}
             <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-border/40">
               <div className="px-5 py-3 border-b sm:border-b-0 sm:border-r border-border/40">
-                <div className="mb-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
                   {t.tcLabelRole}
                 </div>
                 <div className="text-[13px] text-foreground/80 leading-snug">{role}</div>
               </div>
               <div className="px-5 py-3">
-                <div className="mb-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
                   {t.tcLabelFlow}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -88,7 +70,7 @@ export function TalentView() {
 
             {/* Salary */}
             <div className="flex flex-wrap items-center gap-2 border-t border-border/40 px-5 py-2.5">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
                 {t.tcLabelSalary}
               </span>
               <span
@@ -102,7 +84,7 @@ export function TalentView() {
                 <span className="text-[10px] text-muted-foreground">{salaryParts[1]}</span>
               ) : null}
               <span
-                className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                   p.salaryKnown
                     ? "bg-amber-500/10 text-amber-600"
                     : "bg-amber-700/5 text-amber-700/80"

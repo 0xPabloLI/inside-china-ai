@@ -32,6 +32,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-brand: var(--brand);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
   --color-chart-1: var(--chart-1);
@@ -51,7 +52,9 @@
 
 :root {
   --radius: 0.5rem;
-  /* Cool off-white palette — tinted toward brand blue (#4d8bff) */
+  /* Brand accent — Dispatch Blue, shared across web + video surfaces */
+  --brand: oklch(0.62 0.19 260);
+  /* Cool off-white palette — tinted toward brand blue */
   --background: oklch(0.985 0.008 260);
   --foreground: oklch(0.22 0.02 260);
   --card: oklch(0.99 0.005 260);
@@ -105,6 +108,7 @@
   --destructive-foreground: oklch(0.96 0.01 260);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
+  --brand: oklch(0.62 0.19 260);
   --ring: oklch(0.55 0.03 255);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);

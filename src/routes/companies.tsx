@@ -335,7 +335,7 @@ export const Route = createFileRoute("/companies")({
 
 function OpennessBadge({ value }: { value: Company["openness"] }) {
   return (
-    <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+    <span className="rounded-full border border-border/60 px-2 py-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
       {value}
     </span>
   );

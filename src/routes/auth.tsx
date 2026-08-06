@@ -211,7 +211,7 @@ function AuthPage() {
           <Link to="/" className="mb-8 block text-center font-serif text-2xl">
             <BrandName />
           </Link>
-          <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
+          <div className="rounded-xl border border-border/60 bg-card p-8 shadow-sm">
             <h1 className="font-serif text-2xl">Set new password</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Enter a new password for your account
@@ -247,7 +247,7 @@ function AuthPage() {
           <Link to="/" className="mb-8 block text-center font-serif text-2xl">
             <BrandName />
           </Link>
-          <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
+          <div className="rounded-xl border border-border/60 bg-card p-8 shadow-sm">
             <h1 className="font-serif text-2xl">Email me a sign-in link</h1>
             {!emailSent ? (
               <>
@@ -300,7 +300,7 @@ function AuthPage() {
           <Link to="/" className="mb-8 block text-center font-serif text-2xl">
             <BrandName />
           </Link>
-          <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
+          <div className="rounded-xl border border-border/60 bg-card p-8 shadow-sm">
             <h1 className="font-serif text-2xl">Reset password</h1>
 
             {!emailSent ? (
@@ -387,7 +387,7 @@ function AuthPage() {
         <Link to="/" className="mb-8 block text-center font-serif text-2xl">
           <BrandName />
         </Link>
-        <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
+        <div className="rounded-xl border border-border/60 bg-card p-8 shadow-sm">
           <h1 className="font-serif text-2xl">
             {mode === "signin" ? "Sign in" : "Create account"}
           </h1>

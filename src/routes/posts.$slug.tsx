@@ -137,10 +137,7 @@ function PostPage() {
                 const Widget = WIDGETS[segment.name];
                 const isBreakout = isBreakoutWidget(segment.name);
                 return (
-                  <div
-                    key={i}
-                    className={`my-10 ${isBreakout ? "max-w-none" : "max-w-prose"}`}
-                  >
+                  <div key={i} className={`my-10 ${isBreakout ? "max-w-none" : "max-w-prose"}`}>
                     <Suspense
                       fallback={
                         <div className="animate-pulse text-sm text-muted-foreground">
@@ -187,6 +184,9 @@ function PostPage() {
           <SubscribeForm />
         </div>
       </main>
+      <footer className="border-t border-border/60 py-8 text-center text-xs text-muted-foreground">
+        © {new Date().getFullYear()} · China AI News
+      </footer>
     </div>
   );
 }

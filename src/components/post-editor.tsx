@@ -85,7 +85,7 @@ export function PostEditor({
         });
         setSaving(false);
       }}
-      className="space-y-5 rounded-lg border border-border/70 bg-card p-6"
+      className="space-y-5 rounded-lg border border-border/60 bg-card p-6"
     >
       <div>
         <Label>Title</Label>
