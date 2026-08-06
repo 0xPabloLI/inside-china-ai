@@ -18,6 +18,12 @@ export const Route = createFileRoute("/sitemap.xml")({
         const entries: SitemapEntry[] = [
           { path: "/", changefreq: "daily", priority: "1.0" },
           { path: "/companies", changefreq: "weekly", priority: "0.9" },
+          {
+            path: "/compare/deepseek-vs-qwen-vs-glm-4",
+            changefreq: "weekly",
+            priority: "0.9",
+          },
+          { path: "/tiktok-connect", changefreq: "monthly", priority: "0.4" },
           { path: "/privacy", changefreq: "yearly", priority: "0.3" },
 
           { path: "/terms", changefreq: "yearly", priority: "0.3" },
