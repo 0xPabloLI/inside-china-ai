@@ -175,6 +175,8 @@ ffmpeg -y -i input.m4a -ar 44100 -ac 1 output.wav
 
 做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载。`brand-system` skill 同时加载，控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。
 
+> **Skill 遵循强制规则**：启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data 是否满足 `short-video-pipeline` SKILL.md 的硬性规则。Pre-render 检查未通过时，管线拒绝运行。Agent 不得跳过此步骤（除非用户明确要求 `--skip-preflight`）。
+
 ## Session Start Checklist
 
 **每次新 session 启动时，Agent 被动检查**（Agent 不是常驻进程，只在用户打开 session 时检查）：

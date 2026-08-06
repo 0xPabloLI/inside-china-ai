@@ -74,6 +74,24 @@ async function main() {
   console.log(`   Pipeline ID: ${meta.pipelineId}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
+  // ── Pre-Render Verification (validates scene-data against SKILL.md rules) ──
+  const skipPreflight = process.argv.includes("--skip-preflight");
+  if (!skipPreflight) {
+    console.log("🔍 Step 0: Pre-Render Verification...\n");
+    try {
+      execSync(`node "${join(__dirname, "verify-video.mjs")}" --pre --content "${contentDir}"`, {
+        stdio: "inherit",
+      });
+    } catch {
+      console.error(
+        "\n❌ Pre-Render Verification FAILED — fix the issues above before running the pipeline.",
+      );
+      console.error("   (Use --skip-preflight to bypass, not recommended)");
+      process.exit(1);
+    }
+    console.log();
+  }
+
   // ── Prerequisite checks ──
   const hasFfmpeg = checkCommand("ffmpeg");
   if (!hasFfmpeg) {
