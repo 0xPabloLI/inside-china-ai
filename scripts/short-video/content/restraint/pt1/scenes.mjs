@@ -21,9 +21,17 @@ import {
   withWatermark,
 } from "../../../lib/base-styles.mjs";
 
-// DeepSeek company logo
+// DeepSeek company logo (full lockup: whale icon + wordmark)
 const DEEPSEEK_LOGO_SVG = readFileSync(
   new URL("../../../assets/logos/deepseek.svg", import.meta.url),
+  "utf8",
+)
+  .replace(/<\?xml[^>]*\?>\s*/, "")
+  .replace(/<!--[\s\S]*?-->/g, "");
+
+// DeepSeek whale icon only (square-ish, for large display)
+const DEEPSEEK_ICON_SVG = readFileSync(
+  new URL("../../../assets/logos/deepseek-icon.svg", import.meta.url),
   "utf8",
 )
   .replace(/<\?xml[^>]*\?>\s*/, "")
@@ -65,7 +73,7 @@ ${baseStyles(duration)}
 <div class="scene s1">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div><div class="scan-sweep"></div>
   <div class="brand-bar"><div class="b-logo">${BRAND_MARK_SVG}</div><div class="b-text">CHINA <span class="hl">AI</span> NEWS</div><div class="briefing-tag">INTELLIGENCE BRIEFING</div></div>
-  <div class="ds-row"><div class="ds-logo">${DEEPSEEK_LOGO_SVG}</div><div class="ds-text">DEEPSEEK</div></div>
+  <div class="ds-row"><div class="ds-logo">${DEEPSEEK_ICON_SVG}</div><div class="ds-text">DEEPSEEK</div></div>
   <div class="hook-text">${t(txt, "hookText")}</div>
   <div class="reveal-text">${t(txt, "revealText")}</div>
   <div class="source-badge">SOURCE: ${t(txt, "source")}</div>
@@ -93,7 +101,7 @@ ${baseStyles(duration)}
 <div class="scene s2">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
   <div class="badge">${t(txt, "badge")}</div>
-  <div class="ds-logo-large">${DEEPSEEK_LOGO_SVG}</div>
+  <div class="ds-logo-large">${DEEPSEEK_ICON_SVG}</div>
   <div class="person-name">${t(txt, "person")}</div>
   <div class="person-role">${t(txt, "role")}</div>
   <div class="meeting-info">
@@ -274,7 +282,7 @@ ${baseStyles(duration)}
 </style></head><body>
 <div class="scene s8">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <div class="ds-logo-large">${DEEPSEEK_LOGO_SVG}</div>
+  <div class="ds-logo-large">${DEEPSEEK_ICON_SVG}</div>
   <div class="action-text">${t(txt, "action")}</div>
   <div class="big-stat">${t(txt, "stat")}</div>
   <div class="stat-context">${t(txt, "context")}</div>
