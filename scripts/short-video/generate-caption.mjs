@@ -94,10 +94,11 @@ async function main() {
   }
 
   if (violations.length > 0) {
-    console.warn("\n⚠️  Constraint violations:");
+    console.error("\n❌ Constraint violations:");
     for (const v of violations) {
-      console.warn(`   • ${v}`);
+      console.error(`   • ${v}`);
     }
+    process.exit(1);
   } else {
     console.log("\n✅ All constraints satisfied (title ≤60, caption ≤2200, 3-5 hashtags)");
   }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   AI_BLACKLIST,
+  checkNoGreeting,
   checkSceneCount,
   checkHookVisualType,
   checkCTAVisualType,
@@ -216,24 +217,80 @@ describe("checkNoWrittenOpener", () => {
   });
 });
 
-// ── checkHookDiffersFromText ──
+// ── checkHookDiffersFromText (B4 three-tier) ──
 
 describe("checkHookDiffersFromText", () => {
-  it("passes when hook VO and on-screen text use different words", () => {
+  it("passes when hook VO and texts are different (< 50% overlap)", () => {
     const results = checkHookDiffersFromText(validScenes);
     expect(results[0].level).toBe("pass");
   });
 
-  it("warns when hook VO and on-screen text are very similar", () => {
+  it("warns when hook VO and texts overlap moderately (50-80%)", () => {
+    const scenes = [
+      {
+        ...validScenes[0],
+        voiceover: "DeepSeek paused its funding round after leak.",
+        texts: { line1: "DeepSeek paused its funding round", line2: "LEAKED" },
+      },
+      ...validScenes.slice(1),
+    ];
+    const results = checkHookDiffersFromText(scenes);
+    expect(results[0].level).toBe("warn");
+  });
+
+  it("fails when hook VO and texts overlap heavily (>= 80%)", () => {
     const scenes = [
       {
         ...validScenes[0],
         voiceover: "DeepSeek paused its funding round.",
-        texts: { line1: "DeepSeek paused its funding round" },
+        texts: { line1: "DeepSeek paused its funding round.", line2: "EXCLUSIVE" },
       },
+      ...validScenes.slice(1),
     ];
     const results = checkHookDiffersFromText(scenes);
-    expect(results[0].level).toBe("warn");
+    expect(results[0].level).toBe("fail");
+  });
+});
+
+// ── checkNoGreeting (B2 partial) ──
+
+describe("checkNoGreeting", () => {
+  it("passes when hook has no greeting", () => {
+    const results = checkNoGreeting(validScenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fails when hook starts with 'Hey guys'", () => {
+    const scenes = [
+      { ...validScenes[0], voiceover: "Hey guys, DeepSeek paused its round." },
+      ...validScenes.slice(1),
+    ];
+    const results = checkNoGreeting(scenes);
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("fails when hook starts with 'What's up everyone'", () => {
+    const scenes = [
+      { ...validScenes[0], voiceover: "What's up everyone, today we talk about DeepSeek." },
+      ...validScenes.slice(1),
+    ];
+    const results = checkNoGreeting(scenes);
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("passes when 'high' appears in hook (not a greeting)", () => {
+    const scenes = [
+      { ...validScenes[0], voiceover: "DeepSeek hit a high valuation." },
+      ...validScenes.slice(1),
+    ];
+    const results = checkNoGreeting(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("passes when hook is null or empty", () => {
+    const scenes = [{ ...validScenes[0], voiceover: "" }, ...validScenes.slice(1)];
+    const results = checkNoGreeting(scenes);
+    expect(results[0].level).toBe("pass");
   });
 });
 
@@ -495,6 +552,14 @@ describe("runAllSceneDataChecks", () => {
     expect(hookFail).toBeDefined();
   });
 
+  it("includes checkNoGreeting in results", () => {
+    const results = runAllSceneDataChecks(validScenes, validSeriesMeta);
+    const greetingCheck = [...results.pass, ...results.warn, ...results.fail].find((r) =>
+      r.check.toLowerCase().includes("greeting"),
+    );
+    expect(greetingCheck).toBeDefined();
+  });
+
   it("catches missing visualType=cta", () => {
     const badScenes = [...validScenes.slice(0, -1), { ...validScenes[4], visualType: "summary" }];
     const results = runAllSceneDataChecks(badScenes, null);
@@ -520,6 +585,20 @@ describe("runAllSceneDataChecks", () => {
     const results = runAllSceneDataChecks(badScenes, null);
     const aiFail = results.fail.find((f) => f.check.includes("blacklist"));
     expect(aiFail).toBeDefined();
+  });
+
+  it("catches expanded blacklist words (journey, realm, moreover)", () => {
+    const scenes = [{ id: 1, voiceover: "This is a journey into the realm of AI." }];
+    const results = checkNoAIVocabulary(scenes);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].detail).toContain("journey");
+    expect(results[0].detail).toContain("realm");
+  });
+
+  it("catches AI tool markers (oaicite)", () => {
+    const scenes = [{ id: 1, voiceover: "The data shows oaicite references." }];
+    const results = checkNoAIVocabulary(scenes);
+    expect(results[0].level).toBe("fail");
   });
 
   it("catches dead closer", () => {

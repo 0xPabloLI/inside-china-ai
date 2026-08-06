@@ -416,9 +416,30 @@ if (!preMode && results.fail.length === 0) {
     execSync(`node "${join(__dirname, "generate-caption.mjs")}"`, {
       stdio: "inherit",
     });
+
+    // Verify caption file constraints (B6: caption ≤ 2200 chars)
+    // generate-caption.mjs writes to output/ (not output/{pipelineId}/)
+    const captionPath = join(__dirname, "output", "tiktok-caption.txt");
+    if (existsSync(captionPath)) {
+      const captionContent = readFileSync(captionPath, "utf8");
+      if (captionContent.length > 2200) {
+        fail(
+          "Caption",
+          "Caption length ≤ 2,200 chars",
+          `${captionContent.length} chars`,
+          "Trim caption content — remove redundant sentences or hashtags",
+        );
+      } else {
+        pass("Caption", "Caption length ≤ 2,200 chars", `${captionContent.length} chars`);
+      }
+    }
   } catch (e) {
-    console.warn(`⚠️  Caption generation failed: ${e.message}`);
-    console.warn("   You can run it manually: node scripts/short-video/generate-caption.mjs");
+    fail(
+      "Caption",
+      "Caption generation succeeded",
+      e.message,
+      "Check scene-data.mjs for issues that cause invalid caption (title > 60, caption > 2200, or hashtag count out of range)",
+    );
   }
 }
 

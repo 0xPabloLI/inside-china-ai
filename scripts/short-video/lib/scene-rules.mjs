@@ -6,82 +6,30 @@
  * array of result objects: { level, category, check, detail?, fix? }
  *
  * level: 'pass' | 'warn' | 'fail'
+ *
+ * All rule constants are imported from tiktok-rules.mjs (single source of truth).
  */
 
-// ─── Constants (merged from preflight-check.mjs + verify-video.mjs) ───
+import {
+  AI_BLACKLIST as _AI_BLACKLIST,
+  DASH_PATTERN,
+  DEAD_CLOSER_PATTERN,
+  STRONG_WORD_PATTERN,
+  NUMBER_PATTERN,
+  WRITTEN_OPENER_PATTERN,
+  SOURCE_PATTERN,
+  CTA_PATTERN,
+  CLICKBAIT_PATTERNS,
+  WATERMARK_PATTERN,
+  GREETING_PATTERN,
+  NAMED_SOURCE_PATTERN,
+  TARGET_KEYWORDS,
+  KNOWN_COMPANIES,
+  THRESHOLDS,
+} from "./tiktok-rules.mjs";
 
-export const AI_BLACKLIST = [
-  "leverage",
-  "utilize",
-  "facilitate",
-  "streamline",
-  "robust",
-  "seamless",
-  "delve",
-  "navigate",
-  "unlock",
-  "harness",
-  "foster",
-  "cultivate",
-  "fundamentally",
-  "essentially",
-  "ultimately",
-  "crucially",
-  "notably",
-  "myriad",
-  "paradigm",
-  "ecosystem",
-  "landscape",
-  "game-changer",
-  "deep dive",
-  "at the end of the day",
-  "dive in",
-  "hey guys",
-  "without further ado",
-];
-
-const DEAD_CLOSER_PATTERN =
-  /thanks for watching|don't forget to (like|subscribe)|subscribe for more|what do you think|drop your thoughts|let me know in the comments|hit subscribe/i;
-
-const STRONG_WORD_PATTERN =
-  /\b(leaked|paused|crash|surge|breakthrough|exclusive|secret|revealed|banned|crisis|first|never|only)\b/i;
-
-const NUMBER_PATTERN = /\$?\d+[.,]?\d*\s*(billion|million|thousand|%|B|M|K)?/i;
-
-const WRITTEN_OPENER_PATTERN =
-  /in this video,? i will|today i want to talk about|in this video,? we will|today we're going to/i;
-
-const DASH_PATTERN = /\u2014|\u2013|--/;
-
-const SOURCE_PATTERN =
-  /\b(reported|said|told|according to|revealed|stated|announced|confirmed|bloomberg|reuters|ft|wall street journal|sources?)\b/i;
-
-const CTA_PATTERN =
-  /follow|subscribe|like|comment|share|save|download|click|sign up|check out|visit/gi;
-
-const CLICKBAIT_PATTERNS = [
-  /\byou won't believe\b/i,
-  /\bshocking truth\b/i,
-  /\bthis will blow your mind\b/i,
-  /\bclick here\b/i,
-];
-
-const TARGET_KEYWORDS = ["china", "ai", "deepseek"];
-
-const KNOWN_COMPANIES = [
-  "deepseek",
-  "huawei",
-  "zhipu",
-  "moonshot",
-  "kimi",
-  "minimax",
-  "baidu",
-  "alibaba",
-  "tencent",
-  "bytedance",
-];
-
-const WATERMARK_PATTERN = /@instagram|@youtube|@facebook|tiktok watermark|repost from/i;
+// Re-export AI_BLACKLIST to maintain public API
+export const AI_BLACKLIST = _AI_BLACKLIST;
 
 // ─── Helpers ───
 
@@ -95,10 +43,10 @@ function sceneVO(scene) {
 
 // ─── Check functions ───
 
-/** Scene count should be 6-10 per SKILL.md */
+/** Scene count should be within THRESHOLDS range per SKILL.md */
 export function checkSceneCount(scenes) {
   const count = scenes.length;
-  if (count >= 6 && count <= 10) {
+  if (count >= THRESHOLDS.minScenes && count <= THRESHOLDS.maxScenes) {
     return [
       {
         level: "pass",
@@ -255,7 +203,7 @@ export function checkNoWrittenOpener(scenes) {
   ];
 }
 
-/** Hook VO and on-screen text should use different words */
+/** B4: Hook VO and on-screen text should use different words (three-tier) */
 export function checkHookDiffersFromText(scenes) {
   const hook = scenes[0] || {};
   const hookVO = (hook.voiceover || "").toLowerCase();
@@ -272,23 +220,35 @@ export function checkHookDiffersFromText(scenes) {
     ];
   }
   const overlap = hookWords.filter((w) => hookTexts.includes(w));
-  if (overlap.length <= hookWords.length * 0.5) {
+  const overlapRatio = overlap.length / hookWords.length;
+  if (overlapRatio >= THRESHOLDS.hookTextOverlapFailThreshold) {
     return [
       {
-        level: "pass",
+        level: "fail",
         category: "De-AI",
         check: "Hook VO differs from on-screen text",
-        detail: `${overlap.length}/${hookWords.length} words overlap`,
+        detail: `${overlap.length}/${hookWords.length} words overlap (${Math.round(overlapRatio * 100)}%)`,
+        fix: "Use different words for on-screen text (different angle on same promise)",
+      },
+    ];
+  }
+  if (overlapRatio >= THRESHOLDS.hookTextOverlapWarnThreshold) {
+    return [
+      {
+        level: "warn",
+        category: "De-AI",
+        check: "Hook VO vs on-screen text",
+        detail: `${overlap.length}/${hookWords.length} words overlap (${Math.round(overlapRatio * 100)}%)`,
+        fix: "Use different words for on-screen text (different angle on same promise)",
       },
     ];
   }
   return [
     {
-      level: "warn",
+      level: "pass",
       category: "De-AI",
-      check: "Hook VO vs on-screen text",
+      check: "Hook VO differs from on-screen text",
       detail: `${overlap.length}/${hookWords.length} words overlap`,
-      fix: "Use different words for on-screen text (different angle on same promise)",
     },
   ];
 }
@@ -310,6 +270,27 @@ export function checkNoDeadClosers(scenes) {
       fix: "End on the loop-close line or one specific ask",
     },
   ];
+}
+
+/** B2 (partial): Hook must not start with a greeting */
+export function checkNoGreeting(scenes) {
+  const hookVO = (scenes[0]?.voiceover || "").toLowerCase();
+  if (!hookVO) {
+    return [{ level: "pass", category: "De-AI", check: "No greeting opener in hook" }];
+  }
+  const firstWords = hookVO.split(/\s+/).slice(0, THRESHOLDS.greetingCheckWords).join(" ");
+  if (GREETING_PATTERN.test(firstWords)) {
+    return [
+      {
+        level: "fail",
+        category: "De-AI",
+        check: "No greeting opener in hook",
+        detail: "Hook starts with a greeting word",
+        fix: "Open on the payoff, not a greeting. Cut 'hey', 'hi', 'what's up', etc.",
+      },
+    ];
+  }
+  return [{ level: "pass", category: "De-AI", check: "No greeting opener in hook" }];
 }
 
 /** SEO keywords must appear in >=2 scenes */
@@ -405,12 +386,12 @@ export function checkVoiceoverWordCount(scenes) {
     (sum, s) => sum + (s.voiceover || "").split(/\s+/).filter(Boolean).length,
     0,
   );
-  if (totalWords <= 180) {
+  if (totalWords <= THRESHOLDS.maxVoiceoverWords) {
     return [
       {
         level: "pass",
         category: "Duration",
-        check: "Total voiceover words (≤180)",
+        check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
         detail: `${totalWords} words (~${(totalWords / 2.5).toFixed(0)}s)`,
       },
     ];
@@ -419,9 +400,9 @@ export function checkVoiceoverWordCount(scenes) {
     {
       level: "warn",
       category: "Duration",
-      check: "Total voiceover words (≤180)",
+      check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
       detail: `${totalWords} words`,
-      fix: "May exceed 70s at 2.5 wps — consider trimming",
+      fix: `May exceed 70s at 2.5 wps — consider trimming (limit: ${THRESHOLDS.maxVoiceoverWords} words)`,
     },
   ];
 }
@@ -434,14 +415,18 @@ export function checkOneBreath(scenes) {
     const sentences = vo.split(/[.!?\n]+/).filter((s) => s.trim().length > 0);
     for (const sentence of sentences) {
       const wordCount = sentence.trim().split(/\s+/).length;
-      if (wordCount > 25) {
+      if (wordCount > THRESHOLDS.maxOneBreathWords) {
         longLines.push({ scene: scene.id, words: wordCount });
       }
     }
   }
   if (longLines.length === 0) {
     return [
-      { level: "pass", category: "De-AI", check: "All voiceover lines ≤25 words (one breath)" },
+      {
+        level: "pass",
+        category: "De-AI",
+        check: `All voiceover lines ≤${THRESHOLDS.maxOneBreathWords} words (one breath)`,
+      },
     ];
   }
   const detail = longLines
@@ -452,7 +437,7 @@ export function checkOneBreath(scenes) {
     {
       level: "warn",
       category: "De-AI",
-      check: "One-breath check (≤25 words per sentence)",
+      check: `One-breath check (≤${THRESHOLDS.maxOneBreathWords} words per sentence)`,
       detail: `${longLines.length} lines exceed 25 words (${detail})`,
       fix: "Split long lines at natural breath points",
     },
@@ -530,8 +515,6 @@ export function checkClickbait(scenes) {
 }
 
 /** No unverified "sources say" without attribution */
-const NAMED_SOURCE_PATTERN =
-  /\b(according to|reported by|bloomberg|reuters|FT|wall street journal)\b/i;
 export function checkUnverifiedClaims(scenes) {
   let count = 0;
   for (const scene of scenes) {
@@ -591,7 +574,9 @@ export function checkTeleprompterRhythm(scenes) {
     ];
   }
   const avg = voLengths.reduce((a, b) => a + b, 0) / voLengths.length;
-  const allSimilar = voLengths.every((l) => Math.abs(l - avg) / avg < 0.15);
+  const allSimilar = voLengths.every(
+    (l) => Math.abs(l - avg) / avg < THRESHOLDS.teleprompterMaxDeviation,
+  );
   if (allSimilar) {
     return [
       {
@@ -619,10 +604,16 @@ export function checkCTAStacking(scenes) {
   for (const scene of scenes) {
     const vo = scene.voiceover || "";
     const ctaCount = (vo.match(CTA_PATTERN) || []).length;
-    if (ctaCount >= 3) stacks++;
+    if (ctaCount >= THRESHOLDS.ctaStackThreshold) stacks++;
   }
   if (stacks === 0) {
-    return [{ level: "pass", category: "De-AI", check: "No CTA stacking (≥3 CTAs in one scene)" }];
+    return [
+      {
+        level: "pass",
+        category: "De-AI",
+        check: `No CTA stacking (≥${THRESHOLDS.ctaStackThreshold} CTAs in one scene)`,
+      },
+    ];
   }
   return [
     {
@@ -648,7 +639,7 @@ export function checkPrimaryGoal(scenes) {
   for (const pattern of Object.values(goalIndicators)) {
     if (pattern.test(allVO)) goalCount++;
   }
-  if (goalCount <= 2) {
+  if (goalCount <= THRESHOLDS.maxGoalSignals) {
     return [
       {
         level: "pass",
@@ -719,6 +710,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta) {
     ...checkNoWrittenOpener(scenes),
     ...checkHookDiffersFromText(scenes),
     ...checkNoDeadClosers(scenes),
+    ...checkNoGreeting(scenes),
     ...checkSEOKeywords(scenes),
     ...checkSourceAttribution(scenes),
     ...checkShareWorthyData(scenes),

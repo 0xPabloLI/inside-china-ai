@@ -392,31 +392,31 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 
 ### Blocker（任一 = FAIL）
 
-| #   | 检查项            | 阈值                                      |
-| --- | ----------------- | ----------------------------------------- |
-| B1  | Em/en/double dash | 口播或屏幕文字中存在任何                  |
-| B2  | 结果前有开场      | 第一秒有问候、logo 或慢推                 |
-| B3  | 书面非口播 Hook   | "In this video I will.." 式开头           |
-| B4  | Hook == 屏幕文字  | 两层完全相同词语                          |
-| B5  | 未兑现承诺        | Hook 承诺了视频从不展示的结果             |
-| B6  | Caption 长度      | > 2,200 chars（含 hashtag）               |
-| B7  | AI 词汇           | 任何黑名单词                              |
-| B8  | 商业披露          | commercialContent=true 但品牌标志均 false |
-| B9  | 死板收尾          | 以"thanks for watching"/"subscribe"结尾   |
+| #   | 检查项            | 阈值                                      | 自动化 |
+| --- | ----------------- | ----------------------------------------- | ------ |
+| B1  | Em/en/double dash | 口播或屏幕文字中存在任何                  | ✅ 代码 |
+| B2  | 结果前有开场      | 问候语（hey/hi/hello/what's up 等）       | ✅ 代码（问候语）; ⚠️ agent（logo/慢推） |
+| B3  | 书面非口播 Hook   | "In this video I will.." 式开头           | ✅ 代码 |
+| B4  | Hook == 屏幕文字  | ≥80% 词汇重叠 = FAIL；50-80% = WARN       | ✅ 代码（三级） |
+| B5  | 未兑现承诺        | Hook 承诺了视频从不展示的结果             | ⚠️ agent 判断 |
+| B6  | Caption 长度      | > 2,200 chars（含 hashtag）               | ✅ generate-caption.mjs |
+| B7  | AI 词汇           | 任何黑名单词（~40 个，见 `tiktok-rules.mjs`） | ✅ 代码 |
+| B8  | 商业披露          | commercialContent=true 但品牌标志均 false | 发布时 API 设置 |
+| B9  | 死板收尾          | 以"thanks for watching"/"subscribe"结尾   | ✅ 代码 |
 
 ### Warning（标记修复建议，不 fail）
 
-| #   | 检查项        | 阈值                               |
-| --- | ------------- | ---------------------------------- |
-| W1  | Hook 无数字   | 零个可放数字的地方未放             |
-| W2  | Hashtag 数量  | 6 个或更多，或任何句中 hashtag     |
-| W3  | 无循环闭合    | 最后一帧不重启视频                 |
-| W4  | 提词器节奏    | 所有行长度在 ~15% 内               |
-| W5  | 空三段式      | 无具体项的 rule-of-three           |
-| W6  | 两口气行      | 任何无法一口气说完的行             |
-| W7  | CTA 堆叠      | 3 个或更多行动号召                 |
-| W8  | viewerSetting | 未设，或在未审核 App 上声称 public |
-| W9  | 无主要目标    | 同时追完成率+收藏+评论+分享        |
+| #   | 检查项        | 阈值                               | 自动化 |
+| --- | ------------- | ---------------------------------- | ------ |
+| ~~W1~~ | ~~Hook 无数字~~ | ~~零个可放数字的地方未放~~ | **已升级为 Blocker**（代码为 FAIL） |
+| W2  | Hashtag 数量  | 6 个或更多，或任何句中 hashtag     | ✅ generate-caption.mjs（限制 3-5） |
+| W3  | 无循环闭合    | 最后一帧不重启视频                 | ✅ 代码（WARN） |
+| W4  | 提词器节奏    | 所有行长度在 ~15% 内               | ✅ 代码（WARN） |
+| W5  | 空三段式      | 无具体项的 rule-of-three           | ⚠️ agent only（不可自动化） |
+| W6  | 两口气行      | 任何无法一口气说完的行             | ✅ 代码（WARN，≤25 词） |
+| W7  | CTA 堆叠      | 3 个或更多行动号召                 | ✅ 代码（WARN） |
+| W8  | viewerSetting | 未设，或在未审核 App 上声称 public | 发布时设置 |
+| W9  | 无主要目标    | 同时追完成率+收藏+评论+分享        | ✅ 代码（WARN，>2 goal signals） |
 
 ### 评分
 

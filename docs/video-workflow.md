@@ -180,11 +180,13 @@ Based on platform research and session learnings:
 | No clickbait patterns in hook                       | Regex check Scene 1 voiceover                   | Rewrite to be factual            |
 | No unverified "sources say" claims                  | Scan voiceovers                                 | Add specific source attribution  |
 | **No em/en/double dashes**                          | Regex scan all voiceover + texts                | Replace with `..` or line break  |
-| **No AI vocabulary blacklist**                      | Scan for leverage/delve/harness/etc.            | Replace with spoken equivalent   |
+| **No AI vocabulary blacklist**                      | Scan for ~40 words (see `tiktok-rules.mjs`)     | Replace with spoken equivalent   |
 | **No written-style openers**                        | Regex Scene 1 for "In this video I will..."     | Rewrite to open on payoff        |
-| **Hook VO != on-screen text**                       | Compare Scene 1 voiceover vs texts              | Rewrite one to different angle   |
+| **No greeting opener (B2 partial)**                 | Regex first 3 words of Scene 1 VO for hey/hi/etc | Cut greeting, open on payoff     |
+| **Hook VO vs on-screen text (B4 three-tier)**       | ≥80% overlap=FAIL, 50-80%=WARN                  | Rewrite one to different angle   |
 | **No dead closers**                                 | Regex last scene for "thanks for watching" etc. | End on loop-close line           |
 | **No CTA stacking**                                 | Count CTAs per scene (warn if 3+)               | Use one clear ask                |
+| **Caption length ≤ 2,200 chars (B6)**               | generate-caption.mjs exit(1) + verify check     | Trim caption content             |
 
 #### 🔧 Agent-assisted at scene-data creation time (prompt-driven, not code)
 
@@ -199,6 +201,8 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 | Hook is factual not clickbait             | Compelling but factual                         | ✅ Yes (clickbait regex check)      |
 | Every scene has a concrete fact           | No filler scenes                               | ⚠️ Manual (agent judgment)          |
 | Causal flow between scenes                | Cause → effect → implication                   | ⚠️ Manual (agent judgment)          |
+| No logo/slow-push opener (B2 visual)      | First frame = result/tension, not logo         | ⚠️ Manual (agent judgment)          |
+| No empty three-part lists (W5)            | Avoid "faster, cheaper, easier" without data   | ⚠️ Manual (agent judgment)          |
 | Hook formula selected (T1/T3/T4/T6/T7/T9) | Choose by goal (completion/saves/comments)     | ✅ Yes (compelling element check)   |
 | Loop-close in last scene                  | Last line recontextualizes the opening         | ⚠️ Warning (keyword overlap check)  |
 | Voiceover line length variation           | No teleprompter rhythm                         | ⚠️ Warning (length variation check) |
