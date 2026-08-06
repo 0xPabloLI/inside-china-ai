@@ -156,6 +156,10 @@ export const THRESHOLDS = {
   /** B4: Hook VO vs text overlap — FAIL threshold (≥ this = Blocker) */
   hookTextOverlapFailThreshold: 0.8,
 
+  /** Body-scene VO duplication: on-screen text repeating a verbatim VO
+      phrase of ≥ this many words (normalized) = three-tier repetition */
+  bodyTextDuplicateMinWords: 4,
+
   /** B4: Hook VO vs text overlap — WARN threshold (≥ this, < fail = Warning) */
   hookTextOverlapWarnThreshold: 0.5,
 

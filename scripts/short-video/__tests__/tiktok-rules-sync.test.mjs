@@ -131,6 +131,7 @@ describe("tiktok-rules.mjs sync invariants", () => {
     expect(THRESHOLDS.maxScenes).toBe(10);
     expect(THRESHOLDS.hookTextOverlapFailThreshold).toBe(0.8);
     expect(THRESHOLDS.hookTextOverlapWarnThreshold).toBe(0.5);
+    expect(THRESHOLDS.bodyTextDuplicateMinWords).toBe(4);
     expect(THRESHOLDS.minSourceScenes).toBe(2);
     expect(THRESHOLDS.minKeywordScenes).toBe(2);
     expect(THRESHOLDS.minDataSceneRatio).toBe(0.5);

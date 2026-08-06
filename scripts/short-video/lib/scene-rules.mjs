@@ -660,6 +660,59 @@ export function checkPrimaryGoal(scenes) {
   ];
 }
 
+/** Three-tier repetition: body scenes' on-screen text must not repeat a
+ *  verbatim voiceover phrase (VO + subtitle + on-screen all-same = noise).
+ *  Hook (scene 1) and CTA (last) are excluded — they carry their own rules. */
+export function checkBodyTextVoRedundancy(scenes) {
+  const minWords = THRESHOLDS.bodyTextDuplicateMinWords;
+  const warns = [];
+
+  for (let i = 1; i < scenes.length - 1; i++) {
+    const scene = scenes[i];
+    const vo = normalizeForCompare(scene.voiceover);
+    const texts = normalizeForCompare(JSON.stringify(scene.texts || ""));
+    if (!vo || !texts) continue;
+
+    // Sliding window over VO words; any window appearing verbatim in the
+    // on-screen text is a three-tier repetition.
+    const words = vo.split(" ");
+    for (let j = 0; j + minWords <= words.length; j++) {
+      const phrase = words.slice(j, j + minWords).join(" ");
+      const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`\\b${escaped}\\b`).test(texts)) {
+        warns.push({
+          level: "warn",
+          category: "De-AI",
+          check: "On-screen text duplicates VO (three-tier repetition)",
+          detail: `Scene ${scene.id}: "${phrase}" appears verbatim in voiceover and on-screen text`,
+          fix: "Vary the wording — VO, subtitle and on-screen text should each carry different words",
+        });
+        break;
+      }
+    }
+  }
+
+  if (warns.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "De-AI",
+        check: "On-screen text differs from VO (body scenes)",
+      },
+    ];
+  }
+  return warns;
+}
+
+/** Lowercase, strip punctuation/symbols, collapse whitespace for comparison. */
+function normalizeForCompare(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Loop-close: last scene should reference the hook for natural rewatch */
 export function checkLoopClose(scenes) {
   const firstVO = (scenes[0]?.voiceover || "").toLowerCase();
@@ -725,6 +778,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta) {
     ...checkCTAStacking(scenes),
     ...checkPrimaryGoal(scenes),
     ...checkLoopClose(scenes),
+    ...checkBodyTextVoRedundancy(scenes),
   ];
 
   return {
