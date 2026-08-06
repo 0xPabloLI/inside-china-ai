@@ -83,6 +83,13 @@ describe("withWatermark", () => {
     expect(result).not.toContain("brand-watermark");
   });
 
+  it("skips injection when the scene already renders a large brand logo (CTA)", () => {
+    const input = `<div class="scene s11"><div class="brand-logo-large">logo</div></div></body>`;
+    const result = withWatermark(input);
+    expect(result).toBe(input);
+    expect(result).not.toContain("brand-watermark");
+  });
+
   it("injects watermark otherwise (non-brand-bar scenes)", () => {
     const input = `<div class="scene s4">stats</div></body>`;
     const result = withWatermark(input);
@@ -186,6 +193,13 @@ describe("titleBlock", () => {
   it("appends highlight when it is not part of the text", () => {
     const html = titleBlock("BOTH", { highlight: "OPEN SOURCE" });
     expect(html).toContain("BOTH <span class=\"hl\" style=\"color: var(--blue);\">OPEN SOURCE</span>");
+  });
+
+  it("honors center and color options", () => {
+    const html = titleBlock("VISION IS NOT", { center: true, fontSize: 44, color: "sec" });
+    expect(html).toContain("text-align: center");
+    expect(html).toContain("font-size: 44px");
+    expect(html).toContain("color: var(--sec)");
   });
 });
 

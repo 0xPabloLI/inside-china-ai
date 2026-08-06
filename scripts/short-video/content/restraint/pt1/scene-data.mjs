@@ -3,6 +3,10 @@
  * Series: deepseek-restraint
  * Focus: Vision-driven organization, open source philosophy
  * Target: TikTok 60-70s (~165 words max at 2.5 wps)
+ *
+ * NOTE: every string that renders on screen lives in `texts`. Scene
+ * templates (scenes.mjs) must not contain business copy — the preflight
+ * rules in lib/scene-rules.mjs validate this data, not the templates.
  */
 
 export const seriesMeta = {
@@ -24,6 +28,7 @@ export const scenes = [
     voiceover:
       "DeepSeek has no KPIs. No org chart. Only a vision.",
     texts: {
+      subject: "DEEPSEEK",
       hookText: "0 KPIs. 0 ORG CHARTS.",
       revealText: "ONLY A VISION",
       source: "LIANG WENFENG INVESTOR MEETING",
@@ -39,6 +44,8 @@ export const scenes = [
       person: "Liang Wenfeng",
       role: "DeepSeek CEO",
       badge: "EXCLUSIVE INSIGHT",
+      meetingDuration: "3.5h",
+      meetingLabel: "INVESTOR MEETING",
     },
   },
   {
@@ -48,9 +55,14 @@ export const scenes = [
     voiceover:
       "They started as ordinary people. No money, no chips, no fame. Just one thing: build AGI for humanity.",
     texts: {
+      title: "THE ORIGIN",
       group: "ORDINARY PEOPLE",
       mission: "EXTRAORDINARY MISSION",
       arrow: "→",
+      beforeLabel: "STARTED AS",
+      afterLabel: "BECAME",
+      note: "No money. No chips. No fame. Just one goal.",
+      noteHighlight: "one goal",
     },
   },
   {
@@ -84,9 +96,12 @@ export const scenes = [
     voiceover:
       "Vision isn't a slogan on the wall. It's how you actually do things. Unwritten, but everyone feels it.",
     texts: {
+      title: "VISION IS NOT",
       left: "SLOGAN ON WALL",
       right: "HOW YOU DO THINGS",
       vs: "VS",
+      note: "Unwritten, but everyone feels it",
+      noteHighlight: "Unwritten",
     },
   },
   {
@@ -96,9 +111,13 @@ export const scenes = [
     voiceover:
       "Liang cites GE's Jack Welch. Got most things wrong, but nailed this: vision matters most.",
     texts: {
+      refLabel: "LIANG CITES",
       person: "Jack Welch",
+      personInitials: "JW",
       role: "GE CEO",
       point: "VISION MATTERS MOST",
+      context: "Got most things wrong, but nailed this",
+      contextHighlight: "nailed this",
     },
   },
   {
@@ -111,6 +130,8 @@ export const scenes = [
       stat: "10%",
       context: "OF GLOBAL GDP",
       action: "OPEN SOURCE ALL",
+      conclusion: "You can't monopolize that",
+      conclusionHighlight: "can't monopolize",
     },
   },
   {
@@ -120,10 +141,14 @@ export const scenes = [
     voiceover:
       "Zhipu also open-sources, but it feels forced. For DeepSeek, it's intentional. The vision requires it.",
     texts: {
+      title: "BOTH",
+      titleHighlight: "OPEN SOURCE",
       deepseek: "INTENTIONAL",
       glm: "FORCED",
       deepseekLabel: "DeepSeek",
       glmLabel: "Zhipu",
+      insight: "For DeepSeek, it's intentional. The vision requires it.",
+      insightHighlight: "intentional",
     },
   },
   {
@@ -133,8 +158,11 @@ export const scenes = [
     voiceover:
       "So China's DeepSeek runs on vision, not KPIs. Kindness over profit, open by design. Part 2: the 10-month pricing rule.",
     texts: {
+      title: "DEEPSEEK'S",
+      titleHighlight: "PLAYBOOK",
       points: ["VISION > KPIs", "KINDNESS > PROFIT", "OPEN BY DESIGN"],
       teaser: "PART 2: 10-MONTH RULE",
+      teaserWhen: "TOMORROW",
     },
   },
   {

@@ -53,6 +53,7 @@ function templateCss() {
     .point .num { font-size: 56px; font-weight: 900; color: var(--blue); line-height: 0.9; width: 60px; flex-shrink: 0; }
     .point .text { font-size: 40px; font-weight: 800; color: var(--white); letter-spacing: 1px; }
     .stamp-box { display: inline-block; padding: 20px 40px; border: 2px solid var(--amber); border-radius: 12px; background: rgba(245,158,11,0.06); text-align: center; animation: stampIn 0.5s ease-out forwards; opacity: 0; }
+    .stamp-box .stamp-icon { font-size: 40px; line-height: 1; margin-bottom: 8px; }
     .stamp-box .stamp-text { font-size: 36px; font-weight: 900; color: var(--amber); letter-spacing: 2px; text-shadow: 0 0 30px rgba(245,158,11,0.3); }
     .stamp-box .stamp-sub { font-size: 24px; font-weight: 700; color: var(--sec); letter-spacing: 2px; margin-top: 8px; }
   `;
@@ -108,7 +109,7 @@ function quoteBox({ quote = "", highlight = "", color = "blue", fontSize = 40, s
  * @param {object} opts - { highlight, hlColor, fontSize }
  * @returns {string} HTML string
  */
-function titleBlock(text, { highlight = "", hlColor = "blue", fontSize = 48 } = {}) {
+function titleBlock(text, { highlight = "", hlColor = "blue", fontSize = 48, center = false, color = "white" } = {}) {
   const tag = `<span class="hl" style="color: var(--${hlColor});">${highlight}</span>`;
   // In-place when the highlight is part of the text ("THE CRACK SEQUENCE"
   // with highlight "CRACK"), otherwise appended ("BOTH" + "OPEN SOURCE").
@@ -117,7 +118,8 @@ function titleBlock(text, { highlight = "", hlColor = "blue", fontSize = 48 } = 
       ? text.replace(highlight, tag)
       : `${text} ${tag}`
     : text;
-  return `<div class="title-block" style="font-size: ${fontSize}px;">${inner}</div>`;
+  const align = center ? "text-align: center; " : "";
+  return `<div class="title-block" style="${align}font-size: ${fontSize}px; color: var(--${color});">${inner}</div>`;
 }
 
 /**
@@ -146,13 +148,24 @@ function pointsList(points, { color = "blue", start = 0.3, step = 0.4 } = {}) {
     .join("")}</div>`;
 }
 
+/** RGB triplets for semantic colors — used to tint stamp borders/glows. */
+const COLOR_RGB = {
+  blue: "77,139,255",
+  red: "239,68,68",
+  amber: "245,158,11",
+  green: "52,211,153",
+  purple: "109,78,255",
+  cyan: "34,211,238",
+};
+
 /**
- * Full-width stamp box (verdict / reaction) with optional sub label.
- * @param {object} opts - { text, sub, color }
+ * Full-width stamp box (verdict / reaction) with optional sub label + icon.
+ * @param {object} opts - { text, sub, color, icon }
  * @returns {string} HTML string
  */
-function stampBox({ text = "", sub = "", color = "amber" } = {}) {
-  return `<div class="stamp-box" style="border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.06);"><div class="stamp-text" style="color: var(--${color}); text-shadow: 0 0 30px rgba(245,158,11,0.3);">${text}</div>${sub ? `<div class="stamp-sub">${sub}</div>` : ""}</div>`;
+function stampBox({ text = "", sub = "", color = "amber", icon = "" } = {}) {
+  const rgb = COLOR_RGB[color] || COLOR_RGB.amber;
+  return `<div class="stamp-box" style="border-color: rgba(${rgb},0.3); background: rgba(${rgb},0.06);">${icon ? `<div class="stamp-icon">${icon}</div>` : ""}<div class="stamp-text" style="color: var(--${color}); text-shadow: 0 0 30px rgba(${rgb},0.3);">${text}</div>${sub ? `<div class="stamp-sub">${sub}</div>` : ""}</div>`;
 }
 
 /**

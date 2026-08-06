@@ -90,13 +90,17 @@ function baseStyles(duration) {
 
 /**
  * Inject brand watermark into scene HTML before closing </div></body>.
- * Skips scenes that already render a brand bar (channel identity present —
- * avoids double branding in the top-left corner).
+ * Skips scenes that already render channel identity — a brand bar (top-left
+ * scenes) or a large brand logo (CTA close scenes) — avoiding double
+ * branding in the top-left corner.
  * @param {string} html - Scene HTML string
  * @returns {string} HTML with watermark injected (or unchanged when skipped)
  */
 function withWatermark(html) {
-  if (html.includes("brand-bar")) return html;
+  // Match actual elements (class="..."), not CSS definitions (.brand-bar {...})
+  if (html.includes('class="brand-bar"') || html.includes('class="brand-logo-large"')) {
+    return html;
+  }
   const watermark = `<div class="brand-watermark">${BRAND_MARK_SVG}</div>`;
   return html.replace(/<\/div><\/body>/, `${watermark}</div></body>`);
 }
