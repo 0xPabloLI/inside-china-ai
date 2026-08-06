@@ -36,12 +36,12 @@ function Bar({
         </div>
       </div>
       {best && (
-        <span className="shrink-0 text-[10px] font-bold text-green-600">
+        <span className="shrink-0 text-[10px] font-bold text-success-foreground">
           ★ Best
         </span>
       )}
       {worst && !best && (
-        <span className="shrink-0 text-[10px] font-bold text-red-500">
+        <span className="shrink-0 text-[10px] font-bold text-danger">
           ▼ Worst
         </span>
       )}
@@ -97,8 +97,8 @@ export function BenchmarkControversyView() {
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
                     row.higherIsBetter
-                      ? "bg-green-500/10 text-green-600"
-                      : "bg-red-500/10 text-red-500"
+                      ? "bg-success-muted text-success-foreground"
+                      : "bg-danger-muted text-danger"
                   }`}
                 >
                   {row.higherIsBetter ? "↑ higher better" : "↓ lower better"}
@@ -159,7 +159,7 @@ export function BenchmarkControversyView() {
 
               {/* Analysis note */}
               {isActive && (
-                <div className="mt-2 rounded-md bg-amber-500/5 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                <div className="mt-2 rounded-md bg-warning-muted px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
                   💡 {row.note}
                 </div>
               )}

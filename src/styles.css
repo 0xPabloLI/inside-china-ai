@@ -33,6 +33,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-brand: var(--brand);
+  --color-brand-muted: var(--brand-muted);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-muted: var(--danger-muted);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
   --color-chart-1: var(--chart-1);
@@ -54,6 +65,18 @@
   --radius: 0.5rem;
   /* Brand accent — Dispatch Blue, shared across web + video surfaces */
   --brand: oklch(0.62 0.19 260);
+  --brand-muted: oklch(0.93 0.05 260);
+  --brand-foreground: oklch(0.45 0.15 260);
+  /* Semantic status colors */
+  --success: oklch(0.60 0.15 145);
+  --success-foreground: oklch(0.30 0.10 145);
+  --success-muted: oklch(0.95 0.03 145);
+  --warning: oklch(0.70 0.15 85);
+  --warning-foreground: oklch(0.40 0.12 85);
+  --warning-muted: oklch(0.95 0.03 85);
+  --danger: oklch(0.55 0.22 27);
+  --danger-foreground: oklch(0.40 0.15 27);
+  --danger-muted: oklch(0.95 0.03 27);
   /* Cool off-white palette — tinted toward brand blue */
   --background: oklch(0.985 0.008 260);
   --foreground: oklch(0.22 0.02 260);
@@ -109,6 +132,17 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --brand: oklch(0.62 0.19 260);
+  --brand-muted: oklch(0.25 0.05 260);
+  --brand-foreground: oklch(0.70 0.15 260);
+  --success: oklch(0.70 0.15 145);
+  --success-foreground: oklch(0.95 0.03 145);
+  --success-muted: oklch(0.25 0.05 145);
+  --warning: oklch(0.75 0.12 85);
+  --warning-foreground: oklch(0.95 0.02 85);
+  --warning-muted: oklch(0.25 0.05 85);
+  --danger: oklch(0.65 0.20 22);
+  --danger-foreground: oklch(0.96 0.01 27);
+  --danger-muted: oklch(0.25 0.05 27);
   --ring: oklch(0.55 0.03 255);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);

@@ -18,7 +18,7 @@ export function IdentityBleedView() {
         <div className="flex flex-col items-center gap-1.5">
           <div
             className="flex h-16 w-20 items-center justify-center rounded-xl border-2 text-[11px] font-bold"
-            style={{ borderColor: "#f59e0b", background: "#f59e0b10" }}
+            style={{ borderColor: "var(--color-warning)", background: "var(--color-warning-muted)" }}
           >
             Claude
           </div>
@@ -32,8 +32,8 @@ export function IdentityBleedView() {
           <div className="text-[10px] font-bold text-muted-foreground">
             Distillation
           </div>
-          <div className="relative h-0.5 w-16 bg-gradient-to-r from-amber-500 to-blue-500">
-            <div className="absolute right-0 top-1/2 h-0 w-0 -translate-y-1/2 border-y-[4px] border-l-[6px] border-y-transparent border-l-blue-500" />
+          <div className="relative h-0.5 w-16 bg-gradient-to-r from-warning to-brand">
+            <div className="absolute right-0 top-1/2 h-0 w-0 -translate-y-1/2 border-y-[4px] border-l-[6px] border-y-transparent border-l-brand" />
           </div>
           <div className="text-[10px] text-muted-foreground/70">
             ~3.4M exchanges
@@ -45,12 +45,12 @@ export function IdentityBleedView() {
           <div className="relative">
             <div
               className="flex h-16 w-20 items-center justify-center rounded-xl border-2 text-[11px] font-bold"
-              style={{ borderColor: "#3b82f6", background: "#3b82f610" }}
+              style={{ borderColor: "var(--color-brand)", background: "var(--color-brand-muted)" }}
             >
               Kimi K3
             </div>
             {/* Speech bubble */}
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-amber-400/40 bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-900 shadow-sm dark:bg-amber-950/40 dark:text-amber-200">
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-warning-muted bg-warning-muted px-2.5 py-1 text-[10px] font-medium text-warning-foreground shadow-sm">
               "I'm Claude, made by Anthropic"
             </div>
           </div>
@@ -62,7 +62,7 @@ export function IdentityBleedView() {
 
       {/* Bleed rate badge */}
       <div className="flex justify-center">
-        <div className="rounded-full border border-red-500/30 bg-red-500/5 px-4 py-1.5 text-[11px] font-bold text-red-600">
+        <div className="rounded-full border border-danger-muted bg-danger-muted px-4 py-1.5 text-[11px] font-bold text-danger-foreground">
           15% of K3 interactions self-identify as Claude
         </div>
       </div>
@@ -70,7 +70,7 @@ export function IdentityBleedView() {
       {/* Bleed rate comparison bars */}
       <div>
         <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-foreground/80">
-          <span className="h-2 w-2 rounded-sm bg-blue-500" />
+          <span className="h-2 w-2 rounded-sm bg-brand" />
           Identity Bleed Rate by Model
         </div>
 
@@ -100,7 +100,7 @@ export function IdentityBleedView() {
                   </div>
                 </div>
                 {item.rate === 0 && (
-                  <span className="shrink-0 text-[10px] text-green-600">
+                  <span className="shrink-0 text-[10px] text-success-foreground">
                     ✓ Correct
                   </span>
                 )}

@@ -45,7 +45,7 @@ export function MoonshotFundingView() {
               className="flex items-center gap-1 text-[10px] text-muted-foreground"
             >
               <span
-                className={`h-3 w-3 rounded-sm ${key === "completed" ? "bg-green-500" : key === "target" ? "border-2 border-blue-500 bg-blue-500/20" : key === "denied" ? "border-2 border-red-500 bg-red-500/20" : "border border-dashed border-border/40"}`}
+                className={`h-3 w-3 rounded-sm ${key === "completed" ? "bg-success" : key === "target" ? "border-2 border-brand bg-brand-muted" : key === "denied" ? "border-2 border-danger bg-danger-muted" : "border border-dashed border-border/40"}`}
               />
               {st.label}
             </div>
@@ -73,7 +73,7 @@ export function MoonshotFundingView() {
               >
                 {hasVal && (
                   <div
-                    className={`text-[11px] font-bold whitespace-nowrap ${ev.status === "completed" ? "text-green-600" : ev.status === "target" ? "text-blue-600" : "text-red-500"}`}
+                    className={`text-[11px] font-bold whitespace-nowrap ${ev.status === "completed" ? "text-success-foreground" : ev.status === "target" ? "text-brand-foreground" : "text-danger"}`}
                   >
                     ${ev.valuation}B
                   </div>

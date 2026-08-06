@@ -92,14 +92,14 @@ export function NewsCoverageView() {
         <div
           className={`rounded-lg border bg-muted/30 p-4 transition-all ${
             active.type === "accusation"
-              ? "border-red-500/30"
+              ? "border-danger-muted"
               : active.type === "product"
-                ? "border-blue-500/30"
+                ? "border-brand-muted"
                 : active.type === "funding"
-                  ? "border-green-500/30"
+                  ? "border-success-muted"
                   : active.type === "political"
                     ? "border-purple-500/30"
-                    : "border-amber-500/30"
+                    : "border-warning-muted"
           }`}
         >
           <div className="mb-1.5 flex items-center gap-2">

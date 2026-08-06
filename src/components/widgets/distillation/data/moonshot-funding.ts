@@ -92,18 +92,18 @@ const STATUS_STYLE: Record<
   { bar: string; badge: string; label: string }
 > = {
   completed: {
-    bar: "bg-gradient-to-t from-green-500 to-green-400",
-    badge: "bg-green-500/10 text-green-600",
+    bar: "bg-gradient-to-t from-success to-success",
+    badge: "bg-success-muted text-success-foreground",
     label: "Closed",
   },
   target: {
-    bar: "border-2 border-blue-500 bg-blue-500/20 border-b-0",
-    badge: "bg-blue-500/10 text-blue-600",
+    bar: "border-2 border-brand bg-brand-muted border-b-0",
+    badge: "bg-brand-muted text-brand-foreground",
     label: "Target",
   },
   denied: {
-    bar: "border-2 border-red-500 bg-red-500/20 border-b-0",
-    badge: "bg-red-500/10 text-red-500",
+    bar: "border-2 border-danger bg-danger-muted border-b-0",
+    badge: "bg-danger-muted text-danger",
     label: "Denied",
   },
   product: {

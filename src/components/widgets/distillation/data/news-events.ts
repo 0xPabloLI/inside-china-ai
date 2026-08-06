@@ -31,11 +31,11 @@ export const EVENT_TYPE_META: Record<
   EventType,
   { label: string; color: string; dot: string }
 > = {
-  accusation: { label: "Accusation", color: "#ef4444", dot: "bg-red-500" },
-  product: { label: "Product Launch", color: "#3b82f6", dot: "bg-blue-500" },
-  funding: { label: "Funding / IPO", color: "#22c55e", dot: "bg-green-500" },
+  accusation: { label: "Accusation", color: "var(--color-danger)", dot: "bg-danger" },
+  product: { label: "Product Launch", color: "var(--color-brand)", dot: "bg-brand" },
+  funding: { label: "Funding / IPO", color: "var(--color-success)", dot: "bg-success" },
   political: { label: "Political", color: "#a855f7", dot: "bg-purple-500" },
-  technical: { label: "Technical", color: "#f59e0b", dot: "bg-amber-500" },
+  technical: { label: "Technical", color: "var(--color-warning)", dot: "bg-warning" },
 };
 
 export const NEWS_EVENTS: NewsEvent[] = [

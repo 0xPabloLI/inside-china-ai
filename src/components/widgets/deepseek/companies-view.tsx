@@ -4,11 +4,11 @@ import { I18N, type Lang } from "./i18n";
 import { LangToggle } from "../shared/lang-toggle";
 
 const TONE_STYLES: Record<string, string> = {
-  "tone-compare": "bg-blue-500/10 text-blue-600",
+  "tone-compare": "bg-brand-muted text-brand-foreground",
   "tone-neutral": "bg-muted text-muted-foreground",
-  "tone-critique": "bg-red-500/10 text-red-600",
-  "tone-positive": "bg-green-500/10 text-green-600",
-  "tone-analogy": "bg-amber-500/10 text-amber-700",
+  "tone-critique": "bg-danger-muted text-danger-foreground",
+  "tone-positive": "bg-success-muted text-success-foreground",
+  "tone-analogy": "bg-warning-muted text-warning-foreground",
 };
 
 export function CompaniesView() {

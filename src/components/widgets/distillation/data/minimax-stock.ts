@@ -76,8 +76,8 @@ export const STOCK_POINTS: StockPoint[] = [
 ];
 
 export const SUMMARY_CARDS = [
-  { val: "HK$1,330", label: "Peak (Mar)", color: "text-green-600" },
-  { val: "HK$186", label: "Low (Jul)", color: "text-red-500" },
-  { val: "-86%", label: "Peak Decline", color: "text-red-500" },
-  { val: "HK$16B", label: "Emergency Raise", color: "text-amber-600" },
+  { val: "HK$1,330", label: "Peak (Mar)", color: "text-success-foreground" },
+  { val: "HK$186", label: "Low (Jul)", color: "text-danger" },
+  { val: "-86%", label: "Peak Decline", color: "text-danger" },
+  { val: "HK$16B", label: "Emergency Raise", color: "text-warning-foreground" },
 ];

@@ -5,9 +5,9 @@ import { LangToggle } from "../shared/lang-toggle";
 
 const STATUS_MAP: Record<FundingStatus, { zh: string; en: string; cls: string }> = {
   "self-funded": { zh: "自筹", en: "Self-funded", cls: "bg-muted text-muted-foreground" },
-  target: { zh: "目标", en: "Target", cls: "bg-blue-500/10 text-blue-600" },
-  completed: { zh: "已完成", en: "Closed", cls: "bg-green-500/10 text-green-600" },
-  paused: { zh: "暂停", en: "Paused", cls: "bg-yellow-500/10 text-yellow-700" },
+  target: { zh: "目标", en: "Target", cls: "bg-brand-muted text-brand-foreground" },
+  completed: { zh: "已完成", en: "Closed", cls: "bg-success-muted text-success-foreground" },
+  paused: { zh: "暂停", en: "Paused", cls: "bg-warning-muted text-warning-foreground" },
 };
 
 const MAX_VAL = 71;
@@ -150,10 +150,10 @@ export function FundingView() {
               <span
                 className={`h-3 w-3 rounded-sm ${
                   l.cls === "target"
-                    ? "border-2 border-blue-500 bg-blue-500/20"
+                    ? "border-2 border-brand bg-brand-muted"
                     : l.cls === "actual"
-                      ? "bg-green-500"
-                      : "border-2 border-yellow-500 bg-yellow-500/20"
+                      ? "bg-success"
+                      : "border-2 border-warning bg-warning-muted"
                 }`}
               />
               {l.label}
@@ -205,11 +205,11 @@ export function FundingView() {
                 <div
                   className={`text-[11px] font-bold whitespace-nowrap ${
                     valCls === "actual"
-                      ? "text-green-600"
+                      ? "text-success-foreground"
                       : valCls === "target"
-                        ? "text-blue-600"
+                        ? "text-brand-foreground"
                         : valCls === "paused"
-                          ? "text-yellow-700"
+                          ? "text-warning-foreground"
                           : "text-muted-foreground"
                   }`}
                 >
@@ -218,11 +218,11 @@ export function FundingView() {
                 <div
                   className={`w-full max-w-[56px] rounded-t ${
                     valCls === "actual"
-                      ? "bg-gradient-to-t from-green-500 to-green-400"
+                      ? "bg-gradient-to-t from-success to-success"
                       : valCls === "target"
-                        ? "border-2 border-blue-500 bg-blue-500/20 border-b-0"
+                        ? "border-2 border-brand bg-brand-muted border-b-0"
                         : valCls === "paused"
-                          ? "border-2 border-yellow-500 bg-yellow-500/20 border-b-0"
+                          ? "border-2 border-warning bg-warning-muted border-b-0"
                           : "border border-dashed border-border/40 border-b-0"
                   }`}
                   style={{ height: barH }}

@@ -168,7 +168,7 @@ export function MinimaxStockView() {
 
       {/* Hover detail */}
       {active && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+        <div className="rounded-lg border border-danger-muted bg-danger-muted p-3">
           <div className="flex items-center gap-2">
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-foreground">
               HK${active.price}
