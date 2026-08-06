@@ -1,258 +1,289 @@
 /**
- * Subtitle Verification System
+ * Subtitle verification — reads back the rendered .ass and checks it against
+ * the alignment data.
  *
- * Analyzes subtitle coverage, duration, and audio-sync alignment
- * for pipeline-produced videos. Outputs JSON report + console summary.
+ * The previous version recomputed subtitle timings from the same input the
+ * generator consumed, using its own (divergent) constants. That validates the
+ * input against itself and cannot detect a generator bug: it stayed green while
+ * 22 words were silently dropped from the rendered file.
+ *
+ * This version parses the artifact that will actually be burned in, so a word
+ * that never made it into the .ass, or a karaoke highlight that drifted, fails.
  *
  * Usage (integrated):  called by main.mjs Step 6
- * Usage (CLI):         node verify-subtitles.mjs <video.mp4> <subtitle-timing.json> [scene-durations.json]
+ * Usage (CLI):         node verify-subtitles.mjs <video.mp4> <subtitles.ass> <subtitle-timing.json> <scene-durations.json>
  */
 
 import { execSync } from "child_process";
-import { writeFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+import { FPS, sceneTimeline, findScene } from "./timeline.mjs";
+import { parseAss } from "./subtitles/ass.mjs";
+import { MAX_WORDS, MIN_DURATION, GAP_THRESHOLD, CHAIN_GAP_FRAMES } from "./subtitles/cues.mjs";
 
-// ─── Constants ───
-const START_OFFSET = -0.3; // subtitles appear 0.3s before audio (matches generate-srt.mjs)
-const SCENE_BUFFER = 0.5; // 0.5s between scenes (matches assemble.mjs)
-const GAP_THRESHOLD = 1.0; // gaps > 1.0s are flagged
-const MIN_SUB_DURATION = 0.5; // subtitles < 0.5s are flagged
-const SYNC_TOLERANCE = 0.5; // sync deviations > 0.5s are flagged
-const SILENCE_THRESHOLD = -35; // dB threshold for silencedetect
-const SILENCE_MIN_DURATION = 0.3; // minimum silence duration to detect
+/** Max acceptable distance between a word's highlight and its spoken onset. */
+export const SYNC_TOLERANCE = 0.08;
+/** Stretches of video longer than this with no subtitle are reported. */
+export const COVERAGE_GAP_THRESHOLD = 1.0;
+/** ASS timestamps are centisecond-resolution; allow for rounding at both ends. */
+const ROUNDING_SLACK = 0.011;
+const CHAIN_GAP = CHAIN_GAP_FRAMES / FPS;
+const SILENCE_THRESHOLD = -35;
+const SILENCE_MIN_DURATION = 0.3;
 
-// ─── Pure Functions (no external dependencies) ───
+// ─── Pure analysis ───
 
 /**
- * Convert per-scene timing data to absolute timestamps.
- * Must match generate-srt.mjs logic: sceneOffset + START_OFFSET, 0.5s buffer.
+ * Where each aligned word should land on the final timeline.
  *
- * @param {Array<{sceneId, segments: Array<{text, start, end}>}>} timingData
- * @param {Array<{sceneId, duration}>} sceneDurations
- * @returns {Array<{sceneId, start, end, text}>}
+ * Deliberately simple: scene offset + word offset. It does not replicate the
+ * generator's chunking or lead-in rules, so agreement between this and the
+ * rendered .ass is real evidence, not a tautology.
+ *
+ * @param {Array} timingData - subtitle-timing.json
+ * @param {Array<{sceneId: number, duration: number}>} sceneDurations
+ * @returns {Array<{sceneId: number, text: string, start: number, end: number}>}
  */
-export function computeAbsoluteTimestamps(timingData, sceneDurations) {
-  if (!timingData || timingData.length === 0) return [];
+export function expectedWordTimes(timingData, sceneDurations) {
+  const timeline = sceneTimeline(sceneDurations);
+  const expected = [];
 
-  const subtitles = [];
-  let sceneOffset = 0;
-
-  for (const scene of timingData) {
-    const sceneId = scene.sceneId;
-    const sceneDur = sceneDurations.find((s) => s.sceneId === sceneId)?.duration || 0;
-
-    for (const seg of scene.segments || []) {
-      const startAbs = Math.max(sceneOffset + seg.start + START_OFFSET, 0);
-      const endAbs = sceneOffset + Math.min(seg.end, sceneDur);
-      subtitles.push({
-        sceneId,
-        start: startAbs,
-        end: endAbs,
-        text: seg.text || "",
-      });
+  for (const scene of timingData ?? []) {
+    const entry = findScene(timeline, scene.sceneId);
+    const limit = entry.offset + entry.ttsDuration;
+    for (const segment of scene.segments ?? []) {
+      for (const word of segment.words ?? []) {
+        const start = Math.min(Math.max(entry.offset + word.start, entry.offset), limit);
+        expected.push({
+          sceneId: scene.sceneId,
+          text: word.text,
+          start,
+          end: Math.min(Math.max(entry.offset + word.end, start), limit),
+        });
+      }
     }
-    sceneOffset += sceneDur + SCENE_BUFFER;
   }
 
-  return subtitles;
+  return expected;
+}
+
+function renderedWords(cues) {
+  return (cues ?? []).flatMap((cue) => cue.words ?? []);
 }
 
 /**
- * Analyze subtitle coverage — find gaps where audio plays but no subtitle.
+ * Check that the rendered subtitles carry every aligned word, in order.
  *
- * @param {Array<{start, end, sceneId, text}>} subtitles - sorted or unsorted
- * @param {number} videoDuration - total video duration in seconds
- * @returns {{percent: number, gaps: Array<{from, to, duration}>}}
+ * @param {Array} cues - parsed .ass cues
+ * @param {Array} expectedWords - from expectedWordTimes()
  */
-export function analyzeCoverage(subtitles, videoDuration) {
-  if (!subtitles || subtitles.length === 0) {
-    return {
-      percent: 0,
-      gaps: [{ from: 0, to: videoDuration, duration: videoDuration }],
-    };
+export function compareWordSequence(cues, expectedWords) {
+  const rendered = renderedWords(cues);
+  const expected = expectedWords ?? [];
+
+  let firstMismatch = null;
+  const limit = Math.max(rendered.length, expected.length);
+  for (let i = 0; i < limit; i++) {
+    const renderedText = rendered[i]?.text ?? null;
+    const expectedText = expected[i]?.text ?? null;
+    if (renderedText !== expectedText) {
+      firstMismatch = { index: i, expected: expectedText, rendered: renderedText };
+      break;
+    }
   }
 
-  const sorted = [...subtitles].sort((a, b) => a.start - b.start);
+  return {
+    matches: firstMismatch === null,
+    rendered: rendered.length,
+    expected: expected.length,
+    firstMismatch,
+  };
+}
+
+/**
+ * Compare each word's karaoke onset against when it is actually spoken.
+ */
+export function analyzeSync(cues, expectedWords) {
+  const rendered = renderedWords(cues);
+  const expected = expectedWords ?? [];
+  const offenders = [];
+  let maxDeviation = 0;
+
+  for (let i = 0; i < Math.min(rendered.length, expected.length); i++) {
+    // A text mismatch is a sequence error, not a sync error — don't double-report.
+    if (rendered[i].text !== expected[i].text) break;
+
+    const delta = rendered[i].onset - expected[i].start;
+    maxDeviation = Math.max(maxDeviation, Math.abs(delta));
+    if (Math.abs(delta) > SYNC_TOLERANCE) {
+      offenders.push({
+        text: expected[i].text,
+        expected: expected[i].start,
+        actual: rendered[i].onset,
+        delta,
+      });
+    }
+  }
+
+  return { maxDeviation, tolerance: SYNC_TOLERANCE, offenders };
+}
+
+/**
+ * Cue-to-cue gaps must be either exactly two frames (chained) or at least half
+ * a second. Anything in between reads as a blink; anything negative overlaps.
+ *
+ * Gaps that span a scene change are exempt: a cue is deliberately cut off at
+ * the shot change rather than straddling it, so the chaining rule cannot apply.
+ *
+ * @param {Array<{start: number, end: number}>} cues
+ * @param {number[]} [sceneBoundaries] - times where the video cuts to a new scene
+ */
+export function analyzeGaps(cues, sceneBoundaries = []) {
+  const sorted = [...(cues ?? [])].sort((a, b) => a.start - b.start);
+  const violations = [];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i].start - sorted[i - 1].end;
+    const chained = Math.abs(gap - CHAIN_GAP) <= ROUNDING_SLACK;
+    const separated = gap >= GAP_THRESHOLD - ROUNDING_SLACK;
+    const atSceneChange = sceneBoundaries.some(
+      (t) => t >= sorted[i - 1].end - ROUNDING_SLACK && t <= sorted[i].start + ROUNDING_SLACK,
+    );
+    if (!chained && !separated && !atSceneChange) {
+      violations.push({ index: i, gap, previousEnd: sorted[i - 1].end, start: sorted[i].start });
+    }
+  }
+
+  return { violations };
+}
+
+/**
+ * Cues shorter than the readable minimum.
+ */
+export function analyzeCueDurations(cues) {
+  const tooShort = (cues ?? [])
+    .filter((cue) => cue.end - cue.start < MIN_DURATION - ROUNDING_SLACK)
+    .map((cue) => ({
+      start: cue.start,
+      duration: cue.end - cue.start,
+      text: (cue.text ?? "").substring(0, 40),
+    }));
+
+  return { tooShort };
+}
+
+/**
+ * Cues carrying more words than the karaoke sweep can be followed across.
+ */
+export function analyzeWordsPerLine(cues) {
+  const overLong = (cues ?? [])
+    .filter((cue) => (cue.words?.length ?? 0) > MAX_WORDS)
+    .map((cue) => ({ start: cue.start, words: cue.words.length, text: cue.text ?? "" }));
+
+  return { overLong };
+}
+
+/**
+ * Stretches of the video with no subtitle on screen.
+ */
+export function analyzeCoverage(cues, videoDuration) {
+  if (!cues || cues.length === 0) {
+    return { percent: 0, gaps: [{ from: 0, to: videoDuration, duration: videoDuration }] };
+  }
+
+  const sorted = [...cues].sort((a, b) => a.start - b.start);
   const gaps = [];
   let prevEnd = 0;
 
-  for (const sub of sorted) {
-    if (sub.start - prevEnd > GAP_THRESHOLD) {
-      gaps.push({
-        from: prevEnd,
-        to: sub.start,
-        duration: sub.start - prevEnd,
-      });
+  for (const cue of sorted) {
+    if (cue.start - prevEnd > COVERAGE_GAP_THRESHOLD) {
+      gaps.push({ from: prevEnd, to: cue.start, duration: cue.start - prevEnd });
     }
-    prevEnd = Math.max(prevEnd, sub.end);
+    prevEnd = Math.max(prevEnd, cue.end);
   }
 
-  // Check gap at end
-  if (videoDuration - prevEnd > GAP_THRESHOLD) {
-    gaps.push({
-      from: prevEnd,
-      to: videoDuration,
-      duration: videoDuration - prevEnd,
-    });
+  if (videoDuration - prevEnd > COVERAGE_GAP_THRESHOLD) {
+    gaps.push({ from: prevEnd, to: videoDuration, duration: videoDuration - prevEnd });
   }
 
-  const totalGapDuration = gaps.reduce((sum, g) => sum + g.duration, 0);
-  const percent = Math.max(0, ((videoDuration - totalGapDuration) / videoDuration) * 100);
+  const uncovered = gaps.reduce((sum, g) => sum + g.duration, 0);
+  const percent = Math.max(0, ((videoDuration - uncovered) / videoDuration) * 100);
+
+  return { percent: Math.round(percent * 10) / 10, gaps };
+}
+
+/**
+ * Combine every analysis into one report.
+ *
+ * Errors (fail the run): a missing/extra word, a word out of sync, a cue gap in
+ * the blink band. Warnings (reported, don't fail): short cues, long lines,
+ * uncovered stretches — these are style issues, not broken output.
+ */
+export function buildReport({
+  cues,
+  expectedWords,
+  videoDuration,
+  silenceSegments = [],
+  sceneBoundaries = [],
+}) {
+  const wordSequence = compareWordSequence(cues, expectedWords);
+  const sync = analyzeSync(cues, expectedWords);
+  const gaps = analyzeGaps(cues, sceneBoundaries);
+  const durations = analyzeCueDurations(cues);
+  const wordsPerLine = analyzeWordsPerLine(cues);
+  const coverage = analyzeCoverage(cues, videoDuration);
+
+  const errors = (wordSequence.matches ? 0 : 1) + sync.offenders.length + gaps.violations.length;
+  const warnings = durations.tooShort.length + wordsPerLine.overLong.length + coverage.gaps.length;
 
   return {
-    percent: Math.round(percent * 10) / 10,
+    videoDuration,
+    totalCues: cues?.length ?? 0,
+    totalWords: renderedWords(cues).length,
+    wordSequence,
+    sync,
     gaps,
+    durations,
+    wordsPerLine,
+    coverage,
+    silenceSegments,
+    summary: { errors, warnings, passed: errors === 0 },
   };
 }
 
 /**
- * Analyze subtitle durations — flag subtitles shorter than threshold.
- *
- * @param {Array<{start, end, sceneId, text}>} subtitles
- * @returns {{tooShort: Array<{sceneId, duration, text}>}}
- */
-export function analyzeDurations(subtitles) {
-  if (!subtitles || subtitles.length === 0) {
-    return { tooShort: [] };
-  }
-
-  return {
-    tooShort: subtitles
-      .filter((s) => s.end - s.start < MIN_SUB_DURATION)
-      .map((s) => ({
-        sceneId: s.sceneId,
-        duration: Math.round((s.end - s.start) * 100) / 100,
-        text: (s.text || "").substring(0, 40),
-      })),
-  };
-}
-
-/**
- * Compare subtitle timestamps to audio silence segments.
- * For each silence, checks if a subtitle starts near silence_end (speech resume).
- *
- * @param {Array<{start, end}>} subtitles
- * @param {Array<{start, end}>} silenceSegments
- * @returns {{deviations: Array<{subtitleStart, silenceStart, delta}>}}
- */
-export function compareSync(subtitles, silenceSegments) {
-  if (!subtitles?.length || !silenceSegments?.length) {
-    return { deviations: [] };
-  }
-
-  const deviations = [];
-
-  for (const sil of silenceSegments) {
-    // Find subtitle whose start is nearest to silence_end
-    let nearestSub = null;
-    let minDelta = Infinity;
-
-    for (const sub of subtitles) {
-      const delta = Math.abs(sub.start - sil.end);
-      if (delta < minDelta) {
-        minDelta = delta;
-        nearestSub = sub;
-      }
-    }
-
-    if (minDelta > SYNC_TOLERANCE && nearestSub) {
-      deviations.push({
-        subtitleStart: nearestSub.start,
-        silenceStart: sil.start,
-        delta: Math.round(minDelta * 100) / 100,
-      });
-    }
-  }
-
-  return { deviations };
-}
-
-/**
- * Parse FFmpeg silencedetect stderr output into silence segments.
- * Only returns paired start/end segments.
- *
- * @param {string} output - ffmpeg stderr
- * @returns {Array<{start: number, end: number}>}
+ * Parse FFmpeg silencedetect output into paired segments.
  */
 export function parseSilenceOutput(output) {
   if (!output) return [];
 
   const starts = [];
   const ends = [];
-
   for (const line of output.split("\n")) {
-    const startMatch = line.match(/silence_start:\s*([\d.]+)/);
-    if (startMatch) {
-      starts.push(parseFloat(startMatch[1]));
+    const start = line.match(/silence_start:\s*([\d.]+)/);
+    if (start) {
+      starts.push(parseFloat(start[1]));
       continue;
     }
-    const endMatch = line.match(/silence_end:\s*([\d.]+)/);
-    if (endMatch) {
-      ends.push(parseFloat(endMatch[1]));
-    }
+    const end = line.match(/silence_end:\s*([\d.]+)/);
+    if (end) ends.push(parseFloat(end[1]));
   }
 
-  // Pair starts with ends (only complete pairs)
-  const pairCount = Math.min(starts.length, ends.length);
-  const segments = [];
-  for (let i = 0; i < pairCount; i++) {
-    segments.push({ start: starts[i], end: ends[i] });
-  }
-
-  return segments;
+  const pairs = Math.min(starts.length, ends.length);
+  return Array.from({ length: pairs }, (_, i) => ({ start: starts[i], end: ends[i] }));
 }
 
 /**
  * Parse ffprobe duration output.
- *
- * @param {string} output - ffprobe stdout
- * @returns {number|null}
  */
 export function parseDuration(output) {
   if (!output) return null;
-  const num = parseFloat(output.trim());
-  return isNaN(num) ? null : num;
+  const value = parseFloat(output.trim());
+  return Number.isNaN(value) ? null : value;
 }
 
-/**
- * Generate a combined report from all analysis functions.
- *
- * @param {Array<{start, end, sceneId, text}>} subtitles
- * @param {number} videoDuration
- * @param {Array<{start, end}>} silenceSegments
- * @returns {object} full report
- */
-export function generateReport(subtitles, videoDuration, silenceSegments) {
-  const coverage = analyzeCoverage(subtitles, videoDuration);
-  const durations = analyzeDurations(subtitles);
-  const sync = compareSync(subtitles, silenceSegments);
+// ─── FFmpeg-backed helpers ───
 
-  const totalIssues = coverage.gaps.length + durations.tooShort.length + sync.deviations.length;
-
-  return {
-    videoDuration,
-    totalSubtitles: subtitles.length,
-    coverage,
-    durations,
-    sync: {
-      silenceSegments,
-      deviations: sync.deviations,
-    },
-    summary: {
-      totalIssues,
-      passed: totalIssues === 0,
-    },
-  };
-}
-
-// ─── FFmpeg-dependent Functions ───
-
-/**
- * Detect silence segments in video audio via FFmpeg.
- *
- * @param {string} videoPath
- * @returns {Array<{start, end}>}
- */
 export function detectSilence(videoPath) {
   try {
     const output = execSync(
@@ -265,108 +296,111 @@ export function detectSilence(videoPath) {
   }
 }
 
-/**
- * Get video duration via ffprobe.
- * Falls back to sum of scene durations + buffers if ffprobe fails.
- *
- * @param {string} videoPath
- * @param {number} fallbackDuration
- * @returns {number}
- */
 export function getVideoDuration(videoPath, fallbackDuration = 0) {
   try {
     const output = execSync(
       `ffprobe -i "${videoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
       { stdio: ["pipe", "pipe", "pipe"] },
     ).toString();
-    const dur = parseDuration(output);
-    if (dur !== null) return dur;
+    const duration = parseDuration(output);
+    if (duration !== null) return duration;
   } catch {
-    // ffprobe failed
+    // fall through to the caller's estimate
   }
   return fallbackDuration;
 }
 
-// ─── Main Entry ───
+// ─── Entry point ───
 
 /**
- * Run full subtitle verification on a pipeline-produced video.
- * Writes JSON report + prints console summary.
+ * Verify the subtitles that will be burned into a video.
  *
- * @param {string} videoPath - path to final video
- * @param {Array} timingData - subtitle-timing.json content
- * @param {Array<{sceneId, duration}>} sceneDurations
- * @param {string|null} outputDir - directory for verification-report.json
- * @returns {object} verification report
+ * @param {object} options
+ * @param {string} options.videoPath
+ * @param {string} options.assPath - the generated .ass file
+ * @param {Array} options.timingData - subtitle-timing.json
+ * @param {Array<{sceneId: number, duration: number}>} options.sceneDurations
+ * @param {string|null} [options.outputDir] - where to write verification-report.json
+ * @returns {object} report
  */
-export function verifySubtitles(videoPath, timingData, sceneDurations, outputDir = null) {
-  const subtitles = computeAbsoluteTimestamps(timingData, sceneDurations);
+export function verifySubtitles({
+  videoPath,
+  assPath,
+  timingData,
+  sceneDurations,
+  outputDir = null,
+}) {
+  const cues = parseAss(readFileSync(assPath, "utf8"));
+  const expectedWords = expectedWordTimes(timingData, sceneDurations);
 
-  // Fallback duration: sum of scene durations + 0.5s buffers
-  const fallbackDuration = sceneDurations.reduce(
-    (sum, s) => sum + (s.duration || 0) + SCENE_BUFFER,
-    0,
-  );
+  const timeline = sceneTimeline(sceneDurations);
+  const fallbackDuration = timeline.reduce((sum, scene) => sum + scene.clipDuration, 0);
   const videoDuration = getVideoDuration(videoPath, fallbackDuration);
 
-  const silenceSegments = detectSilence(videoPath);
-  const report = generateReport(subtitles, videoDuration, silenceSegments);
+  const report = buildReport({
+    cues,
+    expectedWords,
+    videoDuration,
+    silenceSegments: detectSilence(videoPath),
+    sceneBoundaries: timeline.map((scene) => scene.offset + scene.clipDuration),
+  });
 
-  // Write JSON report
   if (outputDir) {
     const reportPath = join(outputDir, "verification-report.json");
     writeFileSync(reportPath, JSON.stringify(report, null, 2));
     console.log(`  📋 Verification report: ${reportPath}`);
   }
 
-  // Console summary
   printSummary(report, videoPath);
-
   return report;
 }
 
-/**
- * Print human-readable summary to console.
- */
 function printSummary(report, videoPath) {
-  const { summary, coverage, durations, sync, videoDuration, totalSubtitles } = report;
+  const { summary, wordSequence, sync, gaps, durations, wordsPerLine, coverage } = report;
 
   console.log(`\n📊 Subtitle Verification Report`);
   console.log(`${"=".repeat(50)}`);
   console.log(`Video: ${videoPath}`);
-  console.log(`Duration: ${videoDuration.toFixed(1)}s`);
-  console.log(`Subtitles: ${totalSubtitles} chunks`);
+  console.log(`Duration: ${report.videoDuration.toFixed(2)}s`);
+  console.log(`Cues: ${report.totalCues}   Words: ${report.totalWords}`);
 
-  // Coverage
-  console.log(`\n🔍 Coverage: ${coverage.percent}% (${coverage.gaps.length} gap${coverage.gaps.length !== 1 ? "s" : ""})`);
-  if (coverage.gaps.length > 0) {
-    for (const g of coverage.gaps) {
-      console.log(`   ${g.from.toFixed(1)}s - ${g.to.toFixed(1)}s (${g.duration.toFixed(1)}s gap)`);
-    }
+  console.log(
+    `\n🔍 Word sequence: ${wordSequence.rendered}/${wordSequence.expected} rendered` +
+      (wordSequence.matches ? " ✓" : ""),
+  );
+  if (!wordSequence.matches) {
+    const m = wordSequence.firstMismatch;
+    console.log(
+      `   ✗ first mismatch at #${m.index}: expected "${m.expected}", got "${m.rendered}"`,
+    );
   }
 
-  // Durations
-  console.log(`\n🔍 Duration: ${durations.tooShort.length} too short`);
-  if (durations.tooShort.length > 0) {
-    for (const s of durations.tooShort) {
-      console.log(`   Scene ${s.sceneId}: ${s.duration}s — "${s.text}"`);
-    }
+  console.log(
+    `\n🔍 Sync: max deviation ${(sync.maxDeviation * 1000).toFixed(0)}ms ` +
+      `(tolerance ${(sync.tolerance * 1000).toFixed(0)}ms), ${sync.offenders.length} over`,
+  );
+  for (const o of sync.offenders.slice(0, 5)) {
+    console.log(`   ✗ "${o.text}" at ${o.actual.toFixed(2)}s, Δ ${(o.delta * 1000).toFixed(0)}ms`);
   }
 
-  // Sync
-  console.log(`\n🔍 Sync: ${sync.deviations.length} deviation${sync.deviations.length !== 1 ? "s" : ""}`);
-  if (sync.deviations.length > 0) {
-    for (const d of sync.deviations) {
-      console.log(`   Subtitle ${d.subtitleStart.toFixed(1)}s vs silence ${d.silenceStart.toFixed(1)}s (Δ ${d.delta}s)`);
-    }
+  console.log(`\n🔍 Cue gaps: ${gaps.violations.length} violation(s)`);
+  for (const v of gaps.violations.slice(0, 5)) {
+    console.log(
+      `   ✗ ${v.previousEnd.toFixed(2)}s → ${v.start.toFixed(2)}s (${(v.gap * 1000).toFixed(0)}ms)`,
+    );
   }
 
-  // Summary
+  console.log(
+    `\n⚠️  Warnings: ${durations.tooShort.length} short cue(s), ` +
+      `${wordsPerLine.overLong.length} long line(s), ${coverage.gaps.length} coverage gap(s) ` +
+      `(${coverage.percent}% covered)`,
+  );
+
   console.log(`\n${"=".repeat(50)}`);
   if (summary.passed) {
-    console.log(`✅ PASS — No issues found`);
+    console.log(`✅ PASS — ${summary.warnings} warning(s)`);
   } else {
-    console.log(`❌ FAIL — ${summary.totalIssues} issue(s) found`);
+    console.log(`❌ FAIL — ${summary.errors} error(s), ${summary.warnings} warning(s)`);
   }
   console.log();
 }

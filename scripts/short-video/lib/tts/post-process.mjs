@@ -103,7 +103,7 @@ export async function postProcessBatch(audioPath, opts = {}) {
 /**
  * Force-align subtitle timing using text-align.py (wav2vec2).
  *
- * Output: {outputDir}/subtitle-timing.json — used by generate-srt.mjs.
+ * Output: {outputDir}/subtitle-timing.json — used by lib/subtitles/generate.mjs.
  * Gracefully skips if the alignment script is not found.
  *
  * @param {Array} scenes

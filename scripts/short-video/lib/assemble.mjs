@@ -7,12 +7,13 @@
 import { execSync, execFileSync } from "child_process";
 import { writeFileSync, unlinkSync, existsSync, renameSync } from "fs";
 import { join } from "path";
+import { FPS, sceneClipFrames, sceneClipDuration } from "./timeline.mjs";
 
 function run(cmd) {
   execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
-export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srtPath = null, version = null, subject = null) {
+export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, subtitlesPath = null, version = null, subject = null) {
   // File prefix: {subject}-{pipelineId} if subject exists and differs from pipelineId, else {pipelineId}
   const filePrefix = subject && subject !== pipelineId ? `${subject}-${pipelineId}` : pipelineId;
   // Versioned output: {filePrefix}-v{version}-short.mp4, or {filePrefix}-short.mp4 if no version
@@ -23,21 +24,24 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srt
 
   for (const scene of scenes) {
     const sceneOutput = join(outputDir, `scene-${scene.sceneId}_final.mp4`);
-    // Video is recorded for duration + 0.5s buffer
-    const videoDuration = scene.duration + 0.5;
-    const fadeOutStart = Math.max(videoDuration - 0.3, 0.1).toFixed(2);
+    // Clip length is defined in frames (see lib/timeline.mjs). Requesting a
+    // duration in seconds would be rounded up to the next frame by FFmpeg,
+    // drifting the subtitle timeline a few ms per scene.
+    const clipFrames = sceneClipFrames(scene.duration);
+    const clipDuration = sceneClipDuration(scene.duration);
+    const fadeOutStart = Math.max(clipDuration - 0.3, 0.1).toFixed(3);
 
     // Build FFmpeg command: combine video + audio with fade transitions
     const parts = [
       "ffmpeg -y",
       `-i "${scene.videoPath}"`,
       `-i "${scene.audioPath}"`,
-      "-c:v libx264 -preset fast -crf 23 -r 30",
+      `-c:v libx264 -preset fast -crf 23 -r ${FPS}`,
       "-c:a aac -b:a 192k -ar 44100",
       "-map 0:v -map 1:a",
       // Fade in at start, fade out near end
       `-vf "fade=t=in:st=0:d=0.2,fade=t=out:st=${fadeOutStart}:d=0.3"`,
-      `-t ${videoDuration.toFixed(2)}`,
+      `-frames:v ${clipFrames}`,
       `"${sceneOutput}"`,
     ];
 
@@ -57,13 +61,13 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, srt
   // Re-encoding audio during concat eliminates this.
   run(`ffmpeg -y -f concat -safe 0 -i "${concatFile}" -c:v copy -c:a aac -b:a 192k "${finalPath}"`);
 
-  // Burn in subtitles via SRT if provided
-  if (srtPath && existsSync(srtPath)) {
+  // Burn in subtitles (ASS) if provided
+  if (subtitlesPath && existsSync(subtitlesPath)) {
     const noSubsPath = finalPath.replace(".mp4", "-nosubs.mp4");
     renameSync(finalPath, noSubsPath);
     // Use ffmpeg-full for subtitles filter (has libass support)
     const ffmpegFull = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
-    const subFilter = `ass=${srtPath}`;
+    const subFilter = `ass=${subtitlesPath}`;
     execFileSync(
       ffmpegFull,
       ["-y", "-i", noSubsPath, "-vf", subFilter, "-c:a", "copy", finalPath],

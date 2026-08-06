@@ -1,93 +1,169 @@
 /**
- * Render-only script — re-generates HTML scenes and records videos
- * WITHOUT re-running TTS. Uses existing audio files from output/audio/.
- * Use this when you only changed HTML/CSS templates (scene design, subtitles, logo).
+ * Render-only pipeline — re-renders scenes, subtitles and the final video from
+ * audio that already exists in output/{pipelineId}/audio/.
+ *
+ * Use it when only the visuals or the subtitle logic changed: it skips TTS and
+ * forced alignment (the slow, non-deterministic steps) but runs the exact same
+ * scene generation, assembly, subtitle generation and verification as main.mjs,
+ * so what it produces is representative of a full run.
  *
  * Usage:
- *   node scripts/short-video/render-only.mjs           # No BGM
- *   node scripts/short-video/render-only.mjs --bgm      # With BGM
+ *   node scripts/short-video/render-only.mjs --content restraint/pt1
+ *   node scripts/short-video/render-only.mjs --content deepseek --bgm
  */
 import { execSync } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { writeFileSync } from "fs";
-import { scenes } from "./content/deepseek/scene-data.mjs";
-import { generateScene } from "./content/deepseek/scenes.mjs";
+import { writeFileSync, existsSync } from "fs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { generateBGM } from "./lib/generate-bgm.mjs";
+import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
+import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const outputDir = join(__dirname, "output");
-const audioDir = join(outputDir, "audio");
-const scenesDir = join(outputDir, "scenes");
-const videoDir = join(outputDir, "video");
+const args = process.argv.slice(2);
+function getArg(name) {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+}
 
-// Build scene data from existing audio files
-const sceneData = [];
-for (const scene of scenes) {
-  const audioPath = join(audioDir, `scene-${scene.id}.mp3`);
-  let duration;
+async function main() {
+  const contentDir = getArg("content") || "deepseek";
+  const contentPath = `./content/${contentDir}`;
+
+  let meta, scenes, generateScene;
   try {
-    const info = execSync(
-      `ffprobe -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    duration = parseFloat(info.trim());
+    ({ meta } = await import(`${contentPath}/meta.mjs`));
+    ({ scenes } = await import(`${contentPath}/scene-data.mjs`));
+    ({ generateScene } = await import(`${contentPath}/scenes.mjs`));
   } catch (e) {
-    console.error(`Failed to get duration for scene ${scene.id}: ${e.message}`);
+    console.error(`❌ Failed to load content pipeline: ${contentPath}`);
+    console.error(`   ${e.message}`);
     process.exit(1);
   }
 
-  const htmlPath = join(scenesDir, `scene-${scene.id}.html`);
-  sceneData.push({
-    sceneId: scene.id,
-    audioPath,
-    duration,
-    htmlPath,
-  });
-  console.log(`  Scene ${scene.id}: ${duration.toFixed(2)}s`);
-}
+  const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const outputDir = join(__dirname, "output", meta.pipelineId);
+  const audioDir = join(outputDir, "audio");
+  const scenesDir = join(outputDir, "scenes");
+  const videoDir = join(outputDir, "video");
 
-const totalDuration = sceneData.reduce((s, d) => s + d.duration, 0);
-console.log(`  Total: ${totalDuration.toFixed(1)}s\n`);
+  console.log(`🎬 Render-only (no TTS)`);
+  console.log(`   Content: ${meta.title || contentDir}`);
+  console.log(`   Pipeline ID: ${meta.pipelineId}`);
+  console.log(`   Version: ${version}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-// Step 1: Re-generate HTML scenes
-console.log("🎨 Re-generating HTML scene templates...\n");
-for (const sd of sceneData) {
-  const scene = scenes.find((s) => s.id === sd.sceneId);
-  const html = generateScene(scene, sd.duration);
-  const htmlPath = join(scenesDir, `scene-${sd.sceneId}.html`);
-  writeFileSync(htmlPath, html);
-  console.log(`  Scene ${sd.sceneId} (${scene.label || "scene"}): ${sd.duration.toFixed(1)}s`);
-}
+  // ── Step 1: Read durations from the existing voiceover ──
+  const sceneData = [];
+  for (const scene of scenes) {
+    const audioPath = join(audioDir, `scene-${scene.id}.mp3`);
+    if (!existsSync(audioPath)) {
+      console.error(`❌ Missing audio: ${audioPath}`);
+      console.error(`   Run main.mjs --content ${contentDir} first.`);
+      process.exit(1);
+    }
 
-// Step 2: Re-record videos
-console.log("\n📹 Re-recording scene videos...\n");
-const videoResults = await recordScenes(sceneData, videoDir);
-console.log();
+    const info = execSync(
+      `ffprobe -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
+    ).toString();
+    const duration = parseFloat(info.trim());
+    if (Number.isNaN(duration)) {
+      console.error(`❌ Could not read duration for scene ${scene.id}`);
+      process.exit(1);
+    }
 
-// Step 3: BGM (optional)
-const useBGM = process.argv.includes("--bgm");
-let bgmPath = null;
-if (useBGM) {
-  console.log("🎵 Generating background music...\n");
-  const bgm = generateBGM(Math.ceil(totalDuration + 10), outputDir);
-  bgmPath = bgm.bgmPath;
+    sceneData.push({
+      sceneId: scene.id,
+      audioPath,
+      duration,
+      htmlPath: join(scenesDir, `scene-${scene.id}.html`),
+    });
+  }
+
+  const totalDuration = sceneData.reduce((s, d) => s + d.duration, 0);
+  console.log(`  Voiceover: ${sceneData.length} scenes, ${totalDuration.toFixed(1)}s total\n`);
+
+  // ── Step 2: Re-generate HTML scenes ──
+  console.log("🎨 Step 2: Generating HTML scene templates...\n");
+  for (const sd of sceneData) {
+    const scene = scenes.find((s) => s.id === sd.sceneId);
+    writeFileSync(sd.htmlPath, generateScene(scene, sd.duration, scene.voiceover));
+    console.log(
+      `  Scene ${sd.sceneId} (${scene.name || scene.label || "scene"}): ${sd.duration.toFixed(1)}s`,
+    );
+  }
   console.log();
-} else {
-  console.log("🎵 BGM skipped (use --bgm to enable)\n");
+
+  // ── Step 3: Re-record videos ──
+  console.log("📹 Step 3: Recording scene videos with Playwright...\n");
+  const videoResults = await recordScenes(sceneData, videoDir);
+  console.log();
+
+  // ── Step 3.5: BGM (optional) ──
+  const useBGM = args.includes("--bgm");
+  let bgmPath = null;
+  if (useBGM) {
+    console.log("🎵 Step 3.5: Generating background music...\n");
+    bgmPath = generateBGM(Math.ceil(totalDuration + 10), outputDir).bgmPath;
+    console.log();
+  } else {
+    console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
+  }
+
+  // ── Step 4: Re-generate subtitles from the existing alignment ──
+  const sceneDurations = sceneData.map((s) => ({ sceneId: s.sceneId, duration: s.duration }));
+  const subtitles = regenerateSubtitles({ outputDir, sceneDurations });
+  if (subtitles) {
+    console.log(`📝 Step 4: ASS generated: ${subtitles.cues.length} cues\n`);
+  } else {
+    console.log("📝 Step 4: Subtitles skipped (no subtitle-timing.json)\n");
+  }
+
+  // ── Step 5: Assemble ──
+  console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
+  const result = assembleVideo(
+    videoResults,
+    outputDir,
+    meta.pipelineId,
+    bgmPath,
+    subtitles?.assPath ?? null,
+    version,
+    meta.subject,
+  );
+
+  // ── Step 6: Verify ──
+  const skipVerify = args.includes("--skip-verify");
+  if (skipVerify || !subtitles) {
+    console.log("🔍 Step 6: Subtitle verification skipped\n");
+  } else {
+    console.log("🔍 Step 6: Verifying rendered subtitles against the alignment data...\n");
+    const report = verifySubtitles({
+      videoPath: result.path,
+      assPath: subtitles.assPath,
+      timingData: subtitles.timingData,
+      sceneDurations,
+      outputDir,
+    });
+    if (!report.summary.passed) {
+      console.error("❌ Subtitle verification failed — refusing to ship a broken video.");
+      process.exit(1);
+    }
+  }
+
+  console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(`✅ Render complete!`);
+  console.log(`   📁 Output: ${result.path}`);
+  console.log(`   ⏱  Duration: ${result.duration}`);
+  console.log(`   📐 Resolution: 1080×1920 (9:16)`);
+  console.log(`   🎬 Scenes: ${sceneData.length}`);
+  console.log(`   🔖 Version: ${version}`);
+  console.log("");
 }
 
-// Step 4: Assemble
-console.log("🔧 Assembling final video...\n");
-const result = assembleVideo(videoResults, outputDir, "deepseek", bgmPath);
-
-console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log(`✅ Render complete!`);
-console.log(`   📁 Output: ${result.path}`);
-console.log(`   ⏱  Duration: ${result.duration}`);
-console.log(`   📐 Resolution: 1080×1920 (9:16)`);
-console.log(`   🎬 Scenes: ${sceneData.length}`);
-console.log("");
+main().catch((err) => {
+  console.error("\n❌ Render failed:", err.message);
+  process.exit(1);
+});

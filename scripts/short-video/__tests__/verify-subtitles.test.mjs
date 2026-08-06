@@ -1,318 +1,326 @@
 import { describe, it, expect } from "vitest";
 import {
-  computeAbsoluteTimestamps,
+  SYNC_TOLERANCE,
+  expectedWordTimes,
+  compareWordSequence,
+  analyzeSync,
+  analyzeGaps,
+  analyzeCueDurations,
+  analyzeWordsPerLine,
   analyzeCoverage,
-  analyzeDurations,
-  compareSync,
-  generateReport,
+  buildReport,
   parseSilenceOutput,
   parseDuration,
 } from "../lib/verify-subtitles.mjs";
+import { renderAss, parseAss } from "../lib/subtitles/ass.mjs";
+import { buildCues } from "../lib/subtitles/cues.mjs";
 
-// ── computeAbsoluteTimestamps ──
-// Shared helper: converts per-scene timing data to absolute timestamps
-// Must match generate-srt.mjs logic (sceneOffset + START_OFFSET -0.3, 0.5s buffer)
+// The verifier reads the artifact that will actually be burned in, and compares
+// it against the alignment data. It must never recompute the generator's layout
+// rules — otherwise it can only ever agree with the generator.
 
-describe("computeAbsoluteTimestamps", () => {
-  const timingData = [
-    {
-      sceneId: 1,
-      segments: [
-        { text: "Hello world", start: 0.0, end: 2.0 },
-        { text: "Second line", start: 2.5, end: 5.0 },
+const FRAME = 1 / 30;
+
+function words(...specs) {
+  return specs.map(([text, start, end]) => ({ text, start, end }));
+}
+
+const timingData = [
+  {
+    sceneId: 1,
+    segments: [
+      {
+        text: "DeepSeek has no KPIs.",
+        start: 0.04,
+        end: 1.524,
+        words: words(
+          ["DeepSeek", 0.04, 0.457],
+          ["has", 0.483, 0.659],
+          ["no", 0.724, 0.88],
+          ["KPIs.", 0.925, 1.524],
+        ),
+      },
+      {
+        text: "No org chart.",
+        start: 2.233,
+        end: 2.931,
+        words: words(["No", 2.233, 2.388], ["org", 2.434, 2.59], ["chart.", 2.615, 2.931]),
+      },
+    ],
+  },
+];
+const sceneDurations = [{ sceneId: 1, duration: 4.022676 }];
+
+function renderedCues() {
+  return parseAss(renderAss(buildCues(timingData, sceneDurations)));
+}
+
+describe("expectedWordTimes", () => {
+  it("places each aligned word on the absolute timeline", () => {
+    const expected = expectedWordTimes(timingData, sceneDurations);
+    expect(expected.map((w) => w.text)).toEqual([
+      "DeepSeek",
+      "has",
+      "no",
+      "KPIs.",
+      "No",
+      "org",
+      "chart.",
+    ]);
+    expect(expected[0].start).toBeCloseTo(0.04, 6);
+  });
+
+  it("offsets later scenes by frame-aligned clip lengths", () => {
+    const expected = expectedWordTimes(
+      [
+        ...timingData,
+        {
+          sceneId: 2,
+          segments: [{ text: "Next.", start: 0.2, end: 0.6, words: words(["Next.", 0.2, 0.6]) }],
+        },
       ],
-    },
-    {
-      sceneId: 2,
-      segments: [
-        { text: "Scene two", start: 0.0, end: 3.0 },
-      ],
-    },
-  ];
-  const sceneDurations = [
-    { sceneId: 1, duration: 5.0 },
-    { sceneId: 2, duration: 3.0 },
-  ];
-
-  it("converts per-scene segments to absolute timestamps", () => {
-    const subs = computeAbsoluteTimestamps(timingData, sceneDurations);
-    expect(subs).toHaveLength(3);
-    // Scene 1, seg 1: start = max(0 + 0.0 - 0.3, 0) = 0, end = 0 + min(2.0, 5.0) = 2.0
-    expect(subs[0].start).toBe(0);
-    expect(subs[0].end).toBe(2.0);
-    expect(subs[0].sceneId).toBe(1);
-    // Scene 1, seg 2: start = max(0 + 2.5 - 0.3, 0) = 2.2, end = 0 + min(5.0, 5.0) = 5.0
-    expect(subs[1].start).toBe(2.2);
-    expect(subs[1].end).toBe(5.0);
-    // Scene 2, seg 1: sceneOffset = 5.0 + 0.5 = 5.5
-    // start = max(5.5 + 0.0 - 0.3, 0) = 5.2, end = 5.5 + min(3.0, 3.0) = 8.5
-    expect(subs[2].start).toBe(5.2);
-    expect(subs[2].end).toBe(8.5);
-    expect(subs[2].sceneId).toBe(2);
-  });
-
-  it("clamps first subtitle start to 0 (START_OFFSET -0.3)", () => {
-    const single = [
-      { sceneId: 1, segments: [{ text: "First", start: 0.0, end: 1.0 }] },
-    ];
-    const dur = [{ sceneId: 1, duration: 1.0 }];
-    const subs = computeAbsoluteTimestamps(single, dur);
-    expect(subs[0].start).toBe(0); // max(-0.3, 0) = 0
-  });
-
-  it("returns empty array for empty timing data (#4)", () => {
-    expect(computeAbsoluteTimestamps([], [])).toEqual([]);
-  });
-
-  it("handles missing sceneDurations gracefully", () => {
-    const data = [{ sceneId: 99, segments: [{ text: "x", start: 0, end: 1 }] }];
-    const subs = computeAbsoluteTimestamps(data, []);
-    // sceneDur defaults to 0
-    expect(subs).toHaveLength(1);
-    expect(subs[0].end).toBe(0); // 0 + min(1, 0) = 0
+      [...sceneDurations, { sceneId: 2, duration: 3.0 }],
+    );
+    // scene 1 clip = ceil(4.522676 * 30) = 136 frames = 4.533333s
+    expect(expected[expected.length - 1].start).toBeCloseTo(136 / 30 + 0.2, 6);
   });
 });
 
-// ── analyzeCoverage ──
-// Checks for gaps > 1.0s between subtitles and at the end
+describe("compareWordSequence", () => {
+  it("passes when the rendered subtitles contain every aligned word in order", () => {
+    const result = compareWordSequence(
+      renderedCues(),
+      expectedWordTimes(timingData, sceneDurations),
+    );
+    expect(result.matches).toBe(true);
+    expect(result.rendered).toBe(7);
+    expect(result.expected).toBe(7);
+  });
+
+  it("fails and names the missing word when a cue drops one", () => {
+    const cues = renderedCues();
+    cues[0].words = cues[0].words.filter((w) => w.text !== "KPIs.");
+    const result = compareWordSequence(cues, expectedWordTimes(timingData, sceneDurations));
+    expect(result.matches).toBe(false);
+    expect(result.firstMismatch.expected).toBe("KPIs.");
+  });
+
+  it("fails when the rendered subtitles contain a word that was never spoken", () => {
+    const cues = renderedCues();
+    cues[0].words.push({ text: "extra", onset: 1.9, fill: 0.2 });
+    const result = compareWordSequence(cues, expectedWordTimes(timingData, sceneDurations));
+    expect(result.matches).toBe(false);
+  });
+});
+
+describe("analyzeSync", () => {
+  it("reports near-zero deviation for freshly generated subtitles", () => {
+    const result = analyzeSync(renderedCues(), expectedWordTimes(timingData, sceneDurations));
+    expect(result.maxDeviation).toBeLessThanOrEqual(0.002);
+    expect(result.offenders).toEqual([]);
+  });
+
+  it("flags a word whose highlight drifts past the tolerance", () => {
+    const cues = renderedCues();
+    cues[0].words[3].onset += 0.12;
+    const result = analyzeSync(cues, expectedWordTimes(timingData, sceneDurations));
+    expect(result.offenders).toHaveLength(1);
+    expect(result.offenders[0].text).toBe("KPIs.");
+    expect(result.offenders[0].delta).toBeCloseTo(0.12, 2);
+    expect(result.maxDeviation).toBeGreaterThan(SYNC_TOLERANCE);
+  });
+
+  it("accepts a word that drifts just under the tolerance", () => {
+    const cues = renderedCues();
+    cues[0].words[1].onset += SYNC_TOLERANCE - 0.005;
+    expect(analyzeSync(cues, expectedWordTimes(timingData, sceneDurations)).offenders).toEqual([]);
+  });
+});
+
+describe("analyzeGaps", () => {
+  it("accepts a two-frame chained gap", () => {
+    const cues = [
+      { start: 0, end: 1.0, words: [] },
+      { start: 1.0 + 2 * FRAME, end: 2.0, words: [] },
+    ];
+    expect(analyzeGaps(cues).violations).toEqual([]);
+  });
+
+  it("accepts a gap of half a second or more", () => {
+    const cues = [
+      { start: 0, end: 1.0, words: [] },
+      { start: 1.6, end: 2.4, words: [] },
+    ];
+    expect(analyzeGaps(cues).violations).toEqual([]);
+  });
+
+  it("rejects a gap in the blink band between two frames and half a second", () => {
+    const cues = [
+      { start: 0, end: 1.0, words: [] },
+      { start: 1.14, end: 2.0, words: [] },
+    ];
+    const { violations } = analyzeGaps(cues);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].gap).toBeCloseTo(0.14, 6);
+  });
+
+  it("accepts a blink-band gap that straddles a scene change", () => {
+    // A cue is not allowed to cross a shot change, so the truncated out-time
+    // leaves a gap the chaining rule cannot close. That is expected, not a bug.
+    const cues = [
+      { start: 0, end: 4.533333, words: [] },
+      { start: 4.647, end: 5.6, words: [] },
+    ];
+    expect(analyzeGaps(cues, [4.533333]).violations).toEqual([]);
+  });
+
+  it("still rejects a blink-band gap that sits inside one scene", () => {
+    const cues = [
+      { start: 0, end: 1.0, words: [] },
+      { start: 1.14, end: 2.0, words: [] },
+    ];
+    expect(analyzeGaps(cues, [4.533333]).violations).toHaveLength(1);
+  });
+
+  it("rejects overlapping cues", () => {
+    const cues = [
+      { start: 0, end: 1.2, words: [] },
+      { start: 1.0, end: 2.0, words: [] },
+    ];
+    expect(analyzeGaps(cues).violations).toHaveLength(1);
+  });
+
+  it("accepts freshly generated subtitles", () => {
+    expect(analyzeGaps(renderedCues()).violations).toEqual([]);
+  });
+});
+
+describe("analyzeCueDurations", () => {
+  it("flags a cue shorter than the readable minimum", () => {
+    const { tooShort } = analyzeCueDurations([{ start: 0, end: 0.5, text: "Hi", words: [] }]);
+    expect(tooShort).toHaveLength(1);
+  });
+
+  it("passes cues at or above the minimum", () => {
+    expect(analyzeCueDurations([{ start: 0, end: 0.8, text: "Hi", words: [] }]).tooShort).toEqual(
+      [],
+    );
+  });
+});
+
+describe("analyzeWordsPerLine", () => {
+  it("flags a line carrying more words than the karaoke sweep can track", () => {
+    const cue = {
+      start: 0,
+      end: 3,
+      text: "a b c d e f g",
+      words: Array.from({ length: 7 }, (_, i) => ({ text: `w${i}`, onset: i * 0.2, fill: 0.2 })),
+    };
+    expect(analyzeWordsPerLine([cue]).overLong).toHaveLength(1);
+  });
+
+  it("passes freshly generated subtitles", () => {
+    expect(analyzeWordsPerLine(renderedCues()).overLong).toEqual([]);
+  });
+});
 
 describe("analyzeCoverage", () => {
-  it("returns 100% coverage when no gaps (#8 no-gap case)", () => {
-    const subs = [
-      { start: 0, end: 5.0, sceneId: 1, text: "a" },
-      { start: 5.0, end: 10.0, sceneId: 1, text: "b" },
-    ];
-    const result = analyzeCoverage(subs, 10.0);
-    expect(result.percent).toBe(100);
-    expect(result.gaps).toEqual([]);
+  it("reports the uncovered stretches of the video", () => {
+    const coverage = analyzeCoverage([{ start: 0, end: 2 }], 5);
+    expect(coverage.gaps).toHaveLength(1);
+    expect(coverage.gaps[0].duration).toBeCloseTo(3, 6);
+    expect(coverage.percent).toBeCloseTo(40, 1);
   });
 
-  it("flags gaps > 1.0s between subtitles (#8)", () => {
-    const subs = [
-      { start: 0, end: 3.0, sceneId: 1, text: "a" },
-      { start: 5.0, end: 8.0, sceneId: 2, text: "b" }, // 2.0s gap
-    ];
-    const result = analyzeCoverage(subs, 8.0);
-    expect(result.gaps).toHaveLength(1);
-    expect(result.gaps[0].from).toBe(3.0);
-    expect(result.gaps[0].to).toBe(5.0);
-    expect(result.gaps[0].duration).toBe(2.0);
-    expect(result.percent).toBeLessThan(100);
-  });
-
-  it("flags gap at end when video extends past last subtitle", () => {
-    const subs = [{ start: 0, end: 5.0, sceneId: 1, text: "a" }];
-    const result = analyzeCoverage(subs, 10.0);
-    expect(result.gaps).toHaveLength(1);
-    expect(result.gaps[0].from).toBe(5.0);
-    expect(result.gaps[0].to).toBe(10.0);
-  });
-
-  it("does not flag gap when video is shorter than last subtitle (#5)", () => {
-    const subs = [{ start: 0, end: 10.0, sceneId: 1, text: "a" }];
-    const result = analyzeCoverage(subs, 8.0);
-    // videoDuration (8.0) < lastEnd (10.0) → no end gap
-    expect(result.gaps).toEqual([]);
-  });
-
-  it("handles empty subtitles (#4)", () => {
-    const result = analyzeCoverage([], 10.0);
-    expect(result.percent).toBe(0);
-    expect(result.gaps).toHaveLength(1);
-    expect(result.gaps[0].from).toBe(0);
-    expect(result.gaps[0].to).toBe(10.0);
-  });
-
-  it("does not flag gaps <= 1.0s", () => {
-    const subs = [
-      { start: 0, end: 4.5, sceneId: 1, text: "a" },
-      { start: 5.0, end: 10.0, sceneId: 2, text: "b" }, // 0.5s gap
-    ];
-    const result = analyzeCoverage(subs, 10.0);
-    expect(result.gaps).toEqual([]);
+  it("reports full coverage when there are no gaps over the threshold", () => {
+    expect(analyzeCoverage([{ start: 0, end: 5 }], 5).gaps).toEqual([]);
   });
 });
 
-// ── analyzeDurations ──
-// Flags subtitles shorter than 0.5s
+describe("buildReport", () => {
+  const expected = expectedWordTimes(timingData, sceneDurations);
 
-describe("analyzeDurations", () => {
-  it("returns empty tooShort when all subtitles >= 0.5s", () => {
-    const subs = [
-      { start: 0, end: 2.0, sceneId: 1, text: "ok" },
-      { start: 2.0, end: 3.0, sceneId: 2, text: "fine" },
+  it("passes for subtitles generated from the same alignment data", () => {
+    const report = buildReport({
+      cues: renderedCues(),
+      expectedWords: expected,
+      videoDuration: 4.533333,
+      silenceSegments: [],
+    });
+    expect(report.summary.passed).toBe(true);
+    expect(report.summary.errors).toBe(0);
+  });
+
+  it("does not fail a run because cues stop at scene changes", () => {
+    const cues = [
+      { start: 0, end: 4.533333, text: "One.", words: [] },
+      { start: 4.647, end: 5.6, text: "Two.", words: [] },
     ];
-    const result = analyzeDurations(subs);
-    expect(result.tooShort).toEqual([]);
-  });
-
-  it("flags subtitles shorter than 0.5s (#7)", () => {
-    const subs = [
-      { start: 0, end: 2.0, sceneId: 1, text: "ok" },
-      { start: 2.0, end: 2.3, sceneId: 2, text: "too short" }, // 0.3s
-    ];
-    const result = analyzeDurations(subs);
-    expect(result.tooShort).toHaveLength(1);
-    expect(result.tooShort[0].sceneId).toBe(2);
-    expect(result.tooShort[0].duration).toBeCloseTo(0.3, 1);
-  });
-
-  it("handles empty subtitles", () => {
-    expect(analyzeDurations([]).tooShort).toEqual([]);
-  });
-
-  it("does not flag subtitles exactly 0.5s", () => {
-    const subs = [{ start: 0, end: 0.5, sceneId: 1, text: "edge" }];
-    const result = analyzeDurations(subs);
-    expect(result.tooShort).toEqual([]);
-  });
-});
-
-// ── compareSync ──
-// Compares subtitle timestamps to audio silence segments
-
-describe("compareSync", () => {
-  it("returns no deviations when silence segments match subtitle starts", () => {
-    const subs = [
-      { start: 0, end: 5.0, sceneId: 1, text: "a" },
-      { start: 5.2, end: 10.0, sceneId: 2, text: "b" },
-    ];
-    const silence = [
-      { start: 5.0, end: 5.2 }, // gap between speech
-    ];
-    const result = compareSync(subs, silence);
-    // Sub 2 starts at 5.2, nearest silence starts at 5.0, delta = 0.2 (< 0.5)
-    expect(result.deviations).toEqual([]);
-  });
-
-  it("flags deviations > 0.5s", () => {
-    const subs = [
-      { start: 0, end: 5.0, sceneId: 1, text: "a" },
-      { start: 7.0, end: 10.0, sceneId: 2, text: "b" },
-    ];
-    const silence = [
-      { start: 5.0, end: 6.0 }, // silence ends at 6.0, but sub starts at 7.0
-    ];
-    const result = compareSync(subs, silence);
-    expect(result.deviations).toHaveLength(1);
-    expect(result.deviations[0].delta).toBeGreaterThan(0.5);
-  });
-
-  it("returns empty deviations when no silence segments (#6)", () => {
-    const subs = [
-      { start: 0, end: 5.0, sceneId: 1, text: "a" },
-    ];
-    const result = compareSync(subs, []);
-    expect(result.deviations).toEqual([]);
-  });
-
-  it("handles empty subtitles", () => {
-    const result = compareSync([], [{ start: 1.0, end: 2.0 }]);
-    expect(result.deviations).toEqual([]);
-  });
-});
-
-// ── parseSilenceOutput ──
-// Parses FFmpeg silencedetect stderr output
-
-describe("parseSilenceOutput (#11)", () => {
-  it("parses valid silencedetect output", () => {
-    const stdout = `
-[silencedetect @ 0x140000] silence_start: 5.2
-[silencedetect @ 0x140000] silence_end: 6.1 | silence_duration: 0.9
-[silencedetect @ 0x140000] silence_start: 12.0
-[silencedetect @ 0x140000] silence_end: 13.5 | silence_duration: 1.5
-`;
-    const segments = parseSilenceOutput(stdout);
-    expect(segments).toHaveLength(2);
-    expect(segments[0]).toEqual({ start: 5.2, end: 6.1 });
-    expect(segments[1]).toEqual({ start: 12.0, end: 13.5 });
-  });
-
-  it("skips invalid/unrelated lines", () => {
-    const stdout = `
-Some random ffmpeg output
-[silencedetect @ 0x140000] silence_start: 5.2
-unrelated noise
-[silencedetect @ 0x140000] silence_end: 6.1 | silence_duration: 0.9
-frame=  120 fps= 30 q=24.0
-`;
-    const segments = parseSilenceOutput(stdout);
-    expect(segments).toHaveLength(1);
-    expect(segments[0]).toEqual({ start: 5.2, end: 6.1 });
-  });
-
-  it("returns empty array for empty output", () => {
-    expect(parseSilenceOutput("")).toEqual([]);
-    expect(parseSilenceOutput("no silence info here")).toEqual([]);
-  });
-
-  it("handles unpaired silence_start (no matching end)", () => {
-    const stdout = `[silencedetect @ 0x140000] silence_start: 5.2
-[silencedetect @ 0x140000] silence_end: 6.1 | silence_duration: 0.9
-[silencedetect @ 0x140000] silence_start: 10.0
-`; // no end for 10.0
-    const segments = parseSilenceOutput(stdout);
-    expect(segments).toHaveLength(1); // only the paired one
-    expect(segments[0]).toEqual({ start: 5.2, end: 6.1 });
-  });
-});
-
-// ── parseDuration ──
-// Parses ffprobe duration output
-
-describe("parseDuration (#12)", () => {
-  it("parses valid ffprobe output", () => {
-    expect(parseDuration("45.234\n")).toBe(45.234);
-    expect(parseDuration("  12.5  \n")).toBe(12.5);
-  });
-
-  it("returns null for invalid output", () => {
-    expect(parseDuration("N/A")).toBeNull();
-    expect(parseDuration("")).toBeNull();
-    expect(parseDuration("not a number")).toBeNull();
-  });
-});
-
-// ── generateReport ──
-// Combines all analysis into a single report object
-
-describe("generateReport", () => {
-  it("combines coverage, durations, and sync into a report", () => {
-    const subs = [
-      { start: 0, end: 5.0, sceneId: 1, text: "hello" },
-      { start: 5.0, end: 10.0, sceneId: 2, text: "world" },
-    ];
-    const silence = [{ start: 4.8, end: 5.2 }];
-    const report = generateReport(subs, 10.0, silence);
-
-    expect(report.videoDuration).toBe(10.0);
-    expect(report.totalSubtitles).toBe(2);
-    expect(report.coverage).toBeDefined();
-    expect(report.coverage.percent).toBe(100);
-    expect(report.durations).toBeDefined();
-    expect(report.sync).toBeDefined();
-    expect(report.summary).toBeDefined();
-    expect(report.summary.totalIssues).toBe(0);
+    const report = buildReport({
+      cues,
+      expectedWords: [],
+      videoDuration: 5.6,
+      silenceSegments: [],
+      sceneBoundaries: [4.533333],
+    });
+    expect(report.gaps.violations).toEqual([]);
     expect(report.summary.passed).toBe(true);
   });
 
-  it("counts issues correctly", () => {
-    const subs = [
-      { start: 0, end: 3.0, sceneId: 1, text: "short" },
-      { start: 5.0, end: 5.2, sceneId: 2, text: "tiny" }, // gap 2.0s + duration 0.2s
-    ];
-    const report = generateReport(subs, 5.2, []);
-
-    // Issues: 1 gap (3.0→5.0) + 1 tooShort (0.2s) = 2
-    expect(report.summary.totalIssues).toBe(2);
+  it("fails when a word is missing from the rendered subtitles", () => {
+    const cues = renderedCues();
+    cues[1].words = cues[1].words.slice(0, -1);
+    const report = buildReport({
+      cues,
+      expectedWords: expected,
+      videoDuration: 4.533333,
+      silenceSegments: [],
+    });
     expect(report.summary.passed).toBe(false);
+    expect(report.wordSequence.matches).toBe(false);
   });
 
-  it("handles empty subtitles", () => {
-    const report = generateReport([], 10.0, []);
-    expect(report.totalSubtitles).toBe(0);
-    expect(report.coverage.percent).toBe(0);
+  it("fails when a word highlight is out of sync", () => {
+    const cues = renderedCues();
+    cues[0].words[0].onset += 0.2;
+    const report = buildReport({
+      cues,
+      expectedWords: expected,
+      videoDuration: 4.533333,
+      silenceSegments: [],
+    });
     expect(report.summary.passed).toBe(false);
+    expect(report.sync.offenders).toHaveLength(1);
+  });
+
+  it("treats short cues as a warning, not a failure", () => {
+    const report = buildReport({
+      cues: [{ start: 0, end: 0.4, text: "Hi", words: [] }],
+      expectedWords: [],
+      videoDuration: 0.5,
+      silenceSegments: [],
+    });
+    expect(report.durations.tooShort).toHaveLength(1);
+    expect(report.summary.warnings).toBeGreaterThan(0);
+    expect(report.summary.passed).toBe(true);
+  });
+});
+
+describe("ffmpeg output parsing", () => {
+  it("pairs silence start and end markers", () => {
+    const output = [
+      "[silencedetect @ 0x1] silence_start: 1.5",
+      "[silencedetect @ 0x1] silence_end: 2.1 | silence_duration: 0.6",
+    ].join("\n");
+    expect(parseSilenceOutput(output)).toEqual([{ start: 1.5, end: 2.1 }]);
+  });
+
+  it("ignores an unterminated silence marker", () => {
+    expect(parseSilenceOutput("silence_start: 1.5")).toEqual([]);
+  });
+
+  it("parses an ffprobe duration", () => {
+    expect(parseDuration("73.899675\n")).toBeCloseTo(73.899675, 6);
+    expect(parseDuration("")).toBeNull();
   });
 });

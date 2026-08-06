@@ -82,21 +82,21 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Font           | Helvetica Neue                          |
 | Font size      | 42px                                    |
 | Weight         | Bold                                    |
-| Primary color  | White (#F5F5F5, ASS: &H00F5F5F5) — spoken words |
-| Secondary color| Gray (#94A3B8, ASS: &H00B8A394) — unspoken words |
+| Primary color  | Dispatch Blue (#4d8bff, ASS: &H00FF8B4D) — spoken words |
+| Secondary color| White (#F5F5F5, ASS: &H00F5F5F5) — unspoken words |
 | Outline        | Black, 3px (ASS: &H66000000, semi-transparent) |
 | Shadow         | 1px                                     |
 | Position       | Bottom-center (Alignment=2)             |
 | Margin from bottom | 450px (above TikTok bottom UI zone)   |
 | Max width      | ~950px (65px margins L/R)               |
 | Background     | None (transparent, text outline only)  |
-| Style          | Karaoke `\kf` (word-by-word highlight)  |
+| Style          | Karaoke `\kt` + `\kf` (word-by-word highlight, absolute per-word anchors) |
 | Timing         | wav2vec2 forced alignment (`text-align.py`), per-word timestamps |
-| Generation     | `generate-ass.py` (pysubs2)             |
+| Generation     | `lib/subtitles/` (JS, see docs/video-workflow.md) |
 
 ASS Style line:
 ```
-Style: Default,Helvetica Neue,42,&H00F5F5F5,&H00B8A394,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,65,65,450,1
+Style: Default,Helvetica Neue,42,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,65,65,450,1
 ```
 
 ## Background Layers

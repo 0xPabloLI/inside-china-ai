@@ -14,7 +14,7 @@
  *   scripts/short-video/output/{pipelineId}/final.mp4
  */
 
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
@@ -22,7 +22,7 @@ import { generateTTS } from "./lib/generate-tts.mjs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { generateBGM } from "./lib/generate-bgm.mjs";
-// generate-srt.mjs replaced by generate-ass.py (pysubs2 + word-level timestamps)
+import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -158,55 +158,44 @@ async function main() {
     console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
   }
 
-  // ── Step 4: Generate ASS subtitles from word-level timing (pysubs2) ──
-  const timingPath = join(outputDir, "audio", "subtitle-timing.json");
-  const assPath = join(outputDir, "subtitles.ass");
-  let srtFile = null;
-  if (existsSync(timingPath)) {
-    // Write scene durations to temp JSON for generate-ass.py
-    const durationsPath = join(outputDir, "audio", "scene-durations.json");
-    const sceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
-    writeFileSync(durationsPath, JSON.stringify(sceneDurations, null, 2));
-
-    // Call generate-ass.py with pysubs2 (uses word-level timestamps)
-    const genAssScript = join(__dirname, "generate-ass.py");
-    try {
-      const result = execSync(
-        `~/.f5-tts-env/bin/python3 "${genAssScript}" ` +
-          `--timing "${timingPath}" --durations "${durationsPath}" --output "${assPath}" 2>&1`,
-      )
-        .toString()
-        .trim();
-      const parsed = JSON.parse(result.split("\n").pop());
-      srtFile = parsed.assPath;
-      console.log(`  📝 ASS generated via pysubs2: ${parsed.count} cues`);
-    } catch (e) {
-      console.error(`  ⚠️ generate-ass.py failed: ${e.message.substring(0, 200)}`);
-      console.error("  Falling back to lib/generate-srt.mjs");
-      const { generateSRT } = await import("./lib/generate-srt.mjs");
-      const timingData = JSON.parse(readFileSync(timingPath, "utf8"));
-      srtFile = generateSRT(timingData, sceneDurations, assPath);
-    }
+  // ── Step 4: Generate ASS subtitles from word-level timing ──
+  const sceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
+  const subtitles = regenerateSubtitles({ outputDir, sceneDurations });
+  if (subtitles) {
+    console.log(`  📝 ASS generated: ${subtitles.cues.length} cues`);
   }
 
   // ── Step 5: Assemble final video ──
   console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
-  const result = assembleVideo(videoResults, outputDir, meta.pipelineId, bgmPath, srtFile, version, meta.subject);
+  const result = assembleVideo(
+    videoResults,
+    outputDir,
+    meta.pipelineId,
+    bgmPath,
+    subtitles?.assPath ?? null,
+    version,
+    meta.subject,
+  );
 
   // ── Step 6: Verify subtitles (optional, --skip-verify to skip) ──
   const skipVerify = process.argv.includes("--skip-verify");
   if (skipVerify) {
     console.log("🔍 Step 6: Subtitle verification skipped (--skip-verify)\n");
-  } else if (!existsSync(timingPath)) {
-    console.log("🔍 Step 6: Subtitle verification skipped (no subtitle-timing.json)\n");
+  } else if (!subtitles) {
+    console.log("🔍 Step 6: Subtitle verification skipped (no subtitles generated)\n");
   } else {
-    console.log("🔍 Step 6: Verifying subtitle coverage and sync...\n");
-    const verifyTimingData = JSON.parse(readFileSync(timingPath, "utf8"));
-    const verifySceneDurations = ttsResults.map((r) => ({
-      sceneId: r.sceneId,
-      duration: r.duration,
-    }));
-    verifySubtitles(result.path, verifyTimingData, verifySceneDurations, outputDir);
+    console.log("🔍 Step 6: Verifying rendered subtitles against the alignment data...\n");
+    const report = verifySubtitles({
+      videoPath: result.path,
+      assPath: subtitles.assPath,
+      timingData: subtitles.timingData,
+      sceneDurations,
+      outputDir,
+    });
+    if (!report.summary.passed) {
+      console.error("❌ Subtitle verification failed — refusing to ship a broken video.");
+      process.exit(1);
+    }
   }
 
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
