@@ -31,9 +31,19 @@ export const Route = createFileRoute("/tiktok-connect")({
       { title: "TikTok Connect — China AI News" },
       {
         name: "description",
-        content: "Connect your TikTok account and publish videos.",
+        content:
+          "Link your TikTok account to China AI News to upload short videos, set captions, and publish China AI news clips straight from the newsroom.",
       },
+      { property: "og:title", content: "TikTok Connect — China AI News" },
+      {
+        property: "og:description",
+        content:
+          "Link your TikTok account to China AI News to upload short videos, set captions, and publish China AI news clips straight from the newsroom.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://chinaai.news/tiktok-connect" },
     ],
+    links: [{ rel: "canonical", href: "https://chinaai.news/tiktok-connect" }],
   }),
   component: TikTokConnectPage,
 });
