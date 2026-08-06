@@ -41,6 +41,8 @@ const EXEMPT_SELECTORS = [
   ".glow-amber",
   ".scanlines",
   ".scan-sweep",
+  ".glitch",
+  ".glitch-flash",
   ".fade-to-black",
   ".brand-watermark",
   ".brand-bar",
@@ -138,13 +140,33 @@ async function main() {
     for (const w of bwarns) warns.push(`right-band: ${w}`);
 
     // 2. Horizontal overflow (vertical clipping with tight line-height is
-    //    by design for oversized anchors; transforms don't affect scrollWidth)
+    //    by design for oversized anchors; transforms don't affect scrollWidth).
+    //    Elements fully contained in a clipping ancestor (e.g. an animated
+    //    bar fill inside an overflow-hidden track) can never leak visually.
     const overflows = await page.evaluate((exempt) => {
+      const clippedByAncestor = (el) => {
+        const r = el.getBoundingClientRect();
+        let node = el.parentElement;
+        while (node) {
+          if (exempt.some((s) => node.matches(s))) {
+            node = node.parentElement;
+            continue;
+          }
+          const o = getComputedStyle(node).overflow;
+          if (/hidden|auto|scroll/.test(o)) {
+            const nr = node.getBoundingClientRect();
+            if (r.left >= nr.left - 1 && r.right <= nr.right + 1) return true;
+          }
+          node = node.parentElement;
+        }
+        return false;
+      };
       const out = [];
       for (const el of document.querySelectorAll("div, span")) {
         if (el.matches("svg, svg *")) continue;
         if (exempt.some((s) => el.matches(s))) continue;
         if (!el.innerText?.trim()) continue;
+        if (clippedByAncestor(el)) continue;
         if (el.scrollWidth > el.clientWidth + 4) {
           out.push(`${el.className?.toString?.().slice(0, 50)} "${el.innerText.slice(0, 40)}"`);
         }

@@ -22,7 +22,6 @@ export const scenes = [
         { num: "4", unit: "HR", label: "LEAKED MEETING" },
         { num: "JULY 25", unit: "", label: "BLOOMBERG CONFIRMED" },
       ],
-      source: "VIA BLOOMBERG",
     },
   },
   {
@@ -172,9 +171,12 @@ export const scenes = [
       titleHighlight: "COMPUTE",
       titleSuffix: ", NOT TALENT",
       have: "20K",
+      haveFill: "GPUs",
       haveLabel: "CURRENT",
       need: "200K",
+      needFill: "GPUs",
       needLabel: "FRONTIER SCALE",
+      vsText: "vs",
       reserve: "$7.4B",
       reserveLabel: "ALL RESERVES — STILL NOT ENOUGH",
       verdict: "10x gap.",
@@ -196,6 +198,7 @@ export const scenes = [
       nvidiaChip: "GB300",
       nvidiaLabel: "NVIDIA FLAGSHIP",
       nvidiaMatch: "Industry benchmark",
+      vsText: "VS",
       stats: [
         { num: "4 : 1", label: "HUAWEI : NVIDIA" },
         { num: "2 YEARS", label: "GENERATION GAP" },
@@ -230,7 +233,6 @@ export const scenes = [
       brandHighlight: "AI",
       tagline: "China's AI, decoded.",
       line1: "Subscribe for more",
-      subscribe: "Follow for daily China AI deep dives",
     },
   },
 ];

@@ -30,9 +30,8 @@ ${baseStyles(duration)}
 .s1 { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .s1 .glow-red { width: 1000px; height: 1000px; top: -300px; left: 50%; transform: translateX(-50%); background: radial-gradient(circle, rgba(239,68,68,0.18) 0%, transparent 60%); }
 .s1 .alert-bar { position: absolute; top: 80px; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 12px; animation: slideDown 0.4s ease-out 0.1s forwards; opacity: 0; }
-@keyframes slideDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
-.s1 .alert-bar .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--red); animation: pulseDot 0.8s ease-in-out infinite; box-shadow: 0 0 12px rgba(239,68,68,0.8); }
-@keyframes pulseDot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.6); } }
+.s1 .alert-bar .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--red); animation: alertPulse 0.8s ease-in-out infinite; box-shadow: 0 0 12px rgba(239,68,68,0.8); }
+@keyframes alertPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.6); } }
 .s1 .alert-bar .text { font-size: 26px; font-weight: 800; color: var(--red); letter-spacing: 4px; }
 .s1 .headline { position: absolute; top: 320px; left: 0; right: 0; text-align: center; }
 .s1 .big-text { font-size: 130px; font-weight: 900; color: var(--red); letter-spacing: 2px; line-height: 1; text-shadow: 0 0 60px rgba(239,68,68,0.5), 0 0 120px rgba(239,68,68,0.3); animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 0.4s forwards, glitchShift 3s ease-in-out 1s infinite; opacity: 0; }
@@ -45,7 +44,7 @@ ${baseStyles(duration)}
 </style></head><body>
 <div class="scene s1">
   <div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div><div class="glitch-flash"></div>
-  <div class="alert-bar"><span class="dot"></span><span class="text">DISTILLATION ALERT</span></div>
+  <div class="alert-bar"><span class="dot"></span><span class="text">${t(txt, "badge")}</span></div>
   <div class="headline"><div class="big-text">${line1}</div></div>
   <div class="divider"></div>
   <div class="second-stat"><div class="big-text2">${line2}</div></div>
@@ -80,8 +79,8 @@ ${baseStyles(duration)}
 .s2 .arrow { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 60px; font-weight: 900; color: var(--muted); animation: fadeIn 0.5s ease-out 1.0s forwards; opacity: 0; z-index: 10; }
 </style></head><body>
 <div class="scene s2"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <div class="title">NOT JUST COPYING ANSWERS</div>
-  <div class="cols"><div class="col left"><div class="col-title">SURFACE LEVEL</div>${leftHtml}</div><div class="col right"><div class="col-title">WHAT THEY STOLE</div>${rightHtml}</div></div>
+  <div class="title">${t(txt, "title")}</div>
+  <div class="cols"><div class="col left"><div class="col-title">${t(txt, "leftTitle")}</div>${leftHtml}</div><div class="col right"><div class="col-title">${t(txt, "rightTitle")}</div>${rightHtml}</div></div>
   <div class="arrow">→</div>
 </div></body></html>`;
 }
@@ -114,9 +113,9 @@ ${baseStyles(duration)}
 .s3 .cost .hl { color: var(--red); font-weight: 900; }
 </style></head><body>
 <div class="scene s3"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <div class="title">THE <span class="hl">CRACK</span> SEQUENCE</div>
+  <div class="title">${t(txt, "title")}<span class="hl">${t(txt, "titleHighlight")}</span>${t(txt, "titleSuffix")}</div>
   <div class="flow">${eventsHtml}</div>
-  <div class="cost">Cost: <span class="hl">tens of thousands of dollars</span></div>
+  <div class="cost">${t(txt, "cost")}<span class="hl">${t(txt, "costHighlight")}</span></div>
 </div></body></html>`;
 }
 
@@ -165,7 +164,7 @@ ${baseStyles(duration)}
 <div class="scene s4"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
   <div class="title">${t(txt, "title")}</div>
   <div class="table">${rowsHtml}</div>
-  <div class="footer">SOURCE: ANTHROPIC · FEBRUARY 2026</div>
+  <div class="footer">${t(txt, "footer")}</div>
 </div></body></html>`;
 }
 
@@ -190,7 +189,7 @@ ${baseStyles(duration)}
   <div class="quote-mark">"</div>
   <div class="quote">${t(txt, "quote")}</div>
   <div class="source">${t(txt, "source")}</div>
-  <div class="verified"><span class="check">✓</span><span class="text">INDEPENDENTLY CONFIRMED</span></div>
+  <div class="verified"><span class="check">✓</span><span class="text">${t(txt, "verified")}</span></div>
 </div></body></html>`;
 }
 
@@ -223,17 +222,17 @@ ${baseStyles(duration)}
 .s6 .note .hl { color: var(--white); font-style: normal; font-weight: 700; }
 </style></head><body>
 <div class="scene s6"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <div class="title">SELECTIVE ACCUSATIONS</div>
-  <div class="cols"><div class="col left"><div class="col-title">${left[0] || "NAMED"}</div>${left
+  <div class="title">${t(txt, "title")}</div>
+  <div class="cols"><div class="col left"><div class="col-title">${left[0] || ""}</div>${left
     .slice(1)
     .map((item, i) => `<div class="item" style="animation-delay: ${0.4 + i * 0.2}s;">${item}</div>`)
     .join(
       "",
-    )}</div><div class="col right"><div class="col-title">${right[0] || "NOT NAMED"}</div>${right
+    )}</div><div class="col right"><div class="col-title">${right[0] || ""}</div>${right
     .slice(1)
     .map((item, i) => `<div class="item" style="animation-delay: ${1.0 + i * 0.2}s;">${item}</div>`)
     .join("")}</div></div>
-  <div class="note">Moonshot <span class="hl">never responded publicly</span></div>
+  <div class="note">${t(txt, "note")}<span class="hl">${t(txt, "noteHighlight")}</span></div>
 </div></body></html>`;
 }
 
@@ -253,11 +252,11 @@ ${baseStyles(duration)}
 .s7 .countdown { margin-top: 50px; font-size: 28px; font-weight: 700; color: var(--muted); letter-spacing: 4px; animation: fadeIn 0.5s ease-out 1.5s forwards; opacity: 0; }
 </style></head><body>
 <div class="scene s7"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <div class="part-label">COMING NEXT</div>
+  <div class="part-label">${t(txt, "label")}</div>
   <div class="big-text">${t(txt, "line1")}</div>
   <div class="divider"></div>
   <div class="teaser">${t(txt, "line2")}</div>
-  <div class="countdown">SUBSCRIBE TO NOT MISS IT</div>
+  <div class="countdown">${t(txt, "countdown")}</div>
 </div></body></html>`;
 }
 
@@ -269,22 +268,18 @@ function scene8(scene, duration) {
 ${baseStyles(duration)}
 .s8 { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .s8 .brand-logo-large { width: 130px; height: 130px; margin-bottom: 30px; filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); animation: scaleIn 0.6s ease-out 0.1s forwards, logoPulse 3s ease-in-out 1s infinite; opacity: 0; }
-@keyframes logoPulse { 0%,100% { filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); } 50% { filter: drop-shadow(0 0 50px rgba(77,139,255,0.6)); } }
 .s8 .brand-logo-large svg { width: 100%; height: 100%; }
 .s8 .brand-name { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 4px; margin-bottom: 16px; animation: scaleIn 0.6s ease-out 0.3s forwards; opacity: 0; }
 .s8 .brand-name .hl { color: var(--blue); }
 .s8 .tagline { font-size: 32px; font-weight: 600; color: var(--sec); letter-spacing: 3px; margin-bottom: 80px; animation: fadeIn 0.5s ease-out 0.7s forwards; opacity: 0; }
 .s8 .line1 { font-size: 64px; font-weight: 800; color: var(--amber); letter-spacing: 2px; margin-bottom: 16px; animation: slideUp 0.5s ease-out 1.0s forwards; opacity: 0; text-shadow: 0 0 30px rgba(245,158,11,0.4); }
-.s8 .subscribe { position: absolute; bottom: 120px; text-align: center; font-size: 30px; font-weight: 700; color: var(--muted); letter-spacing: 3px; animation: fadeIn 0.5s ease-out 1.4s forwards; opacity: 0; }
 .s8 .fade-to-black { position: absolute; inset: 0; background: #050508; pointer-events: none; animation: fadeOut 0.8s ease-in ${Math.max(duration - 1.2, 1.5).toFixed(1)}s forwards; opacity: 0; }
-@keyframes fadeOut { to { opacity: 1; } }
 </style></head><body>
 <div class="scene s8"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
   <div class="brand-logo-large">${BRAND_MARK_SVG}</div>
-  <div class="brand-name">${t(txt, "brand").replace("AI", '<span class="hl">AI</span>')}</div>
+  <div class="brand-name">${t(txt, "brand").replace(txt.brandHighlight || "\0", `<span class="hl">${txt.brandHighlight}</span>`)}</div>
   ${t(txt, "tagline") ? `<div class="tagline">${txt.tagline}</div>` : ""}
   ${t(txt, "line1") ? `<div class="line1">${txt.line1}</div>` : ""}
-  <div class="subscribe">SUBSCRIBE FOR MORE</div>
   <div class="fade-to-black"></div>
 </div></body></html>`;
 }

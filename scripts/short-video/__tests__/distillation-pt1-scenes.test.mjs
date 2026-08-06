@@ -22,9 +22,15 @@ describe("Distillation pt1 scene generation", () => {
         expect(html).toContain("<!DOCTYPE html>");
       });
 
-      it("contains brand watermark", () => {
-        expect(html).toContain("brand-watermark");
-      });
+      if (scene.id === 8) {
+        it("skips watermark on brand-identity scenes (no double branding)", () => {
+          expect(html).not.toMatch(/<div class="brand-watermark">/);
+        });
+      } else {
+        it("contains brand watermark element", () => {
+          expect(html).toMatch(/<div class="brand-watermark">/);
+        });
+      }
 
       it("contains baseStyles CSS variables", () => {
         expect(html).toContain("--blue");
@@ -53,6 +59,10 @@ describe("Distillation pt1 scene generation", () => {
     it("contains line2 text", () => {
       expect(html).toContain("16M CONVERSATIONS");
     });
+
+    it("contains alert badge from texts", () => {
+      expect(html).toContain("DISTILLATION ALERT");
+    });
   });
 
   describe("scene 2 (what-is-distillation) contrast", () => {
@@ -69,6 +79,12 @@ describe("Distillation pt1 scene generation", () => {
       expect(html).toContain("REASONING");
       expect(html).toContain("CHAIN OF THOUGHT");
       expect(html).toContain("PERSONA");
+    });
+
+    it("contains title and column titles from texts", () => {
+      expect(html).toContain("NOT JUST COPYING ANSWERS");
+      expect(html).toContain("SURFACE LEVEL");
+      expect(html).toContain("WHAT THEY STOLE");
     });
   });
 
@@ -89,6 +105,11 @@ describe("Distillation pt1 scene generation", () => {
       expect(html).toContain("CLAUDE RECITES CoT");
       expect(html).toContain("CAPTURE");
     });
+
+    it("contains title split and cost line from texts", () => {
+      expect(html).toContain("THE <span class=\"hl\">CRACK</span> SEQUENCE");
+      expect(html).toContain("Cost: <span class=\"hl\">tens of thousands of dollars</span>");
+    });
   });
 
   describe("scene 4 (anthropic-accusation) data table", () => {
@@ -108,6 +129,10 @@ describe("Distillation pt1 scene generation", () => {
       expect(html).toContain("13M");
       expect(html).toContain("24,000");
     });
+
+    it("contains source footer from texts", () => {
+      expect(html).toContain("SOURCE: ANTHROPIC · FEBRUARY 2026");
+    });
   });
 
   describe("scene 5 (crypto-blog) quote", () => {
@@ -120,6 +145,10 @@ describe("Distillation pt1 scene generation", () => {
 
     it("contains source attribution", () => {
       expect(html).toContain("Cryptography Engineering Blog");
+    });
+
+    it("contains verified badge from texts", () => {
+      expect(html).toContain("INDEPENDENTLY CONFIRMED");
     });
   });
 
@@ -139,6 +168,11 @@ describe("Distillation pt1 scene generation", () => {
       expect(html).toContain("Qwen");
       expect(html).toContain("Z.ai");
     });
+
+    it("contains title and note from texts", () => {
+      expect(html).toContain("SELECTIVE ACCUSATIONS");
+      expect(html).toContain("Moonshot <span class=\"hl\">never responded publicly</span>");
+    });
   });
 
   describe("scene 7 (teaser)", () => {
@@ -151,6 +185,11 @@ describe("Distillation pt1 scene generation", () => {
 
     it("contains teaser line", () => {
       expect(html).toContain("ONE LAB CRACKED IT");
+    });
+
+    it("contains part label and countdown from texts", () => {
+      expect(html).toContain("COMING NEXT");
+      expect(html).toContain("SUBSCRIBE TO NOT MISS IT");
     });
   });
 
@@ -173,6 +212,11 @@ describe("Distillation pt1 scene generation", () => {
 
     it("contains fade-to-black", () => {
       expect(html).toContain("fade-to-black");
+    });
+
+    it("has no dead-zone subscribe line", () => {
+      expect(html).not.toContain('class="subscribe"');
+      expect(html).not.toContain("SUBSCRIBE FOR MORE");
     });
   });
 

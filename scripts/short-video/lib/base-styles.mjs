@@ -81,6 +81,7 @@ function baseStyles(duration) {
     @keyframes glowPulse { 0%, 100% { text-shadow: 0 0 60px rgba(77,139,255,0.5), 0 0 120px rgba(77,139,255,0.3); } 50% { text-shadow: 0 0 80px rgba(77,139,255,0.7), 0 0 160px rgba(77,139,255,0.4); } }
     @keyframes logoPulse { 0%, 100% { filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); } 50% { filter: drop-shadow(0 0 50px rgba(77,139,255,0.6)); } }
     @keyframes hookIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
+    @keyframes fadeOut { to { opacity: 1; } }
     /* Channel watermark — top-left corner, clear of the TikTok action rail
        (right) and the caption/subtitle zone (bottom). See lib/safe-zones.mjs. */
     .brand-watermark { position: absolute; top: ${WATERMARK_POS.top}px; left: ${WATERMARK_POS.left}px; width: 55px; height: 55px; opacity: 0.18; z-index: 100; pointer-events: none; }

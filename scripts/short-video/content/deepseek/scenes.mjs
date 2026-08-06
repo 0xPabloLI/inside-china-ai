@@ -44,19 +44,16 @@ ${baseStyles(duration)}
 .s1 .scan-sweep { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(77,139,255,0.8), transparent); box-shadow: 0 0 20px rgba(77,139,255,0.5); animation: scanSweep ${d}s linear infinite; z-index: 50; }
 @keyframes scanSweep { 0% { top: 0; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
 .s1 .brand-bar { position: absolute; top: 80px; left: 60px; right: 60px; display: flex; align-items: center; gap: 16px; animation: slideDown 0.5s ease-out 0.1s forwards; opacity: 0; }
-@keyframes slideDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
 .s1 .brand-bar .b-logo { width: 56px; height: 56px; } .s1 .brand-bar .b-logo svg { width: 100%; height: 100%; }
 .s1 .brand-bar .b-text { font-size: 28px; font-weight: 900; color: var(--white); letter-spacing: 3px; } .s1 .brand-bar .b-text .hl { color: var(--blue); }
 .s1 .brand-bar .briefing-tag { margin-left: auto; font-size: 18px; font-weight: 700; color: var(--sec); letter-spacing: 2px; padding: 6px 14px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }
 .s1 .breaking-badge { position: absolute; top: 210px; left: 50%; transform: translateX(-50%); background: var(--red); color: white; padding: 14px 40px; font-size: 28px; font-weight: 900; letter-spacing: 4px; border-radius: 8px; box-shadow: 0 0 40px rgba(239,68,68,0.6); display: flex; align-items: center; gap: 10px; animation: stampIn 0.4s ease-out 0.3s forwards; opacity: 0; }
 .s1 .breaking-badge .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background: white; animation: pulseDot 1s ease-in-out infinite; }
-@keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.7); } }
 .s1 .subject-row { position: absolute; top: 340px; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 20px; animation: slideUp 0.4s ease-out 0.5s forwards; opacity: 0; }
 .s1 .subject-row .ds-logo { width: 64px; height: 64px; } .s1 .subject-row .ds-logo svg { width: 100%; height: 100%; }
 .s1 .subject-row .subject-text { font-size: 56px; font-weight: 800; color: var(--sec); letter-spacing: 4px; }
 .s1 .headline { position: absolute; top: 480px; left: 0; right: 0; text-align: center; }
 .s1 .big-number { font-size: 260px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.8s forwards, numberPulse 2s ease-in-out 1.5s infinite; opacity: 0; }
-@keyframes numberPulse { 0%, 100% { text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); } 50% { text-shadow: 0 0 80px rgba(245,158,11,0.7), 0 0 160px rgba(245,158,11,0.4); } }
 .s1 .subtitle { font-size: 52px; font-weight: 800; color: var(--white); letter-spacing: 3px; margin-top: 12px; animation: slideUp 0.5s ease-out 1.1s forwards; opacity: 0; } .s1 .subtitle .hl { color: var(--red); }
 .s1 .stats-grid { position: absolute; top: 950px; left: 80px; right: 80px; display: flex; gap: 20px; justify-content: center; }
 .s1 .stat-card { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 32px 20px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
@@ -64,7 +61,6 @@ ${baseStyles(duration)}
 .s1 .stat-card .stat-num { font-size: 64px; font-weight: 900; line-height: 1; } .s1 .stat-card .stat-num .unit { font-size: 32px; font-weight: 700; }
 .s1 .stat-card:nth-child(1) .stat-num { color: var(--amber); } .s1 .stat-card:nth-child(2) .stat-num { color: var(--blue); }
 .s1 .stat-card .stat-label { font-size: 22px; font-weight: 700; color: var(--sec); letter-spacing: 1px; margin-top: 10px; }
-.s1 .source-badge { position: absolute; bottom: 120px; left: 0; right: 0; text-align: center; font-size: 24px; font-weight: 700; color: var(--muted); letter-spacing: 3px; animation: fadeIn 0.5s ease-out 2.0s forwards; opacity: 0; }
 .s1 .glitch { position: absolute; inset: 0; pointer-events: none; animation: glitchFlash 0.4s ease-out 0.8s; opacity: 0; }
 @keyframes glitchFlash { 0% { opacity: 0; } 10% { opacity: 1; background: rgba(239,68,68,0.1); transform: translateX(-3px); } 20% { opacity: 0; transform: translateX(3px); } 30% { opacity: 1; background: rgba(77,139,255,0.08); } 40% { opacity: 0; } 100% { opacity: 0; } }
 </style></head><body>
@@ -75,7 +71,6 @@ ${baseStyles(duration)}
   ${txt.subject ? `<div class="subject-row">${txt.subjectLogo ? `<div class="ds-logo">${DEEPSEEK_LOGO_SVG}</div>` : ""}<div class="subject-text">${txt.subject}</div></div>` : ""}
   <div class="headline">${txt.bigNumber ? `<div class="big-number">${txt.bigNumber}</div>` : ""}${txt.subtitle ? `<div class="subtitle">${txt.subtitle} ${txt.subtitleHighlight ? `<span class="hl">${txt.subtitleHighlight}</span>` : ""}</div>` : ""}</div>
   <div class="stats-grid">${statsHtml}</div>
-  ${t(txt, "source") ? `<div class="source-badge">${txt.source}</div>` : ""}
   <div class="glitch"></div>
 </div></body></html>`;
 }
@@ -254,7 +249,7 @@ ${baseStyles(duration)}
 </style></head><body>
 <div class="scene s9"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
   <div class="title">${t(txt, "title")} <span class="hl">${t(txt, "titleHighlight")}</span> ${t(txt, "titleSuffix")}</div>
-  <div class="gap-viz"><div class="gpu-col"><div class="gpu-num have-num">${t(txt, "have")}</div><div class="gpu-bar have">GPUs</div><div class="gpu-label">${t(txt, "haveLabel")}</div></div><div class="vs-text">vs</div><div class="gpu-col"><div class="gpu-num need-num">${t(txt, "need")}</div><div class="gpu-bar need">GPUs</div><div class="gpu-label">${t(txt, "needLabel")}</div></div></div>
+  <div class="gap-viz"><div class="gpu-col"><div class="gpu-num have-num">${t(txt, "have")}</div><div class="gpu-bar have">${t(txt, "haveFill")}</div><div class="gpu-label">${t(txt, "haveLabel")}</div></div><div class="vs-text">${t(txt, "vsText")}</div><div class="gpu-col"><div class="gpu-num need-num">${t(txt, "need")}</div><div class="gpu-bar need">${t(txt, "needFill")}</div><div class="gpu-label">${t(txt, "needLabel")}</div></div></div>
   ${t(txt, "reserve") ? `<div class="reserve-box"><div class="amount">${txt.reserve}</div><div class="label">${t(txt, "reserveLabel")}</div></div>` : ""}
   ${t(txt, "verdict") ? `<div class="verdict">${txt.verdict} <span class="hl">${t(txt, "verdictHighlight")}</span></div>` : ""}
 </div></body></html>`;
@@ -277,7 +272,7 @@ ${baseStyles(duration)}
 </style></head><body>
 <div class="scene s10"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
   <div class="title">${t(txt, "title")} <span class="hl">${t(txt, "titleHighlight")}</span></div>
-  <div class="versus"><div class="chip-card huawei"><div class="chip-name">${t(txt, "huaweiChip")}</div><div class="chip-label">${t(txt, "huaweiLabel")}</div><div class="chip-match">${t(txt, "huaweiMatch")}</div></div><div class="vs-circle">VS</div><div class="chip-card nvidia"><div class="chip-name">${t(txt, "nvidiaChip")}</div><div class="chip-label">${t(txt, "nvidiaLabel")}</div><div class="chip-match">${t(txt, "nvidiaMatch")}</div></div></div>
+  <div class="versus"><div class="chip-card huawei"><div class="chip-name">${t(txt, "huaweiChip")}</div><div class="chip-label">${t(txt, "huaweiLabel")}</div><div class="chip-match">${t(txt, "huaweiMatch")}</div></div><div class="vs-circle">${t(txt, "vsText")}</div><div class="chip-card nvidia"><div class="chip-name">${t(txt, "nvidiaChip")}</div><div class="chip-label">${t(txt, "nvidiaLabel")}</div><div class="chip-match">${t(txt, "nvidiaMatch")}</div></div></div>
   <div class="stats-row">${statsHtml}</div>
   ${t(txt, "prediction") ? `<div class="prediction"><div class="text">${txt.prediction}</div><div class="sub">${t(txt, "predictionSub")}</div></div>` : ""}
 </div></body></html>`;
@@ -308,21 +303,17 @@ function scene12(scene, duration) {
 ${baseStyles(duration)}
 .s12 { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .s12 .brand-logo-large { width: 130px; height: 130px; margin-bottom: 30px; filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); animation: scaleIn 0.6s ease-out 0.1s forwards, logoPulse 3s ease-in-out 1s infinite; opacity: 0; }
-@keyframes logoPulse { 0%, 100% { filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); } 50% { filter: drop-shadow(0 0 50px rgba(77,139,255,0.6)); } }
 .s12 .brand-logo-large svg { width: 100%; height: 100%; }
 .s12 .brand-name { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 4px; margin-bottom: 16px; animation: scaleIn 0.6s ease-out 0.3s forwards; opacity: 0; } .s12 .brand-name .hl { color: var(--blue); }
 .s12 .tagline { font-size: 32px; font-weight: 600; color: var(--sec); letter-spacing: 3px; margin-bottom: 80px; animation: fadeIn 0.5s ease-out 0.7s forwards; opacity: 0; }
 .s12 .line1 { font-size: 64px; font-weight: 800; color: var(--amber); letter-spacing: 2px; margin-bottom: 16px; animation: slideUp 0.5s ease-out 1.0s forwards; opacity: 0; text-shadow: 0 0 30px rgba(245,158,11,0.4); }
-.s12 .subscribe { position: absolute; bottom: 120px; text-align: center; font-size: 30px; font-weight: 700; color: var(--muted); letter-spacing: 3px; animation: fadeIn 0.5s ease-out 1.4s forwards; opacity: 0; }
 .s12 .fade-to-black { position: absolute; inset: 0; background: #050508; pointer-events: none; animation: fadeOut 0.8s ease-in ${Math.max(duration - 1.2, 1.5).toFixed(1)}s forwards; opacity: 0; }
-@keyframes fadeOut { to { opacity: 1; } }
 </style></head><body>
 <div class="scene s12"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
   <div class="brand-logo-large">${BRAND_MARK_SVG}</div>
   <div class="brand-name">${t(txt, "brand").replace(txt.brandHighlight || "\0", `<span class="hl">${txt.brandHighlight}</span>`)}</div>
   ${t(txt, "tagline") ? `<div class="tagline">${txt.tagline}</div>` : ""}
   ${t(txt, "line1") ? `<div class="line1">${txt.line1}</div>` : ""}
-  ${t(txt, "subscribe") ? `<div class="subscribe">${txt.subscribe}</div>` : ""}
   <div class="fade-to-black"></div>
 </div></body></html>`;
 }

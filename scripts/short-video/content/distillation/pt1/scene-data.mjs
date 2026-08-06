@@ -24,6 +24,7 @@ export const scenes = [
     voiceover:
       "Three China AI labs were caught stealing Claude's brain. 24,000 fake accounts. 16 million conversations.",
     texts: {
+      badge: "DISTILLATION ALERT",
       line1: "3 LABS ACCUSED",
       line2: "16M CONVERSATIONS",
     },
@@ -35,7 +36,10 @@ export const scenes = [
     voiceover:
       "They weren't just copying answers. They were stealing the full reasoning process. The chain of thought. Claude's inner thinking, encrypted but not unbreakable.",
     texts: {
+      title: "NOT JUST COPYING ANSWERS",
+      leftTitle: "SURFACE LEVEL",
       left: ["ANSWERS", "CODE", "TOOL CALLS"],
+      rightTitle: "WHAT THEY STOLE",
       right: ["REASONING", "CHAIN OF THOUGHT", "PERSONA"],
     },
   },
@@ -46,6 +50,11 @@ export const scenes = [
     voiceover:
       "Every Claude response included an encrypted Blob containing its raw thinking. Inject a forged Blob, and Claude would recite its own hidden reasoning. The cost? Tens of thousands of dollars.",
     texts: {
+      title: "THE ",
+      titleHighlight: "CRACK",
+      titleSuffix: " SEQUENCE",
+      cost: "Cost: ",
+      costHighlight: "tens of thousands of dollars",
       events: [
         { date: "STEP 1", text: "FORGE BLOB" },
         { date: "STEP 2", text: "INJECT" },
@@ -62,6 +71,7 @@ export const scenes = [
       "On February 23, Anthropic reported publicly. DeepSeek: 150,000 exchanges. Moonshot: 3.4 million. MiniMax: 13 million. The largest of all.",
     texts: {
       title: "ANTHROPIC'S ACCUSATION · FEB 2026",
+      footer: "SOURCE: ANTHROPIC · FEBRUARY 2026",
       rows: [
         { label: "DeepSeek", value: "150K" },
         { label: "Moonshot (Kimi)", value: "3.4M" },
@@ -79,6 +89,7 @@ export const scenes = [
     texts: {
       quote: "Encrypted reasoning blobs can be replayed across sessions.",
       source: "Cryptography Engineering Blog · May 2026",
+      verified: "INDEPENDENTLY CONFIRMED",
     },
   },
   {
@@ -88,8 +99,11 @@ export const scenes = [
     voiceover:
       "Qwen and Z-A-I were not named. Anthropic's accusations were selective. Moonshot never responded publicly.",
     texts: {
+      title: "SELECTIVE ACCUSATIONS",
       left: ["NAMED", "DeepSeek", "Moonshot", "MiniMax"],
       right: ["NOT NAMED", "Qwen", "Z.ai", "Others?"],
+      note: "Moonshot ",
+      noteHighlight: "never responded publicly",
     },
   },
   {
@@ -99,8 +113,10 @@ export const scenes = [
     voiceover:
       "One lab cracked it first, then gave it away free. Part two: the great distillation wave.",
     texts: {
+      label: "COMING NEXT",
       line1: "PART 2 TOMORROW",
       line2: "ONE LAB CRACKED IT, THEN SHARED IT",
+      countdown: "SUBSCRIBE TO NOT MISS IT",
     },
   },
   {
@@ -110,6 +126,7 @@ export const scenes = [
     voiceover: "Follow for more China AI analysis. This is China AI News.",
     texts: {
       brand: "CHINA AI NEWS",
+      brandHighlight: "AI",
       tagline: "China's AI, decoded.",
       line1: "Follow for Part 2",
     },

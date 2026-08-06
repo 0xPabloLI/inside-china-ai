@@ -22,9 +22,15 @@ describe("DeepSeek scene generation", () => {
         expect(html).toContain("<!DOCTYPE html>");
       });
 
-      it("contains brand watermark", () => {
-        expect(html).toContain("brand-watermark");
-      });
+      if (scene.id === 1 || scene.id === 12) {
+        it("skips watermark on brand-identity scenes (no double branding)", () => {
+          expect(html).not.toMatch(/<div class="brand-watermark">/);
+        });
+      } else {
+        it("contains brand watermark element", () => {
+          expect(html).toMatch(/<div class="brand-watermark">/);
+        });
+      }
 
       it("contains baseStyles CSS variables", () => {
         expect(html).toContain("--blue");
@@ -53,6 +59,21 @@ describe("DeepSeek scene generation", () => {
     it("contains breaking badge", () => {
       expect(html).toContain("BREAKING");
     });
+
+    it("has no dead-zone source footnote", () => {
+      expect(html).not.toContain('class="source-badge"');
+      expect(html).not.toContain("VIA BLOOMBERG");
+    });
+  });
+
+  describe("scene 9 (compute-gap) text from scene.texts", () => {
+    const scene9 = scenes[8];
+    const html = generateScene(scene9, 10);
+
+    it("contains fill labels and vs text from data", () => {
+      expect(html).toContain("GPUs");
+      expect(html).toContain(">vs<");
+    });
   });
 
   describe("scene 12 (cta) text from scene.texts", () => {
@@ -64,12 +85,13 @@ describe("DeepSeek scene generation", () => {
       expect(html).toContain("AI");
     });
 
-    it("contains subscribe text", () => {
-      expect(html).toContain("Subscribe");
-    });
-
     it("contains fade-to-black", () => {
       expect(html).toContain("fade-to-black");
+    });
+
+    it("has no dead-zone subscribe line", () => {
+      expect(html).not.toContain('class="subscribe"');
+      expect(html).not.toContain("Follow for daily China AI deep dives");
     });
   });
 
