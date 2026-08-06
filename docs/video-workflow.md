@@ -46,15 +46,16 @@ Based on platform research and session learnings:
 | ----------- | ------------------------------------------ | -------------------------------------------------------- |
 | Font size   | **42px** (was 34px)                        | Must be readable at phone size + thumbnail scale         |
 | Font weight | **Bold**                                   | Thin text vanishes on bright backgrounds                 |
-| Style       | **Karaoke `\kf`** (word-by-word highlight) | TikTok-native feel; spoken words change color as audio progresses |
-| Chunks      | **3-7 words** per display                  | Users read ~2.5 words/sec; longer chunks get skipped     |
+| Style       | **Karaoke `\kt` + `\kf`** (word-by-word highlight) | TikTok-native feel; `\kt` anchors each word absolutely so rounding error can't accumulate across a line |
+| Chunks      | **≤6 words / ≤49 chars** per display (soft break at 38 chars when ≥2 words remain) | Users read ~2.5 words/sec; longer chunks get skipped |
 | Rendering   | **FFmpeg ASS native burn-in** (ffmpeg-full) | CSS/JS approaches abandoned; ASS gives pixel-perfect control |
 | Position    | `MarginV=450` (ASS)                        | Above TikTok bottom UI zone (buttons, description, username) |
 | Timing      | **wav2vec2 forced alignment** (`text-align.py`) | Per-word timestamps; `\kf` tags use actual audio timing |
-| Primary color | White `#F5F5F5`                           | Spoken words (highlighted)                               |
-| Secondary color | Gray `#94A3B8`                          | Unspoken words (waiting to be spoken)                    |
+| Primary color | Dispatch Blue `#4d8bff`                   | Spoken words — hue shift, not a luminance drop, so read words stay legible |
+| Secondary color | White `#F5F5F5`                         | Unspoken words (waiting to be spoken)                    |
 | Background  | **None** (transparent, 3px black outline)  | Clean look; outline provides contrast on any scene       |
-| Generation  | `generate-ass.py` (pysubs2)                | Proper ASS escaping, `\kf` tags from word timestamps     |
+| Generation  | `lib/subtitles/` (JS)                      | Cue text is derived from its own word list, so a word can never be shown without timing |
+| Cue timing  | 2-frame lead-in, ≥0.8s on screen, 0.5s hold-out, gaps either 2 frames or ≥0.5s | Netflix Timed Text Style Guide, converted to 30fps |
 | Scene 1     | ✅ Now has subtitles (was skipped)         | User feedback: subtitles should appear from the start    |
 
 ### Pacing
@@ -156,6 +157,18 @@ Based on platform research and session learnings:
 | Instagram Reels | 90s          | 15-30s     | Upload full video if ≤90s; otherwise create shortened cut |
 
 **Cross-platform default**: Write for 60-90s. YouTube Shorts gets the full version; TikTok needs a shortened cut.
+
+### Title & Cover Strategy
+
+TikTok doesn't have a separate cover image — the first frame of the video IS the cover. The hook scene's first frame is already governed by First Frame Best Practices above. The title (caption first line ≤60 chars) is the SEO signal for the algorithm.
+
+**Agent should design the title explicitly in scene-data** (via `metadata.title`), not rely on `generate-caption.mjs` auto-derivation:
+- Title includes core SEO keywords (DeepSeek, China AI, model name)
+- Title ≤60 chars (TikTok limit)
+- Title is a factual statement, not clickbait
+- `generate-caption.mjs` uses `metadata.title` when available (see `deriveTitle()` in `caption-utils.mjs`)
+
+> Source: 自媒体实战方法论 — "封面给眼球，标题给算法。标题是给搜索和推荐算法看的，封面是给活人的眼睛看的。"
 
 ### TikTok Best Practices Integration
 
@@ -264,18 +277,23 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 ```text
 scripts/short-video/
 ├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify)
-├── verify-subtitles.mjs    # CLI wrapper — subtitle verification (coverage + sync)
+├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
+├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
 ├── f5_mlx_batch_tts.py     # F5-TTS-MLX batch TTS (load model once, all scenes)
 ├── xtts_batch_tts.py       # XTTS v2 batch TTS (fallback engine)
 ├── kokoro_tts.py           # Kokoro TTS (fallback engine)
 ├── lib/                    # Shared infrastructure (content-agnostic)
 │   ├── generate-tts.mjs    # TTS engine selector (F5 > XTTS > Kokoro > edge > say)
-│   ├── generate-srt.mjs    # ASS subtitle generation (PlayResX=1080, MarginV=450, -0.3s offset)
+│   ├── timeline.mjs        # Frame-exact scene durations + offsets (single source of truth)
+│   ├── subtitles/
+│   │   ├── cues.mjs        # Alignment → cues (chunking + Netflix timing rules)
+│   │   ├── ass.mjs         # ASS render + parse (\kt anchors, 1ms precision)
+│   │   └── generate.mjs    # Entry point: timing JSON → subtitles.ass
 │   ├── assemble.mjs        # FFmpeg assembly + ASS burn-in + BGM mix
 │   ├── record-scenes.mjs   # Playwright recording (1080×1920)
 │   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
-│   ├── verify-subtitles.mjs # Subtitle verification (coverage, duration, sync)
+│   ├── verify-subtitles.mjs # Reads back the .ass and checks it against the alignment data
 │   └── base-styles.mjs     # Shared visual system (CSS vars, backgrounds, animations, brand SVG)
 ├── content/                # Content pipelines (each article = one dir)
 │   ├── deepseek/           # DeepSeek story
@@ -376,6 +394,55 @@ node scripts/short-video/ab-test-tracker.mjs report
    - Blog post -> website SEO
    - Newsletter -> email list
    - X thread -> social reach
+
+### Element Iteration Method (Scientific A/B Testing)
+
+Source: 自媒体实战方法论 (乱码老师). A systematic approach to content optimization — not random testing, but controlled single-variable experiments.
+
+**Core principle**: Change ONE element per iteration. Keep what works, discard what doesn't.
+
+**Iteration cycle**:
+1. Round 1: Discover element B works well → B + everything else
+2. Round 2: Discover B + D works better → keep BD, swap other elements
+3. Round 3: Discover B + D + E works even better → continue adding new variables
+4. All good elements stay; all bad elements get eliminated. Each round changes only ONE element.
+
+**What to iterate on**:
+- Hook formula (T1 cold-open vs T3 number reveal vs T4 question)
+- Hook angle (same formula, different framing)
+- Video length (30s vs 45s vs 60s)
+- Posting time (morning vs evening)
+- Visual style (data-heavy vs text-heavy)
+- TTS engine/speed (F5 vs XTTS, 1.0x vs 1.15x)
+
+**How to use with ab-test-tracker.mjs**:
+```bash
+# Round 1: Test hook formula
+ab-test-tracker.mjs add --variable hook --variant A --description "T1 cold-open"
+ab-test-tracker.mjs add --variable hook --variant B --description "T3 number reveal"
+# Record results, keep winner
+
+# Round 2: Fix hook (use winner), test video length
+ab-test-tracker.mjs add --variable length --variant A --description "30s"
+ab-test-tracker.mjs add --variable length --variant B --description "45s"
+# Record results, keep winner
+
+# Round 3: Fix hook + length, test posting time
+# ... continue
+```
+
+**Key insight**: "媒体终究是数据说话的事" (Media is ultimately a data-driven business). Don't rely on gut feeling — let the data decide which elements to keep.
+
+### Content Publishing Red Lines
+
+Source: 自媒体实战方法论 (乱码老师). Practical rules to protect account health and maximize ROI.
+
+| Rule | Why | How to enforce |
+| ---- | --- | -------------- |
+| **Don't publish for the sake of publishing** | Publishing low-quality content on an account with no traction = killing the account. The algorithm records "this content got no views" and penalizes future posts. | HITL-3: If video quality is subpar, Agent should recommend not publishing. See quality gate in `content-pipeline.md` HITL-3. |
+| **Don't use all source material at once** | "One-time use is wasteful — split it up." If an article is rich enough for multiple videos, split into parts rather than cramming everything into one. | Stage 3 Step 0: Run episode evaluator. If >60s, split into parts. |
+| **Don't spend excessive time on low-ROI content** | "Someone spent half a day making one video, got a few thousand views — not worth it." Calculate time-to-ROI. | Agent should flag when a single video requires >2 pipeline reruns. Consider simplifying scope. |
+| **Don't re-post underperforming material** | The algorithm remembers "this is a bad asset" — even re-edited versions get suppressed. | If a video significantly underperforms (<200 views), don't re-edit and re-post the same topic. Move to a new topic. |
 
 ---
 
@@ -500,7 +567,10 @@ node scripts/short-video/main.mjs --content deepseek
 node scripts/short-video/main.mjs --content deepseek --bgm --skip-verify
 
 # Standalone subtitle verification
-node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitle-timing.json> [scene-durations.json]
+node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitles.ass> <subtitle-timing.json> <scene-durations.json>
+
+# Re-render without re-running TTS (visual or subtitle changes only)
+node scripts/short-video/render-only.mjs --content restraint/pt1
 ```
 
 ### Pipeline Steps
