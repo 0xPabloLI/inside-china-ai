@@ -131,7 +131,7 @@ Based on TikTok color best practices research (2025-2026):
 | **Accent**     | 10%   | `#f59e0b` amber                                 | Key numbers, CTA, data highlights |
 
 - **Red** `#ef4444` → breaking news badges, threat/negative entities, danger stamps
-- **Amber** `#f59e0b` → big numbers in Hook, CTA "Subscribe", key data points (Bloomberg amber-on-black pattern)
+- **Amber** `#f59e0b` → big numbers in Hook, CTA "FOLLOW FOR MORE" (standard end-card action), key data points (Bloomberg amber-on-black pattern)
 - **Blue** `#4d8bff` → brand color, tech/protagonist entities, structural elements
 - **Green** `#34d399` → positive outcomes, advantages
 - **White** `#f5f5f5` → general text, titles (never pure `#ffffff`)

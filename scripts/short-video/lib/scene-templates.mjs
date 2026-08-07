@@ -414,6 +414,7 @@ export {
   statCard,
   quoteBox,
   titleBlock,
+  highlightSpan,
   bigNumberAnchor,
   pointsList,
   stampBox,

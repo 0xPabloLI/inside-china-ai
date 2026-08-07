@@ -24,6 +24,7 @@ import {
   titleBlock,
   pointsList,
   stampBox,
+  highlightSpan,
   ctaScene,
 } from "../../../lib/scene-templates.mjs";
 
@@ -38,13 +39,6 @@ const DEEPSEEK_ICON_SVG = readFileSync(
 // Safe text accessor
 function t(texts, key) {
   return texts?.[key] ?? "";
-}
-
-/** Wrap `highlight` (if present in `text`) in a highlighted span. */
-function hl(text, highlight) {
-  return highlight && text.includes(highlight)
-    ? text.replace(highlight, `<span class="hl">${highlight}</span>`)
-    : text;
 }
 
 /* ── S1: Hook — T6 Bold Claim (three-layer open, first-frame striking) ── */
@@ -134,7 +128,7 @@ ${baseStyles(duration)}${templateCss()}
     <div class="arrow">${t(txt, "arrow")}</div>
     <div class="card after"><div class="label">${t(txt, "afterLabel")}</div><div class="text">${t(txt, "mission")}</div></div>
   </div>
-  <div class="bottom-note">${hl(t(txt, "note"), t(txt, "noteHighlight"))}</div>
+  <div class="bottom-note">${highlightSpan(t(txt, "note"), t(txt, "noteHighlight"), "amber")}</div>
 </div></body></html>`;
 }
 
@@ -213,7 +207,7 @@ ${baseStyles(duration)}${templateCss()}
     <div class="col right"><div class="col-icon">✓</div><div class="col-text">${t(txt, "right")}</div></div>
   </div>
   <div class="vs-circle">${t(txt, "vs")}</div>
-  <div class="note">${hl(t(txt, "note"), t(txt, "noteHighlight"))}</div>
+  <div class="note">${highlightSpan(t(txt, "note"), t(txt, "noteHighlight"), "white")}</div>
 </div></body></html>`;
 }
 
@@ -244,7 +238,7 @@ ${baseStyles(duration)}${templateCss()}
   </div>
   <div class="quote-box">
     <div class="text">${t(txt, "point")}</div>
-    <div class="context">${hl(t(txt, "context"), t(txt, "contextHighlight"))}</div>
+    <div class="context">${highlightSpan(t(txt, "context"), t(txt, "contextHighlight"), "white")}</div>
   </div>
 </div></body></html>`;
 }
@@ -271,7 +265,7 @@ ${baseStyles(duration)}${templateCss()}
   <div class="action-text">${t(txt, "action")}</div>
   <div class="big-stat">${t(txt, "stat")}</div>
   <div class="stat-context">${t(txt, "context")}</div>
-  <div class="conclusion">${hl(t(txt, "conclusion"), t(txt, "conclusionHighlight"))}</div>
+  <div class="conclusion">${highlightSpan(t(txt, "conclusion"), t(txt, "conclusionHighlight"), "red")}</div>
 </div></body></html>`;
 }
 
@@ -314,7 +308,7 @@ ${baseStyles(duration)}${templateCss()}
       <div class="check">✗</div>
     </div>
   </div>
-  <div class="insight">${hl(t(txt, "insight"), t(txt, "insightHighlight"))}</div>
+  <div class="insight">${highlightSpan(t(txt, "insight"), t(txt, "insightHighlight"), "blue")}</div>
 </div></body></html>`;
 }
 
