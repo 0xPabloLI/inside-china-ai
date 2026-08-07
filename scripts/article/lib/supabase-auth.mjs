@@ -94,11 +94,16 @@ function isNewSupabaseApiKey(value) {
  *
  * Required env vars: ADMIN_EMAIL, ADMIN_PASSWORD, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY
  *
+ * @param {{ dotenv?: Record<string, string> }} [opts] - Optional injected
+ *   env-file values (tests pass `{ dotenv: {} }` to simulate a missing-env
+ *   machine without the repo .env/.env.local leaking real credentials in).
+ *   Defaults to loading .env/.env.local from disk — callers that don't pass
+ *   it keep the existing behavior.
  * @returns {Promise<{access_token: string, user: {id: string}}>}
  * @throws {Error} If env vars are missing, auth fails, or network error occurs.
  */
-export async function loginAdmin() {
-  const dotenv = loadDotEnvFiles();
+export async function loginAdmin({ dotenv } = {}) {
+  const resolvedDotenv = dotenv ?? loadDotEnvFiles();
 
   const email = getEnvVar("ADMIN_EMAIL", dotenv);
   const password = getEnvVar("ADMIN_PASSWORD", dotenv);

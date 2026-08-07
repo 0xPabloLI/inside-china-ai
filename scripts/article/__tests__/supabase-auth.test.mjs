@@ -89,7 +89,10 @@ describe("loginAdmin", () => {
     process.env.SUPABASE_PUBLISHABLE_KEY = "sb_publishable_test";
     process.env.ADMIN_PASSWORD = "pass";
 
-    await expect(loginAdmin()).rejects.toThrow(/ADMIN_EMAIL/);
+    // Empty injected dotenv: the repo .env/.env.local must not leak real
+    // credentials into this test (loginAdmin() would otherwise fire a live
+    // auth request instead of entering the missing-env branch).
+    await expect(loginAdmin({ dotenv: {} })).rejects.toThrow(/ADMIN_EMAIL/);
   });
 
   it("throws clear error when ADMIN_PASSWORD is missing (scenario 9)", async () => {
@@ -97,7 +100,7 @@ describe("loginAdmin", () => {
     process.env.SUPABASE_PUBLISHABLE_KEY = "sb_publishable_test";
     process.env.ADMIN_EMAIL = "test@example.com";
 
-    await expect(loginAdmin()).rejects.toThrow(/ADMIN_PASSWORD/);
+    await expect(loginAdmin({ dotenv: {} })).rejects.toThrow(/ADMIN_PASSWORD/);
   });
 
   it("throws clear error when SUPABASE_URL is missing (scenario 9)", async () => {
@@ -105,7 +108,7 @@ describe("loginAdmin", () => {
     process.env.ADMIN_EMAIL = "test@example.com";
     process.env.ADMIN_PASSWORD = "pass";
 
-    await expect(loginAdmin()).rejects.toThrow(/SUPABASE_URL/);
+    await expect(loginAdmin({ dotenv: {} })).rejects.toThrow(/SUPABASE_URL/);
   });
 
   it("throws clear error when SUPABASE_PUBLISHABLE_KEY is missing (scenario 9)", async () => {
@@ -113,7 +116,27 @@ describe("loginAdmin", () => {
     process.env.ADMIN_EMAIL = "test@example.com";
     process.env.ADMIN_PASSWORD = "pass";
 
-    await expect(loginAdmin()).rejects.toThrow(/SUPABASE_PUBLISHABLE_KEY/);
+    await expect(loginAdmin({ dotenv: {} })).rejects.toThrow(/SUPABASE_PUBLISHABLE_KEY/);
+  });
+
+  it("uses injected dotenv to satisfy env when process.env is empty", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: "tok", user: { id: "u" } }),
+    });
+    global.fetch = mockFetch;
+
+    const result = await loginAdmin({
+      dotenv: {
+        ADMIN_EMAIL: "test@example.com",
+        ADMIN_PASSWORD: "pass",
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+      },
+    });
+    expect(result.access_token).toBe("tok");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it("returns access_token and user on successful login", async () => {
