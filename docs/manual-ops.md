@@ -8,26 +8,26 @@
 
 ## HITL 人工确认检查点
 
-> 管线设 3 个强制人工确认点。Agent 到达时必须暂停，等待用户确认后才继续。
+> 管线设 1 个强制人工确认点。Agent 到达时必须暂停，等待用户确认后才继续。
 
 | 检查点                  | 位置                           | 审阅内容                                         | 确认语              |
 | ----------------------- | ------------------------------ | ------------------------------------------------ | ------------------- |
-| **HITL-1** 文章审阅     | Stage 1 完成后                 | 文章全文（frontmatter + markdown + widget 标记） | 「文章 OK，继续」   |
-| **HITL-2** 视频脚本审阅 | Stage 3 完成后                 | scene-data.mjs（场景脚本、voiceover、视觉描述）  | 「脚本 OK，做视频」 |
-| **HITL-3** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告             | 「视频 OK，发布」   |
+| **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 markdown + 场景概览 | 「视频 OK，发布」   |
 
 **用户审阅要点**：
 
-- **HITL-1**：叙事逻辑、数据准确性、Widget 选择、「My Take」章节质量
-- **HITL-2**：Hook 吸引力、叙事逻辑、数据准确性、场景数量和总时长、CTA 有效性
-- **HITL-3**：实际观看视频、TTS 语音自然度、字幕准确性、视觉动画流畅度、有无渲染问题
+- 文章叙事逻辑、数据准确性、Widget 选择、「My Take」章节质量
+- Hook 吸引力、叙事逻辑、数据准确性、场景数量和总时长、CTA 有效性
+- 实际观看视频、TTS 语音自然度、字幕准确性、视觉动画流畅度、有无渲染问题
+
+> HITL 确认后，Agent 依次执行：文章发布 → 源素材附件上传 → 视频 MP4 上传 → TikTok 发布。详见 `docs/content-pipeline.md` Stage 5。
 
 ---
 
 ## 每次发布视频时
 
-> **前置条件**：HITL-3 已通过 + `publish-tiktok.mjs` 已执行（视频已发布到 TikTok）。
-> 视频通过 `verify-video.mjs` 检查 → 用户确认 → 脚本发布后，在 TikTok App 中需要手动完成的操作。
+> **前置条件**：HITL 已通过（用户确认「视频 OK，发布」）。
+> HITL 确认后 Agent 依次执行：文章发布 → 源素材附件上传 → 视频 MP4 上传 → TikTok 发布。视频通过 `verify-video.mjs` 检查 → 用户确认 → Agent 执行发布后，在 TikTok App 中需要手动完成的操作。
 
 | #   | 操作               | 说明                                     | 为什么                                  |
 | --- | ------------------ | ---------------------------------------- | --------------------------------------- |
@@ -49,15 +49,17 @@
 
 ## 每次发布文章时
 
-> **前置条件**：HITL-1 已通过（文章已审阅确认）。
+> **前置条件**：HITL 已通过（用户确认「视频 OK，发布」）。
+> 文章发布在 HITL 确认后由 Agent 自动执行，不需要用户手动运行脚本。
 
 | #   | 操作               | 说明                                                                                                                                                           |
 | --- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **检查 widget**    | 确认文中引用的 widget 已注册且已部署。如有新 widget，先部署再发布。                                                                                       |
+| 1   | **检查 widget**    | 确认文中引用的 widget 已注册且已部署。如有新 widget，Agent 在 Stage 2 已部署。                                                                          |
 | 2   | **部署新 widget**  | 1. `npm run build` 构建（包括 widget 代码）<br>2. 访问 Lovable 编辑器 → 点击「Publish」部署。<br>**注意**：不要直接用 `npx wrangler deploy`，会丢失 Lovable 注入的环境变量。 |
-| 3   | **运行发布脚本**   | `node scripts/article/publish-article.mjs --file <path>`                                                                                                       |
-| 4   | **上传源文件附件** | `node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [path2 ...]`。所有引用的原始素材（PDF、报告等）必须上传。可用 `--list` 查看已有附件 |
-| 5   | **验证**           | 访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确，attachments 列表完整                                                                                   |
+| 3   | **运行发布脚本**   | Agent 执行：`node scripts/article/publish-article.mjs --file <path>`                                                                                                       |
+| 4   | **上传源文件附件** | Agent 执行：`node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [path2 ...]`。所有引用的原始素材（PDF、报告等）必须上传。                             |
+| 5   | **上传视频 MP4**   | Agent 执行：`node scripts/article/upload-attachments.mjs --post <slug> --files <video-path>.mp4`。上传后文章页底部「Watch」区域自动显示视频播放器。                             |
+| 6   | **验证**           | 访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确，attachments 列表完整，视频播放器正常显示。                                                                             |
 
 ### 发布脚本用法
 

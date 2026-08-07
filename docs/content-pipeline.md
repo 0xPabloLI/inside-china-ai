@@ -6,10 +6,14 @@
 ## 管线概览
 
 ```
-入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → ⏸️ HITL-1 文章审阅 → [Stage 2 网站发布] → [Stage 3 scene-data] → 🔄 MRL-2 自审 → ⏸️ HITL-2 脚本审阅 → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL-3 视频审阅 → 发布] → [Stage 6 Analytics]
+入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章准备（widget 部署，不发布）] → [Stage 3 scene-data] → 🔄 MRL-2 自审 → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后统一发布] → [Stage 6 Analytics]
 ```
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
+
+> **工作流变更（2026-08-07）**：原 HITL-1（文章审阅）和 HITL-2（脚本审阅）已移除。MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停等待用户确认。唯一的人工确认点是 **HITL 视频审阅**（原 HITL-3）：用户看视频成品后一次性确认文章 + 脚本 + 视频质量。
+>
+> **工作流变更（2026-08-07，第二次）**：网站发布（文章 + 附件 + 视频 MP4）从 Stage 2 移到 HITL 确认之后执行。原因：如果用户在 HITL 指出文章或视频需要修改，网站上的内容还未发布，不需要同步更新。所有发布动作（网站 + TikTok）在 HITL 确认后一次性完成。
 
 ### 语言规则
 
@@ -19,15 +23,15 @@
 
 ### Human-in-the-Loop (HITL) 检查点
 
-管线设 3 个强制人工确认点。Agent 到达 HITL 检查点时 **必须暂停**，输出审阅内容，等待用户在对话中明确确认后方可继续。
+管线设 1 个强制人工确认点。Agent 到达 HITL 检查点时 **必须暂停**，输出审阅内容，等待用户在对话中明确确认后方可继续。
 
-| 检查点     | 位置                           | 审阅内容                                         | 确认方式                  |
-| ---------- | ------------------------------ | ------------------------------------------------ | ------------------------- |
-| **HITL-1** | Stage 1 完成后                 | 文章全文（frontmatter + markdown + widget 标记） | 用户说「文章 OK，继续」   |
-| **HITL-2** | Stage 3 完成后                 | scene-data.mjs（场景脚本、voiceover、视觉描述）  | 用户说「脚本 OK，做视频」 |
-| **HITL-3** | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告             | 用户说「视频 OK，发布」   |
+| 检查点   | 位置                           | 审阅内容                                                        | 确认方式              |
+| -------- | ------------------------------ | --------------------------------------------------------------- | --------------------- |
+| **HITL** | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 markdown 内容 + 场景概览表 | 用户说「视频 OK，发布」 |
 
-> **Agent 行为约束**：用户未明确确认前，Agent 不得执行后续 Stage。确认必须是用户主动发出（如「继续」「OK」「确认」「发布」等），Agent 不得自行假设确认。
+> **工作流变更（2026-08-07）**：原 HITL-1（文章审阅）和 HITL-2（脚本审阅）已合并到此检查点。用户看视频成品时同时审阅文章和脚本质量。MRL-1 和 MRL-2 仍自动运行，但通过后不暂停。
+
+> **Agent 行为约束**：用户未明确确认前，Agent 不得执行 TikTok 发布。确认必须是用户主动发出（如「继续」「OK」「确认」「发布」等），Agent 不得自行假设确认。
 
 ### Machine Review Loop (MRL) — 机器自审循环
 
@@ -43,11 +47,11 @@
 
 **设计理念**：机器能检查的全自动检查完，用户只需审阅机器无法判断的主观维度（叙事流畅度、语气、观感等）。减少 HITL 往返次数。
 
-| MRL       | 位置                | 检查对象                    | Blocker 数              | Warning 数 |
-| --------- | ------------------- | --------------------------- | ----------------------- | ---------- |
-| **MRL-1** | Stage 1 → HITL-1 前 | 文章 frontmatter + markdown | 8                       | 5          |
-| **MRL-2** | Stage 3 → HITL-2 前 | scene-data.mjs（每集）      | 10                      | 6          |
-| **MRL-3** | Stage 5 → HITL-3 前 | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查  |
+| MRL       | 位置                         | 检查对象                    | Blocker 数              | Warning 数 |
+| --------- | ---------------------------- | --------------------------- | ----------------------- | ---------- |
+| **MRL-1** | Stage 1（自审，不暂停）      | 文章 frontmatter + markdown | 8                       | 5          |
+| **MRL-2** | Stage 3（自审，不暂停）      | scene-data.mjs（每集）      | 10                      | 6          |
+| **MRL-3** | Stage 5 → HITL 前            | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查  |
 
 **MRL 报告格式**（Agent 在 HITL 输出中附带）：
 
@@ -437,83 +441,45 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blo
 | W4  | 章节数量     | < 6 或 > 10                      |
 | W5  | SEO 关键词   | slug 或 excerpt 中缺少核心关键词 |
 
-**循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → 进入 HITL-1。
+**循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → **直接进入 Stage 2（不暂停）**。
 
-#### ⏸️ HITL-1: 文章审阅检查点
+> **工作流变更（2026-08-07）**：MRL-1 通过后不再暂停等待用户确认。Agent 直接发布文章并继续到视频制作。用户在最终 HITL 视频审阅时一并审阅文章质量。
 
-MRL-1 通过后，Agent **暂停**，执行以下步骤：
-
-1. **输出 MRL-1 报告**（状态 + Blocker/Warning 列表）
-2. **输出完整文章内容**（frontmatter + markdown body + widget 标记位置）供用户审阅
-3. **提示审阅要点**（MRL 已检查的机械性项目不重复列出，聚焦主观维度）：
-   - 叙事逻辑是否通顺
-   - 数据点是否准确
-   - Widget 选择是否合适
-   - **Widget 可视化质量**：是否以图表/图形为主而非纯文本列表，是否有交互性，多个 widget 是否使用了不同的可视化技术（避免同质化）
-   - 如有「My Take」章节：是否有独立见解（My Take 为可选）
-   - **源引用是否完整**：所有参考过的资料是否已列出、是否已上传为 attachment 或在文中标注了出处
-4. **如有新 widget**：提示用户需要 `npm run build` + 部署后才能发布
-5. **等待用户确认** — 用户说「文章 OK，继续」或类似确认语后才可进入 Stage 2
-
-> ⚠️ Agent 不得在用户未确认前自动执行 Stage 2 发布脚本。
+> ⚠️ 如有新 widget，Agent 仍需提示用户需要 `npm run build` + 部署后才能发布（这是部署依赖，非审阅检查点）。
 
 ---
 
-## Stage 2: 网站发布（ISSUE-16）
+## Stage 2: 文章准备（不发布）
 
-用户确认文章后，运行发布脚本：
+MRL-1 通过后，Agent 准备文章但不发布到网站。文章发布延迟到 HITL 确认后执行（见 Stage 5）。
 
-```bash
-node scripts/article/publish-article.mjs --file <path>
+### 2a. Widget 部署（如有新 widget）
 
-# 或保存为草稿（不发布）
-node scripts/article/publish-article.mjs --file <path> --draft
-```
+如果 Stage 1 创建了新 widget 组件：
 
-脚本通过 Supabase Auth API 登录（Admin 账号），REST API upsert by slug。
+1. `npm run build` 构建（包括 widget 代码）
+2. 访问 Lovable 编辑器 → 点击「Publish」部署
+3. **注意**：不要直接用 `npx wrangler deploy`，会丢失 Lovable 注入的环境变量
 
-### 上传源文件附件（Stage 2b）
+> Widget 部署需要在文章发布前完成，但可以在 HITL 前任何时间执行。Agent 在 Stage 1 创建 widget 后即可部署。
 
-文章发布成功后，将所有引用的原始素材文件上传为 article attachments：
+### 2b. 文章 Markdown 准备
 
-```bash
-# 上传单个文件
-node scripts/article/upload-attachments.mjs --post <slug> --files <path/to/source.pdf>
+Agent 确认文章 markdown 文件已准备好（frontmatter + body + widget 标记），供后续 Stage 使用：
 
-# 上传多个文件
-node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <path2.csv> <path3.docx>
+- Stage 3 从 markdown 文件生成 scene-data（不需要文章已发布）
+- Stage 5 HITL 展示文章内容供用户审阅
+- Stage 5 HITL 确认后执行发布
 
-# 使用 post ID 直接指定
-node scripts/article/upload-attachments.mjs --post-id <uuid> --files <path>
-
-# 查看已有附件
-node scripts/article/upload-attachments.mjs --post <slug> --list
-
-# 详细输出
-node scripts/article/upload-attachments.mjs --post <slug> --files <path> --verbose
-```
-
-脚本流程：
-
-1. Admin 登录 → 通过 slug 查找 post ID（或直接用 `--post-id`）
-2. 验证文件（存在性、大小 ≤50MB、MIME 类型合规）
-3. 逐个上传到 Supabase Storage `post-attachments` bucket（路径：`{postId}/{fileName}`）
-4. 逐个插入 `post_attachments` 元数据行
-5. 如遇错误，停止后续上传并报告已上传的文件
-
-上传后文件显示在文章页底部的「Attachments」区域，读者可点击下载。
-
-详见 `docs/manual-ops.md` 的「每次发布文章时」部分。
-
-发布后验证：访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确，attachments 列表完整。
+> **注意**：此 stage 不执行 `publish-article.mjs`。文章发布在 Stage 5 HITL 确认后统一执行。
 
 ---
 
 ## Stage 3: 文章 → scene-data（ISSUE-17）
 
-> **前置条件**：HITL-1 已通过（文章已发布到网站）。
+> **前置条件**：Stage 1 已完成（文章 markdown 已生成）。
 
-从已发布文章提炼视频脚本。
+从文章 markdown 提炼视频脚本。
 
 ### Step 0: 分集评估（新增）
 
@@ -736,34 +702,15 @@ Agent 写完所有 `scene-data-pt*.mjs` 后，**先运行 MRL-2 自审循环**�
 | W5  | Hook = 字幕   | spoken hook 与 on-screen text 完全相同                   |
 | W6  | 无 Loop-close | CTA 前最后一个内容场景未回扣 Hook                        |
 
-**循环流程**：Agent 对每集 scene-data 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部集数全部 Blocker PASS → 输出 MRL-2 报告 → 进入 HITL-2。
+**循环流程**：Agent 对每集 scene-data 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部集数全部 Blocker PASS → 输出 MRL-2 报告 → **直接进入 Stage 4（不暂停）**。
 
-### ⏸️ HITL-2: 视频脚本审阅检查点
-
-MRL-2 通过后，Agent **暂停**，执行以下步骤：
-
-1. **输出 MRL-2 报告**（每集状态 + Blocker/Warning 列表）
-2. **输出场景概览表**供用户审阅：
-
-   | Scene    | Voiceover 摘要 | 视觉描述 | 时长(估) |
-   | -------- | -------------- | -------- | -------- |
-   | 1 (Hook) | ...            | ...      | ...      |
-   | ...      | ...            | ...      | ...      |
-
-3. **提示审阅要点**（MRL 已检查的机械性项目不重复列出，聚焦主观维度）：
-   - Hook 是否足够吸引人（前 3 秒）
-   - 叙事逻辑是否从文章自然提炼
-   - CTA 场景是否有效
-   - 各集之间的连贯性（Part 1 → 2 → 3 的叙事钩子）
-4. **等待用户确认** — 用户说「脚本 OK，做视频」或类似确认语后才可进入 Stage 4
-
-> ⚠️ 视频渲染是最耗时的步骤（TTS + HTML + Playwright 录制 + FFmpeg 合成，通常 5-10 分钟）。脚本审阅只需 1-2 分钟，能显著减少返工。Agent 不得在用户未确认前自动启动视频制作管线。
+> **工作流变更（2026-08-07）**：MRL-2 通过后不再暂停等待用户确认。Agent 直接启动视频制作。用户在最终 HITL 视频审阅时一并审阅脚本质量。
 
 ---
 
 ## Stage 4: 视频制作
 
-> **前置条件**：HITL-2 已通过（视频脚本已确认）。
+> **前置条件**：Stage 3 已完成（MRL-2 通过）。
 
 `short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。
 
@@ -777,9 +724,9 @@ node scripts/short-video/main.mjs --bgm          # TTS → HTML → 录制 → �
 
 ## Stage 5: 视频验证 + TikTok 发布
 
-> **前置条件**：HITL-2 已通过（视频脚本已确认）。
+> **前置条件**：Stage 4 已完成（视频已制作）。
 
-### 🔄 MRL-3: 视频自审（HITL-3 前置）
+### 🔄 MRL-3: 视频自审（HITL 前置）
 
 MRL-3 即现有的 `verify-video.mjs` 流程，正式命名为 MRL-3。验证不通过时 Agent 自动修复并重跑，**循环直到 0 failures** 才进入 HITL-3。
 
@@ -801,13 +748,15 @@ node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查 = MRL-
 - 字幕文本与 scene-data voiceover 一致（无 Whisper 识别误差导致的 "deep seeks" vs "DeepSeek's"）
 - 品牌元素（logo、配色）符合 brand-system 规范
 
-### ⏸️ HITL-3: 视频成品审阅检查点
+### ⏸️ HITL: 视频成品审阅检查点（唯一人工确认点）
 
 MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
 1. **输出 MRL-3 报告**（verify-video.mjs 合规报告 + 内容补充检查结果）
 2. **输出视频文件路径**：`output/deepseek-short.mp4`（或实际文件名）
-3. **提示用户审阅要点**（聚焦主观维度）：
+3. **输出文章内容预览**：输出文章 markdown 全文（供用户一并审阅文章质量，文章尚未发布到网站）
+4. **输出场景概览表**（供用户审阅脚本质量）
+5. **提示用户审阅要点**（聚焦主观维度）：
    - 实际观看视频，检查整体观感
    - TTS 语音是否清晰、自然
    - 字幕是否准确、可读
@@ -815,17 +764,73 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    - Hook 场景是否抓人
    - CTA 场景是否有效
    - 有无明显的渲染问题（黑屏、错位、卡顿）
-4. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
+   - **文章内容是否准确**（如有问题可在此反馈，Agent 修改后重新发布）
+   - **脚本叙事是否合理**（如有问题可在此反馈，Agent 修改后重新制作）
+6. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
 
 > ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。MRL-3 的自动合规检查是必要条件但非充分条件 — 机器无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。
 >
+> **工作流变更（2026-08-07）**：此检查点合并了原 HITL-1（文章审阅）和 HITL-2（脚本审阅）。用户在看视频时同时审阅文章和脚本。如果文章或脚本有问题，用户可以在此检查点反馈，Agent 会回溯修改并重新制作。
+>
 > **质量门控**：如果视频质量不达标（TTS 不自然、字幕错位、视觉问题等），Agent 应建议用户不发布而非强行发布。不要为了发而发——发布低质量内容会损害账号健康（见 `docs/tiktok-best-practices.md` 账号健康管理章节）。Agent 应明确告知用户质量问题并建议修复后重新渲染。
 
-### 发布
+### 发布（HITL 确认后统一执行）
+
+用户确认后，Agent 依次执行以下发布步骤：
+
+#### 5a. 文章发布到网站
+
+```bash
+node scripts/article/publish-article.mjs --file <path>
+```
+
+脚本通过 Supabase Auth API 登录（Admin 账号），REST API upsert by slug。
+
+#### 5b. 上传源文件附件
+
+将所有引用的原始素材文件上传为 article attachments：
+
+```bash
+# 上传单个文件
+node scripts/article/upload-attachments.mjs --post <slug> --files <path/to/source.pdf>
+
+# 上传多个文件
+node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <path2.csv> <path3.docx>
+
+# 查看已有附件
+node scripts/article/upload-attachments.mjs --post <slug> --list
+```
+
+脚本流程：
+
+1. Admin 登录 → 通过 slug 查找 post ID（或直接用 `--post-id`）
+2. 验证文件（存在性、大小 ≤50MB、MIME 类型合规）
+3. 逐个上传到 Supabase Storage `post-attachments` bucket（路径：`{postId}/{fileName}`）
+4. 逐个插入 `post_attachments` 元数据行
+5. 如遇错误，停止后续上传并报告已上传的文件
+
+#### 5c. 上传视频 MP4 到文章
+
+将成品视频 MP4 作为附件上传到文章，网站文章页会自动渲染为视频播放器（`<video>` 标签）：
+
+```bash
+node scripts/article/upload-attachments.mjs --post <slug> --files scripts/short-video/output/<video-dir>/<video-name>-short.mp4
+```
+
+> 视频文件大小通常 5-13MB，远低于 50MB 上传限制。上传后文章页底部「Watch」区域自动显示视频播放器。
+
+#### 5d. TikTok 发布
 
 ```bash
 node scripts/short-video/publish-tiktok.mjs         # 通过 Publora API 发布
 ```
+
+#### 发布后验证
+
+访问 `/posts/{slug}` 确认：
+- 文章显示正常，widget 渲染正确
+- 源素材附件列表完整
+- 视频播放器正常显示在「Watch」区域
 
 ### ⏸️ 用户手工操作检查点
 
@@ -855,23 +860,25 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 
 ## 检查点总结
 
-| 检查点                  | 位置                           | 类型     | 谁操作 | 必须？          |
-| ----------------------- | ------------------------------ | -------- | ------ | --------------- |
-| **🔄 MRL-1** 文章自审   | Stage 1 → HITL-1 前            | 机器循环 | Agent  | ✅ 必须         |
-| **HITL-1** 文章审阅     | Stage 1 → Stage 2              | 人工确认 | 用户   | ✅ 必须         |
-| 新 widget 部署          | Stage 1 → Stage 2              | 人工操作 | 用户   | 仅当有新 widget |
-| 源文件附件上传          | Stage 2b                       | 脚本执行 | Agent  | ✅ 必须         |
-| **🔄 MRL-2** 脚本自审   | Stage 3 → HITL-2 前            | 机器循环 | Agent  | ✅ 必须         |
-| **HITL-2** 视频脚本审阅 | Stage 3 → Stage 4              | 人工确认 | 用户   | ✅ 必须         |
-| **🔄 MRL-3** 视频自审   | Stage 5 → HITL-3 前            | 机器循环 | Agent  | ✅ 必须         |
-| **HITL-3** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户   | ✅ 必须         |
-| TikTok 手工操作         | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
-| Analytics 导出          | Stage 6                        | 人工操作 | 用户   | ✅ 必须         |
+| 检查点                | 位置                           | 类型     | 谁操作 | 必须？          |
+| --------------------- | ------------------------------ | -------- | ------ | --------------- |
+| **🔄 MRL-1** 文章自审 | Stage 1（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
+| 新 widget 部署        | Stage 2（文章准备时）          | 人工操作 | 用户   | 仅当有新 widget |
+| **🔄 MRL-2** 脚本自审 | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
+| **🔄 MRL-3** 视频自审 | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须         |
+| **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户   | ✅ 必须         |
+| 文章发布 + 附件上传   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
+| 视频 MP4 上传到文章   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
+| TikTok 发布           | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
+| TikTok 手工操作       | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
+| Analytics 导出        | Stage 6                        | 人工操作 | 用户   | ✅ 必须         |
 
 ### Agent 行为准则
 
-1. **HITL 前必须先跑 MRL** — Agent 到达 HITL 检查点前，先运行对应 MRL 自审循环，0 Blockers 后才输出 MRL 报告并进入 HITL
-2. **到达 HITL 检查点时必须暂停** — 输出 MRL 报告 + 审阅内容 + 提示审阅要点 + 等待用户确认
+1. **MRL 仍必须运行** — MRL-1、MRL-2 自审通过后不暂停，直接进入下一 Stage。MRL-3 通过后才进入 HITL
+2. **到达 HITL 检查点时必须暂停** — 输出 MRL-3 报告 + 视频成品 + 文章链接 + 场景概览 + 等待用户确认
 3. **不得自行假设确认** — 确认必须是用户主动发出（「继续」「OK」「确认」「发布」等）
-4. **用户提出修改意见时** — 按意见修改后重新运行 MRL → 重新进入该 HITL 检查点
-5. **Agent 驱动的 stage 全自动** — MRL + HITL 是双重门：机器先过滤机械性错误，人工再审主观质量
+4. **用户提出修改意见时** — 可针对文章、脚本或视频任一层面反馈。Agent 回溯修改后重新运行相关 MRL → 重新进入 HITL
+5. **Stage 1-4 全自动** — MRL 是自审门，HITL 是唯一人工门：机器先过滤机械性错误，人工只在最终成品处审阅
+
+> **工作流变更（2026-08-07）**：原 3 个 HITL（文章审阅 + 脚本审阅 + 视频审阅）合并为 1 个 HITL（视频审阅）。MRL-1 和 MRL-2 仍自动运行但不暂停。用户在看视频成品时一并审阅文章和脚本质量，减少中间等待环节。
