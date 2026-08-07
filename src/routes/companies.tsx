@@ -4,7 +4,7 @@ import { SubscribeForm } from "@/components/subscribe-form";
 
 const TITLE = "Chinese AI Companies: The 2026 Guide to China's Top AI Labs";
 const DESCRIPTION =
-  "A curated directory of the top Chinese AI companies and open model labs: DeepSeek, Moonshot AI, Zhipu AI, Alibaba Qwen, ByteDance Seed, MiniMax and more.";
+  "A curated directory of China's top AI companies and open model labs: DeepSeek, Moonshot AI, Zhipu AI, Alibaba Qwen, ByteDance Seed, MiniMax and more.";
 const URL = "https://chinaai.news/companies";
 
 type Company = {
@@ -266,7 +266,7 @@ export const Route = createFileRoute("/companies")({
               description: DESCRIPTION,
               mainEntityOfPage: URL,
               about: "Chinese artificial intelligence companies and open model labs",
-              publisher: { "@id": "https://chinaai.lovable.app/#organization" },
+              publisher: { "@id": "https://chinaai.news/#organization" },
             },
             {
               "@type": "ItemList",
@@ -291,7 +291,7 @@ export const Route = createFileRoute("/companies")({
                   "@type": "ListItem",
                   position: 1,
                   name: "Home",
-                  item: "https://chinaai.lovable.app/",
+                  item: "https://chinaai.news/",
                 },
                 { "@type": "ListItem", position: 2, name: "Chinese AI companies", item: URL },
               ],
