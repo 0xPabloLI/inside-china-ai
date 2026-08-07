@@ -143,8 +143,15 @@ export function PricingView() {
                 <div
                   className="flex h-full items-center justify-end rounded pr-2 text-xs font-bold text-white"
                   style={{
-                    width: `${pct}%`,
-                    background: isOverseas
+                    // 4-decimal cap: browsers round inline styles to 4
+                    // decimals when parsing, so full-precision pct would
+                    // mismatch between SSR markup and client hydration.
+                    width: `${pct.toFixed(4)}%`,
+                    // Expanded property (not `background` shorthand): keeps
+                    // SSR markup identical to client serialization — the
+                    // shorthand expands differently in the browser and
+                    // triggers a hydration mismatch warning in dev.
+                    backgroundImage: isOverseas
                       ? `repeating-linear-gradient(45deg, ${m.color}, ${m.color} 4px, ${m.color}cc 4px, ${m.color}cc 8px)`
                       : m.color,
                   }}
