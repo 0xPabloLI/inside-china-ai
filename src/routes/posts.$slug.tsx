@@ -165,8 +165,11 @@ export const Route = createFileRoute("/posts/$slug")({
             },
             image: [OG_DEFAULT],
             inLanguage: "en",
-            author: { "@type": "Organization", name: "China AI News", url: "https://chinaai.news/" },
-
+            author: {
+              "@type": "Organization",
+              name: "China AI News",
+              url: "https://chinaai.news/",
+            },
           }),
         },
       ],

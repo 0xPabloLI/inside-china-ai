@@ -11,7 +11,6 @@ const ORG_URL = "https://chinaai.news/";
 const PUBLISHED = "2026-08-07";
 const MODIFIED = "2026-08-07";
 
-
 type Model = {
   key: "deepseek" | "qwen" | "glm";
   name: string;
