@@ -747,6 +747,15 @@ export function generateScene(scene, duration) {
 }
 ```
 
+**Reuse the shared scene templates** (`lib/scene-templates.mjs`) for recurring layouts instead of hand-rolling CSS: `brandBar(tag)`, `breakingBadge(text)`, `statCard({num, unit, label})`, `quoteBox({quote, highlight, speaker, source})`, `titleBlock(text, {highlight, fontSize})`, `bigNumberAnchor(num)`, `pointsList(points)`, `stampBox({text, sub, color})`, `fadeToBlack(duration)`. Imported alongside `baseStyles()`:
+
+```javascript
+import { templateCss } from "../../../lib/scene-templates.mjs";
+// ...compose: `${baseStyles(duration)}\n${templateCss()}\n.s1 { /* scene-specific */ }`
+```
+
+All display copy must come from `scene.texts` via the `t()` accessor — the template layer and `scenes.mjs` must not hardcode business copy (channel constants `CHINA AI NEWS` / `INTELLIGENCE BRIEFING` are the only exceptions, in `brandBar`). Drift guards in `__tests__/scene-drift.test.mjs` enforce this.
+
 **CSS overflow checklist (check before running pipeline):**
 
 | Font size | Max chars per 950px line | Max chars per 360px card |

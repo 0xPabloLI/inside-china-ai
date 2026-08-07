@@ -15,7 +15,7 @@
 The brand uses **one visual identity, two surface treatments** — same semantic meaning, different base palette per medium.
 
 - **Video** (primary traffic): Dark cyber palette. High contrast, high impact, optimized for 15-60s attention windows. This is the **preferred** visual language — video is the main traffic source.
-- **Website** (reading): Warm off-white magazine palette (`oklch(0.985 0.008 90)` background). Optimized for long-form reading, SEO, and accessibility. Different surface, same brand.
+- **Website** (reading): Cool off-white magazine palette (`oklch(0.985 0.008 260)` background — hue 260 blue-tinted, deliberately NOT cream/warm). Optimized for long-form reading, SEO, and accessibility. Different surface, same brand.
 
 ### What's shared across both surfaces
 
@@ -23,7 +23,7 @@ The brand uses **one visual identity, two surface treatments** — same semantic
 - **Entity color consistency**: DeepSeek is always blue, Huawei is always red, government is always amber — in both video and web.
 - **Brand name presentation**: `AI` is always emphasized in blue (`#4d8bff`), on both surfaces. The typographic treatment adapts to the surface:
   - **Video**: `CHINA AI NEWS` — uppercase, Helvetica Neue 900, sans-serif.
-  - **Website**: `China AI News` — title case, Instrument Serif, serif. The `AI` span uses inline `color: #4d8bff` (the website OKLCH palette has no brand-blue token; the video hex is used directly).
+  - **Website**: `China AI News` — title case, Source Serif 4 (Georgia fallback), serif. The `AI` span uses the `text-brand` token (`--brand: oklch(0.62 0.19 260)`, the OKLCH equivalent of `#4d8bff`; defined in `src/styles.css`).
 
 ### Why different base palettes
 
@@ -182,6 +182,30 @@ Same as color tokens — each company has a consistent semantic color:
 - **Verdicts**: full-width stamp with text-shadow glow
 - **Color coding**: consistent — same entity always same color across all scenes
 
+## Layout Safety (Safe Zones & Watermark)
+
+TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by `scripts/short-video/verify-scene-dom.mjs` (measures real DOM geometry) and guarded at source level by `scripts/short-video/__tests__/scene-drift.test.mjs`.
+
+| Zone | Inset (px, 1080×1920 canvas) | Meaning |
+|------|------------------------------|---------|
+| Top | 220 | Below this: ticker/live-header overlays stay clear |
+| Right | 160 | Right-side action rail (like/comment/share) |
+| Bottom | 450 | Bottom UI: caption, progress bar, CTA buttons |
+| Left | 60 | Left margin (no overlay, but content breathes here) |
+
+Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / WATERMARK_POS constants).
+
+### Watermark Rule
+
+- Channel watermark sits **top-left** (`top: 60px; left: 60px`) inside the brand corner.
+- Scenes that already carry the **brand bar** (top-left identity) or a **large brand logo** (CTA close) are skipped — no double identity.
+- `baseStyles().withWatermark()` injects the watermark into the final scene HTML; it must never be part of scene source (drift guard).
+
+### Bottom Elements Strategy
+
+- **No content anchor below y = 1080−450 = 630px** (bottom safe zone). Critical copy, numbers, CTAs, and labels must sit above it.
+- If a scene has a bottom slot, use `fadeToBlack(duration)` (shared `fadeOut` keyframe in the base-styles bundle) — not a local footer element.
+
 ## Scene Layout Templates
 
 9 layout patterns for **1080×1920 vertical mobile video** scenes. CSS-animated, timed to TTS duration. All scenes must be 9:16 — never horizontal.
@@ -282,7 +306,10 @@ Brand closer. No URL (testing phase).
 
 The CSS implementation of these specs lives in:
 
-- `scripts/short-video/generate-scenes.mjs` — video scene HTML/CSS
+- `scripts/short-video/lib/base-styles.mjs` — shared base styles + keyframes bundle (`baseStyles(duration)`, `withWatermark`). Keyframes are single-source here; scenes must not redeclare them (drift guard).
+- `scripts/short-video/lib/scene-templates.mjs` — data-only scene building blocks (`brandBar`, `breakingBadge`, `statCard`, `quoteBox`, `titleBlock`, `bigNumberAnchor`, `pointsList`, `stampBox`, `fadeToBlack`) + `templateCss()`. No business copy; the channel constants in `brandBar` are the only hardcoded strings.
+- `scripts/short-video/content/{article}/scenes.mjs` — per-video scene HTML/CSS, composed from the templates above; all display copy comes from `scene-data.mjs` via the `t(txt, key)` helper.
+- `scripts/short-video/lib/safe-zones.mjs` — safe zone + watermark constants (see Layout Safety).
 - `scripts/youtube-thumbnail.html` — thumbnail HTML/CSS
 
 When changing brand specs, update this file first, then update the implementation files to match.
