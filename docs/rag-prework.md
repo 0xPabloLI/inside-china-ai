@@ -1,0 +1,974 @@
+# RAG Pre-Work — Issue #15 前置工作计划
+
+> GitHub Issue: [#15 — feat: RAG pipeline for content knowledge base](https://github.com/0xPabloLI/inside-china-ai/issues/15)
+> 创建于 2026-08-07。本文档为 Issue #15 的前置工作拆分，支持跨 session 执行。
+> 触发条件：20+ 文章或 10+ 视频脚本后正式启动 RAG 管线（视频脚本数 = 非空 scene-data 文件数）。
+> 当前进度（2026-08-07 核实）：3 篇文章 + 7 个非空 scene-data（6 条 content 管线 + 1 个根目录遗留文件），**未达阈值**。
+
+---
+
+## ❓ 需要用户决策的项
+
+以下事项需要用户确认后才能推进。每个 session 开始时 Agent 先检查是否有未决项，并扫描各 WP 的状态标记（⏳ 未开始 / 🔄 进行中 / ✅ 完成）。
+
+### D1: Embedding 模型选型 ✅ 已有推荐
+
+**推荐：`@cf/baai/bge-m3`（Cloudflare Workers AI）**
+
+| 维度 | 值 |
+|------|-----|
+| 提供方 | Cloudflare Workers AI（⚠️ "已有 MCP 配置 + account ID" 待验证，见下方前置验证） |
+| 模型 | BAAI/bge-m3 |
+| 多语言 | ✅ 100+ 语言含中文 + 英文（源素材是中文，文章是英文，都需要 embedding） |
+| 维度 | 1024 |
+| 价格 | **$0.012 / 百万 token** |
+| 免费额度 | 10,000 Neurons/天 ≈ 9.3M tokens/天（完全够用） |
+| 调用方式 | REST API（`POST /accounts/{id}/ai/run/@cf/baai/bge-m3`）或 Workers AI binding |
+
+**备选方案（按优先级）：**
+
+| 方案 | 模型 | 优点 | 缺点 | 适合场景 |
+|------|------|------|------|---------|
+| **A: Cloudflare bge-m3** ⭐推荐 | `@cf/baai/bge-m3` | 多语言、极便宜、无需本地 GPU；基础设施复用待验证 | 依赖网络 | 正式方案 |
+| B: Cloudflare qwen3-embedding | `@cf/qwen/qwen3-embedding-0.6b` | 同价 $0.012/M、多语言 | 较新，benchmark 数据少；⚠️ 目录可用性未验证 | 备选 |
+| C: 本地 bge-m3 | BAAI/bge-m3 via `sentence-transformers` | 完全免费、离线可用 | 需 ~2.3GB 模型下载、首次加载慢、需 Python 环境 | 离线/大批量初始化 |
+| D: 本地 bge-small-en-v1.5 | `BAAI/bge-small-en-v1.5` | 130MB 轻量、384 维 | 仅英文（中文源素材无法 embedding） | 不推荐 |
+| E: OpenAI text-embedding-3-small | — | 质量高 | $0.02/M、需 OpenAI API key | ❌ 用户已排除 |
+
+**推荐理由**：方案 A（Cloudflare bge-m3）在价格、多语言支持两个维度上都是最优。10,000 Neurons/天免费额度意味着初始化整个知识库（预估 < 1M tokens）完全免费。日常新增文章（~3000 tokens/篇）的 embedding 成本可忽略不计。
+
+> ⚠️ **前置验证（确认 D1 前必做）**：原假设"你已有 MCP 配置 + account ID"在仓库内无证据——无 `wrangler.toml`、`.env*` 中无 `CLOUDFLARE_*` 变量、`package.json` 无 Cloudflare 依赖、当前 session 的 MCP 工具列表中无 Cloudflare（仅 Linear/Railway/Context7）。确认方案 A 前需先定位 account ID + API token 的实际存放位置（用户级 MCP 配置？密码管理器？）。若确实不存在，方案 A 需一次性凭证配置（约 10 分钟，不改变选型结论，但消除"零配置"误判）。
+
+**Reranker 推荐**：`@cf/baai/bge-reranker-base`，$0.003/M tokens。用于检索后重排序，提升 top-k 结果质量。
+
+> **请确认**：是否采用方案 A（Cloudflare bge-m3）？或者你更倾向本地方案 C？
+
+### D2: 向量存储选型
+
+**推荐：Supabase pgvector**
+
+| 方案 | 优点 | 缺点 |
+|------|------|------|
+| **Supabase pgvector** ⭐推荐 | 已有 Supabase 基础设施、RLS 保护、RPC 函数检索、无新依赖 | 需启用 pgvector extension |
+| Cloudflare Vectorize | 与 Workers AI 同生态 | 需额外配置、Supabase 已有数据 |
+| 本地（ChromaDB/LanceDB） | 无云依赖 | 跨 session 共享困难 |
+
+**推荐理由**：项目已深度使用 Supabase（auth、posts 表、storage），pgvector 是 Postgres extension，启用后可直接在现有数据库中创建向量列。检索通过 RPC 函数（`match_content`），与现有 `createServerFn` 架构一致。RLS 确保未发布文章的 embedding 不被公开检索。
+
+> **请确认**：是否采用 Supabase pgvector？
+
+### D3: 索引范围
+
+Issue #15 定义的 Phase 1 索引范围：
+1. 已发布文章（Supabase `posts` 表）
+2. Scene-data 文件（`scripts/short-video/content/**/scene-data.mjs`；根目录 3 个 `scene-data-pt*.mjs` 为遗留文件，处理见 WP-6）
+
+Issue 评论中建议增加：
+3. 源素材（`docs/refs/source-materials/**/*.md`）
+
+**建议额外索引**：
+4. Widget 数据（`src/components/widgets/*/data/*.ts`）— 已 curate 的结构化数据
+5. 调研报告（`docs/research/*.md`）— 如多视频拆分最佳实践
+6. TikTok 参考库（`docs/refs/tiktok-skills/**/*.md`）— hook 公式、voice rules 等
+
+> ⚠️ **Metadata 数据流约束（2026-08-07 已核实）**：`publish-article.mjs` 的 `buildPostPayload` 只同步 `title/slug/excerpt/content/published` 到 Supabase，WP-7 的 frontmatter 扩展字段（topics/entities/sources）**不会进入 posts 表**，posts 表也无对应列。因此索引器必须以 **markdown 文件为 metadata 的 source of truth**，Supabase posts 表仅用于 published 状态过滤（RLS join）。索引脚本中 `readArticles()` 的实现应读 `articles/*.md` + 用 posts 表校验发布状态，而非从 posts 表读 metadata。
+
+> **请确认**：索引范围是 1+2+3（Issue 原始范围 + 评论建议），还是扩展到 1-6？
+
+### D4: Chunking 粒度
+
+| 内容类型 | Chunk 粒度 | Metadata |
+|---------|-----------|----------|
+| 文章 | 按 `##` 标题分 section | `article_slug, section_title, topics, entities` |
+| Scene-data | 按 scene（含 voiceover + visual 描述） | `article_slug, part_number, scene_id, visual_type` |
+| 源素材 | 按 `##` 标题分 section | `source_file, source_urls[], topic` |
+| Widget 数据 | 按 widget | `widget_id, data_type, company` |
+| 调研报告 | 按 `##` 标题分 section | `report_file, topic` |
+| TikTok 参考 | 按 `##` 标题分 section | `skill_file, topic` |
+
+> **请确认**：这个 chunking 粒度是否合适？还是你希望更粗/更细？
+
+### D5: 检索集成方式
+
+Agent 在写文章时如何调用 RAG？两个方案：
+
+| 方案 | 方式 | 优点 | 缺点 |
+|------|------|------|------|
+| **A: 脚本 + Agent 调用** ⭐推荐 | 写 `scripts/rag/query.mjs`，Agent 在 Stage 1b 前运行 | 简单、可控、不侵入现有架构 | 需 Agent 手动调用 |
+| B: Server fn + 客户端集成 | `createServerFn` 封装检索，admin editor 中显示推荐 | 实时推荐、UI 集成 | 开发量大、需前端改动 |
+
+> ⚠️ **RLS 影响**：选方案 A 意味着检索仅 Agent/admin 使用，schema 预备案中的 anon 公开检索策略**不应启用**（见"数据库 Schema 设计"节），避免公开枚举 embedding chunk 的攻击面。
+
+> **请确认**：先做方案 A（脚本），还是直接做 B（server fn 集成）？
+
+---
+
+## 内容资产盘点（截至 2026-08-07，已核实）
+
+| 类型 | 数量 | 位置 | 格式 | RAG 就绪？ |
+|------|------|------|------|-----------|
+| 已发布文章 | 3 篇 | `articles/*.md` + Supabase `posts` | frontmatter markdown | ✅ 格式统一 |
+| 源素材 | 4 份文件（3 份唯一） | `docs/refs/source-materials/` | 2 份唯一 PDF + 1 markdown（另 1 份 PDF 为重复拷贝） | ❌ 2 份唯一 PDF 未结构化 |
+| Scene-data | 9 个文件（7 个非空） | `scripts/short-video/content/` + `scripts/short-video/` 根目录 | JS 模块 | ⚠️ `meta.mjs` 约定已统一但字段稀疏（4-6 字段），需扩展（WP-6） |
+| 调研报告 | 1 份 | `docs/research/` | markdown | ✅ |
+| Widget 数据 | 13 个 | `src/components/widgets/*/data/*.ts`（6 个 widget 目录） | TypeScript 硬编码 | ⚠️ 需导出为可索引格式 |
+| TikTok 参考库 | ~20 文件 | `docs/refs/tiktok-skills/` | markdown + PDF | ⚠️ 1 份 PDF 未结构化 |
+| 实体注册表 | 无 | — | — | ❌ 不存在 |
+| 事件时间线 | 散落 | 各文章/research 中 | — | ❌ 未独立 |
+
+> 注：`china-llm-distillation-source.pdf` 与 `国内大模型蒸馏风波的来龙去脉(1).pdf` MD5 完全相同（`03bf489b…`），为同一文件的两份拷贝，故源素材按 3 份唯一文件计。
+
+---
+
+## 工作拆分（按 Session）
+
+每个 session 可独立完成一个 Work Package (WP)。WP 之间有依赖关系，但大部分可并行。每个 WP 标题带状态标记（⏳ 未开始 / 🔄 进行中 / ✅ 完成），跨 session 执行时先扫描状态。
+
+### WP-1: 源素材格式标准化 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：将 2 份唯一 PDF 转为结构化 markdown，与 `bytedance-zhang-yiming-no-distillation-research.md` 格式一致。
+
+**依赖**：无
+
+**任务清单**：
+
+| # | 文件 | 操作 | 预计 |
+|---|------|------|------|
+| 1 | `docs/refs/source-materials/梁文锋投资者交流会-录音转文本.pdf` | 读取 PDF → 提取关键信息 → 写 `deepseek-liang-investor-meeting-research.md` | 1 session |
+| 2 | `docs/refs/source-materials/china-llm-distillation-source.pdf` | 读取 PDF → 提取关键信息 → 写 `china-llm-distillation-research.md` | 1 session |
+
+> ⚠️ **已核实去重**（2026-08-07）：`国内大模型蒸馏风波的来龙去脉(1).pdf` 与 `china-llm-distillation-source.pdf` MD5 相同，为重复拷贝，任务清单已从 3 项减为 2 项。建议删除重复文件（保留英文文件名那份），删除前需用户确认。
+
+**输出格式**（每份文件遵循此模板）：
+
+```markdown
+# Research Summary: [Topic]
+
+> Compiled [Date] from [N] sources.
+
+## Sources
+
+1. **[Publication]** — [URL] ([Date])
+2. ...
+
+## Key Facts
+
+### [Topic Section 1]
+- Fact with inline citation
+- Fact with inline citation
+
+### [Topic Section 2]
+...
+
+## Data Tables
+
+### [Table Name]
+| Col1 | Col2 | Col3 |
+|------|------|------|
+| ... | ... | ... |
+
+## Timeline (if applicable)
+
+| Date | Event |
+|------|-------|
+| ... | ... |
+```
+
+**RAG 价值**：结构化 markdown 可直接按 `##` 分 chunk，每个 chunk 带 source URL metadata。
+
+---
+
+### WP-2: 中国 AI 公司基础档案收集 🔍 调研工作 ｜ 状态：⏳ 未开始
+
+**目标**：为 7 家主要中国 AI 公司建立结构化档案，作为多篇文章的共享数据源。
+
+**依赖**：无（可与 WP-1 并行）
+
+**输出目录**：`docs/refs/company-profiles/`（curated 档案与原始素材 `source-materials/` 分离，避免 WP-9 的"素材→文章追溯"语义混淆）
+
+**任务清单**：
+
+| # | 公司 | 优先级 | 已有数据？ | 输出文件 |
+|---|------|--------|-----------|---------|
+| 1 | DeepSeek | ⭐⭐⭐ | 部分散在文章/widget 中 | `docs/refs/company-profiles/deepseek-profile.md` |
+| 2 | ByteDance/Seed | ⭐⭐⭐ | 部分在 bytedance research 中 | `bytedance-profile.md` |
+| 3 | Moonshot/Kimi | ⭐⭐ | 部分在 widget 中 | `moonshot-profile.md` |
+| 4 | MiniMax | ⭐⭐ | 部分在 widget 中 | `minimax-profile.md` |
+| 5 | Alibaba/Qwen | ⭐⭐ | 无 | `alibaba-profile.md` |
+| 6 | Baidu/ERNIE | ⭐ | 无 | `baidu-profile.md` |
+| 7 | Huawei/昇腾 | ⭐ | 无 | `huawei-profile.md` |
+
+**每份档案包含**：
+
+```markdown
+# Company Profile: [Company Name]
+
+> Last updated: [Date]
+
+## Basic Info
+- Founded: [year]
+- Founder: [name]
+- Type: [AI Lab / Tech Giant / Startup]
+- Valuation: [amount + source + date]
+- Employees: [number + source]
+
+## AI Division
+- Team name: [e.g., Seed, DeepSeek]
+- Consumer brand: [e.g., Doubao, DeepSeek]
+- Enterprise API: [e.g., Volcano Engine]
+- Open source strategy: [open-weight / closed / hybrid]
+
+## Model Releases
+
+| Date | Model | Type | Key Metrics | Source |
+|------|-------|------|-------------|--------|
+| ... | ... | ... | ... | [URL] |
+
+## Funding History
+
+| Date | Round | Amount | Valuation | Investors | Source |
+|------|-------|--------|-----------|-----------|--------|
+| ... | ... | ... | ... | ... | [URL] |
+
+## Key People
+
+| Name | Role | Joined | Previous | Source |
+|------|------|--------|----------|--------|
+| ... | ... | ... | ... | [URL] |
+
+## Compute Infrastructure
+- Chips: [model + quantity + source]
+- Export restrictions: [status]
+- Cloud: [provider]
+
+## Notable Events
+- [date]: [event] — [source]
+```
+
+**调研方式**：使用 `web-access` skill (CDP) 搜索中文和英文来源，交叉验证。
+
+---
+
+### WP-3: 主题事件时间线文档 📝 部分调研 ｜ 状态：⏳ 未开始
+
+**目标**：将多篇文章反复引用的事件提取为独立时间线文档。
+
+**依赖**：WP-2（公司档案中的数据可复用）
+
+**任务清单**：
+
+| # | 时间线 | 已有数据来源 | 输出文件 |
+|---|--------|-------------|---------|
+| 1 | US-China AI 蒸馏争端 | bytedance research + distillation 文章 | `docs/refs/source-materials/event-timelines/distillation-dispute-timeline.md` |
+| 2 | 中国 AI 芯片出口管制 | bytedance research + deepseek 文章 | `chip-export-controls-timeline.md` |
+| 3 | DeepSeek 发展时间线 | deepseek 文章 + widget | `deepseek-development-timeline.md` |
+| 4 | 中国大模型基准测试排行榜 | 散落在文章正文 | `china-llm-benchmark-leaderboard.md` |
+
+**每份时间线格式**：
+
+```markdown
+# Event Timeline: [Title]
+
+> Last updated: [Date]. All events verified with source URLs.
+
+## Timeline
+
+| Date | Event | Source | Verification |
+|------|-------|--------|-------------|
+| 2023-04 | ByteDance issued internal anti-distillation rule | [Pekingnology](URL) | ✅ Verified |
+| 2025-01 | DeepSeek R1 released | [Reuters](URL) | ✅ Verified |
+| ... | ... | ... | ... |
+
+## Key Actors
+- [Company/Person]: role in this timeline
+
+## Open Questions
+- Unresolved aspects with ❌ Unverified status
+```
+
+---
+
+### WP-4: 实体注册表 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：建立公司、人物、模型的实体注册表，用于 RAG entity linking 和 query expansion。
+
+**依赖**：WP-2（公司档案中的实体信息）
+
+**输出**：`docs/refs/entity-registry.yaml`
+
+**格式**：
+
+```yaml
+# Entity Registry — for RAG entity linking & query expansion
+# Last updated: [Date]
+
+companies:
+  deepseek:
+    name: "DeepSeek"
+    aliases: ["深度求索", "Deep Seek", "深度seek"]
+    founded: "2023"
+    founder: "liang_wenfeng"
+    type: "AI Lab"
+    status: "active"
+    key_products: ["DeepSeek V3", "DeepSeek R1", "DeepSeek V4-Flash"]
+    
+  bytedance:
+    name: "ByteDance"
+    aliases: ["字节跳动"]
+    ai_division: "Seed"
+    consumer_brand: "Doubao"
+    enterprise_api: "Volcano Engine"
+    founder: "zhang_yiming"
+    
+  moonshot:
+    name: "Moonshot AI"
+    aliases: ["月之暗面", "Moonshot"]
+    consumer_brand: "Kimi"
+    founder: "yang_zhilin"
+    
+  minimax:
+    name: "MiniMax"
+    aliases: ["稀宇科技"]
+    
+  alibaba:
+    name: "Alibaba"
+    aliases: ["阿里巴巴"]
+    ai_division: "Qwen Team"
+    consumer_brand: "通义千问"
+    
+  baidu:
+    name: "Baidu"
+    aliases: ["百度"]
+    ai_division: "ERNIE Team"
+    consumer_brand: "文心一言"
+    
+  huawei:
+    name: "Huawei"
+    aliases: ["华为"]
+    ai_division: "Pangu Team"
+    chip_division: "Ascend"
+
+people:
+  liang_wenfeng:
+    name: "Liang Wenfeng"
+    aliases: ["梁文锋"]
+    role: "DeepSeek Founder"
+    
+  zhang_yiming:
+    name: "Zhang Yiming"
+    aliases: ["张一鸣"]
+    role: "ByteDance Founder"
+    
+  yang_zhilin:
+    name: "Yang Zhilin"
+    aliases: ["杨植麟"]
+    role: "Moonshot AI Founder"
+
+models:
+  deepseek_r1:
+    company: "deepseek"
+    type: "reasoning"
+    released: "2025-01"
+    
+  deepseek_v3:
+    company: "deepseek"
+    type: "LLM"
+    released: "2024-12"
+    
+  deepseek_v4_flash:
+    company: "deepseek"
+    type: "LLM"
+    released: "2026-04"
+    
+  seed_2_pro:
+    company: "bytedance"
+    type: "LLM"
+    released: "2026-02"
+    
+  kimi_k3:
+    company: "moonshot"
+    type: "LLM"
+    released: "2026-07"
+    open_weight: true
+```
+
+**RAG 价值**：用户搜索「梁文锋」时能命中「Liang Wenfeng」的文章；按 company filter 检索。
+
+---
+
+### WP-5: Widget 数据导出 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：将 13 个 widget data 文件（6 个 widget 目录）的硬编码数据导出为可索引的 markdown 文件。
+
+**依赖**：无
+
+**输出**：`docs/refs/source-materials/widget-data/` 目录下 13 个 markdown 文件
+
+**每个文件格式**：
+
+```markdown
+# Widget Data: [Widget ID]
+
+> Exported from `src/components/widgets/[path]/data/[file].ts`
+> Widget type: [词云/时间线/对比表/矩阵/流程图]
+> Last updated: [date from git log]
+
+## Data
+
+[将 TypeScript 数据结构转为 markdown 表格]
+
+## Sources
+
+- [URL 1]
+- [URL 2]
+
+## Related Articles
+
+- [article slug 1]
+- [article slug 2]
+```
+
+---
+
+### WP-6: Scene-data Metadata 统一与补全 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：统一现有两种 metadata 约定，并为所有 meta 文件扩展丰富字段（topics/entities/dataPoints），改善 RAG 检索质量。
+
+**依赖**：无
+
+> ⚠️ **前提修正（2026-08-07 核实）**：每个 content 目录**已有**统一的 `meta.mjs`（`subject/pipelineId/title/article`，系列另有 `seriesId/partNumber`）——不存在"缺 metadata"，缺的是丰富字段。本 WP 采用**扩展 `meta.mjs`** 方案，**不**在 scene-data.mjs 内新增 `export const metadata`（避免引入第三种约定；根目录 pt3 的内联 `seriesMeta` 是第二种约定，一并收敛）。
+
+**现状清单（已核实）**：
+
+| 目录/文件 | meta.mjs | 对应文章 | 问题 |
+|----------|----------|---------|------|
+| `content/deepseek/` | ✅ | ~~`deepseek-funding-round`~~ → 应为 `deepseek-art-of-restraint` | **article slug stale，需修正**；字段稀疏 |
+| `content/restraint/pt1/` | ✅ | `deepseek-art-of-restraint` (pt1) | 字段稀疏 |
+| `content/distillation/pt1/` | ✅ | `china-llm-distillation-scandal` (pt1) | 字段稀疏 |
+| `content/distillation/pt2/` | ✅ | `china-llm-distillation-scandal` (pt2) | 字段稀疏 |
+| `content/distillation/pt3/` | ✅ | `china-llm-distillation-scandal` (pt3) | 字段稀疏 |
+| `content/bytedance-distillation/` | ✅ | `bytedance-zhang-yiming-no-distillation` | 字段稀疏 |
+| `scripts/short-video/scene-data-pt1.mjs` | — | — | **空文件（0 行），删除候选** |
+| `scripts/short-video/scene-data-pt2.mjs` | — | — | **空文件（0 行），删除候选** |
+| `scripts/short-video/scene-data-pt3.mjs` | 内联 `seriesMeta` | `deepseek-art-of-restraint` (pt3) | 遗留文件（content/ 目录重组前）；`prevPartSlug` 指向空的 pt2，restraint 系列 pt2 内容缺失 |
+
+**任务清单**：
+
+1. 定义扩展 `meta.mjs` 字段标准（在现有字段上增加 `totalParts/createdAt/topics/keyEntities/dataPoints`）
+2. 为 6 个现有 `meta.mjs` 回填扩展字段
+3. 修正 `content/deepseek/meta.mjs` 的 stale article slug（`deepseek-funding-round` → `deepseek-art-of-restraint`）
+4. 处理根目录遗留文件（需用户确认）：删除空的 pt1/pt2；pt3 迁移至 `content/restraint/pt3/` 标准目录结构（meta.mjs + scene-data.mjs + scenes.mjs），并将其内联 `seriesMeta` 收敛进 meta.mjs
+5. （可选）在 `verify-video.mjs` preflight 中校验 meta.mjs 必填字段
+
+**扩展 meta.mjs 格式**：
+
+```javascript
+export const meta = {
+  // ─── 现有字段（保留）───
+  subject: "deepseek",
+  pipelineId: "restraint-pt1",
+  title: "The Art of Restraint — Part 1: Vision Over KPIs",
+  article: "deepseek-art-of-restraint",
+  seriesId: "deepseek-restraint",
+  partNumber: 1,
+  // ─── 扩展字段（新增）───
+  totalParts: 3,
+  createdAt: "2026-08-04",
+  topics: ["DeepSeek", "funding", "Liang Wenfeng", "AGI"],
+  keyEntities: {
+    companies: ["DeepSeek", "Nvidia", "Huawei"],
+    people: ["Liang Wenfeng"],
+    models: ["DeepSeek V3", "DeepSeek R1"],
+  },
+  dataPoints: [
+    "$1.4B funding round",
+    "20K GPUs",
+    "$0.14 per million tokens",
+  ],
+};
+```
+
+---
+
+### WP-7: 文章 Frontmatter 扩展 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：为现有 3 篇文章的 frontmatter 预埋 RAG metadata 字段。
+
+**依赖**：WP-4（实体注册表提供标准 entity ID）
+
+**新增字段**：
+
+```yaml
+---
+title: "..."
+slug: "..."
+excerpt: "..."
+published: true
+topics: ["DeepSeek", "distillation", "ByteDance"]
+entities:
+  companies: ["deepseek", "bytedance", "anthropic"]
+  people: ["liang_wenfeng", "zhang_yiming"]
+  models: ["deepseek_r1", "seed_2_pro", "kimi_k3"]
+sources:
+  - type: "pdf"
+    file: "docs/refs/source-materials/梁文锋投资者交流会-录音转文本.pdf"
+  - type: "url"
+    url: "https://..."
+---
+```
+
+> ✅ **Parser 兼容性已验证**（2026-08-07）：`publish-article.mjs` 使用 `gray-matter`，未知 frontmatter 字段直接忽略、不会报错；`buildPostPayload` 只映射 `title/slug/excerpt/content/published`，新字段不进 Supabase、不影响发布逻辑。原 ⚠️ 顾虑排除。
+>
+> ⚠️ **数据流约束**：正因新字段不进 Supabase，索引器必须以 markdown 文件为 topics/entities 的 source of truth（见 D3 的"Metadata 数据流约束"）。
+
+---
+
+### WP-8: TikTok 方法论 PDF 结构化 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：将 `docs/refs/tiktok-skills/raw/2026-08-05-自媒体实战方法论(1).pdf` (5368 行) 提取为结构化 markdown。
+
+**依赖**：无
+
+**输出**：`docs/refs/tiktok-skills/content-methodology.md`
+
+**内容大纲**（需从 PDF 中提取）：
+
+1. 品类战略（A/B/C 品类，已有部分在 content-pipeline.md）
+2. 四层叙事公式（钩子 → 共情 → 获得感 → 升华，已有部分）
+3. Hook 公式和案例
+4. 内容节奏控制技巧
+5. 账号冷启动策略
+6. 其他品类方法（B: 社区短剧, C: 播客对谈）
+7. 发布频率和时机
+8. 评论区运营
+
+---
+
+### WP-9: 素材索引文档 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：建立素材 → 文章 → 视频 的追溯表。
+
+**依赖**：WP-1, WP-6；Company Profiles / Event Timelines 两个 section 另需 WP-2, WP-3（若先完成 WP-9，这两节可暂标 TBD）
+
+**输出**：`docs/refs/source-materials/INDEX.md`
+
+**格式**：
+
+```markdown
+# Source Materials Index
+
+> Last updated: [Date]
+
+## Materials → Articles → Videos
+
+| Source Material | Topic | Article | Video Parts | Status |
+|----------------|-------|---------|-------------|--------|
+| 梁文锋投资者交流会-录音转文本.pdf | DeepSeek 融资 | deepseek-art-of-restraint | restraint-pt1/2/3 | ✅ Published |
+| china-llm-distillation-source.pdf | 蒸馏风波 | china-llm-distillation-scandal | distillation-pt1/2/3 | ✅ Published |
+| bytedance-zhang-yiming-no-distillation-research.md | ByteDance 反蒸馏 | bytedance-zhang-yiming-no-distillation | bytedance-distillation | ✅ Published |
+
+## Company Profiles
+
+| Company | Profile File | Last Updated |
+|---------|-------------|-------------|
+| DeepSeek | docs/refs/company-profiles/deepseek-profile.md | — |
+| ...
+
+## Event Timelines
+
+| Event | Timeline File | Last Updated |
+|-------|-------------|-------------|
+| US-China distillation dispute | event-timelines/distillation-dispute-timeline.md | — |
+| ...
+```
+
+---
+
+### WP-10: 技术方案文档 📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：在 RAG 正式启动前，完成技术方案设计文档，到阈值时直接实施。
+
+**依赖**：D1-D5 决策完成
+
+**输出**：`docs/spec-rag.md`
+
+**内容**：
+
+1. Embedding 模型确认（基于 D1 决策，含凭证前置验证结果）
+2. 向量存储确认（基于 D2 决策）
+3. 索引范围确认（基于 D3 决策）
+4. Chunking 策略（基于 D4 决策）
+5. 检索接口设计（基于 D5 决策）
+6. 数据库 schema（pgvector extension + embeddings 表 + RPC 函数）
+7. 索引脚本设计（`scripts/rag/index.mjs`）
+8. 查询脚本设计（`scripts/rag/query.mjs`）
+9. Scenario & Risk Verification Matrix
+10. 测试计划（引用 WP-11 的 golden query 评估集及通过标准）
+
+---
+
+### WP-11: 检索质量评估集（Golden Queries）📝 纯文档工作 ｜ 状态：⏳ 未开始
+
+**目标**：建立 15-20 条 golden query → 期望命中 chunk 的映射，作为 RAG 上线后的质量回归基线。没有客观评估手段，检索质量只能靠感觉。
+
+**依赖**：D3（索引范围）、WP-10
+
+**输出**：`docs/refs/rag-eval/golden-queries.yaml`
+
+**格式**：
+
+```yaml
+- query: "What did Liang Wenfeng say about AGI timelines?"
+  expected_sources:
+    - content_type: article
+      source_id: deepseek-art-of-restraint
+    - content_type: source-material
+      source_id: deepseek-liang-investor-meeting-research
+  notes: "英文 query 命中英文文章 + 中文源素材的结构化 chunk"
+
+- query: "字节跳动内部反蒸馏规定是什么时候发布的？"
+  expected_sources:
+    - content_type: article
+      source_id: bytedance-zhang-yiming-no-distillation
+  notes: "中文 query — 跨语言检索用例"
+```
+
+**必须包含的用例类型**：
+
+1. **跨语言检索**（英文 query → 中文源素材 chunk；中文 query → 英文文章 chunk）— bge-m3 选型的核心理由，必须实测验证，不能只看 benchmark
+2. **Entity alias**（「梁文锋」→ 命中 "Liang Wenfeng" 文章）— 依赖 WP-4 实体注册表
+3. **数据点检索**（具体数字，如 funding 金额、token 价格）
+4. **负例**（知识库中不存在的话题，应返回低相似度/空结果）
+
+**通过标准**：top-5 命中率 ≥ 80%（正式实施时写入 spec-rag.md 测试计划）。
+
+---
+
+## 依赖关系图
+
+```
+WP-1 (源素材格式化)     ──────────────┐
+WP-2 (公司档案收集)     ───┐          │
+WP-4 (实体注册表)       ←──┘ WP-2     │
+WP-3 (事件时间线)       ←── WP-2      │
+WP-5 (Widget 数据导出)  ──────────────┤
+WP-6 (meta.mjs 扩展)   ──────────────┤
+WP-7 (Frontmatter 扩展) ←── WP-4     │
+WP-8 (TikTok PDF 结构化)──────────────┤
+WP-9 (素材索引)         ←── WP-1,2,3,6│
+                                      ↓
+WP-10 (技术方案文档)    ←── D1-D5 决策
+WP-11 (评估集)          ←── WP-10, D3
+                                      ↓
+                              [RAG 实施启动]
+                              (20+ 文章或 10+ 视频)
+```
+
+**可并行**：WP-1, WP-2, WP-5, WP-6, WP-8 互不依赖，可同时进行。
+
+---
+
+## Embedding 模型详细对比
+
+### Cloudflare Workers AI 可用模型
+
+| 模型 | ID | 价格/M tokens | 维度 | 多语言 | Neurons/M |
+|------|-----|--------------|------|--------|-----------|
+| BGE-m3 | `@cf/baai/bge-m3` | $0.012 | 1024 | ✅ 100+ 语言 | 1,075 |
+| Qwen3-Embedding | `@cf/qwen/qwen3-embedding-0.6b` | $0.012 | — | ✅ | 1,075 |
+| BGE-small-en | `@cf/baai/bge-small-en-v1.5` | $0.020 | 384 | ❌ 英文 | 1,841 |
+| BGE-base-en | `@cf/baai/bge-base-en-v1.5` | $0.067 | 768 | ❌ 英文 | 6,058 |
+| BGE-large-en | `@cf/baai/bge-large-en-v1.5` | $0.204 | 1024 | ❌ 英文 | 18,582 |
+| EmbeddingGemma | `@cf/google/embeddinggemma-300m` | — | — | ✅ 100+ | — |
+| Plamo | `@cf/pfnet/plamo-embedding-1b` | $0.019 | — | ❌ 日文 | 1,689 |
+
+**Reranker**：
+
+| 模型 | ID | 价格/M tokens |
+|------|-----|--------------|
+| BGE-reranker-base | `@cf/baai/bge-reranker-base` | $0.003 |
+
+> 注：以上模型可用性与价格基于 2026-08 调研，实施时以 Cloudflare 官方文档为准。`@cf/qwen/qwen3-embedding-0.6b` 的目录可用性未验证（方案 B 仅作备选）。
+
+### 本地可运行模型
+
+| 模型 | 大小 | 维度 | 多语言 | 运行方式 | MTEB 排名 |
+|------|------|------|--------|---------|-----------|
+| BGE-m3 | ~2.3GB | 1024 | ✅ | `sentence-transformers` / `FlagEmbedding` | 顶级 |
+| BGE-base-en-v1.5 | ~440MB | 768 | ❌ | `sentence-transformers` | 高 |
+| BGE-small-en-v1.5 | ~130MB | 384 | ❌ | `sentence-transformers` | 中 |
+| all-MiniLM-L6-v2 | ~90MB | 384 | ❌ | `sentence-transformers` | 低 |
+| nomic-embed-text | ~270MB | 768 | ❌ | `sentence-transformers` | 中高 |
+
+### 成本估算（Cloudflare bge-m3）
+
+| 场景 | Token 数 | 成本 |
+|------|---------|------|
+| 初始化知识库（50 篇文章 × 3000 tokens） | 150K | $0.0018（免费额度内） |
+| 初始化知识库（全部内容 ~500K tokens） | 500K | $0.006（免费额度内） |
+| 日常新增 1 篇文章 | ~3000 | $0.000036 |
+| 日常查询 10 次 × 100 tokens | 1000 | $0.000012 |
+| **月度总成本（预估）** | — | **< $0.01（免费额度内）** |
+
+> 10,000 Neurons/天 ≈ 9.3M tokens/天的 bge-m3 免费 embedding。知识库完全在免费额度内。
+
+---
+
+## 数据库 Schema 设计（预备案）
+
+正式实施时创建以下 Supabase migration：
+
+```sql
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Embeddings table
+CREATE TABLE public.content_embeddings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  
+  -- Content reference
+  content_type TEXT NOT NULL CHECK (
+    content_type IN ('article', 'scene-data', 'source-material', 'widget-data', 'research', 'tiktok-ref')
+  ),
+  source_id TEXT,          -- article slug / file path / widget ID
+  chunk_index INT NOT NULL DEFAULT 0,  -- section number within source
+  
+  -- Chunk content
+  chunk_text TEXT NOT NULL,
+  chunk_title TEXT,         -- section heading
+  
+  -- Metadata (JSONB for flexibility)
+  metadata JSONB DEFAULT '{}',
+  -- Common keys: topics[], entities{companies[], people[], models[]}, source_urls[], dates[]
+  -- 注意：metadata->'topics' 必须是 JSON 字符串数组（match_content 的 ?| 操作符依赖此结构），
+  -- 由索引脚本保证写入格式
+  
+  -- Embedding (bge-m3 = 1024 dimensions；若 D1 改选其他模型，维度需同步修改并重建索引)
+  embedding vector(1024),
+  
+  -- Tracking
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  
+  UNIQUE(content_type, source_id, chunk_index)
+);
+
+-- updated_at 自动更新（复用现有 public.set_updated_at()，命名遵循 <table>_set_updated_at 约定）
+CREATE TRIGGER content_embeddings_set_updated_at
+  BEFORE UPDATE ON public.content_embeddings
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- Index for similarity search (HNSW = fast approximate nearest neighbor)
+CREATE INDEX content_embeddings_embedding_idx
+  ON public.content_embeddings
+  USING hnsw (embedding vector_cosine_ops);
+
+-- Index for metadata filtering
+CREATE INDEX content_embeddings_type_idx
+  ON public.content_embeddings (content_type);
+CREATE INDEX content_embeddings_source_idx
+  ON public.content_embeddings (source_id);
+
+-- RLS
+ALTER TABLE public.content_embeddings ENABLE ROW LEVEL SECURITY;
+
+-- ⚠️ anon 公开检索策略默认不创建：
+-- D5 若选方案 A（脚本 + Agent 调用），检索仅 admin 使用；开放 anon SELECT 会暴露
+-- embedding chunk + metadata 的公开枚举面。仅当未来做公开语义搜索功能时才启用：
+--
+-- CREATE POLICY "public search published articles"
+--   ON public.content_embeddings FOR SELECT TO anon, authenticated
+--   USING (
+--     content_type = 'article'
+--     AND EXISTS (
+--       SELECT 1 FROM public.posts p
+--       WHERE p.slug = content_embeddings.source_id
+--         AND p.published = true
+--     )
+--   );
+
+-- Admin can search all
+CREATE POLICY "admin search all embeddings"
+  ON public.content_embeddings FOR SELECT TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+-- Only admin can insert/update/delete embeddings
+CREATE POLICY "admin insert embeddings"
+  ON public.content_embeddings FOR INSERT TO authenticated
+  WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+CREATE POLICY "admin update embeddings"
+  ON public.content_embeddings FOR UPDATE TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'::public.app_role))
+  WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+CREATE POLICY "admin delete embeddings"
+  ON public.content_embeddings FOR DELETE TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+-- Similarity search RPC function
+-- 注意：不使用 SECURITY DEFINER，保持 security invoker 让 RLS 生效
+CREATE OR REPLACE FUNCTION public.match_content(
+  query_embedding vector(1024),
+  filter_content_type TEXT DEFAULT NULL,
+  filter_topics TEXT[] DEFAULT NULL,
+  match_threshold FLOAT DEFAULT 0.7,
+  match_count INT DEFAULT 10
+)
+RETURNS TABLE (
+  id UUID,
+  content_type TEXT,
+  source_id TEXT,
+  chunk_index INT,
+  chunk_text TEXT,
+  chunk_title TEXT,
+  metadata JSONB,
+  similarity FLOAT
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    e.id,
+    e.content_type,
+    e.source_id,
+    e.chunk_index,
+    e.chunk_text,
+    e.chunk_title,
+    e.metadata,
+    1 - (e.embedding <=> query_embedding) AS similarity
+  FROM public.content_embeddings e
+  WHERE (filter_content_type IS NULL OR e.content_type = filter_content_type)
+    AND (filter_topics IS NULL OR e.metadata->'topics' ?| filter_topics)
+    AND 1 - (e.embedding <=> query_embedding) > match_threshold
+  ORDER BY (e.embedding <=> query_embedding) ASC
+  LIMIT match_count;
+$$;
+```
+
+---
+
+## 检索接口设计（预备案）
+
+### 索引脚本：`scripts/rag/index.mjs`
+
+```javascript
+// 伪代码 — 正式实施时按 spec-rag.md 实现
+
+// 1. 读取所有内容源
+// 注意：文章的 topics/entities metadata 以 markdown 文件为 source of truth（见 D3），
+// Supabase posts 表仅用于 published 状态校验
+const articles = readArticles();        // articles/*.md（metadata）+ Supabase posts（发布状态）
+const sceneData = readSceneData();      // scripts/short-video/content/**/scene-data.mjs + meta.mjs
+const sourceMaterials = readSourceMaterials();  // docs/refs/source-materials/**/*.md
+const widgetData = readWidgetData();    // src/components/widgets/*/data/*.ts
+const research = readResearch();        // docs/research/*.md
+const tiktokRefs = readTiktokRefs();    // docs/refs/tiktok-skills/**/*.md
+
+// 2. Chunking
+const chunks = [
+  ...chunkArticles(articles),       // 按 ## 标题分
+  ...chunkSceneData(sceneData),     // 按 scene 分
+  ...chunkSourceMaterials(sourceMaterials),  // 按 ## 标题分
+  ...chunkWidgetData(widgetData),   // 按 widget 分
+  ...chunkResearch(research),       // 按 ## 标题分
+  ...chunkTiktokRefs(tiktokRefs),   // 按 ## 标题分
+];
+
+// 3. Generate embeddings (Cloudflare bge-m3)
+for (const batch of chunkBatch(chunks, 100)) {
+  const embeddings = await cfWorkersAI('@cf/baai/bge-m3', batch.map(c => c.text));
+  // 4. Upsert to Supabase
+  await supabase.from('content_embeddings').upsert(
+    batch.map((c, i) => ({
+      content_type: c.type,
+      source_id: c.sourceId,
+      chunk_index: c.chunkIndex,
+      chunk_text: c.text,
+      chunk_title: c.title,
+      metadata: c.metadata,  // topics 必须是 JSON 字符串数组（?| 操作符依赖）
+      embedding: embeddings[i],
+    }))
+  );
+}
+```
+
+### 查询脚本：`scripts/rag/query.mjs`
+
+```javascript
+// 伪代码
+const query = process.argv[2] || "What have we said about DeepSeek?";
+
+// 1. Generate query embedding
+const [queryEmbedding] = await cfWorkersAI('@cf/baai/bge-m3', [query]);
+
+// 2. Vector search
+const results = await supabase.rpc('match_content', {
+  query_embedding: queryEmbedding,
+  match_threshold: 0.7,
+  match_count: 10,
+});
+
+// 3. (Optional) Rerank with bge-reranker
+if (results.data.length > 3) {
+  const reranked = await cfWorkersAI('@cf/baai/bge-reranker-base', {
+    query,
+    documents: results.data.map(r => r.chunk_text),
+  });
+  // Reorder by reranker score
+}
+
+// 4. Output
+for (const result of results.data) {
+  console.log(`[${result.content_type}] ${result.chunk_title}`);
+  console.log(`  Similarity: ${result.similarity.toFixed(3)}`);
+  console.log(`  Source: ${result.source_id}`);
+  console.log(`  ${result.chunk_text.slice(0, 200)}...`);
+  console.log();
+}
+```
+
+### Agent 集成点
+
+在 `content-pipeline.md` 的 Stage 1b 步骤 1 之前增加：
+
+```
+### Stage 1b 前置：RAG 检索
+
+Agent 在开始写文章前，先运行 RAG 检索：
+
+\`\`\`bash
+node scripts/rag/query.mjs "topic keywords"
+\`\`\`
+
+Agent 根据检索结果：
+- 避免重复已有角度和数据点
+- 发现可交叉引用的早期分析
+- 找到可复用的 widget 数据
+```
+
+---
+
+## Session 执行建议
+
+| Session | 建议完成 | 前置条件 |
+|---------|---------|---------|
+| Session 1 | D1-D5 决策确认（D1 前置：定位 Cloudflare 凭证位置） | 无 |
+| Session 2 | WP-1（源素材格式化，2 份唯一 PDF） | 一次可完成 |
+| Session 3 | WP-2（公司档案，7 家公司） | 可分多个 session，按优先级 |
+| Session 4 | WP-3 + WP-4（时间线 + 实体注册表） | WP-2 完成 |
+| Session 5 | WP-5 + WP-6（Widget 导出 + meta.mjs 扩展） | 无 |
+| Session 6 | WP-7 + WP-8 + WP-9（Frontmatter + TikTok PDF + 索引） | WP-4 完成（WP-9 另需 WP-1/2/3/6，按此顺序已满足） |
+| Session 7 | WP-10（技术方案文档） | D1-D5 决策完成 |
+| Session 8 | WP-11（Golden query 评估集） | WP-10 完成 |
+| — | **RAG 正式实施** | 20+ 文章或 10+ 视频脚本 |
+
+> 以上 session 顺序不固定，WP-1/2/5/6/8 可并行。每个 session 完成后 commit + push，并更新对应 WP 的状态标记。
+
+---
+
+## 更新日志
+
+| 日期 | 内容 |
+|------|------|
+| 2026-08-07 | 创建文档，完成 embedding/向量存储调研，列出 WP-1~10 |
+| 2026-08-07 | Review 修正：① WP-1 去除重复 PDF（MD5 相同），任务 3→2 ② WP-6 重写：改为扩展现有 `meta.mjs` 约定，清单按核实结果重写（根目录 pt1/pt2 为空文件、pt3 为遗留，`content/deepseek/meta.mjs` article slug stale）③ 修正盘点计数（widget 15→13、scene-data ~11→9/7 非空），明确触发条件度量口径 ④ D3/WP-7 明确 metadata 数据流（markdown 为 source of truth；gray-matter 兼容性已验证）⑤ D1 增加 Cloudflare 凭证前置验证（仓库内无证据）⑥ Schema 默认 admin-only（anon 策略注释保留）+ 复用 `set_updated_at()` trigger ⑦ WP-9 补依赖 WP-2/3 ⑧ 新增 WP-11 golden query 评估集（含跨语言用例）⑨ WP-2 输出移至 `docs/refs/company-profiles/` ⑩ 各 WP 加状态标记 |
