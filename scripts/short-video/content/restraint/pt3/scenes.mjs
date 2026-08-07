@@ -156,7 +156,7 @@ ${baseStyles(duration)}${templateCss()}
   </div>
   <div class="stamps">
     ${stampBox({ text: t(txt, "current"), color: "blue", icon: "✓" })}
-    ${stampBox({ text: t(txt, "next"), color: "amber", icon: "→" })}
+    ${stampBox({ text: `${t(txt, "next")} →`, color: "amber" })}
   </div>
 </div></body></html>`;
 }
@@ -262,7 +262,7 @@ ${baseStyles(duration)}${templateCss()}
     <div class="card others"><div class="card-icon">✕</div><div class="card-text">${t(txt, "others")}</div></div>
     <div class="card deepseek"><div class="card-icon">✓</div><div class="card-text">${t(txt, "deepseek")}</div></div>
   </div>
-  <div class="result-wrap">${stampBox({ text: t(txt, "result"), color: "amber", icon: "→" })}</div>
+  <div class="result-wrap">${stampBox({ text: `${t(txt, "result")} →`, color: "amber" })}</div>
 </div></body></html>`;
 }
 
