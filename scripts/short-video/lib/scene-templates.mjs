@@ -68,7 +68,8 @@ function templateCss() {
  * @returns {string} HTML string
  */
 function brandBar(tagOrOpts) {
-  const tag = typeof tagOrOpts === "string" ? tagOrOpts : tagOrOpts?.tag ?? "INTELLIGENCE BRIEFING";
+  const tag =
+    typeof tagOrOpts === "string" ? tagOrOpts : (tagOrOpts?.tag ?? "INTELLIGENCE BRIEFING");
   return `<div class="brand-bar"><div class="b-logo">${BRAND_MARK_SVG}</div><div class="b-text">CHINA <span class="hl">AI</span> NEWS</div>${tag ? `<div class="briefing-tag">${tag}</div>` : ""}</div>`;
 }
 
@@ -96,7 +97,14 @@ function statCard({ num, unit = "", label, color = "blue" }) {
  * @param {object} opts - { quote, highlight, color, fontSize, speaker, source }
  * @returns {string} HTML string
  */
-function quoteBox({ quote = "", highlight = "", color = "blue", fontSize = 40, speaker = "", source = "" } = {}) {
+function quoteBox({
+  quote = "",
+  highlight = "",
+  color = "blue",
+  fontSize = 40,
+  speaker = "",
+  source = "",
+} = {}) {
   const quoted = quote
     ? `<div class="quote-text" style="font-size: ${fontSize}px;">"${highlight ? quote.replace(highlight, `<span class="hl">${highlight}</span>`) : quote}"</div>`
     : "";
@@ -109,7 +117,10 @@ function quoteBox({ quote = "", highlight = "", color = "blue", fontSize = 40, s
  * @param {object} opts - { highlight, hlColor, fontSize }
  * @returns {string} HTML string
  */
-function titleBlock(text, { highlight = "", hlColor = "blue", fontSize = 48, center = false, color = "white" } = {}) {
+function titleBlock(
+  text,
+  { highlight = "", hlColor = "blue", fontSize = 48, center = false, color = "white" } = {},
+) {
   const tag = `<span class="hl" style="color: var(--${hlColor});">${highlight}</span>`;
   // In-place when the highlight is part of the text ("THE CRACK SEQUENCE"
   // with highlight "CRACK"), otherwise appended ("BOTH" + "OPEN SOURCE").

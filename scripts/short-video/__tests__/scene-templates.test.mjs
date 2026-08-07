@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SAFE_ZONES, WATERMARK_POS } from "../lib/safe-zones.mjs";
-import {
-  baseStyles,
-  BRAND_MARK_SVG,
-  withWatermark,
-} from "../lib/base-styles.mjs";
+import { baseStyles, BRAND_MARK_SVG, withWatermark } from "../lib/base-styles.mjs";
 import {
   brandBar,
   breakingBadge,
@@ -60,14 +56,7 @@ describe("baseStyles watermark CSS uses WATERMARK_POS", () => {
 
   it("bundles shared keyframes once (no per-scene re-declaration needed)", () => {
     const css = baseStyles(10);
-    for (const kf of [
-      "slideDown",
-      "pulseDot",
-      "numberPulse",
-      "glowPulse",
-      "logoPulse",
-      "hookIn",
-    ]) {
+    for (const kf of ["slideDown", "pulseDot", "numberPulse", "glowPulse", "logoPulse", "hookIn"]) {
       expect(css).toContain(`@keyframes ${kf}`);
     }
   });
@@ -107,13 +96,7 @@ describe("withWatermark", () => {
 
 /** Bare-business-copy detector: uppercase sentences inside HTML tags. */
 const COPY_RE = />[A-Z0-9 .,'%:&!()\-]{8,}</g;
-const ALLOWED_COPY = [
-  "CHINA",
-  "AI",
-  "NEWS",
-  "CHINA AI NEWS",
-  "INTELLIGENCE BRIEFING",
-];
+const ALLOWED_COPY = ["CHINA", "AI", "NEWS", "CHINA AI NEWS", "INTELLIGENCE BRIEFING"];
 
 function assertNoBusinessCopy(html) {
   const found = [...new Set(html.match(COPY_RE) || [])].map((m) => m.slice(1, -1).trim());
@@ -157,14 +140,14 @@ describe("statCard", () => {
   it("handles missing unit", () => {
     const html = statCard({ num: "JULY 25", unit: "", label: "CONFIRMED", color: "blue" });
     expect(html).toContain("JULY 25");
-    expect(html).not.toContain("<span class=\"unit\"></span>");
+    expect(html).not.toContain('<span class="unit"></span>');
   });
 });
 
 describe("quoteBox", () => {
   it("wraps highlight keyword in span", () => {
     const html = quoteBox({ quote: "VISION MATTERS MOST", highlight: "MATTERS" });
-    expect(html).toContain("<span class=\"hl\">MATTERS</span>");
+    expect(html).toContain('<span class="hl">MATTERS</span>');
     expect(html).toContain("VISION");
   });
 
@@ -187,12 +170,12 @@ describe("titleBlock", () => {
 
   it("highlights in place when highlight is part of the text", () => {
     const html = titleBlock("THE CRACK SEQUENCE", { highlight: "CRACK" });
-    expect(html).toContain("<span class=\"hl\" style=\"color: var(--blue);\">CRACK</span>");
+    expect(html).toContain('<span class="hl" style="color: var(--blue);">CRACK</span>');
   });
 
   it("appends highlight when it is not part of the text", () => {
     const html = titleBlock("BOTH", { highlight: "OPEN SOURCE" });
-    expect(html).toContain("BOTH <span class=\"hl\" style=\"color: var(--blue);\">OPEN SOURCE</span>");
+    expect(html).toContain('BOTH <span class="hl" style="color: var(--blue);">OPEN SOURCE</span>');
   });
 
   it("honors center and color options", () => {

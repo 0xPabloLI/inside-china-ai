@@ -107,7 +107,7 @@ describe("scene drift guards", () => {
 
     it("does not match CSS class definitions, only real elements", () => {
       const html =
-        '<style>.brand-bar { top: 0; } .brand-logo-large { width: 1px; }</style>' +
+        "<style>.brand-bar { top: 0; } .brand-logo-large { width: 1px; }</style>" +
         '<div class="scene"></div></body></html>';
       expect(withWatermark(html)).toMatch(/<div class="brand-watermark">/);
     });
@@ -190,10 +190,7 @@ describe("scene drift guards", () => {
     });
 
     it("scene-templates declares no keyframes (single bundle in baseStyles)", () => {
-      const src = readFileSync(
-        new URL("../lib/scene-templates.mjs", import.meta.url),
-        "utf8",
-      );
+      const src = readFileSync(new URL("../lib/scene-templates.mjs", import.meta.url), "utf8");
       expect(src).not.toMatch(/@keyframes [a-zA-Z]+/);
     });
   });

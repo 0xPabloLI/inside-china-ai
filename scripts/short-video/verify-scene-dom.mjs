@@ -86,7 +86,7 @@ const exp = EXPECTATIONS[contentDir] || {
 
 const BAND = {
   bottom: 1920 - SAFE_ZONES.bottom, // content must end above this y (FAIL)
-  right: 1080 - SAFE_ZONES.right,   // content should end left of this x (WARN)
+  right: 1080 - SAFE_ZONES.right, // content should end left of this x (WARN)
 };
 
 async function main() {
@@ -103,7 +103,8 @@ async function main() {
     // Disable animations: layout metrics must be measured at the final
     // state, not mid-transition (transforms transiently inflate scroll boxes)
     await page.addStyleTag({
-      content: "*, *::before, *::after { animation: none !important; transition: none !important; }",
+      content:
+        "*, *::before, *::after { animation: none !important; transition: none !important; }",
     });
     await page.waitForTimeout(100); // let fonts/layout settle
 
@@ -195,9 +196,11 @@ async function main() {
 
     // 4c. Single-occurrence copy (scene-scoped)
     for (const text of exp.singleOccurrence[scene.id] || []) {
-      const matches = await page.$$eval("*", (els, t) =>
-        els.filter((el) => el.matches("svg, svg *") === false && el.innerText?.trim() === t)
-          .length,
+      const matches = await page.$$eval(
+        "*",
+        (els, t) =>
+          els.filter((el) => el.matches("svg, svg *") === false && el.innerText?.trim() === t)
+            .length,
         text,
       );
       if (matches !== 1) {
@@ -228,7 +231,9 @@ async function main() {
       }, selector);
       const tooWide = fit.filter((f) => f.width > f.avail + 2);
       for (const t of tooWide) {
-        problems.push(`word-fit ${selector}: "${t.word}" needs ${Math.round(t.width)}px, has ${t.avail}px`);
+        problems.push(
+          `word-fit ${selector}: "${t.word}" needs ${Math.round(t.width)}px, has ${t.avail}px`,
+        );
       }
     }
 

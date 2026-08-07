@@ -25,12 +25,12 @@ import { runWhisperAlignment, getAtempo } from "./post-process.mjs";
  * @type {Record<string, () => Promise<TTSEngine|null>>}
  */
 const ENGINE_FACTORIES = {
-  "f5": createF5MLXEngine,
+  f5: createF5MLXEngine,
   "f5-mlx": createF5MLXEngine,
-  "xtts": createXTTSEngine,
-  "kokoro": createKokoroEngine,
+  xtts: createXTTSEngine,
+  kokoro: createKokoroEngine,
   "edge-tts": createEdgeTTSEngine,
-  "say": createSayEngine,
+  say: createSayEngine,
 };
 
 /** Priority order for automatic selection (no TTS_ENGINE env). */
@@ -52,7 +52,9 @@ export async function selectEngine() {
   if (forceEngine && ENGINE_FACTORIES[forceEngine]) {
     const engine = await ENGINE_FACTORIES[forceEngine]();
     if (engine) return engine;
-    console.log(`  ⚠️ Forced engine "${forceEngine}" not available, falling back to priority order...`);
+    console.log(
+      `  ⚠️ Forced engine "${forceEngine}" not available, falling back to priority order...`,
+    );
   }
 
   // Try engines in priority order

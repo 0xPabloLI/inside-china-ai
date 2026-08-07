@@ -18,6 +18,7 @@ interface EmailChangeEmailProps {
   email: string;
   newEmail: string;
   confirmationUrl: string;
+  [key: string]: unknown;
 }
 
 export const EmailChangeEmail = ({

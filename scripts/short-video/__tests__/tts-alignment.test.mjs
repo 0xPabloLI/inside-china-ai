@@ -94,9 +94,7 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
     expect(fsMock.writeFileSync).not.toHaveBeenCalled();
     expect(execMock).not.toHaveBeenCalled();
     // Should log warning
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Force-align script not found"),
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Force-align script not found"));
 
     logSpy.mockRestore();
   });
@@ -117,9 +115,7 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
     // Should exec the alignment script
     expect(execMock).toHaveBeenCalled();
     // Should log failure warning
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Force-align failed"),
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Force-align failed"));
 
     logSpy.mockRestore();
   });

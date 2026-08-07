@@ -5,8 +5,10 @@ export interface AGIRoadmapViewProps {
   lang?: Lang;
 }
 
-const AGIRoadmapView = lazy(() => import("./agi-roadmap-view").then((m) => ({
-  default: m.AGIRoadmapView,
-})));
+const AGIRoadmapView = lazy(() =>
+  import("./agi-roadmap-view").then((m) => ({
+    default: m.AGIRoadmapView,
+  })),
+);
 
 export { AGIRoadmapView };

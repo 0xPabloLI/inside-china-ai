@@ -17,6 +17,7 @@ interface SignupEmailProps {
   siteUrl: string;
   recipient: string;
   confirmationUrl: string;
+  [key: string]: unknown;
 }
 
 export const SignupEmail = ({

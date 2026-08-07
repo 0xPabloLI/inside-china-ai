@@ -4,6 +4,7 @@ import { Body, Container, Head, Heading, Html, Preview, Text } from "@react-emai
 
 interface ReauthenticationEmailProps {
   token: string;
+  [key: string]: unknown;
 }
 
 export const ReauthenticationEmail = ({ token }: ReauthenticationEmailProps) => (

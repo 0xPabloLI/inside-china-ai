@@ -118,7 +118,11 @@ export async function createXTTSEngine() {
         // Fallback: try each line that looks like JSON array
         for (const line of lines) {
           const trimmed = line.trim();
-          if (trimmed.startsWith("[") && trimmed.includes("sceneId") && trimmed.includes("audioPath")) {
+          if (
+            trimmed.startsWith("[") &&
+            trimmed.includes("sceneId") &&
+            trimmed.includes("audioPath")
+          ) {
             try {
               batchResults = JSON.parse(trimmed);
               break;

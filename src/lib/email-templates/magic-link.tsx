@@ -14,6 +14,7 @@ import {
 interface MagicLinkEmailProps {
   siteName: string;
   confirmationUrl: string;
+  [key: string]: unknown;
 }
 
 export const MagicLinkEmail = ({ siteName, confirmationUrl }: MagicLinkEmailProps) => (

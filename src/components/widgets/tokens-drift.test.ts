@@ -15,7 +15,10 @@ import { join } from "path";
  */
 
 const WIDGETS_DIR = new URL(".", import.meta.url).pathname;
-const SCANNED_ENTRIES = [WIDGETS_DIR, new URL("../../routes/companies.tsx", import.meta.url).pathname];
+const SCANNED_ENTRIES = [
+  WIDGETS_DIR,
+  new URL("../../routes/companies.tsx", import.meta.url).pathname,
+];
 
 const NATIVE_COLOR_CLASS =
   /(?:^|\s)(?:text|bg|border|ring|from|to|via)-(?:blue|green|red|amber|yellow|orange|purple|gray|slate|teal|indigo|rose|emerald|violet|cyan|fuchsia|pink|sky|lime)-(?:[1-9]00|[0-9]{1,3})(?:\\?\/[0-9]{1,3})?(?=\s|"|'|`)/;
@@ -49,7 +52,9 @@ describe("widget token drift guards", () => {
     const offenders: string[] = [];
     for (const file of files) {
       const src = readFileSync(file, "utf8");
-      for (const match of src.match(/text-\[[0-9.]+(?:px|rem|em)\]|text-\[[0-9.]+(?:px|rem|em)\]/g) ?? []) {
+      for (const match of src.match(
+        /text-\[[0-9.]+(?:px|rem|em)\]|text-\[[0-9.]+(?:px|rem|em)\]/g,
+      ) ?? []) {
         const px = /text-\[([0-9.]+)px\]/.exec(match);
         const rem = /text-\[([0-9.]+)rem\]/.exec(match);
         const em = /text-\[([0-9.]+)em\]/.exec(match);

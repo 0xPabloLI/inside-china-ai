@@ -41,7 +41,7 @@ export async function createSayEngine() {
 
     async generate(scenes, outputDir) {
       const results = [];
-  const hasFfprobe = await isCommandAvailable("ffprobe");
+      const hasFfprobe = await isCommandAvailable("ffprobe");
 
       for (const scene of scenes) {
         const tempFile = join(tmpdir(), `tts-scene-${scene.id}.txt`);

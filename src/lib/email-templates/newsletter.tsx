@@ -22,6 +22,7 @@ interface NewsletterEmailProps {
   content?: string;
   postUrl?: string;
   publishedAt?: string;
+  [key: string]: unknown;
 }
 
 const NewsletterEmail = ({
@@ -79,7 +80,10 @@ const NewsletterEmail = ({
 
 export const template = {
   component: NewsletterEmail,
-  subject: (data: Record<string, any>) => data.subject || data.title || "Latest from China AI News",
+  subject: (data: Record<string, unknown>) =>
+    (data.subject as string | undefined) ||
+    (data.title as string | undefined) ||
+    "Latest from China AI News",
   displayName: "Weekly Newsletter",
   previewData: {
     siteName: "China AI News",

@@ -14,6 +14,7 @@ import {
 interface RecoveryEmailProps {
   siteName: string;
   confirmationUrl: string;
+  [key: string]: unknown;
 }
 
 export const RecoveryEmail = ({ siteName, confirmationUrl }: RecoveryEmailProps) => (

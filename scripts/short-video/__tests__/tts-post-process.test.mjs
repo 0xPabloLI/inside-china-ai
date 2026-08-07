@@ -16,7 +16,12 @@ vi.mock("child_process", () => ({
   execSync: vi.fn(),
 }));
 
-import { buildFilter, postProcessAudio, postProcessBatch, getAtempo } from "../lib/tts/post-process.mjs";
+import {
+  buildFilter,
+  postProcessAudio,
+  postProcessBatch,
+  getAtempo,
+} from "../lib/tts/post-process.mjs";
 
 // ─── Tests ───
 
@@ -93,12 +98,12 @@ describe("TTS Post-Processing", () => {
 
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("ffmpeg");
-      expect(cmd).toContain("-i \"input.mp3\"");
+      expect(cmd).toContain('-i "input.mp3"');
       expect(cmd).toContain("-af");
       expect(cmd).toContain("silenceremove");
       expect(cmd).toContain("-ar 44100");
       expect(cmd).toContain("-b:a 192k");
-      expect(cmd).toContain("\"output.mp3\"");
+      expect(cmd).toContain('"output.mp3"');
     });
 
     // Scenario 7: Edge-TTS — post-process with SILENCE_FILTER, no resample
@@ -113,7 +118,10 @@ describe("TTS Post-Processing", () => {
 
     // Scenario 5: F5 batch — post-process WITHOUT silenceremove
     it("S5: skips silenceremove for F5 audio (clean generation)", async () => {
-      await postProcessAudio("input.mp3", "output.mp3", { useSilenceFilter: false, resample: true });
+      await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: false,
+        resample: true,
+      });
 
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("ffmpeg");
@@ -124,7 +132,10 @@ describe("TTS Post-Processing", () => {
     // Scenario 8: F5 with atempo
     it("S8: applies atempo to F5 output when TTS_ATEMPO set", async () => {
       process.env.TTS_ATEMPO = "1.3";
-      await postProcessAudio("input.mp3", "output.mp3", { useSilenceFilter: false, resample: true });
+      await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: false,
+        resample: true,
+      });
 
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("atempo=1.3");
@@ -132,7 +143,10 @@ describe("TTS Post-Processing", () => {
     });
 
     it("handles empty filter (no atempo, no silenceremove) — just resample", async () => {
-      await postProcessAudio("input.mp3", "output.mp3", { useSilenceFilter: false, resample: true });
+      await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: false,
+        resample: true,
+      });
 
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("ffmpeg");
@@ -147,8 +161,8 @@ describe("TTS Post-Processing", () => {
     it("post-processes in-place and returns duration (F5 path)", async () => {
       // Mock: first exec call = ffmpeg, second = mv, third = ffprobe
       execMock
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" }))  // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" }))  // mv
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // mv
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "3.45\n", stderr: "" })); // ffprobe
 
       const duration = await postProcessBatch("scene-1.mp3", { useSilenceFilter: false });
@@ -165,13 +179,13 @@ describe("TTS Post-Processing", () => {
 
     it("post-processes in-place with silenceremove (XTTS path)", async () => {
       execMock
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" }))  // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" }))  // mv
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // mv
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "5.20\n", stderr: "" })); // ffprobe
 
       const duration = await postProcessBatch("scene-2.mp3", { useSilenceFilter: true });
 
-      expect(duration).toBe(5.20);
+      expect(duration).toBe(5.2);
       expect(execMock.mock.calls[0][0]).toContain("silenceremove");
     });
   });

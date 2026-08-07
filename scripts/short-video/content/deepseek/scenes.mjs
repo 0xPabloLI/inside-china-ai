@@ -7,11 +7,7 @@
 
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
-import {
-  baseStyles,
-  BRAND_MARK_SVG,
-  withWatermark,
-} from "../../lib/base-styles.mjs";
+import { baseStyles, BRAND_MARK_SVG, withWatermark } from "../../lib/base-styles.mjs";
 
 // DeepSeek company logo
 const DEEPSEEK_LOGO_SVG = readFileSync(
@@ -108,8 +104,12 @@ function scene3(scene, duration) {
   const txt = scene.texts || {};
   const left = txt.left || [];
   const right = txt.right || [];
-  const leftHtml = left.map((item, i) => `<div class="item" style="animation-delay: ${0.5 + i * 0.2}s;">${item}</div>`).join("");
-  const rightHtml = right.map((item, i) => `<div class="item" style="animation-delay: ${1.4 + i * 0.2}s;">${item}</div>`).join("");
+  const leftHtml = left
+    .map((item, i) => `<div class="item" style="animation-delay: ${0.5 + i * 0.2}s;">${item}</div>`)
+    .join("");
+  const rightHtml = right
+    .map((item, i) => `<div class="item" style="animation-delay: ${1.4 + i * 0.2}s;">${item}</div>`)
+    .join("");
   const quoteHtml = t(txt, "quote")
     ? `<div class="quote">"${txt.quote.replace(txt.quoteKeyword || "\0", `<span class="keyword">${txt.quoteKeyword}</span>`)}"</div>`
     : "";
@@ -135,8 +135,18 @@ function scene4(scene, duration) {
   const txt = scene.texts || {};
   const bars = txt.bars || [];
   const stats = txt.stats || [];
-  const barsHtml = bars.map((b, i) => `<div class="bar-row" style="animation-delay: ${0.3 + i * 0.5}s;"><div class="bar-label" style="color: var(--${b.color});">${b.label || ""}</div><div class="bar-track"><div class="bar-fill" style="animation-delay: ${0.5 + i * 0.5}s; background: linear-gradient(90deg, var(--${b.color}), var(--${b.color})); --target: ${b.target || "50%"};">${b.value || ""}</div></div></div>`).join("");
-  const statsHtml = stats.map((s, i) => `<div class="stat"><div class="num" style="color: var(--${["blue", "green", "purple"][i] || "blue"});">${s.num || ""}</div><div class="lbl">${s.label || ""}</div></div>`).join("");
+  const barsHtml = bars
+    .map(
+      (b, i) =>
+        `<div class="bar-row" style="animation-delay: ${0.3 + i * 0.5}s;"><div class="bar-label" style="color: var(--${b.color});">${b.label || ""}</div><div class="bar-track"><div class="bar-fill" style="animation-delay: ${0.5 + i * 0.5}s; background: linear-gradient(90deg, var(--${b.color}), var(--${b.color})); --target: ${b.target || "50%"};">${b.value || ""}</div></div></div>`,
+    )
+    .join("");
+  const statsHtml = stats
+    .map(
+      (s, i) =>
+        `<div class="stat"><div class="num" style="color: var(--${["blue", "green", "purple"][i] || "blue"});">${s.num || ""}</div><div class="lbl">${s.label || ""}</div></div>`,
+    )
+    .join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
@@ -158,9 +168,21 @@ function scene5(scene, duration) {
   const txt = scene.texts || {};
   const cards = txt.cards || [];
   const points = txt.points || [];
-  const cardsHtml = cards.map((c, i) => `<div class="card ${c.color}" style="animation-delay: ${0.4 + i * 0.5}s;"><div class="icon">${c.icon || ""}</div><div class="name">${c.name || ""}</div><div class="desc">${c.desc || ""}</div></div>`).join("");
-  const pointsHtml = points.map((p, i) => `<div class="point" style="animation-delay: ${1.4 + i * 0.3}s;"><span class="check">✓</span> ${p}</div>`).join("");
-  const quoteHtml = t(txt, "quote") ? `<div class="quote">"${txt.quote.replace(txt.quoteHighlight || "\0", `<span class="hl">${txt.quoteHighlight}</span>`)}"</div>` : "";
+  const cardsHtml = cards
+    .map(
+      (c, i) =>
+        `<div class="card ${c.color}" style="animation-delay: ${0.4 + i * 0.5}s;"><div class="icon">${c.icon || ""}</div><div class="name">${c.name || ""}</div><div class="desc">${c.desc || ""}</div></div>`,
+    )
+    .join("");
+  const pointsHtml = points
+    .map(
+      (p, i) =>
+        `<div class="point" style="animation-delay: ${1.4 + i * 0.3}s;"><span class="check">✓</span> ${p}</div>`,
+    )
+    .join("");
+  const quoteHtml = t(txt, "quote")
+    ? `<div class="quote">"${txt.quote.replace(txt.quoteHighlight || "\0", `<span class="hl">${txt.quoteHighlight}</span>`)}"</div>`
+    : "";
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
@@ -179,7 +201,12 @@ ${baseStyles(duration)}
 function scene6(scene, duration) {
   const txt = scene.texts || {};
   const factors = txt.factors || [];
-  const factorsHtml = factors.map((f, i) => `<div class="factor" style="animation-delay: ${0.8 + i * 0.5}s; border-left: 5px solid var(--${["cyan", "blue", "purple"][i] || "blue"});"><div class="num" style="color: var(--${["cyan", "blue", "purple"][i] || "blue"});">${f.num || ""}</div><div class="text">${f.text || ""}</div></div>`).join("");
+  const factorsHtml = factors
+    .map(
+      (f, i) =>
+        `<div class="factor" style="animation-delay: ${0.8 + i * 0.5}s; border-left: 5px solid var(--${["cyan", "blue", "purple"][i] || "blue"});"><div class="num" style="color: var(--${["cyan", "blue", "purple"][i] || "blue"});">${f.num || ""}</div><div class="text">${f.text || ""}</div></div>`,
+    )
+    .join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
@@ -198,7 +225,12 @@ ${baseStyles(duration)}
 function scene7(scene, duration) {
   const txt = scene.texts || {};
   const steps = txt.steps || [];
-  const stepsHtml = steps.map((s, i) => `<div class="step ${s.status}" style="animation-delay: ${0.3 + i * 0.3}s; margin-right: ${i * 40}px;"><span class="num">${s.num || ""}</span><span class="text">${s.text || ""}</span>${s.status === "done" ? '<span class="badge">DONE</span>' : s.status === "current" ? '<span class="badge">NOW</span>' : s.status === "next" ? '<span class="badge">NEXT</span>' : ""}</div>`).join("");
+  const stepsHtml = steps
+    .map(
+      (s, i) =>
+        `<div class="step ${s.status}" style="animation-delay: ${0.3 + i * 0.3}s; margin-right: ${i * 40}px;"><span class="num">${s.num || ""}</span><span class="text">${s.text || ""}</span>${s.status === "done" ? '<span class="badge">DONE</span>' : s.status === "current" ? '<span class="badge">NOW</span>' : s.status === "next" ? '<span class="badge">NEXT</span>' : ""}</div>`,
+    )
+    .join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
@@ -216,8 +248,15 @@ ${baseStyles(duration)}
 function scene8(scene, duration) {
   const txt = scene.texts || {};
   const departures = txt.departures || [];
-  const departuresHtml = departures.map((d, i) => `<div class="flow-row" style="animation-delay: ${1.0 + i * 0.3}s;"><span class="person">${d.name || ""}</span><span class="arrow">→</span><span class="company" style="color: var(--${d.color || "blue"});">${d.to || ""}</span></div>`).join("");
-  const quoteHtml = t(txt, "quote") ? `<div class="quote">"${txt.quote.replace(txt.quoteHighlight || "\0", `<span class="hl">${txt.quoteHighlight}</span>`)}"</div>` : "";
+  const departuresHtml = departures
+    .map(
+      (d, i) =>
+        `<div class="flow-row" style="animation-delay: ${1.0 + i * 0.3}s;"><span class="person">${d.name || ""}</span><span class="arrow">→</span><span class="company" style="color: var(--${d.color || "blue"});">${d.to || ""}</span></div>`,
+    )
+    .join("");
+  const quoteHtml = t(txt, "quote")
+    ? `<div class="quote">"${txt.quote.replace(txt.quoteHighlight || "\0", `<span class="hl">${txt.quoteHighlight}</span>`)}"</div>`
+    : "";
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
@@ -259,7 +298,12 @@ ${baseStyles(duration)}
 function scene10(scene, duration) {
   const txt = scene.texts || {};
   const stats = txt.stats || [];
-  const statsHtml = stats.map((s, i) => `<div class="stat-box" style="animation-delay: ${1.2 + i * 0.4}s;"><div class="num" style="color: var(--${["amber", "purple"][i] || "blue"});">${s.num || ""}</div><div class="lbl">${s.label || ""}</div></div>`).join("");
+  const statsHtml = stats
+    .map(
+      (s, i) =>
+        `<div class="stat-box" style="animation-delay: ${1.2 + i * 0.4}s;"><div class="num" style="color: var(--${["amber", "purple"][i] || "blue"});">${s.num || ""}</div><div class="lbl">${s.label || ""}</div></div>`,
+    )
+    .join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
@@ -282,7 +326,12 @@ ${baseStyles(duration)}
 function scene11(scene, duration) {
   const txt = scene.texts || {};
   const factors = txt.factors || [];
-  const factorsHtml = factors.map((f, i) => `<div class="factor" style="animation-delay: ${0.3 + i * 0.7}s; border-left: 5px solid var(--${f.color || "blue"});"><div class="num" style="color: var(--${f.color || "blue"});">${f.num || ""}</div><div class="content"><div class="ftitle">${f.title || ""}</div><div class="ftext">${f.text || ""}</div></div></div>`).join("");
+  const factorsHtml = factors
+    .map(
+      (f, i) =>
+        `<div class="factor" style="animation-delay: ${0.3 + i * 0.7}s; border-left: 5px solid var(--${f.color || "blue"});"><div class="num" style="color: var(--${f.color || "blue"});">${f.num || ""}</div><div class="content"><div class="ftitle">${f.title || ""}</div><div class="ftext">${f.text || ""}</div></div></div>`,
+    )
+    .join("");
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
@@ -320,8 +369,18 @@ ${baseStyles(duration)}
 
 // Scene dispatch table
 const sceneGenerators = {
-  1: scene1, 2: scene2, 3: scene3, 4: scene4, 5: scene5, 6: scene6,
-  7: scene7, 8: scene8, 9: scene9, 10: scene10, 11: scene11, 12: scene12,
+  1: scene1,
+  2: scene2,
+  3: scene3,
+  4: scene4,
+  5: scene5,
+  6: scene6,
+  7: scene7,
+  8: scene8,
+  9: scene9,
+  10: scene10,
+  11: scene11,
+  12: scene12,
 };
 
 /**

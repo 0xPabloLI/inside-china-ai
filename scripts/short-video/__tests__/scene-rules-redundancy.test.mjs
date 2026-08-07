@@ -24,7 +24,9 @@ describe("checkBodyTextVoRedundancy", () => {
   it("warns when on-screen text repeats a verbatim VO phrase (>= min words)", () => {
     const scenes = [
       bodyScene(1, "Hook sentence.", { line1: "HOOK" }),
-      bodyScene(2, "Unwritten, but everyone feels it.", { note: "Unwritten, but everyone feels it" }),
+      bodyScene(2, "Unwritten, but everyone feels it.", {
+        note: "Unwritten, but everyone feels it",
+      }),
       bodyScene(3, "Closing line.", { line1: "CLOSE" }),
     ];
     const { warns } = run(scenes);
@@ -37,7 +39,9 @@ describe("checkBodyTextVoRedundancy", () => {
   it("warns regardless of case and punctuation (normalization)", () => {
     const scenes = [
       bodyScene(1, "Hook.", { line1: "H" }),
-      bodyScene(2, "For DeepSeek, it's intentional.", { insight: "FOR DEEPSEEK, IT'S INTENTIONAL!" }),
+      bodyScene(2, "For DeepSeek, it's intentional.", {
+        insight: "FOR DEEPSEEK, IT'S INTENTIONAL!",
+      }),
       bodyScene(3, "Close.", { line1: "C" }),
     ];
     expect(run(scenes).warns).toHaveLength(1);
@@ -74,7 +78,9 @@ describe("checkBodyTextVoRedundancy", () => {
 
   it("excludes the hook scene (index 0)", () => {
     const scenes = [
-      bodyScene(1, "A leaked memo reveals the whole story today.", { line1: "A leaked memo reveals the whole story today" }),
+      bodyScene(1, "A leaked memo reveals the whole story today.", {
+        line1: "A leaked memo reveals the whole story today",
+      }),
       bodyScene(2, "Normal body line.", { note: "FINE" }),
       bodyScene(3, "Close.", { line1: "C" }),
     ];
@@ -116,7 +122,10 @@ describe("checkBodyTextVoRedundancy", () => {
   it("treats numbers as tokens without false positives on partial matches", () => {
     const scenes = [
       bodyScene(1, "Hook.", { line1: "H" }),
-      bodyScene(2, "AI will be 10 percent of global GDP.", { stat: "10%", context: "OF GLOBAL GDP" }),
+      bodyScene(2, "AI will be 10 percent of global GDP.", {
+        stat: "10%",
+        context: "OF GLOBAL GDP",
+      }),
       bodyScene(3, "Close.", { line1: "C" }),
     ];
     const { warns } = run(scenes);

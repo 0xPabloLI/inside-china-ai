@@ -29,8 +29,7 @@ export const FUNDING_EVENTS: FundingEvent[] = [
     event: "Kimi K3 Released",
     valuation: null,
     status: "product",
-    detail:
-      "2.8T-parameter sparse MoE with 1M-token context. Full open weights published July 27.",
+    detail: "2.8T-parameter sparse MoE with 1M-token context. Full open weights published July 27.",
     source: "Hugging Face",
     url: "https://huggingface.co/blog/ResterChed/kimi-k3-model-overview",
   },
@@ -87,10 +86,7 @@ export const SUMMARY_CARDS = [
   { val: "~20K", label: "Nvidia Chips (Alibaba)" },
 ];
 
-const STATUS_STYLE: Record<
-  FundingStatus,
-  { bar: string; badge: string; label: string }
-> = {
+const STATUS_STYLE: Record<FundingStatus, { bar: string; badge: string; label: string }> = {
   completed: {
     bar: "bg-gradient-to-t from-success to-success",
     badge: "bg-success-muted text-success-foreground",

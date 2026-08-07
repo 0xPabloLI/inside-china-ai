@@ -107,8 +107,8 @@ describe("Distillation pt1 scene generation", () => {
     });
 
     it("contains title split and cost line from texts", () => {
-      expect(html).toContain("THE <span class=\"hl\">CRACK</span> SEQUENCE");
-      expect(html).toContain("Cost: <span class=\"hl\">tens of thousands of dollars</span>");
+      expect(html).toContain('THE <span class="hl">CRACK</span> SEQUENCE');
+      expect(html).toContain('Cost: <span class="hl">tens of thousands of dollars</span>');
     });
   });
 
@@ -171,7 +171,7 @@ describe("Distillation pt1 scene generation", () => {
 
     it("contains title and note from texts", () => {
       expect(html).toContain("SELECTIVE ACCUSATIONS");
-      expect(html).toContain("Moonshot <span class=\"hl\">never responded publicly</span>");
+      expect(html).toContain('Moonshot <span class="hl">never responded publicly</span>');
     });
   });
 

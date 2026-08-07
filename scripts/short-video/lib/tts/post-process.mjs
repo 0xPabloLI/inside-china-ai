@@ -71,7 +71,11 @@ export async function getDuration(audioPath) {
  * @param {boolean} [opts.useSilenceFilter=true]
  * @param {boolean} [opts.resample=true] - If true, add -ar 44100 -b:a 192k
  */
-export async function postProcessAudio(inputPath, outputPath, { useSilenceFilter = true, resample = true } = {}) {
+export async function postProcessAudio(
+  inputPath,
+  outputPath,
+  { useSilenceFilter = true, resample = true } = {},
+) {
   const filter = buildFilter({ useSilenceFilter });
   const afArg = filter ? `-af "${filter}"` : "";
   const resampleArg = resample ? "-ar 44100 -b:a 192k" : "";

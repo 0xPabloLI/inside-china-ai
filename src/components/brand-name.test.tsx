@@ -15,9 +15,7 @@ describe("BrandName", () => {
   it("wraps AI in a span with brand color class", () => {
     const html = renderToStaticMarkup(<BrandName />);
     // The AI should be in a separate span with the text-brand class
-    const aiSpanMatch = html.match(
-      /<span[^>]*class="[^"]*text-brand[^"]*"[^>]*>AI<\/span>/,
-    );
+    const aiSpanMatch = html.match(/<span[^>]*class="[^"]*text-brand[^"]*"[^>]*>AI<\/span>/);
     expect(aiSpanMatch).not.toBeNull();
   });
 

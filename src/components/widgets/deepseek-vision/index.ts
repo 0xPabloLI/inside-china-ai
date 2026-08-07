@@ -5,8 +5,10 @@ export interface VisionKeywordsViewProps {
   lang?: Lang;
 }
 
-const VisionKeywordsView = lazy(() => import("./vision-keywords-view").then((m) => ({
-  default: m.VisionKeywordsView,
-})));
+const VisionKeywordsView = lazy(() =>
+  import("./vision-keywords-view").then((m) => ({
+    default: m.VisionKeywordsView,
+  })),
+);
 
 export { VisionKeywordsView };

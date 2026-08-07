@@ -1,11 +1,13 @@
 import type { ComponentType } from "react";
 import { template as newsletterTemplate } from "./newsletter";
 
+export type TemplateData = Record<string, unknown>;
+
 export interface TemplateEntry {
-  component: ComponentType<any>;
-  subject: string | ((data: Record<string, any>) => string);
+  component: ComponentType<TemplateData>;
+  subject: string | ((data: TemplateData) => string);
   displayName?: string;
-  previewData?: Record<string, any>;
+  previewData?: TemplateData;
   /** Fixed recipient — overrides caller-provided recipientEmail when set. */
   to?: string;
 }

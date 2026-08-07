@@ -293,9 +293,9 @@ export function NewsletterAdmin() {
       <div>
         <h2 className="mb-3 font-serif text-xl">Send history</h2>
         <div className="rounded-lg border border-border/60 bg-card">
-          {(sendsQuery.data as any[] | undefined)?.length ? (
+          {sendsQuery.data?.length ? (
             <ul className="divide-y divide-border/60">
-              {(sendsQuery.data as any[]).map((s) => (
+              {sendsQuery.data.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-4 p-3 text-sm">
                   <span className="truncate">{s.recipient_email}</span>
                   <span className="flex items-center gap-3 text-xs text-muted-foreground">

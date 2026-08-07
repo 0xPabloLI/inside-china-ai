@@ -31,10 +31,12 @@ const browser = await chromium.launch({ headless: true });
     "found inline nav with Companies",
   );
 
-  const hamburgerVisible = await page
-    .locator('button[aria-label="Open menu"]:visible')
-    .count();
-  check("desktop: hamburger hidden (1280px)", hamburgerVisible === 0, `${hamburgerVisible} visible`);
+  const hamburgerVisible = await page.locator('button[aria-label="Open menu"]:visible').count();
+  check(
+    "desktop: hamburger hidden (1280px)",
+    hamburgerVisible === 0,
+    `${hamburgerVisible} visible`,
+  );
 
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -58,9 +60,7 @@ const browser = await chromium.launch({ headless: true });
   const inlineVisible = await page.locator("header nav:visible", { hasText: "Companies" }).count();
   check("mobile: inline nav hidden (375px)", inlineVisible === 0, `${inlineVisible} visible`);
 
-  const hamburgerCount = await page
-    .locator('button[aria-label="Open menu"]:visible')
-    .count();
+  const hamburgerCount = await page.locator('button[aria-label="Open menu"]:visible').count();
   check("mobile: hamburger visible (375px)", hamburgerCount >= 1, `${hamburgerCount} visible`);
 
   const overflow = await page.evaluate(() => ({

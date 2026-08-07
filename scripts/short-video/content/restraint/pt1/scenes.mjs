@@ -17,11 +17,7 @@
 
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
-import {
-  baseStyles,
-  BRAND_MARK_SVG,
-  withWatermark,
-} from "../../../lib/base-styles.mjs";
+import { baseStyles, BRAND_MARK_SVG, withWatermark } from "../../../lib/base-styles.mjs";
 import {
   templateCss,
   brandBar,

@@ -88,8 +88,18 @@ export const scenes = [
       title: "OPEN SOURCE =",
       titleHighlight: "STRONGEST MODEL",
       cards: [
-        { icon: "🔓", name: "DeepSeek", desc: "Production weights.<br>No watered-down version.", color: "blue" },
-        { icon: "🔒", name: "Competitors", desc: "\"Forced\" open source.<br>Inferior public versions.", color: "red" },
+        {
+          icon: "🔓",
+          name: "DeepSeek",
+          desc: "Production weights.<br>No watered-down version.",
+          color: "blue",
+        },
+        {
+          icon: "🔒",
+          name: "Competitors",
+          desc: '"Forced" open source.<br>Inferior public versions.',
+          color: "red",
+        },
       ],
       points: [
         "Same weights as production",
@@ -217,9 +227,24 @@ export const scenes = [
       title: "WHY THIS LEAK WAS",
       titleHighlight: "DEVASTATING",
       factors: [
-        { num: "1", title: "SECRECY", text: "Near-zero public presence. Declined all media for 3 years.", color: "red" },
-        { num: "2", title: "NAMED RIVALS", text: "Direct criticism of Zhipu, ByteDance, Alibaba, Tencent, in his own words.", color: "amber" },
-        { num: "3", title: "TRADE SECRETS", text: "GPU stockpile numbers & pricing logic, closely guarded.", color: "purple" },
+        {
+          num: "1",
+          title: "SECRECY",
+          text: "Near-zero public presence. Declined all media for 3 years.",
+          color: "red",
+        },
+        {
+          num: "2",
+          title: "NAMED RIVALS",
+          text: "Direct criticism of Zhipu, ByteDance, Alibaba, Tencent, in his own words.",
+          color: "amber",
+        },
+        {
+          num: "3",
+          title: "TRADE SECRETS",
+          text: "GPU stockpile numbers & pricing logic, closely guarded.",
+          color: "purple",
+        },
       ],
     },
   },

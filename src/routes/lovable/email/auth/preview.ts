@@ -8,13 +8,23 @@ import { RecoveryEmail } from "@/lib/email-templates/recovery";
 import { EmailChangeEmail } from "@/lib/email-templates/email-change";
 import { ReauthenticationEmail } from "@/lib/email-templates/reauthentication";
 
-const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
-  signup: SignupEmail,
-  invite: InviteEmail,
-  magiclink: MagicLinkEmail,
-  recovery: RecoveryEmail,
-  email_change: EmailChangeEmail,
-  reauthentication: ReauthenticationEmail,
+type PreviewableTemplate = React.ComponentType<Record<string, unknown>>;
+
+/**
+ * Preview-only registry: templates render arbitrary sample data by name.
+ * Each template keeps its precise props contract elsewhere; here the
+ * component is widened to an arbitrary-data renderer for the preview endpoint.
+ */
+const previewable = <P>(c: React.ComponentType<P>): PreviewableTemplate =>
+  c as unknown as PreviewableTemplate;
+
+const EMAIL_TEMPLATES: Record<string, PreviewableTemplate> = {
+  signup: previewable(SignupEmail),
+  invite: previewable(InviteEmail),
+  magiclink: previewable(MagicLinkEmail),
+  recovery: previewable(RecoveryEmail),
+  email_change: previewable(EmailChangeEmail),
+  reauthentication: previewable(ReauthenticationEmail),
 };
 
 // Configuration
@@ -28,7 +38,7 @@ const ROOT_DOMAIN = "chinaai.news";
 // even if the project's domain has changed since the template was scaffolded.
 const SAMPLE_PROJECT_URL = "https://chinaai.lovable.app";
 const SAMPLE_EMAIL = "user@example.test";
-const SAMPLE_DATA: Record<string, object> = {
+const SAMPLE_DATA: Record<string, Record<string, string>> = {
   signup: {
     siteName: SITE_NAME,
     siteUrl: SAMPLE_PROJECT_URL,
@@ -90,7 +100,7 @@ export const Route = createFileRoute("/lovable/email/auth/preview")({
           return Response.json({ error: `Unknown email type: ${type}` }, { status: 400 });
         }
 
-        const sampleData = SAMPLE_DATA[type] || {};
+        const sampleData: Record<string, unknown> = SAMPLE_DATA[type] ?? {};
         const html = await render(React.createElement(EmailTemplate, sampleData));
 
         return new Response(html, {

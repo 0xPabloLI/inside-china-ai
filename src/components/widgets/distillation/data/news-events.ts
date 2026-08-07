@@ -23,6 +23,7 @@ export const COMPANIES = [
   "MiniMax",
   "Alibaba (Qwen)",
   "Tencent (Hunyuan)",
+  "ByteDance (Seed)",
 ] as const;
 
 export const MONTHS = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"] as const;
@@ -206,5 +207,53 @@ export const NEWS_EVENTS: NewsEvent[] = [
       "MiniMax stock partially recovered to approximately HK$247, but remained over 81% below its March peak. Moonshot IPO preparations continued to pressure the stock.",
     source: "Google Finance",
     url: "https://www.google.com/finance/quote/0100:HKG",
+  },
+  {
+    company: "Moonshot AI (Kimi)",
+    companyShort: "Moonshot",
+    month: "Jul",
+    monthIdx: 5,
+    type: "political",
+    headline: "Bessent threatens sanctions over AI 'theft'",
+    detail:
+      "US Treasury Secretary Scott Bessent warned Chinese AI companies could face financial sanctions or trade blacklist placement over distillation. 'Open source AI is not open season on American AI.'",
+    source: "CNBC",
+    url: "https://www.cnbc.com/2026/07/21/bessent-china-ai-sanctions.html",
+  },
+  {
+    company: "Moonshot AI (Kimi)",
+    companyShort: "Moonshot",
+    month: "Jul",
+    monthIdx: 5,
+    type: "political",
+    headline: "China accuses US of 'AI hegemonism'",
+    detail:
+      "Beijing accused Washington of 'AI hegemonism' and threatened countermeasures over potential probes into Chinese AI companies, escalating the distillation dispute into a diplomatic confrontation.",
+    source: "Reuters",
+    url: "https://www.reuters.com/world/china/china-accuses-us-ai-hegemonism-threatens-countermeasures-over-potential-probes-2026-07-27/",
+  },
+  {
+    company: "ByteDance (Seed)",
+    companyShort: "ByteDance",
+    month: "Aug",
+    monthIdx: 6,
+    type: "political",
+    headline: "Zhang Yiming: 'No distillation, even if behind'",
+    detail:
+      "ByteDance founder Zhang Yiming told the Seed team to pursue 'long-termism and delayed gratification' over distillation. Internal policy prohibits distilling both closed and open-weight competitor models, enforced via API detection. Policy dates to 2023, predating US political pressure.",
+    source: "The Paper / Pekingnology",
+    url: "https://m.thepaper.cn/newsDetail_forward_33732502",
+  },
+  {
+    company: "ByteDance (Seed)",
+    companyShort: "ByteDance",
+    month: "Aug",
+    monthIdx: 6,
+    type: "technical",
+    headline: "Not accused by Anthropic — clean record",
+    detail:
+      "Unlike DeepSeek, Moonshot, MiniMax, Alibaba, and Tencent, ByteDance was NOT named in Anthropic's distillation accusations. Internal anti-distillation policy enforced since 2023 with similarity checks against GPT outputs.",
+    source: "Anthropic Blog",
+    url: "https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks",
   },
 ];

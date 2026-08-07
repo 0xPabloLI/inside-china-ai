@@ -31,7 +31,9 @@ for (const viewport of [
     { name: "article", path: "/posts/deepseek-leaked-investor-meeting", hasWidgets: true },
     { name: "companies", path: "/companies", hasWidgets: false },
   ]) {
-    const ctx = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
+    const ctx = await browser.newPage({
+      viewport: { width: viewport.width, height: viewport.height },
+    });
     try {
       await ctx.goto(`${BASE}${page.path}`, { waitUntil: "networkidle", timeout: 45000 });
       await ctx.waitForTimeout(2200);

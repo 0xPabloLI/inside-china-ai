@@ -68,14 +68,14 @@
   --brand-muted: oklch(0.93 0.05 260);
   --brand-foreground: oklch(0.45 0.15 260);
   /* Semantic status colors */
-  --success: oklch(0.60 0.15 145);
-  --success-foreground: oklch(0.30 0.10 145);
+  --success: oklch(0.6 0.15 145);
+  --success-foreground: oklch(0.3 0.1 145);
   --success-muted: oklch(0.95 0.03 145);
-  --warning: oklch(0.70 0.15 85);
-  --warning-foreground: oklch(0.40 0.12 85);
+  --warning: oklch(0.7 0.15 85);
+  --warning-foreground: oklch(0.4 0.12 85);
   --warning-muted: oklch(0.95 0.03 85);
   --danger: oklch(0.55 0.22 27);
-  --danger-foreground: oklch(0.40 0.15 27);
+  --danger-foreground: oklch(0.4 0.15 27);
   --danger-muted: oklch(0.95 0.03 27);
   /* Cool off-white palette — tinted toward brand blue */
   --background: oklch(0.985 0.008 260);
@@ -133,14 +133,14 @@
   --input: oklch(1 0 0 / 15%);
   --brand: oklch(0.62 0.19 260);
   --brand-muted: oklch(0.25 0.05 260);
-  --brand-foreground: oklch(0.70 0.15 260);
-  --success: oklch(0.70 0.15 145);
+  --brand-foreground: oklch(0.7 0.15 260);
+  --success: oklch(0.7 0.15 145);
   --success-foreground: oklch(0.95 0.03 145);
   --success-muted: oklch(0.25 0.05 145);
   --warning: oklch(0.75 0.12 85);
   --warning-foreground: oklch(0.95 0.02 85);
   --warning-muted: oklch(0.25 0.05 85);
-  --danger: oklch(0.65 0.20 22);
+  --danger: oklch(0.65 0.2 22);
   --danger-foreground: oklch(0.96 0.01 27);
   --danger-muted: oklch(0.25 0.05 27);
   --ring: oklch(0.55 0.03 255);

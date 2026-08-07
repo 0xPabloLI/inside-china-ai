@@ -25,8 +25,7 @@ export const scenes = [
     id: 1,
     name: "hook",
     visualType: "hook",
-    voiceover:
-      "DeepSeek has no KPIs. No org chart. Only a vision.",
+    voiceover: "DeepSeek has no KPIs. No org chart. Only a vision.",
     texts: {
       subject: "DEEPSEEK",
       hookText: "0 KPIs. 0 ORG CHARTS.",
@@ -81,8 +80,7 @@ export const scenes = [
     id: 5,
     name: "quote-kindness",
     visualType: "quote",
-    voiceover:
-      "We started with great kindness toward the world. Beyond money.",
+    voiceover: "We started with great kindness toward the world. Beyond money.",
     texts: {
       quote: "GREAT KINDNESS BEYOND MONEY",
       speaker: "Liang Wenfeng",

@@ -226,9 +226,7 @@ ${baseStyles(duration)}
   <div class="cols"><div class="col left"><div class="col-title">${left[0] || ""}</div>${left
     .slice(1)
     .map((item, i) => `<div class="item" style="animation-delay: ${0.4 + i * 0.2}s;">${item}</div>`)
-    .join(
-      "",
-    )}</div><div class="col right"><div class="col-title">${right[0] || ""}</div>${right
+    .join("")}</div><div class="col right"><div class="col-title">${right[0] || ""}</div>${right
     .slice(1)
     .map((item, i) => `<div class="item" style="animation-delay: ${1.0 + i * 0.2}s;">${item}</div>`)
     .join("")}</div></div>

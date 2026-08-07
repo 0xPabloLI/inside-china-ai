@@ -16,6 +16,7 @@ interface InviteEmailProps {
   siteName: string;
   siteUrl: string;
   confirmationUrl: string;
+  [key: string]: unknown;
 }
 
 export const InviteEmail = ({ siteName, siteUrl, confirmationUrl }: InviteEmailProps) => (

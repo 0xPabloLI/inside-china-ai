@@ -105,8 +105,7 @@ export const scenes = [
     id: 8,
     name: "teaser",
     visualType: "teaser",
-    voiceover:
-      "DeepSeek started the wave. One stock collapsed 80%. Part three: the fallout.",
+    voiceover: "DeepSeek started the wave. One stock collapsed 80%. Part three: the fallout.",
     texts: {
       line1: "PART 3 TOMORROW",
       line2: "STOCK DOWN 80%",

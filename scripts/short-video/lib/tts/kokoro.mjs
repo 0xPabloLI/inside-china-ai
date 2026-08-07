@@ -56,8 +56,8 @@ export async function createKokoroEngine() {
 
     async generate(scenes, outputDir) {
       const results = [];
-  const atempo = getAtempo();
-  const hasFfprobe = await isCommandAvailable("ffprobe");
+      const atempo = getAtempo();
+      const hasFfprobe = await isCommandAvailable("ffprobe");
 
       for (const scene of scenes) {
         const tempFile = join(tmpdir(), `tts-scene-${scene.id}.txt`);
