@@ -1,7 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { BrandName } from "./brand-name";
-import { ThemeToggle } from "./theme-toggle";
+import { HeaderNav } from "./header-nav";
 
 export function SiteHeader() {
   const { isAdmin } = useIsAdmin();
@@ -27,39 +27,11 @@ export function SiteHeader() {
             <BrandName />
           </span>
         </Link>
-        <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-          <Link
-            to="/"
-            className={`hover:text-foreground ${
-              location.pathname === "/" || location.pathname.startsWith("/posts/")
-                ? "text-foreground font-medium"
-                : "text-muted-foreground"
-            }`}
-            onClick={handleArticlesClick}
-          >
-            Articles
-          </Link>
-          <Link
-            to="/companies"
-            activeProps={{ className: "text-foreground font-medium" }}
-            inactiveProps={{ className: "text-muted-foreground" }}
-            className="hover:text-foreground"
-          >
-            Companies
-          </Link>
-
-          {isAdmin ? (
-            <Link
-              to="/admin"
-              activeProps={{ className: "text-foreground font-medium" }}
-              inactiveProps={{ className: "text-muted-foreground" }}
-              className="hover:text-foreground"
-            >
-              Admin
-            </Link>
-          ) : null}
-          <ThemeToggle />
-        </nav>
+        <HeaderNav
+          pathname={location.pathname}
+          isAdmin={isAdmin === true}
+          onArticlesClick={handleArticlesClick}
+        />
       </div>
     </header>
   );
