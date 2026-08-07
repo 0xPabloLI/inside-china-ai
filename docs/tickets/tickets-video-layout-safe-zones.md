@@ -45,6 +45,8 @@
 
 ## T4 — 槽位布局系统（scene-layout.mjs）
 
+> 注（2026-08-08，已由 spec-hook-opening-card 实施）：`lib/scene-layout.mjs`（SLOTS/SLOT_X/slotCss/sceneFrame + 测试）已随 hookScene 落地并提交。本 ticket 仅剩的消费方工作 = bytedance 迁移（见 T6 依赖链中已完成部分）；后续新场景一律用 sceneFrame 组装。
+
 **What to build:** 新增 `lib/scene-layout.mjs`：`SLOTS`（brandHeader 60-140 / kickerTitle 220-400 / hero 400-1080 / support 1080-1340，数值与 safe-zones 同源校验）、`slotCss()`、`sceneFrame({kicker, hero, support})` 组装器。场景模板不再写全屏 flex + padding + space-between。
 
 **Blocked by:** T1

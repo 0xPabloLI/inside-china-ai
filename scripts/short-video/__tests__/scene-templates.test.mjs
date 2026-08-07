@@ -13,6 +13,8 @@ import {
   fadeToBlack,
   templateCss,
   ctaScene,
+  hookScene,
+  logoSvg,
 } from "../lib/scene-templates.mjs";
 
 // ── Safe zones ──
@@ -146,6 +148,16 @@ describe("statCard", () => {
     expect(html).toContain("JULY 25");
     expect(html).not.toContain('<span class="unit"></span>');
   });
+
+  it("accepts a stagger delay option (support-slot rhythm)", () => {
+    const html = statCard({ num: "4", unit: "HR", label: "L", color: "blue", delay: 1.3 });
+    expect(html).toContain("animation-delay: 1.3s");
+  });
+
+  it("omits animation-delay when no delay given (backward compatible)", () => {
+    const html = statCard({ num: "4", unit: "HR", label: "L", color: "blue" });
+    expect(html).not.toContain("animation-delay");
+  });
 });
 
 describe("quoteBox", () => {
@@ -258,6 +270,26 @@ describe("templateCss", () => {
       expect(css).toContain(cls);
     }
   });
+
+  it("styles the standard hook opening card (.s-hook)", () => {
+    const css = templateCss();
+    for (const cls of [
+      "s-hook",
+      "scan-sweep",
+      "badge-pill",
+      "subject-row",
+      "subject-logo",
+      "subject-name",
+      "focal-claim",
+      "focal-reveal",
+      "focal-number",
+      "focal-number-label",
+      "stats-row",
+      "source-line",
+    ]) {
+      expect(css).toContain(cls);
+    }
+  });
 });
 
 // ── ctaScene (standard CTA end card) ──
@@ -333,5 +365,184 @@ describe("ctaScene", () => {
     const html = ctaScene({ texts: {} }, 10);
     assertNoBusinessCopy(html);
     expect(html).not.toContain("undefined");
+  });
+});
+
+// ── hookScene (standard hook opening card) ──
+
+const HOOK_CLAIM_TEXTS = {
+  badge: "EXCLUSIVE",
+  subject: "DEEPSEEK",
+  subjectLogo: "deepseek-icon",
+  hookText: "0 KPIs. 0 ORG CHARTS.",
+  revealText: "ONLY A VISION",
+  stats: [{ num: "4", unit: "HR", label: "LEAKED MEETING" }],
+  source: "LIANG WENFENG INVESTOR MEETING",
+};
+
+const HOOK_NUMBER_TEXTS = {
+  badge: "BREAKING",
+  subject: "DEEPSEEK",
+  subjectLogo: "deepseek-icon",
+  bigNumber: "$1.4B",
+  numberLabel: "FUNDING ROUND PAUSED",
+  numberHighlight: "FUNDING",
+  stats: [
+    { num: "4", unit: "HR", label: "LEAKED MEETING" },
+    { num: "1", unit: "LAB", label: "PAUSED ROUND" },
+  ],
+  source: "BLOOMBERG CONFIRMED",
+};
+
+describe("hookScene", () => {
+  it("renders the fixed skeleton: brandBar + scan-sweep + three slots in order", () => {
+    const html = hookScene({ texts: HOOK_CLAIM_TEXTS }, 10);
+    expect(html).toContain('class="brand-bar"');
+    expect(html).toContain("scan-sweep");
+    const kicker = html.indexOf("slot-kicker");
+    const hero = html.indexOf("slot-hero");
+    const support = html.indexOf("slot-support");
+    expect([kicker, hero, support].every((i) => i >= 0)).toBe(true);
+    expect(kicker).toBeLessThan(hero);
+    expect(hero).toBeLessThan(support);
+  });
+
+  it("claim variant: hookText is visible from frame 1 (no animation delay)", () => {
+    const css = templateCss();
+    expect(css).toMatch(/\.s-hook \.focal-claim \{[^}]*animation: hookIn 0\.3s ease-out forwards;/);
+    // No delay: animation shorthand carries exactly one time value (duration),
+    // never two (duration + delay)
+    const claimRule = css.match(/\.s-hook \.focal-claim \{([^}]*)\}/)[1];
+    expect(claimRule).not.toMatch(/animation: [^;]*\d+(\.\d+)?s[^;]*\d+(\.\d+)?s/);
+  });
+
+  it("claim variant: revealText stampIn at 1.5s with blue glowPulse by default", () => {
+    const html = hookScene({ texts: HOOK_CLAIM_TEXTS }, 10);
+    expect(html).toContain("ONLY A VISION");
+    expect(html).toContain(
+      "animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite",
+    );
+  });
+
+  it("number variant: amber big number with labeled highlight", () => {
+    const html = hookScene({ texts: HOOK_NUMBER_TEXTS }, 10);
+    expect(html).toContain("$1.4B");
+    expect(html).toContain('<span class="hl" style="color: var(--blue);">FUNDING</span>');
+    // number uses the amber-on-dark brand treatment
+    expect(templateCss()).toMatch(/\.s-hook \.focal-number \{[^}]*color: var\(--amber\)/);
+  });
+
+  it("number focal wins deterministically when both focals present (template-level)", () => {
+    const html = hookScene({ texts: { ...HOOK_CLAIM_TEXTS, bigNumber: "$1.4B" } }, 10);
+    expect(html).toContain("$1.4B");
+    expect(html).not.toContain("0 KPIs.");
+    expect(html).not.toContain("undefined");
+  });
+
+  it("missing focal renders the skeleton only (no undefined, no crash)", () => {
+    const html = hookScene({ texts: { subject: "DEEPSEEK", source: "REUTERS" } }, 10);
+    expect(html).not.toContain("undefined");
+    expect(html).not.toContain('class="focal-claim"');
+    expect(html).not.toContain('class="focal-number"');
+  });
+
+  it("omits optional slots entirely when absent", () => {
+    const html = hookScene({ texts: { hookText: "JUST A CLAIM" } }, 10);
+    // Match rendered elements only (CSS class definitions always exist in the
+    // style block, so assert on class="..." element markup)
+    expect(html).not.toContain('class="badge-pill"');
+    expect(html).not.toContain('class="subject-row"');
+    expect(html).not.toContain('class="slot-kicker"'); // empty kicker omitted by sceneFrame
+    expect(html).not.toContain('class="stats-row"');
+    expect(html).not.toContain('class="source-line"');
+    expect(html).not.toContain('class="slot-support"');
+    expect(html).toContain('class="slot-hero"');
+  });
+
+  it("subject without logo renders the bold 80px name row", () => {
+    const html = hookScene({ texts: { subject: "BYTEDANCE", hookText: "155M USERS" } }, 10);
+    expect(html).toContain('class="subject-row"');
+    expect(html).toContain("BYTEDANCE");
+    expect(html).not.toContain('class="subject-logo"');
+    expect(templateCss()).toContain(
+      ".s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900",
+    );
+  });
+
+  it("red color variant: revealText uses static red glow, never glowPulse (blue-only keyframe)", () => {
+    const html = hookScene({ texts: { ...HOOK_CLAIM_TEXTS, color: "red" } }, 10);
+    expect(html).toContain("color: var(--red)");
+    expect(html).toContain("rgba(239,68,68,0.5)");
+    expect(html).not.toContain("forwards, glowPulse"); // no blue-only keyframe on the reveal
+  });
+
+  it("invalid color token falls back to blue", () => {
+    const html = hookScene({ texts: { ...HOOK_CLAIM_TEXTS, color: "pink" } }, 10);
+    expect(html).toContain("forwards, glowPulse");
+    expect(html).not.toContain("var(--pink)");
+  });
+
+  it("carries the brand bar so withWatermark skips (no double branding)", () => {
+    const html = hookScene({ texts: HOOK_NUMBER_TEXTS }, 10);
+    expect(withWatermark(html)).toBe(html);
+  });
+
+  it("declares scanSweep exactly once and no shared keyframes", () => {
+    const html = hookScene({ texts: HOOK_CLAIM_TEXTS }, 10);
+    expect(html.match(/@keyframes scanSweep\b/g) ?? []).toHaveLength(1);
+    for (const kf of [
+      "fadeIn",
+      "slideUp",
+      "slideLeft",
+      "scaleIn",
+      "stampIn",
+      "slideDown",
+      "pulseDot",
+      "numberPulse",
+      "glowPulse",
+      "logoPulse",
+      "hookIn",
+      "fadeOut",
+    ]) {
+      const decls = html.match(new RegExp(`@keyframes ${kf}\\b`, "g")) ?? [];
+      expect(
+        decls.length,
+        `@keyframes ${kf} must come only from baseStyles (once)`,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("with no color slot the reveal keeps the default blue glow (glowPulse)", () => {
+    const html = hookScene({ texts: { ...HOOK_CLAIM_TEXTS, color: undefined } }, 10);
+    expect(html).toContain("forwards, glowPulse");
+  });
+
+  it("renders no business copy and no undefined for empty texts (data-only)", () => {
+    const html = hookScene({ texts: {} }, 10);
+    assertNoBusinessCopy(html);
+    expect(html).not.toContain("undefined");
+  });
+});
+
+describe("logoSvg (logo registry)", () => {
+  it("loads a registered logo from assets/logos", () => {
+    const svg = logoSvg("deepseek-icon");
+    expect(svg).toContain("<svg");
+    expect(svg).not.toMatch(/<\?xml/);
+    expect(svg).not.toMatch(/<!--/);
+  });
+
+  it("returns empty for an unknown key (pure-text fallback)", () => {
+    expect(logoSvg("no-such-logo")).toBe("");
+  });
+
+  it("rejects path-traversal keys", () => {
+    expect(logoSvg("../../etc/passwd")).toBe("");
+    expect(logoSvg("../scene-templates.mjs")).toBe("");
+  });
+
+  it("returns empty for empty or undefined key", () => {
+    expect(logoSvg("")).toBe("");
+    expect(logoSvg(undefined)).toBe("");
   });
 });

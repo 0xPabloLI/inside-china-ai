@@ -4,6 +4,7 @@ import {
   checkNoGreeting,
   checkSceneCount,
   checkHookVisualType,
+  checkHookContract,
   checkCTAVisualType,
   checkCTAActionContract,
   checkHookCompellingElement,
@@ -29,6 +30,11 @@ import {
   checkSemanticConsistency,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
+import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
+import { scenes as deepseekScenes } from "../content/deepseek/scene-data.mjs";
+import { scenes as restraintScenes } from "../content/restraint/pt1/scene-data.mjs";
+import { scenes as restraintPt3Scenes } from "../content/restraint/pt3/scene-data.mjs";
+import { scenes as pt1Scenes } from "../content/distillation/pt1/scene-data.mjs";
 
 // ── Mock scene data ──
 
@@ -38,7 +44,7 @@ const validScenes = [
     name: "hook",
     visualType: "hook",
     voiceover: "A leaked memo reveals DeepSeek paused its 1.4 billion dollar round.",
-    texts: { line1: "DEEPSEEK PAUSED", line2: "$1.4B ROUNDD" },
+    texts: { hookText: "DEEPSEEK PAUSED", revealText: "$1.4B ROUNDD" },
   },
   {
     id: 2,
@@ -82,6 +88,79 @@ const validSeriesMeta = {
   partNumber: 1,
   totalParts: 3,
 };
+
+// ── checkSceneCount ──
+
+// ── checkHookContract (standard hook focal) ──
+
+describe("checkHookContract", () => {
+  it("passes a claim-led hook (hookText focal)", () => {
+    const results = checkHookContract([{ visualType: "hook", texts: { hookText: "0 KPIs" } }]);
+    expect(results[0].level).toBe("pass");
+    expect(results[0].detail).toContain("hookText focal");
+  });
+
+  it("passes a number-led hook (bigNumber focal)", () => {
+    const results = checkHookContract([{ visualType: "hook", texts: { bigNumber: "$1.4B" } }]);
+    expect(results[0].level).toBe("pass");
+    expect(results[0].detail).toContain("bigNumber focal");
+  });
+
+  it("fails when both focals are present", () => {
+    const results = checkHookContract([
+      { visualType: "hook", texts: { bigNumber: "$1.4B", hookText: "0 KPIs" } },
+    ]);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].fix).toContain("hookText");
+  });
+
+  it("fails when no focal is present", () => {
+    const results = checkHookContract([{ visualType: "hook", texts: { subject: "DEEPSEEK" } }]);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].fix).toContain("hookScene");
+  });
+
+  it("fails when focal fields are empty/whitespace strings", () => {
+    const results = checkHookContract([
+      { visualType: "hook", texts: { hookText: "", bigNumber: "   " } },
+    ]);
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("fails when texts is missing", () => {
+    const results = checkHookContract([{ visualType: "hook", voiceover: "boom" }]);
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("passes when the first scene is not a hook", () => {
+    const results = checkHookContract([{ visualType: "teaser" }]);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("is included in runAllSceneDataChecks results", () => {
+    const results = runAllSceneDataChecks(validScenes, null);
+    const hookCheck = [...results.pass, ...results.warn, ...results.fail].find((r) =>
+      r.check.includes("Hook focal contract"),
+    );
+    expect(hookCheck).toBeDefined();
+  });
+
+  it("locks current content reality: implemented hooks pass, legacy line1/line2 hooks fail (spec #17)", () => {
+    for (const [name, scenes] of [
+      ["bytedance-distillation", bytedanceScenes],
+      ["deepseek", deepseekScenes],
+      ["restraint/pt1", restraintScenes],
+    ]) {
+      expect(checkHookContract(scenes)[0].level, `${name} should pass`).toBe("pass");
+    }
+    for (const [name, scenes] of [
+      ["distillation/pt1", pt1Scenes],
+      ["restraint/pt3", restraintPt3Scenes],
+    ]) {
+      expect(checkHookContract(scenes)[0].level, `${name} should fail until migrated`).toBe("fail");
+    }
+  });
+});
 
 // ── checkSceneCount ──
 

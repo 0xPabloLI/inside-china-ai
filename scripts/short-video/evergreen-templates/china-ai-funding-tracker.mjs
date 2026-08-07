@@ -9,7 +9,9 @@ export const scenes = [
     name: "hook",
     visualType: "hook",
     voiceover: "", // TODO: Insert today's funding news
-    texts: { line1: "CHINA AI", line2: "FUNDING" },
+    // Standard hook contract (hookScene): hookText = frame-1 claim,
+    // revealText = 1.5s payoff — or bigNumber for number-led hooks.
+    texts: { hookText: "CHINA AI", revealText: "FUNDING" },
   },
   {
     id: 2,

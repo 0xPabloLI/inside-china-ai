@@ -17,11 +17,17 @@
  *      scenes must not redeclare them. Scene-specific animations must use
  *      unique names (e.g. alertPulse, not pulseDot).
  *   6. The template layer (lib/scene-templates.mjs) stays copy-free and
- *      keyframe-free (channel constants in brandBar are the exception).
+ *      redeclares none of the shared keyframes (channel constants in
+ *      brandBar are the exception; scanSweep is the one template-local
+ *      keyframe, owned by hookScene).
  *   7. The CTA end card is the single shared ctaScene: every content
  *      CTA scene output must be byte-identical to ctaScene, and every
  *      CTA scene-data / evergreen template carries the standardized
  *      action slot (spec: docs/spec-cta-end-card-standard.md).
+ *   8. The hook opening card is the single shared hookScene: registered
+ *      content hooks must be byte-identical to it, evergreen hooks must
+ *      carry a focal, and the batch-generate scaffold must emit the
+ *      standard hook contract (spec: docs/specs/spec-hook-opening-card.md).
  *
  * Runtime geometry (actual bottom/right band crossings) is verified per
  * render by scripts/short-video/verify-scene-dom.mjs, which measures the
@@ -33,7 +39,7 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { SAFE_ZONES, SUBTITLE_LANE, WATERMARK_POS } from "../lib/safe-zones.mjs";
 import { withWatermark } from "../lib/base-styles.mjs";
-import { ctaScene } from "../lib/scene-templates.mjs";
+import { ctaScene, hookScene } from "../lib/scene-templates.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
 import { generateScene as generateBytedance } from "../content/bytedance-distillation/scenes.mjs";
 import { scenes as deepseekScenes } from "../content/deepseek/scene-data.mjs";
@@ -76,6 +82,11 @@ const CTA_PIPELINES = [
   },
   { name: "distillation/pt1", id: 8, scenes: pt1Scenes, generateScene: generatePt1 },
 ];
+
+// Content pipelines that adopted the shared hook opening card (hookScene).
+// Register new content here when its scene1 delegates to hookScene — the
+// byte-equality guard below verifies no drift. (spec-hook-opening-card.md)
+const HOOK_PIPELINES = [];
 
 // Evergreen scene-data templates (data-only, consumed when copied into content/)
 const EVERGREEN_FILES = [
@@ -246,9 +257,16 @@ describe("scene drift guards", () => {
       expect(offenders).toEqual([]);
     });
 
-    it("scene-templates declares no keyframes (single bundle in baseStyles)", () => {
+    it("template layer redeclares no shared keyframes (scanSweep is the one template-local keyframe)", () => {
       const src = readFileSync(new URL("../lib/scene-templates.mjs", import.meta.url), "utf8");
-      expect(src).not.toMatch(/@keyframes [a-zA-Z]+/);
+      for (const name of SHARED_KEYFRAMES) {
+        expect(src, `template layer redeclares shared @keyframes ${name}`).not.toMatch(
+          new RegExp(`@keyframes ${name}\\b`),
+        );
+      }
+      // hookScene owns exactly one template-local keyframe (scan-sweep line);
+      // content scenes may also declare scanSweep per-video (not shared).
+      expect(src.match(/@keyframes scanSweep\b/g) ?? []).toHaveLength(1);
     });
   });
 
@@ -283,6 +301,34 @@ describe("scene drift guards", () => {
       const src = readFileSync(new URL("../batch-generate.mjs", import.meta.url), "utf8");
       expect(src).not.toContain('texts: { title: "SUBSCRIBE" }');
       expect(src).toContain('action: "FOLLOW FOR MORE"');
+    });
+  });
+
+  describe("hook opening card (standard hookScene)", () => {
+    it("every registered content hook output is byte-identical to hookScene", () => {
+      for (const { name, id, scenes, generateScene } of HOOK_PIPELINES) {
+        const hook = scenes.find((s) => s.id === id && s.visualType === "hook");
+        expect(hook, `${name}: hook scene ${id} missing`).toBeDefined();
+        const fromContent = generateScene(hook, 10);
+        const fromShared = hookScene(hook, 10);
+        expect(fromContent, `${name}: hook scene drifted from shared hookScene`).toBe(fromShared);
+      }
+    });
+
+    it("every evergreen template's hook scene carries a focal (hookText or bigNumber)", () => {
+      for (const { name, scenes } of EVERGREEN_FILES) {
+        const hook = scenes.find((s) => s.visualType === "hook");
+        expect(hook, `${name}: no hook scene`).toBeDefined();
+        const focal = (hook.texts?.hookText ?? "").trim() || (hook.texts?.bigNumber ?? "").trim();
+        expect(focal, `${name}: hook missing focal (hookText/bigNumber)`).toBeTruthy();
+      }
+    });
+
+    it("batch-generate scaffold emits the standard hook contract (no legacy line1/line2)", () => {
+      const src = readFileSync(new URL("../batch-generate.mjs", import.meta.url), "utf8");
+      expect(src).not.toMatch(/texts:\s*\{\s*line1:/);
+      expect(src).toContain("hookText");
+      expect(src).toContain("revealText");
     });
   });
 });

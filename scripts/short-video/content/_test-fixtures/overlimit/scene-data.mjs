@@ -16,7 +16,8 @@ const SCENE = (id, word) => ({
   name: word,
   visualType: id === 1 ? "hook" : id === 11 ? "cta" : "data",
   voiceover: `Scene ${id}: China AI ${word} hit a fresh 1.4 billion dollar mark.`,
-  texts: id === 1 ? { line1: "DEEPSEEK HIT", line2: "$1.4B MARK" } : { stat: `SCENE ${id}` },
+  texts:
+    id === 1 ? { hookText: "DEEPSEEK HIT", revealText: "$1.4B MARK" } : { stat: `SCENE ${id}` },
 });
 
 export const scenes = Array.from({ length: 11 }, (_, i) => {

@@ -4,9 +4,9 @@
  * headless Chromium and asserts:
  *
  *   FAIL level:
- *   1. No content element crosses the BOTTOM safe-zone band (subtitles +
- *      TikTok caption/input zone). Background layers, brand bars, brand
- *      logos and watermarks are exempt by design.
+ *   1. No content element crosses the TOP or BOTTOM safe-zone bands
+ *      (TikTok tabs bar / subtitle lane + caption zone). Background layers,
+ *      brand bars, brand logos and watermarks are exempt by design.
  *   2. No text element overflows its box horizontally (scrollWidth).
  *   3. Rendered text contains no "undefined".
  *   4. Per-pipeline expectations: watermark skip sets, legacy footer
@@ -39,6 +39,7 @@ const EXEMPT_SELECTORS = [
   ".glow-blue",
   ".glow-red",
   ".glow-amber",
+  ".glow-tint",
   ".scanlines",
   ".scan-sweep",
   ".glitch",
@@ -48,6 +49,13 @@ const EXEMPT_SELECTORS = [
   ".brand-bar",
   ".brand-logo-large",
 ];
+
+// Brand chrome containers whose INNER elements share the exemption (logo
+// svg wrappers, wordmark spans, tag pills). Scoped to .scene so real
+// content subtrees (e.g. a .hl span inside a quote box) are never skipped.
+// Defined at module level for reference; the page.evaluate clone lives in
+// the browser context (see probe below).
+const BRAND_CHROME = [".brand-bar", ".brand-watermark", ".brand-logo-large"];
 
 // Per-pipeline expectations.
 //   skipWatermark:  scene ids that render their own brand identity
@@ -82,6 +90,14 @@ const EXPECTATIONS = {
     singleOccurrence: {},
     wordFit: {},
   },
+  "_test-fixtures/hook-standard": {
+    // Both hook variants carry brandBar; CTA carries the large brand logo —
+    // withWatermark skips all three scenes by design.
+    skipWatermark: [1, 2, 3],
+    absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
+    singleOccurrence: {},
+    wordFit: { 1: [".s-hook .focal-claim"], 2: [".s-hook .focal-number-label"] },
+  },
 };
 
 const exp = EXPECTATIONS[contentDir] || {
@@ -92,6 +108,7 @@ const exp = EXPECTATIONS[contentDir] || {
 };
 
 const BAND = {
+  top: SAFE_ZONES.top, // content must start below this y (FAIL)
   bottom: 1920 - SAFE_ZONES.bottom, // content must end above this y (FAIL)
   right: 1080 - SAFE_ZONES.right, // content should end left of this x (WARN)
 };
@@ -118,18 +135,28 @@ async function main() {
     const problems = [];
     const warns = [];
 
-    // 1. Bottom band = FAIL, right band = WARN (exempt layers + svg internals)
+    // 1. Top/bottom band = FAIL, right band = WARN (exempt layers + svg internals)
     const { fails, warns: bwarns } = await page.evaluate(
-      ({ exempt, band }) => {
+      ({ exempt, band, brandChrome }) => {
         const fails = [];
         const warns = [];
+        const insideBrandChrome = (el) => {
+          let node = el.parentElement;
+          while (node && !node.matches(".scene")) {
+            if (brandChrome.some((s) => node.matches(s))) return true;
+            node = node.parentElement;
+          }
+          return false;
+        };
         const probe = (el) => {
           const r = el.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) return;
           const label =
             (typeof el.className === "string" ? el.className.slice(0, 50) : el.tagName) ||
             el.tagName;
-          if (r.bottom > band.bottom + 1) {
+          if (r.top < band.top - 1) {
+            fails.push(`${label} (T${Math.round(r.top)})`);
+          } else if (r.bottom > band.bottom + 1) {
             fails.push(`${label} (B${Math.round(r.bottom)})`);
           } else if (r.right > band.right + 1) {
             warns.push(`${label} (R${Math.round(r.right)})`);
@@ -138,13 +165,14 @@ async function main() {
         for (const el of document.querySelectorAll("body *")) {
           if (el.matches("svg, svg *")) continue;
           if (exempt.some((s) => el.matches(s))) continue;
+          if (insideBrandChrome(el)) continue;
           probe(el);
         }
         return { fails, warns };
       },
-      { exempt: EXEMPT_SELECTORS, band: BAND },
+      { exempt: EXEMPT_SELECTORS, band: BAND, brandChrome: BRAND_CHROME },
     );
-    for (const f of fails) problems.push(`bottom-zone: ${f}`);
+    for (const f of fails) problems.push(`zone: ${f}`);
     for (const w of bwarns) warns.push(`right-band: ${w}`);
 
     // 2. Horizontal overflow (vertical clipping with tight line-height is

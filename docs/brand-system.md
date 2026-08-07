@@ -212,14 +212,27 @@ Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / WATERMARK_POS const
 
 ### 1. Hook Scene
 
-Breaking news opener. Amber-dominant (key data) + red accent (breaking badge).
+**Standard: the shared `hookScene` opening card** (`lib/scene-templates.mjs`, spec: `docs/specs/spec-hook-opening-card.md`). Scene 1 of every new video must delegate to `hookScene` — fixed skeleton, data-driven slots, zero hand-written offsets. Old hand-written hooks (deepseek / distillation / restraint) migrate when next revisited.
 
-- Breaking news badge at top (red pill, `⚠ BREAKING`) — red for urgency
-- Logo + entity name row
-- Large headline: context line (sec) + **big number in amber** (260px, amber glow) — amber for maximum visibility on dark bg
-- Key stat cards below (amber + blue borders)
-- Scan line sweep (blue)
-- Animation: badge stampIn → logo slideDown → subject slideUp → big-number scaleIn + numberPulse
+Slot composition (1080×1920; bands from `lib/scene-layout.mjs` — kicker / hero / support):
+
+```
+kicker (220–400)     [badge]    optional red pill (BREAKING) — red urgency
+hero   (400–1080)    [subject]  optional logo 120px + name 80px/900
+                     [focal]    REQUIRED, exactly one of:
+                       A number-led: bigNumber (amber 260px glow)
+                                     + numberLabel (highlight wraps .hl)
+                       B claim-led:  hookText (frame-1, no delay)
+                                     + revealText (1.5s stampIn payoff)
+support (1080–1340)  [stats]    optional stat cards (staggered 1.3s+)
+                     [source]   optional source line (2.1s)
+```
+
+- Background layers: `grid-bg` + color-tinted glow (semantic color token drives the tint) + `scanlines` + blue `scan-sweep`
+- Animation contract: badge 0.3s → subject 0.3s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.8s / revealText 1.5s → stats 1.3s+ → source 2.1s
+- Amber-dominant numbers + red accent badge follow the 60-30-10 doctrine; `glowPulse` is a blue-only keyframe, so non-blue reveal colors get a static same-color glow instead
+- Data contract: `badge` / `subject` / `subjectLogo` (logo registry key into `assets/logos/`) / `bigNumber`+`numberLabel` / `hookText`+`revealText` / `stats[]` / `source` / `color` — see the `hookScene()` docblock. Focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`
+- `withWatermark` skips (brandBar) — no double branding on the channel open
 
 ### 2. Timeline Scene
 

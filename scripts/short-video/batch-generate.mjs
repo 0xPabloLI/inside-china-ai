@@ -57,7 +57,10 @@ export const scenes = [
     name: "hook",
     visualType: "hook",
     voiceover: "", // TODO: Write hook based on "${day.hookFormula}"
-    texts: { line1: "", line2: "" },
+    // Standard hook contract (see lib/scene-templates.mjs hookScene):
+    // hookText (frame-1 claim) + revealText (payoff), or bigNumber for
+    // number-led hooks — pick ONE focal per video.
+    texts: { hookText: "", revealText: "" },
   },
   // TODO: Add 8-11 more scenes
   {

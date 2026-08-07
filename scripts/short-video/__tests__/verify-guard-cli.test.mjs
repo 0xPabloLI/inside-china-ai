@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
  *
  *   T1-10  verify --pre with over-limit content exits 1 (blocks render)
  *   T1-11  verify --pre --long-form exits 0 (explicit opt-in downgrades to WARN)
- *   T1-12  compliant content exits 0 with no flag
+ *   T1-12  compliant content (bytedance-distillation) exits 0 with no flag
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -35,7 +35,11 @@ describe("verify-video.mjs --pre guard (CLI contract)", () => {
   });
 
   it("T1-12: compliant content passes with no flag (exit 0)", () => {
-    const res = runPre(["--content", "distillation/pt1"]);
+    // bytedance-distillation is the data-level compliant baseline. Legacy
+    // line1/line2 hooks (distillation/pt1, restraint/pt3) now fail the
+    // standard hook focal contract (checkHookContract) until migrated —
+    // the same anti-regression posture as the bottom safe-zone check.
+    const res = runPre(["--content", "bytedance-distillation"]);
     expect(res.status).toBe(0);
   });
 });
