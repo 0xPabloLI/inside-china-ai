@@ -228,9 +228,10 @@ function ComparePage() {
               DeepSeek vs Qwen vs GLM-4
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
-              Three labs dominate China's open-weight model output: DeepSeek, Alibaba's Qwen team and
-              Zhipu AI's GLM line. They are not interchangeable. This page compares what each family
-              is actually good at, how their licences differ, and which one fits which workload.
+              Three labs dominate China's open-weight model output: DeepSeek, Alibaba's Qwen team
+              and Zhipu AI's GLM line. They are not interchangeable. This page compares what each
+              family is actually good at, how their licences differ, and which one fits which
+              workload.
             </p>
           </header>
 
@@ -262,7 +263,10 @@ function ComparePage() {
                 <tbody>
                   {ROWS.map((r) => (
                     <tr key={r.dimension} className="border-b border-border/40 align-top">
-                      <th scope="row" className="py-3 pr-4 text-left font-medium text-foreground/80">
+                      <th
+                        scope="row"
+                        className="py-3 pr-4 text-left font-medium text-foreground/80"
+                      >
                         {r.dimension}
                       </th>
                       <td className="py-3 pr-4 text-muted-foreground">{r.deepseek}</td>
@@ -362,7 +366,10 @@ function ComparePage() {
 
           <p className="text-sm text-muted-foreground">
             Related:{" "}
-            <a href="/companies" className="underline decoration-border hover:decoration-foreground">
+            <a
+              href="/companies"
+              className="underline decoration-border hover:decoration-foreground"
+            >
               guide to China's top AI labs
             </a>
             .
