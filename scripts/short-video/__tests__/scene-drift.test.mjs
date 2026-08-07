@@ -152,6 +152,28 @@ describe("scene drift guards", () => {
     });
   });
 
+  describe("brandHighlight contract", () => {
+    it("every brandHighlight exists inside the scene brand string", () => {
+      const offenders = [];
+      for (const file of [
+        "content/restraint/pt1/scene-data.mjs",
+        "content/distillation/pt1/scene-data.mjs",
+      ]) {
+        const src = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+        // Extract scene blocks with their texts: check each brand/brandHighlight pair.
+        const scenes = src.match(/texts:\s*\{[\s\S]*?\n    \}/g) ?? [];
+        for (const block of scenes) {
+          const brand = /\bbrand:\s*"([^"]+)"/.exec(block)?.[1];
+          const highlight = /\bbrandHighlight:\s*"([^"]+)"/.exec(block)?.[1];
+          if (highlight && (!brand || !brand.includes(highlight))) {
+            offenders.push(`${file}: brandHighlight "${highlight}" not inside brand "${brand}"`);
+          }
+        }
+      }
+      expect(offenders).toEqual([]);
+    });
+  });
+
   describe("template layer stays copy-free", () => {
     it("templates contain no business copy (brand constants excepted)", () => {
       const offenders = [];
