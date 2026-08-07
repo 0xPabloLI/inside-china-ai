@@ -40,6 +40,8 @@ import { scenes as deepseekScenes } from "../content/deepseek/scene-data.mjs";
 import { generateScene as generateDeepseek } from "../content/deepseek/scenes.mjs";
 import { scenes as restraintScenes } from "../content/restraint/pt1/scene-data.mjs";
 import { generateScene as generateRestraint } from "../content/restraint/pt1/scenes.mjs";
+import { scenes as restraintPt3Scenes } from "../content/restraint/pt3/scene-data.mjs";
+import { generateScene as generateRestraintPt3 } from "../content/restraint/pt3/scenes.mjs";
 import { scenes as pt1Scenes } from "../content/distillation/pt1/scene-data.mjs";
 import { generateScene as generatePt1 } from "../content/distillation/pt1/scenes.mjs";
 import { scenes as fundingScenes } from "../evergreen-templates/china-ai-funding-tracker.mjs";
@@ -51,6 +53,7 @@ import { scenes as explainerScenes } from "../evergreen-templates/deepseek-expla
 const CONTENT_FILES = [
   "content/deepseek/scenes.mjs",
   "content/restraint/pt1/scenes.mjs",
+  "content/restraint/pt3/scenes.mjs",
   "content/distillation/pt1/scenes.mjs",
 ];
 
@@ -65,6 +68,12 @@ const CTA_PIPELINES = [
   },
   { name: "deepseek", id: 12, scenes: deepseekScenes, generateScene: generateDeepseek },
   { name: "restraint/pt1", id: 11, scenes: restraintScenes, generateScene: generateRestraint },
+  {
+    name: "restraint/pt3",
+    id: 10,
+    scenes: restraintPt3Scenes,
+    generateScene: generateRestraintPt3,
+  },
   { name: "distillation/pt1", id: 8, scenes: pt1Scenes, generateScene: generatePt1 },
 ];
 
@@ -204,6 +213,7 @@ describe("scene drift guards", () => {
       const offenders = [];
       for (const file of [
         "content/restraint/pt1/scene-data.mjs",
+        "content/restraint/pt3/scene-data.mjs",
         "content/distillation/pt1/scene-data.mjs",
       ]) {
         const src = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");

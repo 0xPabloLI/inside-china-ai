@@ -3,7 +3,7 @@
 > GitHub Issue: [#15 — feat: RAG pipeline for content knowledge base](https://github.com/0xPabloLI/inside-china-ai/issues/15)
 > 创建于 2026-08-07。本文档为 Issue #15 的前置工作拆分，支持跨 session 执行。
 > 触发条件：20+ 文章或 10+ 视频脚本后正式启动 RAG 管线（视频脚本数 = 非空 scene-data 文件数）。
-> 当前进度（2026-08-07 核实）：3 篇文章 + 7 个非空 scene-data（6 条 content 管线 + 1 个根目录遗留文件），**未达阈值**。
+> 当前进度（2026-08-08 核实）：3 篇文章 + 7 个非空 scene-data（7 条 content 管线，根目录遗留文件已清理），**未达阈值**。
 
 ---
 
@@ -207,7 +207,7 @@ Cloudflare MCP 在用户级配置 `mcopilot_mcp_settings.json` 中已有（含 a
 
 Issue #15 定义的 Phase 1 索引范围：
 1. 已发布文章（Supabase `posts` 表）
-2. Scene-data 文件（`scripts/short-video/content/**/scene-data.mjs`；根目录 3 个 `scene-data-pt*.mjs` 为遗留文件，处理见 WP-6）
+2. Scene-data 文件（`scripts/short-video/content/**/scene-data.mjs`；根目录遗留 `scene-data-pt*.mjs` 已于 2026-08-08 清理：pt1/pt2 删除、pt3 迁移至 `content/restraint/pt3/`）
 
 Issue 评论中建议增加：
 3. 源素材（`docs/refs/source-materials/**/*.md`）
@@ -251,20 +251,20 @@ Agent 在写文章时如何调用 RAG？两个方案：
 
 ---
 
-## 内容资产盘点（截至 2026-08-07，已核实）
+## 内容资产盘点（截至 2026-08-08，已核实）
 
 | 类型 | 数量 | 位置 | 格式 | RAG 就绪？ |
 |------|------|------|------|-----------|
 | 已发布文章 | 3 篇 | `articles/*.md` + Supabase `posts` | frontmatter markdown | ✅ 格式统一 |
-| 源素材 | 4 份文件（3 份唯一） | `docs/refs/source-materials/` | 2 份唯一 PDF + 1 markdown（另 1 份 PDF 为重复拷贝） | ❌ 2 份唯一 PDF 未结构化 |
-| Scene-data | 9 个文件（7 个非空） | `scripts/short-video/content/` + `scripts/short-video/` 根目录 | JS 模块 | ⚠️ `meta.mjs` 约定已统一但字段稀疏（4-6 字段），需扩展（WP-6） |
+| 源素材 | 3 份文件（2 份唯一） | `docs/refs/source-materials/` | 2 份唯一 PDF + 1 markdown | ❌ 2 份唯一 PDF 未结构化 |
+| Scene-data | 7 个非空文件 | `scripts/short-video/content/` | JS 模块 | ⚠️ `meta.mjs` 约定已统一但字段稀疏（4-6 字段），需扩展（WP-6） |
 | 调研报告 | 1 份 | `docs/research/` | markdown | ✅ |
 | Widget 数据 | 13 个 | `src/components/widgets/*/data/*.ts`（6 个 widget 目录） | TypeScript 硬编码 | ✅ 有 sourceUrl/`url` 字段可供 extract-widget-sources.mjs 提取 |
 | TikTok 参考库 | ~20 文件 | `docs/refs/tiktok-skills/` | markdown + PDF | ⚠️ 1 份 PDF 未结构化 |
 | 实体注册表 | 无 | — | — | ❌ 不存在 |
 | 事件时间线 | 散落 | 各文章/research 中 | — | ❌ 未独立 |
 
-> 注：`china-llm-distillation-source.pdf` 与 `国内大模型蒸馏风波的来龙去脉(1).pdf` MD5 完全相同（`03bf489b…`），为同一文件的两份拷贝，故源素材按 3 份唯一文件计。
+> 注：`china-llm-distillation-source.pdf` 与 `国内大模型蒸馏风波的来龙去脉(1).pdf` 原为 MD5 完全相同的重复拷贝（`03bf489b…`），重复文件已于 2026-08-08 删除（commit `20cc3a8`，保留英文文件名那份），源素材按 2 份唯一文件计。
 
 ---
 
@@ -285,7 +285,7 @@ Agent 在写文章时如何调用 RAG？两个方案：
 | 1 | `docs/refs/source-materials/梁文锋投资者交流会-录音转文本.pdf` | 读取 PDF → 提取关键信息 → 写 `deepseek-liang-investor-meeting-research.md` | 1 session |
 | 2 | `docs/refs/source-materials/china-llm-distillation-source.pdf` | 读取 PDF → 提取关键信息 → 写 `china-llm-distillation-research.md` | 1 session |
 
-> ⚠️ **已核实去重**（2026-08-07）：`国内大模型蒸馏风波的来龙去脉(1).pdf` 与 `china-llm-distillation-source.pdf` MD5 相同，为重复拷贝，任务清单已从 3 项减为 2 项。建议删除重复文件（保留英文文件名那份），删除前需用户确认。
+> ⚠️ **已核实去重**（2026-08-07）：`国内大模型蒸馏风波的来龙去脉(1).pdf` 与 `china-llm-distillation-source.pdf` MD5 相同，为重复拷贝，任务清单已从 3 项减为 2 项。重复文件已于 2026-08-08 删除（commit `20cc3a8`，保留英文文件名那份）。
 
 **输出格式**（每份文件遵循此模板）：
 
@@ -580,7 +580,7 @@ models:
 
 ---
 
-### WP-6: Scene-data Metadata 统一与补全 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-6: Scene-data Metadata 统一与补全 📝 纯文档工作 ｜ 状态：🔄 进行中（任务 3、4 已完成，2026-08-08）
 
 **目标**：统一现有两种 metadata 约定，并为所有 meta 文件扩展丰富字段（topics/entities/dataPoints），改善 RAG 检索质量。
 
@@ -598,16 +598,17 @@ models:
 | `content/distillation/pt2/` | ✅ | `china-llm-distillation-scandal` (pt2) | 字段稀疏 |
 | `content/distillation/pt3/` | ✅ | `china-llm-distillation-scandal` (pt3) | 字段稀疏 |
 | `content/bytedance-distillation/` | ✅ | `bytedance-zhang-yiming-no-distillation` | 字段稀疏 |
-| `scripts/short-video/scene-data-pt1.mjs` | — | — | **空文件（0 行），删除候选** |
-| `scripts/short-video/scene-data-pt2.mjs` | — | — | **空文件（0 行），删除候选** |
-| `scripts/short-video/scene-data-pt3.mjs` | 内联 `seriesMeta` | `deepseek-art-of-restraint` (pt3) | 遗留文件（content/ 目录重组前）；`prevPartSlug` 指向空的 pt2，restraint 系列 pt2 内容缺失 |
+| `content/restraint/pt3/` | ✅ | `deepseek-art-of-restraint` (pt3) | 字段稀疏（2026-08-08 由根目录遗留文件迁移而来，见任务 4） |
+| ~~`scripts/short-video/scene-data-pt1.mjs`~~ | — | — | 已删除（2026-08-08，commit `20cc3a8`，原为空文件） |
+| ~~`scripts/short-video/scene-data-pt2.mjs`~~ | — | — | 已删除（2026-08-08，commit `20cc3a8`，原为空文件） |
+| ~~`scripts/short-video/scene-data-pt3.mjs`~~ | — | — | 已迁移至 `content/restraint/pt3/`（2026-08-08）；原 `prevPartSlug` 指向空的 pt2，restraint 系列 pt2 内容缺失（pt1 的 `nextPartSlug` 同为 stale，待补） |
 
 **任务清单**：
 
 1. 定义扩展 `meta.mjs` 字段标准（在现有字段上增加 `totalParts/createdAt/topics/keyEntities/dataPoints`）
 2. 为 6 个现有 `meta.mjs` 回填扩展字段
-3. 修正 `content/deepseek/meta.mjs` 的 stale article slug（`deepseek-funding-round` → `deepseek-art-of-restraint`）
-4. 处理根目录遗留文件（需用户确认）：删除空的 pt1/pt2；pt3 迁移至 `content/restraint/pt3/` 标准目录结构（meta.mjs + scene-data.mjs + scenes.mjs），并将其内联 `seriesMeta` 收敛进 meta.mjs
+3. ✅ 已完成（2026-08-08）：修正 `content/deepseek/meta.mjs` 的 stale article slug（`deepseek-funding-round` → `deepseek-art-of-restraint`）
+4. ✅ 已完成（2026-08-08）：删除空的 pt1/pt2（commit `20cc3a8`）；pt3 迁移至 `content/restraint/pt3/` 标准目录结构（meta.mjs + scene-data.mjs + scenes.mjs）。⚠️ **约定修正**：内联 `seriesMeta` 收敛进 **scene-data.mjs**（与 deepseek/restraint-pt1/distillation 等现有约定一致，`verify-video.mjs` preflight 从 scene-data 读取 seriesMeta），而非 meta.mjs（meta.mjs 仅承载文章级 metadata）。迁移同时修正了遗留数据 6 项 preflight fail（em-dash、AI 黑名单词、china 关键词 <2、来源归属 <2、数据点场景 <50%、字数 188>180），`verify-video.mjs --pre --content restraint/pt3` 现为 29 PASS / 1 WARN / 0 FAIL；scene-drift 测试已扩展覆盖 pt3（CTA id 10）
 5. （可选）在 `verify-video.mjs` preflight 中校验 meta.mjs 必填字段
 
 **扩展 meta.mjs 格式**：
@@ -1150,3 +1151,4 @@ Agent 根据检索结果：
 | 2026-08-07 | D1 重写：推荐方案从 Cloudflare 改为本地 Ollama bge-m3（同一模型，免费+离线+已有 Ollama 基础设施）。新增调用频率分析、Ollama 模型对比表（含 nomic-embed-v2-moe/qwen3-embedding/mxbai-embed-large 等）、国内云 API 对比（阿里百炼/火山引擎/百度/腾讯）、Hugging Face Inference API、全方案成本估算表。更新伪代码 embedding 调用从 Cloudflare 改为 Ollama。 |
 | 2026-08-07 | D1-D5 全部确认（用户 Supabase Pro plan，8GB 数据库；存储估算 < 0.1%）。D1-D5 状态标记从 ⏳ 改为 ✅。文档可直接作为 Execution session 的执行依据。 |
 | 2026-08-07 | Grill 技术方案（4 轮 19 问）：① Q1 索引触发改为 Hybrid 全量重建（发布自动触发 + 手动触发）② Q2 模型迁移用版本化表 ③ Q3 metadata 双重验证（CHECK + 应用层）④ Q4 超限 chunk 按段落细分 ⑤ Q5 topics 应用层标准化（小写）⑥ Q6 认证复用 loginAdmin()（无 service_role key）⑦ Q8 reranker 默认关 ⑧ Q11 widget data 不直接索引，改为提取 sourceUrl 抓取后索引 ⑨ Q12 scene-data 仍索引 ⑩ Q15 更新 CONTEXT.md + 创建 ADR-0007 ⑪ Q16 脚本目录 scripts/rag/ ⑫ Q17 RPC SECURITY INVOKER + COALESCE ⑬ Q18 UPSERT 幂等 ⑭ Q19 预检查 Ollama + 跳过失败 chunk。产出 spec-rag.md（含 26 条场景矩阵）+ tickets-rag.md（15 tickets，Phase 0 文档 + Phase 1/2 代码）+ ADR-0007 + CONTEXT.md RAG 术语。D3 索引范围修正：去掉 widget-data，加 widget-sources。WP-10 标记 ✅。 |
+| 2026-08-08 | WP-6 任务 3、4 完成：① `content/deepseek/meta.mjs` article slug 修正（`deepseek-funding-round` → `deepseek-art-of-restraint`）② 根目录遗留 scene-data pt3 迁移至 `content/restraint/pt3/` 标准结构（meta.mjs + scene-data.mjs + scenes.mjs；seriesMeta 收敛进 scene-data.mjs，符合现有约定）；随迁移修正 6 项 preflight fail（em-dash、AI 黑名单词、china 关键词、来源归属、数据点、字数 188→179），`verify-video --pre` 29 PASS/1 WARN/0 FAIL，scene-drift 扩展覆盖 pt3 ③ 盘点表/触发条件更新（源素材 4→3 份、scene-data 9→7 非空，重复 PDF 删除与 pt1/pt2 空文件删除见 commit `20cc3a8`）。遗留项：restraint-pt2 内容缺失（pt1 的 nextPartSlug 仍指向 restraint/pt2，pt3 prevPartSlug 置 null）。 |
