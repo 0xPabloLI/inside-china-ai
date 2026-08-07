@@ -5,7 +5,7 @@ import { SubscribeForm } from "@/components/subscribe-form";
 const TITLE = "Chinese AI Companies: The 2026 Guide to China's Top AI Labs";
 const DESCRIPTION =
   "A curated directory of the top Chinese AI companies and open model labs: DeepSeek, Moonshot AI, Zhipu AI, Alibaba Qwen, ByteDance Seed, MiniMax and more.";
-const URL = "https://chinaai.lovable.app/companies";
+const URL = "https://chinaai.news/companies";
 
 type Company = {
   name: string;
@@ -247,11 +247,11 @@ export const Route = createFileRoute("/companies")({
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "article" },
       { property: "og:url", content: URL },
-      { property: "og:image", content: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png" },
+      { property: "og:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: TITLE },
       { name: "twitter:description", content: DESCRIPTION },
-      { name: "twitter:image", content: "https://chinaai.lovable.app/china-ai-news-logo-gpt.png" },
+      { name: "twitter:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
     ],
     links: [{ rel: "canonical", href: URL }],
     scripts: [
@@ -455,7 +455,7 @@ function CompaniesPage() {
             <h2 className="font-serif text-3xl">Frequently asked questions</h2>
             <div className="mt-6 space-y-6">
               <div>
-                <h3 className="font-serif text-xl">
+                <h3 className="text-xl font-semibold">
                   Which Chinese AI companies release open-weight models?
                 </h3>
                 <p className="mt-2 text-muted-foreground">
@@ -465,14 +465,14 @@ function CompaniesPage() {
                 </p>
               </div>
               <div>
-                <h3 className="font-serif text-xl">Who are China's top open model labs?</h3>
+                <h3 className="text-xl font-semibold">Who are China's top open model labs?</h3>
                 <p className="mt-2 text-muted-foreground">
                   By release cadence and downstream adoption: DeepSeek, Alibaba Qwen, Zhipu AI
                   (GLM), Moonshot AI (Kimi) and StepFun.
                 </p>
               </div>
               <div>
-                <h3 className="font-serif text-xl">
+                <h3 className="text-xl font-semibold">
                   How do Chinese AI companies get compute under export controls?
                 </h3>
                 <p className="mt-2 text-muted-foreground">

@@ -178,6 +178,18 @@
   }
 }
 
+/* Reduced motion — global: collapse animations/transitions to near-instant */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 .prose-article {
   max-width: 65ch;
 }
@@ -199,7 +211,8 @@
   margin-bottom: 0.4em;
 }
 .prose-article blockquote {
-  border-left: 3px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-muted) 40%, transparent);
   padding-left: 1rem;
   color: var(--color-muted-foreground);
   font-style: italic;

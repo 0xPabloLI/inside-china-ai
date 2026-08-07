@@ -118,7 +118,7 @@ function PostPage() {
             <p className="mt-4 text-lg italic text-muted-foreground">{post.excerpt}</p>
           ) : null}
           <div className="mt-10">
-            <div className="text-[17px] leading-relaxed">
+            <div className="text-lg leading-[1.6]">
               {splitContent(post.content).map((segment, i) => {
                 if (segment.type === "markdown") {
                   return <MarkdownContent key={i} content={segment.content} />;
@@ -137,7 +137,12 @@ function PostPage() {
                 const Widget = WIDGETS[segment.name];
                 const isBreakout = isBreakoutWidget(segment.name);
                 return (
-                  <div key={i} className={`my-10 ${isBreakout ? "max-w-none" : "max-w-prose"}`}>
+                  <div
+                    key={i}
+                    className={`my-10 rounded-lg border border-border/60 bg-card px-4 py-5 sm:px-6 sm:py-6 ${
+                      isBreakout ? "max-w-none" : "max-w-prose"
+                    }`}
+                  >
                     <Suspense
                       fallback={
                         <div className="animate-pulse text-sm text-muted-foreground">
