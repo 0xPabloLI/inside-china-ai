@@ -178,13 +178,15 @@ Issue 评论中建议增加：
 3. 源素材（`docs/refs/source-materials/**/*.md`）
 
 **建议额外索引**：
-4. Widget 数据（`src/components/widgets/*/data/*.ts`）— 已 curate 的结构化数据
-5. 调研报告（`docs/research/*.md`）— 如多视频拆分最佳实践
-6. TikTok 参考库（`docs/refs/tiktok-skills/**/*.md`）— hook 公式、voice rules 等
+4. 调研报告（`docs/research/*.md`）— 如多视频拆分最佳实践
+5. TikTok 参考库（`docs/refs/tiktok-skills/**/*.md`）— hook 公式、voice rules 等
+6. Widget 源资料（`docs/refs/source-materials/widget-sources/*.md`）— 从 widget data 的 `sourceUrl`/`url` 字段自动提取并抓取的外部资料
+
+> ⚠️ **Widget 数据索引策略修正（Grill Q11）**：Widget TS 文件本身**不直接索引**——它们是从外部资料中提炼的结构化数据，索引原始资料比索引派生数据更有价值且避免重复 embedding。索引流程增加 pre-step `scripts/rag/extract-widget-sources.mjs`，自动提取 widget 中的 source URL → 抓取内容 → 保存为 markdown → 正常索引。
 
 > ⚠️ **Metadata 数据流约束（2026-08-07 已核实）**：`publish-article.mjs` 的 `buildPostPayload` 只同步 `title/slug/excerpt/content/published` 到 Supabase，WP-7 的 frontmatter 扩展字段（topics/entities/sources）**不会进入 posts 表**，posts 表也无对应列。因此索引器必须以 **markdown 文件为 metadata 的 source of truth**，Supabase posts 表仅用于 published 状态过滤（RLS join）。索引脚本中 `readArticles()` 的实现应读 `articles/*.md` + 用 posts 表校验发布状态，而非从 posts 表读 metadata。
 
-> **已确认**：索引范围 1-6（全部）。（2026-08-07 用户确认）
+> **已确认**：索引范围 1-6（全部）。（2026-08-07 用户确认；Q11 修正：widget-data → widget-sources）
 
 ### D4: Chunking 粒度 ✅ 已确认
 
@@ -193,7 +195,7 @@ Issue 评论中建议增加：
 | 文章 | 按 `##` 标题分 section | `article_slug, section_title, topics, entities` |
 | Scene-data | 按 scene（含 voiceover + visual 描述） | `article_slug, part_number, scene_id, visual_type` |
 | 源素材 | 按 `##` 标题分 section | `source_file, source_urls[], topic` |
-| Widget 数据 | 按 widget | `widget_id, data_type, company` |
+| Widget 源资料 | 按 `##` 标题分 section | `source_file, source_urls[], widget_id` |
 | 调研报告 | 按 `##` 标题分 section | `report_file, topic` |
 | TikTok 参考 | 按 `##` 标题分 section | `skill_file, topic` |
 
@@ -222,7 +224,7 @@ Agent 在写文章时如何调用 RAG？两个方案：
 | 源素材 | 4 份文件（3 份唯一） | `docs/refs/source-materials/` | 2 份唯一 PDF + 1 markdown（另 1 份 PDF 为重复拷贝） | ❌ 2 份唯一 PDF 未结构化 |
 | Scene-data | 9 个文件（7 个非空） | `scripts/short-video/content/` + `scripts/short-video/` 根目录 | JS 模块 | ⚠️ `meta.mjs` 约定已统一但字段稀疏（4-6 字段），需扩展（WP-6） |
 | 调研报告 | 1 份 | `docs/research/` | markdown | ✅ |
-| Widget 数据 | 13 个 | `src/components/widgets/*/data/*.ts`（6 个 widget 目录） | TypeScript 硬编码 | ⚠️ 需导出为可索引格式 |
+| Widget 数据 | 13 个 | `src/components/widgets/*/data/*.ts`（6 个 widget 目录） | TypeScript 硬编码 | ✅ 有 sourceUrl/`url` 字段可供 extract-widget-sources.mjs 提取 |
 | TikTok 参考库 | ~20 文件 | `docs/refs/tiktok-skills/` | markdown + PDF | ⚠️ 1 份 PDF 未结构化 |
 | 实体注册表 | 无 | — | — | ❌ 不存在 |
 | 事件时间线 | 散落 | 各文章/research 中 | — | ❌ 未独立 |
@@ -507,9 +509,11 @@ models:
 
 ---
 
-### WP-5: Widget 数据导出 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-5: Widget 数据文档化 📝 纯文档工作 ｜ 状态：⏳ 未开始
 
-**目标**：将 13 个 widget data 文件（6 个 widget 目录）的硬编码数据导出为可索引的 markdown 文件。
+**目标**：将 13 个 widget data 文件（6 个 widget 目录）的硬编码数据文档化为 markdown 参考文件。
+
+> **RAG 关联修正（Grill Q11）**：Widget data 不再为 RAG 索引而导出——索引流程改为自动提取 widget 中的 `sourceUrl`/`url`，抓取原始资料后索引。WP-5 本身仍有文档价值（记录数据来源和 curate 逻辑），但**不阻塞 RAG 实施**。
 
 **依赖**：无
 
@@ -695,13 +699,13 @@ sources:
 
 ---
 
-### WP-10: 技术方案文档 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-10: 技术方案文档 📝 纯文档工作 ｜ 状态：✅ 完成
 
 **目标**：在 RAG 正式启动前，完成技术方案设计文档，到阈值时直接实施。
 
 **依赖**：D1-D5 决策完成
 
-**输出**：`docs/spec-rag.md`
+**输出**：`docs/spec-rag.md` ✅ + `docs/tickets-rag.md` ✅ + `docs/adr/0007-rag-pipeline-decisions.md` ✅
 
 **内容**：
 
@@ -861,7 +865,7 @@ CREATE TABLE public.content_embeddings (
   
   -- Content reference
   content_type TEXT NOT NULL CHECK (
-    content_type IN ('article', 'scene-data', 'source-material', 'widget-data', 'research', 'tiktok-ref')
+    content_type IN ('article', 'scene-data', 'source-material', 'research', 'tiktok-ref')
   ),
   source_id TEXT,          -- article slug / file path / widget ID
   chunk_index INT NOT NULL DEFAULT 0,  -- section number within source
@@ -1108,3 +1112,4 @@ Agent 根据检索结果：
 | 2026-08-07 | Review 修正：① WP-1 去除重复 PDF（MD5 相同），任务 3→2 ② WP-6 重写：改为扩展现有 `meta.mjs` 约定，清单按核实结果重写（根目录 pt1/pt2 为空文件、pt3 为遗留，`content/deepseek/meta.mjs` article slug stale）③ 修正盘点计数（widget 15→13、scene-data ~11→9/7 非空），明确触发条件度量口径 ④ D3/WP-7 明确 metadata 数据流（markdown 为 source of truth；gray-matter 兼容性已验证）⑤ D1 增加 Cloudflare 凭证前置验证（仓库内无证据）⑥ Schema 默认 admin-only（anon 策略注释保留）+ 复用 `set_updated_at()` trigger ⑦ WP-9 补依赖 WP-2/3 ⑧ 新增 WP-11 golden query 评估集（含跨语言用例）⑨ WP-2 输出移至 `docs/refs/company-profiles/` ⑩ 各 WP 加状态标记 |
 | 2026-08-07 | D1 重写：推荐方案从 Cloudflare 改为本地 Ollama bge-m3（同一模型，免费+离线+已有 Ollama 基础设施）。新增调用频率分析、Ollama 模型对比表（含 nomic-embed-v2-moe/qwen3-embedding/mxbai-embed-large 等）、国内云 API 对比（阿里百炼/火山引擎/百度/腾讯）、Hugging Face Inference API、全方案成本估算表。更新伪代码 embedding 调用从 Cloudflare 改为 Ollama。 |
 | 2026-08-07 | D1-D5 全部确认（用户 Supabase Pro plan，8GB 数据库；存储估算 < 0.1%）。D1-D5 状态标记从 ⏳ 改为 ✅。文档可直接作为 Execution session 的执行依据。 |
+| 2026-08-07 | Grill 技术方案（4 轮 19 问）：① Q1 索引触发改为 Hybrid 全量重建（发布自动触发 + 手动触发）② Q2 模型迁移用版本化表 ③ Q3 metadata 双重验证（CHECK + 应用层）④ Q4 超限 chunk 按段落细分 ⑤ Q5 topics 应用层标准化（小写）⑥ Q6 认证复用 loginAdmin()（无 service_role key）⑦ Q8 reranker 默认关 ⑧ Q11 widget data 不直接索引，改为提取 sourceUrl 抓取后索引 ⑨ Q12 scene-data 仍索引 ⑩ Q15 更新 CONTEXT.md + 创建 ADR-0007 ⑪ Q16 脚本目录 scripts/rag/ ⑫ Q17 RPC SECURITY INVOKER + COALESCE ⑬ Q18 UPSERT 幂等 ⑭ Q19 预检查 Ollama + 跳过失败 chunk。产出 spec-rag.md（含 26 条场景矩阵）+ tickets-rag.md（15 tickets，Phase 0 文档 + Phase 1/2 代码）+ ADR-0007 + CONTEXT.md RAG 术语。D3 索引范围修正：去掉 widget-data，加 widget-sources。WP-10 标记 ✅。 |
