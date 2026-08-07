@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
+import { ogImageMeta } from "@/lib/og";
 import { SubscribeForm } from "@/components/subscribe-form";
 
 const TITLE = "Chinese AI Companies: The 2026 Guide to China's Top AI Labs";
@@ -247,7 +248,7 @@ export const Route = createFileRoute("/companies")({
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "article" },
       { property: "og:url", content: URL },
-      { property: "og:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
+      ...ogImageMeta(),
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: TITLE },
       { name: "twitter:description", content: DESCRIPTION },

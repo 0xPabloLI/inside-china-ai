@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandName } from "@/components/brand-name";
+import { ogImageMeta, OG_TIKTOK } from "@/lib/og";
+
 
 const REDIRECT_URI = "https://chinaai.news/api/tiktok/callback";
 const SCOPES = "user.info.basic,video.upload,video.publish";
@@ -42,7 +44,16 @@ export const Route = createFileRoute("/tiktok-connect")({
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://chinaai.news/tiktok-connect" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "TikTok Connect — China AI News" },
+      {
+        name: "twitter:description",
+        content:
+          "Link your TikTok account to China AI News to upload short videos, set captions, and publish China AI news clips straight from the newsroom.",
+      },
+      ...ogImageMeta(OG_TIKTOK),
     ],
+
     links: [{ rel: "canonical", href: "https://chinaai.news/tiktok-connect" }],
     scripts: [
       {
@@ -56,34 +67,49 @@ export const Route = createFileRoute("/tiktok-connect")({
               url: "https://chinaai.news/tiktok-connect",
               applicationCategory: "MultimediaApplication",
               operatingSystem: "Web",
+              image: OG_TIKTOK,
+              inLanguage: "en",
               description:
                 "Link a TikTok account to China AI News to upload short videos, set captions and publish China AI news clips from the newsroom.",
               offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+              publisher: {
+                "@type": "Organization",
+                name: "China AI News",
+                url: "https://chinaai.news/",
+              },
             },
             {
               "@type": "HowTo",
               name: "How to publish a video to TikTok from China AI News",
+              description:
+                "Connect a TikTok account to China AI News, upload an MP4 clip with a caption, and publish it to TikTok.",
+              image: OG_TIKTOK,
+              totalTime: "PT5M",
               step: [
                 {
                   "@type": "HowToStep",
                   position: 1,
                   name: "Connect TikTok account",
                   text: "Authorize China AI News to publish videos to your TikTok account.",
+                  url: "https://chinaai.news/tiktok-connect#connect",
                 },
                 {
                   "@type": "HowToStep",
                   position: 2,
                   name: "Upload video",
                   text: "Select an MP4 file and write a caption with hashtags, up to 2200 characters.",
+                  url: "https://chinaai.news/tiktok-connect#upload",
                 },
                 {
                   "@type": "HowToStep",
                   position: 3,
                   name: "Publish to TikTok",
                   text: "Publish the clip straight to the connected TikTok account.",
+                  url: "https://chinaai.news/tiktok-connect#publish",
                 },
               ],
             },
+
             {
               "@type": "BreadcrumbList",
               itemListElement: [
@@ -152,7 +178,7 @@ function TikTokConnectPage() {
         </p>
 
         {/* Step 1: Connect */}
-        <section className="mb-10 rounded-lg border border-border/60 p-6">
+        <section id="connect" className="mb-10 rounded-lg border border-border/60 p-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
               1
@@ -179,7 +205,7 @@ function TikTokConnectPage() {
         </section>
 
         {/* Step 2: Upload */}
-        <section className="mb-10 rounded-lg border border-border/60 p-6">
+        <section id="upload" className="mb-10 rounded-lg border border-border/60 p-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
               2
@@ -221,7 +247,7 @@ function TikTokConnectPage() {
         </section>
 
         {/* Step 3: Publish */}
-        <section className="mb-10 rounded-lg border border-border/60 p-6">
+        <section id="publish" className="mb-10 rounded-lg border border-border/60 p-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
               3

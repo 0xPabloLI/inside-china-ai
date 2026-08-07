@@ -1,5 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { ogImageMeta, OG_DEFAULT } from "@/lib/og";
 import { getPublishedPost } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
@@ -134,9 +135,12 @@ export const Route = createFileRoute("/posts/$slug")({
         { property: "og:description", content: description },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
+        { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: loaderData.title },
         { name: "twitter:description", content: description },
+        ...ogImageMeta(),
       ],
+
       links: [{ rel: "canonical", href: url }],
       scripts: [
         {
@@ -159,6 +163,10 @@ export const Route = createFileRoute("/posts/$slug")({
                 url: "https://chinaai.news/china-ai-news-logo-gpt.png",
               },
             },
+            image: [OG_DEFAULT],
+            inLanguage: "en",
+            author: { "@type": "Organization", name: "China AI News", url: "https://chinaai.news/" },
+
           }),
         },
       ],

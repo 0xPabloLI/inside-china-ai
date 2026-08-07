@@ -1,12 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
+import { ogImageMeta, OG_COMPARE } from "@/lib/og";
 
 const TITLE = "DeepSeek vs Qwen vs GLM-4: Chinese Open Model Comparison";
 const DESCRIPTION =
   "Compare DeepSeek, Alibaba Qwen and Zhipu GLM-4 on reasoning, coding, context length, licences and API pricing to pick the right Chinese open model.";
 const URL = "https://chinaai.news/compare/deepseek-vs-qwen-vs-glm-4";
 const ORG_URL = "https://chinaai.news/";
+const PUBLISHED = "2026-08-07";
+const MODIFIED = "2026-08-07";
+
 
 type Model = {
   key: "deepseek" | "qwen" | "glm";
@@ -154,6 +158,7 @@ export const Route = createFileRoute("/compare/deepseek-vs-qwen-vs-glm-4")({
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: TITLE },
       { name: "twitter:description", content: DESCRIPTION },
+      ...ogImageMeta(OG_COMPARE),
     ],
     links: [{ rel: "canonical", href: URL }],
     scripts: [
@@ -163,12 +168,27 @@ export const Route = createFileRoute("/compare/deepseek-vs-qwen-vs-glm-4")({
           "@context": "https://schema.org",
           "@graph": [
             {
+              "@type": "Organization",
+              "@id": `${ORG_URL}#organization`,
+              name: "China AI News",
+              url: ORG_URL,
+              logo: {
+                "@type": "ImageObject",
+                url: `${ORG_URL}china-ai-news-logo-gpt.png`,
+              },
+            },
+            {
               "@type": "Article",
               headline: TITLE,
               description: DESCRIPTION,
-              mainEntityOfPage: URL,
-              about: "Comparison of DeepSeek, Alibaba Qwen and Zhipu GLM-4 open models",
+              mainEntityOfPage: { "@type": "WebPage", "@id": URL },
+              image: [OG_COMPARE],
+              datePublished: PUBLISHED,
+              dateModified: MODIFIED,
+              inLanguage: "en",
+              author: { "@id": `${ORG_URL}#organization` },
               publisher: { "@id": `${ORG_URL}#organization` },
+              about: "Comparison of DeepSeek, Alibaba Qwen and Zhipu GLM-4 open models",
             },
             {
               "@type": "ItemList",
@@ -184,10 +204,12 @@ export const Route = createFileRoute("/compare/deepseek-vs-qwen-vs-glm-4")({
                   operatingSystem: "Cloud, self-hosted",
                   url: m.site,
                   description: m.strength,
+                  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
                   author: { "@type": "Organization", name: m.lab },
                 },
               })),
             },
+
             {
               "@type": "BreadcrumbList",
               itemListElement: [
