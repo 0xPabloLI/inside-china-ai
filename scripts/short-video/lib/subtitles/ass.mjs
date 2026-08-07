@@ -17,23 +17,29 @@
  * delivery format.
  */
 
+import { CANVAS, SUBTITLE_LANE } from "../safe-zones.mjs";
+
 /** Unspoken words (SecondaryColour) — near-white, legible on the dark stage. */
 export const COLOR_UNSPOKEN = "&H00F5F5F5";
 /** Spoken words (PrimaryColour) — Dispatch Blue #4d8bff, the DESIGN.md progress marker. */
 export const COLOR_SPOKEN = "&H00FF8B4D";
 
+// Position and size come from lib/safe-zones.mjs (single source of truth):
+// marginV 390 keeps the cue BOTTOM edge at y=1530, clear of the TikTok
+// caption UI; the side margins derive from SUBTITLE_LANE.maxWidth (950px),
+// so the cue width contract and the reserved lane can never drift apart.
 const DEFAULT_STYLE = {
   fontName: "Helvetica Neue",
-  fontSize: 42,
+  fontSize: SUBTITLE_LANE.fontSize,
   primaryColor: COLOR_SPOKEN,
   secondaryColor: COLOR_UNSPOKEN,
   outlineColor: "&H66000000",
   backColor: "&H66000000",
   outline: 3,
   shadow: 1,
-  marginL: 65,
-  marginR: 65,
-  marginV: 450,
+  marginL: (CANVAS.width - SUBTITLE_LANE.maxWidth) / 2,
+  marginR: (CANVAS.width - SUBTITLE_LANE.maxWidth) / 2,
+  marginV: SUBTITLE_LANE.marginV,
 };
 
 /**

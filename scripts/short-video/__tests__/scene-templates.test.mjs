@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SAFE_ZONES, WATERMARK_POS } from "../lib/safe-zones.mjs";
+import { CANVAS, SAFE_ZONES, SUBTITLE_LANE, WATERMARK_POS } from "../lib/safe-zones.mjs";
 import { baseStyles, BRAND_MARK_SVG, withWatermark } from "../lib/base-styles.mjs";
 import {
   brandBar,
@@ -28,8 +28,11 @@ describe("SAFE_ZONES (TikTok overlay avoidance)", () => {
   it("top band is below the top UI tabs, bottom band above subtitles", () => {
     // Top "Following | For You" tabs occupy ~top 100px; content must start lower
     expect(SAFE_ZONES.top).toBeGreaterThan(150);
-    // Burned subtitles sit at bottom margin 450px — content must stay above
-    expect(SAFE_ZONES.bottom).toBeGreaterThanOrEqual(450);
+    // The content band ends ABOVE the subtitle lane: content bottom edge
+    // (1920 - SAFE_ZONES.bottom = 1340) sits below the lane top (≈1417).
+    const contentBottom = CANVAS.height - SAFE_ZONES.bottom;
+    const laneTop = CANVAS.height - SUBTITLE_LANE.marginV;
+    expect(contentBottom).toBeLessThan(laneTop);
   });
 
   it("right rail clearance is wider than the left margin", () => {

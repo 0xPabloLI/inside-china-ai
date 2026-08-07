@@ -31,7 +31,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
-import { SAFE_ZONES, WATERMARK_POS } from "../lib/safe-zones.mjs";
+import { SAFE_ZONES, SUBTITLE_LANE, WATERMARK_POS } from "../lib/safe-zones.mjs";
 import { withWatermark } from "../lib/base-styles.mjs";
 import { ctaScene } from "../lib/scene-templates.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
@@ -120,7 +120,13 @@ function textChunks(src) {
 describe("scene drift guards", () => {
   describe("safe zone constants", () => {
     it("TikTok safe zones are the reviewed values", () => {
-      expect(SAFE_ZONES).toEqual({ top: 220, right: 160, bottom: 450, left: 60 });
+      expect(SAFE_ZONES).toEqual({ top: 220, right: 160, bottom: 580, left: 60 });
+    });
+
+    it("subtitle lane is separated from the content band (single source)", () => {
+      // Content bottom edge (1920-580=1340) must stay above the subtitle lane
+      // (bottom margin 390 → lane bottom y=1530, top ≈1416).
+      expect(SAFE_ZONES.bottom).toBeGreaterThan(SUBTITLE_LANE.marginV);
     });
 
     it("watermark sits top-left inside the brand corner", () => {
