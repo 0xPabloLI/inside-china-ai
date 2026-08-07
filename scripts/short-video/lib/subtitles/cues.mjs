@@ -16,13 +16,15 @@
  */
 
 import { FPS, sceneTimeline, findScene } from "../timeline.mjs";
+import { SUBTITLE_LANE } from "../safe-zones.mjs";
+import { measureWidth } from "./measure.mjs";
 
 /** Maximum words per cue — beyond this the karaoke sweep is too fast to track. */
 export const MAX_WORDS = 6;
-/** Soft character limit: break here only if it doesn't orphan the last word. */
-export const SOFT_CHARS = 38;
-/** Hard character limit: never exceeded. */
-export const HARD_CHARS = 49;
+/** Soft pixel limit: break here only if it doesn't orphan the last word. */
+export const SOFT_PX = 820;
+/** Hard pixel limit: a line never exceeds this (lanes stay single-line normal case). */
+export const HARD_PX = SUBTITLE_LANE.maxWidth;
 /** Minimum time a cue stays on screen, in seconds. */
 export const MIN_DURATION = 0.8;
 /** How long a cue lingers after its last word, when there is room. */
@@ -76,7 +78,7 @@ function mergeTrailingOrphan(chunks) {
   const prev = chunks[chunks.length - 2];
   const combined = [...prev.words, ...last.words];
   if (combined.length > MAX_WORDS) return chunks;
-  if (joinWords(combined).length > HARD_CHARS) return chunks;
+  if (measureWidth(joinWords(combined)) > HARD_PX) return chunks;
 
   return [...chunks.slice(0, -2), makeChunk(combined)];
 }
@@ -104,11 +106,11 @@ export function chunkWords(wordList) {
     const word = wordList[i];
 
     if (current.length > 0) {
-      const projected = joinWords([...current, word]).length;
+      const projected = measureWidth(joinWords([...current, word]));
       const remainingAfter = wordList.length - (i + 1);
-      const hardBreak = current.length >= MAX_WORDS || projected > HARD_CHARS;
+      const hardBreak = current.length >= MAX_WORDS || projected > HARD_PX;
       // Only break on the soft limit if the next chunk won't be a lone word.
-      const softBreak = projected > SOFT_CHARS && remainingAfter >= 1;
+      const softBreak = projected > SOFT_PX && remainingAfter >= 1;
       if (hardBreak || softBreak) flush();
     }
 
@@ -184,7 +186,7 @@ function canMerge(a, b) {
   if ((a.words.length === 0) !== (b.words.length === 0)) return false;
   if (a.words.length + b.words.length > MAX_WORDS) return false;
   const text = a.words.length > 0 ? joinWords([...a.words, ...b.words]) : `${a.text} ${b.text}`;
-  return text.length <= HARD_CHARS;
+  return measureWidth(text) <= HARD_PX;
 }
 
 function mergeCues(a, b) {

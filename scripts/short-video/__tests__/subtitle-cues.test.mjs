@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { chunkWords, buildCues } from "../lib/subtitles/cues.mjs";
+import { measureWidth } from "../lib/subtitles/measure.mjs";
+import { SUBTITLE_LANE } from "../lib/safe-zones.mjs";
 
 // Expectations below are hand-computed from the timing rules in
 // docs/archive/spec-subtitle-karaoke-timeline.md (30fps):
@@ -72,7 +74,7 @@ describe("chunkWords", () => {
     expect(chunks.flatMap((c) => c.words).length).toBe(8);
   });
 
-  it("keeps every line within the hard character limit", () => {
+  it("keeps every emitted line within the hard pixel limit (single-line guarantee)", () => {
     const input = words(
       ["Unwritten,", 0, 0.5],
       ["but", 0.5, 0.7],
@@ -82,9 +84,52 @@ describe("chunkWords", () => {
       ["it.", 2.1, 2.4],
     );
     const chunks = chunkWords(input);
+    // Whole line measures ~854px: legal as one chunk (≤950px)
     for (const chunk of chunks) {
-      expect(chunk.text.length).toBeLessThanOrEqual(49);
+      expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
     }
+  });
+
+  it("splits lines that fit in characters but exceed the pixel limit", () => {
+    // 6 short uppercase words: only 29 characters — old char limit (49)
+    // would emit one line, but the measured width is ~1010px > 950px.
+    const big = "WWWW";
+    const input = words(
+      [big, 0, 0.1],
+      [big, 0.1, 0.2],
+      [big, 0.2, 0.3],
+      [big, 0.3, 0.4],
+      [big, 0.4, 0.5],
+      [big, 0.5, 0.6],
+    );
+    const chunks = chunkWords(input);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
+    }
+    // No word is ever dropped by the pixel splitting
+    expect(chunks.flatMap((c) => c.words.map((w) => w.text))).toEqual(input.map((w) => w.text));
+  });
+
+  it("splits worst-case wide words before the hard pixel limit (no over-limit merge)", () => {
+    // 8-char uppercase words: any 3-word line measures ~975px > 950px, so the
+    // splitter must keep lines at 1-2 words and refuse an orphan merge that
+    // would push the line over the limit.
+    const w = "WWWWWWWW";
+    const input = words(
+      [w, 0, 0.1],
+      [w, 0.1, 0.2],
+      [w, 0.2, 0.3],
+      [w, 0.3, 0.4],
+      [`${w}.`, 0.4, 0.5],
+    );
+    const chunks = chunkWords(input);
+    for (const chunk of chunks) {
+      expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
+    }
+    expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(
+      input.map((x) => x.text),
+    );
   });
 
   it("merges a trailing single-word chunk back into the previous line", () => {
