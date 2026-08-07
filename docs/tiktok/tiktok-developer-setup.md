@@ -141,6 +141,6 @@
 
 - Publora API 客户端代码：`docs/refs/tiktok-skills/lib/publora_client.py`（sergebulaev 社区 skill）
 - Postiz 开源仓库：`docs/refs/postiz-app/`（已 clone）
-- Roadmap：`docs/video-automation-roadmap.md` ISSUE-01 + ISSUE-14
+- Roadmap：`docs/video/video-automation-roadmap.md` ISSUE-01 + ISSUE-14
 - GitHub Issue：https://github.com/0xPabloLI/inside-china-ai/issues/14
 - TikTok 官方文档：https://developers.tiktok.com/doc/content-posting-api-get-started/

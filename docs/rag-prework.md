@@ -11,39 +11,150 @@
 
 以下事项需要用户确认后才能推进。每个 session 开始时 Agent 先检查是否有未决项，并扫描各 WP 的状态标记（⏳ 未开始 / 🔄 进行中 / ✅ 完成）。
 
-### D1: Embedding 模型选型 ✅ 已有推荐
+### D1: Embedding 模型选型 ✅ 已确认
 
-**推荐：`@cf/baai/bge-m3`（Cloudflare Workers AI）**
+#### 你的调用频率有多高？
 
-| 维度 | 值 |
-|------|-----|
-| 提供方 | Cloudflare Workers AI（⚠️ "已有 MCP 配置 + account ID" 待验证，见下方前置验证） |
-| 模型 | BAAI/bge-m3 |
-| 多语言 | ✅ 100+ 语言含中文 + 英文（源素材是中文，文章是英文，都需要 embedding） |
-| 维度 | 1024 |
-| 价格 | **$0.012 / 百万 token** |
-| 免费额度 | 10,000 Neurons/天 ≈ 9.3M tokens/天（完全够用） |
-| 调用方式 | REST API（`POST /accounts/{id}/ai/run/@cf/baai/bge-m3`）或 Workers AI binding |
+**极低。** 这是关键前提——你不是在做搜索引擎，是在做内容创作辅助。
 
-**备选方案（按优先级）：**
+| 场景 | 频率 | Token 数 |
+|------|------|---------|
+| 初始化知识库（一次性） | 1 次 | ~500K tokens（50 篇文章 + 所有素材/scene-data） |
+| 新增 1 篇文章后重新索引 | ~每周 1-2 次 | ~3-5K tokens |
+| 写文章前查询（Stage 1b 前置） | 每篇文章 5-10 次查询 | ~100 tokens/次 |
+| 日常调试查询 | 偶尔 | ~100 tokens/次 |
+| **月度总量** | — | **< 50K tokens**（初始化后） |
 
-| 方案 | 模型 | 优点 | 缺点 | 适合场景 |
-|------|------|------|------|---------|
-| **A: Cloudflare bge-m3** ⭐推荐 | `@cf/baai/bge-m3` | 多语言、极便宜、无需本地 GPU；基础设施复用待验证 | 依赖网络 | 正式方案 |
-| B: Cloudflare qwen3-embedding | `@cf/qwen/qwen3-embedding-0.6b` | 同价 $0.012/M、多语言 | 较新，benchmark 数据少；⚠️ 目录可用性未验证 | 备选 |
-| C: 本地 bge-m3 | BAAI/bge-m3 via `sentence-transformers` | 完全免费、离线可用 | 需 ~2.3GB 模型下载、首次加载慢、需 Python 环境 | 离线/大批量初始化 |
-| D: 本地 bge-small-en-v1.5 | `BAAI/bge-small-en-v1.5` | 130MB 轻量、384 维 | 仅英文（中文源素材无法 embedding） | 不推荐 |
-| E: OpenAI text-embedding-3-small | — | 质量高 | $0.02/M、需 OpenAI API key | ❌ 用户已排除 |
+> 结论：任何方案的成本都趋近于零。选择标准应该是**质量 > 便利性 > 成本**。
 
-**推荐理由**：方案 A（Cloudflare bge-m3）在价格、多语言支持两个维度上都是最优。10,000 Neurons/天免费额度意味着初始化整个知识库（预估 < 1M tokens）完全免费。日常新增文章（~3000 tokens/篇）的 embedding 成本可忽略不计。
+---
 
-> ⚠️ **前置验证（确认 D1 前必做）**：原假设"你已有 MCP 配置 + account ID"在仓库内无证据——无 `wrangler.toml`、`.env*` 中无 `CLOUDFLARE_*` 变量、`package.json` 无 Cloudflare 依赖、当前 session 的 MCP 工具列表中无 Cloudflare（仅 Linear/Railway/Context7）。确认方案 A 前需先定位 account ID + API token 的实际存放位置（用户级 MCP 配置？密码管理器？）。若确实不存在，方案 A 需一次性凭证配置（约 10 分钟，不改变选型结论，但消除"零配置"误判）。
+#### 全面对比：四大类方案
 
-**Reranker 推荐**：`@cf/baai/bge-reranker-base`，$0.003/M tokens。用于检索后重排序，提升 top-k 结果质量。
+##### 一、Ollama 本地模型（推荐首选）
 
-> **请确认**：是否采用方案 A（Cloudflare bge-m3）？或者你更倾向本地方案 C？
+你已安装 Ollama（用于 F5-TTS），直接 `ollama pull` 即可。Apple Silicon 上性能很好。
 
-### D2: 向量存储选型
+| 模型 | Ollama 命令 | 大小 | 维度 | 多语言 | 上下文 | 质量（MTEB） |
+|------|-----------|------|------|--------|--------|-------------|
+| **bge-m3** ⭐ | `ollama pull bge-m3` | 1.2GB | 1024 | ✅ 100+ 语言 | 8192 | 顶级（MIRACL 69.2） |
+| nomic-embed-v2-moe | `ollama pull nomic-embed-text-v2-moe` | 958MB | 768 | ✅ ~100 语言 | 512 | 高（MIRACL 65.8） |
+| qwen3-embedding | `ollama pull qwen3-embedding` | 0.6b/4b/8b | — | ✅ | — | 新模型，数据少 |
+| mxbai-embed-large | `ollama pull mxbai-embed-large` | ~335MB | 1024 | ❌ 仅英文（不支持中文，本项目不可用） | 512 | 英文场景顶级 |
+| snowflake-arctic-embed2 | `ollama pull snowflake-arctic-embed2` | 568MB | — | ✅ | — | 中高 |
+
+**为什么推荐本地 bge-m3？**
+
+1. **完全免费** — $0，无任何 API 调用费用
+2. **多语言** — 你的源素材是中文，文章是英文，bge-m3 同时覆盖两者
+3. **8192 上下文** — 一个 chunk 不超过 8K tokens 就不会被截断（nomic 只有 512）
+4. **已有 Ollama** — 你已经装了 Ollama（TTS 管线用），无需额外安装
+5. **离线可用** — 不依赖网络
+6. **质量顶级** — MIRACL（多语言检索）排名第一（69.2 分，超过 OpenAI）；MTEB 综合平均分约 64.7（与 OpenAI text-embedding-3-large 的 64.6 持平）。MIRACL 比 MTEB 更贴切你的场景，因为 MTEB 以英文为主，而你的需求是中英混合检索。
+7. **调用简单** — `curl http://localhost:11434/api/embed -d '{"model":"bge-m3","input":"text"}'`
+
+> **BGE M3 是谁做的？** BAAI（北京智源人工智能研究院），中国顶级 AI 研究机构，由北京市政府支持。
+> - BGE 系列时间线：BGE v1（2023-08）→ BGE v1.5（2023-09）→ **BGE-M3（2024-01）**，持续维护到 2024-07
+> - BGE 系列是开源 embedding 领域引用最多的模型系列
+> - BGE-M3 HF 页面原文："BGE-M3 achieves top performance in both English and other languages, surpassing models such as OpenAI"
+> - 同时支持三种检索：dense（密集）、sparse（稀疏/类 BM25）、multi-vector（ColBERT），是唯一一个三合一模型
+>
+> **为什么不推荐更新的模型（如 Qwen3-Embedding）？** Qwen3-Embedding 确实更新（2025 年），但缺乏独立标准评测数据（MIRACL/MTEB），Ollama 上也较新。BGE M3 虽然发布于 2024 年，但在多语言检索上仍是第一名，且有 5.6M 下载量的社区验证。RAG 是基础设施工具，选经过验证的模型更稳妥。等 Qwen3-Embedding 有更多评测数据后，切换也很简单（维度可能不同，需重建索引，代码改动很小）。
+
+**缺点**：
+- 首次下载 1.2GB 模型（一次性）
+- Apple Silicon CPU 推理速度：~100 chunks/分钟（初始化 500K tokens 约 5-10 分钟，完全可接受）
+- 需保持 Ollama 服务运行（`ollama serve`）
+
+##### 二、Cloudflare Workers AI（云端备选）
+
+Cloudflare MCP 在用户级配置 `mcopilot_mcp_settings.json` 中已有（含 account ID `15ddc5147dd5883e27b5427c6db043d3`）。
+
+| 模型 | ID | 价格/M tokens | 维度 | 多语言 |
+|------|-----|-------------|------|--------|
+| **bge-m3** | `@cf/baai/bge-m3` | $0.012 | 1024 | ✅ 100+ |
+| qwen3-embedding | `@cf/qwen/qwen3-embedding-0.6b` | $0.012 | — | ✅ |
+| bge-small-en | `@cf/baai/bge-small-en-v1.5` | $0.020 | 384 | ❌ |
+| EmbeddingGemma | `@cf/google/embeddinggemma-300m` | — | — | ✅ |
+
+- 免费额度：10,000 Neurons/天 ≈ 9.3M tokens/天
+- Reranker：`@cf/baai/bge-reranker-base` $0.003/M tokens
+- **实际月成本：< $0.01**（完全在免费额度内）
+
+##### 三、国内云 API（更便宜但需注册）
+
+| 服务商 | 模型 | 价格 | 多语言 | 维度 | 备注 |
+|--------|------|------|--------|------|------|
+| **阿里百炼** | text-embedding-v3 | ¥0.0007/千token（~$0.0001/M token） | ✅ 中英 | 1024 | 新用户有免费额度 |
+| **阿里百炼** | text-embedding-v4 | 约 ¥0.0007/千token | ✅ | 1024 | 最新版 |
+| 火山引擎（字节） | Doubao Embedding | 类似价位 | ✅ | — | 需火山引擎账号 |
+| 百度千帆 | Embedding-V1 | ¥0.002/千token | ✅ | — | 稍贵 |
+| 腾讯混元 | hunyuan-embedding | 类似价位 | ✅ | — | — |
+
+- **阿里百炼是最便宜的**：$0.0001/M tokens，比 Cloudflare 便宜 120 倍（但绝对值都趋近于零）
+- 支持 OpenAI 兼容 API 格式，调用方式简单
+- 缺点：需注册国内云账号 + 实名认证
+
+##### 四、Hugging Face Inference API
+
+| 模型 | 推荐度 | 备注 |
+|------|--------|------|
+| BAAI/bge-m3 | ⭐⭐⭐ | 与 Ollama/Cloudflare 同一模型 |
+| BAAI/bge-large-en-v1.5 | ⭐⭐ | 英文 only |
+| nomic-ai/nomic-embed-text-v2-moe | ⭐⭐ | 多语言 |
+| sentence-transformers/all-MiniLM-L6-v2 | ⭐ | 轻量但质量低 |
+
+- Hugging Face 提供 Inference API（`https://api-inference.huggingface.co/pipeline/feature-extraction/{model}`）
+- 免费用户有速率限制（适合测试，不适合生产）
+- 也可以用 `sentence-transformers` 库直接在本地跑（同 Ollama 方案一）
+
+---
+
+#### 推荐方案：本地 Ollama bge-m3
+
+| 维度 | 本地 Ollama bge-m3 | Cloudflare bge-m3 | 阿里百炼 v3 |
+|------|-------------------|------------------|------------|
+| 成本 | **$0 永久免费** | $0（免费额度内） | $0（免费额度内） |
+| 质量 | 顶级（同一模型） | 顶级（同一模型） | 高（不同模型） |
+| 多语言 | ✅ 100+ 语言 | ✅ 100+ 语言 | ✅ 中英 |
+| 上下文 | 8192 tokens | — | — |
+| 维度 | 1024 | 1024 | 1024 |
+| 网络依赖 | ❌ 完全离线 | ✅ 需网络 | ✅ 需网络 |
+| 初始化速度 | ~5-10 分钟 | ~1 分钟 | ~1 分钟 |
+| 查询延迟 | ~0.5-1 秒 | ~0.2 秒 | ~0.3 秒 |
+| 已有基础设施 | ✅ Ollama 已装 | ✅ CF MCP 已配 | ❌ 需注册 |
+| Reranker | 本地 bge-reranker | `@cf/baai/bge-reranker-base` | 百炼 gte-rerank |
+
+**推荐理由**：
+1. 同一个 bge-m3 模型，质量完全一致
+2. 你的调用频率极低（月度 < 50K tokens），本地推理速度完全够用
+3. 永久免费，无任何额度担忧
+4. 你已经装了 Ollama
+5. 离线可用
+
+**混合方案（如果需要）**：
+- 日常用本地 Ollama bge-m3
+- 如果需要 GPU 加速大批量初始化，临时切 Cloudflare（同模型，embedding 结果兼容）
+- 如果需要 reranker，本地跑 bge-reranker 或用 Cloudflare `@cf/baai/bge-reranker-base`
+
+---
+
+#### 成本估算（所有方案）
+
+| 场景 | 本地 Ollama | Cloudflare | 阿里百炼 |
+|------|------------|-----------|---------|
+| 初始化（500K tokens） | $0（5-10 分钟） | $0.006 | $0.05 |
+| 每月新增（~50K tokens） | $0 | $0.0006 | $0.005 |
+| 每月查询（~5K tokens） | $0 | $0.00006 | $0.0005 |
+| **年总成本** | **$0** | **< $0.01** | **< $0.1** |
+
+> **结论**：所有方案成本都趋近于零。选本地 Ollama bge-m3，因为免费 + 离线 + 已有基础设施 + 同一模型。
+
+---
+
+> **已确认**：采用本地 Ollama bge-m3。（2026-08-07 用户确认）
+
+### D2: 向量存储选型 ✅ 已确认
 
 **推荐：Supabase pgvector**
 
@@ -55,9 +166,9 @@
 
 **推荐理由**：项目已深度使用 Supabase（auth、posts 表、storage），pgvector 是 Postgres extension，启用后可直接在现有数据库中创建向量列。检索通过 RPC 函数（`match_content`），与现有 `createServerFn` 架构一致。RLS 确保未发布文章的 embedding 不被公开检索。
 
-> **请确认**：是否采用 Supabase pgvector？
+> **已确认**：采用 Supabase pgvector。（2026-08-07 用户确认；用户为 Supabase Pro plan，8GB 数据库容量，向量存储占用 < 0.1%）
 
-### D3: 索引范围
+### D3: 索引范围 ✅ 已确认
 
 Issue #15 定义的 Phase 1 索引范围：
 1. 已发布文章（Supabase `posts` 表）
@@ -73,9 +184,9 @@ Issue 评论中建议增加：
 
 > ⚠️ **Metadata 数据流约束（2026-08-07 已核实）**：`publish-article.mjs` 的 `buildPostPayload` 只同步 `title/slug/excerpt/content/published` 到 Supabase，WP-7 的 frontmatter 扩展字段（topics/entities/sources）**不会进入 posts 表**，posts 表也无对应列。因此索引器必须以 **markdown 文件为 metadata 的 source of truth**，Supabase posts 表仅用于 published 状态过滤（RLS join）。索引脚本中 `readArticles()` 的实现应读 `articles/*.md` + 用 posts 表校验发布状态，而非从 posts 表读 metadata。
 
-> **请确认**：索引范围是 1+2+3（Issue 原始范围 + 评论建议），还是扩展到 1-6？
+> **已确认**：索引范围 1-6（全部）。（2026-08-07 用户确认）
 
-### D4: Chunking 粒度
+### D4: Chunking 粒度 ✅ 已确认
 
 | 内容类型 | Chunk 粒度 | Metadata |
 |---------|-----------|----------|
@@ -86,9 +197,9 @@ Issue 评论中建议增加：
 | 调研报告 | 按 `##` 标题分 section | `report_file, topic` |
 | TikTok 参考 | 按 `##` 标题分 section | `skill_file, topic` |
 
-> **请确认**：这个 chunking 粒度是否合适？还是你希望更粗/更细？
+> **已确认**：上述 chunking 粒度合适。（2026-08-07 用户确认）
 
-### D5: 检索集成方式
+### D5: 检索集成方式 ✅ 已确认
 
 Agent 在写文章时如何调用 RAG？两个方案：
 
@@ -99,7 +210,7 @@ Agent 在写文章时如何调用 RAG？两个方案：
 
 > ⚠️ **RLS 影响**：选方案 A 意味着检索仅 Agent/admin 使用，schema 预备案中的 anon 公开检索策略**不应启用**（见"数据库 Schema 设计"节），避免公开枚举 embedding chunk 的攻击面。
 
-> **请确认**：先做方案 A（脚本），还是直接做 B（server fn 集成）？
+> **已确认**：先做方案 A（脚本 + Agent 调用）。（2026-08-07 用户确认）
 
 ---
 
@@ -690,7 +801,28 @@ WP-11 (评估集)          ←── WP-10, D3
 
 > 注：以上模型可用性与价格基于 2026-08 调研，实施时以 Cloudflare 官方文档为准。`@cf/qwen/qwen3-embedding-0.6b` 的目录可用性未验证（方案 B 仅作备选）。
 
-### 本地可运行模型
+### Ollama 本地模型（推荐首选）
+
+| 模型 | Ollama 命令 | 大小 | 维度 | 多语言 | 上下文 | 质量（MTEB） |
+|------|-----------|------|------|--------|--------|-------------|
+| **bge-m3** ⭐推荐 | `ollama pull bge-m3` | 1.2GB | 1024 | ✅ 100+ 语言 | 8192 | 顶级（MIRACL 69.2） |
+| nomic-embed-v2-moe | `ollama pull nomic-embed-text-v2-moe` | 958MB | 768 | ✅ ~100 语言 | 512 | 高（MIRACL 65.8） |
+| qwen3-embedding | `ollama pull qwen3-embedding` | 0.6b/4b/8b | — | ✅ | — | 新模型，数据少 |
+| mxbai-embed-large | `ollama pull mxbai-embed-large` | ~335MB | 1024 | ❌ 英文 | 512 | 英文顶级 |
+| snowflake-arctic-embed2 | `ollama pull snowflake-arctic-embed2` | 568MB | — | ✅ | — | 中高 |
+| granite-embedding | `ollama pull granite-embedding` | 30m/278m | — | ✅(278m) | — | 中 |
+| all-minilm | `ollama pull all-minilm` | 22m/33m | — | ❌ 英文 | — | 低 |
+
+**调用方式**（Ollama REST API）：
+```bash
+# 单条
+ollama embed --model bge-m3 --input "text to embed"
+
+# API（batch 支持）
+curl http://localhost:11434/api/embed -d '{"model":"bge-m3","input":["text1","text2"]}'
+```
+
+### sentence-transformers 本地模型（Python 方式，与 Ollama 互为备选）
 
 | 模型 | 大小 | 维度 | 多语言 | 运行方式 | MTEB 排名 |
 |------|------|------|--------|---------|-----------|
@@ -700,17 +832,18 @@ WP-11 (评估集)          ←── WP-10, D3
 | all-MiniLM-L6-v2 | ~90MB | 384 | ❌ | `sentence-transformers` | 低 |
 | nomic-embed-text | ~270MB | 768 | ❌ | `sentence-transformers` | 中高 |
 
-### 成本估算（Cloudflare bge-m3）
+> Ollama 与 sentence-transformers 跑的是同一个 bge-m3 模型权重，embedding 结果一致。Ollama 更简单（无需 Python 环境），推荐优先用 Ollama。
 
-| 场景 | Token 数 | 成本 |
-|------|---------|------|
-| 初始化知识库（50 篇文章 × 3000 tokens） | 150K | $0.0018（免费额度内） |
-| 初始化知识库（全部内容 ~500K tokens） | 500K | $0.006（免费额度内） |
-| 日常新增 1 篇文章 | ~3000 | $0.000036 |
-| 日常查询 10 次 × 100 tokens | 1000 | $0.000012 |
-| **月度总成本（预估）** | — | **< $0.01（免费额度内）** |
+### 成本估算（所有方案对比）
 
-> 10,000 Neurons/天 ≈ 9.3M tokens/天的 bge-m3 免费 embedding。知识库完全在免费额度内。
+| 场景 | 本地 Ollama | Cloudflare | 阿里百炼 |
+|------|------------|-----------|----------|
+| 初始化（500K tokens） | $0（5-10 分钟） | $0.006 | $0.05 |
+| 每月新增（~50K tokens） | $0 | $0.0006 | $0.005 |
+| 每月查询（~5K tokens） | $0 | $0.00006 | $0.0005 |
+| **年总成本** | **$0** | **< $0.01** | **< $0.1** |
+
+> **结论**：所有方案成本都趋近于零。选本地 Ollama bge-m3，因为免费 + 离线 + 已有基础设施 + 同一模型。
 
 ---
 
@@ -874,9 +1007,10 @@ const chunks = [
   ...chunkTiktokRefs(tiktokRefs),   // 按 ## 标题分
 ];
 
-// 3. Generate embeddings (Cloudflare bge-m3)
+// 3. Generate embeddings (Ollama bge-m3, 本地运行)
+//    备选：Cloudflare bge-m3（同模型，embedding 结果兼容，切换只需改 embedding client）
 for (const batch of chunkBatch(chunks, 100)) {
-  const embeddings = await cfWorkersAI('@cf/baai/bge-m3', batch.map(c => c.text));
+  const embeddings = await ollamaEmbed('bge-m3', batch.map(c => c.text));
   // 4. Upsert to Supabase
   await supabase.from('content_embeddings').upsert(
     batch.map((c, i) => ({
@@ -898,8 +1032,8 @@ for (const batch of chunkBatch(chunks, 100)) {
 // 伪代码
 const query = process.argv[2] || "What have we said about DeepSeek?";
 
-// 1. Generate query embedding
-const [queryEmbedding] = await cfWorkersAI('@cf/baai/bge-m3', [query]);
+// 1. Generate query embedding (Ollama bge-m3)
+const [queryEmbedding] = await ollamaEmbed('bge-m3', [query]);
 
 // 2. Vector search
 const results = await supabase.rpc('match_content', {
@@ -910,7 +1044,7 @@ const results = await supabase.rpc('match_content', {
 
 // 3. (Optional) Rerank with bge-reranker
 if (results.data.length > 3) {
-  const reranked = await cfWorkersAI('@cf/baai/bge-reranker-base', {
+  const reranked = await ollamaRerank('bge-reranker-base', {
     query,
     documents: results.data.map(r => r.chunk_text),
   });
@@ -972,3 +1106,5 @@ Agent 根据检索结果：
 |------|------|
 | 2026-08-07 | 创建文档，完成 embedding/向量存储调研，列出 WP-1~10 |
 | 2026-08-07 | Review 修正：① WP-1 去除重复 PDF（MD5 相同），任务 3→2 ② WP-6 重写：改为扩展现有 `meta.mjs` 约定，清单按核实结果重写（根目录 pt1/pt2 为空文件、pt3 为遗留，`content/deepseek/meta.mjs` article slug stale）③ 修正盘点计数（widget 15→13、scene-data ~11→9/7 非空），明确触发条件度量口径 ④ D3/WP-7 明确 metadata 数据流（markdown 为 source of truth；gray-matter 兼容性已验证）⑤ D1 增加 Cloudflare 凭证前置验证（仓库内无证据）⑥ Schema 默认 admin-only（anon 策略注释保留）+ 复用 `set_updated_at()` trigger ⑦ WP-9 补依赖 WP-2/3 ⑧ 新增 WP-11 golden query 评估集（含跨语言用例）⑨ WP-2 输出移至 `docs/refs/company-profiles/` ⑩ 各 WP 加状态标记 |
+| 2026-08-07 | D1 重写：推荐方案从 Cloudflare 改为本地 Ollama bge-m3（同一模型，免费+离线+已有 Ollama 基础设施）。新增调用频率分析、Ollama 模型对比表（含 nomic-embed-v2-moe/qwen3-embedding/mxbai-embed-large 等）、国内云 API 对比（阿里百炼/火山引擎/百度/腾讯）、Hugging Face Inference API、全方案成本估算表。更新伪代码 embedding 调用从 Cloudflare 改为 Ollama。 |
+| 2026-08-07 | D1-D5 全部确认（用户 Supabase Pro plan，8GB 数据库；存储估算 < 0.1%）。D1-D5 状态标记从 ⏳ 改为 ✅。文档可直接作为 Execution session 的执行依据。 |

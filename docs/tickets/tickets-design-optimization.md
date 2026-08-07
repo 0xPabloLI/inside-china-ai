@@ -1,6 +1,6 @@
 # Tickets: 设计系统优化
 
-> Spec: `docs/spec-design-optimization.md`。每个 ticket 为原子提交单元，完成即 commit（Commit Cadence 规则）。
+> Spec: `docs/specs/spec-design-optimization.md`。每个 ticket 为原子提交单元，完成即 commit（Commit Cadence 规则）。
 > 图例：`→` 依赖（前置必须完成并验证）。
 
 ## 依赖图

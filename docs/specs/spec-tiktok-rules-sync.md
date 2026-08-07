@@ -135,7 +135,7 @@
 | `scripts/short-video/lib/scene-rules.mjs` | 改为 import 常量；B4 三级化；新增 `checkNoGreeting()`；补全 AI_BLACKLIST | Medium | 修改现有检查函数行为。现有测试可能 break（B4 从 WARN 变三级、AI_BLACKLIST 扩大）。验证：现有测试全部跑一遍 |
 | `scripts/short-video/verify-video.mjs` | generate-caption exit code 检查改为 FAIL；post-render 增加 caption 文件检查 | Medium | 修改了 caption 生成失败时的行为（从 warn 变 fail）。影响：如果 caption 超 2200，verify 会 FAIL 而非 pass-with-warning |
 | `scripts/short-video/generate-caption.mjs` | 约束违反从 warn 改为 exit(1) | High | 修改了 exit 行为。verify-video.mjs 用 try/catch 捕获——需同时修改 catch 逻辑。影响范围：只在 caption 约束违反时触发 |
-| `docs/tiktok-best-practices.md` | 更新审计清单 B1-B9/W1-W9 | Low | 纯文档更新 |
+| `docs/tiktok/tiktok-best-practices.md` | 更新审计清单 B1-B9/W1-W9 | Low | 纯文档更新 |
 | `docs/video-workflow.md` | 更新三层执行表 | Low | 纯文档更新 |
 | `~/.catpaw/skills/short-video-pipeline/SKILL.md` | 同步更新黑名单、新增 greeting 规则 | Low | 纯文档更新 |
 | `scripts/short-video/__tests__/tiktok-rules-sync.test.mjs` | 新建 — drift 检测测试 | N/A | 纯新建文件 |

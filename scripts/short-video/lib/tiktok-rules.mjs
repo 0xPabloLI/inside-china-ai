@@ -4,7 +4,7 @@
  * All configurable rule constants for TikTok best practices compliance.
  * Consumed by scene-rules.mjs, verify-video.mjs, and tiktok-rules-sync.test.mjs.
  *
- * Source: docs/tiktok-best-practices.md (audit checklist B1-B9, W1-W9)
+ * Source: docs/tiktok/tiktok-best-practices.md (audit checklist B1-B9, W1-W9)
  *         docs/refs/tiktok-skills/ (community skill references)
  */
 

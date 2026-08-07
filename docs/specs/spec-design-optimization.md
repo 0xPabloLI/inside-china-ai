@@ -141,7 +141,7 @@
 | src/styles.css | blockquote + global reduced-motion | Medium | 全局 CSS；prose-article 引用块视觉变化（符合 design 意图）；reduced-motion 规则业内标准写法 |
 | src/components/subscribe-form.tsx | border 透明度 | Low | 像素级差异 |
 | src/routes/companies.tsx | URL/字号/FAQ h3 | Low | canonical/OG 变更对外可见（指向正式域名，正确方向）；无 SEO 风险 |
-| docs/spec-design-optimization.md / docs/tickets-design-optimization.md | **新建** | Low | 文档 |
+| docs/specs/spec-design-optimization.md / docs/tickets/tickets-design-optimization.md | **新建** | Low | 文档 |
 
 ## Section 2: Behavioral Scenarios（场景矩阵 → 测试用例）
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { chunkWords, buildCues } from "../lib/subtitles/cues.mjs";
 
 // Expectations below are hand-computed from the timing rules in
-// docs/spec-subtitle-karaoke-timeline.md (30fps):
+// docs/archive/spec-subtitle-karaoke-timeline.md (30fps):
 //   lead-in    2 frames = 0.066667s
 //   chain gap  2 frames = 0.066667s
 //   min cue    0.8s

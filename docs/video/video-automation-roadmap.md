@@ -428,4 +428,4 @@ Agent 会执行：discover -> 读 JSON -> 选话题 -> 写 scene-data -> 跑 pip
 
 ### Q: Profile 设置在哪？
 
-见 `docs/tiktok-profile-setup.md`（独立文档，手动操作参考）。
+见 `docs/tiktok/tiktok-profile-setup.md`（独立文档，手动操作参考）。

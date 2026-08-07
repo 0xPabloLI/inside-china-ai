@@ -1,6 +1,6 @@
 # Tickets: Trend Sources Expansion
 
-> 基于 `docs/spec-trend-sources-expansion.md` 拆分。每个 ticket = 一个可独立验证的切片。
+> 基于 `docs/specs/spec-trend-sources-expansion.md` 拆分。每个 ticket = 一个可独立验证的切片。
 
 ---
 
@@ -155,7 +155,7 @@ TE-T4 (集成测试 + 文档更新)
 
 - 修改 `docs/content-pipeline.md`（Stage 0 趋势发现部分）
 - 修改 `docs/manual-ops.md`（趋势源列表）
-- 修改 `docs/tiktok-best-practices.md`（趋势发现渠道表）
+- 修改 `docs/tiktok/tiktok-best-practices.md`（趋势发现渠道表）
 
 **依赖**：TE-T3
 

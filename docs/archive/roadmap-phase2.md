@@ -1,7 +1,15 @@
-# Phase 2 Roadmap — 文章创作管线 + 分析自动化
+# Phase 2 Roadmap — 文章创作管线 + 分析自动化 ✅ 全部完成
 
 > 创建于 2026-08-02。Phase 1（视频管线 ISSUE-01~13）全部完成后的二期计划。
 > 核心目标：补全「源素材 → 富文章 → 网站发布 → 视频」这条独立工作流。
+>
+> **✅ 状态：全部完成（2026-08-03）。** ISSUE-14~19 全部 DONE。
+> - 交付物：`docs/article-workflow.md`（Agent 工作流）、`scripts/article/publish-article.mjs`（发布脚本）、`scripts/short-video/fetch-tiktok-analytics.mjs`（CSV 解析）、`publish-tiktok.mjs` 扩展（pending-analysis.json）
+> - Spec：`docs/spec-phase2.md`，Tickets：`docs/tickets-phase2.md`
+> - Commit: `9d3c68d feat(article): Phase 2 roadmap — article pipeline + analytics automation`
+> - 149 个单元测试全部通过
+>
+> 本文档保留作为历史归档。活跃的工作流文档见 `docs/article-workflow.md` 和 `docs/content-pipeline.md`。
 
 ---
 

@@ -172,7 +172,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 ### TikTok Best Practices Integration
 
-> Based on 2025-2026 research via Chrome CDP + community skill absorption (sergebulaev/tiktok-skills). Full details: `docs/tiktok-best-practices.md` (signal weights, voice rules, hook formulas, audit checklist, news strategy) and `docs/refs/tiktok-skills/` (34 community reference files).
+> Based on 2025-2026 research via Chrome CDP + community skill absorption (sergebulaev/tiktok-skills). Full details: `docs/tiktok/tiktok-best-practices.md` (signal weights, voice rules, hook formulas, audit checklist, news strategy) and `docs/refs/tiktok-skills/` (34 community reference files).
 >
 > **Enforcement**: `scripts/short-video/verify-video.mjs` runs automated checks after every video. This is **Step 6** of the pipeline workflow (see `short-video-pipeline` SKILL.md). Do NOT publish until all automated checks pass.
 

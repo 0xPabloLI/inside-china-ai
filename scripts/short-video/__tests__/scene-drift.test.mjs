@@ -2,7 +2,7 @@
  * Scene drift guards — the content layer must stay data-driven.
  *
  * These tests lock the contracts established by the design-optimization
- * work (docs/spec-design-optimization.md):
+ * work (docs/specs/spec-design-optimization.md):
  *
  *   1. Safe-zone / watermark constants are the reviewed values.
  *   2. withWatermark skips brand-identity scenes by REAL element match

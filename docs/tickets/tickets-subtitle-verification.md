@@ -1,6 +1,6 @@
 # Tickets: Subtitle Verification System
 
-> **Spec**: `docs/spec-subtitle-verification.md`
+> **Spec**: `docs/specs/spec-subtitle-verification.md`
 > **Strategy**: Tracer-bullet — each ticket delivers testable value
 
 ## Dependency Graph

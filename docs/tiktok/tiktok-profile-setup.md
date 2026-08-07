@@ -64,5 +64,5 @@ China AI news, data, and analysis. Follow for what Western media misses.
 ## 参考文件
 
 - 社区 skill：`docs/refs/tiktok-skills/skills/tt-profile-optimizer.md`（原始 7 项审计清单）
-- 最佳实践：`docs/tiktok-best-practices.md` → "品牌账号设置" section
+- 最佳实践：`docs/tiktok/tiktok-best-practices.md` → "品牌账号设置" section
 - Logo 资产：`scripts/short-video/assets/china-ai-news-logo-image-only.png`（纯图标）

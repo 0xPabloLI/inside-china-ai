@@ -19,7 +19,7 @@ import {
 
 // ── Drift detection: verify tiktok-rules.mjs constants satisfy invariants ──
 // These tests guard against accidental changes that would cause drift
-// between the code and docs/tiktok-best-practices.md.
+// between the code and docs/tiktok/tiktok-best-practices.md.
 
 describe("tiktok-rules.mjs sync invariants", () => {
   // ── AI_BLACKLIST coverage ──

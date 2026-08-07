@@ -1,6 +1,6 @@
 # Tickets: TikTok Rules Sync & Drift Prevention
 
-> 基于 `docs/spec-tiktok-rules-sync.md` 拆分。每个 ticket = 一个可独立验证的切片。
+> 基于 `docs/specs/spec-tiktok-rules-sync.md` 拆分。每个 ticket = 一个可独立验证的切片。
 
 ---
 
@@ -112,7 +112,7 @@ Tasks:
 ## T5: 文档同步
 
 **Depends on**: T2, T3
-**Delivers**: 修改 `docs/tiktok-best-practices.md` + `docs/video-workflow.md` + `~/.catpaw/skills/short-video-pipeline/SKILL.md`
+**Delivers**: 修改 `docs/tiktok/tiktok-best-practices.md` + `docs/video-workflow.md` + `~/.catpaw/skills/short-video-pipeline/SKILL.md`
 **Covers scenarios**: 无行为场景（纯文档）
 
 Tasks:
