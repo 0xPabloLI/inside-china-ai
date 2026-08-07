@@ -160,6 +160,10 @@ export const Route = createFileRoute("/posts/$slug")({
                 url: "https://chinaai.news/china-ai-news-logo-gpt.png",
               },
             },
+            image: [OG_DEFAULT],
+            inLanguage: "en",
+            author: { "@type": "Organization", name: "China AI News", url: "https://chinaai.news/" },
+
           }),
         },
       ],
