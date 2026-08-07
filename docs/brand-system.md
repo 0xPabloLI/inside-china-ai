@@ -80,23 +80,26 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Property       | Value                                   |
 | -------------- | --------------------------------------- |
 | Font           | Helvetica Neue                          |
-| Font size      | 42px                                    |
+| Font size      | 60px (matches TikTok native ~60px em, ≈3.1% of frame height) |
 | Weight         | Bold                                    |
 | Primary color  | Dispatch Blue (#4d8bff, ASS: &H00FF8B4D) — spoken words |
 | Secondary color| White (#F5F5F5, ASS: &H00F5F5F5) — unspoken words |
 | Outline        | Black, 3px (ASS: &H66000000, semi-transparent) |
 | Shadow         | 1px                                     |
-| Position       | Bottom-center (Alignment=2)             |
-| Margin from bottom | 450px (above TikTok bottom UI zone)   |
-| Max width      | ~950px (65px margins L/R)               |
+| Position       | Bottom-center (Alignment=2), in the 62–70% native-caption band |
+| Margin from bottom | 570px (cue bottom edge y=1350, above the TikTok caption zone) |
+| Max width      | 720px (180px margins L/R → cue right edge x=900, clears the action rail) |
+| Max lines      | 2 (single line preferred; worst-case wrap stays inside the reserved lane) |
 | Background     | None (transparent, text outline only)  |
 | Style          | Karaoke `\kt` + `\kf` (word-by-word highlight, absolute per-word anchors) |
 | Timing         | wav2vec2 forced alignment (`text-align.py`), per-word timestamps |
 | Generation     | `lib/subtitles/` (JS, see docs/video-workflow.md) |
 
+All subtitle values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them. The subtitle lane (y≈1188–1350) is structurally separated from the content band (ends y=1150), so burned subtitles can never overlap scene content.
+
 ASS Style line:
 ```
-Style: Default,Helvetica Neue,42,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,65,65,450,1
+Style: Default,Helvetica Neue,60,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,180,180,570,1
 ```
 
 ## Background Layers
@@ -184,16 +187,24 @@ Same as color tokens — each company has a consistent semantic color:
 
 ## Layout Safety (Safe Zones & Watermark)
 
-TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by `scripts/short-video/verify-scene-dom.mjs` (measures real DOM geometry) and guarded at source level by `scripts/short-video/__tests__/scene-drift.test.mjs`.
+TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by `scripts/short-video/verify-scene-dom.mjs` (measures real DOM geometry, wired into the pipeline as a FAIL-gate) and guarded at source level by `scripts/short-video/__tests__/scene-drift.test.mjs`.
 
-| Zone | Inset (px, 1080×1920 canvas) | Meaning |
-|------|------------------------------|---------|
-| Top | 220 | Below this: ticker/live-header overlays stay clear |
-| Right | 160 | Right-side action rail (like/comment/share) |
-| Bottom | 450 | Bottom UI: caption, progress bar, CTA buttons |
-| Left | 60 | Left margin (no overlay, but content breathes here) |
+Calibrated against a real FYP playback screenshot (scaled ×1.875) cross-checked with 2026 research:
 
-Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / WATERMARK_POS constants).
+| Zone | Inset (px, 1080×1920 canvas) | Content edge | Meaning |
+|------|------------------------------|--------------|---------|
+| Top | 220 | y ≥ 220 | Below this: top tabs/search overlays stay clear |
+| Right | 200 | x ≤ 880 | Right action rail (avatar/like/comment/save/share/music, y≈655–1775) |
+| Bottom | 770 | y ≤ 1150 | Bottom UI: caption, progress bar; also clears the subtitle lane |
+| Left | 60 | x ≥ 60 | Left margin (no overlay, but content breathes here) |
+
+Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350); the TikTok caption UI starts ~y1500.
+
+Enforcement levels in `verify-scene-dom.mjs`:
+- **Top / bottom band crossing → FAIL** (content enters TikTok chrome or the subtitle lane).
+- **Right band crossing (x > 880) → FAIL** when the element's bottom is inside the action rail (y > 640); **WARN** only above the rail (top chrome, where nothing occludes).
+
+Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / SUBTITLE_LANE / WATERMARK_POS constants — the single source of truth every other layer derives from).
 
 ### Watermark Rule
 
@@ -203,12 +214,16 @@ Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / WATERMARK_POS const
 
 ### Bottom Elements Strategy
 
-- **No content anchor below y = 1080−450 = 630px** (bottom safe zone). Critical copy, numbers, CTAs, and labels must sit above it.
+- **No content anchor below y = 1150** (`1920 − SAFE_ZONES.bottom`). Critical copy, numbers, CTAs, and labels must sit above it, clear of the subtitle lane.
 - If a scene has a bottom slot, use `fadeToBlack(duration)` (shared `fadeOut` keyframe in the base-styles bundle) — not a local footer element.
 
 ## Scene Layout Templates
 
 9 layout patterns for **1080×1920 vertical mobile video** scenes. CSS-animated, timed to TTS duration. All scenes must be 9:16 — never horizontal.
+
+> **Slot system (mandatory).** Every scene composes its content into the fixed vertical slots from `lib/scene-layout.mjs` via `sceneFrame({ kicker, hero, support })` — never a hand-rolled full-screen `flex` with `justify-content: space-between` (that pattern stretched scenes into three islands with dead space and pushed content into the subtitle lane). Slots: `kicker` 220–400, `hero` 400–950, `support` 950–1150. Slot edges derive from `SAFE_ZONES`, so a scene either fits the grid or the DOM gate refuses to ship it.
+
+> **Vertical-stacking rule (mandatory for comparisons).** Any comparison / contrast / VS scene must stack its items **vertically** (A on top, VS divider in the middle, B on the bottom) — never place two or more cards **side by side** in a horizontal row. A 1080-wide portrait frame cannot fit a landscape two-column layout without shrinking text to unreadable sizes or overflowing the right safe zone. Reference: `bytedance-distillation` S6/S7/S8. Guarded by `scene-drift.test.mjs` (side-by-side classes banned in migrated content).
 
 ### 1. Hook Scene
 
@@ -218,13 +233,13 @@ Slot composition (1080×1920; bands from `lib/scene-layout.mjs` — kicker / her
 
 ```
 kicker (220–400)     [badge]    optional red pill (BREAKING) — red urgency
-hero   (400–1080)    [subject]  optional logo 120px + name 80px/900
+hero   (400–950)     [subject]  optional logo 120px + name 80px/900
                      [focal]    REQUIRED, exactly one of:
                        A number-led: bigNumber (amber 260px glow)
                                      + numberLabel (highlight wraps .hl)
                        B claim-led:  hookText (frame-1, no delay)
                                      + revealText (1.5s stampIn payoff)
-support (1080–1340)  [stats]    optional stat cards (staggered 1.3s+)
+support (950–1150)   [stats]    optional stat cards (staggered 1.3s+)
                      [source]   optional source line (2.1s)
 ```
 
@@ -246,14 +261,13 @@ Sequential events. Vertical line, colored dots.
 
 ### 3. Comparison/Contrast Scene
 
-Two-column analysis. Left vs right.
+**Vertical stack** (see the vertical-stacking rule). Items stack top-to-bottom across the full content band.
 
-- Title (white, 48px, 900)
-- Two columns, 40px gap
-- Left = negative: red border, strikethrough text
-- Right = positive: green border
-- Items stagger slideLeft per column (left first, then right)
-- Quote box at bottom: left-border accent (blue), italic, keyword highlighted
+- Title (white, 48px, 900) in the kicker slot
+- Items stacked vertically in the hero slot: negative items first (red border), resolution/positive item last (green border)
+- Each row: name left, stat right-aligned; stagger slideLeft
+- Conclusion / punchline box in the support slot (e.g. a green "CLEAN" stamp)
+- Optional quote box: left-border accent (blue), italic, keyword highlighted
 
 ### 4. Data Visualization Scene
 
@@ -267,13 +281,12 @@ Bar charts and stats.
 
 ### 5. VS Card Scene
 
-Direct comparison. Two entities head-to-head.
+Direct comparison. Two entities head-to-head — **stacked vertically** (A on top, VS divider mid, B on bottom), never side by side.
 
-- Title (white, 48px, 900)
-- Two cards side by side, colored borders (red vs green)
-- VS circle in center (80px, muted border)
-- Stats row below (2 stat boxes)
-- Prediction/verdict box at bottom: green border, stampIn animation
+- Title (white, 48px, 900) in the kicker slot
+- Card A (top, e.g. green border) → VS divider (mid) → Card B (bottom, e.g. red border), all in the hero slot
+- VS divider: 56–80px circle or inline "VS" text (muted)
+- Prediction/verdict stamp in the support slot: colored border, stampIn animation
 
 ### 6. Staircase/Progression Scene
 
@@ -307,22 +320,28 @@ Numbered analysis cards.
 
 ### 9. CTA Scene
 
-Brand closer. No URL (testing phase).
+Brand closer — the single shared `ctaScene` template (`lib/scene-templates.mjs`), routed through the slot system. No URL (testing phase).
 
-- Brand name: `CHINA AI NEWS` (72px, 900, "AI" in blue)
-- Tagline: `China's AI, decoded.` (32px, sec)
-- "Subscribe for more" (64px, 800, amber — highest CTA visibility color)
-- Bottom: "Follow for daily China AI deep dives" (30px, muted)
+- **Hero slot (400–950)**: brand logo (130px) → brand name `CHINA AI NEWS` (72px, 900, "AI" in blue) → tagline `CHINA AI, DECODED` (32px, sec)
+- **Support slot (950–1150)**: action stamp `FOLLOW FOR MORE →` (amber stampBox) → optional series `topic` teaser
 - Fade-to-black at end (0.8s before duration ends)
 
 ## Implementation
 
 The CSS implementation of these specs lives in:
 
+- `scripts/short-video/lib/safe-zones.mjs` — **single source of truth** for safe-zone + subtitle-lane + watermark constants. Every other layer (slot layout, subtitle ASS, DOM verifier) derives from these values; never hardcode them elsewhere.
+- `scripts/short-video/lib/scene-layout.mjs` — the fixed slot system (`SLOTS`, `slotCss()`, `sceneFrame()`). All scenes compose into kicker/hero/support slots.
 - `scripts/short-video/lib/base-styles.mjs` — shared base styles + keyframes bundle (`baseStyles(duration)`, `withWatermark`). Keyframes are single-source here; scenes must not redeclare them (drift guard).
-- `scripts/short-video/lib/scene-templates.mjs` — data-only scene building blocks (`brandBar`, `breakingBadge`, `statCard`, `quoteBox`, `titleBlock`, `bigNumberAnchor`, `pointsList`, `stampBox`, `fadeToBlack`) + `templateCss()`. No business copy; the channel constants in `brandBar` are the only hardcoded strings.
+- `scripts/short-video/lib/scene-templates.mjs` — data-only scene building blocks (`brandBar`, `breakingBadge`, `statCard`, `quoteBox`, `titleBlock`, `bigNumberAnchor`, `pointsList`, `stampBox`, `fadeToBlack`) + the shared `hookScene` / `ctaScene` + `templateCss()`. No business copy; the channel constants in `brandBar` are the only hardcoded strings.
 - `scripts/short-video/content/{article}/scenes.mjs` — per-video scene HTML/CSS, composed from the templates above; all display copy comes from `scene-data.mjs` via the `t(txt, key)` helper.
-- `scripts/short-video/lib/safe-zones.mjs` — safe zone + watermark constants (see Layout Safety).
 - `scripts/youtube-thumbnail.html` — thumbnail HTML/CSS
+
+### Enforcement (how the standard is applied to every video)
+
+1. **Constants single source** — `safe-zones.mjs` values are test-locked (`safe-zones.test.mjs`, `scene-drift.test.mjs`); editing them turns the suite red.
+2. **Data-level preflight** — `verify-video.mjs --pre --content <dir>` runs before the pipeline (SKILL.md hard rules) and blocks non-compliant scene data.
+3. **Render-level DOM gate** — `verify-scene-dom.mjs` runs automatically as **Step 2.5** in both `main.mjs` and `render-only.mjs`. Any scene whose geometry crosses a safe zone (top / bottom / right action rail), overflows horizontally, renders `undefined`, or breaks a word fails the build **before recording**. Bypass only with `--skip-dom-check` (legacy, non-migrated content).
+4. **Source-level drift guards** — `scene-drift.test.mjs` bans side-by-side comparison classes and legacy footer classes in migrated content, and locks the shared hook/CTA templates byte-for-byte.
 
 When changing brand specs, update this file first, then update the implementation files to match.

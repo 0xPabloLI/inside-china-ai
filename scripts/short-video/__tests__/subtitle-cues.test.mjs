@@ -128,20 +128,14 @@ describe("chunkWords", () => {
     for (const chunk of chunks) {
       expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
     }
-    expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(
-      input.map((x) => x.text),
-    );
+    expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
   });
 
   it("merges a trailing single-word chunk back into the previous line", () => {
     // "Go now." ends a sentence, so "Fast." would flush as its own one-word
     // chunk; since the combined line ("Go now. Fast.", ~393px) fits the 720px
     // lane, the orphan is merged back rather than left to blink alone.
-    const input = words(
-      ["Go", 0, 0.3],
-      ["now.", 0.35, 0.7],
-      ["Fast.", 0.8, 1.2],
-    );
+    const input = words(["Go", 0, 0.3], ["now.", 0.35, 0.7], ["Fast.", 0.8, 1.2]);
     const chunks = chunkWords(input);
     expect(chunks).toHaveLength(1);
     expect(chunks[0].words.map((w) => w.text)).toEqual(["Go", "now.", "Fast."]);

@@ -140,6 +140,33 @@ async function main() {
   }
   console.log();
 
+  // ── Step 2.5: DOM layout verification (safe-zone / right-rail / overflow) ──
+  // Render-level hard gate: a scene whose geometry violates the safe zones
+  // must never reach the recorder. Bypass with --skip-dom-check (legacy
+  // content that has not migrated to the slot layout — see
+  // docs/brand-system.md → Layout Safety).
+  const skipDomCheck = process.argv.includes("--skip-dom-check");
+  if (skipDomCheck) {
+    console.log("📐 Step 2.5: DOM layout verification skipped (--skip-dom-check)\n");
+  } else {
+    console.log("📐 Step 2.5: Verifying scene DOM layout (safe zones)...\n");
+    try {
+      execSync(`node "${join(__dirname, "verify-scene-dom.mjs")}" --content "${contentDir}"`, {
+        stdio: "inherit",
+      });
+    } catch {
+      console.error(
+        "\n❌ DOM layout verification FAILED — scene content enters a TikTok safe zone.",
+      );
+      console.error(
+        "   Migrate the scene to the slot layout (docs/brand-system.md), or bypass with",
+      );
+      console.error("   --skip-dom-check (legacy content only, not recommended).");
+      process.exit(1);
+    }
+    console.log();
+  }
+
   // ── Step 3: Record videos ──
   console.log("📹 Step 3: Recording scene videos with Playwright...\n");
   const videoResults = await recordScenes(sceneData, videoDir);
