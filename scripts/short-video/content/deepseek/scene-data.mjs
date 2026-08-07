@@ -35,7 +35,7 @@ export const scenes = [
       events: [
         { date: "MAY", text: "Closed-door investor meeting" },
         { date: "JULY 22", text: "Full transcript leaks on WeChat" },
-        { date: "HOURS LATER", text: "Articles removed — screenshots spread" },
+        { date: "HOURS LATER", text: "Articles removed, screenshots spread" },
         { date: "JULY 25", text: "Bloomberg: funding round paused" },
       ],
     },
@@ -74,7 +74,7 @@ export const scenes = [
         { num: "6x", label: "MARGIN" },
         { num: "1/20", label: "VS CLAUDE" },
       ],
-      note: "Could double the price.",
+      note: "Could charge 2x.",
       noteHighlight: "Chose not to.",
     },
   },
@@ -96,7 +96,7 @@ export const scenes = [
         "Actively helps rivals deploy",
         "Cost barrier is structural",
       ],
-      quote: "Like BYD batteries — same tech, but can you match that price?",
+      quote: "Like BYD batteries: same tech, but can you match that price?",
       quoteHighlight: "BYD batteries",
     },
   },
@@ -105,14 +105,14 @@ export const scenes = [
     name: "deployment-cost",
     visualType: "deployment-cost",
     voiceover:
-      "Why is DeepSeek's cost so low? They built a compiler called TileLang that rewrites the entire CUDA stack. AI can now generate compatible ecosystem code. And dedicated AI chips no longer need gaming GPU compatibility. Nvidia's moat is eroding.",
+      "Why is DeepSeek's cost so low? They built a compiler called TileLang that rewrites the entire CUDA stack. AI can now generate compatible software code. And dedicated AI chips no longer need gaming GPU compatibility. Nvidia's moat is eroding.",
     texts: {
       title: "THE",
       titleHighlight: "COST MOAT",
       tilelang: "TileLang",
-      tilelangDesc: "DeepSeek's compiler — rewrites the full CUDA stack",
+      tilelangDesc: "DeepSeek's compiler: rewrites the full CUDA stack",
       factors: [
-        { num: "1", text: "AI can now generate<br>compatible ecosystem code" },
+        { num: "1", text: "AI writes<br>compatible software code" },
         { num: "2", text: "TileLang replaces<br>the CUDA software layer" },
         { num: "3", text: "Dedicated AI chips don't need<br>gaming GPU compatibility" },
       ],
@@ -124,7 +124,7 @@ export const scenes = [
     name: "agi-staircase",
     visualType: "staircase",
     voiceover:
-      "Liang mapped out six steps to AGI. Language models, chain of thought, agents, continuous learning, self-iteration, and embodied AI. The next bottleneck is continuous learning — the model that can finally remember context.",
+      "Liang mapped out six steps to AGI. Language models, chain of thought, agents, continuous learning, self-iteration, and embodied AI. The next bottleneck is continuous learning. The model that can finally remember context.",
     texts: {
       title: "THE",
       titleHighlight: "6-STEP",
@@ -178,7 +178,7 @@ export const scenes = [
       needLabel: "FRONTIER SCALE",
       vsText: "vs",
       reserve: "$7.4B",
-      reserveLabel: "ALL RESERVES — STILL NOT ENOUGH",
+      reserveLabel: "ALL RESERVES, STILL NOT ENOUGH",
       verdict: "10x gap.",
       verdictHighlight: "Money alone can't close it.",
     },
@@ -188,7 +188,7 @@ export const scenes = [
     name: "huawei-ecosystem",
     visualType: "huawei-ecosystem",
     voiceover:
-      "But China's chip problem is about to be solved. Huawei's 950 supernode matches Nvidia's GB300 in all tasks. The tradeoff: four Huawei chips equal one Nvidia in performance, with a two-year generation gap. Liang predicted the ecosystem problem disappears within one year.",
+      "But China's chip problem is about to be solved. Huawei's 950 supernode matches Nvidia's GB300 in all tasks. The tradeoff: four Huawei chips equal one Nvidia in performance, with a two-year generation gap. Liang predicted that compatibility gap disappears within one year.",
     texts: {
       title: "CHINA'S",
       titleHighlight: "CHIP ANSWER",
@@ -203,7 +203,7 @@ export const scenes = [
         { num: "4 : 1", label: "HUAWEI : NVIDIA" },
         { num: "2 YEARS", label: "GENERATION GAP" },
       ],
-      prediction: "ECOSYSTEM PROBLEM SOLVED",
+      prediction: "COMPATIBILITY GAP SOLVED",
       predictionSub: "Liang's prediction: within 1 year",
     },
   },
@@ -218,8 +218,8 @@ export const scenes = [
       titleHighlight: "DEVASTATING",
       factors: [
         { num: "1", title: "SECRECY", text: "Near-zero public presence. Declined all media for 3 years.", color: "red" },
-        { num: "2", title: "NAMED RIVALS", text: "Direct criticism of Zhipu, ByteDance, Alibaba, Tencent — in his own words.", color: "amber" },
-        { num: "3", title: "TRADE SECRETS", text: "GPU stockpile numbers & pricing logic that competitors would pay to know.", color: "purple" },
+        { num: "2", title: "NAMED RIVALS", text: "Direct criticism of Zhipu, ByteDance, Alibaba, Tencent, in his own words.", color: "amber" },
+        { num: "3", title: "TRADE SECRETS", text: "GPU stockpile numbers & pricing logic, closely guarded.", color: "purple" },
       ],
     },
   },
@@ -227,7 +227,7 @@ export const scenes = [
     id: 12,
     name: "cta",
     visualType: "cta",
-    voiceover: "That's the full picture. Follow for more China AI deep dives.",
+    voiceover: "One leaked meeting. One paused round. Follow for more China AI breakdowns.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",
