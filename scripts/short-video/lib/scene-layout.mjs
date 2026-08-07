@@ -11,16 +11,18 @@
  *
  *   brandHeader 60-140    channel chrome zone (watermark / brand bar)
  *   kickerTitle 220-400   badge / section title
- *   hero        400-1080  main visual (numbers, cards, comparisons), centered
- *   support     1080-1340 source / conclusion / supporting detail
- *   [subtitle lane 1416-1530 — content never enters; see safe-zones.mjs]
+ *   hero        400-950   main visual (numbers, cards, comparisons), centered
+ *   support     950-1150  source / conclusion / supporting detail
+ *   [subtitle lane 1188-1350 — content never enters; see safe-zones.mjs]
  *
- * All values derive from lib/safe-zones.mjs (single source of truth).
+ * The content band ends at y=1150 (recalibrated) so the larger 60px subtitle
+ * lane starting at y1188 has clearance; hero/support were re-flowed into the
+ * tighter 400-1150 span. All values derive from lib/safe-zones.mjs.
  */
 
 import { CANVAS, SAFE_ZONES } from "./safe-zones.mjs";
 
-/** Content band bottom edge — must equal 1920 − SAFE_ZONES.bottom (1340). */
+/** Content band bottom edge — must equal 1920 − SAFE_ZONES.bottom (1150). */
 const CONTENT_BOTTOM = CANVAS.height - SAFE_ZONES.bottom;
 
 /**
@@ -33,12 +35,12 @@ export const SLOTS = {
   /** Badge / section title band. */
   kickerTitle: { top: SAFE_ZONES.top, bottom: 400 },
   /** Main visual band — biggest slot, content centers within it. */
-  hero: { top: 400, bottom: 1080 },
+  hero: { top: 400, bottom: 950 },
   /** Source / conclusion / supporting detail band. */
-  support: { top: 1080, bottom: CONTENT_BOTTOM },
+  support: { top: 950, bottom: CONTENT_BOTTOM },
 };
 
-/** Horizontal content band, from SAFE_ZONES (x ∈ [60, 920] on 1080 canvas). */
+/** Horizontal content band, from SAFE_ZONES (x ∈ [60, 880] on 1080 canvas). */
 export const SLOT_X = {
   left: SAFE_ZONES.left,
   right: CANVAS.width - SAFE_ZONES.right,

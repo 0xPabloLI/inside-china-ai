@@ -7,6 +7,11 @@
  *   1. No content element crosses the TOP or BOTTOM safe-zone bands
  *      (TikTok tabs bar / subtitle lane + caption zone). Background layers,
  *      brand bars, brand logos and watermarks are exempt by design.
+ *   1b. No content element crosses the RIGHT band (x880) WITHIN the action
+ *      rail's vertical extent (y≈640-1775). The rail (avatar/like/comment/
+ *      save/share/music) is an opaque occluder measured from a real FYP
+ *      screenshot — content there is unreadable. Crossings ABOVE the rail
+ *      (top chrome, y<640) are WARN only, since nothing occludes there.
  *   2. No text element overflows its box horizontally (scrollWidth).
  *   3. Rendered text contains no "undefined".
  *   4. Per-pipeline expectations: watermark skip sets, legacy footer
@@ -15,8 +20,7 @@
  *      (guards mid-word breaks like the old "EXTRAORDINA RY" bug).
  *
  *   WARN level (reported, non-fatal):
- *   - Elements crossing the RIGHT band (right action rail is translucent;
- *     full-width titles are by design).
+ *   - Elements crossing the RIGHT band ABOVE the action rail (top chrome).
  *
  * Usage:
  *   node scripts/short-video/verify-scene-dom.mjs --content restraint/pt1
@@ -110,7 +114,10 @@ const exp = EXPECTATIONS[contentDir] || {
 const BAND = {
   top: SAFE_ZONES.top, // content must start below this y (FAIL)
   bottom: 1920 - SAFE_ZONES.bottom, // content must end above this y (FAIL)
-  right: 1080 - SAFE_ZONES.right, // content should end left of this x (WARN)
+  right: 1080 - SAFE_ZONES.right, // content must end left of this x within the rail (FAIL)
+  // Action rail vertical extent (screenshot-measured, y≈655-1775); crossing
+  // `right` inside this band is a hard FAIL, above it (top chrome) a WARN.
+  railTop: 640,
 };
 
 async function main() {
@@ -159,7 +166,13 @@ async function main() {
           } else if (r.bottom > band.bottom + 1) {
             fails.push(`${label} (B${Math.round(r.bottom)})`);
           } else if (r.right > band.right + 1) {
-            warns.push(`${label} (R${Math.round(r.right)})`);
+            // Crossing the right band is only occluded inside the action rail's
+            // vertical extent; above it (top chrome) it's a non-fatal warning.
+            if (r.bottom > band.railTop) {
+              fails.push(`${label} (R${Math.round(r.right)})`);
+            } else {
+              warns.push(`${label} (R${Math.round(r.right)})`);
+            }
           }
         };
         for (const el of document.querySelectorAll("body *")) {
@@ -173,7 +186,12 @@ async function main() {
       { exempt: EXEMPT_SELECTORS, band: BAND, brandChrome: BRAND_CHROME },
     );
     for (const f of fails) {
-      problems.push(`${/\(T\d+\)$/.test(f) ? "top-zone" : "bottom-zone"}: ${f}`);
+      const zone = /\(T\d+\)$/.test(f)
+        ? "top-zone"
+        : /\(R\d+\)$/.test(f)
+          ? "right-rail"
+          : "bottom-zone";
+      problems.push(`${zone}: ${f}`);
     }
     for (const w of bwarns) warns.push(`right-band: ${w}`);
 

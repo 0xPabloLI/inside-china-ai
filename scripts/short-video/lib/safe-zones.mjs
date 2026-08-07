@@ -2,18 +2,23 @@
  * TikTok Safe Zones — single source of truth for on-screen layout limits.
  * Canvas: 1080×1920 (9:16 vertical video).
  *
- * TikTok FYP overlay layout (2026 research, Zeely/Kreatli):
- *  - Top UI ("Following | For You" tabs, username) ≈ top 150-200px band
- *  - Right action rail (profile / like / comment / bookmark / share) ≈ right
- *    120-140px, mid-lower band of the screen
- *  - Left rail (username + caption box) ≈ bottom 250-320px + left edge
+ * Calibrated against a real FYP playback screenshot (scaled ×1.875 from a
+ * 576-wide capture) and cross-checked with 2026 research (quso/Moda 170K-post
+ * analysis, Kreatli, vSubtitle, Blitzcut):
+ *  - Top UI ("Community | Following | For You" tabs, search) ≈ top 0-165px
+ *  - Right action rail (avatar / like / comment / save / share / music disc)
+ *    measured at x≈880-1080, y≈655-1775 — the heaviest occluder
+ *  - Bottom caption/username climbs to y≈1500 worst case (long caption +
+ *    safety label); bottom nav bar y≈1790-1905
+ *  - TikTok native auto-captions measured ~60px em (≈3.1% of frame height),
+ *    centered at ~62-70% of frame height
  *
  * Region separation (spec: docs/specs/spec-video-layout-safe-zones.md):
  * the canvas is split into NON-OVERLAPPING bands — content must never enter
  * the burned-subtitle lane, and nothing may enter the TikTok UI zones:
  *
- *   content (≤ y=1340) → breathing gap → subtitle lane (y≈1417-1530)
- *   → TikTok caption UI (y≥1600)
+ *   content (≤ y=1150, x∈[60,880]) → gap → subtitle lane (y≈1188-1350, 60px,
+ *   x∈[180,900]) → clean margin → TikTok caption UI (y≥1500 worst case)
  *
  * Invariants are test-locked in __tests__/safe-zones.test.mjs.
  *
@@ -28,41 +33,43 @@
 export const CANVAS = { width: 1080, height: 1920 };
 
 export const SAFE_ZONES = {
-  /** Content must start below this many px from the top edge */
+  /** Content must start below this many px from the top edge (clears top nav) */
   top: 220,
-  /** Content must stay at least this many px from the right edge */
-  right: 160,
-  /** Content bottom edge = 1920 − 580 = 1340 — ABOVE the subtitle lane */
-  bottom: 580,
+  /** Right margin = 200 → content right edge x=880, clearing the action rail */
+  right: 200,
+  /** Content bottom edge = 1920 − 770 = 1150 — ABOVE the subtitle lane */
+  bottom: 770,
   /** Content must stay at least this many px from the left edge */
   left: 60,
 };
 
 /**
  * Burned-in subtitle lane (ASS style, lib/subtitles/ass.mjs).
- * marginV places the cue BOTTOM edge at 1920 − 390 = 1530; the lane reserves
- * height for two lines of 42px text (with 1.35 line-height safety factor)
- * so even a worst-case libass wrap stays clear of platform UI and of scene
- * content (which ends at y=1340).
+ * marginV places the cue BOTTOM edge at 1920 − 570 = 1350; the lane reserves
+ * height for two lines of 60px text (with 1.35 line-height safety factor),
+ * sitting at ~62-70% of frame height (TikTok native-caption band) and clearing
+ * both scene content (ends y=1150) and the bottom caption UI (y≥1500). The
+ * side margins derive from maxWidth (720 → 180 each) so the cue right edge
+ * (x=900) clears the right action rail (x≈880).
  */
 export const SUBTITLE_LANE = {
   /** ASS MarginV — subtitle bottom edge distance from the canvas bottom */
-  marginV: 390,
-  /** ASS font size (Helvetica Neue Bold) */
-  fontSize: 42,
+  marginV: 570,
+  /** ASS font size (Helvetica Neue Bold) — matches TikTok native ~60px */
+  fontSize: 60,
   /** Reserved line count (worst-case wrap) */
   maxLines: 2,
   /** Per-line height factor (font ascent/descent + safety) */
   lineHeight: 1.35,
-  /** Max single-line cue width in px (margins derive from this: 65px each) */
-  maxWidth: 950,
+  /** Max single-line cue width in px (margins derive from this: 180px each) */
+  maxWidth: 720,
 };
 
-/** Subtitle lane bottom edge on the canvas, in px (y = 1530). */
+/** Subtitle lane bottom edge on the canvas, in px (y = 1350). */
 export const SUBTITLE_LANE_BOTTOM =
   CANVAS.height - SUBTITLE_LANE.marginV;
 
-/** Subtitle lane top edge, in px (y = 1416) — two lines, ceiling-rounded so
+/** Subtitle lane top edge, in px (y = 1188) — two lines, ceiling-rounded so
  *  the reserved height NEVER drops below fontSize × lineHeight × maxLines. */
 export const SUBTITLE_LANE_TOP =
   CANVAS.height -

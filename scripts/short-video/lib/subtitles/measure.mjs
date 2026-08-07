@@ -4,7 +4,7 @@
  * Approximates Helvetica Neue Bold advance widths using the Adobe
  * Helvetica-Bold AFM table (widths per 1000-em). measureWidth() scales the
  * sums by the subtitle font size, so chunking can guarantee single-line cues
- * against SUBTITLE_LANE.maxWidth (950px) in the normal case.
+ * against SUBTITLE_LANE.maxWidth (720px) in the normal case.
  *
  * This is intentionally an approximation: rendering devices may substitute
  * fonts and shape differently. The two-line reserved subtitle lane

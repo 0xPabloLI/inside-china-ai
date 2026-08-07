@@ -25,9 +25,11 @@ export const COLOR_UNSPOKEN = "&H00F5F5F5";
 export const COLOR_SPOKEN = "&H00FF8B4D";
 
 // Position and size come from lib/safe-zones.mjs (single source of truth):
-// marginV 390 keeps the cue BOTTOM edge at y=1530, clear of the TikTok
-// caption UI; the side margins derive from SUBTITLE_LANE.maxWidth (950px),
-// so the cue width contract and the reserved lane can never drift apart.
+// marginV 570 keeps the cue BOTTOM edge at y=1350 (~62-70% of frame height,
+// the TikTok native-caption band) and clear of the bottom caption UI; the
+// side margins derive from SUBTITLE_LANE.maxWidth (720px → 180px each, right
+// edge x=900 clearing the action rail), so the cue width contract and the
+// reserved lane can never drift apart.
 const DEFAULT_STYLE = {
   fontName: "Helvetica Neue",
   fontSize: SUBTITLE_LANE.fontSize,

@@ -21,10 +21,15 @@ import { measureWidth } from "./measure.mjs";
 
 /** Maximum words per cue — beyond this the karaoke sweep is too fast to track. */
 export const MAX_WORDS = 6;
-/** Soft pixel limit: break here only if it doesn't orphan the last word. */
-export const SOFT_PX = 820;
 /** Hard pixel limit: a line never exceeds this (lanes stay single-line normal case). */
 export const HARD_PX = SUBTITLE_LANE.maxWidth;
+/**
+ * Soft pixel limit: break here only if it doesn't orphan the last word.
+ * Derived at 85% of the hard limit so it always sits below it — when maxWidth
+ * shrank from 950 to 720 (60px font recalibration) a hardcoded soft limit
+ * would have exceeded the hard limit and disabled early breaking.
+ */
+export const SOFT_PX = Math.round(HARD_PX * 0.85);
 /** Minimum time a cue stays on screen, in seconds. */
 export const MIN_DURATION = 0.8;
 /** How long a cue lingers after its last word, when there is room. */

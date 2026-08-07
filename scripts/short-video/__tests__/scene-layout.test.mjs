@@ -26,9 +26,10 @@ describe("SLOTS (vertical bands)", () => {
   });
 
   it("keeps the support slot fully above the subtitle lane", () => {
-    // Content bottom edge = 1920 - SAFE_ZONES.bottom = 1340
+    // Content bottom edge = 1920 - SAFE_ZONES.bottom = 1150 (recalibrated:
+    // content ends higher to clear the larger 60px subtitle lane at y1188).
     expect(SLOTS.support.bottom).toBe(1920 - SAFE_ZONES.bottom);
-    expect(SLOTS.support.bottom).toBe(1340);
+    expect(SLOTS.support.bottom).toBe(1150);
   });
 
   it("keeps the brand header in the top chrome corner", () => {
@@ -41,7 +42,7 @@ describe("SLOT_X (horizontal band)", () => {
   it("derives from SAFE_ZONES left/right", () => {
     expect(SLOT_X.left).toBe(SAFE_ZONES.left);
     expect(SLOT_X.right).toBe(CANVAS.width - SAFE_ZONES.right);
-    expect(SLOT_X.right).toBe(920);
+    expect(SLOT_X.right).toBe(880);
   });
 });
 
@@ -59,15 +60,15 @@ describe("slotCss", () => {
     expect(css).toContain(`right: ${CANVAS.width - SLOT_X.right}px`);
   });
 
-  it("keeps the content band at x ∈ [60, 920], never narrower", () => {
-    // Regression: SLOT_X.right is an x-coordinate (920), not a CSS right
-    // inset — passing it raw to `right:` shrunk every slot to 100px
-    // (1080 − 60 − 920) and squeezed all scene text into a narrow column.
+  it("keeps the content band at x ∈ [60, 880], never narrower", () => {
+    // Regression: SLOT_X.right is an x-coordinate (880), not a CSS right
+    // inset — passing it raw to `right:` shrunk every slot to 140px
+    // (1080 − 60 − 880) and squeezed all scene text into a narrow column.
     const css = slotCss();
     expect(css).toContain(`left: 60px`);
-    expect(css).toContain(`right: 160px`);
-    // 1080 − 60 − 160 = 860px usable content width
-    expect(SLOT_X.right - SLOT_X.left).toBe(860);
+    expect(css).toContain(`right: 200px`);
+    // 1080 − 60 − 200 = 820px usable content width
+    expect(SLOT_X.right - SLOT_X.left).toBe(820);
   });
 });
 

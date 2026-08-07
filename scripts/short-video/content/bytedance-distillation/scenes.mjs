@@ -37,7 +37,7 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
 @keyframes scanSweep { 0% { top: 0; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
 .s1 .subject { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 6px; text-shadow: 0 0 40px rgba(77,139,255,0.5); animation: fadeIn 0.4s ease-out 0.2s forwards; opacity: 0; }
 .s1 .hook-text { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 3px; line-height: 1.2; text-align: center; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: hookIn 0.3s ease-out 0.5s forwards; opacity: 0; }
-.s1 .reveal-text { font-size: 96px; font-weight: 900; color: var(--blue); letter-spacing: 1px; line-height: 1; text-align: center; white-space: nowrap; text-shadow: 0 0 80px rgba(77,139,255,0.6), 0 0 160px rgba(77,139,255,0.3); animation: stampIn 0.6s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite; opacity: 0; }
+.s1 .reveal-text { font-size: 84px; font-weight: 900; color: var(--blue); letter-spacing: 1px; line-height: 1.05; text-align: center; max-width: 100%; text-shadow: 0 0 80px rgba(77,139,255,0.6), 0 0 160px rgba(77,139,255,0.3); animation: stampIn 0.6s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite; opacity: 0; }
 .s1 .source { font-size: 28px; font-weight: 700; color: var(--sec); letter-spacing: 3px; text-align: center; animation: fadeIn 0.4s ease-out 2.1s forwards; opacity: 0; }
 </style></head><body>
 <div class="scene s1">
@@ -160,89 +160,89 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
 </div></body></html>`;
 }
 
-/* ── S6: Comparison — Anthropic accusations ── */
+/* ── S6: Comparison — Anthropic accusations (vertical stack) ── */
 function scene6(scene, duration) {
   const txt = scene.texts || {};
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}${templateCss()}${slotCss()}
 .s6 .glow-blue { bottom: -200px; left: -200px; width: 900px; height: 900px; background: radial-gradient(circle, rgba(77,139,255,0.12) 0%, transparent 60%); }
-.s6 .accused-row { display: flex; gap: 24px; align-items: stretch; width: 100%; }
-.s6 .accused-card { flex: 1; border-radius: 16px; padding: 40px 16px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
-.s6 .accused-card.one { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.3); animation-delay: 0.3s; }
-.s6 .accused-card.two { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.3); animation-delay: 0.6s; }
-.s6 .accused-card.three { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.3); animation-delay: 0.9s; }
-.s6 .accused-card .name { font-size: 34px; font-weight: 800; color: var(--white); letter-spacing: 1px; }
-.s6 .accused-card .stat { font-size: 30px; font-weight: 900; color: var(--red); margin-top: 14px; letter-spacing: -1px; }
-.s6 .bytedance-box { border-radius: 20px; padding: 40px 60px; text-align: center; animation: scaleIn 0.5s ease-out 1.3s forwards; opacity: 0; }
+.s6 .accused-stack { display: flex; flex-direction: column; gap: 28px; width: 100%; }
+.s6 .accused-item { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-radius: 16px; padding: 34px 48px; background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.3); animation: slideLeft 0.5s ease-out forwards; opacity: 0; }
+.s6 .accused-item.one { animation-delay: 0.3s; }
+.s6 .accused-item.two { animation-delay: 0.6s; }
+.s6 .accused-item.three { animation-delay: 0.9s; }
+.s6 .accused-item .name { font-size: 44px; font-weight: 800; color: var(--white); letter-spacing: 1px; }
+.s6 .accused-item .stat { font-size: 36px; font-weight: 900; color: var(--red); letter-spacing: -1px; }
+.s6 .bytedance-box { width: 100%; border-radius: 20px; padding: 40px 48px; text-align: center; animation: scaleIn 0.5s ease-out 1.3s forwards; opacity: 0; }
 .s6 .bytedance-box.clean { background: rgba(52,211,153,0.08); border: 2px solid rgba(52,211,153,0.4); box-shadow: 0 0 40px rgba(52,211,153,0.15); }
-.s6 .bytedance-box .text { font-size: 40px; font-weight: 900; color: var(--green); letter-spacing: 3px; }
+.s6 .bytedance-box .text { font-size: 48px; font-weight: 900; color: var(--green); letter-spacing: 3px; }
 </style></head><body>
 <div class="scene s6">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
   ${brandBar()}
   ${sceneFrame({
     kicker: titleBlock(t(txt, "title"), { center: true, fontSize: 44, color: "sec" }),
-    hero: `<div class="accused-row"><div class="accused-card one"><div class="name">${t(txt, "left")}</div><div class="stat">${t(txt, "leftStat")}</div></div><div class="accused-card two"><div class="name">${t(txt, "middle")}</div><div class="stat">${t(txt, "middleStat")}</div></div><div class="accused-card three"><div class="name">${t(txt, "right")}</div><div class="stat">${t(txt, "rightStat")}</div></div></div>`,
+    hero: `<div class="accused-stack"><div class="accused-item one"><span class="name">${t(txt, "left")}</span><span class="stat">${t(txt, "leftStat")}</span></div><div class="accused-item two"><span class="name">${t(txt, "middle")}</span><span class="stat">${t(txt, "middleStat")}</span></div><div class="accused-item three"><span class="name">${t(txt, "right")}</span><span class="stat">${t(txt, "rightStat")}</span></div></div>`,
     support: `<div class="bytedance-box clean"><div class="text">${t(txt, "bytedance")}</div></div>`,
   })}
 </div></body></html>`;
 }
 
-/* ── S7: Data — compute gap ── */
+/* ── S7: Data — compute gap (vertical A/VS/B stack) ── */
 function scene7(scene, duration) {
   const txt = scene.texts || {};
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}${templateCss()}${slotCss()}
 .s7 .glow-red { position: absolute; top: -200px; right: -200px; width: 800px; height: 800px; background: radial-gradient(circle, rgba(239,68,68,0.12) 0%, transparent 60%); }
-.s7 .chip-compare { display: flex; align-items: center; gap: 40px; }
-.s7 .chip-box { width: 340px; border-radius: 24px; padding: 60px 36px; text-align: center; animation: scaleIn 0.5s ease-out forwards; opacity: 0; }
+.s7 .chip-stack { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; }
+.s7 .chip-box { width: 640px; border-radius: 24px; padding: 32px 36px; text-align: center; animation: scaleIn 0.5s ease-out forwards; opacity: 0; }
 .s7 .chip-box.h20 { background: rgba(52,211,153,0.06); border: 2px solid rgba(52,211,153,0.3); animation-delay: 0.3s; }
 .s7 .chip-box.b200 { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.4); animation-delay: 1.0s; box-shadow: 0 0 40px rgba(239,68,68,0.15); }
-.s7 .chip-box .chip-name { font-size: 110px; font-weight: 900; line-height: 1; margin-bottom: 20px; }
+.s7 .chip-box .chip-name { font-size: 92px; font-weight: 900; line-height: 1; margin-bottom: 12px; }
 .s7 .chip-box.h20 .chip-name { color: var(--green); }
 .s7 .chip-box.b200 .chip-name { color: var(--red); }
-.s7 .chip-box .chip-label { font-size: 26px; font-weight: 700; letter-spacing: 3px; }
+.s7 .chip-box .chip-label { font-size: 28px; font-weight: 700; letter-spacing: 3px; }
 .s7 .chip-box.h20 .chip-label { color: var(--green); }
 .s7 .chip-box.b200 .chip-label { color: var(--red); }
-.s7 .vs { font-size: 60px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; }
-.s7 .bottom-info { display: flex; flex-direction: column; align-items: center; gap: 20px; animation: fadeIn 0.5s ease-out 1.5s forwards; opacity: 0; }
+.s7 .vs { font-size: 56px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; }
+.s7 .bottom-info { display: flex; flex-direction: column; align-items: center; gap: 18px; animation: fadeIn 0.5s ease-out 1.5s forwards; opacity: 0; }
 .s7 .bottom-info .source { font-size: 26px; font-weight: 700; color: var(--sec); letter-spacing: 3px; }
 </style></head><body>
 <div class="scene s7">
   <div class="grid-bg"></div><div class="glow-red"></div><div class="scanlines"></div>
   ${brandBar()}
   ${sceneFrame({
-    hero: `<div class="chip-compare"><div class="chip-box h20"><div class="chip-name">${t(txt, "chip")}</div><div class="chip-label">${t(txt, "chipLabel")}</div></div><div class="vs">${t(txt, "vsText")}</div><div class="chip-box b200"><div class="chip-name">${t(txt, "vs")}</div><div class="chip-label">${t(txt, "vsLabel")}</div></div></div>`,
+    hero: `<div class="chip-stack"><div class="chip-box h20"><div class="chip-name">${t(txt, "chip")}</div><div class="chip-label">${t(txt, "chipLabel")}</div></div><div class="vs">${t(txt, "vsText")}</div><div class="chip-box b200"><div class="chip-name">${t(txt, "vs")}</div><div class="chip-label">${t(txt, "vsLabel")}</div></div></div>`,
     support: `<div class="bottom-info">${stampBox({ text: t(txt, "gap"), color: "red" })}<div class="source">${t(txt, "source")}</div></div>`,
   })}
 </div></body></html>`;
 }
 
-/* ── S8: Contrast — same day ── */
+/* ── S8: Contrast — same day (vertical A/VS/B stack) ── */
 function scene8(scene, duration) {
   const txt = scene.texts || {};
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}${templateCss()}${slotCss()}
 .s8 .glow-blue { bottom: -200px; left: -200px; width: 900px; height: 900px; background: radial-gradient(circle, rgba(77,139,255,0.12) 0%, transparent 60%); }
-.s8 .cols { display: flex; gap: 40px; align-items: stretch; width: 100%; position: relative; }
-.s8 .col { flex: 1; border-radius: 20px; padding: 44px 32px; text-align: center; animation: scaleIn 0.5s ease-out forwards; opacity: 0; }
-.s8 .col.left { background: rgba(245,158,11,0.08); border: 2px solid rgba(245,158,11,0.4); animation-delay: 0.3s; box-shadow: 0 0 40px rgba(245,158,11,0.15); }
-.s8 .col.right { background: rgba(77,139,255,0.08); border: 2px solid rgba(77,139,255,0.4); animation-delay: 1.0s; }
-.s8 .col .company { font-size: 52px; font-weight: 900; letter-spacing: 2px; margin-bottom: 32px; line-height: 1.2; }
-.s8 .col.left .company { color: var(--amber); }
-.s8 .col.right .company { color: var(--blue); }
-.s8 .col .action { font-size: 32px; font-weight: 800; letter-spacing: 2px; line-height: 1.3; color: var(--white); }
-.s8 .vs-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; z-index: 10; background: #050508; }
+.s8 .vstack { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; }
+.s8 .vcard { width: 680px; border-radius: 20px; padding: 36px 40px; text-align: center; animation: scaleIn 0.5s ease-out forwards; opacity: 0; }
+.s8 .vcard.left { background: rgba(245,158,11,0.08); border: 2px solid rgba(245,158,11,0.4); animation-delay: 0.3s; box-shadow: 0 0 40px rgba(245,158,11,0.15); }
+.s8 .vcard.right { background: rgba(77,139,255,0.08); border: 2px solid rgba(77,139,255,0.4); animation-delay: 1.0s; }
+.s8 .vcard .company { font-size: 52px; font-weight: 900; letter-spacing: 2px; margin-bottom: 16px; line-height: 1.2; }
+.s8 .vcard.left .company { color: var(--amber); }
+.s8 .vcard.right .company { color: var(--blue); }
+.s8 .vcard .action { font-size: 32px; font-weight: 800; letter-spacing: 2px; line-height: 1.3; color: var(--white); }
+.s8 .vs-mid { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--muted); background: #050508; animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; }
 </style></head><body>
 <div class="scene s8">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
   ${brandBar()}
   ${sceneFrame({
     kicker: titleBlock(t(txt, "title"), { center: true, fontSize: 44, color: "sec" }),
-    hero: `<div class="cols"><div class="col left"><div class="company">${t(txt, "left")}</div><div class="action">${t(txt, "leftAction")}</div></div><div class="col right"><div class="company">${t(txt, "right")}</div><div class="action">${t(txt, "rightAction")}</div></div><div class="vs-circle">${t(txt, "vs")}</div></div>`,
+    hero: `<div class="vstack"><div class="vcard left"><div class="company">${t(txt, "left")}</div><div class="action">${t(txt, "leftAction")}</div></div><div class="vs-mid">${t(txt, "vs")}</div><div class="vcard right"><div class="company">${t(txt, "right")}</div><div class="action">${t(txt, "rightAction")}</div></div></div>`,
   })}
 </div></body></html>`;
 }

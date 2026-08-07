@@ -68,15 +68,16 @@ function templateCss() {
     .stamp-box .stamp-icon { font-size: 40px; line-height: 1; margin-bottom: 8px; }
     .stamp-box .stamp-text { font-size: 36px; font-weight: 900; color: var(--amber); letter-spacing: 2px; text-shadow: 0 0 30px rgba(245,158,11,0.3); }
     .stamp-box .stamp-sub { font-size: 24px; font-weight: 700; color: var(--sec); letter-spacing: 2px; margin-top: 8px; }
-    /* ── Standard CTA end card (ctaScene) — fixed layout, data-driven copy ── */
-    .s-cta { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    /* ── Standard CTA end card (ctaScene) — slot layout, data-driven copy ── */
+    .s-cta .cta-hero { display: flex; flex-direction: column; align-items: center; }
     .s-cta .brand-logo-large { width: 130px; height: 130px; margin-bottom: 40px; filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); animation: scaleIn 0.6s ease-out 0.1s forwards, logoPulse 3s ease-in-out 1s infinite; opacity: 0; }
     .s-cta .brand-logo-large svg { width: 100%; height: 100%; }
     .s-cta .brand-name { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 4px; margin-bottom: 16px; animation: scaleIn 0.6s ease-out 0.3s forwards; opacity: 0; }
     .s-cta .brand-name .hl { color: var(--blue); }
-    .s-cta .tagline { font-size: 32px; font-weight: 600; color: var(--sec); letter-spacing: 3px; margin-bottom: 60px; animation: fadeIn 0.5s ease-out 0.7s forwards; opacity: 0; }
+    .s-cta .tagline { font-size: 32px; font-weight: 600; color: var(--sec); letter-spacing: 3px; animation: fadeIn 0.5s ease-out 0.7s forwards; opacity: 0; }
+    .s-cta .cta-support { display: flex; flex-direction: column; align-items: center; gap: 24px; }
     .s-cta .action-box { animation: stampIn 0.5s ease-out 1.0s forwards; opacity: 0; }
-    .s-cta .topic { margin-top: 30px; font-size: 36px; font-weight: 700; color: var(--sec); letter-spacing: 3px; animation: fadeIn 0.5s ease-out 1.3s forwards; opacity: 0; }
+    .s-cta .topic { font-size: 36px; font-weight: 700; color: var(--sec); letter-spacing: 3px; animation: fadeIn 0.5s ease-out 1.3s forwards; opacity: 0; }
     /* ── Standard hook opening card (hookScene) — fixed skeleton, data-driven slots ── */
     .s-hook .scan-sweep { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(77,139,255,0.8), transparent); box-shadow: 0 0 20px rgba(77,139,255,0.5); animation: scanSweep var(--d) linear infinite; z-index: 50; }
     @keyframes scanSweep { 0% { top: 0; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
@@ -87,7 +88,7 @@ function templateCss() {
     .s-hook .subject-row .subject-logo { width: 120px; height: 120px; filter: drop-shadow(0 0 25px rgba(77,139,255,0.3)); } .s-hook .subject-row .subject-logo svg { width: 100%; height: 100%; }
     .s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 4px; }
     .s-hook .focal-claim { font-size: 78px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-align: center; animation: hookIn 0.3s ease-out forwards; }
-    .s-hook .focal-reveal { font-size: 96px; font-weight: 900; letter-spacing: 4px; line-height: 1; text-align: center; animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards; opacity: 0; }
+    .s-hook .focal-reveal { font-size: 80px; font-weight: 900; letter-spacing: 2px; line-height: 1.05; text-align: center; max-width: 100%; animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards; opacity: 0; }
     .s-hook .focal-number { font-size: 260px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-align: center; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.8s forwards, numberPulse 2s ease-in-out 1.5s infinite; opacity: 0; }
     .s-hook .focal-number-label { font-size: 48px; font-weight: 800; color: var(--white); letter-spacing: 3px; margin-top: 12px; text-align: center; animation: slideUp 0.5s ease-out 1.1s forwards; opacity: 0; }
     .s-hook .stats-row { display: flex; gap: 20px; justify-content: center; }
@@ -392,16 +393,21 @@ function ctaScene(scene, duration) {
   const brand = text("brand");
   const brandHtml = highlightSpan(brand, text("brandHighlight"), "blue");
 
+  const hero =
+    `<div class="cta-hero"><div class="brand-logo-large">${BRAND_MARK_SVG}</div>` +
+    `${brand ? `<div class="brand-name">${brandHtml}</div>` : ""}` +
+    `${text("tagline") ? `<div class="tagline">${text("tagline")}</div>` : ""}</div>`;
+  const support =
+    `<div class="cta-support">` +
+    `${text("action") ? `<div class="action-box">${stampBox({ text: `${text("action")} →`, color: "amber" })}</div>` : ""}` +
+    `${text("topic") ? `<div class="topic">${text("topic")}</div>` : ""}</div>`;
+
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-${baseStyles(duration)}${templateCss()}
+${baseStyles(duration)}${templateCss()}${slotCss()}
 </style></head><body>
 <div class="scene s-cta">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <div class="brand-logo-large">${BRAND_MARK_SVG}</div>
-  ${brand ? `<div class="brand-name">${brandHtml}</div>` : ""}
-  ${text("tagline") ? `<div class="tagline">${text("tagline")}</div>` : ""}
-  ${text("action") ? `<div class="action-box">${stampBox({ text: `${text("action")} →`, color: "amber" })}</div>` : ""}
-  ${text("topic") ? `<div class="topic">${text("topic")}</div>` : ""}
+  ${sceneFrame({ hero, support })}
   ${fadeToBlack(duration)}
 </div></body></html>`;
 }

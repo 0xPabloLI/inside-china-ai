@@ -84,7 +84,8 @@ describe("chunkWords", () => {
       ["it.", 2.1, 2.4],
     );
     const chunks = chunkWords(input);
-    // Whole line measures ~854px: legal as one chunk (≤950px)
+    // At 60px this line exceeds the 720px lane, so it splits — every emitted
+    // chunk must still fit the hard limit.
     for (const chunk of chunks) {
       expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
     }
@@ -92,7 +93,7 @@ describe("chunkWords", () => {
 
   it("splits lines that fit in characters but exceed the pixel limit", () => {
     // 6 short uppercase words: only 29 characters — old char limit (49)
-    // would emit one line, but the measured width is ~1010px > 950px.
+    // would emit one line, but the measured width is ~1443px > 720px.
     const big = "WWWW";
     const input = words(
       [big, 0, 0.1],
@@ -112,8 +113,8 @@ describe("chunkWords", () => {
   });
 
   it("splits worst-case wide words before the hard pixel limit (no over-limit merge)", () => {
-    // 8-char uppercase words: any 3-word line measures ~975px > 950px, so the
-    // splitter must keep lines at 1-2 words and refuse an orphan merge that
+    // 8-char uppercase words: any 2-word line measures ~923px > 720px, so the
+    // splitter must keep lines at 1 word and refuse an orphan merge that
     // would push the line over the limit.
     const w = "WWWWWWWW";
     const input = words(
@@ -133,16 +134,18 @@ describe("chunkWords", () => {
   });
 
   it("merges a trailing single-word chunk back into the previous line", () => {
+    // "Go now." ends a sentence, so "Fast." would flush as its own one-word
+    // chunk; since the combined line ("Go now. Fast.", ~393px) fits the 720px
+    // lane, the orphan is merged back rather than left to blink alone.
     const input = words(
-      ["Kindness", 0, 0.5],
-      ["over", 0.5, 0.8],
-      ["profit,", 0.8, 1.2],
-      ["always.", 1.3, 1.8],
+      ["Go", 0, 0.3],
+      ["now.", 0.35, 0.7],
+      ["Fast.", 0.8, 1.2],
     );
     const chunks = chunkWords(input);
     expect(chunks).toHaveLength(1);
-    expect(chunks[0].words.map((w) => w.text)).toEqual(["Kindness", "over", "profit,", "always."]);
-    expect(chunks[0].text).toBe("Kindness over profit, always.");
+    expect(chunks[0].words.map((w) => w.text)).toEqual(["Go", "now.", "Fast."]);
+    expect(chunks[0].text).toBe("Go now. Fast.");
   });
 
   it("returns nothing for an empty word list", () => {

@@ -141,12 +141,12 @@ function textChunks(src) {
 describe("scene drift guards", () => {
   describe("safe zone constants", () => {
     it("TikTok safe zones are the reviewed values", () => {
-      expect(SAFE_ZONES).toEqual({ top: 220, right: 160, bottom: 580, left: 60 });
+      expect(SAFE_ZONES).toEqual({ top: 220, right: 200, bottom: 770, left: 60 });
     });
 
     it("subtitle lane is separated from the content band (single source)", () => {
-      // Content bottom edge (1920-580=1340) must stay above the subtitle lane
-      // (bottom margin 390 → lane bottom y=1530, top ≈1416).
+      // Content bottom edge (1920-770=1150) must stay above the subtitle lane
+      // (marginV 570 → lane bottom y=1350, top ≈1188).
       expect(SAFE_ZONES.bottom).toBeGreaterThan(SUBTITLE_LANE.marginV);
     });
 
