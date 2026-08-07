@@ -200,6 +200,20 @@ docs/refs/source-materials/
 
 **关键理念**：不是纯总结，是 **总结 + 扩展**。
 
+#### 公司档案查阅（前置）
+
+Agent 在开始写文章前，先检查 `docs/refs/company-profiles/` 下是否有内容涉及的主要公司的档案。如有，读取相关档案获取：
+- 公司基本信息（创始时间、创始人、业务板块）
+- AI 团队与产品线（团队名、消费品牌、企业 API、开源策略）
+- 模型发布时间线、融资历史、关键人物
+- 计算基础设施（芯片、出口管制、云平台）
+- **Platform Context**（如有）— 公司与 TikTok / 发布平台的关联信息
+- 值得提及的背景事件
+
+当前已有档案：DeepSeek、ByteDance（含 TikTok 关系）、Moonshot/Kimi、MiniMax、Alibaba/Qwen、Baidu/ERNIE、Huawei/Ascend。
+
+> 这些档案是 RAG 前置工作（WP-2）的一部分，未来 RAG 管线建成后会被自动索引。目前 Agent 手动查阅。
+
 步骤：
 
 1. **总结核心叙事** → 拆分为 6-10 个章节
@@ -479,6 +493,8 @@ Agent 确认文章 markdown 文件已准备好（frontmatter + body + widget 标
 ## Stage 3: 文章 → scene-data（ISSUE-17）
 
 > **前置条件**：Stage 1 已完成（文章 markdown 已生成）。
+>
+> **公司档案**：如内容涉及已建档公司（见 `docs/refs/company-profiles/`），确保 scene-data 中的公司信息与档案一致。特别注意 ByteDance 的 Platform Context（TikTok 关系）— 如视频涉及 ByteDance，考虑在 voiceover 中简要提及 ByteDance 是 TikTok 的母公司（因为我们发布在 TikTok 上，观众会对这个 meta 关联感兴趣）。
 
 从文章 markdown 提炼视频脚本。
 
@@ -767,7 +783,39 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    - 有无明显的渲染问题（黑屏、错位、卡顿）
    - **文章内容是否准确**（如有问题可在此反馈，Agent 修改后重新发布）
    - **脚本叙事是否合理**（如有问题可在此反馈，Agent 修改后重新制作）
-6. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
+6. **输出 TikTok 发布前最佳实践提醒**（每次必输出，提醒用户发布时和发布后的操作）：
+
+   ```
+   📱 TikTok 发布前最佳实践提醒
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   
+   【发布时在 TikTok App 手动操作】
+   □ AIGC 标签：打开 "AI-generated content" 开关
+   □ 趋势音频：从 TikTok 音频库选热门音乐，音量 5-10%
+   □ 地理标签：添加 China/US 位置标签
+   □ Caption：≤2,200 chars，包含 SEO 关键词，3-5 个 hashtag
+   □ Hashtag 示例：#chinaai #deepseek #ai #technews #chinatech
+   
+   【发布后 1 小时内】
+   □ 回复所有评论（首小时互动信号影响算法推荐）
+   □ Pinned comment：置顶含文章 URL 的评论
+   □ 监控前 1h 播放数据：0 播放=可能 shadowban；100-200=200-View Jail；500+=正常
+   
+   【发布后 24-48h】
+   □ 检查 TikTok Analytics：完成率、For You 流量占比、分享/收藏率
+   □ 完成率 <30% → 下一条改进 Hook
+   □ For You 占比 <30% → 算法未推荐，检查内容是否触发降权
+   
+   【长期维护】
+   □ 不删除旧视频（删除移除算法数据点）
+   □ 不为了发而发（低质量内容损害账号健康）
+   □ 元素迭代法：每轮只换一个元素，用数据说话
+   
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   完整指南：docs/tiktok/tiktok-best-practices.md
+   ```
+
+7. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
 
 > ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。MRL-3 的自动合规检查是必要条件但非充分条件 — 机器无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。
 >

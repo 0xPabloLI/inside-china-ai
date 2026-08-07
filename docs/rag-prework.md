@@ -18,7 +18,7 @@
 | ✅ 完成 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | 1 session |
 | 🔴 高 | WP-5 | Widget 数据文档化（提取 sourceUrl） | 无 | 1 session |
 | 🔴 高 | WP-6 | Scene-data Metadata 统一与补全 | 无 | 1 session |
-| 🟡 中 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session |
+| 🟡 中 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session | ✅ 完成（2026-08-08） |
 | 🟡 中 | WP-7 | 文章 Frontmatter 扩展 | 无 | 0.5 session |
 | 🟡 中 | WP-8 | TikTok 方法论 PDF 结构化 | 无 | 1 session |
 | 🟢 低 | WP-3 | 主题事件时间线文档 | WP-2 | 1 session |
@@ -326,7 +326,7 @@ Agent 在写文章时如何调用 RAG？两个方案：
 
 ---
 
-### WP-2: 中国 AI 公司基础档案收集 🔍 调研工作 ｜ 状态：⏳ 未开始
+### WP-2: 中国 AI 公司基础档案收集 🔍 调研工作 ｜ 状态：✅ 完成（2026-08-08，7 家全部建档）
 
 **目标**：为 7 家主要中国 AI 公司建立结构化档案，作为多篇文章的共享数据源。
 
@@ -1131,7 +1131,7 @@ Agent 根据检索结果：
 | ✅ 已完成 | D1-D5 决策确认 | 无 | ✅ |
 | ✅ 已完成 | WP-10 技术方案文档 | D1-D5 | ✅ |
 | Session A | WP-1 + WP-5 + WP-6（无依赖，可并行） | 无 | ⏳ |
-| Session B | WP-2（公司档案，7 家，可分多 session） | 无 | ⏳ |
+| Session B | ~~WP-2（公司档案，7 家，可分多 session）~~ ✅ 完成 | 无 | ✅ |
 | Session C | WP-7 + WP-8（Frontmatter + TikTok PDF） | 无 | ⏳ |
 | Session D | WP-3 + WP-4（时间线 + 实体注册表） | WP-2 | ⏳ |
 | Session E | WP-9（素材索引文档） | WP-1/2/3/6 | ⏳ |
@@ -1153,3 +1153,4 @@ Agent 根据检索结果：
 | 2026-08-07 | Grill 技术方案（4 轮 19 问）：① Q1 索引触发改为 Hybrid 全量重建（发布自动触发 + 手动触发）② Q2 模型迁移用版本化表 ③ Q3 metadata 双重验证（CHECK + 应用层）④ Q4 超限 chunk 按段落细分 ⑤ Q5 topics 应用层标准化（小写）⑥ Q6 认证复用 loginAdmin()（无 service_role key）⑦ Q8 reranker 默认关 ⑧ Q11 widget data 不直接索引，改为提取 sourceUrl 抓取后索引 ⑨ Q12 scene-data 仍索引 ⑩ Q15 更新 CONTEXT.md + 创建 ADR-0007 ⑪ Q16 脚本目录 scripts/rag/ ⑫ Q17 RPC SECURITY INVOKER + COALESCE ⑬ Q18 UPSERT 幂等 ⑭ Q19 预检查 Ollama + 跳过失败 chunk。产出 spec-rag.md（含 26 条场景矩阵）+ tickets-rag.md（15 tickets，Phase 0 文档 + Phase 1/2 代码）+ ADR-0007 + CONTEXT.md RAG 术语。D3 索引范围修正：去掉 widget-data，加 widget-sources。WP-10 标记 ✅。 |
 | 2026-08-08 | WP-1 完成：① 删除重复 PDF（`国内大模型蒸馏风波的来龙去脉(1).pdf`，与 `china-llm-distillation-source.pdf` MD5 相同）② `梁文锋投资者交流会-录音转文本.pdf` → `deepseek-liang-investor-meeting-research.md`（~1970 words，5 个 ## section，12 个 ### 子节，含 AGI 路线图/算力资源/定价逻辑/Huawei 合作/TileLang 等）③ `china-llm-distillation-source.pdf` → `china-llm-distillation-research.md`（~2080 words，6 个 ## section，13 个 ### 子节，含加密 CoT 破解/Anthropic 指控/各厂蒸馏时间线/Kimi K3 刷分/技术附录）。两文件均遵循 bytedance research MD 模板，含 Sources/Key Facts/Data Tables/Timeline/Cross-References。WP-6 推迟（用户决定：历史数据在实验阶段，管线变动中，RAG 实施前统一处理）。 |
 | 2026-08-08 | WP-6 任务 3、4 完成：① `content/deepseek/meta.mjs` article slug 修正（`deepseek-funding-round` → `deepseek-art-of-restraint`）② 根目录遗留 scene-data pt3 迁移至 `content/restraint/pt3/` 标准结构（meta.mjs + scene-data.mjs + scenes.mjs；seriesMeta 收敛进 scene-data.mjs，符合现有约定）；随迁移修正 6 项 preflight fail（em-dash、AI 黑名单词、china 关键词、来源归属、数据点、字数 188→179），`verify-video --pre` 29 PASS/1 WARN/0 FAIL，scene-drift 扩展覆盖 pt3 ③ 盘点表/触发条件更新（源素材 4→3 份、scene-data 9→7 非空，重复 PDF 删除与 pt1/pt2 空文件删除见 commit `20cc3a8`）。遗留项：restraint-pt2 内容缺失（pt1 的 nextPartSlug 仍指向 restraint/pt2，pt3 prevPartSlug 置 null）。 |
+| 2026-08-08 | WP-2 完成：7 家中国 AI 公司档案全部建档（DeepSeek、ByteDance、Moonshot/Kimi、MiniMax、Alibaba/Qwen、Baidu/ERNIE、Huawei/Ascend）。输出到 `docs/refs/company-profiles/`。ByteDance 档案含 Platform Context 章节（TikTok 关系）。`content-pipeline.md` Stage 1b/3 增加公司档案查阅规则。数据来源：现有文章/widget/research docs + Wikipedia 交叉验证。WP-4（实体注册表）和 WP-3（事件时间线）的前置依赖已满足，可启动。 |
