@@ -5,6 +5,7 @@ import {
   checkSceneCount,
   checkHookVisualType,
   checkCTAVisualType,
+  checkCTAActionContract,
   checkHookCompellingElement,
   checkNoEmDashes,
   checkNoAIVocabulary,
@@ -72,7 +73,7 @@ const validScenes = [
     name: "cta",
     visualType: "cta",
     voiceover: "Follow for more China AI news that matters.",
-    texts: { line1: "CHINA AI NEWS" },
+    texts: { action: "FOLLOW FOR MORE", line1: "CHINA AI NEWS" },
   },
 ];
 
@@ -153,6 +154,52 @@ describe("checkCTAVisualType", () => {
     const scenes = [...validScenes.slice(0, -1), { ...validScenes[5], visualType: "summary" }];
     const results = checkCTAVisualType(scenes);
     expect(results[0].level).toBe("fail");
+  });
+});
+
+// ── checkCTAActionContract ──
+describe("checkCTAActionContract", () => {
+  it("passes when the last CTA scene carries texts.action", () => {
+    const results = checkCTAActionContract(validScenes);
+    expect(results[0]).toEqual(
+      expect.objectContaining({ level: "pass", check: "CTA action contract" }),
+    );
+  });
+
+  it("fails when the last CTA scene misses texts.action", () => {
+    const scenes = [
+      ...validScenes.slice(0, -1),
+      { ...validScenes[5], texts: { line1: "CHINA AI NEWS" } },
+    ];
+    const results = checkCTAActionContract(scenes);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].fix).toContain("action");
+  });
+
+  it("fails when texts.action is an empty string", () => {
+    const scenes = [...validScenes.slice(0, -1), { ...validScenes[5], texts: { action: "" } }];
+    const results = checkCTAActionContract(scenes);
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("fails when the last scene has no texts object", () => {
+    const scenes = [...validScenes.slice(0, -1), { ...validScenes[5], texts: undefined }];
+    const results = checkCTAActionContract(scenes);
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("passes (no-op) when the last scene is not a CTA", () => {
+    const scenes = [...validScenes.slice(0, -1), { ...validScenes[5], visualType: "summary" }];
+    const results = checkCTAActionContract(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("is included in runAllSceneDataChecks results", () => {
+    const results = runAllSceneDataChecks(validScenes, validSeriesMeta);
+    const actionCheck = [...results.pass, ...results.warn, ...results.fail].find((r) =>
+      r.check.includes("CTA action contract"),
+    );
+    expect(actionCheck).toBeDefined();
   });
 });
 

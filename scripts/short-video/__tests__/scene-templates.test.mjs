@@ -12,6 +12,7 @@ import {
   stampBox,
   fadeToBlack,
   templateCss,
+  ctaScene,
 } from "../lib/scene-templates.mjs";
 
 // ── Safe zones ──
@@ -239,5 +240,95 @@ describe("templateCss", () => {
     ]) {
       expect(css).toContain(cls);
     }
+  });
+
+  it("styles the standard CTA end card (.s-cta)", () => {
+    const css = templateCss();
+    for (const cls of [
+      "s-cta",
+      "brand-logo-large",
+      "brand-name",
+      "tagline",
+      "action-box",
+      "topic",
+    ]) {
+      expect(css).toContain(cls);
+    }
+  });
+});
+
+// ── ctaScene (standard CTA end card) ──
+
+const CTA_TEXTS = {
+  brand: "CHINA AI NEWS",
+  brandHighlight: "AI",
+  tagline: "CHINA AI, DECODED",
+  action: "FOLLOW FOR PART 2",
+  topic: "PRICING STRATEGY",
+};
+
+describe("ctaScene", () => {
+  it("renders the fixed end-card structure in order: logo → brand → tagline → action → topic", () => {
+    const html = ctaScene({ texts: CTA_TEXTS }, 10);
+    const logo = html.indexOf("brand-logo-large");
+    const brand = html.indexOf("brand-name");
+    const tagline = html.indexOf("tagline");
+    const action = html.indexOf("action-box");
+    const topic = html.indexOf("topic");
+    expect([logo, brand, tagline, action, topic].every((i) => i >= 0)).toBe(true);
+    expect(logo).toBeLessThan(brand);
+    expect(brand).toBeLessThan(tagline);
+    expect(tagline).toBeLessThan(action);
+    expect(action).toBeLessThan(topic);
+  });
+
+  it("highlights brandHighlight inside the brand name with the brand-blue .hl span", () => {
+    const html = ctaScene({ texts: CTA_TEXTS }, 10);
+    expect(html).toContain('CHINA <span class="hl" style="color: var(--blue);">AI</span> NEWS');
+  });
+
+  it("renders the action as an amber stamp box with arrow icon", () => {
+    const html = ctaScene({ texts: CTA_TEXTS }, 10);
+    expect(html).toContain('class="stamp-box"');
+    expect(html).toContain("var(--amber)");
+    expect(html).toContain("FOLLOW FOR PART 2");
+    expect(html).toContain("→");
+  });
+
+  it("carries the large brand logo class so withWatermark skips (no double branding)", () => {
+    const html = ctaScene({ texts: CTA_TEXTS }, 10);
+    expect(html).toContain('class="brand-logo-large"');
+    expect(html).toContain(BRAND_MARK_SVG);
+  });
+
+  it("ends with fade-to-black timed off the scene duration", () => {
+    const html = ctaScene({ texts: CTA_TEXTS }, 10);
+    expect(html).toContain("fade-to-black");
+    expect(html).toContain("8.8s");
+  });
+
+  it("omits the topic slot when not provided (standalone videos)", () => {
+    const html = ctaScene({ texts: { ...CTA_TEXTS, topic: undefined } }, 10);
+    expect(html).not.toContain("PRICING STRATEGY");
+    expect(html).not.toContain('class="topic"');
+  });
+
+  it("omits the action stamp when action is missing and renders no undefined", () => {
+    const html = ctaScene({ texts: { ...CTA_TEXTS, action: undefined } }, 10);
+    expect(html).not.toContain('class="stamp-box"');
+    expect(html).not.toContain("undefined");
+  });
+
+  it("renders brand unchanged when brandHighlight is not inside brand (no crash)", () => {
+    const html = ctaScene({ texts: { ...CTA_TEXTS, brandHighlight: "DEEPSEEK" } }, 10);
+    expect(html).toContain("CHINA AI NEWS");
+    expect(html).not.toContain('<span class="hl">DEEPSEEK</span>');
+    expect(html).not.toContain("undefined");
+  });
+
+  it("renders no business copy and no undefined for empty texts (data-only)", () => {
+    const html = ctaScene({ texts: {} }, 10);
+    assertNoBusinessCopy(html);
+    expect(html).not.toContain("undefined");
   });
 });

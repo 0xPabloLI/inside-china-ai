@@ -65,7 +65,14 @@ export const scenes = [
     name: "cta",
     visualType: "cta",
     voiceover: "Follow for more China AI intelligence.",
-    texts: { title: "SUBSCRIBE" },
+    // Standard end-card contract (see lib/scene-templates.mjs ctaScene):
+    // brand / brandHighlight / tagline / action are the fixed slots.
+    texts: {
+      brand: "CHINA AI NEWS",
+      brandHighlight: "AI",
+      tagline: "CHINA AI, DECODED",
+      action: "FOLLOW FOR MORE", // TODO: per video — "FOLLOW FOR PART N" for series
+    },
   },
 ];
 

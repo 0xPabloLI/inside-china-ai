@@ -142,7 +142,7 @@ Based on platform research and session learnings:
 - **Pure graphic**: `assets/china-ai-news-logo-image-only.png` (no text, for flexible use)
 - **Vector SVG**: `assets/china-ai-news-logo-vector.svg` (true vector, scalable)
 - **In-video logo**: Same logo at 55px, `opacity: 0.18`, `bottom: 50px, right: 50px`
-- **CTA scene**: Logo at 200px centered
+- **CTA scene**: Logo at 130px centered — rendered by the shared `ctaScene()` end card (`lib/scene-templates.mjs`), never hand-rolled
 
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 
@@ -750,7 +750,7 @@ export function generateScene(scene, duration) {
 }
 ```
 
-**Reuse the shared scene templates** (`lib/scene-templates.mjs`) for recurring layouts instead of hand-rolling CSS: `brandBar(tag)`, `breakingBadge(text)`, `statCard({num, unit, label})`, `quoteBox({quote, highlight, speaker, source})`, `titleBlock(text, {highlight, fontSize})`, `bigNumberAnchor(num)`, `pointsList(points)`, `stampBox({text, sub, color})`, `fadeToBlack(duration)`. Imported alongside `baseStyles()`:
+**Reuse the shared scene templates** (`lib/scene-templates.mjs`) for recurring layouts instead of hand-rolling CSS: `brandBar(tag)`, `breakingBadge(text)`, `statCard({num, unit, label})`, `quoteBox({quote, highlight, speaker, source})`, `titleBlock(text, {highlight, fontSize})`, `bigNumberAnchor(num)`, `pointsList(points)`, `stampBox({text, sub, color})`, `fadeToBlack(duration)`, and `ctaScene(scene, duration)` — the **standard CTA end card used by every video's last scene** (fixed layout: logo → brand (AI in blue) → tagline → amber stamp action → optional topic → fade). Never write a bespoke CTA scene: content `scenes.mjs` delegates to `ctaScene`, and `scene-rules.mjs` `checkCTAActionContract` fails preflight when the last scene's `texts.action` is missing (contract: `{ brand, brandHighlight, tagline, action, topic? }`). Imported alongside `baseStyles()`:
 
 ```javascript
 import { templateCss } from "../../../lib/scene-templates.mjs";

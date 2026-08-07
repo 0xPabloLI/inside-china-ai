@@ -16,7 +16,6 @@ import {
   brandBar,
   stampBox,
   titleBlock,
-  fadeToBlack,
   ctaScene,
 } from "../../lib/scene-templates.mjs";
 

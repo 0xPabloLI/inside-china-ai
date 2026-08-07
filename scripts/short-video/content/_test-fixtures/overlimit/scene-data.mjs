@@ -1,5 +1,7 @@
 // Test fixture: 11 scenes (over the 6-10 TikTok limit) but otherwise fully
 // compliant, so --long-form downgrades ONLY the scene-count violation.
+// The CTA scene carries texts.action (standardized end-card contract,
+// enforced by checkCTAActionContract) so the action contract stays pass.
 //
 // Every rule that verify-video.mjs checks is satisfied:
 //   - hook has a number + strong word, no greeting, VO differs from text
@@ -29,7 +31,7 @@ export const scenes = Array.from({ length: 11 }, (_, i) => {
   }
   if (i === 10) {
     s.voiceover = "Follow China AI News for the next DeepSeek milestone.";
-    s.texts = { line1: "CHINA AI NEWS" };
+    s.texts = { action: "FOLLOW FOR MORE", line1: "CHINA AI NEWS" };
   }
   return s;
 });

@@ -46,7 +46,12 @@ export const scenes = [
     name: "cta",
     visualType: "cta",
     voiceover: "Follow for more China AI intelligence.",
-    texts: { title: "SUBSCRIBE" },
+    texts: {
+      brand: "CHINA AI NEWS",
+      brandHighlight: "AI",
+      tagline: "CHINA AI, DECODED",
+      action: "FOLLOW FOR MORE",
+    },
   },
 ];
 

@@ -18,6 +18,10 @@
  *      unique names (e.g. alertPulse, not pulseDot).
  *   6. The template layer (lib/scene-templates.mjs) stays copy-free and
  *      keyframe-free (channel constants in brandBar are the exception).
+ *   7. The CTA end card is the single shared ctaScene: every content
+ *      CTA scene output must be byte-identical to ctaScene, and every
+ *      CTA scene-data / evergreen template carries the standardized
+ *      action slot (spec: docs/spec-cta-end-card-standard.md).
  *
  * Runtime geometry (actual bottom/right band crossings) is verified per
  * render by scripts/short-video/verify-scene-dom.mjs, which measures the
@@ -29,11 +33,48 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { SAFE_ZONES, WATERMARK_POS } from "../lib/safe-zones.mjs";
 import { withWatermark } from "../lib/base-styles.mjs";
+import { ctaScene } from "../lib/scene-templates.mjs";
+import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
+import { generateScene as generateBytedance } from "../content/bytedance-distillation/scenes.mjs";
+import { scenes as deepseekScenes } from "../content/deepseek/scene-data.mjs";
+import { generateScene as generateDeepseek } from "../content/deepseek/scenes.mjs";
+import { scenes as restraintScenes } from "../content/restraint/pt1/scene-data.mjs";
+import { generateScene as generateRestraint } from "../content/restraint/pt1/scenes.mjs";
+import { scenes as pt1Scenes } from "../content/distillation/pt1/scene-data.mjs";
+import { generateScene as generatePt1 } from "../content/distillation/pt1/scenes.mjs";
+import { scenes as fundingScenes } from "../evergreen-templates/china-ai-funding-tracker.mjs";
+import { scenes as vsUsScenes } from "../evergreen-templates/china-vs-us-ai.mjs";
+import { scenes as chipScenes } from "../evergreen-templates/china-chip-industry.mjs";
+import { scenes as openSourceScenes } from "../evergreen-templates/china-open-source-ecosystem.mjs";
+import { scenes as explainerScenes } from "../evergreen-templates/deepseek-explainer.mjs";
 
 const CONTENT_FILES = [
   "content/deepseek/scenes.mjs",
   "content/restraint/pt1/scenes.mjs",
   "content/distillation/pt1/scenes.mjs",
+];
+
+// Content pipelines with an implemented CTA scene (static imports — vitest
+// cannot resolve dynamic imports with variable paths).
+const CTA_PIPELINES = [
+  {
+    name: "bytedance-distillation",
+    id: 9,
+    scenes: bytedanceScenes,
+    generateScene: generateBytedance,
+  },
+  { name: "deepseek", id: 12, scenes: deepseekScenes, generateScene: generateDeepseek },
+  { name: "restraint/pt1", id: 11, scenes: restraintScenes, generateScene: generateRestraint },
+  { name: "distillation/pt1", id: 8, scenes: pt1Scenes, generateScene: generatePt1 },
+];
+
+// Evergreen scene-data templates (data-only, consumed when copied into content/)
+const EVERGREEN_FILES = [
+  { name: "china-ai-funding-tracker", scenes: fundingScenes },
+  { name: "china-vs-us-ai", scenes: vsUsScenes },
+  { name: "china-chip-industry", scenes: chipScenes },
+  { name: "china-open-source-ecosystem", scenes: openSourceScenes },
+  { name: "deepseek-explainer", scenes: explainerScenes },
 ];
 
 // Whitelisted bare uppercase words that may appear as literal text inside
@@ -192,6 +233,40 @@ describe("scene drift guards", () => {
     it("scene-templates declares no keyframes (single bundle in baseStyles)", () => {
       const src = readFileSync(new URL("../lib/scene-templates.mjs", import.meta.url), "utf8");
       expect(src).not.toMatch(/@keyframes [a-zA-Z]+/);
+    });
+  });
+
+  describe("CTA end card (standard ctaScene)", () => {
+    it("every content CTA scene output is byte-identical to ctaScene", () => {
+      for (const { name, id, scenes, generateScene } of CTA_PIPELINES) {
+        const cta = scenes.find((s) => s.id === id && s.visualType === "cta");
+        expect(cta, `${name}: CTA scene ${id} missing`).toBeDefined();
+        const fromContent = generateScene(cta, 10);
+        const fromShared = ctaScene(cta, 10);
+        expect(fromContent, `${name}: CTA scene drifted from shared ctaScene`).toBe(fromShared);
+      }
+    });
+
+    it("every content CTA scene-data carries the standardized action slot", () => {
+      for (const { name, id, scenes } of CTA_PIPELINES) {
+        const cta = scenes.find((s) => s.id === id);
+        expect(cta.texts?.action?.trim(), `${name}: missing texts.action`).toBeTruthy();
+      }
+    });
+
+    it("every evergreen template's CTA scene carries the standard contract", () => {
+      for (const { name, scenes } of EVERGREEN_FILES) {
+        const cta = scenes.find((s) => s.visualType === "cta");
+        expect(cta, `${name}: no CTA scene`).toBeDefined();
+        expect(cta.texts?.action?.trim(), `${name}: missing texts.action`).toBeTruthy();
+        expect(cta.texts?.brand, `${name}: missing texts.brand`).toBe("CHINA AI NEWS");
+      }
+    });
+
+    it("batch-generate scaffold emits the standardized CTA contract (no title: SUBSCRIBE)", () => {
+      const src = readFileSync(new URL("../batch-generate.mjs", import.meta.url), "utf8");
+      expect(src).not.toContain('texts: { title: "SUBSCRIBE" }');
+      expect(src).toContain('action: "FOLLOW FOR MORE"');
     });
   });
 });

@@ -122,8 +122,9 @@ export const scenes = [
     voiceover: "That's the full story. Follow for more China AI analysis. This is China AI News.",
     texts: {
       brand: "CHINA AI NEWS",
-      tagline: "China's AI, decoded.",
-      line1: "Follow for more",
+      brandHighlight: "AI",
+      tagline: "CHINA AI, DECODED",
+      action: "FOLLOW FOR MORE",
     },
   },
 ];

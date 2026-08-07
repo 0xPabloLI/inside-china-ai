@@ -16,6 +16,7 @@
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
 | `rag-prework.md` | RAG pipeline pre-work plan (Issue #15) | — |
+| `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
 
 ### `adr/` — Architecture Decision Records
 

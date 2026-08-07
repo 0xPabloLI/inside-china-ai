@@ -25,6 +25,7 @@
 | `spec-scene-extraction.md` / `tickets-scene-extraction.md` | 2026-08-06 | 场景提取 + 共享视觉系统分离 |
 | `spec-pipeline-isolation.md` / `tickets-pipeline-isolation.md` | 2026-08-06 | 多 Pipeline 隔离架构 |
 | `spec-multi-video-splitting.md` / `tickets-multi-video-splitting.md` | 2026-08-07 | 多视频拆分管线集成 |
+| `spec-cta-end-card-standard.md` / `tickets-cta-end-card-standard.md` | 2026-08-07 | 标准 CTA 结尾页（共享 ctaScene + 契约规则 + 全量迁移） |
 
 ### 趋势 & 发布 Specs
 

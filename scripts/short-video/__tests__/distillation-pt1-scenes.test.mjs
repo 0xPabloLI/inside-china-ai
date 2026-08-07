@@ -193,21 +193,22 @@ describe("Distillation pt1 scene generation", () => {
     });
   });
 
-  describe("scene 8 (cta)", () => {
+  describe("scene 8 (cta — standard end card)", () => {
     const scene8 = scenes[7];
     const html = generateScene(scene8, 10);
 
-    it("contains brand name", () => {
-      expect(html).toContain("CHINA");
-      expect(html).toContain("AI");
+    it("contains brand name with brand-blue AI highlight", () => {
+      expect(html).toContain('CHINA <span class="hl" style="color: var(--blue);">AI</span> NEWS');
     });
 
-    it("contains tagline", () => {
-      expect(html).toContain("China's AI, decoded.");
+    it("contains uppercase tagline", () => {
+      expect(html).toContain("CHINA AI, DECODED");
     });
 
-    it("contains follow text", () => {
-      expect(html).toContain("Follow for Part 2");
+    it("contains the action in an amber stamp box", () => {
+      expect(html).toContain("FOLLOW FOR PART 2");
+      expect(html).toContain('class="stamp-box"');
+      expect(html).toContain("var(--amber)");
     });
 
     it("contains fade-to-black", () => {

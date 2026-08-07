@@ -8,6 +8,7 @@
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { baseStyles, BRAND_MARK_SVG, withWatermark } from "../../lib/base-styles.mjs";
+import { ctaScene } from "../../lib/scene-templates.mjs";
 
 // DeepSeek company logo
 const DEEPSEEK_LOGO_SVG = readFileSync(
@@ -344,27 +345,9 @@ ${baseStyles(duration)}
 </div></body></html>`;
 }
 
-/* ── S12: CTA ── */
+/* ── S12: CTA — standard end card (shared ctaScene) ── */
 function scene12(scene, duration) {
-  const txt = scene.texts || {};
-
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-${baseStyles(duration)}
-.s12 { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.s12 .brand-logo-large { width: 130px; height: 130px; margin-bottom: 30px; filter: drop-shadow(0 0 30px rgba(77,139,255,0.4)); animation: scaleIn 0.6s ease-out 0.1s forwards, logoPulse 3s ease-in-out 1s infinite; opacity: 0; }
-.s12 .brand-logo-large svg { width: 100%; height: 100%; }
-.s12 .brand-name { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 4px; margin-bottom: 16px; animation: scaleIn 0.6s ease-out 0.3s forwards; opacity: 0; } .s12 .brand-name .hl { color: var(--blue); }
-.s12 .tagline { font-size: 32px; font-weight: 600; color: var(--sec); letter-spacing: 3px; margin-bottom: 80px; animation: fadeIn 0.5s ease-out 0.7s forwards; opacity: 0; }
-.s12 .line1 { font-size: 64px; font-weight: 800; color: var(--amber); letter-spacing: 2px; margin-bottom: 16px; animation: slideUp 0.5s ease-out 1.0s forwards; opacity: 0; text-shadow: 0 0 30px rgba(245,158,11,0.4); }
-.s12 .fade-to-black { position: absolute; inset: 0; background: #050508; pointer-events: none; animation: fadeOut 0.8s ease-in ${Math.max(duration - 1.2, 1.5).toFixed(1)}s forwards; opacity: 0; }
-</style></head><body>
-<div class="scene s12"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <div class="brand-logo-large">${BRAND_MARK_SVG}</div>
-  <div class="brand-name">${t(txt, "brand").replace(txt.brandHighlight || "\0", `<span class="hl">${txt.brandHighlight}</span>`)}</div>
-  ${t(txt, "tagline") ? `<div class="tagline">${txt.tagline}</div>` : ""}
-  ${t(txt, "line1") ? `<div class="line1">${txt.line1}</div>` : ""}
-  <div class="fade-to-black"></div>
-</div></body></html>`;
+  return ctaScene(scene, duration);
 }
 
 // Scene dispatch table

@@ -127,8 +127,8 @@ export const scenes = [
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",
-      tagline: "China's AI, decoded.",
-      line1: "Follow for Part 2",
+      tagline: "CHINA AI, DECODED",
+      action: "FOLLOW FOR PART 2",
     },
   },
 ];

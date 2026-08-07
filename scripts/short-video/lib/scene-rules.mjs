@@ -118,6 +118,46 @@ export function checkCTAVisualType(scenes) {
   ];
 }
 
+/**
+ * Last CTA scene must carry the standardized action slot (end-card contract,
+ * see ctaScene() in lib/scene-templates.mjs): texts.action is the amber stamp
+ * copy that renders on the final frame. Missing action = end card without a
+ * call-to-action, which the shared template would render empty.
+ */
+export function checkCTAActionContract(scenes) {
+  const cta = scenes[scenes.length - 1];
+  if (cta?.visualType !== "cta") {
+    return [
+      {
+        level: "pass",
+        category: "Structure",
+        check: "CTA action contract",
+        detail: "No CTA scene",
+      },
+    ];
+  }
+  const action = (cta.texts?.action ?? "").trim();
+  if (action) {
+    return [
+      {
+        level: "pass",
+        category: "Structure",
+        check: "CTA action contract",
+        detail: "texts.action present",
+      },
+    ];
+  }
+  return [
+    {
+      level: "fail",
+      category: "Structure",
+      check: "CTA action contract",
+      detail: "Last CTA scene is missing texts.action",
+      fix: 'Add `action: "FOLLOW FOR MORE"` (or the series variant, e.g. "FOLLOW FOR PART 2") to the last scene\'s texts — see ctaScene() contract in lib/scene-templates.mjs',
+    },
+  ];
+}
+
 /** Hook must contain a number or strong word */
 export function checkHookCompellingElement(scenes) {
   const hookVO = scenes[0]?.voiceover || "";
@@ -850,6 +890,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkSceneCount(scenes, opts),
     ...checkHookVisualType(scenes),
     ...checkCTAVisualType(scenes),
+    ...checkCTAActionContract(scenes),
     ...checkHookCompellingElement(scenes),
     ...checkNoEmDashes(scenes),
     ...checkNoAIVocabulary(scenes),
