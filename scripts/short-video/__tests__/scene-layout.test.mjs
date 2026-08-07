@@ -56,7 +56,18 @@ describe("slotCss", () => {
     expect(css).toContain(`top: ${SLOTS.hero.top}px`);
     expect(css).toContain(`top: ${SLOTS.support.top}px`);
     expect(css).toContain(`left: ${SLOT_X.left}px`);
-    expect(css).toContain(`right: ${SLOT_X.right}px`);
+    expect(css).toContain(`right: ${CANVAS.width - SLOT_X.right}px`);
+  });
+
+  it("keeps the content band at x ∈ [60, 920], never narrower", () => {
+    // Regression: SLOT_X.right is an x-coordinate (920), not a CSS right
+    // inset — passing it raw to `right:` shrunk every slot to 100px
+    // (1080 − 60 − 920) and squeezed all scene text into a narrow column.
+    const css = slotCss();
+    expect(css).toContain(`left: 60px`);
+    expect(css).toContain(`right: 160px`);
+    // 1080 − 60 − 160 = 860px usable content width
+    expect(SLOT_X.right - SLOT_X.left).toBe(860);
   });
 });
 

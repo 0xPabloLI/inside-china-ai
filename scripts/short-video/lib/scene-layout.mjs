@@ -53,7 +53,7 @@ export const SLOT_X = {
  */
 export function slotCss() {
   const slot = (cls, top, height) =>
-    `.${cls} { position: absolute; left: ${SLOT_X.left}px; right: ${SLOT_X.right}px; ` +
+    `.${cls} { position: absolute; left: ${SLOT_X.left}px; right: ${CANVAS.width - SLOT_X.right}px; ` +
     `top: ${top}px; height: ${height}px; display: flex; flex-direction: column; ` +
     `justify-content: center; align-items: center; }`;
   return `
