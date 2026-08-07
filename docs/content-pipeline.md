@@ -459,7 +459,8 @@ MRL-1 通过后，Agent 准备文章但不发布到网站。文章发布延迟�
 
 1. `npm run build` 构建（包括 widget 代码）
 2. 访问 Lovable 编辑器 → 点击「Publish」部署
-3. **注意**：不要直接用 `npx wrangler deploy`，会丢失 Lovable 注入的环境变量
+3. `npm run dev` 后运行 `node scripts/verify-widget-a11y.mjs --preview` 做发布前运行时验证：`/widgets` 预览路由为 dev-only（生产构建静态 404），可对每个 registry widget 渲染真实预览页验证 HTTP 200、容器配方、宽度类（breakout `max-w-none` / 常规 `max-w-prose`）、键盘可达、交互状态切换、未知 id 渲染 404。**0 FAIL 才算部署合格**，再进入 Stage 3
+4. **注意**：不要直接用 `npx wrangler deploy`，会丢失 Lovable 注入的环境变量
 
 > Widget 部署需要在文章发布前完成，但可以在 HITL 前任何时间执行。Agent 在 Stage 1 创建 widget 后即可部署。
 
