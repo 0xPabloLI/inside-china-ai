@@ -322,12 +322,14 @@ describe("ctaScene", () => {
     expect(html).toContain('CHINA <span class="hl" style="color: var(--blue);">AI</span> NEWS');
   });
 
-  it("renders the action as an amber stamp box with arrow icon", () => {
+  it("renders the action as an amber stamp box with the arrow inline after the text", () => {
     const html = ctaScene({ texts: CTA_TEXTS }, 10);
     expect(html).toContain('class="stamp-box"');
     expect(html).toContain("var(--amber)");
-    expect(html).toContain("FOLLOW FOR PART 2");
-    expect(html).toContain("→");
+    expect(html).toContain("FOLLOW FOR PART 2 →");
+    // No stacked stamp-icon element above the text (it pushed the text 24px below
+    // box center). Match the element, not the shared .stamp-icon CSS rule.
+    expect(html).not.toContain('class="stamp-icon"');
   });
 
   it("carries the large brand logo class so withWatermark skips (no double branding)", () => {

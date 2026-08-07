@@ -399,7 +399,7 @@ ${baseStyles(duration)}${templateCss()}
   <div class="brand-logo-large">${BRAND_MARK_SVG}</div>
   ${brand ? `<div class="brand-name">${brandHtml}</div>` : ""}
   ${text("tagline") ? `<div class="tagline">${text("tagline")}</div>` : ""}
-  ${text("action") ? `<div class="action-box">${stampBox({ text: text("action"), color: "amber", icon: "→" })}</div>` : ""}
+  ${text("action") ? `<div class="action-box">${stampBox({ text: `${text("action")} →`, color: "amber" })}</div>` : ""}
   ${text("topic") ? `<div class="topic">${text("topic")}</div>` : ""}
   ${fadeToBlack(duration)}
 </div></body></html>`;
