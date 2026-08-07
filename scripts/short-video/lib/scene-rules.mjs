@@ -104,7 +104,7 @@ export function checkHookVisualType(scenes) {
  * carry EXACTLY one focal — bigNumber (number-led) or hookText (claim-led).
  * Both present or both absent = fail. Legacy line1/line2 shapes carry
  * neither key, so they fail with a migration pointer (spec:
- * docs/specs/spec-hook-opening-card.md §3).
+ * docs/archive/spec-hook-opening-card.md §3).
  */
 export function checkHookContract(scenes) {
   const hook = scenes[0];
@@ -128,7 +128,7 @@ export function checkHookContract(scenes) {
         category: "Structure",
         check: "Hook focal contract",
         detail: "bigNumber and hookText both present",
-        fix: "Keep ONE focal: texts.bigNumber (number-led) or texts.hookText (claim-led) — see hookScene() contract in lib/scene-templates.mjs",
+        fix: "Keep ONE focal: texts.bigNumber (number-led) or texts.hookText (claim-led) — see hookScene() contract in lib/scene-templates.mjs (docs/archive/spec-hook-opening-card.md)",
       },
     ];
   }
@@ -139,7 +139,7 @@ export function checkHookContract(scenes) {
         category: "Structure",
         check: "Hook focal contract",
         detail: "missing focal",
-        fix: "Add texts.bigNumber (number-led) or texts.hookText (claim-led) — see hookScene() contract in lib/scene-templates.mjs. Legacy line1/line2 hooks must migrate to the hookText/revealText contract",
+        fix: "Add texts.bigNumber (number-led) or texts.hookText (claim-led) — see hookScene() contract in lib/scene-templates.mjs (docs/archive/spec-hook-opening-card.md). Legacy line1/line2 hooks must migrate to the hookText/revealText contract",
       },
     ];
   }

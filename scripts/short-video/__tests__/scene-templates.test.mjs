@@ -478,6 +478,20 @@ describe("hookScene", () => {
     expect(html).not.toContain("forwards, glowPulse"); // no blue-only keyframe on the reveal
   });
 
+  it("red color variant: claim and subject glows follow the color token (D-3, no red-copy-blue-glow)", () => {
+    const html = hookScene(
+      { texts: { ...HOOK_CLAIM_TEXTS, color: "red", subject: "DEEPSEEK" } },
+      10,
+    );
+    expect(html).not.toContain("text-shadow: 0 0 40px rgba(77,139,255,0.4)"); // no blue claim glow
+    expect(html).toContain(
+      'class="focal-claim" style="text-shadow: 0 0 40px rgba(239,68,68,0.4);"',
+    );
+    expect(html).toContain(
+      'class="subject-name" style="text-shadow: 0 0 30px rgba(239,68,68,0.4);"',
+    );
+  });
+
   it("invalid color token falls back to blue", () => {
     const html = hookScene({ texts: { ...HOOK_CLAIM_TEXTS, color: "pink" } }, 10);
     expect(html).toContain("forwards, glowPulse");

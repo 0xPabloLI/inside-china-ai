@@ -172,7 +172,9 @@ async function main() {
       },
       { exempt: EXEMPT_SELECTORS, band: BAND, brandChrome: BRAND_CHROME },
     );
-    for (const f of fails) problems.push(`zone: ${f}`);
+    for (const f of fails) {
+      problems.push(`${/\(T\d+\)$/.test(f) ? "top-zone" : "bottom-zone"}: ${f}`);
+    }
     for (const w of bwarns) warns.push(`right-band: ${w}`);
 
     // 2. Horizontal overflow (vertical clipping with tight line-height is

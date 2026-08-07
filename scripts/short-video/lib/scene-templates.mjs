@@ -85,8 +85,8 @@ function templateCss() {
     .s-hook .badge-pill .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background: white; animation: pulseDot 1s ease-in-out infinite; }
     .s-hook .subject-row { display: flex; align-items: center; justify-content: center; gap: 20px; animation: slideUp 0.4s ease-out 0.3s forwards; opacity: 0; }
     .s-hook .subject-row .subject-logo { width: 120px; height: 120px; filter: drop-shadow(0 0 25px rgba(77,139,255,0.3)); } .s-hook .subject-row .subject-logo svg { width: 100%; height: 100%; }
-    .s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 4px; text-shadow: 0 0 30px rgba(77,139,255,0.4); }
-    .s-hook .focal-claim { font-size: 78px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-align: center; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: hookIn 0.3s ease-out forwards; }
+    .s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 4px; }
+    .s-hook .focal-claim { font-size: 78px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-align: center; animation: hookIn 0.3s ease-out forwards; }
     .s-hook .focal-reveal { font-size: 96px; font-weight: 900; letter-spacing: 4px; line-height: 1; text-align: center; animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards; opacity: 0; }
     .s-hook .focal-number { font-size: 260px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-align: center; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.8s forwards, numberPulse 2s ease-in-out 1.5s infinite; opacity: 0; }
     .s-hook .focal-number-label { font-size: 48px; font-weight: 800; color: var(--white); letter-spacing: 3px; margin-top: 12px; text-align: center; animation: slideUp 0.5s ease-out 1.1s forwards; opacity: 0; }
@@ -267,7 +267,7 @@ function logoSvg(key) {
 
 /**
  * Standard hook opening card — the single shared implementation for every
- * video's Scene 1 (spec: docs/specs/spec-hook-opening-card.md).
+ * video's Scene 1 (spec: docs/archive/spec-hook-opening-card.md).
  *
  * Fixed skeleton (never varies): scan-sweep + glow tint + brandBar + slot
  * system — kicker = optional badge pill, hero = subject row + focal,
@@ -303,6 +303,9 @@ function hookScene(scene, duration) {
   const text = (key) => txt[key] ?? "";
   const color = /^(blue|red|amber|green|purple|cyan)$/.test(text("color")) ? text("color") : "blue";
   const rgb = COLOR_RGB[color];
+  // glowPulse is blue-only (its keyframe hardcodes a blue text-shadow);
+  // every other glow on the card is a static same-color glow (D-3).
+  const isBlue = color === "blue";
 
   // kicker slot — optional badge (brand-red pill, pulse dot)
   const badge = text("badge")
@@ -313,7 +316,9 @@ function hookScene(scene, duration) {
   const logo = text("subjectLogo")
     ? `<div class="subject-logo">${logoSvg(text("subjectLogo"))}</div>`
     : "";
-  const subject = text("subject") ? `<div class="subject-name">${text("subject")}</div>` : "";
+  const subject = text("subject")
+    ? `<div class="subject-name" style="text-shadow: 0 0 30px rgba(${rgb},0.4);">${text("subject")}</div>`
+    : "";
   const subjectRow = logo || subject ? `<div class="subject-row">${logo}${subject}</div>` : "";
 
   // hero slot — focal (number-led preferred; claim-led fallback)
@@ -324,18 +329,14 @@ function hookScene(scene, duration) {
       focal += `<div class="focal-number-label">${highlightSpan(text("numberLabel"), text("numberHighlight"), color)}</div>`;
     }
   } else if (text("hookText")) {
-    focal = `<div class="focal-claim">${highlightSpan(text("hookText"), text("hookHighlight"), color)}</div>`;
+    focal = `<div class="focal-claim" style="text-shadow: 0 0 40px rgba(${rgb},0.4);">${highlightSpan(text("hookText"), text("hookHighlight"), color)}</div>`;
     if (text("revealText")) {
-      // glowPulse is blue-only (its keyframe hardcodes a blue text-shadow);
-      // other colors get a static same-color glow instead.
-      const glow =
-        color === "blue"
-          ? "stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite"
-          : "stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards";
-      const shadow =
-        color === "blue"
-          ? ""
-          : `text-shadow: 0 0 60px rgba(${rgb},0.5), 0 0 120px rgba(${rgb},0.3); `;
+      const glow = isBlue
+        ? "stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite"
+        : "stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards";
+      const shadow = isBlue
+        ? ""
+        : `text-shadow: 0 0 60px rgba(${rgb},0.5), 0 0 120px rgba(${rgb},0.3); `;
       focal += `<div class="focal-reveal" style="color: var(--${color}); ${shadow}animation: ${glow};">${highlightSpan(text("revealText"), text("revealHighlight"), color)}</div>`;
     }
   }
