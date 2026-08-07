@@ -25,6 +25,7 @@ import {
   checkCTAStacking,
   checkPrimaryGoal,
   checkLoopClose,
+  checkSemanticConsistency,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
 
@@ -618,6 +619,100 @@ describe("checkLoopClose", () => {
     const results = checkLoopClose(validScenes);
     expect(results).toHaveLength(1);
     expect(["warn"]).toContain(results[0].level);
+  });
+});
+
+// ── checkSemanticConsistency ──
+
+describe("checkSemanticConsistency", () => {
+  it("passes when VO and on-screen text are consistent", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "ByteDance trained on H20 chips, the only Nvidia chip China can legally buy.",
+        texts: { chip: "H20", label: "CHINA CAN BUY" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fails when VO says 'restricted' but text says 'can buy'", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "ByteDance trained on export-restricted H20 chips.",
+        texts: { chip: "H20", label: "CHINA CAN BUY" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].category).toBe("Fact-Check");
+    expect(results[0].detail).toContain("restricted");
+    expect(results[0].detail).toContain("can buy");
+  });
+
+  it("warns (not fails) in comparison scenes with antonym pairs", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "H20 is legal for China. B200 is banned.",
+        texts: { left: "H20", leftLabel: "CAN BUY", right: "B200", rightLabel: "BANNED", vs: "VS" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    // Should find "legal" + "banned" pair → warn (comparison scene)
+    const match = results.find((r) => r.level === "warn");
+    expect(match).toBeDefined();
+    expect(match.detail).toContain("comparison scene");
+  });
+
+  it("fails when VO says 'clean' but text says 'accused' (non-comparison)", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "ByteDance was clean, not accused of distillation.",
+        texts: { label: "ACCUSED BY ANTHROPIC" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].detail).toContain("clean");
+    expect(results[0].detail).toContain("accused");
+  });
+
+  it("passes when VO and text use consistent terminology", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "DeepSeek raises API prices on strength.",
+        texts: { company: "DeepSeek", action: "RAISES API PRICES" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fails when VO says 'raises' but text says 'lowers'", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "DeepSeek raises API prices.",
+        texts: { company: "DeepSeek", action: "LOWERS API PRICES" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].detail).toContain("raises");
+    expect(results[0].detail).toContain("lowers");
+  });
+
+  it("is included in runAllSceneDataChecks results", () => {
+    const results = runAllSceneDataChecks(validScenes, validSeriesMeta);
+    const factCheck = [...results.pass, ...results.warn, ...results.fail].find((r) =>
+      r.check.includes("Semantic consistency"),
+    );
+    expect(factCheck).toBeDefined();
   });
 });
 

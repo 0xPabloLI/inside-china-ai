@@ -1,0 +1,312 @@
+/**
+ * Bytedance distillation scene templates — v2 (fixed)
+ * 9 scenes: hook, narrative, concept, data, quote, comparison, data, contrast, cta
+ *
+ * Fixes from v1:
+ * - All scenes now have brandBar() at top (Mark logo visible)
+ * - Scenes 2-8 redesigned to fill full 1920px vertical height
+ * - Scene 9 (CTA): delegates to the shared ctaScene end card (lib/scene-templates.mjs)
+ * - No stampBox() calls inside CSS properties (was causing letter-dropping bug)
+ * - Content distributed vertically, not clustered in center
+ */
+
+import { baseStyles, withWatermark } from "../../lib/base-styles.mjs";
+import {
+  templateCss,
+  brandBar,
+  stampBox,
+  titleBlock,
+  fadeToBlack,
+  ctaScene,
+} from "../../lib/scene-templates.mjs";
+
+// Safe text accessor
+function t(texts, key) {
+  return texts?.[key] ?? "";
+}
+
+/* ── S1: Hook — T3 Number Reveal ── */
+function scene1(scene, duration) {
+  const d = Math.max(duration, 5).toFixed(1);
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s1 { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.s1 .scan-sweep { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(77,139,255,0.8), transparent); box-shadow: 0 0 20px rgba(77,139,255,0.5); animation: scanSweep ${d}s linear infinite; z-index: 50; }
+@keyframes scanSweep { 0% { top: 0; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+.s1 .subject-row { position: absolute; top: 360px; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 16px; animation: fadeIn 0.4s ease-out 0.2s forwards; opacity: 0; }
+.s1 .subject-row .subject { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 6px; text-shadow: 0 0 40px rgba(77,139,255,0.5); }
+.s1 .hook-text { position: absolute; top: 560px; left: 0; right: 0; text-align: center; font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 3px; line-height: 1.2; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: hookIn 0.3s ease-out 0.5s forwards; opacity: 0; }
+.s1 .reveal-text { position: absolute; top: 820px; left: 0; right: 0; text-align: center; font-size: 130px; font-weight: 900; color: var(--blue); letter-spacing: 8px; line-height: 1; text-shadow: 0 0 80px rgba(77,139,255,0.6), 0 0 160px rgba(77,139,255,0.3); animation: stampIn 0.6s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite; opacity: 0; }
+.s1 .source { position: absolute; top: 1020px; left: 0; right: 0; text-align: center; font-size: 28px; font-weight: 700; color: var(--sec); letter-spacing: 3px; animation: fadeIn 0.4s ease-out 2.1s forwards; opacity: 0; }
+</style></head><body>
+<div class="scene s1">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div><div class="scan-sweep"></div>
+  ${brandBar()}
+  <div class="subject-row"><div class="subject">${t(txt, "subject")}</div></div>
+  <div class="hook-text">${t(txt, "hookText")}</div>
+  <div class="reveal-text">${t(txt, "revealText")}</div>
+  <div class="source">${t(txt, "source")}</div>
+</div></body></html>`;
+}
+
+/* ── S2: Narrative — person introduction (fills vertical space) ── */
+function scene2(scene, duration) {
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s2 { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 220px 160px 470px 60px; }
+.s2 .glow-blue { top: -200px; left: 50%; transform: translateX(-50%); width: 1000px; height: 1000px; background: radial-gradient(circle, rgba(77,139,255,0.12) 0%, transparent 60%); }
+.s2 .badge { background: rgba(77,139,255,0.15); border: 1px solid rgba(77,139,255,0.4); color: var(--blue); padding: 14px 40px; font-size: 28px; font-weight: 800; letter-spacing: 4px; border-radius: 8px; animation: slideDown 0.4s ease-out 0.1s forwards; opacity: 0; }
+.s2 .person-block { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.s2 .person-name { font-size: 100px; font-weight: 900; color: var(--white); letter-spacing: 3px; animation: slideUp 0.5s ease-out 0.5s forwards; opacity: 0; text-shadow: 0 0 30px rgba(77,139,255,0.3); }
+.s2 .person-role { font-size: 42px; font-weight: 700; color: var(--blue); letter-spacing: 4px; animation: slideUp 0.5s ease-out 0.7s forwards; opacity: 0; }
+.s2 .meeting-info { display: flex; flex-direction: column; align-items: center; gap: 16px; animation: fadeIn 0.5s ease-out 1.1s forwards; opacity: 0; }
+.s2 .meeting-info .label { font-size: 36px; font-weight: 700; color: var(--sec); letter-spacing: 4px; }
+.s2 .meeting-info .source { font-size: 28px; font-weight: 700; color: var(--muted); letter-spacing: 3px; }
+</style></head><body>
+<div class="scene s2">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
+  ${brandBar()}
+  <div class="badge">${t(txt, "badge")}</div>
+  <div class="person-block">
+    <div class="person-name">${t(txt, "person")}</div>
+    <div class="person-role">${t(txt, "role")}</div>
+  </div>
+  <div class="meeting-info">
+    <div class="label">${t(txt, "meetingLabel")}</div>
+    <div class="source">${t(txt, "source")}</div>
+  </div>
+</div></body></html>`;
+}
+
+/* ── S3: Concept — distillation diagram (fills vertical space) ── */
+function scene3(scene, duration) {
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s3 { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 220px 160px 470px 60px; }
+.s3 .glow-blue { top: 50%; left: -200px; transform: translateY(-50%); width: 900px; height: 900px; background: radial-gradient(circle, rgba(77,139,255,0.08) 0%, transparent 60%); }
+.s3 .title { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 6px; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: slideDown 0.4s ease-out 0.1s forwards; opacity: 0; }
+.s3 .flow-row { display: flex; align-items: center; justify-content: center; gap: 50px; width: 100%; }
+.s3 .card { width: 320px; border-radius: 24px; padding: 60px 36px; text-align: center; animation: scaleIn 0.5s ease-out forwards; opacity: 0; }
+.s3 .card.teacher { background: rgba(245,158,11,0.08); border: 2px solid rgba(245,158,11,0.3); animation-delay: 0.3s; box-shadow: 0 0 40px rgba(245,158,11,0.15); }
+.s3 .card.student { background: rgba(77,139,255,0.08); border: 2px solid rgba(77,139,255,0.4); animation-delay: 1.1s; }
+.s3 .card .icon { font-size: 72px; margin-bottom: 24px; line-height: 1; }
+.s3 .card.teacher .icon { color: var(--amber); }
+.s3 .card.student .icon { color: var(--blue); }
+.s3 .card .text { font-size: 34px; font-weight: 800; letter-spacing: 2px; line-height: 1.3; }
+.s3 .card.teacher .text { color: var(--amber); }
+.s3 .card.student .text { color: var(--blue); }
+.s3 .arrow { font-size: 100px; font-weight: 900; color: var(--sec); animation: fadeIn 0.4s ease-out 0.7s forwards; opacity: 0; }
+.s3 .bottom-info { display: flex; flex-direction: column; align-items: center; gap: 20px; animation: fadeIn 0.5s ease-out 1.5s forwards; opacity: 0; }
+.s3 .label { font-size: 36px; font-weight: 700; color: var(--white); letter-spacing: 3px; }
+.s3 .note { font-size: 30px; font-weight: 700; color: var(--sec); letter-spacing: 2px; }
+</style></head><body>
+<div class="scene s3">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
+  ${brandBar()}
+  <div class="title">${t(txt, "title")}</div>
+  <div class="flow-row">
+    <div class="card teacher"><div class="icon">▣</div><div class="text">${t(txt, "teacher")}</div></div>
+    <div class="arrow">${t(txt, "arrow")}</div>
+    <div class="card student"><div class="icon">◇</div><div class="text">${t(txt, "student")}</div></div>
+  </div>
+  <div class="bottom-info">
+    <div class="label">${t(txt, "label")}</div>
+    <div class="note">${t(txt, "note")}</div>
+  </div>
+</div></body></html>`;
+}
+
+/* ── S4: Data — three battles (fills vertical space) ── */
+function scene4(scene, duration) {
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s4 { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 220px 160px 470px 60px; }
+.s4 .glow-amber { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 900px; height: 900px; background: radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 60%); border-radius: 50%; }
+.s4 .number-row { display: flex; align-items: baseline; gap: 20px; }
+.s4 .big-number { font-size: 360px; font-weight: 900; color: var(--amber); letter-spacing: -16px; line-height: 0.85; text-shadow: 0 0 80px rgba(245,158,11,0.5), 0 0 160px rgba(245,158,11,0.3); animation: stampIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.3s forwards, numberPulse 2s ease-in-out 1s infinite; opacity: 0; }
+.s4 .label { font-size: 44px; font-weight: 800; color: var(--white); letter-spacing: 4px; animation: slideUp 0.4s ease-out 0.8s forwards; opacity: 0; }
+.s4 .points { display: flex; flex-direction: column; gap: 24px; animation: fadeIn 0.5s ease-out 1.3s forwards; opacity: 0; }
+.s4 .points .point { font-size: 32px; font-weight: 700; color: var(--sec); letter-spacing: 2px; }
+.s4 .points .point::before { content: "▸ "; color: var(--amber); font-weight: 900; }
+.s4 .result-wrap { animation: fadeIn 0.5s ease-out 1.8s forwards; opacity: 0; }
+</style></head><body>
+<div class="scene s4">
+  <div class="grid-bg"></div><div class="glow-amber"></div><div class="scanlines"></div>
+  ${brandBar()}
+  <div class="number-row">
+    <div class="big-number">${t(txt, "number")}</div>
+    <div class="label">${t(txt, "label")}</div>
+  </div>
+  <div class="points">
+    <div class="point">${t(txt, "point1")}</div>
+    <div class="point">${t(txt, "point2")}</div>
+    <div class="point">${t(txt, "point3")}</div>
+  </div>
+  <div class="result-wrap">${stampBox({ text: t(txt, "result"), color: "amber" })}</div>
+</div></body></html>`;
+}
+
+/* ── S5: Quote — Zhang's stance (fills vertical space) ── */
+function scene5(scene, duration) {
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s5 { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 220px 160px 470px 60px; }
+.s5 .glow-blue { bottom: -200px; left: -200px; width: 900px; height: 900px; background: radial-gradient(circle, rgba(77,139,255,0.12) 0%, transparent 60%); }
+.s5 .quote-mark { font-size: 240px; font-weight: 900; color: rgba(77,139,255,0.15); line-height: 0.8; animation: fadeIn 0.5s ease-out 0.2s forwards; opacity: 0; }
+.s5 .quote { font-size: 64px; font-weight: 800; color: var(--white); text-align: center; line-height: 1.3; max-width: 900px; animation: slideUp 0.6s ease-out 0.5s forwards; opacity: 0; text-shadow: 0 0 30px rgba(77,139,255,0.3); }
+.s5 .attribution { display: flex; flex-direction: column; align-items: center; gap: 12px; animation: fadeIn 0.5s ease-out 1.3s forwards; opacity: 0; }
+.s5 .speaker { font-size: 40px; font-weight: 800; color: var(--white); letter-spacing: 3px; }
+.s5 .source { font-size: 28px; font-weight: 700; color: var(--sec); letter-spacing: 3px; }
+.s5 .accent-line { width: 240px; height: 3px; background: linear-gradient(90deg, transparent, var(--blue), transparent); animation: fadeIn 0.5s ease-out 1.7s forwards; opacity: 0; }
+</style></head><body>
+<div class="scene s5">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
+  ${brandBar()}
+  <div class="quote-mark">"</div>
+  <div class="quote">${t(txt, "quote")}</div>
+  <div class="attribution">
+    <div class="speaker">${t(txt, "speaker")}</div>
+    <div class="source">${t(txt, "source")}</div>
+    <div class="accent-line"></div>
+  </div>
+</div></body></html>`;
+}
+
+/* ── S6: Comparison — Anthropic accusations (fills vertical space) ── */
+function scene6(scene, duration) {
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s6 { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 220px 160px 470px 60px; }
+.s6 .title-wrap { }
+.s6 .accused-row { display: flex; gap: 24px; align-items: stretch; width: 100%; }
+.s6 .accused-card { flex: 1; border-radius: 16px; padding: 40px 24px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
+.s6 .accused-card.one { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.3); animation-delay: 0.3s; }
+.s6 .accused-card.two { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.3); animation-delay: 0.6s; }
+.s6 .accused-card.three { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.3); animation-delay: 0.9s; }
+.s6 .accused-card .name { font-size: 36px; font-weight: 800; color: var(--white); letter-spacing: 1px; }
+.s6 .accused-card .stat { font-size: 44px; font-weight: 900; color: var(--red); margin-top: 16px; letter-spacing: -1px; }
+.s6 .bytedance-box { border-radius: 20px; padding: 50px 60px; text-align: center; animation: scaleIn 0.5s ease-out 1.3s forwards; opacity: 0; }
+.s6 .bytedance-box.clean { background: rgba(52,211,153,0.08); border: 2px solid rgba(52,211,153,0.4); box-shadow: 0 0 40px rgba(52,211,153,0.15); }
+.s6 .bytedance-box .text { font-size: 44px; font-weight: 900; color: var(--green); letter-spacing: 3px; }
+</style></head><body>
+<div class="scene s6">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
+  ${brandBar()}
+  <div class="title-wrap">${titleBlock(t(txt, "title"), { center: true, fontSize: 48, color: "sec" })}</div>
+  <div class="accused-row">
+    <div class="accused-card one"><div class="name">${t(txt, "left")}</div><div class="stat">${t(txt, "leftStat")}</div></div>
+    <div class="accused-card two"><div class="name">${t(txt, "middle")}</div><div class="stat">${t(txt, "middleStat")}</div></div>
+    <div class="accused-card three"><div class="name">${t(txt, "right")}</div><div class="stat">${t(txt, "rightStat")}</div></div>
+  </div>
+  <div class="bytedance-box clean"><div class="text">${t(txt, "bytedance")}</div></div>
+</div></body></html>`;
+}
+
+/* ── S7: Data — compute gap (fills vertical space) ── */
+function scene7(scene, duration) {
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s7 { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 220px 160px 470px 60px; }
+.s7 .glow-red { position: absolute; top: -200px; right: -200px; width: 800px; height: 800px; background: radial-gradient(circle, rgba(239,68,68,0.12) 0%, transparent 60%); }
+.s7 .chip-compare { display: flex; align-items: center; gap: 60px; }
+.s7 .chip-box { width: 340px; border-radius: 24px; padding: 60px 40px; text-align: center; animation: scaleIn 0.5s ease-out forwards; opacity: 0; }
+.s7 .chip-box.h20 { background: rgba(52,211,153,0.06); border: 2px solid rgba(52,211,153,0.3); animation-delay: 0.3s; }
+.s7 .chip-box.b200 { background: rgba(239,68,68,0.08); border: 2px solid rgba(239,68,68,0.4); animation-delay: 1.0s; box-shadow: 0 0 40px rgba(239,68,68,0.15); }
+.s7 .chip-box .chip-name { font-size: 120px; font-weight: 900; line-height: 1; margin-bottom: 20px; }
+.s7 .chip-box.h20 .chip-name { color: var(--green); }
+.s7 .chip-box.b200 .chip-name { color: var(--red); }
+.s7 .chip-box .chip-label { font-size: 26px; font-weight: 700; letter-spacing: 3px; }
+.s7 .chip-box.h20 .chip-label { color: var(--green); }
+.s7 .chip-box.b200 .chip-label { color: var(--red); }
+.s7 .vs { font-size: 72px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; }
+.s7 .bottom-info { display: flex; flex-direction: column; align-items: center; gap: 20px; animation: fadeIn 0.5s ease-out 1.5s forwards; opacity: 0; }
+.s7 .source { font-size: 26px; font-weight: 700; color: var(--sec); letter-spacing: 3px; }
+</style></head><body>
+<div class="scene s7">
+  <div class="grid-bg"></div><div class="glow-red"></div><div class="scanlines"></div>
+  ${brandBar()}
+  <div class="chip-compare">
+    <div class="chip-box h20"><div class="chip-name">${t(txt, "chip")}</div><div class="chip-label">${t(txt, "chipLabel")}</div></div>
+    <div class="vs">VS</div>
+    <div class="chip-box b200"><div class="chip-name">${t(txt, "vs")}</div><div class="chip-label">${t(txt, "vsLabel")}</div></div>
+  </div>
+  <div class="bottom-info">
+    ${stampBox({ text: t(txt, "gap"), color: "red" })}
+    <div class="source">${t(txt, "source")}</div>
+  </div>
+</div></body></html>`;
+}
+
+/* ── S8: Contrast — same day (fills vertical space) ── */
+function scene8(scene, duration) {
+  const txt = scene.texts || {};
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}
+.s8 { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 220px 160px 470px 60px; }
+.s8 .cols { display: flex; gap: 40px; align-items: stretch; width: 100%; position: relative; }
+.s8 .col { flex: 1; border-radius: 20px; padding: 60px 40px; text-align: center; animation: scaleIn 0.5s ease-out forwards; opacity: 0; }
+.s8 .col.left { background: rgba(245,158,11,0.08); border: 2px solid rgba(245,158,11,0.4); animation-delay: 0.3s; box-shadow: 0 0 40px rgba(245,158,11,0.15); }
+.s8 .col.right { background: rgba(77,139,255,0.08); border: 2px solid rgba(77,139,255,0.4); animation-delay: 1.0s; }
+.s8 .col .company { font-size: 56px; font-weight: 900; letter-spacing: 2px; margin-bottom: 40px; line-height: 1.2; }
+.s8 .col.left .company { color: var(--amber); }
+.s8 .col.right .company { color: var(--blue); }
+.s8 .col .action { font-size: 36px; font-weight: 800; letter-spacing: 2px; line-height: 1.3; color: var(--white); }
+.s8 .vs-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; z-index: 10; background: #050508; }
+</style></head><body>
+<div class="scene s8">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
+  ${brandBar()}
+  ${titleBlock(t(txt, "title"), { center: true, fontSize: 48, color: "sec" })}
+  <div class="cols">
+    <div class="col left"><div class="company">${t(txt, "left")}</div><div class="action">${t(txt, "leftAction")}</div></div>
+    <div class="col right"><div class="company">${t(txt, "right")}</div><div class="action">${t(txt, "rightAction")}</div></div>
+    <div class="vs-circle">${t(txt, "vs")}</div>
+  </div>
+</div></body></html>`;
+}
+
+/* ── S9: CTA — standard end card (shared ctaScene) ── */
+function scene9(scene, duration) {
+  return ctaScene(scene, duration);
+}
+
+// Scene router
+export function generateScene(scene, duration) {
+  switch (scene.id) {
+    case 1:
+      return withWatermark(scene1(scene, duration));
+    case 2:
+      return withWatermark(scene2(scene, duration));
+    case 3:
+      return withWatermark(scene3(scene, duration));
+    case 4:
+      return withWatermark(scene4(scene, duration));
+    case 5:
+      return withWatermark(scene5(scene, duration));
+    case 6:
+      return withWatermark(scene6(scene, duration));
+    case 7:
+      return withWatermark(scene7(scene, duration));
+    case 8:
+      return withWatermark(scene8(scene, duration));
+    case 9:
+      return withWatermark(scene9(scene, duration));
+    default:
+      throw new Error("Unknown scene: " + scene.id);
+  }
+}

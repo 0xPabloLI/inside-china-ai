@@ -723,6 +723,89 @@ function normalizeForCompare(text) {
     .trim();
 }
 
+/**
+ * Semantic consistency check — detects contradictions between voiceover
+ * and on-screen text within the same scene.
+ *
+ * Uses a curated antonym/contradiction pair table. When term A appears in
+ * the VO and term B (its opposite) appears in the on-screen text, the check
+ * flags it as a potential factual contradiction.
+ *
+ * Comparison scenes (texts containing "vs"/"VS") get WARN only — antonyms
+ * are expected when contrasting two different entities. Non-comparison
+ * scenes get FAIL — the VO and text should agree.
+ *
+ * Limitations:
+ * - Rule-based, not semantic understanding. May miss subtle contradictions
+ *   requiring world knowledge.
+ * - The Agent should still do a manual cross-reference pass before running
+ *   the pipeline. This check is a safety net, not a replacement.
+ */
+export function checkSemanticConsistency(scenes) {
+  // [voTerm, textTerm, description]
+  // voTerm: if found in voiceover (case-insensitive, word-boundary)
+  // textTerm: if found in on-screen text (case-insensitive substring)
+  const CONTRADICTION_PAIRS = [
+    ["restricted", "can buy", "VO says 'restricted' but text says 'can buy'"],
+    ["restricted", "available", "VO says 'restricted' but text says 'available'"],
+    ["restricted", "legal", "VO says 'restricted' but text says 'legal'"],
+    ["export-restricted", "can buy", "VO says 'export-restricted' but text says 'can buy'"],
+    ["export-restricted", "available", "VO says 'export-restricted' but text says 'available'"],
+    ["export-restricted", "legal", "VO says 'export-restricted' but text says 'legal'"],
+    ["illegal", "can buy", "VO says 'illegal' but text says 'can buy'"],
+    ["illegal", "legal", "VO says 'illegal' but text says 'legal'"],
+    ["not allowed", "can buy", "VO says 'not allowed' but text says 'can buy'"],
+    ["not allowed", "available", "VO says 'not allowed' but text says 'available'"],
+    ["banned", "can buy", "VO says 'banned' but text says 'can buy'"],
+    ["banned", "available", "VO says 'banned' but text says 'available'"],
+    ["banned", "legal", "VO says 'banned' but text says 'legal'"],
+    ["legal", "banned", "VO says 'legal' but text says 'banned'"],
+    ["legal", "illegal", "VO says 'legal' but text says 'illegal'"],
+    ["clean", "accused", "VO says 'clean' but text says 'accused'"],
+    ["clean", "guilty", "VO says 'clean' but text says 'guilty'"],
+    ["not on that list", "accused", "VO says 'not on that list' but text says 'accused'"],
+    ["rejected", "accepted", "VO says 'rejected' but text says 'accepted'"],
+    ["rejected", "approved", "VO says 'rejected' but text says 'approved'"],
+    ["raises", "lowers", "VO says 'raises' but text says 'lowers'"],
+    ["raises", "cuts", "VO says 'raises' but text says 'cuts'"],
+    ["increases", "decreases", "VO says 'increases' but text says 'decreases'"],
+    ["up", "down", "VO says 'up' but text says 'down'"],
+    ["open source", "closed source", "VO says 'open source' but text says 'closed source'"],
+    ["closed source", "open source", "VO says 'closed source' but text says 'open source'"],
+  ];
+
+  const results = [];
+
+  for (const scene of scenes) {
+    const vo = sceneVO(scene);
+    const texts = sceneTexts(scene);
+    const isComparison = /\bvs\b/i.test(texts);
+
+    for (const [voTerm, textTerm, description] of CONTRADICTION_PAIRS) {
+      if (vo.includes(voTerm) && texts.includes(textTerm)) {
+        results.push({
+          level: isComparison ? "warn" : "fail",
+          category: "Fact-Check",
+          check: "Semantic consistency (VO vs on-screen text)",
+          detail: `Scene ${scene.id}: ${description}${isComparison ? " (comparison scene — verify entities differ)" : ""}`,
+          fix: "Align the on-screen text with the voiceover claim, or correct the voiceover to match the factual label",
+        });
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Fact-Check",
+        check: "Semantic consistency (VO vs on-screen text)",
+      },
+    ];
+  }
+  return results;
+}
+
 /** Loop-close: last scene should reference the hook for natural rewatch */
 export function checkLoopClose(scenes) {
   const firstVO = (scenes[0]?.voiceover || "").toLowerCase();
@@ -787,6 +870,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkTeleprompterRhythm(scenes),
     ...checkCTAStacking(scenes),
     ...checkPrimaryGoal(scenes),
+    ...checkSemanticConsistency(scenes),
     ...checkLoopClose(scenes),
     ...checkBodyTextVoRedundancy(scenes),
   ];
