@@ -23,6 +23,7 @@ import { FPS, sceneTimeline, findScene } from "./timeline.mjs";
 import { parseAss } from "./subtitles/ass.mjs";
 import { MAX_WORDS, MIN_DURATION, GAP_THRESHOLD, CHAIN_GAP_FRAMES } from "./subtitles/cues.mjs";
 import { verifyAudioSync, applyAudioSyncToSummary, AUDIO_SYNC_TOLERANCE } from "./audio/sync.mjs";
+import { writeDiagnosticsBundle } from "./audio/diagnostics.mjs";
 
 /**
  * Max acceptable distance between a word's highlight and its spoken onset.
@@ -368,6 +369,19 @@ export function verifySubtitles({
   }
 
   printSummary(report, videoPath);
+
+  // Fail-loud closure: a red exit must come with the evidence to fix the
+  // SOURCE. On FAIL, drop a self-contained diagnostics bundle (drift table,
+  // packet gaps, stream durations, report copy). Best-effort by contract —
+  // the exit code stays driven by summary.passed, and a bundle failure must
+  // never mask the FAIL.
+  if (outputDir && !report.summary.passed) {
+    const bundleDir = writeDiagnosticsBundle({ outputDir, report, videoPath });
+    if (bundleDir) {
+      console.log(`  📦 Diagnostics bundle: ${bundleDir}`);
+    }
+  }
+
   return report;
 }
 

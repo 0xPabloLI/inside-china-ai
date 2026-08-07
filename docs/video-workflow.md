@@ -298,7 +298,8 @@ scripts/short-video/
 │   │   ├── wav.mjs         # Mono s16 PCM WAV read/write + ffmpeg decode bridge
 │   │   ├── fft.mjs         # Radix-2 FFT + cross-correlation onset finder
 │   │   ├── track.mjs       # Gapless voiceover master (pad each scene to its clip length)
-│   │   └── sync.mjs        # End-to-end check: scene onsets measured in the SHIPPED audio
+│   │   ├── sync.mjs        # End-to-end check: scene onsets measured in the SHIPPED audio
+│   │   └── diagnostics.mjs # FAIL-time bundle: drift table, packet gaps, stream durations
 │   └── base-styles.mjs     # Shared visual system (CSS vars, backgrounds, animations, brand SVG)
 ├── content/                # Content pipelines (each article = one dir)
 │   ├── deepseek/           # DeepSeek story
@@ -614,6 +615,8 @@ stat -f "%Sm" output/restraint-pt1/restraint-pt1-short.mp4
 **Fix** (`assemble.mjs` + `lib/audio/track.mjs`): scene clips are encoded video-only (`-an`); every scene voiceover is padded with real silence to its frame-aligned clip length and concatenated into `voiceover.wav`, a PCM master whose sample count equals the video's; the final mux encodes audio exactly once (`-c:v copy -c:a aac -b:a 192k`). No timestamp gaps exist, so there is nothing for downstream transcoders to compact. The optional BGM pass re-encodes the already-continuous track — a constant whole-file offset, never per-scene drift.
 
 **End-to-end check** (`lib/audio/sync.mjs`, wired into Step 6): each scene's voiceover is cross-correlated (FFT) against the SHIPPED video's audio track; a measured onset >80ms from its timeline offset is FAIL-class. This verifies the artifact itself, not the plans that produced it. Scene audio missing → skip (WARN); scene audio present but undecodable, or final track undecodable → FAIL.
+
+**Failure diagnostics** (`lib/audio/diagnostics.mjs`): when verification FAILs with an output-dir, the pipeline also drops `output/{id}/diagnostics/{timestamp}/` — a self-contained bundle for fixing the source: `summary.txt` (why it failed, per-scene drift table, packet gaps, stream durations, collection errors), `drift.json`, `packet-gaps.json`, `streams.json`, and a copy of `verification-report.json`. The path is printed as `📦 Diagnostics bundle: <path>` right after the FAIL line. Best-effort by contract (never throws; a bundle failure must not mask the exit code), and PASS runs write zero bytes — the bundle only exists on failure.
 
 **Superseded note (AAC priming)**: FFmpeg concat with `-c copy` caused ~46ms/scene cumulative drift from AAC encoder delay; fixed at the time by re-encoding audio during concat. Now superseded — per-scene audio streams no longer exist, so there is nothing to prime.
 
