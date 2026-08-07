@@ -57,6 +57,13 @@ const EXEMPT_SELECTORS = [
 //   wordFit:        sceneId -> [selector] whose words must each fit on one
 //                   line (guards mid-word breaks)
 const EXPECTATIONS = {
+  "bytedance-distillation": {
+    // Every scene carries a brandBar() (top-left identity) → watermark skip
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
+    singleOccurrence: {},
+    wordFit: {},
+  },
   "restraint/pt1": {
     skipWatermark: [1, 11],
     absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
