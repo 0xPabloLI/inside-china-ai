@@ -72,23 +72,27 @@ export const WIDGETS: Record<string, LazyWidget> = {
       default: m.MinimaxStockView,
     })),
   ),
+  // NOTE: import the view file directly — these packages previously had
+  // index.ts barrel files that already wrapped the views in lazy(), which
+  // double-wrapped them here (lazy(lazy()) → "Element type is invalid" on
+  // hydration). The index barrels were removed; keep this pattern.
   "deepseek-vision-keywords": lazy(() =>
-    import("./deepseek-vision").then((m) => ({
+    import("./deepseek-vision/vision-keywords-view").then((m) => ({
       default: m.VisionKeywordsView,
     })),
   ),
   "deepseek-agi-roadmap": lazy(() =>
-    import("./deepseek-agi-roadmap").then((m) => ({
+    import("./deepseek-agi-roadmap/agi-roadmap-view").then((m) => ({
       default: m.AGIRoadmapView,
     })),
   ),
   "deepseek-oss-comparison": lazy(() =>
-    import("./deepseek-oss-comparison").then((m) => ({
+    import("./deepseek-oss-comparison/oss-comparison-view").then((m) => ({
       default: m.OSSComparisonView,
     })),
   ),
   "deepseek-api-pricing": lazy(() =>
-    import("./deepseek-api-pricing").then((m) => ({
+    import("./deepseek-api-pricing/api-pricing-view").then((m) => ({
       default: m.APIPricingView,
     })),
   ),

@@ -12,15 +12,23 @@
  *         colors (segmented controls with rounded-full are excluded)
  *
  * A widget is SKIPPED (not failed) when its landmark is absent, so the
- * script stays meaningful as articles change.
+ * script stays meaningful as articles change. Widgets that are not yet
+ * published to the DB can still be runtime-verified via the dev-only
+ * widget preview routes (/widgets, /widgets/<name>) with --preview:
+ * every registry widget is visited and gets the container + keyboard
+ * probes (plus the interactive probe it matches).
  *
  * Usage:
- *   node scripts/verify-widget-a11y.mjs [--url http://localhost:8083]
+ *   node scripts/verify-widget-a11y.mjs [--url http://localhost:8083] [--preview]
+ *
+ *   --preview:  verify every registered widget through the dev-only
+ *               /widgets/<name> preview route instead of article pages
  */
 import { chromium } from "playwright";
 
 const argUrl = process.argv.indexOf("--url");
 const BASE = argUrl >= 0 ? process.argv[argUrl + 1] : "http://localhost:8083";
+const PREVIEW = process.argv.includes("--preview");
 
 const PAGES = [
   "/posts/deepseek-leaked-investor-meeting",
@@ -155,12 +163,23 @@ async function probeMoonshot(page) {
   check(pressedTrue >= 1, "Moonshot bars expose aria-pressed", `${pressedTrue} true`);
   const cls = await bars[0].getAttribute("class");
   check(hasFocusClasses(cls), "Moonshot bars carry focus-visible classes", cls || "none");
-  await bars[0].click();
-  check(
-    (await pressedCountMatching(page, BAR_TEXT)) === 1,
-    "Moonshot bar click keeps exactly one selected",
-    `found ${await pressedCountMatching(page, BAR_TEXT)}`,
-  );
+  // Click a bar that is NOT currently selected — clicking the selected bar
+  // deselects (0 selected), which is valid but not what this assertion checks.
+  let clicked = false;
+  for (const b of bars) {
+    if ((await b.getAttribute("aria-pressed")) !== "true") {
+      await b.click();
+      clicked = true;
+      break;
+    }
+  }
+  if (clicked) {
+    check(
+      (await pressedCountMatching(page, BAR_TEXT)) === 1,
+      "Moonshot bar click keeps exactly one selected",
+      `found ${await pressedCountMatching(page, BAR_TEXT)}`,
+    );
+  }
 }
 
 async function probeApiPricing(page) {
@@ -265,22 +284,104 @@ async function probeKeyboard(page) {
   );
 }
 
-for (const path of PAGES) {
+/** Map preview widget id -> interactive probe it should satisfy. */
+const WIDGET_PROBES = {
+  "deepseek-funding": probeFunding,
+  "deepseek-companies": probeCompanies,
+  "distillation-news-coverage": probeNewsCoverage,
+  "moonshot-funding-timeline": probeMoonshot,
+  "deepseek-api-pricing": probeApiPricing,
+};
+
+function newPage(browser) {
+  return browser
+    .newContext({ viewport: { width: 1280, height: 900 } })
+    .then((ctx) => ctx.newPage());
+}
+
+async function runArticleMode() {
+  for (const path of PAGES) {
+    const browser = await chromium.launch({ headless: true });
+    const page = await newPage(browser);
+    console.log(`\n=== ${path} ===`);
+    await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(2000);
+    await probeFunding(page);
+    await probeCompanies(page);
+    await probeNewsCoverage(page);
+    await probeMoonshot(page);
+    await probeApiPricing(page);
+    await probeContainers(page);
+    await probeKeyboard(page);
+    await browser.close();
+  }
+}
+
+async function runPreviewMode() {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  const page = await ctx.newPage();
-  console.log(`\n=== ${path} ===`);
-  await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
-  await page.waitForTimeout(2000);
-  await probeFunding(page);
-  await probeCompanies(page);
-  await probeNewsCoverage(page);
-  await probeMoonshot(page);
-  await probeApiPricing(page);
-  await probeContainers(page);
-  await probeKeyboard(page);
+  const page = await newPage(browser);
+  console.log(`\n=== LISTING /widgets ===`);
+  await page.goto(`${BASE}/widgets`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  const ids = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href^="/widgets/"]')]
+      .map((a) => a.getAttribute("href").replace(/^\/widgets\//, ""))
+      .filter(Boolean),
+  );
+  const uniqueIds = [...new Set(ids)];
+  check(
+    uniqueIds.length >= 14,
+    "Widgets listing exposes registry ids",
+    `${uniqueIds.length} found`,
+  );
+  let visited = 0;
+  for (const id of uniqueIds) {
+    visited++;
+    console.log(`\n=== /widgets/${id} (${visited}/${uniqueIds.length}) ===`);
+    const resp = await page.goto(`${BASE}/widgets/${encodeURIComponent(id)}`, {
+      waitUntil: "networkidle",
+    });
+    check(resp.status() === 200, "Preview page responds 200", `status=${resp.status()}`);
+    await page.waitForTimeout(1200);
+    const probe = WIDGET_PROBES[id];
+    if (probe) await probe(page);
+    await probeContainers(page);
+    await probeKeyboard(page);
+    // R2/R3: breakout widgets render max-w-none, others max-w-prose
+    const width = await page.evaluate(() => {
+      const w = document.querySelector('[class*="bg-card"][class*="my-10"]');
+      return w ? w.className : "";
+    });
+    if (width) {
+      const expectBreakout = id === "deepseek-funding";
+      check(
+        expectBreakout ? width.includes("max-w-none") : width.includes("max-w-prose"),
+        `Wrapper width ${expectBreakout ? "max-w-none (breakout)" : "max-w-prose"}`,
+        width.slice(0, 120),
+      );
+    } else {
+      check(null, "Wrapper width assertion", "no wrapper found");
+    }
+  }
+  check(
+    visited === uniqueIds.length,
+    "Every listed widget visited",
+    `${visited}/${uniqueIds.length}`,
+  );
+  // R4: unknown widget id must not render a preview — 404 UI only
+  await page.goto(`${BASE}/widgets/definitely-not-a-widget`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  const notFoundVisible = await page.getByText("Page not found", { exact: false }).count();
+  check(
+    notFoundVisible > 0,
+    "Unknown widget id renders 404 UI (no preview)",
+    `${notFoundVisible} found`,
+  );
   await browser.close();
 }
+
+if (PREVIEW) await runPreviewMode();
+else await runArticleMode();
 
 console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 console.log(`✅ PASS: ${results.pass}   ❌ FAIL: ${results.fail}   ⏭️ SKIP: ${results.skip}`);
