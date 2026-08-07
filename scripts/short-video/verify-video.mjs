@@ -12,6 +12,9 @@
  *
  *   --pre:        pre-render mode (skip video/subtitle/manual checks)
  *   --tiktok:     also check TikTok-specific 60-70s duration requirement (post-render only)
+ *   --long-form:  explicit YouTube long-form opt-in — downgrades scene-count (>10) and
+ *                 voiceover-word (>180) violations from FAIL to WARN. TikTok default
+ *                 keeps them as FAIL so oversized content must be split into parts.
  *   --content:    content pipeline ID (e.g. deepseek, distillation/pt1, restraint/pt1)
  *
  * Exit code: 0 if all automated checks pass, 1 if any fail.
@@ -37,6 +40,7 @@ const contentDir = getArg("content") || "deepseek";
 const pipelineId = contentDir.replace(/\//g, "-");
 const preMode = args.includes("--pre");
 const checkTikTok = args.includes("--tiktok");
+const longForm = args.includes("--long-form");
 
 const OUTPUT_DIR = join(__dirname, "output", pipelineId);
 const SCENE_DATA_PATH = join(__dirname, "content", contentDir, "scene-data.mjs");
@@ -207,7 +211,7 @@ if (!scenes || scenes.length === 0) {
 pass("Scene Data", "Scenes array exists", `${scenes.length} scenes`);
 
 // Run all scene-data validation rules from lib/scene-rules.mjs
-const sceneResults = runAllSceneDataChecks(scenes, seriesMeta);
+const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, { longForm });
 for (const r of sceneResults.pass) {
   console.log(`  ✅ ${r.check}${r.detail ? ` — ${r.detail}` : ""}`);
 }

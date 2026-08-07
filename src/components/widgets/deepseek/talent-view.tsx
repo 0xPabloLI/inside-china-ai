@@ -30,7 +30,7 @@ export function TalentView() {
         return (
           <div
             key={p.nameEn}
-            className="rounded-xl border border-border/60 bg-background/60 transition-colors hover:border-border"
+            className="rounded-lg border border-border/60 bg-muted/30 transition-colors hover:border-border"
             style={{ animationDelay: `${i * 0.06}s` }}
           >
             {/* Head */}
@@ -98,7 +98,7 @@ export function TalentView() {
       })}
 
       {/* Info box */}
-      <div className="mt-5 rounded-xl border border-border/60 bg-muted/30 px-5 py-4">
+      <div className="mt-5 rounded-lg border border-border/60 bg-muted/30 px-5 py-4">
         <h3 className="mb-2.5 text-[13px] font-semibold text-foreground/80 tracking-wide">
           {t.infoBoxTitle}
         </h3>

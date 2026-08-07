@@ -51,7 +51,9 @@ export function NewsCoverageView() {
                         onMouseEnter={() => setHovered(ev)}
                         onMouseLeave={() => setHovered(null)}
                         onClick={() => setSelected(selected === ev ? null : ev)}
-                        className="h-3.5 w-3.5 rounded-full border-2 border-background shadow-sm transition-transform hover:scale-150"
+                        aria-label={ev.headline}
+                        aria-pressed={selected === ev}
+                        className="h-3.5 w-3.5 rounded-full border-2 border-background shadow-sm transition-transform hover:scale-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                         style={{
                           background: EVENT_TYPE_META[ev.type].color,
                         }}
@@ -87,7 +89,7 @@ export function NewsCoverageView() {
                 : active.type === "funding"
                   ? "border-success-muted"
                   : active.type === "political"
-                    ? "border-purple-500/30"
+                    ? "border-border/60"
                     : "border-warning-muted"
           }`}
         >

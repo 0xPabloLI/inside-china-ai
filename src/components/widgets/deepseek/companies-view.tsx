@@ -44,11 +44,12 @@ export function CompaniesView() {
                 return (
                   <div
                     key={`${group.id}-${name}`}
-                    className="overflow-hidden rounded-lg border border-border/40 bg-background/40 transition-colors hover:border-border/60"
+                    className="overflow-hidden rounded-lg border border-border/60 bg-muted/30 transition-colors hover:border-border/60"
                   >
                     <button
                       onClick={() => setExpanded(isExpanded ? null : `${group.id}-${name}`)}
-                      className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
+                      aria-expanded={isExpanded}
+                      className="flex w-full items-center gap-2.5 px-4 py-3 text-left rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                     >
                       <span className="flex-1 text-sm font-bold text-foreground">{name}</span>
                       <span className="text-xs text-muted-foreground">{co.quotes.length}</span>

@@ -122,7 +122,7 @@ export function FundingView() {
                 </div>
               );
             })}
-            <div className="mt-2 rounded-md bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground">
+            <div className="mt-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground">
               ⚠ <strong>{isZh ? "高瓴/红杉缺席" : "Hillhouse/HSG absent"}</strong>:{" "}
               {isZh
                 ? "两家原被认为不可能缺席的机构最终均未参与"
@@ -196,6 +196,7 @@ export function FundingView() {
               <button
                 key={i}
                 onClick={() => setSelectedRound(selectedRound === i ? null : i)}
+                aria-pressed={selectedRound === i}
                 className="flex h-full flex-1 flex-col items-center justify-end focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand rounded"
               >
                 <div

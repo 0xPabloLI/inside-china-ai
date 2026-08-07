@@ -43,8 +43,14 @@ function sceneVO(scene) {
 
 // ─── Check functions ───
 
-/** Scene count should be within THRESHOLDS range per SKILL.md */
-export function checkSceneCount(scenes) {
+/**
+ * Scene count should be within THRESHOLDS range per SKILL.md.
+ *
+ * TikTok default: out-of-range is a FAIL (blocks the pipeline until the
+ * content is split into parts or --long-form is explicitly passed).
+ * opts.longForm (YouTube long-form opt-in) downgrades to warn.
+ */
+export function checkSceneCount(scenes, opts = {}) {
   const count = scenes.length;
   if (count >= THRESHOLDS.minScenes && count <= THRESHOLDS.maxScenes) {
     return [
@@ -58,11 +64,13 @@ export function checkSceneCount(scenes) {
   }
   return [
     {
-      level: "warn",
+      level: opts.longForm ? "warn" : "fail",
       category: "Structure",
       check: "Scene count (6-10)",
       detail: `${count} scenes`,
-      fix: "SKILL.md recommends 6-10 scenes",
+      fix: opts.longForm
+        ? "SKILL.md recommends 6-10 scenes"
+        : "Split into content/<dir>/pt1, pt2... (6-10 scenes each) or pass --long-form",
     },
   ];
 }
@@ -381,7 +389,7 @@ export function checkShareWorthyData(scenes) {
 }
 
 /** Total voiceover should be <=180 words for 60-70s target */
-export function checkVoiceoverWordCount(scenes) {
+export function checkVoiceoverWordCount(scenes, opts = {}) {
   const totalWords = scenes.reduce(
     (sum, s) => sum + (s.voiceover || "").split(/\s+/).filter(Boolean).length,
     0,
@@ -398,11 +406,13 @@ export function checkVoiceoverWordCount(scenes) {
   }
   return [
     {
-      level: "warn",
+      level: opts.longForm ? "warn" : "fail",
       category: "Duration",
       check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
       detail: `${totalWords} words`,
-      fix: `May exceed 70s at 2.5 wps — consider trimming (limit: ${THRESHOLDS.maxVoiceoverWords} words)`,
+      fix: opts.longForm
+        ? `May exceed 70s at 2.5 wps — consider trimming (limit: ${THRESHOLDS.maxVoiceoverWords} words)`
+        : `Split VO across content/<dir>/pt1, pt2... (≤${THRESHOLDS.maxVoiceoverWords} words each) or pass --long-form`,
     },
   ];
 }
@@ -752,9 +762,9 @@ export function checkLoopClose(scenes) {
  * @param {Object|null} seriesMeta - optional series metadata
  * @returns {{ pass: Array, warn: Array, fail: Array }}
  */
-export function runAllSceneDataChecks(scenes, seriesMeta) {
+export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const allChecks = [
-    ...checkSceneCount(scenes),
+    ...checkSceneCount(scenes, opts),
     ...checkHookVisualType(scenes),
     ...checkCTAVisualType(scenes),
     ...checkHookCompellingElement(scenes),
@@ -767,7 +777,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta) {
     ...checkSEOKeywords(scenes),
     ...checkSourceAttribution(scenes),
     ...checkShareWorthyData(scenes),
-    ...checkVoiceoverWordCount(scenes),
+    ...checkVoiceoverWordCount(scenes, opts),
     ...checkOneBreath(scenes),
     ...checkSubjectVisibility(scenes),
     ...checkSeriesMeta(seriesMeta),

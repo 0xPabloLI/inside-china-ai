@@ -49,7 +49,7 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
   const t = translations[lang];
 
   return (
-    <div className="my-6 rounded-lg border border-border/60 bg-muted/30 p-6">
+    <>
       <div className="mb-6">
         <h3 className="text-base font-semibold text-foreground">{t.title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
@@ -135,6 +135,6 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
           {t.statusFuture}
         </span>
       </div>
-    </div>
+    </>
   );
 }

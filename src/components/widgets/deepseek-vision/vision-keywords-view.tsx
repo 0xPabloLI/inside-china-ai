@@ -33,7 +33,7 @@ export function VisionKeywordsView({ lang = "en" }: WordCloudProps) {
   });
 
   return (
-    <div className="my-6 rounded-lg border border-border/60 bg-muted/30 p-6">
+    <>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-muted-foreground">
           {lang === "zh" ? "演讲关键词频率" : "Key Themes from the Meeting"}
@@ -92,7 +92,7 @@ export function VisionKeywordsView({ lang = "en" }: WordCloudProps) {
 
       {/* Frequency bar for hovered word */}
       {hoveredIdx !== null && (
-        <div className="mt-4 flex items-center gap-3 rounded-md bg-background/50 px-4 py-2">
+        <div className="mt-4 flex items-center gap-3 rounded-md bg-muted/30 px-4 py-2">
           <span
             className="text-sm font-semibold"
             style={{ color: getColor(items.find((i) => i.idx === hoveredIdx)!.t) }}
@@ -119,6 +119,6 @@ export function VisionKeywordsView({ lang = "en" }: WordCloudProps) {
           ? "基于 3 小时 44 分钟的演讲文本分析"
           : "Based on analysis of a 3h 44m investor meeting transcript"}
       </p>
-    </div>
+    </>
   );
 }

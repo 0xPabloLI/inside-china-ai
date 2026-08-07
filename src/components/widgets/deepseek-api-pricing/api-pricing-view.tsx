@@ -43,7 +43,7 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
   };
 
   return (
-    <div className="my-6 rounded-lg border border-border/60 bg-muted/30 p-6">
+    <>
       <div className="mb-5">
         <h3 className="text-base font-semibold text-foreground">{t.title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
@@ -51,19 +51,24 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
 
       {/* Company selector */}
       <div className="mb-4 flex flex-wrap gap-2">
-        {companies.map((company) => (
-          <button
-            key={company}
-            onClick={() => setSelectedCompany(company === selectedCompany ? null : company)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              selectedCompany === company || (!selectedCompany && company === "DeepSeek")
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted/50 hover:bg-muted/80 text-muted-foreground"
-            }`}
-          >
-            {company}
-          </button>
-        ))}
+        {companies.map((company) => {
+          const isActive =
+            selectedCompany === company || (!selectedCompany && company === "DeepSeek");
+          return (
+            <button
+              key={company}
+              onClick={() => setSelectedCompany(company === selectedCompany ? null : company)}
+              aria-pressed={isActive}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted/30 hover:bg-muted/40 text-muted-foreground"
+              }`}
+            >
+              {company}
+            </button>
+          );
+        })}
       </div>
 
       {/* Pricing table */}
@@ -144,7 +149,7 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
       </div>
 
       {/* Key insight */}
-      <div className="mt-5 rounded-md bg-background/50 border border-border/40 p-4">
+      <div className="mt-5 rounded-md bg-muted/30 border border-border/60 p-4">
         <p className="text-sm">
           <span className="font-semibold text-foreground">
             {lang === "zh" ? "10 个月回本原则：" : "10-month recovery principle:"}
@@ -160,6 +165,6 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
           ? "价格截至 2026 年 7 月。实际价格可能随时间调整。基于各公司公开定价页面。"
           : "Prices as of July 2026. Actual prices may vary over time. Based on public pricing pages from each company."}
       </p>
-    </div>
+    </>
   );
 }

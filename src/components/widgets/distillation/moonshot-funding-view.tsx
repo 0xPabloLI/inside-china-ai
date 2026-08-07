@@ -60,7 +60,8 @@ export function MoonshotFundingView() {
               <button
                 key={i}
                 onClick={() => setSelected(isSelected ? null : ev)}
-                className="flex h-full flex-1 flex-col items-center justify-end"
+                aria-pressed={isSelected}
+                className="flex h-full flex-1 flex-col items-center justify-end rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
                 {hasVal && (
                   <div

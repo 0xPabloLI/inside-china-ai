@@ -1,0 +1,35 @@
+// Test fixture: 11 scenes (over the 6-10 TikTok limit) but otherwise fully
+// compliant, so --long-form downgrades ONLY the scene-count violation.
+//
+// Every rule that verify-video.mjs checks is satisfied:
+//   - hook has a number + strong word, no greeting, VO differs from text
+//   - no em dashes, no AI blacklist words, one-breath lines (<=25 words)
+//   - China/AI/DeepSeek on-screen in >=2 scenes, named sources in >=2 scenes
+//   - >=50% scenes carry concrete numbers, no clickbait/dead closers
+//   - total VO ~11 x 14 words < 180 (word-count check stays PASS so the
+//     --long-form exit-0 assertion isolates the scene-count downgrade)
+
+const SCENE = (id, word) => ({
+  id,
+  name: word,
+  visualType: id === 1 ? "hook" : id === 11 ? "cta" : "data",
+  voiceover: `Scene ${id}: China AI ${word} hit a fresh 1.4 billion dollar mark.`,
+  texts: id === 1 ? { line1: "DEEPSEEK HIT", line2: "$1.4B MARK" } : { stat: `SCENE ${id}` },
+});
+
+export const scenes = Array.from({ length: 11 }, (_, i) => {
+  const s = SCENE(i + 1, "milestone");
+  if (i === 0) {
+    // Bloomberg attribution in the hook; differs from on-screen text
+    s.voiceover = "Bloomberg reported China AI DeepSeek hit a 1.4 billion dollar mark.";
+  }
+  if (i === 4) {
+    // second named source (soft rule: named sources in >=2 scenes)
+    s.voiceover = "Reuters confirmed the same China AI milestone number.";
+  }
+  if (i === 10) {
+    s.voiceover = "Follow China AI News for the next DeepSeek milestone.";
+    s.texts = { line1: "CHINA AI NEWS" };
+  }
+  return s;
+});

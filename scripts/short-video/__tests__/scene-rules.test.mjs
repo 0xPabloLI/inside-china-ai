@@ -61,6 +61,13 @@ const validScenes = [
   },
   {
     id: 5,
+    name: "analysis2",
+    visualType: "data",
+    voiceover: "Tencent and Alibaba joined the race with rival models.",
+    texts: { stat: "2X" },
+  },
+  {
+    id: 6,
     name: "cta",
     visualType: "cta",
     voiceover: "Follow for more China AI news that matters.",
@@ -85,14 +92,35 @@ describe("checkSceneCount", () => {
     }
   });
 
-  it("warns for <6 scenes", () => {
+  it("fails for <6 scenes (TikTok default)", () => {
     const results = checkSceneCount(Array(5).fill(validScenes[0]));
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("fails for >10 scenes (TikTok default)", () => {
+    const results = checkSceneCount(Array(11).fill(validScenes[0]));
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("warns for >10 scenes with --long-form opt-in", () => {
+    const results = checkSceneCount(Array(11).fill(validScenes[0]), { longForm: true });
     expect(results[0].level).toBe("warn");
   });
 
-  it("warns for >10 scenes", () => {
-    const results = checkSceneCount(Array(11).fill(validScenes[0]));
+  it("warns for <6 scenes with --long-form opt-in", () => {
+    const results = checkSceneCount(Array(5).fill(validScenes[0]), { longForm: true });
     expect(results[0].level).toBe("warn");
+  });
+
+  it("still passes compliant count with --long-form", () => {
+    const results = checkSceneCount(Array(8).fill(validScenes[0]), { longForm: true });
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fail fix suggests splitting into parts", () => {
+    const results = checkSceneCount(Array(11).fill(validScenes[0]));
+    expect(results[0].fix).toMatch(/pt/i);
+    expect(results[0].fix).toMatch(/split|拆分/i);
   });
 });
 
@@ -121,7 +149,7 @@ describe("checkCTAVisualType", () => {
   });
 
   it("fails when last scene visualType is not cta", () => {
-    const scenes = [...validScenes.slice(0, -1), { ...validScenes[4], visualType: "summary" }];
+    const scenes = [...validScenes.slice(0, -1), { ...validScenes[5], visualType: "summary" }];
     const results = checkCTAVisualType(scenes);
     expect(results[0].level).toBe("fail");
   });
@@ -305,7 +333,7 @@ describe("checkNoDeadClosers", () => {
   it("fails when last scene has 'thanks for watching'", () => {
     const scenes = [
       ...validScenes.slice(0, -1),
-      { ...validScenes[4], voiceover: "Thanks for watching!" },
+      { ...validScenes[5], voiceover: "Thanks for watching!" },
     ];
     const results = checkNoDeadClosers(scenes);
     expect(results[0].level).toBe("fail");
@@ -379,11 +407,77 @@ describe("checkVoiceoverWordCount", () => {
     expect(results[0].level).toBe("pass");
   });
 
-  it("warns when total words >180", () => {
+  it("passes at the 180-word boundary", () => {
+    const longVO = Array(180).fill("word").join(" ");
+    const scenes = [{ ...validScenes[0], voiceover: longVO }];
+    const results = checkVoiceoverWordCount(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fails when total words >180 (TikTok default)", () => {
+    const longVO = Array(181).fill("word").join(" ");
+    const scenes = [{ ...validScenes[0], voiceover: longVO }];
+    const results = checkVoiceoverWordCount(scenes);
+    expect(results[0].level).toBe("fail");
+  });
+
+  it("warns when total words >180 with --long-form opt-in", () => {
+    const longVO = Array(200).fill("word").join(" ");
+    const scenes = [{ ...validScenes[0], voiceover: longVO }];
+    const results = checkVoiceoverWordCount(scenes, { longForm: true });
+    expect(results[0].level).toBe("warn");
+  });
+
+  it("still passes compliant word count with --long-form", () => {
+    const results = checkVoiceoverWordCount(validScenes, { longForm: true });
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fail fix suggests splitting into parts", () => {
     const longVO = Array(200).fill("word").join(" ");
     const scenes = [{ ...validScenes[0], voiceover: longVO }];
     const results = checkVoiceoverWordCount(scenes);
-    expect(results[0].level).toBe("warn");
+    expect(results[0].fix).toMatch(/pt/i);
+    expect(results[0].fix).toMatch(/split|拆分/i);
+  });
+});
+
+// ── runAllSceneDataChecks aggregation (T1 guard contract) ──
+
+describe("runAllSceneDataChecks guard strictness", () => {
+  const overLimitScenes = Array(12)
+    .fill(validScenes[0])
+    .map((s, i) => ({
+      ...s,
+      id: i + 1,
+      voiceover: i === 0 ? "word ".repeat(200).trim() : s.voiceover,
+    }));
+
+  it("defaults: scene count + word count land in fail bucket", () => {
+    const res = runAllSceneDataChecks(overLimitScenes);
+    const failedChecks = res.fail.map((r) => r.check);
+    expect(failedChecks).toContain("Scene count (6-10)");
+    expect(failedChecks).toContain("Total voiceover words (≤180)");
+  });
+
+  it("--long-form: scene count + word count downgrade to warn bucket", () => {
+    const res = runAllSceneDataChecks(overLimitScenes, undefined, { longForm: true });
+    const warnedChecks = res.warn.map((r) => r.check);
+    expect(warnedChecks).toContain("Scene count (6-10)");
+    expect(warnedChecks).toContain("Total voiceover words (≤180)");
+    const failedChecks = res.fail.map((r) => r.check);
+    expect(failedChecks).not.toContain("Scene count (6-10)");
+    expect(failedChecks).not.toContain("Total voiceover words (≤180)");
+  });
+
+  it("compliant content stays 0 scene/word failures in both modes", () => {
+    const resDefault = runAllSceneDataChecks(validScenes);
+    const resLong = runAllSceneDataChecks(validScenes, undefined, { longForm: true });
+    for (const res of [resDefault, resLong]) {
+      const failedChecks = res.fail.map((r) => r.check);
+      expect(failedChecks).not.toContain("Scene count (6-10)");
+      expect(failedChecks).not.toContain("Total voiceover words (≤180)");
+    }
   });
 });
 
@@ -501,7 +595,7 @@ describe("checkCTAStacking", () => {
 
   it("warns when 3+ CTAs in one scene", () => {
     const scenes = [
-      { ...validScenes[4], voiceover: "Follow, like, comment, share, and subscribe now!" },
+      { ...validScenes[5], voiceover: "Follow, like, comment, share, and subscribe now!" },
     ];
     const results = checkCTAStacking(scenes);
     expect(results[0].level).toBe("warn");
@@ -561,7 +655,7 @@ describe("runAllSceneDataChecks", () => {
   });
 
   it("catches missing visualType=cta", () => {
-    const badScenes = [...validScenes.slice(0, -1), { ...validScenes[4], visualType: "summary" }];
+    const badScenes = [...validScenes.slice(0, -1), { ...validScenes[5], visualType: "summary" }];
     const results = runAllSceneDataChecks(badScenes, null);
     const ctaFail = results.fail.find((f) => f.check.includes("CTA scene type"));
     expect(ctaFail).toBeDefined();
@@ -604,7 +698,7 @@ describe("runAllSceneDataChecks", () => {
   it("catches dead closer", () => {
     const badScenes = [
       ...validScenes.slice(0, -1),
-      { ...validScenes[4], voiceover: "Thanks for watching!" },
+      { ...validScenes[5], voiceover: "Thanks for watching!" },
     ];
     const results = runAllSceneDataChecks(badScenes, null);
     const closerFail = results.fail.find(

@@ -31,11 +31,11 @@ export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
   const getStrategyColor = (company: string): string => {
     if (company === "DeepSeek") return "bg-success-muted border-success-muted";
     if (company === "Zhipu AI (GLM)") return "bg-warning-muted border-warning-muted";
-    return "bg-muted/40 border-border/60";
+    return "bg-muted/30 border-border/60";
   };
 
   return (
-    <div className="my-6 rounded-lg border border-border/60 bg-muted/30 p-6">
+    <>
       <div className="mb-5">
         <h3 className="text-base font-semibold text-foreground">{t.title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
@@ -113,6 +113,6 @@ export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
           ? "基于公开报道和公司文档整理。不同公司的开源策略随时间调整。"
           : "Compiled from public reporting and company documentation. Strategies evolve over time."}
       </p>
-    </div>
+    </>
   );
 }
