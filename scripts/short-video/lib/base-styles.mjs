@@ -83,8 +83,10 @@ function baseStyles(duration) {
     @keyframes hookIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
     @keyframes fadeOut { to { opacity: 1; } }
     /* Channel watermark — top-left corner, clear of the TikTok action rail
-       (right) and the caption/subtitle zone (bottom). See lib/safe-zones.mjs. */
-    .brand-watermark { position: absolute; top: ${WATERMARK_POS.top}px; left: ${WATERMARK_POS.left}px; width: 55px; height: 55px; opacity: 0.18; z-index: 100; pointer-events: none; }
+       (right) and the caption/subtitle zone (bottom). See lib/safe-zones.mjs.
+       opacity 0.35 keeps the (now visible) mark legible without competing
+       with scene content. */
+    .brand-watermark { position: absolute; top: ${WATERMARK_POS.top}px; left: ${WATERMARK_POS.left}px; width: 55px; height: 55px; opacity: 0.35; z-index: 100; pointer-events: none; }
     .brand-watermark svg { width: 100%; height: 100%; }
   `;
 }

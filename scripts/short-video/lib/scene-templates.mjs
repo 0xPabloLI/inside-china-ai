@@ -20,9 +20,13 @@ import { fileURLToPath } from "url";
 import { baseStyles } from "./base-styles.mjs";
 
 // ── Brand assets ──
-// Channel brand logo — shared across ALL videos
+// Channel brand mark — shared across ALL videos. Reads the VIDEO-GRADE
+// asset (built by build-mark-svg.mjs): viewBox'd so CSS scaling works,
+// brand-palette fills (#4d8bff / #ef4444) so it is visible on the dark
+// stage. Do NOT point this back at the raw source SVG (no viewBox, dark
+// fills — invisible in renders).
 const BRAND_MARK_SVG = readFileSync(
-  new URL("../assets/china-ai-news-logo-vector.svg", import.meta.url),
+  new URL("../assets/china-ai-news-mark-video.svg", import.meta.url),
   "utf8",
 )
   .replace(/<\?xml[^>]*\?>\s*/, "")
