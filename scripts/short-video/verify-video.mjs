@@ -413,7 +413,8 @@ printSummary();
 if (!preMode && results.fail.length === 0) {
   console.log("\n📝 Generating TikTok caption...");
   try {
-    execSync(`node "${join(__dirname, "generate-caption.mjs")}"`, {
+    const contentArg = contentDir ? ` --content "${contentDir}"` : "";
+    execSync(`node "${join(__dirname, "generate-caption.mjs")}"${contentArg}`, {
       stdio: "inherit",
     });
 

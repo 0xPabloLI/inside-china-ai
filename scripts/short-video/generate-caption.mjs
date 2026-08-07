@@ -6,10 +6,11 @@
  * tiktok-metadata.json (program: for ISSUE-01 API publishing).
  *
  * Usage:
- *   node scripts/short-video/generate-caption.mjs   # standalone
+ *   node scripts/short-video/generate-caption.mjs               # standalone (root scene-data)
+ *   node scripts/short-video/generate-caption.mjs --content <dir>  # content pipeline
  *   # or auto-called by verify-video.mjs when all checks pass
  *
- * Reads:  scripts/short-video/scene-data.mjs (scenes + optional metadata)
+ * Reads:  scripts/short-video/{scene-data.mjs | content/<dir>/scene-data.mjs}
  * Writes: output/tiktok-caption.txt, output/tiktok-metadata.json
  */
 
@@ -22,8 +23,14 @@ import { deriveTitle, deriveDescription, deriveHashtags } from "./lib/caption-ut
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const args = process.argv.slice(2);
+const contentFlag = args.indexOf("--content");
+const contentDir = contentFlag >= 0 ? args[contentFlag + 1] : "";
+
 const OUTPUT_DIR = join(__dirname, "output");
-const SCENE_DATA_PATH = join(__dirname, "scene-data.mjs");
+const SCENE_DATA_PATH = contentDir
+  ? join(__dirname, "content", contentDir, "scene-data.mjs")
+  : join(__dirname, "scene-data.mjs");
 const CAPTION_TXT_PATH = join(OUTPUT_DIR, "tiktok-caption.txt");
 const METADATA_JSON_PATH = join(OUTPUT_DIR, "tiktok-metadata.json");
 
