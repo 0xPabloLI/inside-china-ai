@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
+import { ogImageMeta } from "@/lib/og";
 import { SubscribeForm } from "@/components/subscribe-form";
 
 const TITLE = "Chinese AI Companies: The 2026 Guide to China's Top AI Labs";

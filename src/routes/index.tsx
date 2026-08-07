@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { ogImageMeta } from "@/lib/og";
 import { listPublishedPosts } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
