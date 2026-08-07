@@ -68,8 +68,10 @@ export function PricingView() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-full border border-border/60 bg-muted/40 p-0.5">
           <button
+            type="button"
             onClick={() => setMode("output")}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            aria-pressed={mode === "output"}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
               mode === "output"
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -78,8 +80,10 @@ export function PricingView() {
             {isZh ? "输出" : "Output"}
           </button>
           <button
+            type="button"
             onClick={() => setMode("input")}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            aria-pressed={mode === "input"}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
               mode === "input"
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -88,18 +92,18 @@ export function PricingView() {
             {isZh ? "输入" : "Input"}
           </button>
         </div>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {t.pricingSubtitle.replace("{rate}", EXCHANGE_RATE.toFixed(2))}
         </span>
       </div>
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3.5">
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <span className="h-3 w-3 rounded-sm" style={{ background: "#5B8FF9" }} />
           {t.legendDomestic.replace("{rate}", EXCHANGE_RATE.toFixed(2))}
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <span
             className="h-3 w-3 rounded-sm border-2 border-dashed"
             style={{ borderColor: "#10A37F", background: "rgba(16,163,127,0.15)" }}
@@ -126,18 +130,18 @@ export function PricingView() {
               className="flex items-center gap-2"
               style={{ animationDelay: `${i * 0.03}s` }}
             >
-              <div className="flex w-[200px] shrink-0 items-center gap-1.5 text-[11px]">
+              <div className="flex w-[200px] shrink-0 items-center gap-1.5 text-xs">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: m.color }} />
                 <span className="truncate">
                   {vendorName} {modelName}
-                  <span className="ml-1 rounded px-1 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
+                  <span className="ml-1 rounded px-1 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">
                     {isOverseas ? (isZh ? "海外" : "OS") : isZh ? "国内" : "CN"}
                   </span>
                 </span>
               </div>
               <div className="relative h-7 flex-1 overflow-hidden rounded">
                 <div
-                  className="flex h-full items-center justify-end rounded pr-2 text-[10px] font-bold text-white"
+                  className="flex h-full items-center justify-end rounded pr-2 text-xs font-bold text-white"
                   style={{
                     width: `${pct}%`,
                     background: isOverseas
@@ -148,7 +152,7 @@ export function PricingView() {
                   {priceLabel}
                 </div>
               </div>
-              <div className="w-12 shrink-0 text-right text-[10px] text-muted-foreground">
+              <div className="w-12 shrink-0 text-right text-xs text-muted-foreground">
                 {tierName}
               </div>
             </div>
@@ -158,7 +162,7 @@ export function PricingView() {
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[11px]">
+        <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="border-b border-border/60">
               <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">
@@ -225,19 +229,19 @@ export function PricingView() {
       </div>
 
       {/* Sources */}
-      <div className="text-[11px] leading-relaxed text-muted-foreground/70">
+      <div className="text-xs leading-relaxed text-muted-foreground/70">
         <div className="mb-1 font-semibold text-muted-foreground">
           {isZh ? "数据来源（均已验证）" : "Data Sources (All Verified)"}
         </div>
         <div className="mb-2">
-          <strong className="text-green-600">{isZh ? "国内厂商" : "Domestic"}</strong>
+          <strong className="text-success-foreground">{isZh ? "国内厂商" : "Domestic"}</strong>
           {isZh ? "（官方定价页面）" : " (official pricing pages)"}:
           <br />
           DeepSeek · Zhipu AI · Kimi · Xiaomi MiMo · MiniMax · Qwen · Tencent Hunyuan · ByteDance
           Doubao
         </div>
         <div className="mb-2">
-          <strong className="text-amber-700">{isZh ? "海外厂商" : "Overseas"}</strong>
+          <strong className="text-warning-foreground">{isZh ? "海外厂商" : "Overseas"}</strong>
           {isZh
             ? `（官方定价页面，USD→RMB 1:${EXCHANGE_RATE.toFixed(2)}）`
             : ` (official pricing pages, USD)`}

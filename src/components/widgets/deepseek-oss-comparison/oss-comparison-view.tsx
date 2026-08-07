@@ -9,7 +9,13 @@ const translations = {
   en: {
     title: "Open Source Strategy Comparison",
     subtitle: "How DeepSeek differs from other Chinese AI labs in open-source approach",
-    columns: ["Company", "Open Source Strategy", "Flagship Models", "Community", "Commercial Model"],
+    columns: [
+      "Company",
+      "Open Source Strategy",
+      "Flagship Models",
+      "Community",
+      "Commercial Model",
+    ],
   },
   zh: {
     title: "开源策略对比",
@@ -25,7 +31,7 @@ export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
   const getStrategyColor = (company: string): string => {
     if (company === "DeepSeek") return "bg-success-muted border-success-muted";
     if (company === "Zhipu AI (GLM)") return "bg-warning-muted border-warning-muted";
-    return "bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700";
+    return "bg-muted/40 border-border/60";
   };
 
   return (
@@ -64,11 +70,15 @@ export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
                   onMouseEnter={() => setHoveredRow(idx)}
                   onMouseLeave={() => setHoveredRow(null)}
                 >
-                  <td className={`py-3 px-3 font-medium ${company.company === "DeepSeek" ? "text-success-foreground" : ""}`}>
+                  <td
+                    className={`py-3 px-3 font-medium ${company.company === "DeepSeek" ? "text-success-foreground" : ""}`}
+                  >
                     {company.company}
                   </td>
                   <td className="py-3 px-3">
-                    <div className={`inline-block px-2 py-1 rounded text-xs ${getStrategyColor(company.company)} border`}>
+                    <div
+                      className={`inline-block px-2 py-1 rounded text-xs ${getStrategyColor(company.company)} border`}
+                    >
                       {company.openSourceStrategy}
                     </div>
                   </td>
@@ -93,7 +103,7 @@ export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
           <span>{lang === "zh" ? "被动响应" : "Reactive"}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded bg-slate-400" />
+          <span className="h-2.5 w-2.5 rounded bg-muted-foreground/50" />
           <span>{lang === "zh" ? "有限/封闭" : "Limited/Closed"}</span>
         </div>
       </div>

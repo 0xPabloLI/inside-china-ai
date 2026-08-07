@@ -37,10 +37,10 @@ export function TalentView() {
             <div className="flex flex-wrap items-center gap-2.5 px-5 pt-4 pb-2.5">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.techColor }} />
               <span className="text-lg font-bold text-foreground">{name}</span>
-              <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-muted-foreground">
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-muted-foreground">
                 {tech}
               </span>
-              <span className="ml-auto text-[11px] font-semibold text-red-500/80 shrink-0">
+              <span className="ml-auto text-xs font-semibold text-danger-foreground/80 shrink-0">
                 {t.departLabel} · {depart}
               </span>
             </div>
@@ -48,13 +48,13 @@ export function TalentView() {
             {/* Cols */}
             <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-border/40">
               <div className="px-5 py-3 border-b sm:border-b-0 sm:border-r border-border/40">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                <div className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
                   {t.tcLabelRole}
                 </div>
                 <div className="text-[13px] text-foreground/80 leading-snug">{role}</div>
               </div>
               <div className="px-5 py-3">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                <div className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
                   {t.tcLabelFlow}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -64,30 +64,30 @@ export function TalentView() {
                     {company}
                   </span>
                 </div>
-                {note ? <div className="mt-1 text-[11px] text-muted-foreground">{note}</div> : null}
+                {note ? <div className="mt-1 text-xs text-muted-foreground">{note}</div> : null}
               </div>
             </div>
 
             {/* Salary */}
             <div className="flex flex-wrap items-center gap-2 border-t border-border/40 px-5 py-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
                 {t.tcLabelSalary}
               </span>
               <span
                 className={`text-sm font-bold ${
-                  p.salaryKnown ? "text-amber-600" : "text-amber-700/80"
+                  p.salaryKnown ? "text-warning-foreground" : "text-warning-foreground/80"
                 }`}
               >
                 {salaryParts[0]}
               </span>
               {salaryParts[1] ? (
-                <span className="text-[10px] text-muted-foreground">{salaryParts[1]}</span>
+                <span className="text-xs text-muted-foreground">{salaryParts[1]}</span>
               ) : null}
               <span
-                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
                   p.salaryKnown
-                    ? "bg-amber-500/10 text-amber-600"
-                    : "bg-amber-700/5 text-amber-700/80"
+                    ? "bg-warning-muted text-warning-foreground"
+                    : "bg-warning-muted/60 text-warning-foreground/80"
                 }`}
               >
                 {salaryStatus}
@@ -105,7 +105,7 @@ export function TalentView() {
         <ul className="space-y-1.5">
           {t.infoBoxItems.map((item, idx) => (
             <li key={idx} className="text-xs leading-relaxed text-muted-foreground">
-              <span className="font-semibold text-amber-600">{item.highlight}</span>
+              <span className="font-semibold text-warning-foreground">{item.highlight}</span>
               {item.text}
             </li>
           ))}
@@ -113,7 +113,7 @@ export function TalentView() {
       </div>
 
       {/* Disclaimer */}
-      <div className="mt-3 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground/60">
+      <div className="mt-3 space-y-0.5 text-xs leading-relaxed text-muted-foreground/60">
         {t.sourceText.map((s, i) => (
           <div key={i}>
             <a

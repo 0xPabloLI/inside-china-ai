@@ -228,9 +228,10 @@ function ComparePage() {
               DeepSeek vs Qwen vs GLM-4
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
-              Three labs dominate China's open-weight model output: DeepSeek, Alibaba's Qwen team and
-              Zhipu AI's GLM line. They are not interchangeable. This page compares what each family
-              is actually good at, how their licences differ, and which one fits which workload.
+              Three labs dominate China's open-weight model output: DeepSeek, Alibaba's Qwen team
+              and Zhipu AI's GLM line. They are not interchangeable. This page compares what each
+              family is actually good at, how their licences differ, and which one fits which
+              workload.
             </p>
           </header>
 
@@ -262,7 +263,10 @@ function ComparePage() {
                 <tbody>
                   {ROWS.map((r) => (
                     <tr key={r.dimension} className="border-b border-border/40 align-top">
-                      <th scope="row" className="py-3 pr-4 text-left font-medium text-foreground/80">
+                      <th
+                        scope="row"
+                        className="py-3 pr-4 text-left font-medium text-foreground/80"
+                      >
                         {r.dimension}
                       </th>
                       <td className="py-3 pr-4 text-muted-foreground">{r.deepseek}</td>
@@ -284,7 +288,7 @@ function ComparePage() {
                 <li key={m.key} className="border-t border-border/60 py-6">
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                     <h3 className="font-serif text-2xl leading-snug">{m.name}</h3>
-                    <span className="rounded-full border border-border/60 px-2 py-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <span className="rounded-full border border-border/60 px-2 py-0.5 text-xs uppercase tracking-wider text-muted-foreground">
                       {m.licence}
                     </span>
                   </div>
@@ -362,7 +366,10 @@ function ComparePage() {
 
           <p className="text-sm text-muted-foreground">
             Related:{" "}
-            <a href="/companies" className="underline decoration-border hover:decoration-foreground">
+            <a
+              href="/companies"
+              className="underline decoration-border hover:decoration-foreground"
+            >
               guide to China's top AI labs
             </a>
             .

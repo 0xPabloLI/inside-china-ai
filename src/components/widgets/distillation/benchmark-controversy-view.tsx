@@ -23,7 +23,7 @@ function Bar({
     <div className="flex items-center gap-2">
       <div className="relative h-6 flex-1 overflow-hidden rounded">
         <div
-          className="flex h-full items-center justify-end rounded pr-2 text-[10px] font-bold text-white transition-all duration-300"
+          className="flex h-full items-center justify-end rounded pr-2 text-xs font-bold text-white transition-all duration-300"
           style={{
             width: `${pct}%`,
             background: color,
@@ -35,16 +35,8 @@ function Bar({
           {unit}
         </div>
       </div>
-      {best && (
-        <span className="shrink-0 text-[10px] font-bold text-success-foreground">
-          ★ Best
-        </span>
-      )}
-      {worst && !best && (
-        <span className="shrink-0 text-[10px] font-bold text-danger">
-          ▼ Worst
-        </span>
-      )}
+      {best && <span className="shrink-0 text-xs font-bold text-success-foreground">★ Best</span>}
+      {worst && !best && <span className="shrink-0 text-xs font-bold text-danger">▼ Worst</span>}
     </div>
   );
 }
@@ -59,18 +51,13 @@ export function BenchmarkControversyView() {
         {Object.entries(MODEL_META).map(([key, meta]) => (
           <div
             key={key}
-            className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
           >
-            <span
-              className="h-3 w-6 rounded-sm"
-              style={{ background: meta.color }}
-            />
+            <span className="h-3 w-6 rounded-sm" style={{ background: meta.color }} />
             {meta.name}
           </div>
         ))}
-        <div className="ml-auto text-[10px] text-muted-foreground/60">
-          Hover bars for analysis
-        </div>
+        <div className="ml-auto text-xs text-muted-foreground/60">Hover bars for analysis</div>
       </div>
 
       {/* Grouped horizontal bars */}
@@ -91,11 +78,9 @@ export function BenchmarkControversyView() {
             >
               {/* Dimension label */}
               <div className="mb-1.5 flex items-center gap-2">
-                <span className="text-[12px] font-bold text-foreground/80">
-                  {row.dimension}
-                </span>
+                <span className="text-[12px] font-bold text-foreground/80">{row.dimension}</span>
                 <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                  className={`rounded px-1.5 py-0.5 text-xs font-bold ${
                     row.higherIsBetter
                       ? "bg-success-muted text-success-foreground"
                       : "bg-danger-muted text-danger"
@@ -108,7 +93,7 @@ export function BenchmarkControversyView() {
               {/* Bars */}
               <div className="ml-1 space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="w-20 shrink-0 text-[10px] font-semibold text-muted-foreground">
+                  <span className="w-20 shrink-0 text-xs font-semibold text-muted-foreground">
                     {MODEL_META.k3.name}
                   </span>
                   <div className="flex-1">
@@ -124,7 +109,7 @@ export function BenchmarkControversyView() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-20 shrink-0 text-[10px] font-semibold text-muted-foreground">
+                  <span className="w-20 shrink-0 text-xs font-semibold text-muted-foreground">
                     {MODEL_META.k26.name}
                   </span>
                   <div className="flex-1">
@@ -140,7 +125,7 @@ export function BenchmarkControversyView() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-20 shrink-0 text-[10px] font-semibold text-muted-foreground">
+                  <span className="w-20 shrink-0 text-xs font-semibold text-muted-foreground">
                     {MODEL_META.claude.name}
                   </span>
                   <div className="flex-1">
@@ -159,7 +144,7 @@ export function BenchmarkControversyView() {
 
               {/* Analysis note */}
               {isActive && (
-                <div className="mt-2 rounded-md bg-warning-muted px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                <div className="mt-2 rounded-md bg-warning-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                   💡 {row.note}
                 </div>
               )}
@@ -169,9 +154,9 @@ export function BenchmarkControversyView() {
       </div>
 
       {/* Sources */}
-      <div className="border-t border-border/30 pt-3 text-[10px] leading-relaxed text-muted-foreground/60">
-        Sources: Artificial Analysis · SCMP · PCMag · HackerNoon · LMSYS Arena ·
-        Moonshot evaluation report
+      <div className="border-t border-border/30 pt-3 text-xs leading-relaxed text-muted-foreground/60">
+        Sources: Artificial Analysis · SCMP · PCMag · HackerNoon · LMSYS Arena · Moonshot evaluation
+        report
       </div>
     </div>
   );

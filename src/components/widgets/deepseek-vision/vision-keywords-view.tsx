@@ -44,11 +44,11 @@ export function VisionKeywordsView({ lang = "en" }: WordCloudProps) {
             <span>{lang === "zh" ? "高" : "High"}</span>
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-purple-500" />
+            <span className="h-2 w-2 rounded-full bg-chart-3" />
             <span>{lang === "zh" ? "中" : "Medium"}</span>
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-pink-500" />
+            <span className="h-2 w-2 rounded-full bg-chart-2" />
             <span>{lang === "zh" ? "低" : "Low"}</span>
           </span>
         </div>
@@ -81,7 +81,7 @@ export function VisionKeywordsView({ lang = "en" }: WordCloudProps) {
             >
               {displayWord}
               {isHovered && (
-                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                   {otherWord} · {item.freq}
                 </span>
               )}

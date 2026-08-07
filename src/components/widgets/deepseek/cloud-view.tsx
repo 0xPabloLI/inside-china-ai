@@ -66,7 +66,7 @@ export function CloudView({ lang = "en" }: { lang: Lang }) {
             >
               {displayWord}
               {isHovered && (
-                <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                   {otherWord} · {item.freq}
                   {currentLang === "zh" ? "次" : "x"}
                 </span>
@@ -102,7 +102,7 @@ export function CloudView({ lang = "en" }: { lang: Lang }) {
         </div>
       )}
 
-      <div className="mt-3 text-center text-[11px] tracking-wide text-muted-foreground/60">
+      <div className="mt-3 text-center text-xs tracking-wide text-muted-foreground/60">
         {currentLang === "zh"
           ? "悬停查看词频 · 源自 42 页投资者交流实录"
           : "Hover for frequency · From 42-page investor meeting transcript"}

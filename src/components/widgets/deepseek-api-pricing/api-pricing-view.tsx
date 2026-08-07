@@ -91,19 +91,21 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
           <tbody>
             {selectedPricing.map((tier) => {
               const deepSeekTier = DEEPSEEK_PRICING[0]; // Use V3 for comparison
-              const inputSavings = selectedCompany && selectedCompany !== "DeepSeek"
-                ? calculateSavings(deepSeekTier.inputPrice, tier.inputPrice)
-                : null;
-              const outputSavings = selectedCompany && selectedCompany !== "DeepSeek"
-                ? calculateSavings(deepSeekTier.outputPrice, tier.outputPrice)
-                : null;
+              const inputSavings =
+                selectedCompany && selectedCompany !== "DeepSeek"
+                  ? calculateSavings(deepSeekTier.inputPrice, tier.inputPrice)
+                  : null;
+              const outputSavings =
+                selectedCompany && selectedCompany !== "DeepSeek"
+                  ? calculateSavings(deepSeekTier.outputPrice, tier.outputPrice)
+                  : null;
 
               return (
                 <tr key={tier.model} className="border-b border-border/40 hover:bg-background/50">
                   <td className="py-3 px-3 font-medium">
                     {tier.model}
                     {selectedCompany === "DeepSeek" && (
-                      <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-success-muted text-success-foreground">
+                      <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-success-muted text-success-foreground">
                         {lang === "zh" ? "核心" : "Flagship"}
                       </span>
                     )}
@@ -111,16 +113,24 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
                   <td className="py-3 px-3 font-mono">
                     ${formatPrice(tier.inputPrice)}
                     {inputSavings !== null && (
-                      <span className={`ml-2 text-xs ${inputSavings > 0 ? "text-success-foreground" : "text-danger"}`}>
-                        {inputSavings > 0 ? `-${inputSavings.toFixed(0)}%` : `+${Math.abs(inputSavings).toFixed(0)}%`}
+                      <span
+                        className={`ml-2 text-xs ${inputSavings > 0 ? "text-success-foreground" : "text-danger"}`}
+                      >
+                        {inputSavings > 0
+                          ? `-${inputSavings.toFixed(0)}%`
+                          : `+${Math.abs(inputSavings).toFixed(0)}%`}
                       </span>
                     )}
                   </td>
                   <td className="py-3 px-3 font-mono">
                     ${formatPrice(tier.outputPrice)}
                     {outputSavings !== null && (
-                      <span className={`ml-2 text-xs ${outputSavings > 0 ? "text-success-foreground" : "text-danger"}`}>
-                        {outputSavings > 0 ? `-${outputSavings.toFixed(0)}%` : `+${Math.abs(outputSavings).toFixed(0)}%`}
+                      <span
+                        className={`ml-2 text-xs ${outputSavings > 0 ? "text-success-foreground" : "text-danger"}`}
+                      >
+                        {outputSavings > 0
+                          ? `-${outputSavings.toFixed(0)}%`
+                          : `+${Math.abs(outputSavings).toFixed(0)}%`}
                       </span>
                     )}
                   </td>

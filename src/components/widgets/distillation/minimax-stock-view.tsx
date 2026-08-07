@@ -1,9 +1,5 @@
 import { useState } from "react";
-import {
-  STOCK_POINTS,
-  SUMMARY_CARDS,
-  type StockPoint,
-} from "./data/minimax-stock";
+import { STOCK_POINTS, SUMMARY_CARDS, type StockPoint } from "./data/minimax-stock";
 
 const W = 520;
 const H = 220;
@@ -56,29 +52,23 @@ export function MinimaxStockView() {
             className="flex-1 min-w-[100px] rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-center"
           >
             <div className={`text-base font-bold ${c.color}`}>{c.val}</div>
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              {c.label}
-            </div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">{c.label}</div>
           </div>
         ))}
       </div>
 
       {/* SVG line chart */}
       <div className="overflow-x-auto">
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className="w-full min-w-[400px]"
-          style={{ maxHeight: 260 }}
-        >
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[400px]" style={{ maxHeight: 260 }}>
           <defs>
             <linearGradient id="stockArea" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--danger)" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="var(--danger)" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="stockLine" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#22c55e" />
-              <stop offset="50%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#ef4444" />
+              <stop offset="0%" stopColor="var(--success)" />
+              <stop offset="50%" stopColor="var(--warning)" />
+              <stop offset="100%" stopColor="var(--danger)" />
             </linearGradient>
           </defs>
 
@@ -131,7 +121,7 @@ export function MinimaxStockView() {
                   cx={x}
                   cy={y}
                   r={isHovered ? 6 : isHighlight ? 5 : 4}
-                  fill={isHighlight ? "#ef4444" : "#f59e0b"}
+                  fill={isHighlight ? "var(--danger)" : "var(--warning)"}
                   stroke="white"
                   strokeWidth="1.5"
                   className="cursor-pointer transition-all"
@@ -170,24 +160,18 @@ export function MinimaxStockView() {
       {active && (
         <div className="rounded-lg border border-danger-muted bg-danger-muted p-3">
           <div className="flex items-center gap-2">
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-bold text-foreground">
               HK${active.price}
             </span>
-            <span className="text-[10px] font-semibold text-muted-foreground">
-              {active.date}
-            </span>
+            <span className="text-xs font-semibold text-muted-foreground">{active.date}</span>
           </div>
-          <div className="mt-1 text-sm font-bold text-foreground">
-            {active.event}
-          </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            {active.detail}
-          </p>
+          <div className="mt-1 text-sm font-bold text-foreground">{active.event}</div>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{active.detail}</p>
           <a
             href={active.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1.5 inline-block text-[10px] text-primary hover:underline"
+            className="mt-1.5 inline-block text-xs text-primary hover:underline"
           >
             {active.source} ↗
           </a>
@@ -195,9 +179,8 @@ export function MinimaxStockView() {
       )}
 
       {/* Ticker label */}
-      <div className="text-center text-[10px] text-muted-foreground/60">
-        HKEX: 0100.HK · MiniMax Group Inc · Source: Google Finance & HKEX
-        filings
+      <div className="text-center text-xs text-muted-foreground/60">
+        HKEX: 0100.HK · MiniMax Group Inc · Source: Google Finance & HKEX filings
       </div>
     </div>
   );

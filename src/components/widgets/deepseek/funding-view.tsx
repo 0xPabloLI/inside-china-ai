@@ -75,9 +75,7 @@ export function FundingView() {
             className="flex-1 min-w-[120px] rounded-lg border border-border/60 bg-muted/30 px-3.5 py-3 text-center"
           >
             <div className="text-lg font-bold text-foreground">{c.val}</div>
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              {c.label}
-            </div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">{c.label}</div>
           </div>
         ))}
       </div>
@@ -117,16 +115,14 @@ export function FundingView() {
                     className="h-2.5 w-2.5 shrink-0 rounded-sm"
                     style={{ background: inv.color }}
                   />
-                  <span className="flex-1 text-[11px] font-semibold text-foreground/80">
-                    {name}
-                  </span>
-                  <span className="text-[11px] font-bold text-foreground whitespace-nowrap">
+                  <span className="flex-1 text-xs font-semibold text-foreground/80">{name}</span>
+                  <span className="text-xs font-bold text-foreground whitespace-nowrap">
                     {amtStr}
                   </span>
                 </div>
               );
             })}
-            <div className="mt-2 rounded-md bg-muted/50 px-2.5 py-1.5 text-[10px] text-muted-foreground">
+            <div className="mt-2 rounded-md bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground">
               ⚠ <strong>{isZh ? "高瓴/红杉缺席" : "Hillhouse/HSG absent"}</strong>:{" "}
               {isZh
                 ? "两家原被认为不可能缺席的机构最终均未参与"
@@ -146,7 +142,7 @@ export function FundingView() {
         {/* Legend */}
         <div className="mb-3 flex flex-wrap gap-3.5">
           {legends.map((l) => (
-            <div key={l.cls} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <div key={l.cls} className="flex items-center gap-1 text-xs text-muted-foreground">
               <span
                 className={`h-3 w-3 rounded-sm ${
                   l.cls === "target"
@@ -162,7 +158,7 @@ export function FundingView() {
         </div>
 
         {/* Valuation bars */}
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {isZh ? "估值（$B）" : "Valuation ($B)"}
         </div>
         <div
@@ -203,7 +199,7 @@ export function FundingView() {
                 className="flex h-full flex-1 flex-col items-center justify-end focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand rounded"
               >
                 <div
-                  className={`text-[11px] font-bold whitespace-nowrap ${
+                  className={`text-xs font-bold whitespace-nowrap ${
                     valCls === "actual"
                       ? "text-success-foreground"
                       : valCls === "target"
@@ -228,7 +224,7 @@ export function FundingView() {
                   style={{ height: barH }}
                 />
                 <div className="mt-1.5 text-center">
-                  <div className="text-[10px] font-bold text-foreground/80">{r.date}</div>
+                  <div className="text-xs font-bold text-foreground/80">{r.date}</div>
                 </div>
               </button>
             );
@@ -242,11 +238,11 @@ export function FundingView() {
             const st = STATUS_MAP[r.status];
             return (
               <div key={i} className="flex-1 text-center min-w-0">
-                <div className="text-[10px] text-muted-foreground leading-tight max-w-[80px] mx-auto">
+                <div className="text-xs text-muted-foreground leading-tight max-w-[80px] mx-auto">
                   {event}
                 </div>
                 <span
-                  className={`mt-0.5 inline-block rounded px-1 py-0.5 text-[10px] font-bold ${st.cls}`}
+                  className={`mt-0.5 inline-block rounded px-1 py-0.5 text-xs font-bold ${st.cls}`}
                 >
                   {isZh ? st.zh : st.en}
                 </span>
@@ -257,23 +253,23 @@ export function FundingView() {
 
         {/* Selected round detail */}
         {selected && (
-          <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 px-3.5 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
+          <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 px-3.5 py-2.5 text-xs leading-relaxed text-muted-foreground">
             <div className="flex items-center gap-2 mb-1">
               <strong className="text-foreground">
                 {selected.date} · {isZh ? selected.eventZh : selected.eventEn}
               </strong>
               <span
-                className={`rounded px-1 py-0.5 text-[10px] font-bold ${STATUS_MAP[selected.status].cls}`}
+                className={`rounded px-1 py-0.5 text-xs font-bold ${STATUS_MAP[selected.status].cls}`}
               >
                 {isZh ? STATUS_MAP[selected.status].zh : STATUS_MAP[selected.status].en}
               </span>
             </div>
             <p>{isZh ? selected.detailZh : selected.detailEn}</p>
-            <div className="mt-1 text-[10px] text-muted-foreground/70">
+            <div className="mt-1 text-xs text-muted-foreground/70">
               <strong>{isZh ? "投资方：" : "Investors: "}</strong>
               {(isZh ? selected.investors : selected.investorsEn).join(isZh ? "、" : ", ")}
             </div>
-            <div className="mt-1 text-[10px]">
+            <div className="mt-1 text-xs">
               <a
                 href={selected.sourceUrl}
                 target="_blank"
@@ -289,7 +285,7 @@ export function FundingView() {
 
       {/* Sources */}
       <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
-        <div className="space-y-0.5 text-[10px] leading-relaxed text-muted-foreground/70">
+        <div className="space-y-0.5 text-xs leading-relaxed text-muted-foreground/70">
           {t.fundingSourceList.map((s, i) => (
             <div key={i}>
               <a
@@ -303,7 +299,7 @@ export function FundingView() {
             </div>
           ))}
         </div>
-        <div className="mt-2 border-t border-border/40 pt-2 text-[10px] leading-relaxed text-muted-foreground/60">
+        <div className="mt-2 border-t border-border/40 pt-2 text-xs leading-relaxed text-muted-foreground/60">
           {t.fundingDisclaimer}
         </div>
       </div>

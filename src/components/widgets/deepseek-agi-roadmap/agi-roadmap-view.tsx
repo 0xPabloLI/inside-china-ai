@@ -35,13 +35,13 @@ function getPhaseLabel(status: RoadmapPhase["status"], lang: "en" | "zh"): strin
 function getStatusColor(status: RoadmapPhase["status"]): string {
   if (status === "past") return "bg-success";
   if (status === "current") return "bg-brand";
-  return "bg-slate-300 dark:bg-slate-600";
+  return "bg-muted-foreground/40";
 }
 
 function getStatusBorder(status: RoadmapPhase["status"]): string {
   if (status === "past") return "border-success-muted";
   if (status === "current") return "border-brand shadow-lg shadow-brand/10";
-  return "border-slate-200 dark:border-slate-700";
+  return "border-border/60";
 }
 
 export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
@@ -65,7 +65,9 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
             <div
               key={phase.id}
               className={`relative rounded-lg border-2 p-4 transition-all duration-300 ${getStatusBorder(phase.status)} ${
-                isHovered ? "scale-[1.02] bg-background/80" : "bg-background/50 hover:bg-background/70"
+                isHovered
+                  ? "scale-[1.02] bg-background/80"
+                  : "bg-background/50 hover:bg-background/70"
               }`}
               onMouseEnter={() => setHoveredPhase(phase.id)}
               onMouseLeave={() => setHoveredPhase(null)}
@@ -77,7 +79,7 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
 
               {/* Connecting line */}
               {!isLast && (
-                <div className="absolute left-0 top-12 h-10 w-0.5 bg-gradient-to-b from-slate-300 to-slate-200 dark:from-slate-600 dark:to-slate-700" />
+                <div className="absolute left-0 top-12 h-10 w-0.5 bg-gradient-to-b from-border to-border/60" />
               )}
 
               {/* Content */}
@@ -89,11 +91,15 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted">
                       {phase.period}
                     </span>
-                    <span className={`text-xs font-medium ${
-                      phase.status === "current" ? "text-brand-foreground" :
-                      phase.status === "past" ? "text-success-foreground" :
-                      "text-slate-500 dark:text-slate-400"
-                    }`}>
+                    <span
+                      className={`text-xs font-medium ${
+                        phase.status === "current"
+                          ? "text-brand-foreground"
+                          : phase.status === "past"
+                            ? "text-success-foreground"
+                            : "text-muted-foreground"
+                      }`}
+                    >
                       {getPhaseLabel(phase.status, lang)}
                     </span>
                   </div>
@@ -125,7 +131,7 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
           {t.statusCurrent}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-slate-600" />
+          <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
           {t.statusFuture}
         </span>
       </div>

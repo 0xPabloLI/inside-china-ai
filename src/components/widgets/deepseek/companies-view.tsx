@@ -22,8 +22,8 @@ export function CompaniesView() {
       <div className="flex justify-end">
         <LangToggle lang={lang} onChange={setLang} />
       </div>
-      <div className="text-[11px] text-muted-foreground/70">{t.companiesSource}</div>
-      <div className="text-[11px] leading-relaxed text-muted-foreground/70">
+      <div className="text-xs text-muted-foreground/70">{t.companiesSource}</div>
+      <div className="text-xs leading-relaxed text-muted-foreground/70">
         {t.companiesDisclaimer}
       </div>
 
@@ -51,7 +51,7 @@ export function CompaniesView() {
                       className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
                     >
                       <span className="flex-1 text-sm font-bold text-foreground">{name}</span>
-                      <span className="text-[11px] text-muted-foreground">{co.quotes.length}</span>
+                      <span className="text-xs text-muted-foreground">{co.quotes.length}</span>
                       <span
                         className={`text-xs text-muted-foreground transition-transform ${
                           isExpanded ? "rotate-90" : ""
@@ -68,7 +68,7 @@ export function CompaniesView() {
                           return (
                             <div key={qi} className="border-t border-border/20 pt-2.5">
                               <span
-                                className={`mb-1.5 inline-block rounded px-2 py-0.5 text-[10px] font-medium ${
+                                className={`mb-1.5 inline-block rounded px-2 py-0.5 text-xs font-medium ${
                                   TONE_STYLES[q.toneClass] || TONE_STYLES["tone-neutral"]
                                 }`}
                               >
@@ -77,7 +77,7 @@ export function CompaniesView() {
                               <p className="text-[13px] leading-relaxed text-muted-foreground">
                                 {text}
                               </p>
-                              <div className="mt-1 text-[10px] text-muted-foreground/50">
+                              <div className="mt-1 text-xs text-muted-foreground/50">
                                 P.{q.page}
                               </div>
                             </div>
