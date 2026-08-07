@@ -1,12 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
+import { ogImageMeta, OG_COMPARE } from "@/lib/og";
 
 const TITLE = "DeepSeek vs Qwen vs GLM-4: Chinese Open Model Comparison";
 const DESCRIPTION =
   "Compare DeepSeek, Alibaba Qwen and Zhipu GLM-4 on reasoning, coding, context length, licences and API pricing to pick the right Chinese open model.";
 const URL = "https://chinaai.news/compare/deepseek-vs-qwen-vs-glm-4";
 const ORG_URL = "https://chinaai.news/";
+const PUBLISHED = "2026-08-07";
+const MODIFIED = "2026-08-07";
+
 
 type Model = {
   key: "deepseek" | "qwen" | "glm";

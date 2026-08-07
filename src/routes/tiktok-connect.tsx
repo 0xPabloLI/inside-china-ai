@@ -42,7 +42,16 @@ export const Route = createFileRoute("/tiktok-connect")({
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://chinaai.news/tiktok-connect" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "TikTok Connect — China AI News" },
+      {
+        name: "twitter:description",
+        content:
+          "Link your TikTok account to China AI News to upload short videos, set captions, and publish China AI news clips straight from the newsroom.",
+      },
+      ...ogImageMeta(OG_TIKTOK),
     ],
+
     links: [{ rel: "canonical", href: "https://chinaai.news/tiktok-connect" }],
     scripts: [
       {
