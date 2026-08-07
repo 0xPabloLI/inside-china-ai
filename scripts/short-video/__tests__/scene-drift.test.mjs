@@ -57,6 +57,7 @@ import { scenes as openSourceScenes } from "../evergreen-templates/china-open-so
 import { scenes as explainerScenes } from "../evergreen-templates/deepseek-explainer.mjs";
 
 const CONTENT_FILES = [
+  "content/bytedance-distillation/scenes.mjs",
   "content/deepseek/scenes.mjs",
   "content/restraint/pt1/scenes.mjs",
   "content/restraint/pt3/scenes.mjs",

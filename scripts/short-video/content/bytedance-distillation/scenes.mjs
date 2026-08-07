@@ -17,7 +17,6 @@ import {
   brandBar,
   stampBox,
   titleBlock,
-  fadeToBlack,
   ctaScene,
 } from "../../lib/scene-templates.mjs";
 import { slotCss, sceneFrame } from "../../lib/scene-layout.mjs";
@@ -215,7 +214,7 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
   <div class="grid-bg"></div><div class="glow-red"></div><div class="scanlines"></div>
   ${brandBar()}
   ${sceneFrame({
-    hero: `<div class="chip-compare"><div class="chip-box h20"><div class="chip-name">${t(txt, "chip")}</div><div class="chip-label">${t(txt, "chipLabel")}</div></div><div class="vs">VS</div><div class="chip-box b200"><div class="chip-name">${t(txt, "vs")}</div><div class="chip-label">${t(txt, "vsLabel")}</div></div></div>`,
+    hero: `<div class="chip-compare"><div class="chip-box h20"><div class="chip-name">${t(txt, "chip")}</div><div class="chip-label">${t(txt, "chipLabel")}</div></div><div class="vs">${t(txt, "vsText")}</div><div class="chip-box b200"><div class="chip-name">${t(txt, "vs")}</div><div class="chip-label">${t(txt, "vsLabel")}</div></div></div>`,
     support: `<div class="bottom-info">${stampBox({ text: t(txt, "gap"), color: "red" })}<div class="source">${t(txt, "source")}</div></div>`,
   })}
 </div></body></html>`;

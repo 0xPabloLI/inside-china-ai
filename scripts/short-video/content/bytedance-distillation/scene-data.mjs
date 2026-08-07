@@ -111,6 +111,7 @@ export const scenes = [
       chipLabel: "CHINA CAN BUY",
       vs: "B200",
       vsLabel: "BANNED FOR CHINA",
+      vsText: "VS",
       gap: "STRUCTURAL DISADVANTAGE",
       source: "PEKINGNOLOGY",
     },
