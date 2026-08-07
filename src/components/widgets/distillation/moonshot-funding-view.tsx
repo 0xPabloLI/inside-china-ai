@@ -47,7 +47,7 @@ export function MoonshotFundingView() {
 
         {/* Bars */}
         <div
-          className="flex items-end gap-2.5 border-b border-border/40 pb-1"
+          className="flex items-end gap-2.5 overflow-x-auto border-b border-border/40 pb-1"
           style={{ height: 180 }}
         >
           {FUNDING_EVENTS.map((ev, i) => {
@@ -87,7 +87,7 @@ export function MoonshotFundingView() {
                 {ev.event}
               </div>
               <span
-                className={`mt-0.5 inline-block rounded px-1 py-0.5 text-[7px] font-bold ${STATUS_STYLE[ev.status].badge}`}
+                className={`mt-0.5 inline-block rounded px-1 py-0.5 text-xs font-bold ${STATUS_STYLE[ev.status].badge}`}
               >
                 {STATUS_STYLE[ev.status].label}
               </span>

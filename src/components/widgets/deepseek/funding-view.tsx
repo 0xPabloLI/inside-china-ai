@@ -162,7 +162,7 @@ export function FundingView() {
           {isZh ? "估值（$B）" : "Valuation ($B)"}
         </div>
         <div
-          className="flex items-end gap-2.5 border-b border-border/40 pb-1"
+          className="flex items-end gap-2.5 overflow-x-auto border-b border-border/40 pb-1"
           style={{ height: 200 }}
         >
           {FUNDING_ROUNDS.map((r, i) => {
