@@ -178,7 +178,7 @@ function TikTokConnectPage() {
         </p>
 
         {/* Step 1: Connect */}
-        <section className="mb-10 rounded-lg border border-border/60 p-6">
+        <section id="connect" className="mb-10 rounded-lg border border-border/60 p-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
               1
@@ -205,7 +205,7 @@ function TikTokConnectPage() {
         </section>
 
         {/* Step 2: Upload */}
-        <section className="mb-10 rounded-lg border border-border/60 p-6">
+        <section id="upload" className="mb-10 rounded-lg border border-border/60 p-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
               2
@@ -247,7 +247,7 @@ function TikTokConnectPage() {
         </section>
 
         {/* Step 3: Publish */}
-        <section className="mb-10 rounded-lg border border-border/60 p-6">
+        <section id="publish" className="mb-10 rounded-lg border border-border/60 p-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
               3

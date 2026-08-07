@@ -25,7 +25,7 @@ export const Route = createFileRoute("/")({
           "Independent reporting on China's AI industry: the labs, the people, and the policy shaping AI in China. One new piece a week.",
       },
       { property: "og:url", content: "https://chinaai.news/" },
-      { property: "og:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
+      ...ogImageMeta(),
       { name: "twitter:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
       { name: "twitter:title", content: "China AI News — Inside China's AI Labs & Policy" },
       {

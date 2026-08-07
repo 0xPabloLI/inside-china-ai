@@ -247,7 +247,7 @@ export const Route = createFileRoute("/companies")({
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "article" },
       { property: "og:url", content: URL },
-      { property: "og:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
+      ...ogImageMeta(),
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: TITLE },
       { name: "twitter:description", content: DESCRIPTION },
