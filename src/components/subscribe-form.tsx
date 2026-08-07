@@ -27,7 +27,7 @@ export function SubscribeForm() {
 
   return (
     <div className="rounded-xl border border-border/70 bg-card p-8 shadow-sm">
-      <h3 className="font-serif text-2xl">Subscribe</h3>
+      <h2 className="font-serif text-2xl">Subscribe</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         One email a week. New writing on China's AI industry. Unsubscribe anytime.
       </p>
