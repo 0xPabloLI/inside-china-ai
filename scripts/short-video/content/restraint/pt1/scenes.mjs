@@ -311,7 +311,7 @@ ${baseStyles(duration)}${templateCss()}
       <div class="verdict">${t(txt, "deepseek")}</div>
       <div class="check">✓</div>
     </div>
-    <div class="vs-circle">VS</div>
+    <div class="vs-circle">${t(txt, "vs")}</div>
     <div class="comp-card forced">
       <div class="name">${t(txt, "glmLabel")}</div>
       <div class="verdict">${t(txt, "glm")}</div>
@@ -365,7 +365,7 @@ ${baseStyles(duration)}${templateCss()}
 <div class="scene s11">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
   <div class="brand-logo-large">${BRAND_MARK_SVG}</div>
-  <div class="brand-name">${t(txt, "brand").replace("AI", '<span class="hl">AI</span>')}</div>
+  <div class="brand-name">${t(txt, "brand").replace(txt.brandHighlight || "\0", `<span class="hl">${txt.brandHighlight}</span>`)}</div>
   <div class="tagline">${t(txt, "tagline")}</div>
   <div class="action">${t(txt, "action")}</div>
   <div class="topic">${t(txt, "topic")}</div>
