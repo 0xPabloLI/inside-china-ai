@@ -1,56 +1,59 @@
 export interface RoadmapPhase {
   id: string;
-  icon: string;
   period: string;
-  status: "past" | "current" | "future";
   technology: string;
   description: string;
+  status: "past" | "current" | "future";
+  icon: string;
 }
 
 export const PHASES: RoadmapPhase[] = [
   {
-    id: "pretraining",
-    icon: "📚",
-    period: "2023",
+    id: "llm",
+    period: "Past",
+    technology: "Language Models",
+    description: "Basic text understanding and generation",
     status: "past",
-    technology: "Large-scale pretraining",
-    description:
-      "Built the base models and the data pipeline, proving a small team could train frontier-scale LLMs on constrained compute.",
+    icon: "📝",
   },
   {
-    id: "efficiency",
-    icon: "⚙️",
+    id: "cot",
     period: "2024",
+    technology: "Chain-of-Thought (CoT)",
+    description: "Self-reasoning capability through step-by-step thinking",
     status: "past",
-    technology: "Architecture efficiency (MoE, MLA)",
-    description:
-      "Mixture-of-experts routing and multi-head latent attention cut training and inference cost far below comparable Western models.",
-  },
-  {
-    id: "reasoning",
     icon: "🧠",
-    period: "2025",
-    status: "past",
-    technology: "Reasoning via reinforcement learning",
-    description:
-      "R1-style RL training turned long chain-of-thought into a reliable capability, released with open weights and a public technical report.",
   },
   {
     id: "agents",
-    icon: "🤖",
-    period: "2026",
+    period: "2025",
+    technology: "Agents",
+    description: "Multi-task orchestration and autonomous decision-making",
     status: "current",
-    technology: "Agents and tool use",
-    description:
-      "Current focus: models that plan across many steps, call tools, and recover from their own mistakes without a human in the loop.",
+    icon: "🤖",
   },
   {
-    id: "self-improvement",
-    icon: "🔁",
-    period: "Next",
+    id: "continuous-learning",
+    period: "Future",
+    technology: "Continuous Learning",
+    description: "Incremental in-context knowledge retention, like human learning",
     status: "future",
-    technology: "Self-improving systems",
-    description:
-      "Models that generate and grade their own training signal, shrinking the gap between a research idea and a shipped capability.",
+    icon: "📚",
+  },
+  {
+    id: "self-iteration",
+    period: "Future",
+    technology: "Self-Iteration Singularity",
+    description: "AI develops and improves its own next versions",
+    status: "future",
+    icon: "🔄",
+  },
+  {
+    id: "embodied",
+    period: "Beyond",
+    technology: "Embodied AI",
+    description: "Robots entering physical world for daily tasks and elder care",
+    status: "future",
+    icon: "🦾",
   },
 ];

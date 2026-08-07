@@ -1,8 +1,6 @@
 export interface PricingTier {
   model: string;
-  /** USD per 1M input tokens */
   inputPrice: number;
-  /** USD per 1M output tokens */
   outputPrice: number;
   context: string;
   notes: string;
@@ -11,17 +9,24 @@ export interface PricingTier {
 export const DEEPSEEK_PRICING: PricingTier[] = [
   {
     model: "DeepSeek-V3",
-    inputPrice: 0.27,
-    outputPrice: 1.1,
+    inputPrice: 0.14,
+    outputPrice: 0.28,
     context: "128K",
-    notes: "Cache hits billed at $0.07 / 1M input",
+    notes: "Flagship reasoning model",
   },
   {
-    model: "DeepSeek-R1",
-    inputPrice: 0.55,
-    outputPrice: 2.19,
+    model: "DeepSeek-Coder",
+    inputPrice: 0.07,
+    outputPrice: 0.14,
+    context: "16K",
+    notes: "Code-specialized model",
+  },
+  {
+    model: "DeepSeek-V3.2 Flash",
+    inputPrice: 0.01,
+    outputPrice: 0.02,
     context: "64K",
-    notes: "Reasoning tokens billed as output",
+    notes: "Fast inference, cost-optimized",
   },
 ];
 
@@ -30,57 +35,50 @@ export const COMPETITOR_PRICING: Record<string, PricingTier[]> = {
     {
       model: "GPT-4o",
       inputPrice: 2.5,
-      outputPrice: 10,
+      outputPrice: 10.0,
       context: "128K",
-      notes: "Batch API halves the price",
+      notes: "Frontier model",
     },
     {
-      model: "GPT-4o mini",
+      model: "GPT-4o-mini",
       inputPrice: 0.15,
       outputPrice: 0.6,
       context: "128K",
-      notes: "Small-model tier",
+      notes: "Cost-optimized",
     },
   ],
   Anthropic: [
     {
-      model: "Claude Sonnet",
-      inputPrice: 3,
-      outputPrice: 15,
+      model: "Claude 3.5 Sonnet",
+      inputPrice: 3.0,
+      outputPrice: 15.0,
       context: "200K",
-      notes: "Prompt caching available",
+      notes: "Balanced performance",
     },
     {
-      model: "Claude Haiku",
-      inputPrice: 0.8,
-      outputPrice: 4,
+      model: "Claude 3 Haiku",
+      inputPrice: 0.25,
+      outputPrice: 1.25,
       context: "200K",
-      notes: "Fast, low-cost tier",
+      notes: "Fast, low-cost",
     },
   ],
-  Google: [
+  "Moonshot AI (Kimi)": [
     {
-      model: "Gemini Pro",
-      inputPrice: 1.25,
-      outputPrice: 10,
+      model: "Kimi K3",
+      inputPrice: 0.12,
+      outputPrice: 0.24,
       context: "1M",
-      notes: "Higher rate above 200K context",
-    },
-    {
-      model: "Gemini Flash",
-      inputPrice: 0.3,
-      outputPrice: 2.5,
-      context: "1M",
-      notes: "Throughput-oriented tier",
+      notes: "Long-context specialist",
     },
   ],
-  Alibaba: [
+  "Alibaba (Qwen)": [
     {
-      model: "Qwen-Max",
-      inputPrice: 1.6,
-      outputPrice: 6.4,
+      model: "Qwen2.5-72B",
+      inputPrice: 0.08,
+      outputPrice: 0.16,
       context: "32K",
-      notes: "Open-weight siblings are free to self-host",
+      notes: "Open-source available",
     },
   ],
 };

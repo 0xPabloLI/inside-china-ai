@@ -31,7 +31,8 @@ function isVideo(mimeType: string | null): boolean {
 function AttachmentList({ attachments }: { attachments: Attachment[] }) {
   const hasVideo = attachments.some((a) => isVideo(a.mime_type));
   const hasNonVideo = attachments.some((a) => !isVideo(a.mime_type));
-  const title = hasVideo && hasNonVideo ? "Media & Attachments" : hasVideo ? "Watch" : "Attachments";
+  const title =
+    hasVideo && hasNonVideo ? "Media & Attachments" : hasVideo ? "Watch" : "Attachments";
 
   return (
     <section className="mt-12 border-t border-border/60 pt-8">
@@ -52,7 +53,9 @@ function AttachmentList({ attachments }: { attachments: Attachment[] }) {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{att.file_name}</div>
                     {att.file_size ? (
-                      <div className="text-xs text-muted-foreground">{formatSize(att.file_size)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatSize(att.file_size)}
+                      </div>
                     ) : null}
                   </div>
                   <a

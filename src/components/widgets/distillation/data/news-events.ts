@@ -1,9 +1,4 @@
-export type EventType =
-  | "accusation"
-  | "product"
-  | "funding"
-  | "political"
-  | "technical";
+export type EventType = "accusation" | "product" | "funding" | "political" | "technical";
 
 export interface NewsEvent {
   company: string;
@@ -28,10 +23,7 @@ export const COMPANIES = [
 
 export const MONTHS = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"] as const;
 
-export const EVENT_TYPE_META: Record<
-  EventType,
-  { label: string; color: string; dot: string }
-> = {
+export const EVENT_TYPE_META: Record<EventType, { label: string; color: string; dot: string }> = {
   accusation: { label: "Accusation", color: "var(--color-danger)", dot: "bg-danger" },
   product: { label: "Product Launch", color: "var(--color-brand)", dot: "bg-brand" },
   funding: { label: "Funding / IPO", color: "var(--color-success)", dot: "bg-success" },
