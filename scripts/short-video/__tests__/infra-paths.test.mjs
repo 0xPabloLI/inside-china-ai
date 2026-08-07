@@ -52,6 +52,18 @@ describe("assemble.mjs interface", () => {
     // Verify the function has at least 3 parameters (scenes, outputDir, pipelineId, ...)
     expect(mod.assembleVideo.length).toBeGreaterThanOrEqual(3);
   });
+
+  it("refuses to assemble when a scene has no audioPath", async () => {
+    const { assembleVideo } = await import("../lib/assemble.mjs");
+    // The guard must fire before any fs/ffmpeg work, so bogus paths are fine.
+    expect(() =>
+      assembleVideo(
+        [{ sceneId: 1, videoPath: "/nonexistent.webm", duration: 1 }],
+        "/tmp/x",
+        "test",
+      ),
+    ).toThrow(/audioPath/);
+  });
 });
 
 describe("generate-bgm.mjs interface", () => {

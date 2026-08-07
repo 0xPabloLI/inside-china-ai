@@ -1,0 +1,251 @@
+import { describe, it, expect, afterEach } from "vitest";
+import { execSync } from "child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+import { evaluateAudioSync, applyAudioSyncToSummary, verifyAudioSync } from "../lib/audio/sync.mjs";
+import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
+import { writeWavPcm } from "../lib/audio/wav.mjs";
+
+describe("evaluateAudioSync", () => {
+  const TOL = 0.08;
+
+  it("passes when every scene's measured onset is within tolerance", () => {
+    const result = evaluateAudioSync(
+      [
+        { sceneId: 1, expected: 0.0, measured: 0.024 },
+        { sceneId: 2, expected: 4.533, measured: 4.56 },
+        { sceneId: 11, expected: 67.733, measured: 67.7 },
+      ],
+      TOL,
+    );
+    expect(result.passed).toBe(true);
+    expect(result.errors).toBe(0);
+    expect(result.checked).toBe(3);
+  });
+
+  it("fails when a scene drifts beyond tolerance", () => {
+    const result = evaluateAudioSync(
+      [
+        { sceneId: 1, expected: 0.0, measured: 0.024 },
+        // 4.533 → 4.73 = +197ms
+        { sceneId: 2, expected: 4.533, measured: 4.73 },
+      ],
+      TOL,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.errors).toBe(1);
+    const offender = result.scenes.find((s) => s.sceneId === 2);
+    expect(offender.ok).toBe(false);
+    expect(offender.driftMs).toBeCloseTo(197, 0);
+  });
+
+  it("accepts drift exactly at the tolerance boundary and rejects just past it", () => {
+    const atBoundary = evaluateAudioSync([{ sceneId: 1, expected: 1.0, measured: 1.08 }], TOL);
+    expect(atBoundary.passed).toBe(true);
+
+    const pastBoundary = evaluateAudioSync([{ sceneId: 1, expected: 1.0, measured: 1.0801 }], TOL);
+    expect(pastBoundary.passed).toBe(false);
+  });
+
+  it("accepts symmetric negative drift", () => {
+    const result = evaluateAudioSync([{ sceneId: 1, expected: 5.0, measured: 4.95 }], TOL);
+    expect(result.passed).toBe(true);
+  });
+
+  it("reports zero checked scenes as passed", () => {
+    const result = evaluateAudioSync([], TOL);
+    expect(result.passed).toBe(true);
+    expect(result.checked).toBe(0);
+  });
+});
+
+describe("applyAudioSyncToSummary", () => {
+  const base = { errors: 2, warnings: 1, passed: false };
+
+  it("returns the summary unchanged when audio sync did not run", () => {
+    expect(applyAudioSyncToSummary(base, null)).toBe(base);
+  });
+
+  it("adds audio sync errors and flips passed when audio sync fails", () => {
+    const audioSync = { errors: 1, passed: false };
+    const merged = applyAudioSyncToSummary(base, audioSync);
+    expect(merged.errors).toBe(3);
+    expect(merged.warnings).toBe(1);
+    expect(merged.passed).toBe(false);
+    expect(base.errors).toBe(2); // original not mutated
+  });
+
+  it("stays failed when the base summary already failed even if audio sync passes", () => {
+    const merged = applyAudioSyncToSummary(base, { errors: 0, passed: true });
+    expect(merged.passed).toBe(false);
+    expect(merged.errors).toBe(2);
+  });
+
+  it("passes only when both axes pass", () => {
+    const merged = applyAudioSyncToSummary(
+      { errors: 0, warnings: 0, passed: true },
+      { errors: 0, passed: true },
+    );
+    expect(merged.passed).toBe(true);
+  });
+});
+
+/**
+ * Integration: verifyAudioSync against real files through real ffmpeg.
+ * Scene voiceovers are deterministic noise bursts (unique correlation peak),
+ * encoded to actual mp3s; the "final video" is assembled from those mp3s by
+ * buildVoiceoverTrack — exactly what assemble.mjs does — so encoder delay
+ * affects needle and haystack identically and cancels out.
+ */
+describe("verifyAudioSync (integration, real ffmpeg)", () => {
+  // durations → clips 1.5s + 1.0s → scene 2 expected offset = 1.5s
+  const SCENE_DURATIONS = [
+    { sceneId: 1, duration: 1.0 },
+    { sceneId: 2, duration: 0.5 },
+  ];
+  const SCENE2_OFFSET = 1.5;
+  let dirs = [];
+
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    dirs = [];
+  });
+
+  /** Deterministic noise burst — aperiodic, so the correlation peak is unique. */
+  function noise(seconds, seed, rate = 44100) {
+    const n = Math.round(seconds * rate);
+    const out = new Float32Array(n);
+    let s = seed;
+    for (let i = 0; i < n; i++) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      out[i] = (s / 0x40000000 - 1) * 0.5;
+    }
+    return out;
+  }
+
+  /** Build {outputDir}/audio/scene-{1,2}.mp3 — real mp3s, like the TTS stage. */
+  function makeFixture() {
+    const dir = mkdtempSync(join(tmpdir(), "audiosync-it-"));
+    dirs.push(dir);
+    const audioDir = join(dir, "audio");
+    mkdirSync(audioDir);
+
+    for (const [id, seconds, seed] of [
+      [1, 1.0, 42],
+      [2, 0.5, 1337],
+    ]) {
+      const srcWav = join(dir, `scene-${id}-src.wav`);
+      writeWavPcm(srcWav, noise(seconds, seed), 44100);
+      execSync(
+        `ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${join(audioDir, `scene-${id}.mp3`)}" 2>/dev/null`,
+      );
+    }
+    return { dir };
+  }
+
+  /** Assemble the shipped track from the scene mp3s, exactly like assemble.mjs. */
+  function buildFinal(dir, ttsDurations) {
+    const finalPath = join(dir, "final.wav");
+    buildVoiceoverTrack({
+      sceneAudioPaths: [join(dir, "audio", "scene-1.mp3"), join(dir, "audio", "scene-2.mp3")],
+      ttsDurations,
+      outputPath: finalPath,
+    });
+    return finalPath;
+  }
+
+  it("measures both scenes at their exact timeline offsets and passes", () => {
+    const { dir } = makeFixture();
+    const finalPath = buildFinal(dir, [1.0, 0.5]);
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.errored).toBe(false);
+    expect(result.passed).toBe(true);
+    expect(result.checked).toBe(2);
+    expect(result.errors).toBe(0);
+    expect(result.skipped).toBe(0);
+    const scene2 = result.scenes.find((s) => s.sceneId === 2);
+    expect(scene2.expected).toBeCloseTo(SCENE2_OFFSET, 3);
+    expect(Math.abs(scene2.measured - SCENE2_OFFSET)).toBeLessThan(0.03);
+  }, 20000);
+
+  it("fails when the shipped audio actually drifted (scene placed 200ms late)", () => {
+    const { dir } = makeFixture();
+    // Lie about scene 1's duration when assembling: scene 2 lands at 1.7s,
+    // while the timeline still expects 1.5s.
+    const finalPath = buildFinal(dir, [1.2, 0.5]);
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.errors).toBe(1);
+    const scene2 = result.scenes.find((s) => s.sceneId === 2);
+    expect(scene2.ok).toBe(false);
+    expect(scene2.driftMs).toBeCloseTo(200, -1);
+  }, 20000);
+
+  it("skips a scene whose audio file is missing (fail-open), without failing", () => {
+    const { dir } = makeFixture();
+    const finalPath = buildFinal(dir, [1.0, 0.5]);
+    rmSync(join(dir, "audio", "scene-2.mp3"));
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.errors).toBe(0);
+    expect(result.checked).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.skippedScenes).toEqual([2]);
+  }, 20000);
+
+  it("counts a present-but-undecodable scene file as an error (fail-closed)", () => {
+    const { dir } = makeFixture();
+    const finalPath = buildFinal(dir, [1.0, 0.5]);
+    writeFileSync(join(dir, "audio", "scene-2.mp3"), "this is not audio");
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.errors).toBe(1);
+    expect(result.checked).toBe(1);
+    expect(result.failedScenes).toHaveLength(1);
+    expect(result.failedScenes[0].sceneId).toBe(2);
+  }, 20000);
+
+  it("errors when the shipped video has no audio track at all", () => {
+    const { dir } = makeFixture();
+    const silentPath = join(dir, "silent.mp4");
+    execSync(
+      `ffmpeg -y -f lavfi -i color=c=black:s=64x64:d=1 -pix_fmt yuv420p "${silentPath}" 2>/dev/null`,
+    );
+
+    const result = verifyAudioSync({
+      videoPath: silentPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.errored).toBe(true);
+    expect(result.passed).toBe(false);
+    expect(result.errors).toBe(1);
+    expect(result.checked).toBe(0);
+  }, 20000);
+});

@@ -8,12 +8,21 @@ import { execSync, execFileSync } from "child_process";
 import { writeFileSync, unlinkSync, existsSync, renameSync } from "fs";
 import { join } from "path";
 import { FPS, sceneClipFrames, sceneClipDuration } from "./timeline.mjs";
+import { buildVoiceoverTrack, TRACK_SAMPLE_RATE } from "./audio/track.mjs";
 
 function run(cmd) {
   execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
 }
 
-export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, subtitlesPath = null, version = null, subject = null) {
+export function assembleVideo(
+  scenes,
+  outputDir,
+  pipelineId,
+  bgmPath = null,
+  subtitlesPath = null,
+  version = null,
+  subject = null,
+) {
   // File prefix: {subject}-{pipelineId} if subject exists and differs from pipelineId, else {pipelineId}
   const filePrefix = subject && subject !== pipelineId ? `${subject}-${pipelineId}` : pipelineId;
   // Versioned output: {filePrefix}-v{version}-short.mp4, or {filePrefix}-short.mp4 if no version
@@ -21,6 +30,13 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, sub
   const finalPath = join(outputDir, `${filePrefix}${versionSuffix}-short.mp4`);
   const concatFile = join(outputDir, "concat.txt");
   const sceneFiles = [];
+
+  const missingAudio = scenes.find((s) => !s.audioPath);
+  if (missingAudio) {
+    throw new Error(
+      `Scene ${missingAudio.sceneId} has no audioPath — cannot build the voiceover track`,
+    );
+  }
 
   for (const scene of scenes) {
     const sceneOutput = join(outputDir, `scene-${scene.sceneId}_final.mp4`);
@@ -31,14 +47,14 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, sub
     const clipDuration = sceneClipDuration(scene.duration);
     const fadeOutStart = Math.max(clipDuration - 0.3, 0.1).toFixed(3);
 
-    // Build FFmpeg command: combine video + audio with fade transitions
+    // Video-only clips: the audio lives in exactly one place — the voiceover
+    // master track. Carrying a per-scene audio stream here would create a
+    // second, container-level copy of the timeline for concat to drift from.
     const parts = [
       "ffmpeg -y",
       `-i "${scene.videoPath}"`,
-      `-i "${scene.audioPath}"`,
       `-c:v libx264 -preset fast -crf 23 -r ${FPS}`,
-      "-c:a aac -b:a 192k -ar 44100",
-      "-map 0:v -map 1:a",
+      "-an",
       // Fade in at start, fade out near end
       `-vf "fade=t=in:st=0:d=0.2,fade=t=out:st=${fadeOutStart}:d=0.3"`,
       `-frames:v ${clipFrames}`,
@@ -47,19 +63,35 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, sub
 
     run(parts.join(" "));
     sceneFiles.push(sceneOutput);
-    console.log(`  Scene ${scene.sceneId}: video + audio merged`);
+    console.log(`  Scene ${scene.sceneId}: video rendered (${clipFrames} frames)`);
   }
+
+  // Build the continuous voiceover master track: every scene padded with real
+  // silence to its clip length, concatenated sample-exactly. Its length equals
+  // the video length, so no downstream decode→re-encode (player, TikTok ingest)
+  // can compact anything — subtitles and audio stay on one timeline forever.
+  const voiceoverPath = join(outputDir, "voiceover.wav");
+  const { samples: trackSamples } = buildVoiceoverTrack({
+    sceneAudioPaths: scenes.map((s) => s.audioPath),
+    ttsDurations: scenes.map((s) => s.duration),
+    outputPath: voiceoverPath,
+  });
+  console.log(
+    `  🎙 voiceover.wav: ${(trackSamples / TRACK_SAMPLE_RATE).toFixed(3)}s — gapless master track`,
+  );
 
   // Create concat list file
   const concatContent = sceneFiles.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join("\n");
   writeFileSync(concatFile, concatContent);
 
-  // Concatenate all scenes
-  // IMPORTANT: -c:v copy -c:a aac (NOT -c copy)
-  // AAC frames have ~2048 samples encoder delay per segment.
-  // Using -c copy for audio causes ~46ms/scene cumulative drift.
-  // Re-encoding audio during concat eliminates this.
-  run(`ffmpeg -y -f concat -safe 0 -i "${concatFile}" -c:v copy -c:a aac -b:a 192k "${finalPath}"`);
+  // Marry the concatenated video (stream-copied) to the gapless master track.
+  // Audio is encoded once here; the optional --bgm pass below re-encodes the
+  // already-continuous track, which can only add a constant whole-file offset
+  // (AAC priming), never per-scene drift.
+  run(
+    `ffmpeg -y -f concat -safe 0 -i "${concatFile}" -i "${voiceoverPath}" ` +
+      `-map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ar 44100 "${finalPath}"`,
+  );
 
   // Burn in subtitles (ASS) if provided
   if (subtitlesPath && existsSync(subtitlesPath)) {
@@ -139,18 +171,28 @@ export function assembleVideo(scenes, outputDir, pipelineId, bgmPath = null, sub
   const latestPath = join(outputDir, `${filePrefix}-short.mp4`);
   try {
     // Remove old symlink or file if exists
-    try { unlinkSync(latestPath); } catch {}
+    try {
+      unlinkSync(latestPath);
+    } catch {}
     execSync(`ln -sf "${finalPath.replace(outputDir + "/", "")}" "${latestPath}"`);
   } catch {}
 
   // Clean up old versioned files (keep latest 3)
   try {
-    const versionedFiles = execSync(`ls -1 "${outputDir}" | grep '${filePrefix}-v.*-short.mp4' | sort -r`, { encoding: "utf8" })
-      .trim().split("\n").filter(Boolean);
+    const versionedFiles = execSync(
+      `ls -1 "${outputDir}" | grep '${filePrefix}-v.*-short.mp4' | sort -r`,
+      { encoding: "utf8" },
+    )
+      .trim()
+      .split("\n")
+      .filter(Boolean);
     if (versionedFiles.length > 3) {
       for (const oldFile of versionedFiles.slice(3)) {
         const oldPath = join(outputDir, oldFile);
-        try { unlinkSync(oldPath); console.log(`  🗑️ Cleaned old version: ${oldFile}`); } catch {}
+        try {
+          unlinkSync(oldPath);
+          console.log(`  🗑️ Cleaned old version: ${oldFile}`);
+        } catch {}
       }
     }
   } catch {}

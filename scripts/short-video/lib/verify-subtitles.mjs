@@ -11,7 +11,9 @@
  * that never made it into the .ass, or a karaoke highlight that drifted, fails.
  *
  * Usage (integrated):  called by main.mjs Step 6
- * Usage (CLI):         node verify-subtitles.mjs <video.mp4> <subtitles.ass> <subtitle-timing.json> <scene-durations.json>
+ * Usage (CLI):         node verify-subtitles.mjs <video.mp4> <subtitles.ass> <subtitle-timing.json> <scene-durations.json> [output-dir]
+ *                      (output-dir enables the end-to-end audio sync check;
+ *                      scene audio is read from <output-dir>/audio)
  */
 
 import { execSync } from "child_process";
@@ -20,9 +22,14 @@ import { join } from "path";
 import { FPS, sceneTimeline, findScene } from "./timeline.mjs";
 import { parseAss } from "./subtitles/ass.mjs";
 import { MAX_WORDS, MIN_DURATION, GAP_THRESHOLD, CHAIN_GAP_FRAMES } from "./subtitles/cues.mjs";
+import { verifyAudioSync, applyAudioSyncToSummary, AUDIO_SYNC_TOLERANCE } from "./audio/sync.mjs";
 
-/** Max acceptable distance between a word's highlight and its spoken onset. */
-export const SYNC_TOLERANCE = 0.08;
+/**
+ * Max acceptable distance between a word's highlight and its spoken onset.
+ * Single source of truth: audio/sync.mjs — the end-to-end audio check and the
+ * per-word subtitle check must share one budget.
+ */
+export const SYNC_TOLERANCE = AUDIO_SYNC_TOLERANCE;
 /** Stretches of video longer than this with no subtitle are reported. */
 export const COVERAGE_GAP_THRESHOLD = 1.0;
 /** ASS timestamps are centisecond-resolution; allow for rounding at both ends. */
@@ -345,6 +352,15 @@ export function verifySubtitles({
     sceneBoundaries: timeline.map((scene) => scene.offset + scene.clipDuration),
   });
 
+  // End-to-end audio sync: cross-correlate each scene's voiceover against the
+  // shipped video's audio track. Subtitle checks above compare the .ass to the
+  // alignment timeline — both pre-assembly — and cannot see assembly-stage
+  // drift; this check measures the artifact the user actually hears.
+  if (outputDir) {
+    report.audioSync = verifyAudioSync({ videoPath, outputDir, sceneDurations });
+    report.summary = applyAudioSyncToSummary(report.summary, report.audioSync);
+  }
+
   if (outputDir) {
     const reportPath = join(outputDir, "verification-report.json");
     writeFileSync(reportPath, JSON.stringify(report, null, 2));
@@ -388,6 +404,28 @@ function printSummary(report, videoPath) {
     console.log(
       `   ✗ ${v.previousEnd.toFixed(2)}s → ${v.start.toFixed(2)}s (${(v.gap * 1000).toFixed(0)}ms)`,
     );
+  }
+
+  if (report.audioSync) {
+    const a = report.audioSync;
+    console.log(
+      `\n🔊 Audio sync: ${a.checked} scene(s) measured, ${a.skipped} skipped, ` +
+        `${a.errors} over tolerance`,
+    );
+    if (a.errored) {
+      console.log(`   ✗ ${a.error}`);
+    }
+    for (const s of a.scenes ?? []) {
+      if (!s.ok) {
+        console.log(
+          `   ✗ scene ${s.sceneId} audio starts ${s.driftMs >= 0 ? "+" : ""}${s.driftMs.toFixed(0)}ms off ` +
+            `(expected ${s.expected.toFixed(2)}s, measured ${s.measured.toFixed(2)}s)`,
+        );
+      }
+    }
+    for (const f of a.failedScenes ?? []) {
+      console.log(`   ✗ scene ${f.sceneId} could not be measured: ${f.reason}`);
+    }
   }
 
   console.log(

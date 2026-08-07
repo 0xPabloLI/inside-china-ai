@@ -294,6 +294,11 @@ scripts/short-video/
 │   ├── record-scenes.mjs   # Playwright recording (1080×1920)
 │   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
 │   ├── verify-subtitles.mjs # Reads back the .ass and checks it against the alignment data
+│   ├── audio/
+│   │   ├── wav.mjs         # Mono s16 PCM WAV read/write + ffmpeg decode bridge
+│   │   ├── fft.mjs         # Radix-2 FFT + cross-correlation onset finder
+│   │   ├── track.mjs       # Gapless voiceover master (pad each scene to its clip length)
+│   │   └── sync.mjs        # End-to-end check: scene onsets measured in the SHIPPED audio
 │   └── base-styles.mjs     # Shared visual system (CSS vars, backgrounds, animations, brand SVG)
 ├── content/                # Content pipelines (each article = one dir)
 │   ├── deepseek/           # DeepSeek story
@@ -566,8 +571,8 @@ node scripts/short-video/main.mjs --content deepseek
 # Skip subtitle verification (fast iteration)
 node scripts/short-video/main.mjs --content deepseek --bgm --skip-verify
 
-# Standalone subtitle verification
-node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitles.ass> <subtitle-timing.json> <scene-durations.json>
+# Standalone subtitle verification (output-dir enables the end-to-end audio sync check)
+node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitles.ass> <subtitle-timing.json> <scene-durations.json> [output-dir]
 
 # Re-render without re-running TTS (visual or subtitle changes only)
 node scripts/short-video/render-only.mjs --content restraint/pt1
@@ -602,11 +607,15 @@ ls -lt output/restraint-pt1/restraint-pt1-v*-short.mp4
 stat -f "%Sm" output/restraint-pt1/restraint-pt1-short.mp4
 ```
 
-### Audio Concat Drift Fix (AAC Priming)
+### Gapless Audio Track (Drift Fix v2 — supersedes the AAC priming fix)
 
-**Critical**: FFmpeg concat with `-c copy` causes **~46ms/scene cumulative audio drift** because AAC frames have encoder delay (priming samples). After 11 scenes, subtitles drift ~500ms behind audio.
+**Critical**: the final video's audio must be ONE continuous track. The earlier fix (re-encode audio during concat, `-c:v copy -c:a aac`) removed AAC priming drift, but concat still expressed each scene's ~0.5s padding as timestamp *gaps* instead of real silence samples. The container played correctly, yet any decode→re-encode downstream (QuickTime, TikTok ingest, `ffmpeg` WAV extraction) compacted those gaps — audio ran ~0.5s/scene ahead of subtitles (~5s by scene 11).
 
-**Fix** (in `assemble.mjs`): Always use `-c:v copy -c:a aac -b:a 192k` for concat, never `-c copy`.
+**Fix** (`assemble.mjs` + `lib/audio/track.mjs`): scene clips are encoded video-only (`-an`); every scene voiceover is padded with real silence to its frame-aligned clip length and concatenated into `voiceover.wav`, a PCM master whose sample count equals the video's; the final mux encodes audio exactly once (`-c:v copy -c:a aac -b:a 192k`). No timestamp gaps exist, so there is nothing for downstream transcoders to compact. The optional BGM pass re-encodes the already-continuous track — a constant whole-file offset, never per-scene drift.
+
+**End-to-end check** (`lib/audio/sync.mjs`, wired into Step 6): each scene's voiceover is cross-correlated (FFT) against the SHIPPED video's audio track; a measured onset >80ms from its timeline offset is FAIL-class. This verifies the artifact itself, not the plans that produced it. Scene audio missing → skip (WARN); scene audio present but undecodable, or final track undecodable → FAIL.
+
+**Superseded note (AAC priming)**: FFmpeg concat with `-c copy` caused ~46ms/scene cumulative drift from AAC encoder delay; fixed at the time by re-encoding audio during concat. Now superseded — per-scene audio streams no longer exist, so there is nothing to prime.
 
 ### Running in Background (MANDATORY for F5-TTS)
 
