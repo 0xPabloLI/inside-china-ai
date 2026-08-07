@@ -131,9 +131,12 @@ export const Route = createFileRoute("/posts/$slug")({
         { property: "og:description", content: description },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
+        { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: loaderData.title },
         { name: "twitter:description", content: description },
+        ...ogImageMeta(),
       ],
+
       links: [{ rel: "canonical", href: url }],
       scripts: [
         {
