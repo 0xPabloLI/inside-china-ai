@@ -9,13 +9,13 @@
 
 ## 🔄 新 Session 接续指南
 
-**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅（产出 `docs/spec-rag.md` + `docs/tickets-rag.md` + `docs/adr/0007-rag-pipeline-decisions.md`）
+**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅（产出 `deepseek-liang-investor-meeting-research.md` + `china-llm-distillation-research.md`）
 
-**待做（9 个 WP，可并行）**：
+**待做（8 个 WP，可并行）**：
 
 | 优先级 | WP | 说明 | 依赖 | 预估工作量 |
 |--------|----|------|------|------------|
-| 🔴 高 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | 1 session |
+| ✅ 完成 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | 1 session |
 | 🔴 高 | WP-5 | Widget 数据文档化（提取 sourceUrl） | 无 | 1 session |
 | 🔴 高 | WP-6 | Scene-data Metadata 统一与补全 | 无 | 1 session |
 | 🟡 中 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session |
@@ -272,7 +272,7 @@ Agent 在写文章时如何调用 RAG？两个方案：
 
 每个 session 可独立完成一个 Work Package (WP)。WP 之间有依赖关系，但大部分可并行。每个 WP 标题带状态标记（⏳ 未开始 / 🔄 进行中 / ✅ 完成），跨 session 执行时先扫描状态。
 
-### WP-1: 源素材格式标准化 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-1: 源素材格式标准化 📝 纯文档工作 ｜ 状态：✅ 完成
 
 **目标**：将 2 份唯一 PDF 转为结构化 markdown，与 `bytedance-zhang-yiming-no-distillation-research.md` 格式一致。
 
@@ -1151,4 +1151,5 @@ Agent 根据检索结果：
 | 2026-08-07 | D1 重写：推荐方案从 Cloudflare 改为本地 Ollama bge-m3（同一模型，免费+离线+已有 Ollama 基础设施）。新增调用频率分析、Ollama 模型对比表（含 nomic-embed-v2-moe/qwen3-embedding/mxbai-embed-large 等）、国内云 API 对比（阿里百炼/火山引擎/百度/腾讯）、Hugging Face Inference API、全方案成本估算表。更新伪代码 embedding 调用从 Cloudflare 改为 Ollama。 |
 | 2026-08-07 | D1-D5 全部确认（用户 Supabase Pro plan，8GB 数据库；存储估算 < 0.1%）。D1-D5 状态标记从 ⏳ 改为 ✅。文档可直接作为 Execution session 的执行依据。 |
 | 2026-08-07 | Grill 技术方案（4 轮 19 问）：① Q1 索引触发改为 Hybrid 全量重建（发布自动触发 + 手动触发）② Q2 模型迁移用版本化表 ③ Q3 metadata 双重验证（CHECK + 应用层）④ Q4 超限 chunk 按段落细分 ⑤ Q5 topics 应用层标准化（小写）⑥ Q6 认证复用 loginAdmin()（无 service_role key）⑦ Q8 reranker 默认关 ⑧ Q11 widget data 不直接索引，改为提取 sourceUrl 抓取后索引 ⑨ Q12 scene-data 仍索引 ⑩ Q15 更新 CONTEXT.md + 创建 ADR-0007 ⑪ Q16 脚本目录 scripts/rag/ ⑫ Q17 RPC SECURITY INVOKER + COALESCE ⑬ Q18 UPSERT 幂等 ⑭ Q19 预检查 Ollama + 跳过失败 chunk。产出 spec-rag.md（含 26 条场景矩阵）+ tickets-rag.md（15 tickets，Phase 0 文档 + Phase 1/2 代码）+ ADR-0007 + CONTEXT.md RAG 术语。D3 索引范围修正：去掉 widget-data，加 widget-sources。WP-10 标记 ✅。 |
+| 2026-08-08 | WP-1 完成：① 删除重复 PDF（`国内大模型蒸馏风波的来龙去脉(1).pdf`，与 `china-llm-distillation-source.pdf` MD5 相同）② `梁文锋投资者交流会-录音转文本.pdf` → `deepseek-liang-investor-meeting-research.md`（~1970 words，5 个 ## section，12 个 ### 子节，含 AGI 路线图/算力资源/定价逻辑/Huawei 合作/TileLang 等）③ `china-llm-distillation-source.pdf` → `china-llm-distillation-research.md`（~2080 words，6 个 ## section，13 个 ### 子节，含加密 CoT 破解/Anthropic 指控/各厂蒸馏时间线/Kimi K3 刷分/技术附录）。两文件均遵循 bytedance research MD 模板，含 Sources/Key Facts/Data Tables/Timeline/Cross-References。WP-6 推迟（用户决定：历史数据在实验阶段，管线变动中，RAG 实施前统一处理）。 |
 | 2026-08-08 | WP-6 任务 3、4 完成：① `content/deepseek/meta.mjs` article slug 修正（`deepseek-funding-round` → `deepseek-art-of-restraint`）② 根目录遗留 scene-data pt3 迁移至 `content/restraint/pt3/` 标准结构（meta.mjs + scene-data.mjs + scenes.mjs；seriesMeta 收敛进 scene-data.mjs，符合现有约定）；随迁移修正 6 项 preflight fail（em-dash、AI 黑名单词、china 关键词、来源归属、数据点、字数 188→179），`verify-video --pre` 29 PASS/1 WARN/0 FAIL，scene-drift 扩展覆盖 pt3 ③ 盘点表/触发条件更新（源素材 4→3 份、scene-data 9→7 非空，重复 PDF 删除与 pt1/pt2 空文件删除见 commit `20cc3a8`）。遗留项：restraint-pt2 内容缺失（pt1 的 nextPartSlug 仍指向 restraint/pt2，pt3 prevPartSlug 置 null）。 |
