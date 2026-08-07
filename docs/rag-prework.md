@@ -7,6 +7,41 @@
 
 ---
 
+## 🔄 新 Session 接续指南
+
+**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅（产出 `docs/spec-rag.md` + `docs/tickets-rag.md` + `docs/adr/0007-rag-pipeline-decisions.md`）
+
+**待做（9 个 WP，可并行）**：
+
+| 优先级 | WP | 说明 | 依赖 | 预估工作量 |
+|--------|----|------|------|------------|
+| 🔴 高 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | 1 session |
+| 🔴 高 | WP-5 | Widget 数据文档化（提取 sourceUrl） | 无 | 1 session |
+| 🔴 高 | WP-6 | Scene-data Metadata 统一与补全 | 无 | 1 session |
+| 🟡 中 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session |
+| 🟡 中 | WP-7 | 文章 Frontmatter 扩展 | 无 | 0.5 session |
+| 🟡 中 | WP-8 | TikTok 方法论 PDF 结构化 | 无 | 1 session |
+| 🟢 低 | WP-3 | 主题事件时间线文档 | WP-2 | 1 session |
+| 🟢 低 | WP-4 | 实体注册表 | WP-2 | 0.5 session |
+| 🟢 低 | WP-9 | 素材索引文档 | WP-1/2/3/6 | 0.5 session |
+| 🟢 低 | WP-11 | Golden Query 评估集 | WP-10 ✅ | 0.5 session |
+
+**关键产出文档（新 session 必读）**：
+1. 本文档（`docs/rag-prework.md`）— 总览 + 各 WP 任务清单
+2. `docs/spec-rag.md` — 技术规格（schema、脚本设计、26 行场景矩阵）
+3. `docs/tickets-rag.md` — 代码实施 tickets（Phase 1/2 gated，当前不需要）
+4. `docs/adr/0007-rag-pipeline-decisions.md` — 6 个架构决策
+
+**新 session 工作流**：
+1. 读本文档，选择要做的 WP（建议从 🔴 高优先级开始）
+2. 读对应 WP 的任务清单（本文档内）
+3. 执行任务，完成后更新 WP 状态标记（⏳ → ✅）
+4. Commit + push
+
+**Phase 1 代码实施**：当文章 ≥ 20 或 scene-data ≥ 10 时，读 `docs/tickets-rag.md` 从 T-10 开始。
+
+---
+
 ## ❓ 需要用户决策的项
 
 以下事项需要用户确认后才能推进。每个 session 开始时 Agent 先检查是否有未决项，并扫描各 WP 的状态标记（⏳ 未开始 / 🔄 进行中 / ✅ 完成）。
@@ -1086,21 +1121,23 @@ Agent 根据检索结果：
 
 ---
 
-## Session 执行建议
+## Session 执行建议（已更新 2026-08-07）
 
-| Session | 建议完成 | 前置条件 |
-|---------|---------|---------|
-| Session 1 | D1-D5 决策确认（D1 前置：定位 Cloudflare 凭证位置） | 无 |
-| Session 2 | WP-1（源素材格式化，2 份唯一 PDF） | 一次可完成 |
-| Session 3 | WP-2（公司档案，7 家公司） | 可分多个 session，按优先级 |
-| Session 4 | WP-3 + WP-4（时间线 + 实体注册表） | WP-2 完成 |
-| Session 5 | WP-5 + WP-6（Widget 导出 + meta.mjs 扩展） | 无 |
-| Session 6 | WP-7 + WP-8 + WP-9（Frontmatter + TikTok PDF + 索引） | WP-4 完成（WP-9 另需 WP-1/2/3/6，按此顺序已满足） |
-| Session 7 | WP-10（技术方案文档） | D1-D5 决策完成 |
-| Session 8 | WP-11（Golden query 评估集） | WP-10 完成 |
-| — | **RAG 正式实施** | 20+ 文章或 10+ 视频脚本 |
+> D1-D5 ✅ 已确认 · WP-10 ✅ 已完成。以下为剩余 WP 的建议执行顺序。
 
-> 以上 session 顺序不固定，WP-1/2/5/6/8 可并行。每个 session 完成后 commit + push，并更新对应 WP 的状态标记。
+| Session | 建议完成 | 前置条件 | 状态 |
+|---------|---------|---------|------|
+| ✅ 已完成 | D1-D5 决策确认 | 无 | ✅ |
+| ✅ 已完成 | WP-10 技术方案文档 | D1-D5 | ✅ |
+| Session A | WP-1 + WP-5 + WP-6（无依赖，可并行） | 无 | ⏳ |
+| Session B | WP-2（公司档案，7 家，可分多 session） | 无 | ⏳ |
+| Session C | WP-7 + WP-8（Frontmatter + TikTok PDF） | 无 | ⏳ |
+| Session D | WP-3 + WP-4（时间线 + 实体注册表） | WP-2 | ⏳ |
+| Session E | WP-9（素材索引文档） | WP-1/2/3/6 | ⏳ |
+| Session F | WP-11（Golden query 评估集） | WP-10 ✅ | ⏳ |
+| — | **Phase 1 代码实施**（读 `docs/tickets-rag.md`） | 20+ 文章或 10+ 视频脚本 + 全部 WP 完成 | ⏳ |
+
+> WP-1/2/5/6/7/8 可并行。每个 session 完成后 commit + push，并更新对应 WP 的状态标记。
 
 ---
 
