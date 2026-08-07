@@ -36,16 +36,25 @@
 3. **Hook policy**: do not bypass `pre-commit`/`pre-push`; if a gate fails, fix root cause.
 4. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
 5. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
-   1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
+
+   > **Context Hygiene**：Step 1-3 必须保持在同一个 unbroken context window 中——在 `/to-tickets` 完成前不要 `/clear` 或 `/compact`。Grilling 的推理过程是 spec 和 tickets 的 primary source，压缩会丢失「为什么」。如果 session 接近 smart zone（~150k tokens），在最近的 phase boundary 做 `/compact`（见下方 Phase Boundaries）。
+
+   1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案（v1.2：grilling 采用 round-based design tree，每轮批量提问 + 推荐答案，等用户回答后进入下一轮）。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
+
+   1b. **Prototype Detour（可选）** — 当 grilling 中某个问题需要 runnable answer（状态模型是否合理、UI 长什么样）时，detour：`/handoff` 出去 → fresh session 中 `/prototype` → `/handoff` 回来。Prototype 生成单个自包含 HTML 文件（logic）或单一路由多变体（UI），保存在 `prototype/<name>` 分支作为 primary source。回到主线后引用 prototype 结论。
    2. **To Spec** — 用 `to-spec` skill 合成 spec。**必须包含 Scenario & Risk Verification 章节**（场景矩阵），含两个必填 section：Modified Files Impact + Behavioral Scenarios，矩阵行直接成为测试用例。**无矩阵 = spec 不完整**。格式见 `docs/conventions/scenario-matrix.md`。
    3. **To Tickets** — 用 `to-tickets` skill 将 spec 拆分为带依赖边的 tracer-bullet tickets
    4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。
    5. **Code Review** — 实施完成后用 `code-review` skill 做双轴审查（Standards + Spec）
+
+   > **Phase Boundaries**：Step 5 完成后是一个 phase boundary。如果 context 仍有价值且 smart zone 充裕 → Continue（首选）。如果 context 已无关 → `/clear`。如需换 harness/目录/同事 → `/handoff`。任务可 AFK → Subagent。否则 → `/compact`（默认兜底）。详见下方 Phase Boundaries。
+
    6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。
    7. **Commit & Push** — 通过验证后 commit + push（遵循 Commit Cadence 规则）。
    8. **更新相关文档及 Issue** — 同步更新 docs、Linear issue 状态
    9. **Session 结束验证** — 在 session 结束前，逐条确认 Step 1-8 全部完成。**未完成的步骤必须当场补做或显式标注为"跳过 + 原因"**。确认清单：
       - [ ] Step 1 Grill 完成（有 spec 或对话记录佐证）
+      - [ ] Step 1b Prototype Detour（如执行，有 prototype 分支或结论引用；如跳过，标注"无需"）
       - [ ] Step 2 Spec 完成（有 spec 文件，含 Scenario Matrix）
       - [ ] Step 3 Tickets 完成（有 ticket 拆分）
       - [ ] Step 4 TDD 完成（测试 red → green → refactor）
@@ -54,6 +63,29 @@
       - [ ] Step 7 Commit & Push 完成（有 commit hash + push 成功）
       - [ ] Step 8 文档及 Issue 更新完成（Linear 状态已更新）
       - 如有任何步骤跳过，必须在向用户汇报时**显式列出**跳过的步骤和原因，不得遗漏
+
+### Phase Boundaries & Context Management
+
+两个 phase 之间的边界点有 5 个选项，按优先级排序：
+
+1. **Continue** — 留在当前 session（首选，成本为零）。当下一个 phase 需要当前 phase 的推理作为 primary source 时选此。
+2. **`/clear`** — 清空 context。当当前 context 与后续无关时选此。
+3. **`/handoff`** — 写可移植 markdown 文件。仅在换 harness（Claude → Codex）、换目录/repo、发给同事、或 mid-phase fork side task 时使用。
+4. **Subagent** — 派子 agent 处理 tightly-scoped 任务，当前 session 不受影响。标准场景：automated review。
+5. **`/compact`** — 压缩 context 并用 summary 开新 session。**默认兜底，但不是首选**。位于决策树底部。
+
+**Smart Zone**：~150k tokens（v1.2 更新）。模型在此窗口内推理最锐利。如果 session 在 `/to-tickets` 前接近 smart zone，在最近的 phase boundary 做 `/compact`。
+
+**规则**：mid-phase 不做 context 切换决策——Continue 或把剩余工作 split 成 subagents。只在 phase boundary 做决策。
+
+### 辅助 Skills（v1.2 新增）
+
+| Skill | 触发场景 | 说明 |
+| --- | --- | --- |
+| `/wait-what` | Agent 和用户理解不一致时 | 重新解释上一条消息，补充缺失的 context，用 `CONTEXT.md` 词汇 |
+| `/to-questionnaire` | 需要从**别人**获取信息时 | 采访用户关于「发给谁、需要什么」，生成问卷给对方填 |
+| `/wizard` | 只有**人类**能做的操作 | 生成交互式 bash 脚本引导人工操作（provisioning、credentials、CI secrets）。`docs/manual-ops.md` 中的操作可考虑用此 skill 自动化 |
+| `/writing-for-agents` | 编写 agent 可读文档时 | 替代已废弃的 `/docs` skill。覆盖 skills、AGENTS.md、specs、tickets、runtime prompts |
 
 ## Commit Cadence (并行 agent 安全)
 
