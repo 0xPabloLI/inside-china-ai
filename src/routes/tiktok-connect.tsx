@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandName } from "@/components/brand-name";
+import { ogImageMeta, OG_TIKTOK } from "@/lib/og";
+
 
 const REDIRECT_URI = "https://chinaai.news/api/tiktok/callback";
 const SCOPES = "user.info.basic,video.upload,video.publish";
