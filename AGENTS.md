@@ -134,6 +134,7 @@ git push --force-with-lease   # 仅限改写历史场景
 ## Git Safety
 
 - 禁止未经确认执行 `git stash pop/apply/drop/clear`；暂存用 `stash push -m "msg"`，恢复前先 `stash list` 供审查。
+- **如果 push 需要先 stash 预存改动，那就只 commit 不 push** — 不要为了 push 而 stash 非本 session 的改动，commit 留在本地即可，等用户手动处理后再 push。
 - 禁止未经确认执行 `git checkout`/`git switch` 切换分支（见 Cross-Branch Workflow）。
 
 ## Cross-Branch Workflow（禁止本地切分支）
