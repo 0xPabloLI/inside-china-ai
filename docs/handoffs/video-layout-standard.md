@@ -126,5 +126,5 @@ node scripts/short-video/build-mark-svg.mjs
 
 - **老 content 未迁移槽位**：`deepseek` / `distillation/pt1` / `restraint/pt1` 仍是旧布局（padding-bottom 470），跑 pipeline 会被 Step 2.5 阻断。返工它们时必须先按槽位迁移（临时可用 `--skip-dom-check`，但不是长期方案）。
 - `breaking-badge` 模板 `top: 210px` 在安全区 220 之内 10px，新场景直接用会 FAIL（当前仅老 deepseek 用）。
-- 全仓库 lint 有 282 个历史错误（email-templates / supabase 类型等），与本次无关，未触碰。
-- `docs/video-workflow.md` 的字幕表（42px/450 等旧值）尚未同步到新标准 —— 改它时按本文件第 2/4 节更新。
+- 全仓库 lint 历史错误已清理（2026-08-08 `eslint --fix`，含后续合并引入项）；当前仅剩 ~12 条 `react-refresh/only-export-components` warning（dev-only，非阻塞）。
+- ~~`docs/video-workflow.md` 字幕表旧值~~ ✅ 已同步（2026-08-08）：subtitle 表 60px / MarginV=570 / 720px 硬宽、Logo 水印位置（WATERMARK_POS）、Pipeline Steps 补 Step 2.5 DOM 门、内容带 820px 溢出表；`~/.catpaw/skills/short-video-pipeline/SKILL.md`（与 `~/.cursor/skills/...` 同一硬链接）也同步修正了 42px/450、`generate-ass.py` 死引用、字幕主/次配色（→ Dispatch Blue / White）。

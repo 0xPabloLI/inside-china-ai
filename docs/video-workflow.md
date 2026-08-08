@@ -25,7 +25,7 @@ Based on platform research and session learnings:
 | ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
 | **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"    |
 | **Text ≥ 32px**        | Minimum 32px on a 1080×1920 canvas; titles ≥ 60px     | At thumbnail size in-feed, < 32px is invisible                              |
-| **Upper 2/3 rule**     | Critical content in top 1280px (of 1920)              | Bottom 640px gets covered by platform UI (buttons, captions, title overlay) |
+| **Upper 2/3 rule**     | Critical content above y=1150 (safe-zone bottom edge) | Below y=1150 sits the subtitle lane (y≈1188–1350) + TikTok caption UI (buttons, captions) |
 | **No dead space**      | Fill the full 1920px height — no > 200px gaps         | Blank zones signal "no content" → scroll past                               |
 | **Bold color blocks**  | Use solid-color areas (not gradients) for contrast    | Gradients compress poorly at thumbnail size; solid blocks pop               |
 | **Asymmetric layout**  | Offset the main element left or right of center       | Centered layouts read as "AI-generated"; asymmetry feels human-designed     |
@@ -46,12 +46,13 @@ Based on platform research and session learnings:
 
 | Parameter   | Value                                      | Rationale                                                |
 | ----------- | ------------------------------------------ | -------------------------------------------------------- |
-| Font size   | **42px** (was 34px)                        | Must be readable at phone size + thumbnail scale         |
+| Font size   | **60px** (was 42px)                        | Matches TikTok native ~60px em (≈3.1% of frame height); readable at phone + thumbnail scale |
 | Font weight | **Bold**                                   | Thin text vanishes on bright backgrounds                 |
 | Style       | **Karaoke `\kt` + `\kf`** (word-by-word highlight) | TikTok-native feel; `\kt` anchors each word absolutely so rounding error can't accumulate across a line |
-| Chunks      | **≤6 words / ≤49 chars** per display (soft break at 38 chars when ≥2 words remain) | Users read ~2.5 words/sec; longer chunks get skipped |
+| Chunks      | **≤6 words**, pixel-measured: single line ≤ **720px** hard, soft break at 612px (85%) when ≥2 words remain | Users read ~2.5 words/sec; longer chunks get skipped. Pixel widths (Helvetica-Bold AFM, `lib/subtitles/measure.mjs`) replace char heuristics |
+| Max width   | **720px** (180px margins L/R → cue right edge x=900, clears the action rail) | Derived from `SUBTITLE_LANE.maxWidth` |
 | Rendering   | **FFmpeg ASS native burn-in** (ffmpeg-full) | CSS/JS approaches abandoned; ASS gives pixel-perfect control |
-| Position    | `MarginV=450` (ASS)                        | Above TikTok bottom UI zone (buttons, description, username) |
+| Position    | `MarginV=570` (ASS)                        | Cue bottom edge y=1350 — below content (ends y1150), above the TikTok caption zone (starts ~y1500) |
 | Timing      | **wav2vec2 forced alignment** (`text-align.py`) | Per-word timestamps; `\kf` tags use actual audio timing |
 | Primary color | Dispatch Blue `#4d8bff`                   | Spoken words — hue shift, not a luminance drop, so read words stay legible |
 | Secondary color | White `#F5F5F5`                         | Unspoken words (waiting to be spoken)                    |
@@ -59,6 +60,8 @@ Based on platform research and session learnings:
 | Generation  | `lib/subtitles/` (JS)                      | Cue text is derived from its own word list, so a word can never be shown without timing |
 | Cue timing  | 2-frame lead-in, ≥0.8s on screen, 0.5s hold-out, gaps either 2 frames or ≥0.5s | Netflix Timed Text Style Guide, converted to 30fps |
 | Scene 1     | ✅ Now has subtitles (was skipped)         | User feedback: subtitles should appear from the start    |
+
+> All subtitle values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them. The subtitle lane (y≈1188–1350) is structurally separated from the content band (ends y=1150), so burned subtitles can never overlap scene content.
 
 ### Pacing
 
@@ -83,7 +86,7 @@ Based on platform research and session learnings:
 **Design rules for vertical:**
 
 - Content flows top-to-bottom in a natural reading order
-- Never put critical info in the bottom 180px (platform UI overlay zone)
+- Never put critical info below y=1150 (`1920 − SAFE_ZONES.bottom`): the burned-subtitle lane (y≈1188–1350) and TikTok caption UI live there — see Layout Safety in `docs/brand-system.md`
 - Use absolute positioning with explicit `top:` values — not flex centering (which can shift with dynamic content)
 - Test at thumbnail size: if text is unreadable at 240×426 (1/4 scale), it's too small
 
@@ -100,7 +103,7 @@ Based on platform research and session learnings:
 - **Tone**: Intelligence briefing. Authoritative, fast, no fluff.
 - **Pace**: XTTS v2 (Craig Gutsy, speed=1.15) or Kokoro (am_michael, speed=1.1), silenceremove post-process
 - **Visual**: Cyber Intelligence Briefing — dark, grid, glow, scanlines
-- **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (Subscribe for more) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
+- **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (FOLLOW FOR MORE — the standard end-card action) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
 
 ## TTS Engine Configuration
 
@@ -122,6 +125,19 @@ Based on platform research and session learnings:
 - Optional atempo: `export TTS_ATEMPO=1.3`（加速语音）
 - M4A 不被 Python 音频库支持，必须先转 WAV：`ffmpeg -y -i input.m4a -ar 24000 -ac 1 output.wav`
 
+**Per-Scene Prosody Enhancement**（自动，基于 `visualType`）:
+
+| visualType | Pitch | Tempo |
+| ---------- | ----- | ----- |
+| `hook` | +8% (132 cents) | +12% |
+| `data` | -3% (-52 cents) | -3% |
+| `quote` | 0% | -5% |
+| `cta` | -4% (-70 cents) | -8% |
+| 其他 | 无变化 | 无变化 |
+
+- FFmpeg `rubberband` 滤镜，自动生效，无需配置
+- 参数推导：`docs/research/voice-prosody-hook-optimization.md`
+
 **XTTS v2** (fallback):
 
 - XTTS clones timbre only; pronunciation is standard English from language model
@@ -140,11 +156,13 @@ Based on platform research and session learnings:
 
 ## Logo Handling
 
-- **Full logo**: `assets/china-ai-news-logo-gpt.png` (image + text, 1024×1024)
-- **Pure graphic**: `assets/china-ai-news-logo-image-only.png` (no text, for flexible use)
-- **Vector SVG**: `assets/china-ai-news-logo-vector.svg` (true vector, scalable)
-- **In-video logo**: Same logo at 55px, `opacity: 0.18`, `bottom: 50px, right: 50px`
-- **CTA scene**: Logo at 130px centered — rendered by the shared `ctaScene()` end card (`lib/scene-templates.mjs`), never hand-rolled
+**Video-grade brand mark**: `scripts/short-video/assets/china-ai-news-mark-video.svg` — viewBox'd, brand-palette fills (`#4d8bff`/`#ef4444`), generated **idempotently** by `scripts/short-video/build-mark-svg.mjs` from `china-ai-news-mark.svg`. Change the mark → edit the source SVG, then re-run the builder. Used in three places:
+
+- **Brand bar** (top-left on opener/mid scenes): 48px, in `brandBar()`
+- **Watermark** (top-left on non-brand scenes): 55px, `opacity: 0.35`, at `top: 60px; left: 60px` (`WATERMARK_POS` in `lib/safe-zones.mjs`)
+- **CTA scene**: 130px centered in the hero slot — rendered by the shared `ctaScene()` end card (`lib/scene-templates.mjs`), never hand-rolled
+
+> Legacy web PNGs (`china-ai-news-logo-gpt.png`, `china-ai-news-logo-vector.svg`) still exist under `scripts/short-video/assets/` but are NOT used by the video pipeline. `china-ai-news-logo-image-only.png` (referenced by older docs) does not exist.
 
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 
@@ -278,7 +296,7 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 
 ```text
 scripts/short-video/
-├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify)
+├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --skip-dom-check)
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
@@ -587,6 +605,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 |------|--------|--------|
 | 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
 | 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
+| 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). FAIL aborts before recording; bypass only for legacy non-migrated content with `--skip-dom-check` | `verify-scene-dom.mjs` report |
 | 3 | Record scene videos (Playwright) | `output/{id}/video/scene-*.webm` |
 | 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
@@ -700,6 +719,7 @@ export const scenes = [
     voiceover: "Follow for more.",
     texts: {
       brand: "CHINA AI NEWS",
+      brandHighlight: "AI",
       tagline: "CHINA AI, DECODED",
       action: "FOLLOW FOR MORE",
     },
@@ -728,11 +748,13 @@ function scene1(scene, duration) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}
 .s1 { /* Your scene CSS here */ }
-/* IMPORTANT: Check text width!
-   - Canvas: 1080px wide
-   - With padding: available width varies
-   - At 42px bold: ~25px avg char width → max ~38 chars per 950px line
-   - At 56px bold: ~33px avg char width → max ~28 chars per 950px line
+/* IMPORTANT: Compose into the fixed slot grid — kicker 220-400 / hero 400-950 /
+   support 950-1150, x∈[60,880] — via sceneFrame({...}) from lib/scene-layout.mjs.
+   Hand-rolled full-screen flex is banned by the DOM gate (verify-scene-dom.mjs).
+   Check text width!
+   - Content band: 820px wide (x 60-880)
+   - At 42px bold: ~25px avg char width → max ~32 chars per 820px line
+   - At 56px bold: ~33px avg char width → max ~24 chars per 820px line
    - ALWAYS add `word-break: break-word` as safety net
 */
 </style></head><body>
@@ -763,13 +785,13 @@ All display copy must come from `scene.texts` via the `t()` accessor — the tem
 
 **CSS overflow checklist (check before running pipeline):**
 
-| Font size | Max chars per 950px line | Max chars per 360px card |
-|-----------|-------------------------|------------------------|
-| 32px bold | ~50 chars | ~19 chars |
-| 42px bold | ~38 chars | ~14 chars |
-| 48px bold | ~33 chars | ~12 chars |
-| 56px bold | ~28 chars | ~10 chars |
-| 72px bold | ~22 chars | ~8 chars |
+| Font size | Max chars per 820px line | Max chars per 360px card |
+|-----------|--------------------------|------------------------|
+| 32px bold | ~43 chars | ~19 chars |
+| 42px bold | ~32 chars | ~14 chars |
+| 48px bold | ~28 chars | ~12 chars |
+| 56px bold | ~24 chars | ~10 chars |
+| 72px bold | ~19 chars | ~8 chars |
 
 - For flex columns with `gap: 40px`: each column = `(available - 40) / 2`
 - For cards with padding: text area = `card_width - padding * 2`
