@@ -24,7 +24,6 @@
  * from lib/base-styles.mjs (never redeclared here).
  */
 
-import { readFileSync } from "fs";
 import { baseStyles, withWatermark } from "../../../lib/base-styles.mjs";
 import {
   templateCss,
@@ -32,49 +31,18 @@ import {
   pointsList,
   stampBox,
   ctaScene,
+  hookScene,
 } from "../../../lib/scene-templates.mjs";
 import { slotCss, sceneFrame } from "../../../lib/scene-layout.mjs";
-
-// DeepSeek whale icon only (square-ish, for large display)
-const DEEPSEEK_ICON_SVG = readFileSync(
-  new URL("../../../assets/logos/deepseek-icon.svg", import.meta.url),
-  "utf8",
-)
-  .replace(/<\?xml[^>]*\?>\s*/, "")
-  .replace(/<!--[\s\S]*?-->/g, "");
 
 // Safe text accessor
 function t(texts, key) {
   return texts?.[key] ?? "";
 }
 
-/* ── S1: Hook — one-rule claim (three-layer open, first-frame striking) ── */
+/* ── S1: Hook — one-rule claim (shared hookScene) ── */
 function scene1(scene, duration) {
-  const d = Math.max(duration, 5).toFixed(1);
-  const txt = scene.texts || {};
-
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-${baseStyles(duration)}${templateCss()}${slotCss()}
-.s1 .scan-sweep { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(77,139,255,0.8), transparent); box-shadow: 0 0 20px rgba(77,139,255,0.5); animation: scanSweep ${d}s linear infinite; z-index: 50; }
-@keyframes scanSweep { 0% { top: 0; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-/* DS logo row — appears first for subject visibility */
-.s1 .ds-row { display: flex; align-items: center; justify-content: center; gap: 18px; animation: scaleIn 0.5s ease-out 0.2s forwards; opacity: 0; }
-.s1 .ds-row .ds-logo { width: 80px; height: 80px; filter: drop-shadow(0 0 25px rgba(77,139,255,0.3)); } .s1 .ds-row .ds-logo svg { width: 100%; height: 100%; }
-.s1 .ds-row .ds-text { font-size: 54px; font-weight: 900; color: var(--white); letter-spacing: 4px; text-shadow: 0 0 30px rgba(77,139,255,0.4); }
-/* Kicker line — sec, quiet, sets the frame */
-.s1 .line1 { text-align: center; font-size: 34px; font-weight: 800; color: var(--sec); letter-spacing: 5px; animation: slideUp 0.4s ease-out 0.5s forwards; opacity: 0; }
-/* Main claim — visible early, bold and large */
-.s1 .line2 { text-align: center; font-size: 76px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: hookIn 0.3s ease-out 0.8s forwards; opacity: 0; }
-/* Payoff line — blue glow, lands last */
-.s1 .line3 { text-align: center; font-size: 50px; font-weight: 900; color: var(--blue); letter-spacing: 3px; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite; opacity: 0; }
-</style></head><body>
-<div class="scene s1">
-  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div><div class="scan-sweep"></div>
-  ${brandBar()}
-  ${sceneFrame({
-    hero: `<div class="ds-row"><div class="ds-logo">${DEEPSEEK_ICON_SVG}</div><div class="ds-text">${t(txt, "subject")}</div></div><div class="line1">${t(txt, "line1")}</div><div class="line2">${t(txt, "line2")}</div><div class="line3">${t(txt, "line3")}</div>`,
-  })}
-</div></body></html>`;
+  return hookScene(scene, duration);
 }
 
 /* ── S2: Core interest — the one non-negotiable ── */

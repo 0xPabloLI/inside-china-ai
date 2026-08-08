@@ -41,21 +41,25 @@ describe("Distillation pt1 scene generation", () => {
     });
   }
 
-  // Scene-specific text verification
+  // Scene-specific text verification (hook delegates to shared hookScene)
   describe("scene 1 (hook) text from scene.texts", () => {
     const scene1 = scenes[0];
     const html = generateScene(scene1, 10);
 
-    it("contains line1 text", () => {
+    it("contains hookText focal", () => {
       expect(html).toContain("3 LABS ACCUSED");
     });
 
-    it("contains line2 text", () => {
+    it("contains revealText payoff", () => {
       expect(html).toContain("16M CONVERSATIONS");
     });
 
     it("contains alert badge from texts", () => {
       expect(html).toContain("DISTILLATION ALERT");
+    });
+
+    it("delegates to the shared hookScene (s-hook container)", () => {
+      expect(html).toContain('class="scene s-hook"');
     });
   });
 

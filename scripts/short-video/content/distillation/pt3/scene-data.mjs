@@ -24,8 +24,10 @@ export const scenes = [
     voiceover:
       "This China AI company's stock dropped 80% in five months. Anthropic accused them of the largest distillation volume of any lab.",
     texts: {
-      line1: "STOCK DOWN 80%",
-      line2: "MINIMAX · HKEX 0100.HK",
+      badge: "MARKET ALERT",
+      hookText: "STOCK DOWN 80%",
+      revealText: "MINIMAX · HKEX 0100.HK",
+      color: "red",
     },
   },
   {

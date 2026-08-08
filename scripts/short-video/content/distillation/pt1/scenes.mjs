@@ -24,7 +24,7 @@
  */
 
 import { baseStyles, withWatermark } from "../../../lib/base-styles.mjs";
-import { templateCss, brandBar, ctaScene } from "../../../lib/scene-templates.mjs";
+import { templateCss, brandBar, ctaScene, hookScene } from "../../../lib/scene-templates.mjs";
 import { slotCss, sceneFrame } from "../../../lib/scene-layout.mjs";
 
 // Safe text accessor — returns empty string for missing fields
@@ -32,34 +32,9 @@ function t(texts, key) {
   return texts?.[key] ?? "";
 }
 
-/* ── S1: Hook — data breach alert ── */
+/* ── S1: Hook — data breach alert (shared hookScene, red tint) ── */
 function scene1(scene, duration) {
-  const txt = scene.texts || {};
-  const line1 = t(txt, "line1");
-  const line2 = t(txt, "line2");
-
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-${baseStyles(duration)}${templateCss()}${slotCss()}
-.s1 .glow-red { width: 1000px; height: 1000px; top: -300px; left: 50%; transform: translateX(-50%); background: radial-gradient(circle, rgba(239,68,68,0.18) 0%, transparent 60%); }
-.s1 .alert-bar { display: flex; align-items: center; justify-content: center; gap: 12px; animation: slideDown 0.4s ease-out 0.1s forwards; opacity: 0; }
-.s1 .alert-bar .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--red); animation: alertPulse 0.8s ease-in-out infinite; box-shadow: 0 0 12px rgba(239,68,68,0.8); }
-@keyframes alertPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.6); } }
-.s1 .alert-bar .text { font-size: 26px; font-weight: 800; color: var(--red); letter-spacing: 4px; }
-.s1 .big-text { font-size: 110px; font-weight: 900; color: var(--red); letter-spacing: 2px; line-height: 1; text-align: center; text-shadow: 0 0 60px rgba(239,68,68,0.5), 0 0 120px rgba(239,68,68,0.3); animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 0.4s forwards, glitchShift 3s ease-in-out 1s infinite; opacity: 0; }
-@keyframes glitchShift { 0%,90%,100% { transform: translateX(0); } 92% { transform: translateX(-4px); text-shadow: 0 0 60px rgba(239,68,68,0.5), 2px 0 var(--blue); } 94% { transform: translateX(4px); text-shadow: 0 0 60px rgba(239,68,68,0.5), -2px 0 var(--amber); } 96% { transform: translateX(0); } }
-.s1 .divider { width: 400px; height: 2px; background: linear-gradient(90deg, transparent, rgba(239,68,68,0.5), transparent); margin: 28px auto; animation: fadeIn 0.5s ease-out 1.0s forwards; opacity: 0; }
-.s1 .big-text2 { font-size: 84px; font-weight: 900; color: var(--amber); letter-spacing: 1px; line-height: 1; text-align: center; text-shadow: 0 0 50px rgba(245,158,11,0.4); animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.2s forwards; opacity: 0; }
-.s1 .glitch-flash { position: absolute; inset: 0; pointer-events: none; animation: glitchFlash 0.3s ease-out 0.4s; opacity: 0; }
-@keyframes glitchFlash { 0% { opacity: 0; } 10% { opacity: 1; background: rgba(239,68,68,0.08); } 20% { opacity: 0; } 30% { opacity: 1; background: rgba(77,139,255,0.06); } 40% { opacity: 0; } 100% { opacity: 0; } }
-</style></head><body>
-<div class="scene s1">
-  <div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div><div class="glitch-flash"></div>
-  ${brandBar()}
-  ${sceneFrame({
-    kicker: `<div class="alert-bar"><span class="dot"></span><span class="text">${t(txt, "badge")}</span></div>`,
-    hero: `<div class="big-text">${line1}</div><div class="divider"></div><div class="big-text2">${line2}</div>`,
-  })}
-</div></body></html>`;
+  return hookScene(scene, duration);
 }
 
 /* ── S2: Contrast — surface vs deep theft (vertical A/VS/B stack) ── */

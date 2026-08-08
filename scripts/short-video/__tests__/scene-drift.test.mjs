@@ -93,7 +93,17 @@ const CTA_PIPELINES = [
 // Content pipelines that adopted the shared hook opening card (hookScene).
 // Register new content here when its scene1 delegates to hookScene — the
 // byte-equality guard below verifies no drift. (spec-hook-opening-card.md)
-const HOOK_PIPELINES = [];
+const HOOK_PIPELINES = [
+  { name: "distillation/pt1", id: 1, scenes: pt1Scenes, generateScene: generatePt1 },
+  { name: "distillation/pt2", id: 1, scenes: pt2Scenes, generateScene: generatePt2 },
+  { name: "distillation/pt3", id: 1, scenes: pt3Scenes, generateScene: generatePt3 },
+  {
+    name: "restraint/pt3",
+    id: 1,
+    scenes: restraintPt3Scenes,
+    generateScene: generateRestraintPt3,
+  },
+];
 
 // Evergreen scene-data templates (data-only, consumed when copied into content/)
 const EVERGREEN_FILES = [
@@ -350,7 +360,9 @@ describe("scene drift guards", () => {
         const hook = scenes.find((s) => s.id === id && s.visualType === "hook");
         expect(hook, `${name}: hook scene ${id} missing`).toBeDefined();
         const fromContent = generateScene(hook, 10);
-        const fromShared = hookScene(hook, 10);
+        // Content generateScene wraps via withWatermark (fixture pattern:
+        // withWatermark(hookScene(...))) — compare the same wrapping.
+        const fromShared = withWatermark(hookScene(hook, 10));
         expect(fromContent, `${name}: hook scene drifted from shared hookScene`).toBe(fromShared);
       }
     });

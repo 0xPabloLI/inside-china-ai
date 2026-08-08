@@ -41,9 +41,11 @@ export const scenes = [
       "DeepSeek's only non-negotiable: team stability. Money and resources are easy. Keep the team together.",
     texts: {
       subject: "DEEPSEEK",
-      line1: "ONE RULE",
-      line2: "TEAM STABILITY",
-      line3: "EVERYTHING ELSE FLEXIBLE",
+      subjectLogo: "deepseek-icon",
+      badge: "ONE RULE",
+      hookText: "TEAM STABILITY",
+      revealText: "EVERYTHING ELSE FLEXIBLE",
+      stats: [{ num: "1", label: "NON-NEGOTIABLE" }],
     },
   },
   {
@@ -55,7 +57,7 @@ export const scenes = [
     texts: {
       core: "TEAM STABILITY",
       result: "AGI INEVITABLE",
-      consequence: "LATE BUT NOT FAIL",
+      consequence: "6-12 MONTHS LATE",
     },
   },
   {

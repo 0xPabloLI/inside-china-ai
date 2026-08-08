@@ -35,6 +35,8 @@ import { scenes as deepseekScenes } from "../content/deepseek/scene-data.mjs";
 import { scenes as restraintScenes } from "../content/restraint/pt1/scene-data.mjs";
 import { scenes as restraintPt3Scenes } from "../content/restraint/pt3/scene-data.mjs";
 import { scenes as pt1Scenes } from "../content/distillation/pt1/scene-data.mjs";
+import { scenes as pt2Scenes } from "../content/distillation/pt2/scene-data.mjs";
+import { scenes as pt3Scenes } from "../content/distillation/pt3/scene-data.mjs";
 
 // ── Mock scene data ──
 
@@ -145,19 +147,19 @@ describe("checkHookContract", () => {
     expect(hookCheck).toBeDefined();
   });
 
-  it("locks current content reality: implemented hooks pass, legacy line1/line2 hooks fail (spec #17)", () => {
+  it("locks current content reality: every content hook passes the focal contract (spec #17)", () => {
+    // All seven content dirs now delegate scene 1 to the shared hookScene —
+    // the legacy line1/line2 hook shape is fully migrated (2026-08-08).
     for (const [name, scenes] of [
       ["bytedance-distillation", bytedanceScenes],
       ["deepseek", deepseekScenes],
       ["restraint/pt1", restraintScenes],
+      ["restraint/pt3", restraintPt3Scenes],
+      ["distillation/pt1", pt1Scenes],
+      ["distillation/pt2", pt2Scenes],
+      ["distillation/pt3", pt3Scenes],
     ]) {
       expect(checkHookContract(scenes)[0].level, `${name} should pass`).toBe("pass");
-    }
-    for (const [name, scenes] of [
-      ["distillation/pt1", pt1Scenes],
-      ["restraint/pt3", restraintPt3Scenes],
-    ]) {
-      expect(checkHookContract(scenes)[0].level, `${name} should fail until migrated`).toBe("fail");
     }
   });
 });

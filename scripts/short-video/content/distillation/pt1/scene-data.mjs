@@ -25,8 +25,9 @@ export const scenes = [
       "Three China AI labs were caught stealing Claude's brain. 24,000 fake accounts. 16 million conversations.",
     texts: {
       badge: "DISTILLATION ALERT",
-      line1: "3 LABS ACCUSED",
-      line2: "16M CONVERSATIONS",
+      hookText: "3 LABS ACCUSED",
+      revealText: "16M CONVERSATIONS",
+      color: "red",
     },
   },
   {

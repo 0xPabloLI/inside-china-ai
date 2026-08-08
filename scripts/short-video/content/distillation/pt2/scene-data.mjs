@@ -24,8 +24,10 @@ export const scenes = [
     voiceover:
       "This China AI thinks it's Claude 15% of the time. When asked who it is, Kimi K3 responds: I'm Claude, an AI assistant created by Anthropic.",
     texts: {
-      line1: "I'M CLAUDE",
-      line2: "KIMI K3 · 15% OF THE TIME",
+      badge: "IDENTITY BLEED",
+      hookText: "I'M CLAUDE",
+      revealText: "KIMI K3 · 15% OF THE TIME",
+      color: "red",
     },
   },
   {

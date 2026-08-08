@@ -35,11 +35,31 @@ describe("verify-video.mjs --pre guard (CLI contract)", () => {
   });
 
   it("T1-12: compliant content passes with no flag (exit 0)", () => {
-    // bytedance-distillation is the data-level compliant baseline. Legacy
-    // line1/line2 hooks (distillation/pt1, restraint/pt3) now fail the
-    // standard hook focal contract (checkHookContract) until migrated —
-    // the same anti-regression posture as the bottom safe-zone check.
+    // Every content directory passes data-level preflight: all seven dirs
+    // use the shared hookScene contract (checkHookContract) and are within
+    // word/scene limits — bytedance-distillation is the canonical baseline.
     const res = runPre(["--content", "bytedance-distillation"]);
     expect(res.status).toBe(0);
+  });
+
+  it("all content dirs pass data-level preflight (hook focal contract migrated)", () => {
+    // deepseek (12 scenes) and restraint/pt1 (11 scenes) are historical
+    // long-form productions that intentionally exceed the 6-10 TikTok
+    // scene-count rule; they opt in via --long-form (downgrades count +
+    // word-count to WARN). Every other dir must pass with no flag.
+    for (const dir of [
+      "bytedance-distillation",
+      "restraint/pt3",
+      "distillation/pt1",
+      "distillation/pt2",
+      "distillation/pt3",
+    ]) {
+      const res = runPre(["--content", dir]);
+      expect(res.status, `${dir} preflight should exit 0`).toBe(0);
+    }
+    for (const dir of ["deepseek", "restraint/pt1"]) {
+      const res = runPre(["--long-form", "--content", dir]);
+      expect(res.status, `${dir} preflight with --long-form should exit 0`).toBe(0);
+    }
   });
 });
