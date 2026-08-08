@@ -628,6 +628,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 4. **按内容类型选择叙事结构**（见下方「叙事结构模板」），按 TikTok 节奏重构为 10-12 个场景
 5. **设计 SEO 标题**（≤60 chars）——在 scene-data 中显式设计 caption 第一行，包含核心关键词（如 DeepSeek / China AI），而非依赖 generate-caption.mjs 自动推导
 6. **直接写 `scene-data.mjs`** — 不需要中间脚本
+7. **检查 TikTok Creative Center trending 标签** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），跳过此步骤，使用 curated 标签池。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。
 
 ### 叙事结构模板（按内容类型选择）
 
@@ -794,7 +795,8 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    □ 趋势音频：从 TikTok 音频库选热门音乐，音量 5-10%
    □ 地理标签：添加 China/US 位置标签
    □ Caption：≤2,200 chars，包含 SEO 关键词，3-5 个 hashtag
-   □ Hashtag 示例：#chinaai #deepseek #ai #technews #chinatech
+   □ Hashtag 示例：#ainews #chinaai #deepseek #technews（根据内容自动推导）
+   □ Trending 检查：Agent 已通过 Creative Center 检查当前 trending 标签
    
    【发布后 1 小时内】
    □ 自己发第一条评论 → 长按 → Pin comment（置顶）

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { deriveTitle, deriveDescription, deriveHashtags, deriveCommentHook, derivePinnedComment } from "../lib/caption-utils.mjs";
+import {
+  deriveTitle,
+  deriveDescription,
+  deriveHashtags,
+  deriveCommentHook,
+  derivePinnedComment,
+} from "../lib/caption-utils.mjs";
 
 // ─── Mock scene data (mirrors real scene-data.mjs format) ───
 
@@ -102,12 +108,20 @@ describe("S2: No metadata → auto-derive", () => {
     expect(result).toMatch(/follow|subscribe/i);
   });
 
-  it("derives hashtags from entity matching", () => {
+  it("derives hashtags with #ainews and #chinaai always present", () => {
     const result = deriveHashtags(mockScenes, undefined);
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.length).toBeLessThanOrEqual(5);
-    // Should include #chinaai (core niche, always present)
+    // #ainews is always included (best ROI: 68.7M views, low competition)
+    expect(result).toContain("#ainews");
+    // #chinaai is always included (brand niche hashtag)
     expect(result).toContain("#chinaai");
+  });
+
+  it("matches entity hashtags from content", () => {
+    const result = deriveHashtags(mockScenes, undefined);
+    // mockScenes contain "DeepSeek" → should match #deepseek
+    expect(result).toContain("#deepseek");
   });
 });
 
@@ -186,7 +200,7 @@ describe("S7: Description too long", () => {
 // ─── S8: No entity match → default broad hashtags ───
 
 describe("S8: No entities found", () => {
-  it("falls back to default broad hashtags", () => {
+  it("falls back to default hashtags including #ainews", () => {
     const genericScenes = [
       {
         id: 1,
@@ -201,7 +215,53 @@ describe("S8: No entities found", () => {
     ];
     const result = deriveHashtags(genericScenes, undefined);
     expect(result.length).toBeGreaterThanOrEqual(3);
-    expect(result).toContain("#chinaai"); // always present
+    // #ainews and #chinaai are always present
+    expect(result).toContain("#ainews");
+    expect(result).toContain("#chinaai");
+  });
+});
+
+// ─── S16: Expanded entity hashtag matching ───
+
+describe("S16: Expanded entity hashtag matching", () => {
+  it("matches #chatgpt for OpenAI/GPT content", () => {
+    const scenes = [
+      { id: 1, voiceover: "OpenAI released GPT-5 today.", texts: { line1: "GPT-5" } },
+    ];
+    const result = deriveHashtags(scenes, undefined);
+    expect(result).toContain("#chatgpt");
+  });
+
+  it("matches #kimi for Moonshot content", () => {
+    const scenes = [
+      { id: 1, voiceover: "Moonshot AI updated Kimi model.", texts: { line1: "KIMI" } },
+    ];
+    const result = deriveHashtags(scenes, undefined);
+    expect(result).toContain("#kimi");
+  });
+
+  it("matches #chinanews for China content", () => {
+    const scenes = [
+      { id: 1, voiceover: "China announced new AI policy.", texts: { line1: "CHINA AI POLICY" } },
+    ];
+    const result = deriveHashtags(scenes, undefined);
+    expect(result).toContain("#chinanews");
+  });
+
+  it("matches #futuretech for future/forward-looking content", () => {
+    const scenes = [
+      { id: 1, voiceover: "The future of AI is autonomous agents.", texts: { line1: "FUTURE AI" } },
+    ];
+    const result = deriveHashtags(scenes, undefined);
+    expect(result).toContain("#futuretech");
+  });
+
+  it("matches #huawei for Huawei content", () => {
+    const scenes = [
+      { id: 1, voiceover: "Huawei released Pangu 5.0 model.", texts: { line1: "HUAWEI PANGU" } },
+    ];
+    const result = deriveHashtags(scenes, undefined);
+    expect(result).toContain("#huawei");
   });
 });
 

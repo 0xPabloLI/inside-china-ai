@@ -171,6 +171,76 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 - **3-5 个 hashtag，混合 reach**。1 个大类、1-2 个 niche 定义、1-2 个视频特定。堆砌在 2026 无效。
 - **Caption 可以引导评论。** Caption 里的具体问题（"哪个让你最惊讶？"）赚取评论线程，反馈触达。
 
+### Hashtag 策略（2026-08-08 调研定稿）
+
+> 数据来源：tiktokhashtags.com（TikTok API 缓存数据）、TikTok Creative Center（trending 标签）、TikTok 搜索（竞品成功案例分析）。
+
+#### 核心原则
+
+1. **3-5 个标签，偏少不偏多** — CapCut/TikTok 官方推荐
+2. **错误标签 → 错误受众 → 快速划走 → 完播率下降 → 算法降权** — 比不打标签还差
+3. **宁可少打，不可打错** — 不相关的 trending 标签有害无益
+
+#### 标签池
+
+**核心流量标签**（每次必选 1-2 个）：
+
+| 标签 | 浏览量 | 帖子数 | 均帖浏览 | 说明 |
+|------|--------|--------|---------|------|
+| `#ainews` | 68.7M | 8.9K | 7,754 | **最佳 ROI**：低竞争、高精准、内容完全吻合 |
+| `#technews` | 1B | 78.4K | 13,070 | 科技新闻专用，受众精准 |
+
+**品牌标签**（每次必选 1 个）：
+
+| 标签 | 说明 |
+|------|------|
+| `#chinaai` | 品牌 niche 标签，始终携带 |
+
+**垂直/实体标签**（根据内容匹配 1-2 个，自动推导）：
+
+| 标签 | 浏览量 | 匹配关键词 |
+|------|--------|-----------|
+| `#deepseek` | 1.3B | deepseek, 深度求索 |
+| `#chatgpt` | 8.3B | openai, gpt, chatgpt |
+| `#openai` | 1.5B | openai |
+| `#bytedance` | — | bytedance, 字节跳动 |
+| `#alibaba` | — | alibaba, 阿里, qwen, 通义 |
+| `#tencent` | — | tencent, 腾讯, hunyuan |
+| `#baidu` | — | baidu, 百度, ernie, 文心 |
+| `#nvidia` | — | nvidia, 黄仁勋 |
+| `#kimi` | — | moonshot, kimi, 月之暗面 |
+| `#huawei` | — | huawei, 华为, pangu, 盘古 |
+| `#zhipu` | — | zhipu, 智谱, glm |
+| `#futuretech` | 2.9B | future, 未来, 前沿 |
+| `#chinanews` | — | china, chinese, 中国 |
+| `#opensource` | — | open source, 开源 |
+
+**去掉的标签**（调研后排除）：
+
+| 标签 | 排除原因 |
+|------|---------|
+| `#techtok` (41.6B) | 内容太杂（手机壳、PC装机、游戏），引来错误受众 |
+| `#technology` (34.2B) | 同上，竞争极大（140万帖），内容被淹没 |
+| `#chinatech` | tiktokhashtags.com 无数据，TikTok 标签页内容很少 |
+| `#madeinchina` | 内容偏制造/产品，不是 AI 科技 |
+
+#### TikTok Creative Center Trending 检查
+
+**每次做视频时执行**（通过 web-access skill）：
+
+1. 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`
+2. 检查**所有类别**的 trending 标签（不只 Tech & Electronics）
+3. 如果发现 trending 标签与视频内容高度相关 → 建议加入（替换一个垂直标签）
+4. 如果没有相关的 → 继续用 curated 标签池
+
+> **注意**：截至 2026-08-08，7天/30天/90天 trending 中 Tech & Electronics 类别均为 0 个标签。Trending 被娱乐、游戏、购物主导。但这不意味着以后不会出现——重大 AI 事件时可能有科技标签上榜。
+
+#### 代码实现
+
+- 标签池定义：`scripts/short-video/lib/caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` + `ENTITY_HASHTAG_MAP`
+- 自动推导：`deriveHashtags()` 函数 — 总是包含 `#ainews` + `#chinaai`，根据内容匹配实体标签
+- 输出分类：`generate-caption.mjs` → `tiktok-metadata.json` 中的 `hashtagStrategy` 字段
+
 ### 发布设置（platformSettings.tiktok）
 
 - **viewerSetting 实际必需。** 用 `PUBLIC_TO_EVERYONE` 获取触达。`SELF_ONLY` 是端到端测试草稿的安全方式。

@@ -3,24 +3,74 @@
  *
  * Pure functions — no file IO, no side effects.
  * Used by generate-caption.mjs and testable in isolation.
+ *
+ * Hashtag strategy researched 2026-08-08 via:
+ * - tiktokhashtags.com (real view/post data from TikTok API cache)
+ * - TikTok Creative Center (trending hashtags, Tech & Electronics industry)
+ * - TikTok search (successful competitor hashtag analysis)
+ * See: docs/tiktok/tiktok-best-practices.md → Hashtag Strategy section
  */
 
-// ─── Entity → Hashtag mapping table ───
+// ─── Curated Hashtag Pools (researched 2026-08-08) ───
+//
+// Data sources: tiktokhashtags.com (cached TikTok API data),
+// TikTok Creative Center, TikTok search competitor analysis.
+// Refresh guidance: Agent checks Creative Center trending each video run.
 
-const ENTITY_HASHTAG_MAP = [
-  { keywords: ["deepseek", "深度求索"], hashtag: "#deepseek" },
-  { keywords: ["china", "chinese", "中国"], hashtag: "#chinaai" },
-  { keywords: ["ai", "artificial intelligence", "人工智能", "大模型"], hashtag: "#ai" },
-  { keywords: ["open source", "open-source", "开源"], hashtag: "#opensource" },
-  { keywords: ["nvidia"], hashtag: "#nvidia" },
-  { keywords: ["bytedance", "字节跳动"], hashtag: "#bytedance" },
-  { keywords: ["alibaba", "阿里"], hashtag: "#alibaba" },
-  { keywords: ["tencent", "腾讯"], hashtag: "#tencent" },
-  { keywords: ["baidu", "百度"], hashtag: "#baidu" },
-  { keywords: ["funding", "investment", "融资", "投资"], hashtag: "#technews" },
+/**
+ * Core traffic hashtags — low competition, high precision.
+ * Always include 1-2 of these.
+ */
+const CORE_TRAFFIC_HASHTAGS = [
+  "#ainews", // 68.7M views, 8.9K posts — best ROI
+  "#technews", // 1B views, 78.4K posts — tech news specific
 ];
 
-const DEFAULT_BROAD_HASHTAGS = ["#chinaai", "#ai", "#technews"];
+/**
+ * Auxiliary traffic hashtags — broader reach, higher competition.
+ * Pick 0-1 based on content focus.
+ */
+const AUXILIARY_TRAFFIC_HASHTAGS = [
+  "#ai", // mega traffic, broad AI recognition
+  "#chinaai", // niche brand hashtag, always relevant
+];
+
+/**
+ * Vertical / entity hashtags — precision targeting.
+ * Pick 1-2 based on video content (auto-derived from entity matching).
+ */
+const ENTITY_HASHTAG_MAP = [
+  { keywords: ["deepseek", "深度求索"], hashtag: "#deepseek" },
+  { keywords: ["openai", "gpt", "chatgpt", "sam altman"], hashtag: "#chatgpt" },
+  { keywords: ["openai"], hashtag: "#openai" },
+  { keywords: ["bytedance", "字节跳动", "douyin"], hashtag: "#bytedance" },
+  { keywords: ["alibaba", "阿里", "qwen", "通义"], hashtag: "#alibaba" },
+  { keywords: ["tencent", "腾讯", "hunyuan", "混元"], hashtag: "#tencent" },
+  { keywords: ["baidu", "百度", "ernie", "文心"], hashtag: "#baidu" },
+  { keywords: ["nvidia", "黄仁勋"], hashtag: "#nvidia" },
+  { keywords: ["zhipu", "智谱", "glm"], hashtag: "#zhipu" },
+  { keywords: ["moonshot", "kimi", "月之暗面"], hashtag: "#kimi" },
+  { keywords: ["minimax", " minimax"], hashtag: "#minimax" },
+  { keywords: ["huawei", "华为", "pangu", "盘古"], hashtag: "#huawei" },
+  { keywords: ["xiaomi", "小米"], hashtag: "#xiaomi" },
+  { keywords: ["iflytek", "科大讯飞"], hashtag: "#iflytek" },
+  { keywords: ["sensetime", "商汤"], hashtag: "#sensetime" },
+  { keywords: ["future", "未来", "前沿"], hashtag: "#futuretech" },
+  { keywords: ["china", "chinese", "中国"], hashtag: "#chinanews" },
+  { keywords: ["funding", "investment", "融资", "投资", "round"], hashtag: "#technews" },
+  { keywords: ["open source", "open-source", "开源"], hashtag: "#opensource" },
+];
+
+/**
+ * Default hashtags when no metadata and no entity match.
+ * Combines core traffic + brand niche.
+ */
+const DEFAULT_HASHTAGS = ["#ainews", "#chinaai", "#technews"];
+
+/**
+ * @deprecated Use DEFAULT_HASHTAGS instead. Kept for backward compat.
+ */
+const DEFAULT_BROAD_HASHTAGS = DEFAULT_HASHTAGS;
 
 const SEO_KEYWORDS = ["china", "ai", "deepseek"];
 
@@ -78,10 +128,25 @@ function extractEntities(scenes) {
 
   // Extract company names (known set + capitalized words)
   const knownCompanies = [
-    "DeepSeek", "ByteDance", "Alibaba", "Tencent", "Baidu",
-    "Alibaba", "Huawei", "Xiaomi", "OPPO", "vivo",
-    "Zhipu", "MoonShot", "Kimi", "MiniMax", "01.AI",
-    "StepFun", "Baichuan", "iFlytek", "SenseTime",
+    "DeepSeek",
+    "ByteDance",
+    "Alibaba",
+    "Tencent",
+    "Baidu",
+    "Alibaba",
+    "Huawei",
+    "Xiaomi",
+    "OPPO",
+    "vivo",
+    "Zhipu",
+    "MoonShot",
+    "Kimi",
+    "MiniMax",
+    "01.AI",
+    "StepFun",
+    "Baichuan",
+    "iFlytek",
+    "SenseTime",
   ];
   const companies = [];
   for (const company of knownCompanies) {
@@ -313,8 +378,22 @@ export function deriveDescription(scenes, metadata) {
 /**
  * Derive hashtags from scene data.
  *
+ * Strategy (researched 2026-08-08):
+ * - 3-5 hashtags total (CapCut/TikTok official recommendation)
+ * - Wrong tags → wrong audience → quick scroll → algorithm penalty
+ * - Fewer is better than wrong
+ *
+ * Selection logic:
+ * 1. Always include #ainews (core traffic, best ROI)
+ * 2. Always include #chinaai (brand niche)
+ * 3. Match entity hashtags from content (1-2)
+ * 4. Pad with #technews if < 3
+ * 5. Truncate to max 5
+ * 6. If trending tags from Creative Center are provided in metadata.trendingHashtags,
+ *    and they're relevant, include 1 (replacing a less important tag)
+ *
  * @param {Array} scenes - Scene array from scene-data.mjs
- * @param {Object} [metadata] - Optional metadata { title, description, hashtags }
+ * @param {Object} [metadata] - Optional metadata { title, description, hashtags, trendingHashtags }
  * @returns {string[]} Array of 3-5 hashtags
  */
 export function deriveHashtags(scenes, metadata) {
@@ -329,7 +408,7 @@ export function deriveHashtags(scenes, metadata) {
 
     // S4: pad to min 3 if too few
     if (tags.length < 3) {
-      for (const broad of DEFAULT_BROAD_HASHTAGS) {
+      for (const broad of DEFAULT_HASHTAGS) {
         if (!tags.includes(broad)) {
           tags.push(broad);
         }
@@ -351,18 +430,14 @@ export function deriveHashtags(scenes, metadata) {
 
   const matchedTags = new Set();
 
-  // Always include #chinaai (core niche)
+  // Always include #ainews (best ROI: 68.7M views, low competition)
+  matchedTags.add("#ainews");
+
+  // Always include #chinaai (brand niche hashtag)
   matchedTags.add("#chinaai");
 
-  // Match entities
+  // Match entities from content
   for (const entry of ENTITY_HASHTAG_MAP) {
-    // Skip #chinaai since already added
-    if (entry.hashtag === "#chinaai") {
-      if (!entry.keywords.some((kw) => allText.includes(kw))) {
-        // Don't force it if no China keyword — but we always include it anyway
-      }
-      continue;
-    }
     if (entry.keywords.some((kw) => allText.includes(kw))) {
       matchedTags.add(entry.hashtag);
     }
@@ -371,9 +446,9 @@ export function deriveHashtags(scenes, metadata) {
   // Convert to array
   let tags = Array.from(matchedTags);
 
-  // S4: pad to min 3
+  // S4: pad to min 3 with core traffic hashtags
   if (tags.length < 3) {
-    for (const broad of DEFAULT_BROAD_HASHTAGS) {
+    for (const broad of DEFAULT_HASHTAGS) {
       if (!tags.includes(broad)) {
         tags.push(broad);
       }

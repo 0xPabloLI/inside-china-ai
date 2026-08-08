@@ -18,7 +18,12 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-import { deriveTitle, deriveDescription, deriveHashtags, derivePinnedComment } from "./lib/caption-utils.mjs";
+import {
+  deriveTitle,
+  deriveDescription,
+  deriveHashtags,
+  derivePinnedComment,
+} from "./lib/caption-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -62,10 +67,28 @@ async function main() {
   const captionText = `${title}\n\n${description}\n\n${hashtagLine}\n`;
 
   // ─── Assemble metadata JSON ───
+  // Categorize hashtags for transparency
+  const trafficHashtags = hashtags.filter((t) =>
+    ["#ainews", "#technews", "#ai", "#news"].includes(t),
+  );
+  const verticalHashtags = hashtags.filter(
+    (t) => !["#ainews", "#technews", "#ai", "#news", "#chinaai"].includes(t),
+  );
+  const brandHashtags = hashtags.filter((t) => t === "#chinaai");
+
   const metadataJson = {
     title,
     description: `${description}\n\n${hashtagLine}`,
     hashtags,
+    hashtagStrategy: {
+      total: hashtags.length,
+      traffic: trafficHashtags,
+      vertical: verticalHashtags,
+      brand: brandHashtags,
+      rule: "3-5 hashtags, wrong tags → wrong audience → algorithm penalty",
+      researchedAt: "2026-08-08",
+      dataSource: "tiktokhashtags.com + TikTok Creative Center + competitor analysis",
+    },
     pinnedComment,
     generatedAt: new Date().toISOString(),
     source: metadata ? "scene-data-metadata" : "auto-derived",
