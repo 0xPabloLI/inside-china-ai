@@ -17,7 +17,7 @@ MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的�
 
 **所有文章发布为英文。** 无论源素材是中文、英文还是其他语言，Agent 在 Stage 1b 中必须输出英文文章。源素材如为中文，Agent 在总结和扩展时翻译为英文。
 
-**Widget 统一使用英文。** Widget 数据和 UI 文案不需要双语 toggle，直接用英文。现有 DeepSeek widget 中的 EN/中文 toggle 后续移除（技术债务，不影响新文章生产）。
+**Widget 统一使用英文。** Widget 数据和 UI 文案不需要双语 toggle，直接用英文。现有 DeepSeek widget 中的 EN/中文 toggle 已于 2026-08-08 移除。
 
 ### Human-in-the-Loop (HITL) 检查点
 
@@ -271,7 +271,7 @@ Widget 的核心定位是**补充文章中不存在的新信息**，不是文章
 > 2. **可视化优先**：Widget 应以图表、图形、数据可视化为主，文字量最小化。避免纯文本列表。
 > 3. **交互性**：Widget 应提供 hover、click、toggle 等交互方式，让用户探索数据。
 > 4. **多样性**：一篇文章的多个 widget 应使用不同的可视化技术（矩阵、柱状图、流程图、折线图等），避免同质化。
-> 5. **英文 only**：Widget 数据和 UI 文案统一使用英文，不需要双语 toggle（遗留的双语 toggle 是技术债务）。
+> 5. **英文 only**：Widget 数据和 UI 文案统一使用英文，不需要双语 toggle（历史遗留的 toggle 已于 2026-08-08 移除）。
 > 6. **数据硬编码**：Widget 数据由 Agent 在 Stage 1b 中通过 web-access 调研获取，硬编码在组件代码中（不存数据库）。
 
 #### Widget 决策树
@@ -335,7 +335,7 @@ export const BREAKOUT_WIDGETS = new Set<string>([
 
 > ⚠️ Widget 数据是代码硬编码，不存数据库。这是架构约束（见 Phase 2 Grill 纪录）。
 
-> ⚠️ 现有 DeepSeek widget 有 EN/中文 双语 toggle，后续统一移除为英文 only。新 widget 不应添加双语 toggle。
+> ⚠️ DeepSeek widget 的 EN/中文 双语 toggle 已于 2026-08-08 移除（英文 only）。新 widget 不应添加双语 toggle。
 
 #### Frontmatter 格式
 
