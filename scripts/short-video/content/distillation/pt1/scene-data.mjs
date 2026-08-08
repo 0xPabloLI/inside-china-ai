@@ -37,6 +37,7 @@ export const scenes = [
       "They weren't just copying answers. They were stealing the full reasoning process. The chain of thought. Claude's inner thinking, encrypted but not unbreakable.",
     texts: {
       title: "NOT JUST COPYING ANSWERS",
+      vs: "VS",
       leftTitle: "SURFACE LEVEL",
       left: ["ANSWERS", "CODE", "TOOL CALLS"],
       rightTitle: "WHAT THEY STOLE",
@@ -100,6 +101,7 @@ export const scenes = [
       "Qwen and Z-A-I were not named. Anthropic's accusations were selective. Moonshot never responded publicly.",
     texts: {
       title: "SELECTIVE ACCUSATIONS",
+      vs: "VS",
       left: ["NAMED", "DeepSeek", "Moonshot", "MiniMax"],
       right: ["NOT NAMED", "Qwen", "Z.ai", "Others?"],
       note: "Moonshot ",

@@ -79,19 +79,33 @@ const EXPECTATIONS = {
     wordFit: {},
   },
   "restraint/pt1": {
-    skipWatermark: [1, 11],
+    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
+    // watermark skip for all scenes.
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
     singleOccurrence: { 4: ["PRICE CUT"] },
     wordFit: { 3: [".s3 .card .text"] },
   },
+  "restraint/pt3": {
+    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
+    // watermark skip for all scenes.
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
+    singleOccurrence: {},
+    wordFit: {},
+  },
   deepseek: {
-    skipWatermark: [1, 12],
+    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
+    // watermark skip for all scenes.
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
     absentClasses: ["source-badge", "subscribe"],
     singleOccurrence: {},
     wordFit: {},
   },
   "distillation/pt1": {
-    skipWatermark: [8],
+    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
+    // watermark skip for all scenes.
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8],
     absentClasses: ["subscribe"],
     singleOccurrence: {},
     wordFit: {},
@@ -251,13 +265,19 @@ async function main() {
       if (await page.$(`.${cls}`)) problems.push(`legacy footer class .${cls} present`);
     }
 
-    // 4c. Single-occurrence copy (scene-scoped)
+    // 4c. Single-occurrence copy (scene-scoped). Only leaf elements count:
+    // a slot container holding a single child would otherwise match the
+    // child's text twice.
     for (const text of exp.singleOccurrence[scene.id] || []) {
       const matches = await page.$$eval(
         "*",
         (els, t) =>
-          els.filter((el) => el.matches("svg, svg *") === false && el.innerText?.trim() === t)
-            .length,
+          els.filter(
+            (el) =>
+              el.matches("svg, svg *") === false &&
+              el.children.length === 0 &&
+              el.innerText?.trim() === t,
+          ).length,
         text,
       );
       if (matches !== 1) {

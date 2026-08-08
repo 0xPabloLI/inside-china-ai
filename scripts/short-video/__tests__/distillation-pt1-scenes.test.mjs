@@ -22,15 +22,9 @@ describe("Distillation pt1 scene generation", () => {
         expect(html).toContain("<!DOCTYPE html>");
       });
 
-      if (scene.id === 8) {
-        it("skips watermark on brand-identity scenes (no double branding)", () => {
-          expect(html).not.toMatch(/<div class="brand-watermark">/);
-        });
-      } else {
-        it("contains brand watermark element", () => {
-          expect(html).toMatch(/<div class="brand-watermark">/);
-        });
-      }
+      it("skips watermark on brand-identity scenes (all scenes carry brandBar)", () => {
+        expect(html).not.toMatch(/<div class="brand-watermark">/);
+      });
 
       it("contains baseStyles CSS variables", () => {
         expect(html).toContain("--blue");

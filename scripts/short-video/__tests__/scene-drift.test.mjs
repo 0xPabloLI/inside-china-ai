@@ -214,26 +214,28 @@ describe("scene drift guards", () => {
       }
     });
 
-    it("migrated content stacks comparison scenes vertically (no side-by-side)", () => {
+    it("content stacks comparison scenes vertically (no side-by-side)", () => {
       // The vertical-stacking rule (docs/brand-system.md → Scene Layout
       // Templates): comparison/contrast/VS scenes must stack A/VS/B
       // vertically, never force a landscape two-column row into portrait.
-      // bytedance-distillation is the migrated reference; legacy content
-      // (deepseek / distillation/pt1 / restraint/pt1) still uses the old
-      // side-by-side classes and is covered by --skip-dom-check until it
-      // migrates. New content must NOT introduce these patterns.
+      // Every content directory is now on the slot layout (v3 migration,
+      // spec: spec-video-layout-safe-zones.md); the legacy side-by-side
+      // classes must never return. Restraint pt1/pt3 + distillation/pt1
+      // stack cards via .vstack/.card with .vs-mid separators; deepseek
+      // and bytedance use .vstack/.vline/.vs-mid. Horizontal flow chains
+      // (transform rows, roadmap ladders) are allowed — they are progress
+      // arrows, not comparison columns.
       const SIDE_BY_SIDE = ["accused-row", "chip-compare", "vs-circle", "cols"];
-      const src = readFileSync(
-        new URL("../content/bytedance-distillation/scenes.mjs", import.meta.url),
-        "utf8",
-      );
-      for (const cls of SIDE_BY_SIDE) {
-        // Prefix form `class="${cls}` catches suffix variants (e.g.
-        // `class="cols foo"`); the `class="` anchor keeps prose mentions of
-        // the bare word from matching.
-        expect(src, `bytedance reintroduced side-by-side class "${cls}"`).not.toContain(
-          `class="${cls}`,
-        );
+      for (const file of CONTENT_FILES) {
+        const src = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+        for (const cls of SIDE_BY_SIDE) {
+          // Prefix form `class="${cls}` catches suffix variants (e.g.
+          // `class="cols foo"`); the `class="` anchor keeps prose mentions of
+          // the bare word from matching.
+          expect(src, `${file} reintroduced side-by-side class "${cls}"`).not.toContain(
+            `class="${cls}`,
+          );
+        }
       }
     });
 
