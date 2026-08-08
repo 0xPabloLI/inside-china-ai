@@ -1,7 +1,6 @@
 # Spec: RAG Pipeline for Content Knowledge Base
 
 > GitHub Issue: [#15 — feat: RAG pipeline for content knowledge base](https://github.com/0xPabloLI/inside-china-ai/issues/15)
-> Prerequisite doc: `docs/archive/rag-prework.md` (D1-D5 decisions confirmed) — 已归档
 > Grilling session: 2026-08-07, 19 questions across 4 rounds
 > Status: **Draft** — ready for ticket breakdown
 
@@ -397,7 +396,6 @@ Non-blocking: if RAG index fails, article publish still succeeds.
 |------|-------------|------|------------|
 | `scripts/article/publish-article.mjs` | Add RAG reindex call after publish (non-blocking) | **Low** | Appended after publish success; try/catch with non-blocking fallback. If RAG fails, publish still succeeds. |
 | `CONTEXT.md` | Add RAG terminology section | **Low** | Pure addition; no existing terms modified |
-| `docs/archive/rag-prework.md` | Update D3 (remove widget-data), add Q11-Q19 decisions | **Low** | Documentation update only |
 | `supabase/migrations/` | New migration file (additive) | **Medium** | New table + extension + RPC function. No existing tables modified. pgvector extension is additive. Verified: Supabase Pro plan supports extensions. |
 
 ### 5.2 Behavioral Scenarios
@@ -490,7 +488,6 @@ All 26 scenarios from Section 5.2 must be covered by at least one test. Mapping:
 8. **`scripts/rag/eval.mjs`** — Evaluation script
 9. **`scripts/article/publish-article.mjs`** — Add RAG reindex trigger
 10. **`docs/refs/rag-eval/golden-queries.yaml`** — Golden query set (WP-11)
-11. **`docs/archive/rag-prework.md`** — Update with Q1-Q19 decisions, revise D3
 
 ---
 
