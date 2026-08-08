@@ -71,23 +71,24 @@ describe("baseStyles watermark CSS uses WATERMARK_POS", () => {
 // ── withWatermark ──
 
 describe("withWatermark", () => {
-  it("skips injection when the scene already renders a brand bar", () => {
+  it("injects frame-glow but skips watermark when scene has brand bar", () => {
     const input = `<div class="scene s1"><div class="brand-bar">logo</div></div></body>`;
     const result = withWatermark(input);
-    expect(result).toBe(input);
+    expect(result).toContain("frame-glow");
     expect(result).not.toContain("brand-watermark");
   });
 
-  it("skips injection when the scene already renders a large brand logo (CTA)", () => {
+  it("injects blue frame-glow but skips watermark when scene has brand-logo-large (CTA)", () => {
     const input = `<div class="scene s11"><div class="brand-logo-large">logo</div></div></body>`;
     const result = withWatermark(input);
-    expect(result).toBe(input);
+    expect(result).toContain("frame-glow blue");
     expect(result).not.toContain("brand-watermark");
   });
 
-  it("injects watermark otherwise (non-brand-bar scenes)", () => {
+  it("injects frame-glow and watermark for non-brand-bar scenes", () => {
     const input = `<div class="scene s4">stats</div></body>`;
     const result = withWatermark(input);
+    expect(result).toContain("frame-glow");
     expect(result).toContain("brand-watermark");
     expect(result).toContain(BRAND_MARK_SVG);
   });
@@ -332,10 +333,13 @@ describe("ctaScene", () => {
     expect(html).not.toContain('class="stamp-icon"');
   });
 
-  it("carries the large brand logo class so withWatermark skips (no double branding)", () => {
-    const html = ctaScene({ texts: CTA_TEXTS }, 10);
-    expect(html).toContain('class="brand-logo-large"');
-    expect(html).toContain(BRAND_MARK_SVG);
+it("carries the large brand logo class so withWatermark skips watermark (frame-glow still injected)", () => {
+const html = ctaScene({ texts: CTA_TEXTS }, 10);
+expect(html).toContain('class="brand-logo-large"');
+expect(html).toContain(BRAND_MARK_SVG);
+const watermarked = withWatermark(html);
+expect(watermarked).toContain('frame-glow blue');
+expect(watermarked).not.toContain('class="brand-watermark"');
   });
 
   it("ends with fade-to-black timed off the scene duration", () => {
@@ -498,10 +502,12 @@ describe("hookScene", () => {
     expect(html).not.toContain("var(--pink)");
   });
 
-  it("carries the brand bar so withWatermark skips (no double branding)", () => {
-    const html = hookScene({ texts: HOOK_NUMBER_TEXTS }, 10);
-    expect(withWatermark(html)).toBe(html);
-  });
+it("carries the brand bar so withWatermark skips watermark (frame-glow still injected)", () => {
+const html = hookScene({ texts: HOOK_NUMBER_TEXTS }, 10);
+const watermarked = withWatermark(html);
+expect(watermarked).toContain('frame-glow');
+expect(watermarked).not.toContain('class="brand-watermark"');
+});
 
   it("declares scanSweep exactly once and no shared keyframes", () => {
     const html = hookScene({ texts: HOOK_CLAIM_TEXTS }, 10);

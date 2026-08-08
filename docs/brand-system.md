@@ -56,7 +56,7 @@ Consistent color coding across all content — same entity always same color.
 
 ### Background
 
-Base: `#050508`. Cards: `rgba(255,255,255,0.03)`. Borders: `rgba(255,255,255,0.08)`.
+Base: `#0a0a14`. Cards: `rgba(255,255,255,0.06)`. Borders: `rgba(255,255,255,0.08)`.
 
 > **Why `#f5f5f5` not `#ffffff`?** Pure white on a near-black background creates harsh glare that causes eye fatigue during extended viewing. `#f5f5f5` is visually indistinguishable from white but reduces glare — a standard dark-mode design practice (AlmostZero 2025, AdminLTE 2026).
 >
@@ -71,7 +71,7 @@ Font stack: `'Helvetica Neue', 'Arial Black', Arial, sans-serif`
 | Headlines    | 48-130px | 800-900 | 2-5px            |
 | Body         | 28-40px  | 600-800 | normal           |
 | Labels       | 22-28px  | 700     | 2-3px, uppercase |
-| Data anchors | 64-280px | 900     | tight            |
+| Data anchors | 64-300px | 900     | tight            |
 
 ## Subtitle Specification (Video)
 
@@ -104,12 +104,13 @@ Style: Default,Helvetica Neue,60,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,
 
 ## Background Layers
 
-Every scene/thumbnail layers these four effects:
+Every scene/thumbnail layers these five effects:
 
-1. **Grid** — `linear-gradient` lines, 60px spacing, opacity 0.03
-2. **Glow-Red** — radial gradient top-right, `rgba(239,68,68,0.12)`
-3. **Glow-Blue** — radial gradient bottom-left, `rgba(77,139,255,0.08)`
+1. **Grid** — `linear-gradient` lines, 60px spacing, opacity 0.04
+2. **Glow-Red** — radial gradient top-right, `rgba(239,68,68,0.15)`
+3. **Glow-Blue** — radial gradient bottom-left, `rgba(77,139,255,0.10)`
 4. **Scanlines** — `repeating-linear-gradient`, 3px period, opacity 0.008
+5. **Frame Glow** — `position: absolute; inset: 0;` border + inner glow; amber `rgba(245,158,11,0.2)` on content scenes, blue `rgba(77,139,255,0.2)` on CTA. `pointer-events: none`; decorative, not content (safe-zone-exempt)
 
 ## Animation Library
 
@@ -122,6 +123,7 @@ All animations: `opacity: 0` initial, `forwards` fill mode. Stagger delays 0.3-0
 | `slideLeft` | 0.4-0.5s | cubic-bezier(0.16,1,0.3,1) | Cards, list items     |
 | `scaleIn`   | 0.5-0.6s | ease-out                   | Big numbers, key data |
 | `stampIn`   | 0.3-0.5s | ease-out                   | Verdicts (scale 2→1)  |
+| `flashFrame` | 0.4s  | ease-out                   | Hook scene pattern-break flash (opacity 1→0) |
 
 ## Color Usage Guide (60-30-10 Principle)
 
@@ -129,7 +131,7 @@ Based on TikTok color best practices research (2025-2026):
 
 | Role           | Ratio | Color                                           | Usage                             |
 | -------------- | ----- | ----------------------------------------------- | --------------------------------- |
-| **Dominant**   | 60%   | `#050508` (dark bg)                             | Background, negative space        |
+| **Dominant**   | 60%   | `#0a0a14` (dark bg)                             | Background, negative space        |
 | **Supporting** | 30%   | `#f5f5f5` text + blue/red/green semantic colors | Headlines, body, entity colors    |
 | **Accent**     | 10%   | `#f59e0b` amber                                 | Key numbers, CTA, data highlights |
 
@@ -180,7 +182,7 @@ Same as color tokens — each company has a consistent semantic color:
 
 ## Content Patterns
 
-- **Data anchors**: oversized numbers (64-280px) as focal points — amber for Hook, semantic color elsewhere
+- **Data anchors**: oversized numbers (64-300px) as focal points — amber for Hook, semantic color elsewhere
 - **Quotes**: left-border accent color, italic, keyword highlighted
 - **Verdicts**: full-width stamp with text-shadow glow
 - **Color coding**: consistent — same entity always same color across all scenes
@@ -237,7 +239,7 @@ Slot composition (1080×1920; bands from `lib/scene-layout.mjs` — kicker / her
 kicker (220–400)     [badge]    optional red pill (BREAKING) — red urgency
 hero   (400–950)     [subject]  optional logo 120px + name 80px/900
                      [focal]    REQUIRED, exactly one of:
-                       A number-led: bigNumber (amber 260px glow)
+                       A number-led: bigNumber (amber 300px glow)
                                      + numberLabel (highlight wraps .hl)
                        B claim-led:  hookText (frame-1, no delay)
                                      + revealText (1.5s stampIn payoff)

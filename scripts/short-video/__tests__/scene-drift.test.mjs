@@ -163,14 +163,18 @@ describe("scene drift guards", () => {
       expect(out).toMatch(/<div class="brand-watermark">[\s\S]*<\/div><\/div><\/body>/);
     });
 
-    it("skips scenes with a brand bar (top-left identity)", () => {
+    it("injects frame-glow but skips watermark for brand-bar scenes", () => {
       const html = '<div class="scene"><div class="brand-bar"></div></div></body></html>';
-      expect(withWatermark(html)).toBe(html);
+      const out = withWatermark(html);
+      expect(out).toMatch(/<div class="frame-glow"><\/div>/);
+      expect(out).not.toMatch(/<div class="brand-watermark">/);
     });
 
-    it("skips scenes with a large brand logo (CTA close)", () => {
+    it("injects blue frame-glow but skips watermark for CTA scenes", () => {
       const html = '<div class="scene"><div class="brand-logo-large"></div></div></body></html>';
-      expect(withWatermark(html)).toBe(html);
+      const out = withWatermark(html);
+      expect(out).toMatch(/<div class="frame-glow blue"><\/div>/);
+      expect(out).not.toMatch(/<div class="brand-watermark">/);
     });
 
     it("does not match CSS class definitions, only real elements", () => {
@@ -300,7 +304,7 @@ describe("scene drift guards", () => {
         const cta = scenes.find((s) => s.id === id && s.visualType === "cta");
         expect(cta, `${name}: CTA scene ${id} missing`).toBeDefined();
         const fromContent = generateScene(cta, 10);
-        const fromShared = ctaScene(cta, 10);
+        const fromShared = withWatermark(ctaScene(cta, 10));
         expect(fromContent, `${name}: CTA scene drifted from shared ctaScene`).toBe(fromShared);
       }
     });

@@ -50,9 +50,9 @@ function templateCss() {
     .brand-bar .briefing-tag { margin-left: auto; font-size: 16px; font-weight: 700; color: var(--sec); letter-spacing: 2px; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }
     .breaking-badge { position: absolute; top: 210px; left: 50%; transform: translateX(-50%); background: var(--red); color: white; padding: 14px 40px; font-size: 28px; font-weight: 900; letter-spacing: 4px; border-radius: 8px; box-shadow: 0 0 40px rgba(239,68,68,0.6); display: flex; align-items: center; gap: 10px; animation: stampIn 0.4s ease-out 0.3s forwards; opacity: 0; }
     .breaking-badge .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background: white; animation: pulseDot 1s ease-in-out infinite; }
-    .stat-card { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-top: 4px solid var(--blue); border-radius: 14px; padding: 32px 20px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
-    .stat-card .stat-num { font-size: 64px; font-weight: 900; line-height: 1; color: var(--blue); } .stat-card .stat-num .unit { font-size: 32px; font-weight: 700; }
-    .stat-card .stat-label { font-size: 22px; font-weight: 700; color: var(--sec); letter-spacing: 1px; margin-top: 10px; }
+    .stat-card { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid var(--blue); border-radius: 14px; padding: 24px 20px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
+    .stat-card .stat-num { font-size: 56px; font-weight: 900; line-height: 1; color: var(--blue); } .stat-card .stat-num .unit { font-size: 28px; font-weight: 700; }
+    .stat-card .stat-label { font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 1px; margin-top: 6px; }
     .quote-box { background: rgba(255,255,255,0.03); border-left: 4px solid var(--blue); border-radius: 0 12px 12px 0; padding: 30px 36px; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
     .quote-box .quote-text { font-style: italic; color: var(--sec); line-height: 1.4; } .quote-box .quote-text .hl { color: var(--blue); font-style: normal; font-weight: 700; }
     .quote-box .quote-speaker { margin-top: 14px; font-size: 24px; font-weight: 700; color: var(--white); letter-spacing: 1px; }
@@ -82,17 +82,17 @@ function templateCss() {
     .s-hook .scan-sweep { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(77,139,255,0.8), transparent); box-shadow: 0 0 20px rgba(77,139,255,0.5); animation: scanSweep var(--d) linear infinite; z-index: 50; }
     @keyframes scanSweep { 0% { top: 0; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
     .s-hook .glow-tint { position: absolute; bottom: -250px; left: -200px; width: 900px; height: 900px; border-radius: 50%; }
-    .s-hook .badge-pill { display: inline-flex; align-items: center; gap: 10px; background: var(--red); color: white; padding: 12px 32px; font-size: 26px; font-weight: 900; letter-spacing: 4px; border-radius: 8px; animation: stampIn 0.4s ease-out 0.3s forwards; opacity: 0; }
+    .s-hook .badge-pill { display: inline-flex; align-items: center; gap: 10px; background: var(--red); color: white; padding: 16px 48px; font-size: 26px; font-weight: 900; letter-spacing: 4px; border-radius: 8px; animation: stampIn 0.4s ease-out 0.3s forwards; opacity: 0; }
     .s-hook .badge-pill .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background: white; animation: pulseDot 1s ease-in-out infinite; }
     .s-hook .subject-row { display: flex; align-items: center; justify-content: center; gap: 20px; animation: slideUp 0.4s ease-out 0.3s forwards; opacity: 0; }
     .s-hook .subject-row .subject-logo { width: 120px; height: 120px; filter: drop-shadow(0 0 25px rgba(77,139,255,0.3)); } .s-hook .subject-row .subject-logo svg { width: 100%; height: 100%; }
     .s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 4px; }
     .s-hook .focal-claim { font-size: 78px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-align: center; animation: hookIn 0.3s ease-out forwards; }
     .s-hook .focal-reveal { font-size: 80px; font-weight: 900; letter-spacing: 2px; line-height: 1.05; text-align: center; max-width: 100%; animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards; opacity: 0; }
-    .s-hook .focal-number { font-size: 260px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-align: center; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.8s forwards, numberPulse 2s ease-in-out 1.5s infinite; opacity: 0; }
+    .s-hook .focal-number { font-size: 300px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-align: center; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.8s forwards, numberPulse 2s ease-in-out 1.5s infinite; opacity: 0; }
     .s-hook .focal-number-label { font-size: 48px; font-weight: 800; color: var(--white); letter-spacing: 3px; margin-top: 12px; text-align: center; animation: slideUp 0.5s ease-out 1.1s forwards; opacity: 0; }
     .s-hook .stats-row { display: flex; gap: 20px; justify-content: center; }
-    .s-hook .source-line { font-size: 28px; font-weight: 700; color: var(--sec); letter-spacing: 3px; text-align: center; animation: fadeIn 0.4s ease-out 2.1s forwards; opacity: 0; }
+    .s-hook .source-line { font-size: 26px; font-weight: 700; color: var(--sec); letter-spacing: 3px; text-align: center; animation: fadeIn 0.4s ease-out 2.1s forwards; opacity: 0; }
   `;
 }
 
@@ -196,7 +196,7 @@ function titleBlock(
  * @param {object} opts - { color, fontSize }
  * @returns {string} HTML string
  */
-function bigNumberAnchor(num, { color = "amber", fontSize = 260 } = {}) {
+function bigNumberAnchor(num, { color = "amber", fontSize = 300 } = {}) {
   return `<div class="big-number-anchor" style="color: var(--${color}); text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); font-size: ${fontSize}px;">${num}</div>`;
 }
 
@@ -243,7 +243,7 @@ function stampBox({ text = "", sub = "", color = "amber", icon = "" } = {}) {
  */
 function fadeToBlack(duration) {
   const start = Math.max(duration - 1.2, 1.5).toFixed(1);
-  return `<div class="fade-to-black" style="position: absolute; inset: 0; background: #050508; pointer-events: none; animation: fadeOut 0.8s ease-in ${start}s forwards; opacity: 0;"></div>`;
+  return `<div class="fade-to-black" style="position: absolute; inset: 0; background: #0a0a14; pointer-events: none; animation: fadeOut 0.8s ease-in ${start}s forwards; opacity: 0;"></div>`;
 }
 
 /**
@@ -359,7 +359,7 @@ function hookScene(scene, duration) {
 ${baseStyles(duration)}${templateCss()}${slotCss()}
 </style></head><body>
 <div class="scene s-hook">
-  <div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
+  <div class="flash-frame"></div><div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
   ${brandBar()}
   ${sceneFrame({ kicker: badge, hero: subjectRow + focal, support })}
 </div></body></html>`;

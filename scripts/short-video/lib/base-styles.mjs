@@ -37,7 +37,7 @@ function baseStyles(duration) {
     html, body {
       width: 1080px; height: 1920px; overflow: hidden;
       font-family: 'Helvetica Neue', 'Arial Black', Arial, sans-serif;
-      background: #050508;
+      background: #0a0a14;
     }
     :root {
       --d: ${duration}s;
@@ -49,17 +49,17 @@ function baseStyles(duration) {
     .grid-bg {
       position: absolute; inset: 0;
       background-image:
-        linear-gradient(rgba(77,139,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(77,139,255,0.03) 1px, transparent 1px);
+        linear-gradient(rgba(77,139,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(77,139,255,0.04) 1px, transparent 1px);
       background-size: 60px 60px;
     }
     .glow-red {
       position: absolute; top: -200px; right: -200px; width: 800px; height: 800px;
-      background: radial-gradient(circle, rgba(239,68,68,0.12) 0%, transparent 60%); border-radius: 50%;
+      background: radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 60%); border-radius: 50%;
     }
     .glow-blue {
       position: absolute; bottom: -250px; left: -200px; width: 900px; height: 900px;
-      background: radial-gradient(circle, rgba(77,139,255,0.08) 0%, transparent 60%); border-radius: 50%;
+      background: radial-gradient(circle, rgba(77,139,255,0.10) 0%, transparent 60%); border-radius: 50%;
     }
     .scanlines {
       position: absolute; inset: 0;
@@ -88,24 +88,52 @@ function baseStyles(duration) {
        with scene content. */
     .brand-watermark { position: absolute; top: ${WATERMARK_POS.top}px; left: ${WATERMARK_POS.left}px; width: 55px; height: 55px; opacity: 0.35; z-index: 100; pointer-events: none; }
     .brand-watermark svg { width: 100%; height: 100%; }
+    /* Frame glow — Feed separation layer (spec: docs/specs/spec-color-scheme-optimization.md §2.2).
+       Decorative border + inner glow on every scene frame edge; solves the
+       dark-video-against-dark-TikTok-UI camouflage problem. CTA scenes use the
+       .blue variant. pointer-events: none; not content; safe-zone-exempt. */
+    .frame-glow { position: absolute; inset: 0; border: 3px solid rgba(245,158,11,0.2); box-shadow: inset 0 0 40px rgba(245,158,11,0.08); z-index: 99; pointer-events: none; }
+    .frame-glow.blue { border-color: rgba(77,139,255,0.2); box-shadow: inset 0 0 40px rgba(77,139,255,0.08); }
+    /* Flash hook — pattern-break flash in the first 0.4s of Hook scenes (spec §2.3).
+       Full-screen amber overlay that fades from opacity 1 to 0. Injected inside
+       hookScene() only; pointer-events: none; safe-zone-exempt. */
+    @keyframes flashFrame { 0% { opacity: 1; } 60% { opacity: 0.3; } 100% { opacity: 0; pointer-events: none; } }
+    .flash-frame { position: absolute; inset: 0; background: var(--amber); z-index: 200; pointer-events: none; animation: flashFrame 0.4s ease-out 0s forwards; }
   `;
 }
 
 /**
- * Inject brand watermark into scene HTML before closing </div></body>.
- * Skips scenes that already render channel identity — a brand bar (top-left
- * scenes) or a large brand logo (CTA close scenes) — avoiding double
- * branding in the top-left corner.
+ * Inject brand watermark + frame-glow into scene HTML before closing
+ * </div></body>.
+ *
+ * Frame-glow is injected into ALL scenes (including brand-bar / CTA
+ * scenes) — it's a decorative Feed-separation layer, not channel identity.
+ * CTA scenes (detected by brand-logo-large) get the .blue glow variant.
+ *
+ * Watermark is skipped for scenes that already render channel identity —
+ * a brand bar (top-left scenes) or a large brand logo (CTA close scenes) —
+ * avoiding double branding in the top-left corner.
  * @param {string} html - Scene HTML string
- * @returns {string} HTML with watermark injected (or unchanged when skipped)
+ * @returns {string} HTML with frame-glow (+ watermark) injected
  */
 function withWatermark(html) {
-  // Match actual elements (class="..."), not CSS definitions (.brand-bar {...})
-  if (html.includes('class="brand-bar"') || html.includes('class="brand-logo-large"')) {
-    return html;
-  }
-  const watermark = `<div class="brand-watermark">${BRAND_MARK_SVG}</div>`;
-  return html.replace(/<\/div><\/body>/, `${watermark}</div></body>`);
+  // Detect CTA scene for blue frame-glow variant
+  const isCTA = html.includes('class="brand-logo-large"');
+  const glowClass = isCTA ? 'frame-glow blue' : 'frame-glow';
+  const frameGlow = `<div class="${glowClass}"></div>`;
+
+  // Watermark only for scenes without brand identity (brand-bar or logo)
+  const hasBrand =
+    html.includes('class="brand-bar"') || isCTA;
+  const watermark = hasBrand
+    ? ''
+    : `<div class="brand-watermark">${BRAND_MARK_SVG}</div>`;
+
+  // Inject both before closing </div></body> (inside the scene div)
+  return html.replace(
+    /<\/div><\/body>/,
+    `${frameGlow}${watermark}</div></body>`,
+  );
 }
 
 export {

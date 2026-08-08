@@ -49,6 +49,8 @@ const EXEMPT_SELECTORS = [
   ".glitch",
   ".glitch-flash",
   ".fade-to-black",
+  ".frame-glow",
+  ".flash-frame",
   ".brand-watermark",
   ".brand-bar",
   ".brand-logo-large",
