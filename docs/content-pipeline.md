@@ -494,7 +494,7 @@ Agent 确认文章 markdown 文件已准备好（frontmatter + body + widget 标
 
 > **前置条件**：Stage 1 已完成（文章 markdown 已生成）。
 >
-> **公司档案**：如内容涉及已建档公司（见 `docs/refs/company-profiles/`），确保 scene-data 中的公司信息与档案一致。特别注意 ByteDance 的 Platform Context（TikTok 关系）— 如视频涉及 ByteDance，考虑在 voiceover 中简要提及 ByteDance 是 TikTok 的母公司（因为我们发布在 TikTok 上，观众会对这个 meta 关联感兴趣）。
+> **公司档案**：如内容涉及已建档公司（见 `docs/refs/company-profiles/`），确保 scene-data 中的公司信息与档案一致。特别注意 ByteDance 的 Platform Context（TikTok 关系）— 如视频涉及 ByteDance，考虑在 voiceover 中简要提及 ByteDance 是 TikTok 的母公司（因为我们发布在 TikTok 上，观众会对这个"在 ByteDance 平台上看 ByteDance 故事"的自指关联感兴趣）。
 
 从文章 markdown 提炼视频脚本。
 
@@ -797,8 +797,10 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    □ Hashtag 示例：#chinaai #deepseek #ai #technews #chinatech
    
    【发布后 1 小时内】
-   □ 回复所有评论（首小时互动信号影响算法推荐）
-   □ Pinned comment：置顶含文章 URL 的评论
+   □ 自己发第一条评论 → 长按 → Pin comment（置顶）
+      → 内容模板见下方「Pinned Comment 模板」
+   □ 有人评论 → 逐条回复（首小时互动信号影响算法推荐）
+   □ 没人评论 → 正常（100-200 播放阶段评论很少），去同领域热门视频下留有质量的评论
    □ 监控前 1h 播放数据：0 播放=可能 shadowban；100-200=200-View Jail；500+=正常
    
    【发布后 24-48h】
@@ -814,6 +816,32 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    完整指南：docs/tiktok/tiktok-best-practices.md
    ```
+
+   **📌 Pinned Comment 模板**（Agent 根据当期视频内容生成，用户发布后在 TikTok App 手动发评论并置顶）：
+
+   模板 A — 引流型（有文章 URL 时）：
+   ```
+   Full analysis with data sources and charts: [文章 URL]
+   ```
+
+   模板 B — 引发讨论型（新号阶段推荐，激发评论）：
+   ```
+   [一个与视频内容相关的二选一问题]
+   Example: "Do you think DeepSeek can catch up to OpenAI? Why or why not?"
+   ```
+
+   模板 C — 补充信息型（视频里没展开的点）：
+   ```
+   [视频中提到但没展开的一个数据点/细节]
+   Example: "Fun fact: DeepSeek's R1 model was trained for less than $6M. That's 1/20th of GPT-4's training cost."
+   ```
+
+   模板 D — 简单指令型（最容易获得回复）：
+   ```
+   Comment "AI" and I'll DM you the full report 📊
+   ```
+
+   > Agent 每次根据视频内容选择最合适的模板，生成具体文案供用户直接复制粘贴。新号阶段（<500 粉）推荐用模板 B 或 D 激发互动。
 
 7. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
 

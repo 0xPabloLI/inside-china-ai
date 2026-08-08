@@ -15,7 +15,7 @@
 
 ## Platform Context: TikTok Relationship
 
-> **⚠️ For all China AI News content involving ByteDance**: ByteDance is the parent company of **TikTok** — the platform where China AI News publishes its short videos. This meta-relationship is inherently interesting to our TikTok audience.
+> **⚠️ For all China AI News content involving ByteDance**: ByteDance is the parent company of **TikTok** — the platform where China AI News publishes its short videos. This self-referential relationship (watching a ByteDance story on a ByteDance platform) is inherently interesting to our TikTok audience.
 >
 > **When to mention**: Any video or article about ByteDance's AI strategy (Seed, Doubao, distillation policy, Zhang Yiming) should briefly note the TikTok connection. Our audience discovers this content on TikTok, creating a "you're using the platform owned by the company you're watching about" moment.
 >
