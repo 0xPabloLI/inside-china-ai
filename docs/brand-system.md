@@ -154,7 +154,7 @@ Based on TikTok color best practices research (2025-2026):
 
 ### Placement Rules
 
-1. **Hook scene**: Logo + name in a centered row, positioned in the upper-middle zone (top 180-400px on 1920px canvas). Must appear by 0.3s.
+1. **Hook scene**: Logo + name in a centered row as the first element of the **hero slot** (y 400–950 top; nothing above y 220 — the kicker slot 220–400 holds the badge). Appears at 0.3s (slideUp delay).
 2. **Featured scenes**: Logo can be centered or top-aligned, depending on layout. Name below or beside logo.
 3. **Never use muted gray** (`--muted` / `#475569`) for the subject company name — use `--white` or the entity's semantic color.
 4. **Drop shadow**: Logo SVG gets `filter: drop-shadow(0 0 25-30px rgba(brand-color, 0.3))` for depth on dark background.
@@ -200,6 +200,8 @@ Calibrated against a real FYP playback screenshot (scaled ×1.875) cross-checked
 
 Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350); the TikTok caption UI starts ~y1500.
 
+Second calibration pass (2026-08-08): re-checked against another real FYP screenshot (576×1024, ×1.875, OCR-measured) — top tabs y 91–175, action-rail icons x≈960–1080 with count labels starting x≈930 (y 746–1564), caption UI top y≈1489, bottom tab bar y≥1822. Nothing intrudes the content band; the x≤880 cap keeps a 50px margin from the rail count labels.
+
 Enforcement levels in `verify-scene-dom.mjs`:
 - **Top / bottom band crossing → FAIL** (content enters TikTok chrome or the subtitle lane).
 - **Right band crossing (x > 880) → FAIL** when the element's bottom is inside the action rail (y > 640); **WARN** only above the rail (top chrome, where nothing occludes).
@@ -227,7 +229,7 @@ Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / SUBTITLE_LANE / WAT
 
 ### 1. Hook Scene
 
-**Standard: the shared `hookScene` opening card** (`lib/scene-templates.mjs`, spec: `docs/specs/spec-hook-opening-card.md`). Scene 1 of every new video must delegate to `hookScene` — fixed skeleton, data-driven slots, zero hand-written offsets. Old hand-written hooks (deepseek / distillation / restraint) migrate when next revisited.
+**Standard: the shared `hookScene` opening card** (`lib/scene-templates.mjs`, spec: `docs/archive/spec-hook-opening-card.md`). Scene 1 of every new video must delegate to `hookScene` — fixed skeleton, data-driven slots, zero hand-written offsets. Old hand-written hooks (deepseek / distillation / restraint) migrate when next revisited.
 
 Slot composition (1080×1920; bands from `lib/scene-layout.mjs` — kicker / hero / support):
 
