@@ -169,7 +169,7 @@ A cool, blue-tinted neutral foundation with one saturated brand accent. The pale
 
 **The Serif-For-Headlines Rule.** All headings use Source Serif 4. UI labels, buttons, data, and navigation use Hanken Grotesk. Never use serif for buttons, form labels, or data values — it undermines the editorial hierarchy.
 
-**Font Loading Note.** Source Serif 4 currently loads only weights 400 (regular + italic) from Google Fonts. Headlines using `font-weight: 600+` will fallback to system serif. **Action needed:** add `wght@400;600;700` to the Google Fonts URL to support semibold/bold headlines.
+**Font Loading Note.** Source Serif 4 loads `ital,wght@0,400;0,600;0,700;1,400` from Google Fonts in `src/routes/__root.tsx` — semibold/bold headlines render with the intended serif (resolved 2026-08-08; previous note said 600+ fell back to system serif).
 
 ## 4. Elevation
 
@@ -198,6 +198,10 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Focus:** Ring color `oklch(0.6 0.04 255)` — a desaturated blue. 2px ring with 2px offset.
 - **Placeholder:** Muted-foreground. Currently meets contrast requirements.
 
+### Widget Keyboard Access
+
+- **Focus-visible:** All interactive widget elements (buttons, toggles, chart bars, keyword chips, accordion triggers) carry `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand` (applied 2026-08-08). Keyboard equivalents exist for hover-only interactions.
+
 ### Cards / Containers
 
 - **Subscribe Card:** Card White background, 1px Hairline/70 border, `--radius-xl` (12px), 32px padding, Subscribe Lift shadow. The signature container.
@@ -207,7 +211,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 ### Navigation
 
 - **Site Header:** 1px Hairline/60 bottom border, `max-w-4xl`, 16px vertical padding. Logo (favicon + serif wordmark) left, text nav right. Active state: `font-medium` + foreground color. Inactive: muted-foreground. Hover: foreground.
-- **No mobile menu.** On screens < 400px, nav items will be cramped. **Action needed:** add hamburger menu or horizontal scroll.
+- **Mobile menu:** Below 640px the nav collapses to a theme toggle + hamburger (`aria-label="Open menu"`) opening a right-side Sheet menu (`src/components/header-nav.tsx`), so narrow screens never cramp inline links.
 
 ### Chips / Badges
 
@@ -244,7 +248,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Don't** use glassmorphism (backdrop-blur on translucent surfaces). Rare and purposeful, or nothing.
 - **Don't** use shadows on more than one element per page. The subscribe card is the exception, not a pattern.
 - **Don't** use Tailwind native colors (`blue-500`, `green-600`, `yellow-700`) in widgets. Map all colors to the design token system or the chart palette.
-- **Don't** use font sizes below 12px in any user-facing text. Widget labels at 8-11px are a known debt to be fixed.
+- **Don't** use font sizes below 12px in any user-facing text. Widget labels audited 2026-08-08 — no sub-12px text remains.
 - **Don't** use native `confirm()` dialogs. Use shadcn `AlertDialog` for brand consistency.
 - **Don't** use display fonts in UI labels, buttons, or data. Serif is for headings only.
 - **Don't** use `border-radius` greater than 16px on cards. 12px is the card ceiling; full-pill is for chips/buttons only.
