@@ -104,7 +104,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - Duration formula: `duration = ref_dur + target_dur`（不设会导致 0.03s 音频）
 - F5 音频振幅低，**跳过 silenceremove**（-35dB 阈值会全删）
 - Optional atempo: `export TTS_ATEMPO=1.3`（加速语音）
-- M4A 不被 Python 音频库支持，必须先转 WAV：`ffmpeg -y -i input.m4a -ar 24000 -ac 1 output.wav`
+- M4A 不被 Python 音频库支持，必须先转 WAV：`ffmpeg -y -i input.m4a -af "volume=-7dB" -ar 24000 -ac 1 output.wav`
 
 **Per-Scene Prosody Enhancement**（自动，基于 `visualType`）:
 
@@ -349,7 +349,6 @@ scripts/short-video/assets/
 ├── voice-samples/                    # Multi-clip XTTS cloning samples
 ├── logos/                            # Company logos (deepseek.svg, ...)
 ├── china-ai-news-logo-gpt.png        # GPT-generated original PNG (full logo)
-├── china-ai-news-logo-image-only.png # Pure graphic only (no text)
 └── china-ai-news-logo-vector.svg     # Vector SVG (true vector, scalable)
 ```
 

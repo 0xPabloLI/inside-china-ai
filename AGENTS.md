@@ -34,7 +34,7 @@
 1. **Decision: Lightweight or Substantial?**
    - **Lightweight**（检查、解释、常规工作）：直接进行，不需要加载额外 skill。
    - **Substantial implementation**: 按以下 Mandatory Implementation Workflow 执行。
-2. **Git safety**: never run `stash`/`checkout` related commands without explicit user confirmation in current chat.
+2. **Git safety**: never run `stash` related commands without explicit user confirmation in current chat. `checkout`/`switch` 分支切换见 Cross-Branch Workflow（绝对禁止）。
 3. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
 4. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
 
@@ -126,6 +126,7 @@ git push --force-with-lease   # 仅限改写历史场景
 
 Stack 级约定（路由、server functions、env/secrets、RLS、storage、email、SEO）见 `docs/tanstack-lovable-conventions.md`。以下为项目特定补充：
 
+- TypeScript + functional React components/hooks；2-space indentation；`PascalCase` for components/types, `camelCase` for vars/functions。
 - React Query `useQuery` 的 `useState` 初始化陷阱：当组件依赖 query 数据初始化 state 时，必须确保数据就绪后再挂载组件（或在 `useEffect` 中同步），避免 `useState` 初始值只在首次挂载生效导致数据丢失。
 - **Agent 消费文档写作**：编辑 `docs/` 下 agent 消费的文档时，先加载 `writing-for-agents` skill。执行文档只写"做什么、用什么参数"；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 "Design Decisions & References" 索引指向它们。
 
