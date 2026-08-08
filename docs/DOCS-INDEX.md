@@ -17,6 +17,7 @@
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
 | `rag-prework.md` | RAG pipeline pre-work plan (Issue #15) | — |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
+| `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
 
 ### `adr/` — Architecture Decision Records
 

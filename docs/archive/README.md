@@ -27,6 +27,7 @@
 | `spec-multi-video-splitting.md` / `tickets-multi-video-splitting.md` | 2026-08-07 | 多视频拆分管线集成 |
 | `spec-cta-end-card-standard.md` / `tickets-cta-end-card-standard.md` | 2026-08-07 | 标准 CTA 结尾页（共享 ctaScene + 契约规则 + 全量迁移） |
 | `spec-hook-opening-card.md` / `tickets-hook-opening-card.md` | 2026-08-08 | 标准 Hook 开场卡（共享 hookScene + 槽位骨架 + 焦点二选一契约 + 顶部安全带检查） |
+| `spec-video-layout-safe-zones.md` / `tickets-video-layout-safe-zones.md` | 2026-08-08 | 字幕安全区分离 + 槽位布局 + 品牌 Logo 修复 + 截图重校准（右栏 x880/底 y1150/字幕 60px）+ 竖向堆叠规则 + DOM 校验接入管线硬门 |
 
 ### 趋势 & 发布 Specs
 
