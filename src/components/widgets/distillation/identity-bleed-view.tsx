@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useHoverPin } from "../shared/use-hover-pin";
 
 const BLEED_DATA = [
   {
@@ -28,7 +28,9 @@ const BLEED_DATA = [
 ];
 
 export function IdentityBleedView() {
-  const [hovered, setHovered] = useState<number | null>(null);
+  // Hover/focus reveal + click-to-pin (keyboard equivalent): focusing a
+  // model row shows its note, blur hides it, click pins it.
+  const pin = useHoverPin<number>();
 
   return (
     <div className="space-y-5">
@@ -95,13 +97,18 @@ export function IdentityBleedView() {
 
         <div className="space-y-2.5">
           {BLEED_DATA.map((item, i) => {
-            const isHovered = hovered === i;
+            const isActive = pin.isActive(i);
             return (
-              <div
+              <button
+                type="button"
                 key={item.model}
-                className="flex items-center gap-3"
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
+                aria-expanded={isActive}
+                className="flex w-full items-center gap-3 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                onMouseEnter={() => pin.onEnter(i)}
+                onMouseLeave={pin.onLeave}
+                onFocus={() => pin.onFocus(i)}
+                onBlur={pin.onBlur}
+                onClick={() => pin.onToggle(i)}
               >
                 <span className="w-20 shrink-0 text-xs font-semibold text-foreground/70">
                   {item.model}
@@ -112,7 +119,7 @@ export function IdentityBleedView() {
                     style={{
                       width: `${Math.max(3, item.rate * 6)}%`,
                       background: item.color,
-                      opacity: hovered === null || isHovered ? 1 : 0.4,
+                      opacity: !pin.anyActive || isActive ? 1 : 0.4,
                     }}
                   >
                     {item.rate > 0 ? `${item.rate}%` : "0%"}
@@ -121,15 +128,15 @@ export function IdentityBleedView() {
                 {item.rate === 0 && (
                   <span className="shrink-0 text-xs text-success-foreground">✓ Correct</span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
 
-        {/* Hover detail */}
-        {hovered !== null && (
+        {/* Active detail */}
+        {pin.current !== null && (
           <div className="mt-2 rounded-md bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-            {BLEED_DATA[hovered].note}
+            {BLEED_DATA[pin.current].note}
           </div>
         )}
       </div>

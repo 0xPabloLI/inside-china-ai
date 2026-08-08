@@ -1,34 +1,21 @@
 import { useState } from "react";
 import { DEEPSEEK_PRICING, COMPETITOR_PRICING, type PricingTier } from "./data/pricing";
 
-interface APIPricingViewProps {
-  lang?: "en" | "zh";
-}
-
 const translations = {
-  en: {
-    title: "API Pricing Comparison",
-    subtitle: "DeepSeek's cost-optimized pricing vs major competitors (USD per 1M tokens)",
-    columns: ["Model", "Input (per 1M)", "Output (per 1M)", "Context", "Notes"],
-    company: "Company",
-    highlight: "DeepSeek",
-  },
-  zh: {
-    title: "API 定价对比",
-    subtitle: "DeepSeek 的成本优化定价 vs 主要竞争对手（美元/百万 Token）",
-    columns: ["模型", "输入 (每百万)", "输出 (每百万)", "上下文", "备注"],
-    company: "公司",
-    highlight: "DeepSeek",
-  },
+  title: "API Pricing Comparison",
+  subtitle: "DeepSeek's cost-optimized pricing vs major competitors (USD per 1M tokens)",
+  columns: ["Model", "Input (per 1M)", "Output (per 1M)", "Context", "Notes"],
+  company: "Company",
+  highlight: "DeepSeek",
 };
 
 function formatPrice(price: number): string {
   return price.toFixed(2);
 }
 
-export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
+export function APIPricingView() {
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
-  const t = translations[lang];
+  const t = translations;
 
   const companies = ["DeepSeek", ...Object.keys(COMPETITOR_PRICING)];
   const selectedPricing = selectedCompany
@@ -88,7 +75,7 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
               ))}
               {selectedCompany && selectedCompany !== "DeepSeek" && (
                 <th className="py-3 px-3 text-left font-semibold text-muted-foreground w-32">
-                  {lang === "zh" ? "vs DeepSeek" : "vs DeepSeek"}
+                  vs DeepSeek
                 </th>
               )}
             </tr>
@@ -111,7 +98,7 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
                     {tier.model}
                     {selectedCompany === "DeepSeek" && (
                       <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-success-muted text-success-foreground">
-                        {lang === "zh" ? "核心" : "Flagship"}
+                        Flagship
                       </span>
                     )}
                   </td>
@@ -151,19 +138,15 @@ export function APIPricingView({ lang = "en" }: APIPricingViewProps) {
       {/* Key insight */}
       <div className="mt-5 rounded-md bg-muted/30 border border-border/60 p-4">
         <p className="text-sm">
-          <span className="font-semibold text-foreground">
-            {lang === "zh" ? "10 个月回本原则：" : "10-month recovery principle:"}
-          </span>{" "}
-          {lang === "zh"
-            ? "DeepSeek 定价基于硬件成本在 10 个月内回收，约 6 倍利润。这与其他厂商追求更高利润率形成对比。"
-            : "DeepSeek's pricing is based on recovering hardware costs within 10 months, approximately 6x profit. This contrasts with competitors pursuing higher profit margins."}
+          <span className="font-semibold text-foreground">10-month recovery principle:</span>{" "}
+          DeepSeek's pricing is based on recovering hardware costs within 10 months, approximately
+          6x profit. This contrasts with competitors pursuing higher profit margins.
         </p>
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground italic">
-        {lang === "zh"
-          ? "价格截至 2026 年 7 月。实际价格可能随时间调整。基于各公司公开定价页面。"
-          : "Prices as of July 2026. Actual prices may vary over time. Based on public pricing pages from each company."}
+        Prices as of July 2026. Actual prices may vary over time. Based on public pricing pages from
+        each company.
       </p>
     </>
   );

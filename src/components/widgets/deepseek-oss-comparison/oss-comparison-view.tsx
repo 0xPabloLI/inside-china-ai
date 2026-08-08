@@ -1,32 +1,16 @@
-import { useState } from "react";
 import { COMPANIES, type CompanyComparison } from "./data/companies";
-
-interface OSSComparisonViewProps {
-  lang?: "en" | "zh";
-}
+import { useHoverPin } from "../shared/use-hover-pin";
 
 const translations = {
-  en: {
-    title: "Open Source Strategy Comparison",
-    subtitle: "How DeepSeek differs from other Chinese AI labs in open-source approach",
-    columns: [
-      "Company",
-      "Open Source Strategy",
-      "Flagship Models",
-      "Community",
-      "Commercial Model",
-    ],
-  },
-  zh: {
-    title: "开源策略对比",
-    subtitle: "DeepSeek 与其他中国 AI 实验室在开源策略上的差异",
-    columns: ["公司", "开源策略", "旗舰模型", "社区参与", "商业模式"],
-  },
+  title: "Open Source Strategy Comparison",
+  subtitle: "How DeepSeek differs from other Chinese AI labs in open-source approach",
+  columns: ["Company", "Open Source Strategy", "Flagship Models", "Community", "Commercial Model"],
 };
 
-export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
-  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
-  const t = translations[lang];
+export function OSSComparisonView() {
+  // Hover/focus row highlight + click-to-pin (keyboard equivalent).
+  const pin = useHoverPin<number>();
+  const t = translations;
 
   const getStrategyColor = (company: string): string => {
     if (company === "DeepSeek") return "bg-success-muted border-success-muted";
@@ -60,15 +44,19 @@ export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
           </thead>
           <tbody>
             {COMPANIES.map((company, idx) => {
-              const isHovered = hoveredRow === idx;
+              const isActive = pin.isActive(idx);
               return (
                 <tr
                   key={company.company}
-                  className={`border-b border-border/40 transition-colors ${
-                    isHovered ? "bg-background/80" : ""
+                  tabIndex={0}
+                  className={`border-b border-border/40 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                    isActive ? "bg-background/80" : ""
                   }`}
-                  onMouseEnter={() => setHoveredRow(idx)}
-                  onMouseLeave={() => setHoveredRow(null)}
+                  onMouseEnter={() => pin.onEnter(idx)}
+                  onMouseLeave={pin.onLeave}
+                  onFocus={() => pin.onFocus(idx)}
+                  onBlur={pin.onBlur}
+                  onClick={() => pin.onToggle(idx)}
                 >
                   <td
                     className={`py-3 px-3 font-medium ${company.company === "DeepSeek" ? "text-success-foreground" : ""}`}
@@ -96,22 +84,20 @@ export function OSSComparisonView({ lang = "en" }: OSSComparisonViewProps) {
       <div className="mt-5 flex flex-wrap gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded bg-success" />
-          <span>{lang === "zh" ? "核心策略" : "Core strategy"}</span>
+          <span>Core strategy</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded bg-warning" />
-          <span>{lang === "zh" ? "被动响应" : "Reactive"}</span>
+          <span>Reactive</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded bg-muted-foreground/50" />
-          <span>{lang === "zh" ? "有限/封闭" : "Limited/Closed"}</span>
+          <span>Limited/Closed</span>
         </div>
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground italic">
-        {lang === "zh"
-          ? "基于公开报道和公司文档整理。不同公司的开源策略随时间调整。"
-          : "Compiled from public reporting and company documentation. Strategies evolve over time."}
+        Compiled from public reporting and company documentation. Strategies evolve over time.
       </p>
     </>
   );

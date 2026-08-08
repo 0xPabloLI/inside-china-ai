@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { STOCK_POINTS, SUMMARY_CARDS, type StockPoint } from "./data/minimax-stock";
+import { useHoverPin } from "../shared/use-hover-pin";
 
 const W = 520;
 const H = 220;
@@ -36,8 +36,10 @@ const areaPath =
   ` L${idxToX(PRICED.length - 1, PRICED.length).toFixed(1)},${(PAD_T + CHART_H).toFixed(1)} L${idxToX(0, PRICED.length).toFixed(1)},${(PAD_T + CHART_H).toFixed(1)} Z`;
 
 export function MinimaxStockView() {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const active = hovered !== null ? PRICED[hovered] : null;
+  // Hover/focus reveal + click-to-pin (keyboard equivalent): focusing a
+  // data point shows the price detail card, blur hides it, click pins it.
+  const pin = useHoverPin<number>();
+  const active = pin.current !== null ? PRICED[pin.current] : null;
 
   // Y-axis ticks
   const ticks = [0, 300, 600, 900, 1200, 1500].filter((t) => t <= MAX_P);
@@ -113,7 +115,7 @@ export function MinimaxStockView() {
           {PRICED.map((p, i) => {
             const x = idxToX(i, PRICED.length);
             const y = priceToY(p.price);
-            const isHovered = hovered === i;
+            const isHovered = pin.isActive(i);
             const isHighlight = p.highlight;
             return (
               <g key={i}>
@@ -124,9 +126,16 @@ export function MinimaxStockView() {
                   fill={isHighlight ? "var(--danger)" : "var(--warning)"}
                   stroke="white"
                   strokeWidth="1.5"
-                  className="cursor-pointer transition-all"
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${p.date}: ${p.event}`}
+                  aria-expanded={isHovered}
+                  className="cursor-pointer transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  onMouseEnter={() => pin.onEnter(i)}
+                  onMouseLeave={pin.onLeave}
+                  onFocus={() => pin.onFocus(i)}
+                  onBlur={pin.onBlur}
+                  onClick={() => pin.onToggle(i)}
                 />
                 {/* Price label for highlight points */}
                 {(isHighlight || isHovered) && (

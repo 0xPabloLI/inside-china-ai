@@ -1,36 +1,26 @@
 import { useState } from "react";
 import { FUNDING_ROUNDS, INVESTOR_DATA, type FundingStatus } from "./data/funding";
-import { I18N, type Lang } from "./i18n";
-import { LangToggle } from "../shared/lang-toggle";
+import { I18N } from "./i18n";
 
-const STATUS_MAP: Record<FundingStatus, { zh: string; en: string; cls: string }> = {
-  "self-funded": { zh: "自筹", en: "Self-funded", cls: "bg-muted text-muted-foreground" },
-  target: { zh: "目标", en: "Target", cls: "bg-brand-muted text-brand-foreground" },
-  completed: { zh: "已完成", en: "Closed", cls: "bg-success-muted text-success-foreground" },
-  paused: { zh: "暂停", en: "Paused", cls: "bg-warning-muted text-warning-foreground" },
+const STATUS_MAP: Record<FundingStatus, { label: string; cls: string }> = {
+  "self-funded": { label: "Self-funded", cls: "bg-muted text-muted-foreground" },
+  target: { label: "Target", cls: "bg-brand-muted text-brand-foreground" },
+  completed: { label: "Closed", cls: "bg-success-muted text-success-foreground" },
+  paused: { label: "Paused", cls: "bg-warning-muted text-warning-foreground" },
 };
 
 const MAX_VAL = 71;
 
 export function FundingView() {
-  const [lang, setLang] = useState<Lang>("en");
-  const t = I18N[lang];
-  const isZh = lang === "zh";
+  const t = I18N;
   const [selectedRound, setSelectedRound] = useState<number | null>(3); // default to the completed round
 
-  const summaryCards = isZh
-    ? [
-        { val: "~$7.4B", label: "首轮融资金额" },
-        { val: "~$50B", label: "投后估值（唯一实际）" },
-        { val: "10", label: "直接参与方（穿透~100）" },
-        { val: "纯 RMB", label: "融资结构" },
-      ]
-    : [
-        { val: "~$7.4B", label: "First Round Amount" },
-        { val: "~$50B", label: "Post-money (only actual)" },
-        { val: "10", label: "Direct (~100 through LPs)" },
-        { val: "Pure RMB", label: "Structure" },
-      ];
+  const summaryCards = [
+    { val: "~$7.4B", label: "First Round Amount" },
+    { val: "~$50B", label: "Post-money (only actual)" },
+    { val: "10", label: "Direct (~100 through LPs)" },
+    { val: "Pure RMB", label: "Structure" },
+  ];
 
   // Donut chart segments
   const totalRMB = 50;
@@ -48,25 +38,16 @@ export function FundingView() {
     segments.push(`#D5DBE6 ${cumPct}% 100%`);
   }
 
-  const legends = isZh
-    ? [
-        { cls: "target", label: "目标估值" },
-        { cls: "actual", label: "实际成交" },
-        { cls: "paused", label: "已暂停" },
-      ]
-    : [
-        { cls: "target", label: "Target Valuation" },
-        { cls: "actual", label: "Actual (Closed)" },
-        { cls: "paused", label: "Paused" },
-      ];
+  const legends = [
+    { cls: "target", label: "Target Valuation" },
+    { cls: "actual", label: "Actual (Closed)" },
+    { cls: "paused", label: "Paused" },
+  ];
 
   const selected = selectedRound !== null ? FUNDING_ROUNDS[selectedRound] : null;
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
-        <LangToggle lang={lang} onChange={setLang} />
-      </div>
       {/* Summary cards */}
       <div className="flex flex-wrap gap-2.5">
         {summaryCards.map((c, i) => (
@@ -84,7 +65,7 @@ export function FundingView() {
       <div>
         <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-foreground/80">
           <span className="h-2 w-2 rounded-sm bg-primary" />
-          {isZh ? "首轮投资方明细" : "Round 1 Investors"}
+          Round 1 Investors
         </div>
         <div className="flex flex-wrap items-center gap-5">
           <div className="relative shrink-0" style={{ width: 160, height: 160 }}>
@@ -96,26 +77,16 @@ export function FundingView() {
           </div>
           <div className="flex-1 min-w-[280px] space-y-1.5">
             {INVESTOR_DATA.map((inv) => {
-              const name = isZh ? inv.nameZh : inv.nameEn;
-              const amtStr =
-                inv.amount != null
-                  ? isZh
-                    ? `${inv.amount} 亿 RMB`
-                    : `${inv.amount}B RMB`
-                  : isZh
-                    ? "未披露"
-                    : "Undisclosed";
+              const amtStr = inv.amount != null ? `${inv.amount}B RMB` : "Undisclosed";
               return (
-                <div
-                  key={inv.nameEn}
-                  className="flex items-center gap-1.5"
-                  title={isZh ? inv.noteZh : inv.noteEn}
-                >
+                <div key={inv.name} className="flex items-center gap-1.5" title={inv.note}>
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-sm"
                     style={{ background: inv.color }}
                   />
-                  <span className="flex-1 text-xs font-semibold text-foreground/80">{name}</span>
+                  <span className="flex-1 text-xs font-semibold text-foreground/80">
+                    {inv.name}
+                  </span>
                   <span className="text-xs font-bold text-foreground whitespace-nowrap">
                     {amtStr}
                   </span>
@@ -123,10 +94,8 @@ export function FundingView() {
               );
             })}
             <div className="mt-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground">
-              ⚠ <strong>{isZh ? "高瓴/红杉缺席" : "Hillhouse/HSG absent"}</strong>:{" "}
-              {isZh
-                ? "两家原被认为不可能缺席的机构最终均未参与"
-                : "Two institutions considered impossible to exclude both ended up absent"}
+              ⚠ <strong>Hillhouse/HSG absent</strong>: Two institutions considered impossible to
+              exclude both ended up absent
             </div>
           </div>
         </div>
@@ -136,7 +105,7 @@ export function FundingView() {
       <div>
         <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-foreground/80">
           <span className="h-2 w-2 rounded-sm bg-primary" />
-          {isZh ? "融资时间线" : "Funding Timeline"}
+          Funding Timeline
         </div>
 
         {/* Legend */}
@@ -159,7 +128,7 @@ export function FundingView() {
 
         {/* Valuation bars */}
         <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {isZh ? "估值（$B）" : "Valuation ($B)"}
+          Valuation ($B)
         </div>
         <div
           className="flex items-end gap-2.5 overflow-x-auto border-b border-border/40 pb-1"
@@ -176,22 +145,9 @@ export function FundingView() {
                   : hasVal
                     ? "target"
                     : "empty";
-            const st = STATUS_MAP[r.status];
-            const valText = hasVal ? `$${r.valuation}B` : isZh ? "无" : "N/A";
+            const valText = hasVal ? `$${r.valuation}B` : "N/A";
             const valPrefix =
-              r.status === "completed"
-                ? isZh
-                  ? "投后 "
-                  : "PM "
-                : r.status === "paused"
-                  ? isZh
-                    ? "目标 "
-                    : "Tgt "
-                  : hasVal
-                    ? isZh
-                      ? "目标 "
-                      : "Tgt "
-                    : "";
+              r.status === "completed" ? "PM " : r.status === "paused" || hasVal ? "Tgt " : "";
             return (
               <button
                 key={i}
@@ -235,17 +191,16 @@ export function FundingView() {
         {/* Event labels */}
         <div className="flex gap-2.5 mt-1">
           {FUNDING_ROUNDS.map((r, i) => {
-            const event = isZh ? r.eventZh : r.eventEn;
             const st = STATUS_MAP[r.status];
             return (
               <div key={i} className="flex-1 text-center min-w-0">
                 <div className="text-xs text-muted-foreground leading-tight max-w-[80px] mx-auto">
-                  {event}
+                  {r.event}
                 </div>
                 <span
                   className={`mt-0.5 inline-block rounded px-1 py-0.5 text-xs font-bold ${st.cls}`}
                 >
-                  {isZh ? st.zh : st.en}
+                  {st.label}
                 </span>
               </div>
             );
@@ -257,18 +212,18 @@ export function FundingView() {
           <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 px-3.5 py-2.5 text-xs leading-relaxed text-muted-foreground">
             <div className="flex items-center gap-2 mb-1">
               <strong className="text-foreground">
-                {selected.date} · {isZh ? selected.eventZh : selected.eventEn}
+                {selected.date} · {selected.event}
               </strong>
               <span
                 className={`rounded px-1 py-0.5 text-xs font-bold ${STATUS_MAP[selected.status].cls}`}
               >
-                {isZh ? STATUS_MAP[selected.status].zh : STATUS_MAP[selected.status].en}
+                {STATUS_MAP[selected.status].label}
               </span>
             </div>
-            <p>{isZh ? selected.detailZh : selected.detailEn}</p>
+            <p>{selected.detail}</p>
             <div className="mt-1 text-xs text-muted-foreground/70">
-              <strong>{isZh ? "投资方：" : "Investors: "}</strong>
-              {(isZh ? selected.investors : selected.investorsEn).join(isZh ? "、" : ", ")}
+              <strong>Investors: </strong>
+              {selected.investors.join(", ")}
             </div>
             <div className="mt-1 text-xs">
               <a
@@ -277,7 +232,7 @@ export function FundingView() {
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                {isZh ? "来源" : "Source"}: {isZh ? selected.sourceZh : selected.sourceEn} ↗
+                Source: {selected.source} ↗
               </a>
             </div>
           </div>

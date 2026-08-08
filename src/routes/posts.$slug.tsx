@@ -228,6 +228,7 @@ function PostPage() {
                 return (
                   <div
                     key={i}
+                    data-widget={segment.name}
                     className={`my-10 rounded-lg border border-border/60 bg-card px-4 py-5 sm:px-6 sm:py-6 ${
                       isBreakout ? "max-w-none" : "max-w-prose"
                     }`}
@@ -239,7 +240,7 @@ function PostPage() {
                         </div>
                       }
                     >
-                      <Widget lang="en" />
+                      <Widget />
                     </Suspense>
                   </div>
                 );

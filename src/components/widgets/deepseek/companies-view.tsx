@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { COMPANIES, COMPANY_GROUPS } from "./data/companies";
-import { I18N, type Lang } from "./i18n";
-import { LangToggle } from "../shared/lang-toggle";
+import { I18N } from "./i18n";
 
 const TONE_STYLES: Record<string, string> = {
   "tone-compare": "bg-brand-muted text-brand-foreground",
@@ -12,23 +11,18 @@ const TONE_STYLES: Record<string, string> = {
 };
 
 export function CompaniesView() {
-  const [lang, setLang] = useState<Lang>("en");
-  const t = I18N[lang];
-  const isZh = lang === "zh";
+  const t = I18N;
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <LangToggle lang={lang} onChange={setLang} />
-      </div>
       <div className="text-xs text-muted-foreground/70">{t.companiesSource}</div>
       <div className="text-xs leading-relaxed text-muted-foreground/70">
         {t.companiesDisclaimer}
       </div>
 
       {COMPANY_GROUPS.map((group) => {
-        const groupName = isZh ? group.zh : group.en;
+        const groupName = group.name;
         const groupCompanies = COMPANIES.filter((co) => co.group === group.id);
         if (!groupCompanies.length) return null;
 
@@ -39,7 +33,7 @@ export function CompaniesView() {
             </div>
             <div className="space-y-1.5">
               {groupCompanies.map((co) => {
-                const name = isZh ? co.nameZh : co.nameEn;
+                const name = co.name;
                 const isExpanded = expanded === `${group.id}-${name}`;
                 return (
                   <div
@@ -64,8 +58,8 @@ export function CompaniesView() {
                     {isExpanded && (
                       <div className="px-4 pb-3 space-y-2.5">
                         {co.quotes.map((q, qi) => {
-                          const tone = isZh ? q.toneZh : q.toneEn;
-                          const text = isZh ? q.zh : q.en;
+                          const tone = q.tone;
+                          const text = q.text;
                           return (
                             <div key={qi} className="border-t border-border/20 pt-2.5">
                               <span

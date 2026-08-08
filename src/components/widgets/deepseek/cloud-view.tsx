@@ -1,7 +1,5 @@
-import { useState } from "react";
 import { KEYWORDS } from "./data/keywords";
-import type { Lang } from "./i18n";
-import { LangToggle } from "../shared/lang-toggle";
+import { useHoverPin } from "../shared/use-hover-pin";
 
 function getColor(t: number): string {
   if (t > 0.75)
@@ -18,9 +16,10 @@ function getColor(t: number): string {
   return `rgb(${Math.round(60 + k * 20)},${Math.round(100 + k * 30)},${Math.round(180 + k * 0)})`;
 }
 
-export function CloudView({ lang = "en" }: { lang: Lang }) {
-  const [currentLang, setCurrentLang] = useState<Lang>(lang);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+export function CloudView() {
+  // Hover/focus reveal + click-to-pin (keyboard equivalent for the hover
+  // word detail: focus shows it, blur hides it, click pins it).
+  const pin = useHoverPin<number>();
 
   const maxFreq = KEYWORDS[0].freq;
   const minFreq = KEYWORDS[KEYWORDS.length - 1].freq;
@@ -31,44 +30,43 @@ export function CloudView({ lang = "en" }: { lang: Lang }) {
     return { ...kw, fontSize, t, idx: i };
   });
 
+  const active = pin.current !== null ? items[pin.current] : null;
+
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <LangToggle lang={currentLang} onChange={setCurrentLang} />
-      </div>
-
       {/* Tag cloud */}
       <div
         className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-3 py-6"
         style={{ lineHeight: 1.8 }}
       >
         {items.map((item) => {
-          const displayWord = currentLang === "zh" ? item.zh : item.en;
-          const otherWord = currentLang === "zh" ? item.en : item.zh;
           const color = getColor(item.t);
-          const isHovered = hoveredIdx === item.idx;
+          const isActive = pin.isActive(item.idx);
 
           return (
             <span
-              key={`${item.zh}-${item.en}`}
+              key={item.en}
               role="button"
               tabIndex={0}
-              className="cursor-pointer font-bold transition-all duration-200 select-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand rounded"
+              aria-expanded={isActive}
+              className="cursor-pointer rounded font-bold transition-all duration-200 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               style={{
                 fontSize: `${item.fontSize}px`,
                 color,
-                opacity: hoveredIdx === null || isHovered ? 1 : 0.3,
-                transform: isHovered ? "scale(1.2)" : "scale(1)",
-                textShadow: isHovered ? `0 0 20px ${color}66` : "none",
+                opacity: !pin.anyActive ? 1 : isActive ? 1 : 0.3,
+                transform: isActive ? "scale(1.2)" : "scale(1)",
+                textShadow: isActive ? `0 0 20px ${color}66` : "none",
               }}
-              onMouseEnter={() => setHoveredIdx(item.idx)}
-              onMouseLeave={() => setHoveredIdx(null)}
+              onMouseEnter={() => pin.onEnter(item.idx)}
+              onMouseLeave={pin.onLeave}
+              onFocus={() => pin.onFocus(item.idx)}
+              onBlur={pin.onBlur}
+              onClick={() => pin.onToggle(item.idx)}
             >
-              {displayWord}
-              {isHovered && (
+              {item.en}
+              {isActive && (
                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                  {otherWord} · {item.freq}
-                  {currentLang === "zh" ? "次" : "x"}
+                  · {item.freq}x
                 </span>
               )}
             </span>
@@ -76,36 +74,27 @@ export function CloudView({ lang = "en" }: { lang: Lang }) {
         })}
       </div>
 
-      {/* Frequency bar for hovered word */}
-      {hoveredIdx !== null && (
+      {/* Frequency bar for active word */}
+      {active && (
         <div className="mt-2 flex items-center gap-2 px-4">
-          <span
-            className="text-xs font-semibold"
-            style={{ color: getColor(items.find((i) => i.idx === hoveredIdx)!.t) }}
-          >
-            {currentLang === "zh"
-              ? items.find((i) => i.idx === hoveredIdx)!.zh
-              : items.find((i) => i.idx === hoveredIdx)!.en}
+          <span className="text-xs font-semibold" style={{ color: getColor(active.t) }}>
+            {active.en}
           </span>
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full transition-all duration-300"
               style={{
-                width: `${(items.find((i) => i.idx === hoveredIdx)!.freq / maxFreq) * 100}%`,
-                background: getColor(items.find((i) => i.idx === hoveredIdx)!.t),
+                width: `${(active.freq / maxFreq) * 100}%`,
+                background: getColor(active.t),
               }}
             />
           </div>
-          <span className="text-xs font-bold text-muted-foreground">
-            {items.find((i) => i.idx === hoveredIdx)!.freq}
-          </span>
+          <span className="text-xs font-bold text-muted-foreground">{active.freq}</span>
         </div>
       )}
 
       <div className="mt-3 text-center text-xs tracking-wide text-muted-foreground/60">
-        {currentLang === "zh"
-          ? "悬停查看词频 · 源自 42 页投资者交流实录"
-          : "Hover for frequency · From 42-page investor meeting transcript"}
+        Hover or focus for frequency · From 42-page investor meeting transcript
       </div>
     </div>
   );

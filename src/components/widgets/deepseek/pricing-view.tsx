@@ -1,46 +1,33 @@
 import { useState } from "react";
 import { PRICING_DATA } from "./data/pricing";
-import { I18N, type Lang } from "./i18n";
-import { LangToggle } from "../shared/lang-toggle";
+import { I18N } from "./i18n";
 
 const EXCHANGE_RATE = 6.78;
 
-function formatPrice(price: number, isOverseas: boolean, lang: Lang): string {
-  if (lang === "en") {
-    const usd = isOverseas ? price : price / EXCHANGE_RATE;
-    if (usd < 0.1) return `$${usd.toFixed(3)}`;
-    if (usd < 10) return `$${usd.toFixed(2)}`;
-    if (usd < 100) return `$${usd.toFixed(1)}`;
-    return `$${Math.round(usd)}`;
-  }
-  const rmb = isOverseas ? price * EXCHANGE_RATE : price;
-  if (rmb < 10) return `¥${rmb.toFixed(1)}`;
-  if (rmb < 100) return `¥${rmb.toFixed(1)}`;
-  return `¥${Math.round(rmb)}`;
+function formatPrice(price: number, isOverseas: boolean): string {
+  const usd = isOverseas ? price : price / EXCHANGE_RATE;
+  if (usd < 0.1) return `$${usd.toFixed(3)}`;
+  if (usd < 10) return `$${usd.toFixed(2)}`;
+  if (usd < 100) return `$${usd.toFixed(1)}`;
+  return `$${Math.round(usd)}`;
 }
 
 type PricingMode = "output" | "input";
 
 export function PricingView() {
-  const [lang, setLang] = useState<Lang>("en");
-  const t = I18N[lang];
-  const isZh = lang === "zh";
+  const t = I18N;
   const [mode, setMode] = useState<PricingMode>("output");
 
   const allModels = PRICING_DATA.flatMap((vendor) =>
     vendor.models.map((m) => ({
       ...m,
-      vendorZh: vendor.vendorZh,
-      vendorEn: vendor.vendorEn,
+      vendor: vendor.vendor,
       color: vendor.color,
       region: vendor.region,
     })),
   );
 
-  const toDisplay = (price: number, isOvs: boolean) => {
-    if (lang === "en") return isOvs ? price : price / EXCHANGE_RATE;
-    return isOvs ? price * EXCHANGE_RATE : price;
-  };
+  const toDisplay = (price: number, isOvs: boolean) => (isOvs ? price : price / EXCHANGE_RATE);
 
   const pricedModels = allModels.filter((m) => m.input > 0 && m.output > 0);
   const sorted = [...pricedModels].sort((a, b) => {
@@ -61,9 +48,6 @@ export function PricingView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <LangToggle lang={lang} onChange={setLang} />
-      </div>
       {/* Mode toggle */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-full border border-border/60 bg-muted/40 p-0.5">
@@ -77,7 +61,7 @@ export function PricingView() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {isZh ? "输出" : "Output"}
+            Output
           </button>
           <button
             type="button"
@@ -89,7 +73,7 @@ export function PricingView() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {isZh ? "输入" : "Input"}
+            Input
           </button>
         </div>
         <span className="text-xs text-muted-foreground">
@@ -119,10 +103,10 @@ export function PricingView() {
           const price = mode === "output" ? m.output : m.input;
           const displayPrice = toDisplay(price, isOverseas);
           const pct = ((Math.log(displayPrice) - logMin) / (logMax - logMin)) * 92 + 8;
-          const vendorName = isZh ? m.vendorZh : m.vendorEn;
-          const modelName = isZh ? m.nameZh : m.nameEn;
-          const tierName = isZh ? m.tierZh : m.tierEn;
-          const priceLabel = formatPrice(price, isOverseas, lang);
+          const vendorName = m.vendor;
+          const modelName = m.name;
+          const tierName = m.tier;
+          const priceLabel = formatPrice(price, isOverseas);
 
           return (
             <div
@@ -135,7 +119,7 @@ export function PricingView() {
                 <span className="truncate">
                   {vendorName} {modelName}
                   <span className="ml-1 rounded px-1 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">
-                    {isOverseas ? (isZh ? "海外" : "OS") : isZh ? "国内" : "CN"}
+                    {isOverseas ? "OS" : "CN"}
                   </span>
                 </span>
               </div>
@@ -172,41 +156,29 @@ export function PricingView() {
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="border-b border-border/60">
-              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">
-                {isZh ? "厂商" : "Vendor"}
-              </th>
-              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">
-                {isZh ? "模型" : "Model"}
-              </th>
-              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">
-                {isZh ? "地区" : "Region"}
+              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">Vendor</th>
+              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">Model</th>
+              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">Region</th>
+              <th className="px-2 py-1.5 text-right font-semibold text-muted-foreground">
+                Input (USD/M)
               </th>
               <th className="px-2 py-1.5 text-right font-semibold text-muted-foreground">
-                {isZh ? `输入 (元/M)` : "Input (USD/M)"}
+                Output (USD/M)
               </th>
-              <th className="px-2 py-1.5 text-right font-semibold text-muted-foreground">
-                {isZh ? `输出 (元/M)` : "Output (USD/M)"}
-              </th>
-              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">
-                {isZh ? "上下文" : "Context"}
-              </th>
-              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">
-                {isZh ? "档次" : "Tier"}
-              </th>
-              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">
-                {isZh ? "来源" : "Source"}
-              </th>
+              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">Context</th>
+              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">Tier</th>
+              <th className="px-2 py-1.5 text-left font-semibold text-muted-foreground">Source</th>
             </tr>
           </thead>
           <tbody>
             {allModels.map((m, i) => {
               const isOvs = m.region === "overseas";
-              const vn = isZh ? m.vendorZh : m.vendorEn;
-              const mn = isZh ? m.nameZh : m.nameEn;
-              const tn = isZh ? m.tierZh : m.tierEn;
-              const rl = isOvs ? (isZh ? "海外" : "Overseas") : isZh ? "国内" : "Domestic";
-              const ip = m.input > 0 ? formatPrice(m.input, isOvs, lang) : "—";
-              const op = m.output > 0 ? formatPrice(m.output, isOvs, lang) : "—";
+              const vn = m.vendor;
+              const mn = m.name;
+              const tn = m.tier;
+              const rl = isOvs ? "Overseas" : "Domestic";
+              const ip = m.input > 0 ? formatPrice(m.input, isOvs) : "—";
+              const op = m.output > 0 ? formatPrice(m.output, isOvs) : "—";
               return (
                 <tr key={i} className="border-b border-border/20 hover:bg-muted/20">
                   <td className="px-2 py-1.5 font-semibold" style={{ color: m.color }}>
@@ -237,22 +209,16 @@ export function PricingView() {
 
       {/* Sources */}
       <div className="text-xs leading-relaxed text-muted-foreground/70">
-        <div className="mb-1 font-semibold text-muted-foreground">
-          {isZh ? "数据来源（均已验证）" : "Data Sources (All Verified)"}
-        </div>
+        <div className="mb-1 font-semibold text-muted-foreground">Data Sources (All Verified)</div>
         <div className="mb-2">
-          <strong className="text-success-foreground">{isZh ? "国内厂商" : "Domestic"}</strong>
-          {isZh ? "（官方定价页面）" : " (official pricing pages)"}:
+          <strong className="text-success-foreground">Domestic</strong> (official pricing pages):
           <br />
           DeepSeek · Zhipu AI · Kimi · Xiaomi MiMo · MiniMax · Qwen · Tencent Hunyuan · ByteDance
           Doubao
         </div>
         <div className="mb-2">
-          <strong className="text-warning-foreground">{isZh ? "海外厂商" : "Overseas"}</strong>
-          {isZh
-            ? `（官方定价页面，USD→RMB 1:${EXCHANGE_RATE.toFixed(2)}）`
-            : ` (official pricing pages, USD)`}
-          :
+          <strong className="text-warning-foreground">Overseas</strong> (official pricing pages,
+          USD):
           <br />
           OpenAI · Anthropic · Google Gemini · xAI Grok
         </div>

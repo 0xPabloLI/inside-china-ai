@@ -1,35 +1,20 @@
-import { useState } from "react";
 import { PHASES, type RoadmapPhase } from "./data/phases";
-
-interface AGIRoadmapViewProps {
-  lang?: "en" | "zh";
-}
+import { useHoverPin } from "../shared/use-hover-pin";
 
 const translations = {
-  en: {
-    title: "DeepSeek's AGI Roadmap",
-    subtitle: "Each phase builds on the last. Current focus: Agents",
-    whatItSolved: "What It Solved",
-    whatsNext: "What's Next",
-    statusPast: "Completed",
-    statusCurrent: "Current Focus",
-    statusFuture: "Upcoming",
-  },
-  zh: {
-    title: "DeepSeek 的 AGI 路线图",
-    subtitle: "每个阶段都建立在前一阶段的基础上。当前重点：智能体",
-    whatItSolved: "解决的问题",
-    whatsNext: "下一步",
-    statusPast: "已完成",
-    statusCurrent: "当前重点",
-    statusFuture: "即将到来",
-  },
+  title: "DeepSeek's AGI Roadmap",
+  subtitle: "Each phase builds on the last. Current focus: Agents",
+  whatItSolved: "What It Solved",
+  whatsNext: "What's Next",
+  statusPast: "Completed",
+  statusCurrent: "Current Focus",
+  statusFuture: "Upcoming",
 };
 
-function getPhaseLabel(status: RoadmapPhase["status"], lang: "en" | "zh"): string {
-  if (status === "past") return translations[lang].statusPast;
-  if (status === "current") return translations[lang].statusCurrent;
-  return translations[lang].statusFuture;
+function getPhaseLabel(status: RoadmapPhase["status"]): string {
+  if (status === "past") return translations.statusPast;
+  if (status === "current") return translations.statusCurrent;
+  return translations.statusFuture;
 }
 
 function getStatusColor(status: RoadmapPhase["status"]): string {
@@ -44,9 +29,11 @@ function getStatusBorder(status: RoadmapPhase["status"]): string {
   return "border-border/60";
 }
 
-export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
-  const [hoveredPhase, setHoveredPhase] = useState<string | null>(null);
-  const t = translations[lang];
+export function AGIRoadmapView() {
+  // Hover/focus reveal + click-to-pin (keyboard equivalent): focusing a
+  // phase card highlights it and reveals the "next phase" arrow.
+  const pin = useHoverPin<string>();
+  const t = translations;
 
   return (
     <>
@@ -58,19 +45,24 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
       {/* Timeline visualization */}
       <div className="space-y-4">
         {PHASES.map((phase, index) => {
-          const isHovered = hoveredPhase === phase.id;
+          const isActive = pin.isActive(phase.id);
           const isLast = index === PHASES.length - 1;
 
           return (
-            <div
+            <button
+              type="button"
               key={phase.id}
-              className={`relative rounded-lg border-2 p-4 transition-all duration-300 ${getStatusBorder(phase.status)} ${
-                isHovered
+              aria-expanded={isActive}
+              className={`relative block w-full rounded-lg border-2 p-4 text-left transition-all duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${getStatusBorder(phase.status)} ${
+                isActive
                   ? "scale-[1.02] bg-background/80"
                   : "bg-background/50 hover:bg-background/70"
               }`}
-              onMouseEnter={() => setHoveredPhase(phase.id)}
-              onMouseLeave={() => setHoveredPhase(null)}
+              onMouseEnter={() => pin.onEnter(phase.id)}
+              onMouseLeave={pin.onLeave}
+              onFocus={() => pin.onFocus(phase.id)}
+              onBlur={pin.onBlur}
+              onClick={() => pin.onToggle(phase.id)}
             >
               {/* Status indicator */}
               <div className="absolute -left-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border-2 border-background shadow-md flex items-center justify-center text-xs">
@@ -100,7 +92,7 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
                             : "text-muted-foreground"
                       }`}
                     >
-                      {getPhaseLabel(phase.status, lang)}
+                      {getPhaseLabel(phase.status)}
                     </span>
                   </div>
 
@@ -108,14 +100,14 @@ export function AGIRoadmapView({ lang = "en" }: AGIRoadmapViewProps) {
                   <p className="text-sm text-muted-foreground">{phase.description}</p>
 
                   {/* Arrow to next phase */}
-                  {!isLast && isHovered && (
+                  {!isLast && isActive && (
                     <div className="mt-3 text-xs text-muted-foreground flex items-center gap-1">
                       <span>→ {PHASES[index + 1].technology}</span>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

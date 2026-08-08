@@ -1,35 +1,28 @@
-import { useState } from "react";
 import { PEOPLE } from "./data/people";
-import { I18N, type Lang } from "./i18n";
-import { LangToggle } from "../shared/lang-toggle";
+import { I18N } from "./i18n";
 
 export function TalentView() {
-  const [lang, setLang] = useState<Lang>("en");
-  const t = I18N[lang];
-  const isZh = lang === "zh";
+  const t = I18N;
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <LangToggle lang={lang} onChange={setLang} />
-      </div>
       <div className="text-[13px] font-semibold tracking-wide text-muted-foreground">
         {t.sectionPeople}
       </div>
 
       {PEOPLE.map((p, i) => {
-        const name = isZh ? p.nameZh : p.nameEn;
-        const role = isZh ? p.roleZh : p.roleEn;
-        const tech = isZh ? p.techZh : p.techEn;
-        const company = isZh ? p.companyZh : p.companyEn;
-        const note = isZh ? p.noteZh : p.noteEn;
-        const depart = isZh ? p.departZh : p.departEn;
-        const salaryParts = (isZh ? p.salaryZh : p.salaryEn).split("\n");
+        const name = p.name;
+        const role = p.role;
+        const tech = p.tech;
+        const company = p.company;
+        const note = p.note;
+        const depart = p.depart;
+        const salaryParts = p.salary.split("\n");
         const salaryStatus = p.salaryKnown ? t.salaryConfirmed : t.salaryRumored;
 
         return (
           <div
-            key={p.nameEn}
+            key={p.name}
             className="rounded-lg border border-border/60 bg-muted/30 transition-colors hover:border-border"
             style={{ animationDelay: `${i * 0.06}s` }}
           >

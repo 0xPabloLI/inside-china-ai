@@ -107,7 +107,8 @@ async function probeCompanies(page) {
   // Scoped: CompaniesView accordion buttons are full-width rows (px-4 py-3
   // text-left); excludes shadcn Sheet/Select triggers that also set
   // aria-expanded.
-  const accordions = page.locator("button[aria-expanded].px-4");
+  // Exclude the site header's nav/menu buttons (they carry aria-haspopup)
+  const accordions = page.locator("button[aria-expanded]:not([aria-haspopup]).px-4");
   if (
     (await accordions.count()) === 0 &&
     !(await hasText(page, "Source: Liang Wenfeng Investor Meeting transcript"))
@@ -269,18 +270,294 @@ async function probeContainers(page) {
 
 async function probeKeyboard(page) {
   let state = "";
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 40; i++) {
     await page.keyboard.press("Tab");
     state = await page.evaluate(() => {
       const a = document.activeElement;
-      return a && a.tagName === "BUTTON" ? a.className : "";
+      if (!a) return "";
+      // Interactive = real button OR explicit tabIndex (hover-equivalent
+      // targets added during the keyboard-equivalents cleanup: divs, spans,
+      // SVG circles, table rows).
+      const interactive = a.tagName === "BUTTON" || a.getAttribute("tabindex") === "0";
+      // SVG elements expose className as SVGAnimatedString; getAttribute is plain.
+      return interactive ? a.getAttribute("class") || "" : "";
     });
     if (state) break;
   }
   check(
     state ? hasFocusClasses(state) : null,
-    "Keyboard Tab reaches controls with focus-visible classes",
-    state ? state.slice(0, 100) : "no button focused",
+    "Keyboard Tab reaches interactive controls with focus-visible classes",
+    state ? state.slice(0, 100) : "no interactive element focused",
+  );
+}
+
+/**
+ * Hover-equivalent keyboard contract (issue #20 follow-up).
+ *
+ * Each hover-only widget must expose its mouse-reveal interaction through
+ * focus/blur (and click-to-pin): focus reveals the detail, blur hides it,
+ * click pins it (survives blur), second click unpins.
+ *
+ * strict = true (preview mode): every widget is rendered, so a missing
+ * target element is a FAIL. strict = false (article mode): missing
+ * landmark stays a SKIP (the article may not embed that widget).
+ *
+ * Both routes wrap widgets in a `data-widget="<registry-id>"` container
+ * (posts.$slug + widgets.$name), so every locator is scoped to that
+ * container — article prose must never collide with probe markers.
+ */
+const widgetScoped = (page, id, selector) => page.locator(`[data-widget="${id}"] ${selector}`);
+const widgetTextVisible = async (page, id, text) =>
+  (await page.locator(`[data-widget="${id}"]`).getByText(text, { exact: false }).count()) > 0;
+// Allow React to commit state changes before reading DOM attributes/counts.
+const settle = () => new Promise((r) => setTimeout(r, 60));
+
+async function probeBenchmarkKB(page, strict) {
+  // Exclude the site header's nav/menu buttons (they carry aria-haspopup)
+  const rows = widgetScoped(
+    page,
+    "kimi-benchmark-controversy",
+    "button[aria-expanded]:not([aria-haspopup])",
+  );
+  if ((await rows.count()) === 0)
+    return check(strict ? false : null, "Benchmark rows present", "no aria-expanded buttons");
+  const note = widgetScoped(page, "kimi-benchmark-controversy", ".bg-warning-muted");
+  await rows.first().focus();
+  await settle();
+  check(
+    (await note.count()) > 0,
+    "Benchmark focus reveals analysis note",
+    `${await note.count()} found`,
+  );
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  await settle();
+  check(
+    (await note.count()) === 0,
+    "Benchmark blur hides analysis note",
+    `${await note.count()} found`,
+  );
+  await rows.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  await settle();
+  check(
+    (await note.count()) > 0,
+    "Benchmark click pins note (survives blur)",
+    `${await note.count()} found`,
+  );
+  await rows.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  await settle();
+  check((await note.count()) === 0, "Benchmark second click unpins", `${await note.count()} found`);
+}
+
+async function probeIdentityBleedKB(page, strict) {
+  // Exclude the site header's nav/menu buttons (they carry aria-haspopup)
+  const rows = widgetScoped(
+    page,
+    "kimi-identity-bleed",
+    "button[aria-expanded]:not([aria-haspopup])",
+  );
+  if ((await rows.count()) === 0)
+    return check(strict ? false : null, "Identity rows present", "no aria-expanded buttons");
+  // Unique to the first row's note (the source links also mention "ataoz")
+  const marker = "Tell me about yourself";
+  const visible = () => widgetTextVisible(page, "kimi-identity-bleed", marker);
+  await rows.first().focus();
+  await settle();
+  check(await visible(), "Identity focus reveals model note", "");
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(!(await visible()), "Identity blur hides model note", "");
+  await rows.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(await visible(), "Identity click pins note (survives blur)", "");
+  await rows.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(!(await visible()), "Identity second click unpins", "");
+}
+
+async function probeMinimaxStockKB(page, strict) {
+  const circles = widgetScoped(page, "minimax-stock-timeline", "circle[tabindex='0']");
+  if ((await circles.count()) === 0)
+    return check(strict ? false : null, "Minimax circles present", "no focusable circles");
+  const card = widgetScoped(page, "minimax-stock-timeline", ".border-danger-muted");
+  await circles.first().focus();
+  await settle();
+  check(
+    (await card.count()) > 0,
+    "Minimax focus reveals price detail card",
+    `${await card.count()} found`,
+  );
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    (await card.count()) === 0,
+    "Minimax blur hides detail card",
+    `${await card.count()} found`,
+  );
+  await circles.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    (await card.count()) > 0,
+    "Minimax click pins detail (survives blur)",
+    `${await card.count()} found`,
+  );
+  await circles.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check((await card.count()) === 0, "Minimax second click unpins", `${await card.count()} found`);
+}
+
+async function probeVisionKeywordsKB(page, strict) {
+  const words = widgetScoped(page, "deepseek-vision-keywords", "span[role='button'][tabindex='0']");
+  if ((await words.count()) === 0)
+    return check(strict ? false : null, "Vision keyword spans present", "no focusable spans");
+  const freqBar = "mentions";
+  const visible = () => widgetTextVisible(page, "deepseek-vision-keywords", freqBar);
+  check(!(await visible()), "Vision no frequency bar before focus", "");
+  await words.first().focus();
+  await settle();
+  check(await visible(), "Vision focus reveals frequency bar", "");
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(!(await visible()), "Vision blur hides frequency bar", "");
+  await words.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(await visible(), "Vision click pins frequency bar (survives blur)", "");
+  await words.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(!(await visible()), "Vision second click unpins", "");
+}
+
+async function probeAGIRoadmapKB(page, strict) {
+  // Exclude the site header's nav/menu buttons (they carry aria-haspopup)
+  const cards = widgetScoped(
+    page,
+    "deepseek-agi-roadmap",
+    "button[aria-expanded]:not([aria-haspopup])",
+  );
+  if ((await cards.count()) === 0)
+    return check(strict ? false : null, "AGI phase cards present", "no aria-expanded buttons");
+  const expanded = () => cards.first().getAttribute("aria-expanded");
+  await cards.first().focus();
+  await settle();
+  check(
+    (await expanded()) === "true",
+    "AGI focus expands phase card",
+    `aria-expanded=${await expanded()}`,
+  );
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    (await expanded()) === "false",
+    "AGI blur collapses phase card",
+    `aria-expanded=${await expanded()}`,
+  );
+  await cards.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    (await expanded()) === "true",
+    "AGI click pins expanded (survives blur)",
+    `aria-expanded=${await expanded()}`,
+  );
+  await cards.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    (await expanded()) === "false",
+    "AGI second click unpins",
+    `aria-expanded=${await expanded()}`,
+  );
+}
+
+async function probeOSSComparisonKB(page, strict) {
+  const rows = widgetScoped(page, "deepseek-oss-comparison", "tr[tabindex='0']");
+  if ((await rows.count()) === 0)
+    return check(strict ? false : null, "OSS rows present", "no focusable rows");
+  const cls = () => rows.first().getAttribute("class");
+  await rows.first().focus();
+  await settle();
+  check(
+    (await cls()).includes("bg-background/80"),
+    "OSS focus highlights row",
+    (await cls()).slice(0, 80),
+  );
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    !(await cls()).includes("bg-background/80"),
+    "OSS blur unhighlights row",
+    (await cls()).slice(0, 80),
+  );
+  await rows.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    (await cls()).includes("bg-background/80"),
+    "OSS click pins highlight (survives blur)",
+    (await cls()).slice(0, 80),
+  );
+  await rows.first().click();
+  await settle();
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    !(await cls()).includes("bg-background/80"),
+    "OSS second click unpins",
+    (await cls()).slice(0, 80),
+  );
+}
+
+async function probeCloudKB(page, strict) {
+  const words = widgetScoped(page, "deepseek-cloud", "span[role='button'][tabindex='0']");
+  if ((await words.count()) === 0)
+    return check(strict ? false : null, "Cloud word spans present", "no focusable spans");
+  const expanded = () => words.first().getAttribute("aria-expanded");
+  await words.first().focus();
+  await settle();
+  check(
+    (await expanded()) === "true",
+    "Cloud focus reveals word detail",
+    `aria-expanded=${await expanded()}`,
+  );
+  await page.evaluate(() => document.activeElement?.blur());
+  await settle();
+  check(
+    (await expanded()) === "false",
+    "Cloud blur hides word detail",
+    `aria-expanded=${await expanded()}`,
   );
 }
 
@@ -291,6 +568,13 @@ const WIDGET_PROBES = {
   "distillation-news-coverage": probeNewsCoverage,
   "moonshot-funding-timeline": probeMoonshot,
   "deepseek-api-pricing": probeApiPricing,
+  "kimi-benchmark-controversy": probeBenchmarkKB,
+  "kimi-identity-bleed": probeIdentityBleedKB,
+  "minimax-stock-timeline": probeMinimaxStockKB,
+  "deepseek-vision-keywords": probeVisionKeywordsKB,
+  "deepseek-agi-roadmap": probeAGIRoadmapKB,
+  "deepseek-oss-comparison": probeOSSComparisonKB,
+  "deepseek-cloud": probeCloudKB,
 };
 
 function newPage(browser) {
@@ -311,6 +595,13 @@ async function runArticleMode() {
     await probeNewsCoverage(page);
     await probeMoonshot(page);
     await probeApiPricing(page);
+    await probeBenchmarkKB(page);
+    await probeIdentityBleedKB(page);
+    await probeMinimaxStockKB(page);
+    await probeVisionKeywordsKB(page);
+    await probeAGIRoadmapKB(page);
+    await probeOSSComparisonKB(page);
+    await probeCloudKB(page);
     await probeContainers(page);
     await probeKeyboard(page);
     await browser.close();
@@ -344,7 +635,7 @@ async function runPreviewMode() {
     check(resp.status() === 200, "Preview page responds 200", `status=${resp.status()}`);
     await page.waitForTimeout(1200);
     const probe = WIDGET_PROBES[id];
-    if (probe) await probe(page);
+    if (probe) await probe(page, true);
     await probeContainers(page);
     await probeKeyboard(page);
     // R2/R3: breakout widgets render max-w-none, others max-w-prose

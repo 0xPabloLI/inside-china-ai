@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { METRICS, MODEL_META, type MetricRow } from "./data/benchmarks";
+import { useHoverPin } from "../shared/use-hover-pin";
 
 function Bar({
   value,
@@ -42,7 +42,9 @@ function Bar({
 }
 
 export function BenchmarkControversyView() {
-  const [activeRow, setActiveRow] = useState<MetricRow | null>(null);
+  // Hover/focus reveal + click-to-pin (keyboard equivalent): focusing a
+  // metric row shows its analysis note, blur hides it, click pins it.
+  const pin = useHoverPin<MetricRow>();
 
   return (
     <div className="space-y-4">
@@ -67,14 +69,19 @@ export function BenchmarkControversyView() {
           const max = Math.max(...values) * 1.15;
           const bestVal = row.higherIsBetter ? Math.max(...values) : Math.min(...values);
           const worstVal = row.higherIsBetter ? Math.min(...values) : Math.max(...values);
-          const isActive = activeRow === row;
+          const isActive = pin.isActive(row);
 
           return (
-            <div
+            <button
+              type="button"
               key={row.dimension}
-              className="cursor-pointer rounded-lg p-2 transition-colors hover:bg-muted/20"
-              onMouseEnter={() => setActiveRow(row)}
-              onMouseLeave={() => setActiveRow(null)}
+              aria-expanded={isActive}
+              className="block w-full cursor-pointer rounded-lg p-2 text-left transition-colors hover:bg-muted/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              onMouseEnter={() => pin.onEnter(row)}
+              onMouseLeave={pin.onLeave}
+              onFocus={() => pin.onFocus(row)}
+              onBlur={pin.onBlur}
+              onClick={() => pin.onToggle(row)}
             >
               {/* Dimension label */}
               <div className="mb-1.5 flex items-center gap-2">
@@ -148,7 +155,7 @@ export function BenchmarkControversyView() {
                   💡 {row.note}
                 </div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>

@@ -65,6 +65,9 @@ describe("widget a11y contract (T2)", () => {
       "distillation/news-coverage-view.tsx",
       "distillation/moonshot-funding-view.tsx",
       "deepseek-api-pricing/api-pricing-view.tsx",
+      "distillation/benchmark-controversy-view.tsx",
+      "distillation/identity-bleed-view.tsx",
+      "deepseek-agi-roadmap/agi-roadmap-view.tsx",
     ]) {
       const src = read(f);
       const buttons = (src.match(/<button/g) || []).length;
@@ -128,5 +131,111 @@ describe("widget container contract (T3)", () => {
   it("companies accordion cards follow the inner panel recipe", () => {
     const src = read("deepseek/companies-view.tsx");
     expect(src).toContain("rounded-lg border border-border/60 bg-muted/30");
+  });
+});
+
+// ── English-only contract (tech-debt cleanup: toggle removed) ──
+
+describe("widget English-only contract", () => {
+  const EN_ONLY_VIEWS = [
+    "deepseek/pricing-view.tsx",
+    "deepseek/cloud-view.tsx",
+    "deepseek/talent-view.tsx",
+    "deepseek/companies-view.tsx",
+    "deepseek/funding-view.tsx",
+    "deepseek-api-pricing/api-pricing-view.tsx",
+    "deepseek-agi-roadmap/agi-roadmap-view.tsx",
+    "deepseek-oss-comparison/oss-comparison-view.tsx",
+    "deepseek-vision/vision-keywords-view.tsx",
+  ];
+
+  it("no widget view imports LangToggle, keeps the lang prop, or keeps zh branches", () => {
+    for (const f of EN_ONLY_VIEWS) {
+      const src = read(f);
+      expect(src).not.toContain("LangToggle");
+      expect(src).not.toContain('from "../shared/lang-toggle"');
+      expect(src).not.toMatch(/lang\??:\s*"en"\s*\|\s*"zh"/);
+      expect(src).not.toContain("isZh");
+      expect(src).not.toContain('"zh"');
+    }
+  });
+
+  it("i18n is flattened to English-only (no Lang type, no zh record)", () => {
+    const src = read("deepseek/i18n.ts");
+    expect(src).not.toContain("zh");
+    expect(src).not.toContain("Lang");
+  });
+
+  it("no zh data fields remain in widget data files", () => {
+    for (const f of [
+      "deepseek/data/pricing.ts",
+      "deepseek/data/people.ts",
+      "deepseek/data/keywords.ts",
+      "deepseek/data/funding.ts",
+      "deepseek/data/companies.ts",
+      "deepseek-vision/data/keywords.ts",
+    ]) {
+      const src = read(f);
+      expect(src).not.toMatch(/\b\w+Zh\b/);
+    }
+  });
+
+  it("registry exposes no lang prop contract", () => {
+    const src = read("registry.ts");
+    expect(src).not.toMatch(/lang/);
+    expect(src).not.toContain('"zh"');
+  });
+
+  it("article and preview routes render widgets without lang", () => {
+    for (const f of ["../../routes/posts.$slug.tsx", "../../routes/widgets.$name.tsx"]) {
+      const src = readFileSync(join(WIDGETS_DIR, f), "utf8");
+      expect(src).not.toContain('lang="en"');
+    }
+  });
+});
+
+// ── Keyboard equivalents contract (hover-only widgets) ──
+
+describe("widget keyboard equivalents contract", () => {
+  const KB_WIDGETS = [
+    "distillation/benchmark-controversy-view.tsx",
+    "distillation/identity-bleed-view.tsx",
+    "distillation/minimax-stock-view.tsx",
+    "deepseek-vision/vision-keywords-view.tsx",
+    "deepseek-agi-roadmap/agi-roadmap-view.tsx",
+    "deepseek-oss-comparison/oss-comparison-view.tsx",
+  ];
+
+  it("each hover-only widget exposes keyboard equivalents (native button or tabIndex + focus/blur + focus styling)", () => {
+    for (const f of KB_WIDGETS) {
+      const src = read(f);
+      // Converted rows/cards use real <button> tags (natively focusable);
+      // remaining targets (spans, SVG circles, table rows) use tabIndex={0}.
+      if (/<button/.test(src)) expect(src).toMatch(/<button/);
+      else expect(src).toContain("tabIndex={0}");
+      expect(src).toMatch(/onFocus/);
+      expect(src).toMatch(/onBlur/);
+      expect(src).toContain("focus-visible:outline-brand");
+    }
+  });
+
+  it("disclosure-style widgets expose aria-expanded state", () => {
+    for (const f of [
+      "distillation/benchmark-controversy-view.tsx",
+      "distillation/identity-bleed-view.tsx",
+      "distillation/minimax-stock-view.tsx",
+      "deepseek-vision/vision-keywords-view.tsx",
+      "deepseek-agi-roadmap/agi-roadmap-view.tsx",
+    ]) {
+      const src = read(f);
+      expect(src).toMatch(/aria-expanded=\{/);
+    }
+  });
+
+  it("cloud word cloud completes the focus/blur pattern", () => {
+    const src = read("deepseek/cloud-view.tsx");
+    expect(src).toContain("tabIndex={0}");
+    expect(src).toMatch(/onFocus/);
+    expect(src).toMatch(/onBlur/);
   });
 });

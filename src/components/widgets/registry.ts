@@ -1,9 +1,8 @@
 import { lazy, type LazyExoticComponent, type ComponentType } from "react";
 
-// Widget components accept a `lang` prop ("en" | "zh"). Some components make
-// it required (e.g., `lang: Lang`), so we use `ComponentType<{ lang: "en" | "zh" }>`
-// to satisfy both required and optional usage patterns.
-export type WidgetComponent = ComponentType<{ lang: "en" | "zh" }>;
+// Widgets render English-only (content pipeline rule — the EN/中文 toggle
+// was removed). Components take no props.
+export type WidgetComponent = ComponentType;
 export type LazyWidget = LazyExoticComponent<WidgetComponent>;
 
 /**

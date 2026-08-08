@@ -214,10 +214,10 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Openness Badge** (Companies page): Hairline/70 border, `--radius-full`, 2px/8px padding, 11px uppercase, muted-foreground text. Neutral by design — openness is data, not status.
 - **Publish Status Badge** (Admin): Published = `bg-primary/10 text-primary`; Draft = `bg-muted text-muted-foreground`. Visual weight asymmetry intentional — published is the "live" state.
 
-### Widget LangToggle
+### Widget Language
 
-- **Style:** Hairline/60 border, muted/40 background, `--radius-full`, 2px/8px padding, 10px font. Active: `bg-primary/10 text-primary`. Inactive: muted-foreground.
-- **Currently duplicated** in every widget. **Action needed:** extract to `src/components/widgets/shared/lang-toggle.tsx`.
+- Widgets publish **English-only** (content-pipeline rule); the EN/中文 toggle was removed in the widget tech-debt cleanup.
+- Hover-only widget interactions must expose keyboard equivalents: focus reveals / blur hides / click pins (`useHoverPin` in `src/components/widgets/shared/use-hover-pin.ts`, `focus-visible:outline-brand` outlines).
 
 ### Reading Progress Bar
 
