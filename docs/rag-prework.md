@@ -9,22 +9,22 @@
 
 ## 🔄 新 Session 接续指南
 
-**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅ · WP-2 公司档案 ✅ · WP-4 实体注册表 ✅ · WP-5 Widget 数据文档化 ✅ · WP-7 Frontmatter 扩展 ✅ · WP-8 TikTok PDF 结构化 ✅ · WP-11 Golden Query 评估集 ✅ · Slug 一致性修正 ✅
+**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅ · WP-2 公司档案 ✅ · WP-3 事件时间线 ✅ · WP-4 实体注册表 ✅ · WP-5 Widget 数据文档化 ✅ · WP-6 meta.mjs 扩展 ✅ · WP-7 Frontmatter 扩展 ✅ · WP-8 TikTok PDF 结构化 ✅ · WP-9 素材索引 ✅ · WP-11 Golden Query 评估集 ✅ · Slug 一致性修正 ✅
 
-**待做（3 个 WP）**：
+**全部 WP 已完成。** Phase 1 代码实施等待阈值触发（20+ 文章或 10+ 视频脚本）。当前：3 篇文章 + 7 个 scene-data，未达阈值。
 
-| 优先级 | WP | 说明 | 依赖 | 预估工作量 |
-|--------|----|------|------|------------|
-| ✅ 完成 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | 1 session |
-| ✅ 完成 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session |
-| ✅ 完成 | WP-4 | 实体注册表（18 companies + 10 people + 26 models） | WP-2 | 0.5 session |
-| ✅ 完成 | WP-5 | Widget 数据文档化（13 个 data 文件 → markdown） | 无 | 1 session |
-| ✅ 完成 | WP-7 | 文章 Frontmatter 扩展（3 篇文章 topics/entities/sources） | WP-4 | 0.5 session |
-| ✅ 完成 | WP-8 | TikTok 方法论 PDF 结构化（8 sections） | 无 | 1 session |
-| ✅ 完成 | WP-11 | Golden Query 评估集（18 条，4 种用例） | WP-10 ✅ | 0.5 session |
-| 🔄 进行中 | WP-6 | Scene-data Metadata 统一与补全（任务 3/4 完成，1/2/5 待做） | 无 | 1 session |
-| 🟢 低 | WP-3 | 主题事件时间线文档 | WP-2 ✅ | 1 session |
-| 🟢 低 | WP-9 | 素材索引文档 | WP-1/2/3/6 | 0.5 session |
+| 优先级 | WP | 说明 | 依赖 | 状态 |
+|--------|----|------|------|------|
+| ✅ 完成 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | ✅ |
+| ✅ 完成 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | ✅ |
+| ✅ 完成 | WP-3 | 主题事件时间线文档（4 个时间线） | WP-2 ✅ | ✅ |
+| ✅ 完成 | WP-4 | 实体注册表（18 companies + 10 people + 26 models） | WP-2 | ✅ |
+| ✅ 完成 | WP-5 | Widget 数据文档化（13 个 data 文件 → markdown） | 无 | ✅ |
+| ✅ 完成 | WP-6 | Scene-data Metadata 统一与补全（任务 1-5 全部完成） | 无 | ✅ |
+| ✅ 完成 | WP-7 | 文章 Frontmatter 扩展（3 篇文章 topics/entities/sources） | WP-4 | ✅ |
+| ✅ 完成 | WP-8 | TikTok 方法论 PDF 结构化（8 sections） | 无 | ✅ |
+| ✅ 完成 | WP-9 | 素材索引文档（INDEX.md） | WP-1/2/3/6 | ✅ |
+| ✅ 完成 | WP-11 | Golden Query 评估集（18 条，4 种用例） | WP-10 ✅ | ✅ |
 
 **关键产出文档（新 session 必读）**：
 1. 本文档（`docs/rag-prework.md`）— 总览 + 各 WP 任务清单
@@ -35,21 +35,20 @@
 6. `docs/refs/rag-eval/golden-queries.yaml` — Golden Query 评估集（18 条）
 7. `docs/refs/source-materials/widget-data/` — Widget 数据文档（13 个文件）
 
-**遗留问题（新 session 需关注）**：
+**遗留问题**：
 
 | # | 问题 | 关联 WP | 严重度 | 说明 |
 |---|------|---------|--------|------|
-| 1 | restraint-pt2 内容缺失 | WP-6 | 🟡 中 | `content/restraint/pt1/` 的 `nextPartSlug` 仍指向 `restraint/pt2`，但 pt2 目录不存在（内容缺失）。pt3 的 `prevPartSlug` 已置 null。不影响 RAG 索引，但 scene-data 系列链接断裂。 |
-| 2 | WP-6 任务 1/2 延迟 | WP-6 | 🟡 中 | 用户此前决定推迟「定义扩展 meta.mjs 字段标准」和「回填扩展字段」——历史数据在实验阶段、管线变动中，RAG 实施前统一处理。任务 5（verify-video preflight 校验）为可选项。 |
-| 3 | WP-3 未开始 | WP-3 | 🟢 低 | 4 个事件时间线文档未创建。依赖 WP-2 ✅ 已满足，可直接启动。产出路径：`docs/refs/source-materials/event-timelines/`。 |
-| 4 | WP-9 未开始 | WP-9 | 🟢 低 | 素材索引文档未创建。依赖 WP-1 ✅ + WP-2 ✅ + WP-3（未完成）+ WP-6（部分完成）。可先做 Materials→Articles→Videos 和 Company Profiles 两个 section，Event Timelines section 标 TBD。 |
+| 1 | restraint-pt2 内容缺失 | WP-6 | 🟡 中 | `content/restraint/pt1/` 的 `nextPartSlug` 已置 null（pt2 未创建）。不影响 RAG 索引，但 scene-data 系列链接断裂。留作未来任务。 |
+| 2 | ✅ 已解决 | WP-6 | — | WP-6 任务 1/2/5 全部完成（2026-08-08）：扩展字段标准已定义，7 个 meta.mjs 已回填，verify-video.mjs preflight 校验已添加。 |
+| 3 | ✅ 已解决 | WP-3 | — | 4 个事件时间线文档已创建（2026-08-08）。 |
+| 4 | ✅ 已解决 | WP-9 | — | 素材索引文档已创建（2026-08-08）。 |
 
 **新 session 工作流**：
-1. 读本文档，查看「遗留问题」表和「待做」表
-2. 选择要做的 WP（WP-3 和 WP-9 可直接启动，WP-6 需确认是否继续推进任务 1/2）
-3. 读对应 WP 的任务清单（本文档内）
-4. 执行任务，完成后更新 WP 状态标记（⏳ → ✅）
-5. Commit + push
+1. 读本文档，确认全部 WP 已完成
+2. 检查阈值是否触发（20+ 文章或 10+ scene-data）
+3. 如已触发：读 `docs/tickets-rag.md` 从 T-10 开始 Phase 1 代码实施
+4. 如未触发：正常内容创作工作流
 
 **Phase 1 代码实施**：当文章 ≥ 20 或 scene-data ≥ 10 时，读 `docs/tickets-rag.md` 从 T-10 开始。当前：3 篇文章 + 7 个 scene-data，**未达阈值**。
 
@@ -268,14 +267,15 @@ Agent 在写文章时如何调用 RAG？两个方案：
 
 | 类型 | 数量 | 位置 | 格式 | RAG 就绪？ |
 |------|------|------|------|-----------|
-| 已发布文章 | 3 篇 | `articles/*.md` + Supabase `posts` | frontmatter markdown | ✅ 格式统一 |
-| 源素材 | 3 份文件（2 份唯一） | `docs/refs/source-materials/` | 2 份唯一 PDF + 1 markdown | ❌ 2 份唯一 PDF 未结构化 |
-| Scene-data | 7 个非空文件 | `scripts/short-video/content/` | JS 模块 | ⚠️ `meta.mjs` 约定已统一但字段稀疏（4-6 字段），需扩展（WP-6） |
-| 调研报告 | 1 份 | `docs/research/` | markdown | ✅ |
+| 已发布文章 | 3 篇 | `articles/*.md` + Supabase `posts` | frontmatter markdown | ✅ 格式统一（含 topics/entities/sources） |
+| 源素材 | 3 份文件 | `docs/refs/source-materials/` | 结构化 markdown | ✅ WP-1 已结构化 |
+| Scene-data | 7 个非空文件 | `scripts/short-video/content/` | JS 模块 | ✅ meta.mjs 已扩展（WP-6：createdAt/topics/keyEntities/dataPoints） |
+| 调研报告 | 2 份 | `docs/research/` | markdown | ✅ |
 | Widget 数据 | 13 个 | `src/components/widgets/*/data/*.ts`（6 个 widget 目录） | TypeScript 硬编码 | ✅ 有 sourceUrl/`url` 字段可供 extract-widget-sources.mjs 提取 |
-| TikTok 参考库 | ~20 文件 | `docs/refs/tiktok-skills/` | markdown + PDF | ⚠️ 1 份 PDF 未结构化 |
-| 实体注册表 | 无 | — | — | ❌ 不存在 |
-| 事件时间线 | 散落 | 各文章/research 中 | — | ❌ 未独立 |
+| TikTok 参考库 | ~20 文件 | `docs/refs/tiktok-skills/` | markdown | ✅ WP-8 已结构化 |
+| 实体注册表 | 18+10+26 | `docs/refs/entity-registry.yaml` | YAML | ✅ WP-4 已创建 |
+| 事件时间线 | 4 份 | `docs/refs/source-materials/event-timelines/` | markdown | ✅ WP-3 已创建 |
+| 素材索引 | 1 份 | `docs/refs/source-materials/INDEX.md` | markdown | ✅ WP-9 已创建 |
 
 > 注：`china-llm-distillation-source.pdf` 与 `国内大模型蒸馏风波的来龙去脉(1).pdf` 原为 MD5 完全相同的重复拷贝（`03bf489b…`），重复文件已于 2026-08-08 删除（commit `20cc3a8`，保留英文文件名那份），源素材按 2 份唯一文件计。
 
@@ -410,7 +410,7 @@ Agent 在写文章时如何调用 RAG？两个方案：
 
 ---
 
-### WP-3: 主题事件时间线文档 📝 部分调研 ｜ 状态：⏳ 未开始
+### WP-3: 主题事件时间线文档 📝 部分调研 ｜ 状态：✅ 完成（2026-08-08）
 
 **目标**：将多篇文章反复引用的事件提取为独立时间线文档。
 
@@ -593,7 +593,7 @@ models:
 
 ---
 
-### WP-6: Scene-data Metadata 统一与补全 📝 纯文档工作 ｜ 状态：🔄 进行中（任务 3、4 已完成，2026-08-08）
+### WP-6: Scene-data Metadata 统一与补全 📝 纯文档工作 ｜ 状态：✅ 完成（2026-08-08，任务 1-5 全部完成）
 
 **目标**：统一现有两种 metadata 约定，并为所有 meta 文件扩展丰富字段（topics/entities/dataPoints），改善 RAG 检索质量。
 
@@ -618,11 +618,11 @@ models:
 
 **任务清单**：
 
-1. 定义扩展 `meta.mjs` 字段标准（在现有字段上增加 `totalParts/createdAt/topics/keyEntities/dataPoints`）
-2. 为 6 个现有 `meta.mjs` 回填扩展字段
+1. ✅ 已完成（2026-08-08）：定义扩展 `meta.mjs` 字段标准（`createdAt/topics/keyEntities/dataPoints` + series: `totalParts`）。topics 使用小写 kebab-case（与文章 frontmatter 一致），keyEntities 使用 entity-registry ID（snake_case）。
+2. ✅ 已完成（2026-08-08）：为 7 个现有 `meta.mjs` 回填扩展字段（deepseek + restraint/pt1 + restraint/pt3 + distillation/pt1-3 + bytedance-distillation）。同时修正 distillation/pt2 标题（`The Fallout` → `Kimi's Gambit`，与 scene-data.mjs 一致）。
 3. ✅ 已完成（2026-08-08）：修正 `content/deepseek/meta.mjs` 的 stale article slug（`deepseek-funding-round` → `deepseek-art-of-restraint`）
 4. ✅ 已完成（2026-08-08）：删除空的 pt1/pt2（commit `20cc3a8`）；pt3 迁移至 `content/restraint/pt3/` 标准目录结构（meta.mjs + scene-data.mjs + scenes.mjs）。⚠️ **约定修正**：内联 `seriesMeta` 收敛进 **scene-data.mjs**（与 deepseek/restraint-pt1/distillation 等现有约定一致，`verify-video.mjs` preflight 从 scene-data 读取 seriesMeta），而非 meta.mjs（meta.mjs 仅承载文章级 metadata）。迁移同时修正了遗留数据 6 项 preflight fail（em-dash、AI 黑名单词、china 关键词 <2、来源归属 <2、数据点场景 <50%、字数 188>180），`verify-video.mjs --pre --content restraint/pt3` 现为 29 PASS / 1 WARN / 0 FAIL；scene-drift 测试已扩展覆盖 pt3（CTA id 10）
-5. （可选）在 `verify-video.mjs` preflight 中校验 meta.mjs 必填字段
+5. ✅ 已完成（2026-08-08）：在 `verify-video.mjs` preflight 中添加 Meta Data Checks section，校验必填字段（subject/pipelineId/title/article → FAIL）、扩展字段（createdAt/topics/keyEntities/dataPoints → WARN）、series 字段（seriesId/partNumber/totalParts → WARN）、keyEntities 子结构（companies/people/models → FAIL）。
 
 **扩展 meta.mjs 格式**：
 
@@ -708,7 +708,7 @@ sources:
 
 ---
 
-### WP-9: 素材索引文档 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-9: 素材索引文档 📝 纯文档工作 ｜ 状态：✅ 完成（2026-08-08）
 
 **目标**：建立素材 → 文章 → 视频 的追溯表。
 
@@ -1148,9 +1148,9 @@ Agent 根据检索结果：
 | ✅ 已完成 | WP-5（Widget 数据文档化，13 个文件） | 无 | ✅ |
 | ✅ 已完成 | WP-7 + WP-8（Frontmatter + TikTok PDF） | 无 | ✅ |
 | ✅ 已完成 | WP-4 + WP-11（实体注册表 + Golden query） | WP-2 ✅ / WP-10 ✅ | ✅ |
-| Session G | WP-6 剩余任务 1/2/5（meta.mjs 扩展） | 无 | 🔄 |
-| Session H | WP-3（事件时间线文档） | WP-2 ✅ | ⏳ |
-| Session I | WP-9（素材索引文档） | WP-1/2/3/6 | ⏳ |
+| ✅ 已完成 | WP-6 剩余任务 1/2/5（meta.mjs 扩展） | 无 | ✅ |
+| ✅ 已完成 | WP-3（事件时间线文档，4 个） | WP-2 ✅ | ✅ |
+| ✅ 已完成 | WP-9（素材索引文档） | WP-1/2/3/6 | ✅ |
 | — | **Phase 1 代码实施**（读 `docs/tickets-rag.md`） | 20+ 文章或 10+ 视频脚本 + 全部 WP 完成 | ⏳ |
 
 > WP-1/2/5/6/7/8 可并行。每个 session 完成后 commit + push，并更新对应 WP 的状态标记。
@@ -1172,3 +1172,4 @@ Agent 根据检索结果：
 | 2026-08-08 | WP-2 完成：7 家中国 AI 公司档案全部建档（DeepSeek、ByteDance、Moonshot/Kimi、MiniMax、Alibaba/Qwen、Baidu/ERNIE、Huawei/Ascend）。输出到 `docs/refs/company-profiles/`。ByteDance 档案含 Platform Context 章节（TikTok 关系）。`content-pipeline.md` Stage 1b/3 增加公司档案查阅规则。数据来源：现有文章/widget/research docs + Wikipedia 交叉验证。WP-4（实体注册表）和 WP-3（事件时间线）的前置依赖已满足，可启动。 |
 | 2026-08-08 | WP-4/7/8/11 完成 + Slug 一致性修正（commit `747a122`）：① Slug 修正：DB slug `deepseek-leaked-investor-meeting` → `deepseek-art-of-restraint`；3 个 distillation meta.mjs article 字段 `china-llm-distillation-scandal` → `china-llm-distillation-storm` ② WP-4：创建 `docs/refs/entity-registry.yaml`（18 companies + 10 people + 26 models，snake_case ID 约定） ③ WP-7：3 篇文章 frontmatter 扩展（topics 全小写、entities 用 entity-registry ID、sources 含 PDF/URL 引用） ④ WP-8：`docs/refs/tiktok-skills/content-methodology.md`（10 页 PDF → 8 个 ## section 结构化 markdown） ⑤ WP-11：`docs/refs/rag-eval/golden-queries.yaml`（18 条 query，覆盖跨语言 5 + entity alias 4 + 数据点 5 + 负例 3 + 方法论 3）。tsc 通过，preflight 27 PASS/1 FAIL（预存 hook contract 问题，与本次修改无关）。Spec/tickets 已归档至 `docs/archive/`。 |
 | 2026-08-08 | WP-5 完成：13 个 widget data 文件文档化，输出到 `docs/refs/source-materials/widget-data/`。覆盖 6 个 widget 目录（deepseek × 5、deepseek-agi-roadmap、deepseek-api-pricing、deepseek-oss-comparison、deepseek-vision、distillation × 4）。每个文件含 Data（TS 数据结构转 markdown 表格）、Sources（含 explicit sourceUrl/url 的原文链接）、Related Articles（文章嵌入状态）。盘点：5 个 deepseek core widget 未嵌入文章（cloud/talent/funding/pricing/companies + agi-roadmap/vision-keywords），7 个 widget 嵌入 3 篇文章（oss-comparison + api-pricing → deepseek-art-of-restraint；news-coverage → distillation-storm + bytedance；benchmark/identity-bleed/moonshot-funding/minimax-stock → distillation-storm）。RAG 关联：widget data 不直接索引，extract-widget-sources.mjs 提取 sourceUrl 后索引原始资料（Grill Q11 决策不变）。 |
+| 2026-08-08 | WP-6/3/9 完成（全部 WP 完成）：① WP-6 任务 1/2/5：定义扩展 meta.mjs 字段标准（createdAt/topics/keyEntities/dataPoints + series totalParts），为 7 个 meta.mjs 回填扩展字段（topics 小写 kebab-case、keyEntities 用 entity-registry ID），修正 distillation/pt2 标题（The Fallout → Kimi's Gambit），在 verify-video.mjs preflight 添加 Meta Data Checks section（必填→FAIL、扩展→WARN、series→WARN、keyEntities 子结构→FAIL） ② WP-3：创建 4 个事件时间线文档（distillation-dispute-timeline.md 30+ events、chip-export-controls-timeline.md 17+ events、deepseek-development-timeline.md 25+ events、china-llm-benchmark-leaderboard.md 20+ events），全部含 Timeline/Key Actors/Open Questions 结构 ③ WP-9：创建 `docs/refs/source-materials/INDEX.md`（Materials→Articles→Videos + Company Profiles + Event Timelines + Widget Data + Entity Registry + Research Reports + TikTok Skills + Golden Query + RAG Indexing Summary）。所有 WP 已完成，Phase 1 代码实施等待阈值触发。 |

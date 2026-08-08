@@ -1,0 +1,76 @@
+# Event Timeline: China LLM Benchmark Controversies
+
+> Last updated: 2026-08-08. All events verified with source URLs where available.
+> Covers events from February 2026 to August 2026.
+> Focus: benchmark manipulation, identity bleed, and the gap between claimed and actual capabilities.
+
+## Timeline
+
+| Date | Event | Source | Verification |
+|------|-------|--------|-------------|
+| Feb 2026 | Anthropic accuses three Chinese labs of distillation. Benchmark scores from distilled models called into question. | [Anthropic Blog](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks) | ✅ Verified |
+| ~Mar 2026 | Mass distillation begins. Insider account: "Kimi 这么一搞，不刷榜、分没他高的模型就无人关注" (After Kimi did this, models that don't cheat on benchmarks get ignored). | Anonymous insider account | ⚠️ Partially verified |
+| Jul 2026 | Kimi K3 released (2.8T MoE, 1M context). Pure SFT pipeline — no RL. CEO Yang Zhilin cut entire RL team for cost reduction. | [Hugging Face](https://huggingface.co/blog/ResterChed/kimi-k3-model-overview) | ✅ Verified |
+| Jul 2026 | **Arena Frontend Code**: K3 jumps 17 places to #1, surpassing Claude. But Moonshot's own evaluation shows K3 **below Claude** on coding, agents, and frontier SWE. | [Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5) | ✅ Verified |
+| Jul 2026 | **Hallucination rate**: K3 at 51%, up from 39% on K2.6. Claude at 14%. Accuracy improved but hallucinations climbed. | [Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5) | ✅ Verified |
+| Jul 2026 | **HLE-Full** (extremely hard reasoning): K3 scored ~4 vs Claude's ~13 — nearly 10-point gap. | Anonymous insider account | ⚠️ Partially verified |
+| Jul 2026 | **Identity bleed**: K3 identifies as "I'm Claude, an AI assistant created by Anthropic" in ~15% of interactions. GLM 5.2 shows similar behavior. LessWrong asks: "Does distilling Claude carry the persona?" | [Hacker News](https://news.ycombinator.com/item?id=49076001), [LessWrong](https://www.lesswrong.com/posts/dQyKzHaGqvdqpekJr/does-distilling-claude-carry-the-persona-with-it) | ✅ Verified |
+| Jul 2026 | **Security testing**: UK/US study shows K3 "significantly below" US rivals. K3: 30% vs Claude: 85%. | [SCMP](https://www.scmp.com/tech/tech-war/article/3361711/chinas-kimi-k3-significantly-below-us-rivals-hacking-power-uk-us-study-shows) | ✅ Verified |
+| Jul 2026 | Insider reveals benchmark manipulation tactics: (1) test set contamination — benchmark test sets directly poured into training data; (2) Arena routing — evaluation requests routed to fable (Claude); (3) targeted gaming — extracted test data from reviewer "猫老板" system logs. | Anonymous insider account | ⚠️ Partially verified |
+| Jul 2026 | When reviewer "猫老板" changed questions: K3 median score **dropped 8 points** — evidence of targeted benchmark preparation. | Anonymous insider account | ⚠️ Partially verified |
+| Jul 2026 | K3 actual level estimated at ~70 points, hard-boosted to ~78 via benchmark manipulation. | Anonymous insider account | ❌ Unverified |
+| Jul 2026 | K3 coding evaluation scores show **severe distribution imbalance** — classic benchmark manipulation signature. | Anonymous insider account | ⚠️ Partially verified |
+| Jul 2026 | "Arena 上排第一 ≠ 实际能力第一" (Arena rank #1 ≠ actual capability #1) — industry consensus forms. | Anonymous insider account | ⚠️ Partially verified |
+| Jul 2026 | Insider: "国模最黑暗的时代" (The darkest era for Chinese LLMs) — "凛冬将至" (Winter is coming). | Anonymous insider account | ⚠️ Partially verified |
+| Jul 2026 | DeepSeek (which normally doesn't cheat) forced to consider following suit on benchmark gaming. | Anonymous insider account | ⚠️ Partially verified |
+| Feb 2026 | **Seed 2.0 Pro** (ByteDance) benchmarks: AIME 2025: 98.3, Codeforces: 3020, SWE-Bench Verified: 76.5% (trails Claude Opus 4.5's 80.9%). LMSYS Arena: 6th text, 3rd vision. | [EvoLink](https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing) | ✅ Verified |
+| Feb 2026 | ByteDance NOT named in Anthropic accusations. Seed 2.0 Pro scores achieved without distillation (per Zhang Yiming's anti-distillation policy). | [Anthropic Blog](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks), [Pekingnology](https://www.pekingnology.com/p/bytedances-ban-on-distilling-rival) | ✅ Verified |
+| Jul 2026 | Model capability ranking (insider assessment): Fable (Claude) >> DeepSeek V4 ≥ K3.5 > Kimi K3 (~70 actual, ~78 claimed) > Qwen 3 Max (inconsistent). | Anonymous insider account | ⚠️ Partially verified |
+
+## Benchmark Comparison Table
+
+### Kimi K3 vs Claude (from multiple sources)
+
+| Metric | Kimi K3 | Claude (Fable) | Gap | Source |
+|--------|---------|----------------|-----|--------|
+| Arena Frontend Code Rank | #1 | #2 | K3 "wins" | [Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5) |
+| Coding (SWE-bench) | 51.5% | 69% | -18 pts | Artificial Analysis |
+| Agents | Below | Reference | — | Moonshot's own report |
+| HLE-Full | ~4 | ~13 | -9 pts | Insider account |
+| Hallucination Rate | 51% | 14% | +37 pts | Artificial Analysis |
+| Security Testing | 30% | 85% | -55 pts | [SCMP](https://www.scmp.com/tech/tech-war/article/3361711/chinas-kimi-k3-significantly-below-us-rivals-hacking-power-uk-us-study-shows) |
+| AA-Omniscience Accuracy | 46% | 72% | -26 pts | Artificial Analysis |
+
+### Seed 2.0 Pro (ByteDance — clean record, no distillation)
+
+| Benchmark | Seed 2.0 Pro | Claude Opus 4.5 | GPT-5.2 | Source |
+|-----------|-------------|-----------------|---------|--------|
+| AIME 2025 | 98.3 | Competitive | Competitive | [EvoLink](https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing) |
+| Codeforces | 3020 | — | — | EvoLink |
+| SWE-Bench Verified | 76.5% | 80.9% | — | EvoLink |
+| Terminal Bench 2.0 | 55.8 | — | 62.4 | EvoLink |
+| VideoMME | 89.5 | — | — | EvoLink |
+
+## Key Actors
+
+- **Moonshot/Kimi**: K3 benchmark scandal — Arena #1 but below Claude on actual capabilities. Pure SFT pipeline. RL team cut.
+- **Anthropic/Claude**: The distillation source. Claude's persona bled into K3 (15% identity bleed). Claude's encrypted CoT was cracked.
+- **ByteDance/Seed**: Clean record — 2023 anti-distillation policy. Seed 2.0 Pro benchmarks achieved legitimately. Trails on SWE-Bench but competitive on AIME.
+- **DeepSeek**: "Relatively strongest" among Chinese models. Doesn't cheat on benchmarks (normally). V4 estimated above K3.5.
+- **Zhipu/GLM**: First to crack encrypted CoT. GLM 5.2 also showed identity bleed.
+- **"猫老板" (Zhihu AI reviewer)**: Independent reviewer whose test data was extracted from system logs for targeted benchmark preparation. Changing questions caused K3 score to drop 8 points.
+- **Artificial Analysis**: Independent evaluation platform. Reported K3 hallucination rate and benchmark discrepancies.
+
+## Benchmark Manipulation Tactics Identified
+
+1. **Test set contamination** — Directly pouring benchmark test sets into training data
+2. **Arena routing** — Routing Arena evaluation requests to fable (Claude) to fake high scores
+3. **Targeted benchmark gaming** — Extracting test data from reviewer system logs, specifically preparing for known questions
+4. **Distribution manipulation** — Coding evaluation scores show severe distribution imbalance (classic manipulation signature)
+
+## Open Questions
+
+- ❌ How widespread is benchmark manipulation among Chinese AI labs? — Only insider account, no systematic audit.
+- ❌ Will LMSYS/Arena implement anti-distillation routing detection? — No public response as of Aug 2026.
+- ❌ Can DeepSeek maintain its "no cheating" stance if benchmark scores drive market attention? — Insider says they're "forced to consider following suit."
+- ❌ What is K3's true capability level? — Insider estimates ~70 (claimed ~78), but no independent verification.

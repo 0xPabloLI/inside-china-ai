@@ -47,11 +47,13 @@ const SCENE_DATA_PATH = join(__dirname, "content", contentDir, "scene-data.mjs")
 const META_PATH = join(__dirname, "content", contentDir, "meta.mjs");
 const SUBTITLE_TIMING_PATH = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
 
-// Try to load meta.mjs for subject field (file naming)
+// Load meta.mjs (for subject field + preflight validation)
 let filePrefix = pipelineId;
+let meta = null;
 try {
   const metaMod = await import(`file://${META_PATH}`);
-  const subject = metaMod.meta?.subject;
+  meta = metaMod.meta || null;
+  const subject = meta?.subject;
   if (subject && subject !== pipelineId) filePrefix = `${subject}-${pipelineId}`;
 } catch {}
 const VIDEO_PATH = join(OUTPUT_DIR, `${filePrefix}-short.mp4`);
@@ -89,6 +91,63 @@ function manual(category, check, detail = "") {
 // ─── Mode banner ───
 console.log(`\n${preMode ? "🔍 Pre-Render" : "📹 Post-Render"} Verification — ${contentDir}`);
 console.log("─".repeat(50));
+
+// ─── Meta data checks (shared: pre-render + post-render) ───
+console.log("\n📋 Meta Data Checks");
+console.log("─".repeat(50));
+
+if (!meta) {
+  fail("Meta", "meta.mjs loads", "File not found or no meta export", `Create meta.mjs in content/${contentDir}/`);
+} else {
+  // Required existing fields
+  const requiredFields = ["subject", "pipelineId", "title", "article"];
+  for (const field of requiredFields) {
+    if (meta[field]) {
+      pass("Meta", `meta.${field} exists`, String(meta[field]));
+    } else {
+      fail("Meta", `meta.${field} exists`, "Missing", `Add '${field}' to meta.mjs`);
+    }
+  }
+
+  // Required extended fields (WP-6)
+  const extendedFields = ["createdAt", "topics", "keyEntities", "dataPoints"];
+  for (const field of extendedFields) {
+    if (meta[field]) {
+      const detail = Array.isArray(meta[field])
+        ? `${meta[field].length} items`
+        : typeof meta[field] === "object"
+          ? Object.keys(meta[field]).join(", ")
+          : String(meta[field]);
+      pass("Meta", `meta.${field} exists (extended)`, detail);
+    } else {
+      warn("Meta", `meta.${field} exists (extended)`, "Missing", `Add '${field}' to meta.mjs (WP-6 extended field)`);
+    }
+  }
+
+  // Series fields (required if seriesId present)
+  if (meta.seriesId) {
+    const seriesFields = ["seriesId", "partNumber", "totalParts"];
+    for (const field of seriesFields) {
+      if (meta[field] !== undefined) {
+        pass("Meta", `meta.${field} exists (series)`, String(meta[field]));
+      } else {
+        warn("Meta", `meta.${field} exists (series)`, "Missing", `Add '${field}' to meta.mjs (series content)`);
+      }
+    }
+  }
+
+  // keyEntities sub-structure validation
+  if (meta.keyEntities) {
+    const entityKeys = ["companies", "people", "models"];
+    for (const key of entityKeys) {
+      if (Array.isArray(meta.keyEntities[key])) {
+        pass("Meta", `meta.keyEntities.${key} is array`, `${meta.keyEntities[key].length} items`);
+      } else {
+        fail("Meta", `meta.keyEntities.${key} is array`, "Missing or not array", `Add '${key}: []' to keyEntities in meta.mjs`);
+      }
+    }
+  }
+}
 
 // ─── Post-render: Video file + specs ───
 if (!preMode) {
