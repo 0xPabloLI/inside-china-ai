@@ -214,19 +214,19 @@ describe("scene drift guards", () => {
       // (deepseek / distillation/pt1 / restraint/pt1) still uses the old
       // side-by-side classes and is covered by --skip-dom-check until it
       // migrates. New content must NOT introduce these patterns.
-      const SIDE_BY_SIDE = ["accused-row", "chip-compare", "vs-circle"];
+      const SIDE_BY_SIDE = ["accused-row", "chip-compare", "vs-circle", "cols"];
       const src = readFileSync(
         new URL("../content/bytedance-distillation/scenes.mjs", import.meta.url),
         "utf8",
       );
       for (const cls of SIDE_BY_SIDE) {
+        // Prefix form `class="${cls}` catches suffix variants (e.g.
+        // `class="cols foo"`); the `class="` anchor keeps prose mentions of
+        // the bare word from matching.
         expect(src, `bytedance reintroduced side-by-side class "${cls}"`).not.toContain(
           `class="${cls}`,
         );
       }
-      // `.cols` is also a side-by-side marker, but the word may appear in
-      // prose — match only the two-column flex container usage.
-      expect(src, 'bytedance reintroduced a two-column ".cols" layout').not.toMatch(/class="cols"/);
     });
 
     it("no shared keyframe redeclarations", () => {

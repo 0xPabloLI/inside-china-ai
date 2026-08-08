@@ -4,9 +4,11 @@
  *
  * Migration to the slot layout system (spec: spec-video-layout-safe-zones.md):
  * - All scenes assemble content into fixed slots via sceneFrame() from
- *   lib/scene-layout.mjs: kickerTitle (220-400) / hero (400-1080) /
- *   support (1080-1340). No scene-level flex, no space-between, no magic
+ *   lib/scene-layout.mjs: kickerTitle (220-400) / hero (400-950) /
+ *   support (950-1150). No scene-level flex, no space-between, no magic
  *   bottom padding — the grid is anchored and DOM-verified.
+ * - Comparison/contrast scenes (S6/S7/S8) stack VERTICALLY (A/VS/B) —
+ *   never side-by-side columns (the "landscape forced into portrait" fix).
  * - Scene 9 (CTA) delegates to the shared ctaScene end card (unchanged).
  * - scene-data.mjs copy is untouched; brandBar() on every scene.
  */
