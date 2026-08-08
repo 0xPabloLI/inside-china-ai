@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      content_embeddings: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          chunk_title: string | null
+          content_type: string
+          created_at: string
+          embedding: string | null
+          id: string
+          metadata: Json | null
+          source_id: string
+          updated_at: string
+        }
+        Insert: {
+          chunk_index?: number
+          chunk_text: string
+          chunk_title?: string | null
+          content_type: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          source_id: string
+          updated_at?: string
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          chunk_title?: string | null
+          content_type?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          source_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       newsletter_sends: {
         Row: {
           created_at: string
@@ -254,6 +293,25 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      match_content: {
+        Args: {
+          filter_content_type?: string
+          filter_topics?: string[]
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          chunk_text: string
+          chunk_title: string
+          content_type: string
+          id: string
+          metadata: Json
+          similarity: number
+          source_id: string
+        }[]
       }
     }
     Enums: {
