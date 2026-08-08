@@ -127,3 +127,10 @@ AS $$
   ORDER BY (e.embedding <=> query_embedding) ASC
   LIMIT match_count;
 $$;
+
+-- ─── Grants ───
+-- Supabase revokes EXECUTE on functions by default; re-grant to authenticated
+-- so admin users (via RLS) can call match_content.
+GRANT EXECUTE ON FUNCTION public.match_content(
+  vector(1024), TEXT, TEXT[], FLOAT, INT
+) TO authenticated;

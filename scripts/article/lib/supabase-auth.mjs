@@ -105,10 +105,10 @@ function isNewSupabaseApiKey(value) {
 export async function loginAdmin({ dotenv } = {}) {
   const resolvedDotenv = dotenv ?? loadDotEnvFiles();
 
-  const email = getEnvVar("ADMIN_EMAIL", dotenv);
-  const password = getEnvVar("ADMIN_PASSWORD", dotenv);
-  const supabaseUrl = getEnvVar("SUPABASE_URL", dotenv);
-  const supabaseKey = getEnvVar("SUPABASE_PUBLISHABLE_KEY", dotenv);
+  const email = getEnvVar("ADMIN_EMAIL", resolvedDotenv);
+  const password = getEnvVar("ADMIN_PASSWORD", resolvedDotenv);
+  const supabaseUrl = getEnvVar("SUPABASE_URL", resolvedDotenv);
+  const supabaseKey = getEnvVar("SUPABASE_PUBLISHABLE_KEY", resolvedDotenv);
 
   // Check required env vars with clear messages
   const missing = [];

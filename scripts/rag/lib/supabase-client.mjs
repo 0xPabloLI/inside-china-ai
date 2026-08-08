@@ -82,9 +82,9 @@ export async function cleanupOrphans(client, currentSourceIds) {
 
   if (currentSourceIds.length > 0) {
     // Delete where source_id NOT IN (current set)
-    // PostgREST filter: source_id=notin.(id1,id2,...)
+    // PostgREST: .not("column", "in", "(val1,val2,...)")
     const idsList = currentSourceIds.join(",");
-    query = query.filter("source_id", "notin", `(${idsList})`);
+    query = query.not("source_id", "in", `(${idsList})`);
   }
   // If no current IDs, delete all (no filter applied)
 
@@ -116,7 +116,7 @@ export async function queryContent(client, embedding, filters = {}) {
     query_embedding: embedding,
     filter_content_type: filters.type || null,
     filter_topics: filterTopics,
-    match_threshold: filters.threshold ?? 0.7,
+    match_threshold: filters.threshold ?? 0.3,
     match_count: filters.limit ?? 10,
   });
 

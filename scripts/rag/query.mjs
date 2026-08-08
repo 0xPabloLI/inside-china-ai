@@ -58,7 +58,7 @@ const filterType = getArg("type");
 const filterTopicsRaw = getArg("topics");
 const useRerank = hasFlag("rerank");
 const format = getArg("format") || "json";
-const threshold = getArg("threshold") ? parseFloat(getArg("threshold")) : 0.7;
+const threshold = getArg("threshold") ? parseFloat(getArg("threshold")) : 0.3;
 const limit = getArg("limit") ? parseInt(getArg("limit"), 10) : 10;
 
 // Parse topics: comma-separated → array (Q5: lowercase)

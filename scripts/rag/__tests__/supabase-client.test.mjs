@@ -24,6 +24,7 @@ function createMockClient(overrides = {}) {
       return this;
     }),
     not: vi.fn(function () {
+      calls.filters.push(Array.from(arguments));
       return this;
     }),
     in: vi.fn(function () {
@@ -175,11 +176,11 @@ describe("cleanupOrphans", () => {
     await cleanupOrphans(client, ["article-1", "article-2", "scene-data-1"]);
 
     expect(client._fromBuilder.delete).toHaveBeenCalledTimes(1);
-    // The .filter() should have been called with notin
-    expect(client._deleteBuilder.filter).toHaveBeenCalled();
+    // The .not() filter should have been called with 'in' operator
+    expect(client._deleteBuilder.not).toHaveBeenCalled();
     const filterArgs = client._calls.filters[0];
     expect(filterArgs[0]).toBe("source_id");
-    expect(filterArgs[1]).toBe("notin");
+    expect(filterArgs[1]).toBe("in");
     expect(filterArgs[2]).toContain("article-1");
     expect(filterArgs[2]).toContain("article-2");
   });
@@ -189,8 +190,8 @@ describe("cleanupOrphans", () => {
     await cleanupOrphans(client, []);
 
     expect(client._fromBuilder.delete).toHaveBeenCalledTimes(1);
-    // Should NOT apply a .filter() (delete all)
-    expect(client._deleteBuilder.filter).not.toHaveBeenCalled();
+    // Should NOT apply a .not() filter (delete all)
+    expect(client._deleteBuilder.not).not.toHaveBeenCalled();
   });
 
   it("throws on delete error", async () => {
@@ -217,7 +218,7 @@ describe("queryContent", () => {
     const [fnName, params] = client._calls.rpcs[0];
     expect(fnName).toBe("match_content");
     expect(params.query_embedding).toEqual(embedding);
-    expect(params.match_threshold).toBe(0.7);
+    expect(params.match_threshold).toBe(0.3);
     expect(params.match_count).toBe(10);
     expect(result).toHaveLength(1);
     expect(result[0].source_id).toBe("test");
