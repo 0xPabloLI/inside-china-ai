@@ -1,7 +1,7 @@
 # Tickets: RAG Pipeline Implementation
 
 > Spec: `docs/spec-rag.md`
-> Prerequisite: `docs/rag-prework.md` (D1-D5 confirmed, Q1-Q19 grilled)
+> Prerequisite: `docs/archive/rag-prework.md` (D1-D5 confirmed, Q1-Q19 grilled) — 已归档
 > Trigger: ✅ Threshold met (2026-08-08). 60+ indexable content files / ~175 chunks. Phase 1 unblocked.
 
 ---
@@ -49,11 +49,11 @@ Add RAG-related terms to `CONTEXT.md`.
 
 ### T-03: Update rag-prework.md — Reflect Grilling Decisions
 
-**Status**: ⏳ Pending
+**Status**: ✅ Done (completed during WP-10)
 **Depends on**: None
 **Effort**: 20 min
 
-Update `docs/rag-prework.md` to reflect Q1-Q19 decisions.
+Update `docs/archive/rag-prework.md` (formerly `docs/rag-prework.md`) to reflect Q1-Q19 decisions. ✅ Already done during WP-10 grill session.
 
 **Changes**:
 - D3: Remove `widget-data` from index range (Q11); add `widget-sources` as sub-type of `source-material`
@@ -343,7 +343,7 @@ Create Supabase migration file.
 Phase 0 (Now):
   T-01 (ADR) ─┐
   T-02 (CONTEXT) ─┤
-  T-03 (rag-prework) ─┘
+  T-03 (rag-prework) ✅ ─┘
               │
 Phase 1 (✅ Threshold met):
   T-10 (Migration) ←── T-01,T-02,T-03

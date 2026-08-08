@@ -31,7 +31,7 @@
 | ✅ 完成 | WP-11 | Golden Query 评估集（18 条，4 种用例） | WP-10 ✅ | ✅ |
 
 **关键产出文档（新 session 必读）**：
-1. 本文档（`docs/rag-prework.md`）— 总览 + 各 WP 任务清单
+1. 本文档（`docs/archive/rag-prework.md`）— 总览 + 各 WP 任务清单（已归档）
 2. `docs/spec-rag.md` — 技术规格（schema、脚本设计、26 行场景矩阵）
 3. `docs/tickets-rag.md` — 代码实施 tickets（Phase 1/2 gated，当前不需要）
 4. `docs/adr/0007-rag-pipeline-decisions.md` — 6 个架构决策

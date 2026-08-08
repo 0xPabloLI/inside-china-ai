@@ -54,3 +54,4 @@
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
 | `spec-rag-prework-wp4-7-8-11.md` / `tickets-rag-prework-wp4-7-8-11.md` | 2026-08-08 | RAG 前置工作 WP-4/7/8/11 + Slug 一致性修正 |
+| `rag-prework.md` | 2026-08-08 | RAG 前置工作总览（WP-1~WP-11 全部完成，D1-D5 决策确认，Q1-Q19 grilled）|

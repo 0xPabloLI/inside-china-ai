@@ -16,7 +16,7 @@
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
 | `handoffs/video-layout-standard.md` | 视频布局安全区 session 交接（已完成，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
-| `rag-prework.md` | RAG pipeline pre-work plan (Issue #15) | — |
+| ~~`rag-prework.md`~~ | RAG pipeline pre-work plan (Issue #15) | 已归档至 `archive/rag-prework.md` |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
 | `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
 
