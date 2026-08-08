@@ -541,7 +541,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 |------|--------|--------|
 | 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
 | 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
-| 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). FAIL aborts before recording; bypass only for legacy non-migrated content with `--skip-dom-check` | `verify-scene-dom.mjs` report |
+| 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). FAIL aborts before recording; `--skip-dom-check` is a debug-only escape hatch (all content dirs migrated) | `verify-scene-dom.mjs` report |
 | 3 | Record scene videos (Playwright) | `output/{id}/video/scene-*.webm` |
 | 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |

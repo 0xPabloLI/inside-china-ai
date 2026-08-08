@@ -83,7 +83,7 @@ SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, max
 - 顶/底越界（y<220 或 y>1150）→ **FAIL**（豁免：背景层 `grid-bg`/`glow-red`/`glow-blue`/`glow-amber`/`glow-tint`/`scanlines`/`scan-sweep`/`glitch`/`glitch-flash`/`fade-to-black`/`frame-glow`/`flash-frame`、brand-chrome `brand-bar`/`brand-logo-large`/`brand-watermark` 及其子元素）
 - 右缘 > x880：**底边 y>640（操作栏内）→ FAIL**；y≤640（顶部 chrome）→ WARN
 - 水平溢出（scrollWidth）、`undefined`、mid-word break → FAIL
-- 逃生口：`--skip-dom-check`（**仅限未迁移老 content**，新内容不许用）
+- 逃生口：`--skip-dom-check`（**仅限调试**，所有 content 目录已迁移到槽位布局，新内容不许用）
 
 **竖向堆叠规则**：对比/VS 场景必须 A/VS/B 纵向堆叠，禁横向并排。`scene-drift.test.mjs` 以 `class="` 前缀匹配禁用 `accused-row` / `chip-compare` / `vs-circle` / `cols`（含后缀变体）。
 
@@ -124,7 +124,9 @@ node scripts/short-video/build-mark-svg.mjs
 
 ## 9. 遗留 / 未做（下次 session 注意）
 
-- **老 content 未迁移槽位**：`deepseek` / `distillation/pt1` / `restraint/pt1` 仍是旧布局（padding-bottom 470），跑 pipeline 会被 Step 2.5 阻断。返工它们时必须先按槽位迁移（临时可用 `--skip-dom-check`，但不是长期方案）。
-- `breaking-badge` 模板 `top: 210px` 在安全区 220 之内 10px，新场景直接用会 FAIL（当前仅老 deepseek 用）。
-- 全仓库 lint 历史错误已清理（2026-08-08 `eslint --fix`，含后续合并引入项）；当前仅剩 ~12 条 `react-refresh/only-export-components` warning（dev-only，非阻塞）。
+- ✅ **老 content 槽位迁移完成（2026-08-08 v3）**：`deepseek`（12 场景）、`restraint/pt1`（11）、`restraint/pt3`（10）、`distillation/pt1`（8）全部迁移到 slot 布局，`verify-scene-dom.mjs` 全绿；对比场景（deepseek S3/S5/S10、restraint pt1 S6/S9、restraint pt3 S8、distillation pt1 S2/S6）全部竖向堆叠，禁用类 `cols`/`vs-circle` 等已从全部 content 移除；`scene-drift.test.mjs` 的 side-by-side 断言从仅 bytedance 扩展到全部 content 目录。`--skip-dom-check` 不再是合法逃逸路径。
+- ✅ `breaking-badge` 模板已从 `top: 210px` 修正为 `top: 220px`（安全区对齐，测试锁定）。
+- ✅ 场景 watermark 契约更新：全部场景自带 `brandBar()` → `withWatermark` 对全部场景跳过水印（deepseek-scenes / distillation-pt1-scenes 测试已同步）。
+- hook 契约（`hookScene` byte-identical）未迁移：`distillation/pt1` / `restraint/pt3` 的 hook 仍是自定义 line1/line2 三层开（`scene-rules.test.mjs` 明确锁 fail until migrated）。这是独立 spec（spec-hook-opening-card.md），与槽位迁移解耦。
+- lint 状态：本 session 修复的 prettier 问题已清零；当前仅剩 `scripts/rag/`（另一 session 的 untracked 在途工作）的 ~26 条 prettier 错误，由 rag session 自行清理。
 - ~~`docs/video-workflow.md` 字幕表旧值~~ ✅ 已同步（2026-08-08）：subtitle 表 60px / MarginV=570 / 720px 硬宽、Logo 水印位置（WATERMARK_POS）、Pipeline Steps 补 Step 2.5 DOM 门、内容带 820px 溢出表；`~/.catpaw/skills/short-video-pipeline/SKILL.md`（与 `~/.cursor/skills/...` 同一硬链接）也同步修正了 42px/450、`generate-ass.py` 死引用、字幕主/次配色（→ Dispatch Blue / White）。

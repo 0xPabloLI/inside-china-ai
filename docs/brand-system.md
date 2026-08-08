@@ -345,7 +345,7 @@ The CSS implementation of these specs lives in:
 
 1. **Constants single source** — `safe-zones.mjs` values are test-locked (`safe-zones.test.mjs`, `scene-drift.test.mjs`); editing them turns the suite red.
 2. **Data-level preflight** — `verify-video.mjs --pre --content <dir>` runs before the pipeline (SKILL.md hard rules) and blocks non-compliant scene data.
-3. **Render-level DOM gate** — `verify-scene-dom.mjs` runs automatically as **Step 2.5** in both `main.mjs` and `render-only.mjs`. Any scene whose geometry crosses a safe zone (top / bottom / right action rail), overflows horizontally, renders `undefined`, or breaks a word fails the build **before recording**. Bypass only with `--skip-dom-check` (legacy, non-migrated content).
+3. **Render-level DOM gate** — `verify-scene-dom.mjs` runs automatically as **Step 2.5** in both `main.mjs` and `render-only.mjs`. Any scene whose geometry crosses a safe zone (top / bottom / right action rail), overflows horizontally, renders `undefined`, or breaks a word fails the build **before recording**. All content directories are on the slot layout, so `--skip-dom-check` is a debug-only escape hatch.
 4. **Source-level drift guards** — `scene-drift.test.mjs` bans side-by-side comparison classes and legacy footer classes in migrated content, and locks the shared hook/CTA templates byte-for-byte.
 
 When changing brand specs, update this file first, then update the implementation files to match.

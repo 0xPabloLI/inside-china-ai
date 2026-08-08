@@ -99,7 +99,8 @@ async function main() {
 
   // ── Step 2.5: DOM layout verification (safe-zone / right-rail / overflow) ──
   // Same hard gate as main.mjs: geometry violations abort before re-recording.
-  // Bypass with --skip-dom-check (legacy, non-migrated content only).
+  // Bypass with --skip-dom-check (escape hatch only — all content
+  // directories are on the slot layout).
   const skipDomCheck = args.includes("--skip-dom-check");
   if (skipDomCheck) {
     console.log("📐 Step 2.5: DOM layout verification skipped (--skip-dom-check)\n");
@@ -114,9 +115,9 @@ async function main() {
         "\n❌ DOM layout verification FAILED — scene content enters a TikTok safe zone.",
       );
       console.error(
-        "   Migrate the scene to the slot layout (docs/brand-system.md), or bypass with",
+        "   Fix the scene layout (slot system, docs/brand-system.md), or bypass with",
       );
-      console.error("   --skip-dom-check (legacy content only, not recommended).");
+      console.error("   --skip-dom-check (escape hatch only, not recommended).");
       process.exit(1);
     }
     console.log();
