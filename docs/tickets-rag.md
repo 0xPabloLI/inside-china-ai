@@ -232,26 +232,26 @@ Create Supabase migration file.
 
 ### T-20: extract-widget-sources.mjs — Widget Source URL Extractor
 
-**Status**: ⏳ Pending (gated)
-**Depends on**: T-15
+**Status**: ✅ Complete (commit 3b1a676)
+**Depends on**: T-15 ✅
 **Effort**: 2 hours
 
 **Acceptance Criteria**:
-- [ ] `scripts/rag/extract-widget-sources.mjs` created
-- [ ] Scan all `src/components/widgets/*/data/*.ts` files
-- [ ] Extract `sourceUrl` and `url` fields (regex or AST)
-- [ ] Deduplicate URLs (Scenario #17)
-- [ ] Fetch content via `web_fetch` tool
-- [ ] Paywall/403/timeout → create stub markdown (Scenario #15, #16)
-- [ ] Save to `docs/refs/source-materials/widget-sources/<widget-id>-<slug>.md`
-- [ ] Log failures to `output/extract-errors.log`
+- [x] `scripts/rag/extract-widget-sources.mjs` created
+- [x] Scan all `src/components/widgets/*/data/*.ts` files
+- [x] Extract `sourceUrl` and `url` fields (regex or AST)
+- [x] Deduplicate URLs (Scenario #17)
+- [x] Fetch content via `fetch()` (Node 18+ built-in)
+- [x] Paywall/403/timeout → create stub markdown (Scenario #15, #16)
+- [x] Save to `docs/refs/source-materials/widget-sources/<widget-id>-<slug>.md`
+- [x] Log failures to `output/extract-errors.log`
 
 **Tests** (`scripts/rag/__tests__/extract-widget-sources.test.mjs`):
-- [ ] Extract URLs from funding.ts (has sourceUrl)
-- [ ] Extract URLs from news-events.ts (has url)
-- [ ] Duplicate URLs → only one file created
-- [ ] Fetch failure → stub created
-- [ ] pricing.ts (no URLs) → skipped
+- [x] Extract URLs from funding.ts (has sourceUrl)
+- [x] Extract URLs from news-events.ts (has url)
+- [x] Duplicate URLs → only one file created
+- [x] Fetch failure → stub created
+- [x] pricing.ts (no URLs) → skipped
 
 ---
 
