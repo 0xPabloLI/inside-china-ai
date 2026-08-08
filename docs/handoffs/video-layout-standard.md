@@ -125,6 +125,7 @@ node scripts/short-video/build-mark-svg.mjs
 ## 9. 遗留 / 未做（下次 session 注意）
 
 - ✅ **老 content 槽位迁移完成（2026-08-08 v3）**：`deepseek`（12 场景）、`restraint/pt1`（11）、`restraint/pt3`（10）、`distillation/pt1`（8）全部迁移到 slot 布局，`verify-scene-dom.mjs` 全绿；对比场景（deepseek S3/S5/S10、restraint pt1 S6/S9、restraint pt3 S8、distillation pt1 S2/S6）全部竖向堆叠，禁用类 `cols`/`vs-circle` 等已从全部 content 移除；`scene-drift.test.mjs` 的 side-by-side 断言从仅 bytedance 扩展到全部 content 目录。`--skip-dom-check` 不再是合法逃逸路径。
+- ✅ **`distillation/pt2` + `distillation/pt3` 场景实现完成（2026-08-08）**：两目录原为 throw stub（handoff-2026-08-05 Task 3 遗留），scene-data/meta 早已齐全。现按 pt1 视觉 DNA + slot 布局实现 9+9 场景（pt2: identity-bleed hook/recap/K3 规格/benchmark 表/hallucination/quote/白宫 hook/teaser；pt3: crash hook/recap/MiniMax timeline/Moonshot 融资/IPO 对比竖堆叠/playbook quote/verification 条形表/closing），DOM gate 9/9 + 9/9 PASS，CTA 均委托共享 ctaScene（scene-drift CTA 守卫已含 pt2/pt3）。至此**全部 7 个 content 目录均有 sceneFrame 实现**。
 - ✅ `breaking-badge` 模板已从 `top: 210px` 修正为 `top: 220px`（安全区对齐，测试锁定）。
 - ✅ 场景 watermark 契约更新：全部场景自带 `brandBar()` → `withWatermark` 对全部场景跳过水印（deepseek-scenes / distillation-pt1-scenes 测试已同步）。
 - hook 契约（`hookScene` byte-identical）未迁移：`distillation/pt1` / `restraint/pt3` 的 hook 仍是自定义 line1/line2 三层开（`scene-rules.test.mjs` 明确锁 fail until migrated）。这是独立 spec（spec-hook-opening-card.md），与槽位迁移解耦。
