@@ -1,0 +1,365 @@
+#!/usr/bin/env node
+/**
+ * RAG Index Script — Full Rebuild (Tracer Bullet)
+ *
+ * Reads all content sources, chunks, embeds, and upserts to Supabase.
+ * Then cleans up orphaned embeddings.
+ *
+ * Usage:
+ *   node scripts/rag/index.mjs
+ *
+ * Pre-requisites:
+ *   - Ollama running with bge-m3 model pulled
+ *   - .env.local with ADMIN_EMAIL/ADMIN_PASSWORD
+ *   - .env with SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY
+ *   - Database migration applied (supabase/migrations/*_rag_content_embeddings.sql)
+ *
+ * Spec: docs/spec-rag.md §4.2
+ */
+
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
+import { join, dirname, basename, relative, sep } from "path";
+import { fileURLToPath } from "url";
+import matter from "gray-matter";
+
+import { chunkMarkdown, chunkSceneData } from "./lib/chunker.mjs";
+import { normalizeMetadata } from "./lib/normalizer.mjs";
+import { embed, isOllamaAvailable, verifyModelDimensions, DEFAULT_MODEL } from "./lib/ollama.mjs";
+import { createRagClient, upsertChunks, cleanupOrphans } from "./lib/supabase-client.mjs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = join(__dirname, "..", "..");
+const outputDir = join(__dirname, "output");
+
+// ─── Content source collectors ───
+
+/**
+ * Collect published articles from articles/*.md.
+ * Reads frontmatter for metadata; skips unpublished (Scenario #3).
+ */
+function collectArticles() {
+  const articlesDir = join(projectRoot, "articles");
+  const files = readdirSync(articlesDir).filter((f) => f.endsWith(".md"));
+  const results = [];
+
+  for (const file of files) {
+    const filePath = join(articlesDir, file);
+    const raw = readFileSync(filePath, "utf8");
+    const parsed = matter(raw);
+
+    // Skip unpublished (Scenario #3)
+    if (!parsed.data.published) {
+      console.log(`  ⏭️  Skipped (unpublished): ${file}`);
+      continue;
+    }
+
+    const slug = parsed.data.slug || basename(file, ".md");
+    const chunks = chunkMarkdown(parsed.content, slug);
+
+    // Extract source URLs from frontmatter
+    const sourceUrls = (parsed.data.sources || []).map((s) => s.url).filter(Boolean);
+
+    for (const chunk of chunks) {
+      const metadata = normalizeMetadata({
+        topics: parsed.data.topics,
+        entities: parsed.data.entities,
+        article_slug: slug,
+        section_title: chunk.title,
+        published: true,
+        source_urls: sourceUrls.length > 0 ? sourceUrls : undefined,
+      });
+
+      results.push({
+        content_type: "article",
+        source_id: slug,
+        chunk_index: chunk.chunkIndex,
+        chunk_text: chunk.text,
+        chunk_title: chunk.title,
+        metadata,
+      });
+    }
+
+    console.log(`  📄 ${file} → ${chunks.length} chunks`);
+  }
+
+  return results;
+}
+
+/**
+ * Collect scene-data from scripts/short-video/content (recursive).
+ * Dynamic imports ESM modules; skips _test-fixtures.
+ */
+async function collectSceneData() {
+  const contentDir = join(projectRoot, "scripts", "short-video", "content");
+  const results = [];
+
+  // Find all scene-data.mjs files recursively, excluding _test-fixtures
+  const sceneFiles = findFilesRecursive(contentDir, "scene-data.mjs").filter(
+    (f) => !f.includes("_test-fixtures"),
+  );
+
+  for (const sceneFilePath of sceneFiles) {
+    const dir = dirname(sceneFilePath);
+    const metaPath = join(dir, "meta.mjs");
+
+    try {
+      // Dynamic import scene-data.mjs
+      const sceneModule = await import(`file://${sceneFilePath}`);
+      const scenes = sceneModule.scenes;
+
+      if (!scenes || !Array.isArray(scenes)) {
+        console.log(`  ⏭️  Skipped (no scenes export): ${relative(contentDir, sceneFilePath)}`);
+        continue;
+      }
+
+      // Import meta.mjs if it exists
+      let meta = {};
+      if (existsSync(metaPath)) {
+        const metaModule = await import(`file://${metaPath}`);
+        meta = metaModule.meta || {};
+      }
+
+      const sourceId = meta.pipelineId || basename(dir);
+      const chunks = chunkSceneData(scenes, meta, sourceId);
+
+      for (const chunk of chunks) {
+        // Find the corresponding scene for metadata
+        const scene = scenes[chunk.chunkIndex]; // Approximate — may not align if scenes were skipped
+        const metadata = normalizeMetadata({
+          topics: meta.topics,
+          entities: meta.keyEntities,
+          article_slug: meta.article,
+          part_number: meta.partNumber,
+          scene_id: scene?.id,
+          visual_type: scene?.visualType,
+        });
+
+        results.push({
+          content_type: "scene-data",
+          source_id: sourceId,
+          chunk_index: chunk.chunkIndex,
+          chunk_text: chunk.text,
+          chunk_title: chunk.title,
+          metadata,
+        });
+      }
+
+      console.log(`  🎬 ${relative(contentDir, sceneFilePath)} → ${chunks.length} chunks`);
+    } catch (err) {
+      console.log(
+        `  ⚠️  Failed to import: ${relative(contentDir, sceneFilePath)} — ${err.message}`,
+      );
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Collect markdown files from a directory as a given content type.
+ */
+function collectMarkdownSource(baseDir, contentType, excludePatterns = []) {
+  const results = [];
+
+  if (!existsSync(baseDir)) return results;
+
+  const files = findFilesRecursive(baseDir, ".md").filter(
+    (f) => !excludePatterns.some((p) => f.includes(p)),
+  );
+
+  for (const filePath of files) {
+    const raw = readFileSync(filePath, "utf8");
+    const relPath = relative(baseDir, filePath);
+    const sourceId = basename(filePath, ".md");
+
+    // Extract topic from first H1 heading
+    const h1Match = raw.match(/^#\s+(.+)$/m);
+    const topic = h1Match ? h1Match[1].trim().toLowerCase().replace(/\s+/g, "-") : contentType;
+
+    const chunks = chunkMarkdown(raw, sourceId);
+
+    for (const chunk of chunks) {
+      const metadata = normalizeMetadata({
+        source_file: relPath,
+        topic,
+      });
+
+      results.push({
+        content_type: contentType,
+        source_id: sourceId,
+        chunk_index: chunk.chunkIndex,
+        chunk_text: chunk.text,
+        chunk_title: chunk.title,
+        metadata,
+      });
+    }
+
+    console.log(`  📋 ${relPath} → ${chunks.length} chunks`);
+  }
+
+  return results;
+}
+
+// ─── File system helpers ───
+
+function findFilesRecursive(dir, suffix) {
+  const results = [];
+
+  function scan(currentDir) {
+    const entries = readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        scan(fullPath);
+      } else if (entry.name.endsWith(suffix)) {
+        results.push(fullPath);
+      }
+    }
+  }
+
+  scan(dir);
+  return results;
+}
+
+// ─── Main ───
+
+async function main() {
+  console.log("📚 RAG Index — Full Rebuild");
+  console.log("=".repeat(50));
+
+  // 1. Pre-check Ollama (Scenario #1)
+  console.log("\n🔍 Checking Ollama...");
+  if (!(await isOllamaAvailable())) {
+    console.error("❌ Ollama is not running. Start with: ollama serve");
+    process.exit(1);
+  }
+  console.log("  ✅ Ollama available");
+
+  // Verify model dimensions (Scenario #13)
+  console.log("🔍 Verifying model dimensions...");
+  try {
+    await verifyModelDimensions(DEFAULT_MODEL, 1024);
+    console.log("  ✅ bge-m3 returns 1024-dim embeddings");
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+
+  // 2. Authenticate
+  console.log("\n🔐 Authenticating...");
+  const { client } = await createRagClient();
+  console.log("  ✅ Authenticated");
+
+  // 3. Collect all content sources
+  console.log("\n📖 Collecting articles...");
+  const articleChunks = collectArticles();
+
+  console.log("\n🎬 Collecting scene-data...");
+  const sceneChunks = await collectSceneData();
+
+  console.log("\n📋 Collecting source materials...");
+  const sourceMaterialChunks = collectMarkdownSource(
+    join(projectRoot, "docs", "refs", "source-materials"),
+    "source-material",
+    ["INDEX.md"], // Exclude index file
+  );
+
+  console.log("\n🔬 Collecting research reports...");
+  const researchChunks = collectMarkdownSource(join(projectRoot, "docs", "research"), "research");
+
+  console.log("\n🎵 Collecting TikTok references...");
+  const tiktokChunks = collectMarkdownSource(
+    join(projectRoot, "docs", "refs", "tiktok-skills"),
+    "tiktok-ref",
+    ["AGENTS.md", "CLAUDE.md", "SKILL.md", "/raw/", "/lib/"], // Exclude agent configs, raw files, python lib
+  );
+
+  const allChunks = [
+    ...articleChunks,
+    ...sceneChunks,
+    ...sourceMaterialChunks,
+    ...researchChunks,
+    ...tiktokChunks,
+  ];
+
+  console.log(`\n📊 Total: ${allChunks.length} chunks to embed`);
+
+  if (allChunks.length === 0) {
+    console.log("  Nothing to index. Exiting.");
+    process.exit(0);
+  }
+
+  // 4. Generate embeddings in batches
+  console.log("\n🧠 Generating embeddings...");
+  const errorLog = [];
+  const chunksWithEmbeddings = [];
+
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+    const batch = allChunks.slice(i, i + BATCH_SIZE);
+    const texts = batch.map((c) => c.chunk_text);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(allChunks.length / BATCH_SIZE);
+
+    try {
+      const embeddings = await embed(texts);
+      for (let j = 0; j < batch.length; j++) {
+        chunksWithEmbeddings.push({
+          ...batch[j],
+          embedding: embeddings[j],
+        });
+      }
+      console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} chunks embedded`);
+    } catch (err) {
+      // Q19: Log failed batch, skip, continue
+      console.error(`  ⚠️  Batch ${batchNum} failed: ${err.message}`);
+      for (const chunk of batch) {
+        errorLog.push({
+          source_id: chunk.source_id,
+          chunk_index: chunk.chunk_index,
+          error: err.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  console.log(`\n✅ ${chunksWithEmbeddings.length} chunks embedded, ${errorLog.length} failed`);
+
+  // 5. UPSERT to Supabase
+  console.log("\n💾 Upserting to Supabase...");
+  await upsertChunks(client, chunksWithEmbeddings);
+  console.log(`  ✅ ${chunksWithEmbeddings.length} chunks upserted`);
+
+  // 6. Orphan cleanup (Q9, Q18)
+  console.log("\n🧹 Cleaning up orphaned embeddings...");
+  const currentSourceIds = [...new Set(allChunks.map((c) => c.source_id))];
+  await cleanupOrphans(client, currentSourceIds);
+  console.log(`  ✅ Orphan cleanup complete (${currentSourceIds.length} active sources)`);
+
+  // 7. Write error log if any failures
+  if (errorLog.length > 0) {
+    mkdirSync(outputDir, { recursive: true });
+    const errorLogPath = join(outputDir, "index-errors.log");
+    writeFileSync(errorLogPath, JSON.stringify(errorLog, null, 2));
+    console.log(`\n⚠️  ${errorLog.length} errors logged to ${errorLogPath}`);
+  }
+
+  // 8. Summary
+  console.log("\n" + "=".repeat(50));
+  console.log("✅ RAG Index Complete!");
+  console.log(`  Indexed:  ${chunksWithEmbeddings.length} chunks`);
+  console.log(`  Skipped:  ${errorLog.length} chunks (errors)`);
+  console.log(`  Sources:  ${currentSourceIds.length} active`);
+  console.log(`  Articles:     ${articleChunks.length} chunks`);
+  console.log(`  Scene-data:   ${sceneChunks.length} chunks`);
+  console.log(`  Source-mat:   ${sourceMaterialChunks.length} chunks`);
+  console.log(`  Research:     ${researchChunks.length} chunks`);
+  console.log(`  TikTok-refs:  ${tiktokChunks.length} chunks`);
+  console.log("=".repeat(50));
+}
+
+main().catch((err) => {
+  console.error(`\n❌ ${err.message}`);
+  process.exit(1);
+});

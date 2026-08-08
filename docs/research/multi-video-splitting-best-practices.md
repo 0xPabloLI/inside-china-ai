@@ -4,6 +4,8 @@
 > **调研方法**: Web Deep Research (CDP + 多源交叉验证)
 > **来源数量**: 15 个独立来源
 > **状态**: ✅ Complete
+>
+> **注意**: 本文撰写时管线有 HITL-1 / HITL-2 两个人工检查点。自 2026-08-07 起已合并为单一 HITL（视频成品审阅）。文中 "HITL-2" 均指当前的 HITL 检查点。现行管线定义见 `docs/content-pipeline.md`。
 
 ---
 
