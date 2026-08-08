@@ -817,33 +817,31 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    完整指南：docs/tiktok/tiktok-best-practices.md
    ```
 
-   **📌 Pinned Comment 模板**（Agent 根据当期视频内容生成，用户发布后在 TikTok App 手动发评论并置顶）：
+   **📦 发布包**（Agent 从 generate-caption.mjs 输出中读取，直接给用户复制粘贴）：
 
-   模板 A — 引流型（有文章 URL 时）：
    ```
-   Full analysis with data sources and charts: [文章 URL]
-   ```
-
-   模板 B — 引发讨论型（新号阶段推荐，激发评论）：
-   ```
-   [一个与视频内容相关的二选一问题]
-   Example: "Do you think DeepSeek can catch up to OpenAI? Why or why not?"
-   ```
-
-   模板 C — 补充信息型（视频里没展开的点）：
-   ```
-   [视频中提到但没展开的一个数据点/细节]
-   Example: "Fun fact: DeepSeek's R1 model was trained for less than $6M. That's 1/20th of GPT-4's training cost."
+   📋 Caption（复制粘贴到 TikTok 发布界面）
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   [读取 output/tiktok-caption.txt 内容，原样输出]
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   
+   📌 Pinned Comment（发布后在评论区手动发这条，然后长按置顶）
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   [读取 output/tiktok-pinned-comment.txt 内容，原样输出]
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ```
 
-   模板 D — 简单指令型（最容易获得回复）：
-   ```
-   Comment "AI" and I'll DM you the full report 📊
-   ```
-
-   > Agent 每次根据视频内容选择最合适的模板，生成具体文案供用户直接复制粘贴。新号阶段（<500 粉）推荐用模板 B 或 D 激发互动。
+   > Agent 每次根据当期视频内容自动生成 Caption（含评论钩子）和 Pinned Comment。如果用户修改了 scene-data（如更新了文章 URL），重新运行 `generate-caption.mjs` 后这些内容会自动更新。Agent 在 HITL 输出时读取最新生成的文件内容。
 
 7. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
+
+> **视频/脚本修改时的自动更新规则**：如果用户在 HITL 阶段要求修改视频或 scene-data（如"改一下 Hook"、"更新一下文案"、"加个数据"），Agent 修改完成并重新渲染视频后，**必须自动重新运行 `generate-caption.mjs`** 以更新 Caption 和 Pinned Comment，然后重新输出发步包（步骤 6），确保用户拿到的始终是最新的 Caption 和 Pinned Comment。不需要用户额外要求"帮我更新 caption"。
+>
+> ```bash
+> # 修改 scene-data 后自动执行
+> node scripts/short-video/generate-caption.mjs --content <dir>
+> # 然后重新读取 output/tiktok-caption.txt 和 output/tiktok-pinned-comment.txt
+> ```
 
 > ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。MRL-3 的自动合规检查是必要条件但非充分条件 — 机器无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。
 >

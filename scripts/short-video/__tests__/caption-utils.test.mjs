@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveTitle, deriveDescription, deriveHashtags } from "../lib/caption-utils.mjs";
+import { deriveTitle, deriveDescription, deriveHashtags, deriveCommentHook, derivePinnedComment } from "../lib/caption-utils.mjs";
 
 // ─── Mock scene data (mirrors real scene-data.mjs format) ───
 
@@ -65,9 +65,14 @@ describe("S1: Full metadata", () => {
     expect(result.length).toBeLessThanOrEqual(60);
   });
 
-  it("uses metadata description when present", () => {
+  it("uses metadata description when present (with comment hook appended)", () => {
     const result = deriveDescription(mockScenes, fullMetadata);
-    expect(result).toBe(fullMetadata.description);
+    // Should start with the metadata description
+    expect(result).toContain(fullMetadata.description);
+    // Should end with CTA
+    expect(result).toMatch(/follow|subscribe/i);
+    // Should include a comment hook (question)
+    expect(result).toMatch(/\?/);
   });
 
   it("uses metadata hashtags when present", () => {
@@ -258,5 +263,43 @@ describe("Edge cases", () => {
   it("handles null metadata", () => {
     const result = deriveTitle(mockScenes, null);
     expect(result).toBeTruthy();
+  });
+});
+
+// ─── S7: Comment Hook & Pinned Comment ───
+
+describe("S7: Comment Hook & Pinned Comment", () => {
+  it("derives a comment hook from scene data", () => {
+    const result = deriveCommentHook(mockScenes, undefined);
+    expect(result).toBeTruthy();
+    expect(result.length).toBeGreaterThan(10);
+    // Should be a question
+    expect(result).toMatch(/\?/);
+  });
+
+  it("uses metadata commentHook when provided", () => {
+    const meta = { commentHook: "Will DeepSeek beat OpenAI?" };
+    const result = deriveCommentHook(mockScenes, meta);
+    expect(result).toBe("Will DeepSeek beat OpenAI?");
+  });
+
+  it("derives a pinned comment with article URL", () => {
+    const meta = { articleUrl: "https://chinaainews.com/posts/deepseek-test" };
+    const result = derivePinnedComment(mockScenes, meta);
+    expect(result).toContain("https://chinaainews.com/posts/deepseek-test");
+    // Should also contain a question (the hook)
+    expect(result).toMatch(/\?/);
+  });
+
+  it("derives a pinned comment without article URL (just the hook)", () => {
+    const result = derivePinnedComment(mockScenes, undefined);
+    expect(result).toBeTruthy();
+    expect(result).toMatch(/\?/);
+  });
+
+  it("comment hook is included in description", () => {
+    const desc = deriveDescription(mockScenes, undefined);
+    const hook = deriveCommentHook(mockScenes, undefined);
+    expect(desc).toContain(hook);
   });
 });

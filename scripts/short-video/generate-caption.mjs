@@ -18,7 +18,7 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-import { deriveTitle, deriveDescription, deriveHashtags } from "./lib/caption-utils.mjs";
+import { deriveTitle, deriveDescription, deriveHashtags, derivePinnedComment } from "./lib/caption-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -55,6 +55,7 @@ async function main() {
   const title = deriveTitle(scenes, metadata);
   const description = deriveDescription(scenes, metadata);
   const hashtags = deriveHashtags(scenes, metadata);
+  const pinnedComment = derivePinnedComment(scenes, metadata);
 
   // ─── Assemble caption text ───
   const hashtagLine = hashtags.join(" ");
@@ -65,6 +66,7 @@ async function main() {
     title,
     description: `${description}\n\n${hashtagLine}`,
     hashtags,
+    pinnedComment,
     generatedAt: new Date().toISOString(),
     source: metadata ? "scene-data-metadata" : "auto-derived",
   };
@@ -75,14 +77,18 @@ async function main() {
   }
 
   // ─── Write files ───
+  const PINNED_COMMENT_PATH = join(OUTPUT_DIR, "tiktok-pinned-comment.txt");
+
   writeFileSync(CAPTION_TXT_PATH, captionText, "utf8");
   writeFileSync(METADATA_JSON_PATH, JSON.stringify(metadataJson, null, 2) + "\n", "utf8");
+  writeFileSync(PINNED_COMMENT_PATH, pinnedComment, "utf8");
 
   console.log("📝 Caption generated:");
   console.log(`   Title:       ${title} (${title.length} chars)`);
-  console.log(`   Description: ${description.length} chars (incl. CTA)`);
+  console.log(`   Description: ${description.length} chars (incl. CTA + comment hook)`);
   console.log(`   Hashtags:    ${hashtags.join(" ")} (${hashtags.length})`);
   console.log(`   Total caption: ${captionText.length} chars (limit: 2200)`);
+  console.log(`   Pinned comment: ${pinnedComment}`);
   console.log(`   Source:      ${metadataJson.source}`);
   console.log(`\n📁 Files written:`);
   console.log(`   ${CAPTION_TXT_PATH}`);
