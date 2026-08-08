@@ -9,21 +9,21 @@
 
 ## 🔄 新 Session 接续指南
 
-**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅ · WP-4 实体注册表 ✅ · WP-7 Frontmatter 扩展 ✅ · WP-8 TikTok PDF 结构化 ✅ · WP-11 Golden Query 评估集 ✅ · Slug 一致性修正 ✅
+**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅ · WP-2 公司档案 ✅ · WP-4 实体注册表 ✅ · WP-5 Widget 数据文档化 ✅ · WP-7 Frontmatter 扩展 ✅ · WP-8 TikTok PDF 结构化 ✅ · WP-11 Golden Query 评估集 ✅ · Slug 一致性修正 ✅
 
-**待做（4 个 WP）**：
+**待做（3 个 WP）**：
 
 | 优先级 | WP | 说明 | 依赖 | 预估工作量 |
 |--------|----|------|------|------------|
 | ✅ 完成 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | 1 session |
+| ✅ 完成 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session |
 | ✅ 完成 | WP-4 | 实体注册表（18 companies + 10 people + 26 models） | WP-2 | 0.5 session |
+| ✅ 完成 | WP-5 | Widget 数据文档化（13 个 data 文件 → markdown） | 无 | 1 session |
 | ✅ 完成 | WP-7 | 文章 Frontmatter 扩展（3 篇文章 topics/entities/sources） | WP-4 | 0.5 session |
 | ✅ 完成 | WP-8 | TikTok 方法论 PDF 结构化（8 sections） | 无 | 1 session |
 | ✅ 完成 | WP-11 | Golden Query 评估集（18 条，4 种用例） | WP-10 ✅ | 0.5 session |
-| 🔴 高 | WP-5 | Widget 数据文档化（提取 sourceUrl） | 无 | 1 session |
-| 🔴 高 | WP-6 | Scene-data Metadata 统一与补全 | 无 | 1 session |
-| 🟡 中 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session |
-| 🟢 低 | WP-3 | 主题事件时间线文档 | WP-2 | 1 session |
+| 🔄 进行中 | WP-6 | Scene-data Metadata 统一与补全（任务 3/4 完成，1/2/5 待做） | 无 | 1 session |
+| 🟢 低 | WP-3 | 主题事件时间线文档 | WP-2 ✅ | 1 session |
 | 🟢 低 | WP-9 | 素材索引文档 | WP-1/2/3/6 | 0.5 session |
 
 **关键产出文档（新 session 必读）**：
@@ -31,14 +31,27 @@
 2. `docs/spec-rag.md` — 技术规格（schema、脚本设计、26 行场景矩阵）
 3. `docs/tickets-rag.md` — 代码实施 tickets（Phase 1/2 gated，当前不需要）
 4. `docs/adr/0007-rag-pipeline-decisions.md` — 6 个架构决策
+5. `docs/refs/entity-registry.yaml` — 实体注册表（18 companies + 10 people + 26 models）
+6. `docs/refs/rag-eval/golden-queries.yaml` — Golden Query 评估集（18 条）
+7. `docs/refs/source-materials/widget-data/` — Widget 数据文档（13 个文件）
+
+**遗留问题（新 session 需关注）**：
+
+| # | 问题 | 关联 WP | 严重度 | 说明 |
+|---|------|---------|--------|------|
+| 1 | restraint-pt2 内容缺失 | WP-6 | 🟡 中 | `content/restraint/pt1/` 的 `nextPartSlug` 仍指向 `restraint/pt2`，但 pt2 目录不存在（内容缺失）。pt3 的 `prevPartSlug` 已置 null。不影响 RAG 索引，但 scene-data 系列链接断裂。 |
+| 2 | WP-6 任务 1/2 延迟 | WP-6 | 🟡 中 | 用户此前决定推迟「定义扩展 meta.mjs 字段标准」和「回填扩展字段」——历史数据在实验阶段、管线变动中，RAG 实施前统一处理。任务 5（verify-video preflight 校验）为可选项。 |
+| 3 | WP-3 未开始 | WP-3 | 🟢 低 | 4 个事件时间线文档未创建。依赖 WP-2 ✅ 已满足，可直接启动。产出路径：`docs/refs/source-materials/event-timelines/`。 |
+| 4 | WP-9 未开始 | WP-9 | 🟢 低 | 素材索引文档未创建。依赖 WP-1 ✅ + WP-2 ✅ + WP-3（未完成）+ WP-6（部分完成）。可先做 Materials→Articles→Videos 和 Company Profiles 两个 section，Event Timelines section 标 TBD。 |
 
 **新 session 工作流**：
-1. 读本文档，选择要做的 WP（建议从 🔴 高优先级开始）
-2. 读对应 WP 的任务清单（本文档内）
-3. 执行任务，完成后更新 WP 状态标记（⏳ → ✅）
-4. Commit + push
+1. 读本文档，查看「遗留问题」表和「待做」表
+2. 选择要做的 WP（WP-3 和 WP-9 可直接启动，WP-6 需确认是否继续推进任务 1/2）
+3. 读对应 WP 的任务清单（本文档内）
+4. 执行任务，完成后更新 WP 状态标记（⏳ → ✅）
+5. Commit + push
 
-**Phase 1 代码实施**：当文章 ≥ 20 或 scene-data ≥ 10 时，读 `docs/tickets-rag.md` 从 T-10 开始。
+**Phase 1 代码实施**：当文章 ≥ 20 或 scene-data ≥ 10 时，读 `docs/tickets-rag.md` 从 T-10 开始。当前：3 篇文章 + 7 个 scene-data，**未达阈值**。
 
 ---
 
@@ -544,7 +557,7 @@ models:
 
 ---
 
-### WP-5: Widget 数据文档化 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-5: Widget 数据文档化 📝 纯文档工作 ｜ 状态：✅ 完成（2026-08-08）
 
 **目标**：将 13 个 widget data 文件（6 个 widget 目录）的硬编码数据文档化为 markdown 参考文件。
 
@@ -552,7 +565,7 @@ models:
 
 **依赖**：无
 
-**输出**：`docs/refs/source-materials/widget-data/` 目录下 13 个 markdown 文件
+**输出**：`docs/refs/source-materials/widget-data/` 目录下 13 个 markdown 文件 ✅ 已创建
 
 **每个文件格式**：
 
@@ -1130,12 +1143,14 @@ Agent 根据检索结果：
 |---------|---------|---------|------|
 | ✅ 已完成 | D1-D5 决策确认 | 无 | ✅ |
 | ✅ 已完成 | WP-10 技术方案文档 | D1-D5 | ✅ |
-| Session A | WP-1 + WP-5 + WP-6（无依赖，可并行） | 无 | ⏳ |
-| Session B | ~~WP-2（公司档案，7 家，可分多 session）~~ ✅ 完成 | 无 | ✅ |
-| Session C | WP-7 + WP-8（Frontmatter + TikTok PDF） | 无 | ⏳ |
-| Session D | WP-3 + WP-4（时间线 + 实体注册表） | WP-2 | ⏳ |
-| Session E | WP-9（素材索引文档） | WP-1/2/3/6 | ⏳ |
-| Session F | WP-11（Golden query 评估集） | WP-10 ✅ | ⏳ |
+| ✅ 已完成 | WP-1（源素材格式标准化） | 无 | ✅ |
+| ✅ 已完成 | WP-2（公司档案，7 家） | 无 | ✅ |
+| ✅ 已完成 | WP-5（Widget 数据文档化，13 个文件） | 无 | ✅ |
+| ✅ 已完成 | WP-7 + WP-8（Frontmatter + TikTok PDF） | 无 | ✅ |
+| ✅ 已完成 | WP-4 + WP-11（实体注册表 + Golden query） | WP-2 ✅ / WP-10 ✅ | ✅ |
+| Session G | WP-6 剩余任务 1/2/5（meta.mjs 扩展） | 无 | 🔄 |
+| Session H | WP-3（事件时间线文档） | WP-2 ✅ | ⏳ |
+| Session I | WP-9（素材索引文档） | WP-1/2/3/6 | ⏳ |
 | — | **Phase 1 代码实施**（读 `docs/tickets-rag.md`） | 20+ 文章或 10+ 视频脚本 + 全部 WP 完成 | ⏳ |
 
 > WP-1/2/5/6/7/8 可并行。每个 session 完成后 commit + push，并更新对应 WP 的状态标记。
@@ -1156,3 +1171,4 @@ Agent 根据检索结果：
 | 2026-08-08 | 遗留引用清理：① distillation pt1-3 的 `prevPartSlug`/`nextPartSlug` 由已删除的 `scene-data-pt*.mjs` 改为标准 `distillation/ptN` 路径 ② restraint pt1 `nextPartSlug` 置 null（pt2 未创建，留作未来任务）③ `docs/content-pipeline.md`（多集结构说明、pipeline-status 示例、HITL-2 残留、main.mjs CLI）与 `docs/video-workflow.md`（Plan B 命令）更新为当前约定 ④ `compile-series-reconstruct.mjs` next-step 提示修正 ⑤ `deepseek-liang-investor-meeting-research.md` 场景位置引用修正 |
 | 2026-08-08 | WP-2 完成：7 家中国 AI 公司档案全部建档（DeepSeek、ByteDance、Moonshot/Kimi、MiniMax、Alibaba/Qwen、Baidu/ERNIE、Huawei/Ascend）。输出到 `docs/refs/company-profiles/`。ByteDance 档案含 Platform Context 章节（TikTok 关系）。`content-pipeline.md` Stage 1b/3 增加公司档案查阅规则。数据来源：现有文章/widget/research docs + Wikipedia 交叉验证。WP-4（实体注册表）和 WP-3（事件时间线）的前置依赖已满足，可启动。 |
 | 2026-08-08 | WP-4/7/8/11 完成 + Slug 一致性修正（commit `747a122`）：① Slug 修正：DB slug `deepseek-leaked-investor-meeting` → `deepseek-art-of-restraint`；3 个 distillation meta.mjs article 字段 `china-llm-distillation-scandal` → `china-llm-distillation-storm` ② WP-4：创建 `docs/refs/entity-registry.yaml`（18 companies + 10 people + 26 models，snake_case ID 约定） ③ WP-7：3 篇文章 frontmatter 扩展（topics 全小写、entities 用 entity-registry ID、sources 含 PDF/URL 引用） ④ WP-8：`docs/refs/tiktok-skills/content-methodology.md`（10 页 PDF → 8 个 ## section 结构化 markdown） ⑤ WP-11：`docs/refs/rag-eval/golden-queries.yaml`（18 条 query，覆盖跨语言 5 + entity alias 4 + 数据点 5 + 负例 3 + 方法论 3）。tsc 通过，preflight 27 PASS/1 FAIL（预存 hook contract 问题，与本次修改无关）。Spec/tickets 已归档至 `docs/archive/`。 |
+| 2026-08-08 | WP-5 完成：13 个 widget data 文件文档化，输出到 `docs/refs/source-materials/widget-data/`。覆盖 6 个 widget 目录（deepseek × 5、deepseek-agi-roadmap、deepseek-api-pricing、deepseek-oss-comparison、deepseek-vision、distillation × 4）。每个文件含 Data（TS 数据结构转 markdown 表格）、Sources（含 explicit sourceUrl/url 的原文链接）、Related Articles（文章嵌入状态）。盘点：5 个 deepseek core widget 未嵌入文章（cloud/talent/funding/pricing/companies + agi-roadmap/vision-keywords），7 个 widget 嵌入 3 篇文章（oss-comparison + api-pricing → deepseek-art-of-restraint；news-coverage → distillation-storm + bytedance；benchmark/identity-bleed/moonshot-funding/minimax-stock → distillation-storm）。RAG 关联：widget data 不直接索引，extract-widget-sources.mjs 提取 sourceUrl 后索引原始资料（Grill Q11 决策不变）。 |
