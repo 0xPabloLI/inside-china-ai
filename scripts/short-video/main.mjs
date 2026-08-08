@@ -158,9 +158,7 @@ async function main() {
       console.error(
         "\n❌ DOM layout verification FAILED — scene content enters a TikTok safe zone.",
       );
-      console.error(
-        "   Fix the scene layout (slot system, docs/brand-system.md), or bypass with",
-      );
+      console.error("   Fix the scene layout (slot system, docs/brand-system.md), or bypass with");
       console.error("   --skip-dom-check (escape hatch only, not recommended).");
       process.exit(1);
     }

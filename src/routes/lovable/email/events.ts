@@ -55,4 +55,3 @@ export const Route = createFileRoute("/lovable/email/events")({
     },
   },
 });
-
