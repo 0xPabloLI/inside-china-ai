@@ -1,6 +1,6 @@
 # Tickets: TikTok 视频色调优化 — Feed 分离度增强
 
-> **Spec**: `docs/specs/spec-color-scheme-optimization.md`
+> **Spec**: `docs/archive/spec-color-scheme-optimization.md`
 > **调研报告**: `docs/research/tiktok-color-scheme-research.md`
 > **Handoff**: `docs/handoffs/video-layout-standard.md`
 > **创建日期**: 2026-08-08

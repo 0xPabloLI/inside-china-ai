@@ -88,7 +88,7 @@ function baseStyles(duration) {
        with scene content. */
     .brand-watermark { position: absolute; top: ${WATERMARK_POS.top}px; left: ${WATERMARK_POS.left}px; width: 55px; height: 55px; opacity: 0.35; z-index: 100; pointer-events: none; }
     .brand-watermark svg { width: 100%; height: 100%; }
-    /* Frame glow — Feed separation layer (spec: docs/specs/spec-color-scheme-optimization.md §2.2).
+    /* Frame glow — Feed separation layer (spec: docs/archive/spec-color-scheme-optimization.md §2.2).
        Decorative border + inner glow on every scene frame edge; solves the
        dark-video-against-dark-TikTok-UI camouflage problem. CTA scenes use the
        .blue variant. pointer-events: none; not content; safe-zone-exempt. */

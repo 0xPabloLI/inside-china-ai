@@ -49,7 +49,7 @@
 ```
 
 - 槽位 x 区间按 SAFE_ZONES（left 60 / right 160 → 内容宽 860px）。这是对 Grill R1-Q3「对称 60 + 限宽 860」的修正落法：D3 已锁定 slotCss 按 SAFE_ZONES，两者产出的文本宽度同为 860px，但右缘硬收在 920（右栏实际遮挡区之外），比屏幕对称更符合平台现实
-- 动画时序契约固化进模板：brandBar 0.1s → badge 0.3s → subject 0.3–0.5s → hookText 0s（首帧可见，无延迟）→ bigNumber 0.8s / revealText 1.5s 砸入 → stats 1.3s 起 stagger → source 2.1s
+- 动画时序契约固化进模板：brandBar 0.1s → badge 0.2s → subject 0.2–0.4s → hookText 0s（首帧可见，无延迟）→ bigNumber 0.3s / revealText 0.8s 砸入 → stats 0.8s 起 stagger → source 1.3s。优化依据：TikTok Analytics 显示观众在 0:02 流失，原 bigNumber 0.8s 延迟使核心视觉元素在观众离开时刚出现。
 - 动画只用 baseStyles() 已内置 keyframes，唯一例外：`scanSweep` 由 hookScene 以模板级局部 keyframe 声明一次（见「关键设计决策」D-4）
 - `withWatermark` 因 brandBar 存在自动跳过（复用现有机制）
 - 警报型不归第三变体：归入断言型 + `color: "red"`（红 glow + 红 revealText）
