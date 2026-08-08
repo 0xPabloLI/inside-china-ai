@@ -27,7 +27,7 @@ The brand uses **one visual identity, two surface treatments** — same semantic
 
 ### Why different base palettes
 
-A magazine-style blog and a YouTube Short have different UX constraints. Bloomberg's website is white底 magazine; Bloomberg's video is dark high-contrast data-viz. Same brand, different media, different visual density. We follow the same principle — the video palette leads, the web palette adapts for readability.
+A magazine-style blog and a YouTube Short have different UX constraints. Bloomberg's website is white-background magazine; Bloomberg's video is dark high-contrast data-viz. Same brand, different media, different visual density. We follow the same principle — the video palette leads, the web palette adapts for readability.
 
 ## Color Tokens (Video)
 

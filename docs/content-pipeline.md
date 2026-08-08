@@ -11,9 +11,7 @@
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
-> **工作流变更（2026-08-07）**：原 HITL-1（文章审阅）和 HITL-2（脚本审阅）已移除。MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停等待用户确认。唯一的人工确认点是 **HITL 视频审阅**（原 HITL-3）：用户看视频成品后一次性确认文章 + 脚本 + 视频质量。
->
-> **工作流变更（2026-08-07，第二次）**：网站发布（文章 + 附件 + 视频 MP4）从 Stage 2 移到 HITL 确认之后执行。原因：如果用户在 HITL 指出文章或视频需要修改，网站上的内容还未发布，不需要同步更新。所有发布动作（网站 + TikTok）在 HITL 确认后一次性完成。
+MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的人工确认点是 **HITL 视频审阅**：用户看视频成品后一次性确认文章 + 脚本 + 视频质量。所有发布动作（网站 + TikTok）在 HITL 确认后一次性完成。
 
 ### 语言规则
 
@@ -28,8 +26,6 @@
 | 检查点   | 位置                           | 审阅内容                                                        | 确认方式              |
 | -------- | ------------------------------ | --------------------------------------------------------------- | --------------------- |
 | **HITL** | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 markdown 内容 + 场景概览表 | 用户说「视频 OK，发布」 |
-
-> **工作流变更（2026-08-07）**：原 HITL-1（文章审阅）和 HITL-2（脚本审阅）已合并到此检查点。用户看视频成品时同时审阅文章和脚本质量。MRL-1 和 MRL-2 仍自动运行，但通过后不暂停。
 
 > **Agent 行为约束**：用户未明确确认前，Agent 不得执行 TikTok 发布。确认必须是用户主动发出（如「继续」「OK」「确认」「发布」等），Agent 不得自行假设确认。
 
@@ -427,9 +423,9 @@ Anthropic framed this as a national security risk. _(✅ Verified: [Anthropic bl
 CEO Yang Zhilin cited "cost reduction" as the rationale for downsizing the RL team. _(🔴 Contradicts public data: no public reports of RL team layoffs; Yang still described as leading RL per [Business Insider](https://businessinsider.com/...))_
 ```
 
-#### 🔄 MRL-1: 文章自审（HITL-1 前置）
+#### 🔄 MRL-1: 文章自审
 
-Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blockers 后才进入 HITL-1。
+Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blockers 后直接进入 Stage 2。
 
 **Blockers（任一 FAIL = 必须修复后重新检查）：**
 
@@ -456,8 +452,6 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blo
 | W5  | SEO 关键词   | slug 或 excerpt 中缺少核心关键词 |
 
 **循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → **直接进入 Stage 2（不暂停）**。
-
-> **工作流变更（2026-08-07）**：MRL-1 通过后不再暂停等待用户确认。Agent 直接发布文章并继续到视频制作。用户在最终 HITL 视频审阅时一并审阅文章质量。
 
 > ⚠️ 如有新 widget，Agent 仍需提示用户需要 `npm run build` + 部署后才能发布（这是部署依赖，非审阅检查点）。
 
@@ -692,7 +686,7 @@ TikTok 没有独立封面图——视频的第一帧就是封面。封面（hook
 
 ### 🔄 MRL-2: 脚本自审
 
-Agent 写完每集 `content/<dir>/scene-data.mjs` 后，**先运行 MRL-2 自审循环**（每集单独检查），0 Blockers 后才进入 Stage 4（2026-08-07 起 HITL-2 已移除，不再暂停）。
+Agent 写完每集 `content/<dir>/scene-data.mjs` 后，**先运行 MRL-2 自审循环**（每集单独检查），0 Blockers 后直接进入 Stage 4（不暂停）。
 
 **Blockers（任一 FAIL = 必须修复后重新检查）：**
 
@@ -722,8 +716,6 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，**先运行 MRL-2 自审
 
 **循环流程**：Agent 对每集 scene-data 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部集数全部 Blocker PASS → 输出 MRL-2 报告 → **直接进入 Stage 4（不暂停）**。
 
-> **工作流变更（2026-08-07）**：MRL-2 通过后不再暂停等待用户确认。Agent 直接启动视频制作。用户在最终 HITL 视频审阅时一并审阅脚本质量。
-
 ---
 
 ## Stage 4: 视频制作
@@ -746,7 +738,7 @@ node scripts/short-video/main.mjs --bgm          # TTS → HTML → 录制 → �
 
 ### 🔄 MRL-3: 视频自审（HITL 前置）
 
-MRL-3 即现有的 `verify-video.mjs` 流程，正式命名为 MRL-3。验证不通过时 Agent 自动修复并重跑，**循环直到 0 failures** 才进入 HITL-3。
+MRL-3 即现有的 `verify-video.mjs` 流程，正式命名为 MRL-3。验证不通过时 Agent 自动修复并重跑，**循环直到 0 failures** 才进入 HITL。
 
 ```bash
 node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查 = MRL-3
@@ -845,9 +837,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 > # 然后重新读取 output/tiktok-caption.txt 和 output/tiktok-pinned-comment.txt
 > ```
 
-> ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。MRL-3 的自动合规检查是必要条件但非充分条件 — 机器无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。
->
-> **工作流变更（2026-08-07）**：此检查点合并了原 HITL-1（文章审阅）和 HITL-2（脚本审阅）。用户在看视频时同时审阅文章和脚本。如果文章或脚本有问题，用户可以在此检查点反馈，Agent 会回溯修改并重新制作。
+> ⚠️ Agent 不得在用户未确认前自动执行 TikTok 发布。MRL-3 的自动合规检查是必要条件但非充分条件 — 机器无法判断内容质量、叙事流畅度、TTS 自然度等主观维度。用户在看视频时同时审阅文章和脚本，如有问题可在此反馈，Agent 会回溯修改并重新制作。
 >
 > **质量门控**：如果视频质量不达标（TTS 不自然、字幕错位、视觉问题等），Agent 应建议用户不发布而非强行发布。不要为了发而发——发布低质量内容会损害账号健康（见 `docs/tiktok/tiktok-best-practices.md` 账号健康管理章节）。Agent 应明确告知用户质量问题并建议修复后重新渲染。
 
@@ -964,5 +954,3 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
    - Agent 在修改时应输出「联动检查报告」，明确列出：修改了哪些层（文章 / 脚本 / 视频）、为什么联动（或不联动）、修改了哪些具体内容
    - 修改后重新运行相关 MRL → 重新进入 HITL
 5. **Stage 1-4 全自动** — MRL 是自审门，HITL 是唯一人工门：机器先过滤机械性错误，人工只在最终成品处审阅
-
-> **工作流变更（2026-08-07）**：原 3 个 HITL（文章审阅 + 脚本审阅 + 视频审阅）合并为 1 个 HITL（视频审阅）。MRL-1 和 MRL-2 仍自动运行但不暂停。用户在看视频成品时一并审阅文章和脚本质量，减少中间等待环节。

@@ -42,24 +42,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 
 #### Subtitle Best Practices
 
-| Parameter   | Value                                      | Rationale                                                |
-| ----------- | ------------------------------------------ | -------------------------------------------------------- |
-| Font size   | **60px** (was 42px)                        | Matches TikTok native ~60px em (≈3.1% of frame height); readable at phone + thumbnail scale |
-| Font weight | **Bold**                                   | Thin text vanishes on bright backgrounds                 |
-| Style       | **Karaoke `\kt` + `\kf`** (word-by-word highlight) | TikTok-native feel; `\kt` anchors each word absolutely so rounding error can't accumulate across a line |
-| Chunks      | **≤6 words**, pixel-measured: single line ≤ **720px** hard, soft break at 612px (85%) when ≥2 words remain | Users read ~2.5 words/sec; longer chunks get skipped. Pixel widths (Helvetica-Bold AFM, `lib/subtitles/measure.mjs`) replace char heuristics |
-| Max width   | **720px** (180px margins L/R → cue right edge x=900, clears the action rail) | Derived from `SUBTITLE_LANE.maxWidth` |
-| Rendering   | **FFmpeg ASS native burn-in** (ffmpeg-full) | CSS/JS approaches abandoned; ASS gives pixel-perfect control |
-| Position    | `MarginV=570` (ASS)                        | Cue bottom edge y=1350 — below content (ends y1150), above the TikTok caption zone (starts ~y1500) |
-| Timing      | **wav2vec2 forced alignment** (`text-align.py`) | Per-word timestamps; `\kf` tags use actual audio timing |
-| Primary color | Dispatch Blue `#4d8bff`                   | Spoken words — hue shift, not a luminance drop, so read words stay legible |
-| Secondary color | White `#F5F5F5`                         | Unspoken words (waiting to be spoken)                    |
-| Background  | **None** (transparent, 3px black outline)  | Clean look; outline provides contrast on any scene       |
-| Generation  | `lib/subtitles/` (JS)                      | Cue text is derived from its own word list, so a word can never be shown without timing |
-| Cue timing  | 2-frame lead-in, ≥0.8s on screen, 0.5s hold-out, gaps either 2 frames or ≥0.5s | Netflix Timed Text Style Guide, converted to 30fps |
-| Scene 1     | ✅ Now has subtitles (was skipped)         | User feedback: subtitles should appear from the start    |
-
-> All subtitle values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them. The subtitle lane (y≈1188–1350) is structurally separated from the content band (ends y=1150), so burned subtitles can never overlap scene content.
+Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/brand-system.md` → Subtitle Specification. All values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them.
 
 ### Pacing
 
@@ -99,7 +82,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 ## Brand Voice
 
 - **Tone**: Intelligence briefing. Authoritative, fast, no fluff.
-- **Pace**: XTTS v2 (Craig Gutsy, speed=1.15) or Kokoro (am_michael, speed=1.1), silenceremove post-process
+- **Pace**: F5-TTS-MLX (cloned voice, speed=1.0). Fallback engines below.
 - **Visual**: Cyber Intelligence Briefing — dark, grid, glow, scanlines
 - **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (FOLLOW FOR MORE — the standard end-card action) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
 
@@ -160,7 +143,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 - **Watermark** (top-left on non-brand scenes): 55px, `opacity: 0.35`, at `top: 60px; left: 60px` (`WATERMARK_POS` in `lib/safe-zones.mjs`)
 - **CTA scene**: 130px centered in the hero slot — rendered by the shared `ctaScene()` end card (`lib/scene-templates.mjs`), never hand-rolled
 
-> Legacy web PNGs (`china-ai-news-logo-gpt.png`, `china-ai-news-logo-vector.svg`) still exist under `scripts/short-video/assets/` but are NOT used by the video pipeline. `china-ai-news-logo-image-only.png` (referenced by older docs) does not exist.
+> Legacy web PNGs (`china-ai-news-logo-gpt.png`, `china-ai-news-logo-vector.svg`) still exist under `scripts/short-video/assets/` but are NOT used by the video pipeline.
 
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 
@@ -284,7 +267,7 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 
 | Section          | Path                                | Role                                                                       |
 | ---------------- | ----------------------------------- | -------------------------------------------------------------------------- |
-| Video Production | `AGENTS.md` → `## Video Production` | Entry point — tells agent to load skills + read this file for optimization |
+| Content Pipeline | `AGENTS.md` → `## Content Pipeline` | Entry point — tells agent to load skills + read this file for optimization |
 
 ### Code — Pipeline
 

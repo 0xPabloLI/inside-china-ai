@@ -72,7 +72,7 @@ _Avoid_: Feed, scraper
 
 ## Content Pipeline
 
-**HITL Checkpoint**: A mandatory human-review gate in the content pipeline. The agent must pause, output the review content, and wait for explicit user confirmation before proceeding. Three checkpoints: HITL-1 (Article), HITL-2 (Scene Data), HITL-3 (Video).
+**HITL Checkpoint**: A mandatory human-review gate in the content pipeline. The agent must pause, output the review content, and wait for explicit user confirmation before proceeding. One checkpoint: HITL (Video成品审阅), after MRL-3 passes and before publishing. The user reviews the video, article, and scene-data together.
 _Avoid_: Review, approval (too generic)
 
 **MRL** (Machine Review Loop): An automated self-review cycle that runs before each HITL Checkpoint. The agent checks its output against a Blocker/Warning checklist, fixes all Blockers, and loops until 0 Blockers before presenting to the user.

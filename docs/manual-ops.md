@@ -50,35 +50,9 @@
 ## 每次发布文章时
 
 > **前置条件**：HITL 已通过（用户确认「视频 OK，发布」）。
-> 文章发布在 HITL 确认后由 Agent 自动执行，不需要用户手动运行脚本。
+> 文章发布由 Agent 自动执行（文章发布 → 源素材附件上传 → 视频 MP4 上传 → 验证），详见 `docs/content-pipeline.md` Stage 5。
 
-| #   | 操作               | 说明                                                                                                                                                           |
-| --- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **检查 widget**    | 确认文中引用的 widget 已注册且已部署。如有新 widget，Agent 在 Stage 2 已部署。                                                                          |
-| 2   | **部署新 widget**  | 1. `npm run build` 构建（包括 widget 代码）<br>2. 访问 Lovable 编辑器 → 点击「Publish」部署。<br>**注意**：不要直接用 `npx wrangler deploy`，会丢失 Lovable 注入的环境变量。 |
-| 3   | **运行发布脚本**   | Agent 执行：`node scripts/article/publish-article.mjs --file <path>`                                                                                                       |
-| 4   | **上传源文件附件** | Agent 执行：`node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [path2 ...]`。所有引用的原始素材（PDF、报告等）必须上传。                             |
-| 5   | **上传视频 MP4**   | Agent 执行：`node scripts/article/upload-attachments.mjs --post <slug> --files <video-path>.mp4`。上传后文章页底部「Watch」区域自动显示视频播放器。                             |
-| 6   | **验证**           | 访问 `/posts/{slug}` 确认文章显示正常，widget 渲染正确，attachments 列表完整，视频播放器正常显示。                                                                             |
-
-### 发布脚本用法
-
-```bash
-# 发布文章
-node scripts/article/publish-article.mjs --file articles/my-article.md
-
-# 保存为草稿（不发布）
-node scripts/article/publish-article.mjs --file articles/my-article.md --draft
-
-# 上传源文件附件（发布后执行）
-node scripts/article/upload-attachments.mjs --post my-article --files docs/refs/source-materials/source.pdf
-
-# 上传多个文件
-node scripts/article/upload-attachments.mjs --post my-article --files source1.pdf source2.csv report.docx
-
-# 查看已有附件
-node scripts/article/upload-attachments.mjs --post my-article --list
-```
+唯一需要人工操作的：如有新 widget，需在 Lovable 编辑器点击「Publish」部署（不要用 `npx wrangler deploy`）。
 
 ---
 

@@ -103,14 +103,14 @@ GRANT ALL ON public.<table> TO service_role;
   3. `npm run build`
   4. 关键页面在本地 dev server 通过浏览器验证
 
-## 12. 禁区与反模式
+## 12. Stack 约束
 
-- 不要在 server function / SSR 中使用 Node-only 包（`child_process`、`sharp`、`puppeteer`、`canvas` 等）。
-- 不要在模块顶层使用 `Math.random()`、`crypto.randomUUID()`、文件 I/O 或浏览器全局变量。
-- 不要把敏感 key 命名为 `VITE_*`。
-- 不要把 `.server.ts` 文件导入到客户端路由。
-- 不要用 `fetch()` 手动调用 server function 的 `.url`；如需 raw HTTP，创建 server route。
-- 不要给 storage bucket 设 public；保持 private + RLS。
+- Server function / SSR：仅用浏览器兼容 API；Node-only 包（`child_process`、`sharp`、`puppeteer`、`canvas`）仅在后端脚本中使用。
+- 模块顶层：保持纯函数——`Math.random()`、`crypto.randomUUID()`、文件 I/O、浏览器全局变量放在 handler 内部。
+- `VITE_*` 前缀 = 公开 key；后端 secret 不加 `VITE_` 前缀，通过 Lovable Secrets 管理。
+- `.server.ts` 文件仅可在 server function / API route 中导入。
+- Server function 调用走 `useServerFn`；如需 raw HTTP，创建 server route。
+- Storage bucket 保持 private + RLS 控制访问。
 
 ## 13. 快速检查清单（每次发布前）
 
