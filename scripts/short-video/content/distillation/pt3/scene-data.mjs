@@ -9,7 +9,7 @@ export const seriesMeta = {
   seriesId: "china-llm-distillation-storm",
   partNumber: 3,
   totalParts: 3,
-  prevPartSlug: "scene-data-pt2.mjs",
+  prevPartSlug: "distillation/pt2",
   nextPartSlug: null,
   hookType: "recap",
   rewatchElement: "loop-reveal",

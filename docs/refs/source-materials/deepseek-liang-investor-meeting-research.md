@@ -219,6 +219,6 @@
 
 - **Article**: `articles/deepseek-art-of-restraint.md` — 3-part video series based on this transcript
 - **Scene-data**: `scripts/short-video/content/restraint/pt1/` — Part 1: Vision Over KPIs
-- **Scene-data**: `scripts/short-video/content/restraint/pt2/` (root `scene-data-pt2.mjs`) — Part 2: The 10-Month Rule
-- **Scene-data**: `scripts/short-video/content/restraint/pt3/` (root `scene-data-pt3.mjs`) — Part 3: AGI Roadmap
+- **Scene-data**: `scripts/short-video/content/restraint/pt2/` (planned, not yet created) — Part 2: The 10-Month Rule
+- **Scene-data**: `scripts/short-video/content/restraint/pt3/` — Part 3: AGI Roadmap
 - **Widget**: `src/components/widgets/deepseek/` — DeepSeek company data (funding, pricing, people, keywords)

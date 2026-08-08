@@ -10,7 +10,7 @@ export const seriesMeta = {
   partNumber: 1,
   totalParts: 3,
   prevPartSlug: null,
-  nextPartSlug: "scene-data-pt2.mjs",
+  nextPartSlug: "distillation/pt2",
   hookType: "standalone",
   rewatchElement: "hidden-detail",
   compilationSlug: "china-llm-distillation-full",

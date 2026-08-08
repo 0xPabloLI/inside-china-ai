@@ -554,7 +554,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 ━━━━━━━━━━━━━━━━━━━━
 ```
 
-**多集 scene-data 命名**：`scene-data-pt1.mjs`、`scene-data-pt2.mjs` 等，每份含 `seriesMeta` 字段。
+**多集 scene-data 结构**：每集一个 `content/<series>/pt<N>/` 目录，内含 `meta.mjs`（文章级 metadata）+ `scene-data.mjs`（场景数组 + `seriesMeta` 字段）+ `scenes.mjs`（视觉模板）。示例：`content/distillation/pt1/`、`content/restraint/pt1/`。根目录 `scene-data-pt*.mjs` 遗留命名已废弃（2026-08-08 清理完毕）。
 
 ### 管线进度追踪
 
@@ -590,24 +590,24 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
   "videoParts": [
     {
       "part": 1,
-      "sceneData": "scene-data-pt1.mjs",
+      "sceneData": "content/distillation/pt1/scene-data.mjs",
       "status": "review-ready",
       "mrl": { "status": "pass", "blockers": 0, "warnings": 1 }
     },
     {
       "part": 2,
-      "sceneData": "scene-data-pt2.mjs",
+      "sceneData": "content/distillation/pt2/scene-data.mjs",
       "status": "review-ready",
       "mrl": { "status": "pass", "blockers": 0, "warnings": 0 }
     },
     {
       "part": 3,
-      "sceneData": "scene-data-pt3.mjs",
+      "sceneData": "content/distillation/pt3/scene-data.mjs",
       "status": "review-ready",
       "mrl": { "status": "pass", "blockers": 0, "warnings": 1 }
     }
   ],
-  "nextAction": "HITL-2: 等待用户确认 scene-data（MRL-2 已通过）"
+  "nextAction": "Stage 4: 视频制作（MRL-2 已通过，HITL-2 已于 2026-08-07 移除，不再暂停）"
 }
 ```
 
@@ -618,7 +618,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 - HITL 检查点暂停时，`nextAction` 字段写明等待什么，并标注 MRL 状态
 - 新 session 启动时，Agent 先读此文件判断是否有未完成管线，以及 MRL 是否已通过
 
-**`main.mjs` 支持**：`node main.mjs --scene scene-data-pt1.mjs`
+**`main.mjs` 支持**：`node main.mjs --content <dir>`（如 `deepseek`、`distillation/pt1`、`restraint/pt1`；要求目录内 `meta.mjs` + `scene-data.mjs` + `scenes.mjs` 三者齐备）
 
 ### 步骤
 
@@ -689,9 +689,9 @@ TikTok 没有独立封面图——视频的第一帧就是封面。封面（hook
 - 每集独立可看——不看前集也能看懂
 - 分开用的素材比一次全用更有价值——"一次全用就浪费了"
 
-### 🔄 MRL-2: 脚本自审（HITL-2 前置）
+### 🔄 MRL-2: 脚本自审
 
-Agent 写完所有 `scene-data-pt*.mjs` 后，**先运行 MRL-2 自审循环**（每集单独检查），0 Blockers 后才进入 HITL-2。
+Agent 写完每集 `content/<dir>/scene-data.mjs` 后，**先运行 MRL-2 自审循环**（每集单独检查），0 Blockers 后才进入 Stage 4（2026-08-07 起 HITL-2 已移除，不再暂停）。
 
 **Blockers（任一 FAIL = 必须修复后重新检查）：**
 

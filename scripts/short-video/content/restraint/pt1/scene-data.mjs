@@ -14,7 +14,7 @@ export const seriesMeta = {
   partNumber: 1,
   totalParts: 3,
   prevPartSlug: null,
-  nextPartSlug: "restraint/pt2",
+  nextPartSlug: null,
   hookType: "T6-bold-claim",
   rewatchElement: "quote-reveal",
   compilationSlug: "deepseek-restraint-full",

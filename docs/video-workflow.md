@@ -530,10 +530,10 @@ node scripts/short-video/compile-series.mjs --videos part1.mp4 part2.mp4 part3.m
 
 ```bash
 # 合并 scene-data，去掉每集 hook/CTA
-node scripts/short-video/compile-series-reconstruct.mjs --scenes scene-data-pt1.mjs scene-data-pt2.mjs scene-data-pt3.mjs
+node scripts/short-video/compile-series-reconstruct.mjs --scenes content/distillation/pt1/scene-data.mjs content/distillation/pt2/scene-data.mjs content/distillation/pt3/scene-data.mjs --output content/distillation-compilation/scene-data.mjs
 
 # 然后跑合集版 scene-data
-node scripts/short-video/main.mjs --scene scene-data-compilation.mjs
+node scripts/short-video/main.mjs --content distillation-compilation
 ```
 
 适合 3+ 集高质量合集。
