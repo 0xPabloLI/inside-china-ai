@@ -48,6 +48,7 @@
 | `spec-widget-inline-dashboards.md` / `tickets-widget-inline-dashboards.md` | 2026-08-07 | Widget 内联嵌入 + Registry |
 | `spec-video-guard-widget-a11y.md` / `tickets-video-guard-widget-a11y.md` | 2026-08-07 | Video Guard 固化 + Widget A11y |
 | `spec-widget-preview-route.md` / `tickets-widget-preview-route.md` | 2026-08-07 | Widget 预览路由 + --preview 模式 |
+| `spec-widget-techdebt-cleanup.md` / `tickets-widget-techdebt-cleanup.md` | 2026-08-08 | Widget 技术债清理 — English-only（删 toggle/i18n zh/数据 zh 字段）+ hover 键盘等价物（useHoverPin + button 化 + data-widget 探针作用域） |
 
 ### RAG Pre-Work Specs
 
