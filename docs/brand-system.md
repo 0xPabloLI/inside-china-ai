@@ -248,7 +248,7 @@ support (950–1150)   [stats]    optional stat cards (staggered 1.3s+)
 ```
 
 - Background layers: `grid-bg` + color-tinted glow (semantic color token drives the tint) + `scanlines` + blue `scan-sweep`
-- Animation contract: badge 0.3s → subject 0.3s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.8s / revealText 1.5s → stats 1.3s+ → source 2.1s
+- Animation contract: badge 0.2s → subject 0.2s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.3s / revealText 0.8s → stats 0.8s+ → source 1.3s
 - Amber-dominant numbers + red accent badge follow the 60-30-10 doctrine; `glowPulse` is a blue-only keyframe, so non-blue reveal colors get a static same-color glow instead
 - Data contract: `badge` / `subject` / `subjectLogo` (logo registry key into `assets/logos/`) / `bigNumber`+`numberLabel` / `hookText`+`revealText` / `stats[]` / `source` / `color` — see the `hookScene()` docblock. Focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`
 - `withWatermark` skips (brandBar) — no double branding on the channel open

@@ -38,7 +38,7 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
 .s1 .scan-sweep { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(77,139,255,0.8), transparent); box-shadow: 0 0 20px rgba(77,139,255,0.5); animation: scanSweep ${d}s linear infinite; z-index: 50; }
 @keyframes scanSweep { 0% { top: 0; opacity: 0; } 5% { opacity: 1; } 95% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
 .s1 .subject { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 6px; text-shadow: 0 0 40px rgba(77,139,255,0.5); animation: fadeIn 0.4s ease-out 0.2s forwards; opacity: 0; }
-.s1 .hook-text { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 3px; line-height: 1.2; text-align: center; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: hookIn 0.3s ease-out 0.5s forwards; opacity: 0; }
+.s1 .hook-text { font-size: 72px; font-weight: 900; color: var(--white); letter-spacing: 3px; line-height: 1.2; text-align: center; text-shadow: 0 0 40px rgba(77,139,255,0.4); animation: hookIn 0.3s ease-out forwards; opacity: 0; }
 .s1 .reveal-text { font-size: 84px; font-weight: 900; color: var(--blue); letter-spacing: 1px; line-height: 1.05; text-align: center; max-width: 100%; text-shadow: 0 0 80px rgba(77,139,255,0.6), 0 0 160px rgba(77,139,255,0.3); animation: stampIn 0.6s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite; opacity: 0; }
 .s1 .source { font-size: 28px; font-weight: 700; color: var(--sec); letter-spacing: 3px; text-align: center; animation: fadeIn 0.4s ease-out 2.1s forwards; opacity: 0; }
 </style></head><body>
@@ -237,7 +237,7 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
 .s8 .vcard.left .company { color: var(--amber); }
 .s8 .vcard.right .company { color: var(--blue); }
 .s8 .vcard .action { font-size: 32px; font-weight: 800; letter-spacing: 2px; line-height: 1.3; color: var(--white); }
-.s8 .vs-mid { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--muted); background: #050508; animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; }
+.s8 .vs-mid { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--muted); background: #0a0a14; animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; }
 </style></head><body>
 <div class="scene s8">
   <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>

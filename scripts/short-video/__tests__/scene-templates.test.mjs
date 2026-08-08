@@ -422,11 +422,11 @@ describe("hookScene", () => {
     expect(claimRule).not.toMatch(/animation: [^;]*\d+(\.\d+)?s[^;]*\d+(\.\d+)?s/);
   });
 
-  it("claim variant: revealText stampIn at 1.5s with blue glowPulse by default", () => {
+  it("claim variant: revealText stampIn at 0.8s with blue glowPulse by default", () => {
     const html = hookScene({ texts: HOOK_CLAIM_TEXTS }, 10);
     expect(html).toContain("ONLY A VISION");
     expect(html).toContain(
-      "animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s forwards, glowPulse 2s ease-in-out 2.2s infinite",
+      "animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 0.8s forwards, glowPulse 2s ease-in-out 1.5s infinite",
     );
   });
 
