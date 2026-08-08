@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ReadingProgress, calcReadingProgress } from "./reading-progress";
+import { ReadingProgress } from "./reading-progress";
+import { calcReadingProgress } from "../lib/reading-progress";
 
 describe("calcReadingProgress", () => {
   // S10: At top of page → 0%

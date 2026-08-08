@@ -45,5 +45,14 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // shadcn/ui components export style/helper functions (buttonVariants,
+    // useFormField, …) alongside components — the standard shadcn structure.
+    // Fast refresh doesn't apply meaningfully there; keep the rule off.
+    files: ["src/components/ui/**"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
   eslintPluginPrettier,
 );

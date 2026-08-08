@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { template as newsletterTemplate } from "./newsletter";
+import { template as newsletterTemplate } from "./newsletter-template";
 
 export type TemplateData = Record<string, unknown>;
 

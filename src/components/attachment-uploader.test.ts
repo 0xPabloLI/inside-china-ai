@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatFileSize } from "./attachment-uploader";
+import { formatFileSize } from "../lib/format";
 
 describe("formatFileSize", () => {
   // Scenario: null bytes → em dash

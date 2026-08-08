@@ -8,6 +8,7 @@ import {
   renameAttachment,
   uploadAttachment,
 } from "@/lib/posts.functions";
+import { formatFileSize } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,13 +39,6 @@ export type AttachmentItem = {
   created_at: string;
   url: string;
 };
-
-export function formatFileSize(bytes: number | null): string {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /**
  * Convert a File to a base64 string (without the data: prefix).

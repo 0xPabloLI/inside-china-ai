@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { AttachmentUploader } from "@/components/attachment-uploader";
+import { slugify } from "@/lib/slug";
 
 /* ------------------------------------------------------------------ */
 /* Types & helpers                                                     */
@@ -20,16 +21,6 @@ export type PostForm = {
   content: string;
   published: boolean;
 };
-
-export function slugify(s: string) {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80);
-}
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */

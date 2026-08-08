@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { slugify } from "./post-editor";
+import { slugify } from "../lib/slug";
 
 describe("slugify", () => {
   // Scenario 1: New post → empty title → empty slug
