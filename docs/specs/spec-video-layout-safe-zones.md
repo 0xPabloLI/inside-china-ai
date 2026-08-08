@@ -36,30 +36,33 @@
 
 ### D1 — 区域映射（`lib/safe-zones.mjs` 单一事实源）
 
-1080×1920 画布的最终分区（依据 2026 TikTok UI 调研：顶部标签 ~100–200、右栏 ~120–140、底部 caption ~250–320；Zeely 建议关键文字距底 ≥15%=288px）：
+> **2026-08-08 截图重校准**：初版数值来自 2026 调研文字区间；本版改用真实 FYP 播放截图（576 宽 ×1.875 放大）实测 + 交叉验证（quso/Moda 17 万帖子分析、Kreatli、vSubtitle、Blitzcut）。实测：右侧操作栏 x≈880–1080 / y≈655–1775；底部 caption 最高 y≈1500；底部 tab 栏 y≈1790–1905；TikTok 原生字幕 ~60px em（≈帧高 3.1%）位于 62–70% 高可读带。
+
+1080×1920 画布的最终分区：
 
 | y 区间 | 区域 | 规则 |
 |---|---|---|
 | 0–220 | TikTok 顶部 UI 区 | 仅品牌 chrome（水印 top:60 / brandBar top:80，靠边避开居中标签） |
 | 220–400 | `kickerTitle` 槽 | 徽章/标题 |
-| 400–1080 | `hero` 槽 | 主视觉（大数字/卡片/对比），内容居中 |
-| 1080–1340 | `support` 槽 | 来源/结论/补充 |
-| 1340–1417 | 空隙带 | 无内容（呼吸区） |
-| 1417–1530 | **字幕专用带** | 场景内容禁止进入；字幕 bottom-center，单行优先 |
-| 1530–1920 | TikTok 底部 UI 区 | 我方内容归零 |
-| x 方向 | 左 60 / 右 160 | 内容网格 x∈[60,920]，宽 860px；右栏为 WARN 级 |
+| 400–950 | `hero` 槽 | 主视觉（大数字/卡片/对比），内容居中 |
+| 950–1150 | `support` 槽 | 来源/结论/补充 |
+| 1150–1188 | 空隙带 | 无内容（呼吸区） |
+| 1188–1350 | **字幕专用带** | 场景内容禁止进入；60px Bold，bottom-center，单行优先 |
+| 1350–1500 | 干净边距 | 无内容 |
+| 1500–1920 | TikTok 底部 UI 区 | 我方内容归零（caption 最高 ~1500，tab 栏 1790–1905） |
+| x 方向 | 左 60 / 右 200 | 内容网格 x∈[60,880]，宽 820px；右栏 y>640 为 FAIL 级 |
 
 常量定义：
 
-- `SAFE_ZONES = { top: 220, right: 160, bottom: 580, left: 60 }`（bottom 450→580，内容下边界 y=1340）
-- 新增 `SUBTITLE_LANE = { marginV: 390, fontSize: 42, maxLines: 2, lineHeight: 1.35, maxWidth: 950 }`，并导出派生值 `SUBTITLE_LANE.bottom = 1530` / `SUBTITLE_LANE.top ≈ 1417`
+- `SAFE_ZONES = { top: 220, right: 200, bottom: 770, left: 60 }`（right 160→200 → 内容右缘 x=880 清开操作栏；bottom 450→770 → 内容下边界 y=1150）
+- 新增 `SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, maxWidth: 720 }`，并导出派生值 `SUBTITLE_LANE.bottom = 1350` / `SUBTITLE_LANE.top ≈ 1188`。60px 对标 TikTok 原生字幕；maxWidth 720 → marginL/R=180 → 字幕右缘 x=900 清开操作栏
 - `WATERMARK_POS = { top: 60, left: 60 }` 不变
-- 不变式由测试锁定：内容下边界（1340）< 字幕带顶（1417）< 字幕带底（1530）< TikTok caption 区（1600 保守值）
+- 不变式由测试锁定：内容下边界（1150）< 字幕带顶（1188）< 字幕带底（1350）< TikTok caption 区（1500 实测最差值）
 
 ### D2 — 字幕单行强制（`lib/subtitles/`）
 
-- `ass.mjs`：`DEFAULT_STYLE.marginV` 从硬编码 450 改为引用 `SUBTITLE_LANE.marginV`（390）；`marginL/marginR=65` 不变（950px 上限与 `SUBTITLE_LANE.maxWidth` 同源）。
-- `cues.mjs`：分块约束从字符数（`SOFT_CHARS=38`/`HARD_CHARS=49`）改为**像素实测宽度**。实现：内嵌 Helvetica Neue Bold 的 ASCII 字符宽度表（AFM 度量，em 系数），`measureLine(text) = Σ charWidth × 42px`；`SOFT_PX ≈ 820`（软断，避免贴边）、`HARD_PX = SUBTITLE_LANE.maxWidth = 950`（硬断，绝不超宽）。`MAX_WORDS=6`、句子边界、孤儿合并规则保留，但合并检查同样改用 px。
+- `ass.mjs`：`DEFAULT_STYLE.marginV` 引用 `SUBTITLE_LANE.marginV`（570）；`marginL/marginR=180` 由 `maxWidth=720` 派生（与 `SUBTITLE_LANE.maxWidth` 同源）。
+- `cues.mjs`：分块约束用**像素实测宽度**。实现：内嵌 Helvetica Neue Bold 的 ASCII 字符宽度表（AFM 度量，em 系数），`measureLine(text) = Σ charWidth × 60px`；`SOFT_PX = round(HARD_PX × 0.85) = 612`（软断，由 HARD 派生避免再次超过硬上限）、`HARD_PX = SUBTITLE_LANE.maxWidth = 720`（硬断，绝不超宽）。`MAX_WORDS=6`、句子边界、孤儿合并规则保留，但合并检查同样改用 px。
 - 兜底（Q6-A）：极端情况下 libass 仍可能折行 — 字幕带已按两行预留高度，两行也不会压内容。不压缩字号。
 - 时间轴逻辑（lead-in/hold-out/gap 规则）不变。
 
@@ -72,8 +75,10 @@
 
 ### D4 — DOM 校验校准 + 接入 pipeline（`verify-scene-dom.mjs` / `main.mjs` / `render-only.mjs`）
 
-- `BAND.bottom` 从 `1920-450=1470` 改为 `1920-SAFE_ZONES.bottom=1340`（FAIL）；右栏 920 WARN 不变。
-- 内容元素底边 >1340 = FAIL（等价于「禁止进入字幕带」，因为字幕由 libass 烧录不在 DOM 中）。
+- `BAND.bottom` 改为 `1920-SAFE_ZONES.bottom=1150`（FAIL）；`BAND.right` 改为 `1080-SAFE_ZONES.right=880`。
+- 内容元素底边 >1150 = FAIL（等价于「禁止进入字幕带」，因为字幕由 libass 烧录不在 DOM 中）。
+- **右栏分级**（截图实测操作栏纵向范围 y≈655–1775）：右缘 >880 **且元素底边 y>640**（在操作栏内）= **FAIL**；y≤640（顶部 chrome 区，无遮挡）= WARN。右栏不再是统一的 WARN。
+- **竖向堆叠规则**：对比/VS 场景必须竖向 A/VS/B 堆叠，禁止横向多列（横屏硬塞竖屏会在 1080 宽内溢出右安全区或把字压到不可读）。由 `scene-drift.test.mjs` 禁用 side-by-side class（`accused-row`/`chip-compare`/`vs-circle`/`.cols`）守住已迁移 content。
 - 新增 bytedance-distillation 的 EXPECTATIONS 条目（skipWatermark: 全场景都有 brandBar + CTA）。
 - `main.mjs` 与 `render-only.mjs` 在 Step 2（生成 HTML）之后、Step 3（录制）之前自动运行 DOM 校验；FAIL 则 pipeline 中止。保留命令行独立运行能力。
 - **刻意的防回退**：未迁移的老 content（deepseek / distillation/pt1 / restraint/pt1，padding-bottom 470 → 内容底 1450）跑 pipeline 会被 FAIL 阻断，报错信息指引「该 content 未迁移到槽位布局，按 spec-video-layout-safe-zones 迁移」。这是 Q4 确认的强制迁移机制。
@@ -139,12 +144,13 @@
 
 | # | Scenario | Expected Behavior | Risk | Mitigation |
 |---|----------|-------------------|------|------------|
-| 1 | bytedance 任一场景内容底边 ≤1340 | DOM check PASS | — | 迁移后全场景验证 |
-| 2 | 场景内容元素底边 >1340（侵入字幕带） | DOM check FAIL，pipeline 中止 | 误伤 | bytedance 样本全绿后才算完成；报错含元素类名+实测 y |
-| 3 | 字幕 cue ≤950px | 单行渲染在字幕带内 | — | cues 像素分块测试 |
-| 4 | 字幕文案实测 >950px | 分块在 HARD_PX 强制断词，保持单行 | 断词点生硬 | 软断 820px 优先在词边界；句子边界规则保留 |
-| 5 | 极端折行（libass WrapStyle 0 仍折行） | 落在两行预留带（y≤1530），不压内容（内容 ≤1340） | 低 | 带高度测试锁定 |
-| 6 | 内容元素右边 >920（右栏区） | WARN（不阻断，右栏半透明） | 低 | 现有行为保留 |
+| 1 | bytedance 任一场景内容底边 ≤1150 | DOM check PASS | — | 迁移后全场景验证 |
+| 2 | 场景内容元素底边 >1150（侵入字幕带） | DOM check FAIL，pipeline 中止 | 误伤 | bytedance 样本全绿后才算完成；报错含元素类名+实测 y |
+| 3 | 字幕 cue ≤720px | 单行渲染在字幕带内 | — | cues 像素分块测试 |
+| 4 | 字幕文案实测 >720px | 分块在 HARD_PX=720 强制断词，保持单行 | 断词点生硬 | 软断 612px 优先在词边界；句子边界规则保留 |
+| 5 | 极端折行（libass WrapStyle 0 仍折行） | 落在两行预留带（y≤1350），不压内容（内容 ≤1150） | 低 | 带高度测试锁定 |
+| 6 | 内容元素右边 >880 且底边 y>640（操作栏内） | FAIL（操作栏为不透明遮挡，内容不可读） | 误伤顶部 chrome | y≤640 才降级为 WARN；bytedance S1 曾因 reveal-text 越界被此规则捕获并修复 |
+| 6b | 内容元素右边 >880 但底边 y≤640（顶部 chrome 区） | WARN（不阻断，顶部无操作栏遮挡） | 低 | 分级行为 |
 | 7 | brandBar / 水印 / CTA logo 渲染 | SVG 真实可见（viewBox 生效，品牌色 fill） | 修复无效 | 构建脚本测试 + 抽帧 HITL 目视确认 |
 | 8 | CTA 场景输出 | 与共享 ctaScene byte-identical（现有契约） | 回归 | 现有 drift 测试保持 |
 | 9 | withWatermark 跳过逻辑 | brand-bar/brand-logo-large 场景不注水水印（现有契约） | 回归 | 现有测试保持 |
@@ -152,8 +158,10 @@
 | 11 | render-only 无 subtitle-timing.json | 不生成 ass，流程不变（现有行为） | 回归 | 现有条件分支不动 |
 | 12 | Hook 场景首帧 | brandBar 保留（品牌早期曝光符合 TikTok 最佳实践），首帧不出现 logo-only 画面 | 低 | 现有结构不变 |
 | 13 | 空 texts / 缺失 key 的场景 | t() 访问器返回 ""，不渲染 undefined（现有契约） | 回归 | 现有测试保持 |
-| 14 | Reels/Shorts 跨平台复用 | 字幕底 1530 对 Reels 底部 UI（~1570 起）留 40px；右 160/顶 220 兼容 | 低 | 一套布局三平台通用，无需分支 |
+| 14 | Reels/Shorts 跨平台复用 | 字幕底 1350 对 Reels 底部 UI（~1570 起）留 220px；右 200/顶 220 兼容 | 低 | 一套布局三平台通用，无需分支 |
 | 15 | 字幕时间轴（lead-in/hold-out/gap/合并） | 不回归 | 中 | cues 既有时间测试不动 + verify-subtitles 端到端校验 |
+| 16 | 对比/VS 场景（S6/S7/S8）竖向堆叠 | A/VS/B 自上而下，无横向多列；右缘 ≤880 | 横屏硬塞竖屏 | scene-drift 禁用 side-by-side class；DOM 校验右栏 FAIL 兜底 |
+| 17 | CTA 行动框进入字幕带（y>1150） | ctaScene 走槽位系统，action-box 落在 support 槽（≤1150） | 共享模板回归 | bytedance S9 曾因 action-box B1194 被捕获并修复（ctaScene 接入 sceneFrame） |
 
 ## Out of Scope
 
@@ -169,3 +177,14 @@
 - `docs/video-workflow.md` 的 Logo Handling 提到 `china-ai-news-logo-image-only.png`，该文件实际不存在（文档漂移），本次同步修正为 mark-video.svg 体系。
 - 验证路径：`render-only.mjs --content bytedance-distillation`（不重跑 TTS，数分钟）→ 抽帧 → HITL 视觉确认 → commit。
 - 后续所有新 content 的 scenes.mjs 必须用 `sceneFrame` 槽位组装（写入 brand-system.md 实施章节）。
+
+## 2026-08-08 重校准 + 规范落地（本轮新增）
+
+- **截图重校准**：safe-zones 从调研文字区间改为真实 FYP 截图实测（×1.875）：右 160→200（x880 清开操作栏）、底 450→770（y1150）；字幕 42px→60px（对标原生）、marginV 450→570、maxWidth 950→720（marginL/R 65→180，字幕右缘 x900 清开操作栏）。
+- **竖向堆叠**：bytedance S6/S7/S8 从横向多列改为竖向 A/VS/B 堆叠（`accused-stack`/`chip-stack`/`vstack`），修复「横屏硬塞竖屏」三岛问题。
+- **共享模板修复**：`ctaScene` 接入 `sceneFrame` 槽位（行动框从字幕带 y1194 上移到 support 槽）；hook `focal-reveal` 与 S1 `reveal-text` 限宽，修复右栏溢出。
+- **规范落地（约束机制）**：
+  1. `verify-scene-dom.mjs` 接入 `main.mjs`/`render-only.mjs` 为 Step 2.5 硬门（FAIL 即中止录制），`--skip-dom-check` 为老 content 逃生口。
+  2. `scene-drift.test.mjs` 新增 side-by-side class 禁令（守住竖向堆叠）。
+  3. `docs/brand-system.md` 升级为现行生产标准（字幕表/安全区表/竖向堆叠规则/Enforcement 章节）。
+- 详细标准与强制执行链见 `docs/brand-system.md` → Layout Safety / Scene Layout Templates / Implementation → Enforcement。
