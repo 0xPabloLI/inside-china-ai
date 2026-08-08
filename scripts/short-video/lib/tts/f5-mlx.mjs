@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
-import { postProcessBatch } from "./post-process.mjs";
+import { postProcessBatch, getProsodyProfile } from "./post-process.mjs";
 
 const execAsync = promisify(exec);
 
@@ -91,13 +91,19 @@ export async function createF5MLXEngine() {
       }
 
       // Post-process each: F5 generates clean audio, no silenceremove needed.
-      // Only apply atempo if TTS_ATEMPO is set (for speed-up).
+      // Apply per-scene prosody (pitch shift + tempo) via rubberband filter.
       const finalResults = [];
       for (const r of batchResults) {
         const audioPath = r.audioPath;
+        const scene = scenes.find((s) => s.id === r.sceneId);
+        const prosody = getProsodyProfile(scene?.visualType);
+        if (prosody) {
+          console.log(`  Scene ${r.sceneId}: prosody=${prosody.label}`);
+        }
         const duration = await postProcessBatch(audioPath, {
           useSilenceFilter: false,
           resample: true,
+          prosody,
         });
         finalResults.push({ sceneId: r.sceneId, audioPath, duration });
         console.log(`  Scene ${r.sceneId}: ${duration.toFixed(2)}s`);

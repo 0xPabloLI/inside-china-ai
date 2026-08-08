@@ -39,6 +39,7 @@ Numbered sequence. Current: 0001–0006.
 | `tiktok-developer-setup.md` | TikTok API publishing setup guide |
 | `tiktok-do-dont.md` | Do/Don't comparison guide |
 | `tiktok-profile-setup.md` | Brand profile setup (one-time reference) |
+| `ab-testing-methodology.md` | Element iteration method — single-variable A/B testing philosophy |
 
 ### `video/` — Video roadmap
 
@@ -57,6 +58,11 @@ External reference repos and source materials. Not project documentation.
 ### `research/` — Research reports
 
 Deep research reports with citations.
+
+| Document | Purpose |
+|----------|---------|
+| `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
+| `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |
 
 ## Spec/Ticket Lifecycle
 

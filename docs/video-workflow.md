@@ -19,8 +19,6 @@ The first 3 seconds determine 70% of completion rate. Rules:
 
 #### First Frame Best Practices (TikTok / YouTube Shorts / Reels)
 
-Based on platform research and session learnings:
-
 | Principle              | Rule                                                  | Why                                                                         |
 | ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
 | **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"    |
@@ -188,13 +186,9 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 - Title is a factual statement, not clickbait
 - `generate-caption.mjs` uses `metadata.title` when available (see `deriveTitle()` in `caption-utils.mjs`)
 
-> Source: 自媒体实战方法论 — "封面给眼球，标题给算法。标题是给搜索和推荐算法看的，封面是给活人的眼睛看的。"
-
 ### TikTok Best Practices Integration
 
-> Based on 2025-2026 research via Chrome CDP + community skill absorption (sergebulaev/tiktok-skills). Full details: `docs/tiktok/tiktok-best-practices.md` (signal weights, voice rules, hook formulas, audit checklist, news strategy) and `docs/refs/tiktok-skills/` (34 community reference files).
->
-> **Enforcement**: `scripts/short-video/verify-video.mjs` runs automated checks after every video. This is **Step 6** of the pipeline workflow (see `short-video-pipeline` SKILL.md). Do NOT publish until all automated checks pass.
+Full details: `docs/tiktok/tiktok-best-practices.md`. Enforcement: `verify-video.mjs` runs automated checks after every video — do NOT publish until all checks pass.
 
 #### ✅ Fully automated (checked by verify-video.mjs)
 
@@ -421,47 +415,7 @@ node scripts/short-video/ab-test-tracker.mjs report
    - Newsletter -> email list
    - X thread -> social reach
 
-### Element Iteration Method (Scientific A/B Testing)
-
-Source: 自媒体实战方法论 (乱码老师). A systematic approach to content optimization — not random testing, but controlled single-variable experiments.
-
-**Core principle**: Change ONE element per iteration. Keep what works, discard what doesn't.
-
-**Iteration cycle**:
-1. Round 1: Discover element B works well → B + everything else
-2. Round 2: Discover B + D works better → keep BD, swap other elements
-3. Round 3: Discover B + D + E works even better → continue adding new variables
-4. All good elements stay; all bad elements get eliminated. Each round changes only ONE element.
-
-**What to iterate on**:
-- Hook formula (T1 cold-open vs T3 number reveal vs T4 question)
-- Hook angle (same formula, different framing)
-- Video length (30s vs 45s vs 60s)
-- Posting time (morning vs evening)
-- Visual style (data-heavy vs text-heavy)
-- TTS engine/speed (F5 vs XTTS, 1.0x vs 1.15x)
-
-**How to use with ab-test-tracker.mjs**:
-```bash
-# Round 1: Test hook formula
-ab-test-tracker.mjs add --variable hook --variant A --description "T1 cold-open"
-ab-test-tracker.mjs add --variable hook --variant B --description "T3 number reveal"
-# Record results, keep winner
-
-# Round 2: Fix hook (use winner), test video length
-ab-test-tracker.mjs add --variable length --variant A --description "30s"
-ab-test-tracker.mjs add --variable length --variant B --description "45s"
-# Record results, keep winner
-
-# Round 3: Fix hook + length, test posting time
-# ... continue
-```
-
-**Key insight**: "媒体终究是数据说话的事" (Media is ultimately a data-driven business). Don't rely on gut feeling — let the data decide which elements to keep.
-
 ### Content Publishing Red Lines
-
-Source: 自媒体实战方法论 (乱码老师). Practical rules to protect account health and maximize ROI.
 
 | Rule | Why | How to enforce |
 | ---- | --- | -------------- |
@@ -618,9 +572,6 @@ Every pipeline run generates a **versioned output file**: `{pipelineId}-v{YYYY-M
 
 A **latest copy** (`{pipelineId}-short.mp4`) is also created for compatibility with verify-video.mjs and other tools.
 
-**Why version numbers?** When iterating on video quality (subtitles, visuals, timing), you need to confirm which version you're watching. Without version numbers, the file looks the same after each run.
-
-**How to check which version you're watching:**
 ```bash
 # List all versions, newest first
 ls -lt output/restraint-pt1/restraint-pt1-v*-short.mp4
@@ -826,3 +777,17 @@ node scripts/short-video/verify-video.mjs --tiktok --content my-article
 ```
 
 Fix all FAIL items before presenting to user. WARN items are acceptable.
+
+---
+
+## Design Decisions & References
+
+When modifying rules in this file, consult these reference docs for root cause and rationale:
+
+| Topic | Reference | Content |
+|-------|-----------|---------|
+| Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md` | 15 sources, per-parameter rationale, research citations |
+| TikTok best practices | `docs/tiktok/tiktok-best-practices.md` | Signal weights, voice rules, hook formulas, audit checklist |
+| A/B testing methodology | `docs/tiktok/ab-testing-methodology.md` | Element iteration method, single-variable testing philosophy |
+| Multi-video splitting | `docs/research/multi-video-splitting-best-practices.md` | Episode splitting strategy, inter-episode linking |
+| Brand visual identity | `docs/brand-system.md` | Color tokens, typography, animation library, scene templates |

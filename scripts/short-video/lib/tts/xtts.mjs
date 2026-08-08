@@ -13,7 +13,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
-import { postProcessBatch } from "./post-process.mjs";
+import { postProcessBatch, getProsodyProfile } from "./post-process.mjs";
 
 const execAsync = promisify(exec);
 
@@ -136,13 +136,19 @@ export async function createXTTSEngine() {
         throw new Error("No XTTS results parsed from batch output");
       }
 
-      // Post-process each with silenceremove
+      // Post-process each with silenceremove + per-scene prosody
       const finalResults = [];
       for (const r of batchResults) {
         const audioPath = r.audioPath;
+        const scene = scenes.find((s) => s.id === r.sceneId);
+        const prosody = getProsodyProfile(scene?.visualType);
+        if (prosody) {
+          console.log(`  Scene ${r.sceneId}: prosody=${prosody.label}`);
+        }
         const duration = await postProcessBatch(audioPath, {
           useSilenceFilter: true,
           resample: true,
+          prosody,
         });
         finalResults.push({ sceneId: r.sceneId, audioPath, duration });
         console.log(`  Scene ${r.sceneId}: ${duration.toFixed(2)}s`);

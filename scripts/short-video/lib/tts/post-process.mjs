@@ -6,6 +6,14 @@
  * - postProcessAudio(): Apply FFmpeg post-processing (silenceremove + resample)
  * - postProcessBatch(): Post-process in-place + get duration (for batch engines)
  * - runWhisperAlignment(): Force-align subtitle timing via text-align.py
+ *
+ * Prosody enhancement (Phase 2):
+ *   Per-scene pitch shift + tempo adjustment via FFmpeg rubberband filter.
+ *   Based on web deep research (docs/research/voice-prosody-hook-optimization.md):
+ *   - ReelForge AI (2026): pitch variation in hook → higher retention
+ *   - Speaking.coach 5P framework: vary pitch/pace between segments
+ *   - Camb.ai: prosody = pitch + stress + rhythm; flat prosody = robotic
+ *   - Cambridge (Bakkouche 2026): local pitch-control is key naturalness correlate
  */
 
 import { exec } from "child_process";
@@ -16,6 +24,60 @@ import { ROOT_DIR } from "./types.mjs";
 
 const execAsync = promisify(exec);
 
+// ── Prosody profiles (per scene visualType) ──
+//
+// Research sources:
+//   [1] ReelForge AI (2026): "Hooks that use clear pitch variation in the opening
+//       seconds tend to feel more alive and hold attention better than a flat,
+//       monotone read."
+//   [2] Speaking.coach 5P: "Vary pitch between segments to give audio clues.
+//       Faster pace = energy; slower pace = gravitas."
+//   [3] Camb.ai (2026): "Prosody = pitch + stress + rhythm. Flat prosody = robotic."
+//   [4] Cambridge (Bakkouche 2026): "Local pitch-control and prosodic timing are
+//       key correlates of perceived naturalness."
+//   [5] Resemble AI (2025): "Adjust pitch and tone to evoke excitement, calm, or
+//       urgency. Control pauses and emphasis for dynamic delivery."
+//
+// pitch: semitone shift (1.08 = +8% pitch up; 0.96 = -4% pitch down)
+// tempo: speed multiplier (1.12 = 12% faster; 0.92 = 8% slower)
+//   rubberband uses: pitch=1.0 means no shift; tempo=1.0 means no change
+//   We convert our ratios to rubberband's format below.
+
+/**
+ * @typedef {Object} ProsodyProfile
+ * @property {number} pitch   - Pitch shift ratio (1.0 = no shift, 1.08 = +8% up)
+ * @property {number} tempo   - Tempo ratio (1.0 = no change, 1.12 = 12% faster)
+ * @property {string} label   - Human-readable label for logging
+ */
+
+/**
+ * Per-scene prosody profiles, keyed by visualType.
+ *
+ * Hook:     +8% pitch, +12% tempo → urgency/energy [1][2]
+ * Data:    -3% pitch, -3% tempo  → authority/weight [2][3]
+ * Quote:    0% pitch,  -5% tempo → emphasis/deliberate [2][5]
+ * CTA:     -4% pitch, -8% tempo  → warmth/invitation [2][5]
+ * Default:  no change (baseline)
+ */
+const PROSODY_PROFILES = {
+  hook: { pitch: 1.08, tempo: 1.12, label: "hook (urgent/energetic)" },
+  data: { pitch: 0.97, tempo: 0.97, label: "data (authoritative)" },
+  quote: { pitch: 1.0, tempo: 0.95, label: "quote (deliberate/emphasis)" },
+  cta: { pitch: 0.96, tempo: 0.92, label: "cta (warm/inviting)" },
+};
+
+/**
+ * Get the prosody profile for a scene based on its visualType.
+ * Returns null if no profile matches (baseline, no processing needed).
+ *
+ * @param {string} [visualType] - Scene visualType field (e.g. "hook", "data", "cta")
+ * @returns {ProsodyProfile|null}
+ */
+export function getProsodyProfile(visualType) {
+  if (!visualType) return null;
+  return PROSODY_PROFILES[visualType] || null;
+}
+
 // ── Filter construction ──
 
 /**
@@ -24,18 +86,36 @@ const execAsync = promisify(exec);
  * @param {Object} opts
  * @param {boolean} [opts.useSilenceFilter=true] - If true, apply silenceremove;
  *                                                  if false, only apply atempo (F5 path).
+ * @param {ProsodyProfile|null} [opts.prosody=null] - Per-scene prosody profile
+ *   (pitch + tempo shift via rubberband filter).
  * @returns {string} Filter string (may be empty).
  */
-export function buildFilter({ useSilenceFilter = true } = {}) {
-  const atempo = parseFloat(process.env.TTS_ATEMPO) || null;
+export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
+  const filters = [];
+
+  // 1. Silenceremove (for non-F5 engines)
   if (useSilenceFilter) {
-    return (
-      "silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018" +
-      (atempo ? `,atempo=${atempo}` : "")
+    filters.push(
+      "silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018",
     );
   }
-  // F5 path: no silenceremove, only atempo if set
-  return atempo ? `atempo=${atempo}` : "";
+
+  // 2. Per-scene prosody: rubberband pitch shift + tempo adjustment
+  //    rubberband=pitch=P:tempo=T where P is cents (not ratio) and T is ratio
+  //    Convert our ratio to cents: cents = 1200 * log2(ratio)
+  if (prosody && (prosody.pitch !== 1.0 || prosody.tempo !== 1.0)) {
+    const pitchCents = Math.round(1200 * Math.log2(prosody.pitch));
+    const tempoRatio = prosody.tempo.toFixed(4);
+    filters.push(`rubberband=pitch=${pitchCents}:tempo=${tempoRatio}`);
+  }
+
+  // 3. Global atempo (TTS_ATEMPO env, applied after prosody)
+  const atempo = parseFloat(process.env.TTS_ATEMPO) || null;
+  if (atempo) {
+    filters.push(`atempo=${atempo}`);
+  }
+
+  return filters.join(",");
 }
 
 /**
@@ -70,13 +150,14 @@ export async function getDuration(audioPath) {
  * @param {Object} opts
  * @param {boolean} [opts.useSilenceFilter=true]
  * @param {boolean} [opts.resample=true] - If true, add -ar 44100 -b:a 192k
+ * @param {ProsodyProfile|null} [opts.prosody=null] - Per-scene prosody profile
  */
 export async function postProcessAudio(
   inputPath,
   outputPath,
-  { useSilenceFilter = true, resample = true } = {},
+  { useSilenceFilter = true, resample = true, prosody = null } = {},
 ) {
-  const filter = buildFilter({ useSilenceFilter });
+  const filter = buildFilter({ useSilenceFilter, prosody });
   const afArg = filter ? `-af "${filter}"` : "";
   const resampleArg = resample ? "-ar 44100 -b:a 192k" : "";
   await execAsync(
@@ -92,6 +173,7 @@ export async function postProcessAudio(
  *
  * @param {string} audioPath
  * @param {Object} opts - Same as postProcessAudio
+ * @param {ProsodyProfile|null} [opts.prosody=null] - Per-scene prosody profile
  * @returns {Promise<number>} Duration of the processed audio
  */
 export async function postProcessBatch(audioPath, opts = {}) {
