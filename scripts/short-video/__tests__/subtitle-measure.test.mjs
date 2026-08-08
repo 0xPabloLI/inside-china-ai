@@ -38,8 +38,6 @@ describe("measureWidth (Helvetica Neue Bold, 60px)", () => {
 
   it("uppercase-heavy lines exceed the hard limit long before 49 chars", () => {
     // "WWWW WWWW WWWW WWWW WWWW WWWW" = 24 W + 5 spaces ≈ 1443px > 720
-    expect(measureWidth("WWWW WWWW WWWW WWWW WWWW WWWW")).toBeGreaterThan(
-      SUBTITLE_LANE.maxWidth,
-    );
+    expect(measureWidth("WWWW WWWW WWWW WWWW WWWW WWWW")).toBeGreaterThan(SUBTITLE_LANE.maxWidth);
   });
 });

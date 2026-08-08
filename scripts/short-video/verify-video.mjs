@@ -97,7 +97,12 @@ console.log("\n📋 Meta Data Checks");
 console.log("─".repeat(50));
 
 if (!meta) {
-  fail("Meta", "meta.mjs loads", "File not found or no meta export", `Create meta.mjs in content/${contentDir}/`);
+  fail(
+    "Meta",
+    "meta.mjs loads",
+    "File not found or no meta export",
+    `Create meta.mjs in content/${contentDir}/`,
+  );
 } else {
   // Required existing fields
   const requiredFields = ["subject", "pipelineId", "title", "article"];
@@ -120,7 +125,12 @@ if (!meta) {
           : String(meta[field]);
       pass("Meta", `meta.${field} exists (extended)`, detail);
     } else {
-      warn("Meta", `meta.${field} exists (extended)`, "Missing", `Add '${field}' to meta.mjs (WP-6 extended field)`);
+      warn(
+        "Meta",
+        `meta.${field} exists (extended)`,
+        "Missing",
+        `Add '${field}' to meta.mjs (WP-6 extended field)`,
+      );
     }
   }
 
@@ -131,7 +141,12 @@ if (!meta) {
       if (meta[field] !== undefined) {
         pass("Meta", `meta.${field} exists (series)`, String(meta[field]));
       } else {
-        warn("Meta", `meta.${field} exists (series)`, "Missing", `Add '${field}' to meta.mjs (series content)`);
+        warn(
+          "Meta",
+          `meta.${field} exists (series)`,
+          "Missing",
+          `Add '${field}' to meta.mjs (series content)`,
+        );
       }
     }
   }
@@ -143,7 +158,12 @@ if (!meta) {
       if (Array.isArray(meta.keyEntities[key])) {
         pass("Meta", `meta.keyEntities.${key} is array`, `${meta.keyEntities[key].length} items`);
       } else {
-        fail("Meta", `meta.keyEntities.${key} is array`, "Missing or not array", `Add '${key}: []' to keyEntities in meta.mjs`);
+        fail(
+          "Meta",
+          `meta.keyEntities.${key} is array`,
+          "Missing or not array",
+          `Add '${key}: []' to keyEntities in meta.mjs`,
+        );
       }
     }
   }

@@ -119,21 +119,15 @@ function baseStyles(duration) {
 function withWatermark(html) {
   // Detect CTA scene for blue frame-glow variant
   const isCTA = html.includes('class="brand-logo-large"');
-  const glowClass = isCTA ? 'frame-glow blue' : 'frame-glow';
+  const glowClass = isCTA ? "frame-glow blue" : "frame-glow";
   const frameGlow = `<div class="${glowClass}"></div>`;
 
   // Watermark only for scenes without brand identity (brand-bar or logo)
-  const hasBrand =
-    html.includes('class="brand-bar"') || isCTA;
-  const watermark = hasBrand
-    ? ''
-    : `<div class="brand-watermark">${BRAND_MARK_SVG}</div>`;
+  const hasBrand = html.includes('class="brand-bar"') || isCTA;
+  const watermark = hasBrand ? "" : `<div class="brand-watermark">${BRAND_MARK_SVG}</div>`;
 
   // Inject both before closing </div></body> (inside the scene div)
-  return html.replace(
-    /<\/div><\/body>/,
-    `${frameGlow}${watermark}</div></body>`,
-  );
+  return html.replace(/<\/div><\/body>/, `${frameGlow}${watermark}</div></body>`);
 }
 
 export {

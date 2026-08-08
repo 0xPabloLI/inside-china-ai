@@ -5,7 +5,16 @@ export const meta = {
   article: "deepseek-art-of-restraint",
   // ─── Extended fields (WP-6) ───
   createdAt: "2026-08-04",
-  topics: ["deepseek", "funding", "agi", "open-source", "liang-wenfeng", "nvidia", "huawei", "tilelang"],
+  topics: [
+    "deepseek",
+    "funding",
+    "agi",
+    "open-source",
+    "liang-wenfeng",
+    "nvidia",
+    "huawei",
+    "tilelang",
+  ],
   keyEntities: {
     companies: ["deepseek", "nvidia", "huawei", "bytedance", "alibaba", "tencent", "zhipu"],
     people: ["liang_wenfeng", "jack_welch"],

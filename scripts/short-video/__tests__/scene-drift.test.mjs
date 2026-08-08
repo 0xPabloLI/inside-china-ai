@@ -162,7 +162,9 @@ describe("scene drift guards", () => {
       const out = withWatermark(html);
       expect(out).toMatch(/<div class="frame-glow"><\/div>/);
       expect(out.match(/<div class="brand-watermark">/g)).toHaveLength(1);
-      expect(out).toMatch(/<div class="frame-glow"><\/div><div class="brand-watermark">[\s\S]*<\/div><\/div><\/body>/);
+      expect(out).toMatch(
+        /<div class="frame-glow"><\/div><div class="brand-watermark">[\s\S]*<\/div><\/div><\/body>/,
+      );
     });
 
     it("injects frame-glow but skips watermark for brand-bar scenes", () => {

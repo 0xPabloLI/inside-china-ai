@@ -66,8 +66,7 @@ export const SUBTITLE_LANE = {
 };
 
 /** Subtitle lane bottom edge on the canvas, in px (y = 1350). */
-export const SUBTITLE_LANE_BOTTOM =
-  CANVAS.height - SUBTITLE_LANE.marginV;
+export const SUBTITLE_LANE_BOTTOM = CANVAS.height - SUBTITLE_LANE.marginV;
 
 /** Subtitle lane top edge, in px (y = 1188) — two lines, ceiling-rounded so
  *  the reserved height NEVER drops below fontSize × lineHeight × maxLines. */

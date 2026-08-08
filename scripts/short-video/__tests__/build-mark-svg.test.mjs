@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
-import { remapFills, injectViewBox, buildMarkSvg, BRAND_BLUE, BRAND_RED } from "../build-mark-svg.mjs";
+import {
+  remapFills,
+  injectViewBox,
+  buildMarkSvg,
+  BRAND_BLUE,
+  BRAND_RED,
+} from "../build-mark-svg.mjs";
 import { BRAND_MARK_SVG } from "../lib/scene-templates.mjs";
 
 /**

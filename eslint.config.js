@@ -14,6 +14,9 @@ export default tseslint.config(
       // Reference material mirrors (third-party code + skill docs) — not ours.
       "docs/refs/**",
       "docs/handoff-*/**",
+      // Agent skill installs (mirrored skill trees, not repo content).
+      ".agents/**",
+      "agent/**",
     ],
   },
   {
