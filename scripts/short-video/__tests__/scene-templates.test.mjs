@@ -133,6 +133,11 @@ describe("breakingBadge", () => {
     expect(html).toContain("pulse-dot");
     expect(html).toContain("BREAKING");
   });
+
+  it("sits inside the content safe zone (top 220, not the legacy 210)", () => {
+    expect(templateCss()).toMatch(/.breaking-badge\s*{[^}]*top:\s*220px/);
+    expect(templateCss()).not.toMatch(/.breaking-badge\s*{[^}]*top:\s*210px/);
+  });
 });
 
 describe("statCard", () => {
