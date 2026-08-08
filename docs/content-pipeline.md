@@ -601,7 +601,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
       "mrl": { "status": "pass", "blockers": 0, "warnings": 1 }
     }
   ],
-  "nextAction": "Stage 4: 视频制作（MRL-2 已通过，HITL-2 已于 2026-08-07 移除，不再暂停）"
+  "nextAction": "Stage 4: 视频制作（MRL-2 已通过，直接进入，不暂停）"
 }
 ```
 
