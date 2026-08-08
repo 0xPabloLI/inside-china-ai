@@ -33,6 +33,7 @@
 
 1. **Decision: Lightweight or Substantial?**
    - **Lightweight**（检查、解释、常规工作）：直接进行，不需要加载额外 skill。
+   - **UI/UX 设计任务**: 用 `impeccable` skill（`shape` 规划、`craft` 构建、`critique` 审查、`polish` 精修）。不要自动加载 `brainstorming`——`impeccable` 已覆盖其全部功能且更专业。
    - **Substantial implementation**: 按以下 Mandatory Implementation Workflow 执行。
 2. **Git safety**: never run `stash` related commands without explicit user confirmation in current chat. `checkout`/`switch` 分支切换见 Cross-Branch Workflow（绝对禁止）。
 3. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
@@ -183,3 +184,17 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 ## Web Scraping & Content Fetching
 
 默认用 `web-access` skill（连接本地 Chrome，有 session/cookie，反爬检测率低）。已知 URL 静态提取用 `web_fetch` 工具。Deep Research（多源交叉验证 + 引用）用 `web-deep-research` skill，触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。Playwright headless 不推荐（无 session/cookie，反爬检测率高）。
+
+## Agent skills
+
+### Issue tracker
+
+Issues tracked in **GitHub Issues** using `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles with default label strings. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout (one CONTEXT.md + docs/adr/ at root). See `docs/agents/domain.md`.
