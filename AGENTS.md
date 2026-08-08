@@ -31,7 +31,10 @@
 
 ## Session Workflow
 
-1. **Bootstrap when needed**: For substantial implementation, debugging, or design sessions, load `using-superpowers` via skill tool. Load `brainstorming` only for feature design, behavior changes, or solution exploration — skip for lightweight inspection, explanation, and routine work.
+1. **Decision: Lightweight or Substantial?**
+   - **Lightweight**（检查、解释、常规工作）：直接进行，不需要加载额外 skill。
+   - **UI/UX 设计任务**: 用 `impeccable` skill（`shape` 规划、`craft` 构建、`critique` 审查、`polish` 精修）。不要自动加载 `brainstorming`——`impeccable` 已覆盖其全部功能且更专业。
+   - **Substantial implementation**: 按以下 Mandatory Implementation Workflow 执行。
 2. **Git safety**: never run `stash`/`checkout` related commands without explicit user confirmation in current chat.
 3. **Hook policy**: do not bypass `pre-commit`/`pre-push`; if a gate fails, fix root cause.
 4. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
@@ -122,6 +125,14 @@ git push --force-with-lease   # 仅限改写历史场景
 - If a PR includes a Testing section, include only items that are already verified (so all items are checked); otherwise omit Testing.
 - After opening/pushing a PR, do not amend/rebase that history; use new commits for follow-ups.
 
+## Proposal Self-Review
+
+**给出任何修改方案前，必须自审以下 3 条，不通过则不输出方案：**
+
+1. **因果依据**：每个「A 导致 B」的推断必须有可追溯的证据（代码行、Analytics 数据、文档 spec、测试结果）。禁止从单一数据点直接跳跃到代码层面的因果结论。
+2. **设计决策不是免死金牌**：当有效果数据（如 Analytics）显示当前表现不佳时，不能以「这是设计决策」为由拒绝优化。设计决策在没有数据时做出的，有了数据就该 revisited。但反过来，优化也必须有合理的因果推理，不能盲目改。
+3. **影响面核查**：提出改动前，必须 grep/搜索所有受影响的文件（测试、文档、其他调用方），完整列出影响面。不允许「改了代码但漏了测试/文档」的情况。
+
 ## Coding Conventions
 
 - TypeScript + functional React components/hooks.
@@ -130,6 +141,7 @@ git push --force-with-lease   # 仅限改写历史场景
 - Supabase 查询通过 `context.supabase`（server fn middleware 注入）或 `@/integrations/supabase/client`（客户端）。
 - 复用现有 UI patterns/tokens（shadcn/ui 组件 + TailwindCSS）再引入新的。
 - React Query `useQuery` 的 `useState` 初始化陷阱：当组件依赖 query 数据初始化 state 时，必须确保数据就绪后再挂载组件（或在 `useEffect` 中同步），避免 `useState` 初始值只在首次挂载生效导致数据丢失。
+- **Agent 消费文档写作**：编辑 `docs/` 下 agent 消费的文档（video-workflow.md、content-pipeline.md、brand-system.md 等）时，先加载 `writing-for-agents` skill — 其 information hierarchy（in-file step → in-file reference → disclosed reference）和 no-op test（"does it change behaviour versus the default?"）决定什么留在文件内、什么推到独立文件用指针引用。执行文档只写"做什么、用什么参数"；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，执行文档底部用 "Design Decisions & References" 索引指向它们。
 
 ## Git Safety
 
