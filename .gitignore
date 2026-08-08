@@ -45,3 +45,20 @@ output/
 test-results/
 .playwright-cli/
 docs/refs/postiz-app/
+
+# Agent skill installs (mirrored skill trees, not repo content)
+.agents/
+agent/
+.claude/
+.cursor/
+__pycache__/
+*.pyc
+
+# Local credential/token tooling — never commit
+scripts/decrypt-cursor-mcp.mjs
+scripts/decrypt-cursor-mcp.py
+scripts/lovable-mcp-auth.mjs
+
+# Ad-hoc local tooling
+scripts/short-video/mrl2-check.mjs
+scripts/short-video/assets/截屏*.png
