@@ -90,7 +90,7 @@ ${baseStyles(duration)}
 .s2 .timeline { position: relative; padding-left: 60px; }
 .s2 .timeline::before { content: ''; position: absolute; left: 20px; top: 30px; bottom: 30px; width: 3px; background: linear-gradient(180deg, var(--blue), var(--purple), var(--red)); }
 .s2 .event { margin-bottom: 50px; position: relative; animation: slideLeft 0.5s cubic-bezier(0.16,1,0.3,1) forwards; opacity: 0; }
-.s2 .event::before { content: ''; position: absolute; left: -48px; top: 8px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--blue); background: #050508; }
+.s2 .event::before { content: ''; position: absolute; left: -48px; top: 8px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--blue); background: #0a0a14; }
 .s2 .event:nth-child(2)::before { border-color: var(--purple); } .s2 .event:nth-child(3)::before { border-color: var(--amber); } .s2 .event:nth-child(4)::before { border-color: var(--red); background: var(--red); }
 .s2 .event .date { font-size: 28px; font-weight: 800; color: var(--blue); letter-spacing: 2px; } .s2 .event:nth-child(2) .date { color: var(--purple); } .s2 .event:nth-child(3) .date { color: var(--amber); } .s2 .event:nth-child(4) .date { color: var(--red); }
 .s2 .event .text { font-size: 40px; font-weight: 700; color: var(--white); margin-top: 6px; line-height: 1.2; }

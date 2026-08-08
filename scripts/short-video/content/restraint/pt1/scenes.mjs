@@ -195,7 +195,7 @@ ${baseStyles(duration)}${templateCss()}
 .s6 .col .col-text { font-size: 32px; font-weight: 900; letter-spacing: 1px; line-height: 1.3; word-break: normal; }
 .s6 .col.wrong .col-text { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(239,68,68,0.4); text-decoration-thickness: 4px; }
 .s6 .col.right .col-text { color: var(--blue); text-shadow: 0 0 30px rgba(77,139,255,0.3); }
-.s6 .vs-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70px; height: 70px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; z-index: 10; background: #050508; }
+.s6 .vs-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70px; height: 70px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.6s forwards; opacity: 0; z-index: 10; background: #0a0a14; }
 .s6 .note { margin-top: 50px; text-align: center; font-size: 30px; font-weight: 700; color: var(--sec); letter-spacing: 1px; animation: fadeIn 0.5s ease-out 1.3s forwards; opacity: 0; }
 .s6 .note .hl { color: var(--white); font-weight: 800; }
 </style></head><body>
@@ -288,7 +288,7 @@ ${baseStyles(duration)}${templateCss()}
 .s9 .comp-card .check { font-size: 36px; margin-top: 20px; }
 .s9 .comp-card.intentional .check { color: var(--green); }
 .s9 .comp-card.forced .check { color: var(--muted); }
-.s9 .vs-circle { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.5s forwards; opacity: 0; flex-shrink: 0; background: #050508; }
+.s9 .vs-circle { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--muted); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--muted); animation: fadeIn 0.4s ease-out 0.5s forwards; opacity: 0; flex-shrink: 0; background: #0a0a14; }
 .s9 .insight { text-align: center; font-size: 34px; font-weight: 700; color: var(--white); letter-spacing: 1px; animation: fadeIn 0.5s ease-out 1.2s forwards; opacity: 0; max-width: 800px; margin: 0 auto; }
 .s9 .insight .hl { color: var(--blue); font-weight: 900; }
 </style></head><body>

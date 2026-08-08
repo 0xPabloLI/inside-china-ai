@@ -127,6 +127,7 @@ const SHARED_KEYFRAMES = [
   "logoPulse",
   "hookIn",
   "fadeOut",
+  "flashFrame",
 ];
 
 // Bottom dead-zone footers removed by the design review (D1); forbidden
@@ -156,11 +157,12 @@ describe("scene drift guards", () => {
   });
 
   describe("withWatermark branches", () => {
-    it("injects watermark into plain scenes exactly once", () => {
+    it("injects frame-glow + watermark into plain scenes exactly once", () => {
       const html = '<div class="scene"></div></body></html>';
       const out = withWatermark(html);
+      expect(out).toMatch(/<div class="frame-glow"><\/div>/);
       expect(out.match(/<div class="brand-watermark">/g)).toHaveLength(1);
-      expect(out).toMatch(/<div class="brand-watermark">[\s\S]*<\/div><\/div><\/body>/);
+      expect(out).toMatch(/<div class="frame-glow"><\/div><div class="brand-watermark">[\s\S]*<\/div><\/div><\/body>/);
     });
 
     it("injects frame-glow but skips watermark for brand-bar scenes", () => {
