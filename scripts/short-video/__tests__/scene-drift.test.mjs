@@ -50,6 +50,10 @@ import { scenes as restraintPt3Scenes } from "../content/restraint/pt3/scene-dat
 import { generateScene as generateRestraintPt3 } from "../content/restraint/pt3/scenes.mjs";
 import { scenes as pt1Scenes } from "../content/distillation/pt1/scene-data.mjs";
 import { generateScene as generatePt1 } from "../content/distillation/pt1/scenes.mjs";
+import { scenes as pt2Scenes } from "../content/distillation/pt2/scene-data.mjs";
+import { generateScene as generatePt2 } from "../content/distillation/pt2/scenes.mjs";
+import { scenes as pt3Scenes } from "../content/distillation/pt3/scene-data.mjs";
+import { generateScene as generatePt3 } from "../content/distillation/pt3/scenes.mjs";
 import { scenes as fundingScenes } from "../evergreen-templates/china-ai-funding-tracker.mjs";
 import { scenes as vsUsScenes } from "../evergreen-templates/china-vs-us-ai.mjs";
 import { scenes as chipScenes } from "../evergreen-templates/china-chip-industry.mjs";
@@ -82,6 +86,8 @@ const CTA_PIPELINES = [
     generateScene: generateRestraintPt3,
   },
   { name: "distillation/pt1", id: 8, scenes: pt1Scenes, generateScene: generatePt1 },
+  { name: "distillation/pt2", id: 9, scenes: pt2Scenes, generateScene: generatePt2 },
+  { name: "distillation/pt3", id: 9, scenes: pt3Scenes, generateScene: generatePt3 },
 ];
 
 // Content pipelines that adopted the shared hook opening card (hookScene).

@@ -110,6 +110,22 @@ const EXPECTATIONS = {
     singleOccurrence: {},
     wordFit: {},
   },
+  "distillation/pt2": {
+    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
+    // watermark skip for all scenes.
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    absentClasses: ["subscribe"],
+    singleOccurrence: {},
+    wordFit: { 1: [".s1 .big-text"], 7: [".s7 .big-text"] },
+  },
+  "distillation/pt3": {
+    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
+    // watermark skip for all scenes.
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    absentClasses: ["subscribe"],
+    singleOccurrence: {},
+    wordFit: { 1: [".s1 .big-text"], 8: [".s8 .line1", ".s8 .line2"] },
+  },
   "_test-fixtures/hook-standard": {
     // Both hook variants carry brandBar; CTA carries the large brand logo —
     // withWatermark skips all three scenes by design.
