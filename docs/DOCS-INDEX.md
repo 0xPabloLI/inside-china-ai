@@ -15,6 +15,7 @@
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
+| `handoffs/video-layout-standard.md` | 视频布局安全区 + 槽位 + 强制执行链（session 交接，改视频视觉前必读） | — |
 | `rag-prework.md` | RAG pipeline pre-work plan (Issue #15) | — |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
 | `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
