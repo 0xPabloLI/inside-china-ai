@@ -2,7 +2,7 @@
 
 > Spec: `docs/spec-rag.md`
 > Prerequisite: `docs/rag-prework.md` (D1-D5 confirmed, Q1-Q19 grilled)
-> Trigger: 20+ articles or 10+ video scripts (currently: 3 + 7 — below threshold)
+> Trigger: ✅ Threshold met (2026-08-08). 60+ indexable content files / ~175 chunks. Phase 1 unblocked.
 
 ---
 
@@ -72,7 +72,7 @@ Update `docs/rag-prework.md` to reflect Q1-Q19 decisions.
 
 ## Phase 1: Tracer Bullet (When Threshold Met)
 
-> **Gate**: 20+ articles or 10+ video scripts. Do not start before gate.
+> **Gate**: ✅ Threshold met (60+ indexable content files / ~175 chunks). Phase 1 unblocked.
 
 ### T-10: Database Migration — pgvector + content_embeddings
 
@@ -345,7 +345,7 @@ Phase 0 (Now):
   T-02 (CONTEXT) ─┤
   T-03 (rag-prework) ─┘
               │
-Phase 1 (Gated: 20+ articles):
+Phase 1 (✅ Threshold met):
   T-10 (Migration) ←── T-01,T-02,T-03
   T-11 (ollama.mjs) ←── T-10
   T-12 (chunker.mjs) ── (no dep)

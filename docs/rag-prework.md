@@ -2,8 +2,12 @@
 
 > GitHub Issue: [#15 — feat: RAG pipeline for content knowledge base](https://github.com/0xPabloLI/inside-china-ai/issues/15)
 > 创建于 2026-08-07。本文档为 Issue #15 的前置工作拆分，支持跨 session 执行。
-> 触发条件：20+ 文章或 10+ 视频脚本后正式启动 RAG 管线（视频脚本数 = 非空 scene-data 文件数）。
-> 当前进度（2026-08-08 核实）：3 篇文章 + 7 个非空 scene-data（7 条 content 管线，根目录遗留文件已清理），**未达阈值**。
+>
+> **阈值已达标（2026-08-08 修订）**：原阈值「20+ 文章或 10+ 视频脚本」修订为「总计 20+ 可索引内容文件」。
+> 实际可索引内容：60+ 文件 / ~175 chunks（3 articles + 7 scene-data + 3 source materials + 4 timelines + 7 company profiles + 13 widget docs + 5 research + 18 TikTok refs + entity registry + golden queries）。
+> **Phase 1 代码实施可以直接启动**，读 `docs/tickets-rag.md` 从 T-10 开始。
+>
+> 📌 **本文档为规划文档，已完结。** WP-1~WP-11 全部完成，产出物已融入代码库。后续归档至 `docs/archive/`。
 
 ---
 
@@ -11,7 +15,7 @@
 
 **已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅ · WP-2 公司档案 ✅ · WP-3 事件时间线 ✅ · WP-4 实体注册表 ✅ · WP-5 Widget 数据文档化 ✅ · WP-6 meta.mjs 扩展 ✅ · WP-7 Frontmatter 扩展 ✅ · WP-8 TikTok PDF 结构化 ✅ · WP-9 素材索引 ✅ · WP-11 Golden Query 评估集 ✅ · Slug 一致性修正 ✅
 
-**全部 WP 已完成。** Phase 1 代码实施等待阈值触发（20+ 文章或 10+ 视频脚本）。当前：3 篇文章 + 7 个 scene-data，未达阈值。
+**全部 WP 已完成。** 阈值已达标（60+ 可索引文件 / ~175 chunks）。**Phase 1 代码实施可以直接启动。**
 
 | 优先级 | WP | 说明 | 依赖 | 状态 |
 |--------|----|------|------|------|
@@ -46,11 +50,8 @@
 
 **新 session 工作流**：
 1. 读本文档，确认全部 WP 已完成
-2. 检查阈值是否触发（20+ 文章或 10+ scene-data）
-3. 如已触发：读 `docs/tickets-rag.md` 从 T-10 开始 Phase 1 代码实施
-4. 如未触发：正常内容创作工作流
-
-**Phase 1 代码实施**：当文章 ≥ 20 或 scene-data ≥ 10 时，读 `docs/tickets-rag.md` 从 T-10 开始。当前：3 篇文章 + 7 个 scene-data，**未达阈值**。
+2. 阈值已达标（60+ 可索引文件 / ~175 chunks）
+3. 读 `docs/tickets-rag.md` 从 T-10 开始 Phase 1 代码实施
 
 ---
 
@@ -824,8 +825,8 @@ WP-9 (素材索引)         ←── WP-1,2,3,6│
 WP-10 (技术方案文档)    ←── D1-D5 决策
 WP-11 (评估集)          ←── WP-10, D3
                                       ↓
-                              [RAG 实施启动]
-                              (20+ 文章或 10+ 视频)
+                               [RAG 实施启动]
+                               ✅ 阈值达标（60+ 文件）
 ```
 
 **可并行**：WP-1, WP-2, WP-5, WP-6, WP-8 互不依赖，可同时进行。
@@ -1151,7 +1152,7 @@ Agent 根据检索结果：
 | ✅ 已完成 | WP-6 剩余任务 1/2/5（meta.mjs 扩展） | 无 | ✅ |
 | ✅ 已完成 | WP-3（事件时间线文档，4 个） | WP-2 ✅ | ✅ |
 | ✅ 已完成 | WP-9（素材索引文档） | WP-1/2/3/6 | ✅ |
-| — | **Phase 1 代码实施**（读 `docs/tickets-rag.md`） | 20+ 文章或 10+ 视频脚本 + 全部 WP 完成 | ⏳ |
+| ✅ 可启动 | **Phase 1 代码实施**（读 `docs/tickets-rag.md`） | 阈值达标（60+ 文件 / ~175 chunks） | ✅ |
 
 > WP-1/2/5/6/7/8 可并行。每个 session 完成后 commit + push，并更新对应 WP 的状态标记。
 
