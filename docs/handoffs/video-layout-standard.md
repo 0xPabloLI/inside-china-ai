@@ -109,7 +109,7 @@ node scripts/short-video/verify-scene-dom.mjs --content bytedance-distillation  
 
 # 单测 / 全量
 npx vitest run scripts/short-video/__tests__/scene-layout.test.mjs
-npx vitest run scripts/short-video   # 全量（812）
+npx vitest run scripts/short-video   # 全量（826）
 
 # 快速重渲染（不重跑 TTS，视觉迭代用）
 node scripts/short-video/render-only.mjs --content bytedance-distillation   # 跑完抽帧看

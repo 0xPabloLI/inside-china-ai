@@ -112,7 +112,7 @@ Density is permitted in data widgets (funding charts, keyword clouds) where the 
 - Restrained color strategy: brand blue ≤10% of any surface, used for identity markers only
 - OKLCH color space throughout for perceptual consistency
 - 65ch prose column as the typographic anchor
-- Flat elevation by default; shadows reserved for subscribe card and hover states only
+- Flat elevation by default; the only surface shadow is the subscribe card lift (controls/floating layers follow the shadcn baseline)
 
 ## 2. Colors: The Dispatch Palette
 
@@ -173,14 +173,16 @@ A cool, blue-tinted neutral foundation with one saturated brand accent. The pale
 
 ## 4. Elevation
 
-This system is **flat by default**. Depth is conveyed through tonal layering (background → card → muted) rather than shadows. The single exception is the subscribe card, which uses a soft shadow (`shadow-sm`) to lift it above the page surface as a focal CTA.
+This system is **flat by default**. Depth is conveyed through tonal layering (background → card → muted) rather than elevation shadows. The single *surface* exception is the subscribe card, which uses a soft shadow (`shadow-sm`) to lift it above the page surface as a focal CTA.
 
 ### Shadow Vocabulary
 
-- **Subscribe Lift** (`box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05)`): Used exclusively on the subscribe card. The only shadow in the system.
-- **None**: All other surfaces are flat. Borders and background tints create separation.
+- **Subscribe Lift** (`box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05)` / `shadow-sm`): The subscribe card — the only surface shadow in the system.
+- **Control baseline (shadcn/ui)**: `shadow-sm` on form controls, buttons, switches, toggles, badges from the component-library defaults. Presentational affordance, not elevation.
+- **Floating layers**: popovers, dropdowns, context menus, sheets, toasts carry `shadow-md`/`shadow-lg` to separate them from the page (shadcn standard).
+- **Widget micro-shadows**: small separation details — timeline/phase dots, callout chips (`shadow-sm`/`shadow-md`). Audited 2026-08-08.
 
-**The Flat-By-Default Rule.** Surfaces are flat at rest. The only shadow in the system is on the subscribe card. If a new component needs elevation, use a background tint change (card > muted > background) or a border, not a shadow. Shadows are reserved for the single most important CTA on each page.
+**The Flat-By-Default Rule.** Page surfaces are flat at rest; the only *surface* shadow is the subscribe card. If a new component needs elevation, use a background tint change (card > muted > background) or a border, not a shadow. New decorative elevation shadows require a design review; the shadcn control/floating-layer vocabulary above is the baseline.
 
 ## 5. Components
 
@@ -190,7 +192,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Primary:** Ink Slate background, Cool Paper text, 8px/16px padding, `text-sm font-medium`. Hover: slightly lighter (`#3a3f47`). Used for "Subscribe", "Save", "New post", "Export CSV".
 - **Outline:** Transparent background, foreground text, 1px Hairline border. Hover: accent background tint. Used for "Edit", secondary actions.
 - **Ghost:** Transparent, muted-foreground text. Hover: accent tint. Used for "Delete", "Sign out", "Cancel".
-- **States:** All buttons must have default, hover, focus-visible, active, and disabled states. Currently missing: `focus-visible` on custom widget buttons.
+- **States:** All buttons must have default, hover, focus-visible, active, and disabled states. Custom widget buttons carry the `focus-visible:outline-brand` recipe (applied 2026-08-08, guarded by `src/components/widgets/a11y-container-contract.test.ts`).
 
 ### Inputs
 
@@ -205,8 +207,8 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 ### Cards / Containers
 
 - **Subscribe Card:** Card White background, 1px Hairline/70 border, `--radius-xl` (12px), 32px padding, Subscribe Lift shadow. The signature container.
-- **Admin List Container:** Card White background, 1px Hairline/70 border, `--radius-lg` (8px), no shadow. Items divided by Hairline/60.
-- **Widget Containers:** No unified container style — each widget self-styles. **Needs standardization.**
+- **Admin List Container:** Card White background, 1px Hairline/60 border, `--radius-lg` (8px), no shadow. Items divided by Hairline/60.
+- **Widget Containers:** Outer cards are owned by the route wrapper (no redundant self-containers); inner panels use `bg-muted/30` + `rounded-lg`, no ad-hoc opacity variants or native colors (standardized 2026-08-08, guarded by `src/components/widgets/a11y-container-contract.test.ts` T3).
 
 ### Navigation
 
@@ -215,7 +217,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 
 ### Chips / Badges
 
-- **Openness Badge** (Companies page): Hairline/70 border, `--radius-full`, 2px/8px padding, 11px uppercase, muted-foreground text. Neutral by design — openness is data, not status.
+- **Openness Badge** (Companies page): Hairline/60 border, `--radius-full`, 2px/8px padding, 12px uppercase (`text-xs`), muted-foreground text. Neutral by design — openness is data, not status.
 - **Publish Status Badge** (Admin): Published = `bg-primary/10 text-primary`; Draft = `bg-muted text-muted-foreground`. Visual weight asymmetry intentional — published is the "live" state.
 
 ### Widget Language
@@ -225,7 +227,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 
 ### Reading Progress Bar
 
-- 2px height, fixed top, `z-50`, Dispatch Blue background, `transition-[width] duration-75 ease-out`. Respects `prefers-reduced-motion`. The only fixed-position element in the system.
+- 2px height, fixed top, `z-50`, Dispatch Blue background, `transition-[width] duration-75 ease-out`. Respects `prefers-reduced-motion`. The only fixed-position element on public pages (admin sidebar + modal/drawer overlays are the other fixed chrome).
 
 ## 6. Do's and Don'ts
 
@@ -246,7 +248,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Don't** use gradient text (`background-clip: text`). Emphasis comes from weight or size, not gradients.
 - **Don't** use `border-left` or `border-right` greater than 1px as a colored accent stripe. Full borders or background tints only.
 - **Don't** use glassmorphism (backdrop-blur on translucent surfaces). Rare and purposeful, or nothing.
-- **Don't** use shadows on more than one element per page. The subscribe card is the exception, not a pattern.
+- **Don't** use decorative elevation shadows on page surfaces — the subscribe card is the single surface exception. Control/floating-layer shadows follow the shadcn baseline; widget micro-shadows are limited to separation details (audited 2026-08-08).
 - **Don't** use Tailwind native colors (`blue-500`, `green-600`, `yellow-700`) in widgets. Map all colors to the design token system or the chart palette.
 - **Don't** use font sizes below 12px in any user-facing text. Widget labels audited 2026-08-08 — no sub-12px text remains.
 - **Don't** use native `confirm()` dialogs. Use shadcn `AlertDialog` for brand consistency.

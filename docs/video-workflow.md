@@ -305,8 +305,8 @@ scripts/short-video/
 │   │   └── scenes.mjs      # 12 visual templates (read scene.texts)
 │   └── distillation/       # LLM distillation series
 │       ├── pt1/            # Part 1 (8 unique scenes, red/glitch DNA)
-│       ├── pt2/            # Part 2 (scene-data + meta, scenes = stub)
-│       └── pt3/            # Part 3 (scene-data + meta, scenes = stub)
+│       ├── pt2/            # Part 2 — Kimi's Gambit (9 scenes)
+│       └── pt3/            # Part 3 — The Fallout (9 scenes)
 ├── assets/
 │   ├── voice-sample-24k.wav # F5 ref audio (24kHz mono)
 │   ├── voice-sample-ref-text.txt # F5 ref text (must match ref audio exactly)
