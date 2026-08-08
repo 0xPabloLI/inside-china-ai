@@ -47,3 +47,9 @@
 | `spec-widget-inline-dashboards.md` / `tickets-widget-inline-dashboards.md` | 2026-08-07 | Widget 内联嵌入 + Registry |
 | `spec-video-guard-widget-a11y.md` / `tickets-video-guard-widget-a11y.md` | 2026-08-07 | Video Guard 固化 + Widget A11y |
 | `spec-widget-preview-route.md` / `tickets-widget-preview-route.md` | 2026-08-07 | Widget 预览路由 + --preview 模式 |
+
+### RAG Pre-Work Specs
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `spec-rag-prework-wp4-7-8-11.md` / `tickets-rag-prework-wp4-7-8-11.md` | 2026-08-08 | RAG 前置工作 WP-4/7/8/11 + Slug 一致性修正 |
