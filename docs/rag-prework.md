@@ -9,22 +9,22 @@
 
 ## 🔄 新 Session 接续指南
 
-**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅（产出 `deepseek-liang-investor-meeting-research.md` + `china-llm-distillation-research.md`）
+**已完成**：D1-D5 决策 ✅ · WP-10 技术方案 ✅ · WP-1 源素材格式标准化 ✅ · WP-4 实体注册表 ✅ · WP-7 Frontmatter 扩展 ✅ · WP-8 TikTok PDF 结构化 ✅ · WP-11 Golden Query 评估集 ✅ · Slug 一致性修正 ✅
 
-**待做（8 个 WP，可并行）**：
+**待做（4 个 WP）**：
 
 | 优先级 | WP | 说明 | 依赖 | 预估工作量 |
 |--------|----|------|------|------------|
 | ✅ 完成 | WP-1 | 源素材格式标准化（2 份唯一 PDF → 结构化 MD） | 无 | 1 session |
+| ✅ 完成 | WP-4 | 实体注册表（18 companies + 10 people + 26 models） | WP-2 | 0.5 session |
+| ✅ 完成 | WP-7 | 文章 Frontmatter 扩展（3 篇文章 topics/entities/sources） | WP-4 | 0.5 session |
+| ✅ 完成 | WP-8 | TikTok 方法论 PDF 结构化（8 sections） | 无 | 1 session |
+| ✅ 完成 | WP-11 | Golden Query 评估集（18 条，4 种用例） | WP-10 ✅ | 0.5 session |
 | 🔴 高 | WP-5 | Widget 数据文档化（提取 sourceUrl） | 无 | 1 session |
 | 🔴 高 | WP-6 | Scene-data Metadata 统一与补全 | 无 | 1 session |
-| 🟡 中 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session | ✅ 完成（2026-08-08） |
-| 🟡 中 | WP-7 | 文章 Frontmatter 扩展 | 无 | 0.5 session |
-| 🟡 中 | WP-8 | TikTok 方法论 PDF 结构化 | 无 | 1 session |
+| 🟡 中 | WP-2 | 中国 AI 公司基础档案（7 家） | 无 | 多 session |
 | 🟢 低 | WP-3 | 主题事件时间线文档 | WP-2 | 1 session |
-| 🟢 低 | WP-4 | 实体注册表 | WP-2 | 0.5 session |
 | 🟢 低 | WP-9 | 素材索引文档 | WP-1/2/3/6 | 0.5 session |
-| 🟢 低 | WP-11 | Golden Query 评估集 | WP-10 ✅ | 0.5 session |
 
 **关键产出文档（新 session 必读）**：
 1. 本文档（`docs/rag-prework.md`）— 总览 + 各 WP 任务清单
@@ -436,7 +436,7 @@ Agent 在写文章时如何调用 RAG？两个方案：
 
 ---
 
-### WP-4: 实体注册表 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-4: 实体注册表 📝 纯文档工作 ｜ 状态：✅ 完成（2026-08-08）
 
 **目标**：建立公司、人物、模型的实体注册表，用于 RAG entity linking 和 query expansion。
 
@@ -641,7 +641,7 @@ export const meta = {
 
 ---
 
-### WP-7: 文章 Frontmatter 扩展 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-7: 文章 Frontmatter 扩展 📝 纯文档工作 ｜ 状态：✅ 完成（2026-08-08）
 
 **目标**：为现有 3 篇文章的 frontmatter 预埋 RAG metadata 字段。
 
@@ -674,7 +674,7 @@ sources:
 
 ---
 
-### WP-8: TikTok 方法论 PDF 结构化 📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-8: TikTok 方法论 PDF 结构化 📝 纯文档工作 ｜ 状态：✅ 完成（2026-08-08）
 
 **目标**：将 `docs/refs/tiktok-skills/raw/2026-08-05-自媒体实战方法论(1).pdf` (5368 行) 提取为结构化 markdown。
 
@@ -758,7 +758,7 @@ sources:
 
 ---
 
-### WP-11: 检索质量评估集（Golden Queries）📝 纯文档工作 ｜ 状态：⏳ 未开始
+### WP-11: 检索质量评估集（Golden Queries）📝 纯文档工作 ｜ 状态：✅ 完成（2026-08-08）
 
 **目标**：建立 15-20 条 golden query → 期望命中 chunk 的映射，作为 RAG 上线后的质量回归基线。没有客观评估手段，检索质量只能靠感觉。
 

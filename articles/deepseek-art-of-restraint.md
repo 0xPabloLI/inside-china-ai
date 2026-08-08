@@ -3,6 +3,16 @@ title: "The Art of Restraint: DeepSeek's Vision-Driven Strategy for AGI"
 slug: "deepseek-art-of-restraint"
 excerpt: "Liang Wenfeng explains why DeepSeek chooses restraint, open source, and AGI over short-term profits."
 published: true
+topics: ["deepseek", "agi", "open-source", "funding", "liang-wenfeng", "nvidia", "huawei", "vision"]
+entities:
+  companies: ["deepseek", "nvidia", "huawei", "openai", "anthropic", "google", "bytedance", "alibaba", "tencent", "zhipu", "moonshot"]
+  people: ["liang_wenfeng", "jack_welch"]
+  models: ["deepseek_v3", "deepseek_r1", "deepseek_v4_flash"]
+sources:
+  - type: "pdf"
+    file: "docs/refs/source-materials/deepseek-liang-investor-meeting-research.md"
+  - type: "url"
+    url: "https://elsewhere.news/en/elsewhere/wenfeng-liangs-four-hour-investor-meeting-full-transcript"
 ---
 
 # The Art of Restraint: DeepSeek's Vision-Driven Strategy for AGI

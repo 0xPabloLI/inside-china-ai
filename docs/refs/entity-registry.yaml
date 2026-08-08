@@ -1,0 +1,433 @@
+# Entity Registry — for RAG entity linking & query expansion
+# Last updated: 2026-08-08
+# Source: extracted from 3 articles, 13 widget data files, 3 source materials, 7 scene-data
+
+companies:
+  # ── Chinese AI Companies ──
+  deepseek:
+    name: "DeepSeek"
+    aliases: ["深度求索", "Deep Seek", "深度seek"]
+    founded: "2023"
+    founder: "liang_wenfeng"
+    type: "AI Lab"
+    status: "active"
+    open_source_strategy: "open-weight"
+    key_products: ["DeepSeek V3", "DeepSeek R1", "DeepSeek V4-Flash", "DeepSeek V4-Pro"]
+
+  bytedance:
+    name: "ByteDance"
+    aliases: ["字节跳动"]
+    founder: "zhang_yiming"
+    type: "Tech Giant"
+    status: "active"
+    ai_division: "Seed"
+    consumer_brand: "Doubao"
+    consumer_brand_aliases: ["豆包"]
+    enterprise_api: "Volcano Engine"
+    enterprise_api_aliases: ["火山引擎"]
+    open_source_strategy: "closed"
+
+  moonshot:
+    name: "Moonshot AI"
+    aliases: ["月之暗面", "Moonshot", "Moonshot AI"]
+    founder: "yang_zhilin"
+    type: "Startup"
+    status: "active"
+    consumer_brand: "Kimi"
+    open_source_strategy: "hybrid"
+
+  minimax:
+    name: "MiniMax"
+    aliases: ["稀宇科技"]
+    type: "Startup"
+    status: "active"
+
+  alibaba:
+    name: "Alibaba"
+    aliases: ["阿里巴巴", "阿里"]
+    type: "Tech Giant"
+    status: "active"
+    ai_division: "Qwen Team"
+    consumer_brand: "通义千问"
+    consumer_brand_aliases: ["Qwen"]
+
+  baidu:
+    name: "Baidu"
+    aliases: ["百度"]
+    type: "Tech Giant"
+    status: "active"
+    ai_division: "ERNIE Team"
+    consumer_brand: "文心一言"
+
+  tencent:
+    name: "Tencent"
+    aliases: ["腾讯"]
+    type: "Tech Giant"
+    status: "active"
+    ai_division: "Hunyuan Team"
+    consumer_brand: "混元"
+    consumer_brand_aliases: ["Hunyuan", "腾讯混元"]
+
+  zhipu:
+    name: "Zhipu AI"
+    aliases: ["智谱", "智谱AI", "Zhipu"]
+    type: "AI Lab"
+    status: "active"
+    open_source_strategy: "hybrid"
+
+  xiaomi:
+    name: "Xiaomi"
+    aliases: ["小米"]
+    type: "Tech Giant"
+    status: "active"
+    ai_division: "MiMo Team"
+    consumer_brand: "MiMo"
+
+  huawei:
+    name: "Huawei"
+    aliases: ["华为"]
+    type: "Tech Giant"
+    status: "active"
+    chip_division: "Ascend"
+    chip_division_aliases: ["昇腾"]
+
+  # ── US AI Companies ──
+  openai:
+    name: "OpenAI"
+    aliases: ["Open AI"]
+    type: "AI Lab"
+    status: "active"
+
+  anthropic:
+    name: "Anthropic"
+    aliases: []
+    type: "AI Lab"
+    status: "active"
+    consumer_brand: "Claude"
+
+  google:
+    name: "Google"
+    aliases: ["Google DeepMind", "DeepMind"]
+    type: "Tech Giant"
+    status: "active"
+    ai_division: "Google DeepMind"
+    consumer_brand: "Gemini"
+
+  xai:
+    name: "xAI"
+    aliases: ["X.ai"]
+    type: "AI Lab"
+    status: "active"
+    consumer_brand: "Grok"
+
+  # ── Chip Companies ──
+  nvidia:
+    name: "NVIDIA"
+    aliases: ["英伟达"]
+    type: "Chip Company"
+    status: "active"
+
+  # ── Other (references/analogies in articles) ──
+  byd:
+    name: "BYD"
+    aliases: ["比亚迪"]
+    type: "Automotive"
+    status: "active"
+
+  tesla:
+    name: "Tesla"
+    aliases: ["特斯拉"]
+    type: "Automotive"
+    status: "active"
+
+  ge:
+    name: "GE"
+    aliases: ["通用电气", "General Electric"]
+    type: "Conglomerate"
+    status: "inactive"
+
+  bell_labs:
+    name: "Bell Labs"
+    aliases: ["贝尔实验室"]
+    type: "Research Lab"
+    status: "inactive"
+
+  deeproute:
+    name: "Deeproute.ai"
+    aliases: ["元戎启行"]
+    type: "Autonomous Driving"
+    status: "active"
+
+people:
+  liang_wenfeng:
+    name: "Liang Wenfeng"
+    aliases: ["梁文锋", "梁文峰"]
+    role: "DeepSeek Founder"
+    company: "deepseek"
+
+  zhang_yiming:
+    name: "Zhang Yiming"
+    aliases: ["张一鸣"]
+    role: "ByteDance Founder"
+    company: "bytedance"
+
+  yang_zhilin:
+    name: "Yang Zhilin"
+    aliases: ["杨植麟"]
+    role: "Moonshot AI Founder"
+    company: "moonshot"
+
+  luo_fuli:
+    name: "Luo Fuli"
+    aliases: ["罗福莉"]
+    role: "DeepSeek V2 Core Contributor"
+    company: "xiaomi"
+    note: "Hired by Lei Jun with 10M+ RMB/yr salary"
+
+  wang_bingxuan:
+    name: "Wang Bingxuan"
+    aliases: ["王炳宣"]
+    role: "First-Gen LLM Core Author"
+    company: "tencent"
+
+  guo_daya:
+    name: "Guo Daya"
+    aliases: ["郭达雅"]
+    role: "R1 Core Researcher"
+    company: "bytedance"
+    note: "Seed Team Agent Lead"
+
+  wei_haoran:
+    name: "Wei Haoran"
+    aliases: ["魏浩然"]
+    role: "OCR Series Core Author"
+    company: "baidu"
+
+  ruan_chong:
+    name: "Ruan Chong"
+    aliases: ["阮翀"]
+    role: "Multimodal Core Researcher"
+    company: "deeproute"
+
+  lei_jun:
+    name: "Lei Jun"
+    aliases: ["雷军"]
+    role: "Xiaomi CEO"
+    company: "xiaomi"
+
+  jack_welch:
+    name: "Jack Welch"
+    aliases: ["杰克·韦尔奇"]
+    role: "GE Former CEO"
+    company: "ge"
+    note: "Management reference in DeepSeek article"
+
+models:
+  # ── DeepSeek ──
+  deepseek_v3:
+    name: "DeepSeek V3"
+    aliases: ["DeepSeek-V3", "V3"]
+    company: "deepseek"
+    type: "LLM"
+    released: "2024-12"
+
+  deepseek_r1:
+    name: "DeepSeek R1"
+    aliases: ["DeepSeek-R1", "R1"]
+    company: "deepseek"
+    type: "reasoning"
+    released: "2025-01"
+
+  deepseek_v4_pro:
+    name: "DeepSeek V4-Pro"
+    aliases: ["V4-Pro"]
+    company: "deepseek"
+    type: "LLM"
+    released: "2026"
+
+  deepseek_v4_flash:
+    name: "DeepSeek V4-Flash"
+    aliases: ["V4-Flash", "V3.2 Flash"]
+    company: "deepseek"
+    type: "LLM"
+    released: "2026"
+
+  # ── ByteDance / Seed ──
+  seed_evolving:
+    name: "Seed-Evolving"
+    aliases: ["Seed Evolving"]
+    company: "bytedance"
+    type: "LLM"
+    released: "2026"
+
+  seed_21_turbo:
+    name: "Seed-2.1-Turbo"
+    aliases: ["Seed 2.1 Turbo"]
+    company: "bytedance"
+    type: "LLM"
+    released: "2026"
+
+  seed_2_pro:
+    name: "Seed 2 Pro"
+    aliases: ["Seed-2-Pro", "Seed 2.0"]
+    company: "bytedance"
+    type: "LLM"
+    released: "2026-02"
+
+  # ── Moonshot / Kimi ──
+  kimi_k3:
+    name: "Kimi K3"
+    aliases: ["K3", "Kimi-K3"]
+    company: "moonshot"
+    type: "LLM"
+    released: "2026-07"
+    open_weight: true
+
+  kimi_k27_code:
+    name: "Kimi K2.7 Code"
+    aliases: ["K2.7 Code"]
+    company: "moonshot"
+    type: "LLM"
+    released: "2026"
+
+  kimi_k26:
+    name: "Kimi K2.6"
+    aliases: ["K2.6", "Kimi-K2.6"]
+    company: "moonshot"
+    type: "LLM"
+    released: "2026"
+
+  # ── MiniMax ──
+  minimax_m3:
+    name: "MiniMax M3"
+    aliases: ["M3"]
+    company: "minimax"
+    type: "LLM"
+    released: "2026"
+
+  minimax_m27:
+    name: "MiniMax M2.7"
+    aliases: ["M2.7"]
+    company: "minimax"
+    type: "LLM"
+    released: "2026"
+
+  # ── Alibaba / Qwen ──
+  qwen37_max:
+    name: "Qwen3.7-Max"
+    aliases: ["Qwen 3.7 Max"]
+    company: "alibaba"
+    type: "LLM"
+    released: "2026"
+
+  qwen36_max_preview:
+    name: "Qwen3.6-Max-Preview"
+    aliases: ["Qwen 3.6 Max Preview"]
+    company: "alibaba"
+    type: "LLM"
+    released: "2026"
+
+  # ── Tencent / Hunyuan ──
+  hunyuan_role_latest:
+    name: "Hunyuan-role-latest"
+    aliases: []
+    company: "tencent"
+    type: "LLM"
+    released: "2026"
+
+  hunyuan_a13b:
+    name: "Hunyuan-a13b"
+    aliases: []
+    company: "tencent"
+    type: "LLM"
+    released: "2026"
+
+  # ── Zhipu / GLM ──
+  glm_52:
+    name: "GLM-5.2"
+    aliases: ["GLM 5.2"]
+    company: "zhipu"
+    type: "LLM"
+    released: "2026"
+
+  glm_51:
+    name: "GLM-5.1"
+    aliases: ["GLM 5.1"]
+    company: "zhipu"
+    type: "LLM"
+    released: "2026"
+
+  # ── Xiaomi / MiMo ──
+  mimo_v25_pro:
+    name: "MiMo-V2.5-Pro"
+    aliases: ["MiMo V2.5 Pro"]
+    company: "xiaomi"
+    type: "LLM"
+    released: "2026"
+
+  mimo_v25:
+    name: "MiMo-V2.5"
+    aliases: ["MiMo V2.5"]
+    company: "xiaomi"
+    type: "LLM"
+    released: "2026"
+
+  # ── OpenAI ──
+  gpt_56_sol:
+    name: "GPT-5.6-Sol"
+    aliases: ["GPT 5.6 Sol"]
+    company: "openai"
+    type: "LLM"
+    released: "2026"
+
+  gpt_56_terra:
+    name: "GPT-5.6-Terra"
+    aliases: ["GPT 5.6 Terra"]
+    company: "openai"
+    type: "LLM"
+    released: "2026"
+
+  # ── Anthropic / Claude ──
+  claude_fable_5:
+    name: "Claude Fable 5"
+    aliases: ["Claude Fable"]
+    company: "anthropic"
+    type: "LLM"
+    released: "2026"
+
+  claude_opus_5:
+    name: "Claude Opus 5"
+    aliases: ["Claude Opus"]
+    company: "anthropic"
+    type: "LLM"
+    released: "2026"
+
+  # ── Google / Gemini ──
+  gemini_31_pro:
+    name: "Gemini 3.1 Pro Preview"
+    aliases: ["Gemini 3.1 Pro"]
+    company: "google"
+    type: "LLM"
+    released: "2026"
+
+  gemini_25_pro:
+    name: "Gemini 2.5 Pro"
+    aliases: ["Gemini 2.5"]
+    company: "google"
+    type: "LLM"
+    released: "2026"
+
+  # ── xAI / Grok ──
+  grok_45:
+    name: "Grok 4.5"
+    aliases: ["Grok 4.5"]
+    company: "xai"
+    type: "LLM"
+    released: "2026"
+
+  grok_43:
+    name: "Grok 4.3"
+    aliases: ["Grok 4.3"]
+    company: "xai"
+    type: "LLM"
+    released: "2026"
