@@ -16,7 +16,7 @@
 | 优先级 | 方案 | 类型 | 质量 | M2 Pro 兼容 | 商用 | 测试状态 |
 |--------|------|------|------|------------|------|---------|
 | 1 | **Sonic via ComfyUI_Sonic** | 本地 | ⭐⭐⭐⭐⭐ | ✅ 已修复 MPS | ❌ 非商用 | 待测 |
-| 2 | **LatentSync 1.5** | 本地 | ⭐⭐⭐⭐⭐ | ✅ MPS 已跑通（需 patch） | ✅ OpenRAIL++ | ⏳ 推理中（纯 1.5 代码） |
+| 2 | **LatentSync 1.5** | 本地 | ⭐⭐ | ✅ MPS 已跑通（需 patch） | ✅ OpenRAIL++ | ❌ 已测试，效果差（256px 分辨率不足） |
 | 3 | **Hallo2** | 本地 | ⭐⭐⭐⭐ | ⚠️ MPS 待验证 | ✅ MIT | 待测 |
 | 4 | **SadTalker** | 本地 | ⭐⭐ | ✅ MPS 已测试 | ❌ 非商用 | ❌ 已测试，效果差（恐怖谷眼神） |
 | — | ~~MuseTalk 1.5 MLX~~ | 本地 | ❌ | ✅ MLX | ✅ MIT | ❌ 已测试，嘴部模糊（VAE 架构问题） |
@@ -133,7 +133,9 @@
 1.5 和 1.6 之间有大量代码差异（`affine_transform.py` 235 行、`image_processor.py` 304 行、`lipsync_pipeline.py` 130 行变更）。1.6 的 `affine_transform.py` 用 insightface + kornia GPU 做人脸对齐，1.5 用 face_alignment + mediapipe。混用导致人脸对齐逻辑不匹配，嘴巴区域完全扭曲。
 
 **test1/test2 失败原因**：用 1.6 代码跑 1.5 checkpoint → 人脸对齐错位 → 嘴巴全乱。
-**test3**：纯 1.5 代码 + 1.5 checkpoint → 正在推理中。
+**test3**：纯 1.5 代码 + 1.5 checkpoint → ❌ **效果仍差**。比 test1/test2 好一些（嘴巴不再完全扭曲），但远未达到商用质量。口型与音频的同步不明显，嘴部区域仍有不自然的变形。
+
+**LatentSync 1.5 在 M2 Pro MPS 上的结论**：技术上可运行，但 256×256 分辨率 + MPS float16 精度限制导致质量不达标。1.6 的 512×512 分辨率可能更好，但需 18GB VRAM 且代码不兼容 1.5 checkpoint。**暂不推荐用于生产**。
 
 **推理性能**（M2 Pro MPS）：
 - Affine transform：128 faces × ~4s/face ≈ 8 分钟（CPU bound，face_alignment 库）
