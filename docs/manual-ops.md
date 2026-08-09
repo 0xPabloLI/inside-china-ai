@@ -32,11 +32,26 @@
 | #   | 操作               | 说明                                     | 为什么                                  |
 | --- | ------------------ | ---------------------------------------- | --------------------------------------- |
 | 1   | **AIGC 标签**      | 发布界面打开 "AI-generated content"      | TikTok 要求标注 AI 内容，不标注会被降权 |
-| 2   | **趋势音频**       | 从 TikTok 音频库选热门音乐，音量设 5-10% | 趋势音频提升发现率                      |
+| 2   | **背景音乐**       | 搜索推荐 BGM（见下方 Breaking News 声音表），音量 5-10% | BGM 增加视频氛围，breaking news 类型用紧张感音乐 |
 | 3   | **地理标签**       | 添加 China/US 位置标签                   | 本地内容算法优先推同区域用户            |
 | 4   | **Pinned comment** | 发布后置顶含文章 URL 的评论              | 引导流量到网站                          |
 | 5   | **回复评论**       | 发布后 1 小时内回复所有评论              | 首小时互动信号影响算法推荐              |
 | 6   | **非高峰时段**     | 查看粉丝活跃时间，选低峰发布             | 竞争少，算法更容易推                    |
+
+### Breaking News BGM 推荐声音
+
+发布时在 TikTok 搜索以下声音，选一个使用（音量调到 5-10%，不要盖过 VO）：
+
+| 声音名 | TikTok Sound URL | 风格 | 适合场景 |
+|--------|-----------------|------|----------|
+| **Breaking News** (TimTaj) | `tiktok.com/music/Breaking-News-7164102292382156802` | 紧迫感、新闻播报 | 突发新闻（首选） |
+| Epic News (DM Production) | 搜索 "Epic News DM Production" | 动作感、戏剧性 | 重大发布、突破性新闻 |
+| News dramatic (DM Production) | 搜索 "News dramatic DM Production" | 电影感、振奋 | 积极新闻、突破性成就 |
+| Urgent News (musicunlimited) | 搜索 "Urgent News No Copyright" | 企业新闻、无版权 | 通用新闻 |
+| Powerful songs (action movie) | `tiktok.com/music/Powerful-songs-like-action-movie-music-6817460952171022337` | 动作电影风格 | 已被 @chinaainews 使用过 |
+
+> **使用方法**：TikTok 发布界面 → 点击「声音」→ 搜索声音名 → 选中 → 调低音量到 5-10%。
+> API 不支持自动选声音，这一步必须在 TikTok App 里手动完成。
 
 ### 发布后自动提示
 

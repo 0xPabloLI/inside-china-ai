@@ -820,7 +820,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    
    【发布时在 TikTok App 手动操作】
    □ AIGC 标签：打开 "AI-generated content" 开关
-   □ 趋势音频：从 TikTok 音频库选热门音乐，音量 5-10%
+   □ 背景音乐：搜索推荐 BGM（见 manual-ops.md → Breaking News BGM 推荐声音），音量 5-10%
    □ 地理标签：添加 China/US 位置标签
    □ Caption：≤2,200 chars，包含 SEO 关键词，3-5 个 hashtag
    □ Hashtag 示例：#ainews #chinaai #deepseek #technews（根据内容自动推导，主公司名动态匹配）
