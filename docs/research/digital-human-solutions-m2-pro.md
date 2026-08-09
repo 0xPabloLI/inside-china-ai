@@ -360,7 +360,28 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 |------|------|------|----------|-------------|-----|--------|------|
 | **Hallo4** | 复旦 | 扩散 | arxiv 2505.23525 | — | CUDA | MIT | Hallo 系列最新，HF: `fudan-generative-ai/hallo4` |
 | **Hallo-Live** | 复旦 | 扩散 | — | — | CUDA | MIT | 实时版本，HF: `fudan-generative-ai/Hallo-Live` |
-| **VideoReTalking** | — | 扩散唇同步编辑 | 2023 | — | CUDA | — | 已有视频改口型 |
+| **VideoReTalking** | OpenTalker | 扩散唇同步编辑 | **SIGGRAPH Asia 2022** | 7276 | CUDA | — | `OpenTalker/video-retalking`，已有视频改口型 |
+| **DUIX / Duix-Avatar** | duixcom | 离线数字人工具包 | — | 14398 | CUDA | Other | **GitHub 最高星项目**，`duixcom/Duix-Avatar`，AI avatar toolkit |
+| **OpenTalking** | datascale-ai | 工业级框架 | — | 2721 | CUDA | Apache 2.0 | `datascale-ai/opentalking`，实时对话+私有部署+插拔模型 |
+| **VividTalk** | HumanAIGC (阿里) | 3D 混合先验 | — | 801 | CUDA | Apache 2.0 | `HumanAIGC/VividTalk`，One-Shot 音频驱动，与 EMO 同团队 |
+| **OmniTalker** | HumanAIGC (阿里) | 端到端扩散 | **NeurIPS 2025** | 425 | CUDA | — | `HumanAIGC/omnitalker`，实时文本驱动+上下文复制 |
+| **GaussianTalker** | cvlab-kaist | 3D Gaussian Splatting | — | 411 | CUDA | — | `cvlab-kaist/GaussianTalker`，实时高保真，3D GS |
+| **AD-NeRF** | YudongGuo | NeRF | — | 1074 | CUDA | MIT | `YudongGuo/AD-NeRF`，经典 Audio-Driven NeRF |
+| **DiffTalk** | sstzal | 扩散 | **CVPR 2023** | 472 | CUDA | — | `sstzal/DiffTalk`，扩散生成说话头 |
+| **Audio2Head** | wangsuzhen | NeRF | — | 353 | CUDA | — | `wangsuzhen/Audio2Head`，神经表情场 |
+| **ACTalker** | harlanhong | 端到端扩散 | **ICCV 2025** | 463 | CUDA | — | `harlanhong/ACTalker`，端到端视频扩散 |
+| **InsTaG** | Fictionarry | 3D GS | **CVPR 2025** | 175 | CUDA | — | `Fictionarry/InsTaG`，个性化 3D 说话头 |
+| **DaGAN** | harlanhong | GAN | **CVPR 2022** | 996 | CUDA | — | `harlanhong/CVPR2022-DaGAN`，深度感知 GAN |
+| **MCNET** | harlanhong | 隐式身份 | **ICCV 2023** | 252 | CUDA | — | `harlanhong/ICCV2023-MCNET`，身份克隆 |
+| **DAWN** | Hanbo-Cheng | 非自回归扩散 | — | 233 | CUDA | — | `Hanbo-Cheng/DAWN-pytorch`，动态帧 Avatar |
+| **MultiTalk** | kaist-ami | 3D | **INTERSPEECH 2024** | 196 | CUDA | — | `kaist-ami/MultiTalk`，多语言 3D 说话头 |
+| **Text2Video** | michaelzhang-ai | 文本驱动 | **ICASSP 2022** | 438 | CUDA | — | `michaelzhang-ai/Text2Video`，文本→说话头 |
+| **EAT** | yuangan | 情感适配 | **ICCV 2023** | 300 | CUDA | — | `yuangan/EAT_code`，高效情感适配 |
+| **LinguaLinker** | TencentQQGYLab | 隐式面部控制 | — | 73 | CUDA | Apache 2.0 | `TencentQQGYLab/LinguaLinker`，腾讯 |
+| **FantasyTalking2** | Fantasy-AMAP | 扩散 | **AAAI 2026** | 65 | CUDA | — | `Fantasy-AMAP/fantasy-talking2` |
+| **TalkVid** | FreedomIntelligence | 数据集 | **CVPR 2026 Findings** | 197 | — | Apache 2.0 | `FreedomIntelligence/TalkVid`，大规模数据集 |
+| **FeatherTalk** | anliyuan | 轻量级 | — | 54 | CUDA | — | `anliyuan/FeatherTalk`，轻量级说话头框架 |
+| **Easegen** | taoofagi | 课程平台 | — | 259 | — | — | `taoofagi/easegen-front`，数字人课程创建平台 |
 | **StyleSync** | guanjz20 | 扩散+风格 | **CVPR 2023** | 328 | CUDA | — | 高保真唇同步 |
 | **Diff2Lip** | camenduru | 扩散唇同步 | — | — | CUDA | — | HF: `camenduru/Diff2Lip` |
 | **Real3D-Portrait** | ameerazam08 | 3D 肖像 | — | — | CUDA | — | 3D 感知说话头像 |
@@ -386,6 +407,9 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | 7 | **LatentSync 1.5** | 扩散+SyncNet | — | 2024.12 | ✅（MPS ⚠️） | ✅ | ✅ OpenRAIL++ | **8GB** | ⭐⭐⭐⭐ | — |
 | 8 | **Hallo2** | 分层扩散 | — | 2024.10 | ✅ | ✅ | ✅ MIT | 20GB+ | ⭐⭐⭐⭐ | 8658 |
 | 9 | **Hallo4** | 扩散 | — | 2025.05 | ✅ | ✅ | ✅ MIT | 未标注 | ⭐⭐⭐⭐ | — |
+| 10 | **OmniTalker** | 端到端扩散 | **NeurIPS 2025** | 2025 | ✅ | ✅ 文本+上下文 | ❓ | 未标注 | ⭐⭐⭐⭐⭐ | 425 |
+| 11 | **InsTaG** | 3D GS | **CVPR 2025** | 2025 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐⭐⭐ | 175 |
+| 12 | **ACTalker** | 端到端视频扩散 | **ICCV 2025** | 2025 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐⭐ | 463 |
 
 #### T1 — 扩散方案（未达顶会但技术先进）
 
@@ -398,6 +422,12 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | 14 | **DreamTalk** | 扩散 | — | 2024 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐ | 1789 |
 | 15 | **Hallo** (v1) | 分层扩散 | — | 2024.06 | ✅ A100 | ✅英文 | ❓ | A100 | ⭐⭐⭐ | 8658 |
 | 16 | **Hallo-Live** | 扩散实时 | — | — | ✅ | ✅ | ✅ MIT | 未标注 | ⭐⭐⭐ | — |
+| 17 | **VividTalk** | 3D 混合先验 | — | 2024 | ✅ | ✅ | ✅ Apache | 未标注 | ⭐⭐⭐⭐ | 801 |
+| 18 | **GaussianTalker** | 3D GS | — | 2024 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐⭐ | 411 |
+| 19 | **DiffTalk** | 扩散 | **CVPR 2023** | 2023 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐⭐ | 472 |
+| 20 | **DAWN** | 非自回归扩散 | — | 2024 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐ | 233 |
+| 21 | **LinguaLinker** | 隐式面部控制 | — | 2024 | ✅ | ✅ | ✅ Apache | 未标注 | ⭐⭐⭐ | 73 |
+| 22 | **FantasyTalking2** | 扩散 | **AAAI 2026** | 2025 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐⭐ | 65 |
 
 #### T2 — 3DMM / GAN 方案（2020-2023，技术较旧但可参考）
 
@@ -409,7 +439,15 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | 20 | **GeneFace++** | 3DMM+NeRF | — | — | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐ | — |
 | 21 | **LivePortrait** | 视频驱动 | — | 2024 | ✅（MPS ⚠️） | ❌ 视频 | ❌ | ~8GB | ⭐⭐⭐⭐ | — |
 | 22 | **Wav2Lip** | GAN | **ACM MM 2020** | 2020 | ⚠️ CPU 可 | ✅ | ❌ 非商用 | ~4GB | ⭐⭐ | — |
-| 23 | ~~MuseTalk~~ | VAE 替换 | — | 2024 | MLX ✅ | ✅ | ✅ MIT | 7GB | ❌ 模糊 | — |
+| 23 | **VideoReTalking** | 扩散唇同步 | **SIGGRAPH Asia 2022** | 2022 | ✅ | ✅ | ❓ | ~8GB | ⭐⭐⭐ | 7276 |
+| 24 | **AD-NeRF** | NeRF | — | 2021 | ✅ | ✅ | ✅ MIT | ~8GB | ⭐⭐ | 1074 |
+| 25 | **DaGAN** | GAN | **CVPR 2022** | 2022 | ✅ | ✅ | ❓ | ~6GB | ⭐⭐ | 996 |
+| 26 | **Audio2Head** | NeRF | — | 2022 | ✅ | ✅ | ❓ | ~8GB | ⭐⭐ | 353 |
+| 27 | **Text2Video** | 文本驱动 | **ICASSP 2022** | 2022 | ✅ | ✅ 文本 | ❓ | ~6GB | ⭐⭐ | 438 |
+| 28 | **MCNET** | 隐式身份 | **ICCV 2023** | 2023 | ✅ | ✅ | ❓ | ~6GB | ⭐⭐ | 252 |
+| 29 | **MultiTalk** | 3D | **INTERSPEECH 2024** | 2024 | ✅ | ✅ | ❓ | ~8GB | ⭐⭐ | 196 |
+| 30 | **EAT** | 情感适配 | **ICCV 2023** | 2023 | ✅ | ✅+情感 | ❓ | ~6GB | ⭐⭐ | 300 |
+| 31 | ~~MuseTalk~~ | VAE 替换 | — | 2024 | MLX ✅ | ✅ | ✅ MIT | 7GB | ❌ 模糊 | — |
 
 #### T3 — 闭源 / 商用 API
 
@@ -419,6 +457,10 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | 2 | **D-ID** | 专有 | ✅ TTS+音频 | ✅ | Trial $0(3min)；Lite $4.7/月(10min)；Pro $16/月(15min)；Advanced $108/月(100min) |
 | 3 | **Synthesia** | 专有 | ✅ TTS | ✅ | $29+/月 |
 | 4 | **Sync.so** | 专有(Wav2Lip 商用) | ✅ 音频 | ✅ | 按量付费 |
+| 5 | **DUIX/Duix-Avatar** | 开源工具包 | ✅ 音频 | ✅ | 免费（开源） |
+| 6 | **OpenTalking** | 工业级框架 | ✅ | ✅ | 免费（Apache 2.0） |
+| 7 | **HeyGem** | ONNX 唇同步 | ✅ 音频 | Other | 免费（开源） |
+| 8 | **Linly-Talker** | LLM+SadTalker | ✅ | — | 免费（开源） |
 
 ### 3.19 技术路线标注总结
 
@@ -757,12 +799,34 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 38. InsightFace: huggingface.co/public-data/insightface
 39. **HeyGem**: github.com/Holasyb918/HeyGem-Linux-Python-Hack (486 stars), ComfyUI: github.com/billwuhao/Comfyui_HeyGem (280 stars)
 40. **Linly-Talker**: github.com/Kedreamix/Linly-Talker (3424 stars)
+41. **DUIX/Duix-Avatar**: github.com/duixcom/Duix-Avatar (14398 stars) — GitHub 最高星数字人项目
+42. **OpenTalking**: github.com/datascale-ai/opentalking (2721 stars, Apache 2.0)
+43. **VividTalk**: github.com/HumanAIGC/VividTalk (801 stars, Apache 2.0)
+44. **OmniTalker**: github.com/HumanAIGC/omnitalker (425 stars, NeurIPS 2025)
+45. **GaussianTalker**: github.com/cvlab-kaist/GaussianTalker (411 stars)
+46. **AD-NeRF**: github.com/YudongGuo/AD-NeRF (1074 stars, MIT)
+47. **DiffTalk**: github.com/sstzal/DiffTalk (472 stars, CVPR 2023)
+48. **Audio2Head**: github.com/wangsuzhen/Audio2Head (353 stars)
+49. **ACTalker**: github.com/harlanhong/ACTalker (463 stars, ICCV 2025)
+50. **InsTaG**: github.com/Fictionarry/InsTaG (175 stars, CVPR 2025)
+51. **DaGAN**: github.com/harlanhong/CVPR2022-DaGAN (996 stars, CVPR 2022)
+52. **MCNET**: github.com/harlanhong/ICCV2023-MCNET (252 stars, ICCV 2023)
+53. **DAWN**: github.com/Hanbo-Cheng/DAWN-pytorch (233 stars)
+54. **MultiTalk**: github.com/kaist-ami/MultiTalk (196 stars, INTERSPEECH 2024)
+55. **Text2Video**: github.com/michaelzhang-ai/Text2Video (438 stars, ICASSP 2022)
+56. **EAT**: github.com/yuangan/EAT_code (300 stars, ICCV 2023)
+57. **LinguaLinker**: github.com/TencentQQGYLab/LinguaLinker (73 stars, Apache 2.0)
+58. **FantasyTalking2**: github.com/Fantasy-AMAP/fantasy-talking2 (65 stars, AAAI 2026)
+59. **TalkVid**: github.com/FreedomIntelligence/TalkVid (197 stars, CVPR 2026)
+60. **FeatherTalk**: github.com/anliyuan/FeatherTalk (54 stars)
+61. **Easegen**: github.com/taoofagi/easegen-front (259 stars)
+62. **VideoReTalking**: github.com/OpenTalker/video-retalking (7276 stars, SIGGRAPH Asia 2022)
 
 ### 云端平台
-41. HeyGen: heygen.com (API: api.heygen.com, Bearer X-Api-Key)
-42. D-ID: d-id.com (API: api.d-id.com, Basic Auth)
-43. Synthesia: synthesia.io
-44. Sync.so: sync.so
+63. HeyGen: heygen.com (API: api.heygen.com, Bearer X-Api-Key)
+64. D-ID: d-id.com (API: api.d-id.com, Basic Auth)
+65. Synthesia: synthesia.io
+66. Sync.so: sync.so
 
 ---
 
@@ -776,7 +840,8 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 - **D-ID API 认证纠正**：之前 session 用 Bearer auth 导致 401。正确方式是 Basic auth（`Authorization: Basic <base64(key)>`），已验证成功。
 - **选择 InsightFace 做人脸匹配**：ONNX Runtime 在 macOS 上原生支持；ArcFace 是业界标准的人脸嵌入方法。
 - **保留云端方案作为过渡**：本地模型测试期间可用 D-ID API（便宜）或 HeyGen API（质量高但贵）作为过渡。
-- **全面模型清单更新（2026-08-10）**：文档从 10 个模型扩展到 23+ 个开源模型 + 4 个云端平台。新增 EMO（阿里，7601 stars）、Hallo3（CVPR 2025 DiT）、PersonaLive（CVPR 2026，实时流式）、JoyVASA（京东，中文支持）、V-Express（腾讯）、DreamTalk（阿里）、AniPortrait（5019 stars）、StyleSync（CVPR 2023）等。所有模型按技术先进性分 T0-T3 四个梯队排名，标注技术路线（扩散/DiT/3DMM/GAN/VAE）、NVIDIA 必需性、音频驱动、商用许可。
+- **全面模型清单更新（2026-08-10）**：文档从 10 个模型扩展到 50+ 个开源模型 + 4 个云端平台。新增 EMO（阿里，7601 stars）、Hallo3（CVPR 2025 DiT）、PersonaLive（CVPR 2026，实时流式）、JoyVASA（京东，中文支持）、V-Express（腾讯）、DreamTalk（阿里）、AniPortrait（5019 stars）、StyleSync（CVPR 2023）等。所有模型按技术先进性分 T0-T3 四个梯队排名，标注技术路线（扩散/DiT/3DMM/GAN/VAE）、NVIDIA 必需性、音频驱动、商用许可。
+- **第二轮模型补全（2026-08-10）**：用户指出“不管依赖什么生态都要列上去”，重新搜索 GitHub 发现大量遗漏。新增 22 个模型：DUIX/Duix-Avatar（14398 stars，GitHub 最高星）、OpenTalking（2721 stars）、VividTalk（801 stars）、OmniTalker（NeurIPS 2025）、GaussianTalker（3D GS）、AD-NeRF（1074 stars）、DiffTalk（CVPR 2023）、Audio2Head、ACTalker（ICCV 2025）、InsTaG（CVPR 2025）、DaGAN（CVPR 2022）、MCNET（ICCV 2023）、DAWN、MultiTalk（INTERSPEECH 2024）、Text2Video（ICASSP 2022）、EAT（ICCV 2023）、LinguaLinker（腾讯）、FantasyTalking2（AAAI 2026）、TalkVid（CVPR 2026）、FeatherTalk、Easegen、VideoReTalking（7276 stars，SIGGRAPH Asia 2022）。文档从 23 个模型扩展到 50+ 个。
 - **"hypgem" = HeyGem（已找到并收录）**：用户之前提到的 "hypgem" 实为 **HeyGem**（硅基智能/GuijiAI 的开源数字人），非 HeyGen（商业平台）。HeyGem 是中国知名开源数字人项目，GitHub `Holasyb918/HeyGem-Linux-Python-Hack`（486 stars）。需 Linux+NVIDIA GPU，不支持 macOS。之前 session 在 model-sources-reference.md 中提到但**遗漏了主文档收录**，现已补上。
 - **D-ID 定价纠正（2026-08-10）**：之前文档写 `~$0.05/分钟`，经 Playwright 访问 d-id.com/pricing 验证，实际为 Trial $0(3min)、Lite $4.7/月(10min)、Pro $16/月(15min)、Advanced $108/月(100min)。$0.05/分钟 完全错误，已修正。
 - **HeyGen 定价纠正（2026-08-10）**：经 Playwright 访问 heygen.com/pricing 验证，实际为 Free $0(3视频)、Creator $29/月(600 credits)、Pro $49/月(1000 credits)。Credit 用量：Avatar III 3/min，Avatar IV/V 20/min。用户账户为 wallet 计费，余额 $3.60。
