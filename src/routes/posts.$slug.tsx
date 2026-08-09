@@ -1,6 +1,8 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { ogImageMeta, OG_DEFAULT } from "@/lib/og";
+import { ogMetaForPath } from "@/lib/og";
+import { jsonLdScript } from "@/lib/structured-data";
+import { postJsonLd } from "@/lib/post-structured-data";
 import { getPublishedPost } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
@@ -138,40 +140,19 @@ export const Route = createFileRoute("/posts/$slug")({
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: loaderData.title },
         { name: "twitter:description", content: description },
-        ...ogImageMeta(),
+        ...ogMetaForPath(`/posts/${params.slug}`),
       ],
 
       links: [{ rel: "canonical", href: url }],
       scripts: [
-        {
-          type: "application/ld+json",
-          children: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Article",
-            headline: loaderData.title,
+        jsonLdScript(
+          postJsonLd({
+            title: loaderData.title,
             description,
-            mainEntityOfPage: { "@type": "WebPage", "@id": url },
             url,
             datePublished: loaderData.published_at ?? undefined,
-            dateModified: loaderData.published_at ?? undefined,
-            publisher: {
-              "@type": "Organization",
-              name: "China AI News",
-              url: "https://chinaai.news/",
-              logo: {
-                "@type": "ImageObject",
-                url: "https://chinaai.news/china-ai-news-logo-gpt.png",
-              },
-            },
-            image: [OG_DEFAULT],
-            inLanguage: "en",
-            author: {
-              "@type": "Organization",
-              name: "China AI News",
-              url: "https://chinaai.news/",
-            },
           }),
-        },
+        ),
       ],
     };
   },

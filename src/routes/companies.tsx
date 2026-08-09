@@ -68,7 +68,7 @@ const TIER1: Company[] = [
     chinese: "智谱",
     city: "Beijing",
     founded: "2019",
-    models: "GLM-4 family, CogVLM, CogVideo",
+    models: "GLM-5.2 (744B MoE), GLM-4 legacy line, CogVideo",
     openness: "Mostly open",
     summary:
       "Tsinghua University spin-off with the deepest research lineage of the new cohort, and the strongest state and enterprise procurement footprint.",

@@ -19,7 +19,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           { path: "/", changefreq: "daily", priority: "1.0" },
           { path: "/companies", changefreq: "weekly", priority: "0.9" },
           {
-            path: "/compare/deepseek-vs-qwen-vs-glm-4",
+            path: "/compare/deepseek-vs-qwen-vs-glm",
             changefreq: "weekly",
             priority: "0.9",
           },
