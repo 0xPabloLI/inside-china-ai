@@ -634,7 +634,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 2. **去掉 widget 标记** — `<!-- widget:xxx -->` 不出现在视频中
 3. **提炼核心叙事线** — 从文章结构提取 3-5 个关键点
 4. **按内容类型选择叙事结构**（见下方「叙事结构模板」），按 TikTok 节奏重构为 10-12 个场景
-5. **设计 SEO 标题**（≤60 chars）——在 scene-data 中显式设计 caption 第一行，包含核心关键词（如 DeepSeek / China AI），而非依赖 generate-caption.mjs 自动推导
+5. **设计 SEO 标题**（≤60 chars）——在 scene-data 中显式设计 caption 第一行，包含核心关键词（如主公司名 / China AI），而非依赖 generate-caption.mjs 自动推导
 6. **直接写 `scene-data.mjs`** — 不需要中间脚本
 7. **检查 TikTok Creative Center trending 标签** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），跳过此步骤，使用 curated 标签池。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。
 
@@ -685,7 +685,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 TikTok 没有独立封面图——视频的第一帧就是封面。封面（hook scene 第一帧）已在 `video-workflow.md` 的 First Frame Best Practices 中规范。标题（caption 第一行 ≤60 chars）是给算法的 SEO 信号。
 
 **Agent 在 scene-data 阶段应显式设计标题**，而非依赖 `generate-caption.mjs` 的自动推导：
-- 标题包含核心 SEO 关键词（如 DeepSeek、China AI、模型名）
+- 标题包含核心 SEO 关键词（如主公司名、China AI、模型名）
 - 标题 ≤60 chars（TikTok 限制）
 - 标题是事实性陈述，不是 clickbait
 - 可在 scene-data.mjs 的 `metadata.title` 字段中设置，`generate-caption.mjs` 会优先使用
@@ -811,7 +811,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    □ 趋势音频：从 TikTok 音频库选热门音乐，音量 5-10%
    □ 地理标签：添加 China/US 位置标签
    □ Caption：≤2,200 chars，包含 SEO 关键词，3-5 个 hashtag
-   □ Hashtag 示例：#ainews #chinaai #deepseek #technews（根据内容自动推导）
+   □ Hashtag 示例：#ainews #chinaai #deepseek #technews（根据内容自动推导，主公司名动态匹配）
    □ Trending 检查：Agent 已通过 Creative Center 检查当前 trending 标签
    
    【发布后 1 小时内】

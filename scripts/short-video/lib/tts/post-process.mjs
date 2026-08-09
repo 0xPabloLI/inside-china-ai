@@ -24,6 +24,12 @@ import { ROOT_DIR } from "./types.mjs";
 
 const execAsync = promisify(exec);
 
+// Use ffmpeg-full for rubberband/libass support (same as assemble.mjs)
+const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
+const ffmpegCmd = existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg";
+const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
+
 // ── Prosody profiles (per scene visualType) ──
 //
 // Research sources:
@@ -101,12 +107,12 @@ export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
   }
 
   // 2. Per-scene prosody: rubberband pitch shift + tempo adjustment
-  //    rubberband=pitch=P:tempo=T where P is cents (not ratio) and T is ratio
-  //    Convert our ratio to cents: cents = 1200 * log2(ratio)
+  //    rubberband=pitch=P:tempo=T where P and T are both ratios (not cents)
+  //    pitch=1.08 means +8% pitch up; tempo=1.12 means 12% faster
   if (prosody && (prosody.pitch !== 1.0 || prosody.tempo !== 1.0)) {
-    const pitchCents = Math.round(1200 * Math.log2(prosody.pitch));
+    const pitchRatio = prosody.pitch.toFixed(4);
     const tempoRatio = prosody.tempo.toFixed(4);
-    filters.push(`rubberband=pitch=${pitchCents}:tempo=${tempoRatio}`);
+    filters.push(`rubberband=pitch=${pitchRatio}:tempo=${tempoRatio}`);
   }
 
   // 3. Global atempo (TTS_ATEMPO env, applied after prosody)
@@ -135,7 +141,7 @@ export function getAtempo() {
  */
 export async function getDuration(audioPath) {
   const { stdout } = await execAsync(
-    `ffprobe -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
+    `"${ffprobeCmd}" -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
   );
   return parseFloat(stdout.trim());
 }
@@ -161,7 +167,7 @@ export async function postProcessAudio(
   const afArg = filter ? `-af "${filter}"` : "";
   const resampleArg = resample ? "-ar 44100 -b:a 192k" : "";
   await execAsync(
-    `ffmpeg -y -i "${inputPath}" ${afArg} ${resampleArg} "${outputPath}" 2>/dev/null`,
+    `"${ffmpegCmd}" -y -i "${inputPath}" ${afArg} ${resampleArg} "${outputPath}" 2>/dev/null`,
   );
 }
 

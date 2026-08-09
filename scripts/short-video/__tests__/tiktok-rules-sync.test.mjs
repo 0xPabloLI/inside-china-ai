@@ -147,8 +147,8 @@ describe("tiktok-rules.mjs sync invariants", () => {
 
   // ── Keyword lists ──
 
-  it("TARGET_KEYWORDS contains china, ai, deepseek", () => {
-    expect(TARGET_KEYWORDS).toEqual(["china", "ai", "deepseek"]);
+  it("TARGET_KEYWORDS contains china, ai (universal channel keywords)", () => {
+    expect(TARGET_KEYWORDS).toEqual(["china", "ai"]);
   });
 
   it("KNOWN_COMPANIES contains major China AI companies", () => {

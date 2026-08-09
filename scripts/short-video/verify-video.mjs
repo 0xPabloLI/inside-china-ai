@@ -15,12 +15,12 @@
  *   --long-form:  explicit YouTube long-form opt-in — downgrades scene-count (>10) and
  *                 voiceover-word (>180) violations from FAIL to WARN. TikTok default
  *                 keeps them as FAIL so oversized content must be split into parts.
- *   --content:    content pipeline ID (e.g. deepseek, distillation/pt1, restraint/pt1)
+ *   --content:    content pipeline ID (required — e.g. deepseek, kimi-sandbox)
  *
  * Exit code: 0 if all automated checks pass, 1 if any fail.
  */
 
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
@@ -36,7 +36,15 @@ function getArg(name) {
   return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
 }
 
-const contentDir = getArg("content") || "deepseek";
+const contentDir = getArg("content");
+if (!contentDir) {
+  const available = readdirSync(join(__dirname, "content"), { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  console.error("❌ --content flag is required. Available content:");
+  available.forEach((d) => console.error(`   - ${d}`));
+  process.exit(1);
+}
 const pipelineId = contentDir.replace(/\//g, "-");
 const preMode = args.includes("--pre");
 const checkTikTok = args.includes("--tiktok");
@@ -357,20 +365,28 @@ if (!preMode) {
   console.log("\n👤 Manual Items (Cannot Automate)");
   console.log("─".repeat(50));
 
+  // Derive primary entity for dynamic examples
+  const rawCompany = meta?.keyEntities?.companies?.[0];
+  const exampleEntity = rawCompany
+    ? rawCompany
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ")
+    : "[company]";
   manual(
     "Publish",
     "Title (< 60 chars)",
     `Write in TikTok title field. Best practice: compelling + factual.\n` +
-      `  Example: "DeepSeek's $1.4B leak reveals China's AI strategy"\n` +
+      `  Example: "${exampleEntity}'s breakthrough reveals China's AI strategy"\n` +
       `  Don't: clickbait like "You won't believe..."\n` +
-      `  Rule: include main keyword (DeepSeek/China AI) for SEO`,
+      `  Rule: include main keyword (${exampleEntity}/China AI) for SEO`,
   );
   manual(
     "Publish",
     "Description (with SEO keywords)",
     `Write in TikTok description field. 2-3 sentences.\n` +
-      `  Include: topic summary + "China AI" + "DeepSeek" + call to action\n` +
-      `  Example: "A leaked investor meeting reveals DeepSeek's strategy.\n` +
+      `  Include: topic summary + "China AI" + "${exampleEntity}" + call to action\n` +
+      `  Example: "A breakthrough in ${exampleEntity}'s strategy.\n` +
       `  Follow for more China AI deep dives."\n` +
       `  Put hashtags at the end of description, NOT in title`,
   );
@@ -379,7 +395,7 @@ if (!preMode) {
     "3-5 hashtags (broad + niche)",
     `Add at end of description in TikTok. Use 3-5 only.\n` +
       `  Broad: #chinaai #ai #technews\n` +
-      `  Niche: #deepseek #chinatech\n` +
+      `  Niche: #${(rawCompany || "company").replace(/_/g, "")} #chinatech\n` +
       `  Don't: #fyp #foryou (too generic, doesn't help discovery)\n` +
       `  Don't: more than 5 hashtags (looks spammy)`,
   );
@@ -424,7 +440,7 @@ if (!preMode) {
     `After publishing:\n` +
       `  1. Write a comment with the full article URL (when domain is live)\n` +
       `  2. Long-press the comment → "Pin comment"\n` +
-      `  Example: "Full article: https://chinaainews.com/posts/deepseek-leak"\n` +
+      `  Example: "Full article: https://chinaainews.com/posts/${(rawCompany || "company").replace(/_/g, "-")}-news"\n` +
       `  Why: drives traffic to website + increases engagement.`,
   );
   manual(

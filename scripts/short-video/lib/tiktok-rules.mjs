@@ -119,8 +119,11 @@ export const NAMED_SOURCE_PATTERN =
 
 // ─── Keyword Lists ───
 
-/** SEO target keywords — must appear in ≥2 scenes each */
-export const TARGET_KEYWORDS = ["china", "ai", "deepseek"];
+/** SEO target keywords — must appear in ≥2 scenes each.
+ * "china" and "ai" are universal (channel name). Company-specific keywords
+ * (e.g. "deepseek", "kimi") are NOT hardcoded — they come from the video's
+ * own content and meta data. */
+export const TARGET_KEYWORDS = ["china", "ai"];
 
 /** Known China AI companies for subject visibility check */
 export const KNOWN_COMPANIES = [

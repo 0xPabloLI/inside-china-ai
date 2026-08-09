@@ -484,8 +484,8 @@ describe("checkSEOKeywords", () => {
       { id: 3, voiceover: "More news.", texts: {} },
     ];
     const results = checkSEOKeywords(scenes);
-    const deepseekResult = results.find((r) => r.check.includes("deepseek"));
-    expect(deepseekResult.level).toBe("fail");
+    const aiResult = results.find((r) => r.check.includes("ai"));
+    expect(aiResult.level).toBe("fail");
   });
 });
 

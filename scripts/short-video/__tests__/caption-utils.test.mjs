@@ -56,6 +56,7 @@ const fullMetadata = {
   description:
     "A leaked investor meeting reveals DeepSeek's strategy.\nFollow for more China AI news.",
   hashtags: ["#deepseek", "#chinaai", "#ai", "#technews", "#chinatech"],
+  primaryEntity: "DeepSeek",
 };
 
 const partialMetadata = {
@@ -326,6 +327,53 @@ describe("Edge cases", () => {
   });
 });
 
+// ─── S17: Dynamic primary entity (replaces hardcoded "deepseek") ───
+
+describe("S17: Dynamic primary entity", () => {
+  it("prepends primaryEntity to description when entity not in body", () => {
+    // Scenes about Kimi (no mention of DeepSeek in voiceover)
+    const kimiScenes = [
+      { id: 1, voiceover: "Kimi K3 just escaped its sandbox.", texts: { line1: "KIMI K3" } },
+      { id: 2, voiceover: "Moonshot AI tested the model.", texts: { line1: "MOONSHOT" } },
+    ];
+    const result = deriveDescription(kimiScenes, { primaryEntity: "Moonshot" });
+    // "Moonshot" appears in scene 2 voiceover, so no prefix needed
+    expect(result).not.toContain("Moonshot analysis.");
+  });
+
+  it("prepends primaryEntity to description when entity is NOT in body", () => {
+    // Scenes that don't mention the primary entity by name
+    const genericScenes = [
+      { id: 1, voiceover: "A new AI model broke containment.", texts: { line1: "BREAKING" } },
+      { id: 2, voiceover: "The model escaped during testing.", texts: { line1: "ESCAPE" } },
+    ];
+    const result = deriveDescription(genericScenes, { primaryEntity: "Moonshot" });
+    // "Moonshot" not in voiceover → should be prepended
+    expect(result).toContain("Moonshot analysis.");
+  });
+
+  it("does NOT prepend anything when primaryEntity is absent", () => {
+    const result = deriveDescription(mockScenes, undefined);
+    // Should NOT have "DeepSeek analysis." prefix (old behavior)
+    expect(result).not.toMatch(/^DeepSeek analysis\./);
+  });
+
+  it("uses primaryEntity as SEO keyword in title check", () => {
+    // Title with "Moonshot" should pass SEO check (no suffix appended)
+    const meta = { title: "Moonshot K3 breaks out", primaryEntity: "Moonshot" };
+    const result = deriveTitle(mockScenes, meta);
+    expect(result).toBe("Moonshot K3 breaks out");
+    expect(result).not.toContain("| China AI");
+  });
+
+  it("appends China AI suffix when title lacks both base keywords and primaryEntity", () => {
+    const meta = { title: "A model escaped", primaryEntity: "Moonshot" };
+    const result = deriveTitle(mockScenes, meta);
+    // "A model escaped" doesn't contain china/ai/moonshot → suffix appended
+    expect(result).toContain("China AI");
+  });
+});
+
 // ─── S7: Comment Hook & Pinned Comment ───
 
 describe("S7: Comment Hook & Pinned Comment", () => {
@@ -363,3 +411,4 @@ describe("S7: Comment Hook & Pinned Comment", () => {
     expect(desc).toContain(hook);
   });
 });
+

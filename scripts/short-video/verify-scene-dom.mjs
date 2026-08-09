@@ -24,17 +24,31 @@
  *
  * Usage:
  *   node scripts/short-video/verify-scene-dom.mjs --content restraint/pt1
- *   node scripts/short-video/verify-scene-dom.mjs --content deepseek
+ *   node scripts/short-video/verify-scene-dom.mjs --content kimi-sandbox
  *
  * Exit code 1 on any FAIL.
  */
 
 import { chromium } from "@playwright/test";
+import { readdirSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { SAFE_ZONES } from "./lib/safe-zones.mjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const args = process.argv.slice(2);
 const contentArg = args.indexOf("--content");
-const contentDir = contentArg >= 0 ? args[contentArg + 1] : "deepseek";
+if (contentArg < 0 || !args[contentArg + 1]) {
+  const available = readdirSync(join(__dirname, "content"), { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  console.error("❌ --content flag is required. Available content:");
+  available.forEach((d) => console.error(`   - ${d}`));
+  process.exit(1);
+}
+const contentDir = args[contentArg + 1];
 
 // Layer/element that may legally extend beyond the content band.
 const EXEMPT_SELECTORS = [
@@ -125,6 +139,14 @@ const EXPECTATIONS = {
     absentClasses: ["subscribe"],
     singleOccurrence: {},
     wordFit: { 1: [".s1 .big-text"], 8: [".s8 .line1", ".s8 .line2"] },
+  },
+  "kimi-sandbox": {
+    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
+    // watermark skip for all scenes. CTA (scene 10) uses ctaScene (brand logo).
+    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    absentClasses: ["source-badge", "subscribe"],
+    singleOccurrence: {},
+    wordFit: {},
   },
   "_test-fixtures/hook-standard": {
     // Both hook variants carry brandBar; CTA carries the large brand logo —
@@ -267,13 +289,19 @@ async function main() {
     const bodyText = await page.evaluate(() => document.body.innerText);
     if (bodyText.includes("undefined")) problems.push("rendered undefined");
 
-    // 4a. Watermark presence/absence
+    // 4a. Watermark presence/absence — auto-detect brand identity
+    // If a scene renders a brand-bar or brand-logo-large, it has brand identity
+    // and the watermark should be absent (double-branding guard). This auto-detection
+    // works for any pipeline, so new pipelines don't need to be registered in
+    // EXPECTATIONS.skipWatermark. The explicit list is still respected as a fallback.
     const watermark = await page.$('div[class="brand-watermark"]');
-    if (exp.skipWatermark.includes(scene.id) && watermark) {
+    const hasBrandBar = await page.$(".brand-bar, .brand-logo-large");
+    const shouldSkip = exp.skipWatermark.includes(scene.id) || !!hasBrandBar;
+    if (shouldSkip && watermark) {
       problems.push("unexpected watermark (brand identity scene)");
     }
-    if (!exp.skipWatermark.includes(scene.id) && !watermark) {
-      problems.push("missing watermark");
+    if (!shouldSkip && !watermark) {
+      problems.push("missing watermark (no brand-bar or brand-watermark)");
     }
 
     // 4b. Legacy footer classes absent

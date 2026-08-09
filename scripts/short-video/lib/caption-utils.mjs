@@ -72,7 +72,20 @@ const DEFAULT_HASHTAGS = ["#ainews", "#chinaai", "#technews"];
  */
 const DEFAULT_BROAD_HASHTAGS = DEFAULT_HASHTAGS;
 
-const SEO_KEYWORDS = ["china", "ai", "deepseek"];
+// SEO keywords — "china" and "ai" are universal (channel name).
+// The primary entity (e.g. "moonshot", "deepseek") is added dynamically
+// from metadata.primaryEntity in hasSeoKeyword().
+const BASE_SEO_KEYWORDS = ["china", "ai"];
+
+/**
+ * Get SEO keywords for a given primary entity.
+ * @param {string} [primaryEntity] - e.g. "moonshot", "deepseek"
+ * @returns {string[]}
+ */
+function getSeoKeywords(primaryEntity) {
+  if (!primaryEntity) return BASE_SEO_KEYWORDS;
+  return [...BASE_SEO_KEYWORDS, primaryEntity.toLowerCase()];
+}
 
 /**
  * Comment hook templates — pick based on what the video contains.
@@ -237,9 +250,10 @@ function truncateAtSentence(str, maxLen) {
 /**
  * Check if a title contains at least one SEO keyword.
  */
-function hasSeoKeyword(text) {
+function hasSeoKeyword(text, primaryEntity) {
   const lower = text.toLowerCase();
-  return SEO_KEYWORDS.some((kw) => lower.includes(kw));
+  const keywords = getSeoKeywords(primaryEntity);
+  return keywords.some((kw) => lower.includes(kw));
 }
 
 /**
@@ -258,7 +272,7 @@ export function deriveTitle(scenes, metadata) {
     title = truncateAtWord(title, 60);
 
     // S14: append SEO keyword if missing
-    if (!hasSeoKeyword(title)) {
+    if (!hasSeoKeyword(title, metadata?.primaryEntity)) {
       const suffix = " | China AI";
       const truncated = truncateAtWord(title, 60 - suffix.length);
       title = truncated + suffix;
@@ -305,7 +319,7 @@ export function deriveTitle(scenes, metadata) {
   title = truncateAtWord(title, 60);
 
   // Ensure SEO keyword
-  if (!hasSeoKeyword(title) && title.length > 0) {
+  if (!hasSeoKeyword(title, metadata?.primaryEntity) && title.length > 0) {
     // Try to append SEO keyword
     const suffix = " | China AI";
     if (title.length + suffix.length <= 60) {
@@ -364,9 +378,13 @@ export function deriveDescription(scenes, metadata) {
   // Join with newlines
   let body = sentences.join("\n");
 
-  // Ensure SEO keywords present
-  if (!/deepseek/i.test(body)) {
-    body = "DeepSeek analysis.\n" + body;
+  // Ensure primary entity is mentioned in the description for SEO.
+  // Uses metadata.primaryEntity (derived from meta.keyEntities.companies[0])
+  // instead of hardcoding "deepseek". If no primary entity is set, skip —
+  // the description already contains company names from scene voiceovers.
+  const primaryEntity = metadata?.primaryEntity;
+  if (primaryEntity && !new RegExp(primaryEntity, "i").test(body)) {
+    body = `${primaryEntity} analysis.\n` + body;
   }
 
   // Truncate body first, then add CTA (CTA is always preserved)

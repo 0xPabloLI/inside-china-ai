@@ -36,8 +36,22 @@ const OUTPUT_DIR = join(__dirname, "output");
 const SCENE_DATA_PATH = contentDir
   ? join(__dirname, "content", contentDir, "scene-data.mjs")
   : join(__dirname, "scene-data.mjs");
+const META_PATH = contentDir
+  ? join(__dirname, "content", contentDir, "meta.mjs")
+  : join(__dirname, "meta.mjs");
 const CAPTION_TXT_PATH = join(OUTPUT_DIR, "tiktok-caption.txt");
 const METADATA_JSON_PATH = join(OUTPUT_DIR, "tiktok-metadata.json");
+
+/**
+ * Convert a raw entity string (e.g. "moonshot", "frontier_security")
+ * to display format ("Moonshot", "Frontier Security").
+ */
+function formatEntityName(raw) {
+  return raw
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 async function main() {
   // ─── Load scene data ───
@@ -50,6 +64,26 @@ async function main() {
     console.error(`❌ Failed to load scene-data.mjs: ${e.message}`);
     process.exit(1);
   }
+
+  // ─── Load meta.mjs for primary entity ───
+  // The primary entity (e.g. "Moonshot", "DeepSeek") is used for:
+  //   - SEO keyword in title (replaces hardcoded "deepseek")
+  //   - Description prefix (replaces hardcoded "DeepSeek analysis.")
+  let primaryEntity = null;
+  if (existsSync(META_PATH)) {
+    try {
+      const metaMod = await import(`file://${META_PATH}`);
+      const meta = metaMod.meta || metaMod.default?.meta;
+      if (meta?.keyEntities?.companies?.length > 0) {
+        primaryEntity = formatEntityName(meta.keyEntities.companies[0]);
+      }
+    } catch (e) {
+      // Non-fatal: caption generation works without primary entity
+      console.log(`  ⚠️ meta.mjs found but failed to load: ${e.message}`);
+    }
+  }
+  // Enrich metadata with primary entity
+  metadata = { ...(metadata || {}), primaryEntity };
 
   if (!scenes || scenes.length === 0) {
     console.error("❌ No scenes found in scene-data.mjs");

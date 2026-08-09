@@ -8,7 +8,7 @@
  *   node scripts/short-video/publish-tiktok.mjs [options]
  *
  * Options:
- *   --video <path>      Video file (default: output/deepseek-short.mp4)
+ *   --video <path>      Video file (required)
  *   --metadata <path>   Metadata JSON (default: output/tiktok-metadata.json)
  *   --schedule <iso>    Schedule time (ISO 8601, e.g. 2026-08-03T12:00:00Z)
  *   --draft             Leave as draft (don't schedule)
@@ -43,7 +43,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const OUTPUT_DIR = join(__dirname, "output");
-const DEFAULT_VIDEO = join(OUTPUT_DIR, "deepseek-short.mp4");
 const DEFAULT_METADATA = join(OUTPUT_DIR, "tiktok-metadata.json");
 
 // ─── CLI args ───
@@ -57,7 +56,13 @@ function hasFlag(name) {
   return args.includes(`--${name}`);
 }
 
-const videoPath = getArg("video") || DEFAULT_VIDEO;
+const videoPath = getArg("video");
+if (!videoPath) {
+  console.error(
+    "❌ --video flag is required. Example: --video output/kimi-sandbox/kimi-kimi-sandbox-short.mp4",
+  );
+  process.exit(1);
+}
 const metadataPath = getArg("metadata") || DEFAULT_METADATA;
 const scheduleTime = getArg("schedule");
 const isDraft = hasFlag("draft");

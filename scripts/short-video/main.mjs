@@ -8,13 +8,13 @@
  * Usage:
  *   node scripts/short-video/main.mjs --content deepseek --bgm
  *   node scripts/short-video/main.mjs --content distillation/pt1 --bgm
- *   node scripts/short-video/main.mjs              # defaults to deepseek
+ *   node scripts/short-video/main.mjs              # lists available content
  *
  * Output:
  *   scripts/short-video/output/{pipelineId}/final.mp4
  */
 
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readdirSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
@@ -46,7 +46,15 @@ function checkCommand(cmd) {
 
 async function main() {
   // ── Load content pipeline ──
-  const contentDir = getArg("content") || "deepseek";
+  const contentDir = getArg("content");
+  if (!contentDir) {
+    const available = readdirSync(join(__dirname, "content"), { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+    console.error("❌ --content flag is required. Available content:");
+    available.forEach((d) => console.error(`   - ${d}`));
+    process.exit(1);
+  }
   const contentPath = `./content/${contentDir}`;
 
   let meta, scenes, generateScene;

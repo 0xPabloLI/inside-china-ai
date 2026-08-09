@@ -164,7 +164,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 TikTok doesn't have a separate cover image — the first frame of the video IS the cover. The hook scene's first frame is already governed by First Frame Best Practices above. The title (caption first line ≤60 chars) is the SEO signal for the algorithm.
 
 **Agent should design the title explicitly in scene-data** (via `metadata.title`), not rely on `generate-caption.mjs` auto-derivation:
-- Title includes core SEO keywords (DeepSeek, China AI, model name)
+- Title includes core SEO keywords (primary entity, China AI, model name)
 - Title ≤60 chars (TikTok limit)
 - Title is a factual statement, not clickbait
 - `generate-caption.mjs` uses `metadata.title` when available (see `deriveTitle()` in `caption-utils.mjs`)
@@ -182,7 +182,7 @@ Full details: `docs/tiktok/tiktok-best-practices.md`. Enforcement: `verify-video
 | Frame rate 23-60fps                                 | ffprobe                                         | Check assemble.mjs               |
 | Hook has compelling element (number/strong word)    | Scan scene-data Scene 1                         | Rewrite hook voiceover           |
 | Source attribution (≥2 scenes mention sources)      | Scan all scene voiceovers                       | Add "Bloomberg reported..." etc. |
-| SEO keywords in ≥2 scenes (China/AI/DeepSeek)       | Scan voiceover + texts                          | Add keywords to more scenes      |
+| SEO keywords in ≥2 scenes (China/AI)               | Scan voiceover + texts                          | Add keywords to more scenes      |
 | Share-worthy data points (≥50% scenes have numbers) | Scan voiceover + texts                          | Add concrete numbers             |
 | All scenes have subtitle timing                     | Check subtitle-timing.json                      | Re-run force-align.py            |
 | Scene 1 (hook) has subtitles                        | Check timing for sceneId=1                      | Re-run force-align.py            |
@@ -204,7 +204,7 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 
 | Rule                                      | Agent prompt                                   | Checked by verify-video.mjs?        |
 | ----------------------------------------- | ---------------------------------------------- | ----------------------------------- |
-| SEO keywords in voiceover                 | Include "China AI", "DeepSeek" naturally       | ✅ Yes (keyword count check)        |
+| SEO keywords in voiceover                 | Include "China AI" + primary entity naturally  | ✅ Yes (keyword count check)        |
 | SEO keywords on screen                    | Add to `texts` array                           | ✅ Yes (keyword count check)        |
 | Share-worthy data points                  | Design hook with surprising numbers            | ✅ Yes (number count check)         |
 | Source attribution                        | "Bloomberg reported...", "Liang said..."       | ✅ Yes (source count check)         |
