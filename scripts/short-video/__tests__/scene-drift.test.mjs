@@ -143,7 +143,6 @@ const SHARED_KEYFRAMES = [
   "logoPulse",
   "hookIn",
   "fadeOut",
-  "flashFrame",
 ];
 
 // Bottom dead-zone footers removed by the design review (D1); forbidden

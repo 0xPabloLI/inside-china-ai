@@ -418,13 +418,12 @@ describe("hookScene", () => {
     expect(hero).toBeLessThan(support);
   });
 
-  it("claim variant: hookText is visible from frame 1 (no animation delay)", () => {
+  it("claim variant: hookText is visible from frame 1 (no animation, no opacity:0)", () => {
     const css = templateCss();
-    expect(css).toMatch(/\.s-hook \.focal-claim \{[^}]*animation: hookIn 0\.3s ease-out forwards;/);
-    // No delay: animation shorthand carries exactly one time value (duration),
-    // never two (duration + delay)
     const claimRule = css.match(/\.s-hook \.focal-claim \{([^}]*)\}/)[1];
-    expect(claimRule).not.toMatch(/animation: [^;]*\d+(\.\d+)?s[^;]*\d+(\.\d+)?s/);
+    // No entrance animation — the claim renders immediately on frame 1
+    expect(claimRule).not.toMatch(/animation:/);
+    expect(claimRule).not.toMatch(/opacity:\s*0/);
   });
 
   it("claim variant: revealText stampIn at 0.8s with blue glowPulse by default", () => {
