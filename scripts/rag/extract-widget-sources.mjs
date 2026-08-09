@@ -8,7 +8,7 @@
  * Usage:
  *   node scripts/rag/extract-widget-sources.mjs
  *
- * Spec: docs/spec-rag.md §4.5
+ * Spec: docs/archive/spec-rag.md §4.5
  * Scenarios covered: #15 (paywall → stub), #16 (403/429 → stub), #17 (dedup)
  */
 

@@ -213,7 +213,7 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey) {
  * Trigger RAG reindex after successful article publish.
  *
  * Non-blocking: if index.mjs fails, the publish still succeeds.
- * Spec: docs/spec-rag.md §4.6
+ * Spec: docs/archive/spec-rag.md §4.6
  *
  * @param {string} projectRoot — Absolute path to project root
  * @param {Function} [execFn=execSync] — Exec function (injectable for testing)

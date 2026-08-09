@@ -5,7 +5,7 @@
  * - Markdown: split by ## headings; sub-split by paragraph if > 8K tokens (Q4)
  * - Scene-data: one chunk per scene, text = voiceover + visual texts (Q12)
  *
- * Spec: docs/spec-rag.md §4.2
+ * Spec: docs/archive/spec-rag.md §4.2
  */
 
 // bge-m3 context window = 8192 tokens

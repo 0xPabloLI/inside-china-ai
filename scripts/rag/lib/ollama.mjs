@@ -5,7 +5,7 @@
  * - GET  /api/tags  → list available models (used for availability check)
  * - POST /api/embed → generate embeddings for input texts
  *
- * Spec: docs/spec-rag.md §4.2 (step 1 pre-check, step 6 embedding)
+ * Spec: docs/archive/spec-rag.md §4.2 (step 1 pre-check, step 6 embedding)
  * Scenario #1 (Ollama not running), #13 (dimension mismatch)
  */
 

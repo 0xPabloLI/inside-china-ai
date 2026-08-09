@@ -4,7 +4,7 @@
  * Reuses loginAdmin() from scripts/article/lib/supabase-auth.mjs (Q6).
  * All functions accept a `client` parameter for testability.
  *
- * Spec: docs/spec-rag.md §4.2 (step 7 upsert, step 8 orphan cleanup)
+ * Spec: docs/archive/spec-rag.md §4.2 (step 7 upsert, step 8 orphan cleanup)
  * Q6: Reuse loginAdmin, no service_role key. RLS stays in effect.
  * Q18: UPSERT via UNIQUE(content_type, source_id, chunk_index)
  */

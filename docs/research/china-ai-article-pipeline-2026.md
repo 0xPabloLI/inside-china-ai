@@ -436,4 +436,4 @@
 After writing these 17 articles:
 - **Articles**: 20 (threshold met ✅)
 - **Scene-data**: 7 + potential new videos from new articles
-- **RAG implementation**: Can proceed to Phase 1 code (read `docs/tickets-rag.md` from T-10)
+- **RAG implementation**: Can proceed to Phase 1 code (read `docs/archive/tickets-rag.md` from T-10)

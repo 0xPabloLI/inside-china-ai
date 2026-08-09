@@ -10,7 +10,7 @@
  *
  * Exit code: 0 if hit rate >= 80%, 1 otherwise
  *
- * Spec: docs/spec-rag.md §4.4
+ * Spec: docs/archive/spec-rag.md §4.4
  * Depends on: T-16 (query.mjs), T-23 (golden-queries.yaml)
  */
 

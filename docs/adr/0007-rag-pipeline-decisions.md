@@ -4,7 +4,7 @@
 
 Issue #15 requires a RAG pipeline for the content knowledge base. A grilling session (2026-08-07, 19 questions across 4 rounds) stress-tested the technical design from `docs/archive/rag-prework.md` (formerly `docs/rag-prework.md`; D1-D5 decisions). This ADR records the 6 decisions that meet all three ADR criteria: hard to reverse, surprising without context, and the result of a real trade-off.
 
-Full decision table (Q1-Q19) is in `docs/spec-rag.md` §2.1.
+Full decision table (Q1-Q19) is in `docs/archive/spec-rag.md` §2.1.
 
 ## Decisions
 

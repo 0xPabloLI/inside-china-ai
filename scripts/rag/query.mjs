@@ -17,7 +17,7 @@
  *   --threshold <F>   Similarity threshold (default: 0.7)
  *   --limit <N>       Max results (default: 10)
  *
- * Spec: docs/spec-rag.md §4.3
+ * Spec: docs/archive/spec-rag.md §4.3
  * Q10: Default JSON for Agent consumption; --format human for debugging
  * Q17: Empty topics → NULL to RPC (COALESCE handles in DB)
  */

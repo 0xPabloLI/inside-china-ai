@@ -14,7 +14,7 @@
  *   - .env with SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY
  *   - Database migration applied (supabase/migrations/*_rag_content_embeddings.sql)
  *
- * Spec: docs/spec-rag.md §4.2
+ * Spec: docs/archive/spec-rag.md §4.2
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";

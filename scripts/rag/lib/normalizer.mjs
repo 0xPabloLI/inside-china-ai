@@ -6,7 +6,7 @@
  * - Missing optional fields → omitted, not null (Scenario #24)
  * - topics must be array of strings — throws on violation (Scenario #8, Q3)
  *
- * Spec: docs/spec-rag.md §2.1 (Q5), §5.2 (Scenarios #8, #24)
+ * Spec: docs/archive/spec-rag.md §2.1 (Q5), §5.2 (Scenarios #8, #24)
  */
 
 /**

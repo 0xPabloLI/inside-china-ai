@@ -108,4 +108,4 @@
 **Estimated total chunks**: ~175 (excluding widget sources)
 
 > **RAG implementation threshold**: ✅ Met (2026-08-08). 60+ indexable content files / ~175 chunks.
-> Phase 1 代码实施可以直接启动，读 `docs/tickets-rag.md` 从 T-10 开始。
+> Phase 1 代码实施可以直接启动，读 `docs/archive/tickets-rag.md` 从 T-10 开始。

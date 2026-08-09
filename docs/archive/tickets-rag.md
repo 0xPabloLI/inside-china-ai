@@ -1,6 +1,6 @@
 # Tickets: RAG Pipeline Implementation
 
-> Spec: `docs/spec-rag.md`
+> Spec: `docs/archive/spec-rag.md`
 > Trigger: ✅ Threshold met (2026-08-08). 60+ indexable content files / ~175 chunks. Phase 1 unblocked.
 
 ---

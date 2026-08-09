@@ -56,3 +56,4 @@
 |------|----------|------|
 | `spec-rag-prework-wp4-7-8-11.md` / `tickets-rag-prework-wp4-7-8-11.md` | 2026-08-08 | RAG 前置工作 WP-4/7/8/11 + Slug 一致性修正 |
 | `rag-prework.md` | 2026-08-08 | RAG 前置工作总览（WP-1~WP-11 全部完成，D1-D5 决策确认，Q1-Q19 grilled）|
+| `spec-rag.md` / `tickets-rag.md` | 2026-08-09 | RAG Pipeline 实施 — Phase 1 (T-10~T-16: migration + ollama/chunker/normalizer/supabase-client/index/query) + Phase 2 (T-20~T-23: extract-widget-sources + publish reindex trigger + eval.mjs + golden queries)。106 tests passing。 |
