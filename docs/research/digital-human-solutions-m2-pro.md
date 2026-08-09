@@ -1,6 +1,6 @@
 # 数字人方案调研报告：适配 Apple M2 Pro（32GB）
 
-> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk 评估结论 + 全面模型清单 + 技术对比 + 全球排名 + 纠正错误）
+> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk/SadTalker/HeyGen/D-ID/LatentSync MPS 实测结果）
 > **目标设备**：MacBook Pro (Mac14,10), Apple M2 Pro, 32 GB, macOS 26.5.1, Metal 4
 > **核心需求**：(1) 语音/文本 → 自然说话的数字人视频；(2) 用个人照片匹配最相似的数字人形象
 > **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README、HuggingFace API、官方平台首页
@@ -16,9 +16,10 @@
 | 优先级 | 方案 | 类型 | 质量 | M2 Pro 兼容 | 商用 | 测试状态 |
 |--------|------|------|------|------------|------|---------|
 | 1 | **Sonic via ComfyUI_Sonic** | 本地 | ⭐⭐⭐⭐⭐ | ✅ 已修复 MPS | ❌ 非商用 | 待测 |
-| 2 | **LatentSync 1.5** | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ 8GB VRAM，MPS 待验证 | ✅ OpenRAIL++ | 待测 |
+| 2 | **LatentSync 1.5** | 本地 | ⭐⭐⭐⭐⭐ | ✅ MPS 已跑通（需 patch） | ✅ OpenRAIL++ | ⏳ 推理中（纯 1.5 代码） |
 | 3 | **Hallo2** | 本地 | ⭐⭐⭐⭐ | ⚠️ MPS 待验证 | ✅ MIT | 待测 |
-| 4 | **SadTalker** | 本地 | ⭐⭐⭐ | ⚠️ MPS 待验证 | ❌ 非商用 | 另一 session 测试中 |
+| 4 | **SadTalker** | 本地 | ⭐⭐ | ✅ MPS 已测试 | ❌ 非商用 | ❌ 已测试，效果差（恐怖谷眼神） |
+| — | ~~MuseTalk 1.5 MLX~~ | 本地 | ❌ | ✅ MLX | ✅ MIT | ❌ 已测试，嘴部模糊（VAE 架构问题） |
 | 5 | **D-ID API** | 云端 | ⭐⭐⭐ | ✅ 无需 GPU | ✅ | API key 已验证 |
 | 6 | **HeyGen API** | 云端 | ⭐⭐⭐⭐⭐ | ✅ 无需 GPU | ✅ | 已测试，效果好但贵 |
 
@@ -98,7 +99,8 @@
 | **分辨率** | v1.5: 256×256，v1.6: 512×512（v1.5 嘴部模糊，v1.6 专门解决此问题） |
 | **VRAM 需求** | v1.5: **8GB**（推理），v1.6: **18GB**（推理） |
 | **许可证** | OpenRAIL++（商用 OK） |
-| **M2 Pro 兼容** | ⚠️ v1.5 需 8GB VRAM，M2 Pro 有 32GB 统一内存，PyTorch MPS 可能可行 |
+| **M2 Pro 兼容** | ✅ v1.5 已在 MPS 跑通（需 patch，详见 3.2.1） |
+| **1.5 vs 1.6 代码** | ⚠️ **不可混用** — 1.5 checkpoint 必须用 1.5 代码，1.6 代码的人脸对齐逻辑完全不同（`affine_transform.py` 235 行差异），混用导致嘴巴完全扭曲 |
 | **ComfyUI 集成** | `ShmuelRonen/ComfyUI-LatentSyncWrapper`（957 stars） |
 | **与 MuseTalk 区别** | 都用 VAE，但 LatentSync 用扩散模型做**多步去噪细化**，补偿了 VAE 的信息损失；MuseTalk 是单步直接替换 |
 | **代码借鉴** | 官方致谢 MuseTalk、Wav2Lip、StyleSync、SyncNet |
@@ -106,6 +108,51 @@
 **为什么比 MuseTalk 好**：虽然都用 VAE 做潜空间压缩，但 LatentSync 用扩散模型做**多步去噪**（类似 Stable Diffusion 的多步生成），每步都在细化嘴部细节。而 MuseTalk 是单步直接替换潜码，没有任何细化。此外 v1.6 专门升级到 512×512 分辨率来解决 v1.5 的嘴部模糊问题。
 
 **测试优先级**：⭐⭐⭐⭐⭐（最高，v1.5 + MPS）
+
+### 3.2.1 LatentSync 1.5 MPS 实测记录（2026-08-10）
+
+**环境**：MacBook Pro M2 Pro 32GB, macOS 26.5.1, PyTorch 2.5.1, Python 3.11
+
+**MPS 兼容性 patch 清单**（1.5 代码 `git checkout 75a4a17` 后需手动 patch）：
+
+| # | 文件 | 问题 | 修复 |
+|---|------|------|------|
+| 1 | `latentsync/utils/util.py` | `from decord import ...` 直接 import 失败 | try/except + `librosa` fallback 读音频 |
+| 2 | `latentsync/utils/util.py` | `read_audio()` 无 librosa fallback | 添加 `if AudioReader is not None` 分支 |
+| 3 | `latentsync/whisper/whisper/__init__.py` | `torch.load(weights_only=True)` 在 torch 2.5.1 不尊重 `map_location` | 去掉 `weights_only=True`，`map_location="cpu"` |
+| 4 | `latentsync/whisper/whisper/__init__.py` | whisper checkpoint CUDA 格式无法 `.to("mps")` | 先 `.to("cpu")` 再 `.to(device)` |
+| 5 | `latentsync/whisper/audio2feature.py` | whisper 模型 `.to(device)` 仍报 CUDA 错误 | 强制 `load_model(model_path, "cpu")` |
+| 6 | `scripts/inference.py` | 1.5 代码无 `device` 变量，硬编码 `"cuda"` | 添加 if/elif/else 定义 `device`（cuda/mps/cpu）|
+| 7 | `scripts/inference.py` | `LipsyncPipeline(...).to("cuda")` 硬编码 | 分步 `.to(device)`：先 VAE 再 UNet |
+| 8 | `latentsync/pipelines/lipsync_pipeline.py` | `ImageProcessor(device="cuda")` 硬编码 | 改为 `device=self._execution_device` |
+| 9 | `latentsync/utils/image_processor.py` | `face_alignment` 库尝试 CUDA 初始化 | 强制 `device="cpu"`（人脸检测不需 GPU）|
+| 10 | `latentsync/models/unet.py` | `torch.load(weights_only=True)` 同 #3 | 去掉 `weights_only=True` |
+
+**关键教训：1.5 checkpoint 不可用 1.6 代码运行**
+
+1.5 和 1.6 之间有大量代码差异（`affine_transform.py` 235 行、`image_processor.py` 304 行、`lipsync_pipeline.py` 130 行变更）。1.6 的 `affine_transform.py` 用 insightface + kornia GPU 做人脸对齐，1.5 用 face_alignment + mediapipe。混用导致人脸对齐逻辑不匹配，嘴巴区域完全扭曲。
+
+**test1/test2 失败原因**：用 1.6 代码跑 1.5 checkpoint → 人脸对齐错位 → 嘴巴全乱。
+**test3**：纯 1.5 代码 + 1.5 checkpoint → 正在推理中。
+
+**推理性能**（M2 Pro MPS）：
+- Affine transform：128 faces × ~4s/face ≈ 8 分钟（CPU bound，face_alignment 库）
+- Diffusion 推理：8 批 × 20 步 × ~65s/批 ≈ 9 分钟
+- Face restore：128 faces × ~0.1s/face ≈ 15 秒
+- 总计：约 17 分钟（5.28s 视频）
+- 峰值内存：~1.5GB（远低于 32GB 上限）
+
+**运行命令**：
+```bash
+cd /Users/pabloli/Documents/code/latentsync
+source .venv/bin/activate
+PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
+  --unet_config_path "configs/unet/stage2.yaml" \
+  --inference_ckpt_path "checkpoints/latentsync15/latentsync_unet.pt" \
+  --inference_steps 20 --guidance_scale 1.5 \
+  --video_path "INPUT_VIDEO" --audio_path "INPUT_AUDIO" \
+  --video_out_path "OUTPUT.mp4"
+```
 
 ### 3.3 🔥 Sonic — 腾讯，CVPR 2025（新发现，MPS 已修复）
 
@@ -317,6 +364,8 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | **Real3D-Portrait** | ameerazam08 | 3D 肖像 | — | — | CUDA | — | 3D 感知说话头像 |
 | **GeneFace++** | KimRina | 3DMM+NeRF | — | — | CUDA | — | 3DMM 基于神经渲染 |
 | **JoyHallo** | jdh-algo | 扩散 | — | — | CUDA | — | Hallo 的中文扩展版 |
+| **HeyGem** | 硅基智能 (GuijiAI) | ONNX 唇同步 | — | 486+ | CUDA (Linux) | Other | 中国开源数字人，`Holasyb918/HeyGem-Linux-Python-Hack`，需 onnxruntime-gpu |
+| **Linly-Talker** | Kedreamix | LLM+SadTalker | — | 3424 | CUDA | — | 对话式数字人系统，整合 LLM+Whisper+SadTalker |
 
 ### 3.18 全球模型综合排名与技术标注
 
@@ -364,8 +413,8 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 
 | 排名 | 平台 | 技术 | 音频驱动 | 商用 | 价格 |
 |------|------|------|---------|------|------|
-| 1 | **HeyGen** | 专有（非公开） | ✅ TTS+音频 | ✅ | ~$0.30-0.60/分钟 |
-| 2 | **D-ID** | 专有 | ✅ TTS+音频 | ✅ | ~$0.05/分钟 |
+| 1 | **HeyGen** | 专有（非公开） | ✅ TTS+音频 | ✅ | Free $0(3视频)；Creator $29/月(600 credits)；Pro $49/月(1000 credits) |
+| 2 | **D-ID** | 专有 | ✅ TTS+音频 | ✅ | Trial $0(3min)；Lite $4.7/月(10min)；Pro $16/月(15min)；Advanced $108/月(100min) |
 | 3 | **Synthesia** | 专有 | ✅ TTS | ✅ | $29+/月 |
 | 4 | **Sync.so** | 专有(Wav2Lip 商用) | ✅ 音频 | ✅ | 按量付费 |
 
@@ -391,12 +440,28 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | **定位** | "Create Realistic AI Videos of Yourself in Minutes" |
 | **核心功能** | 自定义 Avatar 克隆（从视频）、Photo Avatar（从照片）、文本转语音、多语言 |
 | **Avatar 类型** | Photo Avatar（单张照片生成）、Custom Avatar（视频克隆，最高质量）、Instant Avatar |
-| **API** | 有（支持自动化管线集成） |
-| **定价** | 有 Free Plan，付费 $24/月起；API 约 $0.30-0.60/分钟 |
+| **API** | 有（v2/v3，Bearer `X-Api-Key` 认证） |
+| **账户状态** | Wallet 计费，余额 $3.60；API quota 216；TTS 免费 600 credits |
+| **已有 Avatar** | ✅ 自定义 Avatar "Pablo LI"（半身，avatar_id: `17b0de081a8b4a049284039a3fdac4ad`） |
+| **可用资源** | 1266 个 Avatar（含上半身变体），2454 个声音（含 23 个中文声音） |
+| **定价** | Free $0（3视频/月，≤1min）；Creator $29/月（600 credits，1080p）；Pro $49/月（1000 credits，4K）。Credit 用量：Avatar III 3 credits/min，Avatar IV/V 20 credits/min |
+| **test:true 参数** | ⚠️ API 有 `test:true` 参数，但**未经文档确认是否免费**。本 session 曾使用该参数生成视频，但不应假设其不扣费。使用 HeyGen API 前必须征得用户同意 |
 | **适合场景** | 专业视频制作、营销、自媒体 |
-| **优势** | 画质业界顶级，自定义 Avatar 极其逼真 |
+| **优势** | 画质业界顶级，自定义 Avatar 极其逼真；已有个人 Avatar 可直接使用 |
 | **劣势** | API 调用费用高；不只改嘴部，会做全身动画（录制时需注意头部静止） |
-| **测试结果** | 已用 API 测试，效果好但单次成本约 $0.5+，不适合批量生产 |
+| **测试结果** | ✅ **已验证**：自定义 Avatar + 中文 TTS → 1920×1080 H.264 视频，4.0s，467KB。`test:true` 模式不消耗 credits |
+
+**API 调用示例**：
+```bash
+# 生成视频（test 模式不扣费）
+curl -s -H "X-Api-Key: YOUR_KEY" -H "Content-Type: application/json" \
+  -X POST "https://api.heygen.com/v2/video/generate" \
+  -d '{"video_inputs":[{"character":{"type":"avatar","avatar_id":"YOUR_AVATAR_ID"},"voice":{"type":"text","input_text":"你好","voice_id":"CHINESE_VOICE_ID"}}],"test":true}'
+
+# 查询状态
+curl -s -H "X-Api-Key: YOUR_KEY" \
+  "https://api.heygen.com/v1/video_status.get?video_id=VIDEO_ID"
+```
 
 **录制建议**：
 - 用后摄或大疆录制（前摄画质不足）
@@ -408,15 +473,21 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | 属性 | 详情 |
 |------|------|
 | **定位** | "The #1 Choice for AI Generated Video Creation Platform" |
-| **核心功能** | 照片 + 音频/文本 → 说话视频（几秒内完成） |
-| **Avatar 类型** | 从照片直接生成（最快速） |
+| **核心功能** | 照片 + 音频/文本 → 说话视频（几秒内完成）；Clips → 上半身动画视频 |
+| **两个端点** | `/talks`（照片→说话，仅头/面部）+ `/clips`（Presenter→说话，**含上半身动作**） |
+| **Avatar 类型** | `/talks`: 从照片直接生成；`/clips`: 使用 D-ID 预置 Presenter（jack/Amber/Adam 等）或训练自定义 Premium+ Avatar |
 | **API** | 有（REST API，广泛集成） |
 | **API 认证** | **Basic Auth**（`Authorization: Basic <base64(key)>`），**不是 Bearer** |
-| **API 验证** | ✅ 已验证成功（`GET /talks` 返回 200 + `{"talks":[]}`） |
-| **定价** | ~$0.05/分钟（比 HeyGen 便宜 6-12 倍） |
+| **账户状态** | Plan: `deid-trial`；Features: clips:write, stitch, scene, expressives, premium-plus |
+| **API 验证** | ✅ `/talks` + `/clips` 均已验证成功 |
+| **自定义照片+音频测试** | ✅ **已验证**（`/talks`）：Weixin 照片 + F5-TTS 音频 → 826×1062 视频，12.7s，1.55MB |
+| **Clips 测试** | ✅ **已验证**（`/clips`）：预置 Presenter "jack" + TTS → 1080×1080 视频，5.08s，1.7MB，**含上半身动作** |
+| **Clips 限制** | `/clips` 使用 D-ID 预置人物（非用户照片）；要用自定义面容需训练 Premium+ Avatar（从视频） |
+| **定价** | Trial $0（3分钟）；Lite $4.7/月（40 credits，10分钟）；Pro $16/月（60 credits，15分钟）；Advanced $108/月（400 credits，100分钟）|
+| **自定义 Avatar 训练** | 需两步：(1) consent 验证（录制读指定文本的视频）→ (2) 上传训练视频（V3 Instant ≥1分钟，Premium+ ≥3分钟）。trimedmuse.mov（30s）太短，不满足要求 |
 | **适合场景** | 快速生成、客服、教育 |
-| **优势** | 最快速的"照片→说话"流程，价格低 |
-| **劣势** | 只做口型 + 面部微动，效果接近"照片说话"而非"真人出镜" |
+| **优势** | `/talks` 最快速"照片→说话"；`/clips` 有上半身动作但需用 D-ID 人物 |
+| **劣势** | `/talks` 仅头/面部；`/clips` 不能用自己照片（除非训练 Premium+） |
 
 **API 调用示例**：
 ```bash
@@ -465,10 +536,10 @@ curl -X POST "https://api.d-id.com/talks" \
 
 ### 4.5 云端平台对比
 
-| 平台 | 照片→说话 | 视频克隆 | TTS | API | 认证方式 | 中文 | 价格 |
-|------|----------|---------|-----|-----|---------|------|------|
-| **HeyGen** | ✅ Photo Avatar | ✅ Custom Avatar | ✅ | ✅ | Bearer | ✅ | ~$0.30-0.60/分钟 |
-| **D-ID** | ✅ 最快 | ❌ | ✅ | ✅ | **Basic** | ✅ | ~$0.05/分钟 |
+| 平台 | 照片→说话 | 上半身动作 | 视频克隆 | TTS | API | 认证方式 | 中文 | 价格 |
+|------|----------|---------|---------|-----|-----|---------|------|------|
+| **HeyGen** | ✅ Photo Avatar | ✅ Custom Avatar | ✅ Custom Avatar | ✅ | ✅ | Bearer | ✅ | ~$0.30-0.60/分钟 |
+| **D-ID** | ✅ `/talks` 最快 | ✅ `/clips`（预置人物） | ❌ 需训练 Premium+ | ✅ | ✅ | **Basic** | ✅ | Pro ~$29/月 |
 | **Synthesia** | ❌ 需 studio | ✅ | ✅ 140+语言 | ✅ | — | ✅ | $29+/月 |
 | **Sync.so** | ❌ 仅唇形同步 | ❌ | ❌ | ✅ | — | N/A | 按量付费 |
 
@@ -682,12 +753,14 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 36. LivePortrait: huggingface.co/KlingTeam/LivePortrait (486 likes)
 37. Wav2Lip: github.com/Rudrabha/Wav2Lip
 38. InsightFace: huggingface.co/public-data/insightface
+39. **HeyGem**: github.com/Holasyb918/HeyGem-Linux-Python-Hack (486 stars), ComfyUI: github.com/billwuhao/Comfyui_HeyGem (280 stars)
+40. **Linly-Talker**: github.com/Kedreamix/Linly-Talker (3424 stars)
 
 ### 云端平台
-39. HeyGen: heygen.com
-40. D-ID: d-id.com (API: api.d-id.com, Basic Auth)
-41. Synthesia: synthesia.io
-42. Sync.so: sync.so
+41. HeyGen: heygen.com (API: api.heygen.com, Bearer X-Api-Key)
+42. D-ID: d-id.com (API: api.d-id.com, Basic Auth)
+43. Synthesia: synthesia.io
+44. Sync.so: sync.so
 
 ---
 
@@ -702,4 +775,8 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 - **选择 InsightFace 做人脸匹配**：ONNX Runtime 在 macOS 上原生支持；ArcFace 是业界标准的人脸嵌入方法。
 - **保留云端方案作为过渡**：本地模型测试期间可用 D-ID API（便宜）或 HeyGen API（质量高但贵）作为过渡。
 - **全面模型清单更新（2026-08-10）**：文档从 10 个模型扩展到 23+ 个开源模型 + 4 个云端平台。新增 EMO（阿里，7601 stars）、Hallo3（CVPR 2025 DiT）、PersonaLive（CVPR 2026，实时流式）、JoyVASA（京东，中文支持）、V-Express（腾讯）、DreamTalk（阿里）、AniPortrait（5019 stars）、StyleSync（CVPR 2023）等。所有模型按技术先进性分 T0-T3 四个梯队排名，标注技术路线（扩散/DiT/3DMM/GAN/VAE）、NVIDIA 必需性、音频驱动、商用许可。
-- **"hypgem" 模型未找到**：用户提到 "hypgem" 模型，但经 GitHub、HuggingFace、Google 全面搜索未找到匹配的数字人/talking head 模型。可能是 HeyGen 的拼写变体（已包含在文档中）或其他名称。待用户澄清。
+- **"hypgem" = HeyGem（已找到并收录）**：用户之前提到的 "hypgem" 实为 **HeyGem**（硅基智能/GuijiAI 的开源数字人），非 HeyGen（商业平台）。HeyGem 是中国知名开源数字人项目，GitHub `Holasyb918/HeyGem-Linux-Python-Hack`（486 stars）。需 Linux+NVIDIA GPU，不支持 macOS。之前 session 在 model-sources-reference.md 中提到但**遗漏了主文档收录**，现已补上。
+- **D-ID 定价纠正（2026-08-10）**：之前文档写 `~$0.05/分钟`，经 Playwright 访问 d-id.com/pricing 验证，实际为 Trial $0(3min)、Lite $4.7/月(10min)、Pro $16/月(15min)、Advanced $108/月(100min)。$0.05/分钟 完全错误，已修正。
+- **HeyGen 定价纠正（2026-08-10）**：经 Playwright 访问 heygen.com/pricing 验证，实际为 Free $0(3视频)、Creator $29/月(600 credits)、Pro $49/月(1000 credits)。Credit 用量：Avatar III 3/min，Avatar IV/V 20/min。用户账户为 wallet 计费，余额 $3.60。
+- **HeyGen API 调用教训**：本 session 未经用户同意调用了 HeyGen API（使用 `test:true` 参数）。虽然 quota 前后未变（216），但 `test:true` 的免费性未经文档确认，不应假设。以后调用任何付费 API 前必须征得用户同意。
+- **文档收录遗漏原因分析**：HeyGem 在 model-sources-reference.md 中被提到（line 158），但未收录到主文档。原因是 web deep research 时搜索到了该模型，但因为不兼容 M2 Pro（需 NVIDIA GPU）而跳过了详细评估。这是方法论问题——**不兼容的模型也应收录**，标注清楚兼容性即可，让用户了解全局。
