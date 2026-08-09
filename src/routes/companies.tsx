@@ -1,6 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
-import { ogImageMeta } from "@/lib/og";
+import { OG_DEFAULT, ogImageMeta } from "@/lib/og";
+import {
+  SITE,
+  articleJsonLd,
+  breadcrumbListJsonLd,
+  faqPageJsonLd,
+  graph,
+  itemListJsonLd,
+  jsonLdScript,
+  organization,
+} from "@/lib/structured-data";
 import { SubscribeForm } from "@/components/subscribe-form";
 
 const TITLE = "Chinese AI Companies: The 2026 Guide to China's Top AI Labs";
@@ -239,6 +249,47 @@ const GROUPS: { id: string; heading: string; blurb: string; items: Company[] }[]
 
 const ALL = [...TIER1, ...TIER2, ...INFRA];
 
+export const companiesJsonLd = () =>
+  graph(
+    organization(),
+    articleJsonLd({
+      headline: TITLE,
+      description: DESCRIPTION,
+      url: URL,
+      image: OG_DEFAULT,
+      datePublished: "2026-08-05",
+      dateModified: "2026-08-09",
+      about: "Chinese artificial intelligence companies and open model labs",
+    }),
+    itemListJsonLd(
+      "Top Chinese AI companies",
+      ALL.map((c) => ({
+        "@type": "Organization",
+        name: c.name,
+        url: c.site,
+        description: c.summary,
+      })),
+    ),
+    breadcrumbListJsonLd([
+      { name: "Home", item: SITE },
+      { name: "Chinese AI companies", item: URL },
+    ]),
+    faqPageJsonLd([
+      {
+        q: "Which Chinese AI companies release open-weight models?",
+        a: "DeepSeek, Alibaba's Qwen team, Zhipu AI, StepFun, 01.AI and Baichuan publish open weights regularly. Tencent Hunyuan and MiniMax open-source selected multimodal models while keeping their strongest systems proprietary.",
+      },
+      {
+        q: "Who are China's top open model labs?",
+        a: "By release cadence and downstream adoption, the leading Chinese open model labs are DeepSeek, Alibaba Qwen, Zhipu AI (GLM), Moonshot AI (Kimi) and StepFun.",
+      },
+      {
+        q: "How do Chinese AI companies get compute under export controls?",
+        a: "Through pre-control Nvidia stockpiles, export-compliant variants, offshore cloud capacity, and increasingly domestic accelerators from Huawei Ascend, Cambricon and Moore Threads.",
+      },
+    ]),
+  );
+
 export const Route = createFileRoute("/companies")({
   head: () => ({
     meta: [
@@ -255,81 +306,7 @@ export const Route = createFileRoute("/companies")({
       { name: "twitter:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
     ],
     links: [{ rel: "canonical", href: URL }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@graph": [
-            {
-              "@type": "Article",
-              headline: TITLE,
-              description: DESCRIPTION,
-              mainEntityOfPage: URL,
-              about: "Chinese artificial intelligence companies and open model labs",
-              publisher: { "@id": "https://chinaai.news/#organization" },
-            },
-            {
-              "@type": "ItemList",
-              name: "Top Chinese AI companies",
-              itemListOrder: "https://schema.org/ItemListUnordered",
-              numberOfItems: ALL.length,
-              itemListElement: ALL.map((c, i) => ({
-                "@type": "ListItem",
-                position: i + 1,
-                item: {
-                  "@type": "Organization",
-                  name: c.name,
-                  url: c.site,
-                  description: c.summary,
-                },
-              })),
-            },
-            {
-              "@type": "BreadcrumbList",
-              itemListElement: [
-                {
-                  "@type": "ListItem",
-                  position: 1,
-                  name: "Home",
-                  item: "https://chinaai.news/",
-                },
-                { "@type": "ListItem", position: 2, name: "Chinese AI companies", item: URL },
-              ],
-            },
-            {
-              "@type": "FAQPage",
-              mainEntity: [
-                {
-                  "@type": "Question",
-                  name: "Which Chinese AI companies release open-weight models?",
-                  acceptedAnswer: {
-                    "@type": "Answer",
-                    text: "DeepSeek, Alibaba's Qwen team, Zhipu AI, StepFun, 01.AI and Baichuan publish open weights regularly. Tencent Hunyuan and MiniMax open-source selected multimodal models while keeping their strongest systems proprietary.",
-                  },
-                },
-                {
-                  "@type": "Question",
-                  name: "Who are China's top open model labs?",
-                  acceptedAnswer: {
-                    "@type": "Answer",
-                    text: "By release cadence and downstream adoption, the leading Chinese open model labs are DeepSeek, Alibaba Qwen, Zhipu AI (GLM), Moonshot AI (Kimi) and StepFun.",
-                  },
-                },
-                {
-                  "@type": "Question",
-                  name: "How do Chinese AI companies get compute under export controls?",
-                  acceptedAnswer: {
-                    "@type": "Answer",
-                    text: "Through pre-control Nvidia stockpiles, export-compliant variants, offshore cloud capacity, and increasingly domestic accelerators from Huawei Ascend, Cambricon and Moore Threads.",
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-      },
-    ],
+    scripts: [jsonLdScript(companiesJsonLd())],
   }),
   component: CompaniesPage,
 });
