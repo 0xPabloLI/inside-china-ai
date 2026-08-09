@@ -43,7 +43,7 @@ function baseStyles(duration) {
       --d: ${duration}s;
       --blue: #4d8bff; --purple: #6d4eff; --red: #ef4444;
       --amber: #f59e0b; --green: #34d399; --cyan: #22d3ee;
-      --white: #f5f5f5; --sec: #94a3b8; --muted: #475569;
+      --white: #f5f5f5; --sec: #cbd5e1; --muted: #475569;
     }
     .scene { width: 1080px; height: 1920px; position: relative; overflow: hidden; }
     .grid-bg {
@@ -94,11 +94,6 @@ function baseStyles(duration) {
        .blue variant. pointer-events: none; not content; safe-zone-exempt. */
     .frame-glow { position: absolute; inset: 0; border: 3px solid rgba(245,158,11,0.2); box-shadow: inset 0 0 40px rgba(245,158,11,0.08); z-index: 99; pointer-events: none; }
     .frame-glow.blue { border-color: rgba(77,139,255,0.2); box-shadow: inset 0 0 40px rgba(77,139,255,0.08); }
-    /* Flash hook — pattern-break flash in the first 0.4s of Hook scenes (spec §2.3).
-       Full-screen amber overlay that fades from opacity 1 to 0. Injected inside
-       hookScene() only; pointer-events: none; safe-zone-exempt. */
-    @keyframes flashFrame { 0% { opacity: 1; } 60% { opacity: 0.3; } 100% { opacity: 0; pointer-events: none; } }
-    .flash-frame { position: absolute; inset: 0; background: var(--amber); z-index: 200; pointer-events: none; animation: flashFrame 0.4s ease-out 0s forwards; }
   `;
 }
 

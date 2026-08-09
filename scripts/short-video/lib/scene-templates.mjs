@@ -47,7 +47,7 @@ function templateCss() {
     .brand-bar { position: absolute; top: 140px; left: 60px; right: 200px; display: flex; align-items: center; gap: 16px; animation: slideDown 0.3s ease-out 0.1s forwards; opacity: 0; }
     .brand-bar .b-logo { width: 48px; height: 48px; } .brand-bar .b-logo svg { width: 100%; height: 100%; }
     .brand-bar .b-text { font-size: 24px; font-weight: 900; color: var(--white); letter-spacing: 3px; } .brand-bar .b-text .hl { color: var(--blue); }
-    .brand-bar .briefing-tag { margin-left: auto; font-size: 16px; font-weight: 700; color: var(--sec); letter-spacing: 2px; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }
+    .brand-bar .briefing-tag { margin-left: auto; font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 2px; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }
     .breaking-badge { position: absolute; top: 220px; left: 50%; transform: translateX(-50%); background: var(--red); color: white; padding: 14px 40px; font-size: 28px; font-weight: 900; letter-spacing: 4px; border-radius: 8px; box-shadow: 0 0 40px rgba(239,68,68,0.6); display: flex; align-items: center; gap: 10px; animation: stampIn 0.4s ease-out 0.3s forwards; opacity: 0; }
     .breaking-badge .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background: white; animation: pulseDot 1s ease-in-out infinite; }
     .stat-card { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid var(--blue); border-radius: 14px; padding: 24px 20px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
@@ -87,9 +87,9 @@ function templateCss() {
     .s-hook .subject-row { display: flex; align-items: center; justify-content: center; gap: 20px; animation: slideUp 0.4s ease-out 0.2s forwards; opacity: 0; }
     .s-hook .subject-row .subject-logo { width: 120px; height: 120px; filter: drop-shadow(0 0 25px rgba(77,139,255,0.3)); } .s-hook .subject-row .subject-logo svg { width: 100%; height: 100%; }
     .s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 4px; }
-    .s-hook .focal-claim { font-size: 78px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-align: center; animation: hookIn 0.3s ease-out forwards; }
+    .s-hook .focal-claim { font-size: 78px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-align: center; }
     .s-hook .focal-reveal { font-size: 80px; font-weight: 900; letter-spacing: 2px; line-height: 1.05; text-align: center; max-width: 100%; animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 0.8s forwards; opacity: 0; }
-    .s-hook .focal-number { font-size: 300px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-align: center; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.3s forwards, numberPulse 2s ease-in-out 1.0s infinite; opacity: 0; }
+    .s-hook .focal-number { font-size: 300px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-align: center; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: numberPulse 2s ease-in-out 1.0s infinite; }
     .s-hook .focal-number-label { font-size: 48px; font-weight: 800; color: var(--white); letter-spacing: 3px; margin-top: 12px; text-align: center; animation: slideUp 0.5s ease-out 0.6s forwards; opacity: 0; }
     .s-hook .stats-row { display: flex; gap: 20px; justify-content: center; }
     .s-hook .source-line { font-size: 26px; font-weight: 700; color: var(--sec); letter-spacing: 3px; text-align: center; animation: fadeIn 0.4s ease-out 1.3s forwards; opacity: 0; }
@@ -359,7 +359,7 @@ function hookScene(scene, duration) {
 ${baseStyles(duration)}${templateCss()}${slotCss()}
 </style></head><body>
 <div class="scene s-hook">
-  <div class="flash-frame"></div><div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
+  <div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
   ${brandBar()}
   ${sceneFrame({ kicker: badge, hero: subjectRow + focal, support })}
 </div></body></html>`;
