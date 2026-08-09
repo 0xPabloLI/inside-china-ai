@@ -6,6 +6,7 @@
  */
 
 import matter from "gray-matter";
+import { execSync } from "child_process";
 
 // ─── Slug helpers ───
 
@@ -204,4 +205,29 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey) {
     slug: row.slug,
     mode: payload.mode,
   };
+}
+
+// ─── RAG Reindex Trigger (Scenario #2) ───
+
+/**
+ * Trigger RAG reindex after successful article publish.
+ *
+ * Non-blocking: if index.mjs fails, the publish still succeeds.
+ * Spec: docs/spec-rag.md §4.6
+ *
+ * @param {string} projectRoot — Absolute path to project root
+ * @param {Function} [execFn=execSync] — Exec function (injectable for testing)
+ */
+export function triggerRagReindex(projectRoot, execFn = execSync) {
+  console.log("  📚 Triggering RAG reindex...");
+  try {
+    execFn("node scripts/rag/index.mjs", {
+      stdio: "inherit",
+      cwd: projectRoot,
+    });
+    console.log("  ✅ RAG reindex complete");
+  } catch (err) {
+    console.warn("  ⚠️  RAG reindex failed (non-blocking):", err.message);
+    console.warn("     Run manually: node scripts/rag/index.mjs");
+  }
 }

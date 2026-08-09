@@ -5,6 +5,7 @@ import {
   validateSlug,
   buildPostPayload,
   upsertPost,
+  triggerRagReindex,
 } from "../lib/publish-utils.mjs";
 
 // ─── slugify ───
@@ -377,5 +378,63 @@ describe("upsertPost", () => {
     await expect(upsertPost(parsed, mockAuth, supabaseUrl, supabaseKey)).rejects.toThrow(
       /Invalid request/,
     );
+  });
+});
+
+// ─── triggerRagReindex ───
+
+describe("triggerRagReindex", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls execSync with node scripts/rag/index.mjs on success (Scenario #2)", () => {
+    const mockExec = vi.fn();
+    triggerRagReindex("/fake/project/root", mockExec);
+
+    expect(mockExec).toHaveBeenCalledTimes(1);
+    const [cmd, opts] = mockExec.mock.calls[0];
+    expect(cmd).toContain("node");
+    expect(cmd).toContain("scripts/rag/index.mjs");
+    expect(opts.cwd).toBe("/fake/project/root");
+  });
+
+  it("does not throw when index.mjs fails (non-blocking, Scenario #2)", () => {
+    const mockExec = vi.fn(() => {
+      throw new Error("Ollama not running");
+    });
+
+    // Should not throw — reindex failure is non-blocking
+    expect(() => triggerRagReindex("/fake/root", mockExec)).not.toThrow();
+  });
+
+  it("prints warning message on failure", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const mockExec = vi.fn(() => {
+      throw new Error("ECONNREFUSED");
+    });
+
+    triggerRagReindex("/fake/root", mockExec);
+
+    // Should have logged the trigger message
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Triggering RAG reindex"));
+    // Should have warned about failure
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("RAG reindex failed"),
+      expect.anything(),
+    );
+    // Should mention manual fallback
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("node scripts/rag/index.mjs"));
+  });
+
+  it("prints success message when reindex completes", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const mockExec = vi.fn(); // succeeds (no throw)
+
+    triggerRagReindex("/fake/root", mockExec);
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Triggering RAG reindex"));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("RAG reindex complete"));
   });
 });
