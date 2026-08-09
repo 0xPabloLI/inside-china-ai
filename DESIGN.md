@@ -142,8 +142,17 @@ A cool, blue-tinted neutral foundation with one saturated brand accent. The pale
 ### Dark Mode
 
 - **Dark Ink** (`oklch(0.18 0.015 260)` / `#1a1d23`): Dark mode background. Blue-tinted near-black.
-- **Dark Card** (`oklch(0.22 0.02 260)` / `#22262e`): Dark mode card surface.
-- **Dark Hairline** (`oklch(1 0 0 / 10%)`): Dark mode borders — white at 10% opacity.
+- **Dark Card** (`oklch(0.25 0.02 260)`): Dark mode card surface. ΔL 0.07 from background — above perceptible threshold (was 0.22/ΔL 0.04, cards blended into bg).
+- **Dark Muted** (`oklch(0.31 0.02 260)`): Dark mode muted surfaces (code blocks, table headers). ΔL 0.06 from card.
+- **Dark Accent** (`oklch(0.35 0.02 260)`): Dark mode accent surfaces.
+- **Light Mist** (`oklch(0.78 0.02 255)`): Dark mode muted foreground — secondary text, labels, metadata. Meets WCAG AA 9.41:1 against Dark Ink (was 0.7/7.05:1 — passed mathematically but perceptually dim; impeccable audit identified as dark-mode equivalent of "light gray for elegance").
+- **Brand Light** (`oklch(0.78 0.15 260)`): Dark mode brand-foreground text. 9.04:1 against Dark Ink.
+- **Dark Hairline** (`oklch(1 0 0 / 20%)`): Dark mode borders — white at 20% opacity. At `/60` modifier (used by most components) yields 12% effective — perceptible (was 10%/6% effective, ratio 1.15:1 — essentially invisible).
+- **Dark Status Muted** (`oklch(0.28 0.05 ...)`): Success/warning/danger muted surfaces at L=0.28 — above card (0.25), below muted (0.31), with semantic chroma.
+
+**Dark mode content overrides** (in `src/styles.css`):
+- Blockquote text uses `--foreground` (not `--muted-foreground`) — blockquote is content, not metadata.
+- Prose `line-height` increases from 1.75 to 1.85 — light text on dark backgrounds needs more breathing room.
 
 **The Dispatch Blue Rule.** Brand blue appears on ≤10% of any given screen. Its rarity is the point. It marks identity (wordmark), progress (reading bar), and attention (link hover) — nothing else. If brand blue covers more than 10% of a surface, the design has failed.
 

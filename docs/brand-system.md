@@ -29,6 +29,40 @@ The brand uses **one visual identity, two surface treatments** — same semantic
 
 A magazine-style blog and a YouTube Short have different UX constraints. Bloomberg's website is white-background magazine; Bloomberg's video is dark high-contrast data-viz. Same brand, different media, different visual density. We follow the same principle — the video palette leads, the web palette adapts for readability.
 
+### Website Dark Mode
+
+The website offers a user-toggleable dark mode (`ThemeToggle` component, persisted in `localStorage`, defaults to system preference). This is NOT the same as the video dark palette — it is a low-light variant of the magazine surface, optimized for the same reader in different ambient conditions.
+
+**Physical scene**: A reader catching up on China AI dispatches at night, in a dim room, on a phone — the same reader who reads in daylight, now needs a low-light variant of the same magazine surface. Dark mode is a reading comfort feature, not an aesthetic choice.
+
+**Shared principles (both light + dark website)**:
+- Off-white foreground, never pure `#ffffff` — reduces glare on dark backgrounds (same rationale as video `#f5f5f5`)
+- Blue-tinted neutrals (hue 260) throughout — no warm drift in dark mode
+- Brand blue ≤10% of any surface — unchanged in dark mode
+- Flat elevation by default — tonal layering (background → card → muted) conveys depth
+
+**Dark mode palette** (defined in `src/styles.css`, `.dark` block; full token list in `DESIGN.md`):
+
+| Token | OKLCH | Semantic | WCAG AA |
+|-------|-------|----------|---------|
+| `--background` | `oklch(0.18 0.015 260)` | Dark Ink — blue-tinted near-black | — |
+| `--foreground` | `oklch(0.96 0.01 260)` | Off-white text | 16.75:1 vs bg |
+| `--card` | `oklch(0.25 0.02 260)` | Dark Card surface | ΔL 0.07 from bg |
+| `--muted` | `oklch(0.31 0.02 260)` | Code blocks, table headers | ΔL 0.06 from card |
+| `--muted-foreground` | `oklch(0.78 0.02 255)` | Secondary text, metadata | 9.41:1 vs bg |
+| `--border` | `oklch(1 0 0 / 20%)` | White at 20% opacity | — |
+| `--brand-foreground` | `oklch(0.78 0.15 260)` | Brand-colored text | 9.04:1 vs bg |
+
+> **Why `oklch(0.78)` for muted-foreground, not `0.7`?** The previous value (L=0.7) passed WCAG AA mathematically (7.05:1) but felt perceptually dim on a near-black background. The impeccable design audit identified this as the dark-mode equivalent of "light gray for elegance" — the most common readability failure. L=0.78 gives 9.41:1 and a perceptually brighter secondary text without approaching foreground (0.96).
+
+> **Why 20% border opacity, not 10%?** At 10%, the `/60` modifier used by most components yields 6% effective white — contrast ratio 1.15:1, essentially invisible. At 20%, `/60` yields 12% — still subtle but perceptible (1.38:1). Structural borders should be visible; decorative dividers remain subtle via the `/60` and `/40` modifiers.
+
+> **Why ΔL 0.07 between background and card?** The previous ΔL of 0.04 was below the perceptible threshold (~0.05). Cards blended into the background, making the page feel "all black." ΔL 0.07 is above the threshold while maintaining the flat-elevation principle.
+
+**Content rules (dark mode overrides)**:
+- Blockquote text uses `--foreground` (not `--muted-foreground`) — blockquote is content, not metadata
+- Prose line-height increases from 1.75 to 1.85 — light text on dark backgrounds needs more breathing room (impeccable brand register guidance)
+
 ## Color Tokens (Video)
 
 All tokens below are for **video and thumbnail surfaces**. The website uses its own OKLCH palette in `src/styles.css` — see Media Strategy above for why they differ.
