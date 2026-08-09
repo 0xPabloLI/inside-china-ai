@@ -26,7 +26,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 import { loginAdmin, getEnvVar, loadDotEnvFiles } from "./lib/supabase-auth.mjs";
-import { parseArticleFile, upsertPost } from "./lib/publish-utils.mjs";
+import { parseArticleFile, upsertPost, triggerRagReindex } from "./lib/publish-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, "..", "..");

@@ -47,11 +47,11 @@ describe("TTS Post-Processing", () => {
   // ── buildFilter ──
 
   describe("buildFilter() — cleanup chain", () => {
-    // S4: Default cleanup params (highpass=80 + afftdn=nr=10)
+    // S4: Default cleanup params (highpass=80 + afftdn=nr=5)
     it("S4: includes highpass and afftdn by default", () => {
       const filter = buildFilter({ useSilenceFilter: false });
       expect(filter).toContain("highpass=f=80");
-      expect(filter).toContain("afftdn=nr=10");
+      expect(filter).toContain("afftdn=nr=5");
     });
 
     // S2: TTS_DENOISE=0 → no afftdn
@@ -78,15 +78,17 @@ describe("TTS Post-Processing", () => {
       expect(afftdnIdx).toBeLessThan(srIdx);
     });
 
-    // S6: Cleanup chain + rubberband (F5 path, no silenceremove)
-    it("S6: cleanup chain before rubberband (F5 path)", () => {
-      const prosody = { pitch: 1.08, tempo: 1.12, label: "hook" };
+    // S6: Cleanup chain + rubberband + volume (F5 path, no silenceremove)
+    it("S6: cleanup chain before rubberband, volume after (F5 path with hook prosody)", () => {
+      const prosody = { pitch: 1.04, tempo: 1.06, volume: 1.15, label: "hook" };
       const filter = buildFilter({ useSilenceFilter: false, prosody });
       const hpIdx = filter.indexOf("highpass");
       const afftdnIdx = filter.indexOf("afftdn");
       const rbIdx = filter.indexOf("rubberband");
+      const volIdx = filter.indexOf("volume");
       expect(hpIdx).toBeLessThan(afftdnIdx);
       expect(afftdnIdx).toBeLessThan(rbIdx);
+      expect(rbIdx).toBeLessThan(volIdx);
     });
   });
 
@@ -128,11 +130,27 @@ describe("TTS Post-Processing", () => {
 
   describe("buildFilter() — prosody", () => {
     it("includes rubberband when prosody provided", () => {
-      const prosody = { pitch: 1.08, tempo: 1.12, label: "hook" };
+      const prosody = { pitch: 1.04, tempo: 1.06, volume: 1.15, label: "hook" };
       const filter = buildFilter({ useSilenceFilter: false, prosody });
       expect(filter).toContain("rubberband");
-      expect(filter).toContain("pitch=1.0800");
-      expect(filter).toContain("tempo=1.1200");
+      expect(filter).toContain("pitch=1.0400");
+      expect(filter).toContain("tempo=1.0600");
+    });
+
+    it("includes volume boost when prosody.volume > 1.0", () => {
+      const prosody = { pitch: 1.04, tempo: 1.06, volume: 1.15, label: "hook" };
+      const filter = buildFilter({ useSilenceFilter: false, prosody });
+      expect(filter).toContain("volume=1.15");
+      // volume comes after rubberband
+      const rbIdx = filter.indexOf("rubberband");
+      const volIdx = filter.indexOf("volume");
+      expect(rbIdx).toBeLessThan(volIdx);
+    });
+
+    it("excludes volume when prosody.volume is 1.0", () => {
+      const prosody = { pitch: 0.98, tempo: 0.98, volume: 1.0, label: "data" };
+      const filter = buildFilter({ useSilenceFilter: false, prosody });
+      expect(filter).not.toContain("volume");
     });
 
     it("excludes rubberband when prosody is null", () => {
@@ -145,8 +163,9 @@ describe("TTS Post-Processing", () => {
     it("returns hook profile for visualType=hook", () => {
       const p = getProsodyProfile("hook");
       expect(p).not.toBeNull();
-      expect(p.pitch).toBe(1.08);
-      expect(p.tempo).toBe(1.12);
+      expect(p.pitch).toBe(1.04);
+      expect(p.tempo).toBe(1.06);
+      expect(p.volume).toBe(1.15);
     });
 
     it("returns null for unknown visualType", () => {

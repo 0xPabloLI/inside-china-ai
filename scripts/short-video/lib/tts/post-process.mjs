@@ -53,23 +53,31 @@ const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
  * @typedef {Object} ProsodyProfile
  * @property {number} pitch   - Pitch shift ratio (1.0 = no shift, 1.08 = +8% up)
  * @property {number} tempo   - Tempo ratio (1.0 = no change, 1.12 = 12% faster)
+ * @property {number} volume  - Volume gain ratio (1.0 = no boost, 1.15 = +15% louder)
  * @property {string} label   - Human-readable label for logging
  */
 
 /**
  * Per-scene prosody profiles, keyed by visualType.
  *
- * Hook:     +8% pitch, +12% tempo → urgency/energy [1][2]
- * Data:    -3% pitch, -3% tempo  → authority/weight [2][3]
- * Quote:    0% pitch,  -5% tempo → emphasis/deliberate [2][5]
- * CTA:     -4% pitch, -8% tempo  → warmth/invitation [2][5]
+ * Hook:     +4% pitch, +6% tempo, +15% volume → urgency/energy + louder hook [1][2]
+ * Data:    -2% pitch, -2% tempo,  0% volume  → authority/weight [2][3]
+ * Quote:    0% pitch,  -3% tempo,  0% volume  → emphasis/deliberate [2][5]
+ * CTA:     -2% pitch, -5% tempo,  0% volume  → warmth/invitation [2][5]
  * Default:  no change (baseline)
+ *
+ * Phase 2 tuning (2026-08-09): reduced prosody values after user feedback.
+ * New ref audio (voice3.m4a) already has prosody variation, so rubberband
+ * amplitude was halved to avoid over-processing and voice characteristic loss.
+ *
+ * Volume boost added 2026-08-09: hook scene gets +15% volume to stand out
+ * in the opening seconds — the most critical attention window [1].
  */
 const PROSODY_PROFILES = {
-  hook: { pitch: 1.08, tempo: 1.12, label: "hook (urgent/energetic)" },
-  data: { pitch: 0.97, tempo: 0.97, label: "data (authoritative)" },
-  quote: { pitch: 1.0, tempo: 0.95, label: "quote (deliberate/emphasis)" },
-  cta: { pitch: 0.96, tempo: 0.92, label: "cta (warm/inviting)" },
+  hook: { pitch: 1.04, tempo: 1.06, volume: 1.15, label: "hook (urgent/energetic + louder)" },
+  data: { pitch: 0.98, tempo: 0.98, volume: 1.0, label: "data (authoritative)" },
+  quote: { pitch: 1.0, tempo: 0.97, volume: 1.0, label: "quote (deliberate/emphasis)" },
+  cta: { pitch: 0.98, tempo: 0.95, volume: 1.0, label: "cta (warm/inviting)" },
 };
 
 /**
@@ -106,7 +114,7 @@ export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
   if (highpassFreq > 0) {
     filters.push(`highpass=f=${highpassFreq}`);
   }
-  const denoiseNr = parseFloat(process.env.TTS_DENOISE ?? "10");
+  const denoiseNr = parseFloat(process.env.TTS_DENOISE ?? "5");
   if (denoiseNr > 0) {
     filters.push(`afftdn=nr=${denoiseNr}:nf=-25`);
   }
@@ -125,6 +133,12 @@ export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
     const pitchRatio = prosody.pitch.toFixed(4);
     const tempoRatio = prosody.tempo.toFixed(4);
     filters.push(`rubberband=pitch=${pitchRatio}:tempo=${tempoRatio}`);
+  }
+
+  // 2b. Per-scene volume boost (applied after rubberland, before atempo)
+  //    volume=1.15 means +15% louder; only for scenes that need it (e.g. hook)
+  if (prosody && prosody.volume && prosody.volume !== 1.0) {
+    filters.push(`volume=${prosody.volume.toFixed(2)}`);
   }
 
   // 3. Global atempo (TTS_ATEMPO env, applied after prosody)
