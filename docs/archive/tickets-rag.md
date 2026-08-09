@@ -309,7 +309,7 @@ Create Supabase migration file.
   - [x] 5 data point queries
   - [x] 3 negative queries
 - [x] Each query has `query`, `expected_sources`, `notes`
-- [ ] Validated against indexed data (run eval.mjs) — requires Ollama running
+- [x] Validated against indexed data (run eval.mjs) — 95% hit rate (19/20), PASS
 
 ---
 
