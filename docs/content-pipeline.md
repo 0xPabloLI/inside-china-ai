@@ -562,7 +562,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 ━━━━━━━━━━━━━━━━━━━━
 ```
 
-**多集 scene-data 结构**：每集一个 `content/<series>/pt<N>/` 目录，内含 `meta.mjs`（文章级 metadata）+ `scene-data.mjs`（场景数组 + `seriesMeta` 字段）+ `scenes.mjs`（视觉模板）。示例：`content/distillation/pt1/`、`content/restraint/pt1/`。根目录 `scene-data-pt*.mjs` 遗留命名已废弃（2026-08-08 清理完毕）。
+**多集 scene-data 结构**：每集一个 `content/<series>/pt<N>/` 目录，内含 `meta.mjs`（文章级 metadata）+ `scene-data.mjs`（场景数组 + `seriesMeta` 字段）+ `scenes.mjs`（视觉模板）。可选 `dom-config.mjs`（DOM 验证配置，不写则用默认值）。示例：`content/distillation/pt1/`、`content/restraint/pt1/`。根目录 `scene-data-pt*.mjs` 遗留命名已废弃（2026-08-08 清理完毕）。
 
 ### 管线进度追踪
 
@@ -626,7 +626,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 - HITL 检查点暂停时，`nextAction` 字段写明等待什么，并标注 MRL 状态
 - 新 session 启动时，Agent 先读此文件判断是否有未完成管线，以及 MRL 是否已通过
 
-**`main.mjs` 支持**：`node main.mjs --content <dir>`（如 `deepseek`、`distillation/pt1`、`restraint/pt1`；要求目录内 `meta.mjs` + `scene-data.mjs` + `scenes.mjs` 三者齐备）
+**`main.mjs` 支持**：`node main.mjs --content <dir>`（如 `deepseek`、`distillation/pt1`、`restraint/pt1`；要求目录内 `meta.mjs` + `scene-data.mjs` + `scenes.mjs` 三者齐备。`dom-config.mjs` 可选——不写则 DOM 验证使用默认值，新建管线无需编辑中心文件）
 
 ### 步骤
 

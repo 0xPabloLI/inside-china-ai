@@ -14,8 +14,9 @@
  *      (top chrome, y<640) are WARN only, since nothing occludes there.
  *   2. No text element overflows its box horizontally (scrollWidth).
  *   3. Rendered text contains no "undefined".
- *   4. Per-pipeline expectations: watermark skip sets, legacy footer
+ *   4. Per-pipeline DOM config (dom-config.mjs): legacy footer
  *      classes absent, single-occurrence copy (e.g. S4 "PRICE CUT").
+ *      Watermark is auto-detected (no config needed).
  *   5. Word-fit: every word in targeted text elements fits on its own line
  *      (guards mid-word breaks like the old "EXTRAORDINA RY" bug).
  *
@@ -34,6 +35,7 @@ import { readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { SAFE_ZONES } from "./lib/safe-zones.mjs";
+import { loadDomConfig } from "./lib/load-dom-config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -77,43 +79,21 @@ const EXEMPT_SELECTORS = [
 // the browser context (see probe below).
 const BRAND_CHROME = [".brand-bar", ".brand-watermark", ".brand-logo-large"];
 
-// Per-pipeline expectations.
-//   absentClasses:      legacy CSS classes that must not appear in the DOM
-//   singleOccurrence:   sceneId -> [copy] that must appear exactly once
-//   wordFit:            sceneId -> [selector] whose words must each fit on
-//                       one line (guards mid-word breaks)
+// Per-pipeline DOM verification config is loaded from each content
+// directory's dom-config.mjs. If the file is absent or broken, the
+// verifier falls back to DEFAULT_ABSENT_CLASSES + empty singleOccurrence/
+// wordFit. This allows new pipelines to define their own checks without
+// editing this central file.
+//
+// Config shape (dom-config.mjs):
+//   export const domConfig = {
+//     absentClasses: ["source-badge", ...],     // legacy CSS classes absent
+//     singleOccurrence: { 4: ["PRICE CUT"] },   // sceneId -> [copy] exactly once
+//     wordFit: { 3: [".s3 .card .text"] },      // sceneId -> [selector] word-fit
+//   };
 //
 // skipWatermark was removed — brand identity is now auto-detected via
 // .brand-bar / .brand-logo-large elements in the DOM.
-const DEFAULT_ABSENT_CLASSES = ["source-badge", "subscribe"];
-const EXPECTATIONS = {
-  "restraint/pt1": {
-    absentClasses: [...DEFAULT_ABSENT_CLASSES, "source-tag", "attribution"],
-    singleOccurrence: { 4: ["PRICE CUT"] },
-    wordFit: { 3: [".s3 .card .text"] },
-  },
-  "distillation/pt2": {
-    absentClasses: DEFAULT_ABSENT_CLASSES,
-    singleOccurrence: {},
-    wordFit: { 1: [".s1 .big-text"], 7: [".s7 .big-text"] },
-  },
-  "distillation/pt3": {
-    absentClasses: DEFAULT_ABSENT_CLASSES,
-    singleOccurrence: {},
-    wordFit: { 1: [".s1 .big-text"], 8: [".s8 .line1", ".s8 .line2"] },
-  },
-  "_test-fixtures/hook-standard": {
-    absentClasses: [...DEFAULT_ABSENT_CLASSES, "source-tag", "attribution"],
-    singleOccurrence: {},
-    wordFit: { 1: [".s-hook .focal-claim"], 2: [".s-hook .focal-number-label"] },
-  },
-};
-
-const exp = EXPECTATIONS[contentDir] || {
-  absentClasses: DEFAULT_ABSENT_CLASSES,
-  singleOccurrence: {},
-  wordFit: {},
-};
 
 const BAND = {
   top: SAFE_ZONES.top, // content must start below this y (FAIL)
@@ -127,6 +107,9 @@ const BAND = {
 async function main() {
   const { scenes } = await import(`./content/${contentDir}/scene-data.mjs`);
   const { generateScene } = await import(`./content/${contentDir}/scenes.mjs`);
+
+  // Load per-pipeline DOM config (falls back to defaults if absent or broken)
+  const exp = await loadDomConfig(contentDir, __dirname);
 
   const browser = await chromium.launch({ headless: true });
   let failed = 0;
@@ -242,8 +225,8 @@ async function main() {
     // 4a. Watermark presence/absence — auto-detect brand identity
     // If a scene renders a brand-bar or brand-logo-large, it has brand identity
     // and the watermark should be absent (double-branding guard). This auto-detection
-    // works for any pipeline, so new pipelines don't need to be registered in
-    // EXPECTATIONS.skipWatermark. The explicit list is still respected as a fallback.
+    // works for any pipeline, so new pipelines don't need to register
+    // anything in dom-config.mjs for watermark checks.
     const watermark = await page.$('div[class="brand-watermark"]');
     const hasBrandBar = await page.$(".brand-bar, .brand-logo-large");
     // shouldSkip is true if the scene has brand identity (auto-detected via DOM).

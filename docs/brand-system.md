@@ -202,7 +202,7 @@ Calibrated against real FYP playback screenshots cross-checked with 2026 researc
 
 Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350, left-shifted to x∈[110,830]); the TikTok caption UI starts ~y1500.
 
-Enforcement levels in `verify-scene-dom.mjs`:
+Enforcement levels in `verify-scene-dom.mjs` (per-pipeline config in `content/<dir>/dom-config.mjs`, defaults if absent):
 - **Top / bottom band crossing → FAIL** (content enters TikTok chrome or the subtitle lane).
 - **Right band crossing (x > 880) → FAIL** when the element's bottom is inside the action rail (y > 640); **WARN** only above the rail (top chrome, where nothing occludes).
 

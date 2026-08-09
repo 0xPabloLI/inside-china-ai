@@ -79,7 +79,7 @@ SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, max
 | 3 **渲染级硬门** | `verify-scene-dom.mjs` 自动跑在 **Step 2.5**（HTML 生成后、录制前），FAIL 即中止 | `main.mjs` / `render-only.mjs` |
 | 4 源码级 | side-by-side class 禁令 + 共享模板 byte-identical | `scene-drift.test.mjs` |
 
-**DOM 校验规则**（`verify-scene-dom.mjs`）：
+**DOM 校验规则**（`verify-scene-dom.mjs`，per-pipeline 配置在 `content/<dir>/dom-config.mjs`，无则用默认值）：
 - 顶/底越界（y<220 或 y>1150）→ **FAIL**（豁免：背景层 `grid-bg`/`glow-red`/`glow-blue`/`glow-amber`/`glow-tint`/`scanlines`/`scan-sweep`/`glitch`/`glitch-flash`/`fade-to-black`/`frame-glow`/`flash-frame`、brand-chrome `brand-bar`/`brand-logo-large`/`brand-watermark` 及其子元素）
 - 右缘 > x880：**底边 y>640（操作栏内）→ FAIL**；y≤640（顶部 chrome）→ WARN
 - 水平溢出（scrollWidth）、`undefined`、mid-word break → FAIL
