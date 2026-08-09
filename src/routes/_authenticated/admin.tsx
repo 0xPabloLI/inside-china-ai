@@ -14,6 +14,7 @@ import { SiteHeader } from "@/components/site-header";
 import { NewsletterAdmin } from "@/components/newsletter-admin";
 import { PostEditor } from "@/components/post-editor";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { SocialPreviewRefresh } from "@/components/social-preview-refresh";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -126,10 +127,15 @@ function AdminPage() {
           <TabsList>
             <TabsTrigger value="posts">Posts</TabsTrigger>
             <TabsTrigger value="newsletter">Newsletter</TabsTrigger>
+            <TabsTrigger value="social">Social preview</TabsTrigger>
             <TabsTrigger value="subscribers">
               Subscribers{subsQuery.data ? ` (${subsQuery.data.length})` : ""}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="social" className="mt-6">
+            <SocialPreviewRefresh />
+          </TabsContent>
 
           <TabsContent value="newsletter" className="mt-6">
             <NewsletterAdmin />

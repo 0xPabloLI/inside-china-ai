@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { AttachmentUploader } from "@/components/attachment-uploader";
 import { slugify } from "@/lib/slug";
+import { SocialPreviewRefresh } from "@/components/social-preview-refresh";
 
 /* ------------------------------------------------------------------ */
 /* Types & helpers                                                     */
@@ -131,6 +132,9 @@ export function PostEditor({
           Save the post first to upload attachments.
         </div>
       )}
+      {initial?.id && effectiveSlug ? (
+        <SocialPreviewRefresh path={`/posts/${effectiveSlug}`} compact />
+      ) : null}
       <div className="flex items-center justify-between rounded-md border border-border/60 bg-background p-3">
         <div>
           <div className="text-sm font-medium">Publish</div>
