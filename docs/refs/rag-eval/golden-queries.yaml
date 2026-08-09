@@ -48,7 +48,11 @@
   expected_sources:
     - content_type: article
       source_id: deepseek-art-of-restraint
-  notes: "Entity alias: 梁文锋 → Liang Wenfeng → deepseek-art-of-restraint article"
+    - content_type: source-material
+      source_id: deepseek-development-timeline
+    - content_type: source-material
+      source_id: deepseek-liang-investor-meeting-research
+  notes: "Entity alias: 梁文锋 → Liang Wenfeng → article + development timeline + investor meeting research"
 
 - query: "杨植麟的Kimi K3模型表现如何？"
   expected_sources:
@@ -64,11 +68,13 @@
 
 - query: "DeepSeek的V4-Flash定价是多少？"
   expected_sources:
+    - content_type: source-material
+      source_id: deepseek-pricing
+    - content_type: source-material
+      source_id: deepseek-api-pricing
     - content_type: article
       source_id: deepseek-art-of-restraint
-    - content_type: source-material
-      source_id: deepseek-liang-investor-meeting-research
-  notes: "Entity alias: DeepSeek V4-Flash → pricing data in article + source material"
+  notes: "Entity alias: DeepSeek V4-Flash → pricing data in source materials + article"
 
 # ── 3. Data point retrieval (specific numbers) ──
 
@@ -94,9 +100,11 @@
 
 - query: "DeepSeek token pricing $0.14 per million"
   expected_sources:
+    - content_type: source-material
+      source_id: deepseek-pricing
     - content_type: article
       source_id: deepseek-art-of-restraint
-  notes: "Specific data point: token pricing mentioned in DeepSeek article"
+  notes: "Specific data point: token pricing in pricing source material + article"
 
 - query: "Huawei 950 cards 200 thousand needed for training"
   expected_sources:
@@ -126,7 +134,9 @@
   expected_sources:
     - content_type: tiktok-ref
       source_id: content-methodology
-  notes: "Should hit TikTok content methodology PDF extraction"
+    - content_type: research
+      source_id: tiktok-practical-guide-2026
+  notes: "Should hit TikTok content methodology or practical guide research report"
 
 - query: "自媒体内容公式 钩子 共情 获得感 升华"
   expected_sources:

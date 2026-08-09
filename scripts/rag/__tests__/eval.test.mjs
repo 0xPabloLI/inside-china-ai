@@ -74,7 +74,21 @@ describe("evaluateQuery", () => {
     expect(result.matchedSources).toEqual([]);
   });
 
-  it("returns miss for negative query when false positives returned", () => {
+  it("returns hit for negative query when results have low similarity (< 0.5)", () => {
+    const queryEntry = {
+      query: "How to bake sourdough bread",
+      expected_sources: [],
+      notes: "Negative: cooking topic",
+    };
+    const topResults = [
+      { content_type: "tiktok-ref", source_id: "some-tiktok", similarity: 0.43 },
+      { content_type: "tiktok-ref", source_id: "another", similarity: 0.40 },
+    ];
+    const result = evaluateQuery(queryEntry, topResults);
+    expect(result.hit).toBe(true); // low similarity = not relevant = correct behavior
+  });
+
+  it("returns miss for negative query when false positives with high similarity returned", () => {
     const queryEntry = {
       query: "Best practices for Kubernetes",
       expected_sources: [],

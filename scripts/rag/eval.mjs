@@ -39,13 +39,20 @@ const TOP_K = 5; // Check top-5 results
 // ─── Pure functions (testable) ───
 
 /**
+ * Similarity below this threshold means "not relevant" for negative queries.
+ * bge-m3 typically returns 0.4-0.5 for semantically unrelated content.
+ * If ALL top-K results are below this, the search engine correctly found nothing relevant.
+ */
+const NEGATIVE_SIMILARITY_THRESHOLD = 0.5;
+
+/**
  * Evaluate a single golden query against search results.
  *
  * For positive queries (expected_sources non-empty):
  *   hit = any expected source matches any top-K result (by content_type + source_id)
  * For negative queries (expected_sources empty):
- *   hit = true if results are empty (correct — no false positives)
- *   hit = false if results are returned (false positive)
+ *   hit = true if no results above NEGATIVE_SIMILARITY_THRESHOLD (correct — no relevant results)
+ *   hit = false if any result above NEGATIVE_SIMILARITY_THRESHOLD (false positive)
  *
  * @param {Object} queryEntry — { query, expected_sources, notes }
  * @param {Array} topResults — Array of { content_type, source_id, similarity } from match_content
@@ -58,8 +65,12 @@ export function evaluateQuery(queryEntry, topResults) {
 
   // Negative query: expected_sources is empty
   if (expected.length === 0) {
+    // hit = true only if no results have similarity above threshold (no false positives)
+    const hasHighSimilarity = topK.some(
+      (r) => (r.similarity || 0) >= NEGATIVE_SIMILARITY_THRESHOLD,
+    );
     return {
-      hit: topK.length === 0,
+      hit: !hasHighSimilarity,
       matchedSources: [],
       missedSources: [],
       topSourceIds,
