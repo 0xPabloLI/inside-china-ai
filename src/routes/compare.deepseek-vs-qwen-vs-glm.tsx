@@ -224,8 +224,8 @@ function ComparePage() {
               DeepSeek vs Qwen vs GLM-5.2
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
-              Three labs dominate China's open-weight model output: DeepSeek, Alibaba's Qwen team and
-              Zhipu AI's GLM line, now led by the 744B-parameter GLM-5.2. They are not
+              Three labs dominate China's open-weight model output: DeepSeek, Alibaba's Qwen team
+              and Zhipu AI's GLM line, now led by the 744B-parameter GLM-5.2. They are not
               interchangeable. This page compares what each family is actually good at, how their
               licences differ, and which one fits which workload.
             </p>
