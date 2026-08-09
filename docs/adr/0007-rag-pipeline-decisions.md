@@ -52,17 +52,25 @@ The `match_content` RPC function uses `SECURITY INVOKER` (not `SECURITY DEFINER`
 
 **Why COALESCE**: Without it, `metadata->'topics'` returning NULL causes `?|` to error or return NULL, silently excluding chunks without topics from all queries.
 
-### 6. Index Trigger: Hybrid Full Rebuild (Q1)
+### 6. Index Trigger: Content-Ready Full Rebuild (Q1, updated 2026-08-09)
 
-Article publishing auto-triggers a full rebuild (via `publish-article.mjs`). Other content source changes require manual `node scripts/rag/index.mjs`. No incremental indexing.
+RAG reindex triggers at three points in the content pipeline:
+1. **Stage 2c** — After article markdown + source materials are ready (before video production)
+2. **Stage 3b** — After scene-data is generated and MRL-2 passed (before video rendering)
+3. **Stage 5a** — After `publish-article.mjs` publishes to Supabase (published status metadata update)
 
-**Why full rebuild**: Current content volume is tiny (3 articles, ~50-100 chunks). Full rebuild takes 15-35 seconds and costs $0. Incremental indexing adds state management complexity (file hash tracking, diff logic) for no practical benefit at this scale.
+All three are non-blocking: if Ollama is unavailable, the pipeline continues and Agent warns user to manually run `node scripts/rag/index.mjs`.
+
+**Why full rebuild**: Current content volume is small (~400 chunks). Full rebuild takes 15-35 seconds and costs $0. Incremental indexing adds state management complexity for no practical benefit at this scale.
+
+**Why content-ready, not publish-only**: Content generation produces articles, source materials, and scene-data that should be queryable immediately — not gated on HITL publish confirmation. Many videos are uploaded manually; some materials never become videos but should still be in the knowledge base.
 
 **Trade-off**: Will need incremental when volume grows (50+ articles). YAGNI for now — the index script is designed so incremental can be added later without architectural change.
 
 ## Consequences
 
 - RAG scripts depend on Ollama running locally (`ollama serve`) and `.env.local` containing `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
-- `publish-article.mjs` gains a non-blocking RAG reindex call after successful publish.
+- `publish-article.mjs` gains a non-blocking RAG reindex call after successful publish (Stage 5a).
+- Content pipeline (`docs/content-pipeline.md`) triggers RAG reindex at Stage 2c and Stage 3b — content-ready, not publish-gated.
 - Future model migration requires creating a new table + new RPC function + updating query script defaults.
 - Widget source extraction may create stub files for paywalled URLs — these stubs contain the URL and a data summary but not the full article text.

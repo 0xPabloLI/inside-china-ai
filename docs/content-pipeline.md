@@ -6,8 +6,10 @@
 ## 管线概览
 
 ```
-入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章准备（widget 部署，不发布）] → [Stage 3 scene-data] → 🔄 MRL-2 自审 → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后统一发布] → [Stage 6 Analytics]
+入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章准备（widget 部署，不发布）] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后统一发布] → [Stage 6 Analytics]
 ```
+
+> **📚 RAG reindex** 在内容生成后自动触发（不等发布），确保新文章、源素材和 scene-data 立即进入知识库。发布时（Stage 5a）再次触发一次，因为 `published` 状态变更影响文章的索引可检出性。
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
@@ -482,6 +484,18 @@ Agent 确认文章 markdown 文件已准备好（frontmatter + body + widget 标
 
 > **注意**：此 stage 不执行 `publish-article.mjs`。文章发布在 Stage 5 HITL 确认后统一执行。
 
+### 2c. RAG Reindex（内容就绪后自动触发）
+
+文章 markdown + 源素材就绪后，立即触发 RAG 全量重建，确保新内容进入知识库供后续文章引用和 Agent 查询：
+
+```bash
+node scripts/rag/index.mjs
+```
+
+此步骤不等发布。即使文章最终不发布（保持 draft），其内容和源素材仍然会被索引进 RAG（index.mjs 读取 `articles/*.md` 文件内容，不依赖 Supabase published 状态）。发布时（Stage 5a）会再次触发 reindex，因为 `published` 字段变更影响文章在索引时的 metadata。
+
+> **非阻塞**：如果 Ollama 未运行或 reindex 失败，不阻塞管线后续 stage。Agent 会输出警告并建议手动 `node scripts/rag/index.mjs`。
+
 ---
 
 ## Stage 3: 文章 → scene-data（ISSUE-17）
@@ -715,6 +729,16 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，**先运行 MRL-2 自审
 | W6  | 无 Loop-close | CTA 前最后一个内容场景未回扣 Hook                        |
 
 **循环流程**：Agent 对每集 scene-data 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部集数全部 Blocker PASS → 输出 MRL-2 报告 → **直接进入 Stage 4（不暂停）**。
+
+### 3b. RAG Reindex（scene-data 就绪后自动触发）
+
+MRL-2 通过后，scene-data 已就绪。触发 RAG 全量重建，将新的 scene-data 内容（voiceover 文本、视觉描述）索引进知识库：
+
+```bash
+node scripts/rag/index.mjs
+```
+
+> **非阻塞**：reindex 失败不阻塞 Stage 4 视频制作。Agent 输出警告并建议手动重跑。
 
 ---
 
