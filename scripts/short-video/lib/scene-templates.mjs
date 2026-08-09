@@ -47,13 +47,13 @@ function templateCss() {
     .brand-bar { position: absolute; top: 140px; left: 60px; right: 200px; display: flex; align-items: center; gap: 16px; animation: slideDown 0.3s ease-out 0.1s forwards; opacity: 0; }
     .brand-bar .b-logo { width: 48px; height: 48px; } .brand-bar .b-logo svg { width: 100%; height: 100%; }
     .brand-bar .b-text { font-size: 24px; font-weight: 900; color: var(--white); letter-spacing: 3px; } .brand-bar .b-text .hl { color: var(--blue); }
-    .brand-bar .briefing-tag { margin-left: auto; font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 2px; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }
+    .brand-bar .briefing-tag { margin-left: auto; font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 2px; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; }
     .breaking-badge { position: absolute; top: 220px; left: 50%; transform: translateX(-50%); background: var(--red); color: white; padding: 14px 40px; font-size: 28px; font-weight: 900; letter-spacing: 4px; border-radius: 8px; box-shadow: 0 0 40px rgba(239,68,68,0.6); display: flex; align-items: center; gap: 10px; animation: stampIn 0.4s ease-out 0.3s forwards; opacity: 0; }
     .breaking-badge .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background: white; animation: pulseDot 1s ease-in-out infinite; }
-    .stat-card { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid var(--blue); border-radius: 14px; padding: 24px 20px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
+    .stat-card { flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-top: 5px solid var(--blue); border-radius: 14px; padding: 24px 20px; text-align: center; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
     .stat-card .stat-num { font-size: 56px; font-weight: 900; line-height: 1; color: var(--blue); } .stat-card .stat-num .unit { font-size: 28px; font-weight: 700; }
     .stat-card .stat-label { font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 1px; margin-top: 6px; }
-    .quote-box { background: rgba(255,255,255,0.03); border-left: 4px solid var(--blue); border-radius: 0 12px 12px 0; padding: 30px 36px; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
+    .quote-box { background: rgba(255,255,255,0.07); border-left: 4px solid var(--blue); border-radius: 0 12px 12px 0; padding: 30px 36px; animation: slideUp 0.5s ease-out forwards; opacity: 0; }
     .quote-box .quote-text { font-style: italic; color: var(--sec); line-height: 1.4; } .quote-box .quote-text .hl { color: var(--blue); font-style: normal; font-weight: 700; }
     .quote-box .quote-speaker { margin-top: 14px; font-size: 24px; font-weight: 700; color: var(--white); letter-spacing: 1px; }
     .quote-box .quote-source { margin-top: 4px; font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 2px; }
@@ -61,7 +61,7 @@ function templateCss() {
     .title-block .hl { color: var(--blue); }
     .big-number-anchor { font-size: 260px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 0.4s forwards, numberPulse 2s ease-in-out 1s infinite; opacity: 0; }
     .points { display: flex; flex-direction: column; gap: 24px; }
-    .point { display: flex; align-items: center; gap: 28px; padding: 32px 40px; border-radius: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-left: 5px solid var(--blue); animation: slideLeft 0.5s ease-out forwards; opacity: 0; }
+    .point { display: flex; align-items: center; gap: 28px; padding: 32px 40px; border-radius: 14px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); border-left: 5px solid var(--blue); animation: slideLeft 0.5s ease-out forwards; opacity: 0; }
     .point .num { font-size: 56px; font-weight: 900; color: var(--blue); line-height: 0.9; width: 60px; flex-shrink: 0; }
     .point .text { font-size: 40px; font-weight: 800; color: var(--white); letter-spacing: 1px; }
     .stamp-box { display: inline-block; padding: 20px 40px; border: 2px solid var(--amber); border-radius: 12px; background: rgba(245,158,11,0.06); text-align: center; animation: stampIn 0.5s ease-out forwards; opacity: 0; }

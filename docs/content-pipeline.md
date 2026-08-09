@@ -6,14 +6,14 @@
 ## 管线概览
 
 ```
-入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章准备（widget 部署，不发布）] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后统一发布] → [Stage 6 Analytics]
+入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
 ```
 
-> **📚 RAG reindex** 在内容生成后自动触发（不等发布），确保新文章、源素材和 scene-data 立即进入知识库。发布时（Stage 5a）再次触发一次，因为 `published` 状态变更影响文章的索引可检出性。
+> **📚 RAG reindex** 在文章发布后自动触发，确保新文章、源素材和 scene-data 立即进入知识库。文章在 Stage 2 发布（HITL 之前），RAG 随即收录。Stage 3 scene-data 就绪后再次触发 reindex。
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
-MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的人工确认点是 **HITL 视频审阅**：用户看视频成品后一次性确认文章 + 脚本 + 视频质量。所有发布动作（网站 + TikTok）在 HITL 确认后一次性完成。
+MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的人工确认点是 **HITL 视频审阅**：用户看视频成品后确认视频质量，然后发布视频 MP4 到网站文章 + TikTok。文章在 Stage 2 已发布（HITL 之前），HITL 仅控制视频发布。
 
 ### 语言规则
 
@@ -459,9 +459,9 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blo
 
 ---
 
-## Stage 2: 文章准备（不发布）
+## Stage 2: 文章发布 + 附件上传
 
-MRL-1 通过后，Agent 准备文章但不发布到网站。文章发布延迟到 HITL 确认后执行（见 Stage 5）。
+MRL-1 通过后，Agent 发布文章到网站并上传源素材附件。文章在 HITL 之前发布，这样视频 caption 可以引用到 live article URL，RAG 也能立即收录新内容。
 
 ### 2a. Widget 部署（如有新 widget）
 
@@ -472,27 +472,39 @@ MRL-1 通过后，Agent 准备文章但不发布到网站。文章发布延迟�
 3. `npm run dev` 后运行 `node scripts/verify-widget-a11y.mjs --preview` 做发布前运行时验证：`/widgets` 预览路由为 dev-only（生产构建静态 404），可对每个 registry widget 渲染真实预览页验证 HTTP 200、容器配方、宽度类（breakout `max-w-none` / 常规 `max-w-prose`）、键盘可达、交互状态切换、未知 id 渲染 404。**0 FAIL 才算部署合格**，再进入 Stage 3
 4. **注意**：不要直接用 `npx wrangler deploy`，会丢失 Lovable 注入的环境变量
 
-> Widget 部署需要在文章发布前完成，但可以在 HITL 前任何时间执行。Agent 在 Stage 1 创建 widget 后即可部署。
+> Widget 部署需要在文章发布前完成。Agent 在 Stage 1 创建 widget 后即可部署。
 
-### 2b. 文章 Markdown 准备
+### 2b. 文章发布到网站
 
-Agent 确认文章 markdown 文件已准备好（frontmatter + body + widget 标记），供后续 Stage 使用：
+```bash
+node scripts/article/publish-article.mjs --file <path>
+```
 
-- Stage 3 从 markdown 文件生成 scene-data（不需要文章已发布）
-- Stage 5 HITL 展示文章内容供用户审阅
-- Stage 5 HITL 确认后执行发布
+脚本通过 Supabase Auth API 登录（Admin 账号），REST API upsert by slug。发布后 `triggerRagReindex()` 自动触发 RAG 收录。
 
-> **注意**：此 stage 不执行 `publish-article.mjs`。文章发布在 Stage 5 HITL 确认后统一执行。
+### 2c. 上传源文件附件
 
-### 2c. RAG Reindex（内容就绪后自动触发）
+将所有引用的原始素材文件上传为 article attachments：
 
-文章 markdown + 源素材就绪后，立即触发 RAG 全量重建，确保新内容进入知识库供后续文章引用和 Agent 查询：
+```bash
+# 上传单个文件
+node scripts/article/upload-attachments.mjs --post <slug> --files <path/to/source.pdf>
+
+# 上传多个文件
+node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <path2.csv> <path3.docx>
+```
+
+文章发布后即可上传附件，不依赖 HITL 确认。
+
+### 2d. RAG Reindex（文章发布后自动触发）
+
+文章发布后，立即触发 RAG 全量重建，确保新内容进入知识库供后续文章引用和 Agent 查询：
 
 ```bash
 node scripts/rag/index.mjs
 ```
 
-此步骤不等发布。即使文章最终不发布（保持 draft），其内容和源素材仍然会被索引进 RAG（index.mjs 读取 `articles/*.md` 文件内容，不依赖 Supabase published 状态）。发布时（Stage 5a）会再次触发 reindex，因为 `published` 字段变更影响文章在索引时的 metadata。
+`publish-article.mjs` 内置 `triggerRagReindex()` 调用，发布成功后自动触发。即使自动触发失败，也不阻塞管线。
 
 > **非阻塞**：如果 Ollama 未运行或 reindex 失败，不阻塞管线后续 stage。Agent 会输出警告并建议手动 `node scripts/rag/index.mjs`。
 
@@ -788,7 +800,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
 1. **输出 MRL-3 报告**（verify-video.mjs 合规报告 + 内容补充检查结果）
 2. **输出视频文件路径**：`output/deepseek-short.mp4`（或实际文件名）
-3. **输出文章内容预览**：输出文章 markdown 全文（供用户一并审阅文章质量，文章尚未发布到网站）
+3. **输出文章内容预览**：输出文章 markdown 全文（供用户一并审阅文章质量，文章已在 Stage 2 发布到网站）
 4. **输出场景概览表**（供用户审阅脚本质量）
 5. **提示用户审阅要点**（聚焦主观维度）：
    - 实际观看视频，检查整体观感
@@ -865,42 +877,11 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 >
 > **质量门控**：如果视频质量不达标（TTS 不自然、字幕错位、视觉问题等），Agent 应建议用户不发布而非强行发布。不要为了发而发——发布低质量内容会损害账号健康（见 `docs/tiktok/tiktok-best-practices.md` 账号健康管理章节）。Agent 应明确告知用户质量问题并建议修复后重新渲染。
 
-### 发布（HITL 确认后统一执行）
+### 发布（HITL 确认后执行）
 
-用户确认后，Agent 依次执行以下发布步骤：
+用户确认后，Agent 执行以下发布步骤（文章已在 Stage 2 发布）：
 
-#### 5a. 文章发布到网站
-
-```bash
-node scripts/article/publish-article.mjs --file <path>
-```
-
-脚本通过 Supabase Auth API 登录（Admin 账号），REST API upsert by slug。
-
-#### 5b. 上传源文件附件
-
-将所有引用的原始素材文件上传为 article attachments：
-
-```bash
-# 上传单个文件
-node scripts/article/upload-attachments.mjs --post <slug> --files <path/to/source.pdf>
-
-# 上传多个文件
-node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <path2.csv> <path3.docx>
-
-# 查看已有附件
-node scripts/article/upload-attachments.mjs --post <slug> --list
-```
-
-脚本流程：
-
-1. Admin 登录 → 通过 slug 查找 post ID（或直接用 `--post-id`）
-2. 验证文件（存在性、大小 ≤50MB、MIME 类型合规）
-3. 逐个上传到 Supabase Storage `post-attachments` bucket（路径：`{postId}/{fileName}`）
-4. 逐个插入 `post_attachments` 元数据行
-5. 如遇错误，停止后续上传并报告已上传的文件
-
-#### 5c. 上传视频 MP4 到文章
+#### 5a. 上传视频 MP4 到文章
 
 将成品视频 MP4 作为附件上传到文章，网站文章页会自动渲染为视频播放器（`<video>` 标签）：
 
@@ -910,7 +891,7 @@ node scripts/article/upload-attachments.mjs --post <slug> --files scripts/short-
 
 > 视频文件大小通常 5-13MB，远低于 50MB 上传限制。上传后文章页底部「Watch」区域自动显示视频播放器。
 
-#### 5d. TikTok 发布
+#### 5b. TikTok 发布
 
 ```bash
 node scripts/short-video/publish-tiktok.mjs         # 通过 Publora API 发布
@@ -958,7 +939,7 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 | **🔄 MRL-2** 脚本自审 | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
 | **🔄 MRL-3** 视频自审 | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须         |
 | **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户   | ✅ 必须         |
-| 文章发布 + 附件上传   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
+| 文章发布 + 附件上传   | Stage 2（HITL 之前）           | 脚本执行 | Agent  | ✅ 必须         |
 | 视频 MP4 上传到文章   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
 | TikTok 发布           | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
 | TikTok 手工操作       | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
