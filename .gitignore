@@ -41,6 +41,12 @@ scripts/short-video/*.bak
 scripts/short-video/xtts_tts.py
 scripts/short-video/record-tiktok-demo.mjs
 scripts/short-video/assets/tiktok*.txt
+scripts/short-video/assets/face-ref.*
+scripts/short-video/assets/IMG_*
+scripts/short-video/assets/did-test-*
+scripts/short-video/assets/heygen-*
+scripts/short-video/assets/pablo-*
+scripts/short-video/assets/Weixin Image*
 output/
 test-results/
 .playwright-cli/
