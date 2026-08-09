@@ -8,7 +8,7 @@ Usage:
 
 Manifest format (JSON array):
   [
-    {"sceneId": 1, "text": "Hello world", "output": "scene-1.mp3"},
+    {"sceneId": 1, "text": "Hello world", "output": "scene-1.wav"},
     ...
   ]
 
@@ -43,13 +43,14 @@ def generate_batch(manifest_path, output_dir, ref_audio=None, ref_text=None, spe
     for scene in scenes:
         scene_id = scene["sceneId"]
         text = scene["text"]
-        output_name = scene.get("output", f"scene-{scene_id}.mp3")
+        output_name = scene.get("output", f"scene-{scene_id}.wav")
         output_path = os.path.join(output_dir, output_name)
 
         print(f"  Scene {scene_id}: generating {len(text)} chars...", file=sys.stderr)
 
-        # Generate WAV first
-        wav_path = output_path.replace(".mp3", ".wav")
+        # F5 generates WAV directly — no MP3 conversion (avoids double lossy encoding).
+        # The post-processing step (post-process.mjs) handles final MP3 encoding.
+        wav_path = output_path if output_path.endswith(".wav") else output_path.replace(".mp3", ".wav")
 
         # Calculate duration: F5 needs total = ref_duration + target_duration
         # Target: ~2.5 words/sec speaking rate
@@ -73,13 +74,15 @@ def generate_batch(manifest_path, output_dir, ref_audio=None, ref_text=None, spe
             output_path=wav_path,
         )
 
-        # Convert to MP3 with ffmpeg
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", wav_path, "-codec:a", "libmp3lame", "-b:a", "192k", output_path],
-            capture_output=True,
-            check=True,
-        )
-        os.remove(wav_path)
+        # F5 outputs WAV directly — no MP3 conversion here.
+        # Post-processing (post-process.mjs) will encode to MP3@320k.
+        # Just clean up the temporary WAV if output was specified as .mp3
+        if output_path.endswith(".mp3") and wav_path != output_path:
+            # If manifest specified .mp3 output, rename .wav to .mp3 path
+            # (post-process.mjs will handle actual MP3 encoding)
+            os.rename(wav_path, output_path)
+        elif wav_path != output_path:
+            os.rename(wav_path, output_path)
 
         # Get duration
         dur_result = subprocess.run(

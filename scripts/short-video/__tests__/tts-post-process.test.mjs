@@ -21,6 +21,7 @@ import {
   postProcessAudio,
   postProcessBatch,
   getAtempo,
+  getProsodyProfile,
 } from "../lib/tts/post-process.mjs";
 
 // ─── Tests ───
@@ -33,15 +34,63 @@ describe("TTS Post-Processing", () => {
       callback(null, { stdout: "", stderr: "" });
     });
     delete process.env.TTS_ATEMPO;
+    delete process.env.TTS_HIGHPASS;
+    delete process.env.TTS_DENOISE;
   });
 
   afterEach(() => {
     delete process.env.TTS_ATEMPO;
+    delete process.env.TTS_HIGHPASS;
+    delete process.env.TTS_DENOISE;
   });
 
   // ── buildFilter ──
 
-  describe("buildFilter()", () => {
+  describe("buildFilter() — cleanup chain", () => {
+    // S4: Default cleanup params (highpass=80 + afftdn=nr=10)
+    it("S4: includes highpass and afftdn by default", () => {
+      const filter = buildFilter({ useSilenceFilter: false });
+      expect(filter).toContain("highpass=f=80");
+      expect(filter).toContain("afftdn=nr=10");
+    });
+
+    // S2: TTS_DENOISE=0 → no afftdn
+    it("S2: excludes afftdn when TTS_DENOISE=0", () => {
+      process.env.TTS_DENOISE = "0";
+      const filter = buildFilter({ useSilenceFilter: false });
+      expect(filter).not.toContain("afftdn");
+    });
+
+    // S3: TTS_HIGHPASS=0 → no highpass
+    it("S3: excludes highpass when TTS_HIGHPASS=0", () => {
+      process.env.TTS_HIGHPASS = "0";
+      const filter = buildFilter({ useSilenceFilter: false });
+      expect(filter).not.toContain("highpass");
+    });
+
+    // S5: Cleanup chain order: highpass → afftdn → silenceremove → rubberband → atempo
+    it("S5: cleanup chain before silenceremove (XTTS path)", () => {
+      const filter = buildFilter({ useSilenceFilter: true });
+      const hpIdx = filter.indexOf("highpass");
+      const afftdnIdx = filter.indexOf("afftdn");
+      const srIdx = filter.indexOf("silenceremove");
+      expect(hpIdx).toBeLessThan(afftdnIdx);
+      expect(afftdnIdx).toBeLessThan(srIdx);
+    });
+
+    // S6: Cleanup chain + rubberband (F5 path, no silenceremove)
+    it("S6: cleanup chain before rubberband (F5 path)", () => {
+      const prosody = { pitch: 1.08, tempo: 1.12, label: "hook" };
+      const filter = buildFilter({ useSilenceFilter: false, prosody });
+      const hpIdx = filter.indexOf("highpass");
+      const afftdnIdx = filter.indexOf("afftdn");
+      const rbIdx = filter.indexOf("rubberband");
+      expect(hpIdx).toBeLessThan(afftdnIdx);
+      expect(afftdnIdx).toBeLessThan(rbIdx);
+    });
+  });
+
+  describe("buildFilter() — silenceremove", () => {
     it("includes silenceremove when useSilenceFilter=true (default)", () => {
       const filter = buildFilter();
       expect(filter).toContain("silenceremove");
@@ -55,24 +104,57 @@ describe("TTS Post-Processing", () => {
       const filter = buildFilter({ useSilenceFilter: false });
       expect(filter).not.toContain("silenceremove");
     });
+  });
 
+  describe("buildFilter() — atempo", () => {
     // Scenario 8: TTS_ATEMPO=1.3 → atempo applied to F5 output
     it("S8: applies atempo when TTS_ATEMPO set and useSilenceFilter=false", () => {
       process.env.TTS_ATEMPO = "1.3";
       const filter = buildFilter({ useSilenceFilter: false });
-      expect(filter).toBe("atempo=1.3");
+      expect(filter).toContain("atempo=1.3");
     });
 
-    it("appends atempo to silenceremove when TTS_ATEMPO set and useSilenceFilter=true", () => {
+    it("appends atempo after silenceremove when TTS_ATEMPO set and useSilenceFilter=true", () => {
       process.env.TTS_ATEMPO = "1.3";
       const filter = buildFilter({ useSilenceFilter: true });
       expect(filter).toContain("silenceremove");
-      expect(filter).toContain(",atempo=1.3");
+      expect(filter).toContain("atempo=1.3");
+      // atempo must come after silenceremove
+      const srIdx = filter.indexOf("silenceremove");
+      const atempoIdx = filter.indexOf("atempo");
+      expect(srIdx).toBeLessThan(atempoIdx);
+    });
+  });
+
+  describe("buildFilter() — prosody", () => {
+    it("includes rubberband when prosody provided", () => {
+      const prosody = { pitch: 1.08, tempo: 1.12, label: "hook" };
+      const filter = buildFilter({ useSilenceFilter: false, prosody });
+      expect(filter).toContain("rubberband");
+      expect(filter).toContain("pitch=1.0800");
+      expect(filter).toContain("tempo=1.1200");
     });
 
-    it("returns empty string when no atempo and useSilenceFilter=false", () => {
-      const filter = buildFilter({ useSilenceFilter: false });
-      expect(filter).toBe("");
+    it("excludes rubberband when prosody is null", () => {
+      const filter = buildFilter({ useSilenceFilter: false, prosody: null });
+      expect(filter).not.toContain("rubberband");
+    });
+  });
+
+  describe("getProsodyProfile()", () => {
+    it("returns hook profile for visualType=hook", () => {
+      const p = getProsodyProfile("hook");
+      expect(p).not.toBeNull();
+      expect(p.pitch).toBe(1.08);
+      expect(p.tempo).toBe(1.12);
+    });
+
+    it("returns null for unknown visualType", () => {
+      expect(getProsodyProfile("narrative")).toBeNull();
+    });
+
+    it("returns null for undefined visualType", () => {
+      expect(getProsodyProfile(undefined)).toBeNull();
     });
   });
 
@@ -100,9 +182,11 @@ describe("TTS Post-Processing", () => {
       expect(cmd).toContain("ffmpeg");
       expect(cmd).toContain('-i "input.mp3"');
       expect(cmd).toContain("-af");
+      expect(cmd).toContain("highpass");
+      expect(cmd).toContain("afftdn");
       expect(cmd).toContain("silenceremove");
       expect(cmd).toContain("-ar 44100");
-      expect(cmd).toContain("-b:a 192k");
+      expect(cmd).toContain("-b:a 320k");
       expect(cmd).toContain('"output.mp3"');
     });
 
@@ -113,11 +197,11 @@ describe("TTS Post-Processing", () => {
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("silenceremove");
       expect(cmd).not.toContain("-ar 44100");
-      expect(cmd).not.toContain("-b:a 192k");
+      expect(cmd).not.toContain("-b:a");
     });
 
-    // Scenario 5: F5 batch — post-process WITHOUT silenceremove
-    it("S5: skips silenceremove for F5 audio (clean generation)", async () => {
+    // Scenario 5: F5 batch — post-process WITHOUT silenceremove, WITH cleanup chain
+    it("S5: skips silenceremove for F5 audio but includes cleanup chain", async () => {
       await postProcessAudio("input.mp3", "output.mp3", {
         useSilenceFilter: false,
         resample: true,
@@ -126,7 +210,10 @@ describe("TTS Post-Processing", () => {
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("ffmpeg");
       expect(cmd).not.toContain("silenceremove");
+      expect(cmd).toContain("highpass");
+      expect(cmd).toContain("afftdn");
       expect(cmd).toContain("-ar 44100");
+      expect(cmd).toContain("-b:a 320k");
     });
 
     // Scenario 8: F5 with atempo
@@ -142,7 +229,7 @@ describe("TTS Post-Processing", () => {
       expect(cmd).not.toContain("silenceremove");
     });
 
-    it("handles empty filter (no atempo, no silenceremove) — just resample", async () => {
+    it("includes cleanup chain even with no atempo, no silenceremove", async () => {
       await postProcessAudio("input.mp3", "output.mp3", {
         useSilenceFilter: false,
         resample: true,
@@ -150,15 +237,37 @@ describe("TTS Post-Processing", () => {
 
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("ffmpeg");
+      expect(cmd).toContain("-af");
+      expect(cmd).toContain("highpass");
       expect(cmd).toContain("-ar 44100");
-      expect(cmd).not.toContain("-af");
+      expect(cmd).toContain("-b:a 320k");
     });
   });
 
   // ── postProcessBatch ──
 
   describe("postProcessBatch()", () => {
-    it("post-processes in-place and returns duration (F5 path)", async () => {
+    // S17: F5 WAV input → MP3 output
+    it("S17: handles .wav input (F5 new behavior) → .mp3 output", async () => {
+      execMock
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // mv
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "3.45\n", stderr: "" })); // ffprobe
+
+      const duration = await postProcessBatch("scene-1.wav", { useSilenceFilter: false });
+
+      expect(duration).toBe(3.45);
+      // First call: ffmpeg processes .wav → -processed.wav (same ext as input)
+      expect(execMock.mock.calls[0][0]).toContain("ffmpeg");
+      expect(execMock.mock.calls[0][0]).toContain("scene-1-processed.wav");
+      // Second call: mv -processed.wav back to original .wav
+      expect(execMock.mock.calls[1][0]).toContain("mv");
+      expect(execMock.mock.calls[1][0]).toContain("scene-1.wav");
+      // Third call: ffprobe
+      expect(execMock.mock.calls[2][0]).toContain("ffprobe");
+    });
+
+    it("post-processes in-place and returns duration (F5 path, .mp3 input)", async () => {
       // Mock: first exec call = ffmpeg, second = mv, third = ffprobe
       execMock
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg

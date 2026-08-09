@@ -61,7 +61,7 @@ export async function createF5MLXEngine() {
       const manifest = scenes.map((s) => ({
         sceneId: s.id,
         text: s.voiceover,
-        output: `scene-${s.id}.mp3`,
+        output: `scene-${s.id}.wav`,
       }));
       // writeFileSync imported at top
       const { writeFileSync: writeSync } = await import("fs");

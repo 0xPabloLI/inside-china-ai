@@ -99,6 +99,18 @@ export function getProsodyProfile(visualType) {
 export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
   const filters = [];
 
+  // 0. Cleanup chain: highpass + denoise (always first, before any other processing)
+  //    Removes low-frequency hum and constant noise floor artifacts.
+  //    Disable via TTS_HIGHPASS=0 or TTS_DENOISE=0
+  const highpassFreq = parseFloat(process.env.TTS_HIGHPASS ?? "80");
+  if (highpassFreq > 0) {
+    filters.push(`highpass=f=${highpassFreq}`);
+  }
+  const denoiseNr = parseFloat(process.env.TTS_DENOISE ?? "10");
+  if (denoiseNr > 0) {
+    filters.push(`afftdn=nr=${denoiseNr}:nf=-25`);
+  }
+
   // 1. Silenceremove (for non-F5 engines)
   if (useSilenceFilter) {
     filters.push(
@@ -165,7 +177,7 @@ export async function postProcessAudio(
 ) {
   const filter = buildFilter({ useSilenceFilter, prosody });
   const afArg = filter ? `-af "${filter}"` : "";
-  const resampleArg = resample ? "-ar 44100 -b:a 192k" : "";
+  const resampleArg = resample ? "-ar 44100 -b:a 320k" : "";
   await execAsync(
     `"${ffmpegCmd}" -y -i "${inputPath}" ${afArg} ${resampleArg} "${outputPath}" 2>/dev/null`,
   );
@@ -183,7 +195,11 @@ export async function postProcessAudio(
  * @returns {Promise<number>} Duration of the processed audio
  */
 export async function postProcessBatch(audioPath, opts = {}) {
-  const processedPath = audioPath.replace(".mp3", "-processed.mp3");
+  // Support both .mp3 and .wav input (F5 now outputs WAV to avoid double lossy encoding)
+  const isWav = audioPath.endsWith(".wav");
+  const processedPath = isWav
+    ? audioPath.replace(/\.wav$/, "-processed.wav")
+    : audioPath.replace(/\.mp3$/, "-processed.mp3");
   await postProcessAudio(audioPath, processedPath, opts);
   await execAsync(`mv "${processedPath}" "${audioPath}"`);
   const duration = await getDuration(audioPath);
