@@ -9,23 +9,23 @@
 
 ### T-01: Create ADR-0007 — RAG Technical Decisions
 
-**Status**: ⏳ Pending
+**Status**: ✅ Complete (pre-existing)
 **Depends on**: None
 **Effort**: 30 min
 
 Record the 19 grilling decisions as ADR-0007 in `docs/adr/0007-rag-pipeline-decisions.md`.
 
 **Acceptance Criteria**:
-- [ ] ADR follows existing format (Context / Decision / Why / Consequences)
-- [ ] Covers: Q1 (trigger), Q2 (model migration), Q6 (auth), Q11 (widget), Q17 (RPC safety), Q18 (idempotency)
-- [ ] References spec-rag.md for full decision table
-- [ ] Notes: hard to reverse (schema), surprising without context (loginAdmin instead of service_role), real trade-offs (versioned tables vs columns)
+- [x] ADR follows existing format (Context / Decision / Why / Consequences)
+- [x] Covers: Q1 (trigger), Q2 (model migration), Q6 (auth), Q11 (widget), Q17 (RPC safety), Q18 (idempotency)
+- [x] References spec-rag.md for full decision table
+- [x] Notes: hard to reverse (schema), surprising without context (loginAdmin instead of service_role), real trade-offs (versioned tables vs columns)
 
 ---
 
 ### T-02: Update CONTEXT.md — RAG Terminology
 
-**Status**: ⏳ Pending
+**Status**: ✅ Complete (pre-existing)
 **Depends on**: None
 **Effort**: 15 min
 
@@ -40,9 +40,9 @@ Add RAG-related terms to `CONTEXT.md`.
 - **Orphan Cleanup**: Post-index step that deletes embeddings whose `source_id` no longer corresponds to any content file.
 
 **Acceptance Criteria**:
-- [ ] Terms added to CONTEXT.md under new `## RAG Pipeline` section
-- [ ] Each term has `_Avoid_` entry (per existing format)
-- [ ] No existing terms modified
+- [x] Terms added to CONTEXT.md under new `## RAG Pipeline` section
+- [x] Each term has `_Avoid_` entry (per existing format)
+- [x] No existing terms modified
 
 ---
 
