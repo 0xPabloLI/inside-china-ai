@@ -10,7 +10,11 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "verify:seo": "node scripts/seo/validate-jsonld.mjs",
+    "verify:seo:online": "node scripts/seo/validate-jsonld.mjs --online",
+    "prebuild": "node scripts/seo/validate-jsonld.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

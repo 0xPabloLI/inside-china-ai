@@ -24,7 +24,8 @@ import { postJsonLd } from "@/lib/post-structured-data";
 const samplePostJsonLd = () =>
   postJsonLd({
     title: "DeepSeek's art of restraint",
-    description: "How DeepSeek keeps shipping frontier reasoning models on a fraction of the budget.",
+    description:
+      "How DeepSeek keeps shipping frontier reasoning models on a fraction of the budget.",
     url: `${SITE}posts/deepseek-art-of-restraint`,
     datePublished: "2026-08-01T00:00:00.000Z",
   });
