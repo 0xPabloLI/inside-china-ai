@@ -131,22 +131,8 @@ export function categorizeByType(evalResults) {
   const categories = {};
 
   for (const result of evalResults) {
-    const notes = (result.notes || "").toLowerCase();
-    let category = "other";
-
-    if (notes.includes("cross-language")) {
-      category = "cross-language";
-    } else if (notes.includes("entity alias")) {
-      category = "entity-alias";
-    } else if (notes.includes("data point")) {
-      category = "data-point";
-    } else if (notes.includes("negative")) {
-      category = "negative";
-    } else if (notes.includes("tiktok")) {
-      category = "tiktok";
-    } else if (notes.includes("research")) {
-      category = "research";
-    }
+    // Use explicit `category` field from golden queries (deterministic, not string matching)
+    const category = result.category || "other";
 
     if (!categories[category]) {
       categories[category] = [];
@@ -272,6 +258,7 @@ async function main() {
       evalResults.push({
         ...evalResult,
         query: q.query,
+        category: q.category || "other",
         notes: q.notes || "",
       });
 
@@ -286,6 +273,7 @@ async function main() {
         ),
         topSourceIds: [],
         query: q.query,
+        category: q.category || "other",
         notes: q.notes || "",
         error: err.message,
       });

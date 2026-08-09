@@ -3,10 +3,12 @@
 # Purpose: Quality regression baseline for RAG pipeline (Issue #15)
 # Pass criterion: top-5 hit rate >= 80%
 # Content indexed: 3 articles, 7 scene-data, 3 source materials, 1 research report, ~28 TikTok references
+# Each query has an explicit `category` field for deterministic categorization.
 
 # ── 1. Cross-language retrieval (EN query → CN source; CN query → EN article) ──
 
 - query: "What did Liang Wenfeng say about AGI timelines?"
+  category: cross-language
   expected_sources:
     - content_type: article
       source_id: deepseek-art-of-restraint
@@ -15,12 +17,14 @@
   notes: "English query should hit English article + Chinese source material (investor meeting transcript)"
 
 - query: "梁文锋对开源有什么看法？"
+  category: cross-language
   expected_sources:
     - content_type: article
       source_id: deepseek-art-of-restraint
   notes: "Chinese query about open source should hit English article about DeepSeek"
 
 - query: "字节跳动内部反蒸馏规定是什么时候发布的？"
+  category: cross-language
   expected_sources:
     - content_type: article
       source_id: bytedance-zhang-yiming-no-distillation
@@ -29,6 +33,7 @@
   notes: "Chinese query should hit English article + Chinese source material about ByteDance"
 
 - query: "How does encrypted chain-of-thought extraction work?"
+  category: cross-language
   expected_sources:
     - content_type: article
       source_id: china-llm-distillation-storm
@@ -37,6 +42,7 @@
   notes: "English technical query should hit distillation article + Chinese source material"
 
 - query: "张一鸣为什么不蒸馏？"
+  category: cross-language
   expected_sources:
     - content_type: article
       source_id: bytedance-zhang-yiming-no-distillation
@@ -45,6 +51,7 @@
 # ── 2. Entity alias (Chinese name → English article) ──
 
 - query: "梁文锋的融资策略是什么？"
+  category: entity-alias
   expected_sources:
     - content_type: article
       source_id: deepseek-art-of-restraint
@@ -55,18 +62,21 @@
   notes: "Entity alias: 梁文锋 → Liang Wenfeng → article + development timeline + investor meeting research"
 
 - query: "杨植麟的Kimi K3模型表现如何？"
+  category: entity-alias
   expected_sources:
     - content_type: article
       source_id: china-llm-distillation-storm
   notes: "Entity alias: 杨植麟 → Yang Zhilin → Kimi K3 in distillation article"
 
 - query: "月之暗面被Anthropic指控蒸馏了吗？"
+  category: entity-alias
   expected_sources:
     - content_type: article
       source_id: china-llm-distillation-storm
   notes: "Entity alias: 月之暗面 → Moonshot AI → distillation accusations"
 
 - query: "DeepSeek的V4-Flash定价是多少？"
+  category: entity-alias
   expected_sources:
     - content_type: source-material
       source_id: deepseek-pricing
@@ -79,6 +89,7 @@
 # ── 3. Data point retrieval (specific numbers) ──
 
 - query: "DeepSeek funding round valuation target $45 billion"
+  category: data-point
   expected_sources:
     - content_type: article
       source_id: deepseek-art-of-restraint
@@ -87,18 +98,21 @@
   notes: "Specific data point: $45B valuation target from investor meeting"
 
 - query: "Kimi K3 hallucination rate 51 percent"
+  category: data-point
   expected_sources:
     - content_type: article
       source_id: china-llm-distillation-storm
   notes: "Specific data point: K3 hallucination rate from distillation article"
 
 - query: "ByteDance Doubao 155 million weekly active users"
+  category: data-point
   expected_sources:
     - content_type: article
       source_id: bytedance-zhang-yiming-no-distillation
   notes: "Specific data point: Doubao WAU from ByteDance article"
 
 - query: "DeepSeek token pricing $0.14 per million"
+  category: data-point
   expected_sources:
     - content_type: source-material
       source_id: deepseek-pricing
@@ -107,6 +121,7 @@
   notes: "Specific data point: token pricing in pricing source material + article"
 
 - query: "Huawei 950 cards 200 thousand needed for training"
+  category: data-point
   expected_sources:
     - content_type: article
       source_id: deepseek-art-of-restraint
@@ -117,20 +132,24 @@
 # ── 4. Negative cases (topics NOT in knowledge base) ──
 
 - query: "How to bake sourdough bread at home"
+  category: negative
   expected_sources: []
   notes: "Negative: cooking topic not in knowledge base — should return low similarity/empty"
 
 - query: "Bitcoin price prediction 2027"
+  category: negative
   expected_sources: []
   notes: "Negative: cryptocurrency topic not in knowledge base"
 
 - query: "Best practices for Kubernetes cluster autoscaling"
+  category: negative
   expected_sources: []
   notes: "Negative: DevOps topic not in knowledge base (distinct from AI infrastructure)"
 
 # ── 5. TikTok / content methodology retrieval ──
 
 - query: "TikTok hook formula four layer narrative structure"
+  category: tiktok
   expected_sources:
     - content_type: tiktok-ref
       source_id: content-methodology
@@ -139,12 +158,14 @@
   notes: "Should hit TikTok content methodology or practical guide research report"
 
 - query: "自媒体内容公式 钩子 共情 获得感 升华"
+  category: tiktok
   expected_sources:
     - content_type: tiktok-ref
       source_id: content-methodology
   notes: "Chinese query for four-layer formula should hit content methodology"
 
 - query: "multi-video splitting best practices TikTok retention"
+  category: research
   expected_sources:
     - content_type: research
       source_id: multi-video-splitting-best-practices

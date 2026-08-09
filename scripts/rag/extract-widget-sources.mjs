@@ -13,7 +13,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
-import { join, dirname, basename } from "path";
+import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -38,9 +38,11 @@ const URL_FIELD_REGEX = /(?:sourceUrl|url)\s*:\s*["']([^"']+)["']/gi;
  * @returns {Array<{url: string, widgetId: string, fieldName: string}>}
  */
 export function extractUrlsFromContent(content, filePath) {
-  // Derive widgetId from path: "<widget>/data/<file>.ts" → "<widget>"
+  // Derive widgetId from path: expected format "<widget>/data/<file>.ts"
+  // Fall back to first path segment if format doesn't match
   const parts = filePath.split("/");
-  const widgetId = parts.length >= 2 ? parts[parts.length - 3] || parts[0] : parts[0];
+  const dataIdx = parts.indexOf("data");
+  const widgetId = dataIdx > 0 ? parts[dataIdx - 1] : parts[0];
 
   const results = [];
   let match;

@@ -180,11 +180,11 @@ describe("calculateHitRate", () => {
 describe("categorizeByType", () => {
   it("groups results by query category", () => {
     const evalResults = [
-      { hit: true, notes: "Cross-language: English query" },
-      { hit: false, notes: "Cross-language: Chinese query" },
-      { hit: true, notes: "Entity alias: 梁文锋" },
-      { hit: true, notes: "Data point: $45B" },
-      { hit: false, notes: "Negative: cooking" },
+      { hit: true, category: "cross-language", notes: "English query" },
+      { hit: false, category: "cross-language", notes: "Chinese query" },
+      { hit: true, category: "entity-alias", notes: "梁文锋" },
+      { hit: true, category: "data-point", notes: "$45B" },
+      { hit: false, category: "negative", notes: "cooking" },
     ];
 
     const categories = categorizeByType(evalResults);
@@ -200,8 +200,8 @@ describe("categorizeByType", () => {
 
   it("handles TikTok/methodology category", () => {
     const evalResults = [
-      { hit: true, notes: "TikTok hook formula" },
-      { hit: true, notes: "Should hit deep research report" },
+      { hit: true, category: "tiktok", notes: "Hook formula" },
+      { hit: true, category: "research", notes: "Deep research report" },
     ];
     const categories = categorizeByType(evalResults);
     expect(categories).toHaveProperty("tiktok");
@@ -209,7 +209,7 @@ describe("categorizeByType", () => {
   });
 
   it("handles uncategorized results", () => {
-    const evalResults = [{ hit: true, notes: "Some random notes" }];
+    const evalResults = [{ hit: true, category: undefined, notes: "Some random notes" }];
     const categories = categorizeByType(evalResults);
     expect(categories).toHaveProperty("other");
     expect(categories.other).toHaveLength(1);
