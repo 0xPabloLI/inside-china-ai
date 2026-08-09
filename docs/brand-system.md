@@ -85,7 +85,7 @@ Consistent color coding across all content — same entity always same color.
 | Token     | Hex       | Usage                                                |
 | --------- | --------- | ---------------------------------------------------- |
 | `--white` | `#f5f5f5` | Headlines (off-white, reduces glare vs pure #ffffff) |
-| `--sec`   | `#94a3b8` | Labels, descriptions                                 |
+| `--sec`   | `#cbd5e1` | Labels, descriptions                                 |
 | `--muted` | `#475569` | Footnotes                                            |
 
 ### Background
@@ -157,8 +157,6 @@ All animations: `opacity: 0` initial, `forwards` fill mode. Stagger delays 0.3-0
 | `slideLeft` | 0.4-0.5s | cubic-bezier(0.16,1,0.3,1) | Cards, list items     |
 | `scaleIn`   | 0.5-0.6s | ease-out                   | Big numbers, key data |
 | `stampIn`   | 0.3-0.5s | ease-out                   | Verdicts (scale 2→1)  |
-| `flashFrame` | 0.4s  | ease-out                   | Hook scene pattern-break flash (opacity 1→0) |
-
 ## Color Usage Guide (60-30-10 Principle)
 
 Based on TikTok color best practices research (2025-2026):

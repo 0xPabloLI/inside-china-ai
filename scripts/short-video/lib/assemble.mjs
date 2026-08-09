@@ -38,7 +38,7 @@ export function assembleVideo(
     );
   }
 
-  for (const scene of scenes) {
+  for (const [i, scene] of scenes.entries()) {
     const sceneOutput = join(outputDir, `scene-${scene.sceneId}_final.mp4`);
     // Clip length is defined in frames (see lib/timeline.mjs). Requesting a
     // duration in seconds would be rounded up to the next frame by FFmpeg,
@@ -46,6 +46,11 @@ export function assembleVideo(
     const clipFrames = sceneClipFrames(scene.duration);
     const clipDuration = sceneClipDuration(scene.duration);
     const fadeOutStart = Math.max(clipDuration - 0.3, 0.1).toFixed(3);
+
+    // First scene starts at full impact — no fade-in — so the opening frame
+    // carries the hook content immediately (TikTok's auto-selected cover and
+    // any early-frame selection gets real content, not a black frame).
+    const fadeIn = i === 0 ? "" : "fade=t=in:st=0:d=0.2,";
 
     // Video-only clips: the audio lives in exactly one place — the voiceover
     // master track. Carrying a per-scene audio stream here would create a
@@ -55,8 +60,8 @@ export function assembleVideo(
       `-i "${scene.videoPath}"`,
       `-c:v libx264 -preset fast -crf 23 -r ${FPS}`,
       "-an",
-      // Fade in at start, fade out near end
-      `-vf "fade=t=in:st=0:d=0.2,fade=t=out:st=${fadeOutStart}:d=0.3"`,
+      // Fade out near end (fade-in skipped for first scene)
+      `-vf "${fadeIn}fade=t=out:st=${fadeOutStart}:d=0.3"`,
       `-frames:v ${clipFrames}`,
       `"${sceneOutput}"`,
     ];
@@ -167,16 +172,7 @@ export function assembleVideo(
   // Clean up temp files
   unlinkSync(concatFile);
 
-  // Create symlink for stable 'latest' path (points to versioned file, no disk waste)
-  const latestPath = join(outputDir, `${filePrefix}-short.mp4`);
-  try {
-    // Remove old symlink or file if exists
-    try {
-      unlinkSync(latestPath);
-    } catch {}
-    execSync(`ln -sf "${finalPath.replace(outputDir + "/", "")}" "${latestPath}"`);
-  } catch {}
-
+  // No symlink — the versioned file is the canonical output.
   // Clean up old versioned files (keep latest 3)
   try {
     const versionedFiles = execSync(
