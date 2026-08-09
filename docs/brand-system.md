@@ -191,25 +191,16 @@ Same as color tokens — each company has a consistent semantic color:
 
 TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by `scripts/short-video/verify-scene-dom.mjs` (measures real DOM geometry, wired into the pipeline as a FAIL-gate) and guarded at source level by `scripts/short-video/__tests__/scene-drift.test.mjs`.
 
-Calibrated against real FYP playback screenshots (scaled ×1.875/×1.44) cross-checked with 2026 research:
+Calibrated against real FYP playback screenshots cross-checked with 2026 research. Full calibration history and OCR evidence: `docs/research/safe-zone-calibration-log.md`.
 
 | Zone | Inset (px, 1080×1920 canvas) | Content edge | Meaning |
 |------|------------------------------|--------------|---------|
-| Top | 220 | y ≥ 220 | Below this: top tabs/search overlays stay clear. Brand chrome (brandBar top:140, watermark top:60) is exempt — sits in corners clear of centered tabs. |
-| Right | 200 | x ≤ 880 | Right action rail (avatar/like/comment/save/share/music, y≈655–1775). brandBar right:200 matches this. |
+| Top | 220 | y ≥ 220 | Below this: top tabs/search overlays stay clear. Brand chrome (brandBar top:140, watermark top:60) is exempt. |
+| Right | 200 | x ≤ 880 | Right action rail (avatar/like/comment/save/share/music, y≈655–1775). brandBar right:200 matches. |
 | Bottom | 770 | y ≤ 1150 | Bottom UI: caption, progress bar; also clears the subtitle lane |
 | Left | 60 | x ≥ 60 | Left margin (no overlay, but content breathes here) |
 
-Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350); the TikTok caption UI starts ~y1500.
-
-Second calibration pass (2026-08-08): re-checked against another real FYP screenshot (576×1024, ×1.875, OCR-measured) — top tabs y 91–175, action-rail icons x≈960–1080 with count labels starting x≈930 (y 746–1564), caption UI top y≈1489, bottom tab bar y≥1822. Nothing intrudes the content band; the x≤880 cap keeps a 50px margin from the rail count labels.
-
-Third calibration pass (2026-08-09, IMG_7975.PNG): OCR on a 750×1334 iPhone screenshot (×1.44 → 1080×1920) revealed two brand-element occlusions:
-
-1. **Search icon vs brandBar**: TikTok's search icon sits at x≈969–1030, y≈91–151. The brandBar (old `right: 60px`) extended to x=1020, so the "INTELLIGENCE BRIEFING" tag was covered. Fix: `right: 200px` → brandBar right edge x=880, matching SAFE_ZONES.right.
-2. **LIVE button vs brandBar logo**: The LIVE button sits at x≈48–115, y≈114–138. The brandBar (old `top: 80px`) logo bottom was at y=128, overlapping LIVE by 14px. Fix: `top: 140px` → brandBar starts below LIVE.
-
-Also fixed subtitle horizontal positioning in the same pass: subtitle margins were symmetric (180/180, canvas-centered → right edge x=900), but the action rail (x≥880, y≈655–1775) overlaps the subtitle band (y≈1188–1350). TikTok's own native auto-captions are canvas-centered but naturally narrow (3–5 words); our karaoke cues can be up to 720px (6 words at 60px), which would be occluded if centered. Fix: asymmetric margins 110/250 → subtitle area [110, 830], center x=470 (matches content band center), right edge clears rail by 50px.
+Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350, left-shifted to x∈[110,830]); the TikTok caption UI starts ~y1500.
 
 Enforcement levels in `verify-scene-dom.mjs`:
 - **Top / bottom band crossing → FAIL** (content enters TikTok chrome or the subtitle lane).
