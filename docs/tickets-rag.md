@@ -257,59 +257,59 @@ Create Supabase migration file.
 
 ### T-21: publish-article.mjs — RAG Reindex Trigger
 
-**Status**: ⏳ Pending (gated)
-**Depends on**: T-15
+**Status**: ✅ Complete (commit 7941183)
+**Depends on**: T-15 ✅
 **Effort**: 30 min
 
 **Acceptance Criteria**:
-- [ ] After successful publish, trigger `node scripts/rag/index.mjs`
-- [ ] Non-blocking: try/catch with warning on failure (Scenario #2)
-- [ ] Log: "📚 Triggering RAG reindex..." / "✅ RAG reindex complete" / "⚠️ RAG reindex failed (non-blocking)"
+- [x] After successful publish, trigger `node scripts/rag/index.mjs`
+- [x] Non-blocking: try/catch with warning on failure (Scenario #2)
+- [x] Log: "📚 Triggering RAG reindex..." / "✅ RAG reindex complete" / "⚠️ RAG reindex failed (non-blocking)"
 
-**Tests**:
-- [ ] Publish success → index.mjs called
-- [ ] Index failure → publish still succeeds
-- [ ] Warning message printed on failure
+**Tests** (4 new tests in `publish-article.test.mjs`):
+- [x] Publish success → index.mjs called
+- [x] Index failure → publish still succeeds
+- [x] Warning message printed on failure
 
 ---
 
 ### T-22: eval.mjs — Evaluation Script
 
-**Status**: ⏳ Pending (gated)
-**Depends on**: T-16, T-23 (golden queries)
+**Status**: ✅ Complete (commit 263d2ba)
+**Depends on**: T-16 ✅, T-23 ✅
 **Effort**: 1-2 hours
 
 **Acceptance Criteria**:
-- [ ] `scripts/rag/eval.mjs` created
-- [ ] Load golden queries from `docs/refs/rag-eval/golden-queries.yaml`
-- [ ] For each query: run embedding + match_content, check top-5 for expected sources
-- [ ] Output: hit rate, per-category breakdown, missed queries
-- [ ] Exit code: 0 if ≥ 80%, 1 if < 80%
+- [x] `scripts/rag/eval.mjs` created
+- [x] Load golden queries from `docs/refs/rag-eval/golden-queries.yaml`
+- [x] For each query: run embedding + match_content, check top-5 for expected sources
+- [x] Output: hit rate, per-category breakdown, missed queries
+- [x] Exit code: 0 if ≥ 80%, 1 if < 80%
 
-**Tests** (`scripts/rag/__tests__/golden-queries.test.mjs`):
-- [ ] Cross-language query (English → Chinese source)
-- [ ] Entity alias query (梁文锋 → Liang Wenfeng)
-- [ ] Data point query (specific number)
-- [ ] Negative query (non-existent topic → low similarity)
-- [ ] Hit rate calculation correct
+**Tests** (`scripts/rag/__tests__/eval.test.mjs`):
+- [x] Cross-language query (English → Chinese source)
+- [x] Entity alias query (梁文锋 → Liang Wenfeng)
+- [x] Data point query (specific number)
+- [x] Negative query (non-existent topic → low similarity)
+- [x] Hit rate calculation correct
 
 ---
 
 ### T-23: Golden Queries YAML (WP-11)
 
-**Status**: ⏳ Pending (gated)
-**Depends on**: T-15 (need indexed data to validate)
+**Status**: ✅ Complete (pre-existing from WP-11)
+**Depends on**: T-15 ✅
 **Effort**: 1-2 hours
 
 **Acceptance Criteria**:
-- [ ] `docs/refs/rag-eval/golden-queries.yaml` created
-- [ ] 15-20 queries covering 4 categories:
-  - [ ] 4+ cross-language queries
-  - [ ] 3+ entity alias queries
-  - [ ] 3+ data point queries
-  - [ ] 3+ negative queries
-- [ ] Each query has `query`, `expected_sources`, `notes`
-- [ ] Validated against indexed data (run eval.mjs)
+- [x] `docs/refs/rag-eval/golden-queries.yaml` created
+- [x] 15-20 queries covering 4 categories:
+  - [x] 5 cross-language queries
+  - [x] 4 entity alias queries
+  - [x] 5 data point queries
+  - [x] 3 negative queries
+- [x] Each query has `query`, `expected_sources`, `notes`
+- [ ] Validated against indexed data (run eval.mjs) — requires Ollama running
 
 ---
 
