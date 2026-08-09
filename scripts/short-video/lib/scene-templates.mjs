@@ -44,7 +44,7 @@ const BRAND_MARK_SVG = readFileSync(
 function templateCss() {
   return `
     /* ── Shared scene templates (lib/scene-templates.mjs) ── */
-    .brand-bar { position: absolute; top: 80px; left: 60px; right: 60px; display: flex; align-items: center; gap: 16px; animation: slideDown 0.3s ease-out 0.1s forwards; opacity: 0; }
+    .brand-bar { position: absolute; top: 140px; left: 60px; right: 200px; display: flex; align-items: center; gap: 16px; animation: slideDown 0.3s ease-out 0.1s forwards; opacity: 0; }
     .brand-bar .b-logo { width: 48px; height: 48px; } .brand-bar .b-logo svg { width: 100%; height: 100%; }
     .brand-bar .b-text { font-size: 24px; font-weight: 900; color: var(--white); letter-spacing: 3px; } .brand-bar .b-text .hl { color: var(--blue); }
     .brand-bar .briefing-tag { margin-left: auto; font-size: 16px; font-weight: 700; color: var(--sec); letter-spacing: 2px; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }

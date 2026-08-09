@@ -9,7 +9,7 @@
  * same values the DOM verifier (verify-scene-dom.mjs) enforces, so a scene
  * either fits the grid or the pipeline refuses to ship it.
  *
- *   brandHeader 60-140    channel chrome zone (watermark / brand bar)
+ *   brandHeader 60-200    channel chrome zone (watermark 60-115 / brand bar 140-188)
  *   kickerTitle 220-400   badge / section title
  *   hero        400-950   main visual (numbers, cards, comparisons), centered
  *   support     950-1150  source / conclusion / supporting detail
@@ -18,6 +18,10 @@
  * The content band ends at y=1150 (recalibrated) so the larger 60px subtitle
  * lane starting at y1188 has clearance; hero/support were re-flowed into the
  * tighter 400-1150 span. All values derive from lib/safe-zones.mjs.
+ *
+ * The brand bar sits at top:140 (below the TikTok LIVE button at y≤138) and
+ * right:200 (matching SAFE_ZONES.right, clearing the search icon at x≥969).
+ * See IMG_7975.PNG OCR calibration in docs/brand-system.md.
  */
 
 import { CANVAS, SAFE_ZONES } from "./safe-zones.mjs";
@@ -31,7 +35,7 @@ const CONTENT_BOTTOM = CANVAS.height - SAFE_ZONES.bottom;
  */
 export const SLOTS = {
   /** Channel chrome zone (brand bar / watermark). Not content. */
-  brandHeader: { top: 60, bottom: 140 },
+  brandHeader: { top: 60, bottom: 200 },
   /** Badge / section title band. */
   kickerTitle: { top: SAFE_ZONES.top, bottom: 400 },
   /** Main visual band — biggest slot, content centers within it. */

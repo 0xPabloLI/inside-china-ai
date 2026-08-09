@@ -35,6 +35,9 @@ describe("SLOTS (vertical bands)", () => {
   it("keeps the brand header in the top chrome corner", () => {
     expect(SLOTS.brandHeader.top).toBeLessThan(SAFE_ZONES.top);
     expect(SLOTS.brandHeader.top).toBe(60);
+    // brandHeader extends to 200 to cover the moved brandBar (top:140, height 48 → y=140-188)
+    expect(SLOTS.brandHeader.bottom).toBe(200);
+    expect(SLOTS.brandHeader.bottom).toBeLessThanOrEqual(SLOTS.kickerTitle.top);
   });
 });
 

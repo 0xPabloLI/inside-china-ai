@@ -78,89 +78,39 @@ const EXEMPT_SELECTORS = [
 const BRAND_CHROME = [".brand-bar", ".brand-watermark", ".brand-logo-large"];
 
 // Per-pipeline expectations.
-//   skipWatermark:  scene ids that render their own brand identity
-//   absentClasses:  legacy bottom-dead-zone footers that must not return
-//   singleOccurrence: sceneId -> [copy] that must appear exactly once in the
-//                     rendered DOM (guards duplicated labels)
-//   wordFit:        sceneId -> [selector] whose words must each fit on one
-//                   line (guards mid-word breaks)
+//   absentClasses:      legacy CSS classes that must not appear in the DOM
+//   singleOccurrence:   sceneId -> [copy] that must appear exactly once
+//   wordFit:            sceneId -> [selector] whose words must each fit on
+//                       one line (guards mid-word breaks)
+//
+// skipWatermark was removed — brand identity is now auto-detected via
+// .brand-bar / .brand-logo-large elements in the DOM.
+const DEFAULT_ABSENT_CLASSES = ["source-badge", "subscribe"];
 const EXPECTATIONS = {
-  "bytedance-distillation": {
-    // Every scene carries a brandBar() (top-left identity) → watermark skip
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
-    singleOccurrence: {},
-    wordFit: {},
-  },
   "restraint/pt1": {
-    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
-    // watermark skip for all scenes.
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-    absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
+    absentClasses: [...DEFAULT_ABSENT_CLASSES, "source-tag", "attribution"],
     singleOccurrence: { 4: ["PRICE CUT"] },
     wordFit: { 3: [".s3 .card .text"] },
   },
-  "restraint/pt3": {
-    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
-    // watermark skip for all scenes.
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
-    singleOccurrence: {},
-    wordFit: {},
-  },
-  deepseek: {
-    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
-    // watermark skip for all scenes.
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-    absentClasses: ["source-badge", "subscribe"],
-    singleOccurrence: {},
-    wordFit: {},
-  },
-  "distillation/pt1": {
-    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
-    // watermark skip for all scenes.
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8],
-    absentClasses: ["subscribe"],
-    singleOccurrence: {},
-    wordFit: {},
-  },
   "distillation/pt2": {
-    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
-    // watermark skip for all scenes.
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    absentClasses: ["subscribe"],
+    absentClasses: DEFAULT_ABSENT_CLASSES,
     singleOccurrence: {},
     wordFit: { 1: [".s1 .big-text"], 7: [".s7 .big-text"] },
   },
   "distillation/pt3": {
-    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
-    // watermark skip for all scenes.
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    absentClasses: ["subscribe"],
+    absentClasses: DEFAULT_ABSENT_CLASSES,
     singleOccurrence: {},
     wordFit: { 1: [".s1 .big-text"], 8: [".s8 .line1", ".s8 .line2"] },
   },
-  "kimi-sandbox": {
-    // Slot-layout v3: every scene carries brandBar() (top-left identity) →
-    // watermark skip for all scenes. CTA (scene 10) uses ctaScene (brand logo).
-    skipWatermark: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    absentClasses: ["source-badge", "subscribe"],
-    singleOccurrence: {},
-    wordFit: {},
-  },
   "_test-fixtures/hook-standard": {
-    // Both hook variants carry brandBar; CTA carries the large brand logo —
-    // withWatermark skips all three scenes by design.
-    skipWatermark: [1, 2, 3],
-    absentClasses: ["source-badge", "source-tag", "attribution", "subscribe"],
+    absentClasses: [...DEFAULT_ABSENT_CLASSES, "source-tag", "attribution"],
     singleOccurrence: {},
     wordFit: { 1: [".s-hook .focal-claim"], 2: [".s-hook .focal-number-label"] },
   },
 };
 
 const exp = EXPECTATIONS[contentDir] || {
-  skipWatermark: [],
-  absentClasses: [],
+  absentClasses: DEFAULT_ABSENT_CLASSES,
   singleOccurrence: {},
   wordFit: {},
 };
@@ -296,7 +246,10 @@ async function main() {
     // EXPECTATIONS.skipWatermark. The explicit list is still respected as a fallback.
     const watermark = await page.$('div[class="brand-watermark"]');
     const hasBrandBar = await page.$(".brand-bar, .brand-logo-large");
-    const shouldSkip = exp.skipWatermark.includes(scene.id) || !!hasBrandBar;
+    // shouldSkip is true if the scene has brand identity (auto-detected via DOM).
+    // The old exp.skipWatermark list was removed — all scenes now rely on
+    // auto-detection of .brand-bar / .brand-logo-large elements.
+    const shouldSkip = !!hasBrandBar;
     if (shouldSkip && watermark) {
       problems.push("unexpected watermark (brand identity scene)");
     }

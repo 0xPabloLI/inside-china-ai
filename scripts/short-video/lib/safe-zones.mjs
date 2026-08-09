@@ -18,7 +18,7 @@
  * the burned-subtitle lane, and nothing may enter the TikTok UI zones:
  *
  *   content (≤ y=1150, x∈[60,880]) → gap → subtitle lane (y≈1188-1350, 60px,
- *   x∈[180,900]) → clean margin → TikTok caption UI (y≥1500 worst case)
+ *   x∈[110,830]) → clean margin → TikTok caption UI (y≥1500 worst case)
  *
  * Invariants are test-locked in __tests__/safe-zones.test.mjs.
  *
@@ -45,12 +45,24 @@ export const SAFE_ZONES = {
 
 /**
  * Burned-in subtitle lane (ASS style, lib/subtitles/ass.mjs).
+ *
+ * The subtitle lane is LEFT-SHIFTED to match the content band's center, not
+ * the canvas center. Content occupies x∈[60,880] (center x=470); TikTok's
+ * right action rail (avatar/like/comment/save/share/music, x≈880-1080,
+ * y≈655-1775) overlaps the subtitle band (y≈1188-1350). A canvas-centered
+ * cue (margins 180/180 → right edge x=900) extends into the rail. By making
+ * the margins asymmetric (110/250) the cue area shifts to x∈[110,830],
+ * clearing the rail by 50px while keeping the same maxWidth.
+ *
+ * TikTok's own native auto-captions are canvas-centered — but they're
+ * auto-generated 3-5 word snippets that are naturally narrow, so they never
+ * reach the rail. Our karaoke cues can be up to 720px wide (6 words at 60px),
+ * which would be occluded if centered.
+ *
  * marginV places the cue BOTTOM edge at 1920 − 570 = 1350; the lane reserves
  * height for two lines of 60px text (with 1.35 line-height safety factor),
  * sitting at ~62-70% of frame height (TikTok native-caption band) and clearing
- * both scene content (ends y=1150) and the bottom caption UI (y≥1500). The
- * side margins derive from maxWidth (720 → 180 each) so the cue right edge
- * (x=900) clears the right action rail (x≈880).
+ * both scene content (ends y=1150) and the bottom caption UI (y≥1500).
  */
 export const SUBTITLE_LANE = {
   /** ASS MarginV — subtitle bottom edge distance from the canvas bottom */
@@ -61,8 +73,16 @@ export const SUBTITLE_LANE = {
   maxLines: 2,
   /** Per-line height factor (font ascent/descent + safety) */
   lineHeight: 1.35,
-  /** Max single-line cue width in px (margins derive from this: 180px each) */
+  /** Max single-line cue width in px */
   maxWidth: 720,
+  /**
+   * ASS MarginL — left margin, sized to left-shift the cue so its right edge
+   * (marginL + maxWidth) clears the action rail (x≈880) by ≥50px.
+   * marginL + maxWidth + marginR = CANVAS.width → 110 + 720 + 250 = 1080.
+   */
+  marginL: 110,
+  /** ASS MarginR — right margin (asymmetric, see marginL above). */
+  marginR: 250,
 };
 
 /** Subtitle lane bottom edge on the canvas, in px (y = 1350). */

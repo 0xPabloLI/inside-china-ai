@@ -31,7 +31,7 @@ SAFE_ZONES = { top: 220, right: 200, bottom: 770, left: 60 }
 // 内容带 = x[60,880] 宽 820 · y[220,1150]
 
 SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, maxWidth: 720 }
-// 字幕带 y1188–1350（62–70% 可读带）· marginL/R = (1080-720)/2 = 180 → 右缘 x900
+// 字幕带 y1188–1350（62–70% 可读带）· marginL/R = 110/250（左移匹配内容区中心，右缘 x830 清开操作栏 50px）
 // 派生: SUBTITLE_LANE_BOTTOM = 1350, SUBTITLE_LANE_TOP = 1188
 ```
 
@@ -41,7 +41,7 @@ SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, max
 
 | 槽 | y 范围 | 用途 |
 |---|---|---|
-| brandHeader | 60–140 | 品牌 chrome（brandBar/水印），非内容 |
+| brandHeader | 60–200 | 品牌 chrome（brandBar/水印），非内容 |
 | kickerTitle | 220–400 | 徽章/标题 |
 | hero | 400–950 | 主视觉 |
 | support | 950–1150 | 来源/结论/补充 |
@@ -54,7 +54,7 @@ SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, max
 
 ## 4. 字幕规则（`lib/subtitles/`）
 
-- `ass.mjs`：样式全部从 `SUBTITLE_LANE` 派生（fontSize 60 / marginV 570 / margins 180），**不要硬编码**。
+- `ass.mjs`：样式全部从 `SUBTITLE_LANE` 派生（fontSize 60 / marginV 570 / margins 110/250），**不要硬编码**。
 - `measure.mjs`：Helvetica-Bold AFM 字宽表（per-1000-em × fontSize）。
 - `cues.mjs`：分块按**像素实测宽度**：`HARD_PX = maxWidth = 720`（绝不超宽），`SOFT_PX = round(HARD×0.85) = 612`（软断）。`MAX_WORDS=6`、句子边界、孤儿合并、时间轴（lead-in/hold-out/gap）逻辑**不要动**。
 - 兜底：极端折行落在两行预留带内（y≤1350），不压内容。

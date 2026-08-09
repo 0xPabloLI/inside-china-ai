@@ -67,11 +67,6 @@ const ENTITY_HASHTAG_MAP = [
  */
 const DEFAULT_HASHTAGS = ["#ainews", "#chinaai", "#technews"];
 
-/**
- * @deprecated Use DEFAULT_HASHTAGS instead. Kept for backward compat.
- */
-const DEFAULT_BROAD_HASHTAGS = DEFAULT_HASHTAGS;
-
 // SEO keywords — "china" and "ai" are universal (channel name).
 // The primary entity (e.g. "moonshot", "deepseek") is added dynamically
 // from metadata.primaryEntity in hasSeoKeyword().

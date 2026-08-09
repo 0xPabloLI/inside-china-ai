@@ -27,9 +27,9 @@ export const COLOR_SPOKEN = "&H00FF8B4D";
 // Position and size come from lib/safe-zones.mjs (single source of truth):
 // marginV 570 keeps the cue BOTTOM edge at y=1350 (~62-70% of frame height,
 // the TikTok native-caption band) and clear of the bottom caption UI; the
-// side margins derive from SUBTITLE_LANE.maxWidth (720px → 180px each, right
-// edge x=900 clearing the action rail), so the cue width contract and the
-// reserved lane can never drift apart.
+// asymmetric side margins (110/250) left-shift the cue to match the content
+// band's center (x=470), so the cue right edge (x=830) clears the action
+// rail (x≈880) by 50px. See SUBTITLE_LANE JSDoc for the full rationale.
 const DEFAULT_STYLE = {
   fontName: "Helvetica Neue",
   fontSize: SUBTITLE_LANE.fontSize,
@@ -39,8 +39,8 @@ const DEFAULT_STYLE = {
   backColor: "&H66000000",
   outline: 3,
   shadow: 1,
-  marginL: (CANVAS.width - SUBTITLE_LANE.maxWidth) / 2,
-  marginR: (CANVAS.width - SUBTITLE_LANE.maxWidth) / 2,
+  marginL: SUBTITLE_LANE.marginL,
+  marginR: SUBTITLE_LANE.marginR,
   marginV: SUBTITLE_LANE.marginV,
 };
 

@@ -75,12 +75,21 @@ describe("region separation (single source of truth)", () => {
     expect(SUBTITLE_LANE.fontSize / CANVAS.height).toBeGreaterThanOrEqual(0.03);
   });
 
-  it("derives ASS margins from the lane max width (720px → 180px)", () => {
-    const marginEach = (CANVAS.width - SUBTITLE_LANE.maxWidth) / 2;
-    expect(marginEach).toBe(180);
+  it("uses left-shifted asymmetric margins to clear the action rail", () => {
+    expect(SUBTITLE_LANE.marginL).toBe(110);
+    expect(SUBTITLE_LANE.marginR).toBe(250);
     expect(SUBTITLE_LANE.marginV).toBe(570);
-    // subtitle right edge clears the action rail (x880)
-    expect(CANVAS.width - marginEach).toBeLessThanOrEqual(900);
+    // marginL + maxWidth + marginR = canvas width (invariant)
+    expect(SUBTITLE_LANE.marginL + SUBTITLE_LANE.maxWidth + SUBTITLE_LANE.marginR).toBe(
+      CANVAS.width,
+    );
+    // subtitle right edge (marginL + maxWidth = 830) clears the action rail (x880)
+    expect(SUBTITLE_LANE.marginL + SUBTITLE_LANE.maxWidth).toBe(830);
+    expect(SUBTITLE_LANE.marginL + SUBTITLE_LANE.maxWidth).toBeLessThan(880);
+    // subtitle center matches content band center (x=470)
+    const subtitleCenter = SUBTITLE_LANE.marginL + SUBTITLE_LANE.maxWidth / 2;
+    const contentCenter = SAFE_ZONES.left + (CANVAS.width - SAFE_ZONES.right - SAFE_ZONES.left) / 2;
+    expect(subtitleCenter).toBe(contentCenter);
   });
 
   it("keeps horizontal safe zones clear of the action rail (right wider than left)", () => {
