@@ -30,11 +30,13 @@ import {
   validateVideoFile,
   buildPendingAnalysis,
   buildAnalyticsGuidance,
+  buildTikTokUrl,
 } from "./lib/publish-utils.mjs";
 import {
   getApiKey,
   publoraPost,
   publoraPut,
+  publoraGet,
   uploadToS3,
   getPlatformId,
 } from "./lib/publora-client.mjs";
@@ -74,6 +76,9 @@ const seriesId = getArg("series-id");
 const partArg = getArg("part"); // format: "n/total" e.g. "1/3"
 const prevUrl = getArg("prev-url");
 const nextUrl = getArg("next-url");
+
+// TikTok URL auto-save arg
+const postSlug = getArg("slug");
 
 // ─── Main ───
 
@@ -233,6 +238,96 @@ async function main() {
     console.log("─".repeat(40));
     console.log(pinnedComment);
     console.log("─".repeat(40));
+  }
+
+  // 13. Auto-save TikTok URL to post (if --slug provided)
+  if (postSlug && !isDraft) {
+    await autoSaveTikTokUrl(postGroupId, postSlug, apiKey);
+  }
+}
+
+/**
+ * Poll Publora get-post until TikTok status is "published", then save URL to Supabase.
+ * Non-blocking: failures print warnings but don't affect exit code.
+ */
+async function autoSaveTikTokUrl(postGroupId, slug, apiKey) {
+  const MAX_POLLS = 5;
+  const POLL_INTERVAL_MS = 30_000;
+
+  console.log(`\n🔗 Auto-saving TikTok URL to post "${slug}"...`);
+  console.log(
+    `   Polling Publora (up to ${MAX_POLLS} attempts, ${POLL_INTERVAL_MS / 1000}s interval)`,
+  );
+
+  let postedId = null;
+
+  for (let attempt = 1; attempt <= MAX_POLLS; attempt++) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+    try {
+      const resp = await publoraGet(`/get-post/${postGroupId}`, apiKey);
+      const tiktokPost = resp.posts?.find((p) => p.platform === "tiktok");
+
+      if (tiktokPost?.status === "published" && tiktokPost?.postedId) {
+        postedId = tiktokPost.postedId;
+        console.log(`  ✅ TikTok published! postedId: ${postedId}`);
+        break;
+      }
+
+      console.log(
+        `  ⏳ Attempt ${attempt}/${MAX_POLLS}: status=${tiktokPost?.status ?? "unknown"}, postedId=${tiktokPost?.postedId ?? "null"}`,
+      );
+    } catch (e) {
+      console.log(`  ⚠️  Attempt ${attempt}/${MAX_POLLS}: poll failed — ${e.message}`);
+    }
+  }
+
+  if (!postedId) {
+    console.warn(`  ⚠️  Could not get TikTok postedId after ${MAX_POLLS} attempts.`);
+    console.warn(`     Set the URL manually in the admin editor or run:`);
+    console.warn(`     node scripts/article/set-tiktok-url.mjs --slug ${slug} --url <tiktok-url>`);
+    return;
+  }
+
+  const tiktokUrl = buildTikTokUrl(postedId);
+
+  // Save to Supabase via REST API
+  try {
+    const { loginAdmin, loadDotEnvFiles, getEnvVar } =
+      await import("../../article/lib/supabase-auth.mjs");
+    const { buildAttachmentHeaders } = await import("../../article/lib/attachment-utils.mjs");
+
+    const dotenv = loadDotEnvFiles();
+    const supabaseUrl = getEnvVar("SUPABASE_URL", dotenv);
+    const supabaseKey = getEnvVar("SUPABASE_PUBLISHABLE_KEY", dotenv);
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY");
+    }
+
+    const auth = await loginAdmin();
+    const headers = buildAttachmentHeaders(auth.access_token, supabaseKey);
+    headers["Content-Type"] = "application/json";
+    headers["Prefer"] = "return=minimal";
+
+    const patchResp = await fetch(
+      `${supabaseUrl}/rest/v1/posts?slug=eq.${encodeURIComponent(slug)}`,
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ tiktok_url: tiktokUrl }),
+      },
+    );
+
+    if (!patchResp.ok) {
+      const text = await patchResp.text();
+      throw new Error(`Supabase PATCH failed: HTTP ${patchResp.status} — ${text.slice(0, 200)}`);
+    }
+
+    console.log(`  ✅ Saved tiktok_url to post "${slug}": ${tiktokUrl}`);
+  } catch (e) {
+    console.warn(`  ⚠️  Failed to save tiktok_url to Supabase: ${e.message}`);
+    console.warn(`     The video was published successfully. Set the URL manually later.`);
   }
 }
 

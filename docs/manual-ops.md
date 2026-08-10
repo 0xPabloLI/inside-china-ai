@@ -20,7 +20,7 @@
 - Hook 吸引力、叙事逻辑、数据准确性、场景数量和总时长、CTA 有效性
 - 实际观看视频、TTS 语音自然度、字幕准确性、视觉动画流畅度、有无渲染问题
 
-> HITL 确认后，Agent 依次执行：文章发布 → 源素材附件上传 → 视频 MP4 上传 → TikTok 发布。详见 `docs/content-pipeline.md` Stage 5。
+> HITL 确认后，Agent 依次执行：文章发布 → 源素材附件上传 → TikTok 发布（自动保存 URL 到文章）。详见 `docs/content-pipeline.md` Stage 5。
 
 ---
 
@@ -65,7 +65,7 @@
 ## 每次发布文章时
 
 > **前置条件**：HITL 已通过（用户确认「视频 OK，发布」）。
-> 文章发布由 Agent 自动执行（文章发布 → 源素材附件上传 → 视频 MP4 上传 → 验证），详见 `docs/content-pipeline.md` Stage 5。
+> 文章发布由 Agent 自动执行（文章发布 → 源素材附件上传 → TikTok 发布 → 验证），详见 `docs/content-pipeline.md` Stage 5。
 
 唯一需要人工操作的：如有新 widget，需在 Lovable 编辑器点击「Publish」部署（不要用 `npx wrangler deploy`）。
 

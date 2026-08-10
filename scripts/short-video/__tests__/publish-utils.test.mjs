@@ -8,6 +8,7 @@ import {
   validateVideoFile,
   buildPendingAnalysis,
   buildAnalyticsGuidance,
+  buildTikTokUrl,
 } from "../lib/publish-utils.mjs";
 
 const mockMetadata = {
@@ -186,5 +187,22 @@ describe("buildAnalyticsGuidance", () => {
   it("includes analytics.tiktok.com URL", () => {
     const msg = buildAnalyticsGuidance("output");
     expect(msg).toContain("analytics.tiktok.com");
+  });
+});
+
+describe("buildTikTokUrl", () => {
+  it("constructs full TikTok URL from numeric postedId", () => {
+    expect(buildTikTokUrl("7234567890123456789")).toBe(
+      "https://www.tiktok.com/@chinaainews/video/7234567890123456789",
+    );
+  });
+
+  it("handles postedId with leading zeros", () => {
+    expect(buildTikTokUrl("007123")).toBe("https://www.tiktok.com/@chinaainews/video/007123");
+  });
+
+  it("always uses @chinaainews handle", () => {
+    const url = buildTikTokUrl("123");
+    expect(url).toContain("@chinaainews");
   });
 });

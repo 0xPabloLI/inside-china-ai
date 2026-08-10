@@ -175,6 +175,18 @@ export function buildAnalyticsGuidance(outputDir) {
   ].join("\n");
 }
 
+// ─── TikTok URL Construction ───
+
+/**
+ * Build a full TikTok video URL from a postedId returned by Publora.
+ *
+ * @param {string} postedId - TikTok video ID (numeric string from Publora get-post response)
+ * @returns {string} Full TikTok URL: https://www.tiktok.com/@chinaainews/video/{postedId}
+ */
+export function buildTikTokUrl(postedId) {
+  return `https://www.tiktok.com/@chinaainews/video/${postedId}`;
+}
+
 // ─── Series Support (ISSUE-22) ───
 
 /**

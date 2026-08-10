@@ -881,28 +881,20 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
 用户确认后，Agent 执行以下发布步骤（文章已在 Stage 2 发布）：
 
-#### 5a. 上传视频 MP4 到文章
-
-将成品视频 MP4 作为附件上传到文章，网站文章页会自动渲染为视频播放器（`<video>` 标签）：
+#### 5a. TikTok 发布 + 自动保存 URL
 
 ```bash
-node scripts/article/upload-attachments.mjs --post <slug> --files scripts/short-video/output/<video-dir>/<video-name>-short.mp4
+node scripts/short-video/publish-tiktok.mjs --slug <slug>   # 通过 Publora API 发布，发布后自动保存 TikTok URL 到文章
 ```
 
-> 视频文件大小通常 5-13MB，远低于 50MB 上传限制。上传后文章页底部「Watch」区域自动显示视频播放器。
-
-#### 5b. TikTok 发布
-
-```bash
-node scripts/short-video/publish-tiktok.mjs         # 通过 Publora API 发布
-```
+> 发布后脚本自动轮询 Publora 获取 TikTok video ID，构造 URL 并保存到 `posts.tiktok_url`。文章页自动渲染 TikTok embed。如果 2.5 分钟内 TikTok 未完成处理，打印警告提醒手动设置 URL。
 
 #### 发布后验证
 
 访问 `/posts/{slug}` 确认：
 - 文章显示正常，widget 渲染正确
 - 源素材附件列表完整
-- 视频播放器正常显示在「Watch」区域
+- TikTok embed 正常显示在「Watch」区域
 
 ### ⏸️ 用户手工操作检查点
 
@@ -940,8 +932,7 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 | **🔄 MRL-3** 视频自审 | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须         |
 | **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户   | ✅ 必须         |
 | 文章发布 + 附件上传   | Stage 2（HITL 之前）           | 脚本执行 | Agent  | ✅ 必须         |
-| 视频 MP4 上传到文章   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
-| TikTok 发布           | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须         |
+| TikTok 发布 + URL 保存 | Stage 5 HITL 确认后          | 脚本执行 | Agent  | ✅ 必须         |
 | TikTok 手工操作       | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
 | Analytics 导出        | Stage 6                        | 人工操作 | 用户   | ✅ 必须         |
 

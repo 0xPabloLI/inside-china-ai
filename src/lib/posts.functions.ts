@@ -29,7 +29,7 @@ export const getPublishedPost = createServerFn({ method: "GET" })
     const sb = createPublicClient();
     const { data: row, error } = await sb
       .from("posts")
-      .select("id, title, slug, excerpt, content, published_at")
+      .select("id, title, slug, excerpt, content, published_at, tiktok_url")
       .eq("slug", data.slug)
       .eq("published", true)
       .maybeSingle();
@@ -67,6 +67,7 @@ const postInput = z.object({
   excerpt: z.string().trim().max(500).optional().nullable(),
   content: z.string().max(200000).default(""),
   published: z.boolean().default(false),
+  tiktokUrl: z.string().trim().url().optional().nullable().or(z.literal("")),
 });
 
 export const listAllPostsAdmin = createServerFn({ method: "GET" })
@@ -115,6 +116,7 @@ export const savePost = createServerFn({ method: "POST" })
           content: data.content,
           published: data.published,
           published_at,
+          tiktok_url: data.tiktokUrl || null,
         })
         .eq("id", data.id)
         .select()
@@ -133,6 +135,7 @@ export const savePost = createServerFn({ method: "POST" })
         content: data.content,
         published: data.published,
         published_at: data.published ? now : null,
+        tiktok_url: data.tiktokUrl || null,
       })
       .select()
       .single();

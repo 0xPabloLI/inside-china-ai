@@ -21,6 +21,7 @@ export type PostForm = {
   excerpt: string;
   content: string;
   published: boolean;
+  tiktokUrl: string;
 };
 
 /* ------------------------------------------------------------------ */
@@ -39,6 +40,7 @@ export function PostEditor({
     excerpt: string | null;
     content: string;
     published: boolean;
+    tiktok_url: string | null;
   } | null;
   onCancel: () => void;
   onSave: (v: PostForm) => void | Promise<void>;
@@ -48,6 +50,7 @@ export function PostEditor({
   const [excerpt, setExcerpt] = useState(initial?.excerpt ?? "");
   const [content, setContent] = useState(initial?.content ?? "");
   const [published, setPublished] = useState(initial?.published ?? false);
+  const [tiktokUrl, setTiktokUrl] = useState(initial?.tiktok_url ?? "");
   const [slugTouched, setSlugTouched] = useState(!!initial?.slug);
   const [saving, setSaving] = useState(false);
 
@@ -74,6 +77,7 @@ export function PostEditor({
           excerpt: excerpt.trim(),
           content,
           published,
+          tiktokUrl: tiktokUrl.trim(),
         });
         setSaving(false);
       }}
@@ -113,6 +117,19 @@ export function PostEditor({
           rows={2}
           maxLength={500}
         />
+      </div>
+      <div>
+        <Label>TikTok URL (optional)</Label>
+        <Input
+          className="mt-1"
+          type="url"
+          value={tiktokUrl}
+          onChange={(e) => setTiktokUrl(e.target.value)}
+          placeholder="https://www.tiktok.com/@chinaainews/video/..."
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Paste the TikTok video URL to embed it on the article page
+        </p>
       </div>
       <div>
         <Label>Content</Label>

@@ -111,6 +111,26 @@ export async function publoraPut(path, body, apiKey) {
 }
 
 /**
+ * Send a GET request to the Publora API.
+ *
+ * @param {string} path - API path (e.g. "/get-post/pg_123")
+ * @param {string} [apiKey] - API key (auto-resolved if omitted)
+ * @returns {Promise<object>} Parsed JSON response
+ * @throws {Error} If the response is not OK
+ */
+export async function publoraGet(path, apiKey) {
+  const key = apiKey || (await getApiKey());
+  const resp = await fetch(`${PUB_BASE_URL}${path}`, {
+    headers: { "x-publora-key": key },
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    throw new Error(`Publora GET ${path} failed: HTTP ${resp.status} — ${JSON.stringify(data)}`);
+  }
+  return data;
+}
+
+/**
  * Upload a file to an S3 presigned URL.
  *
  * @param {string} uploadUrl - Presigned S3 URL
