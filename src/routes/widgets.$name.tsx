@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { WIDGETS, isRegisteredWidget, isBreakoutWidget } from "@/components/widgets/registry";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Dev-only widget preview (spec widget-preview-route R2).
@@ -43,7 +44,11 @@ function WidgetPreview() {
       >
         <Suspense
           fallback={
-            <div className="animate-pulse text-sm text-muted-foreground">Loading widget…</div>
+            <div className="space-y-3" aria-busy="true">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
           }
         >
           <Widget />
