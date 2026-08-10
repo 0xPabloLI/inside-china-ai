@@ -9,6 +9,8 @@ import {
   buildPendingAnalysis,
   buildAnalyticsGuidance,
   buildTikTokUrl,
+  buildManualPublishGuide,
+  buildAutoPublishWarning,
 } from "../lib/publish-utils.mjs";
 
 const mockMetadata = {
@@ -204,5 +206,127 @@ describe("buildTikTokUrl", () => {
   it("always uses @chinaainews handle", () => {
     const url = buildTikTokUrl("123");
     expect(url).toContain("@chinaainews");
+  });
+});
+
+// ─── buildManualPublishGuide (zero-views fix) ───
+
+describe("buildManualPublishGuide", () => {
+  const baseParams = {
+    videoPath: "/path/to/video.mp4",
+    caption: "Test title\n\nTest description\n#chinaai #ai",
+  };
+
+  it("includes the video file path", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("/path/to/video.mp4");
+  });
+
+  it("includes the caption text", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("Test title");
+    expect(guide).toContain("Test description");
+  });
+
+  it("includes AIGC label warning when hasAIVoice=true", () => {
+    const guide = buildManualPublishGuide({ ...baseParams, hasAIVoice: true });
+    expect(guide).toContain("AI-generated content");
+    expect(guide).toContain("CRITICAL");
+  });
+
+  it("omits AIGC label warning when hasAIVoice=false", () => {
+    const guide = buildManualPublishGuide({ ...baseParams, hasAIVoice: false });
+    expect(guide).not.toContain("CRITICAL");
+    expect(guide).toContain("AIGC label not needed");
+  });
+
+  it("defaults hasAIVoice to true", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("AI-generated content");
+  });
+
+  it("includes in-app editing step", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("Edit");
+    expect(guide).toContain("sticker");
+  });
+
+  it("includes trending audio step", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("Add sound");
+    expect(guide).toContain("trending");
+  });
+
+  it("includes geographic tag step", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("Location");
+    expect(guide).toContain("China");
+  });
+
+  it("includes first-hour engagement step", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("First hour");
+    expect(guide).toContain("Reply to EVERY comment");
+  });
+
+  it("includes off-peak posting time recommendation", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("off-peak");
+  });
+
+  it("includes article URL with custom slug", () => {
+    const guide = buildManualPublishGuide({
+      ...baseParams,
+      articleSlug: "kimi-k3-sandbox",
+    });
+    expect(guide).toContain("chinaainews.com/posts/kimi-k3-sandbox");
+  });
+
+  it("derives slug from exampleEntity when articleSlug not provided", () => {
+    const guide = buildManualPublishGuide({
+      ...baseParams,
+      exampleEntity: "DeepSeek",
+    });
+    expect(guide).toContain("chinaainews.com/posts/DeepSeek-news");
+  });
+
+  it("includes API auto-publish disabled warning", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("API Auto-Publish is DISABLED");
+  });
+
+  it("includes analytics.tiktok.com URL", () => {
+    const guide = buildManualPublishGuide(baseParams);
+    expect(guide).toContain("analytics.tiktok.com");
+  });
+});
+
+// ─── buildAutoPublishWarning ───
+
+describe("buildAutoPublishWarning", () => {
+  it("includes warning about API bypass", () => {
+    const msg = buildAutoPublishWarning();
+    expect(msg).toContain("WARNING");
+    expect(msg).toContain("API");
+  });
+
+  it("lists all bypassed algorithm signals", () => {
+    const msg = buildAutoPublishWarning();
+    expect(msg).toContain("AIGC label");
+    expect(msg).toContain("trending audio");
+    expect(msg).toContain("in-app editing");
+    expect(msg).toContain("geographic tag");
+    expect(msg).toContain("first-hour engagement");
+  });
+
+  it("mentions zero views as top cause", () => {
+    const msg = buildAutoPublishWarning();
+    expect(msg).toContain("zero views");
+  });
+
+  it("recommends manual mode", () => {
+    const msg = buildAutoPublishWarning();
+    expect(msg).toContain("Manual");
+    expect(msg).toContain("--auto");
   });
 });

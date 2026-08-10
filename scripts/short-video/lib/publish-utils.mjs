@@ -236,3 +236,116 @@ export function buildSeriesPinnedComment(seriesMeta) {
 
   return lines.join("\n\n");
 }
+
+// ─── Manual Publishing Guide (zero-views fix) ───
+
+/**
+ * Build a comprehensive manual publishing guide for TikTok.
+ *
+ * Replaces the default auto-publish via API with an in-app checklist.
+ * API publishing bypasses AIGC label, trending audio, in-app editing,
+ * and geographic tags — all of which are algorithm-favoring signals.
+ *
+ * @param {Object} params
+ * @param {string} params.videoPath - Absolute path to the MP4 file
+ * @param {string} params.caption - Full caption text (<= 2200 chars)
+ * @param {string} [params.articleSlug] - Post slug for pinned comment URL
+ * @param {boolean} [params.hasAIvoice=true] - Whether AI-generated voice is used
+ * @param {string} [params.exampleEntity] - Primary entity for examples (e.g. "DeepSeek")
+ * @returns {string} Formatted manual publishing guide
+ */
+export function buildManualPublishGuide({
+  videoPath,
+  caption,
+  articleSlug,
+  hasAIVoice = true,
+  exampleEntity = "company",
+}) {
+  const lines = [
+    "",
+    "=".repeat(60),
+    "📤 TikTok Manual Publishing Guide",
+    "=".repeat(60),
+    "",
+    "⚠️  API Auto-Publish is DISABLED (zero-views prevention).",
+    "   Publishing via API bypasses critical algorithm signals:",
+    "   AIGC label, trending audio, in-app editing, geographic tag.",
+    "   Manual in-app publishing is REQUIRED for video visibility.",
+    "",
+    `🎬 Video file: ${videoPath}`,
+    "",
+    "📋 Caption (copy to TikTok description field):",
+    "─".repeat(50),
+    caption,
+    "─".repeat(50),
+    "",
+    "✅ Manual Publishing Checklist:",
+    "  [ ] 1. Open TikTok app → Tap [+] to upload",
+    `  [ ] 2. Select video file: ${videoPath}`,
+  ];
+
+  if (hasAIVoice) {
+    lines.push(
+      '  [ ] 3. ⚠️  CRITICAL: Toggle "AI-generated content" ON',
+      "         TikTok requires AI content labeling. Not labeling = penalty.",
+      "         This is the #1 cause of zero views for AI-voiced videos.",
+    );
+  } else {
+    lines.push("  [ ] 3. (No AI voice detected — AIGC label not needed)");
+  }
+
+  lines.push(
+    "  [ ] 4. Paste caption above into description field",
+    '  [ ] 5. Tap "Edit" → Add a text sticker or effect (algorithm bonus)',
+    "         TikTok algorithm favors content edited within the app.",
+    '  [ ] 6. Tap "Add sound" → Pick a trending sound (set volume 5-10%)',
+    "         Trending audio boosts discoverability significantly.",
+    '  [ ] 7. Tap "Location" → Select "China" or "United States"',
+    "         Algorithm prioritizes local content.",
+    '  [ ] 8. Set privacy to "Public" (or "Friends" for testing)',
+    "  [ ] 9. Publish",
+    "  [ ] 10. First hour: Reply to EVERY comment (engagement signal)",
+    "  [ ] 11. Pin a comment with article link (when domain is live):",
+  );
+
+  const slug = articleSlug || `${exampleEntity.replace(/\s/g, "-")}-news`;
+  lines.push(`         https://chinaainews.com/posts/${slug}`);
+
+  lines.push(
+    "",
+    "⏰  Best posting time: 2-4 PM or 10 PM-12 AM (off-peak hours)",
+    "    Off-peak = less competition = algorithm more likely to test your video.",
+    "",
+    "📊 After 48h: Export analytics from https://analytics.tiktok.com",
+    "=".repeat(60),
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Build the warning message shown when --auto flag is used.
+ *
+ * @returns {string} Warning text
+ */
+export function buildAutoPublishWarning() {
+  return [
+    "",
+    "⚠️  ⚠️  ⚠️  WARNING: API Auto-Publish Mode  ⚠️  ⚠️  ⚠️",
+    "=".repeat(60),
+    "Publishing via Publora API bypasses critical TikTok algorithm signals:",
+    "",
+    "  ❌ No AIGC label      → TikTok penalizes unlabeled AI content",
+    "  ❌ No trending audio   → Missing discoverability boost",
+    "  ❌ No in-app editing    → Missing algorithm favor signal",
+    "  ❌ No geographic tag   → Missing local content priority",
+    "  ❌ No first-hour engagement → Missing engagement signal",
+    "",
+    "These are the TOP causes of zero views on TikTok.",
+    "Manual in-app publishing is strongly recommended.",
+    "",
+    "To use manual mode (default): remove the --auto flag",
+    "=".repeat(60),
+    "",
+  ].join("\n");
+}

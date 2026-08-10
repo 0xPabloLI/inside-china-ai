@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 /**
- * TikTok Publish via Publora REST API
+ * TikTok Publish Script
  *
- * Flow: create draft -> get upload URL -> upload MP4 to S3 -> schedule/publish
+ * DEFAULT: Output manual publishing guide (no API call).
+ *   Manual in-app publishing is required for video visibility because
+ *   it enables AIGC label, trending audio, in-app editing, and geo tag —
+ *   all critical algorithm-favoring signals that API publishing bypasses.
+ *
+ * --auto: Publish via Publora REST API (shows risk warning first).
+ *   Flow: create draft -> get upload URL -> upload MP4 to S3 -> schedule/publish
  *
  * Usage:
  *   node scripts/short-video/publish-tiktok.mjs [options]
@@ -10,12 +16,13 @@
  * Options:
  *   --video <path>      Video file (required)
  *   --metadata <path>   Metadata JSON (default: output/tiktok-metadata.json)
- *   --schedule <iso>    Schedule time (ISO 8601, e.g. 2026-08-03T12:00:00Z)
- *   --draft             Leave as draft (don't schedule)
- *   --self-only         Set viewerSetting to SELF_ONLY (for testing)
- *   --platform-id <id>  Override TikTok platform ID
+ *   --auto              Enable API auto-publish (bypasses algorithm signals)
+ *   --schedule <iso>    Schedule time (ISO 8601, e.g. 2026-08-03T12:00:00Z) [--auto only]
+ *   --draft             Leave as draft (don't schedule) [--auto only]
+ *   --self-only         Set viewerSetting to SELF_ONLY (for testing) [--auto only]
+ *   --platform-id <id>  Override TikTok platform ID [--auto only]
  *
- * Requires: PUBLORA_API_KEY env var OR CatPaw MCP config fallback
+ * Requires (for --auto): PUBLORA_API_KEY env var OR CatPaw MCP config fallback
  */
 
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
@@ -31,15 +38,9 @@ import {
   buildPendingAnalysis,
   buildAnalyticsGuidance,
   buildTikTokUrl,
+  buildManualPublishGuide,
+  buildAutoPublishWarning,
 } from "./lib/publish-utils.mjs";
-import {
-  getApiKey,
-  publoraPost,
-  publoraPut,
-  publoraGet,
-  uploadToS3,
-  getPlatformId,
-} from "./lib/publora-client.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -66,6 +67,7 @@ if (!videoPath) {
   process.exit(1);
 }
 const metadataPath = getArg("metadata") || DEFAULT_METADATA;
+const isAuto = hasFlag("auto");
 const scheduleTime = getArg("schedule");
 const isDraft = hasFlag("draft");
 const isSelfOnly = hasFlag("self-only");
@@ -80,34 +82,21 @@ const nextUrl = getArg("next-url");
 // TikTok URL auto-save arg
 const postSlug = getArg("slug");
 
-// ─── Main ───
+// ─── Shared: load metadata + build caption + validate video ───
 
-async function main() {
-  console.log("📤 TikTok Publish via Publora");
-  console.log("=".repeat(60));
-
-  // 1. Get API key
-  const apiKey = await getApiKey();
-  console.log("🔑 API key: found ✅");
-
-  // 2. Get platform ID (CLI override or from Publora)
-  const platformId = platformIdOverride || (await getPlatformId("tiktok-", apiKey));
-  console.log(`📱 TikTok platform: ${platformId}`);
-
-  // 3. Read metadata
+function preparePublishData() {
+  // Read metadata
   if (!existsSync(metadataPath)) {
     console.error(`❌ Metadata not found: ${metadataPath}`);
     console.error("   Run: node scripts/short-video/generate-caption.mjs");
     process.exit(1);
   }
   const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
-  console.log(`📋 Metadata: ${metadata.title?.substring(0, 50)}...`);
 
-  // 4. Build caption (with optional series info)
+  // Build caption (with optional series info)
   let caption;
   let pinnedComment = null;
   if (seriesId && partArg) {
-    // Parse part "n/total"
     const [partNum, totalParts] = partArg.split("/").map(Number);
     const seriesMeta = {
       seriesId,
@@ -118,28 +107,109 @@ async function main() {
     };
     caption = buildSeriesCaption(metadata, seriesMeta);
     pinnedComment = buildSeriesPinnedComment(seriesMeta);
-    console.log(`📝 Caption (series): ${caption.length} chars (limit: 2200)`);
-    console.log(`🏷️  Series: ${seriesId} Part ${partNum}/${totalParts}`);
   } else {
     caption = buildCaption(metadata);
-    console.log(`📝 Caption: ${caption.length} chars (limit: 2200)`);
   }
 
-  // 5. Validate video
+  // Validate video
   const videoValidation = validateVideoFile(videoPath);
   if (!videoValidation.valid) {
     console.error(`❌ Video: ${videoValidation.error}`);
     process.exit(1);
   }
-  console.log(`🎬 Video: ${(videoValidation.size / 1024 / 1024).toFixed(1)}MB`);
 
-  // 6. Build TikTok settings
+  // Derive example entity from metadata (same logic as verify-video.mjs)
+  const rawCompany =
+    metadata.keyEntities?.companies?.[0] || metadata.title?.match(/([A-Z][a-zA-Z]+)/)?.[1] || null;
+  const exampleEntity = rawCompany
+    ? rawCompany
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ")
+    : "company";
+
+  return { metadata, caption, pinnedComment, videoValidation, exampleEntity };
+}
+
+// ─── Manual mode (default) ───
+
+function runManualMode() {
+  const { metadata, caption, pinnedComment, videoValidation, exampleEntity } = preparePublishData();
+
+  console.log("📤 TikTok Manual Publishing Guide");
+  console.log(`📋 Metadata: ${metadata.title?.substring(0, 50)}...`);
+  console.log(`🎬 Video: ${(videoValidation.size / 1024 / 1024).toFixed(1)}MB`);
+  console.log(`📝 Caption: ${caption.length} chars (limit: 2200)`);
+
+  if (seriesId && partArg) {
+    const [partNum, totalParts] = partArg.split("/").map(Number);
+    console.log(`🏷️  Series: ${seriesId} Part ${partNum}/${totalParts}`);
+  }
+
+  // All videos in this pipeline use TTS (F5-TTS/XTTS), so AI voice = true
+  const guide = buildManualPublishGuide({
+    videoPath: resolve(videoPath),
+    caption,
+    articleSlug: postSlug,
+    hasAIVoice: true,
+    exampleEntity,
+  });
+  console.log(guide);
+
+  // Output pinned comment for series
+  if (pinnedComment) {
+    console.log("\n📌 Pinned Comment (copy & pin after publishing):");
+    console.log("─".repeat(40));
+    console.log(pinnedComment);
+    console.log("─".repeat(40));
+  }
+
+  console.log("\n💡 Tip: After publishing manually, save the TikTok URL to the post:");
+  if (postSlug) {
+    console.log(`   node scripts/article/set-tiktok-url.mjs --slug ${postSlug} --url <tiktok-url>`);
+  } else {
+    console.log("   node scripts/article/set-tiktok-url.mjs --slug <slug> --url <tiktok-url>");
+  }
+}
+
+// ─── Auto mode (--auto flag) ───
+
+async function runAutoMode() {
+  // Show warning
+  console.log(buildAutoPublishWarning());
+
+  const { metadata, caption, pinnedComment, videoValidation, exampleEntity } = preparePublishData();
+
+  console.log("📤 TikTok Auto-Publish via Publora");
+  console.log("=".repeat(60));
+  console.log(`📋 Metadata: ${metadata.title?.substring(0, 50)}...`);
+  console.log(`🎬 Video: ${(videoValidation.size / 1024 / 1024).toFixed(1)}MB`);
+  console.log(`📝 Caption: ${caption.length} chars (limit: 2200)`);
+
+  if (seriesId && partArg) {
+    const [partNum, totalParts] = partArg.split("/").map(Number);
+    console.log(`🏷️  Series: ${seriesId} Part ${partNum}/${totalParts}`);
+  }
+
+  // Lazy import Publora client (only needed for --auto)
+  const { getApiKey, publoraPost, publoraPut, publoraGet, uploadToS3, getPlatformId } =
+    await import("./lib/publora-client.mjs");
+
+  // 1. Get API key
+  const apiKey = await getApiKey();
+  console.log("🔑 API key: found ✅");
+
+  // 2. Get platform ID
+  const platformId = platformIdOverride || (await getPlatformId("tiktok-", apiKey));
+  console.log(`📱 TikTok platform: ${platformId}`);
+
+  // 3. Build TikTok settings
   const tiktokSettings = buildTiktokSettings({
     viewerSetting: isSelfOnly ? "SELF_ONLY" : "PUBLIC_TO_EVERYONE",
   });
   console.log(`⚙️  Viewer: ${tiktokSettings.tiktok.viewerSetting}`);
 
-  // 7. Step 1: Create draft
+  // 4. Step 1: Create draft
   console.log("\n📦 Step 1: Creating draft post...");
   const draft = await publoraPost(
     "/create-post",
@@ -157,7 +227,7 @@ async function main() {
   }
   console.log(`  ✅ Draft created: ${postGroupId}`);
 
-  // 8. Step 2: Get upload URL
+  // 5. Step 2: Get upload URL
   console.log("\n📦 Step 2: Getting upload URL...");
   const fileName = resolve(videoPath).split("/").pop();
   const uploadResp = await publoraPost(
@@ -177,16 +247,16 @@ async function main() {
   }
   console.log(`  ✅ Upload URL obtained (mediaId: ${mediaId})`);
 
-  // 9. Step 3: Upload to S3
+  // 6. Step 3: Upload to S3
   console.log("\n📦 Step 3: Uploading video to S3...");
   await uploadToS3(uploadUrl, videoPath, "video/mp4");
   console.log("  ✅ Upload complete");
 
-  // 10. Step 4: Schedule or leave as draft
+  // 7. Step 4: Schedule or leave as draft
   if (isDraft) {
     console.log("\n📝 Post left as draft (use --schedule to publish)");
     console.log(`   PostGroupId: ${postGroupId}`);
-    console.log("   Publish later: node publish-tiktok.mjs --schedule <iso>");
+    console.log("   Publish later: node publish-tiktok.mjs --auto --schedule <iso>");
   } else if (scheduleTime) {
     console.log(`\n📅 Scheduling for ${scheduleTime}...`);
     await publoraPut(
@@ -199,7 +269,6 @@ async function main() {
     );
     console.log("  ✅ Scheduled");
   } else {
-    // Default: schedule for now (immediate publish)
     const now = new Date().toISOString();
     console.log(`\n🚀 Scheduling for immediate publish (${now})...`);
     await publoraPut(
@@ -222,7 +291,7 @@ async function main() {
   console.log(`  Video:       ${(videoValidation.size / 1024 / 1024).toFixed(1)}MB`);
   console.log("=".repeat(60));
 
-  // 11. Write pending-analysis.json (ISSUE-19) — only for non-draft
+  // 8. Write pending-analysis.json — only for non-draft
   if (!isDraft) {
     const publishedAt = new Date().toISOString();
     const pending = buildPendingAnalysis(postGroupId, publishedAt);
@@ -232,7 +301,7 @@ async function main() {
     console.log(buildAnalyticsGuidance(OUTPUT_DIR));
   }
 
-  // 12. Output pinned comment for series (user must manually pin it)
+  // 9. Output pinned comment for series
   if (pinnedComment) {
     console.log("\n📌 Pinned Comment (copy & pin manually):");
     console.log("─".repeat(40));
@@ -240,9 +309,9 @@ async function main() {
     console.log("─".repeat(40));
   }
 
-  // 13. Auto-save TikTok URL to post (if --slug provided)
+  // 10. Auto-save TikTok URL to post
   if (postSlug && !isDraft) {
-    await autoSaveTikTokUrl(postGroupId, postSlug, apiKey);
+    await autoSaveTikTokUrl(postGroupId, postSlug, apiKey, publoraGet);
   }
 }
 
@@ -250,7 +319,7 @@ async function main() {
  * Poll Publora get-post until TikTok status is "published", then save URL to Supabase.
  * Non-blocking: failures print warnings but don't affect exit code.
  */
-async function autoSaveTikTokUrl(postGroupId, slug, apiKey) {
+async function autoSaveTikTokUrl(postGroupId, slug, apiKey, publoraGet) {
   const MAX_POLLS = 5;
   const POLL_INTERVAL_MS = 30_000;
 
@@ -331,7 +400,13 @@ async function autoSaveTikTokUrl(postGroupId, slug, apiKey) {
   }
 }
 
-main().catch((e) => {
-  console.error(`❌ ${e.message}`);
-  process.exit(1);
-});
+// ─── Entry point ───
+
+if (isAuto) {
+  runAutoMode().catch((e) => {
+    console.error(`❌ ${e.message}`);
+    process.exit(1);
+  });
+} else {
+  runManualMode();
+}

@@ -2,12 +2,13 @@
 /**
  * Cross-Platform Schedule Script (ISSUE-03)
  *
- * [辅助工具] Agent 可直接跑 publish-tiktok.mjs，此脚本为多平台场景预留。
- * 目前仅 TikTok 连接，等 YouTube/Instagram 连接后才有实际多平台价值。
+ * [辅助工具] 委托 publish-tiktok.mjs。默认输出手动发布指南。
+ * 加 --auto 才走 API 发布（会显示风险警告）。
  *
  * Usage:
- *   node scripts/short-video/schedule.mjs --schedule 2026-08-03T12:00:00Z
- *   node scripts/short-video/schedule.mjs --draft
+ *   node scripts/short-video/schedule.mjs --video <path>           # 手动发布指南
+ *   node scripts/short-video/schedule.mjs --video <path> --auto     # API 自动发布
+ *   node scripts/short-video/schedule.mjs --video <path> --auto --schedule 2026-08-03T12:00:00Z
  */
 
 import { execSync } from "child_process";
