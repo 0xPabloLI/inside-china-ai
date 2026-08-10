@@ -13,7 +13,7 @@
 | 1 | ~~MuseTalk 1.5 MLX~~ | VAE 替换 | 256px | ✅ MLX | ✅ MIT | ❌ 放弃 | 2026-08-09 |
 | 2 | ~~SadTalker~~ | 3DMM | — | ✅ | ❌ | ❌ 效果差 | 2026-08-09 |
 | 3 | ~~LatentSync 1.5~~ | 扩散+SyncNet | 256px | ✅ (需 patch) | ✅ OpenRAIL++ | ❌ 效果差 | 2026-08-10 |
-| 4 | **LatentSync 1.6** | 扩散+SyncNet | 512px | ⏳ 测试中 | ✅ OpenRAIL++ | ⏳ 推理中 | 2026-08-10 |
+| 4 | ~~LatentSync 1.6~~ | 扩散+SyncNet | 512px | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ OOM (32GB 不够) | 2026-08-10 |
 | 5 | **Sonic** | SVD 扩散 | — | ✅ 已修复 | ❌ 非商用 | 📋 待测 | — |
 | 6 | **V-Express** | 渐进式扩散 | — | ⚠️ 待验证 | ❓ | 📋 待测 | — |
 | 7 | **Hallo2** | 分层扩散 | — | ⚠️ 待验证 | ✅ MIT | 📋 待测 | — |
@@ -52,20 +52,15 @@
 
 ## 进行中测试
 
-### ⏳ LatentSync 1.6
+### ❌ LatentSync 1.6
 
 - **日期**：2026-08-10
-- **配置**：`stage2_512.yaml`（512×512 分辨率），`checkpoints/latentsync_unet.pt`（4.7GB）
-- **MPS Patch**：5 项（1.6 原始代码跟 1.5 一样硬编码 CUDA，需手动 patch）
-  1. `util.py` — decord import try/except + librosa fallback
-  2. `whisper/__init__.py` — 去掉 `weights_only=True` + `model.to("cpu")` 强制 CPU
-  3. `unet.py` — 去掉 `weights_only=True`
-  4. `image_processor.py` — face_alignment 强制 CPU
-  5. `inference.py` — 添加 `device` 变量（cuda/mps/cpu）+ 替换所有 `"cuda"` 硬编码
-  6. `lipsync_pipeline.py` — `ImageProcessor(device="cuda")` 改为 `device=self._execution_device`
-- **参数**：`--inference_steps 20 --guidance_scale 1.0`，`stage2_512.yaml`（512×512）
-- **进度**：Affine transform 进行中（128 faces，~8s/face）
-- **预期**：512px 分辨率应比 1.5 的 256px 显著改善
+- **结论**：**失败** — 512px 推理 MPS OOM，32GB 内存不够
+- **MPS Patch**：6 项（详见主文档 §3.2.2）
+- **Run 1**：标准 MPS 内存限制 → OOM at `scaled_dot_product_attention`（MPS allocated: 29.34 GB, tried to allocate 8 GB more, max allowed: 42.43 GB）
+- **Run 2**：`PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0` 禁用内存上限 → 进程在 affine 阶段被系统杀掉（内存压力 killer）
+- **根本问题**：512×512 分辨率的 UNet 推理需要 ~38GB 内存，M2 Pro 32GB 物理内存不足。即使使用 swap 也会导致系统不稳定
+- **结论**：**M2 Pro 32GB 不可用 LatentSync 1.6**
 
 ---
 
