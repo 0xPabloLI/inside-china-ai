@@ -58,3 +58,9 @@
 | `rag-prework.md` | 2026-08-08 | RAG 前置工作总览（WP-1~WP-11 全部完成，D1-D5 决策确认，Q1-Q19 grilled）|
 | `spec-rag.md` / `tickets-rag.md` | 2026-08-09 | RAG Pipeline 实施 — Phase 1 (T-10~T-16: migration + ollama/chunker/normalizer/supabase-client/index/query) + Phase 2 (T-20~T-23: extract-widget-sources + publish reindex trigger + eval.mjs + golden queries)。106 tests passing。 |
 | `spec-dom-config-extraction.md` | 2026-08-09 | DOM 验证配置从中心 `verify-scene-dom.mjs` 的 EXPECTATIONS 提取到各内容目录的 `dom-config.mjs`。动态加载 + 默认值降级。14 tests。 |
+
+### TikTok Embed Specs
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `spec-tiktok-embed.md` / `tickets-tiktok-embed.md` | 2026-08-10 | TikTok Embed 替换 MP4 附件 — tiktok_url 列 + TikTokEmbed 组件 + PostEditor 字段 + publish-tiktok.mjs 自动保存 URL + 管线文档更新。14 new tests。 |
