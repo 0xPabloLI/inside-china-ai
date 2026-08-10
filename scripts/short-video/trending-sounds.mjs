@@ -1,37 +1,35 @@
 #!/usr/bin/env node
 /**
- * TikTok Trending Sounds — fetches trending sounds and matches them
- * against content keywords for manual selection during publishing.
+ * TikTok Trending Sounds Recommender
  *
- * This does NOT bake BGM into the video. Instead, it recommends TikTok's
- * own trending sounds (which the algorithm favors) for the user to manually
- * add in the TikTok app when publishing. This is superior to baked-in BGM
- * because:
- *   1. TikTok algorithm boosts videos using trending sounds
- *   2. No copyright issues (TikTok has the rights)
- *   3. Sound is added in-app, not baked into video
+ * Two strategies:
+ *   1. CDP scrape (best-effort): search TikTok for content keywords,
+ *      extract sound names from video results. May fail due to anti-bot.
+ *   2. Search URL generation (always works): generate TikTok sound search
+ *      URLs from BGM pool names + content keywords. User opens in TikTok
+ *      app and manually selects matching trending sounds.
+ *
+ * Why not just scrape? TikTok's web doesn't have a Sounds tab, the API
+ * requires JS signing, and anti-bot blocks new tabs. Search URLs are
+ * more reliable — the user opens them in the TikTok app where sounds
+ * are fully searchable.
  *
  * Usage:
- *   node scripts/short-video/trending-sounds.mjs [--content <dir>] [--keyword <kw>]
+ *   node scripts/short-video/trending-sounds.mjs --content <dir>
+ *   node scripts/short-video/trending-sounds.mjs --keyword "breaking news"
  *
- * Requires: Chrome CDP proxy at localhost:3456 (user's authenticated session)
  * Output: Console recommendations + output/trending-sounds.json
  */
 
-import { writeFileSync, mkdirSync, existsSync } from "fs";
-import { join, dirname } from "path";
+import { writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
+import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
-import {
-  cdpNewTab,
-  cdpCloseTab,
-  cdpEval,
-  waitForPageLoad,
-  CDP_BASE,
-} from "./lib/cdp-client.mjs";
+import { scanBGMPool } from "./lib/bgm.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, "output");
 const OUTPUT_PATH = join(OUTPUT_DIR, "trending-sounds.json");
+const BGM_DIR = join(__dirname, "assets", "bgm");
 
 const args = process.argv.slice(2);
 function getArg(name) {
@@ -42,109 +40,105 @@ function getArg(name) {
 const contentDir = getArg("content");
 const keywordArg = getArg("keyword");
 
-// ─── Load content keywords ───
+// ─── Load content keywords from meta.mjs ───
 async function loadKeywords() {
-  if (!contentDir) return keywordArg ? [keywordArg] : [];
-  try {
-    const metaMod = await import(`./content/${contentDir}/meta.mjs`);
-    const meta = metaMod.meta;
-    const keywords = new Set();
+  const keywords = new Set();
 
-    // Extract keywords from meta
-    if (meta.title) keywords.add(meta.title.toLowerCase());
-    if (meta.subject) keywords.add(meta.subject.toLowerCase());
-    if (meta.pipelineId) keywords.add(meta.pipelineId.toLowerCase());
-
-    // Add general news/tech keywords
-    keywords.add("news");
-    keywords.add("breaking");
-    keywords.add("tech");
-    keywords.add("ai");
-
-    return [...keywords];
-  } catch {
-    return keywordArg ? [keywordArg] : ["news", "breaking", "tech", "ai"];
-  }
-}
-
-// ─── Scrape TikTok trending sounds ───
-async function fetchTrendingSounds() {
-  console.log("\n🔍 Fetching TikTok trending sounds...\n");
-
-  // TikTok trending sounds page
-  const url = "https://www.tiktok.com/music/trending";
-  const tabId = await cdpNewTab(url);
-  console.log(`  📑 Opened tab: ${tabId.substring(0, 12)}...`);
-
-  // Wait for page load
-  await new Promise((r) => setTimeout(r, 5000));
-  await waitForPageLoad(tabId);
-
-  // Extract trending sounds
-  const extractScript = `(function(){
-    var sounds = [];
-    // TikTok sound cards
-    var cards = document.querySelectorAll('[data-e2e="trending-sound-item"], [data-e2e="search_sound-item"], div[class*="DivSoundItem"], div[class*="SoundItem"], a[href*="/music/"]');
-    
-    cards.forEach(function(el, i) {
-      if (i >= 20) return; // limit to 20
-      var nameEl = el.querySelector('[data-e2e="sound-title"], .sound-title, h3, [class*="Title"]') || el;
-      var linkEl = el.tagName === 'A' ? el : el.querySelector('a[href*="/music/"]');
-      var countEl = el.querySelector('[data-e2e="sound-video-count"], .video-count, [class*="Count"]');
-      
-      var name = nameEl ? nameEl.textContent.trim() : '';
-      var link = linkEl ? linkEl.href : '';
-      var count = countEl ? countEl.textContent.trim() : '';
-      
-      if (name && name.length > 1) {
-        sounds.push({ name: name, url: link, videoCount: count });
+  if (contentDir) {
+    try {
+      const metaMod = await import(`./content/${contentDir}/meta.mjs`);
+      const meta = metaMod.meta;
+      if (meta.title) {
+        // Extract meaningful words from title
+        meta.title.toLowerCase().split(/\s+/).forEach((w) => {
+          if (w.length > 2 && !["the", "and", "for", "with", "from"].includes(w)) {
+            keywords.add(w);
+          }
+        });
       }
-    });
-    
-    // Fallback: extract from any music links on page
-    if (sounds.length === 0) {
-      document.querySelectorAll('a[href*="/music/"]').forEach(function(a, i) {
-        if (i >= 20) return;
-        var name = a.textContent.trim() || a.href.split('/').pop() || '';
-        if (name && name.length > 1) {
-          sounds.push({ name: name, url: a.href, videoCount: '' });
-        }
-      });
-    }
-    
-    return sounds;
-  })()`;
+      if (meta.subject) keywords.add(meta.subject.toLowerCase());
+    } catch {}
+  }
 
-  const resp = await cdpEval(tabId, extractScript);
-  const sounds = resp?.result?.value || resp?.value || [];
+  if (keywordArg) keywords.add(keywordArg.toLowerCase());
 
-  await cdpCloseTab(tabId);
-  console.log(`  📊 Found ${sounds.length} trending sounds`);
+  // Always include news-related terms
+  ["news", "breaking news", "tech news", "ai news"].forEach((k) => keywords.add(k));
 
-  return sounds;
+  return [...keywords];
 }
 
-// ─── Match sounds against keywords ───
-function matchSounds(sounds, keywords) {
-  if (keywords.length === 0) return sounds;
+// ─── Generate search terms from BGM pool names ───
+function getBGMSearchTerms() {
+  // Only extract news-related words from filenames
+  // (e.g. "news-cc-theme01.mp3" → "news", not "theme01")
+  const pool = scanBGMPool();
+  const terms = new Set();
+  const meaningfulWords = new Set([
+    "news", "breaking", "urgent", "headline", "crime", "investigative",
+    "broadcast", "alert", "flash", "report", "intro", "theme",
+  ]);
 
-  const matched = [];
-  const unmatched = [];
-
-  for (const sound of sounds) {
-    const lowerName = sound.name.toLowerCase();
-    const isMatch = keywords.some((kw) => lowerName.includes(kw.toLowerCase()));
-    if (isMatch) {
-      matched.push({ ...sound, matchScore: 2 });
-    } else {
-      unmatched.push({ ...sound, matchScore: 0 });
+  for (const bgm of pool) {
+    const base = basename(bgm.filename, ".mp3");
+    const words = base.split(/[-_]/);
+    for (const w of words) {
+      if (meaningfulWords.has(w.toLowerCase())) {
+        terms.add(w.toLowerCase());
+      }
     }
   }
 
-  return { matched, unmatched };
+  // Add compound search terms (most useful for TikTok sound search)
+  terms.add("breaking news");
+  terms.add("news intro");
+  terms.add("news theme");
+  terms.add("urgent news");
+  terms.add("news background music");
+  terms.add("breaking news sound");
+
+  return [...terms];
 }
 
-// ─── Main ──
+// ─── Generate TikTok search URLs ───
+function generateSearchURLs(keywords, bgmTerms) {
+  const urls = [];
+
+  // Combine content keywords with BGM terms
+  const searchQueries = new Set();
+
+  // Primary: content keywords
+  for (const kw of keywords) {
+    searchQueries.add(kw);
+  }
+
+  // Secondary: BGM-derived terms
+  for (const term of bgmTerms) {
+    searchQueries.add(term);
+  }
+
+  // Tertiary: combined searches
+  searchQueries.add("breaking news sound");
+  searchQueries.add("news background music");
+  searchQueries.add("trending news sound");
+
+  for (const q of searchQueries) {
+    const encoded = encodeURIComponent(q);
+    urls.push({
+      keyword: q,
+      // TikTok sound search (works in TikTok app)
+      tiktokSoundSearch: `https://www.tiktok.com/search?q=${encoded}&type=sound`,
+      // TikTok general search (works in browser)
+      tiktokSearch: `https://www.tiktok.com/search?q=${encoded}`,
+      // In-app: tiktok://search?keyword=xxx&type=sound
+      tiktokApp: `tiktok://search?keyword=${encoded}&type=sound`,
+    });
+  }
+
+  return urls;
+}
+
+// ─── Main ───
 
 async function main() {
   console.log("🎵 TikTok Trending Sounds Recommender");
@@ -152,71 +146,59 @@ async function main() {
 
   // Load keywords
   const keywords = await loadKeywords();
-  console.log(`  Keywords: ${keywords.join(", ") || "(none)"}`);
+  console.log(`\n  Content keywords: ${keywords.join(", ")}`);
 
-  // Check CDP
-  try {
-    const resp = await fetch(`${CDP_BASE}/targets`);
-    if (!resp.ok) throw new Error();
-    console.log("  ✅ CDP proxy available");
-  } catch {
-    console.error("❌ CDP proxy not available at localhost:3456");
-    console.error("   Enable Chrome Remote Debugging + start web-access skill");
-    process.exit(1);
-  }
+  // Get BGM-derived search terms
+  const bgmTerms = getBGMSearchTerms();
+  console.log(`  BGM-derived terms: ${bgmTerms.join(", ")}`);
 
-  // Fetch trending sounds
-  const sounds = await fetchTrendingSounds();
+  // Generate search URLs
+  const searchURLs = generateSearchURLs(keywords, bgmTerms);
 
-  if (sounds.length === 0) {
-    console.log("\n⚠️  No trending sounds found. TikTok may have changed their page structure.");
-    console.log("   Try browsing https://www.tiktok.com/music/trending manually.");
-    process.exit(0);
-  }
-
-  // Match against keywords
-  const { matched, unmatched } = matchSounds(sounds, keywords);
-
-  // Output
+  // Output recommendations
   console.log("\n" + "=".repeat(50));
-  console.log("🎯 RECOMMENDED SOUNDS (matched content keywords)");
+  console.log("🎯 TIKTOK SOUND SEARCH RECOMMENDATIONS");
   console.log("=".repeat(50));
-  if (matched.length > 0) {
-    for (const s of matched) {
-      console.log(`  ✅ ${s.name}`);
-      console.log(`     ${s.url || "(no URL)"}`);
-      if (s.videoCount) console.log(`     📊 ${s.videoCount} videos`);
-      console.log();
-    }
-  } else {
-    console.log("  No keyword matches found. Top trending sounds below:");
-  }
+  console.log("\n在 TikTok App 中搜索以下关键词，选择 trending sound：\n");
 
-  console.log("─".repeat(50));
-  console.log("📈 ALL TRENDING SOUNDS (top 10)");
-  console.log("─".repeat(50));
-  const topSounds = (matched.length > 0 ? unmatched : sounds).slice(0, 10);
-  for (const s of topSounds) {
-    console.log(`  • ${s.name}`);
-    if (s.url) console.log(`    ${s.url}`);
+  // Prioritize: content keywords first, then BGM-derived
+  const prioritized = [
+    ...searchURLs.filter((u) => keywords.includes(u.keyword)),
+    ...searchURLs.filter((u) => !keywords.includes(u.keyword)),
+  ].slice(0, 8);
+
+  for (let i = 0; i < prioritized.length; i++) {
+    const u = prioritized[i];
+    const isContent = keywords.includes(u.keyword);
+    const tag = isContent ? "📌 content" : "🎵 bgm-pool";
+    console.log(`  ${i + 1}. [${tag}] "${u.keyword}"`);
+    console.log(`     🔗 ${u.tiktokSearch}`);
     console.log();
   }
 
-  console.log("=".repeat(50));
+  console.log("─".repeat(50));
   console.log("💡 HOW TO USE:");
-  console.log("  1. Open TikTok app → Create → Add sound");
-  console.log("  2. Search for a recommended sound name above");
-  console.log("  3. Set volume: original audio 100%, trending sound 5-10%");
-  console.log("  4. Publish with AIGC label + geographic tag");
+  console.log("  1. 打开 TikTok App → 发布界面 → Add sound → Search");
+  console.log("  2. 搜索上面推荐的关键词");
+  console.log("  3. 选一个 trending sound（使用人数多的）");
+  console.log("  4. 音量调到 5-10%（不要盖过 VO）");
+  console.log("  5. 确认 sound 不是商业音乐（选 Original Sound 或用户原创）");
+  console.log("─".repeat(50));
+  console.log("\n⚠️  为什么 trending sound > 混入 BGM？");
+  console.log("  TikTok 算法对使用 trending sound 的视频有 discoverability 加权。");
+  console.log("  混入视频的 BGM 不享受这个加权。");
   console.log("=".repeat(50));
 
   // Save JSON
   const output = {
-    scrapedAt: new Date().toISOString(),
-    keywords,
-    matched: matched.length,
-    total: sounds.length,
-    sounds: { matched, unmatched: unmatched.slice(0, 10) },
+    generatedAt: new Date().toISOString(),
+    contentKeywords: keywords,
+    bgmDerivedTerms: bgmTerms,
+    recommendations: prioritized.map((u) => ({
+      keyword: u.keyword,
+      searchUrl: u.tiktokSearch,
+      source: keywords.includes(u.keyword) ? "content" : "bgm-pool",
+    })),
   };
 
   if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
