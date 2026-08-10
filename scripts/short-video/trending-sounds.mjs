@@ -2,17 +2,16 @@
 /**
  * TikTok Trending Sounds Recommender
  *
- * Two strategies:
- *   1. CDP scrape (best-effort): search TikTok for content keywords,
- *      extract sound names from video results. May fail due to anti-bot.
- *   2. Search URL generation (always works): generate TikTok sound search
- *      URLs from BGM pool names + content keywords. User opens in TikTok
- *      app and manually selects matching trending sounds.
+ * Generates TikTok sound search URLs from BGM pool names + content keywords.
+ * User opens the URLs in TikTok App and manually selects matching trending
+ * sounds. Zero account risk — no scraping, no CDP, no API calls.
  *
- * Why not just scrape? TikTok's web doesn't have a Sounds tab, the API
- * requires JS signing, and anti-bot blocks new tabs. Search URLs are
- * more reliable — the user opens them in the TikTok app where sounds
- * are fully searchable.
+ * Why not scrape? TikTok's web API requires JS signing (X-Bogus),
+ * the web search has no Sounds tab, and CDP scraping with the user's
+ * session risks account shadowban. TikTok has no official sound search API.
+ * Third-party trend trackers (TokBoard, Exolyt) are either down or
+ * Cloudflare-protected. Search URL recommendations are the only
+ * risk-free, reliable approach.
  *
  * Usage:
  *   node scripts/short-video/trending-sounds.mjs --content <dir>
