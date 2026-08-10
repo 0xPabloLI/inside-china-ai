@@ -8,6 +8,7 @@
  * Usage:
  *   node scripts/short-video/main.mjs --content deepseek --bgm
  *   node scripts/short-video/main.mjs --content distillation/pt1 --bgm
+ *   node scripts/short-video/main.mjs --content deepseek --bgm --bgm-file news-theme-yt.mp3
  *   node scripts/short-video/main.mjs              # lists available content
  *
  * Output:
@@ -21,9 +22,9 @@ import { execSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
-import { generateBGM } from "./lib/generate-bgm.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
+import { selectBGM } from "./lib/bgm.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -178,15 +179,19 @@ async function main() {
   const videoResults = await recordScenes(sceneData, videoDir);
   console.log();
 
-  // ── Step 3.5: Generate background music (optional, --bgm flag) ──
+  // ── Step 3.5: Select background music (optional, --bgm flag) ──
   const useBGM = process.argv.includes("--bgm");
+  const bgmFileOverride = getArg("bgm-file");
   let bgmPath = null;
   if (useBGM) {
-    console.log("🎵 Step 3.5: Generating background music...\n");
-    const bgmDuration = Math.ceil(totalDuration + 10);
-    const bgm = generateBGM(bgmDuration, outputDir);
-    bgmPath = bgm.bgmPath;
-    console.log();
+    console.log("🎵 Step 3.5: Selecting background music...\n");
+    bgmPath = selectBGM(bgmFileOverride);
+    if (bgmPath) {
+      console.log(`  🎵 BGM: ${bgmPath.split("/").pop()}`);
+      console.log(`     (instant start, 12% volume, auto-looped)\n`);
+    } else {
+      console.log("  ⚠️  No BGM file found — skipping\n");
+    }
   } else {
     console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
   }

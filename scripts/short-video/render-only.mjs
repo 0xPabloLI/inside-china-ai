@@ -17,7 +17,7 @@ import { fileURLToPath } from "url";
 import { writeFileSync, existsSync } from "fs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
-import { generateBGM } from "./lib/generate-bgm.mjs";
+import { selectBGM } from "./lib/bgm.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
@@ -128,11 +128,16 @@ async function main() {
 
   // ── Step 3.5: BGM (optional) ──
   const useBGM = args.includes("--bgm");
+  const bgmFileOverride = getArg("bgm-file");
   let bgmPath = null;
   if (useBGM) {
-    console.log("🎵 Step 3.5: Generating background music...\n");
-    bgmPath = generateBGM(Math.ceil(totalDuration + 10), outputDir).bgmPath;
-    console.log();
+    console.log("🎵 Step 3.5: Selecting background music...\n");
+    bgmPath = selectBGM(bgmFileOverride);
+    if (bgmPath) {
+      console.log(`  🎵 BGM: ${bgmPath.split("/").pop()} (instant start, 12% volume, looped)\n`);
+    } else {
+      console.log("  ⚠️  No BGM file found — skipping\n");
+    }
   } else {
     console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
   }

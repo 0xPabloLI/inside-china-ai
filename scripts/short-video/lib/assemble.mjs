@@ -130,17 +130,23 @@ export function assembleVideo(
       videoDuration = parseFloat(info.trim());
     } catch {}
 
-    // Mix: TTS audio at full volume + BGM at low volume
-    // BGM has fade-in (2s) and fade-out (last 3s) for smooth transitions
-    // Use execFileSync to bypass shell quoting issues with filter_complex
+    // Mix: TTS audio at full volume + BGM at 12% volume.
+    // BGM starts IMMEDIATELY (0.1s fade-in, not 2s) so the Hook scene has
+    // BGM impact from frame 1 — a slow fade-in wastes the critical first 3s
+    // attention window and users scroll past before the music even registers.
+    // BGM loops infinitely (-stream_loop -1) to cover videos longer than the
+    // BGM file; amix duration=first stops when the video audio ends.
+    // Fade-out (last 3s) gives a clean ending.
     const bgmFadeOutStart = Math.max(videoDuration - 3, 1).toFixed(2);
-    const filterComplex = `[1:a]afade=t=in:st=0:d=2,afade=t=out:st=${bgmFadeOutStart}:d=3,volume=0.12[bgm];[0:a]volume=1.0[tts];[tts][bgm]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
+    const filterComplex = `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart}:d=3,volume=0.12[bgm];[0:a]volume=1.0[tts];[tts][bgm]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
     execFileSync(
       "ffmpeg",
       [
         "-y",
         "-i",
         noBgmPath,
+        "-stream_loop",
+        "-1", // loop BGM infinitely (stopped by amix duration=first)
         "-i",
         bgmPath,
         "-filter_complex",
@@ -161,7 +167,7 @@ export function assembleVideo(
       ],
       { stdio: ["pipe", "pipe", "pipe"] },
     );
-    console.log("  Background music mixed in");
+    console.log("  Background music mixed in (instant start, 12% volume, looped)");
 
     // Clean up temp
     try {
