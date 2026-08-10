@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-10
+> **最后更新**：2026-08-10（Sonic 测试完成）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1
 > **主文档**：`docs/research/digital-human-solutions-m2-pro.md`
 > **用途**：多 session 共享追踪文件，每次测试后更新此文件
@@ -17,7 +17,7 @@
 | 2 | ~~SadTalker~~ | 3DMM | — | ✅ | ❌ | ❌ 效果差 | 2026-08-09 |
 | 3 | ~~LatentSync 1.5~~ | 扩散+SyncNet | 256px | ✅ (需 patch) | ✅ OpenRAIL++ | ❌ 效果差 | 2026-08-10 |
 | 4 | ~~LatentSync 1.6~~ | 扩散+SyncNet | 512px | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ OOM | 2026-08-10 |
-| 5 | **Sonic** | SVD 扩散 | — | ✅ 已修复 | ❌ 非商用 | 📋 待测 | — |
+| 5 | ~~Sonic~~ | SVD 扩散 | — | ❌ MPS 死锁 | ❌ 非商用 | ❌ 推理死锁 | 2026-08-10 |
 | 6 | **V-Express** | 渐进式扩散 | — | ⚠️ 待验证 | ❓ | 📋 待测 | — |
 | 7 | **Hallo2** | 分层扩散 | — | ⚠️ 待验证 | ✅ MIT | 📋 待测 | — |
 | 8 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
@@ -70,6 +70,35 @@
 - **根本问题**：512×512 分辨率的 UNet 推理需要 ~38GB 内存，M2 Pro 32GB 物理内存不足
 - **清理**：已删除 checkpoint（4.7GB）
 
+### ❌ Sonic (ComfyUI_Sonic) — MPS 推理死锁
+
+- **日期**：2026-08-10
+- **结论**：**失败** — 模型加载和预处理正常，但扩散推理在 MPS 上死锁
+- **环境**：
+  - ComfyUI 0.31.0 + ComfyUI_Sonic（最新 main 分支）
+  - Python 3.11.14, PyTorch 2.13.0, MPS 后端
+  - macOS 26.5.1, M2 Pro 32GB 统一内存
+- **模型加载**：✅ 全部成功
+  - SVD checkpoint（svd_xt.safetensors, 9.1GB）→ 2.9GB 加载到 MPS
+  - Sonic UNet（unet.pth, 5.9GB）→ 167 weights 加载
+  - CLIP Vision → 1.2GB
+  - VAE/AutoencodingEngine → 186MB
+  - whisper-tiny, yoloface_v5m, audio2bucket, audio2token, RIFE/flownet → 全部加载
+- **音频预处理**：✅ 正常
+  - 检测音频时长 5.228s，推理时长 5.0s
+  - 面部检测（yoloface）+ 裁切 + 对齐 → 62/62 步完成
+- **MPS 推理**：❌ **死锁**
+  - Run 1（fp16, 512px, 25 steps）："Start infer" 后进度卡在 0/25，进程进入 U 状态（不可中断等待），CPU 降为 0%，CPU 时间停止增长
+  - Run 2（bf16, 256px, 5 steps）：同样卡在 0/5，同样死锁
+  - 两种 dtype 均复现，排除 dtype 问题
+  - 进程 CPU 时间 20 秒内仅增长 0.02s（从 2:06.56 → 2:06.58）
+  - 根本原因：SVD UNet 前向传播中的某个 MPS 算子死锁（非 OOM，非 crash，是 kernel 级死锁）
+- **ComfyUI_Sonic README 声称的 MPS 修复**：仅修复了模型加载和预处理阶段的 MPS 兼容性（device 转换、bf16 类型转换等），**未修复扩散推理阶段的 MPS 算子死锁**
+- **服务器启动**：~3-4 分钟（Sonic 插件 import 耗时 54 秒）
+- **磁盘占用**：ComfyUI + Sonic 模型 + SVD checkpoint ≈ 17GB
+- **清理**：保留安装（ComfyUI 可复用于其他插件），待后续决定是否清理
+- **SVD 模型说明**：当前使用公开可下载的 `svd_xt.safetensors`（原始版）；`svd_xt_1_1.safetensors`（改进版）需 HuggingFace 认证，用户已认证但尚未下载替换。但因推理死锁与 SVD 版本无关，替换不会解决问题
+
 ### ✅ D-ID `/talks`（照片 → 说话视频）
 
 - **日期**：2026-08-10
@@ -103,25 +132,6 @@
 ---
 
 ## 待测模型详情
-
-### 📋 Sonic (ComfyUI_Sonic) — 下一个要测的
-
-- **优先级**：⭐⭐⭐⭐⭐（最高 — 唯一明确 MPS 兼容的扩散方案）
-- **来源**：腾讯，CVPR 2025
-- **安装**：ComfyUI 插件 `smthemex/ComfyUI_Sonic`
-- **MPS**：✅ 已修复（bf16 + OOM + MPS device error）
-- **许可证**：CC BY-NC-SA 4.0（非商用）
-- **依赖**：
-  - ComfyUI（需安装）
-  - SVD checkpoint：`svd_xt.safetensors` 或 `svd_xt_1_1.safetensors`
-  - Sonic 模型：`audio2bucket.pth`, `audio2token.pth`, `unet.pth`, `yoloface_v5m.pt`, `whisper-tiny/`
-- **安装路径**：
-  ```
-  ComfyUI/custom_nodes/ → git clone https://github.com/smthemex/ComfyUI_Sonic.git
-  ComfyUI/models/sonic/ → 下载 checkpoints
-  ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
-  ```
-- **测试重点**：安装复杂度、MPS 实际性能、嘴部清晰度
 
 ### 📋 V-Express
 
@@ -172,6 +182,7 @@
 | 2026-08-10 | LatentSync 1.5 checkpoint | 3.2GB | 256px 效果差 |
 | 2026-08-10 | LatentSync 1.6 checkpoint | 4.7GB | 512px OOM |
 | 2026-08-10 | SadTalker 目录 | 3.5GB | 效果差 |
+| 2026-08-10 | — | — | Sonic 保留安装（ComfyUI 可复用），待决定是否清理 |
 
 ## LatentSync repo 状态
 

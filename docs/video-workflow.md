@@ -82,7 +82,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 ## Brand Voice
 
 - **Tone**: Intelligence briefing. Authoritative, fast, no fluff.
-- **Pace**: F5-TTS-MLX (cloned voice, speed=1.0). Fallback engines below.
+- **Pace**: CosyVoice 3 (cloned voice, speed=1.0). Fallback engines below.
 - **Visual**: Cyber Intelligence Briefing — dark, grid, glow, scanlines
 - **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (FOLLOW FOR MORE — the standard end-card action) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
 
@@ -90,20 +90,19 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 | Priority | Engine      | Config                          | Speed   | Venv                        | Notes                                                              |
 | -------- | ----------- | ------------------------------- | ------- | --------------------------- | ------------------------------------------------------------------ |
-| 1        | F5-TTS-MLX  | ref_audio + ref_text (cloned)   | 1.0     | `~/.f5-tts-env` (Python 3.11) | Best quality on Apple Silicon; batch mode; no silenceremove needed |
-| 2        | XTTS v2     | speaker_wav (cloned) or "Craig Gutsy" | 1.15 | `~/.xtts-env` (Python 3.11) | Batch mode; **MPS hybrid** (GPT on MPS, HiFi-GAN on CPU)          |
-| 3        | Kokoro      | voice="am_michael"              | 1.1     | `~/.tts-env` (Python 3.12)  | 54 voices available; fastest on CPU                               |
-| 4        | edge-tts    | en-US-BrianNeural               | +8%     | npm                         | Network-dependent, retry 3x                                        |
-| 5        | macOS say   | Daniel                          | 190 wpm | built-in                    | Last resort                                                        |
+| 1        | CosyVoice 3 | ref_audio + ref_text (cloned)   | 1.0     | `~/.cosyvoice-env` (Python 3.11) | LLM + Flow Matching; best quality; batch mode                      |
+| 2        | Qwen3-TTS   | ref_audio + ref_text (cloned)   | 1.0     | `~/.qwen-tts-env` (Python 3.11) | MPS native; 3-second rapid clone; fast fallback                     |
+| 3        | edge-tts    | en-US-BrianNeural               | +8%     | npm                         | Network-dependent, retry 3x; no voice cloning                      |
+| 4        | macOS say   | Daniel                          | 190 wpm | built-in                    | Last resort; no voice cloning                                      |
 
-**F5-TTS-MLX** (DEFAULT — best quality on Apple Silicon):
+**CosyVoice 3** (DEFAULT — best quality, LLM + Flow Matching):
 
-- Voice cloning via reference audio + reference text
+- Voice cloning via reference audio + reference text (zero-shot)
 - Ref audio: `assets/voice-sample-24k.wav`（24kHz mono WAV）
 - Ref text: `assets/voice-sample-ref-text.txt`（必须精确匹配 ref audio 的文字内容）
-- Duration formula: `duration = ref_dur + target_dur`（不设会导致 0.03s 音频）
-- F5 音频振幅低，**跳过 silenceremove**（-35dB 阈值会全删）
-- Optional atempo: `export TTS_ATEMPO=1.3`（加速语音）
+- Model: `Fun-CosyVoice3-0.5B` at `/tmp/CosyVoice/pretrained_models/`
+- modelscope 需 mock（模型已本地）
+- Optional speed: `export COSYVOICE_SPEED=1.0`
 - M4A 不被 Python 音频库支持，必须先转 WAV：`ffmpeg -y -i input.m4a -af "volume=-7dB" -ar 24000 -ac 1 output.wav`
 
 **Per-Scene Prosody Enhancement**（自动，基于 `visualType`）:
@@ -119,15 +118,15 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - FFmpeg `rubberband` 滤镜，自动生效，无需配置
 - 参数推导：`docs/research/voice-prosody-hook-optimization.md`
 
-**XTTS v2** (fallback):
+**Qwen3-TTS** (fallback — fast, MPS native):
 
-- XTTS clones timbre only; pronunciation is standard English from language model
-- Override: `export TTS_SPEAKER_WAV=/path/to/other.wav` or set empty to disable
-- To replace the sample: put M4A in `assets/`, extract 10-15s clear speech segment, convert with `ffmpeg -ar 22050 -ac 1`
-- MPS hybrid mode: patch `tts/models/xtts.py` line 577 + 320 (add `.cpu()`), GPT on MPS, HiFi-GAN on CPU
-- PyTorch 2.5.1 required (2.13.0 breaks `weights_only` default)
+- Qwen3-TTS-12Hz-0.6B-Base: 3-second rapid voice clone
+- Same ref audio + ref text as CosyVoice
+- Model: `/tmp/qwen-tts-model`
+- MPS device for Apple Silicon acceleration
+- Apache-2.0 license (commercial-safe)
 
-**Force engine**: `export TTS_ENGINE=f5` / `xtts` / `kokoro`
+**Force engine**: `export TTS_ENGINE=cosyvoice` / `qwen-tts` / `edge-tts`
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition.
 
@@ -277,11 +276,16 @@ scripts/short-video/
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
-├── f5_mlx_batch_tts.py     # F5-TTS-MLX batch TTS (load model once, all scenes)
-├── xtts_batch_tts.py       # XTTS v2 batch TTS (fallback engine)
-├── kokoro_tts.py           # Kokoro TTS (fallback engine)
+├── cosyvoice_batch_tts.py  # CosyVoice 3 batch TTS (load model once, all scenes)
+├── qwen_tts_batch.py       # Qwen3-TTS batch TTS (fallback engine)
 ├── lib/                    # Shared infrastructure (content-agnostic)
-│   ├── generate-tts.mjs    # TTS engine selector (F5 > XTTS > Kokoro > edge > say)
+│   ├── tts/                # TTS engine registry + adapters
+│   │   ├── registry.mjs    # Engine selector (CosyVoice > Qwen3 > edge-tts > say)
+│   │   ├── cosyvoice.mjs   # CosyVoice 3 adapter (primary)
+│   │   ├── qwen-tts.mjs    # Qwen3-TTS adapter (fallback)
+│   │   ├── edge-tts.mjs    # edge-tts adapter (network fallback)
+│   │   ├── say.mjs         # macOS say adapter (last resort)
+│   │   └── post-process.mjs # Audio post-processing (silenceremove + prosody)
 │   ├── timeline.mjs        # Frame-exact scene durations + offsets (single source of truth)
 │   ├── subtitles/
 │   │   ├── cues.mjs        # Alignment → cues (chunking + Netflix timing rules)
@@ -308,9 +312,8 @@ scripts/short-video/
 │       ├── pt2/            # Part 2 — Kimi's Gambit (9 scenes)
 │       └── pt3/            # Part 3 — The Fallout (9 scenes)
 ├── assets/
-│   ├── voice-sample-24k.wav # F5 ref audio (24kHz mono)
-│   ├── voice-sample-ref-text.txt # F5 ref text (must match ref audio exactly)
-│   ├── voice-samples/      # Multi-clip XTTS cloning samples
+│   ├── voice-sample-24k.wav # CosyVoice/Qwen3 ref audio (24kHz mono)
+│   ├── voice-sample-ref-text.txt # CosyVoice/Qwen3 ref text (must match ref audio exactly)
 │   └── logos/              # Company logos (deepseek.svg, ...)
 └── output/                 # Pipeline outputs (isolated per pipelineId)
     └── {pipelineId}/
@@ -327,9 +330,10 @@ scripts/short-video/
 | Item | Path / Value | Notes |
 |------|-------------|-------|
 | ffmpeg-full | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
-| F5 venv | `~/.f5-tts-env` (Python 3.11) | F5-TTS-MLX + whisperx (for text-align.py) |
-| XTTS venv | `~/.xtts-env` (Python 3.11) | XTTS v2 (fallback TTS) |
-| Kokoro venv | `~/.tts-env` (Python 3.12) | Kokoro TTS (fallback) |
+| CosyVoice venv | `~/.cosyvoice-env` (Python 3.11) | CosyVoice 3 + torchaudio |
+| Qwen3-TTS venv | `~/.qwen-tts-env` (Python 3.11) | Qwen3-TTS (fallback) |
+| CosyVoice source | `/tmp/CosyVoice` | Model + source code (pretrained_models/Fun-CosyVoice3-0.5B) |
+| Qwen3-TTS model | `/tmp/qwen-tts-model` | Qwen3-TTS-12Hz-0.6B-Base |
 
 ### Code — Thumbnail
 
@@ -343,10 +347,8 @@ scripts/
 
 ```text
 scripts/short-video/assets/
-├── voice-sample-24k.wav              # F5-TTS ref audio (24kHz mono, required)
-├── voice-sample-ref-text.txt         # F5-TTS ref text (must match ref audio exactly)
-├── voice-sample.wav                  # XTTS cloning sample (15s)
-├── voice-samples/                    # Multi-clip XTTS cloning samples
+├── voice-sample-24k.wav              # CosyVoice/Qwen3 ref audio (24kHz mono, required)
+├── voice-sample-ref-text.txt         # CosyVoice/Qwen3 ref text (must match ref audio exactly)
 ├── logos/                            # Company logos (deepseek.svg, ...)
 ├── china-ai-news-logo-gpt.png        # GPT-generated original PNG (full logo)
 └── china-ai-news-logo-vector.svg     # Vector SVG (true vector, scalable)
@@ -539,7 +541,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 
 | Step | Action | Output |
 |------|--------|--------|
-| 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
+| 1 | Generate TTS voiceover (CosyVoice 3) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
 | 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
 | 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). Per-pipeline config from `content/<dir>/dom-config.mjs` (optional, defaults if absent). FAIL aborts before recording; `--skip-dom-check` is a debug-only escape hatch (all content dirs migrated) | `verify-scene-dom.mjs` report |
 | 3 | Record scene videos (Playwright) | `output/{id}/video/scene-*.webm` |
@@ -574,9 +576,9 @@ stat -f "%Sm" output/restraint-pt1/restraint-pt1-short.mp4
 
 **Superseded note (AAC priming)**: FFmpeg concat with `-c copy` caused ~46ms/scene cumulative drift from AAC encoder delay; fixed at the time by re-encoding audio during concat. Now superseded — per-scene audio streams no longer exist, so there is nothing to prime.
 
-### Running in Background (MANDATORY for F5-TTS)
+### Running in Background (MANDATORY for TTS)
 
-F5-TTS-MLX model loading takes 2-3 minutes alone, and full pipeline runs 7-10 minutes.
+CosyVoice 3 model loading takes 2-3 minutes alone, and full pipeline runs 7-10 minutes.
 Agent commands have a 3-minute timeout for foreground execution. **Always run the pipeline in background:**
 
 ```bash

@@ -1,6 +1,6 @@
 # 数字人方案调研报告：适配 Apple M2 Pro（32GB）
 
-> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk/SadTalker/HeyGen/D-ID/LatentSync 1.5/1.6 MPS 实测结果）
+> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk/SadTalker/HeyGen/D-ID/LatentSync 1.5/1.6/Sonic MPS 实测结果）
 > **目标设备**：MacBook Pro (Mac14,10), Apple M2 Pro, 32 GB, macOS 26.5.1, Metal 4
 > **核心需求**：(1) 语音/文本 → 自然说话的数字人视频；(2) 用个人照片匹配最相似的数字人形象
 > **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README、HuggingFace API、官方平台首页
@@ -15,9 +15,9 @@
 
 | 优先级 | 方案 | 类型 | 质量 | M2 Pro 兼容 | 商用 | 测试状态 |
 |--------|------|------|------|------------|------|---------|
-| 1 | **Sonic via ComfyUI_Sonic** | 本地 | ⭐⭐⭐⭐⭐ | ✅ 已修复 MPS | ❌ 非商用 | 待测 |
-| 2 | ~~LatentSync 1.6~~ | 本地 | ⭐⭐⭐⭐⭐ | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ 已测试，512px OOM (32GB 不够) |
-| 3 | **Hallo2** | 本地 | ⭐⭐⭐⭐ | ⚠️ MPS 待验证 | ✅ MIT | 待测 |
+| 1 | ~~Sonic via ComfyUI_Sonic~~ | 本地 | ⭐⭐⭐⭐⭐ | ❌ MPS 死锁 | ❌ 非商用 | ❌ 已测试，推理死锁 (模型加载 OK 但扩散前向传播 MPS kernel 死锁) |
+| 2 | **Hallo2** | 本地 | ⭐⭐⭐⭐ | ⚠️ MPS 待验证 | ✅ MIT | 待测 |
+| 3 | ~~LatentSync 1.6~~ | 本地 | ⭐⭐⭐⭐⭐ | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ 已测试，512px OOM (32GB 不够) |
 | — | ~~LatentSync 1.5~~ | 本地 | ⭐⭐ | ✅ MPS 已跑通 | ✅ OpenRAIL++ | ❌ 已测试，效果差（256px 不足） |
 | — | ~~SadTalker~~ | 本地 | ⭐⭐ | ✅ MPS 已测试 | ❌ 非商用 | ❌ 已测试，效果差（恐怖谷眼神） |
 | — | ~~MuseTalk 1.5 MLX~~ | 本地 | ❌ | ✅ MLX | ✅ MIT | ❌ 已测试，嘴部模糊（VAE 架构问题） |
@@ -189,7 +189,7 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
   --video_out_path "OUTPUT.mp4"
 ```
 
-### 3.3 🔥 Sonic — 腾讯，CVPR 2025（新发现，MPS 已修复）
+### 3.3 ❌ Sonic — 腾讯，CVPR 2025（已测试，MPS 推理死锁）
 
 | 属性 | 详情 |
 |------|------|
@@ -199,22 +199,24 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 | **特点** | 专注全局音频感知（不仅口型，还包括表情、头部运动的音频驱动） |
 | **GPU 要求** | 官方测试 32GB GPU |
 | **许可证** | CC BY-NC-SA 4.0（**非商用**；商用需联系腾讯云 VCLM） |
-| **M2 Pro 兼容** | ✅ **ComfyUI_Sonic 已修复 MPS 支持**（`smthemex/ComfyUI_Sonic`） |
-| **ComfyUI 集成** | `smthemex/ComfyUI_Sonic`，已修复 bf16 错误 + 12GVRAM OOM + **MPS device error** |
-| **依赖** | 需下载 SVD checkpoints（`svd_xt.safetensors` 或 `svd_xt_1_1.safetensors`）+ Sonic 模型 |
+| **M2 Pro 兼容** | ❌ **已测试：模型加载和预处理 OK，但扩散推理在 MPS 上死锁** |
+| **ComfyUI 集成** | `smthemex/ComfyUI_Sonic`，声称修复 bf16 + OOM + MPS device error |
+| **依赖** | 需下载 SVD checkpoints（`svd_xt.safetensors`）+ Sonic 模型 |
 | **社区** | ComfyUI 版本、HuggingFace Space 在线 Demo |
 
 **ComfyUI_Sonic MPS 修复说明**（来自 README）：
 > "fix bf16 error, fix 12GVRAM maybe OOM when first run, **fix MPS device error**, 修复 MAC 的 MPS 支持"
 
-**测试优先级**：⭐⭐⭐⭐⭐（最高，唯一明确 MPS 兼容的扩散方案）
-
-**安装路径**：
-```
-ComfyUI/custom_nodes/ → git clone https://github.com/smthemex/ComfyUI_Sonic.git
-ComfyUI/models/sonic/ → 下载 checkpoints (audio2bucket.pth, audio2token.pth, unet.pth, yoloface_v5m.pt, whisper-tiny/)
-ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
-```
+**实际测试结果（2026-08-10）**：
+- ✅ **模型加载**：SVD (2.9GB) + Sonic UNet (5.9GB) + CLIP Vision (1.2GB) + VAE (186MB) 全部加载成功
+- ✅ **音频预处理**：5.228s 音频检测、62/62 面部预处理步骤完成
+- ✅ **ComfyUI 服务器**：启动成功（~4min），API 接口正常响应
+- ❌ **扩散推理**：两种 dtype 均在 "Start infer" 步骤 0 死锁：
+  - fp16 (512px, 25 steps) → 进程 U 状态，0% CPU，CPU 时间停止增长
+  - bf16 (256px, 5 steps) → 同样死锁
+  - 根本原因：SVD UNet 前向传播中某个 MPS 算子 kernel 级死锁（非 OOM）
+- **结论**：README 的 MPS 修复仅覆盖模型加载和预处理阶段，**未修复扩散推理的 MPS 算子死锁**
+- **磁盘占用**：ComfyUI + 模型 ≈ 17GB（保留安装，ComfyUI 可复用于其他插件）
 
 ### 3.4 ❌ SadTalker — 3DMM 方案，已测试
 
@@ -412,7 +414,7 @@ ComfyUI/models/checkpoints/ → 下载 svd_xt.safetensors
 | 排名 | 模型 | 技术路线 | 会议 | 时间 | NVIDIA 必需 | 音频驱动 | 商用 | VRAM | 质量 | GitHub Stars |
 |------|------|---------|------|------|-----------|---------|------|------|------|-------------|
 | 1 | **EMO** | Audio2Video 扩散 | ECCV 2024 | 2024.02 | ✅ | ✅ | ❓ | 未公开 | ⭐⭐⭐⭐⭐ | 7601 |
-| 2 | **Sonic** | SVD 扩散 | **CVPR 2025** | 2024.12 | ✅（MPS ✅） | ✅ | ❌ 非商用 | 12GB | ⭐⭐⭐⭐⭐ | — |
+| 2 | **Sonic** | SVD 扩散 | **CVPR 2025** | 2024.12 | ❌（MPS ❌ 死锁） | ✅ | ❌ 非商用 | 12GB | ⭐⭐⭐⭐⭐ | — |
 | 3 | **Hallo3** | **DiT** (CogVideo) | **CVPR 2025** | 2024.12 | ✅ H100 | ✅ | ✅ MIT | H100 | ⭐⭐⭐⭐⭐ | 8658 |
 | 4 | **PersonaLive** | 实时流式扩散 | **CVPR 2026** | 2025.12 | ✅（MPS ⚠️） | ✅ | ❌ 非商用 | 12GB | ⭐⭐⭐⭐⭐ | 3489 |
 | 5 | **DICE-Talk** | 扩散+情感解耦 | **ACM MM 2025** | 2025.04 | ✅ | ✅+情感 | ❌ 非商用 | 20GB+ | ⭐⭐⭐⭐⭐ | — |
@@ -660,7 +662,7 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
                               │
                               ↓ 最相似 Avatar 基准视频/照片
                     ┌─────────────────────┐
-  文本输入 ────────→│  F5-TTS-MLX (已有)   │── 音频 WAV
+  文本输入 ────────→│  CosyVoice 3 (已有)  │── 音频 WAV
                     └─────────────────────┘         │
                                                     ↓
                     ┌─────────────────────┐
@@ -676,16 +678,14 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 ```
 
 **待测模型优先级**（新 session 逐个测试）：
-1. **Sonic via ComfyUI_Sonic** — 唯一明确 MPS 兼容 ✅
-2. **LatentSync 1.5** — 8GB VRAM，扩散模型 + SyncNet，OpenRAIL++ 商用
-3. **Hallo2** — MIT 许可证，长视频支持
-4. **SadTalker** — 另一 session 测试中，3DMM 方案
+1. **~~Sonic via ComfyUI_Sonic~~** — ❌ 已测试：模型加载 OK 但扩散推理 MPS 死锁
+2. **Hallo2** — MIT 许可证，长视频支持，下一个测试目标
 
 ### 6.2 混合方案（本地 + 云端）
 
 ```
-  文本 → F5-TTS-MLX (本地) → 音频 → D-ID API → 说话视频
-  文本 → F5-TTS-MLX (本地) → 音频 → HeyGen API → 说话视频（质量最高但贵）
+文本 → CosyVoice 3 (本地) → 音频 → D-ID API → 说话视频
+文本 → CosyVoice 3 (本地) → 音频 → HeyGen API → 说话视频（质量最高但贵）
 ```
 
 **适用场景**：本地模型测试未完成时的过渡方案。
@@ -711,7 +711,7 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 
 | # | 模型 | 安装方式 | MPS | 许可证 | 测试重点 |
 |---|------|---------|-----|--------|---------|
-| 1 | **Sonic** | ComfyUI 插件 | ✅ 已修复 | 非商用 | 安装 ComfyUI + SVD + Sonic checkpoints，测试 MPS 实际性能 |
+| 1 | ~~Sonic~~ | ComfyUI 插件 | ❌ MPS 死锁 | 非商用 | 已测试：模型加载 OK，扩散推理死锁 |
 | 2 | **Hallo2** | conda 环境 | ⚠️ 待验证 | MIT | 长视频支持，中文是否可用（JoyHallo 扩展） |
 | 3 | **V-Express** | ComfyUI 插件 | ⚠️ 待验证 | ❓ | 基于 SD1.5，MPS 可能可行 |
 | 4 | **PersonaLive** | ComfyUI 插件 | ⚠️ 待验证 | 非商用 | 12GB VRAM，CVPR 2026 |
@@ -739,7 +739,7 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 
 | 风险 | 影响 | 缓解 |
 |------|------|------|
-| MPS 兼容性未验证 | 扩散模型在 MPS 上可能有算子不支持 | 逐个测试，ComfyUI_Sonic 已确认 MPS 可用 |
+| MPS 兼容性未验证 | 扩散模型在 MPS 上可能有算子不支持 | 逐个测试，Sonic 已确认推理死锁，LatentSync 1.6 OOM |
 | VRAM 不足 | M2 Pro 32GB 统一内存，但 MPS 内存管理与 CUDA 不同 | 优先测低 VRAM 需求的模型（LatentSync 1.5: 8GB） |
 | 商用许可限制 | Sonic/DICE-Talk 非商用；SadTalker 非商用 | Hallo2 (MIT) 和 LatentSync (OpenRAIL++) 可商用 |
 | ComfyUI 安装复杂度 | 需要安装 ComfyUI + 下载多个模型文件 | 按各模型 README 逐步操作 |
@@ -928,7 +928,7 @@ scp output.mp4 username@192.168.1.x:/path/to/output/
 - **新增扩散模型方案**：LatentSync、Sonic、Hallo2 都用扩散模型在潜空间做多步去噪，补偿了 VAE 的信息损失，嘴部清晰度远超 MuseTalk。
 - **新增 3DMM 方案**：SadTalker 在像素空间用 3DMM 变形面部，完全不用 VAE，嘴部不模糊。
 - **纠正 Wav2Lip 描述**：之前错误声称 Wav2Lip 有"相同的 VAE 质量限制"。实际上 Wav2Lip 用 GAN 在像素空间生成，完全不用 VAE，其质量问题是"贴片感"而非"模糊"。
-- **MPS 可行性更新**：之前将所有 CUDA 模型标记为"❌ M2 Pro 不兼容"是错误的——只看了官方 requirements 就判了死刑，没有探索 PyTorch MPS 后端。ComfyUI_Sonic 已明确修复 MPS 支持，证明扩散模型可以在 Apple Silicon 上运行。
+- **Sonic MPS 实测结果（2026-08-10）**：ComfyUI_Sonic README 声称修复 MPS 支持，但实际测试发现仅修复了模型加载和预处理阶段的 device/bf16 兼容性。扩散推理阶段（SVD UNet 前向传播）在 MPS 上死锁——fp16 和 bf16 均复现，进程进入不可中断等待状态，CPU 时间停止增长。这是 MPS kernel 级问题，非 OOM。后续扩散模型（Hallo2/V-Express）测试需关注同一问题——如果扩散推理在 MPS 上不可行，所有 SVD/SD 基底的模型都无法本地运行，需转向云端 API 或远程 GPU。
 - **D-ID API 认证纠正**：之前 session 用 Bearer auth 导致 401。正确方式是 Basic auth（`Authorization: Basic <base64(key)>`），已验证成功。
 - **选择 InsightFace 做人脸匹配**：ONNX Runtime 在 macOS 上原生支持；ArcFace 是业界标准的人脸嵌入方法。
 - **保留云端方案作为过渡**：本地模型测试期间可用 D-ID API（便宜）或 HeyGen API（质量高但贵）作为过渡。

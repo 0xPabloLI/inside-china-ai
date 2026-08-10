@@ -8,8 +8,13 @@ const __dirname = dirname(__filename);
 const ROOT = join(__dirname, "..");
 
 describe("infra path resolution after lib/ migration", () => {
-  it("f5_mlx_batch_tts.py exists at resolved path", () => {
-    const path = join(ROOT, "f5_mlx_batch_tts.py");
+  it("cosyvoice_batch_tts.py exists at resolved path", () => {
+    const path = join(ROOT, "cosyvoice_batch_tts.py");
+    expect(existsSync(path)).toBe(true);
+  });
+
+  it("qwen_tts_batch.py exists at resolved path", () => {
+    const path = join(ROOT, "qwen_tts_batch.py");
     expect(existsSync(path)).toBe(true);
   });
 
@@ -28,20 +33,6 @@ describe("infra path resolution after lib/ migration", () => {
     expect(existsSync(path)).toBe(true);
   });
 
-  it("kokoro_tts.py exists at resolved path", () => {
-    const path = join(ROOT, "kokoro_tts.py");
-    expect(existsSync(path)).toBe(true);
-  });
-
-  it("xtts_batch_tts.py exists at resolved path", () => {
-    const path = join(ROOT, "xtts_batch_tts.py");
-    expect(existsSync(path)).toBe(true);
-  });
-
-  it("voice-samples directory exists at resolved path", () => {
-    const path = join(ROOT, "assets", "voice-samples");
-    expect(existsSync(path)).toBe(true);
-  });
 });
 
 describe("assemble.mjs interface", () => {

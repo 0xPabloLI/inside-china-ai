@@ -6,16 +6,14 @@
  * subtitle alignment afterwards.
  *
  * Engine priority:
- *   1. F5-TTS-MLX (voice cloning, best quality on Apple Silicon)
- *   2. XTTS v2 (voice cloning)
- *   3. Kokoro (neural TTS)
- *   4. edge-tts (Microsoft neural TTS)
- *   5. macOS `say` (last resort)
+ *   1. CosyVoice 3 (voice cloning, Flow Matching, best quality)
+ *   2. Qwen3-TTS (voice cloning, MPS, fast fallback)
+ *   3. edge-tts (Microsoft neural TTS, no cloning)
+ *   4. macOS `say` (last resort, no cloning)
  */
 
-import { createF5MLXEngine } from "./f5-mlx.mjs";
-import { createXTTSEngine } from "./xtts.mjs";
-import { createKokoroEngine } from "./kokoro.mjs";
+import { createCosyVoiceEngine } from "./cosyvoice.mjs";
+import { createQwenTTSEngine } from "./qwen-tts.mjs";
 import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runWhisperAlignment, getAtempo } from "./post-process.mjs";
@@ -25,16 +23,16 @@ import { runWhisperAlignment, getAtempo } from "./post-process.mjs";
  * @type {Record<string, () => Promise<TTSEngine|null>>}
  */
 const ENGINE_FACTORIES = {
-  f5: createF5MLXEngine,
-  "f5-mlx": createF5MLXEngine,
-  xtts: createXTTSEngine,
-  kokoro: createKokoroEngine,
+  cosyvoice: createCosyVoiceEngine,
+  "cosyvoice3": createCosyVoiceEngine,
+  "qwen-tts": createQwenTTSEngine,
+  qwen: createQwenTTSEngine,
   "edge-tts": createEdgeTTSEngine,
   say: createSayEngine,
 };
 
 /** Priority order for automatic selection (no TTS_ENGINE env). */
-const PRIORITY = ["f5-mlx", "xtts", "kokoro", "edge-tts", "say"];
+const PRIORITY = ["cosyvoice", "qwen-tts", "edge-tts", "say"];
 
 /**
  * Select a TTS engine.
@@ -64,7 +62,7 @@ export async function selectEngine() {
   }
 
   throw new Error(
-    "No TTS engine available. Install F5-TTS-MLX (pip install f5-tts-mlx), XTTS (pip install TTS), Kokoro (pip install kokoro), or edge-tts, or run on macOS.",
+    "No TTS engine available. Install CosyVoice 3 (~/.cosyvoice-env), Qwen3-TTS (~/.qwen-tts-env), edge-tts, or run on macOS.",
   );
 }
 
