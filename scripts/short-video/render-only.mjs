@@ -132,7 +132,7 @@ async function main() {
   let bgmPath = null;
   if (useBGM) {
     console.log("🎵 Step 3.5: Selecting background music...\n");
-    bgmPath = selectBGM(bgmFileOverride);
+    bgmPath = selectBGM(meta.pipelineId, bgmFileOverride);
     if (bgmPath) {
       console.log(`  🎵 BGM: ${bgmPath.split("/").pop()} (instant start, 12% volume, looped)\n`);
     } else {
