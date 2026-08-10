@@ -32,26 +32,30 @@
 | #   | 操作               | 说明                                     | 为什么                                  |
 | --- | ------------------ | ---------------------------------------- | --------------------------------------- |
 | 1   | **AIGC 标签**      | 发布界面打开 "AI-generated content"      | TikTok 要求标注 AI 内容，不标注会被降权 |
-| 2   | **背景音乐**       | 搜索推荐 BGM（见下方 Breaking News 声音表），音量 5-10% | BGM 增加视频氛围，breaking news 类型用紧张感音乐 |
+| 2   | **背景音乐**       | 使用 HITL 推荐的 BGM 或 TikTok trending sound，音量 5-12% | BGM 增加视频氛围，trending sound 算法加权更高 |
 | 3   | **地理标签**       | 添加 China/US 位置标签                   | 本地内容算法优先推同区域用户            |
 | 4   | **Pinned comment** | 发布后置顶含文章 URL 的评论              | 引导流量到网站                          |
 | 5   | **回复评论**       | 发布后 1 小时内回复所有评论              | 首小时互动信号影响算法推荐              |
 | 6   | **非高峰时段**     | 查看粉丝活跃时间，选低峰发布             | 竞争少，算法更容易推                    |
 
-### Breaking News BGM 推荐声音
+### BGM 两种方案
 
-发布时在 TikTok 搜索以下声音，选一个使用（音量调到 5-10%，不要盖过 VO）：
+HITL 检查点时 Agent 会提供两个选项：
 
-| 声音名 | TikTok Sound URL | 风格 | 适合场景 |
-|--------|-----------------|------|----------|
-| **Breaking News** (TimTaj) | `tiktok.com/music/Breaking-News-7164102292382156802` | 紧迫感、新闻播报 | 突发新闻（首选） |
-| Epic News (DM Production) | 搜索 "Epic News DM Production" | 动作感、戏剧性 | 重大发布、突破性新闻 |
-| News dramatic (DM Production) | 搜索 "News dramatic DM Production" | 电影感、振奋 | 积极新闻、突破性成就 |
-| Urgent News (musicunlimited) | 搜索 "Urgent News No Copyright" | 企业新闻、无版权 | 通用新闻 |
-| Powerful songs (action movie) | `tiktok.com/music/Powerful-songs-like-action-movie-music-6817460952171022337` | 动作电影风格 | 已被 @chinaainews 使用过 |
+**选项 A — 混入视频（CC-BY BGM）**
 
-> **使用方法**：TikTok 发布界面 → 点击「声音」→ 搜索声音名 → 选中 → 调低音量到 5-10%。
-> API 不支持自动选声音，这一步必须在 TikTok App 里手动完成。
+Agent 从 `assets/bgm/` 池中自动选择一个 CC-BY 新闻 BGM，确认后通过 `mix-bgm.mjs` 混入视频。优点：可控、即刻起声、无版权风险。音量 12%。
+
+**选项 B — TikTok trending sound（推荐）**
+
+Agent 通过 `trending-sounds.mjs` 获取当前 TikTok trending sounds 并按内容关键词匹配，推荐用户在 TikTok App 内手动添加。优点：算法加权更高、无版权风险（TikTok 已授权）。音量 5-10%。
+
+```bash
+# Agent 在 HITL 时执行
+node scripts/short-video/trending-sounds.mjs --content <dir>
+```
+
+> **为什么 trending sound 更好**：TikTok 算法对使用 trending sound 的视频有 discoverability 加权。混入视频的 BGM 不享受这个加权。所以如果 trending sound 中有匹配的，优先选 B。
 
 ### 发布后自动提示
 

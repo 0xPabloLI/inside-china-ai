@@ -761,8 +761,10 @@ node scripts/rag/index.mjs
 `short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。
 
 ```bash
-node scripts/short-video/main.mjs --bgm          # TTS → HTML → 录制 → 合成
+node scripts/short-video/main.mjs                    # TTS → HTML → 录制 → 合成（不含 BGM）
 ```
+
+> **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。这样用户可以在 HITL 审阅时决定：是否加 BGM、用哪个 BGM、还是用 TikTok trending sound（在 App 内手动加，算法加权更高）。
 
 视频制作的技术细节（TTS 引擎、渲染参数、文件位置）见 `docs/video-workflow.md`。
 
@@ -820,7 +822,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    
    【发布时在 TikTok App 手动操作】
    □ AIGC 标签：打开 "AI-generated content" 开关
-   □ 背景音乐：搜索推荐 BGM（见 manual-ops.md → Breaking News BGM 推荐声音），音量 5-10%
+   □ 背景音乐：使用 HITL 推荐的 BGM 或 TikTok trending sound（见下方 BGM 推荐），音量 5-12%
    □ 地理标签：添加 China/US 位置标签
    □ Caption：≤2,200 chars，包含 SEO 关键词，3-5 个 hashtag
    □ Hashtag 示例：#ainews #chinaai #deepseek #technews（根据内容自动推导，主公司名动态匹配）
@@ -863,7 +865,31 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > Agent 每次根据当期视频内容自动生成 Caption（含评论钩子）和 Pinned Comment。如果用户修改了 scene-data（如更新了文章 URL），重新运行 `generate-caption.mjs` 后这些内容会自动更新。Agent 在 HITL 输出时读取最新生成的文件内容。
 
-7. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
+7. **BGM 选择与确认**（HITL 内）— Agent 自动执行：
+   a. 从 BGM 池中按 pipelineId 确定性选择一个 CC-BY BGM（`lib/bgm.mjs` → `selectBGM`）
+   b. 获取 TikTok trending sounds 并按内容关键词匹配（`trending-sounds.mjs --content <dir>`）
+   c. 输出推荐：
+      ```
+      🎵 BGM 推荐
+      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      选项 A — 混入视频（CC-BY BGM）：
+        {selected_bgm} | {duration}s | 即刻起声 ✅
+        → 确认后执行：node mix-bgm.mjs --video <path> --pipeline-id <id>
+
+      选项 B — TikTok trending sound（App 内手动加，算法加权更高）：
+        {matched_sound_1} | {video_count} videos using
+        {matched_sound_2} | {video_count} videos using
+        → 在 TikTok 发布界面 → Add sound → 搜索上述声音
+
+      选项 C — 不加 BGM
+      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      ```
+   d. 等待用户选择 A / B / C
+   e. 如果选 A：执行 `node scripts/short-video/mix-bgm.mjs --video <path> --pipeline-id <id>`
+   f. 如果选 B：将推荐声音加入发布后手动操作清单
+   g. 如果选 C：跳过 BGM
+
+8. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
 
 > **视频/脚本修改时的自动更新规则**：如果用户在 HITL 阶段要求修改视频或 scene-data（如"改一下 Hook"、"更新一下文案"、"加个数据"），Agent 修改完成并重新渲染视频后，**必须自动重新运行 `generate-caption.mjs`** 以更新 Caption 和 Pinned Comment，然后重新输出发步包（步骤 6），确保用户拿到的始终是最新的 Caption 和 Pinned Comment。不需要用户额外要求"帮我更新 caption"。
 >
