@@ -240,7 +240,9 @@ async function main() {
 
   for (let i = 0; i < queries.length; i++) {
     const q = queries[i];
-    process.stdout.write(`  [${i + 1}/${queries.length}] "${q.query.substring(0, 50)}${q.query.length > 50 ? "..." : ""}" ... `);
+    process.stdout.write(
+      `  [${i + 1}/${queries.length}] "${q.query.substring(0, 50)}${q.query.length > 50 ? "..." : ""}" ... `,
+    );
 
     try {
       // Generate embedding
@@ -268,9 +270,7 @@ async function main() {
       evalResults.push({
         hit: false,
         matchedSources: [],
-        missedSources: (q.expected_sources || []).map(
-          (e) => `${e.content_type}:${e.source_id}`,
-        ),
+        missedSources: (q.expected_sources || []).map((e) => `${e.content_type}:${e.source_id}`),
         topSourceIds: [],
         query: q.query,
         category: q.category || "other",

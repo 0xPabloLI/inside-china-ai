@@ -411,4 +411,3 @@ describe("S7: Comment Hook & Pinned Comment", () => {
     expect(desc).toContain(hook);
   });
 });
-

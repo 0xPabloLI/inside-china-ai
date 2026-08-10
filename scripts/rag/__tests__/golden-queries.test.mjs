@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  evaluateQuery,
-  calculateHitRate,
-  categorizeByType,
-  formatReport,
-} from "../eval.mjs";
+import { evaluateQuery, calculateHitRate, categorizeByType, formatReport } from "../eval.mjs";
 
 // ─── evaluateQuery ───
 
@@ -30,9 +25,7 @@ describe("evaluateQuery", () => {
   it("returns hit when second expected source matches (entity alias)", () => {
     const queryEntry = {
       query: "梁文锋的融资策略是什么？",
-      expected_sources: [
-        { content_type: "article", source_id: "deepseek-art-of-restraint" },
-      ],
+      expected_sources: [{ content_type: "article", source_id: "deepseek-art-of-restraint" }],
       notes: "Entity alias",
     };
     const topResults = [
@@ -47,9 +40,7 @@ describe("evaluateQuery", () => {
   it("returns miss when no expected source in top-5 (data point)", () => {
     const queryEntry = {
       query: "DeepSeek funding $45 billion",
-      expected_sources: [
-        { content_type: "article", source_id: "deepseek-art-of-restraint" },
-      ],
+      expected_sources: [{ content_type: "article", source_id: "deepseek-art-of-restraint" }],
       notes: "Data point",
     };
     const topResults = [
@@ -82,7 +73,7 @@ describe("evaluateQuery", () => {
     };
     const topResults = [
       { content_type: "tiktok-ref", source_id: "some-tiktok", similarity: 0.43 },
-      { content_type: "tiktok-ref", source_id: "another", similarity: 0.40 },
+      { content_type: "tiktok-ref", source_id: "another", similarity: 0.4 },
     ];
     const result = evaluateQuery(queryEntry, topResults);
     expect(result.hit).toBe(true); // low similarity = not relevant = correct behavior
@@ -94,9 +85,7 @@ describe("evaluateQuery", () => {
       expected_sources: [],
       notes: "Negative: DevOps topic",
     };
-    const topResults = [
-      { content_type: "article", source_id: "some-ai-article", similarity: 0.8 },
-    ];
+    const topResults = [{ content_type: "article", source_id: "some-ai-article", similarity: 0.8 }];
     const result = evaluateQuery(queryEntry, topResults);
     expect(result.hit).toBe(false);
   });
@@ -104,9 +93,7 @@ describe("evaluateQuery", () => {
   it("limits matching to top-5 results only", () => {
     const queryEntry = {
       query: "test",
-      expected_sources: [
-        { content_type: "article", source_id: "target" },
-      ],
+      expected_sources: [{ content_type: "article", source_id: "target" }],
     };
     const topResults = [
       { content_type: "article", source_id: "other1" },
@@ -126,13 +113,7 @@ describe("evaluateQuery", () => {
 
 describe("calculateHitRate", () => {
   it("calculates correct hit rate percentage", () => {
-    const results = [
-      { hit: true },
-      { hit: true },
-      { hit: false },
-      { hit: true },
-      { hit: false },
-    ];
+    const results = [{ hit: true }, { hit: true }, { hit: false }, { hit: true }, { hit: false }];
     const rate = calculateHitRate(results);
     expect(rate.total).toBe(5);
     expect(rate.hits).toBe(3);
@@ -221,8 +202,22 @@ describe("categorizeByType", () => {
 describe("formatReport", () => {
   it("includes all required sections in the report", () => {
     const evalResults = [
-      { query: "test query 1", hit: true, matchedSources: ["article:src1"], missedSources: [], topSourceIds: ["article:src1"], notes: "Cross-language" },
-      { query: "test query 2", hit: false, matchedSources: [], missedSources: ["article:src2"], topSourceIds: ["article:wrong"], notes: "Data point" },
+      {
+        query: "test query 1",
+        hit: true,
+        matchedSources: ["article:src1"],
+        missedSources: [],
+        topSourceIds: ["article:src1"],
+        notes: "Cross-language",
+      },
+      {
+        query: "test query 2",
+        hit: false,
+        matchedSources: [],
+        missedSources: ["article:src2"],
+        topSourceIds: ["article:wrong"],
+        notes: "Data point",
+      },
     ];
     const categories = categorizeByType(evalResults);
     const rate = calculateHitRate(evalResults);
@@ -238,7 +233,16 @@ describe("formatReport", () => {
   });
 
   it("includes pass/fail status", () => {
-    const evalResults = [{ query: "q", hit: true, matchedSources: [], missedSources: [], topSourceIds: [], notes: "x" }];
+    const evalResults = [
+      {
+        query: "q",
+        hit: true,
+        matchedSources: [],
+        missedSources: [],
+        topSourceIds: [],
+        notes: "x",
+      },
+    ];
     const categories = categorizeByType(evalResults);
     const rate = calculateHitRate(evalResults);
 
