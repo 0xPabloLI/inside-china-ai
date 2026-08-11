@@ -125,6 +125,60 @@ function Index() {
             </ul>
           )}
         </section>
+
+        <section className="mb-20">
+          <h2 className="mb-8 font-serif text-3xl">Guides & Resources</h2>
+          <ul className="grid gap-4 sm:grid-cols-3">
+            <li>
+              <Link
+                to="/companies"
+                className="group flex h-full flex-col justify-between rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50"
+              >
+                <div>
+                  <h3 className="font-serif text-xl leading-snug group-hover:underline">
+                    Chinese AI Companies
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Profiles of the labs, startups, and tech giants shaping China's AI landscape.
+                  </p>
+                </div>
+                <span className="mt-4 text-sm font-medium">Explore →</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/compare/deepseek-vs-qwen-vs-glm"
+                className="group flex h-full flex-col justify-between rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50"
+              >
+                <div>
+                  <h3 className="font-serif text-xl leading-snug group-hover:underline">
+                    Model Comparison
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    DeepSeek, Qwen, and GLM-5.2 compared on price, performance, and access.
+                  </p>
+                </div>
+                <span className="mt-4 text-sm font-medium">Compare →</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/tiktok-connect"
+                className="group flex h-full flex-col justify-between rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50"
+              >
+                <div>
+                  <h3 className="font-serif text-xl leading-snug group-hover:underline">
+                    TikTok Connect
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Follow the video companion feed and connect your account.
+                  </p>
+                </div>
+                <span className="mt-4 text-sm font-medium">Connect →</span>
+              </Link>
+            </li>
+          </ul>
+        </section>
       </main>
       <footer className="border-t border-border/60 py-8 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} · China AI News
