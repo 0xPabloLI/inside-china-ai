@@ -25,6 +25,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
+import { validateMedia } from "./lib/media-bg.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -312,6 +313,34 @@ for (const r of sceneResults.fail) {
   console.log(`  ❌ ${r.check}${r.detail ? ` — ${r.detail}` : ""}`);
   if (r.fix) console.log(`     → FIX: ${r.fix}`);
   results.fail.push(r);
+}
+
+// ─── Media background checks (shared: pre-render + post-render) ───
+const CONTENT_DIR_ABS = join(__dirname, "content", contentDir);
+const scenesWithMedia = scenes.filter((s) => s.media);
+if (scenesWithMedia.length > 0) {
+  console.log("\n🖼️ Media Background Checks");
+  console.log("─".repeat(50));
+
+  for (const scene of scenesWithMedia) {
+    const mediaResult = validateMedia(scene.media, CONTENT_DIR_ABS);
+    if (mediaResult.valid) {
+      pass(
+        "Media",
+        `Scene ${scene.id} media valid`,
+        `${scene.media.type}: ${scene.media.path}`,
+      );
+    } else {
+      for (const err of mediaResult.errors) {
+        fail("Media", `Scene ${scene.id} media error`, err);
+      }
+    }
+    for (const w of mediaResult.warnings) {
+      warn("Media", `Scene ${scene.id} media warning`, w);
+    }
+  }
+} else {
+  pass("Media", "No media backgrounds (all CSS)", "");
 }
 
 // ─── Post-render: Subtitle checks ───
