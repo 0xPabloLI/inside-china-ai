@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-10（Sonic 测试完成）
+> **最后更新**：2026-08-11（Hallo2 优化 + LivePortrait + V-Express 测试完成，全部本地模型已清理）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1
 > **主文档**：`docs/research/digital-human-solutions-m2-pro.md`
 > **用途**：多 session 共享追踪文件，每次测试后更新此文件
@@ -17,10 +17,11 @@
 | 2 | ~~SadTalker~~ | 3DMM | — | ✅ | ❌ | ❌ 效果差 | 2026-08-09 |
 | 3 | ~~LatentSync 1.5~~ | 扩散+SyncNet | 256px | ✅ (需 patch) | ✅ OpenRAIL++ | ❌ 效果差 | 2026-08-10 |
 | 4 | ~~LatentSync 1.6~~ | 扩散+SyncNet | 512px | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ OOM | 2026-08-10 |
-| 5 | ~~Sonic~~ | SVD 扩散 | — | ❌ MPS 死锁 | ❌ 非商用 | ❌ 推理死锁 | 2026-08-10 |
-| 6 | **V-Express** | 渐进式扩散 | — | ⚠️ 待验证 | ❓ | 📋 待测 | — |
-| 7 | **Hallo2** | 分层扩散 | — | ⚠️ 待验证 | ✅ MIT | 📋 待测 | — |
-| 8 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
+| 5 | ~~Sonic~~ | SVD 扩散 | — | ❌ 不可用 | ❌ 非商用 | ❌ 不可用 | 2026-08-10 |
+| 6 | ~~Hallo2~~ | 分层扩散 | 256px | ✅ MPS | ✅ MIT | ❌ 256px 太低 | 2026-08-10 |
+| 7 | ~~LivePortrait~~ | Warping | 826×1062 | ✅ MPS | ✅ | ❌ 无音频驱动 | 2026-08-10 |
+| 8 | ~~V-Express~~ | 渐进式扩散 | — | ⚠️ 待验证 | ❓ | 📋 待测 | — |
+| 9 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
 
 ### 云端 API
 
@@ -70,10 +71,10 @@
 - **根本问题**：512×512 分辨率的 UNet 推理需要 ~38GB 内存，M2 Pro 32GB 物理内存不足
 - **清理**：已删除 checkpoint（4.7GB）
 
-### ❌ Sonic (ComfyUI_Sonic) — MPS 推理死锁
+### ❌ Sonic (ComfyUI_Sonic) — fp32 第 1 步可完成但第 2 步系统崩溃
 
 - **日期**：2026-08-10
-- **结论**：**失败** — 模型加载和预处理正常，但扩散推理在 MPS 上死锁
+- **结论**：**fp32 可工作但速度不实用** — fp16/bf16 死锁，fp32 第 1 步耗时 78 分钟
 - **环境**：
   - ComfyUI 0.31.0 + ComfyUI_Sonic（最新 main 分支）
   - Python 3.11.14, PyTorch 2.13.0, MPS 后端
@@ -87,17 +88,67 @@
 - **音频预处理**：✅ 正常
   - 检测音频时长 5.228s，推理时长 5.0s
   - 面部检测（yoloface）+ 裁切 + 对齐 → 62/62 步完成
-- **MPS 推理**：❌ **死锁**
-  - Run 1（fp16, 512px, 25 steps）："Start infer" 后进度卡在 0/25，进程进入 U 状态（不可中断等待），CPU 降为 0%，CPU 时间停止增长
+- **MPS 推理 — fp16/bf16（死锁）**：
+  - Run 1（fp16, 512px, 25 steps）："Start infer" 后进度卡在 0/25，进程进入 U 状态，CPU 降为 0%，CPU 时间停止增长
   - Run 2（bf16, 256px, 5 steps）：同样卡在 0/5，同样死锁
-  - 两种 dtype 均复现，排除 dtype 问题
-  - 进程 CPU 时间 20 秒内仅增长 0.02s（从 2:06.56 → 2:06.58）
-  - 根本原因：SVD UNet 前向传播中的某个 MPS 算子死锁（非 OOM，非 crash，是 kernel 级死锁）
-- **ComfyUI_Sonic README 声称的 MPS 修复**：仅修复了模型加载和预处理阶段的 MPS 兼容性（device 转换、bf16 类型转换等），**未修复扩散推理阶段的 MPS 算子死锁**
+  - 根本原因：SVD UNet 前向传播中某个 MPS 算子对 fp16/bf16 大张量死锁（PyTorch issue #154828：MPS 32-bit 索引器限制）
+- **MPS 推理 — fp32（可工作但极慢 + 系统崩溃）**：
+  - Run 3（**fp32**, 256px, 5 steps）：**第 1 步完成！** 耗时 78 分钟（进度从 0/5 → 1/5）
+  - CPU TIME 持续增长（Start infer 后 +614s/82min = 12% 效率），证明进程在工作
+  - 第 2 步开始后，Metal 着色器编译器（MTLCompilerService）在 LLVM 优化阶段崩溃（SIGABRT）
+  - 崩溃连锁：MTLCompilerService → CatPawAI Helper → Chrome Helper → 系统无响应 → 重启
+  - 根因：SVD UNet fp32 运算生成的 Metal 着色器代码过于复杂，LLVM AlwaysInliner + SROA 优化通道内存溢出
+  - **不能断点续传**：ComfyUI 不保存推理中间状态，重启后全部丢失
+  - **结论**：fp32 第 1 步可完成但第 2 步导致系统崩溃——整体不可用
+- **根因分析**（GitHub Issue 调研）：
+  - ComfyUI_Sonic Issue #105：Mac ARM 用户确认 "fp16 not working on mac arm!!! only fp32 work!!!"
+  - PyTorch Issue #154828（已关闭）：MPS 后端对 fp16/bf16 大张量使用 32-bit 索引器溢出，报 "Can't be indexed using 32-bit iterator" 错误
+  - PyTorch 2.13.0 修复了报错但引入了新的 MPS kernel 死锁（旧版报错退出，新版无限等待）
+  - fp32 张量不触发 32-bit 索引限制，所以可以工作
 - **服务器启动**：~3-4 分钟（Sonic 插件 import 耗时 54 秒）
 - **磁盘占用**：ComfyUI + Sonic 模型 + SVD checkpoint ≈ 17GB
 - **清理**：保留安装（ComfyUI 可复用于其他插件），待后续决定是否清理
-- **SVD 模型说明**：当前使用公开可下载的 `svd_xt.safetensors`（原始版）；`svd_xt_1_1.safetensors`（改进版）需 HuggingFace 认证，用户已认证但尚未下载替换。但因推理死锁与 SVD 版本无关，替换不会解决问题
+- **SVD 模型说明**：当前使用 `svd_xt.safetensors`（原始版）；`svd_xt_1_1.safetensors`（改进版）需 HuggingFace 认证，用户已认证但尚未下载替换
+
+### ❌ Hallo2 — 256px 分辨率太低，最终放弃
+
+- **日期**：2026-08-10 ~ 2026-08-11
+- **结论**：**放弃** — 256px 分辨率太低，无法生成清晰的嘴部细节
+- **环境**：Hallo2 (ICLR 2025, 复旦), Python 3.13, PyTorch 2.13.0, MPS
+- **MPS Patch**：4 个文件（device 选择、audio_processor、motion_module xformers、util seed guard）
+- **测试配置**：
+  - v1: fp32, 256px, 5 steps → 256×256, 5.24s, 475KB, ~5min
+  - v2: fp16, 256px, 40 steps → 256×256, 5.24s, 366KB, ~40min
+  - v3: fp16, 512px, 40 steps → ❌ 太慢 (235s/step, 预估 4.8 天)
+  - v4: 微信照片 + fp16, 256px, 40 steps → 256×256, 5.24s, 377KB
+- **关键发现**：
+  - SD1.5 UNet 在 MPS 上完全没问题（vs SVD UNet 死锁）
+  - fp16 在 SD1.5 上无死锁（vs SVD 的 fp16 死锁）
+  - 40 步比 5 步清晰，但 256px 分辨率是硬伤——嘴部只有 ~30×30 像素
+  - 512px 在 M2 Pro 上 235s/step，完全不实用
+- **512px 为什么慢**：512px 的计算量是 256px 的 4 倍，但实际慢了 ~150 倍（1.35s → 235s），可能是 MPS attention 矩阵大小超过优化阈值
+- **清理**：已删除（14GB）
+
+### ❌ LivePortrait — 无原生音频驱动，D-ID 转接效果差
+
+- **日期**：2026-08-10 ~ 2026-08-11
+- **结论**：**放弃** — 视频驱动模型，无原生音频驱动；D-ID 视频转接效果不理想
+- **环境**：LivePortrait (KwaiVGI, 18.9k stars), Python 3.13, onnxruntime-silicon
+- **模型大小**：~600MB（vs Hallo2 的 12GB）
+- **测试配置**：
+  - v1: 示例照片 + d0.mp4 驱动 → 724×724, 3.12s, ✅ 高分辨率
+  - v2: 用户照片 IMG_7975 + d6.mp4 驱动 → 718×1280, 33.6s, ✅ 高分辨率
+  - v3: 微信照片 + d0.mp4 驱动 → 826×1062, 3.12s, ✅ 高分辨率
+  - v4: 微信照片 + D-ID 视频驱动 → 826×1062, 10.44s, ❌ 效果不理想
+- **优势**：
+  - 官方支持 macOS Apple Silicon
+  - 模型仅 600MB，秒级生成
+  - 原图分辨率输出（724×724 ~ 826×1062）
+- **劣势**：
+  - **视频驱动**，非音频驱动——嘴部动作来自驱动视频
+  - D-ID 视频转接方案：D-ID 生成有唇形同步的视频 → LivePortrait 提取表情 → 重新渲染，但效果不理想
+  - 微信照片 bc927 在 LivePortrait 和 D-ID 上都检测不到人脸
+- **清理**：已删除（3.3GB）
 
 ### ✅ D-ID `/talks`（照片 → 说话视频）
 
@@ -183,11 +234,21 @@
 | 2026-08-10 | LatentSync 1.6 checkpoint | 4.7GB | 512px OOM |
 | 2026-08-10 | SadTalker 目录 | 3.5GB | 效果差 |
 | 2026-08-10 | — | — | Sonic 保留安装（ComfyUI 可复用），待决定是否清理 |
+| 2026-08-10 | ComfyUI + Sonic + SVD | 18GB | fp16 死锁 + fp32 崩溃 |
+| 2026-08-10 | LatentSync repo | 2.3GB | 两个版本均失败 |
+| 2026-08-11 | Hallo2 | 14GB | 256px 太低，512px 不可用 |
+| 2026-08-11 | LivePortrait | 3.3GB | 无音频驱动，D-ID 转接效果差 |
+| 2026-08-11 | SadTalker（重装尝试） | 5.6GB | Python 3.13 不兼容，已删 |
 
-## LatentSync repo 状态
+## 本地模型最终结论
 
-- 路径：`/Users/pabloli/Documents/code/latentsync`
-- 当前 HEAD：`a229c39`（1.6 代码），有未 commit 的 MPS patch
-- checkpoints 已全部删除
-- `.venv/` 仍保留（有所有依赖）
-- 如果后续不再用 LatentSync，可删除整个 repo
+**所有本地模型在 M2 Pro 32GB 上均无法达到商用质量。**
+
+核心限制：
+1. **扩散模型**：MPS 内存限制只能跑 256px，嘴部细节不足
+2. **非扩散模型**：效果不够好（恐怖谷/模糊/无音频驱动）
+3. **512px 扩散**：在 M2 Pro 上不实用（235s/step）
+
+**推荐路径**：D-ID API（日常）或 云 GPU + Hallo2 512px（高质量批量）
+
+详见 `docs/research/china-digital-human-api-alternatives.md` 了解中国平台替代方案。
