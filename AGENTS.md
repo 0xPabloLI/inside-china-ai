@@ -185,6 +185,8 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 默认用 `web-access` skill（连接本地 Chrome，有 session/cookie，反爬检测率低）。已知 URL 静态提取用 `web_fetch` 工具。Deep Research（多源交叉验证 + 引用）用 `web-deep-research` skill，触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。Playwright headless 不推荐（无 session/cookie，反爬检测率高）。
 
+**Skills/Tools 目录**：所有可用工具和候选 skill 的完整清单在 `docs/skills-catalog.md`（不在 RAG 索引范围内，Agent 直接读取）。包含：已集成工具说明、候选 skill 评估、安全审计结果、任务→工具决策表、Skill 评估流程（4 步强制流程）、安全审计工具参考。需要找工具或评估新 skill 时先查此文档。
+
 ## Agent skills
 
 ### Issue tracker

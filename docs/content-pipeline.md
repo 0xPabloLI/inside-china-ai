@@ -91,6 +91,8 @@ Agent 从 Stage 1 开始执行。
 
 Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1 开始执行。
 
+> **趋势发现有两个工具**：`discover-trends.mjs`（中文平台，CDP 登录态）+ `last30days-skill`（英文社媒，`--emit=json`，Reddit/HN 无需 API key）。两者互补，可同时运行交叉比对。详见下方「趋势发现源」章节。
+
 #### 趋势发现源（15 个）
 
 `discover-trends.mjs` 通过 CDP 抓取 15 个源，覆盖新闻媒体、自媒体平台、技术社区和定向公众号监控：
@@ -137,6 +139,38 @@ node scripts/short-video/discover-trends.mjs
 # 指定关键词
 node scripts/short-video/discover-trends.mjs --keyword "DeepSeek"
 ```
+
+#### 英文社媒趋势补充（last30days-skill）
+
+`discover-trends.mjs` 覆盖中文平台，`last30days-skill` 覆盖英文社媒（Reddit、Hacker News、X、YouTube、TikTok、arXiv 等 20+ 源），两个都输出 JSON，Agent 可交叉比对。
+
+**什么时候用 last30days**：
+- 需要了解英文世界对中国 AI 话题的讨论热度
+- 需要跨平台 engagement 信号（Reddit upvotes、HN points）辅助判断话题优先级
+- 话题在中文平台发酵后，验证英文社区是否也在讨论
+
+**用法**（Reddit + HN 无需 API key，开箱即用）：
+```bash
+# 基础搜索（JSON 输出）
+python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --quick "DeepSeek"
+
+# 限制源（只搜 Reddit + HN，快速）
+python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --search "reddit,hackernews" "DeepSeek"
+
+# 自定义 subreddits
+python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --subreddits "MachineLearning,LocalLLaMA" "DeepSeek"
+```
+
+**输出格式**：`{clusters: [{title, summary, engagement_total, sources}]}`，Agent 读取后与 `trending-topics.json` 按 topic 关键词交叉比对。
+
+**协作流程**：
+```
+discover-trends.mjs → trending-topics.json（中文平台，CDP 登录态）
+last30days --emit=json → JSON（英文社媒，API）
+Agent 读两个 JSON → 按 topic 关键词匹配 → 交叉比对 engagement → 选 topic
+```
+
+> 详细配置见 `docs/skills-catalog.md` → 已集成工具 → last30days-skill。
 
 ### 入口 3：新 session，未指定任务
 
