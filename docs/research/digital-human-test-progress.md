@@ -22,6 +22,7 @@
 | 7 | ~~LivePortrait~~ | Warping | 826×1062 | ✅ MPS | ✅ | ❌ 无音频驱动 | 2026-08-10 |
 | 8 | ~~V-Express~~ | 渐进式扩散 | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
 | 9 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
+| 10 | **LongCat-VA-1.5 MLX** | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ✅ **成功！** | 2026-08-12 |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
 | 11 | **InfiniteTalk** | 稀疏帧视频配音 | — | ⚠️ 待测 | ✅ Apache 2.0 | 📋 待测 | — |
 | 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
@@ -203,6 +204,36 @@
 - **根本问题**：reference_net + denoising_unet 双网络<UNK>络前向传播 + 3D motion module，MPS 计算量远超 Hallo2
 - **对比 Hallo2**：Hallo2 单 UNet 1.6s/step，V-Express 双 UNet 1058s/step（660x 慢）
 - **清理**：已删除（7GB）
+
+### ✅ LongCat-Video-Avatar-1.5 MLX q4 — 首个在 M2 Pro 上成功的本地模型！
+
+- **日期**：2026-08-12
+- **结论**：**成功！** 首个在 M2 Pro 32GB 上成功生成有唇形同步的数字人视频
+- **环境**：longcat-avatar-mlx (xocialize port), Python 3.12, MLX 0.32.0
+- **模型**：q4-dmd-merged（4-bit 量化 + DMD 蒸馏）
+- **模型大小**：~23GB on disk
+- **推理配置**：q4, 8 DMD steps, 29 frames, 256×432
+- **性能**：
+  - Pipeline 加载：8.6 秒
+  - 推理：**1090.7 秒**（18 分钟）生成 29 帧
+  - 每帧：37.6 秒
+- **输出**：432×256, 29 frames, 0.97s, 240KB
+- **测试文件**：`scripts/short-video/assets/longcat-mlx-test-output.mp4`
+- **对比 M5 Max 128GB**：102 秒 vs 1090 秒（10.7x 慢，但成功！）
+- **关键意义**：
+  - MLX 框架成功，PyTorch/MPS 路径全部失败
+  - q4 量化使 23GB 模型在 32GB 内存上可运行
+  - DMD 蒸馏只需 8 步（vs 标准 50 步）
+  - **MIT 许可证，可商用**
+  - 支持中文（美团训练数据含中文）
+- **限制**：
+  - 18 分钟生成 1 秒视频，速度慢
+  - 256×432 分辨率较低（可通过更高分辨率改善）
+  - 需要进一步测试用真人照片 + 中文音频
+- **后续优化方向**：
+  - 测试 480×832 分辨率（官方默认）
+  - 测试用户照片 + F5-TTS 中文音频
+  - 考虑 q8 量化（更好的质量，31GB）
 
 ### 📋 PersonaLive（未测，低优先级）
 
