@@ -552,6 +552,8 @@ node scripts/rag/index.mjs
 
 从文章 markdown 提炼视频脚本。
 
+> **脚本写作方法论**：写或改 voiceover 和叙事弧线时，参照 `docs/video-script-writing-guide.md`（S.T.A.R.T. 框架 + open loop / pattern interrupt / loop closure + hook 公式 + CTA 公式 + 逐 scene beat-by-beat 迭代方式）。研究依据见 `docs/research/short-video-script-writing-best-practices.md`。
+
 ### Step 0: 分集评估（新增）
 
 Agent 在生成 scene-data 前，先运行分集评估器：

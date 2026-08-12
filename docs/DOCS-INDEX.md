@@ -15,6 +15,7 @@
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
+| `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. framework, open loops, hook/CTA formulas, beat-by-beat iteration | `content-pipeline.md` Stage 3 |
 | `handoffs/video-layout-standard.md` | 视频布局安全区 session 交接（已完成，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
 | `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
@@ -62,6 +63,7 @@ Deep research reports with citations.
 |----------|---------|
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |
+| `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
 
 ## Spec/Ticket Lifecycle
 
