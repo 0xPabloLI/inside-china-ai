@@ -28,13 +28,19 @@ describe("post-process module", () => {
   it("mixBgm should accept (videoPath, bgmPath, outputPath, volume)", async () => {
     const { mixBgm } = await import(join(ROOT, "lib", "post-process.mjs"));
     // .length excludes params with defaults; verify >= 3 required params
-    assert.ok(mixBgm.length >= 3, `mixBgm should have at least 3 required params, got ${mixBgm.length}`);
+    assert.ok(
+      mixBgm.length >= 3,
+      `mixBgm should have at least 3 required params, got ${mixBgm.length}`,
+    );
   });
 
   it("normalizeLoudness should accept (videoPath, outputPath, target)", async () => {
     const { normalizeLoudness } = await import(join(ROOT, "lib", "post-process.mjs"));
     // .length excludes params with defaults; verify >= 2 required params
-    assert.ok(normalizeLoudness.length >= 2, `normalizeLoudness should have at least 2 required params, got ${normalizeLoudness.length}`);
+    assert.ok(
+      normalizeLoudness.length >= 2,
+      `normalizeLoudness should have at least 2 required params, got ${normalizeLoudness.length}`,
+    );
   });
 
   it("normalizeLoudness should default target to -16 LUFS", async () => {

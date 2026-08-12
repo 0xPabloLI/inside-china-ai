@@ -35,11 +35,9 @@ export function burnSubtitles(videoPath, assPath, outputPath) {
   renameSync(videoPath, tempPath);
 
   const subFilter = `ass=${assPath}`;
-  execFileSync(
-    FFMPEG_FULL,
-    ["-y", "-i", tempPath, "-vf", subFilter, "-c:a", "copy", outputPath],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
+  execFileSync(FFMPEG_FULL, ["-y", "-i", tempPath, "-vf", subFilter, "-c:a", "copy", outputPath], {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
 
   try {
     unlinkSync(tempPath);
@@ -105,7 +103,9 @@ export function mixBgm(videoPath, bgmPath, outputPath, volume = 0.12) {
     { stdio: ["pipe", "pipe", "pipe"] },
   );
 
-  console.log(`  Background music mixed in (instant start, ${Math.round(volume * 100)}% volume, looped)`);
+  console.log(
+    `  Background music mixed in (instant start, ${Math.round(volume * 100)}% volume, looped)`,
+  );
   return outputPath;
 }
 

@@ -65,7 +65,7 @@ export function renderRemotion({
   // ── 2. Construct props ──
   const props = {
     scenes,
-    audioPaths: audioPaths.map((p) => p.startsWith("file://") ? p : `file://${p}`),
+    audioPaths: audioPaths.map((p) => (p.startsWith("file://") ? p : `file://${p}`)),
     durations,
     contentDir,
   };
@@ -86,7 +86,9 @@ export function renderRemotion({
   console.log(`  🎬 Rendering ${scenes.length} scenes via Remotion (${totalFrames} frames)...`);
 
   const renderCmd = [
-    "npx", "remotion", "render",
+    "npx",
+    "remotion",
+    "render",
     "src/Root.tsx",
     "ShortVideo",
     `"${rawPath}"`,
@@ -127,7 +129,9 @@ export function renderRemotion({
     const tempPath = currentPath.replace(".mp4", "-prenorm.mp4");
     renameSync(currentPath, tempPath);
     normalizeLoudness(tempPath, currentPath);
-    try { unlinkSync(tempPath); } catch {}
+    try {
+      unlinkSync(tempPath);
+    } catch {}
   }
 
   // Rename raw → final if different
@@ -136,7 +140,9 @@ export function renderRemotion({
   }
 
   // Clean up raw file if it still exists
-  try { if (existsSync(rawPath) && rawPath !== finalPath) unlinkSync(rawPath); } catch {}
+  try {
+    if (existsSync(rawPath) && rawPath !== finalPath) unlinkSync(rawPath);
+  } catch {}
 
   // ── 6. Get final duration ──
   let finalDuration = "unknown";
@@ -148,7 +154,9 @@ export function renderRemotion({
   } catch {}
 
   // Clean up props file
-  try { unlinkSync(propsPath); } catch {}
+  try {
+    unlinkSync(propsPath);
+  } catch {}
 
   return { path: finalPath, duration: finalDuration };
 }

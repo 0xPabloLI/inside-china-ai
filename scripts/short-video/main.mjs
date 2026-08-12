@@ -15,13 +15,14 @@
  *   scripts/short-video/output/{pipelineId}/final.mp4
  */
 
-import { writeFileSync, mkdirSync, readdirSync } from "fs";
+import { writeFileSync, mkdirSync, readdirSync, existsSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
+import { renderRemotion } from "./lib/render-remotion.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
@@ -85,6 +86,11 @@ async function main() {
   console.log(`   Content: ${meta.title || contentDir}`);
   console.log(`   Pipeline ID: ${meta.pipelineId}`);
   console.log(`   Version: ${version}`);
+  // ── Renderer selection ──
+  const useRemotion = process.argv.includes("--remotion") || meta.renderer === "remotion";
+  console.log(
+    `   Renderer: ${useRemotion ? "Remotion (React → frame-by-frame)" : "Playwright (HTML → screen record)"}`,
+  );
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
   // ── Pre-Render Verification (validates scene-data against SKILL.md rules) ──
@@ -128,56 +134,76 @@ async function main() {
   const totalDuration = ttsResults.reduce((s, t) => s + t.duration, 0);
   console.log(`\n  Total voiceover: ${totalDuration.toFixed(1)}s\n`);
 
-  // ── Step 2: Generate HTML scenes ──
-  console.log("🎨 Step 2: Generating HTML scene templates...\n");
+  // ── Step 2: Generate HTML scenes (Playwright only) ──
   const sceneData = [];
-  for (const scene of scenes) {
-    const tts = ttsResults.find((t) => t.sceneId === scene.id);
-    if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
+  if (!useRemotion) {
+    console.log("🎨 Step 2: Generating HTML scene templates...\n");
+    for (const scene of scenes) {
+      const tts = ttsResults.find((t) => t.sceneId === scene.id);
+      if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
 
-    const html = generateScene(scene, tts.duration, scene.voiceover);
-    const htmlPath = join(scenesDir, `scene-${scene.id}.html`);
-    writeFileSync(htmlPath, html);
+      const html = generateScene(scene, tts.duration, scene.voiceover);
+      const htmlPath = join(scenesDir, `scene-${scene.id}.html`);
+      writeFileSync(htmlPath, html);
 
-    sceneData.push({
-      sceneId: scene.id,
-      htmlPath,
-      duration: tts.duration,
-      audioPath: tts.audioPath,
-    });
-    console.log(`  Scene ${scene.id} (${scene.name}): ${tts.duration.toFixed(1)}s`);
-  }
-  console.log();
-
-  // ── Step 2.5: DOM layout verification (safe-zone / right-rail / overflow) ──
-  // Render-level hard gate: a scene whose geometry violates the safe zones
-  // must never reach the recorder. Bypass with --skip-dom-check (escape
-  // hatch only — all content directories are on the slot layout; see
-  // docs/brand-system.md → Layout Safety).
-  const skipDomCheck = process.argv.includes("--skip-dom-check");
-  if (skipDomCheck) {
-    console.log("📐 Step 2.5: DOM layout verification skipped (--skip-dom-check)\n");
-  } else {
-    console.log("📐 Step 2.5: Verifying scene DOM layout (safe zones)...\n");
-    try {
-      execSync(`node "${join(__dirname, "verify-scene-dom.mjs")}" --content "${contentDir}"`, {
-        stdio: "inherit",
+      sceneData.push({
+        sceneId: scene.id,
+        htmlPath,
+        duration: tts.duration,
+        audioPath: tts.audioPath,
       });
-    } catch {
-      console.error(
-        "\n❌ DOM layout verification FAILED — scene content enters a TikTok safe zone.",
-      );
-      console.error("   Fix the scene layout (slot system, docs/brand-system.md), or bypass with");
-      console.error("   --skip-dom-check (escape hatch only, not recommended).");
-      process.exit(1);
+      console.log(`  Scene ${scene.id} (${scene.name}): ${tts.duration.toFixed(1)}s`);
     }
     console.log();
+  } else {
+    console.log("🎨 Step 2: Skipped (Remotion renders React components directly)\n");
+    for (const scene of scenes) {
+      const tts = ttsResults.find((t) => t.sceneId === scene.id);
+      if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
+      sceneData.push({
+        sceneId: scene.id,
+        duration: tts.duration,
+        audioPath: tts.audioPath,
+      });
+    }
   }
 
-  // ── Step 3: Record videos ──
-  console.log("📹 Step 3: Recording scene videos with Playwright...\n");
-  const videoResults = await recordScenes(sceneData, videoDir);
-  console.log();
+  // ── Step 2.5: DOM layout verification (Playwright only) ──
+  if (!useRemotion) {
+    const skipDomCheck = process.argv.includes("--skip-dom-check");
+    if (skipDomCheck) {
+      console.log("📐 Step 2.5: DOM layout verification skipped (--skip-dom-check)\n");
+    } else {
+      console.log("📐 Step 2.5: Verifying scene DOM layout (safe zones)...\n");
+      try {
+        execSync(`node "${join(__dirname, "verify-scene-dom.mjs")}" --content "${contentDir}"`, {
+          stdio: "inherit",
+        });
+      } catch {
+        console.error(
+          "\n❌ DOM layout verification FAILED — scene content enters a TikTok safe zone.",
+        );
+        console.error(
+          "   Fix the scene layout (slot system, docs/brand-system.md), or bypass with",
+        );
+        console.error("   --skip-dom-check (escape hatch only, not recommended).");
+        process.exit(1);
+      }
+      console.log();
+    }
+  } else {
+    console.log("📐 Step 2.5: Skipped (Remotion uses declarative React layout)\n");
+  }
+
+  // ── Step 3: Record/Render videos ──
+  let videoResults = null;
+  if (!useRemotion) {
+    console.log("📹 Step 3: Recording scene videos with Playwright...\n");
+    videoResults = await recordScenes(sceneData, videoDir);
+    console.log();
+  } else {
+    console.log("📹 Step 3: Skipped (Remotion renders in Step 5)\n");
+  }
 
   // ── Step 3.5: Select background music (optional, --bgm flag) ──
   const useBGM = process.argv.includes("--bgm");
@@ -203,17 +229,34 @@ async function main() {
     console.log(`  📝 ASS generated: ${subtitles.cues.length} cues`);
   }
 
-  // ── Step 5: Assemble final video ──
-  console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
-  const result = assembleVideo(
-    videoResults,
-    outputDir,
-    meta.pipelineId,
-    bgmPath,
-    subtitles?.assPath ?? null,
-    version,
-    meta.subject,
-  );
+  // ── Step 5: Assemble/Render final video ──
+  let result;
+  if (useRemotion) {
+    console.log("🔧 Step 5: Rendering final video with Remotion...\n");
+    result = renderRemotion({
+      scenes,
+      audioPaths: ttsResults.map((t) => t.audioPath),
+      durations: ttsResults.map((t) => t.duration),
+      outputDir,
+      pipelineId: meta.pipelineId,
+      contentDir: resolve(__dirname, "content", contentDir),
+      subtitlesPath: subtitles?.assPath ?? null,
+      bgmPath,
+      version,
+      subject: meta.subject,
+    });
+  } else {
+    console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
+    result = assembleVideo(
+      videoResults,
+      outputDir,
+      meta.pipelineId,
+      bgmPath,
+      subtitles?.assPath ?? null,
+      version,
+      meta.subject,
+    );
+  }
 
   // ── Step 6: Verify subtitles (optional, --skip-verify to skip) ──
   const skipVerify = process.argv.includes("--skip-verify");
