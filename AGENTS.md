@@ -31,10 +31,11 @@
 
 ## Session Workflow
 
-1. **Decision: Lightweight or Substantial?**
+1. **Decision: which workflow?**
    - **Lightweight**（检查、解释、常规工作）：直接进行，不需要加载额外 skill。
+   - **Content Creation**（用已有模板做视频内容）：轻量流程，见下方 Content Creation Workflow。不走 Spec/Tickets/TDD。
    - **UI/UX 设计任务**: 用 `impeccable` skill。
-   - **Substantial implementation**: 按以下 Mandatory Implementation Workflow 执行。
+   - **Substantial implementation**（改基础设施：渲染引擎、模板、组件、管线代码）：按以下 Mandatory Implementation Workflow 执行。
 2. **Git safety**: never run `stash` related commands without explicit user confirmation in current chat. `checkout`/`switch` 分支切换见 Cross-Branch Workflow（绝对禁止）。
 3. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
 4. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
@@ -79,6 +80,17 @@
 **Smart Zone**：~150k tokens（v1.2 更新）。模型在此窗口内推理最锐利。如果 session 在 `/to-tickets` 前接近 smart zone，在最近的 phase boundary 做 `/compact`。
 
 **规则**：mid-phase 不做 context 切换决策——Continue 或把剩余工作 split 成 subagents。只在 phase boundary 做决策。
+
+### Content Creation Workflow（内容创作轻量流程）
+
+用已有模板（`scene-templates.mjs` / `base-styles.mjs` / Remotion 组件）做视频内容时走此流程，不走 Spec/Tickets/TDD。模板和渲染引擎的改动走 Substantial Implementation Workflow。
+
+1. **写 scene-data** — 在 `content/{dir}/scene-data.mjs` 填数据，遵循 `scene-templates.mjs` 和 `scene-rules.mjs` 的模板规则
+2. **Pre-render 检查** — `node verify-video.mjs --pre --content <dir>`（检查 scene-data 规则合规性）
+3. **跑管线** — `node main.mjs --content <dir> [--remotion] [--bgm]`（TTS → 渲染 → 字幕 → loudnorm → 输出 MP4）
+4. **验证输出** — `node verify-video.mjs --content <dir>`（检查 MP4 规格、字幕时间戳）
+5. **HITL 审阅** — 输出视频成品 + MRL 报告，等用户确认
+6. **发布** — 用户确认后发布到 TikTok + 网站
 
 ## Commit Cadence (并行 agent 安全)
 
@@ -170,6 +182,8 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 > **HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续。不得自行假设确认。详见 `docs/content-pipeline.md` 的 HITL 章节。
 
 做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载。`brand-system` skill 同时加载，控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。
+
+改视频模板/组件的视觉设计时（间距、排版、层次、动画），加载 `impeccable` skill — 用 `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨。新建场景模板时加载 `frontend-design` skill 选择美学方向。
 
 > **Skill 遵循强制规则**：启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data 是否满足 `short-video-pipeline` SKILL.md 的硬性规则。Pre-render 检查未通过时，管线拒绝运行。Agent 不得跳过此步骤（除非用户明确要求 `--skip-preflight`）。
 

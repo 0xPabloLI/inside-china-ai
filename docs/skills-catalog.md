@@ -22,13 +22,15 @@
 | Firecrawl 其他功能 | 多种 | 注册免费 | ❌ 不推荐 | ⭐ 不如现有 |
 | last30days-skill | 趋势发现 | ✅ | ✅ 已集成(安全⚠️) | ⭐⭐⭐ 英文社媒 |
 | vercel-labs/agent-skills | 开发/部署 | ✅ | 📋 待评估(安全✅) | ⭐⭐⭐ Vercel+React |
-| emilkowalski/skills | UI/动画 | ✅ | 📋 待评估(安全✅) | ⭐⭐ UI 打磨 |
+| emilkowalski/skills (emil-design-eng) | UI/动画 | ✅ | 📋 待评估(安全✅) | ⭐⭐ motion/细节 |
 | guizang-ppt-skill | 演示文稿 | ✅ | 📋 待评估(安全⚠️) | ⭐ 备用 |
 | vercel-labs/agent-browser | 浏览器自动化 | ✅ | 📋 待评估(安全⚠️) | ⭐⭐ CDP替代 |
-| anthropics/skills frontend-design | UI设计 | ✅ | 📋 待评估(安全✅) | ⭐⭐ 前端设计 |
-| runcomfy-agent-skills | AI媒体 | ✅ | 📋 待评估(安全⚠️) | ⭐ 视频/图像 |
+| anthropics/skills (frontend-design) | UI设计 | ✅ | ✅ 已集成 | ⭐⭐ 新模板美学 |
+| runcomfy-agent-skills (30 skills) | AI媒体 | ✅ | 📋 待评估(安全✅) | ⭐⭐⭐ 数字人/B-roll |
 | VoltAgent/awesome-agent-skills | 目录索引 | ✅ | 📖 参考 | 查用目录 |
 | ComposioHQ/awesome-claude-skills | 目录索引 | ✅ | 📖 参考 | 查用目录 |
+| pbakaus/impeccable (24 commands) | 视觉设计 | ✅ | ✅ 已集成 | ⭐⭐⭐ 视觉打磨 |
+| leonxlnx/taste-skill (design-taste-frontend) | 设计推理 | ✅ | 📋 备选(安全✅) | ⭐ 设计决策 |
 
 ---
 
