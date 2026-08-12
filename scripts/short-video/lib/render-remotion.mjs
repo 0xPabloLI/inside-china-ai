@@ -13,9 +13,9 @@
  * The CLI renders to an intermediate MP4, then FFmpeg post-processes it.
  */
 
-import { execSync } from "child_process";
-import { existsSync, writeFileSync, renameSync, unlinkSync } from "fs";
-import { join, dirname } from "path";
+import { execSync, execFileSync } from "child_process";
+import { existsSync, writeFileSync, renameSync, unlinkSync, mkdirSync, copyFileSync, rmSync } from "fs";
+import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
 import { sceneClipDuration } from "./timeline.mjs";
@@ -62,16 +62,25 @@ export function renderRemotion({
     console.log("  ✅ Dependencies installed");
   }
 
-  // ── 2. Construct props ──
+  // ── 2. Copy audio files to remotion/public/ for staticFile() access ──
+  // Remotion's Chrome headless can't load file:// URLs, only public/ files
+  const publicAudioDir = join(REMOTION_DIR, "public", "audio");
+  mkdirSync(publicAudioDir, { recursive: true });
+  const audioPublicPaths = audioPaths.map((p, i) => {
+    const cleanPath = p.replace("file://", "");
+    const filename = basename(cleanPath);
+    const dest = join(publicAudioDir, filename);
+    copyFileSync(cleanPath, dest);
+    return `audio/${filename}`; // relative to public/ for staticFile()
+  });
+
+  // ── 3. Construct props ──
   const props = {
     scenes,
-    audioPaths: audioPaths.map((p) => (p.startsWith("file://") ? p : `file://${p}`)),
+    audioPaths: audioPublicPaths,
     durations,
     contentDir,
   };
-
-  const propsPath = join(REMOTION_DIR, "render-props.json");
-  writeFileSync(propsPath, JSON.stringify(props));
 
   // ── 3. Calculate total duration in frames ──
   const totalDurationSec = durations.reduce((sum, d) => sum + sceneClipDuration(d), 0);
@@ -85,16 +94,9 @@ export function renderRemotion({
 
   console.log(`  🎬 Rendering ${scenes.length} scenes via Remotion (${totalFrames} frames)...`);
 
-  const renderCmd = [
-    "npx",
-    "remotion",
-    "render",
-    "src/Root.tsx",
-    "ShortVideo",
-    `"${rawPath}"`,
-    `--props="${propsPath}"`,
-    `--frames=0-${totalFrames - 1}`,
-  ].join(" ");
+  // Use execSync with proper JSON escaping for --props
+  const propsJson = JSON.stringify(props).replace(/'/g, "'\\''");
+  const renderCmd = `npx remotion render src/Root.tsx ShortVideo '${rawPath}' --props='${propsJson}'`;
 
   try {
     execSync(renderCmd, {
@@ -102,7 +104,8 @@ export function renderRemotion({
       stdio: ["pipe", "pipe", "pipe"],
     });
   } catch (e) {
-    throw new Error(`Remotion render failed: ${e.message?.substring(0, 200)}`);
+    const stderr = e.stderr?.toString()?.substring(0, 500) ?? "";
+    throw new Error(`Remotion render failed: ${e.message?.substring(0, 200)}\nstderr: ${stderr}`);
   }
 
   console.log(`  ✅ Remotion render complete: ${rawPath}`);
@@ -153,9 +156,9 @@ export function renderRemotion({
     finalDuration = `${parseFloat(info.trim()).toFixed(1)}s`;
   } catch {}
 
-  // Clean up props file
+  // ── 7. Clean up copied audio files ──
   try {
-    unlinkSync(propsPath);
+    rmSync(publicAudioDir, { recursive: true, force: true });
   } catch {}
 
   return { path: finalPath, duration: finalDuration };

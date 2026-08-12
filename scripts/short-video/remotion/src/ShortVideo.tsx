@@ -78,13 +78,10 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({ scenes, audioPaths, dura
         durationInFrames={clipFrames}
       >
         {renderScene(scene, clipDuration, contentDir)}
-        {/* Place TTS audio within this sequence */}
+        {/* Place TTS audio within this sequence — audioPaths are relative to public/ */}
         {audioPaths[i] && (
           <Audio
-            src={audioPaths[i].startsWith("http") || audioPaths[i].startsWith("file://")
-              ? audioPaths[i]
-              : `file://${audioPaths[i]}`
-            }
+            src={staticFile(audioPaths[i])}
           />
         )}
       </TransitionSeries.Sequence>
