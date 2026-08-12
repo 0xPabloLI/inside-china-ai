@@ -78,6 +78,36 @@ function formatDate(d: string | null) {
   });
 }
 
+const GUIDES = [
+  {
+    to: "/companies" as const,
+    title: "Chinese AI Companies",
+    summary:
+      "Profiles of 21 labs, startups, and tech giants — who funds them, what they ship, and how they compare.",
+    cta: "Explore",
+    readingMinutes: 12,
+    updated: "2026-08-01",
+  },
+  {
+    to: "/compare/deepseek-vs-qwen-vs-glm" as const,
+    title: "Model Comparison",
+    summary:
+      "DeepSeek, Qwen, and GLM-5.2 side by side on token pricing, coding benchmarks, and open-weight access.",
+    cta: "Compare",
+    readingMinutes: 9,
+    updated: "2026-08-08",
+  },
+  {
+    to: "/tiktok-connect" as const,
+    title: "TikTok Connect",
+    summary:
+      "Follow the short-video companion feed and link your TikTok account for weekly China AI explainers.",
+    cta: "Connect",
+    readingMinutes: 3,
+    updated: "2026-07-28",
+  },
+];
+
 function Index() {
   const { data: posts } = useSuspenseQuery(postsQuery);
 
@@ -129,54 +159,27 @@ function Index() {
         <section className="mb-20">
           <h2 className="mb-8 font-serif text-3xl">Guides & Resources</h2>
           <ul className="grid gap-4 sm:grid-cols-3">
-            <li>
-              <Link
-                to="/companies"
-                className="group flex h-full flex-col justify-between rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50"
-              >
-                <div>
-                  <h3 className="font-serif text-xl leading-snug group-hover:underline">
-                    Chinese AI Companies
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Profiles of the labs, startups, and tech giants shaping China's AI landscape.
-                  </p>
-                </div>
-                <span className="mt-4 text-sm font-medium">Explore →</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/compare/deepseek-vs-qwen-vs-glm"
-                className="group flex h-full flex-col justify-between rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50"
-              >
-                <div>
-                  <h3 className="font-serif text-xl leading-snug group-hover:underline">
-                    Model Comparison
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    DeepSeek, Qwen, and GLM-5.2 compared on price, performance, and access.
-                  </p>
-                </div>
-                <span className="mt-4 text-sm font-medium">Compare →</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/tiktok-connect"
-                className="group flex h-full flex-col justify-between rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50"
-              >
-                <div>
-                  <h3 className="font-serif text-xl leading-snug group-hover:underline">
-                    TikTok Connect
-                  </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Follow the video companion feed and connect your account.
-                  </p>
-                </div>
-                <span className="mt-4 text-sm font-medium">Connect →</span>
-              </Link>
-            </li>
+            {GUIDES.map((g) => (
+              <li key={g.to}>
+                <Link
+                  to={g.to}
+                  className="group flex h-full flex-col justify-between rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+                      <span>Updated {formatDate(g.updated)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{g.readingMinutes} min read</span>
+                    </div>
+                    <h3 className="mt-2 font-serif text-xl leading-snug group-hover:underline">
+                      {g.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-muted-foreground">{g.summary}</p>
+                  </div>
+                  <span className="mt-4 text-sm font-medium">{g.cta} →</span>
+                </Link>
+              </li>
+            ))}
           </ul>
         </section>
       </main>
