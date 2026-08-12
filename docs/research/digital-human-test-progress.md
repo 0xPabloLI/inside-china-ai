@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-11（Hallo2 优化 + LivePortrait + V-Express 测试完成，全部本地模型已清理）
+> **最后更新**：2026-08-11（新增 2026-08-11 调研发现的 5 个待测模型）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1
 > **主文档**：`docs/research/digital-human-solutions-m2-pro.md`
 > **用途**：多 session 共享追踪文件，每次测试后更新此文件
@@ -20,8 +20,14 @@
 | 5 | ~~Sonic~~ | SVD 扩散 | — | ❌ 不可用 | ❌ 非商用 | ❌ 不可用 | 2026-08-10 |
 | 6 | ~~Hallo2~~ | 分层扩散 | 256px | ✅ MPS | ✅ MIT | ❌ 256px 太低 | 2026-08-10 |
 | 7 | ~~LivePortrait~~ | Warping | 826×1062 | ✅ MPS | ✅ | ❌ 无音频驱动 | 2026-08-10 |
-| 8 | ~~V-Express~~ | 渐进式扩散 | — | ⚠️ 待验证 | ❓ | 📋 待测 | — |
+| 8 | ~~V-Express~~ | 渐进式扩散 | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
 | 9 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
+| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
+| 11 | **InfiniteTalk** | 稀疏帧视频配音 | — | ⚠️ 待测 | ✅ Apache 2.0 | 📋 待测 | — |
+| 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
+| 13 | **EchoMimicV3** | 多任务扩散 | — | ⚠️ 待测 | ✅ Apache 2.0 | 📋 待测 | — |
+| 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
+| 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
 
 ### 云端 API
 
@@ -184,12 +190,27 @@
 
 ## 待测模型详情
 
-### 📋 V-Express
+### ❌ V-Express — MPS 推理太慢，不可用
 
-- **优先级**：⭐⭐⭐⭐
-- **来源**：腾讯 AI Lab
-- **MPS**：⚠️ 基于 SD1.5，MPS 可能可行
-- **ComfyUI**：`tiankuan93/ComfyUI-V-Express`
+- **日期**：2026-08-11
+- **结论**：**放弃** — 第一步耗时 17 分 38 秒，完全不可用
+- **环境**：V-Express (腾讯 AI Lab), Python 3.13, PyTorch 2.13.0, MPS
+- **模型大小**：~7GB（denoising_unet 2.5GB + reference_net 1.6GB + motion_module 769MB + VAE 328MB + Wav2Vec2 360MB + InsightFace 186MB + 其他）
+- **测试配置**：fp16, 25 steps, context_frames=12, save_gpu_memory, MPS
+- **第一次尝试**：context_frames=24 → MPS OOM（Failed to allocate private MTLBuffer for size 25.7GB）
+- **第二次尝试**：context_frames=12 + save_gpu_memory → 第一步 17分38秒（1/25 steps, 1/16 context）
+- **预估总时间**：25 steps × 16 context × 17min = ~6800 分钟 = **~4.7 天**
+- **根本问题**：reference_net + denoising_unet 双网络<UNK>络前向传播 + 3D motion module，MPS 计算量远超 Hallo2
+- **对比 Hallo2**：Hallo2 单 UNet 1.6s/step，V-Express 双 UNet 1058s/step（660x 慢）
+- **清理**：已删除（7GB）
+
+### 📋 PersonaLive（未测，低优先级）
+
+- **优先级**：⭐⭐
+- **来源**：CVPR 2026
+- **MPS**：⚠️ 12GB VRAM，MPS 可能可行
+- **ComfyUI**：`okdalto/ComfyUI-PersonaLive`
+- **备注**：所有基于 SD1.5 的扩散模型在 M2 Pro 上都已失败，PersonaLive 不太可能例外
 
 ### 📋 Hallo2
 
@@ -204,6 +225,75 @@
 - **来源**：CVPR 2026
 - **MPS**：⚠️ 12GB VRAM，MPS 可能可行
 - **ComfyUI**：`okdalto/ComfyUI-PersonaLive`
+
+### 📋 LongCat-Video-Avatar-1.5（⭐ 最高优先级）
+
+- **优先级**：⭐⭐⭐⭐⭐（MIT + MLX 移植 + 中英文 + 美团出品）
+- **来源**：美团 meituan-longcat，714 likes
+- **HuggingFace**：`meituan-longcat/LongCat-Video-Avatar-1.5`
+- **MLX 移植**：`mlx-community/LongCat-Video-Avatar-1.5-bf16-dmd-merged`（还有 q8/q4 量化版）
+- **MPS**：✅ **有 MLX 社区移植版**——M2 Pro 可用性最强信号
+- **许可证**：MIT（商用 OK）
+- **关键特点**：Whisper-Large 音频编码器，8 步推理（DMD2 蒸馏），支持 Audio-Text-to-Video / Audio-Image-Text-to-Video，商用级稳定性，支持动漫/动物/多人交互
+- **中文支持**：✅ 原生支持中英文
+- **测试重点**：MLX 移植版能否在 M2 Pro 32GB 上完整推理；q4 量化版质量是否可接受；唇同步精度
+
+### 📋 InfiniteTalk
+
+- **优先级**：⭐⭐⭐⭐（Apache 2.0 + 中文 + 无限长度）
+- **来源**：MeiGen-AI，238 likes
+- **HuggingFace**：`MeiGen-AI/InfiniteTalk`
+- **GitHub**：github.com/MeiGen-AI/InfiniteTalk
+- **MPS**：⚠️ 待验证（基于 WAN 2.1，可能需要较大显存）
+- **许可证**：Apache 2.0（商用 OK）
+- **关键特点**：稀疏帧视频配音，同步唇+头+身体+表情，**无限长度**生成，也可做 image-audio-to-video
+- **中文支持**：✅ 原生支持中英文
+- **测试重点**：M2 Pro 是否能运行；推理速度；无限长度的实际效果
+
+### 📋 Hallo3
+
+- **优先级**：⭐⭐⭐⭐（MIT + Transformer 骨干 + 复旦出品，Hallo2 升级版）
+- **来源**：复旦 fudan-generative-ai，66 likes，CVPR 2025
+- **HuggingFace**：`fudan-generative-ai/hallo3`
+- **arxiv**：2412.00733
+- **MPS**：⚠️ 待验证（用 Transformer 骨干而非 U-Net，可能比 Hallo2 更重但也可能更优）
+- **许可证**：MIT（商用 OK）
+- **关键特点**：Transformer-based video generation backbone（非 U-Net），causal 3D VAE + transformer 身份保持网络，处理非正面视角和动态背景
+- **测试重点**：MPS 兼容性（Transformer 骨干可能比 U-Net 更友好也可能更重）；与 Hallo2 质量对比
+
+### 📋 EchoMimicV3
+
+- **优先级**：⭐⭐⭐⭐（Apache 2.0 + 仅 1.3B 参数 + 蚂蚁出品）
+- **来源**：蚂蚁集团 BadToBest，48 likes
+- **HuggingFace**：`BadToBest/EchoMimicV3`
+- **arxiv**：2507.03905
+- **MPS**：⚠️ 待验证（**仅 1.3B 参数**——如果能在 M2 Pro 上跑，可能是最快的高质量方案）
+- **许可证**：Apache 2.0（商用 OK）
+- **关键特点**：统一多任务+多模态人体动画，Soup-of-Tasks + Soup-of-Modals，Negative DPO，Phase-aware CFG，仅 1.3B 参数
+- **测试重点**：1.3B 参数在 M2 Pro 上的推理速度；多任务能力（音频驱动/关键点驱动/组合）
+
+### 📋 FeatherTalk
+
+- **优先级**：⭐⭐⭐（超轻量，但许可证和效果待确认）
+- **来源**：anliyuan，55 GitHub stars
+- **GitHub**：github.com/anliyuan/FeatherTalk
+- **MPS**：⚠️ 待验证（超轻量级，M2 Pro 可能性高）
+- **许可证**：❓ 待确认
+- **关键特点**：超轻量级音频驱动 talking-head 框架
+- **测试重点**：轻量级是否意味着质量妥协；M2 Pro 兼容性
+
+### 📋 LTX-2.3 + AV-LoRA-talking-head（低优先级）
+
+- **优先级**：⭐⭐（22B 参数太大，M2 Pro 基本跑不动；但记录以备云 GPU 场景）
+- **来源**：社区 elix3r，72 likes
+- **HuggingFace**：`elix3r/LTX-2.3-22b-AV-LoRA-talking-head`（LoRA），基座 `Lightricks/LTX-2.3`（22B）
+- **ComfyUI**：有工作流文件
+- **MPS**：❌ 22B 参数，M2 Pro 32GB 基本不可行（无 MLX 移植）
+- **许可证**：OpenRAIL
+- **关键特点**：LTX-2.3 首个社区 AV LoRA，talking head + 唇同步 + 内化语音特征，但需训练自己的角色 LoRA
+- **OmniNFT 可选叠加**：可叠加 `zghhui/OmniNFT` 的 RL-LoRA 进一步提升音视频同步质量
+- **适用场景**：有 NVIDIA A100/H100 的云 GPU 场景，而非 M2 Pro 本地
+- **测试重点**：仅在有云 GPU 时测试；验证 talking head LoRA + OmniNFT 叠加效果
 
 ---
 
@@ -239,16 +329,31 @@
 | 2026-08-11 | Hallo2 | 14GB | 256px 太低，512px 不可用 |
 | 2026-08-11 | LivePortrait | 3.3GB | 无音频驱动，D-ID 转接效果差 |
 | 2026-08-11 | SadTalker（重装尝试） | 5.6GB | Python 3.13 不兼容，已删 |
+| 2026-08-11 | V-Express | 7GB | 17min/sub-step，完全不可用 |
 
 ## 本地模型最终结论
 
-**所有本地模型在 M2 Pro 32GB 上均无法达到商用质量。**
+**已测的 9 个本地模型在 M2 Pro 32GB 上均无法达到商用质量。**
 
 核心限制：
 1. **扩散模型**：MPS 内存限制只能跑 256px，嘴部细节不足
 2. **非扩散模型**：效果不够好（恐怖谷/模糊/无音频驱动）
 3. **512px 扩散**：在 M2 Pro 上不实用（235s/step）
+4. **双网络扩散（V-Express）**：MPS 17min/sub-step，预估 4.7 天
 
-**推荐路径**：D-ID API（日常）或 云 GPU + Hallo2 512px（高质量批量）
+**总计释放磁盘空间**：~50GB
+
+**2026-08-11 新发现带来的希望**：
+
+5 个新待测模型中，以下 3 个有较高可能在 M2 Pro 上可用：
+
+1. **🥇 LongCat-Video-Avatar-1.5**（最高希望）— 有 MLX 社区移植版（bf16/q8/q4），MIT 许可证，美团出品，支持中文，8 步推理。MLX 移植是 Apple Silicon 可用性的最强信号。
+2. **🥈 EchoMimicV3** — 仅 1.3B 参数（极轻量），Apache 2.0，蚂蚁集团出品。参数量小意味着 M2 Pro 可能跑得动。
+3. **🥉 InfiniteTalk** — Apache 2.0，支持中文，无限长度。基于 WAN 2.1，需验证显存需求。
+
+**推荐路径**（更新）：
+- **优先测试**：LongCat-Video-Avatar-1.5 MLX 移植版（q4 量化先试，bf16 后试）
+- **日常过渡**：D-ID API（便宜）或 HeyGen API（质量高但贵）
+- **高质量批量**：云 GPU + 新模型（LongCat-Video-Avatar-1.5 / Hallo3 / EchoMimicV3）
 
 详见 `docs/research/china-digital-human-api-alternatives.md` 了解中国平台替代方案。
