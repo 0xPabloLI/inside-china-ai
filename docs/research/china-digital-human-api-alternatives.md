@@ -129,23 +129,43 @@
 
 ---
 
-## 3. 与 D-ID / HeyGen 对比
+## 3. 与 D-ID / HeyGen / 其他国际平台对比
 
-| 维度 | D-ID | HeyGen | 火山引擎 | 硅基智能 | 科大讯飞 |
-|------|------|--------|---------|---------|---------|
-| **价格** | ~$0.05/min | ~$0.3/min | ~0.1-0.5 RMB/s | ~0.05-0.1 RMB/s | ~0.1-0.2 RMB/s |
-| **换算** | ~0.36 RMB/min | ~2.16 RMB/min | ~6-30 RMB/min | ~3-6 RMB/min | ~6-12 RMB/min |
-| **中文支持** | ⚠️ 需自带 TTS | ✅ | ✅ 原生 | ✅ 原生 | ✅ 最佳 |
-| **质量** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+> **修正**：之前文档中 D-ID $0.05/min 是错误的。实际 D-ID Lite 为 $0.59/min。
+
+### 3.1 国际平台定价（2026-08 查证）
+
+| 平台 | 计划 | 月费 | 包含时长 | 每分钟成本 | 源 |
+|------|------|------|---------|-----------|---|
+| **D-ID** | Trial | $0 | 5 min（一次性） | 免费 | API 确认 deid-trial |
+| **D-ID** | Lite | $5.9 | 10 min/月 | **$0.59/min** | d-id.com/pricing |
+| **D-ID** | Pro | $29 | 15 min/月 | $1.93/min | d-id.com/pricing |
+| **D-ID** | Advanced | $197 | 30 min/月 | $6.57/min | d-id.com/pricing |
+| **Hedra** | Free | $0 | 有限 | — | hedra.com/pricing |
+| **Hedra** | Basic | $15 | 1500 credits (4.17 min) | $3.60/min | hedra.com/pricing |
+| **Hedra** | Creator | $30 | 5400 credits (15 min) | $2.00/min | hedra.com/pricing |
+| **Tavus** | Free | $0 | 5 min video gen | 免费 | tavus.io/pricing |
+| **Tavus** | Starter | $59 | 10 min video gen | $5.90/min | tavus.io/pricing |
+| **Tavus** | Growth | $397 | 100 min video gen | $3.97/min | tavus.io/pricing |
+| **HeyGen** | — | — | — | ~$0.3-1/min | 之前测试 |
+
+### 3.2 中国平台对比
+
+| 维度 | D-ID Lite | Hedra Creator | Tavus Growth | 火山引擎 | 硅基智能 |
+|------|----------|-------------|------------|---------|---------|
+| **价格** | **$0.59/min** | $2.00/min | $3.97/min | ~6-30 RMB/min | ~3-6 RMB/min |
+| **换算** | **4.2 RMB/min** | 14.4 RMB/min | 28.5 RMB/min | 6-30 RMB/min | 3-6 RMB/min |
+| **中文支持** | ⚠️ 需自带 TTS | ⚠️ | ⚠️ | ✅ 原生 | ✅ 原生 |
+| **质量** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
 | **API 易用性** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
-| **企业认证** | 不需要 | 不需要 | 需要 | 需要 | 需要 |
-| **中国访问** | ⚠️ 可能受限 | ⚠️ 可能受限 | ✅ 国内 | ✅ 国内 | ✅ 国内 |
+| **企业认证** | 不需要 | 不需要 | 不需要 | 需要 | 需要 |
+| **中国访问** | ⚠️ 可能受限 | ⚠️ | ⚠️ | ✅ 国内 | ✅ 国内 |
 
-**关键发现**：
-- D-ID 其实是最便宜的（0.36 RMB/min），比中国平台便宜
-- 中国平台按秒计费（6-30 RMB/min），远比 D-ID 贵
-- **但中国平台的优势在中文 TTS + 国内访问 + 无需翻墙**
-- HeyGen 最贵但质量最好
+**关键发现（修正）**：
+- D-ID Lite ($0.59/min ≈ 4.2 RMB/min) 仍然是最便宜的国际平台
+- 硅基智能 (~3-6 RMB/min) 可能在绝对价格上更便宜，且无需翻墙
+- 之前文档中 D-ID $0.05/min 是计算错误
+- Hedra 和 Tavus 比 D-ID 贵 3-10 倍
 
 ---
 
