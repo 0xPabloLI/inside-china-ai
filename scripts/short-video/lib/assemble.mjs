@@ -4,11 +4,12 @@
  * Then concatenates all scene MP4s into the final short video.
  */
 
-import { execSync, execFileSync } from "child_process";
+import { execSync } from "child_process";
 import { writeFileSync, unlinkSync, existsSync, renameSync } from "fs";
 import { join } from "path";
 import { FPS, sceneClipFrames, sceneClipDuration } from "./timeline.mjs";
 import { buildVoiceoverTrack, TRACK_SAMPLE_RATE } from "./audio/track.mjs";
+import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
 
 function run(cmd) {
   execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
@@ -100,79 +101,24 @@ export function assembleVideo(
 
   // Burn in subtitles (ASS) if provided
   if (subtitlesPath && existsSync(subtitlesPath)) {
-    const noSubsPath = finalPath.replace(".mp4", "-nosubs.mp4");
-    renameSync(finalPath, noSubsPath);
-    // Use ffmpeg-full for subtitles filter (has libass support)
-    const ffmpegFull = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
-    const subFilter = `ass=${subtitlesPath}`;
-    execFileSync(
-      ffmpegFull,
-      ["-y", "-i", noSubsPath, "-vf", subFilter, "-c:a", "copy", finalPath],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    try {
-      unlinkSync(noSubsPath);
-    } catch {}
-    console.log("  Subtitles burned in (FFmpeg native)");
+    const tempPath = finalPath.replace(".mp4", "-presubs.mp4");
+    renameSync(finalPath, tempPath);
+    burnSubtitles(tempPath, subtitlesPath, finalPath);
   }
 
   // Mix background music if provided
   if (bgmPath) {
-    const noBgmPath = finalPath.replace(".mp4", "-nobgm.mp4");
-    renameSync(finalPath, noBgmPath);
+    const tempPath = finalPath.replace(".mp4", "-prebgm.mp4");
+    renameSync(finalPath, tempPath);
+    mixBgm(tempPath, bgmPath, finalPath);
+  }
 
-    // Get video duration
-    let videoDuration = 180;
-    try {
-      const info = execSync(
-        `ffprobe -i "${noBgmPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-      ).toString();
-      videoDuration = parseFloat(info.trim());
-    } catch {}
-
-    // Mix: TTS audio at full volume + BGM at 12% volume.
-    // BGM starts IMMEDIATELY (0.1s fade-in, not 2s) so the Hook scene has
-    // BGM impact from frame 1 — a slow fade-in wastes the critical first 3s
-    // attention window and users scroll past before the music even registers.
-    // BGM loops infinitely (-stream_loop -1) to cover videos longer than the
-    // BGM file; amix duration=first stops when the video audio ends.
-    // Fade-out (last 3s) gives a clean ending.
-    const bgmFadeOutStart = Math.max(videoDuration - 3, 1).toFixed(2);
-    const filterComplex = `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart}:d=3,volume=0.12[bgm];[0:a]volume=1.0[tts];[tts][bgm]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
-    execFileSync(
-      "ffmpeg",
-      [
-        "-y",
-        "-i",
-        noBgmPath,
-        "-stream_loop",
-        "-1", // loop BGM infinitely (stopped by amix duration=first)
-        "-i",
-        bgmPath,
-        "-filter_complex",
-        filterComplex,
-        "-map",
-        "0:v",
-        "-map",
-        "[aout]",
-        "-c:v",
-        "copy",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-ar",
-        "44100",
-        finalPath,
-      ],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    console.log("  Background music mixed in (instant start, 12% volume, looped)");
-
-    // Clean up temp
-    try {
-      unlinkSync(noBgmPath);
-    } catch {}
+  // Normalize loudness to EBU R128 -16 LUFS (applied to both paths)
+  {
+    const tempPath = finalPath.replace(".mp4", "-prenorm.mp4");
+    renameSync(finalPath, tempPath);
+    normalizeLoudness(tempPath, finalPath);
+    try { unlinkSync(tempPath); } catch {}
   }
 
   // Clean up temp files
