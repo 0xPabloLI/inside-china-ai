@@ -83,14 +83,7 @@
 
 ### Content Creation Workflow（内容创作轻量流程）
 
-用已有模板（`scene-templates.mjs` / `base-styles.mjs` / Remotion 组件）做视频内容时走此流程，不走 Spec/Tickets/TDD。模板和渲染引擎的改动走 Substantial Implementation Workflow。
-
-1. **写 scene-data** — 在 `content/{dir}/scene-data.mjs` 填数据，遵循 `scene-templates.mjs` 和 `scene-rules.mjs` 的模板规则
-2. **Pre-render 检查** — `node verify-video.mjs --pre --content <dir>`（检查 scene-data 规则合规性）
-3. **跑管线** — `node main.mjs --content <dir> [--remotion] [--bgm]`（TTS → 渲染 → 字幕 → loudnorm → 输出 MP4）
-4. **验证输出** — `node verify-video.mjs --content <dir>`（检查 MP4 规格、字幕时间戳）
-5. **HITL 审阅** — 输出视频成品 + MRL 报告，等用户确认
-6. **发布** — 用户确认后发布到 TikTok + 网站
+用已有模板做视频内容时走 `docs/content-pipeline.md` 的 Stage 3-5，不走 Spec/Tickets/TDD。模板和渲染引擎的改动走 Substantial Implementation Workflow。
 
 ## Commit Cadence (并行 agent 安全)
 
