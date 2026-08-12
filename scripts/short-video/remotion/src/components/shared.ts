@@ -8,7 +8,7 @@ import { interpolate, Easing } from "remotion";
 
 // Re-export shared constants from the existing pipeline lib/
 export { CANVAS, SAFE_ZONES, SUBTITLE_LANE, WATERMARK_POS } from "../../../lib/safe-zones.mjs";
-export { FPS } from "../../../lib/timeline.mjs";
+export { FPS, sceneClipFrames, sceneClipDuration } from "../../../lib/timeline.mjs";
 
 /** Seconds → frames conversion (at 30fps). */
 export const secToFrames = (s: number): number => Math.round(s * 30);

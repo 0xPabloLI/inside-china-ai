@@ -12,8 +12,6 @@
  *   - ken-burns + video → auto-degrade to fade
  */
 import { useCurrentFrame, staticFile, Img, Video } from "remotion";
-import { existsSync } from "fs";
-import { resolve } from "path";
 import { interpolate, secToFrames, clamp, FPS } from "./shared";
 import type { MediaField } from "../types";
 
@@ -40,12 +38,9 @@ interface Props {
 export const MediaBackground: React.FC<Props> = ({ media, duration, contentDir }) => {
   const frame = useCurrentFrame();
 
-  // Resolve and check file existence
-  const absPath = resolve(contentDir, media.path);
-  if (!existsSync(absPath)) {
-    console.warn(`MediaBackground: file not found: ${absPath}, skipping`);
-    return null;
-  }
+  // Resolve file path — file existence is pre-validated by render-remotion.mjs
+  // (browser environment can't access fs). If file is missing, <Img>/<Video>
+  // will simply fail to load (graceful degradation).
 
   // Determine preset (ken-burns + video → degrade to fade)
   let preset = media.animation ?? "fade";

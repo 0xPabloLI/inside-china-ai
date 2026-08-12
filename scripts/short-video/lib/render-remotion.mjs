@@ -1,0 +1,154 @@
+/**
+ * Remotion render orchestrator — called by main.mjs when a content directory
+ * has a `remotion/` subdirectory (or when --remotion flag is used).
+ *
+ * Flow:
+ *   1. Check remotion/node_modules exists → auto npm install if not
+ *   2. Construct props JSON from scenes + audioPaths + durations
+ *   3. Call `npx remotion render` via child process
+ *   4. Post-process: burnSubtitles → mixBgm → normalizeLoudness
+ *   5. Return { path, duration }
+ *
+ * The Remotion project lives at scripts/short-video/remotion/.
+ * The CLI renders to an intermediate MP4, then FFmpeg post-processes it.
+ */
+
+import { execSync } from "child_process";
+import { existsSync, writeFileSync, renameSync, unlinkSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
+import { sceneClipDuration } from "./timeline.mjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+/** Path to the Remotion project root. */
+const REMOTION_DIR = join(__dirname, "..", "remotion");
+
+/**
+ * Render a video using Remotion.
+ *
+ * @param {object} options
+ * @param {Array} options.scenes - Scene data array (from scene-data.mjs)
+ * @param {Array<string>} options.audioPaths - TTS audio file paths (absolute)
+ * @param {Array<number>} options.durations - TTS durations in seconds
+ * @param {string} options.outputDir - Where to write the final MP4
+ * @param {string} options.pipelineId - Pipeline ID for naming
+ * @param {string} [options.contentDir] - Content directory (for media path resolution)
+ * @param {string} [options.subtitlesPath] - ASS subtitle file
+ * @param {string} [options.bgmPath] - BGM audio file
+ * @param {string} [options.version] - Version suffix
+ * @param {string} [options.subject] - Subject prefix
+ * @returns {{path: string, duration: string}}
+ */
+export function renderRemotion({
+  scenes,
+  audioPaths,
+  durations,
+  outputDir,
+  pipelineId,
+  contentDir = "",
+  subtitlesPath = null,
+  bgmPath = null,
+  version = null,
+  subject = null,
+}) {
+  // ── 1. Auto-install if needed ──
+  const nodeModulesPath = join(REMOTION_DIR, "node_modules");
+  if (!existsSync(nodeModulesPath)) {
+    console.log("  📦 Installing Remotion dependencies (first run)...");
+    execSync("npm install", { cwd: REMOTION_DIR, stdio: ["pipe", "pipe", "pipe"] });
+    console.log("  ✅ Dependencies installed");
+  }
+
+  // ── 2. Construct props ──
+  const props = {
+    scenes,
+    audioPaths: audioPaths.map((p) => p.startsWith("file://") ? p : `file://${p}`),
+    durations,
+    contentDir,
+  };
+
+  const propsPath = join(REMOTION_DIR, "render-props.json");
+  writeFileSync(propsPath, JSON.stringify(props));
+
+  // ── 3. Calculate total duration in frames ──
+  const totalDurationSec = durations.reduce((sum, d) => sum + sceneClipDuration(d), 0);
+  const totalFrames = Math.ceil(totalDurationSec * 30);
+
+  // ── 4. Render via CLI ──
+  const filePrefix = subject && subject !== pipelineId ? `${subject}-${pipelineId}` : pipelineId;
+  const versionSuffix = version ? `-v${version}` : "";
+  const finalPath = join(outputDir, `${filePrefix}${versionSuffix}-short.mp4`);
+  const rawPath = join(outputDir, `${filePrefix}${versionSuffix}-raw.mp4`);
+
+  console.log(`  🎬 Rendering ${scenes.length} scenes via Remotion (${totalFrames} frames)...`);
+
+  const renderCmd = [
+    "npx", "remotion", "render",
+    "src/Root.tsx",
+    "ShortVideo",
+    `"${rawPath}"`,
+    `--props="${propsPath}"`,
+    `--frames=0-${totalFrames - 1}`,
+  ].join(" ");
+
+  try {
+    execSync(renderCmd, {
+      cwd: REMOTION_DIR,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (e) {
+    throw new Error(`Remotion render failed: ${e.message?.substring(0, 200)}`);
+  }
+
+  console.log(`  ✅ Remotion render complete: ${rawPath}`);
+
+  // ── 5. Post-process ──
+  let currentPath = rawPath;
+
+  // Burn subtitles
+  if (subtitlesPath && existsSync(subtitlesPath)) {
+    const tempPath = rawPath.replace(".mp4", "-presubs.mp4");
+    renameSync(currentPath, tempPath);
+    burnSubtitles(tempPath, subtitlesPath, currentPath);
+  }
+
+  // Mix BGM
+  if (bgmPath) {
+    const tempPath = currentPath.replace(".mp4", "-prebgm.mp4");
+    renameSync(currentPath, tempPath);
+    mixBgm(tempPath, bgmPath, currentPath);
+  }
+
+  // Normalize loudness
+  {
+    const tempPath = currentPath.replace(".mp4", "-prenorm.mp4");
+    renameSync(currentPath, tempPath);
+    normalizeLoudness(tempPath, currentPath);
+    try { unlinkSync(tempPath); } catch {}
+  }
+
+  // Rename raw → final if different
+  if (currentPath !== finalPath) {
+    renameSync(currentPath, finalPath);
+  }
+
+  // Clean up raw file if it still exists
+  try { if (existsSync(rawPath) && rawPath !== finalPath) unlinkSync(rawPath); } catch {}
+
+  // ── 6. Get final duration ──
+  let finalDuration = "unknown";
+  try {
+    const info = execSync(
+      `ffprobe -i "${finalPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
+    ).toString();
+    finalDuration = `${parseFloat(info.trim()).toFixed(1)}s`;
+  } catch {}
+
+  // Clean up props file
+  try { unlinkSync(propsPath); } catch {}
+
+  return { path: finalPath, duration: finalDuration };
+}

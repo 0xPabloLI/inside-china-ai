@@ -57,4 +57,5 @@ export interface ShortVideoProps {
   scenes: SceneData[];
   audioPaths: string[];
   durations: number[];
+  contentDir?: string;
 }
