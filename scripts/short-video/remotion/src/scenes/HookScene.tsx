@@ -2,13 +2,14 @@
  * HookScene — the opening "hook" scene template.
  *
  * Maps from hookScene() in lib/scene-templates.mjs.
+ * All font sizes, colors, positions are精确对照 from templateCss().
+ *
  * Two variants: number-led (bigNumber) or claim-led (hookText + revealText).
  * Ignores the `media` field (hook card never has background media).
  */
-import { useCurrentFrame, staticFile, Img } from "remotion";
+import { staticFile, Img } from "remotion";
 import type { SceneData } from "../types";
-import { interpolate, secToFrames, clamp, easeOutExpo } from "../components/shared";
-import { GridBg, Glow, Scanlines, BrandBar, BreakingBadge, StatCard, Slot } from "../components/visuals";
+import { GridBg, Glow, Scanlines, BrandBar, BadgePill, StatCard, Slot, FrameGlow } from "../components/visuals";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 
@@ -22,7 +23,6 @@ const COLORS: Record<string, string> = {
 };
 
 export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene, duration }) => {
-  const frame = useCurrentFrame();
   const txt = scene.texts || {};
   const colorKey = /^(blue|red|amber|green|purple|cyan)$/.test(txt.color as string) ? txt.color as string : "blue";
   const color = COLORS[colorKey] ?? COLORS.blue;
@@ -30,36 +30,51 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      {/* Background layers */}
+      {/* Background layers — CSS: .grid-bg + .glow-tint + .scanlines + .scan-sweep */}
       <GridBg />
-      <Glow color="red" />
+      <div style={{
+        position: "absolute",
+        bottom: -250,
+        left: -200,
+        width: 900,
+        height: 900,
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${color}1a 0%, transparent 60%)`,
+      }} />
       <Scanlines />
       <ScanSweep duration={duration} />
       <BrandBar />
+      <FrameGlow variant="amber" />
 
-      {/* Kicker slot — optional badge */}
+      {/* Kicker slot — optional badge pill (NOT breaking badge) */}
       {txt.badge && (
         <Slot variant="kicker">
-          <BreakingBadge text={txt.badge as string} />
+          <StampIn delay={0.2} duration={0.4}>
+            <BadgePill text={txt.badge as string} />
+          </StampIn>
         </Slot>
       )}
 
       {/* Hero slot — subject row + focal */}
       <Slot variant="hero">
-        {/* Subject row (logo + name) */}
+        {/* Subject row (logo 120px + name 80px) */}
         {(txt.subjectLogo || txt.subject) && (
-          <SlideUp delay={0.3} style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 30 }}>
+          <SlideUp delay={0.2} duration={0.4} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 30 }}>
             {txt.subjectLogo && (
               <Img
                 src={staticFile(`assets/logos/${txt.subjectLogo}.svg`)}
-                style={{ width: 64, height: 64 }}
+                style={{
+                  width: 120,
+                  height: 120,
+                  filter: "drop-shadow(0 0 25px rgba(77,139,255,0.3))",
+                }}
               />
             )}
             {txt.subject && (
               <span style={{
-                fontSize: 56,
-                fontWeight: 800,
-                color: "#cbd5e1",
+                fontSize: 80,
+                fontWeight: 900,
+                color: "#f5f5f5",
                 letterSpacing: "4px",
                 textShadow: `0 0 30px ${color}66`,
               }}>
@@ -69,30 +84,30 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
           </SlideUp>
         )}
 
-        {/* Focal — number-led preferred */}
+        {/* Focal — number-led preferred (300px amber) */}
         {txt.bigNumber ? (
           <div style={{ textAlign: "center" }}>
-            <ScaleIn delay={0.5} duration={0.6} style={{}}>
-              <NumberPulse interval={2}>
-                <div style={{
-                  fontSize: 260,
-                  fontWeight: 900,
-                  color: "#f59e0b",
-                  letterSpacing: "-10px",
-                  lineHeight: 0.9,
-                }}>
-                  {txt.bigNumber as string}
-                </div>
+            <div style={{
+              fontSize: 300,
+              fontWeight: 900,
+              color: "#f59e0b",
+              letterSpacing: "-10px",
+              lineHeight: 0.9,
+              textShadow: "0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3)",
+            }}>
+              <NumberPulse interval={2} color="rgba(245,158,11">
+                {txt.bigNumber as string}
               </NumberPulse>
-            </ScaleIn>
+            </div>
             {txt.numberLabel && (
-              <SlideUp delay={0.8}>
+              <SlideUp delay={0.6} duration={0.5}>
                 <div style={{
-                  fontSize: 52,
+                  fontSize: 48,
                   fontWeight: 800,
                   color: "#f5f5f5",
                   letterSpacing: "3px",
                   marginTop: 12,
+                  textAlign: "center",
                 }}>
                   {(txt.numberLabel as string).replace(
                     txt.numberHighlight as string ?? "",
@@ -107,25 +122,28 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
           </div>
         ) : txt.hookText ? (
           <div style={{ textAlign: "center" }}>
-            <SlideUp delay={0.3}>
-              <div style={{
-                fontSize: 72,
-                fontWeight: 900,
-                color: "#f5f5f5",
-                letterSpacing: "2px",
-                textShadow: `0 0 40px ${color}66`,
-              }}>
-                {txt.hookText as string}
-              </div>
-            </SlideUp>
+            {/* Focal claim — 78px, line-height 1.1 */}
+            <div style={{
+              fontSize: 78,
+              fontWeight: 900,
+              color: "#f5f5f5",
+              letterSpacing: "2px",
+              lineHeight: 1.1,
+              textShadow: `0 0 40px ${color}66`,
+            }}>
+              {txt.hookText as string}
+            </div>
+            {/* Focal reveal — 80px, stampIn at 0.8s */}
             {txt.revealText && (
-              <StampIn delay={0.8}>
+              <StampIn delay={0.8} duration={0.5}>
                 <div style={{
-                  fontSize: 64,
+                  fontSize: 80,
                   fontWeight: 900,
                   color,
-                  letterSpacing: "3px",
+                  letterSpacing: "2px",
+                  lineHeight: 1.05,
                   marginTop: 20,
+                  textAlign: "center",
                 }}>
                   {txt.revealText as string}
                 </div>
@@ -140,7 +158,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
         {stats.length > 0 && (
           <div style={{ display: "flex", gap: 20, justifyContent: "center" }}>
             {stats.map((s, i) => (
-              <SlideUp key={i} delay={0.8 + i * 0.15}>
+              <SlideUp key={i} delay={0.8 + i * 0.15} duration={0.5}>
                 <StatCard
                   num={s.num}
                   unit={s.unit}
@@ -152,17 +170,16 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
           </div>
         )}
         {txt.source && (
-          <SlideUp delay={1.0} style={{ marginTop: 20 }}>
-            <div style={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: "#475569",
-              letterSpacing: "2px",
-              textAlign: "center",
-            }}>
-              {txt.source as string}
-            </div>
-          </SlideUp>
+          <div style={{
+            fontSize: 26,
+            fontWeight: 700,
+            color: "#cbd5e1",
+            letterSpacing: "3px",
+            textAlign: "center",
+            marginTop: stats.length > 0 ? 16 : 0,
+          }}>
+            {txt.source as string}
+          </div>
         )}
       </Slot>
     </div>

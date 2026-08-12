@@ -2,13 +2,12 @@
  * CtaScene — the standard end card.
  *
  * Maps from ctaScene() in lib/scene-templates.mjs.
- * Fixed layout: brand logo → brand name → tagline → action stamp → topic.
- * Ignores the `media` field (CTA never has background media).
+ * All font sizes, colors, positions are精确对照 from templateCss().
  */
 import { staticFile, Img } from "remotion";
 import type { SceneData } from "../types";
-import { GridBg, Glow, Scanlines, Slot } from "../components/visuals";
-import { ScaleIn, StampIn } from "../components/animations/entrance";
+import { GridBg, Glow, Scanlines, Slot, FrameGlow } from "../components/visuals";
+import { ScaleIn, StampIn, FadeIn } from "../components/animations/entrance";
 import { LogoPulse } from "../components/animations/loops";
 
 export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
@@ -22,10 +21,12 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
       <GridBg />
       <Glow color="blue" />
       <Scanlines />
+      <FrameGlow variant="blue" />
 
-      {/* Hero slot — brand logo + name + tagline */}
+      {/* Hero slot — brand logo 130px + name 72px + tagline 32px */}
       <Slot variant="hero">
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          {/* Brand logo — scaleIn 0.6s at 0.1s + logoPulse 3s at 1s */}
           <LogoPulse interval={3}>
             <ScaleIn delay={0.1} duration={0.6}>
               <Img
@@ -39,6 +40,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
             </ScaleIn>
           </LogoPulse>
 
+          {/* Brand name — scaleIn 0.6s at 0.3s, 72px */}
           <ScaleIn delay={0.3} duration={0.6}>
             <div style={{
               fontSize: 72,
@@ -58,24 +60,27 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
             </div>
           </ScaleIn>
 
+          {/* Tagline — fadeIn 0.5s at 0.7s, 32px */}
           {txt.tagline && (
-            <div style={{
-              fontSize: 32,
-              fontWeight: 600,
-              color: "#cbd5e1",
-              letterSpacing: "3px",
-              opacity: 1,
-            }}>
-              {txt.tagline as string}
-            </div>
+            <FadeIn delay={0.7} duration={0.5}>
+              <div style={{
+                fontSize: 32,
+                fontWeight: 600,
+                color: "#cbd5e1",
+                letterSpacing: "3px",
+              }}>
+                {txt.tagline as string}
+              </div>
+            </FadeIn>
           )}
         </div>
       </Slot>
 
-      {/* Support slot — action + topic */}
+      {/* Support slot — action stamp + topic */}
       <Slot variant="support">
+        {/* Action — stampIn 0.5s at 1.0s, 36px amber */}
         {txt.action && (
-          <StampIn delay={1.0}>
+          <StampIn delay={1.0} duration={0.5}>
             <div style={{
               display: "inline-block",
               padding: "20px 40px",
@@ -96,16 +101,19 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
             </div>
           </StampIn>
         )}
+        {/* Topic — fadeIn 0.5s at 1.3s, 36px */}
         {txt.topic && (
-          <div style={{
-            fontSize: 36,
-            fontWeight: 700,
-            color: "#cbd5e1",
-            letterSpacing: "3px",
-            marginTop: 24,
-          }}>
-            {txt.topic as string}
-          </div>
+          <FadeIn delay={1.3} duration={0.5}>
+            <div style={{
+              fontSize: 36,
+              fontWeight: 700,
+              color: "#cbd5e1",
+              letterSpacing: "3px",
+              marginTop: 24,
+            }}>
+              {txt.topic as string}
+            </div>
+          </FadeIn>
         )}
       </Slot>
     </div>

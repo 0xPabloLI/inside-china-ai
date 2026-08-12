@@ -3,6 +3,9 @@
  *
  * These replace the CSS classes in base-styles.mjs and scene-templates.mjs
  * with React components using safe-zones.mjs constants for positioning.
+ *
+ * All values are精确对照 from lib/scene-templates.mjs templateCss() and
+ * lib/base-styles.mjs baseStyles().
  */
 import { type ReactNode } from "react";
 import { staticFile, Img } from "remotion";
@@ -53,6 +56,23 @@ export const Scanlines: React.FC = () => (
   }} />
 );
 
+/** Frame glow — decorative border + inner glow on every scene frame edge. */
+export const FrameGlow: React.FC<{ variant?: "amber" | "blue" }> = ({ variant = "amber" }) => {
+  const c = variant === "blue"
+    ? { border: "rgba(77,139,255,0.2)", shadow: "rgba(77,139,255,0.08)" }
+    : { border: "rgba(245,158,11,0.2)", shadow: "rgba(245,158,11,0.08)" };
+  return (
+    <div style={{
+      position: "absolute",
+      inset: 0,
+      border: `3px solid ${c.border}`,
+      boxShadow: `inset 0 0 40px ${c.shadow}`,
+      pointerEvents: "none",
+      zIndex: 99,
+    }} />
+  );
+};
+
 // ── Brand elements ──
 
 /** Channel brand bar — top-left, below the TikTok nav zone. */
@@ -93,24 +113,19 @@ export const BrandBar: React.FC = () => (
   </div>
 );
 
-/** BREAKING badge — centered at top, red with pulsing dot. */
-export const BreakingBadge: React.FC<{ text?: string }> = ({ text = "BREAKING" }) => (
+/** Badge pill — hook scene badge (NOT the breaking badge). Matches .s-hook .badge-pill. */
+export const BadgePill: React.FC<{ text: string }> = ({ text }) => (
   <div style={{
-    position: "absolute",
-    top: 220,
-    left: "50%",
-    transform: "translateX(-50%)",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
     background: "#ef4444",
     color: "white",
-    padding: "14px 40px",
-    fontSize: 28,
+    padding: "16px 48px",
+    fontSize: 26,
     fontWeight: 900,
     letterSpacing: "4px",
     borderRadius: 8,
-    boxShadow: "0 0 40px rgba(239,68,68,0.6)",
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
   }}>
     <span style={{
       width: 12,
@@ -122,7 +137,7 @@ export const BreakingBadge: React.FC<{ text?: string }> = ({ text = "BREAKING" }
   </div>
 );
 
-/** Stat card — data point with colored top border. */
+/** Stat card — matches .stat-card in templateCss(). */
 export const StatCard: React.FC<{
   num: string;
   unit?: string;
@@ -131,9 +146,9 @@ export const StatCard: React.FC<{
 }> = ({ num, unit, label, color = "#4d8bff" }) => (
   <div style={{
     flex: 1,
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderTop: `4px solid ${color}`,
+    background: "rgba(255,255,255,0.1)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderTop: `5px solid ${color}`,
     borderRadius: 14,
     padding: "24px 20px",
     textAlign: "center",
@@ -153,7 +168,7 @@ export const StatCard: React.FC<{
         fontWeight: 700,
         color: "#cbd5e1",
         letterSpacing: "1px",
-        marginTop: 10,
+        marginTop: 6,
       }}>
         {label}
       </div>
@@ -161,7 +176,7 @@ export const StatCard: React.FC<{
   </div>
 );
 
-/** Channel watermark — top-left corner, outside content band. */
+/** Channel watermark — top-left corner. */
 export const Watermark: React.FC = () => (
   <Img
     src={staticFile("assets/china-ai-news-mark-video.svg")}
@@ -169,9 +184,10 @@ export const Watermark: React.FC = () => (
       position: "absolute",
       top: WATERMARK_POS.top,
       left: WATERMARK_POS.left,
-      width: 40,
-      height: 40,
-      opacity: 0.5,
+      width: 55,
+      height: 55,
+      opacity: 0.35,
+      zIndex: 100,
     }}
   />
 );
