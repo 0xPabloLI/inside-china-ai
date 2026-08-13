@@ -22,7 +22,7 @@
 | Firecrawl 其他功能 | 多种 | 注册免费 | ❌ 不推荐 | ⭐ 不如现有 |
 | last30days-skill | 趋势发现 | ✅ | ✅ 已集成(安全⚠️) | ⭐⭐⭐ 英文社媒 |
 | vercel-labs/agent-skills | 开发/部署 | ✅ | 📋 待评估(安全✅) | ⭐⭐⭐ Vercel+React |
-| emilkowalski/skills (emil-design-eng) | UI/动画 | ✅ | 📋 待评估(安全✅) | ⭐⭐ motion/细节 |
+| emilkowalski/skills (emil-design-eng) | UI/动画 | ✅ | 📋 备选(安全✅) | ⭐⭐ motion/细节 |
 | guizang-ppt-skill | 演示文稿 | ✅ | 📋 待评估(安全⚠️) | ⭐ 备用 |
 | vercel-labs/agent-browser | 浏览器自动化 | ✅ | 📋 待评估(安全⚠️) | ⭐⭐ CDP替代 |
 | anthropics/skills (frontend-design) | UI设计 | ✅ | ✅ 已集成 | ⭐⭐ 新模板美学 |
@@ -248,9 +248,11 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **何时用**：网站 UI 动画打磨、审查动画质量时
 - **何时不用**：视频制作中的动画（这是 web 动画，不是视频动画）
 - **安全审计**：✅ **基本通过** — Gen: Pass / Socket: Pass / Snyk: Pass（emil-design-eng 单项审计结果）
+- **功能评估**：与 impeccable 互补——emil-design-eng 教设计 taste（"为什么好看"），impeccable 执行设计操作（critique/layout/polish）。当前需求是修间距（执行类），不需要 taste 训练。装了 impeccable 已覆盖执行层面
+- **适配评估**：偏 web app UI 动画（React/Vercel/Linear 风格），不直接适用于 Remotion 视频帧。动画原则可参考但不直接可执行
 - **skills.sh 审计页**：`https://skills.sh/emilkowalski/skills/emil-design-eng`
 - **调查日期**：2026-08-11
-- **状态**：📋 待评估（安全✅）
+- **状态**：📋 备选——与 impeccable 互补，当前不需要。需要提升设计直觉时再装
 
 ### guizang-ppt-skill — HTML PPT 生成 ⭐
 
