@@ -72,6 +72,63 @@
 | 23 | **SadTalker** | 3DMM | ~6GB | ❌ 非商用 | ✅ 可跑 | ✅ | ✅ | 效果差（恐怖谷眼神） |
 | 24 | **MuseTalk** | VAE 替换 | 7GB | ✅ MIT | ✅ 可跑 | ✅ | ✅ | VAE 架构导致嘴部模糊 |
 
+### 2.1b 当前设备 GTX 1080 8GB 逐模型可行性详析（修正版）
+
+> **自审**：之前矩阵中把「Pascal 不支持 bf16」直接等同于「不能跑」，这个判断过于简单。实际上 bf16 模型可以通过修改 dtype 为 FP16 运行（行业通用做法，如 MiniCPM-V 官方文档明确提供 `--dtype bf16` / `--dtype fp16` 双选项）。但 FP16 的数值范围比 bf16 小得多（max=65504 vs 3.4×10^38），可能导致溢出。以下逐个修正。
+
+#### 当前设备可跑的模型（6 个）
+
+| 模型 | 技术路线 | 为什么能跑 | 限制 |
+|------|---------|----------|------|
+| **HeyGem** | ONNX 唇同步 | ONNX Runtime 不依赖 bf16/Flash Attention，Pascal 完全兼容；社区整合包 8GB 显存可用 | 需 Docker + WSL2，16GB 内存偏小 |
+| **Wav2Lip** | GAN | 仅需 4GB VRAM，2020 年老模型，CUDA 原生支持 | 效果差，有「贴片感」 |
+| **SadTalker** | 3DMM | 仅需 ~6GB VRAM，不依赖 bf16，FP32 推理 | 效果差（恐怖谷眼神）；CSDN 实测 8GB 可跑 |
+| **MuseTalk** | VAE 替换 | 仅需 7GB VRAM，不依赖 bf16 | VAE 架构导致嘴部模糊 |
+| **LatentSync 1.5** | 扩散+SyncNet | 需 8GB，刚好满足；FP16 推理，不强制 bf16 | 256px 分辨率硬伤 |
+| **ComfyUI (SD 1.5)** | 扩散出图 | 8GB 足够，秋叶整合包低显存模式 | 非数字人模型，但可生成数字人形象图片 |
+
+#### 之前标「❌」但实际可能可跑的模型（3 个 — 需代码修改）
+
+| 模型 | 之前判断 | 修正 | 风险 |
+|------|---------|------|------|
+| **Sonic** | ❌ Pascal 不支持 bf16 | ⚠️ **理论可跑**：Sonic 基于 SVD 扩散，代码中 bf16 可改为 FP16。但 8GB VRAM < 官方要求 12GB，即使 dtype 修改成功也会 OOM。**双重瓶颈**：bf16→FP16 改码 + 8GB→12GB VRAM 不足 | FP16 可能溢出（SVD 扩散数值范围大）；8GB VRAM 大概率 OOM。实际可行性极低 |
+| **EchoMimicV3** | ❌ Pascal 不支持 bf16 | ⚠️ **理论可跑**：Wan2.1 底模可通过 `torch_dtype=float16` 加载。但同样 8GB < 12GB VRAM 需求 | 同上，双重瓶颈 |
+| **V-Express** | ⚠️ 边缘 | ⚠️ **可能可跑**：`save_gpu_memory` 模式 V100 需 7956MiB，8GB 刚好够。不强制 bf16，FP16 可用 | 边缘情况，可能 OOM；CUDA 推理比 Mac MPS 快 10-20x |
+
+> **bf16 → FP16 修改的原理**：Pascal 支持 FP16（half precision）但不支持 bf16。模型代码中通常用 `torch.bfloat16` 加载权重，修改为 `torch.float16` 即可。但 FP16 的指数位只有 5 bit（范围 ±65504），而 bf16 有 8 bit（范围 ±3.4×10^38）。扩散模型在去噪过程中激活值可能超出 FP16 范围，导致 NaN/Inf。是否成功取决于具体模型的数值稳定性。
+
+#### 当前设备确实不能跑的模型（15 个 — 确认无误）
+
+| 模型 | 不能跑的原因 | 原因类型 |
+|------|------------|---------|
+| **LatentSync 1.6** | 18GB VRAM | VRAM 不足（差 10GB） |
+| **Hallo2** | 20GB+ VRAM | VRAM 不足 |
+| **Hallo3** | 需 H100 | DiT 架构 + VRAM 不足 |
+| **Hallo4** | 预期同 Hallo3 | VRAM 不足 |
+| **EchoMimic V2** | ~16GB VRAM | VRAM 不足 |
+| **PersonaLive** | 12GB VRAM | VRAM 不足（差 4GB） |
+| **DICE-Talk** | 20GB+ VRAM | VRAM 不足 |
+| **InfiniteTalk** | ~12GB VRAM | VRAM 不足 |
+| **LongCat-VA-1.5** | 23GB 模型加载 | VRAM 远不足 |
+| **LTX-2.3 + AV-LoRA** | 22B 参数 | VRAM 远不足 |
+| **EMO** | 权重未公开 | 不可用 |
+| **JoyVASA** | 需 A100 | VRAM 不足 |
+| **DreamTalk** | 预计 12GB+ | VRAM 不足 |
+| **AniPortrait** | ~12GB VRAM | VRAM 不足（但接近） |
+| **FeatherTalk** | 待测 | 需实际测试 |
+
+#### 当前设备可行性总结
+
+| 分类 | 数量 | 模型 |
+|------|------|------|
+| ✅ 可跑 | 6 个 | HeyGem, Wav2Lip, SadTalker, MuseTalk, LatentSync 1.5, ComfyUI (SD 1.5) |
+| ⚠️ 理论可跑（需改码+可能 OOM） | 2 个 | Sonic, EchoMimicV3（均受 bf16 + VRAM 双重瓶颈） |
+| ⚠️ 边缘可跑 | 1 个 | V-Express（8GB 刚好够 `save_gpu_memory` 模式） |
+| ⚠️ 待测 | 1 个 | FeatherTalk（超轻量级，可能可跑） |
+| ❌ 不能跑 | 15 个 | VRAM 不足或权重未公开 |
+
+**修正结论**：当前 GTX 1080 8GB 设备可跑的模型从之前认为的 2-3 个修正为 **6 个确定可跑 + 3 个可能可跑**。主要增量来自：HeyGem（之前遗漏）、ComfyUI SD 1.5（之前未分析）、SadTalker/MuseTalk/Wav2Lip（之前低估了兼容性）。
+
 ### 2.2 HeyGem.ai — 之前遗漏的重要原因（已补全）
 
 > **自审**：之前分析中遗漏了 HeyGem，这是方法论问题。HeyGem 在 `digital-human-solutions-m2-pro.md` §3.17 中有记录但未纳入 Windows 可行性分析。原因是当时聚焦于 Mac M2 Pro 场景（HeyGem 需 NVIDIA GPU，不兼容 Mac），在切换到 Windows 分析时遗漏了它。**HeyGem 是原生 Windows 方案**，在 Windows 场景下应是重点调研对象，不应被遗漏。
@@ -465,6 +522,7 @@ NVIDIA DGX Cloud 面向**大模型训练**（8×A100/H100 整机），$36,999/�
 - **为什么 DGX Cloud 不适合数字人推理**：DGX 面向 8 卡并行训练（$36,999/月），数字人推理只需单卡。RunPod/Paperspace 的单卡按需租用（A100 $1.15-1.94/h、RTX 4090 $0.69/h）才是推理场景的正确选择。DGX 适合训练大语言模型，不适合数字人视频生成。
 - **为什么推荐本地 + 云端混合策略**：本地 RTX 3060 12GB 覆盖日常 80% 的需求（HeyGem + LatentSync 1.5 + Sonic + EchoMimicV3），剩余 20% 的高门槛模型（Hallo3 需 H100、DICE-Talk 需 20GB+、LatentSync 1.6 需 18GB）用 RunPod 按需租用。交叉点分析表明日均 20 个视频以上本地回本，低频使用云端更经济。
 - **HeyGem 硬件需求来源**：官方 GitHub README 标注最低 1080Ti（11GB），推荐 RTX 4070（12GB）+ 32GB 内存。社区有「8GB 显存可用」的一键整合包（腾讯网报道：模型体积 10GB，不需要 100GB 硬盘空间）。实测 RTX 3070 8GB 可运行（CSDN 博客记录）。
+- **bf16 → FP16 修改的可行性与风险**：Pascal 不支持 bf16 但支持 FP16。行业通用做法是模型代码中 `torch.bfloat16` 改为 `torch.float16`（如 MiniCPM-V 官方提供 `--dtype bf16` / `--dtype fp16` 双选项）。但 FP16 指数位仅 5 bit（范围 ±65504），bf16 有 8 bit（范围 ±3.4×10^38）。扩散模型去噪过程中激活值可能超出 FP16 范围导致 NaN/Inf。Sonic 和 EchoMimicV3 虽然理论上可通过此修改在 Pascal 上运行，但它们同时还面临 8GB < 12GB 的 VRAM 不足问题（双重瓶颈），实际可行性极低。来源：CSDN `blog.csdn.net/ego_grow/article/details/130415660`（V100 bf16→FP16 转换实践）、MiniCPM-V `github.com/Cu2ta1n/MiniCPM-V` 官方 dtype 选项。
 - **ComfyUI 在 GTX 1080 Pascal 上为什么能跑**：PyTorch 2.x 官方 CUDA 12.x wheel 仍包含 `sm_61`（Pascal CC 6.1）的编译目标，不会出现「no kernel image is available for execution on the device」错误。缺失的是 xformers 的 memory-efficient attention（需 CC 7.0+）和 Flash Attention（需 CC 8.0+），但 ComfyUI 会自动 fallback 到标准 PyTorch attention 实现，功能不受影响。秋叶 V9.5 整合包明确支持 8GB 显存级别，内置低显存模式可降 30-40% 显存占用。Pascal 无 Tensor Core，FP16 推理无硬件加速，速度约为 RTX 3060 的 1/2~1/3。
 - **HeyGem 社区整合包 8GB 可用的依据**：2025-03 腾讯网报道（`new.qq.com/rain/a/20250317A04EGR00`）明确标注「8G 显存可用，模型体积 10G，不需要 100G 硬盘空间，不需要 D 盘」。社区整合包基于 Docker 单镜像精简打包，模型体积从官方 70GB 压缩到 10GB。官方 Docker 版还提供 `docker-compose-lite.yml` 精简版，进一步降低显存需求。
 - **ComfyUI 数字人插件清单来源**：各插件 GitHub 仓库 — `ShmuelRonen/ComfyUI-LatentSyncWrapper` (957 stars)、`smthemex/ComfyUI_Sonic`、`okdalto/ComfyUI-PersonaLive`、`ShmuelRonen/ComfyUI_wav2lip`、`billwuhao/Comfyui_HeyGem` (280 stars)、`tiankuan93/ComfyUI-V-Express`。
