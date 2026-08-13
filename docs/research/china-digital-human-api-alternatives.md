@@ -132,15 +132,16 @@
 ## 3. 与 D-ID / HeyGen / 其他国际平台对比
 
 > **修正**：之前文档中 D-ID $0.05/min 是错误的。实际 D-ID Lite 为 $0.59/min。
+> **再修正（2026-08-13）**：D-ID 计费方式为 **Credit 制**，不是直接按分钟。Trial 账户用完 Credit 后返回 `InsufficientCreditsError: not enough credits`。已用 71 秒/6 次调用，Trial Credit 已耗尽。
 
 ### 3.1 国际平台定价（2026-08 查证）
 
-| 平台 | 计划 | 月费 | 包含时长 | 每分钟成本 | 源 |
-|------|------|------|---------|-----------|---|
-| **D-ID** | Trial | $0 | 5 min（一次性） | 免费 | API 确认 deid-trial |
-| **D-ID** | Lite | $5.9 | 10 min/月 | **$0.59/min** | d-id.com/pricing |
-| **D-ID** | Pro | $29 | 15 min/月 | $1.93/min | d-id.com/pricing |
-| **D-ID** | Advanced | $197 | 30 min/月 | $6.57/min | d-id.com/pricing |
+| 平台 | 计划 | 月费 | 包含额度 | 计费方式 | 备注 |
+|------|------|------|---------|---------|------|
+| **D-ID** | Trial | $0 | 5 min Credit（一次性） | **Credit 制** | 用完返回 InsufficientCreditsError |
+| **D-ID** | Lite | $5.9 | 10 min/月 | Credit→分钟 | FAQ: "分钟从计划中扣除" |
+| **D-ID** | Pro | $29 | 15 min/月 | Credit→分钟 | 同上 |
+| **D-ID** | Advanced | $197 | 30 min/月 | Credit→分钟 | 同上 |
 | **Hedra** | Free | $0 | 有限 | — | hedra.com/pricing |
 | **Hedra** | Basic | $15 | 1500 credits (4.17 min) | $3.60/min | hedra.com/pricing |
 | **Hedra** | Creator | $30 | 5400 credits (15 min) | $2.00/min | hedra.com/pricing |
@@ -149,7 +150,24 @@
 | **Tavus** | Growth | $397 | 100 min video gen | $3.97/min | tavus.io/pricing |
 | **HeyGen** | — | — | — | ~$0.3-1/min | 之前测试 |
 
-### 3.2 中国平台对比
+### 3.3 硅基流动（SiliconFlow）调研
+
+> **澄清**：用户说的"硅基智能"实际是"硅基流动"（SiliconFlow, siliconflow.cn）— 中国最大的 AI API 代理/Token Proxy 平台。
+
+- **平台性质**：AI API 代理（Token Proxy），代理多家厂商的 LLM、图像、视频模型
+- **视频模型**：
+  - Wan2.2-T2V-A14B（文生视频）：¥2/个
+  - Wan2.2-I2V-A14B（图生视频）：¥2/个
+  - 这些是**通用视频生成**，**不是数字人/唇形同步**
+- **数字人模型**：❌ **没有**。SiliconFlow 不提供音频驱动的数字人模型
+- **结论**：SiliconFlow 无法直接做数字人视频。它是一个 API 代理平台，不是数字人平台
+- **我们有的 API Key**：`.env.local` 中只有 `DID_API_KEY` 和 `HEYGEN_API_KEY`，没有 SiliconFlow Key
+
+**真正的中国数字人 API 平台**（非 Token Proxy）：
+- 硅基智能（guiji.ai）— 专门的数字人公司，但网站无法访问（可能被墙或需要国内网络）
+- 火山引擎（字节跳动）— 数字人 + TTS
+- 科大讯飞 — 数字人 + TTS
+- 这些都需要企业认证
 
 | 维度 | D-ID Lite | Hedra Creator | Tavus Growth | 火山引擎 | 硅基智能 |
 |------|----------|-------------|------------|---------|---------|

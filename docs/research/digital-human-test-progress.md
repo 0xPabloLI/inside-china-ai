@@ -204,6 +204,8 @@
 - **预估总时间**：25 steps × 16 context × 17min = ~6800 分钟 = **~4.7 天**
 - **根本问题**：reference_net + denoising_unet 双网络<UNK>络前向传播 + 3D motion module，MPS 计算量远超 Hallo2
 - **对比 Hallo2**：Hallo2 单 UNet 1.6s/step，V-Express 双 UNet 1058s/step（660x 慢）
+- **硬件需求**：需要 **NVIDIA V100 GPU**（8GB VRAM，`--save_gpu_memory` 模式），31 秒音频需 7956MiB 峰值显存，处理时间 2617 秒（~44 分钟）。在 Apple Silicon MPS 上完全不可用。
+- **适合的设备**：NVIDIA RTX 3090/4090（24GB VRAM）、A100、V100
 - **清理**：已删除（7GB）
 
 ### ✅ LongCat-Video-Avatar-1.5 MLX q4 — 首个在 M2 Pro 上成功的本地模型！
@@ -236,6 +238,14 @@
   - 测试用户照片 + F5-TTS 中文音频
   - 考虑 q8 量化（更好的质量，31GB）
 
+#### 微信真人照片测试（2026-08-13）
+
+- **输入**：微信照片 `Weixin Image_2026-08-10_003535_660.jpg` + LongCat demo `man.mp3`
+- **推理**：1334.2 秒（22 分钟），29 帧，432×256
+- **输出**：`scripts/short-video/assets/longcat-weixin-test.mp4`
+- **结论**：LongCat 接受**图片输入**（非视频），可直接用任意人像照片生成数字人视频
+- **Prompt**："A Chinese man in a suit is speaking on camera, professional setting."
+
 ### ⚠️ EchoMimicV3 — 下载阻塞
 
 - **日期**：2026-08-12
@@ -257,6 +267,10 @@
   - 使用 PyTorch (MPS) — 需验证 MPS 兼容性
   - 中文 Wav2Vec2 — 原生中文支持
 - **后续**：网络稳定后重试下载，或考虑用云 GPU 测试
+- **直接下载链接**（可手动下载）：
+  - VAE: `https://huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/resolve/main/Wan2.1_VAE.pth`（484MB）
+  - umT5: `https://huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/resolve/main/models_t5_umt5-xxl-enc-bf16.pth`（10.8GB）
+  - 镜像: 在 URL 中把 `huggingface.co` 换成 `hf-mirror.com`
 
 ### 📋 PersonaLive（未测，低优先级）
 
