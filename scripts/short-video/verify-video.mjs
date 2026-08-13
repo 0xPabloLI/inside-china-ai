@@ -325,11 +325,7 @@ if (scenesWithMedia.length > 0) {
   for (const scene of scenesWithMedia) {
     const mediaResult = validateMedia(scene.media, CONTENT_DIR_ABS);
     if (mediaResult.valid) {
-      pass(
-        "Media",
-        `Scene ${scene.id} media valid`,
-        `${scene.media.type}: ${scene.media.path}`,
-      );
+      pass("Media", `Scene ${scene.id} media valid`, `${scene.media.type}: ${scene.media.path}`);
     } else {
       for (const err of mediaResult.errors) {
         fail("Media", `Scene ${scene.id} media error`, err);
@@ -386,6 +382,29 @@ if (!preMode) {
       "File not found",
       "Run force-align.py after TTS generation",
     );
+  }
+}
+
+// ─── Post-render: Remotion frame analysis (automated visual verification) ───
+if (!preMode && results.fail.length === 0) {
+  const isRemotion = meta?.renderer === "remotion";
+  if (isRemotion && existsSync(VIDEO_PATH)) {
+    console.log("\n🖼️ Remotion Frame Analysis");
+    console.log("─".repeat(50));
+    try {
+      execSync(
+        `node "${join(__dirname, "verify-remotion-frames.mjs")}" --content "${contentDir}" --video "${VIDEO_PATH}"`,
+        { stdio: "inherit" },
+      );
+      pass("Frames", "Frame analysis passed", "");
+    } catch {
+      fail(
+        "Frames",
+        "Frame analysis passed",
+        "Frame analysis reported failures (see output above)",
+        "Fix layout issues in Remotion components or scene-data",
+      );
+    }
   }
 }
 
