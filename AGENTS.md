@@ -33,9 +33,9 @@
 
 1. **Decision: which workflow?**
    - **Lightweight**（检查、解释、常规工作）：直接进行，不需要加载额外 skill。
-   - **Content Creation**（用已有模板做视频内容）：轻量流程，见下方 Content Creation Workflow。不走 Spec/Tickets/TDD。
    - **UI/UX 设计任务**: 用 `impeccable` skill。
-   - **Substantial implementation**（改基础设施：渲染引擎、模板、组件、管线代码）：按以下 Mandatory Implementation Workflow 执行。
+   - **做视频内容**（写 scene-data、跑管线、发布）：走 `docs/content-pipeline.md`，不走 Spec/Tickets/TDD。改视频管线代码（`lib/`、`remotion/src/`）则走 Substantial。
+   - **Substantial implementation**（改 repo 基础代码：`src/`、`supabase/`、`scripts/short-video/lib/`、`remotion/src/`）：按以下 Mandatory Implementation Workflow 执行。
 2. **Git safety**: never run `stash` related commands without explicit user confirmation in current chat. `checkout`/`switch` 分支切换见 Cross-Branch Workflow（绝对禁止）。
 3. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
 4. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
@@ -80,10 +80,6 @@
 **Smart Zone**：~150k tokens（v1.2 更新）。模型在此窗口内推理最锐利。如果 session 在 `/to-tickets` 前接近 smart zone，在最近的 phase boundary 做 `/compact`。
 
 **规则**：mid-phase 不做 context 切换决策——Continue 或把剩余工作 split 成 subagents。只在 phase boundary 做决策。
-
-### Content Creation Workflow（内容创作轻量流程）
-
-用已有模板做视频内容时走 `docs/content-pipeline.md` 的 Stage 3-5，不走 Spec/Tickets/TDD。模板和渲染引擎的改动走 Substantial Implementation Workflow。
 
 ## Commit Cadence (并行 agent 安全)
 
@@ -190,7 +186,7 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Web Scraping & Content Fetching
 
-默认用 `web-access` skill（连接本地 Chrome，有 session/cookie，反爬检测率低）。已知 URL 静态提取用 `web_fetch` 工具。Deep Research（多源交叉验证 + 引用）用 `web-deep-research` skill，触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。Playwright headless 不推荐（无 session/cookie，反爬检测率高）。
+默认用 `web-access` skill（连接本地 Chrome，有 session/cookie，反爬检测率低）。已知 URL 静态提取用 `web_fetch` 工具。`web_fetch`/`curl` 失败或被墙时，立即 fallback 到 `web-access` skill，不要反复尝试。Deep Research（多源交叉验证 + 引用）用 `web-deep-research` skill，触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。Playwright headless 不推荐（无 session/cookie，反爬检测率高）。
 
 **Skills/Tools 目录**：所有可用工具和候选 skill 的完整清单在 `docs/skills-catalog.md`（不在 RAG 索引范围内，Agent 直接读取）。包含：已集成工具说明、候选 skill 评估、安全审计结果、任务→工具决策表、Skill 评估流程（4 步强制流程）、安全审计工具参考。需要找工具或评估新 skill 时先查此文档。
 
