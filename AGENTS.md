@@ -188,6 +188,8 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 **Skills/Tools 目录**：所有可用工具和候选 skill 的完整清单在 `docs/skills-catalog.md`（不在 RAG 索引范围内，Agent 直接读取）。包含：已集成工具说明、候选 skill 评估、安全审计结果、任务→工具决策表、Skill 评估流程（4 步强制流程）、安全审计工具参考。需要找工具或评估新 skill 时先查此文档。
 
+> **Skill 入库强制规则**：往 `docs/skills-catalog.md` 加入任何新候选 skill 时，必须同步走完 4 步评估流程（安全审计 → 功能评估 → 试用验证 → 记录）。不能"先加进去以后再评估"。试用验证可跳过（如需账号/硬件），但必须标注跳过原因。流程详见 `docs/skills-catalog.md` 的「Skill 评估流程」章节。
+
 ## Agent skills
 
 ### Issue tracker
