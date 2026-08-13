@@ -14,7 +14,13 @@ import { fade } from "@remotion/transitions/fade";
 import type { ShortVideoProps, SceneData } from "./types";
 import { HookScene } from "./scenes/HookScene";
 import { CtaScene } from "./scenes/CtaScene";
-import { MediaBackground } from "./components/MediaBackground";
+import { NarrativeScene } from "./scenes/NarrativeScene";
+import { DataScene } from "./scenes/DataScene";
+import { InfoCardScene } from "./scenes/InfoCardScene";
+import { QuoteScene } from "./scenes/QuoteScene";
+import { ContextScene } from "./scenes/ContextScene";
+import { ContrastScene } from "./scenes/ContrastScene";
+import { StatRevealScene } from "./scenes/StatRevealScene";
 import { FPS, secToFrames, sceneClipFrames, sceneClipDuration } from "./components/shared";
 
 /** Dispatch a scene to its React component based on visualType. */
@@ -26,19 +32,24 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
       return <HookScene {...common} />;
     case "cta":
       return <CtaScene {...common} />;
+    case "narrative":
+      return <NarrativeScene {...common} contentDir={contentDir} />;
+    case "data":
+      return <DataScene {...common} />;
+    case "info-card":
+      return <InfoCardScene {...common} contentDir={contentDir} />;
+    case "quote":
+      return <QuoteScene {...common} />;
+    case "context":
+      return <ContextScene {...common} />;
+    case "contrast":
+      return <ContrastScene {...common} />;
+    case "stat-reveal":
+      return <StatRevealScene {...common} />;
     default:
-      // Unknown visualType — render a placeholder (future tickets add more types)
-      return (
-        <AbsoluteFill style={{ backgroundColor: "#0a0a14", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ color: "#cbd5e1", fontSize: 48, fontWeight: 800 }}>
-            visualType: {scene.visualType} (not yet implemented)
-          </div>
-          {/* MediaBackground for non-hook/cta scenes */}
-          {scene.media && (
-            <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
-          )}
-        </AbsoluteFill>
-      );
+      // Fallback: render as narrative (most generic)
+      console.warn(`Unknown visualType: ${scene.visualType}, using NarrativeScene`);
+      return <NarrativeScene {...common} contentDir={contentDir} />;
   }
 }
 

@@ -74,9 +74,38 @@ export function renderRemotion({
     return `audio/${filename}`; // relative to public/ for staticFile()
   });
 
+  // ── 2b. Copy media files (from scene.media.path) to remotion/public/assets/ ──
+  // MediaBackground.tsx uses staticFile(media.path) which resolves relative to public/
+  // Content media files live in content/{slug}/assets/ — copy them to public/assets/
+  // Note: public/assets may be a symlink to ../../assets — that's fine, files go there
+  const publicAssetsDir = join(REMOTION_DIR, "public", "assets");
+  if (!existsSync(publicAssetsDir)) {
+    mkdirSync(publicAssetsDir, { recursive: true });
+  }
+  // Deep clone scenes to avoid mutating the original objects
+  const sanitizedScenes = scenes.map((s) => ({ ...s }));
+  for (const scene of sanitizedScenes) {
+    if (scene.media && scene.media.path) {
+      const mediaSrc = join(contentDir || ".", scene.media.path);
+      if (existsSync(mediaSrc)) {
+        const filename = basename(scene.media.path);
+        const mediaDest = join(publicAssetsDir, filename);
+        if (!existsSync(mediaDest)) {
+          copyFileSync(mediaSrc, mediaDest);
+          console.log(`  📸 Copied media: ${scene.media.path}`);
+        }
+        // Rewrite path to just the filename (relative to public/assets/)
+        scene.media = { ...scene.media, path: filename };
+      } else {
+        console.warn(`  ⚠️  Media file not found: ${scene.media.path} — stripping media from scene ${scene.id}`);
+        delete scene.media;
+      }
+    }
+  }
+
   // ── 3. Construct props ──
   const props = {
-    scenes,
+    scenes: sanitizedScenes,
     audioPaths: audioPublicPaths,
     durations,
     contentDir,

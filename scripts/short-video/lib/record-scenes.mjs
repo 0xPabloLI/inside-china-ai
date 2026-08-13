@@ -24,15 +24,16 @@ export async function recordScenes(scenes, outputDir) {
 
     const page = await context.newPage();
 
-    // Load the HTML scene
+    // Load the HTML scene.
+    // Use domcontentloaded (not networkidle) because pages with <video>
+    // elements never reach networkidle — the video keeps buffering.
     await page.goto(`file://${scene.htmlPath}`, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
     });
 
     // If the scene contains a <video> element (media background), wait for
     // it to reach HAVE_CURRENT_DATA (readyState >= 2) before recording so
-    // the first frames aren't blank. Timeout after 5s — degrade gracefully
-    // (record without video rather than blocking the pipeline).
+    // the first frames aren't blank. Timeout after 10s — degrade gracefully.
     const hasVideo = await page
       .evaluate(() => !!document.querySelector("video"))
       .catch(() => false);
@@ -43,13 +44,16 @@ export async function recordScenes(scenes, outputDir) {
             const v = document.querySelector("video");
             return v && v.readyState >= 2;
           },
-          { timeout: 5000 },
+          { timeout: 10000 },
         )
         .catch(() => {
           console.warn(
-            `  ⚠️  Scene ${scene.sceneId}: <video> not ready after 5s, recording without video background`,
+            `  ⚠️  Scene ${scene.sceneId}: <video> not ready after 10s, recording without video background`,
           );
         });
+    } else {
+      // Non-video scenes: wait for networkidle or 3s timeout
+      await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
     }
 
     // Small buffer for rendering to settle, then wait for animation duration

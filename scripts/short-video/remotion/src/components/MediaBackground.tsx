@@ -1,93 +1,100 @@
 /**
  * MediaBackground — image/video background with 5 animation presets.
  *
- * Consumes the `media` field from scene-data.mjs (data contract from
- * lib/media-bg.mjs, commit 0156089). Renders with Remotion <Img>/<Video>
- * + interpolate() instead of CSS keyframes.
+ * Enhanced entrance/exit animations:
+ *   - fade: opacity + slight scale-up (1.0→1.03) + slight translateY
+ *   - ken-burns: slow continuous zoom (1.0→1.12) + pan + fade in/out
+ *   - slide: translateX + blur-to-sharp transition + fade
+ *   - zoom: dramatic scale (1.3→1.0 in, 1.0→1.15 out) + fade
+ *   - none: static, no animation
  *
- * Presets: fade, ken-burns, slide, zoom, none
+ * All presets have:
+ *   - Entrance: opacity 0→1 with preset-specific motion
+ *   - Sustained: preset-specific continuous motion (or static)
+ *   - Exit: opacity 1→0 with slight upward drift (all presets)
+ *
  * Rules:
  *   - Hook/CTA scenes ignore media (checked by caller, not here)
- *   - File not found → warn + render nothing (graceful degradation)
  *   - ken-burns + video → auto-degrade to fade
+ *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
 import { useCurrentFrame, staticFile, Img, Video } from "remotion";
-import { interpolate, secToFrames, clamp, FPS } from "./shared";
+import { interpolate, secToFrames, clamp, easeOut, easeOutExpo } from "./shared";
 import type { MediaField } from "../types";
 
-// Animation timing (seconds) — matches lib/media-bg.mjs ANIM_TIMING
+// Animation timing (seconds)
 const TIMING: Record<string, { in: number; out: number }> = {
-  fade: { in: 0.8, out: 0.5 },
-  "ken-burns": { in: 0.8, out: 0.5 },
-  slide: { in: 0.6, out: 0.4 },
-  zoom: { in: 0.5, out: 0.5 },
+  fade: { in: 0.8, out: 0.6 },
+  "ken-burns": { in: 1.0, out: 0.6 },
+  slide: { in: 0.7, out: 0.5 },
+  zoom: { in: 0.6, out: 0.5 },
   none: { in: 0, out: 0 },
-};
-
-// Scale params — matches lib/media-bg.mjs ANIM_SCALE
-const SCALE: Record<string, { start: number; mid: number; end: number }> = {
-  "ken-burns": { start: 1.0, mid: 1.04, end: 1.08 },
 };
 
 interface Props {
   media: MediaField;
-  duration: number; // scene duration in seconds
-  contentDir: string; // absolute path to the content directory
+  duration: number;
+  contentDir: string;
 }
 
-export const MediaBackground: React.FC<Props> = ({ media, duration, contentDir }) => {
+export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
   const frame = useCurrentFrame();
-
-  // Resolve file path — file existence is pre-validated by render-remotion.mjs
-  // (browser environment can't access fs). If file is missing, <Img>/<Video>
-  // will simply fail to load (graceful degradation).
 
   // Determine preset (ken-burns + video → degrade to fade)
   let preset = media.animation ?? "fade";
   if (preset === "ken-burns" && media.type === "video") {
     preset = "fade";
   }
+  if (!TIMING[preset]) preset = "fade";
 
-  const timing = TIMING[preset] ?? TIMING.fade;
+  const timing = TIMING[preset];
   const overlay = media.overlay ?? 0.7;
   const totalFrames = secToFrames(duration);
   const inFrames = secToFrames(Math.min(timing.in, duration / 2));
   const outFrames = secToFrames(Math.min(timing.out, duration / 2));
+  const outStart = totalFrames - outFrames;
 
-  // Compute animation values
   const src = staticFile(media.path.startsWith("assets/") ? media.path : `assets/${media.path}`);
 
-  // Opacity for all presets (fade in/out)
+  // ─── Opacity (all presets except none) ───
   const opacity = preset === "none"
     ? 1
-    : interpolate(
-        frame,
-        [0, inFrames, totalFrames - outFrames, totalFrames],
-        [0, 1, 1, 0],
-        clamp,
-      );
+    : interpolate(frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp);
 
-  // Scale for ken-burns (continuous zoom 1.0→1.08)
-  const scale = preset === "ken-burns"
-    ? interpolate(frame, [0, totalFrames], [SCALE["ken-burns"].start, SCALE["ken-burns"].end], clamp)
-    : preset === "zoom"
-    ? interpolate(
-        frame,
-        [0, inFrames, totalFrames - outFrames, totalFrames],
-        [1.2, 1.0, 1.0, 1.1],
-        clamp,
-      )
-    : 1;
+  // ─── Preset-specific transforms ───
 
-  // TranslateX for slide
-  const translateX = preset === "slide"
-    ? interpolate(
-        frame,
-        [0, inFrames, totalFrames - outFrames, totalFrames],
-        ["100%", "0%", "0%", "-100%"],
-        clamp,
-      )
-    : "0%";
+  let scale = 1;
+  let translateX = "0px";
+  let translateY = "0px";
+  let filter = "none";
+
+  if (preset === "fade") {
+    // Gentle scale-up throughout + slight drift up on exit
+    scale = interpolate(frame, [0, totalFrames], [1.0, 1.05], clamp);
+    translateY = interpolate(frame, [outStart, totalFrames], [0, -30], clamp) + "px";
+  } else if (preset === "ken-burns") {
+    // Slow continuous zoom + pan
+    scale = interpolate(frame, [0, totalFrames], [1.0, 1.12], clamp);
+    translateX = interpolate(frame, [0, totalFrames], [-20, 20], clamp) + "px";
+    translateY = interpolate(frame, [0, totalFrames], [10, -10], clamp) + "px";
+  } else if (preset === "slide") {
+    // Slide in from right + slide out to left
+    const xPercent = interpolate(frame, [0, inFrames, outStart, totalFrames], [100, 0, 0, -100], clamp);
+    translateX = `${xPercent}%`;
+    // Blur during entrance, sharp when settled
+    const blurAmount = interpolate(frame, [0, inFrames], [8, 0], clamp);
+    filter = `blur(${blurAmount}px)`;
+    // Slight scale for depth
+    scale = interpolate(frame, [0, inFrames, outStart, totalFrames], [1.1, 1.0, 1.0, 1.05], clamp);
+  } else if (preset === "zoom") {
+    // Dramatic zoom in (1.3→1.0), then zoom out on exit (1.0→1.15)
+    scale = interpolate(
+      frame,
+      [0, inFrames, outStart, totalFrames],
+      [1.3, 1.0, 1.0, 1.15],
+      { ...clamp, easing: easeOutExpo },
+    );
+  }
 
   const mediaStyle: React.CSSProperties = {
     position: "absolute",
@@ -96,23 +103,27 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, contentDir }
     height: "100%",
     objectFit: "cover",
     opacity,
-    scale: `${scale}`,
-    transform: translateX !== "0%" ? `translateX(${translateX})` : undefined,
+    transform: `translate(${translateX}, ${translateY}) scale(${scale})`,
+    filter: filter !== "none" ? filter : undefined,
   };
+
+  // Overlay also fades in/out slightly for smoother transitions
+  const overlayOpacity = preset === "none"
+    ? overlay
+    : interpolate(frame, [0, inFrames * 0.5, outStart, totalFrames], [0, overlay, overlay, overlay * 0.3], clamp);
 
   return (
     <>
-      {/* Media layer */}
       {media.type === "image" ? (
         <Img src={src} style={mediaStyle} />
       ) : (
-        <Video src={src} style={mediaStyle} />
+        <Video src={src} style={mediaStyle} volume={0.08} />
       )}
-      {/* Dark overlay for text readability */}
       <div style={{
         position: "absolute",
         inset: 0,
-        background: `rgba(10, 10, 20, ${overlay})`,
+        background: `rgba(10, 10, 20, ${overlayOpacity})`,
+        transition: "background 0.3s",
       }} />
     </>
   );
