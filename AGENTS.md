@@ -97,16 +97,14 @@
 ### 工作流速查
 
 ```bash
-# 一次 commit 的标准流程
 npm run lint && npx tsc --noEmit && npm run build
-git add <自己改的具体路径>
+git add <具体路径>  # 绝不 git add -A / .
 git commit -m "type(scope): message"
 git push
 
-# 同任务发现问题,amend（仅限未 push 或非 Lovable 连接分支）
-git add <修改路径>
+# amend（仅限未 push 或非 Lovable 连接分支）
 git commit --amend --no-edit
-git push --force-with-lease   # 仅限改写历史场景
+git push --force-with-lease
 ```
 
 ## PR / Merge Guardrails
@@ -130,7 +128,7 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 
 - TypeScript + functional React components/hooks；2-space indentation；`PascalCase` for components/types, `camelCase` for vars/functions。
 - React Query `useQuery` 的 `useState` 初始化陷阱：当组件依赖 query 数据初始化 state 时，必须确保数据就绪后再挂载组件（或在 `useEffect` 中同步），避免 `useState` 初始值只在首次挂载生效导致数据丢失。
-- **Agent 消费文档写作**：编辑 `docs/` 下 agent 消费的文档时，先加载 `writing-for-agents` skill。执行文档只写"做什么、用什么参数"；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 "Design Decisions & References" 索引指向它们。
+- **Agent 消费文档写作**：编辑 `docs/` 下 agent 消费的文档时（含 AGENTS.md 自身），先加载 `writing-for-agents` skill 并遵循其原则（single source of truth、progressive disclosure、no duplication）。执行文档只写"做什么、用什么参数"；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 "Design Decisions & References" 索引指向它们。
 - **文档审查三查**：压缩或审查 agent 文档时必须做三类检查：(1) **跨章节矛盾**——同一规则在不同章节的限定词是否一致（如"需要确认" vs "永远不要"）；(2) **指针目标完整性**——被压缩内容的每个信息点在指针目标处是否有对应（不是"目标存在就行"，而是"逐字段覆盖"）；(3) **文件存在性**——引用的文件是否真实存在（用 `ls` 验证）。
 
 ## Git Safety
@@ -186,7 +184,7 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Web Scraping & Content Fetching
 
-默认用 `web-access` skill（连接本地 Chrome，有 session/cookie，反爬检测率低）。已知 URL 静态提取用 `web_fetch` 工具。`web_fetch`/`curl` 失败或被墙时，立即 fallback 到 `web-access` skill，不要反复尝试。Deep Research（多源交叉验证 + 引用）用 `web-deep-research` skill，触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。Playwright headless 不推荐（无 session/cookie，反爬检测率高）。
+默认用 `web-access` skill（连接本地 Chrome，有 session/cookie，反爬检测率低）。已知 URL 静态提取用 `web_fetch` 工具。`web_fetch`/`curl` 失败或被墙时，立即 fallback 到 `web-access` skill，不要反复尝试。Deep Research（多源交叉验证 + 引用）用 `web-deep-research` skill，触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
 
 **Skills/Tools 目录**：所有可用工具和候选 skill 的完整清单在 `docs/skills-catalog.md`（不在 RAG 索引范围内，Agent 直接读取）。包含：已集成工具说明、候选 skill 评估、安全审计结果、任务→工具决策表、Skill 评估流程（4 步强制流程）、安全审计工具参考。需要找工具或评估新 skill 时先查此文档。
 

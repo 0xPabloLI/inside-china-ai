@@ -26,7 +26,7 @@
 | guizang-ppt-skill | 演示文稿 | ✅ | 📋 待评估(安全⚠️) | ⭐ 备用 |
 | vercel-labs/agent-browser | 浏览器自动化 | ✅ | 📋 待评估(安全⚠️) | ⭐⭐ CDP替代 |
 | anthropics/skills (frontend-design) | UI设计 | ✅ | ✅ 已集成 | ⭐⭐ 新模板美学 |
-| runcomfy-agent-skills (30 skills) | AI媒体 | ✅ | 📋 待评估(安全✅) | ⭐⭐⭐ 数字人/B-roll |
+| runcomfy-agent-skills (30 skills) | AI媒体 | ✅ | 📋 备选(安全✅) | ⭐⭐⭐ 数字人/B-roll |
 | VoltAgent/awesome-agent-skills | 目录索引 | ✅ | 📖 参考 | 查用目录 |
 | ComposioHQ/awesome-claude-skills | 目录索引 | ✅ | 📖 参考 | 查用目录 |
 | pbakaus/impeccable (24 commands) | 视觉设计 | ✅ | ✅ 已集成 | ⭐⭐⭐ 视觉打磨 |
@@ -331,14 +331,17 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **费用**：免费
 - **仓库**：`https://github.com/prime-skills/runcomfy-agent-skills`
 - **Stars**：32（skills.sh 排名 #79，400k 安装）
-- **做什么**：30 个 ComfyUI 相关 skills：video-edit、image-to-video、ai-avatar-video、face-swap、ai-music、controlnet-pose、flux-kontext 等
-- **为什么对本项目有用**：视频管线可能用到 ComfyUI 工作流（AI 头像视频、图生视频、换脸等）。但当前项目用 F5-TTS + 其他方案，非刚需
+- **做什么**：30 个 RunComfy 云平台 skills：video-edit、image-to-video、ai-avatar-video、lipsync、face-swap、kling-3-0、wan-2-7、seedance-v2 等。通过 `runcomfy run <model>` CLI 调用云端 GPU 模型
+- **为什么对本项目有用**：数字人播报（ai-avatar-video + lipsync）、AI 生成 B-roll。是本地模型（Hallo2/LivePortrait）MPS 显存不足时的云端替代方案
+- **前提**：需要 RunComfy 账号 + token（`runcomfy login`）。不需要本地装 ComfyUI
 - **用法**：`npx skills add prime-skills/runcomfy-agent-skills --skill <skill-name>`
-- **何时用**：需要 ComfyUI 工作流指导时
-- **何时不用**：当前视频管线（F5-TTS + Remotion）不依赖 ComfyUI
-- **安全审计**：⚠️ SkillSpector: 21/100 MEDIUM, CAUTION — 59 个 issues（MCP server 未固定版本等）。无 executable scripts。需逐项查看 issues 后决定
-- **调查日期**：2026-08-11
-- **状态**：📋 待评估（安全⚠️ MEDIUM risk，59 issues 需审查）
+- **何时用**：需要云端数字人/AI 视频生成时
+- **何时不用**：当前视频管线（TTS + Remotion）不依赖 RunComfy
+- **安全审计**：✅ skills.sh 三家全 Pass（Gen: Pass / Socket: Pass / Snyk: Pass）
+- **功能评估**：与本地数字人方案（Hallo2/LivePortrait/LongCat）互补——云端 vs 本地。当前本地模型在测试中（MPS 显存问题），RunComfy 是 fallback 方案
+- **适配评估**：CLI 工具，与项目管线集成方式：RunComfy 生成数字人片段 → 作为 `<Video>` 源嵌入 Remotion 场景。需 RunComfy 账号才能试用
+- **调查日期**：2026-08-12
+- **状态**：📋 备选——需要 RunComfy 账号才能试用。用户暂不注册，等本地数字人模型方案确定后再决定是否引入云端方案
 
 ---
 
