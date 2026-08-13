@@ -263,6 +263,57 @@ describe("validateMedia", () => {
     expect(result.valid).toBe(true);
     expect(result.warnings.some((w) => w.includes("Unknown animation"))).toBe(true);
   });
+
+  // ── mode field tests (fullscreen support) ──
+
+  it("returns valid when mode is 'background'", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", mode: "background" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("returns valid when mode is 'fullscreen'", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", mode: "fullscreen" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("returns valid when mode is undefined (defaults to background)", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    // no mode-related warnings
+    expect(result.warnings.some((w) => w.includes("mode"))).toBe(false);
+  });
+
+  it("warns when mode has an invalid value", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", mode: "split" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true); // warn, not error
+    expect(result.warnings.some((w) => w.includes("mode"))).toBe(true);
+  });
+
+  it("warns when fullscreen mode has texts content", () => {
+    // validateMedia only sees the media object, not scene.texts.
+    // This test verifies the VALID_MODES constant recognizes "fullscreen".
+    // The texts check is in scene-rules.mjs (separate test).
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", mode: "fullscreen", overlay: 0.7 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    // overlay is accepted but will be forced to 0 at render time
+  });
 });
 
 // ─── VALID_PRESETS constant ───

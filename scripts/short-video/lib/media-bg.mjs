@@ -37,6 +37,11 @@ import { resolve } from "path";
 export const VALID_PRESETS = ["fade", "ken-burns", "slide", "zoom", "none"];
 
 /**
+ * Valid media mode values.
+ */
+export const VALID_MODES = ["background", "fullscreen"];
+
+/**
  * Default overlay opacity when `media.overlay` is not specified.
  */
 const DEFAULT_OVERLAY = 0.7;
@@ -314,6 +319,13 @@ export function validateMedia(media, contentDir) {
   if (media.animation && !VALID_PRESETS.includes(media.animation)) {
     warnings.push(
       `Unknown animation preset: "${media.animation}". Will use "fade" instead.`,
+    );
+  }
+
+  // Mode validation
+  if (media.mode && !VALID_MODES.includes(media.mode)) {
+    warnings.push(
+      `Unknown media mode: "${media.mode}". Will use "background" instead.`,
     );
   }
 

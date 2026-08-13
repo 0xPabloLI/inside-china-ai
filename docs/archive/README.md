@@ -29,6 +29,7 @@
 | `spec-hook-opening-card.md` / `tickets-hook-opening-card.md` | 2026-08-08 | 标准 Hook 开场卡（共享 hookScene + 槽位骨架 + 焦点二选一契约 + 顶部安全带检查） |
 | `spec-video-layout-safe-zones.md` / `tickets-video-layout-safe-zones.md` | 2026-08-08 | 字幕安全区分离 + 槽位布局 + 品牌 Logo 修复 + 截图重校准（右栏 x880/底 y1150/字幕 60px）+ 竖向堆叠规则 + DOM 校验接入管线硬门 |
 | `spec-color-scheme-optimization.md` / `tickets-color-scheme-optimization.md` | 2026-08-08 | TikTok 视频色调优化 — Feed 分离度增强（Frame Glow 边框 + Flash Hook 闪帧 + Accent Boost 背景微调/尺寸扩大/透明度提升） |
+| `spec-media-fullscreen-mode.md` / `tickets-media-fullscreen-mode.md` | 2026-08-13 | Media fullscreen 模式 — 新增 `mode` 字段支持全屏独立呈现（无文字叠加，仅视频+字幕）。FullscreenMedia 组件 + MediaBackground overlay 强制 0 + validateMedia mode 验证。5 new tests。 |
 
 ### 趋势 & 发布 Specs
 

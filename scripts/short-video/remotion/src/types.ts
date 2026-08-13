@@ -14,6 +14,7 @@ export interface StatItem {
 export interface MediaField {
   type: "image" | "video";
   path: string;
+  mode?: "background" | "fullscreen"; // default "background"
   source?: string;
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;

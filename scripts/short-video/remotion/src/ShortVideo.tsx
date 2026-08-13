@@ -21,10 +21,16 @@ import { QuoteScene } from "./scenes/QuoteScene";
 import { ContextScene } from "./scenes/ContextScene";
 import { ContrastScene } from "./scenes/ContrastScene";
 import { StatRevealScene } from "./scenes/StatRevealScene";
+import { FullscreenMedia } from "./scenes/FullscreenMedia";
 import { FPS, secToFrames, sceneClipFrames, sceneClipDuration } from "./components/shared";
 
 /** Dispatch a scene to its React component based on visualType. */
 function renderScene(scene: SceneData, duration: number, contentDir: string) {
+  // fullscreen mode: render only media + source label, skip text Slot layout
+  if (scene.media?.mode === "fullscreen") {
+    return <FullscreenMedia media={scene.media} duration={duration} />;
+  }
+
   const common = { scene, duration };
 
   switch (scene.visualType) {

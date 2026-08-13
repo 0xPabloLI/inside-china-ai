@@ -34,7 +34,7 @@ const TIMING: Record<string, { in: number; out: number }> = {
 interface Props {
   media: MediaField;
   duration: number;
-  contentDir: string;
+  contentDir?: string;
 }
 
 export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
@@ -48,7 +48,7 @@ export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
   if (!TIMING[preset]) preset = "fade";
 
   const timing = TIMING[preset];
-  const overlay = media.overlay ?? 0.7;
+  const overlay = media.mode === "fullscreen" ? 0 : (media.overlay ?? 0.7);
   const totalFrames = secToFrames(duration);
   const inFrames = secToFrames(Math.min(timing.in, duration / 2));
   const outFrames = secToFrames(Math.min(timing.out, duration / 2));
