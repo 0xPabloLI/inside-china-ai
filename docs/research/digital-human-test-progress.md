@@ -23,6 +23,7 @@
 | 8 | ~~V-Express~~ | 渐进式扩散 | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
 | 9 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
 | 10 | **LongCat-VA-1.5 MLX** | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ✅ **成功！** | 2026-08-12 |
+| 11 | **EchoMimicV3** | Wan2.1 扩散 | — | ⚠️ 下载阻塞 | ❓ | 📋 待测 | — |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
 | 11 | **InfiniteTalk** | 稀疏帧视频配音 | — | ⚠️ 待测 | ✅ Apache 2.0 | 📋 待测 | — |
 | 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
@@ -234,6 +235,28 @@
   - 测试 480×832 分辨率（官方默认）
   - 测试用户照片 + F5-TTS 中文音频
   - 考虑 q8 量化（更好的质量，31GB）
+
+### ⚠️ EchoMimicV3 — 下载阻塞
+
+- **日期**：2026-08-12
+- **结论**：**阻塞** — 模型文件下载不完整，无法测试
+- **环境**：echomimic_v3 (蚂蚁集团/antgroup), Python 3.12, PyTorch
+- **模型**：EchoMimicV3-Flash-pro（8步生成，12GB VRAM，768×768）
+- **模型大小**：~20GB（Wan2.1 基础模型 16GB + Flash 权重 3.5GB）
+- **下载状态**：
+  - ✅ EchoMimicV3 Flash 权重（3.5GB）— 从 ModelScope 下载完成
+  - ✅ CLIP 模型（4.4GB）— 从 hf-mirror.com 下载完成
+  - ❌ VAE（484MB）— 下载卡在 64MB
+  - ❌ umT5 文本编码器（10.8GB）— 下载卡在 1.5GB
+  - ✅ chinese-wav2vec2-base（1.8GB）— 从 ModelScope 下载完成
+- **根本问题**：HuggingFace、hf-mirror.com、ModelScope 对大文件的下载均不稳定，连接频繁断开
+- **技术评估**：
+  - 1.3B 参数，12GB VRAM — 在 M2 Pro 32GB 上理论可行
+  - 8 步 Flash 生成 — 推理速度快
+  - 768×768 分辨率 — 比 LongCat 的 256×432 高很多
+  - 使用 PyTorch (MPS) — 需验证 MPS 兼容性
+  - 中文 Wav2Vec2 — 原生中文支持
+- **后续**：网络稳定后重试下载，或考虑用云 GPU 测试
 
 ### 📋 PersonaLive（未测，低优先级）
 
