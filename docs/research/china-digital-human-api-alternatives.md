@@ -164,10 +164,26 @@
 - **我们有的 API Key**：`.env.local` 中只有 `DID_API_KEY` 和 `HEYGEN_API_KEY`，没有 SiliconFlow Key
 
 **真正的中国数字人 API 平台**（非 Token Proxy）：
-- 硅基智能（guiji.ai）— 专门的数字人公司，但网站无法访问（可能被墙或需要国内网络）
-- 火山引擎（字节跳动）— 数字人 + TTS
-- 科大讯飞 — 数字人 + TTS
+- 硅基智能（guiji.ai）— 专门的数字人公司，但网站无法从海外访问（可能需要国内网络）
+- 火山引擎（字节跳动）— 数字人 + TTS，官网 volcengine.com 可访问，定价需登录查看
+- 科大讯飞 — 数字人 + TTS，iflyrec.com 可访问
 - 这些都需要企业认证
+
+### 3.4 HeyGen API 定价（2026-08 查证，developers.heygen.com）
+
+> HeyGen API 使用 Wallet 制（预充值），我们当前余额 **$3.53**。Billing type: wallet。
+
+| 引擎 | Avatar 类型 | 价格 | 备注 |
+|------|-----------|------|------|
+| Avatar IV | Photo Avatar | **$0.05/sec** | 默认 v3 引擎，照片驱动 |
+| Avatar IV | Digital Twin | $0.0667/sec | 个性化克隆 |
+| Avatar III | Photo Avatar | $0.0433/sec | 旧引擎，更便宜 |
+| Avatar III | Digital Twin | $0.0167/sec | 旧引擎 |
+| Avatar V | Digital Twin | $0.0667/sec | 最高质量 |
+| Cinematic | — | $7.00/video | 4-15 秒 |
+| Talking Photo | — | $1.00/call | 单次调用 |
+
+**关键**：HeyGen Avatar IV Photo Avatar ($0.05/sec = $3/min ≈ 21.6 RMB/min) 是我们目前可用的 API 选项。
 
 | 维度 | D-ID Lite | Hedra Creator | Tavus Growth | 火山引擎 | 硅基智能 |
 |------|----------|-------------|------------|---------|---------|

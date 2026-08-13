@@ -206,6 +206,7 @@
 - **对比 Hallo2**：Hallo2 单 UNet 1.6s/step，V-Express 双 UNet 1058s/step（660x 慢）
 - **硬件需求**：需要 **NVIDIA V100 GPU**（8GB VRAM，`--save_gpu_memory` 模式），31 秒音频需 7956MiB 峰值显存，处理时间 2617 秒（~44 分钟）。在 Apple Silicon MPS 上完全不可用。
 - **适合的设备**：NVIDIA RTX 3090/4090（24GB VRAM）、A100、V100
+- **RTX 4060 可行性**：RTX 4060 有 8GB VRAM，V100 测试需 7956MiB（`--save_gpu_memory`），**勉强可行但非常慢**（可能 1-2 小时/30 秒视频）
 - **清理**：已删除（7GB）
 
 ### ✅ LongCat-Video-Avatar-1.5 MLX q4 — 首个在 M2 Pro 上成功的本地模型！
@@ -266,7 +267,8 @@
   - 768×768 分辨率 — 比 LongCat 的 256×432 高很多
   - 使用 PyTorch (MPS) — 需验证 MPS 兼容性
   - 中文 Wav2Vec2 — 原生中文支持
-- **后续**：网络稳定后重试下载，或考虑用云 GPU 测试
+- **后续**：所有模型文件已下载完成（2026-08-13），但推理报 `KeyError: 'patch_embedding.weight'`——Flash 权重与代码版本不兼容，需进一步调试
+- **下载方法**：`curl -L "https://huggingface.co/.../resolve/main/FILE" -H "Authorization: Bearer $HF_TOKEN" -o FILE` 直接下载成功（`hf download` CLI 有断点续传 bug）
 - **直接下载链接**（可手动下载）：
   - VAE: `https://huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/resolve/main/Wan2.1_VAE.pth`（484MB）
   - umT5: `https://huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/resolve/main/models_t5_umt5-xxl-enc-bf16.pth`（10.8GB）
