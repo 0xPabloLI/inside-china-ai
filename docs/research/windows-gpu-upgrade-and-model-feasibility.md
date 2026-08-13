@@ -1,7 +1,7 @@
 # Windows 设备数字人模型可行性分析与升级方案
 
 > **创建日期**：2026-08-13
-> **关联文档**：`docs/research/digital-human-solutions-m2-pro.md`（Mac M2 Pro 调研）、`docs/research/digital-human-test-progress.md`（测试进度）
+> **关联文档**：`docs/research/digital-human-solutions-m2-pro.md`（Mac M2 Pro 调研）、`docs/research/digital-human-test-progress.md`（Mac 测试进度）、`docs/research/windows-gpu-test-progress.md`（Windows GTX 1080 测试进度）
 > **用途**：分析当前 Windows 设备对数字人模型的兼容性，评估低成本升级路径，对比云 GPU 方案
 
 ---
