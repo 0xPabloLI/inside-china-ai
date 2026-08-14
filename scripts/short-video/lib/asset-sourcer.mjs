@@ -481,19 +481,43 @@ export const API_SOURCES = [
     name: "coverr",
     label: "Coverr",
     type: "video",
-    requiresApiKey: false,
-    apiKeyEnv: null,
+    requiresApiKey: true,
+    apiKeyEnv: "COVERR_API_KEY",
+    authHeader: "Authorization",
+    authValue: (key) => `Bearer ${key}`,
+    // Coverr API: GET /videos?query=X with Bearer token. Returns { hits: [...] }
     searchUrl: (keyword, key) =>
-      `https://api.coverr.co/search_videos?query=${encodeURIComponent(keyword)}`,
+      `https://api.coverr.co/videos?query=${encodeURIComponent(keyword)}`,
     parseResponse: (data, keyword) => {
-      return (data.results || data || []).map((v) => ({
+      const hits = data.hits || [];
+      return hits.map((v) => ({
         title: v.title || keyword,
-        url: `https://api.coverr.co/storage/videos/${v.base_filename}`,
+        url: `https://cdn.coverr.co/videos/${v.base_filename}/mp4?token=${data.params?.userToken || ''}`,
         type: "video",
         resolution: v.is_vertical ? "vertical" : "horizontal",
         fileSize: undefined,
-        duration: v.duration ? parseFloat(v.duration) : undefined,
+        duration: undefined,
         baseFilename: v.base_filename,
+      }));
+    },
+  },
+  {
+    name: "pixabay",
+    label: "Pixabay",
+    type: "image+video",
+    requiresApiKey: true,
+    apiKeyEnv: "PIXABAY_API_KEY",
+    searchUrl: (keyword, key) =>
+      `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(keyword)}&image_type=photo&orientation=vertical&per_page=10`,
+    parseResponse: (data, keyword) => {
+      return (data.hits || []).map((p) => ({
+        title: p.tags || keyword,
+        url: p.largeImageURL || p.webformatURL,
+        type: "image",
+        resolution: `${p.imageWidth}x${p.imageHeight}`,
+        fileSize: undefined,
+        duration: undefined,
+        author: p.user,
       }));
     },
   },
@@ -518,10 +542,81 @@ export const YTDLP_SOURCES = [
 ];
 
 /**
- * CDP source definitions — Chinese news sites.
+ * CDP source definitions — Chinese news sites + search engines.
  * Each has a primary extract script + fallback generic script.
  */
 export const CDP_SOURCES = [
+  {
+    name: "google_news",
+    label: "Google News",
+    url: (keyword) => `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
+    primaryScript: `
+      var results = [];
+      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h3, .LC20lb');
+        var img = el.querySelector('img[src]');
+        var snippet = el.querySelector('.VwiC3b, .IsZvec');
+        if (link && title) {
+          results.push({
+            title: title.textContent.trim(),
+            url: img ? img.src : link.href,
+            type: img ? 'image' : 'text',
+            sourceUrl: link.href,
+            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+          });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          if (!img.src.includes('gstatic') && !img.src.includes('google')) {
+            results.push({ title: img.alt || '', url: img.src, type: 'image' });
+          }
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "bing_news",
+    label: "Bing News",
+    url: (keyword) => `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
+    primaryScript: `
+      var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('h3, h2, .title, .b_caption p');
+        if (link && title) {
+          results.push({
+            title: title.textContent.trim(),
+            url: img ? img.src : link.href,
+            type: img ? 'image' : 'text',
+            sourceUrl: link.href
+          });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          if (!img.src.includes('bing.com') && !img.src.includes('r.bing')) {
+            results.push({ title: img.alt || '', url: img.src, type: 'image' });
+          }
+        }
+      });
+      return results;
+    `,
+  },
   {
     name: "ithome",
     label: "IT之家",
@@ -630,7 +725,145 @@ export const CDP_SOURCES = [
       return results;
     `,
   },
+  {
+    name: "leiphone",
+    label: "雷锋网",
+    url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link && img) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "xinzhiyuan",
+    label: "新智元",
+    url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link && img) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "zhidx",
+    label: "智东西",
+    url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link && img) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
 ];
+
+// ─── Attribution definitions ───
+
+/**
+ * Attribution data per source. Used to generate credits for TikTok description.
+ */
+export const SOURCE_ATTRIBUTIONS = {
+  pexels: { text: (a) => `Photo by ${a.author || 'Unknown'} from Pexels`, license: 'Pexels License', logoRequired: false },
+  unsplash: { text: (a) => `Photo by ${a.author || 'Unknown'} on Unsplash`, license: 'Unsplash License', logoRequired: false },
+  pixabay: { text: () => `Source: Pixabay (https://pixabay.com)`, license: 'Pixabay Content License', logoRequired: true },
+  wikimedia: { text: (a) => `${a.author || 'Unknown'} via Wikimedia Commons (${a.license || 'CC-BY-SA 4.0'})`, license: 'CC-BY-SA 4.0', logoRequired: false },
+  coverr: { text: () => `Video from Coverr (https://coverr.co)`, license: 'Coverr License', logoRequired: false },
+  youtube: { text: (a) => `Contains footage from ${a.author || a.title || 'Unknown'} (YouTube)`, license: 'Fair use', logoRequired: false },
+  bilibili: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (B站)`, license: 'Fair use', logoRequired: false },
+  ithome: { text: () => `图片来源: IT之家 (ithome.com)`, license: 'News copyright', logoRequired: false },
+  jiqizhixin: { text: () => `图片来源: 机器之心 (jiqizhixin.com)`, license: 'News copyright', logoRequired: false },
+  xinhua: { text: () => `图片来源: 新华网 (news.cn)`, license: 'News copyright', logoRequired: false },
+  thepaper: { text: () => `图片来源: 澎湃新闻 (thepaper.cn)`, license: 'News copyright', logoRequired: false },
+  leiphone: { text: () => `图片来源: 雷锋网 (leiphone.com)`, license: 'News copyright', logoRequired: false },
+  xinzhiyuan: { text: () => `图片来源: 新智元 (xinzhiyuan.com)`, license: 'News copyright', logoRequired: false },
+  zhidx: { text: () => `图片来源: 智东西 (zhidx.com)`, license: 'News copyright', logoRequired: false },
+  google_news: { text: (a) => `Image source: ${a.sourceUrl || 'Google News'}`, license: 'Varies', logoRequired: false },
+  bing_news: { text: (a) => `Image source: ${a.sourceUrl || 'Bing News'}`, license: 'Varies', logoRequired: false },
+};
+
+/**
+ * Build attribution object for an asset.
+ */
+export function buildAttribution(source, asset) {
+  const attr = SOURCE_ATTRIBUTIONS[source];
+  if (!attr) return null;
+  return {
+    text: attr.text(asset),
+    source,
+    author: asset.author || undefined,
+    license: attr.license,
+    url: asset.sourceUrl || asset.url || undefined,
+    logoRequired: attr.logoRequired,
+  };
+}
+
+/**
+ * Generate a credits section for TikTok video description.
+ */
+export function buildCreditsSection(assets) {
+  const lines = [];
+  const seen = new Set();
+  for (const a of assets) {
+    if (!a.attribution) continue;
+    const key = a.attribution.source + (a.attribution.author || '');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lines.push(a.attribution.text);
+  }
+  if (lines.length === 0) return '';
+  return '\n\n--- Credits ---\n' + lines.join('\n') + '\n--- /Credits ---';
+}
 
 // ─── CDP search & download ───
 
@@ -945,7 +1178,7 @@ export async function main(args = process.argv.slice(2)) {
     }
   }
 
-  // ── Add scene recommendations ──
+  // ── Add scene recommendations + attribution ──
   for (const asset of allAssets) {
     const rec = recommendScene(asset, scenes);
     if (rec) {
@@ -953,10 +1186,14 @@ export async function main(args = process.argv.slice(2)) {
       asset.recommendedAnimation = rec.animation;
       asset.recommendedOverlay = rec.overlay;
     }
+    // Build attribution
+    asset.attribution = buildAttribution(asset.source || asset.from, asset);
   }
 
   // ── Write report ──
+  const creditsText = buildCreditsSection(allAssets);
   const report = buildReport(contentSlug, keywords, allAssets, failed, skipped);
+  report.credits = creditsText;
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });

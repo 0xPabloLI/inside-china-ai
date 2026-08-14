@@ -3,15 +3,21 @@
 > Status: Active — last updated 2026-08-14
 > Scope: Image/video asset acquisition, integration, and animation for the short-video pipeline.
 >
-> **Pipeline integration status** (as of 2026-08-14):
-> - §4.1 (Reference Video Extraction) — **Not implemented**. Conceptual workflow only.
-> - §4.2 (Visual Engagement Research) — **Research complete**. Findings inform scene-data authoring guidelines; no code changes.
-> - §4.3 (Asset Source Catalog) — **Research complete, Phase 1 implemented**. 8 international sources (Pexels, Unsplash, Pixabay, Wikimedia Commons, Coverr, Mixkit, Internet Archive, Flickr) + 5 Chinese news sites (Xinhua, CCTV, iThome, 机器之心, 澎湃新闻) + 4 Chinese video platforms (Bilibili, Douyin, Xiaohongshu, 搜狗微信) verified. TikTok excluded. `asset-sourcer.mjs` implements 4 API sources (Pexels, Unsplash, Wikimedia, Coverr) + 2 yt-dlp sources (YouTube, Bilibili) + 4 CDP sources (IT之家, 机器之心, 新华网, 澎湃新闻). Pixabay/Mixkit/Internet Archive/Flickr pending.
-> - §4.4 (Automated Asset Pipeline) — **Phase 1 implemented** (commit 1198685). `asset-sourcer.mjs` created with 63 tests. Searches 10 sources, scores candidates, downloads top matches, outputs JSON report with scene recommendations. Does NOT auto-modify scene-data — user reviews report and manually fills `media` field.
-> - §4.5 (Asset Deduplication) — **Not implemented**. SHA-256 dedup + shared library is a design proposal.
-> - §4.6 (Background Audio Mixing) — **Research complete, partially applied**. Current `volume={0.08}` validated as correct. Per-scene `volume` field and envelope ducking are **proposed but not yet implemented** in `types.ts` / `MediaBackground.tsx`.
-> - BGM (background music) — **Fully implemented**. See §4.7 below.
-> - TrimmedMuse — **N/A**. User adds full BGM tracks manually at TikTok upload time; pipeline does not trim music.
+> **Section 4 status summary** (as of 2026-08-14):
+>
+> **Completed research (informs current practice):**
+> - §4.2 (Visual Engagement Research) — ✅ Research complete. Findings inform scene-data authoring.
+> - §4.3 (Asset Source Catalog) — ✅ Research complete. 8 international + 5 Chinese news + 4 Chinese video sources documented. Download commands in §2.
+>
+> **Implemented in pipeline:**
+> - §4.5 (Asset Directory Reorganization) — ✅ **Implemented 2026-08-14**. See `docs/media-asset-management.md` for authoritative structure.
+> - §4.6 (Background Audio Mixing) — ✅ Validated. `volume={0.08}` confirmed as industry-standard (-22dB). Per-scene volume / envelope ducking: proposed, not yet in code.
+> - §4.7 (BGM) — ⚠️ Deprecated. Pipeline BGM was fully implemented (`lib/bgm.mjs` + `mixBgm()`) but user has stopped using it — adds TikTok music manually at upload time. Code retained but `--bgm` flag no longer recommended.
+>
+> **Future ideas (not implemented, low priority):**
+> - §4.1 (Reference Video Extraction) — Conceptual workflow only.
+> - §4.4 (Automated Asset Pipeline) — `asset-sourcer.mjs` design proposal.
+> - §4.5 (SHA-256 Dedup) — Future: content hashing to prevent duplicate downloads. Directory reorganization is already done; dedup logic is the remaining piece.
 
 ## 1. Current State (2026-08-13)
 
@@ -50,7 +56,7 @@
 - **Low asset coverage**: 2 unique assets for 10 scenes in the only media-enabled content; all other content has 0 media assets
 - **No automated asset sourcing pipeline**: all downloads are manual `yt-dlp` / `curl` commands — no script orchestrates finding, downloading, and assigning assets
 - **Video reuse**: same `unitree-demo.mp4` appears in 3 scenes — viewers may notice the loop
-- **No asset library**: downloaded assets live in `content/{slug}/assets/` or `scripts/short-video/assets/` with no shared catalog or deduplication
+- **Asset library organized** (2026-08-14): `assets/` now only holds global shared production assets (brand, logos, BGM). Per-content assets live in `content/{slug}/assets/`. TTS reference audio in `voice-samples/`. Experiments in `experiments/`. See `docs/media-asset-management.md`. SHA-256 dedup is a future optimization.
 
 ## 2. Download Methods & Troubleshooting
 
@@ -180,9 +186,9 @@ The dark overlay (`rgba(10,10,20,overlay)`) ensures text readability over media.
 
 ## 4. Future Optimizations
 
-### 4.1 Reference Video Extraction
+### 4.1 Reference Video Extraction — Future Idea
 
-**Status**: 🔴 Not implemented — conceptual workflow only.
+**Priority**: Low — conceptual workflow, no immediate need.
 
 **Goal**: Given a reference TikTok/YouTube video, extract the media placement strategy (what assets, where, what transitions) to inform our own scene-data authoring.
 
@@ -277,17 +283,17 @@ From Wikipedia [2]:
 
 ### 4.3 Asset Source Catalog
 
-**Status**: 🟡 Partially implemented — YouTube + Wikipedia validated in pipeline; stock API sources (Pexels/Unsplash/Pixabay) researched but not yet integrated.
+**Status**: ✅ Research complete. Download commands for YouTube/Wikipedia/News in §2 above.
 
 > **Research date**: 2026-08-13 | **Method**: Web deep research (Chrome CDP + Jina + API testing) | **Sources**: Official API docs, License pages, live API tests
 
 #### Tier 1: Validated in our pipeline
 
-| Source | Type | Access method | Tested | License | Notes |
-|--------|------|---------------|--------|---------|-------|
-| YouTube | Video | `yt-dlp --cookies-from-browser chrome` | ✅ 2026-08-13 | Varies by uploader | Official channel uploads, demo videos. Parallel downloads fail (cookie DB lock) — run serially [[memory:17865489336644602134]] |
-| Wikipedia (article images) | Image | Node.js `fetch()` with `User-Agent` header | ✅ 2026-08-13 | CC-BY-SA / Public Domain | Company buildings, product photos. Find URLs via Wikipedia REST API |
-| Google News RSS | Article URLs | `curl` + XML parse | ✅ 2026-08-13 | N/A (articles) | Finds articles, but images are often behind paywalls |
+| Source | Type | Access method | Download guide | License | Notes |
+|--------|------|---------------|---------------|---------|-------|
+| YouTube | Video | `yt-dlp --cookies-from-browser chrome` | §2.1 | Varies by uploader | Official channel uploads, demo videos. Run serially [[memory:17865489336644602134]] |
+| Wikipedia (article images) | Image | Node.js `fetch()` with `User-Agent` header | §2.2 | CC-BY-SA / Public Domain | Company buildings, product photos. Find URLs via Wikipedia REST API |
+| Google News RSS | Article URLs | `curl` + XML parse | §2.3 | N/A (articles) | Finds articles, but images are often behind paywalls |
 
 #### Tier 2: Researched & verified — ready for integration
 
@@ -582,9 +588,9 @@ No key needed for: Coverr, Wikimedia Commons, Internet Archive, Mixkit (scraping
 7. Internet Archive — "Developer Portal" — `https://archive.org/developers/` — Tier 1 (official, live test)
 8. Flickr — "Flickr API: flickr.photos.search" — `https://www.flickr.com/services/api/flickr.photos.search.html` — Tier 1 (official)
 
-### 4.4 Automated Asset Pipeline
+### 4.4 Automated Asset Pipeline — Future Idea
 
-**Status**: 🔴 Not implemented — `asset-sourcer.mjs` does not exist. Design proposal only.
+**Priority**: Medium — would speed up content production, but manual asset sourcing (§2) works for now.
 
 **Vision**: Agent receives a topic + scene-data → automatically finds, downloads, and assigns media to scenes.
 
@@ -605,20 +611,15 @@ NEW: scripts/short-video/lib/asset-sourcer.mjs  ← standalone module
            automatic in main.mjs Step 0b (before TTS)
 ```
 
-**Pipeline design**:
+**Pipeline design** (orchestration only — source-specific methods in §4.3):
 
-1. **Extract keywords** from scene-data: `meta.keyEntities.companies[0]`, product names, action verbs from `voiceover` text. Use the same `keyEntities` extraction that `caption-utils.mjs` already does.
-2. **Search sources** for each keyword:
-   - YouTube: `yt-dlp --flat-playlist --print` for search (see §2.1)
-   - Pexels/Unsplash: API search by keyword (requires API key)
-   - Wikipedia: REST API for company/landmark images (see §2.2)
-   - Bilibili/Douyin: CDP search via `lib/trend-sources.mjs` extract scripts
+1. **Extract keywords** from scene-data: `meta.keyEntities.companies[0]`, product names, action verbs from `voiceover` text.
+2. **Search sources** — use the access methods cataloged in §4.3 (no need to duplicate here).
 3. **Score candidates**: relevance (keyword match in title), duration (3-8s ideal for clip extraction), file size (< 20MB), resolution (≥ 720p)
 4. **Download top candidates** to `content/{slug}/assets/`:
-   - Video: `yt-dlp --download-sections "*0:00-0:08"` for 8s clips, `--max-filesize 20M`
-   - Image: `fetch()` with proper headers (User-Agent for Wikipedia, API key for Pexels/Unsplash)
    - **Serial downloads only** — parallel yt-dlp instances conflict on Chrome cookie DB lock
-5. **Auto-assign to scenes**: match scene `voiceover` keywords to asset metadata (title, tags). Assign `animation` preset based on scene `visualType`:
+   - Attribution required — `media.source` field must be filled for copyright compliance
+5. **Auto-assign to scenes**: match scene `voiceover` keywords to asset metadata. Assign `animation` preset based on scene `visualType`:
    - `narrative` → `fade` or `zoom` (product demos)
    - `info-card` → `ken-burns` (static images, buildings/photos)
    - `quote` → `fade` with `overlay: 0.8` (text is the focus)
@@ -629,26 +630,33 @@ NEW: scripts/short-video/lib/asset-sourcer.mjs  ← standalone module
 **Design constraints**:
 - **Never assign media to hook or CTA scenes** — `hookScene()` and `ctaScene()` delegate to shared templates that ignore the `media` field
 - **Never use `ken-burns` with video** — auto-degrades to `fade` in `MediaBackground.tsx`, but better to assign correctly upstream
-- **Deduplicate across content** — if `unitree-demo.mp4` already exists in `scripts/short-video/assets/`, symlink rather than re-download
-- **Attribution required** — `media.source` field must be filled for copyright compliance
+- **Deduplicate across content** — see §4.5
 
-### 4.5 Asset Deduplication & Shared Library
+### 4.5 Asset Deduplication & Shared Library — Implemented (2026-08-14)
 
-**Status**: 🔴 Not implemented — SHA-256 dedup + shared library is a design proposal.
+**Status**: ✅ Directory reorganization complete. See `docs/media-asset-management.md` for the authoritative structure.
 
-**Problem**: Assets currently live in per-content directories (`content/{slug}/assets/`) or the global `scripts/short-video/assets/`. No deduplication — same video could be downloaded multiple times for different content.
+**What was done**:
+- `assets/` cleaned to only contain **global shared production assets**: `brand/` (logos, marks), `logos/` (company logo registry), `bgm/` (background music).
+- `voice-samples/` created for TTS reference audio (personal, gitignored, binary).
+- `experiments/` created for disposable experiment outputs (gitignored).
+- Removed duplicate copies of content-specific assets from `assets/` (they already exist in `content/{slug}/assets/`).
+- Updated TTS engine code (`cosyvoice.mjs`, `qwen-tts.mjs`, `f5-mlx.mjs`, `csm.mjs`) to reference `voice-samples/` instead of `assets/`.
+- Updated `.gitignore` to reflect new paths.
 
-**Proposed structure**:
+**Current structure**:
 ```
-scripts/short-video/assets/
-  ├── shared/              ← shared library (symlinked into content dirs)
-  │   ├── companies/       ← company logos, buildings, product shots
-  │   ├── b-roll/          ← generic stock footage (city, tech, abstract)
-  │   └── archive/         ← downloaded clips, organized by source
-  └── content-specific/    ← assets unique to one content piece
+scripts/short-video/
+  ├── assets/                    ← Global shared production assets (Git-tracked)
+  │   ├── brand/                 ← Brand visual assets
+  │   ├── logos/                 ← Company logo registry
+  │   └── bgm/                   ← Background music library
+  ├── voice-samples/             ← TTS reference audio (Git-ignored)
+  ├── experiments/               ← Disposable experiment outputs (Git-ignored)
+  └── content/{slug}/assets/    ← Per-content media
 ```
 
-**Dedup strategy**: hash file content (SHA-256) → if hash exists in shared library, symlink instead of copy. This avoids storing the same 10MB video multiple times.
+**Future: SHA-256 dedup**: When the shared library grows to 20+ assets, implement content hashing → symlink instead of copy. Low priority — only needed when producing 3+ videos per week with overlapping entities.
 
 ### 4.6 Background Audio Mixing Research
 
@@ -708,25 +716,12 @@ From Sprout Social (2026-02-11) [4]: Short-form video is consumed **"often with 
 | Building/landmark (image) | No audio (images are silent) | N/A | Images have no audio track |
 | Crowd/event footage | Ambient noise, crowd murmur | 0.08 (current) | Adds atmosphere without competing |
 
-**Implementation** (NOT YET APPLIED — proposed changes):
+**Proposed implementation** (NOT YET IN CODE — no spec/ticket created):
 
-1. **Per-scene volume**: Add optional `volume` field to `MediaField` in `types.ts`:
-```typescript
-export interface MediaField {
-  type: "image" | "video";
-  path: string;
-  mode?: "background" | "fullscreen";
-  source?: string;
-  animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
-  overlay?: number;
-  volume?: number;  // PROPOSED: 0-1, overrides default 0.08
-}
-```
-Then in `MediaBackground.tsx`, replace `volume={0.08}` with `volume={media.volume ?? 0.08}`.
+1. **Per-scene volume**: Add `volume?: number` to `MediaField` in `types.ts`. In `MediaBackground.tsx`, replace `volume={0.08}` with `volume={media.volume ?? 0.08}`.
 
-2. **Envelope ducking**: In `MediaBackground.tsx`, multiply volume by the same `interpolate()` envelope used for opacity:
+2. **Envelope ducking**: Multiply volume by the same `interpolate()` envelope used for opacity:
 ```typescript
-// PROPOSED — not yet in code
 const baseVolume = media.volume ?? 0.08;
 const videoVolume = baseVolume * interpolate(
   frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp
@@ -734,21 +729,7 @@ const videoVolume = baseVolume * interpolate(
 // <Video src={src} style={mediaStyle} volume={videoVolume} />
 ```
 
-**Current code** (as of 2026-08-13):
-- `types.ts`: `MediaField` has NO `volume` field
-- `MediaBackground.tsx`: `<Video ... volume={0.08} />` — hardcoded, no per-scene control, no envelope ducking
-- These changes are tracked as future work; no spec/ticket has been created yet
-
-#### Candidate approach (validated by research, NOT YET IMPLEMENTED)
-
-```typescript
-// Envelope ducking: fade in with scene entrance, fade out with exit
-// PROPOSED — not in current codebase
-const baseVolume = media.volume ?? 0.08;
-const videoVolume = baseVolume * interpolate(
-  frame, [0, inFrames, totalFrames - outFrames, totalFrames], [0, 1, 1, 0], clamp
-);
-```
+**Current code**: `types.ts` has NO `volume` field; `MediaBackground.tsx` has `volume={0.08}` hardcoded.
 
 #### Sources
 
@@ -758,13 +739,13 @@ const videoVolume = baseVolume * interpolate(
 4. Sprout Social — "Short-Form Video: The Ultimate Guide" (2026-02-11)
 5. Codebase analysis — `MediaBackground.tsx`, `post-process.mjs`, `types.ts`
 
-### 4.7 BGM (Background Music) — Pipeline Implementation
+### 4.7 BGM (Background Music) — Deprecated
 
-**Status**: ✅ Fully implemented and operational.
+**Status**: ⚠️ Deprecated. Pipeline BGM was fully implemented but user has stopped using it — adds TikTok music manually at upload time.
 
-> **Clarification on user workflow**: The user's BGM workflow is:
-> 1. **Pipeline BGM** (`--bgm` flag): Auto-selected from `assets/bgm/` pool, mixed into the video by FFmpeg at 12% volume during post-processing. This is the "pipeline BGM" — a low-volume atmospheric track.
-> 2. **TikTok upload BGM**: At TikTok upload time, the user manually adds a full-track BGM from TikTok's music library ("全景 Music"). This replaces/augments the pipeline BGM for the TikTok platform. The pipeline does NOT trim music for this step — it's a manual in-app operation.
+> **User workflow**: At TikTok upload time, user manually selects a full track from TikTok's music library ("全景 Music"). TikTok auto-trims the track to video length. The pipeline does NOT need to handle BGM — this is a manual in-app operation.
+>
+> **Code retained**: `lib/bgm.mjs` + `mixBgm()` still exist in the codebase. `--bgm` flag works if ever needed again. Not recommended for new videos.
 
 **Pipeline BGM components** (all implemented):
 
@@ -803,7 +784,197 @@ const videoVolume = baseVolume * interpolate(
 - **Remotion media path resolution**: `staticFile()` resolves relative to `remotion/public/`, so content assets must be copied there before rendering (handled by `render-remotion.mjs` step 2b)
 - **Overlay values**: Calibrated by testing text readability over various video/image backgrounds at 1080×1920 resolution. Values: 0.6 (light), 0.7 (standard), 0.75 (images), 0.8 (heavy/text-focus)
 - **Background video audio at 8% volume**: `<Video volume={0.08} />` in `MediaBackground.tsx` (hardcoded, no per-scene control). Research (2026-08-13, §4.6) confirmed this ≈ -22dB falls within industry standard of -20dB to -25dB for background audio relative to narration. **Validated — no adjustment needed.** Future enhancement (NOT YET IMPLEMENTED): per-scene `volume` field via `MediaField` extension, and envelope ducking via `interpolate()` for smoother fade in/out.
-- **BGM (background music) at 12% volume**: `mixBgm()` in `post-process.mjs` (default `volume=0.12`). This is separate from background video audio — BGM is a full-track music file mixed in during FFmpeg post-processing. User also manually adds TikTok library music at upload time ("全景 Music"), which is outside the pipeline's scope.
+- **BGM (background music) — deprecated**: `mixBgm()` in `post-process.mjs` (default `volume=0.12`) was fully implemented but is no longer recommended. User adds TikTok library music manually at upload time. Code retained; `--bgm` flag works if ever needed again. See §4.7.
 - **ken-burns + video auto-degrade**: Ken-burns is designed for static images (slow zoom + pan). Applied to video, the per-frame interpolation creates janky stutter. `MediaBackground.tsx` auto-degrades to `fade`; `media-bg.mjs` `validateMedia()` issues a warning.
 - **Playwright vs Remotion timing divergence**: The two backends evolved independently. Playwright (`media-bg.mjs`) uses CSS `@keyframes` with percentage-based timing; Remotion (`MediaBackground.tsx`) uses `interpolate()` with frame-based timing. The data contract (`MediaField`) is shared; timing is implementation-level. Unifying timing is a future cleanup task.
 - **5 presets, not more**: Adding presets (e.g., `parallax`, `shake`, `glitch`) is technically easy but increases the testing surface. Current 5 presets cover all use cases encountered in 6+ content pieces. Add new presets only when a real content need cannot be met by existing ones.
+
+## 6. License & Attribution Requirements (2026-08-14)
+
+> **Pipeline integration**: `asset-sourcer.mjs` must enforce these requirements by recording attribution data in `output/asset-report.json` for each downloaded asset. When an asset is used in a video, the attribution must be displayed in the video description or as an on-screen credit.
+
+### 6.1 Summary Table
+
+| Source | License | Attribution Required? | How to Attribute | Logo/Watermark Required? |
+|--------|---------|----------------------|------------------|------------------------|
+| **Pexels** | Pexels License (free) | Optional but appreciated | "Photo by [author] on Pexels" | No logo required |
+| **Unsplash** | Unsplash License (free) | Optional but appreciated | "Photo by [author] on Unsplash" | No logo required |
+| **Pixabay** | Pixabay Content License (free) | **Yes — required by API terms** | "Source: Pixabay" or link to pixabay.com | **Yes — if API is used, must show Pixabay logo to users where search results are displayed** |
+| **Wikimedia Commons** | Varies (CC-BY, CC-BY-SA, PD) | **Yes — required for CC-licensed content** | "Author: [name], via Wikimedia Commons, CC-BY-SA 4.0" | No logo, but license text required |
+| **Coverr** | Coverr License (free) | Optional | "Video from Coverr" | No logo required |
+| **YouTube (via yt-dlp)** | Varies (creator's copyright) | **Yes — required** | "Contains footage from [channel name], YouTube" | No logo, but credit required |
+| **B站 (via yt-dlp)** | Varies (creator's copyright) | **Yes — required** | "Contains footage from [UP主 name], B站" | No logo, but credit required |
+| **IT之家 / 机器之心 / 新华网 / 澎湃新闻** | News site copyright | **Yes — required** | "Image source: [site name]" | No logo, but credit required |
+
+### 6.2 Detailed Requirements
+
+#### Pixabay (API terms)
+- **API usage requirement**: "If you make use of the API, show your users where the images and videos are from, whenever search results are displayed."
+- **Rate limit**: 100 requests per 60 seconds (per API key)
+- **Hotlinking**: Not allowed for permanent use. Must download to own server.
+- **Caching**: API responses must be cached for 24 hours
+- **Action for pipeline**: When Pixabay assets are used in a video, include "Source: Pixabay" in the TikTok video description. If displaying search results in a UI, show Pixabay logo.
+
+#### Pexels (Pexels License)
+- Free for commercial and non-commercial use
+- Attribution not required but appreciated
+- No permission needed, though credit is appreciated: "Photo by [Author Name] from Pexels"
+- Cannot redistribute or sell the photos as-is
+- **Action for pipeline**: Add "Photo by [author] from Pexels" to video description when used
+
+#### Unsplash (Unsplash License)
+- Free for commercial and non-commercial use
+- Attribution not required but appreciated
+- No permission needed, though credit is appreciated: "Photo by [Author Name] on Unsplash"
+- Cannot compile photos from Unsplash to replicate a similar or competing service
+- **Action for pipeline**: Add "Photo by [author] on Unsplash" to video description when used
+
+#### Wikimedia Commons (CC licenses)
+- Each file has its own license (CC-BY, CC-BY-SA, Public Domain, etc.)
+- **Must check individual file license** before use
+- CC-BY requires attribution: "Author: [name], via Wikimedia Commons, [license name]"
+- CC-BY-SA requires attribution + share-alike (derivative works must use same license)
+- Public Domain: no attribution required
+- **Action for pipeline**: Record license type per asset. For CC-BY/CC-BY-SA, include attribution in video description
+
+#### Coverr (Coverr License)
+- Free for commercial and non-commercial use
+- Attribution appreciated but not required
+- Cannot redistribute or sell videos as-is
+- **Action for pipeline**: Optional "Video from Coverr" in description
+
+#### YouTube / B站 (Creator copyright)
+- Downloading via yt-dlp does not grant copyright
+- Fair use may apply for short clips with commentary/transformative use
+- **Must credit original creator** in video description
+- For TikTok, short clips with commentary typically fall under fair use
+- **Action for pipeline**: Record channel/UP主 name, include "Contains footage from [creator] [platform]" in description
+
+#### Chinese News Sites (CDP extraction)
+- Images extracted from news sites are owned by the news organization
+- Fair use for commentary/news reporting
+- **Must credit source**: "Image source: IT之家" or "图片来源: 机器之心"
+- **Action for pipeline**: Record source site name, include in video description
+
+### 6.3 Pipeline Enforcement Plan
+
+`asset-sourcer.mjs` must be updated to:
+1. Record `attribution` field per asset in `output/asset-report.json`:
+   ```json
+   {
+     "attribution": {
+       "text": "Photo by John Doe on Pexels",
+       "source": "pexels",
+       "author": "John Doe",
+       "license": "Pexels License",
+       "url": "https://www.pexels.com/photo/...",
+       "logoRequired": false
+     }
+   }
+   ```
+2. Generate a **Credits section** at the bottom of the report for easy copy-paste into TikTok description
+3. For Pixabay: flag `logoRequired: true` when the API is the acquisition method
+4. For Wikimedia: fetch and record the specific license type per file
+
+> **Status**: Not yet implemented in `asset-sourcer.mjs` Phase 1. Planned for Phase 2.
+
+## 7. Cookie & Platform Access Status (2026-08-14)
+
+> **Finding**: `yt-dlp --cookies-from-browser chrome` is **broken** on this macOS machine due to Chrome cookie encryption changes.
+
+### 7.1 Platform Status Matrix
+
+| Platform | yt-dlp Search | yt-dlp URL Download | Cookies Needed? | Status |
+|----------|---------------|---------------------|------------------|--------|
+| **YouTube** | ✅ `ytsearch10:` works | ✅ Works | ❌ Not needed | **Fully functional** |
+| **B站** | ⚠️ `bilisearch:` returns results but title/duration = NA | ❌ KeyError('bvid') on direct URL | Yes (SESSDATA) | **Broken — needs investigation** |
+| **抖音** | N/A (no search extractor) | ❌ "Fresh cookies needed" | Yes (sid_tt) | **Broken — cookies can't be decrypted** |
+| **小红书** | N/A (no search extractor) | ❌ "No video formats found" | Yes (xsec_token) | **Broken — needs valid URL with token** |
+| **微博** | N/A (no search extractor) | ❌ SSL EOF error | Possibly | **Broken — SSL/network issue** |
+
+### 7.2 Root Cause: Chrome Cookie Decryption Failure
+
+```
+WARNING: find-generic-password failed
+WARNING: cannot decrypt v10 cookies: no key found
+```
+
+- Chrome v127+ changed cookie encryption on macOS
+- `security find-generic-password -s "Chrome Safe Storage" -w` returns empty
+- yt-dlp cannot read Chrome's encrypted cookie database
+- YouTube works because it doesn't require cookies for search
+
+### 7.3 Workaround Options
+
+1. **Export cookies.txt manually** (recommended):
+   - Install "Get cookies.txt" Chrome extension
+   - Navigate to douyin.com / bilibili.com (while logged in)
+   - Export cookies → save as `~/.config/yt-dlp/cookies.txt`
+   - Use `yt-dlp --cookies ~/.config/yt-dlp/cookies.txt`
+
+2. **Use Firefox instead of Chrome**:
+   - yt-dlp's Firefox cookie reader works on macOS
+   - `yt-dlp --cookies-from-browser firefox`
+
+3. **Wait for yt-dlp fix**: Track [yt-dlp issue #11442](https://github.com/yt-dlp/yt-dlp/issues)
+
+### 7.4 Impact on asset-sourcer.mjs
+
+- **YouTube**: Works perfectly (no cookies needed)
+- **B站**: Search returns results but metadata incomplete; download broken
+- **抖音/小红书/微博**: All broken until cookies are manually exported
+- **CDP sources (news sites)**: Not affected by cookie issue — CDP proxy uses Chrome's live session
+- **API sources**: Not affected — API keys in `.env.local`
+
+> **Action needed**: User should export cookies.txt from Chrome for Chinese platforms. Until then, `asset-sourcer.mjs` will work for YouTube + API + CDP sources, but yt-dlp Chinese platform sources will report errors.
+
+## 8. API Key Validation & Source Testing (2026-08-14)
+
+### 8.1 API Key Status
+
+| Source | Key | Status | Tested |
+|--------|-----|--------|--------|
+| Pexels | `PEXELS_API_KEY` | ✅ Valid (returns photos) | Yes |
+| Unsplash | `UNSPLASH_ACCESS_KEY` | ✅ Valid (returns results) | Yes |
+| Pixabay | `PIXABAY_API_KEY=57136959-...` | ✅ Valid (760 results for "robot") | Yes |
+| Coverr | `COVERR_API_KEY=3e7cc90c...` | ✅ Valid (15 hits for "robot") | Yes |
+| Wikimedia | N/A | ✅ No key needed | Yes |
+
+### 8.2 Coverr API Corrections
+
+Original code used `search_videos` endpoint (404). Correct API:
+- **Endpoint**: `GET /videos?query={keyword}`
+- **Auth**: `Authorization: Bearer {token}`
+- **Response format**: `{ hits: [...], params: { userToken: "..." } }`
+- **Video URL**: `https://cdn.coverr.co/videos/{base_filename}/mp4`
+- Coverr is a **free stock video platform** (coverr.co), not a pure API service. It offers free HD/4K stock footage for commercial use, monetized via premium subscriptions.
+
+### 8.3 New CDP Sources Added
+
+| Source | URL Pattern | Type |
+|--------|-------------|------|
+| Google News | `google.com/search?tbm=nws` | Search engine news |
+| Bing News | `bing.com/news/search` | Search engine news |
+| 雷锋网 (leiphone) | `leiphone.com/search?s=` | Chinese tech media |
+| 新智元 (xinzhiyuan) | `xinzhiyuan.com/?s=` | Chinese AI media |
+| 智东西 (zhidx) | `zhidx.com/?s=` | Chinese AI media |
+
+### 8.4 Attribution System (Implemented)
+
+Pipeline now auto-generates attribution for each downloaded asset:
+- `buildAttribution(source, asset)` → per-asset attribution object
+- `buildCreditsSection(assets)` → credits text for TikTok description
+- `SOURCE_ATTRIBUTIONS` map: 17 sources with license + logo requirement
+- Pixabay: `logoRequired: true` (API terms require logo display)
+- All others: `logoRequired: false`
+
+### 8.5 "Get cookies.txt" Extension Safety Notes
+
+- **Extension ID**: `ccpbcjjkcajmhkehiedhlbmadkcmjhfe` (Get cookies.txt LOCALLY)
+- **Security**: Extension runs locally, does not transmit cookies to any server
+- **Open source**: GitHub repo, code is auditable
+- **Alternative**: "EditThisCookie" (more features but larger attack surface)
+- **Warning**: Only install from Chrome Web Store, verify publisher
+- **Cookie safety**: Exported cookies.txt contains session tokens — store in `~/.config/yt-dlp/cookies.txt` (not in git)
+- **Why YouTube doesn't need cookies**: YouTube search (`ytsearch10:`) works without auth. YouTube only requires cookies for age-restricted/membership content. Chinese platforms (抖音/B站) require login session for any video download.
+

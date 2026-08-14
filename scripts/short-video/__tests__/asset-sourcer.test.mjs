@@ -16,6 +16,9 @@ import {
   API_SOURCES,
   YTDLP_SOURCES,
   CDP_SOURCES,
+  SOURCE_ATTRIBUTIONS,
+  buildAttribution,
+  buildCreditsSection,
   searchApiSource,
   downloadAsset,
   searchYtdlp,
@@ -341,10 +344,11 @@ describe("API_SOURCES", () => {
     expect(wikimedia.userAgent).toContain("ChinaAINews");
   });
 
-  it("has coverr source without auth", () => {
+  it("has coverr source requiring API key (updated 2026-08-14)", () => {
     const coverr = API_SOURCES.find((s) => s.name === "coverr");
     expect(coverr).toBeDefined();
-    expect(coverr.requiresApiKey).toBe(false);
+    expect(coverr.requiresApiKey).toBe(true);
+    expect(coverr.apiKeyEnv).toBe("COVERR_API_KEY");
     expect(typeof coverr.searchUrl).toBe("function");
     expect(typeof coverr.parseResponse).toBe("function");
   });
@@ -589,5 +593,215 @@ describe("getApiKey", () => {
 
   it("returns null when env is null", () => {
     expect(getApiKey(null, "PEXELS_API_KEY")).toBe(null);
+  });
+});
+
+// ─── Attribution tests ───
+
+describe("SOURCE_ATTRIBUTIONS", () => {
+  it("has attribution for pexels", () => {
+    expect(SOURCE_ATTRIBUTIONS.pexels).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.pexels.license).toBe("Pexels License");
+    expect(SOURCE_ATTRIBUTIONS.pexels.logoRequired).toBe(false);
+  });
+
+  it("has attribution for pixabay with logoRequired=true", () => {
+    expect(SOURCE_ATTRIBUTIONS.pixabay).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.pixabay.logoRequired).toBe(true);
+  });
+
+  it("has attribution for coverr", () => {
+    expect(SOURCE_ATTRIBUTIONS.coverr).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.coverr.license).toBe("Coverr License");
+  });
+
+  it("has attribution for google_news", () => {
+    expect(SOURCE_ATTRIBUTIONS.google_news).toBeDefined();
+  });
+
+  it("has attribution for bing_news", () => {
+    expect(SOURCE_ATTRIBUTIONS.bing_news).toBeDefined();
+  });
+
+  it("has attribution for leiphone", () => {
+    expect(SOURCE_ATTRIBUTIONS.leiphone).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.leiphone.license).toBe("News copyright");
+  });
+
+  it("has attribution for xinzhiyuan", () => {
+    expect(SOURCE_ATTRIBUTIONS.xinzhiyuan).toBeDefined();
+  });
+
+  it("has attribution for zhidx", () => {
+    expect(SOURCE_ATTRIBUTIONS.zhidx).toBeDefined();
+  });
+});
+
+describe("buildAttribution", () => {
+  it("builds attribution for pexels asset with author", () => {
+    const asset = { author: "John Doe", url: "https://pexels.com/photo/1" };
+    const attr = buildAttribution("pexels", asset);
+    expect(attr).not.toBeNull();
+    expect(attr.text).toContain("John Doe");
+    expect(attr.text).toContain("Pexels");
+    expect(attr.source).toBe("pexels");
+    expect(attr.license).toBe("Pexels License");
+    expect(attr.logoRequired).toBe(false);
+  });
+
+  it("builds attribution for pixabay asset", () => {
+    const asset = { url: "https://pixabay.com/1" };
+    const attr = buildAttribution("pixabay", asset);
+    expect(attr).not.toBeNull();
+    expect(attr.text).toContain("Pixabay");
+    expect(attr.logoRequired).toBe(true);
+  });
+
+  it("builds attribution for ithome news source", () => {
+    const asset = { url: "https://ithome.com/1" };
+    const attr = buildAttribution("ithome", asset);
+    expect(attr).not.toBeNull();
+    expect(attr.text).toContain("IT之家");
+    expect(attr.license).toBe("News copyright");
+  });
+
+  it("returns null for unknown source", () => {
+    const attr = buildAttribution("unknown_source", {});
+    expect(attr).toBeNull();
+  });
+});
+
+describe("buildCreditsSection", () => {
+  it("returns empty string when no assets have attribution", () => {
+    const assets = [{ source: "test" }];
+    const credits = buildCreditsSection(assets);
+    expect(credits).toBe("");
+  });
+
+  it("builds credits section with multiple sources", () => {
+    const assets = [
+      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John" } },
+      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined } },
+    ];
+    const credits = buildCreditsSection(assets);
+    expect(credits).toContain("--- Credits ---");
+    expect(credits).toContain("Photo by John from Pexels");
+    expect(credits).toContain("Source: Pixabay");
+  });
+
+  it("deduplicates credits by source+author", () => {
+    const assets = [
+      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John" } },
+      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John" } },
+      { attribution: { source: "pexels", text: "Photo by Jane from Pexels", author: "Jane" } },
+    ];
+    const credits = buildCreditsSection(assets);
+    // Should have 2 unique entries (John + Jane)
+    const lines = credits.split("\n").filter((l) => l && !l.startsWith("---"));
+    expect(lines.length).toBe(2);
+  });
+
+  it("returns empty string for empty assets array", () => {
+    const credits = buildCreditsSection([]);
+    expect(credits).toBe("");
+  });
+});
+
+// ─── New CDP source tests ───
+
+describe("CDP_SOURCES new additions", () => {
+  it("has google_news source", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+    expect(src).toBeDefined();
+    expect(src.url("AI")).toContain("google.com");
+    expect(src.primaryScript).toContain("return results");
+  });
+
+  it("has bing_news source", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
+    expect(src).toBeDefined();
+    expect(src.url("AI")).toContain("bing.com");
+    expect(src.primaryScript).toContain("return results");
+  });
+
+  it("has leiphone source", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "leiphone");
+    expect(src).toBeDefined();
+    expect(src.url("AI")).toContain("leiphone.com");
+  });
+
+  it("has xinzhiyuan source", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "xinzhiyuan");
+    expect(src).toBeDefined();
+    expect(src.url("AI")).toContain("xinzhiyuan.com");
+  });
+
+  it("has zhidx source", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "zhidx");
+    expect(src).toBeDefined();
+    expect(src.url("AI")).toContain("zhidx.com");
+  });
+});
+
+// ─── Coverr API fix tests ───
+
+describe("Coverr API fix", () => {
+  it("uses /videos endpoint with query parameter", () => {
+    const coverr = API_SOURCES.find((s) => s.name === "coverr");
+    const url = coverr.searchUrl("robot", "test-key");
+    expect(url).toContain("/videos");
+    expect(url).toContain("query=robot");
+  });
+
+  it("uses Bearer token for auth", () => {
+    const coverr = API_SOURCES.find((s) => s.name === "coverr");
+    expect(coverr.authValue("mykey")).toBe("Bearer mykey");
+  });
+
+  it("parses hits array from Coverr response", () => {
+    const coverr = API_SOURCES.find((s) => s.name === "coverr");
+    const mockData = {
+      hits: [
+        { title: "Robot vacuum", base_filename: "coverr-robot-123", is_vertical: false },
+      ],
+      params: { userToken: "abc123" },
+    };
+    const result = coverr.parseResponse(mockData, "robot");
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("Robot vacuum");
+    expect(result[0].url).toContain("coverr-robot-123");
+    expect(result[0].type).toBe("video");
+  });
+});
+
+// ─── Pixabay source tests ───
+
+describe("Pixabay API source", () => {
+  it("is defined in API_SOURCES", () => {
+    const pixabay = API_SOURCES.find((s) => s.name === "pixabay");
+    expect(pixabay).toBeDefined();
+    expect(pixabay.requiresApiKey).toBe(true);
+    expect(pixabay.apiKeyEnv).toBe("PIXABAY_API_KEY");
+  });
+
+  it("searchUrl includes key and keyword", () => {
+    const pixabay = API_SOURCES.find((s) => s.name === "pixabay");
+    const url = pixabay.searchUrl("robot", "testkey123");
+    expect(url).toContain("key=testkey123");
+    expect(url).toContain("q=robot");
+  });
+
+  it("parseResponse extracts hits", () => {
+    const pixabay = API_SOURCES.find((s) => s.name === "pixabay");
+    const mockData = {
+      hits: [
+        { tags: "robot, technology", largeImageURL: "https://pixabay.com/1.jpg", imageWidth: 1080, imageHeight: 1920, user: "photographer1" },
+      ],
+    };
+    const result = pixabay.parseResponse(mockData, "robot");
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("robot, technology");
+    expect(result[0].url).toContain("pixabay.com");
+    expect(result[0].author).toBe("photographer1");
   });
 });
