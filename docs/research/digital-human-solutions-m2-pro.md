@@ -1,6 +1,6 @@
 # 数字人方案调研报告：适配 Apple M2 Pro（32GB）
 
-> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk/SadTalker/HeyGen/D-ID/LatentSync 1.5/1.6/Sonic MPS 实测结果）
+> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk/SadTalker/HeyGen/D-ID/LatentSync 1.5/1.6/Sonic/Hallo2 MPS 实测结果）
 > **目标设备**：MacBook Pro (Mac14,10), Apple M2 Pro, 32 GB, macOS 26.5.1, Metal 4
 > **核心需求**：(1) 语音/文本 → 自然说话的数字人视频；(2) 用个人照片匹配最相似的数字人形象
 > **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README、HuggingFace API、官方平台首页
@@ -15,8 +15,8 @@
 
 | 优先级 | 方案 | 类型 | 质量 | M2 Pro 兼容 | 商用 | 测试状态 |
 |--------|------|------|------|------------|------|---------|
-| 1 | ~~Sonic via ComfyUI_Sonic~~ | 本地 | ⭐⭐⭐⭐⭐ | ❌ MPS 死锁 | ❌ 非商用 | ❌ 已测试，推理死锁 (模型加载 OK 但扩散前向传播 MPS kernel 死锁) |
-| 2 | **Hallo2** | 本地 | ⭐⭐⭐⭐ | ⚠️ MPS 待验证 | ✅ MIT | 待测 |
+| 1 | ~~Sonic via ComfyUI_Sonic~~ | 本地 | ⭐⭐⭐⭐⭐ | ❌ fp16/bf16 死锁 + fp32 崩溃 | ❌ 非商用 | ❌ 已测试，三种 dtype 均不可用 |
+| 1 | **Hallo2** | 本地 | ⭐⭐⭐⭐ | ✅ MPS 已验证 | ✅ MIT | ✅ **已成功！** 5min/5s 视频 |
 | 3 | ~~LatentSync 1.6~~ | 本地 | ⭐⭐⭐⭐⭐ | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ 已测试，512px OOM (32GB 不够) |
 | — | ~~LatentSync 1.5~~ | 本地 | ⭐⭐ | ✅ MPS 已跑通 | ✅ OpenRAIL++ | ❌ 已测试，效果差（256px 不足） |
 | — | ~~SadTalker~~ | 本地 | ⭐⭐ | ✅ MPS 已测试 | ❌ 非商用 | ❌ 已测试，效果差（恐怖谷眼神） |
@@ -189,7 +189,7 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
   --video_out_path "OUTPUT.mp4"
 ```
 
-### 3.3 ❌ Sonic — 腾讯，CVPR 2025（已测试，MPS 推理死锁）
+### 3.3 ⚠️ Sonic — 腾讯，CVPR 2025（已测试，fp32 可推理但极慢）
 
 | 属性 | 详情 |
 |------|------|
@@ -199,7 +199,7 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 | **特点** | 专注全局音频感知（不仅口型，还包括表情、头部运动的音频驱动） |
 | **GPU 要求** | 官方测试 32GB GPU |
 | **许可证** | CC BY-NC-SA 4.0（**非商用**；商用需联系腾讯云 VCLM） |
-| **M2 Pro 兼容** | ❌ **已测试：模型加载和预处理 OK，但扩散推理在 MPS 上死锁** |
+| **M2 Pro 兼容** | ❌ **已测试：fp16/bf16 死锁，fp32 第 1 步可完成但第 2 步 Metal 编译器崩溃** |
 | **ComfyUI 集成** | `smthemex/ComfyUI_Sonic`，声称修复 bf16 + OOM + MPS device error |
 | **依赖** | 需下载 SVD checkpoints（`svd_xt.safetensors`）+ Sonic 模型 |
 | **社区** | ComfyUI 版本、HuggingFace Space 在线 Demo |
@@ -211,11 +211,14 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 - ✅ **模型加载**：SVD (2.9GB) + Sonic UNet (5.9GB) + CLIP Vision (1.2GB) + VAE (186MB) 全部加载成功
 - ✅ **音频预处理**：5.228s 音频检测、62/62 面部预处理步骤完成
 - ✅ **ComfyUI 服务器**：启动成功（~4min），API 接口正常响应
-- ❌ **扩散推理**：两种 dtype 均在 "Start infer" 步骤 0 死锁：
-  - fp16 (512px, 25 steps) → 进程 U 状态，0% CPU，CPU 时间停止增长
-  - bf16 (256px, 5 steps) → 同样死锁
-  - 根本原因：SVD UNet 前向传播中某个 MPS 算子 kernel 级死锁（非 OOM）
-- **结论**：README 的 MPS 修复仅覆盖模型加载和预处理阶段，**未修复扩散推理的 MPS 算子死锁**
+- ❌ **fp16/bf16 推理**：在 "Start infer" 步骤 0 MPS kernel 死锁，进程进入 U 状态，CPU 时间停止增长
+  - 根因：PyTorch issue #154828，MPS 对 fp16/bf16 大张量使用 32-bit 索引器溢出
+  - ComfyUI_Sonic issue #105：Mac ARM 用户确认 "only fp32 work"
+- ⚠️ **fp32 推理**：**第 1 步完成！** 耗时 78 分钟（进度 0/5 → 1/5），但第 2 步导致 MTLCompilerService 崩溃（LLVM 优化 SIGABRT）→ 系统重启
+  - CPU TIME 持续增长（+614s/82min = 12% 效率），证明第 1 步在工作
+  - 第 2 步请求新 Metal 着色器 → LLVM AlwaysInliner + SROA 优化通道溢出 → MTLCompilerService SIGABRT → 连锁崩溃
+  - **不能断点续传**：ComfyUI 不保存推理中间状态
+- **结论**：fp32 第 1 步可完成但第 2 步导致系统崩溃——整体不可用。fp16/bf16 死锁 + fp32 编译器崩溃 = Sonic 在 M2 Pro MPS 上**无法实用**
 - **磁盘占用**：ComfyUI + 模型 ≈ 17GB（保留安装，ComfyUI 可复用于其他插件）
 
 ### 3.4 ❌ SadTalker — 3DMM 方案，已测试
@@ -414,7 +417,7 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 | 排名 | 模型 | 技术路线 | 会议 | 时间 | NVIDIA 必需 | 音频驱动 | 商用 | VRAM | 质量 | GitHub Stars |
 |------|------|---------|------|------|-----------|---------|------|------|------|-------------|
 | 1 | **EMO** | Audio2Video 扩散 | ECCV 2024 | 2024.02 | ✅ | ✅ | ❓ | 未公开 | ⭐⭐⭐⭐⭐ | 7601 |
-| 2 | **Sonic** | SVD 扩散 | **CVPR 2025** | 2024.12 | ❌（MPS ❌ 死锁） | ✅ | ❌ 非商用 | 12GB | ⭐⭐⭐⭐⭐ | — |
+| 2 | **Sonic** | SVD 扩散 | **CVPR 2025** | 2024.12 | ❌（MPS 死锁/崩溃） | ✅ | ❌ 非商用 | 12GB | ⭐⭐⭐⭐⭐ | — |
 | 3 | **Hallo3** | **DiT** (CogVideo) | **CVPR 2025** | 2024.12 | ✅ H100 | ✅ | ✅ MIT | H100 | ⭐⭐⭐⭐⭐ | 8658 |
 | 4 | **PersonaLive** | 实时流式扩散 | **CVPR 2026** | 2025.12 | ✅（MPS ⚠️） | ✅ | ❌ 非商用 | 12GB | ⭐⭐⭐⭐⭐ | 3489 |
 | 5 | **DICE-Talk** | 扩散+情感解耦 | **ACM MM 2025** | 2025.04 | ✅ | ✅+情感 | ❌ 非商用 | 20GB+ | ⭐⭐⭐⭐⭐ | — |
@@ -678,8 +681,8 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 ```
 
 **待测模型优先级**（新 session 逐个测试）：
-1. **~~Sonic via ComfyUI_Sonic~~** — ❌ 已测试：模型加载 OK 但扩散推理 MPS 死锁
-2. **Hallo2** — MIT 许可证，长视频支持，下一个测试目标
+1. **~~Sonic via ComfyUI_Sonic~~** — ❌ 已测试：fp16/bf16 死锁，fp32 第 1 步可完成但第 2 步 Metal 编译器崩溃
+2. **Hallo2** — ✅ **已成功！** MPS 上 5 分钟生成 5 秒视频，MIT 可商用
 
 ### 6.2 混合方案（本地 + 云端）
 
@@ -711,8 +714,8 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 
 | # | 模型 | 安装方式 | MPS | 许可证 | 测试重点 |
 |---|------|---------|-----|--------|---------|
-| 1 | ~~Sonic~~ | ComfyUI 插件 | ❌ MPS 死锁 | 非商用 | 已测试：模型加载 OK，扩散推理死锁 |
-| 2 | **Hallo2** | conda 环境 | ⚠️ 待验证 | MIT | 长视频支持，中文是否可用（JoyHallo 扩展） |
+| 1 | ~~Sonic~~ | ComfyUI 插件 | ❌ 不可用 | 非商用 | 已测试：fp16/bf16 死锁，fp32 第 2 步 Metal 编译器崩溃 |
+| 2 | **Hallo2** | conda 环境 | ✅ MPS 已验证 | MIT | ✅ 已成功：256px 5min/5s 视频，512px OOM |
 | 3 | **V-Express** | ComfyUI 插件 | ⚠️ 待验证 | ❓ | 基于 SD1.5，MPS 可能可行 |
 | 4 | **PersonaLive** | ComfyUI 插件 | ⚠️ 待验证 | 非商用 | 12GB VRAM，CVPR 2026 |
 
@@ -739,7 +742,7 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 
 | 风险 | 影响 | 缓解 |
 |------|------|------|
-| MPS 兼容性未验证 | 扩散模型在 MPS 上可能有算子不支持 | 逐个测试，Sonic 已确认推理死锁，LatentSync 1.6 OOM |
+| MPS 兼容性 | 扩散模型在 MPS 上 fp16/bf16 死锁，fp32 可用但极慢 | Sonic fp32 78min/step；后续模型需测试是否更快的架构 |
 | VRAM 不足 | M2 Pro 32GB 统一内存，但 MPS 内存管理与 CUDA 不同 | 优先测低 VRAM 需求的模型（LatentSync 1.5: 8GB） |
 | 商用许可限制 | Sonic/DICE-Talk 非商用；SadTalker 非商用 | Hallo2 (MIT) 和 LatentSync (OpenRAIL++) 可商用 |
 | ComfyUI 安装复杂度 | 需要安装 ComfyUI + 下载多个模型文件 | 按各模型 README 逐步操作 |
@@ -802,123 +805,304 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 
 ---
 
-## 10. GPU 远程访问方案
+## 10. GPU 远程访问方案（Tailscale + SSH）
 
-许多模型（LatentSync、Sonic、Hallo2、HeyGem 等）需要 NVIDIA GPU，Mac M2 Pro 无法本地运行。以下是访问远程 GPU 机器（Windows，同一家庭网络）的两种方案。
+许多模型（LatentSync、Sonic、Hallo2、HeyGem 等）需要 NVIDIA GPU，Mac M2 Pro 无法本地运行。通过 Tailscale 组网 + SSH 公钥认证，可以从 Mac 远程访问 Windows GPU 机器。
 
-### 方案 A：Tailscale 组网（推荐——支持远程访问）
+### 10.1 网络拓扑
 
-**适用场景**：在家和出门在外都需要调用 GPU。
-
-#### Mac 端配置（已完成 ✅）
-
-Mac 已安装 Tailscale（Homebrew formula），IP `100.71.x.x`，设备名 `Mac-hostname-redacted`。
-
-> **Clash 集成**：Mac 上 Clash Verge 的 fake-ip DNS 模式会阻止 tailscaled 连接控制服务器。已在 Clash 配置 `clash-verge.yaml` 的 `dns` 段添加 `fake-ip-filter` 排除 `*.tailscale.com` / `*.tailscale.io`，让 DNS 返回真实 IP，tailscaled 通过 TUN 路由表 → Clash → 代理 → 控制服务器。详见 [[memory:17863207144245540241]]。
-
-#### Windows GPU 端配置
-
-1. 下载安装：https://tailscale.com/download/windows
-2. 安装后系统托盘出现 Tailscale 图标 → 右键 → `Log in`
-3. 浏览器打开 → 用**与 Mac 相同的账号**登录
-4. 在 Tailscale 管理后台批准新设备
-5. 验证：`ping <GPU的Tailscale IP>`（在 Mac 上执行）
-
-> 如果 GPU 机器在国内且无代理，可能遇到和 Mac 一样的连接问题。Windows GUI 版 Tailscale 通常能读系统代理设置，比 macOS CLI 版兼容性好。如仍连不上，在 GPU 机器上安装 Clash 或类似代理工具。
-
-#### 使用方式
-
-```bash
-# SSH 到 GPU 机器（需在 Windows 上开启 OpenSSH 服务）
-ssh username@<gpu-tailscale-ip>
-
-# 运行模型推理
-python inference.py --checkpoint model.pt
-
-# 传文件
-scp output.mp4 username@<gpu-tailscale-ip>:/path/to/output/
+```
+Mac (macOS, FlClash TUN + Tailscale)
+  Tailscale IP: 100.71.x.x
+  公网 IP: REDACTED (NAT, Cone 类型)
+  │
+  │  WireGuard 隧道
+  │  P2P 直连（打洞成功）或 DERP 中继（打洞失败时兜底）
+  │
+  ▼
+Windows GPU (hostname-redacted)
+  Tailscale IP: 100.114.x.x
+  用户名: Administrator（空密码）
 ```
 
-### 方案 B：内网直连（仅家庭网络）
+### 10.2 Mac 端配置（已完成 ✅，2026-08-14）
 
-**适用场景**：两台机器在同一家庭网络，不需要出门在外访问。
+#### Tailscale 安装
 
-#### 安全性分析
+- 通过 Homebrew 安装，IP `100.71.x.x`，设备名 `Mac-hostname-redacted`
+- NAT 类型：Cone（`MappingVariesByDestIP: false`），UDP 可用，打洞基础条件满足
 
-内网直连的安全风险**可控**：
+#### FlClash TUN 集成
 
-| 风险 | 程度 | 缓解措施 |
-|------|------|----------|
-| 家庭 WiFi 被破解 | 中 | 使用 WPA3 或强 WPA2 密码 |
-| SSH 暴力破解 | 低 | 用 SSH 密钥登录，禁用密码登录 |
-| 局域网嗅探 | 低 | SSH 端到端加密，数据无法被嗅探 |
-| GPU 机器被恶意软件感染 | 中 | 保持 Windows Defender 开启，不随意安装软件 |
+实际运行的 Clash 客户端是 **FlClash**（不是 Clash Verge）。FlClash 使用 TUN 模式 + fake-ip DNS，会与 Tailscale 冲突。配置文件路径：`~/Library/Application Support/com.clash-client/config.yaml`（备份在同目录 `config.yaml.bak`）。
 
-**结论**：对于家庭网络内的 GPU 调用，内网直连 + SSH 密钥认证足够安全。SSH 的端到端加密保证了传输安全，主要风险在于 WiFi 密码强度和 GPU 机器自身的安全。
+已做两处修改：
 
-#### Windows GPU 端配置
+1. **DNS 层 — fake-ip-filter 加 Tailscale 域名**：
 
-1. **开启 OpenSSH 服务**（Windows 10/11 自带）：
-   ```powershell
-   # 以管理员身份运行 PowerShell
-   Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-   Start-Service sshd
-   Set-Service -Name sshd -StartupType Automatic
+   ```yaml
+   dns:
+     enhanced-mode: "fake-ip"
+     fake-ip-range: "198.18.0.1/16"
+     fake-ip-filter:
+       - "dns.msftnsci.com"
+       - "www.msftnsci.com"
+       - "www.msftconnecttest.com"
+       - "+.tailscale.com"    # ← 新增
+       - "+.tailscale.io"     # ← 新增
    ```
 
-2. **查看 IP 地址**：
-   ```powershell
-   ipconfig
-   # 找到以太网适配器的 IPv4 地址，如 192.168.1.x
+   原因：fake-ip 模式劫持 DNS 返回假 IP（198.18.x.x）。tailscaled 的控制面连接绕过 TUN 直连物理网卡，拿到假 IP 后无法连接协调服务器。加 filter 后 tailscale.com 域名返回真实 IP，tailscaled 走路由表 → TUN → Clash → 代理 → 协调服务器。
+
+2. **路由层 — TUN route-exclude 加 Tailscale 网段**：
+
+   ```yaml
+   tun:
+     enable: true
+     stack: "mixed"
+     auto-route: true
+     route-exclude-address:
+       - 100.64.0.0/10    # ← 新增，排除 Tailscale CGNAT 网段
    ```
 
-3. **配置 SSH 密钥认证**（推荐）：
-   ```bash
-   # 在 Mac 上生成密钥（如已有可跳过）
-   ssh-keygen -t ed25519
+   原因：TUN 的 auto-route 用 `0.0.0.0/1 + 128.0.0.0/1` 覆盖整个 IPv4 空间。加排除后，发往 100.x.x.x 的流量绕过 TUN 走 Tailscale 的 utun 接口。
 
-   # 将公钥传到 Windows
-   ssh-copy-id username@192.168.1.x
-   # 或手动复制 ~/.ssh/id_ed25519.pub 到 Windows 的
-   # C:\Users\<username>\.ssh\authorized_keys
-   ```
+   > **注意**：`route-exclude-address` 在 mihomo `mixed` 栈下可能对 WireGuard UDP 打洞包不完全生效。Tailscale 数据隧道（100.x → utun0）不受影响，但打洞阶段的 UDP 包（发往对端公网 IP）可能仍被 TUN 拦截。如果打洞失败，需用 Plan B（见 10.5）。
 
-4. **防火墙放行**（如需要）：
-   ```powershell
-   New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
-   ```
+修改后重启 FlClash：`pkill -f FlClashCore && open -a FlClash`
 
-#### 使用方式
+#### 验证
 
 ```bash
-# SSH 直连（内网 IP）
-ssh username@192.168.1.x
-
-# 运行 GPU 推理
-python inference.py --checkpoint model.pt
-
-# 端口转发——在 Mac 上访问 GPU 机器的 Jupyter Lab
-ssh -L 8888:localhost:8888 username@192.168.1.x
-# 然后在 Mac 浏览器打开 http://localhost:8888
-
-# 传文件
-scp output.mp4 username@192.168.1.x:/path/to/output/
+tailscale netcheck          # UDP: true, MappingVariesByDestIP: false → NAT 友好
+curl -sI https://google.com  # HTTP/2 200 → 外网代理正常
+tailscale status             # 确认两台设备在线
+tailscale ping <对端IP>       # 查看是否 P2P 直连（via DERP = 中继，direct = 直连）
 ```
 
-### 两种方案对比
+### 10.3 Windows GPU 端配置（待完成 ⏳）
 
-| | Tailscale | 内网直连 |
+Windows 端已安装 Tailscale（IP `100.114.x.x`，设备名 `hostname-redacted`），OpenSSH 服务已开启（端口 22）。**待完成：SSH 公钥配置 + 防休眠设置。**
+
+#### Step 1：配置 SSH 公钥（必须）
+
+Windows 的 Administrator 账户无密码，OpenSSH 默认拒绝空密码远程登录。需在 Windows 上配置 Mac 的公钥到 `authorized_keys`。
+
+**方式 A — 从 GitHub 拉取（推荐，最简单）**：
+
+在 Windows 上以**管理员身份**打开 PowerShell，执行：
+
+```powershell
+# 创建 .ssh 目录
+New-Item -Path "C:\Users\Administrator\.ssh" -ItemType Directory -Force
+
+# 从 GitHub 拉取公钥（Mac 的公钥已上传到 GitHub）
+Invoke-WebRequest -Uri "https://github.com/0xPabloLI.keys" -OutFile "C:\Users\Administrator\.ssh\authorized_keys"
+
+# 修复权限（Windows 对此敏感，不做公钥认证不生效）
+icacls "C:\Users\Administrator\.ssh\authorized_keys" /inheritance:r /grant "Administrator:F" /grant "SYSTEM:F"
+```
+
+> GitHub 的 `.keys` 页面（`github.com/<用户名>.keys`）是官方 API，公开返回用户上传的所有 SSH 公钥。Mac 的公钥指纹：`SHA256:Xk8jizoK9/z/LGTFeEh5j246buoypgppFF+i9o7Muno`。
+
+**方式 B — 手动复制**：
+
+在 Mac 上执行 `cat ~/.ssh/id_rsa.pub`，复制输出。在 Windows 上创建 `C:\Users\Administrator\.ssh\authorized_keys`，粘贴公钥，然后执行上面的 `icacls` 命令修权限。
+
+#### Step 2：防止 Windows 休眠（必须）
+
+Windows 休眠后 Tailscale 断线，Mac 无法连接。在管理员 PowerShell 中执行：
+
+```powershell
+# 禁止睡眠（接通电源时永不睡眠）
+powercfg /change standby-timeout-ac 0
+
+# 禁止关闭显示器（可选，设为 0 = 永不关闭）
+powercfg /change monitor-timeout-ac 0
+
+# 禁止硬盘休眠
+powercfg /change hibernate-timeout-ac 0
+
+# 确认设置
+powercfg /query
+```
+
+> 如果用电池供电的笔记本，还需 `powercfg /change standby-timeout-dc 0`。台式机不需要。
+
+#### Step 3：设置 Tailscale 开机自启
+
+Windows 版 Tailscale 默认开机自启，确认方法：系统托盘 → Tailscale 图标 → 右键 → Preferences → 勾选 "Run on startup"。
+
+#### Step 4：验证
+
+Windows 配置完成后，在 **Mac 上**执行：
+
+```bash
+# 检查 Windows 是否在线
+tailscale status
+
+# 测试 SSH 连接
+ssh Administrator@100.114.x.x "hostname"
+
+# 测试 P2P 直连
+tailscale ping 100.114.x.x
+# → "pong from ... via DERP(...)" = 走中继（延迟高）
+# → "pong from ... via direct" = P2P 直连（延迟低）
+
+# 查 GPU 信息
+ssh Administrator@100.114.x.x "nvidia-smi"
+```
+
+### 10.4 如果打洞失败 — Plan B
+
+如果 FlClash TUN 的 route-exclude 没有完全生效，WireGuard UDP 打洞包仍被 TUN 拦截，导致 P2P 打洞失败（走 DERP 中继，延迟 ~450ms）。
+
+**Plan B：手动排除 Tailscale WireGuard 端口**
+
+```bash
+# 查看 Tailscale 使用的本地 UDP 端口
+sudo lsof -iUDP -P | grep tailscaled
+
+# 在路由表中为对端公网 IP 添加直连路由（绕过 TUN）
+# 需要先从 tailscale status --json 获取对端公网 IP
+sudo route add -host <对端公网IP> -interface en0
+```
+
+> 注意：此路由在重启或网络切换后失效，需重新添加。可写成脚本自动执行。
+
+**Plan C：切换 Clash 为系统代理模式**
+
+如果 Plan B 不可靠，可在 FlClash 中关闭 TUN 模式，改用系统代理模式。Tailscale 打洞包不再被 TUN 拦截，P2P 直连大概率成功。代价：终端命令需手动设 `export https_proxy=http://127.0.0.1:7890`。
+
+### 10.5 安全注意事项
+
+| 事项 | 说明 |
+|------|------|
+| `authorized_keys` 只放一把公钥 | 从 GitHub 拉取时会获取所有 key。如只需 Mac 的，手动只复制第一个 |
+| Windows 防火墙 | OpenSSH 端口 22 已开放，确认防火墙规则仅允许 Tailscale 网段（100.64.0.0/10）访问 |
+| 空密码风险 | Administrator 无密码，本地登录无阻拦。建议设密码或至少锁屏 |
+| DERP 中继安全性 | DERP 服务器无法解密数据（WireGuard 端到端加密），但能看到流量大小和时间 |
+
+---
+
+## 11. 2026-08-11 新发现模型（淘宝/闲鱼/HuggingFace/GitHub 调研）
+
+> **调研方法**：用 web-access skill (CDP) 搜索淘宝/闲鱼，HuggingFace API 搜索模型，GitHub API 搜索仓库。
+> **新增模型**：15 个新模型 + 2 个新版本 + 淘宝/闲鱼市场调研
+
+### 11.1 LTX-2.3 & OmniNFT 说明
+
+#### LTX-2.3-OmniNFT 的组合来源
+
+**LTX-2.3-OmniNFT** 不是某个人专门为数字人组合的，而是：
+
+1. **LTX-2.3**（基座模型）由 Lightricks 开发，是一个 22B 参数的通用音视频生成基础模型（类似 Sora/Kling），支持 image-to-video、text-to-video、audio-to-video 等多种模态。
+2. **OmniNFT**（RL-LoRA 适配器）由 Zhang Guohui 等人开发（arxiv 2605.12480），用强化学习（GRPO）微调 LTX-2/LTX-2.3，提升音视频联合生成质量。
+3. **组合方**：OmniNFT 论文作者自己将 LTX-2/LTX-2.3 作为 backbone 并在上面训练 LoRA。LoRA 文件分发在多处：
+   - `zghhui/OmniNFT`（原始，含 LTX-2 和 LTX-2.3 两个 LoRA）
+   - `FastVideo/LTX-2.3-OmniNFT-LoRA`（FastVideo 重新上传）
+   - `Kijai/LTX2.3_comfy`（ComfyUI 兼容格式）
+
+**结论**：OmniNFT **不是专为数字人设计的**。它是一个通用的音视频生成质量改进方法，改善感知质量、跨模态对齐和音视频同步。可以用于任何音视频生成任务（包括 talking head），但不是专门针对 talking head 训练的。社区已经基于 LTX-2.3 训练了专门的 talking head LoRA（见 §11.2 #9）。
+
+#### LongCat 2.0 vs LongCat-Video-Avatar-1.5
+
+| | LongCat 2.0 | LongCat-Video-Avatar-1.5 |
 |---|---|---|
-| **远程访问** | ✅ 出门在外也能连 | ❌ 仅限家庭网络 |
-| **配置复杂度** | 中（需处理 Clash 集成） | 低（开 OpenSSH 即可） |
-| **速度** | 取决于 P2P/DERP 中继 | 直连，延迟最低 |
-| **安全性** | WireGuard 加密 | SSH 加密 |
-| **依赖** | 需要 Tailscale 账号 + 代理 | 仅需 OpenSSH |
-| **推荐场景** | 需要远程移动办公 | 固定在家工作 |
+| **类型** | 文本生成 LLM (text-generation) | 音频驱动视频生成 (audio-text-to-video) |
+| **功能** | 对话/文本生成 | 音频+图片/文本 → 数字人视频 |
+| **HuggingFace tags** | transformers, conversational | audio-text-to-video, avatar, video-generation |
+| **许可证** | MIT | MIT |
+| **能否替代** | ❌ **完全不同的模型** | — |
 
-### 推荐策略
+**结论**：LongCat 2.0 是语言模型（类似 ChatGPT），**不能替代** LongCat-Video-Avatar-1.5。需要下载 `meituan-longcat/LongCat-Video-Avatar-1.5` 才能做数字人视频。好消息是有 MLX 社区移植版（见 §11.2 #6）。
 
-**两者都配**：平时在家用内网直连（低延迟），出门在外用 Tailscale（方便）。两者不冲突，可以同时使用。
+### 11.2 新发现模型（按梯队排序）
+
+#### T0 梯队：MIT/Apache 许可证 + 可能 M2 Pro 可用 + 高质量潜力
+
+| # | 模型 | 来源 | 许可证 | 创建 | 热度 | M2 Pro | 关键特点 |
+|---|------|------|--------|------|------|--------|---------|
+| 1 | **LongCat-Video-Avatar-1.5** | 美团 meituan-longcat | MIT | 2026-05 | 714 likes | ✅ **有 MLX 移植** | 音频驱动人体视频生成，Whisper-Large 音频编码，8 步推理，支持中英文，商用级稳定性，支持动漫/动物/多人 |
+| 2 | **InfiniteTalk** | MeiGen-AI | Apache 2.0 | 2025-08 | 238 likes | ⚠️ 待测 | 音频驱动视频配音，同步唇+头+身体+表情，**无限长度**，也可做 image-audio-to-video，支持中文 |
+| 3 | **Hallo3** | 复旦 | MIT | 2024-11 | 66 likes | ⚠️ 待测 | Transformer 骨干（非 U-Net），3D VAE + 因果 transformer 身份保持，处理非正面视角和动态背景。arxiv 2412.00733 |
+| 4 | **EchoMimicV3** | 蚂蚁集团 BadToBest | Apache 2.0 | 2025-08 | 48 likes | ⚠️ 待测 | **仅 1.3B 参数**（极轻量），统一多任务+多模态人体动画，Soup-of-Tasks + Soup-of-Modals。arxiv 2507.03905 |
+
+#### T1 梯队：MIT/Apache 许可证 + 需 NVIDIA GPU 或待验证
+
+| # | 模型 | 来源 | 许可证 | 创建 | 热度 | M2 Pro | 关键特点 |
+|---|------|------|--------|------|------|--------|---------|
+| 5 | **Hallo4** | 复旦 | MIT | 2025-11 | 2 likes | ❌ 需 NVIDIA | 人类偏好优化（DPO），时间运动调制，高保真身体运动。与 UNet 和 DiT 方法互补。arxiv 2505.23525 |
+| 6 | **Hallo-Live** | 复旦 | MIT | 2026-04 | 8 likes | ❌ 需 2×H200 | 实时流式框架，异步双流扩散 + 偏好引导蒸馏，20.38 FPS / 0.94s 延迟。arxiv 2604.23632 |
+| 7 | **Ditto** | 蚂蚁集团 antgroup | — | 2025-01 | 38 likes | ❌ 需 A100 | 运动空间扩散，可控实时 talking head，TensorRT 优化，ACM MM 2025，训练代码已开源。arxiv 2411.19509 |
+| 8 | **OmniTalker** | HumanAIGC | — | 2025 | 425 stars | ❌ 需 NVIDIA | NeurIPS 2025，**实时文本驱动** talking head（不需要预录音频），上下文音视频风格复制 |
+| 9 | **GaussianTalker** | KAIST | — | 2025 | 412 stars | ❌ 需 NVIDIA | 3D 高斯泼溅实时高保真 talking head，音频驱动 |
+
+#### T2 梯队：社区/实验性 + 许可证待确认
+
+| # | 模型 | 来源 | 许可证 | 创建 | 热度 | M2 Pro | 关键特点 |
+|---|------|------|--------|------|------|--------|---------|
+| 10 | **LTX-2.3 + AV-LoRA-talking-head** | 社区 elix3r | OpenRAIL | 2026-03 | 72 likes | ⚠️ 需 LTX-2.3 基座 | LTX-2.3 首个社区 AV LoRA，talking head 生成 + 唇同步 + 内化语音特征，ComfyUI 工作流，需训练自己的角色 LoRA |
+| 11 | **Duix-Avatar** | duixcom | 待确认 | 持续更新 | **14407 stars** | ❌ 需 NVIDIA | **极热门开源数字人工具包**，离线视频生成 + 数字人克隆。另有 Duix-Mobile（8183 stars，实时交互 <1.5s 延迟） |
+| 12 | **FeatherTalk** | anliyuan | — | 2026 | 55 stars | ⚠️ 待测 | 超轻量级数字人框架，音频驱动 talking-head |
+| 13 | **HeyGem** | 硅基智能/社区 | — | 2025 | 33 stars (HeyGemWeb) | ❌ 需 NVIDIA | 数字人克隆 + 视频制作，淘宝热销（300+ 购买），与 Duix-Avatar 相关 |
+
+#### T3 梯队：辅助/数据集/通用音视频
+
+| # | 模型 | 来源 | 许可证 | 创建 | 热度 | 说明 |
+|---|------|------|--------|------|------|------|
+| 14 | **LTX-2.3** | Lightricks | LTX-2 Community | 2026-03 | 1788 likes | 通用音视频生成基座模型（非专门数字人），支持 9 种语言含中文 |
+| 15 | **OmniNFT** | zghhui et al. | Apache 2.0 | 2026-05 | 45 likes | LTX-2/LTX-2.3 的 RL-LoRA，改进音视频联合生成质量，非专门数字人 |
+| 16 | **TalkVid** | FreedomIntelligence | — | 2026 | 197 stars | CVPR 2026 Findings，大规模 talking head 数据集（非模型） |
+
+### 11.3 LongCat-Video-Avatar-1.5 MLX 移植版（M2 Pro 关键发现）
+
+HuggingFace 上已有 MLX 社区移植版，**可能直接在 M2 Pro 上运行**：
+
+| 模型 | 精度 | 说明 |
+|------|------|------|
+| `mlx-community/LongCat-Video-Avatar-1.5-bf16-dmd-merged` | bf16 | 全精度 MLX 移植 |
+| `mlx-community/LongCat-Video-Avatar-1.5-q8-dmd-merged` | q8 | 8-bit 量化 |
+| `mlx-community/LongCat-Video-Avatar-1.5-q4-dmd-merged` | q4 | 4-bit 量化（最省内存） |
+
+> ⚠️ MLX 移植版的存在不代表一定能在 M2 Pro 32GB 上跑通——还需验证推理是否完整、质量是否可接受。但 MLX 社区移植是 M2 Pro 可用性的**最强正面信号**。
+
+### 11.4 淘宝/闲鱼数字人市场调研（2026-08-11，web-access CDP）
+
+#### 淘宝搜索结果
+
+| 商品关键词 | 价格 | 销量 | 涉及模型/技术 |
+|-----------|------|------|-------------|
+| AI数字人字节**LatentSync**本地部署整合包 | ¥0.93~17 | 100+ | LatentSync 1.5/v2.2 |
+| **LTX2.3**本地部署整合包离线ai图文生视频数字人 | ¥35 | 26 | LTX-2.3 |
+| LTX2.0 2.3文字图片生视频音画同步全模态comfyui整合包 | ¥16.64 | 300+ | LTX-2/2.3 |
+| **HeyGem**克隆数字人视频制作本地部署整合包 | ¥27.75~43.9 | 300+ | HeyGem |
+| Duix Avatar克隆数字人对口型heygem本地部署 | ¥1 | 4 | Duix/HeyGem |
+| **Musetalk**懒人Ai数字人整合包 | ¥13.9 | 15 | MuseTalk |
+| **infinite talk**中文图像视音频生成AI数字人 | ¥12.5 | 59 | InfiniteTalk |
+| MiniMax H3视频海螺AI模型comfyui本地部署 | ¥9.8~39.6 | 100+ | MiniMax H3 |
+| WAN2.1+2.2本地部署整合包（通义万相） | ¥0.96~9 | 100+ | 通义万相 WAN |
+| SkyReels视频生成模型整合包 | ¥9.57 | 54 | SkyReels |
+| ComfyUI软件远程安装本地部署 | ¥4.9~9.9 | 2000+ | ComfyUI 平台 |
+| Kling可灵数字人API | ¥4.9 | 300+ | Kling API |
+
+#### 闲鱼搜索结果
+
+| 商品关键词 | 价格 | 想要数 | 涉及模型/技术 |
+|-----------|------|--------|-------------|
+| **SadTalker**汉化版-数字人图片说话 | ¥9.90 | 172 | SadTalker 汉化整合版 |
+| 即梦开源版**LTX2.3**生成音画同步视频 | ¥4.60 | 176 | LTX-2.3 |
+| **HeyGen**会员号 | ¥88 | 839 | HeyGen（商业平台账号） |
+| HeyGen官网代生成数字人 | ¥5 | 36 | HeyGen 代生成服务 |
+| MiniMax H3 全模态AI视频本地部署 | ¥14.88 | 7 | MiniMax H3 |
+
+#### 关键发现
+
+1. **淘宝/闲鱼没有发现我们不知道的 talking head 模型**——卖的模型我们基本都调研过（LatentSync、MuseTalk、SadTalker、HeyGem、LTX-2.3、InfiniteTalk）
+2. **LatentSync "v2.2"**：淘宝提到"字节LatentSync1.5 v2.2"，但 HuggingFace/GitHub 上无 v2.2 官方版本。可能是 ComfyUI 插件版本号或社区 fork，非 ByteDance 官方模型
+3. **HeyGem/Duix-Avatar** 是淘宝最热门的数字人产品（300+ 购买），Duix-Avatar GitHub 14.4K stars
+4. **LTX-2.3** 在淘宝/闲鱼都很热门（300+ 购买），作为通用音视频生成工具被广泛部署
+5. 大部分淘宝商品是 **部署服务/整合包**，不是新模型——核心模型都是开源的
 
 ---
 
@@ -928,7 +1112,7 @@ scp output.mp4 username@192.168.1.x:/path/to/output/
 - **新增扩散模型方案**：LatentSync、Sonic、Hallo2 都用扩散模型在潜空间做多步去噪，补偿了 VAE 的信息损失，嘴部清晰度远超 MuseTalk。
 - **新增 3DMM 方案**：SadTalker 在像素空间用 3DMM 变形面部，完全不用 VAE，嘴部不模糊。
 - **纠正 Wav2Lip 描述**：之前错误声称 Wav2Lip 有"相同的 VAE 质量限制"。实际上 Wav2Lip 用 GAN 在像素空间生成，完全不用 VAE，其质量问题是"贴片感"而非"模糊"。
-- **Sonic MPS 实测结果（2026-08-10）**：ComfyUI_Sonic README 声称修复 MPS 支持，但实际测试发现仅修复了模型加载和预处理阶段的 device/bf16 兼容性。扩散推理阶段（SVD UNet 前向传播）在 MPS 上死锁——fp16 和 bf16 均复现，进程进入不可中断等待状态，CPU 时间停止增长。这是 MPS kernel 级问题，非 OOM。后续扩散模型（Hallo2/V-Express）测试需关注同一问题——如果扩散推理在 MPS 上不可行，所有 SVD/SD 基底的模型都无法本地运行，需转向云端 API 或远程 GPU。
+- **Hallo2 MPS 实测成功（2026-08-10）**：首个在 M2 Pro MPS 上成功生成视频的本地扩散模型。基于 SD1.5（3.3GB UNet），4 个 MPS patch（device 选择、xformers optional、cuda guard），fp32 + 256px + 5 steps → 1.6s/step，总计 ~5 分钟生成 5.24 秒视频。512px × 16 frames 会 OOM（attention buffer 32GB），需降至 256px × 4 frames。MIT 许可证可商用。仅英文音频。**关键意义**：证明 SD1.?5 基底的扩散模型在 M2 Pro MPS 上完全可行，与 SVD 基底的 Sonic（死锁/崩溃）形成鲜明对比——模型大小和着色器复杂度是决定因素。
 - **D-ID API 认证纠正**：之前 session 用 Bearer auth 导致 401。正确方式是 Basic auth（`Authorization: Basic <base64(key)>`），已验证成功。
 - **选择 InsightFace 做人脸匹配**：ONNX Runtime 在 macOS 上原生支持；ArcFace 是业界标准的人脸嵌入方法。
 - **保留云端方案作为过渡**：本地模型测试期间可用 D-ID API（便宜）或 HeyGen API（质量高但贵）作为过渡。
@@ -939,3 +1123,4 @@ scp output.mp4 username@192.168.1.x:/path/to/output/
 - **HeyGen API 调用教训**：本 session 未经用户同意调用了 HeyGen API（使用 `test:true` 参数）。虽然 quota 前后未变（216），但 `test:true` 的免费性未经文档确认，不应假设。以后调用任何付费 API 前必须征得用户同意。
 - **文档收录遗漏原因分析**：HeyGem 在 model-sources-reference.md 中被提到（line 158），但未收录到主文档。原因是 web deep research 时搜索到了该模型，但因为不兼容 M2 Pro（需 NVIDIA GPU）而跳过了详细评估。这是方法论问题——**不兼容的模型也应收录**，标注清楚兼容性即可，让用户了解全局。
 - **GPU 远程访问方案（2026-08-10）**：许多 NVIDIA-only 模型（LatentSync 1.6、Sonic、Hallo2、HeyGem 等）无法在 M2 Pro 上运行。新增第 10 章记录两种 GPU 远程访问方案：Tailscale 组网（远程访问，需处理 Clash fake-ip 集成）和内网直连（SSH，仅家庭网络）。两者不冲突，推荐都配。内网直连 + SSH 密钥认证对家庭网络足够安全。
+- **2026-08-11 淘宝/闲鱼/HuggingFace/GitHub 全面调研**：用 web-access skill (CDP) 搜索淘宝/闲鱼，发现 15 个新模型。关键发现：(1) LongCat-Video-Avatar-1.5 有 MLX 移植版，是 M2 Pro 最有希望的新选项；(2) InfiniteTalk (MeiGen-AI, 238 likes, Apache 2.0) 支持中文+无限长度；(3) EchoMimicV3 仅 1.3B 参数极轻量；(4) Duix-Avatar 14.4K stars 是最热门开源数字人项目；(5) 淘宝/闲鱼未发现我们不知道的新 talking head 模型，大部分是部署服务/整合包。LTX-2.3-OmniNFT 非专为数字人，是通用音视频生成质量改进。LongCat 2.0 是 LLM 不能替代 LongCat-Video-Avatar-1.5。
