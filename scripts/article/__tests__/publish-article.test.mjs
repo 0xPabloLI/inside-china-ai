@@ -437,4 +437,32 @@ describe("triggerRagReindex", () => {
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Triggering RAG reindex"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("RAG reindex complete"));
   });
+
+  it("uses incremental mode by default (no --full flag)", () => {
+    const mockExec = vi.fn();
+    triggerRagReindex("/fake/root", {}, mockExec);
+
+    const [cmd] = mockExec.mock.calls[0];
+    expect(cmd).toContain("node scripts/rag/index.mjs");
+    expect(cmd).not.toContain("--full");
+  });
+
+  it("passes --full flag when { full: true } option is set", () => {
+    const mockExec = vi.fn();
+    triggerRagReindex("/fake/root", { full: true }, mockExec);
+
+    const [cmd] = mockExec.mock.calls[0];
+    expect(cmd).toContain("--full");
+  });
+
+  it("maintains backward compatibility with old signature (projectRoot, execFn)", () => {
+    const mockExec = vi.fn();
+    // Old call pattern: second arg is execFn directly
+    triggerRagReindex("/fake/root", mockExec);
+
+    expect(mockExec).toHaveBeenCalledTimes(1);
+    const [cmd] = mockExec.mock.calls[0];
+    expect(cmd).toContain("scripts/rag/index.mjs");
+    expect(cmd).not.toContain("--full");
+  });
 });

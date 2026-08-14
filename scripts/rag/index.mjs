@@ -1,18 +1,24 @@
 #!/usr/bin/env node
 /**
- * RAG Index Script — Full Rebuild (Tracer Bullet)
+ * RAG Index Script — Incremental + Full Rebuild
  *
- * Reads all content sources, chunks, embeds, and upserts to Supabase.
- * Then cleans up orphaned embeddings.
+ * Default: incremental — only embeds chunks whose text hash changed.
+ * --full:  full rebuild — re-embeds all chunks regardless of hash.
+ *
+ * Reads all content sources, chunks, computes SHA-256 hash per chunk,
+ * compares against DB hashes, embeds only changed chunks, upserts to
+ * Supabase, then cleans up orphaned embeddings.
  *
  * Usage:
- *   node scripts/rag/index.mjs
+ *   node scripts/rag/index.mjs           # incremental (default)
+ *   node scripts/rag/index.mjs --full    # full rebuild
  *
  * Pre-requisites:
  *   - Ollama running with bge-m3 model pulled
  *   - .env.local with ADMIN_EMAIL/ADMIN_PASSWORD
  *   - .env with SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY
  *   - Database migration applied (supabase/migrations/*_rag_content_embeddings.sql)
+ *   - chunk_hash migration applied (supabase/migrations/20260814150000_rag_add_chunk_hash.sql)
  *
  * Spec: docs/archive/spec-rag.md §4.2
  */
@@ -26,7 +32,13 @@ import yaml from "js-yaml";
 import { chunkMarkdown, chunkSceneData, chunkCatalog } from "./lib/chunker.mjs";
 import { normalizeMetadata } from "./lib/normalizer.mjs";
 import { embed, isOllamaAvailable, verifyModelDimensions, DEFAULT_MODEL } from "./lib/ollama.mjs";
-import { createRagClient, upsertChunks, cleanupOrphans } from "./lib/supabase-client.mjs";
+import {
+  createRagClient,
+  upsertChunks,
+  cleanupOrphans,
+  computeChunkHash,
+  fetchExistingHashes,
+} from "./lib/supabase-client.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..", "..");
@@ -288,7 +300,9 @@ function findFilesRecursive(dir, suffix) {
 // ─── Main ───
 
 async function main() {
-  console.log("📚 RAG Index — Full Rebuild");
+  const isFullRebuild = process.argv.includes("--full");
+
+  console.log(`📚 RAG Index — ${isFullRebuild ? "Full Rebuild" : "Incremental"}`);
   console.log("=".repeat(50));
 
   // 1. Pre-check Ollama (Scenario #1)
@@ -350,62 +364,102 @@ async function main() {
     ...assetCatalogChunks,
   ];
 
-  console.log(`\n📊 Total: ${allChunks.length} chunks to embed`);
+  console.log(`\n📊 Total: ${allChunks.length} chunks collected`);
 
   if (allChunks.length === 0) {
     console.log("  Nothing to index. Exiting.");
     process.exit(0);
   }
 
-  // 4. Generate embeddings in batches
-  console.log("\n🧠 Generating embeddings...");
+  // 4. Compute hashes for all chunks
+  for (const chunk of allChunks) {
+    chunk.chunk_hash = computeChunkHash(chunk.chunk_text);
+  }
+
+  // 5. Determine which chunks need embedding (incremental: hash diff; full: all)
+  let chunksToEmbed;
+
+  if (isFullRebuild) {
+    chunksToEmbed = allChunks;
+    console.log(`\n🧠 Full rebuild: embedding all ${allChunks.length} chunks...`);
+  } else {
+    console.log("\n🔎 Fetching existing hashes from DB...");
+    const allSourceIds = [...new Set(allChunks.map((c) => c.source_id))];
+    const existingHashes = await fetchExistingHashes(client, allSourceIds);
+    console.log(`  Found ${existingHashes.size} existing chunk hashes in DB`);
+
+    chunksToEmbed = [];
+    for (const chunk of allChunks) {
+      const key = `${chunk.content_type}:${chunk.source_id}:${chunk.chunk_index}`;
+      const existingHash = existingHashes.get(key);
+      if (existingHash === chunk.chunk_hash) {
+        // Unchanged — skip embedding
+        continue;
+      }
+      chunksToEmbed.push(chunk);
+    }
+
+    console.log(`  ${chunksToEmbed.length} chunks changed (need embedding)`);
+    console.log(`  ${allChunks.length - chunksToEmbed.length} chunks unchanged (skipped)`);
+  }
+
+  // 6. Generate embeddings in batches (only for changed chunks)
   const errorLog = [];
   const chunksWithEmbeddings = [];
 
-  const BATCH_SIZE = 100;
-  for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
-    const batch = allChunks.slice(i, i + BATCH_SIZE);
-    const texts = batch.map((c) => c.chunk_text);
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(allChunks.length / BATCH_SIZE);
+  if (chunksToEmbed.length > 0) {
+    console.log("\n🧠 Generating embeddings...");
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < chunksToEmbed.length; i += BATCH_SIZE) {
+      const batch = chunksToEmbed.slice(i, i + BATCH_SIZE);
+      const texts = batch.map((c) => c.chunk_text);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(chunksToEmbed.length / BATCH_SIZE);
 
-    try {
-      const embeddings = await embed(texts);
-      for (let j = 0; j < batch.length; j++) {
-        chunksWithEmbeddings.push({
-          ...batch[j],
-          embedding: embeddings[j],
-        });
-      }
-      console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} chunks embedded`);
-    } catch (err) {
-      // Q19: Log failed batch, skip, continue
-      console.error(`  ⚠️  Batch ${batchNum} failed: ${err.message}`);
-      for (const chunk of batch) {
-        errorLog.push({
-          source_id: chunk.source_id,
-          chunk_index: chunk.chunk_index,
-          error: err.message,
-          timestamp: new Date().toISOString(),
-        });
+      try {
+        const embeddings = await embed(texts);
+        for (let j = 0; j < batch.length; j++) {
+          chunksWithEmbeddings.push({
+            ...batch[j],
+            embedding: embeddings[j],
+          });
+        }
+        console.log(`  Batch ${batchNum}/${totalBatches}: ${batch.length} chunks embedded`);
+      } catch (err) {
+        // Q19: Log failed batch, skip, continue
+        console.error(`  ⚠️  Batch ${batchNum} failed: ${err.message}`);
+        for (const chunk of batch) {
+          errorLog.push({
+            source_id: chunk.source_id,
+            chunk_index: chunk.chunk_index,
+            error: err.message,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     }
+
+    console.log(`\n✅ ${chunksWithEmbeddings.length} chunks embedded, ${errorLog.length} failed`);
+  } else {
+    console.log("\n✅ No chunks to embed — all unchanged");
   }
 
-  console.log(`\n✅ ${chunksWithEmbeddings.length} chunks embedded, ${errorLog.length} failed`);
+  // 7. UPSERT to Supabase (changed chunks only)
+  if (chunksWithEmbeddings.length > 0) {
+    console.log("\n💾 Upserting to Supabase...");
+    await upsertChunks(client, chunksWithEmbeddings);
+    console.log(`  ✅ ${chunksWithEmbeddings.length} chunks upserted`);
+  } else {
+    console.log("\n💾 No chunks to upsert — skipping");
+  }
 
-  // 5. UPSERT to Supabase
-  console.log("\n💾 Upserting to Supabase...");
-  await upsertChunks(client, chunksWithEmbeddings);
-  console.log(`  ✅ ${chunksWithEmbeddings.length} chunks upserted`);
-
-  // 6. Orphan cleanup (Q9, Q18)
+  // 8. Orphan cleanup (Q9, Q18) — always run to catch deleted sources
   console.log("\n🧹 Cleaning up orphaned embeddings...");
   const currentSourceIds = [...new Set(allChunks.map((c) => c.source_id))];
   await cleanupOrphans(client, currentSourceIds);
   console.log(`  ✅ Orphan cleanup complete (${currentSourceIds.length} active sources)`);
 
-  // 7. Write error log if any failures
+  // 9. Write error log if any failures
   if (errorLog.length > 0) {
     mkdirSync(outputDir, { recursive: true });
     const errorLogPath = join(outputDir, "index-errors.log");
@@ -413,18 +467,20 @@ async function main() {
     console.log(`\n⚠️  ${errorLog.length} errors logged to ${errorLogPath}`);
   }
 
-  // 8. Summary
+  // 10. Summary
   console.log("\n" + "=".repeat(50));
-  console.log("✅ RAG Index Complete!");
-  console.log(`  Indexed:  ${chunksWithEmbeddings.length} chunks`);
-  console.log(`  Skipped:  ${errorLog.length} chunks (errors)`);
-  console.log(`  Sources:  ${currentSourceIds.length} active`);
-  console.log(`  Articles:     ${articleChunks.length} chunks`);
-  console.log(`  Scene-data:   ${sceneChunks.length} chunks`);
-  console.log(`  Source-mat:   ${sourceMaterialChunks.length} chunks`);
-  console.log(`  Research:     ${researchChunks.length} chunks`);
-  console.log(`  TikTok-refs:  ${tiktokChunks.length} chunks`);
-  console.log(`  Asset catalog: ${assetCatalogChunks.length} chunks`);
+  console.log(`✅ RAG Index Complete! (${isFullRebuild ? "Full" : "Incremental"})`);
+  console.log(`  Total chunks:   ${allChunks.length}`);
+  console.log(`  Embedded:       ${chunksWithEmbeddings.length} chunks`);
+  console.log(`  Skipped (same): ${allChunks.length - chunksToEmbed.length} chunks`);
+  console.log(`  Errors:         ${errorLog.length} chunks`);
+  console.log(`  Sources:        ${currentSourceIds.length} active`);
+  console.log(`  Articles:       ${articleChunks.length} chunks`);
+  console.log(`  Scene-data:     ${sceneChunks.length} chunks`);
+  console.log(`  Source-mat:     ${sourceMaterialChunks.length} chunks`);
+  console.log(`  Research:       ${researchChunks.length} chunks`);
+  console.log(`  TikTok-refs:    ${tiktokChunks.length} chunks`);
+  console.log(`  Asset catalog:  ${assetCatalogChunks.length} chunks`);
   console.log("=".repeat(50));
 }
 

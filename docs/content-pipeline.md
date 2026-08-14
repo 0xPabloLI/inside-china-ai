@@ -532,7 +532,7 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <p
 
 ### 2d. RAG Reindex（文章发布后自动触发）
 
-文章发布后，立即触发 RAG 全量重建，确保新内容进入知识库供后续文章引用和 Agent 查询：
+文章发布后，立即触发 RAG 增量重建，确保新内容进入知识库供后续文章引用和 Agent 查询：
 
 ```bash
 node scripts/rag/index.mjs
@@ -780,7 +780,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，**先运行 MRL-2 自审
 
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）
 
-MRL-2 通过后，scene-data 已就绪。触发 RAG 全量重建，将新的 scene-data 内容（voiceover 文本、视觉描述）索引进知识库：
+MRL-2 通过后，scene-data 已就绪。触发 RAG 增量重建，将新的 scene-data 内容（voiceover 文本、视觉描述）索引进知识库：
 
 ```bash
 node scripts/rag/index.mjs
@@ -806,7 +806,7 @@ node scripts/short-video/main.mjs                    # TTS → HTML → 录制 �
 
 ### 4b. RAG Reindex（多媒体素材）
 
-视频制作完成后，如本管线下载了新素材或修改了 `assets/catalog.yml`，触发 RAG 全量重建，确保多媒体素材元数据进入知识库：
+视频制作完成后，如本管线下载了新素材或修改了 `assets/catalog.yml`，触发 RAG 增量重建，确保多媒体素材元数据进入知识库：
 
 ```bash
 node scripts/rag/index.mjs
@@ -817,7 +817,7 @@ node scripts/rag/index.mjs
 - 如未新增素材（仅使用已有素材或纯 CSS 场景）→ 跳过此步骤
 - HITL 阶段用户要求修改视频导致素材变更时 → 同样触发 reindex
 
-> **非阻塞**：reindex 失败不阻塞 Stage 5。Agent 输出警告并建议手动重跑。当前全量重建约 60s（551 chunks），随内容库增长会线性增加——当重建时间超过 ~5min 时考虑增量索引。catalog 条目质量影响 RAG 搜索相关性——Agent 应在 reindex 前审查 description 和 keywords 的准确性。详见 `docs/media-asset-management.md` §2「When to trigger RAG reindex」。
+> **非阻塞**：reindex 失败不阻塞 Stage 5。Agent 输出警告并建议手动重跑。增量索引是默认模式——只 embed 文本内容变化的 chunks，未变化的跳过。全量重建用 `node scripts/rag/index.mjs --full`。catalog 条目质量影响 RAG 搜索相关性——Agent 应在 reindex 前审查 description 和 keywords 的准确性。详见 `docs/media-asset-management.md` §2「When to trigger RAG reindex」。
 
 ---
 

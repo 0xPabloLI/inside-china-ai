@@ -212,16 +212,27 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey) {
 /**
  * Trigger RAG reindex after successful article publish.
  *
+ * Default: incremental — only embeds chunks whose text hash changed.
+ * Pass { full: true } in options for a full rebuild.
+ *
  * Non-blocking: if index.mjs fails, the publish still succeeds.
  * Spec: docs/archive/spec-rag.md §4.6
  *
  * @param {string} projectRoot — Absolute path to project root
+ * @param {Object} [options={}] — Options { full: boolean }
  * @param {Function} [execFn=execSync] — Exec function (injectable for testing)
  */
-export function triggerRagReindex(projectRoot, execFn = execSync) {
-  console.log("  📚 Triggering RAG reindex...");
+export function triggerRagReindex(projectRoot, options = {}, execFn = execSync) {
+  // Support old signature: triggerRagReindex(projectRoot, execFn)
+  if (typeof options === "function") {
+    execFn = options;
+    options = {};
+  }
+
+  const fullFlag = options.full ? " --full" : "";
+  console.log("  📚 Triggering RAG reindex (incremental)...");
   try {
-    execFn("node scripts/rag/index.mjs", {
+    execFn(`node scripts/rag/index.mjs${fullFlag}`, {
       stdio: "inherit",
       cwd: projectRoot,
     });

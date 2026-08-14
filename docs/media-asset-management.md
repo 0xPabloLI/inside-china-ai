@@ -57,11 +57,12 @@ Text assets (articles, scene-data) have auto-triggers in the content pipeline (S
 | After video pipeline completes (Stage 4 → Stage 5) | If assets were added/modified during production, reindex | `node scripts/rag/index.mjs` |
 | After HITL video modification (adding/replacing assets in Stage 5) | Update catalog.yml if new assets, then reindex | `node scripts/rag/index.mjs` |
 
-**Unified flow** — text and multimedia use the same reindex mechanism:
-- Text: `publish-article.mjs` → `triggerRagReindex()` (auto) → `index.mjs` full rebuild
+**Unified flow** — text and multimedia use the same reindex mechanism (incremental by default):
+- Text: `publish-article.mjs` → `triggerRagReindex()` (auto, incremental) → `index.mjs`
 - Multimedia: download → write catalog.yml entry → `triggerRagReindex()` or manual `node scripts/rag/index.mjs`
+- Full rebuild: `node scripts/rag/index.mjs --full`
 
-> Full rebuild is currently ~60s (551 chunks on M2 Pro). As the content library grows (more articles, research docs), rebuild time scales linearly with chunk count — expect ~5-10min at 5000+ chunks. Revisit incremental indexing when rebuild exceeds ~5min. `triggerRagReindex()` is non-blocking — failure prints a warning and suggests manual re-run.
+> Incremental indexing is the default — `index.mjs` computes SHA-256 hash per chunk, compares against DB, and only embeds changed chunks. Unchanged chunks are skipped. First run embeds everything; subsequent runs only embed what changed. `triggerRagReindex()` is non-blocking — failure prints a warning and suggests manual re-run.
 
 **Catalog entry quality**: Agent writes `description` and `keywords` when downloading assets. Description quality directly affects RAG search relevance — Agent should review and edit entries for clarity before reindexing. Do not auto-generate catalog entries from `asset-sourcer.mjs` (quality control matters).
 

@@ -4,6 +4,8 @@ import {
   cleanupOrphans,
   queryContent,
   UPSERT_BATCH_SIZE,
+  computeChunkHash,
+  fetchExistingHashes,
 } from "../lib/supabase-client.mjs";
 
 // ─── Mock Supabase client factory ───
@@ -200,6 +202,112 @@ describe("cleanupOrphans", () => {
     });
 
     await expect(cleanupOrphans(client, ["a"])).rejects.toThrow(/delete|permission/i);
+  });
+});
+
+// ─── computeChunkHash ───
+
+describe("computeChunkHash", () => {
+  it("returns a hex string for text input", () => {
+    const hash = computeChunkHash("hello world");
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("produces same hash for same text", () => {
+    const a = computeChunkHash("test content");
+    const b = computeChunkHash("test content");
+    expect(a).toBe(b);
+  });
+
+  it("produces different hash for different text", () => {
+    const a = computeChunkHash("version 1");
+    const b = computeChunkHash("version 2");
+    expect(a).not.toBe(b);
+  });
+
+  it("handles empty string", () => {
+    const hash = computeChunkHash("");
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("produces known SHA-256 value for deterministic input", () => {
+    // SHA-256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    expect(computeChunkHash("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
+  });
+});
+
+// ─── fetchExistingHashes ───
+
+describe("fetchExistingHashes", () => {
+  it("returns Map with keys for existing chunks", async () => {
+    const client = createMockClient({
+      rpcData: [],
+    });
+    // Override from().select().in() to return hash data
+    const selectBuilder = {
+      in: vi.fn(() =>
+        Promise.resolve({
+          error: null,
+          data: [
+            { content_type: "article", source_id: "slug-1", chunk_index: 0, chunk_hash: "hash-a" },
+            { content_type: "article", source_id: "slug-1", chunk_index: 1, chunk_hash: "hash-b" },
+          ],
+        }),
+      ),
+    };
+    client._fromBuilder.select = vi.fn(() => selectBuilder);
+
+    const result = await fetchExistingHashes(client, ["slug-1"]);
+
+    expect(result).toBeInstanceOf(Map);
+    expect(result.size).toBe(2);
+    expect(result.get("article:slug-1:0")).toBe("hash-a");
+    expect(result.get("article:slug-1:1")).toBe("hash-b");
+  });
+
+  it("returns empty Map for empty sourceIds", async () => {
+    const client = createMockClient();
+    const result = await fetchExistingHashes(client, []);
+    expect(result.size).toBe(0);
+  });
+
+  it("returns empty Map on DB error (graceful degradation)", async () => {
+    const client = createMockClient();
+    const selectBuilder = {
+      in: vi.fn(() =>
+        Promise.resolve({
+          error: { message: "connection refused" },
+          data: null,
+        }),
+      ),
+    };
+    client._fromBuilder.select = vi.fn(() => selectBuilder);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await fetchExistingHashes(client, ["slug-1"]);
+
+    expect(result.size).toBe(0);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Hash fetch error"));
+  });
+
+  it("batches queries when sourceIds exceed batch size", async () => {
+    const client = createMockClient();
+    const callCount = { in: 0 };
+    const selectBuilder = {
+      in: vi.fn(() => {
+        callCount.in++;
+        return Promise.resolve({ error: null, data: [] });
+      }),
+    };
+    client._fromBuilder.select = vi.fn(() => selectBuilder);
+
+    // 201 source IDs should trigger 2 batches (200 + 1)
+    const manyIds = Array.from({ length: 201 }, (_, i) => `slug-${i}`);
+    await fetchExistingHashes(client, manyIds);
+
+    expect(callCount.in).toBe(2);
   });
 });
 
