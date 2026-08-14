@@ -11,14 +11,14 @@
 >
 > **Implemented in pipeline:**
 > - §4.5 (Asset Directory Reorganization) — ✅ **Implemented 2026-08-14**. See `docs/media-asset-management.md` for authoritative structure.
-> - §4.6 (Background Audio Mixing) — ✅ Validated. `volume={0.08}` confirmed as industry-standard (-22dB). Per-scene volume / envelope ducking: proposed, not yet in code.
+> - §4.6 (Background Audio Mixing) — ✅ Validated. `volume={0.08}` confirmed as industry-standard (-22dB). **Per-scene volume + envelope ducking: ✅ Implemented 2026-08-14** (commit 0822eb5). `MediaField.volume?: number` added; `MediaBackground.tsx` uses `videoVolume = baseVolume * opacity` for fade in/out; `validateMedia()` validates range [0,1].
 > - §4.7 (BGM) — ⚠️ Deprecated. Pipeline BGM was fully implemented (`lib/bgm.mjs` + `mixBgm()`) but user has stopped using it — adds TikTok music manually at upload time. Code retained but `--bgm` flag no longer recommended.
 >
 > **Future ideas (not implemented):**
 > - §4.1 (Reference Video Extraction) — Conceptual workflow only. Priority: Low.
-> - §4.4 (Automated Asset Pipeline) — ✅ `asset-sourcer.mjs` **implemented** (commit 1198685 + 1501c69, 90 tests). Searches 10 sources, scores candidates, downloads top matches, outputs JSON report. Does NOT auto-modify scene-data — user reviews report and manually fills `media` field.
+> - §4.4 (Automated Asset Pipeline) — ✅ `asset-sourcer.mjs` **implemented** (commit 1198685 + 1501c69, 90 tests). Searches 10 sources, scores candidates, downloads top matches, outputs JSON report. **Auto-fill: ✅ Implemented 2026-08-14** (commit 0822eb5). `assignAssetsToScenes()` batch-assigns assets to scenes with volume recommendation; outputs `media-patch.json`; `apply-media-patch.mjs` formats patches as copy-paste code blocks for HITL review.
 > - §4.5 (SHA-256 Dedup) — Future: content hashing to prevent duplicate downloads. Directory reorganization is already done; dedup logic is the remaining piece. Priority: Low.
-> - §4.6 (Per-scene volume + envelope ducking) — Proposed in research, not yet in `types.ts` / `MediaBackground.tsx`. Priority: Medium.
+> - §4.6 (Per-scene volume + envelope ducking) — ✅ **Implemented 2026-08-14** (commit 0822eb5). `volume?: number` in `MediaField`; envelope ducking via `videoVolume = baseVolume * opacity`; `validateMedia()` range check. See `docs/archive/spec-media-volume-autofill.md`.
 
 ## 1. Current State (2026-08-13)
 
@@ -67,8 +67,8 @@
 
 **Working command**:
 ```bash
-yt-dlp --cookies-from-browser chrome \
-  -f "best[height<=720][ext=mp4]/best[height<=720]" \
+yt-dlp --cookies-from-browser firefox \
+  -f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best" \
   --max-filesize 20M \
   --download-sections "*0:00-0:10" \
   -o "output-name.mp4" \
@@ -76,16 +76,16 @@ yt-dlp --cookies-from-browser chrome \
 ```
 
 **Key flags**:
-- `--cookies-from-browser chrome` — **MANDATORY**. Without this, YouTube returns "Sign in to confirm you're not a bot"
+- `--cookies-from-browser firefox` — **MANDATORY**. Without this, YouTube returns "Sign in to confirm you're not a bot". Firefox cookies are used because Chrome v127+ cookie encryption is broken on macOS
 - `--download-sections "*0:00-0:10"` — download only first 10 seconds (keeps file size small)
 - `--max-filesize 20M` — skip files that are too large
 - `-f "best[height<=720]"` — limit to 720p (sufficient for 1080×1920 vertical video background)
 
-**Parallel downloads fail**: Multiple yt-dlp instances with `--cookies-from-browser chrome` conflict on Chrome's cookie database lock. **Run serially**.
+**Parallel downloads fail**: Multiple yt-dlp instances with `--cookies-from-browser firefox` may conflict on Firefox's cookie database lock. **Run serially**.
 
 **Search for videos**:
 ```bash
-yt-dlp --cookies-from-browser chrome --flat-playlist \
+yt-dlp --cookies-from-browser firefox --flat-playlist \
   --print "%(id)s %(title)s %(duration)s" \
   "https://www.youtube.com/results?search_query=unitree+H1+humanoid+demo"
 ```
@@ -810,7 +810,7 @@ const videoVolume = baseVolume * interpolate(
 | **Pexels** | Pexels License (free) | Optional but appreciated | "Photo by [author] on Pexels" | No logo required |
 | **Unsplash** | Unsplash License (free) | Optional but appreciated | "Photo by [author] on Unsplash" | No logo required |
 | **Pixabay** | Pixabay Content License (free) | **Yes — required by API terms** | "Source: Pixabay" or link to pixabay.com | **Yes — if API is used, must show Pixabay logo to users where search results are displayed** |
-| **Wikimedia Commons** | Varies (CC-BY, CC-BY-SA, PD) | **Yes — required for CC-licensed content** | "Author: [name], via Wikimedia Commons, CC-BY-SA 4.0" | No logo, but license text required |
+| **Wikimedia Commons** | Varies (CC-BY, CC-BY-SA, PD) | **Yes — dynamically per file** | "Author: [name], via Wikimedia Commons, [license]" | No logo, but license text required for CC |
 | **Coverr** | Coverr License (free) | Optional | "Video from Coverr" | No logo required |
 | **YouTube (via yt-dlp)** | Varies (creator's copyright) | **Yes — required** | "Contains footage from [channel name], YouTube" | No logo, but credit required |
 | **B站 (via yt-dlp)** | Varies (creator's copyright) | **Yes — required** | "Contains footage from [UP主 name], B站" | No logo, but credit required |
@@ -888,59 +888,98 @@ const videoVolume = baseVolume * interpolate(
 
 > **Status**: ✅ Implemented. `buildAttribution()` generates per-asset attribution. `buildCreditsSection()` only surfaces sources with `logoRequired=true` to TikTok description. All other sources tracked internally in `output/asset-report.json`.
 
-## 7. Cookie & Platform Access Status (2026-08-14)
+## 7. Cookie & Platform Access Status (2026-08-14, updated)
 
-> **Finding**: `yt-dlp --cookies-from-browser chrome` is **broken** on this macOS machine due to Chrome cookie encryption changes.
+> **Finding**: `yt-dlp --cookies-from-browser firefox` successfully extracts cookies from Firefox's SQLite cookie database. However, **cookies alone are insufficient** for Douyin — the platform uses `a_bogus` request signing that yt-dlp has not implemented.
 
 ### 7.1 Platform Status Matrix
 
-| Platform | yt-dlp Search | yt-dlp URL Download | Cookies Needed? | Status |
-|----------|---------------|---------------------|------------------|--------|
-| **YouTube** | ✅ `ytsearch10:` works | ✅ Works | ❌ Not needed | **Fully functional** |
-| **B站** | ⚠️ `bilisearch:` returns results but title/duration = NA | ❌ KeyError('bvid') on direct URL | Yes (SESSDATA) | **Broken — needs investigation** |
-| **抖音** | N/A (no search extractor) | ❌ "Fresh cookies needed" | Yes (sid_tt) | **Broken — cookies can't be decrypted** |
-| **小红书** | N/A (no search extractor) | ❌ "No video formats found" | Yes (xsec_token) | **Broken — needs valid URL with token** |
-| **微博** | N/A (no search extractor) | ❌ SSL EOF error | Possibly | **Broken — SSL/network issue** |
+| Platform | yt-dlp Search | yt-dlp URL Download | Cookies in Firefox? | Root Cause | Status |
+|----------|---------------|---------------------|---------------------|------------|--------|
+| **YouTube** | ✅ `ytsearch10:` works | ✅ Works | N/A | — | **Fully functional** |
+| **B站** | ⚠️ `bilisearch:` intermittent 412 errors; returns `av` IDs with NA metadata | ✅ Works with `av` ID (NOT `BV` ID!) | ✅ 352 cookies | `BV`号 triggers `KeyError('bvid')`; `av`号 works. Search returns `av` IDs. 412 errors on multi-word/Chinese queries. Single English word works sometimes. | **Working with av ID; search unstable** |
+| **抖音** | N/A (no search extractor) | ❌ "Fresh cookies needed" | ✅ 57 cookies + `s_v_web_id` found | `a_bogus` signature parameter not implemented in yt-dlp (PR #15627 closed, not merged) | **Blocked — yt-dlp limitation, not cookie issue** |
+| **小红书** | N/A (no search extractor) | ❌ "No video formats found" | ✅ 16 cookies extracted | Extractor loads webpage but can't parse video formats; XHS changed to rednote.com (issue #16519) | **Broken — extractor outdated** |
+| **微博** | N/A (no search extractor) | ❌ "Extractor failed to obtain id" | ✅ 20 cookies extracted | URL format mismatch or extractor bug | **Broken — needs valid URL format** |
 
-### 7.2 Root Cause: Chrome Cookie Decryption Failure
+### 7.2 Root Cause Analysis
 
-```
-WARNING: find-generic-password failed
-WARNING: cannot decrypt v10 cookies: no key found
-```
-
+**Chrome cookie issue** (resolved by switching to Firefox):
 - Chrome v127+ changed cookie encryption on macOS
-- `security find-generic-password -s "Chrome Safe Storage" -w` returns empty
-- yt-dlp cannot read Chrome's encrypted cookie database
-- YouTube works because it doesn't require cookies for search
+- `yt-dlp --cookies-from-browser chrome` fails with `cannot decrypt v10 cookies`
+- `yt-dlp --cookies-from-browser firefox` works — Firefox stores cookies in SQLite (`cookies.sqlite`), no encryption issue
+- Firefox profile: `~/Library/Application Support/Firefox/Profiles/4m5wba40.default-release/cookies.sqlite`
+
+**Douyin `a_bogus` signature** (the real blocker):
+- Douyin's web API (`/aweme/v1/web/aweme/detail/`) requires a valid `a_bogus` parameter in the query string
+- This is a dynamic signature generated by JavaScript on the client side
+- yt-dlp's Douyin extractor does NOT implement this algorithm
+- PR [#15627](https://github.com/yt-dlp/yt-dlp/pull/15627) attempted to fix this but was **closed without merging**
+- Issue [#9667](https://github.com/yt-dlp/yt-dlp/issues/9667) remains **open** with no fix
+- Community member confirmed: `fetch()` from Firefox console succeeds (browser generates signature), but yt-dlp's direct HTTP request fails
+- **Conclusion**: This is a yt-dlp code limitation, not a cookie problem. No amount of cookie exporting will fix it.
+
+**Xiaohongshu extractor outdated**:
+- Issue [#16519](https://github.com/yt-dlp/yt-dlp/issues/16519): XHS changed domain to `rednote.com`, extractor not updated
+- Issue [#10814](https://github.com/yt-dlp/yt-dlp/issues/10814): "No video formats found" — open
+- Issue [#13578](https://github.com/yt-dlp/yt-dlp/issues/13578): "Unable to extract initial state" — open
 
 ### 7.3 Workaround Options
 
-1. **Export cookies.txt manually** (recommended):
-   - **Chrome extension "Get cookies.txt LOCALLY"** has been **removed from Chrome Web Store** (as of 2026-08-14, shows "Item not available")
-   - **Firefox addon still available**: [Get cookies.txt LOCALLY](https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/)
-   - Alternative Firefox addons: [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/), [Export Cookies](https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/)
-   - Navigate to douyin.com / bilibili.com (while logged in)
-   - Export cookies → save as `~/.config/yt-dlp/cookies.txt`
-   - Use `yt-dlp --cookies ~/.config/yt-dlp/cookies.txt`
+1. **Use Firefox for B站** (working):
+   - `yt-dlp --cookies-from-browser firefox` successfully reads Firefox cookies
+   - B站 needs format selector: `-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"` to merge separate video/audio streams
+   - User must be logged into B站 in Firefox for premium content access
 
-2. **Use Firefox instead of Chrome**:
-   - yt-dlp's Firefox cookie reader works on macOS
-   - `yt-dlp --cookies-from-browser firefox`
+2. **抖音 — alternative tools** (not yt-dlp):
+   - yt-dlp cannot download Douyin videos (a_bogus signature not implemented)
+   - **Alternative**: [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) (19K stars) — Python API that handles a_bogus signing
+   - Public API: `https://api.douyin.wtf/api/douyin/web/fetch_one_video?aweme_id=VIDEO_ID` (may require auth or be rate-limited)
+   - PyPI package: `douyin-tiktok-scraper`
+   - **CDP approach**: Open Douyin video page in Chrome (with remote debugging), use `Runtime.evaluate` to call the API from browser context — browser generates a_bogus automatically. Tested but Chrome CDP was unavailable during this session.
+   - **Douyin desktop app**: Would not help — yt-dlp doesn't interface with desktop apps, it reads browser cookie databases
 
-3. **Wait for yt-dlp fix**: Track [yt-dlp issue #11442](https://github.com/yt-dlp/yt-dlp/issues)
-   - yt-dlp version 2026.07.04 (Homebrew latest) — no fix yet
-   - Chrome v127+ App-bound encryption is not yet supported
+3. **小红书 — alternative tool** (not yt-dlp):
+   - yt-dlp extractor is outdated (XHS changed site structure, issue #16519)
+   - **Alternative**: [XHS-Downloader](https://github.com/JoeanAmier/XHS-Downloader) (12K stars) — Python tool, supports RedNote/XiaoHongShu link extraction and content download
+   - Use CDP to open XHS page in Chrome, extract image/video URLs from DOM
+   - User must be logged into XHS in Chrome
 
-### 7.4 Impact on asset-sourcer.mjs
+4. **微博 — alternative tool** (not yt-dlp):
+   - yt-dlp Weibo extractor has bugs (`Extractor failed to obtain id`)
+   - **Alternative**: [weibo-downloader-skill](https://github.com/belingud/weibo-downloader-skill) — Python tool for Weibo images and videos
+   - May also need CDP extraction as fallback
+
+5. **通用资源下载器 (GUI only, not CLI)**:
+   - [res-downloader](https://github.com/putyy/res-downloader) (19K stars) — Go+Wails GUI app, supports 视频号/小程序/抖音/快手/小红书/m3u8/直播流
+   - Not suitable for pipeline integration (GUI only, no CLI/API)
+   - Useful for manual one-off downloads
+
+6. **Wait for yt-dlp fixes**: Track open issues
+   - Douyin: [#9667](https://github.com/yt-dlp/yt-dlp/issues/9667) — a_bogus signature
+   - XHS: [#16519](https://github.com/yt-dlp/yt-dlp/issues/16519) — rednote.com domain
+   - Bilibili: `BV`号 → `KeyError('bvid')` — use `av`号 workaround
+   - yt-dlp version: 2026.07.04 (latest)
+
+### 7.4 Firefox Remote Debugging (CDP for Firefox)
+
+Firefox supports remote debugging via the **CDP protocol** (not just its own RDP):
+- Start Firefox with: `firefox --remote-debugging-port 9222`
+- Or enable in `about:config`: `devtools.debugger.remote-enabled = true`
+- This allows the same CDP-based tools (web-access skill, asset-sourcer CDP) to work with Firefox tabs
+- **Not yet tested** — if Chrome CDP is unavailable, Firefox CDP is a viable alternative for CDP-based extraction from Chinese platforms where the user is logged in via Firefox
+
+### 7.5 Impact on asset-sourcer.mjs
 
 - **YouTube**: Works perfectly (no cookies needed)
-- **B站**: Search returns results but metadata incomplete; download broken
-- **抖音/小红书/微博**: All broken until cookies are manually exported
-- **CDP sources (news sites)**: Not affected by cookie issue — CDP proxy uses Chrome's live session
+- **B站**: Fixable — update `--cookies-from-browser` to `firefox` + fix format selector
+- **抖音**: Blocked by yt-dlp limitation (a_bogus). Use alternative tools or CDP extraction.
+- **小红书**: Broken extractor. Use CDP extraction as fallback.
+- **微博**: URL format issue. Use CDP extraction as fallback.
+- **CDP sources (news sites)**: Not affected — CDP proxy uses Chrome's live session
 - **API sources**: Not affected — API keys in `.env.local`
 
-> **Action needed**: User should export cookies.txt from Chrome for Chinese platforms. Until then, `asset-sourcer.mjs` will work for YouTube + API + CDP sources, but yt-dlp Chinese platform sources will report errors.
+> **Action needed**: Update `asset-sourcer.mjs` to use `--cookies-from-browser firefox` instead of `chrome`. For Douyin/XHS/Weibo, implement CDP-based extraction as fallback when yt-dlp fails. Consider integrating `douyin-tiktok-scraper` PyPI package for Douyin.
 
 ## 8. API Key Validation & Source Testing (2026-08-14)
 
@@ -985,19 +1024,26 @@ Coverr (coverr.co) has evolved beyond a stock video platform. It is now a **comp
 
 Pipeline auto-records attribution for each downloaded asset:
 - `buildAttribution(source, asset)` → per-asset attribution object stored in `output/asset-report.json`
-- `buildCreditsSection(assets)` → only generates TikTok-visible credits for sources with `logoRequired=true`
+- `buildCreditsSection(assets)` → generates TikTok-visible credits for sources with `logoRequired=true` OR `attributionRequired=true`
 - `SOURCE_ATTRIBUTIONS` map: 20 sources with license + logo requirement
-- **Only Pixabay** requires logo display (API terms) → only Pixabay appears in TikTok credits
+- **Pixabay** requires logo display (API terms) → appears in TikTok credits
+- **Wikimedia** uses `dynamicAttribution: true` → per-file license determines `attributionRequired`:
+  - CC-BY, CC-BY-SA, CC-BY-ND, CC-BY-NC, CC-BY-NC-SA → `attributionRequired=true` → appears in TikTok credits
+  - Public Domain, CC0 → `attributionRequired=false` → does NOT appear in credits
+  - License fetched via `fetchWikimediaLicense(fileTitle)` → queries Commons imageinfo API for `extmetadata.LicenseShortName`
+  - Fallback: if `attributionRequired` field not set by API, inferred from license name string matching
 - All other sources (Pexels, Unsplash, Coverr, YouTube, news sites, etc.) are tracked internally but not surfaced to TikTok
-- **Wikimedia license fetch**: `fetchWikimediaLicense(fileTitle)` queries Commons API for per-file license metadata
-  - Returns `{ license, author, attributionRequired, licenseUrl }`
-  - Example: `LicenseShortName: "CC BY-SA 4.0"`, `Artist: "Windmemories"`
 
 ### 8.5 Cookie Extension Status (Updated 2026-08-14)
 
 - **Chrome Web Store**: "Get cookies.txt LOCALLY" (ID: `ccpbcjjkcajmhkehiedhlbmadkcmjhfe`) — **REMOVED** ("Item not available")
 - **Firefox Add-ons**: Still available — [Get cookies.txt LOCALLY](https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/)
-- **yt-dlp version**: 2026.07.04 (Homebrew latest) — Chrome v127+ cookie decryption still broken
+- **yt-dlp version**: 2026.07.04 (latest)
 - **YouTube**: Works without cookies (search uses `ytsearch10:` which doesn't require auth)
-- **Chinese platforms**: All require login session cookies
+- **B站**: Works with `--cookies-from-browser firefox` + correct format selector
+- **Douyin**: **Blocked by yt-dlp** — `a_bogus` signature not implemented (issue #9667, PR #15627 closed)
+- **小红书**: **Broken extractor** — XHS changed site structure (issue #16519)
+- **微博**: **Broken extractor** — URL format issue
+- **Firefox cookies verified**: 57 Douyin cookies (incl. `s_v_web_id`), 16 XHS cookies, 20 Weibo cookies — all present in Firefox profile
+- **Root cause confirmed**: Cookie extraction works; Douyin failure is yt-dlp's missing `a_bogus` signing algorithm, not a cookie problem
 
