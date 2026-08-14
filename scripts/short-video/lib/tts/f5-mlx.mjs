@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
-import { postProcessBatch, getProsodyProfile } from "./post-process.mjs";
+import { postProcessBatch } from "./post-process.mjs";
 
 const execAsync = promisify(exec);
 
@@ -91,7 +91,10 @@ export async function createF5MLXEngine() {
       }
 
       // Post-process each: F5 generates clean audio, no silenceremove needed.
-      // Apply per-scene prosody if available.
+      // F5 prosody DISABLED (2026-08-14): rubberband post-hoc pitch/tempo
+      // shift introduces mechanical artifacts on F5's already-natural output.
+      // F5's internal duration control provides natural pacing — no post-hoc
+      // pitch/tempo manipulation needed.
       const finalResults = [];
       for (const r of batchResults) {
         const audioPath = r.audioPath;
@@ -99,15 +102,10 @@ export async function createF5MLXEngine() {
           console.error(`  Scene ${r.sceneId}: no output, skipping`);
           continue;
         }
-        const scene = scenes.find((s) => s.id === r.sceneId);
-        const prosody = getProsodyProfile(scene?.visualType);
-        if (prosody) {
-          console.log(`  Scene ${r.sceneId}: prosody=${prosody.label}`);
-        }
         const duration = await postProcessBatch(audioPath, {
           useSilenceFilter: false,
           resample: true,
-          prosody,
+          prosody: null,
         });
         finalResults.push({ sceneId: r.sceneId, audioPath, duration });
         console.log(`  Scene ${r.sceneId}: ${duration.toFixed(2)}s`);

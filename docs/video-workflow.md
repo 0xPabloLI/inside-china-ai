@@ -82,51 +82,99 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 ## Brand Voice
 
 - **Tone**: Intelligence briefing. Authoritative, fast, no fluff.
-- **Pace**: CosyVoice 3 (cloned voice, speed=1.0). Fallback engines below.
+- **Pace**: F5-TTS-MLX (cloned voice, steps=32, cfg_strength=3.0). Fallback engines below.
 - **Visual**: Cyber Intelligence Briefing — dark, grid, glow, scanlines
 - **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (FOLLOW FOR MORE — the standard end-card action) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
 
 ## TTS Engine Configuration
 
-| Priority | Engine      | Config                          | Speed   | Venv                        | Notes                                                              |
-| -------- | ----------- | ------------------------------- | ------- | --------------------------- | ------------------------------------------------------------------ |
-| 1        | CosyVoice 3 | ref_audio + ref_text (cloned)   | 1.0     | `~/.cosyvoice-env` (Python 3.11) | LLM + Flow Matching; best quality; batch mode                      |
-| 2        | Qwen3-TTS   | ref_audio + ref_text (cloned)   | 1.0     | `~/.qwen-tts-env` (Python 3.11) | MPS native; 3-second rapid clone; fast fallback                     |
-| 3        | edge-tts    | en-US-BrianNeural               | +8%     | npm                         | Network-dependent, retry 3x; no voice cloning                      |
-| 4        | macOS say   | Daniel                          | 190 wpm | built-in                    | Last resort; no voice cloning                                      |
+> **Max Effort Rule** (2026-08-14): All local TTS models MUST run at max effort by default.
+> This means using the highest quality parameters each model supports.
+> If the machine cannot handle max effort (MPS OOM, excessive RTF),
+> the agent must explicitly notify the user and mark the run as degraded.
 
-**CosyVoice 3** (DEFAULT — best quality, LLM + Flow Matching):
+| Priority | Engine      | Max Effort Parameters            | Venv                        | Notes                                                              |
+| -------- | ----------- | ------------------------------- | --------------------------- | ------------------------------------------------------------------ |
+| 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, wps=2.8, speed=1.0 | `~/.f5-tts-env` (Python 3.14) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
+| 2        | Qwen3-TTS   | `do_sample=False`, `repetition_penalty=1.3` (greedy search) | `~/.qwen-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine. |
+| 3        | CosyVoice 3 | `speed=1.0` (only adjustable param) | `~/.cosyvoice-env` (Python 3.11) | LLM + Flow Matching. Content accuracy issues on MPS. DEPRECATED. |
+| 4        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
+| 5        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
 
+**F5-TTS-MLX** (DEFAULT — best rhythm + natural pacing):
+
+- Flow Matching model on Apple Silicon MLX
 - Voice cloning via reference audio + reference text (zero-shot)
-- Ref audio: `assets/voice-sample-24k.wav`（24kHz mono WAV）
+- Ref audio: `voice-samples/voice-sample-24k.wav`（24kHz mono WAV）
 - Ref text: `assets/voice-sample-ref-text.txt`（必须精确匹配 ref audio 的文字内容）
-- Model: `Fun-CosyVoice3-0.5B` at `/tmp/CosyVoice/pretrained_models/`
-- modelscope 需 mock（模型已本地）
-- Optional speed: `export COSYVOICE_SPEED=1.0`
-- M4A 不被 Python 音频库支持，必须先转 WAV：`ffmpeg -y -i input.m4a -af "volume=-7dB" -ar 24000 -ac 1 output.wav`
+- Model: `lucasnewman/f5-tts-mlx` (HF cache, 1.3GB)
+- **Max effort parameters** (in `f5_mlx_batch_tts.py`):
+  - `steps=32` — maximum inference steps (default 8, we use 4x for best quality)
+  - `cfg_strength=3.0` — strongest ref-audio guidance (default 2.0, we use 1.5x for better voice cloning)
+  - `method='rk4'` — best ODE solver (default)
+  - `wps=2.8` — words per second target for duration calculation
+  - `speed=1.0` — no post-generation speed change (duration controls pace internally)
+- Internal `duration` parameter controls audio length precisely → **no atempo needed**
+- Post-processing: **silenceremove DISABLED** (F5 generates clean audio). Only resample (44.1kHz) applied.
+- **Prosody DISABLED** (2026-08-14): rubberband post-hoc pitch/tempo shift introduces mechanical artifacts on F5's already-natural output. F5's internal duration control provides natural pacing.
+- F5 does NOT do emphasis on specific words (e.g., "age, income") — it treats all text uniformly. Qwen is better at this.
 
-**Per-Scene Prosody Enhancement**（自动，基于 `visualType`）:
+**Qwen3-TTS** (BACKUP — good emphasis, variable pacing):
 
-| visualType | Pitch | Tempo |
-| ---------- | ----- | ----- |
-| `hook` | +8% (132 cents) | +12% |
-| `data` | -3% (-52 cents) | -3% |
-| `quote` | 0% | -5% |
-| `cta` | -4% (-70 cents) | -8% |
-| 其他 | 无变化 | 无变化 |
+- Qwen3-TTS-12Hz-0.6B-Base: autoregressive LLM with codec tokens
+- Same ref audio + ref text as F5
+- Model: `~/.qwen-tts-model`
+- **Max effort parameters** (in `qwen_tts_batch.py`):
+  - `do_sample=False` — greedy search (NOT sampling). Sampling causes repetitive non-EOS loops. Greedy search naturally stops at EOS.
+  - `repetition_penalty=1.3` — slightly above default 1.05 to prevent repetition loops
+  - No `max_new_tokens` limit — let model stop naturally at EOS token (2150)
+- Post-processing: **silenceremove DISABLED**. Only resample applied.
+- Qwen naturally emphasizes data points ("age, income, education") — useful for data-heavy scenes.
+- No duration control → pacing varies per scene. Cannot be made tighter.
+- Subtitle alignment may fail due to variable audio lengths.
 
-- FFmpeg `rubberband` 滤镜，自动生效，无需配置
+**CosyVoice 3** (DEPRECATED — content accuracy issues on MPS):
+
+- LLM + Flow Matching; previously primary engine, now deprecated after A/B comparison
+- Content generation errors on MPS (wrong words, garbled output) at speed=1.0
+- Only adjustable parameter: `speed` (default 1.0; speed=2.0 caused mechanical voice)
+- Model: `~/.cosyvoice-models/CosyVoice/pretrained_models/Fun-CosyVoice3-0.5B`
+- No max effort parameters beyond speed
+
+**CSM 1B** (DEPRECATED — MPS memory exhaustion):
+
+- CSM (Conversational Speech Model) 1B by Sesame AI
+- Fixed `temperature=0.6, topk=30` — no max effort variant available
+- MPS memory exhaustion issues (187-frame generation loop without `torch.inference_mode()`)
+- Even with fixes (float16, inference_mode), RTF ~2-3x — too slow for production
+- No duration or speed control parameter
+
+**Per-Scene Prosody Enhancement**（基于 `visualType`，FFmpeg `rubberband` 滤镜）:
+
+| visualType | Pitch | Tempo | Volume | Label |
+| ---------- | ----- | ----- | ------ | ----- |
+| `hook` | +4% | +6% | +15% | hook (urgent/energetic + louder) |
+| `data` | -2% | -2% | 0% | data (authoritative) |
+| `quote` | 0% | -3% | 0% | quote (deliberate/emphasis) |
+| `cta` | -2% | -5% | 0% | cta (warm/inviting) |
+| 其他 | 无变化 | 无变化 | 无变化 | baseline |
+
+- **F5: DISABLED** — rubberband introduces mechanical artifacts on F5's natural output
+- **Qwen/CosyVoice**: ENABLED — prosody helps add variation to less-natural engines
 - 参数推导：`docs/research/voice-prosody-hook-optimization.md`
 
-**Qwen3-TTS** (fallback — fast, MPS native):
+**Post-Processing** (applied to all engines):
 
-- Qwen3-TTS-12Hz-0.6B-Base: 3-second rapid voice clone
-- Same ref audio + ref text as CosyVoice
-- Model: `/tmp/qwen-tts-model`
-- MPS device for Apple Silicon acceleration
-- Apache-2.0 license (commercial-safe)
+| Processing | F5 | Qwen | CosyVoice | Notes |
+| ---------- | -- | ---- | --------- | ----- |
+| silenceremove | OFF | OFF | OFF | Compresses pauses >0.25s. Causes "bursting" at scene transitions. All engines disabled. |
+| highpass (80Hz) | ON | ON | ON | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0` |
+| afftdn denoise (nr=5) | ON | ON | ON | Removes noise floor. Disable: `TTS_DENOISE=0` |
+| rubberband prosody | **OFF** | ON | ON | Per-scene pitch+tempo. F5 disabled (mechanical artifacts). |
+| atempo | OFF | OFF | OFF | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**. |
+| resample (44.1kHz) | ON | ON | ON | Standardize sample rate for assembly |
 
-**Force engine**: `export TTS_ENGINE=cosyvoice` / `qwen-tts` / `edge-tts`
+**Force engine**: `export TTS_ENGINE=f5-mlx` / `qwen-tts` / `cosyvoice` / `edge-tts`
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition.
 
@@ -280,9 +328,10 @@ scripts/short-video/
 ├── qwen_tts_batch.py       # Qwen3-TTS batch TTS (fallback engine)
 ├── lib/                    # Shared infrastructure (content-agnostic)
 │   ├── tts/                # TTS engine registry + adapters
-│   │   ├── registry.mjs    # Engine selector (CosyVoice > Qwen3 > edge-tts > say)
-│   │   ├── cosyvoice.mjs   # CosyVoice 3 adapter (primary)
-│   │   ├── qwen-tts.mjs    # Qwen3-TTS adapter (fallback)
+│   │   ├── registry.mjs    # Engine selector (F5-MLX > Qwen3 > CosyVoice > edge-tts > say)
+│   │   ├── f5-mlx.mjs       # F5-TTS-MLX adapter (DEFAULT)
+│   │   ├── qwen-tts.mjs    # Qwen3-TTS adapter (backup)
+│   │   ├── cosyvoice.mjs   # CosyVoice 3 adapter (DEPRECATED)
 │   │   ├── edge-tts.mjs    # edge-tts adapter (network fallback)
 │   │   ├── say.mjs         # macOS say adapter (last resort)
 │   │   └── post-process.mjs # Audio post-processing (silenceremove + prosody)
@@ -332,8 +381,8 @@ scripts/short-video/
 | ffmpeg-full | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
 | CosyVoice venv | `~/.cosyvoice-env` (Python 3.11) | CosyVoice 3 + torchaudio |
 | Qwen3-TTS venv | `~/.qwen-tts-env` (Python 3.11) | Qwen3-TTS (fallback) |
-| CosyVoice source | `/tmp/CosyVoice` | Model + source code (pretrained_models/Fun-CosyVoice3-0.5B) |
-| Qwen3-TTS model | `/tmp/qwen-tts-model` | Qwen3-TTS-12Hz-0.6B-Base |
+| CosyVoice source | `~/.cosyvoice-models/CosyVoice` | Model + source code (pretrained_models/Fun-CosyVoice3-0.5B) |
+| Qwen3-TTS model | `~/.qwen-tts-model` | Qwen3-TTS-12Hz-0.6B-Base |
 
 ### Code — Thumbnail
 
@@ -541,7 +590,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 
 | Step | Action | Output |
 |------|--------|--------|
-| 1 | Generate TTS voiceover (CosyVoice 3) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
+| 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
 | 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
 | 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). Per-pipeline config from `content/<dir>/dom-config.mjs` (optional, defaults if absent). FAIL aborts before recording; `--skip-dom-check` is a debug-only escape hatch (all content dirs migrated) | `verify-scene-dom.mjs` report |
 | 3 | Record scene videos (Playwright) | `output/{id}/video/scene-*.webm` |
@@ -578,7 +627,7 @@ stat -f "%Sm" output/restraint-pt1/restraint-pt1-short.mp4
 
 ### Running in Background (MANDATORY for TTS)
 
-CosyVoice 3 model loading takes 2-3 minutes alone, and full pipeline runs 7-10 minutes.
+F5-TTS-MLX model loading + TTS generation (steps=32) takes 12-15 minutes, and full pipeline runs 15-20 minutes.
 Agent commands have a 3-minute timeout for foreground execution. **Always run the pipeline in background:**
 
 ```bash
