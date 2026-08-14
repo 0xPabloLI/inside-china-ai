@@ -58,21 +58,20 @@ Map each angle to 2-4 search queries.
 
 ## Phase 3 — RETRIEVE
 
-Load `web-access` skill. Use its CDP proxy for all fetching:
+Load `web-access` skill and follow its setup instructions (check-deps, CDP
+proxy). All web fetching goes through web-access — do not reimplement its API
+calls here.
 
-```bash
-node ~/.agents/skills/web-access/scripts/check-deps.mjs
-```
-
-Search strategy per angle:
-1. Google search via CDP (`/new?url=https://www.google.com/search?q=...`)
-2. Open top 3-5 results in background tabs
-3. Extract content via `/eval` — prefer `document.body.innerText` or Jina (`curl -s r.jina.ai/URL`)
-4. For paywalled/anti-bot sites: use CDP directly (login state, JS rendering)
-5. Close tabs after extraction (`/close?target=ID`)
-
-For independent angles, use sub-agents (Task tool) to parallelize. Each sub-agent
-creates its own CDP tabs — no race condition (shared Chrome, different targetIds).
+**Retrieval strategy per angle** (decides *what tool to use when*, not *how*
+to operate the tool — that's web-access's job):
+1. Search via web-access CDP to discover sources (Google search → top results)
+2. Extract article-style content with Jina (`curl -s r.jina.ai/URL`) for
+   token efficiency
+3. For paywalled / anti-bot / JS-rendered sites: use CDP directly (login
+   state, JS rendering) — web-access handles the mechanics
+4. For independent angles, use sub-agents to parallelize. Each sub-agent
+   creates its own CDP tabs — no race condition (shared Chrome, different
+targetIds)
 
 **Source quality hierarchy**:
 - Tier 1: Official docs, primary sources, first-party APIs, peer-reviewed
@@ -161,6 +160,7 @@ used, no placeholders. User told the file path.
 - **Scrape-summary listing**: Don't paste raw scraped content. Synthesize.
 - **Single-source claims**: No factual claim on Tier 2/3 alone. Find a second independent source or hedge explicitly.
 - **Token flooding**: Don't read full page content into context. Extract the relevant
-  passage, summarize the rest. Use Jina (`curl -s r.jina.ai/URL`) for token-efficient extraction.
+  passage, summarize the rest. Use Jina for token-efficient extraction of article-style
+  pages; use web-access CDP `/eval` for targeted DOM extraction on complex pages.
 - **Premature completion**: The research isn't done when you have sources — it's done
   when every claim is triangulated and the report synthesizes, not just lists.
