@@ -6,10 +6,10 @@
 ## 管线概览
 
 ```
-入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
+入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → 📚 RAG reindex（多媒体素材） → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
 ```
 
-> **📚 RAG reindex** 在文章发布后自动触发，确保新文章、源素材和 scene-data 立即进入知识库。文章在 Stage 2 发布（HITL 之前），RAG 随即收录。Stage 3 scene-data 就绪后再次触发 reindex。
+> **📚 RAG reindex** 在文章发布后自动触发，确保新文章、源素材和 scene-data 立即进入知识库。文章在 Stage 2 发布（HITL 之前），RAG 随即收录。Stage 3 scene-data 就绪后再次触发 reindex。Stage 4 视频制作完成后，如有多媒体素材变更（新增/修改 catalog.yml 条目），再次触发 reindex（见 Stage 4b）。
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
@@ -804,6 +804,21 @@ node scripts/short-video/main.mjs                    # TTS → HTML → 录制 �
 
 视频制作的技术细节（TTS 引擎、渲染参数、文件位置）见 `docs/video-workflow.md`。
 
+### 4b. RAG Reindex（多媒体素材）
+
+视频制作完成后，如本管线下载了新素材或修改了 `assets/catalog.yml`，触发 RAG 全量重建，确保多媒体素材元数据进入知识库：
+
+```bash
+node scripts/rag/index.mjs
+```
+
+**Agent 行为**：
+- 如 Stage 4 中使用了 `asset-sourcer.mjs` 下载新素材 → Agent 在 `assets/catalog.yml` 中写入条目（description, keywords, source, license）→ 触发 reindex
+- 如未新增素材（仅使用已有素材或纯 CSS 场景）→ 跳过此步骤
+- HITL 阶段用户要求修改视频导致素材变更时 → 同样触发 reindex
+
+> **非阻塞**：reindex 失败不阻塞 Stage 5。Agent 输出警告并建议手动重跑。当前全量重建约 60s（551 chunks），随内容库增长会线性增加——当重建时间超过 ~5min 时考虑增量索引。catalog 条目质量影响 RAG 搜索相关性——Agent 应在 reindex 前审查 description 和 keywords 的准确性。详见 `docs/media-asset-management.md` §2「When to trigger RAG reindex」。
+
 ---
 
 ## Stage 5: 视频验证 + TikTok 发布
@@ -991,6 +1006,7 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 | **🔄 MRL-1** 文章自审 | Stage 1（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
 | 新 widget 部署        | Stage 2（文章准备时）          | 人工操作 | 用户   | 仅当有新 widget |
 | **🔄 MRL-2** 脚本自审 | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
+| 📚 RAG reindex（多媒体） | Stage 4b（视频制作后）       | 脚本执行 | Agent  | 仅当有多媒体素材变更 |
 | **🔄 MRL-3** 视频自审 | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须         |
 | **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户   | ✅ 必须         |
 | 文章发布 + 附件上传   | Stage 2（HITL 之前）           | 脚本执行 | Agent  | ✅ 必须         |

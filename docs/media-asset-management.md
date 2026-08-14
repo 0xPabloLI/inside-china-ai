@@ -47,6 +47,24 @@ Each entry becomes one RAG chunk with `content_type: "asset-catalog"`. The chunk
 
 **Bootstrap plan**: Gather 20+ content assets from existing published videos (DeepSeek, distillation, restraint, light-society, Unitree — each has scenes that could use media), write catalog entries for each, then reindex. See `docs/research/media-asset-strategy.md` §4.3 for validated asset sources.
 
+### When to trigger RAG reindex for multimedia assets
+
+Text assets (articles, scene-data) have auto-triggers in the content pipeline (Stage 2d, Stage 3b). Multimedia assets need a manual trigger — **Agent does this as a natural step** when assets change:
+
+| Trigger point | What Agent does | Command |
+|---------------|-----------------|---------|
+| After downloading new assets (via `asset-sourcer.mjs` or manual) | Write catalog.yml entries (description, keywords, source, license), then reindex | `node scripts/rag/index.mjs` |
+| After video pipeline completes (Stage 4 → Stage 5) | If assets were added/modified during production, reindex | `node scripts/rag/index.mjs` |
+| After HITL video modification (adding/replacing assets in Stage 5) | Update catalog.yml if new assets, then reindex | `node scripts/rag/index.mjs` |
+
+**Unified flow** — text and multimedia use the same reindex mechanism:
+- Text: `publish-article.mjs` → `triggerRagReindex()` (auto) → `index.mjs` full rebuild
+- Multimedia: download → write catalog.yml entry → `triggerRagReindex()` or manual `node scripts/rag/index.mjs`
+
+> Full rebuild is currently ~60s (551 chunks on M2 Pro). As the content library grows (more articles, research docs), rebuild time scales linearly with chunk count — expect ~5-10min at 5000+ chunks. Revisit incremental indexing when rebuild exceeds ~5min. `triggerRagReindex()` is non-blocking — failure prints a warning and suggests manual re-run.
+
+**Catalog entry quality**: Agent writes `description` and `keywords` when downloading assets. Description quality directly affects RAG search relevance — Agent should review and edit entries for clarity before reindexing. Do not auto-generate catalog entries from `asset-sourcer.mjs` (quality control matters).
+
 ## 3. Key paths the codebase expects
 
 These are environment facts — the code is the source of truth, this table is a cache for quick lookup:

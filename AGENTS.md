@@ -178,7 +178,7 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Content Pipeline
 
-统一内容管线（入口 → 文章 → 网站发布 → scene-data → 视频 → TikTok → Analytics），设 1 个 **HITL 人工确认检查点**（视频成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。
+统一内容管线（入口 → 文章 → 网站发布 → scene-data → 视频 → TikTok → Analytics），设 1 个 **HITL 人工确认检查点**（视频成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。
 
 > **HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续。不得自行假设确认。详见 `docs/content-pipeline.md` 的 HITL 章节。
 
