@@ -23,7 +23,7 @@ low anti-bot, login state).
   phases below are self-contained.
 - **Fetching**: Uses `web-access` skill (Chrome CDP proxy at localhost:3456) for
   all web content retrieval. Load web-access skill before Phase 3.
-- **Angle templates**: For TikTok/social media research, load
+- **Angle templates**: For China AI / tech industry research, load
   [references/angles.md](references/angles.md) during Phase 2.
 
 ## Depth Tiers
@@ -47,9 +47,9 @@ a complete answer look like? Identify key terms, entities, and the domain.
 
 ## Phase 2 — PLAN
 
-Decide research angles. For domain-specific research (TikTok, social media, market
-analysis), load [references/angles.md](references/angles.md) and pick relevant angles.
-For general research, generate 3-5 angles from different perspectives (overview,
+Decide research angles. For China AI / tech industry research, load
+[references/angles.md](references/angles.md) and pick relevant angles.
+For any other domain, generate 3-5 angles from different perspectives (overview,
 technical, market, contrarian, primary sources).
 
 Map each angle to 2-4 search queries.

@@ -1,33 +1,8 @@
-# Research Angle Templates
+# China AI / Tech Industry Research Angles
 
-Load this file during Phase 2 (PLAN) when the research topic matches a domain below.
-Pick the angles that apply — don't use all of them blindly. Each angle maps to
-2-4 search queries to seed Phase 3 (RETRIEVE).
-
-## TikTok / Short-Form Video
-
-Use when researching TikTok, Instagram Reels, YouTube Shorts, or short-form
-video strategy.
-
-| Angle | Search queries (examples) | Key sources |
-|-------|--------------------------|-------------|
-| **Algorithm & ranking** | "tiktok algorithm 2026 ranking signals", "tiktok for you page how it works 2025 2026" | Hootsuite, Sprout Social, PostEverywhere, Darkroom Agency |
-| **Hook & retention** | "tiktok first 3 seconds hook best practices", "short form video completion rate 2025 2026" | TikTok official, Buffer, Social Media Examiner |
-| **Visual design & color** | "tiktok video color strategy dark vs light background", "color psychology social media video marketing" | Art of Styleframe, AlmostZero, Instagram Growth Coach |
-| **SEO & discoverability** | "tiktok seo keywords hashtags 2026", "tiktok search value captions" | Buffer, Hootsuite, Search Engine Journal |
-| **Publishing strategy** | "tiktok best posting frequency 2026", "tiktok off-peak posting engagement" | Buffer, Sprout Social |
-| **Content format** | "tiktok motion graphics vs UGC performance", "data visualization short form video engagement" | Art of Styleframe, goviral global, Archive App |
-| **Technical specs** | "tiktok video resolution fps format requirements 2025" | TikTok official help center |
-| **Algorithm penalties** | "tiktok content not recommended 2026", "tiktok 200 view jail" | Hootsuite, Sprout Social |
-
-**Platform-specific sources to prioritize**:
-- TikTok official: business.tiktok.com, TikTok for Business blog
-- Analytics firms: Sprout Social, Hootsuite, Buffer, Influencer Marketing Hub
-- Design/creative: Art of Styleframe, Darkroom Agency, Canva
-
-## China AI / Tech Industry
-
-Use when researching Chinese AI companies, tech policy, or China tech market.
+Load this file during Phase 2 (PLAN) when researching Chinese AI companies,
+tech policy, or China tech market. Pick the angles that apply — don't use all
+of them blindly. Each angle maps to 2-4 search queries to seed Phase 3 (RETRIEVE).
 
 | Angle | Search queries (examples) | Key sources |
 |-------|--------------------------|-------------|
@@ -43,23 +18,9 @@ Use when researching Chinese AI companies, tech policy, or China tech market.
 - Wikipedia REST API: `curl` accessible if DNS resolves; otherwise use CDP
 - English media (Bloomberg, Reuters, FT): partial paywall — CDP with login state helps
 
-## General / Cross-Domain
+## Expanding this file
 
-For topics that don't fit a specific template above. Generate angles from these
-default perspectives:
-
-| Angle | Focus | Default queries |
-|-------|-------|----------------|
-| **Overview** | Definitions, scope, current state | "[topic] overview 2025 2026", "what is [topic]" |
-| **Technical** | How it works, implementation, specs | "[topic] technical architecture", "[topic] how it works" |
-| **Market** | Size, trends, key players, competition | "[topic] market size 2026", "[topic] industry report" |
-| **Contrarian** | Criticism, limitations, failure cases | "[topic] criticism problems", "[topic] failed" |
-| **Primary sources** | Official docs, specs, first-party | "[topic] official documentation", "[topic] specification" |
-
-## Creating Custom Angle Templates
-
-If you research a domain repeatedly and it's not covered above, create a new
-section here after a successful research run. Document:
+After a successful China AI research run, append new angles here:
 1. The angles that proved useful (not the ones you planned, the ones that delivered)
 2. The search queries that found the best sources
 3. The sources that were Tier 1 (worth returning to)
