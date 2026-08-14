@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       content_embeddings: {
         Row: {
+          chunk_hash: string | null
           chunk_index: number
           chunk_text: string
           chunk_title: string | null
@@ -28,6 +29,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          chunk_hash?: string | null
           chunk_index?: number
           chunk_text: string
           chunk_title?: string | null
@@ -40,6 +42,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          chunk_hash?: string | null
           chunk_index?: number
           chunk_text?: string
           chunk_title?: string | null
