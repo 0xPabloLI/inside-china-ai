@@ -19,6 +19,7 @@ import {
   SOURCE_ATTRIBUTIONS,
   buildAttribution,
   buildCreditsSection,
+  fetchWikimediaLicense,
   searchApiSource,
   downloadAsset,
   searchYtdlp,
@@ -632,8 +633,17 @@ describe("SOURCE_ATTRIBUTIONS", () => {
     expect(SOURCE_ATTRIBUTIONS.xinzhiyuan).toBeDefined();
   });
 
-  it("has attribution for zhidx", () => {
-    expect(SOURCE_ATTRIBUTIONS.zhidx).toBeDefined();
+  it("has attribution for douyin", () => {
+    expect(SOURCE_ATTRIBUTIONS.douyin).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.douyin.license).toBe("Fair use");
+  });
+
+  it("has attribution for xiaohongshu", () => {
+    expect(SOURCE_ATTRIBUTIONS.xiaohongshu).toBeDefined();
+  });
+
+  it("has attribution for weibo", () => {
+    expect(SOURCE_ATTRIBUTIONS.weibo).toBeDefined();
   });
 });
 
@@ -680,30 +690,140 @@ describe("buildCreditsSection", () => {
 
   it("builds credits section with multiple sources", () => {
     const assets = [
-      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John" } },
-      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined } },
+      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John", logoRequired: false } },
+      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined, logoRequired: true } },
     ];
     const credits = buildCreditsSection(assets);
+    // Only Pixabay should appear (logoRequired=true)
     expect(credits).toContain("--- Credits ---");
-    expect(credits).toContain("Photo by John from Pexels");
     expect(credits).toContain("Source: Pixabay");
+    // Pexels should NOT appear (logoRequired=false)
+    expect(credits).not.toContain("Photo by John");
   });
 
   it("deduplicates credits by source+author", () => {
     const assets = [
-      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John" } },
-      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John" } },
-      { attribution: { source: "pexels", text: "Photo by Jane from Pexels", author: "Jane" } },
+      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined, logoRequired: true } },
+      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined, logoRequired: true } },
     ];
     const credits = buildCreditsSection(assets);
-    // Should have 2 unique entries (John + Jane)
+    // Should have 1 unique entry
     const lines = credits.split("\n").filter((l) => l && !l.startsWith("---"));
-    expect(lines.length).toBe(2);
+    expect(lines.length).toBe(1);
+  });
+
+  it("returns empty string when no assets require logo", () => {
+    const assets = [
+      { attribution: { source: "pexels", text: "Photo by John from Pexels", logoRequired: false } },
+    ];
+    const credits = buildCreditsSection(assets);
+    expect(credits).toBe("");
   });
 
   it("returns empty string for empty assets array", () => {
     const credits = buildCreditsSection([]);
     expect(credits).toBe("");
+  });
+});
+
+// ─── New yt-dlp source tests ───
+
+describe("YTDLP_SOURCES new additions", () => {
+  it("has douyin source", () => {
+    const src = YTDLP_SOURCES.find((s) => s.name === "douyin");
+    expect(src).toBeDefined();
+    expect(src.platform).toBe("douyin");
+    expect(src.cookieRequired).toBe(true);
+  });
+
+  it("has xiaohongshu source", () => {
+    const src = YTDLP_SOURCES.find((s) => s.name === "xiaohongshu");
+    expect(src).toBeDefined();
+    expect(src.platform).toBe("xiaohongshu");
+    expect(src.cookieRequired).toBe(true);
+  });
+
+  it("has weibo source", () => {
+    const src = YTDLP_SOURCES.find((s) => s.name === "weibo");
+    expect(src).toBeDefined();
+    expect(src.platform).toBe("weibo");
+    expect(src.cookieRequired).toBe(true);
+  });
+});
+
+// ─── Wikimedia license fetch tests ───
+
+describe("fetchWikimediaLicense", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is a function", () => {
+    expect(typeof fetchWikimediaLicense).toBe("function");
+  });
+
+  it("returns null when fetch fails", async () => {
+    global.fetch.mockRejectedValue(new Error("Network error"));
+    const result = await fetchWikimediaLicense("File:Example.jpg");
+    expect(result).toBeNull();
+  });
+
+  it("returns null when response is not ok", async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 404 });
+    const result = await fetchWikimediaLicense("File:Example.jpg");
+    expect(result).toBeNull();
+  });
+
+  it("extracts license metadata from Wikimedia API response", async () => {
+    const mockData = {
+      query: {
+        pages: {
+          "123": {
+            pageid: 123,
+            title: "File:Test.jpg",
+            imageinfo: [{
+              extmetadata: {
+                LicenseShortName: { value: "CC BY-SA 4.0" },
+                Artist: { value: "<a href='/wiki/User:Test'>TestUser</a>" },
+                AttributionRequired: { value: "true" },
+                LicenseUrl: { value: "https://creativecommons.org/licenses/by-sa/4.0" },
+              },
+            }],
+          },
+        },
+      },
+    };
+    global.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(mockData) });
+
+    const result = await fetchWikimediaLicense("File:Test.jpg");
+    expect(result).not.toBeNull();
+    expect(result.license).toBe("CC BY-SA 4.0");
+    expect(result.author).toBe("TestUser"); // HTML stripped
+    expect(result.attributionRequired).toBe(true);
+    expect(result.licenseUrl).toContain("creativecommons.org");
+  });
+
+  it("returns null when extmetadata is missing", async () => {
+    const mockData = {
+      query: {
+        pages: {
+          "123": {
+            pageid: 123,
+            title: "File:Test.jpg",
+            imageinfo: [{}],
+          },
+        },
+      },
+    };
+    global.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(mockData) });
+
+    const result = await fetchWikimediaLicense("File:Test.jpg");
+    expect(result).toBeNull();
   });
 });
 

@@ -539,6 +539,28 @@ export const YTDLP_SOURCES = [
     platform: "bilibili",
     type: "video",
   },
+  {
+    name: "douyin",
+    label: "抖音",
+    platform: "douyin",
+    type: "video",
+    // Cookie required: export cookies.txt from Chrome, then use --cookies flag
+    cookieRequired: true,
+  },
+  {
+    name: "xiaohongshu",
+    label: "小红书",
+    platform: "xiaohongshu",
+    type: "video",
+    cookieRequired: true,
+  },
+  {
+    name: "weibo",
+    label: "微博",
+    platform: "weibo",
+    type: "video",
+    cookieRequired: true,
+  },
 ];
 
 /**
@@ -821,6 +843,9 @@ export const SOURCE_ATTRIBUTIONS = {
   coverr: { text: () => `Video from Coverr (https://coverr.co)`, license: 'Coverr License', logoRequired: false },
   youtube: { text: (a) => `Contains footage from ${a.author || a.title || 'Unknown'} (YouTube)`, license: 'Fair use', logoRequired: false },
   bilibili: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (B站)`, license: 'Fair use', logoRequired: false },
+  douyin: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (抖音)`, license: 'Fair use', logoRequired: false },
+  xiaohongshu: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (小红书)`, license: 'Fair use', logoRequired: false },
+  weibo: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (微博)`, license: 'Fair use', logoRequired: false },
   ithome: { text: () => `图片来源: IT之家 (ithome.com)`, license: 'News copyright', logoRequired: false },
   jiqizhixin: { text: () => `图片来源: 机器之心 (jiqizhixin.com)`, license: 'News copyright', logoRequired: false },
   xinhua: { text: () => `图片来源: 新华网 (news.cn)`, license: 'News copyright', logoRequired: false },
@@ -849,13 +874,16 @@ export function buildAttribution(source, asset) {
 }
 
 /**
- * Generate a credits section for TikTok video description.
+ * Generate a credits section for sources that require logo/credit display.
+ * Only includes assets where logoRequired=true (e.g., Pixabay API terms).
+ * Other sources are tracked internally in the report but not surfaced to TikTok.
  */
 export function buildCreditsSection(assets) {
   const lines = [];
   const seen = new Set();
   for (const a of assets) {
     if (!a.attribution) continue;
+    if (!a.attribution.logoRequired) continue; // Only logo-required sources
     const key = a.attribution.source + (a.attribution.author || '');
     if (seen.has(key)) continue;
     seen.add(key);
@@ -863,6 +891,36 @@ export function buildCreditsSection(assets) {
   }
   if (lines.length === 0) return '';
   return '\n\n--- Credits ---\n' + lines.join('\n') + '\n--- /Credits ---';
+}
+
+/**
+ * Fetch license metadata for a Wikimedia Commons file.
+ * Uses the imageinfo API with iiprop=extmetadata to get license, author, etc.
+ *
+ * @param {string} fileTitle - File title like "File:Example.jpg"
+ * @returns {Promise<{license: string, author: string, attributionRequired: boolean, licenseUrl: string} | null>}
+ */
+export async function fetchWikimediaLicense(fileTitle) {
+  const url = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=extmetadata&format=json`;
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'ChinaAINews/1.0 (contact@china-ai.news)' }
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const pages = data.query?.pages || {};
+    const firstPage = Object.values(pages)[0];
+    const ext = firstPage?.imageinfo?.[0]?.extmetadata;
+    if (!ext) return null;
+    return {
+      license: ext.LicenseShortName?.value || 'Unknown',
+      author: ext.Artist?.value?.replace(/<[^>]+>/g, '').trim() || undefined,
+      attributionRequired: ext.AttributionRequired?.value === 'true',
+      licenseUrl: ext.LicenseUrl?.value || undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ─── CDP search & download ───

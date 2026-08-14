@@ -886,7 +886,7 @@ const videoVolume = baseVolume * interpolate(
 3. For Pixabay: flag `logoRequired: true` when the API is the acquisition method
 4. For Wikimedia: fetch and record the specific license type per file
 
-> **Status**: Not yet implemented in `asset-sourcer.mjs` Phase 1. Planned for Phase 2.
+> **Status**: ✅ Implemented. `buildAttribution()` generates per-asset attribution. `buildCreditsSection()` only surfaces sources with `logoRequired=true` to TikTok description. All other sources tracked internally in `output/asset-report.json`.
 
 ## 7. Cookie & Platform Access Status (2026-08-14)
 
@@ -917,7 +917,9 @@ WARNING: cannot decrypt v10 cookies: no key found
 ### 7.3 Workaround Options
 
 1. **Export cookies.txt manually** (recommended):
-   - Install "Get cookies.txt" Chrome extension
+   - **Chrome extension "Get cookies.txt LOCALLY"** has been **removed from Chrome Web Store** (as of 2026-08-14, shows "Item not available")
+   - **Firefox addon still available**: [Get cookies.txt LOCALLY](https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/)
+   - Alternative Firefox addons: [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/), [Export Cookies](https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/)
    - Navigate to douyin.com / bilibili.com (while logged in)
    - Export cookies → save as `~/.config/yt-dlp/cookies.txt`
    - Use `yt-dlp --cookies ~/.config/yt-dlp/cookies.txt`
@@ -927,6 +929,8 @@ WARNING: cannot decrypt v10 cookies: no key found
    - `yt-dlp --cookies-from-browser firefox`
 
 3. **Wait for yt-dlp fix**: Track [yt-dlp issue #11442](https://github.com/yt-dlp/yt-dlp/issues)
+   - yt-dlp version 2026.07.04 (Homebrew latest) — no fix yet
+   - Chrome v127+ App-bound encryption is not yet supported
 
 ### 7.4 Impact on asset-sourcer.mjs
 
@@ -950,14 +954,22 @@ WARNING: cannot decrypt v10 cookies: no key found
 | Coverr | `COVERR_API_KEY=3e7cc90c...` | ✅ Valid (15 hits for "robot") | Yes |
 | Wikimedia | N/A | ✅ No key needed | Yes |
 
-### 8.2 Coverr API Corrections
+### 8.2 Coverr — AI Creative Platform + Stock Library (Updated 2026-08-14)
 
-Original code used `search_videos` endpoint (404). Correct API:
-- **Endpoint**: `GET /videos?query={keyword}`
-- **Auth**: `Authorization: Bearer {token}`
-- **Response format**: `{ hits: [...], params: { userToken: "..." } }`
-- **Video URL**: `https://cdn.coverr.co/videos/{base_filename}/mp4`
-- Coverr is a **free stock video platform** (coverr.co), not a pure API service. It offers free HD/4K stock footage for commercial use, monetized via premium subscriptions.
+Coverr (coverr.co) has evolved beyond a stock video platform. It is now a **comprehensive AI creative platform**:
+
+**AI Tools** (Coverr Studio):
+- **AI Video Generator** — models: Google Veo 3.1, OpenAI Sora 2 Pro, Kling 2.6 Pro, Seedance 1.5 Pro, Hailuo 2.3 Pro
+- **AI Images Generator** — models: Flux 2 Flex, Nano Banana Pro, ByteDance Seedream 5.0
+- **AI Audio Generator** — SFX, voiceover, audio generators
+- **AI Apps** — custom content creation from text or media
+
+**Stock Library** (original service):
+- Free HD/4K stock video footage for commercial use
+- API: `GET /videos?query={keyword}` with `Authorization: Bearer {token}`
+- Response: `{ hits: [...], params: { userToken: "..." } }`
+- Video URL: `https://cdn.coverr.co/videos/{base_filename}/mp4`
+- Monetized via premium subscriptions
 
 ### 8.3 New CDP Sources Added
 
@@ -971,20 +983,21 @@ Original code used `search_videos` endpoint (404). Correct API:
 
 ### 8.4 Attribution System (Implemented)
 
-Pipeline now auto-generates attribution for each downloaded asset:
-- `buildAttribution(source, asset)` → per-asset attribution object
-- `buildCreditsSection(assets)` → credits text for TikTok description
-- `SOURCE_ATTRIBUTIONS` map: 17 sources with license + logo requirement
-- Pixabay: `logoRequired: true` (API terms require logo display)
-- All others: `logoRequired: false`
+Pipeline auto-records attribution for each downloaded asset:
+- `buildAttribution(source, asset)` → per-asset attribution object stored in `output/asset-report.json`
+- `buildCreditsSection(assets)` → only generates TikTok-visible credits for sources with `logoRequired=true`
+- `SOURCE_ATTRIBUTIONS` map: 20 sources with license + logo requirement
+- **Only Pixabay** requires logo display (API terms) → only Pixabay appears in TikTok credits
+- All other sources (Pexels, Unsplash, Coverr, YouTube, news sites, etc.) are tracked internally but not surfaced to TikTok
+- **Wikimedia license fetch**: `fetchWikimediaLicense(fileTitle)` queries Commons API for per-file license metadata
+  - Returns `{ license, author, attributionRequired, licenseUrl }`
+  - Example: `LicenseShortName: "CC BY-SA 4.0"`, `Artist: "Windmemories"`
 
-### 8.5 "Get cookies.txt" Extension Safety Notes
+### 8.5 Cookie Extension Status (Updated 2026-08-14)
 
-- **Extension ID**: `ccpbcjjkcajmhkehiedhlbmadkcmjhfe` (Get cookies.txt LOCALLY)
-- **Security**: Extension runs locally, does not transmit cookies to any server
-- **Open source**: GitHub repo, code is auditable
-- **Alternative**: "EditThisCookie" (more features but larger attack surface)
-- **Warning**: Only install from Chrome Web Store, verify publisher
-- **Cookie safety**: Exported cookies.txt contains session tokens — store in `~/.config/yt-dlp/cookies.txt` (not in git)
-- **Why YouTube doesn't need cookies**: YouTube search (`ytsearch10:`) works without auth. YouTube only requires cookies for age-restricted/membership content. Chinese platforms (抖音/B站) require login session for any video download.
+- **Chrome Web Store**: "Get cookies.txt LOCALLY" (ID: `ccpbcjjkcajmhkehiedhlbmadkcmjhfe`) — **REMOVED** ("Item not available")
+- **Firefox Add-ons**: Still available — [Get cookies.txt LOCALLY](https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/)
+- **yt-dlp version**: 2026.07.04 (Homebrew latest) — Chrome v127+ cookie decryption still broken
+- **YouTube**: Works without cookies (search uses `ytsearch10:` which doesn't require auth)
+- **Chinese platforms**: All require login session cookies
 
