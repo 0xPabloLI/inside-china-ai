@@ -21,12 +21,12 @@ const execAsync = promisify(exec);
 const QWEN_BATCH_SCRIPT = join(ROOT_DIR, "qwen_tts_batch.py");
 const QWEN_VENV = join(process.env.HOME || "", ".qwen-tts-env");
 const QWEN_MODEL_DIR =
-  process.env.QWEN_TTS_MODEL_DIR || "/tmp/qwen-tts-model";
+  process.env.QWEN_TTS_MODEL_DIR || join(process.env.HOME || "", ".qwen-tts-model");
 const QWEN_LANGUAGE = process.env.QWEN_TTS_LANGUAGE || "English";
-const QWEN_REF_AUDIO = join(ROOT_DIR, "assets", "voice-sample-24k.wav");
+const QWEN_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const QWEN_REF_TEXT_FILE = join(
   ROOT_DIR,
-  "assets",
+  "voice-samples",
   "voice-sample-ref-text.txt",
 );
 
@@ -59,7 +59,7 @@ export async function createQwenTTSEngine() {
   return {
     name: "qwen-tts",
     info: `Qwen3-TTS (cloned from ${QWEN_REF_AUDIO}, lang=${QWEN_LANGUAGE})`,
-    useSilenceFilter: true,
+    useSilenceFilter: false,
     resample: true,
 
     async generate(scenes, outputDir) {
@@ -115,7 +115,7 @@ export async function createQwenTTSEngine() {
           console.log(`  Scene ${r.sceneId}: prosody=${prosody.label}`);
         }
         const duration = await postProcessBatch(audioPath, {
-          useSilenceFilter: true,
+          useSilenceFilter: false,
           resample: true,
           prosody,
         });

@@ -21,8 +21,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { join, dirname, basename, relative, sep } from "path";
 import { fileURLToPath } from "url";
 import matter from "gray-matter";
+import yaml from "js-yaml";
 
-import { chunkMarkdown, chunkSceneData } from "./lib/chunker.mjs";
+import { chunkMarkdown, chunkSceneData, chunkCatalog } from "./lib/chunker.mjs";
 import { normalizeMetadata } from "./lib/normalizer.mjs";
 import { embed, isOllamaAvailable, verifyModelDimensions, DEFAULT_MODEL } from "./lib/ollama.mjs";
 import { createRagClient, upsertChunks, cleanupOrphans } from "./lib/supabase-client.mjs";
@@ -156,6 +157,69 @@ async function collectSceneData() {
 }
 
 /**
+ * Collect asset catalog entries from scripts/short-video/assets/catalog.yml.
+ * Parses YAML, chunks each entry, and returns chunk objects with
+ * content_type "asset-catalog".
+ *
+ * Graceful degradation:
+ * - File missing → returns [] (no error)
+ * - YAML parse error → console.warn, returns []
+ */
+function collectAssetCatalog() {
+  const catalogPath = join(
+    projectRoot,
+    "scripts",
+    "short-video",
+    "assets",
+    "catalog.yml",
+  );
+
+  if (!existsSync(catalogPath)) {
+    return [];
+  }
+
+  const raw = readFileSync(catalogPath, "utf8");
+
+  let entries;
+  try {
+    entries = yaml.load(raw);
+  } catch (err) {
+    console.warn(`  ⚠️  Failed to parse catalog.yml: ${err.message}`);
+    return [];
+  }
+
+  if (!entries || !Array.isArray(entries) || entries.length === 0) {
+    return [];
+  }
+
+  const chunks = chunkCatalog(entries);
+
+  const results = chunks.map((chunk) => {
+    const entry = entries.find((e) => e.file === chunk.sourceId) || {};
+    const metadata = normalizeMetadata({
+      media_type: entry.type,
+      file_path: entry.file,
+      source: entry.source,
+      license: entry.license,
+      used_in: entry.used_in,
+      keywords: entry.keywords,
+    });
+
+    return {
+      content_type: "asset-catalog",
+      source_id: chunk.sourceId,
+      chunk_index: chunk.chunkIndex,
+      chunk_text: chunk.text,
+      chunk_title: chunk.title,
+      metadata,
+    };
+  });
+
+  console.log(`  🎨 catalog.yml → ${results.length} chunks`);
+  return results;
+}
+
+/**
  * Collect markdown files from a directory as a given content type.
  */
 function collectMarkdownSource(baseDir, contentType, excludePatterns = []) {
@@ -267,6 +331,9 @@ async function main() {
   console.log("\n🔬 Collecting research reports...");
   const researchChunks = collectMarkdownSource(join(projectRoot, "docs", "research"), "research");
 
+  console.log("\n🎨 Collecting asset catalog...");
+  const assetCatalogChunks = collectAssetCatalog();
+
   console.log("\n🎵 Collecting TikTok references...");
   const tiktokChunks = collectMarkdownSource(
     join(projectRoot, "docs", "refs", "tiktok-skills"),
@@ -280,6 +347,7 @@ async function main() {
     ...sourceMaterialChunks,
     ...researchChunks,
     ...tiktokChunks,
+    ...assetCatalogChunks,
   ];
 
   console.log(`\n📊 Total: ${allChunks.length} chunks to embed`);
@@ -356,6 +424,7 @@ async function main() {
   console.log(`  Source-mat:   ${sourceMaterialChunks.length} chunks`);
   console.log(`  Research:     ${researchChunks.length} chunks`);
   console.log(`  TikTok-refs:  ${tiktokChunks.length} chunks`);
+  console.log(`  Asset catalog: ${assetCatalogChunks.length} chunks`);
   console.log("=".repeat(50));
 }
 

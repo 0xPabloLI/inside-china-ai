@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chunkMarkdown, chunkSceneData, estimateTokens, MAX_TOKENS } from "../lib/chunker.mjs";
+import { chunkMarkdown, chunkSceneData, chunkCatalog, estimateTokens, MAX_TOKENS } from "../lib/chunker.mjs";
 
 // ─── estimateTokens ───
 
@@ -219,5 +219,144 @@ describe("chunkSceneData", () => {
     for (const c of chunks) {
       expect(c.sourceId).toBe("my-source-id");
     }
+  });
+});
+
+// ─── chunkCatalog ───
+
+describe("chunkCatalog", () => {
+  // Scenario #6: Normal 2 entries
+  const mockEntries = [
+    {
+      file: "content/unitree/assets/unitree-demo.mp4",
+      type: "video",
+      description: "Unitree H1 humanoid robot walking and doing backflips",
+      source: "YouTube (yt-dlp)",
+      license: "Unitree Robotics official",
+      used_in: ["unitree/S2", "unitree/S5", "unitree/S6"],
+      keywords: ["robot", "humanoid", "unitree", "walking", "backflip"],
+    },
+    {
+      file: "content/unitree/assets/unitree-building.jpg",
+      type: "image",
+      description: "Unitree Robotics headquarters building in Hangzhou",
+      source: "Wikipedia Commons",
+      license: "CC-BY-SA",
+      used_in: ["unitree/S4"],
+      keywords: ["unitree", "building", "headquarters", "hangzhou"],
+    },
+  ];
+
+  // Scenario #1: Empty array
+  it("returns empty array for empty entries", () => {
+    const chunks = chunkCatalog([]);
+    expect(chunks).toEqual([]);
+  });
+
+  // Scenario #6: Normal 2 entries → 2 chunks
+  it("produces one chunk per catalog entry", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks).toHaveLength(2);
+  });
+
+  // Scenario #5: source_id = file field
+  it("sets sourceId to the entry's file field", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].sourceId).toBe("content/unitree/assets/unitree-demo.mp4");
+    expect(chunks[1].sourceId).toBe("content/unitree/assets/unitree-building.jpg");
+  });
+
+  // chunk_index = 0 for each entry
+  it("sets chunkIndex to 0 for each entry", () => {
+    const chunks = chunkCatalog(mockEntries);
+    for (const c of chunks) {
+      expect(c.chunkIndex).toBe(0);
+    }
+  });
+
+  // chunk_text contains description
+  it("includes description in chunk text", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].text).toContain("Unitree H1 humanoid robot walking and doing backflips");
+  });
+
+  // chunk_text contains keywords
+  it("includes keywords in chunk text", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].text).toContain("robot");
+    expect(chunks[0].text).toContain("backflip");
+  });
+
+  // chunk_text contains file path
+  it("includes file path in chunk text", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].text).toContain("content/unitree/assets/unitree-demo.mp4");
+  });
+
+  // chunk_text contains source
+  it("includes source in chunk text", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].text).toContain("YouTube (yt-dlp)");
+  });
+
+  // Scenario #3: Entry missing license field
+  it("omits license line when license field is missing", () => {
+    const entries = [
+      {
+        file: "content/test/assets/demo.mp4",
+        type: "video",
+        description: "A demo video",
+        source: "YouTube",
+        keywords: ["demo"],
+        // no license
+      },
+    ];
+    const chunks = chunkCatalog(entries);
+    expect(chunks[0].text).not.toContain("License:");
+  });
+
+  // Scenario #4: Entry missing keywords field
+  it("omits keywords line when keywords field is missing", () => {
+    const entries = [
+      {
+        file: "content/test/assets/demo.mp4",
+        type: "video",
+        description: "A demo video",
+        source: "YouTube",
+        license: "Public domain",
+        // no keywords
+      },
+    ];
+    const chunks = chunkCatalog(entries);
+    expect(chunks[0].text).not.toContain("Keywords:");
+  });
+
+  // Scenario #10: Entry with used_in array → chunk_text includes it
+  it("includes used_in in chunk text when present", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].text).toContain("unitree/S2");
+    expect(chunks[0].text).toContain("unitree/S6");
+  });
+
+  // chunk_title = file basename
+  it("sets chunk title to file basename", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].title).toBe("unitree-demo.mp4");
+    expect(chunks[1].title).toBe("unitree-building.jpg");
+  });
+
+  // Scenario #7: Entry with only required fields (file + type + description)
+  it("handles entry with only file, type, and description", () => {
+    const entries = [
+      {
+        file: "content/test/assets/minimal.mp4",
+        type: "video",
+        description: "Minimal entry",
+      },
+    ];
+    const chunks = chunkCatalog(entries);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].text).toContain("Minimal entry");
+    expect(chunks[0].text).toContain("content/test/assets/minimal.mp4");
   });
 });

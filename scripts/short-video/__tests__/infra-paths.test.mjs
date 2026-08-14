@@ -19,12 +19,12 @@ describe("infra path resolution after lib/ migration", () => {
   });
 
   it("voice-sample-24k.wav exists at resolved path", () => {
-    const path = join(ROOT, "assets", "voice-sample-24k.wav");
+    const path = join(ROOT, "voice-samples", "voice-sample-24k.wav");
     expect(existsSync(path)).toBe(true);
   });
 
   it("voice-sample-ref-text.txt exists at resolved path", () => {
-    const path = join(ROOT, "assets", "voice-sample-ref-text.txt");
+    const path = join(ROOT, "voice-samples", "voice-sample-ref-text.txt");
     expect(existsSync(path)).toBe(true);
   });
 

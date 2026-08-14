@@ -152,8 +152,8 @@ describe("mediaLayer", () => {
   });
 
   it("generates video background HTML with <video> element", () => {
-    // Use an existing video file
-    const videoPath = "../../assets/liveportrait-pablo-output.mp4";
+    // Use an existing video file in content/unitree/assets/
+    const videoPath = "../unitree/assets/unitree-demo.mp4";
     const result = mediaLayer(
       { type: "video", path: videoPath, animation: "fade" },
       REAL_CONTENT_DIR,

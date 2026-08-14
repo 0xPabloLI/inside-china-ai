@@ -1,0 +1,20 @@
+# Asset Catalog — Media asset metadata for RAG semantic search.
+# Each entry is indexed by RAG (content_type: "asset-catalog").
+# Query: node scripts/rag/query.mjs "search text" --type asset-catalog
+# See: docs/media-asset-management.md §2
+
+- file: content/unitree/assets/unitree-demo.mp4
+  type: video
+  description: "Unitree H1 humanoid robot walking and doing backflips"
+  source: YouTube (yt-dlp)
+  license: "Unitree Robotics official"
+  used_in: [unitree/S2, unitree/S5, unitree/S6]
+  keywords: [robot, humanoid, unitree, walking, backflip]
+
+- file: content/unitree/assets/unitree-building.jpg
+  type: image
+  description: "Unitree Robotics headquarters building in Hangzhou"
+  source: Wikipedia Commons
+  license: "CC-BY-SA"
+  used_in: [unitree/S4]
+  keywords: [unitree, building, headquarters, hangzhou]

@@ -20,15 +20,15 @@ const execAsync = promisify(exec);
 const COSYVOICE_BATCH_SCRIPT = join(ROOT_DIR, "cosyvoice_batch_tts.py");
 const COSYVOICE_VENV = join(process.env.HOME || "", ".cosyvoice-env");
 const COSYVOICE_SOURCE_DIR =
-  process.env.COSYVOICE_SOURCE_DIR || "/tmp/CosyVoice";
+  process.env.COSYVOICE_SOURCE_DIR || join(process.env.HOME || "", ".cosyvoice-models", "CosyVoice");
 const COSYVOICE_MODEL_DIR =
   process.env.COSYVOICE_MODEL_DIR ||
   join(COSYVOICE_SOURCE_DIR, "pretrained_models", "Fun-CosyVoice3-0.5B");
 const COSYVOICE_SPEED = parseFloat(process.env.COSYVOICE_SPEED) || 1.0;
-const COSYVOICE_REF_AUDIO = join(ROOT_DIR, "assets", "voice-sample-24k.wav");
+const COSYVOICE_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const COSYVOICE_REF_TEXT_FILE = join(
   ROOT_DIR,
-  "assets",
+  "voice-samples",
   "voice-sample-ref-text.txt",
 );
 
@@ -61,7 +61,7 @@ export async function createCosyVoiceEngine() {
   return {
     name: "cosyvoice",
     info: `CosyVoice 3 (cloned from ${COSYVOICE_REF_AUDIO}, speed=${COSYVOICE_SPEED})`,
-    useSilenceFilter: true,
+    useSilenceFilter: false,
     resample: true,
 
     async generate(scenes, outputDir) {
@@ -117,7 +117,7 @@ export async function createCosyVoiceEngine() {
           console.log(`  Scene ${r.sceneId}: prosody=${prosody.label}`);
         }
         const duration = await postProcessBatch(audioPath, {
-          useSilenceFilter: true,
+          useSilenceFilter: false,
           resample: true,
           prosody,
         });

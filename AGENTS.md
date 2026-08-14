@@ -128,7 +128,7 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 
 - TypeScript + functional React components/hooks；2-space indentation；`PascalCase` for components/types, `camelCase` for vars/functions。
 - React Query `useQuery` 的 `useState` 初始化陷阱：当组件依赖 query 数据初始化 state 时，必须确保数据就绪后再挂载组件（或在 `useEffect` 中同步），避免 `useState` 初始值只在首次挂载生效导致数据丢失。
-- **Agent 消费文档写作**：编辑 `docs/` 下 agent 消费的文档时（含 AGENTS.md 自身），先加载 `writing-for-agents` skill 并遵循其原则（single source of truth、progressive disclosure、no duplication）。执行文档只写"做什么、用什么参数"；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 "Design Decisions & References" 索引指向它们。
+- **writing-for-agents 强制加载**：任何对 `docs/` 下 Agent 消费文档的编辑操作（含 AGENTS.md 自身、specs、tickets、docs/research/ 下的执行文档），**必须在编辑前执行** `writing-for-agents` skill 加载。这是硬性前置条件，不是可选步骤。Agent 消费文档 = 任何会被 Agent 在执行任务时读取的文档。加载后遵循其原则：single source of truth、progressive disclosure、no duplication。执行文档只写"做什么、用什么参数"；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 "Design Decisions & References" 索引指向它们。
 - **文档审查三查**：压缩或审查 agent 文档时必须做三类检查：(1) **跨章节矛盾**——同一规则在不同章节的限定词是否一致（如"需要确认" vs "永远不要"）；(2) **指针目标完整性**——被压缩内容的每个信息点在指针目标处是否有对应（不是"目标存在就行"，而是"逐字段覆盖"）；(3) **文件存在性**——引用的文件是否真实存在（用 `ls` 验证）。
 
 ## Git Safety
@@ -150,6 +150,20 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 - **Auth gating**: `src/routes/_authenticated/route.tsx` + `admin.tsx` 的 `isAdmin` 检查 — 两层 gating 必须一致。
 - **Post rendering**: `src/routes/posts.$slug.tsx` + `src/components/markdown-content.tsx` — Markdown 渲染 + SEO meta。
 - **Supabase migrations**: `supabase/migrations/` — schema 变更需谨慎，不可逆操作需确认。
+
+## Media Asset Placement (图片/视频/音频素材存放)
+
+新文件按用途存放，**不要扔进 `assets/`**。规则见 `docs/media-asset-management.md`，速查：
+
+| 文件类型 | 放哪里 | 例子 |
+|---------|--------|------|
+| 品牌 logo/mark/头像 | `scripts/short-video/assets/` 下（已有 `brand/`、`logos/`、`bgm/` 子目录） | `deepseek.svg` → `assets/logos/` |
+| BGM 音乐 | `scripts/short-video/assets/bgm/` | `news-cc-theme01.mp3` |
+| 视频内容素材（per-content） | `scripts/short-video/content/{slug}/assets/` | `unitree-demo.mp4` → `content/unitree/assets/` |
+| TTS 参考音频 | `scripts/short-video/voice-samples/`（gitignored） | `voice-sample-24k.wav` |
+| 实验产物（数字人、TTS 对比等） | `scripts/short-video/experiments/`（gitignored，可随时删） | `hallo2-test-output.mp4` → `experiments/digital-human/` |
+
+**判断规则**：如果文件是"渲染进视频的素材"→ `content/{slug}/assets/`；如果是"全局复用的品牌资产"→ `assets/`；如果是"给 TTS 引擎克隆的声音样本"→ `voice-samples/`；如果不确定是不是临时实验→ `experiments/`。
 
 ## Audio File Handling (M4A → WAV)
 

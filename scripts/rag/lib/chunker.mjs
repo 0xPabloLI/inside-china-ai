@@ -204,3 +204,62 @@ export function chunkSceneData(scenes, meta, sourceId) {
 
   return chunks;
 }
+
+// ─── Catalog chunker ───
+
+/**
+ * Extract the basename from a file path.
+ */
+function basename(filePath) {
+  const parts = filePath.split("/");
+  return parts[parts.length - 1] || filePath;
+}
+
+/**
+ * Chunk catalog entries: one chunk per entry.
+ *
+ * Each entry's text is composed from its present fields:
+ * description (always), keywords (if present), file (always),
+ * source (if present), license (if present), used_in (if present).
+ *
+ * @param {Array} entries - Array of catalog entry objects from YAML
+ * @returns {Chunk[]}
+ */
+export function chunkCatalog(entries) {
+  if (!entries || !Array.isArray(entries) || entries.length === 0) return [];
+
+  const chunks = [];
+
+  for (const entry of entries) {
+    if (!entry || !entry.file || !entry.description) continue;
+
+    const lines = [entry.description];
+
+    if (entry.keywords && Array.isArray(entry.keywords) && entry.keywords.length > 0) {
+      lines.push(`Keywords: ${entry.keywords.join(", ")}`);
+    }
+
+    lines.push(`File: ${entry.file}`);
+
+    if (entry.source) {
+      lines.push(`Source: ${entry.source}`);
+    }
+
+    if (entry.license) {
+      lines.push(`License: ${entry.license}`);
+    }
+
+    if (entry.used_in && Array.isArray(entry.used_in) && entry.used_in.length > 0) {
+      lines.push(`Used in: ${entry.used_in.join(", ")}`);
+    }
+
+    chunks.push({
+      sourceId: entry.file,
+      chunkIndex: 0,
+      text: lines.join("\n"),
+      title: basename(entry.file),
+    });
+  }
+
+  return chunks;
+}

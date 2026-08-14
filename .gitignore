@@ -31,22 +31,19 @@ src/routeTree.gen.ts
 *.njsproj
 *.sln
 *.sw?
+# Short-video pipeline: outputs and binary assets
 scripts/short-video/output/
-scripts/short-video/assets/*.m4a
-scripts/short-video/assets/*.wav
-scripts/short-video/assets/audio*.m4a
+
+# Voice samples (TTS reference audio — personal, binary)
+scripts/short-video/voice-samples/
+
+# Experiments (disposable test outputs)
+scripts/short-video/experiments/
 scripts/youtube-thumbnail.png
 scripts/youtube-thumbnail-2x.png
 scripts/short-video/*.bak
 scripts/short-video/xtts_tts.py
 scripts/short-video/record-tiktok-demo.mjs
-scripts/short-video/assets/tiktok*.txt
-scripts/short-video/assets/face-ref.*
-scripts/short-video/assets/IMG_*
-scripts/short-video/assets/did-test-*
-scripts/short-video/assets/heygen-*
-scripts/short-video/assets/pablo-*
-scripts/short-video/assets/Weixin Image*
 output/
 test-results/
 .playwright-cli/
@@ -67,4 +64,3 @@ scripts/lovable-mcp-auth.mjs
 
 # Ad-hoc local tooling
 scripts/short-video/mrl2-check.mjs
-scripts/short-video/assets/截屏*.png
