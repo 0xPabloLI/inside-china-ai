@@ -1,0 +1,981 @@
+/**
+ * Asset Sourcer — Automated media asset search & download.
+ *
+ * Standalone tool: node scripts/short-video/lib/asset-sourcer.mjs --content <slug>
+ *
+ * Searches multiple sources (API + CDP + yt-dlp) for images/videos matching
+ * scene-data keywords, scores candidates, downloads top matches, and outputs
+ * a JSON report with recommended scene assignments.
+ *
+ * Does NOT auto-modify scene-data — the user reviews the report and manually
+ * fills the `media` field in scenes.mjs.
+ *
+ * @module asset-sourcer
+ */
+
+import { existsSync, writeFileSync, mkdirSync, statSync, readFileSync } from "fs";
+import { join, dirname, basename, extname } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
+import { execSync } from "child_process";
+
+// ─── Constants ───
+
+/** Known AI company names for voiceover keyword extraction. */
+const KNOWN_COMPANIES = [
+  "DeepSeek", "Unitree", "Alibaba", "Baidu", "Tencent", "ByteDance",
+  "Huawei", "Xiaomi", "Qwen", "Doubao", "Kimi", "Moonshot", "Zhipu",
+  "MiniMax", "SenseTime", "iFlytek", "Cambricon", "Horizon Robotics",
+  "UBTECH", "Agibot", "Xiaomi", "Nio", "Li Auto", "XPeng",
+  "Bilibili", "Douyin", "WeChat", "DingTalk", "Feishu",
+];
+
+/** Scene types that should NOT have media assigned. */
+const NO_MEDIA_TYPES = new Set(["hook", "cta", "data", "stat-reveal"]);
+
+// ─── Pure functions ───
+
+/**
+ * Extract keywords from scene-data, CLI args, or voiceover text.
+ * 3-tier fallback: meta.keyEntities → CLI keywords → voiceover extraction.
+ *
+ * @param {Array} scenes - Scene data array
+ * @param {Object|null} meta - Metadata object with keyEntities
+ * @param {string[]|null} cliKeywords - CLI-provided keywords
+ * @returns {string[]} Deduplicated keyword array
+ */
+export function extractKeywords(scenes, meta, cliKeywords) {
+  const keywords = [];
+
+  // Tier 1: meta.keyEntities.companies
+  if (meta?.keyEntities?.companies && Array.isArray(meta.keyEntities.companies)) {
+    keywords.push(...meta.keyEntities.companies);
+  }
+
+  // Tier 2: CLI keywords
+  if (cliKeywords && Array.isArray(cliKeywords)) {
+    keywords.push(...cliKeywords);
+  }
+
+  // Tier 3: Extract known company names from voiceover text
+  if (keywords.length === 0 && scenes && Array.isArray(scenes)) {
+    for (const scene of scenes) {
+      const vo = scene?.voiceover || "";
+      for (const company of KNOWN_COMPANIES) {
+        if (vo.toLowerCase().includes(company.toLowerCase()) && !keywords.includes(company)) {
+          keywords.push(company);
+        }
+      }
+    }
+  }
+
+  // Deduplicate (case-insensitive, keep first occurrence's casing)
+  const seen = new Set();
+  const deduped = [];
+  for (const kw of keywords) {
+    const lower = kw.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      deduped.push(kw);
+    }
+  }
+
+  return deduped;
+}
+
+/**
+ * Score a candidate asset (0-100).
+ *
+ * Score = keyword match (0-40) + duration fitness (0-25) + size fitness (0-20) + resolution bonus (0-15)
+ *
+ * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
+ * @param {string} keyword - Search keyword
+ * @returns {number} Score 0-100
+ */
+export function scoreCandidate(candidate, keyword) {
+  let score = 0;
+
+  // Keyword match in title (0-40)
+  const title = (candidate.title || "").toLowerCase();
+  const kw = keyword.toLowerCase();
+  if (title.includes(kw)) {
+    score += 40; // exact keyword in title
+  } else if (kw.length > 3 && title.includes(kw.substring(0, Math.min(kw.length, 5)))) {
+    score += 20; // partial match
+  }
+
+  // Duration fitness (0-25)
+  if (candidate.type === "image") {
+    score += 20; // images get fixed 20
+  } else if (typeof candidate.duration === "number") {
+    if (candidate.duration >= 3 && candidate.duration <= 8) {
+      score += 25;
+    } else if (candidate.duration > 8 && candidate.duration <= 15) {
+      score += 15;
+    } else if (candidate.duration > 60) {
+      score += 5;
+    } else {
+      score += 5; // <3s
+    }
+  } else {
+    score += 5; // unknown duration
+  }
+
+  // File size fitness (0-20)
+  const size = candidate.fileSize;
+  if (typeof size === "number") {
+    if (candidate.type === "image") {
+      if (size < 5_000_000) score += 20;
+      else if (size < 10_000_000) score += 10;
+    } else {
+      if (size < 20_000_000) score += 20;
+      else if (size < 50_000_000) score += 10;
+    }
+  }
+
+  // Resolution bonus (0-15)
+  const res = candidate.resolution;
+  if (res) {
+    if (res.includes("1080") || res.includes("4k") || res.includes("2160")) {
+      score += 15;
+    } else if (res.includes("720")) {
+      score += 10;
+    } else {
+      score += 5;
+    }
+  }
+
+  return Math.min(score, 100);
+}
+
+/**
+ * Recommend a scene for an asset based on visualType.
+ *
+ * @param {Object} asset - { type }
+ * @param {Array} scenes - Scene data array
+ * @returns {{ sceneId: number, animation: string, overlay: number } | null}
+ */
+export function recommendScene(asset, scenes) {
+  // Find the first scene that can use media
+  for (const scene of scenes) {
+    const vt = scene.visualType;
+    if (NO_MEDIA_TYPES.has(vt)) continue;
+    // Skip scenes that already have media assigned
+    if (scene.media) continue;
+
+    if (vt === "narrative") {
+      return {
+        sceneId: scene.id,
+        animation: asset.type === "video" ? "zoom" : "fade",
+        overlay: 0.7,
+      };
+    }
+    if (vt === "info-card") {
+      return {
+        sceneId: scene.id,
+        animation: asset.type === "image" ? "ken-burns" : "fade",
+        overlay: 0.75,
+      };
+    }
+    if (vt === "quote") {
+      return {
+        sceneId: scene.id,
+        animation: "fade",
+        overlay: 0.8,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Convert a keyword to a filename-safe slug.
+ *
+ * @param {string} keyword
+ * @returns {string} Slugified keyword
+ */
+export function slugifyKeyword(keyword) {
+  if (!keyword) return "";
+  // Remove possessive apostrophes, then remove non-alphanumeric/CJK chars
+  return keyword
+    .replace(/['']/g, "")
+    .replace(/[^\w\u4e00-\u9fff\u3040-\u30ff]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+}
+
+/**
+ * Build a filename from source, keyword, index, and extension.
+ *
+ * @param {string} source - Source name (e.g., "ithome")
+ * @param {string} keyword - Search keyword
+ * @param {number} index - Asset index (1-based)
+ * @param {string} ext - File extension without dot (e.g., "jpg")
+ * @returns {string} Filename like "ithome-unitree-01.jpg"
+ */
+export function buildFilename(source, keyword, index, ext) {
+  const slug = slugifyKeyword(keyword);
+  const paddedIndex = String(index).padStart(2, "0");
+  return `${source}-${slug}-${paddedIndex}.${ext}`;
+}
+
+/**
+ * Build the JSON report structure.
+ *
+ * @param {string} content - Content slug
+ * @param {string[]} keywords - Searched keywords
+ * @param {Array} assets - Downloaded assets
+ * @param {Array} failed - Failed sources
+ * @param {Array} skipped - Skipped sources
+ * @returns {Object} Report object
+ */
+export function buildReport(content, keywords, assets, failed, skipped) {
+  return {
+    searchedAt: new Date().toISOString(),
+    content,
+    keywords,
+    totalAssets: assets.length,
+    assets,
+    failed,
+    skipped,
+  };
+}
+
+// ─── API Source search & download ───
+
+/**
+ * Search an API source for candidates.
+ *
+ * @param {Object} source - Source definition { name, searchUrl, authHeader, parseResponse }
+ * @param {string} keyword - Search keyword
+ * @param {string|null} apiKey - API key (null = skip)
+ * @returns {Promise<Array>} Candidates array
+ */
+export async function searchApiSource(source, keyword, apiKey) {
+  if (source.requiresApiKey && !apiKey) {
+    return [];
+  }
+
+  const headers = {};
+  if (source.authHeader && apiKey) {
+    headers[source.authHeader] = source.authValue ? source.authValue(apiKey) : apiKey;
+  }
+  if (source.userAgent) {
+    headers["User-Agent"] = source.userAgent;
+  }
+
+  const url = source.searchUrl(keyword, apiKey);
+  try {
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return source.parseResponse(data, keyword);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Download an asset from a URL.
+ *
+ * @param {string} url - Direct download URL
+ * @param {string} destPath - Destination file path
+ * @param {Object} [headers] - Optional request headers
+ * @returns {Promise<{success: boolean, path?: string, error?: string}>}
+ */
+export async function downloadAsset(url, destPath, headers = {}) {
+  try {
+    // Check if file already exists
+    if (existsSync(destPath)) {
+      return { success: true, path: destPath, skipped: true };
+    }
+
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) {
+      return { success: false, error: `HTTP ${resp.status}` };
+    }
+
+    const buffer = Buffer.from(await resp.arrayBuffer());
+
+    // Check file size — reject if <1KB (likely corrupt)
+    if (buffer.length < 1024) {
+      return { success: false, error: "File too small (<1KB), likely corrupt" };
+    }
+
+    // Ensure directory exists
+    const dir = dirname(destPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
+    writeFileSync(destPath, buffer);
+    return { success: true, path: destPath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── yt-dlp search & download ───
+
+/**
+ * Search for videos using yt-dlp.
+ *
+ * @param {string} keyword - Search keyword
+ * @param {string} platform - "youtube" or "bilibili"
+ * @returns {Array} Candidates array
+ */
+export function searchYtdlp(keyword, platform) {
+  const searchUrl =
+    platform === "bilibili"
+      ? `bilisearch:${keyword}`
+      : `ytsearch10:${keyword}`;
+
+  try {
+    const output = execSync(
+      `yt-dlp --cookies-from-browser chrome --flat-playlist --print "%(id)s\\t%(title)s\\t%(duration)s" "${searchUrl}" 2>/dev/null`,
+      { encoding: "utf8", timeout: 60000 },
+    );
+
+    const lines = output.trim().split("\n").filter(Boolean);
+    return lines.map((line) => {
+      const [id, ...rest] = line.split("\t");
+      const title = rest.length > 1 ? rest.slice(0, -1).join("\t") : rest[0] || "";
+      const duration = rest.length > 1 ? parseFloat(rest[rest.length - 1]) : undefined;
+      const url =
+        platform === "bilibili"
+          ? `https://www.bilibili.com/video/${id}`
+          : `https://www.youtube.com/watch?v=${id}`;
+      return { title, url, duration, type: "video", id };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Download a video clip using yt-dlp.
+ *
+ * @param {string} url - Video URL
+ * @param {string} destPath - Destination file path
+ * @returns {{ success: boolean, path?: string, error?: string }}
+ */
+export function downloadYtdlp(url, destPath) {
+  // Check if file already exists
+  if (existsSync(destPath)) {
+    return { success: true, path: destPath, skipped: true };
+  }
+
+  // Ensure directory exists
+  const dir = dirname(destPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+
+  const cmd = [
+    "yt-dlp",
+    "--cookies-from-browser chrome",
+    '-f "best[height<=720][ext=mp4]/best[height<=720]"',
+    '--max-filesize 20M',
+    '--download-sections "*0:00-0:08"',
+    `-o "${destPath}"`,
+    `"${url}"`,
+  ].join(" ");
+
+  try {
+    execSync(cmd, { encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
+
+    if (!existsSync(destPath)) {
+      return { success: false, error: "yt-dlp completed but file not found" };
+    }
+
+    const stat = statSync(destPath);
+    if (stat.size < 1024) {
+      return { success: false, error: "Downloaded file too small (<1KB)" };
+    }
+
+    return { success: true, path: destPath };
+  } catch (e) {
+    const stderr = e.stderr?.toString()?.substring(0, 200) ?? "";
+    // Detect login requirement
+    if (stderr.toLowerCase().includes("login")) {
+      return { success: false, error: "needs auth" };
+    }
+    return { success: false, error: e.message?.substring(0, 200) || "yt-dlp failed" };
+  }
+}
+
+// ─── Source definitions ───
+
+/**
+ * API source definitions.
+ * Each source has: name, requiresApiKey, searchUrl, authHeader, parseResponse, downloadUrl.
+ */
+export const API_SOURCES = [
+  {
+    name: "pexels",
+    label: "Pexels",
+    type: "image+video",
+    requiresApiKey: true,
+    apiKeyEnv: "PEXELS_API_KEY",
+    authHeader: "Authorization",
+    authValue: (key) => key,
+    searchUrl: (keyword, key) =>
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
+    parseResponse: (data, keyword) => {
+      const photos = (data.photos || []).map((p) => ({
+        title: p.alt || keyword,
+        url: p.src?.original || p.src?.large,
+        type: "image",
+        resolution: `${p.width}x${p.height}`,
+        fileSize: undefined,
+        duration: undefined,
+      }));
+      return photos;
+    },
+  },
+  {
+    name: "unsplash",
+    label: "Unsplash",
+    type: "image",
+    requiresApiKey: true,
+    apiKeyEnv: "UNSPLASH_ACCESS_KEY",
+    authHeader: "Authorization",
+    authValue: (key) => `Client-ID ${key}`,
+    searchUrl: (keyword, key) =>
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
+    parseResponse: (data, keyword) => {
+      return (data.results || []).map((p) => ({
+        title: p.alt_description || keyword,
+        url: p.urls?.full || p.urls?.regular,
+        type: "image",
+        resolution: `${p.width}x${p.height}`,
+        fileSize: undefined,
+        duration: undefined,
+      }));
+    },
+  },
+  {
+    name: "wikimedia",
+    label: "Wikimedia Commons",
+    type: "image",
+    requiresApiKey: false,
+    apiKeyEnv: null,
+    userAgent: "ChinaAINews/1.0 (contact@china-ai.news)",
+    searchUrl: (keyword, key) =>
+      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(keyword)}&srnamespace=6&format=json&srlimit=10`,
+    parseResponse: (data, keyword) => {
+      // Returns titles like "File:xxx.jpg" — need a second call to get URLs
+      // For simplicity, return titles and resolve URLs during download
+      return (data.query?.search || []).map((item) => ({
+        title: item.title,
+        url: null, // Will be resolved in download
+        type: "image",
+        resolution: undefined,
+        fileSize: undefined,
+        duration: undefined,
+        fileTitle: item.title,
+      }));
+    },
+  },
+  {
+    name: "coverr",
+    label: "Coverr",
+    type: "video",
+    requiresApiKey: false,
+    apiKeyEnv: null,
+    searchUrl: (keyword, key) =>
+      `https://api.coverr.co/search_videos?query=${encodeURIComponent(keyword)}`,
+    parseResponse: (data, keyword) => {
+      return (data.results || data || []).map((v) => ({
+        title: v.title || keyword,
+        url: `https://api.coverr.co/storage/videos/${v.base_filename}`,
+        type: "video",
+        resolution: v.is_vertical ? "vertical" : "horizontal",
+        fileSize: undefined,
+        duration: v.duration ? parseFloat(v.duration) : undefined,
+        baseFilename: v.base_filename,
+      }));
+    },
+  },
+];
+
+/**
+ * yt-dlp source definitions.
+ */
+export const YTDLP_SOURCES = [
+  {
+    name: "youtube",
+    label: "YouTube",
+    platform: "youtube",
+    type: "video",
+  },
+  {
+    name: "bilibili",
+    label: "B站",
+    platform: "bilibili",
+    type: "video",
+  },
+];
+
+/**
+ * CDP source definitions — Chinese news sites.
+ * Each has a primary extract script + fallback generic script.
+ */
+export const CDP_SOURCES = [
+  {
+    name: "ithome",
+    label: "IT之家",
+    url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.list .item, .news-list .item, article, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link && img) {
+          results.push({ title: (el.querySelector('.title, h3, h2')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "jiqizhixin",
+    label: "机器之心",
+    url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link && img) {
+          results.push({ title: (el.querySelector('.article__title, h2, h3, .title')?.textContent || '').trim(), url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "xinhua",
+    label: "新华网",
+    url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link && img) {
+          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "thepaper",
+    label: "澎湃新闻",
+    url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link && img) {
+          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+];
+
+// ─── CDP search & download ───
+
+/**
+ * Check if CDP proxy is available.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function checkCdpAvailable() {
+  try {
+    const resp = await fetch("http://localhost:3456/targets");
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Search a CDP source for image candidates.
+ *
+ * Uses existing cdp-client.mjs functions.
+ *
+ * @param {Object} source - CDP source definition
+ * @param {string} keyword - Search keyword
+ * @returns {Promise<Array>} Candidates array
+ */
+export async function searchCdpSource(source, keyword) {
+  // Dynamic import to avoid hard dependency when CDP not needed
+  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } = await import("./cdp-client.mjs");
+
+  const url = source.url(keyword);
+  let tabId;
+  try {
+    tabId = await cdpNewTab(url);
+  } catch {
+    return [];
+  }
+
+  // Wait for page load
+  await new Promise((r) => setTimeout(r, 3000));
+  await waitForPageLoad(tabId);
+
+  // Primary extraction
+  let candidates = await extractFromTab(tabId, source.primaryScript);
+
+  // Retry once if empty
+  if (candidates.length === 0) {
+    await new Promise((r) => setTimeout(r, 3000));
+    candidates = await extractFromTab(tabId, source.primaryScript);
+  }
+
+  // Fallback to generic extraction
+  if (candidates.length === 0 && source.fallbackScript) {
+    candidates = await extractFromTab(tabId, source.fallbackScript);
+  }
+
+  // Close tab
+  await cdpCloseTab(tabId);
+
+  return candidates;
+}
+
+// ─── Env / API key loading ───
+
+/**
+ * Load .env.local file and return key-value map.
+ * Uses dotenv-style parsing (KEY=VALUE, # comments, quotes).
+ *
+ * @param {string} envPath - Path to .env.local
+ * @returns {Object} Key-value map
+ */
+export function loadEnvLocal(envPath) {
+  const env = {};
+  if (!existsSync(envPath)) return env;
+
+  const content = readFileSync(envPath, "utf8");
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx < 0) continue;
+
+    const key = trimmed.substring(0, eqIdx).trim();
+    let value = trimmed.substring(eqIdx + 1).trim();
+    // Strip quotes
+    if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    env[key] = value;
+  }
+
+  return env;
+}
+
+/**
+ * Get an API key from environment.
+ *
+ * @param {Object} env - Environment map
+ * @param {string} keyName - Env variable name
+ * @returns {string|null}
+ */
+export function getApiKey(env, keyName) {
+  return env?.[keyName] || null;
+}
+
+// ─── Main orchestrator ───
+
+/**
+ * Main entry point.
+ *
+ * Usage: node asset-sourcer.mjs --content unitree [--keywords "kw1,kw2"] [--max-per-source 3]
+ *
+ * @param {string[]} args - CLI arguments
+ */
+export async function main(args = process.argv.slice(2)) {
+  // Parse CLI args
+  const getArg = (name) => {
+    const i = args.indexOf(`--${name}`);
+    return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+  };
+
+  const contentSlug = getArg("content");
+  const keywordsArg = getArg("keywords");
+  const maxPerSource = parseInt(getArg("max-per-source") || "3", 10);
+
+  if (!contentSlug) {
+    console.error("Usage: node asset-sourcer.mjs --content <slug> [--keywords <kw>] [--max-per-source <n>]");
+    process.exit(1);
+  }
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const contentDir = join(__dirname, "..", "content", contentSlug);
+  const assetsDir = join(contentDir, "assets");
+  const outputPath = join(__dirname, "..", "output", "asset-report.json");
+
+  console.log("🎬 Asset Sourcer");
+  console.log("=".repeat(60));
+  console.log(`  Content: ${contentSlug}`);
+
+  // Load scene-data if available
+  let scenes = [];
+  let meta = null;
+  const sceneDataPath = join(contentDir, "scenes.mjs");
+  if (existsSync(sceneDataPath)) {
+    try {
+      const module = await import(pathToFileURL(sceneDataPath).href);
+      scenes = module.scenes || [];
+      meta = module.meta || null;
+      console.log(`  Scene-data: ${scenes.length} scenes loaded`);
+    } catch (e) {
+      console.warn(`  ⚠️  Failed to load scene-data: ${e.message}`);
+    }
+  } else {
+    console.log("  Scene-data: not found (will use CLI keywords only)");
+  }
+
+  // Extract keywords
+  const cliKeywords = keywordsArg ? keywordsArg.split(",").map((k) => k.trim()) : null;
+  const keywords = extractKeywords(scenes, meta, cliKeywords);
+  console.log(`  Keywords: ${keywords.join(", ") || "(none)"}`);
+
+  if (keywords.length === 0) {
+    console.error("❌ No keywords found. Provide --keywords or scene-data with keyEntities.");
+    process.exit(1);
+  }
+
+  // Load environment
+  const envPath = join(__dirname, "..", "..", "..", ".env.local");
+  const env = loadEnvLocal(envPath);
+
+  // Check CDP proxy
+  const cdpAvailable = await checkCdpAvailable();
+  if (!cdpAvailable) {
+    console.error("❌ CDP proxy not available at localhost:3456");
+    console.error("   Enable Chrome Remote Debugging + start web-access skill proxy.");
+    process.exit(1);
+  }
+  console.log("  ✅ CDP proxy available");
+
+  const allAssets = [];
+  const failed = [];
+  const skipped = [];
+
+  // ── API sources (parallel) ──
+  console.log("\n📡 API sources:");
+  const apiResults = await Promise.allSettled(
+    API_SOURCES.map(async (source) => {
+      const apiKey = source.apiKeyEnv ? getApiKey(env, source.apiKeyEnv) : null;
+      if (source.requiresApiKey && !apiKey) {
+        skipped.push({ source: source.name, reason: "no API key" });
+        return [];
+      }
+
+      const candidates = await Promise.all(
+        keywords.map((kw) => searchApiSource(source, kw, apiKey)),
+      );
+      const flat = candidates.flat();
+      return flat.map((c) => ({ ...c, source: source.name }));
+    }),
+  );
+
+  for (let i = 0; i < apiResults.length; i++) {
+    const result = apiResults[i];
+    if (result.status === "fulfilled") {
+      const candidates = result.value;
+      // Score and sort
+      const scored = candidates
+        .map((c) => ({ ...c, score: scoreCandidate(c, keywords[0]) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxPerSource);
+
+      // Download
+      for (let j = 0; j < scored.length; j++) {
+        const candidate = scored[j];
+        const ext = candidate.type === "video" ? "mp4" : "jpg";
+        const filename = buildFilename(candidate.source, keywords[0], j + 1, ext);
+        const destPath = join(assetsDir, filename);
+
+        if (candidate.url) {
+          const headers = {};
+          if (candidate.source === "wikimedia") {
+            headers["User-Agent"] = "ChinaAINews/1.0 (contact@china-ai.news)";
+          }
+          const dlResult = await downloadAsset(candidate.url, destPath, headers);
+          if (dlResult.success) {
+            allAssets.push({
+              ...candidate,
+              path: destPath.replace(contentDir + "/", ""),
+              status: dlResult.skipped ? "already exists" : "downloaded",
+            });
+            console.log(`    ✅ ${candidate.source}: ${filename} (score: ${candidate.score})`);
+          } else {
+            failed.push({ source: candidate.source, keyword: keywords[0], error: dlResult.error });
+            console.log(`    ❌ ${candidate.source}: ${dlResult.error}`);
+          }
+        }
+      }
+    } else {
+      failed.push({ source: API_SOURCES[i].name, keyword: keywords[0], error: result.reason?.message || "API error" });
+    }
+  }
+
+  // ── yt-dlp sources (serial) ──
+  console.log("\n🎬 yt-dlp sources:");
+  for (const source of YTDLP_SOURCES) {
+    for (const keyword of keywords) {
+      console.log(`  🔍 ${source.label} search: "${keyword}"...`);
+      const candidates = searchYtdlp(keyword, source.platform);
+      console.log(`     Found ${candidates.length} candidates`);
+
+      const scored = candidates
+        .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxPerSource);
+
+      for (let j = 0; j < scored.length; j++) {
+        const candidate = scored[j];
+        const filename = buildFilename(source.name, keyword, j + 1, "mp4");
+        const destPath = join(assetsDir, filename);
+
+        const dlResult = downloadYtdlp(candidate.url, destPath);
+        if (dlResult.success) {
+          allAssets.push({
+            ...candidate,
+            path: destPath.replace(contentDir + "/", ""),
+            status: dlResult.skipped ? "already exists" : "downloaded",
+          });
+          console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+        } else {
+          failed.push({ source: source.name, keyword, error: dlResult.error });
+          console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+        }
+      }
+    }
+  }
+
+  // ── CDP sources (serial) ──
+  console.log("\n📰 CDP sources (Chinese news sites):");
+  for (const source of CDP_SOURCES) {
+    for (const keyword of keywords) {
+      console.log(`  🔍 ${source.label} search: "${keyword}"...`);
+      const candidates = await searchCdpSource(source, keyword);
+      console.log(`     Found ${candidates.length} candidates`);
+
+      const scored = candidates
+        .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxPerSource);
+
+      for (let j = 0; j < scored.length; j++) {
+        const candidate = scored[j];
+        if (!candidate.url) continue;
+        const filename = buildFilename(source.name, keyword, j + 1, "jpg");
+        const destPath = join(assetsDir, filename);
+
+        const dlResult = await downloadAsset(candidate.url, destPath);
+        if (dlResult.success) {
+          allAssets.push({
+            ...candidate,
+            path: destPath.replace(contentDir + "/", ""),
+            status: dlResult.skipped ? "already exists" : "downloaded",
+          });
+          console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+        } else {
+          failed.push({ source: source.name, keyword, error: dlResult.error });
+          console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+        }
+      }
+    }
+  }
+
+  // ── Add scene recommendations ──
+  for (const asset of allAssets) {
+    const rec = recommendScene(asset, scenes);
+    if (rec) {
+      asset.recommendedScene = rec.sceneId;
+      asset.recommendedAnimation = rec.animation;
+      asset.recommendedOverlay = rec.overlay;
+    }
+  }
+
+  // ── Write report ──
+  const report = buildReport(contentSlug, keywords, allAssets, failed, skipped);
+  const outputDir = dirname(outputPath);
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
+  }
+  writeFileSync(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+
+  console.log("\n" + "=".repeat(60));
+  console.log(`📊 Summary:`);
+  console.log(`   Total assets: ${allAssets.length}`);
+  console.log(`   Failed: ${failed.length}`);
+  console.log(`   Skipped: ${skipped.length}`);
+  console.log(`   Report: ${outputPath}`);
+}
+
+// Auto-run if called directly
+const isMainModule = process.argv[1] && process.argv[1].endsWith("asset-sourcer.mjs");
+if (isMainModule) {
+  main().catch((e) => {
+    console.error(`❌ ${e.message}`);
+    process.exit(1);
+  });
+}
