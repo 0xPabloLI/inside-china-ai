@@ -14,10 +14,11 @@
 > - §4.6 (Background Audio Mixing) — ✅ Validated. `volume={0.08}` confirmed as industry-standard (-22dB). Per-scene volume / envelope ducking: proposed, not yet in code.
 > - §4.7 (BGM) — ⚠️ Deprecated. Pipeline BGM was fully implemented (`lib/bgm.mjs` + `mixBgm()`) but user has stopped using it — adds TikTok music manually at upload time. Code retained but `--bgm` flag no longer recommended.
 >
-> **Future ideas (not implemented, low priority):**
-> - §4.1 (Reference Video Extraction) — Conceptual workflow only.
-> - §4.4 (Automated Asset Pipeline) — `asset-sourcer.mjs` design proposal.
-> - §4.5 (SHA-256 Dedup) — Future: content hashing to prevent duplicate downloads. Directory reorganization is already done; dedup logic is the remaining piece.
+> **Future ideas (not implemented):**
+> - §4.1 (Reference Video Extraction) — Conceptual workflow only. Priority: Low.
+> - §4.4 (Automated Asset Pipeline) — ✅ `asset-sourcer.mjs` **implemented** (commit 1198685 + 1501c69, 90 tests). Searches 10 sources, scores candidates, downloads top matches, outputs JSON report. Does NOT auto-modify scene-data — user reviews report and manually fills `media` field.
+> - §4.5 (SHA-256 Dedup) — Future: content hashing to prevent duplicate downloads. Directory reorganization is already done; dedup logic is the remaining piece. Priority: Low.
+> - §4.6 (Per-scene volume + envelope ducking) — Proposed in research, not yet in `types.ts` / `MediaBackground.tsx`. Priority: Medium.
 
 ## 1. Current State (2026-08-13)
 
@@ -588,11 +589,20 @@ No key needed for: Coverr, Wikimedia Commons, Internet Archive, Mixkit (scraping
 7. Internet Archive — "Developer Portal" — `https://archive.org/developers/` — Tier 1 (official, live test)
 8. Flickr — "Flickr API: flickr.photos.search" — `https://www.flickr.com/services/api/flickr.photos.search.html` — Tier 1 (official)
 
-### 4.4 Automated Asset Pipeline — Future Idea
+### 4.4 Automated Asset Pipeline
 
-**Priority**: Medium — would speed up content production, but manual asset sourcing (§2) works for now.
+**Status**: ✅ **Implemented** (commit 1198685 + 1501c69). `asset-sourcer.mjs` — 1218 lines, 90 tests.
 
-**Vision**: Agent receives a topic + scene-data → automatically finds, downloads, and assigns media to scenes.
+**What it does**: Receives scene-data → searches 10 sources (Pexels, Unsplash, Wikimedia, Coverr, Pixabay, YouTube, Bilibili, IT之家, 机器之心, 新华网, 澎湃新闻, etc.) → scores candidates → downloads top matches → outputs JSON report with scene recommendations + attribution.
+
+**What it does NOT do**: Auto-modify `scene-data.mjs`. User reviews the JSON report and manually fills the `media` field. This is by design — human-in-the-loop for media selection.
+
+**Usage**:
+```bash
+node scripts/short-video/lib/asset-sourcer.mjs --content unitree
+```
+
+**Remaining gap**: The `media` field assignment is still manual. Future enhancement: auto-fill `media` field in scene-data with review checkpoint.
 
 **Integration points** (where this plugs into existing code):
 
