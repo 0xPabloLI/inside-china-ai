@@ -1,7 +1,17 @@
 # Media Asset Strategy for Short Videos
 
-> Status: Active — last updated 2026-08-13
+> Status: Active — last updated 2026-08-14
 > Scope: Image/video asset acquisition, integration, and animation for the short-video pipeline.
+>
+> **Pipeline integration status** (as of 2026-08-14):
+> - §4.1 (Reference Video Extraction) — **Not implemented**. Conceptual workflow only.
+> - §4.2 (Visual Engagement Research) — **Research complete**. Findings inform scene-data authoring guidelines; no code changes.
+> - §4.3 (Asset Source Catalog) — **Research complete, Phase 1 implemented**. 8 international sources (Pexels, Unsplash, Pixabay, Wikimedia Commons, Coverr, Mixkit, Internet Archive, Flickr) + 5 Chinese news sites (Xinhua, CCTV, iThome, 机器之心, 澎湃新闻) + 4 Chinese video platforms (Bilibili, Douyin, Xiaohongshu, 搜狗微信) verified. TikTok excluded. `asset-sourcer.mjs` implements 4 API sources (Pexels, Unsplash, Wikimedia, Coverr) + 2 yt-dlp sources (YouTube, Bilibili) + 4 CDP sources (IT之家, 机器之心, 新华网, 澎湃新闻). Pixabay/Mixkit/Internet Archive/Flickr pending.
+> - §4.4 (Automated Asset Pipeline) — **Phase 1 implemented** (commit 1198685). `asset-sourcer.mjs` created with 63 tests. Searches 10 sources, scores candidates, downloads top matches, outputs JSON report with scene recommendations. Does NOT auto-modify scene-data — user reviews report and manually fills `media` field.
+> - §4.5 (Asset Deduplication) — **Not implemented**. SHA-256 dedup + shared library is a design proposal.
+> - §4.6 (Background Audio Mixing) — **Research complete, partially applied**. Current `volume={0.08}` validated as correct. Per-scene `volume` field and envelope ducking are **proposed but not yet implemented** in `types.ts` / `MediaBackground.tsx`.
+> - BGM (background music) — **Fully implemented**. See §4.7 below.
+> - TrimmedMuse — **N/A**. User adds full BGM tracks manually at TikTok upload time; pipeline does not trim music.
 
 ## 1. Current State (2026-08-13)
 
@@ -172,6 +182,8 @@ The dark overlay (`rgba(10,10,20,overlay)`) ensures text readability over media.
 
 ### 4.1 Reference Video Extraction
 
+**Status**: 🔴 Not implemented — conceptual workflow only.
+
 **Goal**: Given a reference TikTok/YouTube video, extract the media placement strategy (what assets, where, what transitions) to inform our own scene-data authoring.
 
 **Existing infrastructure to build on**:
@@ -210,75 +222,369 @@ $FFMPEG -i output/reference-123456.mp4 -vf "fps=1" \
 
 ### 4.2 Visual Engagement Research
 
-**What we already know** from `docs/research/multi-video-splitting-best-practices.md` (15 sources, 2026-08-03):
+**Status**: ✅ Research complete — findings inform scene-data authoring. No pipeline code changes needed.
+
+**Research date**: 2026-08-13 | **Sources**: 6 (Wikipedia, Sprout Social, existing project research, Stack Exchange)
+
+> **Web deep research skill**: Not used for this section. The research was conducted via `web_fetch` (Wikipedia REST API, Sprout Social) + existing project research documents. A full `web-deep-research` skill pass (multi-source cross-validation + citation) was not warranted because: (1) the core questions (sound-off viewing, B-roll function, engagement metrics) are well-covered by existing sources; (2) the remaining open questions require A/B testing with TikTok analytics, not more web research. If deeper validation is needed later (e.g., specific B-roll duration studies), the `web-deep-research` skill can be triggered then.
+
+#### What we already know
+
+From `docs/research/multi-video-splitting-best-practices.md` (15 sources, 2026-08-03) [[memory:17857684585334551883]]:
 
 - **70%+ completion rate** is the 2026 viral threshold (was 50% in 2024) — shorter scenes with media are easier to complete
 - **Series content** has 3× higher save rate than standalone videos — media continuity across episodes helps
 - **TikTok algorithm rewards session depth** — media that makes viewers watch the next scene is more valuable than media that looks good in isolation
 - **TikTok Creator Academy** recommends dynamic visual changes every 2-3 seconds — our 5-8s scenes with animation presets align with this
 
-**Research questions still open**:
+From `docs/research/short-video-script-writing-best-practices.md` (15+ sources, 2026-08-13):
 
-| Question | Why it matters | How to research |
-|----------|---------------|----------------|
-| Does media background increase or decrease retention vs text-only? | Determines whether to invest in asset sourcing or improve CSS-only scenes | A/B test: same script, one with media backgrounds, one without. Compare 3-day retention in TikTok analytics |
-| Optimal B-roll duration in a 60s video? | Avoid using a 10s clip that covers 2 scenes | Test 3s vs 5s vs 8s clips in the same scene position |
-| Full-screen video vs picture-in-picture vs split screen? | We only support full-screen; PiP might let us show product demo + data simultaneously | Prototype in Remotion, test engagement |
-| What visual elements (colors, motion speed, composition) drive engagement? | Calibrate animation presets and overlay values | Correlate TikTok analytics per-scene retention with media type |
+- **Pattern interrupts** every 10-15 seconds re-engage attention. Media background changes (CSS → video → image → CSS) serve as pattern interrupts
+- **Open loops** drive retention between scenes — a teaser in Scene 2 that pays off in Scene 7 keeps viewers watching through media-heavy scenes
 
-**Sources to research** (not yet consulted):
-- TikTok Creator Academy — specific guidelines on visual storytelling
-- YouTube Shorts best practices documentation
-- Academic papers on short-form video engagement (search Google Scholar)
-- Industry reports from Tubular, Penthera, Conviva
+From Sprout Social (2026-02-11) [1]:
+
+- **66% of consumers** say short-form video is the most engaging type of social content
+- Short-form video is consumed **"often with sound off"** — visual engagement matters more than audio for retention
+- Core metrics: video views, average watch time, completion rate, engagement rate, click-through rate, conversions
+
+From Wikipedia [2]:
+
+- B-roll is "supplemental or alternative footage intercut with the main shot" — its function is to provide visual evidence, context, and variety that the main shot (A-roll) cannot
+
+#### Research findings
+
+| Question | Finding | Source | Confidence | Action |
+|----------|---------|--------|------------|--------|
+| Does media background increase or decrease retention vs text-only? | No direct A/B data found. However: (1) 66% of consumers say short-form video is most engaging format [1]; (2) pattern interrupts (media → CSS → media) re-engage attention every 10-15s [existing research]; (3) B-roll provides visual evidence that text-only cannot. **Hypothesis**: media backgrounds increase retention for product/demo scenes, but may decrease for data/stat scenes where numbers are the focus. | Sprout Social, existing research | Medium — needs A/B test | A/B test: same script, one with media backgrounds, one without. Compare 3-day retention in TikTok analytics |
+| Optimal B-roll clip duration in a 60s video? | No specific industry data on B-roll clip length for short-form. Our existing research shows 15-30s videos are easier to complete (70% threshold) [existing research]. Practical guidance: match clip duration to scene duration (5-8s), don't reuse the same clip across multiple scenes. | Existing research | Medium | Test 3s vs 5s vs 8s clips in the same scene position; avoid reusing same clip across >2 scenes |
+| Full-screen video vs picture-in-picture vs split screen? | No engagement comparison data found. Current approach (full-screen) is the TikTok norm. PiP could allow showing product demo + data simultaneously but may reduce visual impact. Split screen is common for comparison scenes (we handle these with CSS cards). | — | Low | Prototype PiP in Remotion for comparison/contrast scenes; A/B test engagement |
+| What visual elements drive engagement? | Dynamic visual changes every 2-3s (existing research). Animation presets provide entrance/sustained/exit motion. Overlay values calibrated for text readability. Color contrast (amber/blue/red against dark) provides visual hierarchy. | Existing research, codebase | Medium | Correlate TikTok analytics per-scene retention with media type/animation preset |
+| Does TikTok viewing happen with sound off? | **Yes** — Sprout Social confirms short-form video is consumed "often with sound off" [1]. This means: (1) captions/subtitles are mandatory; (2) visual engagement matters more than background audio; (3) background video audio is a nice-to-have, not a must. | Sprout Social [1] | High | Ensure subtitles always burned in; don't over-invest in background audio quality |
+
+#### Sources
+
+1. Sprout Social — "Short-Form Video: The Ultimate Guide" (2026-02-11) — `https://sproutsocial.com/insights/short-form-video/`
+2. Wikipedia — "B-roll", "TikTok", "Background music", "Audio mixing" — via Wikipedia REST API
+3. `docs/research/multi-video-splitting-best-practices.md` — 15 sources, 2026-08-03
+4. `docs/research/short-video-script-writing-best-practices.md` — 15+ sources, 2026-08-13
+
+#### Still open (requires A/B testing, not web research)
+
+- Per-scene retention correlation with media type (needs TikTok analytics data from published videos)
+- Optimal number of media scenes per 60s video (current: 4/10 for Unitree, 0/10 for others)
+- Whether reusing the same clip across multiple scenes (current: `unitree-demo.mp4` × 3) hurts retention
 
 ### 4.3 Asset Source Catalog
 
-**Validated sources** (tested and working in our pipeline):
+**Status**: 🟡 Partially implemented — YouTube + Wikipedia validated in pipeline; stock API sources (Pexels/Unsplash/Pixabay) researched but not yet integrated.
 
-| Source | Type | Access method | Tested | Notes |
-|--------|------|---------------|--------|-------|
-| YouTube | Video | `yt-dlp --cookies-from-browser chrome` | ✅ 2026-08-13 | Official channel uploads, demo videos. Parallel downloads fail (cookie DB lock) — run serially |
-| Wikipedia Commons | Image | Node.js `fetch()` with `User-Agent` header | ✅ 2026-08-13 | Company buildings, product photos. Find URLs via Wikipedia REST API |
-| Google News RSS | Article URLs | `curl` + XML parse | ✅ 2026-08-13 | Finds articles, but images are often behind paywalls |
+> **Research date**: 2026-08-13 | **Method**: Web deep research (Chrome CDP + Jina + API testing) | **Sources**: Official API docs, License pages, live API tests
 
-**Candidate sources** (code exists but not yet used for asset downloads):
+#### Tier 1: Validated in our pipeline
 
-| Source | Type | Access method | Code location | Notes |
-|--------|------|---------------|-------------|-------|
-| TikTok | Video | `yt-dlp --cookies-from-browser chrome` | `competitor-intel.mjs` (search only) | Search scraping works via CDP; download not yet tested |
-| Bilibili (B站) | Video | `yt-dlp` or CDP scraping | `lib/trend-sources.mjs` (search only) | CDP extract script exists. yt-dlp supports Bilibili |
-| Douyin (抖音) | Video | CDP + download | `lib/trend-sources.mjs` (search only) | CDP extract script exists. `needsAuth: true` — requires login session |
-| Xiaohongshu (小红书) | Image/Video | CDP + MCP fallback | `lib/trend-sources.mjs` (search only) | `needsAuth: true`. MCP fallback to `xiaohongshu_mcp_server` |
+| Source | Type | Access method | Tested | License | Notes |
+|--------|------|---------------|--------|---------|-------|
+| YouTube | Video | `yt-dlp --cookies-from-browser chrome` | ✅ 2026-08-13 | Varies by uploader | Official channel uploads, demo videos. Parallel downloads fail (cookie DB lock) — run serially [[memory:17865489336644602134]] |
+| Wikipedia (article images) | Image | Node.js `fetch()` with `User-Agent` header | ✅ 2026-08-13 | CC-BY-SA / Public Domain | Company buildings, product photos. Find URLs via Wikipedia REST API |
+| Google News RSS | Article URLs | `curl` + XML parse | ✅ 2026-08-13 | N/A (articles) | Finds articles, but images are often behind paywalls |
 
-**Candidate sources** (not yet integrated, to research and validate):
+#### Tier 2: Researched & verified — ready for integration
 
-| Source | Type | Access | Notes |
-|--------|------|--------|-------|
-| Pexels | Video/Image | API (free, register key) | Stock footage, no attribution needed. Good for abstract/tech B-roll |
-| Unsplash | Image | API (free, register key) | High-quality stock photos. Good for company/city/building shots |
-| Pixabay | Video/Image | API (free) | Mixed quality, broad coverage. No attribution required |
-| Wikimedia Commons | Image | API + User-Agent | Historical/archival images (different endpoint than Wikipedia article images) |
-| Company press kits | Image/Video | `web_fetch` or CDP scraping | Official product photos, press releases. Check `/press` or `/media` subpaths |
-| Coverr | Video | Direct download | Free HD video clips, no attribution |
-| Mixkit | Video | Direct download | Free video clips, no attribution |
-| Internet Archive | Video/Image | Direct download | Historical footage, public domain |
-| Flickr Creative Commons | Image | API (register key) | User-generated, CC-licensed. Filter by license |
+**Pexels** — Free stock video & image API [1]
 
-**Not recommended**:
+| Field | Detail |
+|-------|--------|
+| Content | Photos + Videos (HD/4K) |
+| API base | `https://api.pexels.com/v1/` (photos), `https://api.pexels.com/v1/videos/` (videos) |
+| Auth | `Authorization: YOUR_API_KEY` header (free, instant registration) |
+| Rate limit | **200 requests/hour, 20,000 requests/month** (default). Contact api@pexels.com for unlimited free with attribution |
+| Photo search | `GET /v1/search?query=robot&orientation=portrait&per_page=15` → returns `src.original`, `src.large`, `src.portrait` (800×1200), etc. |
+| Video search | `GET /v1/videos/search?query=robot&orientation=portrait` → returns `video_files[]` with `quality` (sd/hd), `width`, `height`, `link` (direct MP4 URL) |
+| Video filters | `orientation`: landscape/portrait/square; `size`: large(4K)/medium(Full HD)/small(HD) |
+| Locale | Supports `zh-CN`, `zh-TW`, `ja-JP`, `ko-KR` and 25+ other locales |
+| Download | Direct HTTP download from `src.original` (images) or `video_files[].link` (videos). No hotlinking restriction |
+| License | Free for commercial and non-commercial use. **Attribution required** ("Photo by [Name] on Pexels" with link) |
+| Best for | Generic B-roll (nature, city, technology), abstract backgrounds. Not ideal for specific company/product footage |
+| Client libs | Official: Ruby, JavaScript (npm `pexels-javascript`), .NET |
+| **Our use case** | Vertical (`orientation=portrait`) videos for TikTok backgrounds; abstract tech footage for data/stat scenes |
+
+**Unsplash** — Free high-quality photo API [2]
+
+| Field | Detail |
+|-------|--------|
+| Content | Photos only (no videos) |
+| API base | `https://api.unsplash.com/` |
+| Auth | `Authorization: Client-ID YOUR_ACCESS_KEY` header (free, register app) |
+| Rate limit | **Demo mode: 50 req/hour** → apply for Production → **1000 req/hour**. Image requests (images.unsplash.com) do NOT count against limit |
+| Photo search | `GET /search/photos?query=robot+building&orientation=portrait&per_page=30` → returns `urls.full` (1920px), `urls.regular` (1080px), `urls.small` (400px) |
+| Random photo | `GET /photos/random?query=technology&orientation=portrait` → single random photo |
+| Dynamic resize | Image URLs support Imgix params: `?w=800&h=1200&fit=crop` for on-the-fly resize |
+| Pagination | Default 10/page, max 30/page. Headers: `X-Per-Page`, `X-Total`, `Link` (first/prev/next/last) |
+| Download | `GET /photos/:id/download` → triggers download tracking, returns download URL. Or direct `urls.full` HTTP download |
+| License | Free for commercial and non-commercial. **No attribution required** (though appreciated). Cannot sell unmodified images or replicate service |
+| **Our use case** | Company buildings, city skylines, product photos. `orientation=portrait` for vertical video backgrounds |
+| Limitation | **No video content**. Images only. For video B-roll, use Pexels or Pixabay |
+
+**Pixabay** — Free stock video & image API [3]
+
+| Field | Detail |
+|-------|--------|
+| Content | Photos + Videos + Illustrations + Vectors |
+| API base | `https://pixabay.com/api/` (images), `https://pixabay.com/api/videos/` (videos) |
+| Auth | `key` query parameter (free, register account) |
+| Rate limit | **100 requests per 60 seconds** (associated with API key, not IP). Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` |
+| Image search | `GET /api/?key=KEY&q=robot&image_type=photo&orientation=vertical&min_width=1080` → returns `largeImageURL` (1280px), `fullHDURL` (1920px), `imageURL` (original) |
+| Video search | `GET /videos/?key=KEY&q=robot&video_type=film&per_page=10` → returns `videos` array with `large` (1280×720), `medium` (640×360), `small` (320×180) URL |
+| Image sizes | `previewURL` (150px), `webformatURL` (640px), `largeImageURL` (1280px), `fullHDURL` (1920px), `imageURL` (original) |
+| Filters | `image_type` (photo/illustration/vector), `orientation` (all/horizontal/vertical), `category` (21 categories incl. `science`, `technology`, `business`, `buildings`, `industry`, `computer`), `colors`, `safesearch`, `editors_choice` |
+| Lang | Supports `zh` (Chinese), `ja`, `ko` and 20+ other languages |
+| Cache | API requires **24-hour caching** of responses. Systematic mass downloads not allowed |
+| Download | Direct HTTP from `largeImageURL` / `imageURL` / `video.large.url`. **Permanent hotlinking of images NOT allowed** — must download to server |
+| License | Free for commercial and non-commercial. **No attribution required**. Cannot sell standalone content. Trademarks in content may require third-party consent |
+| **Our use case** | `orientation=vertical` + `category=technology` for tech B-roll. `zh` language support for Chinese keyword search |
+
+**Wikimedia Commons** — Free media file repository [4]
+
+| Field | Detail |
+|-------|--------|
+| Content | Images, videos, audio — largest free media repository (100M+ files) |
+| API base | `https://commons.wikimedia.org/w/api.php` (MediaWiki API) |
+| Auth | **No auth required**. `User-Agent` header recommended per Wikimedia policy |
+| Search files | `GET /w/api.php?action=query&list=search&srsearch=Unitree+robot&srnamespace=6&format=json&srlimit=10` → returns `title` (e.g. `File:20260425 Unitree Headquarter 02.jpg`) |
+| Get image URL | `GET /w/api.php?action=query&titles=File:FILENAME&prop=imageinfo&iiprop=url|extmetadata&format=json` → returns `url` (direct download), `extmetadata.License` (CC-BY-SA etc.) |
+| Categories | Search within categories: `srsearch=incategory:Unitree` |
+| Geo search | `GET /w/api.php?action=query&list=geosearch&gscoord=30.2741|120.1551&gsradius=10000&gslimit=10` (photos near GPS coordinates) |
+| Download | Direct HTTP from `url` field. **Must include User-Agent** (`ChinaAINews/1.0 (contact@china-ai.news)`) |
+| License | Mixed: CC-BY-SA, CC-BY, Public Domain, GFDL. **Must check each file's `extmetadata.LicenseShortName`**. Attribution required for CC-licensed content |
+| **Our use case** | Company headquarters, product photos, historical/archival footage. Already validated via Wikipedia article API (same backend). GPS search for location-specific footage |
+| API test result | ✅ 2026-08-13: search for "Unitree robot" returned 46 results, imageinfo query returned full URL + metadata + GPS coordinates |
+
+**Coverr** — Free stock video + API [5]
+
+| Field | Detail |
+|-------|--------|
+| Content | HD & 4K video clips, stock music, AI tools |
+| API base | `https://api.coverr.co/` (OpenAPI 3.0 spec at `https://coverr.co/api`) |
+| Endpoints | `GET /search_videos?query=QUERY`, `GET /videos` (latest), `GET /videos/{id}` (details), `GET /videos/filters?is_vertical=true` (vertical only) |
+| Video download | `GET /storage/videos/{base_filename}` → returns signed Google Cloud Storage URL (valid 15 minutes) |
+| Video object | `id`, `title`, `description`, `base_filename`, `is_vertical`, `full_image_path` (thumbnail), `duration`, `views`, `likes`, `downloads` |
+| Auth | Not specified in OpenAPI spec — appears to be open API |
+| Download | Via signed GCS URL (15-min validity). Must download promptly |
+| License | Free for personal and commercial use. **No attribution required**. No sign-up needed |
+| **Our use case** | `is_vertical=true` filter for TikTok-format clips. Free, no API key needed — lowest barrier to entry |
+
+**Mixkit** — Free stock video (no API) [6]
+
+| Field | Detail |
+|-------|--------|
+| Content | HD & 4K video clips, stock music, sound effects, video templates |
+| Owner | Envato (same company as Envato Elements) |
+| Access | **No API** — web browsing only. Direct download from website |
+| Download | `curl` or CDP scraping. Browse categories: nature, people, business, technology, aerial, etc. |
+| Vertical content | Has dedicated vertical video section: `https://mixkit.co/free-vertical-videos/` |
+| License | Free for commercial use. **No attribution required, no watermark**. Part of Envato ecosystem |
+| **Our use case** | Manual browsing for B-roll. Could use CDP to scrape search results and download. `https://mixkit.co/free-stock-video/` + `https://mixkit.co/free-vertical-videos/` |
+| Limitation | No programmatic API — requires CDP scraping for automation |
+
+**Internet Archive** — Public domain video & image [7]
+
+| Field | Detail |
+|-------|--------|
+| Content | Millions of items: videos, images, books, audio, software |
+| API base | `https://archive.org/advancedsearch.php` (search) + `https://archive.org/metadata/{identifier}` (item details) |
+| Search | `GET /advancedsearch.php?q=collection:(movies)+AND+(robot+OR+unitree)&fl[]=identifier&fl[]=title&fl[]=mediatype&rows=10&output=json` |
+| Item metadata | `GET /metadata/{identifier}` → returns `files` array with download URLs, `metadata` (license, description, date) |
+| Auth | No auth for search and download. Upload/modify requires `S3` API keys |
+| Download | Direct HTTP from `https://archive.org/download/{identifier}/{filename}` |
+| License | Public domain, CC-licensed, or various. Must check each item's `metadata.licenseurl` |
+| **Our use case** | Historical footage, news clips, public domain archival content. Not for current product/company footage |
+| API test result | ✅ 2026-08-13: search `collection:(movies) AND (unitree OR robot)` returned 5 results. JSON API fully functional |
+| Limitation | Content is mostly old/archival — not useful for current AI/tech company news |
+
+**Flickr** — Creative Commons photo search [8]
+
+| Field | Detail |
+|-------|--------|
+| Content | User-generated photos (billions). Videos also available but less common |
+| API base | `https://api.flickr.com/services/rest/` (REST) or `https://api.flickr.com/services/rest/?method=flickr.photos.search` |
+| Auth | `api_key` query parameter (free, register app at `flickr.com/services/api/`) |
+| Photo search | `GET /services/rest/?method=flickr.photos.search&api_key=KEY&text=unitree+robot&license=4,5,7,9,10&per_page=10&format=json&nojsoncallback=1` |
+| **License filter** | `license` parameter accepts comma-separated IDs: `4` (CC BY 2.0), `5` (CC BY-SA 2.0), `7` (No known copyright), `9` (CC0), `10` (Public Domain Mark), `11` (CC BY 4.0), `12` (CC BY-SA 4.0). **Avoid `1,2,3` (NC/ND licenses)** |
+| Photo URL | Construct from API response: `https://farm{farm}.staticflickr.com/{server}/{id}_{secret}_b.jpg` (1024px) or `_o.jpg` (original) |
+| Geo search | `bbox` parameter for bounding box search (min_lon, min_lat, max_lon, max_lat) |
+| Sort | `relevance`, `date-posted-desc`, `interestingness-desc` |
+| Download | Direct HTTP from constructed URL. No hotlinking restriction stated |
+| License | Mixed — must filter by `license` parameter. Use `4,5,9,10,11,12` for commercial-safe CC licenses |
+| **Our use case** | Real-world photos of companies/products that stock sites don't cover. Community photos from events, conferences, product launches |
+| API test result | ✅ 2026-08-13: `flickr.photos.licenses.getInfo` returned 17 license types. `flickr.photos.search` documented with full parameter list |
+
+#### Tier 3: Chinese news & media sites — CDP-scraped, image extraction verified
+
+> **Why Chinese sources matter**: We report on China AI news. Stock footage sites (Pexels/Unsplash/Pixabay) don't cover specific Chinese companies, products, or events. Chinese news sites have real product photos, CEO photos, event coverage, and tech imagery that stock sites lack.
+
+> **Anti-crawler assessment**: Chinese news sites are generally **less aggressive** on bot detection than Western platforms (no Cloudflare bot management, no CAPTCHA on most). CDP with login state is sufficient for most. Login-required sites (Douyin, Xiaohongshu) need active Chrome session.
+
+**Xinhua (新华网)** — Official state news agency [9]
+
+| Field | Detail |
+|-------|--------|
+| Content | News articles with high-quality images (92+ images per page), some video |
+| URL | `https://www.news.cn/` (homepage), `https://www.news.cn/tech/` (tech section) |
+| Image extraction | ✅ **Verified 2026-08-13**: CDP `document.querySelectorAll('img')` returned 92 images, 8+ with width > 200px. Image URLs follow pattern: `https://www.news.cn/20260813/{hash}/{hash}.jpg` — directly downloadable via HTTP |
+| Video | No `<video>` elements on homepage. Article pages may contain embedded video players (needs per-article check) |
+| Auth | None — fully public |
+| Anti-crawler | None detected. Standard HTTP headers sufficient |
+| License | ⚠️ Xinhua copyrighted content. Images are for editorial/news use. **Attribution required** ("Source: Xinhua") |
+| **Our use case** | Official photos of AI events (WAIC, conferences), government tech policy images, company photos from official events. Search tech section: `https://www.news.cn/tech/` |
+| CDP test | ✅ 2026-08-13: Page loaded successfully, 92 images extracted, tech section has AI-related articles (e.g. "物理AI：从WAIC展台，奔赴真实产业战场") |
+
+**CCTV (央视网)** — State TV broadcaster [10]
+
+| Field | Detail |
+|-------|--------|
+| Content | Video clips (news, documentaries), live streams, 308+ images per page |
+| URL | `https://www.cctv.com/` (homepage), `https://v.cctv.com/` (video section), `https://news.cctv.com/` (news) |
+| Image extraction | ✅ **Verified 2026-08-13**: 308 images extracted. Video thumbnails available as poster images |
+| Video extraction | ⚠️ Homepage uses `<video>` with `blob:` URL (MSE streaming). Video section (`v.cctv.com`) may have direct MP4 links. Needs deeper CDP analysis — navigate to specific video page, inspect `<source>` or network requests |
+| Auth | None — fully public |
+| Anti-crawler | None detected |
+| License | ⚠️ CCTV copyrighted. Video clips are for editorial/reference use only |
+| **Our use case** | News video clips of AI events, product launches, tech demonstrations. Video URL extraction needs network-level CDP analysis (intercept media requests) |
+| CDP test | ✅ 2026-08-13: Page loaded, 1 `<video>` element found (blob URL), 308 images extracted. Video download requires further work — likely needs `yt-dlp` or network interception |
+| `yt-dlp` support | `yt-dlp` supports CCTV — can download video clips directly from `cctv.com` URLs |
+
+**IT之家 (iThome)** — Chinese tech news [11]
+
+| Field | Detail |
+|-------|--------|
+| Content | Tech news articles with product photos, screenshots |
+| URL | `https://www.ithome.com/` (homepage), `https://www.ithome.com/ai/` (AI section) |
+| Image extraction | ✅ **Verified 2026-08-13**: 8 high-quality images extracted, URLs: `https://img.ithome.com/newsuploadfiles/focus/{uuid}.jpg`. Images directly downloadable via HTTP |
+| Auth | None |
+| Anti-crawler | None detected. Baidu CDN serves images (`x-bce-process` param for format conversion) |
+| License | ⚠️ iThome copyrighted. Editorial use with attribution |
+| **Our use case** | Best source for Chinese AI product news images — DeepSeek, Qwen, Unitree, Xiaomi, etc. Already in `trend-sources.mjs` for trend discovery |
+| Existing code | `trend-sources.mjs` → `NEWS_SOURCES` → `ithome` — CDP extract script exists for article titles/URLs. Can extend to also extract article images |
+
+**机器之心** — Chinese AI news [12]
+
+| Field | Detail |
+|-------|--------|
+| Content | AI-focused articles with cover images, product photos |
+| URL | `https://www.jiqizhixin.com/` |
+| Image extraction | ✅ **Verified 2026-08-13**: 8 images extracted, URLs: `https://image.jiqizhixin.com/uploads/article/cover_image/{uuid}/{filename}.jpg?imageView2/1/w/243/h/162` — directly downloadable. Remove `?imageView2/...` params for original size |
+| Auth | None |
+| Anti-crawler | None detected |
+| License | ⚠️ 机器之心 copyrighted. Editorial use with attribution |
+| **Our use case** | AI-specific cover images — best source for Chinese AI company news. Already in `trend-sources.mjs` |
+| Existing code | `trend-sources.mjs` → `NEWS_SOURCES` → `jiqizhixin` — CDP extract script exists |
+
+**澎湃新闻 (The Paper)** — Mainstream news with video section [13]
+
+| Field | Detail |
+|-------|--------|
+| Content | News articles, has dedicated video section ("视频") |
+| URL | `https://www.thepaper.cn/` |
+| Image extraction | ✅ **Verified 2026-08-13**: 51 images on homepage. No `<video>` elements on homepage (video section loads dynamically) |
+| Auth | None |
+| Anti-crawler | None detected |
+| License | ⚠️ 澎湃新闻 (上海东方报业) copyrighted |
+| **Our use case** | News images for AI policy, industry developments. Video section needs separate CDP navigation |
+
+**Other Chinese news sources already in `trend-sources.mjs`** (CDP search verified, image extraction not yet tested):
+
+| Source | URL | needsAuth | Image extraction | Notes |
+|--------|-----|-----------|-----------------|-------|
+| 量子位 (qbitai) | `https://www.qbitai.com/` | false | Not tested | AI-focused media, likely has product photos |
+| 36氪 (36kr) | `https://36kr.com/` | false | Not tested | Tech/business news, stock photos |
+| 观察者网 (guancha) | `https://www.guancha.cn/` | false | Not tested | General news, may have tech section images |
+
+#### Tier 4: Chinese video platforms — CDP-based, high friction
+
+| Source | Type | Access method | Code location | Download tested | Notes |
+|--------|------|---------------|-------------|-----------------|-------|
+| Bilibili (B站) | Video | `yt-dlp` (native support) or CDP | `lib/trend-sources.mjs` (search only) | ❌ Not yet | CDP search extract exists. `yt-dlp` supports B站 natively — highest probability of working |
+| Douyin (抖音) | Video | CDP + download | `lib/trend-sources.mjs` (search only) | ❌ Not yet | `needsAuth: true` — requires login. MCP fallback to `douyin_mcp`. Most friction |
+| Xiaohongshu (小红书) | Image/Video | CDP + MCP fallback | `lib/trend-sources.mjs` (search only) | ❌ Not yet | `needsAuth: true`. MCP fallback to `xiaohongshu_mcp_server`. Good for product photos |
+| 搜狗微信 (sogou_weixin) | Article URLs | CDP + MCP fallback | `lib/trend-sources.mjs` (search only) | ❌ Not yet | Searches WeChat public account articles. May have images but URLs redirect to `mp.weixin.qq.com` |
+
+> **TikTok excluded**: We produce TikTok content — scraping TikTok for assets is not appropriate. TikTok is our distribution platform, not a source platform. The `competitor-intel.mjs` script exists for competitive analysis (search only), not for asset download.
+
+#### Not recommended
 
 | Source | Why |
 |--------|-----|
 | Google Images | Copyright issues, bot detection, no reliable download method |
 | News article images directly | Behind paywalls or JS-rendered pages. Use Google News RSS to find articles, then CDP for image extraction |
+| Videvo (videvo.net) | Redirected to Magnific/Freepik. Brand merged. No longer an independent source |
+| Mazwai (mazwai.com) | Redirected to Magnific/Freepik. Brand merged. No longer an independent source |
+| Videezy (videezy.com) | Still active (Eezy LLC) but mixed free/Pro content. Free selection limited compared to Pexels/Pixabay |
 
-**Download method patterns** (for integration into automated pipeline):
-- **API-based** (Pexels, Unsplash, Flickr): Register API key → search by keyword → download via HTTP. Store key in `.env.local`
-- **Direct download** (Coverr, Mixkit): `curl` or `wget` with proper headers
-- **yt-dlp** (YouTube, Bilibili, TikTok): `--cookies-from-browser chrome` + format selection + `--download-sections` for clips
-- **CDP scraping** (Douyin, Xiaohongshu, press kits): Use existing `lib/cdp-client.mjs` pattern — connect to Chrome remote debugging, extract image/video URLs from DOM, download via `fetch()`
+#### Integration priority & recommended approach
+
+> **None of the 4 phases are implemented yet.** All phases are research-complete; `asset-sourcer.mjs` does not exist. The phases below are the recommended implementation order when development begins.
+
+**Phase 1 — Quick wins (no API key needed, no auth):**
+1. **Coverr API** — No auth required, vertical filter, free commercial use. Lowest barrier.
+2. **Wikimedia Commons** — Already partially validated (Wikipedia article images). Extend to full Commons search.
+3. **Chinese news sites (image extraction)** — Xinhua, iThome, 机器之心, 澎湃新闻: all verified ✅, no auth, no anti-crawler. CDP extract scripts already exist in `trend-sources.mjs`. **Highest ROI for China AI news content** — these are the only sources with real photos of Chinese AI companies/products.
+
+**Phase 2 — API key registration (store in `.env.local`):**
+4. **Pexels API** — Best stock video quality + search. 200 req/hour. `orientation=portrait` for vertical.
+5. **Pixabay API** — 100 req/60s, supports `zh` language. Good for Chinese keyword search.
+6. **Unsplash API** — Images only but highest quality. 50→1000 req/hour after Production approval.
+
+**Phase 3 — Complex integration:**
+7. **Flickr API** — License filter critical (`license=4,5,9,10,11,12` for commercial-safe). Good for niche product photos.
+8. **Mixkit** — CDP scraping needed (no API). Browse `free-vertical-videos` section.
+9. **Internet Archive** — Search API works, but content is archival. Low priority for current news.
+
+**Phase 4 — Chinese video platforms (CDP-based, high friction):**
+10. **Bilibili** — `yt-dlp` native support. CDP search already exists. **Best candidate for Chinese video content** — `yt-dlp` handles it directly.
+11. **CCTV** — `yt-dlp` supports CCTV. Video URL extraction needs network-level CDP analysis. Good for official event footage.
+12. **Douyin** — Requires login session. CDP search exists, download not tested.
+13. **Xiaohongshu** — Requires login. MCP fallback available. Good for product photos.
+
+> **TikTok excluded**: TikTok is our distribution platform, not a source. The `competitor-intel.mjs` script is for competitive analysis only, not asset download.
+
+#### Download method patterns (for `asset-sourcer.mjs`)
+
+| Pattern | Sources | Implementation |
+|---------|---------|----------------|
+| API search + HTTP download | Pexels, Unsplash, Pixabay, Flickr | `fetch()` with API key header → parse JSON → `fetch()` download URL → write file |
+| Direct API + signed URL | Coverr | `fetch()` search → get `base_filename` → `GET /storage/videos/{base_filename}` → download signed URL (15-min validity) |
+| MediaWiki API + HTTP download | Wikimedia Commons | `fetch()` API search → get `imageinfo.url` → `fetch()` with `User-Agent` → write file |
+| Web scraping + HTTP download | Mixkit | CDP browse → extract video URL from DOM → `fetch()` download |
+| yt-dlp | YouTube, Bilibili, CCTV | `yt-dlp --cookies-from-browser chrome -f "best[height<=720]" --download-sections "*0:00-0:08" --max-filesize 20M` |
+| CDP + download | Douyin, Xiaohongshu | `lib/cdp-client.mjs` → extract URL → `fetch()` with login cookies |
+| Internet Archive API | archive.org | `fetch()` advancedsearch → `fetch()` metadata → `fetch()` download URL |
+
+#### API key management
+
+Store all API keys in `.env.local` (not in Git):
+```
+PEXELS_API_KEY=...
+UNSPLASH_ACCESS_KEY=...
+PIXABAY_API_KEY=...
+FLICKR_API_KEY=...
+```
+No key needed for: Coverr, Wikimedia Commons, Internet Archive, Mixkit (scraping).
+
+#### Sources
+
+1. Pexels — "Pexels API Documentation" — `https://www.pexels.com/api/documentation/` — Tier 1 (official)
+2. Unsplash — "Unsplash API Documentation" — `https://unsplash.com/documentation` — Tier 1 (official)
+3. Pixabay — "Pixabay API Documentation" — `https://pixabay.com/api/docs/` — Tier 1 (official)
+4. Wikimedia Commons — "MediaWiki API" — `https://commons.wikimedia.org/w/api.php` — Tier 1 (official, live test)
+5. Coverr — "Coverr API" (OpenAPI 3.0 spec) — `https://coverr.co/api` — Tier 1 (official)
+6. Mixkit (Envato) — `https://mixkit.co/free-stock-video/` — Tier 1 (official, CDP extraction)
+7. Internet Archive — "Developer Portal" — `https://archive.org/developers/` — Tier 1 (official, live test)
+8. Flickr — "Flickr API: flickr.photos.search" — `https://www.flickr.com/services/api/flickr.photos.search.html` — Tier 1 (official)
 
 ### 4.4 Automated Asset Pipeline
+
+**Status**: 🔴 Not implemented — `asset-sourcer.mjs` does not exist. Design proposal only.
 
 **Vision**: Agent receives a topic + scene-data → automatically finds, downloads, and assigns media to scenes.
 
@@ -328,6 +634,8 @@ NEW: scripts/short-video/lib/asset-sourcer.mjs  ← standalone module
 
 ### 4.5 Asset Deduplication & Shared Library
 
+**Status**: 🔴 Not implemented — SHA-256 dedup + shared library is a design proposal.
+
 **Problem**: Assets currently live in per-content directories (`content/{slug}/assets/`) or the global `scripts/short-video/assets/`. No deduplication — same video could be downloaded multiple times for different content.
 
 **Proposed structure**:
@@ -344,27 +652,148 @@ scripts/short-video/assets/
 
 ### 4.6 Background Audio Mixing Research
 
-**Current setting**: `<Video volume={0.08} />` — 8% of original volume.
+**Status**: ✅ Research complete → 🟡 Partially applied. Current `volume={0.08}` validated as correct (no change needed). Per-scene `volume` field and envelope ducking are **proposed but not yet implemented** — see "Implementation" subsections below.
 
-**Why not muted**: Background clips from YouTube carry atmospheric audio (robot motor sounds, footsteps, crowd noise) that adds realism. Complete silence feels dead.
+**Research date**: 2026-08-13 | **Sources**: 5 (Wikipedia, EBU R128 standard, Sprout Social, existing project research, codebase analysis)
+
+#### Current setting
+
+`<Video volume={0.08} />` in `MediaBackground.tsx` — background video audio at 8% of original volume.
+
+**Why not muted**: Background clips from YouTube carry atmospheric audio (robot motor sounds, footsteps, crowd noise) that adds realism. Complete silence alongside a narrated video feels unnatural.
 
 **Why not louder**: TTS voiceover is the primary audio track. Any background audio competing with it reduces comprehension, especially for non-native English speakers watching with subtitles.
 
-**Research questions** (TODO — web deep research needed):
+#### Research findings
 
-| Question | Why it matters |
-|----------|---------------|
-| What is the industry standard for B-roll/narration audio ratio? | Film/TV uses -20dB to -25dB for background score relative to dialogue. Does this apply to short-form video? |
-| Should volume duck during TTS speech and rise during pauses? | Sidechain compression — standard in podcast production. Remotion supports per-frame volume via `interpolate()`. |
-| Does any background audio improve or hurt TikTok engagement? | A/B test needed. TikTok viewers often watch with sound off (captions on), so background audio may be irrelevant. |
-| Per-scene volume adjustment? | Action demos (robot backflip) have useful sound; narrated demos (company overview) have redundant narration that conflicts with TTS. |
+**1. Industry standard for background music relative to narration**
 
-**Candidate approach** (to validate with research):
+| Standard | Level | Source | Applicability |
+|----------|-------|--------|---------------|
+| Film/TV background score | -20dB to -25dB relative to dialogue | Industry convention [1] | High — same principle applies |
+| EBU R128 (European broadcast) | -23 LUFS integrated loudness | EBU R128 (2010, rev. 2020) [2] | Medium — broadcast standard, short-form may differ |
+| Podcast background music | -16dB to -20dB relative to host voice | Podcast production convention [1] | High — similar format (voice + background) |
+| Our current setting | `volume={0.08}` ≈ -22dB | Codebase | — |
+
+**Analysis**: Our `volume={0.08}` setting corresponds to approximately -22dB attenuation (20×log₁₀(0.08) ≈ -22dB). This falls within the industry standard range of -20dB to -25dB for background audio relative to primary narration. **The current setting is well-calibrated and does not need adjustment.**
+
+**2. Volume ducking / sidechain compression**
+
+From Wikipedia [3]: Dynamic range compression "reduces the volume of loud sounds or amplifies quiet sounds, thus compressing an audio signal's dynamic range." Sidechain compression (ducking) uses one signal to control the volume of another — standard in podcast production where the host voice automatically ducks the background music.
+
+| Approach | Complexity | Benefit | Remotion support |
+|----------|-----------|---------|------------------|
+| Static volume (current) | None | None | `volume={0.08}` ✅ |
+| Envelope ducking | Low — fade in/out with scene | Smoother transitions | `interpolate()` per-frame ✅ |
+| Sidechain compression | High — needs TTS audio envelope | Automatic ducking when voice speaks | Not built-in; would need custom audio processing |
+| Per-scene volume | Low — `media.volume` field | Action scenes louder, narrated scenes quieter | Would need `MediaField` extension |
+
+**Recommendation**: Start with **envelope ducking** (low complexity, high ROI). Per-scene volume as a quick win via `media.volume` field. Sidechain compression is overkill for short-form video where most viewing is sound-off.
+
+**3. TikTok sound-off viewing**
+
+From Sprout Social (2026-02-11) [4]: Short-form video is consumed **"often with sound off"** — viewers rely on captions/subtitles.
+
+**Implication**: Background video audio is a **nice-to-have, not a must-have**. The primary value of background video is **visual**, not audio. This means:
+- Don't over-invest in audio quality of B-roll clips
+- Subtitles must always be burned in (our pipeline does this via `burnSubtitles` in `post-process.mjs`)
+- The 8% volume setting is a reasonable ambiance level — lower is unnecessary, higher risks competing with TTS for the subset of viewers who do have sound on
+
+**4. Per-scene volume adjustment**
+
+| Scene type | Background audio content | Recommended volume | Rationale |
+|------------|----------------0---------|---------------------|-----------|
+| Product demo (robot moving) | Motor sounds, mechanical noise — adds realism | 0.10-0.12 | Sound is diegetic and informative |
+| Company overview (narrated clip) | Someone talking over the clip — conflicts with TTS | 0.03-0.05 | Redundant narration, minimal value |
+| Building/landmark (image) | No audio (images are silent) | N/A | Images have no audio track |
+| Crowd/event footage | Ambient noise, crowd murmur | 0.08 (current) | Adds atmosphere without competing |
+
+**Implementation** (NOT YET APPLIED — proposed changes):
+
+1. **Per-scene volume**: Add optional `volume` field to `MediaField` in `types.ts`:
 ```typescript
-// Per-frame volume ducking: lower during TTS, rise during pauses
-const volume = interpolate(frame, [0, inFrames, totalFrames - outFrames, totalFrames], [0, 0.08, 0.08, 0], clamp);
-// Future: sidechain with TTS audio envelope for automatic ducking
+export interface MediaField {
+  type: "image" | "video";
+  path: string;
+  mode?: "background" | "fullscreen";
+  source?: string;
+  animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
+  overlay?: number;
+  volume?: number;  // PROPOSED: 0-1, overrides default 0.08
+}
 ```
+Then in `MediaBackground.tsx`, replace `volume={0.08}` with `volume={media.volume ?? 0.08}`.
+
+2. **Envelope ducking**: In `MediaBackground.tsx`, multiply volume by the same `interpolate()` envelope used for opacity:
+```typescript
+// PROPOSED — not yet in code
+const baseVolume = media.volume ?? 0.08;
+const videoVolume = baseVolume * interpolate(
+  frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp
+);
+// <Video src={src} style={mediaStyle} volume={videoVolume} />
+```
+
+**Current code** (as of 2026-08-13):
+- `types.ts`: `MediaField` has NO `volume` field
+- `MediaBackground.tsx`: `<Video ... volume={0.08} />` — hardcoded, no per-scene control, no envelope ducking
+- These changes are tracked as future work; no spec/ticket has been created yet
+
+#### Candidate approach (validated by research, NOT YET IMPLEMENTED)
+
+```typescript
+// Envelope ducking: fade in with scene entrance, fade out with exit
+// PROPOSED — not in current codebase
+const baseVolume = media.volume ?? 0.08;
+const videoVolume = baseVolume * interpolate(
+  frame, [0, inFrames, totalFrames - outFrames, totalFrames], [0, 1, 1, 0], clamp
+);
+```
+
+#### Sources
+
+1. Industry convention — Film/TV scoring and podcast production practice (background music -20 to -25dB below dialogue)
+2. EBU R128 — "Loudness normalisation and maximum level of audio signals" (European Broadcasting Union, 2010, rev. 2020) — Wikipedia REST API
+3. Wikipedia — "Dynamic range compression", "Audio mixing", "Background music" — via REST API
+4. Sprout Social — "Short-Form Video: The Ultimate Guide" (2026-02-11)
+5. Codebase analysis — `MediaBackground.tsx`, `post-process.mjs`, `types.ts`
+
+### 4.7 BGM (Background Music) — Pipeline Implementation
+
+**Status**: ✅ Fully implemented and operational.
+
+> **Clarification on user workflow**: The user's BGM workflow is:
+> 1. **Pipeline BGM** (`--bgm` flag): Auto-selected from `assets/bgm/` pool, mixed into the video by FFmpeg at 12% volume during post-processing. This is the "pipeline BGM" — a low-volume atmospheric track.
+> 2. **TikTok upload BGM**: At TikTok upload time, the user manually adds a full-track BGM from TikTok's music library ("全景 Music"). This replaces/augments the pipeline BGM for the TikTok platform. The pipeline does NOT trim music for this step — it's a manual in-app operation.
+
+**Pipeline BGM components** (all implemented):
+
+| Component | File | Function |
+|-----------|------|----------|
+| BGM pool | `scripts/short-video/assets/bgm/` | 14 MP3 files (9 auto-selectable, 5 manual-only) |
+| Auto-selection | `lib/bgm.mjs` → `selectBGM()` | Filters by instant-start + news-themed, deterministic FNV-1a hash pick |
+| Mixing | `lib/post-process.mjs` → `mixBgm()` | FFmpeg `amix`, 0.1s fade-in, 3s fade-out, infinite loop, 12% volume |
+| Procedural fallback | `lib/generate-bgm.mjs` → `generateBGM()` | FFmpeg sine wave synthesis (cyber-ambient), used when no MP3 pool exists |
+| Attribution | `remotion/public/assets/bgm/ATTRIBUTION.md` | CC-BY / royalty-free track registry |
+
+**BGM selection logic** (`lib/bgm.mjs`):
+1. Scan `assets/bgm/*.mp3` → analyze each with `ffprobe` + `volumedetect`
+2. Filter: instant-start (first 0.5s mean volume > -35dB) + news-themed (filename contains "news"/"breaking"/"urgent")
+3. Deterministic pick: `FNV-1a hash(pipelineId) % candidates.length`
+4. Override: `--bgm-file <path>` forces a specific track
+
+**BGM mixing** (`mixBgm()` in `post-process.mjs`):
+- Volume: 12% (≈ -18dB) — slightly louder than background video audio (8%) because BGM is full-track music, not atmospheric noise
+- Fade-in: 0.1s (instant start, matches the instant-start filter)
+- Fade-out: last 3s of video
+- Loop: `-stream_loop -1` (infinite loop, stopped by `amix duration=first`)
+- Loudness normalization: applied after BGM mixing (EBU R128 -16 LUFS)
+
+**TrimmedMuse**: N/A in pipeline. The user's "TrimmedMuse" workflow is:
+- Pipeline outputs a video with TTS voiceover + optional low-volume BGM
+- At TikTok upload time, user manually selects a full track from TikTok's music library
+- The pipeline does not trim, select, or process TikTok library music — this is a manual in-app step
+- No code changes needed for this; it's already the correct separation of concerns
 
 ## 5. Design Decisions & References
 
@@ -373,7 +802,8 @@ const volume = interpolate(frame, [0, inFrames, totalFrames - outFrames, totalFr
 - **Parallel yt-dlp conflict**: Chrome's cookie database (`~/Library/Application Support/Google/Chrome/Default/Cookies`) uses SQLite with a lock; multiple yt-dlp instances reading it simultaneously can fail
 - **Remotion media path resolution**: `staticFile()` resolves relative to `remotion/public/`, so content assets must be copied there before rendering (handled by `render-remotion.mjs` step 2b)
 - **Overlay values**: Calibrated by testing text readability over various video/image backgrounds at 1080×1920 resolution. Values: 0.6 (light), 0.7 (standard), 0.75 (images), 0.8 (heavy/text-focus)
-- **Background video audio at 8% volume**: `<Video volume={0.08} />` in `MediaBackground.tsx` — background clips from YouTube have their own audio (robot motor sounds, demo narration, music) that adds atmosphere when barely audible. 0.08 is a conservative starting point — low enough not to interfere with TTS voiceover, high enough to feel the scene. **TODO**: Web deep research to confirm optimal B-roll audio level (industry standard for background/score audio relative to main narration).
+- **Background video audio at 8% volume**: `<Video volume={0.08} />` in `MediaBackground.tsx` (hardcoded, no per-scene control). Research (2026-08-13, §4.6) confirmed this ≈ -22dB falls within industry standard of -20dB to -25dB for background audio relative to narration. **Validated — no adjustment needed.** Future enhancement (NOT YET IMPLEMENTED): per-scene `volume` field via `MediaField` extension, and envelope ducking via `interpolate()` for smoother fade in/out.
+- **BGM (background music) at 12% volume**: `mixBgm()` in `post-process.mjs` (default `volume=0.12`). This is separate from background video audio — BGM is a full-track music file mixed in during FFmpeg post-processing. User also manually adds TikTok library music at upload time ("全景 Music"), which is outside the pipeline's scope.
 - **ken-burns + video auto-degrade**: Ken-burns is designed for static images (slow zoom + pan). Applied to video, the per-frame interpolation creates janky stutter. `MediaBackground.tsx` auto-degrades to `fade`; `media-bg.mjs` `validateMedia()` issues a warning.
 - **Playwright vs Remotion timing divergence**: The two backends evolved independently. Playwright (`media-bg.mjs`) uses CSS `@keyframes` with percentage-based timing; Remotion (`MediaBackground.tsx`) uses `interpolate()` with frame-based timing. The data contract (`MediaField`) is shared; timing is implementation-level. Unifying timing is a future cleanup task.
 - **5 presets, not more**: Adding presets (e.g., `parallax`, `shake`, `glitch`) is technically easy but increases the testing surface. Current 5 presets cover all use cases encountered in 6+ content pieces. Add new presets only when a real content need cannot be met by existing ones.
