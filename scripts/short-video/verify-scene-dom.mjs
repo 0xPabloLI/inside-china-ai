@@ -20,8 +20,14 @@
  *   5. Word-fit: every word in targeted text elements fits on its own line
  *      (guards mid-word breaks like the old "EXTRAORDINA RY" bug).
  *
+ *   6. Spacing scale: all margin-top, margin-bottom, gap values on content
+ *      elements must be multiples of 8 (the 8px spacing scale). Off-scale
+ *      values are WARN-level (reported, non-fatal) to catch drift early.
+ *      Padding values are checked on a 4px base (4, 8, 12, 16, 20, 24...).
+ *
  *   WARN level (reported, non-fatal):
  *   - Elements crossing the RIGHT band ABOVE the action rail (top chrome).
+ *   - Spacing values not on the 8px scale (margin/gap) or 4px scale (padding).
  *
  * Usage:
  *   node scripts/short-video/verify-scene-dom.mjs --content restraint/pt1
@@ -292,6 +298,48 @@ async function main() {
         );
       }
     }
+
+    // 6. Spacing scale check — all margin/gap values must be multiples of 8,
+    //    padding multiples of 4. Off-scale values are WARN-level.
+    const spacingWarns = await page.evaluate((exempt) => {
+      const SCALE = 8; // 8px base for margin/gap
+      const PAD_SCALE = 4; // 4px base for padding
+      const isMultiple = (v, base) => v % base === 0;
+      const parsePx = (s) => {
+        const m = /^([\d.]+)px$/.exec(s);
+        return m ? parseFloat(m[1]) : null;
+      };
+      const out = [];
+      for (const el of document.querySelectorAll("body *")) {
+        if (el.matches("svg, svg *")) continue;
+        if (exempt.some((s) => el.matches(s))) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        const style = getComputedStyle(el);
+        const cls = el.className?.toString?.()?.slice(0, 40) || el.tagName;
+        // Check margins
+        for (const prop of ["marginTop", "marginBottom"]) {
+          const v = parsePx(style[prop]);
+          if (v !== null && v > 0 && !isMultiple(v, SCALE)) {
+            out.push(`${cls} ${prop}: ${v}px (not ${SCALE}px scale)`);
+          }
+        }
+        // Check gap (flex/grid)
+        const gap = parsePx(style.gap);
+        if (gap !== null && gap > 0 && !isMultiple(gap, SCALE)) {
+          out.push(`${cls} gap: ${gap}px (not ${SCALE}px scale)`);
+        }
+        // Check padding (4px scale, more lenient)
+        for (const prop of ["paddingTop", "paddingBottom"]) {
+          const v = parsePx(style[prop]);
+          if (v !== null && v > 0 && !isMultiple(v, PAD_SCALE)) {
+            out.push(`${cls} ${prop}: ${v}px (not ${PAD_SCALE}px scale)`);
+          }
+        }
+      }
+      return out;
+    }, EXEMPT_SELECTORS);
+    for (const s of spacingWarns) warns.push(`spacing-scale: ${s}`);
 
     await page.close();
     for (const w of warns) console.log(`  ⚠️  scene ${scene.id}: ${w}`);

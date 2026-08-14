@@ -57,22 +57,22 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
 
       {/* Hero slot — subject row + focal */}
       <Slot variant="hero">
-        {/* Subject row (logo 120px + name 80px) */}
+        {/* Subject row (logo 96px + name 64px) */}
         {(txt.subjectLogo || txt.subject) && (
-          <SlideUp delay={0.2} duration={0.4} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 30 }}>
+          <SlideUp delay={0.2} duration={0.4} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 24, marginBottom: 32 }}>
             {txt.subjectLogo && (
               <Img
                 src={staticFile(`assets/logos/${txt.subjectLogo}.svg`)}
                 style={{
-                  width: 120,
-                  height: 120,
+                  width: 96,
+                  height: 96,
                   filter: "drop-shadow(0 0 25px rgba(77,139,255,0.3))",
                 }}
               />
             )}
             {txt.subject && (
               <span style={{
-                fontSize: 80,
+                fontSize: 64,
                 fontWeight: 900,
                 color: "#f5f5f5",
                 letterSpacing: "4px",
@@ -106,7 +106,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
                   fontWeight: 800,
                   color: "#f5f5f5",
                   letterSpacing: "3px",
-                  marginTop: 12,
+                  marginTop: 16,
                   textAlign: "center",
                 }}>
                   {(txt.numberLabel as string).replace(
@@ -142,7 +142,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
                   color,
                   letterSpacing: "2px",
                   lineHeight: 1.05,
-                  marginTop: 20,
+                  marginTop: 24,
                   textAlign: "center",
                 }}>
                   {txt.revealText as string}
@@ -156,7 +156,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
       {/* Support slot — stats + source */}
       <Slot variant="support">
         {stats.length > 0 && (
-          <div style={{ display: "flex", gap: 20, justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: 24, justifyContent: "center" }}>
             {stats.map((s, i) => (
               <SlideUp key={i} delay={0.8 + i * 0.15} duration={0.5}>
                 <StatCard
@@ -176,7 +176,8 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number }> = ({ sc
             color: "#cbd5e1",
             letterSpacing: "3px",
             textAlign: "center",
-            marginTop: stats.length > 0 ? 16 : 0,
+            lineHeight: 1,
+            marginTop: stats.length > 0 ? 24 : 0,
           }}>
             {txt.source as string}
           </div>

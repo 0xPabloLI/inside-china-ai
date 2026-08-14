@@ -150,7 +150,7 @@ export const StatCard: React.FC<{
     border: "1px solid rgba(255,255,255,0.2)",
     borderTop: `5px solid ${color}`,
     borderRadius: 14,
-    padding: "24px 20px",
+    padding: "16px 20px",
     textAlign: "center",
   }}>
     <div style={{
@@ -168,7 +168,7 @@ export const StatCard: React.FC<{
         fontWeight: 700,
         color: "#cbd5e1",
         letterSpacing: "1px",
-        marginTop: 6,
+        marginTop: 8,
       }}>
         {label}
       </div>
