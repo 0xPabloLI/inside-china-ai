@@ -11,7 +11,8 @@ import {
 // ─── Mock paths ───
 
 const CONTENT_DIR = "/fake/content/unitree";
-const REAL_CONTENT_DIR = "/Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/content/deepseek";
+const REAL_CONTENT_DIR =
+  "/Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/content/deepseek";
 
 // ─── resolveMediaPath ───
 
@@ -217,30 +218,21 @@ describe("validateMedia", () => {
   });
 
   it("returns warning when file not found", () => {
-    const result = validateMedia(
-      { type: "image", path: "missing.jpg" },
-      CONTENT_DIR,
-    );
+    const result = validateMedia({ type: "image", path: "missing.jpg" }, CONTENT_DIR);
     expect(result.valid).toBe(true); // still valid, just warns
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.warnings[0]).toContain("not found");
   });
 
   it("returns error for invalid media type", () => {
-    const result = validateMedia(
-      { type: "gif", path: "assets/demo.gif" },
-      CONTENT_DIR,
-    );
+    const result = validateMedia({ type: "gif", path: "assets/demo.gif" }, CONTENT_DIR);
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toContain("type");
   });
 
   it("returns error when path is missing", () => {
-    const result = validateMedia(
-      { type: "image" },
-      CONTENT_DIR,
-    );
+    const result = validateMedia({ type: "image" }, CONTENT_DIR);
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toContain("path");
@@ -285,10 +277,7 @@ describe("validateMedia", () => {
   });
 
   it("returns valid when mode is undefined (defaults to background)", () => {
-    const result = validateMedia(
-      { type: "image", path: "assets/demo.jpg" },
-      CONTENT_DIR,
-    );
+    const result = validateMedia({ type: "image", path: "assets/demo.jpg" }, CONTENT_DIR);
     expect(result.valid).toBe(true);
     // no mode-related warnings
     expect(result.warnings.some((w) => w.includes("mode"))).toBe(false);
@@ -313,6 +302,63 @@ describe("validateMedia", () => {
     );
     expect(result.valid).toBe(true);
     // overlay is accepted but will be forced to 0 at render time
+  });
+
+  // ── volume field tests (per-scene volume + envelope ducking) ──
+
+  it("does not warn when volume is undefined (default 0.08 applies at render time)", () => {
+    const result = validateMedia({ type: "video", path: "assets/demo.mp4" }, CONTENT_DIR);
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("volume"))).toBe(false);
+  });
+
+  it("does not warn when volume is 0 (explicit silence)", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", volume: 0 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("volume"))).toBe(false);
+  });
+
+  it("does not warn when volume is within [0, 1]", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", volume: 0.12 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("volume"))).toBe(false);
+  });
+
+  it("warns when volume > 1", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", volume: 1.5 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true); // warning, not error
+    expect(
+      result.warnings.some((w) => w.toLowerCase().includes("volume") && w.includes("1.5")),
+    ).toBe(true);
+  });
+
+  it("warns when volume is negative", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", volume: -0.5 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true); // warning, not error
+    expect(
+      result.warnings.some((w) => w.toLowerCase().includes("volume") && w.includes("-0.5")),
+    ).toBe(true);
+  });
+
+  it("does not warn when image has volume (harmless dead data)", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", volume: 0.1 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("volume"))).toBe(false);
   });
 });
 

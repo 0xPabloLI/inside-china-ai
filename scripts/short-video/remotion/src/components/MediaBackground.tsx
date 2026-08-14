@@ -57,9 +57,10 @@ export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
   const src = staticFile(media.path.startsWith("assets/") ? media.path : `assets/${media.path}`);
 
   // ─── Opacity (all presets except none) ───
-  const opacity = preset === "none"
-    ? 1
-    : interpolate(frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp);
+  const opacity =
+    preset === "none"
+      ? 1
+      : interpolate(frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp);
 
   // ─── Preset-specific transforms ───
 
@@ -79,7 +80,12 @@ export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
     translateY = interpolate(frame, [0, totalFrames], [10, -10], clamp) + "px";
   } else if (preset === "slide") {
     // Slide in from right + slide out to left
-    const xPercent = interpolate(frame, [0, inFrames, outStart, totalFrames], [100, 0, 0, -100], clamp);
+    const xPercent = interpolate(
+      frame,
+      [0, inFrames, outStart, totalFrames],
+      [100, 0, 0, -100],
+      clamp,
+    );
     translateX = `${xPercent}%`;
     // Blur during entrance, sharp when settled
     const blurAmount = interpolate(frame, [0, inFrames], [8, 0], clamp);
@@ -88,13 +94,15 @@ export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
     scale = interpolate(frame, [0, inFrames, outStart, totalFrames], [1.1, 1.0, 1.0, 1.05], clamp);
   } else if (preset === "zoom") {
     // Dramatic zoom in (1.3→1.0), then zoom out on exit (1.0→1.15)
-    scale = interpolate(
-      frame,
-      [0, inFrames, outStart, totalFrames],
-      [1.3, 1.0, 1.0, 1.15],
-      { ...clamp, easing: easeOutExpo },
-    );
+    scale = interpolate(frame, [0, inFrames, outStart, totalFrames], [1.3, 1.0, 1.0, 1.15], {
+      ...clamp,
+      easing: easeOutExpo,
+    });
   }
+
+  // ─── Volume (envelope ducking: volume follows opacity envelope) ───
+  const baseVolume = media.volume ?? 0.08;
+  const videoVolume = baseVolume * opacity;
 
   const mediaStyle: React.CSSProperties = {
     position: "absolute",
@@ -108,23 +116,31 @@ export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
   };
 
   // Overlay also fades in/out slightly for smoother transitions
-  const overlayOpacity = preset === "none"
-    ? overlay
-    : interpolate(frame, [0, inFrames * 0.5, outStart, totalFrames], [0, overlay, overlay, overlay * 0.3], clamp);
+  const overlayOpacity =
+    preset === "none"
+      ? overlay
+      : interpolate(
+          frame,
+          [0, inFrames * 0.5, outStart, totalFrames],
+          [0, overlay, overlay, overlay * 0.3],
+          clamp,
+        );
 
   return (
     <>
       {media.type === "image" ? (
         <Img src={src} style={mediaStyle} />
       ) : (
-        <Video src={src} style={mediaStyle} volume={0.08} />
+        <Video src={src} style={mediaStyle} volume={videoVolume} />
       )}
-      <div style={{
-        position: "absolute",
-        inset: 0,
-        background: `rgba(10, 10, 20, ${overlayOpacity})`,
-        transition: "background 0.3s",
-      }} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `rgba(10, 10, 20, ${overlayOpacity})`,
+          transition: "background 0.3s",
+        }}
+      />
     </>
   );
 };

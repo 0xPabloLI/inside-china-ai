@@ -18,6 +18,7 @@ export interface MediaField {
   source?: string;
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;
+  volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
 }
 
 /** Texts object — varies by visualType, all fields optional. */

@@ -310,30 +310,27 @@ export function validateMedia(media, contentDir) {
 
   // File existence (warning, not error — scene can fall back to CSS)
   if (media.path && !mediaExists(media.path, contentDir)) {
-    warnings.push(
-      `Media file not found: ${media.path}. Scene will fall back to CSS background.`,
-    );
+    warnings.push(`Media file not found: ${media.path}. Scene will fall back to CSS background.`);
   }
 
   // Animation preset validation
   if (media.animation && !VALID_PRESETS.includes(media.animation)) {
-    warnings.push(
-      `Unknown animation preset: "${media.animation}". Will use "fade" instead.`,
-    );
+    warnings.push(`Unknown animation preset: "${media.animation}". Will use "fade" instead.`);
   }
 
   // Mode validation
   if (media.mode && !VALID_MODES.includes(media.mode)) {
-    warnings.push(
-      `Unknown media mode: "${media.mode}". Will use "background" instead.`,
-    );
+    warnings.push(`Unknown media mode: "${media.mode}". Will use "background" instead.`);
   }
 
   // ken-burns on video — not supported, will fall back to fade
   if (media.animation === "ken-burns" && media.type === "video") {
-    warnings.push(
-      'ken-burns animation is not supported for video. Will use "fade" instead.',
-    );
+    warnings.push('ken-burns animation is not supported for video. Will use "fade" instead.');
+  }
+
+  // Volume range check (0-1, only meaningful for video, but harmless for image)
+  if (media.volume !== undefined && (media.volume < 0 || media.volume > 1)) {
+    warnings.push(`Volume ${media.volume} is out of range [0, 1]. Will be clamped at render time.`);
   }
 
   return {

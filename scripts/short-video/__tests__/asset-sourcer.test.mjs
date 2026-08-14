@@ -86,13 +86,25 @@ describe("extractKeywords", () => {
 
 describe("scoreCandidate", () => {
   it("scores exact keyword match in title as 40", () => {
-    const candidate = { title: "Unitree H1 Robot Demo", type: "video", duration: 6, fileSize: 5000000, resolution: "720p" };
+    const candidate = {
+      title: "Unitree H1 Robot Demo",
+      type: "video",
+      duration: 6,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
     const score = scoreCandidate(candidate, "Unitree");
     expect(score).toBeGreaterThanOrEqual(40);
   });
 
   it("scores 0 match points when keyword not in title (with resolution)", () => {
-    const candidate = { title: "Humanoid Robot Backflip", type: "video", duration: 6, fileSize: 5000000, resolution: "720p" };
+    const candidate = {
+      title: "Humanoid Robot Backflip",
+      type: "video",
+      duration: 6,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
     const score = scoreCandidate(candidate, "Unitree");
     // No "Unitree" in title → 0 match points, but duration+size+resolution add up
     // 0 (match) + 25 (duration) + 20 (size) + 10 (res) = 55
@@ -108,14 +120,26 @@ describe("scoreCandidate", () => {
   });
 
   it("scores video 3-8s duration as 25", () => {
-    const candidate = { title: "Unitree", type: "video", duration: 5, fileSize: 5000000, resolution: "720p" };
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
     const score = scoreCandidate(candidate, "Unitree");
     // 40 (match) + 25 (duration) + 20 (size) + 10 (res) = 95
     expect(score).toBe(95);
   });
 
   it("scores video >60s duration as 5", () => {
-    const candidate = { title: "Unitree", type: "video", duration: 120, fileSize: 5000000, resolution: "720p" };
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 120,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
     const score = scoreCandidate(candidate, "Unitree");
     // 40 + 5 + 20 + 10 = 75
     expect(score).toBe(75);
@@ -129,13 +153,25 @@ describe("scoreCandidate", () => {
   });
 
   it("scores video <20MB as 20 size points", () => {
-    const candidate = { title: "Unitree", type: "video", duration: 5, fileSize: 15000000, resolution: "720p" };
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 15000000,
+      resolution: "720p",
+    };
     const score = scoreCandidate(candidate, "Unitree");
     expect(score).toBe(95);
   });
 
   it("scores video >50MB as 0 size points", () => {
-    const candidate = { title: "Unitree", type: "video", duration: 5, fileSize: 60000000, resolution: "720p" };
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 60000000,
+      resolution: "720p",
+    };
     const score = scoreCandidate(candidate, "Unitree");
     // 40 + 25 + 0 + 10 = 75
     expect(score).toBe(75);
@@ -156,7 +192,13 @@ describe("scoreCandidate", () => {
   });
 
   it("caps score at 100", () => {
-    const candidate = { title: "Unitree Unitree Unitree", type: "video", duration: 5, fileSize: 5000000, resolution: "1080p" };
+    const candidate = {
+      title: "Unitree Unitree Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "1080p",
+    };
     const score = scoreCandidate(candidate, "Unitree");
     // 40 + 25 + 20 + 15 = 100
     expect(score).toBeLessThanOrEqual(100);
@@ -280,15 +322,25 @@ describe("buildFilename", () => {
 describe("buildReport", () => {
   it("builds report with assets, failed, and skipped", () => {
     const assets = [
-      { source: "youtube", keyword: "Unitree", type: "video", path: "assets/youtube-unitree-01.mp4", score: 85, status: "downloaded" },
-      { source: "ithome", keyword: "Unitree", type: "image", path: "assets/ithome-unitree-01.jpg", score: 70, status: "downloaded" },
+      {
+        source: "youtube",
+        keyword: "Unitree",
+        type: "video",
+        path: "assets/youtube-unitree-01.mp4",
+        score: 85,
+        status: "downloaded",
+      },
+      {
+        source: "ithome",
+        keyword: "Unitree",
+        type: "image",
+        path: "assets/ithome-unitree-01.jpg",
+        score: 70,
+        status: "downloaded",
+      },
     ];
-    const failed = [
-      { source: "douyin", keyword: "Unitree", error: "needs auth" },
-    ];
-    const skipped = [
-      { source: "pixabay", reason: "no API key" },
-    ];
+    const failed = [{ source: "douyin", keyword: "Unitree", error: "needs auth" }];
+    const skipped = [{ source: "pixabay", reason: "no API key" }];
 
     const report = buildReport("unitree", ["Unitree"], assets, failed, skipped);
 
@@ -371,7 +423,12 @@ describe("searchApiSource", () => {
     const source = API_SOURCES.find((s) => s.name === "pexels");
     const mockData = {
       photos: [
-        { alt: "Unitree robot", src: { original: "https://img.pexels.com/1.jpg" }, width: 1080, height: 1920 },
+        {
+          alt: "Unitree robot",
+          src: { original: "https://img.pexels.com/1.jpg" },
+          width: 1080,
+          height: 1920,
+        },
       ],
     };
     global.fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(mockData) });
@@ -433,8 +490,12 @@ describe("downloadAsset", () => {
     expect(result.path).toBe(destPath);
 
     // Clean up
-    try { unlinkSync(destPath); } catch {}
-    try { rmdirSync(tmpDir); } catch {}
+    try {
+      unlinkSync(destPath);
+    } catch {}
+    try {
+      rmdirSync(tmpDir);
+    } catch {}
   });
 
   it("returns failure for file <1KB (corrupt)", async () => {
@@ -452,7 +513,10 @@ describe("downloadAsset", () => {
   it("returns failure on HTTP error", async () => {
     global.fetch.mockResolvedValue({ ok: false, status: 404 });
 
-    const result = await downloadAsset("https://example.com/missing.jpg", "/tmp/nonexistent/missing.jpg");
+    const result = await downloadAsset(
+      "https://example.com/missing.jpg",
+      "/tmp/nonexistent/missing.jpg",
+    );
     expect(result.success).toBe(false);
     expect(result.error).toContain("404");
   });
@@ -690,8 +754,22 @@ describe("buildCreditsSection", () => {
 
   it("builds credits section with multiple sources", () => {
     const assets = [
-      { attribution: { source: "pexels", text: "Photo by John from Pexels", author: "John", logoRequired: false } },
-      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined, logoRequired: true } },
+      {
+        attribution: {
+          source: "pexels",
+          text: "Photo by John from Pexels",
+          author: "John",
+          logoRequired: false,
+        },
+      },
+      {
+        attribution: {
+          source: "pixabay",
+          text: "Source: Pixabay",
+          author: undefined,
+          logoRequired: true,
+        },
+      },
     ];
     const credits = buildCreditsSection(assets);
     // Only Pixabay should appear (logoRequired=true)
@@ -703,8 +781,22 @@ describe("buildCreditsSection", () => {
 
   it("deduplicates credits by source+author", () => {
     const assets = [
-      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined, logoRequired: true } },
-      { attribution: { source: "pixabay", text: "Source: Pixabay", author: undefined, logoRequired: true } },
+      {
+        attribution: {
+          source: "pixabay",
+          text: "Source: Pixabay",
+          author: undefined,
+          logoRequired: true,
+        },
+      },
+      {
+        attribution: {
+          source: "pixabay",
+          text: "Source: Pixabay",
+          author: undefined,
+          logoRequired: true,
+        },
+      },
     ];
     const credits = buildCreditsSection(assets);
     // Should have 1 unique entry
@@ -783,17 +875,19 @@ describe("fetchWikimediaLicense", () => {
     const mockData = {
       query: {
         pages: {
-          "123": {
+          123: {
             pageid: 123,
             title: "File:Test.jpg",
-            imageinfo: [{
-              extmetadata: {
-                LicenseShortName: { value: "CC BY-SA 4.0" },
-                Artist: { value: "<a href='/wiki/User:Test'>TestUser</a>" },
-                AttributionRequired: { value: "true" },
-                LicenseUrl: { value: "https://creativecommons.org/licenses/by-sa/4.0" },
+            imageinfo: [
+              {
+                extmetadata: {
+                  LicenseShortName: { value: "CC BY-SA 4.0" },
+                  Artist: { value: "<a href='/wiki/User:Test'>TestUser</a>" },
+                  AttributionRequired: { value: "true" },
+                  LicenseUrl: { value: "https://creativecommons.org/licenses/by-sa/4.0" },
+                },
               },
-            }],
+            ],
           },
         },
       },
@@ -812,7 +906,7 @@ describe("fetchWikimediaLicense", () => {
     const mockData = {
       query: {
         pages: {
-          "123": {
+          123: {
             pageid: 123,
             title: "File:Test.jpg",
             imageinfo: [{}],
@@ -863,6 +957,124 @@ describe("CDP_SOURCES new additions", () => {
   });
 });
 
+// ─── Wikimedia dynamic attribution tests ───
+
+describe("Wikimedia dynamic attribution", () => {
+  it("SOURCE_ATTRIBUTIONS.wikimedia has dynamicAttribution flag", () => {
+    expect(SOURCE_ATTRIBUTIONS.wikimedia).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.wikimedia.dynamicAttribution).toBe(true);
+    expect(SOURCE_ATTRIBUTIONS.wikimedia.logoRequired).toBe(false);
+  });
+
+  it("buildAttribution sets attributionRequired=true for CC-BY-SA license", () => {
+    const asset = {
+      licenseInfo: {
+        license: "CC BY-SA 4.0",
+        author: "TestUser",
+        attributionRequired: true,
+        licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0",
+      },
+    };
+    const attr = buildAttribution("wikimedia", asset);
+    expect(attr).not.toBeNull();
+    expect(attr.attributionRequired).toBe(true);
+    expect(attr.license).toBe("CC BY-SA 4.0");
+    expect(attr.author).toBe("TestUser");
+    expect(attr.logoRequired).toBe(false);
+  });
+
+  it("buildAttribution sets attributionRequired=false for Public Domain", () => {
+    const asset = {
+      licenseInfo: {
+        license: "Public Domain",
+        author: undefined,
+        attributionRequired: false,
+        licenseUrl: undefined,
+      },
+    };
+    const attr = buildAttribution("wikimedia", asset);
+    expect(attr).not.toBeNull();
+    expect(attr.attributionRequired).toBe(false);
+    expect(attr.license).toBe("Public Domain");
+  });
+
+  it("buildAttribution infers attributionRequired from license name even if API says false", () => {
+    // CC-BY should require attribution even if AttributionRequired field is not "true"
+    const asset = {
+      licenseInfo: {
+        license: "CC BY 4.0",
+        author: "Someone",
+        attributionRequired: false, // API didn't set this
+      },
+    };
+    const attr = buildAttribution("wikimedia", asset);
+    expect(attr.attributionRequired).toBe(true); // Inferred from "CC BY"
+  });
+
+  it("buildAttribution does not set attributionRequired for CC0", () => {
+    const asset = {
+      licenseInfo: {
+        license: "CC0",
+        author: undefined,
+        attributionRequired: false,
+      },
+    };
+    const attr = buildAttribution("wikimedia", asset);
+    expect(attr.attributionRequired).toBe(false);
+  });
+
+  it("buildCreditsSection includes Wikimedia CC-BY-SA assets (attributionRequired)", () => {
+    const assets = [
+      {
+        attribution: {
+          source: "wikimedia",
+          text: "TestUser via Wikimedia Commons (CC BY-SA 4.0)",
+          author: "TestUser",
+          logoRequired: false,
+          attributionRequired: true,
+        },
+      },
+      {
+        attribution: {
+          source: "pexels",
+          text: "Photo by John from Pexels",
+          logoRequired: false,
+          attributionRequired: false,
+        },
+      },
+    ];
+    const credits = buildCreditsSection(assets);
+    expect(credits).toContain("Wikimedia Commons");
+    expect(credits).toContain("CC BY-SA 4.0");
+    // Pexels should NOT appear (neither logoRequired nor attributionRequired)
+    expect(credits).not.toContain("Photo by John");
+  });
+
+  it("buildCreditsSection excludes Wikimedia Public Domain assets", () => {
+    const assets = [
+      {
+        attribution: {
+          source: "wikimedia",
+          text: "Unknown via Wikimedia Commons (Public Domain)",
+          logoRequired: false,
+          attributionRequired: false,
+        },
+      },
+    ];
+    const credits = buildCreditsSection(assets);
+    expect(credits).toBe(""); // No credits for PD content
+  });
+
+  it("buildAttribution works for wikimedia without licenseInfo (fallback to default)", () => {
+    const asset = { author: "Someone" };
+    const attr = buildAttribution("wikimedia", asset);
+    expect(attr).not.toBeNull();
+    // Without licenseInfo, falls back to static default
+    expect(attr.license).toBe("CC-BY-SA 4.0");
+    expect(attr.attributionRequired).toBe(false); // logoRequired is false
+  });
+});
+
 // ─── Coverr API fix tests ───
 
 describe("Coverr API fix", () => {
@@ -881,9 +1093,7 @@ describe("Coverr API fix", () => {
   it("parses hits array from Coverr response", () => {
     const coverr = API_SOURCES.find((s) => s.name === "coverr");
     const mockData = {
-      hits: [
-        { title: "Robot vacuum", base_filename: "coverr-robot-123", is_vertical: false },
-      ],
+      hits: [{ title: "Robot vacuum", base_filename: "coverr-robot-123", is_vertical: false }],
       params: { userToken: "abc123" },
     };
     const result = coverr.parseResponse(mockData, "robot");
@@ -915,7 +1125,13 @@ describe("Pixabay API source", () => {
     const pixabay = API_SOURCES.find((s) => s.name === "pixabay");
     const mockData = {
       hits: [
-        { tags: "robot, technology", largeImageURL: "https://pixabay.com/1.jpg", imageWidth: 1080, imageHeight: 1920, user: "photographer1" },
+        {
+          tags: "robot, technology",
+          largeImageURL: "https://pixabay.com/1.jpg",
+          imageWidth: 1080,
+          imageHeight: 1920,
+          user: "photographer1",
+        },
       ],
     };
     const result = pixabay.parseResponse(mockData, "robot");
@@ -923,5 +1139,155 @@ describe("Pixabay API source", () => {
     expect(result[0].title).toBe("robot, technology");
     expect(result[0].url).toContain("pixabay.com");
     expect(result[0].author).toBe("photographer1");
+  });
+});
+
+// ─── assignAssetsToScenes tests ───
+
+import { assignAssetsToScenes } from "../lib/asset-sourcer.mjs";
+
+describe("assignAssetsToScenes", () => {
+  // Helper: create a minimal scene
+  const makeScene = (id, visualType, hasMedia = false) => ({
+    id,
+    visualType,
+    media: hasMedia ? { type: "video", path: "existing.mp4" } : undefined,
+  });
+
+  // Helper: create a minimal asset
+  const makeAsset = (path, type, score, source = "youtube") => ({
+    path,
+    type,
+    score,
+    source,
+    title: `Asset ${path}`,
+  });
+
+  // #9: 0 assets, 3 available scenes → empty patch array
+  it("returns empty array when no assets are provided", () => {
+    const scenes = [
+      makeScene(2, "narrative"),
+      makeScene(4, "info-card"),
+      makeScene(5, "narrative"),
+    ];
+    const result = assignAssetsToScenes([], scenes);
+    expect(result).toEqual([]);
+  });
+
+  // #10: 5 assets, 2 available scenes → top-2 assigned, 3 unassigned
+  it("assigns top-scoring assets to available scenes, marks rest as unassigned", () => {
+    const scenes = [makeScene(2, "narrative"), makeScene(4, "info-card")];
+    const assets = [
+      makeAsset("a1.mp4", "video", 90),
+      makeAsset("a2.mp4", "video", 85),
+      makeAsset("a3.mp4", "video", 80),
+      makeAsset("a4.mp4", "video", 75),
+      makeAsset("a5.mp4", "video", 70),
+    ];
+    const result = assignAssetsToScenes(assets, scenes);
+    expect(result).toHaveLength(5);
+    const assigned = result.filter((r) => r.status === "assigned");
+    const unassigned = result.filter((r) => r.status === "unassigned");
+    expect(assigned).toHaveLength(2);
+    expect(unassigned).toHaveLength(3);
+    // Top asset (score 90) → scene 2
+    expect(assigned[0].sceneId).toBe(2);
+    expect(assigned[0].assetScore).toBe(90);
+    // Second asset (score 85) → scene 4
+    expect(assigned[1].sceneId).toBe(4);
+    expect(assigned[1].assetScore).toBe(85);
+  });
+
+  // #11: Image asset → media.volume omitted in patch
+  it("omits volume field for image assets", () => {
+    const scenes = [makeScene(4, "info-card")];
+    const assets = [makeAsset("building.jpg", "image", 80)];
+    const result = assignAssetsToScenes(assets, scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe("assigned");
+    expect(result[0].media.volume).toBeUndefined();
+  });
+
+  // #12: Scene already has media → skipped
+  it("skips scenes that already have media assigned", () => {
+    const scenes = [makeScene(2, "narrative", true), makeScene(4, "info-card")];
+    const assets = [makeAsset("a1.mp4", "video", 90)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(4); // scene 2 skipped, asset goes to scene 4
+  });
+
+  // #13: Scene with visualType "hook" → skipped
+  it("skips scenes with visualType in NO_MEDIA_TYPES", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.mp4", "video", 90)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(2); // scene 1 (hook) skipped
+  });
+
+  // #14: Two assets with same path → first assigned, second skipped
+  it("deduplicates assets by path — first wins, second marked unassigned", () => {
+    const scenes = [makeScene(2, "narrative")];
+    const assets = [makeAsset("same.mp4", "video", 90), makeAsset("same.mp4", "video", 80)];
+    const result = assignAssetsToScenes(assets, scenes);
+    expect(result).toHaveLength(2);
+    const assigned = result.filter((r) => r.status === "assigned");
+    const unassigned = result.filter((r) => r.status === "unassigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].assetScore).toBe(90);
+    expect(unassigned).toHaveLength(1);
+  });
+
+  // #15: Asset without path field → skipped
+  it("skips assets without a path field", () => {
+    const scenes = [makeScene(2, "narrative")];
+    const assets = [{ type: "video", score: 90, source: "youtube", title: "no path" }];
+    const result = assignAssetsToScenes(assets, scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe("unassigned");
+  });
+
+  // #16: Volume per visualType
+  it("recommends volume 0.10 for narrative+video", () => {
+    const scenes = [makeScene(2, "narrative")];
+    const assets = [makeAsset("demo.mp4", "video", 90)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.volume).toBe(0.1);
+  });
+
+  it("recommends volume 0.04 for quote+video", () => {
+    const scenes = [makeScene(3, "quote")];
+    const assets = [makeAsset("clip.mp4", "video", 85)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.volume).toBe(0.04);
+  });
+
+  it("recommends volume 0.08 for info-card+video (default)", () => {
+    const scenes = [makeScene(4, "info-card")];
+    const assets = [makeAsset("info.mp4", "video", 80)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.volume).toBe(0.08);
+  });
+
+  it("sets correct animation for narrative+video (zoom)", () => {
+    const scenes = [makeScene(2, "narrative")];
+    const assets = [makeAsset("demo.mp4", "video", 90)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.animation).toBe("zoom");
+  });
+
+  it("sets correct animation for info-card+image (ken-burns)", () => {
+    const scenes = [makeScene(4, "info-card")];
+    const assets = [makeAsset("building.jpg", "image", 80)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.animation).toBe("ken-burns");
   });
 });

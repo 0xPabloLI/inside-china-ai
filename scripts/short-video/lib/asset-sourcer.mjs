@@ -22,11 +22,35 @@ import { execSync } from "child_process";
 
 /** Known AI company names for voiceover keyword extraction. */
 const KNOWN_COMPANIES = [
-  "DeepSeek", "Unitree", "Alibaba", "Baidu", "Tencent", "ByteDance",
-  "Huawei", "Xiaomi", "Qwen", "Doubao", "Kimi", "Moonshot", "Zhipu",
-  "MiniMax", "SenseTime", "iFlytek", "Cambricon", "Horizon Robotics",
-  "UBTECH", "Agibot", "Xiaomi", "Nio", "Li Auto", "XPeng",
-  "Bilibili", "Douyin", "WeChat", "DingTalk", "Feishu",
+  "DeepSeek",
+  "Unitree",
+  "Alibaba",
+  "Baidu",
+  "Tencent",
+  "ByteDance",
+  "Huawei",
+  "Xiaomi",
+  "Qwen",
+  "Doubao",
+  "Kimi",
+  "Moonshot",
+  "Zhipu",
+  "MiniMax",
+  "SenseTime",
+  "iFlytek",
+  "Cambricon",
+  "Horizon Robotics",
+  "UBTECH",
+  "Agibot",
+  "Xiaomi",
+  "Nio",
+  "Li Auto",
+  "XPeng",
+  "Bilibili",
+  "Douyin",
+  "WeChat",
+  "DingTalk",
+  "Feishu",
 ];
 
 /** Scene types that should NOT have media assigned. */
@@ -188,6 +212,146 @@ export function recommendScene(asset, scenes) {
 }
 
 /**
+ * Volume recommendation per visualType + media type.
+ * Based on §4.6 research: product demos louder, narrated clips quieter.
+ */
+const VOLUME_RECOMMENDATIONS = {
+  narrative: { video: 0.1 }, // product demo — motor sounds add realism
+  quote: { video: 0.04 }, // text focus — minimize competing audio
+  "info-card": { video: 0.08 }, // default level
+  // image: no volume (images have no audio)
+};
+
+/**
+ * Batch-assign downloaded assets to scenes using greedy matching.
+ *
+ * Assets are sorted by score descending. Each asset is assigned to the
+ * first available scene (no existing media, visualType not in NO_MEDIA_TYPES).
+ * Deduplicates by asset path — same file won't be assigned twice.
+ *
+ * Assets that can't be assigned (no available scene, no path, duplicate path)
+ * are included in the result with status: "unassigned".
+ *
+ * @param {Array} assets - Downloaded assets (each must have score, type, path)
+ * @param {Array} scenes - Scene data array
+ * @returns {Array<{ sceneId?: number, sceneName?: string, visualType?: string,
+ *   media?: Object, assetScore: number, source: string, attribution?: Object,
+ *   status: "assigned" | "unassigned" }>}
+ */
+export function assignAssetsToScenes(assets, scenes) {
+  if (!assets || assets.length === 0) return [];
+
+  // Sort assets by score descending (greedy: highest score gets first pick)
+  const sorted = [...assets].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  // Track assigned scene IDs and asset paths
+  const assignedSceneIds = new Set();
+  const assignedPaths = new Set();
+  const result = [];
+
+  for (const asset of sorted) {
+    // Skip assets without a path (can't assign without knowing file location)
+    if (!asset.path) {
+      result.push({
+        assetScore: asset.score || 0,
+        source: asset.source || asset.from || "unknown",
+        attribution: asset.attribution || null,
+        status: "unassigned",
+      });
+      continue;
+    }
+
+    // Skip duplicate paths (first occurrence already assigned)
+    if (assignedPaths.has(asset.path)) {
+      result.push({
+        assetScore: asset.score || 0,
+        source: asset.source || asset.from || "unknown",
+        attribution: asset.attribution || null,
+        status: "unassigned",
+      });
+      continue;
+    }
+
+    // Find first available scene
+    let assigned = false;
+    for (const scene of scenes) {
+      if (assignedSceneIds.has(scene.id)) continue;
+      if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
+      if (scene.media) continue;
+
+      // Assign this asset to this scene
+      const vt = scene.visualType;
+      const isVideo = asset.type === "video";
+
+      // Determine animation
+      let animation;
+      if (vt === "narrative") {
+        animation = isVideo ? "zoom" : "fade";
+      } else if (vt === "info-card") {
+        animation = asset.type === "image" ? "ken-burns" : "fade";
+      } else if (vt === "quote") {
+        animation = "fade";
+      } else {
+        animation = "fade";
+      }
+
+      // Determine overlay
+      let overlay;
+      if (vt === "quote") {
+        overlay = 0.8;
+      } else if (vt === "info-card") {
+        overlay = 0.75;
+      } else {
+        overlay = 0.7;
+      }
+
+      // Determine volume (only for video)
+      const volRec = VOLUME_RECOMMENDATIONS[vt];
+      const volume = isVideo && volRec ? volRec.video : undefined;
+
+      // Build media object
+      const media = {
+        type: asset.type,
+        path: asset.path,
+        source: asset.source || asset.from || undefined,
+        animation,
+        overlay,
+      };
+      if (volume !== undefined) {
+        media.volume = volume;
+      }
+
+      result.push({
+        sceneId: scene.id,
+        sceneName: scene.name,
+        visualType: vt,
+        media,
+        assetScore: asset.score || 0,
+        source: asset.source || asset.from || "unknown",
+        attribution: asset.attribution || null,
+        status: "assigned",
+      });
+
+      assignedSceneIds.add(scene.id);
+      assignedPaths.add(asset.path);
+      assigned = true;
+      break;
+    }
+
+    if (!assigned) {
+      result.push({
+        assetScore: asset.score || 0,
+        source: asset.source || asset.from || "unknown",
+        attribution: asset.attribution || null,
+        status: "unassigned",
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
  * Convert a keyword to a filename-safe slug.
  *
  * @param {string} keyword
@@ -325,14 +489,11 @@ export async function downloadAsset(url, destPath, headers = {}) {
  * @returns {Array} Candidates array
  */
 export function searchYtdlp(keyword, platform) {
-  const searchUrl =
-    platform === "bilibili"
-      ? `bilisearch:${keyword}`
-      : `ytsearch10:${keyword}`;
+  const searchUrl = platform === "bilibili" ? `bilisearch:${keyword}` : `ytsearch10:${keyword}`;
 
   try {
     const output = execSync(
-      `yt-dlp --cookies-from-browser chrome --flat-playlist --print "%(id)s\\t%(title)s\\t%(duration)s" "${searchUrl}" 2>/dev/null`,
+      `yt-dlp --cookies-from-browser firefox --flat-playlist --print "%(id)s\\t%(title)s\\t%(duration)s" "${searchUrl}" 2>/dev/null`,
       { encoding: "utf8", timeout: 60000 },
     );
 
@@ -373,9 +534,9 @@ export function downloadYtdlp(url, destPath) {
 
   const cmd = [
     "yt-dlp",
-    "--cookies-from-browser chrome",
-    '-f "best[height<=720][ext=mp4]/best[height<=720]"',
-    '--max-filesize 20M',
+    "--cookies-from-browser firefox",
+    '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
+    "--max-filesize 20M",
     '--download-sections "*0:00-0:08"',
     `-o "${destPath}"`,
     `"${url}"`,
@@ -492,7 +653,7 @@ export const API_SOURCES = [
       const hits = data.hits || [];
       return hits.map((v) => ({
         title: v.title || keyword,
-        url: `https://cdn.coverr.co/videos/${v.base_filename}/mp4?token=${data.params?.userToken || ''}`,
+        url: `https://cdn.coverr.co/videos/${v.base_filename}/mp4?token=${data.params?.userToken || ""}`,
         type: "video",
         resolution: v.is_vertical ? "vertical" : "horizontal",
         fileSize: undefined,
@@ -571,7 +732,8 @@ export const CDP_SOURCES = [
   {
     name: "google_news",
     label: "Google News",
-    url: (keyword) => `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
+    url: (keyword) =>
+      `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
     primaryScript: `
       var results = [];
       document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
@@ -607,7 +769,8 @@ export const CDP_SOURCES = [
   {
     name: "bing_news",
     label: "Bing News",
-    url: (keyword) => `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
+    url: (keyword) =>
+      `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
     primaryScript: `
       var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
       var results = [];
@@ -836,61 +999,169 @@ export const CDP_SOURCES = [
  * Attribution data per source. Used to generate credits for TikTok description.
  */
 export const SOURCE_ATTRIBUTIONS = {
-  pexels: { text: (a) => `Photo by ${a.author || 'Unknown'} from Pexels`, license: 'Pexels License', logoRequired: false },
-  unsplash: { text: (a) => `Photo by ${a.author || 'Unknown'} on Unsplash`, license: 'Unsplash License', logoRequired: false },
-  pixabay: { text: () => `Source: Pixabay (https://pixabay.com)`, license: 'Pixabay Content License', logoRequired: true },
-  wikimedia: { text: (a) => `${a.author || 'Unknown'} via Wikimedia Commons (${a.license || 'CC-BY-SA 4.0'})`, license: 'CC-BY-SA 4.0', logoRequired: false },
-  coverr: { text: () => `Video from Coverr (https://coverr.co)`, license: 'Coverr License', logoRequired: false },
-  youtube: { text: (a) => `Contains footage from ${a.author || a.title || 'Unknown'} (YouTube)`, license: 'Fair use', logoRequired: false },
-  bilibili: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (B站)`, license: 'Fair use', logoRequired: false },
-  douyin: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (抖音)`, license: 'Fair use', logoRequired: false },
-  xiaohongshu: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (小红书)`, license: 'Fair use', logoRequired: false },
-  weibo: { text: (a) => `Contains footage from ${a.author || 'Unknown'} (微博)`, license: 'Fair use', logoRequired: false },
-  ithome: { text: () => `图片来源: IT之家 (ithome.com)`, license: 'News copyright', logoRequired: false },
-  jiqizhixin: { text: () => `图片来源: 机器之心 (jiqizhixin.com)`, license: 'News copyright', logoRequired: false },
-  xinhua: { text: () => `图片来源: 新华网 (news.cn)`, license: 'News copyright', logoRequired: false },
-  thepaper: { text: () => `图片来源: 澎湃新闻 (thepaper.cn)`, license: 'News copyright', logoRequired: false },
-  leiphone: { text: () => `图片来源: 雷锋网 (leiphone.com)`, license: 'News copyright', logoRequired: false },
-  xinzhiyuan: { text: () => `图片来源: 新智元 (xinzhiyuan.com)`, license: 'News copyright', logoRequired: false },
-  zhidx: { text: () => `图片来源: 智东西 (zhidx.com)`, license: 'News copyright', logoRequired: false },
-  google_news: { text: (a) => `Image source: ${a.sourceUrl || 'Google News'}`, license: 'Varies', logoRequired: false },
-  bing_news: { text: (a) => `Image source: ${a.sourceUrl || 'Bing News'}`, license: 'Varies', logoRequired: false },
+  pexels: {
+    text: (a) => `Photo by ${a.author || "Unknown"} from Pexels`,
+    license: "Pexels License",
+    logoRequired: false,
+  },
+  unsplash: {
+    text: (a) => `Photo by ${a.author || "Unknown"} on Unsplash`,
+    license: "Unsplash License",
+    logoRequired: false,
+  },
+  pixabay: {
+    text: () => `Source: Pixabay (https://pixabay.com)`,
+    license: "Pixabay Content License",
+    logoRequired: true,
+  },
+  wikimedia: {
+    text: (a) => `${a.author || "Unknown"} via Wikimedia Commons (${a.license || "CC-BY-SA 4.0"})`,
+    license: "CC-BY-SA 4.0",
+    logoRequired: false,
+    dynamicAttribution: true,
+  },
+  coverr: {
+    text: () => `Video from Coverr (https://coverr.co)`,
+    license: "Coverr License",
+    logoRequired: false,
+  },
+  youtube: {
+    text: (a) => `Contains footage from ${a.author || a.title || "Unknown"} (YouTube)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  bilibili: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (B站)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  douyin: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (抖音)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  xiaohongshu: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (小红书)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  weibo: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (微博)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  ithome: {
+    text: () => `图片来源: IT之家 (ithome.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  jiqizhixin: {
+    text: () => `图片来源: 机器之心 (jiqizhixin.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  xinhua: {
+    text: () => `图片来源: 新华网 (news.cn)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  thepaper: {
+    text: () => `图片来源: 澎湃新闻 (thepaper.cn)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  leiphone: {
+    text: () => `图片来源: 雷锋网 (leiphone.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  xinzhiyuan: {
+    text: () => `图片来源: 新智元 (xinzhiyuan.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  zhidx: {
+    text: () => `图片来源: 智东西 (zhidx.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  google_news: {
+    text: (a) => `Image source: ${a.sourceUrl || "Google News"}`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  bing_news: {
+    text: (a) => `Image source: ${a.sourceUrl || "Bing News"}`,
+    license: "Varies",
+    logoRequired: false,
+  },
 };
 
 /**
  * Build attribution object for an asset.
+ *
+ * For sources with `dynamicAttribution: true` (e.g., Wikimedia), the `attributionRequired`
+ * field is determined per-asset based on the file's license. CC-BY and CC-BY-SA require
+ * attribution; Public Domain does not. The `licenseInfo` from `fetchWikimediaLicense()`
+ * should be passed as `asset.licenseInfo`.
  */
 export function buildAttribution(source, asset) {
   const attr = SOURCE_ATTRIBUTIONS[source];
   if (!attr) return null;
+
+  // For dynamic-attribution sources, determine attributionRequired from license info
+  let attributionRequired = attr.logoRequired; // Static sources: logoRequired implies attribution
+  let license = attr.license;
+
+  if (attr.dynamicAttribution && asset.licenseInfo) {
+    // Use per-file license data
+    license = asset.licenseInfo.license || license;
+    // CC-BY, CC-BY-SA, CC-BY-ND, CC-BY-NC, CC-BY-NC-SA all require attribution
+    // Public Domain, CC0 do not
+    const licLower = license.toLowerCase();
+    attributionRequired =
+      asset.licenseInfo.attributionRequired ||
+      licLower.includes("cc-by") ||
+      licLower.includes("cc by") ||
+      licLower.includes("gfdl") ||
+      (licLower.includes("cc") && !licLower.includes("cc0") && !licLower.includes("public domain"));
+  }
+
   return {
-    text: attr.text(asset),
+    text: attr.text({ ...asset, license }),
     source,
-    author: asset.author || undefined,
-    license: attr.license,
+    author: asset.author || asset.licenseInfo?.author || undefined,
+    license,
     url: asset.sourceUrl || asset.url || undefined,
     logoRequired: attr.logoRequired,
+    attributionRequired,
   };
 }
 
 /**
- * Generate a credits section for sources that require logo/credit display.
- * Only includes assets where logoRequired=true (e.g., Pixabay API terms).
- * Other sources are tracked internally in the report but not surfaced to TikTok.
+ * Generate a credits section for TikTok description.
+ *
+ * Includes assets where:
+ * - `logoRequired=true` (e.g., Pixabay API terms require showing their logo)
+ * - OR `attributionRequired=true` (e.g., Wikimedia CC-BY/CC-BY-SA requires attribution)
+ *
+ * Sources with neither flag (Pexels, Unsplash, Coverr, YouTube, news sites) are
+ * tracked internally in `output/asset-report.json` but not surfaced to TikTok.
  */
 export function buildCreditsSection(assets) {
   const lines = [];
   const seen = new Set();
   for (const a of assets) {
     if (!a.attribution) continue;
-    if (!a.attribution.logoRequired) continue; // Only logo-required sources
-    const key = a.attribution.source + (a.attribution.author || '');
+    // Include if logo required OR attribution required (CC-BY etc.)
+    if (!a.attribution.logoRequired && !a.attribution.attributionRequired) continue;
+    const key = a.attribution.source + (a.attribution.author || "");
     if (seen.has(key)) continue;
     seen.add(key);
     lines.push(a.attribution.text);
   }
-  if (lines.length === 0) return '';
-  return '\n\n--- Credits ---\n' + lines.join('\n') + '\n--- /Credits ---';
+  if (lines.length === 0) return "";
+  return "\n\n--- Credits ---\n" + lines.join("\n") + "\n--- /Credits ---";
 }
 
 /**
@@ -904,7 +1175,7 @@ export async function fetchWikimediaLicense(fileTitle) {
   const url = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=extmetadata&format=json`;
   try {
     const resp = await fetch(url, {
-      headers: { 'User-Agent': 'ChinaAINews/1.0 (contact@china-ai.news)' }
+      headers: { "User-Agent": "ChinaAINews/1.0 (contact@china-ai.news)" },
     });
     if (!resp.ok) return null;
     const data = await resp.json();
@@ -913,9 +1184,9 @@ export async function fetchWikimediaLicense(fileTitle) {
     const ext = firstPage?.imageinfo?.[0]?.extmetadata;
     if (!ext) return null;
     return {
-      license: ext.LicenseShortName?.value || 'Unknown',
-      author: ext.Artist?.value?.replace(/<[^>]+>/g, '').trim() || undefined,
-      attributionRequired: ext.AttributionRequired?.value === 'true',
+      license: ext.LicenseShortName?.value || "Unknown",
+      author: ext.Artist?.value?.replace(/<[^>]+>/g, "").trim() || undefined,
+      attributionRequired: ext.AttributionRequired?.value === "true",
       licenseUrl: ext.LicenseUrl?.value || undefined,
     };
   } catch {
@@ -950,7 +1221,8 @@ export async function checkCdpAvailable() {
  */
 export async function searchCdpSource(source, keyword) {
   // Dynamic import to avoid hard dependency when CDP not needed
-  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } = await import("./cdp-client.mjs");
+  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } =
+    await import("./cdp-client.mjs");
 
   const url = source.url(keyword);
   let tabId;
@@ -1008,8 +1280,10 @@ export function loadEnvLocal(envPath) {
     const key = trimmed.substring(0, eqIdx).trim();
     let value = trimmed.substring(eqIdx + 1).trim();
     // Strip quotes
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
     env[key] = value;
@@ -1050,7 +1324,9 @@ export async function main(args = process.argv.slice(2)) {
   const maxPerSource = parseInt(getArg("max-per-source") || "3", 10);
 
   if (!contentSlug) {
-    console.error("Usage: node asset-sourcer.mjs --content <slug> [--keywords <kw>] [--max-per-source <n>]");
+    console.error(
+      "Usage: node asset-sourcer.mjs --content <slug> [--keywords <kw>] [--max-per-source <n>]",
+    );
     process.exit(1);
   }
 
@@ -1150,11 +1426,25 @@ export async function main(args = process.argv.slice(2)) {
           }
           const dlResult = await downloadAsset(candidate.url, destPath, headers);
           if (dlResult.success) {
-            allAssets.push({
+            const assetEntry = {
               ...candidate,
               path: destPath.replace(contentDir + "/", ""),
               status: dlResult.skipped ? "already exists" : "downloaded",
-            });
+            };
+
+            // For Wikimedia assets, fetch per-file license metadata
+            if (candidate.source === "wikimedia" && candidate.fileTitle) {
+              const licenseInfo = await fetchWikimediaLicense(candidate.fileTitle);
+              if (licenseInfo) {
+                assetEntry.licenseInfo = licenseInfo;
+                assetEntry.author = licenseInfo.author || assetEntry.author;
+                console.log(
+                  `    📄 License: ${licenseInfo.license}, attribution: ${licenseInfo.attributionRequired}`,
+                );
+              }
+            }
+
+            allAssets.push(assetEntry);
             console.log(`    ✅ ${candidate.source}: ${filename} (score: ${candidate.score})`);
           } else {
             failed.push({ source: candidate.source, keyword: keywords[0], error: dlResult.error });
@@ -1163,7 +1453,11 @@ export async function main(args = process.argv.slice(2)) {
         }
       }
     } else {
-      failed.push({ source: API_SOURCES[i].name, keyword: keywords[0], error: result.reason?.message || "API error" });
+      failed.push({
+        source: API_SOURCES[i].name,
+        keyword: keywords[0],
+        error: result.reason?.message || "API error",
+      });
     }
   }
 
@@ -1258,12 +1552,22 @@ export async function main(args = process.argv.slice(2)) {
   }
   writeFileSync(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
 
+  // ── Generate media-patch.json (auto-fill suggestions) ──
+  const patches = assignAssetsToScenes(allAssets, scenes);
+  const patchPath = join(__dirname, "..", "output", "media-patch.json");
+  writeFileSync(patchPath, JSON.stringify(patches, null, 2) + "\n", "utf8");
+  const assignedCount = patches.filter((p) => p.status === "assigned").length;
+  const unassignedCount = patches.filter((p) => p.status === "unassigned").length;
+
   console.log("\n" + "=".repeat(60));
   console.log(`📊 Summary:`);
   console.log(`   Total assets: ${allAssets.length}`);
   console.log(`   Failed: ${failed.length}`);
   console.log(`   Skipped: ${skipped.length}`);
   console.log(`   Report: ${outputPath}`);
+  console.log(
+    `   Media patch: ${patchPath} (${assignedCount} assigned, ${unassignedCount} unassigned)`,
+  );
 }
 
 // Auto-run if called directly
