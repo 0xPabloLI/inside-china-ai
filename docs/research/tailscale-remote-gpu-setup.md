@@ -2,7 +2,7 @@
 
 > **用途**：在另一台有 NVIDIA GPU 的 Windows 机器上部署 AI 模型（HeyGem / LatentSync 等），通过 Tailscale + SSH 让 M2 Pro 远程调用。
 > **创建日期**：2026-08-09
-> **更新日期**：2026-08-14（FlClash TUN 集成、SSH 公钥配置、防休眠、P2P 打洞优化）
+> **更新日期**：2026-08-15（修正 GPU 型号 GTX 1080、修正 SSH 公钥路径 administrators_authorized_keys、SSH 公钥已配置验证通过）
 
 ---
 
@@ -20,19 +20,19 @@ Mac (macOS, FlClash TUN + Tailscale)
 Windows GPU (hostname-redacted)
   Tailscale IP: 100.114.x.x
   用户名: Administrator（空密码）
-  GPU: RTX 4060 8GB
+  GPU: GTX 1080 8GB
 ```
 
 ## 前提条件
 
-- 一台有 NVIDIA GPU 的机器（当前：**RTX 4060 8GB**）
+- 一台有 NVIDIA GPU 的机器（当前：**GTX 1080 8GB**，Pascal 架构，Driver 551.61，CUDA 12.4）
 - 操作系统：**Windows 11**（通过 WSL2 运行 Ubuntu 22.04，无需重装系统）
 - NVIDIA 驱动已安装在 Windows 主机上（`nvidia-smi` 能正常输出）
 - **网络**：GPU 机器与 Mac 在同一家庭网络（可不同子网）
 
-### RTX 4060 8GB 显存兼容性
+### GTX 1080 8GB 显存兼容性
 
-| 模型 | VRAM 需求 | 4060 8GB | 质量 | 说明 |
+| 模型 | VRAM 需求 | 1080 8GB | 质量 | 说明 |
 |------|----------|----------|------|------|
 | LatentSync 1.5 | 8GB | ✅ 刚好 | ⭐⭐ | 256px，Mac 已测，效果不达标 |
 | HeyGem Lite | 8GB | ✅ 刚好 | ⭐⭐⭐ | Docker 单容器，ONNX 唇同步 |
@@ -42,7 +42,7 @@ Windows GPU (hostname-redacted)
 | LatentSync 1.6 | 18GB | ❌ | ⭐⭐⭐⭐⭐ | Mac 32GB 都 OOM |
 | Hallo2 | 20GB+ | ❌ | ⭐⭐⭐⭐ | |
 
-> **结论**：4060 8GB 能跑 LatentSync 1.5 和 HeyGem Lite 验证管线，但高质量模型需要 12GB+ 显存。可考虑升级到 RTX 4060 Ti 16GB / 4070 12GB / 4090 24GB，或用云端 GPU（AutoDL / RunPod RTX 4090 ~$0.3-0.5/h）。
+> **结论**：GTX 1080 8GB（Pascal 架构，2016 年）显存够用但架构老——不支持 FlashAttention 2、bf16 等新特性，部分新模型（如 VoxCPM2 需 CUDA 12.0+ 但依赖 Ampere+ 架构的 bf16）可能不兼容。能跑 LatentSync 1.5 和 HeyGem Lite 验证管线，但高质量模型需要 12GB+ 显存 + 更新架构。建议升级到 RTX 4060 Ti 16GB / 4070 12GB / 4090 24GB，或用云端 GPU（AutoDL / RunPod RTX 4090 ~$0.3-0.5/h）。
 
 ---
 
@@ -156,7 +156,9 @@ tailscale status             # 确认设备在线
 
 ### 2.2 配置 SSH 公钥（必须）
 
-Windows 的 Administrator 账户无密码，OpenSSH 默认拒绝空密码远程登录。需在 Windows 上配置 Mac 的公钥到 `authorized_keys`。
+Windows 的 Administrator 账户无密码，OpenSSH 默认拒绝空密码远程登录。需在 Windows 上配置 Mac 的公钥到 `administrators_authorized_keys`。
+
+> ⚠️ **Administrator 账户的公钥路径与普通用户不同**：Windows OpenSSH 的 `sshd_config` 末尾有一行 `AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys`，这是 Administrator 组用户的专用公钥路径。**放在 `C:\Users\Administrator\.ssh\authorized_keys` 不会生效**。
 
 **前提**：Windows OpenSSH 服务已开启（端口 22）。如未开启，在管理员 PowerShell 中执行：
 ```powershell
@@ -170,26 +172,39 @@ Set-Service -Name sshd -StartupType Automatic
 在 Windows 上以**管理员身份**打开 PowerShell，执行：
 
 ```powershell
-# 创建 .ssh 目录
-New-Item -Path "C:\Users\Administrator\.ssh" -ItemType Directory -Force
-
-# 从 GitHub 拉取公钥（Mac 的公钥已上传到 GitHub）
-Invoke-WebRequest -Uri "https://github.com/0xPabloLI.keys" -OutFile "C:\Users\Administrator\.ssh\authorized_keys"
+# 从 GitHub 拉取公钥到 Administrator 专用路径（不是 ~/.ssh/authorized_keys）
+Invoke-WebRequest -Uri "https://github.com/0xPabloLI.keys" -OutFile "C:\ProgramData\ssh\administrators_authorized_keys" -UseBasicParsing
 
 # 修复权限（Windows 对此敏感，不做公钥认证不生效）
-icacls "C:\Users\Administrator\.ssh\authorized_keys" /inheritance:r /grant "Administrator:F" /grant "SYSTEM:F"
+icacls "C:\ProgramData\ssh\administrators_authorized_keys" /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
 ```
 
 > GitHub 的 `.keys` 页面（`github.com/<用户名>.keys`）是官方 API，公开返回用户上传的所有 SSH 公钥。Mac 的公钥指纹：`SHA256:Xk8jizoK9/z/LGTFeEh5j246buoypgppFF+i9o7Muno`。
 >
-> **安全提示**：从 GitHub 拉取时会获取所有 key。如只需 Mac 的，手动只复制第一个 key 到 `authorized_keys`。用 `from=` 限制来源 IP 可进一步收紧：
+> **安全提示**：从 GitHub 拉取时会获取所有 key。如只需 Mac 的，手动只复制第一个 key 到 `administrators_authorized_keys`。用 `from=` 限制来源 IP 可进一步收紧：
 > ```
 > from="100.71.x.x" ssh-rsa AAAA...（你的 Mac key）
 > ```
 
 **方式 B — 手动复制**：
 
-在 Mac 上执行 `cat ~/.ssh/id_rsa.pub`，复制输出。在 Windows 上创建 `C:\Users\Administrator\.ssh\authorized_keys`，粘贴公钥，然后执行上面的 `icacls` 命令修权限。
+在 Mac 上执行 `cat ~/.ssh/id_rsa.pub`，复制输出。在 Windows 上创建 `C:\ProgramData\ssh\administrators_authorized_keys`，粘贴公钥，然后执行上面的 `icacls` 命令修权限。
+
+**验证**：
+
+```powershell
+# 确认公钥格式有效（应输出指纹）
+ssh-keygen -l -f "C:\ProgramData\ssh\administrators_authorized_keys"
+
+# 确认 ACL 权限（应只有 Administrators 和 SYSTEM）
+Get-Acl "C:\ProgramData\ssh\administrators_authorized_keys" | Select-Object -ExpandProperty AccessToString
+
+# 确认 sshd_config 读取此路径
+Get-Content "C:\ProgramData\ssh\sshd_config" | Select-String "AuthorizedKeysFile"
+# 应有两行：.ssh/authorized_keys（普通用户）和 __PROGRAMDATA__/ssh/administrators_authorized_keys（Administrator）
+```
+
+> ✅ **已配置并验证通过**（2026-08-15）：公钥已拉取到 `C:\ProgramData\ssh\administrators_authorized_keys`，ACL 权限正确（SYSTEM + Administrators FullControl），`ssh-keygen -l -f` 确认两把 key 格式有效。
 
 ### 2.3 防止 Windows 休眠（必须）
 
@@ -263,7 +278,7 @@ NVIDIA 的 Windows 驱动自带 WSL2 GPU 支持，**不需要在 WSL2 内单独�
 ```bash
 # 在 WSL2 终端中
 nvidia-smi
-# 应该看到 RTX 4060 的信息，CUDA Version 列显示驱动支持的 CUDA 版本
+# 应该看到 GTX 1080 的信息，CUDA Version 列显示驱动支持的 CUDA 版本
 ```
 
 > ⚠️ 如果 `nvidia-smi` 报错 `command not found`：确保 Windows 上的 NVIDIA 驱动版本 ≥ 470（从 https://www.nvidia.com/Download/index.aspx 下载最新 Game Ready 或 Studio 驱动）。
@@ -310,7 +325,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 # 验证 CUDA
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'Device: {torch.cuda.get_device_name(0)}'); print(f'VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB')"
-# 应输出: CUDA available: True, Device: NVIDIA GeForce RTX 4060, VRAM: 8.0 GB
+# 应输出: CUDA available: True, Device: NVIDIA GeForce GTX 1080, VRAM: 8.0 GB
 ```
 
 ### 3.5 WSL2 文件系统注意事项
@@ -418,7 +433,7 @@ mkdir -p /home/$USER/heygem_data/voice/data
 docker-compose up -d
 ```
 
-**Lite 版（适合 RTX 4060 8GB）**：
+**Lite 版（适合 GTX 1080 8GB）**：
 ```bash
 git clone https://github.com/GuijiAI/HeyGem.ai.git
 cd HeyGem.ai/deploy
@@ -532,10 +547,10 @@ Windows OpenSSH 默认 `PermitEmptyPasswords no`。解决方案：配置 SSH 公
 
 | 事项 | 说明 |
 |------|------|
-| `authorized_keys` 只放一把公钥 | 从 GitHub 拉取时会获取所有 key。如只需 Mac 的，手动只复制第一个 |
+| `administrators_authorized_keys` 只放一把公钥 | 从 GitHub 拉取时会获取所有 key。如只需 Mac 的，手动只复制第一个。路径是 `C:\ProgramData\ssh\administrators_authorized_keys`（Administrator 账户专用） |
 | `from=` 限制来源 IP | 在 key 前加 `from="100.71.x.x"` 限制只有 Mac 的 Tailscale IP 能登录 |
 | Windows 防火墙 | OpenSSH 端口 22 已开放，确认防火墙规则仅允许 Tailscale 网段（100.64.0.0/10）访问 |
-| 空密码风险 | Administrator 无密码，本地登录无阻拦。建议设密码或至少锁屏 |
+| 空密码风险 | Administrator 无密码，本地登录无阻拦。已配置 SSH 公钥认证（见 Step 2.2），远程登录不依赖密码。建议设密码或至少锁屏 |
 | DERP 中继安全性 | DERP 服务器无法解密数据（WireGuard 端到端加密），但能看到流量大小和时间 |
 
 ---
@@ -543,11 +558,12 @@ Windows OpenSSH 默认 `PermitEmptyPasswords no`。解决方案：配置 SSH 公
 ## Design Decisions & References
 
 - **为什么用 Tailscale 而不是端口转发**：Tailscale 不需要公网 IP，NAT 穿透自动处理，加密传输，两台机器在任何网络环境下都能互通。
-- **为什么用 Lite 版**：Lite 版只运行一个 Docker 容器（face2face），显存需求降到 8GB，适合 RTX 4060。
+- **为什么用 Lite 版**：Lite 版只运行一个 Docker 容器（face2face），显存需求降到 8GB，适合 GTX 1080。
 - **FlClash vs Clash Verge**：Mac 上实际运行的是 FlClash（`/Applications/FlClash.app`），不是 Clash Verge。两者配置文件不同：FlClash 改 `~/Library/Application Support/com.clash-client/config.yaml`；Clash Verge 改 Merge 覆写文件。两个都已配置 Tailscale 排除规则。
 - **fake-ip-filter 机制**：Clash fake-ip 模式劫持 DNS 返回假 IP（198.18.x.x）。tailscaled 控制面绕过 TUN 直连物理网卡，拿到假 IP 后无法连接协调服务器。加 filter 后 tailscale.com 域名返回真实 IP，tailscaled 走路由表 → TUN → Clash → 代理 → 控制服务器。详见 [[memory:17863207144245540241]]。
 - **route-exclude-address 局限性**：mihomo `mixed` 栈下 route-exclude 对 Tailscale 数据隧道有效，但对 WireGuard UDP 打洞包可能不完全生效。打洞失败的兜底方案见 Step 5。
 - **GitHub keys 作为公钥分发**：`github.com/<用户名>.keys` 是官方 API，公开返回用户上传的 SSH 公钥。Windows 上用 `Invoke-WebRequest` 一行命令拉取，比手动复制更可靠。
+- **Administrator 账户公钥路径**：Windows OpenSSH 对 Administrator 组用户有特殊规则——`sshd_config` 末尾的 `AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys` 覆盖了默认的 `.ssh/authorized_keys` 路径。因此 Administrator 账户的公钥必须放在 `C:\ProgramData\ssh\administrators_authorized_keys`，而不是 `C:\Users\Administrator\.ssh\authorized_keys`。这是 Windows OpenSSH 的已知陷阱，官方文档 https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_keymanagement 有说明。
 - **WSL2 方案选择**：GPU 机器是 Windows 11，选择 WSL2 + Ubuntu 22.04 而非重装原生 Linux。原因：(1) 不需要重装系统；(2) NVIDIA 官方支持 CUDA on WSL2；(3) 大部分 AI 模型官方 requirements 是 Ubuntu。
 - **HeyGem GitHub**: https://github.com/GuijiAI/HeyGem.ai
 - **Tailscale 官网**: https://tailscale.com
