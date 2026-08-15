@@ -18,21 +18,19 @@
 
 ---
 
-## 待完成任务
+## 任务完成情况
 
-### 1. Kaggle 注册 + API 配置（最高优先）
+### 1. ✅ Kaggle 注册 + API 配置（已完成）
 
 **为什么 Kaggle 是主力**：30h/周免费 GPU（T4 ×2 16GB 或 P100），**每周刷新**，长期可用。
 
-**步骤**：
-1. 用户访问 https://www.kaggle.com/ → 用 Google 账号登录
-2. 完成手机号验证（必须，否则无法用 GPU）
-3. 获取 API key：
-   - 点击右上角头像 → Settings → API → Create New Token
-   - 下载 `kaggle.json`（含 username + key）
-   - 放到 `~/.kaggle/kaggle.json`，`chmod 600 ~/.kaggle/kaggle.json`
-4. 安装 CLI：`pip install kaggle`
-5. 验证：`kaggle competitions list`（应返回竞赛列表）
+**完成情况**：
+- 用户已自行注册 Kaggle（username: `xPabloLI`）
+- API token 已在 `~/.zshrc` 中：`export KAGGLE_API_TOKEN=<KGAT_ token>`（脱敏，实际值在 ~/.zshrc）
+- Agent 安装了 Kaggle CLI：`pip3 install --break-system-packages kaggle`（v2.2.4）
+- 配置了 `~/.kaggle/kaggle.json`（`chmod 600`）
+- 验证通过：`kaggle competitions list` 正常返回竞赛列表
+- `kaggle config view` 确认：username=bpabloli, auth_method=ACCESS_TOKEN
 
 **Kaggle 自动化能力**：
 - `kaggle kernels push -p <dir>` — 推送 Notebook 到 Kaggle（可指定 GPU accelerator）
@@ -42,10 +40,14 @@
 - `kaggle datasets download -d <username/dataset-name>` — 下载数据集
 
 **自动化跑数字人推理的流程**：
-1. 本地准备 Notebook（.ipynb）：安装依赖 → clone 代码 → 下载模型权重 → 运行推理 → 输出结果
-2. `kaggle kernels push -p .`（指定 `"accelerator": "GPU_T4_X2"` in kernel-metadata.json）
+1. 本地准备 Notebook（.py script）：安装依赖 → clone 代码 → 下载模型权重 → 运行推理 → 输出结果
+2. `kaggle kernels push -p .`（`kernel-metadata.json` 中 `enable_gpu: true`）
 3. `kaggle kernels status` 轮询等待完成
 4. `kaggle kernels output` 下载结果视频
+
+> **注意**：Kaggle CLI 不支持指定 GPU 型号（T4 vs P100），由后端调度分配。当前测试中分配到的是 P100。
+> **PyTorch 兼容性**：Kaggle 默认 PyTorch 2.10+cu128 不支持 P100 (sm_60)。需要在 Notebook 中手动安装 `torch==2.4.1+cu121`。
+> 测试脚本在 `scripts/kaggle/test-gpu/`。
 
 ### 2. Colab 验证
 
@@ -118,9 +120,9 @@
 
 ---
 
-## 用户是否给过 Kaggle API key
+## Kaggle API key 来源
 
-**没有**。用户没有给过 Kaggle API key。当前 `~/.kaggle/kaggle.json` 不存在，`kaggle` CLI 未安装。
+用户已自行注册 Kaggle 并获取 API token。Token 存储在 `~/.zshrc`（`KAGGLE_API_TOKEN`），Agent 据此创建了 `~/.kaggle/kaggle.json`。
 
 ## 用户是否给过 Lightning API key
 
@@ -130,11 +132,11 @@
 
 ## 推荐的下一步操作顺序
 
-1. **Kaggle 注册**（手动，用户操作浏览器）→ 获取 API key → 配置 CLI
-2. **Colab 验证**（手动，快速验证 T4 可用）
-3. **AutoDL 注册**（手动，付费备选）
-4. **Lightning AI 联系 support**（用户自己发邮件）
-5. **Kaggle 自动化测试**（Agent 帮忙）：用 Kaggle CLI 推送一个测试 Notebook，验证 GPU 分配和自动化流程
+1. ~~**Kaggle 注册**~~ ✅ 已完成
+2. ~~**Kaggle 自动化测试**~~ ✅ 已完成（见下方测试结果）
+3. **Colab 验证**（手动，快速验证 T4 可用）
+4. **AutoDL 注册**（手动，付费备选）
+5. **Lightning AI 联系 support**（用户自己发邮件）
 
 ---
 
@@ -150,6 +152,30 @@
 - `docs/research/digital-human-solutions-m2-pro.md` — 数字人模型评估
 - `docs/research/tailscale-remote-gpu-setup.md` — GPU 机器远程部署
 
+## Kaggle 自动化测试结果（2026-08-15）
+
+**测试 Kernel**：`xpabloli/test-gpu-availability`（3 个版本迭代）
+
+| 项目 | 结果 |
+|------|------|
+| GPU 分配 | Tesla P100-PCIE-16GB (16GB VRAM) |
+| NVIDIA Driver | 580.159.04, CUDA 13.0 |
+| 默认 PyTorch | 2.10.0+cu128（**不兼容 P100 sm_60**） |
+| 兼容 PyTorch | 2.4.1+cu121（手动安装，~142s） |
+| Compute test | ✅ 100x matrix multiply (2000×2000), 5.86 TFLOPS FP32 |
+| 全链路验证 | ✅ push → status 轮询 → output 下载 |
+
+**关键发现**：
+1. Kaggle 当前给免费用户分配 **P100**（非 T4），GPU 型号不可指定
+2. P100 算力 sm_60，需手动安装 PyTorch 2.4.1+cu121（默认 2.10 只支持 sm_70+）
+3. 自动化全链路（CLI push → status polling → output download）工作正常
+4. 测试脚本保存在 `scripts/kaggle/test-gpu/`
+
+**对数字人模型的影响**：
+- P100 16GB 可跑 LatentSync（需 ~12GB）、Sonic（需 ~8GB），但 Hallo2/3 可能不够（需 24GB+）
+- 16GB 显存可能需要用 `torch.cuda.amp` 混合精度优化
+- 如需 24GB+ GPU，等 Kaggle 分配到 T4×2 或使用 AutoDL
+
 ## 已完成的工作
 
 - ✅ 从 Chrome Secure Preferences 复原 28 个插件（含 MetaMask）到 Preferences 文件
@@ -159,3 +185,7 @@
 - ✅ AutoDL 定价页面完整抓取（含 GPU 算力排名）
 - ✅ `docs/research/cloud-gpu-options.md` 已更新（修正 Lightning AI 额度性质 + Kaggle 提升为主力推荐 + 新增 AutoDL vs Lightning AI GPU 质量对比）
 - ✅ Memory 已更新（修正 Lightning AI 免费额度为一次性）
+- ✅ **Kaggle CLI 安装**（v2.2.4, `pip3 install --break-system-packages kaggle`）
+- ✅ **Kaggle API 配置**（`~/.kaggle/kaggle.json`，token 来自 `~/.zshrc` 的 `KAGGLE_API_TOKEN`）
+- ✅ **Kaggle 自动化测试**（3 轮迭代：v1 属性名 bug → v2 P100 不兼容确认 → v3 安装兼容 PyTorch + compute test 通过）
+- ✅ 测试脚本保存：`scripts/kaggle/test-gpu/`（`test_gpu.py` + `kernel-metadata.json`）
