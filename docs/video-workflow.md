@@ -613,17 +613,11 @@ ls -lt output/restraint-pt1/restraint-pt1-v*-short.mp4
 stat -f "%Sm" output/restraint-pt1/restraint-pt1-short.mp4
 ```
 
-### Gapless Audio Track (Drift Fix v2 — supersedes the AAC priming fix)
+### Gapless Audio Track
 
-**Critical**: the final video's audio must be ONE continuous track. The earlier fix (re-encode audio during concat, `-c:v copy -c:a aac`) removed AAC priming drift, but concat still expressed each scene's ~0.5s padding as timestamp *gaps* instead of real silence samples. The container played correctly, yet any decode→re-encode downstream (QuickTime, TikTok ingest, `ffmpeg` WAV extraction) compacted those gaps — audio ran ~0.5s/scene ahead of subtitles (~5s by scene 11).
+The final video's audio is ONE continuous track: scene clips are encoded video-only (`-an`); voiceovers are padded with real silence to frame-aligned clip lengths and concatenated into a PCM master (`voiceover.wav`). End-to-end sync verification runs in Step 6 (cross-correlation FFT, >80ms drift = FAIL). Failure diagnostics bundle auto-dropped on FAIL.
 
-**Fix** (`assemble.mjs` + `lib/audio/track.mjs`): scene clips are encoded video-only (`-an`); every scene voiceover is padded with real silence to its frame-aligned clip length and concatenated into `voiceover.wav`, a PCM master whose sample count equals the video's; the final mux encodes audio exactly once (`-c:v copy -c:a aac -b:a 192k`). No timestamp gaps exist, so there is nothing for downstream transcoders to compact. The optional BGM pass re-encodes the already-continuous track — a constant whole-file offset, never per-scene drift.
-
-**End-to-end check** (`lib/audio/sync.mjs`, wired into Step 6): each scene's voiceover is cross-correlated (FFT) against the SHIPPED video's audio track; a measured onset >80ms from its timeline offset is FAIL-class. This verifies the artifact itself, not the plans that produced it. Scene audio missing → skip (WARN); scene audio present but undecodable, or final track undecodable → FAIL.
-
-**Failure diagnostics** (`lib/audio/diagnostics.mjs`): when verification FAILs with an output-dir, the pipeline also drops `output/{id}/diagnostics/{timestamp}/` — a self-contained bundle for fixing the source: `summary.txt` (why it failed, per-scene drift table, packet gaps, stream durations, collection errors), `drift.json`, `packet-gaps.json`, `streams.json`, and a copy of `verification-report.json`. The path is printed as `📦 Diagnostics bundle: <path>` right after the FAIL line. Best-effort by contract (never throws; a bundle failure must not mask the exit code), and PASS runs write zero bytes — the bundle only exists on failure.
-
-**Superseded note (AAC priming)**: FFmpeg concat with `-c copy` caused ~46ms/scene cumulative drift from AAC encoder delay; fixed at the time by re-encoding audio during concat. Now superseded — per-scene audio streams no longer exist, so there is nothing to prime.
+Root cause analysis, fix implementation, and diagnostics format: `docs/research/audio-drift-fix.md`
 
 ### Running in Background (MANDATORY for TTS)
 
@@ -819,6 +813,7 @@ When modifying rules in this file, consult these reference docs for root cause a
 
 | Topic | Reference | Content |
 |-------|-----------|---------|
+| Audio drift fix | `docs/research/audio-drift-fix.md` | Root cause analysis, fix implementation, sync verification, diagnostics |
 | Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md` | 15 sources, per-parameter rationale, research citations |
 | TikTok best practices | `docs/tiktok/tiktok-best-practices.md` | Signal weights, voice rules, hook formulas, audit checklist |
 | A/B testing methodology | `docs/tiktok/ab-testing-methodology.md` | Element iteration method, single-variable testing philosophy |

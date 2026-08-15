@@ -6,6 +6,24 @@
 
 ## Canonical Structure
 
+### Layer Definitions
+
+| Layer | What goes here | What does NOT go here | Who reads it |
+|-------|---------------|----------------------|-------------|
+| **L0: AGENTS.md** (必读) | Pointers + top-level rules only | No technical details | Agent every session start |
+| **L1: Execution reference** | Execution instructions: what to do, what params to use, how to configure. Loaded on-demand when doing that workflow | Research rationale, parameter derivation, multi-source comparison, methodology — push to L2, pointer from L1 bottom | Agent loaded on-demand when doing that workflow |
+| **L2: Deep research** | Research rationale: why this was chosen, how params were derived, what sources were surveyed, methodology comparison | Execution instructions — extract to L1 as pointer targets | Agent only when deep-diving into specific topic |
+| **L3: Archive** | Completed work: specs, tickets, roadmaps — retained for reference, no longer maintained | No active reference material | Historical reference only |
+
+### Layer Placement Rules
+
+Before writing or modifying any document under `docs/`, load the `writing-for-agents` skill (AGENTS.md → Coding Conventions → `writing-for-agents 强制加载`), then apply these rules:
+
+1. **L1 docs only write "what to do, what params, how to configure".** Research rationale, parameter derivation, multi-source comparison, and methodology go to L2 (`docs/research/` or `docs/tiktok/`). In the L1 doc bottom, use a "Design Decisions & References" table to pointer to L2.
+2. **L2 docs only write "why this was chosen, how params were derived, what was surveyed".** Do not write execution instructions — execution instructions belong in L1 as pointer targets.
+3. **New document: ask first.** Before writing, ask: "Is this execution instructions or research rationale?" → execution → L1; research → L2.
+4. **Modifying an L1 doc: check for L2 intrusion.** If research rationale has crept in, extract it to L2 and add a pointer in the L1 doc bottom.
+
 ### Root — Active reference (AGENTS.md pointers)
 
 | Document | Purpose | Referenced by |

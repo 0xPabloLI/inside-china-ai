@@ -1,6 +1,6 @@
 # Tickets: Media fullscreen mode
 
-> 来源 spec: `docs/spec-media-fullscreen-mode.md`
+> 来源 spec: `docs/archive/spec-media-fullscreen-mode.md`
 
 ## T-1: types.ts + MediaBackground.tsx — 类型 + overlay 逻辑
 - **依赖**: 无

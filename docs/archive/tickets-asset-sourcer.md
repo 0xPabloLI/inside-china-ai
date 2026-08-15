@@ -1,6 +1,6 @@
 # Tickets: Asset Sourcer — Tracer-Bullet Breakdown
 
-> **Spec**: docs/spec-asset-sourcer.md
+> **Spec**: docs/archive/spec-asset-sourcer.md
 > **Issue**: GitHub #23
 > **Created**: 2026-08-14
 

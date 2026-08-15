@@ -1,6 +1,6 @@
 # Tickets — Voice Quality & Prosody Optimization
 
-> 基于 `docs/spec-voice-prosody-optimization.md` 拆分。每个 ticket = 一个可独立验证的切片。
+> 基于 `docs/archive/spec-voice-prosody-optimization.md` 拆分。每个 ticket = 一个可独立验证的切片。
 > Phase 间串行（每 Phase 后用户听感 checkpoint），Phase 内 ticket 可并行。
 
 ---
