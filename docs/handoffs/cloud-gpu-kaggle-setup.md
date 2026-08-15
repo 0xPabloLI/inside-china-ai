@@ -134,9 +134,9 @@
 
 1. ~~**Kaggle 注册**~~ ✅ 已完成
 2. ~~**Kaggle 自动化测试**~~ ✅ 已完成（见下方测试结果）
-3. **Colab 验证**（手动，快速验证 T4 可用）
-4. **AutoDL 注册**（手动，付费备选）
-5. **Lightning AI 联系 support**（用户自己发邮件）
+3. ~~**Colab 验证**~~ ✅ 已完成（用户手动验证，T4 可用，Untitled0.ipynb）
+4. ~~**AutoDL 注册**~~ ⏸️ 用户暂停（暂时只用 Kaggle + Colab）
+5. ~~**Lightning AI 联系 support**~~ ⏸️ 用户暂停
 
 ---
 

@@ -1,8 +1,9 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-11（新增 2026-08-11 调研发现的 5 个待测模型）
-> **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1
+> **最后更新**：2026-08-15（新增云 GPU 配置完成信息 + 推荐测试优先级）
+> **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle P100 16GB** + **Colab T4 16GB**
 > **主文档**：`docs/research/digital-human-solutions-m2-pro.md`
+> **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
 > **用途**：多 session 共享追踪文件，每次测试后更新此文件
 
 ---
@@ -427,3 +428,34 @@
 - **高质量批量**：云 GPU + 新模型（LongCat-Video-Avatar-1.5 / Hallo3 / EchoMimicV3）
 
 详见 `docs/research/china-digital-human-api-alternatives.md` 了解中国平台替代方案。
+
+---
+
+## 云 GPU 测试计划（2026-08-15 新增）
+
+**云 GPU 已配置完成**：
+- ✅ Kaggle CLI v2.2.4 + API 配置（全链路验证通过，P100 16GB，自动化 push → status → output）
+- ✅ Colab T4 16GB（手动验证）
+- 📖 配置详情见 `docs/handoffs/cloud-gpu-kaggle-setup.md`
+
+**云 GPU 可跑的模型（之前在 M2 Pro 上失败的）**：
+
+| 优先级 | 模型 | VRAM | Kaggle P100 16GB | Colab T4 16GB | 商用 | 之前失败原因 |
+|--------|------|------|-----------------|--------------|------|------------|
+| ⭐⭐⭐⭐⭐ | **EchoMimicV3** | 12GB | ✅ | ✅ | ✅ Apache 2.0 | 下载阻塞 + 代码兼容 |
+| ⭐⭐⭐⭐ | **InfiniteTalk** | ~12GB | ✅ 可能 | ✅ 可能 | ✅ Apache 2.0 | 未测 |
+| ⭐⭐⭐⭐ | **LatentSync 1.6** | 18GB | ⚠️ 省内存模式 | ⚠️ 省内存模式 | ✅ OpenRAIL++ | M2 Pro OOM |
+| ⭐⭐⭐ | **Sonic** | 12GB | ✅ | ✅ | ❌ 非商用 | M2 Pro fp16 死锁 |
+| ⭐⭐⭐ | **V-Express** | ~8GB | ✅ | ✅ | ❓ | M2 Pro 17min/sub-step |
+| ⭐⭐ | **Hallo2** | 20GB+ | ❌ 16GB 不够 | ❌ 16GB 不够 | ✅ MIT | M2 Pro 256px 太低 |
+
+**推荐测试顺序**（从最高性价比开始）：
+1. **EchoMimicV3**（Apache 2.0 + 12GB + 768px + 蚂蚁出品）→ Kaggle 自动化脚本
+2. **Sonic**（效果最好但非商用，可做质量基准）→ Kaggle/Colab
+3. **InfiniteTalk**（Apache 2.0 + 无限长度 + 中文）→ Kaggle
+4. **LatentSync 1.6**（省内存模式试 16GB）→ Kaggle/Colab
+5. **V-Express**（最轻量扩散）→ Colab 手动
+
+**Kaggle 自动化方式**：准备 `.py` script + `kernel-metadata.json` → `kaggle kernels push -p .` → `kaggle kernels status` 轮询 → `kaggle kernels output` 下载。测试脚本参考 `scripts/kaggle/test-gpu/`。
+
+**Colab 手动方式**：在 Colab Notebook 中执行 cell，适合调试参数。
