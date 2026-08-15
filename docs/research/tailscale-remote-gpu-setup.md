@@ -2,7 +2,7 @@
 
 > **用途**：在另一台有 NVIDIA GPU 的 Windows 机器上部署 AI 模型（HeyGem / LatentSync 等），通过 Tailscale + SSH 让 M2 Pro 远程调用。
 > **创建日期**：2026-08-09
-> **更新日期**：2026-08-15（修正 GPU 型号 GTX 1080、修正 SSH 公钥路径 administrators_authorized_keys、SSH 公钥已配置验证通过、新增当前配置状态速查）
+> **更新日期**：2026-08-15（修正 GPU 型号 GTX 1080、修正 SSH 公钥路径 administrators_authorized_keys、SSH 公钥已配置验证通过、新增当前配置状态速查、强化 OpenSSH 开机自启 + 防火墙规则排查步骤）
 
 ---
 
@@ -13,7 +13,7 @@
 | Tailscale（Windows 端） | ✅ 在线 | IP `100.114.x.x`，设备 `hostname-redacted` |
 | Tailscale（Mac 端） | ✅ 在线 | IP `100.71.x.x`，设备 `Mac-hostname-redacted` |
 | P2P 直连 | ✅ | ICMP `<1ms`，NAT Cone（`MappingVariesByDestIP: false`），UDP 可用 |
-| OpenSSH 服务 | ✅ Running | `sshd` Automatic 启动，端口 22 |
+| OpenSSH 服务 | ⚠️ 需确认 | 已安装，StartupType=Automatic，但重启后可能未启动。需验证防火墙规则（见 Step 2.2） |
 | SSH 公钥认证 | ✅ 已配置 | 公钥在 `C:\ProgramData\ssh\administrators_authorized_keys`，ACL 正确（SYSTEM + Administrators） |
 | 防休眠 | ✅ | AC 电源：睡眠=永不、休眠=永不、显示器=永不 |
 | GPU 驱动 | ✅ | GTX 1080 8GB，Driver 551.61，CUDA 12.4 |
@@ -199,12 +199,27 @@ Windows 的 Administrator 账户无密码，OpenSSH 默认拒绝空密码远程�
 
 > ⚠️ **Administrator 账户的公钥路径与普通用户不同**：Windows OpenSSH 的 `sshd_config` 末尾有一行 `AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys`，这是 Administrator 组用户的专用公钥路径。**放在 `C:\Users\Administrator\.ssh\authorized_keys` 不会生效**。
 
-**前提**：Windows OpenSSH 服务已开启（端口 22）。如未开启，在管理员 PowerShell 中执行：
+**前提**：Windows OpenSSH 服务已安装并配置开机自启。如未安装，在管理员 PowerShell 中执行：
 ```powershell
+# 安装 OpenSSH Server
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+
+# 启动服务并设为开机自启
 Start-Service sshd
 Set-Service -Name sshd -StartupType Automatic
+
+# 确认防火墙放行 22 端口（安装时会自动创建规则，但重启后可能丢失）
+if (-not (Get-NetFirewallRule -Name sshd -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server (sshd)' `
+        -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
+}
+
+# 验证：端口 22 正在监听
+netstat -an | Select-String ':22.*LISTEN'
+# 应输出: 0.0.0.0:22 LISTENING
 ```
+
+> ⚠️ **重启后 SSH 连不上的排查**：Windows 重启后 `sshd` 虽设为 Automatic，但有时服务启动慢或防火墙规则丢失。在 Windows 上用远程桌面或物理登录后，运行以上命令重新确认。从 Mac 端可以用 `nc -z -w 5 100.114.x.x 22` 快速检查端口是否可达。
 
 **方式 A — 从 GitHub 拉取（推荐，最简单）**：
 
