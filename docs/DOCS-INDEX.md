@@ -19,10 +19,10 @@
 
 Before writing or modifying any document under `docs/`, load the `writing-for-agents` skill (AGENTS.md → Coding Conventions → `writing-for-agents 强制加载`), then apply these rules:
 
-1. **L1 docs only write "what to do, what params, how to configure".** Research rationale, parameter derivation, multi-source comparison, and methodology go to L2 (`docs/research/` or `docs/tiktok/`). In the L1 doc bottom, use a "Design Decisions & References" table to pointer to L2.
-2. **L2 docs only write "why this was chosen, how params were derived, what was surveyed".** Do not write execution instructions — execution instructions belong in L1 as pointer targets.
-3. **New document: ask first.** Before writing, ask: "Is this execution instructions or research rationale?" → execution → L1; research → L2.
-4. **Modifying an L1 doc: check for L2 intrusion.** If research rationale has crept in, extract it to L2 and add a pointer in the L1 doc bottom.
+1. **L1/L2 boundary**: AGENTS.md Coding Conventions defines the boundary ("执行文档只写'做什么、用什么参数'；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 Design Decisions & References 索引指向"). These rules add the operational checks:
+2. **New document: ask first.** Before writing, ask: "Is this execution instructions or research rationale?" → execution → L1; research → L2.
+3. **Modifying an L1 doc: check for L2 intrusion.** If research rationale has crept in, extract it to L2 and add a pointer in the L1 doc bottom.
+4. **L2 docs: no execution instructions.** L2 writes "why this was chosen, how params were derived, what was surveyed" — execution instructions belong in L1 as pointer targets.
 
 ### Root — Active reference (AGENTS.md pointers)
 
