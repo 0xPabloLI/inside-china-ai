@@ -2,6 +2,7 @@
 
 > Status: Backlog — not started. Priority: Low.
 > Created: 2026-08-15 (extracted from `docs/archive/media-asset-strategy.md` §4.1)
+> GitHub Issue: https://github.com/0xPabloLI/inside-china-ai/issues/29
 >
 > **Trigger**: When the pipeline has enough content coverage and the bottleneck
 > shifts to visual template design / competitive analysis. Not urgent while
