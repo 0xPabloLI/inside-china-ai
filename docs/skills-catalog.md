@@ -559,3 +559,10 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **调查日期**：[YYYY-MM-DD]
 - **状态**：[📋 待评估 | ✅ 已采用 | ❌ 不推荐 | ⚠️ 安全未过 | [已弃用]]
 ```
+
+## Design Decisions & References
+
+| Topic | Reference | Content |
+|-------|-----------|---------|
+| Skill evaluation process | `docs/agents/` (L1) | Issue tracker, triage labels, domain docs setup |
+| Web scraping strategy | `docs/research/` (L2) | Source-specific research (media assets, voice cloning, etc.) |

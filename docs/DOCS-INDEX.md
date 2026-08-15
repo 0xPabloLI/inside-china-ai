@@ -23,6 +23,7 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 2. **New document: ask first.** Before writing, ask: "Is this execution instructions or research rationale?" → execution → L1; research → L2.
 3. **Modifying an L1 doc: check for L2 intrusion.** If research rationale has crept in, extract it to L2 and add a pointer in the L1 doc bottom.
 4. **L2 docs: no execution instructions.** L2 writes "why this was chosen, how params were derived, what was surveyed" — execution instructions belong in L1 as pointer targets.
+5. **Sync DOCS-INDEX after changes.** After creating, moving, or deleting any doc, add/remove/rename the corresponding table row here. Run `npm run lint:docs` to verify.
 
 ### Root — Active reference (AGENTS.md pointers)
 
@@ -92,6 +93,7 @@ Deep research reports with citations.
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `model-sources-reference.md` | Model search sources reference |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
+| `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
 | `safe-zone-calibration-log.md` | Safe zone calibration log with FYP screenshot evidence |
 | `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |

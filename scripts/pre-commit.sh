@@ -128,3 +128,22 @@ if git diff --cached --name-only | grep -qE '^\.env\.local$'; then
 fi
 
 echo -e "${GREEN}[pre-commit] All checks passed.${NC}"
+
+# --- Method 4: Doc hierarchy lint (only when docs/ files are staged) ---
+DOCS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/' || true)
+if [ -n "$DOCS_STAGED" ]; then
+  if command -v node &>/dev/null; then
+    echo -e "${YELLOW}[pre-commit] Running doc-hierarchy lint...${NC}"
+    if ! node scripts/lint-doc-hierarchy.mjs 2>&1; then
+      echo ""
+      echo -e "${RED}[pre-commit] BLOCKED: doc-hierarchy FAIL${NC}"
+      echo -e "${YELLOW}Fix the issues above, then re-stage and commit.${NC}"
+      echo -e "${YELLOW}If you're sure it's a false positive (emergency only):${NC}"
+      echo "  git commit --no-verify"
+      exit 1
+    fi
+    echo -e "${GREEN}[pre-commit] doc-hierarchy: clean${NC}"
+  else
+    echo -e "${YELLOW}[pre-commit] node not found, skipping doc-hierarchy check.${NC}"
+  fi
+fi

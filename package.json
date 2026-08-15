@@ -10,6 +10,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:docs": "node scripts/lint-doc-hierarchy.mjs",
     "format": "prettier --write .",
     "verify:seo": "node scripts/seo/validate-jsonld.mjs",
     "verify:seo:online": "node scripts/seo/validate-jsonld.mjs --online",
