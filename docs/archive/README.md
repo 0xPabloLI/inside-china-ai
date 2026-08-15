@@ -33,6 +33,7 @@
 | `spec-remotion-frame-verification.md` / `tickets-remotion-frame-verification.md` | 2026-08-13 | Remotion 帧图片分析验证 — `lib/frame-analysis.mjs` 纯函数像素分析（safe zone / content presence / all-black）+ `verify-remotion-frames.mjs` CLI（ffmpeg 提取帧 + pngjs 解析）+ `verify-video.mjs` 集成。29 tests。填补 Remotion 路径无视觉验证的空白。 |
 | `spec-asset-sourcer.md` / `tickets-asset-sourcer.md` | 2026-08-14 | 自动化媒体素材搜索与下载 — `lib/asset-sourcer.mjs` 独立工具。API (Pexels/Unsplash/Pixabay/Coverr/Wikimedia) + CDP (IT之家/澎湃) + yt-dlp (YouTube/B站) 三路搜索。关键词提取 (meta.keyEntities → CLI → voiceover) + 评分排序 + 下载。 |
 | `spec-voice-prosody-optimization.md` / `tickets-voice-prosody-optimization.md` | 2026-08-14 | 语音质量与韵律优化 4 层方案 — 参考音频替换 + 音频清洗链 (highpass + afftdn) + rubberband per-scene prosody + 消除双重 MP3 编码。F5 A/B 测试后确定 prosody DISABLED for F5。 |
+| `spec-media-volume-autofill.md` / `tickets-media-volume-autofill.md` | 2026-08-14 | Per-scene volume + envelope ducking + asset-sourcer auto-fill — `MediaField.volume` 字段 + `videoVolume = baseVolume * opacity` 渐变 + `validateMedia()` range check [0,1] + `assignAssetsToScenes()` 批量分配 + `media-patch.json` + `apply-media-patch.mjs` HITL 审查。 |
 
 ### 趋势 & 发布 Specs
 
