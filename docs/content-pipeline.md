@@ -91,7 +91,13 @@ Agent 从 Stage 1 开始执行。
 
 Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1 开始执行。
 
-> **趋势发现有两个工具**：`discover-trends.mjs`（中文平台，CDP 登录态）+ `last30days-skill`（英文社媒，`--emit=json`，Reddit/HN 无需 API key）。两者互补，可同时运行交叉比对。详见下方「趋势发现源」章节。
+> **趋势发现有两个工具，按信息源分工（非语言分工）**：
+> - `discover-trends.mjs` — **中文平台**（量子位、机器之心、知乎、B站、微博、小红书等 16 源，CDP 登录态）
+> - `last30days-skill` — **西方社媒 + 学术 + 科技新闻**（Reddit、HN、X、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding 等 11+ 源，`--emit=json`）
+>
+> 交叉源：X 和 TikTok 两边都有（机制不同——CDP DOM vs API），保留两边。小红书只在 discover-trends 里用（CDP 登录态更适合）。两者可同时运行交叉比对。详见下方「趋势发现源」章节。
+>
+> **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容（已发布文章、scene-data、研究报告、源素材），用本地 Ollama bge-m3 做语义向量搜索，零费用。last30days 搜索实时互联网讨论（最近 30 天）。两者不重复——RAG 查「我写过什么」，last30days 查「外界在说什么」。
 
 #### 趋势发现源（15 个）
 
@@ -140,18 +146,35 @@ node scripts/short-video/discover-trends.mjs
 node scripts/short-video/discover-trends.mjs --keyword "DeepSeek"
 ```
 
-#### 英文社媒趋势补充（last30days-skill）
+#### 西方社媒趋势补充（last30days-skill）
 
-`discover-trends.mjs` 覆盖中文平台，`last30days-skill` 覆盖英文社媒（Reddit、Hacker News、X、YouTube、TikTok、arXiv 等 20+ 源），两个都输出 JSON，Agent 可交叉比对。
+`discover-trends.mjs` 覆盖中文平台（16 源），`last30days-skill` 覆盖西方社媒 + 学术 + 科技新闻（11 默认源 + 2 opt-in）。两个都输出 JSON，Agent 可交叉比对。
+
+**分工原则（按信息源，非语言）**：
+- discover-trends 独占：知乎、B站、微博、抖音、36氪、量子位、机器之心、TechCrunch、Bloomberg、观察者网、IT之家、搜狗微信、动察Beating（13 源）
+- last30days 独占：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding（10 源）
+- 两边都有：X（CDP vs API，机制不同）、TikTok（Creator Center vs hashtag 搜索，角度不同）
+- 小红书：只在 discover-trends 里用（CDP 登录态更适合），last30days 不启用
 
 **什么时候用 last30days**：
-- 需要了解英文世界对中国 AI 话题的讨论热度
+- 需要了解西方对中国 AI 话题的讨论态度和热度
 - 需要跨平台 engagement 信号（Reddit upvotes、HN points）辅助判断话题优先级
-- 话题在中文平台发酵后，验证英文社区是否也在讨论
+- 话题在中文平台发酵后，验证西方社区是否也在讨论
+- 需要学术信号（arXiv 论文趋势）
+
+**默认配置**（`~/.config/last30days/.env`）：
+```bash
+# 默认搜 11 个免费源（不消耗 ScrapeCreators credits）
+LAST30DAYS_DEFAULT_SEARCH=reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding
+INCLUDE_SOURCES=threads,grounding  # opt-in 免费源
+
+# 需要时加 TikTok/Instagram（消耗 credits）：
+python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --search reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding,tiktok,instagram "topic"
+```
 
 **用法**（Reddit + HN 无需 API key，开箱即用）：
 ```bash
-# 基础搜索（JSON 输出）
+# 基础搜索（JSON 输出，默认 11 源）
 python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --quick "DeepSeek"
 
 # 限制源（只搜 Reddit + HN，快速）
@@ -166,7 +189,7 @@ python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --subreddi
 **协作流程**：
 ```
 discover-trends.mjs → trending-topics.json（中文平台，CDP 登录态）
-last30days --emit=json → JSON（英文社媒，API）
+last30days --emit=json → JSON（西方社媒 + 学术，API）
 Agent 读两个 JSON → 按 topic 关键词匹配 → 交叉比对 engagement → 选 topic
 ```
 

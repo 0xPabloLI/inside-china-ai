@@ -15,12 +15,12 @@
 | `web-access` | 联网/抓取 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
 | `web-deep-research` | 深度研究 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
 | `web_fetch` (内置) | 联网/抓取 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
-| `discover-trends.mjs` | 趋势发现 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
+| `discover-trends.mjs` | 趋势发现（中文平台） | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
 | `pdf-parse` (npm) | 文档解析 | ✅ | ✅ 已集成 | ⭐⭐ 够用 |
 | Firecrawl `parse` | 文档解析 | 注册免费 | 📋 待评估 | ⭐⭐⭐ 补充 |
 | Firecrawl `scrape` | 联网/抓取 | 注册免费 | 📋 待评估 | ⭐⭐ 英文站 |
 | Firecrawl 其他功能 | 多种 | 注册免费 | ❌ 不推荐 | ⭐ 不如现有 |
-| last30days-skill | 趋势发现 | ✅ | ✅ 已集成(安全⚠️) | ⭐⭐⭐ 英文社媒 |
+| last30days-skill | 趋势发现（西方社媒+学术） | ✅ | ✅ 已集成(安全⚠️) | ⭐⭐⭐ 核心 |
 | vercel-labs/agent-skills | 开发/部署 | ✅ | 📋 待评估(安全✅) | ⭐⭐⭐ Vercel+React |
 | emilkowalski/skills (emil-design-eng) | UI/动画 | ✅ | 📋 备选(安全✅) | ⭐⭐ motion/细节 |
 | guizang-ppt-skill | 演示文稿 | ✅ | 📋 待评估(安全⚠️) | ⭐ 备用 |
@@ -66,13 +66,15 @@
 - **何时用**：已知 URL、不需要登录、不需要 JS 渲染的简单抓取
 - **何时不用**：需要登录态、中国平台反爬、需要 JS 交互 → 用 `web-access` CDP
 
-### discover-trends.mjs — 趋势发现
+### discover-trends.mjs — 趋势发现（中文平台）
 
 - **分类**：趋势发现
 - **费用**：免费
 - **脚本路径**：`scripts/short-video/discover-trends.mjs`
-- **做什么**：通过 CDP 抓取 15 个源（量子位、机器之心、36氪、TechCrunch、Bloomberg、小红书、微博、B站等），发现中国 AI 话题趋势
-- **何时用**：做视频前找话题，或文章前找趋势
+- **做什么**：通过 CDP 抓取 16 个中文平台源（量子位、机器之心、36氪、TechCrunch、Bloomberg、小红书、微博、B站、知乎、抖音、TikTok Creator、搜狗微信、观察者网、IT之家、动察Beating），发现中国 AI 话题趋势
+- **独占源**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、抖音、知乎（13 源 last30days 没有）
+- **与 last30days 交叉**：X（CDP DOM vs API）、TikTok（Creator Center vs hashtag）——两边都保留，机制不同
+- **何时用**：做视频前找话题，或文章前找中文平台趋势
 
 ### pdf-parse (npm)
 
@@ -83,37 +85,51 @@
 - **局限**：仅支持 PDF；输出原始文本，丢失表格结构
 - **替代方案**：Firecrawl `parse`（支持 DOCX/XLSX，输出 clean markdown，但需联网 + API key）
 
-### last30days-skill — 英文社媒趋势搜索
+### last30days-skill — 西方社媒 + 学术趋势搜索
 
-- **分类**：趋势发现
-- **费用**：免费（Reddit/HN/GitHub/Polymarket 开箱即用；X/YouTube/TikTok 需 API key）
-- **Skill 路径**：`~/.agents/skills/last30days/`（symlink → `~/last30days-skill/skills/last30days/`）
-- **做什么**：并行搜索 Reddit、X、YouTube、TikTok、Hacker News、Polymarket、GitHub、arXiv、Techmeme、小红书等 20+ 源，按 engagement 评分排序
-- **为什么对本项目重要**：`discover-trends.mjs` 覆盖中文平台，last30days 覆盖英文社媒（含小红书），**互补性强**。两个都输出 JSON，Agent 可交叉比对
-- **关键发现（测试验证 2026-08-12）**：
+- **分类**：趋势发现（西方社媒 + 学术 + 科技新闻）
+- **费用**：免费（Reddit/HN/GitHub/Polymarket/Digg/arXiv/Techmeme/Threads/Grounding 开箱即用；X 需 Chrome cookie；TikTok/Instagram 需 SCRAPECREATORS_API_KEY）
+- **Skill 路径**：`~/.agents/skills/last30days/`
+- **配置文件**：`~/.config/last30days/.env`
+- **做什么**：并行搜索 11 个默认免费源（Reddit、Hacker News、X、YouTube、Polymarket、GitHub、Digg、arXiv、Techmeme、Threads、Grounding），按 engagement 评分排序
+- **独占源**：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding（10 源 discover-trends 没有）
+- **与 discover-trends 交叉**：X（API vs CDP DOM）、TikTok（hashtag vs Creator Center）——两边都保留。**小红书不启用**——由 discover-trends 独占（CDP 登录态更适合）
+- **与 RAG 的关系**：不重复。RAG（`scripts/rag/`）用本地 Ollama bge-m3 语义向量搜索项目已有内容（文章、scene-data、研究、源素材），零费用。last30days 搜索实时互联网讨论（最近 30 天外部讨论）
+- **关键发现（测试验证 2026-08-12，配置更新 2026-08-15）**：
   - ✅ **支持 JSON 输出**：`--emit=json --json-profile=agent`，输出 `{clusters: [{title, summary, engagement_total, sources}]}` 结构
-  - ✅ **Reddit + HN 无需 API key**：开箱即用，测试搜索 "DeepSeek" 返回了 V4-Flash 发布（571 engagement）、涨价计划（85 engagement）等真实数据
-  - ✅ **源可配置**：`--subreddits`、`--tiktok-hashtags`、`--search`（限制源列表）、`--days`（时间窗口）
-  - ✅ **覆盖小红书**：源列表含 `xiaohongshu`
-  - ⚠️ **X/YouTube/TikTok 需 API key**：SCRAPECREATORS_API_KEY（免费，scrapecreators.com）或各平台官方 key
+  - ✅ **Reddit + HN 无需 API key**：开箱即用
+  - ✅ **X 已配置**：Chrome cookie 提取，首次运行可能弹 Keychain 提示
+  - ✅ **arXiv 已配置**：FlClash 规则 `DOMAIN-SUFFIX,arxiv.org,国际机场`，TUN 模式自动生效
+  - ✅ **CLI 源已安装**：digg-pp-cli、arxiv-pp-cli、techmeme-pp-cli
+  - ✅ **Threads + Grounding 已启用**：免费 opt-in 源
+  - ⚠️ **TikTok/Instagram 需 SC credits**：默认不搜，需要时手动加 `--search ...,tiktok,instagram`
   - ⚠️ **LAW 1-7 格式规则**：SKILL.md 有 1400 行格式控制指令，只在 last30days 输出范围内生效，不影响 Agent 其他行为
+  - ⚠️ **deterministic planner**：不传 `--search` 时，`--quick` 模式下 planner 可能只搜前 2-3 个源（按 priority），不是所有 default 源都搜
+- **默认配置**：
+  ```dotenv
+  # ~/.config/last30days/.env
+  LAST30DAYS_DEFAULT_SEARCH=reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding
+  INCLUDE_SOURCES=threads,grounding  # opt-in 免费源
+  FROM_BROWSER=chrome,firefox,safari  # X cookie 提取
+  # xiaohongshu 不在 INCLUDE_SOURCES 里——由 discover-trends.mjs 独占
+  ```
 - **用法**：
   ```bash
-  # 基础搜索（JSON 输出，Reddit+HN 开箱即用）
+  # 默认搜索（11 免费源，JSON 输出）
   python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --quick "DeepSeek"
 
-  # 限制源（只搜 Reddit + HN）
+  # 限制源（只搜 Reddit + HN，快速）
   python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --search "reddit,hackernews" "DeepSeek"
 
-  # 自定义 subreddits
-  python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --subreddits "MachineLearning,LocalLLaMA" "DeepSeek"
+  # 加 TikTok/Instagram（消耗 SC credits）
+  python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --search reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding,tiktok,instagram "DeepSeek"
   ```
-- **何时用**：需要英文社媒趋势、跨平台热度对比时
+- **何时用**：需要西方社媒趋势、学术信号（arXiv）、跨平台热度对比
 - **何时不用**：中文平台趋势（用 `discover-trends.mjs`）
 - **与 discover-trends.mjs 的协作**：
   ```
   discover-trends.mjs → trending-topics.json（中文平台，CDP 登录态）
-  last30days --emit=json → JSON（英文社媒，API key）
+  last30days --emit=json → JSON（西方社媒 + 学术，API）
   Agent 读两个 JSON → 交叉比对 → 选 topic → 写文章 → 做视频
   ```
 - **安全审计**：⚠️ skills.sh Gen:Fail / Snyk:Fail / Socket:Warn（LAW 1-7 指令覆盖，Agent 语义审查通过——良性格式控制，非恶意行为）
