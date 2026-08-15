@@ -833,7 +833,7 @@ Windows GPU (hostname redacted)
 
 #### Clash TUN 集成
 
-实际运行的 Clash 客户端使用 TUN 模式 + fake-ip DNS，会与 Tailscale 冲突。配置文件路径取决于具体客户端（如 FlClash 或 Clash Verge）。
+实际运行的 Clash 客户端使用 TUN 模式 + fake-ip DNS，会与 Tailscale 冲突。配置文件路径取决于具体客户端（如 Clash client 或 Clash Verge）。
 
 已做两处修改：
 
@@ -956,7 +956,7 @@ ssh Administrator@100.114.x.x "nvidia-smi"
 
 ### 10.4 如果打洞失败 — Plan B
 
-如果 FlClash TUN 的 route-exclude 没有完全生效，WireGuard UDP 打洞包仍被 TUN 拦截，导致 P2P 打洞失败（走 DERP 中继，延迟 ~450ms）。
+如果 Clash client TUN 的 route-exclude 没有完全生效，WireGuard UDP 打洞包仍被 TUN 拦截，导致 P2P 打洞失败（走 DERP 中继，延迟 ~450ms）。
 
 **Plan B：手动排除 Tailscale WireGuard 端口**
 
@@ -973,7 +973,7 @@ sudo route add -host <对端公网IP> -interface en0
 
 **Plan C：切换 Clash 为系统代理模式**
 
-如果 Plan B 不可靠，可在 FlClash 中关闭 TUN 模式，改用系统代理模式。Tailscale 打洞包不再被 TUN 拦截，P2P 直连大概率成功。代价：终端命令需手动设 `export https_proxy=http://127.0.0.1:7890`。
+如果 Plan B 不可靠，可在 Clash client 中关闭 TUN 模式，改用系统代理模式。Tailscale 打洞包不再被 TUN 拦截，P2P 直连大概率成功。代价：终端命令需手动设 `export https_proxy=http://127.0.0.1:7890`。
 
 ### 10.5 安全注意事项
 
@@ -1123,5 +1123,5 @@ HuggingFace 上已有 MLX 社区移植版，**可能直接在 M2 Pro 上运行**
 - **HeyGen 定价纠正（2026-08-10）**：经 Playwright 访问 heygen.com/pricing 验证，实际为 Free $0(3视频)、Creator $29/月(600 credits)、Pro $49/月(1000 credits)。Credit 用量：Avatar III 3/min，Avatar IV/V 20/min。用户账户为 wallet 计费，余额 $3.60。
 - **HeyGen API 调用教训**：本 session 未经用户同意调用了 HeyGen API（使用 `test:true` 参数）。虽然 quota 前后未变（216），但 `test:true` 的免费性未经文档确认，不应假设。以后调用任何付费 API 前必须征得用户同意。
 - **文档收录遗漏原因分析**：HeyGem 在 model-sources-reference.md 中被提到（line 158），但未收录到主文档。原因是 web deep research 时搜索到了该模型，但因为不兼容 M2 Pro（需 NVIDIA GPU）而跳过了详细评估。这是方法论问题——**不兼容的模型也应收录**，标注清楚兼容性即可，让用户了解全局。
-- **GPU 远程访问方案（2026-08-10，2026-08-14 更新）**：许多 NVIDIA-only 模型（LatentSync 1.6、Sonic、Hallo2、HeyGem 等）无法在 M2 Pro 上运行。第 10 章记录 Tailscale 组网 + SSH 公钥认证方案。Mac 端已完成 FlClash TUN 集成（fake-ip-filter + route-exclude），Clash Verge Merge 覆写也已同步配置。Windows 端待配置 SSH 公钥 + 防休眠。
+- **GPU 远程访问方案（2026-08-10，2026-08-14 更新）**：许多 NVIDIA-only 模型（LatentSync 1.6、Sonic、Hallo2、HeyGem 等）无法在 M2 Pro 上运行。第 10 章记录 Tailscale 组网 + SSH 公钥认证方案。Mac 端已完成 Clash client TUN 集成（fake-ip-filter + route-exclude），Clash Verge Merge 覆写也已同步配置。Windows 端待配置 SSH 公钥 + 防休眠。
 - **2026-08-11 淘宝/闲鱼/HuggingFace/GitHub 全面调研**：用 web-access skill (CDP) 搜索淘宝/闲鱼，发现 15 个新模型。关键发现：(1) LongCat-Video-Avatar-1.5 有 MLX 移植版，是 M2 Pro 最有希望的新选项；(2) InfiniteTalk (MeiGen-AI, 238 likes, Apache 2.0) 支持中文+无限长度；(3) EchoMimicV3 仅 1.3B 参数极轻量；(4) Duix-Avatar 14.4K stars 是最热门开源数字人项目；(5) 淘宝/闲鱼未发现我们不知道的新 talking head 模型，大部分是部署服务/整合包。LTX-2.3-OmniNFT 非专为数字人，是通用音视频生成质量改进。LongCat 2.0 是 LLM 不能替代 LongCat-Video-Avatar-1.5。

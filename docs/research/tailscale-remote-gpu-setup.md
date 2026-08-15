@@ -94,8 +94,8 @@ brew install tailscale
 sudo tailscale up
 ```
 
-- IP `100.71.x.x`，设备名 `Mac-hostname-redacted`
-- 账号：`REDACTED@`
+- IP `100.71.x.x`，设备名 `设备名已脱敏`
+- 账号：`<redacted>@`
 - NAT 类型：Cone（`MappingVariesByDestIP: false`），UDP 可用，打洞基础条件满足
 
 验证：
@@ -104,9 +104,9 @@ tailscale netcheck
 # UDP: true, MappingVariesByDestIP: false → NAT 友好
 ```
 
-### 1.2 FlClash TUN 集成（当前使用的 Clash 客户端）
+### 1.2 Clash client TUN 集成（当前使用的 Clash 客户端）
 
-Mac 上实际运行的是 **FlClash**（不是 Clash Verge）。FlClash 使用 TUN 模式 + fake-ip DNS，会与 Tailscale 冲突——fake-ip 劫持 DNS 返回假 IP，tailscaled 控制面绕过 TUN 直连物理网卡，拿到假 IP 后无法连接协调服务器。
+Mac 上实际运行的是 **Clash client**（不是 Clash Verge）。Clash client 使用 TUN 模式 + fake-ip DNS，会与 Tailscale 冲突——fake-ip 劫持 DNS 返回假 IP，tailscaled 控制面绕过 TUN 直连物理网卡，拿到假 IP 后无法连接协调服务器。
 
 **配置文件**：`~/Library/Application Support/com.clash-client/config.yaml`（备份在同目录 `config.yaml.bak`）
 
@@ -143,7 +143,7 @@ Mac 上实际运行的是 **FlClash**（不是 Clash Verge）。FlClash 使用 T
 
    > **注意**：`route-exclude-address` 在 mihomo `mixed` 栈下可能对 WireGuard UDP 打洞包不完全生效。Tailscale 数据隧道（100.x → utun0）不受影响，但打洞阶段的 UDP 包（发往对端公网 IP）可能仍被 TUN 拦截。如果打洞失败，需用 Plan B（见 Step 5）。
 
-修改后重启 FlClash：`pkill -f FlClashCore && open -a FlClash`
+修改后重启 Clash client：`pkill -f Clash clientCore && open -a Clash client`
 
 ### 1.3 Clash Verge Merge 覆写同步
 
@@ -186,7 +186,7 @@ tailscale status             # 确认设备在线
 
 1. 下载 https://tailscale.com/download/windows
 2. 安装后系统托盘出现 Tailscale 图标 → 右键 → `Log in`
-3. 浏览器打开 → 用**与 Mac 相同的账号**（`REDACTED@`）登录
+3. 浏览器打开 → 用**与 Mac 相同的账号**（`<redacted>@`）登录
 4. 在 Tailscale 管理后台（https://login.tailscale.com/admin/machines）批准新设备
 5. 验证：在 Mac 上 `ping 100.114.x.x`
 
@@ -521,7 +521,7 @@ curl -X POST http://$NVIDIA_IP:8383/api/generate \
 
 ## Step 5: P2P 打洞优化
 
-如果 FlClash TUN 的 route-exclude 没有完全生效，WireGuard UDP 打洞包仍被 TUN 拦截，导致 P2P 打洞失败（走 DERP 中继，延迟 ~450ms）。
+如果 Clash client TUN 的 route-exclude 没有完全生效，WireGuard UDP 打洞包仍被 TUN 拦截，导致 P2P 打洞失败（走 DERP 中继，延迟 ~450ms）。
 
 ### 诊断
 
@@ -556,7 +556,7 @@ sudo route add -host <对端公网IP> -interface en0
 
 ### Plan C：切换 Clash 为系统代理模式
 
-在 FlClash 中关闭 TUN 模式，改用系统代理模式。Tailscale 打洞包不再被 TUN 拦截，P2P 直连大概率成功。代价：终端命令需手动设 `export https_proxy=http://127.0.0.1:7890`。
+在 Clash client 中关闭 TUN 模式，改用系统代理模式。Tailscale 打洞包不再被 TUN 拦截，P2P 直连大概率成功。代价：终端命令需手动设 `export https_proxy=http://127.0.0.1:7890`。
 
 ---
 
@@ -584,7 +584,7 @@ sudo route add -host <对端公网IP> -interface en0
 
 **解决方案**：见 Step 1.2 — 在 Clash 配置中添加 `fake-ip-filter` 排除 `*.tailscale.com` / `*.tailscale.io`。
 
-> **注意**：更新 Clash 订阅可能覆盖 `fake-ip-filter` 配置。FlClash 直接改 `config.yaml`；Clash Verge 在 Merge 覆写文件中持久化（见 Step 1.3）。
+> **注意**：更新 Clash 订阅可能覆盖 `fake-ip-filter` 配置。Clash client 直接改 `config.yaml`；Clash Verge 在 Merge 覆写文件中持久化（见 Step 1.3）。
 
 ### Q: Windows 上的 Docker 路径格式
 
@@ -612,7 +612,7 @@ Windows OpenSSH 默认 `PermitEmptyPasswords no`。解决方案：配置 SSH 公
 
 - **为什么用 Tailscale 而不是端口转发**：Tailscale 不需要公网 IP，NAT 穿透自动处理，加密传输，两台机器在任何网络环境下都能互通。
 - **为什么用 Lite 版**：Lite 版只运行一个 Docker 容器（face2face），显存需求降到 8GB，适合 GTX 1080。
-- **FlClash vs Clash Verge**：Mac 上实际运行的是 FlClash（`/Applications/FlClash.app`），不是 Clash Verge。两者配置文件不同：FlClash 改 `~/Library/Application Support/com.clash-client/config.yaml`；Clash Verge 改 Merge 覆写文件。两个都已配置 Tailscale 排除规则。
+- **Clash client vs Clash Verge**：Mac 上实际运行的是 Clash client（`/Applications/Clash client.app`），不是 Clash Verge。两者配置文件不同：Clash client 改 `~/Library/Application Support/com.clash-client/config.yaml`；Clash Verge 改 Merge 覆写文件。两个都已配置 Tailscale 排除规则。
 - **fake-ip-filter 机制**：Clash fake-ip 模式劫持 DNS 返回假 IP（198.18.x.x）。tailscaled 控制面绕过 TUN 直连物理网卡，拿到假 IP 后无法连接协调服务器。加 filter 后 tailscale.com 域名返回真实 IP，tailscaled 走路由表 → TUN → Clash → 代理 → 控制服务器。详见 [[memory:17863207144245540241]]。
 - **route-exclude-address 局限性**：mihomo `mixed` 栈下 route-exclude 对 Tailscale 数据隧道有效，但对 WireGuard UDP 打洞包可能不完全生效。打洞失败的兜底方案见 Step 5。
 - **GitHub keys 作为公钥分发**：`github.com/<用户名>.keys` 是官方 API，公开返回用户上传的 SSH 公钥。Windows 上用 `Invoke-WebRequest` 一行命令拉取，比手动复制更可靠。
