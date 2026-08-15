@@ -18,6 +18,13 @@ Prefer working locally? You need Node.js and npm — [install with nvm](https://
 git clone <this-repository-url>
 cd <repository-name>
 npm i
+
+# Install pre-commit hook for secret scanning (recommended)
+bash scripts/install-git-hooks.sh
+# Optional: install gitleaks for better detection
+# brew install gitleaks  # macOS
+# sudo apt install gitleaks  # Linux
+
 npm run dev
 ```
 
