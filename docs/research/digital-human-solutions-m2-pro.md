@@ -812,15 +812,14 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 ### 10.1 网络拓扑
 
 ```
-Mac (macOS, FlClash TUN + Tailscale)
+Mac (macOS, Clash TUN + Tailscale)
   Tailscale IP: 100.71.x.x
-  公网 IP: REDACTED (NAT, Cone 类型)
   │
   │  WireGuard 隧道
   │  P2P 直连（打洞成功）或 DERP 中继（打洞失败时兜底）
   │
   ▼
-Windows GPU (hostname-redacted)
+Windows GPU (hostname redacted)
   Tailscale IP: 100.114.x.x
   用户名: Administrator（空密码）
 ```
@@ -829,12 +828,12 @@ Windows GPU (hostname-redacted)
 
 #### Tailscale 安装
 
-- 通过 Homebrew 安装，IP `100.71.x.x`，设备名 `Mac-hostname-redacted`
+- 通过 Homebrew 安装，IP `100.71.x.x`，设备名已脱敏
 - NAT 类型：Cone（`MappingVariesByDestIP: false`），UDP 可用，打洞基础条件满足
 
-#### FlClash TUN 集成
+#### Clash TUN 集成
 
-实际运行的 Clash 客户端是 **FlClash**（不是 Clash Verge）。FlClash 使用 TUN 模式 + fake-ip DNS，会与 Tailscale 冲突。配置文件路径：`~/Library/Application Support/com.clash-client/config.yaml`（备份在同目录 `config.yaml.bak`）。
+实际运行的 Clash 客户端使用 TUN 模式 + fake-ip DNS，会与 Tailscale 冲突。配置文件路径取决于具体客户端（如 FlClash 或 Clash Verge）。
 
 已做两处修改：
 
@@ -869,9 +868,9 @@ Windows GPU (hostname-redacted)
 
    > **注意**：`route-exclude-address` 在 mihomo `mixed` 栈下可能对 WireGuard UDP 打洞包不完全生效。Tailscale 数据隧道（100.x → utun0）不受影响，但打洞阶段的 UDP 包（发往对端公网 IP）可能仍被 TUN 拦截。如果打洞失败，需用 Plan B（见 10.5）。
 
-修改后重启 FlClash：`pkill -f FlClashCore && open -a FlClash`
+修改后重启 Clash 客户端。
 
-> **Clash Verge 同步**：如果切换到 Clash Verge，其 Merge 覆写文件（`~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/Merge.yaml`）也已同步添加了相同的 `fake-ip-filter`（tailscale 域名）和 `tun.route-exclude-address`（100.64.0.0/10）。两个客户端切换时无需额外配置。
+> **Clash Verge 同步**：如果切换到 Clash Verge，其 Merge 覆写文件也已同步添加了相同的 `fake-ip-filter`（tailscale 域名）和 `tun.route-exclude-address`（100.64.0.0/10）。两个客户端切换时无需额外配置。
 
 #### 验证
 
@@ -884,7 +883,7 @@ tailscale ping <对端IP>       # 查看是否 P2P 直连（via DERP = 中继，
 
 ### 10.3 Windows GPU 端配置（待完成 ⏳）
 
-Windows 端已安装 Tailscale（IP `100.114.x.x`，设备名 `hostname-redacted`），OpenSSH 服务已开启（端口 22）。**待完成：SSH 公钥配置 + 防休眠设置。**
+Windows 端已安装 Tailscale（IP `100.114.x.x`，设备名已脱敏），OpenSSH 服务已开启（端口 22）。**待完成：SSH 公钥配置 + 防休眠设置。**
 
 #### Step 1：配置 SSH 公钥（必须）
 
@@ -898,8 +897,8 @@ Windows 的 Administrator 账户无密码，OpenSSH 默认拒绝空密码远程�
 # 创建 .ssh 目录
 New-Item -Path "C:\Users\Administrator\.ssh" -ItemType Directory -Force
 
-# 从 GitHub 拉取公钥（Mac 的公钥已上传到 GitHub）
-Invoke-WebRequest -Uri "https://github.com/0xPabloLI.keys" -OutFile "C:\Users\Administrator\.ssh\authorized_keys"
+# 从 GitHub 拉取公钥
+Invoke-WebRequest -Uri "https://github.com/<your-github-username>.keys" -OutFile "C:\Users\Administrator\.ssh\authorized_keys"
 
 # 修复权限（Windows 对此敏感，不做公钥认证不生效）
 icacls "C:\Users\Administrator\.ssh\authorized_keys" /inheritance:r /grant "Administrator:F" /grant "SYSTEM:F"

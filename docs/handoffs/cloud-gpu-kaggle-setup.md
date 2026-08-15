@@ -109,7 +109,7 @@
    
    Also having trouble logging in today.
    
-   My username: qingshunli
+   My username: <redacted>
    Email: [user's email]
    
    Could you help?
@@ -124,7 +124,7 @@
 
 ## 用户是否给过 Lightning API key
 
-用户给过 Lightning AI API key（`REDACTED`），已配置在 `.env.local`、`~/.zshrc`、`~/.lightning/credentials.json` 中。但该 key 权限不足，无法创建 Studio/App（403 error）。
+用户给过 Lightning AI API key（已配置在 `.env.local`、`~/.zshrc`、`~/.lightning/credentials.json` 中）。但该 key 权限不足，无法创建 Studio/App（403 error）。
 
 ---
 

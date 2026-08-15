@@ -10,8 +10,8 @@
 
 | 配置项 | 状态 | 说明 |
 |--------|------|------|
-| Tailscale（Windows 端） | ✅ 在线 | IP `100.114.x.x`，设备 `hostname-redacted` |
-| Tailscale（Mac 端） | ✅ 在线 | IP `100.71.x.x`，设备 `Mac-hostname-redacted` |
+| Tailscale（Windows 端） | ✅ 在线 | IP `100.114.x.x`，设备名已脱敏 |
+| Tailscale（Mac 端） | ✅ 在线 | IP `100.71.x.x`，设备名已脱敏 |
 | P2P 直连 | ✅ | ICMP `<1ms`，NAT Cone（`MappingVariesByDestIP: false`），UDP 可用 |
 | OpenSSH 服务 | ⚠️ 需确认 | 已安装，StartupType=Automatic，但重启后可能未启动。需验证防火墙规则（见 Step 2.2） |
 | SSH 公钥认证 | ✅ 已配置 | 公钥在 `C:\ProgramData\ssh\administrators_authorized_keys`，ACL 正确（SYSTEM + Administrators） |
@@ -30,7 +30,7 @@
 ```bash
 # 在 Mac 上执行
 ssh Administrator@100.114.x.x "hostname"
-# 应返回 hostname-redacted
+# 应返回 Windows 机器名
 
 # 查 GPU
 ssh Administrator@100.114.x.x "nvidia-smi"
@@ -48,15 +48,14 @@ ssh Administrator@100.114.x.x "wsl -d Ubuntu"
 ## 网络拓扑
 
 ```
-Mac (macOS, FlClash TUN + Tailscale)
+Mac (macOS, Clash TUN + Tailscale)
   Tailscale IP: 100.71.x.x
-  公网 IP: REDACTED (NAT, Cone 类型)
   │
   │  WireGuard 隧道
   │  P2P 直连（打洞成功）或 DERP 中继（打洞失败时兜底）
   │
   ▼
-Windows GPU (hostname-redacted)
+Windows GPU (hostname redacted)
   Tailscale IP: 100.114.x.x
   用户名: Administrator（空密码）
   GPU: GTX 1080 8GB
@@ -227,7 +226,7 @@ netstat -an | Select-String ':22.*LISTEN'
 
 ```powershell
 # 从 GitHub 拉取公钥到 Administrator 专用路径（不是 ~/.ssh/authorized_keys）
-Invoke-WebRequest -Uri "https://github.com/0xPabloLI.keys" -OutFile "C:\ProgramData\ssh\administrators_authorized_keys" -UseBasicParsing
+Invoke-WebRequest -Uri "https://github.com/<your-github-username>.keys" -OutFile "C:\ProgramData\ssh\administrators_authorized_keys" -UseBasicParsing
 
 # 修复权限（Windows 对此敏感，不做公钥认证不生效）
 icacls "C:\ProgramData\ssh\administrators_authorized_keys" /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"

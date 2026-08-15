@@ -34,8 +34,8 @@ function readEnv() {
   return vars;
 }
 
-const SUPABASE_URL = "https://zjsjrghmhcmwvkfpbqap.supabase.co";
-const ANON_KEY = "sb_publishable_KNu1cr9jcesU7e197KBxRA_fTYxu7XK";
+const SUPABASE_URL = env.SUPABASE_URL || "https://zjsjrghmhcmwvkfpbqap.supabase.co";
+const ANON_KEY = env.SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 
 async function signIn(email, password) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -89,6 +89,10 @@ async function main() {
   const env = readEnv();
   if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) {
     console.error("Error: ADMIN_EMAIL/ADMIN_PASSWORD not found in .env.local");
+    process.exit(1);
+  }
+  if (!ANON_KEY) {
+    console.error("Error: SUPABASE_PUBLISHABLE_KEY not found in .env or .env.local");
     process.exit(1);
   }
 
