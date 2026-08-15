@@ -6,11 +6,11 @@
  * The `duration` parameter in the Python script sets the target length, so
  * the output is already at natural speaking speed.
  *
- * Post-processing: F5 generates clean audio — silenceremove, prosody, highpass,
- * and denoise are ALL SKIPPED. Only resample (24kHz → 44.1kHz) is applied.
- * F5's internal RMS normalization handles loudness; model output has no
- * recording artifacts to denoise. The only FFmpeg role is sample-rate
- * conversion for assembly compatibility.
+ * Post-processing: F5 generates clean WAV — NO FFmpeg audio filters are applied.
+ * silenceremove, prosody, highpass, and denoise are ALL SKIPPED.
+ * The only FFmpeg role is resample (24kHz → 44.1kHz) for assembly compatibility.
+ * F5 outputs WAV directly (no MP3 conversion) to avoid double lossy encoding.
+ * loudnorm is applied at the final video level in assemble.mjs.
  */
 
 import { exec } from "child_process";
@@ -65,7 +65,7 @@ export async function createF5MLXEngine() {
       const manifest = scenes.map((s) => ({
         sceneId: s.id,
         text: s.voiceover,
-        output: `scene-${s.id}.mp3`,
+        output: `scene-${s.id}.wav`,
       }));
       const { writeFileSync: writeSync } = await import("fs");
       writeSync(manifestPath, JSON.stringify(manifest));
@@ -98,6 +98,10 @@ export async function createF5MLXEngine() {
       // shift introduces mechanical artifacts on F5's already-natural output.
       // F5's internal duration control provides natural pacing — no post-hoc
       // pitch/tempo manipulation needed.
+      // highpass/denoise hardcoded off (A/B test confirmed no effect on F5).
+      process.env.TTS_HIGHPASS = "0";
+      process.env.TTS_DENOISE = "0";
+
       const finalResults = [];
       for (const r of batchResults) {
         const audioPath = r.audioPath;
@@ -106,9 +110,6 @@ export async function createF5MLXEngine() {
           continue;
         }
         // F5 post-processing: ONLY resample (24kHz → 44.1kHz).
-        // highpass/denoise disabled — F5 output is model-generated, no
-        // recording artifacts to clean. Disabling via env vars since
-        // buildFilter() reads TTS_HIGHPASS and TTS_DENOISE.
         const duration = await postProcessBatch(audioPath, {
           useSilenceFilter: false,
           resample: true,

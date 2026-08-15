@@ -86,9 +86,14 @@ export async function generateTTS(scenes, outputDir) {
 
   const atempo = getAtempo();
   console.log(`  TTS engine: ${engine.info}`);
-  console.log(
-    `  Post-process: FFmpeg silenceremove (compress pauses >0.25s → 0.08s)${atempo ? ` + atempo ${atempo}x` : ""}`,
-  );
+  // Log actual post-processing based on engine config
+  const steps = [];
+  if (engine.useSilenceFilter) steps.push("silenceremove");
+  if (engine.resample) steps.push("resample 44.1kHz");
+  if (atempo) steps.push(`atempo ${atempo}x`);
+  // loudnorm is always applied at video assembly stage
+  steps.push("loudnorm (at assembly)");
+  console.log(`  Post-process: ${steps.join(" + ")}`);
 
   const results = await engine.generate(scenes, outputDir);
 
