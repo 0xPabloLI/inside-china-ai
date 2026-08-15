@@ -31,6 +31,11 @@ what overlay value. Analyzing high-performing competitor videos would:
   YouTube. Same pattern for search-to-download.
 - `asset-sourcer.mjs` — already has yt-dlp download + keyframe extraction
   patterns that can be reused.
+- `analytics-utils.mjs` + `fetch-tiktok-analytics.mjs` — TikTok Analytics CSV
+  parser + CLI. Already functional: auto-generates `pending-analysis.json` on
+  publish, parses CSV export into standardized JSON.
+- `verify-remotion-frames.mjs` + `frame-analysis.mjs` — ffmpeg frame extraction
+  + pixel analysis (luminance, bright pixel counting, region sampling).
 
 ## Concrete workflow
 
@@ -76,8 +81,8 @@ Prerequisites (all currently met):
 - ✅ `competitor-intel.mjs` can find reference videos
 
 Trigger conditions (not yet met):
-- ⬜ Content coverage > 10 videos with TikTok analytics data
-- ⬜ Per-scene retention correlation shows a pattern worth emulating
+- ⬜ Enough published videos (>10) with analytics data accumulated to identify per-scene retention patterns
+- ⬜ Per-scene retention correlation shows a specific visual pattern worth emulating (e.g., media-heavy scenes retain better for product demos)
 - ⬜ A specific competitor video is identified as a model to reverse-engineer
 
 ## Design Decisions & References
