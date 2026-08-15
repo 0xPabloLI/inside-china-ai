@@ -1,0 +1,37 @@
+# .gitleaks.toml — Secret scanning configuration
+#
+# This file configures gitleaks to detect real secrets while allowing
+# known-safe values (publishable keys, test fixtures).
+#
+# Usage:
+#   gitleaks detect --source . --config .gitleaks.toml
+#   gitleaks dir --source . --config .gitleaks.toml  (staged files only)
+
+[allowlist]
+  description = "Allowed values that are intentionally public or fake"
+  paths = [
+    # Test files use fake keys
+    '''src/integrations/supabase/client\.test\.ts''',
+    '''scripts/article/__tests__/.*\.test\.mjs''',
+    '''scripts/short-video/__tests__/.*\.test\.mjs''',
+    # Example/template files
+    '''\.env\.example''',
+    '''\.env\.local\.example''',
+    '''docs/refs/tiktok-skills/\.env\.example''',
+  ]
+  regexes = [
+    # Supabase publishable keys are designed to be public (RLS protects data)
+    '''sb_publishable_[A-Za-z0-9]+''',
+    # Test fixture keys
+    '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.test\.key''',
+    '''sb_publishable_KNu1cr9jcesU7e197KBxRA_fTYxu7XK''',
+  ]
+  # Commit messages sometimes reference variable names
+  stopwords = [
+    'SUPABASE_PUBLISHABLE_KEY',
+    'VITE_SUPABASE_PUBLISHABLE_KEY',
+  ]
+
+# Extend the default gitleaks config (includes 100+ built-in rules)
+[extend]
+  useDefault = true
