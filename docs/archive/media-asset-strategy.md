@@ -187,45 +187,9 @@ The dark overlay (`rgba(10,10,20,overlay)`) ensures text readability over media.
 
 ## 4. Future Optimizations
 
-### 4.1 Reference Video Extraction — Future Idea
+### 4.1 Reference Video Extraction — moved to `docs/research/reference-video-extraction.md`
 
-**Priority**: Low — conceptual workflow, no immediate need.
-
-**Goal**: Given a reference TikTok/YouTube video, extract the media placement strategy (what assets, where, what transitions) to inform our own scene-data authoring.
-
-**Existing infrastructure to build on**:
-- `competitor-intel.mjs` already scrapes TikTok search results via CDP, extracts video titles/URLs/views — extend it to download and analyze individual videos
-- `lib/trend-sources.mjs` has CDP extract scripts for TikTok, Douyin, Bilibili, YouTube — same pattern for search-to-download
-
-**Concrete workflow**:
-
-```bash
-# Step 1: Download reference video (same yt-dlp pattern as asset downloads)
-yt-dlp --cookies-from-browser chrome \
-  -f "best[height<=720][ext=mp4]/best[height<=720]" \
-  --max-filesize 50M \
-  -o "output/reference-%(id)s.mp4" \
-  "https://www.tiktok.com/@creator/video/123456"
-
-# Step 2: Extract keyframes at 1fps
-FFMPEG=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
-$FFMPEG -i output/reference-123456.mp4 -vf "fps=1" \
-  output/reference-frames/frame-%03d.jpg
-
-# Step 3: Analyze each keyframe with vision model
-# (agent prompt: for each frame, describe what's on screen —
-#  text content, image/video background, layout, color scheme,
-#  transition type if detectable from adjacent frames)
-
-# Step 4: Map to our scene-data structure
-# Agent outputs a JSON array:
-# [{ scene: 1, mediaType: "video", animation: "zoom", overlay: 0.7, ... }]
-```
-
-**Implementation notes**:
-- For TikTok videos, `yt-dlp` needs `--cookies-from-browser chrome` (same bot detection issue as YouTube) [[memory:17865489336644602134]]
-- Keyframe extraction at 1fps gives ~60 frames for a 60s video — sufficient for structural analysis without overwhelming the vision model
-- The agent should output a "media strategy report" that maps to our `MediaField` schema, not a freeform description
+Low priority long-term task. See standalone document for workflow, prerequisites, and trigger conditions.
 
 ### 4.2 Visual Engagement Research
 

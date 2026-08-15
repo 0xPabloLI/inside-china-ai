@@ -75,3 +75,9 @@
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
 | `spec-doc-hierarchy-optimization.md` / `tickets-doc-hierarchy-01~04` | 2026-08-15 | 文档层次体系优化 — DOCS-INDEX.md Layer Placement Rules + 语义标签 (L1: Execution reference / L2: Deep research) + video-workflow.md Gapless Audio Track 抽离到 L2 + AGENTS.md 双向指针 + 7 个遗留 spec/tickets 归档。 |
+
+### Research Docs (Archived)
+
+| 文件 | 归档时间 | 说明 |
+|------|----------|------|
+| `media-asset-strategy.md` | 2026-08-15 | 短视频素材策略全量研究 — §4.1 (参考视频提取) 已提取为 `docs/research/reference-video-extraction.md` 独立追踪。其余 sections (§4.2-§4.7, §6-§8) 均已完成实现或研究，不再活跃维护。实现状态见顶部 summary。 |

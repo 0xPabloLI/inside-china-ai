@@ -45,7 +45,7 @@ Each entry becomes one RAG chunk with `content_type: "asset-catalog"`. The chunk
 
 **Why not multimodal embeddings?** Ollama supports text embedding models (e.g. `bge-m3`, `nomic-embed-text`). Multimodal models that embed images/video frames directly (e.g. CLIP, Llama-Vision-Embed) exist but require a separate embedding pipeline with image extraction from video frames. For a local-first stack with <20 assets, text-metadata catalog is the pragmatic path — the description text captures the semantic content that a vision model would extract, and `bge-m3` already runs locally. When the library grows to 1000+ assets with no human-written descriptions, revisit multimodal.
 
-**Bootstrap plan**: Gather 20+ content assets from existing published videos (DeepSeek, distillation, restraint, light-society, Unitree — each has scenes that could use media), write catalog entries for each, then reindex. See `docs/research/media-asset-strategy.md` §4.3 for validated asset sources.
+**Bootstrap plan**: Gather 20+ content assets from existing published videos (DeepSeek, distillation, restraint, light-society, Unitree — each has scenes that could use media), write catalog entries for each, then reindex. See `docs/archive/media-asset-strategy.md` §4.3 for validated asset sources.
 
 ### When to trigger RAG reindex for multimedia assets
 
@@ -87,7 +87,7 @@ These are environment facts — the code is the source of truth, this table is a
 - **Symlink `remotion/public/assets → ../../assets`**: Global assets auto-available to Remotion's `staticFile()`. Content-specific assets copied at render time by `render-remotion.mjs`.
 - **Catalog over multimodal embeddings**: Text-metadata catalog works with existing `bge-m3` + `chunkMarkdown()` pipeline. Multimodal embeddings would require a separate model + image-extraction step — not worth the complexity for a local-first stack. See §2.
 - **Git LFS for new binary files**: `.gitattributes` tracks `*.mp4` / `*.mp3` / `*.wav` / `*.png` / `*.jpg` etc. via LFS (commit `60505a6`). Old files remain in regular Git (no history rewrite). SVG kept as text (diffable). Git LFS is transparent — files stay at the same paths in the working tree, RAG catalog paths are unaffected.
-- **Reorganization history**: `assets/` cleaned on 2026-08-14 — removed 12 digital human experiment files, 16 voice samples, 2 TTS comparison files, 2 duplicate content assets, 10 junk files. TTS engine code updated from `assets/` to `voice-samples/`. See `docs/research/media-asset-strategy.md` §4.5.
+- **Reorganization history**: `assets/` cleaned on 2026-08-14 — removed 12 digital human experiment files, 16 voice samples, 2 TTS comparison files, 2 duplicate content assets, 10 junk files. TTS engine code updated from `assets/` to `voice-samples/`. See `docs/archive/media-asset-strategy.md` §4.5.
 
 ## 5. Evolution Plan: Multimodal Asset Description
 
