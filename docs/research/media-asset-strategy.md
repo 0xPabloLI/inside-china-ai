@@ -926,39 +926,47 @@ const videoVolume = baseVolume * interpolate(
 
 ### 7.3 Workaround Options
 
-1. **Use Firefox for B站** (working):
-   - `yt-dlp --cookies-from-browser firefox` successfully reads Firefox cookies
-   - B站 needs format selector: `-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"` to merge separate video/audio streams
-   - User must be logged into B站 in Firefox for premium content access
+1. **B站 — bilibili-api-python + yt-dlp** (✅ tested 2026-08-14):
+   - **Search**: `bilibili-api-python` library (`pip install bilibili-api-python`) — `search.search_by_type()` returns full results (title, BV号, av号, duration, play count) for Chinese AND English keywords, multi-word AND single-word. **Far superior to `yt-dlp bilisearch:`** which returns 412 errors.
+   - **Download**: `yt-dlp --cookies-from-browser firefox` with BV号 or av号. Most BV号s work; some trigger `KeyError('bvid')` (yt-dlp bug, use av号 fallback).
+   - **Format selector**: `-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"` for merged video+audio.
+   - **MCP option**: [bilibili-mcp-server](https://github.com/Zijian-Ni/bilibili-mcp-server) (pip install bilibili-mcp-server) — MCP server with search, video metadata, comments, danmaku, trending. Uses Wbi signing. Python 3.10+.
+   - **Test results**: ✅ All 4 search queries returned results (DeepSeek, 宇树科技 人形机器人, Unitree robot, 机器人). ✅ BV号 download succeeded (5s clip, 308KB).
 
-2. **抖音 — alternative tools** (not yt-dlp):
+2. **抖音 — alternative tools** (not yt-dlp, not yet tested):
    - yt-dlp cannot download Douyin videos (a_bogus signature not implemented)
-   - **Alternative**: [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) (19K stars) — Python API that handles a_bogus signing
-   - Public API: `https://api.douyin.wtf/api/douyin/web/fetch_one_video?aweme_id=VIDEO_ID` (may require auth or be rate-limited)
+   - **Alternative**: [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) (19K stars) — Python API that handles a_bogus signing. Also supports Bilibili!
    - PyPI package: `douyin-tiktok-scraper`
-   - **CDP approach**: Open Douyin video page in Chrome (with remote debugging), use `Runtime.evaluate` to call the API from browser context — browser generates a_bogus automatically. Tested but Chrome CDP was unavailable during this session.
-   - **Douyin desktop app**: Would not help — yt-dlp doesn't interface with desktop apps, it reads browser cookie databases
+   - **CDP approach**: Open Douyin video page in Chrome (with remote debugging), use `Runtime.evaluate` to call the API from browser context
+   - **Status**: ⚠️ Not tested — needs local API server deployment or public API access
 
-3. **小红书 — alternative tool** (not yt-dlp):
-   - yt-dlp extractor is outdated (XHS changed site structure, issue #16519)
-   - **Alternative**: [XHS-Downloader](https://github.com/JoeanAmier/XHS-Downloader) (12K stars) — Python tool, supports RedNote/XiaoHongShu link extraction and content download
-   - Use CDP to open XHS page in Chrome, extract image/video URLs from DOM
-   - User must be logged into XHS in Chrome
+3. **小红书 — RedNote-MCP + XHS-Downloader** (✅ partially tested 2026-08-14):
+   - **RedNote-MCP** (`npm install -g rednote-mcp`): MCP server via Playwright browser automation. Tools: `search_notes` (keyword search), `get_note` (URL access). Requires `rednote-mcp init` (opens browser, manual login, saves cookies to `~/.mcp/rednote/cookies.json`).
+     - ✅ MCP server starts, `search_notes` tool registered correctly
+     - ❌ Search returns "Not logged in" without init
+     - **Status**: ✅ MCP protocol works, needs user to run `rednote-mcp init` once
+   - **XHS-Downloader** ([GitHub](https://github.com/JoeanAmier/XHS-Downloader), 12K stars): Python 3.12+, supports link extraction + content download. More feature-complete than MCP.
+   - **xiaohongshu-mcp** ([GitHub](https://github.com/xpzouying/xiaohongshu-mcp), 15K stars): Docker-based MCP, also has browser plugin version ([x-mcp](https://github.com/xpzouying/x-mcp)) — zero config, Chrome/Edge extension.
 
-4. **微博 — alternative tool** (not yt-dlp):
-   - yt-dlp Weibo extractor has bugs (`Extractor failed to obtain id`)
-   - **Alternative**: [weibo-downloader-skill](https://github.com/belingud/weibo-downloader-skill) — Python tool for Weibo images and videos
-   - May also need CDP extraction as fallback
+4. **微博 — weibo-downloader-skill** (✅ partially tested 2026-08-14):
+   - [weibo-downloader-skill](https://github.com/belingud/weibo-downloader-skill) — pure Python, only needs `requests`. No login required — uses visitor cookie system (`passport.weibo.com/visitor/genvisitor2`).
+   - ✅ Visitor cookie auto-acquired successfully (365-day validity)
+   - ✅ API connection works (`weibo.com/ajax/statuses/show?id=STATUS_ID`)
+   - ✅ Supports all link formats: standard, fx share links, mobile
+   - ⚠️ Need valid status_id — search requires login (use CDP web-access for search, then download via API)
+   - **Workflow**: CDP search for Weibo URLs → weibo-downloader for media download
 
 5. **通用资源下载器 (GUI only, not CLI)**:
    - [res-downloader](https://github.com/putyy/res-downloader) (19K stars) — Go+Wails GUI app, supports 视频号/小程序/抖音/快手/小红书/m3u8/直播流
    - Not suitable for pipeline integration (GUI only, no CLI/API)
    - Useful for manual one-off downloads
 
-6. **Wait for yt-dlp fixes**: Track open issues
+6. **全渠道采集 Skill**: [chubbyskills](https://github.com/chubbyguan/chubbyskills) (616 stars) — 13 AI skills for 抖音/B站/小红书/公众号/X/播客 content collection with knowledge base MCP server. Potential all-in-one solution.
+
+7. **Wait for yt-dlp fixes**: Track open issues
    - Douyin: [#9667](https://github.com/yt-dlp/yt-dlp/issues/9667) — a_bogus signature
    - XHS: [#16519](https://github.com/yt-dlp/yt-dlp/issues/16519) — rednote.com domain
-   - Bilibili: `BV`号 → `KeyError('bvid')` — use `av`号 workaround
+   - Bilibili: `BV`号 → `KeyError('bvid')` — use av号 or bilibili-api-python workaround
    - yt-dlp version: 2026.07.04 (latest)
 
 ### 7.4 Firefox Remote Debugging (CDP for Firefox)

@@ -114,7 +114,8 @@ export function assembleVideo(
   }
 
   // Normalize loudness to EBU R128 -16 LUFS (applied to both paths)
-  {
+  // Skip with TTS_NO_LOUDNORM=1 (for A/B testing raw vs normalized audio)
+  if (process.env.TTS_NO_LOUDNORM !== "1") {
     const tempPath = finalPath.replace(".mp4", "-prenorm.mp4");
     renameSync(finalPath, tempPath);
     normalizeLoudness(tempPath, finalPath);
@@ -134,8 +135,8 @@ export function assembleVideo(
       .trim()
       .split("\n")
       .filter(Boolean);
-    if (versionedFiles.length > 3) {
-      for (const oldFile of versionedFiles.slice(3)) {
+    if (versionedFiles.length > 20) {
+      for (const oldFile of versionedFiles.slice(20)) {
         const oldPath = join(outputDir, oldFile);
         try {
           unlinkSync(oldPath);

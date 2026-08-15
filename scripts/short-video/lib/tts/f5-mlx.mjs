@@ -6,8 +6,11 @@
  * The `duration` parameter in the Python script sets the target length, so
  * the output is already at natural speaking speed.
  *
- * Post-processing: F5 generates clean audio — silenceremove is SKIPPED.
- * Only highpass + denoise + resample are applied (no atempo unless TTS_ATEMPO set).
+ * Post-processing: F5 generates clean audio — silenceremove, prosody, highpass,
+ * and denoise are ALL SKIPPED. Only resample (24kHz → 44.1kHz) is applied.
+ * F5's internal RMS normalization handles loudness; model output has no
+ * recording artifacts to denoise. The only FFmpeg role is sample-rate
+ * conversion for assembly compatibility.
  */
 
 import { exec } from "child_process";
@@ -102,6 +105,10 @@ export async function createF5MLXEngine() {
           console.error(`  Scene ${r.sceneId}: no output, skipping`);
           continue;
         }
+        // F5 post-processing: ONLY resample (24kHz → 44.1kHz).
+        // highpass/denoise disabled — F5 output is model-generated, no
+        // recording artifacts to clean. Disabling via env vars since
+        // buildFilter() reads TTS_HIGHPASS and TTS_DENOISE.
         const duration = await postProcessBatch(audioPath, {
           useSilenceFilter: false,
           resample: true,
