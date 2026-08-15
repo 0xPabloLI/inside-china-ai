@@ -37,12 +37,14 @@
 2. **L1 和 L2 的 Purpose 列加上语义标签**：
    - L1 → `**L1: Execution reference**`
    - L2 → `**L2: Deep research**`
-3. **新增子章节 `### Layer Placement Rules`**，内容为 4 条规则：
-   - L1 文档只写"做什么、用什么参数、怎么配置"。研究依据放入 L2，L1 底部用 "Design Decisions & References" 表格指针指向。
-   - L2 文档写"为什么这样选、参数从哪推导、调研了什么"。不写执行指令。
-   - 新建文档时，先问"这是执行指令还是研究依据？"
-   - 修改 L1 文档时，检查是否有研究依据混入——如有，抽离到 L2 并添加指针。
-4. **在 Layer Placement Rules 末尾添加指针**：指向 AGENTS.md 的 `writing-for-agents` 强制加载规则，声明"层次判定前必须先加载 `writing-for-agents` skill"。
+3. **新增子章节 `### Layer Placement Rules`**，内容为 1 条指针 + 3 条操作规则：
+   - 第 1 条（指针）：指向 AGENTS.md Coding Conventions 中已有的 L1/L2 边界定义（"执行文档只写'做什么、用什么参数'；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 Design Decisions & References 索引指向"）。不重复该规则，只引用。
+   - 第 2 条：新建文档时，先问"这是执行指令还是研究依据？" → 执行 → L1；研究 → L2。
+   - 第 3 条：修改 L1 文档时，检查是否有研究依据混入——如有，抽离到 L2 并添加指针。
+   - 第 4 条：L2 文档不写执行指令——执行指令属于 L1 的指针目标。
+4. **在 Layer Placement Rules 开头声明**：层次判定前必须先加载 `writing-for-agents` skill（指针指向 AGENTS.md → Coding Conventions → `writing-for-agents 强制加载`）。
+
+> **Implementation note**: Spec 原始设计为 4 条独立规则（含 L1/L2 边界定义）。实施时发现第 1 条与 AGENTS.md Coding Conventions 已有规则重复（违反 `writing-for-agents` single source of truth 原则），在 code review 后修正为指针引用 AGENTS.md + 3 条操作规则（commit `2e86faf`）。
 
 ### D2: video-workflow.md — Gapless Audio Track 抽离
 
@@ -74,6 +76,8 @@
 | `tickets-voice-prosody-optimization.md` | — | ✅ 配套 spec 已完成 |
 
 移动后更新 `docs/archive/README.md` 归档清单。
+
+> **Implementation note**: 其中 5 个文件（`spec-media-fullscreen-mode`、`spec-remotion-frame-verification`、`tickets-asset-sourcer`、`tickets-media-fullscreen-mode`、`tickets-voice-prosody-optimization`）之前已在 `archive/` 目录中有副本（之前 session 移动），README 中已有记录。本次实际新增 README 条目 2 条（`spec-asset-sourcer` + `spec-voice-prosody-optimization`），其余已有记录无需重复。
 
 ## Scenario & Risk Verification Matrix
 
