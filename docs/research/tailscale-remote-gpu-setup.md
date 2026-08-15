@@ -2,7 +2,46 @@
 
 > **用途**：在另一台有 NVIDIA GPU 的 Windows 机器上部署 AI 模型（HeyGem / LatentSync 等），通过 Tailscale + SSH 让 M2 Pro 远程调用。
 > **创建日期**：2026-08-09
-> **更新日期**：2026-08-15（修正 GPU 型号 GTX 1080、修正 SSH 公钥路径 administrators_authorized_keys、SSH 公钥已配置验证通过）
+> **更新日期**：2026-08-15（修正 GPU 型号 GTX 1080、修正 SSH 公钥路径 administrators_authorized_keys、SSH 公钥已配置验证通过、新增当前配置状态速查）
+
+---
+
+## 当前配置状态（2026-08-15 检查）
+
+| 配置项 | 状态 | 说明 |
+|--------|------|------|
+| Tailscale（Windows 端） | ✅ 在线 | IP `100.114.x.x`，设备 `hostname-redacted` |
+| Tailscale（Mac 端） | ✅ 在线 | IP `100.71.x.x`，设备 `Mac-hostname-redacted` |
+| P2P 直连 | ✅ | ICMP `<1ms`，NAT Cone（`MappingVariesByDestIP: false`），UDP 可用 |
+| OpenSSH 服务 | ✅ Running | `sshd` Automatic 启动，端口 22 |
+| SSH 公钥认证 | ✅ 已配置 | 公钥在 `C:\ProgramData\ssh\administrators_authorized_keys`，ACL 正确（SYSTEM + Administrators） |
+| 防休眠 | ✅ | AC 电源：睡眠=永不、休眠=永不、显示器=永不 |
+| GPU 驱动 | ✅ | GTX 1080 8GB，Driver 551.61，CUDA 12.4 |
+| WSL2 | ✅ 已装 | Ubuntu 22.04.1 LTS，WSL2，内核 6.18.33.2 |
+| WSL2 GPU | ✅ 可见 | WSL2 内 `nvidia-smi` 正常 |
+| CUDA Toolkit（WSL2） | ❌ 未装 | `nvcc` 未找到（Step 3.3） |
+| Python/Conda/PyTorch（WSL2） | ❌ 未装 | 只有系统 Python 3.10.6（Step 3.4） |
+| Docker | ❌ 未装 | Windows 和 WSL2 内均无（Step 4） |
+
+### Mac 端如何 SSH 连接
+
+公钥已配置在 Windows 端的 `C:\ProgramData\ssh\administrators_authorized_keys`（Administrator 账户专用路径，由 `sshd_config` 的 `Match Group administrators` 块指定）。Mac 端只要有对应私钥即可连接：
+
+```bash
+# 在 Mac 上执行
+ssh Administrator@100.114.x.x "hostname"
+# 应返回 hostname-redacted
+
+# 查 GPU
+ssh Administrator@100.114.x.x "nvidia-smi"
+
+# 进入 WSL2
+ssh Administrator@100.114.x.x "wsl -d Ubuntu"
+```
+
+> **认证方式**：公钥认证（非密码）。Mac 的私钥 `~/.ssh/id_rsa` 与 Windows 端 `administrators_authorized_keys` 中的公钥配对。Administrator 账户无密码，OpenSSH 拒绝空密码登录，公钥是唯一远程认证方式。
+>
+> **注意**：公钥文件中目前有两把 key（从 GitHub 拉取），如需限制为仅 Mac 的 key，手动只保留指纹 `SHA256:Xk8jizoK9/z/LGTFeEh5j246buoypgppFF+i9o7Muno` 的那一把。
 
 ---
 
