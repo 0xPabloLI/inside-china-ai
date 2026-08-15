@@ -86,4 +86,65 @@ These are environment facts — the code is the source of truth, this table is a
 - **`voice-samples/` not under `assets/`**: TTS reference audio is an **input** (voice profile to clone), not an **asset** (rendered into video). Different lifecycle, different consumers.
 - **Symlink `remotion/public/assets → ../../assets`**: Global assets auto-available to Remotion's `staticFile()`. Content-specific assets copied at render time by `render-remotion.mjs`.
 - **Catalog over multimodal embeddings**: Text-metadata catalog works with existing `bge-m3` + `chunkMarkdown()` pipeline. Multimodal embeddings would require a separate model + image-extraction step — not worth the complexity for a local-first stack. See §2.
+- **Git LFS for new binary files**: `.gitattributes` tracks `*.mp4` / `*.mp3` / `*.wav` / `*.png` / `*.jpg` etc. via LFS (commit `60505a6`). Old files remain in regular Git (no history rewrite). SVG kept as text (diffable). Git LFS is transparent — files stay at the same paths in the working tree, RAG catalog paths are unaffected.
 - **Reorganization history**: `assets/` cleaned on 2026-08-14 — removed 12 digital human experiment files, 16 voice samples, 2 TTS comparison files, 2 duplicate content assets, 10 junk files. TTS engine code updated from `assets/` to `voice-samples/`. See `docs/research/media-asset-strategy.md` §4.5.
+
+## 5. Evolution Plan: Multimodal Asset Description
+
+> Status: Research notes — not yet implemented. Trigger when catalog exceeds ~50 entries or Agent-written descriptions become imprecise.
+
+### Current approach and its ceiling
+
+Agent writes catalog.yml entries (description + keywords) for each new asset. Works for <50 assets. Beyond that: (a) Agent hasn't viewed the actual video content, so descriptions are inferred from filenames and context, not visual ground truth; (b) scaling becomes a bottleneck.
+
+### Three upgrade paths
+
+| Path | What it does | Local models | Integration effort | When to adopt |
+|------|-------------|--------------|-------------------|---------------|
+| **A. VLM-assisted description** (recommended) | VLM watches extracted frames → writes description → Agent reviews → catalog.yml → bge-m3 embedding (existing pipeline unchanged) | moondream2 (1.9GB), MiniCPM-V 8B (5GB), Llava-llama3 8B (4.7GB), Qwen2.5-VL 3B/7B | Low: add `ffmpeg` frame extraction + `ollama run` call before catalog entry | >50 assets or description quality drops |
+| **B. CLIP direct embedding** | CLIP encodes image → 512/768-dim vector → separate pgvector column → hybrid text+image search | CLIP ViT-B/32 (350MB, ONNX), OpenCLIP ViT-L/14 (1.7GB) | High: new embedding pipeline, new DB column, hybrid query logic | >200 assets, zero-human-touch pipeline |
+| **C. Unified multimodal embedding** | One model embeds both text and images into the same vector space | Jina CLIP v2 (text+image, 768-dim), Nomic Embed Vision (text+image) | Medium: replaces bge-m3 for all content, single table | >500 assets + proven need for cross-modal |
+
+### CLIP vs VLM — fundamental distinction
+
+**CLIP** is a model **type** (Contrastive Language-Image Pre-training), not a single model. It maps images and text into the **same vector space** for similarity comparison. Variants: OpenAI CLIP, OpenCLIP, Chinese-CLIP, Jina CLIP. CLIP does **not** generate text — it only produces vectors.
+
+**VLM** (Vision-Language Model) is a broader category: any model that takes images as input and produces text (or takes text+image and produces text). GPT-4o, Qwen-VL, Llava, moondream are VLMs. A large multimodal LLM's vision capabilities are VLM capabilities. CLIP is **not** a VLM — it doesn't generate text, it only embeds.
+
+**Key difference for our use case**:
+- VLM → generates description text → feeds into existing `bge-m3` text pipeline (no infra change)
+- CLIP → generates image vectors directly → needs separate vector storage and hybrid query
+
+### VLM landscape (Ollama-runnable, Mac M2 Pro 32GB)
+
+| Model | Params | Size | M2 Pro | Strengths | License |
+|-------|--------|------|--------|-----------|--------|
+| **moondream2** | 1.9B | 1.9GB | ✅ fast | Smallest, edge-ready, good for simple descriptions | Apache-2.0 |
+| **MiniCPM-V 4.5** | 8B | 5GB | ✅ | Best small-model OCR + video understanding | Apache-2.0 |
+| **MiniCPM-V 4.6** | 1B | ~1GB | ✅ fastest | Ultra-efficient, phone-grade | Apache-2.0 |
+| **Llava-llama3** | 8B | 4.7GB | ✅ | Strong general VLM, mature ecosystem | Llama-3 license |
+| **Qwen2.5-VL** | 3B/7B | 2-5GB | ✅ | Chinese + English, good for China AI content | Apache-2.0 |
+| **Qwen3-VL** | 2B/4B/8B | 1.5-6GB | ✅ | Newest Qwen VLM, best benchmark scores | Apache-2.0 |
+| **Gemma 3** | 4B/12B | 3-8GB | ✅ | Google's multimodal, strong reasoning | Gemma terms |
+| **Gemma 4** | 4B/12B | 3-8GB | ✅ | Latest Google multimodal, audio+vision | Gemma terms |
+
+> **Recommendation for China AI content**: Qwen2.5-VL or Qwen3-VL — best Chinese visual understanding, handles Chinese text in screenshots/screenshots, Apache-2.0.
+
+### Beyond Ollama options
+
+If Ollama models are insufficient, these run locally via `transformers` / `mlx-vlm`:
+
+| Model | Runtime | Size | Notes |
+|-------|---------|------|-------|
+| **Jina CLIP v2** | `transformers` (PyTorch/ONNX) | 600MB | Text + image in same 768-dim space — could replace bge-m3 entirely |
+| **Nomic Embed Vision** | `transformers` | 300MB | Paired with nomic-embed-text — text+image unified |
+| **OpenCLIP ViT-L/14** | `transformers`/ONNX | 1.7GB | Classic CLIP, widest community support |
+| **Llama 3.2 Vision (11B/90B)** | Ollama or `transformers` | 7-60GB | Meta's VLM, 11B runs on M2 Pro |
+| **Qwen-VL-Max (cloud)** | API only | — | Alibaba's SOTA VLM, API with Chinese optimization |
+
+### Decision criteria
+
+- **Now (<50 assets)**: Agent catalog + bge-m3. No change needed.
+- **50-200 assets**: Path A — Qwen2.5-VL 3B via Ollama generates descriptions from extracted frames. Agent reviews. Pipeline: `ffmpeg` frame → VLM description → catalog.yml → bge-m3 → pgvector. Minimal infra change.
+- **200+ assets**: Path B or C — CLIP/Jina-CLIP direct image embedding. Separate vector column or unified model replacement. Full automation, no human review.
+- **Trigger for review**: When catalog entries >50, or when Agent descriptions are observed to be inaccurate (e.g., describing "robot walking" when video shows "robot doing backflip").
