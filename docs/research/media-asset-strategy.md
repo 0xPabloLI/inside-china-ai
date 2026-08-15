@@ -670,7 +670,7 @@ scripts/short-video/
 
 ### 4.6 Background Audio Mixing Research
 
-**Status**: ✅ Research complete → 🟡 Partially applied. Current `volume={0.08}` validated as correct (no change needed). Per-scene `volume` field and envelope ducking are **proposed but not yet implemented** — see "Implementation" subsections below.
+**Status**: ✅ Research complete → ✅ **Fully implemented**. `volume={0.08}` validated as correct (-22dB, industry standard). Per-scene `volume` field and envelope ducking implemented 2026-08-14 (commit 0822eb5). See `docs/archive/spec-media-volume-autofill.md`.
 
 **Research date**: 2026-08-13 | **Sources**: 5 (Wikipedia, EBU R128 standard, Sprout Social, existing project research, codebase analysis)
 
@@ -726,20 +726,18 @@ From Sprout Social (2026-02-11) [4]: Short-form video is consumed **"often with 
 | Building/landmark (image) | No audio (images are silent) | N/A | Images have no audio track |
 | Crowd/event footage | Ambient noise, crowd murmur | 0.08 (current) | Adds atmosphere without competing |
 
-**Proposed implementation** (NOT YET IN CODE — no spec/ticket created):
+**Implementation** (✅ Implemented 2026-08-14, commit 0822eb5):
 
-1. **Per-scene volume**: Add `volume?: number` to `MediaField` in `types.ts`. In `MediaBackground.tsx`, replace `volume={0.08}` with `volume={media.volume ?? 0.08}`.
+1. **Per-scene volume**: `volume?: number` added to `MediaField` in `types.ts`. `MediaBackground.tsx` uses `volume={media.volume ?? 0.08}`.
 
-2. **Envelope ducking**: Multiply volume by the same `interpolate()` envelope used for opacity:
+2. **Envelope ducking**: Volume multiplied by the same `interpolate()` envelope used for opacity:
 ```typescript
 const baseVolume = media.volume ?? 0.08;
-const videoVolume = baseVolume * interpolate(
-  frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp
-);
+const videoVolume = baseVolume * opacity;  // opacity already interpolates [0, 1, 1, 0]
 // <Video src={src} style={mediaStyle} volume={videoVolume} />
 ```
 
-**Current code**: `types.ts` has NO `volume` field; `MediaBackground.tsx` has `volume={0.08}` hardcoded.
+See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix.
 
 #### Sources
 
@@ -793,7 +791,7 @@ const videoVolume = baseVolume * interpolate(
 - **Parallel yt-dlp conflict**: Chrome's cookie database (`~/Library/Application Support/Google/Chrome/Default/Cookies`) uses SQLite with a lock; multiple yt-dlp instances reading it simultaneously can fail
 - **Remotion media path resolution**: `staticFile()` resolves relative to `remotion/public/`, so content assets must be copied there before rendering (handled by `render-remotion.mjs` step 2b)
 - **Overlay values**: Calibrated by testing text readability over various video/image backgrounds at 1080×1920 resolution. Values: 0.6 (light), 0.7 (standard), 0.75 (images), 0.8 (heavy/text-focus)
-- **Background video audio at 8% volume**: `<Video volume={0.08} />` in `MediaBackground.tsx` (hardcoded, no per-scene control). Research (2026-08-13, §4.6) confirmed this ≈ -22dB falls within industry standard of -20dB to -25dB for background audio relative to narration. **Validated — no adjustment needed.** Future enhancement (NOT YET IMPLEMENTED): per-scene `volume` field via `MediaField` extension, and envelope ducking via `interpolate()` for smoother fade in/out.
+- **Background video audio at 8% volume**: `<Video volume={0.08} />` in `MediaBackground.tsx`. Research (2026-08-13, §4.6) confirmed this ≈ -22dB falls within industry standard of -20dB to -25dB for background audio relative to narration. **Validated — no adjustment needed.** Per-scene `volume` field and envelope ducking **implemented 2026-08-14** (commit 0822eb5): `MediaField.volume?: number` in `types.ts`; `videoVolume = baseVolume * opacity` in `MediaBackground.tsx` for fade in/out; `validateMedia()` range check [0,1]. See `docs/archive/spec-media-volume-autofill.md`.
 - **BGM (background music) — deprecated**: `mixBgm()` in `post-process.mjs` (default `volume=0.12`) was fully implemented but is no longer recommended. User adds TikTok library music manually at upload time. Code retained; `--bgm` flag works if ever needed again. See §4.7.
 - **ken-burns + video auto-degrade**: Ken-burns is designed for static images (slow zoom + pan). Applied to video, the per-frame interpolation creates janky stutter. `MediaBackground.tsx` auto-degrades to `fade`; `media-bg.mjs` `validateMedia()` issues a warning.
 - **Playwright vs Remotion timing divergence**: The two backends evolved independently. Playwright (`media-bg.mjs`) uses CSS `@keyframes` with percentage-based timing; Remotion (`MediaBackground.tsx`) uses `interpolate()` with frame-based timing. The data contract (`MediaField`) is shared; timing is implementation-level. Unifying timing is a future cleanup task.
