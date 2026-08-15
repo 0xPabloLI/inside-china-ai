@@ -1028,3 +1028,16 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
    - Agent 在修改时应输出「联动检查报告」，明确列出：修改了哪些层（文章 / 脚本 / 视频）、为什么联动（或不联动）、修改了哪些具体内容
    - 修改后重新运行相关 MRL → 重新进入 HITL
 5. **Stage 1-4 全自动** — MRL 是自审门，HITL 是唯一人工门：机器先过滤机械性错误，人工只在最终成品处审阅
+
+---
+
+## Design Decisions & References
+
+| Topic | Reference | Content |
+|-------|-----------|---------|
+| Script writing methodology | `docs/video-script-writing-guide.md` (L1) | S.T.A.R.T. framework, open loops, hook/CTA formulas, beat-by-beat iteration |
+| Script writing research | `docs/research/short-video-script-writing-best-practices.md` | 15+ sources — psychological retention engines, hook formulas |
+| Multi-video splitting | `docs/research/multi-video-splitting-best-practices.md` | 15 sources — TikTok algorithm analysis, episode linking, auto-evaluator |
+| Media asset management | `docs/media-asset-management.md` (L1) | Asset placement rules, catalog & RAG integration, reindex trigger matrix |
+| Video production workflow | `docs/video-workflow.md` (L1) | TTS engines, rendering, publishing strategy, file paths |
+| TikTok best practices | `docs/tiktok/tiktok-best-practices.md` (L2) | Signal weights, voice rules, hook formulas, audit checklist |

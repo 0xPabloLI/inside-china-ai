@@ -2,7 +2,7 @@
 
 > Source of truth for doc ownership. Use it to find any document in one lookup.
 >
-> _Last inventory: 2026-08-07._
+> _Last inventory: 2026-08-15._
 
 ## Canonical Structure
 
@@ -31,6 +31,8 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 | `brand-system.md` | Brand visual identity — tokens, templates, rules | `brand-system` skill |
 | `content-pipeline.md` | Unified content pipeline (article → publish → video → TikTok → analytics) | AGENTS.md |
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
+| `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
+| `skills-catalog.md` | All available tools and candidate skills — integrated, evaluated, and pending | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. framework, open loops, hook/CTA formulas, beat-by-beat iteration | `content-pipeline.md` Stage 3 |
@@ -79,9 +81,26 @@ Deep research reports with citations.
 
 | Document | Purpose |
 |----------|---------|
+| `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
+| `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
+| `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
+| `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
+| `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
+| `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) |
+| `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB |
+| `digital-human-test-progress.md` | Digital human model test progress tracking |
+| `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
+| `model-sources-reference.md` | Model search sources reference |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
-| `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |
+| `safe-zone-calibration-log.md` | Safe zone calibration log with FYP screenshot evidence |
 | `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
+| `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
+| `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
+| `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |
+| `voice-cloning-solutions-m2-pro.md` | Voice cloning / TTS model research for Apple M2 Pro 32GB |
+| `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |
+| `windows-gpu-test-progress.md` | Windows digital human model test progress tracking |
+| `windows-gpu-upgrade-and-model-feasibility.md` | Windows device digital human model feasibility analysis & upgrade plan |
 
 ## Spec/Ticket Lifecycle
 

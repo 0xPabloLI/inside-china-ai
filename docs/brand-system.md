@@ -379,3 +379,10 @@ The CSS implementation of these specs lives in:
 4. **Source-level drift guards** — `scene-drift.test.mjs` bans side-by-side comparison classes and legacy footer classes in migrated content, and locks the shared hook/CTA templates byte-for-byte.
 
 When changing brand specs, update this file first, then update the implementation files to match.
+
+## Design Decisions & References
+
+| Topic | Reference | Content |
+|-------|-----------|---------|
+| Safe zone calibration | `docs/research/safe-zone-calibration-log.md` | FYP screenshot evidence, OCR measurements, calibration history |
+| TikTok color scheme | `docs/research/tiktok-color-scheme-research.md` | Dark vs bright palette engagement comparison |
