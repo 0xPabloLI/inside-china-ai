@@ -1,6 +1,6 @@
 # Archive
 
-已完成的 spec、tickets 和 roadmap。保留作历史参考，不再活跃维护。
+已完成的 spec、tickets、roadmap 和 handoff 文档。保留作历史参考，不再活跃维护。
 
 当前规范行为见根目录的活跃文档和 [`DOCS-INDEX.md`](../DOCS-INDEX.md)。
 
@@ -82,3 +82,19 @@
 | 文件 | 归档时间 | 说明 |
 |------|----------|------|
 | `media-asset-strategy.md` | 2026-08-15 | 短视频素材策略全量研究 — §4.1 (参考视频提取) 已提取为 `docs/research/reference-video-extraction.md` 独立追踪。其余 sections (§4.2-§4.7, §6-§8) 均已完成实现或研究，不再活跃维护。实现状态见顶部 summary。 |
+
+### Handoff Docs (Archived)
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `handoff-cloud-gpu-kaggle-setup.md` | 2026-08-16 | Cloud GPU 配置 — Kaggle CLI v2.2.4 + API 配置 + P100 16GB 全链路验证 + Colab T4 验证 + CDP Colab 自动化验证。后续参考 `docs/research/cloud-gpu-options.md` 和 `docs/research/digital-human-test-progress.md`。 |
+| `handoff-tiktok-embed-and-pipeline-cleanup.md` | 2026-08-10 | TikTok Embed 替换 MP4 — 已在 `spec-tiktok-embed.md` 归档。 |
+| `handoff-video-layout-standard.md` | 2026-08-08 | 视频布局安全区标准 — 已在 `spec-video-layout-safe-zones.md` 归档。 |
+| `handoff-media-mode-design.md` | 2026-08-12 | Media fullscreen 模式 — 已在 `spec-media-fullscreen-mode.md` 归档。 |
+| `handoff-spacing-fix.md` | 2026-08-12 | HookScene/CtaScene 间距修复 — 已在布局标准中完成。 |
+| `handoff-doc-hierarchy-review.md` | 2026-08-15 | 文档层次审查 — 已在 `spec-doc-hierarchy-optimization.md` + `spec-doc-hierarchy-lint.md` 归档。 |
+
+> **未归档的 handoff**（`docs/handoffs/` 中仍活跃）：
+> - `handoff-asset-source-unification.md` — 素材源统一命名，待实施
+> - `handoff-license-risk-policy.md` — License 风险策略，待实施
+> - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，待实施

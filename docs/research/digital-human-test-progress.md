@@ -435,8 +435,10 @@
 
 **云 GPU 已配置完成**：
 - ✅ Kaggle CLI v2.2.4 + API 配置（全链路验证通过，P100 16GB，自动化 push → status → output）
-- ✅ Colab T4 16GB（手动验证）
-- 📖 配置详情见 `docs/handoffs/cloud-gpu-kaggle-setup.md`
+- ✅ Colab CLI v0.6.0 已安装（`pip3 install --break-system-packages google-colab-cli`）— 支持命令行自动化：`colab run --gpu T4 script.py` 一键运行
+- ✅ Colab T4 16GB（手动验证 + CDP 验证 Google 账号已登录）
+- ⚠️ Colab CLI 认证需完成 ADC setup（gcloud CLI 安装中）
+- 📖 配置详情见 `docs/archive/handoff-cloud-gpu-kaggle-setup.md`
 
 **云 GPU 可跑的模型（之前在 M2 Pro 上失败的）**：
 
@@ -458,4 +460,6 @@
 
 **Kaggle 自动化方式**：准备 `.py` script + `kernel-metadata.json` → `kaggle kernels push -p .` → `kaggle kernels status` 轮询 → `kaggle kernels output` 下载。测试脚本参考 `scripts/kaggle/test-gpu/`。
 
-**Colab 手动方式**：在 Colab Notebook 中执行 cell，适合调试参数。
+**Colab CLI 方式**（推荐）：`colab run --gpu T4 script.py` 一键运行（provision VM → execute → teardown）。需先完成 ADC 认证（`gcloud auth application-default login --scopes=...`）。参见 [Colab CLI SKILL.md](https://github.com/googlecolab/google-colab-cli/blob/main/skills/colab-operator/SKILL.md)。
+
+**Colab 手动/CDP 方式**：在浏览器 Notebook 中执行 cell，或通过 web-access CDP 自动操作（Google 账号 qingshun.li@gmail.com 已登录）。适合调试参数。
