@@ -112,15 +112,20 @@ function AdminPage() {
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="font-serif text-3xl">Admin</h1>
-          <Button
-            variant="ghost"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              navigate({ to: "/" });
-            }}
-          >
-            Sign out
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" asChild>
+              <Link to="/rankings">Keyword rankings</Link>
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate({ to: "/" });
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="posts">
