@@ -50,7 +50,7 @@
    4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。
    5. **Code Review** — 实施完成后用 `code-review` skill 做双轴审查（Standards + Spec）
 
-   > **Phase Boundaries**：Step 5 完成后是一个 phase boundary。如果 context 仍有价值且 smart zone 充裕 → Continue（首选）。如果 context 已无关 → `/clear`。如需换 harness/目录/同事 → `/handoff`。任务可 AFK → Subagent。否则 → `/compact`（默认兜底）。详见下方 Phase Boundaries。
+   > **Phase Boundaries**：Step 5 完成后是一个 phase boundary。context 切换决策（Continue / `/clear` / `/handoff` / Subagent / `/compact`）见 `ask-matt` skill 的 Phase Boundaries 决策树。
 
    6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。
    7. **Commit & Push** — 通过验证后 commit + push（遵循 Commit Cadence 规则）。
@@ -67,20 +67,6 @@
       - [ ] Step 8 文档及 Issue 更新完成（Linear 状态已更新；spec/tickets 已归档到 `docs/archive/`）
       - 如有任何步骤跳过，必须在向用户汇报时**显式列出**跳过的步骤和原因，不得遗漏
 
-### Phase Boundaries & Context Management
-
-两个 phase 之间的边界点有 5 个选项，按优先级排序：
-
-1. **Continue** — 留在当前 session（首选，成本为零）。当下一个 phase 需要当前 phase 的推理作为 primary source 时选此。
-2. **`/clear`** — 清空 context。当当前 context 与后续无关时选此。
-3. **`/handoff`** — 写可移植 markdown 文件。仅在换 harness（Claude → Codex）、换目录/repo、发给同事、或 mid-phase fork side task 时使用。
-4. **Subagent** — 派子 agent 处理 tightly-scoped 任务，当前 session 不受影响。标准场景：automated review。
-5. **`/compact`** — 压缩 context 并用 summary 开新 session。**默认兜底，但不是首选**。位于决策树底部。
-
-**Smart Zone**：~150k tokens（v1.2 更新）。模型在此窗口内推理最锐利。如果 session 在 `/to-tickets` 前接近 smart zone，在最近的 phase boundary 做 `/compact`。
-
-**规则**：mid-phase 不做 context 切换决策——Continue 或把剩余工作 split 成 subagents。只在 phase boundary 做决策。
-
 ## Commit Cadence (并行 agent 安全)
 
 **TL;DR**: 每完成一个原子任务立即 commit;同任务的后续修复 amend 原 commit;`stage` 时显式列路径(绝不 `git add -A` / `.`);不还原他人未提交改动;push 改写用 `--force-with-lease`（注意：Lovable 连接分支禁止改写已 push 历史，见顶部规则块）。
@@ -93,19 +79,6 @@
 4. **新增 commit 用普通 `git push`** — 不要对新增 commit 用 `--force-with-lease`，那会掩盖应该先 `git pull --rebase` 的正确流程。
 5. **stage 时显式列出自己改的文件，绝不 `git add -A` / `git add .`** — 先 `git status --short` 确认，只 add 自己改的路径。
 6. **Session Boundary** — 只 commit 本 session 改动（详见下方 Session Boundary 章节）。
-
-### 工作流速查
-
-```bash
-npm run lint && npx tsc --noEmit && npm run build
-git add <具体路径>  # 绝不 git add -A / .
-git commit -m "type(scope): message"
-git push
-
-# amend（仅限未 push 或非 Lovable 连接分支）
-git commit --amend --no-edit
-git push --force-with-lease
-```
 
 ## PR / Merge Guardrails
 
@@ -121,7 +94,7 @@ git push --force-with-lease
 1. **因果依据**：每个「A 导致 B」的推断必须有可追溯的证据（代码行、Analytics 数据、文档 spec、测试结果）。禁止从单一数据点直接跳跃到代码层面的因果结论。
 2. **设计决策不是免死金牌**：当有效果数据（如 Analytics）显示当前表现不佳时，不能以「这是设计决策」为由拒绝优化。设计决策在没有数据时做出的，有了数据就该 revisited。但反过来，优化也必须有合理的因果推理，不能盲目改。
 3. **影响面核查**：提出改动前，必须 grep/搜索所有受影响的文件（测试、文档、其他调用方），完整列出影响面。不允许「改了代码但漏了测试/文档」的情况。
-4. **事实性陈述先验证**：任何「X 工具/CLI 是否存在」「Y 平台是否支持 Z 功能」「W 已于 D 日期发布」等事实性断言，必须先搜索验证后再下结论。技术文档用 Context7 MCP；通用事实用 Tavily MCP（快速结构化搜索）或 `web_fetch`/CDP 搜索引擎；深度多源交叉验证用 `web-deep-research` skill。禁止仅凭 memory 或已有文档中的旧信息直接断言——旧信息可能过时。搜索工具决策树见下方 `## Web Scraping & Content Fetching`。
+4. **事实性陈述先验证**：任何「X 工具/CLI 是否存在」「Y 平台是否支持 Z 功能」「W 已于 D 日期发布」等事实性断言，必须先搜索验证后再下结论，禁止仅凭 memory 或已有文档中的旧信息直接断言。工具选择见下方 `## Web Scraping & Content Fetching`。
 
 ## Coding Conventions
 
@@ -179,15 +152,9 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Content Pipeline
 
-统一内容管线（入口 → 文章 → 网站发布 → scene-data → 视频 → TikTok → Analytics），设 1 个 **HITL 人工确认检查点**（视频成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。
+统一内容管线（入口 → 文章 → 网站发布 → scene-data → 视频 → TikTok → Analytics），设 1 个 **HITL 人工确认检查点**（视频成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章发布脚本：`scripts/article/publish-article.mjs`。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。**HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续，不得自行假设确认。
 
-> **HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续。不得自行假设确认。详见 `docs/content-pipeline.md` 的 HITL 章节。
-
-做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载。`brand-system` skill 同时加载，控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。
-
-改视频模板/组件的视觉设计时（间距、排版、层次、动画），加载 `impeccable` skill — 用 `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨。新建场景模板时加载 `frontend-design` skill 选择美学方向。
-
-> **Skill 遵循强制规则**：启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data 是否满足 `short-video-pipeline` SKILL.md 的硬性规则。Pre-render 检查未通过时，管线拒绝运行。Agent 不得跳过此步骤（除非用户明确要求 `--skip-preflight`）。
+做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。改视频模板/组件的视觉设计时（间距、排版、层次、动画），加载 `impeccable` skill — 用 `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨。新建场景模板时加载 `frontend-design` skill 选择美学方向。**启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data**，Pre-render 检查未通过时管线拒绝运行（除非用户明确要求 `--skip-preflight`）。
 
 ## Session Start Checklist
 
@@ -199,52 +166,14 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Web Scraping & Content Fetching
 
-### 搜索工具决策树
+| 场景 | 工具 |
+|------|------|
+| 技术文档 | Context7 MCP |
+| 事实查询 / URL 抓取 | `web_fetch` → `web-access` CDP（fallback）；CDP 不方便时 Tavily MCP（省着用） |
+| 深度研究 | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
+| 趋势发现 | `discover-trends.mjs` / `last30days` skill / mcp-search-bridge（X） |
 
-| 场景 | 工具 | 说明 |
-|------|------|------|
-| 技术文档/API/版本 | Context7 MCP | 免费 1,000 calls/月，查库文档最准 |
-| 快速事实查询 | Tavily MCP | 免费 1,000 credits/月，AI 搜索返回结构化结果，省 CDP 操作时间 |
-| 已知 URL 静态抓取 | `web_fetch` | 免费，HTML→Markdown |
-| 登录态/反爬/JS 渲染 | `web-access` CDP | 免费，用户 Chrome session |
-| 深度多源交叉验证+引用 | `web-deep-research` skill | 免费，8 阶段研究管线（调用 web-access 抓取） |
-| 中国 AI 趋势发现 | `discover-trends.mjs` | 21 源批量抓取 |
-| 西方社媒趋势 | `last30days` skill | 11 源并行搜索 |
-| X/Twitter 搜索 | mcp-search-bridge（Grok） | Grok 原生 X 数据访问 |
-
-### 搜索引擎 CDP 补充
-
-Google 搜索综合最强但单一来源有盲区。需要交叉验证时，用 `web-access` CDP 打开其他搜索引擎（均免费，不需要 MCP）：
-
-- **Google**（`google.com/search`）— 综合最强，默认首选
-- **Brave Search**（`search.brave.com`）— 独立索引，不依赖 Google/Bing，结果差异最大，交叉验证首选补充
-- **Bing**（`bing.com/search`）— 微软索引，和 Google 有部分差异
-- **DuckDuckGo** — 结果主要来自 Bing，重叠度高，不如直接用 Bing
-
-### 容错与 fallback
-
-第三方服务可能失效。每个工具有 fallback：
-
-- **Tavily MCP 挂了/credits 用完** → `web-access` CDP Google 搜索（慢但无限）
-- **mcp-search-bridge 挂了** → CDP Google `site:x.com` 搜索
-- **Context7 MCP 挂了** → Tavily 搜库名 → `web_fetch` 官方文档
-- **web-access CDP 挂了**（Chrome 未启动）→ `web_fetch`/Tavily 先顶 → 引导用户启动 Chrome
-- **web-deep-research** 调 web-access，web-access 挂则整个链路不可用，退到 Tavily + `web_fetch` 手动拼凑
-
-### Tavily credits 节省策略
-
-Tavily 每月 1,000 credits，省着用：
-- 技术文档查询 → Context7（不消耗 Tavily）
-- 中国 AI 趋势 → discover-trends / last30days（不消耗 Tavily）
-- X/Twitter 搜索 → mcp-search-bridge（不消耗 Tavily）
-- 只有「需要快速查一个通用事实」时才用 Tavily（每次 1-2 credits）
-- web-deep-research 全程用 web-access CDP Google 搜索（不消耗 Tavily）
-
-用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。Deep Research 触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。
-
-**Skills/Tools 目录**：所有可用工具和候选 skill 的完整清单在 `docs/skills-catalog.md`（不在 RAG 索引范围内，Agent 直接读取）。包含：已集成工具说明、候选 skill 评估、安全审计结果、任务→工具决策表、Skill 评估流程（4 步强制流程）、安全审计工具参考。需要找工具或评估新 skill 时先查此文档。
-
-> **Skill 入库强制规则**：往 `docs/skills-catalog.md` 加入任何新候选 skill 时，必须同步走完 4 步评估流程（安全审计 → 功能评估 → 试用验证 → 记录）。不能"先加进去以后再评估"。试用验证可跳过（如需账号/硬件），但必须标注跳过原因。流程详见 `docs/skills-catalog.md` 的「Skill 评估流程」章节。
+用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。工具完整清单和评估流程见 `docs/skills-catalog.md`（新增 skill 必须先走完 4 步评估流程再入库）。
 
 ## Agent skills
 
