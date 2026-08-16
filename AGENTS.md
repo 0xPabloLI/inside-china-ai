@@ -121,7 +121,7 @@ git push --force-with-lease
 1. **因果依据**：每个「A 导致 B」的推断必须有可追溯的证据（代码行、Analytics 数据、文档 spec、测试结果）。禁止从单一数据点直接跳跃到代码层面的因果结论。
 2. **设计决策不是免死金牌**：当有效果数据（如 Analytics）显示当前表现不佳时，不能以「这是设计决策」为由拒绝优化。设计决策在没有数据时做出的，有了数据就该 revisited。但反过来，优化也必须有合理的因果推理，不能盲目改。
 3. **影响面核查**：提出改动前，必须 grep/搜索所有受影响的文件（测试、文档、其他调用方），完整列出影响面。不允许「改了代码但漏了测试/文档」的情况。
-4. **事实性陈述先验证**：任何「X 工具/CLI 是否存在」「Y 平台是否支持 Z 功能」「W 已于 D 日期发布」等事实性断言，必须先搜索验证后再下结论。技术文档验证用 Context7 MCP（`resolve-library-id` → `query-docs`，已配在全局 MCP 设置中）；通用事实验证用 `web_fetch` → `web-access` CDP → `web-deep-research` 三级 fallback。禁止仅凭 memory 或已有文档中的旧信息直接断言——旧信息可能过时。
+4. **事实性陈述先验证**：任何「X 工具/CLI 是否存在」「Y 平台是否支持 Z 功能」「W 已于 D 日期发布」等事实性断言，必须先搜索验证后再下结论。技术文档用 Context7 MCP；通用事实用 Tavily MCP（快速结构化搜索）或 `web_fetch`/CDP 搜索引擎；深度多源交叉验证用 `web-deep-research` skill。禁止仅凭 memory 或已有文档中的旧信息直接断言——旧信息可能过时。搜索工具决策树见下方 `## Web Scraping & Content Fetching`。
 
 ## Coding Conventions
 
@@ -199,7 +199,48 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Web Scraping & Content Fetching
 
-默认用 `web-access` skill（连接本地 Chrome，有 session/cookie，反爬检测率低）。已知 URL 静态提取用 `web_fetch` 工具。`web_fetch`/`curl` 失败或被墙时，立即 fallback 到 `web-access` skill，不要反复尝试。Deep Research（多源交叉验证 + 引用）用 `web-deep-research` skill，触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
+### 搜索工具决策树
+
+| 场景 | 工具 | 说明 |
+|------|------|------|
+| 技术文档/API/版本 | Context7 MCP | 免费 1,000 calls/月，查库文档最准 |
+| 快速事实查询 | Tavily MCP | 免费 1,000 credits/月，AI 搜索返回结构化结果，省 CDP 操作时间 |
+| 已知 URL 静态抓取 | `web_fetch` | 免费，HTML→Markdown |
+| 登录态/反爬/JS 渲染 | `web-access` CDP | 免费，用户 Chrome session |
+| 深度多源交叉验证+引用 | `web-deep-research` skill | 免费，8 阶段研究管线（调用 web-access 抓取） |
+| 中国 AI 趋势发现 | `discover-trends.mjs` | 21 源批量抓取 |
+| 西方社媒趋势 | `last30days` skill | 11 源并行搜索 |
+| X/Twitter 搜索 | mcp-search-bridge（Grok） | Grok 原生 X 数据访问 |
+
+### 搜索引擎 CDP 补充
+
+Google 搜索综合最强但单一来源有盲区。需要交叉验证时，用 `web-access` CDP 打开其他搜索引擎（均免费，不需要 MCP）：
+
+- **Google**（`google.com/search`）— 综合最强，默认首选
+- **Brave Search**（`search.brave.com`）— 独立索引，不依赖 Google/Bing，结果差异最大，交叉验证首选补充
+- **Bing**（`bing.com/search`）— 微软索引，和 Google 有部分差异
+- **DuckDuckGo** — 结果主要来自 Bing，重叠度高，不如直接用 Bing
+
+### 容错与 fallback
+
+第三方服务可能失效。每个工具有 fallback：
+
+- **Tavily MCP 挂了/credits 用完** → `web-access` CDP Google 搜索（慢但无限）
+- **mcp-search-bridge 挂了** → CDP Google `site:x.com` 搜索
+- **Context7 MCP 挂了** → Tavily 搜库名 → `web_fetch` 官方文档
+- **web-access CDP 挂了**（Chrome 未启动）→ `web_fetch`/Tavily 先顶 → 引导用户启动 Chrome
+- **web-deep-research** 调 web-access，web-access 挂则整个链路不可用，退到 Tavily + `web_fetch` 手动拼凑
+
+### Tavily credits 节省策略
+
+Tavily 每月 1,000 credits，省着用：
+- 技术文档查询 → Context7（不消耗 Tavily）
+- 中国 AI 趋势 → discover-trends / last30days（不消耗 Tavily）
+- X/Twitter 搜索 → mcp-search-bridge（不消耗 Tavily）
+- 只有「需要快速查一个通用事实，且 Google CDP 太慢」时才用 Tavily
+- web-deep-research 的 Phase 3 抓取用 web-access CDP（不消耗 Tavily）；Tavily 只用于 Phase 1 快速概况了解
+
+用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。Deep Research 触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。
 
 **Skills/Tools 目录**：所有可用工具和候选 skill 的完整清单在 `docs/skills-catalog.md`（不在 RAG 索引范围内，Agent 直接读取）。包含：已集成工具说明、候选 skill 评估、安全审计结果、任务→工具决策表、Skill 评估流程（4 步强制流程）、安全审计工具参考。需要找工具或评估新 skill 时先查此文档。
 

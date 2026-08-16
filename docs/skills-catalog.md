@@ -15,6 +15,9 @@
 | `web-access` | 联网/抓取 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
 | `web-deep-research` | 深度研究 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
 | `web_fetch` (内置) | 联网/抓取 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
+| Context7 MCP | 技术文档查询 | ✅ 1,000/月 | ✅ 已集成 | ⭐⭐⭐ 技术事实验证 |
+| Tavily MCP | AI 搜索 | ✅ 1,000/月 | ✅ 已集成 | ⭐⭐⭐ 快速事实验证 |
+| mcp-search-bridge | 搜索（Grok） | 按用量 | ✅ 已集成 | ⭐⭐ X/Twitter+全网 |
 | `discover-trends.mjs` | 趋势发现（中文平台） | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
 | `pdf-parse` (npm) | 文档解析 | ✅ | ✅ 已集成 | ⭐⭐ 够用 |
 | Firecrawl `parse` | 文档解析 | 注册免费 | 📋 待评估 | ⭐⭐⭐ 补充 |
@@ -66,14 +69,47 @@
 - **何时用**：已知 URL、不需要登录、不需要 JS 渲染的简单抓取
 - **何时不用**：需要登录态、中国平台反爬、需要 JS 交互 → 用 `web-access` CDP
 
-### discover-trends.mjs — 趋势发现（中文平台）
+### Context7 MCP — 技术文档查询
+
+- **分类**：技术文档查询
+- **费用**：免费 1,000 API calls/月（MCP 端点免费，不需 API key；Pro $10/seat/月 5,000 calls）
+- **配置**：全局 MCP 设置（HTTP 模式连 `https://mcp.context7.com/mcp`）
+- **做什么**：查询任意库/框架的最新文档（API 签名、参数、版本变更）
+- **何时用**：验证技术事实（某库 API 是否支持 X 参数、某版本是否已发布）
+- **何时不用**：通用事实验证（用 Tavily 或 web-access CDP）
+- **容错**：Context7 挂了 → Tavily 搜库名 → `web_fetch` 官方文档
+
+### Tavily MCP — AI 搜索
+
+- **分类**：联网/搜索
+- **费用**：免费 1,000 credits/月（无需信用卡；basic search 1 credit，advanced 2 credits）
+- **配置**：全局 MCP 设置（HTTP 远程 `https://mcp.tavily.com/mcp/?tavilyApiKey=...`）+ `.env.local` 存 key
+- **做什么**：AI 搜索引擎，返回结构化结果（title, url, content snippet），不需要 CDP 操作
+- **何时用**：需要快速查一个通用事实，且 Google CDP 操作太慢时
+- **何时不用**：需要登录态/JS 渲染/反爬穿透（用 web-access）；需要深度多源交叉验证（用 web-deep-research）
+- **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用 discover-trends/last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
+- **容错**：Tavily 挂了/credits 用完 → `web-access` CDP Google 搜索（慢但无限）
+
+### mcp-search-bridge — Grok 搜索
+
+- **分类**：联网/搜索
+- **费用**：按 API 用量（通过 bigsong.site 代理，Grok 模型）
+- **配置**：`.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`，安装在 `~/mcp-search-bridge/`
+- **做什么**：把 Grok 模型包装成 MCP `web_search` 工具，Grok 有全网搜索能力 + 原生 X/Twitter 数据访问
+- **何时用**：X/Twitter 搜索（Grok 原生数据）；discover-trends 的西方源搜索 fallback；需要和 Google 不同的搜索视角时
+- **容错**：挂了 → CDP Google `site:x.com` 搜索
+
+### discover-trends.mjs — 趋势发现（中文平台 + 西方源）
 
 - **分类**：趋势发现
-- **费用**：免费
+- **费用**：免费（CDP 零费用；mcp-search-bridge 用 Grok 模型，通过 bigsong.site 代理，按 API 用量计费）
 - **脚本路径**：`scripts/short-video/discover-trends.mjs`
-- **做什么**：通过 CDP 抓取 16 个中文平台源（量子位、机器之心、36氪、TechCrunch、Bloomberg、小红书、微博、B站、知乎、抖音、TikTok Creator、搜狗微信、观察者网、IT之家、动察Beating），发现中国 AI 话题趋势
+- **做什么**：通过 CDP + mcp-search-bridge 抓取 21 个源（7 中文新闻 + 8 中文自媒体 + 5 西方源 + 1 微信公众号），发现中国 AI 话题趋势
+- **源列表**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、知乎、抖音、TikTok Creator、X(Twitter)、YouTube、arXiv、GitHub、Threads、Web Search、动察Beating
 - **独占源**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、抖音、知乎（13 源 last30days 没有）
-- **与 last30days 交叉**：X（CDP DOM vs API）、TikTok（Creator Center vs hashtag）——两边都保留，机制不同
+- **与 last30days 交叉**：X（CDP DOM + mcp-search-bridge vs API）、TikTok（Creator Center vs hashtag）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）
+- **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据访问），也是 5 个西方源的主要搜索方式。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`
+- **Fallback 链**：CDP → cdpFallback (Google site: 搜索) → mcpFallback (mcp-search-bridge/Grok)
 - **何时用**：做视频前找话题，或文章前找中文平台趋势
 
 ### pdf-parse (npm)
@@ -92,8 +128,8 @@
 - **Skill 路径**：`~/.agents/skills/last30days/`
 - **配置文件**：`~/.config/last30days/.env`
 - **做什么**：并行搜索 11 个默认免费源（Reddit、Hacker News、X、YouTube、Polymarket、GitHub、Digg、arXiv、Techmeme、Threads、Grounding），按 engagement 评分排序
-- **独占源**：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding（10 源 discover-trends 没有）
-- **与 discover-trends 交叉**：X（API vs CDP DOM）、TikTok（hashtag vs Creator Center）——两边都保留。**小红书不启用**——由 discover-trends 独占（CDP 登录态更适合）
+- **独占源**：Reddit、Hacker News、Polymarket、Digg、Techmeme（5 源 discover-trends 没有）
+- **与 discover-trends 交叉**：X（API vs CDP DOM + mcp-search-bridge）、TikTok（hashtag vs Creator Center）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）——两边都保留。**小红书不启用**——由 discover-trends 独占（CDP 登录态更适合）
 - **与 RAG 的关系**：不重复。RAG（`scripts/rag/`）用本地 Ollama bge-m3 语义向量搜索项目已有内容（文章、scene-data、研究、源素材），零费用。last30days 搜索实时互联网讨论（最近 30 天外部讨论）
 - **关键发现（测试验证 2026-08-12，配置更新 2026-08-15）**：
   - ✅ **支持 JSON 输出**：`--emit=json --json-profile=agent`，输出 `{clusters: [{title, summary, engagement_total, sources}]}` 结构
