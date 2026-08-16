@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { template as newsletterTemplate } from "./newsletter-template";
+import { template as rankingAlertTemplate } from "./ranking-alert";
 
 export type TemplateData = Record<string, unknown>;
 
@@ -18,4 +19,5 @@ export interface TemplateEntry {
  */
 export const TEMPLATES: Record<string, TemplateEntry> = {
   newsletter: newsletterTemplate,
+  "ranking-alert": rankingAlertTemplate,
 };
