@@ -464,3 +464,40 @@
 **Colab CLI 方式**（推荐）：`colab run --gpu T4 script.py` 一键运行（provision VM → execute → teardown）。需先完成 ADC 认证（`gcloud auth application-default login --scopes=...`）。参见 [Colab CLI SKILL.md](https://github.com/googlecolab/google-colab-cli/blob/main/skills/colab-operator/SKILL.md)。
 
 **Colab 手动/CDP 方式**：在浏览器 Notebook 中执行 cell，或通过 web-access CDP 自动操作（Google 账号 qingshun.li@gmail.com 已登录）。适合调试参数。
+
+---
+
+## 云 GPU 资源 Pool 与 Fallback（2026-08-16 新增）
+
+> **目标**：所有需要云 GPU 的任务（数字人推理、模型测试等）统一通过此 pool 调用资源。本地 M2 Pro MPS 无法跑 CUDA 模型时使用。
+
+### 资源优先级
+
+| 优先级 | 平台 | 命令 | GPU | 免费额度 | 适用场景 |
+|--------|------|------|-----|---------|---------|
+| 1️⃣ | **Colab CLI** | `colab run --gpu T4 script.py` | T4 16GB | 不固定，空闲 90min | 一键运行单脚本（推荐首选） |
+| 2️⃣ | **Kaggle** | `kaggle kernels push -p .` | P100/T4 16GB | 30h/周刷新 | 自动化批量推理 |
+| 3️⃣ | **Colab CDP** | web-access skill | T4 16GB | 同 Colab | 交互式调试、参数调优 |
+| 4️⃣ | **AutoDL** | 手动租用 | RTX 4090 24GB | ¥1.88/h | 16GB 不够时的付费备选 |
+
+### Fallback 规则
+
+1. **首选 Colab CLI**：`colab run --gpu T4 script.py`，最快（自动 provision → execute → teardown）
+2. **Colab 失败/超时** → fallback 到 Kaggle：`kaggle kernels push` + 轮询 `kaggle kernels status`
+3. **Kaggle 30h/周用完** → fallback 到 Colab CDP（手动操作浏览器）
+4. **16GB 显存不够** → AutoDL RTX 4090 24GB（付费，需手动租用）
+
+### 使用方式
+
+Agent 在需要云 GPU 时：
+1. 准备 `.py` 脚本（安装依赖 → clone 代码 → 下载模型 → 推理 → 输出结果）
+2. 优先用 `colab run --gpu T4 script.py` 一键运行
+3. 失败则用 Kaggle（`kernel-metadata.json` + `kaggle kernels push`）
+4. 两者都失败则告知用户手动操作
+
+### 相关文档
+
+- `docs/research/cloud-gpu-options.md` — 完整 GPU 方案对比（免费 + 付费）
+- `docs/archive/handoff-cloud-gpu-kaggle-setup.md` — Kaggle + Colab CLI 配置全过程
+- `scripts/kaggle/test-gpu/` — Kaggle 自动化测试脚本模板
+- Colab CLI 操作指南：https://github.com/googlecolab/google-colab-cli/blob/main/skills/colab-operator/SKILL.md

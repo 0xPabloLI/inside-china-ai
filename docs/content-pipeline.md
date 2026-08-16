@@ -119,9 +119,17 @@ Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1
 | 自媒体   | 抖音搜索              | douyin.com                | 需要               |
 | 自媒体   | TikTok Creator        | tiktok.com/creator-center | 需要               |
 | 社区     | 知乎                  | zhihu.com                 | 无（搜索无需登录） |
+| 社交     | X (Twitter)           | x.com/search              | 需要（CDP）/ mcp-search-bridge fallback |
+| 西方源   | YouTube               | youtube.com               | 无（mcp-search-bridge） |
+| 西方源   | arXiv                 | arxiv.org                 | 无（mcp-search-bridge） |
+| 西方源   | GitHub                | github.com/search         | 无（mcp-search-bridge） |
+| 西方源   | Threads               | threads.net               | 无（mcp-search-bridge） |
+| 西方源   | Web Search (Grounding) | google.com               | 无（mcp-search-bridge） |
 | 定向监控 | 动察Beating（公众号） | Google 搜索转载平台       | 无                 |
 
 源定义在 `scripts/short-video/lib/trend-sources.mjs`，可插拔架构，新增源只需添加 collector 对象。
+
+**mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据），也是 5 个西方源的主要搜索方式。Fallback 链：CDP → cdpFallback (Google site:搜索) → mcpFallback (mcp-search-bridge/Grok)。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`。
 
 ##### 定向公众号监控
 
@@ -827,6 +835,8 @@ node scripts/short-video/main.mjs                    # TTS → HTML → 录制 �
 
 视频制作的技术细节（TTS 引擎、渲染参数、文件位置）见 `docs/video-workflow.md`。
 
+> **云 GPU 资源**：当需要跑 CUDA 模型（数字人推理等，M2 Pro MPS 不支持的）时，使用云 GPU 资源 pool。优先级和 fallback 规则见 `docs/research/digital-human-test-progress.md` → 「云 GPU 资源 Pool 与 Fallback」章节。
+
 ### 4b. RAG Reindex（多媒体素材）
 
 视频制作完成后，如本管线下载了新素材或修改了 `assets/catalog.yml`，触发 RAG 增量重建，确保多媒体素材元数据进入知识库：
@@ -1007,6 +1017,9 @@ node scripts/short-video/publish-tiktok.mjs --slug <slug>   # 通过 Publora API
 
 ## Stage 6: Analytics 闭环
 
+> Analytics 是独立工作流，与 Content Pipeline 的单次制作周期不同步。
+> 完整流程见 `docs/analytics-workflow.md`。
+
 TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 
 ### 流程
@@ -1018,7 +1031,7 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 5. 录入 A/B 测试：`node scripts/short-video/ab-test-tracker.mjs --result output/analytics-export.json`
 6. Agent 将 `pending-analysis.json` 的 status 改为 "done"
 
-详见 `docs/manual-ops.md` 的「定期检查」部分。
+详见 `docs/analytics-workflow.md` 和 `docs/manual-ops.md` 的「定期检查」部分。
 
 ---
 

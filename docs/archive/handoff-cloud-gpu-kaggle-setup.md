@@ -2,7 +2,7 @@
 
 > **创建时间**：2026-08-15
 > **来源 Session**：cloud-gpu-options 调研 + Lightning AI 操作尝试
-> **目标**：新 session 接手后，帮用户完成 Kaggle 注册 + API 配置 + Colab 验证 + AutoDL 账号准备
+> **目标**：新 session 接手后，帮用户完成 Kaggle 注册 + API 配置 + Colab CLI 验证 + AutoDL 账号准备
 
 ---
 
@@ -12,7 +12,8 @@
 
 **最终状态**：
 - Kaggle：✅ 已配置（CLI v2.2.4 + API token，全链路验证通过，P100 16GB）
-- Colab：✅ 已验证（T4 16GB，Google 账号 qingshun.li@gmail.com 已登录，CDP 可控制）
+- Colab CLI：✅ 已配置（CLI v0.6.0 + ADC 认证，全链路验证通过，T4 16GB）
+- Colab CDP：✅ 已验证（Google 账号 qingshun.li@gmail.com 已登录，CDP 可控制）
 - Lightning AI：⏸️ 用户暂停（5 credits 一次性额度，403 问题未解决）
 - AutoDL：⏸️ 用户暂停（未注册）
 
@@ -57,14 +58,23 @@
 - Colab 有内置 terminal（左侧工具栏 → 终端），可执行命令行操作
 - **CDP 自动化可用**：Agent 可通过 web-access skill 自动操作 Colab（创建 Notebook → 写代码 → 执行 → 读输出）
 
+**Colab CLI（已验证可用）**：
+- `google-colab-cli` v0.6.0（`pip3 install --break-system-packages google-colab-cli`）
+- ⚠️ 兼容性修复：需降级 `jupyter-kernel-client<1.0`（v1.0.1 API 变更导致 `KernelClient` 找不到）
+- ADC 认证已完成（`gcloud auth application-default login --scopes=openid,cloud-platform,userinfo.email,colaboratory`）
+- 全链路验证通过：`colab --auth=adc run --gpu T4 script.py` → Tesla T4 14.6GB ✅
+- 常用命令：`colab run --gpu T4 script.py`（一键运行+自动 teardown）、`colab new/exec/install/download`
+- 操作指南：https://github.com/googlecolab/google-colab-cli/blob/main/skills/colab-operator/SKILL.md
+- Colab MCP 已配置在 CatPaw 全局 MCP 设置中
+
 **Colab 限制**：
 - 免费版 T4 16GB，不固定时长，空闲 90min 断连
-- 无外部 CLI（不能从本地终端 `colab run`），操作通过浏览器或 CDP
-- **无付费升级 GPU**：Pro $10/月 还是 16GB（T4+P100）；Pro+ $50/月 才有 A100 40GB
+- Pro $10/月 还是 16GB（T4+P100）；Pro+ $50/月 才有 A100 40GB
 - Pro ($10/月) 和 Gemini Advanced ($20/月) 是不同产品，Gemini 不含 Colab Pro+
 
 **Colab vs Kaggle 分工**：
-- **Colab**：交互式调试、参数调优（通过 CDP 或手动操作）
+- **Colab CLI**：一键运行单脚本（`colab run --gpu T4 script.py`），自动 provision → execute → teardown
+- **Colab CDP/手动**：交互式调试、参数调优（通过浏览器或 web-access skill）
 - **Kaggle**：自动化批量推理（CLI push → status → output），30h/周
 
 ### 3. AutoDL 注册（付费备选）
