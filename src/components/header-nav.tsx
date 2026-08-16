@@ -35,9 +35,13 @@ export function HeaderNav({ pathname, isAdmin, onArticlesClick }: HeaderNavProps
       <Link to="/" className={articleLinkClass(pathname)} onClick={onArticlesClick}>
         Articles
       </Link>
+      <Link to="/news" className={staticLinkClass(pathname.startsWith("/news"))}>
+        News
+      </Link>
       <Link to="/companies" className={staticLinkClass(pathname.startsWith("/companies"))}>
         Companies
       </Link>
+
       {isAdmin ? (
         <Link to="/admin" className={staticLinkClass(pathname.startsWith("/admin"))}>
           Admin
