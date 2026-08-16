@@ -22,6 +22,7 @@
 import { execSync } from "child_process";
 import { existsSync, readdirSync, mkdirSync, rmSync, createReadStream } from "fs";
 import { join, dirname } from "path";
+import { resolveSceneAudio } from "./lib/audio/sync.mjs";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { SAFE_ZONES } from "./lib/safe-zones.mjs";
@@ -109,8 +110,8 @@ if (!scenes || scenes.length === 0) {
 const audioDir = join(OUTPUT_DIR, "audio");
 try {
   durations = scenes.map((scene) => {
-    const audioPath = join(audioDir, `scene-${scene.id}.mp3`);
-    if (!existsSync(audioPath)) return 5; // fallback
+    const audioPath = resolveSceneAudio(audioDir, scene.id);
+    if (!audioPath) return 5; // fallback
     const info = execSync(
       `ffprobe -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
     ).toString();

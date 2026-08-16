@@ -18,19 +18,16 @@ const execAsync = promisify(exec);
 
 // ── Config ──
 const COSYVOICE_BATCH_SCRIPT = join(ROOT_DIR, "cosyvoice_batch_tts.py");
-const COSYVOICE_VENV = join(process.env.HOME || "", ".cosyvoice-env");
+const COSYVOICE_VENV = join(process.env.HOME || "", ".video-tts-env");
 const COSYVOICE_SOURCE_DIR =
-  process.env.COSYVOICE_SOURCE_DIR || join(process.env.HOME || "", ".cosyvoice-models", "CosyVoice");
+  process.env.COSYVOICE_SOURCE_DIR ||
+  join(process.env.HOME || "", ".cosyvoice-models", "CosyVoice");
 const COSYVOICE_MODEL_DIR =
   process.env.COSYVOICE_MODEL_DIR ||
   join(COSYVOICE_SOURCE_DIR, "pretrained_models", "Fun-CosyVoice3-0.5B");
 const COSYVOICE_SPEED = parseFloat(process.env.COSYVOICE_SPEED) || 1.0;
 const COSYVOICE_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
-const COSYVOICE_REF_TEXT_FILE = join(
-  ROOT_DIR,
-  "voice-samples",
-  "voice-sample-ref-text.txt",
-);
+const COSYVOICE_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text.txt");
 
 /**
  * Check if CosyVoice 3 is available.

@@ -360,6 +360,16 @@ export function verifySubtitles({
   if (outputDir) {
     report.audioSync = verifyAudioSync({ videoPath, outputDir, sceneDurations });
     report.summary = applyAudioSyncToSummary(report.summary, report.audioSync);
+
+    // Guard against silent skip: if every scene was skipped (e.g. file format
+    // mismatch from a TTS engine change), the check ran but measured nothing.
+    // Surface this as a visible warning so it can't pass as silently green.
+    if (report.audioSync?.checked === 0 && report.audioSync?.skipped > 0) {
+      console.log(
+        `  ⚠️  Audio sync skipped all ${report.audioSync.skipped} scene(s) — ` +
+          `check output/audio/ for scene-{id}.wav or .mp3 files (TTS output format mismatch?).`,
+      );
+    }
   }
 
   if (outputDir) {

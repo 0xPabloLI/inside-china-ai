@@ -200,8 +200,8 @@ export async function postProcessAudio(
 /**
  * Post-process a batch engine's audio in-place (temp file + mv) and return duration.
  *
- * Used by F5-MLX and XTTS batch engines: the generated .mp3 is post-processed
- * into a -processed.mp3 temp file, then moved back over the original.
+ * Used by F5-MLX and Qwen3-TTS batch engines: the generated audio is post-processed
+ * into a -processed file (same extension as input), then moved back over the original.
  *
  * @param {string} audioPath
  * @param {Object} opts - Same as postProcessAudio
