@@ -237,8 +237,8 @@ Tavily 每月 1,000 credits，省着用：
 - 技术文档查询 → Context7（不消耗 Tavily）
 - 中国 AI 趋势 → discover-trends / last30days（不消耗 Tavily）
 - X/Twitter 搜索 → mcp-search-bridge（不消耗 Tavily）
-- 只有「需要快速查一个通用事实，且 Google CDP 太慢」时才用 Tavily
-- web-deep-research 的 Phase 3 抓取用 web-access CDP（不消耗 Tavily）；Tavily 只用于 Phase 1 快速概况了解
+- 只有「需要快速查一个通用事实」时才用 Tavily（每次 1-2 credits）
+- web-deep-research 全程用 web-access CDP Google 搜索（不消耗 Tavily）
 
 用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。Deep Research 触发词："deep research"、"调研"、"comprehensive analysis"、"research report"。
 
