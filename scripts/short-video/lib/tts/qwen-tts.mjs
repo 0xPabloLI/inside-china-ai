@@ -2,7 +2,7 @@
  * Qwen3-TTS engine adapter — fallback TTS engine.
  *
  * Qwen3-TTS-12Hz-0.6B-Base: 3-second rapid voice clone with MPS support.
- * Fast on Apple Silicon, lower quality than CosyVoice 3 but reliable.
+ * Fast on Apple Silicon, reliable fallback when F5 is unavailable.
  * Batch mode: model loaded once for all scenes.
  *
  * Post-processing: silenceremove + resample.
@@ -19,16 +19,12 @@ const execAsync = promisify(exec);
 
 // ── Config ──
 const QWEN_BATCH_SCRIPT = join(ROOT_DIR, "qwen_tts_batch.py");
-const QWEN_VENV = join(process.env.HOME || "", ".qwen-tts-env");
+const QWEN_VENV = join(process.env.HOME || "", ".video-tts-env");
 const QWEN_MODEL_DIR =
   process.env.QWEN_TTS_MODEL_DIR || join(process.env.HOME || "", ".qwen-tts-model");
 const QWEN_LANGUAGE = process.env.QWEN_TTS_LANGUAGE || "English";
 const QWEN_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
-const QWEN_REF_TEXT_FILE = join(
-  ROOT_DIR,
-  "voice-samples",
-  "voice-sample-ref-text.txt",
-);
+const QWEN_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text.txt");
 
 /**
  * Check if Qwen3-TTS is available.
@@ -40,9 +36,7 @@ async function isAvailable() {
   if (!existsSync(QWEN_MODEL_DIR)) return false;
   if (!existsSync(QWEN_REF_AUDIO)) return false;
   try {
-    await execAsync(
-      `source ${QWEN_VENV}/bin/activate && python3 -c "import qwen_tts" 2>/dev/null`,
-    );
+    await execAsync(`source ${QWEN_VENV}/bin/activate && python3 -c "import qwen_tts" 2>/dev/null`);
     return true;
   } catch {
     return false;

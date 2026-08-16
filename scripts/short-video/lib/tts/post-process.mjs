@@ -252,10 +252,10 @@ export async function runWhisperAlignment(scenes, ttsResults, outputDir) {
 
   try {
     await execAsync(
-      `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ~/.f5-tts-env/bin/python3 "${alignScript}" ` +
+      `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ~/.video-tts-env/bin/python3 "${alignScript}" ` +
         `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
     );
-    console.log("  ✅ Subtitle timing saved (WhisperX wav2vec2 aligned)");
+    console.log("  ✅ Subtitle timing saved (wav2vec2-large-960h-lv60-self aligned)");
   } catch (e) {
     console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
   }

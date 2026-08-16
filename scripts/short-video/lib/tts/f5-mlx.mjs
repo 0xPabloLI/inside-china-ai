@@ -24,7 +24,7 @@ const execAsync = promisify(exec);
 
 // ── Config ──
 const F5_MLX_BATCH_SCRIPT = join(ROOT_DIR, "f5_mlx_batch_tts.py");
-const F5_MLX_VENV = join(process.env.HOME || "", ".f5-tts-env");
+const F5_MLX_VENV = join(process.env.HOME || "", ".video-tts-env");
 const F5_MLX_SPEED = parseFloat(process.env.F5_SPEED) || 1.0;
 const F5_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const F5_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text.txt");

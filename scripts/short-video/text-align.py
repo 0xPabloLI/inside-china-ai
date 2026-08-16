@@ -6,9 +6,12 @@ No Whisper recognition step — we already know the text from scene-data.mjs.
 This avoids recognition errors (e.g., "DeepSeek" → "deep seeks") by using
 the original text directly.
 
+Uses whisperx with facebook/wav2vec2-large-960h-lv60-self (316M params, ~1.2 GB)
+for best alignment quality. This is the largest and most accurate wav2vec2 model
+fine-tuned on 960h English (LibriSpeech LV-60 + self-training).
+
 Usage:
-  source ~/.whisperx-env/bin/activate
-  python3 text-align.py --manifest <manifest.json> --output <timing.json>
+  ~/.video-tts-env/bin/python3 text-align.py --manifest <manifest.json> --output <timing.json>
 
 Manifest: [{"sceneId": 1, "text": "...", "audioPath": "..."}]
 Output:   [{"sceneId": 1, "segments": [{"text": "...", "start": 0.0, "end": 2.5, "words": [...]}]}]
@@ -28,11 +31,16 @@ import whisperx
 DEVICE = "cpu"
 PAD_MS = 0.015  # 15ms padding on word end times
 
+# Best wav2vec2 model for English alignment (316M params vs base's 95M)
+ALIGN_MODEL = "facebook/wav2vec2-large-960h-lv60-self"
+
 
 def load_align_model():
-    """Load only the wav2vec2 alignment model (no Whisper needed!)."""
-    print("Loading wav2vec2 alignment model...", file=sys.stderr)
-    align_model, align_meta = whisperx.load_align_model(language_code="en", device=DEVICE)
+    """Load the wav2vec2-large alignment model via whisperx."""
+    print(f"Loading alignment model: {ALIGN_MODEL} (whisperx)...", file=sys.stderr)
+    align_model, align_meta = whisperx.load_align_model(
+        language_code="en", device=DEVICE, model_name=ALIGN_MODEL
+    )
     print("Model loaded.", file=sys.stderr)
     return align_model, align_meta
 
@@ -45,32 +53,18 @@ def split_sentences(text):
 
 def align_text_to_audio(align_model, align_meta, audio_path, original_text):
     """Directly align KNOWN text to audio using wav2vec2 — no recognition."""
-    # Split original text into sentences
-    sentences = split_sentences(original_text)
-    
-    # Get audio duration via ffprobe (torchaudio can't read MP3 in some envs)
     import subprocess
     result = subprocess.run(
         ["ffprobe", "-i", audio_path, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
         capture_output=True, text=True
     )
     audio_duration = float(result.stdout.strip())
-    
-    # Create one segment with the full text (start=0, end=audio_duration)
+
     segments = [{"text": original_text, "start": 0, "end": audio_duration}]
-    
-    # wav2vec2 alignment — this is the key step!
-    # Takes known text segments and finds their timestamps in the audio
     aligned = whisperx.align(
-        segments,
-        align_model,
-        align_meta,
-        audio_path,
-        device=DEVICE,
-        return_char_alignments=False,
+        segments, align_model, align_meta, audio_path,
+        device=DEVICE, return_char_alignments=False,
     )
-    
-    # Extract word-level timestamps
     word_timestamps = []
     for seg in aligned.get("segments", []):
         for w in seg.get("words", []):
@@ -80,7 +74,6 @@ def align_text_to_audio(align_model, align_meta, audio_path, original_text):
                     "start": round(w["start"], 3),
                     "end": round(w["end"] + PAD_MS, 3),
                 })
-    
     return word_timestamps
 
 

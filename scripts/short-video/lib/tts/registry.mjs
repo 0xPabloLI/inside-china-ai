@@ -5,18 +5,19 @@
  * env override). generateTTS() delegates to the selected engine and runs
  * subtitle alignment afterwards.
  *
- * Engine priority (updated 2026-08-14 after A/B comparison):
+ * Engine priority (updated 2026-08-16):
  *   1. F5-TTS-MLX (DEFAULT — best rhythm, natural pacing, internal duration control)
  *   2. Qwen3-TTS (BACKUP — good emphasis on data points, no duration control)
- *   3. CosyVoice 3 (DEPRECATED — content accuracy issues on MPS)
- *   4. edge-tts (Microsoft neural TTS, no cloning)
- *   5. macOS `say` (last resort, no cloning)
+ *   3. edge-tts (Microsoft neural TTS, no cloning)
+ *   4. macOS `say` (last resort, no cloning)
+ *
+ * CosyVoice 3 removed (2026-08-16): deprecated, content accuracy issues on MPS.
  *
  * All local models run at MAX EFFORT by default (see docs/video-workflow.md).
+ * Unified venv: ~/.video-tts-env (Python 3.12) — F5 + Qwen + whisperx all in one.
  */
 
 import { createF5MLXEngine } from "./f5-mlx.mjs";
-import { createCosyVoiceEngine } from "./cosyvoice.mjs";
 import { createQwenTTSEngine } from "./qwen-tts.mjs";
 import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
@@ -29,8 +30,6 @@ import { runWhisperAlignment, getAtempo } from "./post-process.mjs";
 const ENGINE_FACTORIES = {
   "f5-mlx": createF5MLXEngine,
   f5: createF5MLXEngine,
-  cosyvoice: createCosyVoiceEngine,
-  "cosyvoice3": createCosyVoiceEngine,
   "qwen-tts": createQwenTTSEngine,
   qwen: createQwenTTSEngine,
   "edge-tts": createEdgeTTSEngine,
@@ -38,7 +37,7 @@ const ENGINE_FACTORIES = {
 };
 
 /** Priority order for automatic selection (no TTS_ENGINE env). */
-const PRIORITY = ["f5-mlx", "qwen-tts", "cosyvoice", "edge-tts", "say"];
+const PRIORITY = ["f5-mlx", "qwen-tts", "edge-tts", "say"];
 
 /**
  * Select a TTS engine.
@@ -68,7 +67,7 @@ export async function selectEngine() {
   }
 
   throw new Error(
-    "No TTS engine available. Install F5-TTS-MLX (~/.f5-tts-env), Qwen3-TTS (~/.qwen-tts-env), CosyVoice 3 (~/.cosyvoice-env), edge-tts, or run on macOS.",
+    "No TTS engine available. Install F5-TTS-MLX + Qwen3-TTS (~/.video-tts-env), edge-tts, or run on macOS.",
   );
 }
 
