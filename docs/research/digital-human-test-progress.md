@@ -435,10 +435,11 @@
 
 **云 GPU 已配置完成**：
 - ✅ Kaggle CLI v2.2.4 + API 配置（全链路验证通过，P100 16GB，自动化 push → status → output）
-- ✅ Colab CLI v0.6.0 已安装（`pip3 install --break-system-packages google-colab-cli`）— 支持命令行自动化：`colab run --gpu T4 script.py` 一键运行
-- ✅ Colab T4 16GB（手动验证 + CDP 验证 Google 账号已登录）
-- ⚠️ Colab CLI 认证需完成 ADC setup（gcloud CLI 安装中）
+- ✅ Colab CLI v0.6.0 已安装（`pip3 install --break-system-packages google-colab-cli`）— 全链路验证通过：`colab --auth=adc run --gpu T4 script.py` → Tesla T4 14.6GB ✅
+- ⚠️ 兼容性修复：需降级 `jupyter-kernel-client<1.0`（v1.0.1 API 变更导致 `KernelClient` 找不到）
+- ✅ ADC 认证已完成（`gcloud auth application-default login --scopes=...`）
 - 📖 配置详情见 `docs/archive/handoff-cloud-gpu-kaggle-setup.md`
+- 📖 Colab CLI 操作指南：https://github.com/googlecolab/google-colab-cli/blob/main/skills/colab-operator/SKILL.md
 
 **云 GPU 可跑的模型（之前在 M2 Pro 上失败的）**：
 
