@@ -70,6 +70,12 @@
 |------|----------|------|
 | `spec-tiktok-embed.md` / `tickets-tiktok-embed.md` | 2026-08-10 | TikTok Embed 替换 MP4 附件 — tiktok_url 列 + TikTokEmbed 组件 + PostEditor 字段 + publish-tiktok.mjs 自动保存 URL + 管线文档更新。14 new tests。 |
 
+### Upscale Specs
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `spec-realesrgan-upscale.md` / `tickets-realesrgan-upscale.md` | 2026-08-16 | Real-ESRGAN 超分辨率集成 — `lib/upscale.mjs` 独立模块 (checkResolution + upscaleVideo + upscaleImage + autoUpscaleIfNeeded)。Real-ESRGAN ncnn-vulkan v0.2.5.0 (Metal/Vulkan)。视频用 realesr-animevideov3 模型，图片用 realesrgan-x4plus。集成到 asset-sourcer.mjs 3 处下载点。27 new tests。 |
+
 ### Documentation Hierarchy Specs
 
 | 文件 | 完成时间 | 说明 |
@@ -97,4 +103,5 @@
 > **未归档的 handoff**（`docs/handoffs/` 中仍活跃）：
 > - `handoff-asset-source-unification.md` — 素材源统一命名，待实施
 > - `handoff-license-risk-policy.md` — License 风险策略，待实施
+> - `handoff-realesrgan.md` — Real-ESRGAN 超分辨率集成，已完成（spec/tickets 已归档）
 > - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，待实施
