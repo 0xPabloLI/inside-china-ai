@@ -97,6 +97,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "icon", href: "/favicon.png", type: "image/png", sizes: "76x64" },
+      {
+        rel: "alternate",
+        type: "application/rss+xml",
+        title: "China AI News — RSS",
+        href: "/rss.xml",
+      },
       { rel: "apple-touch-icon", href: "/logo-256.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
