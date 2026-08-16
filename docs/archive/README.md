@@ -94,6 +94,7 @@
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
 | `handoff-cloud-gpu-kaggle-setup.md` | 2026-08-16 | Cloud GPU 配置 — Kaggle CLI v2.2.4 + API 配置 + P100 16GB 全链路验证 + Colab T4 验证 + CDP Colab 自动化验证。后续参考 `docs/research/cloud-gpu-options.md` 和 `docs/research/digital-human-test-progress.md`。 |
+| `handoff-cloud-gpu-fallback-pool.md` | 2026-08-16 | Cloud GPU Fallback Pool 脚本 — `scripts/cloud-gpu/run-gpu.mjs` 实现。Colab CLI（首选）→ Kaggle（fallback）→ 手动（AutoDL/CDP）。30 tests。 |
 | `handoff-tiktok-embed-and-pipeline-cleanup.md` | 2026-08-10 | TikTok Embed 替换 MP4 — 已在 `spec-tiktok-embed.md` 归档。 |
 | `handoff-video-layout-standard.md` | 2026-08-08 | 视频布局安全区标准 — 已在 `spec-video-layout-safe-zones.md` 归档。 |
 | `handoff-media-mode-design.md` | 2026-08-12 | Media fullscreen 模式 — 已在 `spec-media-fullscreen-mode.md` 归档。 |
