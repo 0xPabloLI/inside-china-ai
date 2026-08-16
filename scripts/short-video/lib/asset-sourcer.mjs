@@ -17,6 +17,7 @@ import { existsSync, writeFileSync, mkdirSync, statSync, readFileSync } from "fs
 import { join, dirname, basename, extname } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execSync } from "child_process";
+import { autoUpscaleIfNeeded } from "./upscale.mjs";
 
 // ─── Constants ───
 
@@ -575,7 +576,7 @@ export const API_SOURCES = [
   {
     name: "pexels",
     label: "Pexels",
-    type: "image+video",
+    type: "image",
     requiresApiKey: true,
     apiKeyEnv: "PEXELS_API_KEY",
     authHeader: "Authorization",
@@ -592,6 +593,33 @@ export const API_SOURCES = [
         duration: undefined,
       }));
       return photos;
+    },
+  },
+  {
+    name: "pexels-video",
+    label: "Pexels Videos",
+    type: "video",
+    requiresApiKey: true,
+    apiKeyEnv: "PEXELS_API_KEY",
+    authHeader: "Authorization",
+    authValue: (key) => key,
+    searchUrl: (keyword, key) =>
+      `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
+    parseResponse: (data, keyword) => {
+      return (data.videos || []).map((v) => {
+        // Pick the best quality file (largest by resolution)
+        const files = v.video_files || [];
+        const best = files.sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+        return {
+          title: v.user?.name ? `${v.user.name} video` : keyword,
+          url: best?.link || undefined,
+          type: "video",
+          resolution: best ? `${best.width}x${best.height}` : undefined,
+          fileSize: undefined,
+          duration: v.duration ? `${v.duration}s` : undefined,
+          author: v.user?.name,
+        };
+      });
     },
   },
   {
@@ -1001,6 +1029,11 @@ export const CDP_SOURCES = [
 export const SOURCE_ATTRIBUTIONS = {
   pexels: {
     text: (a) => `Photo by ${a.author || "Unknown"} from Pexels`,
+    license: "Pexels License",
+    logoRequired: false,
+  },
+  "pexels-video": {
+    text: (a) => `Video by ${a.author || "Unknown"} from Pexels`,
     license: "Pexels License",
     logoRequired: false,
   },
@@ -1426,9 +1459,15 @@ export async function main(args = process.argv.slice(2)) {
           }
           const dlResult = await downloadAsset(candidate.url, destPath, headers);
           if (dlResult.success) {
+            // Auto-upscales sub-720p assets using Real-ESRGAN (no-op if already 720p+)
+            const upscaleResult = autoUpscaleIfNeeded(dlResult.path);
+            const finalPath = upscaleResult.path;
+            if (upscaleResult.upscaled) {
+              console.log(`    📈 Upscaled: ${basename(finalPath)} → 720p`);
+            }
             const assetEntry = {
               ...candidate,
-              path: destPath.replace(contentDir + "/", ""),
+              path: finalPath.replace(contentDir + "/", ""),
               status: dlResult.skipped ? "already exists" : "downloaded",
             };
 
@@ -1481,9 +1520,15 @@ export async function main(args = process.argv.slice(2)) {
 
         const dlResult = downloadYtdlp(candidate.url, destPath);
         if (dlResult.success) {
+          // Auto-upscales sub-720p assets using Real-ESRGAN (no-op if already 720p+)
+          const upscaleResult = autoUpscaleIfNeeded(dlResult.path);
+          const finalPath = upscaleResult.path;
+          if (upscaleResult.upscaled) {
+            console.log(`    📈 Upscaled: ${basename(finalPath)} → 720p`);
+          }
           allAssets.push({
             ...candidate,
-            path: destPath.replace(contentDir + "/", ""),
+            path: finalPath.replace(contentDir + "/", ""),
             status: dlResult.skipped ? "already exists" : "downloaded",
           });
           console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
@@ -1516,9 +1561,15 @@ export async function main(args = process.argv.slice(2)) {
 
         const dlResult = await downloadAsset(candidate.url, destPath);
         if (dlResult.success) {
+          // Auto-upscales sub-720p assets using Real-ESRGAN (no-op if already 720p+)
+          const upscaleResult = autoUpscaleIfNeeded(dlResult.path);
+          const finalPath = upscaleResult.path;
+          if (upscaleResult.upscaled) {
+            console.log(`    📈 Upscaled: ${basename(finalPath)} → 720p`);
+          }
           allAssets.push({
             ...candidate,
-            path: destPath.replace(contentDir + "/", ""),
+            path: finalPath.replace(contentDir + "/", ""),
             status: dlResult.skipped ? "already exists" : "downloaded",
           });
           console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
