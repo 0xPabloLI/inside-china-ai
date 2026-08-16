@@ -13,27 +13,28 @@ const postsQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "China AI News — Inside China's AI Labs & Policy" },
+      { title: "China AI News — Chinese AI Models, Labs & Policy" },
       {
         name: "description",
         content:
-          "Independent reporting on China's AI industry: the labs, the people, and the policy shaping AI in China. One new piece a week, straight to your inbox.",
+          "China AI news, weekly: Chinese AI model releases, the labs behind them, and China's AI regulation — independent reporting, one new piece a week.",
       },
-      { property: "og:title", content: "China AI News — Inside China's AI Labs & Policy" },
+      { property: "og:title", content: "China AI News — Chinese AI Models, Labs & Policy" },
       {
         property: "og:description",
         content:
-          "Independent reporting on China's AI industry: the labs, the people, and the policy shaping AI in China. One new piece a week.",
+          "China AI news, weekly: Chinese AI model releases, the labs behind them, and China's AI regulation — independent reporting.",
       },
       { property: "og:url", content: "https://chinaai.news/" },
       ...ogImageMeta(),
       { name: "twitter:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
-      { name: "twitter:title", content: "China AI News — Inside China's AI Labs & Policy" },
+      { name: "twitter:title", content: "China AI News — Chinese AI Models, Labs & Policy" },
       {
         name: "twitter:description",
-        content: "Independent reporting on China's AI industry. One new piece a week.",
+        content: "China AI news, weekly: Chinese AI models, labs, and policy.",
       },
     ],
+
     links: [{ rel: "canonical", href: "https://chinaai.news/" }],
     scripts: [
       {
@@ -117,16 +118,18 @@ function Index() {
       <main className="mx-auto max-w-4xl px-6 pt-16 pb-24">
         <section className="mb-16">
           <h1 className="font-serif text-5xl leading-tight tracking-tight sm:text-6xl">
-            Reporting from
+            China AI news
             <br />
             <span className="italic text-muted-foreground">
-              the front lines of China's AI industry.
+              from the front lines of China's AI industry.
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-            Independent writing on the labs, the people, and the policy shaping AI in China. Leave
+            Independent China AI news and analysis — the labs, the people, and the policy shaping AI
+            in China, including the latest Chinese AI model releases and China AI regulation. Leave
             your email and I'll send one new piece a week.
           </p>
+
         </section>
 
         <section className="mb-20">
