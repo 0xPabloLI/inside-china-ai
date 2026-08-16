@@ -56,6 +56,50 @@ export type Database = {
         }
         Relationships: []
       }
+      keyword_snapshots: {
+        Row: {
+          captured_on: string
+          created_at: string
+          difficulty: number | null
+          id: string
+          keyword_id: string
+          position: number | null
+          ranking_url: string | null
+          search_volume: number | null
+          traffic_share: number | null
+        }
+        Insert: {
+          captured_on?: string
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          keyword_id: string
+          position?: number | null
+          ranking_url?: string | null
+          search_volume?: number | null
+          traffic_share?: number | null
+        }
+        Update: {
+          captured_on?: string
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          keyword_id?: string
+          position?: number | null
+          ranking_url?: string | null
+          search_volume?: number | null
+          traffic_share?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_snapshots_keyword_id_fkey"
+            columns: ["keyword_id"]
+            isOneToOne: false
+            referencedRelation: "tracked_keywords"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       newsletter_sends: {
         Row: {
           created_at: string
@@ -264,6 +308,30 @@ export type Database = {
           id?: string
           last_sent_at?: string | null
           unsubscribed_at?: string | null
+        }
+        Relationships: []
+      }
+      tracked_keywords: {
+        Row: {
+          active: boolean
+          created_at: string
+          database: string
+          id: string
+          keyword: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          database?: string
+          id?: string
+          keyword: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          database?: string
+          id?: string
+          keyword?: string
         }
         Relationships: []
       }
