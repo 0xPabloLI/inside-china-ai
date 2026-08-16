@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { Rss } from "lucide-react";
 import { subscribe } from "@/lib/subscribers.functions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
