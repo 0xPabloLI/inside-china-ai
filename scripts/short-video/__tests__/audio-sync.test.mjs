@@ -3,7 +3,12 @@ import { execSync } from "child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { evaluateAudioSync, applyAudioSyncToSummary, verifyAudioSync } from "../lib/audio/sync.mjs";
+import {
+  evaluateAudioSync,
+  applyAudioSyncToSummary,
+  verifyAudioSync,
+  resolveSceneAudio,
+} from "../lib/audio/sync.mjs";
 import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
 import { writeWavPcm } from "../lib/audio/wav.mjs";
 
@@ -247,5 +252,162 @@ describe("verifyAudioSync (integration, real ffmpeg)", () => {
     expect(result.passed).toBe(false);
     expect(result.errors).toBe(1);
     expect(result.checked).toBe(0);
+  }, 20000);
+});
+
+// ─── resolveSceneAudio: format-agnostic file resolution ───
+//
+// TTS engines output different formats: F5-MLX and Qwen3 output .wav; edge-tts
+// and `say` output .mp3. resolveSceneAudio finds the right file without
+// hard-coding an extension — the root cause of the silent audioSync skip bug.
+//
+describe("resolveSceneAudio", () => {
+  let dirs = [];
+
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    dirs = [];
+  });
+
+  function makeDir() {
+    const dir = mkdtempSync(join(tmpdir(), "resolve-audio-"));
+    dirs.push(dir);
+    mkdirSync(join(dir, "audio"));
+    return dir;
+  }
+
+  it("finds a .wav scene file (F5-MLX / Qwen3 path)", () => {
+    const dir = makeDir();
+    const wavPath = join(dir, "audio", "scene-1.wav");
+    writeFileSync(wavPath, "dummy");
+
+    const result = resolveSceneAudio(join(dir, "audio"), 1);
+    expect(result).toBe(wavPath);
+  });
+
+  it("finds a .mp3 scene file (edge-tts / say path)", () => {
+    const dir = makeDir();
+    const mp3Path = join(dir, "audio", "scene-1.mp3");
+    writeFileSync(mp3Path, "dummy");
+
+    const result = resolveSceneAudio(join(dir, "audio"), 1);
+    expect(result).toBe(mp3Path);
+  });
+
+  it("prefers .wav when both .wav and .mp3 exist", () => {
+    const dir = makeDir();
+    const wavPath = join(dir, "audio", "scene-1.wav");
+    const mp3Path = join(dir, "audio", "scene-1.mp3");
+    writeFileSync(wavPath, "wav-content");
+    writeFileSync(mp3Path, "mp3-content");
+
+    const result = resolveSceneAudio(join(dir, "audio"), 1);
+    expect(result).toBe(wavPath);
+  });
+
+  it("returns null when neither .wav nor .mp3 exists", () => {
+    const dir = makeDir();
+
+    const result = resolveSceneAudio(join(dir, "audio"), 99);
+    expect(result).toBeNull();
+  });
+
+  it("returns null for null/undefined sceneId", () => {
+    const dir = makeDir();
+    expect(resolveSceneAudio(join(dir, "audio"), null)).toBeNull();
+    expect(resolveSceneAudio(join(dir, "audio"), undefined)).toBeNull();
+  });
+});
+
+// ─── verifyAudioSync with .wav scene files (F5-MLX / Qwen3 path) ───
+//
+describe("verifyAudioSync with .wav scene files (integration, real ffmpeg)", () => {
+  const SCENE_DURATIONS = [
+    { sceneId: 1, duration: 1.0 },
+    { sceneId: 2, duration: 0.5 },
+  ];
+  const SCENE2_OFFSET = 1.5;
+  let dirs = [];
+
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    dirs = [];
+  });
+
+  function noise(seconds, seed, rate = 44100) {
+    const n = Math.round(seconds * rate);
+    const out = new Float32Array(n);
+    let s = seed;
+    for (let i = 0; i < n; i++) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      out[i] = (s / 0x40000000 - 1) * 0.5;
+    }
+    return out;
+  }
+
+  /** Build {outputDir}/audio/scene-{1,2}.wav — real wavs, like F5-MLX / Qwen3. */
+  function makeWavFixture() {
+    const dir = mkdtempSync(join(tmpdir(), "audiosync-wav-"));
+    dirs.push(dir);
+    const audioDir = join(dir, "audio");
+    mkdirSync(audioDir);
+
+    for (const [id, seconds, seed] of [
+      [1, 1.0, 42],
+      [2, 0.5, 1337],
+    ]) {
+      const wavPath = join(audioDir, `scene-${id}.wav`);
+      writeWavPcm(wavPath, noise(seconds, seed), 44100);
+    }
+    return { dir };
+  }
+
+  /** Assemble the shipped track from scene wavs (track.mjs accepts wav too). */
+  function buildFinal(dir, ttsDurations) {
+    const finalPath = join(dir, "final.wav");
+    buildVoiceoverTrack({
+      sceneAudioPaths: [join(dir, "audio", "scene-1.wav"), join(dir, "audio", "scene-2.wav")],
+      ttsDurations,
+      outputPath: finalPath,
+    });
+    return finalPath;
+  }
+
+  it("measures both .wav scenes at their exact timeline offsets and passes", () => {
+    const { dir } = makeWavFixture();
+    const finalPath = buildFinal(dir, [1.0, 0.5]);
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.errored).toBe(false);
+    expect(result.passed).toBe(true);
+    expect(result.checked).toBe(2);
+    expect(result.errors).toBe(0);
+    expect(result.skipped).toBe(0);
+    const scene2 = result.scenes.find((s) => s.sceneId === 2);
+    expect(scene2.expected).toBeCloseTo(SCENE2_OFFSET, 3);
+    expect(Math.abs(scene2.measured - SCENE2_OFFSET)).toBeLessThan(0.03);
+  }, 20000);
+
+  it("skips all scenes when only .wav exists but sync looks for .mp3 (regression guard)", () => {
+    // This test documents the bug: if sync hard-coded .mp3 but TTS output .wav,
+    // every scene was silently skipped. With resolveSceneAudio, this should NOT
+    // happen — .wav files should be found and measured.
+    const { dir } = makeWavFixture();
+    const finalPath = buildFinal(dir, [1.0, 0.5]);
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    // Before fix: skipped=2, checked=0. After fix: skipped=0, checked=2.
+    expect(result.skipped).toBe(0);
+    expect(result.checked).toBe(2);
   }, 20000);
 });

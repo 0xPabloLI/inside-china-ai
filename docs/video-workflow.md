@@ -266,6 +266,7 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 | Article-to-video workflow                 | Extract spine → open on payoff → make sayable  | ⚠️ Manual (agent judgment)          |
 | News trend discovery                      | Monitor X/36Kr/Bloomberg for trending China AI | ⚠️ Manual (agent judgment)          |
 | Content calendar rhythm                   | Breaking/Analysis/Data/Explainer mix           | ⚠️ Manual (agent judgment)          |
+| Currency dual-annotation                 | All RMB amounts in voiceover/texts: "$X (¥Y)" with USD first. Use ¥1 ≈ $0.14 (review semi-annually). `meta.mjs` title/description may keep original RMB. | ⚠️ Manual (agent judgment)          |
 
 #### 👤 Manual at publish time (output of verify-video.mjs, presented as checklist)
 

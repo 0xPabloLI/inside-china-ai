@@ -10,6 +10,13 @@
  *
  * Subtitle-vs-alignment checks can never see this class of bug because both
  * sides share the same (pre-assembly) timeline.
+ *
+ * TTS engine output formats (used by resolveSceneAudio):
+ *   F5-MLX    → scene-{id}.wav
+ *   Qwen3-TTS → scene-{id}.wav
+ *   edge-tts  → scene-{id}.mp3
+ *   say       → scene-{id}.mp3
+ * Never hard-code an extension — always use resolveSceneAudio().
  */
 
 import { existsSync, mkdtempSync, rmSync } from "fs";
@@ -18,6 +25,32 @@ import { tmpdir } from "os";
 import { sceneTimeline, findScene } from "../timeline.mjs";
 import { decodeToWavFile, readWavPcm } from "./wav.mjs";
 import { findOnset } from "./fft.mjs";
+
+/**
+ * Audio extensions supported by TTS engines, in priority order.
+ * .wav first (F5-MLX, Qwen3 — lossless), .mp3 second (edge-tts, say).
+ */
+const SCENE_AUDIO_EXTENSIONS = [".wav", ".mp3"];
+
+/**
+ * Resolve a scene's audio file without hard-coding the extension.
+ *
+ * TTS engines output different formats (see header comment). This function
+ * probes each supported extension in priority order and returns the first
+ * existing file, or null if none found. The caller treats null as "skip".
+ *
+ * @param {string} audioDir - output/{pipelineId}/audio
+ * @param {number} sceneId
+ * @returns {string|null} absolute path to the scene audio file, or null
+ */
+export function resolveSceneAudio(audioDir, sceneId) {
+  if (sceneId == null) return null;
+  for (const ext of SCENE_AUDIO_EXTENSIONS) {
+    const candidate = join(audioDir, `scene-${sceneId}${ext}`);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
 
 /**
  * The single sync budget for the whole pipeline: ±80ms. The per-word subtitle
@@ -135,8 +168,8 @@ export function verifyAudioSync({ videoPath, outputDir, sceneDurations, toleranc
     for (const scene of sceneDurations ?? []) {
       // Keep scenes in timeline order; unknown ids are caught by findScene.
       const entry = findScene(timeline, scene.sceneId);
-      const scenePath = join(audioDir, `scene-${scene.sceneId}.mp3`);
-      if (!existsSync(scenePath)) {
+      const scenePath = resolveSceneAudio(audioDir, scene.sceneId);
+      if (!scenePath) {
         skippedScenes.push(scene.sceneId);
         continue;
       }
