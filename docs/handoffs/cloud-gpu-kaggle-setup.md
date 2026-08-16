@@ -10,11 +10,11 @@
 
 用户要跑数字人模型（LatentSync 1.6, Sonic, Hallo2/3），本地设备（M2 Pro 32GB + GTX 1080 8GB）无法满足。已调研完成免费/付费云 GPU 方案，文档在 `docs/research/cloud-gpu-options.md`（已更新）。
 
-**当前状态**：
-- Lightning AI：已注册，5 credits，但免费额度是**一次性的**（用完就没了），且 "New App" 返回 403。账号可能需要联系 support（support code: 03920104）
-- Kaggle：**未注册**，无 API key
-- Colab：未验证是否有 Google 账号 GPU 访问权限
-- AutoDL：未注册
+**最终状态**：
+- Kaggle：✅ 已配置（CLI v2.2.4 + API token，全链路验证通过，P100 16GB）
+- Colab：✅ 已验证（T4 16GB，Google 账号 qingshun.li@gmail.com 已登录，CDP 可控制）
+- Lightning AI：⏸️ 用户暂停（5 credits 一次性额度，403 问题未解决）
+- AutoDL：⏸️ 用户暂停（未注册）
 
 ---
 
@@ -49,18 +49,23 @@
 > **PyTorch 兼容性**：Kaggle 默认 PyTorch 2.10+cu128 不支持 P100 (sm_60)。需要在 Notebook 中手动安装 `torch==2.4.1+cu121`。
 > 测试脚本在 `scripts/kaggle/test-gpu/`。
 
-### 2. Colab 验证
+### 2. ✅ Colab 验证（已完成）
 
-- 用户访问 https://colab.research.google.com/ → 用 Google 账号登录
-- 创建新 Notebook → Runtime → Change runtime type → GPU (T4)
-- 验证能分配到 GPU
+**完成情况**：
+- 用户手动验证 T4 GPU 可用（Untitled0.ipynb）
+- Agent 通过 CDP 验证：Google 账号 qingshun.li@gmail.com 已登录，能创建 Notebook、读写 cell、执行代码
+- Colab 有内置 terminal（左侧工具栏 → 终端），可执行命令行操作
+- **CDP 自动化可用**：Agent 可通过 web-access skill 自动操作 Colab（创建 Notebook → 写代码 → 执行 → 读输出）
 
-**Colab 限制**：免费 T4 不固定时长，空闲 90min 断连，每日有动态限制。仅做临时测试。
+**Colab 限制**：
+- 免费版 T4 16GB，不固定时长，空闲 90min 断连
+- 无外部 CLI（不能从本地终端 `colab run`），操作通过浏览器或 CDP
+- **无付费升级 GPU**：Pro $10/月 还是 16GB（T4+P100）；Pro+ $50/月 才有 A100 40GB
+- Pro ($10/月) 和 Gemini Advanced ($20/月) 是不同产品，Gemini 不含 Colab Pro+
 
-**Colab 自动化**：无官方 CLI，但可用：
-- `colab-automate` 第三方工具（不稳定）
-- Selenium/Playwright 自动化（复杂，不推荐）
-- **推荐**：手动操作 Colab，自动化用 Kaggle
+**Colab vs Kaggle 分工**：
+- **Colab**：交互式调试、参数调优（通过 CDP 或手动操作）
+- **Kaggle**：自动化批量推理（CLI push → status → output），30h/周
 
 ### 3. AutoDL 注册（付费备选）
 
@@ -140,11 +145,12 @@
 
 ---
 
-## Suggested Skills
+## 下一步
 
-- `web-access`：用户 Chrome CDP 操作（Kaggle 注册引导、AutoDL 页面查看）
-- `research`：调研 Kaggle API 具体参数和 Notebook 格式要求
-- `handoff`：如果需要再拆分任务
+Handoff 任务已全部完成（3 个 ✅ + 2 个 ⏸️），本文档可归档。新 session 应参考：
+- `docs/research/cloud-gpu-options.md` — GPU 方案对比（已更新含 Colab Pro/Pro+ 说明）
+- `docs/research/digital-human-test-progress.md` — 测试进度追踪（末尾有云 GPU 测试计划 + 推荐优先级）
+- `scripts/kaggle/test-gpu/` — Kaggle 自动化测试脚本模板
 
 ## 相关文档
 

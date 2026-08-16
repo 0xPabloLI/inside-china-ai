@@ -79,9 +79,10 @@
 
 | 时间 | 平台 | GPU | 能跑模型 |
 |------|------|-----|---------|
-| 主力 | Kaggle T4 ×2 | 16GB | Sonic, PersonaLive, LatentSync 1.5 |
-| Kaggle 30h 用完 | Colab T4 | 16GB | V-Express, AniPortrait |
-| 需要大显存 | Lightning AI L4 | 24GB | LatentSync 1.6, Hallo2（一次性额度） |
+| 主力（自动化） | Kaggle P100/T4 | 16GB | EchoMimicV3, Sonic, V-Express, LatentSync 1.5 |
+| Kaggle 30h 用完 | Colab T4 | 16GB | 交互式调试、快速验证 |
+| 需要大显存（>16GB） | AutoDL RTX 4090 | 24GB | LatentSync 1.6, Hallo2（¥1.88/h） |
+| 需要 A100 40GB+ | Colab Pro+ | 40GB | Hallo2/3（$50/月） |
 | 需要长期高频 | AutoDL 付费 | RTX 4090 24GB | 全部 24GB 以下 |
 
 ---
