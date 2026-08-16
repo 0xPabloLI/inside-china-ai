@@ -63,6 +63,9 @@ const postQuery = (slug: string) =>
   queryOptions({
     queryKey: ["post", slug],
     queryFn: () => getPublishedPost({ data: { slug } }),
+    // Published articles change rarely: serve from cache on revisits/preloads.
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
 const SUFFIX = " — China AI News";
