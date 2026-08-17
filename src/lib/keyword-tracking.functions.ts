@@ -134,83 +134,21 @@ export const deleteTrackedKeyword = createServerFn({ method: "POST" })
 /**
  * Pulls live Semrush metrics for every active keyword, stores one snapshot per
  * UTC day, and emails the admin who triggered it when positions dropped.
+ * The same logic runs unattended via /api/public/hooks/refresh-keyword-snapshots.
  */
 export const refreshKeywordSnapshots = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async ({ context }) => {
-    const { fetchKeywordMetrics } = await import("@/lib/semrush.server");
-    const { DOMAIN } = await import("@/lib/keyword-tracking.server");
-
-    const { data: keywords, error } = await context.supabase
-      .from("tracked_keywords")
-      .select("id, keyword, database")
-      .eq("active", true);
-    if (error) throw new Error(error.message);
-    if (!keywords || keywords.length === 0) return { updated: 0, alerts: [] as string[] };
-
-    const today = new Date().toISOString().slice(0, 10);
-    const groups = new Map<string, typeof keywords>();
-    for (const k of keywords) {
-      const list = groups.get(k.database) ?? [];
-      list.push(k);
-      groups.set(k.database, list);
-    }
-
-    const alerts: Array<{ keyword: string; from: number | null; to: number | null }> = [];
-    let updated = 0;
-
-    for (const [database, list] of groups) {
-      const metrics = await fetchKeywordMetrics(
-        DOMAIN,
-        list.map((k) => k.keyword),
-        database,
-      );
-      const byKeyword = new Map(metrics.map((m) => [m.keyword, m]));
-
-      for (const k of list) {
-        const metric = byKeyword.get(k.keyword.toLowerCase());
-        if (!metric) continue;
-
-        const { data: prior } = await context.supabase
-          .from("keyword_snapshots")
-          .select("position, captured_on")
-          .eq("keyword_id", k.id)
-          .lt("captured_on", today)
-          .order("captured_on", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const { error: upsertErr } = await context.supabase.from("keyword_snapshots").upsert(
-          {
-            keyword_id: k.id,
-            captured_on: today,
-            position: metric.position,
-            search_volume: metric.searchVolume,
-            difficulty: metric.difficulty,
-            traffic_share: metric.trafficShare,
-            ranking_url: metric.rankingUrl,
-          },
-          { onConflict: "keyword_id,captured_on" },
-        );
-        if (upsertErr) throw new Error(upsertErr.message);
-        updated += 1;
-
-        const previousPosition = (prior?.position as number | null) ?? null;
-        if (isDrop(metric.position, previousPosition)) {
-          alerts.push({ keyword: k.keyword, from: previousPosition, to: metric.position });
-        }
-      }
-    }
+    const { refreshSnapshots, sendRankingAlert } = await import(
+      "@/lib/keyword-tracking.server"
+    );
+    const { updated, alerts } = await refreshSnapshots();
 
     if (alerts.length > 0) {
       const recipient = (context.claims as { email?: string } | undefined)?.email;
       if (recipient) {
         try {
-          const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
-          await sendTemplateEmail("ranking-alert", recipient, {
-            templateData: { alerts, capturedOn: today },
-            idempotencyKey: `ranking-alert-${today}-${recipient}`,
-          });
+          await sendRankingAlert(recipient, alerts, new Date().toISOString().slice(0, 10));
         } catch (err) {
           console.error("ranking alert email failed", err);
         }
@@ -219,3 +157,4 @@ export const refreshKeywordSnapshots = createServerFn({ method: "POST" })
 
     return { updated, alerts: alerts.map((a) => a.keyword) };
   });
+
