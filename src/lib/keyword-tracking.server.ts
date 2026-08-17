@@ -103,7 +103,7 @@ export async function refreshSnapshots(): Promise<RefreshResult> {
       updated += 1;
 
       const previousPosition = (prior?.position as number | null) ?? null;
-      if (isDrop(metric.position, previousPosition)) {
+      if (isDrop(metric.position, previousPosition, settings)) {
         alerts.push({ keyword: k.keyword, from: previousPosition, to: metric.position });
       }
     }
