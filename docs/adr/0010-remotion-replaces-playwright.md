@@ -24,7 +24,7 @@ The short video pipeline renders 9:16 vertical video scenes (1080×1920) with:
 **Migrate to Remotion** as the video rendering engine. Remotion is a React-based video framework that:
 - Renders frames deterministically via server-side rendering (frame-accurate)
 - Supports composition of video, audio, images, and animations in a single timeline
-- Provides `TransitionSeries` for scene transitions (replaced with absolute `Sequence` — see Timeline Contract below)
+- Provides `TransitionSeries` for scene transitions
 - Renders via `npx remotion render` (headless Chrome + frame extraction)
 - Supports `staticFile()` for audio assets (BGM, TTS)
 
@@ -86,7 +86,7 @@ The Playwright path is kept as a fallback because:
 | Aspect | Remotion | Playwright (legacy) |
 |--------|---------|-------------------|
 | **Frame accuracy** | Exact (deterministic frame rendering) | Drifts 50-200ms per scene |
-| **Transitions** | Absolute `Sequence` with internal fade-in (Option A) | FFmpeg xfade (post-production) |
+| **Transitions** | `TransitionSeries` (built-in) | FFmpeg xfade (post-production) |
 | **Audio preview** | Yes (in Remotion Studio) | No (audio added post-render) |
 | **Rendering speed** | ~30-60s per video (parallel frames) | ~60-120s per video (10 browser sessions) |
 | **Dependencies** | Remotion npm package (~2GB with Chrome) | Playwright (already installed) |
@@ -97,17 +97,6 @@ The Playwright path is kept as a fallback because:
 
 ### CSS-to-Remotion mapping
 The migration required translating CSS values from `base-styles.mjs`/`scene-templates.mjs` to Remotion's `interpolate()` and `<Img>`/`<Video>`/`<AbsoluteFill>` components. A `fix(remotion)` commit (`e8c9e32`) matched exact CSS values — font sizes, colors, spacing, frame glow — to ensure visual parity.
-
-## Timeline Contract: Option A — Fixed Scene Start
-
-**Decision date:** 2026-08-18
-
-All tracks (visual, audio, subtitle, totalFrames) use the SAME offsets derived from `sceneTimeline()` in `lib/timeline.mjs`. No track compresses the global timeline.
-
-- `TransitionSeries` was **removed** from `ShortVideo.tsx` because its 6-frame transition overlap shifted visual onsets relative to audio/subtitle offsets, causing 0.2s desync per transition.
-- Replaced with absolute `<Sequence from={offset} durationInFrames={clipFrames}>` for both visual and audio, using the same `cumulativeOffsetFrames` that matches `sceneTimeline()`.
-- Fade-in for subsequent scenes is an **internal animation** (first 6 frames of each scene), not a cross-scene overlap.
-- `Root.tsx` `calculateMetadata` and `render-remotion.mjs` `totalFrames` both use `sceneClipFrames()` from `timeline.mjs` — no duplicated frame calculation.
 
 ## Consequences
 

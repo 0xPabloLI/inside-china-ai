@@ -86,10 +86,8 @@ The project explored 4 cloud GPU providers (2026-08-16) before settling on a str
 
 ## Consequences
 
-- Kaggle test scripts at `scripts/kaggle/test-gpu/` (`smoke_gpu.py`, `test_gpu.py`, `kernel-metadata.json`, `README.md`).
-- EchoMimic v3 test at `scripts/kaggle/echomimicv3-test/` (digital human generation experiment). Large outputs (models, videos, logs) are gitignored.
-- **Smoke test**: `smoke_gpu.py` is a minimal GPU verification script (no model downloads). Run on Kaggle and Colab to verify CLI setup and GPU availability.
-- **Status**: CLI installation verified locally. Remote GPU smoke runs pending actual Kaggle/Colab execution.
+- Kaggle test scripts at `scripts/kaggle/test-gpu/` (`test_gpu.py` + `kernel-metadata.json`).
+- EchoMimic v3 test at `scripts/kaggle/echomimicv3-test/` (digital human generation experiment).
 - Colab CLI usage guide: https://github.com/googlecolab/google-colab-cli/blob/main/skills/colab-operator/SKILL.md
 - Cloud GPU scripts must be self-contained `.py` files (no project imports). Data passed via Kaggle dataset upload or Colab `--install` packages.
 - Local inference remains primary (ADR-0008, ADR-0009). Cloud GPU is for tasks that exceed M2 Pro capacity.

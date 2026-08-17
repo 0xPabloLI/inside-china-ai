@@ -46,24 +46,22 @@ For each source, collection attempts layers in order:
 
 ### Source registry
 
-`source-registry.mjs` defines all sources (34 total) with:
+`source-registry.mjs` defines all sources (28 total) with:
 - `accessMethod: { primary, fallbacks, notes }` — documents the collection strategy
 - `apiSearch: { url, parser, authRequired, paidApi }` — API direct-connect config (Issue #34)
 - `cdpFallback: { google site: search config }` — Google search fallback
 - `mcpFallback: { MCP server config }` — Grok search fallback
 
-### Source categories (34 sources)
+### Source categories (28 sources)
 
 | Category | Count | Examples | Primary method |
 |----------|-------|---------|---------------|
 | news | 7 | 量子位, 机器之心, 新华网, 澎湃新闻, 雷锋网, 新智元, IT之家 | CDP |
 | self_media | 8 | 微信公众号, 知乎, 36氪, 虎嗅, 少数派, 极客公园, 钛媒体, 量子位 bitwise | CDP |
-| western | 8 | X/Twitter, Reddit, Hacker News, arxiv, CORE, GNews, OpenAlex, datacube_ai | API / MCP |
-| general | 5 | Google News, Bing News, Baidu News, Noozra, Currents | CDP / API |
+| western | 4 | X/Twitter, Reddit, Hacker News, TechCrunch | MCP |
+| general | 3 | Google News, Bing News, Baidu News | CDP |
 | last30days | 5 | Reddit, YouTube, TikTok, HN, Polymarket | last30days skill |
 | wechat | 1 | 微信公众号 | CDP |
-
-**Source count is enforced by `source-registry.test.mjs` (`ALL_SOURCES has 34 sources`).** Update the test when adding/removing sources.
 
 ## Why not alternatives
 
@@ -90,7 +88,7 @@ For each source, collection attempts layers in order:
 | **Speed** | Variable (API fast, CDP slow) | Consistent |
 | **Complexity** | High (3 code paths per source) | Low |
 | **Cost** | $0 (free APIs + CDP) + optional paid | Varies |
-| **Coverage** | 34 sources, multiple access methods | Limited |
+| **Coverage** | 28 sources, multiple access methods | Limited |
 | **Maintenance** | Per-source config in registry | Simpler |
 
 ### `paidApi` flag

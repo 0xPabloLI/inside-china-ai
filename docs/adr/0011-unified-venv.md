@@ -69,7 +69,7 @@ Additionally, **mlx-vlm** (VLM for asset analysis — see ADR-0009) was added la
 | **Subprocess activation** | One venv path to remember | 3-4 different paths |
 
 ### Risk: dependency conflict
-All four components share `transformers`, `torch`/`mlx`, and `numpy`. A version requirement mismatch could break one component when upgrading another. Mitigation: pinned versions in `requirements-video-ai.lock` and `verify-ai-env.py` smoke test run after any upgrade.
+All four components share `transformers`, `torch`/`mlx`, and `numpy`. A version requirement mismatch could break one component when upgrading another. Mitigation: pin versions in a `requirements.txt` and test all four components after any upgrade.
 
 ## Consequences
 
@@ -79,6 +79,3 @@ All four components share `transformers`, `torch`/`mlx`, and `numpy`. A version 
 - `ai_analyzer.py` docstring references `~/.video-tts-env`.
 - The venv is NOT in version control — it's a local development dependency. Setup instructions are in `docs/video-workflow.md`.
 - whisperx model upgraded from `facebook/wav2vec2-base-960h` (95M params, 368MB) to `facebook/wav2vec2-large-960h-lv60-self` (316M params, ~1.2GB) for better alignment accuracy.
-- **Lockfile**: `scripts/short-video/requirements-video-ai.in` lists direct dependencies; `requirements-video-ai.lock` is the full transitive freeze (158 packages). Rebuild: `python3.12 -m venv ~/.video-tts-env && source ~/.video-tts-env/bin/activate && pip install --no-deps -r requirements-video-ai.lock`. **Note**: `--no-deps` is required because `mlx-audio==0.4.8` declares `huggingface_hub>=1.0` and `transformers>=5.14.0` in its metadata, but `transformers 4.57.x` and `whisperx 3.8.x` require `huggingface-hub<1.0`. The runtime works fine with hub 0.36.2 — this is an upstream packaging bug in mlx-audio.
-- **Smoke test**: `python3 scripts/short-video/verify-ai-env.py` verifies all 4 core components + 6 supporting libraries import correctly. Run after any venv change.
-- **Upgrade protocol**: (1) `pip install --upgrade <package>`, (2) run `verify-ai-env.py`, (3) run `npx vitest run scripts/short-video/__tests__/test-f5-duration.test.mjs`, (4) run a 1-scene TTS+VLM pipeline smoke, (5) update `requirements-video-ai.lock`.
