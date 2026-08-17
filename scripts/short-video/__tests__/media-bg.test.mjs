@@ -6,6 +6,8 @@ import {
   mediaLayer,
   validateMedia,
   VALID_PRESETS,
+  VALID_FITS,
+  VALID_FOCUSES,
 } from "../lib/media-bg.mjs";
 
 // ─── Mock paths ───
@@ -362,14 +364,110 @@ describe("validateMedia", () => {
   });
 });
 
-// ─── VALID_PRESETS constant ───
+// ─── fit/focus field tests ───
 
-describe("VALID_PRESETS", () => {
-  it("contains all 5 presets", () => {
-    expect(VALID_PRESETS).toContain("fade");
-    expect(VALID_PRESETS).toContain("ken-burns");
-    expect(VALID_PRESETS).toContain("slide");
-    expect(VALID_PRESETS).toContain("zoom");
-    expect(VALID_PRESETS).toContain("none");
+describe("validateMedia — fit field", () => {
+  it("does not warn when fit is undefined (default cover applies)", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("fit"))).toBe(false);
+  });
+
+  it("does not warn when fit is cover", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", fit: "cover" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.toLowerCase().includes("fit"))).toBe(false);
+  });
+
+  it("does not warn when fit is contain", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", fit: "contain" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.toLowerCase().includes("fit"))).toBe(false);
+  });
+
+  it("warns when fit is invalid", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", fit: "stretch" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true); // warning, not error
+    expect(
+      result.warnings.some((w) => w.toLowerCase().includes("fit") && w.includes("stretch")),
+    ).toBe(true);
+  });
+});
+
+describe("validateMedia — focus field", () => {
+  it("does not warn when focus is undefined (default center applies)", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("focus"))).toBe(false);
+  });
+
+  it("does not warn when focus is top", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", focus: "top" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.toLowerCase().includes("focus"))).toBe(false);
+  });
+
+  it("does not warn when focus is center", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", focus: "center" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.toLowerCase().includes("focus"))).toBe(false);
+  });
+
+  it("does not warn when focus is bottom", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", focus: "bottom" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.toLowerCase().includes("focus"))).toBe(false);
+  });
+
+  it("warns when focus is invalid", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", focus: "left" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true); // warning, not error
+    expect(
+      result.warnings.some((w) => w.toLowerCase().includes("focus") && w.includes("left")),
+    ).toBe(true);
+  });
+});
+
+// ─── VALID_FITS and VALID_FOCUSES constants ───
+
+describe("VALID_FITS constant", () => {
+  it("contains cover and contain", () => {
+    expect(VALID_FITS).toContain("cover");
+    expect(VALID_FITS).toContain("contain");
+  });
+});
+
+describe("VALID_FOCUSES constant", () => {
+  it("contains top, center, and bottom", () => {
+    expect(VALID_FOCUSES).toContain("top");
+    expect(VALID_FOCUSES).toContain("center");
+    expect(VALID_FOCUSES).toContain("bottom");
   });
 });

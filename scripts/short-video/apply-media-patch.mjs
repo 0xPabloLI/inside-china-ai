@@ -101,6 +101,16 @@ for (const patch of assigned) {
     console.log(`  volume: ${m.volume},`);
   }
 
+  // Fit (VLM-analyzed, only for landscape assets)
+  if (m.fit) {
+    console.log(`  fit: "${m.fit}",`);
+  }
+
+  // Focus (VLM-analyzed, only for landscape assets)
+  if (m.focus) {
+    console.log(`  focus: "${m.focus}",`);
+  }
+
   console.log("},");
 
   // Attribution comment

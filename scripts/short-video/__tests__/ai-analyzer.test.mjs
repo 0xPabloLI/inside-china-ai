@@ -93,10 +93,151 @@ afterEach(async () => {
 
 describe("ai-analyzer module", () => {
   describe("exports", () => {
-    it("exports describeImage, describeVideo, closeAnalyzer", () => {
+    it("exports describeImage, describeVideo, analyzeFit, closeAnalyzer", () => {
       expect(typeof aiAnalyzer.describeImage).toBe("function");
       expect(typeof aiAnalyzer.describeVideo).toBe("function");
+      expect(typeof aiAnalyzer.analyzeFit).toBe("function");
       expect(typeof aiAnalyzer.closeAnalyzer).toBe("function");
+    });
+  });
+
+  describe("parseFitResponse", () => {
+    it("parses valid JSON response", () => {
+      const text = '{"fit": "cover", "focus": "top", "reason": "subject in upper frame"}';
+      const result = aiAnalyzer.parseFitResponse(text);
+      expect(result).toEqual({
+        fit: "cover",
+        focus: "top",
+        reason: "subject in upper frame",
+      });
+    });
+
+    it("parses JSON wrapped in markdown code block", () => {
+      const text = '```json\n{"fit": "contain", "focus": "center", "reason": "text at edges"}\n```';
+      const result = aiAnalyzer.parseFitResponse(text);
+      expect(result.fit).toBe("contain");
+      expect(result.focus).toBe("center");
+    });
+
+    it("parses JSON with extra text around it", () => {
+      const text = 'Here is my analysis:\n{"fit": "cover", "focus": "bottom", "reason": "subject below"}\nHope this helps!';
+      const result = aiAnalyzer.parseFitResponse(text);
+      expect(result.fit).toBe("cover");
+      expect(result.focus).toBe("bottom");
+    });
+
+    it("returns empty object for invalid fit value", () => {
+      const text = '{"fit": "invalid", "focus": "center", "reason": "..."}';
+      const result = aiAnalyzer.parseFitResponse(text);
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object for invalid focus value", () => {
+      const text = '{"fit": "cover", "focus": "left", "reason": "..."}';
+      const result = aiAnalyzer.parseFitResponse(text);
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object for empty string", () => {
+      const result = aiAnalyzer.parseFitResponse("");
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object for whitespace-only string", () => {
+      const result = aiAnalyzer.parseFitResponse("   \n  \t ");
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object when no JSON found", () => {
+      const result = aiAnalyzer.parseFitResponse("I cannot analyze this image");
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object for null input", () => {
+      const result = aiAnalyzer.parseFitResponse(null);
+      expect(result).toEqual({});
+    });
+  });
+
+  describe("analyzeFit — normal path", () => {
+    it("sends analyze_fit action to Python subprocess", async () => {
+      const promise = aiAnalyzer.analyzeFit("/abs/landscape.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
+      const request = JSON.parse(writtenData.trim());
+
+      expect(request.action).toBe("analyze_fit");
+      expect(request.path).toBe("/abs/landscape.jpg");
+
+      mockProc.emitStdout(
+        JSON.stringify({
+          fit: "cover",
+          focus: "top",
+          reason: "main subject in upper portion",
+          error: null,
+        }) + "\n",
+      );
+
+      const result = await promise;
+      expect(result).toEqual({
+        fit: "cover",
+        focus: "top",
+        reason: "main subject in upper portion",
+      });
+    });
+
+    it("returns object with fit, focus, reason on valid VLM response", async () => {
+      const promise = aiAnalyzer.analyzeFit("/abs/wide.mp4");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout(
+        JSON.stringify({
+          fit: "contain",
+          focus: "center",
+          reason: "UI elements at edges must not be cropped",
+          error: null,
+        }) + "\n",
+      );
+
+      const result = await promise;
+      expect(result.fit).toBe("contain");
+      expect(result.focus).toBe("center");
+      expect(result.reason).toContain("UI elements");
+    });
+  });
+
+  describe("analyzeFit — degradation", () => {
+    it("returns empty object when VLM returns error", async () => {
+      const promise = aiAnalyzer.analyzeFit("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout(
+        JSON.stringify({ fit: null, focus: null, reason: "", error: "VLM failed" }) + "\n",
+      );
+
+      const result = await promise;
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object when VLM returns malformed JSON", async () => {
+      const promise = aiAnalyzer.analyzeFit("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout("This is not JSON at all\n");
+
+      const result = await promise;
+      expect(result).toEqual({});
+    });
+
+    it("returns empty object when spawn returns null (VLM unavailable)", async () => {
+      const { existsSync } = await import("fs");
+      existsSync.mockReturnValue(false);
+
+      const result = await aiAnalyzer.analyzeFit("/abs/img.jpg");
+      expect(result).toEqual({});
+
+      existsSync.mockReturnValue(true);
     });
   });
 

@@ -15,6 +15,8 @@ export interface MediaField {
   type: "image" | "video";
   path: string;
   mode?: "background" | "fullscreen"; // default "background"
+  fit?: "cover" | "contain"; // default "cover" — how to place landscape media in 9:16
+  focus?: "top" | "center" | "bottom"; // default "center" — crop focus when fit is "cover"
   source?: string;
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;

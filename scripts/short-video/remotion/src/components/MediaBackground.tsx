@@ -37,6 +37,13 @@ interface Props {
   contentDir?: string;
 }
 
+/** Maps focus field to CSS object-position value. */
+const FOCUS_MAP: Record<string, string> = {
+  top: "center top",
+  center: "center",
+  bottom: "center bottom",
+};
+
 export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
   const frame = useCurrentFrame();
 
@@ -109,7 +116,8 @@ export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
     inset: 0,
     width: "100%",
     height: "100%",
-    objectFit: "cover",
+    objectFit: media.fit ?? "cover",
+    objectPosition: FOCUS_MAP[media.focus ?? "center"] ?? "center",
     opacity,
     transform: `translate(${translateX}, ${translateY}) scale(${scale})`,
     filter: filter !== "none" ? filter : undefined,

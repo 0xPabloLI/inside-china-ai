@@ -8,6 +8,7 @@
  * API:
  *   describeImage(imagePath)  -> Promise<string>
  *   describeVideo(videoPath) -> Promise<string>
+ *   analyzeFit(assetPath)    -> Promise<{fit, focus, reason}>
  *   closeAnalyzer()           -> Promise<void>
  *
  * Lifecycle:
@@ -110,9 +111,9 @@ function spawnPython() {
 
     // If a request is being processed, resolve it with empty
     if (processing && requestQueue.length > 0) {
-      const { resolve } = requestQueue.shift();
+      const req = requestQueue.shift();
       processing = false;
-      resolve("");
+      req.resolve(req.isFit ? {} : "");
     }
 
     processing = false;
@@ -126,9 +127,9 @@ function spawnPython() {
     vlmAvailable = false;
 
     if (processing && requestQueue.length > 0) {
-      const { resolve } = requestQueue.shift();
+      const req = requestQueue.shift();
       processing = false;
-      resolve("");
+      req.resolve(req.isFit ? {} : "");
     }
 
     processQueue();
@@ -162,14 +163,15 @@ function ensureProcess() {
 function handleResponse(line) {
   if (requestQueue.length === 0) return;
 
-  const { resolve } = requestQueue.shift();
+  const request = requestQueue.shift();
+  const { resolve } = request;
   processing = false;
 
   let response;
   try {
     response = JSON.parse(line);
   } catch {
-    resolve("");
+    resolve(request.isFit ? {} : "");
     processQueue();
     return;
   }
@@ -178,7 +180,18 @@ function handleResponse(line) {
 
   if (response.error) {
     console.warn(`AI analysis error: ${response.error}`);
-    resolve("");
+    resolve(request.isFit ? {} : "");
+  } else if (request.isFit) {
+    // analyze_fit: Python returns {fit, focus, reason, error: null}
+    // or {description: "<JSON string>", error: null} as fallback
+    if (response.fit && response.focus) {
+      resolve(parseFitResponse(
+        JSON.stringify({ fit: response.fit, focus: response.focus, reason: response.reason || "" })
+      ));
+    } else {
+      // Fallback: try parsing from description field
+      resolve(parseFitResponse(response.description || ""));
+    }
   } else {
     resolve(response.description || "");
   }
@@ -194,8 +207,8 @@ function processQueue() {
 
   if (!ensureProcess()) {
     while (requestQueue.length > 0) {
-      const { resolve } = requestQueue.shift();
-      resolve("");
+      const req = requestQueue.shift();
+      req.resolve(req.isFit ? {} : "");
     }
     return;
   }
@@ -213,7 +226,7 @@ function processQueue() {
   } catch (_err) {
     requestQueue.shift();
     processing = false;
-    request.resolve("");
+    request.resolve(request.isFit ? {} : "");
     processQueue();
     return;
   }
@@ -223,10 +236,68 @@ function processQueue() {
     if (processing && requestQueue.length > 0 && requestQueue[0] === request) {
       requestQueue.shift();
       processing = false;
-      request.resolve("");
+      request.resolve(request.isFit ? {} : "");
       processQueue();
     }
   }, RESPONSE_TIMEOUT_MS);
+}
+
+// ─── Fit analysis ───
+
+const VALID_FITS = ["cover", "contain"];
+const VALID_FOCUSES = ["top", "center", "bottom"];
+
+/**
+ * Parse a VLM response for analyze_fit.
+ *
+ * Extracts {fit, focus, reason} from the raw text. Handles:
+ * - Plain JSON
+ * - JSON wrapped in markdown code blocks
+ * - JSON with extra text around it
+ *
+ * Validates fit ∈ {cover, contain} and focus ∈ {top, center, bottom}.
+ * Returns {} on any parse/validation failure.
+ *
+ * @param {string|null} text - Raw VLM response text.
+ * @returns {{fit?: string, focus?: string, reason?: string}}
+ */
+export function parseFitResponse(text) {
+  if (!text || typeof text !== "string" || !text.trim()) {
+    return {};
+  }
+
+  // Try direct JSON.parse first
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Try regex extraction of JSON object
+    const match = text.match(/\{[^}]+\}/);
+    if (match) {
+      try {
+        parsed = JSON.parse(match[0]);
+      } catch {
+        return {};
+      }
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return {};
+  }
+
+  const fit = parsed.fit;
+  const focus = parsed.focus;
+  const reason = parsed.reason || "";
+
+  if (!fit || !VALID_FITS.includes(fit)) {
+    return {};
+  }
+  if (!focus || !VALID_FOCUSES.includes(focus)) {
+    return {};
+  }
+
+  return { fit, focus, reason };
 }
 
 // ─── Public API ───
@@ -253,6 +324,31 @@ export function describeImage(imagePath) {
 export function describeVideo(videoPath) {
   return new Promise((resolve, reject) => {
     requestQueue.push({ resolve, reject, action: "describe_video", path: videoPath });
+    processQueue();
+  });
+}
+
+/**
+ * Analyze a landscape asset for fit/focus in a 9:16 canvas.
+ *
+ * Sends an analyze_fit action to the Python subprocess. The VLM examines
+ * the asset and returns {fit, focus, reason} describing how to place it
+ * in a vertical canvas.
+ *
+ * @param {string} assetPath - Absolute path to the image/video file.
+ * @returns {Promise<{fit?: string, focus?: string, reason?: string}>}
+ *   Parsed object on success, {} on failure (VLM unavailable, parse error).
+ */
+export function analyzeFit(assetPath) {
+  return new Promise((resolve, reject) => {
+    requestQueue.push({
+      resolve,
+      reject,
+      action: "analyze_fit",
+      path: assetPath,
+      // Custom resolver: parse fit response instead of returning raw string
+      isFit: true,
+    });
     processQueue();
   });
 }

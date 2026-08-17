@@ -42,6 +42,16 @@ export const VALID_PRESETS = ["fade", "ken-burns", "slide", "zoom", "none"];
 export const VALID_MODES = ["background", "fullscreen"];
 
 /**
+ * Valid fit values for landscape-to-vertical placement.
+ */
+export const VALID_FITS = ["cover", "contain"];
+
+/**
+ * Valid focus values for crop positioning when fit is "cover".
+ */
+export const VALID_FOCUSES = ["top", "center", "bottom"];
+
+/**
  * Default overlay opacity when `media.overlay` is not specified.
  */
 const DEFAULT_OVERLAY = 0.7;
@@ -331,6 +341,16 @@ export function validateMedia(media, contentDir) {
   // Volume range check (0-1, only meaningful for video, but harmless for image)
   if (media.volume !== undefined && (media.volume < 0 || media.volume > 1)) {
     warnings.push(`Volume ${media.volume} is out of range [0, 1]. Will be clamped at render time.`);
+  }
+
+  // Fit validation
+  if (media.fit && !VALID_FITS.includes(media.fit)) {
+    warnings.push(`Unknown fit value: "${media.fit}". Will use "cover" instead.`);
+  }
+
+  // Focus validation
+  if (media.focus && !VALID_FOCUSES.includes(media.focus)) {
+    warnings.push(`Unknown focus value: "${media.focus}". Will use "center" instead.`);
   }
 
   return {

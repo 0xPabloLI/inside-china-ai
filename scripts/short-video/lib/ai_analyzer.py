@@ -44,6 +44,17 @@ PROMPT = (
     "Focus on the main subject, setting, and any visible technology, "
     "products, or brands."
 )
+FIT_PROMPT = (
+    "This image/video will be placed in a 9:16 vertical video canvas. "
+    "Look at where the main subject is and whether the edges contain "
+    "critical content (text, UI, charts). "
+    'Respond as JSON: {"fit": "cover" or "contain", '
+    '"focus": "top" or "center" or "bottom", '
+    '"reason": "one sentence"}. '
+    'Use "cover" if edge content is non-critical and we can crop. '
+    'Use "contain" if edges have text/UI that must not be cropped. '
+    'Use focus to indicate where the main subject is positioned.'
+)
 VIDEO_FPS = 1.0
 MAX_VIDEO_SECONDS = 8  # cap analysis at 8s of video
 
@@ -96,14 +107,20 @@ def load_model(model_id):
 
 
 def generate_response(model, processor, image_paths=None, video_path=None,
-                      fps=VIDEO_FPS, max_frames=None):
+                      fps=VIDEO_FPS, max_frames=None, prompt_text=None):
     """Generate a text description from image(s) or video.
 
     Uses mlx_vlm.generate with the configured prompt at temperature 0.0.
     The prompt is formatted via processor.apply_chat_template so that the
     correct image/video token placeholders are inserted into input_ids.
+
+    Args:
+        prompt_text: Override the default PROMPT. Used by analyze_fit
+                      to use FIT_PROMPT instead.
     """
     from mlx_vlm import generate
+
+    effective_prompt = prompt_text if prompt_text is not None else PROMPT
 
     # Build chat-template-formatted prompt with image/video placeholder
     content = []
@@ -114,7 +131,7 @@ def generate_response(model, processor, image_paths=None, video_path=None,
             image_paths = [image_paths]
         for img_path in image_paths:
             content.append({"type": "image", "image": img_path})
-    content.append({"type": "text", "text": PROMPT})
+    content.append({"type": "text", "text": effective_prompt})
 
     messages = [{"role": "user", "content": content}]
     prompt = processor.apply_chat_template(
@@ -271,6 +288,104 @@ def _cleanup_frames(frame_paths):
         pass
 
 
+def handle_analyze_fit(model, processor, path):
+    """Handle an analyze_fit request.
+
+    Uses FIT_PROMPT to ask the VLM how to place a landscape asset in a
+    9:16 vertical canvas. Returns (result_dict, error) tuple where
+    result_dict has keys: fit, focus, reason.
+
+    For images, passes directly. For videos, tries native video input
+    first, falls back to frame extraction (same as describe_video).
+    """
+    if not os.path.exists(path):
+        return {}, f"File not found: {path}"
+
+    # Determine if it's a video or image
+    ext = os.path.splitext(path)[1].lower()
+    is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
+
+    try:
+        if is_video:
+            # Try native video input with FIT_PROMPT
+            try:
+                raw = generate_response(
+                    model, processor, video_path=path,
+                    fps=VIDEO_FPS, prompt_text=FIT_PROMPT,
+                )
+            except Exception as e:
+                sys.stderr.write(
+                    f"[ai_analyzer] Native video failed for analyze_fit, "
+                    f"falling back to frames: {e}\n"
+                )
+                sys.stderr.flush()
+                frames = extract_frames(path, fps=VIDEO_FPS, max_seconds=MAX_VIDEO_SECONDS)
+                if not frames:
+                    return {}, "Both native video and frame extraction failed"
+                raw = generate_response(
+                    model, processor, image_paths=frames,
+                    prompt_text=FIT_PROMPT,
+                )
+                _cleanup_frames(frames)
+        else:
+            # Image — verify first
+            try:
+                from PIL import Image
+                img = Image.open(path)
+                img.verify()
+            except Exception as e:
+                return {}, f"Invalid or corrupt image: {e}"
+
+            raw = generate_response(
+                model, processor, image_paths=path,
+                prompt_text=FIT_PROMPT,
+            )
+    except Exception as e:
+        return {}, f"VLM generation failed: {e}"
+
+    # Parse the raw response to extract fit/focus/reason
+    fit, focus, reason = _parse_fit_output(raw)
+    if not fit:
+        return {}, f"Could not parse fit/focus from VLM response: {raw[:200]}"
+    return {"fit": fit, "focus": focus, "reason": reason}, None
+
+
+def _parse_fit_output(text):
+    """Extract fit, focus, reason from VLM raw text output.
+
+    Handles JSON, JSON in markdown blocks, and key=value formats.
+    Returns (fit, focus, reason) tuple, with None for unparseable values.
+    """
+    import json as _json
+    import re
+
+    if not text or not text.strip():
+        return None, None, ""
+
+    # Try direct JSON parse
+    parsed = None
+    try:
+        parsed = _json.loads(text)
+    except _json.JSONDecodeError:
+        # Try regex extraction
+        match = re.search(r'\{[^}]+\}', text)
+        if match:
+            try:
+                parsed = _json.loads(match.group(0))
+            except _json.JSONDecodeError:
+                pass
+
+    if parsed and isinstance(parsed, dict):
+        fit = parsed.get("fit")
+        focus = parsed.get("focus")
+        reason = parsed.get("reason", "")
+        # Validate values
+        if fit in ("cover", "contain") and focus in ("top", "center", "bottom"):
+            return fit, focus, reason or ""
+
+    return None, None, ""
+
+
 # ─── Main loop ───
 
 def main():
@@ -334,6 +449,14 @@ def main():
                 path = request.get("path", "")
                 desc, err = handle_describe_video(model, processor, path)
                 response = {"description": desc, "error": err}
+
+            elif action == "analyze_fit":
+                path = request.get("path", "")
+                fit_result, err = handle_analyze_fit(model, processor, path)
+                if err:
+                    response = {"fit": None, "focus": None, "reason": "", "error": err}
+                else:
+                    response = {**fit_result, "error": None}
 
             else:
                 response = {"description": "", "error": f"Unknown action: {action}"}

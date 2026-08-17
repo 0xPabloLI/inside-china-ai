@@ -13,11 +13,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockDescribeImage = vi.fn();
 const mockDescribeVideo = vi.fn();
+const mockAnalyzeFit = vi.fn();
 const mockCloseAnalyzer = vi.fn();
 
 vi.mock("../lib/ai-analyzer.mjs", () => ({
   describeImage: (...args) => mockDescribeImage(...args),
   describeVideo: (...args) => mockDescribeVideo(...args),
+  analyzeFit: (...args) => mockAnalyzeFit(...args),
   closeAnalyzer: (...args) => mockCloseAnalyzer(...args),
 }));
 
@@ -28,6 +30,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockDescribeImage.mockResolvedValue("A robot in a lab");
   mockDescribeVideo.mockResolvedValue("A robot walking demonstration");
+  mockAnalyzeFit.mockResolvedValue({}); // default: no fit analysis (portrait assets)
   mockCloseAnalyzer.mockResolvedValue(undefined);
 });
 
@@ -81,12 +84,13 @@ describe("analyzeAssets — AI integration", () => {
     expect(typeof report[0].analysisTimeMs).toBe("number");
   });
 
-  it("calls closeAnalyzer at the end", async () => {
+  it("does NOT call closeAnalyzer (caller is responsible)", async () => {
     const assets = [{ path: "/abs/img1.jpg", type: "image" }];
 
     await analyzeAssets(assets);
 
-    expect(mockCloseAnalyzer).toHaveBeenCalledTimes(1);
+    // analyzeAssets no longer closes the VLM process — the main function does.
+    expect(mockCloseAnalyzer).not.toHaveBeenCalled();
   });
 
   it("handles VLM unavailable gracefully — returns empty descriptions", async () => {
@@ -104,8 +108,8 @@ describe("analyzeAssets — AI integration", () => {
     expect(assets[1].aiDescription).toBe("");
     expect(report[0].success).toBe(false);
     expect(report[1].success).toBe(false);
-    // Pipeline did not crash
-    expect(mockCloseAnalyzer).toHaveBeenCalledTimes(1);
+    // Pipeline did not crash, closeAnalyzer not called by analyzeAssets
+    expect(mockCloseAnalyzer).not.toHaveBeenCalled();
   });
 
   it("logs progress per asset", async () => {

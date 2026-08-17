@@ -349,17 +349,24 @@ export function assignAssetsToScenes(assets, scenes) {
       const volRec = VOLUME_RECOMMENDATIONS[vt];
       const volume = isVideo && volRec ? volRec.video : undefined;
 
-      // Build media object
-      const media = {
-        type: asset.type,
-        path: asset.path,
-        source: asset.source || asset.from || undefined,
-        animation,
-        overlay,
-      };
-      if (volume !== undefined) {
-        media.volume = volume;
-      }
+// Build media object
+const media = {
+type: asset.type,
+path: asset.path,
+source: asset.source || asset.from || undefined,
+animation,
+overlay,
+};
+// Include VLM-analyzed fit/focus when available
+if (asset.aiFit) {
+media.fit = asset.aiFit;
+}
+if (asset.aiFocus) {
+media.focus = asset.aiFocus;
+}
+if (volume !== undefined) {
+media.volume = volume;
+}
 
       result.push({
         sceneId: scene.id,
@@ -460,13 +467,19 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
  * report array with per-asset analysis data.
  *
  * When VLM is unavailable, logs warning and returns empty descriptions.
- * Calls closeAnalyzer() in a finally block.
+ * Does NOT call closeAnalyzer() — the caller is responsible for closing
+ * the VLM process after all analysis phases (including assignAssetsToScenes)
+ * are complete. This keeps the 11GB model resident across phases.
+ *
+ * For landscape assets (aspect > 1.2), also calls analyzeFit() to determine
+ * how to place the asset in a 9:16 vertical canvas.
  *
  * @param {Array} assets - Downloaded assets (each must have path and type)
  * @returns {Promise<Array<{path: string, description: string, success: boolean, analysisTimeMs: number}>>}
  */
 export async function analyzeAssets(assets) {
-  const { describeImage, describeVideo, closeAnalyzer } = await import("./ai-analyzer.mjs");
+  const { describeImage, describeVideo, analyzeFit } = await import("./ai-analyzer.mjs");
+  const { checkResolution } = await import("./upscale.mjs");
 
   const report = [];
 
@@ -504,6 +517,25 @@ export async function analyzeAssets(assets) {
         success = false;
       }
 
+      // For landscape assets, also analyze fit/focus
+      try {
+        const res = checkResolution(absPath);
+        const aspect = res.height > 0 ? res.width / res.height : 0;
+        if (aspect > 1.2) {
+          console.log(`  📐 Landscape asset (aspect ${aspect.toFixed(2)}), analyzing fit...`);
+          const fitResult = await analyzeFit(absPath);
+          if (fitResult.fit) {
+            asset.aiFit = fitResult.fit;
+            asset.aiFocus = fitResult.focus;
+            asset.aiFitReason = fitResult.reason || "";
+            console.log(`     → fit: ${fitResult.fit}, focus: ${fitResult.focus}`);
+          }
+        }
+      } catch (fitErr) {
+        // Fit analysis is optional — don't fail the whole asset
+        console.warn(`  ⚠️  Fit analysis skipped for ${absPath}: ${fitErr.message}`);
+      }
+
       const analysisTimeMs = Date.now() - startTime;
       asset.aiDescription = description;
 
@@ -514,8 +546,9 @@ export async function analyzeAssets(assets) {
         analysisTimeMs,
       });
     }
-  } finally {
-    await closeAnalyzer();
+  } catch (err) {
+    // Re-throw so caller knows analysis failed
+    throw err;
   }
 
   return report;
@@ -1698,6 +1731,15 @@ export async function main(args = process.argv.slice(2)) {
       }
     } catch (err) {
       console.warn(`⚠️  AI analysis layer not available: ${err.message}`);
+    } finally {
+      // Close VLM process — analyzeAssets no longer closes it itself,
+      // so we must close it here to release the ~11GB model.
+      try {
+        const { closeAnalyzer } = await import("./ai-analyzer.mjs");
+        await closeAnalyzer();
+      } catch {
+        // ignore close errors
+      }
     }
   }
 
