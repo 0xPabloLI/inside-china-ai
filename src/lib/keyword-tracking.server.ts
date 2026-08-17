@@ -45,6 +45,8 @@ export type RefreshResult = {
 export async function refreshSnapshots(): Promise<RefreshResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { fetchKeywordMetrics } = await import("@/lib/semrush.server");
+  const settings = await loadAlertSettings();
+
 
   const { data: keywords, error } = await supabaseAdmin
     .from("tracked_keywords")
