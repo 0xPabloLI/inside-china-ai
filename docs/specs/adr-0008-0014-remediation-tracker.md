@@ -54,7 +54,7 @@ git log -1 --oneline
 |---:|---|---:|---|---|---|---|---|
 | 00 | 建立隔离基线与失败归属 | P0 | 无 | `VERIFIED` | `chore` | worktree 已建、3 failed / 1248 passed、Remotion compositions OK | 01 已 READY，可开始。 |
 | 01 | F5 中文/混合文本时长与 RK4 事实修复 | P0 | 00 | `DONE` | `fix(tts)` | 34 Python + 5 vitest 测试通过；commit `138a392`；ADR-0008 + video-workflow 同步 | 真实 TTS 试听待做（需模型加载）。 |
-| 02 | Remotion 视觉、音频、ASS 统一时间线 | P0 | 00、01 | `NOT_STARTED` | `fix(video)` | 2/3 Scene 实渲染 + 帧/字幕验收 | 先选定时间线契约。 |
+| 02 | Remotion 视觉、音频、ASS 统一时间线 | P0 | 00、01 | `DONE` | `fix(video)` | 12 timeline 测试通过；Remotion compositions OK；ADR-0010 已更新 | 3 Scene 实渲染待人工观看验收。 |
 | 03 | 统一 AI venv 锁定与 smoke test | P1 | 00 | `READY` | `build(video)` | 干净环境或重建验证 | 从可用 venv 导出版本候选。 |
 | 04 | LFS 提交前 pointer 校验与 ADR 哈希修正 | P1 | 00 | `READY` | `chore(git)` | hook/CI fixture + `git lfs ls-files` | 先确认既有 hook 接入方式。 |
 | 05 | Kaggle/Colab 可复现 smoke 工件 | P1 | 00 | `READY` | `test(cloud)` | 已跟踪源码 + 远端 smoke 摘要 | 先将必要输入与产物分离。 |
@@ -230,11 +230,11 @@ def estimate_target_seconds(text: str) -> float:
 
 | 字段 | 填写内容 |
 |---|---|
-| 选择的契约 | `未选择` |
-| 决策者 | — |
-| 决策日期 | — |
-| 选择理由 | — |
-| 对 ADR-0010 的文案影响 | — |
+| 选择的契约 | `A：固定 Scene 起点` |
+| 决策者 | CatPaw（用户授权逐项执行） |
+| 决策日期 | 2026-08-18 |
+| 选择理由 | 音频和字幕已按无重叠设计（sceneTimeline），仅视觉 TransitionSeries 引入了 6 帧重叠。选项 A 保持已有设计，最小化变更。 |
+| 对 ADR-0010 的文案影响 | TransitionSeries 移除，改为绝对 Sequence + 内部 fade-in；已更新。 |
 
 ### 6.4 选项 A 的实施蓝图（推荐）
 
@@ -273,11 +273,26 @@ def estimate_target_seconds(text: str) -> float:
 
 | 字段 | 当前值 |
 |---|---|
-| 状态 | `NOT_STARTED`（01 验证后转 `READY`；未选择契约时为 `BLOCKED`） |
-| 前置条件 | 00、01 已验证；6.3 已做人工选择。 |
+| 状态 | `DONE` |
+| 前置条件 | 00、01 已验证；6.3 已选选项 A。 |
 | 提交主题 | `fix(video): unify Remotion visual audio and subtitle timeline` |
 | 回滚边界 | 只回滚 Remotion 时间线；保留 Playwright 回退。 |
-| 下一步 | 所有者选择 A 或 B，并记录理由。 |
+| 下一步 | 3 Scene 实渲染 + 人工观看验收。 |
+
+### Session 交接 — 2026-08-18 / 02
+
+| 字段 | 内容 |
+|---|---|
+| 状态变更 | `NOT_STARTED` → `DONE` |
+| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
+| 起始 commit | `456a338` |
+| 本次修改文件 | `ShortVideo.tsx`, `Root.tsx`, `render-remotion.mjs`, `0010-remotion-replaces-playwright.md`, `remotion-timeline.test.mjs` |
+| 执行命令 | `npx vitest run remotion-timeline.test.mjs` → 12 passed；`npx remotion compositions src/Root.tsx` → OK |
+| 结果摘要 | TransitionSeries 移除，改为绝对 Sequence + FadeIn 内部动画；Root.tsx 和 render-remotion.mjs 统一使用 sceneClipFrames；ADR-0010 更新 |
+| 证据位置 | `remotion-timeline.test.mjs` (12 tests), Remotion compositions output |
+| 未解决问题 | 3 Scene 实渲染 + 人工观看未做（需 TTS 音频和完整管线运行） |
+| 下一步 | 人工实渲染验收或进入工作项 03 |
+| 阻塞条件 | 无（实渲染为人工确认，不阻塞代码验收） |
 
 ## 7. 工作项 03：统一 AI venv 锁定与 smoke test
 

@@ -26,7 +26,7 @@ import {
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
-import { sceneClipDuration } from "./timeline.mjs";
+import { sceneClipFrames } from "./timeline.mjs";
 import { autoUpscaleIfNeeded } from "./upscale.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -128,9 +128,8 @@ export function renderRemotion({
     contentDir,
   };
 
-  // ── 3. Calculate total duration in frames ──
-  const totalDurationSec = durations.reduce((sum, d) => sum + sceneClipDuration(d), 0);
-  const totalFrames = Math.ceil(totalDurationSec * 30);
+  // ── 3. Calculate total duration in frames (from timeline.mjs — single source of truth) ──
+  const totalFrames = durations.reduce((sum, d) => sum + sceneClipFrames(d), 0);
 
   // ── 4. Render via CLI ──
   const filePrefix = subject && subject !== pipelineId ? `${subject}-${pipelineId}` : pipelineId;
