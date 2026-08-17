@@ -100,7 +100,7 @@ export const listTrackedKeywords = createServerFn({ method: "GET" })
           .slice(0, 30)
           .reverse()
           .map((s) => ({ capturedOn: s.captured_on, position: s.position })),
-        alert: isDrop(position, previousPosition),
+        alert: isDrop(position, previousPosition, threshold, alertOnLostRanking),
       };
     });
   });
