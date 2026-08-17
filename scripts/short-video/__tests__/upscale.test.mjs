@@ -3,7 +3,7 @@
  *
  * TDD: Tests written first (red), implementation second (green).
  *
- * These are interface/contract tests with mocked execSync — they verify
+ * These are interface/contract tests with mocked execSync/spawnSync — they verify
  * the functions exist, accept the right arguments, handle edge cases,
  * and degrade gracefully when Real-ESRGAN is unavailable.
  */
@@ -18,11 +18,12 @@ vi.mock("fs", () => ({
 
 vi.mock("child_process", () => ({
   execSync: vi.fn(() => ""),
+  spawnSync: vi.fn(() => ({ status: 0, stdout: "", stderr: "" })),
 }));
 
 // Import after mocks are set up
 import { existsSync } from "fs";
-import { execSync } from "child_process";
+import { execSync, spawnSync } from "child_process";
 
 import {
   checkResolution,
@@ -129,7 +130,7 @@ describe("upscaleVideo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     existsSync.mockReturnValue(true);
-    execSync.mockReturnValue("");
+    spawnSync.mockReturnValue({ status: 0, stdout: "", stderr: "" });
   });
 
   afterEach(() => {
@@ -147,12 +148,14 @@ describe("upscaleVideo", () => {
   // Scenario #7: Real-ESRGAN execution fails (Step 2 fails)
   it("returns failure when Real-ESRGAN frame processing fails", () => {
     let callCount = 0;
-    execSync.mockImplementation(() => {
+    spawnSync.mockImplementation(() => {
       callCount++;
-      // Step 1 (ffprobe fps) + Step 1 (ffmpeg extract frames) succeed
-      if (callCount <= 2) return callCount === 1 ? "25/1" : "";
-      // Step 2 (Real-ESRGAN) fails
-      throw new Error("GPU error");
+      // Step 0: ffprobe fps → stdout "25/1", status 0
+      if (callCount === 1) return { status: 0, stdout: "25/1", stderr: "" };
+      // Step 1: ffmpeg extract frames → status 0
+      if (callCount === 2) return { status: 0, stdout: "", stderr: "" };
+      // Step 2: Real-ESRGAN fails → status 1, stderr "GPU error"
+      return { status: 1, stdout: "", stderr: "GPU error" };
     });
     const result = upscaleVideo("/fake/input.mp4", "/fake/output.mp4");
     expect(result.success).toBe(false);
@@ -162,14 +165,12 @@ describe("upscaleVideo", () => {
   // Scenario #1: successful video upscale via 3-step pipeline
   it("returns success on valid video upscale", () => {
     let callCount = 0;
-    execSync.mockImplementation(() => {
+    spawnSync.mockImplementation(() => {
       callCount++;
-      // Step 0: ffprobe fps → "25/1"
-      // Step 1: ffmpeg extract frames → ""
-      // Step 2: Real-ESRGAN batch → ""
-      // Step 3: ffmpeg reassemble + audio → ""
-      if (callCount === 1) return "25/1";
-      return "";
+      // Step 0: ffprobe fps → stdout "25/1"
+      if (callCount === 1) return { status: 0, stdout: "25/1", stderr: "" };
+      // Steps 1-3: all succeed
+      return { status: 0, stdout: "", stderr: "" };
     });
     const result = upscaleVideo("/fake/input.mp4", "/fake/output.mp4");
     expect(result.success).toBe(true);
@@ -179,47 +180,52 @@ describe("upscaleVideo", () => {
   // Verify 3-step pipeline: Step 1 = ffmpeg extract frames
   it("Step 1: extracts frames with ffmpeg image2", () => {
     let callCount = 0;
-    execSync.mockImplementation(() => {
+    spawnSync.mockImplementation(() => {
       callCount++;
-      return callCount === 1 ? "25/1" : "";
+      if (callCount === 1) return { status: 0, stdout: "25/1", stderr: "" };
+      return { status: 0, stdout: "", stderr: "" };
     });
     upscaleVideo("/fake/input.mp4", "/fake/output.mp4");
-    // Step 0 = ffprobe for fps, Step 1 = ffmpeg extract
-    const extractCmd = execSync.mock.calls[1]?.[0];
-    expect(extractCmd).toContain("image2");
-    expect(extractCmd).toContain("/fake/input.mp4");
+    // spawnSync.mock.calls[1] = Step 1 (ffmpeg extract)
+    // [0] = bin path, [1] = args array
+    const extractArgs = spawnSync.mock.calls[1]?.[1];
+    expect(extractArgs).toContain("image2");
+    expect(extractArgs).toContain("/fake/input.mp4");
   });
 
   // Verify Step 2: Real-ESRGAN processes frame directory
   it("Step 2: uses realesr-animevideov3 on extracted frames", () => {
     let callCount = 0;
-    execSync.mockImplementation(() => {
+    spawnSync.mockImplementation(() => {
       callCount++;
-      return callCount === 1 ? "25/1" : "";
+      if (callCount === 1) return { status: 0, stdout: "25/1", stderr: "" };
+      return { status: 0, stdout: "", stderr: "" };
     });
     upscaleVideo("/fake/input.mp4", "/fake/output.mp4");
-    // Find the Real-ESRGAN call (3rd execSync)
-    const realesrganCmd = execSync.mock.calls[2]?.[0];
-    expect(realesrganCmd).toContain("realesr-animevideov3");
-    expect(realesrganCmd).toContain("-s 2");
+    // spawnSync.mock.calls[2] = Step 2 (Real-ESRGAN)
+    const realesrganArgs = spawnSync.mock.calls[2]?.[1];
+    expect(realesrganArgs).toContain("realesr-animevideov3");
+    expect(realesrganArgs).toContain("2"); // -s 2
   });
 
   // Verify Step 3: ffmpeg reassembles with original framerate + audio
   it("Step 3: reassembles with original framerate and preserves audio", () => {
     let callCount = 0;
-    execSync.mockImplementation(() => {
+    spawnSync.mockImplementation(() => {
       callCount++;
-      return callCount === 1 ? "25/1" : "";
+      if (callCount === 1) return { status: 0, stdout: "25/1", stderr: "" };
+      return { status: 0, stdout: "", stderr: "" };
     });
     upscaleVideo("/fake/input.mp4", "/fake/output.mp4");
-    // 4th execSync call = ffmpeg reassemble
-    const reassembleCmd = execSync.mock.calls[3]?.[0];
-    expect(reassembleCmd).toContain("-framerate");
-    expect(reassembleCmd).toContain("-map 0:v");
-    expect(reassembleCmd).toContain("-map 1:a?");
-    expect(reassembleCmd).toContain("-c:a copy");
+    // spawnSync.mock.calls[3] = Step 3 (ffmpeg reassemble)
+    const reassembleArgs = spawnSync.mock.calls[3]?.[1];
+    expect(reassembleArgs).toContain("-framerate");
+    expect(reassembleArgs).toContain("25/1");
+    expect(reassembleArgs).toContain("0:v");
+    expect(reassembleArgs).toContain("1:a?");
+    expect(reassembleArgs).toContain("copy");
     // Original input must appear as second -i (audio source)
-    expect(reassembleCmd).toContain("/fake/input.mp4");
+    expect(reassembleArgs).toContain("/fake/input.mp4");
   });
 });
 
@@ -266,6 +272,7 @@ describe("autoUpscaleIfNeeded", () => {
     vi.clearAllMocks();
     existsSync.mockReturnValue(true);
     execSync.mockReturnValue("");
+    spawnSync.mockReturnValue({ status: 0, stdout: "", stderr: "" });
   });
 
   afterEach(() => {
@@ -332,14 +339,10 @@ describe("autoUpscaleIfNeeded", () => {
 
   // Scenario #7: Real-ESRGAN fails → return original path
   it("returns upscaled=false with original path when upscale fails", () => {
-    let callCount = 0;
-    execSync.mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) {
-        return "480x854";
-      }
-      throw new Error("GPU error");
-    });
+    // checkResolution uses execSync → returns resolution
+    execSync.mockReturnValue("480x854");
+    // upscaleVideo uses spawnSync → all calls fail
+    spawnSync.mockReturnValue({ status: 1, stdout: "", stderr: "GPU error" });
     const result = autoUpscaleIfNeeded("/fake/video.mp4");
     expect(result.upscaled).toBe(false);
     expect(result.path).toBe("/fake/video.mp4");
