@@ -142,3 +142,15 @@ export async function listAdminEmails(): Promise<string[]> {
   }
   return emails;
 }
+
+/**
+ * Who receives ranking alerts: the admin-managed recipient list, falling back
+ * to every admin's account email when the list is empty.
+ */
+export async function listAlertRecipients(): Promise<string[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin.from("ranking_alert_recipients").select("email");
+  const configured = (data ?? []).map((r) => r.email).filter(Boolean);
+  if (configured.length > 0) return configured;
+  return listAdminEmails();
+}
