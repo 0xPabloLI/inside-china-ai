@@ -21,11 +21,7 @@ const INDEX_PATH = join(DOCS_DIR, "DOCS-INDEX.md");
 
 // --- Constants ---
 
-const CMD_LINE_PATTERNS = [
-  /npm run\s/,
-  /node scripts\//,
-  /git\s+\w/,
-];
+const CMD_LINE_PATTERNS = [/npm run\s/, /node scripts\//, /git\s+\w/];
 
 const CMD_LINE_THRESHOLD = 5;
 
@@ -35,10 +31,7 @@ const EXCLUDED_FILES = new Set([
 ]);
 
 // Files matching these patterns are ephemeral (specs, tickets) and excluded
-const EXCLUDED_PATTERNS = [
-  /^spec-/,
-  /^tickets-/,
-];
+const EXCLUDED_PATTERNS = [/^spec-/, /^tickets-/];
 
 function isExcluded(filename) {
   if (EXCLUDED_FILES.has(filename)) return true;
@@ -130,9 +123,7 @@ function readMdFiles(dir) {
 // --- Main ---
 
 export function main() {
-  const indexContent = existsSync(INDEX_PATH)
-    ? readFileSync(INDEX_PATH, "utf-8")
-    : "";
+  const indexContent = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, "utf-8") : "";
 
   // Gather L1 files (docs/*.md root only) and L2 files (docs/research/*.md)
   const l1Files = readMdFiles(DOCS_DIR);

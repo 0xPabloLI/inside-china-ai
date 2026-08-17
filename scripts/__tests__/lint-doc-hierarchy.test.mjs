@@ -69,7 +69,8 @@ describe("checkL1DesignDecisions", () => {
     const files = [
       {
         filename: "video-workflow.md",
-        content: "# Video Workflow\n\nSee docs/research/audio-drift-fix.md\n\n## Design Decisions & References\n\n| Topic | Reference |",
+        content:
+          "# Video Workflow\n\nSee docs/research/audio-drift-fix.md\n\n## Design Decisions & References\n\n| Topic | Reference |",
       },
     ];
     const { findings } = checkL1DesignDecisions(files);
@@ -171,7 +172,7 @@ describe("integration: combined checks", () => {
 
     const indexFindings = checkDocsIndexConsistency(
       [...l1Files, ...l2Files],
-      indexContent
+      indexContent,
     ).findings;
     const l1Findings = checkL1DesignDecisions(l1Files).findings;
     const l2Findings = checkL2CommandLines(l2Files).findings;

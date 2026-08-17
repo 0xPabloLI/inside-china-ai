@@ -84,6 +84,7 @@ Deep research reports with citations.
 | Document | Purpose |
 |----------|---------|
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
+| `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
@@ -102,8 +103,8 @@ Deep research reports with citations.
 | `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |
 | `voice-cloning-solutions-m2-pro.md` | Voice cloning / TTS model research for Apple M2 Pro 32GB |
 | `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |
+| `windows-gpu-analysis.md` | Windows device digital human model feasibility analysis & upgrade plan |
 | `windows-gpu-test-progress.md` | Windows digital human model test progress tracking |
-| `windows-gpu-upgrade-and-model-feasibility.md` | Windows device digital human model feasibility analysis & upgrade plan |
 
 ## Spec/Ticket Lifecycle
 

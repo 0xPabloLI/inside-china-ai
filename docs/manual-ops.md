@@ -78,6 +78,7 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
 ## 定期检查（每周）
 
 > TikTok Analytics 数据通常需要 24-48h 才能在 dashboard 中看到。
+> 完整 Analytics 工作流见 `docs/analytics-workflow.md`。
 
 ### Analytics 闭环
 
@@ -113,6 +114,29 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
 
 ---
 
+## 按需操作（低频率）
+
+### 竞品参考视频下载
+
+> 触发条件：用户主动发现值得模仿的视频，或 Analytics 数据发现模式后
+> 建议参考（见 `docs/analytics-workflow.md` 数据驱动优化建议）。
+> 预计频率：一两个月一次。
+
+TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下载 API。需要
+手动下载：
+
+1. 在 Chrome 中打开目标 TikTok/YouTube 视频
+2. 使用浏览器扩展（如 Video DownloadHelper）或直接保存视频文件
+3. 将 `.mp4` 文件放到 `output/reference-videos/` 目录
+4. 告知 Agent，Agent 运行关键帧提取 + vision 分析，输出 media 策略报告
+
+> YouTube 视频可用 yt-dlp 自动下载，无需手动：
+> `yt-dlp --cookies-from-browser chrome -f "best[height<=720]" -o "output/reference-videos/%(id)s.mp4" "<url>"`
+
+详见 `docs/research/reference-video-extraction.md`。
+
+---
+
 ## 文件参考
 
 | 文件                           | 用途                                                 |
@@ -122,3 +146,13 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
 | `output/ab-test-results.json`  | A/B 测试追踪（ab-test-tracker.mjs）                  |
 | `output/tiktok-caption.txt`    | TikTok 发布用的 caption（verify-video.mjs 自动生成） |
 | `output/tiktok-metadata.json`  | TikTok 发布用的元数据（verify-video.mjs 自动生成）   |
+| `output/reference-videos/`     | 用户手动下载的竞品参考视频（按需）                    |
+
+## Design Decisions & References
+
+| Decision | Rationale | Source |
+|----------|-----------|--------|
+| HITL 检查点设在视频成品审阅（发布前） | 文章+视频一旦发布难以撤回，在发布前设置唯一强制确认点 | `docs/content-pipeline.md` HITL 章节 |
+| TikTok AIGC 标签必须手动开启 | TikTok App 发布界面无 API，Agent 无法自动标注 | TikTok 政策要求 |
+| BGM 两方案并存（混入 vs trending sound） | trending sound 有算法加权但不可控，混入 BGM 可控但无加权 | `docs/research/tiktok-practical-guide-2026.md` |
+| 竞品参考视频手动下载 | TikTok 视频无法 yt-dlp 下载，YouTube 可以 | `docs/research/reference-video-extraction.md` |
