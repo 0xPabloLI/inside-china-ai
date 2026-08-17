@@ -1,16 +1,25 @@
 # Voice Prosody & TikTok Hook Optimization Research
 
-> **Research Date**: 2026-08-08  
-> **Researcher**: Agent (web deep research via CDP)  
-> **Sources**: 15+ sources (academic papers, TikTok creator content, TTS industry guides, social media marketing blogs)  
-> **Status**: Complete  
-> **Related**: `docs/video-workflow.md`, `scripts/short-video/lib/tts/f5-mlx.mjs`
+> **Research Date**: 2026-08-08 (initial), 2026-08-17 (updated with F5-TTS prosody alternatives deep research)
+> **Sources**: 35+ sources (academic papers, TikTok creator content, TTS industry guides, social media marketing blogs, GitHub repos)
+> **Status**: Complete
+> **Related**: `docs/video-workflow.md`, `scripts/short-video/lib/tts/f5-mlx.mjs`, `scripts/short-video/lib/tts/post-process.mjs`
 
 ---
 
 ## Executive Summary
 
-语音抑扬顿挫（prosody）对 TikTok hook 的完播率有**显著影响**。多源研究一致表明：hook 前 3 秒内的音调变化（pitch variation）、语速节奏（pace/rhythm）、和策略性停顿（pause）是决定观众是否继续观看的关键因素。当前我们的 F5-TTS 管线使用**单一固定参考音频**，导致所有场景（hook/narrative/CTA）的语调模式相同——这正是研究指出的"flat, monotone read"问题。本报告提出三阶段优化方案：短期 FFmpeg 后处理、中期多参考音频、长期可控 TTS 引擎升级。
+语音抑扬顿挫（prosody）对 TikTok hook 的完播率有**显著影响**。多源研究一致表明：hook 前 3 秒内的音调变化（pitch variation）、语速节奏（pace/rhythm）、和策略性停顿（pause）是决定观众是否继续观看的关键因素。当前我们的 F5-TTS 管线使用**单一固定参考音频**，导致所有场景（hook/narrative/CTA）的语调模式相同——这正是研究指出的"flat, monotone read"问题。
+
+本报告提出六种优化方案，按推荐优先级排序：
+- **方案 A**（已实施，F5 上已禁用）：FFmpeg rubberband 后处理 — 在 F5 上产生机械感，已于 2026-08-14 禁用
+- **方案 B**（推荐优先）：多参考音频策略 — F5 的参考音频会部分传递情绪和韵律到生成结果
+- **方案 C**（备选）：切换到 Qwen3-TTS — 已有 prosody 支持
+- **方案 D**（立即可做）：参考音频优化 — 录制一段 prosody 更丰富的单一参考音频
+- **方案 E**（研究最前沿）：EmoSteer-TTS — training-free activation steering，在 F5 DiT 层注入情感向量
+- **方案 F**（需 fine-tune）：F5-TTS-Emotional-CFG — 双重 CFG 控制情感
+
+如果仍需后处理路径，TD-PSOLA 比 rubberband 更适合语音韵律调整（保持频谱包络不变形）。
 
 ---
 
@@ -79,26 +88,32 @@ TikTok for Business 官方数据：**63% 高 CTR 视频在 3 秒内 hook 住观�
 
 **来源**: Bakkouche et al., "What determines the success of AI voice-cloned speech? Prosodic and acoustic evidence on three TTS systems", Phonetica, June 2026, DOI:10.1515/phon-2025-0062
 
-### 1.5 F5-TTS 的 Prosody 机制
+### 1.5 F5-TTS 的 Prosody 机制与限制
 
-**F5-TTS (官方 GitHub + RealTimeTTS)**:
+F5-TTS 的设计哲学是"极简"：没有 duration predictor、没有 phoneme alignment、没有 text encoder。文本直接用 filler tokens 填充到与语音等长，然后做 flow matching 生成。这意味着模型**没有暴露任何直接的 prosody 控制参数**。
 
 F5-TTS 的 prosody 控制机制是**参考音频驱动**的：
 
 > "Instead of tagging every sentence with mood instructions, simply provide a reference audio clip that demonstrates the feeling you want — calm narration, energetic delivery, or warm storytelling. F5-TTS reads the emotional style directly from the sample and applies it to your new text."
 
-> "The cloned voice preserves natural rises and falls in pitch [from the reference audio]."
-
 **关键限制**: F5-TTS **没有直接的 pitch/tone/emotion 参数**。所有 prosodic 特征完全由参考音频决定。这意味着：
-
 - 参考音频平淡 → 所有生成语音都平淡
 - 参考音频高能量 → 所有生成语音都高能量
 - **当前管线使用单一参考音频 → 所有场景语调一致 = 缺乏变化**
 
+多个来源确认 F5-TTS 的"expressive range 较窄"——擅长直接叙述，但在风格变化灵活性上不如 Qwen3-TTS。
+
+**可用原生参数**（已集成在项目 f5-mlx.mjs 中）：
+- **speed** — 通过 duration 估算公式控制语速
+- **nfe_step** — ODE 求解步数（32 默认），影响生成质量但不直接影响韵律
+- **cfg_strength** — CFG 强度（默认 2.0），低值更自然，高值更清晰
+- **sway_sampling_coef** — 推理时采样策略，非韵律参数
+
 **来源**: 
 - F5-TTS GitHub: https://github.com/swivid/f5-tts
+- F5-TTS 论文: arXiv:2410.06885 (Chen et al., 2024)
 - RealTimeTTS: https://realtimetts.com/f5-tts
-- 本地源码验证: `/Users/pabloli/.f5-tts-env/lib/python3.11/site-packages/f5_tts_mlx/generate.py`
+- 本地源码验证: f5_tts_mlx/generate.py
 
 ### 1.6 可控 TTS 前沿
 
@@ -120,12 +135,6 @@ F5-TTS 的 prosody 控制机制是**参考音频驱动**的：
 
 > "Adjust pitch and tone to match your speaking style or to evoke specific emotions like excitement, calm, or urgency. Modify speech speed to keep your narration clear and easy to follow without sounding rushed or sluggish. Control pauses and emphasis to make your delivery more dynamic."
 
-**推荐功能**:
-- **Emotion control**: 调节情绪（兴奋/平静/紧迫）
-- **Voice cloning**: 创建一致的品牌声音
-- **Pitch/tone adjustment**: 匹配内容风格
-- **Pause/emphasis control**: 制造动态感
-
 **来源**: Resemble AI, "How to Use AI to Enhance Your Voice for TikTok", 2025-08-19
 
 ### 1.8 TikTok 创作者实践经验
@@ -135,8 +144,6 @@ F5-TTS 的 prosody 控制机制是**参考音频驱动**的：
 - "Mastering Speech: Lowering Your Voice Pitch for Authority" —— 降低音调增加权威感
 - "Transform Your Speech: Gain Authority with Pitch" —— 用音调变化建立权威
 - "Enhancing Clarity in Speech: Mastering Your Rate" —— 掌握语速提升清晰度
-
-**Instagram Reel @DbBBRZcxRAn**: "Which hook sounds better? The delivery of your video matters..." —— 直接对比不同 delivery 的 hook 效果
 
 **来源**: TikTok @askvinh 系列, Instagram Reels
 
@@ -150,7 +157,7 @@ F5-TTS 的 prosody 控制机制是**参考音频驱动**的：
 |------|----------|------|
 | 参考音频 | 单一 `voice-sample-24k.wav` | 所有场景使用相同 prosody 模式 |
 | 语速 | 全局 `F5_SPEED=1.0` | 无法按场景类型调节 |
-| 后处理 | 仅 `atempo`（如设了 `TTS_ATEMPO`）| 无音调/动态范围处理 |
+| 后处理 | rubberband 已禁用（F5 上产生机械感） | 无 prosody 差异化处理 |
 | 场景差异 | hook/narrative/CTA 无 TTS 层面区分 | hook 缺乏"音调线索"变化 |
 
 ### 2.2 研究指出的核心问题
@@ -160,134 +167,58 @@ F5-TTS 的 prosody 控制机制是**参考音频驱动**的：
 3. **无策略性停顿** —— Camb.ai 指出 rhythm/pause 是 prosody 三要素之一
 4. **单一 prosody pattern** —— Cambridge 研究表明 local pitch-control 是自然度关键
 
-### 2.3 影响评估
-
-当前管线的 hook scene 与 narrative scene 在 TTS 层面**无 prosody 差异**，这意味着：
-
-- Hook 没有"紧迫感"音调升高
-- 数据揭示场景没有"权威感"音调降低
-- CTA 没有"温暖感"语速放缓
-- 整体听感趋同，缺乏层次
-
 ---
 
 ## 3. 优化方案
 
-### 方案 A: FFmpeg 后处理 Prosody 增强（短期，1-2 天）
+### 方案 A: FFmpeg 后处理 Prosody 增强（已实施，F5 上已禁用）
 
-**原理**: 在 TTS 生成后，用 FFmpeg 对不同场景类型的音频做差异化的 pitch/tempo 后处理。
-
-**实现方式**:
-
-在 `scene-data.mjs` 中添加可选的 `prosody` 字段：
-
-```javascript
-{
-  id: 1,
-  name: "hook",
-  voiceover: "DeepSeek just changed everything.",
-  prosody: {
-    pitchShift: 1.08,   // 升调 8% — 增加能量/紧迫感
-    tempo: 1.15,        // 加速 15% — 创造紧迫感
-    // 可选：动态范围增强
-    dynRange: "compress=0.7:vol=0.8",  // 压缩动态范围，让整体更"有力"
-  },
-}
-```
-
-在 `post-process.mjs` 中扩展 `buildFilter()` 支持按场景的 prosody 参数：
-
-```javascript
-export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
-  const atempo = prosody?.tempo || parseFloat(process.env.TTS_ATEMPO) || null;
-  const pitchShift = prosody?.pitchShift || null;
-  
-  let filters = [];
-  
-  if (useSilenceFilter) {
-    filters.push("silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018");
-  }
-  
-  // Pitch shift via asetrate (变调不变速)
-  if (pitchShift && pitchShift !== 1.0) {
-    const newRate = Math.round(24000 * pitchShift);
-    filters.push(`asetrate=${newRate},aresample=24000`);
-    // 如果 pitchShift > 1 (升调), 需要 atempo 补偿降速
-    const tempoCompensation = 1 / pitchShift;
-    filters.push(`atempo=${tempoCompensation}`);
-  }
-  
-  if (atempo) {
-    filters.push(`atempo=${atempo}`);
-  }
-  
-  return filters.join(",");
-}
-```
+**原理**: 在 TTS 生成后，用 FFmpeg rubberband 对不同场景类型的音频做差异化的 pitch/tempo 后处理。
 
 **已实施 per-scene-type 参数**（2026-08-08 实施，使用 FFmpeg rubberband 滤镜）:
 
-| 场景类型 | pitch | tempo | rubberband 命令 |
-|----------|-------|-------|-----------------|
-| hook | 1.08 (+8%) | 1.12 (+12%) | `rubberband=pitch=132:tempo=1.1200` |
-| narrative | 1.0 | 1.0 | 无处理 |
-| data | 0.97 (-3%) | 0.97 (-3%) | `rubberband=pitch=-52:tempo=0.9700` |
-| quote | 1.0 | 0.95 (-5%) | `rubberband=pitch=0:tempo=0.9500` |
-| CTA | 0.96 (-4%) | 0.92 (-8%) | `rubberband=pitch=-70:tempo=0.9200` |
+| 场景类型 | pitch | tempo | volume | 效果 |
+|----------|-------|-------|--------|------|
+| hook | 1.04 (+4%) | 1.06 (+6%) | 1.15 (+15%) | 紧迫/活力 + 加大音量 |
+| data | 0.98 (-2%) | 0.98 (-2%) | 1.0 | 权威/分量感 |
+| quote | 1.0 | 0.97 (-3%) | 1.0 | 强调/从容 |
+| cta | 0.98 (-2%) | 0.95 (-5%) | 1.0 | 温暖/邀请感 |
 
-#### 每个参数的选择理由与研究出处
+> **2026-08-14 更新**：rubberband 后处理在 F5-TTS 上已禁用（`f5-mlx.mjs` L97-99）。原因：rubberband 做的是时间拉伸+重采样，在修改 pitch 时会影响频谱整体，在 F5 模型生成的"干净"音频上更容易暴露机械感 artifacts。F5 的内部 duration 控制已提供自然节奏，不需要后处理 pitch/tempo 操纵。Qwen3-TTS 引擎仍保留 rubberband prosody 支持。
 
-**Hook: pitch +8%, tempo +12%**
+**如果仍需后处理路径**：TD-PSOLA（Time-Domain Pitch-Synchronous Overlap-and-Add）是比 rubberband 更好的选择：
+- **保持频谱包络**：TD-PSOLA 在 pitch period 级别操作，修改基频而不改变共振峰（formants），声音特征不变形
+- **学术验证**：Morrison et al. (2021) 的 Context-Aware Prosody Correction 使用 TD-PSOLA + 神经网络去噪
+- **Python 实现**：`maxrmorrison/psola`（GitHub）提供了 Python TD-PSOLA 库
+- **限制**：需要 pitch contour 提取（CREPE 或 pypar），比 rubberband 多一步处理
 
-想象一个新闻主播在播报突发新闻——他的声音会本能地升高、加快。这不是刻意表演，而是人类在传递"重要信息"时的自然生理反应：肾上腺素让声带收紧（音调升高）、呼吸加快（语速加快）。TTS 生成的是平稳的叙述音，我们通过升调 8% + 加速 12% 来模拟这种"突发新闻"的生理状态。观众听到这个声音时，大脑会下意识判断"有重要事情发生了"，从而停止滑动。
+**FFmpeg Pitch Shift 技术对比**:
 
-- **+8% pitch**：ReelForge AI (2026) 指出 *"Hooks that use clear pitch variation in the opening seconds tend to feel more alive and hold attention better than a flat, monotone read"* [来源 1]。8% 是明显可感知但不至于"花栗鼠"的升调幅度——人类对话中表达兴奋时音调通常升高 5-15%，8% 落在这个区间的中段
-- **+12% tempo**：Speaking.coach 5P 框架指出 *"Faster pace = energy and excitement"* [来源 2]。ReelForge AI 也建议 *"Speaking a little faster than normal conversation pace creates urgency"* [来源 1]。12% 加速让 hook 比叙述快一拍，制造紧迫感，但不至于听不清。TikTok @askvinh 在视频中专门讲过语速与互动率的关系 [来源 8]
+| 方法 | 命令 | 质量 | 适用场景 |
+|------|------|------|----------|
+| **rubberband** | `rubberband=pitch=1.04:tempo=1.06` | 中等（F5 上有机械感） | 非 F5 引擎 |
+| **asetrate** | `asetrate=25920,aresample=24000,atempo=0.926` | 中等 | 全局变调，简单快速 |
+| **TD-PSOLA** | Python `psola.vocode()` | 高 | 保持共振峰，最自然 |
 
-**Data: pitch -3%, tempo -3%**
-
-想象你在念一个重要数字——"$4,247 in 72 hours"——你会本能地放慢、压低声音，让每个数字"落地"。这给观众传递的信号是"这个数字很重要，值得记住"。TTS 默认用同样的语速和音调念所有内容，数据场景的数字会"飘"过去。微降调 3% + 微减速 3% 让数字听起来更"沉"、更被强调。
-
-- **-3% pitch**：Speaking.coach 5P: *"Slower pace = gravitas"* [来源 2]。TikTok @askvinh 的视频 "Lowering Your Voice Pitch for Authority" [来源 8] 专门演示了降调如何增加权威感。3% 是很小的变化——观众不会意识到"声音变了"，但会感受到"这段更严肃"
-- **-3% tempo**：Camb.ai (2026) 指出 rhythm 是 prosody 三要素之一，*"Slow, deliberate pacing signals authority"* [来源 3]。3% 减速几乎不可察觉，但让数字有了"重量"
-
-**Quote: pitch 0%, tempo -5%**
-
-想象有人在转述一句重要的话——"Liang Wenfeng said: we will not distill"——你会自然地放慢、留出停顿，让引述有"呼吸空间"。不变调是因为引述不需要情绪渲染（那会显得做作），只需要时间和空间让句子"沉淀"。5% 减速让引述从叙述节奏中"脱出来"，观众会感受到"这句话和前面的不一样，要特别注意"。
-
-- **0% pitch**：Camb.ai 指出 *"Flat or misplaced prosody creates specific problems"* [来源 3]。引述场景不需要音调变化——变化反而会干扰原话的语气。保持原调让观众聚焦于"说了什么"而不是"怎么说的"
-- **-5% tempo**：Resemble AI (2025) 建议 *"Control pauses and emphasis to make your delivery more dynamic"* [来源 5]。减速 5% 等于在引述周围加了一圈"呼吸空间"，让句子有停顿感。Speaking.coach 5P: *"Pause = telling the audience: this is where I want you to stop and reflect"* [来源 2]
-
-**CTA: pitch -4%, tempo -8%**
-
-想象你从一个"新闻播报员"切换到"朋友推荐"——你的声音会自然地放低、放慢，变得更柔和、更亲密。CTA 是整个视频中唯一"对话"而非"播报"的时刻。降调 4% + 减速 8% 让声音从"权威播报"切换到"温暖邀请"，观众会感受到"他在对我说话"，而不只是"他在念稿子"。
-
-- **-4% pitch**：Speaking.coach 5P: *"Lower pitch = warmth, calm"* [来源 2]。Resemble AI: *"Adjust pitch and tone to evoke calm, or urgency"* [来源 5]——CTA 需要的是 calm 而非 urgency。4% 降幅让声音从"播报腔"软化到"对话腔"
-- **-8% tempo**：Speaking.coach 5P: *"Slow down when talking about something that has more gravitas"* [来源 2]。8% 减速让 CTA 有足够时间"落地"——观众在 60 秒高速信息后需要一个"减速带"来消化并做出行动决策。ReelForge AI 也指出 *"Strategic pauses build anticipation"* [来源 1]
-
-**优点**: 
-- 无需修改 TTS 引擎，纯后处理
-- 可快速实施和 A/B 测试
-- 对每个 scene 独立控制
-
-**缺点**: 
-- FFmpeg asetrate 是全局变调，无法做句内 pitch contour 变化
-- 过度使用会引入 artifacts（金属感）
-
-### 方案 B: 多参考音频（中期，3-5 天）
+### 方案 B: 多参考音频（推荐优先，零改代码）
 
 **原理**: F5-TTS 的 prosody 完全由参考音频决定。为不同场景类型准备不同的参考音频，让 hook 和 CTA 有不同的 prosody pattern。
 
+**多源验证**：F5 会将参考音频中的情绪、语速、韵律特征部分传递到生成结果中。
+- F5 官方 Demo 页面展示了 "Emotion" 章节，用不同情绪的参考音频生成不同情绪的语音
+- LocalAIMaster 指南："For voice with emotion (excited, calm, sad), include that emotion in the reference — F5-TTS will partially carry it through to generation"
+- YouTube 教程展示了 multistyle 功能：上传不同情绪的参考音频，在文本中用括号标记切换
+
 **实现方式**:
 
-1. **录制/选取 3-4 段参考音频**:
+1. **录制/选取 4 段参考音频**:
 
-| 文件 | 风格 | 音调特征 | 语速 |
-|------|------|----------|------|
-| `ref-hook-24k.wav` | 紧迫/高能量 | 较高 pitch，大 variation | 较快 |
-| `ref-narrative-24k.wav` | 权威/稳定 | 中等 pitch，稳定 | 中等 |
-| `ref-data-24k.wav` | 强调/刻意 | 中低 pitch，有起伏 | 稍慢 |
-| `ref-cta-24k.wav` | 温暖/邀请 | 较低 pitch，柔和 | 慢 |
+| 文件 | visualType | 风格 | 音调特征 | 语速 |
+|------|-----------|------|----------|------|
+| `ref-hook-24k.wav` | hook | 紧迫/高能量 | 较高 pitch，大 variation | 较快 |
+| `ref-narrative-24k.wav` | narrative | 权威/稳定 | 中等 pitch，稳定 | 中等 |
+| `ref-data-24k.wav` | data | 强调/刻意 | 中低 pitch，有起伏 | 稍慢 |
+| `ref-cta-24k.wav` | cta | 温暖/邀请 | 较低 pitch，柔和 | 慢 |
 
 每段音频 10-15 秒，24kHz mono WAV，附精确 ref-text。
 
@@ -295,102 +226,115 @@ export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
 
 ```javascript
 const REF_AUDIO_MAP = {
-  hook: join(ROOT_DIR, "assets", "ref-hook-24k.wav"),
-  narrative: join(ROOT_DIR, "assets", "voice-sample-24k.wav"),  // 现有的
-  data: join(ROOT_DIR, "assets", "ref-data-24k.wav"),
-  cta: join(ROOT_DIR, "assets", "ref-cta-24k.wav"),
+  hook: join(ROOT_DIR, "voice-samples", "ref-hook-24k.wav"),
+  narrative: join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav"),
+  data: join(ROOT_DIR, "voice-samples", "ref-data-24k.wav"),
+  cta: join(ROOT_DIR, "voice-samples", "ref-cta-24k.wav"),
 };
-
-// 在 generate() 中，按 scene.visualType 或 scene.name 分组
-// 每组用不同 ref audio 调 F5
 ```
 
-3. **修改 `f5_mlx_batch_tts.py`** 支持 per-scene ref audio：
+3. **修改 `f5_mlx_batch_tts.py`** 支持 per-scene ref audio（manifest 中增加 ref_audio 和 ref_text 字段）
 
-```python
-# manifest 中增加 ref_audio 和 ref_text 字段
-[
-  {"sceneId": 1, "text": "...", "output": "scene-1.mp3", 
-   "ref_audio": "ref-hook-24k.wav", "ref_text": "..."},
-  {"sceneId": 2, "text": "...", "output": "scene-2.mp3",
-   "ref_audio": "voice-sample-24k.wav", "ref_text": "..."},
-]
-```
+**优点**: 最符合 F5-TTS 设计理念，自然度最高，无 artifacts
+**缺点**: 需要录制多段参考音频；参考音频韵律传递是"部分"的，不是完全可控的（ReStyle-TTS 论文指出这是零样本 TTS 的 fundamental limitation）
+**限制**: 参考音频 ≤15 秒（F5 硬限制），需要同一说话人演绎不同风格
 
-**优点**: 
-- 最符合 F5-TTS 设计理念——prosody 从参考音频学习
-- 自然度最高，无 artifacts
-- 可精确控制每种场景类型的"声音性格"
+### 方案 C: 探索可控 TTS 引擎（长期）
 
-**缺点**: 
-- 需要录制多段高质量参考音频
-- 同一人需要演绎不同风格（或找不同人）
-- F5 模型需要多次加载（或修改 batch 脚本支持多 ref）
+**原理**: 评估具有直接 prosody/emotion 控制参数的 TTS 引擎，或切换到已有 prosody 支持的引擎。
 
-### 方案 C: 探索可控 TTS 引擎（长期，1-2 周）
-
-**原理**: 评估具有直接 prosody/emotion 控制参数的 TTS 引擎作为 hook 场景的专用引擎。
-
-**候选引擎**:
-
-| 引擎 | Prosody 控制方式 | 适合场景 | 成本 |
-|------|-----------------|----------|------|
-| **ElevenLabs** | 情绪标签 + voice design | Hook 专用 | $0.30/1000 chars |
-| **F5-TTS v1 Prism** | 多风格参考 + emotion transfer | 全场景 | 免费 (本地) |
-| **StyleTTS-V2** | Style vector + prosody control | 全场景 | 免费 (本地) |
-| **CAMB.AI MARS-Instruct** | Director-level emotion control | 高端制作 | API 付费 |
-
-**推荐路径**: 
-1. 先测试 F5-TTS v1 Prism 的 multi-style 功能（免费，已有基础设施）
-2. 如果效果不够，考虑 ElevenLabs 仅用于 hook scene（成本可控）
-3. 长期关注 F5-TTS 的 emotion control PR（GitHub 已有相关讨论）
+**当前可用选项**：
+- **Qwen3-TTS**（项目备用引擎）— 已有 rubberband prosody profiles 支持，设 `TTS_ENGINE=qwen-tts` 即可启用。Qwen3 的 expressive range 本身就比 F5 宽
+- **ElevenLabs** — 情绪标签 + voice design，$0.30/1000 chars，适合 hook 专用
+- **F5-TTS v1 Prism** — 多风格参考 + emotion transfer（免费，已有基础设施）
 
 ### 方案 D: 参考音频优化（立即可做）
 
 **原理**: 即便只用单一参考音频，选择一段 prosody 更丰富的录音也能改善所有场景。
 
 **操作**:
-1. 录制一段 10-15 秒的参考音频，刻意包含：
-   - 开头高能量、高 pitch（模拟 hook 风格）
-   - 中间稳定陈述（模拟 narrative）
-   - 结尾柔和降调（模拟 CTA）
+1. 录制一段 10-15 秒的参考音频，刻意包含：开头高能量、高 pitch → 中间稳定陈述 → 结尾柔和降调
 2. 确保音调 variation 大，不要平铺直叙
 3. F5 会从这段音频提取整体的 prosody pattern
 
 **注意**: F5 的 ref text 必须精确匹配 ref audio，所以需要先录制再转录。
 
+### 方案 E: EmoSteer-TTS — Training-Free Activation Steering（研究最前沿）
+
+2025 年 8 月发表的论文，专门针对 F5-TTS 等 flow matching TTS 模型做 training-free 情感控制。
+
+**核心原理**：
+1. 从预训练 F5-TTS 模型中提取中性语音和情感语音的中间激活值
+2. 计算两者的差异向量（steering vector）
+3. 在推理时将 steering vector 注入到 DiT 层的 residual stream 中
+
+**关键技术细节**：
+- 对 F5-TTS 的 22 层 DiT，每 5 层注入一次（layer 1, 6, 11, 16, 21），修改 first residual stream
+- 必须在所有 32 个 flow matching steps 上做 steering，只在早期 steps 做效果微弱，中后期效果最强
+- 支持情感转换（conversion）、插值（interpolation）、擦除（erasure）和组合（composition）
+- 支持的情感：angry, happy, sad, neutral, surprised, disgusted, fearful
+- 有非官方 PyTorch 实现（GitHub: sujin-koo/emosteer-tts-unofficial）
+- 有 Demo 页面可试听
+
+**适用性评估**：
+- ✅ Training-free，不需要重训 F5 模型
+- ✅ 已验证对 F5-TTS 有效
+- ✅ 支持连续控制（alpha 参数可调节情感强度）
+- ⚠️ 需要 ESD (Emotion Speech Dataset) 来构建 steering vectors
+- ⚠️ 非官方实现，需要适配到 MLX 框架（activation hooks 机制在 PyTorch 和 MLX 间不完全等价）
+- ⚠️ ESD 数据集的情感语音需要与项目参考音频是同一说话人才能避免 timbre 漂移
+
+### 方案 F: F5-TTS-Emotional-CFG — Fine-tune 方案
+
+RaduBolbo 在 GitHub 开源的项目，通过 Multi-Term Classifier-Free Guidance 添加情感条件。
+
+**核心方法**：
+- 在 ESD 数据集上 fine-tune F5-TTS 模型
+- 推理时用双重 CFG：`--cfg-strength`（常规 CFG）+ `--cfg-strength2`（情感 CFG）
+- 支持的情感：Angry, Happy, Sad, Neutral, Surprise
+- `cfg-strength2` 典型值 2-20，越高情感越强但可能降低自然度
+
+**适用性评估**：
+- ✅ 有代码和模型可用，论文已发表（SpeD 2025）
+- ❌ 需要 fine-tune 模型（GPU 资源需求）
+- ❌ 基于 PyTorch 原版 F5-TTS，非 MLX，fine-tuned 模型可能不兼容 MLX 推理
+
 ---
 
-## 4. 推荐实施路径
+## 4. Contrarian Views & Risks
+
+### F5-TTS 的韵律天花板
+Medium 对比评测明确指出："F5-TTS 的 tradeoff 是 narrower expressive range；它处理 straightforward narration 很好，但不匹配 Qwen3 的 style-instruction flexibility。" 这意味着即使用 EmoSteer 或参考音频策略，F5-TTS 的韵律上限可能仍低于 Qwen3-TTS。
+
+### 参考音频策略的不确定性
+参考音频的情绪传递是"部分"的，不同文本、不同语言、不同长度的传递效果不一致。ReStyle-TTS 论文指出，零样本 TTS 中参考音频的风格影响是"fundamental limitation"。
+
+### Post-processing 路线的根本矛盾
+无论是 rubberband 还是 TD-PSOLA，在模型生成的"干净"音频上做后处理都存在根本矛盾：模型输出已经是"最优"的语音表示，任何后处理修改都会引入某种程度的失真。Neural TTS 的核心优势就是"prosody 在生成阶段就内嵌了，不是后处理添加的"。
+
+---
+
+## 5. 推荐实施路径
 
 ### Phase 1: 立即行动（1 天）
 
 1. **方案 D** — 录制一段 prosody 更丰富的参考音频替换当前的 `voice-sample-24k.wav`
-2. **方案 A 简化版** — 在 `post-process.mjs` 中添加按 `scene.name` 的 atempo 差异化：
-   - hook scene: `atempo=1.12`
-   - cta scene: `atempo=0.95`
-   - 其他: 保持 1.0
+2. **方案 C 备选** — 在关键视频上设 `TTS_ENGINE=qwen-tts` 启用已有 prosody
 
 ### Phase 2: 短期优化（2-3 天）
-
-1. **方案 A 完整版** — 实现 `prosody` 字段 + FFmpeg asetrate pitch shift
-2. 在 `verify-video.mjs` 中添加 prosody 检查：hook scene 是否有 pitch variation
-3. A/B 测试：用 `ab-test-tracker.mjs` 对比有/无 prosody 差异化的完播率
-
-### Phase 3: 中期升级（1 周）
 
 1. **方案 B** — 录制多风格参考音频，修改 F5 batch 脚本支持 per-scene ref
 2. 建立参考音频库（3-4 种风格）
 3. 在 scene-data 中添加 `refStyle` 字段自动选择参考音频
 
-### Phase 4: 长期探索（按需）
+### Phase 3: 中期探索（按需）
 
-1. 评估 ElevenLabs / F5-TTS v1 Prism 的 emotion control
-2. 如果效果显著，考虑混合引擎策略（hook 用 ElevenLabs，其他用 F5）
+1. **方案 E** — 评估 EmoSteer-TTS 的 MLX 适配可行性
+2. **方案 C** — 评估 ElevenLabs 仅用于 hook scene 的成本/效果
 
 ---
 
-## 5. Prosody 优化检查清单
+## 6. Prosody 优化检查清单
 
 基于研究发现，以下是每条视频应检查的 prosody 维度：
 
@@ -405,18 +349,17 @@ const REF_AUDIO_MAP = {
 
 ---
 
-## 6. 与现有管线的关系
+## 7. 与现有管线的关系
 
 ### 需要修改的文件
 
 | 文件 | 修改内容 | 方案 |
 |------|----------|------|
-| `lib/tts/post-process.mjs` | `buildFilter()` 支持 prosody 参数 | A |
+| `lib/tts/post-process.mjs` | `buildFilter()` 支持 prosody 参数 | A（已实施，F5 禁用） |
 | `lib/tts/f5-mlx.mjs` | 支持 per-scene ref audio | B |
 | `f5_mlx_batch_tts.py` | manifest 支持 ref_audio/ref_text 字段 | B |
 | `lib/tts/types.mjs` | TTSEngine 接口增加 prosody 支持 | A/B |
 | `lib/tts/registry.mjs` | 传递 prosody 配置给引擎 | A/B |
-| `verify-video.mjs` | 添加 prosody variation 检查 | A/B |
 
 ### 不需要修改的文件
 
@@ -426,46 +369,31 @@ const REF_AUDIO_MAP = {
 
 ---
 
-## 7. Bibliography
+## 8. Recommendations（按实施难度排序）
 
-1. **ReelForge AI**, "Guide to Viral Video Hooks: 7 Proven Strategies That Work", 2026-07-02. URL: https://reelforgeai.io/blog/guide-to-viral-video-hooks-guide
+| 优先级 | 方案 | 改动量 | 预期效果 | 风险 |
+|--------|------|--------|---------|------|
+| 1 | 多参考音频策略 (B) | 录制 4 段参考音频 + 修改 f5-mlx.mjs 按 visualType 选 ref | 中等，自然的韵律变化 | 参考音频情绪传递不精确 |
+| 2 | 切换到 Qwen3-TTS (C) | 设 TTS_ENGINE=qwen-tts | 高，已有 prosody profiles | 生成质量/速度不同 |
+| 3 | 参考音频优化 (D) | 录制一段更丰富的单一 ref audio | 低，改善基线 | 效果有限 |
+| 4 | TD-PSOLA 后处理 | 添加 psola Python 脚本 + 修改 post-process.mjs | 中等，比 rubberband 好 | 仍有后处理 artifacts |
+| 5 | EmoSteer-TTS (E) | 适配 MLX + 构建 steering vectors | 高，精确情感控制 | 开发量大，MLX 适配风险 |
+| 6 | F5-TTS-Emotional-CFG (F) | Fine-tune 模型 | 高 | GPU 需求，非 MLX |
 
-2. **Teleprompter.com**, "TikTok 3 Second Rule: How to Hook Viewers Fast (2026)", 2025-03-21, updated 2026-06-11. URL: https://www.teleprompter.com/blog/tiktok-3-second-rule
+---
 
-3. **Speaking.coach (Nausheen I. Chen)**, "Mastering Vocal Impact: The 5 Ps of Public Speaking on Camera". URL: https://www.speaking.coach/video/master-vocal-impact-5p-framework-speaking-on-camera/
+## 9. Open Questions
 
-4. **Camb.ai**, "What Is Prosody In Speech? How AI Voices Use Pitch, Pace, And Stress", 2026-06-05. URL: https://www.camb.ai/blog-post/prosody-in-speech-ai-voices-pitch-pace-stress
-
-5. **Bakkouche, L., Luo, X., Lau, E., McGhee, C., Cooper, S., Post, B., Alter, K., & Schwarz, J.**, "What determines the success of AI voice-cloned speech? Prosodic and acoustic evidence on three TTS systems", *Phonetica*, June 2026. DOI: 10.1515/phon-2025-0062. URL: https://www.researchgate.net/publication/407016109
-
-6. **Xie, T., Rong, Y., Zhang, P., Wang, W., & Liu, L.**, "Towards Controllable Speech Synthesis in the Era of Large Language Models: A Survey", arXiv:2412.06602v2, 2025-03-27. URL: https://arxiv.org/html/2412.06602v2
-
-7. **Resemble AI (Magnus Solberg)**, "How to Use AI to Enhance Your Voice for TikTok", 2025-08-19. URL: https://www.resemble.ai/resources/enhance-voice-ai-tiktok
-
-8. **F5-TTS GitHub** (SWivid), "F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching". URL: https://github.com/swivid/f5-tts
-
-9. **RealTimeTTS**, "F5-TTS: Clone Any Voice, Speak Any Emotion". URL: https://realtimetts.com/f5-tts
-
-10. **HeyOrca**, "The best TikTok hooks to boost views and engagement (with examples)", 2025-12-12. URL: https://www.heyorca.com/blog/best-tiktok-hooks
-
-11. **Picovoice.ai**, "Complete Guide to Text-to-Speech (TTS) Technology (2026)", 2025-12-02. URL: https://picovoice.ai/blog/complete-guide-to-text-to-speech/
-
-12. **Chen, Y., Niu, Z., Ma, Z., Deng, K., Wang, C., Zhao, J., Yu, K., & Chen, X.**, "F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching", arXiv:2410.06885, 2024.
-
-13. **Bakkouche, L. et al.**, "Finding the Human Voice in AI: Insights on the Perception of AI-Voice Clones from Naturalness and Similarity Ratings", *Interspeech 2025*, 2190-2194. URL: https://www.isca-archive.org/interspeech_2025/bakkouche25_interspeech.pdf
-
-14. **TikTok @askvinh**, vocal variety and pitch authority series. URLs: 
-    - https://www.tiktok.com/@askvinh/video/7589149534559669522
-    - https://www.tiktok.com/@askvinh/video/7334653493183106310
-    - https://www.tiktok.com/@askvinh/video/7123905984627625217
-
-15. **Instagram Reel @DbBBRZcxRAn**, "Which hook sounds better? The delivery of your video matters..."
+1. **多参考音频策略的实际效果如何？** 需要录制同一说话人的 4 种情绪参考音频，用相同文本做 A/B 测试，验证韵律传递是否足够明显。
+2. **EmoSteer-TTS 能否适配 MLX？** MLX 的 `mx.compile` 和 forward hooks 机制与 PyTorch 不同，需要验证 steering vector 注入是否可行。
+3. **TD-PSOLA 在 F5 输出上的 artifact 程度？** 需要用 `maxrmorrison/psola` 库做小规模测试，对比 rubberband 的机械感。
+4. **是否应该在关键视频上切换到 Qwen3-TTS？** Qwen3-TTS 已有 prosody 支持（`do_sample=False` + `repetition_penalty=1.3`），且支持更长文本和更多风格指令。
 
 ---
 
 ## Appendix A: F5-TTS generate() 完整参数列表
 
-从本地源码 `/Users/pabloli/.f5-tts-env/lib/python3.11/site-packages/f5_tts_mlx/generate.py` 验证：
+从本地源码 `f5_tts_mlx/generate.py` 验证：
 
 | 参数 | 类型 | 默认值 | 能控制 prosody? |
 |------|------|--------|----------------|
@@ -484,17 +412,73 @@ const REF_AUDIO_MAP = {
 
 **结论**: F5-TTS 的 prosody 控制依赖 `ref_audio_path`（最有效）+ `cfg_strength`/`sway_sampling_coef`/`seed`（间接微调）。
 
-## Appendix B: FFmpeg Pitch Shift 技术对比
+---
 
-| 方法 | 命令 | 质量 | 适用场景 |
-|------|------|------|----------|
-| **asetrate** | `asetrate=25920,aresample=24000,atempo=0.926` | 中等 | 全局变调，简单快速 |
-| **rubberband** | `rubberband=pitch=1.08:tempo=1.15` | 高 | 需安装 librubberband，质量最好 |
-| **sox** (外部) | `sox input.wav output.wav pitch 200 speed 1.15` | 高 | 需要额外安装 sox |
+## Appendix B: Duration Predictor 社区增强方案
 
-**推荐**: 优先使用 `rubberband` 滤镜（FFmpeg 内置支持，质量优于 asetrate），如果不可用则 fallback 到 `asetrate`。
+GitHub Issue #993 介绍了社区开发的 F5-TTS Duration Predictor 增强版。F5-TTS 原始设计没有 duration predictor，通过字符比例估算时长，这在短文本上表现不佳。
 
-```bash
-# 检查 rubberband 是否可用
-ffmpeg -filters 2>/dev/null | grep rubberband
-```
+- Duration predictor 学习 token 级别的时长，给予更好的 rhythm/pacing/prosody 控制
+- 显著减少跳字、异常停顿、重复音等 TTS artifacts
+- 可在已有 checkpoint 上 fine-tune
+- ⚠️ 需要额外 fine-tune，主要解决节奏准确性而非情感表达
+
+---
+
+## Design Decisions & References
+
+- 现有 prosody 代码：`scripts/short-video/lib/tts/post-process.mjs`（rubberband 滤镜，F5 已禁用）
+- F5 prosody 禁用决策：`scripts/short-video/lib/tts/f5-mlx.mjs` L97-99（2026-08-14 禁用）
+- F5 参数配置参考：`scripts/short-video/f5_mlx_batch_tts.py`
+- F5-TTS 官方论文：arXiv:2410.06885 (Chen et al., 2024)
+- F5-TTS-MLX 实现：GitHub lucasnewman/f5-tts-mlx v0.2.6
+- EmoSteer-TTS 论文：arXiv:2508.03543 (Xie et al., 2025-08-05)
+- F5-TTS-Emotional-CFG：GitHub RaduBolbo/F5-TTS-Emotional-CFG (SpeD 2025)
+- TD-PSOLA Python 库：GitHub maxrmorrison/psola
+- Context-Aware Prosody Correction：Morrison et al., 2021 (Interactive Audio Lab, Northwestern)
+- ReStyle-TTS：arXiv:2601.03632 (2026)
+
+---
+
+## Bibliography
+
+### Original Research (2026-08-08, 15 sources)
+
+1. **ReelForge AI**, "Guide to Viral Video Hooks: 7 Proven Strategies That Work", 2026-07-02
+2. **Teleprompter.com**, "TikTok 3 Second Rule: How to Hook Viewers Fast (2026)", 2025-03-21
+3. **Speaking.coach (Nausheen I. Chen)**, "Mastering Vocal Impact: The 5 Ps of Public Speaking on Camera"
+4. **Camb.ai**, "What Is Prosody In Speech? How AI Voices Use Pitch, Pace, And Stress", 2026-06-05
+5. **Bakkouche et al.**, "What determines the success of AI voice-cloned speech?", Phonetica, June 2026
+6. **Xie et al.**, "Towards Controllable Speech Synthesis in the Era of Large Language Models: A Survey", arXiv:2412.06602v2, 2025-03-27
+7. **Resemble AI**, "How to Use AI to Enhance Your Voice for TikTok", 2025-08-19
+8. **F5-TTS GitHub** (SWivid), https://github.com/swivid/f5-tts
+9. **RealTimeTTS**, https://realtimetts.com/f5-tts
+10. **HeyOrca**, "The best TikTok hooks to boost views and engagement", 2025-12-12
+11. **Picovoice.ai**, "Complete Guide to Text-to-Speech (TTS) Technology (2026)", 2025-12-02
+12. **Chen et al.**, "F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching", arXiv:2410.06885, 2024
+13. **Bakkouche et al.**, "Finding the Human Voice in AI", Interspeech 2025
+14. **TikTok @askvinh**, vocal variety and pitch authority series
+15. **Instagram Reel @DbBBRZcxRAn**, "Which hook sounds better?"
+
+### F5-TTS Prosody Deep Research (2026-08-17, 20 sources)
+
+16. https://arxiv.org/html/2410.06885v3 — F5-TTS 论文（ACL 2025）— Tier 1
+17. https://swivid.github.io/F5-TTS — F5-TTS 官方 Demo — Tier 1
+18. https://github.com/lucasnewman/f5-tts-mlx — F5-TTS-MLX 实现（v0.2.6）— Tier 1
+19. https://localaimaster.com/blog/f5-tts-setup-guide — F5-TTS Setup Guide 2026 — Tier 2
+20. https://arxiv.org/html/2508.03543v3 — EmoSteer-TTS 论文 — Tier 1
+21. https://emosteer-tts-demo.pages.dev — EmoSteer-TTS Demo 页面 — Tier 1
+22. https://github.com/sujin-koo/emosteer-tts-unofficial — EmoSteer-TTS 非官方实现 — Tier 2
+23. https://github.com/RaduBolbo/F5-TTS-Emotional-CFG — F5-TTS 情感 CFG — Tier 2
+24. https://github.com/SWivid/F5-TTS/issues/993 — Duration Predictor 社区增强 — Tier 3
+25. https://github.com/SWivid/F5-TTS/issues/1155 — 短文本时长问题 — Tier 3
+26. https://interactiveaudiolab.github.io/assets/papers/morrison2021context.pdf — Context-Aware Prosody Correction — Tier 1
+27. https://github.com/maxrmorrison/psola — Python TD-PSOLA 库 — Tier 2
+28. https://arxiv.org/html/2407.05471v1 — Fine-Grained Neural Speech Editing — Tier 1
+29. https://www.isca-archive.org/interspeech_2025/lee25f_interspeech.pdf — Counterfactual Activation Editing — Tier 1
+30. https://aclanthology.org/2025.coling-main.518.pdf — ProsodyFlow — Tier 1
+31. https://medium.com/data-science-collective/high-quality-long-form-tts-with-qwen3-open-weight-models — F5 vs Qwen3 对比 — Tier 3
+32. https://www.emergentmind.com/topics/f5-tts — F5-TTS 综述 — Tier 2
+33. https://www.emergentmind.com/topics/emosteer-tts — EmoSteer-TTS 综述 — Tier 2
+34. https://arxiv.org/html/2601.03632v1 — ReStyle-TTS — Tier 1
+35. https://comfy.icu/node/F5TTSEngineNode — F5-TTS ComfyUI 参数文档 — Tier 3

@@ -342,9 +342,6 @@ async function main() {
     ["INDEX.md"], // Exclude index file
   );
 
-  console.log("\n🔬 Collecting research reports...");
-  const researchChunks = collectMarkdownSource(join(projectRoot, "docs", "research"), "research");
-
   console.log("\n🎨 Collecting asset catalog...");
   const assetCatalogChunks = collectAssetCatalog();
 
@@ -359,7 +356,6 @@ async function main() {
     ...articleChunks,
     ...sceneChunks,
     ...sourceMaterialChunks,
-    ...researchChunks,
     ...tiktokChunks,
     ...assetCatalogChunks,
   ];
@@ -478,7 +474,6 @@ async function main() {
   console.log(`  Articles:       ${articleChunks.length} chunks`);
   console.log(`  Scene-data:     ${sceneChunks.length} chunks`);
   console.log(`  Source-mat:     ${sourceMaterialChunks.length} chunks`);
-  console.log(`  Research:       ${researchChunks.length} chunks`);
   console.log(`  TikTok-refs:    ${tiktokChunks.length} chunks`);
   console.log(`  Asset catalog:  ${assetCatalogChunks.length} chunks`);
   console.log("=".repeat(50));

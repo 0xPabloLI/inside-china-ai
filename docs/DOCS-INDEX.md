@@ -30,6 +30,7 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 | Document | Purpose | Referenced by |
 |----------|---------|---------------|
 | `brand-system.md` | Brand visual identity — tokens, templates, rules | `brand-system` skill |
+| `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV 导出、A/B 测试、数据驱动优化建议、竞品参考视频分析 | `content-pipeline.md` Stage 6, `manual-ops.md` |
 | `content-pipeline.md` | Unified content pipeline (article → publish → video → TikTok → analytics) | AGENTS.md |
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
 | `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
