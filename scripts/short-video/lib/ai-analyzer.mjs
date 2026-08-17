@@ -34,9 +34,9 @@ const __dirname = dirname(__filename);
 
 const PYTHON_SCRIPT = join(__dirname, "ai_analyzer.py");
 const HOME = process.env.HOME || "/Users/pabloli";
-const PYTHON_BIN = join(HOME, ".vlm-env", "bin", "python3");
+const PYTHON_BIN = join(HOME, ".video-tts-env", "bin", "python3");
 
-const RESPONSE_TIMEOUT_MS = 60_000; // 60s per asset analysis
+const RESPONSE_TIMEOUT_MS = 180_000; // 180s per asset (video analysis can take 100s+)
 
 // ─── Module state ───
 

@@ -20,8 +20,7 @@ Video analysis uses Qwen3-VL native video processor (--video path --fps 1.0).
 Falls back to ffmpeg frame extraction (1 fps → multi-image input) if native
 video path raises.
 
-Runs in ~/.vlm-env Python venv (separate from ~/.video-tts-env to avoid
-transformers version conflicts: mlx-vlm needs >=5.14, qwen-tts needs 4.57.3).
+Runs in ~/.video-tts-env Python venv (shared with F5-TTS and whisperx).
 ffmpeg path: /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
 """
 
@@ -101,12 +100,26 @@ def generate_response(model, processor, image_paths=None, video_path=None,
     """Generate a text description from image(s) or video.
 
     Uses mlx_vlm.generate with the configured prompt at temperature 0.0.
+    The prompt is formatted via processor.apply_chat_template so that the
+    correct image/video token placeholders are inserted into input_ids.
     """
     from mlx_vlm import generate
-    from mlx_vlm.prompt_utils import apply_prompt_template
 
-    # Build prompt
-    prompt = PROMPT
+    # Build chat-template-formatted prompt with image/video placeholder
+    content = []
+    if video_path is not None:
+        content.append({"type": "video", "video": video_path})
+    if image_paths is not None:
+        if isinstance(image_paths, str):
+            image_paths = [image_paths]
+        for img_path in image_paths:
+            content.append({"type": "image", "image": img_path})
+    content.append({"type": "text", "text": PROMPT})
+
+    messages = [{"role": "user", "content": content}]
+    prompt = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
 
     if video_path is not None:
         # Native video input path
@@ -121,8 +134,6 @@ def generate_response(model, processor, image_paths=None, video_path=None,
             verbose=False,
         )
     elif image_paths is not None:
-        if isinstance(image_paths, str):
-            image_paths = [image_paths]
         response = generate(
             model,
             processor,
@@ -134,8 +145,11 @@ def generate_response(model, processor, image_paths=None, video_path=None,
     else:
         raise ValueError("Either image_paths or video_path must be provided")
 
-    # mlx_vlm.generate may return a string or a dict with 'text' key
-    if isinstance(response, dict):
+    # mlx_vlm.generate returns a GenerationResult with .text attribute,
+    # or a dict with 'text' key, or a plain string.
+    if hasattr(response, "text"):
+        return response.text
+    elif isinstance(response, dict):
         return response.get("text", str(response))
     return str(response)
 
