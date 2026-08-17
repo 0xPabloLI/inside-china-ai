@@ -572,15 +572,62 @@ export const SELF_MEDIA_SOURCES = [
     name: "tiktok_creator",
     label: "TikTok Creator",
     category: "self_media",
-    supportsKeyword: false,
+    supportsKeyword: true,
     accessMethod: {
-      primary: "cdp",
-      fallbacks: [],
+      primary: "api",
+      fallbacks: ["cdp"],
       notes:
-        "CDP only (requires login). Creator Center page. No MCP fallback. No keyword search, homepage-only.",
+        "API (ScrapeCreators, requires SCRAPECREATORS_API_KEY) → CDP fallback (Creator Center, requires login). Keyword search via API; CDP is homepage-only.",
     },
     needsAuth: true,
     useCleanTitle: false,
+    // ScrapeCreators TikTok search API
+    // API docs: https://scrapecreators.com/docs
+    // Env var: SCRAPECREATORS_API_KEY (in .env.local)
+    apiSearch: {
+      url: (keyword) =>
+        `https://api.scrapecreators.com/v1/tiktok/search/keyword?query=${encodeURIComponent(keyword)}&sort_by=relevance`,
+      parser: (text) => {
+        const data = JSON.parse(text);
+        // Response can be { search_item_list: [{ aweme_info: {...} }] } or { data: [...] }
+        const rawEntries = data.search_item_list || data.data || [];
+        const results = [];
+        for (const entry of rawEntries) {
+          if (typeof entry !== "object") continue;
+          // Items may be nested under aweme_info
+          const info = entry.aweme_info || entry;
+          const videoId = String(info.aweme_id || "");
+          const title = info.desc || "";
+          const shareUrl = info.share_url || "";
+          const authorRaw = info.author;
+          const authorName =
+            typeof authorRaw === "object" ? authorRaw?.unique_id || "" : String(authorRaw || "");
+
+          // Build URL: prefer share_url, fallback to constructed URL
+          let url = shareUrl ? shareUrl.split("?")[0] : "";
+          if (!url && authorName && videoId) {
+            url = `https://www.tiktok.com/@${authorName}/video/${videoId}`;
+          }
+
+          if (title || url) {
+            const stats = info.statistics || {};
+            results.push({
+              title: title.substring(0, 200) || `@${authorName} video ${videoId}`,
+              url,
+              author: authorName,
+              snippet: stats.play_count
+                ? `${stats.play_count} views, ${stats.digg_count || 0} likes`
+                : "",
+            });
+          }
+        }
+        return results.slice(0, 20);
+      },
+      authRequired: true,
+      headers: process.env.SCRAPECREATORS_API_KEY
+        ? { "x-api-key": process.env.SCRAPECREATORS_API_KEY, "Content-Type": "application/json" }
+        : {},
+    },
     url: () => "https://www.tiktok.com/creator-center",
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';

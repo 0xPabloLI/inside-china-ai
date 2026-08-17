@@ -394,8 +394,8 @@ describe("supportsKeyword validation", () => {
   it("homepage-only sources have supportsKeyword=false", () => {
     const homepageSources = ALL_SOURCES.filter((s) => !s.supportsKeyword);
     // qbitai, jiqizhixin, 36kr, techcrunch, bloomberg, guancha, ithome,
-    // weibo_hot, tiktok_creator, wechat_dongchabeating
-    expect(homepageSources.length).toBe(10);
+    // weibo_hot, wechat_dongchabeating
+    expect(homepageSources.length).toBe(9);
   });
 
   it("keyword-capable sources have supportsKeyword=true", () => {
@@ -403,8 +403,9 @@ describe("supportsKeyword validation", () => {
     // xhs, sogou_weixin, bilibili, douyin, zhihu, x_search,
     // youtube, arxiv, github, threads,
     // google, baidu, mcp_grok,
-    // reddit, hackernews, polymarket, digg, techmeme
-    expect(keywordSources.length).toBe(18);
+    // reddit, hackernews, polymarket, digg, techmeme,
+    // tiktok_creator (via ScrapeCreators API)
+    expect(keywordSources.length).toBe(19);
   });
 });
 
@@ -455,7 +456,7 @@ describe("MCP fallback configuration", () => {
     expect(src.mcpFallback.toolName).toBe("search_videos");
   });
 
-  it("tiktok_creator does NOT have mcpFallback (CDP-only)", () => {
+  it("tiktok_creator does NOT have mcpFallback (API + CDP only)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
     expect(src.mcpFallback).toBeUndefined();
   });
@@ -778,8 +779,9 @@ describe("apiSearch configuration", () => {
     for (const src of NEWS_SOURCES) {
       expect(src.apiSearch).toBeUndefined();
     }
-    // Self-media sources don't have apiSearch
+    // Self-media sources: only tiktok_creator has apiSearch
     for (const src of SELF_MEDIA_SOURCES) {
+      if (src.name === "tiktok_creator") continue;
       expect(src.apiSearch).toBeUndefined();
     }
     // General search sources don't have apiSearch
@@ -793,11 +795,17 @@ describe("apiSearch configuration", () => {
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("exactly 4 sources have apiSearch configured", () => {
+  it("exactly 5 sources have apiSearch configured", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(4);
+    expect(withApi).toHaveLength(5);
     const names = withApi.map((s) => s.name).sort();
-    expect(names).toEqual(["arxiv_search", "github_search", "hackernews_search", "reddit_search"]);
+    expect(names).toEqual([
+      "arxiv_search",
+      "github_search",
+      "hackernews_search",
+      "reddit_search",
+      "tiktok_creator",
+    ]);
   });
 
   it("sources with apiSearch have accessMethod.primary === 'api'", () => {
@@ -806,5 +814,113 @@ describe("apiSearch configuration", () => {
         expect(src.accessMethod.primary).toBe("api");
       }
     }
+  });
+
+  // ─── tiktok_creator ScrapeCreators API ───
+
+  it("tiktok_creator has apiSearch", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    expect(src.apiSearch).toBeDefined();
+    expect(typeof src.apiSearch.url).toBe("function");
+    expect(typeof src.apiSearch.parser).toBe("function");
+    expect(src.apiSearch.authRequired).toBe(true);
+  });
+
+  it("tiktok_creator apiSearch builds correct URL", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    const url = src.apiSearch.url("DeepSeek");
+    expect(url).toContain("api.scrapecreators.com/v1/tiktok/search/keyword");
+    expect(url).toContain("query=DeepSeek");
+    expect(url).toContain("sort_by=relevance");
+  });
+
+  it("tiktok_creator parser parses search_item_list correctly", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    const mockJson = JSON.stringify({
+      search_item_list: [
+        {
+          aweme_info: {
+            aweme_id: "1234567890",
+            desc: "DeepSeek V4 is here!",
+            share_url: "https://www.tiktok.com/@user/video/1234567890?utm=share",
+            author: { unique_id: "techcreator" },
+            create_time: 1723898400,
+            statistics: { play_count: 100000, digg_count: 5000, comment_count: 200 },
+          },
+        },
+        {
+          aweme_info: {
+            aweme_id: "9876543210",
+            desc: "China AI breakthrough",
+            share_url: "",
+            author: { unique_id: "ai_news" },
+            create_time: 1723900000,
+            statistics: { play_count: 50000, digg_count: 2000 },
+          },
+        },
+      ],
+    });
+    const results = src.apiSearch.parser(mockJson);
+    expect(results).toHaveLength(2);
+    expect(results[0].title).toBe("DeepSeek V4 is here!");
+    expect(results[0].url).toBe("https://www.tiktok.com/@user/video/1234567890");
+    expect(results[0].author).toBe("techcreator");
+    expect(results[0].snippet).toContain("100000 views");
+    expect(results[1].url).toBe("https://www.tiktok.com/@ai_news/video/9876543210");
+  });
+
+  it("tiktok_creator parser handles data wrapper", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    const mockJson = JSON.stringify({
+      data: [
+        {
+          aweme_id: "111",
+          desc: "Test video",
+          share_url: "https://www.tiktok.com/@test/video/111",
+          author: { unique_id: "test" },
+          statistics: {},
+        },
+      ],
+    });
+    const results = src.apiSearch.parser(mockJson);
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("Test video");
+    expect(results[0].url).toBe("https://www.tiktok.com/@test/video/111");
+  });
+
+  it("tiktok_creator parser handles empty response", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    const mockJson = JSON.stringify({ search_item_list: [], data: [] });
+    const results = src.apiSearch.parser(mockJson);
+    expect(results).toHaveLength(0);
+  });
+
+  it("tiktok_creator parser handles items without aweme_info nesting", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    const mockJson = JSON.stringify({
+      data: [
+        {
+          aweme_id: "222",
+          desc: "Direct item without nesting",
+          share_url: "https://www.tiktok.com/@direct/video/222",
+          author: "direct_user",
+          statistics: { play_count: 1000 },
+        },
+      ],
+    });
+    const results = src.apiSearch.parser(mockJson);
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe("Direct item without nesting");
+    expect(results[0].author).toBe("direct_user");
+  });
+
+  it("tiktok_creator apiSearch authRequired is true", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    expect(src.apiSearch.authRequired).toBe(true);
+  });
+
+  it("tiktok_creator now supportsKeyword (via API)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    expect(src.supportsKeyword).toBe(true);
   });
 });
