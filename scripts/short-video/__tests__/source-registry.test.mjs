@@ -923,4 +923,29 @@ describe("apiSearch configuration", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
     expect(src.supportsKeyword).toBe(true);
   });
+
+  // ─── paidApi flag: sources that consume paid credits are opt-in ───
+
+  it("tiktok_creator apiSearch is marked paidApi", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    expect(src.apiSearch.paidApi).toBe(true);
+  });
+
+  it("free API sources are NOT marked paidApi", () => {
+    // arXiv, GitHub, Reddit, HN — all have free, unlimited APIs
+    const arxiv = WESTERN_SOURCES.find((s) => s.name === "arxiv_search");
+    expect(arxiv.apiSearch.paidApi).toBeUndefined();
+    const github = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    expect(github.apiSearch.paidApi).toBeUndefined();
+    const reddit = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
+    expect(reddit.apiSearch.paidApi).toBeUndefined();
+    const hn = LAST30DAYS_SOURCES.find((s) => s.name === "hackernews_search");
+    expect(hn.apiSearch.paidApi).toBeUndefined();
+  });
+
+  it("exactly 1 source has paidApi=true", () => {
+    const paid = ALL_SOURCES.filter((s) => s.apiSearch?.paidApi === true);
+    expect(paid).toHaveLength(1);
+    expect(paid[0].name).toBe("tiktok_creator");
+  });
 });

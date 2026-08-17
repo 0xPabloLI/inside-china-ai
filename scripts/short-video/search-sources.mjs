@@ -24,6 +24,10 @@
  * Usage:
  *   node scripts/short-video/search-sources.mjs [--keyword <kw>]           # --trend mode
  *   node scripts/short-video/search-sources.mjs --keyword "DeepSeek V4" --research
+ *   node scripts/short-video/search-sources.mjs --keyword "DeepSeek" --research --include-paid
+ *
+ * --include-paid: enable sources that consume paid API credits (ScrapeCreators, etc.)
+ *                 Skipped by default to preserve free quota.
  *
  * Requires: Chrome Remote Debugging enabled + CDP proxy at localhost:3456
  *           (western/MCP sources work without CDP via mcp-search-bridge)
@@ -78,6 +82,7 @@ function hasFlag(name) {
 
 const keywordArg = getArg("keyword");
 const isResearchMode = hasFlag("research");
+const includePaid = hasFlag("include-paid");
 
 // ─── Source collection ───
 
@@ -258,7 +263,16 @@ async function main() {
   console.log("=".repeat(60));
 
   // Select sources based on mode
-  const sources = isResearchMode ? ALL_SOURCES.filter((s) => s.supportsKeyword) : ALL_SOURCES;
+  let sources = isResearchMode ? ALL_SOURCES.filter((s) => s.supportsKeyword) : ALL_SOURCES;
+
+  // Filter out paid-API sources unless --include-paid is passed
+  const paidSources = sources.filter((s) => s.apiSearch?.paidApi || s.mcpFallback?.paidApi);
+  if (paidSources.length > 0 && !includePaid) {
+    const names = paidSources.map((s) => s.name).join(", ");
+    console.log(`  💰 Skipping ${paidSources.length} paid-API source(s): ${names}`);
+    console.log(`     Use --include-paid to enable them.`);
+    sources = sources.filter((s) => !s.apiSearch?.paidApi && !s.mcpFallback?.paidApi);
+  }
 
   const sourceBreakdown = {
     news: sources.filter((s) => s.category === "news").length,

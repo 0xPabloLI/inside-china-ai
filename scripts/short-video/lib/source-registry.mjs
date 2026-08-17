@@ -20,7 +20,9 @@
  * - loginCheckScript: CDP eval script to check if login is needed (optional)
  * - useCleanTitle: whether to run cleanTitle on extracted titles
  * - apiSearch: API direct-connect config (optional, Issue #34)
- *     { url(keyword), parser(responseText), authRequired, headers }
+ *     { url(keyword), parser(responseText), authRequired, headers, paidApi }
+ *     paidApi: true if the API consumes a limited credits quota (e.g. ScrapeCreators).
+ *     Sources with paidApi=true are skipped by default unless --include-paid flag is passed.
  * - cdpFallback: Google site: search fallback config (optional)
  * - mcpFallback: MCP server fallback config (optional)
  *
@@ -624,6 +626,8 @@ export const SELF_MEDIA_SOURCES = [
         return results.slice(0, 20);
       },
       authRequired: true,
+      // ScrapeCreators: 10,000 free calls then PAYG — opt-in only (--include-paid)
+      paidApi: true,
       headers: process.env.SCRAPECREATORS_API_KEY
         ? { "x-api-key": process.env.SCRAPECREATORS_API_KEY, "Content-Type": "application/json" }
         : {},
