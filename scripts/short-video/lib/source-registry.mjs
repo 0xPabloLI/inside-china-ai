@@ -1112,6 +1112,111 @@ export const WESTERN_SOURCES = [
       resultMapper: parseGrokListResult,
     },
   },
+  {
+    name: "datacube_ai",
+    label: "DataCube AI",
+    category: "western",
+    needsAuth: false,
+    supportsKeyword: false,
+    accessMethod: {
+      primary: "api",
+      fallbacks: [],
+      notes:
+        "API (Atom RSS feed, free, no auth). Daily AI news from 35+ sources in 8 languages. No keyword search — homepage feed only.",
+    },
+    useCleanTitle: false,
+    // DataCube AI RSS feed: returns Atom XML with <entry> elements
+    // Endpoint: /feed.xml?lang=en (also supports de, zh, fr, es, pt, ja, ko)
+    apiSearch: {
+      url: () => "https://www.datacubeai.space/feed.xml?lang=en",
+      parser: (text) => {
+        const results = [];
+        const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+        let match;
+        while ((match = entryRegex.exec(text)) !== null) {
+          const entry = match[1];
+          const title = entry.match(/<title>([\s\S]*?)<\/title>/);
+          const link = entry.match(/<link[^>]*href="([^"]+)"[^>]*rel="alternate"/);
+          const summary = entry.match(/<summary[^>]*>([\s\S]*?)<\/summary>/);
+          const updated = entry.match(/<updated>([\s\S]*?)<\/updated>/);
+          if (title && (link || title)) {
+            results.push({
+              title: title[1].trim().replace(/\n/g, " "),
+              url: link ? link[1] : "",
+              snippet: summary ? summary[1].trim().replace(/\n/g, " ").substring(0, 200) : "",
+              publishedAt: updated ? updated[1].trim() : "",
+            });
+          }
+        }
+        return results;
+      },
+      authRequired: false,
+    },
+    url: () => "https://www.datacubeai.space/en",
+    extractScript: `
+      var results = [];
+      document.querySelectorAll('article, .news-item, .post-item, [class*="article"]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h2, h3, .title, [class*="title"]');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href });
+        }
+      });
+      return results.slice(0, 20);
+    `,
+  },
+  {
+    name: "openalex_search",
+    label: "OpenAlex",
+    category: "western",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      fallbacks: [],
+      notes:
+        "API (openalex.org/api/works, free, no auth). Open catalog of 240M+ scholarly works. JSON response.",
+    },
+    useCleanTitle: false,
+    // OpenAlex API: returns JSON with results[] containing title, doi, publication_date
+    apiSearch: {
+      url: (keyword) =>
+        `https://api.openalex.org/works?search=${encodeURIComponent(keyword)}&per_page=10&sort=publication_date:desc`,
+      parser: (text) => {
+        const data = JSON.parse(text);
+        if (!data.results) return [];
+        return data.results.map((work) => ({
+          title: work.title || work.display_name || "",
+          url: work.doi || work.id || "",
+          snippet: work.abstract_inverted_index
+            ? Object.keys(work.abstract_inverted_index)
+                .sort((a, b) => {
+                  const aPos = work.abstract_inverted_index[a][0] || 0;
+                  const bPos = work.abstract_inverted_index[b][0] || 0;
+                  return aPos - bPos;
+                })
+                .join(" ")
+                .substring(0, 200)
+            : "",
+          publishedAt: work.publication_date || "",
+        }));
+      },
+      authRequired: false,
+    },
+    url: (keyword) =>
+      `https://openalex.org/works?filter=default.search:${encodeURIComponent(keyword)}&sort=publication_date:desc`,
+    extractScript: `
+      var results = [];
+      document.querySelectorAll('.search-result, .work-result, [class*="result"]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h2, h3, .title, [class*="title"]');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href });
+        }
+      });
+      return results.slice(0, 20);
+    `,
+  },
 ];
 
 // ─── General search sources ───
@@ -1224,6 +1329,49 @@ export const GENERAL_SEARCH_SOURCES = [
       timeoutMs: 60000,
       resultMapper: parseGrokListResult,
     },
+  },
+  {
+    name: "noozra_search",
+    label: "Noozra",
+    category: "general",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      fallbacks: [],
+      notes:
+        "API (noozra.com/api/search, free, no auth, 100 req/day per IP). News headlines from 200+ curated RSS sources. JSON response.",
+    },
+    useCleanTitle: false,
+    // Noozra API: returns JSON with articles[] containing headline, url, published_at, source
+    apiSearch: {
+      url: (keyword) =>
+        `https://noozra.com/api/search?q=${encodeURIComponent(keyword)}&limit=10`,
+      parser: (text) => {
+        const data = JSON.parse(text);
+        if (!data.articles) return [];
+        return data.articles.map((article) => ({
+          title: article.headline || "",
+          url: article.url || "",
+          snippet: article.description ? article.description.substring(0, 200) : "",
+          publishedAt: article.published_at || "",
+          author: article.source || "",
+        }));
+      },
+      authRequired: false,
+    },
+    url: (keyword) => `https://noozra.com/search?q=${encodeURIComponent(keyword)}`,
+    extractScript: `
+      var results = [];
+      document.querySelectorAll('article, .news-item, .headline, [class*="article"]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h2, h3, .title, [class*="headline"]');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href });
+        }
+      });
+      return results.slice(0, 20);
+    `,
   },
 ];
 
