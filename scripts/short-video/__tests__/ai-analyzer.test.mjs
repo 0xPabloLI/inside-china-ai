@@ -131,9 +131,7 @@ describe("ai-analyzer module", () => {
       expect(request.action).toBe("describe_image");
       expect(request.path).toBe("/abs/path/to/file.jpg");
 
-      mockProc.emitStdout(
-        JSON.stringify({ description: "test", error: null }) + "\n",
-      );
+      mockProc.emitStdout(JSON.stringify({ description: "test", error: null }) + "\n");
 
       await promise;
     });
@@ -235,15 +233,13 @@ describe("ai-analyzer module", () => {
       await aiAnalyzer.closeAnalyzer();
 
       // Should have written exit command to stdin
-      const exitCall = mockProc.stdin.write.mock.calls.find(
-        (c) => {
-          try {
-            return JSON.parse(c[0].toString().trim()).action === "exit";
-          } catch {
-            return false;
-          }
-        },
-      );
+      const exitCall = mockProc.stdin.write.mock.calls.find((c) => {
+        try {
+          return JSON.parse(c[0].toString().trim()).action === "exit";
+        } catch {
+          return false;
+        }
+      });
       expect(exitCall).toBeDefined();
       expect(mockProc.kill).toHaveBeenCalled();
     });
@@ -276,7 +272,8 @@ describe("ai-analyzer module", () => {
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(
-        JSON.stringify({ description: "", error: "Model load failed: No module named 'mlx_vlm'" }) + "\n",
+        JSON.stringify({ description: "", error: "Model load failed: No module named 'mlx_vlm'" }) +
+          "\n",
       );
 
       const result = await promise;
@@ -347,9 +344,7 @@ describe("ai-analyzer module", () => {
       const promise = aiAnalyzer.describeImage("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
-      mockProc.emitStdout(
-        JSON.stringify({ description: "", error: "Unknown action: foo" }) + "\n",
-      );
+      mockProc.emitStdout(JSON.stringify({ description: "", error: "Unknown action: foo" }) + "\n");
 
       const result = await promise;
       expect(result).toBe("");

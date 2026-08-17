@@ -219,7 +219,11 @@ describe("scoreCandidate", () => {
     expect(scoreNoAI).toBe(55);
 
     // With aiDescription that mentions "Unitree" → should score higher
-    const scoreWithAI = scoreCandidate(candidate, "Unitree", "A Unitree humanoid robot walking in a lab");
+    const scoreWithAI = scoreCandidate(
+      candidate,
+      "Unitree",
+      "A Unitree humanoid robot walking in a lab",
+    );
     expect(scoreWithAI).toBeGreaterThan(scoreNoAI);
   });
 
@@ -294,7 +298,11 @@ describe("scoreCandidate", () => {
     expect(scoreNoAI).toBe(95);
 
     // With matching aiDescription → adds content points, capped at 100
-    const scoreWithAI = scoreCandidate(candidate, "Unitree", "Unitree humanoid robot walking in lab");
+    const scoreWithAI = scoreCandidate(
+      candidate,
+      "Unitree",
+      "Unitree humanoid robot walking in lab",
+    );
     expect(scoreWithAI).toBe(100); // 95 + 5 min → capped at 100
   });
 

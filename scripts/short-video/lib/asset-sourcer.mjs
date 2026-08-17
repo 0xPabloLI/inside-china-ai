@@ -431,10 +431,11 @@ export function buildFilename(source, keyword, index, ext) {
  * @param {Array} assets - Downloaded assets
  * @param {Array} failed - Failed sources
  * @param {Array} skipped - Skipped sources
+ * @param {Object} [extra] - Optional extra fields (e.g., { aiAnalysis })
  * @returns {Object} Report object
  */
-export function buildReport(content, keywords, assets, failed, skipped) {
-  return {
+export function buildReport(content, keywords, assets, failed, skipped, extra = {}) {
+  const report = {
     searchedAt: new Date().toISOString(),
     content,
     keywords,
@@ -443,6 +444,81 @@ export function buildReport(content, keywords, assets, failed, skipped) {
     failed,
     skipped,
   };
+  if (extra.aiAnalysis) {
+    report.aiAnalysis = extra.aiAnalysis;
+  }
+  return report;
+}
+
+// ─── AI Analysis integration ───
+
+/**
+ * Analyze downloaded assets using the VLM AI analyzer.
+ *
+ * For each asset with a path, calls describeImage or describeVideo based
+ * on asset type. Stores the result in asset.aiDescription. Returns a
+ * report array with per-asset analysis data.
+ *
+ * When VLM is unavailable, logs warning and returns empty descriptions.
+ * Calls closeAnalyzer() in a finally block.
+ *
+ * @param {Array} assets - Downloaded assets (each must have path and type)
+ * @returns {Promise<Array<{path: string, description: string, success: boolean, analysisTimeMs: number}>>}
+ */
+export async function analyzeAssets(assets) {
+  const { describeImage, describeVideo, closeAnalyzer } = await import("./ai-analyzer.mjs");
+
+  const report = [];
+
+  try {
+    for (let i = 0; i < assets.length; i++) {
+      const asset = assets[i];
+      const absPath = asset.path || "";
+
+      if (!absPath) {
+        report.push({
+          path: "",
+          description: "",
+          success: false,
+          analysisTimeMs: 0,
+        });
+        continue;
+      }
+
+      const startTime = Date.now();
+      console.log(`  🔍 Analyzing: ${absPath}... (${i + 1}/${assets.length})`);
+
+      let description = "";
+      let success = false;
+
+      try {
+        if (asset.type === "video") {
+          description = await describeVideo(absPath);
+        } else {
+          description = await describeImage(absPath);
+        }
+        success = description.length > 0;
+      } catch (err) {
+        console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
+        description = "";
+        success = false;
+      }
+
+      const analysisTimeMs = Date.now() - startTime;
+      asset.aiDescription = description;
+
+      report.push({
+        path: absPath,
+        description,
+        success,
+        analysisTimeMs,
+      });
+    }
+  } finally {
+    await closeAnalyzer();
+  }
+
+  return report;
 }
 
 // ─── API Source search & download ───
@@ -1602,6 +1678,23 @@ export async function main(args = process.argv.slice(2)) {
     }
   }
 
+  // ── AI Analysis (after download, before assignment) ──
+  let aiAnalysis = [];
+  if (allAssets.length > 0) {
+    console.log("\n🤖 AI Analysis:");
+    try {
+      aiAnalysis = await analyzeAssets(allAssets);
+      // Re-score assets with aiDescription
+      for (const asset of allAssets) {
+        if (asset.aiDescription) {
+          asset.score = scoreCandidate(asset, keywords[0], asset.aiDescription);
+        }
+      }
+    } catch (err) {
+      console.warn(`⚠️  AI analysis layer not available: ${err.message}`);
+    }
+  }
+
   // ── Add scene recommendations + attribution ──
   for (const asset of allAssets) {
     const rec = recommendScene(asset, scenes);
@@ -1616,7 +1709,7 @@ export async function main(args = process.argv.slice(2)) {
 
   // ── Write report ──
   const creditsText = buildCreditsSection(allAssets);
-  const report = buildReport(contentSlug, keywords, allAssets, failed, skipped);
+  const report = buildReport(contentSlug, keywords, allAssets, failed, skipped, { aiAnalysis });
   report.credits = creditsText;
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
