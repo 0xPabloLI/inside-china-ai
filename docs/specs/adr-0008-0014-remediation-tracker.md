@@ -55,7 +55,7 @@ git log -1 --oneline
 | 00 | 建立隔离基线与失败归属 | P0 | 无 | `VERIFIED` | `chore` | worktree 已建、3 failed / 1248 passed、Remotion compositions OK | 01 已 READY，可开始。 |
 | 01 | F5 中文/混合文本时长与 RK4 事实修复 | P0 | 00 | `DONE` | `fix(tts)` | 34 Python + 5 vitest 测试通过；commit `138a392`；ADR-0008 + video-workflow 同步 | 真实 TTS 试听待做（需模型加载）。 |
 | 02 | Remotion 视觉、音频、ASS 统一时间线 | P0 | 00、01 | `DONE` | `fix(video)` | 12 timeline 测试通过；Remotion compositions OK；ADR-0010 已更新 | 3 Scene 实渲染待人工观看验收。 |
-| 03 | 统一 AI venv 锁定与 smoke test | P1 | 00 | `READY` | `build(video)` | 干净环境或重建验证 | 从可用 venv 导出版本候选。 |
+| 03 | 统一 AI venv 锁定与 smoke test | P1 | 00 | `DONE` | `build(video)` | verify-ai-env.py 10/10 passed；158 packages locked | 干净 venv 重建待验证。 |
 | 04 | LFS 提交前 pointer 校验与 ADR 哈希修正 | P1 | 00 | `READY` | `chore(git)` | hook/CI fixture + `git lfs ls-files` | 先确认既有 hook 接入方式。 |
 | 05 | Kaggle/Colab 可复现 smoke 工件 | P1 | 00 | `READY` | `test(cloud)` | 已跟踪源码 + 远端 smoke 摘要 | 先将必要输入与产物分离。 |
 | 06 | 素材采集 ADR 漂移、VLM 质量与遥测 | P2 | 00 | `READY` | `docs` / `feat` | registry 测试 + Golden Asset 方案 | 先更新 31 来源与层定义。 |
@@ -335,10 +335,25 @@ docs/adr/0011-unified-venv.md
 
 | 字段 | 当前值 |
 |---|---|
-| 状态 | `NOT_STARTED`（00 完成后转 `READY`） |
+| 状态 | `DONE` |
 | 前置条件 | 00 已验证。 |
 | 提交主题 | `build(video): lock unified AI environment and add smoke test` |
-| 下一步 | 导出 `/tmp/video-ai-freeze.txt`，审查可锁定顶层依赖。 |
+| 下一步 | 干净 venv 重建验证（可选，当前 venv 已验证可用）。 |
+
+### Session 交接 — 2026-08-18 / 03
+
+| 字段 | 内容 |
+|---|---|
+| 状态变更 | `READY` → `DONE` |
+| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
+| 起始 commit | `3c451ba` |
+| 本次修改文件 | `requirements-video-ai.in`, `requirements-video-ai.lock`, `verify-ai-env.py`, `0011-unified-venv.md` |
+| 执行命令 | `~/.video-tts-env/bin/python3 verify-ai-env.py` → 10/10 passed |
+| 结果摘要 | 158 packages locked；10/10 imports verified；upgrade protocol documented in ADR-0011 |
+| 证据位置 | `requirements-video-ai.lock` (158 lines), `verify-ai-env.py` output |
+| 未解决问题 | 干净 venv 重建未验证（需要新 Python 3.12 环境，耗时较长） |
+| 下一步 | 进入工作项 04 |
+| 阻塞条件 | 无 |
 
 ## 8. 工作项 04：LFS pointer 校验与 ADR-0014 哈希修正
 
