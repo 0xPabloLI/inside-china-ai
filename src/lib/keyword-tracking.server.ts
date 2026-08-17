@@ -1,13 +1,36 @@
 /** The domain whose rankings the keyword dashboard tracks. */
 export const DOMAIN = "chinaai.news";
 
-/** A position drop of this many places (or losing the ranking) raises an alert. */
-const DROP_THRESHOLD = 3;
+/** Fallbacks used when the settings row is missing. */
+export const DEFAULT_DROP_THRESHOLD = 3;
+export const DEFAULT_ALERT_ON_LOST_RANKING = true;
 
-function isDrop(current: number | null, previous: number | null): boolean {
+export type AlertSettings = {
+  dropThreshold: number;
+  alertOnLostRanking: boolean;
+};
+
+function isDrop(
+  current: number | null,
+  previous: number | null,
+  settings: AlertSettings,
+): boolean {
   if (previous === null) return false;
-  if (current === null) return true;
-  return current - previous >= DROP_THRESHOLD;
+  if (current === null) return settings.alertOnLostRanking;
+  return current - previous >= settings.dropThreshold;
+}
+
+/** Reads the admin-configured alert thresholds (service-role client). */
+export async function loadAlertSettings(): Promise<AlertSettings> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("ranking_alert_settings")
+    .select("drop_threshold, alert_on_lost_ranking")
+    .maybeSingle();
+  return {
+    dropThreshold: data?.drop_threshold ?? DEFAULT_DROP_THRESHOLD,
+    alertOnLostRanking: data?.alert_on_lost_ranking ?? DEFAULT_ALERT_ON_LOST_RANKING,
+  };
 }
 
 export type RefreshResult = {
@@ -22,6 +45,8 @@ export type RefreshResult = {
 export async function refreshSnapshots(): Promise<RefreshResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { fetchKeywordMetrics } = await import("@/lib/semrush.server");
+  const settings = await loadAlertSettings();
+
 
   const { data: keywords, error } = await supabaseAdmin
     .from("tracked_keywords")
@@ -78,7 +103,7 @@ export async function refreshSnapshots(): Promise<RefreshResult> {
       updated += 1;
 
       const previousPosition = (prior?.position as number | null) ?? null;
-      if (isDrop(metric.position, previousPosition)) {
+      if (isDrop(metric.position, previousPosition, settings)) {
         alerts.push({ keyword: k.keyword, from: previousPosition, to: metric.position });
       }
     }
@@ -116,4 +141,16 @@ export async function listAdminEmails(): Promise<string[]> {
     if (email) emails.push(email);
   }
   return emails;
+}
+
+/**
+ * Who receives ranking alerts: the admin-managed recipient list, falling back
+ * to every admin's account email when the list is empty.
+ */
+export async function listAlertRecipients(): Promise<string[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin.from("ranking_alert_recipients").select("email");
+  const configured = (data ?? []).map((r) => r.email).filter(Boolean);
+  if (configured.length > 0) return configured;
+  return listAdminEmails();
 }
