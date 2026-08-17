@@ -1,13 +1,36 @@
 /** The domain whose rankings the keyword dashboard tracks. */
 export const DOMAIN = "chinaai.news";
 
-/** A position drop of this many places (or losing the ranking) raises an alert. */
-const DROP_THRESHOLD = 3;
+/** Fallbacks used when the settings row is missing. */
+export const DEFAULT_DROP_THRESHOLD = 3;
+export const DEFAULT_ALERT_ON_LOST_RANKING = true;
 
-function isDrop(current: number | null, previous: number | null): boolean {
+export type AlertSettings = {
+  dropThreshold: number;
+  alertOnLostRanking: boolean;
+};
+
+function isDrop(
+  current: number | null,
+  previous: number | null,
+  settings: AlertSettings,
+): boolean {
   if (previous === null) return false;
-  if (current === null) return true;
-  return current - previous >= DROP_THRESHOLD;
+  if (current === null) return settings.alertOnLostRanking;
+  return current - previous >= settings.dropThreshold;
+}
+
+/** Reads the admin-configured alert thresholds (service-role client). */
+export async function loadAlertSettings(): Promise<AlertSettings> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("ranking_alert_settings")
+    .select("drop_threshold, alert_on_lost_ranking")
+    .maybeSingle();
+  return {
+    dropThreshold: data?.drop_threshold ?? DEFAULT_DROP_THRESHOLD,
+    alertOnLostRanking: data?.alert_on_lost_ranking ?? DEFAULT_ALERT_ON_LOST_RANKING,
+  };
 }
 
 export type RefreshResult = {
