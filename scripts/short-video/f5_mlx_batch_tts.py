@@ -16,13 +16,98 @@ Environment:
 """
 import argparse
 import json
+import re
 import sys
 import os
 import time
 import subprocess
+import unicodedata
 
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+
+# ── Duration estimation constants ──
+# Calibrated from reference voice at ~168 wpm / ~4.5 chars-per-sec for CJK.
+CJK_CHARS_PER_SECOND = 4.5      # Chinese characters (each char ≈ one syllable)
+LATIN_WORDS_PER_SECOND = 2.8    # English words (consistent with prior wps)
+PUNCTUATION_PAUSE_SECONDS = 0.15  # comma/period/exclamation/question mark
+MIN_TARGET_SECONDS = 0.5        # avoid degenerate durations for very short text
+
+
+def is_cjk_char(ch):
+    """Return True if ch is a CJK Unified Ideograph, Hiragana, Katakana, or CJK punctuation."""
+    code = ord(ch)
+    return (
+        0x4E00 <= code <= 0x9FFF    # CJK Unified Ideographs
+        or 0x3400 <= code <= 0x4DBF  # CJK Extension A
+        or 0x3040 <= code <= 0x309F  # Hiragana
+        or 0x30A0 <= code <= 0x30FF  # Katakana
+        or 0x3000 <= code <= 0x303F  # CJK Symbols and Punctuation
+        or 0xFF00 <= code <= 0xFFEF  # Fullwidth Forms (includes fullwidth Latin)
+    )
+
+
+def normalize_for_duration(text):
+    """Normalize text for duration estimation without altering TTS input."""
+    # Strip Markdown / HTML tags that should not be spoken
+    cleaned = re.sub(r"\*\*|\*|__|_|##|#|`|\[|\]|\(|\)", "", text)
+    # Replace common Markdown/URL artifacts
+    cleaned = re.sub(r"https?://\S+", "", cleaned)
+    # Collapse whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def count_cjk_characters(text):
+    """Count CJK characters (ideographs) in text — each is roughly one syllable."""
+    return sum(1 for ch in text if is_cjk_char(ch) and not unicodedata.category(ch).startswith("P"))
+
+
+def count_latin_words(text):
+    """Count space-separated Latin words, excluding pure-CJK segments."""
+    words = text.split()
+    count = 0
+    for w in words:
+        # Count a word only if it contains at least one non-CJK character
+        if any(not is_cjk_char(c) for c in w):
+            count += 1
+    return count
+
+
+def count_major_punctuation(text):
+    """Count major punctuation that introduces a natural pause."""
+    # Chinese: ，。！？；：、
+    # Western: , . ! ? ; :
+    pauses = 0
+    for ch in text:
+        if ch in "，。！？；：、,.!?;:":
+            pauses += 1
+    return pauses
+
+
+def estimate_target_seconds(text):
+    """
+    Estimate target speaking duration in seconds for the given text.
+
+    Uses separate rates for CJK characters and Latin words, plus a small
+    pause for major punctuation. This replaces the prior len(text.split())/2.8
+    formula which treated an entire Chinese sentence as a single word.
+
+    The returned value is the TARGET duration only — callers must add
+    ref_audio_duration to get F5's total `duration` parameter.
+    """
+    normalized = normalize_for_duration(text)
+    cjk = count_cjk_characters(normalized)
+    latin_words = count_latin_words(normalized)
+    pauses = count_major_punctuation(normalized)
+
+    estimated = max(
+        MIN_TARGET_SECONDS,
+        cjk / CJK_CHARS_PER_SECOND
+        + latin_words / LATIN_WORDS_PER_SECOND
+        + pauses * PUNCTUATION_PAUSE_SECONDS,
+    )
+    return estimated
 
 
 def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
@@ -55,16 +140,16 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
         # F5 outputs WAV directly — no MP3 conversion (avoids double lossy encoding)
 
         # Calculate duration: F5 needs total = ref_duration + target_duration
-        # Target: ~2.8 words/sec speaking rate (168 wpm) — slightly faster
-        # than 2.5 to avoid slow pacing on short scenes.
-        word_count = len(text.split())
-        target_dur = word_count / 2.8
+        # Use estimate_target_seconds() which handles CJK and mixed text correctly.
+        # The old len(text.split())/2.8 formula treated a whole Chinese sentence
+        # as one word, producing near-zero durations.
+        target_dur = estimate_target_seconds(text)
         total_dur = ref_dur + target_dur
 
         # F5 model parameters (MAX EFFORT):
         # - steps=32: maximum inference steps → best quality (default 8)
         # - cfg_strength=3.0: strongest ref-audio guidance → best voice cloning (default 2.0)
-        # - method='rk4': best solver quality (default)
+        # - method='rk4': RK4 ODE solver (confirmed as library default, passed explicitly)
         f5_generate(
             generation_text=text,
             duration=total_dur,
@@ -73,6 +158,7 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
             speed=speed,
             steps=32,
             cfg_strength=3.0,
+            method="rk4",
             output_path=output_path,
         )
         t3 = time.time()

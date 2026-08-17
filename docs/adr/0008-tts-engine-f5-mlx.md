@@ -22,8 +22,8 @@ The engine swap in Phase 2 was driven by F5's duration control bug (generating 0
 F5-TTS-MLX runs at **Max Effort** configuration:
 - `steps=32` (default 8, 4× quality increase — 16→32 is the non-linear quality jump)
 - `cfg_strength=3.0` (default 2.0, 1.5× voice fidelity)
-- `wps=2.8` (target speaking rate)
-- `method='rk4'` (ODE solver)
+- `method='rk4'` (RK4 ODE solver — confirmed as library default in `F5TTS.sample()`, passed explicitly in `f5_mlx_batch_tts.py`)
+- Duration: `estimate_target_seconds(text)` — CJK chars / 4.5 + Latin words / 2.8 + punctuation × 0.15s
 
 Post-processing: **all FFmpeg audio filters disabled** for F5 — no silenceremove, no rubberband prosody, no highpass, no denoise. Only resample (24kHz → 44.1kHz) for assembly compatibility.
 
@@ -55,14 +55,14 @@ Post-processing: **all FFmpeg audio filters disabled** for F5 — no silenceremo
 |--------|-----------|------|
 | **Inference speed** | ~3-8s per scene (steps=32) | Slower than CosyVoice (~2s) or edge-tts (~1s) |
 | **Model size** | ~1.5GB (F5-TTS-MLX) | Disk space |
-| **Duration control** | `duration = ref_audio_length + word_count / 2.5` | Must calculate manually; `estimate_duration=True` over-estimates if ref audio is slow |
+| **Duration control** | `duration = ref_audio_length + estimate_target_seconds(text)` | Must calculate manually; `estimate_duration=True` over-estimates if ref audio is slow. CJK chars at 4.5 chars/sec, Latin words at 2.8 words/sec, punctuation adds 0.15s per mark. |
 | **Ref text precision** | Must exactly match ref audio | Whisper-transcribed ref text causes audio leakage ("废话" artifacts) |
 | **Silence threshold** | F5 amplitude < -35dB → silenceremove deletes entire audio | Must skip silenceremove for F5 |
 | **Prosody post-processing** | rubberband introduces mechanical artifacts on F5's natural output | No per-scene pitch/tempo variation (relies on F5's internal prosody) |
 
 ## Key bugs fixed during adoption
 
-1. **Duration parameter must be explicit** — F5's `generate()` `duration` is total (ref + target), not target-only. Without it, generates 0.03s audio. Formula: `duration = ref_audio_duration + word_count / 2.5`.
+1. **Duration parameter must be explicit** — F5's `generate()` `duration` is total (ref + target), not target-only. Without it, generates 0.03s audio. Formula: `duration = ref_audio_duration + estimate_target_seconds(text)`, where `estimate_target_seconds` counts CJK characters at 4.5 chars/sec and Latin words at 2.8 words/sec (see `f5_mlx_batch_tts.py`).
 2. **Ref-text must match ref-audio exactly** — mismatched ref-text causes F5 to leak reference audio fragments into output.
 3. **Silenceremove must be skipped** — F5's amplitude is below -35dB threshold; silenceremove treats the entire audio as silence and deletes it.
 4. **rubberband prosody disabled** — post-hoc pitch/tempo shift on F5's already-natural output creates mechanical artifacts.
