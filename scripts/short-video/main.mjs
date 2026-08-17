@@ -25,6 +25,10 @@ import { assembleVideo } from "./lib/assemble.mjs";
 import { renderRemotion } from "./lib/render-remotion.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
+import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
+import { buildCues } from "./lib/subtitles/cues.mjs";
+import { renderAss } from "./lib/subtitles/ass.mjs";
+import { burnSubtitles } from "./lib/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -258,23 +262,69 @@ async function main() {
     );
   }
 
-  // ── Step 6: Verify subtitles (optional, --skip-verify to skip) ──
+  // ── Step 6: Verify subtitles with auto-retry (optional, --skip-verify to skip) ──
   const skipVerify = process.argv.includes("--skip-verify");
+  const maxRetries = parseInt(getArg("max-retries") ?? "2", 10);
   if (skipVerify) {
     console.log("🔍 Step 6: Subtitle verification skipped (--skip-verify)\n");
   } else if (!subtitles) {
     console.log("🔍 Step 6: Subtitle verification skipped (no subtitles generated)\n");
   } else {
-    console.log("🔍 Step 6: Verifying rendered subtitles against the alignment data...\n");
-    const report = verifySubtitles({
+    console.log("🔍 Step 6: Verifying rendered subtitles with auto-retry (max-retries=" + maxRetries + ")...\n");
+
+    // Repair dispatch: maps failure categories to repair actions
+    const repairFn = (category, report) => {
+      const findBaseAndBurn = () => {
+        const presubsPath = result.path.replace("-short.mp4", "-short-presubs.mp4");
+        const rawPath = result.path.replace("-short.mp4", "-short-raw.mp4");
+        const basePath = existsSync(presubsPath) ? presubsPath : (existsSync(rawPath) ? rawPath : null);
+        if (!basePath) return null;
+        burnSubtitles(basePath, subtitles.assPath, result.path);
+        return { success: true, videoPath: result.path, assPath: subtitles.assPath };
+      };
+
+      if (category === "audio-sync-drift") {
+        // Extract per-scene drift from report and compensate subtitle cues
+        const driftMap = {};
+        for (const s of report.audioSync?.scenes ?? []) {
+          if (!s.ok) driftMap[s.sceneId] = s.drift;
+        }
+        const cues = applyDriftCorrection(buildCues(subtitles.timingData, sceneDurations), driftMap);
+        writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
+        return findBaseAndBurn() ?? { success: false };
+      }
+
+      if (category === "cue-gaps") {
+        const cues = buildCues(subtitles.timingData, sceneDurations);
+        writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
+        return findBaseAndBurn() ?? { success: false };
+      }
+
+      if (category === "subtitle-alignment") {
+        // Re-run whisper alignment + regenerate subtitles
+        // This requires async TTS alignment, deferred for now
+        return { success: false };
+      }
+
+      return { success: false };
+    };
+
+    const { report: finalReport } = verifyWithRetry({
+      verifyFn: () => verifySubtitles({
+        videoPath: result.path,
+        assPath: subtitles.assPath,
+        timingData: subtitles.timingData,
+        sceneDurations,
+        outputDir,
+      }),
+      repairFn,
+      maxRetries,
       videoPath: result.path,
       assPath: subtitles.assPath,
-      timingData: subtitles.timingData,
-      sceneDurations,
-      outputDir,
     });
-    if (!report.summary.passed) {
-      console.error("❌ Subtitle verification failed — refusing to ship a broken video.");
+
+    if (!finalReport.summary.passed) {
+      console.error("❌ Subtitle verification failed after " + maxRetries + " retries — refusing to ship a broken video.");
       process.exit(1);
     }
   }

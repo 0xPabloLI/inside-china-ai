@@ -22,7 +22,7 @@ import { ContextScene } from "./scenes/ContextScene";
 import { ContrastScene } from "./scenes/ContrastScene";
 import { StatRevealScene } from "./scenes/StatRevealScene";
 import { FullscreenMedia } from "./scenes/FullscreenMedia";
-import { FPS, secToFrames, sceneClipFrames, sceneClipDuration } from "./components/shared";
+import { sceneClipFrames, sceneClipDuration } from "./components/shared";
 
 /** Dispatch a scene to its React component based on visualType. */
 function renderScene(scene: SceneData, duration: number, contentDir: string) {
@@ -68,9 +68,11 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({ scenes, audioPaths, dura
     );
   }
 
-  // Build the sequence of scenes with transitions
+  // Build the sequence of scenes with transitions (visual only)
   const elements: React.ReactNode[] = [];
-  let cumulativeFrames = 0;
+  // Build audio sequences with frame-precise offsets matching sceneTimeline()
+  const audioElements: React.ReactNode[] = [];
+  let cumulativeOffsetFrames = 0;
 
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
@@ -95,16 +97,24 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({ scenes, audioPaths, dura
         durationInFrames={clipFrames}
       >
         {renderScene(scene, clipDuration, contentDir)}
-        {/* Place TTS audio within this sequence — audioPaths are relative to public/ */}
-        {audioPaths[i] && (
-          <Audio
-            src={staticFile(audioPaths[i])}
-          />
-        )}
       </TransitionSeries.Sequence>
     );
 
-    cumulativeFrames += clipFrames;
+    // Audio is placed OUTSIDE TransitionSeries to avoid transition overlap
+    // shifting audio onsets. The `from` offset matches sceneTimeline() exactly.
+    if (audioPaths[i]) {
+      audioElements.push(
+        <Sequence
+          key={`a-${i}`}
+          from={cumulativeOffsetFrames}
+          durationInFrames={clipFrames}
+        >
+          <Audio src={staticFile(audioPaths[i])} />
+        </Sequence>
+      );
+    }
+
+    cumulativeOffsetFrames += clipFrames;
   }
 
   return (
@@ -112,6 +122,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({ scenes, audioPaths, dura
       <TransitionSeries>
         {elements}
       </TransitionSeries>
+      {audioElements}
     </AbsoluteFill>
   );
 };
