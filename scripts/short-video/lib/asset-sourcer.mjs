@@ -109,13 +109,18 @@ export function extractKeywords(scenes, meta, cliKeywords) {
 /**
  * Score a candidate asset (0-100).
  *
- * Score = keyword match (0-40) + duration fitness (0-25) + size fitness (0-20) + resolution bonus (0-15)
+ * Score = keyword match (0-40) + duration fitness (0-25) + size fitness (0-20)
+ *         + resolution bonus (0-15) + content match (0-30, from aiDescription)
+ *
+ * When aiDescription is absent or empty, behaves identically to the original
+ * implementation (backward compatible).
  *
  * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
  * @param {string} keyword - Search keyword
+ * @param {string} [aiDescription] - Optional VLM-generated content description
  * @returns {number} Score 0-100
  */
-export function scoreCandidate(candidate, keyword) {
+export function scoreCandidate(candidate, keyword, aiDescription) {
   let score = 0;
 
   // Keyword match in title (0-40)
@@ -166,6 +171,41 @@ export function scoreCandidate(candidate, keyword) {
     } else {
       score += 5;
     }
+  }
+
+  // Content match from AI description (0-30)
+  // When aiDescription is present, compute token overlap with keyword.
+  // Simple token overlap: lowercase both, split into words, count matches.
+  if (aiDescription && typeof aiDescription === "string" && aiDescription.trim()) {
+    const descTokens = new Set(
+      aiDescription
+        .toLowerCase()
+        .split(/[\s,.!?;:()'"/]+/)
+        .filter((t) => t.length > 2),
+    );
+    // Also tokenize the keyword (may be multi-word like "Unitree H1")
+    const kwTokens = keyword
+      .toLowerCase()
+      .split(/[\s]+/)
+      .filter((t) => t.length > 2);
+
+    // Count how many keyword tokens appear in the description
+    let matchCount = 0;
+    for (const kwt of kwTokens) {
+      if (descTokens.has(kwt)) matchCount++;
+    }
+
+    // Also check if the full keyword string appears in the description
+    const descLower = aiDescription.toLowerCase();
+    const kwLower = keyword.toLowerCase();
+    const fullMatch = descLower.includes(kwLower);
+
+    // Score: full keyword match → 20, per-token match → 10 each, capped at 30
+    let contentScore = 0;
+    if (fullMatch) contentScore += 20;
+    contentScore += matchCount * 10;
+    contentScore = Math.min(contentScore, 30);
+    score += contentScore;
   }
 
   return Math.min(score, 100);

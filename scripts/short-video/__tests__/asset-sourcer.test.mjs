@@ -203,6 +203,122 @@ describe("scoreCandidate", () => {
     // 40 + 25 + 20 + 15 = 100
     expect(score).toBeLessThanOrEqual(100);
   });
+
+  // ─── AI description scoring (Ticket 03) ───
+
+  it("adds content score when aiDescription is present and matches keyword", () => {
+    const candidate = {
+      title: "Humanoid Robot",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    // Without aiDescription: 0 (match) + 25 + 20 + 10 = 55
+    const scoreNoAI = scoreCandidate(candidate, "Unitree");
+    expect(scoreNoAI).toBe(55);
+
+    // With aiDescription that mentions "Unitree" → should score higher
+    const scoreWithAI = scoreCandidate(candidate, "Unitree", "A Unitree humanoid robot walking in a lab");
+    expect(scoreWithAI).toBeGreaterThan(scoreNoAI);
+  });
+
+  it("does not change score when aiDescription is empty string", () => {
+    const candidate = {
+      title: "Unitree H1 Robot",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const scoreWithout = scoreCandidate(candidate, "Unitree");
+    const scoreWithEmpty = scoreCandidate(candidate, "Unitree", "");
+    expect(scoreWithEmpty).toBe(scoreWithout);
+  });
+
+  it("does not change score when aiDescription is undefined", () => {
+    const candidate = {
+      title: "Unitree H1 Robot",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const scoreWithout = scoreCandidate(candidate, "Unitree");
+    const scoreWithUndefined = scoreCandidate(candidate, "Unitree", undefined);
+    expect(scoreWithUndefined).toBe(scoreWithout);
+  });
+
+  it("gives 0 content score when aiDescription has no overlapping words with keyword", () => {
+    const candidate = {
+      title: "Cooking Tutorial",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    // aiDescription about cooking — no overlap with "Unitree"
+    const scoreWithout = scoreCandidate(candidate, "Unitree");
+    const scoreWithAI = scoreCandidate(candidate, "Unitree", "A person cooking pasta in a kitchen");
+    expect(scoreWithAI).toBe(scoreWithout); // no content bonus
+  });
+
+  it("content score is 0-30 range (capped)", () => {
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "1080p",
+    };
+    // Base score: 40 (match) + 25 (dur) + 20 (size) + 15 (res) = 100
+    // Even with a matching aiDescription, total should not exceed 100
+    const score = scoreCandidate(
+      candidate,
+      "Unitree",
+      "Unitree robot Unitree humanoid Unitree demo Unitree lab",
+    );
+    expect(score).toBeLessThanOrEqual(100);
+  });
+
+  it("content score from aiDescription is additive to keyword match", () => {
+    const candidate = {
+      title: "Unitree Robot",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    // Base: 40 (match) + 25 (dur) + 20 (size) + 10 (res) = 95
+    const scoreNoAI = scoreCandidate(candidate, "Unitree");
+    expect(scoreNoAI).toBe(95);
+
+    // With matching aiDescription → adds content points, capped at 100
+    const scoreWithAI = scoreCandidate(candidate, "Unitree", "Unitree humanoid robot walking in lab");
+    expect(scoreWithAI).toBe(100); // 95 + 5 min → capped at 100
+  });
+
+  it("handles aiDescription with multiple keyword matches", () => {
+    const candidate = {
+      title: "Demo Video",
+      type: "image",
+      fileSize: 2000000,
+      resolution: "1080p",
+    };
+    // Base: 0 (match) + 20 (image) + 20 (size) + 15 (res) = 55
+    const scoreNoAI = scoreCandidate(candidate, "Unitree");
+    expect(scoreNoAI).toBe(55);
+
+    // aiDescription with multiple keyword-relevant words
+    const scoreWithAI = scoreCandidate(
+      candidate,
+      "Unitree",
+      "Unitree H1 humanoid robot performing a walking demonstration in a tech lab",
+    );
+    expect(scoreWithAI).toBeGreaterThan(scoreNoAI);
+    // Should have "unitree" matching → content score > 0
+    expect(scoreWithAI).toBeLessThanOrEqual(85); // 55 + up to 30
+  });
 });
 
 // ─── recommendScene ───
