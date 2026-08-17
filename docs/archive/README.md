@@ -75,6 +75,7 @@
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
 | `spec-realesrgan-upscale.md` / `tickets-realesrgan-upscale.md` | 2026-08-16 | Real-ESRGAN 超分辨率集成 — `lib/upscale.mjs` 独立模块 (checkResolution + upscaleVideo + upscaleImage + autoUpscaleIfNeeded)。Real-ESRGAN ncnn-vulkan v0.2.5.0 (Metal/Vulkan)。视频用 realesr-animevideov3 模型，图片用 realesrgan-x4plus。集成到 asset-sourcer.mjs 3 处下载点。27 new tests。 |
+| `spec-verify-retry-loop.md` / `tickets-verify-retry-loop` | 2026-08-17 | Pipeline Verify-Retry Loop — `lib/verify-retry.mjs`: classifyFailure() + applyDriftCorrection() + relaxGapParams() + verifyWithRetry() bounded auto-repair。Remotion `ShortVideo.tsx` audio placement fix (TransitionSeries → Sequence offset)。`--max-retries N` CLI flag (default 2)。34 new tests，139 total green。 |
 
 ### Documentation Hierarchy Specs
 
@@ -106,3 +107,4 @@
 > - `handoff-license-risk-policy.md` — License 风险策略，待实施
 > - `handoff-realesrgan.md` — Real-ESRGAN 超分辨率集成，已完成（spec/tickets 已归档）
 > - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，待实施
+> - `handoff-verify-retry-loop.md` — Verify-retry loop，已完成（spec/tickets 已归档为 `spec-verify-retry-loop.md`）
