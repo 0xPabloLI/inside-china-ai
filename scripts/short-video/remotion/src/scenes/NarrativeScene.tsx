@@ -81,6 +81,13 @@ export const NarrativeScene: React.FC<{
             </div>
           </FadeIn>
         )}
+        {txt.source && (
+          <FadeIn delay={1.2} duration={0.5}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: "#94a3b8", letterSpacing: "1px" }}>
+              {txt.source as string}
+            </div>
+          </FadeIn>
+        )}
       </Slot>
     </div>
   );
