@@ -20,7 +20,8 @@ Video analysis uses Qwen3-VL native video processor (--video path --fps 1.0).
 Falls back to ffmpeg frame extraction (1 fps → multi-image input) if native
 video path raises.
 
-Runs in ~/.video-tts-env Python venv.
+Runs in ~/.vlm-env Python venv (separate from ~/.video-tts-env to avoid
+transformers version conflicts: mlx-vlm needs >=5.14, qwen-tts needs 4.57.3).
 ffmpeg path: /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
 """
 
