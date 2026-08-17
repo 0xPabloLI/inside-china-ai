@@ -138,17 +138,17 @@ export const deleteTrackedKeyword = createServerFn({ method: "POST" })
  */
 export const refreshKeywordSnapshots = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .handler(async ({ context }) => {
-    const { refreshSnapshots, sendRankingAlert } = await import(
+  .handler(async () => {
+    const { refreshSnapshots, sendRankingAlert, listAlertRecipients } = await import(
       "@/lib/keyword-tracking.server"
     );
     const { updated, alerts } = await refreshSnapshots();
 
     if (alerts.length > 0) {
-      const recipient = (context.claims as { email?: string } | undefined)?.email;
-      if (recipient) {
+      const capturedOn = new Date().toISOString().slice(0, 10);
+      for (const recipient of await listAlertRecipients()) {
         try {
-          await sendRankingAlert(recipient, alerts, new Date().toISOString().slice(0, 10));
+          await sendRankingAlert(recipient, alerts, capturedOn);
         } catch (err) {
           console.error("ranking alert email failed", err);
         }
@@ -156,5 +156,89 @@ export const refreshKeywordSnapshots = createServerFn({ method: "POST" })
     }
 
     return { updated, alerts: alerts.map((a) => a.keyword) };
+  });
+
+export type AlertConfig = {
+  dropThreshold: number;
+  alertOnLostRanking: boolean;
+  recipients: Array<{ id: string; email: string }>;
+  fallbackRecipients: string[];
+};
+
+/** Threshold settings plus the alert recipient list. */
+export const getAlertConfig = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }): Promise<AlertConfig> => {
+    const [settings, recipients] = await Promise.all([
+      context.supabase
+        .from("ranking_alert_settings")
+        .select("drop_threshold, alert_on_lost_ranking")
+        .maybeSingle(),
+      context.supabase
+        .from("ranking_alert_recipients")
+        .select("id, email")
+        .order("email", { ascending: true }),
+    ]);
+
+    let fallbackRecipients: string[] = [];
+    if ((recipients.data ?? []).length === 0) {
+      const { listAdminEmails } = await import("@/lib/keyword-tracking.server");
+      fallbackRecipients = await listAdminEmails();
+    }
+
+    return {
+      dropThreshold: settings.data?.drop_threshold ?? DROP_THRESHOLD,
+      alertOnLostRanking: settings.data?.alert_on_lost_ranking ?? true,
+      recipients: recipients.data ?? [],
+      fallbackRecipients,
+    };
+  });
+
+export const updateAlertSettings = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        dropThreshold: z.coerce.number().int().min(1).max(50),
+        alertOnLostRanking: z.boolean(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("ranking_alert_settings").upsert(
+      {
+        id: true,
+        drop_threshold: data.dropThreshold,
+        alert_on_lost_ranking: data.alertOnLostRanking,
+      },
+      { onConflict: "id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const addAlertRecipient = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z.object({ email: z.string().trim().toLowerCase().email().max(320) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("ranking_alert_recipients")
+      .upsert({ email: data.email }, { onConflict: "email" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteAlertRecipient = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("ranking_alert_recipients")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
