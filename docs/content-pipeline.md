@@ -83,25 +83,27 @@ Agent 从 Stage 1 开始执行。
 
 **用户对 Agent 说**：
 
-> "跑 discover-trends，选一个话题做内容"
+> "跑 search-sources --trend，选一个话题做内容"
 
 或直接给话题：
 
 > "用「华为 AI 芯片突破」这个话题做一条内容"
 
-Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1 开始执行。
+Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个支持关键词的源，输出 JSON），再用 web-access skill 深度抓取相关 URL 全文，然后从 Stage 1 开始执行。
 
-> **趋势发现有两个工具，按信息源分工（非语言分工）**：
-> - `discover-trends.mjs` — **中文平台**（量子位、机器之心、知乎、B站、微博、小红书等 16 源，CDP 登录态）
-> - `last30days-skill` — **西方社媒 + 学术 + 科技新闻**（Reddit、HN、X、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding 等 11+ 源，`--emit=json`）
+> **搜索工具有两个模式，按场景分工**：
+> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 28 源（含首页型源），filter/classify/dedup，输出 `trending-topics.json`
+> - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：只跑 18 个 supportsKeyword=true 的源，不过滤不分类，输出 `research-results.json`（按源分组）
 >
-> 交叉源：X 和 TikTok 两边都有（机制不同——CDP DOM vs API），保留两边。小红书只在 discover-trends 里用（CDP 登录态更适合）。两者可同时运行交叉比对。详见下方「趋势发现源」章节。
+> **源定义在 `lib/source-registry.mjs`（single source of source）**：28 源 = 7 news + 8 self_media + 4 western + 3 general + 5 last30days + 1 wechat。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）。
 >
-> **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容（已发布文章、scene-data、研究报告、源素材），用本地 Ollama bge-m3 做语义向量搜索，零费用。last30days 搜索实时互联网讨论（最近 30 天）。两者不重复——RAG 查「我写过什么」，last30days 查「外界在说什么」。
+> **与 last30days-skill 的关系**：last30days 独占的 5 源（Reddit、HN、Polymarket、Digg、Techmeme）已拉入 source-registry.mjs。last30days skill 本身保留不动，管线不依赖。两者可同时运行交叉比对。
+>
+> **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容（已发布文章、scene-data、研究报告、源素材），用本地 Ollama bge-m3 做语义向量搜索，零费用。search-sources 搜索实时互联网（CDP + MCP）。两者不重复——RAG 查「我写过什么」，search-sources 查「外界在说什么」。
 
 #### 趋势发现源（15 个）
 
-`discover-trends.mjs` 通过 CDP 抓取 15 个源，覆盖新闻媒体、自媒体平台、技术社区和定向公众号监控：
+`search-sources.mjs` 通过 CDP 抓取 15 个源，覆盖新闻媒体、自媒体平台、技术社区和定向公众号监控：
 
 | 类型     | 源                    | 平台                      | 登录需求           |
 | -------- | --------------------- | ------------------------- | ------------------ |
@@ -127,7 +129,7 @@ Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1
 | 西方源   | Web Search (Grounding) | google.com               | 无（mcp-search-bridge） |
 | 定向监控 | 动察Beating（公众号） | Google 搜索转载平台       | 无                 |
 
-源定义在 `scripts/short-video/lib/trend-sources.mjs`，可插拔架构，新增源只需添加 collector 对象。
+源定义在 `scripts/short-video/lib/source-registry.mjs`，可插拔架构，新增源只需添加 collector 对象。
 
 **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据），也是 5 个西方源的主要搜索方式。Fallback 链：CDP → cdpFallback (Google site:搜索) → mcpFallback (mcp-search-bridge/Grok)。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`。
 
@@ -144,25 +146,25 @@ Agent 先用 web-access skill 调研话题（收集素材），然后从 Stage 1
 **增强方案（可选）：微信后台 API 直爬**
 如果有微信公众平台的 cookie + token（登录 `mp.weixin.qq.com` 后获取，有效期约 2 小时），可启用 `WECHAT_API_CONFIG` 直接调后台 API 获取完整文章列表。参考 `mashukui/wechat_official_account_crawler`。设置环境变量 `WX_COOKIE` 和 `WX_TOKEN` 后将 `WECHAT_API_CONFIG.enabled` 设为 `true`。
 
-**添加新公众号监控**：在 `trend-sources.mjs` 的 `WECHAT_ACCOUNT_SOURCES` 数组中复制一条，修改 `name`、`label`、`account` 即可。
+**添加新公众号监控**：在 `source-registry.mjs` 的 `WECHAT_ACCOUNT_SOURCES` 数组中复制一条，修改 `name`、`label`、`account` 即可。
 
 ```bash
 # 运行趋势发现（默认关键词 "AI大模型"）
-node scripts/short-video/discover-trends.mjs
+node scripts/short-video/search-sources.mjs
 
 # 指定关键词
-node scripts/short-video/discover-trends.mjs --keyword "DeepSeek"
+node scripts/short-video/search-sources.mjs --keyword "DeepSeek"
 ```
 
 #### 西方社媒趋势补充（last30days-skill）
 
-`discover-trends.mjs` 覆盖中文平台（16 源），`last30days-skill` 覆盖西方社媒 + 学术 + 科技新闻（11 默认源 + 2 opt-in）。两个都输出 JSON，Agent 可交叉比对。
+`search-sources.mjs` 覆盖中文平台（16 源），`last30days-skill` 覆盖西方社媒 + 学术 + 科技新闻（11 默认源 + 2 opt-in）。两个都输出 JSON，Agent 可交叉比对。
 
 **分工原则（按信息源，非语言）**：
-- discover-trends 独占：知乎、B站、微博、抖音、36氪、量子位、机器之心、TechCrunch、Bloomberg、观察者网、IT之家、搜狗微信、动察Beating（13 源）
+- search-sources 独占：知乎、B站、微博、抖音、36氪、量子位、机器之心、TechCrunch、Bloomberg、观察者网、IT之家、搜狗微信、动察Beating（13 源）
 - last30days 独占：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding（10 源）
 - 两边都有：X（CDP vs API，机制不同）、TikTok（Creator Center vs hashtag 搜索，角度不同）
-- 小红书：只在 discover-trends 里用（CDP 登录态更适合），last30days 不启用
+- 小红书：只在 search-sources 里用（CDP 登录态更适合），last30days 不启用
 
 **什么时候用 last30days**：
 - 需要了解西方对中国 AI 话题的讨论态度和热度
@@ -196,7 +198,7 @@ python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --subreddi
 
 **协作流程**：
 ```
-discover-trends.mjs → trending-topics.json（中文平台，CDP 登录态）
+search-sources.mjs → trending-topics.json（中文平台，CDP 登录态）
 last30days --emit=json → JSON（西方社媒 + 学术，API）
 Agent 读两个 JSON → 按 topic 关键词匹配 → 交叉比对 engagement → 选 topic
 ```
@@ -219,7 +221,7 @@ Agent 读 `AGENTS.md` Session Start Checklist → 检查 `pending-analysis.json`
 | B: 社区生活短剧 | ⭐⭐ | 利用已有素材，不需额外生产成本 | ❌ 不适用（非社区型账号） |
 | C: 播客 / 嘉宾对谈 | ⭐ | 流量不好但必须做（知识库积累） | ❌ 当前无嘉宾管线 |
 
-**核心洞察**："AI 天生适合把复杂东西讲解得让人好理解"——本项目的 AI 辅助内容生产方向（文章 → scene-data → 视频）天然适配品类 A。discover-trends → 文章 → 视频管线即为品类 A 的自动化实现。
+**核心洞察**："AI 天生适合把复杂东西讲解得让人好理解"——本项目的 AI 辅助内容生产方向（文章 → scene-data → 视频）天然适配品类 A。search-sources → 文章 → 视频管线即为品类 A 的自动化实现。
 
 ---
 
@@ -862,6 +864,8 @@ node scripts/rag/index.mjs
 
 MRL-3 即现有的 `verify-video.mjs` 流程，正式命名为 MRL-3。验证不通过时 Agent 自动修复并重跑，**循环直到 0 failures** 才进入 HITL。
 
+> **Verify-retry loop**（`lib/verify-retry.mjs`）：Step 6 字幕验证失败后，自动分类失败类型（drift / gap / missing / alignment）并尝试对应修复（drift 补偿、gap 放宽、重建 cue）。每次修复后重新验证，只接受严格减少 error 数的修复，否则回滚。`--max-retries N`（默认 2）控制重试上限。详见 `docs/archive/spec-verify-retry-loop.md`。
+
 ```bash
 node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查 = MRL-3
 ```
@@ -1012,26 +1016,8 @@ node scripts/short-video/publish-tiktok.mjs --slug <slug>   # 通过 Publora API
 完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
 
 发布成功后，脚本自动写入 `output/pending-analysis.json` 记录待分析状态。
-
----
-
-## Stage 6: Analytics 闭环
-
-> Analytics 是独立工作流，与 Content Pipeline 的单次制作周期不同步。
-> 完整流程见 `docs/analytics-workflow.md`。
-
-TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
-
-### 流程
-
-1. 检查 `output/pending-analysis.json`（Agent 在新 session 时被动检查）
-2. 超过 48h → 提醒用户导出 CSV
-3. 用户登录 `analytics.tiktok.com` → Content → 选时间范围 → Export
-4. 运行分析脚本：`node scripts/short-video/fetch-tiktok-analytics.mjs --csv <csv-path>`
-5. 录入 A/B 测试：`node scripts/short-video/ab-test-tracker.mjs --result output/analytics-export.json`
-6. Agent 将 `pending-analysis.json` 的 status 改为 "done"
-
-详见 `docs/analytics-workflow.md` 和 `docs/manual-ops.md` 的「定期检查」部分。
+Analytics 是独立工作流（跨视频、跨时间），不绑定单次制作周期。完整流程见
+`docs/analytics-workflow.md`。
 
 ---
 
@@ -1048,7 +1034,7 @@ TikTok 数据通常需要 24-48h 才能在 dashboard 中看到。
 | 文章发布 + 附件上传   | Stage 2（HITL 之前）           | 脚本执行 | Agent  | ✅ 必须         |
 | TikTok 发布 + URL 保存 | Stage 5 HITL 确认后          | 脚本执行 | Agent  | ✅ 必须         |
 | TikTok 手工操作       | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
-| Analytics 导出        | Stage 6                        | 人工操作 | 用户   | ✅ 必须         |
+| Analytics 导出        | 独立工作流                     | 人工操作 | 用户   | 按需            |
 
 ### Agent 行为准则
 

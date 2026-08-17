@@ -97,7 +97,6 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 | -------- | ----------- | ------------------------------- | --------------------------- | ------------------------------------------------------------------ |
 | 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, wps=2.8, speed=1.0 | `~/.f5-tts-env` (Python 3.14) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
 | 2        | Qwen3-TTS   | `do_sample=False`, `repetition_penalty=1.3` (greedy search) | `~/.qwen-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine. |
-| 3        | CosyVoice 3 | `speed=1.0` (only adjustable param) | `~/.cosyvoice-env` (Python 3.11) | LLM + Flow Matching. Content accuracy issues on MPS. DEPRECATED. |
 | 4        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
 | 5        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
 
@@ -133,14 +132,6 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - No duration control → pacing varies per scene. Cannot be made tighter.
 - Subtitle alignment may fail due to variable audio lengths.
 
-**CosyVoice 3** (DEPRECATED — content accuracy issues on MPS):
-
-- LLM + Flow Matching; previously primary engine, now deprecated after A/B comparison
-- Content generation errors on MPS (wrong words, garbled output) at speed=1.0
-- Only adjustable parameter: `speed` (default 1.0; speed=2.0 caused mechanical voice)
-- Model: `~/.cosyvoice-models/CosyVoice/pretrained_models/Fun-CosyVoice3-0.5B`
-- No max effort parameters beyond speed
-
 **CSM 1B** (DEPRECATED — MPS memory exhaustion):
 
 - CSM (Conversational Speech Model) 1B by Sesame AI
@@ -160,19 +151,19 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 | 其他 | 无变化 | 无变化 | 无变化 | baseline |
 
 - **F5: DISABLED** — rubberband introduces mechanical artifacts on F5's natural output
-- **Qwen/CosyVoice**: ENABLED — prosody helps add variation to less-natural engines
+- **Qwen**: ENABLED — prosody helps add variation to less-natural engines
 - 参数推导：`docs/research/voice-prosody-hook-optimization.md`
 
 **Post-Processing** (applied to all engines):
 
-| Processing | F5 | Qwen | CosyVoice | Notes |
-| ---------- | -- | ---- | --------- | ----- |
-| silenceremove | OFF | OFF | OFF | Compresses pauses >0.25s. Causes "bursting" at scene transitions. All engines disabled. |
-| highpass (80Hz) | ON | ON | ON | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0` |
-| afftdn denoise (nr=5) | ON | ON | ON | Removes noise floor. Disable: `TTS_DENOISE=0` |
+| Processing | F5 | Qwen | Notes |
+| ---------- | -- | ---- | ----- |
+| silenceremove | OFF | OFF | Compresses pauses >0.25s. Causes "bursting" at scene transitions. All engines disabled. |
+| highpass (80Hz) | ON | ON | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0` |
+| afftdn denoise (nr=5) | ON | ON | Removes noise floor. Disable: `TTS_DENOISE=0` |
 | rubberband prosody | **OFF** | ON | ON | Per-scene pitch+tempo. F5 disabled (mechanical artifacts). |
-| atempo | OFF | OFF | OFF | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**. |
-| resample (44.1kHz) | ON | ON | ON | Standardize sample rate for assembly |
+| atempo | OFF | OFF | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**. |
+| resample (44.1kHz) | ON | ON | Standardize sample rate for assembly |
 
 **Force engine**: `export TTS_ENGINE=f5-mlx` / `qwen-tts` / `cosyvoice` / `edge-tts`
 
@@ -321,18 +312,16 @@ These are enforced by the agent when writing `scene-data.mjs`, not by code. The 
 
 ```text
 scripts/short-video/
-├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --skip-dom-check)
+├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --skip-dom-check, --max-retries)
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
-├── cosyvoice_batch_tts.py  # CosyVoice 3 batch TTS (load model once, all scenes)
 ├── qwen_tts_batch.py       # Qwen3-TTS batch TTS (fallback engine)
 ├── lib/                    # Shared infrastructure (content-agnostic)
 │   ├── tts/                # TTS engine registry + adapters
-│   │   ├── registry.mjs    # Engine selector (F5-MLX > Qwen3 > CosyVoice > edge-tts > say)
+│   │   ├── registry.mjs    # Engine selector (F5-MLX > Qwen3 > edge-tts > say)
 │   │   ├── f5-mlx.mjs       # F5-TTS-MLX adapter (DEFAULT)
 │   │   ├── qwen-tts.mjs    # Qwen3-TTS adapter (backup)
-│   │   ├── cosyvoice.mjs   # CosyVoice 3 adapter (DEPRECATED)
 │   │   ├── edge-tts.mjs    # edge-tts adapter (network fallback)
 │   │   ├── say.mjs         # macOS say adapter (last resort)
 │   │   └── post-process.mjs # Audio post-processing (silenceremove + prosody)
@@ -345,6 +334,7 @@ scripts/short-video/
 │   ├── record-scenes.mjs   # Playwright recording (1080×1920)
 │   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
 │   ├── verify-subtitles.mjs # Reads back the .ass and checks it against the alignment data
+│   ├── verify-retry.mjs    # Verify-retry loop: classify failure → repair → re-verify (--max-retries)
 │   ├── audio/
 │   │   ├── wav.mjs         # Mono s16 PCM WAV read/write + ffmpeg decode bridge
 │   │   ├── fft.mjs         # Radix-2 FFT + cross-correlation onset finder
@@ -362,8 +352,8 @@ scripts/short-video/
 │       ├── pt2/            # Part 2 — Kimi's Gambit (9 scenes)
 │       └── pt3/            # Part 3 — The Fallout (9 scenes)
 ├── assets/
-│   ├── voice-sample-24k.wav # CosyVoice/Qwen3 ref audio (24kHz mono)
-│   ├── voice-sample-ref-text.txt # CosyVoice/Qwen3 ref text (must match ref audio exactly)
+│   ├── voice-sample-24k.wav # F5/Qwen3 ref audio (24kHz mono)
+│   ├── voice-sample-ref-text.txt # F5/Qwen3 ref text (must match ref audio exactly)
 │   └── logos/              # Company logos (deepseek.svg, ...)
 └── output/                 # Pipeline outputs (isolated per pipelineId)
     └── {pipelineId}/
@@ -380,9 +370,7 @@ scripts/short-video/
 | Item | Path / Value | Notes |
 |------|-------------|-------|
 | ffmpeg-full | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
-| CosyVoice venv | `~/.cosyvoice-env` (Python 3.11) | CosyVoice 3 + torchaudio |
 | Qwen3-TTS venv | `~/.qwen-tts-env` (Python 3.11) | Qwen3-TTS (fallback) |
-| CosyVoice source | `~/.cosyvoice-models/CosyVoice` | Model + source code (pretrained_models/Fun-CosyVoice3-0.5B) |
 | Qwen3-TTS model | `~/.qwen-tts-model` | Qwen3-TTS-12Hz-0.6B-Base |
 
 ### Code — Thumbnail
@@ -397,8 +385,8 @@ scripts/
 
 ```text
 scripts/short-video/assets/
-├── voice-sample-24k.wav              # CosyVoice/Qwen3 ref audio (24kHz mono, required)
-├── voice-sample-ref-text.txt         # CosyVoice/Qwen3 ref text (must match ref audio exactly)
+├── voice-sample-24k.wav              # F5/Qwen3 ref audio (24kHz mono, required)
+├── voice-sample-ref-text.txt         # F5/Qwen3 ref text (must match ref audio exactly)
 ├── logos/                            # Company logos (deepseek.svg, ...)
 ├── china-ai-news-logo-gpt.png        # GPT-generated original PNG (full logo)
 └── china-ai-news-logo-vector.svg     # Vector SVG (true vector, scalable)
@@ -580,6 +568,9 @@ node scripts/short-video/main.mjs --content deepseek
 # Skip subtitle verification (fast iteration)
 node scripts/short-video/main.mjs --content deepseek --bgm --skip-verify
 
+# Set max retry attempts for subtitle verification (default 2)
+node scripts/short-video/main.mjs --content deepseek --max-retries 3
+
 # Standalone subtitle verification (output-dir enables the end-to-end audio sync check)
 node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitles.ass> <subtitle-timing.json> <scene-durations.json> [output-dir]
 
@@ -598,7 +589,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 | 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
 | 5 | Assemble final video (FFmpeg) | `output/{id}/{id}-v{version}-short.mp4` + `{id}-short.mp4` (latest copy) |
-| 6 | Verify subtitles (auto, `--skip-verify` to skip) | `output/{id}/verification-report.json` |
+| 6 | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2) | `output/{id}/verification-report.json` |
 
 ### Version Numbers
 
