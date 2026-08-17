@@ -30,16 +30,28 @@ type SnapshotRow = {
   ranking_url: string | null;
 };
 
-/** True when a keyword slipped past the alert threshold or fell out of the top 100. */
-export function isDrop(current: number | null, previous: number | null): boolean {
+/** True when a keyword slipped past the alert threshold or lost its ranking. */
+export function isDrop(
+  current: number | null,
+  previous: number | null,
+  threshold: number = DROP_THRESHOLD,
+  alertOnLostRanking = true,
+): boolean {
   if (previous === null) return false;
-  if (current === null) return true;
-  return current - previous >= DROP_THRESHOLD;
+  if (current === null) return alertOnLostRanking;
+  return current - previous >= threshold;
 }
 
 export const listTrackedKeywords = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async ({ context }): Promise<KeywordRow[]> => {
+    const { data: settings } = await context.supabase
+      .from("ranking_alert_settings")
+      .select("drop_threshold, alert_on_lost_ranking")
+      .maybeSingle();
+    const threshold = settings?.drop_threshold ?? DROP_THRESHOLD;
+    const alertOnLostRanking = settings?.alert_on_lost_ranking ?? true;
+
     const { data: keywords, error } = await context.supabase
       .from("tracked_keywords")
       .select("id, keyword, database, active")
