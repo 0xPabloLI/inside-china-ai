@@ -58,7 +58,7 @@ git log -1 --oneline
 | 03 | 统一 AI venv 锁定与 smoke test | P1 | 00 | `DONE` | `build(video)` | verify-ai-env.py 10/10 passed；158 packages locked | 干净 venv 重建待验证。 |
 | 04 | LFS 提交前 pointer 校验与 ADR 哈希修正 | P1 | 00 | `DONE` | `chore(git)` | verify-lfs-pointers.mjs + hook 集成；ADR-0014 哈希修正 | 首次 LFS 媒体提交后验证 ls-files。 |
 | 05 | Kaggle/Colab 可复现 smoke 工件 | P1 | 00 | `DONE` | `test(cloud)` | smoke_gpu.py + README + .gitignore；ADR-0012 更新 | 远端 smoke run 待实际执行。 |
-| 06 | 素材采集 ADR 漂移、VLM 质量与遥测 | P2 | 00 | `READY` | `docs` / `feat` | registry 测试 + Golden Asset 方案 | 先更新 31 来源与层定义。 |
+| 06 | 素材采集 ADR 漂移、VLM 质量与遥测 | P2 | 00 | `DONE` | `docs` | ADR-0013 28→34 来源同步；source-registry 100 tests passed | Golden Asset 评估方案待实施。 |
 | 07 | 既有 CSS 测试失败的设计归属 | P2 | 00 | `BLOCKED` | 单独决定 | 设计所有者确认 | 确认 64px 还是 80px 为规格。 |
 | 08 | 全局验收、ADR 同步、PR 收口 | P0 | 01–07（07 可有明确豁免） | `NOT_STARTED` | `docs(adr)` | 全量检查、MRL、变更清单 | 仅在所有前项有证据后开始。 |
 
