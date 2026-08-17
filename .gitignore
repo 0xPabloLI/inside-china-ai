@@ -64,3 +64,12 @@ scripts/lovable-mcp-auth.mjs
 
 # Ad-hoc local tooling
 scripts/short-video/mrl2-check.mjs
+
+# Kaggle/Colab large outputs (models, checkpoints, videos, logs)
+scripts/kaggle/echomimicv3-test/output_*/
+scripts/kaggle/echomimicv3-test/**/*.pth
+scripts/kaggle/echomimicv3-test/**/*.ckpt
+scripts/kaggle/echomimicv3-test/**/*.mp4
+scripts/kaggle/echomimicv3-test/**/*.wav
+scripts/kaggle/echomimicv3-test/**/*.log
+scripts/kaggle/**/kaggle.json
