@@ -295,9 +295,11 @@ function RankingsPage() {
         </div>
 
         <p className="mt-4 text-xs text-muted-foreground">
-          Ranking and search-volume data from Semrush (US database); figures are estimates. A drop
-          of 3+ positions, or falling out of the top 100, raises an alert here and emails you.
+          Ranking and search-volume data from Semrush (US database); figures are estimates. Alerts
+          use the thresholds below and are emailed to the recipients you list.
         </p>
+
+        <RankingAlertSettings />
       </main>
     </div>
   );
