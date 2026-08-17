@@ -10,10 +10,10 @@
  * @module upscale
  */
 
-import { existsSync } from "fs";
+import { existsSync, mkdirSync, rmSync } from "fs";
 import { join, dirname, basename, extname } from "path";
 import { execSync } from "child_process";
-import { homedir } from "os";
+import { homedir, tmpdir } from "os";
 
 // ─── Constants ───
 
@@ -149,8 +149,20 @@ export function buildUpscaledPath(inputPath) {
 /**
  * Upscale a video using Real-ESRGAN + ffmpeg.
  *
- * Uses realesr-animevideov3 model (fast, video-optimized).
- * 2x upscale then ffmpeg scale to target resolution.
+ * Real-ESRGAN ncnn-vulkan cannot process mp4 directly — it only handles images.
+ * This function implements a 3-step pipeline:
+ *
+ *   Step 0: ffprobe to get original framerate (for sync)
+ *   Step 1: ffmpeg extracts every frame as PNG into a temp directory
+ *   Step 2: Real-ESRGAN batch-upscales the frame directory (realesr-animevideov3)
+ *   Step 3: ffmpeg reassembles frames into mp4 at original framerate,
+ *           mapping audio from the original file (-map 1:a? -c:a copy)
+ *           and scaling to target resolution.
+ *
+ * Audio sync is guaranteed because:
+ *   - Frame count is preserved (N frames in → N frames out)
+ *   - Framerate is explicitly set with -framerate <fps>
+ *   - Audio stream is copied directly from the original file
  *
  * @param {string} inputPath - Input video path
  * @param {string} outputPath - Output video path
@@ -162,46 +174,93 @@ export function upscaleVideo(inputPath, outputPath, targetShortSide = DEFAULT_TA
     return { success: false, error: "Real-ESRGAN binary not found" };
   }
 
-  // Step 1: Real-ESRGAN 2x upscale
-  const tmpOutput = outputPath.replace(extname(outputPath), "-tmp" + extname(outputPath));
-  const cmd = [
-    `"${REALESRGAN_PATH}"`,
-    `-i "${inputPath}"`,
-    `-o "${tmpOutput}"`,
-    `-n realesr-animevideov3`,
-    `-s 2`,
-    `-t 256`,
-    `-m "${REALESRGAN_MODELS_DIR}"`,
-  ].join(" ");
-
+  // Step 0: Get original framerate via ffprobe
+  let fps = "30/1"; // fallback
   try {
-    execSync(cmd, { encoding: "utf8", timeout: 300000, stdio: ["pipe", "pipe", "pipe"] });
-  } catch (e) {
-    return { success: false, error: e.message?.substring(0, 200) || "Real-ESRGAN failed" };
+    const fpsOutput = execSync(
+      `"${FFPROBE_PATH}" -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "${inputPath}"`,
+      { encoding: "utf8", timeout: 10000 },
+    ).trim();
+    if (fpsOutput) fps = fpsOutput;
+  } catch {
+    console.warn(`  ⚠️  Could not detect framerate, defaulting to 30fps`);
   }
 
-  // Step 2: ffmpeg scale to target resolution + preserve audio from original input
-  // Real-ESRGAN output has no audio — map video from tmp, audio from original
-  const ffScaleCmd = [
-    `"${FFMPEG_PATH}"`,
-    `-i "${tmpOutput}"`,
-    `-i "${inputPath}"`,
-    `-map 0:v -map 1:a?`,
-    `-c:a copy`,
-    `-vf "scale='if(gt(iw,ih),-1,${targetShortSide})':'if(gt(iw,ih),${targetShortSide},-1)'"`,
-    `-y "${outputPath}"`,
-  ].join(" ");
+  // Create temp directories for frame extraction and upscaled frames
+  const tmpBase = join(tmpdir(), `upscale-${Date.now()}`);
+  const framesDir = join(tmpBase, "frames");
+  const upscaledDir = join(tmpBase, "upscaled");
+  mkdirSync(framesDir, { recursive: true });
+  mkdirSync(upscaledDir, { recursive: true });
 
   try {
-    execSync(ffScaleCmd, { encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
-  } catch (e) {
-    // ffmpeg failed, but Real-ESRGAN output might be usable
-    console.warn(`  ⚠️  ffmpeg scale failed, using Real-ESRGAN output directly`);
-    // Try to use the tmp output as final
-    return { success: true, path: tmpOutput };
-  }
+    // Step 1: Extract frames as PNG
+    const extractCmd = [
+      `"${FFMPEG_PATH}"`,
+      `-i "${inputPath}"`,
+      `-f image2`,
+      `-vcodec png`,
+      `"${join(framesDir, "%08d.png")}"`,
+    ].join(" ");
 
-  return { success: true, path: outputPath };
+    try {
+      execSync(extractCmd, { encoding: "utf8", timeout: 300000, stdio: ["pipe", "pipe", "pipe"] });
+    } catch (e) {
+      return { success: false, error: `Frame extraction failed: ${e.message?.substring(0, 200)}` };
+    }
+
+    // Step 2: Real-ESRGAN batch upscale the frames directory
+    const realesrganCmd = [
+      `"${REALESRGAN_PATH}"`,
+      `-i "${framesDir}"`,
+      `-o "${upscaledDir}"`,
+      `-n realesr-animevideov3`,
+      `-s 2`,
+      `-t 256`,
+      `-m "${REALESRGAN_MODELS_DIR}"`,
+      `-f png`,
+    ].join(" ");
+
+    try {
+      execSync(realesrganCmd, {
+        encoding: "utf8",
+        timeout: 600000,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (e) {
+      return { success: false, error: e.message?.substring(0, 200) || "Real-ESRGAN failed" };
+    }
+
+    // Step 3: Reassemble frames into mp4 with original framerate + audio
+    const reassembleCmd = [
+      `"${FFMPEG_PATH}"`,
+      `-framerate ${fps}`,
+      `-i "${join(upscaledDir, "%08d.png")}"`,
+      `-i "${inputPath}"`,
+      `-map 0:v -map 1:a?`,
+      `-c:a copy`,
+      `-vf "scale='if(gt(iw,ih),-1,${targetShortSide})':'if(gt(iw,ih),${targetShortSide},-1)'", fps=${fps}`,
+      `-c:v libx264 -preset fast -crf 23`,
+      `-y "${outputPath}"`,
+    ].join(" ");
+
+    try {
+      execSync(reassembleCmd, {
+        encoding: "utf8",
+        timeout: 300000,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (e) {
+      return { success: false, error: `Reassembly failed: ${e.message?.substring(0, 200)}` };
+    }
+
+    return { success: true, path: outputPath };
+  } finally {
+    // Clean up temp frame directories
+    try {
+      rmSync(tmpBase, { recursive: true, force: true });
+    } catch {}
+  }
 }
 
 /**
