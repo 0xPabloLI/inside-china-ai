@@ -1,21 +1,36 @@
 #!/usr/bin/env node
 /**
- * China AI News Trend Discovery
+ * China AI News — Source Search
  *
- * Scrapes 16 sources (7 news + 8 self-media + 1 wechat) via Chrome CDP proxy,
- * filters for China AI topics, classifies into breaking/fermenting/data/explainer,
- * deduplicates, and outputs JSON.
+ * Unified search script with two modes:
+ *   --trend    (default) Trend discovery: scrape all sources, filter for
+ *              China AI, classify, deduplicate, output trending-topics.json
+ *   --research Deep research: search only keyword-capable sources for a
+ *              specific topic, no filtering/classification, output
+ *              research-results.json grouped by source.
  *
- * Sources:
- *   News: 量子位/机器之心/36氪/TechCrunch AI/Bloomberg Tech/观察者网/IT之家
- *   Self-media: 小红书/搜狗微信/微博热搜/B站/抖音/TikTok Creator Center/知乎/X(Twitter)
- *   WeChat: 公众号转载搜索
+ * Sources are defined in lib/source-registry.mjs (single source of source).
+ * 28 sources total (7 news + 8 self-media + 4 western + 3 general + 5 last30days + 1 wechat).
  *
- * Usage: node scripts/short-video/discover-trends.mjs [--keyword <kw>]
+ * Fallback chain: apiSearch (if configured) → CDP → cdpFallback (Google site: search) → mcpFallback (mcp-search-bridge)
+ * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
+ * Western/general sources primarily use mcp-search-bridge (Grok web search).
+ * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
+ *
+ * Env vars for mcp-search-bridge:
+ *   SEARCH_BASE_URL, SEARCH_API_KEY, SEARCH_MODEL
+ *   MCP_SEARCH_BRIDGE_PATH (optional, defaults to ~/mcp-search-bridge/server.js)
+ *
+ * Usage:
+ *   node scripts/short-video/search-sources.mjs [--keyword <kw>]           # --trend mode
+ *   node scripts/short-video/search-sources.mjs --keyword "DeepSeek V4" --research
  *
  * Requires: Chrome Remote Debugging enabled + CDP proxy at localhost:3456
+ *           (western/MCP sources work without CDP via mcp-search-bridge)
  *
- * Output: output/trending-topics.json
+ * Output:
+ *   --trend:    output/trending-topics.json
+ *   --research: output/research-results.json
  */
 
 import { writeFileSync, mkdirSync, existsSync } from "fs";
@@ -29,7 +44,7 @@ import {
   buildOutputJson,
   cleanTitle,
 } from "./lib/trends-utils.mjs";
-import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/trend-sources.mjs";
+import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
 import {
   cdpNewTab,
@@ -45,7 +60,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const OUTPUT_DIR = join(__dirname, "output");
-const OUTPUT_PATH = join(OUTPUT_DIR, "trending-topics.json");
+const TREND_OUTPUT_PATH = join(OUTPUT_DIR, "trending-topics.json");
+const RESEARCH_OUTPUT_PATH = join(OUTPUT_DIR, "research-results.json");
 
 const PAGE_LOAD_WAIT_MS = 3000;
 
@@ -56,13 +72,18 @@ function getArg(name) {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
 }
+function hasFlag(name) {
+  return args.includes(`--${name}`);
+}
 
 const keywordArg = getArg("keyword");
+const isResearchMode = hasFlag("research");
 
 // ─── Source collection ───
 
 async function collectFromCdp(source, keyword) {
   const url = source.url(keyword || DEFAULT_KEYWORDS[0]);
+  if (!url) return [];
   console.log(`\n🔍 Scraping ${source.label} (${source.name}) via CDP...`);
 
   let tabId;
@@ -115,6 +136,40 @@ async function collectFromCdp(source, keyword) {
   return articles;
 }
 
+async function collectFromApi(source, keyword) {
+  const api = source.apiSearch;
+  if (!api) return [];
+
+  const url = api.url(keyword || DEFAULT_KEYWORDS[0]);
+  if (!url) return [];
+
+  console.log(`  🔌 Trying API direct-connect for ${source.label}...`);
+
+  try {
+    const fetchOptions = {
+      method: "GET",
+      headers: api.headers || {},
+      signal: AbortSignal.timeout(15000),
+    };
+
+    const resp = await fetch(url, fetchOptions);
+
+    if (!resp.ok) {
+      console.warn(`  ⚠️  API returned HTTP ${resp.status} for ${source.label}`);
+      return [];
+    }
+
+    const text = await resp.text();
+    const articles = api.parser(text);
+    console.log(`  📊 API extracted ${articles.length} articles`);
+
+    return articles;
+  } catch (e) {
+    console.warn(`  ⚠️  API direct-connect failed for ${source.label}: ${e.message}`);
+    return [];
+  }
+}
+
 async function collectFromMcp(source, keyword) {
   const fb = source.mcpFallback;
   if (!fb) return [];
@@ -126,7 +181,7 @@ async function collectFromMcp(source, keyword) {
     args: fb.args,
     toolName: fb.toolName,
     toolArgs: fb.toolArgs(keyword || DEFAULT_KEYWORDS[0]),
-    timeoutMs: 30000,
+    timeoutMs: fb.timeoutMs || 30000,
   });
 
   if (!result.success) {
@@ -142,8 +197,16 @@ async function collectFromMcp(source, keyword) {
 }
 
 async function collectFromSource(source, keyword) {
-  // Step 1: Try CDP (primary)
-  let articles = await collectFromCdp(source, keyword);
+  // Step 0: Try API direct-connect (if configured — Issue #34)
+  let articles = [];
+  if (source.apiSearch) {
+    articles = await collectFromApi(source, keyword);
+  }
+
+  // Step 1: If API failed (or not configured), try CDP
+  if (articles.length === 0) {
+    articles = await collectFromCdp(source, keyword);
+  }
 
   // Step 2: If CDP failed and CDP fallback is configured, try it
   if (articles.length === 0 && source.cdpFallback) {
@@ -166,7 +229,7 @@ async function collectFromSource(source, keyword) {
     articles = mcpArticles;
   }
 
-  // Step 3: Clean titles if needed
+  // Step 4: Clean titles if needed
   if (source.useCleanTitle) {
     articles = articles.map((a) => ({
       ...a,
@@ -187,11 +250,28 @@ async function collectFromSource(source, keyword) {
 // ─── Main ───
 
 async function main() {
-  console.log("📡 China AI News Trend Discovery");
+  const mode = isResearchMode ? "research" : "trend";
+  console.log(`📡 China AI News Source Search — ${mode} mode`);
   console.log("=".repeat(60));
-  console.log(`  Sources: ${ALL_SOURCES.length} (7 news + 8 self-media + 1 wechat)`);
+
+  // Select sources based on mode
+  const sources = isResearchMode ? ALL_SOURCES.filter((s) => s.supportsKeyword) : ALL_SOURCES;
+
+  const sourceBreakdown = {
+    news: sources.filter((s) => s.category === "news").length,
+    self_media: sources.filter((s) => s.category === "self_media").length,
+    western: sources.filter((s) => s.category === "western").length,
+    general: sources.filter((s) => s.category === "general").length,
+    last30days: sources.filter((s) => s.category === "last30days").length,
+    wechat: sources.filter((s) => s.category === "wechat").length,
+  };
+  console.log(`  Sources: ${sources.length} (${JSON.stringify(sourceBreakdown)})`);
   if (keywordArg) {
     console.log(`  Keyword: ${keywordArg}`);
+  }
+  if (isResearchMode && !keywordArg) {
+    console.error("❌ --research mode requires --keyword");
+    process.exit(1);
   }
 
   // Check CDP proxy
@@ -206,14 +286,23 @@ async function main() {
     process.exit(1);
   }
 
-  // Collect from all sources
+  // Collect from selected sources
   const allArticles = [];
   const failedSources = [];
+  const resultsBySource = {}; // For research mode
 
-  for (const source of ALL_SOURCES) {
+  for (const source of sources) {
     try {
       const articles = await collectFromSource(source, keywordArg);
       allArticles.push(...articles);
+      if (isResearchMode) {
+        resultsBySource[source.name] = {
+          label: source.label,
+          category: source.category,
+          count: articles.length,
+          articles: articles.map((a) => ({ title: a.title, url: a.url, snippet: a.snippet || "" })),
+        };
+      }
     } catch (e) {
       console.warn(`  ⚠️  ${source.label} failed: ${e.message}`);
       failedSources.push(source.name);
@@ -224,6 +313,35 @@ async function main() {
   if (failedSources.length > 0) {
     console.warn(`⚠️  Failed sources: ${failedSources.join(", ")}`);
   }
+
+  if (isResearchMode) {
+    // ── Research mode: output raw results grouped by source ──
+    const output = {
+      keyword: keywordArg,
+      mode: "research",
+      timestamp: new Date().toISOString(),
+      totalArticles: allArticles.length,
+      sourceCount: sources.length,
+      failedSources,
+      results: resultsBySource,
+    };
+
+    if (!existsSync(OUTPUT_DIR)) {
+      mkdirSync(OUTPUT_DIR, { recursive: true });
+    }
+    writeFileSync(RESEARCH_OUTPUT_PATH, JSON.stringify(output, null, 2) + "\n", "utf8");
+
+    console.log(`\n📁 Output written: ${RESEARCH_OUTPUT_PATH}`);
+    console.log(`   Total articles: ${output.totalArticles}`);
+    for (const [name, info] of Object.entries(resultsBySource)) {
+      if (info.count > 0) {
+        console.log(`   • ${info.label}: ${info.count} articles`);
+      }
+    }
+    return;
+  }
+
+  // ── Trend mode: filter, classify, deduplicate ──
 
   // Filter for China AI topics
   const filtered = filterChinaAI(allArticles);
@@ -258,9 +376,9 @@ async function main() {
   if (!existsSync(OUTPUT_DIR)) {
     mkdirSync(OUTPUT_DIR, { recursive: true });
   }
-  writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2) + "\n", "utf8");
+  writeFileSync(TREND_OUTPUT_PATH, JSON.stringify(output, null, 2) + "\n", "utf8");
 
-  console.log(`\n📁 Output written: ${OUTPUT_PATH}`);
+  console.log(`\n📁 Output written: ${TREND_OUTPUT_PATH}`);
   console.log(`   Total topics: ${output.totalTopics}`);
   console.log(`   Sources: ${JSON.stringify(output.sourceStats)}`);
 
