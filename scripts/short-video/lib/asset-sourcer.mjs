@@ -1682,6 +1682,12 @@ export async function main(args = process.argv.slice(2)) {
   let aiAnalysis = [];
   if (allAssets.length > 0) {
     console.log("\n🤖 AI Analysis:");
+    // Convert relative paths to absolute for the Python subprocess
+    for (const asset of allAssets) {
+      if (asset.path && !asset.path.startsWith("/")) {
+        asset.path = join(contentDir, asset.path);
+      }
+    }
     try {
       aiAnalysis = await analyzeAssets(allAssets);
       // Re-score assets with aiDescription
