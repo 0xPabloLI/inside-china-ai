@@ -77,6 +77,12 @@
 | `spec-realesrgan-upscale.md` / `tickets-realesrgan-upscale.md` | 2026-08-16 | Real-ESRGAN 超分辨率集成 — `lib/upscale.mjs` 独立模块 (checkResolution + upscaleVideo + upscaleImage + autoUpscaleIfNeeded)。Real-ESRGAN ncnn-vulkan v0.2.5.0 (Metal/Vulkan)。视频用 realesr-animevideov3 模型，图片用 realesrgan-x4plus。集成到 asset-sourcer.mjs 3 处下载点。27 new tests。 |
 | `spec-verify-retry-loop.md` / `tickets-verify-retry-loop` | 2026-08-17 | Pipeline Verify-Retry Loop — `lib/verify-retry.mjs`: classifyFailure() + applyDriftCorrection() + relaxGapParams() + verifyWithRetry() bounded auto-repair。Remotion `ShortVideo.tsx` audio placement fix (TransitionSeries → Sequence offset)。`--max-retries N` CLI flag (default 2)。34 new tests，139 total green。 |
 
+### AI Analyzer Specs
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `spec-ai-analyzer.md` / `tickets-ai-analyzer.md` | 2026-08-17 | VLM 驱动的素材理解层 — `lib/ai_analyzer.py` Python 子进程 (mlx-vlm + Qwen3-VL-8B) + `lib/ai-analyzer.mjs` Node.js 库 (stdin/stdout JSON IPC) + `scoreCandidate` aiDescription 评分 (0-30) + asset-sourcer 集成 (`analyzeAssets` + `aiAnalysis` report)。151 tests passing。 |
+
 ### Documentation Hierarchy Specs
 
 | 文件 | 完成时间 | 说明 |
