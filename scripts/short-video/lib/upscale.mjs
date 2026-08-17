@@ -180,12 +180,14 @@ export function upscaleVideo(inputPath, outputPath, targetShortSide = DEFAULT_TA
     return { success: false, error: e.message?.substring(0, 200) || "Real-ESRGAN failed" };
   }
 
-  // Step 2: ffmpeg scale to target resolution
-  // For portrait (width < height): scale=-1:<height> where height = target * (height/width ratio)
-  // Simpler: scale so short side = targetShortSide
+  // Step 2: ffmpeg scale to target resolution + preserve audio from original input
+  // Real-ESRGAN output has no audio — map video from tmp, audio from original
   const ffScaleCmd = [
     `"${FFMPEG_PATH}"`,
     `-i "${tmpOutput}"`,
+    `-i "${inputPath}"`,
+    `-map 0:v -map 1:a?`,
+    `-c:a copy`,
     `-vf "scale='if(gt(iw,ih),-1,${targetShortSide})':'if(gt(iw,ih),${targetShortSide},-1)'"`,
     `-y "${outputPath}"`,
   ].join(" ");

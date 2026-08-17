@@ -14,11 +14,20 @@
  */
 
 import { execSync, execFileSync } from "child_process";
-import { existsSync, writeFileSync, renameSync, unlinkSync, mkdirSync, copyFileSync, rmSync } from "fs";
+import {
+  existsSync,
+  writeFileSync,
+  renameSync,
+  unlinkSync,
+  mkdirSync,
+  copyFileSync,
+  rmSync,
+} from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
 import { sceneClipDuration } from "./timeline.mjs";
+import { autoUpscaleIfNeeded } from "./upscale.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,18 +95,26 @@ export function renderRemotion({
   const sanitizedScenes = scenes.map((s) => ({ ...s }));
   for (const scene of sanitizedScenes) {
     if (scene.media && scene.media.path) {
-      const mediaSrc = join(contentDir || ".", scene.media.path);
+      let mediaSrc = join(contentDir || ".", scene.media.path);
       if (existsSync(mediaSrc)) {
-        const filename = basename(scene.media.path);
+        // Auto-upscale sub-720p assets before copying (only for adopted assets)
+        const upscaleResult = autoUpscaleIfNeeded(mediaSrc);
+        if (upscaleResult.upscaled) {
+          console.log(`  📈 Upscaled: ${basename(upscaleResult.path)} → 720p`);
+          mediaSrc = upscaleResult.path;
+        }
+        const filename = basename(upscaleResult.path);
         const mediaDest = join(publicAssetsDir, filename);
         if (!existsSync(mediaDest)) {
           copyFileSync(mediaSrc, mediaDest);
-          console.log(`  📸 Copied media: ${scene.media.path}`);
+          console.log(`  📸 Copied media: ${filename}`);
         }
         // Rewrite path to just the filename (relative to public/assets/)
         scene.media = { ...scene.media, path: filename };
       } else {
-        console.warn(`  ⚠️  Media file not found: ${scene.media.path} — stripping media from scene ${scene.id}`);
+        console.warn(
+          `  ⚠️  Media file not found: ${scene.media.path} — stripping media from scene ${scene.id}`,
+        );
         delete scene.media;
       }
     }

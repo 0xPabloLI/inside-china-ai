@@ -17,7 +17,6 @@ import { existsSync, writeFileSync, mkdirSync, statSync, readFileSync } from "fs
 import { join, dirname, basename, extname } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execSync } from "child_process";
-import { autoUpscaleIfNeeded } from "./upscale.mjs";
 
 // ─── Constants ───
 
@@ -1459,15 +1458,9 @@ export async function main(args = process.argv.slice(2)) {
           }
           const dlResult = await downloadAsset(candidate.url, destPath, headers);
           if (dlResult.success) {
-            // Auto-upscales sub-720p assets using Real-ESRGAN (no-op if already 720p+)
-            const upscaleResult = autoUpscaleIfNeeded(dlResult.path);
-            const finalPath = upscaleResult.path;
-            if (upscaleResult.upscaled) {
-              console.log(`    📈 Upscaled: ${basename(finalPath)} → 720p`);
-            }
             const assetEntry = {
               ...candidate,
-              path: finalPath.replace(contentDir + "/", ""),
+              path: destPath.replace(contentDir + "/", ""),
               status: dlResult.skipped ? "already exists" : "downloaded",
             };
 
@@ -1520,15 +1513,9 @@ export async function main(args = process.argv.slice(2)) {
 
         const dlResult = downloadYtdlp(candidate.url, destPath);
         if (dlResult.success) {
-          // Auto-upscales sub-720p assets using Real-ESRGAN (no-op if already 720p+)
-          const upscaleResult = autoUpscaleIfNeeded(dlResult.path);
-          const finalPath = upscaleResult.path;
-          if (upscaleResult.upscaled) {
-            console.log(`    📈 Upscaled: ${basename(finalPath)} → 720p`);
-          }
           allAssets.push({
             ...candidate,
-            path: finalPath.replace(contentDir + "/", ""),
+            path: destPath.replace(contentDir + "/", ""),
             status: dlResult.skipped ? "already exists" : "downloaded",
           });
           console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
@@ -1561,15 +1548,9 @@ export async function main(args = process.argv.slice(2)) {
 
         const dlResult = await downloadAsset(candidate.url, destPath);
         if (dlResult.success) {
-          // Auto-upscales sub-720p assets using Real-ESRGAN (no-op if already 720p+)
-          const upscaleResult = autoUpscaleIfNeeded(dlResult.path);
-          const finalPath = upscaleResult.path;
-          if (upscaleResult.upscaled) {
-            console.log(`    📈 Upscaled: ${basename(finalPath)} → 720p`);
-          }
           allAssets.push({
             ...candidate,
-            path: finalPath.replace(contentDir + "/", ""),
+            path: destPath.replace(contentDir + "/", ""),
             status: dlResult.skipped ? "already exists" : "downloaded",
           });
           console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);

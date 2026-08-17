@@ -166,6 +166,20 @@ describe("upscaleVideo", () => {
     expect(calledCmd).toContain("realesr-animevideov3");
     expect(calledCmd).toContain("-s 2");
   });
+
+  // Scenario #1: audio preservation — ffmpeg must map audio from original file
+  it("preserves audio stream from original input in ffmpeg scale step", () => {
+    const result = upscaleVideo("/fake/input.mp4", "/fake/output.mp4");
+    // execSync is called twice: Real-ESRGAN then ffmpeg
+    expect(execSync.mock.calls).toHaveLength(2);
+    const ffmpegCmd = execSync.mock.calls[1]?.[0];
+    // Must map audio from original input (second -i argument)
+    expect(ffmpegCmd).toContain("-map 0:v");
+    expect(ffmpegCmd).toContain("-map 1:a?");
+    expect(ffmpegCmd).toContain("-c:a copy");
+    // Original input must appear as second input
+    expect(ffmpegCmd).toContain("/fake/input.mp4");
+  });
 });
 
 // ─── upscaleImage ───
