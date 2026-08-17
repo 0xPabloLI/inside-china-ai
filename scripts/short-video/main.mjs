@@ -309,7 +309,7 @@ async function main() {
       return { success: false };
     };
 
-    const { report: finalReport } = verifyWithRetry({
+    const { report: finalReport } = await verifyWithRetry({
       verifyFn: () => verifySubtitles({
         videoPath: result.path,
         assPath: subtitles.assPath,
