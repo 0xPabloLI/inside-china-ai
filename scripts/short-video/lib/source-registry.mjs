@@ -46,8 +46,8 @@ const __dirname = dirname(__filename);
 const MCP_SEARCH_BRIDGE_SERVER =
   process.env.MCP_SEARCH_BRIDGE_PATH || join(homedir(), "mcp-search-bridge", "server.js");
 
-// Node executable path (for spawning the MCP server)
-const NODE_BIN = process.execPath;
+// Node executable (for spawning MCP server via mcp-search-bridge)
+const NODE_BIN = "node";
 
 // ─── Existing news sources ───
 
