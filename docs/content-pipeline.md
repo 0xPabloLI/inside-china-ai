@@ -92,10 +92,10 @@ Agent 从 Stage 1 开始执行。
 Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个支持关键词的源，输出 JSON），再用 web-access skill 深度抓取相关 URL 全文，然后从 Stage 1 开始执行。
 
 > **搜索工具有两个模式，按场景分工**：
-> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 34 源（含首页型源），filter/classify/dedup，输出 `trending-topics.json`
+> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 31 源（含首页型源），filter/classify/dedup，输出 `trending-topics.json`
 > - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：只跑 21 个 supportsKeyword=true 的源，不过滤不分类，输出 `research-results.json`（按源分组）
 >
-> **源定义在 `lib/source-registry.mjs`（single source of source）**：34 源 = 7 news + 8 self_media + 8 western + 5 general + 5 last30days + 1 wechat。11 个源有 `apiSearch` 配置（直接 API 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）。
+> **源定义在 `lib/source-registry.mjs`（single source of source）**：31 源 = 7 news + 8 self_media + 6 western + 4 general + 5 last30days + 1 wechat。8 个源有 `apiSearch` 配置（直接 API 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）。
 >
 > **补充搜索源**：需要更多新闻/学术/素材 API 时，查 `docs/tools-catalog.md` → Pipeline API 补充候选。
 >

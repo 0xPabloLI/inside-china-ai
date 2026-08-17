@@ -612,10 +612,10 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 |-----|------|--------|------|---------|------|
 | DataCube AI | No | source-registry WESTERN_SOURCES | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言 | ✅ 已集成 |
 | Noozra | No | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=` | 200+ RSS 源新闻头条 | ✅ 已集成 |
-| GNews | apiKey | source-registry WESTERN_SOURCES | `https://gnews.io/api/v4/search` | 新闻搜索，多语言，100 req/天 | ✅ 已集成 |
-| Currents | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search` | 实时全球新闻，200 req/天 | ✅ 已集成 |
+| GNews | apiKey | source-registry WESTERN_SOURCES | `https://gnews.io/` | 新闻搜索，多语言，100 req/天 | 📋 待集成（需 API key） |
+| Currents | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://currentsapi.services/` | 实时全球新闻，200 req/天 | 📋 待集成（需 API key） |
 | OpenAlex | No | source-registry WESTERN_SOURCES | `https://api.openalex.org/works` | 学术作品开放目录（2.4 亿作品） | ✅ 已集成 |
-| CORE | No | source-registry WESTERN_SOURCES | `https://api.core.ac.uk/v3/search/works/` | 开放获取论文（2.6 亿+），5 req/10s，无需注册 | ✅ 已集成 |
+| CORE | apiKey | source-registry WESTERN_SOURCES | `https://core.ac.uk/services#api` | 开放获取论文，1000 req/天 | 📋 待集成（需 API key） |
 | Lorem Picsum | No | asset-sourcer API_SOURCES | `https://picsum.photos/` | Unsplash 随机图，fallback 占位图 | ✅ 已集成 |
 
 ### B 类：按需使用（Agent 研究时手动调用，不常驻代码）

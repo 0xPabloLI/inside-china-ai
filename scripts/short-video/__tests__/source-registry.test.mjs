@@ -21,8 +21,8 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 34 sources", () => {
-    expect(ALL_SOURCES).toHaveLength(34);
+  it("ALL_SOURCES has 31 sources", () => {
+    expect(ALL_SOURCES).toHaveLength(31);
   });
 
   it("each source has required fields", () => {
@@ -269,8 +269,8 @@ describe("Extract scripts", () => {
 // ─── Western sources ───
 
 describe("Western sources", () => {
-  it("WESTERN_SOURCES has 8 sources", () => {
-    expect(WESTERN_SOURCES).toHaveLength(8);
+  it("WESTERN_SOURCES has 6 sources", () => {
+    expect(WESTERN_SOURCES).toHaveLength(6);
   });
 
   it("includes youtube_search", () => {
@@ -304,7 +304,7 @@ describe("Western sources", () => {
 
   it("youtube, arxiv, github, threads have mcpFallback", () => {
     // Only the original 4 western sources have mcpFallback;
-    // datacube_ai, openalex_search, gnews, core_search are API-only (no CDP/MCP fallback).
+    // datacube_ai and openalex_search are API-only (no CDP/MCP fallback).
     for (const name of ["youtube_search", "arxiv_search", "github_search", "threads_search"]) {
       const src = WESTERN_SOURCES.find((s) => s.name === name);
       expect(src.mcpFallback).toBeDefined();
@@ -316,8 +316,8 @@ describe("Western sources", () => {
 // ─── General search sources ───
 
 describe("General search sources", () => {
-  it("GENERAL_SEARCH_SOURCES has 5 sources", () => {
-    expect(GENERAL_SEARCH_SOURCES).toHaveLength(5);
+  it("GENERAL_SEARCH_SOURCES has 4 sources", () => {
+    expect(GENERAL_SEARCH_SOURCES).toHaveLength(4);
   });
 
   it("includes google_search (was web_grounding)", () => {
@@ -404,11 +404,11 @@ describe("supportsKeyword validation", () => {
   it("keyword-capable sources have supportsKeyword=true", () => {
     const keywordSources = ALL_SOURCES.filter((s) => s.supportsKeyword);
     // xhs, sogou_weixin, bilibili, douyin, zhihu, x_search,
-    // youtube, arxiv, github, threads, openalex, gnews, core_search,
-    // google, baidu, mcp_grok, noozra, currents,
+    // youtube, arxiv, github, threads, openalex,
+    // google, baidu, mcp_grok, noozra,
     // reddit, hackernews, polymarket, digg, techmeme,
     // tiktok_creator (via ScrapeCreators API)
-    expect(keywordSources.length).toBe(24);
+    expect(keywordSources.length).toBe(21);
   });
 });
 
@@ -787,9 +787,9 @@ describe("apiSearch configuration", () => {
       if (src.name === "tiktok_creator") continue;
       expect(src.apiSearch).toBeUndefined();
     }
-    // General search sources: noozra_search and currents have apiSearch, others don't
+    // General search sources: noozra_search has apiSearch, others don't
     for (const src of GENERAL_SEARCH_SOURCES) {
-      if (src.name === "noozra_search" || src.name === "currents") continue;
+      if (src.name === "noozra_search") continue;
       expect(src.apiSearch).toBeUndefined();
     }
     // youtube and threads don't have apiSearch
@@ -799,17 +799,14 @@ describe("apiSearch configuration", () => {
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("exactly 11 sources have apiSearch configured", () => {
+  it("exactly 8 sources have apiSearch configured", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(11);
+    expect(withApi).toHaveLength(8);
     const names = withApi.map((s) => s.name).sort();
     expect(names).toEqual([
       "arxiv_search",
-      "core_search",
-      "currents",
       "datacube_ai",
       "github_search",
-      "gnews",
       "hackernews_search",
       "noozra_search",
       "openalex_search",
