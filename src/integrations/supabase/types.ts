@@ -287,6 +287,48 @@ export type Database = {
         }
         Relationships: []
       }
+      ranking_alert_recipients: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      ranking_alert_settings: {
+        Row: {
+          alert_on_lost_ranking: boolean
+          created_at: string
+          drop_threshold: number
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          alert_on_lost_ranking?: boolean
+          created_at?: string
+          drop_threshold?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          alert_on_lost_ranking?: boolean
+          created_at?: string
+          drop_threshold?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       subscribers: {
         Row: {
           created_at: string
