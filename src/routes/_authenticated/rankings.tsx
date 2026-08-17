@@ -1,24 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowDown, ArrowUp, Mail, Minus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Minus, RefreshCw, Trash2 } from "lucide-react";
 import {
-  addAlertRecipient,
   addTrackedKeyword,
-  deleteAlertRecipient,
   deleteTrackedKeyword,
-  getAlertConfig,
   listTrackedKeywords,
   refreshKeywordSnapshots,
-  updateAlertSettings,
   type KeywordRow,
 } from "@/lib/keyword-tracking.functions";
+import { RankingAlertSettings } from "@/components/ranking-alert-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/rankings")({
