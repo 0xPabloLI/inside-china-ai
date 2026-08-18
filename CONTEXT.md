@@ -64,11 +64,49 @@ _Avoid_: Episode (use Episode only when referencing the evaluator's internal con
 **Series**: A collection of Parts sharing a `seriesMeta` block (part number, total parts, prev/next part slugs). Published over 1-3 days with inter-episode linking (pinned comments, hashtags).
 _Avoid_: Playlist, collection
 
-**Trend**: A trending topic discovered by scanning news media, social platforms, and monitored accounts via `discover-trends.mjs`. Used as input to the content pipeline when no Source Material is provided.
+**Trend**: A trending topic discovered by scanning news media, social platforms, and monitored accounts via `search-sources.mjs --trend`. Used as input to the content pipeline when no Source Material is provided.
 _Avoid_: Topic (too generic), keyword
 
-**Trend Source**: A configurable source in `trend-sources.mjs` that `discover-trends.mjs` scrapes for Trends. 15 sources across news media, social platforms, and monitored WeChat accounts. Pluggable: adding a source = adding a collector object.
+**Source Registry**: The single source of source definitions in `source-registry.mjs`. Contains 28 sources (7 news + 8 self_media + 4 western + 3 general + 5 last30days + 1 wechat). Each source has `supportsKeyword` flag. Used by `search-sources.mjs` in both `--trend` and `--research` modes. Pluggable: adding a source = adding a collector object.
 _Avoid_: Feed, scraper
+
+## TTS & Voice
+
+**TTS Engine Adapter**: A module in `lib/tts/` that implements a common interface (`isAvailable()`, `generate()`, `info`) for a specific TTS provider. Registered in `registry.mjs` via `ENGINE_FACTORIES` and selected by `PRIORITY` order or `TTS_ENGINE` env override. Current engines: F5-TTS-MLX (default), Qwen3-TTS (backup), edge-tts (fallback), macOS `say` (last resort).
+_Avoid_: TTS provider, voice generator
+
+**Reference Voice**: A WAV audio sample (`voice-samples/voice-sample-24k.wav`) + matching transcript file used by F5-TTS-MLX and Qwen3-TTS for voice cloning. All videos use the same Reference Voice for brand consistency. Must be 24kHz mono WAV. The transcript must exactly match the audio content (Whisper-transcribed text causes artifacts).
+_Avoid_: Voice sample, ref audio (use Reference Voice for the paired audio+text)
+
+**Max Effort**: The highest-quality configuration for a TTS engine. F5-TTS-MLX Max Effort = `steps=32` (4× default), `cfg_strength=3.0`, `wps=2.8`, `method='rk4'`. Other engines have their own Max Effort parameters (Qwen3: `do_sample=False` + `repetition_penalty=1.3`).
+_Avoid_: High quality, max settings (too generic)
+
+## VLM & Asset Analysis
+
+**VLM** (Vision-Language Model): A local AI model (Qwen3-VL-8B-Instruct-8bit via mlx-vlm) that describes images and videos, and analyzes how to fit landscape assets into vertical canvas. Runs as a persistent Python subprocess managed by `ai-analyzer.mjs`. See ADR-0009.
+_Avoid_: Vision model, image analyzer (too generic)
+
+**Asset Fit Analysis**: A VLM operation that determines whether a landscape image/video should use `cover` (crop) or `contain` (letterbox) in a 9:16 canvas, and where the main subject is positioned (top/center/bottom). Returns `{fit, focus, reason}`. Used during scene-data review.
+_Avoid_: Crop analysis, aspect ratio check
+
+## Rendering
+
+**Remotion**: A React-based video rendering framework used as the primary rendering engine. Renders frames deterministically via server-side rendering (frame-accurate). Replaces Playwright screencast recording. See ADR-0010.
+_Avoid_: Video framework, renderer (too generic)
+
+**Playwright Recording** (legacy): The previous rendering method — HTML/CSS scenes recorded via Playwright's `page.screencast()` API. Kept as a fallback path (`--remotion` flag selects Remotion). Prone to timing drift (50-200ms per scene).
+_Avoid_: Browser recording, screencast
+
+**Scene Component**: A Remotion React component that renders one scene type (HookScene, ContentScene, NarrativeScene, DataScene, QuoteScene, CtaScene). Each maps to a `visualType` in Scene Data. See ADR-0010.
+_Avoid_: Scene template, scene renderer
+
+## Infrastructure
+
+**Unified Venv**: A single Python 3.12 virtual environment at `~/.video-tts-env` containing F5-TTS-MLX, Qwen3-TTS, whisperx, and mlx-vlm. Replaces 3-4 separate venvs. See ADR-0011.
+_Avoid_: Python env, venv (too generic — use Unified Venv for this specific shared environment)
+
+**Collection Layer**: The access method hierarchy for a source in the Source Registry: API → CDP → CDP fallback (Google site: search) → MCP fallback (Grok). Each source defines its own `accessMethod` with primary and fallbacks. See ADR-0013.
+_Avoid_: Access method, fetch strategy
 
 ## Content Pipeline
 

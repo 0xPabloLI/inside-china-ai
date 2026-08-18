@@ -110,8 +110,8 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - **Max effort parameters** (in `f5_mlx_batch_tts.py`):
   - `steps=32` — maximum inference steps (default 8, we use 4x for best quality)
   - `cfg_strength=3.0` — strongest ref-audio guidance (default 2.0, we use 1.5x for better voice cloning)
-  - `method='rk4'` — best ODE solver (default)
-  - `wps=2.8` — words per second target for duration calculation
+  - `method='rk4'` — RK4 ODE solver (confirmed library default, passed explicitly)
+  - Duration: `estimate_target_seconds(text)` — CJK chars / 4.5 + Latin words / 2.8 + punctuation × 0.15s
   - `speed=1.0` — no post-generation speed change (duration controls pace internally)
 - Internal `duration` parameter controls audio length precisely → **no atempo needed**
 - Post-processing: **silenceremove DISABLED** (F5 generates clean audio). Only resample (44.1kHz) applied.

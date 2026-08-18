@@ -1,0 +1,27 @@
+# Video AI pipeline — direct dependencies.
+# These are the top-level packages that the pipeline imports directly.
+# The full transitive lock is in requirements-video-ai.lock.
+#
+# Python 3.12 is required (whisperx/ctranslate2 incompatible with 3.13+).
+#
+# Install: pip install -r requirements-video-ai.lock
+# Update:   pip-compile requirements-video-ai.in -o requirements-video-ai.lock
+
+# TTS engines
+f5-tts-mlx==0.2.6
+qwen-tts==0.1.1
+
+# Subtitle alignment (wav2vec2 + forced alignment)
+whisperx==3.8.6
+
+# VLM (asset analysis, local model)
+mlx-vlm==0.6.13
+
+# Core ML / audio
+transformers==4.57.3
+torch==2.8.0
+soundfile==0.14.0
+librosa==1.0.0
+
+# Apple Silicon framework (installed via mlx suite)
+mlx==0.32.0

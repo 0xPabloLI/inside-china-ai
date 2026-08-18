@@ -858,6 +858,28 @@ export const API_SOURCES = [
       }));
     },
   },
+  {
+    name: "lorem_picsum",
+    label: "Lorem Picsum",
+    type: "image",
+    requiresApiKey: false,
+    apiKeyEnv: null,
+    // Lorem Picsum: https://picsum.photos/ — random Unsplash images, no auth
+    // Returns a random image redirect. Use /list to get image metadata.
+    searchUrl: (keyword) =>
+      `https://picsum.photos/v1/list?limit=10`,
+    parseResponse: (data, keyword) => {
+      return (data || []).map((img) => ({
+        title: `Lorem Picsum ${img.id}`,
+        url: `https://picsum.photos/id/${img.id}/${img.width || 800}/${img.height || 600}`,
+        type: "image",
+        resolution: `${img.width || 800}x${img.height || 600}`,
+        fileSize: undefined,
+        duration: undefined,
+        author: img.author || "Lorem Picsum",
+      }));
+    },
+  },
 ];
 
 /**

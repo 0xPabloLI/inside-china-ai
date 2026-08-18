@@ -171,9 +171,11 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 | 技术文档 | Context7 MCP |
 | 事实查询 / URL 抓取 | `web_fetch` → `web-access` CDP（fallback）；CDP 不方便时 Tavily MCP（省着用） |
 | 深度研究 | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
-| 趋势发现 | `discover-trends.mjs` / `last30days` skill / mcp-search-bridge（X） |
+| 趋势发现 | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X） |
 
-用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。工具完整清单和评估流程见 `docs/skills-catalog.md`（新增 skill 必须先走完 4 步评估流程再入库）。
+用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
+
+**工具/API 发现**：需要找免费 API、替代付费 SaaS、补充搜索源或素材源、查某领域有哪些可用工具时，查 `docs/tools-catalog.md`（本项目所有可用工具/服务/API 的完整清单 + 评估流程 + 任务→工具决策表 + Pipeline API 候选）。新增工具必须先走完 4 步评估流程再入库。
 
 ## Agent skills
 

@@ -34,7 +34,7 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 | `content-pipeline.md` | Unified content pipeline (article → publish → video → TikTok → analytics) | AGENTS.md |
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
 | `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
-| `skills-catalog.md` | All available tools and candidate skills — integrated, evaluated, and pending | AGENTS.md |
+| `tools-catalog.md` | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. framework, open loops, hook/CTA formulas, beat-by-beat iteration | `content-pipeline.md` Stage 3 |

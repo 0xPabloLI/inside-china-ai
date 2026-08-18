@@ -1,10 +1,10 @@
-# Skills & Tools 目录
+# Tools & API 目录
 
-> **用途**：收录对本项目有用的 skills / tools / services，供 Agent 和用户参考。发现新的好用工具时，按格式追加到本文档。
+> **用途**：收录对本项目有用的 tools / services / APIs / skills，供 Agent 和用户参考。发现新的好用工具时，按格式追加到本文档。
 > **创建日期**：2026-08-11
 > **维护规则**：新条目加到对应分类末尾，更新速览表。已不用的条目标记 `[已弃用]` 并注明原因，不删除（保留历史）。
 > **索引说明**：本文件不在 RAG 索引范围内（RAG 用于新闻/文章素材索引）。此为内部工具储备文档，Agent 直接读取即可。
-> **安全审计说明**：所有候选 skill 在安装前必须通过安全审计（见「Skill 评估流程」章节）。
+> **安全审计说明**：所有候选工具在安装前必须通过安全审计（见「评估流程」章节）。
 
 ---
 
@@ -18,7 +18,7 @@
 | Context7 MCP | 技术文档查询 | ✅ 1,000/月 | ✅ 已集成 | ⭐⭐⭐ 技术事实验证 |
 | Tavily MCP | AI 搜索 | ✅ 1,000/月 | ✅ 已集成 | ⭐⭐⭐ 快速事实验证 |
 | mcp-search-bridge | 搜索（Grok） | 按用量 | ✅ 已集成 | ⭐⭐ X/Twitter+全网 |
-| `discover-trends.mjs` | 趋势发现（中文平台） | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
+| `search-sources.mjs` | 趋势发现（中文平台） | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
 | `pdf-parse` (npm) | 文档解析 | ✅ | ✅ 已集成 | ⭐⭐ 够用 |
 | Firecrawl `parse` | 文档解析 | 注册免费 | 📋 待评估 | ⭐⭐⭐ 补充 |
 | Firecrawl `scrape` | 联网/抓取 | 注册免费 | 📋 待评估 | ⭐⭐ 英文站 |
@@ -34,6 +34,7 @@
 | ComposioHQ/awesome-claude-skills | 目录索引 | ✅ | 📖 参考 | 查用目录 |
 | pbakaus/impeccable (24 commands) | 视觉设计 | ✅ | ✅ 已集成 | ⭐⭐⭐ 视觉打磨 |
 | leonxlnx/taste-skill (design-taste-frontend) | 设计推理 | ✅ | 📋 备选(安全✅) | ⭐ 设计决策 |
+| public-apis/public-apis | API 资源索引 | ✅ | 📖 参考 | 📖 查免费 API |
 
 ---
 
@@ -87,7 +88,7 @@
 - **做什么**：AI 搜索引擎，返回结构化结果（title, url, content snippet），不需要 CDP 操作
 - **何时用**：需要快速查一个通用事实，且 Google CDP 操作太慢时
 - **何时不用**：需要登录态/JS 渲染/反爬穿透（用 web-access）；需要深度多源交叉验证（用 web-deep-research）
-- **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用 discover-trends/last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
+- **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用 search-sources/last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
 - **容错**：Tavily 挂了/credits 用完 → `web-access` CDP Google 搜索（慢但无限）
 
 ### mcp-search-bridge — Grok 搜索
@@ -96,14 +97,14 @@
 - **费用**：按 API 用量（通过 bigsong.site 代理，Grok 模型）
 - **配置**：`.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`，安装在 `~/mcp-search-bridge/`
 - **做什么**：把 Grok 模型包装成 MCP `web_search` 工具，Grok 有全网搜索能力 + 原生 X/Twitter 数据访问
-- **何时用**：X/Twitter 搜索（Grok 原生数据）；discover-trends 的西方源搜索 fallback；需要和 Google 不同的搜索视角时
+- **何时用**：X/Twitter 搜索（Grok 原生数据）；search-sources 的西方源搜索 fallback；需要和 Google 不同的搜索视角时
 - **容错**：挂了 → CDP Google `site:x.com` 搜索
 
-### discover-trends.mjs — 趋势发现（中文平台 + 西方源）
+### search-sources.mjs — 趋势发现（中文平台 + 西方源）
 
 - **分类**：趋势发现
 - **费用**：免费（CDP 零费用；mcp-search-bridge 用 Grok 模型，通过 bigsong.site 代理，按 API 用量计费）
-- **脚本路径**：`scripts/short-video/discover-trends.mjs`
+- **脚本路径**：`scripts/short-video/search-sources.mjs`
 - **做什么**：通过 CDP + mcp-search-bridge 抓取 21 个源（7 中文新闻 + 8 中文自媒体 + 5 西方源 + 1 微信公众号），发现中国 AI 话题趋势
 - **源列表**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、知乎、抖音、TikTok Creator、X(Twitter)、YouTube、arXiv、GitHub、Threads、Web Search、动察Beating
 - **独占源**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、抖音、知乎（13 源 last30days 没有）
@@ -128,8 +129,8 @@
 - **Skill 路径**：`~/.agents/skills/last30days/`
 - **配置文件**：`~/.config/last30days/.env`
 - **做什么**：并行搜索 11 个默认免费源（Reddit、Hacker News、X、YouTube、Polymarket、GitHub、Digg、arXiv、Techmeme、Threads、Grounding），按 engagement 评分排序
-- **独占源**：Reddit、Hacker News、Polymarket、Digg、Techmeme（5 源 discover-trends 没有）
-- **与 discover-trends 交叉**：X（API vs CDP DOM + mcp-search-bridge）、TikTok（hashtag vs Creator Center）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）——两边都保留。**小红书不启用**——由 discover-trends 独占（CDP 登录态更适合）
+- **独占源**：Reddit、Hacker News、Polymarket、Digg、Techmeme（5 源 search-sources 没有）
+- **与 search-sources 交叉**：X（API vs CDP DOM + mcp-search-bridge）、TikTok（hashtag vs Creator Center）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）——两边都保留。**小红书不启用**——由 search-sources 独占（CDP 登录态更适合）
 - **与 RAG 的关系**：不重复。RAG（`scripts/rag/`）用本地 Ollama bge-m3 语义向量搜索项目已有内容（文章、scene-data、研究、源素材），零费用。last30days 搜索实时互联网讨论（最近 30 天外部讨论）
 - **关键发现（测试验证 2026-08-12，配置更新 2026-08-15）**：
   - ✅ **支持 JSON 输出**：`--emit=json --json-profile=agent`，输出 `{clusters: [{title, summary, engagement_total, sources}]}` 结构
@@ -147,7 +148,7 @@
   LAST30DAYS_DEFAULT_SEARCH=reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding
   INCLUDE_SOURCES=threads,grounding  # opt-in 免费源
   FROM_BROWSER=chrome,firefox,safari  # X cookie 提取
-  # xiaohongshu 不在 INCLUDE_SOURCES 里——由 discover-trends.mjs 独占
+  # xiaohongshu 不在 INCLUDE_SOURCES 里——由 search-sources.mjs 独占
   ```
 - **用法**：
   ```bash
@@ -161,10 +162,10 @@
   python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --search reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding,tiktok,instagram "DeepSeek"
   ```
 - **何时用**：需要西方社媒趋势、学术信号（arXiv）、跨平台热度对比
-- **何时不用**：中文平台趋势（用 `discover-trends.mjs`）
-- **与 discover-trends.mjs 的协作**：
+- **何时不用**：中文平台趋势（用 `search-sources.mjs`）
+- **与 search-sources.mjs 的协作**：
   ```
-  discover-trends.mjs → trending-topics.json（中文平台，CDP 登录态）
+  search-sources.mjs → trending-topics.json（中文平台，CDP 登录态）
   last30days --emit=json → JSON（西方社媒 + 学术，API）
   Agent 读两个 JSON → 交叉比对 → 选 topic → 写文章 → 做视频
   ```
@@ -228,7 +229,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 | 功能 | 原因 |
 |------|------|
-| `firecrawl search` | 不如 `discover-trends.mjs` + CDP，免费额度只有 250 次/月 |
+| `firecrawl search` | 不如 `search-sources.mjs` + CDP，免费额度只有 250 次/月 |
 | `firecrawl interact` | 云端浏览器无登录态，不如本地 CDP |
 | `firecrawl crawl/map` | 免费额度 1000 页/月对整站抓取太少 |
 | `firecrawl monitor` | 持续消耗 credits，免费额度不够长期用 |
@@ -257,10 +258,10 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/mvanhorn/last30days-skill`
 - **Stars**：58k+
 - **做什么**：并行搜索 Reddit、X(Twitter)、YouTube、Hacker News、Polymarket、TikTok、arXiv、Techmeme，按 upvotes/likes/真实资金 评分，AI 合成简报
-- **为什么对本项目有用**：`discover-trends.mjs` 覆盖中文平台，这个覆盖英文社交媒体，**互补性强**。做英文内容或需要全球 AI 话题热度时可互补
+- **为什么对本项目有用**：`search-sources.mjs` 覆盖中文平台，这个覆盖英文社交媒体，**互补性强**。做英文内容或需要全球 AI 话题热度时可互补
 - **用法**：`npx skills add mvanhorn/last30days-skill -g` → `/last30days <topic>`
 - **何时用**：需要英文社交媒体趋势（Reddit/HN/X/YouTube）时
-- **何时不用**：中文平台趋势（用 `discover-trends.mjs`）
+- **何时不用**：中文平台趋势（用 `search-sources.mjs`）
 - **注意**：Reddit/HN/Polymarket/GitHub 开箱即用；X/YouTube/TikTok/arXiv 需配置 API key
 - **安全审计**：⚠️ skills.sh 三家审计 Gen:Fail / Snyk:Fail / Socket:Warn（**含 LLM 语义分析**）。SkillSpector 本地静态扫描 0/100 SAFE（**LLM 分析未执行**，无 OPENAI_API_KEY）。按新流程进入 C 手动审查：SKILL.md 1400+ 行，包含 LAW 1-7 覆盖 agent 默认行为（禁止 Sources 模块、强制 badge 输出、禁止标题行等），但**均为输出格式控制，非恶意行为**。无数据泄露、无权限提升、无危险操作。**手动审查结论：风险可控**，但安装后其 LAW 规则可能与项目 AGENTS.md 约定冲突（如输出格式偏好）
 - **skills.sh 审计页**：`https://skills.sh/mvanhorn/last30days-skill/last30days`
@@ -346,6 +347,27 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **调查日期**：2026-08-11
 - **状态**：📖 参考
 
+### public-apis/public-apis — 免费 API 大全 📖
+
+- **分类**：API 资源索引（不安装，查用）
+- **费用**：免费
+- **仓库**：`https://github.com/public-apis/public-apis`
+- **Stars**：461k+（GitHub Top 5）
+- **做什么**：社区维护的 1400+ 免费 API 合集，覆盖 50+ 分类（Animals、AI/ML、News、Open Data、Science & Math、Finance、Geocoding、Photography、Video、Text Analysis、Social、Government 等）。每个条目标注 Auth 类型（No/apiKey/OAuth）、HTTPS 支持、CORS 状态
+- **为什么对本项目有用**：需要找免费 API 替代付费 SaaS 时先查这里。项目已用的 API 中 Pexels、arXiv、Reddit、Hacker News (HN Algolia) 均在此列表中。潜在补充方向：
+  - **News**：DataCube AI（每日 AI 行业新闻，8 语言，No auth）、Noozra（200+ RSS 源，No auth）、GNews（新闻搜索，apiKey）→ 可补充 search-sources 的新闻源
+  - **Machine Learning**：Groq（免费 LLM 推理，Llama/Mixtral/Gemma）、Hugging Face（模型推理 API）、Jina AI（免费 embedding/rerank）、OpenVisionAPI（开源计算机视觉，No auth）→ 可补充 RAG embedding 或 VLM 分析
+  - **Science & Math**：OpenAlex（学术作品开放目录，No auth）、CORE（开放获取论文，apiKey）→ 可补充 arXiv 之外的学术源
+  - **Finance**：Alpha Vantage（实时/历史股票数据，apiKey）、Econdb（宏观经济数据，No auth）→ 中国 AI 公司 IPO/财务数据
+  - **Photography**：Flickr（OAuth）、Lorem Picsum（No auth，Unsplash 随机图）→ asset-sourcer 图像素材补充
+  - **Text Analysis**：LibreTranslate（免费翻译，No auth）、GeoScore（AI 搜索引用就绪评分，apiKey）→ 翻译或 SEO 优化
+  - **Open Data**：Archive.org（No auth）、Kaggle API（apiKey，已集成）、Lowy Asia Power Index（亚洲国家实力排名，No auth）→ 地缘政治背景数据
+- **用法**：浏览 `https://github.com/public-apis/public-apis` README，按分类查找。或 `curl -sL https://raw.githubusercontent.com/public-apis/public-apis/master/README.md | grep -A 30 '### <Category>'`
+- **何时用**：需要找某领域的免费 API、想替代付费 SaaS、或需要补充搜索源/素材源时
+- **何时不用**：已有工具栈覆盖的场景（如中文平台趋势用 search-sources.mjs、西方社媒用 last30days）
+- **调查日期**：2026-08-17
+- **状态**：📖 参考
+
 ### vercel-labs/agent-browser — Rust 原生浏览器自动化 CLI ⭐⭐
 
 - **分类**：浏览器自动化 / 联网
@@ -397,9 +419,9 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 ---
 
-## Skill 评估流程
+## 评估流程
 
-> **强制规则**：任何 skill 在安装前必须走完以下评估流程。未通过安全审计的 skill 不得安装。
+> **强制规则**：任何工具在安装/集成前必须走完以下评估流程。未通过安全审计的工具不得安装。
 
 ### 第 1 步：安全审计（必做，先于一切）
 
@@ -563,7 +585,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 本地 DOCX/XLSX 转 Markdown      → firecrawl parse（需注册）
 已知 URL 英文网页提取           → web_fetch 或 firecrawl scrape
 中国平台搜索/抓取（需登录）      → web-access CDP
-趋势发现（中文 AI 话题）         → discover-trends.mjs
+趋势发现（中文 AI 话题）         → search-sources.mjs
 趋势发现（英文社媒热度）         → last30days-skill --emit=json "topic"
 深度研究（多源交叉验证 + 引用）  → web-deep-research
 已知 URL 原始 HTML/meta         → curl
@@ -572,7 +594,45 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 网站 UI 动画打磨               → emilkowalski/skills（待安装）
 演示文稿/PPT 生成              → guizang-ppt-skill（待安装）
 找特定功能的 skill             → VoltAgent/awesome-agent-skills 目录
+找免费 API（任意领域）          → public-apis/public-apis README 按分类查
 ```
+
+---
+
+## Pipeline API 补充候选
+
+> 从 public-apis 筛选的免费 API。分两类：A 类直接集成到管线代码（每次搜索自动调用），B 类按需使用（Agent 研究时手动调用，不常驻代码）。
+> 状态：📋 待集成｜🔧 集成中｜✅ 已集成｜❌ 评估后不采用
+
+### A 类：直接集成（→ source-registry.mjs / asset-sourcer.mjs）
+
+这些 API 有固定搜索结构，加进去后每次搜索自动调用，值得写进代码。
+
+| API | Auth | 集成到 | 端点 | 补充什么 | 状态 |
+|-----|------|--------|------|---------|------|
+| DataCube AI | No | source-registry WESTERN_SOURCES | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言 | ✅ 已集成 |
+| Noozra | No | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=` | 200+ RSS 源新闻头条 | ✅ 已集成 |
+| GNews | apiKey | source-registry WESTERN_SOURCES | `https://gnews.io/api/v4/search` | 新闻搜索，多语言，100 req/天 | ✅ 已集成 |
+| Currents | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search` | 实时全球新闻，200 req/天 | ✅ 已集成 |
+| OpenAlex | No | source-registry WESTERN_SOURCES | `https://api.openalex.org/works` | 学术作品开放目录（2.4 亿作品） | ✅ 已集成 |
+| CORE | No | source-registry WESTERN_SOURCES | `https://api.core.ac.uk/v3/search/works/` | 开放获取论文（2.6 亿+），5 req/10s，无需注册 | ✅ 已集成 |
+| Lorem Picsum | No | asset-sourcer API_SOURCES | `https://picsum.photos/` | Unsplash 随机图，fallback 占位图 | ✅ 已集成 |
+
+### B 类：按需使用（Agent 研究时手动调用，不常驻代码）
+
+这些 API 在写文章/做研究时偶尔用到，写死在管线里反而浪费。Agent 需要时直接 fetch 调用。
+
+| API | Auth | 端点 | 何时用 | 状态 |
+|-----|------|------|--------|------|
+| Alpha Vantage | apiKey | `https://www.alphavantage.co/` | 写 IPO/财务文章时查股价（25 req/天） | 📋 按需 |
+| Econdb | No | `https://www.econdb.com/api/` | 需要宏观经济数据（GDP/CPI/PMI）时 | 📋 按需 |
+| Flickr | OAuth | `https://www.flickr.com/services/api/` | Pexels/Unsplash 找不到合适图时（尤其中国城市场景） | 📋 按需 |
+| LibreTranslate | No | `https://libretranslate.com/docs` | 偶尔需要中英互译 fallback 时 | 📋 按需 |
+| Groq | apiKey | `https://console.groq.com/docs/quickstart` | 评估是否替代本地 Ollama 做 RAG embedding | 📋 按需 |
+| Jina AI | apiKey | `https://jina.ai` | 评估是否替代 bge-m3 做云端 embedding | 📋 按需 |
+| OpenVisionAPI | No | `https://openvisionapi.com` | Qwen3-VL 不可用时做 image tagging fallback | 📋 按需 |
+| Lowy Asia Power Index | No | `https://github.com/0x0is1/lowy-index-api-docs` | 写地缘政治文章时的背景数据 | 📋 按需 |
+| Archive.org | No | `https://archive.readme.io/docs` | 需要新闻/网页历史快照时 | 📋 按需 |
 
 ---
 
