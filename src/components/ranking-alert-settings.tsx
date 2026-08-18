@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Mail, Trash2 } from "lucide-react";
+import { BellOff, BellRing, Mail, Trash2 } from "lucide-react";
 import {
   addAlertRecipient,
   deleteAlertRecipient,
   getAlertConfig,
+  isDrop,
   updateAlertSettings,
 } from "@/lib/keyword-tracking.functions";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,24 @@ export function RankingAlertSettings() {
   const [threshold, setThreshold] = useState("3");
   const [lostRanking, setLostRanking] = useState(true);
   const [email, setEmail] = useState("");
+  const [fromPos, setFromPos] = useState("8");
+  const [toPos, setToPos] = useState("14");
+
+  // Preview uses the values currently in the form, saved or not.
+  const parsedThreshold = Number(threshold);
+  const previewThreshold =
+    Number.isInteger(parsedThreshold) && parsedThreshold >= 1 ? parsedThreshold : null;
+  const from = fromPos.trim() === "" ? null : Number(fromPos);
+  const to = toPos.trim() === "" ? null : Number(toPos);
+  const previewValid =
+    previewThreshold !== null &&
+    from !== null &&
+    Number.isInteger(from) &&
+    from >= 1 &&
+    (to === null || (Number.isInteger(to) && to >= 1));
+  const wouldAlert = previewValid
+    ? isDrop(to, from, previewThreshold, lostRanking)
+    : false;
 
   // Query data arrives after mount, so sync the form once it lands.
   useEffect(() => {
@@ -190,6 +209,84 @@ export function RankingAlertSettings() {
                 Add recipient
               </Button>
             </form>
+          </div>
+
+          <div className="mt-8 border-t border-border/60 pt-6">
+            <h3 className="text-sm font-medium">Preview a notification</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter a simulated position change to see whether the settings above would raise
+              an alert. Leave “new position” empty to simulate leaving the top 100.
+            </p>
+
+            <div className="mt-4 flex flex-wrap items-end gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="preview-from">Previous position</Label>
+                <Input
+                  id="preview-from"
+                  type="number"
+                  min={1}
+                  value={fromPos}
+                  onChange={(e) => setFromPos(e.target.value)}
+                  className="w-24"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="preview-to">New position</Label>
+                <Input
+                  id="preview-to"
+                  type="number"
+                  min={1}
+                  value={toPos}
+                  onChange={(e) => setToPos(e.target.value)}
+                  placeholder="none"
+                  className="w-24"
+                />
+              </div>
+            </div>
+
+            <div
+              aria-live="polite"
+              className="mt-4 rounded-md border border-border/60 px-3 py-3 text-sm"
+            >
+              {!previewValid ? (
+                <span className="text-muted-foreground">
+                  Enter a whole previous position (1 or more) to preview.
+                </span>
+              ) : wouldAlert ? (
+                <span className="flex items-start gap-2">
+                  <BellRing
+                    className="mt-0.5 h-4 w-4 text-destructive"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <strong>Alert would fire.</strong>{" "}
+                    {to === null
+                      ? `“example keyword” left the top 100 (was #${from}).`
+                      : `“example keyword” fell from #${from} to #${to} (−${to - from}), at or past the ${previewThreshold}-position threshold.`}
+                  </span>
+                </span>
+              ) : (
+                <span className="flex items-start gap-2">
+                  <BellOff
+                    className="mt-0.5 h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <strong>No alert.</strong>{" "}
+                    {to === null
+                      ? "Leaving the top 100 is currently ignored."
+                      : to <= from
+                        ? "The position held or improved."
+                        : `A drop of ${to - from} is below the ${previewThreshold}-position threshold.`}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            <p className="mt-2 text-xs text-muted-foreground">
+              Preview only — no email is sent. It reflects the values in the form above, even
+              before you save them.
+            </p>
           </div>
         </>
       )}
