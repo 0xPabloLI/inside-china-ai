@@ -54,9 +54,9 @@ def run_tests():
 
     # ── normalize_for_duration ──
     print("\nnormalize_for_duration:")
-    check("strips markdown bold", "**hello**" in normalize_for_duration("**hello**") is False or "hello" in normalize_for_duration("**hello**"))
+    check("strips markdown bold", "**" not in normalize_for_duration("**hello**"))
     check("strips URLs", "http" not in normalize_for_duration("check https://example.com out"))
-    check("collapses whitespace", " " not in normalize_for_duration("a  b   c") or normalize_for_duration("a  b   c") == "a b c")
+    check("collapses whitespace", normalize_for_duration("a  b   c") == "a b c")
 
     # ── count_cjk_characters ──
     print("\ncount_cjk_characters:")

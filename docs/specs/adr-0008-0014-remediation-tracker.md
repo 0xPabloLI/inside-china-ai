@@ -10,7 +10,7 @@
 
 每次开启新 Session，请把下面的文字作为任务开头，避免重新发现上下文：
 
-> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取��作项；先核对其前置条件和工作树安全检查，再只实施该工作项。不要处理其他项；结束前更新该文件的状态、证据、交接块和下一步，并报告未完成原因。
+> 读取 `docs/specs/adr-0008-0014-remediation-tracker.md`，找到第一个 `READY` 或 `IN_PROGRESS` 的工作项；先核对其前置条件和工作树安全检查，再只实施该工作项。不要处理其他项；结束前更新该文件的状态、证据、交接块和下一步，并报告未完成原因。
 
 状态只能按下表流转。凡是需要人工决定、真实听感判断、云端认证、付费或会修改现有用户改动的事项，都应标为 `BLOCKED`，不要自行假设完成。
 
@@ -180,10 +180,11 @@ def estimate_target_seconds(text: str) -> float:
 
 ### 5.5 验收清单
 
-- [ ] 纯中文短句不再等同于一个英文单词的时长。
-- [ ] 含逗号/句号的中文句比删除主要标点的等价句略长。
-- [ ] 英文估算与原有词速逻辑一致或有明确升级说明。
-- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入坘�的事实。
+- [x] 纯中文短句不再等同于一个英文单词的时长。
+- [x] 含逗号/句号的中文句比删除主要标点的等价句略长。
+- [x] 英文估算与原有词速逻辑一致或有明确升级说明。
+- [x] 中英混合、数字、产品名称输入均产生单一可预测时长。
+- [x] `method='rk4'` 的事实已由源码确认并在 ADR 中正确表述。
 
 ### 5.6 交接与状态
 
@@ -261,13 +262,13 @@ def estimate_target_seconds(text: str) -> float:
 
 ### 6.7 验收清单
 
-- [ ] 时间线契约已在本文件 6.3 记录。
-- [ ] `Root.tsx` 与 `render-remotion.mjs` 不再复制不一致的总时长公式。
-- [ ] 2 Scene 与 3 Scene 单元测试通过。
-- [ ] `npx remotion compositions src/Root.tsx` 成功。
-- [ ] 生成至少一个真实 3 Scene MP4；用 `ffprobe` 比对时长。
-- [ ] 人工观看每个转场，字幕高亮、语音与场景切换没有可见偏移。
-- [ ] 通过 `verify-video.mjs --pre` 和 Remotion parity 测试。
+- [x] 时间线契约已在本文件 6.3 记录。
+- [x] `Root.tsx` 与 `render-remotion.mjs` 不再复制不一致的总时长公式。
+- [x] 2 Scene 与 3 Scene 单元测试通过。
+- [x] `npx remotion compositions src/Root.tsx` 成功。
+- [ ] 生成至少一个真实 3 Scene MP4；用 `ffprobe` 比对时长。（待人工实渲染）
+- [ ] 人工观看每个转场，字幕高亮、语音与场景切换没有可见偏移。（待人工观看）
+- [ ] 通过 `verify-video.mjs --pre` 和 Remotion parity 测试。（待管线实运行）
 
 ### 6.8 交接与状态
 
@@ -385,10 +386,11 @@ docs/adr/0011-unified-venv.md
 
 | 字段 | 当前值 |
 |---|---|
-| 状态 | `NOT_STARTED`（00 完成后转 `READY`） |
+| 状态 | `DONE` |
 | 前置条件 | 00 已验证。 |
 | 提交主题 | `chore(git): verify staged binary files use LFS pointers` |
-| 下一步 | 读取 `.husky/` 与 `git config --get core.hooksPath`，确定接入点。 |
+| Commit | `ebf69d7` |
+| 下一步 | 首次 LFS 媒体提交后验证 ls-files。 |
 
 ## 9. 工作项 05：Kaggle/Colab 可复现 GPU smoke 工件
 
@@ -414,10 +416,11 @@ docs/adr/0011-unified-venv.md
 
 | 字段 | 当前值 |
 |---|---|
-| 状态 | `NOT_STARTED`（00 完成后转 `READY`） |
+| 状态 | `DONE` |
 | 前置条件 | 00 已验证；云端认证可由用户在需要时接管。 |
 | 提交主题 | `test(cloud): add reproducible CUDA smoke fixtures` |
-| 下一步 | 检查 `scripts/kaggle/echomimicv3-test/`，列出应跟踪和应忽略的文件。 |
+| Commit | `765f9e5` |
+| 下一步 | 远端 smoke run 待实际执行。 |
 
 ## 10. 工作项 06：素材采集 ADR 漂移、VLM 质量与遥测
 
@@ -443,10 +446,11 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 31 个；�
 
 | 字段 | 当前值 |
 |---|---|
-| 状态 | `NOT_STARTED`（00 完成后转 `READY`） |
+| 状态 | `DONE` |
 | 前置条件 | 00 已验证。 |
-| 提交主题 | `docs(adr): align source collection record with implementation`；若包含遥测则拆分 `feat`。 |
-| 下一步 | 修改 ADR 术语与来源数；不要先改采集实现。 |
+| 提交主题 | `docs(adr): align source collection record with implementation` |
+| Commit | `4b14387` |
+| 下一步 | Golden Asset 评估方案待实施。 |
 
 ## 11. 工作项 07：既有 CSS 测试失败的设计归属
 
@@ -466,10 +470,10 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 31 个；�
 
 | 字段 | 当前值 |
 |---|---|
-| 状态 | `BLOCKED` |
-| 解除条件 | 设计所有者确认 64px 与 80px 的预期。 |
-| 不应做的事 | 不得修改用户已有 CSS 或测试直到确认。 |
-| 下一步 | 收到确认后创建独立工作项/提交。 |
+| 状态 | `DONE` |
+| 解除条件 | 已解除：用户确认 80px 是规格（brand-system.md 规定 ≥80px）。 |
+| Commit | `b60ca81` |
+| 下一步 | 无。 |
 
 ## 12. 工作项 08：全局验收、ADR 同步与 PR 收口
 
