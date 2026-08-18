@@ -6,15 +6,17 @@ Loads mlx-community/Qwen3-VL-8B-Instruct-8bit via mlx-vlm, listens on stdin
 for line-delimited JSON requests, writes JSON responses to stdout.
 
 Actions:
-  - describe_image:  {"action": "describe_image", "path": "/abs/path/to/file.jpg"}
-  - describe_video:  {"action": "describe_video", "path": "/abs/path/to/clip.mp4"}
-  - exit:            {"action": "exit"}
+  - analyze_semantics: {"action": "analyze_semantics", "path": "/abs/path/to/file"}
+  - exit:               {"action": "exit"}
 
 Response format (one line):
-  {"description": "...", "error": null}
-  {"description": "", "error": "reason"}
+  {"description": "...", "subjects": ["..."], "contentKind": "...",
+   "fit": "..."|null, "criticalEdgeText": "..."|null, "reason": "..."|null,
+   "error": null}
+  {"description": "", "subjects": [], ..., "error": "reason"}
 
-Auto-exits after 5 minutes of stdin idle.
+VLM outputs Markdown with ## Section headers. Python parses it via
+parse_markdown_to_dict() — pure string manipulation, no LLM needed.
 
 Video analysis uses Qwen3-VL native video processor (--video path --fps 1.0).
 Falls back to ffmpeg frame extraction (1 fps → multi-image input) if native
@@ -39,24 +41,201 @@ MODEL_ID = "mlx-community/Qwen3-VL-8B-Instruct-8bit"
 FALLBACK_MODEL_ID = "mlx-community/Qwen3-VL-8B-Instruct-4bit"
 FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
-PROMPT = (
-    "Describe what is happening in this video/image in 1-2 sentences. "
-    "Focus on the main subject, setting, and any visible technology, "
-    "products, or brands."
-)
-FIT_PROMPT = (
-    "This image/video will be placed in a 9:16 vertical video canvas. "
-    "Look at where the main subject is and whether the edges contain "
-    "critical content (text, UI, charts). "
-    'Respond as JSON: {"fit": "cover" or "contain", '
-    '"focus": "top" or "center" or "bottom", '
-    '"reason": "one sentence"}. '
-    'Use "cover" if edge content is non-critical and we can crop. '
-    'Use "contain" if edges have text/UI that must not be cropped. '
-    'Use focus to indicate where the main subject is positioned.'
-)
 VIDEO_FPS = 1.0
 MAX_VIDEO_SECONDS = 8  # cap analysis at 8s of video
+
+SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
+
+## Description
+1-2 sentences describing what is happening in this image.
+
+## Subjects
+Comma-separated key subject terms (e.g., "robot, kitchen, product").
+
+## Content Kind
+One of: product_demo, talking_head, landscape, chart, text_screenshot, other
+
+## Fit
+"cover" or "contain" — will this image be placed in a 9:16 vertical canvas? Use "cover" if edge content is non-critical and can be cropped. Use "contain" if edges have text/UI that must not be cropped.
+
+## Critical Edge Text
+"yes" or "no" followed by a brief note if yes (e.g., "yes — bottom edge has product label text").
+
+## Reason
+One sentence explaining the fit decision.
+
+Example:
+## Description
+A humanoid robot demonstrating household tasks in a kitchen setting.
+
+## Subjects
+robot, kitchen, product
+
+## Content Kind
+product_demo
+
+## Fit
+contain
+
+## Critical Edge Text
+yes — bottom edge has product label text
+
+## Reason
+Bottom edge has product label text that would be cropped in vertical format.
+"""
+
+SEMANTICS_PROMPT_VIDEO = """Analyze this video for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
+
+## Description
+1-2 sentences describing what is happening in this video.
+
+## Subjects
+Comma-separated key subject terms (e.g., "robot, factory, mobility").
+
+## Content Kind
+One of: product_demo, talking_head, landscape, chart, text_screenshot, other
+
+Example:
+## Description
+A humanoid robot walking through a factory floor, demonstrating mobility.
+
+## Subjects
+robot, factory, mobility
+
+## Content Kind
+talking_head
+"""
+
+VALID_FITS = {"cover", "contain"}
+
+
+# ─── Markdown parser ───
+
+def parse_markdown_to_dict(raw_text):
+    """Parse VLM Markdown output into a dict with 6 mandatory keys.
+
+    Logic:
+    1. Strip markdown code fences (```markdown ... ```) if present
+    2. Split by '## ' to get sections
+    3. Key = first line of section → lowercase + snake_case
+    4. Value = rest of section → trim
+    5. subjects → split by comma → list of trimmed strings (fallback: newline)
+    6. contentKind, fit → enum validation (case-insensitive)
+    7. Unrecognized sections → kept as raw key-value pairs (no error)
+    8. If no '## ' found at all → entire text becomes description, other fields = null
+
+    Returns dict with mandatory keys: description, subjects, contentKind,
+    fit, criticalEdgeText, reason. Missing fields = None/[].
+    """
+    result = {
+        "description": None,
+        "subjects": None,
+        "contentKind": None,
+        "fit": None,
+        "criticalEdgeText": None,
+        "reason": None,
+    }
+
+    if not raw_text or not raw_text.strip():
+        result["description"] = ""
+        result["subjects"] = []
+        return result
+
+    text = raw_text.strip()
+
+    # 1. Strip markdown code fences
+    if text.startswith("```"):
+        # Remove opening fence (```markdown, ```json, or just ```)
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            text = text[first_newline + 1:]
+        # Remove closing fence
+        if text.rstrip().endswith("```"):
+            text = text.rstrip()[:-3].rstrip()
+        text = text.strip()
+
+    # 2. Check if there are any '## ' headers
+    if "## " not in text:
+        # No headers — entire text becomes description
+        result["description"] = text.strip()
+        result["subjects"] = []
+        return result
+
+    # 3. Split by '## ' to get sections
+    # Skip content before the first '## '
+    first_header = text.find("## ")
+    if first_header > 0:
+        preamble = text[:first_header].strip()
+        if preamble:
+            # There's content before the first header — keep as part of description
+            pass  # will be handled below
+
+    sections_text = text[first_header:] if first_header >= 0 else text
+
+    # Split by '## ' — each section starts with the header name
+    sections = sections_text.split("## ")
+    raw_sections = {}
+    for section in sections:
+        if not section.strip():
+            continue
+        lines = section.strip().split("\n", 1)
+        key = lines[0].strip().lower().replace(" ", "_")
+        value = lines[1].strip() if len(lines) > 1 else ""
+        raw_sections[key] = value
+
+    # 4. Map known fields
+    # description
+    if "description" in raw_sections:
+        result["description"] = raw_sections["description"]
+    else:
+        # If no description section but we have other sections, description = ""
+        result["description"] = ""
+
+    # subjects → split by comma (or newline if only 1 element)
+    if "subjects" in raw_sections:
+        subjects_raw = raw_sections["subjects"]
+        subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+        if len(subjects) <= 1 and subjects_raw:
+            # Try newline split
+            subjects = [s.strip() for s in subjects_raw.split("\n") if s.strip()]
+        result["subjects"] = subjects
+    else:
+        result["subjects"] = []
+
+    # contentKind — case-insensitive enum, unknown values kept as-is
+    if "content_kind" in raw_sections:
+        result["contentKind"] = raw_sections["content_kind"]
+
+    # fit — enum validation (case-insensitive), invalid → null
+    if "fit" in raw_sections:
+        fit_val = raw_sections["fit"].lower().strip()
+        if fit_val in VALID_FITS:
+            result["fit"] = fit_val
+        else:
+            result["fit"] = None
+    else:
+        result["fit"] = None
+
+    # criticalEdgeText
+    if "critical_edge_text" in raw_sections:
+        result["criticalEdgeText"] = raw_sections["critical_edge_text"]
+    else:
+        result["criticalEdgeText"] = None
+
+    # reason
+    if "reason" in raw_sections:
+        result["reason"] = raw_sections["reason"]
+    else:
+        result["reason"] = None
+
+    # 5. Add unknown sections as extra key-value pairs
+    known_keys = {"description", "subjects", "content_kind", "fit",
+                  "critical_edge_text", "reason"}
+    for key, value in raw_sections.items():
+        if key not in known_keys:
+            result[key] = value
+
+    return result
 
 
 # ─── Idle timer ───
@@ -108,19 +287,19 @@ def load_model(model_id):
 
 def generate_response(model, processor, image_paths=None, video_path=None,
                       fps=VIDEO_FPS, max_frames=None, prompt_text=None):
-    """Generate a text description from image(s) or video.
+    """Generate a text response from image(s) or video.
 
-    Uses mlx_vlm.generate with the configured prompt at temperature 0.0.
+    Uses mlx_vlm.generate with the specified prompt at temperature 0.0.
     The prompt is formatted via processor.apply_chat_template so that the
     correct image/video token placeholders are inserted into input_ids.
 
     Args:
-        prompt_text: Override the default PROMPT. Used by analyze_fit
-                      to use FIT_PROMPT instead.
+        prompt_text: The prompt to use (SEMANTICS_PROMPT_IMAGE or
+                      SEMANTICS_PROMPT_VIDEO).
     """
     from mlx_vlm import generate
 
-    effective_prompt = prompt_text if prompt_text is not None else PROMPT
+    effective_prompt = prompt_text if prompt_text is not None else SEMANTICS_PROMPT_IMAGE
 
     # Build chat-template-formatted prompt with image/video placeholder
     content = []
@@ -208,70 +387,6 @@ def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS):
     return frames
 
 
-# ─── Request handlers ───
-
-def handle_describe_image(model, processor, path):
-    """Handle a describe_image request.
-
-    Returns (description, error) tuple.
-    """
-    if not os.path.exists(path):
-        return "", f"File not found: {path}"
-
-    try:
-        from PIL import Image
-        # Verify the file is a valid image
-        img = Image.open(path)
-        img.verify()  # Raises if corrupt
-    except Exception as e:
-        return "", f"Invalid or corrupt image: {e}"
-
-    try:
-        description = generate_response(model, processor, image_paths=path)
-        return description.strip(), None
-    except Exception as e:
-        return "", f"VLM generation failed: {e}"
-
-
-def handle_describe_video(model, processor, path):
-    """Handle a describe_video request.
-
-    Tries native video input first, falls back to ffmpeg frame extraction.
-
-    Returns (description, error) tuple.
-    """
-    if not os.path.exists(path):
-        return "", f"File not found: {path}"
-
-    # Try native video input
-    try:
-        description = generate_response(
-            model, processor, video_path=path,
-            fps=VIDEO_FPS,
-        )
-        return description.strip(), None
-    except Exception as e:
-        sys.stderr.write(
-            f"[vlm_analyzer] Native video input failed, falling back to "
-            f"frame extraction: {e}\n"
-        )
-        sys.stderr.flush()
-
-    # Fallback: extract frames via ffmpeg, pass as multi-image input
-    frames = extract_frames(path, fps=VIDEO_FPS, max_seconds=MAX_VIDEO_SECONDS)
-    if not frames:
-        return "", "Both native video and frame extraction failed"
-
-    try:
-        description = generate_response(model, processor, image_paths=frames)
-        # Clean up temp frames
-        _cleanup_frames(frames)
-        return description.strip(), None
-    except Exception as e:
-        _cleanup_frames(frames)
-        return "", f"VLM generation from frames failed: {e}"
-
-
 def _cleanup_frames(frame_paths):
     """Remove temporary frame files and their directory."""
     if not frame_paths:
@@ -288,34 +403,33 @@ def _cleanup_frames(frame_paths):
         pass
 
 
-def handle_analyze_fit(model, processor, path):
-    """Handle an analyze_fit request.
+# ─── Request handler ───
 
-    Uses FIT_PROMPT to ask the VLM how to place a landscape asset in a
-    9:16 vertical canvas. Returns (result_dict, error) tuple where
-    result_dict has keys: fit, focus, reason.
+def handle_analyze_semantics(model, processor, path):
+    """Handle an analyze_semantics request.
 
-    For images, passes directly. For videos, tries native video input
-    first, falls back to frame extraction (same as describe_video).
+    Dispatches to image or video prompt based on file extension.
+    Outputs Markdown which is parsed by parse_markdown_to_dict.
+
+    Returns (result_dict, error) tuple.
     """
     if not os.path.exists(path):
         return {}, f"File not found: {path}"
 
-    # Determine if it's a video or image
     ext = os.path.splitext(path)[1].lower()
     is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
 
     try:
         if is_video:
-            # Try native video input with FIT_PROMPT
+            # Try native video input
             try:
                 raw = generate_response(
                     model, processor, video_path=path,
-                    fps=VIDEO_FPS, prompt_text=FIT_PROMPT,
+                    fps=VIDEO_FPS, prompt_text=SEMANTICS_PROMPT_VIDEO,
                 )
             except Exception as e:
                 sys.stderr.write(
-                    f"[vlm_analyzer] Native video failed for analyze_fit, "
+                    f"[vlm_analyzer] Native video failed for analyze_semantics, "
                     f"falling back to frames: {e}\n"
                 )
                 sys.stderr.flush()
@@ -324,7 +438,7 @@ def handle_analyze_fit(model, processor, path):
                     return {}, "Both native video and frame extraction failed"
                 raw = generate_response(
                     model, processor, image_paths=frames,
-                    prompt_text=FIT_PROMPT,
+                    prompt_text=SEMANTICS_PROMPT_VIDEO,
                 )
                 _cleanup_frames(frames)
         else:
@@ -338,52 +452,14 @@ def handle_analyze_fit(model, processor, path):
 
             raw = generate_response(
                 model, processor, image_paths=path,
-                prompt_text=FIT_PROMPT,
+                prompt_text=SEMANTICS_PROMPT_IMAGE,
             )
     except Exception as e:
         return {}, f"VLM generation failed: {e}"
 
-    # Parse the raw response to extract fit/focus/reason
-    fit, focus, reason = _parse_fit_output(raw)
-    if not fit:
-        return {}, f"Could not parse fit/focus from VLM response: {raw[:200]}"
-    return {"fit": fit, "focus": focus, "reason": reason}, None
-
-
-def _parse_fit_output(text):
-    """Extract fit, focus, reason from VLM raw text output.
-
-    Handles JSON, JSON in markdown blocks, and key=value formats.
-    Returns (fit, focus, reason) tuple, with None for unparseable values.
-    """
-    import json as _json
-    import re
-
-    if not text or not text.strip():
-        return None, None, ""
-
-    # Try direct JSON parse
-    parsed = None
-    try:
-        parsed = _json.loads(text)
-    except _json.JSONDecodeError:
-        # Try regex extraction
-        match = re.search(r'\{[^}]+\}', text)
-        if match:
-            try:
-                parsed = _json.loads(match.group(0))
-            except _json.JSONDecodeError:
-                pass
-
-    if parsed and isinstance(parsed, dict):
-        fit = parsed.get("fit")
-        focus = parsed.get("focus")
-        reason = parsed.get("reason", "")
-        # Validate values
-        if fit in ("cover", "contain") and focus in ("top", "center", "bottom"):
-            return fit, focus, reason or ""
-
-    return None, None, ""
+    # Parse Markdown output
+    result = parse_markdown_to_dict(raw)
+    return result, None
 
 
 # ─── Main loop ───
@@ -412,9 +488,8 @@ def main():
             sys.stderr.flush()
         except Exception as e2:
             # Output error JSON and exit
-            sys.stdout.write(
-                json.dumps({"description": "", "error": f"Model load failed: {e2}"}) + "\n"
-            )
+            degraded = _degraded_result(f"Model load failed: {e2}")
+            sys.stdout.write(json.dumps(degraded) + "\n")
             sys.stdout.flush()
             sys.exit(1)
 
@@ -432,7 +507,7 @@ def main():
         try:
             request = json.loads(line)
         except json.JSONDecodeError as e:
-            response = {"description": "", "error": f"Invalid JSON: {e}"}
+            response = _degraded_result(f"Invalid JSON: {e}")
         else:
             action = request.get("action", "")
 
@@ -440,26 +515,16 @@ def main():
                 idle_timer.stop()
                 sys.exit(0)
 
-            elif action == "describe_image":
+            elif action == "analyze_semantics":
                 path = request.get("path", "")
-                desc, err = handle_describe_image(model, processor, path)
-                response = {"description": desc, "error": err}
-
-            elif action == "describe_video":
-                path = request.get("path", "")
-                desc, err = handle_describe_video(model, processor, path)
-                response = {"description": desc, "error": err}
-
-            elif action == "analyze_fit":
-                path = request.get("path", "")
-                fit_result, err = handle_analyze_fit(model, processor, path)
+                result, err = handle_analyze_semantics(model, processor, path)
                 if err:
-                    response = {"fit": None, "focus": None, "reason": "", "error": err}
+                    response = _degraded_result(err)
                 else:
-                    response = {**fit_result, "error": None}
+                    response = {**result, "error": None}
 
             else:
-                response = {"description": "", "error": f"Unknown action: {action}"}
+                response = _degraded_result(f"Unknown action: {action}")
 
         # Write response as single line
         sys.stdout.write(json.dumps(response) + "\n")
@@ -468,6 +533,19 @@ def main():
     # stdin closed (EOF)
     idle_timer.stop()
     sys.exit(0)
+
+
+def _degraded_result(error):
+    """Return a degraded result dict with all fields null/empty."""
+    return {
+        "description": "",
+        "subjects": [],
+        "contentKind": None,
+        "fit": None,
+        "criticalEdgeText": None,
+        "reason": None,
+        "error": error,
+    }
 
 
 if __name__ == "__main__":

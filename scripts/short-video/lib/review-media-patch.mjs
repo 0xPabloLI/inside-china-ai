@@ -2,15 +2,18 @@
  * Apply Media Patch — formats media-patch.json for human review.
  *
  * Reads media-patch.json and outputs:
- *   1. Human-readable review summary (focus analysis comments)
+ *   1. Human-readable review summary (focus analysis + VLM semantics comments)
  *   2. Copyable media: { ... } code blocks (without analysis/focusAnalysis)
  *
  * Spec §4.7: Output review summary as comments, NOT as copyable fields.
  * The media object keeps existing MediaField shape — no analysis or focusAnalysis.
  *
- * Usage: node apply-media-patch.mjs [--input media-patch.json] [--output formatted.txt]
+ * P3: Also reads asset-analysis.json (if present) to display VLM semantics
+ * (description, subjects, contentKind, fit, criticalEdgeText, reason).
  *
- * @module apply-media-patch
+ * Usage: node review-media-patch.mjs [--input media-patch.json] [--output formatted.txt] [--analysis asset-analysis.json]
+ *
+ * @module review-media-patch
  */
 
 import { readFileSync, writeFileSync, existsSync } from "fs";
@@ -63,24 +66,32 @@ export function formatFocusSummary(focusAnalysis) {
       if (sal) {
         lines.push(
           `  // Saliency: ${sal.available ? "available" : "unavailable"}` +
-            (sal.available ? `, dispersion: ${sal.dispersion?.toFixed(3)}, centroid: [${(sal.centroid || []).map((n) => n.toFixed(3)).join(", ")}]` : ""),
+            (sal.available
+              ? `, dispersion: ${sal.dispersion?.toFixed(3)}, centroid: [${(sal.centroid || []).map((n) => n.toFixed(3)).join(", ")}]`
+              : ""),
         );
       }
       break;
     }
 
     case "low_information": {
-      lines.push(`  // Focus Analysis: low_information — no protected regions, place text normally.`);
+      lines.push(
+        `  // Focus Analysis: low_information — no protected regions, place text normally.`,
+      );
       break;
     }
 
     case "degraded": {
-      lines.push(`  // ⚠️ Focus Analysis: degraded (${errorCode || "unknown"}) — ignore focusAnalysis, use default text placement.`);
+      lines.push(
+        `  // ⚠️ Focus Analysis: degraded (${errorCode || "unknown"}) — ignore focusAnalysis, use default text placement.`,
+      );
       break;
     }
 
     case "unsupported": {
-      lines.push(`  // Focus Analysis: unsupported (${errorCode || "unknown"}) — video asset, not applicable.`);
+      lines.push(
+        `  // Focus Analysis: unsupported (${errorCode || "unknown"}) — video asset, not applicable.`,
+      );
       break;
     }
 
@@ -94,11 +105,83 @@ export function formatFocusSummary(focusAnalysis) {
 }
 
 /**
+ * Format VLM semantic analysis as a human-readable comment block.
+ *
+ * P3: Displays description, subjects, contentKind, fit, criticalEdgeText, reason
+ * from asset-analysis.json.
+ *
+ * @param {Object} semantics - VLM analysis fields from asset-analysis.json
+ * @returns {string} Multi-line comment block
+ */
+export function formatSemanticsSummary(semantics) {
+  if (!semantics || typeof semantics !== "object") {
+    return "";
+  }
+
+  const lines = [];
+
+  if (semantics.description) {
+    lines.push(`  // VLM Description: ${semantics.description}`);
+  }
+  if (semantics.subjects && semantics.subjects.length > 0) {
+    lines.push(`  // Subjects: ${semantics.subjects.join(", ")}`);
+  }
+  if (semantics.contentKind) {
+    lines.push(`  // Content Kind: ${semantics.contentKind}`);
+  }
+  if (semantics.fit) {
+    lines.push(`  // Fit: ${semantics.fit}`);
+  }
+  if (semantics.criticalEdgeText) {
+    lines.push(`  // Critical Edge Text: ${semantics.criticalEdgeText}`);
+  }
+  if (semantics.reason) {
+    lines.push(`  // Reason: ${semantics.reason}`);
+  }
+  if (semantics.lowConfidence) {
+    lines.push(
+      `  // ⚠️ Low confidence (technicalScore: ${semantics.technicalScore || "?"}) — VLM skipped.`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Load asset-analysis.json artifact (if it exists).
+ *
+ * @param {string} analysisPath - Path to asset-analysis.json
+ * @returns {Object|null} Map of path → semantics, or null if file not found
+ */
+export function loadAssetAnalysis(analysisPath) {
+  if (!analysisPath || !existsSync(analysisPath)) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(readFileSync(analysisPath, "utf8"));
+    if (!data || !Array.isArray(data.assets)) return null;
+
+    // Build a lookup map by path
+    const map = new Map();
+    for (const entry of data.assets) {
+      if (entry.path) {
+        map.set(entry.path, entry);
+      }
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Format a single media-patch entry as a copyable code block with review comments.
  *
  * Output format:
+ *   // VLM Description: ...
+ *   // Subjects: ...
  *   // Focus Analysis: ...
- *   // Protected Regions: ...
  *   media: {
  *     type: "image",
  *     path: "...",
@@ -108,14 +191,24 @@ export function formatFocusSummary(focusAnalysis) {
  * The media object does NOT contain analysis or focusAnalysis fields.
  *
  * @param {Object} entry - A single entry from media-patch.json
+ * @param {Map|null} [analysisMap] - Optional lookup from asset-analysis.json
  * @returns {string} Formatted block
  */
-export function formatPatchEntry(entry) {
+export function formatPatchEntry(entry, analysisMap) {
   if (!entry || entry.status !== "assigned") {
     return "";
   }
 
   const lines = [];
+
+  // VLM semantics comments (P3: from asset-analysis.json)
+  if (analysisMap && entry.media?.path) {
+    const semantics = analysisMap.get(entry.media.path);
+    if (semantics) {
+      const summary = formatSemanticsSummary(semantics);
+      if (summary) lines.push(summary);
+    }
+  }
 
   // Review summary comments (spec §4.7 v6 P1-3)
   if (entry.analysis?.focusAnalysis) {
@@ -142,9 +235,10 @@ export function formatPatchEntry(entry) {
  * Format the entire media-patch.json as a human-readable output.
  *
  * @param {Array} patches - Array of patch entries from media-patch.json
+ * @param {Map|null} [analysisMap] - Optional lookup from asset-analysis.json
  * @returns {string} Complete formatted output
  */
-export function formatMediaPatch(patches) {
+export function formatMediaPatch(patches, analysisMap) {
   if (!Array.isArray(patches)) {
     return "No patches to display.\n";
   }
@@ -167,7 +261,7 @@ export function formatMediaPatch(patches) {
       sections.push(header);
       sections.push(`  Score: ${entry.assetScore || 0}, Source: ${entry.source || "?"}`);
 
-      const formatted = formatPatchEntry(entry);
+      const formatted = formatPatchEntry(entry, analysisMap);
       if (formatted) {
         sections.push(formatted);
       }
@@ -207,6 +301,7 @@ export function main(args = process.argv.slice(2)) {
   };
 
   const inputPath = getArg("input") || join(__dirname, "..", "output", "media-patch.json");
+  const analysisPath = getArg("analysis") || join(__dirname, "..", "output", "asset-analysis.json");
   const outputPath = getArg("output") || null;
 
   if (!existsSync(inputPath)) {
@@ -215,7 +310,8 @@ export function main(args = process.argv.slice(2)) {
   }
 
   const patches = JSON.parse(readFileSync(inputPath, "utf8"));
-  const formatted = formatMediaPatch(patches);
+  const analysisMap = loadAssetAnalysis(analysisPath);
+  const formatted = formatMediaPatch(patches, analysisMap);
 
   if (outputPath) {
     writeFileSync(outputPath, formatted, "utf8");
@@ -226,8 +322,7 @@ export function main(args = process.argv.slice(2)) {
 }
 
 // Auto-run if called directly
-const isMainModule =
-  process.argv[1] && process.argv[1].endsWith("review-media-patch.mjs");
+const isMainModule = process.argv[1] && process.argv[1].endsWith("review-media-patch.mjs");
 if (isMainModule) {
   main();
 }

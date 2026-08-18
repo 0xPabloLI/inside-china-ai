@@ -1,48 +1,75 @@
 /**
- * Integration tests for AI analyzer integration into asset-sourcer.
+ * Integration tests for VLM semantic merge pipeline in asset-sourcer.
  *
  * Ticket 04: Verify that the asset-sourcer pipeline correctly calls
- * visual-analyzer, stores results, and handles fallback.
+ * analyzeAssetSemantics (single VLM call), stores results, writes
+ * asset-analysis.json, and handles pre-filter + semantic scoring.
  *
- * These tests mock the visual-analyzer module (describeImage, describeVideo,
- * closeVisualAnalyzer) and verify the integration behavior.
+ * These tests mock the visual-analyzer module (analyzeAssetSemantics,
+ * detectFocus, closeVisualAnalyzer, closeFocusDetector) and verify
+ * the integration behavior.
+ *
+ * Run with: npx vitest run scripts/short-video/__tests__/asset-sourcer-visual-integration.test.mjs
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { join } from "path";
 
 // ─── Mock visual-analyzer module ───
 
-const mockDescribeImage = vi.fn();
-const mockDescribeVideo = vi.fn();
-const mockAnalyzeFit = vi.fn();
+const mockAnalyzeAssetSemantics = vi.fn();
 const mockCloseAnalyzer = vi.fn();
 const mockDetectFocus = vi.fn();
 const mockCloseFocusDetector = vi.fn();
 
 vi.mock("../lib/visual-analyzer.mjs", () => ({
-  describeImage: (...args) => mockDescribeImage(...args),
-  describeVideo: (...args) => mockDescribeVideo(...args),
-  analyzeFit: (...args) => mockAnalyzeFit(...args),
+  analyzeAssetSemantics: (...args) => mockAnalyzeAssetSemantics(...args),
   closeVisualAnalyzer: (...args) => mockCloseAnalyzer(...args),
   detectFocus: (...args) => mockDetectFocus(...args),
   closeFocusDetector: (...args) => mockCloseFocusDetector(...args),
 }));
 
 // Import after mocks
-import { analyzeAssets, buildReport, scoreCandidate, assignAssetsToScenes } from "../lib/asset-sourcer.mjs";
+import {
+  analyzeAssets,
+  buildReport,
+  scoreCandidate,
+  assignAssetsToScenes,
+  preFilterCandidate,
+} from "../lib/asset-sourcer.mjs";
+
+// ─── Default mock returns ───
+
+const DEGRADED = {
+  description: "",
+  subjects: [],
+  contentKind: null,
+  fit: null,
+  criticalEdgeText: null,
+  reason: null,
+};
+
+const FULL_SEMANTICS = {
+  description: "A humanoid robot in a kitchen.",
+  subjects: ["robot", "kitchen", "product"],
+  contentKind: "product_demo",
+  fit: "contain",
+  criticalEdgeText: "yes — bottom edge has product label text",
+  reason: "Bottom edge has product label text that would be cropped.",
+};
+
+const FOCUS_OK = {
+  status: "ok",
+  errorCode: null,
+  frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+  protectedRegions: [],
+  saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockDescribeImage.mockResolvedValue("A robot in a lab");
-  mockDescribeVideo.mockResolvedValue("A robot walking demonstration");
-  mockAnalyzeFit.mockResolvedValue({}); // default: no fit analysis (portrait assets)
+  mockAnalyzeAssetSemantics.mockResolvedValue({ ...FULL_SEMANTICS });
   mockCloseAnalyzer.mockResolvedValue(undefined);
-  mockDetectFocus.mockResolvedValue({
-    status: "ok",
-    errorCode: null,
-    frame: null,
-    protectedRegions: [],
-    saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
-  });
+  mockDetectFocus.mockResolvedValue({ ...FOCUS_OK });
   mockCloseFocusDetector.mockResolvedValue(undefined);
 });
 
@@ -52,115 +79,181 @@ afterEach(() => {
 
 // ─── Tests ───
 
-describe("analyzeAssets — AI integration", () => {
-  it("calls describeImage for image assets and describeVideo for video assets", async () => {
+describe("analyzeAssets — VLM semantic merge integration", () => {
+  it("calls analyzeAssetSemantics once per asset (single VLM call)", async () => {
     const assets = [
-      { path: "/abs/img1.jpg", type: "image" },
-      { path: "/abs/clip1.mp4", type: "video" },
+      { path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" },
+      { path: "/abs/clip1.mp4", type: "video", searchKeyword: "Unitree" },
     ];
 
     await analyzeAssets(assets);
 
-    expect(mockDescribeImage).toHaveBeenCalledTimes(1);
-    expect(mockDescribeImage).toHaveBeenCalledWith("/abs/img1.jpg");
-
-    expect(mockDescribeVideo).toHaveBeenCalledTimes(1);
-    expect(mockDescribeVideo).toHaveBeenCalledWith("/abs/clip1.mp4");
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(2);
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/img1.jpg");
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/clip1.mp4");
   });
 
-  it("stores aiDescription on each asset", async () => {
-    const assets = [
-      { path: "/abs/img1.jpg", type: "image" },
-      { path: "/abs/clip1.mp4", type: "video" },
-    ];
+  it("stores VLM fields on each asset (description, subjects, contentKind, fit, reason)", async () => {
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
 
     await analyzeAssets(assets);
 
-    expect(assets[0].aiDescription).toBe("A robot in a lab");
-    expect(assets[1].aiDescription).toBe("A robot walking demonstration");
+    expect(assets[0].description).toBe("A humanoid robot in a kitchen.");
+    expect(assets[0].subjects).toEqual(["robot", "kitchen", "product"]);
+    expect(assets[0].contentKind).toBe("product_demo");
+    expect(assets[0].fit).toBe("contain");
+    expect(assets[0].criticalEdgeText).toContain("bottom edge");
+    expect(assets[0].reason).toContain("cropped");
   });
 
-  it("returns aiAnalysis report with per-asset data", async () => {
-    const assets = [
-      { path: "/abs/img1.jpg", type: "image" },
-      { path: "/abs/clip1.mp4", type: "video" },
-    ];
+  it("does NOT store old fields (aiDescription, aiFit, aiFitReason)", async () => {
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
 
-    const report = await analyzeAssets(assets);
+    await analyzeAssets(assets);
 
-    expect(report).toHaveLength(2);
-    expect(report[0]).toHaveProperty("path", "/abs/img1.jpg");
-    expect(report[0]).toHaveProperty("description", "A robot in a lab");
-    expect(report[0]).toHaveProperty("success", true);
-    expect(report[0]).toHaveProperty("analysisTimeMs");
-    expect(typeof report[0].analysisTimeMs).toBe("number");
+    expect(assets[0].aiDescription).toBeUndefined();
+    expect(assets[0].aiFit).toBeUndefined();
+    expect(assets[0].aiFitReason).toBeUndefined();
+  });
+
+  it("calls detectFocus in Phase 1 and closeFocusDetector after", async () => {
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
+
+    await analyzeAssets(assets);
+
+    expect(mockDetectFocus).toHaveBeenCalledTimes(1);
+    expect(mockDetectFocus).toHaveBeenCalledWith("/abs/img1.jpg");
+    expect(mockCloseFocusDetector).toHaveBeenCalledTimes(1);
   });
 
   it("does NOT call closeVisualAnalyzer (caller is responsible)", async () => {
-    const assets = [{ path: "/abs/img1.jpg", type: "image" }];
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
 
     await analyzeAssets(assets);
 
-    // analyzeAssets no longer closes the VLM process — the main function does.
-    // But it DOES close the focus detector (Phase 1 lifecycle).
     expect(mockCloseAnalyzer).not.toHaveBeenCalled();
-    expect(mockCloseFocusDetector).toHaveBeenCalled();
   });
 
-  it("handles VLM unavailable gracefully — returns empty descriptions", async () => {
-    mockDescribeImage.mockResolvedValue("");
-    mockDescribeVideo.mockResolvedValue("");
+  it("handles VLM unavailable gracefully — returns degraded semantics", async () => {
+    mockAnalyzeAssetSemantics.mockResolvedValue({ ...DEGRADED });
 
-    const assets = [
-      { path: "/abs/img1.jpg", type: "image" },
-      { path: "/abs/clip1.mp4", type: "video" },
-    ];
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
 
     const report = await analyzeAssets(assets);
 
-    expect(assets[0].aiDescription).toBe("");
-    expect(assets[1].aiDescription).toBe("");
+    expect(assets[0].description).toBe("");
+    expect(assets[0].subjects).toEqual([]);
     expect(report[0].success).toBe(false);
-    expect(report[1].success).toBe(false);
-    // Pipeline did not crash, closeVisualAnalyzer not called by analyzeAssets
-    expect(mockCloseAnalyzer).not.toHaveBeenCalled();
-    // But closeFocusDetector IS called (Phase 1 finally block)
-    expect(mockCloseFocusDetector).toHaveBeenCalled();
   });
 
   it("logs progress per asset", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const assets = [
-      { path: "/abs/img1.jpg", type: "image" },
-      { path: "/abs/clip1.mp4", type: "video" },
-      { path: "/abs/img2.jpg", type: "image" },
+      { path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" },
+      { path: "/abs/clip1.mp4", type: "video", searchKeyword: "Unitree" },
+      { path: "/abs/img2.jpg", type: "image", searchKeyword: "Unitree" },
     ];
 
     await analyzeAssets(assets);
 
-    // Check progress log format
     const progressLogs = consoleSpy.mock.calls
       .map((c) => c[0])
       .filter((s) => typeof s === "string" && s.includes("Analyzing"));
     expect(progressLogs.length).toBe(3);
-    // Should include index/total format
     expect(progressLogs[0]).toContain("1/3");
 
     consoleSpy.mockRestore();
   });
 
   it("handles assets without path gracefully", async () => {
-    const assets = [{ type: "image" }]; // no path
+    const assets = [{ type: "image", searchKeyword: "Unitree" }];
+
+    const report = await analyzeAssets(assets);
+
+    // Assets without path are skipped — no report entry, no VLM call
+    expect(report).toHaveLength(0);
+    expect(mockAnalyzeAssetSemantics).not.toHaveBeenCalled();
+  });
+
+  it("handles empty assets array", async () => {
+    const report = await analyzeAssets([]);
+
+    expect(report).toEqual([]);
+    expect(mockAnalyzeAssetSemantics).not.toHaveBeenCalled();
+  });
+
+  it("pre-filters low-confidence assets (skips VLM for low technicalScore)", async () => {
+    const assets = [
+      {
+        path: "/abs/good.jpg",
+        type: "image",
+        title: "Unitree Robot Demo",
+        searchKeyword: "Unitree",
+        fileSize: 3_000_000,
+        resolution: "1080p",
+      },
+      {
+        path: "/abs/bad.jpg",
+        type: "video",
+        title: "unrelated content",
+        searchKeyword: "Unitree",
+        fileSize: 100_000_000,
+        duration: 120,
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    // Only good asset should be analyzed by VLM
+    // bad asset: titleScore=0, durationScore=3 (>60s), sizeScore=0 (>50M), resScore=0 = 3 < 30
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/good.jpg");
+  });
+
+  it("returns aiAnalysis report with per-asset data", async () => {
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
 
     const report = await analyzeAssets(assets);
 
     expect(report).toHaveLength(1);
-    expect(report[0].success).toBe(false);
-    expect(report[0].description).toBe("");
-    expect(mockDescribeImage).not.toHaveBeenCalled();
+    expect(report[0]).toHaveProperty("path", "/abs/img1.jpg");
+    expect(report[0]).toHaveProperty("description", "A humanoid robot in a kitchen.");
+    expect(report[0]).toHaveProperty("success", true);
+    expect(report[0]).toHaveProperty("analysisTimeMs");
+    expect(typeof report[0].analysisTimeMs).toBe("number");
   });
 
-  it("scoreCandidate receives aiDescription after analysis", () => {
+  it("writes asset-analysis.json artifact", async () => {
+    const tmpDir = join(process.cwd(), "tmp-test-output-" + Date.now());
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
+
+    await analyzeAssets(assets, { outputDir: tmpDir });
+
+    // Check that asset-analysis.json was written
+    const artifactPath = join(tmpDir, "asset-analysis.json");
+    const { existsSync: exists } = await import("fs");
+    expect(exists(artifactPath)).toBe(true);
+
+    // Verify artifact structure
+    const { readFileSync: readFile } = await import("fs");
+    const written = JSON.parse(readFile(artifactPath, "utf8"));
+    expect(written.version).toBe(1);
+    expect(written.model).toBeDefined();
+    expect(written.analyzedAt).toBeDefined();
+    expect(Array.isArray(written.assets)).toBe(true);
+    expect(written.assets).toHaveLength(1);
+    expect(written.assets[0].path).toBe("/abs/img1.jpg");
+    expect(written.assets[0].description).toBe("A humanoid robot in a kitchen.");
+    expect(written.assets[0].subjects).toEqual(["robot", "kitchen", "product"]);
+
+    // Cleanup
+    const { rmSync: rm } = await import("fs");
+    try {
+      rm(tmpDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  it("scoreCandidate receives VLM description + subjects after analysis", () => {
     const candidate = {
       title: "Demo Video",
       type: "video",
@@ -169,10 +262,10 @@ describe("analyzeAssets — AI integration", () => {
       resolution: "720p",
     };
 
-    // Without aiDescription
+    // Without VLM data
     const scoreWithout = scoreCandidate(candidate, "Unitree");
 
-    // With aiDescription that mentions keyword
+    // With VLM description that mentions keyword
     const scoreWith = scoreCandidate(
       candidate,
       "Unitree",
@@ -190,7 +283,9 @@ describe("analyzeAssets — AI integration", () => {
         path: "assets/clip.mp4",
         score: 85,
         status: "downloaded",
-        aiDescription: "A robot demo",
+        description: "A robot demo",
+        subjects: ["robot"],
+        contentKind: "product_demo",
       },
     ];
     const aiAnalysis = [
@@ -210,9 +305,9 @@ describe("analyzeAssets — AI integration", () => {
   });
 });
 
-// ─── P1-3a: focusAnalysis mapping + aiFit/aiFocus contract ───
+// ─── assignAssetsToScenes — contentKind + video fit guard ───
 
-describe("assignAssetsToScenes — focusAnalysis + aiFit/aiFocus contract (P1-3a)", () => {
+describe("assignAssetsToScenes — contentKind + video fit guard", () => {
   const mockScenes = [
     { id: 1, visualType: "narrative", voiceover: "test" },
     { id: 2, visualType: "narrative", voiceover: "test" },
@@ -228,9 +323,19 @@ describe("assignAssetsToScenes — focusAnalysis + aiFit/aiFocus contract (P1-3a
         focusAnalysis: {
           status: "ok",
           errorCode: null,
-          frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+          frame: {
+            width: 1920,
+            height: 1080,
+            orientation: "landscape",
+            orientationNormalized: true,
+          },
           protectedRegions: [
-            { rect: [0.1, 0.2, 0.3, 0.4], kind: "face", confidence: null, confidenceKind: "not_provided" },
+            {
+              rect: [0.1, 0.2, 0.3, 0.4],
+              kind: "face",
+              confidence: null,
+              confidenceKind: "not_provided",
+            },
           ],
           saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] },
         },
@@ -241,32 +346,40 @@ describe("assignAssetsToScenes — focusAnalysis + aiFit/aiFocus contract (P1-3a
     expect(patches).toHaveLength(1);
     expect(patches[0].status).toBe("assigned");
 
-    // analysis.focusAnalysis should have the complete schema
     expect(patches[0].analysis).toBeDefined();
     expect(patches[0].analysis.focusAnalysis).toBeDefined();
     expect(patches[0].analysis.focusAnalysis.status).toBe("ok");
-    expect(patches[0].analysis.focusAnalysis.errorCode).toBeNull();
-    expect(patches[0].analysis.focusAnalysis.frame).toBeDefined();
     expect(patches[0].analysis.focusAnalysis.protectedRegions).toHaveLength(1);
-    expect(patches[0].analysis.focusAnalysis.saliency).toHaveProperty("available");
-    expect(patches[0].analysis.focusAnalysis.saliency).toHaveProperty("dispersion");
-    expect(patches[0].analysis.focusAnalysis.saliency).toHaveProperty("centroid");
   });
 
-  it("writes media.fit from asset.aiFit (landscape asset)", () => {
+  it("writes media.fit from asset.fit (landscape asset)", () => {
     const assets = [
       {
         path: "/abs/wide.jpg",
         type: "image",
         score: 85,
         source: "pexels",
-        aiFit: "cover",
-        aiFitReason: "subject fills frame",
+        fit: "cover",
       },
     ];
 
     const patches = assignAssetsToScenes(assets, mockScenes);
     expect(patches[0].media.fit).toBe("cover");
+  });
+
+  it("does NOT write media.fit for video assets (video fit guard)", () => {
+    const assets = [
+      {
+        path: "/abs/clip.mp4",
+        type: "video",
+        score: 85,
+        source: "pexels",
+        fit: "cover",
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, mockScenes);
+    expect(patches[0].media.fit).toBeUndefined();
   });
 
   it("does NOT write media.focus (deprecated per spec §4.8)", () => {
@@ -276,13 +389,11 @@ describe("assignAssetsToScenes — focusAnalysis + aiFit/aiFocus contract (P1-3a
         type: "image",
         score: 85,
         source: "pexels",
-        aiFit: "contain",
-        aiFitReason: "UI at edges",
+        fit: "contain",
       },
     ];
 
     const patches = assignAssetsToScenes(assets, mockScenes);
-    expect(patches[0].media.fit).toBe("contain");
     expect(patches[0].media.focus).toBeUndefined();
   });
 

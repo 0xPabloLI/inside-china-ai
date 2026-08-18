@@ -4,10 +4,11 @@
  * TDD: Tests written first (red), implementation second (green).
  *
  * These tests mock child_process.spawn to verify:
- * - Request/response JSON IPC format
+ * - Request/response JSON IPC format (analyze_semantics action)
  * - Subprocess lifecycle (spawn / reuse / respawn / close)
  * - Serial request queuing
  * - Graceful degradation when VLM unavailable
+ * - Focus detector subsystem (unchanged from previous version)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter, PassThrough } from "stream";
@@ -103,232 +104,69 @@ function getFocusProc() {
   return mockProc._focusProc || mockProc;
 }
 
+// ─── Degraded result constant ───
+
+const DEGRADED = {
+  description: "",
+  subjects: [],
+  contentKind: null,
+  fit: null,
+  criticalEdgeText: null,
+  reason: null,
+};
+
 // ─── Tests ───
 
 describe("visual-analyzer module", () => {
   describe("exports", () => {
-    it("exports describeImage, describeVideo, analyzeFit, closeVisualAnalyzer, detectFocus, closeFocusDetector", () => {
-      expect(typeof visualAnalyzer.describeImage).toBe("function");
-      expect(typeof visualAnalyzer.describeVideo).toBe("function");
-      expect(typeof visualAnalyzer.analyzeFit).toBe("function");
+    it("exports analyzeAssetSemantics, closeVisualAnalyzer, detectFocus, closeFocusDetector", () => {
+      expect(typeof visualAnalyzer.analyzeAssetSemantics).toBe("function");
       expect(typeof visualAnalyzer.closeVisualAnalyzer).toBe("function");
       expect(typeof visualAnalyzer.detectFocus).toBe("function");
       expect(typeof visualAnalyzer.closeFocusDetector).toBe("function");
     });
-  });
 
-  describe("parseFitResponse", () => {
-    it("parses valid JSON response", () => {
-      const text = '{"fit": "cover", "focus": "top", "reason": "subject in upper frame"}';
-      const result = visualAnalyzer.parseFitResponse(text);
-      expect(result).toEqual({
-        fit: "cover",
-        focus: "top",
-        reason: "subject in upper frame",
-      });
-    });
-
-    it("parses JSON wrapped in markdown code block", () => {
-      const text = '```json\n{"fit": "contain", "focus": "center", "reason": "text at edges"}\n```';
-      const result = visualAnalyzer.parseFitResponse(text);
-      expect(result.fit).toBe("contain");
-      expect(result.focus).toBe("center");
-    });
-
-    it("parses JSON with extra text around it", () => {
-      const text = 'Here is my analysis:\n{"fit": "cover", "focus": "bottom", "reason": "subject below"}\nHope this helps!';
-      const result = visualAnalyzer.parseFitResponse(text);
-      expect(result.fit).toBe("cover");
-      expect(result.focus).toBe("bottom");
-    });
-
-    it("returns empty object for invalid fit value", () => {
-      const text = '{"fit": "invalid", "focus": "center", "reason": "..."}';
-      const result = visualAnalyzer.parseFitResponse(text);
-      expect(result).toEqual({});
-    });
-
-    it("preserves fit when focus is invalid (spec §4.8: fit required, focus optional)", () => {
-      const text = '{"fit": "cover", "focus": "left", "reason": "..."}';
-      const result = visualAnalyzer.parseFitResponse(text);
-      expect(result).toEqual({ fit: "cover", reason: "..." });
-    });
-
-    it("preserves fit when focus is absent (spec §4.8 regression test)", () => {
-      const text = '{"fit": "cover"}';
-      const result = visualAnalyzer.parseFitResponse(text);
-      expect(result).toEqual({ fit: "cover", reason: "" });
-    });
-
-    it("preserves fit when focus is null", () => {
-      const text = '{"fit": "contain", "focus": null, "reason": "text at edges"}';
-      const result = visualAnalyzer.parseFitResponse(text);
-      expect(result).toEqual({ fit: "contain", reason: "text at edges" });
-    });
-
-    it("returns empty object for empty string", () => {
-      const result = visualAnalyzer.parseFitResponse("");
-      expect(result).toEqual({});
-    });
-
-    it("returns empty object for whitespace-only string", () => {
-      const result = visualAnalyzer.parseFitResponse("   \n  \t ");
-      expect(result).toEqual({});
-    });
-
-    it("returns empty object when no JSON found", () => {
-      const result = visualAnalyzer.parseFitResponse("I cannot analyze this image");
-      expect(result).toEqual({});
-    });
-
-    it("returns empty object for null input", () => {
-      const result = visualAnalyzer.parseFitResponse(null);
-      expect(result).toEqual({});
+    it("does NOT export old APIs (describeImage, describeVideo, analyzeFit, parseFitResponse)", () => {
+      expect(visualAnalyzer.describeImage).toBeUndefined();
+      expect(visualAnalyzer.describeVideo).toBeUndefined();
+      expect(visualAnalyzer.analyzeFit).toBeUndefined();
+      expect(visualAnalyzer.parseFitResponse).toBeUndefined();
     });
   });
 
-  describe("analyzeFit — normal path", () => {
-    it("sends analyze_fit action to Python subprocess", async () => {
-      const promise = visualAnalyzer.analyzeFit("/abs/landscape.jpg");
-      await new Promise((r) => setTimeout(r, 10));
-
-      const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
-      const request = JSON.parse(writtenData.trim());
-
-      expect(request.action).toBe("analyze_fit");
-      expect(request.path).toBe("/abs/landscape.jpg");
-
-      mockProc.emitStdout(
-        JSON.stringify({
-          fit: "cover",
-          focus: "top",
-          reason: "main subject in upper portion",
-          error: null,
-        }) + "\n",
-      );
-
-      const result = await promise;
-      expect(result).toEqual({
-        fit: "cover",
-        focus: "top",
-        reason: "main subject in upper portion",
-      });
-    });
-
-    it("returns object with fit, focus, reason on valid VLM response", async () => {
-      const promise = visualAnalyzer.analyzeFit("/abs/wide.mp4");
-      await new Promise((r) => setTimeout(r, 10));
-
-      mockProc.emitStdout(
-        JSON.stringify({
-          fit: "contain",
-          focus: "center",
-          reason: "UI elements at edges must not be cropped",
-          error: null,
-        }) + "\n",
-      );
-
-      const result = await promise;
-      expect(result.fit).toBe("contain");
-      expect(result.focus).toBe("center");
-      expect(result.reason).toContain("UI elements");
-    });
-  });
-
-  describe("analyzeFit — fit-only response (spec §4.8 decoupling)", () => {
-    it("resolves with fit when VLM returns fit but no focus", async () => {
-      const promise = visualAnalyzer.analyzeFit("/abs/landscape.jpg");
-      await new Promise((r) => setTimeout(r, 10));
-
-      mockProc.emitStdout(
-        JSON.stringify({
-          fit: "cover",
-          focus: null,
-          reason: "",
-          error: null,
-        }) + "\n",
-      );
-
-      const result = await promise;
-      expect(result.fit).toBe("cover");
-      expect(result.reason).toBe("");
-      expect(result.focus).toBeUndefined();
-    });
-
-    it("resolves with fit when VLM returns fit with invalid focus", async () => {
-      const promise = visualAnalyzer.analyzeFit("/abs/wide.jpg");
-      await new Promise((r) => setTimeout(r, 10));
-
-      mockProc.emitStdout(
-        JSON.stringify({
-          fit: "contain",
-          focus: "left",  // invalid — not in top|center|bottom
-          reason: "UI elements",
-          error: null,
-        }) + "\n",
-      );
-
-      const result = await promise;
-      expect(result.fit).toBe("contain");
-      expect(result.reason).toBe("UI elements");
-      expect(result.focus).toBeUndefined();
-    });
-  });
-
-  describe("analyzeFit — degradation", () => {
-    it("returns empty object when VLM returns error", async () => {
-      const promise = visualAnalyzer.analyzeFit("/abs/img.jpg");
-      await new Promise((r) => setTimeout(r, 10));
-
-      mockProc.emitStdout(
-        JSON.stringify({ fit: null, focus: null, reason: "", error: "VLM failed" }) + "\n",
-      );
-
-      const result = await promise;
-      expect(result).toEqual({});
-    });
-
-    it("returns empty object when VLM returns malformed JSON", async () => {
-      const promise = visualAnalyzer.analyzeFit("/abs/img.jpg");
-      await new Promise((r) => setTimeout(r, 10));
-
-      mockProc.emitStdout("This is not JSON at all\n");
-
-      const result = await promise;
-      expect(result).toEqual({});
-    });
-
-    it("returns empty object when spawn returns null (VLM unavailable)", async () => {
-      const { existsSync } = await import("fs");
-      existsSync.mockReturnValue(false);
-
-      const result = await visualAnalyzer.analyzeFit("/abs/img.jpg");
-      expect(result).toEqual({});
-
-      existsSync.mockReturnValue(true);
-    });
-  });
-
-  describe("describeImage — normal path", () => {
+  describe("analyzeAssetSemantics — normal path", () => {
     it("spawns Python subprocess on first call", async () => {
-      const promise = visualAnalyzer.describeImage("/abs/path/to/file.jpg");
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/path/to/file.jpg");
 
       // Wait for spawn to be called
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockSpawn).toHaveBeenCalledTimes(1);
 
-      // Simulate Python response
+      // Simulate Python response with full semantics dict
       mockProc.emitStdout(
-        JSON.stringify({ description: "A robot walking in a lab", error: null }) + "\n",
+        JSON.stringify({
+          description: "A humanoid robot in a kitchen.",
+          subjects: ["robot", "kitchen"],
+          contentKind: "product_demo",
+          fit: "contain",
+          criticalEdgeText: "yes — bottom edge has text",
+          reason: "Bottom edge text would be cropped.",
+          error: null,
+        }) + "\n",
       );
 
       const result = await promise;
-      expect(result).toBe("A robot walking in a lab");
+      expect(result.description).toBe("A humanoid robot in a kitchen.");
+      expect(result.subjects).toEqual(["robot", "kitchen"]);
+      expect(result.contentKind).toBe("product_demo");
+      expect(result.fit).toBe("contain");
+      expect(result.criticalEdgeText).toContain("bottom edge");
+      expect(result.reason).toContain("cropped");
     });
 
-    it("sends correct JSON request to Python subprocess", async () => {
-      const promise = visualAnalyzer.describeImage("/abs/path/to/file.jpg");
+    it("sends analyze_semantics action to Python subprocess", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/path/to/file.jpg");
 
       await new Promise((r) => setTimeout(r, 10));
 
@@ -337,57 +175,117 @@ describe("visual-analyzer module", () => {
       const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
       const request = JSON.parse(writtenData.trim());
 
-      expect(request.action).toBe("describe_image");
+      expect(request.action).toBe("analyze_semantics");
       expect(request.path).toBe("/abs/path/to/file.jpg");
 
-      mockProc.emitStdout(JSON.stringify({ description: "test", error: null }) + "\n");
+      mockProc.emitStdout(JSON.stringify({ ...DEGRADED, description: "test", error: null }) + "\n");
 
       await promise;
     });
 
     it("reuses running process for subsequent calls (no re-spawn)", async () => {
       // First call
-      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
+      const promise1 = visualAnalyzer.analyzeAssetSemantics("/abs/img1.jpg");
       await new Promise((r) => setTimeout(r, 10));
-      mockProc.emitStdout(JSON.stringify({ description: "first", error: null }) + "\n");
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "first", error: null }) + "\n",
+      );
       await promise1;
 
       // Second call — should NOT spawn again
-      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
+      const promise2 = visualAnalyzer.analyzeAssetSemantics("/abs/img2.jpg");
       await new Promise((r) => setTimeout(r, 10));
-      mockProc.emitStdout(JSON.stringify({ description: "second", error: null }) + "\n");
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "second", error: null }) + "\n",
+      );
       await promise2;
 
       expect(mockSpawn).toHaveBeenCalledTimes(1);
     });
-  });
 
-  describe("describeVideo — normal path", () => {
-    it("sends describe_video action for video files", async () => {
-      const promise = visualAnalyzer.describeVideo("/abs/clip.mp4");
+    it("handles video assets (no fit/criticalEdgeText in response)", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/clip.mp4");
       await new Promise((r) => setTimeout(r, 10));
 
-      const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
-      const request = JSON.parse(writtenData.trim());
-
-      expect(request.action).toBe("describe_video");
-      expect(request.path).toBe("/abs/clip.mp4");
-
       mockProc.emitStdout(
-        JSON.stringify({ description: "A robot demonstration", error: null }) + "\n",
+        JSON.stringify({
+          description: "A robot walking in a factory.",
+          subjects: ["robot", "factory"],
+          contentKind: "talking_head",
+          fit: null,
+          criticalEdgeText: null,
+          reason: null,
+          error: null,
+        }) + "\n",
       );
 
       const result = await promise;
-      expect(result).toBe("A robot demonstration");
+      expect(result.description).toBe("A robot walking in a factory.");
+      expect(result.fit).toBeNull();
+      expect(result.criticalEdgeText).toBeNull();
+      expect(result.reason).toBeNull();
+    });
+  });
+
+  describe("analyzeAssetSemantics — degradation", () => {
+    it("returns degraded result when VLM returns error", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout(JSON.stringify({ ...DEGRADED, error: "VLM failed" }) + "\n");
+
+      const result = await promise;
+      expect(result.description).toBe("");
+      expect(result.subjects).toEqual([]);
+      expect(result.fit).toBeNull();
+      expect(result.contentKind).toBeNull();
+    });
+
+    it("returns degraded result when VLM returns malformed JSON", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout("This is not JSON at all\n");
+
+      const result = await promise;
+      expect(result.description).toBe("");
+      expect(result.subjects).toEqual([]);
+    });
+
+    it("returns degraded result when spawn returns null (VLM unavailable)", async () => {
+      const { existsSync } = await import("fs");
+      existsSync.mockReturnValue(false);
+
+      const result = await visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
+      expect(result.description).toBe("");
+      expect(result.subjects).toEqual([]);
+      expect(result.fit).toBeNull();
+
+      existsSync.mockReturnValue(true);
+    });
+
+    it("returns degraded result when Python returns model load error", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, error: "Model load failed: No module named 'mlx_vlm'" }) +
+          "\n",
+      );
+
+      const result = await promise;
+      expect(result.description).toBe("");
     });
   });
 
   describe("process lifecycle — crash + respawn", () => {
     it("detects process exit and respawns on next call", async () => {
       // First call — works
-      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
+      const promise1 = visualAnalyzer.analyzeAssetSemantics("/abs/img1.jpg");
       await new Promise((r) => setTimeout(r, 10));
-      mockProc.emitStdout(JSON.stringify({ description: "first", error: null }) + "\n");
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "first", error: null }) + "\n",
+      );
       await promise1;
 
       expect(mockSpawn).toHaveBeenCalledTimes(1);
@@ -399,19 +297,23 @@ describe("visual-analyzer module", () => {
       const newMockProc = createMockProcess();
       mockSpawn.mockReturnValue(newMockProc);
 
-      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
+      const promise2 = visualAnalyzer.analyzeAssetSemantics("/abs/img2.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockSpawn).toHaveBeenCalledTimes(2);
-      newMockProc.emitStdout(JSON.stringify({ description: "respawned", error: null }) + "\n");
+      newMockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "respawned", error: null }) + "\n",
+      );
       await promise2;
     });
 
     it("respawns after idle timeout (process exits with code 0)", async () => {
       // First call
-      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
+      const promise1 = visualAnalyzer.analyzeAssetSemantics("/abs/img1.jpg");
       await new Promise((r) => setTimeout(r, 10));
-      mockProc.emitStdout(JSON.stringify({ description: "first", error: null }) + "\n");
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "first", error: null }) + "\n",
+      );
       await promise1;
 
       // Simulate idle timeout (graceful exit, code 0)
@@ -421,11 +323,13 @@ describe("visual-analyzer module", () => {
       const newMockProc = createMockProcess();
       mockSpawn.mockReturnValue(newMockProc);
 
-      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
+      const promise2 = visualAnalyzer.analyzeAssetSemantics("/abs/img2.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockSpawn).toHaveBeenCalledTimes(2);
-      newMockProc.emitStdout(JSON.stringify({ description: "after timeout", error: null }) + "\n");
+      newMockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "after timeout", error: null }) + "\n",
+      );
       await promise2;
     });
   });
@@ -433,9 +337,9 @@ describe("visual-analyzer module", () => {
   describe("closeVisualAnalyzer", () => {
     it("sends exit action and kills subprocess", async () => {
       // Start a process first
-      const promise = visualAnalyzer.describeImage("/abs/img.jpg");
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
-      mockProc.emitStdout(JSON.stringify({ description: "test", error: null }) + "\n");
+      mockProc.emitStdout(JSON.stringify({ ...DEGRADED, description: "test", error: null }) + "\n");
       await promise;
 
       // Close
@@ -459,43 +363,41 @@ describe("visual-analyzer module", () => {
   });
 
   describe("graceful degradation — VLM unavailable", () => {
-    it("returns empty string and logs warning when spawn returns null", async () => {
-      // Simulate spawn returning null (e.g., existsSync returns false)
+    it("returns degraded result and logs warning when spawn returns null", async () => {
       const { existsSync } = await import("fs");
       existsSync.mockReturnValue(false);
 
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const result = await visualAnalyzer.describeImage("/abs/img.jpg");
+      const result = await visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
 
-      expect(result).toBe("");
+      expect(result.description).toBe("");
+      expect(result.subjects).toEqual([]);
       expect(warnSpy).toHaveBeenCalled();
 
       warnSpy.mockRestore();
-      // Restore for other tests
       existsSync.mockReturnValue(true);
     });
 
-    it("returns empty string when Python returns error response", async () => {
-      const promise = visualAnalyzer.describeImage("/abs/img.jpg");
+    it("returns degraded result when Python returns error response", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/nonexistent.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(
-        JSON.stringify({ description: "", error: "Model load failed: No module named 'mlx_vlm'" }) +
-          "\n",
+        JSON.stringify({ ...DEGRADED, error: "File not found: /abs/nonexistent.jpg" }) + "\n",
       );
 
       const result = await promise;
-      expect(result).toBe("");
+      expect(result.description).toBe("");
     });
   });
 
   describe("serial request queuing", () => {
     it("processes requests one at a time in order", async () => {
       // Fire 3 calls rapidly
-      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
-      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
-      const promise3 = visualAnalyzer.describeImage("/abs/img3.jpg");
+      const promise1 = visualAnalyzer.analyzeAssetSemantics("/abs/img1.jpg");
+      const promise2 = visualAnalyzer.analyzeAssetSemantics("/abs/img2.jpg");
+      const promise3 = visualAnalyzer.analyzeAssetSemantics("/abs/img3.jpg");
 
       await new Promise((r) => setTimeout(r, 20));
 
@@ -505,9 +407,11 @@ describe("visual-analyzer module", () => {
       expect(req1.path).toBe("/abs/img1.jpg");
 
       // Respond to first
-      mockProc.emitStdout(JSON.stringify({ description: "desc1", error: null }) + "\n");
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "desc1", error: null }) + "\n",
+      );
       const r1 = await promise1;
-      expect(r1).toBe("desc1");
+      expect(r1.description).toBe("desc1");
 
       // Second request should now be written
       await new Promise((r) => setTimeout(r, 10));
@@ -515,9 +419,11 @@ describe("visual-analyzer module", () => {
       const req2 = JSON.parse(mockProc.stdin.write.mock.calls[1][0].toString().trim());
       expect(req2.path).toBe("/abs/img2.jpg");
 
-      mockProc.emitStdout(JSON.stringify({ description: "desc2", error: null }) + "\n");
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "desc2", error: null }) + "\n",
+      );
       const r2 = await promise2;
-      expect(r2).toBe("desc2");
+      expect(r2.description).toBe("desc2");
 
       // Third request
       await new Promise((r) => setTimeout(r, 10));
@@ -525,9 +431,11 @@ describe("visual-analyzer module", () => {
       const req3 = JSON.parse(mockProc.stdin.write.mock.calls[2][0].toString().trim());
       expect(req3.path).toBe("/abs/img3.jpg");
 
-      mockProc.emitStdout(JSON.stringify({ description: "desc3", error: null }) + "\n");
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "desc3", error: null }) + "\n",
+      );
       const r3 = await promise3;
-      expect(r3).toBe("desc3");
+      expect(r3.description).toBe("desc3");
 
       // Only one process spawned
       expect(mockSpawn).toHaveBeenCalledTimes(1);
@@ -535,28 +443,29 @@ describe("visual-analyzer module", () => {
   });
 
   describe("error response from Python", () => {
-    it("returns empty string when Python returns error", async () => {
-      const promise = visualAnalyzer.describeImage("/abs/nonexistent.jpg");
+    it("returns degraded result when Python returns error", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/nonexistent.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(
-        JSON.stringify({ description: "", error: "File not found: /abs/nonexistent.jpg" }) + "\n",
+        JSON.stringify({ ...DEGRADED, error: "File not found: /abs/nonexistent.jpg" }) + "\n",
       );
 
       const result = await promise;
-      expect(result).toBe("");
+      expect(result.description).toBe("");
+      expect(result.subjects).toEqual([]);
     });
   });
 
   describe("unknown action", () => {
-    it("returns empty string for unknown action response", async () => {
-      const promise = visualAnalyzer.describeImage("/abs/img.jpg");
+    it("returns degraded result for unknown action response", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
-      mockProc.emitStdout(JSON.stringify({ description: "", error: "Unknown action: foo" }) + "\n");
+      mockProc.emitStdout(JSON.stringify({ ...DEGRADED, error: "Unknown action: foo" }) + "\n");
 
       const result = await promise;
-      expect(result).toBe("");
+      expect(result.description).toBe("");
     });
   });
 
@@ -584,8 +493,20 @@ describe("visual-analyzer module", () => {
         result: {
           status: "ok",
           errorCode: null,
-          frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
-          protectedRegions: [{ rect: [0.1, 0.2, 0.3, 0.4], kind: "face", confidence: null, confidenceKind: "not_provided" }],
+          frame: {
+            width: 1920,
+            height: 1080,
+            orientation: "landscape",
+            orientationNormalized: true,
+          },
+          protectedRegions: [
+            {
+              rect: [0.1, 0.2, 0.3, 0.4],
+              kind: "face",
+              confidence: null,
+              confidenceKind: "not_provided",
+            },
+          ],
           saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] },
         },
       };
@@ -605,16 +526,23 @@ describe("visual-analyzer module", () => {
       const writtenData = focusProc.stdin.write.mock.calls[0][0].toString();
       const request = JSON.parse(writtenData.trim());
 
-      focusProc.emitStdout(JSON.stringify({
-        requestId: request.requestId,
-        result: {
-          status: "ok",
-          errorCode: null,
-          frame: { width: 1080, height: 1920, orientation: "portrait", orientationNormalized: true },
-          protectedRegions: [],
-          saliency: { available: true, dispersion: 0.02, centroid: [0.4, 0.6] },
-        },
-      }) + "\n");
+      focusProc.emitStdout(
+        JSON.stringify({
+          requestId: request.requestId,
+          result: {
+            status: "ok",
+            errorCode: null,
+            frame: {
+              width: 1080,
+              height: 1920,
+              orientation: "portrait",
+              orientationNormalized: true,
+            },
+            protectedRegions: [],
+            saliency: { available: true, dispersion: 0.02, centroid: [0.4, 0.6] },
+          },
+        }) + "\n",
+      );
 
       const result = await promise;
       expect(result).toHaveProperty("status");
@@ -681,20 +609,36 @@ describe("visual-analyzer module", () => {
       const focusProc = getFocusProc();
 
       // Send a response with a WRONG requestId
-      focusProc.emitStdout(JSON.stringify({
-        requestId: "wrong-id-12345",
-        result: { status: "ok", errorCode: null, frame: null, protectedRegions: [], saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] } },
-      }) + "\n");
+      focusProc.emitStdout(
+        JSON.stringify({
+          requestId: "wrong-id-12345",
+          result: {
+            status: "ok",
+            errorCode: null,
+            frame: null,
+            protectedRegions: [],
+            saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+          },
+        }) + "\n",
+      );
 
       // The promise should NOT resolve yet (still pending)
       // Send the CORRECT response
       const writtenData = focusProc.stdin.write.mock.calls[0][0].toString();
       const request = JSON.parse(writtenData.trim());
 
-      focusProc.emitStdout(JSON.stringify({
-        requestId: request.requestId,
-        result: { status: "ok", errorCode: null, frame: null, protectedRegions: [], saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] } },
-      }) + "\n");
+      focusProc.emitStdout(
+        JSON.stringify({
+          requestId: request.requestId,
+          result: {
+            status: "ok",
+            errorCode: null,
+            frame: null,
+            protectedRegions: [],
+            saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+          },
+        }) + "\n",
+      );
 
       const result = await promise;
       expect(result.status).toBe("ok");
@@ -712,10 +656,18 @@ describe("visual-analyzer module", () => {
       // Respond to the request so it completes
       const writtenData = focusProc.stdin.write.mock.calls[0][0].toString();
       const request = JSON.parse(writtenData.trim());
-      focusProc.emitStdout(JSON.stringify({
-        requestId: request.requestId,
-        result: { status: "ok", errorCode: null, frame: null, protectedRegions: [], saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] } },
-      }) + "\n");
+      focusProc.emitStdout(
+        JSON.stringify({
+          requestId: request.requestId,
+          result: {
+            status: "ok",
+            errorCode: null,
+            frame: null,
+            protectedRegions: [],
+            saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+          },
+        }) + "\n",
+      );
       await promise;
 
       // Close focus detector

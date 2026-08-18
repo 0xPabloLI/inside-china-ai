@@ -2,16 +2,14 @@
  * Visual Analyzer — VLM-powered asset understanding + OpenCV focus detection.
  *
  * Wraps two independent Python subprocesses:
- *   1. vlm_analyzer.py  — mlx-vlm Qwen3-VL-8B (describe/analyzeFit)
+ *   1. vlm_analyzer.py  — mlx-vlm Qwen3-VL-8B (analyzeAssetSemantics)
  *   2. focus_detector.py — OpenCV Haar Cascade + Saliency (detectFocus)
  *
  * API:
- *   describeImage(imagePath)  -> Promise<string>
- *   describeVideo(videoPath)  -> Promise<string>
- *   analyzeFit(assetPath)     -> Promise<{fit, focus, reason}>
- *   detectFocus(assetPath)    -> Promise<FocusResult>       ← NEW
- *   closeFocusDetector()      -> Promise<void>              ← NEW
- *   closeVisualAnalyzer()     -> Promise<void>  (closes both)
+ *   analyzeAssetSemantics(assetPath) -> Promise<AssetSemantics>
+ *   detectFocus(assetPath)          -> Promise<FocusResult>
+ *   closeFocusDetector()            -> Promise<void>
+ *   closeVisualAnalyzer()           -> Promise<void>  (closes both)
  *
  * Lifecycle:
  *   - Each subprocess spawns on first call, reuses for subsequent calls.
@@ -21,7 +19,7 @@
  *   - closeVisualAnalyzer() sends exit + kills both subprocesses.
  *
  * Graceful degradation:
- *   - VLM: Python not found / model load fails -> warn + return "".
+ *   - VLM: Python not found / model load fails -> warn + return degraded AssetSemantics.
  *   - Focus: NEVER rejects. Returns schema-complete degraded result.
  *
  * @module visual-analyzer
@@ -45,6 +43,21 @@ const PYTHON_BIN = join(HOME, ".video-tts-env", "bin", "python3");
 
 const RESPONSE_TIMEOUT_MS = 180_000; // 180s per VLM asset (video analysis can take 100s+)
 const FOCUS_RESPONSE_TIMEOUT_MS = 10_000; // 10s per focus detection (target <1s)
+
+// ─── Degraded result ───
+
+/**
+ * Schema-complete degraded result for VLM analysis failures.
+ * Used when Python is unavailable, returns error, or produces malformed output.
+ */
+const DEGRADED_RESULT = Object.freeze({
+  description: "",
+  subjects: [],
+  contentKind: null,
+  fit: null,
+  criticalEdgeText: null,
+  reason: null,
+});
 
 // ─── Module state ───
 
@@ -116,11 +129,11 @@ function spawnPython() {
     pythonProc = null;
     vlmAvailable = null; // reset: next call will retry
 
-    // If a request is being processed, resolve it with empty
+    // If a request is being processed, resolve it with degraded result
     if (processing && requestQueue.length > 0) {
       const req = requestQueue.shift();
       processing = false;
-      req.resolve(req.isFit ? {} : "");
+      req.resolve({ ...DEGRADED_RESULT });
     }
 
     processing = false;
@@ -136,7 +149,7 @@ function spawnPython() {
     if (processing && requestQueue.length > 0) {
       const req = requestQueue.shift();
       processing = false;
-      req.resolve(req.isFit ? {} : "");
+      req.resolve({ ...DEGRADED_RESULT });
     }
 
     processQueue();
@@ -166,6 +179,10 @@ function ensureProcess() {
 
 /**
  * Handle a response line from Python subprocess.
+ *
+ * Parses JSON response. If response has an error field, resolves with
+ * degraded result. Otherwise resolves with the response object (minus
+ * the error field, which is removed if null).
  */
 function handleResponse(line) {
   if (requestQueue.length === 0) return;
@@ -178,7 +195,8 @@ function handleResponse(line) {
   try {
     response = JSON.parse(line);
   } catch {
-    resolve(request.isFit ? {} : "");
+    // Malformed JSON — resolve with degraded result
+    resolve({ ...DEGRADED_RESULT });
     processQueue();
     return;
   }
@@ -187,21 +205,11 @@ function handleResponse(line) {
 
   if (response.error) {
     console.warn(`AI analysis error: ${response.error}`);
-    resolve(request.isFit ? {} : "");
-  } else if (request.isFit) {
-    // analyze_fit: Python returns {fit, focus, reason, error: null}
-    // or {description: "<JSON string>", error: null} as fallback
-    // Spec §4.8: fit is required, focus is optional — resolve as long as fit is present
-    if (response.fit) {
-      resolve(parseFitResponse(
-        JSON.stringify({ fit: response.fit, focus: response.focus, reason: response.reason || "" })
-      ));
-    } else {
-      // Fallback: try parsing from description field
-      resolve(parseFitResponse(response.description || ""));
-    }
+    resolve({ ...DEGRADED_RESULT });
   } else {
-    resolve(response.description || "");
+    // Remove error field (null) and resolve with the rest
+    const { error: _error, ...result } = response;
+    resolve(result);
   }
 
   processQueue();
@@ -216,7 +224,7 @@ function processQueue() {
   if (!ensureProcess()) {
     while (requestQueue.length > 0) {
       const req = requestQueue.shift();
-      req.resolve(req.isFit ? {} : "");
+      req.resolve({ ...DEGRADED_RESULT });
     }
     return;
   }
@@ -234,7 +242,7 @@ function processQueue() {
   } catch (_err) {
     requestQueue.shift();
     processing = false;
-    request.resolve(request.isFit ? {} : "");
+    request.resolve({ ...DEGRADED_RESULT });
     processQueue();
     return;
   }
@@ -244,120 +252,40 @@ function processQueue() {
     if (processing && requestQueue.length > 0 && requestQueue[0] === request) {
       requestQueue.shift();
       processing = false;
-      request.resolve(request.isFit ? {} : "");
+      request.resolve({ ...DEGRADED_RESULT });
       processQueue();
     }
   }, RESPONSE_TIMEOUT_MS);
 }
 
-// ─── Fit analysis ───
-
-const VALID_FITS = ["cover", "contain"];
-const VALID_FOCUSES = ["top", "center", "bottom"];
-
-/**
- * Parse a VLM response for analyze_fit.
- *
- * Extracts {fit, focus, reason} from the raw text. Handles:
- * - Plain JSON
- * - JSON wrapped in markdown code blocks
- * - JSON with extra text around it
- *
- * Validates fit ∈ {cover, contain} and focus ∈ {top, center, bottom}.
- * Returns {} on any parse/validation failure.
- *
- * @param {string|null} text - Raw VLM response text.
- * @returns {{fit?: string, focus?: string, reason?: string}}
- */
-export function parseFitResponse(text) {
-  if (!text || typeof text !== "string" || !text.trim()) {
-    return {};
-  }
-
-  // Try direct JSON.parse first
-  let parsed = null;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    // Try regex extraction of JSON object
-    const match = text.match(/\{[^}]+\}/);
-    if (match) {
-      try {
-        parsed = JSON.parse(match[0]);
-      } catch {
-        return {};
-      }
-    }
-  }
-
-  if (!parsed || typeof parsed !== "object") {
-    return {};
-  }
-
-  const fit = parsed.fit;
-  const focus = parsed.focus;
-  const reason = parsed.reason || "";
-
-  if (!fit || !VALID_FITS.includes(fit)) {
-    return {};
-  }
-
-  // Spec §4.8: fit is required, focus is optional.
-  // Only include focus when it's valid (top|center|bottom); otherwise omit it.
-  if (focus && VALID_FOCUSES.includes(focus)) {
-    return { fit, focus, reason };
-  }
-  return { fit, reason };
-}
-
 // ─── Public API ───
 
 /**
- * Describe an image using the VLM.
+ * Analyze an asset (image or video) using the VLM in a single call.
  *
- * @param {string} imagePath - Absolute path to the image file.
- * @returns {Promise<string>} Description (1-2 sentences) or empty string on failure.
- */
-export function describeImage(imagePath) {
-  return new Promise((resolve, reject) => {
-    requestQueue.push({ resolve, reject, action: "describe_image", path: imagePath });
-    processQueue();
-  });
-}
-
-/**
- * Describe a video using the VLM.
+ * Sends an `analyze_semantics` action to the Python subprocess. The VLM
+ * examines the asset and returns a structured object with:
+ * - description (string)
+ * - subjects (string[])
+ * - contentKind (string)
+ * - fit ("cover" | "contain" | null) — images only, null for videos
+ * - criticalEdgeText (string | null) — images only
+ * - reason (string | null) — images only
  *
- * @param {string} videoPath - Absolute path to the video file.
- * @returns {Promise<string>} Description (1-2 sentences) or empty string on failure.
- */
-export function describeVideo(videoPath) {
-  return new Promise((resolve, reject) => {
-    requestQueue.push({ resolve, reject, action: "describe_video", path: videoPath });
-    processQueue();
-  });
-}
-
-/**
- * Analyze a landscape asset for fit/focus in a 9:16 canvas.
- *
- * Sends an analyze_fit action to the Python subprocess. The VLM examines
- * the asset and returns {fit, focus, reason} describing how to place it
- * in a vertical canvas.
+ * On any failure (VLM unavailable, parse error, timeout), resolves with
+ * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
- * @returns {Promise<{fit?: string, focus?: string, reason?: string}>}
- *   Parsed object on success, {} on failure (VLM unavailable, parse error).
+ * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
+ *   fit: string|null, criticalEdgeText: string|null, reason: string|null}>}
  */
-export function analyzeFit(assetPath) {
+export function analyzeAssetSemantics(assetPath) {
   return new Promise((resolve, reject) => {
     requestQueue.push({
       resolve,
       reject,
-      action: "analyze_fit",
+      action: "analyze_semantics",
       path: assetPath,
-      // Custom resolver: parse fit response instead of returning raw string
-      isFit: true,
     });
     processQueue();
   });

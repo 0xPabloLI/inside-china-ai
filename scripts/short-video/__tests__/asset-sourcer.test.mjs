@@ -9,6 +9,7 @@ import { unlinkSync, rmdirSync } from "fs";
 import {
   extractKeywords,
   scoreCandidate,
+  preFilterCandidate,
   recommendScene,
   buildFilename,
   slugifyKeyword,
@@ -85,7 +86,10 @@ describe("extractKeywords", () => {
 // ─── scoreCandidate ───
 
 describe("scoreCandidate", () => {
-  it("scores exact keyword match in title as 40", () => {
+  // New rebalanced weights: title 0-28, duration 0-18, size 0-14, resolution 0-10, AI 0-30
+  // Technical max = 70, AI max = 30, total max = 100
+
+  it("scores exact keyword match in title as 28", () => {
     const candidate = {
       title: "Unitree H1 Robot Demo",
       type: "video",
@@ -94,7 +98,8 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    expect(score).toBeGreaterThanOrEqual(40);
+    // 28 (title) + 18 (dur 3-8s) + 14 (size<20M) + 7 (720p) = 67
+    expect(score).toBe(67);
   });
 
   it("scores 0 match points when keyword not in title (with resolution)", () => {
@@ -106,20 +111,18 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // No "Unitree" in title → 0 match points, but duration+size+resolution add up
-    // 0 (match) + 25 (duration) + 20 (size) + 10 (res) = 55
-    expect(score).toBe(55);
+    // 0 (title) + 18 (dur) + 14 (size) + 7 (res) = 39
+    expect(score).toBe(39);
   });
 
   it("scores 0 match points when keyword not in title (no resolution)", () => {
     const candidate = { title: "Cooking Tutorial", type: "video", duration: 6, fileSize: 5000000 };
     const score = scoreCandidate(candidate, "Unitree");
-    // keyword not in title, but duration/size may add points
-    // match portion should be 0
-    expect(score).toBeLessThanOrEqual(60); // 25+20+15 max from other dims
+    // 0 (title) + 18 (dur) + 14 (size) + 0 (no res) = 32
+    expect(score).toBe(32);
   });
 
-  it("scores video 3-8s duration as 25", () => {
+  it("scores video 3-8s duration as 18", () => {
     const candidate = {
       title: "Unitree",
       type: "video",
@@ -128,11 +131,11 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 (match) + 25 (duration) + 20 (size) + 10 (res) = 95
-    expect(score).toBe(95);
+    // 28 (title) + 18 (dur) + 14 (size) + 7 (res) = 67
+    expect(score).toBe(67);
   });
 
-  it("scores video >60s duration as 5", () => {
+  it("scores video >60s duration as 3", () => {
     const candidate = {
       title: "Unitree",
       type: "video",
@@ -141,18 +144,18 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 5 + 20 + 10 = 75
-    expect(score).toBe(75);
+    // 28 (title) + 3 (dur) + 14 (size) + 7 (res) = 52
+    expect(score).toBe(52);
   });
 
-  it("scores image as 20 duration points (fixed)", () => {
+  it("scores image as 14 duration points (fixed)", () => {
     const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "1080p" };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 20 + 20 + 15 = 95
-    expect(score).toBe(95);
+    // 28 (title) + 14 (image dur) + 14 (size<5M) + 10 (1080p) = 66
+    expect(score).toBe(66);
   });
 
-  it("scores video <20MB as 20 size points", () => {
+  it("scores video <20MB as 14 size points", () => {
     const candidate = {
       title: "Unitree",
       type: "video",
@@ -161,7 +164,8 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    expect(score).toBe(95);
+    // 28 + 18 + 14 + 7 = 67
+    expect(score).toBe(67);
   });
 
   it("scores video >50MB as 0 size points", () => {
@@ -173,22 +177,36 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 25 + 0 + 10 = 75
-    expect(score).toBe(75);
+    // 28 + 18 + 0 + 7 = 53
+    expect(score).toBe(53);
   });
 
-  it("scores resolution >=1080p as 15", () => {
+  it("scores resolution >=1080p as 10", () => {
     const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "1080p" };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 20 + 20 + 15 = 95
-    expect(score).toBe(95);
+    // 28 + 14 + 14 + 10 = 66
+    expect(score).toBe(66);
+  });
+
+  it("scores 4K resolution case-insensitive (Issue #44 P3 fix)", () => {
+    const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "4K" };
+    const score = scoreCandidate(candidate, "Unitree");
+    // 28 + 14 + 14 + 10 = 66
+    expect(score).toBe(66);
+  });
+
+  it("scores 2160 resolution correctly", () => {
+    const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "2160p" };
+    const score = scoreCandidate(candidate, "Unitree");
+    // 28 + 14 + 14 + 10 = 66
+    expect(score).toBe(66);
   });
 
   it("scores unknown resolution as 0", () => {
     const candidate = { title: "Unitree", type: "image", fileSize: 2000000 };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 20 + 20 + 0 = 80
-    expect(score).toBe(80);
+    // 28 + 14 + 14 + 0 = 56
+    expect(score).toBe(56);
   });
 
   it("caps score at 100", () => {
@@ -199,12 +217,25 @@ describe("scoreCandidate", () => {
       fileSize: 5000000,
       resolution: "1080p",
     };
-    const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 25 + 20 + 15 = 100
-    expect(score).toBeLessThanOrEqual(100);
+    const score = scoreCandidate(candidate, "Unitree", "Unitree robot in lab");
+    // 28 + 18 + 14 + 10 = 70 technical + 30 AI (boundary match) = 100
+    expect(score).toBe(100);
   });
 
-  // ─── AI description scoring (Ticket 03) ───
+  it("near-100 base score with AI still capped at 100 (Issue #44 P1 cap fix)", () => {
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "1080p",
+    };
+    // 28 + 18 + 14 + 10 = 70 technical + 30 AI = 100
+    const score = scoreCandidate(candidate, "Unitree", "Unitree humanoid robot");
+    expect(score).toBe(100);
+  });
+
+  // ─── AI description scoring (Issue #44 rebalanced) ───
 
   it("adds content score when aiDescription is present and matches keyword", () => {
     const candidate = {
@@ -214,9 +245,9 @@ describe("scoreCandidate", () => {
       fileSize: 5000000,
       resolution: "720p",
     };
-    // Without aiDescription: 0 (match) + 25 + 20 + 10 = 55
+    // Without aiDescription: 0 (title) + 18 + 14 + 7 = 39
     const scoreNoAI = scoreCandidate(candidate, "Unitree");
-    expect(scoreNoAI).toBe(55);
+    expect(scoreNoAI).toBe(39);
 
     // With aiDescription that mentions "Unitree" → should score higher
     const scoreWithAI = scoreCandidate(
@@ -224,6 +255,8 @@ describe("scoreCandidate", () => {
       "Unitree",
       "A Unitree humanoid robot walking in a lab",
     );
+    // boundary match: subjects(20) + description(10) = 30 → 39 + 30 = 69
+    expect(scoreWithAI).toBe(69);
     expect(scoreWithAI).toBeGreaterThan(scoreNoAI);
   });
 
@@ -275,7 +308,7 @@ describe("scoreCandidate", () => {
       fileSize: 5000000,
       resolution: "1080p",
     };
-    // Base score: 40 (match) + 25 (dur) + 20 (size) + 15 (res) = 100
+    // Base technical: 28 + 18 + 14 + 10 = 70
     // Even with a matching aiDescription, total should not exceed 100
     const score = scoreCandidate(
       candidate,
@@ -285,27 +318,6 @@ describe("scoreCandidate", () => {
     expect(score).toBeLessThanOrEqual(100);
   });
 
-  it("content score from aiDescription is additive to keyword match", () => {
-    const candidate = {
-      title: "Unitree Robot",
-      type: "video",
-      duration: 5,
-      fileSize: 5000000,
-      resolution: "720p",
-    };
-    // Base: 40 (match) + 25 (dur) + 20 (size) + 10 (res) = 95
-    const scoreNoAI = scoreCandidate(candidate, "Unitree");
-    expect(scoreNoAI).toBe(95);
-
-    // With matching aiDescription → adds content points, capped at 100
-    const scoreWithAI = scoreCandidate(
-      candidate,
-      "Unitree",
-      "Unitree humanoid robot walking in lab",
-    );
-    expect(scoreWithAI).toBe(100); // 95 + 5 min → capped at 100
-  });
-
   it("handles aiDescription with multiple keyword matches", () => {
     const candidate = {
       title: "Demo Video",
@@ -313,19 +325,120 @@ describe("scoreCandidate", () => {
       fileSize: 2000000,
       resolution: "1080p",
     };
-    // Base: 0 (match) + 20 (image) + 20 (size) + 15 (res) = 55
+    // Base: 0 (title) + 14 (image) + 14 (size) + 10 (res) = 38
     const scoreNoAI = scoreCandidate(candidate, "Unitree");
-    expect(scoreNoAI).toBe(55);
+    expect(scoreNoAI).toBe(38);
 
-    // aiDescription with multiple keyword-relevant words
+    // aiDescription with boundary-matched keyword
     const scoreWithAI = scoreCandidate(
       candidate,
       "Unitree",
       "Unitree H1 humanoid robot performing a walking demonstration in a tech lab",
     );
+    // subjects(20) + description(10) = 30 → 38 + 30 = 68
+    expect(scoreWithAI).toBe(68);
     expect(scoreWithAI).toBeGreaterThan(scoreNoAI);
-    // Should have "unitree" matching → content score > 0
-    expect(scoreWithAI).toBeLessThanOrEqual(85); // 55 + up to 30
+  });
+
+  // ─── Boundary matching tests (Issue #44 P2) ───
+
+  it("does NOT match keyword 'AI' inside 'train' (boundary matching)", () => {
+    const candidate = {
+      title: "Train arriving at station",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "AI", "A train arriving at a station");
+    // 'AI' should NOT match 'train' → 0 relevance + title 0 + 18 + 14 + 7 = 39
+    expect(score).toBe(39);
+  });
+
+  it("does NOT match keyword 'AI' inside 'painting' (boundary matching)", () => {
+    const candidate = {
+      title: "Painting exhibition",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "AI", "A painting at an exhibition");
+    // 0 + 18 + 14 + 7 = 39
+    expect(score).toBe(39);
+  });
+
+  it("matches keyword with hyphen normalization (Unitree-H1 → Unitree)", () => {
+    const candidate = {
+      title: "Unitree-H1 Robot Demo",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "Unitree");
+    // 'unitree' boundary-matches in 'unitree h1 robot demo' after hyphen→space
+    // 28 + 18 + 14 + 7 = 67
+    expect(score).toBe(67);
+  });
+
+  it("matches CJK keywords with includes() (no word boundaries)", () => {
+    const candidate = {
+      title: "宇树科技人形机器人",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "宇树");
+    // 28 (CJK match) + 18 + 14 + 7 = 67
+    expect(score).toBe(67);
+  });
+});
+
+// ─── preFilterCandidate ───
+
+describe("preFilterCandidate", () => {
+  it("marks good asset as not lowConfidence", () => {
+    const candidate = {
+      title: "Unitree Robot Demo",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 28 + 18 + 14 + 7 = 67 → not low confidence
+    expect(result.technicalScore).toBe(67);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("marks garbage asset as lowConfidence (below threshold 30)", () => {
+    const candidate = {
+      title: "Random video",
+      type: "video",
+      duration: 120,
+      fileSize: 60000000,
+      // no resolution
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 + 3 + 0 + 0 = 3 → low confidence
+    expect(result.technicalScore).toBe(3);
+    expect(result.lowConfidence).toBe(true);
+  });
+
+  it("marks borderline asset correctly (score near 30)", () => {
+    const candidate = {
+      title: "Cooking Tutorial",
+      type: "video",
+      duration: 6,
+      fileSize: 5000000,
+      // no resolution
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 + 18 + 14 + 0 = 32 → not low confidence
+    expect(result.technicalScore).toBe(32);
+    expect(result.lowConfidence).toBe(false);
   });
 });
 
@@ -1412,7 +1525,7 @@ describe("assignAssetsToScenes", () => {
   it("assigns to hook scene when score>=60 and fit=cover", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
     const assets = [makeAsset("a1.jpg", "image", 90)];
-    assets[0].aiFit = "cover";
+    assets[0].fit = "cover";
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.filter((r) => r.status === "assigned");
     expect(assigned).toHaveLength(1);
@@ -1422,7 +1535,7 @@ describe("assignAssetsToScenes", () => {
   it("does NOT assign to hook when score < 60", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
     const assets = [makeAsset("a1.jpg", "image", 50)];
-    assets[0].aiFit = "cover";
+    assets[0].fit = "cover";
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.filter((r) => r.status === "assigned");
     expect(assigned).toHaveLength(1);
@@ -1432,7 +1545,7 @@ describe("assignAssetsToScenes", () => {
   it("does NOT assign to hook when fit=contain (leaves for narrative)", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
     const assets = [makeAsset("a1.jpg", "image", 90)];
-    assets[0].aiFit = "contain";
+    assets[0].fit = "contain";
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.filter((r) => r.status === "assigned");
     expect(assigned).toHaveLength(1);
@@ -1452,7 +1565,7 @@ describe("assignAssetsToScenes", () => {
   it("hook assignment uses ken-burns animation and overlay 0.5", () => {
     const scenes = [makeScene(1, "hook")];
     const assets = [makeAsset("a1.jpg", "image", 90)];
-    assets[0].aiFit = "cover";
+    assets[0].fit = "cover";
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("ken-burns");

@@ -22,6 +22,10 @@ export interface MediaField {
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;
   volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
+  /** VLM content classification (P3). Used by recommendScene for scene-type matching. */
+  contentKind?: "product_demo" | "talking_head" | "landscape" | "chart" | "text_screenshot" | "other" | string;
+  /** VLM key subject terms (P3). Used for semantic scoring in scoreCandidate. */
+  subjects?: string[];
 }
 
 /** Texts object — varies by visualType, all fields optional. */

@@ -113,108 +113,212 @@ export function extractKeywords(scenes, meta, cliKeywords) {
 }
 
 /**
- * Score a candidate asset (0-100).
+ * Compute the technical (non-AI) score for a candidate.
  *
- * Score = keyword match (0-40) + duration fitness (0-25) + size fitness (0-20)
- *         + resolution bonus (0-15) + content match (0-30, from aiDescription)
- *
- * When aiDescription is absent or empty, behaves identically to the original
- * implementation (backward compatible).
+ * Components:
+ *   title match (0-28) + duration fitness (0-18) + size fitness (0-14) + resolution (0-10)
+ *   = technical 0-70
  *
  * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
  * @param {string} keyword - Search keyword
+ * @returns {{technicalScore: number, titleScore: number, durationScore: number, sizeScore: number, resolutionScore: number}}
+ */
+function computeTechnicalScore(candidate, keyword) {
+  let titleScore = 0;
+  let durationScore = 0;
+  let sizeScore = 0;
+  let resolutionScore = 0;
+
+  // Title match (0-28) with boundary matching (Issue #44 P2)
+  const title = (candidate.title || "").toLowerCase();
+  const kw = keyword.toLowerCase();
+  if (hasBoundaryMatch(title, kw)) {
+    titleScore = 28; // exact keyword in title (boundary-matched)
+  } else if (kw.length > 3 && hasBoundaryMatch(title, kw.substring(0, Math.min(kw.length, 5)))) {
+    titleScore = 14; // partial match
+  }
+
+  // Duration fitness (0-18)
+  if (candidate.type === "image") {
+    durationScore = 14; // images get fixed 14
+  } else if (typeof candidate.duration === "number") {
+    if (candidate.duration >= 3 && candidate.duration <= 8) {
+      durationScore = 18;
+    } else if (candidate.duration > 8 && candidate.duration <= 15) {
+      durationScore = 10;
+    } else if (candidate.duration > 60) {
+      durationScore = 3;
+    } else {
+      durationScore = 3; // <3s
+    }
+  } else {
+    durationScore = 3; // unknown duration
+  }
+
+  // File size fitness (0-14)
+  const size = candidate.fileSize;
+  if (typeof size === "number") {
+    if (candidate.type === "image") {
+      if (size < 5_000_000) sizeScore = 14;
+      else if (size < 10_000_000) sizeScore = 7;
+    } else {
+      if (size < 20_000_000) sizeScore = 14;
+      else if (size < 50_000_000) sizeScore = 7;
+    }
+  }
+
+  // Resolution bonus (0-10) — case-insensitive (Issue #44 P3 fix)
+  const res = candidate.resolution;
+  if (res) {
+    const resLower = String(res).toLowerCase();
+    if (resLower.includes("1080") || resLower.includes("4k") || resLower.includes("2160")) {
+      resolutionScore = 10;
+    } else if (resLower.includes("720")) {
+      resolutionScore = 7;
+    } else {
+      resolutionScore = 3;
+    }
+  }
+
+  const technicalScore = titleScore + durationScore + sizeScore + resolutionScore;
+  return { technicalScore, titleScore, durationScore, sizeScore, resolutionScore };
+}
+
+/**
+ * Score a candidate asset (0-100).
+ *
+ * Score = title match (0-28) + duration fitness (0-18) + size fitness (0-14)
+ *         + resolution bonus (0-10) + AI relevance (0-30)
+ *         = technical (0-70) + relevance (0-30) = 0-100
+ *
+ * Issue #44 fixes:
+ * - P1: Rebalanced so non-AI = 70, AI relevance = 30 (real influence, not capped)
+ * - P1: searchKeyword provenance preserved by caller
+ * - P2: Boundary matching (punctuation normalization, token/phrase boundaries)
+ * - P3: 4K case-insensitive (String(res).toLowerCase())
+ *
+ * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
+ * @param {string} keyword - Search keyword (should be candidate.searchKeyword)
  * @param {string} [aiDescription] - Optional VLM-generated content description
  * @returns {number} Score 0-100
  */
 export function scoreCandidate(candidate, keyword, aiDescription) {
-  let score = 0;
+  // ── Technical score (0-70) ──
+  const { technicalScore } = computeTechnicalScore(candidate, keyword);
 
-  // Keyword match in title (0-40)
-  const title = (candidate.title || "").toLowerCase();
-  const kw = keyword.toLowerCase();
-  if (title.includes(kw)) {
-    score += 40; // exact keyword in title
-  } else if (kw.length > 3 && title.includes(kw.substring(0, Math.min(kw.length, 5)))) {
-    score += 20; // partial match
-  }
+  // ── AI relevance score (0-30) ──
+  let relevanceScore = 0;
 
-  // Duration fitness (0-25)
-  if (candidate.type === "image") {
-    score += 20; // images get fixed 20
-  } else if (typeof candidate.duration === "number") {
-    if (candidate.duration >= 3 && candidate.duration <= 8) {
-      score += 25;
-    } else if (candidate.duration > 8 && candidate.duration <= 15) {
-      score += 15;
-    } else if (candidate.duration > 60) {
-      score += 5;
-    } else {
-      score += 5; // <3s
-    }
-  } else {
-    score += 5; // unknown duration
-  }
-
-  // File size fitness (0-20)
-  const size = candidate.fileSize;
-  if (typeof size === "number") {
-    if (candidate.type === "image") {
-      if (size < 5_000_000) score += 20;
-      else if (size < 10_000_000) score += 10;
-    } else {
-      if (size < 20_000_000) score += 20;
-      else if (size < 50_000_000) score += 10;
-    }
-  }
-
-  // Resolution bonus (0-15)
-  const res = candidate.resolution;
-  if (res) {
-    if (res.includes("1080") || res.includes("4k") || res.includes("2160")) {
-      score += 15;
-    } else if (res.includes("720")) {
-      score += 10;
-    } else {
-      score += 5;
-    }
-  }
-
-  // Content match from AI description (0-30)
-  // When aiDescription is present, compute token overlap with keyword.
-  // Simple token overlap: lowercase both, split into words, count matches.
   if (aiDescription && typeof aiDescription === "string" && aiDescription.trim()) {
-    const descTokens = new Set(
-      aiDescription
-        .toLowerCase()
-        .split(/[\s,.!?;:()'"/]+/)
-        .filter((t) => t.length > 2),
-    );
-    // Also tokenize the keyword (may be multi-word like "Unitree H1")
-    const kwTokens = keyword
-      .toLowerCase()
-      .split(/[\s]+/)
-      .filter((t) => t.length > 2);
-
-    // Count how many keyword tokens appear in the description
-    let matchCount = 0;
-    for (const kwt of kwTokens) {
-      if (descTokens.has(kwt)) matchCount++;
-    }
-
-    // Also check if the full keyword string appears in the description
     const descLower = aiDescription.toLowerCase();
     const kwLower = keyword.toLowerCase();
-    const fullMatch = descLower.includes(kwLower);
 
-    // Score: full keyword match → 20, per-token match → 10 each, capped at 30
-    let contentScore = 0;
-    if (fullMatch) contentScore += 20;
-    contentScore += matchCount * 10;
-    contentScore = Math.min(contentScore, 30);
-    score += contentScore;
+    // Subjects match: check if keyword appears in description with boundary matching (0-20)
+    if (hasBoundaryMatch(descLower, kwLower)) {
+      relevanceScore += 20;
+    } else {
+      // Per-token match: tokenize keyword, check each against description
+      const kwTokens = normalizeTokens(kwLower);
+      let matchCount = 0;
+      for (const token of kwTokens) {
+        if (hasBoundaryMatch(descLower, token)) {
+          matchCount++;
+        }
+      }
+      relevanceScore += matchCount * 10;
+    }
+
+    // Description match: keyword appears in description with boundary (0-10)
+    // Full-phrase bonus only on boundary match (Issue #44 P2)
+    if (hasBoundaryMatch(descLower, kwLower)) {
+      relevanceScore += 10;
+    }
+
+    relevanceScore = Math.min(relevanceScore, 30);
   }
 
-  return Math.min(score, 100);
+  return Math.min(technicalScore + relevanceScore, 100);
+}
+
+/**
+ * Pre-filter gate: assets with technicalScore < threshold are marked lowConfidence.
+ *
+ * Only marks lowConfidence when there's enough metadata to make a confident
+ * decision. If the asset has no title or keyword, we don't have enough
+ * information to judge — let VLM analyze it (soft gate, spec §3).
+ *
+ * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
+ * @param {string} keyword - Search keyword
+ * @returns {{technicalScore: number, lowConfidence: boolean}}
+ */
+export function preFilterCandidate(candidate, keyword) {
+  const { technicalScore } = computeTechnicalScore(candidate, keyword);
+  const PREFILTER_THRESHOLD = 30;
+
+  // Only apply the gate when we have enough signal to judge:
+  // - keyword must be present (otherwise can't score title match)
+  // - candidate must have a title (otherwise titleScore=0 is not informative)
+  const hasEnoughSignal = !!keyword && !!candidate.title;
+  const lowConfidence = hasEnoughSignal && technicalScore < PREFILTER_THRESHOLD;
+
+  return {
+    technicalScore,
+    lowConfidence,
+  };
+}
+
+// ─── Boundary matching helpers (Issue #44 P2) ───
+
+/**
+ * Normalize punctuation in text for matching.
+ * Converts hyphens to spaces, removes possessive apostrophes.
+ *
+ * @param {string} text
+ * @returns {string} Normalized text
+ */
+function normalizePunctuation(text) {
+  return text.replace(/[''\u2019]/g, "").replace(/[-]/g, " ");
+}
+
+/**
+ * Tokenize text into words (for Latin) or keep as-is (for CJK).
+ *
+ * @param {string} text - Already-lowercased text
+ * @returns {string[]} Token array
+ */
+function normalizeTokens(text) {
+  const normalized = normalizePunctuation(text);
+  return normalized.split(/[\s,.!?;:()'"/]+/).filter((t) => t.length > 0);
+}
+
+/**
+ * Check if keyword appears in text with proper token/phrase boundaries.
+ *
+ * For Latin text: checks that the match is surrounded by non-alphanumeric chars
+ * (or start/end of string). Prevents "AI" matching "train" or "painting".
+ *
+ * For CJK text: uses includes() directly (no word boundaries in CJK).
+ *
+ * @param {string} text - The text to search in (already lowercased)
+ * @param {string} keyword - The keyword to search for (already lowercased)
+ * @returns {boolean}
+ */
+function hasBoundaryMatch(text, keyword) {
+  if (!text || !keyword) return false;
+
+  const normalizedText = normalizePunctuation(text);
+  const normalizedKeyword = normalizePunctuation(keyword);
+
+  // Check if keyword contains CJK characters — use includes() for CJK
+  if (/[\u4e00-\u9fff\u3040-\u30ff]/.test(keyword)) {
+    return normalizedText.includes(normalizedKeyword);
+  }
+
+  // Latin text: use word boundary matching
+  // Escape regex special chars in the keyword
+  const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(?:^|[\\s,.!?;:()'"/])${escaped}(?:$|[\\s,.!?;:()'"/])`);
+  return regex.test(normalizedText);
 }
 
 /**
@@ -335,9 +439,9 @@ export function assignAssetsToScenes(assets, scenes) {
       if (scene.visualType !== "hook") continue;
       if (scene.media) continue;
 
-      // Hook gate: score >= 60 AND aiFit === "cover"
+      // Hook gate: score >= 60 AND fit === "cover"
       if ((asset.score || 0) < HOOK_MIN_SCORE) continue;
-      if (asset.aiFit !== HOOK_REQUIRED_FIT) continue;
+      if (asset.fit !== HOOK_REQUIRED_FIT) continue;
 
       const media = {
         type: asset.type,
@@ -347,7 +451,7 @@ export function assignAssetsToScenes(assets, scenes) {
         overlay: 0.5,
         fit: "cover",
       };
-      if (asset.aiFit) media.fit = asset.aiFit;
+      if (asset.fit && !isVideo) media.fit = asset.fit;
       if (isVideo && VOLUME_RECOMMENDATIONS["narrative"]) {
         media.volume = VOLUME_RECOMMENDATIONS["narrative"].video;
       }
@@ -415,9 +519,10 @@ export function assignAssetsToScenes(assets, scenes) {
         animation,
         overlay,
       };
-      // Include VLM-analyzed fit when available (focus is now deprecated — spec §4.8)
-      if (asset.aiFit) {
-        media.fit = asset.aiFit;
+      // Include VLM-analyzed fit when available (spec §4.8)
+      // Video assets skip fit — video fit is a P4+ concern (temporal windows)
+      if (asset.fit && asset.type !== "video") {
+        media.fit = asset.fit;
       }
       if (volume !== undefined) {
         media.volume = volume;
@@ -522,36 +627,37 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
 // ─── AI Analysis integration ───
 
 /**
- * Analyze downloaded assets using the VLM AI analyzer.
+ * Analyze downloaded assets using the VLM in a single semantic merge call.
  *
- * For each asset with a path, calls describeImage or describeVideo based
- * on asset type. Stores the result in asset.aiDescription. Returns a
- * report array with per-asset analysis data.
+ * Pipeline phases:
+ *   Phase 1: Focus detection (OpenCV, lightweight) → closeFocusDetector
+ *   Phase 2a: Pre-filter — rebalanced scoreCandidate technical score (0-70)
+ *             Assets with technicalScore < 30 → skip VLM, mark lowConfidence
+ *   Phase 2b: VLM deep analysis — single analyzeAssetSemantics call per asset
+ *             Stores: description, subjects, contentKind, fit, criticalEdgeText, reason
+ *   Phase 2c: Semantic re-scoring — uses VLM subjects + description for relevance
  *
- * When VLM is unavailable, logs warning and returns empty descriptions.
  * Does NOT call closeVisualAnalyzer() — the caller is responsible for closing
- * the VLM process after all analysis phases (including assignAssetsToScenes)
- * are complete. This keeps the 11GB model resident across phases.
+ * the VLM process after all phases are complete.
  *
- * For landscape assets (aspect > 1.2), also calls analyzeFit() to determine
- * how to place the asset in a 9:16 vertical canvas.
+ * Writes asset-analysis.json artifact to outputDir (if provided).
  *
  * @param {Array} assets - Downloaded assets (each must have path and type)
+ * @param {Object} [opts] - Options
+ * @param {string} [opts.outputDir] - Directory to write asset-analysis.json
+ * @param {string} [opts.model] - VLM model ID (for artifact metadata)
  * @returns {Promise<Array<{path: string, description: string, success: boolean, analysisTimeMs: number}>>}
  */
-export async function analyzeAssets(assets) {
-  const {
-    describeImage,
-    describeVideo,
-    analyzeFit,
-    detectFocus,
-    closeFocusDetector,
-    closeVisualAnalyzer,
-  } = await import("./visual-analyzer.mjs");
-  const { checkResolution } = await import("./upscale.mjs");
+export async function analyzeAssets(assets, opts = {}) {
+  const { analyzeAssetSemantics, detectFocus, closeFocusDetector } =
+    await import("./visual-analyzer.mjs");
+
+  if (!assets || assets.length === 0) return [];
+
+  const outputDir = opts.outputDir || null;
+  const modelId = opts.model || "mlx-community/Qwen3-VL-8B-Instruct-8bit";
 
   // ── Phase 1: Focus detection (fast, lightweight) ──
-  // detectFocus NEVER rejects — see failure-safe contract in spec §4.2
   try {
     for (const asset of assets) {
       if (!asset.path) continue;
@@ -559,78 +665,102 @@ export async function analyzeAssets(assets) {
       asset.focusAnalysis = focus;
     }
   } finally {
-    await closeFocusDetector(); // always release focus subprocess
+    await closeFocusDetector();
   }
 
-  // ── Phase 2: VLM description + analyzeFit (existing logic preserved) ──
+  // ── Phase 2a: Pre-filter (technical score gate) ──
+  const analyzableAssets = [];
+  for (const asset of assets) {
+    if (!asset.path) continue;
+    const keyword = asset.searchKeyword || "";
+    const { technicalScore, lowConfidence } = preFilterCandidate(asset, keyword);
+    asset.technicalScore = technicalScore;
+    asset.lowConfidence = lowConfidence;
+    if (lowConfidence) {
+      console.log(
+        `  ⏭️  Skipping VLM for low-confidence asset: ${asset.path} (score: ${technicalScore})`,
+      );
+    } else {
+      analyzableAssets.push(asset);
+    }
+  }
+
+  // ── Phase 2b: VLM semantic analysis (single call per asset) ──
   const report = [];
 
-  try {
-    for (let i = 0; i < assets.length; i++) {
-      const asset = assets[i];
-      const absPath = asset.path || "";
+  for (let i = 0; i < analyzableAssets.length; i++) {
+    const asset = analyzableAssets[i];
+    const absPath = asset.path;
 
-      if (!absPath) {
-        report.push({
-          path: "",
-          description: "",
-          success: false,
-          analysisTimeMs: 0,
-        });
-        continue;
-      }
+    const startTime = Date.now();
+    console.log(`  🔍 Analyzing: ${absPath}... (${i + 1}/${analyzableAssets.length})`);
 
-      const startTime = Date.now();
-      console.log(`  🔍 Analyzing: ${absPath}... (${i + 1}/${assets.length})`);
+    let semantics;
+    let success = false;
 
-      let description = "";
-      let success = false;
-
-      try {
-        if (asset.type === "video") {
-          description = await describeVideo(absPath);
-        } else {
-          description = await describeImage(absPath);
-        }
-        success = description.length > 0;
-      } catch (err) {
-        console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
-        description = "";
-        success = false;
-      }
-
-      // For landscape assets, also analyze fit (保留 fit 输出，不再回写 aiFocus)
-      try {
-        const res = checkResolution(absPath);
-        const aspect = res.height > 0 ? res.width / res.height : 0;
-        if (aspect > 1.2) {
-          console.log(`  📐 Landscape asset (aspect ${aspect.toFixed(2)}), analyzing fit...`);
-          const fitResult = await analyzeFit(absPath);
-          if (fitResult.fit) {
-            asset.aiFit = fitResult.fit;
-            asset.aiFitReason = fitResult.reason || "";
-            // 不再回写 asset.aiFocus — focus 由 detectFocus() 的 protectedRegions 替代
-            console.log(`     → fit: ${fitResult.fit}`);
-          }
-        }
-      } catch (fitErr) {
-        // Fit analysis is optional — don't fail the whole asset
-        console.warn(`  ⚠️  Fit analysis skipped for ${absPath}: ${fitErr.message}`);
-      }
-
-      const analysisTimeMs = Date.now() - startTime;
-      asset.aiDescription = description;
-
-      report.push({
-        path: absPath,
-        description,
-        success,
-        analysisTimeMs,
-      });
+    try {
+      semantics = await analyzeAssetSemantics(absPath);
+      success = !!(semantics.description && semantics.description.length > 0);
+    } catch (err) {
+      console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
+      semantics = {
+        description: "",
+        subjects: [],
+        contentKind: null,
+        fit: null,
+        criticalEdgeText: null,
+        reason: null,
+      };
     }
-  } catch (err) {
-    // Re-throw so caller knows analysis failed
-    throw err;
+
+    // Store VLM fields on asset (replaces old aiDescription/aiFit/aiFitReason)
+    asset.description = semantics.description;
+    asset.subjects = semantics.subjects;
+    asset.contentKind = semantics.contentKind;
+    asset.fit = semantics.fit;
+    asset.criticalEdgeText = semantics.criticalEdgeText;
+    asset.reason = semantics.reason;
+
+    const analysisTimeMs = Date.now() - startTime;
+
+    report.push({
+      path: absPath,
+      description: semantics.description,
+      success,
+      analysisTimeMs,
+    });
+  }
+
+  // ── Write asset-analysis.json artifact ──
+  if (outputDir) {
+    const artifact = {
+      version: 1,
+      analyzedAt: new Date().toISOString(),
+      model: modelId,
+      assets: assets
+        .filter((a) => a.path)
+        .map((a) => ({
+          path: a.path,
+          type: a.type,
+          searchKeyword: a.searchKeyword || null,
+          technicalScore: a.technicalScore || null,
+          lowConfidence: a.lowConfidence || false,
+          description: a.description || "",
+          subjects: a.subjects || [],
+          contentKind: a.contentKind || null,
+          fit: a.fit || null,
+          criticalEdgeText: a.criticalEdgeText || null,
+          reason: a.reason || null,
+          focusAnalysis: a.focusAnalysis || null,
+        })),
+    };
+
+    const artifactPath = join(outputDir, "asset-analysis.json");
+    const dir = dirname(artifactPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(artifactPath, JSON.stringify(artifact, null, 2) + "\n", "utf8");
   }
 
   return report;
@@ -1825,11 +1955,12 @@ export async function main(args = process.argv.slice(2)) {
       }
     }
     try {
-      aiAnalysis = await analyzeAssets(allAssets);
-      // Re-score assets with aiDescription
+      aiAnalysis = await analyzeAssets(allAssets, { outputDir: join(__dirname, "..", "output") });
+      // Re-score assets with VLM description (Phase 2c: semantic scoring)
       for (const asset of allAssets) {
-        if (asset.aiDescription) {
-          asset.score = scoreCandidate(asset, keywords[0], asset.aiDescription);
+        if (asset.description) {
+          const kw = asset.searchKeyword || keywords[0];
+          asset.score = scoreCandidate(asset, kw, asset.description);
         }
       }
     } catch (err) {
