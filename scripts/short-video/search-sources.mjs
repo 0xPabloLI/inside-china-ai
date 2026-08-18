@@ -41,12 +41,20 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
+import { DISCOVERY_SCHEMA_VERSION } from "./lib/research/schemas.mjs";
+import {
+  getResearchWorkspace,
+  writeResearchArtifact,
+  RESEARCH_ARTIFACTS,
+} from "./lib/research/workspace.mjs";
+
 import {
   filterChinaAI,
   classifyTopic,
   deduplicateTopics,
   buildOutputJson,
   cleanTitle,
+  filterRecentTrackedArticles,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
@@ -83,6 +91,11 @@ function hasFlag(name) {
 const keywordArg = getArg("keyword");
 const isResearchMode = hasFlag("research");
 const includePaid = hasFlag("include-paid");
+const contentIdArg = getArg("content-id");
+const researchRunIdArg = getArg("research-run-id");
+
+// When --content-id is provided, output goes to content-scoped discovery.json
+const isScopedMode = !!contentIdArg;
 
 // ─── Source collection ───
 
@@ -323,7 +336,8 @@ async function main() {
 
   for (const source of sources) {
     try {
-      const articles = await collectFromSource(source, keywordArg);
+      const fetchedArticles = await collectFromSource(source, keywordArg);
+      const articles = filterRecentTrackedArticles(fetchedArticles, source.tracking);
       allArticles.push(...articles);
       if (isResearchMode) {
         resultsBySource[source.name] = {
@@ -345,7 +359,50 @@ async function main() {
   }
 
   if (isResearchMode) {
-    // ── Research mode: output raw results grouped by source ──
+    // ── Scoped mode: output discovery.json to content workspace ──
+    if (isScopedMode) {
+      const runId = researchRunIdArg || `run-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      const discovery = {
+        schemaVersion: DISCOVERY_SCHEMA_VERSION,
+        contentId: contentIdArg,
+        researchRunId: runId,
+        timeWindow: { days: 7, until: new Date().toISOString().slice(0, 10) },
+        locale: "zh-CN",
+        sources: allArticles.map((a) => ({
+          url: a.url || "",
+          title: a.title || "",
+          snippet: a.snippet || "",
+          sourceName: a.source || "",
+          sourceCategory: resultsBySource[a.source]?.category || "",
+          publishedAt: a.publishedAt || null,
+          collectionMethod: a.collectionMethod || "cdp",
+          collectionStatus: "ok",
+        })),
+        failedSources: failedSources.map((name) => ({
+          name,
+          reason: resultsBySource[name]?.error || "unknown",
+        })),
+        sourceCount: allArticles.length,
+        runMetadata: {
+          startedAt: new Date().toISOString(),
+          keyword: keywordArg,
+          mode: "research",
+        },
+      };
+
+      writeResearchArtifact(contentIdArg, runId, RESEARCH_ARTIFACTS.DISCOVERY, discovery);
+      const workspacePath = getResearchWorkspace(contentIdArg);
+      const discoveryPath = join(workspacePath, RESEARCH_ARTIFACTS.DISCOVERY);
+
+      console.log(`\n📁 Discovery written: ${discoveryPath}`);
+      console.log(`   Content ID: ${contentIdArg}`);
+      console.log(`   Run ID: ${runId}`);
+      console.log(`   Total sources: ${discovery.sourceCount}`);
+      console.log(`   Failed sources: ${failedSources.length}`);
+      return;
+    }
+
+    // ── Research mode (legacy): output raw results grouped by source ──
     const output = {
       keyword: keywordArg,
       mode: "research",
