@@ -4,7 +4,12 @@
 #
 # Python 3.12 is required (whisperx/ctranslate2 incompatible with 3.13+).
 #
-# Install: pip install -r requirements-video-ai.lock
+# Install: pip install --no-deps -r requirements-video-ai.lock
+#   Note: --no-deps is required because mlx-audio==0.4.8 declares
+#   huggingface_hub>=1.0 and transformers>=5.14.0 in its metadata,
+#   but transformers 4.57.x and whisperx 3.8.x require hub<1.0.
+#   The actual runtime works fine with hub 0.36.2 — mlx-audio does
+#   not use any 1.0-only API. This is an upstream packaging bug.
 # Update:   pip-compile requirements-video-ai.in -o requirements-video-ai.lock
 
 # TTS engines

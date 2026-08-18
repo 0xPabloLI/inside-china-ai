@@ -13,7 +13,7 @@ export const InfoCardScene: React.FC<{
   contentDir: string;
 }> = ({ scene, duration, contentDir }) => {
   const txt = scene.texts || {};
-  const points = Array.isArray(txt.points) ? txt.points as string[] : [];
+  const points = txt.points ?? [];
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
