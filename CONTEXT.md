@@ -83,11 +83,20 @@ _Avoid_: High quality, max settings (too generic)
 
 ## VLM & Asset Analysis
 
-**VLM** (Vision-Language Model): A local AI model (Qwen3-VL-8B-Instruct-8bit via mlx-vlm) that describes images and videos, and analyzes how to fit landscape assets into vertical canvas. Runs as a persistent Python subprocess managed by `ai-analyzer.mjs`. See ADR-0009.
+**VLM** (Vision-Language Model): A local AI model (Qwen3-VL-8B-Instruct-8bit via mlx-vlm) that describes images and videos, and analyzes how to fit landscape assets into vertical canvas. Runs as a persistent Python subprocess (`vlm_analyzer.py`) managed by `visual-analyzer.mjs`. See ADR-0009.
 _Avoid_: Vision model, image analyzer (too generic)
 
-**Asset Fit Analysis**: A VLM operation that determines whether a landscape image/video should use `cover` (crop) or `contain` (letterbox) in a 9:16 canvas, and where the main subject is positioned (top/center/bottom). Returns `{fit, focus, reason}`. Used during scene-data review.
+**Asset Fit Analysis**: A VLM operation that determines whether a landscape image/video should use `cover` (crop) or `contain` (letterbox) in a 9:16 canvas, and where the main subject is positioned (top/center/bottom). Returns `{fit, focus, reason}`. Used during scene-data review. Note: `focus` output is unstable and deprecated; spatial analysis is handled by Focus Detection.
 _Avoid_: Crop analysis, aspect ratio check
+
+**Focus Detection**: A deterministic, lightweight spatial analysis performed by OpenCV (Haar Cascade face detection + Spectral Residual saliency) via a dedicated Python subprocess (`focus_detector.py`). Complements the VLM's semantic analysis. Runs as Phase 1 before VLM Phase 2 in `analyzeAssets()`. **Never rejects** — returns schema-complete degraded results on failure. See ADR-0015.
+_Avoid_: Focus analysis, spatial analysis (too generic)
+
+**Protected Region**: A normalized bounding box `[x, y, w, h]` (all in [0, 1]) identifying an area in a source image that should not be covered by text overlays. Currently produced only for faces (`kind: "face"`). Written to `media-patch.json`'s `analysis.focusAnalysis` field for human review. Phase 2 will feed these to Remotion for automatic slot scoring.
+_Avoid_: Focus box, face box (too narrow — future kinds include body, text, object)
+
+**Saliency Map**: A heatmap of visual attention computed via Spectral Residual algorithm. Summarized as `dispersion` (variance-based concentration, 0 = uniform, 1 = focal point) and `centroid` (weighted center of attention, `[cx, cy]`). Always computed as a soft signal, independent of face detection results.
+_Avoid_: Heatmap, attention map
 
 ## Rendering
 

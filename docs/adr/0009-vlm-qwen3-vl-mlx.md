@@ -17,21 +17,31 @@ This must run **locally** (no per-call API cost for 10-20 assets per video, 20+ 
 ### Architecture
 
 ```
-visual-analyzer.mjs (Node.js library)
-  ├── spawns → vlm_analyzer.py (Python subprocess)
+visual-analyzer.mjs (Node.js gateway — manages TWO independent subprocesses)
+  ├── VLM subprocess: vlm_analyzer.py
   │     ├── loads mlx-vlm + Qwen3-VL-8B-Instruct-8bit
   │     ├── listens on stdin for JSON requests
   │     ├── writes JSON responses to stdout
   │     └── auto-exits after 5min idle
-  └── communicates via line-delimited JSON protocol
+  │
+  └── Focus subprocess: focus_detector.py (see ADR-0015)
+        ├── loads OpenCV Haar Cascade + Spectral Residual saliency
+        ├── same stdin/stdout JSON protocol
+        └── auto-exits after 60s idle
+  
+  └── communicates via line-delimited JSON protocol (requestId-routed)
 ```
+
+> The focus detector subprocess (`focus_detector.py`) was added in ADR-0015. It provides deterministic spatial analysis (face detection + saliency) to complement the VLM's semantic analysis. The two subprocesses are independent — separate startup, memory, and lifecycle.
 
 ### API surface
 
 - `describeImage(path)` → string description
 - `describeVideo(path)` → string description (native video input, fps=1.0, max 8s)
-- `analyzeFit(path)` → `{fit: "cover"|"contain", focus: "top"|"center"|"bottom", reason: string}`
-- `closeVisualAnalyzer()` → terminates subprocess
+- `analyzeFit(path)` → `{fit: "cover"|"contain", focus: "top"|"center"|"bottom", reason: string}` (note: `focus` is deprecated — see ADR-0015)
+- `detectFocus(path)` → `FocusResult` (OpenCV-based, see ADR-0015) — NEW
+- `closeFocusDetector()` → terminates focus subprocess only — NEW
+- `closeVisualAnalyzer()` → terminates both subprocesses
 
 ### Performance characteristics (M2 Pro)
 
@@ -99,7 +109,8 @@ If Python is not found or model load fails, `visual-analyzer.mjs` returns empty 
 
 - VLM requires `~/.video-tts-env` (Python 3.12) with mlx-vlm 0.6.13 installed (see ADR-0011).
 - Qwen3-VL-8B-Instruct-8bit model (9.2GB) in HF cache. 4bit fallback (4.6GB) auto-selected if 8bit fails.
-- `visual-analyzer.mjs` is integrated into `asset-sourcer.mjs` — after downloading assets, each asset is analyzed and its description is used for `scoreCandidate()` matching.
+- `visual-analyzer.mjs` is integrated into `asset-sourcer.mjs` — after downloading assets, each asset goes through two-phase analysis: Phase 1 `detectFocus()` (fast, OpenCV), then Phase 2 `describeImage/Video()` + `analyzeFit()` (VLM). Results stored in `asset.focusAnalysis` and `asset.aiDescription` respectively.
+- The focus detector subprocess shares the same Node.js gateway and IPC pattern but is otherwise independent (see ADR-0015).
 - `analyzeFit()` is called during scene-data review to determine landscape-to-vertical placement strategy.
 - The VLM subprocess is shared across all assets in a pipeline run (model loaded once, reused).
 - Future model upgrade requires: (1) update `MODEL_ID` in `vlm_analyzer.py`, (2) verify `apply_chat_template` compatibility, (3) re-run end-to-end validation.

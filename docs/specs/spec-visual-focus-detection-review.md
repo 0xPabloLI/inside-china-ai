@@ -1,78 +1,101 @@
-# 对 `spec-visual-focus-detection.md` 的 V6 复审
+# 视觉焦点检测实现后复审
 
-**审阅对象：** `docs/specs/spec-visual-focus-detection.md`（Revised v6）  
-**结论：** **批准进入实现。** V6 已关闭 V5 的四项 P1：IdleTimer 采用单一状态源、`exit` 成为无响应控制命令、patch 格式化器只输出人工审阅摘要、golden 与 baseline fixture 被明确分离。当前没有新的 P0 或设计级阻断。下面两项 P1 属于实现稳健性，应随同首个实现 commit 完成并由测试证明。
+**审阅对象：** `docs/specs/spec-visual-focus-detection.md`（当前为 Revised v7）及已落地的 Focus 检测实现、Node 网关、素材编排与测试。  
+**结论：** **核心架构已落地，但暂不建议把实现视为完整通过。** 独立 Focus 子进程、延迟依赖加载、EXIF 规范化、requestId 路由、worker reset 降级、Patch 人工审阅摘要与 `analysis.focusAnalysis` 映射均已实现，并且基础 IPC/Smoke 路径能运行。然而，V7 明确要求的 `fit` 与旧 `focus` 解耦尚未实现；同时，唯一“真实图片 + 人脸保护区”smoke 样本把一张天际线照片错误地当成人脸 golden case。这两项会分别造成横图裁切回归与错误的检测质量证据，应作为 P0 关闭后再宣布功能完成。
 
-> V6 保持了正确的 Phase 1a 边界：焦点分析是 source-space 的人工审阅辅助，写入 `media-patch.json`；它不会成为 scene-data 的未知字段，也不会自动改变 Remotion 排版。这使新功能可审计、可回滚，并与 Phase 2 的坐标变换/slot 评分解耦。
+> 本次结论区分“程序能运行”与“契约已被证明”。当前 Focus IPC 在独立运行时是健康的；但真实人脸检测、EXIF、golden/baseline 质量门槛和 `fit` 迁移的关键承诺尚未得到正确的实现或验证。
 
-## 复审摘要
+## 结果总览
 
-| 维度 | 判断 | 复审结论 |
+| 维度 | 结果 | 证据与判断 |
 |---|---|---|
-| 依赖降级、requestId 和 worker reset | **通过** | 延迟加载、明确 errorCode、dispatch 异常收敛、pending Map/generation 和 late-response 隔离保持一致。 |
-| Idle 生命周期 | **设计通过，P1 实现加固** | §4.2/§4.4 已收敛为一个 `IdleTimer`；但当前 watchdog 的整段 `sleep(timeout)` 不能保证“idle 60 秒”上界。 |
-| `exit` 控制协议 | **通过** | `exit` 不含 requestId、不进入 pending、无 response；Node 等待自然退出 100ms 后再 SIGTERM，前后章节一致。 |
-| 人工审阅输出边界 | **通过** | `apply-media-patch.mjs` 应输出注释摘要，复制进 scene-data 的 `media` 对象不含 `analysis` 或 `focusAnalysis`。 |
-| Golden 回归门槛 | **通过** | 正面稳定样本成为 CI 阻断门槛；遮挡/侧脸/低光样本转入不阻断的 baseline observation。 |
-| 修改范围、指针与依赖文件 | **通过** | 所有既有指针目标存在；Focus 脚本、lock、benchmark 与 fixture 目录均已作为待新增文件列入影响表。 |
+| Focus 子进程与降级 | **通过** | `focus_detector.py` 实现了 Event + Lock 的 idle watchdog、依赖延迟加载、图片白名单、EXIF RGB 规范化、异常 envelope 与无响应 `exit`。 |
+| Node requestId 与生命周期 | **通过** | `visual-analyzer.mjs` 用 `pending Map + workerGeneration` 匹配响应；超时、进程 exit、pipe 写失败与 close 均会 resolve 为 schema 完整的降级结果。 |
+| 素材到 patch 数据流 | **代码通过，测试不足** | `analyzeAssets()` 先写入 `asset.focusAnalysis`；`assignAssetsToScenes()` 显式映射到 `analysis.focusAnalysis`。现有集成测试没有断言这条映射。 |
+| 旧 `fit` 兼容 | **P0 未通过** | Node 解析器仍要求 `fit` 与 `focus` 同时有效，与 Spec 的“fit 必填、focus 可选”直接矛盾。 |
+| 人脸 golden / smoke 质量 | **P0 未通过** | Smoke 使用的是城市天际线，却要求至少一个 face protectedRegion；它不能证明真实人脸检测，反而会把 Haar 假阳性当成功。 |
+| Exif、golden/baseline、benchmark 验证 | **P1 未完成** | Spec 列出的 EXIF、benchmark、golden、baseline fixture 目录与 benchmark 脚本尚未出现；现有 JSON fixture 不能替代这些素材与几何断言。 |
+| Patch 人工摘要 | **通过但入口需澄清** | `lib/apply-media-patch.mjs` 正确生成注释摘要且不输出 `analysis`/`focusAnalysis` 到 copyable media block；顶层同名脚本目前是自动写入工具，需避免用户混淆。 |
 
-## V5 问题关闭对照
+## 已验证的实现行为
 
-| V5 问题 | V6 状态 | 依据 |
+### Focus 协议与运行时降级
+
+`focus_detector.py` 的实现已符合 V7 对子进程的主要要求。它在运行时才加载 OpenCV、NumPy 和 Pillow；缺失依赖时返回明确的降级 errorCode，而不是在模块导入阶段崩溃。`IdleTimer` 使用 `Event.wait()`、Lock、`FOCUS_IDLE_TIMEOUT_SECONDS` 注入和 `min(10, timeout/10)` 轮询，满足 V7 对可测试 idle 上界的设计。`exit` 是不带 requestId 的无响应控制命令，Node 关闭路径与此一致。
+
+`visual-analyzer.mjs` 的 Focus 子系统也已实现 requestId 路由、worker generation、超时、旧响应丢弃以及 `closeFocusDetector()` 幂等结算。该实现以 schema 完整的 `focus_timeout` 或 `focus_worker_reset` 结果替代 rejection，符合 failure-safe 的目标。
+
+### 实测测试结果
+
+| 验证命令/范围 | 结果 | 说明 |
 |---|---|---|
-| idle activity 有两个 `last_activity` 形状 | **已关闭** | §4.2 与 §4.4 都使用 `IdleTimer.touch()`；不再存在标量/列表两种状态源。 |
-| `exit` 带 requestId 却不回 envelope | **已关闭** | §4.3 定义 `exit` 为不带 requestId、无 response 的控制命令，并指定 Node 的 100ms graceful-exit / SIGTERM 行为。 |
-| patch-only `focusAnalysis` 可能被复制进 scene-data | **已关闭** | §4.7 限定为 `media: {}` 上方的人工审阅注释；集成测试断言 media 对象中没有 `analysis`/`focusAnalysis`。 |
-| golden fixture 既称硬门槛又允许不阻断 | **已关闭** | §6、S4/S5 和 §8 将 stable golden 定义为 CI 红线，将遮挡/侧脸/低光样本移入 baseline observation。 |
+| `focus_detector.py` IPC 测试，单独执行 | **7 / 7 通过** | 覆盖 requestId envelope、坏路径、unsupported、协议错误和无响应 exit。 |
+| 真实 Focus smoke 测试，单独执行 | **6 / 6 通过** | 首次图片检测约 613ms，随后基线约 137ms；但其人脸断言样本不正确，不能作为质量证据。 |
+| 5 个相关测试文件以默认文件并行执行 | **70 通过，3 失败** | Focus IPC 与 smoke 首请求分别发生 10–20s timeout；这表明真实子进程测试在并行执行时不稳定。 |
+| 同一 5 个测试文件串行执行 | **73 / 73 通过** | 证明组合失败与并发运行的资源争用/启动调度有关，而非每个隔离路径必然失败。 |
 
-## P1：实现时应一并完成
+## P0：必须修复
 
-### P1-1：IdleTimer 的轮询周期必须小于 timeout，且需要可测试的超时注入
+### P0-1：`parseFitResponse()` 仍将 `focus` 视为必填，违反迁移契约
 
-V6 的 `IdleTimer._watchdog()` 现在执行：
+Spec §4.8 要求：当 `fit` 有效而 `focus` 缺失或无效时，仍须保留 `fit`，因为旧渲染层依然依赖 `media.fit`，而新的 `protectedRegions` 不再需要三分区 `focus`。但当前 `visual-analyzer.mjs` 有两处相反逻辑：
 
-```python
-while not self._stopped:
-    time.sleep(self.timeout)
-    if time.monotonic() - self._last >= self.timeout:
-        os._exit(0)
+```js
+if (response.fit && response.focus) {
+  // 才解析并返回结果
+}
+
+if (!focus || !VALID_FOCUSES.includes(focus)) {
+  return {};
+}
 ```
 
-若 watchdog 刚开始 60 秒 sleep 后出现一次 activity，它在该次醒来时会认为仍未 idle 60 秒，随后又 sleep 整个 60 秒。因此实际退出可接近**最后活动后的 120 秒**，与 S13/S23 “idle 60s”不一致。现有 VLM `IdleTimer` 使用 `Event.wait(10)` 和锁，每 10 秒检查一次，因而不会把 timeout 翻倍。
+对应单元测试也把“无效 focus 返回空对象”当作预期。这会在 VLM 返回 `{ fit: "cover" }` 或 `{ fit: "contain", focus: "left" }` 时丢失有效 fit，重新引入 Spec 明确禁止的横图裁切回归。
 
-**建议修订：** Focus 版本直接复用同一模式，或将轮询粒度定义为 `min(1.0, timeout / 10)`。同时用 `threading.Event` 取代裸 `_stopped` boolean，并用 lock 保护 `_last`。建议的验证契约为：
+**修订要求：**
 
-| 场景 | 断言 |
-|---|---|
-| 无活动 | 在 `IDLE_TIMEOUT ≤ elapsed ≤ IDLE_TIMEOUT + poll_interval` 内退出。 |
-| 持续活动 | 每次 `touch()` 后，子进程在下一个完整 timeout 前不得退出。 |
-| 测试执行 | 通过构造函数参数或 `FOCUS_IDLE_TIMEOUT_SECONDS` 注入 50–100ms 超时；不得让 CI 等待真实 60 秒。 |
-| graceful exit | `timer.stop()` 后 watchdog 不再调用 `os._exit(0)`。 |
+1. `parseFitResponse()` 只校验 `fit`；focus 仅在属于 `top|center|bottom` 时才保留，否则省略该字段。
+2. `handleResponse()` 在 `response.fit` 存在时立即解析，不得以 `response.focus` 作为网关条件。
+3. 新增两个回归测试：`{fit:"cover"}` 返回 `{fit:"cover", reason:""}`；`{fit:"contain", focus:"left"}` 仍返回 `{fit:"contain"}`。
+4. `asset-sourcer` 的横图集成测试断言 `asset.aiFit` 被写入、`asset.aiFocus` 不被写入。
 
-### P1-2：将 `apply-media-patch.mjs` 的输出边界写成独立可执行测试文件
+### P0-2：真实 smoke 的 golden 样本与人脸断言相冲突
 
-§4.7 和 §8 已给出正确行为，但 §6 的修改清单只列出脚本本身，没有显式列出覆盖它的测试文件。现有 `apply-media-patch.mjs` 是面向人工复制的 formatter；输出格式一旦回归，类型系统不会阻止用户把分析对象粘入 scene-data。
+当前 smoke 测试使用 `scripts/short-video/assets/shanghai-skyline.jpg`，并要求 `status: "ok"`、`minProtectedRegions: 1`，测试名称也称“returns ok with faces + saliency”。该图片为城市建筑和树木，没有可作为人脸检测 ground truth 的人物面部；它在 Spec 的 smoke 表中原本属于“无人脸、low_information 或 saliency 均匀”的场景。
 
-建议在 §6 补一行新的测试文件（名称依项目现有约定确定，例如 `__tests__/apply-media-patch.test.mjs`），并在测试中固定以下边界：
+该测试在隔离运行时通过，恰恰不能说明人脸检测正确：Haar 可能把建筑窗格、标志或其他纹理误判为 face。若把这种假阳性作为 golden 成功条件，后续人脸检测退化将无法被发现，人工也会被错误保护框误导。
 
-1. `ok` / `partial` 输出摘要注释，包含 status、保护框和 saliency 可用性。
-2. `degraded` / `unsupported` 输出 warning，而非空洞的可复制配置。
-3. `media: { ... }` 代码块只包含现有 `MediaField` 字段，严格不含 `analysis`、`focusAnalysis`、`protectedRegions` 或 `saliency`。
-4. 没有 `analysis.focusAnalysis` 的旧 patch 仍输出与当前版本兼容的 media block。
+**修订要求：**
 
-## 文件与指针核查
-
-| 项目 | 结果 | 说明 |
+| Fixture 类型 | 内容 | 阻断规则 |
 |---|---|---|
-| Spec、研究文档、内容管线、渲染类型、layout/verify 和 formatter | **存在** | V6 相关路径均可访问；现有 formatter 的确只输出可复制的 `media` block，故 V6 的注释摘要边界合理且必要。 |
-| 现有 VLM IdleTimer | **存在** | `vlm_analyzer.py` 提供了 Event + Lock + 10 秒轮询的可复用模式；Focus 实现应复用其生命周期语义。 |
-| 待新增 Focus 脚本、依赖锁和 fixtures | **尚不存在，符合设计阶段** | 已在 §6 正确列为新建文件；首个实现 commit 必须一并加入并让测试覆盖。 |
+| `fixtures/golden/` | 至少一张稳定正面单人照与一张稳定多人照；附人工标注框 | 单人 IoU ≥ 0.5；多人匹配计数满足约定容差；失败即 CI 红。 |
+| `fixtures/baseline/` | 侧脸、遮挡、低光 | 记录命中/漏检，不阻断。 |
+| `shanghai-skyline.jpg` | 无脸/天际线 | 断言零 face protectedRegions；允许 `low_information` 或 saliency 可用的 `ok`，但不能期待人脸。 |
 
-## 最终判断
+## P1：应在本功能合入稳定分支前补齐
 
-**V6 是当前可实施的 Spec 基线。** 没有需要再次重构方案的 P0：命名迁移、独立 Focus 子进程、failure-safe IPC、图片坐标契约、patch-only 消费和历史 `fit` 兼容已形成闭环。
+### P1-1：Spec 中承诺的验证素材和 benchmark 尚未落地
 
-实施时应优先将 P1-1 和 P1-2 与代码一并落地；它们不改变方案范围，却能防止 idle 生命周期变得不可预测，以及避免人工复制输出悄然突破 Phase 1 的数据边界。完成自动契约、协议、集成、patch 和 smoke 测试后，再决定是否进入 Phase 2 的画布坐标变换与自动 slot 评分。
+当前仓库存在 `focus-golden.json`，但不存在 Spec §6/§8 列出的 `fixtures/exif/`、`fixtures/benchmark/`、`fixtures/golden/`、`fixtures/baseline/`，也没有 `focus-detector-benchmark.mjs`。因此下列声明尚未取得实施证据：EXIF 90°/180°/270° 几何正确性、真实人脸 IoU、baseline 命中率、冷/热启动 P50/P95、峰值 RSS 和 failure rate。
+
+应创建这些受控资产和 benchmark 脚本，并将 benchmark 的运行输出保留在 gitignored `experiments/focus-benchmark/`。实施完成前，不应将 `<1s`、`<200ms` 或 Haar 检测可靠性表述为已验证结果。
+
+### P1-2：跨文件并行运行真实子进程测试会超时
+
+单独执行 IPC（7/7）和 smoke（6/6）都通过；同一组 5 个相关测试文件以默认并行方式执行时，出现三项 timeout，串行后又变为 73/73。真实 OpenCV 子进程测试应采用不会相互争用启动资源的策略，例如在这些测试描述块中显式顺序执行、将 smoke 放入独立 Vitest project，或在 CI 上为 real-subprocess suite 设置单 worker。不要只依赖本地单文件通过。
+
+### P1-3：补足资产→patch 的集成断言，并澄清两个同名 CLI
+
+代码已完成 `asset.focusAnalysis → analysis.focusAnalysis` 映射，但 `asset-sourcer-visual-integration.test.mjs` 只验证 Focus mock 被调用和 Focus 子进程被关闭，未验证映射后的实际 patch schema。应新增一条端到端断言，读取 `assignAssetsToScenes()` 返回条目并验证完整 schema。
+
+另外，顶层 `scripts/short-video/apply-media-patch.mjs` 目前是验证、备份与写入 scene-data 的应用工具；人工审阅 formatter 位于 `scripts/short-video/lib/apply-media-patch.mjs`。两者都可由 `node ...apply-media-patch.mjs` 运行，容易误用。建议把审阅 CLI 命名为 `review-media-patch.mjs`，或在 README/主 CLI 的帮助信息中显式区分“先审阅、后应用”。
+
+## 复审后的实施门槛
+
+在修复 P0-1 和 P0-2 后，功能才可以被称为**已完成的视觉焦点检测 Phase 1a**。随后补齐 P1 的fixtures、基准和并行测试隔离，才能把运行时指标和检测质量作为可追踪基线。
+
+完成前，已经可以安全采用的范围是：**获取并记录结构化 Focus 元数据，且在异常时不阻塞 VLM。** 尚不可据此声称的是：**真实人脸保护能力已被 golden 数据证明，或横图 fit 迁移已无回归。**
 
 ## References
 
