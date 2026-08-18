@@ -54,7 +54,13 @@ const KNOWN_COMPANIES = [
 ];
 
 /** Scene types that should NOT have media assigned. */
-const NO_MEDIA_TYPES = new Set(["hook", "cta", "data", "stat-reveal"]);
+const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
+
+/** Minimum score for hook scene auto-assignment (spec D1). */
+const HOOK_MIN_SCORE = 60;
+
+/** Hook scenes require fit="cover" (contain leaves letterbox, weakens impact). */
+const HOOK_REQUIRED_FIT = "cover";
 
 // ─── Pure functions ───
 
@@ -226,10 +232,17 @@ export function recommendScene(asset, scenes) {
     // Skip scenes that already have media assigned
     if (scene.media) continue;
 
+    if (vt === "hook") {
+      return {
+        sceneId: scene.id,
+        animation: "ken-burns",
+        overlay: 0.5,
+      };
+    }
     if (vt === "narrative") {
       return {
         sceneId: scene.id,
-        animation: asset.type === "video" ? "zoom" : "fade",
+        animation: asset.type === "video" ? "zoom" : "ken-burns",
         overlay: 0.7,
       };
     }
@@ -312,21 +325,66 @@ export function assignAssetsToScenes(assets, scenes) {
       continue;
     }
 
-    // Find first available scene
+    // Find first available scene — hook scenes get priority (spec D1)
     let assigned = false;
+    const isVideo = asset.type === "video";
+
+    // Pass 1: hook scenes (require score>=60 and aiFit="cover")
+    for (const scene of scenes) {
+      if (assignedSceneIds.has(scene.id)) continue;
+      if (scene.visualType !== "hook") continue;
+      if (scene.media) continue;
+
+      // Hook gate: score >= 60 AND aiFit === "cover"
+      if ((asset.score || 0) < HOOK_MIN_SCORE) continue;
+      if (asset.aiFit !== HOOK_REQUIRED_FIT) continue;
+
+      const media = {
+        type: asset.type,
+        path: asset.path,
+        source: asset.source || asset.from || undefined,
+        animation: "ken-burns",
+        overlay: 0.5,
+        fit: "cover",
+      };
+      if (asset.aiFit) media.fit = asset.aiFit;
+      if (isVideo && VOLUME_RECOMMENDATIONS["narrative"]) {
+        media.volume = VOLUME_RECOMMENDATIONS["narrative"].video;
+      }
+
+      result.push({
+        sceneId: scene.id,
+        sceneName: scene.name,
+        visualType: "hook",
+        media,
+        analysis: asset.focusAnalysis ? { focusAnalysis: asset.focusAnalysis } : undefined,
+        assetScore: asset.score || 0,
+        source: asset.source || asset.from || "unknown",
+        attribution: asset.attribution || null,
+        status: "assigned",
+      });
+
+      assignedSceneIds.add(scene.id);
+      assignedPaths.add(asset.path);
+      assigned = true;
+      break;
+    }
+    if (assigned) continue;
+
+    // Pass 2: all other eligible scenes (narrative, info-card, quote, etc.)
     for (const scene of scenes) {
       if (assignedSceneIds.has(scene.id)) continue;
       if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
+      if (scene.visualType === "hook") continue; // already handled in pass 1
       if (scene.media) continue;
 
       // Assign this asset to this scene
       const vt = scene.visualType;
-      const isVideo = asset.type === "video";
 
       // Determine animation
       let animation;
       if (vt === "narrative") {
-        animation = isVideo ? "zoom" : "fade";
+        animation = isVideo ? "zoom" : "ken-burns";
       } else if (vt === "info-card") {
         animation = asset.type === "image" ? "ken-burns" : "fade";
       } else if (vt === "quote") {
@@ -349,21 +407,21 @@ export function assignAssetsToScenes(assets, scenes) {
       const volRec = VOLUME_RECOMMENDATIONS[vt];
       const volume = isVideo && volRec ? volRec.video : undefined;
 
-// Build media object
-const media = {
-type: asset.type,
-path: asset.path,
-source: asset.source || asset.from || undefined,
-animation,
-overlay,
-};
-// Include VLM-analyzed fit when available (focus is now deprecated — spec §4.8)
-if (asset.aiFit) {
-media.fit = asset.aiFit;
-}
-if (volume !== undefined) {
-media.volume = volume;
-}
+      // Build media object
+      const media = {
+        type: asset.type,
+        path: asset.path,
+        source: asset.source || asset.from || undefined,
+        animation,
+        overlay,
+      };
+      // Include VLM-analyzed fit when available (focus is now deprecated — spec §4.8)
+      if (asset.aiFit) {
+        media.fit = asset.aiFit;
+      }
+      if (volume !== undefined) {
+        media.volume = volume;
+      }
 
       // Build analysis field for human review (spec §4.7)
       const analysis = {};
@@ -890,8 +948,7 @@ export const API_SOURCES = [
     apiKeyEnv: null,
     // Lorem Picsum: https://picsum.photos/ — random Unsplash images, no auth
     // Returns a random image redirect. Use /list to get image metadata.
-    searchUrl: (keyword) =>
-      `https://picsum.photos/v1/list?limit=10`,
+    searchUrl: (keyword) => `https://picsum.photos/v1/list?limit=10`,
     parseResponse: (data, keyword) => {
       return (data || []).map((img) => ({
         title: `Lorem Picsum ${img.id}`,
@@ -1781,8 +1838,8 @@ export async function main(args = process.argv.slice(2)) {
       // Close VLM process — analyzeAssets no longer closes it itself,
       // so we must close it here to release the ~11GB model.
       try {
-const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
-await closeVisualAnalyzer();
+        const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
+        await closeVisualAnalyzer();
       } catch {
         // ignore close errors
       }

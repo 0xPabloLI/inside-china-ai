@@ -366,12 +366,7 @@ describe("recommendScene", () => {
     expect(rec).toBeNull();
   });
 
-  it("returns null for hook scene", () => {
-    const scenes = [{ visualType: "hook", id: 1 }];
-    const asset = { type: "video" };
-    const rec = recommendScene(asset, scenes);
-    expect(rec).toBeNull();
-  });
+  // hook is no longer in NO_MEDIA_TYPES — it gets a recommendation
 
   it("returns null for cta scene", () => {
     const scenes = [{ visualType: "cta", id: 10 }];
@@ -381,10 +376,7 @@ describe("recommendScene", () => {
   });
 
   it("returns null when no suitable scenes exist", () => {
-    const scenes = [
-      { visualType: "hook", id: 1 },
-      { visualType: "cta", id: 2 },
-    ];
+    const scenes = [{ visualType: "cta", id: 2 }];
     const asset = { type: "video" };
     const rec = recommendScene(asset, scenes);
     expect(rec).toBeNull();
@@ -1342,14 +1334,14 @@ describe("assignAssetsToScenes", () => {
     expect(assigned[0].sceneId).toBe(4); // scene 2 skipped, asset goes to scene 4
   });
 
-  // #13: Scene with visualType "hook" → skipped
-  it("skips scenes with visualType in NO_MEDIA_TYPES", () => {
-    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+  // #13: hook is no longer in NO_MEDIA_TYPES — it can receive media
+  it("skips scenes with visualType in NO_MEDIA_TYPES (cta, data, stat-reveal)", () => {
+    const scenes = [makeScene(1, "cta"), makeScene(2, "narrative")];
     const assets = [makeAsset("a1.mp4", "video", 90)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.filter((r) => r.status === "assigned");
     expect(assigned).toHaveLength(1);
-    expect(assigned[0].sceneId).toBe(2); // scene 1 (hook) skipped
+    expect(assigned[0].sceneId).toBe(2); // scene 1 (cta) skipped
   });
 
   // #14: Two assets with same path → first assigned, second skipped
@@ -1409,6 +1401,67 @@ describe("assignAssetsToScenes", () => {
 
   it("sets correct animation for info-card+image (ken-burns)", () => {
     const scenes = [makeScene(4, "info-card")];
+    const assets = [makeAsset("building.jpg", "image", 80)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.animation).toBe("ken-burns");
+  });
+
+  // ── Hook media auto-assignment (spec-hook-media-support.md D4) ──
+
+  it("assigns to hook scene when score>=60 and fit=cover", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    assets[0].aiFit = "cover";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(1); // scene 1 (hook) gets the asset
+  });
+
+  it("does NOT assign to hook when score < 60", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 50)];
+    assets[0].aiFit = "cover";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(2); // hook rejected, goes to narrative
+  });
+
+  it("does NOT assign to hook when fit=contain (leaves for narrative)", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    assets[0].aiFit = "contain";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(2); // hook rejected (contain), goes to narrative
+  });
+
+  it("does NOT assign to hook when aiFit is missing", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    // no aiFit set
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(2); // hook rejected (no fit), goes to narrative
+  });
+
+  it("hook assignment uses ken-burns animation and overlay 0.5", () => {
+    const scenes = [makeScene(1, "hook")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    assets[0].aiFit = "cover";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.animation).toBe("ken-burns");
+    expect(assigned.media.overlay).toBe(0.5);
+    expect(assigned.media.fit).toBe("cover");
+  });
+
+  it("sets correct animation for narrative+image (ken-burns)", () => {
+    const scenes = [makeScene(2, "narrative")];
     const assets = [makeAsset("building.jpg", "image", 80)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");

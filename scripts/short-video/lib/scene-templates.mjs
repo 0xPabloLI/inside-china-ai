@@ -14,6 +14,7 @@
 
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
+import { mediaLayer } from "./media-bg.mjs";
 // Intentional ESM cycle: base-styles.mjs re-exports a few components from this
 // module. baseStyles is only used inside ctaScene() at call time (never at
 // module top level), so both modules finish evaluating safely.
@@ -295,15 +296,22 @@ function logoSvg(key) {
  *
  * The output carries brandBar, so withWatermark() skips injection — no
  * double branding on the channel open.
- * @param {object} scene - Scene object with texts
+ * @param {object} scene - Scene object with texts and optional media
  * @param {number} duration - Scene duration in seconds
+ * @param {string} [contentDir] - Absolute content directory path (for media resolution)
  * @returns {string} Complete HTML document
  */
-function hookScene(scene, duration) {
+function hookScene(scene, duration, contentDir) {
   const txt = scene.texts || {};
   const text = (key) => txt[key] ?? "";
   const color = /^(blue|red|amber|green|purple|cyan)$/.test(text("color")) ? text("color") : "blue";
   const rgb = COLOR_RGB[color];
+
+  // Optional media background (spec-hook-media-support.md D2)
+  const media =
+    contentDir && scene.media
+      ? mediaLayer(scene.media, contentDir, duration)
+      : { css: "", html: "" };
   // glowPulse is blue-only (its keyframe hardcodes a blue text-shadow);
   // every other glow on the card is a static same-color glow (D-3).
   const isBlue = color === "blue";
@@ -356,10 +364,10 @@ function hookScene(scene, duration) {
   const support = statsHtml || sourceHtml ? `${statsHtml}${sourceHtml}` : "";
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-${baseStyles(duration)}${templateCss()}${slotCss()}
+${baseStyles(duration)}${templateCss()}${slotCss()}${media.css}
 </style></head><body>
 <div class="scene s-hook">
-  <div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
+  ${media.html}<div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
   ${brandBar()}
   ${sceneFrame({ kicker: badge, hero: subjectRow + focal, support })}
 </div></body></html>`;

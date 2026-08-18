@@ -360,7 +360,7 @@ if (!preMode) {
         "Subtitles",
         "All scenes have subtitle timing",
         `${scenesWithSubs}/${totalScenesExceptCTA} scenes`,
-        "Re-run force-align.py",
+        "Re-run text-align.py",
       );
     }
 
@@ -372,7 +372,7 @@ if (!preMode) {
         "Subtitles",
         "Scene 1 (hook) has subtitles",
         "No timing for Scene 1",
-        "Re-run force-align.py — Scene 1 should not be skipped",
+        "Re-run text-align.py — Scene 1 should not be skipped",
       );
     }
   } else {
@@ -380,7 +380,7 @@ if (!preMode) {
       "Subtitles",
       "subtitle-timing.json exists",
       "File not found",
-      "Run force-align.py after TTS generation",
+      "Run text-align.py after TTS generation",
     );
   }
 }
@@ -468,7 +468,7 @@ if (!preMode) {
   manual(
     "Publish",
     "AIGC label (if AI voice used)",
-    `If video uses AI-generated voice (XTTS/cloned):\n` +
+    `If video uses AI-generated voice (F5-TTS-MLX/cloned):\n` +
       `  In TikTok post screen → toggle "AI-generated content" ON.\n` +
       `  Why: TikTok requires labeling AI content. Not labeling = penalty.\n` +
       `  This adds a small "AI-generated" badge to the video.`,
@@ -549,6 +549,15 @@ function printSummary() {
       console.log("Copy the above checklist. Complete each item when publishing on TikTok.");
     } else {
       console.log("   Ready to run the pipeline.");
+    }
+  }
+
+  // ── Warning summary (spec D6): surface all warnings in one block for HITL review ──
+  if (results.warn.length > 0) {
+    console.log("\n⚠️  WARNINGS (review before publishing):");
+    for (const w of results.warn) {
+      console.log(`  • [${w.category}] ${w.check}${w.detail ? ` — ${w.detail}` : ""}`);
+      if (w.fix) console.log(`    → FIX: ${w.fix}`);
     }
   }
   console.log("=".repeat(60));

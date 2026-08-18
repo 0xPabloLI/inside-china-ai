@@ -931,6 +931,43 @@ export function checkLoopClose(scenes) {
   ];
 }
 
+/** Hook scene media warning (spec D5): warns when hook scene has no media
+ *  background, reminding the creator that visual impact may be insufficient
+ *  for the first 3 seconds. Passes when media is present or when there is no
+ *  hook scene. */
+export function checkHookMediaWarning(scenes) {
+  const hook = scenes[0];
+  if (hook?.visualType !== "hook") {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Hook media background",
+        detail: "No hook scene",
+      },
+    ];
+  }
+  if (hook.media) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Hook media background",
+        detail: `${hook.media.type}: ${hook.media.path}`,
+      },
+    ];
+  }
+  return [
+    {
+      level: "warn",
+      category: "Hook",
+      check: "Hook media background",
+      detail: "Hook scene has no media — visual impact may be insufficient for first 3 seconds",
+      fix: "Add scene.media to hook scene, or run asset-sourcer to auto-assign a high-quality cover image",
+    },
+  ];
+}
+
 // ─── Aggregate runner ───
 
 /**
@@ -969,6 +1006,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkSemanticConsistency(scenes),
     ...checkLoopClose(scenes),
     ...checkBodyTextVoRedundancy(scenes),
+    ...checkHookMediaWarning(scenes),
   ];
 
   return {

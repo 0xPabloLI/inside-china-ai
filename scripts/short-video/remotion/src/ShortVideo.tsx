@@ -2,19 +2,15 @@
  * ShortVideo — Main Composition.
  *
  * Receives props (scenes, audioPaths, durations) and renders the full video
- * by dispatching each scene to its visualType component.
+ * by dispatching each scene to its visualType component, arranging them with
+ * <TransitionSeries>, and placing TTS audio with <Audio>.
  *
- * Timeline contract: Option A — Fixed Scene Start.
- * All tracks (visual, audio, subtitle, totalFrames) use the SAME offsets
- * derived from sceneTimeline() in lib/timeline.mjs. No track compresses
- * the global timeline. Fade transitions are internal to each scene's
- * first/last frames and do NOT shift subsequent scene start positions.
- *
- * First scene: hard cut (no fade in) — TikTok cover frame has content.
- * Subsequent scenes: 6-frame fade-in at the START of each scene (internal
- * animation, does not overlap with the previous scene).
+ * First scene: hard cut (no transition in) — TikTok cover frame has content.
+ * Subsequent scenes: 6-frame fade transition.
  */
-import { AbsoluteFill, Audio, Sequence, staticFile, interpolate, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Audio, Sequence, staticFile } from "remotion";
+import { TransitionSeries, linearTiming } from "@remotion/transitions";
+import { fade } from "@remotion/transitions/fade";
 import type { ShortVideoProps, SceneData } from "./types";
 import { HookScene } from "./scenes/HookScene";
 import { CtaScene } from "./scenes/CtaScene";
@@ -39,7 +35,7 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
 
   switch (scene.visualType) {
     case "hook":
-      return <HookScene {...common} />;
+      return <HookScene {...common} contentDir={contentDir} />;
     case "cta":
       return <CtaScene {...common} />;
     case "narrative":
@@ -63,33 +59,21 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
   }
 }
 
-/** Fade-in wrapper for subsequent scenes (internal animation, no timeline shift). */
-const FadeIn: React.FC<{
-  children: React.ReactNode;
-  durationInFrames: number;
-}> = ({ children, durationInFrames }) => {
-  const FADE_FRAMES = 6; // 0.2s at 30fps
-  const fadeFrames = Math.min(FADE_FRAMES, durationInFrames);
-  const frame = useCurrentFrame(); // relative to the enclosing <Sequence>
+const TRANSITION_FRAMES = 6; // 0.2s at 30fps
 
-  const opacity = interpolate(frame, [0, fadeFrames], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
-};
-
-export const ShortVideo: React.FC<ShortVideoProps> = ({ scenes, audioPaths, durations, contentDir = "" }) => {
+export const ShortVideo: React.FC<ShortVideoProps> = ({
+  scenes,
+  audioPaths,
+  durations,
+  contentDir = "",
+}) => {
   if (scenes.length === 0) {
-    return (
-      <AbsoluteFill style={{ backgroundColor: "#0a0a14" }} />
-    );
+    return <AbsoluteFill style={{ backgroundColor: "#0a0a14" }} />;
   }
 
-  // Build visual and audio sequences with IDENTICAL offsets from sceneTimeline().
-  // Both use cumulativeOffsetFrames which matches sceneTimeline() exactly.
-  const visualElements: React.ReactNode[] = [];
+  // Build the sequence of scenes with transitions (visual only)
+  const elements: React.ReactNode[] = [];
+  // Build audio sequences with frame-precise offsets matching sceneTimeline()
   const audioElements: React.ReactNode[] = [];
   let cumulativeOffsetFrames = 0;
 
@@ -99,34 +83,30 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({ scenes, audioPaths, dura
     const clipFrames = sceneClipFrames(duration);
     const clipDuration = sceneClipDuration(duration);
 
-    // Visual: absolute Sequence at the same offset as audio/subtitle.
-    // Fade-in for subsequent scenes (internal, does not shift timeline).
-    visualElements.push(
-      <Sequence
-        key={`s-${i}`}
-        from={cumulativeOffsetFrames}
-        durationInFrames={clipFrames}
-      >
-        {i > 0 ? (
-          <FadeIn durationInFrames={clipFrames}>
-            {renderScene(scene, clipDuration, contentDir)}
-          </FadeIn>
-        ) : (
-          renderScene(scene, clipDuration, contentDir)
-        )}
-      </Sequence>
+    // Add transition before this scene (skip first scene — hard cut)
+    if (i > 0) {
+      elements.push(
+        <TransitionSeries.Transition
+          key={`t-${i}`}
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+        />,
+      );
+    }
+
+    elements.push(
+      <TransitionSeries.Sequence key={`s-${i}`} durationInFrames={clipFrames}>
+        {renderScene(scene, clipDuration, contentDir)}
+      </TransitionSeries.Sequence>,
     );
 
-    // Audio: same offset as visual — matches sceneTimeline() exactly.
+    // Audio is placed OUTSIDE TransitionSeries to avoid transition overlap
+    // shifting audio onsets. The `from` offset matches sceneTimeline() exactly.
     if (audioPaths[i]) {
       audioElements.push(
-        <Sequence
-          key={`a-${i}`}
-          from={cumulativeOffsetFrames}
-          durationInFrames={clipFrames}
-        >
+        <Sequence key={`a-${i}`} from={cumulativeOffsetFrames} durationInFrames={clipFrames}>
           <Audio src={staticFile(audioPaths[i])} />
-        </Sequence>
+        </Sequence>,
       );
     }
 
@@ -135,7 +115,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({ scenes, audioPaths, dura
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#0a0a14" }}>
-      {visualElements}
+      <TransitionSeries>{elements}</TransitionSeries>
       {audioElements}
     </AbsoluteFill>
   );

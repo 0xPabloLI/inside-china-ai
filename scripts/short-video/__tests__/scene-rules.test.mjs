@@ -28,6 +28,8 @@ import {
   checkPrimaryGoal,
   checkLoopClose,
   checkSemanticConsistency,
+  checkBodyTextVoRedundancy,
+  checkHookMediaWarning,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
@@ -943,5 +945,46 @@ describe("runAllSceneDataChecks", () => {
   it("works without seriesMeta (single video)", () => {
     const results = runAllSceneDataChecks(validScenes, null);
     expect(results.fail.length).toBe(0);
+  });
+});
+
+// ── checkHookMediaWarning ──
+
+describe("checkHookMediaWarning", () => {
+  it("warns when hook scene has no media", () => {
+    const scenes = [{ id: 1, visualType: "hook", texts: { hookText: "TEST" } }];
+    const result = checkHookMediaWarning(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].category).toBe("Hook");
+    expect(result[0].check).toContain("media");
+  });
+
+  it("passes when hook scene has media", () => {
+    const scenes = [
+      {
+        id: 1,
+        visualType: "hook",
+        texts: { hookText: "TEST" },
+        media: { type: "image", path: "assets/bg.jpg", animation: "ken-burns", overlay: 0.5 },
+      },
+    ];
+    const result = checkHookMediaWarning(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("passes when there is no hook scene", () => {
+    const scenes = [{ id: 1, visualType: "narrative", voiceover: "test" }];
+    const result = checkHookMediaWarning(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("is included in runAllSceneDataChecks results", () => {
+    const scenes = [{ id: 1, visualType: "hook", texts: { hookText: "TEST" } }];
+    const results = runAllSceneDataChecks(scenes, null);
+    const mediaWarn = results.warn.find((w) => w.check.includes("media"));
+    expect(mediaWarn).toBeDefined();
   });
 });

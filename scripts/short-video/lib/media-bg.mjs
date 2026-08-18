@@ -13,8 +13,8 @@
  *   - No FFmpeg compositing needed (verified via headless test).
  *   - Animation presets use CSS @keyframes with percentage-based timing
  *     so in/out transitions auto-scale to any scene duration.
- *   - hookScene and ctaScene ignore the media field (templates don't
- *     consume it). All other scene templates can opt in.
+ *   - All scene templates (hook, narrative, info-card, quote) can opt in to
+ *     media via scene.media. ctaScene remains CSS-only.
  *
  * Remotion compatibility:
  *   The `media` field in scene-data is pure data (Remotion-agnostic).
