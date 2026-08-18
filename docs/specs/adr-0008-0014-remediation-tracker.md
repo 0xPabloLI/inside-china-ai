@@ -426,7 +426,7 @@ docs/adr/0011-unified-venv.md
 
 ### 10.1 目标
 
-ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 31 个；执行顺序实际上是 API → CDP primary → CDP fallback → MCP fallback。现有 paid API opt-in 护�ADR-0013 写 28 丁。VLM 已有“不可用则降级”的行为，但对描述臆造和 fit/focus 质量缺乏 Golden Asset 评估。
+ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；执行顺序实际上是 API → CDP primary → CDP fallback → MCP fallback。现有 paid API opt-in 护�ADR-0013 写 28 丁。VLM 已有“不可用则降级”的行为，但对描述臆造和 fit/focus 质量缺乏 Golden Asset 评估。
 
 ### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�#的 primary/fallback 两种尝试”，或正式改为“四阶段”；必须与代码一致。
 2. 使文档从硬编码来源数改为“由 `ALL_SOURCES` 测试约束”，或同步为 31。
@@ -490,8 +490,8 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 31 个；�
 | 0010 | 选择的时间线契约、TransitionSeries 是否仍存在、实际 Scene mapping。 |
 | 0011 | lockfile、smoke test 和升级协议。 |
 | 0012 | 仅写实际执行过的 Kaggle/Colab smoke 结果。 |
-| 0013 | 31 来源与准确的访问能力/回退表述。 |
-| 0014 | 0013e546…` 与 staged-pointer 校验。 |
+| 0013 | 34 来源与准确的访问能力/回退表述。 |
+| 0014 | 513e546…` 与 staged-pointer 校验。 |
 
 ### 12.3 最终验收门
 

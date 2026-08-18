@@ -23,7 +23,11 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const repoRoot = join(__dirname, "..");
+// Use cwd() so the script works in any git repo (for testing with temp repos).
+// Fall back to script's parent dir for backwards compatibility.
+const repoRoot = existsSync(join(process.cwd(), ".gitattributes"))
+  ? process.cwd()
+  : join(__dirname, "..");
 
 // ── Parse .gitattributes for LFS-tracked extensions ──
 function getLfsExtensions() {
