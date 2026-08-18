@@ -58,6 +58,13 @@ Map each angle to 2-4 search queries.
 
 ## Phase 3 — RETRIEVE
 
+> **MANDATORY**: Load `web-access` skill BEFORE any retrieval. Do NOT shortcut
+> to Tavily search/extract — Tavily truncates content and returns only FAQ
+> fragments. CDP gives full page DOM with login state and JS rendering.
+> Tavily is a **last-resort fallback** only when CDP is unavailable (agent
+> down, Chrome not running). If you catch yourself reaching for Tavily first,
+> stop and load web-access instead.
+
 Load `web-access` skill and follow its setup instructions (check-deps, CDP
 proxy). All web fetching goes through web-access — do not reimplement its API
 calls here.

@@ -571,7 +571,7 @@ describe("checkVoiceoverWordCount", () => {
   });
 });
 
-// ── runAllSceneDataChecks aggregation (T1 guard contract) ──
+// ── runAllSceneDataChecks aggregation (guard strictness) ──
 
 describe("runAllSceneDataChecks guard strictness", () => {
   const overLimitScenes = Array(12)

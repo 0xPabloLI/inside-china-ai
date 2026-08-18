@@ -2,7 +2,7 @@
 
 > Source of truth for doc ownership. Use it to find any document in one lookup.
 >
-> _Last inventory: 2026-08-15._
+> _Last inventory: 2026-08-18._
 
 ## Canonical Structure
 
@@ -44,7 +44,25 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 
 ### `adr/` — Architecture Decision Records
 
-Numbered sequence. Current: 0001–0006.
+Numbered sequence. Current: 0001–0015.
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| 0001 | Widget inline embedding / markers | Active |
+| 0002 | Supabase refresh token for DB writes | Active |
+| 0003 | Widget registry as extension point | Active |
+| 0004 | Env file strategy | Active |
+| 0005 | Lovable file structure constraints | Active |
+| 0006 | Architecture deepening completed | Active |
+| 0007 | RAG pipeline decisions | Active |
+| 0008 | TTS engine: F5-TTS-MLX | Active |
+| 0009 | VLM analysis layer: Qwen3-VL-8B via mlx-vlm | Active |
+| 0010 | Remotion replaces Playwright | Active |
+| 0011 | Unified venv | Active |
+| 0012 | Cloud GPU: Kaggle + Colab | Active |
+| 0013 | Asset sourcing three-layer | Active |
+| 0014 | Git LFS strategy | Active |
+| 0015 | Visual focus detection: OpenCV subprocess | Active |
 
 ### `conventions/` — Engineering conventions
 
@@ -71,7 +89,14 @@ Numbered sequence. Current: 0001–0006.
 
 ### `archive/` — Completed work
 
-Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list (37 files).
+Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list.
+
+### `specs/` — Active specs
+
+| Document | Purpose |
+|----------|---------|
+| `specs/spec-visual-focus-detection.md` | 视觉焦点检测 + AI 分析层重构 — OpenCV 焦点检测、命名重构、analyzeFit 迁移策略 |
+| `specs/spec-visual-focus-detection-review.md` | 上述 spec 的初审 + 复审记录 |
 
 ### `refs/` — Reference materials
 
@@ -92,7 +117,7 @@ Deep research reports with citations.
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
 | `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) |
 | `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB |
-| `golden-asset-evaluation.md` | Golden Asset evaluation for VLM quality — test set design, human expectations, model/prompt versions, testing strategy |
+| `echomimicv3-optimization-options.md` | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning |
 | `digital-human-test-progress.md` | Digital human model test progress tracking |
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `model-sources-reference.md` | Model search sources reference |
@@ -102,6 +127,8 @@ Deep research reports with citations.
 | `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
 | `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
+| `tiktok-hook-patterns-best-practices.md` | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design |
+| `tiktok-hook-patterns-wide-research-assessment.md` | TikTok hook patterns research — wide assessment and source evaluation |
 | `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |
 | `voice-cloning-solutions-m2-pro.md` | Voice cloning / TTS model research for Apple M2 Pro 32GB |
 | `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |
