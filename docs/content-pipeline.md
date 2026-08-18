@@ -13,6 +13,18 @@
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
+### Stage 0.5: Research Evidence（可选 — 无完整素材时强制）
+
+当用户只给话题或趋势（入口 2），管线在 Stage 1 前引入 Stage 0.5：Search Sources 发现候选 → Brief Builder 压缩为 research brief → Web Deep Research 执行验证 → evidence pack 作为唯一证据来源。文章中的所有 material factual claims 必须映射回 evidence pack 中的 `verified` 项。
+
+**数据契约**：`discovery.json` → `research-brief.json` → `evidence-pack.json` → `article-claim-map.json`。所有文件存储在 `content/<slug>/research/` 目录下。
+
+**实现模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。
+
+**MRL-1 evidence gate**：`claim-auditor.mjs` 的 `auditClaims()` 在文章发布前检查 claim-evidence 映射完整性。未映射、`rejected`/`stale` 证据、高风险 claim 未达 tier 阈值 = 审计失败。
+
+详细 spec 见 `docs/archive/spec-research-evidence-pipeline.md`。
+
 MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的人工确认点是 **HITL 视频审阅**：用户看视频成品后确认视频质量，然后发布视频 MP4 到网站文章 + TikTok。文章在 Stage 2 已发布（HITL 之前），HITL 仅控制视频发布。
 
 ### 语言规则
@@ -92,10 +104,10 @@ Agent 从 Stage 1 开始执行。
 Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个支持关键词的源，输出 JSON），再用 web-access skill 深度抓取相关 URL 全文，然后从 Stage 1 开始执行。
 
 > **搜索工具有两个模式，按场景分工**：
-> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 34 源（含首页型源），filter/classify/dedup，输出 `trending-topics.json`
-> - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：只跑 21 个 supportsKeyword=true 的源，不过滤不分类，输出 `research-results.json`（按源分组）
+> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 46 源（含固定公众号 RSS），filter/classify/dedup，输出 `trending-topics.json`
+> - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：只跑 24 个 supportsKeyword=true 的源，不过滤不分类，输出 `research-results.json`（按源分组）
 >
-> **源定义在 `lib/source-registry.mjs`（single source of source）**：34 源 = 7 news + 8 self_media + 8 western + 5 general + 5 last30days + 1 wechat。11 个源有 `apiSearch` 配置（直接 API 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）。
+> **源定义在 `lib/source-registry.mjs`（single source of source）**：46 源 = 7 news + 8 self_media + 8 western + 5 general + 5 last30days + 1 转载监控 wechat + 12 第三方 Wechat RSS。23 个源有 `apiSearch` 配置（直接 HTTP 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）。
 >
 > **补充搜索源**：需要更多新闻/学术/素材 API 时，查 `docs/tools-catalog.md` → Pipeline API 补充候选。
 >
@@ -133,6 +145,10 @@ Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个�
 
 源定义在 `scripts/short-video/lib/source-registry.mjs`，可插拔架构，新增源只需添加 collector 对象。
 
+##### 第三方公众号 RSS
+
+12 个经过可访问性、近 14 天时效与中国 AI 新闻相关性验证的公众号，定义在 `WECHAT_RSS_SOURCES`。项目只读取 Wechat2RSS 提供的公开 RSS XML，不使用微信账号、扫码会话或公众号后台 API。每个来源标有 `provider: wechat2rss`、`access: public-rss`、`official: false`、`stability: third-party` 和 14 天窗口；趋势模式只消费窗口内的条目，研究模式不拉取这些固定 Feed。它们不会自动抓全文或写入 RAG。来源清单、测试场景与扩展准则见 [Wechat2RSS 接入规格](specs/spec-wechat2rss-source-tracking.md)。
+
 **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据），也是 5 个西方源的主要搜索方式。Fallback 链：CDP → cdpFallback (Google site:搜索) → mcpFallback (mcp-search-bridge/Grok)。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`。
 
 ##### 定向公众号监控
@@ -145,10 +161,7 @@ Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个�
 - `mp.weixin.qq.com/mp/profile_ext` 要求微信客户端内打开，Chrome 登录态无效
 - Google `site:mp.weixin.qq.com` 索引率极低（只搜到 1 篇）
 
-**增强方案（可选）：微信后台 API 直爬**
-如果有微信公众平台的 cookie + token（登录 `mp.weixin.qq.com` 后获取，有效期约 2 小时），可启用 `WECHAT_API_CONFIG` 直接调后台 API 获取完整文章列表。参考 `mashukui/wechat_official_account_crawler`。设置环境变量 `WX_COOKIE` 和 `WX_TOKEN` 后将 `WECHAT_API_CONFIG.enabled` 设为 `true`。
-
-**添加新公众号监控**：在 `source-registry.mjs` 的 `WECHAT_ACCOUNT_SOURCES` 数组中复制一条，修改 `name`、`label`、`account` 即可。
+**微信公众号后台 API 的边界**：`WECHAT_API_CONFIG` 保持禁用。项目验证记录表明，该后台发布列表不能用于读取其它公众号的文章历史；它不是任意公众号追踪方案。固定公开 RSS 应添加到 `WECHAT_RSS_SOURCES`，而转载监控保留在 `WECHAT_ACCOUNT_SOURCES`。第三方与开源方案的上游机制、账号会话风险和官方授权边界见 [公众号 RSS 机制研究](research/wechat-rss-tracking-mechanisms.md)。
 
 ```bash
 # 运行趋势发现（默认关键词 "AI大模型"）
