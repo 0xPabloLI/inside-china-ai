@@ -3,7 +3,7 @@
  *
  * TDD: Tests written first (red), implementation second (green).
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { unlinkSync, rmdirSync } from "fs";
 
 import {
@@ -1579,5 +1579,218 @@ describe("assignAssetsToScenes", () => {
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("ken-burns");
+  });
+});
+
+// ─── Ticket 02: scoreCandidate { description, subjects } + recommendScene contentKind (P1-1) ───
+// Scenario Matrix rows: #4, #5, #6, #7, #8, #9, #10, #17, #18
+
+describe("Ticket 02 — scoreCandidate with { description, subjects }", () => {
+  const baseCandidate = {
+    title: "Demo Video",
+    type: "video",
+    duration: 5,
+    fileSize: 5000000,
+    resolution: "720p",
+  };
+  // Technical: 0 (title) + 18 + 14 + 7 = 39
+
+  // Scenario #4: subjects exact match = 20 pts; description has no keyword = 0; total = 20
+  it("scores subjects exact match as 20 pts when description has no keyword (Scenario #4)", () => {
+    const score = scoreCandidate(baseCandidate, "Unitree", {
+      description: "robot lab",
+      subjects: ["unitree"],
+    });
+    // 39 (technical) + 20 (subjects) + 0 (description) = 59
+    expect(score).toBe(59);
+  });
+
+  // Scenario #5: subjects empty = 0 pts; description has keyword = 10 pts; total = 10
+  it("scores description match as 10 pts when subjects empty (Scenario #5)", () => {
+    const score = scoreCandidate(baseCandidate, "Unitree", {
+      description: "Unitree robot",
+      subjects: [],
+    });
+    // 39 (technical) + 0 (subjects) + 10 (description) = 49
+    expect(score).toBe(49);
+  });
+
+  // Scenario #6: string semantics (backward compat) → works as before
+  it("accepts string semantics as backward compat (Scenario #6)", () => {
+    const scoreWithString = scoreCandidate(
+      baseCandidate,
+      "Unitree",
+      "A Unitree humanoid robot walking in a lab",
+    );
+    // 39 (technical) + 20 (subjects from description boundary match) + 10 (description) = 69
+    // Old behavior: string is treated as description, boundary match gives 20+10=30
+    expect(scoreWithString).toBe(69);
+  });
+
+  // Scenario #6 (object form): { description } without subjects → only description score
+  it("accepts object { description } without subjects (Scenario #6 variant)", () => {
+    const scoreWithObj = scoreCandidate(baseCandidate, "Unitree", {
+      description: "A Unitree humanoid robot walking in a lab",
+    });
+    // 39 (technical) + 0 (no subjects) + 10 (description boundary match) = 49
+    expect(scoreWithObj).toBe(49);
+  });
+
+  // Scenario #17: subjects containing keyword as substring (not exact) → no match
+  it("does NOT match subjects substring (exact match only, case-insensitive) (Scenario #17)", () => {
+    const score = scoreCandidate(
+      baseCandidate,
+      "Unitree",
+      { description: "robot lab", subjects: ["unitreeRobot"] }, // substring, not exact
+    );
+    // 39 (technical) + 0 (subjects: "unitree" != "unitreerobot") + 0 (description) = 39
+    expect(score).toBe(39);
+  });
+
+  // Scenario #18: multi-word keyword tokenized match against subjects
+  it("matches multi-word keyword tokens against subjects (Scenario #18)", () => {
+    const score = scoreCandidate(baseCandidate, "Alibaba Cloud", {
+      description: "infrastructure",
+      subjects: ["alibaba", "cloud", "infrastructure"],
+    });
+    // 39 (technical) + 20 (subjects: both tokens match: 2/2 = proportional full 20) + 0 (description: "infrastructure" no "alibaba cloud") = 59
+    // Per-token match: 2/2 tokens match = full 20 pts
+    expect(score).toBe(59);
+  });
+
+  // Additional: both subjects and description match → combined score
+  it("combines subjects and description scores when both match", () => {
+    const score = scoreCandidate(baseCandidate, "Unitree", {
+      description: "Unitree robot in lab",
+      subjects: ["unitree", "robot"],
+    });
+    // 39 (technical) + 20 (subjects exact match) + 10 (description boundary) = 69
+    expect(score).toBe(69);
+  });
+
+  // Capped at 30 for relevance
+  it("relevance score capped at 30 with both subjects and description", () => {
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "1080p",
+    };
+    // 28 + 18 + 14 + 10 = 70 technical
+    const score = scoreCandidate(candidate, "Unitree", {
+      description: "Unitree robot Unitree lab",
+      subjects: ["unitree", "robot"],
+    });
+    // 70 + min(20 + 10, 30) = 100
+    expect(score).toBe(100);
+  });
+});
+
+// ─── Ticket 02: recommendScene with contentKind mapping ───
+
+describe("Ticket 02 — recommendScene with contentKind", () => {
+  // Scenario #7: contentKind: "product_demo" → prefers narrative scene
+  it("prefers narrative scene for contentKind=product_demo (Scenario #7)", () => {
+    const scenes = [
+      { id: 1, visualType: "info-card" },
+      { id: 2, visualType: "narrative" },
+      { id: 3, visualType: "quote" },
+    ];
+    const asset = { type: "image", contentKind: "product_demo" };
+    const rec = recommendScene(asset, scenes);
+    expect(rec.sceneId).toBe(2); // narrative preferred
+  });
+
+  // Scenario #8: contentKind: "talking_head" → prefers quote scene
+  it("prefers quote scene for contentKind=talking_head (Scenario #8)", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative" },
+      { id: 2, visualType: "quote" },
+    ];
+    const asset = { type: "image", contentKind: "talking_head" };
+    const rec = recommendScene(asset, scenes);
+    expect(rec.sceneId).toBe(2); // quote preferred
+  });
+
+  // Scenario #9: contentKind null or unknown → falls back to current logic
+  it("falls back to current logic for null contentKind (Scenario #9)", () => {
+    const scenes = [
+      { id: 1, visualType: "info-card" },
+      { id: 2, visualType: "narrative" },
+    ];
+    const asset = { type: "image", contentKind: null };
+    const rec = recommendScene(asset, scenes);
+    // No preference → first available scene (info-card)
+    expect(rec.sceneId).toBe(1);
+  });
+
+  it("falls back to current logic for unknown contentKind (Scenario #9)", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative" },
+      { id: 2, visualType: "quote" },
+    ];
+    const asset = { type: "image", contentKind: "landscape" };
+    const rec = recommendScene(asset, scenes);
+    // Unknown contentKind → no preference → first available
+    expect(rec.sceneId).toBe(1);
+  });
+
+  // Scenario #10: contentKind=product_demo but all narrative scenes taken → falls through
+  it("falls through when preferred type all taken (Scenario #10)", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative", media: { type: "image" } }, // already taken
+      { id: 2, visualType: "info-card" },
+    ];
+    const asset = { type: "image", contentKind: "product_demo" };
+    const rec = recommendScene(asset, scenes);
+    // All narrative taken → fall through to info-card
+    expect(rec.sceneId).toBe(2);
+  });
+});
+
+// ─── End-to-end path contract (Review P0-1 completion criterion) ───
+// Review P0-1: "相对路径 → assignAssetsToScenes → validatePatchEntry → valid: true"
+// Verifies that the full pipeline produces patches that the apply-media-patch.mjs validator accepts.
+
+describe("End-to-end: assignAssetsToScenes → validatePatchEntry (Review P0-1)", () => {
+  // Import validatePatchEntry and isPathContained from the apply-media-patch module
+  // Using dynamic import to avoid circular dependency issues
+  let validatePatchEntry, isPathContained;
+  beforeAll(async () => {
+    const mod = await import("../apply-media-patch.mjs");
+    validatePatchEntry = mod.validatePatchEntry;
+    isPathContained = mod.isPathContained;
+  });
+
+  it("relative-path asset → assignAssetsToScenes → validatePatchEntry: valid", () => {
+    const contentDir = "/fake/content/unitree";
+    const scenes = [
+      { id: 1, visualType: "narrative" },
+    ];
+    const assets = [
+      { type: "image", path: "assets/img.jpg", score: 80, source: "pexels" },
+    ];
+    const patches = assignAssetsToScenes(assets, scenes);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].status).toBe("assigned");
+    // media.path must be relative
+    expect(patches[0].media.path).toBe("assets/img.jpg");
+    // validatePatchEntry must accept it
+    const result = validatePatchEntry(patches[0], scenes, contentDir);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("isPathContained accepts relative path", () => {
+    expect(isPathContained("assets/img.jpg", "/fake/content/unitree")).toBe(true);
+  });
+
+  it("isPathContained rejects absolute path (the P0-1 bug)", () => {
+    expect(isPathContained("/fake/content/unitree/assets/img.jpg", "/fake/content/unitree")).toBe(false);
+  });
+
+  it("isPathContained rejects path traversal", () => {
+    expect(isPathContained("../../etc/passwd", "/fake/content/unitree")).toBe(false);
   });
 });
