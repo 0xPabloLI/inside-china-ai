@@ -44,16 +44,16 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 
 ### `adr/` — Architecture Decision Records
 
-Numbered sequence. Current: 0001–0015.
+Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| 0001 | Widget inline embedding / markers | Active |
-| 0002 | Supabase refresh token for DB writes | Active |
+| 0001 | Widget inline embedding via HTML comment markers | Active |
+| 0002 | Supabase admin auth for programmatic DB writes | Active |
 | 0003 | Widget registry as extension point | Active |
 | 0004 | Env file strategy | Active |
 | 0005 | Lovable file structure constraints | Active |
-| 0006 | Architecture deepening completed | Active |
+| 0006 | ~~Architecture deepening completed~~ | Moved to `archive/` |
 | 0007 | RAG pipeline decisions | Active |
 | 0008 | TTS engine: F5-TTS-MLX | Active |
 | 0009 | VLM analysis layer: Qwen3-VL-8B via mlx-vlm | Active |
@@ -63,6 +63,8 @@ Numbered sequence. Current: 0001–0015.
 | 0013 | Asset sourcing three-layer | Active |
 | 0014 | Git LFS strategy | Active |
 | 0015 | Visual focus detection: OpenCV subprocess | Active |
+| 0016 | Cascade filtering & signal density | Active |
+| 0017 | Widget breakout layout | Active |
 
 ### `conventions/` — Engineering conventions
 
