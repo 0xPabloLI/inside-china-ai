@@ -1,0 +1,72 @@
+{
+  "description": "Golden fixture for focus_detector.py output schema validation.",
+  "version": "1.0.0",
+  "createdAt": "2026-08-18",
+  "testImage": "scripts/short-video/assets/shanghai-skyline.jpg",
+  "expectedSchema": {
+    "status": { "type": "string", "enum": ["ok", "partial", "low_information", "degraded", "unsupported"] },
+    "errorCode": { "type": "string|null" },
+    "frame": {
+      "type": "object|null",
+      "fields": {
+        "width": "number",
+        "height": "number",
+        "orientation": "string (landscape|portrait)",
+        "orientationNormalized": "boolean"
+      }
+    },
+    "protectedRegions": {
+      "type": "array",
+      "items": {
+        "rect": "array<number> [x, y, w, h] (normalized 0-1)",
+        "kind": "string",
+        "confidence": "number|null",
+        "confidenceKind": "string"
+      }
+    },
+    "saliency": {
+      "type": "object",
+      "fields": {
+        "available": "boolean",
+        "dispersion": "number (0-1)",
+        "centroid": "array<number> [x, y] (normalized 0-1)"
+      }
+    }
+  },
+  "goldenCases": [
+    {
+      "name": "real-image-ok",
+      "input": "scripts/short-video/assets/shanghai-skyline.jpg",
+      "expectedStatus": "ok",
+      "expectedErrorCode": null,
+      "expectedFrameOrientation": "portrait",
+      "expectedSaliencyAvailable": true,
+      "minProtectedRegions": 1,
+      "maxResponseTimeMs": 2000
+    },
+    {
+      "name": "nonexistent-image-degraded",
+      "input": "/tmp/nonexistent-focus-test.jpg",
+      "expectedStatus": "degraded",
+      "expectedErrorCode": "cannot_read_image",
+      "expectedFrame": null,
+      "expectedProtectedRegions": [],
+      "expectedSaliencyAvailable": false,
+      "maxResponseTimeMs": 500
+    },
+    {
+      "name": "video-unsupported",
+      "input": "/tmp/test-video.mp4",
+      "expectedStatus": "unsupported",
+      "expectedErrorCode": "video_not_supported",
+      "maxResponseTimeMs": 100
+    },
+    {
+      "name": "text-file-unsupported",
+      "input": "/tmp/test.txt",
+      "expectedStatus": "unsupported",
+      "expectedErrorCode": "unsupported_media_type",
+      "maxResponseTimeMs": 100
+    }
+  ]
+}

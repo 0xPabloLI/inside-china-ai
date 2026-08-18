@@ -1,0 +1,9 @@
+# focus_detector.py dependencies — pinned versions
+# Install: pip install -r scripts/short-video/lib/requirements-focus.txt
+# NOTE: opencv-contrib-python (not opencv-python) is required for:
+#   - cv2.CascadeClassifier (face detection)
+#   - cv2.saliency.StaticSaliencySpectralResidual (saliency map)
+# OpenCV 5.x removed both modules — must use 4.10.x
+opencv-contrib-python==4.10.0.84
+Pillow==10.4.0
+numpy==1.26.4

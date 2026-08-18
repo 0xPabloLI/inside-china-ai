@@ -65,7 +65,7 @@ while not self._stopped:
 | 项目 | 结果 | 说明 |
 |---|---|---|
 | Spec、研究文档、内容管线、渲染类型、layout/verify 和 formatter | **存在** | V6 相关路径均可访问；现有 formatter 的确只输出可复制的 `media` block，故 V6 的注释摘要边界合理且必要。 |
-| 现有 VLM IdleTimer | **存在** | `ai_analyzer.py` 提供了 Event + Lock + 10 秒轮询的可复用模式；Focus 实现应复用其生命周期语义。 |
+| 现有 VLM IdleTimer | **存在** | `vlm_analyzer.py` 提供了 Event + Lock + 10 秒轮询的可复用模式；Focus 实现应复用其生命周期语义。 |
 | 待新增 Focus 脚本、依赖锁和 fixtures | **尚不存在，符合设计阶段** | 已在 §6 正确列为新建文件；首个实现 commit 必须一并加入并让测试覆盖。 |
 
 ## 最终判断

@@ -357,22 +357,26 @@ source: asset.source || asset.from || undefined,
 animation,
 overlay,
 };
-// Include VLM-analyzed fit/focus when available
+// Include VLM-analyzed fit when available (focus is now deprecated — spec §4.8)
 if (asset.aiFit) {
 media.fit = asset.aiFit;
-}
-if (asset.aiFocus) {
-media.focus = asset.aiFocus;
 }
 if (volume !== undefined) {
 media.volume = volume;
 }
+
+      // Build analysis field for human review (spec §4.7)
+      const analysis = {};
+      if (asset.focusAnalysis) {
+        analysis.focusAnalysis = asset.focusAnalysis;
+      }
 
       result.push({
         sceneId: scene.id,
         sceneName: scene.name,
         visualType: vt,
         media,
+        analysis: Object.keys(analysis).length > 0 ? analysis : undefined,
         assetScore: asset.score || 0,
         source: asset.source || asset.from || "unknown",
         attribution: asset.attribution || null,
@@ -478,9 +482,29 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
  * @returns {Promise<Array<{path: string, description: string, success: boolean, analysisTimeMs: number}>>}
  */
 export async function analyzeAssets(assets) {
-  const { describeImage, describeVideo, analyzeFit } = await import("./visual-analyzer.mjs");
+  const {
+    describeImage,
+    describeVideo,
+    analyzeFit,
+    detectFocus,
+    closeFocusDetector,
+    closeVisualAnalyzer,
+  } = await import("./visual-analyzer.mjs");
   const { checkResolution } = await import("./upscale.mjs");
 
+  // ── Phase 1: Focus detection (fast, lightweight) ──
+  // detectFocus NEVER rejects — see failure-safe contract in spec §4.2
+  try {
+    for (const asset of assets) {
+      if (!asset.path) continue;
+      const focus = await detectFocus(asset.path);
+      asset.focusAnalysis = focus;
+    }
+  } finally {
+    await closeFocusDetector(); // always release focus subprocess
+  }
+
+  // ── Phase 2: VLM description + analyzeFit (existing logic preserved) ──
   const report = [];
 
   try {
@@ -517,7 +541,7 @@ export async function analyzeAssets(assets) {
         success = false;
       }
 
-      // For landscape assets, also analyze fit/focus
+      // For landscape assets, also analyze fit (保留 fit 输出，不再回写 aiFocus)
       try {
         const res = checkResolution(absPath);
         const aspect = res.height > 0 ? res.width / res.height : 0;
@@ -526,9 +550,9 @@ export async function analyzeAssets(assets) {
           const fitResult = await analyzeFit(absPath);
           if (fitResult.fit) {
             asset.aiFit = fitResult.fit;
-            asset.aiFocus = fitResult.focus;
             asset.aiFitReason = fitResult.reason || "";
-            console.log(`     → fit: ${fitResult.fit}, focus: ${fitResult.focus}`);
+            // 不再回写 asset.aiFocus — focus 由 detectFocus() 的 protectedRegions 替代
+            console.log(`     → fit: ${fitResult.fit}`);
           }
         }
       } catch (fitErr) {

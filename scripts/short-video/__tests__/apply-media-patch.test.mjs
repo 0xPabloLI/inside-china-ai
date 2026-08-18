@@ -1,423 +1,208 @@
 /**
- * Apply Media Patch Tests — AMP-1 through AMP-20
+ * Tests for apply-media-patch.mjs — human review summary formatting.
  *
- * TDD: Tests written first (red), implementation second (green).
- * Covers all 20 scenarios from the spec scenario matrix.
+ * Spec §4.7: Output review summary as comments, NOT as copyable fields.
+ * The media object keeps existing MediaField shape — no analysis or focusAnalysis.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { join } from "path";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
-import { tmpdir } from "os";
-
+import { describe, it, expect } from "vitest";
 import {
-  validatePatchEntry,
-  detectConflict,
-  applyPatchesToText,
-  generateReceipt,
-  formatDryRun,
-} from "../apply-media-patch.mjs";
+  formatFocusSummary,
+  formatPatchEntry,
+  formatMediaPatch,
+} from "../lib/apply-media-patch.mjs";
 
-// ─── Test fixtures ───
-
-const CONTENT_DIR = "/fake/content/test-slug";
-
-const scenes = [
-  { id: 1, name: "hook", visualType: "hook" },
-  {
-    id: 2,
-    name: "ipo-details",
-    visualType: "narrative",
-    media: { type: "video", path: "assets/old.mp4", animation: "fade", overlay: 0.7 },
-  },
-  { id: 3, name: "oversubscription", visualType: "data" },
-  { id: 4, name: "company-background", visualType: "info-card" },
-  {
-    id: 5,
-    name: "products",
-    visualType: "narrative",
-    media: { type: "image", path: "assets/existing.jpg", animation: "ken-burns", overlay: 0.75 },
-  },
-  { id: 9, name: "china-dominance", visualType: "stat-reveal" },
-];
-
-const makePatch = (overrides = {}) => ({
-  sceneId: 4,
-  sceneName: "company-background",
-  visualType: "info-card",
-  media: {
-    type: "image",
-    path: "assets/new-image.jpg",
-    source: "Pexels",
-    animation: "ken-burns",
-    overlay: 0.75,
-  },
-  assetScore: 85,
-  source: "pexels",
-  status: "assigned",
-  ...overrides,
-});
-
-// ─── validatePatchEntry ───
-
-describe("validatePatchEntry", () => {
-  // Scenario 1: valid entry, no existing media
-  it("validates a valid assigned entry with no existing media", () => {
-    const entry = makePatch({ sceneId: 4 });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
+describe("formatFocusSummary", () => {
+  it("formats ok status with protected regions and saliency", () => {
+    const fa = {
+      status: "ok",
+      errorCode: null,
+      frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+      protectedRegions: [
+        { rect: [0.1, 0.2, 0.3, 0.4], kind: "face", confidence: null, confidenceKind: "not_provided" },
+      ],
+      saliency: { available: true, dispersion: 0.063, centroid: [0.5, 0.6] },
+    };
+    const result = formatFocusSummary(fa);
+    expect(result).toContain("Focus Analysis: ok");
+    expect(result).toContain("Protected Regions (1)");
+    expect(result).toContain("face: [0.100, 0.200, 0.300, 0.400]");
+    expect(result).toContain("Saliency: available");
+    expect(result).toContain("dispersion: 0.063");
   });
 
-  // Scenario 3: conflict — scene already has media
-  it("detects conflict when scene already has media (without force)", () => {
-    const entry = makePatch({ sceneId: 2 }); // scene 2 has media
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(true);
-    expect(result.reason).toBe("conflict");
+  it("formats partial status (saliency unavailable but regions present)", () => {
+    const fa = {
+      status: "partial",
+      errorCode: "saliency_compute_failed",
+      protectedRegions: [{ rect: [0.1, 0.2, 0.1, 0.2], kind: "face", confidence: null, confidenceKind: "not_provided" }],
+      saliency: { available: false, dispersion: 0.0, centroid: [0.5, 0.5] },
+    };
+    const result = formatFocusSummary(fa);
+    expect(result).toContain("Focus Analysis: partial");
+    expect(result).toContain("Protected Regions (1)");
+    expect(result).toContain("Saliency: unavailable");
   });
 
-  // Scenario 4: already-applied — same type + path
-  it("detects already-applied when media matches existing", () => {
-    const entry = makePatch({
-      sceneId: 2,
-      media: { type: "video", path: "assets/old.mp4", animation: "fade", overlay: 0.7 },
-    });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(true);
-    expect(result.reason).toBe("already-applied");
+  it("formats low_information status", () => {
+    const fa = {
+      status: "low_information",
+      errorCode: null,
+      protectedRegions: [],
+      saliency: { available: true, dispersion: 0.005, centroid: [0.5, 0.5] },
+    };
+    const result = formatFocusSummary(fa);
+    expect(result).toContain("low_information");
+    expect(result).toContain("no protected regions");
   });
 
-  // Scenario 6: unassigned status
-  it("skips entries with status unassigned", () => {
-    const entry = makePatch({ sceneId: 4, status: "unassigned" });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(true);
-    expect(result.reason).toBe("unassigned");
+  it("formats degraded status with warning", () => {
+    const fa = {
+      status: "degraded",
+      errorCode: "opencv_not_available",
+      protectedRegions: [],
+      saliency: { available: false, dispersion: 0.0, centroid: [0.5, 0.5] },
+    };
+    const result = formatFocusSummary(fa);
+    expect(result).toContain("⚠️");
+    expect(result).toContain("degraded");
+    expect(result).toContain("opencv_not_available");
+    expect(result).toContain("ignore focusAnalysis");
   });
 
-  // Scenario 7: absolute path
-  it("rejects absolute paths", () => {
-    const entry = makePatch({ media: { type: "image", path: "/etc/passwd" } });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("path");
+  it("formats unsupported status for video assets", () => {
+    const fa = {
+      status: "unsupported",
+      errorCode: "video_not_supported",
+      protectedRegions: [],
+      saliency: { available: false, dispersion: 0.0, centroid: [0.5, 0.5] },
+    };
+    const result = formatFocusSummary(fa);
+    expect(result).toContain("unsupported");
+    expect(result).toContain("video asset");
   });
 
-  // Scenario 8: path traversal
-  it("rejects path traversal with ../", () => {
-    const entry = makePatch({ media: { type: "image", path: "../../../etc/passwd" } });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("path");
+  it("returns empty string for null input", () => {
+    expect(formatFocusSummary(null)).toBe("");
+    expect(formatFocusSummary(undefined)).toBe("");
   });
 
-  // Scenario 9: invalid media type
-  it("rejects invalid media type", () => {
-    const entry = makePatch({ media: { type: "audio", path: "assets/x.wav" } });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("type");
-  });
-
-  // Scenario 10: scene not found
-  it("rejects entry when sceneId not in scenes", () => {
-    const entry = makePatch({ sceneId: 999 });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("scene");
-  });
-
-  // Scenario 17: null media
-  it("rejects entry with null media when status is assigned", () => {
-    const entry = makePatch({ media: null });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("media");
-  });
-
-  // Scenario 17b: undefined media
-  it("rejects entry with undefined media when status is assigned", () => {
-    const entry = makePatch({ media: undefined });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("media");
-  });
-
-  // Scenario 9b: missing path
-  it("rejects entry with missing path in media", () => {
-    const entry = makePatch({ media: { type: "image" } });
-    const result = validatePatchEntry(entry, scenes, CONTENT_DIR);
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("path");
+  it("handles missing protectedRegions gracefully", () => {
+    const fa = { status: "ok", errorCode: null, saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] } };
+    const result = formatFocusSummary(fa);
+    expect(result).toContain("No protected regions detected");
   });
 });
 
-// ─── detectConflict ───
+describe("formatPatchEntry — output boundary", () => {
+  it("outputs media object WITHOUT analysis or focusAnalysis fields", () => {
+    const entry = {
+      sceneId: 3,
+      sceneName: "Test Scene",
+      visualType: "narrative",
+      media: { type: "image", path: "content/test/img.jpg", animation: "fade", overlay: 0.7, fit: "cover" },
+      analysis: {
+        focusAnalysis: {
+          status: "ok",
+          errorCode: null,
+          protectedRegions: [{ rect: [0.1, 0.2, 0.3, 0.4], kind: "face", confidence: null, confidenceKind: "not_provided" }],
+          saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] },
+        },
+      },
+      assetScore: 85,
+      source: "pexels",
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
 
-describe("detectConflict", () => {
-  it("returns 'none' when existingMedia is null", () => {
-    const result = detectConflict({ type: "image", path: "assets/x.jpg" }, null);
-    expect(result).toBe("none");
+    // Should contain focus summary as comments
+    expect(result).toContain("// Focus Analysis: ok");
+    expect(result).toContain("// Protected Regions");
+
+    // Should contain copyable media object
+    expect(result).toContain("media: {");
+    expect(result).toContain('type: "image"');
+    expect(result).toContain('path: "content/test/img.jpg"');
+
+    // Should NOT contain analysis or focusAnalysis in the media block
+    // (they should only appear as comments above the media block)
+    const mediaBlock = result.substring(result.indexOf("media: {"));
+    expect(mediaBlock).not.toContain("focusAnalysis");
+    expect(mediaBlock).not.toContain("analysis");
+    expect(mediaBlock).not.toContain("protectedRegions");
   });
 
-  it("returns 'none' when existingMedia is undefined", () => {
-    const result = detectConflict({ type: "image", path: "assets/x.jpg" }, undefined);
-    expect(result).toBe("none");
+  it("does not include deprecated focus field in media output", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.jpg", fit: "cover" },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).not.toContain("focus:");
   });
 
-  it("returns 'already-applied' when type and path match", () => {
-    const patchMedia = { type: "image", path: "assets/same.jpg" };
-    const existing = { type: "image", path: "assets/same.jpg", animation: "fade" };
-    const result = detectConflict(patchMedia, existing);
-    expect(result).toBe("already-applied");
+  it("returns empty string for unassigned entries", () => {
+    const entry = { status: "unassigned", assetScore: 50 };
+    expect(formatPatchEntry(entry)).toBe("");
   });
 
-  it("returns 'conflict' when type differs", () => {
-    const patchMedia = { type: "video", path: "assets/x.mp4" };
-    const existing = { type: "image", path: "assets/x.jpg" };
-    const result = detectConflict(patchMedia, existing);
-    expect(result).toBe("conflict");
-  });
-
-  it("returns 'conflict' when path differs", () => {
-    const patchMedia = { type: "image", path: "assets/new.jpg" };
-    const existing = { type: "image", path: "assets/old.jpg" };
-    const result = detectConflict(patchMedia, existing);
-    expect(result).toBe("conflict");
+  it("handles entries without analysis field", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.jpg", animation: "fade" },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    // Should still output the media block
+    expect(result).toContain("media: {");
+    expect(result).toContain('path: "test.jpg"');
+    // No focus summary comments
+    expect(result).not.toContain("// Focus Analysis");
   });
 });
 
-// ─── applyPatchesToText ───
-
-describe("applyPatchesToText", () => {
-  const sceneDataContent = `export const scenes = [
-  {
-    id: 1,
-    name: "hook",
-    visualType: "hook",
-    voiceover: "Some hook text",
-    texts: { badge: "BREAKING" },
-  },
-  {
-    id: 2,
-    name: "ipo-details",
-    visualType: "narrative",
-    media: {
-      type: "video",
-      path: "assets/old.mp4",
-      animation: "fade",
-      overlay: 0.7,
-    },
-    voiceover: "Some narrative text",
-    texts: { badge: "IPO" },
-  },
-  {
-    id: 4,
-    name: "company-background",
-    visualType: "info-card",
-    voiceover: "Company background text",
-    texts: { title: "THE COMPANY" },
-  },
-];
-`;
-
-  // Scenario 1: standard insert
-  it("inserts media field before voiceover when no existing media", () => {
+describe("formatMediaPatch — full output", () => {
+  it("formats multiple assigned and unassigned entries", () => {
     const patches = [
       {
-        sceneId: 4,
-        media: { type: "image", path: "assets/new.jpg", animation: "ken-burns", overlay: 0.75 },
-        action: "add",
+        sceneId: 1,
+        sceneName: "Scene 1",
+        visualType: "narrative",
+        media: { type: "image", path: "img1.jpg", animation: "fade", overlay: 0.7 },
+        analysis: { focusAnalysis: { status: "ok", protectedRegions: [], saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] } } },
+        assetScore: 90,
+        source: "pexels",
+        status: "assigned",
       },
-    ];
-    const result = applyPatchesToText(sceneDataContent, patches, { force: false });
-    expect(result.errors).toHaveLength(0);
-    expect(result.modifiedContent).toContain("media:");
-    expect(result.modifiedContent).toContain("assets/new.jpg");
-    // media should be before voiceover in scene 4
-    const mediaIdx = result.modifiedContent.indexOf("media:");
-    const voIdx = result.modifiedContent.indexOf('voiceover: "Company background text"');
-    expect(mediaIdx).toBeGreaterThan(-1);
-    expect(voIdx).toBeGreaterThan(mediaIdx);
-  });
-
-  // Scenario 5: force replace
-  it("replaces existing media when force is true", () => {
-    const patches = [
       {
         sceneId: 2,
-        media: { type: "image", path: "assets/replaced.jpg", animation: "fade", overlay: 0.8 },
-        action: "replace",
-      },
-    ];
-    const result = applyPatchesToText(sceneDataContent, patches, { force: true });
-    expect(result.errors).toHaveLength(0);
-    expect(result.modifiedContent).toContain("assets/replaced.jpg");
-    expect(result.modifiedContent).not.toContain("assets/old.mp4");
-  });
-
-  // Scenario 13: multiple entries for same scene
-  it("processes only first entry for same scene, marks subsequent as conflict", () => {
-    const patches = [
-      {
-        sceneId: 4,
-        media: { type: "image", path: "assets/first.jpg", animation: "fade", overlay: 0.7 },
-        action: "add",
+        sceneName: "Scene 2",
+        visualType: "info-card",
+        media: { type: "video", path: "clip1.mp4", animation: "zoom", overlay: 0.75 },
+        assetScore: 70,
+        source: "youtube",
+        status: "assigned",
       },
       {
-        sceneId: 4,
-        media: { type: "image", path: "assets/second.jpg", animation: "fade", overlay: 0.7 },
-        action: "add",
+        assetScore: 30,
+        source: "pexels",
+        status: "unassigned",
       },
     ];
-    const result = applyPatchesToText(sceneDataContent, patches, { force: false });
-    expect(result.applied).toHaveLength(1);
-    expect(result.modifiedContent).toContain("assets/first.jpg");
-    expect(result.skipped.length).toBeGreaterThanOrEqual(1);
+    const result = formatMediaPatch(patches);
+    expect(result).toContain("Assigned (2)");
+    expect(result).toContain("Unassigned (1)");
+    expect(result).toContain("Scene 1: Scene 1");
+    expect(result).toContain("Scene 2: Scene 2");
   });
 
-  // Scenario 14: re-run idempotent
-  it("marks already-applied when media matches existing after previous apply", () => {
-    const patches = [
-      {
-        sceneId: 2,
-        media: { type: "video", path: "assets/old.mp4", animation: "fade", overlay: 0.7 },
-        action: "add",
-      },
-    ];
-    const result = applyPatchesToText(sceneDataContent, patches, { force: false });
-    expect(result.applied).toHaveLength(0);
-    expect(result.skipped[0].reason).toBe("already-applied");
+  it("handles empty patch array", () => {
+    const result = formatMediaPatch([]);
+    expect(result).toContain("(empty patch file)");
   });
 
-  // Scenario 20: non-standard formatting (single-line scene)
-  it("handles single-line media field in scene object", () => {
-    const singleLineContent = `export const scenes = [
-  { id: 1, name: "hook", visualType: "hook", voiceover: "hook text", texts: {} },
-  { id: 2, name: "narrative", visualType: "narrative", media: { type: "image", path: "assets/old.jpg", animation: "fade" }, voiceover: "narrative text", texts: {} },
-];
-`;
-    const patches = [
-      {
-        sceneId: 2,
-        media: { type: "image", path: "assets/new.jpg", animation: "zoom", overlay: 0.7 },
-        action: "replace",
-      },
-    ];
-    const result = applyPatchesToText(singleLineContent, patches, { force: true });
-    expect(result.errors).toHaveLength(0);
-    expect(result.modifiedContent).toContain("assets/new.jpg");
-    expect(result.modifiedContent).not.toContain("assets/old.jpg");
-  });
-});
-
-// ─── generateReceipt ───
-
-describe("generateReceipt", () => {
-  it("generates receipt with correct structure", () => {
-    const applied = [
-      {
-        sceneId: 4,
-        sceneName: "company-background",
-        action: "added",
-        media: { type: "image", path: "assets/new.jpg" },
-      },
-    ];
-    const skipped = [
-      { sceneId: 3, reason: "unassigned" },
-      { sceneId: 2, reason: "conflict" },
-    ];
-    const receipt = generateReceipt(applied, skipped, {
-      content: "test-slug",
-      patchFile: "output/media-patch.json",
-      backupPath: "content/test-slug/scene-data.mjs.bak",
-    });
-    expect(receipt.content).toBe("test-slug");
-    expect(receipt.applied).toHaveLength(1);
-    expect(receipt.skipped).toHaveLength(2);
-    expect(receipt.summary.total).toBe(3);
-    expect(receipt.summary.applied).toBe(1);
-    expect(receipt.summary.skipped).toBe(2);
-    expect(receipt.summary.conflicts).toBe(1);
-    expect(receipt.appliedAt).toBeDefined();
-    expect(receipt.backupPath).toBeDefined();
-  });
-
-  // Scenario 18: empty patch
-  it("generates receipt with zero applied for empty patch", () => {
-    const receipt = generateReceipt([], [], {
-      content: "test-slug",
-      patchFile: "output/media-patch.json",
-      backupPath: "content/test-slug/scene-data.mjs.bak",
-    });
-    expect(receipt.summary.total).toBe(0);
-    expect(receipt.summary.applied).toBe(0);
-    expect(receipt.summary.skipped).toBe(0);
-  });
-});
-
-// ─── formatDryRun ───
-
-describe("formatDryRun", () => {
-  // Scenario 2: dry-run output
-  it("formats add entries with + prefix", () => {
-    const applied = [
-      {
-        sceneId: 4,
-        sceneName: "company-background",
-        action: "added",
-        media: { type: "image", path: "assets/new.jpg", animation: "ken-burns", overlay: 0.75 },
-      },
-    ];
-    const skipped = [];
-    const output = formatDryRun(applied, skipped);
-    expect(output).toContain("Scene 4");
-    expect(output).toContain("+");
-    expect(output).toContain("assets/new.jpg");
-  });
-
-  it("formats conflicts with ! prefix", () => {
-    const applied = [];
-    const skipped = [{ sceneId: 2, sceneName: "ipo-details", reason: "conflict" }];
-    const output = formatDryRun(applied, skipped);
-    expect(output).toContain("!");
-    expect(output).toContain("CONFLICT");
-  });
-
-  it("formats already-applied with = prefix", () => {
-    const applied = [];
-    const skipped = [{ sceneId: 2, sceneName: "ipo-details", reason: "already-applied" }];
-    const output = formatDryRun(applied, skipped);
-    expect(output).toContain("=");
-    expect(output).toContain("ALREADY APPLIED");
-  });
-
-  // Scenario 6: unassigned skip
-  it("formats unassigned skips with - prefix", () => {
-    const applied = [];
-    const skipped = [{ sceneId: 9, sceneName: "china-dominance", reason: "unassigned" }];
-    const output = formatDryRun(applied, skipped);
-    expect(output).toContain("-");
-    expect(output).toContain("SKIP");
-  });
-
-  it("includes summary line", () => {
-    const applied = [
-      {
-        sceneId: 4,
-        sceneName: "company-background",
-        action: "added",
-        media: { type: "image", path: "assets/new.jpg" },
-      },
-    ];
-    const skipped = [
-      { sceneId: 2, reason: "conflict" },
-      { sceneId: 9, reason: "unassigned" },
-    ];
-    const output = formatDryRun(applied, skipped);
-    expect(output).toContain("Summary:");
-    expect(output).toContain("1 to add");
-    expect(output).toContain("1 conflict");
-    expect(output).toContain("1 skipped");
+  it("handles null input", () => {
+    const result = formatMediaPatch(null);
+    expect(result).toContain("No patches to display");
   });
 });

@@ -122,6 +122,26 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Focus detector dependency check (optional, warning only) ──
+  // detectFocus() gracefully degrades if OpenCV not installed, so this is
+  // a warning, not a hard failure. See spec §7.1.
+  const focusScript = join(__dirname, "lib", "focus_detector.py");
+  if (existsSync(focusScript)) {
+    try {
+      execSync(
+        `${join(process.env.HOME || "", ".video-tts-env/bin/python3")} -c "import cv2; assert hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'saliency')"`,
+        { stdio: "pipe", timeout: 5000 },
+      );
+    } catch {
+      console.warn(
+        "⚠️  OpenCV not available — focus detection will be skipped (degraded mode).",
+      );
+      console.warn(
+        "   Install: pip install -r scripts/short-video/lib/requirements-focus.txt",
+      );
+    }
+  }
+
   // ── Isolated output directory ──
   const outputDir = join(__dirname, "output", meta.pipelineId);
   const audioDir = join(outputDir, "audio");

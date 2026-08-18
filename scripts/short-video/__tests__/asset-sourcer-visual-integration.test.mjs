@@ -15,12 +15,16 @@ const mockDescribeImage = vi.fn();
 const mockDescribeVideo = vi.fn();
 const mockAnalyzeFit = vi.fn();
 const mockCloseAnalyzer = vi.fn();
+const mockDetectFocus = vi.fn();
+const mockCloseFocusDetector = vi.fn();
 
 vi.mock("../lib/visual-analyzer.mjs", () => ({
   describeImage: (...args) => mockDescribeImage(...args),
   describeVideo: (...args) => mockDescribeVideo(...args),
   analyzeFit: (...args) => mockAnalyzeFit(...args),
   closeVisualAnalyzer: (...args) => mockCloseAnalyzer(...args),
+  detectFocus: (...args) => mockDetectFocus(...args),
+  closeFocusDetector: (...args) => mockCloseFocusDetector(...args),
 }));
 
 // Import after mocks
@@ -32,6 +36,14 @@ beforeEach(() => {
   mockDescribeVideo.mockResolvedValue("A robot walking demonstration");
   mockAnalyzeFit.mockResolvedValue({}); // default: no fit analysis (portrait assets)
   mockCloseAnalyzer.mockResolvedValue(undefined);
+  mockDetectFocus.mockResolvedValue({
+    status: "ok",
+    errorCode: null,
+    frame: null,
+    protectedRegions: [],
+    saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+  });
+  mockCloseFocusDetector.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -90,7 +102,9 @@ describe("analyzeAssets — AI integration", () => {
     await analyzeAssets(assets);
 
     // analyzeAssets no longer closes the VLM process — the main function does.
+    // But it DOES close the focus detector (Phase 1 lifecycle).
     expect(mockCloseAnalyzer).not.toHaveBeenCalled();
+    expect(mockCloseFocusDetector).toHaveBeenCalled();
   });
 
   it("handles VLM unavailable gracefully — returns empty descriptions", async () => {
@@ -110,6 +124,8 @@ describe("analyzeAssets — AI integration", () => {
     expect(report[1].success).toBe(false);
     // Pipeline did not crash, closeVisualAnalyzer not called by analyzeAssets
     expect(mockCloseAnalyzer).not.toHaveBeenCalled();
+    // But closeFocusDetector IS called (Phase 1 finally block)
+    expect(mockCloseFocusDetector).toHaveBeenCalled();
   });
 
   it("logs progress per asset", async () => {

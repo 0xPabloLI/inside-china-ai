@@ -1,24 +1,28 @@
 /**
- * Visual Analyzer — VLM-powered asset understanding (Node.js library).
+ * Visual Analyzer — VLM-powered asset understanding + OpenCV focus detection.
  *
- * Wraps a Python subprocess (vlm_analyzer.py) running mlx-vlm with
- * Qwen3-VL-8B-Instruct-8bit. Communicates via line-delimited JSON
- * over stdin/stdout.
+ * Wraps two independent Python subprocesses:
+ *   1. vlm_analyzer.py  — mlx-vlm Qwen3-VL-8B (describe/analyzeFit)
+ *   2. focus_detector.py — OpenCV Haar Cascade + Saliency (detectFocus)
  *
  * API:
  *   describeImage(imagePath)  -> Promise<string>
- *   describeVideo(videoPath) -> Promise<string>
- *   analyzeFit(assetPath)    -> Promise<{fit, focus, reason}>
- *   closeVisualAnalyzer()    -> Promise<void>
+ *   describeVideo(videoPath)  -> Promise<string>
+ *   analyzeFit(assetPath)     -> Promise<{fit, focus, reason}>
+ *   detectFocus(assetPath)    -> Promise<FocusResult>       ← NEW
+ *   closeFocusDetector()      -> Promise<void>              ← NEW
+ *   closeVisualAnalyzer()     -> Promise<void>  (closes both)
  *
  * Lifecycle:
- *   - Spawns Python on first call, reuses for subsequent calls.
+ *   - Each subprocess spawns on first call, reuses for subsequent calls.
  *   - If process exits (crash/idle timeout), respawns on next call.
- *   - Requests are queued serially (one at a time).
- *   - closeVisualAnalyzer() sends exit command + kills subprocess.
+ *   - VLM requests are queued serially (one at a time).
+ *   - Focus requests use requestId-based pending Map (concurrent-safe).
+ *   - closeVisualAnalyzer() sends exit + kills both subprocesses.
  *
  * Graceful degradation:
- *   - Python not found / model load fails -> warn + return "".
+ *   - VLM: Python not found / model load fails -> warn + return "".
+ *   - Focus: NEVER rejects. Returns schema-complete degraded result.
  *
  * @module visual-analyzer
  */
@@ -27,6 +31,7 @@ import { spawn } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
+import { randomUUID } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -34,10 +39,12 @@ const __dirname = dirname(__filename);
 // ─── Constants ───
 
 const PYTHON_SCRIPT = join(__dirname, "vlm_analyzer.py");
+const FOCUS_SCRIPT = join(__dirname, "focus_detector.py");
 const HOME = process.env.HOME || "/Users/pabloli";
 const PYTHON_BIN = join(HOME, ".video-tts-env", "bin", "python3");
 
-const RESPONSE_TIMEOUT_MS = 180_000; // 180s per asset (video analysis can take 100s+)
+const RESPONSE_TIMEOUT_MS = 180_000; // 180s per VLM asset (video analysis can take 100s+)
+const FOCUS_RESPONSE_TIMEOUT_MS = 10_000; // 10s per focus detection (target <1s)
 
 // ─── Module state ───
 
@@ -356,33 +363,327 @@ export function analyzeFit(assetPath) {
 /**
  * Close the analyzer subprocess.
  * Sends an exit command, then kills the process.
+ * Also closes the focus detector subprocess if running.
  *
  * @returns {Promise<void>}
  */
 export function closeVisualAnalyzer() {
   return new Promise((resolve) => {
-    if (!pythonProc) {
+    // Close focus detector first (lightweight, fast to exit)
+    closeFocusDetector().then(() => {
+      if (!pythonProc) {
+        resolve();
+        return;
+      }
+
+      try {
+        pythonProc.stdin.write(JSON.stringify({ action: "exit" }) + "\n");
+      } catch (_e) {
+        // ignore
+      }
+
+      setTimeout(() => {
+        if (pythonProc && !pythonProc.killed) {
+          try {
+            pythonProc.kill("SIGTERM");
+          } catch (_e) {
+            // ignore
+          }
+        }
+        pythonProc = null;
+        processing = false;
+        requestQueue = [];
+        resolve();
+      }, 100);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ─── Focus Detector Subsystem (OpenCV) ──────────────────────
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Schema-complete degraded result for focus detection failures.
+ * Used for timeout, worker reset, and protocol errors.
+ */
+function _focusDegraded(errorCode) {
+  return {
+    status: "degraded",
+    errorCode,
+    frame: null,
+    protectedRegions: [],
+    saliency: { available: false, dispersion: 0.0, centroid: [0.5, 0.5] },
+  };
+}
+
+/** @type {import('child_process').ChildProcess | null} */
+let focusProc = null;
+
+/** @type {boolean} */
+let focusAvailable = null;
+
+/**
+ * pending Map: requestId -> { resolve, timer, workerGeneration }
+ * Each analyze request gets a unique requestId. Response is matched by requestId.
+ */
+/** @type {Map<string, {resolve: Function, timer: ReturnType<typeof setTimeout>, workerGeneration: number}>} */
+const focusPending = new Map();
+
+/**
+ * Worker generation counter. Incremented on every respawn.
+ * Old worker responses are discarded if generation doesn't match.
+ */
+let focusWorkerGeneration = 0;
+
+/**
+ * Spawn the focus detector Python subprocess.
+ * Returns the process or null on failure.
+ */
+function spawnFocusDetector() {
+  if (!existsSync(PYTHON_BIN)) {
+    console.warn(`Focus detector not available: Python not found at ${PYTHON_BIN}`);
+    focusAvailable = false;
+    return null;
+  }
+
+  if (!existsSync(FOCUS_SCRIPT)) {
+    console.warn(`Focus detector not available: Script not found at ${FOCUS_SCRIPT}`);
+    focusAvailable = false;
+    return null;
+  }
+
+  focusWorkerGeneration++;
+  const myGen = focusWorkerGeneration;
+
+  const proc = spawn(PYTHON_BIN, [FOCUS_SCRIPT], {
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env },
+  });
+
+  // Line buffer for stdout
+  let stdoutBuffer = "";
+  proc.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+    const lines = stdoutBuffer.split("\n");
+    stdoutBuffer = lines.pop(); // keep partial line
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      handleFocusResponse(line, myGen);
+    }
+  });
+
+  // stderr for debugging
+  let stderrBuffer = "";
+  proc.stderr.on("data", (chunk) => {
+    stderrBuffer += chunk.toString();
+    const lines = stderrBuffer.split("\n");
+    stderrBuffer = lines.pop();
+    for (const line of lines) {
+      if (line.trim()) {
+        console.debug(`[focus-detector:py] ${line}`);
+      }
+    }
+  });
+
+  // Handle process exit — settle all pending from this generation
+  proc.on("exit", (code, signal) => {
+    if (focusProc === proc) {
+      focusProc = null;
+      focusAvailable = null; // reset: next call will retry
+    }
+    // Settle all pending requests from this worker generation
+    settlePendingFocus(myGen, "focus_worker_reset");
+  });
+
+  // Handle spawn errors
+  proc.on("error", (err) => {
+    console.warn(`Focus detector not available: ${err.message}`);
+    if (focusProc === proc) {
+      focusProc = null;
+      focusAvailable = false;
+    }
+    settlePendingFocus(myGen, "focus_worker_reset");
+  });
+
+  focusProc = proc;
+  focusAvailable = null; // will be confirmed on first successful response
+  return proc;
+}
+
+/**
+ * Ensure the focus detector subprocess is running (spawn if needed).
+ * Returns true if running, false if unavailable.
+ */
+function ensureFocusProcess() {
+  if (focusProc && !focusProc.killed && focusProc.exitCode === null) {
+    return true;
+  }
+
+  if (focusAvailable === false) {
+    return false;
+  }
+
+  const proc = spawnFocusDetector();
+  return proc !== null;
+}
+
+/**
+ * Handle a response line from the focus detector subprocess.
+ * Matches by requestId. Discards responses from old worker generations.
+ */
+function handleFocusResponse(line, workerGen) {
+  let response;
+  try {
+    response = JSON.parse(line);
+  } catch {
+    // Non-JSON stdout — discard
+    return;
+  }
+
+  const id = response.requestId;
+  if (!id || !focusPending.has(id)) {
+    // Unknown requestId or already settled — discard stale response
+    return;
+  }
+
+  const entry = focusPending.get(id);
+  if (entry.workerGeneration !== workerGen) {
+    // Response from old worker generation — discard
+    return;
+  }
+
+  clearTimeout(entry.timer);
+  focusPending.delete(id);
+  focusAvailable = true;
+
+  const result = response.result || _focusDegraded("focus_protocol_error");
+  entry.resolve(result);
+}
+
+/**
+ * Settle all pending focus requests from a specific worker generation.
+ * Each pending Promise resolves with the given errorCode degraded result.
+ */
+function settlePendingFocus(workerGen, errorCode) {
+  for (const [id, entry] of focusPending) {
+    if (entry.workerGeneration === workerGen) {
+      clearTimeout(entry.timer);
+      focusPending.delete(id);
+      entry.resolve(_focusDegraded(errorCode));
+    }
+  }
+}
+
+/**
+ * Settle ALL pending focus requests regardless of generation.
+ * Used by closeFocusDetector().
+ */
+function settleAllPendingFocus(errorCode) {
+  for (const [id, entry] of focusPending) {
+    clearTimeout(entry.timer);
+    focusPending.delete(id);
+    entry.resolve(_focusDegraded(errorCode));
+  }
+}
+
+/**
+ * Detect focus regions and protected areas in an image.
+ * Uses OpenCV Saliency + Face Detection (lightweight subprocess).
+ * Independent from VLM — does NOT load the 11GB model.
+ *
+ * NEVER rejects. On failure, returns a schema-complete empty result
+ * with status="degraded" or "unsupported".
+ *
+ * status ∈ {"ok", "partial", "low_information", "degraded", "unsupported"}
+ * errorCode ∈ {null, "opencv_not_available", "pillow_not_available",
+ *   "numpy_not_available", "focus_dependency_not_available",
+ *   "classifier_load_failed", "cannot_read_image",
+ *   "saliency_compute_failed", "focus_timeout",
+ *   "focus_worker_reset", "focus_protocol_error",
+ *   "focus_internal_error",
+ *   "video_not_supported", "unsupported_media_type"}
+ *
+ * Phase 1a: only supports static images. Video files return
+ * status="unsupported" without calling cv2.imread().
+ *
+ * @param {string} assetPath - Absolute path to image file.
+ * @returns {Promise<{status: string, errorCode: string|null, frame: Object|null,
+ *   protectedRegions: Array, saliency: Object}>}
+ */
+export function detectFocus(assetPath) {
+  return new Promise((resolve) => {
+    if (!ensureFocusProcess()) {
+      resolve(_focusDegraded("focus_dependency_not_available"));
+      return;
+    }
+
+    const requestId = randomUUID();
+    const myGen = focusWorkerGeneration;
+
+    // Timeout safety
+    const timer = setTimeout(() => {
+      if (focusPending.has(requestId)) {
+        focusPending.delete(requestId);
+        resolve(_focusDegraded("focus_timeout"));
+      }
+    }, FOCUS_RESPONSE_TIMEOUT_MS);
+
+    focusPending.set(requestId, { resolve, timer, workerGeneration: myGen });
+
+    const jsonStr = JSON.stringify({
+      requestId,
+      action: "analyze",
+      path: assetPath,
+    });
+
+    try {
+      focusProc.stdin.write(jsonStr + "\n");
+    } catch (_err) {
+      // Pipe write failed — settle this request
+      if (focusPending.has(requestId)) {
+        clearTimeout(timer);
+        focusPending.delete(requestId);
+        resolve(_focusDegraded("focus_worker_reset"));
+      }
+    }
+  });
+}
+
+/**
+ * Close the focus detector subprocess.
+ * Does NOT close the VLM subprocess.
+ * Idempotent — multiple calls don't throw.
+ *
+ * @returns {Promise<void>}
+ */
+export function closeFocusDetector() {
+  return new Promise((resolve) => {
+    // Settle all pending requests first
+    settleAllPendingFocus("focus_worker_reset");
+
+    if (!focusProc) {
       resolve();
       return;
     }
 
     try {
-      pythonProc.stdin.write(JSON.stringify({ action: "exit" }) + "\n");
+      focusProc.stdin.write(JSON.stringify({ action: "exit" }) + "\n");
     } catch (_e) {
       // ignore
     }
 
     setTimeout(() => {
-      if (pythonProc && !pythonProc.killed) {
+      if (focusProc && !focusProc.killed) {
         try {
-          pythonProc.kill("SIGTERM");
+          focusProc.kill("SIGTERM");
         } catch (_e) {
           // ignore
         }
       }
-      pythonProc = null;
-      processing = false;
-      requestQueue = [];
+      focusProc = null;
+      focusAvailable = null;
       resolve();
     }, 100);
   });
@@ -394,6 +695,13 @@ process.on("exit", () => {
   if (pythonProc && !pythonProc.killed) {
     try {
       pythonProc.kill("SIGTERM");
+    } catch (_e) {
+      // ignore
+    }
+  }
+  if (focusProc && !focusProc.killed) {
+    try {
+      focusProc.kill("SIGTERM");
     } catch (_e) {
       // ignore
     }

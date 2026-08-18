@@ -73,7 +73,16 @@ beforeEach(async () => {
   // Re-setup mocks after resetModules
   mockSpawn = vi.fn();
   mockProc = createMockProcess();
-  mockSpawn.mockReturnValue(mockProc);
+  // For focus_detector.py spawn, create a separate mock process
+  const focusMockProc = createMockProcess();
+  mockSpawn.mockImplementation((pythonBin, args) => {
+    // Return focusMockProc for focus_detector.py, mockProc for everything else
+    if (args && args[0] && String(args[0]).includes("focus_detector.py")) {
+      mockProc._focusProc = focusMockProc;
+      return focusMockProc;
+    }
+    return mockProc;
+  });
 
   // Re-import visual-analyzer so internal state is fresh
   const mod = await import("../lib/visual-analyzer.mjs");
@@ -89,15 +98,22 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+// Helper to get the focus mock process for the current test
+function getFocusProc() {
+  return mockProc._focusProc || mockProc;
+}
+
 // ─── Tests ───
 
 describe("visual-analyzer module", () => {
   describe("exports", () => {
-    it("exports describeImage, describeVideo, analyzeFit, closeVisualAnalyzer", () => {
+    it("exports describeImage, describeVideo, analyzeFit, closeVisualAnalyzer, detectFocus, closeFocusDetector", () => {
       expect(typeof visualAnalyzer.describeImage).toBe("function");
       expect(typeof visualAnalyzer.describeVideo).toBe("function");
       expect(typeof visualAnalyzer.analyzeFit).toBe("function");
       expect(typeof visualAnalyzer.closeVisualAnalyzer).toBe("function");
+      expect(typeof visualAnalyzer.detectFocus).toBe("function");
+      expect(typeof visualAnalyzer.closeFocusDetector).toBe("function");
     });
   });
 
@@ -490,5 +506,195 @@ describe("visual-analyzer module", () => {
       const result = await promise;
       expect(result).toBe("");
     });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // ─── Focus Detector Tests (detectFocus / closeFocusDetector) ───
+  // ═══════════════════════════════════════════════════════════════
+
+  describe("detectFocus — normal path", () => {
+    it("spawns focus_detector.py subprocess and sends analyze with requestId", async () => {
+      const promise = visualAnalyzer.detectFocus("/abs/image.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      const focusProc = getFocusProc();
+
+      // Check stdin write — should contain requestId + analyze action
+      const writtenData = focusProc.stdin.write.mock.calls[0][0].toString();
+      const request = JSON.parse(writtenData.trim());
+      expect(request.action).toBe("analyze");
+      expect(request.requestId).toBeDefined();
+      expect(request.path).toBe("/abs/image.jpg");
+
+      // Simulate Python response with matching requestId
+      const resp = {
+        requestId: request.requestId,
+        result: {
+          status: "ok",
+          errorCode: null,
+          frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+          protectedRegions: [{ rect: [0.1, 0.2, 0.3, 0.4], kind: "face", confidence: null, confidenceKind: "not_provided" }],
+          saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] },
+        },
+      };
+      focusProc.emitStdout(JSON.stringify(resp) + "\n");
+
+      const result = await promise;
+      expect(result.status).toBe("ok");
+      expect(result.protectedRegions).toHaveLength(1);
+      expect(result.saliency.available).toBe(true);
+    });
+
+    it("returns schema-complete result on ok status", async () => {
+      const promise = visualAnalyzer.detectFocus("/abs/portrait.png");
+      await new Promise((r) => setTimeout(r, 10));
+
+      const focusProc = getFocusProc();
+      const writtenData = focusProc.stdin.write.mock.calls[0][0].toString();
+      const request = JSON.parse(writtenData.trim());
+
+      focusProc.emitStdout(JSON.stringify({
+        requestId: request.requestId,
+        result: {
+          status: "ok",
+          errorCode: null,
+          frame: { width: 1080, height: 1920, orientation: "portrait", orientationNormalized: true },
+          protectedRegions: [],
+          saliency: { available: true, dispersion: 0.02, centroid: [0.4, 0.6] },
+        },
+      }) + "\n");
+
+      const result = await promise;
+      expect(result).toHaveProperty("status");
+      expect(result).toHaveProperty("errorCode");
+      expect(result).toHaveProperty("frame");
+      expect(result).toHaveProperty("protectedRegions");
+      expect(result).toHaveProperty("saliency");
+      expect(result.saliency).toHaveProperty("available");
+      expect(result.saliency).toHaveProperty("dispersion");
+      expect(result.saliency).toHaveProperty("centroid");
+    });
+  });
+
+  describe("detectFocus — never rejects", () => {
+    it("returns degraded when spawn returns null (focus unavailable)", async () => {
+      const { existsSync } = await import("fs");
+      existsSync.mockReturnValue(false);
+
+      const result = await visualAnalyzer.detectFocus("/abs/img.jpg");
+      expect(result.status).toBe("degraded");
+      expect(result.errorCode).toBe("focus_dependency_not_available");
+      expect(result.protectedRegions).toEqual([]);
+      expect(result.saliency.available).toBe(false);
+
+      existsSync.mockReturnValue(true);
+    });
+
+    it("returns degraded on timeout", async () => {
+      vi.useFakeTimers();
+      const promise = visualAnalyzer.detectFocus("/abs/img.jpg");
+      // Let microtasks flush so spawn happens
+      await vi.waitFor(() => expect(getFocusProc()).toBeDefined(), { timeout: 1000 });
+
+      // Fast-forward past FOCUS_RESPONSE_TIMEOUT_MS (10s)
+      vi.advanceTimersByTime(11000);
+
+      const result = await promise;
+      expect(result.status).toBe("degraded");
+      expect(result.errorCode).toBe("focus_timeout");
+
+      vi.useRealTimers();
+      await visualAnalyzer.closeFocusDetector();
+    }, 10000);
+
+    it("returns degraded with focus_worker_reset on process exit", async () => {
+      const promise = visualAnalyzer.detectFocus("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      const focusProc = getFocusProc();
+      // Simulate process crash before responding
+      focusProc.emitExit(1, null);
+
+      const result = await promise;
+      expect(result.status).toBe("degraded");
+      expect(result.errorCode).toBe("focus_worker_reset");
+    });
+  });
+
+  describe("detectFocus — requestId matching", () => {
+    it("discards response with unknown requestId", async () => {
+      const promise = visualAnalyzer.detectFocus("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      const focusProc = getFocusProc();
+
+      // Send a response with a WRONG requestId
+      focusProc.emitStdout(JSON.stringify({
+        requestId: "wrong-id-12345",
+        result: { status: "ok", errorCode: null, frame: null, protectedRegions: [], saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] } },
+      }) + "\n");
+
+      // The promise should NOT resolve yet (still pending)
+      // Send the CORRECT response
+      const writtenData = focusProc.stdin.write.mock.calls[0][0].toString();
+      const request = JSON.parse(writtenData.trim());
+
+      focusProc.emitStdout(JSON.stringify({
+        requestId: request.requestId,
+        result: { status: "ok", errorCode: null, frame: null, protectedRegions: [], saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] } },
+      }) + "\n");
+
+      const result = await promise;
+      expect(result.status).toBe("ok");
+    }, 10000);
+  });
+
+  describe("closeFocusDetector", () => {
+    it("sends exit and kills focus subprocess", async () => {
+      // Start a focus process
+      const promise = visualAnalyzer.detectFocus("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      const focusProc = getFocusProc();
+
+      // Respond to the request so it completes
+      const writtenData = focusProc.stdin.write.mock.calls[0][0].toString();
+      const request = JSON.parse(writtenData.trim());
+      focusProc.emitStdout(JSON.stringify({
+        requestId: request.requestId,
+        result: { status: "ok", errorCode: null, frame: null, protectedRegions: [], saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] } },
+      }) + "\n");
+      await promise;
+
+      // Close focus detector
+      await visualAnalyzer.closeFocusDetector();
+
+      // Should have written exit command to focus proc
+      const exitCall = focusProc.stdin.write.mock.calls.find((c) => {
+        try {
+          return JSON.parse(c[0].toString().trim()).action === "exit";
+        } catch {
+          return false;
+        }
+      });
+      expect(exitCall).toBeDefined();
+    }, 10000);
+
+    it("is idempotent — multiple calls don't throw", async () => {
+      await expect(visualAnalyzer.closeFocusDetector()).resolves.not.toThrow();
+      await expect(visualAnalyzer.closeFocusDetector()).resolves.not.toThrow();
+    });
+
+    it("settles pending requests as focus_worker_reset on close", async () => {
+      const promise = visualAnalyzer.detectFocus("/abs/img.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Close without responding — pending should be settled
+      await visualAnalyzer.closeFocusDetector();
+
+      const result = await promise;
+      expect(result.status).toBe("degraded");
+      expect(result.errorCode).toBe("focus_worker_reset");
+    }, 10000);
   });
 });
