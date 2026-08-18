@@ -47,7 +47,7 @@ Stage 6  Analytics tracking
    decides everything and produces a candidate video. The user only reviews
    the final output.
 
-2. **VLM is the brain, not a helper.** Qwen3-VL-8B (via `ai-analyzer.mjs`)
+2. **VLM is the brain, not a helper.** Qwen3-VL-8B (via `visual-analyzer.mjs`)
    is the core decision-maker for visual content: it describes what each
    asset shows, scores it against scene narration, decides whether to
    overlay text (background) or let the footage speak (fullscreen), and
@@ -84,8 +84,8 @@ scripts/short-video/
 │       ├── components/       # MediaBackground, Slot, BrandBar, animations
 │       └── types.ts          # SceneData / MediaField types
 ├── lib/                      # Shared infrastructure
-│   ├── ai-analyzer.mjs       # VLM bridge (Qwen3-VL-8B via Python subprocess)
-│   ├── ai_analyzer.py        # Python side: model loading + IPC loop
+│   ├── visual-analyzer.mjs       # VLM bridge (Qwen3-VL-8B via Python subprocess)
+│   ├── vlm_analyzer.py        # Python side: model loading + IPC loop
 │   ├── asset-sourcer.mjs     # Search + download + VLM score + assign assets
 │   ├── media-bg.mjs          # Playwright media layer (CSS)
 │   ├── scene-templates.mjs   # Shared scene HTML templates (hook, cta, etc.)
@@ -100,7 +100,7 @@ scripts/short-video/
 └── output/                   # Per-pipeline output (video, audio, scenes)
 ```
 
-## The VLM layer (ai-analyzer)
+## The VLM layer (visual-analyzer)
 
 The AI analysis layer is the bridge between "assets exist" and "assets are
 correctly placed." It uses `mlx-community/Qwen3-VL-8B-Instruct-8bit` running

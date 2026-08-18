@@ -85,6 +85,7 @@ Deep research reports with citations.
 |----------|---------|
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
+| `asset-focus-detection-alternatives-review.md` | 第三方审阅：asset-focus-detection-alternatives 方案评估 |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |

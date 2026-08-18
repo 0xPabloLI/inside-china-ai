@@ -1,7 +1,7 @@
 /**
- * AI Analyzer — VLM-powered asset understanding (Node.js library).
+ * Visual Analyzer — VLM-powered asset understanding (Node.js library).
  *
- * Wraps a Python subprocess (ai_analyzer.py) running mlx-vlm with
+ * Wraps a Python subprocess (vlm_analyzer.py) running mlx-vlm with
  * Qwen3-VL-8B-Instruct-8bit. Communicates via line-delimited JSON
  * over stdin/stdout.
  *
@@ -9,18 +9,18 @@
  *   describeImage(imagePath)  -> Promise<string>
  *   describeVideo(videoPath) -> Promise<string>
  *   analyzeFit(assetPath)    -> Promise<{fit, focus, reason}>
- *   closeAnalyzer()           -> Promise<void>
+ *   closeVisualAnalyzer()    -> Promise<void>
  *
  * Lifecycle:
  *   - Spawns Python on first call, reuses for subsequent calls.
  *   - If process exits (crash/idle timeout), respawns on next call.
  *   - Requests are queued serially (one at a time).
- *   - closeAnalyzer() sends exit command + kills subprocess.
+ *   - closeVisualAnalyzer() sends exit command + kills subprocess.
  *
  * Graceful degradation:
  *   - Python not found / model load fails -> warn + return "".
  *
- * @module ai-analyzer
+ * @module visual-analyzer
  */
 
 import { spawn } from "child_process";
@@ -33,7 +33,7 @@ const __dirname = dirname(__filename);
 
 // ─── Constants ───
 
-const PYTHON_SCRIPT = join(__dirname, "ai_analyzer.py");
+const PYTHON_SCRIPT = join(__dirname, "vlm_analyzer.py");
 const HOME = process.env.HOME || "/Users/pabloli";
 const PYTHON_BIN = join(HOME, ".video-tts-env", "bin", "python3");
 
@@ -99,7 +99,7 @@ function spawnPython() {
     stderrBuffer = lines.pop();
     for (const line of lines) {
       if (line.trim()) {
-        console.debug(`[ai-analyzer:py] ${line}`);
+        console.debug(`[visual-analyzer:py] ${line}`);
       }
     }
   });
@@ -359,7 +359,7 @@ export function analyzeFit(assetPath) {
  *
  * @returns {Promise<void>}
  */
-export function closeAnalyzer() {
+export function closeVisualAnalyzer() {
   return new Promise((resolve) => {
     if (!pythonProc) {
       resolve();

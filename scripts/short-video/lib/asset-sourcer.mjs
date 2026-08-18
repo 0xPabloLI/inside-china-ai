@@ -467,7 +467,7 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
  * report array with per-asset analysis data.
  *
  * When VLM is unavailable, logs warning and returns empty descriptions.
- * Does NOT call closeAnalyzer() — the caller is responsible for closing
+ * Does NOT call closeVisualAnalyzer() — the caller is responsible for closing
  * the VLM process after all analysis phases (including assignAssetsToScenes)
  * are complete. This keeps the 11GB model resident across phases.
  *
@@ -478,7 +478,7 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
  * @returns {Promise<Array<{path: string, description: string, success: boolean, analysisTimeMs: number}>>}
  */
 export async function analyzeAssets(assets) {
-  const { describeImage, describeVideo, analyzeFit } = await import("./ai-analyzer.mjs");
+  const { describeImage, describeVideo, analyzeFit } = await import("./visual-analyzer.mjs");
   const { checkResolution } = await import("./upscale.mjs");
 
   const report = [];
@@ -1757,8 +1757,8 @@ export async function main(args = process.argv.slice(2)) {
       // Close VLM process — analyzeAssets no longer closes it itself,
       // so we must close it here to release the ~11GB model.
       try {
-        const { closeAnalyzer } = await import("./ai-analyzer.mjs");
-        await closeAnalyzer();
+const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
+await closeVisualAnalyzer();
       } catch {
         // ignore close errors
       }

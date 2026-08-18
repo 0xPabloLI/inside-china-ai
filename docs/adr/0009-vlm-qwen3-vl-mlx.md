@@ -17,8 +17,8 @@ This must run **locally** (no per-call API cost for 10-20 assets per video, 20+ 
 ### Architecture
 
 ```
-ai-analyzer.mjs (Node.js library)
-  ├── spawns → ai_analyzer.py (Python subprocess)
+visual-analyzer.mjs (Node.js library)
+  ├── spawns → vlm_analyzer.py (Python subprocess)
   │     ├── loads mlx-vlm + Qwen3-VL-8B-Instruct-8bit
   │     ├── listens on stdin for JSON requests
   │     ├── writes JSON responses to stdout
@@ -31,7 +31,7 @@ ai-analyzer.mjs (Node.js library)
 - `describeImage(path)` → string description
 - `describeVideo(path)` → string description (native video input, fps=1.0, max 8s)
 - `analyzeFit(path)` → `{fit: "cover"|"contain", focus: "top"|"center"|"bottom", reason: string}`
-- `closeAnalyzer()` → terminates subprocess
+- `closeVisualAnalyzer()` → terminates subprocess
 
 ### Performance characteristics (M2 Pro)
 
@@ -75,7 +75,7 @@ Qwen3-VL supports native video input via `--video path --fps 1.0`. This is prefe
 Video analysis can take 100s+. The Node.js library's `RESPONSE_TIMEOUT_MS` is set to 180s (initially 60s, raised after video analysis timeouts).
 
 ### 4. Graceful degradation
-If Python is not found or model load fails, `ai-analyzer.mjs` returns empty strings and logs a warning. The pipeline continues without VLM descriptions — asset scoring falls back to keyword matching only.
+If Python is not found or model load fails, `visual-analyzer.mjs` returns empty strings and logs a warning. The pipeline continues without VLM descriptions — asset scoring falls back to keyword matching only.
 
 ## Trade-offs
 
@@ -99,7 +99,7 @@ If Python is not found or model load fails, `ai-analyzer.mjs` returns empty stri
 
 - VLM requires `~/.video-tts-env` (Python 3.12) with mlx-vlm 0.6.13 installed (see ADR-0011).
 - Qwen3-VL-8B-Instruct-8bit model (9.2GB) in HF cache. 4bit fallback (4.6GB) auto-selected if 8bit fails.
-- `ai-analyzer.mjs` is integrated into `asset-sourcer.mjs` — after downloading assets, each asset is analyzed and its description is used for `scoreCandidate()` matching.
+- `visual-analyzer.mjs` is integrated into `asset-sourcer.mjs` — after downloading assets, each asset is analyzed and its description is used for `scoreCandidate()` matching.
 - `analyzeFit()` is called during scene-data review to determine landscape-to-vertical placement strategy.
 - The VLM subprocess is shared across all assets in a pipeline run (model loaded once, reused).
-- Future model upgrade requires: (1) update `MODEL_ID` in `ai_analyzer.py`, (2) verify `apply_chat_template` compatibility, (3) re-run end-to-end validation.
+- Future model upgrade requires: (1) update `MODEL_ID` in `vlm_analyzer.py`, (2) verify `apply_chat_template` compatibility, (3) re-run end-to-end validation.

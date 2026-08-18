@@ -2,25 +2,25 @@
  * Integration tests for AI analyzer integration into asset-sourcer.
  *
  * Ticket 04: Verify that the asset-sourcer pipeline correctly calls
- * ai-analyzer, stores results, and handles fallback.
+ * visual-analyzer, stores results, and handles fallback.
  *
- * These tests mock the ai-analyzer module (describeImage, describeVideo,
- * closeAnalyzer) and verify the integration behavior.
+ * These tests mock the visual-analyzer module (describeImage, describeVideo,
+ * closeVisualAnalyzer) and verify the integration behavior.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// ─── Mock ai-analyzer module ───
+// ─── Mock visual-analyzer module ───
 
 const mockDescribeImage = vi.fn();
 const mockDescribeVideo = vi.fn();
 const mockAnalyzeFit = vi.fn();
 const mockCloseAnalyzer = vi.fn();
 
-vi.mock("../lib/ai-analyzer.mjs", () => ({
+vi.mock("../lib/visual-analyzer.mjs", () => ({
   describeImage: (...args) => mockDescribeImage(...args),
   describeVideo: (...args) => mockDescribeVideo(...args),
   analyzeFit: (...args) => mockAnalyzeFit(...args),
-  closeAnalyzer: (...args) => mockCloseAnalyzer(...args),
+  closeVisualAnalyzer: (...args) => mockCloseAnalyzer(...args),
 }));
 
 // Import after mocks
@@ -84,7 +84,7 @@ describe("analyzeAssets — AI integration", () => {
     expect(typeof report[0].analysisTimeMs).toBe("number");
   });
 
-  it("does NOT call closeAnalyzer (caller is responsible)", async () => {
+  it("does NOT call closeVisualAnalyzer (caller is responsible)", async () => {
     const assets = [{ path: "/abs/img1.jpg", type: "image" }];
 
     await analyzeAssets(assets);
@@ -108,7 +108,7 @@ describe("analyzeAssets — AI integration", () => {
     expect(assets[1].aiDescription).toBe("");
     expect(report[0].success).toBe(false);
     expect(report[1].success).toBe(false);
-    // Pipeline did not crash, closeAnalyzer not called by analyzeAssets
+    // Pipeline did not crash, closeVisualAnalyzer not called by analyzeAssets
     expect(mockCloseAnalyzer).not.toHaveBeenCalled();
   });
 

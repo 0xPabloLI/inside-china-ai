@@ -83,7 +83,7 @@ class IdleTimer:
                 elapsed = time.time() - self._last_activity
             if elapsed >= self.timeout:
                 sys.stderr.write(
-                    f"[ai_analyzer] Idle for {int(elapsed)}s, exiting.\n"
+                    f"[vlm_analyzer] Idle for {int(elapsed)}s, exiting.\n"
                 )
                 sys.stderr.flush()
                 os._exit(0)
@@ -179,7 +179,7 @@ def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS):
     Returns a list of temporary image file paths.
     Returns empty list on failure.
     """
-    tmpdir = tempfile.mkdtemp(prefix="ai_analyzer_frames_")
+    tmpdir = tempfile.mkdtemp(prefix="vlm_analyzer_frames_")
     output_pattern = os.path.join(tmpdir, "frame_%04d.jpg")
 
     cmd = [
@@ -200,7 +200,7 @@ def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS):
             check=True,
         )
     except Exception as e:
-        sys.stderr.write(f"[ai_analyzer] ffmpeg frame extraction failed: {e}\n")
+        sys.stderr.write(f"[vlm_analyzer] ffmpeg frame extraction failed: {e}\n")
         sys.stderr.flush()
         return []
 
@@ -252,7 +252,7 @@ def handle_describe_video(model, processor, path):
         return description.strip(), None
     except Exception as e:
         sys.stderr.write(
-            f"[ai_analyzer] Native video input failed, falling back to "
+            f"[vlm_analyzer] Native video input failed, falling back to "
             f"frame extraction: {e}\n"
         )
         sys.stderr.flush()
@@ -315,7 +315,7 @@ def handle_analyze_fit(model, processor, path):
                 )
             except Exception as e:
                 sys.stderr.write(
-                    f"[ai_analyzer] Native video failed for analyze_fit, "
+                    f"[vlm_analyzer] Native video failed for analyze_fit, "
                     f"falling back to frames: {e}\n"
                 )
                 sys.stderr.flush()
@@ -392,23 +392,23 @@ def main():
     """Main IPC loop: read line-delimited JSON from stdin, write responses to stdout."""
 
     # Load model
-    sys.stderr.write(f"[ai_analyzer] Loading model: {MODEL_ID}\n")
+    sys.stderr.write(f"[vlm_analyzer] Loading model: {MODEL_ID}\n")
     sys.stderr.flush()
 
     try:
         model, processor = load_model(MODEL_ID)
-        sys.stderr.write("[ai_analyzer] Model loaded successfully.\n")
+        sys.stderr.write("[vlm_analyzer] Model loaded successfully.\n")
         sys.stderr.flush()
     except Exception as e:
         # Try fallback model
         sys.stderr.write(
-            f"[ai_analyzer] Failed to load {MODEL_ID}: {e}\n"
-            f"[ai_analyzer] Trying fallback: {FALLBACK_MODEL_ID}\n"
+            f"[vlm_analyzer] Failed to load {MODEL_ID}: {e}\n"
+            f"[vlm_analyzer] Trying fallback: {FALLBACK_MODEL_ID}\n"
         )
         sys.stderr.flush()
         try:
             model, processor = load_model(FALLBACK_MODEL_ID)
-            sys.stderr.write(f"[ai_analyzer] Fallback model loaded.\n")
+            sys.stderr.write(f"[vlm_analyzer] Fallback model loaded.\n")
             sys.stderr.flush()
         except Exception as e2:
             # Output error JSON and exit

@@ -1,5 +1,5 @@
 /**
- * Tests for lib/ai-analyzer.mjs — VLM-powered asset understanding.
+ * Tests for lib/visual-analyzer.mjs — VLM-powered asset understanding.
  *
  * TDD: Tests written first (red), implementation second (green).
  *
@@ -66,7 +66,7 @@ vi.mock("fs", () => ({
 
 // Import AFTER mocks are set up — use dynamic import in each test to
 // ensure module state is fresh.
-let aiAnalyzer;
+let visualAnalyzer;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -75,14 +75,14 @@ beforeEach(async () => {
   mockProc = createMockProcess();
   mockSpawn.mockReturnValue(mockProc);
 
-  // Re-import ai-analyzer so internal state is fresh
-  const mod = await import("../lib/ai-analyzer.mjs");
-  aiAnalyzer = mod;
+  // Re-import visual-analyzer so internal state is fresh
+  const mod = await import("../lib/visual-analyzer.mjs");
+  visualAnalyzer = mod;
 });
 
 afterEach(async () => {
   try {
-    await aiAnalyzer.closeAnalyzer();
+    await visualAnalyzer.closeVisualAnalyzer();
   } catch {
     // ignore
   }
@@ -91,20 +91,20 @@ afterEach(async () => {
 
 // ─── Tests ───
 
-describe("ai-analyzer module", () => {
+describe("visual-analyzer module", () => {
   describe("exports", () => {
-    it("exports describeImage, describeVideo, analyzeFit, closeAnalyzer", () => {
-      expect(typeof aiAnalyzer.describeImage).toBe("function");
-      expect(typeof aiAnalyzer.describeVideo).toBe("function");
-      expect(typeof aiAnalyzer.analyzeFit).toBe("function");
-      expect(typeof aiAnalyzer.closeAnalyzer).toBe("function");
+    it("exports describeImage, describeVideo, analyzeFit, closeVisualAnalyzer", () => {
+      expect(typeof visualAnalyzer.describeImage).toBe("function");
+      expect(typeof visualAnalyzer.describeVideo).toBe("function");
+      expect(typeof visualAnalyzer.analyzeFit).toBe("function");
+      expect(typeof visualAnalyzer.closeVisualAnalyzer).toBe("function");
     });
   });
 
   describe("parseFitResponse", () => {
     it("parses valid JSON response", () => {
       const text = '{"fit": "cover", "focus": "top", "reason": "subject in upper frame"}';
-      const result = aiAnalyzer.parseFitResponse(text);
+      const result = visualAnalyzer.parseFitResponse(text);
       expect(result).toEqual({
         fit: "cover",
         focus: "top",
@@ -114,54 +114,54 @@ describe("ai-analyzer module", () => {
 
     it("parses JSON wrapped in markdown code block", () => {
       const text = '```json\n{"fit": "contain", "focus": "center", "reason": "text at edges"}\n```';
-      const result = aiAnalyzer.parseFitResponse(text);
+      const result = visualAnalyzer.parseFitResponse(text);
       expect(result.fit).toBe("contain");
       expect(result.focus).toBe("center");
     });
 
     it("parses JSON with extra text around it", () => {
       const text = 'Here is my analysis:\n{"fit": "cover", "focus": "bottom", "reason": "subject below"}\nHope this helps!';
-      const result = aiAnalyzer.parseFitResponse(text);
+      const result = visualAnalyzer.parseFitResponse(text);
       expect(result.fit).toBe("cover");
       expect(result.focus).toBe("bottom");
     });
 
     it("returns empty object for invalid fit value", () => {
       const text = '{"fit": "invalid", "focus": "center", "reason": "..."}';
-      const result = aiAnalyzer.parseFitResponse(text);
+      const result = visualAnalyzer.parseFitResponse(text);
       expect(result).toEqual({});
     });
 
     it("returns empty object for invalid focus value", () => {
       const text = '{"fit": "cover", "focus": "left", "reason": "..."}';
-      const result = aiAnalyzer.parseFitResponse(text);
+      const result = visualAnalyzer.parseFitResponse(text);
       expect(result).toEqual({});
     });
 
     it("returns empty object for empty string", () => {
-      const result = aiAnalyzer.parseFitResponse("");
+      const result = visualAnalyzer.parseFitResponse("");
       expect(result).toEqual({});
     });
 
     it("returns empty object for whitespace-only string", () => {
-      const result = aiAnalyzer.parseFitResponse("   \n  \t ");
+      const result = visualAnalyzer.parseFitResponse("   \n  \t ");
       expect(result).toEqual({});
     });
 
     it("returns empty object when no JSON found", () => {
-      const result = aiAnalyzer.parseFitResponse("I cannot analyze this image");
+      const result = visualAnalyzer.parseFitResponse("I cannot analyze this image");
       expect(result).toEqual({});
     });
 
     it("returns empty object for null input", () => {
-      const result = aiAnalyzer.parseFitResponse(null);
+      const result = visualAnalyzer.parseFitResponse(null);
       expect(result).toEqual({});
     });
   });
 
   describe("analyzeFit — normal path", () => {
     it("sends analyze_fit action to Python subprocess", async () => {
-      const promise = aiAnalyzer.analyzeFit("/abs/landscape.jpg");
+      const promise = visualAnalyzer.analyzeFit("/abs/landscape.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
@@ -188,7 +188,7 @@ describe("ai-analyzer module", () => {
     });
 
     it("returns object with fit, focus, reason on valid VLM response", async () => {
-      const promise = aiAnalyzer.analyzeFit("/abs/wide.mp4");
+      const promise = visualAnalyzer.analyzeFit("/abs/wide.mp4");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(
@@ -209,7 +209,7 @@ describe("ai-analyzer module", () => {
 
   describe("analyzeFit — degradation", () => {
     it("returns empty object when VLM returns error", async () => {
-      const promise = aiAnalyzer.analyzeFit("/abs/img.jpg");
+      const promise = visualAnalyzer.analyzeFit("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(
@@ -221,7 +221,7 @@ describe("ai-analyzer module", () => {
     });
 
     it("returns empty object when VLM returns malformed JSON", async () => {
-      const promise = aiAnalyzer.analyzeFit("/abs/img.jpg");
+      const promise = visualAnalyzer.analyzeFit("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout("This is not JSON at all\n");
@@ -234,7 +234,7 @@ describe("ai-analyzer module", () => {
       const { existsSync } = await import("fs");
       existsSync.mockReturnValue(false);
 
-      const result = await aiAnalyzer.analyzeFit("/abs/img.jpg");
+      const result = await visualAnalyzer.analyzeFit("/abs/img.jpg");
       expect(result).toEqual({});
 
       existsSync.mockReturnValue(true);
@@ -243,7 +243,7 @@ describe("ai-analyzer module", () => {
 
   describe("describeImage — normal path", () => {
     it("spawns Python subprocess on first call", async () => {
-      const promise = aiAnalyzer.describeImage("/abs/path/to/file.jpg");
+      const promise = visualAnalyzer.describeImage("/abs/path/to/file.jpg");
 
       // Wait for spawn to be called
       await new Promise((r) => setTimeout(r, 10));
@@ -260,7 +260,7 @@ describe("ai-analyzer module", () => {
     });
 
     it("sends correct JSON request to Python subprocess", async () => {
-      const promise = aiAnalyzer.describeImage("/abs/path/to/file.jpg");
+      const promise = visualAnalyzer.describeImage("/abs/path/to/file.jpg");
 
       await new Promise((r) => setTimeout(r, 10));
 
@@ -279,13 +279,13 @@ describe("ai-analyzer module", () => {
 
     it("reuses running process for subsequent calls (no re-spawn)", async () => {
       // First call
-      const promise1 = aiAnalyzer.describeImage("/abs/img1.jpg");
+      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
       await new Promise((r) => setTimeout(r, 10));
       mockProc.emitStdout(JSON.stringify({ description: "first", error: null }) + "\n");
       await promise1;
 
       // Second call — should NOT spawn again
-      const promise2 = aiAnalyzer.describeImage("/abs/img2.jpg");
+      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
       await new Promise((r) => setTimeout(r, 10));
       mockProc.emitStdout(JSON.stringify({ description: "second", error: null }) + "\n");
       await promise2;
@@ -296,7 +296,7 @@ describe("ai-analyzer module", () => {
 
   describe("describeVideo — normal path", () => {
     it("sends describe_video action for video files", async () => {
-      const promise = aiAnalyzer.describeVideo("/abs/clip.mp4");
+      const promise = visualAnalyzer.describeVideo("/abs/clip.mp4");
       await new Promise((r) => setTimeout(r, 10));
 
       const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
@@ -317,7 +317,7 @@ describe("ai-analyzer module", () => {
   describe("process lifecycle — crash + respawn", () => {
     it("detects process exit and respawns on next call", async () => {
       // First call — works
-      const promise1 = aiAnalyzer.describeImage("/abs/img1.jpg");
+      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
       await new Promise((r) => setTimeout(r, 10));
       mockProc.emitStdout(JSON.stringify({ description: "first", error: null }) + "\n");
       await promise1;
@@ -331,7 +331,7 @@ describe("ai-analyzer module", () => {
       const newMockProc = createMockProcess();
       mockSpawn.mockReturnValue(newMockProc);
 
-      const promise2 = aiAnalyzer.describeImage("/abs/img2.jpg");
+      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockSpawn).toHaveBeenCalledTimes(2);
@@ -341,7 +341,7 @@ describe("ai-analyzer module", () => {
 
     it("respawns after idle timeout (process exits with code 0)", async () => {
       // First call
-      const promise1 = aiAnalyzer.describeImage("/abs/img1.jpg");
+      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
       await new Promise((r) => setTimeout(r, 10));
       mockProc.emitStdout(JSON.stringify({ description: "first", error: null }) + "\n");
       await promise1;
@@ -353,7 +353,7 @@ describe("ai-analyzer module", () => {
       const newMockProc = createMockProcess();
       mockSpawn.mockReturnValue(newMockProc);
 
-      const promise2 = aiAnalyzer.describeImage("/abs/img2.jpg");
+      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockSpawn).toHaveBeenCalledTimes(2);
@@ -362,16 +362,16 @@ describe("ai-analyzer module", () => {
     });
   });
 
-  describe("closeAnalyzer", () => {
+  describe("closeVisualAnalyzer", () => {
     it("sends exit action and kills subprocess", async () => {
       // Start a process first
-      const promise = aiAnalyzer.describeImage("/abs/img.jpg");
+      const promise = visualAnalyzer.describeImage("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
       mockProc.emitStdout(JSON.stringify({ description: "test", error: null }) + "\n");
       await promise;
 
       // Close
-      await aiAnalyzer.closeAnalyzer();
+      await visualAnalyzer.closeVisualAnalyzer();
 
       // Should have written exit command to stdin
       const exitCall = mockProc.stdin.write.mock.calls.find((c) => {
@@ -386,7 +386,7 @@ describe("ai-analyzer module", () => {
     });
 
     it("does not error when no process is running", async () => {
-      await expect(aiAnalyzer.closeAnalyzer()).resolves.not.toThrow();
+      await expect(visualAnalyzer.closeVisualAnalyzer()).resolves.not.toThrow();
     });
   });
 
@@ -398,7 +398,7 @@ describe("ai-analyzer module", () => {
 
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const result = await aiAnalyzer.describeImage("/abs/img.jpg");
+      const result = await visualAnalyzer.describeImage("/abs/img.jpg");
 
       expect(result).toBe("");
       expect(warnSpy).toHaveBeenCalled();
@@ -409,7 +409,7 @@ describe("ai-analyzer module", () => {
     });
 
     it("returns empty string when Python returns error response", async () => {
-      const promise = aiAnalyzer.describeImage("/abs/img.jpg");
+      const promise = visualAnalyzer.describeImage("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(
@@ -425,9 +425,9 @@ describe("ai-analyzer module", () => {
   describe("serial request queuing", () => {
     it("processes requests one at a time in order", async () => {
       // Fire 3 calls rapidly
-      const promise1 = aiAnalyzer.describeImage("/abs/img1.jpg");
-      const promise2 = aiAnalyzer.describeImage("/abs/img2.jpg");
-      const promise3 = aiAnalyzer.describeImage("/abs/img3.jpg");
+      const promise1 = visualAnalyzer.describeImage("/abs/img1.jpg");
+      const promise2 = visualAnalyzer.describeImage("/abs/img2.jpg");
+      const promise3 = visualAnalyzer.describeImage("/abs/img3.jpg");
 
       await new Promise((r) => setTimeout(r, 20));
 
@@ -468,7 +468,7 @@ describe("ai-analyzer module", () => {
 
   describe("error response from Python", () => {
     it("returns empty string when Python returns error", async () => {
-      const promise = aiAnalyzer.describeImage("/abs/nonexistent.jpg");
+      const promise = visualAnalyzer.describeImage("/abs/nonexistent.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(
@@ -482,7 +482,7 @@ describe("ai-analyzer module", () => {
 
   describe("unknown action", () => {
     it("returns empty string for unknown action response", async () => {
-      const promise = aiAnalyzer.describeImage("/abs/img.jpg");
+      const promise = visualAnalyzer.describeImage("/abs/img.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
       mockProc.emitStdout(JSON.stringify({ description: "", error: "Unknown action: foo" }) + "\n");

@@ -76,6 +76,6 @@ All four components share `transformers`, `torch`/`mlx`, and `numpy`. A version 
 - All TTS/VLM/alignment scripts reference `~/.video-tts-env/bin/python3` or `source ~/.video-tts-env/bin/activate`.
 - Old venvs (`~/.f5-tts-env`, `~/.qwen-tts-env`, `~/.cosyvoice-env`) are deprecated and can be deleted. CosyVoice venv was already removed when CosyVoice was dropped (ADR-0008).
 - `text-align.py` uses `~/.video-tts-env/bin/python3` directly (hardcoded in `post-process.mjs`).
-- `ai_analyzer.py` docstring references `~/.video-tts-env`.
+- `vlm_analyzer.py` docstring references `~/.video-tts-env`.
 - The venv is NOT in version control — it's a local development dependency. Setup instructions are in `docs/video-workflow.md`.
 - whisperx model upgraded from `facebook/wav2vec2-base-960h` (95M params, 368MB) to `facebook/wav2vec2-large-960h-lv60-self` (316M params, ~1.2GB) for better alignment accuracy.

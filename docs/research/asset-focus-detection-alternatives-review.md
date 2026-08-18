@@ -1,0 +1,154 @@
+# 对《素材重点内容检测替代方案》的并行审阅
+
+**审阅对象：** `docs/research/asset-focus-detection-alternatives.md`  
+**审阅结论：** **部分合理，建议在完成任务重构、事实校准与基准验证后再作生产选型。**
+
+> 该报告最有价值的贡献是把“不要遮挡主体”的问题从不稳定的视觉语言模型输出中拆出，并优先考虑轻量、本地可运行的视觉能力。其主要不足则在于：把“显著性焦点”过早等同为“文字安全位置”，并把未在目标机器和真实素材上复现的速度、质量与部署成本当作选型事实。
+
+## 审阅方法与总体判断
+
+本次审阅对报告进行了六路独立核查，分别覆盖事实与引用、问题建模、替代技术、算法鲁棒性、实验设计，以及与当前项目的集成前提。同时，我重新核验了 OpenCV、Apple Vision、Ultralytics 的官方材料，并检查了本地项目的分析器与 Remotion 渲染契约。
+
+| 维度 | 判断 | 关键原因 |
+|---|---|---|
+| 问题识别 | **合理** | 当前 VLM 的空间判断不稳定时，引入确定性视觉信号作为补充是正确方向。 |
+| OpenCV + 人脸检测作为 PoC | **合理但仅限基线** | 低依赖、可解释，适合快速建立对照；但没有语义保证，不能承诺覆盖所有素材。 |
+| “焦点区域 → top/center/bottom”方案 | **不充分** | 实际目标是给定文字矩形后的**最小遮挡放置**，不是单一纵向分类。 |
+| 技术对比矩阵 | **需要重写** | 多个延迟、精度、模型大小和平台能力缺少统一硬件、版本、输入分辨率与测量口径。 |
+| 生产落地结论 | **证据不足** | 仅提出“4 张测试素材”不能支持默认上线，也没有与当前渲染数据模型完成闭环。 |
+
+因此，报告不应写成“方案 A 已是最实用的生产方案”，而应写成：**方案 A 是值得优先验证的轻量基线；是否成为默认方案，取决于统一基准下的遮挡、安全与时序指标。**
+
+## 最需要修改的六处
+
+| 优先级 | 报告位置 | 审阅发现 | 为什么重要 | 建议修改 |
+|---|---|---|---|---|
+| P0 | Executive Summary、方案 A | 将“重点内容检测”直接转为 `top/center/bottom`，再驱动文字 slot。 | 这丢失了横向位置、主体面积、文字尺寸、边距与多个主体之间的冲突；区域判断正确，文字仍可能盖住脸或产品。 | 将目标重新定义为“**候选文字矩形的遮挡风险最小化**”，把显著图和检测框都作为风险信号。 |
+| P0 | 方案 A 伪代码 | 只使用 `faces[0]`；只有 y 质心；没有零和、无图、失败、多峰、低置信度处理；注释又硬编码了 1920 高度。 | 多人、横图转竖图或无明显焦点时会产生不稳定甚至错误的放置决策。 | 输出所有保护区域及置信度；全程使用归一化坐标；对空图与低置信度返回 `uncertain`，不要静默分类。 |
+| P0 | “无缝集成”表述 | 当前渲染 `MediaField` 只有 `mode`、`animation`、`overlay` 等字段，没有焦点区域或可变文字位置字段；`MediaBackground` 还会以 `objectFit: cover`、缩放和平移渲染素材。 | 即使分析正确，原图坐标也不能自动对应到最终 9:16 画面或动态变换后的文字层。 | 报告必须把数据契约、`source → canvas` 坐标变换、候选 slot 渲染和回放验证列为实现范围。 |
+| P1 | 对比矩阵与结论 | 多处写死“<100ms”“<200ms”“100 倍”“质量最高”“CPU 慢”“需要 GPU”等判断。 | 没有明确设备、分辨率、冷/热启动、库版本或 P50/P95；不同硬件/后端不能横向相除。 | 将数字改为“待本机基准验证”；为每个候选记录设备、版本、输入尺寸、预热、分位延迟、内存和失败率。 |
+| P1 | Apple Vision / WWDC 2026 | Apple Vision 的 saliency API 能力描述大体正确，但“质量最高、毫秒级”并无本项目实证；WWDC26 Session 237 的核心内容是 tap-to-segment、Foundation Models 图像输入和 watchOS Vision，而不是报告所称的美学评分发布说明。 | 不精确的引文会误导技术风险与排期判断。 | 保留 Vision 为强对照候选；把“质量最高”改为待测假设，并让每个新 API 指向其直接文档或正式发布说明。 |
+| P1 | 依赖与现有能力 | 报告说项目“已有 OpenCV（`text-align.py` 的 wav2vec2 依赖）”。本地核查显示 `text-align.py` 使用的是 WhisperX/wav2vec2；项目未见 `cv2`/OpenCV 依赖声明。 | “零下载、无缝集成”的前提不成立；`opencv-contrib-python` 与模型/许可证管理必须明确进入部署方案。 | 更正为“需新增并锁定 OpenCV contrib 依赖”；若使用 Haar/YuNet，还应单列 XML/ONNX 文件、来源、版本、许可与校验方式。 |
+
+### 对当前项目集成前提的补充说明
+
+本地项目的 `scripts/short-video/lib/vlm_analyzer.py` 和 `scripts/short-video/lib/visual-analyzer.mjs` 当前公开的能力是 `describeImage` / `describeVideo`，响应主体是 `{description, error}`；没有可直接复用的 `focusRegion` 或结构化位置输出。渲染层的 `scripts/short-video/remotion/src/types.ts` 也没有 `textPlacement`、`protectedRegions` 或类似字段。报告应说明所引用的 Qwen 空间输出究竟是**实验分支、已废弃路径，还是待新增能力**，并提供对应代码路径或提交号。
+
+此外，`MediaBackground.tsx` 使用 `objectFit: "cover"`，并按动画加入 `scale`、`translateX`、`translateY`。因此，分析所得的原图坐标不能直接用于画布文字定位，必须经过同一套裁剪、缩放、偏移及动画变换，否则最容易在横图转 9:16 或 Ken Burns 场景中出现“分析没遮挡、渲染后遮挡”的假阳性。
+
+## 应如何重构问题与接口
+
+OpenCV 把静态显著性、运动显著性和 objectness 归为不同性质的算法类别；它提供的是“可能显著”的视觉线索，而不是字幕安全区定义。[1] Apple 也明确把 attention-based（可能吸引注视）与 object-based（前景物体）saliency 区分开来。[2] 因而，推荐将显著性视为**软惩罚信号**，而不是决定性 `region` 标签。
+
+### 推荐的新决策模型
+
+设 `R` 为来自人脸、人体、OCR、物体或显著图的保护区域，`C` 为与当前文字尺寸相匹配的候选文字矩形集合。系统不再问“焦点在哪个三分区”，而是对每个候选矩形 `c ∈ C` 计算成本：
+
+> `cost(c) = λ₁ × saliency_overlap(c) + λ₂ × protected_region_overlap(c) + λ₃ × edge_penalty(c) + λ₄ × template_penalty(c) + λ₅ × temporal_jitter(c)`
+
+其中，人脸/人体/OCR 等硬保护区应设为不可违反约束或极高惩罚；显著性图用于在主体不明确时排序；`temporal_jitter` 保证视频中不因相邻帧细微变化频繁跳位。最终选择成本最小的候选，而非把质心压缩为单一纵向标签。SmartOverlays 的价值也正在于将标签放置看作多目标优化，而不是单一质心分类。[3]
+
+建议分析器输出如下可审计契约；只有兼容旧调用方时，才在最后一层派生 `top/center/bottom`。
+
+```json
+{
+  "frame": {"width": 1920, "height": 1080, "orientationNormalized": true},
+  "protectedRegions": [
+    {"rect": [0.31, 0.10, 0.20, 0.42], "kind": "face", "confidence": 0.93},
+    {"rect": [0.12, 0.68, 0.56, 0.13], "kind": "ocr_text", "confidence": 0.88}
+  ],
+  "saliency": {"available": true, "confidence": 0.62},
+  "placement": {
+    "slot": "bottom-left",
+    "rect": [0.06, 0.68, 0.46, 0.22],
+    "risk": 0.08,
+    "status": "accepted"
+  },
+  "fallbackReason": null
+}
+```
+
+| 层级 | 推荐能力 | 作用 | 不应承担的责任 |
+|---|---|---|---|
+| 保护主体 | 现代人脸/人体检测、Vision `DetectHumanRectangles`、必要时轻量物体检测 | 产生高优先级禁放区域 | 判断整张图的叙事重点。 |
+| 保护已有画面文字 | OCR/Text Rectangles | 避免压住海报、标题、数据标签；Vision OCR 可返回归一化文字框。[4] | 代替视觉主体检测。 |
+| 补充视觉线索 | OpenCV Spectral Residual / Apple saliency | 在未识别主体时对候选区域排序 | 证明区域一定“不应遮挡”。 |
+| 决策与渲染 | 候选 slot 评分、画布变换、时间平滑 | 输出可放置矩形并与 Remotion 同坐标系渲染 | 由检测器隐式完成。 |
+| 语义升级 | YOLO / Vision / VLM | 仅在特定类别、低置信度或需语义解释时触发 | 成为所有素材的默认重型路径。 |
+
+## 对技术结论与引用的具体校准
+
+### OpenCV 与人脸检测
+
+报告推荐的 `StaticSaliencySpectralResidual` 可以作为低成本静态图 baseline；但“OpenCV saliency 整体零模型下载、覆盖所有素材类型”表述过宽。官方 API 将 `ObjectnessBING` 与静态显著性区分为不同类型，[1] 所以应仅对**实际选用的静态算法**声明其依赖特征；BING、Haar、YuNet 都要分别写清模型文件或数据文件的获取方式。Haar 应保留为对照而不是默认生产人脸检测器；关于 YuNet 的训练数据、大小和速度，报告应引用其官方模型卡，删除未给证据的“COCO 训练”“亚洲人脸一定下降”等句子。
+
+### Apple Vision
+
+报告的两类 saliency 请求和输出思路是值得保留的。Apple 官方说明：attention-based 对应人类可能注视的内容，object-based 对应前景物体；两者的热图为 68×68 浮点图。object-based 最多可以给出 3 个框，attention-based 则返回 1 个框。[2] 这使 Vision 成为非常合适的 macOS 对照方案，但“质量最高”和固定毫秒级延迟只能由目标 Mac 的测试来证明。WWDC26 Session 237 可支持“tap-to-segment、图像输入 Foundation Models、Vision 扩展至 watchOS”等陈述；它还特别提示一些新分割能力首次执行前需要下载模型，因此“Apple 能力一律零安装”也应避免。[5]
+
+### YOLO、SAM 与 MPS
+
+报告对 YOLO 和 SAM 的成本判断过于绝对。Ultralytics 当前官方表把 YOLO11n 在 640 像素输入上的 CPU ONNX 推理列为 `56.1 ± 0.8 ms`，同时表中 GPU 数字来自 T4 TensorRT；这些数字不能直接与本地 Python、MPS 或不同输入尺寸比较。[6] 因此，“约 300ms / 10ms”“主要只能 CPU”“不值得考虑”都应改成待目标设备实测。SAM/SAM 2 也应按具体 checkpoint、prompt 输入、后处理和设备条件比较，而不是笼统写成“必须 GPU”。其合理定位是**低频高价值 fallback**，而非默认路径。
+
+## 可替换的关键表述
+
+以下写法可保留原报告结构，同时消除过度结论。
+
+| 原有倾向 | 建议替换文本 |
+|---|---|
+| “OpenCV Saliency + Face Detection 组合方案是最实用的。” | “OpenCV Spectral Residual + 现代人脸/人体检测是优先验证的轻量基线。是否成为默认方案，应由目标 Mac 与项目标注集上的危险遮挡率、人工可接受率、时序稳定性和 P95 延迟决定。” |
+| “零模型下载、毫秒级速度、覆盖所有素材类型。” | “对所选静态显著性算法，部署成本可能较低；其速度与覆盖效果需在固定机器、分辨率和素材分层下实测。显著性图不提供可靠的语义主体保证。” |
+| “Apple Vision 是次选，质量最高。” | “Apple Vision 是 macOS 专用的重要对照候选，提供 attention/object-based saliency、文本与人体等结构化能力。其相对质量、延迟和桥接成本应以统一基准验证。” |
+| “只取首帧 + 1fps 采样，<1 秒完成。” | “先以镜头切分或构图变化检测确定采样点；比较首帧、1fps、关键帧与更高频采样的遮挡和抖动指标，再选择满足质量门槛的最低成本策略。” |
+| “4 张测试图片验证精度。” | “使用冻结的分层图片与视频集进行配对评测；4 张图片仅可作为 smoke test，不能作为选型证据。” |
+
+## 最小可行验证计划
+
+建议先做一个**两阶段验证**，而不是立即开发完整混合系统。
+
+### 第一阶段：用真实素材证伪或保留方案 A
+
+建立一个小而有代表性的 PoC 集：建议 80–120 张静图和 15–20 段 5–10 秒视频，覆盖单人/多人、侧脸或遮挡、产品或机器人、文字密集画面、风景/天际线、低对比度、横图转竖屏以及镜头切换。每份素材标注不可遮挡区域、允许文字区和“无明确焦点/需要人工确认”状态。两名标注者独立标注；对于框标注，记录一致性或由第三人裁决。
+
+候选对照应至少包括：固定 slot、当前 VLM 实验路径（若存在）、OpenCV saliency-only、Haar + saliency、YuNet/现代人脸或人体检测 + saliency、Apple Vision。仅当全部候选以同一输入尺寸、同一渲染模板和同一文字框进行比较时，结果才有解释力。
+
+| 指标 | 定义 | 用于什么决策 |
+|---|---|---|
+| 危险遮挡率 | 文字框与人工关键主体框的覆盖比例或发生率 | **主安全指标**。 |
+| 人工可接受率 | 盲评者认为“没有破坏主体/可读性”的比例 | 防止只优化几何指标。 |
+| 过度避让率 | 本可放字却错误升级为 `fullscreen` 或 `uncertain` 的比例 | 防止系统过于保守。 |
+| P50 / P95 端到端延迟 | 解码、检测、后处理和坐标映射的总延迟 | 验证性能收益。 |
+| 视频抖动 | 每分钟 slot 切换次数、相邻帧位置跳变、连续错误时长 | 验证是否可用于视频。 |
+| 失败/降级率 | 无法读取、模型失败、低置信度、无可行 slot 的比例 | 设计可审计 fallback。 |
+
+### 第二阶段：定义生产门槛与回退路径
+
+在冻结的独立验证集上预先登记门槛。一个可讨论的起点是：关键主体危险遮挡率不高于 1%，人工可接受率不低于 95%，静图端到端 P95 不高于 200ms，并且视频无连续 0.5 秒以上的危险遮挡。具体阈值应由内容团队根据视觉模板和可容忍的人工审核成本共同确认，而不是在实验结果出来后再调整。
+
+若任一安全门槛不达标，应回退到保守策略：提高遮罩而非盲目改变 slot、使用已验证的 `fullscreen` 场景、或者标记为 `uncertain` 并进入人工审核。尤其不应把“显著性方差低”直接等同于“允许全屏文字”或 `fullscreen: true`。
+
+## 建议的报告结构调整
+
+为使后续文档可审计且更容易执行，建议调整为以下顺序：
+
+1. **业务目标与不变量：** 明确保护对象、文字矩形、画幅、模板、安全边距与视频稳定性。
+2. **现状与证据：** 给出 Qwen 空间输出的真实样本、测试脚本、失败案例和对应代码路径。
+3. **候选方案：** 分开写“接口能力”“模型/依赖”“本机实测结果”“适用范围”，不混写。
+4. **统一决策模型：** 保护区、候选 slot、损失函数、坐标变换、低置信度回退。
+5. **基准与门槛：** 数据集、标注规则、对照组、指标、通过条件与版本信息。
+6. **实施路线：** PoC、渲染接口改造、回放测试、灰度开关、回滚和人工确认点。
+
+## 最终建议
+
+**不要否定方案 A，但应降低其结论等级。** 以 OpenCV Spectral Residual 加现代人脸/人体保护区作为第一个可测基线是理性的；然而当前“显著性质心 + 第一张脸 + 三分区”的设计不足以解决文字遮挡问题，也还没有接入当前 Remotion 的画布与文字布局模型。
+
+我建议下一步先完成：**（1）重写任务输出为候选文字矩形评分；（2）补齐 `source → 9:16 canvas` 变换与低置信度回退；（3）在冻结素材集上并列测试 OpenCV、Apple Vision 和现有基线。** 只有这些证据出来后，才决定是否引入 YuNet、YOLO/MPS、分割或 VLM fallback。这样既保留方案 A 的低成本优势，也能避免把一个视觉启发式误部署为生产级“主体保护”系统。
+
+## References
+
+[1]: https://docs.opencv.org/4.13.0/d8/d65/group__saliency.html "OpenCV 4.13 Saliency API"
+[2]: https://developer.apple.com/documentation/vision/cropping-images-using-saliency "Apple Vision: Cropping Images Using Saliency"
+[3]: https://openaccess.thecvf.com/content_ICCVW_2019/papers/OpenEDS/Hegde_SmartOverlays_A_Visual_Saliency_Driven_Label_Placement_for_Intelligent_Human-Computer_ICCVW_2019_paper.pdf "SmartOverlays (ICCVW 2019)"
+[4]: https://developer.apple.com/documentation/vision/recognizing-text-in-images "Apple Vision: Recognizing Text in Images"
+[5]: https://developer.apple.com/videos/play/wwdc2026/237/ "WWDC26 Session 237: What’s New in Image Understanding"
+[6]: https://docs.ultralytics.com/models/yolo11/ "Ultralytics YOLO11 Models and Benchmarks"
