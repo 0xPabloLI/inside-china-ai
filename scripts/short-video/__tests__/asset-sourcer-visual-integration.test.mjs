@@ -28,7 +28,7 @@ vi.mock("../lib/visual-analyzer.mjs", () => ({
 }));
 
 // Import after mocks
-import { analyzeAssets, buildReport, scoreCandidate } from "../lib/asset-sourcer.mjs";
+import { analyzeAssets, buildReport, scoreCandidate, assignAssetsToScenes } from "../lib/asset-sourcer.mjs";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -207,5 +207,96 @@ describe("analyzeAssets — AI integration", () => {
     expect(report.aiAnalysis).toBeDefined();
     expect(report.aiAnalysis).toHaveLength(1);
     expect(report.aiAnalysis[0].description).toBe("A robot demo");
+  });
+});
+
+// ─── P1-3a: focusAnalysis mapping + aiFit/aiFocus contract ───
+
+describe("assignAssetsToScenes — focusAnalysis + aiFit/aiFocus contract (P1-3a)", () => {
+  const mockScenes = [
+    { id: 1, visualType: "narrative", voiceover: "test" },
+    { id: 2, visualType: "narrative", voiceover: "test" },
+  ];
+
+  it("maps asset.focusAnalysis to analysis.focusAnalysis with complete schema", () => {
+    const assets = [
+      {
+        path: "/abs/img1.jpg",
+        type: "image",
+        score: 90,
+        source: "pexels",
+        focusAnalysis: {
+          status: "ok",
+          errorCode: null,
+          frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+          protectedRegions: [
+            { rect: [0.1, 0.2, 0.3, 0.4], kind: "face", confidence: null, confidenceKind: "not_provided" },
+          ],
+          saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] },
+        },
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, mockScenes);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].status).toBe("assigned");
+
+    // analysis.focusAnalysis should have the complete schema
+    expect(patches[0].analysis).toBeDefined();
+    expect(patches[0].analysis.focusAnalysis).toBeDefined();
+    expect(patches[0].analysis.focusAnalysis.status).toBe("ok");
+    expect(patches[0].analysis.focusAnalysis.errorCode).toBeNull();
+    expect(patches[0].analysis.focusAnalysis.frame).toBeDefined();
+    expect(patches[0].analysis.focusAnalysis.protectedRegions).toHaveLength(1);
+    expect(patches[0].analysis.focusAnalysis.saliency).toHaveProperty("available");
+    expect(patches[0].analysis.focusAnalysis.saliency).toHaveProperty("dispersion");
+    expect(patches[0].analysis.focusAnalysis.saliency).toHaveProperty("centroid");
+  });
+
+  it("writes media.fit from asset.aiFit (landscape asset)", () => {
+    const assets = [
+      {
+        path: "/abs/wide.jpg",
+        type: "image",
+        score: 85,
+        source: "pexels",
+        aiFit: "cover",
+        aiFitReason: "subject fills frame",
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, mockScenes);
+    expect(patches[0].media.fit).toBe("cover");
+  });
+
+  it("does NOT write media.focus (deprecated per spec §4.8)", () => {
+    const assets = [
+      {
+        path: "/abs/wide.jpg",
+        type: "image",
+        score: 85,
+        source: "pexels",
+        aiFit: "contain",
+        aiFitReason: "UI at edges",
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, mockScenes);
+    expect(patches[0].media.fit).toBe("contain");
+    expect(patches[0].media.focus).toBeUndefined();
+  });
+
+  it("omits analysis when asset has no focusAnalysis", () => {
+    const assets = [
+      {
+        path: "/abs/img1.jpg",
+        type: "image",
+        score: 90,
+        source: "pexels",
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, mockScenes);
+    expect(patches[0].analysis).toBeUndefined();
   });
 });

@@ -148,10 +148,22 @@ describe("visual-analyzer module", () => {
       expect(result).toEqual({});
     });
 
-    it("returns empty object for invalid focus value", () => {
+    it("preserves fit when focus is invalid (spec §4.8: fit required, focus optional)", () => {
       const text = '{"fit": "cover", "focus": "left", "reason": "..."}';
       const result = visualAnalyzer.parseFitResponse(text);
-      expect(result).toEqual({});
+      expect(result).toEqual({ fit: "cover", reason: "..." });
+    });
+
+    it("preserves fit when focus is absent (spec §4.8 regression test)", () => {
+      const text = '{"fit": "cover"}';
+      const result = visualAnalyzer.parseFitResponse(text);
+      expect(result).toEqual({ fit: "cover", reason: "" });
+    });
+
+    it("preserves fit when focus is null", () => {
+      const text = '{"fit": "contain", "focus": null, "reason": "text at edges"}';
+      const result = visualAnalyzer.parseFitResponse(text);
+      expect(result).toEqual({ fit: "contain", reason: "text at edges" });
     });
 
     it("returns empty object for empty string", () => {
@@ -220,6 +232,46 @@ describe("visual-analyzer module", () => {
       expect(result.fit).toBe("contain");
       expect(result.focus).toBe("center");
       expect(result.reason).toContain("UI elements");
+    });
+  });
+
+  describe("analyzeFit — fit-only response (spec §4.8 decoupling)", () => {
+    it("resolves with fit when VLM returns fit but no focus", async () => {
+      const promise = visualAnalyzer.analyzeFit("/abs/landscape.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout(
+        JSON.stringify({
+          fit: "cover",
+          focus: null,
+          reason: "",
+          error: null,
+        }) + "\n",
+      );
+
+      const result = await promise;
+      expect(result.fit).toBe("cover");
+      expect(result.reason).toBe("");
+      expect(result.focus).toBeUndefined();
+    });
+
+    it("resolves with fit when VLM returns fit with invalid focus", async () => {
+      const promise = visualAnalyzer.analyzeFit("/abs/wide.jpg");
+      await new Promise((r) => setTimeout(r, 10));
+
+      mockProc.emitStdout(
+        JSON.stringify({
+          fit: "contain",
+          focus: "left",  // invalid — not in top|center|bottom
+          reason: "UI elements",
+          error: null,
+        }) + "\n",
+      );
+
+      const result = await promise;
+      expect(result.fit).toBe("contain");
+      expect(result.reason).toBe("UI elements");
+      expect(result.focus).toBeUndefined();
     });
   });
 

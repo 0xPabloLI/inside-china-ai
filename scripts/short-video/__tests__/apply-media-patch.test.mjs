@@ -9,7 +9,7 @@ import {
   formatFocusSummary,
   formatPatchEntry,
   formatMediaPatch,
-} from "../lib/apply-media-patch.mjs";
+} from "../lib/review-media-patch.mjs";
 
 describe("formatFocusSummary", () => {
   it("formats ok status with protected regions and saliency", () => {

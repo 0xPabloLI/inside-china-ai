@@ -27,6 +27,8 @@ const FOCUS_SCRIPT = join(process.cwd(), "scripts/short-video/lib/focus_detector
 // Skip entire suite if Python or OpenCV not available
 const shouldRun = existsSync(PYTHON_BIN) && existsSync(FOCUS_SCRIPT) && existsSync(TEST_IMAGE);
 
+// P1-2: Real Python subprocess tests must run serially to avoid resource contention.
+// Run with: npx vitest run <file> --maxWorkers=1  (or set maxWorkers=1 in vitest config)
 const maybeDescribe = shouldRun ? describe : describe.skip;
 
 maybeDescribe("Focus Detection Smoke Test (real subprocess)", () => {
@@ -47,8 +49,8 @@ maybeDescribe("Focus Detection Smoke Test (real subprocess)", () => {
     }
   });
 
-  test("golden: real-image-ok — shanghai-skyline.jpg returns ok with faces + saliency", async () => {
-    const testCase = golden.goldenCases.find((c) => c.name === "real-image-ok");
+  test("golden: real-image-ok-no-faces — shanghai-skyline.jpg returns ok with saliency (no real faces)", async () => {
+    const testCase = golden.goldenCases.find((c) => c.name === "real-image-ok-no-faces");
     expect(testCase).toBeDefined();
 
     const t0 = Date.now();
@@ -71,10 +73,8 @@ maybeDescribe("Focus Detection Smoke Test (real subprocess)", () => {
     expect(result.saliency.dispersion).toBeGreaterThan(0);
     expect(result.saliency.centroid).toHaveLength(2);
 
-    // Protected regions (faces detected)
-    expect(result.protectedRegions.length).toBeGreaterThanOrEqual(testCase.minProtectedRegions);
-
     // Schema completeness: every protected region has required fields
+    // (Haar may produce false positives on building windows/signs — known limitation)
     for (const r of result.protectedRegions) {
       expect(r).toHaveProperty("rect");
       expect(r.rect).toHaveLength(4);

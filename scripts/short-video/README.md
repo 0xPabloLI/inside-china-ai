@@ -89,7 +89,7 @@ scripts/short-video/
 │   ├── focus_detector.py           # Python side: OpenCV face detection + saliency
 │   ├── requirements-focus.txt      # Pinned deps for focus_detector.py
 │   ├── asset-sourcer.mjs     # Search + download + VLM score + assign assets
-│   ├── apply-media-patch.mjs    # Format media-patch.json for human review
+│   ├── review-media-patch.mjs  # Format media-patch.json for human review
 │   ├── media-bg.mjs          # Playwright media layer (CSS)
 │   ├── scene-templates.mjs   # Shared scene HTML templates (hook, cta, etc.)
 │   ├── scene-layout.mjs      # Slot layout system (fixed vertical bands)

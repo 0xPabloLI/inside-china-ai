@@ -191,7 +191,8 @@ function handleResponse(line) {
   } else if (request.isFit) {
     // analyze_fit: Python returns {fit, focus, reason, error: null}
     // or {description: "<JSON string>", error: null} as fallback
-    if (response.fit && response.focus) {
+    // Spec §4.8: fit is required, focus is optional — resolve as long as fit is present
+    if (response.fit) {
       resolve(parseFitResponse(
         JSON.stringify({ fit: response.fit, focus: response.focus, reason: response.reason || "" })
       ));
@@ -300,11 +301,13 @@ export function parseFitResponse(text) {
   if (!fit || !VALID_FITS.includes(fit)) {
     return {};
   }
-  if (!focus || !VALID_FOCUSES.includes(focus)) {
-    return {};
-  }
 
-  return { fit, focus, reason };
+  // Spec §4.8: fit is required, focus is optional.
+  // Only include focus when it's valid (top|center|bottom); otherwise omit it.
+  if (focus && VALID_FOCUSES.includes(focus)) {
+    return { fit, focus, reason };
+  }
+  return { fit, reason };
 }
 
 // ─── Public API ───
