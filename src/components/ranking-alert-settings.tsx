@@ -32,24 +32,40 @@ export function RankingAlertSettings() {
   const [threshold, setThreshold] = useState("3");
   const [lostRanking, setLostRanking] = useState(true);
   const [email, setEmail] = useState("");
-  const [fromPos, setFromPos] = useState("8");
-  const [toPos, setToPos] = useState("14");
+
+  type PreviewRow = { id: number; keyword: string; from: string; to: string };
+  const [rows, setRows] = useState<PreviewRow[]>([
+    { id: 1, keyword: "china ai news", from: "8", to: "14" },
+    { id: 2, keyword: "chinese ai models", from: "22", to: "" },
+  ]);
+  const nextId = () => Math.max(0, ...rows.map((r) => r.id)) + 1;
+  const updateRow = (id: number, patch: Partial<PreviewRow>) =>
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   // Preview uses the values currently in the form, saved or not.
   const parsedThreshold = Number(threshold);
   const previewThreshold =
     Number.isInteger(parsedThreshold) && parsedThreshold >= 1 ? parsedThreshold : null;
-  const from = fromPos.trim() === "" ? null : Number(fromPos);
-  const to = toPos.trim() === "" ? null : Number(toPos);
-  const previewValid =
-    previewThreshold !== null &&
-    from !== null &&
-    Number.isInteger(from) &&
-    from >= 1 &&
-    (to === null || (Number.isInteger(to) && to >= 1));
-  const wouldAlert = previewValid
-    ? isDrop(to, from, previewThreshold, lostRanking)
-    : false;
+
+  const evaluated = rows.map((row) => {
+    const from = row.from.trim() === "" ? null : Number(row.from);
+    const to = row.to.trim() === "" ? null : Number(row.to);
+    const valid =
+      previewThreshold !== null &&
+      from !== null &&
+      Number.isInteger(from) &&
+      from >= 1 &&
+      (to === null || (Number.isInteger(to) && to >= 1));
+    return {
+      row,
+      from,
+      to,
+      valid,
+      wouldAlert: valid ? isDrop(to, from, previewThreshold!, lostRanking) : false,
+    };
+  });
+  const firing = evaluated.filter((e) => e.wouldAlert);
+
 
   // Query data arrives after mount, so sync the form once it lands.
   useEffect(() => {
