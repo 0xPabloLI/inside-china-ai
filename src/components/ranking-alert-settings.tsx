@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Mail, Trash2 } from "lucide-react";
+import { BellOff, BellRing, Mail, Trash2 } from "lucide-react";
 import {
   addAlertRecipient,
   deleteAlertRecipient,
