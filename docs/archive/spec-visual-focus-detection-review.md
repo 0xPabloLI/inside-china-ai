@@ -1,7 +1,17 @@
 # 视觉焦点检测实现后复审
 
 **审阅对象：** `docs/specs/spec-visual-focus-detection.md`（当前为 Revised v7）及已落地的 Focus 检测实现、Node 网关、素材编排与测试。  
-**结论：** **核心架构已落地，但暂不建议把实现视为完整通过。** 独立 Focus 子进程、延迟依赖加载、EXIF 规范化、requestId 路由、worker reset 降级、Patch 人工审阅摘要与 `analysis.focusAnalysis` 映射均已实现，并且基础 IPC/Smoke 路径能运行。然而，V7 明确要求的 `fit` 与旧 `focus` 解耦尚未实现；同时，唯一“真实图片 + 人脸保护区”smoke 样本把一张天际线照片错误地当成人脸 golden case。这两项会分别造成横图裁切回归与错误的检测质量证据，应作为 P0 关闭后再宣布功能完成。
+**结论：** **核心架构已落地，P0/P1 修复已于 2026-08-18 完成（commit 8f4d7dd）。** 独立 Focus 子进程、延迟依赖加载、EXIF 规范化、requestId 路由、worker reset 降级、Patch 人工审阅摘要与 `analysis.focusAnalysis` 映射均已实现，并且基础 IPC/Smoke 路径能运行。P0-1（fit/focus 解耦）和 P0-2（smoke golden 断言修正）已修复并通过 81 项测试验证。P1-3a（集成断言）、P1-3b（CLI 重命名）、P1-2（并行测试隔离注释）也已修复。P1-1（fixtures/exif + benchmark）标记为后续任务。
+
+> **修复记录（2026-08-18，commit 8f4d7dd）：**
+> - P0-1: `parseFitResponse()` 只校验 `fit`；`handleResponse()` 在 `response.fit` 存在时立即解析。3 个回归测试已添加。✅
+> - P0-2: `focus-golden.json` 的 `real-image-ok` 重命名为 `real-image-ok-no-faces`，`minProtectedRegions` 改为 0，移除人脸数量硬断言。`maxResponseTimeMs` 放宽至 10s（冷启动）。✅
+> - P1-3a: `asset-sourcer-visual-integration.test.mjs` 新增 4 个测试覆盖 `analysis.focusAnalysis` schema、`media.fit` 写入、`media.focus` 不写入。✅
+> - P1-3b: `lib/apply-media-patch.mjs` 重命名为 `lib/review-media-patch.mjs`，更新所有引用。✅
+> - P1-2: 真实子进程测试文件添加串行执行注释（`--maxWorkers=1`）。✅
+> - P1-1: `fixtures/exif/`、`fixtures/benchmark/`、`fixtures/golden/`、`fixtures/baseline/` 和 `focus-detector-benchmark.mjs` 标记为后续任务。⏳
+
+> **重要**：实现后复审发现两个 P0 级未完成项。**P0 已于 2026-08-18 修复完成**。修复前功能不应被视为完整通过。
 
 > 本次结论区分“程序能运行”与“契约已被证明”。当前 Focus IPC 在独立运行时是健康的；但真实人脸检测、EXIF、golden/baseline 质量门槛和 `fit` 迁移的关键承诺尚未得到正确的实现或验证。
 

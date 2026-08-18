@@ -82,6 +82,7 @@
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
 | `spec-ai-analyzer.md` / `tickets-ai-analyzer.md` | 2026-08-17 | VLM 驱动的素材理解层 — `lib/ai_analyzer.py` Python 子进程 (mlx-vlm + Qwen3-VL-8B) + `lib/ai-analyzer.mjs` Node.js 库 (stdin/stdout JSON IPC) + `scoreCandidate` aiDescription 评分 (0-30) + asset-sourcer 集成 (`analyzeAssets` + `aiAnalysis` report)。151 tests passing。 |
+| `spec-visual-focus-detection.md` / `spec-visual-focus-detection-review.md` / `spec-visual-focus-detection-remediation.md` | 2026-08-18 | 视觉焦点检测 + AI 分析层重构 — `focus_detector.py` (OpenCV Haar + Saliency) + `visual-analyzer.mjs` (Node 网关, requestId 路由, generation 隔离) + `vlm_analyzer.py` (重命名自 ai_analyzer.py) + two-phase analysis (Phase 1 focus → Phase 2 VLM) + `review-media-patch.mjs` (人工审阅 formatter)。P0/P1 修复: fit/focus 解耦 + smoke golden 断言修正 + CLI 重命名 + 集成断言。81 tests passing。 |
 
 ### Documentation Hierarchy Specs
 
