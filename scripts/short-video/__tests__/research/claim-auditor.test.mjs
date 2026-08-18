@@ -195,6 +195,66 @@ describe("auditClaims — failing scenarios", () => {
     expect(result.failures[0].reason).toContain("stale");
   });
 
+  it("fails when evidence status is conflicted (R1-1)", () => {
+    const evidence = [
+      makeEvidenceItem("e1", "c1", {
+        verification: {
+          status: "conflicted",
+          crossVerificationIds: [],
+          confidence: "medium",
+          validUntil: "2027-12-31",
+          conflictNote: "sources disagree",
+        },
+      }),
+    ];
+    const claims = [makeClaim("c1", "fact", "e1")];
+    const result = auditClaims(makeClaimMap(claims), makeEvidencePack(evidence), {
+      researchTier: "standard",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures[0].reason).toContain("conflicted");
+  });
+
+  it("fails when evidence status is context (R1-1)", () => {
+    const evidence = [
+      makeEvidenceItem("e1", "c1", {
+        verification: {
+          status: "context",
+          crossVerificationIds: [],
+          confidence: "medium",
+          validUntil: "2027-12-31",
+          conflictNote: "",
+        },
+      }),
+    ];
+    const claims = [makeClaim("c1", "fact", "e1")];
+    const result = auditClaims(makeClaimMap(claims), makeEvidencePack(evidence), {
+      researchTier: "standard",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures[0].reason).toContain("context-only");
+  });
+
+  it("fails when evidence status is analysis-grade (R1-1)", () => {
+    const evidence = [
+      makeEvidenceItem("e1", "c1", {
+        verification: {
+          status: "analysis",
+          crossVerificationIds: [],
+          confidence: "medium",
+          validUntil: "2027-12-31",
+          conflictNote: "",
+        },
+      }),
+    ];
+    const claims = [makeClaim("c1", "fact", "e1")];
+    const result = auditClaims(makeClaimMap(claims), makeEvidencePack(evidence), {
+      researchTier: "standard",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures[0].reason).toContain("analysis-grade");
+  });
+
   it("fails when high-risk claim has only 1 source in deep tier (scenario 6)", () => {
     const evidence = [
       makeEvidenceItem("e1", "c1", {

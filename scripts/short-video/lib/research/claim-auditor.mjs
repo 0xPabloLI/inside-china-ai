@@ -7,12 +7,12 @@
  *
  * Fails when:
  * - A material (fact-type) claim has no evidence mapping
- * - A claim maps to a rejected or stale evidence item
+ * - A claim maps to a non-verified evidence item (rejected, stale, conflicted, context, analysis)
  * - A high-risk claim doesn't meet the routing tier's minimum evidence standard
  * - An evidence item's validUntil date has passed (staleness check)
  *
  * Passes when:
- * - All fact claims have valid evidence mappings
+ * - All fact claims have verified evidence mappings
  * - Analysis-type claims don't require external evidence
  *
  * See: docs/specs/spec-research-evidence-pipeline.md (Design Decision #7)
@@ -161,8 +161,10 @@ export function auditClaims(claimMap, evidencePack, options = {}) {
       continue;
     }
 
-    // Check for rejected or stale evidence
+    // Fact claims require verified evidence — reject any other status
     const status = evidenceItem.verification?.status;
+
+    // Explicitly rejected
     if (status === "rejected") {
       failures.push({
         claimId: claim.claimId,
@@ -172,10 +174,51 @@ export function auditClaims(claimMap, evidencePack, options = {}) {
       continue;
     }
 
+    // Explicitly stale or date-expired
     if (status === "stale" || isStale(evidenceItem)) {
       failures.push({
         claimId: claim.claimId,
         reason: `Evidence is stale (validUntil: ${evidenceItem.verification?.validUntil || "unknown"})`,
+        evidenceId: claim.evidenceId,
+      });
+      continue;
+    }
+
+    // Conflicted evidence is not sufficient for fact claims
+    if (status === "conflicted") {
+      failures.push({
+        claimId: claim.claimId,
+        reason: `Fact claim requires verified evidence, but evidence is conflicted: ${evidenceItem.verification?.conflictNote || "no note"}`,
+        evidenceId: claim.evidenceId,
+      });
+      continue;
+    }
+
+    // Context-only evidence is not sufficient for fact claims
+    if (status === "context") {
+      failures.push({
+        claimId: claim.claimId,
+        reason: `Fact claim requires verified evidence, but evidence is context-only (provides background, not direct support)`,
+        evidenceId: claim.evidenceId,
+      });
+      continue;
+    }
+
+    // Analysis-grade evidence is not sufficient for fact claims
+    if (status === "analysis") {
+      failures.push({
+        claimId: claim.claimId,
+        reason: `Fact claim requires verified evidence, but evidence is analysis-grade (derived inference, not direct verification)`,
+        evidenceId: claim.evidenceId,
+      });
+      continue;
+    }
+
+    // Any unrecognized status is also a failure
+    if (status !== "verified") {
+      failures.push({
+        claimId: claim.claimId,
+        reason: `Fact claim requires verified evidence, but evidence status is "${status || "missing"}"`,
         evidenceId: claim.evidenceId,
       });
       continue;

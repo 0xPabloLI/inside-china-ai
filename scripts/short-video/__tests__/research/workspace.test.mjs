@@ -1,14 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { writeFileSync, readFileSync, existsSync, rmSync } from "fs";
+import { join } from "path";
 
 import {
   createResearchWorkspace,
   getResearchWorkspace,
+  getRunPath,
   writeResearchArtifact,
   readResearchArtifact,
   updateManifest,
+  readManifest,
   getLatestRun,
   getAllRuns,
   hasResearchWorkspace,
@@ -16,10 +17,6 @@ import {
   RESEARCH_ARTIFACTS,
 } from "../../lib/research/workspace.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Test fixture: use a temporary content directory
 const TEST_SLUG = "test-research-workspace";
 const TEST_RUN_ID = "run-test-001";
 const TEST_WORKSPACE = getResearchWorkspace(TEST_SLUG);
@@ -44,21 +41,29 @@ describe("generateRunId", () => {
     const id = generateRunId();
     expect(id).toMatch(/^run-\d{4}-\d{2}-\d{2}-\d{6}$/);
   });
+});
 
-  it("returns unique values on successive calls", () => {
-    const id1 = generateRunId();
-    const id2 = generateRunId();
-    // Could theoretically be same if called within same second, but unlikely
-    // Just check format
-    expect(id1).toMatch(/^run-/);
-    expect(id2).toMatch(/^run-/);
+// ─── getRunPath ───
+
+describe("getRunPath", () => {
+  it("includes the researchRunId in the path", () => {
+    const path = getRunPath(TEST_SLUG, TEST_RUN_ID);
+    expect(path).toContain(TEST_RUN_ID);
+    expect(path).toContain(TEST_SLUG);
+    expect(path).toContain("research");
+  });
+
+  it("produces different paths for different runs of the same slug", () => {
+    const path1 = getRunPath(TEST_SLUG, "run-a");
+    const path2 = getRunPath(TEST_SLUG, "run-b");
+    expect(path1).not.toBe(path2);
   });
 });
 
 // ─── createResearchWorkspace ───
 
 describe("createResearchWorkspace", () => {
-  it("creates the research directory", () => {
+  it("creates the run-specific directory", () => {
     const path = createResearchWorkspace(TEST_SLUG, TEST_RUN_ID);
     expect(existsSync(path)).toBe(true);
   });
@@ -68,15 +73,12 @@ describe("createResearchWorkspace", () => {
     expect(() => createResearchWorkspace(TEST_SLUG, TEST_RUN_ID)).not.toThrow();
   });
 
-  it("creates separate directories for different slugs", () => {
-    const path1 = createResearchWorkspace("slug-a", TEST_RUN_ID);
-    const path2 = createResearchWorkspace("slug-b", TEST_RUN_ID);
+  it("creates separate run directories for the same slug", () => {
+    const path1 = createResearchWorkspace(TEST_SLUG, "run-a");
+    const path2 = createResearchWorkspace(TEST_SLUG, "run-b");
     expect(path1).not.toBe(path2);
     expect(existsSync(path1)).toBe(true);
     expect(existsSync(path2)).toBe(true);
-
-    // Cleanup slug-b
-    rmSync(getResearchWorkspace("slug-b"), { recursive: true, force: true });
   });
 });
 
@@ -96,19 +98,94 @@ describe("writeResearchArtifact & readResearchArtifact", () => {
     expect(result).toBeNull();
   });
 
-  it("creates the workspace directory if it doesn't exist", () => {
+  it("creates the run directory if it doesn't exist", () => {
     const data = { test: true };
-    // Don't call createResearchWorkspace first
     writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.BRIEF, data);
     const read = readResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.BRIEF);
     expect(read).toEqual(data);
   });
 
-  it("overwrites existing artifact on re-write", () => {
+  it("overwrites existing artifact on re-write (same run)", () => {
     writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 1 });
     writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 2 });
     const read = readResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY);
     expect(read.v).toBe(2);
+  });
+
+  it("throws when artifact contentId does not match requested slug", () => {
+    expect(() =>
+      writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
+        contentId: "different-slug",
+        researchRunId: TEST_RUN_ID,
+      }),
+    ).toThrow("contentId");
+  });
+
+  it("throws when artifact researchRunId does not match requested run", () => {
+    expect(() =>
+      writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
+        contentId: TEST_SLUG,
+        researchRunId: "different-run",
+      }),
+    ).toThrow("researchRunId");
+  });
+
+  it("returns null when reading from a non-existent run path", () => {
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
+      contentId: TEST_SLUG,
+      researchRunId: TEST_RUN_ID,
+      test: true,
+    });
+    // wrong-run directory doesn't exist, so file not found → null
+    const result = readResearchArtifact(TEST_SLUG, "wrong-run", RESEARCH_ARTIFACTS.DISCOVERY);
+    expect(result).toBeNull();
+  });
+});
+
+// ─── Same-slug multi-run isolation (R0-1) ───
+
+describe("Same-slug multi-run isolation", () => {
+  it("two runs of the same slug do not overwrite each other", () => {
+    const runA = "run-isolation-a";
+    const runB = "run-isolation-b";
+
+    writeResearchArtifact(TEST_SLUG, runA, RESEARCH_ARTIFACTS.DISCOVERY, { from: "a" });
+    writeResearchArtifact(TEST_SLUG, runB, RESEARCH_ARTIFACTS.DISCOVERY, { from: "b" });
+
+    const readA = readResearchArtifact(TEST_SLUG, runA, RESEARCH_ARTIFACTS.DISCOVERY);
+    const readB = readResearchArtifact(TEST_SLUG, runB, RESEARCH_ARTIFACTS.DISCOVERY);
+
+    expect(readA.from).toBe("a");
+    expect(readB.from).toBe("b");
+  });
+
+  it("cross-run read returns null (not the other run's artifact)", () => {
+    const runA = "run-cross-a";
+    const runB = "run-cross-b";
+
+    writeResearchArtifact(TEST_SLUG, runA, RESEARCH_ARTIFACTS.BRIEF, { from: "a" });
+
+    // runB hasn't written a brief yet
+    const result = readResearchArtifact(TEST_SLUG, runB, RESEARCH_ARTIFACTS.BRIEF);
+    expect(result).toBeNull();
+  });
+
+  it("different content slugs still get separate workspaces", () => {
+    const slugA = "concurrent-a";
+    const slugB = "concurrent-b";
+
+    writeResearchArtifact(slugA, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, { from: "a" });
+    writeResearchArtifact(slugB, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, { from: "b" });
+
+    const readA = readResearchArtifact(slugA, "run-1", RESEARCH_ARTIFACTS.DISCOVERY);
+    const readB = readResearchArtifact(slugB, "run-1", RESEARCH_ARTIFACTS.DISCOVERY);
+
+    expect(readA.from).toBe("a");
+    expect(readB.from).toBe("b");
+
+    // Cleanup
+    rmSync(getResearchWorkspace(slugA), { recursive: true, force: true });
+    rmSync(getResearchWorkspace(slugB), { recursive: true, force: true });
   });
 });
 
@@ -156,34 +233,50 @@ describe("Manifest management", () => {
     updateManifest(TEST_SLUG, TEST_RUN_ID, { status: "started" });
     updateManifest(TEST_SLUG, TEST_RUN_ID, { status: "completed", evidenceCount: 5 });
 
-    const manifest = JSON.parse(
-      readFileSync(join(TEST_WORKSPACE, RESEARCH_ARTIFACTS.MANIFEST), "utf-8"),
-    );
+    const manifest = readManifest(TEST_SLUG);
     const run = manifest.runs.find((r) => r.researchRunId === TEST_RUN_ID);
     expect(run.status).toBe("completed");
     expect(run.evidenceCount).toBe(5);
   });
-});
 
-// ─── Concurrent run isolation ───
+  // R2-1: manifest records artifact metadata
+  it("manifest records artifact filename, schemaVersion, hash, and timestamp", () => {
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
+      schemaVersion: "1.0.0",
+      contentId: TEST_SLUG,
+      researchRunId: TEST_RUN_ID,
+      test: "data",
+    });
 
-describe("Concurrent run isolation", () => {
-  it("different content slugs get separate workspaces", () => {
-    const slugA = "concurrent-a";
-    const slugB = "concurrent-b";
+    const manifest = readManifest(TEST_SLUG);
+    const run = manifest.runs.find((r) => r.researchRunId === TEST_RUN_ID);
+    expect(run.artifacts).toHaveLength(1);
+    expect(run.artifacts[0].filename).toBe(RESEARCH_ARTIFACTS.DISCOVERY);
+    expect(run.artifacts[0].schemaVersion).toBe("1.0.0");
+    expect(run.artifacts[0].contentHash).toBeTruthy();
+    expect(run.artifacts[0].contentHash).toHaveLength(12);
+    expect(run.artifacts[0].writtenAt).toBeTruthy();
+  });
 
-    writeResearchArtifact(slugA, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, { from: "a" });
-    writeResearchArtifact(slugB, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, { from: "b" });
+  it("manifest deduplicates artifacts by filename on re-write", () => {
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 1 });
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 2 });
 
-    const readA = readResearchArtifact(slugA, "run-1", RESEARCH_ARTIFACTS.DISCOVERY);
-    const readB = readResearchArtifact(slugB, "run-1", RESEARCH_ARTIFACTS.DISCOVERY);
+    const manifest = readManifest(TEST_SLUG);
+    const run = manifest.runs.find((r) => r.researchRunId === TEST_RUN_ID);
+    expect(run.artifacts).toHaveLength(1); // dedup'd, not 2
+    expect(run.artifacts[0].contentHash).toBeTruthy();
+  });
 
-    expect(readA.from).toBe("a");
-    expect(readB.from).toBe("b");
+  it("manifest tracks multiple different artifacts per run", () => {
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { a: 1 });
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.BRIEF, { b: 2 });
 
-    // Cleanup
-    rmSync(getResearchWorkspace(slugA), { recursive: true, force: true });
-    rmSync(getResearchWorkspace(slugB), { recursive: true, force: true });
+    const manifest = readManifest(TEST_SLUG);
+    const run = manifest.runs.find((r) => r.researchRunId === TEST_RUN_ID);
+    expect(run.artifacts).toHaveLength(2);
+    const filenames = run.artifacts.map((a) => a.filename).sort();
+    expect(filenames).toEqual([RESEARCH_ARTIFACTS.DISCOVERY, RESEARCH_ARTIFACTS.BRIEF]);
   });
 });
 

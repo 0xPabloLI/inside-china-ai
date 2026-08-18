@@ -136,6 +136,10 @@ describe("search-sources scoped mode: discovery output", () => {
       );
       discoveryB.contentId = slugB;
 
+      // Fix run IDs to match artifact data
+      discoveryA.researchRunId = "run-1";
+      discoveryB.researchRunId = "run-1";
+
       writeResearchArtifact(slugA, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, discoveryA);
       writeResearchArtifact(slugB, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, discoveryB);
 
