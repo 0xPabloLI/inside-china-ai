@@ -474,13 +474,13 @@ describe("hookScene", () => {
     expect(html).toContain('class="slot-hero"');
   });
 
-  it("subject without logo renders the bold 80px name row", () => {
+  it("subject without logo renders the bold 64px name row", () => {
     const html = hookScene({ texts: { subject: "BYTEDANCE", hookText: "155M USERS" } }, 10);
     expect(html).toContain('class="subject-row"');
     expect(html).toContain("BYTEDANCE");
     expect(html).not.toContain('class="subject-logo"');
     expect(templateCss()).toContain(
-      ".s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900",
+      ".s-hook .subject-row .subject-name { font-size: 64px; font-weight: 900",
     );
   });
 
