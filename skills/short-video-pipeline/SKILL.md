@@ -30,11 +30,11 @@ Gather raw materials from the user (article URL, screenshots, tips, data points)
 
 ```bash
 # Check CDP availability
-node ~/.cursor/skills/web-access/scripts/check-deps.mjs
+node ~/.agents/skills/web-access/scripts/check-deps.mjs
 
-# Create background tab and extract content
+# Create background tab and extract content as clean Markdown
 curl -s "http://localhost:3456/new?url=https://example.com"
-curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
+curl -s -X POST "http://localhost:3456/extract?target=TAB_ID" -d '{}'
 ```
 
 Verify claims against multiple sources, find specific numbers and quotes.
