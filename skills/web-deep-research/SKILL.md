@@ -69,29 +69,18 @@ Load `web-access` skill and follow its setup instructions (check-deps, CDP
 proxy). All web fetching goes through web-access — do not reimplement its API
 calls here.
 
-**Retrieval strategy per angle** (decides *what tool to use when*, not *how*
-to operate the tool — that's web-access's job):
-1. Search via web-access CDP to discover sources (Google search → top results)
-2. Open article pages in CDP tabs and extract with `/extract` endpoint —
-   returns clean Markdown with heading hierarchy, code blocks, lists, and
-   links preserved. Token-efficient: the conversion runs in-browser,
-   outside the model context.
-3. For static/public article URLs where CDP is overkill: use Jina
-   (`curl -s r.jina.ai/URL`) as a lighter fallback (20 RPM limit).
-4. For paywalled / anti-bot / JS-rendered sites: use CDP directly (login
+**Retrieval strategy per angle** (what to retrieve, not how — tool selection
+is web-access's job):
+1. Search to discover sources (Google search → top results)
+2. Extract article content from discovered URLs (use web-access's
+   preferred extraction method — check its SKILL.md for current guidance)
+3. For paywalled / anti-bot / JS-rendered sites: use CDP directly (login
    state, JS rendering) — web-access handles the mechanics
-5. For independent angles, use sub-agents to parallelize. Each sub-agent
+4. For independent angles, use sub-agents to parallelize. Each sub-agent
    creates its own CDP tabs — no race condition (shared Chrome, different
    targetIds)
-
-**`/extract` vs Jina vs `/eval`**:
-- `/extract` — **preferred** for article content. Returns clean Markdown,
-  preserves structure, runs in-browser (no external dependency, no rate limit).
-  Pass `{"selector":"#js_content"}` for known sites; `{}` for auto-detect.
-- Jina — fallback when CDP tab management is impractical (e.g., bulk URL
-  pre-screening). Returns Markdown but may fail on JS-heavy sites.
-- `/eval` — for targeted DOM queries (extract specific elements, check
-  page structure, interact with forms), not bulk content extraction.
+5. For static/public article URLs where CDP is overkill: Jina
+   (`curl -s r.jina.ai/URL`) as a lighter fallback (20 RPM limit)
 
 **Source quality hierarchy**:
 - Tier 1: Official docs, primary sources, first-party APIs, peer-reviewed
@@ -180,8 +169,7 @@ used, no placeholders. User told the file path.
 - **Scrape-summary listing**: Don't paste raw scraped content. Synthesize.
 - **Single-source claims**: No factual claim on Tier 2/3 alone. Find a second independent source or hedge explicitly.
 - **Token flooding**: Don't read full page content into context. Extract the relevant
-  passage, summarize the rest. Use web-access CDP `/extract` for token-efficient
-  extraction of article content (returns clean Markdown); use Jina for bulk URL
-  pre-screening; use `/eval` for targeted DOM extraction on complex pages.
+  passage, summarize the rest. Use web-access's extraction methods (check its SKILL.md)
+  rather than dumping raw page content into the conversation.
 - **Premature completion**: The research isn't done when you have sources — it's done
   when every claim is triangulated and the report synthesizes, not just lists.
