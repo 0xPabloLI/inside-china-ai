@@ -86,7 +86,7 @@ function templateCss() {
     .s-hook .badge-pill .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background: white; animation: pulseDot 1s ease-in-out infinite; }
     .s-hook .subject-row { display: flex; align-items: center; justify-content: center; gap: 24px; animation: slideUp 0.4s ease-out 0.2s forwards; opacity: 0; }
     .s-hook .subject-row .subject-logo { width: 96px; height: 96px; filter: drop-shadow(0 0 25px rgba(77,139,255,0.3)); } .s-hook .subject-row .subject-logo svg { width: 100%; height: 100%; }
-    .s-hook .subject-row .subject-name { font-size: 64px; font-weight: 900; color: var(--white); letter-spacing: 4px; }
+    .s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900; color: var(--white); letter-spacing: 4px; }
     .s-hook .focal-claim { font-size: 78px; font-weight: 900; color: var(--white); letter-spacing: 2px; line-height: 1.1; text-align: center; }
     .s-hook .focal-reveal { font-size: 80px; font-weight: 900; letter-spacing: 2px; line-height: 1.05; text-align: center; max-width: 100%; animation: stampIn 0.5s cubic-bezier(0.16,1,0.3,1) 0.8s forwards; opacity: 0; }
     .s-hook .focal-number { font-size: 300px; font-weight: 900; color: var(--amber); letter-spacing: -10px; line-height: 0.9; text-align: center; text-shadow: 0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3); animation: numberPulse 2s ease-in-out 1.0s infinite; }
