@@ -27,8 +27,7 @@ const FOCUS_SCRIPT = join(process.cwd(), "scripts/short-video/lib/focus_detector
 // Skip entire suite if Python or OpenCV not available
 const shouldRun = existsSync(PYTHON_BIN) && existsSync(FOCUS_SCRIPT) && existsSync(TEST_IMAGE);
 
-// P1-2: Real Python subprocess tests must run serially to avoid resource contention.
-// Run with: npx vitest run <file> --maxWorkers=1  (or set maxWorkers=1 in vitest config)
+// P2: Serial execution enforced by vitest.config.mjs (subprocess project: fileParallelism=false, singleFork=true)
 const maybeDescribe = shouldRun ? describe : describe.skip;
 
 maybeDescribe("Focus Detection Smoke Test (real subprocess)", () => {

@@ -70,7 +70,7 @@ function setupStdout() {
 }
 
 // Skip tests if Python/OpenCV not available
-// P1-2: Real subprocess tests must run serially — use --maxWorkers=1 for these files.
+// P2: Serial execution enforced by vitest.config.mjs (subprocess project: fileParallelism=false, singleFork=true)
 const maybeDescribe = PYTHON_BIN ? describe : describe.skip;
 
 maybeDescribe("focus_detector.py IPC", () => {

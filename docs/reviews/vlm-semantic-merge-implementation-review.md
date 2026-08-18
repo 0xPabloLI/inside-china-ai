@@ -90,11 +90,17 @@ Semantic Merge Spec 明确把 `subjects` 作为 0–20 分精确匹配信号，�
 
 **[建议修改]** 保留该文件但标记为 legacy，或把它移到相应归档目录。为当前接口新增可重跑、gitignored 的实验结果，至少记录：Markdown section 合规率、parser 成功率、三张图片的一次调用延迟，以及一组 subjects/description 评分比较。
 
-## 运行稳定性观察（P2）
+## 运行稳定性观察（P2）— 已修复
 
 本轮默认并发测试全绿，因此不把 Focus isolation 作为 blocker。不过两个真实 Python subprocess test 文件依然只通过注释要求调用者传 `--maxWorkers=1`，Vitest 配置仍允许 4 worker。另一次当前绿色运行中出现了 `MaxListenersExceededWarning`。
 
 **[建议修改]** 把真实 subprocess runtime suite 变成明确脚本或配置，而不是调用约定；同时审查测试中模块重载或全局 process 监听器的清理。完成条件是连续多次默认运行无 timeout、无 listener warning。
+
+**[已修复 P2]**
+1. 创建 `scripts/short-video/vitest.config.mjs`：vitest 4 `projects` 配置，subprocess 文件（`focus-smoke.test.mjs` + `focus_detector.test.mjs`）自动走 `fileParallelism: false` + `pool: forks` + `singleFork: true`，不再依赖注释约定。
+2. `visual-analyzer.mjs` 的 `process.on("exit")` 加 `Symbol.for` guard：模块多次 import 时只注册一次，消除 `MaxListenersExceededWarning`。
+3. 两个测试文件中的注释从"run with --maxWorkers=1"改为指向 vitest.config.mjs。
+4. 验证：连续运行无 `MaxListenersExceededWarning`，subprocess 文件 serial 执行。
 
 ## 最终判定与修复顺序
 
@@ -106,7 +112,7 @@ Semantic Merge Spec 明确把 `subjects` 作为 0–20 分精确匹配信号，�
 | 2 | 决定并实现 `subjects`/`contentKind` 消费 | 评分与推荐测试证明字段影响结果。 |
 | 3 | 统一 pre-filter 语义 | Spec、代码、日志和测试完全一致。 |
 | 4 | 隔离 per-run artifact 并刷新实验验证 | Review 不会读取其他 content 的旧分析；当前协议有可重跑实测证据。 |
-| 5 | 加固 runtime test harness | 连续默认测试稳定且无 listener warning。 |
+| 5 | 加固 runtime test harness | ✅ vitest.config.mjs + Symbol.for guard，连续默认测试稳定且无 listener warning。 |
 
 ## References
 

@@ -621,20 +621,28 @@ export function closeFocusDetector() {
 }
 
 // ─── Cleanup on process exit ───
+// Guard against duplicate listener registration: vitest may import this module
+// multiple times across test files, each adding a new 'exit' listener and
+// triggering MaxListenersExceededWarning. Only register once per process.
 
-process.on("exit", () => {
-  if (pythonProc && !pythonProc.killed) {
-    try {
-      pythonProc.kill("SIGTERM");
-    } catch (_e) {
-      // ignore
+const _exitHandlerRegistered = Symbol.for("visualAnalyzerExitHandler");
+
+if (!process[_exitHandlerRegistered]) {
+  process[_exitHandlerRegistered] = true;
+  process.on("exit", () => {
+    if (pythonProc && !pythonProc.killed) {
+      try {
+        pythonProc.kill("SIGTERM");
+      } catch (_e) {
+        // ignore
+      }
     }
-  }
-  if (focusProc && !focusProc.killed) {
-    try {
-      focusProc.kill("SIGTERM");
-    } catch (_e) {
-      // ignore
+    if (focusProc && !focusProc.killed) {
+      try {
+        focusProc.kill("SIGTERM");
+      } catch (_e) {
+        // ignore
+      }
     }
-  }
-});
+  });
+}
