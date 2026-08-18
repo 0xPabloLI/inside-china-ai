@@ -8,8 +8,8 @@ import { SlideUp, StampIn, FadeIn } from "../components/animations/entrance";
 
 export const ContrastScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
   const txt = scene.texts || {};
-  const left = Array.isArray(txt.left) ? txt.left as string[] : [];
-  const right = Array.isArray(txt.right) ? txt.right as string[] : [];
+  const left = txt.left ?? [];
+  const right = txt.right ?? [];
 
   const Chip: React.FC<{ text: string; color: string; bg: string; delay: number }> = ({ text, color, bg, delay }) => (
     <SlideUp delay={delay} duration={0.4}>

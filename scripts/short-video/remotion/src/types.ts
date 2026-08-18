@@ -16,6 +16,7 @@ export interface MediaField {
   path: string;
   mode?: "background" | "fullscreen"; // default "background"
   fit?: "cover" | "contain"; // default "cover" — how to place landscape media in 9:16
+  /** @deprecated Replaced by protectedRegions from detectFocus() in Phase 2. Existing scene-data values still render, but new auto-analysis no longer writes this field. */
   focus?: "top" | "center" | "bottom"; // default "center" — crop focus when fit is "cover"
   source?: string;
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
@@ -43,7 +44,19 @@ export interface SceneTexts {
   tagline?: string;
   action?: string;
   topic?: string;
-  [key: string]: unknown; // allow visualType-specific fields
+  // ContrastScene fields
+  left?: string[];
+  right?: string[];
+  // InfoCardScene fields
+  points?: string[];
+  // ContextScene fields
+  context?: string;
+  detail?: string;
+  // DataScene fields
+  stat?: string;
+  statLabel?: string;
+  subtext?: string;
+  [key: string]: string | StatItem[] | string[] | undefined; // allow visualType-specific fields
 }
 
 /** A single scene definition (from scene-data.mjs). */
