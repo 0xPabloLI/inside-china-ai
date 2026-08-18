@@ -32,6 +32,24 @@ export function RankingAlertSettings() {
   const [threshold, setThreshold] = useState("3");
   const [lostRanking, setLostRanking] = useState(true);
   const [email, setEmail] = useState("");
+  const [fromPos, setFromPos] = useState("8");
+  const [toPos, setToPos] = useState("14");
+
+  // Preview uses the values currently in the form, saved or not.
+  const parsedThreshold = Number(threshold);
+  const previewThreshold =
+    Number.isInteger(parsedThreshold) && parsedThreshold >= 1 ? parsedThreshold : null;
+  const from = fromPos.trim() === "" ? null : Number(fromPos);
+  const to = toPos.trim() === "" ? null : Number(toPos);
+  const previewValid =
+    previewThreshold !== null &&
+    from !== null &&
+    Number.isInteger(from) &&
+    from >= 1 &&
+    (to === null || (Number.isInteger(to) && to >= 1));
+  const wouldAlert = previewValid
+    ? isDrop(to, from, previewThreshold, lostRanking)
+    : false;
 
   // Query data arrives after mount, so sync the form once it lands.
   useEffect(() => {
