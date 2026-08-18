@@ -90,6 +90,12 @@
 | `spec-doc-hierarchy-optimization.md` / `tickets-doc-hierarchy-01~04` | 2026-08-15 | 文档层次体系优化 — DOCS-INDEX.md Layer Placement Rules + 语义标签 (L1: Execution reference / L2: Deep research) + video-workflow.md Gapless Audio Track 抽离到 L2 + AGENTS.md 双向指针 + 7 个遗留 spec/tickets 归档。 |
 | `spec-doc-hierarchy-lint.md` / `01-lint-core-checks.md` / `02-npm-script-and-pre-commit-hook.md` | 2026-08-16 | 文档层次自动化 Lint — lint-doc-hierarchy.mjs (3 项检查: DOCS-INDEX 一致性 + L1 Design Decisions + L2 命令行启发式) + npm run lint:docs + pre-commit hook 集成 + DOCS-INDEX rule 5 (sync after changes)。17 tests。 |
 
+### ADR Remediation Trackers
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `adr-0008-0014-remediation-tracker.md` | 2026-08-18 | ADR 0008-0014 修复执行追踪器 — PR #45 合并 + Issue #46 延迟验收全部完成。8 个工作项全部 VERIFIED。覆盖 F5 TTS CJK 时长、Remotion 时间线统一、venv 锁定、LFS pointer 校验、Kaggle/Colab GPU smoke、VLM Golden Asset 评估方案。 |
+
 ### Research Docs (Archived)
 
 | 文件 | 归档时间 | 说明 |

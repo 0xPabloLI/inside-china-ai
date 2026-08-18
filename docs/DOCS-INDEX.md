@@ -71,7 +71,7 @@ Numbered sequence. Current: 0001–0006.
 
 ### `archive/` — Completed work
 
-Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list (36 files).
+Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list (37 files).
 
 ### `refs/` — Reference materials
 
@@ -91,6 +91,7 @@ Deep research reports with citations.
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
 | `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) |
 | `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB |
+| `golden-asset-evaluation.md` | Golden Asset evaluation for VLM quality — test set design, human expectations, model/prompt versions, testing strategy |
 | `digital-human-test-progress.md` | Digital human model test progress tracking |
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `model-sources-reference.md` | Model search sources reference |
