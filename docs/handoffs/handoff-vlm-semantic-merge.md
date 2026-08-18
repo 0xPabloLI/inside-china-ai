@@ -32,7 +32,7 @@
 - User feedback: "filter before VLM to save expensive calls"
 - Pre-filter design: rebalanced scoreCandidate non-AI part (0-70), threshold 30, soft gate
 - Issue #44 integration confirmed (scoreCandidate rebalance + keyword provenance + boundary matching)
-- Issue #33 confirmed out of scope (different pipeline stage)
+- Issue #33 confirmed out of scope for P3; closed and superseded by #51 (cascade direction correction)
 - 5-test validation plan designed
 - Final design confirmed by user
 - Test seams confirmed by user (5 seams including Python parser)
@@ -109,50 +109,9 @@ T-01 and T-03 can start in parallel. T-02 blocks on T-01. T-04 blocks on T-02+T-
 - `docs/reviews/scorecandidate-review.md` — Issue #44 review findings
 - `docs/handoffs/handoff-visual-focus-detection.md` — Previous session handoff (P0/P1 remediation)
 
-## Architecture insight: Cascade filtering + signal density
+## Architecture principle
 
-P3 的设计本质上是一个 **Viola-Jones cascade**（级联分类器）模式——用一系列越来越贵的分类器，前级 reject 大部分负样本，只有通过所有层的才送到最贵的资源。
-
-### P3 的 cascade 层级
-
-```
-Asset 流水线
-  ├─ Layer 0 (免费): 文件存在性检查 → reject 不存在的
-  ├─ Layer 1 (极便宜): scoreCandidate 非 AI 部分 (0-70) → reject <30 的
-  ├─ Layer 2 (中等): OpenCV 焦点检测 (~0.5s/asset) → 标注保护区
-  ├─ Layer 3 (昂贵): VLM 语义分析 (20-30s/asset) → 只对 Layer 1 通过的
-  └─ Layer 4 (免费): 语义重评分 → 用 VLM 产出的 subjects + description 做匹配
-```
-
-### Viola-Jones 三原则在管线中的映射
-
-| Viola-Jones 原则 | 管线映射 |
-|------------------|---------|
-| 前级分类器要便宜且高召回 | `filterChinaAI`（关键词）、`computeTechnicalScore`（元数据） |
-| 每级只处理前级通过的样本 | P3 pre-filter gate: `technicalScore < 30` → skip VLM |
-| 最后一级可以贵，因为样本少 | VLM 20-30s/asset，但只处理通过 pre-filter 的 |
-
-### 额外原则：信号密度最大化
-
-Viola-Jones 没有但管线需要的：**一次调用产出多个信号**。P3 的 VLM 一次输出 6 字段（description + subjects + contentKind + fit + criticalEdgeText + reason），不是 6 次调用。这是 "merge calls" 的设计本质——不仅是 cascade 的层级优化，还是单次调用的信号密度最大化。
-
-### 管线中已用此模式的 3 处
-
-1. **RAG 查询** (`scripts/rag/query.mjs`)：metadata filter → vector similarity → noise filter → reranker（只对 >3 results）。已经 cascade，但 reranker 触发条件是 `results.length > 3`，没有先做关键词预匹配。**优化机会**：加 BM25/关键词预过滤层，减少送入 reranker 的样本数。
-
-2. **search-sources filter/classify** (`trends-utils.mjs`)：`filterChinaAI`（关键词 reject）→ `classifyTopic`（关键词分类）→ `deduplicateTopics`（Jaccard）。`filterChinaAI` 就是 Viola 式第一级。**Issue #33 想用 LLM 替代这个**——方向可能反了，应该是关键词先过滤 → LLM 只对边界 case 分类。
-
-3. **asset-sourcer 下载前过滤**：search API 排序 → `scoreCandidate` 非 AI 部分 → VLM（P3 新增的 cascade 层）。P3 本身就是在给这个流水线加 cascade 层。
-
-### 管线中可借鉴但还没用的 2 处
-
-4. **caption/hashtag 生成** (`caption-utils.mjs`)：目前纯规则匹配。如果未来用 LLM 生成 caption，应先走规则匹配，匹配不到才 fallback 到 LLM，不是所有 caption 都走 LLM。
-
-5. **scene-data → asset 匹配** (`recommendScene`)：目前关键词匹配。P3 的 `contentKind` + `subjects` 从 VLM 获得语义信号后，`recommendScene` 可做语义匹配——这就是 P3 的 Layer 4（免费层，用 VLM 已产出的信号做匹配）。
-
-### 对 P4-P8 的指导意义
-
-P4（视频时序窗口）应该用同样的 cascade：OpenCV shot detection（便宜）→ VLM 关键帧分析（贵，只对 shot boundary 的帧）。P7（缓存）本质上是给 cascade 加一个 "Layer -1"：hash 命中 → 全跳过。
+P3 applies the cascade filtering principle documented in **ADR-0016** (`docs/adr/0016-cascade-filtering-signal-density.md`). See also Issue #51 for cascade violations found in other pipeline stages.
 
 ## Session checklist status (this session)
 
