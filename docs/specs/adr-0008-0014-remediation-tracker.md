@@ -60,7 +60,7 @@ git log -1 --oneline
 | 05 | Kaggle/Colab 可复现 smoke 工件 | P1 | 00 | `DONE` | `test(cloud)` | smoke_gpu.py + README + .gitignore；ADR-0012 更新 | 远端 smoke run 待实际执行。 |
 | 06 | 素材采集 ADR 漂移、VLM 质量与遥测 | P2 | 00 | `DONE` | `docs` | ADR-0013 28→34 来源同步；source-registry 100 tests passed | Golden Asset 评估方案待实施。 |
 | 07 | 既有 CSS 测试失败的设计归属 | P2 | 00 | `DONE` | `fix(scene)` | brand-system.md 规定 ≥80px；commit f8a3aa7 误改为 64px；已恢复 | 无。 |
-| 08 | 全局验收、ADR 同步、PR 收口 | P0 | 01–07（07 可有明确豁免） | `NOT_STARTED` | `docs(adr)` | 全量检查、MRL、变更清单 | 仅在所有前项有证据后开始。 |
+| 08 | 全局验收、ADR 同步、PR 收口 | P0 | 01–07（07 可有明确豁免） | `DONE` | `docs(adr)` | 全量测试 2 failed / 1266 passed（已知环境限制）；ADR 0008-0014 全部同步；Git 安全边界无违反；7 commits 独立可回滚 | 推送分支 + 创建 PR。 |
 
 ## 3. 跨 Session 更新协议
 
@@ -509,6 +509,21 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 31 个；�
 3. Testing 段只列出已实际验证并通过的项目；有失败就说明失败而不要打勾。
 4. 提交或 PR 后不 amend/rebase；有后续修复时新建提交。
 5. 合并后把本文件所有 `VERIFIED` 项记录为完成，再移动到 `docs/archive/`；在此之前保持 Active。
+
+### 12.5 Session 交接 — 2026-08-18 / 08
+
+| 字段 | 内容 |
+|---|---|
+| 状态变更 | `NOT_STARTED` → `DONE` |
+| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
+| 起始 commit | `b60ca81` |
+| 本次修改文件 | `docs/specs/adr-0008-0014-remediation-tracker.md`（仅状态更新） |
+| 执行命令 | `npx vitest run scripts/short-video/__tests__ --reporter=dot` → 2 failed / 1266 passed / 1268 total；ADR 逐项核查；`git reflog` + `git log --oneline --all --graph` 安全边界检查 |
+| 结果摘要 | 全量测试无新回归（基线 3 failed → 2 failed，Item 07 修复 CSS 80px 减少 1 个）；ADR 0008-0014 全部与代码/测试一致；Git 安全边界无违反（1 次 amend 在 push 前、无 force-push、无 history rewrite、worktree 隔离）；7 个独立 commit 覆盖 Item 01-07 |
+| 证据位置 | vitest 输出（2 failed = post-process node:test 不兼容 + infra-paths voice-samples gitignored，均为已知环境限制）；ADR 文件内容逐项核查；reflog 无改写 |
+| 未解决问题 | ① 真实 TTS 试听（Item 01）；② 3 Scene 实渲染人工观看（Item 02）；③ 干净 venv 重建（Item 03）；④ 首次 LFS 媒体提交验证（Item 04）；⑤ 远端 Kaggle/Colab smoke run（Item 05）；⑥ Golden Asset 评估方案实施（Item 06）。以上均为人工确认或远端执行，不阻塞代码验收。 |
+| 下一步 | 推送分支 `fix/adr-implementation-repairs` → 创建 PR → 合并后归档本追踪器到 `docs/archive/` |
+| 阻塞条件 | 无 |
 
 ## 13. 证据索引
 
