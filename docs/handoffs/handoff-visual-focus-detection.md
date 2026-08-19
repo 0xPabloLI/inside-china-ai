@@ -1,11 +1,11 @@
-# Handoff: Visual Focus Detection — P0/P1 Remediation Done + VLM Optimization Planning
+# Handoff: Visual Focus Detection — R1-R4 Review Fixed, P4 Next
 
-> **Date**: 2026-08-18 (updated)
-> **Original session**: Visual Focus Detection pipeline implementation (Tickets 02-08)
-> **Remediation session**: P0/P1 fix (commit `8f4d7dd` + `fec2353`)
-> **Next session focus**: Git push + P1-1 fixtures + VLM optimization planning (P3-P8)
+> **Date**: 2026-08-19 (updated)
+> **Sessions**: Pipeline implementation → P0/P1 remediation → P2 stability → R1-R4 review fix
+> **Latest commit**: `612f042` (R1-R4 review fix, local only — **push pending**)
+> **Next session focus**: Resolve git divergence + push, then start P4 (video time windows)
 
-> **Implementation status**: P3 (analyzeAssetSemantics) ✅ implemented and tested.
+> **Implementation status**: P3 (analyzeAssetSemantics) ✅ implemented + tested.
 > P4–P8 are **planned** but NOT yet implemented. Do NOT call
 > `analyzeVideoWindow`, `transcribeAudioWindow`, `fuseMediaTimeline`,
 > `analyzeTemporalFocus`, or `resolveLayout` — these symbols do not exist
@@ -61,13 +61,43 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - Fix: added serial execution comments + recommend `--maxWorkers=1` CLI flag for real subprocess tests
 - All 81 tests pass with `--maxWorkers=1`
 
+### Session 3: P2 Runtime Stability (commit `f6d0a81`)
+
+- **Vitest config**: `vitest.config.mjs` — projects "unit" (parallel) + "subprocess" (serial, `singleFork: true`) for real Python subprocess tests
+- **Exit listener guard**: `Symbol.for("visualAnalyzerExitHandler")` prevents duplicate `process.on("exit")` registration → `MaxListenersExceededWarning` resolved
+- Review doc `docs/reviews/ai-visual-analysis-code-review-2026-08-19.md` P2 marked ✅
+
+### Session 4: R1-R4 Review Fixes (commit `612f042`)
+
+> Review doc: `docs/reviews/ai-visual-analysis-code-review-2026-08-19.md`
+
+**R1 FIXED** ✅ — VLM timeout late-response mismatch:
+- VLM worker now uses `requestId` + `vlmWorkerGeneration` routing (same pattern as Focus worker)
+- On timeout: kill worker, increment generation, settle all pending from old generation
+- `vlm_analyzer.py` echoes `requestId` back in response
+- FIFO fallback for backwards compat with older Python (no `requestId` in response → take sole pending entry)
+- Regression test: A times out → A's late response discarded → B gets correct result
+
+**R2 FIXED** ✅ — `vlm_analyzer.py` frame cleanup leak:
+- `extract_frames` → `generate_response` wrapped in `try/finally`, ensuring `_cleanup_frames(frames)` runs even on exception
+
+**R3 FIXED** ✅ — Focus timeout worker reset:
+- Focus timeout handler now kills stuck worker, increments `focusWorkerGeneration`, settles pending from old generation
+- Next request lazily spawns new worker
+- Regression test: timeout → kill → new process → normal response
+
+**R4 FIXED** ✅ — Handoff P4-P8 status annotation:
+- This document's top-level status annotation added (see blockquote at top)
+
+**Test results**: 30/30 `visual-analyzer.test.mjs` passing ✅, no linter errors ✅
+
 ### Documentation
 
 - **ADR-0015** created: `docs/adr/0015-opencv-focus-detection.md`
 - **ADR-0009** updated: Architecture diagram, API surface, consequences
 - **CONTEXT.md** updated: Focus Detection, Protected Region, Saliency Map terms
 - **DOCS-INDEX.md** updated: ADR table 0001-0015, specs section
-- **Review doc** updated: `docs/archive/spec-visual-focus-detection-review.md` — P0/P1 status updated
+- **Review doc** updated: `docs/reviews/ai-visual-analysis-code-review-2026-08-19.md` — R1-R4 status updated
 - **Spec/review/remediation** archived to `docs/archive/`
 - **Archive README** updated with new entries
 
@@ -82,8 +112,8 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - `scripts/short-video/lib/requirements-focus.txt` — Pinned dependency versions
 - `scripts/short-video/remotion/src/types.ts` — `MediaField.focus` marked `@deprecated`
 
-### Tests (81 total, 5 files)
-- `scripts/short-video/__tests__/visual-analyzer.test.mjs` — 36 tests (VLM + Focus unit/protocol)
+### Tests (30+ in visual-analyzer, 81+ total across 5 files)
+- `scripts/short-video/__tests__/visual-analyzer.test.mjs` — 30 tests (VLM + Focus unit/protocol, including R1/R3 regression)
 - `scripts/short-video/__tests__/apply-media-patch.test.mjs` — 14 tests (review formatter)
 - `scripts/short-video/__tests__/asset-sourcer-visual-integration.test.mjs` — 13 tests (integration)
 - `scripts/short-video/__tests__/focus-smoke.test.mjs` — 6 tests (real subprocess smoke)
@@ -102,11 +132,11 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 ## Current state
 
 ### Git
-- **Branch**: `main`
-- **Commits**: `8f4d7dd` (P0/P1 fix) + `fec2353` (archive) — local only, **not pushed**
-- **Branch divergence**: 8 local vs 19 remote commits — `git pull --rebase` needed before push
-- **Uncommitted**: Large number of non-this-session changes (text-align.py, README, docs, content dirs, etc.)
-- **Action needed**: Clean workspace or resolve divergence, then push
+- **Branch**: `main` — diverged (24 local vs 31 remote commits)
+- **Latest commit**: `612f042` (R1-R4 review fix) — local only, **not pushed**
+- **Prior local commits**: `2861e28` (unified source registry), `f6d0a81` (P2 stability), `8f4d7dd` (P0/P1 fix), `fec2353` (archive)
+- **Blocker**: Branch divergence + non-this-session unstaged changes prevent `git pull --rebase`
+- **Action needed**: User must resolve divergence manually (`git pull --rebase` or clean workspace first), then push
 
 ### Runtime verified
 - OpenCV 4.10.0.84 installed in `~/.video-tts-env`
@@ -167,7 +197,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 
 | 优先级 | 工作 | 核心价值 | 验收标准 | 依赖 |
 |--------|------|---------|---------|------|
-| **P3** | `analyzeAssetSemantics` — 一次 VLM 调用替代 description + fit 双调用 | 横图推理时间减半（20-30s → 不再 ×2） | 横图只启动一次 VLM 推理；结果通过 JSON Schema 校验；`analyzeFit` 旧接口保留兼容 | 无 |
+| **P3** ✅ | `analyzeAssetSemantics` — 一次 VLM 调用替代 description + fit 双调用 | 横图推理时间减半（20-30s → 不再 ×2） | 横图只启动一次 VLM 推理；结果通过 JSON Schema 校验；`analyzeFit` 旧接口保留兼容 | 无 — **已完成** |
 | **P4** | `analyzeVideoWindow` + FFmpeg/ffprobe 窗口基础设施 | 原生与 fallback 路径语义范围一致 | 原生和 frames fallback 返回完全相同的窗口元数据（`windowStartMs`, `windowEndMs`, `sampleFps`, `sourceMode`） | P3 |
 | **P5** | 本地 ASR worker — 复用已有 whisperx | 视频/音频对白时间线 | 已知中文素材句级时间码可回放核验；失败返回结构化错误 | P4 |
 | **P6** | `fuseMediaTimeline()` — 确定性时间融合 | 视觉+音频事件按毫秒对齐 | 每条融合事件可追溯至视觉窗口、ASR 区间和原视频时间码 | P4, P5 |
@@ -291,6 +321,20 @@ resolveLayout({ focus, template, textBoxes, safeZones, businessGoal })
 
 ## Immediate action items (for next session)
 
-1. **Push commits** — Resolve git divergence (`git pull --rebase` then `git push`), or clean workspace first. Commits `8f4d7dd` + `fec2353` are local only.
+1. **Push commits** — Resolve git divergence (`git pull --rebase` then `git push`). Latest local commit: `612f042`. Multiple prior session commits also unpushed.
 2. **P1-1 (optional follow-up)** — Create `fixtures/exif/`, `fixtures/golden/`, `fixtures/baseline/`, `fixtures/benchmark/` directories and `focus-detector-benchmark.mjs` script. Needs real face images with human annotations.
-3. **Start VLM optimization planning** — Reference P3-P8 priorities below. Suggested starting point: `/grill-with-docs` on P3 (merge VLM semantic calls).
+3. **Start P4** — P3 is done. Next priority is P4 (video time windows). See P4 section below for design. Suggested starting point: `/grill-with-docs` on P4 (explicit time window + FFmpeg/ffprobe media probe).
+
+## P3-P8 dependency chain
+
+```
+P3 ✅ (done) — analyzeAssetSemantics (merged description + fit into one VLM call)
+ ├── P4 (next) — analyzeVideoWindow + FFmpeg/ffprobe media probe
+ │    ├── P5 — ASR worker (reuse whisperx)
+ │    │    └── P6 — fuseMediaTimeline (deterministic visual+audio merge)
+ │    │         └── P8b — Focus Phase 2 video (multi-frame, temporal)
+ │    └── P7 — content-addressed cache + batch scheduling (parallel with P4-P6)
+ └── P8a — Focus Phase 2 static (YuNet, OCR, Remotion integration)
+```
+
+P4-P8 are planned, not implemented. The dependency chain determines order: P4 is the natural starting point now that P3 is stable.
