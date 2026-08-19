@@ -124,6 +124,26 @@ export function RankingAlertSettings() {
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not remove"),
   });
+  const [testEmail, setTestEmail] = useState("");
+
+  const testMutation = useMutation({
+    mutationFn: () =>
+      sendTest({
+        data: {
+          recipient: testEmail.trim() ? testEmail.trim() : undefined,
+          alerts: firing.map(({ row, from, to }) => ({
+            keyword: row.keyword.trim() || "example keyword",
+            from,
+            to,
+          })),
+        },
+      }),
+    onSuccess: (res) =>
+      toast.success(`Test notification sent to ${res.recipient}.`),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Could not send the test email"),
+  });
+
 
   return (
     <section className="mt-10 rounded-lg border border-border/60 p-6">
