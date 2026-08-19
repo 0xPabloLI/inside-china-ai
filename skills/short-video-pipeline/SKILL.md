@@ -26,7 +26,7 @@ Unless the user specifies otherwise:
 
 Gather raw materials from the user (article URL, screenshots, tips, data points). 
 
-**Use web-access skill for web research** — Playwright headless fails on most sites (SSL errors, connection closed). Load web-access skill and follow its setup instructions to connect to the user's local Chrome with session/cookie, bypassing anti-bot detection.
+**For web research, load web-access skill** — Playwright headless fails on most sites (SSL errors, connection closed). web-access connects to the user's local Chrome with session/cookie, bypassing anti-bot detection. When you need to open a URL, extract content, or verify claims online, load web-access and follow its setup instructions.
 
 Verify claims against multiple sources, find specific numbers and quotes.
 

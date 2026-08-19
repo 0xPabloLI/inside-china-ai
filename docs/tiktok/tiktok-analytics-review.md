@@ -298,22 +298,22 @@
 以下命令假设 CDP proxy 已运行（`localhost:3456`），tab 已通过 web-access 创建并获得 `TAB_ID`：
 
 ```bash
-# 打开总览页
+# Step 1: 打开总览页
 curl -s -X POST --data-raw 'https://www.tiktok.com/tiktokstudio/analytics/overview' http://localhost:3456/new
 # 等待 10s 后提取数据
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
-# 打开内容页（获取视频列表）
+# Step 2: 打开内容页（获取视频列表）
 curl -s -X POST --data-raw 'https://www.tiktok.com/tiktokstudio/analytics/content' http://localhost:3456/new
 # 等待 10s 后提取视频列表
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
-# 点击「查看数据」获取单条视频详情
+# Step 3: 点击「查看数据」获取单条视频详情
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'var btns=document.querySelectorAll("button.TUXButton");for(var i=0;i<btns.length;i++){if(btns[i].textContent.trim()==="查看数据"){btns[i].click();break;}}"clicked"'
 # 等待 8s 后提取详情
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
-# 返回列表，点击下一条视频的「查看数据」
+# Step 4: 返回列表，点击下一条视频的「查看数据」
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'var b=document.querySelectorAll("button.TUXButton");var c=0;for(var i=0;i<b.length;i++){if(b[i].textContent.trim()==="查看数据"){c++;if(c===2){b[i].click();break;}}}"clicked 2nd"'
 ```
 
