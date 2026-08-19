@@ -48,7 +48,7 @@
 - **版本**：v2.5.4（上游 https://github.com/eze-is/web-access，MIT）
 - **做什么**：通过 Chrome DevTools Protocol proxy（localhost:3456）连接本地 Chrome/Edge/Chromium，保留登录态和 session/cookie
 - **为什么对本项目重要**：中国平台（天眼查、小红书、微信公众号、微博等）反爬严格，本地 Chrome 有登录态穿透力最强。AGENTS.md 明确规定默认联网工具
-- **用法**：`node ~/.agents/skills/web-access/scripts/check-deps.mjs` → CDP proxy → `/new`（POST body）、`/eval`、`/extract`、`/click`、`/close`
+- **用法**：加载 web-access skill 并遵循其指引（check-deps → CDP proxy → HTTP API）
 - **新增能力**（v2.5.2+）：`browser-discovery.mjs` 自动发现 Chrome/Edge 调试端口；`find-url.mjs` 从本地浏览器书签/历史检索 URL；`/extract` 端点 DOM→Markdown 转换（本地优化，上游无）；闲置 Tab 自动清理（15min）
 - **Breaking change**（v2.5.3）：`/new` 和 `/navigate` 从 GET `?url=` 改为 POST body，避免 URL 含 query 时被切分
 - **何时用**：任何需要登录态或中国平台的联网操作

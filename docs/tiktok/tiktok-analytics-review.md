@@ -290,32 +290,30 @@
 ## 📎 附录：CDP 数据抓取方法
 
 ### 前提条件
-1. Chrome 已启用 Remote Debugging（`chrome://inspect/#remote-debugging`）
+1. 已加载 web-access skill 并完成 CDP proxy 启动
 2. 已登录 TikTok 账号
-3. web-access proxy 运行中（`localhost:3456`）
 
 ### 抓取步骤
 
-```bash
-# 1. 检查 proxy 是否可用
-node ~/.agents/skills/web-access/scripts/check-deps.mjs
+以下命令假设 CDP proxy 已运行（`localhost:3456`），tab 已通过 web-access 创建并获得 `TAB_ID`：
 
-# 2. 打开总览页
+```bash
+# 打开总览页
 curl -s -X POST --data-raw 'https://www.tiktok.com/tiktokstudio/analytics/overview' http://localhost:3456/new
 # 等待 10s 后提取数据
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
-# 3. 打开内容页（获取视频列表）
+# 打开内容页（获取视频列表）
 curl -s -X POST --data-raw 'https://www.tiktok.com/tiktokstudio/analytics/content' http://localhost:3456/new
 # 等待 10s 后提取视频列表
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
-# 4. 点击「查看数据」获取单条视频详情
+# 点击「查看数据」获取单条视频详情
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'var btns=document.querySelectorAll("button.TUXButton");for(var i=0;i<btns.length;i++){if(btns[i].textContent.trim()==="查看数据"){btns[i].click();break;}}"clicked"'
 # 等待 8s 后提取详情
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
-# 5. 返回列表，点击下一条视频的「查看数据」
+# 返回列表，点击下一条视频的「查看数据」
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'var b=document.querySelectorAll("button.TUXButton");var c=0;for(var i=0;i<b.length;i++){if(b[i].textContent.trim()==="查看数据"){c++;if(c===2){b[i].click();break;}}}"clicked 2nd"'
 ```
 

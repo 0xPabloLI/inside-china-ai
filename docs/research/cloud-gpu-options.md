@@ -666,7 +666,7 @@ GPU count: 2
 | **Colab 免费版** ✅ 已用 | T4（不保证） | 15GB | **动态**（不固定） | 不固定 | 冷却期 + 90min 空闲 | 官方 FAQ [2] |
 | **Lightning AI** | T4/L4/A10G/L40S | 15-48GB | **月度刷新** | 15 credits/月 (~22h T4) | 4h studio 重启, 不累计 | 官方 + SaaSworthy + aicreditmart [3] |
 | **Hugging Face ZeroGPU** | H200（动态） | 48-96GB | **每日刷新** | 5 min/天, 3次/天 | 极短时间 | 官方文档 + 论坛 [4] |
-| **Saturn Cloud** | T4（仅 CPU 免费？） | 16GB? | **月度刷新** | 150h/月（CPU 为主） | GPU 免费层不确定 | 官方博客 [5] |
+| **Saturn Cloud** | T4（仅 CPU 免费？） | 16GB? | **月度刷新** | 150h/月（CPU 为主） | GPU 免费层不确定；Token 已验证 ✅ 但 `app.saturncloud.io` 被 Clash TUN 拦截，需配 fake-ip-filter | 官方博客 [5] + 2026-08-19 验证 |
 
 ### 一次性的免费 GPU（❌ 对我们没有意义）
 
@@ -678,7 +678,7 @@ GPU count: 2
 | **Oracle Cloud** | $300 credit | 一次性（30天过期） | 之后只有 always-free CPU |
 | **RunPod** | $5-10 credit | 一次性 | 用完即止 |
 | **Paperspace Gradient** | 有限 GPU 时 | 一次性 | 免费层 M4000 8GB 不够用 |
-| **Modal** | $30/月 | **月度更新** ✅ | 但 GPU A100 $2.50/h, $30 只能跑 12h |
+| **Modal** | $30/月 | **月度更新** ✅ | Token 已验证 ✅ T4 GPU 函数跑通 ✅；需 `NO_PROXY=api.modal.com` 绕 Clash TUN；**注意**：workspace 有 spend limit，需手动调高 |
 | **Thunder Compute** | $20 (学生) | 一次性 | 仅美国学生 |
 
 ### SageMaker Studio Lab 关闭详情
@@ -742,9 +742,9 @@ GPU count: 2
 
 ---
 
-## 5. 国内云 GPU 平台验证（2026-08-19）
+## 国内云 GPU 平台（2026-08-19 验证）
 
-### 5.1 腾讯云 GPU 实例 ✅ 凭证有效
+### 腾讯云 GPU 实例 ✅ 凭证有效
 
 **验证状态**：SecretId/SecretKey 已验证，可查询到广州、北京、上海、南京各可用区。
 
@@ -769,27 +769,7 @@ GPU count: 2
 
 > ⚠️ **限制**：GPU 实例需要**备案**或**按量付费**才能创建，部分区域可能有库存限制。建议先在[价格计算器](https://buy.tencentcloud.com/price/cvm/calculator)查看实时价格。
 
-### 5.2 Modal ⚠️ Token 有效，免费额度已用完
-
-**验证状态**（2026-08-19）：
-- Token ID: `ak-wbmpSiJe6MGAdkMYaVVxxN` ✅ 验证通过
-- Token Secret: `as-b8lPin3XHIJFFUjOD9Kvhb` ✅
-- Profile: `qingshun-li` ✅ 已激活
-- **问题**：Workspace `ac-yuE8WpOhZG3tDJBKphOPJn` 已超出消费限制（spend limit）
-- **解决**：需到 modal.com → Settings → Billing 添加付费方式或提高 spend limit
-
-**Clash 代理问题**：`api.modal.com` 被 FlClash TUN 拦截（fake-ip 198.18.0.x），导致 SSL 握手失败。已在 FlClash + Clash Verge 的 `fake-ip-filter` 中添加 `+.modal.com` 排除规则。使用时需设置 `NO_PROXY=api.modal.com,modal.com` 或重启 Clash 让配置生效。
-
-### 5.3 Saturn Cloud ❌ Token 有效，Clash TUN 拦截
-
-**验证状态**（2026-08-19）：
-- JWT token 有效（user_id: `3d4d793125b74b97be7cdd7fa488c973`，iss: `atlas`）
-- API endpoint: `app.saturncloud.io`（需要 JS 渲染的 SPA）
-- **问题**：`app.saturncloud.io` 被 Clash TUN 拦截（fake-ip 198.18.0.180），SSL 握手失败
-- **修复**：已在 FlClash + Clash Verge 的 `fake-ip-filter` 中添加 `+.saturncloud.io` 排除规则
-- **后续**：需重启 FlClash 或 Clash Verge 让配置生效后重新验证
-
-### 5.4 国内 LLM API 免费额度对比（2026-08-19）
+### 国内 LLM API 免费额度对比（2026-08-19）
 
 | 平台 | 免费额度 | 刷新周期 | 模型 | 对项目有用？ |
 |------|---------|---------|------|------------|

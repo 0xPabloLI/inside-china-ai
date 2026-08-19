@@ -26,16 +26,7 @@ Unless the user specifies otherwise:
 
 Gather raw materials from the user (article URL, screenshots, tips, data points). 
 
-**Use Chrome CDP (web-access skill) for web research** — Playwright headless fails on most sites (SSL errors, connection closed). CDP connects to the user's local Chrome with session/cookie, bypassing anti-bot detection. Proxy at `localhost:3456`.
-
-```bash
-# Check CDP availability
-node ~/.agents/skills/web-access/scripts/check-deps.mjs
-
-# Create background tab and extract content as clean Markdown
-curl -s -X POST --data-raw 'https://example.com' http://localhost:3456/new
-curl -s -X POST "http://localhost:3456/extract?target=TAB_ID" -d '{}'
-```
+**Use web-access skill for web research** — Playwright headless fails on most sites (SSL errors, connection closed). Load web-access skill and follow its setup instructions to connect to the user's local Chrome with session/cookie, bypassing anti-bot detection.
 
 Verify claims against multiple sources, find specific numbers and quotes.
 
