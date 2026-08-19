@@ -5,6 +5,12 @@
 > **Remediation session**: P0/P1 fix (commit `8f4d7dd` + `fec2353`)
 > **Next session focus**: Git push + P1-1 fixtures + VLM optimization planning (P3-P8)
 
+> **Implementation status**: P3 (analyzeAssetSemantics) ✅ implemented and tested.
+> P4–P8 are **planned** but NOT yet implemented. Do NOT call
+> `analyzeVideoWindow`, `transcribeAudioWindow`, `fuseMediaTimeline`,
+> `analyzeTemporalFocus`, or `resolveLayout` — these symbols do not exist
+> in the codebase. See P4-P8 sections below for design details.
+
 ## What was done
 
 ### Session 1: Full Pipeline Implementation

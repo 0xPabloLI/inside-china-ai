@@ -91,6 +91,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  // Ensure real timers are restored before cleanup (R1/R3 tests use fake timers)
+  vi.useRealTimers();
   try {
     await visualAnalyzer.closeVisualAnalyzer();
   } catch {
@@ -102,6 +104,24 @@ afterEach(async () => {
 // Helper to get the focus mock process for the current test
 function getFocusProc() {
   return mockProc._focusProc || mockProc;
+}
+
+/**
+ * R1: Helper to emit a VLM response with the correct requestId.
+ * Reads the requestId from the last stdin write and echoes it back.
+ */
+function emitVlmResponse(proc, responseObj) {
+  const writtenData = proc.stdin.write.mock.calls.at(-1)?.[0]?.toString();
+  if (!writtenData) throw new Error("No stdin write found");
+  const request = JSON.parse(writtenData.trim());
+  proc.emitStdout(JSON.stringify({ ...responseObj, requestId: request.requestId }) + "\n");
+}
+
+/**
+ * R1: Helper to emit a VLM response with a specific requestId.
+ */
+function emitVlmResponseWithId(proc, responseObj) {
+  proc.emitStdout(JSON.stringify(responseObj) + "\n");
 }
 
 // ─── Degraded result constant ───
@@ -383,9 +403,10 @@ describe("visual-analyzer module", () => {
       const promise = visualAnalyzer.analyzeAssetSemantics("/abs/nonexistent.jpg");
       await new Promise((r) => setTimeout(r, 10));
 
-      mockProc.emitStdout(
-        JSON.stringify({ ...DEGRADED, error: "File not found: /abs/nonexistent.jpg" }) + "\n",
-      );
+      emitVlmResponse(mockProc, {
+        ...DEGRADED,
+        error: "File not found: /abs/nonexistent.jpg",
+      });
 
       const result = await promise;
       expect(result.description).toBe("");
@@ -699,6 +720,127 @@ describe("visual-analyzer module", () => {
       const result = await promise;
       expect(result.status).toBe("degraded");
       expect(result.errorCode).toBe("focus_worker_reset");
+    }, 10000);
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // ─── R1: VLM timeout late-response mismatch (Review R1) ─────────
+  // ═══════════════════════════════════════════════════════════════
+
+  describe("R1 — VLM timeout late-response mismatch", () => {
+    it("does NOT give A's late response to B after A times out", async () => {
+      vi.useFakeTimers();
+
+      // Request A — will time out
+      const promiseA = visualAnalyzer.analyzeAssetSemantics("/abs/imgA.jpg");
+      await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(1), { timeout: 1000 });
+
+      // Fast-forward past RESPONSE_TIMEOUT_MS (180s)
+      vi.advanceTimersByTime(181_000);
+
+      // A should resolve with degraded
+      const resultA = await promiseA;
+      expect(resultA.description).toBe("");
+
+      // Now spawn a new mock for request B (worker was killed on timeout)
+      const newMockProc = createMockProcess();
+      mockSpawn.mockReturnValue(newMockProc);
+
+      // Request B
+      const promiseB = visualAnalyzer.analyzeAssetSemantics("/abs/imgB.jpg");
+      await vi.waitFor(() => expect(newMockProc.stdin.write).toHaveBeenCalled(), { timeout: 1000 });
+
+      // Simulate A's LATE response arriving on the OLD proc (should be discarded)
+      mockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "This is A's result", error: null }) + "\n",
+      );
+
+      // Simulate B's correct response on the NEW proc
+      newMockProc.emitStdout(
+        JSON.stringify({ ...DEGRADED, description: "This is B's result", error: null }) + "\n",
+      );
+
+      const resultB = await promiseB;
+      expect(resultB.description).toBe("This is B's result");
+      expect(resultB.description).not.toBe("This is A's result");
+
+      vi.useRealTimers();
+      // Don't call closeVisualAnalyzer here — afterEach handles cleanup
+    }, 10000);
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // ─── R3: Focus timeout resets worker (Review R3) ──────────────
+  // ═══════════════════════════════════════════════════════════════
+
+  describe("R3 — Focus timeout resets worker", () => {
+    it("kills focus worker on timeout and respawns for next request", async () => {
+      vi.useFakeTimers();
+
+      // First request — will time out
+      const promise1 = visualAnalyzer.detectFocus("/abs/img.jpg");
+      await vi.waitFor(() => expect(getFocusProc()).toBeDefined(), { timeout: 1000 });
+
+      const firstProc = getFocusProc();
+
+      // Fast-forward past FOCUS_RESPONSE_TIMEOUT_MS (10s)
+      vi.advanceTimersByTime(11_000);
+
+      const result1 = await promise1;
+      expect(result1.status).toBe("degraded");
+      expect(result1.errorCode).toBe("focus_timeout");
+
+      // First worker should have been killed
+      expect(firstProc.kill).toHaveBeenCalled();
+
+      // Create a new mock process for the respawned focus worker
+      const newFocusProc = createMockProcess();
+      // Update mockSpawn to return the new focus proc for subsequent calls
+      mockSpawn.mockImplementation((pythonBin, args) => {
+        if (args && args[0] && String(args[0]).includes("focus_detector.py")) {
+          mockProc._focusProc = newFocusProc;
+          return newFocusProc;
+        }
+        return mockProc;
+      });
+
+      // Second request — should spawn a NEW process
+      const promise2 = visualAnalyzer.detectFocus("/abs/img2.jpg");
+      await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(2), { timeout: 1000 });
+
+      // Get the new focus proc
+      const secondProc = getFocusProc();
+      expect(secondProc).not.toBe(firstProc);
+
+      // Respond to second request on the new proc
+      const writtenData = secondProc.stdin.write.mock.calls.find((c) => {
+        try {
+          return JSON.parse(c[0].toString().trim()).action === "analyze";
+        } catch {
+          return false;
+        }
+      });
+      expect(writtenData).toBeDefined();
+      const request = JSON.parse(writtenData[0].toString().trim());
+
+      secondProc.emitStdout(
+        JSON.stringify({
+          requestId: request.requestId,
+          result: {
+            status: "ok",
+            errorCode: null,
+            frame: null,
+            protectedRegions: [],
+            saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+          },
+        }) + "\n",
+      );
+
+      const result2 = await promise2;
+      expect(result2.status).toBe("ok");
+
+      vi.useRealTimers();
+      // Don't call closeFocusDetector here — afterEach handles cleanup
     }, 10000);
   });
 });

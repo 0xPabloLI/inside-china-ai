@@ -436,11 +436,15 @@ def handle_analyze_semantics(model, processor, path):
                 frames = extract_frames(path, fps=VIDEO_FPS, max_seconds=MAX_VIDEO_SECONDS)
                 if not frames:
                     return {}, "Both native video and frame extraction failed"
-                raw = generate_response(
-                    model, processor, image_paths=frames,
-                    prompt_text=SEMANTICS_PROMPT_VIDEO,
-                )
-                _cleanup_frames(frames)
+                # R2 fix: ensure frames are cleaned up even if generate_response
+                # or parse_markdown_to_dict raises
+                try:
+                    raw = generate_response(
+                        model, processor, image_paths=frames,
+                        prompt_text=SEMANTICS_PROMPT_VIDEO,
+                    )
+                finally:
+                    _cleanup_frames(frames)
         else:
             # Image — verify first
             try:
@@ -510,6 +514,7 @@ def main():
             response = _degraded_result(f"Invalid JSON: {e}")
         else:
             action = request.get("action", "")
+            request_id = request.get("requestId", "")
 
             if action == "exit":
                 idle_timer.stop()
@@ -525,6 +530,10 @@ def main():
 
             else:
                 response = _degraded_result(f"Unknown action: {action}")
+
+            # R1 fix: echo requestId back so Node can route responses
+            if request_id:
+                response["requestId"] = request_id
 
         # Write response as single line
         sys.stdout.write(json.dumps(response) + "\n")

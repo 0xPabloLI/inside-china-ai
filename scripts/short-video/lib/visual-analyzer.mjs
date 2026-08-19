@@ -67,11 +67,27 @@ let pythonProc = null;
 /** @type {boolean} — null = unknown, true = available, false = unavailable */
 let vlmAvailable = null;
 
-/** @type {Array<{resolve: Function, reject: Function, action: string, path: string}>} */
-let requestQueue = [];
+/**
+ * Pending Map: requestId -> { resolve, timer, workerGeneration }
+ * Each VLM request gets a unique requestId for response routing.
+ */
+/** @type {Map<string, {resolve: Function, reject: Function, action: string, path: string, timer: ReturnType<typeof setTimeout>, workerGeneration: number}>} */
+const vlmPending = new Map();
 
-/** @type {boolean} — true if currently processing a request */
-let processing = false;
+/**
+ * Worker generation counter. Incremented on every respawn.
+ * Old worker responses are discarded if generation doesn't match.
+ * R1 fix: prevents late responses from timed-out workers being
+ * mismatched to the next request.
+ */
+let vlmWorkerGeneration = 0;
+
+/**
+ * Request queue: requests waiting to be sent to the Python subprocess.
+ * A request is shifted from here, sent to Python with a requestId,
+ * and tracked in vlmPending until the response arrives.
+ */
+let requestQueue = [];
 
 // ─── Internal: subprocess management ───
 
@@ -93,6 +109,9 @@ function spawnPython() {
     return null;
   }
 
+  vlmWorkerGeneration++;
+  const myGen = vlmWorkerGeneration;
+
   const proc = spawn(PYTHON_BIN, [PYTHON_SCRIPT], {
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env },
@@ -107,7 +126,7 @@ function spawnPython() {
 
     for (const line of lines) {
       if (!line.trim()) continue;
-      handleResponse(line);
+      handleResponse(line, myGen);
     }
   });
 
@@ -126,32 +145,23 @@ function spawnPython() {
 
   // Handle process exit
   proc.on("exit", (code, signal) => {
-    pythonProc = null;
-    vlmAvailable = null; // reset: next call will retry
-
-    // If a request is being processed, resolve it with degraded result
-    if (processing && requestQueue.length > 0) {
-      const req = requestQueue.shift();
-      processing = false;
-      req.resolve({ ...DEGRADED_RESULT });
+    if (pythonProc === proc) {
+      pythonProc = null;
+      vlmAvailable = null; // reset: next call will retry
     }
-
-    processing = false;
+    // R1 fix: settle all pending requests from this worker generation
+    settlePendingVlm(myGen, { ...DEGRADED_RESULT });
     processQueue();
   });
 
   // Handle spawn errors
   proc.on("error", (err) => {
     console.warn(`AI analysis layer not available: ${err.message}`);
-    pythonProc = null;
-    vlmAvailable = false;
-
-    if (processing && requestQueue.length > 0) {
-      const req = requestQueue.shift();
-      processing = false;
-      req.resolve({ ...DEGRADED_RESULT });
+    if (pythonProc === proc) {
+      pythonProc = null;
+      vlmAvailable = false;
     }
-
+    settlePendingVlm(myGen, { ...DEGRADED_RESULT });
     processQueue();
   });
 
@@ -184,42 +194,118 @@ function ensureProcess() {
  * degraded result. Otherwise resolves with the response object (minus
  * the error field, which is removed if null).
  */
-function handleResponse(line) {
-  if (requestQueue.length === 0) return;
-
-  const request = requestQueue.shift();
-  const { resolve } = request;
-  processing = false;
-
+function handleResponse(line, workerGen) {
   let response;
   try {
     response = JSON.parse(line);
   } catch {
-    // Malformed JSON — resolve with degraded result
-    resolve({ ...DEGRADED_RESULT });
-    processQueue();
+    // Malformed JSON — settle the only pending request (if any) with degraded
+    if (vlmPending.size === 1) {
+      const iter = vlmPending.entries().next();
+      const [fifoId, entry] = iter.value;
+      if (entry.workerGeneration === workerGen) {
+        clearTimeout(entry.timer);
+        vlmPending.delete(fifoId);
+        entry.resolve({ ...DEGRADED_RESULT });
+        processQueue();
+      }
+    }
     return;
   }
 
+  // R1 fix: route by requestId when available, fallback to FIFO for
+  // backwards compatibility with older Python that doesn't echo requestId.
+  let entry;
+  const id = response.requestId;
+  if (id && vlmPending.has(id)) {
+    entry = vlmPending.get(id);
+    // Generation check for explicit requestId routing
+    if (entry.workerGeneration !== workerGen) {
+      return;
+    }
+  } else if (!id && vlmPending.size === 1) {
+    // FIFO fallback: no requestId in response, take the only pending entry
+    // This path is for backwards compatibility. R1's generation isolation
+    // still protects against late responses from killed workers because
+    // killed workers' stdout no longer emits to this handler.
+    const iter = vlmPending.entries().next();
+    entry = iter.value[1];
+    // Still check generation for safety
+    if (entry.workerGeneration !== workerGen) {
+      return;
+    }
+  } else {
+    // Unknown requestId or no pending requests — discard stale response
+    return;
+  }
+
+  clearTimeout(entry.timer);
+  // Delete the correct key: explicit requestId if present, else the FIFO key
+  if (id) {
+    vlmPending.delete(id);
+  } else {
+    const fifoKey = vlmPending.keys().next().value;
+    vlmPending.delete(fifoKey);
+  }
   vlmAvailable = true;
 
   if (response.error) {
     console.warn(`AI analysis error: ${response.error}`);
-    resolve({ ...DEGRADED_RESULT });
+    entry.resolve({ ...DEGRADED_RESULT });
   } else {
     // Remove error field (null) and resolve with the rest
     const { error: _error, ...result } = response;
-    resolve(result);
+    entry.resolve(result);
   }
 
   processQueue();
 }
 
 /**
+ * Settle all pending VLM requests from a specific worker generation.
+ * Each pending Promise resolves with the given degraded result.
+ */
+function settlePendingVlm(workerGen, degradedResult) {
+  for (const [id, entry] of vlmPending) {
+    if (entry.workerGeneration === workerGen) {
+      clearTimeout(entry.timer);
+      vlmPending.delete(id);
+      entry.resolve(degradedResult);
+    }
+  }
+}
+
+/**
+ * Reset the VLM worker: kill current process, increment generation,
+ * settle all pending from the old generation.
+ * R1 fix: called on timeout to prevent late-response mismatch.
+ */
+function resetVlmWorker() {
+  const oldGen = vlmWorkerGeneration;
+  if (pythonProc && !pythonProc.killed) {
+    try {
+      pythonProc.kill("SIGTERM");
+    } catch (_e) {
+      // ignore
+    }
+  }
+  pythonProc = null;
+  // Increment generation so any late response from the killed worker
+  // will be discarded by handleResponse (generation mismatch)
+  vlmWorkerGeneration++;
+  // Settle all pending from the old generation with degraded result
+  settlePendingVlm(oldGen, { ...DEGRADED_RESULT });
+}
+
+/**
  * Process the next request in the queue.
  */
 function processQueue() {
-  if (processing || requestQueue.length === 0) return;
+  if (vlmPending.size > 0) return; // already processing
+
+  // Find the next request that hasn't been settled
+  // (vlmPending is empty here, so we need a separate queue for pending requests)
+  if (requestQueue.length === 0) return;
 
   if (!ensureProcess()) {
     while (requestQueue.length > 0) {
@@ -229,10 +315,12 @@ function processQueue() {
     return;
   }
 
-  const request = requestQueue[0];
-  processing = true;
+  const request = requestQueue.shift();
+  const requestId = randomUUID();
+  const myGen = vlmWorkerGeneration;
 
   const jsonStr = JSON.stringify({
+    requestId,
     action: request.action,
     path: request.path,
   });
@@ -240,22 +328,30 @@ function processQueue() {
   try {
     pythonProc.stdin.write(jsonStr + "\n");
   } catch (_err) {
-    requestQueue.shift();
-    processing = false;
     request.resolve({ ...DEGRADED_RESULT });
     processQueue();
     return;
   }
 
-  // Timeout safety
-  setTimeout(() => {
-    if (processing && requestQueue.length > 0 && requestQueue[0] === request) {
-      requestQueue.shift();
-      processing = false;
+  // Timeout safety — R1 fix: kill worker on timeout, don't reuse it
+  const timer = setTimeout(() => {
+    if (vlmPending.has(requestId)) {
+      vlmPending.delete(requestId);
       request.resolve({ ...DEGRADED_RESULT });
+      // Kill the worker and increment generation to isolate late responses
+      resetVlmWorker();
       processQueue();
     }
   }, RESPONSE_TIMEOUT_MS);
+
+  vlmPending.set(requestId, {
+    resolve: request.resolve,
+    reject: request.reject,
+    action: request.action,
+    path: request.path,
+    timer,
+    workerGeneration: myGen,
+  });
 }
 
 // ─── Public API ───
@@ -322,8 +418,13 @@ export function closeVisualAnalyzer() {
           }
         }
         pythonProc = null;
-        processing = false;
-        requestQueue = [];
+        // R1 fix: settle all pending VLM requests and clear queue
+        for (const [id, entry] of vlmPending) {
+          clearTimeout(entry.timer);
+          entry.resolve({ ...DEGRADED_RESULT });
+        }
+        vlmPending.clear();
+        requestQueue.length = 0;
         resolve();
       }, 100);
     });
@@ -553,11 +654,22 @@ export function detectFocus(assetPath) {
     const requestId = randomUUID();
     const myGen = focusWorkerGeneration;
 
-    // Timeout safety
+    // Timeout safety — R3 fix: kill worker on timeout, don't reuse stuck worker
     const timer = setTimeout(() => {
       if (focusPending.has(requestId)) {
         focusPending.delete(requestId);
         resolve(_focusDegraded("focus_timeout"));
+        // R3 fix: kill the stuck worker and settle all pending from this generation
+        if (focusProc && !focusProc.killed) {
+          try {
+            focusProc.kill("SIGTERM");
+          } catch (_e) {
+            // ignore
+          }
+        }
+        focusProc = null;
+        focusWorkerGeneration++;
+        settlePendingFocus(myGen, "focus_worker_reset");
       }
     }, FOCUS_RESPONSE_TIMEOUT_MS);
 
