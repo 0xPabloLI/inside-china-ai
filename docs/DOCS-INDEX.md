@@ -118,9 +118,10 @@ Deep research reports with citations.
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
 | `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) |
-| `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB |
+| `digital-human-references.md` | Offloaded reference material — papers, code repos, cloud platforms, market research for digital human models |
+| `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options |
 | `echomimicv3-optimization-options.md` | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning |
-| `digital-human-test-progress.md` | Digital human model test progress tracking |
+| `digital-human-test-progress.md` | Digital human model test progress tracking — pointers to cloud-gpu-options for detailed analysis |
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `model-sources-reference.md` | Model search sources reference |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |

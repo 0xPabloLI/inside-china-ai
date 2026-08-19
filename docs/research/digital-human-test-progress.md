@@ -1,10 +1,12 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-15（新增云 GPU 配置完成信息 + 推荐测试优先级）
-> **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle P100 16GB** + **Colab T4 16GB**
-> **主文档**：`docs/research/digital-human-solutions-m2-pro.md`
+> **最后更新**：2026-08-18（LongCat 480×832 全黑输出确认 + 免费 GPU 平台深度调研 + 双 T4 多 GPU 分析 + Colab/AutoDL 等价对比）
+> **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
+> **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
 > **用途**：多 session 共享追踪文件，每次测试后更新此文件
+>
+> **文档结构说明**：本文档是测试进度+云 GPU 调研的主文件。`digital-human-solutions-m2-pro.md` 是配套的模型调研报告（技术架构对比、模型评估、人脸匹配方案），两文档互补引用，不重复内容。合并不可行——调研报告 28K tokens + 本文档 70K+ tokens，合并后超 100K tokens 不便导航。
 
 ---
 
@@ -24,6 +26,7 @@
 | 8 | ~~V-Express~~ | 渐进式扩散 | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
 | 9 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
 | 10 | **LongCat-VA-1.5 MLX** | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ✅ **成功！** | 2026-08-12 |
+| 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
 | 11 | **EchoMimicV3** | Wan2.1 扩散 | — | ⚠️ 下载阻塞 | ❓ | 📋 待测 | — |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
 | 11 | **InfiniteTalk** | 稀疏帧视频配音 | — | ⚠️ 待测 | ✅ Apache 2.0 | 📋 待测 | — |
@@ -248,32 +251,166 @@
 - **结论**：LongCat 接受**图片输入**（非视频），可直接用任意人像照片生成数字人视频
 - **Prompt**："A Chinese man in a suit is speaking on camera, professional setting."
 
-### ⚠️ EchoMimicV3 — 下载阻塞
+#### 480×832 photorealistic 测试（2026-08-18）❌ 全黑输出
 
-- **日期**：2026-08-12
-- **结论**：**阻塞** — 模型文件下载不完整，无法测试
-- **环境**：echomimic_v3 (蚂蚁集团/antgroup), Python 3.12, PyTorch
-- **模型**：EchoMimicV3-Flash-pro（8步生成，12GB VRAM，768×768）
+- **输入**：同微信照片 + photorealistic prompt
+- **推理**：**5 小时**（wall time），CPU time 54min，93 帧，480×832
+- **输出**：`longcat-weixin-photorealistic.npy`（111MB numpy 数组）
+- **结果**：❌ **全部 93 帧为全黑（所有像素 = 0）**
+  ```python
+  # 验证结果
+  data = np.load('longcat-weixin-photorealistic.npy')
+  # shape=(93, 480, 832, 3), min=0, max=0, mean=0.0000, nonzero=0
+  ```
+- **原因分析**：MPS 内存不足导致推理过程中 tensor 被清零。480×832 分辨率下 93 帧的总内存需求远超 M2 Pro 32GB（MPS 上限约 18GB），MLX 在内存溢出时静默返回零张量而非报错
+- **结论**：**480×832 在 M2 Pro 上不可行**，需降回 432×256 或使用云 GPU（≥16GB VRAM）
+- **清理**：已删除无用的 .npy 和 .mp4 文件
+
+### ✅ EchoMimicV3 — Kaggle P100 推理成功！
+
+- **日期**：2026-08-12 ~ 2026-08-17
+- **结论**：**成功！** 在 Kaggle P100 16GB 上完成推理，生成 768×768、81帧（3.24s@25fps）视频
+- **环境**：echomimic_v3 (蚂蚁集团/antgroup), Python 3.12, PyTorch 2.4.1+cu121, **Kaggle Tesla P100 16GB**
+- **模型**：EchoMimicV3-Flash-pro（8步生成，768×768）
 - **模型大小**：~20GB（Wan2.1 基础模型 16GB + Flash 权重 3.5GB）
-- **下载状态**：
-  - ✅ EchoMimicV3 Flash 权重（3.5GB）— 从 ModelScope 下载完成
-  - ✅ CLIP 模型（4.4GB）— 从 hf-mirror.com 下载完成
-  - ❌ VAE（484MB）— 下载卡在 64MB
-  - ❌ umT5 文本编码器（10.8GB）— 下载卡在 1.5GB
-  - ✅ chinese-wav2vec2-base（1.8GB）— 从 ModelScope 下载完成
-- **根本问题**：HuggingFace、hf-mirror.com、ModelScope 对大文件的下载均不稳定，连接频繁断开
-- **技术评估**：
-  - 1.3B 参数，12GB VRAM — 在 M2 Pro 32GB 上理论可行
-  - 8 步 Flash 生成 — 推理速度快
-  - 768×768 分辨率 — 比 LongCat 的 256×432 高很多
-  - 使用 PyTorch (MPS) — 需验证 MPS 兼容性
-  - 中文 Wav2Vec2 — 原生中文支持
-- **后续**：所有模型文件已下载完成（2026-08-13），但推理报 `KeyError: 'patch_embedding.weight'`——Flash 权重与代码版本不兼容，需进一步调试
-- **下载方法**：`curl -L "https://huggingface.co/.../resolve/main/FILE" -H "Authorization: Bearer $HF_TOKEN" -o FILE` 直接下载成功（`hf download` CLI 有断点续传 bug）
-- **直接下载链接**（可手动下载）：
-  - VAE: `https://huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/resolve/main/Wan2.1_VAE.pth`（484MB）
-  - umT5: `https://huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/resolve/main/models_t5_umt5-xxl-enc-bf16.pth`（10.8GB）
-  - 镜像: 在 URL 中把 `huggingface.co` 换成 `hf-mirror.com`
+- **推理时间**：24.6 分钟（sequential_cpu_offload 模式），总时间 34.9 分钟（含环境安装+模型下载）
+- **输出**：portrait_output.mp4, 210KB, 768×768, 81帧
+- **Kaggle kernel slug**: `xpabloli/echomimicv3-flash-test`
+- **自动化脚本**：`scripts/kaggle/echomimicv3-test/echomimicv3_inference.py`（v25）
+- **本地测试历史**：
+  - 2026-08-12：模型文件下载不完整
+  - 2026-08-13：所有模型文件下载完成，但推理报 `KeyError: 'patch_embedding.weight'`
+- **Kaggle P100 云 GPU 测试**（2026-08-15 ~ 2026-08-17）：
+  - **v20**（version 21）：diffusers 0.31.0 自定义安装 + FLAX_WEIGHTS_NAME patch
+  - **v22**（version 24）：transformers check_torch_load_is_safe patch
+  - **v23**（version 25）：tokenizer 下载修复（hf_hub_download）
+  - **v24**（version 26）：OOM 修复（pipeline.to → enable_sequential_cpu_offload）— 缩进错误
+  - **v25**（version 27）：缩进检测修复 — **推理成功！**
+  - **v26**（version 28）：A/B 对比测试 — Weixin 照片 vs 视频截图，简化 prompt `A person is speaking.`
+  - **v27/v29**（version 29）：model_cpu_offload 验证 — **OOM**，P100 16GB 不够
+  - **v30**（version 30）：5步 vs 8步对比 — 同一张 Weixin 照片，时间差仅 1.7min
+- **限制**：
+  - `sequential_cpu_offload` 模式推理 22-24 分钟（3.24s 视频），速度较慢
+  - Kaggle `kaggle kernels output` 未下载 mp4 文件（需手动从 Kaggle 网页下载）
+- **后续优化方向**：
+  - 验证 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` 是否减少 GPU 内存碎片
+  - 如果碎片减少后 model_cpu_offload 可行，推理时间可能大幅降低
+  - 把模型打包成 Kaggle Dataset 持久化
+  - 测试 Colab T4 作为并行平台
+  - patch infer_flash.py 添加 `--partial_video_length` 支持长视频生成
+- **关键技术问题（已全部修复）**：
+  1. **PyTorch 版本**：P100 (sm_60) 需要 cu121 → 降级到 2.4.1+cu121
+  2. **diffusers 版本**：安装 0.31.0 到自定义目录 + PYTHONPATH 覆盖
+  3. **FLAX_WEIGHTS_NAME**：try/except patch
+  4. **check_torch_load_is_safe**：patch 函数体为 pass
+  5. **P100 不支持 bfloat16**：使用 float16
+  6. **Tokenizer LFS 指针**：改用 `huggingface_hub.hf_hub_download`
+  7. **CUDA OOM**：`pipeline.to(device)` → `enable_sequential_cpu_offload()`
+  8. **Patch 缩进错误**：逐行扫描检测原始缩进 + 应用到所有替换行
+
+#### v28 A/B 对比测试结果（2026-08-17）
+
+| Test Case | 参考图 | 大小 | 推理时间 | 说明 |
+|-----------|--------|------|---------|------|
+| A-weixin | Weixin 照片（正面，光照均匀，827×1063） | 421.4 KB | 24.3 min | VLM 评估"perfectly frontal" |
+| B-video-frame | 视频截图（微上仰+侧偏，1080×1920） | 203.2 KB | 24.8 min | FFmpeg 从视频截帧（Lavc62.28.102） |
+
+- **总时间**：62.1 min（含环境安装 + 模型下载 + 两次推理）
+- **Prompt**：`A person is speaking.`（简化版，不限制头部运动）
+- **音频**：deepseek scene-2 截取 10s（F5-TTS 中文男声）
+- **Kaggle CLI 未下载 mp4**：需从 Kaggle 网页手动下载 `echomimicv3_A-weixin.mp4` 和 `echomimicv3_B-video-frame.mp4`
+- **VLM 对比分析**：Weixin 照片在光照、头部朝向、适合做 ref 方面全面优于视频截图
+- **待验证**：从网页下载 mp4 后对比两个视频的实际效果（头部是否歪斜、唇同步质量）
+
+#### v30 5步 vs 8步对比测试结果（2026-08-18）
+
+| Test Case | 参考图 | 步数 | 推理时间 | 文件大小 | 说明 |
+|-----------|--------|------|---------|---------|------|
+| A-weixin-5steps | Weixin 照片 | 5 | 22.4 min | 432.7 KB | 官方推荐 talking-head 步数 |
+| B-weixin-8steps | Weixin 照片 | 8 | 24.1 min | 421.4 KB | Flash 默认步数 |
+
+- **总时间**：57.4 min（含环境安装 + 模型下载 + 两次推理）
+- **时间差异**：仅 1.7 min（-7.1%），不是有效的时间优化手段
+- **控制变量**：同一张 Weixin 照片 + 同一音频 + 同一 seed 43 + 同一 prompt
+- **Kaggle CLI 未下载 mp4**：需从 Kaggle 网页手动下载 `echomimicv3_A-weixin-5steps.mp4` 和 `echomimicv3_B-weixin-8steps.mp4`
+- **质量对比**：待人工评估两个 mp4 的质量差异（嘴部细节、皮肤纹理、整体自然度）
+
+#### v30 推理时间分析
+
+5 步 vs 8 步时间差异极小（1.7 min），原因分析：
+- TeaCache 已启用（`--enable_teacache --teacache_threshold 0.1 --num_skip_start_steps 5`），会缓存和跳过部分去噪步骤
+- sequential_cpu_offload 的瓶颈在于 CPU→GPU 数据搬运，而非 GPU 计算本身
+- 步数从 8 减到 5 只少了 3 步 GPU 计算，但每步的 CPU-GPU 传输开销不变
+- **结论**：在 sequential_cpu_offload 模式下，减少步数不是有效优化手段
+
+#### v31 Max Effort 15步/25步测试结果（2026-08-18，log 通过 kagglehub 获取）
+
+| Test Case | 步数 | 推理时间 | offload 模式 | 备注 |
+|-----------|------|---------|-------------|------|
+| A-weixin-15steps | 15 | 29.4 min (1765.7s) | sequential_cpu_offload | audio_guidance_scale=3.0 |
+| B-weixin-25steps | 25 | 31.4 min (1882.7s) | sequential_cpu_offload | audio_guidance_scale=3.0 |
+
+- **总时间**：71.5 min（4291.7s，含环境安装 + 模型下载 + 两次推理）
+- **log 获取方法**：`pip install kagglehub` → `kagglehub.notebook_output_download('xpabloli/echomimicv3-flash-test/versions/31', path='debug_log.txt', output_dir='/tmp/v31')`
+- **之前预估 vs 实际**：15步预估 30min（实际 29.4min ✅），25步预估 42min（实际 31.4min ❌ 高估）
+- **关键发现**：步数增加的时间代价远小于预期——8步→25步仅多 7min（+29.2%）
+
+#### v33 最终配置固化（2026-08-18）
+
+| 配置项 | 值 | 变更说明 |
+|--------|-----|---------|
+| PYTORCH_CUDA_ALLOC_CONF | expandable_segments:True | v32 新增，解决内存碎片 |
+| GPU_memory_mode | model_cpu_offload | v32 验证成功，替代 sequential |
+| audio_guidance_scale | 2.0 | 从 3.0 降至 2.0，减少眨眼 |
+| num_inference_steps | 8 | Flash 默认值 |
+| 模型来源 | Kaggle Dataset `echomimicv3-flash` | 从 /kaggle/input/ 直接读取，省 12min |
+
+- **v33 实测推理时间**：A-weixin 23.9min (1434.6s)，B-video-frame 24.2min (1453.7s)
+- **总时间**：51.5 min（3093.0s，含环境安装 + Dataset 读取 + 两次推理）
+- **kagglehub 下载 v33 log**：`kagglehub.notebook_output_download('xpabloli/echomimicv3-flash-test/versions/33')`
+- **完整推理步数时间对比表**：见 `docs/research/echomimicv3-optimization-options.md` → "推理步数时间对比" 章节
+
+#### v34 app_mm.py 参数组合 + 官方 demo 测试（2026-08-18，✅ 完成）
+
+**结果**：3 个 test case 全部成功，总时间 81.2 min。
+
+| Test Case | 素材 | 步数 | 推理时间 | 输出大小 | 状态 |
+|-----------|------|------|---------|---------|------|
+| A: `weixin-8steps-appmm` | 微信照片 + 中文音频 | 8 | **24.1 min** (1445.5s) | 415.3 KB | ✅ |
+| B: `weixin-20steps-appmm` | 微信照片 + 中文音频 | 20 | **29.1 min** (1746.0s) | 405.5 KB | ✅ |
+| C: `demo-ch-man-8steps-appmm` | 官方 demo 照片+音频+prompt | 8 | **24.6 min** (1473.8s) | 361.6 KB | ✅ |
+
+**关键发现**：
+- app_mm.py 参数组合（guidance=4.5, audio=2.5, neg=1.5/2, dynamic_cfg/acfg, Flow_DPM++）与 v33 默认参数（guidance=6.0, audio=2.0, neg=1.0/0, Flow_Unipc）推理时间几乎一致
+- 8步 A (24.1min) vs v33 8步 (23.9min) → 参数变化对推理时间无影响
+- 20步 B (29.1min) 对比 v31 25步 (31.4min) → 步数越多越慢，线性关系
+- 官方 demo C 用了 1941 字符的详细 prompt，推理时间 (24.6min) 与简单 prompt (24.1min) 无差异
+- **结论：app_mm 参数组合不影响推理速度，质量差异需看视频对比**
+- GPU 仍是 P100（非 T4），因为 kernel-metadata.json 未设 machine_shape
+
+#### v34 后续待测（EchoMimicV3 原始版测完后）
+
+原始版（`infer_flash.py`）测完 v34 后，EchoMimicV3 的下一步是**量化版测试**：
+- app_mm.py 用 mmgp FP8 量化 + `offload.profile()` + `profile_type.LowRAM_HighVRAM`
+- 需要写独立脚本（app_mm.py 是 Gradio UI，不能直接命令行调用）
+- 量化版 VRAM 需求 8-12GB，可能不需要 CPU offload → 推理更快
+- **推荐用 T4**（Tensor Core 加速 FP16 推理）
+
+#### 优化方案记录
+
+优化方案对比详见 `docs/research/echomimicv3-optimization-options.md`。摘要：
+
+| 方案 | 收益 | 代价 | 状态 |
+|------|------|------|------|
+| model_cpu_offload | 3-5x 加速 | 可能 OOM | ✅ v32+v33 已验证可用（需 expandable_segments） |
+| 减少步数(5步) | -7% 时间 | 质量下降 | ❌ v30 已验证，时间差 1.7min 不值得 |
+| PYTORCH_CUDA_ALLOC_CONF | 减少碎片 | 无 | ✅ v32 已验证，使 model_cpu_offload 可用 |
+| app_mm.py 参数组合 | 质量提升 | 无时间代价 | ✅ v34 已验证：推理时间与默认参数一致 |
+| 模型打包 Dataset | -12min 下载 | 一次性上传 | ✅ v33 已完成 |
+| Kaggle T4 替代 P100 | 脚本简化+Tensor Core | VRAM 少1.4GB | 📋 待测试（`machine_shape: NvidiaTeslaT4`） |
+| mmgp FP8 量化 | 最大加速 | 质量损失+P100 兼容未知 | 📋 量化版测试 |
+| Colab L4/A100 | 全 GPU 推理+bf16 | 付费 | 备选 |
+| AutoDL 4090 | 24GB 不需 offload | ¥1.88/h 付费 | 备选 |
 
 ### 📋 PersonaLive（未测，低优先级）
 
@@ -283,21 +420,7 @@
 - **ComfyUI**：`okdalto/ComfyUI-PersonaLive`
 - **备注**：所有基于 SD1.5 的扩散模型在 M2 Pro 上都已失败，PersonaLive 不太可能例外
 
-### 📋 Hallo2
-
-- **优先级**：⭐⭐⭐⭐（MIT 许可证可商用）
-- **来源**：复旦
-- **MPS**：⚠️ 官方要求 A100，需验证
-- **许可证**：MIT
-
-### 📋 PersonaLive
-
-- **优先级**：⭐⭐⭐
-- **来源**：CVPR 2026
-- **MPS**：⚠️ 12GB VRAM，MPS 可能可行
-- **ComfyUI**：`okdalto/ComfyUI-PersonaLive`
-
-### 📋 LongCat-Video-Avatar-1.5（⭐ 最高优先级）
+### 📋 LongCat-Video-Avatar-1.5（⭐ 已在本地测过，云 GPU 待测）
 
 - **优先级**：⭐⭐⭐⭐⭐（MIT + MLX 移植 + 中英文 + 美团出品）
 - **来源**：美团 meituan-longcat，714 likes
@@ -309,7 +432,21 @@
 - **中文支持**：✅ 原生支持中英文
 - **测试重点**：MLX 移植版能否在 M2 Pro 32GB 上完整推理；q4 量化版质量是否可接受；唇同步精度
 
-### 📋 InfiniteTalk
+#### LongCat 各版本对比
+
+| 版本 | 来源 | 量化方式 | 磁盘 | 本地/云端 | 状态 |
+|------|------|---------|------|----------|------|
+| bf16-dmd-merged (MLX) | mlx-community | bf16 | 43GB | 本地（需64GB+ Mac） | 📋 待测 |
+| q4-dmd-merged (MLX) | mlx-community | 4-bit | 24GB | ✅ **本地已测** | ✅ 成功但分辨率低 |
+| q8-dmd-merged (MLX) | mlx-community | 8-bit | 31GB | 本地 | 📋 待测（质量接近bf16） |
+| **GPU INT8 量化** | meituan-longcat | `--use_int8` | ~15GB | **云 GPU** | 📋 待测（官方支持） |
+| GPU bf16 原始版 | meituan-longcat | 无 | ~23GB | 云 GPU | 📋 待测 |
+
+- **MLX 版不打包到 Kaggle Dataset**——MLX 是 Apple Silicon 专用，CUDA GPU 无法运行
+- **GPU 版动画风格问题**：LongCat 官方设计支持"realistic humans, anime, virtual idols, and animals"。MLX q4 测试生成的是动画风格，可能原因：(1) q4 量化损失真实感 (2) 256×432 分辨率太低 (3) prompt 未强调真实感。GPU bf16 版应该能更好地处理真实人像
+- **LongCat MLX 本地推理命令**：`cd /Users/pabloli/Documents/code/longcat-avatar-mlx && python3 scripts/run_inference.py --weights weights --variant q4-merged --image <微信照片> --audio <音频> --prompt "photorealistic person speaking" --height 480 --width 832`
+
+### 📋 InfiniteTalk / MultiTalk
 
 - **优先级**：⭐⭐⭐⭐（Apache 2.0 + 中文 + 无限长度）
 - **来源**：MeiGen-AI，238 likes
@@ -321,6 +458,18 @@
 - **中文支持**：✅ 原生支持中英文
 - **测试重点**：M2 Pro 是否能运行；推理速度；无限长度的实际效果
 
+#### InfiniteTalk / MultiTalk 各版本对比
+
+| 版本 | 来源 | 量化方式 | 大小 | 说明 |
+|------|------|---------|------|------|
+| **InfiniteTalk 原始版** | MeiGen-AI | 无 | ~20GB | 14B Wan2.1 基座 + InfiniteTalk LoRA |
+| **MultiTalk INT8 量化** | MeiGen-AI | `--quant int8` | ~14GB | ✅ **已发布**！MultiTalk 已支持 INT8 + SageAttention2.2 |
+| InfiniteTalk INT8 | MeiGen-AI | TODO | — | 📋 官方 Todo List 标注但**尚未发布** |
+| **Wan2GP InfiniteTalk** | deepbeepmeep | int8/fp8/gguf | 6GB+ | ✅ 已集成 InfiniteTalk，6GB VRAM 可跑 |
+| ComfyUI InfiniteTalk | Kijai | 标准 | — | ✅ ComfyUI 工作流已支持 |
+| **lightX2V LoRA 加速** | 社区 | LoRA 蒸馏 | — | 4-8 步推理（vs 标准 40 步） |
+| TeaCache | 官方 | 缓存加速 | — | ✅ 已支持，2-3x 加速 |
+
 ### 📋 Hallo3
 
 - **优先级**：⭐⭐⭐⭐（MIT + Transformer 骨干 + 复旦出品，Hallo2 升级版）
@@ -331,17 +480,74 @@
 - **许可证**：MIT（商用 OK）
 - **关键特点**：Transformer-based video generation backbone（非 U-Net），causal 3D VAE + transformer 身份保持网络，处理非正面视角和动态背景
 - **测试重点**：MPS 兼容性（Transformer 骨干可能比 U-Net 更友好也可能更重）；与 Hallo2 质量对比
+- **量化版本**：❌ 暂无社区量化版
 
-### 📋 EchoMimicV3
+### 📋 Sonic（质量基准，非商用）
 
-- **优先级**：⭐⭐⭐⭐（Apache 2.0 + 仅 1.3B 参数 + 蚂蚁出品）
-- **来源**：蚂蚁集团 BadToBest，48 likes
-- **HuggingFace**：`BadToBest/EchoMimicV3`
-- **arxiv**：2507.03905
-- **MPS**：⚠️ 待验证（**仅 1.3B 参数**——如果能在 M2 Pro 上跑，可能是最快的高质量方案）
+- **优先级**：⭐⭐⭐（效果最好但非商用，可做质量基准）
+- **来源**：Tencent/ZJU，CVPR 2025
+- **GitHub**：`jixiaozhong/Sonic`
+- **许可证**：❌ 非商用
+- **VRAM**：官方说 32GB，可能需要 model_cpu_offload 才能在 16GB 上跑
+- **本地测试结论**：M2 Pro 上 fp16 死锁 + fp32 崩溃（SVD UNet 与 MPS 不兼容）
+- **云 GPU 测试**：📋 待测（Colab T4 16GB，可能需 cpu_offload）
+- **量化版本**：❌ 无量化版本发布
+
+#### Colab T4 测试（2026-08-18）
+
+- **状态**：❌ 未完成——Colab 免费版 GPU assignment 冷却期限制
+- **尝试 1**：`colab --auth=adc new --gpu T4 --session sonic-test` → `TooManyAssignmentsError`（LatentSync session 刚用完 GPU，免费版不能连续分配）
+- **尝试 2**：等 60 秒后 `colab --auth=adc run --gpu T4 sonic_script.py` → 同样 `TooManyAssignmentsError`
+- **原因**：Colab 免费版有 GPU assignment 冷却期——使用完 GPU 后需要等待一段时间才能再分配
+- **建议**：(1) 等待 1-2 小时后重试 (2) 升级 Colab Pro $9.99/月可避免此限制 (3) 用 Kaggle P100 作为替代
+- **Sonic 关键信息**：
+  - 官方测试在 32GB GPU 上，T4 只有 16GB——可能需要 model_cpu_offload
+  - 需要下载 `xcf/Sonic` HF 仓库的 checkpoint
+  - ComfyUI 版本：`ComfyUI_Sonic`（社区版）
+  - `demo.sh` 展示了基本推理命令
+  - 脚本已准备好：`scripts/colab/sonic-test/run_sonic_colab.py`
+
+### ❌ LatentSync 1.6 — Colab T4 OOM 验证（2026-08-18）
+
+- **日期**：2026-08-18
+- **结论**：**Colab T4 16GB 不够** — LatentSync 1.6 需要 18GB VRAM，即使加 `expandable_segments:True` 仍然 OOM
+- **环境**：Colab T4 14.56GB（Tesla T4），PyTorch + diffusers
+- **测试过程**：
+  1. `git clone` + `pip install` 依赖（kornia、insightface 等需要手动安装）
+  2. `huggingface-cli download bytedance/LatentSync` 下载 checkpoint（latentsync_unet.pt + whisper/tiny.pt）
+  3. `bash inference.sh` → VAE 解码阶段 OOM：`Tried to allocate 2.00 GiB. GPU has 14.56 GiB total, 959 MiB free`
+  4. 加 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` 重试 → 仍然 OOM
+- **OOM 位置**：`diffusers/models/resnet.py` VAE down_block forward → `(input_tensor + hidden_states) / output_scale_factor`
+- **根本原因**：LatentSync 1.6 训练在 512×512 分辨率，VAE 解码需要大量 VRAM
+- **与文档记录一致**：LatentSync 1.6 最低 18GB VRAM，1.5 最低 8GB
+- **建议**：如需在 16GB GPU 上跑 LatentSync，必须用 1.5 版本（256×256 分辨率，8GB VRAM）
+
+### ✅ EchoMimicV3 — 已在 Kaggle P100 上测试完成（见上方详情）
+
 - **许可证**：Apache 2.0（商用 OK）
-- **关键特点**：统一多任务+多模态人体动画，Soup-of-Tasks + Soup-of-Modals，Negative DPO，Phase-aware CFG，仅 1.3B 参数
-- **测试重点**：1.3B 参数在 M2 Pro 上的推理速度；多任务能力（音频驱动/关键点驱动/组合）
+- **后续**：优化推理速度 + 验证质量 + 测试长视频生成
+
+#### EchoMimicV3 各版本对比
+
+| 版本 | 来源 | 量化方式 | VRAM | 说明 |
+|------|------|---------|------|------|
+| **原始版 (infer_flash.py)** | 官方 | 无量化 | 12-16GB + offload | ✅ v33 当前在用 |
+| **Gradio 量化版 (app_mm.py)** | 官方 | mmgp FP8 + model_cpu_offload | 8-12GB | 📋 待测——参数更优化 |
+| **ComfyUI 版 (smthemex)** | 社区 | mmgp FP8 + LCM + lightX2V LoRA | 8GB+ | 📋 12G可跑65帧，16G跑97帧 |
+| **Wan2GP 版** | deepbeepmeep | int8/fp8/gguf/NV FP4 | 6GB+ | 📋 集成 InfiniteTalk，低 VRAM 优化 |
+
+#### app_mm.py 关键参数对比（vs 当前 v33 配置）
+
+| 参数 | infer_flash.py (v33) | app_mm.py (量化版) | 影响 |
+|------|---------------------|-------------------|------|
+| `guidance_scale` | 6.0 | **4.5** | 视觉更自然 |
+| `audio_guidance_scale` | 2.0 | **2.5** | 唇同步更好但可能眨眼 |
+| `neg_scale` | 1.0 | **1.5** | 减少伪影 |
+| `neg_steps` | 0 | **2** | 前2步负向引导 |
+| `use_dynamic_cfg` | False | **True** | 动态 CFG 更自然 |
+| `use_dynamic_acfg` | False | **True** | 动态 audio CFG |
+| `sampler_name` | Flow_Unipc | **Flow_DPM++** | 不同采样器 |
+| `num_inference_steps` | 8 | 20 | 更多步数（但用 mmgp 加速） |
 
 ### 📋 FeatherTalk
 
@@ -372,7 +578,7 @@
 
 - **视频**：`scripts/short-video/assets/IMG_7991.MOV`（用户正面视频）
 - **音频**：`scripts/short-video/output/deepseek/audio/scene-1.mp3`（F5-TTS 中文）
-- **照片**：用户 Weixin 照片（已用于 D-ID 测试）
+- **照片**：`scripts/short-video/assets/Weixin Image_2026-08-10_003535_660.jpg`（正面照，VLM 评估适合做 ref）
 - **测试文本**：scene-1 对应的中文文本
 
 ## 评估标准
@@ -456,7 +662,7 @@
 1. **EchoMimicV3**（Apache 2.0 + 12GB + 768px + 蚂蚁出品）→ Kaggle 自动化脚本
 2. **Sonic**（效果最好但非商用，可做质量基准）→ Kaggle/Colab
 3. **InfiniteTalk**（Apache 2.0 + 无限长度 + 中文）→ Kaggle
-4. **LatentSync 1.6**（省内存模式试 16GB）→ Kaggle/Colab
+4. **LatentSync 1.6**（官方最低 18GB）→ L4/A100 云 GPU
 5. **V-Express**（最轻量扩散）→ Colab 手动
 
 **Kaggle 自动化方式**：准备 `.py` script + `kernel-metadata.json` → `kaggle kernels push -p .` → `kaggle kernels status` 轮询 → `kaggle kernels output` 下载。测试脚本参考 `scripts/kaggle/test-gpu/`。
@@ -467,37 +673,54 @@
 
 ---
 
-## 云 GPU 资源 Pool 与 Fallback（2026-08-16 新增）
+## 完整待测模型列表（2026-08-18 更新）
 
-> **目标**：所有需要云 GPU 的任务（数字人推理、模型测试等）统一通过此 pool 调用资源。本地 M2 Pro MPS 无法跑 CUDA 模型时使用。
+> 此列表汇总所有待测模型/版本，按优先级排序。下文每个模型详情章节包含各版本对比表。
+>
+> **GPU 选择指南**（2026-08-18 新增）：Kaggle `kernel-metadata.json` 通过 `machine_shape` 字段可选 GPU 类型：
+> - `"machine_shape": "NvidiaTeslaT4"` → T4 x2（2张T4，每张15GB，sm_75，Tensor Core，默认 PyTorch 兼容）
+> - `"machine_shape": "NvidiaTeslaP100"` → P100（16GB，sm_60，无 Tensor Core，需手动降级 PyTorch）
+> - 不设该字段 → 默认 P100（9/15 后自动变 T4 x2）
+> - **推荐默认用 T4**：T4 支持默认 PyTorch（cu128），不需要 PyTorch 降级/diffusers patch，脚本大幅简化
+> - **T4 x2 显存不是合并 32GB**：两张卡各自独立 15GB，需多 GPU 代码才能利用双卡
+> - P100 需要手动安装 PyTorch 2.4.1+cu121 + diffusers 0.31 + FLAX patch + check_torch_load_is_safe patch
+> - T4 和 P100 **都不支持 bfloat16**（需 Ampere sm_80+，即 L4/A100）
 
-### 资源优先级
+| # | 模型/版本 | 基座模型 | 类型 | 许可证 | 推荐 GPU | 本地/云端 | 优先级 | 说明 |
+|---|----------|---------|------|--------|---------|----------|--------|--------|------|
+| 1 | ~~EchoMimicV3 Flash (v33 配置)~~ | Wan2.1-Fun-V1.1-1.3B | 原始版 | Apache 2.0 | P100✅ | ✅ 已完成 | — | 当前最优配置 |
+| 2 | ~~EchoMimicV3 app_mm.py 参数组合 (v34)~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | P100✅ | ✅ 已完成 | — | 3 test case 全成功，app_mm 参数无加速 |
+| 3 | ~~EchoMimicV3 mmgp 量化 offload (v35/v36)~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 | 🔄 测试中 | ⭐⭐⭐⭐ | mmgp FP8 量化 + app_mm 参数 + 微信半身照 + demo照 |
+| 4 | InfiniteTalk (原始版) | Wan2.1-I2V-14B | 原始版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 无限长度 + 中文，14B Wan2.1 基座 |
+| 5 | MultiTalk INT8 量化版 | Wan2.1-I2V-14B | 量化版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 已发布 INT8 + SageAttention |
+| 6 | LongCat GPU INT8 | LongCat-Video 13.6B DiT | 量化版 | MIT | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | INT8 仅量化 DiT；官方其余组件仍用 bf16，T4/P100 非已验证路径 |
+| 7 | Wan2GP InfiniteTalk 低VRAM | Wan2.1 (deepbeepmeep 优化) | 优化版 | 开源 | T4 | Kaggle | ⭐⭐⭐ | deepbeepmeep，6GB 可跑 |
+| 8 | EchoMimicV3 ComfyUI LCM | Wan2.1-Fun-V1.1-1.3B | 加速版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐ | 4步推理，需 ComfyUI 环境 |
+| 9 | InfiniteTalk + lightX2V LoRA | Wan2.1-I2V-14B | 加速版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐ | 4-8步推理 |
+| 10 | LongCat MLX q8 | LongCat-Video 13.6B DiT | 本地量化 | MIT | — | 本地 M2 Pro | ⭐⭐⭐ | 质量接近 bf16 |
+| 11 | EchoMimicV3 T4 平台测试 | Wan2.1-Fun-V1.1-1.3B | 平台测试 | Apache 2.0 | T4 | ✅ v35/v36 | ⭐⭐⭐⭐ | 用 T4 替代 P100，验证脚本简化 + Tensor Core 加速 |
+| 12 | Sonic (原始版) | SVD UNet + Whisper-Tiny | 质量基准 | ❌ 非商用 | T4 | Kaggle/Colab | ⭐⭐⭐ | 做质量对比基准 |
+| 13 | LatentSync 1.6 省内存模式 | SD UNet + VAE | 原始版 | OpenRAIL++ | L4/A100（≥18GB） | Colab Pro+/云 GPU | ⭐⭐⭐ | 官方最低 18GB；T4 x2 显存不合并，不能视为 30GB 路径 |
+| 14 | Hallo3 (原始版) | CogVideo DiT | 原始版 | MIT | H100（A100 需先验证） | 云 GPU | ⭐⭐⭐ | 官方仅在 H100 测试；T4 16GB 无已验证路径 |
+| 15 | FeatherTalk | 轻量 CNN | 轻量级 | ❓ | — | 本地 M2 Pro | ⭐⭐ | 超轻量 |
+| 16 | LTX-2.3 + AV-LoRA | LTX-Video 22B DiT | DiT+LoRA | OpenRAIL | L4/A100 | Colab Pro+ | ⭐⭐ | 22B 需大显存 + bf16 |
+| 17 | **EMO** | Stable Diffusion + Audio2Video | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐⭐⭐ | 阿里，ECCV 2024，7601 stars，未公开 weights |
+| 18 | **PersonaLive** | 扩散 (SD1.5 基座) | 原始版 | ❌ 非商用 | T4（12GB） | Kaggle | ⭐⭐⭐⭐⭐ | CVPR 2026，实时流式，ComfyUI 已支持 |
+| 19 | **DICE-Talk** | 扩散+情感解耦 | 原始版 | ❌ 非商用 | L4/A100（20GB+） | Colab Pro+/云 GPU | ⭐⭐⭐⭐⭐ | ACM MM 2025，情感解耦，20GB+ |
+| 20 | **Hallo4** | 扩散 (Hallo 系列最新) | 原始版 | MIT | A100 | 云 GPU | ⭐⭐⭐⭐ | 2025.05，Hallo 系列最新版 |
+| 21 | **Hallo-Live** | 扩散实时 | 实时版 | MIT | T4 | Kaggle | ⭐⭐⭐ | 实时版本，MIT 许可 |
+| 22 | **V-Express** | SD 1.5 | 原始版 | ❓ | T4（~12GB） | Kaggle | ⭐⭐⭐⭐ | 腾讯，渐进式训练扩散，2357 stars |
+| 23 | **JoyVASA** | 扩散+解耦表示 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐⭐ | 京东健康，中文支持，876 stars |
+| 24 | **EchoMimic V2** | SD + 关键点 | 原始版 | Apache 2.0 | T4（~16GB） | Kaggle | ⭐⭐⭐⭐ | 2024.07，4279 stars |
+| 25 | **AniPortrait** | SD + 关键点 | 原始版 | ❓ | T4（~12GB） | Kaggle | ⭐⭐⭐⭐ | 2024.03，5019 stars |
+| 26 | **DreamTalk** | 扩散 | 原始版 | ❓ | T4 | Kaggle | ⭐⭐⭐ | 阿里，1789 stars |
+| 27 | **Hallo (v1)** | 分层扩散 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐ | 2024.06，8658 stars |
+| 28 | **Hallo2 (云 GPU)** | 分层扩散 | 原始版 | MIT | A100（20GB+） | 云 GPU | ⭐⭐⭐⭐ | 2024.10，MIT 许可，已本地测过 256px |
+| 29 | **LatentSync 1.5** | SD UNet + VAE | 原始版 | OpenRAIL++ | T4（8GB） | Kaggle | ⭐⭐⭐⭐ | 8GB 即可跑，T4 单卡足够 |
 
-| 优先级 | 平台 | 命令 | GPU | 免费额度 | 适用场景 |
-|--------|------|------|-----|---------|---------|
-| 1️⃣ | **Colab CLI** | `colab run --gpu T4 script.py` | T4 16GB | 不固定，空闲 90min | 一键运行单脚本（推荐首选） |
-| 2️⃣ | **Kaggle** | `kaggle kernels push -p .` | P100/T4 16GB | 30h/周刷新 | 自动化批量推理 |
-| 3️⃣ | **Colab CDP** | web-access skill | T4 16GB | 同 Colab | 交互式调试、参数调优 |
-| 4️⃣ | **AutoDL** | 手动租用 | RTX 4090 24GB | ¥1.88/h | 16GB 不够时的付费备选 |
+---
 
-### Fallback 规则
+## 云 GPU 平台分析（已 offload）
 
-1. **首选 Colab CLI**：`colab run --gpu T4 script.py`，最快（自动 provision → execute → teardown）
-2. **Colab 失败/超时** → fallback 到 Kaggle：`kaggle kernels push` + 轮询 `kaggle kernels status`
-3. **Kaggle 30h/周用完** → fallback 到 Colab CDP（手动操作浏览器）
-4. **16GB 显存不够** → AutoDL RTX 4090 24GB（付费，需手动租用）
+> **双 T4 多 GPU 可行性分析、Kaggle vs Colab 平台对比、Colab Pro vs AutoDL 等价对比、GPU 硬件差异（bf16/VRAM）、免费 GPU 平台深度调研**见 `docs/research/cloud-gpu-options.md` — 从 §"双 T4 多 GPU 可行性分析" 开始到文档末尾。
 
-### 使用方式
-
-Agent 在需要云 GPU 时：
-1. 准备 `.py` 脚本（安装依赖 → clone 代码 → 下载模型 → 推理 → 输出结果）
-2. 优先用 `colab run --gpu T4 script.py` 一键运行
-3. 失败则用 Kaggle（`kernel-metadata.json` + `kaggle kernels push`）
-4. 两者都失败则告知用户手动操作
-
-### 相关文档
-
-- `docs/research/cloud-gpu-options.md` — 完整 GPU 方案对比（免费 + 付费）
-- `docs/archive/handoff-cloud-gpu-kaggle-setup.md` — Kaggle + Colab CLI 配置全过程
-- `scripts/kaggle/test-gpu/` — Kaggle 自动化测试脚本模板
-- Colab CLI 操作指南：https://github.com/googlecolab/google-colab-cli/blob/main/skills/colab-operator/SKILL.md
