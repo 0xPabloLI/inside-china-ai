@@ -56,15 +56,26 @@ export function RankingAlertSettings() {
       Number.isInteger(from) &&
       from >= 1 &&
       (to === null || (Number.isInteger(to) && to >= 1));
-    return {
-      row,
-      from,
-      to,
-      valid,
-      wouldAlert: valid ? isDrop(to, from, previewThreshold!, lostRanking) : false,
-    };
+    const wouldAlert = valid ? isDrop(to, from, previewThreshold!, lostRanking) : false;
+    const alertType: "drop" | "lost" | null = !wouldAlert
+      ? null
+      : to === null
+        ? "lost"
+        : "drop";
+    const reason = !valid
+      ? "Incomplete input"
+      : !wouldAlert
+        ? to === null
+          ? "Left top 100 but lost-ranking alerts are off"
+          : `Moved ${to! - from! >= 0 ? "↓" : "↑"}${Math.abs(to! - from!)} — below the ${previewThreshold}-position threshold`
+        : to === null
+          ? `Left the top 100 (was #${from})`
+          : `Fell from #${from} to #${to} (−${to! - from!}), at or past the ${previewThreshold}-position threshold`;
+    return { row, from, to, valid, wouldAlert, alertType, reason };
   });
   const firing = evaluated.filter((e) => e.wouldAlert);
+  const dropCount = firing.filter((e) => e.alertType === "drop").length;
+  const lostCount = firing.filter((e) => e.alertType === "lost").length;
 
 
   // Query data arrives after mount, so sync the form once it lands.
