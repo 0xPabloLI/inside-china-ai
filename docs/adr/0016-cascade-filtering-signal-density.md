@@ -11,4 +11,9 @@ The video pipeline processes 10-20 visual assets per run across multiple stages 
 ## Consequences
 
 - Applied in: RAG query (metadata → vector similarity → reranker), search-sources filter/classify, asset-sourcer download pipeline.
+- **Already applied:**
+  1. VLM single call produces 6 signals (description, subjects, contentKind, fit, criticalEdgeText, reason) — no 6-call cascade.
+  2. Pre-download filter gate (threshold 20) rejects obviously bad candidates before any network I/O — cheaper than post-download pre-filter (threshold 30).
+  3. Cascade order in `analyzeAssets()`: pre-filter (free) → detectFocus (~0.5s) → VLM (20-120s). Phase 2 only receives assets that survived Phase 1 — OpenCV never wastes time on assets that will be skipped.
+  4. Cross-stage signal reuse: trend discovery's `extractScript` extracts `imageUrl` from the same DOM as article titles. Asset sourcer consumes cached URLs from `trending-topics.json` — one CDP request produces both article metadata and image URL signals.
 - See ADR-0009 (VLM), ADR-0013 (Asset sourcing), ADR-0015 (Focus detection) for related architecture.

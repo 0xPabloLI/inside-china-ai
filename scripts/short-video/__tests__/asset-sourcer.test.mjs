@@ -4,7 +4,7 @@
  * TDD: Tests written first (red), implementation second (green).
  */
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
-import { unlinkSync, rmdirSync } from "fs";
+import { unlinkSync, rmdirSync, writeFileSync } from "fs";
 
 import {
   extractKeywords,
@@ -28,6 +28,10 @@ import {
   checkCdpAvailable,
   loadEnvLocal,
   getApiKey,
+  loadCachedImages,
+  isLogoOrIcon,
+  hasKeywordMatch,
+  PRE_DOWNLOAD_FILTER_THRESHOLD,
 } from "../lib/asset-sourcer.mjs";
 
 // ─── extractKeywords ───
@@ -762,8 +766,8 @@ describe("downloadAsset", () => {
 // ─── AS-3: yt-dlp source definitions ───
 
 describe("YTDLP_SOURCES", () => {
-  it("has youtube source", () => {
-    const yt = YTDLP_SOURCES.find((s) => s.name === "youtube");
+  it("has youtube_search source", () => {
+    const yt = YTDLP_SOURCES.find((s) => s.name === "youtube_search");
     expect(yt).toBeDefined();
     expect(yt.platform).toBe("youtube");
     expect(yt.type).toBe("video");
@@ -1057,15 +1061,15 @@ describe("YTDLP_SOURCES new additions", () => {
     expect(src.cookieRequired).toBe(true);
   });
 
-  it("has xiaohongshu source", () => {
-    const src = YTDLP_SOURCES.find((s) => s.name === "xiaohongshu");
+  it("has xhs source (xiaohongshu)", () => {
+    const src = YTDLP_SOURCES.find((s) => s.name === "xhs");
     expect(src).toBeDefined();
     expect(src.platform).toBe("xiaohongshu");
     expect(src.cookieRequired).toBe(true);
   });
 
-  it("has weibo source", () => {
-    const src = YTDLP_SOURCES.find((s) => s.name === "weibo");
+  it("has weibo_hot source (weibo)", () => {
+    const src = YTDLP_SOURCES.find((s) => s.name === "weibo_hot");
     expect(src).toBeDefined();
     expect(src.platform).toBe("weibo");
     expect(src.cookieRequired).toBe(true);
@@ -1765,12 +1769,8 @@ describe("End-to-end: assignAssetsToScenes → validatePatchEntry (Review P0-1)"
 
   it("relative-path asset → assignAssetsToScenes → validatePatchEntry: valid", () => {
     const contentDir = "/fake/content/unitree";
-    const scenes = [
-      { id: 1, visualType: "narrative" },
-    ];
-    const assets = [
-      { type: "image", path: "assets/img.jpg", score: 80, source: "pexels" },
-    ];
+    const scenes = [{ id: 1, visualType: "narrative" }];
+    const assets = [{ type: "image", path: "assets/img.jpg", score: 80, source: "pexels" }];
     const patches = assignAssetsToScenes(assets, scenes);
     expect(patches).toHaveLength(1);
     expect(patches[0].status).toBe("assigned");
@@ -1787,10 +1787,193 @@ describe("End-to-end: assignAssetsToScenes → validatePatchEntry (Review P0-1)"
   });
 
   it("isPathContained rejects absolute path (the P0-1 bug)", () => {
-    expect(isPathContained("/fake/content/unitree/assets/img.jpg", "/fake/content/unitree")).toBe(false);
+    expect(isPathContained("/fake/content/unitree/assets/img.jpg", "/fake/content/unitree")).toBe(
+      false,
+    );
   });
 
   it("isPathContained rejects path traversal", () => {
     expect(isPathContained("../../etc/passwd", "/fake/content/unitree")).toBe(false);
+  });
+});
+
+// ─── T04 (#56): Cached-image flow ───
+
+describe("loadCachedImages", () => {
+  it("returns empty array when file does not exist (T04 scenario #6)", () => {
+    const result = loadCachedImages("/nonexistent/trending-topics.json", ["DeepSeek"]);
+    expect(result).toEqual([]);
+  });
+
+  it("extracts images from trending-topics.json (T04)", () => {
+    const mockData = {
+      topics: {
+        breaking: [
+          {
+            title: "DeepSeek V4 announced",
+            sources: ["qbitai"],
+            urls: ["http://qbitai.com/1"],
+            images: [{ url: "http://qbitai.com/img/v4.jpg", sourceArticle: "http://qbitai.com/1" }],
+          },
+        ],
+        fermenting: [],
+        data: [],
+        explainer: [],
+      },
+    };
+    const tmpFile = `/tmp/test-trending-${Date.now()}.json`;
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedImages(tmpFile, ["DeepSeek"]);
+      expect(result).toHaveLength(1);
+      expect(result[0].url).toBe("http://qbitai.com/img/v4.jpg");
+      expect(result[0].sourceArticle).toBe("http://qbitai.com/1");
+      expect(result[0].sourceTitle).toBe("DeepSeek V4 announced");
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it("returns empty array when keywords do not match any topic (T04)", () => {
+    const mockData = {
+      topics: {
+        breaking: [
+          {
+            title: "Some unrelated topic",
+            sources: ["qbitai"],
+            urls: ["http://qbitai.com/1"],
+            images: [{ url: "http://qbitai.com/img/1.jpg", sourceArticle: "http://qbitai.com/1" }],
+          },
+        ],
+        fermenting: [],
+        data: [],
+        explainer: [],
+      },
+    };
+    const tmpFile = `/tmp/test-trending-${Date.now()}.json`;
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedImages(tmpFile, ["DeepSeek"]);
+      expect(result).toEqual([]);
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+});
+
+describe("isLogoOrIcon", () => {
+  it("rejects URLs containing logo (T04 scenario #7)", () => {
+    expect(isLogoOrIcon("http://example.com/logo.png")).toBe(true);
+  });
+
+  it("rejects URLs containing avatar", () => {
+    expect(isLogoOrIcon("http://example.com/avatar.jpg")).toBe(true);
+  });
+
+  it("rejects URLs containing icon", () => {
+    expect(isLogoOrIcon("http://example.com/icon-32x32.png")).toBe(true);
+  });
+
+  it("rejects URLs containing placeholder", () => {
+    expect(isLogoOrIcon("http://example.com/placeholder.png")).toBe(true);
+  });
+
+  it("rejects URLs containing spinner", () => {
+    expect(isLogoOrIcon("http://example.com/spinner.gif")).toBe(true);
+  });
+
+  it("accepts normal image URLs", () => {
+    expect(isLogoOrIcon("http://qbitai.com/img/v4.jpg")).toBe(false);
+  });
+});
+
+describe("hasKeywordMatch", () => {
+  it("returns true when title contains keyword", () => {
+    expect(hasKeywordMatch("DeepSeek V4 announced", ["DeepSeek"])).toBe(true);
+  });
+
+  it("returns true when any keyword matches", () => {
+    expect(hasKeywordMatch("Unitree robot demo", ["DeepSeek", "Unitree"])).toBe(true);
+  });
+
+  it("returns false when no keywords match", () => {
+    expect(hasKeywordMatch("Some random news", ["DeepSeek"])).toBe(false);
+  });
+
+  it("returns false for empty keywords", () => {
+    expect(hasKeywordMatch("DeepSeek V4", [])).toBe(false);
+  });
+});
+
+// ─── T05 (#57): Pre-download filter gate ───
+
+describe("T05 — Pre-download filter gate (threshold 20)", () => {
+  it("exports PRE_DOWNLOAD_FILTER_THRESHOLD as 20", () => {
+    expect(PRE_DOWNLOAD_FILTER_THRESHOLD).toBe(20);
+  });
+
+  it("preFilterCandidate returns technicalScore for good asset above threshold 20", () => {
+    // Good candidate: title match + image type + small file + 720p = 28 + 14 + 14 + 7 = 63
+    const candidate = {
+      title: "Unitree Robot Demo",
+      type: "image",
+      fileSize: 3_000_000,
+      resolution: "720p",
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    expect(result.technicalScore).toBe(63);
+    expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
+  });
+
+  it("preFilterCandidate returns technicalScore for bad asset below threshold 20", () => {
+    // Bad candidate: no title match + unknown duration + huge file = 0 + 3 + 0 + 0 = 3
+    const candidate = {
+      title: "Random unrelated video",
+      type: "video",
+      fileSize: 200_000_000,
+      duration: 300,
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    expect(result.technicalScore).toBe(3);
+    expect(result.technicalScore).toBeLessThan(PRE_DOWNLOAD_FILTER_THRESHOLD);
+  });
+
+  it("pre-download threshold (20) is lower than post-download threshold (30)", () => {
+    // This is a design assertion: pre-download is more lenient because
+    // pre-download metadata is sparser (no file size from API, resolution may be missing)
+    expect(PRE_DOWNLOAD_FILTER_THRESHOLD).toBeLessThan(30);
+  });
+
+  it("blocks asset with sparse metadata below threshold 20", () => {
+    // Candidate with no title match + bad duration = 0 + 3 + 0 + 0 = 3
+    // 3 < 20 → blocked pre-download
+    const candidate = {
+      title: "Random unrelated video",
+      type: "video",
+      duration: 300, // >60s → durationScore=3
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // title: no match=0, duration: 3, size: 0, res: 0 = 3
+    expect(result.technicalScore).toBe(3);
+    expect(result.technicalScore).toBeLessThan(PRE_DOWNLOAD_FILTER_THRESHOLD);
+    expect(result.technicalScore).toBeLessThan(30); // also below post-download
+  });
+
+  it("scenario #10: asset passes pre-download (>=20) but fails post-download (<30)", () => {
+    // This is the soft gate scenario: some assets are downloaded then skipped at post-download
+    // Example: partial title match (14) + image type (14) = 28
+    // 28 >= 20 (pre-download) but 28 < 30 (post-download)
+    // "Unitr" is the 5-char prefix of "Unitree" — must be a boundary match
+    const candidate = {
+      title: "Unitr demo video", // partial match (5-char prefix "Unitr") → titleScore=14
+      type: "image", // durationScore=14
+      // no fileSize, no resolution → sizeScore=0, resScore=0
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    expect(result.technicalScore).toBe(28);
+    // Pre-download: 28 >= 20 → downloaded
+    expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
+    // Post-download: 28 < 30 → lowConfidence (skipped from VLM)
+    expect(result.lowConfidence).toBe(true);
   });
 });

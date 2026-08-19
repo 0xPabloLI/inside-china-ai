@@ -67,8 +67,11 @@ _Avoid_: Playlist, collection
 **Trend**: A trending topic discovered by scanning news media, social platforms, and monitored accounts via `search-sources.mjs --trend`. Used as input to the content pipeline when no Source Material is provided.
 _Avoid_: Topic (too generic), keyword
 
-**Source Registry**: The single source of source definitions in `source-registry.mjs`. Contains 28 sources (7 news + 8 self_media + 4 western + 3 general + 5 last30days + 1 wechat). Each source has `supportsKeyword` flag. Used by `search-sources.mjs` in both `--trend` and `--research` modes. Pluggable: adding a source = adding a collector object.
+**Source Registry**: The single source of truth for all source definitions in `source-registry.mjs`. Contains ~53 sources (news, self-media, western, stock APIs, video platforms). Each source has an optional `capabilities` object declaring what data types it provides (`articles`, `images`, `videos`) and how (CDP scripts, API config, yt-dlp platform). Consumers query by capability: `search-sources.mjs` filters `capabilities.articles`, `asset-sourcer.mjs` filters `capabilities.images` / `capabilities.videos`. Adding a source = adding one object with capabilities; no code changes in consumers.
 _Avoid_: Feed, scraper
+
+**Capabilities**: An optional field on each source in the Source Registry, declaring what data types the source can provide and the access method for each. Shape: `{ articles?: {...}, images?: {...}, videos?: {...} }`. A source can have one, two, or all three capabilities (e.g., IT之家 has `articles` + `images`; Pexels has `images` + `videos`; arXiv has `articles` only). This replaces the previous pattern where `asset-sourcer.mjs` maintained separate `API_SOURCES` / `YTDLP_SOURCES` / `CDP_SOURCES` arrays that duplicated source definitions.
+_Avoid_: Source config, source flags
 
 ## TTS & Voice
 
@@ -89,7 +92,7 @@ _Avoid_: Vision model, image analyzer (too generic)
 **Asset Fit Analysis**: A VLM operation that determines whether a landscape image/video should use `cover` (crop) or `contain` (letterbox) in a 9:16 canvas, and where the main subject is positioned (top/center/bottom). Returns `{fit, focus, reason}`. Used during scene-data review. Note: `focus` output is unstable and deprecated; spatial analysis is handled by Focus Detection.
 _Avoid_: Crop analysis, aspect ratio check
 
-**Focus Detection**: A deterministic, lightweight spatial analysis performed by OpenCV (Haar Cascade face detection + Spectral Residual saliency) via a dedicated Python subprocess (`focus_detector.py`). Complements the VLM's semantic analysis. Runs as Phase 1 before VLM Phase 2 in `analyzeAssets()`. **Never rejects** — returns schema-complete degraded results on failure. See ADR-0015.
+**Focus Detection**: A deterministic, lightweight spatial analysis performed by OpenCV (Haar Cascade face detection + Spectral Residual saliency) via a dedicated Python subprocess (`focus_detector.py`). Complements the VLM's semantic analysis. Runs as Phase 2 (after pre-filter Phase 1, before VLM Phase 3) in `analyzeAssets()` — only on assets that survived the free pre-filter gate. **Never rejects** — returns schema-complete degraded results on failure. See ADR-0015.
 _Avoid_: Focus analysis, spatial analysis (too generic)
 
 **Protected Region**: A normalized bounding box `[x, y, w, h]` (all in [0, 1]) identifying an area in a source image that should not be covered by text overlays. Currently produced only for faces (`kind: "face"`). Written to `media-patch.json`'s `analysis.focusAnalysis` field for human review. Phase 2 will feed these to Remotion for automatic slot scoring.

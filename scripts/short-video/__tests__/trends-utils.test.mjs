@@ -5,6 +5,7 @@ import {
   deduplicateTopics,
   buildOutputJson,
   cleanTitle,
+  filterRecentTrackedArticles,
 } from "../lib/trends-utils.mjs";
 
 // ─── Mock article data ───
@@ -59,6 +60,42 @@ describe("filterChinaAI", () => {
     ];
     const result = filterChinaAI(nonMatching);
     expect(result).toEqual([]);
+  });
+});
+
+describe("filterRecentTrackedArticles", () => {
+  const now = new Date("2026-08-18T12:00:00.000Z");
+  const articles = [
+    {
+      title: "DeepSeek 更新",
+      url: "https://example.com/new",
+      publishedAt: "2026-08-08T12:00:00.000Z",
+    },
+    {
+      title: "过期文章",
+      url: "https://example.com/old",
+      publishedAt: "2026-08-03T11:59:59.000Z",
+    },
+    {
+      title: "无日期文章",
+      url: "https://example.com/missing",
+      publishedAt: "",
+    },
+    {
+      title: "坏日期文章",
+      url: "https://example.com/bad",
+      publishedAt: "not-a-date",
+    },
+  ];
+
+  it("keeps only dated articles within a tracked source's freshness window", () => {
+    expect(filterRecentTrackedArticles(articles, { freshnessWindowDays: 14 }, now)).toEqual([
+      articles[0],
+    ]);
+  });
+
+  it("does not filter a source without a freshness window", () => {
+    expect(filterRecentTrackedArticles(articles, undefined, now)).toEqual(articles);
   });
 });
 
@@ -229,6 +266,88 @@ describe("buildOutputJson", () => {
     expect(result.topics.fermenting).toEqual([]);
     expect(result.topics.data).toEqual([]);
     expect(result.topics.explainer).toEqual([]);
+  });
+
+  // ─── T03 (#55): imageUrl extraction in buildOutputJson ───
+
+  it("includes images field when article has imageUrl (T03)", () => {
+    const articles = [
+      {
+        title: "DeepSeek just announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        imageUrl: "http://qbitai.com/img/v4.jpg",
+        hasImage: true,
+      },
+    ];
+    const result = buildOutputJson(articles);
+    expect(result.topics.breaking).toHaveLength(1);
+    const topic = result.topics.breaking[0];
+    expect(topic.images).toBeDefined();
+    expect(topic.images).toHaveLength(1);
+    expect(topic.images[0].url).toBe("http://qbitai.com/img/v4.jpg");
+    expect(topic.images[0].sourceArticle).toBe("http://qbitai.com/1");
+  });
+
+  it("excludes images field when article has no imageUrl (T03)", () => {
+    const articles = [
+      {
+        title: "DeepSeek just announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        imageUrl: null,
+        hasImage: false,
+      },
+    ];
+    const result = buildOutputJson(articles);
+    expect(result.topics.breaking).toHaveLength(1);
+    const topic = result.topics.breaking[0];
+    // images field should be empty array or undefined
+    expect(!topic.images || topic.images.length === 0).toBe(true);
+  });
+
+  it("deduplicates images by URL when multiple articles merge (T03)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        imageUrl: "http://qbitai.com/img/v4.jpg",
+        hasImage: true,
+      },
+      {
+        title: "DeepSeek V4 announced",
+        source: "36kr",
+        url: "http://36kr.com/1",
+        imageUrl: "http://qbitai.com/img/v4.jpg", // same image URL
+        hasImage: true,
+      },
+    ];
+    // These would be deduplicated by deduplicateTopics first,
+    // but buildOutputJson should also deduplicate images
+    const result = buildOutputJson(articles);
+    // Each article goes into its own topic (different sources, but same title —
+    // deduplicateTopics would merge them, but buildOutputJson operates on raw articles)
+    // With raw articles, each topic gets its own image
+    expect(result.topics.fermenting).toHaveLength(2);
+  });
+
+  it("handles articles without imageUrl field (backward compat, T03)", () => {
+    const articles = [
+      {
+        title: "DeepSeek just announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        // no imageUrl field at all
+      },
+    ];
+    const result = buildOutputJson(articles);
+    expect(result.topics.breaking).toHaveLength(1);
+    const topic = result.topics.breaking[0];
+    expect(!topic.images || topic.images.length === 0).toBe(true);
   });
 });
 

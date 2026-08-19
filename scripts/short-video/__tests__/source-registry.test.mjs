@@ -8,21 +8,23 @@ import {
   ALL_SOURCES,
   DEFAULT_KEYWORDS,
   WECHAT_API_CONFIG,
+  WECHAT_RSS_SOURCES,
 } from "../lib/source-registry.mjs";
 
 // ─── Source structure validation ───
 
 describe("Source structure", () => {
-  it("NEWS_SOURCES has 7 sources", () => {
-    expect(NEWS_SOURCES).toHaveLength(7);
+  it("NEWS_SOURCES has 14 sources (7 original + 7 CDP image search)", () => {
+    expect(NEWS_SOURCES).toHaveLength(14);
   });
 
   it("SELF_MEDIA_SOURCES has 8 sources", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 34 sources", () => {
-    expect(ALL_SOURCES).toHaveLength(34);
+  it("ALL_SOURCES has 59 sources", () => {
+    // 46 existing + 7 CDP image search + 6 stock_api sources
+    expect(ALL_SOURCES).toHaveLength(59);
   });
 
   it("each source has required fields", () => {
@@ -36,6 +38,10 @@ describe("Source structure", () => {
       expect(["cdp", "api", "mcp"]).toContain(source.accessMethod.primary);
       expect(Array.isArray(source.accessMethod.fallbacks)).toBe(true);
       expect(typeof source.accessMethod.notes).toBe("string");
+      // Stock API sources don't have url/extractScript at top level — they use capabilities
+      if (source.category === "stock_api") continue;
+      // CDP image-only sources have empty extractScript (no article extraction)
+      if (source.extractScript === "") continue;
       expect(typeof source.url).toBe("function");
       expect(typeof source.extractScript).toBe("string");
       // MCP-only sources may have minimal extractScript (e.g. "return [];")
@@ -47,6 +53,51 @@ describe("Source structure", () => {
   it("source names are unique", () => {
     const names = ALL_SOURCES.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+// ─── Wechat RSS sources ───
+describe("Wechat RSS sources", () => {
+  it("registers exactly 12 validated public feeds", () => {
+    expect(WECHAT_RSS_SOURCES).toHaveLength(12);
+    expect(WECHAT_RSS_SOURCES.every((source) => source.name.startsWith("wechat2rss_"))).toBe(true);
+  });
+
+  it("marks every feed as third-party, non-official public RSS with a 14-day window", () => {
+    for (const source of WECHAT_RSS_SOURCES) {
+      expect(source.category).toBe("wechat");
+      expect(source.supportsKeyword).toBe(false);
+      expect(source.needsAuth).toBe(false);
+      expect(source.accessMethod.primary).toBe("api");
+      expect(source.tracking).toEqual({
+        provider: "wechat2rss",
+        access: "public-rss",
+        official: false,
+        stability: "third-party",
+        freshnessWindowDays: 14,
+      });
+      expect(source.apiSearch.url()).toMatch(
+        /^https:\/\/wechat2rss\.xlab\.app\/feed\/[a-f0-9]+\.xml$/,
+      );
+    }
+  });
+
+  it("parses valid RSS 2.0 entries into the shared article contract", () => {
+    const parser = WECHAT_RSS_SOURCES[0].apiSearch.parser;
+    const items = parser(`<?xml version="1.0"?><rss><channel><item>
+      <title><![CDATA[DeepSeek 发布新模型]]></title>
+      <link>https://mp.weixin.qq.com/s/example</link>
+      <description><![CDATA[这是一个用于验证 RSS 摘要解析的内容。]]></description>
+      <pubDate>Mon, 17 Aug 2026 09:00:00 +0800</pubDate>
+    </item><item><title>没有链接的条目</title></item></channel></rss>`);
+    expect(items).toEqual([
+      {
+        title: "DeepSeek 发布新模型",
+        url: "https://mp.weixin.qq.com/s/example",
+        snippet: "这是一个用于验证 RSS 摘要解析的内容。",
+        publishedAt: "Mon, 17 Aug 2026 09:00:00 +0800",
+      },
+    ]);
   });
 });
 
@@ -233,15 +284,23 @@ describe("Login check scripts", () => {
 describe("Extract scripts", () => {
   it("all CDP-based extract scripts are non-empty strings", () => {
     for (const src of ALL_SOURCES) {
+      // Skip stock API sources (no CDP article extraction)
+      if (src.category === "stock_api") continue;
       expect(typeof src.extractScript).toBe("string");
-      // MCP-only sources (like mcp_grok_search) may have minimal extractScript
-      if (src.mcpFallback && !src.url()) continue;
+      // CDP image-only sources have empty extractScript (no article extraction)
+      if (src.extractScript === "") continue;
+      // API sources do not use the CDP extractor; MCP-only sources may have minimal extractScript.
+      if (src.accessMethod.primary === "api" || (src.mcpFallback && !src.url())) continue;
       expect(src.extractScript.length).toBeGreaterThan(50);
     }
   });
 
   it("all CDP-based extract scripts return results array", () => {
     for (const src of ALL_SOURCES) {
+      // Skip stock API sources (no CDP article extraction)
+      if (src.category === "stock_api") continue;
+      // CDP image-only sources have empty extractScript (no article extraction)
+      if (src.extractScript === "") continue;
       // MCP-only sources (like mcp_grok_search) may have minimal extractScript
       if (src.mcpFallback && !src.url()) continue;
       expect(src.extractScript).toContain("return results");
@@ -396,9 +455,9 @@ describe("last30days sources", () => {
 describe("supportsKeyword validation", () => {
   it("homepage-only sources have supportsKeyword=false", () => {
     const homepageSources = ALL_SOURCES.filter((s) => !s.supportsKeyword);
-    // qbitai, jiqizhixin, 36kr, techcrunch, bloomberg, guancha, ithome,
-    // weibo_hot, wechat_dongchabeating, datacube_ai
-    expect(homepageSources.length).toBe(10);
+    // Existing homepage-only sources plus 12 fixed public Wechat RSS sources.
+    // Stock API sources all support keyword search.
+    expect(homepageSources.length).toBe(22);
   });
 
   it("keyword-capable sources have supportsKeyword=true", () => {
@@ -408,7 +467,8 @@ describe("supportsKeyword validation", () => {
     // google, baidu, mcp_grok, noozra, currents,
     // reddit, hackernews, polymarket, digg, techmeme,
     // tiktok_creator (via ScrapeCreators API)
-    expect(keywordSources.length).toBe(24);
+    // + 6 stock_api sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
+    expect(keywordSources.length).toBe(37);
   });
 });
 
@@ -799,23 +859,26 @@ describe("apiSearch configuration", () => {
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("exactly 11 sources have apiSearch configured", () => {
+  it("includes the 11 existing API sources and 12 public Wechat RSS sources", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(11);
-    const names = withApi.map((s) => s.name).sort();
-    expect(names).toEqual([
-      "arxiv_search",
-      "core_search",
-      "currents",
-      "datacube_ai",
-      "github_search",
-      "gnews",
-      "hackernews_search",
-      "noozra_search",
-      "openalex_search",
-      "reddit_search",
-      "tiktok_creator",
-    ]);
+    expect(withApi).toHaveLength(23);
+    const names = withApi.map((s) => s.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "arxiv_search",
+        "core_search",
+        "currents",
+        "datacube_ai",
+        "github_search",
+        "gnews",
+        "hackernews_search",
+        "noozra_search",
+        "openalex_search",
+        "reddit_search",
+        "tiktok_creator",
+        ...WECHAT_RSS_SOURCES.map((source) => source.name),
+      ]),
+    );
   });
 
   it("sources with apiSearch have accessMethod.primary === 'api'", () => {

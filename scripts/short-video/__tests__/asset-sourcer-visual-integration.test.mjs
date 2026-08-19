@@ -35,6 +35,7 @@ import {
   scoreCandidate,
   assignAssetsToScenes,
   preFilterCandidate,
+  normalizePathForPatch,
 } from "../lib/asset-sourcer.mjs";
 
 // ─── Default mock returns ───
@@ -116,7 +117,8 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     expect(assets[0].aiFitReason).toBeUndefined();
   });
 
-  it("calls detectFocus in Phase 1 and closeFocusDetector after", async () => {
+  // T06 fix: pre-filter (Phase 1) runs BEFORE detectFocus (Phase 2)
+  it("calls detectFocus in Phase 2 (after pre-filter) and closeFocusDetector after", async () => {
     const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
 
     await analyzeAssets(assets);
@@ -182,7 +184,9 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     expect(mockAnalyzeAssetSemantics).not.toHaveBeenCalled();
   });
 
-  it("pre-filters low-confidence assets (skips VLM for low technicalScore)", async () => {
+  // T06 fix: pre-filter (Phase 1) runs BEFORE detectFocus (Phase 2)
+  // lowConfidence assets should NOT be sent to detectFocus at all
+  it("pre-filters low-confidence assets — skips BOTH detectFocus AND VLM (T06)", async () => {
     const assets = [
       {
         path: "/abs/good.jpg",
@@ -208,6 +212,11 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     // bad asset: titleScore=0, durationScore=3 (>60s), sizeScore=0 (>50M), resScore=0 = 3 < 30
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/good.jpg");
+
+    // T06: detectFocus should only be called for the GOOD asset (survived pre-filter)
+    // NOT for the bad asset (lowConfidence → skipped before Phase 2)
+    expect(mockDetectFocus).toHaveBeenCalledTimes(1);
+    expect(mockDetectFocus).toHaveBeenCalledWith("/abs/good.jpg");
   });
 
   it("returns aiAnalysis report with per-asset data", async () => {
@@ -409,5 +418,272 @@ describe("assignAssetsToScenes — contentKind + video fit guard", () => {
 
     const patches = assignAssetsToScenes(assets, mockScenes);
     expect(patches[0].analysis).toBeUndefined();
+  });
+});
+
+// ─── Ticket 01: Path isolation — relative path preservation (P0) ───
+// Scenario Matrix rows: #1, #2, #3
+
+describe("Ticket 01 — Path isolation (relative path preservation)", () => {
+  // Scenario #1: Asset with relative path → analyzeAssets with contentDir
+  //   VLM/Focus receives join(contentDir, 'assets/img.jpg'); asset.path stays 'assets/img.jpg'
+  it("keeps asset.path relative when contentDir is provided (Scenario #1)", async () => {
+    const assets = [{ path: "assets/img.jpg", type: "image", searchKeyword: "Unitree" }];
+    const contentDir = "/content/unitree";
+
+    await analyzeAssets(assets, { contentDir });
+
+    // asset.path should still be the relative path — NOT mutated to absolute
+    expect(assets[0].path).toBe("assets/img.jpg");
+
+    // VLM should have been called with the resolved absolute path
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/content/unitree/assets/img.jpg");
+  });
+
+  // Scenario #1 (focus detection part): detectFocus also gets absolute path
+  it("passes resolved absolute path to detectFocus (Scenario #1)", async () => {
+    const assets = [{ path: "assets/clip.mp4", type: "video", searchKeyword: "Unitree" }];
+    const contentDir = "/content/demo";
+
+    await analyzeAssets(assets, { contentDir });
+
+    expect(mockDetectFocus).toHaveBeenCalledWith("/content/demo/assets/clip.mp4");
+  });
+
+  // Scenario #2: assignAssetsToScenes with relative-path assets → media.path is relative
+  it("produces media.path relative in assignAssetsToScenes (Scenario #2)", () => {
+    const scenes = [{ id: 1, visualType: "narrative", voiceover: "test" }];
+    const assets = [
+      {
+        path: "assets/img.jpg",
+        type: "image",
+        score: 85,
+        source: "pexels",
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, scenes);
+    expect(patches[0].status).toBe("assigned");
+    expect(patches[0].media.path).toBe("assets/img.jpg");
+  });
+
+  // Scenario #2 (multi-asset): all media.path values are relative
+  it("all media.path values are relative in multi-asset patch (Scenario #2)", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative", voiceover: "a" },
+      { id: 2, visualType: "narrative", voiceover: "b" },
+    ];
+    const assets = [
+      { path: "assets/img1.jpg", type: "image", score: 90, source: "pexels" },
+      { path: "assets/img2.jpg", type: "image", score: 80, source: "unsplash" },
+    ];
+
+    const patches = assignAssetsToScenes(assets, scenes);
+    const assigned = patches.filter((p) => p.status === "assigned");
+    expect(assigned).toHaveLength(2);
+    for (const p of assigned) {
+      expect(p.media.path).toMatch(/^(assets\/|\.\/)/);
+      expect(p.media.path).not.toMatch(/^\//);
+    }
+  });
+
+  // Scenario #3: Absolute path that escapes contentDir → throws
+  it("throws on path escape (absolute path outside contentDir) (Scenario #3)", () => {
+    expect(() => {
+      normalizePathForPatch("/etc/passwd", "/content/unitree");
+    }).toThrow();
+  });
+
+  // Scenario #3 (positive): absolute path inside contentDir → normalized to relative
+  it("normalizes absolute path inside contentDir to relative (Scenario #3)", () => {
+    const result = normalizePathForPatch("/content/unitree/assets/img.jpg", "/content/unitree");
+    expect(result).toBe("assets/img.jpg");
+  });
+
+  // Scenario #2 (defensive normalization): already-relative path passes through
+  it("passes through already-relative path unchanged (defensive)", () => {
+    const result = normalizePathForPatch("assets/img.jpg", "/content/unitree");
+    expect(result).toBe("assets/img.jpg");
+  });
+});
+
+// ─── Ticket 03: Artifact isolation by content slug (P1-3) ───
+// Scenario Matrix rows: #11, #12, #13, #14, #15, #16
+
+describe("Ticket 03 — Artifact isolation by content slug", () => {
+  // Scenario #12: asset-analysis.json written to output/{contentSlug}/
+  it("writes asset-analysis.json to output/{contentSlug}/ (Scenario #12)", async () => {
+    const tmpBase = join(process.cwd(), "tmp-test-slug-" + Date.now());
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
+
+    await analyzeAssets(assets, { outputDir: tmpBase, contentSlug: "test-content" });
+
+    const artifactPath = join(tmpBase, "test-content", "asset-analysis.json");
+    const { existsSync: exists } = await import("fs");
+    expect(exists(artifactPath)).toBe(true);
+
+    // Cleanup
+    const { rmSync: rm } = await import("fs");
+    try {
+      rm(tmpBase, { recursive: true, force: true });
+    } catch {}
+  });
+
+  // Scenario #13: media-patch.json also goes to output/{contentSlug}/ (checked via main path logic)
+  // (media-patch.json path is constructed in main(), tested via integration)
+  // For unit test: verify artifact path uses contentSlug subdirectory
+  it("does NOT write to flat output/ when contentSlug is provided (Scenario #13)", async () => {
+    const tmpBase = join(process.cwd(), "tmp-test-slug2-" + Date.now());
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
+
+    await analyzeAssets(assets, { outputDir: tmpBase, contentSlug: "my-content" });
+
+    const { existsSync: exists } = await import("fs");
+    // Should NOT exist at flat level
+    expect(exists(join(tmpBase, "asset-analysis.json"))).toBe(false);
+    // Should exist under contentSlug subdirectory
+    expect(exists(join(tmpBase, "my-content", "asset-analysis.json"))).toBe(true);
+
+    const { rmSync: rm } = await import("fs");
+    try {
+      rm(tmpBase, { recursive: true, force: true });
+    } catch {}
+  });
+
+  // Scenario #14: re-run same content slug overwrites (acceptable)
+  it("overwrites on re-run same content slug (Scenario #14)", async () => {
+    const tmpBase = join(process.cwd(), "tmp-test-slug3-" + Date.now());
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
+
+    // First run
+    await analyzeAssets(assets, { outputDir: tmpBase, contentSlug: "rerun-test" });
+
+    // Second run (overwrite)
+    await analyzeAssets(assets, { outputDir: tmpBase, contentSlug: "rerun-test" });
+
+    const { existsSync: exists, readFileSync: readFile } = await import("fs");
+    const artifactPath = join(tmpBase, "rerun-test", "asset-analysis.json");
+    expect(exists(artifactPath)).toBe(true);
+
+    // Should be valid JSON (not corrupted by overwrite)
+    const written = JSON.parse(readFile(artifactPath, "utf8"));
+    expect(written.version).toBe(1);
+
+    const { rmSync: rm } = await import("fs");
+    try {
+      rm(tmpBase, { recursive: true, force: true });
+    } catch {}
+  });
+
+  // Scenario #15: different content slugs produce different directories
+  it("different contentSlugs produce different directories (Scenario #15)", async () => {
+    const tmpBase = join(process.cwd(), "tmp-test-slug4-" + Date.now());
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
+
+    await analyzeAssets(assets, { outputDir: tmpBase, contentSlug: "content-a" });
+    await analyzeAssets(assets, { outputDir: tmpBase, contentSlug: "content-b" });
+
+    const { existsSync: exists } = await import("fs");
+    expect(exists(join(tmpBase, "content-a", "asset-analysis.json"))).toBe(true);
+    expect(exists(join(tmpBase, "content-b", "asset-analysis.json"))).toBe(true);
+
+    const { rmSync: rm } = await import("fs");
+    try {
+      rm(tmpBase, { recursive: true, force: true });
+    } catch {}
+  });
+
+  // Backward compat: no contentSlug → write to flat outputDir
+  it("writes to flat outputDir when no contentSlug (backward compat)", async () => {
+    const tmpBase = join(process.cwd(), "tmp-test-slug5-" + Date.now());
+    const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
+
+    await analyzeAssets(assets, { outputDir: tmpBase });
+
+    const { existsSync: exists } = await import("fs");
+    expect(exists(join(tmpBase, "asset-analysis.json"))).toBe(true);
+
+    const { rmSync: rm } = await import("fs");
+    try {
+      rm(tmpBase, { recursive: true, force: true });
+    } catch {}
+  });
+});
+
+// ─── Ticket 03: Pre-filter is hard gate (P1-2) ───
+// Scenario Matrix row: #11
+
+describe("Ticket 03 — Pre-filter is hard gate (P1-2)", () => {
+  // Scenario #11: lowConfidence = true asset is hard-skipped from VLM analysis
+  // T06: lowConfidence asset also skips detectFocus (Phase 2)
+  it("hard-skips lowConfidence assets from VLM AND detectFocus (Scenario #11, T06)", async () => {
+    const assets = [
+      {
+        path: "/abs/good.jpg",
+        type: "image",
+        title: "Unitree Robot Demo",
+        searchKeyword: "Unitree",
+        fileSize: 3_000_000,
+        resolution: "1080p",
+      },
+      {
+        path: "/abs/bad.jpg",
+        type: "video",
+        title: "unrelated",
+        searchKeyword: "Unitree",
+        fileSize: 100_000_000,
+        duration: 120,
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    // Good asset analyzed, bad asset skipped
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/good.jpg");
+
+    // T06: detectFocus only called for good asset, NOT for bad asset
+    expect(mockDetectFocus).toHaveBeenCalledTimes(1);
+    expect(mockDetectFocus).toHaveBeenCalledWith("/abs/good.jpg");
+
+    // Bad asset should have lowConfidence = true
+    expect(assets[1].lowConfidence).toBe(true);
+    // Bad asset should NOT have VLM fields set
+    expect(assets[1].description).toBeUndefined();
+    // T06: Bad asset should NOT have focusAnalysis set
+    expect(assets[1].focusAnalysis).toBeUndefined();
+  });
+
+  // T06 Scenario #12: ALL assets are lowConfidence → detectFocus + VLM not called at all
+  it("skips detectFocus and VLM entirely when all assets are lowConfidence (Scenario #12)", async () => {
+    const assets = [
+      {
+        path: "/abs/bad1.jpg",
+        type: "video",
+        title: "unrelated",
+        searchKeyword: "Unitree",
+        fileSize: 100_000_000,
+        duration: 120,
+      },
+      {
+        path: "/abs/bad2.jpg",
+        type: "video",
+        title: "another bad",
+        searchKeyword: "Unitree",
+        fileSize: 80_000_000,
+        duration: 200,
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    // No detectFocus calls at all
+    expect(mockDetectFocus).not.toHaveBeenCalled();
+    expect(mockCloseFocusDetector).not.toHaveBeenCalled();
+    // No VLM calls at all
+    expect(mockAnalyzeAssetSemantics).not.toHaveBeenCalled();
+    // All assets marked lowConfidence
+    expect(assets[0].lowConfidence).toBe(true);
+    expect(assets[1].lowConfidence).toBe(true);
   });
 });

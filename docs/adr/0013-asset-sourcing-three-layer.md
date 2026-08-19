@@ -2,7 +2,7 @@
 
 The video pipeline needs visual assets from diverse sources (free APIs, Chinese news sites, video platforms, western social media, WeChat). Each source has different reliability, rate limits, and access requirements. A single-method approach fails because API sources are faster but not all sources have APIs, Chinese sites have anti-bot measures, and western platforms need different access methods.
 
-**Three-layer collection architecture with per-source fallback chain:** API direct-connect (fastest, JSON) → CDP primary (Chrome DevTools Protocol, handles login-gated sources) → CDP fallback (Google site: search) → MCP fallback (mcp-search-bridge / Grok). Each source in `source-registry.mjs` declares its access method, API config, CDP fallback, and MCP fallback.
+**Three-layer collection architecture with per-source fallback chain:** API direct-connect (fastest, JSON) → CDP primary (Chrome DevTools Protocol, handles login-gated sources) → CDP fallback (Google site: search) → MCP fallback (mcp-search-bridge / Grok). Each source in `source-registry.mjs` declares its access method, API config, CDP fallback, and MCP fallback via the `capabilities` field — a single source of truth for all data types (articles, images, videos). `asset-sourcer.mjs` queries sources by capability (`capabilities.images`, `capabilities.videos`) instead of maintaining separate `API_SOURCES` / `YTDLP_SOURCES` / `CDP_SOURCES` arrays.
 
 ## Considered Options
 
@@ -15,4 +15,5 @@ The video pipeline needs visual assets from diverse sources (free APIs, Chinese 
 - Source definitions and classification: see `docs/content-pipeline.md` → source registry section.
 - Collection layer order is enforced in `collectFromSource()`: API → CDP → cdpFallback → mcpFallback.
 - Chrome Remote Debugging must be enabled for CDP sources.
-- Adding a source = adding a collector object to `source-registry.mjs`. No code changes needed in `search-sources.mjs`.
+- Adding a source = adding a collector object to `source-registry.mjs`. No code changes needed in `search-sources.mjs` or `asset-sourcer.mjs` — both query the same registry by capability (`capabilities.articles` / `capabilities.images` / `capabilities.videos`).
+- Cross-stage image caching: trend discovery's `extractScript` extracts `imageUrl` from the same DOM as article titles. Asset sourcer consumes cached URLs from `trending-topics.json`, filtering by keyword match + URL pattern — zero additional CDP requests for images already seen during trend discovery.
