@@ -302,10 +302,6 @@ export const sendTestAlertNotification = createServerFn({ method: "POST" })
     }
 
     const capturedOn = new Date().toISOString().slice(0, 10);
-    await sendRankingAlert(
-      recipient,
-      data.alerts,
-      capturedOn,
-    );
+    await sendRankingAlert(recipient, data.alerts, capturedOn, `test-${Date.now()}`);
     return { sent: true, recipient };
   });
