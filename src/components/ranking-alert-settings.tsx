@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { BellOff, BellRing, Mail, Plus, Trash2 } from "lucide-react";
+import { BellOff, BellRing, Mail, Plus, Send, Trash2 } from "lucide-react";
 import {
   addAlertRecipient,
   deleteAlertRecipient,
   getAlertConfig,
   isDrop,
+  sendTestAlertNotification,
   updateAlertSettings,
 } from "@/lib/keyword-tracking.functions";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+
 
 /** Admin controls for when ranking alerts fire and who receives them. */
 export function RankingAlertSettings() {
