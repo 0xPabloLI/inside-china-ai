@@ -45,10 +45,7 @@ describe("capabilities field presence", () => {
   it("sources with extractScript have capabilities.articles", () => {
     for (const source of ALL_SOURCES) {
       // Skip sources with trivial extractScript (MCP-only or API-only)
-      if (
-        source.accessMethod?.primary === "api" ||
-        (source.mcpFallback && !source.url())
-      ) {
+      if (source.accessMethod?.primary === "api" || (source.mcpFallback && !source.url())) {
         continue;
       }
       if (source.extractScript && source.extractScript.length > 50) {
@@ -280,8 +277,8 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-it("ALL_SOURCES has 59 sources (46 existing + 7 CDP image search + 6 stock_api - lorem_picsum not in registry)", () => {
-// 46 existing + 7 CDP image search + 6 new stock_api = 59
+  it("ALL_SOURCES has 59 sources (46 existing + 7 CDP image search + 6 stock_api - lorem_picsum not in registry)", () => {
+    // 46 existing + 7 CDP image search + 6 new stock_api = 59
     // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
     expect(ALL_SOURCES).toHaveLength(59);
   });
@@ -289,5 +286,69 @@ it("ALL_SOURCES has 59 sources (46 existing + 7 CDP image search + 6 stock_api -
   it("source names are still unique after merge", () => {
     const names = ALL_SOURCES.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+// ─── R2: stock_api sources excluded from trend discovery ───
+
+describe("R2 — stock_api sources excluded from trend discovery", () => {
+  it("no stock_api source has capabilities.articles", () => {
+    const stockSources = ALL_SOURCES.filter((s) => s.category === "stock_api");
+    for (const s of stockSources) {
+      expect(s.capabilities?.articles).toBeUndefined();
+    }
+  });
+
+  it("filtering by capabilities.articles excludes all stock_api sources", () => {
+    const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    const stockInArticles = articleSources.filter((s) => s.category === "stock_api");
+    expect(stockInArticles).toHaveLength(0);
+  });
+});
+
+// ─── R3: yt-dlp attribution key alignment ───
+
+describe("R3 — yt-dlp attribution keys match source names", () => {
+  it("SOURCE_ATTRIBUTIONS has xhs (not xiaohongshu)", () => {
+    expect(SOURCE_ATTRIBUTIONS.xhs).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.xiaohongshu).toBeUndefined();
+  });
+
+  it("SOURCE_ATTRIBUTIONS has weibo_hot (not weibo)", () => {
+    expect(SOURCE_ATTRIBUTIONS.weibo_hot).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.weibo).toBeUndefined();
+  });
+
+  it("SOURCE_ATTRIBUTIONS has youtube_search (not youtube)", () => {
+    expect(SOURCE_ATTRIBUTIONS.youtube_search).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.youtube).toBeUndefined();
+  });
+
+  it("every yt-dlp source name has a matching SOURCE_ATTRIBUTIONS key", () => {
+    const ytdlpSources = ALL_SOURCES.filter((s) => s.capabilities?.videos?.method === "ytdlp");
+    for (const s of ytdlpSources) {
+      expect(SOURCE_ATTRIBUTIONS[s.name]).toBeDefined();
+    }
+  });
+});
+
+// ─── R4: capabilities.articles has complete config ───
+
+describe("R4 — capabilities.articles has complete config", () => {
+  it("every source with capabilities.articles has url, extractScript, and supportsKeyword", () => {
+    const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    for (const s of articleSources) {
+      expect(s.capabilities.articles.url).toBeDefined();
+      expect(s.capabilities.articles.extractScript).toBeDefined();
+      expect(typeof s.capabilities.articles.supportsKeyword).toBe("boolean");
+    }
+  });
+
+  it("capabilities.articles has needsAuth and useCleanTitle fields", () => {
+    const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    for (const s of articleSources) {
+      expect(typeof s.capabilities.articles.needsAuth).toBe("boolean");
+      expect(typeof s.capabilities.articles.useCleanTitle).toBe("boolean");
+    }
   });
 });

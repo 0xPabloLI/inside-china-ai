@@ -935,12 +935,12 @@ describe("SOURCE_ATTRIBUTIONS", () => {
     expect(SOURCE_ATTRIBUTIONS.douyin.license).toBe("Fair use");
   });
 
-  it("has attribution for xiaohongshu", () => {
-    expect(SOURCE_ATTRIBUTIONS.xiaohongshu).toBeDefined();
+  it("has attribution for xhs (R3: matches yt-dlp source name)", () => {
+    expect(SOURCE_ATTRIBUTIONS.xhs).toBeDefined();
   });
 
-  it("has attribution for weibo", () => {
-    expect(SOURCE_ATTRIBUTIONS.weibo).toBeDefined();
+  it("has attribution for weibo_hot (R3: matches yt-dlp source name)", () => {
+    expect(SOURCE_ATTRIBUTIONS.weibo_hot).toBeDefined();
   });
 });
 

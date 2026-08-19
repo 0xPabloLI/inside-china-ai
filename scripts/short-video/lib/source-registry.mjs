@@ -1341,7 +1341,7 @@ export const WESTERN_SOURCES = [
         if (!data.results) return [];
         return data.results.map((work) => ({
           title: work.title || "",
-          url: work.doi ? `https://doi.org/${work.doi}` : (work.sourceFulltextUrls?.[0] || ""),
+          url: work.doi ? `https://doi.org/${work.doi}` : work.sourceFulltextUrls?.[0] || "",
           snippet: work.abstract ? work.abstract.substring(0, 200) : "",
           publishedAt: work.publishedDate || work.depositedDate || "",
           author: work.authors?.map((a) => a.name).join(", ") || "",
@@ -1586,8 +1586,7 @@ export const GENERAL_SEARCH_SOURCES = [
     useCleanTitle: false,
     // Noozra API: returns JSON with articles[] containing headline, url, published_at, source
     apiSearch: {
-      url: (keyword) =>
-        `https://noozra.com/api/search?q=${encodeURIComponent(keyword)}&limit=10`,
+      url: (keyword) => `https://noozra.com/api/search?q=${encodeURIComponent(keyword)}&limit=10`,
       parser: (text) => {
         const data = JSON.parse(text);
         if (!data.articles) return [];
@@ -2592,7 +2591,8 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "Coverr License",
     logoRequired: false,
   },
-  youtube: {
+  // R3: Key matches yt-dlp source name (youtube_search, not youtube)
+  youtube_search: {
     text: (a) => `Contains footage from ${a.author || a.title || "Unknown"} (YouTube)`,
     license: "Fair use",
     logoRequired: false,
@@ -2607,12 +2607,13 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "Fair use",
     logoRequired: false,
   },
-  xiaohongshu: {
+  // R3: Keys match yt-dlp source names in capabilities.videos (xhs, weibo_hot)
+  xhs: {
     text: (a) => `Contains footage from ${a.author || "Unknown"} (小红书)`,
     license: "Fair use",
     logoRequired: false,
   },
-  weibo: {
+  weibo_hot: {
     text: (a) => `Contains footage from ${a.author || "Unknown"} (微博)`,
     license: "Fair use",
     logoRequired: false,
@@ -2680,10 +2681,17 @@ function enrichWithCapabilities(sources) {
 
     const capabilities = {};
 
-    // Articles: sources with any extractScript (even minimal "return [];")
+    // R4: Articles — migrate all article-consumption fields into capabilities.articles
+    // so it becomes the complete source of truth. Top-level fields remain for
+    // backward compat with consumers that haven't migrated yet.
     if (source.extractScript) {
       capabilities.articles = {
         supportsKeyword: source.supportsKeyword,
+        url: source.url,
+        extractScript: source.extractScript,
+        loginCheckScript: source.loginCheckScript || null,
+        needsAuth: source.needsAuth || false,
+        useCleanTitle: source.useCleanTitle || false,
       };
     }
 

@@ -101,6 +101,47 @@ const isScopedMode = !!contentIdArg;
 
 let cdpAvailable = true; // Set to false if CDP proxy check fails in main()
 
+/**
+ * R1: Enrich articles with imageUrl extracted from the same DOM.
+ *
+ * Runs a CDP eval on the still-open tab to find <img> elements near each
+ * article link. This is zero additional navigation — the tab is already open
+ * from the extractScript call. The script finds all <a> elements, then for
+ * each one checks if there's a nearby <img> (same parent or ancestor container).
+ *
+ * Articles are matched by URL: if the article's URL matches an <a href> on
+ * the page, the nearest <img> src is used as imageUrl.
+ *
+ * @param {string} tabId - CDP tab ID (still open)
+ * @param {Array<{title: string, url: string}>} articles - Articles from extractScript
+ * @returns {Promise<Array>} Articles with imageUrl/hasImage fields added
+ */
+async function enrichWithImages(tabId, articles) {
+  const imageScript = `
+    var results = {};
+    var links = document.querySelectorAll('a[href]');
+    links.forEach(function(a) {
+      var img = a.querySelector('img') || a.parentElement?.querySelector('img') || a.closest('article, .article-item, .post-item, .list-item, .kr-flow-item, .recommend-item')?.querySelector('img');
+      if (img && img.src && img.src.startsWith('http')) {
+        results[a.href] = img.src;
+      }
+    });
+    return results;
+  `;
+  const urlToImage = await extractFromTab(tabId, imageScript);
+  if (!urlToImage || typeof urlToImage !== "object") return articles;
+
+  return articles.map((a) => {
+    if (a.imageUrl) return a; // Already has imageUrl from extractScript
+    const imgUrl = urlToImage[a.url];
+    return {
+      ...a,
+      imageUrl: imgUrl || null,
+      hasImage: !!imgUrl,
+    };
+  });
+}
+
 async function collectFromCdp(source, keyword) {
   if (!cdpAvailable) return [];
   const url = source.url(keyword || DEFAULT_KEYWORDS[0]);
@@ -148,6 +189,19 @@ async function collectFromCdp(source, keyword) {
     await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
     articles = await extractFromTab(tabId, source.extractScript);
     console.log(`  📊 Retry extracted ${articles.length} articles`);
+  }
+
+  // R1: Extract imageUrl from the same DOM — zero additional requests.
+  // The tab is still open; we run a second eval to find images alongside
+  // the same article items. enrichWithImages adds imageUrl/hasImage to
+  // each article that has a matching image.
+  if (articles.length > 0) {
+    try {
+      articles = await enrichWithImages(tabId, articles);
+    } catch (e) {
+      // Non-fatal — articles without imageUrl still work for trend discovery
+      console.warn(`  ⚠️  Image enrichment failed: ${e.message}`);
+    }
   }
 
   // Close tab
@@ -275,8 +329,12 @@ async function main() {
   console.log(`📡 China AI News Source Search — ${mode} mode`);
   console.log("=".repeat(60));
 
-  // Select sources based on mode
-  let sources = isResearchMode ? ALL_SOURCES.filter((s) => s.supportsKeyword) : ALL_SOURCES;
+  // R2: Select sources based on mode — only sources with capabilities.articles
+  // This excludes stock_api sources (Pexels, Unsplash, etc.) which only have
+  // capabilities.images/videos and should not be used for article/trend discovery.
+  let sources = isResearchMode
+    ? ALL_SOURCES.filter((s) => s.capabilities?.articles?.supportsKeyword)
+    : ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
   // Filter out paid-API sources unless --include-paid is passed
   const paidSources = sources.filter((s) => s.apiSearch?.paidApi || s.mcpFallback?.paidApi);

@@ -1549,6 +1549,57 @@ export async function main(args = process.argv.slice(2)) {
   const failed = [];
   const skipped = [];
 
+  // ── Phase 0: Cached-image flow (from trend discovery) ──
+  // R1: Check trending-topics.json for cached image URLs before making new CDP/API requests.
+  // Images are filtered by keyword match + URL pattern (exclude logos/icons), then
+  // pre-download filtered (technicalScore >= 20), then downloaded.
+  const trendingTopicsPath = join(__dirname, "..", "output", "trending-topics.json");
+  const cachedImages = loadCachedImages(trendingTopicsPath, keywords);
+  if (cachedImages.length > 0) {
+    console.log(`\n🖼️  Cached images (from trend discovery): ${cachedImages.length} found`);
+    const scored = cachedImages
+      .map((c) => ({
+        ...c,
+        score: scoreCandidate(c, keywords[0]),
+        source: c.sourceArticle || "cached",
+        type: "image",
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxPerSource);
+
+    for (let j = 0; j < scored.length; j++) {
+      const candidate = scored[j];
+      if (!candidate.url) continue;
+
+      // T05: Pre-download filter
+      const { technicalScore: preScore } = preFilterCandidate(candidate, keywords[0]);
+      if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+        skipped.push({
+          source: "cached",
+          reason: `pre-download filter (score: ${preScore})`,
+        });
+        continue;
+      }
+
+      const filename = buildFilename("cached", keywords[0], j + 1, "jpg");
+      const destPath = join(assetsDir, filename);
+      const dlResult = await downloadAsset(candidate.url, destPath);
+      if (dlResult.success) {
+        allAssets.push({
+          ...candidate,
+          path: destPath.replace(contentDir + "/", ""),
+          status: dlResult.skipped ? "already exists" : "downloaded",
+        });
+        console.log(`    ✅ cached: ${filename} (score: ${candidate.score})`);
+      } else {
+        failed.push({ source: "cached", keyword: keywords[0], error: dlResult.error });
+        console.log(`    ❌ cached: ${dlResult.error}`);
+      }
+    }
+  } else {
+    console.log("\n🖼️  No cached images found in trending-topics.json");
+  }
+
   // ── API sources (parallel) ──
   console.log("\n📡 API sources:");
   const apiResults = await Promise.allSettled(
