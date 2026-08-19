@@ -33,7 +33,7 @@ Gather raw materials from the user (article URL, screenshots, tips, data points)
 node ~/.agents/skills/web-access/scripts/check-deps.mjs
 
 # Create background tab and extract content as clean Markdown
-curl -s "http://localhost:3456/new?url=https://example.com"
+curl -s -X POST --data-raw 'https://example.com' http://localhost:3456/new
 curl -s -X POST "http://localhost:3456/extract?target=TAB_ID" -d '{}'
 ```
 

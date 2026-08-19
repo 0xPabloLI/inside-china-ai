@@ -298,15 +298,15 @@
 
 ```bash
 # 1. 检查 proxy 是否可用
-node ~/.cursor/skills/web-access/scripts/check-deps.mjs
+node ~/.agents/skills/web-access/scripts/check-deps.mjs
 
 # 2. 打开总览页
-curl -s "http://localhost:3456/new?url=https://www.tiktok.com/tiktokstudio/analytics/overview"
+curl -s -X POST --data-raw 'https://www.tiktok.com/tiktokstudio/analytics/overview' http://localhost:3456/new
 # 等待 10s 后提取数据
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
 # 3. 打开内容页（获取视频列表）
-curl -s "http://localhost:3456/new?url=https://www.tiktok.com/tiktokstudio/analytics/content"
+curl -s -X POST --data-raw 'https://www.tiktok.com/tiktokstudio/analytics/content' http://localhost:3456/new
 # 等待 10s 后提取视频列表
 curl -s -X POST "http://localhost:3456/eval?target=TAB_ID" -d 'document.body.innerText'
 
