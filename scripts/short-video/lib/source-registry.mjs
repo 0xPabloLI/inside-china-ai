@@ -94,32 +94,31 @@ export const NEWS_SOURCES = [
     name: "jiqizhixin",
     label: "机器之心",
     category: "news",
-    supportsKeyword: false,
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP only. Homepage scraping. No public API.",
+      notes: "CDP search page. No public API.",
     },
     needsAuth: false,
     useCleanTitle: false,
-    url: () => "https://www.jiqizhixin.com/",
+    url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
     extractScript: `
-      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
+      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item, .search-result .item');
       var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.article__title, h2, h3, .title');
-          if (link && title) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
-        });
-      }
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('.article__title, h2, h3, .title');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
       if (results.length === 0) {
         document.querySelectorAll('a[href]').forEach(function(a) {
           var text = a.textContent.trim();
           if (text.length > 10 && text.length < 200 && a.href.includes('jiqizhixin.com')) {
-            results.push({ title: text, url: a.href });
+            results.push({ title: text, url: a.href, imageUrl: null });
           }
         });
       }
@@ -277,35 +276,34 @@ export const NEWS_SOURCES = [
     name: "ithome",
     label: "iThome",
     category: "news",
-    supportsKeyword: false,
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP only. Homepage scraping. No public API.",
+      notes: "CDP search page. No public API.",
     },
     needsAuth: false,
     useCleanTitle: false,
-    url: () => "https://www.ithome.com/",
+    url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
     extractScript: `
-      var items = document.querySelectorAll('.list .item, .news-list .item, .lst .item, article');
+      var items = document.querySelectorAll('.list .item, .news-list .item, .lst .item, article, .search-result .item');
       var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.title, h3, h2, a[title]');
-          if (link) {
-            var titleText = title ? title.textContent.trim() : (link.getAttribute('title') || link.textContent.trim());
-            if (titleText && titleText.length > 5 && titleText.length < 200) {
-              results.push({ title: titleText, url: link.href });
-            }
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('.title, h3, h2, a[title]');
+        if (link) {
+          var titleText = title ? title.textContent.trim() : (link.getAttribute('title') || link.textContent.trim());
+          if (titleText && titleText.length > 5 && titleText.length < 200) {
+            results.push({ title: titleText, url: link.href, imageUrl: img ? img.src : null });
           }
-        });
-      }
+        }
+      });
       if (results.length === 0) {
         document.querySelectorAll('a[href]').forEach(function(a) {
           var text = a.textContent.trim();
           if (text.length > 10 && text.length < 200 && a.href.includes('ithome.com')) {
-            results.push({ title: text, url: a.href });
+            results.push({ title: text, url: a.href, imageUrl: null });
           }
         });
       }
@@ -323,12 +321,23 @@ export const NEWS_SOURCES = [
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP image search. No article extraction.",
+      notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
-    extractScript: ``,
+    extractScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
   },
   {
     name: "thepaper",
@@ -338,12 +347,23 @@ export const NEWS_SOURCES = [
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP image search. No article extraction.",
+      notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
-    extractScript: ``,
+    extractScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
   },
   {
     name: "leiphone",
@@ -353,12 +373,23 @@ export const NEWS_SOURCES = [
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP image search. No article extraction.",
+      notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
-    extractScript: ``,
+    extractScript: `
+      var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
   },
   {
     name: "xinzhiyuan",
@@ -368,12 +399,23 @@ export const NEWS_SOURCES = [
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP image search. No article extraction.",
+      notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
-    extractScript: ``,
+    extractScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
   },
   {
     name: "zhidx",
@@ -383,12 +425,23 @@ export const NEWS_SOURCES = [
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP image search. No article extraction.",
+      notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
-    extractScript: ``,
+    extractScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
   },
   {
     name: "google_news",
@@ -398,13 +451,30 @@ export const NEWS_SOURCES = [
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP image+text search. Google News.",
+      notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
-    extractScript: ``,
+    extractScript: `
+      var results = [];
+      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h3, .LC20lb');
+        var img = el.querySelector('img[src]');
+        var snippet = el.querySelector('.VwiC3b, .IsZvec');
+        if (link && title) {
+          results.push({
+            title: title.textContent.trim(),
+            url: link.href,
+            imageUrl: img ? img.src : null,
+            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+          });
+        }
+      });
+      return results;
+    `,
   },
   {
     name: "bing_news",
@@ -414,13 +484,25 @@ export const NEWS_SOURCES = [
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
-      notes: "CDP image+text search. Bing News.",
+      notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) =>
       `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
-    extractScript: ``,
+    extractScript: `
+      var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('h3, h2, .title, .b_caption p');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
   },
 ];
 

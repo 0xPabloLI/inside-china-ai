@@ -40,13 +40,13 @@ describe("Source structure", () => {
       expect(typeof source.accessMethod.notes).toBe("string");
       // Stock API sources don't have url/extractScript at top level — they use capabilities
       if (source.category === "stock_api") continue;
-      // CDP image-only sources have empty extractScript (no article extraction)
-      if (source.extractScript === "") continue;
       expect(typeof source.url).toBe("function");
       expect(typeof source.extractScript).toBe("string");
       // MCP-only sources may have minimal extractScript (e.g. "return [];")
+      // API sources use apiSearch.parser, not CDP extractScript
       if (source.mcpFallback && !source.url()) continue;
-      expect(source.extractScript.length).toBeGreaterThan(10);
+      if (source.accessMethod.primary === "api") continue;
+      expect(source.extractScript.length).toBeGreaterThan(50);
     }
   });
 
@@ -287,8 +287,6 @@ describe("Extract scripts", () => {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_api") continue;
       expect(typeof src.extractScript).toBe("string");
-      // CDP image-only sources have empty extractScript (no article extraction)
-      if (src.extractScript === "") continue;
       // API sources do not use the CDP extractor; MCP-only sources may have minimal extractScript.
       if (src.accessMethod.primary === "api" || (src.mcpFallback && !src.url())) continue;
       expect(src.extractScript.length).toBeGreaterThan(50);
@@ -299,8 +297,6 @@ describe("Extract scripts", () => {
     for (const src of ALL_SOURCES) {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_api") continue;
-      // CDP image-only sources have empty extractScript (no article extraction)
-      if (src.extractScript === "") continue;
       // MCP-only sources (like mcp_grok_search) may have minimal extractScript
       if (src.mcpFallback && !src.url()) continue;
       expect(src.extractScript).toContain("return results");
@@ -457,7 +453,8 @@ describe("supportsKeyword validation", () => {
     const homepageSources = ALL_SOURCES.filter((s) => !s.supportsKeyword);
     // Existing homepage-only sources plus 12 fixed public Wechat RSS sources.
     // Stock API sources all support keyword search.
-    expect(homepageSources.length).toBe(22);
+    // ithome and jiqizhixin now support keyword search (unified to search page).
+    expect(homepageSources.length).toBe(20);
   });
 
   it("keyword-capable sources have supportsKeyword=true", () => {
@@ -467,8 +464,9 @@ describe("supportsKeyword validation", () => {
     // google, baidu, mcp_grok, noozra, currents,
     // reddit, hackernews, polymarket, digg, techmeme,
     // tiktok_creator (via ScrapeCreators API)
+    // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_api sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
-    expect(keywordSources.length).toBe(37);
+    expect(keywordSources.length).toBe(39);
   });
 });
 
