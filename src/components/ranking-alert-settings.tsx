@@ -401,12 +401,32 @@ export function RankingAlertSettings() {
                 </div>
               )}
             </div>
-
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="Send to (defaults to your account email)"
+                aria-label="Test notification recipient"
+                className="sm:max-w-sm"
+              />
+              <Button
+                type="button"
+                onClick={() => testMutation.mutate()}
+                disabled={firing.length === 0 || testMutation.isPending}
+              >
+                <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {testMutation.isPending ? "Sending…" : "Send test notification"}
+              </Button>
+            </div>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              Preview only — no email is sent. It reflects the values in the form above, even
-              before you save them.
+              The preview itself sends nothing and reflects the unsaved values above. “Send test
+              notification” emails the real alert template with the{" "}
+              {firing.length === 1 ? "1 simulated alert" : `${firing.length} simulated alerts`}{" "}
+              listed above — only to an existing recipient or admin address.
             </p>
+
           </div>
         </>
       )}
