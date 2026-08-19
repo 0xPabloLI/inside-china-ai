@@ -25,6 +25,8 @@ export function RankingAlertSettings() {
   const saveSettings = useServerFn(updateAlertSettings);
   const addRecipient = useServerFn(addAlertRecipient);
   const removeRecipient = useServerFn(deleteAlertRecipient);
+  const sendTest = useServerFn(sendTestAlertNotification);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["ranking-alert-config"],
