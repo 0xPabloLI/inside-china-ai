@@ -117,11 +117,15 @@ export async function sendRankingAlert(
   recipient: string,
   alerts: RefreshResult["alerts"],
   capturedOn: string,
+  /** Distinguishes repeated manual test sends from the daily automatic one. */
+  idempotencySuffix?: string,
 ): Promise<void> {
   const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
   await sendTemplateEmail("ranking-alert", recipient, {
     templateData: { alerts, capturedOn },
-    idempotencyKey: `ranking-alert-${capturedOn}-${recipient}`,
+    idempotencyKey: `ranking-alert-${capturedOn}-${recipient}${
+      idempotencySuffix ? `-${idempotencySuffix}` : ""
+    }`,
   });
 }
 

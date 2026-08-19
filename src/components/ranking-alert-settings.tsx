@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { BellOff, BellRing, Mail, Plus, Trash2 } from "lucide-react";
+import { BellOff, BellRing, Mail, Plus, Send, Trash2 } from "lucide-react";
 import {
   addAlertRecipient,
   deleteAlertRecipient,
   getAlertConfig,
   isDrop,
+  sendTestAlertNotification,
   updateAlertSettings,
 } from "@/lib/keyword-tracking.functions";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 
+
 /** Admin controls for when ranking alerts fire and who receives them. */
 export function RankingAlertSettings() {
   const queryClient = useQueryClient();
@@ -23,6 +25,8 @@ export function RankingAlertSettings() {
   const saveSettings = useServerFn(updateAlertSettings);
   const addRecipient = useServerFn(addAlertRecipient);
   const removeRecipient = useServerFn(deleteAlertRecipient);
+  const sendTest = useServerFn(sendTestAlertNotification);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["ranking-alert-config"],
@@ -120,6 +124,26 @@ export function RankingAlertSettings() {
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not remove"),
   });
+  const [testEmail, setTestEmail] = useState("");
+
+  const testMutation = useMutation({
+    mutationFn: () =>
+      sendTest({
+        data: {
+          recipient: testEmail.trim() ? testEmail.trim() : undefined,
+          alerts: firing.map(({ row, from, to }) => ({
+            keyword: row.keyword.trim() || "example keyword",
+            from,
+            to,
+          })),
+        },
+      }),
+    onSuccess: (res) =>
+      toast.success(`Test notification sent to ${res.recipient}.`),
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Could not send the test email"),
+  });
+
 
   return (
     <section className="mt-10 rounded-lg border border-border/60 p-6">
@@ -377,12 +401,32 @@ export function RankingAlertSettings() {
                 </div>
               )}
             </div>
-
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="Send to (defaults to your account email)"
+                aria-label="Test notification recipient"
+                className="sm:max-w-sm"
+              />
+              <Button
+                type="button"
+                onClick={() => testMutation.mutate()}
+                disabled={firing.length === 0 || testMutation.isPending}
+              >
+                <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {testMutation.isPending ? "Sending…" : "Send test notification"}
+              </Button>
+            </div>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              Preview only — no email is sent. It reflects the values in the form above, even
-              before you save them.
+              The preview itself sends nothing and reflects the unsaved values above. “Send test
+              notification” emails the real alert template with the{" "}
+              {firing.length === 1 ? "1 simulated alert" : `${firing.length} simulated alerts`}{" "}
+              listed above — only to an existing recipient or admin address.
             </p>
+
           </div>
         </>
       )}

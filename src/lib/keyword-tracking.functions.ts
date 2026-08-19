@@ -254,3 +254,54 @@ export const deleteAlertRecipient = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+
+/**
+ * Sends the real ranking-alert email using simulated keyword changes so an
+ * admin can check the wording before a genuine alert fires. The recipient is
+ * restricted to the configured alert list or an admin account email.
+ */
+export const sendTestAlertNotification = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        recipient: z.string().trim().toLowerCase().email().max(320).optional(),
+        alerts: z
+          .array(
+            z.object({
+              keyword: z.string().trim().min(1).max(120),
+              from: z.number().int().min(1).nullable(),
+              to: z.number().int().min(1).nullable(),
+            }),
+          )
+          .min(1)
+          .max(20),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { sendRankingAlert, listAlertRecipients, listAdminEmails } = await import(
+      "@/lib/keyword-tracking.server"
+    );
+
+    const claimEmail =
+      typeof context.claims?.["email"] === "string"
+        ? (context.claims["email"] as string).toLowerCase()
+        : null;
+    const allowed = new Set(
+      [...(await listAlertRecipients()), ...(await listAdminEmails())].map((e) =>
+        e.toLowerCase(),
+      ),
+    );
+    if (claimEmail) allowed.add(claimEmail);
+
+    const recipient = data.recipient ?? claimEmail;
+    if (!recipient) throw new Error("No recipient available for the test email");
+    if (!allowed.has(recipient)) {
+      throw new Error("Recipient must be an alert recipient or an admin account email");
+    }
+
+    const capturedOn = new Date().toISOString().slice(0, 10);
+    await sendRankingAlert(recipient, data.alerts, capturedOn, `test-${Date.now()}`);
+    return { sent: true, recipient };
+  });
