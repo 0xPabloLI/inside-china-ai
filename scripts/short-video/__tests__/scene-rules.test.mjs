@@ -641,6 +641,54 @@ describe("checkSubjectVisibility", () => {
     const results = checkSubjectVisibility(scenes);
     expect(results[0].level).toBe("warn");
   });
+
+  // Scenario #1: new company not in KNOWN_COMPANIES → pass when meta has it
+  it("passes when meta.keyEntities.companies has a company not in KNOWN_COMPANIES", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "Unitree raised 1.5 billion.", texts: { subject: "UNITREE" } },
+    ];
+    const meta = { keyEntities: { companies: ["unitree"] } };
+    const results = checkSubjectVisibility(scenes, meta);
+    expect(results[0].level).toBe("pass");
+    expect(results[0].detail.toLowerCase()).toContain("company");
+  });
+
+  // Scenario #1: subject field present → pass (secondary source)
+  it("passes when scene.texts.subject is present even without meta", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "Unitree raised 1.5 billion.", texts: { subject: "UNITREE" } },
+    ];
+    const results = checkSubjectVisibility(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  // Scenario #2: no meta, no subject → warn
+  it("warns when no meta and no subject field", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "Something happened.", texts: { line1: "BIG NEWS" } },
+    ];
+    const results = checkSubjectVisibility(scenes);
+    expect(results[0].level).toBe("warn");
+  });
+
+  // Scenario #16: meta.keyEntities.companies is empty array → fallback to KNOWN_COMPANIES
+  it("falls back to KNOWN_COMPANIES when meta.keyEntities.companies is empty array", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "DeepSeek raised 1.4 billion.", texts: { hookText: "DEEPSEEK" } },
+    ];
+    const meta = { keyEntities: { companies: [] } };
+    const results = checkSubjectVisibility(scenes, meta);
+    expect(results[0].level).toBe("pass");
+  });
+
+  // Backwards compat: existing KNOWN_COMPANIES still work without meta
+  it("passes for KNOWN_COMPANIES entry without meta (backwards compat)", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "DeepSeek paused.", texts: { hookText: "DEEPSEEK PAUSED" } },
+    ];
+    const results = checkSubjectVisibility(scenes);
+    expect(results[0].level).toBe("pass");
+  });
 });
 
 // ── checkSeriesMeta ──
@@ -740,6 +788,37 @@ describe("checkPrimaryGoal", () => {
     const results = checkPrimaryGoal(validScenes);
     expect(results[0].level).toBe("pass");
   });
+
+  // Scenario #3: "see" in narration context should not count as goal signal
+  it("does not count 'see' as a goal signal (removed completion category)", () => {
+    const scenes = [
+      { id: 1, voiceover: "You see what happened here." },
+      { id: 2, voiceover: "Look at this data." },
+      { id: 3, voiceover: "Here is the thing." },
+    ];
+    const results = checkPrimaryGoal(scenes);
+    expect(results[0].level).toBe("pass");
+    expect(results[0].detail).toContain("0 goals");
+  });
+
+  // Scenario #4: "follow" only → pass (1 signal)
+  it("passes with 1 goal signal (follow)", () => {
+    const scenes = [
+      { id: 1, voiceover: "Follow for more China AI news." },
+    ];
+    const results = checkPrimaryGoal(scenes);
+    expect(results[0].level).toBe("pass");
+    expect(results[0].detail).toContain("1 goal");
+  });
+
+  it("warns when >2 goal signals (3 categories)", () => {
+    const scenes = [
+      { id: 1, voiceover: "Follow, comment, and share this video." },
+    ];
+    const results = checkPrimaryGoal(scenes);
+    expect(results[0].level).toBe("warn");
+    expect(results[0].detail).toContain("3 goal");
+  });
 });
 
 // ── checkLoopClose ──
@@ -749,6 +828,40 @@ describe("checkLoopClose", () => {
     const results = checkLoopClose(validScenes);
     expect(results).toHaveLength(1);
     expect(["warn"]).toContain(results[0].level);
+  });
+
+  // Scenario #5: CTA with "629" matching hook → loop-close pass
+  it("passes when CTA contains hook's core number", () => {
+    const scenes = [
+      { id: 1, voiceover: "Unitree raised 629 million dollars." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "Remember that 629 million? Follow for more." },
+    ];
+    const meta = { dataPoints: [{ value: "629" }] };
+    const results = checkLoopClose(scenes, meta);
+    expect(results[0].level).toBe("pass");
+  });
+
+  // Scenario #6: CTA with no hook reference → warn
+  it("warns when CTA does not reference hook", () => {
+    const scenes = [
+      { id: 1, voiceover: "Unitree raised 629 million dollars." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "Follow for more." },
+    ];
+    const meta = { dataPoints: [{ value: "629" }] };
+    const results = checkLoopClose(scenes, meta);
+    expect(results[0].level).toBe("warn");
+  });
+
+  // Without meta, falls back to word matching (unchanged behavior)
+  it("warns without meta (no dataPoints to check)", () => {
+    const scenes = [
+      { id: 1, voiceover: "Unitree raised 629 million dollars." },
+      { id: 2, voiceover: "Follow for more." },
+    ];
+    const results = checkLoopClose(scenes);
+    expect(results[0].level).toBe("warn");
   });
 });
 

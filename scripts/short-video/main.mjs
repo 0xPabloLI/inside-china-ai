@@ -16,7 +16,7 @@
  */
 
 import { writeFileSync, mkdirSync, readdirSync, existsSync } from "fs";
-import { join, dirname, resolve } from "path";
+import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
@@ -83,6 +83,17 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Step 0.5: Currency normalization (RMB → USD dual-annotation) ──
+  // Auto-inserts $X (¥Y) format before TTS runs, enforcing the currency
+  // rule by code. Non-blocking: if it fails, scenes pass through unchanged.
+  try {
+    const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
+    normalizeSceneData(scenes, meta);
+    console.log("💱 Step 0.5: Currency normalization complete (RMB → USD dual-annotation)\n");
+  } catch (e) {
+    console.warn(`⚠️  Currency normalization skipped: ${e.message}\n`);
+  }
+
   // ── Version number (timestamp-based, for output file naming) ──
   const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
@@ -91,7 +102,8 @@ async function main() {
   console.log(`   Pipeline ID: ${meta.pipelineId}`);
   console.log(`   Version: ${version}`);
   // ── Renderer selection ──
-  const useRemotion = process.argv.includes("--remotion") || meta.renderer === "remotion";
+  // Default: Remotion (better quality). Opt out with --playwright or meta.renderer="playwright".
+  const useRemotion = !process.argv.includes("--playwright") && meta.renderer !== "playwright";
   console.log(
     `   Renderer: ${useRemotion ? "Remotion (React → frame-by-frame)" : "Playwright (HTML → screen record)"}`,
   );
@@ -139,6 +151,65 @@ async function main() {
       console.warn(
         "   Install: pip install -r scripts/short-video/lib/requirements-focus.txt",
       );
+    }
+  }
+
+  // ── Step 1.5: Asset sourcing (auto-search missing media) ──
+  // For each scene with media where the file doesn't exist → trigger asset-sourcer.
+  // Non-blocking: if search fails, scene renders without media (graceful degradation).
+  const scenesNeedingMedia = scenes.filter((s) => {
+    if (!s.media?.path) return false;
+    const contentDirAbs = resolve(__dirname, "content", contentDir);
+    const mediaPath = resolve(contentDirAbs, s.media.path);
+    return !existsSync(mediaPath);
+  });
+  if (scenesNeedingMedia.length > 0) {
+    console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
+    try {
+      const contentDirAbs = resolve(__dirname, "content", contentDir);
+      const { extractKeywords, main: sourcerMain } = await import("./lib/asset-sourcer.mjs");
+      const keywords = extractKeywords(scenes, meta, []);
+      const companyKeyword = meta?.keyEntities?.companies?.[0] || keywords[0] || "china ai";
+      console.log(`  Searching for: ${companyKeyword}`);
+      // Run asset-sourcer in non-interactive mode
+      await sourcerMain([
+        "--content", contentDir,
+        "--keywords", companyKeyword,
+        "--non-interactive",
+      ]);
+      console.log();
+    } catch (e) {
+      console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
+    }
+  }
+
+  // ── Step 1.5b: Media upscale (auto-upscale sub-720p media) ──
+  // Only processes confirmed media files (Cascade: selected first, then enhanced).
+  // Non-blocking: if upscale fails, original file is used.
+  const scenesWithMedia = scenes.filter((s) => s.media?.path);
+  if (scenesWithMedia.length > 0) {
+    console.log("🖼️ Step 1.5b: Checking media resolution for upscale...\n");
+    try {
+      const { autoUpscaleIfNeeded } = await import("./lib/upscale.mjs");
+      let upscaledCount = 0;
+      for (const scene of scenes) {
+        if (!scene.media?.path) continue;
+        const contentDirAbs = resolve(__dirname, "content", contentDir);
+        const mediaPath = resolve(contentDirAbs, scene.media.path);
+        const result = autoUpscaleIfNeeded(mediaPath);
+        if (result.upscaled) {
+          // Update scene to use the upscaled path (relative to content dir)
+          scene.media.path = relative(contentDirAbs, result.path);
+          upscaledCount++;
+          console.log(`  Scene ${scene.id}: upscaled to ${result.path.split("/").pop()}`);
+        }
+      }
+      if (upscaledCount === 0) {
+        console.log("  All media already ≥720p — no upscale needed");
+      }
+      console.log();
+    } catch (e) {
+      console.warn(`⚠️  Media upscale skipped: ${e.message}\n`);
     }
   }
 

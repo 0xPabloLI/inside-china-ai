@@ -46,25 +46,28 @@ if (!contentDir) {
   available.forEach((d) => console.error(`   - ${d}`));
   process.exit(1);
 }
-const pipelineId = contentDir.replace(/\//g, "-");
 const preMode = args.includes("--pre");
 const checkTikTok = args.includes("--tiktok");
 const longForm = args.includes("--long-form");
 
-const OUTPUT_DIR = join(__dirname, "output", pipelineId);
 const SCENE_DATA_PATH = join(__dirname, "content", contentDir, "scene-data.mjs");
 const META_PATH = join(__dirname, "content", contentDir, "meta.mjs");
-const SUBTITLE_TIMING_PATH = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
 
-// Load meta.mjs (for subject field + preflight validation)
-let filePrefix = pipelineId;
+// Load meta.mjs first to get the real pipelineId (main.mjs uses meta.pipelineId for output dir)
 let meta = null;
 try {
   const metaMod = await import(`file://${META_PATH}`);
   meta = metaMod.meta || null;
-  const subject = meta?.subject;
-  if (subject && subject !== pipelineId) filePrefix = `${subject}-${pipelineId}`;
 } catch {}
+const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
+
+const OUTPUT_DIR = join(__dirname, "output", pipelineId);
+const SUBTITLE_TIMING_PATH = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
+
+// Build file prefix: subject-pipelineId if different, else just pipelineId
+const subject = meta?.subject;
+let filePrefix = pipelineId;
+if (subject && subject !== pipelineId) filePrefix = `${subject}-${pipelineId}`;
 const VIDEO_PATH = join(OUTPUT_DIR, `${filePrefix}-short.mp4`);
 
 // ─── Results tracking ───
@@ -299,7 +302,7 @@ if (!scenes || scenes.length === 0) {
 pass("Scene Data", "Scenes array exists", `${scenes.length} scenes`);
 
 // Run all scene-data validation rules from lib/scene-rules.mjs
-const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, { longForm });
+const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, { longForm, meta });
 for (const r of sceneResults.pass) {
   console.log(`  ✅ ${r.check}${r.detail ? ` — ${r.detail}` : ""}`);
 }

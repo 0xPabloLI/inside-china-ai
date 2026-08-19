@@ -264,6 +264,31 @@ function layoutCues(rawCues) {
   return cues;
 }
 
+/** Threshold for hold-out extension: gaps under this between cues are filled. */
+const HOLD_OUT_GAP_THRESHOLD = 0.6;
+
+/**
+ * Final pass: extend cue end times to fill small inter-cue gaps (< 0.6s)
+ * that the layout pass didn't close. This covers inter-scene buffer gaps
+ * where speech ends well before the clip boundary, leaving dead air that
+ * should carry subtitles for 100% timeline coverage.
+ *
+ * Only extends the earlier cue's end; never changes start times or text.
+ * Gaps >= HOLD_OUT_GAP_THRESHOLD are left alone (real silence).
+ */
+function holdOutExtension(cues) {
+  if (cues.length < 2) return cues;
+
+  for (let i = 0; i < cues.length - 1; i++) {
+    const gap = cues[i + 1].start - cues[i].end;
+    if (gap > 0 && gap < HOLD_OUT_GAP_THRESHOLD) {
+      cues[i] = { ...cues[i], end: cues[i + 1].start - CHAIN_GAP };
+    }
+  }
+
+  return cues;
+}
+
 /**
  * Build display-ready cues from alignment data.
  *
@@ -273,5 +298,5 @@ function layoutCues(rawCues) {
  */
 export function buildCues(timingData, sceneDurations) {
   const timeline = sceneTimeline(sceneDurations);
-  return layoutCues(borrowTime(collectRawCues(timingData, timeline)));
+  return holdOutExtension(layoutCues(borrowTime(collectRawCues(timingData, timeline))));
 }

@@ -111,9 +111,9 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
 <div class="scene s3"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
   ${brandBar()}
   ${sceneFrame({
-    kicker: `<div class="title">${t(txt, "title")}<span class="hl">${t(txt, "titleHighlight")}</span>${t(txt, "titleSuffix")}</div>`,
+    kicker: `<div class="title">${t(txt, "title")} <span class="hl">${t(txt, "titleHighlight")}</span>${t(txt, "titleSuffix")}</div>`,
     hero: `<div class="flow">${eventsHtml}</div>`,
-    support: `<div class="cost">${t(txt, "cost")}<span class="hl">${t(txt, "costHighlight")}</span></div>`,
+    support: `<div class="cost">${t(txt, "cost")} <span class="hl">${t(txt, "costHighlight")}</span></div>`,
   })}
 </div></body></html>`;
 }
@@ -234,7 +234,7 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
   ${sceneFrame({
     kicker: `<div class="title">${t(txt, "title")}</div>`,
     hero: `<div class="vstack"><div class="card left"><div class="col-title">${leftTitle}</div>${chips(left.slice(1), 0.35)}</div><div class="vs-mid">${t(txt, "vs")}</div><div class="card right"><div class="col-title">${rightTitle}</div>${chips(right.slice(1), 0.75)}</div></div>`,
-    support: `<div class="note">${t(txt, "note")}<span class="hl">${t(txt, "noteHighlight")}</span></div>`,
+    support: `<div class="note">${t(txt, "note")} <span class="hl">${t(txt, "noteHighlight")}</span></div>`,
   })}
 </div></body></html>`;
 }
