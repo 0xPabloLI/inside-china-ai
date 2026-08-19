@@ -56,15 +56,26 @@ export function RankingAlertSettings() {
       Number.isInteger(from) &&
       from >= 1 &&
       (to === null || (Number.isInteger(to) && to >= 1));
-    return {
-      row,
-      from,
-      to,
-      valid,
-      wouldAlert: valid ? isDrop(to, from, previewThreshold!, lostRanking) : false,
-    };
+    const wouldAlert = valid ? isDrop(to, from, previewThreshold!, lostRanking) : false;
+    const alertType: "drop" | "lost" | null = !wouldAlert
+      ? null
+      : to === null
+        ? "lost"
+        : "drop";
+    const reason = !valid
+      ? "Incomplete input"
+      : !wouldAlert
+        ? to === null
+          ? "Left top 100 but lost-ranking alerts are off"
+          : `Moved ${to! - from! >= 0 ? "↓" : "↑"}${Math.abs(to! - from!)} — below the ${previewThreshold}-position threshold`
+        : to === null
+          ? `Left the top 100 (was #${from})`
+          : `Fell from #${from} to #${to} (−${to! - from!}), at or past the ${previewThreshold}-position threshold`;
+    return { row, from, to, valid, wouldAlert, alertType, reason };
   });
   const firing = evaluated.filter((e) => e.wouldAlert);
+  const dropCount = firing.filter((e) => e.alertType === "drop").length;
+  const lostCount = firing.filter((e) => e.alertType === "lost").length;
 
 
   // Query data arrives after mount, so sync the form once it lands.
@@ -318,17 +329,47 @@ export function RankingAlertSettings() {
               ) : (
                 <div className="flex items-start gap-2">
                   <BellRing className="mt-0.5 h-4 w-4 text-destructive" aria-hidden="true" />
-                  <div>
+                  <div className="w-full">
                     <strong>
                       {firing.length} alert{firing.length === 1 ? "" : "s"} would fire
                     </strong>
-                    <ul className="mt-2 space-y-1">
-                      {firing.map(({ row, from, to }) => (
-                        <li key={row.id}>
-                          “{row.keyword.trim() || "example keyword"}”{" "}
-                          {to === null
-                            ? `left the top 100 (was #${from}).`
-                            : `fell from #${from} to #${to} (−${to - from!}), at or past the ${previewThreshold}-position threshold.`}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {dropCount > 0
+                        ? `${dropCount} position-drop${dropCount === 1 ? "" : "s"}`
+                        : ""}
+                      {dropCount > 0 && lostCount > 0 ? " · " : ""}
+                      {lostCount > 0
+                        ? `${lostCount} lost-ranking${lostCount === 1 ? "" : "s"}`
+                        : ""}
+                    </p>
+                    <ul className="mt-2 space-y-2">
+                      {firing.map(({ row, from, to, alertType, reason }) => (
+                        <li
+                          key={row.id}
+                          className="rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">
+                              {row.keyword.trim() || "example keyword"}
+                            </span>
+                            <span
+                              className={
+                                alertType === "lost"
+                                  ? "rounded bg-destructive/15 px-1.5 py-0.5 text-destructive"
+                                  : "rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-600 dark:text-amber-400"
+                              }
+                            >
+                              {alertType === "lost" ? "Lost ranking" : "Position drop"}
+                            </span>
+                          </div>
+                          <dl className="mt-1.5 grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 text-muted-foreground">
+                            <dt>Previous</dt>
+                            <dd>#{from}</dd>
+                            <dt>New</dt>
+                            <dd>{to === null ? "Out of top 100" : `#${to}`}</dd>
+                            <dt>Reason</dt>
+                            <dd className="text-foreground/80">{reason}</dd>
+                          </dl>
                         </li>
                       ))}
                     </ul>
