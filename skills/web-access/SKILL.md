@@ -1,13 +1,18 @@
 ---
 name: web-access
+license: MIT
+github: https://github.com/eze-is/web-access
 description: |
   所有联网操作必须通过此 skill 处理，包括：搜索、网页抓取、登录后操作、网络交互等。
   触发场景：用户要求搜索信息、查看网页内容、访问需要登录的网站、操作网页界面、抓取社交媒体内容（小红书、微博、推特等）、读取动态渲染页面、以及任何需要真实浏览器环境的网络任务。
+metadata:
+  author: 一泽Eze
+  version: "2.5.4"
 ---
 
 # web-access Skill
 
-> 原始项目：https://github.com/eze-is/web-access（MIT），已适配 Amp Agent 架构。
+> 原始项目：https://github.com/eze-is/web-access（MIT），已适配本仓库架构。
 
 ## 前置检查
 
@@ -17,9 +22,16 @@ description: |
 node ~/.agents/skills/web-access/scripts/check-deps.mjs
 ```
 
-未通过时引导用户完成设置：
-- **Node.js 22+**：必需（使用原生 WebSocket）。版本低于 22 可用但需安装 `ws` 模块。
-- **Chrome remote-debugging**：在 Chrome 地址栏打开 `chrome://inspect/#remote-debugging`，勾选 **"Allow remote debugging for this browser instance"** 即可，可能需要重启浏览器。
+**Node.js 22+** 必需（使用原生 WebSocket）。
+
+按脚本输出处理：
+- `exit 0` → 继续
+- `exit 2` → 需询问用户偏好，写入 `~/.agents/skills/web-access/config.env` 的 `WEB_ACCESS_BROWSER`
+- `exit 1` → 按 stdout 错误信息处理。若提示包含「Agent 处理顺序」，按其步骤执行（如先用系统命令打开浏览器后重跑），自动可解则不打扰用户；仍失败再向用户求助
+
+支持参数 `--browser <chrome|edge>` 表达本次临时覆盖（不写 config.env）。
+
+切换浏览器时，proxy 是长驻进程，需先 `pkill -f cdp-proxy.mjs` 再重跑 check-deps。
 
 检查通过后并必须在回复中向用户直接展示以下须知，再启动 CDP Proxy 执行操作：
 
@@ -47,15 +59,15 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 
 | 场景 | 工具 |
 |------|------|
-| 搜索摘要或关键词结果，发现信息来源 | **web_search**（Amp 内置搜索工具） |
-| URL 已知，需要从页面定向提取特定信息 | **read_web_page**（Amp 内置网页读取工具，可传 objective 参数定向提取） |
-| URL 已知，需要原始 HTML 源码（meta、JSON-LD 等结构化字段） | **curl**（通过 Bash 工具执行） |
+| 搜索摘要或关键词结果，发现信息来源 | **WebSearch** |
+| URL 已知，需要从页面定向提取特定信息 | **WebFetch**（拉取网页内容，由小模型根据 prompt 提取，返回处理后结果） |
+| URL 已知，需要原始 HTML 源码（meta、JSON-LD 等结构化字段） | **curl** |
 | 非公开内容，或已知静态层无效的平台（小红书、微信公众号等公开内容也被反爬限制） | **浏览器 CDP**（直接，跳过静态层） |
 | 需要登录态、交互操作，或需要像人一样在浏览器内自由导航探索 | **浏览器 CDP** |
 
-浏览器 CDP 不要求 URL 已知——可从任意入口出发，通过页面内搜索、点击、跳转等方式找到目标内容。web_search、read_web_page、curl 均不处理登录态。
+浏览器 CDP 不要求 URL 已知——可从任意入口出发，通过页面内搜索、点击、跳转等方式找到目标内容。WebSearch、WebFetch、curl 均不处理登录态。
 
-**Jina**（可选预处理层，可与 read_web_page/curl 组合使用，由于其特性可节省 tokens 消耗，请积极在任务合适时组合使用）：第三方网络服务，可将网页转为 Markdown，大幅节省 token 但可能有信息损耗。调用方式为在 Bash 中 `curl -s r.jina.ai/example.com`（URL 前加前缀，不保留原网址 http 前缀），限 20 RPM。适合文章、博客、文档、PDF 等以正文为核心的页面；对数据面板、商品页等非文章结构页面可能提取到错误区块。
+**Jina**（可选预处理层，可与 WebFetch/curl 组合使用，由于其特性可节省 tokens 消耗，请积极在任务合适时组合使用）：第三方网络服务，可将网页转为 Markdown，大幅节省 token 但可能有信息损耗。调用方式为 `r.jina.ai/example.com`（URL 前加前缀，不保留原网址 http 前缀），限 20 RPM。适合文章、博客、文档、PDF 等以正文为核心的页面；对数据面板、商品页等非文章结构页面可能提取到错误区块。
 
 进入浏览器层后，`/eval` 就是你的眼睛和手：
 
@@ -64,6 +76,24 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 - **读**：用 `/extract` 提取正文为干净 Markdown（保留标题层级、代码块、列表、链接），省去模型清洗 HTML 的 token；用 `/eval` 提取特定 DOM 数据、判断图片/视频是否承载核心信息——是则提取媒体 URL 定向读取或 `/screenshot` 视觉识别
 
 浏览网页时，**先了解页面结构，再决定下一步动作**。不需要提前规划所有步骤。
+
+### 页面就绪与完成判断
+
+`/new` 或 `/navigate` 返回，只代表浏览器完成了当前文档的基础加载，不代表用户需要的内容已经出现。HTTP 200、`document.readyState === "complete"`、页面标题出现或导航调用成功，都不能单独作为任务完成标准。
+
+导航后先用 `/eval` 检查目标内容。若目标内容尚未出现，而页面仍是空白、加载态、验证页、登录跳转或其它可能继续变化的中间状态，在默认 15 秒窗口内持续观察 URL、标题和 DOM；页面发生跳转或内容变化后重新判断。只有目标内容已经获取，或观察窗口结束后仍存在明确阻碍，才能继续提取或报告失败。
+
+站点经验可以提供更精确的选择器、等待条件和已知中间状态，但只用于加速判断；即使没有站点经验，也必须遵循上述目标内容就绪规则。
+
+### 补充：本地浏览器资源
+
+用户指向**本人访问过的页面**（"我之前看的那个讲 X 的文章"、"上次打开过的 XX 面板"）或**组织内部系统**（"我们的 XX 平台"、"公司那个 YY 系统"等公网搜不到的目标）时，检索本地浏览器（Chrome / Edge）书签/历史：
+
+```bash
+node ~/.agents/skills/web-access/scripts/find-url.mjs [关键词...] [--only bookmarks|history] [--browser chrome|edge] [--limit N] [--since 1d|7h|YYYY-MM-DD] [--sort recent|visits]
+```
+
+关键词空格分词、多词 AND，匹配 title + url（可省略）；默认遍历所有已安装的 Chromium 系浏览器（Chrome、Edge），`--browser` 限定单一来源；`--since` / `--sort` 仅作用于历史；默认按最近访问倒序，`--sort visits` 按访问次数排序（适合"高频访问的网站"这类场景）。
 
 ### 程序化操作与 GUI 交互
 
@@ -78,7 +108,7 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 
 ## 浏览器 CDP 模式
 
-通过 CDP Proxy 直连用户日常 Chrome，天然携带登录态，无需启动独立浏览器。
+通过 CDP Proxy 直连用户日常浏览器（Chrome / Edge / Chromium 等 Chromium 系），天然携带登录态，无需启动独立浏览器。
 若无用户明确要求，不主动操作用户已有 tab，所有操作都在自己创建的后台 tab 中进行，保持对用户环境的最小侵入。不关闭用户 tab 的前提下，完成任务后关闭自己创建的 tab，保持环境整洁。
 
 ### 启动
@@ -87,18 +117,18 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 node ~/.agents/skills/web-access/scripts/check-deps.mjs
 ```
 
-脚本会依次检查 Node.js、Chrome 端口，并确保 Proxy 已连接（未运行则自动启动并等待）。Proxy 启动后持续运行。
+脚本会依次检查 Node.js、浏览器调试端口，并确保 Proxy 已连接（未运行则自动启动并等待）。Proxy 启动后持续运行。
 
 ### Proxy API
 
-所有操作通过 Bash 工具执行 curl 调用 HTTP API：
+所有操作通过 curl 调用 HTTP API：
 
 ```bash
 # 列出用户已打开的 tab
 curl -s http://localhost:3456/targets
 
-# 创建新后台 tab（自动等待加载）
-curl -s "http://localhost:3456/new?url=https://example.com"
+# 创建新后台 tab（自动等待加载）— URL 走 POST body，避免目标 URL 含 query 时被切分
+curl -s -X POST --data-raw 'https://example.com' http://localhost:3456/new
 
 # 页面信息
 curl -s "http://localhost:3456/info?target=ID"
@@ -114,8 +144,8 @@ curl -s -X POST "http://localhost:3456/extract?target=ID" -d '{}'  # 自动检�
 # 捕获页面渲染状态（含视频当前帧）
 curl -s "http://localhost:3456/screenshot?target=ID&file=/tmp/shot.png"
 
-# 导航、后退
-curl -s "http://localhost:3456/navigate?target=ID&url=URL"
+# 导航（URL 走 POST body，target 走 query）、后退
+curl -s -X POST --data-raw 'https://example.com' "http://localhost:3456/navigate?target=ID"
 curl -s "http://localhost:3456/back?target=ID"
 
 # 点击（POST body 为 CSS 选择器）— JS el.click()，简单快速，覆盖大多数场景
@@ -142,7 +172,9 @@ curl -s "http://localhost:3456/close?target=ID"
 - **`/click`**：在当前 tab 内直接点击用户视角中的可交互单元，简单直接，串行处理。适合需要在同一页面内连续操作的场景，如点击展开、翻页、进入详情等。
 - **`/new` + 完整 URL**：使用目标链接的完整地址（包含所有URL参数），在新 tab 中打开。适合需要同时访问多个页面的场景。
 
-很多网站的链接包含会话相关的参数（如 token），这些参数是正常访问所必需的。提取 URL 时应保留完整地址，不要裁剪或省略参数。
+很多网站的链接包含会话相关的参数（如 token），这些参数是正常访问所必需的。提取 URL 时应保留完整地址，不要裁剪或省略参数。URL 通过 POST body 原样传入 `/new` 或 `/navigate`。
+
+> **v2.5.3 迁移提示**：若引用的站点经验文件（`references/site-patterns/*.md`）或其它脚本中仍含 `GET /new?url=...` 或 `/navigate?target=...&url=...` 的旧写法，调用会收到迁移指引。按 [`references/migration-2.5.3.md`](references/migration-2.5.3.md) 就地改写为 POST body 后再使用，并顺手把该站点经验文件更新掉。
 
 ### 媒体资源提取
 
@@ -158,16 +190,16 @@ curl -s "http://localhost:3456/close?target=ID"
 
 ### 视频内容获取
 
-用户 Chrome 真实渲染，截图可捕获当前视频帧。核心能力：通过 `/eval` 操控 `<video>` 元素（获取时长、seek 到任意时间点、播放/暂停/全屏），配合 `/screenshot` 采帧，可对视频内容进行离散采样分析。
+用户浏览器真实渲染，截图可捕获当前视频帧。核心能力：通过 `/eval` 操控 `<video>` 元素（获取时长、seek 到任意时间点、播放/暂停/全屏），配合 `/screenshot` 采帧，可对视频内容进行离散采样分析。
 
 ### 登录判断
 
-用户日常 Chrome 天然携带登录态，大多数常用网站已登录。
+用户日常浏览器天然携带登录态，大多数常用网站已登录。
 
 登录判断的核心问题只有一个：**目标内容拿到了吗？**
 
 打开页面后先尝试获取目标内容。只有当确认**目标内容无法获取**且判断登录能解决时，才告知用户：
-> "当前页面在未登录状态下无法获取[具体内容]，请在你的 Chrome 中登录 [网站名]，完成后告诉我继续。"
+> "当前页面在未登录状态下无法获取[具体内容]，请在你的浏览器中登录 [网站名]，完成后告诉我继续。"
 
 登录完成后无需重启任何东西，直接刷新页面继续。
 
@@ -175,21 +207,21 @@ curl -s "http://localhost:3456/close?target=ID"
 
 用 `/close` 关闭自己创建的 tab，必须保留用户原有的 tab 不受影响。
 
-Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重新授权 CDP 连接。
+Proxy 持续运行，不建议主动停止——重启后需要在浏览器中重新授权 CDP 连接。
 
 ## 并行调研：子 Agent 分治策略
 
-任务包含多个**独立**调研目标时（如同时调研 N 个项目、N 个来源），鼓励使用 Amp 的 **Task 工具**合理分治给子 Agent 并行执行，而非主 Agent 串行处理。
+任务包含多个**独立**调研目标时（如同时调研 N 个项目、N 个来源），鼓励合理分治给子 Agent 并行执行，而非主 Agent 串行处理。
 
 **好处：**
 - **速度**：多子 Agent 并行，总耗时约等于单个子任务时长
 - **上下文保护**：抓取内容不进入主 Agent 上下文，主 Agent 只接收摘要，节省 token
 
-**并行 CDP 操作**：每个子 Agent 在当前用户浏览器实例中，自行创建所需的后台 tab（`/new`），自行操作，任务结束自行关闭（`/close`）。所有子 Agent 共享一个 Chrome、一个 Proxy，通过不同 targetId 操作不同 tab，无竞态风险。
+**并行 CDP 操作**：每个子 Agent 在当前用户浏览器实例中，自行创建所需的后台 tab（`/new`），自行操作，任务结束自行关闭（`/close`）。所有子 Agent 共享一个浏览器、一个 Proxy，通过不同 targetId 操作不同 tab，无竞态风险。
 
-**子 Agent Prompt 写法（使用 Task 工具时）：目标导向，而非步骤指令**
-- 必须在 Task prompt 中包含：`使用 skill 工具加载 web-access skill 并遵循指引`，子 Agent 会自动加载 skill。
-- 子 Agent 有自主判断能力。主 Agent 的职责是说清楚**要什么**，仅在必要与确信时限定**怎么做**。过度指定步骤会剥夺子 Agent 的判断空间，反而引入主 Agent 的假设错误。**避免 prompt 用词对子 Agent 行为的暗示**：「搜索xx」会把子 Agent 锚定到 web_search，而实际上有些反爬站点需要 CDP 直接访问主站才能有效获取内容。主 Agent 写 prompt 时应描述目标（「获取」「调研」「了解」），避免用暗示具体手段的动词（「搜索」「抓取」「爬取」）。
+**子 Agent Prompt 写法：目标导向，而非步骤指令**
+- 必须在子 Agent prompt 中写 `必须加载 web-access skill 并遵循指引` ，子 Agent 会自动加载 skill，无需在 prompt 中复制 skill 内容或指定路径。
+- 子 Agent 有自主判断能力。主 Agent 的职责是说清楚**要什么**，仅在必要与确信时限定**怎么做**。过度指定步骤会剥夺子 Agent 的判断空间，反而引入主 Agent 的假设错误。**避免 prompt 用词对子 Agent 行为的暗示**：「搜索xx」会把子 Agent 锚定到 WebSearch，而实际上有些反爬站点需要 CDP 直接访问主站才能有效获取内容。主 Agent 写 prompt 时应描述目标（「获取」「调研」「了解」），避免用暗示具体手段的动词（「搜索」「抓取」「爬取」）。
 
 **分治判断标准：**
 
@@ -197,7 +229,7 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 |----------|-----------|
 | 目标相互独立，结果互不依赖 | 目标有依赖关系，下一个需要上一个的结果 |
 | 每个子任务量足够大（多页抓取、多轮搜索） | 简单单页查询，分治开销大于收益 |
-| 需要 CDP 浏览器或长时间运行的任务 | 几次 web_search / Jina 就能完成的轻量查询 |
+| 需要 CDP 浏览器或长时间运行的任务 | 几次 WebSearch / Jina 就能完成的轻量查询 |
 
 ## 信息核实类任务
 
@@ -218,12 +250,7 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 
 操作中积累的特定网站经验，按域名存储在 `~/.agents/skills/web-access/references/site-patterns/` 下。
 
-查看已有经验的站点：
-```bash
-node -e "const fs=require('fs'),p=require('path').join(require('os').homedir(),'.agents/skills/web-access/references/site-patterns');try{console.log(fs.readdirSync(p).filter(f=>f.endsWith('.md')).map(f=>f.replace(/\\.md$/,'')).join(', ')||'暂无')}catch{console.log('暂无')}"
-```
-
-确定目标网站后，如果有匹配的站点经验，必须读取对应文件获取先验知识（平台特征、有效模式、已知陷阱）。也可使用站点匹配脚本：
+确定目标网站后，如果前置检查输出的 site-patterns 列表中有匹配的站点，必须读取对应文件获取先验知识（平台特征、有效模式、已知陷阱）。也可使用站点匹配脚本：
 ```bash
 node ~/.agents/skills/web-access/scripts/match-site.mjs "用户输入文本"
 ```

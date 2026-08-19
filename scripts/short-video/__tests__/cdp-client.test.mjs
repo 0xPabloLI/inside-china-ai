@@ -33,14 +33,29 @@ describe("cdpNewTab", () => {
     vi.unstubAllGlobals();
   });
 
-  it("S1: creates tab and returns targetId", async () => {
+  it("S1: creates tab via POST and returns targetId", async () => {
     global.fetch.mockResolvedValue(mockFetchResponse({ targetId: "tab_abc123" }));
 
     const tabId = await cdpNewTab("https://example.com");
     expect(tabId).toBe("tab_abc123");
     expect(global.fetch).toHaveBeenCalledWith(
-      `${CDP_BASE}/new?url=${encodeURIComponent("https://example.com")}`,
+      `${CDP_BASE}/new`,
+      expect.objectContaining({
+        method: "POST",
+        body: "https://example.com",
+      }),
     );
+  });
+
+  it("S3: URL with query params is passed as POST body without truncation", async () => {
+    global.fetch.mockResolvedValue(mockFetchResponse({ targetId: "tab_xyz" }));
+    const urlWithQuery = "https://xhs.com/explore/abc?xsec_token=ABC&type=normal";
+    const tabId = await cdpNewTab(urlWithQuery);
+    expect(tabId).toBe("tab_xyz");
+    const call = global.fetch.mock.calls[0];
+    expect(call[0]).toBe(`${CDP_BASE}/new`);
+    expect(call[1].method).toBe("POST");
+    expect(call[1].body).toBe(urlWithQuery);
   });
 
   it("S1b: throws when no targetId returned", async () => {

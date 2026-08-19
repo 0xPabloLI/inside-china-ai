@@ -4,7 +4,7 @@
  * Generic CDP utilities for communicating with a local Chrome Remote
  * Debugging proxy (e.g. the web-access skill's proxy at localhost:3456).
  *
- * Used by: discover-trends.mjs, and any script that needs to scrape
+ * Used by: search-sources.mjs, and any script that needs to scrape
  * web pages through the user's authenticated Chrome session.
  */
 
@@ -19,7 +19,10 @@ export const RETRY_WAIT_MS = 3000;
  * @throws {Error} If the proxy doesn't return a targetId
  */
 export async function cdpNewTab(url) {
-  const resp = await fetch(`${CDP_BASE}/new?url=${encodeURIComponent(url)}`);
+  const resp = await fetch(`${CDP_BASE}/new`, {
+    method: "POST",
+    body: url,
+  });
   const data = await resp.json();
   if (!data.targetId) {
     throw new Error(`Failed to create tab for ${url}`);
