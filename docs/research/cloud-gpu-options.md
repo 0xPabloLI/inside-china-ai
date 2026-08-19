@@ -739,3 +739,64 @@ GPU count: 2
 | 4️⃣ | **AutoDL 4090** | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
 
 > **关于多 Kaggle 账号 fallback pool**：技术上可行（维护多组 API key，轮询空闲账号），但 Kaggle TOS 禁止一人多账号，有封号风险。**更安全的替代方案是加入 Lightning AI 作为第二平台**——不同平台不违反 TOS，且 Lightning AI 的 L4 (22.5GB, bf16) 正好弥补 Kaggle T4 (15GB, 无 bf16) 的不足。
+
+---
+
+## 5. 国内云 GPU 平台验证（2026-08-19）
+
+### 5.1 腾讯云 GPU 实例 ✅ 凭证有效
+
+**验证状态**：SecretId/SecretKey 已验证，可查询到广州、北京、上海、南京各可用区。
+
+**GPU 实例系列**（来源：[腾讯云 GPU 云服务器文档](https://cloud.tencent.com/document/product/560/19700)）：
+
+| 系列 | GPU 型号 | GPU 显存 | 最小配置 vCPU | 最小配置 RAM | 适用场景 |
+|------|---------|---------|-------------|------------|---------|
+| **GN7** | NVIDIA T4 | 16GB×1~4 | 8 核 | 32GB | 推理、视频编解码、图形处理 |
+| **GN10X** | NVIDIA V100 | 32GB×1~8 | 8 核 | 40GB | 深度学习训练、高性能计算 |
+| **GN10Xp** | NVIDIA V100 NVLink | 32GB×1~8 | 10 核 | 40GB | 大规模训练（NVLink 互联） |
+| **GNV4** | NVIDIA V100 | 16GB×? | 12 核 | 44GB | 计算型 |
+| **PNV4** | NVIDIA? | ? | 28 核 | 116GB | 计算型（PN 系列） |
+| **GT4** | NVIDIA A100 | 40GB×1~8 | 16 核 | 96GB | 大规模训练（A100 40GB） |
+| **BMGNV4** | NVIDIA? | ? | 208 核 | 768GB | 裸金属 GPU（BM 系列） |
+
+**最小 GPU 实例（GN7.2XLARGE32）**：
+- GPU: NVIDIA T4 × 1（16GB）
+- CPU: Intel Xeon Platinum 8255C 2.5GHz, 8 vCPU
+- RAM: 32GB DDR4
+- 内网带宽: 3Gbps
+- 适用：推理场景，T4 显存 16GB 与 Kaggle T4 一致
+
+> ⚠️ **限制**：GPU 实例需要**备案**或**按量付费**才能创建，部分区域可能有库存限制。建议先在[价格计算器](https://buy.tencentcloud.com/price/cvm/calculator)查看实时价格。
+
+### 5.2 Modal ⚠️ Token 有效，免费额度已用完
+
+**验证状态**（2026-08-19）：
+- Token ID: `ak-wbmpSiJe6MGAdkMYaVVxxN` ✅ 验证通过
+- Token Secret: `as-b8lPin3XHIJFFUjOD9Kvhb` ✅
+- Profile: `qingshun-li` ✅ 已激活
+- **问题**：Workspace `ac-yuE8WpOhZG3tDJBKphOPJn` 已超出消费限制（spend limit）
+- **解决**：需到 modal.com → Settings → Billing 添加付费方式或提高 spend limit
+
+**Clash 代理问题**：`api.modal.com` 被 FlClash TUN 拦截（fake-ip 198.18.0.x），导致 SSL 握手失败。已在 FlClash + Clash Verge 的 `fake-ip-filter` 中添加 `+.modal.com` 排除规则。使用时需设置 `NO_PROXY=api.modal.com,modal.com` 或重启 Clash 让配置生效。
+
+### 5.3 Saturn Cloud ❌ Token 有效，Clash TUN 拦截
+
+**验证状态**（2026-08-19）：
+- JWT token 有效（user_id: `3d4d793125b74b97be7cdd7fa488c973`，iss: `atlas`）
+- API endpoint: `app.saturncloud.io`（需要 JS 渲染的 SPA）
+- **问题**：`app.saturncloud.io` 被 Clash TUN 拦截（fake-ip 198.18.0.180），SSL 握手失败
+- **修复**：已在 FlClash + Clash Verge 的 `fake-ip-filter` 中添加 `+.saturncloud.io` 排除规则
+- **后续**：需重启 FlClash 或 Clash Verge 让配置生效后重新验证
+
+### 5.4 国内 LLM API 免费额度对比（2026-08-19）
+
+| 平台 | 免费额度 | 刷新周期 | 模型 | 对项目有用？ |
+|------|---------|---------|------|------------|
+| 字节跳动（火山引擎） | 万级 token | **每月刷新** ✅ | 豆包 | 未来可能（内容分类/自动写稿） |
+| 阿里云百炼 | 100万 token | 一次性 | 通义千问 | 同上 |
+| 腾讯混元 | 50万 token | 一次性 | 混元 | 同上 |
+| 华为云 AgentArts | 200万 token | **一次性** | 盘古 | 同上 |
+| 百度 AI Studio | 文心一言 | 需积分 | ERNIE | 仅支持 PaddlePaddle |
+
+> **项目当前不需要外部 LLM API token**。VLM 使用本地 mlx-vlm（Qwen3-VL-8B），RAG 使用本地 Ollama（bge-m3），无外部 LLM API 调用。几百万 token 用起来很快，目前无需求。
