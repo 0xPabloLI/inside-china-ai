@@ -13,7 +13,7 @@ import {
   ALL_SOURCES,
   NEWS_SOURCES,
   SELF_MEDIA_SOURCES,
-  WESTERN_SOURCES,
+  INTERNATIONAL_SOURCES,
   GENERAL_SEARCH_SOURCES,
   LAST30DAYS_SOURCES,
   WECHAT_RSS_SOURCES,
@@ -191,7 +191,7 @@ describe("capabilities field structure", () => {
 describe("consumer query patterns", () => {
   it("filtering by capabilities.articles returns article sources", () => {
     const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
-    // All existing news, self-media, western, general, last30days, wechat sources
+    // All existing news, self-media, international, general, last30days, wechat sources
     // have articles capability
     expect(articleSources.length).toBeGreaterThan(0);
     for (const src of articleSources) {
@@ -350,5 +350,34 @@ describe("R4 — capabilities.articles has complete config", () => {
       expect(typeof s.capabilities.articles.needsAuth).toBe("boolean");
       expect(typeof s.capabilities.articles.useCleanTitle).toBe("boolean");
     }
+  });
+});
+
+// ─── T1: Attribution coverage tests ───
+
+import { buildAttribution } from "../lib/asset-sourcer.mjs";
+
+describe("T1: Every source name has SOURCE_ATTRIBUTIONS key", () => {
+  it("all sources in ALL_SOURCES have a matching SOURCE_ATTRIBUTIONS key", () => {
+    const missing = [];
+    for (const source of ALL_SOURCES) {
+      if (!SOURCE_ATTRIBUTIONS[source.name]) {
+        missing.push(source.name);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+});
+
+describe("T1: attribution.text() returns non-empty string for all sources", () => {
+  it("buildAttribution returns non-empty text for every source", () => {
+    const empty = [];
+    for (const source of ALL_SOURCES) {
+      const attr = buildAttribution(source.name, { url: "https://example.com/test" });
+      if (!attr || !attr.text || attr.text.trim().length === 0) {
+        empty.push(source.name);
+      }
+    }
+    expect(empty).toEqual([]);
   });
 });

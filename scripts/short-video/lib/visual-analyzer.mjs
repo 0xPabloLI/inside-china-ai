@@ -251,10 +251,19 @@ function handleResponse(line, workerGen) {
 
   if (response.error) {
     console.warn(`AI analysis error: ${response.error}`);
-    entry.resolve({ ...DEGRADED_RESULT });
+    const degraded = { ...DEGRADED_RESULT };
+    if (entry.window) {
+      degraded.window = entry.window;
+      degraded.sourceMode = "degraded";
+    }
+    entry.resolve(degraded);
   } else {
     // Remove error field (null) and resolve with the rest
     const { error: _error, ...result } = response;
+    // Attach window metadata from the request when present
+    if (entry.window) {
+      result.window = entry.window;
+    }
     entry.resolve(result);
   }
 
@@ -270,7 +279,12 @@ function settlePendingVlm(workerGen, degradedResult) {
     if (entry.workerGeneration === workerGen) {
       clearTimeout(entry.timer);
       vlmPending.delete(id);
-      entry.resolve(degradedResult);
+      const degraded = { ...degradedResult };
+      if (entry.window) {
+        degraded.window = entry.window;
+        degraded.sourceMode = "degraded";
+      }
+      entry.resolve(degraded);
     }
   }
 }
@@ -323,6 +337,7 @@ function processQueue() {
     requestId,
     action: request.action,
     path: request.path,
+    ...(request.window ? { window: request.window } : {}),
   });
 
   try {
@@ -349,6 +364,7 @@ function processQueue() {
     reject: request.reject,
     action: request.action,
     path: request.path,
+    window: request.window,
     timer,
     workerGeneration: myGen,
   });
@@ -367,21 +383,35 @@ function processQueue() {
  * - fit ("cover" | "contain" | null) — images only, null for videos
  * - criticalEdgeText (string | null) — images only
  * - reason (string | null) — images only
+ * - window ({ startMs, endMs, sampleFps } | undefined) — videos only, when opts provided
+ * - sourceMode ("native" | "frames" | "degraded" | undefined) — videos only
  *
  * On any failure (VLM unavailable, parse error, timeout), resolves with
  * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
+ * @param {{startMs?: number, endMs?: number, sampleFps?: number}} [opts] - Optional time window (video only)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
- *   fit: string|null, criticalEdgeText: string|null, reason: string|null}>}
+ *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
+ *   window?: {startMs: number, endMs: number, sampleFps: number},
+ *   sourceMode?: string}>}
  */
-export function analyzeAssetSemantics(assetPath) {
+export function analyzeAssetSemantics(assetPath, opts) {
+  const window = opts
+    ? {
+        startMs: opts.startMs,
+        endMs: opts.endMs,
+        sampleFps: opts.sampleFps,
+      }
+    : undefined;
+
   return new Promise((resolve, reject) => {
     requestQueue.push({
       resolve,
       reject,
       action: "analyze_semantics",
       path: assetPath,
+      window,
     });
     processQueue();
   });

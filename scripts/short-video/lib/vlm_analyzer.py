@@ -352,11 +352,15 @@ def generate_response(model, processor, image_paths=None, video_path=None,
 
 # ─── Video fallback: ffmpeg frame extraction ───
 
-def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS):
+def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS,
+                       start_ms=None, end_ms=None):
     """Extract frames from a video using ffmpeg at the given fps.
 
     Returns a list of temporary image file paths.
     Returns empty list on failure.
+
+    When start_ms/end_ms are provided, uses ffmpeg -ss/-t for windowed extraction.
+    Otherwise, extracts from the start up to max_seconds.
     """
     tmpdir = tempfile.mkdtemp(prefix="vlm_analyzer_frames_")
     output_pattern = os.path.join(tmpdir, "frame_%04d.jpg")
@@ -364,12 +368,26 @@ def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS):
     cmd = [
         FFMPEG_PATH,
         "-y",
-        "-i", video_path,
-        "-t", str(max_seconds),  # cap at max_seconds
+    ]
+
+    # Windowed extraction: -ss before -i for fast seek
+    if start_ms is not None:
+        cmd.extend(["-ss", str(start_ms / 1000.0)])
+
+    cmd.extend(["-i", video_path])
+
+    # Duration limit
+    if end_ms is not None and start_ms is not None:
+        duration_s = (end_ms - start_ms) / 1000.0
+        cmd.extend(["-t", str(duration_s)])
+    else:
+        cmd.extend(["-t", str(max_seconds)])
+
+    cmd.extend([
         "-vf", f"fps={fps}",
         "-q:v", "2",
         output_pattern,
-    ]
+    ])
 
     try:
         subprocess.run(
@@ -405,11 +423,15 @@ def _cleanup_frames(frame_paths):
 
 # ─── Request handler ───
 
-def handle_analyze_semantics(model, processor, path):
+def handle_analyze_semantics(model, processor, path, window=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
     Outputs Markdown which is parsed by parse_markdown_to_dict.
+
+    When window is provided (dict with startMs/endMs/sampleFps), uses it for
+    both native video input and fallback frame extraction to ensure both
+    paths analyze the same temporal range.
 
     Returns (result_dict, error) tuple.
     """
@@ -419,21 +441,36 @@ def handle_analyze_semantics(model, processor, path):
     ext = os.path.splitext(path)[1].lower()
     is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
 
+    # Parse window parameters
+    if window:
+        start_ms = window.get("startMs")
+        end_ms = window.get("endMs")
+        sample_fps = window.get("sampleFps", VIDEO_FPS)
+    else:
+        start_ms = None
+        end_ms = None
+        sample_fps = VIDEO_FPS
+
     try:
         if is_video:
             # Try native video input
             try:
                 raw = generate_response(
                     model, processor, video_path=path,
-                    fps=VIDEO_FPS, prompt_text=SEMANTICS_PROMPT_VIDEO,
+                    fps=sample_fps, prompt_text=SEMANTICS_PROMPT_VIDEO,
                 )
+                source_mode = "native"
             except Exception as e:
                 sys.stderr.write(
                     f"[vlm_analyzer] Native video failed for analyze_semantics, "
                     f"falling back to frames: {e}\n"
                 )
                 sys.stderr.flush()
-                frames = extract_frames(path, fps=VIDEO_FPS, max_seconds=MAX_VIDEO_SECONDS)
+                frames = extract_frames(
+                    path, fps=sample_fps,
+                    max_seconds=MAX_VIDEO_SECONDS,
+                    start_ms=start_ms, end_ms=end_ms,
+                )
                 if not frames:
                     return {}, "Both native video and frame extraction failed"
                 # R2 fix: ensure frames are cleaned up even if generate_response
@@ -445,6 +482,7 @@ def handle_analyze_semantics(model, processor, path):
                     )
                 finally:
                     _cleanup_frames(frames)
+                source_mode = "frames"
         else:
             # Image — verify first
             try:
@@ -458,11 +496,17 @@ def handle_analyze_semantics(model, processor, path):
                 model, processor, image_paths=path,
                 prompt_text=SEMANTICS_PROMPT_IMAGE,
             )
+            source_mode = None  # images don't have sourceMode
     except Exception as e:
         return {}, f"VLM generation failed: {e}"
 
     # Parse Markdown output
     result = parse_markdown_to_dict(raw)
+
+    # Add sourceMode for video assets
+    if is_video and source_mode:
+        result["sourceMode"] = source_mode
+
     return result, None
 
 
@@ -522,7 +566,8 @@ def main():
 
             elif action == "analyze_semantics":
                 path = request.get("path", "")
-                result, err = handle_analyze_semantics(model, processor, path)
+                window = request.get("window")
+                result, err = handle_analyze_semantics(model, processor, path, window=window)
                 if err:
                     response = _degraded_result(err)
                 else:

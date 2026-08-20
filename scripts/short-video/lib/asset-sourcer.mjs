@@ -775,6 +775,7 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
 export async function analyzeAssets(assets, opts = {}) {
   const { analyzeAssetSemantics, detectFocus, closeFocusDetector } =
     await import("./visual-analyzer.mjs");
+  const { probeMedia } = await import("./media-probe.mjs");
 
   if (!assets || assets.length === 0) return [];
 
@@ -823,6 +824,30 @@ export async function analyzeAssets(assets, opts = {}) {
     }
   }
 
+  // ── Phase 2.5: Probe video assets + compute time windows (T6) ──
+  // For video assets only: call probeMedia to get duration, then compute
+  // a time window for VLM analysis. Images are skipped (no window needed).
+  const DEFAULT_WINDOW_END_MS = 8000; // matches MAX_VIDEO_SECONDS in vlm_analyzer.py
+  const DEFAULT_SAMPLE_FPS = 1.0;
+
+  for (const asset of analyzableAssets) {
+    if (asset.type !== "video") continue;
+
+    const absPath =
+      contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
+
+    const probe = probeMedia(absPath);
+
+    if (probe) {
+      // Compute window: { 0, min(duration, 8000), 1.0 }
+      const endMs = Math.min(probe.durationMs, DEFAULT_WINDOW_END_MS);
+      asset.window = { startMs: 0, endMs, sampleFps: DEFAULT_SAMPLE_FPS };
+    } else {
+      // probeMedia failed — use default window, sourceMode will be "degraded"
+      asset.window = { startMs: 0, endMs: DEFAULT_WINDOW_END_MS, sampleFps: DEFAULT_SAMPLE_FPS };
+    }
+  }
+
   // ── Phase 3a: VLM semantic analysis (single call per asset) ──
   const report = [];
 
@@ -839,7 +864,10 @@ export async function analyzeAssets(assets, opts = {}) {
     let success = false;
 
     try {
-      semantics = await analyzeAssetSemantics(absPath);
+      // Pass window opts for video assets; omit for images (backward compat)
+      semantics = asset.window
+        ? await analyzeAssetSemantics(absPath, asset.window)
+        : await analyzeAssetSemantics(absPath);
       success = !!(semantics.description && semantics.description.length > 0);
     } catch (err) {
       console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
@@ -860,6 +888,13 @@ export async function analyzeAssets(assets, opts = {}) {
     asset.fit = semantics.fit;
     asset.criticalEdgeText = semantics.criticalEdgeText;
     asset.reason = semantics.reason;
+    // Store window and sourceMode for video assets (T6)
+    if (semantics.window) {
+      asset.window = semantics.window;
+    }
+    if (semantics.sourceMode) {
+      asset.sourceMode = semantics.sourceMode;
+    }
 
     const analysisTimeMs = Date.now() - startTime;
 
@@ -894,6 +929,8 @@ export async function analyzeAssets(assets, opts = {}) {
           criticalEdgeText: a.criticalEdgeText || null,
           reason: a.reason || null,
           focusAnalysis: a.focusAnalysis || null,
+          window: a.window || null,
+          sourceMode: a.sourceMode || null,
         })),
     };
 
@@ -992,6 +1029,14 @@ export async function downloadAsset(url, destPath, headers = {}) {
  * @returns {Array} Candidates array
  */
 export function searchYtdlp(keyword, platform) {
+  // T2: Guard against unsupported platforms.
+  // Previously, non-bilibili platforms silently fell through to YouTube search,
+  // producing videos with wrong source attribution (e.g., YouTube videos labeled as xhs).
+  const SUPPORTED_PLATFORMS = new Set(["bilibili", "youtube"]);
+  if (!SUPPORTED_PLATFORMS.has(platform)) {
+    return [];
+  }
+
   const searchUrl = platform === "bilibili" ? `bilisearch:${keyword}` : `ytsearch10:${keyword}`;
 
   try {
@@ -1746,6 +1791,9 @@ export async function main(args = process.argv.slice(2)) {
       for (let j = 0; j < scored.length; j++) {
         const candidate = scored[j];
         if (!candidate.url) continue;
+
+        // T3: Skip non-image candidates (defensive guard against type="text" leak)
+        if (candidate.type && candidate.type !== "image") continue;
 
         // T05: Skip candidates with technicalScore < 20 before downloading
         const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);

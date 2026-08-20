@@ -20,12 +20,18 @@ const mockAnalyzeAssetSemantics = vi.fn();
 const mockCloseAnalyzer = vi.fn();
 const mockDetectFocus = vi.fn();
 const mockCloseFocusDetector = vi.fn();
+const mockProbeMedia = vi.fn();
 
 vi.mock("../lib/visual-analyzer.mjs", () => ({
   analyzeAssetSemantics: (...args) => mockAnalyzeAssetSemantics(...args),
   closeVisualAnalyzer: (...args) => mockCloseAnalyzer(...args),
   detectFocus: (...args) => mockDetectFocus(...args),
   closeFocusDetector: (...args) => mockCloseFocusDetector(...args),
+}));
+
+vi.mock("../lib/media-probe.mjs", () => ({
+  probeMedia: (...args) => mockProbeMedia(...args),
+  parseProbeOutput: vi.fn(), // not used in integration tests
 }));
 
 // Import after mocks
@@ -72,6 +78,8 @@ beforeEach(() => {
   mockCloseAnalyzer.mockResolvedValue(undefined);
   mockDetectFocus.mockResolvedValue({ ...FOCUS_OK });
   mockCloseFocusDetector.mockResolvedValue(undefined);
+  // T6: default probeMedia returns null (no probe infrastructure)
+  mockProbeMedia.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -83,15 +91,24 @@ afterEach(() => {
 describe("analyzeAssets — VLM semantic merge integration", () => {
   it("calls analyzeAssetSemantics once per asset (single VLM call)", async () => {
     const assets = [
-      { path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" },
-      { path: "/abs/clip1.mp4", type: "video", searchKeyword: "Unitree" },
+      { path: "/abs/img1.jpg", type: "image", title: "Unitree", searchKeyword: "Unitree" },
+      { path: "/abs/clip1.mp4", type: "video", title: "Unitree demo", searchKeyword: "Unitree" },
     ];
 
     await analyzeAssets(assets);
 
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(2);
+    // Image: called with 1 arg (no opts)
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/img1.jpg");
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/clip1.mp4");
+    // Video: called with 2 args (path + window)
+    const videoCall = mockAnalyzeAssetSemantics.mock.calls.find(
+      (c) => c[0] === "/abs/clip1.mp4",
+    );
+    expect(videoCall).toBeDefined();
+    expect(videoCall[1]).toBeDefined();
+    expect(videoCall[1].startMs).toBe(0);
+    expect(videoCall[1].endMs).toBe(8000);
+    expect(videoCall[1].sampleFps).toBe(1.0);
   });
 
   it("stores VLM fields on each asset (description, subjects, contentKind, fit, reason)", async () => {
@@ -685,5 +702,187 @@ describe("Ticket 03 — Pre-filter is hard gate (P1-2)", () => {
     // All assets marked lowConfidence
     expect(assets[0].lowConfidence).toBe(true);
     expect(assets[1].lowConfidence).toBe(true);
+  });
+});
+
+// ─── T6: Phase 2.5 — probeMedia + window computation ───
+
+describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
+  it("calls probeMedia for video assets only (not images)", async () => {
+    const assets = [
+      { path: "/abs/img1.jpg", type: "image", title: "Unitree", searchKeyword: "Unitree" },
+      { path: "/abs/clip1.mp4", type: "video", title: "Unitree demo", searchKeyword: "Unitree" },
+    ];
+
+    await analyzeAssets(assets);
+
+    // probeMedia called only for the video asset
+    expect(mockProbeMedia).toHaveBeenCalledTimes(1);
+    expect(mockProbeMedia).toHaveBeenCalledWith("/abs/clip1.mp4");
+  });
+
+  it("passes computed window to analyzeAssetSemantics for video assets (Scenario #1)", async () => {
+    // probeMedia returns 10s duration
+    mockProbeMedia.mockReturnValue({
+      durationMs: 10000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    const assets = [
+      { path: "/abs/clip1.mp4", type: "video", title: "Unitree demo", searchKeyword: "Unitree" },
+    ];
+
+    await analyzeAssets(assets);
+
+    // Window = { 0, min(10000, 8000), 1.0 }
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
+      "/abs/clip1.mp4",
+      { startMs: 0, endMs: 8000, sampleFps: 1.0 },
+    );
+  });
+
+  it("uses default window when probeMedia returns null (Scenario #2)", async () => {
+    // probeMedia returns null (corrupt file or ffprobe missing)
+    mockProbeMedia.mockReturnValue(null);
+
+    const assets = [
+      { path: "/abs/clip1.mp4", type: "video", title: "Unitree demo", searchKeyword: "Unitree" },
+    ];
+
+    await analyzeAssets(assets);
+
+    // Default window: { 0, 8000, 1.0 }
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
+      "/abs/clip1.mp4",
+      { startMs: 0, endMs: 8000, sampleFps: 1.0 },
+    );
+  });
+
+  it("does NOT pass window for image assets (Scenario #3)", async () => {
+    const assets = [
+      { path: "/abs/img1.jpg", type: "image", title: "Unitree", searchKeyword: "Unitree" },
+    ];
+
+    await analyzeAssets(assets);
+
+    // Image: called without opts (backward compat)
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    const callArgs = mockAnalyzeAssetSemantics.mock.calls[0];
+    expect(callArgs[0]).toBe("/abs/img1.jpg");
+    // Second arg (opts) should be undefined
+    expect(callArgs[1]).toBeUndefined();
+  });
+
+  it("caps window at 8s for long videos", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 60000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    const assets = [
+      { path: "/abs/long.mp4", type: "video", title: "test demo", searchKeyword: "test" },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
+      "/abs/long.mp4",
+      { startMs: 0, endMs: 8000, sampleFps: 1.0 },
+    );
+  });
+
+  it("uses full duration for very short videos (Scenario #5)", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 500,
+      fps: 30,
+      hasAudio: false,
+      width: 640,
+      height: 480,
+      rotation: 0,
+    });
+
+    const assets = [
+      { path: "/abs/short.mp4", type: "video", title: "test clip", searchKeyword: "test" },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
+      "/abs/short.mp4",
+      { startMs: 0, endMs: 500, sampleFps: 1.0 },
+    );
+  });
+
+  it("stores window and sourceMode on video assets", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 10000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    mockAnalyzeAssetSemantics.mockResolvedValue({
+      ...FULL_SEMANTICS,
+      sourceMode: "native",
+    });
+
+    const assets = [
+      { path: "/abs/clip1.mp4", type: "video", title: "Unitree demo", searchKeyword: "Unitree" },
+    ];
+
+    await analyzeAssets(assets);
+
+    // Asset should have window and sourceMode stored
+    expect(assets[0].window).toEqual({ startMs: 0, endMs: 8000, sampleFps: 1.0 });
+    expect(assets[0].sourceMode).toBe("native");
+  });
+
+  it("writes window and sourceMode to asset-analysis.json artifact", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 10000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    mockAnalyzeAssetSemantics.mockResolvedValue({
+      ...FULL_SEMANTICS,
+      sourceMode: "frames",
+    });
+
+    const tmpDir = `/tmp/test-t6-artifact-${Date.now()}`;
+    const assets = [
+      { path: "/abs/clip1.mp4", type: "video", title: "Unitree demo", searchKeyword: "Unitree" },
+    ];
+
+    await analyzeAssets(assets, { outputDir: tmpDir, contentSlug: "test" });
+
+    // Read the artifact
+    const fs = await import("fs");
+    const artifactPath = `${tmpDir}/test/asset-analysis.json`;
+    expect(fs.existsSync(artifactPath)).toBe(true);
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+
+    // The video asset should have window and sourceMode in the artifact
+    const videoAsset = artifact.assets[0];
+    expect(videoAsset.window).toEqual({ startMs: 0, endMs: 8000, sampleFps: 1.0 });
+    expect(videoAsset.sourceMode).toBe("frames");
+
+    // Cleanup
+    fs.unlinkSync(artifactPath);
+    fs.rmdirSync(`${tmpDir}/test`);
+    fs.rmdirSync(tmpDir);
   });
 });

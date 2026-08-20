@@ -844,3 +844,142 @@ describe("visual-analyzer module", () => {
     }, 10000);
   });
 });
+
+// ─── T5: analyzeAssetSemantics with window parameter ───
+
+describe("analyzeAssetSemantics — window parameter (T5)", () => {
+  it("passes window field in IPC message when opts provided", async () => {
+    const opts = { startMs: 0, endMs: 5000, sampleFps: 1.0 };
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/clip.mp4", opts);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Check IPC message includes window
+    const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
+    const request = JSON.parse(writtenData.trim());
+
+    expect(request.action).toBe("analyze_semantics");
+    expect(request.path).toBe("/abs/clip.mp4");
+    expect(request.window).toEqual({ startMs: 0, endMs: 5000, sampleFps: 1.0 });
+
+    // Respond to complete the promise
+    mockProc.emitStdout(
+      JSON.stringify({
+        description: "A robot walking.",
+        subjects: ["robot"],
+        contentKind: "talking_head",
+        fit: null,
+        criticalEdgeText: null,
+        reason: null,
+        sourceMode: "native",
+        error: null,
+      }) + "\n",
+    );
+
+    const result = await promise;
+    expect(result.sourceMode).toBe("native");
+  });
+
+  it("does NOT include window when opts omitted (backward compat)", async () => {
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/img.jpg");
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
+    const request = JSON.parse(writtenData.trim());
+
+    expect(request.window).toBeUndefined();
+
+    mockProc.emitStdout(
+      JSON.stringify({
+        description: "An image.",
+        subjects: [],
+        contentKind: "other",
+        fit: null,
+        criticalEdgeText: null,
+        reason: null,
+        error: null,
+      }) + "\n",
+    );
+
+    await promise;
+  });
+
+  it("attaches window metadata from request to response result", async () => {
+    const opts = { startMs: 1000, endMs: 8000, sampleFps: 2.0 };
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/video.mp4", opts);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    mockProc.emitStdout(
+      JSON.stringify({
+        description: "Factory floor.",
+        subjects: ["factory"],
+        contentKind: "landscape",
+        fit: null,
+        criticalEdgeText: null,
+        reason: null,
+        sourceMode: "frames",
+        error: null,
+      }) + "\n",
+    );
+
+    const result = await promise;
+    // Node attaches window from request opts to the result
+    expect(result.window).toEqual({ startMs: 1000, endMs: 8000, sampleFps: 2.0 });
+    expect(result.sourceMode).toBe("frames");
+  });
+
+  it("does NOT attach window when opts omitted (image path)", async () => {
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/photo.jpg");
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    mockProc.emitStdout(
+      JSON.stringify({
+        description: "A photo.",
+        subjects: [],
+        contentKind: "other",
+        fit: "cover",
+        criticalEdgeText: "no",
+        reason: "No critical edges.",
+        error: null,
+      }) + "\n",
+    );
+
+    const result = await promise;
+    expect(result.window).toBeUndefined();
+    expect(result.sourceMode).toBeUndefined();
+  });
+
+  it("handles partial opts (only startMs provided)", async () => {
+    const opts = { startMs: 2000 };
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/clip.mp4", opts);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
+    const request = JSON.parse(writtenData.trim());
+
+    // Window should include provided field; missing fields are optional
+    expect(request.window).toBeDefined();
+    expect(request.window.startMs).toBe(2000);
+    // endMs and sampleFps may be undefined — Python handles defaults
+
+    mockProc.emitStdout(
+      JSON.stringify({
+        description: "test",
+        subjects: [],
+        contentKind: null,
+        fit: null,
+        criticalEdgeText: null,
+        reason: null,
+        sourceMode: "native",
+        error: null,
+      }) + "\n",
+    );
+
+    const result = await promise;
+    expect(result.sourceMode).toBe("native");
+  });
+});

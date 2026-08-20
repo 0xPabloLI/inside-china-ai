@@ -8,7 +8,7 @@
  * Each source is a pluggable collector with:
  * - name: unique identifier
  * - label: display name
- * - category: "news" | "self_media" | "general" | "western" | "last30days" | "wechat"
+ * - category: "news" | "self_media" | "general" | "international" | "last30days" | "wechat"
  * - needsAuth: whether login is required
  * - supportsKeyword: whether the source supports keyword search (vs homepage-only)
  * - accessMethod: how this source is collected
@@ -446,7 +446,7 @@ export const NEWS_SOURCES = [
   {
     name: "google_news",
     label: "Google News Search",
-    category: "western",
+    category: "international",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
@@ -479,7 +479,7 @@ export const NEWS_SOURCES = [
   {
     name: "bing_news",
     label: "Bing News Search",
-    category: "western",
+    category: "international",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
@@ -1026,7 +1026,7 @@ export const SELF_MEDIA_SOURCES = [
 // relevant to China AI topics.
 //
 // Primary collection method: mcp-search-bridge (Grok model with web search).
-// CDP is attempted first (if a search page URL exists), but these western
+// CDP is attempted first (if a search page URL exists), but these international
 // platforms often don't have China-optimized search pages, so the MCP
 // fallback is the main workhorse.
 //
@@ -1071,11 +1071,11 @@ function parseGrokListResult(items) {
   return results;
 }
 
-export const WESTERN_SOURCES = [
+export const INTERNATIONAL_SOURCES = [
   {
     name: "youtube_search",
     label: "YouTube",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -1116,7 +1116,7 @@ export const WESTERN_SOURCES = [
   {
     name: "arxiv_search",
     label: "arXiv",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -1192,7 +1192,7 @@ export const WESTERN_SOURCES = [
   {
     name: "github_search",
     label: "GitHub",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -1269,7 +1269,7 @@ export const WESTERN_SOURCES = [
   {
     name: "threads_search",
     label: "Threads",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -1307,7 +1307,7 @@ export const WESTERN_SOURCES = [
   {
     name: "datacube_ai",
     label: "DataCube AI",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: false,
     accessMethod: {
@@ -1360,7 +1360,7 @@ export const WESTERN_SOURCES = [
   {
     name: "gnews",
     label: "GNews",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -1404,7 +1404,7 @@ export const WESTERN_SOURCES = [
   {
     name: "core_search",
     label: "CORE",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -1447,7 +1447,7 @@ export const WESTERN_SOURCES = [
   {
     name: "openalex_search",
     label: "OpenAlex",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -2412,11 +2412,11 @@ const CDP_IMAGE_CAPABILITIES = {
         var title = el.querySelector('h3, .LC20lb');
         var img = el.querySelector('img[src]');
         var snippet = el.querySelector('.VwiC3b, .IsZvec');
-        if (link && title) {
+        if (img && link && title) {
           results.push({
             title: title.textContent.trim(),
-            url: img ? img.src : link.href,
-            type: img ? 'image' : 'text',
+            url: img.src,
+            type: 'image',
             sourceUrl: link.href,
             snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
           });
@@ -2448,11 +2448,11 @@ const CDP_IMAGE_CAPABILITIES = {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
         var title = el.querySelector('h3, h2, .title, .b_caption p');
-        if (link && title) {
+        if (img && link && title) {
           results.push({
             title: title.textContent.trim(),
-            url: img ? img.src : link.href,
-            type: img ? 'image' : 'text',
+            url: img.src,
+            type: 'image',
             sourceUrl: link.href
           });
         }
@@ -2614,26 +2614,19 @@ const YTDLP_VIDEO_CAPABILITIES = {
     method: "ytdlp",
     platform: "bilibili",
   },
-  douyin: {
-    method: "ytdlp",
-    platform: "douyin",
-    cookieRequired: true,
-  },
-  xhs: {
-    method: "ytdlp",
-    platform: "xiaohongshu",
-    cookieRequired: true,
-  },
-  weibo_hot: {
-    method: "ytdlp",
-    platform: "weibo",
-    cookieRequired: true,
-  },
+  // T2: douyin, xhs, weibo_hot removed — yt-dlp does not support these platforms.
+  // searchYtdlp() would silently fall through to YouTube search, producing wrong-attribution results.
+  // These platforms still have capabilities.articles for trend discovery.
+  // Alternative downloaders (RedNote-MCP, weibo-downloader, Douyin_TikTok_Download_API) are tracked separately.
   youtube_search: {
     method: "ytdlp",
     platform: "youtube",
   },
 };
+
+// T2: Set of platforms that searchYtdlp() actually supports.
+// Any platform not in this set returns [] immediately.
+export const SUPPORTED_YTDLP_PLATFORMS = new Set(["bilibili", "youtube"]);
 
 // ─── SOURCE_ATTRIBUTIONS ───
 //
@@ -2745,6 +2738,203 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "Varies",
     logoRequired: false,
   },
+  // ─── WeChat RSS sources (微信公众号 RSS 转载) ───
+  wechat2rss_geekpark: {
+    text: () => `文章来源: 极客公园 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_bytedance_tech: {
+    text: () => `文章来源: 字节跳动技术团队 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_meituan_tech: {
+    text: () => `文章来源: 美团技术团队 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_jiqizhixin: {
+    text: () => `文章来源: 机器之心 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_zhinengyuan: {
+    text: () => `文章来源: 新智元 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_qbitai: {
+    text: () => `文章来源: 量子位 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_ai_cv: {
+    text: () => `文章来源: 我爱计算机视觉 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_datawhale: {
+    text: () => `文章来源: Datawhale (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_tencent_tech: {
+    text: () => `文章来源: 腾讯技术工程 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_xiaomi_tech: {
+    text: () => `文章来源: 小米技术 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_alicloud_dev: {
+    text: () => `文章来源: 阿里云开发者 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_alibaba_tech: {
+    text: () => `文章来源: 阿里技术 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  // ─── Additional trend discovery / search sources ───
+  qbitai: {
+    text: (a) => `文章来源: 量子位 (qbitai.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  "36kr": {
+    text: (a) => `文章来源: 36氪 (36kr.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  techcrunch: {
+    text: (a) => `Article source: TechCrunch (techcrunch.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  bloomberg: {
+    text: (a) => `Article source: Bloomberg (bloomberg.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  guancha: {
+    text: (a) => `文章来源: 观察者网 (guancha.cn)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  sogou_weixin: {
+    text: (a) => `文章来源: 搜狗微信 (weixin.sogou.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  tiktok_creator: {
+    text: (a) => `Content source: TikTok Creator (via ScrapeCreators API)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  zhihu: {
+    text: (a) => `文章来源: 知乎 (zhihu.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  x_search: {
+    text: (a) => `Post source: X/Twitter (x.com)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  arxiv_search: {
+    text: (a) => `Paper source: arXiv (arxiv.org)`,
+    license: "arXiv License",
+    logoRequired: false,
+  },
+  github_search: {
+    text: (a) => `Code source: GitHub (github.com)`,
+    license: "Open source",
+    logoRequired: false,
+  },
+  threads_search: {
+    text: (a) => `Post source: Threads (threads.net)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  datacube_ai: {
+    text: (a) => `Data source: DataCube AI (datacube.ai)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  gnews: {
+    text: (a) => `Article source: GNews (gnews.io)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  core_search: {
+    text: (a) => `Paper source: CORE (core.ac.uk)`,
+    license: "Open access",
+    logoRequired: false,
+  },
+  openalex_search: {
+    text: (a) => `Paper source: OpenAlex (openalex.org)`,
+    license: "Open access",
+    logoRequired: false,
+  },
+  google_search: {
+    text: (a) => `Search source: Google Search (google.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  baidu_search: {
+    text: (a) => `文章来源: 百度搜索 (baidu.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  mcp_grok_search: {
+    text: (a) => `Search source: Grok (via MCP)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  currents: {
+    text: (a) => `Article source: Currents API (currentsapi.services)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  noozra_search: {
+    text: (a) => `Search source: Noozra (noozra.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  reddit_search: {
+    text: (a) => `Post source: Reddit (reddit.com)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  hackernews_search: {
+    text: (a) => `Post source: Hacker News (news.ycombinator.com)`,
+    license: "Public domain",
+    logoRequired: false,
+  },
+  polymarket_search: {
+    text: (a) => `Data source: Polymarket (polymarket.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  digg_search: {
+    text: (a) => `Article source: Digg (digg.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  techmeme_search: {
+    text: (a) => `Article source: Techmeme (techmeme.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat_dongchabeating: {
+    text: () => `文章来源: 冬奥速递 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
 };
 
 // ─── Capabilities enrichment ───
@@ -2795,7 +2985,7 @@ function enrichWithCapabilities(sources) {
 
 const _ENRICHED_NEWS = enrichWithCapabilities(NEWS_SOURCES);
 const _ENRICHED_SELF_MEDIA = enrichWithCapabilities(SELF_MEDIA_SOURCES);
-const _ENRICHED_WESTERN = enrichWithCapabilities(WESTERN_SOURCES);
+const _ENRICHED_INTERNATIONAL = enrichWithCapabilities(INTERNATIONAL_SOURCES);
 const _ENRICHED_GENERAL = enrichWithCapabilities(GENERAL_SEARCH_SOURCES);
 const _ENRICHED_LAST30DAYS = enrichWithCapabilities(LAST30DAYS_SOURCES);
 const _ENRICHED_WECHAT_ACCOUNT = enrichWithCapabilities(WECHAT_ACCOUNT_SOURCES);
@@ -2804,7 +2994,7 @@ const _ENRICHED_WECHAT_RSS = enrichWithCapabilities(WECHAT_RSS_SOURCES);
 export const ALL_SOURCES = [
   ..._ENRICHED_NEWS,
   ..._ENRICHED_SELF_MEDIA,
-  ..._ENRICHED_WESTERN,
+  ..._ENRICHED_INTERNATIONAL,
   ..._ENRICHED_GENERAL,
   ..._ENRICHED_LAST30DAYS,
   ..._ENRICHED_WECHAT_ACCOUNT,

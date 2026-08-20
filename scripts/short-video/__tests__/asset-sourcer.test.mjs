@@ -789,6 +789,22 @@ describe("searchYtdlp", () => {
     // so we verify the function exists and is callable
     expect(typeof searchYtdlp).toBe("function");
   });
+
+  // T2: unsupported platforms must return [] (not fall through to YouTube)
+  it("T2: returns [] for unsupported platform 'xiaohongshu'", () => {
+    const result = searchYtdlp("test", "xiaohongshu");
+    expect(result).toEqual([]);
+  });
+
+  it("T2: returns [] for unsupported platform 'douyin'", () => {
+    const result = searchYtdlp("test", "douyin");
+    expect(result).toEqual([]);
+  });
+
+  it("T2: returns [] for unsupported platform 'weibo'", () => {
+    const result = searchYtdlp("test", "weibo");
+    expect(result).toEqual([]);
+  });
 });
 
 // ─── AS-3: downloadYtdlp ───
@@ -1053,26 +1069,21 @@ describe("buildCreditsSection", () => {
 
 // ─── New yt-dlp source tests ───
 
-describe("YTDLP_SOURCES new additions", () => {
-  it("has douyin source", () => {
+// T2: douyin, xhs, weibo_hot removed from YTDLP_SOURCES (unsupported by yt-dlp)
+describe("T2 — unsupported platforms removed from YTDLP_SOURCES", () => {
+  it("does NOT have douyin in YTDLP_SOURCES", () => {
     const src = YTDLP_SOURCES.find((s) => s.name === "douyin");
-    expect(src).toBeDefined();
-    expect(src.platform).toBe("douyin");
-    expect(src.cookieRequired).toBe(true);
+    expect(src).toBeUndefined();
   });
 
-  it("has xhs source (xiaohongshu)", () => {
+  it("does NOT have xhs in YTDLP_SOURCES", () => {
     const src = YTDLP_SOURCES.find((s) => s.name === "xhs");
-    expect(src).toBeDefined();
-    expect(src.platform).toBe("xiaohongshu");
-    expect(src.cookieRequired).toBe(true);
+    expect(src).toBeUndefined();
   });
 
-  it("has weibo_hot source (weibo)", () => {
+  it("does NOT have weibo_hot in YTDLP_SOURCES", () => {
     const src = YTDLP_SOURCES.find((s) => s.name === "weibo_hot");
-    expect(src).toBeDefined();
-    expect(src.platform).toBe("weibo");
-    expect(src.cookieRequired).toBe(true);
+    expect(src).toBeUndefined();
   });
 });
 
@@ -1975,5 +1986,113 @@ describe("T05 — Pre-download filter gate (threshold 20)", () => {
     expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
     // Post-download: 28 < 30 → lowConfidence (skipped from VLM)
     expect(result.lowConfidence).toBe(true);
+  });
+});
+
+// ─── T1: Misfilter prevention tests ───
+
+describe("T1: preFilterCandidate misfilter prevention", () => {
+  it("good asset with sparse metadata (no fileSize, no resolution) is not hard-skipped", () => {
+    // API source like Pexels returns title + type but no fileSize or resolution.
+    // title match (14, partial) + duration (18) + size (0) + res (0) = 32
+    const candidate = {
+      title: "Unitree H1 Robot Walks",
+      type: "video",
+      duration: 5,
+      // no fileSize, no resolution — sparse metadata from API
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 28 (full match) + 18 + 0 + 0 = 46 — should pass both thresholds
+    expect(result.technicalScore).toBe(46);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("image with sparse metadata (no fileSize, no resolution) passes pre-download filter", () => {
+    // Image from CDP extraction: title match + type, no fileSize/resolution
+    const candidate = {
+      title: "DeepSeek AI Logo",
+      type: "image",
+      // no fileSize, no resolution
+    };
+    const result = preFilterCandidate(candidate, "DeepSeek");
+    // 28 (full match) + 14 (image duration) + 0 + 0 = 42
+    expect(result.technicalScore).toBe(42);
+    expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("CJK title vs English keyword — no boundary match (documents known gap)", () => {
+    // "优必选" is UBTECH in Chinese. hasBoundaryMatch uses includes() for CJK
+    // but keyword is Latin — Latin path uses word boundary regex.
+    // "优必选机器人" lowercased is still "优必选机器人" — no Latin "ubtech" token.
+    const candidate = {
+      title: "优必选机器人演示",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const result = preFilterCandidate(candidate, "UBTECH");
+    // No title match (CJK vs Latin) + 18 + 14 + 7 = 39
+    // 39 >= 30 → not lowConfidence — passes because duration/size/res provide enough signal
+    expect(result.technicalScore).toBe(39);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("asset with only type match (no title match, no metadata) is lowConfidence", () => {
+    const candidate = {
+      title: "Random unrelated content",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 (no title match) + 18 + 14 + 0 = 32
+    // 32 >= 30 → not lowConfidence — has enough signal from duration/size
+    expect(result.technicalScore).toBe(32);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("asset with no metadata at all (unknown type, no duration) is lowConfidence", () => {
+    const candidate = {
+      title: "Mystery Video",
+      type: "video",
+      // no duration, no fileSize, no resolution
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 (no title match) + 3 (unknown duration) + 0 + 0 = 3
+    expect(result.technicalScore).toBe(3);
+    expect(result.lowConfidence).toBe(true);
+  });
+});
+
+// ─── T3: CDP image type leak regression tests ───
+
+describe("T3 — CDP image type leak prevention", () => {
+  it("google_news primaryScript does not produce type='text' candidates", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+    expect(src).toBeDefined();
+    // The script must NOT contain the pattern that produces type: "text"
+    expect(src.primaryScript).not.toContain("'text'");
+    expect(src.primaryScript).not.toContain('"text"');
+  });
+
+  it("bing_news primaryScript does not produce type='text' candidates", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
+    expect(src).toBeDefined();
+    expect(src.primaryScript).not.toContain("'text'");
+    expect(src.primaryScript).not.toContain('"text"');
+  });
+
+  it("google_news primaryScript only pushes when img exists", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+    // The script should have a guard: only push when img is truthy
+    // Check that there's an if(img or if (img guard before push
+    expect(src.primaryScript).toMatch(/if\s*\(\s*img\b/);
+  });
+
+  it("bing_news primaryScript only pushes when img exists", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
+    expect(src.primaryScript).toMatch(/if\s*\(\s*img\b/);
   });
 });
