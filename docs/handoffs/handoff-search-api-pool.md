@@ -15,6 +15,9 @@
 | **Jina Search** | 1M tokens/月 | 每月更新 | 降级到无 key 模式（20 RPM） | ✅ |
 | **Tavily** | 1000 credits/月 | 每月1号重置 | 请求停止 | ✅ |
 | **mcp-search-bridge (Grok)** | 无限（自建） | 不适用 | 无限制 | ✅ |
+| **Brave Search API** | 2000 queries/月 | 每月更新 | 请求停止 | ❌ 待配置 |
+
+> **Brave Search API** (https://brave.com/search/api/): 免费层 2000 queries/月，无需信用卡。独立搜索引擎（非 Google/Bing 代理），隐私优先。提供 `web` 和 `news` 搜索类型。需要 API Key（免费注册）。MCP server 尚未配置——实施 Pool 时需要先配置 Brave MCP 或直接 API 调用。
 
 ## What exists already
 
