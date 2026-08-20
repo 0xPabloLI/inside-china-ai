@@ -666,7 +666,7 @@ GPU count: 2
 | **Colab 免费版** ✅ 已用 | T4（不保证） | 15GB | **动态**（不固定） | 不固定 | 冷却期 + 90min 空闲 | 官方 FAQ [2] |
 | **Lightning AI** | T4/L4/A10G/L40S | 15-48GB | **月度刷新** | 15 credits/月 (~22h T4) | 4h studio 重启, 不累计 | 官方 + SaaSworthy + aicreditmart [3] |
 | **Hugging Face ZeroGPU** | H200（动态） | 48-96GB | **每日刷新** | 5 min/天, 3次/天 | 极短时间 | 官方文档 + 论坛 [4] |
-| **Saturn Cloud** | T4（仅 CPU 免费？） | 16GB? | **月度刷新** | 150h/月（CPU 为主） | GPU 免费层不确定；Token 已验证 ✅ 但 `app.saturncloud.io` 被 Clash TUN 拦截，需配 fake-ip-filter | 官方博客 [5] + 2026-08-19 验证 |
+| **Saturn Cloud** | ❌ 已转型 | — | — | — | 已转型为企业 GPU 云管理平台（Mirantis 旗下）。**无免费额度，无 Pro/Individual 计划**。Hosted 模式按量付费（T4 $0.15/hr ~ H100 $2.95/hr），Enterprise/GPU cloud operators 按合同。`app.community.saturnenterprise.io` 登录页存在但已无个人资源。API Token 仍有效但仅可查 docs。$5 Pro upgrade 未发现对应免费额度。**已从 GPU pool 移除** | 2026-08-20 官网验证 |
 
 ### 一次性的免费 GPU（❌ 对我们没有意义）
 
@@ -678,7 +678,7 @@ GPU count: 2
 | **Oracle Cloud** | $300 credit | 一次性（30天过期） | 之后只有 always-free CPU |
 | **RunPod** | $5-10 credit | 一次性 | 用完即止 |
 | **Paperspace Gradient** | 有限 GPU 时 | 一次性 | 免费层 M4000 8GB 不够用 |
-| **Modal** | $30/月 | **月度更新** ✅ | Token 已验证 ✅ T4 GPU 函数跑通 ✅；需 `NO_PROXY=api.modal.com` 绕 Clash TUN；**注意**：workspace 有 spend limit，需手动调高 |
+| **Modal** | $30/月 | **月度更新** ✅ | Token 已验证 ✅；HTTP API 跑通 ✅；**FlClash DNS 问题根因已定位**：中国 DNS（阿里 223.5.5.5）对 modal.com 返回 SERVFAIL。原来把 +.modal.com 加入 fake-ip-filter 导致跳过 fake-ip 后直接走系统 DNS → SERVFAIL → Python socket.getaddrinfo 失败 → gRPC ConnectionError。**解决方案**：从 fake-ip-filter 中移除 +.modal.com（让 FlClash 用 fake-ip + 内部 DNS 管道解析），保留 DOMAIN-SUFFIX,modal.com,DIRECT 规则。还需 pip install modal[api-proxy-support]（python-socks）解决 macOS 系统代理 SOCKS 检测。重启 FlClash 后测试。workspace spend limit 已调高。**EchoMimicV3 可行性**：serverless 函数平台，CPU RAM 默认 8GB（可调大）。冷启动每次重新下载模型，$30 ≈ 50h T4。适合跑量化版（FP8/NF4 VRAM <4GB），不适合全量 FP16（19GB CPU RAM 可能不够+冷启动慢） |
 | **Thunder Compute** | $20 (学生) | 一次性 | 仅美国学生 |
 
 ### SageMaker Studio Lab 关闭详情
@@ -744,9 +744,41 @@ GPU count: 2
 
 ## 国内云 GPU 平台（2026-08-19 验证）
 
-### 腾讯云 GPU 实例 ✅ 凭证有效
+### 腾讯云 Cloud Studio（免费 GPU IDE）⭐ 验证待用
 
-**验证状态**：SecretId/SecretKey 已验证，可查询到广州、北京、上海、南京各可用区。
+**验证状态**：腾讯云账号已注册，Cloud Studio 可用。
+
+**免费 GPU 来源**（来源：[Cloud Studio 官方文档](https://cloudstudio.net/docs/guide/billing/machine_time/compute-time-introduction/)）：
+
+| 免费来源 | 额度 | 更新周期 | GPU 可用时长（T4） |
+|---------|------|---------|-------------------|
+| 首次绑定腾讯云账号 | 20 机时 | 一次性 | ~16.7h（抵扣因子 1.2） |
+| 每日签到领取 | 2 机时/天 | **每日刷新**（7天有效） | ~50h/月 |
+
+**GPU 规格**（来源：[机时购买页](https://cloudstudio.net/docs/guide/billing/machine_time/how-to-purchase-compute-time/)）：
+
+| 规格 | 配置 | 抵扣因子（机时/h） | 按量价格（元/h） |
+|------|------|---------------------|----------------|
+| GPU T4 | T4, 8核, 32GB RAM, 16GB VRAM | 1.2 | ¥1.2/h |
+| GPU V100 | V100, 8核, 40GB RAM, 32GB VRAM | 3.6 | ¥3.6/h |
+| GPU A10 | A10, 20核, 116GB RAM, 24GB VRAM | 3.3 | ¥3.3/h |
+| GPU L40 | L40, 48核, 192GB RAM, 48GB VRAM | 8.0 | ¥8.0/h |
+| GPU A800 | A800, 124核, 1929GB RAM, 80GB VRAM | 14.0 | ¥14.0/h |
+
+**关键特点**：
+- Cloud Studio 是**在线 IDE**（非 Jupyter Notebook），适合部署应用而非跑训练脚本
+- 每日签到 2 机时 × 30 天 = 60 机时/月，T4 抵扣因子 1.2，约 **50h/月 T4 免费**
+- ⚠️ **签到是手动操作**：需每天登录 → 个人中心 → 完成任务送机时 → 每日签到 → 领取奖励。**不签到 = 0 机时/月**（首次 20 机时用完后）。签到领取的机时 **7 日内有效**，过期作废
+- 需绑定腾讯云账号，用完后自动转按量付费（从腾讯云余额扣费）
+- 入口：https://cloudstudio.net/
+
+> **EchoMimicV3 可行性**：T4 (16GB VRAM) + **32GB CPU RAM**（比 Kaggle 29GB 多 3GB）。diffusers 0.31.0 + sequential_cpu_offload 可行（v43 已在 Kaggle T4 验证）。32GB RAM 可能不能跑 diffusers 0.37.1（需 >29GB），但 0.31.0 确认可行。
+>
+> **注意**：Cloud Studio 是 GPU IDE 环境，不是标准 Jupyter/CVML 实例。需适配脚本运行方式（通过终端执行 Python 脚本，而非 notebook cell）。与 Kaggle T4×2（30h/周）互补。
+
+### 腾讯云 CVM GPU 实例（付费）
+
+**验证状态**：SecretId/SecretKey 已验证，可查询到广州、北京、上海、南京各可用区。GPU 实例需付费，无免费层。
 
 **GPU 实例系列**（来源：[腾讯云 GPU 云服务器文档](https://cloud.tencent.com/document/product/560/19700)）：
 
@@ -768,6 +800,8 @@ GPU count: 2
 - 适用：推理场景，T4 显存 16GB 与 Kaggle T4 一致
 
 > ⚠️ **限制**：GPU 实例需要**备案**或**按量付费**才能创建，部分区域可能有库存限制。建议先在[价格计算器](https://buy.tencentcloud.com/price/cvm/calculator)查看实时价格。
+>
+> **EchoMimicV3 可行性**：GN7.2XLARGE32 (T4 + 32GB RAM) 与 Cloud Studio 规格相同，diffusers 0.31.0 + sequential_cpu_offload 可行。CVM 是标准 Linux 实例，比 Cloud Studio 更灵活（可 SSH + 装 Conda + 跑脚本），但需要付费。
 
 ### 国内 LLM API 免费额度对比（2026-08-19）
 
