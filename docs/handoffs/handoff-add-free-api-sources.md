@@ -83,12 +83,14 @@
 - 适合: 任何 RSS 源的 JSON 转换（扩展 wechat2rss 等已有 RSS 源）
 - 接入方式: `apiSearch` direct-connect
 
-#### 8. Wikipedia REST API
+#### 8. Wikipedia REST API (Reference Source)
 - URL: `https://en.wikipedia.org/api/rest_v1/page/summary/DeepSeek`
 - Auth: 无
 - 格式: JSON（title, extract, thumbnail）
-- 适合: 实体背景信息
-- 接入方式: `apiSearch` direct-connect
+- 适合: 实体背景信息查询
+- **不属于 general search**，应作为独立的 `category: "reference"` source 加入 source-registry
+- 适合在 content-pipeline Stage 1（写文章时查实体信息）调用，不参与 trend/research 文章搜索
+- 接入方式: `apiSearch` direct-connect, `accessMethod.primary: "api"`, 无 fallback
 
 #### 9. Semantic Scholar API
 - URL: `https://api.semanticscholar.org/graph/v1/paper/search?query=...&limit=10`

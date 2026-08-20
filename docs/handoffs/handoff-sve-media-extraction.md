@@ -125,10 +125,27 @@ Stage 3: asset-sourcer 打开 jiqizhixin.com → 提取图片 → 关闭
 - `tdd` skill — red → green → refactor
 - `writing-for-agents` skill — 如果需要更新 `docs/content-pipeline.md` 中的 SVE 描述
 
+## Design Clarifications (2026-08-20 补充)
+
+### Jina Reader 本地部署与 Pipeline 集成
+- Jina Reader 开源（Apache-2.0），预构建 Docker 镜像 `ghcr.io/jina-ai/reader:oss`
+- 核心技术：Node.js + Puppeteer（headless Chrome）+ curl-impersonate + PDF.js + LibreOffice
+- 资源消耗：CPU 2-4 核，内存 2-4GB，磁盘 ~5GB
+- **Pipeline 代码中 Jina 不通过 MCP 调用**——当前 `scripts/short-video/` 代码中没有 Jina 引用。Jina 目前只作为 MCP tool 供 Agent 直接调用。
+- SVE 实施时，如果用 Jina Reader 做 fallback（Layer 2），pipeline 代码可直接 `fetch("http://localhost:3000/" + url)` 替代 MCP 调用，无需经过 MCP 传输层
+- 本地部署可消除 Jina 的 1M tokens/月限制（无状态模式下无 rate limit）
+
+### collectFromCdp 是代码，不调用 skill
+`collectFromCdp()` 是 `search-sources.mjs` 中的函数，直接调用 `lib/cdp-client.mjs` 的 CDP HTTP API（`localhost:3456`），不调用 web-access skill。Web-access skill 和 pipeline 的 CDP 代理共享同一端口（3456），但提取策略不同：Pipeline 用 per-site extractScript，Web-access skill 有 /extract 自动检测。
+
+### collectFromMcp 是代码调用 MCP Search Bridge
+`collectFromMcp()` 通过 `lib/mcp-client.mjs` spawn mcp-search-bridge 子进程，调用 `web_search` tool。这是代码级调用，不经过 Agent。
+
 ## Key References
 
 - 源文件：`scripts/short-video/search-sources.mjs` 第 119-212 行（`enrichWithImages` + `collectFromCdp`）
 - 源文件：`scripts/short-video/lib/asset-sourcer.mjs` 第 1227-1304 行（`LOGO_ICON_REGEX` + `loadCachedImages`）
 - 源文件：`scripts/short-video/lib/source-registry.mjs` 第 2345-2605 行（`CDP_IMAGE_CAPABILITIES`）
+- Jina Reader 本地部署：https://github.com/jina-ai/reader（Docker `ghcr.io/jina-ai/reader:oss`）
 - 讨论：`docs/research/pipeline-simplification-discussion.md` Topic 4
 - Pipeline 文档：`docs/content-pipeline.md`

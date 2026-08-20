@@ -103,6 +103,32 @@ Layer 4: Search API Pool — Jina Search + Tavily + Grok (round-robin)
 - `tdd` skill — Pool 调度器单元测试（round-robin、额度耗尽降级、月度重置）
 - `writing-for-agents` skill — 更新 `docs/tools-catalog.md` 和 `docs/research/pipeline-simplification-discussion.md`
 
+## Design Clarifications (2026-08-20 补充)
+
+### Bing API 已退役，不可用
+Bing Search API 于 2025 年 8 月退役，2026 年 8 月 11 日完全关闭。不可加入 Pool。但 `bing_news` 源在 source-registry 中走 CDP 模式（打开 `bing.com/news/search` 页面用 extractScript），不依赖 API，仍然可用。
+
+### CDP 搜索不能进 Pool
+Pool 只包含**程序化 API 调用**的搜索服务。CDP 搜索（google_search、baidu_search、bing_news）是浏览器代理模式，不是 API，不能放进 Pool。它们作为独立 source 留在 source-registry 中。
+
+### Wikipedia 不属于 general search，单独作为 reference source
+Wikipedia REST API（`https://en.wikipedia.org/api/rest_v1/page/summary/{title}`）是实体背景信息查询，不是关键词搜索。应作为独立的 `category: "reference"` source 加入 source-registry，不放进 Search API Pool。适合在 content-pipeline Stage 1（写文章时查实体信息）调用。
+
+### General search 的消费者
+当前管线中消费 general search 的场景：
+1. `google_search` / `baidu_search` / `mcp_grok_search` — 作为 source 在 search-sources.mjs 中被调用
+2. `google_news` / `bing_news` — 新闻搜索 source
+3. CDP fallback（Google `site:domain.com keyword`）— 某源 CDP 提取失败时的 fallback
+4. Agent 直接调用 `web_fetch` 或 Jina — 对话中的即时搜索
+
+### Jina 本地部署
+- 预构建 Docker 镜像：`ghcr.io/jina-ai/reader:oss`
+- 核心技术：Node.js + Puppeteer（headless Chrome）+ curl-impersonate + PDF.js + LibreOffice
+- 资源消耗：CPU 2-4 核，内存 2-4GB（Chrome 是大头），磁盘 ~5GB（镜像）
+- 两个端口：8080 (h2c) + 8081 (HTTP/1.1)
+- 无状态模式（默认）或 S3 bucket 缓存模式
+- **Pipeline 代码中 Jina 不通过 MCP 调用**——当前 pipeline 代码（`scripts/short-video/`）中没有 Jina 引用。Jina 目前只作为 MCP tool 供 Agent 直接调用。Search API Pool 实施时，Jina Search 通过 MCP 调用；如果本地部署 Jina Reader，pipeline 代码可直接 `fetch("http://localhost:3000/" + url)` 替代 MCP。
+
 ## Key References
 
 - MCP 配置：`mcopilot_mcp_settings.json`（jina, tavily, mcp-search-bridge 三个 server）
@@ -110,4 +136,6 @@ Layer 4: Search API Pool — Jina Search + Tavily + Grok (round-robin)
 - 现有 MCP 调用：`scripts/short-video/lib/mcp-client.mjs`
 - Tavily 定价：https://tavily.com/pricing（1000 credits/月免费，每月1号重置）
 - Jina 定价：1M tokens/月免费，每月更新
+- Jina 本地部署：https://github.com/jina-ai/reader（Docker `ghcr.io/jina-ai/reader:oss`）
+- Bing API 退役公告：2025-08 退役，2026-08-11 完全关闭
 - 讨论：`docs/research/pipeline-simplification-discussion.md`
