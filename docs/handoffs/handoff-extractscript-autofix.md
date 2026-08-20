@@ -6,18 +6,19 @@
 
 ## Context
 
-管线代码 `collectFromCdp()` 用 per-site `extractScript` 提取搜索结果。测试发现部分源的 extractScript 有 bug（如小红书的 `[data-v-*]` 是无效 CSS 选择器），导致返回 0 结果。需要一个自动 fallback 机制：per-site 失效 → generic eval → /extract，并记录失效情况。
+管线代码 `collectFromCdp()` 用 per-site `extractScript` 提取搜索结果。测试发现部分源的 extractScript 有 bug（如小红书的 `[data-v-*]` 是无效 CSS 选择器），导致返回 0 结果。需要一个自动 fallback 机制：per-site 失效 → Jina Reader → generic eval → /extract，并记录失效情况。
 
 ## Approved Design
 
 ```
 collectFromCdp(source, keyword):
   1. 用 per-site extractScript 提取
-  2. 如果结果为空（0 篇）→ 运行 generic eval 脚本
-  3. 如果 generic eval 也为空 → 运行 /extract（最后兜底）
-  4. 如果 per-site 失败但 generic 成功 → console.warn("⚠️ extractScript for {source.name} returned 0 results, generic fallback recovered {N} items. Selector may need updating.")
-  5. 把失效信息写入 output/extract-script-health.json:
-     { source: "xhs", lastFail: "2026-08-20", reason: "0 results from extractScript", recoveredBy: "generic eval", recoveredCount: 16 }
+  2. 如果结果为空（0 篇）→ Jina Reader (r.jina.ai/{url}) 重新提取同一 URL
+  3. 如果 Jina 也为空 → 运行 generic eval 脚本
+  4. 如果 generic eval 也为空 → 运行 /extract（最后兜底）
+  5. 如果 per-site 失败但后续方法成功 → console.warn("⚠️ extractScript for {source.name} returned 0 results, {recoveredBy} recovered {N} items. Selector may need updating.")
+  6. 把失效信息写入 output/extract-script-health.json:
+     { source: "xhs", lastFail: "2026-08-20", reason: "0 results from extractScript", recoveredBy: "jina reader", recoveredCount: 16 }
 ```
 
 ## Implementation Scope
@@ -35,6 +36,14 @@ collectFromCdp(source, keyword):
      - per-site 0 结果 → generic 成功 → warn + health 记录
      - per-site 0 结果 + generic 0 结果 → /extract 尝试
      - 全失败 → 空数组 + health 记录
+
+### Jina Reader fallback 层 (added 2026-08-20)
+Jina Reader (`r.jina.ai/{url}`) 在 per-site extractScript 失效后、generic eval 之前插入。它用自己的 headless Chrome + curl-impersonate 引擎重新请求同一 URL，返回 Markdown 内容，不依赖 DOM 选择器。
+
+- **调用方式**: `fetch("https://r.jina.ai/" + source.url(keyword))` + optional `X-With-Images-Summary: true` header
+- **解析**: Jina 返回 Markdown（`Title:` / `URL Source:` header + 正文）。Parser 从 Markdown 提取 `{title, url}` 数组。
+- **额度**: 1M tokens/月免费（与 Issue #65 Search API Pool 的 Jina Search 共享 token 池）。本地 Docker 部署 (`ghcr.io/jina-ai/reader:oss`) 可消除额度限制。
+- **Fallback 语义区分**: Jina Reader = "同一 URL 换种方式提取"；Grok (Issue #65) = "放弃 URL，用搜索引擎找替代内容"
 
 ### 不改动的文件
 - `lib/cdp-client.mjs` — CDP 传输层不变
