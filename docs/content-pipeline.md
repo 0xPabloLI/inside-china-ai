@@ -6,24 +6,26 @@
 ## 管线概览
 
 ```
-入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → 📚 RAG reindex（多媒体素材） → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
+入口 → [Stage 0 素材收集] → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → 📚 RAG reindex（多媒体素材） → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
 ```
 
 > **📚 RAG reindex** 在文章发布后自动触发，确保新文章、源素材和 scene-data 立即进入知识库。文章在 Stage 2 发布（HITL 之前），RAG 随即收录。Stage 3 scene-data 就绪后再次触发 reindex。Stage 4 视频制作完成后，如有多媒体素材变更（新增/修改 catalog.yml 条目），再次触发 reindex（见 Stage 4b）。
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
-### Stage 0.5: Research Evidence（可选 — 无完整素材时强制）
+### Stage 0: Source Discovery & Material Gathering
 
-当用户只给话题或趋势（入口 2），管线在 Stage 1 前引入 Stage 0.5：Search Sources 发现候选 → Brief Builder 压缩为 research brief → Web Deep Research 执行验证 → evidence pack 作为唯一证据来源。文章中的所有 material factual claims 必须映射回 evidence pack 中的 `verified` 项。
+管线起点。三个入口在 Stage 0 汇合，输出统一的「素材集合」（用户素材 + 互联网全文）。
 
-**数据契约**：`discovery.json` → `research-brief.json` → `evidence-pack.json` → `article-claim-map.json`。所有文件存储在 `content/<slug>/research/` 目录下。
+**入口 1（有素材）**：用户给 PDF/URL/文本 → Agent 读素材 → 提取 keyword → `search-sources --research --content-id <slug>` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 用户素材 + 全文 = Stage 0 输出
 
-**实现模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。
+**入口 2（有话题）**：用户给话题 → `search-sources --keyword "话题" --research` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 全文 = Stage 0 输出
 
-**MRL-1 evidence gate**：`claim-auditor.mjs` 的 `auditClaims()` 在文章发布前检查 claim-evidence 映射完整性。未映射、`rejected`/`stale` 证据、高风险 claim 未达 tier 阈值 = 审计失败。
+**入口 3（无输入）**：`search-sources --trend` → Agent 从 `trending-topics.json` 选话题 → 走入口 2 路线
 
-详细 spec 见 `docs/archive/spec-research-evidence-pipeline.md`。
+> **Evidence 模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）保留但不接入管线。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。非阻塞审计可通过 `research-pipeline.mjs --audit-only` 手动触发（Issue #61）。
+>
+> 详细 spec 见 `docs/archive/spec-research-evidence-pipeline.md`。
 
 MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的人工确认点是 **HITL 视频审阅**：用户看视频成品后确认视频质量，然后发布视频 MP4 到网站文章 + TikTok。文章在 Stage 2 已发布（HITL 之前），HITL 仅控制视频发布。
 
@@ -83,31 +85,37 @@ Warnings：2 项（列出但不阻塞）
 
 ## 如何启动
 
+三个入口均在 **Stage 0: Source Discovery & Material Gathering** 汇合。详见上方 Stage 0 章节。
+
 ### 入口 1：有源素材（PDF / 报告 / 长文 / URL）
 
 **用户对 Agent 说**：
 
 > "读这个素材写一篇文章：[PDF 路径 / URL / 文本]"
 
-Agent 从 Stage 1 开始执行。
+Agent 从 Stage 0 开始：读素材 → 提取 keyword → 运行 `search-sources --research` → 提取全文 → 进入 Stage 1。
 
 ### 入口 2：只有话题或趋势
 
 **用户对 Agent 说**：
 
-> "跑 search-sources --trend，选一个话题做内容"
-
-或直接给话题：
-
 > "用「华为 AI 芯片突破」这个话题做一条内容"
 
-Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个支持关键词的源，输出 JSON），再用 web-access skill 深度抓取相关 URL 全文，然后从 Stage 1 开始执行。
+Agent 从 Stage 0 开始：运行 `search-sources --keyword "话题" --research` → 提取全文 → 进入 Stage 1。
+
+### 入口 3：无输入（趋势发现）
+
+**用户对 Agent 说**：
+
+> "跑 search-sources --trend，选一个话题做内容"
+
+Agent 从 Stage 0 开始：运行 `search-sources --trend` → 选话题 → 走入口 2 路线。
 
 > **搜索工具有两个模式，按场景分工**：
-> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 46 源（含固定公众号 RSS），filter/classify/dedup，输出 `trending-topics.json`
-> - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：只跑 24 个 supportsKeyword=true 的源，不过滤不分类，输出 `research-results.json`（按源分组）
+> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 59 源（含固定公众号 RSS），filter/classify/dedup，输出 `trending-topics.json`
+> - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：跑所有 supportsKeyword=true 或有 cdpFallback 的源，不过滤不分类，输出 `research-results.json`（按源分组）
 >
-> **源定义在 `lib/source-registry.mjs`（single source of source）**：46 源 = 7 news + 8 self_media + 8 western + 5 general + 5 last30days + 1 转载监控 wechat + 12 第三方 Wechat RSS。23 个源有 `apiSearch` 配置（直接 HTTP 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）。
+> **源定义在 `lib/source-registry.mjs`（single source of source）**：59 源 = 14 news + 8 self_media + 8 international + 5 general + 5 last30days + 1 wechat + 12 wechat RSS + 6 stock_api。23 个源有 `apiSearch` 配置（直接 HTTP 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）和可选 `locale`（中文限定源标 `zh-CN`，国际/多语种源不标）。
 >
 > **补充搜索源**：需要更多新闻/学术/素材 API 时，查 `docs/tools-catalog.md` → Pipeline API 补充候选。
 >
@@ -521,7 +529,7 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blo
 | B3a | Widget 可视化  | Widget 必须使用图表、图形等可视化方式呈现，纯文本链接列表不通过（至少使用柱状图、矩阵、流程图等任一） | 重设计 widget 为可视化形式  |
 | B4  | 源引用           | 每个数据点（金额、日期、比例、引用语）必须有内联来源标注（媒体名+日期 或 URL）                    | 补充来源                      |
 | B5  | 链接完整性       | 所有 URL 必须指向具体文章/页面，禁止域名根链接（如 ❌ `https://bloomberg.com`）                   | 替换为完整 URL 或换可访问来源 |
-| B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注                                          | 补充标注                      |
+| B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注。Inline 标注是未来结构化 evidence 数据的来源（#61）；audit 非阻塞，仅输出 warning                                          | 补充标注                      |
 | B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                    | 删除 My Take                  |
 | B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等） | 替换为口语化表达              |
 

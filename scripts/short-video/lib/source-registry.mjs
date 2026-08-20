@@ -55,10 +55,11 @@ const NODE_BIN = "node";
 
 export const NEWS_SOURCES = [
   {
-    name: "qbitai",
-    label: "量子位",
-    category: "news",
-    supportsKeyword: false,
+name: "qbitai",
+label: "量子位",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
@@ -91,10 +92,11 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "jiqizhixin",
-    label: "机器之心",
-    category: "news",
-    supportsKeyword: true,
+name: "jiqizhixin",
+label: "机器之心",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
@@ -126,10 +128,11 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "36kr",
-    label: "36氪",
-    category: "news",
-    supportsKeyword: false,
+name: "36kr",
+label: "36氪",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
@@ -234,10 +237,11 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "guancha",
-    label: "观察者网",
-    category: "news",
-    supportsKeyword: false,
+name: "guancha",
+label: "观察者网",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
@@ -273,9 +277,10 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "ithome",
-    label: "iThome",
-    category: "news",
+name: "ithome",
+label: "iThome",
+category: "news",
+locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
@@ -510,10 +515,11 @@ export const NEWS_SOURCES = [
 
 export const SELF_MEDIA_SOURCES = [
   {
-    name: "xhs",
-    label: "小红书",
-    category: "self_media",
-    supportsKeyword: true,
+name: "xhs",
+label: "小红书",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: ["mcp"],
@@ -562,10 +568,11 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "sogou_weixin",
-    label: "搜狗微信",
-    category: "self_media",
-    supportsKeyword: true,
+name: "sogou_weixin",
+label: "搜狗微信",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: ["mcp"],
@@ -617,10 +624,11 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "weibo_hot",
-    label: "微博热搜",
-    category: "self_media",
-    supportsKeyword: false,
+name: "weibo_hot",
+label: "微博热搜",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       fallbacks: ["mcp"],
@@ -657,10 +665,11 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "bilibili",
-    label: "B站搜索",
-    category: "self_media",
-    supportsKeyword: true,
+name: "bilibili",
+label: "B站搜索",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: ["mcp"],
@@ -708,10 +717,11 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "douyin",
-    label: "抖音搜索",
-    category: "self_media",
-    supportsKeyword: true,
+name: "douyin",
+label: "抖音搜索",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: ["mcp"],
@@ -860,10 +870,11 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "zhihu",
-    label: "知乎",
-    category: "self_media",
-    supportsKeyword: true,
+name: "zhihu",
+label: "知乎",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
@@ -1551,10 +1562,11 @@ export const GENERAL_SEARCH_SOURCES = [
     },
   },
   {
-    name: "baidu_search",
-    label: "百度搜索",
-    category: "general",
-    needsAuth: false,
+name: "baidu_search",
+label: "百度搜索",
+category: "general",
+locale: "zh-CN",
+needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
@@ -1901,11 +1913,12 @@ export const LAST30DAYS_SOURCES = [
 
 export const WECHAT_ACCOUNT_SOURCES = [
   {
-    name: "wechat_dongchabeating",
-    label: "动察Beating（公众号）",
-    account: "动察Beating",
-    category: "wechat",
-    supportsKeyword: false,
+name: "wechat_dongchabeating",
+label: "动察Beating（公众号）",
+account: "动察Beating",
+category: "wechat",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       fallbacks: [],
@@ -1998,12 +2011,13 @@ const WECHAT_RSS_TRACKING = Object.freeze({
 });
 
 function createWechatRssSource(name, label, feedUrl) {
-  return {
-    name,
-    label,
-    category: "wechat",
-    supportsKeyword: false,
-    needsAuth: false,
+return {
+name,
+label,
+category: "wechat",
+locale: "zh-CN",
+supportsKeyword: false,
+needsAuth: false,
     useCleanTitle: false,
     accessMethod: {
       primary: "api",

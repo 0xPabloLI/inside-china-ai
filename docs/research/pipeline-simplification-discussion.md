@@ -145,23 +145,30 @@ Unified Page Visitor 打开 URL（一次）
 | 16 | Wikipedia 作为独立 reference source | 2026-08-20 | 不属于 general search，是实体背景信息查询。category=reference，不进 Pool |
 | 17 | accessMethod.fallbacks 字段是文档性的 | 2026-08-20 | collectFromSource() 硬编码 fallback 链，不读该字段。实施时可删除简化 |
 | 18 | Jina 可本地 Docker 部署 | 2026-08-20 | ghcr.io/jina-ai/reader:oss，2-4GB RAM，无状态模式无限调用。Pipeline 代码可直接 fetch 而非 MCP |
-| 19 | Brave Search 以直接 API 调用集成，不配 MCP | 2026-08-20 | Brave 是 REST API（`fetch` + `X-Subscription-Token` header），不需要 MCP transport。同时作为 source-registry 独立 source（`apiSearch`）和 Search API Pool 成员 |
+| 13 | Entry points unified; three entries converge at Stage 0 | 2026-08-20 | Grill Q1: 入口统一为单入口，差异仅是 keyword 来源和是否有 primary source |
+| 14 | Stage 0.5 renamed to Stage 0: Source Discovery & Material Gathering | 2026-08-20 | Grill Q8: 管线起点编号清晰化，去掉 0.5 |
+| 15 | MRL-1 B4/B6 inline markers as source for structured evidence (non-blocking) | 2026-08-20 | Grill Q4: inline 标注保留，作为 evidence schema 来源；audit 非阻塞，输出 warning。#61 追踪 |
+| 16 | Research mode filter expanded to include cdpFallback sources | 2026-08-20 | Grill Q2: 不支持 keyword 的源走 Google site: fallback |
+| 17 | WESTERN_SOURCES renamed to INTERNATIONAL_SOURCES | 2026-08-20 | Grill Q6: "western" 不准确，这些源是国际/多语种的 |
+| 18 | Optional locale field added; English sources not marked | 2026-08-20 | Grill Q6: 中文限定源标 zh-CN，英文/多语种源不标 |
+| 19 | No separate issue for Discussion; all tasks in existing issues | 2026-08-20 | Grill Q9: 所有未完成项已有对应 issue |
 
 ## Open Questions
 
 1. ~~evidence 模块删还是留？~~ → 留，不接入
 2. ~~信源选择能否规则化？~~ → 不能，硬编码是唯一可行方案
-3. ~~DOM 选择器是否要替换成 Jina/通用提取？~~ → Jina 作为 CDP fallback 插入 fallback 链
-4. Unified Page Visitor 的设计细节？（Topic 4，待讨论）
+3. ~~DOM 选择器是否要替换成 Jina/通用提取？~~ → Jina 作为 CDP fallback 插入 fallback 链（被 #66 /extract 替代）
+4. ~~Unified Page Visitor 的设计细节？~~ → Tracked in #62
 5. ~~已有 143 个测试怎么处理？~~ → 全部保留
 
 ## Next Steps
 
-- [x] 讨论 Topic 1: evidence 处理方式 → 保留不接入，on-demand audit 发 issue
-- [x] 讨论 Topic 3: 信源 + DOM 选择器 → Jina fallback 方案
-- [ ] 讨论 Topic 4: Single-Visit Extraction 架构
+- [x] 讨论 Topic 1: evidence 处理方式 → 保留不接入，on-demand audit 发 issue (#60)
+- [x] 讨论 Topic 3: 信源 + DOM 选择器 → Jina fallback 方案（被 #66 /extract 替代）
+- [x] 讨论 Topic 4: Single-Visit Extraction 架构 → Tracked in #62
 - [x] 创建 on-demand audit 的 GitHub issue + handoff 文档 ✅ Issue #60
 - [x] Jina Reader API 测试（53 源 × 3 参数）
 - [x] Jina 文档合并入 docs/tools-catalog.md ✅
-- [ ] 形成简化后的 spec
-- [ ] 实施 Jina fallback（标准工作流）
+- [x] 形成简化后的 spec ✅ Issue #70
+- [x] 实施 Jina fallback → Superseded by #66 (extractScript auto-fallback uses /extract)
+- [x] 实施 pipeline simplification: category rename + locale field + research filter expansion ✅ Issues #71, #72, #73, #74

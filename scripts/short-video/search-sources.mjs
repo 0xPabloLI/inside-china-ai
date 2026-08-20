@@ -10,11 +10,11 @@
  *              research-results.json grouped by source.
  *
  * Sources are defined in lib/source-registry.mjs (single source of source).
- * 28 sources total (7 news + 8 self-media + 4 western + 3 general + 5 last30days + 1 wechat).
+ * 28 sources total (7 news + 8 self-media + 8 international + 5 general + 5 last30days + 1 wechat).
  *
  * Fallback chain: apiSearch (if configured) → CDP → cdpFallback (Google site: search) → mcpFallback (mcp-search-bridge)
  * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
- * Western/general sources primarily use mcp-search-bridge (Grok web search).
+ * International/general sources primarily use mcp-search-bridge (Grok web search).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
  *
  * Env vars for mcp-search-bridge:
@@ -30,7 +30,7 @@
  *                 Skipped by default to preserve free quota.
  *
  * Requires: Chrome Remote Debugging enabled + CDP proxy at localhost:3456
- *           (western/MCP sources work without CDP via mcp-search-bridge)
+ *           (international/MCP sources work without CDP via mcp-search-bridge)
  *
  * Output:
  *   --trend:    output/trending-topics.json
@@ -332,8 +332,12 @@ async function main() {
   // R2: Select sources based on mode — only sources with capabilities.articles
   // This excludes stock_api sources (Pexels, Unsplash, etc.) which only have
   // capabilities.images/videos and should not be used for article/trend discovery.
+  // Research mode includes sources with supportsKeyword=true OR cdpFallback
+  // (homepage-only sources can still contribute via Google site: fallback).
   let sources = isResearchMode
-    ? ALL_SOURCES.filter((s) => s.capabilities?.articles?.supportsKeyword)
+    ? ALL_SOURCES.filter(
+        (s) => s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.cdpFallback,
+      )
     : ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
   // Filter out paid-API sources unless --include-paid is passed
@@ -348,7 +352,7 @@ async function main() {
   const sourceBreakdown = {
     news: sources.filter((s) => s.category === "news").length,
     self_media: sources.filter((s) => s.category === "self_media").length,
-    western: sources.filter((s) => s.category === "western").length,
+    international: sources.filter((s) => s.category === "international").length,
     general: sources.filter((s) => s.category === "general").length,
     last30days: sources.filter((s) => s.category === "last30days").length,
     wechat: sources.filter((s) => s.category === "wechat").length,
