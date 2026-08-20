@@ -121,7 +121,18 @@
 - 接入方式: `apiSearch`（需 GraphQL query）
 - **注意**: GraphQL 格式与现有 parser 不兼容，需特殊处理
 
-#### 13. Hacker News Search (Algolia, 已在 registry)
+#### 13. Brave Search API
+- URL: `https://api.search.brave.com/res/v1/web/search?q=...&count=10`
+- Auth: API Key（`X-Subscription-Token` header）
+- 格式: JSON（web results + news results）
+- 限制: 2000 queries/month（免费层，无需信用卡）
+- 适合: 独立搜索引擎关键词搜索
+- 接入方式: `apiSearch` direct-connect，**NOT MCP**
+- API Key 环境变量: `BRAVE_SEARCH_API_KEY`
+- 注册地址: https://brave.com/search/api/
+- **注意**: Brave 同时也是 Search API Pool 的成员（Issue #65），但在 source-registry 中作为独立 source（`brave_search`），通过 `apiSearch` 直接 HTTP 调用。两种角色不冲突——source-registry 的 brave_search 是关键词搜索 source，Pool 中的 Brave 是 fallback 层。
+
+#### 14. Hacker News Search (Algolia, 已在 registry)
 - 已有: `https://hn.algolia.com/api/v1/search?query=...`
 - 可增强: 增加 `tags=story` 和 `numericFilters=created_at_i>...` 时间过滤
 

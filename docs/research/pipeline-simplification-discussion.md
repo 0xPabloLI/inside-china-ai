@@ -145,6 +145,7 @@ Unified Page Visitor 打开 URL（一次）
 | 16 | Wikipedia 作为独立 reference source | 2026-08-20 | 不属于 general search，是实体背景信息查询。category=reference，不进 Pool |
 | 17 | accessMethod.fallbacks 字段是文档性的 | 2026-08-20 | collectFromSource() 硬编码 fallback 链，不读该字段。实施时可删除简化 |
 | 18 | Jina 可本地 Docker 部署 | 2026-08-20 | ghcr.io/jina-ai/reader:oss，2-4GB RAM，无状态模式无限调用。Pipeline 代码可直接 fetch 而非 MCP |
+| 19 | Brave Search 以直接 API 调用集成，不配 MCP | 2026-08-20 | Brave 是 REST API（`fetch` + `X-Subscription-Token` header），不需要 MCP transport。同时作为 source-registry 独立 source（`apiSearch`）和 Search API Pool 成员 |
 
 ## Open Questions
 

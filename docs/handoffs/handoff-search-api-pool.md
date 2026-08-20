@@ -6,34 +6,35 @@
 
 ## Context
 
-当前管线的 fallback 链是线性的——每个层失败后走下一个。但 Jina、Tavily、mcp-search-bridge 都是"搜索类" API，且都有每月更新的免费额度。用户要求把它们做成一个 **pool**，同一层内 round-robin，额度独立消耗。
+当前管线的 fallback 链是线性的——每个层失败后走下一个。但 Jina、Tavily、Brave、mcp-search-bridge 都是"搜索类" API，且都有每月更新的免费额度。用户要求把它们做成一个 **pool**，同一层内 round-robin，额度独立消耗。
 
 ## Pool Members
 
-| API | 免费额度 | 刷新周期 | 超额行为 | MCP 已配置 |
-|-----|---------|----------|----------|-------------|
-| **Jina Search** | 1M tokens/月 | 每月更新 | 降级到无 key 模式（20 RPM） | ✅ |
-| **Tavily** | 1000 credits/月 | 每月1号重置 | 请求停止 | ✅ |
-| **mcp-search-bridge (Grok)** | 无限（自建） | 不适用 | 无限制 | ✅ |
-| **Brave Search API** | 2000 queries/月 | 每月更新 | 请求停止 | ❌ 待配置 |
+| API | 免费额度 | 刷新周期 | 超额行为 | 集成方式 |
+|-----|---------|----------|----------|----------|
+| **Jina Search** | 1M tokens/月 | 每月更新 | 降级到无 key 模式（20 RPM） | MCP（已配置） |
+| **Tavily** | 1000 credits/月 | 每月1号重置 | 请求停止 | MCP（已配置） |
+| **Brave Search API** | 2000 queries/月 | 每月更新 | 请求停止 | **直接 API 调用**（非 MCP） |
+| **mcp-search-bridge (Grok)** | 无限（自建） | 不适用 | 无限制 | MCP（已配置） |
 
-> **Brave Search API** (https://brave.com/search/api/): 免费层 2000 queries/月，无需信用卡。独立搜索引擎（非 Google/Bing 代理），隐私优先。提供 `web` 和 `news` 搜索类型。需要 API Key（免费注册）。MCP server 尚未配置——实施 Pool 时需要先配置 Brave MCP 或直接 API 调用。
+> **Brave Search API** (https://brave.com/search/api/): 免费层 2000 queries/月，无需信用卡。独立搜索引擎（非 Google/Bing 代理），隐私优先。提供 `web` 和 `news` 搜索类型。**以直接 HTTP API 调用方式集成**——`fetch("https://api.search.brave.com/res/v1/web/search?q=...")` + `X-Subscription-Token` header。**不需要 MCP server**。API Key 存 `.env.local` 的 `BRAVE_SEARCH_API_KEY`。需用户注册获取 key。
 
 ## What exists already
 
 - **Jina MCP**: 已配置在 `mcopilot_mcp_settings.json`，提供 `jina_search`（关键词搜索）和 `jina_reader`（URL→Markdown）
 - **Tavily MCP**: 已配置为 HTTP MCP server
 - **mcp-search-bridge**: 已配置为 stdio MCP server，管线代码通过 `lib/mcp-client.mjs` spawn 调用，source-registry 中 7 个源有 `mcpFallback` 配置指向它
+- **Brave Search API**: 不需要 MCP server。Pipeline 代码直接 `fetch("https://api.search.brave.com/res/v1/web/search?q=...")` + `X-Subscription-Token` header。与 Jina/Grok 的 MCP 调用方式不同，但 Pool 调度器统一封装——MCP member 走 `mcp-client.mjs`，API member 走 `fetch()`。
 
 ## What's missing (the gap)
 
 ### 1. Pool 调度器
-需要一个 `SearchApiPool` 类/模块，管理三个 API 的调用和额度追踪：
+需要一个 `SearchApiPool` 类/模块，管理四个 API 的调用和额度追踪：
 
 ```javascript
 // 目标接口
 class SearchApiPool {
-  constructor(members) { /* [{ name, mcpToolName, priority, monthlyLimit, currentUsage }] */ }
+  constructor(members) { /* [{ name, callMethod: 'mcp'|'api', mcpToolName?, apiUrl?, apiKeyEnv?, priority, monthlyLimit, currentUsage }] */ }
   
   async search(keyword) {
     // 1. 按 priority + remaining quota 选最优 member
@@ -71,7 +72,7 @@ Layer 1: web_fetch — 免费、无限制
 Layer 2: Jina Reader (URL→Markdown) — JS 渲染、1M tokens/月
 Layer 3: CDP extractScript — per-site 精确选择器
 Layer 3b: Generic eval fallback — 通用选择器
-Layer 4: Search API Pool — Jina Search + Tavily + Grok (round-robin)
+Layer 4: Search API Pool — Jina Search + Tavily + Brave + Grok (round-robin)
 ```
 
 注意 Layer 2 (Jina Reader) 和 Layer 4 (Jina Search) 用的是 Jina 的不同功能：
@@ -95,7 +96,7 @@ Layer 4: Search API Pool — Jina Search + Tavily + Grok (round-robin)
 
 ## Design Decisions
 
-1. **Pool 内优先级**：Jina Search > Tavily > Grok（按免费额度从大到小）
+1. **Pool 内优先级**：Jina Search > Brave > Tavily > Grok（按免费额度从大到小）
 2. **额度耗尽时**：自动降级到下一个 member，不停服务
 3. **月度重置**：检查 `usage.month !== currentMonth` → 重置
 4. **Pool 只用于 "关键词搜索" 场景**，不用于 "URL 提取" 场景（后者走 web_fetch → Jina Reader → CDP）
