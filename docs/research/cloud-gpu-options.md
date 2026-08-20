@@ -568,14 +568,18 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 > ⚠️ **Kaggle P100 退役公告**（2026-08-18 发现）：Kaggle 将于 **2026 年 9 月 15 日** 退役 P100，届时 P100 自动切换到 T4 x2。之后 Kaggle 只有 T4 x2 和 TPU 可选。详见 [Sunsetting P100 announcement](https://www.kaggle.com/discussions/product-announcements/735239)。
 
-### 资源优先级（更新）
+### 资源优先级（2026-08-20 更新）
 
 | 优先级 | 平台 | 命令 | GPU | 免费额度 | 适用场景 |
 |--------|------|------|-----|---------|--------|
 | 1️⃣ | **Kaggle (T4 x2)** | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4` | T4 x2 (15GB×2) | 30h/周刷新 | 自动化批量推理（默认） |
 | 2️⃣ | **Colab CLI (T4)** | `colab run --gpu T4 script.py` | T4 14.6GB | 不固定，空闲90min | 一键运行单脚本 |
 | 3️⃣ | **Colab CDP** | web-access skill | T4 14.6GB | 同 Colab | 交互式调试、参数调优 |
-| 4️⃣ | **AutoDL** | 手动租用 | RTX 4090 24GB | ¥1.88/h | 16GB 不够时的付费备选 |
+| 4️⃣ | **Modal (T4)** | `modal run script.py` | T4 15GB | $30/月 (~50h) | serverless 函数推理 |
+| 5️⃣ | **Lightning AI (L4)** | Studio + SSH | L4 22.5GB (bf16) | ~8h/月 | 16GB 不够时（付费后） |
+| 6️⃣ | **AutoDL** | 手动租用 | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
+
+> Cloud Studio 和 Saturn Cloud 已从 GPU pool 移除（Cloud Studio 无免费 GPU；Saturn Cloud 无免费 GPU 且 markup 50%）。详见下方
 
 ### 默认 GPU 策略（2026-08-18 确立）
 
@@ -593,12 +597,13 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 5. **VRAM 不够时**：单张 T4 15GB 不够 → 尝试双卡模型并行 / P100 16GB（仅 9/15 前）/ AutoDL 4090 24GB
 6. **需要 bf16 时**：T4 和 P100 都不支持 bf16，需 L4/A100（Colab Pro+ 付费）
 
-### Fallback 规则（更新）
+### Fallback 规则（2026-08-20 更新）
 
 1. **首选 Kaggle T4 x2**：`kernel-metadata.json` 设 `"machine_shape": "NvidiaTeslaT4"` → push → 轮询 `kaggle kernels status`
 2. **Kaggle T4 失败/排队太长** → fallback 到 Colab CLI：`colab run --gpu T4 script.py`
-3. **Colab 失败/超时** → Kaggle P100（仅 9/15 前可用，之后自动变 T4 x2）
-4. **16GB 不够** → AutoDL RTX 4090 24GB（付费，需手动租用）
+3. **Colab 失败/超时** → Modal：`modal run script.py`（$30/月额度，冷启动慢但稳定）
+4. **T4 15GB 不够** → Lightning AI L4 22.5GB（~8h/月，bf16）
+5. **L4 也不够/需要长时间** → AutoDL RTX 4090 24GB（付费，¥1.88/h）
 
 ### Kaggle 多 Test Case 最佳实践（2026-08-18 确立）
 
@@ -666,7 +671,7 @@ GPU count: 2
 | **Colab 免费版** ✅ 已用 | T4（不保证） | 15GB | **动态**（不固定） | 不固定 | 冷却期 + 90min 空闲 | 官方 FAQ [2] |
 | **Lightning AI** | T4/L4/A10G/L40S | 15-48GB | **月度刷新** | 15 credits/月 (~22h T4) | 4h studio 重启, 不累计 | 官方 + SaaSworthy + aicreditmart [3] |
 | **Hugging Face ZeroGPU** | H200（动态） | 48-96GB | **每日刷新** | 5 min/天, 3次/天 | 极短时间 | 官方文档 + 论坛 [4] |
-| **Saturn Cloud** | ❌ 已转型 | — | — | — | 已转型为企业 GPU 云管理平台（Mirantis 旗下）。**无免费额度，无 Pro/Individual 计划**。Hosted 模式按量付费（T4 $0.15/hr ~ H100 $2.95/hr），Enterprise/GPU cloud operators 按合同。`app.community.saturnenterprise.io` 登录页存在但已无个人资源。API Token 仍有效但仅可查 docs。$5 Pro upgrade 未发现对应免费额度。**已从 GPU pool 移除** | 2026-08-20 官网验证 |
+| **Modal** | T4 | 15GB | **月度刷新** | $30/月 (~50h T4) | serverless 函数，冷启动慢 | Token 验证 ✅ + GPU T4 测试通过 ✅ |
 
 ### 一次性的免费 GPU（❌ 对我们没有意义）
 
@@ -678,7 +683,7 @@ GPU count: 2
 | **Oracle Cloud** | $300 credit | 一次性（30天过期） | 之后只有 always-free CPU |
 | **RunPod** | $5-10 credit | 一次性 | 用完即止 |
 | **Paperspace Gradient** | 有限 GPU 时 | 一次性 | 免费层 M4000 8GB 不够用 |
-| **Modal** | $30/月 | **月度更新** ✅ | Token 已验证 ✅；HTTP API 跑通 ✅；**FlClash DNS 问题根因已定位**：中国 DNS（阿里 223.5.5.5）对 modal.com 返回 SERVFAIL。原来把 +.modal.com 加入 fake-ip-filter 导致跳过 fake-ip 后直接走系统 DNS → SERVFAIL → Python socket.getaddrinfo 失败 → gRPC ConnectionError。**解决方案**：从 fake-ip-filter 中移除 +.modal.com（让 FlClash 用 fake-ip + 内部 DNS 管道解析），保留 DOMAIN-SUFFIX,modal.com,DIRECT 规则。还需 pip install modal[api-proxy-support]（python-socks）解决 macOS 系统代理 SOCKS 检测。重启 FlClash 后测试。workspace spend limit 已调高。**EchoMimicV3 可行性**：serverless 函数平台，CPU RAM 默认 8GB（可调大）。冷启动每次重新下载模型，$30 ≈ 50h T4。适合跑量化版（FP8/NF4 VRAM <4GB），不适合全量 FP16（19GB CPU RAM 可能不够+冷启动慢） |
+| **Saturn Cloud** | $5 credit | 一次性（$5 Pro upgrade 转换） | 用完即止，之后按量付费。详见下方 Saturn Cloud 条目 |
 | **Thunder Compute** | $20 (学生) | 一次性 | 仅美国学生 |
 
 ### SageMaker Studio Lab 关闭详情
@@ -729,52 +734,122 @@ GPU count: 2
 - 太短了，不适合做视频推理（EchoMimicV3 需要 24min+）
 - 适合做 API 推理测试（快速验证模型能否加载），不适合长时间推理
 
-### 推荐的 Fallback Pool 策略（更新）
+### 推荐的 Fallback Pool 策略（2026-08-20 最终版）
 
 | 优先级 | 平台 | GPU | 月/周配额 | 用途 |
 |--------|------|-----|---------|------|
 | 1️⃣ | **Kaggle T4×2** | T4 15GB×2 | 30h/周 | 自动化批量推理（默认） |
 | 2️⃣ | **Colab 免费 T4** | T4 15GB | 不固定 | 一键运行单脚本 |
-| 3️⃣ | **Lightning AI L4** | L4 22.5GB (bf16) | ~8h/月 | **16GB 不够时首选**（替代 SageMaker Studio Lab） |
-| 4️⃣ | **AutoDL 4090** | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
+| 3️⃣ | **Modal T4** | T4 15GB | $30/月 (~50h) | serverless 函数推理（冷启动慢） |
+| 4️⃣ | **Lightning AI L4** | L4 22.5GB (bf16) | ~8h/月 | **16GB 不够时首选** |
+| 5️⃣ | **AutoDL 4090** | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
 
 > **关于多 Kaggle 账号 fallback pool**：技术上可行（维护多组 API key，轮询空闲账号），但 Kaggle TOS 禁止一人多账号，有封号风险。**更安全的替代方案是加入 Lightning AI 作为第二平台**——不同平台不违反 TOS，且 Lightning AI 的 L4 (22.5GB, bf16) 正好弥补 Kaggle T4 (15GB, 无 bf16) 的不足。
 
 ---
 
-## 国内云 GPU 平台（2026-08-19 验证）
+## 国内云 GPU 平台（2026-08-20 更新）
 
-### 腾讯云 Cloud Studio（免费 GPU IDE）⭐ 验证待用
+> ⚠️ **Cloud Studio 和 Saturn Cloud 已从 GPU pool 移除**。Cloud Studio 无免费 GPU（仅免费 CPU 机时）；Saturn Cloud 无免费 GPU（$5 credit 一次性，之后全按量付费 + 50% markup）。以下信息保留供参考，但不再作为 GPU fallback 选项。
 
-**验证状态**：腾讯云账号已注册，Cloud Studio 可用。
+### 腾讯云 Cloud Studio（免费 CPU 机时 + 付费 GPU，已从 GPU pool 移除）⭐ 签到自动化已配置
 
-**免费 GPU 来源**（来源：[Cloud Studio 官方文档](https://cloudstudio.net/docs/guide/billing/machine_time/compute-time-introduction/)）：
+**验证状态**（2026-08-20 CDP 验证）：腾讯云账号已注册并绑定，Cloud Studio 可用。**免费机时只有 CPU，没有免费 GPU**。
 
-| 免费来源 | 额度 | 更新周期 | GPU 可用时长（T4） |
-|---------|------|---------|-------------------|
-| 首次绑定腾讯云账号 | 20 机时 | 一次性 | ~16.7h（抵扣因子 1.2） |
-| 每日签到领取 | 2 机时/天 | **每日刷新**（7天有效） | ~50h/月 |
+**免费 CPU 机时来源**：
 
-**GPU 规格**（来源：[机时购买页](https://cloudstudio.net/docs/guide/billing/machine_time/how-to-purchase-compute-time/)）：
+| 免费来源 | 额度 | 更新周期 | 过期时间 |
+|---------|------|---------|---------|
+| 首次绑定腾讯云账号 | 20 机时 | 一次性 | 2027-08-20 到期 |
+| 每日签到领取 | 2 机时/天 | **每日刷新**（7天有效） | 7 日内有效 |
+| 合计 | **22 机时** | | |
 
-| 规格 | 配置 | 抵扣因子（机时/h） | 按量价格（元/h） |
-|------|------|---------------------|----------------|
-| GPU T4 | T4, 8核, 32GB RAM, 16GB VRAM | 1.2 | ¥1.2/h |
-| GPU V100 | V100, 8核, 40GB RAM, 32GB VRAM | 3.6 | ¥3.6/h |
-| GPU A10 | A10, 20核, 116GB RAM, 24GB VRAM | 3.3 | ¥3.3/h |
-| GPU L40 | L40, 48核, 192GB RAM, 48GB VRAM | 8.0 | ¥8.0/h |
-| GPU A800 | A800, 124核, 1929GB RAM, 80GB VRAM | 14.0 | ¥14.0/h |
+> ⚠️ **免费机时全是 CPU**，不是 GPU。签到只送 CPU 机时，GPU 需购买资源包或后付费。
+
+**GPU 规格**（来源：Cloud Studio 计费说明页，2026-08-20 CDP 实测）：
+
+| 规格 | 资源包价格（元/机时） | 抵扣因子（机时/h） | 后付费价格（元/h） |
+|------|---------------------|-------------------|-------------------|
+| CPU 1核2G | 1 | 0.1 | ¥0.1/h |
+| CPU 2核4G | 1 | 0.25 | ¥0.25/h |
+| CPU 4核8G | 1 | 0.5 | ¥0.5/h |
+| CPU 8核16G | 1 | 1 | ¥1/h |
+| CPU 16核32G | 1 | 2 | ¥2/h |
+| CPU 32核64G | 1 | 4 | ¥4/h |
+| CPU 64核128G | 1 | 7 | ¥7/h |
+| **GPU T4** | 1 | 1.2 | **¥1.2/h** |
+| **GPU V100** | 1 | 3.6 | **¥3.6/h** |
+| **GPU A10** | 1 | 3.3 | **¥3.3/h** |
+| **GPU L40** | 1 | 8 | **¥8/h** |
+| **GPU A800** | 1 | 14 | **¥14/h** |
+| **GPU A100** | 1 | 7 | **¥7/h** |
+
+> 资源包阶梯折扣：<100 机时 1 元/机时；100-2000 机时 0.95 元/机时；2000-5000 机时 0.9 元/机时；>5000 机时 0.9 元/机时。
+
+**GPU 模板**（创建应用 → 从模板创建）：Pytorch (CUDA 12.8, PyTorch 2.0.0)、ComfyUI (CUDA 12.8)、Tensorflow、vLLM、Ollama 等预装 CUDA 环境的模板。模板预装了 CUDA 工具链，但**不分配 GPU 硬件**——GPU 需要购买资源包或后付费。
+
+**免费 CPU 机时能干什么**：
+- **代码编写/调试**：Python/Node.js/前端等纯 CPU 开发环境
+- **TTS 推理**：F5-TTS-MLX 等 CPU 可跑的音频推理（但比 GPU 慢很多）
+- **轻量数据处理**：文本处理、HTML 渲染、脚本执行
+- **不能跑 GPU 模型推理**：EchoMimicV3、LatentSync 等数字人模型需要 CUDA GPU
 
 **关键特点**：
-- Cloud Studio 是**在线 IDE**（非 Jupyter Notebook），适合部署应用而非跑训练脚本
-- 每日签到 2 机时 × 30 天 = 60 机时/月，T4 抵扣因子 1.2，约 **50h/月 T4 免费**
-- ⚠️ **签到是手动操作**：需每天登录 → 个人中心 → 完成任务送机时 → 每日签到 → 领取奖励。**不签到 = 0 机时/月**（首次 20 机时用完后）。签到领取的机时 **7 日内有效**，过期作废
-- 需绑定腾讯云账号，用完后自动转按量付费（从腾讯云余额扣费）
+- Cloud Studio 是**在线 IDE**（类 VS Code），不是 Jupyter Notebook
+- 签到自动化已配置：`scripts/cloud-studio/checkin.mjs` + macOS launchd 常驻（每 24h 自动签到，失败重试）
+- 需绑定腾讯云账号，CPU 机时用完后 GPU 需购买资源包或后付费扣款
 - 入口：https://cloudstudio.net/
 
-> **EchoMimicV3 可行性**：T4 (16GB VRAM) + **32GB CPU RAM**（比 Kaggle 29GB 多 3GB）。diffusers 0.31.0 + sequential_cpu_offload 可行（v43 已在 Kaggle T4 验证）。32GB RAM 可能不能跑 diffusers 0.37.1（需 >29GB），但 0.31.0 确认可行。
->
-> **注意**：Cloud Studio 是 GPU IDE 环境，不是标准 Jupyter/CVML 实例。需适配脚本运行方式（通过终端执行 Python 脚本，而非 notebook cell）。与 Kaggle T4×2（30h/周）互补。
+> **GPU 性价比**：Cloud Studio GPU T4 ¥1.2/h，比 AutoDL RTX 4090 ¥1.88/h 便宜 36%，但 T4 只有 16GB VRAM。如需 24GB+ VRAM，Cloud Studio 最便宜是 A10 (24GB) ¥3.3/h，比 AutoDL RTX 4090 ¥1.88/h 贵 75%。**结论：Cloud Studio 仅适合 T4 级别（16GB）的推理，24GB+ 用 AutoDL 更便宜。**
+
+### Saturn Cloud + Shadeform（海外 GPU 聚合器，按量付费）
+
+**验证状态**（2026-08-20 CDP 验证）：Saturn Cloud Community 版可用，已登录。$5 credit 到账，无免费 GPU，全部按量付费。
+
+**Saturn Cloud 4 个 Cluster 选项**（创建 Workspace 时选择）：
+
+| Cluster | 特点 | 最便宜 GPU |
+|---------|------|-----------|
+| **Shadeform** | GPU 聚合器，30+ 云供应商，最便宜 GPU | A6000 $0.50/hr |
+| **AWS Ohio** | NVIDIA GPU + CPU，稳定 | T4 $0.80/hr |
+| **Nebius Finland** | H100，欧洲，容量有限 | — |
+| **Nebius KC** | H200/B200/RTX6000，美国，容量有限 | — |
+
+**Shadeform Cluster GPU 价格**（通过 Saturn Cloud 调用，2026-08-20 CDP 实测）：
+
+| GPU | 供应商 | 地区 | 价格 | VRAM | RAM | vCPUs |
+|-----|--------|------|------|-------|-----|-------|
+| A6000 | Hyperstack | Montreal | **$0.50/hr** | 48GB | 56Gi | 26 |
+| RTX 4090 | Excess Supply | Oslo | **$0.60/hr** | 24GB | 68Gi | 11 |
+| RTX 5090 | Excess Supply | Oslo | **$0.65/hr** | 32GB | 112Gi | 11 |
+| A4000 | Paperspace | NY | $0.80/hr | 16GB | 43Gi | 7 |
+| L40S | Massed Compute | DesMoines | $0.88/hr | 48GB | 69Gi | 12 |
+| L4 | Scaleway | Paris/Warsaw | $0.95/hr | 24GB | 46Gi | 7 |
+| RTX6000Ada | Massed Compute | DesMoines | $0.97/hr | 48GB | 78Gi | 11 |
+| A10 | Lambda | Dulles/SanJose | $1.29/hr | — | 184Gi | 28 |
+| A100 80GB | Hyperstack | Montreal | $1.35/hr | 80GB | 112Gi | 26 |
+
+**Shadeform 直销价格**（shadeform.com/prices，无 markup）：
+
+| GPU | 价格 |
+|-----|------|
+| RTX 4090 | **$0.40/hr** |
+| A6000 | $0.49/hr |
+| RTX 5090 | $0.65/hr |
+| L40S | $0.69/hr |
+| RTX PRO 6000 | $0.99/hr |
+| A100 80GB | $1.35/hr |
+| H100 | $1.66/hr |
+| H200 | $2.25/hr |
+| B200 | $3.74/hr |
+
+> **Shadeform 直销 vs Saturn 转售**：Shadeform 直销 RTX 4090 $0.40/hr，Saturn（通过 Shadeform cluster）$0.60/hr。Saturn 加了 ~50% markup。如需最便宜，直接用 Shadeform 平台（platform.shadeform.ai）。
+
+**Saturn Cloud $5 Credit 使用情况**：
+- $5.00 Saturn Cloud Credits（Pro upgrade 转换）
+- 用完 $5 后扣信用卡，满 $10 才实际扣款
+- $5 credit ≈ 6.25h T4 (AWS Ohio) 或 10h A6000 (Shadeform)
+- **没有免费 GPU，全部按量付费**
 
 ### 腾讯云 CVM GPU 实例（付费）
 

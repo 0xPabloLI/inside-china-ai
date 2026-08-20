@@ -171,9 +171,9 @@ async function doLogin() {
     timeout: 30000,
   });
 
-  log("Browser opened. Please login manually. Press Ctrl+C when done.");
-  // Keep browser open until user closes it
-  await page.waitForTimeout(600000); // 10 min max
+  log("Browser opened. Please login manually (scan QR or use account). Press Ctrl+C when done.");
+  // Keep browser open until user closes it (30 min max)
+  await page.waitForTimeout(1800000);
   await browser.close();
 }
 
