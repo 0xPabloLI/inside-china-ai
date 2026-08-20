@@ -135,7 +135,7 @@ Unified Page Visitor 打开 URL（一次）
 | 6 | 不改 web-deep-research skill | 2026-08-19 | 通用 skill 不能为 evidence 审计改输出格式 |
 | 7 | on-demand audit 作为 future feature | 2026-08-19 | 发 issue + handoff，另外做 |
 | 8 | Jina Reader API 作为 CDP fallback | 2026-08-19 | 84.6% 信源 default 模式可用，不依赖 per-site DOM 选择器 |
-| 9 | Jina 文档合并入 tools-catalog.md | 2026-08-19 | 不单独建文档，API 参数量少 |
+| 9 | Jina 文档合并入 tools-catalog.md | 2026-08-19 | 已完成：tools-catalog.md 新增 Jina Reader API 条目（速览表 + 详细说明） |
 | 10 | Jina fallback 只改 search-sources.mjs | 2026-08-19 | asset-sourcer 走 API+yt-dlp，不走 CDP DOM 选择器 |
 | 11 | readerlm-v2 模式不使用 | 2026-08-19 | 超时率 57.7%，性能最差 |
 | 12 | 硬编码信源列表不改为规则引擎 | 2026-08-19 | URL pattern + 搜索参数 + DOM 结构每个站不同，规则化复杂度 ≥ 硬编码 |
@@ -161,6 +161,6 @@ Unified Page Visitor 打开 URL（一次）
 - [ ] 讨论 Topic 4: Single-Visit Extraction 架构
 - [x] 创建 on-demand audit 的 GitHub issue + handoff 文档 ✅ Issue #60
 - [x] Jina Reader API 测试（53 源 × 3 参数）
-- [ ] Jina 文档合并入 docs/tools-catalog.md
+- [x] Jina 文档合并入 docs/tools-catalog.md ✅
 - [ ] 形成简化后的 spec
 - [ ] 实施 Jina fallback（标准工作流）
