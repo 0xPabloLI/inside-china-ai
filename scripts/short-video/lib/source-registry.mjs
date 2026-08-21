@@ -514,10 +514,10 @@ supportsKeyword: true,
     url: (keyword) =>
       `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
     mcpFallback: {
-      command: "python",
-      args: ["-m", "xiaohongshu_mcp_server"],
-      toolName: "search_feeds",
-      toolArgs: (keyword) => ({ keyword, limit: 20 }),
+      command: "rednote-mcp",
+      args: ["--stdio"],
+      toolName: "search_notes",
+      toolArgs: (keyword) => ({ keywords: keyword, limit: 20 }),
       resultMapper: (items) =>
         items.map((item) => ({
           title: item.title || item.desc || item.note_card?.title || "",
@@ -529,7 +529,7 @@ supportsKeyword: true,
       (body.includes('请先登录') || body.includes('扫码登录')) ? 'need_login' : 'ok'
     `,
     extractScript: `
-      var items = document.querySelectorAll('.note-item, .search-result-item, [data-v-*] .note-content');
+      var items = document.querySelectorAll('section.note-item, .note-item, .search-result-item');
       var results = [];
       if (items.length > 0) {
         items.forEach(function(el) {
@@ -896,7 +896,7 @@ supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP (requires login) → cdpFallback (Google site:x.com) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
+        "CDP (requires login) → cdpFallback (Google site:x.com, h3-based selector) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: false,
@@ -932,13 +932,12 @@ supportsKeyword: true,
         `https://www.google.com/search?q=${encodeURIComponent("site:x.com " + keyword)}`,
       extractScript: `
         var results = [];
-        document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('h3, .LC20lb');
-          if (link && title) {
-            var url = link.href;
+        document.querySelectorAll('h3').forEach(function(h3) {
+          var a = h3.closest('a') || h3.parentElement.querySelector('a');
+          if (a && a.href) {
+            var url = a.href;
             if (url.includes('x.com') || url.includes('twitter.com')) {
-              results.push({ title: title.textContent.trim(), url: url });
+              results.push({ title: h3.textContent.trim(), url: url });
             }
           }
         });
