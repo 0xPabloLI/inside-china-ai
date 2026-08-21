@@ -148,7 +148,7 @@ export async function callMcpTool({
     sendRequest("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
-      clientInfo: { name: "discover-trends", version: "1.0.0" },
+      clientInfo: { name: "search-sources", version: "1.0.0" },
     })
       .then(() => {
         if (initTimeoutHandle) clearTimeout(initTimeoutHandle);
@@ -185,6 +185,9 @@ export async function callMcpTool({
  *
  * MCP tools return { content: [{ type: "text", text: "..." }] }
  * This function extracts the text content and tries to parse it as JSON.
+ * If the text is not JSON (e.g. natural-language search results from
+ * mcp-search-bridge), it returns a single-element array containing
+ * { text: rawText } so that the source's resultMapper can handle it.
  *
  * @param {Object} mcpResult - Raw result from callMcpTool
  * @returns {Array} Array of parsed items, or empty array if not parseable
@@ -208,7 +211,8 @@ export function parseMcpResult(mcpResult) {
           return [parsed];
         }
       } catch {
-        // Not JSON — continue
+        // Not JSON — return as text payload for resultMapper to handle
+        return [{ text: item.text }];
       }
     }
   }

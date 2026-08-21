@@ -11,7 +11,6 @@
  *   3. edge-tts (Microsoft neural TTS, no cloning)
  *   4. macOS `say` (last resort, no cloning)
  *
- * CosyVoice 3 removed (2026-08-16): deprecated, content accuracy issues on MPS.
  *
  * All local models run at MAX EFFORT by default (see docs/video-workflow.md).
  * Unified venv: ~/.video-tts-env (Python 3.12) — F5 + Qwen + whisperx all in one.

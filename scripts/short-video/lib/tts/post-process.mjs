@@ -5,7 +5,7 @@
  * - getDuration():      Probe exact audio duration with ffprobe
  * - postProcessAudio(): Apply FFmpeg post-processing (silenceremove + resample)
  * - postProcessBatch(): Post-process in-place + get duration (for batch engines)
- * - runWhisperAlignment(): Force-align subtitle timing via text-align.py
+ * - runWhisperAlignment(): Subtitle timing alignment via text-align.py
  *
  * Prosody enhancement (Phase 2):
  *   Per-scene pitch shift + tempo adjustment via FFmpeg rubberband filter.
@@ -223,7 +223,7 @@ export async function postProcessBatch(audioPath, opts = {}) {
 // ── Subtitle alignment ──
 
 /**
- * Force-align subtitle timing using text-align.py (wav2vec2).
+ * Subtitle timing alignment using text-align.py (wav2vec2).
  *
  * Output: {outputDir}/subtitle-timing.json — used by lib/subtitles/generate.mjs.
  * Gracefully skips if the alignment script is not found.
@@ -235,11 +235,11 @@ export async function postProcessBatch(audioPath, opts = {}) {
 export async function runWhisperAlignment(scenes, ttsResults, outputDir) {
   const alignScript = join(ROOT_DIR, "text-align.py");
   if (!existsSync(alignScript)) {
-    console.log("  ⚠️ Force-align script not found, skipping");
+    console.log("  ⚠️ text-align.py not found, skipping");
     return;
   }
 
-  console.log("  🎯 Running force-align subtitle timing...");
+  console.log("  🎯 Running text-align subtitle timing...");
 
   const manifest = ttsResults.map((r) => ({
     sceneId: r.sceneId,

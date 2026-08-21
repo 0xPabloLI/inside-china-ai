@@ -72,7 +72,7 @@ These are environment facts — the code is the source of truth, this table is a
 
 | What | Path pattern | Set in |
 |------|-------------|--------|
-| TTS ref audio | `voice-samples/voice-sample-24k.wav` | `lib/tts/{cosyvoice,qwen-tts,f5-mlx,csm}.mjs` via `ROOT_DIR` |
+| TTS ref audio | `voice-samples/voice-sample-24k.wav` | `lib/tts/{qwen-tts,f5-mlx}.mjs` via `ROOT_DIR` |
 | TTS ref text | `voice-samples/voice-sample-ref-text.txt` | same |
 | Company logo SVG | `assets/logos/{key}.svg` | `lib/scene-templates.mjs` `logoSvg()` |
 | Brand mark SVG | `assets/china-ai-news-mark-video.svg` | `lib/scene-templates.mjs`, `build-mark-svg.mjs` |
