@@ -617,6 +617,32 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 - **如果要换参数再跑同样的 test case，必须 push 新 version**（因为脚本内容变了）
 - **如果只想加新 test case，改脚本里的 TEST_CASES 列表再 push 即可**
 
+### symlink 替代 cp -r 最佳实践（2026-08-21 确立）
+
+**问题**：Kaggle Dataset 挂载在 `/kaggle/input/`（只读），推理脚本默认从 `/tmp/` 读取模型。`cp -r` 复制 17GB 模型需 ~88 秒。
+
+**解决方案**：用 `os.symlink` 创建符号链接（快捷方式），秒级完成：
+
+```python
+import os
+
+src = "/kaggle/input/datasets/xpabloli/echomimicv3-flash/echomimicv3-models/flash"
+dst = "/tmp/echomimicv3_models/flash"
+os.makedirs(os.path.dirname(dst), exist_ok=True)
+for item in os.listdir(src):
+    src_path = os.path.join(src, item)
+    dst_path = os.path.join(dst, item)
+    if not os.path.exists(dst_path):
+        os.symlink(src_path, dst_path)
+```
+
+**验证状态**：✅ v45s 已验证 symlink 方式可行，模型通过链接正常加载和推理。
+
+**注意事项**：
+- Kaggle Dataset 路径是**只读**的，symlink 指向只读路径不影响推理（推理只读不写）
+- `os.path.exists(dst_path)` 检查避免重复创建 symlink
+- symlink 后模型路径与 `cp -r` 完全一致，推理脚本无需修改
+
 ### 使用方式
 
 Agent 在需要云 GPU 时：
