@@ -54,7 +54,7 @@ T84-1 (cache contract tests) → T84-2 (cache module) → T84-3 (Asset Sourcer i
 
 - [x] Compare changed files against the specification and scenario matrix.
 - [x] Inspect the diff for accidental source, download, or VLM behavior changes.
-- [ ] Commit with `Fixes #84`, push the feature branch, open a pull request, and update/close the Issue after verified completion.
+- [x] Commit with `Fixes #84`, push the feature branch, open pull request #102, and update Issue #84. GitHub will close the Issue automatically when the pull request merges.
 - [x] Archive this specification and ticket file, then update `docs/archive/README.md` and `docs/DOCS-INDEX.md`.
 
 **Depends on:** T84-4  
