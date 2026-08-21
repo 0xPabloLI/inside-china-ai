@@ -554,8 +554,8 @@ describe("MCP fallback configuration", () => {
   it("xhs has mcpFallback", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
     expect(src.mcpFallback).toBeDefined();
-    expect(src.mcpFallback.command).toBe("python");
-    expect(src.mcpFallback.toolName).toBe("search_feeds");
+    expect(src.mcpFallback.command).toBe("rednote-mcp");
+    expect(src.mcpFallback.toolName).toBe("search_notes");
     expect(typeof src.mcpFallback.toolArgs).toBe("function");
     expect(typeof src.mcpFallback.resultMapper).toBe("function");
   });
@@ -599,7 +599,7 @@ describe("MCP fallback configuration", () => {
   it("mcpFallback toolArgs returns correct arguments", () => {
     const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
     const args = xhs.mcpFallback.toolArgs("DeepSeek");
-    expect(args.keyword).toBe("DeepSeek");
+    expect(args.keywords).toBe("DeepSeek");
     expect(args.limit).toBe(20);
   });
 
@@ -650,6 +650,28 @@ describe("CDP fallback configuration", () => {
     expect(src.cdpFallback.extractScript).toContain("return results");
     expect(src.cdpFallback.extractScript).toContain("x.com");
     expect(src.cdpFallback.extractScript).toContain("twitter.com");
+  });
+
+  it("x_search cdpFallback uses h3-based selector (no div.g dependency)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.cdpFallback.extractScript).toContain("h3");
+    expect(src.cdpFallback.extractScript).not.toContain("div.g");
+    expect(src.cdpFallback.extractScript).not.toContain("Gx5Zad");
+    expect(src.cdpFallback.extractScript).not.toContain("fP1Qef");
+  });
+
+  it("xhs extractScript does not use invalid [data-v-*] selector", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+    expect(src.extractScript).not.toContain("[data-v-*]");
+    expect(src.extractScript).toContain("section.note-item");
+  });
+
+  it("xhs mcpFallback args uses keywords (plural)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+    const args = src.mcpFallback.toolArgs("AI芯片");
+    expect(args.keywords).toBe("AI芯片");
+    expect(args.limit).toBe(20);
+    expect(args.keyword).toBeUndefined();
   });
 
   it("sources without cdpFallback are unaffected", () => {
