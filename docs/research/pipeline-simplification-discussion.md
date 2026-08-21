@@ -156,6 +156,9 @@ Unified Page Visitor 打开 URL（一次）
 | 27 | WESTERN_SOURCES renamed to INTERNATIONAL_SOURCES | 2026-08-20 | Grill Q6: "western" 不准确，这些源是国际/多语种的 |
 | 28 | Optional locale field added; English sources not marked | 2026-08-20 | Grill Q6: 中文限定源标 zh-CN，英文/多语种源不标 |
 | 29 | No separate issue for Discussion; all tasks in existing issues | 2026-08-20 | Grill Q9: 所有未完成项已有对应 issue |
+| 30 | `site:` search (Google/Baidu/Bing/DuckDuckGo) requires CDP on all engines | 2026-08-21 | 测试确认：curl/web_fetch 全部被 CAPTCHA 拦截（Google reCAPTCHA, Baidu 滑块验证, DuckDuckGo anomaly challenge）。Bing `site:` via curl 语法不生效。只有 CDP（有 session 的浏览器）才能获取 `site:` 搜索结果。`cdpFallback` → rename to `googleSiteFallback` (tracked in #82) |
+| 31 | WordPress REST API search is the best approach for WordPress sites | 2026-08-21 | 测试发现：量子位 `?s=` 被 nginx 403 拦截，但 `/wp-json/wp/v2/posts?search=` 完全开放（纯 curl，JSON 响应，不需浏览器）。TechCrunch 同理。优先级：WordPress REST API > direct site search URL > Google `site:` via CDP。Implementation in #82 |
+| 32 | Bloomberg has search but paywall; alternatives tracked in #85 | 2026-08-21 | Bloomberg `/search?query={kw}` 搜索结果（标题+摘要）可获取，全文需订阅。Bloomberg Japan 用 Google Custom Search。寻找转载 Bloomberg 内容的免费平替网站 (#85) |
 
 ## Open Questions
 
@@ -176,3 +179,9 @@ Unified Page Visitor 打开 URL（一次）
 - [x] 形成简化后的 spec ✅ Issue #70
 - [x] 实施 Jina fallback → Superseded by #66 (extractScript auto-fallback uses /extract)
 - [x] 实施 pipeline simplification: category rename + locale field + research filter expansion ✅ Issues #71, #72, #73, #74
+- [x] CDP in-site search discovery test (5 sources) ✅ Results in #82
+- [x] Search engine `site:` search test (Google/Bing/Baidu/DuckDuckGo) ✅ All require CDP, no API alternative (Decision #30)
+- [x] WordPress REST API search test (qbitai, TechCrunch) ✅ Pure curl, no browser needed (Decision #31)
+- [x] Bloomberg search test ✅ Has search, paywall for full text, alternatives tracked in #85 (Decision #32)
+- [ ] Implement #82: WordPress REST API `apiSearch` + `supportsKeyword` upgrades + `googleSiteFallback` rename
+- [ ] Implement #85: Find Bloomberg republisher sites
