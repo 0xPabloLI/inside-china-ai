@@ -6,10 +6,10 @@
 ## 管线概览
 
 ```
-入口 → [Stage 0 素材收集] → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → 📚 RAG reindex（多媒体素材） → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
+入口 → [Stage 0 共享素材收集] → ┬─ [文章轨：Stage 1 文章草稿 → MRL-1 → Stage 2 保存 draft]\n                              └─ [视频轨：Stage 3 scene-data → MRL-2 → Stage 4 视频制作] → [Stage 5: MRL-3 → ⏸️ HITL 内容包审阅 → 确认后公开文章 + TikTok] → [Stage 6 Analytics]
 ```
 
-> **📚 RAG reindex** 在文章发布后自动触发，确保新文章、源素材和 scene-data 立即进入知识库。文章在 Stage 2 发布（HITL 之前），RAG 随即收录。Stage 3 scene-data 就绪后再次触发 reindex。Stage 4 视频制作完成后，如有多媒体素材变更（新增/修改 catalog.yml 条目），再次触发 reindex（见 Stage 4b）。
+> **📚 内容状态与 RAG reindex**：Stage 1 的文章可用 `publish-article.mjs --draft` 保存为非公开 draft；draft 与 Stage 0 素材可供后续工作引用。文章公开发布、附件上传和 TikTok URL 回写都在 HITL 确认后执行。每次 `publish-article.mjs` 调用会非阻塞触发 RAG reindex；其成败不阻塞视频轨。scene-data 就绪后以及 Stage 4 有多媒体素材变更时，仍按各自触发点 reindex。
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
@@ -27,7 +27,7 @@
 >
 > 详细 spec 见 `docs/archive/spec-research-evidence-pipeline.md`。
 
-MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的人工确认点是 **HITL 视频审阅**：用户看视频成品后确认视频质量，然后发布视频 MP4 到网站文章 + TikTok。文章在 Stage 2 已发布（HITL 之前），HITL 仅控制视频发布。
+Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：视频脚本不是文章翻译，也不等待文章公开。MRL-1 和 MRL-2 自审通过后不暂停。唯一的人工确认点是 **HITL 内容包审阅**：用户同时审阅文章 draft、scene-data 与视频成品；确认后才公开文章、上传附件并发布 TikTok。
 
 ### 语言规则
 
@@ -41,7 +41,7 @@ MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的�
 
 | 检查点   | 位置                           | 审阅内容                                                        | 确认方式              |
 | -------- | ------------------------------ | --------------------------------------------------------------- | --------------------- |
-| **HITL** | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 markdown 内容 + 场景概览表 | 用户说「视频 OK，发布」 |
+| **HITL** | Stage 5 内部（验证后、公开前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 draft + 场景概览表 | 用户说「内容 OK，发布」 |
 
 > **Agent 行为约束**：用户未明确确认前，Agent 不得执行 TikTok 发布。确认必须是用户主动发出（如「继续」「OK」「确认」「发布」等），Agent 不得自行假设确认。
 
@@ -216,7 +216,7 @@ Agent 读 `AGENTS.md` Session Start Checklist → 检查 `pending-analysis.json`
 | B: 社区生活短剧 | ⭐⭐ | 利用已有素材，不需额外生产成本 | ❌ 不适用（非社区型账号） |
 | C: 播客 / 嘉宾对谈 | ⭐ | 流量不好但必须做（知识库积累） | ❌ 当前无嘉宾管线 |
 
-**核心洞察**："AI 天生适合把复杂东西讲解得让人好理解"——本项目的 AI 辅助内容生产方向（文章 → scene-data → 视频）天然适配品类 A。search-sources → 文章 → 视频管线即为品类 A 的自动化实现。
+**核心洞察**："AI 天生适合把复杂东西讲解得让人好理解"——本项目的 AI 辅助内容生产方向（共享素材 → 文章轨 + 视频轨）天然适配品类 A。search-sources → 共享素材 → 文章/视频并行产出即为品类 A 的自动化实现。
 
 ---
 
@@ -489,7 +489,7 @@ CEO Yang Zhilin cited "cost reduction" as the rationale for downsizing the RL te
 
 #### 🔄 MRL-1: 文章自审
 
-Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blockers 后直接进入 Stage 2。
+Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blockers 后保存 article draft，并与视频轨并行推进。
 
 **Blockers（任一 FAIL = 必须修复后重新检查）：**
 
@@ -515,15 +515,15 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blo
 | W4  | 章节数量     | < 6 或 > 10                      |
 | W5  | SEO 关键词   | slug 或 excerpt 中缺少核心关键词 |
 
-**循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → **直接进入 Stage 2（不暂停）**。
+**循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → **保存 article draft，并继续与视频轨并行推进（不暂停）**。
 
 > ⚠️ 如有新 widget，Agent 仍需提示用户需要 `npm run build` + 部署后才能发布（这是部署依赖，非审阅检查点）。
 
 ---
 
-## Stage 2: 文章发布 + 附件上传
+## Stage 2: 保存 Article Draft + Widget 准备
 
-MRL-1 通过后，Agent 发布文章到网站并上传源素材附件。文章在 HITL 之前发布，这样视频 caption 可以引用到 live article URL，RAG 也能立即收录新内容。
+MRL-1 通过后，Agent 将文章保存为非公开 draft，并准备发布所需的 widget 与附件清单。公开视频工作不等待 live article URL；Caption、Pinned Comment 与 URL 回写在 HITL 确认后的公开步骤生成或更新。
 
 ### 2a. Widget 部署（如有新 widget）
 
@@ -531,20 +531,20 @@ MRL-1 通过后，Agent 发布文章到网站并上传源素材附件。文章�
 
 1. `npm run build` 构建（包括 widget 代码）
 2. 访问 Lovable 编辑器 → 点击「Publish」部署
-3. `npm run dev` 后运行 `node scripts/verify-widget-a11y.mjs --preview` 做发布前运行时验证：`/widgets` 预览路由为 dev-only（生产构建静态 404），可对每个 registry widget 渲染真实预览页验证 HTTP 200、容器配方、宽度类（breakout `max-w-none` / 常规 `max-w-prose`）、键盘可达、交互状态切换、未知 id 渲染 404。**0 FAIL 才算部署合格**，再进入 Stage 3
+3. `npm run dev` 后运行 `node scripts/verify-widget-a11y.mjs --preview` 做发布前运行时验证：`/widgets` 预览路由为 dev-only（生产构建静态 404），可对每个 registry widget 渲染真实预览页验证 HTTP 200、容器配方、宽度类（breakout `max-w-none` / 常规 `max-w-prose`）、键盘可达、交互状态切换、未知 id 渲染 404。**0 FAIL 才算部署合格**；它不阻塞 scene-data/video track，但必须在公开文章前完成
 4. **注意**：不要直接用 `npx wrangler deploy`，会丢失 Lovable 注入的环境变量
 
 > Widget 部署需要在文章发布前完成。Agent 在 Stage 1 创建 widget 后即可部署。
 
-### 2b. 文章发布到网站
+### 2b. 保存 Article Draft（不公开）
 
 ```bash
-node scripts/article/publish-article.mjs --file <path>
+node scripts/article/publish-article.mjs --file <path> --draft
 ```
 
-脚本通过 Supabase Auth API 登录（Admin 账号），REST API upsert by slug。发布后 `triggerRagReindex()` 自动触发 RAG 收录。
+脚本通过 Supabase Auth API 登录（Admin 账号），REST API 按 slug upsert。`--draft` 强制保存为不公开状态；每次调用都会非阻塞触发 `triggerRagReindex()`。HITL 确认后，使用同一文章文件且不带 `--draft` 公开发布。
 
-### 2c. 上传源文件附件
+### 2c. 准备源文件附件（公开操作在 Stage 5）
 
 将所有引用的原始素材文件上传为 article attachments：
 
@@ -556,11 +556,11 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path/to/sourc
 node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <path2.csv> <path3.docx>
 ```
 
-文章发布后即可上传附件，不依赖 HITL 确认。
+将文件与命令准备好；实际上传在 Stage 5 的 HITL 确认后，与公开文章组成同一内容包发布动作。
 
-### 2d. RAG Reindex（文章发布后自动触发）
+### 2d. RAG Reindex（保存文章时自动触发）
 
-文章发布后，立即触发 RAG 增量重建，确保新内容进入知识库供后续文章引用和 Agent 查询：
+保存文章 draft 或公开文章后，都会触发 RAG 增量重建；它可供后续内容引用和 Agent 查询，但不构成视频轨的公开发布前置条件：
 
 ```bash
 node scripts/rag/index.mjs
@@ -572,13 +572,13 @@ node scripts/rag/index.mjs
 
 ---
 
-## Stage 3: 文章 → scene-data（ISSUE-17）
+## Stage 3: 视频脚本 + scene-data（与文章轨并行，ISSUE-17）
 
-> **前置条件**：Stage 1 已完成（文章 markdown 已生成）。
+> **前置条件**：Stage 0 共享素材已完成。文章 draft 可作为一致性输入，但公开视频工作不以文章公开为前置条件。
 >
 > **公司档案**：如内容涉及已建档公司（见 `docs/refs/company-profiles/`），确保 scene-data 中的公司信息与档案一致。特别注意 ByteDance 的 Platform Context（TikTok 关系）— 如视频涉及 ByteDance，考虑在 voiceover 中简要提及 ByteDance 是 TikTok 的母公司（因为我们发布在 TikTok 上，观众会对这个"在 ByteDance 平台上看 ByteDance 故事"的自指关联感兴趣）。
 
-从文章 markdown 提炼视频脚本。
+从 Stage 0 共享素材、文章 draft（如已就绪）与视频叙事目标形成独立视频脚本；视频脚本不是文章翻译。
 
 > **脚本写作方法论**：写或改 voiceover 和叙事弧线时，参照 `docs/video-script-writing-guide.md`（S.T.A.R.T. 框架 + open loop / pattern interrupt / loop closure + hook 公式 + CTA 公式 + 逐 scene beat-by-beat 迭代方式）。研究依据见 `docs/research/short-video-script-writing-best-practices.md`。
 
@@ -879,13 +879,13 @@ node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查 = MRL-
 - 字幕文本与 scene-data voiceover 一致（无 Whisper 识别误差导致的 "deep seeks" vs "DeepSeek's"）
 - 品牌元素（logo、配色）符合 brand-system 规范
 
-### ⏸️ HITL: 视频成品审阅检查点（唯一人工确认点）
+### ⏸️ HITL: 内容包成品审阅检查点（唯一人工确认点）
 
 MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
 1. **输出 MRL-3 报告**（verify-video.mjs 合规报告 + 内容补充检查结果）
 2. **输出视频文件路径**：`output/deepseek-short.mp4`（或实际文件名）
-3. **输出文章内容预览**：输出文章 markdown 全文（供用户一并审阅文章质量，文章已在 Stage 2 发布到网站）
+3. **输出文章 draft 预览**：输出文章 markdown 全文（供用户一并审阅文章质量；公开发布尚未发生）
 4. **输出场景概览表**（供用户审阅脚本质量）
 5. **提示用户审阅要点**（聚焦主观维度）：
    - 实际观看视频，检查整体观感
@@ -895,7 +895,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    - Hook 场景是否抓人
    - CTA 场景是否有效
    - 有无明显的渲染问题（黑屏、错位、卡顿）
-   - **文章内容是否准确**（如有问题可在此反馈，Agent 修改后重新发布）
+   - **文章内容是否准确**（如有问题可在此反馈，Agent 修改 draft 后重新进入审阅）
    - **脚本叙事是否合理**（如有问题可在此反馈，Agent 修改后重新制作）
 6. **输出 TikTok 发布前最佳实践提醒**（每次必输出，提醒用户发布时和发布后的操作）：
 
@@ -988,9 +988,18 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
 ### 发布（HITL 确认后执行）
 
-用户确认后，Agent 执行以下发布步骤（文章已在 Stage 2 发布）：
+用户确认后，Agent 依次执行以下内容包发布步骤：
 
-#### 5a. TikTok 发布 + 自动保存 URL
+#### 5a. 公开文章 + 上传源文件附件
+
+```bash
+node scripts/article/publish-article.mjs --file <path>
+node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [<path2> ...]
+```
+
+公开发布使用与 Stage 2 相同的文章文件，但不带 `--draft`。文章公开完成后再发布 TikTok，使 URL、附件与 TikTok 回写属于同一内容包。
+
+#### 5b. TikTok 发布 + 自动保存 URL
 
 ```bash
 node scripts/short-video/publish-tiktok.mjs --slug <slug>   # 通过 Publora API 发布，发布后自动保存 TikTok URL 到文章
@@ -1025,8 +1034,8 @@ Analytics 是独立工作流（跨视频、跨时间），不绑定单次制作�
 | **🔄 MRL-2** 脚本自审 | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
 | 📚 RAG reindex（多媒体） | Stage 4b（视频制作后）       | 脚本执行 | Agent  | 仅当有多媒体素材变更 |
 | **🔄 MRL-3** 视频自审 | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须         |
-| **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 人工确认 | 用户   | ✅ 必须         |
-| 文章发布 + 附件上传   | Stage 2（HITL 之前）           | 脚本执行 | Agent  | ✅ 必须         |
+| **HITL** 内容包成品审阅 | Stage 5 内部（验证后、公开前） | 人工确认 | 用户   | ✅ 必须         |
+| 文章公开发布 + 附件上传 | Stage 5（HITL 确认后）         | 脚本执行 | Agent  | ✅ 必须         |
 | TikTok 发布 + URL 保存 | Stage 5 HITL 确认后          | 脚本执行 | Agent  | ✅ 必须         |
 | TikTok 手工操作       | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
 | Analytics 导出        | 独立工作流                     | 人工操作 | 用户   | 按需            |
@@ -1034,9 +1043,9 @@ Analytics 是独立工作流（跨视频、跨时间），不绑定单次制作�
 ### Agent 行为准则
 
 1. **MRL 仍必须运行** — MRL-1、MRL-2 自审通过后不暂停，直接进入下一 Stage。MRL-3 通过后才进入 HITL
-2. **到达 HITL 检查点时必须暂停** — 输出 MRL-3 报告 + 视频成品 + 文章链接 + 场景概览 + 等待用户确认
+2. **到达 HITL 检查点时必须暂停** — 输出 MRL-3 报告 + 视频成品 + 文章 draft 预览 + 场景概览 + 等待用户确认
 3. **不得自行假设确认** — 确认必须是用户主动发出（「继续」「OK」「确认」「发布」等）
-4. **用户提出修改意见时 — 必须做联动检查** — 用户可能只针对视频提了意见，但 Agent **必须主动检查文章和脚本是否也需要同步修改**。因为视频脚本来源于文章，如果视频需要改（比如数据纠正、叙事调整、措辞修正），文章很可能有同样的问题。Agent 的处理流程：
+4. **用户提出修改意见时 — 必须做联动检查** — 用户可能只针对视频提了意见，但 Agent **必须主动检查文章和脚本是否也需要同步修改**。因为文章与视频脚本共享 Stage 0 素材与事实主张，如果视频需要改（比如数据纠正、叙事调整、措辞修正），文章很可能有同样的问题。Agent 的处理流程：
    - 收到用户反馈后，先判断反馈类型（数据准确性 / 叙事逻辑 / 措辞语气 / 视觉呈现 / TTS 质量）
    - **数据准确性类**（如数字错误、事实错误）→ **必须回溯检查文章**，文章中相同数据大概率也有错
    - **叙事逻辑类**（如场景顺序、信息遗漏）→ **必须回溯检查文章**对应章节，文章的结构可能需要同步调整

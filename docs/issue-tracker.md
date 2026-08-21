@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-21 (31 open issues after triage; includes #93, #94, #95).
+Last inventory: 2026-08-21 (29 locally tracked open issues after closing #95 and adding #103).
 
 ## Execution Phases
 
@@ -15,7 +15,6 @@ Last inventory: 2026-08-21 (31 open issues after triage; includes #93, #94, #95)
 | #83 | stock_api → stock_media rename | mechanical | source-registry.mjs + tests | 纯 find-replace，无行为变更 |
 | #88 | extractScript → articleScript etc. rename | mechanical | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests, docs | 影响面大（50 sources × 65 test refs × 80 doc refs），建议在 #63/#66 之前做以减少后续 diff |
 | #78 | DOCS-INDEX sync: 22 missing docs | docs only | DOCS-INDEX.md | 无代码变更 |
-| #95 | Align content package workflow for parallel article and video delivery | docs/workflow | AGENTS.md, content-pipeline.md, manual-ops.md, DOCS-INDEX.md | 共享研究证据 → 文章/视频并行产出 → 一致性汇合 → 单一 HITL → 内容包发布；不实现 #60/#61 审计引擎或 #93 视觉意图契约 |
 
 ### Phase 1 — 核心功能增强
 
@@ -26,6 +25,7 @@ Last inventory: 2026-08-21 (31 open issues after triage; includes #93, #94, #95)
 | #63 | SVE: Single-Visit Extraction | #54 ✅, #55 ✅ | search-sources.mjs, asset-sourcer.mjs | enrichWithImages → enrichWithMedia |
 | #84 | Search-call caching | #54 ✅ | asset-sourcer.mjs | 与 #63 不冲突（#63 改 search-sources，#84 改 asset-sourcer） |
 | #51 | Cascade-filter audit (RAG BM25 pre-filter) | — | rag/query.mjs | ⚠️ item 1 done, item 2 (BM25) not implemented |
+| #103 | Offload and split Layer 1 video content workflows | #95 ✅ | content-pipeline.md, video-workflow.md, DOCS-INDEX.md | Chapter-level migration map → thin route/runbook → on-demand L1 references + L2 rationale; no pipeline-code change |
 
 ### Phase 2 — 审计类（依赖 #67 完成）
 
@@ -77,9 +77,9 @@ Last inventory: 2026-08-21 (31 open issues after triage; includes #93, #94, #95)
 | `asset-sourcer.mjs` | #66, #63, #84, #75 — 高冲突风险 |
 | `search-sources.mjs` | #66, #63, #81, #65, #90 — 高冲突风险 |
 | `scene-rules.mjs` / `scene-templates.mjs` | 无 open issue（#49, #86 已关闭） |
-| `docs/content-pipeline.md` | #51, #93, #95 — 文档修改串行；#95 先确立内容包时序，再合入过滤或视觉意图规则 |
-| `docs/DOCS-INDEX.md` | #78, #95 — 索引变更串行，避免遗漏或覆盖文档归属 |
-| `AGENTS.md` / `docs/manual-ops.md` | #95 — 单一工作流时序来源，避免重写为平行规则 |
+| `docs/content-pipeline.md` | #103 — 以 #95 已验证的双轨时序为基线做 L1 route-map 瘦身 |
+| `docs/video-workflow.md` | #103 — 抽离低频 SOP 与研究性内容 |
+| `docs/DOCS-INDEX.md` | #78, #103 — 索引变更串行，避免遗漏或覆盖文档归属 |
 
 ## Closed Issues (2026-08-21 Triage)
 
@@ -102,6 +102,7 @@ Last inventory: 2026-08-21 (31 open issues after triage; includes #93, #94, #95)
 | #80 | DOCS-INDEX sync (dup #78) | Duplicate |
 | #82 | Homepage-only sources (superseded by #81) | Superseded |
 | #86 | Pipeline Generalization (7 subtasks) | Code verified: completed |
+| #95 | Restore local dual-track article and video workflow | Docs verified: AGENTS.md, content-pipeline.md, manual-ops.md aligned; `npm run lint:docs` passes |
 
 ## Triage Protocol
 
