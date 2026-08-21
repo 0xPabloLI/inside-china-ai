@@ -13,7 +13,6 @@
  * - supportsKeyword: whether the source supports keyword search (vs homepage-only)
  * - accessMethod: how this source is collected
  *     { primary: "cdp" | "api" | "mcp",
- *       fallbacks: ["cdp" | "mcp" | ...],
  *       notes: "human-readable description of collection method" }
  * - url(keyword): function to build search URL (keyword ignored if supportsKeyword=false)
  * - extractScript: CDP eval script to extract articles from DOM
@@ -62,7 +61,6 @@ locale: "zh-CN",
 supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Homepage scraping via DOM selectors. No public API.",
     },
     needsAuth: false,
@@ -99,7 +97,6 @@ locale: "zh-CN",
 supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. No public API.",
     },
     needsAuth: false,
@@ -135,7 +132,6 @@ locale: "zh-CN",
 supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Homepage scraping. No public API.",
     },
     needsAuth: false,
@@ -171,7 +167,6 @@ supportsKeyword: false,
     supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Category page scraping. No public API.",
     },
     needsAuth: false,
@@ -207,7 +202,6 @@ supportsKeyword: false,
     supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Tech section scraping. No public API (paywall).",
     },
     needsAuth: false,
@@ -244,7 +238,6 @@ locale: "zh-CN",
 supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Homepage scraping. No public API.",
     },
     needsAuth: false,
@@ -284,7 +277,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. No public API.",
     },
     needsAuth: false,
@@ -325,7 +317,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
@@ -351,7 +342,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
@@ -377,7 +367,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
@@ -403,7 +392,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
@@ -429,7 +417,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
@@ -455,7 +442,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
@@ -488,7 +474,6 @@ locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP search page. Articles + images from same DOM.",
     },
     needsAuth: false,
@@ -522,7 +507,6 @@ locale: "zh-CN",
 supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP (requires login) → MCP fallback (RedNote-MCP search_feeds). needsAuth=true.",
     },
     needsAuth: true,
@@ -575,7 +559,6 @@ locale: "zh-CN",
 supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP → MCP fallback (search_wechat_articles). Has captcha check.",
     },
     needsAuth: false,
@@ -631,7 +614,6 @@ locale: "zh-CN",
 supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes:
         "CDP (hot search page) → MCP fallback (get_hot_search). No keyword search, homepage-only.",
     },
@@ -672,7 +654,6 @@ locale: "zh-CN",
 supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes:
         "CDP (search page) → MCP fallback (search_videos). Has 412 anti-bot intermittent issues.",
     },
@@ -724,7 +705,6 @@ locale: "zh-CN",
 supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP (requires login) → MCP fallback (search_videos). needsAuth=true.",
     },
     needsAuth: true,
@@ -779,7 +759,6 @@ supportsKeyword: true,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp"],
       notes:
         "API (ScrapeCreators, requires SCRAPECREATORS_API_KEY) → CDP fallback (Creator Center, requires login). Keyword search via API; CDP is homepage-only.",
     },
@@ -877,7 +856,6 @@ locale: "zh-CN",
 supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Search page scraping. No MCP fallback.",
     },
     needsAuth: false,
@@ -917,7 +895,6 @@ supportsKeyword: true,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["cdp", "mcp"],
       notes:
         "CDP (requires login) → cdpFallback (Google site:x.com) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
     },
@@ -1091,7 +1068,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP (search results) → MCP fallback (mcp-search-bridge/Grok web_search).",
     },
     useCleanTitle: false,
@@ -1132,7 +1108,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp", "mcp"],
       notes: "API (arXiv Atom XML) → CDP fallback → MCP fallback.",
     },
     useCleanTitle: false,
@@ -1208,7 +1183,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp", "mcp"],
       notes:
         "API (GitHub Search API, 60 req/hour without token, 5000 with GITHUB_TOKEN) → CDP fallback → MCP fallback.",
     },
@@ -1285,7 +1259,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes:
         "CDP (search page, limited) → MCP fallback (primary method). Threads has no public API.",
     },
@@ -1323,7 +1296,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: false,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (Atom RSS feed, free, no auth). Daily AI news from 35+ sources in 8 languages. No keyword search — homepage feed only.",
     },
@@ -1376,7 +1348,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (gnews.io/api/v4/search, free tier 100 req/day, 12h delay). Requires GNEWS_API_KEY. Multi-language news search.",
     },
@@ -1420,7 +1391,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (api.core.ac.uk/v3, free, no auth required, 5 req/10s rate limit). World's largest open-access research papers (260M+).",
     },
@@ -1463,7 +1433,6 @@ export const INTERNATIONAL_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (openalex.org/api/works, free, no auth). Open catalog of 240M+ scholarly works. JSON response.",
     },
@@ -1528,7 +1497,6 @@ export const GENERAL_SEARCH_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP (Google search) → MCP fallback (mcp-search-bridge/Grok). General web search.",
     },
     useCleanTitle: false,
@@ -1570,7 +1538,6 @@ needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Baidu search page scraping. Chinese-language search. No MCP fallback.",
     },
     useCleanTitle: false,
@@ -1603,7 +1570,6 @@ needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "mcp",
-      fallbacks: [],
       notes: "MCP only (mcp-search-bridge/Grok). No CDP page. Grok web search with China AI focus.",
     },
     useCleanTitle: false,
@@ -1629,7 +1595,6 @@ needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (currentsapi.services/v1/search, free tier 200 req/day). Requires CURRENTS_API_KEY. Real-time global news from 50+ countries.",
     },
@@ -1673,7 +1638,6 @@ needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (noozra.com/api/search, free, no auth, 100 req/day per IP). News headlines from 200+ curated RSS sources. JSON response.",
     },
@@ -1726,7 +1690,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp"],
       notes:
         "API (reddit.com/search.json, free, no auth) → CDP fallback. Reddit returns JSON directly.",
     },
@@ -1778,7 +1741,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp"],
       notes:
         "API (hn.algolia.com/api/v1/search, free, no auth) → CDP fallback. Returns JSON directly.",
     },
@@ -1825,7 +1787,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Search page DOM scraping. No public API.",
     },
     useCleanTitle: false,
@@ -1850,7 +1811,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Search page DOM scraping. No public API.",
     },
     useCleanTitle: false,
@@ -1875,7 +1835,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes:
         "CDP only (Google site:techmeme.com). Techmeme has no search; uses Google site: search. No public API.",
     },
@@ -1921,7 +1880,6 @@ locale: "zh-CN",
 supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes:
         "CDP only. Google search for republished WeChat articles. No keyword search, homepage-only.",
     },
@@ -2021,7 +1979,6 @@ needsAuth: false,
     useCleanTitle: false,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "Public third-party RSS. No WeChat account, login, or official API is used by this project.",
     },
@@ -2145,7 +2102,6 @@ export const STOCK_API_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes: "API (api.pexels.com, requires PEXELS_API_KEY). Image search.",
     },
     useCleanTitle: false,
@@ -2181,7 +2137,6 @@ export const STOCK_API_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes: "API (api.pexels.com/videos, requires PEXELS_API_KEY). Video search.",
     },
     useCleanTitle: false,
@@ -2221,7 +2176,6 @@ export const STOCK_API_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes: "API (api.unsplash.com, requires UNSPLASH_ACCESS_KEY). Image search.",
     },
     useCleanTitle: false,
@@ -2256,7 +2210,6 @@ export const STOCK_API_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes: "API (commons.wikimedia.org, free, no auth). Image search.",
     },
     useCleanTitle: false,
@@ -2291,7 +2244,6 @@ export const STOCK_API_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes: "API (api.coverr.co, requires COVERR_API_KEY). Video search.",
     },
     useCleanTitle: false,
@@ -2328,7 +2280,6 @@ export const STOCK_API_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes: "API (pixabay.com/api, requires PIXABAY_API_KEY). Image search.",
     },
     useCleanTitle: false,

@@ -36,7 +36,6 @@ describe("Source structure", () => {
       expect(typeof source.supportsKeyword).toBe("boolean");
       expect(source.accessMethod).toBeDefined();
       expect(["cdp", "api", "mcp"]).toContain(source.accessMethod.primary);
-      expect(Array.isArray(source.accessMethod.fallbacks)).toBe(true);
       expect(typeof source.accessMethod.notes).toBe("string");
       // Stock API sources don't have url/extractScript at top level — they use capabilities
       if (source.category === "stock_api") continue;

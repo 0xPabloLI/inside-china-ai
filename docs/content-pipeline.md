@@ -112,10 +112,10 @@ Agent 从 Stage 0 开始：运行 `search-sources --keyword "话题" --research`
 Agent 从 Stage 0 开始：运行 `search-sources --trend` → 选话题 → 走入口 2 路线。
 
 > **搜索工具有两个模式，按场景分工**：
-> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 59 源（含固定公众号 RSS），filter/classify/dedup，输出 `trending-topics.json`
+> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部源（含固定公众号 RSS），filter/classify/dedup，输出 `trending-topics.json`
 > - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：跑所有 supportsKeyword=true 或有 cdpFallback 的源，不过滤不分类，输出 `research-results.json`（按源分组）
 >
-> **源定义在 `lib/source-registry.mjs`（single source of source）**：59 源 = 14 news + 8 self_media + 8 international + 5 general + 5 last30days + 1 wechat + 12 wechat RSS + 6 stock_api。23 个源有 `apiSearch` 配置（直接 HTTP 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）和可选 `locale`（中文限定源标 `zh-CN`，国际/多语种源不标）。
+> **源定义在 `lib/source-registry.mjs`（single source of source）**：每个源标注 `accessMethod`（primary + fallbacks）、`supportsKeyword`、可选 `locale`、可选 `apiSearch`（直接 HTTP 调用，无需 CDP）。新增源只需添加 collector 对象。
 >
 > **补充搜索源**：需要更多新闻/学术/素材 API 时，查 `docs/tools-catalog.md` → Pipeline API 补充候选。
 >
@@ -123,41 +123,13 @@ Agent 从 Stage 0 开始：运行 `search-sources --trend` → 选话题 → 走
 >
 > **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容（已发布文章、scene-data、研究报告、源素材），用本地 Ollama bge-m3 做语义向量搜索，零费用。search-sources 搜索实时互联网（CDP + MCP）。两者不重复——RAG 查「我写过什么」，search-sources 查「外界在说什么」。
 
-#### 趋势发现源（15 个）
-
-`search-sources.mjs` 通过 CDP 抓取 15 个源，覆盖新闻媒体、自媒体平台、技术社区和定向公众号监控：
-
-| 类型     | 源                    | 平台                      | 登录需求           |
-| -------- | --------------------- | ------------------------- | ------------------ |
-| 新闻     | 量子位                | qbitai.com                | 无                 |
-| 新闻     | 机器之心              | jiqizhixin.com            | 无                 |
-| 新闻     | 36氪                  | 36kr.com                  | 无                 |
-| 新闻     | TechCrunch AI         | techcrunch.com            | 无                 |
-| 新闻     | Bloomberg Tech        | bloomberg.com             | 无                 |
-| 新闻     | 观察者网              | guancha.cn                | 无                 |
-| 新闻     | iThome                | ithome.com                | 无                 |
-| 自媒体   | 小红书                | xiaohongshu.com           | 需要               |
-| 自媒体   | 搜狗微信              | weixin.sogou.com          | 无                 |
-| 自媒体   | 微博热搜              | s.weibo.com               | 无                 |
-| 自媒体   | B站搜索               | search.bilibili.com       | 无                 |
-| 自媒体   | 抖音搜索              | douyin.com                | 需要               |
-| 自媒体   | TikTok Creator        | tiktok.com/creator-center | 需要               |
-| 社区     | 知乎                  | zhihu.com                 | 无（搜索无需登录） |
-| 社交     | X (Twitter)           | x.com/search              | 需要（CDP）/ mcp-search-bridge fallback |
-| 西方源   | YouTube               | youtube.com               | 无（mcp-search-bridge） |
-| 西方源   | arXiv                 | arxiv.org                 | 无（mcp-search-bridge） |
-| 西方源   | GitHub                | github.com/search         | 无（mcp-search-bridge） |
-| 西方源   | Threads               | threads.net               | 无（mcp-search-bridge） |
-| 西方源   | Web Search (Grounding) | google.com               | 无（mcp-search-bridge） |
-| 定向监控 | 动察Beating（公众号） | Google 搜索转载平台       | 无                 |
-
-源定义在 `scripts/short-video/lib/source-registry.mjs`，可插拔架构，新增源只需添加 collector 对象。
+趋势发现扫全部源（含固定公众号 RSS），filter/classify/dedup。源清单和各源的 `accessMethod`、`needsAuth` 等字段定义在 `scripts/short-video/lib/source-registry.mjs`。
 
 ##### 第三方公众号 RSS
 
 12 个经过可访问性、近 14 天时效与中国 AI 新闻相关性验证的公众号，定义在 `WECHAT_RSS_SOURCES`。项目只读取 Wechat2RSS 提供的公开 RSS XML，不使用微信账号、扫码会话或公众号后台 API。每个来源标有 `provider: wechat2rss`、`access: public-rss`、`official: false`、`stability: third-party` 和 14 天窗口；趋势模式只消费窗口内的条目，研究模式不拉取这些固定 Feed。它们不会自动抓全文或写入 RAG。来源清单、测试场景与扩展准则见 [Wechat2RSS 接入规格](specs/spec-wechat2rss-source-tracking.md)。
 
-**mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据），也是 5 个西方源的主要搜索方式。Fallback 链：CDP → cdpFallback (Google site:搜索) → mcpFallback (mcp-search-bridge/Grok)。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`。
+**mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据），也是多个国际源的主要搜索方式。Fallback 链：CDP → cdpFallback (Google site:搜索) → mcpFallback (mcp-search-bridge/Grok)。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`。
 
 ##### 定向公众号监控
 
@@ -181,11 +153,11 @@ node scripts/short-video/search-sources.mjs --keyword "DeepSeek"
 
 #### 西方社媒趋势补充（last30days-skill）
 
-`search-sources.mjs` 覆盖中文平台（16 源），`last30days-skill` 覆盖西方社媒 + 学术 + 科技新闻（11 默认源 + 2 opt-in）。两个都输出 JSON，Agent 可交叉比对。
+`search-sources.mjs` 覆盖中文平台 + 国际平台，`last30days-skill` 覆盖西方社媒 + 学术 + 科技新闻。两个都输出 JSON，Agent 可交叉比对。
 
 **分工原则（按信息源，非语言）**：
-- search-sources 独占：知乎、B站、微博、抖音、36氪、量子位、机器之心、TechCrunch、Bloomberg、观察者网、IT之家、搜狗微信、动察Beating（13 源）
-- last30days 独占：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding（10 源）
+- search-sources 独占：知乎、B站、微博、抖音、36氪、量子位、机器之心、TechCrunch、Bloomberg、观察者网、IT之家、搜狗微信、动察Beating
+- last30days 独占：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding
 - 两边都有：X（CDP vs API，机制不同）、TikTok（Creator Center vs hashtag 搜索，角度不同）
 - 小红书：只在 search-sources 里用（CDP 登录态更适合），last30days 不启用
 

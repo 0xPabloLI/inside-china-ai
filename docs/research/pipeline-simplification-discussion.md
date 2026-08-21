@@ -145,13 +145,17 @@ Unified Page Visitor 打开 URL（一次）
 | 16 | Wikipedia 作为独立 reference source | 2026-08-20 | 不属于 general search，是实体背景信息查询。category=reference，不进 Pool |
 | 17 | accessMethod.fallbacks 字段是文档性的 | 2026-08-20 | collectFromSource() 硬编码 fallback 链，不读该字段。实施时可删除简化 |
 | 18 | Jina 可本地 Docker 部署 | 2026-08-20 | ghcr.io/jina-ai/reader:oss，2-4GB RAM，无状态模式无限调用。Pipeline 代码可直接 fetch 而非 MCP |
-| 13 | Entry points unified; three entries converge at Stage 0 | 2026-08-20 | Grill Q1: 入口统一为单入口，差异仅是 keyword 来源和是否有 primary source |
-| 14 | Stage 0.5 renamed to Stage 0: Source Discovery & Material Gathering | 2026-08-20 | Grill Q8: 管线起点编号清晰化，去掉 0.5 |
-| 15 | MRL-1 B4/B6 inline markers as source for structured evidence (non-blocking) | 2026-08-20 | Grill Q4: inline 标注保留，作为 evidence schema 来源；audit 非阻塞，输出 warning。#61 追踪 |
-| 16 | Research mode filter expanded to include cdpFallback sources | 2026-08-20 | Grill Q2: 不支持 keyword 的源走 Google site: fallback |
-| 17 | WESTERN_SOURCES renamed to INTERNATIONAL_SOURCES | 2026-08-20 | Grill Q6: "western" 不准确，这些源是国际/多语种的 |
-| 18 | Optional locale field added; English sources not marked | 2026-08-20 | Grill Q6: 中文限定源标 zh-CN，英文/多语种源不标 |
-| 19 | No separate issue for Discussion; all tasks in existing issues | 2026-08-20 | Grill Q9: 所有未完成项已有对应 issue |
+| 19 | Brave Search 以直接 API 调用集成，不配 MCP | 2026-08-20 | Brave 是 REST API（fetch + X-Subscription-Token header），不需要 MCP transport。同时作为 source-registry 独立 source（apiSearch）和 Search API Pool 成员 |
+| 20 | Search API Pool 全部用直接 API 调用，除 Grok 外 | 2026-08-20 | Jina、Tavily、Brave 都有 REST API，pipeline 代码统一用 fetch() 调用。Grok 是自建 Node.js server 无 REST endpoint，保持 MCP |
+| 21 | 删除 accessMethod.fallbacks 字段 | 2026-08-20 | 文档性字段，collectFromSource() 硬编码 fallback 链不读它。删除 49 个实例 + 1 个测试断言 |
+| 22 | content-pipeline.md 不硬编码源数量 | 2026-08-20 | 源数量是 source-registry.mjs 的 cache，会过时。改为指针指向 source-registry |
+| 23 | Entry points unified; three entries converge at Stage 0 | 2026-08-20 | Grill Q1: 入口统一为单入口，差异仅是 keyword 来源和是否有 primary source |
+| 24 | Stage 0.5 renamed to Stage 0: Source Discovery & Material Gathering | 2026-08-20 | Grill Q8: 管线起点编号清晰化，去掉 0.5 |
+| 25 | MRL-1 B4/B6 inline markers as source for structured evidence (non-blocking) | 2026-08-20 | Grill Q4: inline 标注保留，作为 evidence schema 来源；audit 非阻塞，输出 warning。#61 追踪 |
+| 26 | Research mode filter expanded to include cdpFallback sources | 2026-08-20 | Grill Q2: 不支持 keyword 的源走 Google site: fallback |
+| 27 | WESTERN_SOURCES renamed to INTERNATIONAL_SOURCES | 2026-08-20 | Grill Q6: "western" 不准确，这些源是国际/多语种的 |
+| 28 | Optional locale field added; English sources not marked | 2026-08-20 | Grill Q6: 中文限定源标 zh-CN，英文/多语种源不标 |
+| 29 | No separate issue for Discussion; all tasks in existing issues | 2026-08-20 | Grill Q9: 所有未完成项已有对应 issue |
 
 ## Open Questions
 

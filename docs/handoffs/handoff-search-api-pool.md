@@ -12,19 +12,19 @@
 
 | API | 免费额度 | 刷新周期 | 超额行为 | 集成方式 |
 |-----|---------|----------|----------|----------|
-| **Jina Search** | 1M tokens/月 | 每月更新 | 降级到无 key 模式（20 RPM） | MCP（已配置） |
-| **Tavily** | 1000 credits/月 | 每月1号重置 | 请求停止 | MCP（已配置） |
-| **Brave Search API** | 2000 queries/月 | 每月更新 | 请求停止 | **直接 API 调用**（非 MCP） |
-| **mcp-search-bridge (Grok)** | 无限（自建） | 不适用 | 无限制 | MCP（已配置） |
+| **Jina Search** | 1M tokens/月 | 每月更新 | 降级到无 key 模式（20 RPM） | **直接 API** — `fetch("https://s.jina.ai/" + query)` + `Authorization: Bearer {key}` |
+| **Tavily** | 1000 credits/月 | 每月1号重置 | 请求停止 | **直接 API** — `fetch("https://api.tavily.com/search", { method: POST, body: { api_key, query } })` |
+| **Brave Search** | 2000 queries/月 | 每月更新 | 请求停止 | **直接 API** — `fetch("https://api.search.brave.com/res/v1/web/search?q=...")` + `X-Subscription-Token` header |
+| **mcp-search-bridge (Grok)** | 无限（自建） | 不适用 | 无限制 | **MCP** — 唯一没有 REST API 的成员，通过 `lib/mcp-client.mjs` 调用 |
 
-> **Brave Search API** (https://brave.com/search/api/): 免费层 2000 queries/月，无需信用卡。独立搜索引擎（非 Google/Bing 代理），隐私优先。提供 `web` 和 `news` 搜索类型。**以直接 HTTP API 调用方式集成**——`fetch("https://api.search.brave.com/res/v1/web/search?q=...")` + `X-Subscription-Token` header。**不需要 MCP server**。API Key 存 `.env.local` 的 `BRAVE_SEARCH_API_KEY`。需用户注册获取 key。
+> **设计原则**：Pipeline 代码优先用 `fetch()` 直接调用 REST API。MCP transport 仅用于没有 REST API 的服务（Grok 是自建 Node.js server）。这统一了 3/4 成员的调用模式，与现有 `apiSearch` 源（GNews、Currents）一致。
 
 ## What exists already
 
-- **Jina MCP**: 已配置在 `mcopilot_mcp_settings.json`，提供 `jina_search`（关键词搜索）和 `jina_reader`（URL→Markdown）
-- **Tavily MCP**: 已配置为 HTTP MCP server
-- **mcp-search-bridge**: 已配置为 stdio MCP server，管线代码通过 `lib/mcp-client.mjs` spawn 调用，source-registry 中 7 个源有 `mcpFallback` 配置指向它
-- **Brave Search API**: 不需要 MCP server。Pipeline 代码直接 `fetch("https://api.search.brave.com/res/v1/web/search?q=...")` + `X-Subscription-Token` header。与 Jina/Grok 的 MCP 调用方式不同，但 Pool 调度器统一封装——MCP member 走 `mcp-client.mjs`，API member 走 `fetch()`。
+- **Jina Search**: REST API `https://s.jina.ai/{query}` + `Authorization: Bearer {JINA_API_KEY}` header。MCP 也配了但 pipeline 不用——直接 `fetch()` 调用。
+- **Tavily**: REST API `https://api.tavily.com/search` (POST with `{ api_key, query }` body)。MCP 也配了但 pipeline 不用——直接 `fetch()` 调用。
+- **Brave Search**: REST API `https://api.search.brave.com/res/v1/web/search` + `X-Subscription-Token` header。✅ 已测试 2026-08-20。API Key 在 `.env.local` 的 `BRAVE_SEARCH_API_KEY`。
+- **mcp-search-bridge (Grok)**: 自建 Node.js server（`~/mcp-search-bridge/server.js`），无 REST endpoint，只能通过 stdio MCP 调用。source-registry 中 7 个源有 `mcpFallback` 配置指向它。
 
 ## What's missing (the gap)
 
@@ -96,7 +96,7 @@ Layer 4: Search API Pool — Jina Search + Tavily + Brave + Grok (round-robin)
 
 ## Design Decisions
 
-1. **Pool 内优先级**：Jina Search > Brave > Tavily > Grok（按免费额度从大到小）
+1. **Pool 内优先级**：Jina Search > Brave > Tavily > Grok（按免费额度从大到小，Grok 兑底）
 2. **额度耗尽时**：自动降级到下一个 member，不停服务
 3. **月度重置**：检查 `usage.month !== currentMonth` → 重置
 4. **Pool 只用于 "关键词搜索" 场景**，不用于 "URL 提取" 场景（后者走 web_fetch → Jina Reader → CDP）
