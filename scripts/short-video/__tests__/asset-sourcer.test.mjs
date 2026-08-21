@@ -4,7 +4,9 @@
  * TDD: Tests written first (red), implementation second (green).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { unlinkSync, rmdirSync } from "fs";
+import { mkdtempSync, rmSync, unlinkSync, rmdirSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 import {
   extractKeywords,
@@ -27,7 +29,35 @@ import {
   checkCdpAvailable,
   loadEnvLocal,
   getApiKey,
+  persistSearchResultsCache,
 } from "../lib/asset-sourcer.mjs";
+import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
+
+// ─── search cache persistence ───
+
+describe("persistSearchResultsCache", () => {
+  it("warns and preserves a completed search run when cache persistence fails", () => {
+    const cache = createSearchResultsCache();
+    recordSearchResults(cache, {
+      source: "youtube",
+      keyword: "Unitree",
+      results: [{ title: "Robot video", url: "https://youtube.example/1", type: "video" }],
+    });
+    const cachePath = mkdtempSync(join(tmpdir(), "asset-sourcer-cache-dir-"));
+    const logger = { log: vi.fn(), warn: vi.fn() };
+
+    try {
+      expect(persistSearchResultsCache(cachePath, cache, logger)).toEqual(
+        expect.objectContaining({ success: false }),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Search cache was not saved"),
+      );
+    } finally {
+      rmSync(cachePath, { recursive: true, force: true });
+    }
+  });
+});
 
 // ─── extractKeywords ───
 
