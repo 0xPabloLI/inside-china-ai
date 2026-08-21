@@ -174,7 +174,7 @@ const relevanceScore = /* 0-30, based on VLM subjects + description */;
 return technicalScore + relevanceScore;
 ```
 
-Pre-filter gate: `technicalScore < 30` → skip VLM, mark `lowConfidence: true`. Soft gate — if VLM is available, `lowConfidence` assets can still be analyzed (VLM may rescue good content with poor metadata).
+Pre-filter gate: `technicalScore < 30` → skip VLM, mark `lowConfidence: true`. Hard gate — `lowConfidence` assets are never sent to VLM (cost optimization, prevents wasting GPU time on poor-quality assets).
 
 **Issue #44 P1**: Preserve `searchKeyword` on every candidate. `scoreCandidate(asset, asset.searchKeyword, ...)`.
 
@@ -279,7 +279,7 @@ All deleted with their tests rewritten:
 | 9 | VLM unavailable (Python not found / model load fails) | `analyzeAssetSemantics` resolves with degraded result (all fields null/empty) | Medium | Same graceful degradation as current. `scoreCandidate` uses keyword match only. |
 | 10 | VLM subprocess crashes mid-request | `handleResponse` timeout fires (180s), resolves with degraded result | Low | Existing timeout mechanism unchanged |
 | 11 | Asset has no `searchKeyword` (orphan from old pipeline) | `scoreCandidate` falls back to `keywords[0]` | Low | Backward compat: `asset.searchKeyword ?? keywords[0]` |
-| 12 | Pre-filter marks good asset as `lowConfidence` (false reject) | Asset still analyzed by VLM (soft gate, not hard cut) | Low | Soft gate — VLM can rescue good content with poor metadata |
+| 12 | Pre-filter marks good asset as `lowConfidence` (false reject) | Asset skipped by VLM (hard gate), relies on keyword-only scoring | Low | Hard gate — trade-off: cost savings > occasional false reject. Re-run with higher-quality asset if needed. |
 | 13 | Pre-filter lets bad asset through (false accept) | VLM analyzes it, `scoreCandidate` gives low `relevanceScore`, asset not assigned to scenes | Low | VLM + scoring is the real filter; pre-filter is just cost optimization |
 | 14 | Video asset analyzed (no fit/criticalEdgeText in output) | `assignAssetsToScenes` skips `media.fit` for video assets | Low | `if (semantics.fit && asset.type !== 'video')` guard |
 | 15 | `asset-analysis.json` already exists (re-run pipeline) | Overwrite with new analysis (no caching in P3) | Low | P7 (caching) is separate. P3 always re-analyzes. |
