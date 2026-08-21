@@ -267,7 +267,7 @@ Kaggle `kernel-metadata.json` 通过 `machine_shape` 字段可选 GPU 类型：
 - **GPU 节点波动**：v43(18.1min) → v45r(21.0min) → v45s(49.3min)，同为 T4 但时间差 2.7x，说明 Kaggle T4 节点性能波动极大
 - **结论**：双 T4 metadata 无实际加速，`machine_shape` 仅用于确保分配到 T4（而非 CPU）。最优方案仍是 v43 单卡 T4 + sequential_cpu_offload。
 
-## v43 T4 配置（当前最优）
+## v48 配置（当前最优：torch.compile + 无 TeaCache）
 
 ```python
 # 环境配置
@@ -278,10 +278,10 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 # 然后删除系统 diffusers，让 Python 用自定义路径
 
 # 推理参数
---num_inference_steps 25   # T4 25步 ≈ P100 8步的时间
+--num_inference_steps 8        # Flash 版 8 步即收敛
 --audio_guidance_scale 3.0
---GPU_memory_mode 'sequential_cpu_offload'  # T4 14.6GB 需 CPU offload
---enable_teacache --teacache_threshold 0.1 --num_skip_start_steps 5
+--GPU_memory_mode 'torch_compile'  # sequential_cpu_offload + torch.compile
+# 不使用 TeaCache（--enable_teacache 已移除）—— 会跳过部分步数影响质量
 --guidance_scale 6.0
 --audio_scale 1.0 --neg_scale 1.0 --neg_steps 0
 --seed 43 --weight_dtype 'float16'
@@ -289,12 +289,11 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 --ulysses_degree 1 --ring_degree 1  # 单卡模式
 ```
 
-**v43 关键差异 vs v33**：
-- GPU: T4 (sm_75, Tensor Core ✅) 替代 P100 (sm_60)
-- diffusers: 0.31.0 替代 0.37.1（0.37.1 在 T4 上 CPU RAM OOM）
-- offload: sequential_cpu_offload（T4 VRAM 14.6GB < P100 16GB）
-- 不需要 PyTorch 降级（T4 兼容默认 cu128）
-- 不需要 transformers check_torch_load_is_safe patch（但 v43 仍保留了该 patch）
+**v48 关键变化 vs v43**：
+- TeaCache **已禁用**——用户确认 TeaCache 会跳过部分推理步数，影响质量
+- torch.compile 已启用（mode='reduce-overhead'），预估 13% 加速
+- 需修复 `.config` 属性兼容性 bug（v48 已修复）
+- expandable_segments 必须与 sequential_cpu_offload 一起用（防碎片 OOM），对速度无负面影响
 
 **v43 数据来源**：`kagglehub.notebook_output_download('xpabloli/echomimicv3-v43-t4-diffusers031-sequential/versions/1')` 获取的 debug_log.txt
 

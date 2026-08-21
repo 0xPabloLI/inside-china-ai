@@ -1,0 +1,25 @@
+export const meta = {
+  subject: "sensetime",
+  pipelineId: "sensetime-latest",
+  title: "SenseTime's Strongest Year: Revenue Hits 5 Billion RMB",
+  article: "sensetime-latest",
+  renderer: "remotion",
+  createdAt: "2026-08-15",
+  topics: ["sensetime", "china-ai", "ai-infrastructure", "generative-ai", "earnings"],
+  keyEntities: {
+    companies: ["sensetime"],
+    people: ["xu-li"],
+    models: ["sense-nova-u1-pro", "sense-nova-v6"],
+  },
+  dataPoints: [
+    "2025 revenue exceeded 5 billion RMB, up 33% year-over-year",
+    "Generative AI revenue exceeded 3.6 billion RMB, up 51%",
+    "Net loss narrowed by 58.6% to 1.78 billion RMB",
+    "H2 EBITDA turned positive for the first time since IPO at 380 million RMB",
+    "Operating cash flow turned positive for the first time since listing",
+    "Galaxy Plan: 5 ten-thousand-card domestic compute clusters with 20 partners",
+    "Daily Token volume reached 2.4 trillion, targeting 10 trillion by year-end",
+    "SenseNova U1 Pro: delivery-grade multimodal agent foundation model",
+    "Cash and equivalents reached 10.9 billion RMB plus 2.28 billion in deposits",
+  ],
+};

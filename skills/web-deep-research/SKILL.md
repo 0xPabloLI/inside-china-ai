@@ -60,29 +60,30 @@ Map each angle to 2-4 search queries.
 
 ## Phase 3 — RETRIEVE
 
-> **MANDATORY**: Load `web-access` skill BEFORE any retrieval. Do NOT shortcut
-> to Tavily search/extract — Tavily truncates content and returns only FAQ
-> fragments. CDP gives full page DOM with login state and JS rendering.
-> Tavily is a **last-resort fallback** only when CDP is unavailable (agent
-> down, Chrome not running). If you catch yourself reaching for Tavily first,
-> stop and load web-access instead.
+> **MANDATORY**: Load `web-access` skill BEFORE any retrieval — this includes
+> **search**, not just page fetching. All URL discovery, search engine queries,
+> and content extraction MUST go through web-access.
+>
+> **DO NOT** use built-in tools (jina_search, web_fetch, mcp-search-bridge,
+> Tavily) as the primary retrieval mechanism. These are fallback-only, to be
+> used **after** web-access has been attempted and failed. If you catch
+> yourself reaching for jina_search or web_fetch first, **stop** — load
+> web-access skill instead.
 
-Load `web-access` skill and follow its setup instructions (check-deps, CDP
-proxy). All web fetching goes through web-access — do not reimplement its API
-calls here.
+Load `web-access` skill and follow its instructions. All web fetching —
+search, page loading, content extraction — goes through web-access. Do not
+reimplement its API calls or override its tool selection here. web-access
+already handles: CDP vs Jina vs curl vs WebFetch vs WebSearch, login state,
+JS rendering, anti-bot mitigation, and token-efficient extraction.
 
-**Retrieval strategy per angle** (what to retrieve, not how — tool selection
-is web-access's job):
-1. Search to discover sources (Google search → top results)
-2. Extract article content from discovered URLs (use web-access's
-   preferred extraction method — check its SKILL.md for current guidance)
-3. For paywalled / anti-bot / JS-rendered sites: use CDP directly (login
-   state, JS rendering) — web-access handles the mechanics
+**Retrieval strategy per angle** (what to retrieve, not how — web-access
+decides the tool):
+1. Search to discover sources (open search engines, extract top results)
+2. Extract article content from discovered URLs
+3. For paywalled / anti-bot / JS-rendered sites: follow web-access's guidance
 4. For independent angles, use sub-agents to parallelize. Each sub-agent
-   creates its own CDP tabs — no race condition (shared Chrome, different
+   loads web-access independently — no race condition (shared Chrome, different
    targetIds)
-5. For static/public article URLs where CDP is overkill: Jina
-   (`curl -s r.jina.ai/URL`) as a lighter fallback (20 RPM limit)
 
 **Source quality hierarchy**:
 - Tier 1: Official docs, primary sources, first-party APIs, peer-reviewed

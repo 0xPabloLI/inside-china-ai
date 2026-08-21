@@ -364,39 +364,39 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 > 查询关键词：`"DeepSeek China AI"`
 > 环境：FlClash TUN + CDP proxy (localhost:3456)，M2 Pro
 
-### 结果总览
+### 结果总览（最终修复后）
 
-| 引擎 | 结果数 | 耗时 | 状态 | 接入方式 |
-|------|--------|------|------|---------|
-| **DuckDuckGo (HTML)** | 10 | 6.4s | ✅ | CDP |
-| **Google (CDP)** | 7 | 6.3s | ✅ | CDP |
-| **Bing News (CDP)** | 11 | 12.0s | ⚠️ 结果质量差 | CDP |
-| **Baidu (CDP)** | 9 | 6.3s | ✅ | CDP |
-| **Brave Search API** | 0 | — | ❌ FlClash fake-ip 路由 bug | REST API |
-| **SearXNG** | — | — | ⏸ 未部署 | 自托管 |
+| 引擎 | 结果数 | 耗时 | snippet | 状态 | 接入方式 |
+|------|--------|------|---------|------|---------|
+| **Brave Search API** | 20 | 2.6s | ✅ 完整 | ✅ 最快最多 | REST API (curl --resolve) |
+| **DuckDuckGo (HTML)** | 10 | 6.2s | ✅ 完整 | ✅ 稳定 | CDP only |
+| **Google (CDP)** | 7 | 7.0s | ⚠️ 有但含杂质 | ✅ | CDP |
+| **Bing Search (CDP)** | 10 | 6.9s | ✅ 完整 | ✅ 修复成功 | CDP |
+| **Baidu (CDP)** | 9 | 6.4s | ❌ 仍为空 | ✅ 结果可用 | CDP |
+| **SearXNG** | — | — | — | ⏸ 待部署 | 自托管 |
 
-### 关键发现
+### 关键发现（修复后）
 
-1. **DuckDuckGo HTML 端点通过 CDP 可以正常工作**
-   - 返回 10 条结果，含标题、URL、snippet
-   - URL 是 DuckDuckGo 重定向链接（`duckduckgo.com/l/?uddg=...`），需要二次解析提取真实 URL
-   - 之前直接 `fetch()` 触发 `anomaly-modal`（CAPTCHA），通过 CDP（Chrome session + 代理）未触发
-   - **结论**：DuckDuckGo HTML 端点**必须通过 CDP 访问**，不能直接 `fetch()`
+1. **Brave Search API 是赢家**——20 条结果、2.6 秒、snippet 完整、独立索引
+   - FlClash TUN fake-ip bug 的 workaround：`curl --resolve "api.search.brave.com:443:$(fake-ip)"` 绕过 DNS 查询
+   - 不受反爬检测影响（REST API + 真实 API key）
+   - 独立索引（40B+ 页面），不依赖 Google/Bing
 
-2. **Google 通过 CDP 稳定返回结果**
-   - 7 条结果，标题和 URL 完整
-   - snippet 为空——Google 的 DOM 结构变化，`.VwiC3b` selector 可能已过时
-   - 结果质量最高：deepseek.com、Wikipedia、Axios、Reuters、Bloomberg
-   - **速度最快**（6.3s），因为 CDP 页面加载 + 提取一气呵成
+2. **DuckDuckGo HTML 端点必须通过 CDP 访问**
+   - 直接 `fetch()`/`curl` 触发 `anomaly-modal`（TLS 指纹检测），CDP 正常返回 10 条
+   - URL 是 DuckDuckGo 重定向链接（`duckduckgo.com/l/?uddg=...`），需要二次解析
+   - **接入方式修正为：CDP only**
 
-3. **Bing News 结果质量差**
-   - 11 条结果但全是 `site:www.xxx.com` 形式的导航链接（orientaldaily、美国之音、36氪等）
-   - 不是真正的新闻文章，而是 Bing News 的「来源筛选」导航
-   - Selector 需要优化：当前抓取的是 `.news-card` 的外层链接而非实际文章
-   - **结论**：Bing News selector 需要重新调试
+3. **Google snippet 修复**：改为 h3-based extraction
+   - Google 2026 DOM 不再用 `div.g` 作为结果容器
+   - snippet 在 `.zz3gNc`（inline results）或其他位置
+   - 有 snippet 但含杂质（如 URL 前缀 `DeepSeekhttps://www.deepseek.com`），需要后续清洗
 
-4. **Baidu 中文搜索效果好**
-   - 9 条结果，含 DeepSeek 官网、百度百科、百度学术、新闻文章
+4. **Bing 从 News 改为 Web Search 后修复成功**
+   - 之前 Bing News 返回 11 条垃圾导航链接（`site:www.xxx.com`）
+   - 改为 `bing.com/search` + `.b_algo` selector 后：10 条真实搜索结果 + snippet
+
+5. **Baidu snippet 仍为空**：DOM 结构需要额外调试，但标题和 URL 可用
    - URL 是 Baidu 重定向链接（`baidu.com/link?url=...`），需要 follow redirect
    - 中文内容质量高：有「DeepSeek涨价背后」「欧洲权威媒体力推」等深度分析
    - **snippet 全空**——Baidu 的 DOM 结构需要额外 selector 调试
