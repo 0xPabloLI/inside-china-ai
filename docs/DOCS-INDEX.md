@@ -71,7 +71,7 @@ Numbered sequence. Current: 0001–0006.
 
 ### `archive/` — Completed work
 
-Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list (37 files).
+Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list (39 files).
 
 ### `refs/` — Reference materials
 
