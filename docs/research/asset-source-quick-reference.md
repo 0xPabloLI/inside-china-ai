@@ -47,6 +47,15 @@ COVERR_API_KEY=...
 
 No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, all CDP/news sources.
 
+### Rate Limits
+
+| Source | Free Tier Limit | Renewal | Notes |
+|--------|----------------|---------|-------|
+| **Pexels** | 200 req/hour, 20,000 req/month | Hourly + Monthly | Unlimited if platform eligible (contact api@pexels.com) |
+| **Unsplash** | 50 req/hour (demo mode) | Hourly | 5,000 req/hour after production approval |
+| **Pixabay** | 100 req/60s | Per 60s | No daily/monthly cap documented; 5,000 req/hour per some sources |
+| **Coverr** | Undocumented | Unknown | API has "downloads quota" but no public rate limit info |
+
 ## License & Attribution Summary
 
 | Source | License | Attribution Required? | Logo Required? | TikTok Credits? |
