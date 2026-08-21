@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-21 (28 open issues after cleanup).
+Last inventory: 2026-08-21 (31 open issues after triage; includes #93, #94, #95).
 
 ## Execution Phases
 
@@ -15,6 +15,7 @@ Last inventory: 2026-08-21 (28 open issues after cleanup).
 | #83 | stock_api → stock_media rename | mechanical | source-registry.mjs + tests | 纯 find-replace，无行为变更 |
 | #88 | extractScript → articleScript etc. rename | mechanical | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests, docs | 影响面大（50 sources × 65 test refs × 80 doc refs），建议在 #63/#66 之前做以减少后续 diff |
 | #78 | DOCS-INDEX sync: 22 missing docs | docs only | DOCS-INDEX.md | 无代码变更 |
+| #95 | Align content package workflow for parallel article and video delivery | docs/workflow | AGENTS.md, content-pipeline.md, manual-ops.md, DOCS-INDEX.md | 共享研究证据 → 文章/视频并行产出 → 一致性汇合 → 单一 HITL → 内容包发布；不实现 #60/#61 审计引擎或 #93 视觉意图契约 |
 
 ### Phase 1 — 核心功能增强
 
@@ -76,6 +77,9 @@ Last inventory: 2026-08-21 (28 open issues after cleanup).
 | `asset-sourcer.mjs` | #66, #63, #84, #75 — 高冲突风险 |
 | `search-sources.mjs` | #66, #63, #81, #65, #90 — 高冲突风险 |
 | `scene-rules.mjs` / `scene-templates.mjs` | 无 open issue（#49, #86 已关闭） |
+| `docs/content-pipeline.md` | #51, #93, #95 — 文档修改串行；#95 先确立内容包时序，再合入过滤或视觉意图规则 |
+| `docs/DOCS-INDEX.md` | #78, #95 — 索引变更串行，避免遗漏或覆盖文档归属 |
+| `AGENTS.md` / `docs/manual-ops.md` | #95 — 单一工作流时序来源，避免重写为平行规则 |
 
 ## Closed Issues (2026-08-21 Triage)
 
