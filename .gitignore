@@ -111,3 +111,5 @@ scripts/kaggle/echomimicv3-test/output_v22 scripts/kaggle/echomimicv3-test/outpu
 scripts/kaggle/echomimicv3-test/output_v*/
 scripts/kaggle/echomimicv3-test/debug_*
 scripts/kaggle/echomimicv3-test/output_*/
+scripts/kaggle/echomimicv3-test/v*-output/
+.githooks/
