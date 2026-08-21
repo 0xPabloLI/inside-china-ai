@@ -1,15 +1,24 @@
-# Handoff: Visual Focus Detection — R1-R4 Review Fixed, P4 Next
+# Handoff: Visual Focus Detection — R1-R5 Remediated, P4 Complete
 
-> **Date**: 2026-08-19 (updated)
-> **Sessions**: Pipeline implementation → P0/P1 remediation → P2 stability → R1-R4 review fix
-> **Latest commit**: `612f042` (R1-R4 review fix, local only — **push pending**)
-> **Next session focus**: Resolve git divergence + push, then start P4 (video time windows)
+> **Date**: 2026-08-21 (updated)
+> **Sessions**: Pipeline implementation → P0/P1 remediation → P2 stability → R1-R5 review remediation → P4 video windows
+> **Latest commit**: `cc53f14` (P4 video time windows + audit remediation)
+> **Next session focus**: Start P5 local ASR worker or P7 cache/scheduler; both have formal GitHub tracking.
 
-> **Implementation status**: P3 (analyzeAssetSemantics) ✅ implemented + tested.
-> P4–P8 are **planned** but NOT yet implemented. Do NOT call
-> `analyzeVideoWindow`, `transcribeAudioWindow`, `fuseMediaTimeline`,
-> `analyzeTemporalFocus`, or `resolveLayout` — these symbols do not exist
-> in the codebase. See P4-P8 sections below for design details.
+> **Implementation status**: P3 (one-call structured VLM semantics) ✅ implemented + tested. P4 (ffprobe media probe + explicit video window + native/frames parity) ✅ implemented + tested.
+> P5–P8b remain planned. Do NOT call `transcribeAudioWindow`,
+> `fuseMediaTimeline`, `analyzeTemporalFocus`, or `resolveLayout` — those symbols do not yet exist. P4 is currently exposed through `analyzeAssetSemantics(path, window)` plus `probeMedia()`, rather than a separate `analyzeVideoWindow` export.
+
+### Formal follow-up tracking
+
+| Work | Status | GitHub Issue | Dependencies |
+|---|---|---|---|
+| P5 — Local ASR worker with windowed WhisperX timestamps | Planned | [#98](https://github.com/0xPabloLI/inside-china-ai/issues/98) | P4 / #69 |
+| P6 — Deterministic VLM + ASR media timeline fusion | Planned | [#99](https://github.com/0xPabloLI/inside-china-ai/issues/99) | P4, P5 |
+| P7 — Content-addressed cache and heavy-model scheduler | Planned | [#100](https://github.com/0xPabloLI/inside-china-ai/issues/100) | P3; parallel with P5/P6 |
+| P8b — Temporal Focus for video backgrounds and safe layout inputs | Planned | [#101](https://github.com/0xPabloLI/inside-china-ai/issues/101) | P4, P7 |
+
+Issue #32 remains the future business consumer for AI segment selection; it should consume P5/P6 outputs rather than reimplement their infrastructure. Issue #94 may later consume P8b visual geometry in scene-level media decisions.
 
 ## What was done
 
@@ -198,11 +207,11 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 | 优先级 | 工作 | 核心价值 | 验收标准 | 依赖 |
 |--------|------|---------|---------|------|
 | **P3** ✅ | `analyzeAssetSemantics` — 一次 VLM 调用替代 description + fit 双调用 | 横图推理时间减半（20-30s → 不再 ×2） | 横图只启动一次 VLM 推理；结果通过 JSON Schema 校验；`analyzeFit` 旧接口保留兼容 | 无 — **已完成** |
-| **P4** | `analyzeVideoWindow` + FFmpeg/ffprobe 窗口基础设施 | 原生与 fallback 路径语义范围一致 | 原生和 frames fallback 返回完全相同的窗口元数据（`windowStartMs`, `windowEndMs`, `sampleFps`, `sourceMode`） | P3 |
-| **P5** | 本地 ASR worker — 复用已有 whisperx | 视频/音频对白时间线 | 已知中文素材句级时间码可回放核验；失败返回结构化错误 | P4 |
-| **P6** | `fuseMediaTimeline()` — 确定性时间融合 | 视觉+音频事件按毫秒对齐 | 每条融合事件可追溯至视觉窗口、ASR 区间和原视频时间码 | P4, P5 |
-| **P7** | 内容寻址缓存 + 批量排程 | 重复资产不跑 20-120s 推理 | 第二次分析同一资产命中缓存；默认不并行加载多个 8B VLM | P3 |
-| **P8** | Focus Phase 2 — 视频多帧 + slot scoring 接到渲染层 | 文字不遮挡保护区域 | 视频背景中文字不遮挡 `protectedRegions`；无安全布局时降级为换 poster 或 CSS-only | spec §7 Phase 2 候选 |
+| **P4** ✅ | 视频窗口 + FFmpeg/ffprobe 窗口基础设施 | 原生与 fallback 路径语义范围一致 | `probeMedia()` 与 `analyzeAssetSemantics(path, window)` 已提供同窗口元数据和回退 | P3；[Issue #69](https://github.com/0xPabloLI/inside-china-ai/issues/69) 已关闭 |
+| **P5** | 本地 ASR worker — 复用已有 whisperx | 视频/音频对白时间线 | 已知中文素材句级时间码可回放核验；失败返回结构化错误 | P4；[Issue #98](https://github.com/0xPabloLI/inside-china-ai/issues/98) |
+| **P6** | `fuseMediaTimeline()` — 确定性时间融合 | 视觉+音频事件按毫秒对齐 | 每条融合事件可追溯至视觉窗口、ASR 区间和原视频时间码 | P4, P5；[Issue #99](https://github.com/0xPabloLI/inside-china-ai/issues/99) |
+| **P7** | 内容寻址缓存 + 批量排程 | 重复资产不跑 20-120s 推理 | 第二次分析同一资产命中缓存；默认不并行加载多个 8B VLM | P3；[Issue #100](https://github.com/0xPabloLI/inside-china-ai/issues/100) |
+| **P8b** | Focus Phase 2 — 视频多帧 + slot scoring 输入 | 动态背景文字不遮挡保护区域 | 时间窗口内输出聚合保护区域与动态主体风险 | P4, P7；[Issue #101](https://github.com/0xPabloLI/inside-china-ai/issues/101) |
 
 ### 各优先级详情
 
@@ -227,7 +236,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 
 Python 端用 JSON Schema / Pydantic 校验，Node 层不再从自由文本正则抓 JSON。旧 `describeImage` / `analyzeFit` 接口保留兼容。
 
-#### P4: 显式时间窗口
+#### P4: 显式时间窗口 ✅ 已完成（[Issue #69](https://github.com/0xPabloLI/inside-china-ai/issues/69)）
 
 新增 `analyzeVideoWindow(videoPath, { startMs, endMs, profile, sampleFps })`。原生与 fallback 必须使用**同一时间窗口**。FFmpeg/ffprobe 负责：读时长/帧率/音轨 → 为 VLM 提供窗口 → native 失败时从同一窗口抽帧 → 保存精确时间码。
 
@@ -321,20 +330,20 @@ resolveLayout({ focus, template, textBoxes, safeZones, businessGoal })
 
 ## Immediate action items (for next session)
 
-1. **Push commits** — Resolve git divergence (`git pull --rebase` then `git push`). Latest local commit: `612f042`. Multiple prior session commits also unpushed.
-2. **P1-1 (optional follow-up)** — Create `fixtures/exif/`, `fixtures/golden/`, `fixtures/baseline/`, `fixtures/benchmark/` directories and `focus-detector-benchmark.mjs` script. Needs real face images with human annotations.
-3. **Start P4** — P3 is done. Next priority is P4 (video time windows). See P4 section below for design. Suggested starting point: `/grill-with-docs` on P4 (explicit time window + FFmpeg/ffprobe media probe).
+1. **Push commits** — Resolve git divergence (`git pull --rebase` then `git push`). Latest local commit: `cc53f14`; the worktree also contains uncommitted review/document changes.
+2. **Direct cleanup completed** — Focus IPC stdout chunk buffering and R5 exit-listener regression coverage are now fixed; keep the targeted tests in the next commit.
+3. **Start tracked follow-up** — P5 [#98](https://github.com/0xPabloLI/inside-china-ai/issues/98) and P7 [#100](https://github.com/0xPabloLI/inside-china-ai/issues/100) can start in parallel. P6 [#99](https://github.com/0xPabloLI/inside-china-ai/issues/99) follows P5; P8b [#101](https://github.com/0xPabloLI/inside-china-ai/issues/101) follows P4/P7.
 
 ## P3-P8 dependency chain
 
 ```
-P3 ✅ (done) — analyzeAssetSemantics (merged description + fit into one VLM call)
- ├── P4 (next) — analyzeVideoWindow + FFmpeg/ffprobe media probe
- │    ├── P5 — ASR worker (reuse whisperx)
- │    │    └── P6 — fuseMediaTimeline (deterministic visual+audio merge)
- │    │         └── P8b — Focus Phase 2 video (multi-frame, temporal)
- │    └── P7 — content-addressed cache + batch scheduling (parallel with P4-P6)
- └── P8a — Focus Phase 2 static (YuNet, OCR, Remotion integration)
+P3 ✅ — analyzeAssetSemantics (merged description + fit into one VLM call)
+ ├── P4 ✅ — ffprobe media probe + explicit window + native/frames parity (#69)
+ │    ├── P5 — ASR worker (reuse whisperx) (#98)
+ │    │    └── P6 — fuseMediaTimeline (deterministic visual+audio merge) (#99)
+ │    │         └── P8b — Focus Phase 2 video (multi-frame, temporal) (#101)
+ │    └── P7 — content-addressed cache + batch scheduling (#100; parallel with P5)
+ └── P8a — Focus Phase 2 static (YuNet, OCR, Remotion integration; defer until a consumer requires it)
 ```
 
-P4-P8 are planned, not implemented. The dependency chain determines order: P4 is the natural starting point now that P3 is stable.
+P5–P8b are planned and tracked in GitHub Issues. P5 and P7 are the next independent implementation paths.

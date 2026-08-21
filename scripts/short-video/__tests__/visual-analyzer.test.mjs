@@ -724,6 +724,21 @@ describe("visual-analyzer module", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════
+  // ─── R5: module reload must not accumulate exit listeners ───────
+  // ═══════════════════════════════════════════════════════════════
+  describe("R5 — exit cleanup listener registration", () => {
+    it("does not add another exit listener after a module reload", async () => {
+      const listenerCountBefore = process.listenerCount("exit");
+      expect(process[Symbol.for("visualAnalyzerExitHandler")]).toBe(true);
+
+      vi.resetModules();
+      await import("../lib/visual-analyzer.mjs");
+
+      expect(process.listenerCount("exit")).toBe(listenerCountBefore);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
   // ─── R1: VLM timeout late-response mismatch (Review R1) ─────────
   // ═══════════════════════════════════════════════════════════════
 

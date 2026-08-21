@@ -73,7 +73,7 @@ Focus timeout 当前只从 `focusPending` 删除该请求并返回 `focus_timeou
 - **R3 已修复**：Focus timeout handler 现在 kill worker、递增 `focusWorkerGeneration`、`settlePendingFocus(myGen, "focus_worker_reset")`。第二个请求惰性 spawn 新 worker。回归测试：timeout → kill → 新 process → 正常响应。
 - **R4 已修复**：`docs/handoffs/handoff-visual-focus-detection.md` 顶部已加 implementation status 标注："P3 implemented; P4-P8 planned"，明确列出不存在的符号。
 
-### R5 — 低优先级：模块重复加载会累计 `process.on("exit")` 监听器，测试已出现警告
+### R5 — 低优先级：模块重复加载会累计 `process.on("exit")` 监听器，测试已出现警告  ✅ 已修复
 
 **位置：**`scripts/short-video/lib/visual-analyzer.mjs` 第 625 行。
 
@@ -104,6 +104,27 @@ Focus timeout 当前只从 `focusPending` 删除该请求并返回 `focus_timeou
 3. **为 R1–R3 增加失败路径测试。**现有测试主要覆盖成功、模型错误、Focus timeout 的单请求情况，未覆盖迟到响应、VLM timeout rollover、临时帧生成失败和 Focus timeout 后恢复。
 4. **修复/隔离完整测试套件的 source registry 失败。**至少在变更说明中明确其与当前提交的关系。
 5. **开始 P4：`analyzeVideoWindow` + ffprobe/FFmpeg 同窗口回退。**完成后再接 P5 ASR 和 P6 时间融合。不要跳过 P4。
+
+## 修复与跟踪更新（2026-08-21）
+
+原始审查发现保留为历史证据；以下记录后续代码、测试和任务跟踪状态。
+
+| 项目 | 当前状态 | 处理结果 |
+|---|---|---|
+| R1：VLM timeout 后迟到响应错配 | 已修复 | VLM IPC 使用 `requestId` 与 `vlmWorkerGeneration`；timeout 后终止旧 worker 并结算旧 generation。回归测试覆盖 A 超时、A 迟到、B 正确响应。 |
+| R2：frames fallback 临时文件泄漏 | 已修复 | `vlm_analyzer.py` 通过 `try/finally` 清理临时帧。 |
+| R3：Focus timeout 后复用卡死 worker | 已修复 | timeout 后终止 Focus worker、递增 generation，并由后续请求惰性启动新 worker。 |
+| R4：P4 仅为计划 | 已修复 | [Issue #69](https://github.com/0xPabloLI/inside-china-ai/issues/69) 已完成 P4：`probeMedia()`、窗口元数据和 native/frames 同窗口回退已经实现。 |
+| R5：重复模块加载累计 exit listener | 已修复 | `Symbol.for("visualAnalyzerExitHandler")` 防止重复注册；新增 reload 后 `process.listenerCount("exit")` 不增长的回归测试。 |
+| Focus IPC 测试超时 | 已修复 | 测试 stdout 处理保留未闭合的 NDJSON chunk，避免子进程响应跨 chunk 时被静默丢弃。 |
+
+### 本次验证
+
+- `visual-analyzer.test.mjs`：36 个测试通过，包含 R1、R3 与 R5 回归覆盖。
+- `focus_detector.test.mjs`：7 个测试通过；此前两项 IPC 超时已消除。
+- 后续能力已按原子 Issue 正式跟踪：P5 [#98](https://github.com/0xPabloLI/inside-china-ai/issues/98)、P6 [#99](https://github.com/0xPabloLI/inside-china-ai/issues/99)、P7 [#100](https://github.com/0xPabloLI/inside-china-ai/issues/100)、P8b [#101](https://github.com/0xPabloLI/inside-china-ai/issues/101)。
+
+P5–P8b 仍未实现；当前调用方不得将其视为已有接口。
 
 ## 参考
 
