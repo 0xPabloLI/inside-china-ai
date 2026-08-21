@@ -283,22 +283,44 @@ async function testBaidu(query) {
   
   const results = await evalAndParse(tabId, `
     var results = [];
-    document.querySelectorAll('.result, .c-container, .new-pmd').forEach(function(el) {
-      var link = el.querySelector('a[href]');
-      var title = el.querySelector('h3, .t, .c-title');
-      var snippet = el.querySelector('.c-abstract, [class*="abstract"]');
-      if (link && title) {
-        results.push({ title: title.textContent.trim(), url: link.href, snippet: snippet ? snippet.textContent.trim().substring(0,200) : '' });
+    // Baidu 2026 DOM: h3-based extraction (old .result/.c-container selectors are stale)
+    document.querySelectorAll('h3').forEach(function(h3) {
+      var link = h3.querySelector('a') || (h3.tagName === 'A' ? h3 : null);
+      if (!link || !link.href) return;
+      // Skip Baidu internal links (chat.baidu.com, etc.) unless they look like results
+      if (link.href.includes('baidu.com/link?url=') || link.href.match(/^https?:\\/\\/[^/]*\\.(com|cn|org|net)\\//)) {
+        var title = h3.textContent.trim();
+        if (title.length < 5) return;
+        
+        // Walk up to 4 levels to find snippet
+        var snippet = '';
+        var searchParent = h3.parentElement;
+        var snippetSelectors = [
+          '.c-abstract',
+          '[class*="abstract"]',
+          '[class*="summary"]',
+          '[class*="desc"]',
+          '[class*="content"]',
+          'p.c-color-text',
+          'div.c-span-last',
+          'p',
+          'div[class*="content-gap"]',
+          'div[class*="main-info"]'
+        ];
+        for (var k = 0; k < 4 && searchParent && !snippet; k++) {
+          for (var s = 0; s < snippetSelectors.length; s++) {
+            var el = searchParent.querySelector(snippetSelectors[s]);
+            if (el && el.textContent.trim().length > 25) {
+              snippet = el.textContent.trim().substring(0, 200);
+              break;
+            }
+          }
+          searchParent = searchParent.parentElement;
+        }
+        
+        results.push({ title: title.substring(0, 100), url: link.href, snippet: snippet });
       }
     });
-    // Fallback
-    if (results.length === 0) {
-      document.querySelectorAll('h3 a').forEach(function(a) {
-        if (a.href && a.textContent.trim().length > 5) {
-          results.push({ title: a.textContent.trim(), url: a.href, snippet: '' });
-        }
-      });
-    }
     return results.slice(0, 20);
   `);
   
