@@ -318,6 +318,13 @@ describe("Extract scripts", () => {
     expect(src.extractScript).toContain('data-testid="tweetText"');
     expect(src.extractScript).toContain("return results");
   });
+
+  it("x_search extractScript has SPA poll for tweets to render", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.extractScript).toContain("deadline");
+    expect(src.extractScript).toContain("Date.now()");
+    expect(src.extractScript).toContain("8000");
+  });
 });
 
 // ─── International sources (renamed from Western) ───

@@ -228,7 +228,7 @@ describe("extractFromTab", () => {
     await extractFromTab("tab_123", "return []");
 
     const call = global.fetch.mock.calls[0];
-    expect(call[1].body).toContain("(function(){");
+    expect(call[1].body).toContain("(async function(){");
     expect(call[1].body).toContain("})()");
   });
 });
@@ -278,7 +278,7 @@ describe("checkLogin", () => {
     await checkLogin("tab_123", "return 'ok'");
 
     const call = global.fetch.mock.calls[0];
-    expect(call[1].body).toContain("(function(){");
+    expect(call[1].body).toContain("(async function(){");
     expect(call[1].body).toContain("})()");
   });
 });

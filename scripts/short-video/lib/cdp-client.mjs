@@ -97,8 +97,9 @@ export async function waitForPageLoad(tabId, retries = 2) {
  */
 export async function extractFromTab(tabId, extractScript) {
   try {
-    // Wrap in IIFE — CDP eval doesn't support top-level return
-    const wrappedScript = `(function(){${extractScript}})()`;
+    // Wrap in async IIFE — supports both sync and async extractScripts.
+    // CDP eval has awaitPromise:true, so async scripts are properly awaited.
+    const wrappedScript = `(async function(){${extractScript}})()`;
     const resp = await cdpEval(tabId, wrappedScript);
     // CDP eval returns { value: ... } — value may be array, string, or null
     let articles = resp?.result?.value || resp?.value || resp;
@@ -131,7 +132,7 @@ export async function extractFromTab(tabId, extractScript) {
 export async function checkLogin(tabId, loginCheckScript) {
   if (!loginCheckScript) return "ok";
   try {
-    const wrappedScript = `(function(){${loginCheckScript}})()`;
+    const wrappedScript = `(async function(){${loginCheckScript}})()`;
     const resp = await cdpEval(tabId, wrappedScript);
     return resp?.result?.value || resp?.value || "ok";
   } catch {

@@ -507,7 +507,7 @@ locale: "zh-CN",
 supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP (requires login) → MCP fallback (RedNote-MCP search_feeds). needsAuth=true.",
+      notes: "CDP (requires login) → mcpFallback (RedNote-MCP search_notes). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: true,
@@ -908,7 +908,16 @@ supportsKeyword: true,
        (body.includes('Sign in') && body.length < 500)) ? 'need_login' : 'ok'
     `,
     extractScript: `
-      var tweets = document.querySelectorAll('[data-testid="tweet"]');
+      // SPA poll: wait for tweets to render (X uses client-side rendering).
+      // Uses async + setTimeout (not busy-wait) so React can use the main thread.
+      var tweets = [];
+      var deadline = Date.now() + 8000;
+      while (tweets.length === 0 && Date.now() < deadline) {
+        tweets = document.querySelectorAll('[data-testid="tweet"]');
+        if (tweets.length === 0) {
+          await new Promise(function(r) { setTimeout(r, 500); });
+        }
+      }
       var results = [];
       tweets.forEach(function(t) {
         var textEl = t.querySelector('[data-testid="tweetText"]');
