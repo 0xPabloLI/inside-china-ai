@@ -11,7 +11,10 @@
  * P3: Also reads asset-analysis.json (if present) to display VLM semantics
  * (description, subjects, contentKind, fit, criticalEdgeText, reason).
  *
- * Usage: node review-media-patch.mjs [--input media-patch.json] [--output formatted.txt] [--analysis asset-analysis.json]
+ * Usage: node review-media-patch.mjs [--content <slug>] [--input media-patch.json] [--output formatted.txt] [--analysis asset-analysis.json]
+ *
+ * When --content <slug> is provided, defaults to output/{slug}/media-patch.json
+ * and output/{slug}/asset-analysis.json.
  *
  * @module review-media-patch
  */
@@ -300,8 +303,12 @@ export function main(args = process.argv.slice(2)) {
     return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
   };
 
-  const inputPath = getArg("input") || join(__dirname, "..", "output", "media-patch.json");
-  const analysisPath = getArg("analysis") || join(__dirname, "..", "output", "asset-analysis.json");
+  const contentSlug = getArg("content");
+  const slugDir = contentSlug
+    ? join(__dirname, "..", "output", contentSlug)
+    : join(__dirname, "..", "output");
+  const inputPath = getArg("input") || join(slugDir, "media-patch.json");
+  const analysisPath = getArg("analysis") || join(slugDir, "asset-analysis.json");
   const outputPath = getArg("output") || null;
 
   if (!existsSync(inputPath)) {

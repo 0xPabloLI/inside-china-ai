@@ -346,11 +346,8 @@ describe("scene drift guards", () => {
       }
     });
 
-    it("batch-generate scaffold emits the standardized CTA contract (no title: SUBSCRIBE)", () => {
-      const src = readFileSync(new URL("../batch-generate.mjs", import.meta.url), "utf8");
-      expect(src).not.toContain('texts: { title: "SUBSCRIBE" }');
-      expect(src).toContain('action: "FOLLOW FOR MORE"');
-    });
+    // batch-generate.mjs was deleted (obsolete). Scaffold contract is now
+    // verified via the evergreen templates and content pipelines above.
   });
 
   describe("hook opening card (standard hookScene)", () => {
@@ -375,11 +372,7 @@ describe("scene drift guards", () => {
       }
     });
 
-    it("batch-generate scaffold emits the standard hook contract (no legacy line1/line2)", () => {
-      const src = readFileSync(new URL("../batch-generate.mjs", import.meta.url), "utf8");
-      expect(src).not.toMatch(/texts:\s*\{\s*line1:/);
-      expect(src).toContain("hookText");
-      expect(src).toContain("revealText");
-    });
+    // batch-generate.mjs was deleted (obsolete). Hook contract is now
+    // verified via the evergreen templates and content pipelines above.
   });
 });

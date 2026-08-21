@@ -14,7 +14,8 @@
  *   - Exit: opacity 1→0 with slight upward drift (all presets)
  *
  * Rules:
- *   - Hook/CTA scenes ignore media (checked by caller, not here)
+ *   - All scenes can opt in to media via scene.media (hook, narrative, etc.)
+ *   - CTA scene remains CSS-only (no media rendering)
  *   - ken-burns + video → auto-degrade to fade
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
