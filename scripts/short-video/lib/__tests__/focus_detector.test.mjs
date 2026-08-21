@@ -16,6 +16,7 @@ const PYTHON_BIN = process.env.FOCUS_PYTHON || VENV_PYTHON;
 let proc = null;
 let tmpDir = null;
 let seq = 0;
+let stdoutBuffer = "";
 const pending = new Map();
 
 function startSubprocess(timeout = "60") {
@@ -39,8 +40,12 @@ function send(req) {
 
 function setupStdout() {
   proc.stdout.on("data", (chunk) => {
-    const lines = chunk.toString().split("\n").filter(Boolean);
-    for (const line of lines) {
+    // Child-process stdout is a byte stream, not a message stream. Retain the
+    // final partial NDJSON line until the next chunk rather than dropping it.
+    stdoutBuffer += chunk.toString();
+    const lines = stdoutBuffer.split("\n");
+    stdoutBuffer = lines.pop() || "";
+    for (const line of lines.filter(Boolean)) {
       try {
         const resp = JSON.parse(line);
         const id = resp.requestId;
@@ -75,6 +80,8 @@ const maybeDescribe = PYTHON_BIN ? describe : describe.skip;
 
 maybeDescribe("focus_detector.py IPC", () => {
   beforeAll(async () => {
+    stdoutBuffer = "";
+    pending.clear();
     tmpDir = mkdtempSync(join(tmpdir(), "focus-test-"));
     proc = startSubprocess("15");
     setupStdout();
