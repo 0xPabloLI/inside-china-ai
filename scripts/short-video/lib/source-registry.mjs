@@ -2323,8 +2323,13 @@ const CDP_IMAGE_CAPABILITIES = {
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
+        var title = (el.querySelector('.title, h3, h2')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
         if (link && img) {
-          results.push({ title: (el.querySelector('.title, h3, h2')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
         }
       });
       return results;
@@ -2349,8 +2354,13 @@ const CDP_IMAGE_CAPABILITIES = {
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
+        var title = (el.querySelector('.article__title, h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
         if (link && img) {
-          results.push({ title: (el.querySelector('.article__title, h2, h3, .title')?.textContent || '').trim(), url: img.src, type: 'image' });
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
         }
       });
       return results;
@@ -2377,14 +2387,14 @@ const CDP_IMAGE_CAPABILITIES = {
         var title = el.querySelector('h3, .LC20lb');
         var img = el.querySelector('img[src]');
         var snippet = el.querySelector('.VwiC3b, .IsZvec');
-        if (img && link && title) {
-          results.push({
-            title: title.textContent.trim(),
-            url: img.src,
-            type: 'image',
-            sourceUrl: link.href,
-            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
-          });
+        var titleText = title ? title.textContent.trim() : '';
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && titleText) {
+          if (img) {
+            results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+          } else {
+            results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+          }
         }
       });
       return results;
@@ -2413,13 +2423,15 @@ const CDP_IMAGE_CAPABILITIES = {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
         var title = el.querySelector('h3, h2, .title, .b_caption p');
-        if (img && link && title) {
-          results.push({
-            title: title.textContent.trim(),
-            url: img.src,
-            type: 'image',
-            sourceUrl: link.href
-          });
+        var titleText = title ? title.textContent.trim() : '';
+        var snippet = el.querySelector('.snippet, .b_caption p:not(.title), .news_snippet, p');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && titleText) {
+          if (img) {
+            results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+          } else {
+            results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+          }
         }
       });
       return results;
@@ -2446,8 +2458,13 @@ const CDP_IMAGE_CAPABILITIES = {
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h3, h2, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
         if (link && img) {
-          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
         }
       });
       return results;
@@ -2472,8 +2489,13 @@ const CDP_IMAGE_CAPABILITIES = {
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h3, h2, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
         if (link && img) {
-          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
         }
       });
       return results;
@@ -2498,8 +2520,13 @@ const CDP_IMAGE_CAPABILITIES = {
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
         if (link && img) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
         }
       });
       return results;
@@ -2524,8 +2551,13 @@ const CDP_IMAGE_CAPABILITIES = {
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
         if (link && img) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
         }
       });
       return results;
@@ -2550,8 +2582,13 @@ const CDP_IMAGE_CAPABILITIES = {
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
         var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
         if (link && img) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
         }
       });
       return results;

@@ -2066,33 +2066,51 @@ describe("T1: preFilterCandidate misfilter prevention", () => {
   });
 });
 
-// ─── T3: CDP image type leak regression tests ───
+// ─── T3: CDP type handling tests ───
 
-describe("T3 — CDP image type leak prevention", () => {
-  it("google_news primaryScript does not produce type='text' candidates", () => {
+describe("T3 — CDP type handling", () => {
+  // T3 original: CDP download loop must skip type='text' candidates from image download path
+  it("google_news primaryScript pushes type='image' when img exists", () => {
     const src = CDP_SOURCES.find((s) => s.name === "google_news");
     expect(src).toBeDefined();
-    // The script must NOT contain the pattern that produces type: "text"
-    expect(src.primaryScript).not.toContain("'text'");
-    expect(src.primaryScript).not.toContain('"text"');
+    expect(src.primaryScript).toContain("'image'");
   });
 
-  it("bing_news primaryScript does not produce type='text' candidates", () => {
+  it("bing_news primaryScript pushes type='image' when img exists", () => {
     const src = CDP_SOURCES.find((s) => s.name === "bing_news");
     expect(src).toBeDefined();
-    expect(src.primaryScript).not.toContain("'text'");
-    expect(src.primaryScript).not.toContain('"text"');
+    expect(src.primaryScript).toContain("'image'");
   });
 
-  it("google_news primaryScript only pushes when img exists", () => {
+  // New: CDP scripts should also push type='text' when no img but link+title exist
+  it("google_news primaryScript pushes type='text' for text-only results", () => {
     const src = CDP_SOURCES.find((s) => s.name === "google_news");
-    // The script should have a guard: only push when img is truthy
-    // Check that there's an if(img or if (img guard before push
-    expect(src.primaryScript).toMatch(/if\s*\(\s*img\b/);
+    expect(src.primaryScript).toContain("'text'");
   });
 
-  it("bing_news primaryScript only pushes when img exists", () => {
+  it("bing_news primaryScript pushes type='text' for text-only results", () => {
     const src = CDP_SOURCES.find((s) => s.name === "bing_news");
-    expect(src.primaryScript).toMatch(/if\s*\(\s*img\b/);
+    expect(src.primaryScript).toContain("'text'");
+  });
+
+  // All CDP sources should push text candidates (not just google/bing)
+  it("all CDP sources push type='text' for text-only results", () => {
+    for (const src of CDP_SOURCES) {
+      expect(src.primaryScript, `${src.name} missing text push`).toContain("'text'");
+    }
+  });
+
+  // All CDP sources should include sourceUrl in both image and text candidates
+  it("all CDP sources include sourceUrl in image candidates", () => {
+    for (const src of CDP_SOURCES) {
+      expect(src.primaryScript, `${src.name} missing sourceUrl`).toContain("sourceUrl");
+    }
+  });
+
+  // All CDP sources should include snippet in both image and text candidates
+  it("all CDP sources include snippet in image candidates", () => {
+    for (const src of CDP_SOURCES) {
+      expect(src.primaryScript, `${src.name} missing snippet`).toContain("snippet");
+    }
   });
 });

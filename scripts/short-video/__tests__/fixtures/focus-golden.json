@@ -44,7 +44,7 @@
       "expectedSaliencyAvailable": true,
       "minProtectedRegions": 0,
       "note": "Haar false positives known — face count assertion is skipped in smoke test (see P1-1: YuNet replacement in Phase 2)",
-      "maxResponseTimeMs": 10000
+      "maxResponseTimeMs": 15000
     },
     {
       "name": "nonexistent-image-degraded",

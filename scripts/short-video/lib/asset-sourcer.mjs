@@ -1792,8 +1792,17 @@ export async function main(args = process.argv.slice(2)) {
         const candidate = scored[j];
         if (!candidate.url) continue;
 
-        // T3: Skip non-image candidates (defensive guard against type="text" leak)
-        if (candidate.type && candidate.type !== "image") continue;
+        // T3 updated: text candidates are article references, not downloadable images.
+        // Add them directly as article sources (no file download needed).
+        if (candidate.type === "text") {
+          allAssets.push({
+            ...candidate,
+            path: null,
+            status: "text-only",
+          });
+          console.log(`    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`);
+          continue;
+        }
 
         // T05: Skip candidates with technicalScore < 20 before downloading
         const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
