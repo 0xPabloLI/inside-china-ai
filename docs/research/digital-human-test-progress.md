@@ -25,7 +25,7 @@
 | 7 | ~~LivePortrait~~ | Warping | 826×1062 | ✅ MPS | ✅ | ❌ 无音频驱动 | 2026-08-10 |
 | 8 | ~~V-Express~~ | 渐进式扩散 | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
 | 9 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
-| 10 | **LongCat-VA-1.5 MLX** | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ✅ **成功！** | 2026-08-12 |
+| 10 | ~~LongCat-VA-1.5 MLX~~ | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ❌ **不可用**（不像本人+唇同步错位） | 2026-08-19 |
 | 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
 | 11 | **EchoMimicV3** | Wan2.1 扩散 | — | ⚠️ 下载阻塞 | ❓ | 📋 待测 | — |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
@@ -213,10 +213,10 @@
 - **RTX 4060 可行性**：RTX 4060 有 8GB VRAM，V100 测试需 7956MiB（`--save_gpu_memory`），**勉强可行但非常慢**（可能 1-2 小时/30 秒视频）
 - **清理**：已删除（7GB）
 
-### ✅ LongCat-Video-Avatar-1.5 MLX q4 — 首个在 M2 Pro 上成功的本地模型！
+### ❌ LongCat-Video-Avatar-1.5 MLX q4 — 本地模型不可用
 
-- **日期**：2026-08-12
-- **结论**：**成功！** 首个在 M2 Pro 32GB 上成功生成有唇形同步的数字人视频
+- **日期**：2026-08-12（初测）→ 2026-08-19（最终评估）
+- **结论**：❌ **不可用** — 虽然技术上能生成视频，但生成的人像与本人完全不像，唇同步与音频内容对不上
 - **环境**：longcat-avatar-mlx (xocialize port), Python 3.12, MLX 0.32.0
 - **模型**：q4-dmd-merged（4-bit 量化 + DMD 蒸馏）
 - **模型大小**：~23GB on disk
@@ -228,28 +228,29 @@
 - **输出**：432×256, 29 frames, 0.97s, 240KB
 - **测试文件**：`scripts/short-video/assets/longcat-mlx-test-output.mp4`
 - **对比 M5 Max 128GB**：102 秒 vs 1090 秒（10.7x 慢，但成功！）
-- **关键意义**：
-  - MLX 框架成功，PyTorch/MPS 路径全部失败
+- **技术意义**（仅限研究参考）：
+  - MLX 框架可运行，PyTorch/MPS 路径全部失败
   - q4 量化使 23GB 模型在 32GB 内存上可运行
   - DMD 蒸馏只需 8 步（vs 标准 50 步）
-  - **MIT 许可证，可商用**
+  - MIT 许可证，可商用
   - 支持中文（美团训练数据含中文）
-- **限制**：
+- **不可用原因**（2026-08-19 最终评估）：
+  - 生成的人像与输入照片**完全不像**，面孔特征丢失严重
+  - 唇形与音频内容**对不上**，唇同步失败
+  - 432×256 分辨率太低，无法生成可用的真实人像
+  - 480×832 分辨度全黑输出（MPS 内存溢出）
   - 18 分钟生成 1 秒视频，速度慢
-  - 256×432 分辨率较低（可通过更高分辨率改善）
-  - 需要进一步测试用真人照片 + 中文音频
-- **后续优化方向**：
-  - 测试 480×832 分辨率（官方默认）
-  - 测试用户照片 + F5-TTS 中文音频
-  - 考虑 q8 量化（更好的质量，31GB）
+  - **不再做本地进一步测试**，q8/bf16 等更高精度版本在 M2 Pro 32GB 上大概率仍不可用
+- **后续方向**：云 GPU bf16 版可能质量更好，但优先级低（EchoMimicV3 已在 Kaggle 成功）
 
-#### 微信真人照片测试（2026-08-13）
+#### 微信真人照片测试（2026-08-13 ~ 2026-08-19）❌ 不可用
 
 - **输入**：微信照片 `Weixin Image_2026-08-10_003535_660.jpg` + LongCat demo `man.mp3`
 - **推理**：1334.2 秒（22 分钟），29 帧，432×256
-- **输出**：`scripts/short-video/assets/longcat-weixin-test.mp4`
-- **结论**：LongCat 接受**图片输入**（非视频），可直接用任意人像照片生成数字人视频
+- **输出**：`scripts/short-video/experiments/digital-human/longcat-weixin-photorealistic.mp4`
+- **结论**：LongCat 接受**图片输入**（非视频），但生成的人像与本人**完全不像**，唇同步与音频内容**对不上**
 - **Prompt**："A Chinese man in a suit is speaking on camera, professional setting."
+- **最终评估**（2026-08-19）：❌ **完全不可用** — 生成结果与预期差距太大，不再做本地进一步测试
 
 #### 480×832 photorealistic 测试（2026-08-18）❌ 全黑输出
 
@@ -420,17 +421,18 @@
 - **ComfyUI**：`okdalto/ComfyUI-PersonaLive`
 - **备注**：所有基于 SD1.5 的扩散模型在 M2 Pro 上都已失败，PersonaLive 不太可能例外
 
-### 📋 LongCat-Video-Avatar-1.5（⭐ 已在本地测过，云 GPU 待测）
+### ❌ LongCat-Video-Avatar-1.5（本地不可用，云 GPU 低优先级）
 
-- **优先级**：⭐⭐⭐⭐⭐（MIT + MLX 移植 + 中英文 + 美团出品）
+- **优先级**：⭐⭐（本地测试失败，云 GPU 降为低优先级）
 - **来源**：美团 meituan-longcat，714 likes
 - **HuggingFace**：`meituan-longcat/LongCat-Video-Avatar-1.5`
 - **MLX 移植**：`mlx-community/LongCat-Video-Avatar-1.5-bf16-dmd-merged`（还有 q8/q4 量化版）
-- **MPS**：✅ **有 MLX 社区移植版**——M2 Pro 可用性最强信号
+- **MPS**：✅ 有 MLX 社区移植版——技术上可运行，但**质量不可用**
 - **许可证**：MIT（商用 OK）
 - **关键特点**：Whisper-Large 音频编码器，8 步推理（DMD2 蒸馏），支持 Audio-Text-to-Video / Audio-Image-Text-to-Video，商用级稳定性，支持动漫/动物/多人交互
 - **中文支持**：✅ 原生支持中英文
-- **测试重点**：MLX 移植版能否在 M2 Pro 32GB 上完整推理；q4 量化版质量是否可接受；唇同步精度
+- **本地测试结论**：❌ 432×256 生成的人像与本人完全不像，唇同步与音频对不上；480×832 全黑输出（MPS OOM）。**不再做本地测试**
+- **云 GPU 评估**：bf16 版可能质量更好，但 EchoMimicV3 已在 Kaggle P100 成功，LongCat 降为低优先级
 
 #### LongCat 各版本对比
 

@@ -177,7 +177,7 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
 
-**Tavily MCP 是有限付费资源，最后手段。** 已知 URL 一律用 `web_fetch`（免费、无限制）；GitHub 无反爬，`web_fetch` 直接可读。只有"不知道 URL + 需要多关键词搜索 + web-access CDP 也不方便"时才用 Tavily。**硬性规则：在用 Tavily 之前，必须先尝试 `web_fetch` 或 `web-access` CDP。如果 `web_fetch` 返回空/超时/JS 渲染失败，下一步是 `web-access` CDP，不是 Tavily。** 只有 CDP 也无法完成（如需要多关键词并行搜索、需要 AI 结构化摘要）时才用 Tavily。
+**Tavily MCP 是有限付费资源。** 已知 URL 一律用 `web_fetch`（免费、无限制）；GitHub 无反爬，`web_fetch` 直接可读。用 Tavily 前必须先走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily。只有 `web_fetch` 返回空/超时/JS 渲染失败 **且** CDP 也无法完成（如需要多关键词并行搜索、需要 AI 结构化摘要）时，才用 Tavily。
 
 **工具/API 发现**：需要找免费 API、替代付费 SaaS、补充搜索源或素材源、查某领域有哪些可用工具时，查 `docs/tools-catalog.md`（本项目所有可用工具/服务/API 的完整清单 + 评估流程 + 任务→工具决策表 + Pipeline API 候选）。新增工具必须先走完 4 步评估流程再入库。
 

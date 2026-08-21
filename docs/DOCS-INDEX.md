@@ -2,7 +2,7 @@
 
 > Source of truth for doc ownership. Use it to find any document in one lookup.
 >
-> _Last inventory: 2026-08-18._
+> _Last inventory: 2026-08-21._
 
 ## Canonical Structure
 
@@ -89,6 +89,12 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 |----------|---------|
 | `video-automation-roadmap.md` | Video automation phased roadmap (ISSUE-01~14) |
 
+### Root-level tracking docs
+
+| Document | Purpose |
+|----------|---------|
+| `issue-tracker.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
+
 ### `archive/` — Completed work
 
 Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list.
@@ -128,6 +134,7 @@ Deep research reports with citations.
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
 | `safe-zone-calibration-log.md` | Safe zone calibration log with FYP screenshot evidence |
 | `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
+| `video-background-coverage-audit-2026-08-21.md` | 视频背景视觉承载审查结论 — 现状覆盖率、实现缺口与场景级视觉意图建议 |
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
 | `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
 | `tiktok-hook-patterns-best-practices.md` | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design |
