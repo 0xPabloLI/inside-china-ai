@@ -183,6 +183,10 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Agent skills
 
+### Local skill catalog
+
+All user-installed Agent skills are mirrored locally under `.agents/skills/`; `agent/skills/` is a compatibility mirror. These ignored directories are the project-local skill catalog, not tracked project source. Before a task that may need a specialized playbook, discover the relevant candidate by name or capability under `.agents/skills/`, then read that skill's `SKILL.md` before acting. Load only the skills relevant to the task rather than loading the full catalog into context. When the user updates their local skill collection, refresh both mirrors before relying on a newly added skill.
+
 ### Issue tracker
 
 Issues tracked in **GitHub Issues** using `gh` CLI. See `docs/agents/issue-tracker.md`.
