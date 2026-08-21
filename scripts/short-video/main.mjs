@@ -145,12 +145,8 @@ async function main() {
         { stdio: "pipe", timeout: 5000 },
       );
     } catch {
-      console.warn(
-        "⚠️  OpenCV not available — focus detection will be skipped (degraded mode).",
-      );
-      console.warn(
-        "   Install: pip install -r scripts/short-video/lib/requirements-focus.txt",
-      );
+      console.warn("⚠️  OpenCV not available — focus detection will be skipped (degraded mode).");
+      console.warn("   Install: pip install -r scripts/short-video/lib/requirements-focus.txt");
     }
   }
 
@@ -173,8 +169,10 @@ async function main() {
       console.log(`  Searching for: ${companyKeyword}`);
       // Run asset-sourcer in non-interactive mode
       await sourcerMain([
-        "--content", contentDir,
-        "--keywords", companyKeyword,
+        "--content",
+        contentDir,
+        "--keywords",
+        companyKeyword,
         "--non-interactive",
       ]);
       console.log();
@@ -361,14 +359,22 @@ async function main() {
   } else if (!subtitles) {
     console.log("🔍 Step 6: Subtitle verification skipped (no subtitles generated)\n");
   } else {
-    console.log("🔍 Step 6: Verifying rendered subtitles with auto-retry (max-retries=" + maxRetries + ")...\n");
+    console.log(
+      "🔍 Step 6: Verifying rendered subtitles with auto-retry (max-retries=" +
+        maxRetries +
+        ")...\n",
+    );
 
     // Repair dispatch: maps failure categories to repair actions
     const repairFn = (category, report) => {
       const findBaseAndBurn = () => {
         const presubsPath = result.path.replace("-short.mp4", "-short-presubs.mp4");
         const rawPath = result.path.replace("-short.mp4", "-short-raw.mp4");
-        const basePath = existsSync(presubsPath) ? presubsPath : (existsSync(rawPath) ? rawPath : null);
+        const basePath = existsSync(presubsPath)
+          ? presubsPath
+          : existsSync(rawPath)
+            ? rawPath
+            : null;
         if (!basePath) return null;
         burnSubtitles(basePath, subtitles.assPath, result.path);
         return { success: true, videoPath: result.path, assPath: subtitles.assPath };
@@ -380,7 +386,10 @@ async function main() {
         for (const s of report.audioSync?.scenes ?? []) {
           if (!s.ok) driftMap[s.sceneId] = s.drift;
         }
-        const cues = applyDriftCorrection(buildCues(subtitles.timingData, sceneDurations), driftMap);
+        const cues = applyDriftCorrection(
+          buildCues(subtitles.timingData, sceneDurations),
+          driftMap,
+        );
         writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
         return findBaseAndBurn() ?? { success: false };
       }
@@ -401,13 +410,14 @@ async function main() {
     };
 
     const { report: finalReport } = await verifyWithRetry({
-      verifyFn: () => verifySubtitles({
-        videoPath: result.path,
-        assPath: subtitles.assPath,
-        timingData: subtitles.timingData,
-        sceneDurations,
-        outputDir,
-      }),
+      verifyFn: () =>
+        verifySubtitles({
+          videoPath: result.path,
+          assPath: subtitles.assPath,
+          timingData: subtitles.timingData,
+          sceneDurations,
+          outputDir,
+        }),
       repairFn,
       maxRetries,
       videoPath: result.path,
@@ -415,7 +425,11 @@ async function main() {
     });
 
     if (!finalReport.summary.passed) {
-      console.error("❌ Subtitle verification failed after " + maxRetries + " retries — refusing to ship a broken video.");
+      console.error(
+        "❌ Subtitle verification failed after " +
+          maxRetries +
+          " retries — refusing to ship a broken video.",
+      );
       process.exit(1);
     }
   }

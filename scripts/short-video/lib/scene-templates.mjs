@@ -444,17 +444,20 @@ function sceneChart(scene, duration) {
   // Calculate max value for bar scaling
   const maxValue = bars.length > 0 ? Math.max(...bars.map((b) => b.value || 0)) : 1;
 
-  const barsHtml = bars.length > 0
-    ? bars.map((b, i) => {
-        const pct = Math.max(((b.value || 0) / maxValue) * 100, 5); // min 5% for visibility
-        const color = b.color || "blue";
-        const rgb = COLOR_RGB[color] || COLOR_RGB.blue;
-        return `<div class="chart-bar" style="height: ${pct}%; background: linear-gradient(to top, var(--${color}), rgba(${rgb},0.6)); animation: slideUp 0.5s ease-out ${0.3 + i * 0.15}s forwards; opacity: 0;">
+  const barsHtml =
+    bars.length > 0
+      ? bars
+          .map((b, i) => {
+            const pct = Math.max(((b.value || 0) / maxValue) * 100, 5); // min 5% for visibility
+            const color = b.color || "blue";
+            const rgb = COLOR_RGB[color] || COLOR_RGB.blue;
+            return `<div class="chart-bar" style="height: ${pct}%; background: linear-gradient(to top, var(--${color}), rgba(${rgb},0.6)); animation: slideUp 0.5s ease-out ${0.3 + i * 0.15}s forwards; opacity: 0;">
           <div class="chart-value">${b.value}</div>
           <div class="chart-label">${b.label}</div>
         </div>`;
-      }).join("")
-    : '<div class="chart-empty">No data</div>';
+          })
+          .join("")
+      : '<div class="chart-empty">No data</div>';
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 ${baseStyles(duration)}${templateCss()}${slotCss()}

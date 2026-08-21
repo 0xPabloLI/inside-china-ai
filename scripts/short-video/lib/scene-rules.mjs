@@ -965,9 +965,7 @@ export function checkLoopClose(scenes, meta) {
 
   // New: check if CTA contains any core number from meta.dataPoints
   if (meta?.dataPoints && Array.isArray(meta.dataPoints)) {
-    const coreNumbers = meta.dataPoints
-      .map((dp) => String(dp.value ?? ""))
-      .filter(Boolean);
+    const coreNumbers = meta.dataPoints.map((dp) => String(dp.value ?? "")).filter(Boolean);
     if (coreNumbers.length > 0) {
       const hasCoreNumber = coreNumbers.some((num) => lastVO.includes(num.toLowerCase()));
       if (hasCoreNumber) {
