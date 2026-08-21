@@ -73,3 +73,20 @@ scripts/kaggle/echomimicv3-test/**/*.mp4
 scripts/kaggle/echomimicv3-test/**/*.wav
 scripts/kaggle/echomimicv3-test/**/*.log
 scripts/kaggle/**/kaggle.json
+
+# Agent scratchpad (ephemeral issue/ticket notes, not repo content)
+.scratch/
+
+# Ad-hoc agent workspace (not repo content)
+.arts/
+.codeartsdoer/
+
+# Skill local config (per-machine, not repo content)
+skills/web-access/config.env
+
+# Kaggle/Colab kernel metadata (per-environment)
+kernel-metadata.json
+
+# Remotion lockfile (generated, not manually maintained)
+scripts/short-video/remotion/package-lock.json
+scripts/short-video/remotion/test-props.json
