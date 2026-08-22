@@ -372,8 +372,8 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 | **DuckDuckGo (HTML)** | 10 | 6.2s | ✅ 完整 | ✅ 稳定 | CDP only |
 | **Google (CDP)** | 7 | 7.0s | ⚠️ 有但含杂质 | ✅ | CDP |
 | **Bing Search (CDP)** | 10 | 6.9s | ✅ 完整 | ✅ 修复成功 | CDP |
-| **Baidu (CDP)** | 9 | 6.4s | ❌ 仍为空 | ✅ 结果可用 | CDP |
-| **SearXNG** | — | — | — | ⏸ 待部署 | 自托管 |
+| **Baidu (CDP)** | 9 | 6.4s | ✅ 完整 | ✅ 修复成功 | CDP |
+| **SearXNG** | 28-37 | ~2s | ✅ 完整 | ✅ 已部署 | 自托管 JSON API |
 
 ### 关键发现（修复后）
 
@@ -396,17 +396,25 @@ const params = { q: keyword, country: "US", search_lang: "en" };
    - 之前 Bing News 返回 11 条垃圾导航链接（`site:www.xxx.com`）
    - 改为 `bing.com/search` + `.b_algo` selector 后：10 条真实搜索结果 + snippet
 
-5. **Baidu snippet 仍为空**：DOM 结构需要额外调试，但标题和 URL 可用
-   - URL 是 Baidu 重定向链接（`baidu.com/link?url=...`），需要 follow redirect
-   - 中文内容质量高：有「DeepSeek涨价背后」「欧洲权威媒体力推」等深度分析
-   - **snippet 全空**——Baidu 的 DOM 结构需要额外 selector 调试
+5. **Baidu snippet 修复成功**：改为 h3-based extraction + 多层级 snippet 搜索
+   - 百度 2026 DOM 弃用 `.result`/`.c-container`/`.new-pmd` 容器选择器
+   - snippet 分散在 `sitelink-summary-desc_5WUpr`（P 标签）、`main-info_4Q_kj`（DIV）、`content-gap_3jlQr`（DIV）等多种 class
+   - 修复策略：以 `h3` 为锚点，向上遍历 4 层父元素，依次尝试 `.c-abstract`、`[class*="summary"]`、`[class*="desc"]`、`[class*="content"]`、`[class*="main-info"]` 等 selector
+   - 9 条结果，全部有 snippet ✅
 
-5. **Brave Search API 受 FlClash TUN bug 影响**
+5. **Brave Search API 修复**：`curl --resolve` workaround 绕过 FlClash TUN fake-ip bug
    - `api.search.brave.com` 解析到 fake-ip `198.18.1.251`（FlClash TUN 模式）
-   - Node.js `fetch()` 和 `curl` 都无法连接（TCP 超时）
-   - Chrome（通过 FlClash 代理）可以访问该域名（已验证）
-   - **根因**：与 Modal 连接问题完全相同的 FlClash TUN fake-ip + DIRECT 路由 bug
-   - **修复方案**：在 FlClash config 中添加 `api.search.brave.com` 走代理（不走 DIRECT），或加入 fake-ip-filter
+   - Node.js `fetch()` 无法连接（TCP 超时），`curl --resolve` 指定 fake-ip 后连接成功
+   - **修复方案**：在 FlClash config 中添加 `api.search.brave.com` 走代理（不走 DIRECT），或用 `curl --resolve` workaround
+
+6. **SearXNG 实测结果（2026-08-21 部署成功）**
+   - Docker 容器在 colima VM 中运行，端口 8888
+   - JSON API 返回 28-37 条结果，snippet 完整
+   - 英文搜索（`language=en`）：28 条，来自 DuckDuckGo 后端；Google CSE/Startpage timeout
+   - 中文搜索（`language=zh`）：37 条，来自 Google CSE + Brave 后端；DuckDuckGo/Startpage timeout
+   - **SearXNG 自己也遇到后端反爬**：Google CSE timeout、Startpage CAPTCHA、DuckDuckGo timeout
+   - 但多引擎聚合的优势在于：即使部分引擎挂了，其他引擎仍能返回结果
+   - 响应延迟 ~2s（比直接 CDP 快 3-4 倍，因为不需要等页面加载）
 
 6. **速度对比**
    - Google: 6.3s ✅ 最快
