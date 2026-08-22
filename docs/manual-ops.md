@@ -20,7 +20,7 @@
 - Hook 吸引力、叙事逻辑、数据准确性、场景数量和总时长、CTA 有效性
 - 实际观看视频、TTS 语音自然度、字幕准确性、视觉动画流畅度、有无渲染问题
 
-> HITL 确认后，Agent 依次执行：文章发布 → 源素材附件上传 → TikTok 发布（自动保存 URL 到文章）。详见 `docs/content-pipeline.md` Stage 5。
+> HITL 确认后，Agent 依次执行：将已审阅的 article draft 公开发布 → 源素材附件上传 → TikTok 发布（自动保存 URL 到文章）。制作期间可使用 `publish-article.mjs --draft` 保存非公开文章；最终公开由本次唯一 HITL 控制。详见 `docs/content-pipeline.md` Stage 5。
 
 ---
 
