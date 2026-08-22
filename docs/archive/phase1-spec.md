@@ -141,7 +141,7 @@ node scripts/short-video/verify-video.mjs --tiktok  # verify + 自动生成 capt
 1. 检查 CDP proxy（curl localhost:3456/targets）
    └─ 不可用 → 报错退出，提示用户启用 Chrome Remote Debugging
 2. 对每个源：
-   a. POST localhost:3456/new?url={source_url} → 获取 tabId
+   a. POST localhost:3456/new (body={source_url}) → 获取 tabId
    b. 等待页面加载（eval 检查 document.readyState）
    c. POST localhost:3456/eval?target={tabId} → 提取文章列表
    d. 关闭 tab（POST localhost:3456/close?target={tabId}）

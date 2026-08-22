@@ -7,6 +7,14 @@
  * scene-data keywords, scores candidates, downloads top matches, and outputs
  * a JSON report with recommended scene assignments.
  *
+ * T05: Pre-download filter gate (threshold 20) skips obviously bad candidates
+ *     before downloading. Lower than post-download threshold (30) because
+ *     pre-download metadata is sparser.
+ *
+ * T06: Cascade order fix — pre-filter (free) runs before detectFocus (~0.5s)
+ *     in analyzeAssets(), so OpenCV doesn't waste time on assets that will be
+ *     skipped anyway.
+ *
  * Does NOT auto-modify scene-data — the user reviews the report and manually
  * fills the `media` field in scenes.mjs.
  *
@@ -14,15 +22,19 @@
  */
 
 import { existsSync, writeFileSync, mkdirSync, statSync, readFileSync } from "fs";
-import { join, dirname, basename, extname } from "path";
+import { join, dirname, basename, extname, relative, isAbsolute } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execSync } from "child_process";
+import { ALL_SOURCES, SOURCE_ATTRIBUTIONS } from "./source-registry.mjs";
 import {
   getCachedSearchResults,
   getOrSearchResults,
   loadSearchResultsCache,
   saveSearchResultsCache,
 } from "./search-results-cache.mjs";
+
+// Re-export SOURCE_ATTRIBUTIONS from source-registry (single source of truth)
+export { SOURCE_ATTRIBUTIONS };
 
 // ─── Constants ───
 
@@ -60,7 +72,13 @@ const KNOWN_COMPANIES = [
 ];
 
 /** Scene types that should NOT have media assigned. */
-const NO_MEDIA_TYPES = new Set(["hook", "cta", "data", "stat-reveal"]);
+const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
+
+/** Minimum score for hook scene auto-assignment (spec D1). */
+const HOOK_MIN_SCORE = 60;
+
+/** Hook scenes require fit="cover" (contain leaves letterbox, weakens impact). */
+const HOOK_REQUIRED_FIT = "cover";
 
 // ─── Pure functions ───
 
@@ -113,129 +131,303 @@ export function extractKeywords(scenes, meta, cliKeywords) {
 }
 
 /**
- * Score a candidate asset (0-100).
+ * Compute the technical (non-AI) score for a candidate.
  *
- * Score = keyword match (0-40) + duration fitness (0-25) + size fitness (0-20)
- *         + resolution bonus (0-15) + content match (0-30, from aiDescription)
- *
- * When aiDescription is absent or empty, behaves identically to the original
- * implementation (backward compatible).
+ * Components:
+ *   title match (0-28) + duration fitness (0-18) + size fitness (0-14) + resolution (0-10)
+ *   = technical 0-70
  *
  * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
  * @param {string} keyword - Search keyword
- * @param {string} [aiDescription] - Optional VLM-generated content description
- * @returns {number} Score 0-100
+ * @returns {{technicalScore: number, titleScore: number, durationScore: number, sizeScore: number, resolutionScore: number}}
  */
-export function scoreCandidate(candidate, keyword, aiDescription) {
-  let score = 0;
+function computeTechnicalScore(candidate, keyword) {
+  let titleScore = 0;
+  let durationScore = 0;
+  let sizeScore = 0;
+  let resolutionScore = 0;
 
-  // Keyword match in title (0-40)
+  // Title match (0-28) with boundary matching (Issue #44 P2)
   const title = (candidate.title || "").toLowerCase();
   const kw = keyword.toLowerCase();
-  if (title.includes(kw)) {
-    score += 40; // exact keyword in title
-  } else if (kw.length > 3 && title.includes(kw.substring(0, Math.min(kw.length, 5)))) {
-    score += 20; // partial match
+  if (hasBoundaryMatch(title, kw)) {
+    titleScore = 28; // exact keyword in title (boundary-matched)
+  } else if (kw.length > 3 && hasBoundaryMatch(title, kw.substring(0, Math.min(kw.length, 5)))) {
+    titleScore = 14; // partial match
   }
 
-  // Duration fitness (0-25)
+  // Duration fitness (0-18)
   if (candidate.type === "image") {
-    score += 20; // images get fixed 20
+    durationScore = 14; // images get fixed 14
   } else if (typeof candidate.duration === "number") {
     if (candidate.duration >= 3 && candidate.duration <= 8) {
-      score += 25;
+      durationScore = 18;
     } else if (candidate.duration > 8 && candidate.duration <= 15) {
-      score += 15;
+      durationScore = 10;
     } else if (candidate.duration > 60) {
-      score += 5;
+      durationScore = 3;
     } else {
-      score += 5; // <3s
+      durationScore = 3; // <3s
     }
   } else {
-    score += 5; // unknown duration
+    durationScore = 3; // unknown duration
   }
 
-  // File size fitness (0-20)
+  // File size fitness (0-14)
   const size = candidate.fileSize;
   if (typeof size === "number") {
     if (candidate.type === "image") {
-      if (size < 5_000_000) score += 20;
-      else if (size < 10_000_000) score += 10;
+      if (size < 5_000_000) sizeScore = 14;
+      else if (size < 10_000_000) sizeScore = 7;
     } else {
-      if (size < 20_000_000) score += 20;
-      else if (size < 50_000_000) score += 10;
+      if (size < 20_000_000) sizeScore = 14;
+      else if (size < 50_000_000) sizeScore = 7;
     }
   }
 
-  // Resolution bonus (0-15)
+  // Resolution bonus (0-10) — case-insensitive (Issue #44 P3 fix)
   const res = candidate.resolution;
   if (res) {
-    if (res.includes("1080") || res.includes("4k") || res.includes("2160")) {
-      score += 15;
-    } else if (res.includes("720")) {
-      score += 10;
+    const resLower = String(res).toLowerCase();
+    if (resLower.includes("1080") || resLower.includes("4k") || resLower.includes("2160")) {
+      resolutionScore = 10;
+    } else if (resLower.includes("720")) {
+      resolutionScore = 7;
     } else {
-      score += 5;
+      resolutionScore = 3;
     }
   }
 
-  // Content match from AI description (0-30)
-  // When aiDescription is present, compute token overlap with keyword.
-  // Simple token overlap: lowercase both, split into words, count matches.
-  if (aiDescription && typeof aiDescription === "string" && aiDescription.trim()) {
-    const descTokens = new Set(
-      aiDescription
-        .toLowerCase()
-        .split(/[\s,.!?;:()'"/]+/)
-        .filter((t) => t.length > 2),
-    );
-    // Also tokenize the keyword (may be multi-word like "Unitree H1")
-    const kwTokens = keyword
-      .toLowerCase()
-      .split(/[\s]+/)
-      .filter((t) => t.length > 2);
-
-    // Count how many keyword tokens appear in the description
-    let matchCount = 0;
-    for (const kwt of kwTokens) {
-      if (descTokens.has(kwt)) matchCount++;
-    }
-
-    // Also check if the full keyword string appears in the description
-    const descLower = aiDescription.toLowerCase();
-    const kwLower = keyword.toLowerCase();
-    const fullMatch = descLower.includes(kwLower);
-
-    // Score: full keyword match → 20, per-token match → 10 each, capped at 30
-    let contentScore = 0;
-    if (fullMatch) contentScore += 20;
-    contentScore += matchCount * 10;
-    contentScore = Math.min(contentScore, 30);
-    score += contentScore;
-  }
-
-  return Math.min(score, 100);
+  const technicalScore = titleScore + durationScore + sizeScore + resolutionScore;
+  return { technicalScore, titleScore, durationScore, sizeScore, resolutionScore };
 }
 
 /**
- * Recommend a scene for an asset based on visualType.
+ * Score a candidate asset (0-100).
  *
- * @param {Object} asset - { type }
+ * Score = title match (0-28) + duration fitness (0-18) + size fitness (0-14)
+ *         + resolution bonus (0-10) + AI relevance (0-30)
+ *         = technical (0-70) + relevance (0-30) = 0-100
+ *
+ * Issue #44 fixes:
+ * - P1: Rebalanced so non-AI = 70, AI relevance = 30 (real influence, not capped)
+ * - P1: searchKeyword provenance preserved by caller
+ * - P2: Boundary matching (punctuation normalization, token/phrase boundaries)
+ * - P3: 4K case-insensitive (String(res).toLowerCase())
+ * - P1-1: Accepts { description, subjects } object for semantic scoring
+ *
+ * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
+ * @param {string} keyword - Search keyword (should be candidate.searchKeyword)
+ * @param {string|{description?: string, subjects?: string[]}} [semantics] - VLM semantics
+ * @returns {number} Score 0-100
+ */
+export function scoreCandidate(candidate, keyword, semantics) {
+  // ── Technical score (0-70) ──
+  const { technicalScore } = computeTechnicalScore(candidate, keyword);
+
+  // ── Normalize semantics: accept string (backward compat) or object ──
+  let description = "";
+  let subjects = [];
+  if (typeof semantics === "string") {
+    description = semantics;
+  } else if (semantics && typeof semantics === "object") {
+    description = semantics.description || "";
+    subjects = Array.isArray(semantics.subjects) ? semantics.subjects : [];
+  }
+
+  // ── AI relevance score (0-30) ──
+  let relevanceScore = 0;
+  const kwLower = keyword.toLowerCase();
+  const subjectsLower = subjects.map((s) => s.toLowerCase());
+
+  // Subjects match (0-20): case-insensitive exact match against subjects array
+  if (subjectsLower.length > 0) {
+    if (subjectsLower.includes(kwLower)) {
+      // Full keyword exact match
+      relevanceScore += 20;
+    } else {
+      // Per-token match for multi-word keywords
+      const kwTokens = normalizeTokens(kwLower);
+      if (kwTokens.length > 1) {
+        let matchCount = 0;
+        for (const token of kwTokens) {
+          if (subjectsLower.includes(token)) {
+            matchCount++;
+          }
+        }
+        // Proportional score: (matched tokens / total tokens) * 20
+        relevanceScore += Math.round((matchCount / kwTokens.length) * 20);
+      }
+    }
+  }
+
+  // Description match (0-10): keyword boundary match in description string
+  if (description && typeof description === "string" && description.trim()) {
+    const descLower = description.toLowerCase();
+
+    // Full-phrase bonus only on boundary match (Issue #44 P2)
+    if (hasBoundaryMatch(descLower, kwLower)) {
+      relevanceScore += 10;
+    }
+  }
+
+  // Backward compat: if semantics is a string (old behavior), also compute subjects-from-description
+  // This preserves old test expectations where string was treated as description-only
+  // with subjects scoring from boundary matching
+  if (typeof semantics === "string" && semantics.trim()) {
+    const descLower = semantics.toLowerCase();
+    // Old behavior: boundary match in description gave 20 pts for "subjects"
+    if (hasBoundaryMatch(descLower, kwLower)) {
+      relevanceScore += 20;
+    } else {
+      // Per-token match against description
+      const kwTokens = normalizeTokens(kwLower);
+      let matchCount = 0;
+      for (const token of kwTokens) {
+        if (hasBoundaryMatch(descLower, token)) {
+          matchCount++;
+        }
+      }
+      relevanceScore += matchCount * 10;
+    }
+  }
+
+  relevanceScore = Math.min(relevanceScore, 30);
+
+  return Math.min(technicalScore + relevanceScore, 100);
+}
+
+/**
+ * Pre-filter gate: assets with technicalScore < threshold are marked lowConfidence.
+ *
+ * Only marks lowConfidence when there's enough metadata to make a confident
+ * decision. If the asset has no title or keyword, we don't have enough
+ * information to judge — let VLM analyze it (hard gate, spec §3).
+ *
+ * Assets with technicalScore < 30 are hard-skipped from VLM analysis
+ * to save inference cost. This may miss assets with poor metadata but
+ * visually relevant content; P7 caching layer can add retry logic.
+ *
+ * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
+ * @param {string} keyword - Search keyword
+ * @returns {{technicalScore: number, lowConfidence: boolean}}
+ */
+// T05: Pre-download filter threshold — lower than post-download (30) because
+// pre-download metadata is sparser (no file size from API, resolution may be missing).
+export const PRE_DOWNLOAD_FILTER_THRESHOLD = 20;
+
+export function preFilterCandidate(candidate, keyword) {
+  const { technicalScore } = computeTechnicalScore(candidate, keyword);
+  const PREFILTER_THRESHOLD = 30;
+
+  // Only apply the gate when we have enough signal to judge:
+  // - keyword must be present (otherwise can't score title match)
+  // - candidate must have a title (otherwise titleScore=0 is not informative)
+  const hasEnoughSignal = !!keyword && !!candidate.title;
+  const lowConfidence = hasEnoughSignal && technicalScore < PREFILTER_THRESHOLD;
+
+  return {
+    technicalScore,
+    lowConfidence,
+  };
+}
+
+// ─── Boundary matching helpers (Issue #44 P2) ───
+
+/**
+ * Normalize punctuation in text for matching.
+ * Converts hyphens to spaces, removes possessive apostrophes.
+ *
+ * @param {string} text
+ * @returns {string} Normalized text
+ */
+function normalizePunctuation(text) {
+  return text.replace(/[''\u2019]/g, "").replace(/[-]/g, " ");
+}
+
+/**
+ * Tokenize text into words (for Latin) or keep as-is (for CJK).
+ *
+ * @param {string} text - Already-lowercased text
+ * @returns {string[]} Token array
+ */
+function normalizeTokens(text) {
+  const normalized = normalizePunctuation(text);
+  return normalized.split(/[\s,.!?;:()'"/]+/).filter((t) => t.length > 0);
+}
+
+/**
+ * Check if keyword appears in text with proper token/phrase boundaries.
+ *
+ * For Latin text: checks that the match is surrounded by non-alphanumeric chars
+ * (or start/end of string). Prevents "AI" matching "train" or "painting".
+ *
+ * For CJK text: uses includes() directly (no word boundaries in CJK).
+ *
+ * @param {string} text - The text to search in (already lowercased)
+ * @param {string} keyword - The keyword to search for (already lowercased)
+ * @returns {boolean}
+ */
+function hasBoundaryMatch(text, keyword) {
+  if (!text || !keyword) return false;
+
+  const normalizedText = normalizePunctuation(text);
+  const normalizedKeyword = normalizePunctuation(keyword);
+
+  // Check if keyword contains CJK characters — use includes() for CJK
+  if (/[\u4e00-\u9fff\u3040-\u30ff]/.test(keyword)) {
+    return normalizedText.includes(normalizedKeyword);
+  }
+
+  // Latin text: use word boundary matching
+  // Escape regex special chars in the keyword
+  const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(?:^|[\\s,.!?;:()'"/])${escaped}(?:$|[\\s,.!?;:()'"/])`);
+  return regex.test(normalizedText);
+}
+
+/**
+ * Content kind → preferred scene visualType mapping.
+ * Assets with a known contentKind prefer scenes of the matching type.
+ * Unknown contentKind values fall through to the current greedy logic.
+ */
+const CONTENT_KIND_PREFERENCE = {
+  product_demo: "narrative",
+  talking_head: "quote",
+};
+
+/**
+ * Recommend a scene for an asset based on visualType and contentKind.
+ *
+ * If asset.contentKind has a preferred visualType (see CONTENT_KIND_PREFERENCE),
+ * scenes of that type are scanned first. If all preferred-type scenes are taken,
+ * falls through to the current greedy logic.
+ *
+ * @param {Object} asset - { type, contentKind? }
  * @param {Array} scenes - Scene data array
  * @returns {{ sceneId: number, animation: string, overlay: number } | null}
  */
 export function recommendScene(asset, scenes) {
-  // Find the first scene that can use media
-  for (const scene of scenes) {
-    const vt = scene.visualType;
-    if (NO_MEDIA_TYPES.has(vt)) continue;
-    // Skip scenes that already have media assigned
-    if (scene.media) continue;
+  // Determine preferred visualType from contentKind (P1-1 fix)
+  const preferredVt = asset.contentKind ? CONTENT_KIND_PREFERENCE[asset.contentKind] : undefined;
 
+  // Helper: check if a scene can be recommended
+  function tryScene(scene) {
+    const vt = scene.visualType;
+    if (NO_MEDIA_TYPES.has(vt)) return null;
+    if (scene.media) return null;
+
+    if (vt === "hook") {
+      return {
+        sceneId: scene.id,
+        animation: "ken-burns",
+        overlay: 0.5,
+      };
+    }
     if (vt === "narrative") {
       return {
         sceneId: scene.id,
-        animation: asset.type === "video" ? "zoom" : "fade",
+        animation: asset.type === "video" ? "zoom" : "ken-burns",
         overlay: 0.7,
       };
     }
@@ -253,7 +445,24 @@ export function recommendScene(asset, scenes) {
         overlay: 0.8,
       };
     }
+    return null;
   }
+
+  // Pass 1: if there's a preferred visualType, scan for it first
+  if (preferredVt) {
+    for (const scene of scenes) {
+      if (scene.visualType !== preferredVt) continue;
+      const rec = tryScene(scene);
+      if (rec) return rec;
+    }
+  }
+
+  // Pass 2: fall through to current greedy logic (all eligible scenes)
+  for (const scene of scenes) {
+    const rec = tryScene(scene);
+    if (rec) return rec;
+  }
+
   return null;
 }
 
@@ -267,6 +476,35 @@ const VOLUME_RECOMMENDATIONS = {
   "info-card": { video: 0.08 }, // default level
   // image: no volume (images have no audio)
 };
+
+/**
+ * Normalize an asset path for the media-patch.json — always returns a relative path.
+ *
+ * If the path is already relative, it passes through unchanged.
+ * If the path is absolute, it is resolved relative to contentDir.
+ * If the result escapes contentDir (starts with `..`), an Error is thrown
+ * to prevent path traversal.
+ *
+ * @param {string} assetPath - The asset path (relative or absolute)
+ * @param {string} contentDir - The content directory to resolve against
+ * @returns {string} Relative path safe for scene-data
+ * @throws {Error} If the normalized path escapes contentDir
+ */
+export function normalizePathForPatch(assetPath, contentDir) {
+  if (!assetPath) return assetPath;
+  if (!isAbsolute(assetPath)) return assetPath;
+
+  const rel = relative(contentDir, assetPath);
+
+  // Path escape guard — if result starts with `..`, the path is outside contentDir
+  if (rel.startsWith("..")) {
+    throw new Error(
+      `Path escape detected: "${assetPath}" resolves to "${rel}" which is outside contentDir "${contentDir}"`,
+    );
+  }
+
+  return rel;
+}
 
 /**
  * Batch-assign downloaded assets to scenes using greedy matching.
@@ -318,21 +556,66 @@ export function assignAssetsToScenes(assets, scenes) {
       continue;
     }
 
-    // Find first available scene
+    // Find first available scene — hook scenes get priority (spec D1)
     let assigned = false;
+    const isVideo = asset.type === "video";
+
+    // Pass 1: hook scenes (require score>=60 and aiFit="cover")
+    for (const scene of scenes) {
+      if (assignedSceneIds.has(scene.id)) continue;
+      if (scene.visualType !== "hook") continue;
+      if (scene.media) continue;
+
+      // Hook gate: score >= 60 AND fit === "cover"
+      if ((asset.score || 0) < HOOK_MIN_SCORE) continue;
+      if (asset.fit !== HOOK_REQUIRED_FIT) continue;
+
+      const media = {
+        type: asset.type,
+        path: asset.path,
+        source: asset.source || asset.from || undefined,
+        animation: "ken-burns",
+        overlay: 0.5,
+        fit: "cover",
+      };
+      if (asset.fit && !isVideo) media.fit = asset.fit;
+      if (isVideo && VOLUME_RECOMMENDATIONS["narrative"]) {
+        media.volume = VOLUME_RECOMMENDATIONS["narrative"].video;
+      }
+
+      result.push({
+        sceneId: scene.id,
+        sceneName: scene.name,
+        visualType: "hook",
+        media,
+        analysis: asset.focusAnalysis ? { focusAnalysis: asset.focusAnalysis } : undefined,
+        assetScore: asset.score || 0,
+        source: asset.source || asset.from || "unknown",
+        attribution: asset.attribution || null,
+        status: "assigned",
+      });
+
+      assignedSceneIds.add(scene.id);
+      assignedPaths.add(asset.path);
+      assigned = true;
+      break;
+    }
+    if (assigned) continue;
+
+    // Pass 2: all other eligible scenes (narrative, info-card, quote, etc.)
     for (const scene of scenes) {
       if (assignedSceneIds.has(scene.id)) continue;
       if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
+      if (scene.visualType === "hook") continue; // already handled in pass 1
       if (scene.media) continue;
 
       // Assign this asset to this scene
       const vt = scene.visualType;
-      const isVideo = asset.type === "video";
 
       // Determine animation
       let animation;
       if (vt === "narrative") {
-        animation = isVideo ? "zoom" : "fade";
+        animation = isVideo ? "zoom" : "ken-burns";
       } else if (vt === "info-card") {
         animation = asset.type === "image" ? "ken-burns" : "fade";
       } else if (vt === "quote") {
@@ -355,30 +638,35 @@ export function assignAssetsToScenes(assets, scenes) {
       const volRec = VOLUME_RECOMMENDATIONS[vt];
       const volume = isVideo && volRec ? volRec.video : undefined;
 
-// Build media object
-const media = {
-type: asset.type,
-path: asset.path,
-source: asset.source || asset.from || undefined,
-animation,
-overlay,
-};
-// Include VLM-analyzed fit/focus when available
-if (asset.aiFit) {
-media.fit = asset.aiFit;
-}
-if (asset.aiFocus) {
-media.focus = asset.aiFocus;
-}
-if (volume !== undefined) {
-media.volume = volume;
-}
+      // Build media object
+      const media = {
+        type: asset.type,
+        path: asset.path,
+        source: asset.source || asset.from || undefined,
+        animation,
+        overlay,
+      };
+      // Include VLM-analyzed fit when available (spec §4.8)
+      // Video assets skip fit — video fit is a P4+ concern (temporal windows)
+      if (asset.fit && asset.type !== "video") {
+        media.fit = asset.fit;
+      }
+      if (volume !== undefined) {
+        media.volume = volume;
+      }
+
+      // Build analysis field for human review (spec §4.7)
+      const analysis = {};
+      if (asset.focusAnalysis) {
+        analysis.focusAnalysis = asset.focusAnalysis;
+      }
 
       result.push({
         sceneId: scene.id,
         sceneName: scene.name,
         visualType: vt,
         media,
+        analysis: Object.keys(analysis).length > 0 ? analysis : undefined,
         assetScore: asset.score || 0,
         source: asset.source || asset.from || "unknown",
         attribution: asset.attribution || null,
@@ -466,95 +754,198 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
 // ─── AI Analysis integration ───
 
 /**
- * Analyze downloaded assets using the VLM AI analyzer.
+ * Analyze downloaded assets using the VLM in a single semantic merge call.
  *
- * For each asset with a path, calls describeImage or describeVideo based
- * on asset type. Stores the result in asset.aiDescription. Returns a
- * report array with per-asset analysis data.
+ * Pipeline phases (T06 fix: pre-filter before focus detection):
+ *   Phase 1: Pre-filter (free) — rebalanced scoreCandidate technical score (0-70)
+ *             Assets with technicalScore < 30 → hard gate, skip detectFocus + VLM
+ *   Phase 2: Focus detection (OpenCV, ~0.5s/asset) → closeFocusDetector
+ *             Only runs on assets that survived pre-filter
+ *   Phase 3a: VLM deep analysis — single analyzeAssetSemantics call per asset
+ *             Stores: description, subjects, contentKind, fit, criticalEdgeText, reason
+ *   Phase 3b: Semantic re-scoring — uses VLM subjects + description for relevance
  *
- * When VLM is unavailable, logs warning and returns empty descriptions.
- * Does NOT call closeAnalyzer() — the caller is responsible for closing
- * the VLM process after all analysis phases (including assignAssetsToScenes)
- * are complete. This keeps the 11GB model resident across phases.
+ * Does NOT call closeVisualAnalyzer() — the caller is responsible for closing
+ * the VLM process after all phases are complete.
  *
- * For landscape assets (aspect > 1.2), also calls analyzeFit() to determine
- * how to place the asset in a 9:16 vertical canvas.
+ * Writes asset-analysis.json artifact to outputDir/{contentSlug}/ (if both provided).
+ * If contentSlug is not provided, writes to outputDir/ directly (backward compat).
  *
  * @param {Array} assets - Downloaded assets (each must have path and type)
+ * @param {Object} [opts] - Options
+ * @param {string} [opts.outputDir] - Base directory to write asset-analysis.json
+ * @param {string} [opts.contentSlug] - Content slug for artifact isolation
+ * @param {string} [opts.model] - VLM model ID (for artifact metadata)
  * @returns {Promise<Array<{path: string, description: string, success: boolean, analysisTimeMs: number}>>}
  */
-export async function analyzeAssets(assets) {
-  const { describeImage, describeVideo, analyzeFit } = await import("./ai-analyzer.mjs");
-  const { checkResolution } = await import("./upscale.mjs");
+export async function analyzeAssets(assets, opts = {}) {
+  const { analyzeAssetSemantics, detectFocus, closeFocusDetector } =
+    await import("./visual-analyzer.mjs");
+  const { probeMedia } = await import("./media-probe.mjs");
 
+  if (!assets || assets.length === 0) return [];
+
+  const outputDir = opts.outputDir || null;
+  const modelId = opts.model || "mlx-community/Qwen3-VL-8B-Instruct-8bit";
+  const contentDir = opts.contentDir || null;
+  const contentSlug = opts.contentSlug || null;
+
+  // ── Phase 1: Pre-filter (free — runs before expensive focus detection) ──
+  // T06 fix: move pre-filter before detectFocus so OpenCV doesn't waste 0.5s
+  // on assets that will be skipped anyway.
+  const analyzableAssets = [];
+  for (const asset of assets) {
+    if (!asset.path) continue;
+    const keyword = asset.searchKeyword || "";
+    const { technicalScore, lowConfidence } = preFilterCandidate(asset, keyword);
+    asset.technicalScore = technicalScore;
+    asset.lowConfidence = lowConfidence;
+    if (lowConfidence) {
+      console.log(
+        `  ⏭️  Skipping low-confidence asset (pre-filter): ${asset.path} (score: ${technicalScore})`,
+      );
+    } else {
+      analyzableAssets.push(asset);
+    }
+  }
+
+  // Guard: if all assets are lowConfidence, skip focus detection + VLM entirely
+  if (analyzableAssets.length === 0) {
+    console.log("  ⏭️  All assets failed pre-filter — skipping focus detection + VLM");
+  }
+
+  // ── Phase 2: Focus detection (medium cost ~0.5s/asset) — only for survivors ──
+  // Resolve relative paths using contentDir when provided (P0-1 fix)
+  if (analyzableAssets.length > 0) {
+    try {
+      for (const asset of analyzableAssets) {
+        if (!asset.path) continue;
+        const absPath =
+          contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
+        const focus = await detectFocus(absPath);
+        asset.focusAnalysis = focus;
+      }
+    } finally {
+      await closeFocusDetector();
+    }
+  }
+
+  // ── Phase 2.5: Probe video assets + compute time windows (T6) ──
+  // For video assets only: call probeMedia to get duration, then compute
+  // a time window for VLM analysis. Images are skipped (no window needed).
+  const DEFAULT_WINDOW_END_MS = 8000; // matches MAX_VIDEO_SECONDS in vlm_analyzer.py
+  const DEFAULT_SAMPLE_FPS = 1.0;
+
+  for (const asset of analyzableAssets) {
+    if (asset.type !== "video") continue;
+
+    const absPath =
+      contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
+
+    const probe = probeMedia(absPath);
+
+    if (probe) {
+      // Compute window: { 0, min(duration, 8000), 1.0 }
+      const endMs = Math.min(probe.durationMs, DEFAULT_WINDOW_END_MS);
+      asset.window = { startMs: 0, endMs, sampleFps: DEFAULT_SAMPLE_FPS };
+    } else {
+      // probeMedia failed — use default window, sourceMode will be "degraded"
+      asset.window = { startMs: 0, endMs: DEFAULT_WINDOW_END_MS, sampleFps: DEFAULT_SAMPLE_FPS };
+    }
+  }
+
+  // ── Phase 3a: VLM semantic analysis (single call per asset) ──
   const report = [];
 
-  try {
-    for (let i = 0; i < assets.length; i++) {
-      const asset = assets[i];
-      const absPath = asset.path || "";
+  for (let i = 0; i < analyzableAssets.length; i++) {
+    const asset = analyzableAssets[i];
+    // Resolve to absolute path for VLM subprocess, keeping asset.path relative (P0-1 fix)
+    const absPath =
+      contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
 
-      if (!absPath) {
-        report.push({
-          path: "",
-          description: "",
-          success: false,
-          analysisTimeMs: 0,
-        });
-        continue;
-      }
+    const startTime = Date.now();
+    console.log(`  🔍 Analyzing: ${absPath}... (${i + 1}/${analyzableAssets.length})`);
 
-      const startTime = Date.now();
-      console.log(`  🔍 Analyzing: ${absPath}... (${i + 1}/${assets.length})`);
+    let semantics;
+    let success = false;
 
-      let description = "";
-      let success = false;
-
-      try {
-        if (asset.type === "video") {
-          description = await describeVideo(absPath);
-        } else {
-          description = await describeImage(absPath);
-        }
-        success = description.length > 0;
-      } catch (err) {
-        console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
-        description = "";
-        success = false;
-      }
-
-      // For landscape assets, also analyze fit/focus
-      try {
-        const res = checkResolution(absPath);
-        const aspect = res.height > 0 ? res.width / res.height : 0;
-        if (aspect > 1.2) {
-          console.log(`  📐 Landscape asset (aspect ${aspect.toFixed(2)}), analyzing fit...`);
-          const fitResult = await analyzeFit(absPath);
-          if (fitResult.fit) {
-            asset.aiFit = fitResult.fit;
-            asset.aiFocus = fitResult.focus;
-            asset.aiFitReason = fitResult.reason || "";
-            console.log(`     → fit: ${fitResult.fit}, focus: ${fitResult.focus}`);
-          }
-        }
-      } catch (fitErr) {
-        // Fit analysis is optional — don't fail the whole asset
-        console.warn(`  ⚠️  Fit analysis skipped for ${absPath}: ${fitErr.message}`);
-      }
-
-      const analysisTimeMs = Date.now() - startTime;
-      asset.aiDescription = description;
-
-      report.push({
-        path: absPath,
-        description,
-        success,
-        analysisTimeMs,
-      });
+    try {
+      // Pass window opts for video assets; omit for images (backward compat)
+      semantics = asset.window
+        ? await analyzeAssetSemantics(absPath, asset.window)
+        : await analyzeAssetSemantics(absPath);
+      success = !!(semantics.description && semantics.description.length > 0);
+    } catch (err) {
+      console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
+      semantics = {
+        description: "",
+        subjects: [],
+        contentKind: null,
+        fit: null,
+        criticalEdgeText: null,
+        reason: null,
+      };
     }
-  } catch (err) {
-    // Re-throw so caller knows analysis failed
-    throw err;
+
+    // Store VLM fields on asset (replaces old aiDescription/aiFit/aiFitReason)
+    asset.description = semantics.description;
+    asset.subjects = semantics.subjects;
+    asset.contentKind = semantics.contentKind;
+    asset.fit = semantics.fit;
+    asset.criticalEdgeText = semantics.criticalEdgeText;
+    asset.reason = semantics.reason;
+    // Store window and sourceMode for video assets (T6)
+    if (semantics.window) {
+      asset.window = semantics.window;
+    }
+    if (semantics.sourceMode) {
+      asset.sourceMode = semantics.sourceMode;
+    }
+
+    const analysisTimeMs = Date.now() - startTime;
+
+    report.push({
+      path: absPath,
+      description: semantics.description,
+      success,
+      analysisTimeMs,
+    });
+  }
+
+  // ── Write asset-analysis.json artifact ──
+  // P1-3: isolate by content slug — write to outputDir/{contentSlug}/ when both provided
+  if (outputDir) {
+    const artifactDir = contentSlug ? join(outputDir, contentSlug) : outputDir;
+    const artifact = {
+      version: 1,
+      analyzedAt: new Date().toISOString(),
+      model: modelId,
+      assets: assets
+        .filter((a) => a.path)
+        .map((a) => ({
+          path: a.path,
+          type: a.type,
+          searchKeyword: a.searchKeyword || null,
+          technicalScore: a.technicalScore || null,
+          lowConfidence: a.lowConfidence || false,
+          description: a.description || "",
+          subjects: a.subjects || [],
+          contentKind: a.contentKind || null,
+          fit: a.fit || null,
+          criticalEdgeText: a.criticalEdgeText || null,
+          reason: a.reason || null,
+          focusAnalysis: a.focusAnalysis || null,
+          window: a.window || null,
+          sourceMode: a.sourceMode || null,
+        })),
+    };
+
+    const artifactPath = join(artifactDir, "asset-analysis.json");
+    const dir = dirname(artifactPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(artifactPath, JSON.stringify(artifact, null, 2) + "\n", "utf8");
   }
 
   return report;
@@ -644,6 +1035,14 @@ export async function downloadAsset(url, destPath, headers = {}) {
  * @returns {Array} Candidates array
  */
 export function searchYtdlp(keyword, platform) {
+  // T2: Guard against unsupported platforms.
+  // Previously, non-bilibili platforms silently fell through to YouTube search,
+  // producing videos with wrong source attribution (e.g., YouTube videos labeled as xhs).
+  const SUPPORTED_PLATFORMS = new Set(["bilibili", "youtube"]);
+  if (!SUPPORTED_PLATFORMS.has(platform)) {
+    return [];
+  }
+
   const searchUrl = platform === "bilibili" ? `bilisearch:${keyword}` : `ytsearch10:${keyword}`;
 
   try {
@@ -720,591 +1119,114 @@ export function downloadYtdlp(url, destPath) {
   }
 }
 
-// ─── Source definitions ───
+// ─── Source definitions (imported from source-registry) ───
+//
+// API_SOURCES, YTDLP_SOURCES, CDP_SOURCES, and SOURCE_ATTRIBUTIONS are now
+// derived from source-registry.mjs capabilities. The source-registry is the
+// single source of truth; these arrays are backward-compatible adapters that
+// flatten capabilities.images / capabilities.videos into the flat shape
+// expected by searchApiSource(), searchCdpSource(), and searchYtdlp().
 
 /**
- * API source definitions.
- * Each source has: name, requiresApiKey, searchUrl, authHeader, parseResponse, downloadUrl.
+ * Flatten a source's capabilities.images (API method) into the flat shape
+ * expected by searchApiSource().
  */
-export const API_SOURCES = [
-  {
-    name: "pexels",
-    label: "Pexels",
+function flattenImageApiSource(source) {
+  const cap = source.capabilities.images;
+  return {
+    name: source.name,
+    label: source.label,
     type: "image",
-    requiresApiKey: true,
-    apiKeyEnv: "PEXELS_API_KEY",
-    authHeader: "Authorization",
-    authValue: (key) => key,
-    searchUrl: (keyword, key) =>
-      `https://api.pexels.com/v1/search?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
-    parseResponse: (data, keyword) => {
-      const photos = (data.photos || []).map((p) => ({
-        title: p.alt || keyword,
-        url: p.src?.original || p.src?.large,
-        type: "image",
-        resolution: `${p.width}x${p.height}`,
-        fileSize: undefined,
-        duration: undefined,
-      }));
-      return photos;
-    },
-  },
-  {
-    name: "pexels-video",
-    label: "Pexels Videos",
-    type: "video",
-    requiresApiKey: true,
-    apiKeyEnv: "PEXELS_API_KEY",
-    authHeader: "Authorization",
-    authValue: (key) => key,
-    searchUrl: (keyword, key) =>
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
-    parseResponse: (data, keyword) => {
-      return (data.videos || []).map((v) => {
-        // Pick the best quality file (largest by resolution)
-        const files = v.video_files || [];
-        const best = files.sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-        return {
-          title: v.user?.name ? `${v.user.name} video` : keyword,
-          url: best?.link || undefined,
-          type: "video",
-          resolution: best ? `${best.width}x${best.height}` : undefined,
-          fileSize: undefined,
-          duration: v.duration ? `${v.duration}s` : undefined,
-          author: v.user?.name,
-        };
-      });
-    },
-  },
-  {
-    name: "unsplash",
-    label: "Unsplash",
-    type: "image",
-    requiresApiKey: true,
-    apiKeyEnv: "UNSPLASH_ACCESS_KEY",
-    authHeader: "Authorization",
-    authValue: (key) => `Client-ID ${key}`,
-    searchUrl: (keyword, key) =>
-      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
-    parseResponse: (data, keyword) => {
-      return (data.results || []).map((p) => ({
-        title: p.alt_description || keyword,
-        url: p.urls?.full || p.urls?.regular,
-        type: "image",
-        resolution: `${p.width}x${p.height}`,
-        fileSize: undefined,
-        duration: undefined,
-      }));
-    },
-  },
-  {
-    name: "wikimedia",
-    label: "Wikimedia Commons",
-    type: "image",
-    requiresApiKey: false,
-    apiKeyEnv: null,
-    userAgent: "ChinaAINews/1.0 (contact@china-ai.news)",
-    searchUrl: (keyword, key) =>
-      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(keyword)}&srnamespace=6&format=json&srlimit=10`,
-    parseResponse: (data, keyword) => {
-      // Returns titles like "File:xxx.jpg" — need a second call to get URLs
-      // For simplicity, return titles and resolve URLs during download
-      return (data.query?.search || []).map((item) => ({
-        title: item.title,
-        url: null, // Will be resolved in download
-        type: "image",
-        resolution: undefined,
-        fileSize: undefined,
-        duration: undefined,
-        fileTitle: item.title,
-      }));
-    },
-  },
-  {
-    name: "coverr",
-    label: "Coverr",
-    type: "video",
-    requiresApiKey: true,
-    apiKeyEnv: "COVERR_API_KEY",
-    authHeader: "Authorization",
-    authValue: (key) => `Bearer ${key}`,
-    // Coverr API: GET /videos?query=X with Bearer token. Returns { hits: [...] }
-    searchUrl: (keyword, key) =>
-      `https://api.coverr.co/videos?query=${encodeURIComponent(keyword)}`,
-    parseResponse: (data, keyword) => {
-      const hits = data.hits || [];
-      return hits.map((v) => ({
-        title: v.title || keyword,
-        url: `https://cdn.coverr.co/videos/${v.base_filename}/mp4?token=${data.params?.userToken || ""}`,
-        type: "video",
-        resolution: v.is_vertical ? "vertical" : "horizontal",
-        fileSize: undefined,
-        duration: undefined,
-        baseFilename: v.base_filename,
-      }));
-    },
-  },
-  {
-    name: "pixabay",
-    label: "Pixabay",
-    type: "image+video",
-    requiresApiKey: true,
-    apiKeyEnv: "PIXABAY_API_KEY",
-    searchUrl: (keyword, key) =>
-      `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(keyword)}&image_type=photo&orientation=vertical&per_page=10`,
-    parseResponse: (data, keyword) => {
-      return (data.hits || []).map((p) => ({
-        title: p.tags || keyword,
-        url: p.largeImageURL || p.webformatURL,
-        type: "image",
-        resolution: `${p.imageWidth}x${p.imageHeight}`,
-        fileSize: undefined,
-        duration: undefined,
-        author: p.user,
-      }));
-    },
-  },
-  {
-    name: "lorem_picsum",
-    label: "Lorem Picsum",
-    type: "image",
-    requiresApiKey: false,
-    apiKeyEnv: null,
-    // Lorem Picsum: https://picsum.photos/ — random Unsplash images, no auth
-    // Returns a random image redirect. Use /list to get image metadata.
-    searchUrl: (keyword) =>
-      `https://picsum.photos/v1/list?limit=10`,
-    parseResponse: (data, keyword) => {
-      return (data || []).map((img) => ({
-        title: `Lorem Picsum ${img.id}`,
-        url: `https://picsum.photos/id/${img.id}/${img.width || 800}/${img.height || 600}`,
-        type: "image",
-        resolution: `${img.width || 800}x${img.height || 600}`,
-        fileSize: undefined,
-        duration: undefined,
-        author: img.author || "Lorem Picsum",
-      }));
-    },
-  },
-];
+    requiresApiKey: cap.requiresApiKey,
+    apiKeyEnv: cap.apiKeyEnv,
+    authHeader: cap.authHeader,
+    authValue: cap.authValue,
+    userAgent: cap.userAgent,
+    searchUrl: cap.searchUrl,
+    parseResponse: cap.parseResponse,
+  };
+}
 
 /**
- * yt-dlp source definitions.
+ * Flatten a source's capabilities.videos (API method) into the flat shape
+ * expected by searchApiSource().
  */
-export const YTDLP_SOURCES = [
-  {
-    name: "youtube",
-    label: "YouTube",
-    platform: "youtube",
+function flattenVideoApiSource(source) {
+  const cap = source.capabilities.videos;
+  return {
+    name: source.name,
+    label: source.label,
     type: "video",
-  },
-  {
-    name: "bilibili",
-    label: "B站",
-    platform: "bilibili",
-    type: "video",
-  },
-  {
-    name: "douyin",
-    label: "抖音",
-    platform: "douyin",
-    type: "video",
-    // Cookie required: export cookies.txt from Chrome, then use --cookies flag
-    cookieRequired: true,
-  },
-  {
-    name: "xiaohongshu",
-    label: "小红书",
-    platform: "xiaohongshu",
-    type: "video",
-    cookieRequired: true,
-  },
-  {
-    name: "weibo",
-    label: "微博",
-    platform: "weibo",
-    type: "video",
-    cookieRequired: true,
-  },
-];
+    requiresApiKey: cap.requiresApiKey,
+    apiKeyEnv: cap.apiKeyEnv,
+    authHeader: cap.authHeader,
+    authValue: cap.authValue,
+    userAgent: cap.userAgent,
+    searchUrl: cap.searchUrl,
+    parseResponse: cap.parseResponse,
+  };
+}
 
 /**
- * CDP source definitions — Chinese news sites + search engines.
- * Each has a primary extract script + fallback generic script.
+ * Flatten a source's capabilities.images (CDP method) into the flat shape
+ * expected by searchCdpSource().
  */
-export const CDP_SOURCES = [
-  {
-    name: "google_news",
-    label: "Google News",
-    url: (keyword) =>
-      `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
-    primaryScript: `
-      var results = [];
-      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h3, .LC20lb');
-        var img = el.querySelector('img[src]');
-        var snippet = el.querySelector('.VwiC3b, .IsZvec');
-        if (link && title) {
-          results.push({
-            title: title.textContent.trim(),
-            url: img ? img.src : link.href,
-            type: img ? 'image' : 'text',
-            sourceUrl: link.href,
-            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
-          });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          if (!img.src.includes('gstatic') && !img.src.includes('google')) {
-            results.push({ title: img.alt || '', url: img.src, type: 'image' });
-          }
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "bing_news",
-    label: "Bing News",
-    url: (keyword) =>
-      `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
-    primaryScript: `
-      var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        var title = el.querySelector('h3, h2, .title, .b_caption p');
-        if (link && title) {
-          results.push({
-            title: title.textContent.trim(),
-            url: img ? img.src : link.href,
-            type: img ? 'image' : 'text',
-            sourceUrl: link.href
-          });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          if (!img.src.includes('bing.com') && !img.src.includes('r.bing')) {
-            results.push({ title: img.alt || '', url: img.src, type: 'image' });
-          }
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "ithome",
-    label: "IT之家",
-    url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
-    primaryScript: `
-      var items = document.querySelectorAll('.list .item, .news-list .item, article, .search-result .item');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link && img) {
-          results.push({ title: (el.querySelector('.title, h3, h2')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "jiqizhixin",
-    label: "机器之心",
-    url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
-    primaryScript: `
-      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link && img) {
-          results.push({ title: (el.querySelector('.article__title, h2, h3, .title')?.textContent || '').trim(), url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "xinhua",
-    label: "新华网",
-    url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
-    primaryScript: `
-      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link && img) {
-          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "thepaper",
-    label: "澎湃新闻",
-    url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
-    primaryScript: `
-      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link && img) {
-          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "leiphone",
-    label: "雷锋网",
-    url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
-    primaryScript: `
-      var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link && img) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "xinzhiyuan",
-    label: "新智元",
-    url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
-    primaryScript: `
-      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link && img) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
-  {
-    name: "zhidx",
-    label: "智东西",
-    url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
-    primaryScript: `
-      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link && img) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-    fallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
-];
-
-// ─── Attribution definitions ───
+function flattenCdpImageSource(source) {
+  const cap = source.capabilities.images;
+  return {
+    name: source.name,
+    label: source.label,
+    url: cap.url,
+    primaryScript: cap.primaryScript,
+    fallbackScript: cap.fallbackScript,
+  };
+}
 
 /**
- * Attribution data per source. Used to generate credits for TikTok description.
+ * Flatten a source's capabilities.videos (ytdlp method) into the flat shape
+ * expected by searchYtdlp() and downloadYtdlp().
  */
-export const SOURCE_ATTRIBUTIONS = {
-  pexels: {
-    text: (a) => `Photo by ${a.author || "Unknown"} from Pexels`,
-    license: "Pexels License",
-    logoRequired: false,
-  },
-  "pexels-video": {
-    text: (a) => `Video by ${a.author || "Unknown"} from Pexels`,
-    license: "Pexels License",
-    logoRequired: false,
-  },
-  unsplash: {
-    text: (a) => `Photo by ${a.author || "Unknown"} on Unsplash`,
-    license: "Unsplash License",
-    logoRequired: false,
-  },
-  pixabay: {
-    text: () => `Source: Pixabay (https://pixabay.com)`,
-    license: "Pixabay Content License",
-    logoRequired: true,
-  },
-  wikimedia: {
-    text: (a) => `${a.author || "Unknown"} via Wikimedia Commons (${a.license || "CC-BY-SA 4.0"})`,
-    license: "CC-BY-SA 4.0",
-    logoRequired: false,
-    dynamicAttribution: true,
-  },
-  coverr: {
-    text: () => `Video from Coverr (https://coverr.co)`,
-    license: "Coverr License",
-    logoRequired: false,
-  },
-  youtube: {
-    text: (a) => `Contains footage from ${a.author || a.title || "Unknown"} (YouTube)`,
-    license: "Fair use",
-    logoRequired: false,
-  },
-  bilibili: {
-    text: (a) => `Contains footage from ${a.author || "Unknown"} (B站)`,
-    license: "Fair use",
-    logoRequired: false,
-  },
-  douyin: {
-    text: (a) => `Contains footage from ${a.author || "Unknown"} (抖音)`,
-    license: "Fair use",
-    logoRequired: false,
-  },
-  xiaohongshu: {
-    text: (a) => `Contains footage from ${a.author || "Unknown"} (小红书)`,
-    license: "Fair use",
-    logoRequired: false,
-  },
-  weibo: {
-    text: (a) => `Contains footage from ${a.author || "Unknown"} (微博)`,
-    license: "Fair use",
-    logoRequired: false,
-  },
-  ithome: {
-    text: () => `图片来源: IT之家 (ithome.com)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
-  jiqizhixin: {
-    text: () => `图片来源: 机器之心 (jiqizhixin.com)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
-  xinhua: {
-    text: () => `图片来源: 新华网 (news.cn)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
-  thepaper: {
-    text: () => `图片来源: 澎湃新闻 (thepaper.cn)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
-  leiphone: {
-    text: () => `图片来源: 雷锋网 (leiphone.com)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
-  xinzhiyuan: {
-    text: () => `图片来源: 新智元 (xinzhiyuan.com)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
-  zhidx: {
-    text: () => `图片来源: 智东西 (zhidx.com)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
-  google_news: {
-    text: (a) => `Image source: ${a.sourceUrl || "Google News"}`,
-    license: "Varies",
-    logoRequired: false,
-  },
-  bing_news: {
-    text: (a) => `Image source: ${a.sourceUrl || "Bing News"}`,
-    license: "Varies",
-    logoRequired: false,
-  },
-};
+function flattenYtdlpVideoSource(source) {
+  const cap = source.capabilities.videos;
+  return {
+    name: source.name,
+    label: source.label,
+    platform: cap.platform,
+    type: "video",
+    cookieRequired: cap.cookieRequired || false,
+  };
+}
+
+/**
+ * API source definitions — derived from source-registry capabilities.
+ * Sources with capabilities.images.method === "api" are image API sources.
+ * Sources with capabilities.videos.method === "api" are video API sources.
+ * Lorem Picsum is excluded (deleted — returns random images).
+ */
+export const API_SOURCES = ALL_SOURCES.filter(
+  (s) =>
+    (s.capabilities?.images?.method === "api" || s.capabilities?.videos?.method === "api") &&
+    s.name !== "lorem_picsum",
+).map((s) => {
+  if (s.capabilities.images) return flattenImageApiSource(s);
+  return flattenVideoApiSource(s);
+});
+
+/**
+ * yt-dlp source definitions — derived from source-registry capabilities.
+ * Sources with capabilities.videos.method === "ytdlp".
+ */
+export const YTDLP_SOURCES = ALL_SOURCES.filter(
+  (s) => s.capabilities?.videos?.method === "ytdlp",
+).map(flattenYtdlpVideoSource);
+
+/**
+ * CDP source definitions — derived from source-registry capabilities.
+ * Sources with capabilities.images.method === "cdp".
+ */
+export const CDP_SOURCES = ALL_SOURCES.filter((s) => s.capabilities?.images?.method === "cdp").map(
+  flattenCdpImageSource,
+);
 
 /**
  * Build attribution object for an asset.
@@ -1345,6 +1267,106 @@ export function buildAttribution(source, asset) {
     logoRequired: attr.logoRequired,
     attributionRequired,
   };
+}
+
+// ─── T04 (#56): Cached-image flow ───
+
+/**
+ * Regex to detect logos, avatars, icons, placeholders, and spinners in image URLs.
+ * Case-insensitive match on common non-content image patterns.
+ */
+const LOGO_ICON_REGEX = /logo|avatar|icon|placeholder|spinner|favicon|badge|button|sprite/i;
+
+/**
+ * Check if a URL points to a logo, avatar, icon, or other non-content image.
+ *
+ * @param {string} url - Image URL to check
+ * @returns {boolean} true if URL matches logo/icon pattern
+ */
+export function isLogoOrIcon(url) {
+  if (!url || typeof url !== "string") return true;
+  return LOGO_ICON_REGEX.test(url);
+}
+
+/**
+ * Check if a title contains any of the given keywords.
+ * Case-insensitive substring match.
+ *
+ * @param {string} title - Article/source title
+ * @param {string[]} keywords - Keywords to match
+ * @returns {boolean} true if any keyword appears in title
+ */
+export function hasKeywordMatch(title, keywords) {
+  if (!title || !keywords || keywords.length === 0) return false;
+  const lower = title.toLowerCase();
+  return keywords.some((kw) => lower.includes(kw.toLowerCase()));
+}
+
+/**
+ * Load cached image URLs from trending-topics.json.
+ *
+ * Reads the trending-topics.json file produced by trend discovery (Stage 1),
+ * extracts images from topics whose title matches any of the given keywords.
+ * Images are filtered to exclude logos/icons.
+ *
+ * Scenario #6: File doesn't exist → returns empty array, normal search proceeds.
+ *
+ * @param {string} filePath - Path to trending-topics.json
+ * @param {string[]} keywords - Asset search keywords to match against topic titles
+ * @returns {Array<{url: string, sourceArticle: string|null, sourceTitle: string}>}
+ */
+/**
+ * Normalize a Stage 1 cached image for the Stage 4 score, filter, and
+ * attribution pipeline. The trend topic title supplies the only reliable
+ * relevance metadata for a cached URL, while the article URL remains
+ * provenance rather than an asset source identifier.
+ */
+export function toCachedImageCandidate(candidate) {
+  return {
+    ...candidate,
+    title: candidate?.sourceTitle || candidate?.title || "",
+    source: "cached",
+    type: "image",
+  };
+}
+
+export function loadCachedImages(filePath, keywords) {
+  if (!filePath || !existsSync(filePath)) return [];
+  if (!keywords || keywords.length === 0) return [];
+
+  try {
+    const content = readFileSync(filePath, "utf8");
+    const data = JSON.parse(content);
+    const results = [];
+
+    // Iterate all topic categories
+    const categories = data.topics || {};
+    for (const category of Object.values(categories)) {
+      if (!Array.isArray(category)) continue;
+      for (const topic of category) {
+        // Check if topic title matches any keyword
+        if (!hasKeywordMatch(topic.title, keywords)) continue;
+
+        // Extract images from topic
+        const images = topic.images || [];
+        for (const img of images) {
+          if (!img.url) continue;
+          // Filter out logos/icons (scenario #7)
+          if (isLogoOrIcon(img.url)) continue;
+
+          results.push({
+            url: img.url,
+            sourceArticle: img.sourceArticle || null,
+            sourceTitle: topic.title,
+          });
+        }
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -1626,6 +1648,58 @@ export async function main(args = process.argv.slice(2)) {
   const failed = [];
   const skipped = [];
 
+  // ── Phase 0: Cached-image flow (from trend discovery) ──
+  // R1: Check trending-topics.json for cached image URLs before making new CDP/API requests.
+  // Images are filtered by keyword match + URL pattern (exclude logos/icons), then
+  // pre-download filtered (technicalScore >= 20), then downloaded.
+  const trendingTopicsPath = join(__dirname, "..", "output", "trending-topics.json");
+  const cachedImages = loadCachedImages(trendingTopicsPath, keywords);
+  if (cachedImages.length > 0) {
+    console.log(`\n🖼️  Cached images (from trend discovery): ${cachedImages.length} found`);
+    const scored = cachedImages
+      .map((c) => {
+        const candidate = toCachedImageCandidate(c);
+        return {
+          ...candidate,
+          score: scoreCandidate(candidate, keywords[0]),
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxPerSource);
+
+    for (let j = 0; j < scored.length; j++) {
+      const candidate = scored[j];
+      if (!candidate.url) continue;
+
+      // T05: Pre-download filter
+      const { technicalScore: preScore } = preFilterCandidate(candidate, keywords[0]);
+      if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+        skipped.push({
+          source: "cached",
+          reason: `pre-download filter (score: ${preScore})`,
+        });
+        continue;
+      }
+
+      const filename = buildFilename("cached", keywords[0], j + 1, "jpg");
+      const destPath = join(assetsDir, filename);
+      const dlResult = await downloadAsset(candidate.url, destPath);
+      if (dlResult.success) {
+        allAssets.push({
+          ...candidate,
+          path: destPath.replace(contentDir + "/", ""),
+          status: dlResult.skipped ? "already exists" : "downloaded",
+        });
+        console.log(`    ✅ cached: ${filename} (score: ${candidate.score})`);
+      } else {
+        failed.push({ source: "cached", keyword: keywords[0], error: dlResult.error });
+        console.log(`    ❌ cached: ${dlResult.error}`);
+      }
+    }
+  } else {
+    console.log("\n🖼️  No cached images found in trending-topics.json");
+  }
+
   // ── API sources (parallel) ──
   console.log("\n📡 API sources:");
   const apiResults = await Promise.allSettled(
@@ -1670,9 +1744,20 @@ export async function main(args = process.argv.slice(2)) {
         .sort((a, b) => b.score - a.score)
         .slice(0, maxPerSource);
 
-      // Download
+      // Download — T05: pre-download filter gate (threshold 20)
       for (let j = 0; j < scored.length; j++) {
         const candidate = scored[j];
+
+        // T05: Skip candidates with technicalScore < 20 before downloading
+        const { technicalScore: preScore } = preFilterCandidate(candidate, keywords[0]);
+        if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+          skipped.push({
+            source: candidate.source,
+            reason: `pre-download filter (score: ${preScore})`,
+          });
+          continue;
+        }
+
         const ext = candidate.type === "video" ? "mp4" : "jpg";
         const filename = buildFilename(candidate.source, keywords[0], j + 1, ext);
         const destPath = join(assetsDir, filename);
@@ -1745,6 +1830,14 @@ export async function main(args = process.argv.slice(2)) {
 
       for (let j = 0; j < scored.length; j++) {
         const candidate = scored[j];
+
+        // T05: Skip candidates with technicalScore < 20 before downloading
+        const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+        if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+          skipped.push({ source: source.name, reason: `pre-download filter (score: ${preScore})` });
+          continue;
+        }
+
         const filename = buildFilename(source.name, keyword, j + 1, "mp4");
         const destPath = join(assetsDir, filename);
 
@@ -1791,6 +1884,26 @@ export async function main(args = process.argv.slice(2)) {
       for (let j = 0; j < scored.length; j++) {
         const candidate = scored[j];
         if (!candidate.url) continue;
+
+        // T3 updated: text candidates are article references, not downloadable images.
+        // Add them directly as article sources (no file download needed).
+        if (candidate.type === "text") {
+          allAssets.push({
+            ...candidate,
+            path: null,
+            status: "text-only",
+          });
+          console.log(`    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`);
+          continue;
+        }
+
+        // T05: Skip candidates with technicalScore < 20 before downloading
+        const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+        if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+          skipped.push({ source: source.name, reason: `pre-download filter (score: ${preScore})` });
+          continue;
+        }
+
         const filename = buildFilename(source.name, keyword, j + 1, "jpg");
         const destPath = join(assetsDir, filename);
 
@@ -1818,18 +1931,22 @@ export async function main(args = process.argv.slice(2)) {
   let aiAnalysis = [];
   if (allAssets.length > 0) {
     console.log("\n🤖 AI Analysis:");
-    // Convert relative paths to absolute for the Python subprocess
-    for (const asset of allAssets) {
-      if (asset.path && !asset.path.startsWith("/")) {
-        asset.path = join(contentDir, asset.path);
-      }
-    }
+    // P0-1 fix: pass contentDir to analyzeAssets instead of mutating asset.path
+    // asset.path stays relative; analyzeAssets resolves to absolute internally
     try {
-      aiAnalysis = await analyzeAssets(allAssets);
-      // Re-score assets with aiDescription
+      aiAnalysis = await analyzeAssets(allAssets, {
+        outputDir: join(__dirname, "..", "output"),
+        contentDir,
+        contentSlug,
+      });
+      // Re-score assets with VLM description (Phase 2c: semantic scoring)
       for (const asset of allAssets) {
-        if (asset.aiDescription) {
-          asset.score = scoreCandidate(asset, keywords[0], asset.aiDescription);
+        if (asset.description) {
+          const kw = asset.searchKeyword || keywords[0];
+          asset.score = scoreCandidate(asset, kw, {
+            description: asset.description,
+            subjects: asset.subjects || [],
+          });
         }
       }
     } catch (err) {
@@ -1838,8 +1955,8 @@ export async function main(args = process.argv.slice(2)) {
       // Close VLM process — analyzeAssets no longer closes it itself,
       // so we must close it here to release the ~11GB model.
       try {
-        const { closeAnalyzer } = await import("./ai-analyzer.mjs");
-        await closeAnalyzer();
+        const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
+        await closeVisualAnalyzer();
       } catch {
         // ignore close errors
       }
@@ -1869,8 +1986,28 @@ export async function main(args = process.argv.slice(2)) {
   writeFileSync(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
 
   // ── Generate media-patch.json (auto-fill suggestions) ──
+  // P0-1 fix: normalize any absolute paths back to relative before writing patch
+  for (const asset of allAssets) {
+    if (asset.path) {
+      asset.path = normalizePathForPatch(asset.path, contentDir);
+    }
+  }
   const patches = assignAssetsToScenes(allAssets, scenes);
-  const patchPath = join(__dirname, "..", "output", "media-patch.json");
+  // Defensive: also normalize media.path in patches
+  for (const patch of patches) {
+    if (patch.media?.path) {
+      patch.media.path = normalizePathForPatch(patch.media.path, contentDir);
+    }
+  }
+  // P1-3: isolate media-patch.json by content slug
+  const patchDir = contentSlug
+    ? join(__dirname, "..", "output", contentSlug)
+    : join(__dirname, "..", "output");
+  const patchPath = join(patchDir, "media-patch.json");
+  // Ensure the directory exists
+  if (contentSlug) {
+    mkdirSync(patchDir, { recursive: true });
+  }
   writeFileSync(patchPath, JSON.stringify(patches, null, 2) + "\n", "utf8");
   const assignedCount = patches.filter((p) => p.status === "assigned").length;
   const unassignedCount = patches.filter((p) => p.status === "unassigned").length;

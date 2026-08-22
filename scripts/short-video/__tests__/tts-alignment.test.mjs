@@ -94,7 +94,7 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
     expect(fsMock.writeFileSync).not.toHaveBeenCalled();
     expect(execMock).not.toHaveBeenCalled();
     // Should log warning
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Force-align script not found"));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("text-align.py not found"));
 
     logSpy.mockRestore();
   });

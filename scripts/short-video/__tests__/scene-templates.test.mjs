@@ -16,6 +16,11 @@ import {
   hookScene,
   logoSvg,
 } from "../lib/scene-templates.mjs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURE_CONTENT_DIR = join(__dirname, "fixtures", "content");
 
 // ── Safe zones ──
 
@@ -469,13 +474,13 @@ describe("hookScene", () => {
     expect(html).toContain('class="slot-hero"');
   });
 
-  it("subject without logo renders the bold 80px name row", () => {
+  it("subject without logo renders the bold 64px name row", () => {
     const html = hookScene({ texts: { subject: "BYTEDANCE", hookText: "155M USERS" } }, 10);
     expect(html).toContain('class="subject-row"');
     expect(html).toContain("BYTEDANCE");
     expect(html).not.toContain('class="subject-logo"');
     expect(templateCss()).toContain(
-      ".s-hook .subject-row .subject-name { font-size: 80px; font-weight: 900",
+      ".s-hook .subject-row .subject-name { font-size: 64px; font-weight: 900",
     );
   });
 
@@ -546,6 +551,84 @@ describe("hookScene", () => {
   it("renders no business copy and no undefined for empty texts (data-only)", () => {
     const html = hookScene({ texts: {} }, 10);
     assertNoBusinessCopy(html);
+    expect(html).not.toContain("undefined");
+  });
+
+  // ── Hook media support (spec-hook-media-support.md) ──
+
+  it("with media renders a media-container div in the scene", () => {
+    const html = hookScene(
+      {
+        texts: HOOK_NUMBER_TEXTS,
+        media: { type: "image", path: "assets/test-bg.jpg", animation: "ken-burns", overlay: 0.5 },
+      },
+      10,
+      FIXTURE_CONTENT_DIR,
+    );
+    expect(html).toContain('class="media-container"');
+    expect(html).toContain("media-bg");
+    expect(html).toContain("media-overlay");
+  });
+
+  it("without media does not render media-container (backward compatible)", () => {
+    const html = hookScene({ texts: HOOK_NUMBER_TEXTS }, 10);
+    expect(html).not.toContain("media-container");
+    expect(html).not.toContain("media-bg");
+  });
+
+  it("media HTML is inserted before grid-bg (media at the bottom layer)", () => {
+    const html = hookScene(
+      {
+        texts: HOOK_NUMBER_TEXTS,
+        media: { type: "image", path: "assets/test-bg.jpg", animation: "ken-burns", overlay: 0.5 },
+      },
+      10,
+      FIXTURE_CONTENT_DIR,
+    );
+    const mediaIdx = html.indexOf("media-container");
+    const gridBgIdx = html.indexOf('class="grid-bg"');
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(gridBgIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeLessThan(gridBgIdx);
+  });
+
+  it("media CSS is injected into the style block", () => {
+    const html = hookScene(
+      {
+        texts: HOOK_NUMBER_TEXTS,
+        media: { type: "image", path: "assets/test-bg.jpg", animation: "ken-burns", overlay: 0.5 },
+      },
+      10,
+      FIXTURE_CONTENT_DIR,
+    );
+    expect(html).toContain(".media-container");
+    expect(html).toContain("@keyframes mediaBgkenburns");
+  });
+
+  it("media with missing file still renders without crash (mediaLayer returns empty)", () => {
+    const html = hookScene(
+      {
+        texts: HOOK_NUMBER_TEXTS,
+        media: { type: "image", path: "nonexistent.jpg", animation: "fade", overlay: 0.5 },
+      },
+      10,
+      FIXTURE_CONTENT_DIR,
+    );
+    // mediaLayer returns empty strings when file not found — no media-container
+    expect(html).not.toContain("media-container");
+    expect(html).not.toContain("undefined");
+  });
+
+  it("without contentDir does not crash (media ignored when no contentDir)", () => {
+    const html = hookScene(
+      {
+        texts: HOOK_NUMBER_TEXTS,
+        media: { type: "image", path: "assets/test-bg.jpg", animation: "fade", overlay: 0.5 },
+      },
+      10,
+    );
+    // No contentDir → mediaLayer can't resolve path → returns empty
+    expect(html).not.toContain("media-container");
     expect(html).not.toContain("undefined");
   });
 });

@@ -41,11 +41,11 @@
 ### ISSUE-04: 新闻趋势监控脚本
 
 - **状态**: DONE
-- **现状**: discover-trends.mjs 抓取 5 源，输出 trending-topics.json
+- **现状**: search-sources.mjs 抓取 5 源，输出 trending-topics.json
 - **目标**: 脚本自动抓取多源（36氪/量子位/机器之心/TechCrunch/Bloomberg），提取 China AI 相关标题，按爆发/发酵/数据/科普分类，输出 `output/trending-topics.json`
 - **方案**: 用 web-access skill（Chrome CDP）抓取 -> 提取标题 -> 分类
-- **命令设计**: `node scripts/short-video/discover-trends.mjs` -> 输出 JSON -> agent 可直接读取选题
-- **文件**: `scripts/short-video/discover-trends.mjs`（新建）
+- **命令设计**: `node scripts/short-video/search-sources.mjs` -> 输出 JSON -> agent 可直接读取选题
+- **文件**: `scripts/short-video/search-sources.mjs`（新建）
 - **依赖**: 无（web-access skill 已安装）
 - **完成标志**: 运行脚本后 `output/trending-topics.json` 存在，含至少 5 条分类好的选题
 
@@ -414,13 +414,13 @@ ManiClones 的 skill 发布在 X 的 article 功能上（`x.com/i/article/...`�
 
 ```bash
 # Phase 1 完成后
-node scripts/short-video/discover-trends.mjs    # 抓趋势
+node scripts/short-video/search-sources.mjs    # 抓趋势
 node scripts/short-video/verify-video.mjs --tiktok  # 验证 + 输出 caption
 ```
 
 或者对 agent 说：
 
-> "跑 discover-trends，然后选一个话题做视频"
+> "跑 search-sources，然后选一个话题做视频"
 
 Agent 会执行：discover -> 读 JSON -> 选话题 -> 写 scene-data -> 跑 pipeline -> verify -> 输出 caption。
 

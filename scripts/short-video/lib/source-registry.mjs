@@ -8,12 +8,11 @@
  * Each source is a pluggable collector with:
  * - name: unique identifier
  * - label: display name
- * - category: "news" | "self_media" | "general" | "western" | "last30days" | "wechat"
+ * - category: "news" | "self_media" | "general" | "international" | "last30days" | "wechat"
  * - needsAuth: whether login is required
  * - supportsKeyword: whether the source supports keyword search (vs homepage-only)
  * - accessMethod: how this source is collected
  *     { primary: "cdp" | "api" | "mcp",
- *       fallbacks: ["cdp" | "mcp" | ...],
  *       notes: "human-readable description of collection method" }
  * - url(keyword): function to build search URL (keyword ignored if supportsKeyword=false)
  * - extractScript: CDP eval script to extract articles from DOM
@@ -55,13 +54,13 @@ const NODE_BIN = "node";
 
 export const NEWS_SOURCES = [
   {
-    name: "qbitai",
-    label: "量子位",
-    category: "news",
-    supportsKeyword: false,
+name: "qbitai",
+label: "量子位",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Homepage scraping via DOM selectors. No public API.",
     },
     needsAuth: false,
@@ -91,35 +90,34 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "jiqizhixin",
-    label: "机器之心",
-    category: "news",
-    supportsKeyword: false,
+name: "jiqizhixin",
+label: "机器之心",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
-      notes: "CDP only. Homepage scraping. No public API.",
+      notes: "CDP search page. No public API.",
     },
     needsAuth: false,
     useCleanTitle: false,
-    url: () => "https://www.jiqizhixin.com/",
+    url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
     extractScript: `
-      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
+      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item, .search-result .item');
       var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.article__title, h2, h3, .title');
-          if (link && title) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
-        });
-      }
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('.article__title, h2, h3, .title');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
       if (results.length === 0) {
         document.querySelectorAll('a[href]').forEach(function(a) {
           var text = a.textContent.trim();
           if (text.length > 10 && text.length < 200 && a.href.includes('jiqizhixin.com')) {
-            results.push({ title: text, url: a.href });
+            results.push({ title: text, url: a.href, imageUrl: null });
           }
         });
       }
@@ -127,13 +125,13 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "36kr",
-    label: "36氪",
-    category: "news",
-    supportsKeyword: false,
+name: "36kr",
+label: "36氪",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Homepage scraping. No public API.",
     },
     needsAuth: false,
@@ -169,7 +167,6 @@ export const NEWS_SOURCES = [
     supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Category page scraping. No public API.",
     },
     needsAuth: false,
@@ -205,7 +202,6 @@ export const NEWS_SOURCES = [
     supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Tech section scraping. No public API (paywall).",
     },
     needsAuth: false,
@@ -235,13 +231,13 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "guancha",
-    label: "观察者网",
-    category: "news",
-    supportsKeyword: false,
+name: "guancha",
+label: "观察者网",
+category: "news",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Homepage scraping. No public API.",
     },
     needsAuth: false,
@@ -274,41 +270,227 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "ithome",
-    label: "iThome",
-    category: "news",
-    supportsKeyword: false,
+name: "ithome",
+label: "iThome",
+category: "news",
+locale: "zh-CN",
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
-      notes: "CDP only. Homepage scraping. No public API.",
+      notes: "CDP search page. No public API.",
     },
     needsAuth: false,
     useCleanTitle: false,
-    url: () => "https://www.ithome.com/",
+    url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
     extractScript: `
-      var items = document.querySelectorAll('.list .item, .news-list .item, .lst .item, article');
+      var items = document.querySelectorAll('.list .item, .news-list .item, .lst .item, article, .search-result .item');
       var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.title, h3, h2, a[title]');
-          if (link) {
-            var titleText = title ? title.textContent.trim() : (link.getAttribute('title') || link.textContent.trim());
-            if (titleText && titleText.length > 5 && titleText.length < 200) {
-              results.push({ title: titleText, url: link.href });
-            }
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('.title, h3, h2, a[title]');
+        if (link) {
+          var titleText = title ? title.textContent.trim() : (link.getAttribute('title') || link.textContent.trim());
+          if (titleText && titleText.length > 5 && titleText.length < 200) {
+            results.push({ title: titleText, url: link.href, imageUrl: img ? img.src : null });
           }
-        });
-      }
+        }
+      });
       if (results.length === 0) {
         document.querySelectorAll('a[href]').forEach(function(a) {
           var text = a.textContent.trim();
           if (text.length > 10 && text.length < 200 && a.href.includes('ithome.com')) {
-            results.push({ title: text, url: a.href });
+            results.push({ title: text, url: a.href, imageUrl: null });
           }
         });
       }
+      return results;
+    `,
+  },
+  // ─── CDP image search sources (capabilities.images via CDP) ───
+  // These sources have CDP_IMAGE_CAPABILITIES entries but need source definitions
+  // so enrichWithCapabilities() can inject their capabilities.
+  {
+    name: "xinhua",
+    label: "新华网页面搜索",
+    category: "news",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page. Articles + images from same DOM.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
+    extractScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "thepaper",
+    label: "澎湃新闻搜索",
+    category: "news",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page. Articles + images from same DOM.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
+    extractScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "leiphone",
+    label: "雷锋网搜索",
+    category: "news",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page. Articles + images from same DOM.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
+    extractScript: `
+      var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "xinzhiyuan",
+    label: "新智元搜索",
+    category: "news",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page. Articles + images from same DOM.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
+    extractScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "zhidx",
+    label: "智东西搜索",
+    category: "news",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page. Articles + images from same DOM.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
+    extractScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        if (link) {
+          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "google_news",
+    label: "Google News Search",
+    category: "international",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page. Articles + images from same DOM.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) =>
+      `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
+    extractScript: `
+      var results = [];
+      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h3, .LC20lb');
+        var img = el.querySelector('img[src]');
+        var snippet = el.querySelector('.VwiC3b, .IsZvec');
+        if (link && title) {
+          results.push({
+            title: title.textContent.trim(),
+            url: link.href,
+            imageUrl: img ? img.src : null,
+            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+          });
+        }
+      });
+      return results;
+    `,
+  },
+  {
+    name: "bing_news",
+    label: "Bing News Search",
+    category: "international",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page. Articles + images from same DOM.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) =>
+      `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
+    extractScript: `
+      var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('h3, h2, .title, .b_caption p');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href, imageUrl: img ? img.src : null });
+        }
+      });
       return results;
     `,
   },
@@ -318,24 +500,24 @@ export const NEWS_SOURCES = [
 
 export const SELF_MEDIA_SOURCES = [
   {
-    name: "xhs",
-    label: "小红书",
-    category: "self_media",
-    supportsKeyword: true,
+name: "xhs",
+label: "小红书",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
-      notes: "CDP (requires login) → MCP fallback (RedNote-MCP search_feeds). needsAuth=true.",
+      notes: "CDP (requires login) → mcpFallback (RedNote-MCP search_notes). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: true,
     url: (keyword) =>
       `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
     mcpFallback: {
-      command: "python",
-      args: ["-m", "xiaohongshu_mcp_server"],
-      toolName: "search_feeds",
-      toolArgs: (keyword) => ({ keyword, limit: 20 }),
+      command: "rednote-mcp",
+      args: ["--stdio"],
+      toolName: "search_notes",
+      toolArgs: (keyword) => ({ keywords: keyword, limit: 20 }),
       resultMapper: (items) =>
         items.map((item) => ({
           title: item.title || item.desc || item.note_card?.title || "",
@@ -347,7 +529,7 @@ export const SELF_MEDIA_SOURCES = [
       (body.includes('请先登录') || body.includes('扫码登录')) ? 'need_login' : 'ok'
     `,
     extractScript: `
-      var items = document.querySelectorAll('.note-item, .search-result-item, [data-v-*] .note-content');
+      var items = document.querySelectorAll('section.note-item, .note-item, .search-result-item');
       var results = [];
       if (items.length > 0) {
         items.forEach(function(el) {
@@ -370,13 +552,13 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "sogou_weixin",
-    label: "搜狗微信",
-    category: "self_media",
-    supportsKeyword: true,
+name: "sogou_weixin",
+label: "搜狗微信",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP → MCP fallback (search_wechat_articles). Has captcha check.",
     },
     needsAuth: false,
@@ -425,13 +607,13 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "weibo_hot",
-    label: "微博热搜",
-    category: "self_media",
-    supportsKeyword: false,
+name: "weibo_hot",
+label: "微博热搜",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes:
         "CDP (hot search page) → MCP fallback (get_hot_search). No keyword search, homepage-only.",
     },
@@ -465,13 +647,13 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "bilibili",
-    label: "B站搜索",
-    category: "self_media",
-    supportsKeyword: true,
+name: "bilibili",
+label: "B站搜索",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes:
         "CDP (search page) → MCP fallback (search_videos). Has 412 anti-bot intermittent issues.",
     },
@@ -516,13 +698,13 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "douyin",
-    label: "抖音搜索",
-    category: "self_media",
-    supportsKeyword: true,
+name: "douyin",
+label: "抖音搜索",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP (requires login) → MCP fallback (search_videos). needsAuth=true.",
     },
     needsAuth: true,
@@ -577,7 +759,6 @@ export const SELF_MEDIA_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp"],
       notes:
         "API (ScrapeCreators, requires SCRAPECREATORS_API_KEY) → CDP fallback (Creator Center, requires login). Keyword search via API; CDP is homepage-only.",
     },
@@ -668,13 +849,13 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
-    name: "zhihu",
-    label: "知乎",
-    category: "self_media",
-    supportsKeyword: true,
+name: "zhihu",
+label: "知乎",
+category: "self_media",
+locale: "zh-CN",
+supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Search page scraping. No MCP fallback.",
     },
     needsAuth: false,
@@ -714,9 +895,8 @@ export const SELF_MEDIA_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["cdp", "mcp"],
       notes:
-        "CDP (requires login) → cdpFallback (Google site:x.com) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
+        "CDP (requires login) → cdpFallback (Google site:x.com, h3-based selector) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: false,
@@ -728,7 +908,16 @@ export const SELF_MEDIA_SOURCES = [
        (body.includes('Sign in') && body.length < 500)) ? 'need_login' : 'ok'
     `,
     extractScript: `
-      var tweets = document.querySelectorAll('[data-testid="tweet"]');
+      // SPA poll: wait for tweets to render (X uses client-side rendering).
+      // Uses async + setTimeout (not busy-wait) so React can use the main thread.
+      var tweets = [];
+      var deadline = Date.now() + 8000;
+      while (tweets.length === 0 && Date.now() < deadline) {
+        tweets = document.querySelectorAll('[data-testid="tweet"]');
+        if (tweets.length === 0) {
+          await new Promise(function(r) { setTimeout(r, 500); });
+        }
+      }
       var results = [];
       tweets.forEach(function(t) {
         var textEl = t.querySelector('[data-testid="tweetText"]');
@@ -752,13 +941,12 @@ export const SELF_MEDIA_SOURCES = [
         `https://www.google.com/search?q=${encodeURIComponent("site:x.com " + keyword)}`,
       extractScript: `
         var results = [];
-        document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('h3, .LC20lb');
-          if (link && title) {
-            var url = link.href;
+        document.querySelectorAll('h3').forEach(function(h3) {
+          var a = h3.closest('a') || h3.parentElement.querySelector('a');
+          if (a && a.href) {
+            var url = a.href;
             if (url.includes('x.com') || url.includes('twitter.com')) {
-              results.push({ title: title.textContent.trim(), url: url });
+              results.push({ title: h3.textContent.trim(), url: url });
             }
           }
         });
@@ -834,7 +1022,7 @@ export const SELF_MEDIA_SOURCES = [
 // relevant to China AI topics.
 //
 // Primary collection method: mcp-search-bridge (Grok model with web search).
-// CDP is attempted first (if a search page URL exists), but these western
+// CDP is attempted first (if a search page URL exists), but these international
 // platforms often don't have China-optimized search pages, so the MCP
 // fallback is the main workhorse.
 //
@@ -879,16 +1067,15 @@ function parseGrokListResult(items) {
   return results;
 }
 
-export const WESTERN_SOURCES = [
+export const INTERNATIONAL_SOURCES = [
   {
     name: "youtube_search",
     label: "YouTube",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP (search results) → MCP fallback (mcp-search-bridge/Grok web_search).",
     },
     useCleanTitle: false,
@@ -924,12 +1111,11 @@ export const WESTERN_SOURCES = [
   {
     name: "arxiv_search",
     label: "arXiv",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp", "mcp"],
       notes: "API (arXiv Atom XML) → CDP fallback → MCP fallback.",
     },
     useCleanTitle: false,
@@ -1000,12 +1186,11 @@ export const WESTERN_SOURCES = [
   {
     name: "github_search",
     label: "GitHub",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp", "mcp"],
       notes:
         "API (GitHub Search API, 60 req/hour without token, 5000 with GITHUB_TOKEN) → CDP fallback → MCP fallback.",
     },
@@ -1077,12 +1262,11 @@ export const WESTERN_SOURCES = [
   {
     name: "threads_search",
     label: "Threads",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes:
         "CDP (search page, limited) → MCP fallback (primary method). Threads has no public API.",
     },
@@ -1115,12 +1299,11 @@ export const WESTERN_SOURCES = [
   {
     name: "datacube_ai",
     label: "DataCube AI",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: false,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (Atom RSS feed, free, no auth). Daily AI news from 35+ sources in 8 languages. No keyword search — homepage feed only.",
     },
@@ -1168,12 +1351,11 @@ export const WESTERN_SOURCES = [
   {
     name: "gnews",
     label: "GNews",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (gnews.io/api/v4/search, free tier 100 req/day, 12h delay). Requires GNEWS_API_KEY. Multi-language news search.",
     },
@@ -1212,12 +1394,11 @@ export const WESTERN_SOURCES = [
   {
     name: "core_search",
     label: "CORE",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (api.core.ac.uk/v3, free, no auth required, 5 req/10s rate limit). World's largest open-access research papers (260M+).",
     },
@@ -1231,7 +1412,7 @@ export const WESTERN_SOURCES = [
         if (!data.results) return [];
         return data.results.map((work) => ({
           title: work.title || "",
-          url: work.doi ? `https://doi.org/${work.doi}` : (work.sourceFulltextUrls?.[0] || ""),
+          url: work.doi ? `https://doi.org/${work.doi}` : work.sourceFulltextUrls?.[0] || "",
           snippet: work.abstract ? work.abstract.substring(0, 200) : "",
           publishedAt: work.publishedDate || work.depositedDate || "",
           author: work.authors?.map((a) => a.name).join(", ") || "",
@@ -1255,12 +1436,11 @@ export const WESTERN_SOURCES = [
   {
     name: "openalex_search",
     label: "OpenAlex",
-    category: "western",
+    category: "international",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (openalex.org/api/works, free, no auth). Open catalog of 240M+ scholarly works. JSON response.",
     },
@@ -1325,7 +1505,6 @@ export const GENERAL_SEARCH_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: ["mcp"],
       notes: "CDP (Google search) → MCP fallback (mcp-search-bridge/Grok). General web search.",
     },
     useCleanTitle: false,
@@ -1359,14 +1538,14 @@ export const GENERAL_SEARCH_SOURCES = [
     },
   },
   {
-    name: "baidu_search",
-    label: "百度搜索",
-    category: "general",
-    needsAuth: false,
+name: "baidu_search",
+label: "百度搜索",
+category: "general",
+locale: "zh-CN",
+needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Baidu search page scraping. Chinese-language search. No MCP fallback.",
     },
     useCleanTitle: false,
@@ -1399,7 +1578,6 @@ export const GENERAL_SEARCH_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "mcp",
-      fallbacks: [],
       notes: "MCP only (mcp-search-bridge/Grok). No CDP page. Grok web search with China AI focus.",
     },
     useCleanTitle: false,
@@ -1425,7 +1603,6 @@ export const GENERAL_SEARCH_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (currentsapi.services/v1/search, free tier 200 req/day). Requires CURRENTS_API_KEY. Real-time global news from 50+ countries.",
     },
@@ -1469,15 +1646,13 @@ export const GENERAL_SEARCH_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: [],
       notes:
         "API (noozra.com/api/search, free, no auth, 100 req/day per IP). News headlines from 200+ curated RSS sources. JSON response.",
     },
     useCleanTitle: false,
     // Noozra API: returns JSON with articles[] containing headline, url, published_at, source
     apiSearch: {
-      url: (keyword) =>
-        `https://noozra.com/api/search?q=${encodeURIComponent(keyword)}&limit=10`,
+      url: (keyword) => `https://noozra.com/api/search?q=${encodeURIComponent(keyword)}&limit=10`,
       parser: (text) => {
         const data = JSON.parse(text);
         if (!data.articles) return [];
@@ -1523,7 +1698,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp"],
       notes:
         "API (reddit.com/search.json, free, no auth) → CDP fallback. Reddit returns JSON directly.",
     },
@@ -1575,7 +1749,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
-      fallbacks: ["cdp"],
       notes:
         "API (hn.algolia.com/api/v1/search, free, no auth) → CDP fallback. Returns JSON directly.",
     },
@@ -1622,7 +1795,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Search page DOM scraping. No public API.",
     },
     useCleanTitle: false,
@@ -1647,7 +1819,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes: "CDP only. Search page DOM scraping. No public API.",
     },
     useCleanTitle: false,
@@ -1672,7 +1843,6 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes:
         "CDP only (Google site:techmeme.com). Techmeme has no search; uses Google site: search. No public API.",
     },
@@ -1710,14 +1880,14 @@ export const LAST30DAYS_SOURCES = [
 
 export const WECHAT_ACCOUNT_SOURCES = [
   {
-    name: "wechat_dongchabeating",
-    label: "动察Beating（公众号）",
-    account: "动察Beating",
-    category: "wechat",
-    supportsKeyword: false,
+name: "wechat_dongchabeating",
+label: "动察Beating（公众号）",
+account: "动察Beating",
+category: "wechat",
+locale: "zh-CN",
+supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
-      fallbacks: [],
       notes:
         "CDP only. Google search for republished WeChat articles. No keyword search, homepage-only.",
     },
@@ -1755,6 +1925,145 @@ export const WECHAT_ACCOUNT_SOURCES = [
   },
 ];
 
+// ─── Wechat2RSS public sources ───
+// Public third-party RSS only. These sources do not use a WeChat account,
+// a WeChat Reading session, or an official WeChat API from this project.
+function decodeRssText(value = "") {
+  return value
+    .replace(/^<!\[CDATA\[/i, "")
+    .replace(/\]\]>$/i, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getRssTag(item, tag) {
+  const match = item.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\/${tag}>`, "i"));
+  return match ? decodeRssText(match[1]) : "";
+}
+
+export function parseWechatRss(text) {
+  const results = [];
+  const itemRegex = /<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi;
+  let match;
+  while ((match = itemRegex.exec(text)) !== null) {
+    const item = match[1];
+    const title = getRssTag(item, "title");
+    const url = getRssTag(item, "link");
+    const publishedAt = getRssTag(item, "pubDate");
+    const description = getRssTag(item, "description") || getRssTag(item, "content:encoded");
+    if (!title || !url) continue;
+    results.push({
+      title,
+      url,
+      snippet: description.substring(0, 200),
+      publishedAt,
+    });
+  }
+  return results;
+}
+
+const WECHAT_RSS_TRACKING = Object.freeze({
+  provider: "wechat2rss",
+  access: "public-rss",
+  official: false,
+  stability: "third-party",
+  freshnessWindowDays: 14,
+});
+
+function createWechatRssSource(name, label, feedUrl) {
+return {
+name,
+label,
+category: "wechat",
+locale: "zh-CN",
+supportsKeyword: false,
+needsAuth: false,
+    useCleanTitle: false,
+    accessMethod: {
+      primary: "api",
+      notes:
+        "Public third-party RSS. No WeChat account, login, or official API is used by this project.",
+    },
+    tracking: WECHAT_RSS_TRACKING,
+    apiSearch: {
+      url: () => feedUrl,
+      parser: parseWechatRss,
+      authRequired: false,
+    },
+    url: () => feedUrl,
+    extractScript: "var results = []; return results;",
+  };
+}
+
+export const WECHAT_RSS_SOURCES = [
+  createWechatRssSource(
+    "wechat2rss_geekpark",
+    "极客公园",
+    "https://wechat2rss.xlab.app/feed/1a5aec98e71c707c8ca092bc2c255b9d4bac477d.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_bytedance_tech",
+    "字节跳动技术团队",
+    "https://wechat2rss.xlab.app/feed/4025ea55575daf8bfd8227e68b28d9638b073267.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_meituan_tech",
+    "美团技术团队",
+    "https://wechat2rss.xlab.app/feed/eb4d04149424a874693a51c6fdda0dba8673f5e4.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_jiqizhixin",
+    "机器之心",
+    "https://wechat2rss.xlab.app/feed/51e92aad2728acdd1fda7314be32b16639353001.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_zhinengyuan",
+    "新智元",
+    "https://wechat2rss.xlab.app/feed/ede30346413ea70dbef5d485ea5cbb95cca446e7.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_qbitai",
+    "量子位",
+    "https://wechat2rss.xlab.app/feed/7131b577c61365cb47e81000738c10d872685908.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_ai_cv",
+    "我爱计算机视觉",
+    "https://wechat2rss.xlab.app/feed/b81ffcfff1107b5265cd7e39de610dc7ca72caf4.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_datawhale",
+    "Datawhale",
+    "https://wechat2rss.xlab.app/feed/4d620d988cb21cfeefd2263207221f0dc70df9ff.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_tencent_tech",
+    "腾讯技术工程",
+    "https://wechat2rss.xlab.app/feed/9685937b45fe9c7a526dbc32e4f24ba879a65b9a.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_xiaomi_tech",
+    "小米技术",
+    "https://wechat2rss.xlab.app/feed/20bc9c3251b3c4f73d3b53aa1f1ab853d05d4cbc.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_alicloud_dev",
+    "阿里云开发者",
+    "https://wechat2rss.xlab.app/feed/c74ed6db00cfbf16f2a048a165b4453f982681f0.xml",
+  ),
+  createWechatRssSource(
+    "wechat2rss_alibaba_tech",
+    "阿里技术",
+    "https://wechat2rss.xlab.app/feed/6e1f9b775f7a5841ac1a94310f0478b45a02ec01.xml",
+  ),
+];
+
 // WeChat Platform API configuration (optional, for direct article list crawling)
 // Requires cookie + token from mp.weixin.qq.com login session.
 // See: https://github.com/mashukui/wechat_official_account_crawler
@@ -1775,15 +2084,932 @@ export const WECHAT_API_CONFIG = {
   //   Use WECHAT_ACCOUNT_SOURCES (Google search for republished articles) instead.
 };
 
+// ─── Stock API sources (image/video) ───
+//
+// Stock API sources for image and video search. These sources do NOT have
+// an articles capability — they are used exclusively by asset-sourcer.mjs
+// for media download. They are queried via capabilities.images or
+// capabilities.videos.
+//
+// Each source has a capabilities.images or capabilities.videos object with:
+//   method: "api" (API-based search)
+//   requiresApiKey: boolean
+//   apiKeyEnv: string | null
+//   searchUrl: (keyword, key) => string
+//   parseResponse: (data, keyword) => Array
+//   authHeader?: string
+//   authValue?: (key) => string
+//   userAgent?: string
+
+export const STOCK_API_SOURCES = [
+  {
+    name: "pexels",
+    label: "Pexels",
+    category: "stock_api",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes: "API (api.pexels.com, requires PEXELS_API_KEY). Image search.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      images: {
+        method: "api",
+        requiresApiKey: true,
+        apiKeyEnv: "PEXELS_API_KEY",
+        authHeader: "Authorization",
+        authValue: (key) => key,
+        searchUrl: (keyword, key) =>
+          `https://api.pexels.com/v1/search?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
+        parseResponse: (data, keyword) => {
+          const photos = (data.photos || []).map((p) => ({
+            title: p.alt || keyword,
+            url: p.src?.original || p.src?.large,
+            type: "image",
+            resolution: `${p.width}x${p.height}`,
+            fileSize: undefined,
+            duration: undefined,
+          }));
+          return photos;
+        },
+      },
+    },
+  },
+  {
+    name: "pexels-video",
+    label: "Pexels Videos",
+    category: "stock_api",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes: "API (api.pexels.com/videos, requires PEXELS_API_KEY). Video search.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      videos: {
+        method: "api",
+        requiresApiKey: true,
+        apiKeyEnv: "PEXELS_API_KEY",
+        authHeader: "Authorization",
+        authValue: (key) => key,
+        searchUrl: (keyword, key) =>
+          `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
+        parseResponse: (data, keyword) => {
+          return (data.videos || []).map((v) => {
+            const files = v.video_files || [];
+            const best = files.sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+            return {
+              title: v.user?.name ? `${v.user.name} video` : keyword,
+              url: best?.link || undefined,
+              type: "video",
+              resolution: best ? `${best.width}x${best.height}` : undefined,
+              fileSize: undefined,
+              duration: v.duration ? `${v.duration}s` : undefined,
+              author: v.user?.name,
+            };
+          });
+        },
+      },
+    },
+  },
+  {
+    name: "unsplash",
+    label: "Unsplash",
+    category: "stock_api",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes: "API (api.unsplash.com, requires UNSPLASH_ACCESS_KEY). Image search.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      images: {
+        method: "api",
+        requiresApiKey: true,
+        apiKeyEnv: "UNSPLASH_ACCESS_KEY",
+        authHeader: "Authorization",
+        authValue: (key) => `Client-ID ${key}`,
+        searchUrl: (keyword, key) =>
+          `https://api.unsplash.com/search/photos?query=${encodeURIComponent(keyword)}&orientation=portrait&per_page=10`,
+        parseResponse: (data, keyword) => {
+          return (data.results || []).map((p) => ({
+            title: p.alt_description || keyword,
+            url: p.urls?.full || p.urls?.regular,
+            type: "image",
+            resolution: `${p.width}x${p.height}`,
+            fileSize: undefined,
+            duration: undefined,
+          }));
+        },
+      },
+    },
+  },
+  {
+    name: "wikimedia",
+    label: "Wikimedia Commons",
+    category: "stock_api",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes: "API (commons.wikimedia.org, free, no auth). Image search.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      images: {
+        method: "api",
+        requiresApiKey: false,
+        apiKeyEnv: null,
+        userAgent: "ChinaAINews/1.0 (contact@china-ai.news)",
+        searchUrl: (keyword, key) =>
+          `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(keyword)}&srnamespace=6&format=json&srlimit=10`,
+        parseResponse: (data, keyword) => {
+          return (data.query?.search || []).map((item) => ({
+            title: item.title,
+            url: null,
+            type: "image",
+            resolution: undefined,
+            fileSize: undefined,
+            duration: undefined,
+            fileTitle: item.title,
+          }));
+        },
+      },
+    },
+  },
+  {
+    name: "coverr",
+    label: "Coverr",
+    category: "stock_api",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes: "API (api.coverr.co, requires COVERR_API_KEY). Video search.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      videos: {
+        method: "api",
+        requiresApiKey: true,
+        apiKeyEnv: "COVERR_API_KEY",
+        authHeader: "Authorization",
+        authValue: (key) => `Bearer ${key}`,
+        searchUrl: (keyword, key) =>
+          `https://api.coverr.co/videos?query=${encodeURIComponent(keyword)}`,
+        parseResponse: (data, keyword) => {
+          const hits = data.hits || [];
+          return hits.map((v) => ({
+            title: v.title || keyword,
+            url: `https://cdn.coverr.co/videos/${v.base_filename}/mp4?token=${data.params?.userToken || ""}`,
+            type: "video",
+            resolution: v.is_vertical ? "vertical" : "horizontal",
+            fileSize: undefined,
+            duration: undefined,
+            baseFilename: v.base_filename,
+          }));
+        },
+      },
+    },
+  },
+  {
+    name: "pixabay",
+    label: "Pixabay",
+    category: "stock_api",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes: "API (pixabay.com/api, requires PIXABAY_API_KEY). Image search.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      images: {
+        method: "api",
+        requiresApiKey: true,
+        apiKeyEnv: "PIXABAY_API_KEY",
+        searchUrl: (keyword, key) =>
+          `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(keyword)}&image_type=photo&orientation=vertical&per_page=10`,
+        parseResponse: (data, keyword) => {
+          return (data.hits || []).map((p) => ({
+            title: p.tags || keyword,
+            url: p.largeImageURL || p.webformatURL,
+            type: "image",
+            resolution: `${p.imageWidth}x${p.imageHeight}`,
+            fileSize: undefined,
+            duration: undefined,
+            author: p.user,
+          }));
+        },
+      },
+    },
+  },
+];
+
+// ─── CDP image extraction capabilities ───
+//
+// Capabilities config for sources that also have image extraction via CDP.
+// These are merged into the source definitions below via enrichWithCapabilities.
+// Each config has: method:"cdp", url(keyword), primaryScript, fallbackScript
+
+const CDP_IMAGE_CAPABILITIES = {
+  ithome: {
+    method: "cdp",
+    url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.list .item, .news-list .item, article, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = (el.querySelector('.title, h3, h2')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && img) {
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  jiqizhixin: {
+    method: "cdp",
+    url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = (el.querySelector('.article__title, h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && img) {
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  google_news: {
+    method: "cdp",
+    url: (keyword) =>
+      `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
+    primaryScript: `
+      var results = [];
+      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h3, .LC20lb');
+        var img = el.querySelector('img[src]');
+        var snippet = el.querySelector('.VwiC3b, .IsZvec');
+        var titleText = title ? title.textContent.trim() : '';
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && titleText) {
+          if (img) {
+            results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+          } else {
+            results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+          }
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          if (!img.src.includes('gstatic') && !img.src.includes('google')) {
+            results.push({ title: img.alt || '', url: img.src, type: 'image' });
+          }
+        }
+      });
+      return results;
+    `,
+  },
+  bing_news: {
+    method: "cdp",
+    url: (keyword) =>
+      `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
+    primaryScript: `
+      var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('h3, h2, .title, .b_caption p');
+        var titleText = title ? title.textContent.trim() : '';
+        var snippet = el.querySelector('.snippet, .b_caption p:not(.title), .news_snippet, p');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && titleText) {
+          if (img) {
+            results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+          } else {
+            results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+          }
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          if (!img.src.includes('bing.com') && !img.src.includes('r.bing')) {
+            results.push({ title: img.alt || '', url: img.src, type: 'image' });
+          }
+        }
+      });
+      return results;
+    `,
+  },
+  xinhua: {
+    method: "cdp",
+    url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h3, h2, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && img) {
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  thepaper: {
+    method: "cdp",
+    url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h3, h2, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && img) {
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  leiphone: {
+    method: "cdp",
+    url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && img) {
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  xinzhiyuan: {
+    method: "cdp",
+    url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && img) {
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+  zhidx: {
+    method: "cdp",
+    url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
+    primaryScript: `
+      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = (el.querySelector('h2, h3, .title')?.textContent || link?.textContent || '').trim();
+        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
+        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
+        if (link && img) {
+          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
+        } else if (link && title) {
+          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
+        }
+      });
+      return results;
+    `,
+    fallbackScript: `
+      var imgs = document.querySelectorAll('img[src]');
+      var results = [];
+      imgs.forEach(function(img) {
+        if (img.naturalWidth > 200 || img.width > 200) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
+};
+
+// ─── yt-dlp video capabilities ───
+//
+// Capabilities config for sources that also have video extraction via yt-dlp.
+// These are merged into the source definitions below via enrichWithCapabilities.
+
+const YTDLP_VIDEO_CAPABILITIES = {
+  bilibili: {
+    method: "ytdlp",
+    platform: "bilibili",
+  },
+  // T2: douyin, xhs, weibo_hot removed — yt-dlp does not support these platforms.
+  // searchYtdlp() would silently fall through to YouTube search, producing wrong-attribution results.
+  // These platforms still have capabilities.articles for trend discovery.
+  // Alternative downloaders (RedNote-MCP, weibo-downloader, Douyin_TikTok_Download_API) are tracked separately.
+  youtube_search: {
+    method: "ytdlp",
+    platform: "youtube",
+  },
+};
+
+// T2: Set of platforms that searchYtdlp() actually supports.
+// Any platform not in this set returns [] immediately.
+export const SUPPORTED_YTDLP_PLATFORMS = new Set(["bilibili", "youtube"]);
+
+// ─── SOURCE_ATTRIBUTIONS ───
+//
+// Attribution data per source. Used to generate credits for TikTok description.
+// Moved from asset-sourcer.mjs to source-registry.mjs so both consumers
+// (trend discovery and asset sourcer) share the same source of truth.
+
+export const SOURCE_ATTRIBUTIONS = {
+  pexels: {
+    text: (a) => `Photo by ${a.author || "Unknown"} from Pexels`,
+    license: "Pexels License",
+    logoRequired: false,
+  },
+  "pexels-video": {
+    text: (a) => `Video by ${a.author || "Unknown"} from Pexels`,
+    license: "Pexels License",
+    logoRequired: false,
+  },
+  unsplash: {
+    text: (a) => `Photo by ${a.author || "Unknown"} on Unsplash`,
+    license: "Unsplash License",
+    logoRequired: false,
+  },
+  pixabay: {
+    text: () => `Source: Pixabay (https://pixabay.com)`,
+    license: "Pixabay Content License",
+    logoRequired: true,
+  },
+  wikimedia: {
+    text: (a) => `${a.author || "Unknown"} via Wikimedia Commons (${a.license || "CC-BY-SA 4.0"})`,
+    license: "CC-BY-SA 4.0",
+    logoRequired: false,
+    dynamicAttribution: true,
+  },
+  coverr: {
+    text: () => `Video from Coverr (https://coverr.co)`,
+    license: "Coverr License",
+    logoRequired: false,
+  },
+  // R3: Key matches yt-dlp source name (youtube_search, not youtube)
+  youtube_search: {
+    text: (a) => `Contains footage from ${a.author || a.title || "Unknown"} (YouTube)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  bilibili: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (B站)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  douyin: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (抖音)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  // R3: Keys match yt-dlp source names in capabilities.videos (xhs, weibo_hot)
+  xhs: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (小红书)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  weibo_hot: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (微博)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  ithome: {
+    text: () => `图片来源: IT之家 (ithome.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  jiqizhixin: {
+    text: () => `图片来源: 机器之心 (jiqizhixin.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  xinhua: {
+    text: () => `图片来源: 新华网 (news.cn)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  thepaper: {
+    text: () => `图片来源: 澎湃新闻 (thepaper.cn)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  leiphone: {
+    text: () => `图片来源: 雷锋网 (leiphone.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  xinzhiyuan: {
+    text: () => `图片来源: 新智元 (xinzhiyuan.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  zhidx: {
+    text: () => `图片来源: 智东西 (zhidx.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  google_news: {
+    text: (a) => `Image source: ${a.sourceUrl || "Google News"}`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  bing_news: {
+    text: (a) => `Image source: ${a.sourceUrl || "Bing News"}`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  // ─── WeChat RSS sources (微信公众号 RSS 转载) ───
+  wechat2rss_geekpark: {
+    text: () => `文章来源: 极客公园 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_bytedance_tech: {
+    text: () => `文章来源: 字节跳动技术团队 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_meituan_tech: {
+    text: () => `文章来源: 美团技术团队 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_jiqizhixin: {
+    text: () => `文章来源: 机器之心 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_zhinengyuan: {
+    text: () => `文章来源: 新智元 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_qbitai: {
+    text: () => `文章来源: 量子位 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_ai_cv: {
+    text: () => `文章来源: 我爱计算机视觉 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_datawhale: {
+    text: () => `文章来源: Datawhale (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_tencent_tech: {
+    text: () => `文章来源: 腾讯技术工程 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_xiaomi_tech: {
+    text: () => `文章来源: 小米技术 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_alicloud_dev: {
+    text: () => `文章来源: 阿里云开发者 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat2rss_alibaba_tech: {
+    text: () => `文章来源: 阿里技术 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  // ─── Additional trend discovery / search sources ───
+  qbitai: {
+    text: (a) => `文章来源: 量子位 (qbitai.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  "36kr": {
+    text: (a) => `文章来源: 36氪 (36kr.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  techcrunch: {
+    text: (a) => `Article source: TechCrunch (techcrunch.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  bloomberg: {
+    text: (a) => `Article source: Bloomberg (bloomberg.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  guancha: {
+    text: (a) => `文章来源: 观察者网 (guancha.cn)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  sogou_weixin: {
+    text: (a) => `文章来源: 搜狗微信 (weixin.sogou.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  tiktok_creator: {
+    text: (a) => `Content source: TikTok Creator (via ScrapeCreators API)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  zhihu: {
+    text: (a) => `文章来源: 知乎 (zhihu.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  x_search: {
+    text: (a) => `Post source: X/Twitter (x.com)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  arxiv_search: {
+    text: (a) => `Paper source: arXiv (arxiv.org)`,
+    license: "arXiv License",
+    logoRequired: false,
+  },
+  github_search: {
+    text: (a) => `Code source: GitHub (github.com)`,
+    license: "Open source",
+    logoRequired: false,
+  },
+  threads_search: {
+    text: (a) => `Post source: Threads (threads.net)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  datacube_ai: {
+    text: (a) => `Data source: DataCube AI (datacube.ai)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  gnews: {
+    text: (a) => `Article source: GNews (gnews.io)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  core_search: {
+    text: (a) => `Paper source: CORE (core.ac.uk)`,
+    license: "Open access",
+    logoRequired: false,
+  },
+  openalex_search: {
+    text: (a) => `Paper source: OpenAlex (openalex.org)`,
+    license: "Open access",
+    logoRequired: false,
+  },
+  google_search: {
+    text: (a) => `Search source: Google Search (google.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  baidu_search: {
+    text: (a) => `文章来源: 百度搜索 (baidu.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  mcp_grok_search: {
+    text: (a) => `Search source: Grok (via MCP)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  currents: {
+    text: (a) => `Article source: Currents API (currentsapi.services)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  noozra_search: {
+    text: (a) => `Search source: Noozra (noozra.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  reddit_search: {
+    text: (a) => `Post source: Reddit (reddit.com)`,
+    license: "Platform ToS",
+    logoRequired: false,
+  },
+  hackernews_search: {
+    text: (a) => `Post source: Hacker News (news.ycombinator.com)`,
+    license: "Public domain",
+    logoRequired: false,
+  },
+  polymarket_search: {
+    text: (a) => `Data source: Polymarket (polymarket.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  digg_search: {
+    text: (a) => `Article source: Digg (digg.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  techmeme_search: {
+    text: (a) => `Article source: Techmeme (techmeme.com)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat_dongchabeating: {
+    text: () => `文章来源: 冬奥速递 (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+};
+
+// ─── Capabilities enrichment ───
+//
+// Automatically adds a `capabilities` object to each source based on its
+// existing fields. Sources that have extractScript get capabilities.articles.
+// Sources that are in CDP_IMAGE_CAPABILITIES get capabilities.images.
+// Sources that are in YTDLP_VIDEO_CAPABILITIES get capabilities.videos.
+//
+// Stock API sources already have explicit capabilities and are not processed.
+
+function enrichWithCapabilities(sources) {
+  return sources.map((source) => {
+    // Skip sources that already have capabilities (stock API sources)
+    if (source.capabilities) return source;
+
+    const capabilities = {};
+
+    // R4: Articles — migrate all article-consumption fields into capabilities.articles
+    // so it becomes the complete source of truth. Top-level fields remain for
+    // backward compat with consumers that haven't migrated yet.
+    if (source.extractScript) {
+      capabilities.articles = {
+        supportsKeyword: source.supportsKeyword,
+        url: source.url,
+        extractScript: source.extractScript,
+        loginCheckScript: source.loginCheckScript || null,
+        needsAuth: source.needsAuth || false,
+        useCleanTitle: source.useCleanTitle || false,
+      };
+    }
+
+    // Images: from CDP_IMAGE_CAPABILITIES
+    if (CDP_IMAGE_CAPABILITIES[source.name]) {
+      capabilities.images = CDP_IMAGE_CAPABILITIES[source.name];
+    }
+
+    // Videos: from YTDLP_VIDEO_CAPABILITIES
+    if (YTDLP_VIDEO_CAPABILITIES[source.name]) {
+      capabilities.videos = YTDLP_VIDEO_CAPABILITIES[source.name];
+    }
+
+    return { ...source, capabilities };
+  });
+}
+
 // ─── All sources combined ───
 
+const _ENRICHED_NEWS = enrichWithCapabilities(NEWS_SOURCES);
+const _ENRICHED_SELF_MEDIA = enrichWithCapabilities(SELF_MEDIA_SOURCES);
+const _ENRICHED_INTERNATIONAL = enrichWithCapabilities(INTERNATIONAL_SOURCES);
+const _ENRICHED_GENERAL = enrichWithCapabilities(GENERAL_SEARCH_SOURCES);
+const _ENRICHED_LAST30DAYS = enrichWithCapabilities(LAST30DAYS_SOURCES);
+const _ENRICHED_WECHAT_ACCOUNT = enrichWithCapabilities(WECHAT_ACCOUNT_SOURCES);
+const _ENRICHED_WECHAT_RSS = enrichWithCapabilities(WECHAT_RSS_SOURCES);
+
 export const ALL_SOURCES = [
-  ...NEWS_SOURCES,
-  ...SELF_MEDIA_SOURCES,
-  ...WESTERN_SOURCES,
-  ...GENERAL_SEARCH_SOURCES,
-  ...LAST30DAYS_SOURCES,
-  ...WECHAT_ACCOUNT_SOURCES,
+  ..._ENRICHED_NEWS,
+  ..._ENRICHED_SELF_MEDIA,
+  ..._ENRICHED_INTERNATIONAL,
+  ..._ENRICHED_GENERAL,
+  ..._ENRICHED_LAST30DAYS,
+  ..._ENRICHED_WECHAT_ACCOUNT,
+  ..._ENRICHED_WECHAT_RSS,
+  ...STOCK_API_SOURCES,
 ];
 
 /**

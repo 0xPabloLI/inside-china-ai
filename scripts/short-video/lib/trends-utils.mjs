@@ -2,7 +2,7 @@
  * Trend discovery utilities for China AI news monitoring.
  *
  * Pure functions — no network IO, no side effects.
- * Used by discover-trends.mjs and testable in isolation.
+ * Used by search-sources.mjs and testable in isolation.
  */
 
 // ─── China AI filter keywords ───
@@ -118,6 +118,20 @@ function titleMatchesKeyword(title, kw) {
  * @param {Array} articles - Array of { title, source, url }
  * @returns {Array} Filtered articles
  */
+/**
+ * Keep entries whose publication date falls within a source-local freshness window.
+ * Sources without a tracking window retain their current behavior unchanged.
+ */
+export function filterRecentTrackedArticles(articles, tracking, now = new Date()) {
+  const windowDays = tracking?.freshnessWindowDays;
+  if (!Number.isFinite(windowDays) || windowDays <= 0) return articles;
+  const cutoff = now.getTime() - windowDays * 24 * 60 * 60 * 1000;
+  return articles.filter((article) => {
+    const publishedAt = new Date(article.publishedAt).getTime();
+    return Number.isFinite(publishedAt) && publishedAt >= cutoff;
+  });
+}
+
 export function filterChinaAI(articles) {
   return articles.filter((article) => {
     const title = (article.title || "").toLowerCase();
@@ -276,13 +290,26 @@ export function buildOutputJson(articles) {
     // Group by category (re-classify if missing)
     const category = article.category || classifyTopic(article.title);
     if (topics[category]) {
-      topics[category].push({
+      const topicEntry = {
         title: article.title,
         sources: article.sources || [article.source],
         urls: article.urls || [article.url],
         keywords: extractKeywords(article.title),
         summary: "",
-      });
+      };
+
+      // T03 (#55): Extract imageUrl from article for cross-stage image caching
+      // Asset sourcer (Stage 4) reads these cached URLs to skip redundant CDP requests
+      if (article.imageUrl) {
+        topicEntry.images = [
+          {
+            url: article.imageUrl,
+            sourceArticle: article.url || (article.urls && article.urls[0]) || null,
+          },
+        ];
+      }
+
+      topics[category].push(topicEntry);
     }
   }
 

@@ -40,17 +40,19 @@
 3. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
 4. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
 
-   > **Context Hygiene**：Step 1-3 必须保持在同一个 unbroken context window 中——在 `/to-tickets` 完成前不要 `/clear` 或 `/compact`。Grilling 的推理过程是 spec 和 tickets 的 primary source，压缩会丢失「为什么」。如果 session 接近 smart zone（~150k tokens），在最近的 phase boundary 做 `/compact`（见下方 Phase Boundaries）。
+   > **Context Hygiene**：Step 1-4 必须保持在同一个 unbroken context window 中。Grilling 的推理过程是 spec 和 tickets 的 primary source，压缩会丢失「为什么」。如果 session 接近 smart zone（~150k tokens），在最近的 phase boundary（Step 1-3 完成后，或 Step 4 内某个 ticket 完成后）做 `/compact`。压缩前必须将当前 ticket 的 checklist 状态落盘——在 ticket 文件中把已完成的项从 `- [ ]` 改为 `- [x]`，这是压缩安全的唯一方式：context 会丢，文件不会。
 
    1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案（v1.2：grilling 采用 round-based design tree，每轮批量提问 + 推荐答案，等用户回答后进入下一轮）。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
 
    1b. **Prototype Detour（可选）** — 当 grilling 中某个问题需要 runnable answer（状态模型是否合理、UI 长什么样）时，detour：`/handoff` 出去 → fresh session 中 `/prototype` → `/handoff` 回来。Prototype 生成单个自包含 HTML 文件（logic）或单一路由多变体（UI），保存在 `prototype/<name>` 分支作为 primary source。回到主线后引用 prototype 结论。
    2. **To Spec** — 用 `to-spec` skill 合成 spec。**必须包含 Scenario & Risk Verification 章节**（场景矩阵），含两个必填 section：Modified Files Impact + Behavioral Scenarios，矩阵行直接成为测试用例。**无矩阵 = spec 不完整**。格式见 `docs/conventions/scenario-matrix.md`。
-   3. **To Tickets** — 用 `to-tickets` skill 将 spec 拆分为带依赖边的 tracer-bullet tickets
-   4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。
+   3. **To Tickets** — 用 `to-tickets` skill 将 spec 拆分为带依赖边的 tracer-bullet tickets。**不需用户确认**——拆分完直接进入 Step 4 实施。
+   4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。每个 ticket 完成后立即在 ticket 文件中把 checklist 已完成项打 `[x]` 落盘。
+   >
+   > **压缩恢复协议**：`/compact` 后恢复时，必须先读取当前 ticket 文件，逐项核对 checklist 状态。Summary 会把「正在做」压缩成「已完成」；ticket 文件中的 `[x]` 是唯一可靠的状态来源。
    5. **Code Review** — 实施完成后用 `code-review` skill 做双轴审查（Standards + Spec）
 
-   > **Phase Boundaries**：Step 5 完成后是一个 phase boundary。context 切换决策（Continue / `/clear` / `/handoff` / Subagent / `/compact`）见 `ask-matt` skill 的 Phase Boundaries 决策树。
+   > **Phase Boundaries**：Step 5 完成后是 session-level phase boundary。Step 4 内每完成一个 ticket 是 ticket-level phase boundary——此时可做 `/compact`，但必须先落盘 ticket checklist。context 切换决策（Continue / `/clear` / `/handoff` / Subagent / `/compact`）见 `ask-matt` skill 的 Phase Boundaries 决策树。
 
    6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。
    7. **Commit & Push** — 通过验证后 commit + push（遵循 Commit Cadence 规则）。
@@ -169,11 +171,13 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 | 场景 | 工具 |
 |------|------|
 | 技术文档 | Context7 MCP |
-| 事实查询 / URL 抓取 | `web_fetch` → `web-access` CDP（fallback）；CDP 不方便时 Tavily MCP（省着用） |
+| 事实查询 / URL 抓取 | `web_fetch` → `web-access` CDP（fallback） |
 | 深度研究 | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
 | 趋势发现 | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X） |
 
 用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
+
+**Tavily MCP 是有限付费资源。** 已知 URL 一律用 `web_fetch`（免费、无限制）；GitHub 无反爬，`web_fetch` 直接可读。用 Tavily 前必须先走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily。只有 `web_fetch` 返回空/超时/JS 渲染失败 **且** CDP 也无法完成（如需要多关键词并行搜索、需要 AI 结构化摘要）时，才用 Tavily。
 
 **工具/API 发现**：需要找免费 API、替代付费 SaaS、补充搜索源或素材源、查某领域有哪些可用工具时，查 `docs/tools-catalog.md`（本项目所有可用工具/服务/API 的完整清单 + 评估流程 + 任务→工具决策表 + Pipeline API 候选）。新增工具必须先走完 4 步评估流程再入库。
 

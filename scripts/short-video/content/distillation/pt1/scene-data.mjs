@@ -52,10 +52,10 @@ export const scenes = [
     voiceover:
       "Every Claude response included an encrypted Blob containing its raw thinking. Inject a forged Blob, and Claude would recite its own hidden reasoning. The cost? Tens of thousands of dollars.",
     texts: {
-      title: "THE ",
+      title: "THE",
       titleHighlight: "CRACK",
       titleSuffix: " SEQUENCE",
-      cost: "Cost: ",
+      cost: "Cost:",
       costHighlight: "tens of thousands of dollars",
       events: [
         { date: "STEP 1", text: "FORGE BLOB" },
@@ -105,7 +105,7 @@ export const scenes = [
       vs: "VS",
       left: ["NAMED", "DeepSeek", "Moonshot", "MiniMax"],
       right: ["NOT NAMED", "Qwen", "Z.ai", "Others?"],
-      note: "Moonshot ",
+      note: "Moonshot",
       noteHighlight: "never responded publicly",
     },
   },

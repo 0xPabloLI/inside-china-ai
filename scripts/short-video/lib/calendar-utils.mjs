@@ -34,7 +34,7 @@ const PILLAR_ORDER = ["breaking", "fermenting", "data", "explainer"];
 /**
  * Distribute topics across 7 days by pillar ratio.
  *
- * @param {Object} topicsData - Output from discover-trends.mjs
+ * @param {Object} topicsData - Output from search-sources.mjs (--trend mode)
  * @returns {Array} 7 day objects with { day, type, topic, hookFormula, duration }
  */
 export function distributeTopics(topicsData, customRatio) {
@@ -92,7 +92,7 @@ export function distributeTopics(topicsData, customRatio) {
 /**
  * Build the final weekly plan JSON structure.
  *
- * @param {Object} topicsData - Output from discover-trends.mjs
+ * @param {Object} topicsData - Output from search-sources.mjs (--trend mode)
  * @returns {Object} { generatedAt, totalTopics, sourceStats, days }
  */
 export function buildWeeklyPlan(topicsData, customRatio) {

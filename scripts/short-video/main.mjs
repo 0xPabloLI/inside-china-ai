@@ -16,7 +16,7 @@
  */
 
 import { writeFileSync, mkdirSync, readdirSync, existsSync } from "fs";
-import { join, dirname, resolve } from "path";
+import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
@@ -83,6 +83,17 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Step 0.5: Currency normalization (RMB → USD dual-annotation) ──
+  // Auto-inserts $X (¥Y) format before TTS runs, enforcing the currency
+  // rule by code. Non-blocking: if it fails, scenes pass through unchanged.
+  try {
+    const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
+    normalizeSceneData(scenes, meta);
+    console.log("💱 Step 0.5: Currency normalization complete (RMB → USD dual-annotation)\n");
+  } catch (e) {
+    console.warn(`⚠️  Currency normalization skipped: ${e.message}\n`);
+  }
+
   // ── Version number (timestamp-based, for output file naming) ──
   const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
@@ -91,7 +102,8 @@ async function main() {
   console.log(`   Pipeline ID: ${meta.pipelineId}`);
   console.log(`   Version: ${version}`);
   // ── Renderer selection ──
-  const useRemotion = process.argv.includes("--remotion") || meta.renderer === "remotion";
+  // Default: Remotion (better quality). Opt out with --playwright or meta.renderer="playwright".
+  const useRemotion = !process.argv.includes("--playwright") && meta.renderer !== "playwright";
   console.log(
     `   Renderer: ${useRemotion ? "Remotion (React → frame-by-frame)" : "Playwright (HTML → screen record)"}`,
   );
@@ -120,6 +132,83 @@ async function main() {
   if (!hasFfmpeg) {
     console.error("❌ FFmpeg is required but not found. Install with: brew install ffmpeg");
     process.exit(1);
+  }
+
+  // ── Focus detector dependency check (optional, warning only) ──
+  // detectFocus() gracefully degrades if OpenCV not installed, so this is
+  // a warning, not a hard failure. See spec §7.1.
+  const focusScript = join(__dirname, "lib", "focus_detector.py");
+  if (existsSync(focusScript)) {
+    try {
+      execSync(
+        `${join(process.env.HOME || "", ".video-tts-env/bin/python3")} -c "import cv2; assert hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'saliency')"`,
+        { stdio: "pipe", timeout: 5000 },
+      );
+    } catch {
+      console.warn("⚠️  OpenCV not available — focus detection will be skipped (degraded mode).");
+      console.warn("   Install: pip install -r scripts/short-video/lib/requirements-focus.txt");
+    }
+  }
+
+  // ── Step 1.5: Asset sourcing (auto-search missing media) ──
+  // For each scene with media where the file doesn't exist → trigger asset-sourcer.
+  // Non-blocking: if search fails, scene renders without media (graceful degradation).
+  const scenesNeedingMedia = scenes.filter((s) => {
+    if (!s.media?.path) return false;
+    const contentDirAbs = resolve(__dirname, "content", contentDir);
+    const mediaPath = resolve(contentDirAbs, s.media.path);
+    return !existsSync(mediaPath);
+  });
+  if (scenesNeedingMedia.length > 0) {
+    console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
+    try {
+      const contentDirAbs = resolve(__dirname, "content", contentDir);
+      const { extractKeywords, main: sourcerMain } = await import("./lib/asset-sourcer.mjs");
+      const keywords = extractKeywords(scenes, meta, []);
+      const companyKeyword = meta?.keyEntities?.companies?.[0] || keywords[0] || "china ai";
+      console.log(`  Searching for: ${companyKeyword}`);
+      // Run asset-sourcer in non-interactive mode
+      await sourcerMain([
+        "--content",
+        contentDir,
+        "--keywords",
+        companyKeyword,
+        "--non-interactive",
+      ]);
+      console.log();
+    } catch (e) {
+      console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
+    }
+  }
+
+  // ── Step 1.5b: Media upscale (auto-upscale sub-720p media) ──
+  // Only processes confirmed media files (Cascade: selected first, then enhanced).
+  // Non-blocking: if upscale fails, original file is used.
+  const scenesWithMedia = scenes.filter((s) => s.media?.path);
+  if (scenesWithMedia.length > 0) {
+    console.log("🖼️ Step 1.5b: Checking media resolution for upscale...\n");
+    try {
+      const { autoUpscaleIfNeeded } = await import("./lib/upscale.mjs");
+      let upscaledCount = 0;
+      for (const scene of scenes) {
+        if (!scene.media?.path) continue;
+        const contentDirAbs = resolve(__dirname, "content", contentDir);
+        const mediaPath = resolve(contentDirAbs, scene.media.path);
+        const result = autoUpscaleIfNeeded(mediaPath);
+        if (result.upscaled) {
+          // Update scene to use the upscaled path (relative to content dir)
+          scene.media.path = relative(contentDirAbs, result.path);
+          upscaledCount++;
+          console.log(`  Scene ${scene.id}: upscaled to ${result.path.split("/").pop()}`);
+        }
+      }
+      if (upscaledCount === 0) {
+        console.log("  All media already ≥720p — no upscale needed");
+      }
+      console.log();
+    } catch (e) {
+      console.warn(`⚠️  Media upscale skipped: ${e.message}\n`);
+    }
   }
 
   // ── Isolated output directory ──
@@ -270,14 +359,22 @@ async function main() {
   } else if (!subtitles) {
     console.log("🔍 Step 6: Subtitle verification skipped (no subtitles generated)\n");
   } else {
-    console.log("🔍 Step 6: Verifying rendered subtitles with auto-retry (max-retries=" + maxRetries + ")...\n");
+    console.log(
+      "🔍 Step 6: Verifying rendered subtitles with auto-retry (max-retries=" +
+        maxRetries +
+        ")...\n",
+    );
 
     // Repair dispatch: maps failure categories to repair actions
     const repairFn = (category, report) => {
       const findBaseAndBurn = () => {
         const presubsPath = result.path.replace("-short.mp4", "-short-presubs.mp4");
         const rawPath = result.path.replace("-short.mp4", "-short-raw.mp4");
-        const basePath = existsSync(presubsPath) ? presubsPath : (existsSync(rawPath) ? rawPath : null);
+        const basePath = existsSync(presubsPath)
+          ? presubsPath
+          : existsSync(rawPath)
+            ? rawPath
+            : null;
         if (!basePath) return null;
         burnSubtitles(basePath, subtitles.assPath, result.path);
         return { success: true, videoPath: result.path, assPath: subtitles.assPath };
@@ -289,7 +386,10 @@ async function main() {
         for (const s of report.audioSync?.scenes ?? []) {
           if (!s.ok) driftMap[s.sceneId] = s.drift;
         }
-        const cues = applyDriftCorrection(buildCues(subtitles.timingData, sceneDurations), driftMap);
+        const cues = applyDriftCorrection(
+          buildCues(subtitles.timingData, sceneDurations),
+          driftMap,
+        );
         writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
         return findBaseAndBurn() ?? { success: false };
       }
@@ -310,13 +410,14 @@ async function main() {
     };
 
     const { report: finalReport } = await verifyWithRetry({
-      verifyFn: () => verifySubtitles({
-        videoPath: result.path,
-        assPath: subtitles.assPath,
-        timingData: subtitles.timingData,
-        sceneDurations,
-        outputDir,
-      }),
+      verifyFn: () =>
+        verifySubtitles({
+          videoPath: result.path,
+          assPath: subtitles.assPath,
+          timingData: subtitles.timingData,
+          sceneDurations,
+          outputDir,
+        }),
       repairFn,
       maxRetries,
       videoPath: result.path,
@@ -324,7 +425,11 @@ async function main() {
     });
 
     if (!finalReport.summary.passed) {
-      console.error("❌ Subtitle verification failed after " + maxRetries + " retries — refusing to ship a broken video.");
+      console.error(
+        "❌ Subtitle verification failed after " +
+          maxRetries +
+          " retries — refusing to ship a broken video.",
+      );
       process.exit(1);
     }
   }

@@ -14,6 +14,7 @@
 
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
+import { mediaLayer } from "./media-bg.mjs";
 // Intentional ESM cycle: base-styles.mjs re-exports a few components from this
 // module. baseStyles is only used inside ctaScene() at call time (never at
 // module top level), so both modules finish evaluating safely.
@@ -295,15 +296,22 @@ function logoSvg(key) {
  *
  * The output carries brandBar, so withWatermark() skips injection — no
  * double branding on the channel open.
- * @param {object} scene - Scene object with texts
+ * @param {object} scene - Scene object with texts and optional media
  * @param {number} duration - Scene duration in seconds
+ * @param {string} [contentDir] - Absolute content directory path (for media resolution)
  * @returns {string} Complete HTML document
  */
-function hookScene(scene, duration) {
+function hookScene(scene, duration, contentDir) {
   const txt = scene.texts || {};
   const text = (key) => txt[key] ?? "";
   const color = /^(blue|red|amber|green|purple|cyan)$/.test(text("color")) ? text("color") : "blue";
   const rgb = COLOR_RGB[color];
+
+  // Optional media background (spec-hook-media-support.md D2)
+  const media =
+    contentDir && scene.media
+      ? mediaLayer(scene.media, contentDir, duration)
+      : { css: "", html: "" };
   // glowPulse is blue-only (its keyframe hardcodes a blue text-shadow);
   // every other glow on the card is a static same-color glow (D-3).
   const isBlue = color === "blue";
@@ -356,10 +364,10 @@ function hookScene(scene, duration) {
   const support = statsHtml || sourceHtml ? `${statsHtml}${sourceHtml}` : "";
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-${baseStyles(duration)}${templateCss()}${slotCss()}
+${baseStyles(duration)}${templateCss()}${slotCss()}${media.css}
 </style></head><body>
 <div class="scene s-hook">
-  <div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
+  ${media.html}<div class="grid-bg"></div><div class="glow-tint" style="background: radial-gradient(circle, rgba(${rgb},0.10) 0%, transparent 60%);"></div><div class="scanlines"></div><div class="scan-sweep"></div>
   ${brandBar()}
   ${sceneFrame({ kicker: badge, hero: subjectRow + focal, support })}
 </div></body></html>`;
@@ -412,6 +420,67 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
 </div></body></html>`;
 }
 
+/**
+ * CSS/SVG bar chart scene template for stock price / data visualization.
+ *
+ * Renders a pure CSS bar chart from texts.chartData:
+ *   { bars: [{ label: "IPO", value: 150, color?: "amber" }], yAxis: "PRICE (¥)", source: "..." }
+ *
+ * Chart bars fit in the hero slot, source line in the support slot.
+ * Falls back to an empty chart (source only) when chartData is missing.
+ *
+ * @param {object} scene - Scene object with texts.chartData
+ * @param {number} duration - Scene duration in seconds
+ * @returns {string} Complete HTML document
+ */
+function sceneChart(scene, duration) {
+  const txt = scene.texts || {};
+  const text = (key) => txt[key] ?? "";
+  const chartData = txt.chartData || {};
+  const bars = Array.isArray(chartData.bars) ? chartData.bars : [];
+  const yAxis = chartData.yAxis || "";
+  const source = chartData.source || text("source");
+
+  // Calculate max value for bar scaling
+  const maxValue = bars.length > 0 ? Math.max(...bars.map((b) => b.value || 0)) : 1;
+
+  const barsHtml =
+    bars.length > 0
+      ? bars
+          .map((b, i) => {
+            const pct = Math.max(((b.value || 0) / maxValue) * 100, 5); // min 5% for visibility
+            const color = b.color || "blue";
+            const rgb = COLOR_RGB[color] || COLOR_RGB.blue;
+            return `<div class="chart-bar" style="height: ${pct}%; background: linear-gradient(to top, var(--${color}), rgba(${rgb},0.6)); animation: slideUp 0.5s ease-out ${0.3 + i * 0.15}s forwards; opacity: 0;">
+          <div class="chart-value">${b.value}</div>
+          <div class="chart-label">${b.label}</div>
+        </div>`;
+          })
+          .join("")
+      : '<div class="chart-empty">No data</div>';
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+${baseStyles(duration)}${templateCss()}${slotCss()}
+    .s-chart .chart-title { font-size: 36px; font-weight: 900; color: var(--white); letter-spacing: 2px; text-align: center; }
+    .s-chart .chart-container { display: flex; align-items: flex-end; justify-content: center; gap: 40px; height: 100%; padding: 20px 0; }
+    .s-chart .chart-bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 140px; border-radius: 8px 8px 0 0; min-height: 20px; }
+    .s-chart .chart-value { font-size: 28px; font-weight: 900; color: var(--white); margin-bottom: 8px; }
+    .s-chart .chart-label { font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 1px; position: absolute; bottom: -32px; }
+    .s-chart .chart-bar { position: relative; }
+    .s-chart .chart-yaxis { font-size: 18px; font-weight: 700; color: var(--sec); letter-spacing: 2px; text-align: center; margin-bottom: 12px; }
+    .s-chart .chart-empty { font-size: 32px; font-weight: 700; color: var(--sec); text-align: center; }
+    .s-chart .chart-source { font-size: 20px; font-weight: 700; color: var(--sec); letter-spacing: 2px; text-align: center; }
+  </style></head><body>
+<div class="scene s-chart">
+  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
+  ${brandBar()}
+  ${sceneFrame({
+    hero: `<div class="chart-container">${barsHtml}</div>`,
+    support: `${yAxis ? `<div class="chart-yaxis">${yAxis}</div>` : ""}${source ? `<div class="chart-source">${source}</div>` : ""}`,
+  })}
+</div></body></html>`;
+}
+
 export {
   BRAND_MARK_SVG,
   templateCss,
@@ -428,4 +497,5 @@ export {
   logoSvg,
   hookScene,
   ctaScene,
+  sceneChart,
 };

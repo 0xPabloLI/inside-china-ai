@@ -146,7 +146,7 @@ function runManualMode() {
     console.log(`🏷️  Series: ${seriesId} Part ${partNum}/${totalParts}`);
   }
 
-  // All videos in this pipeline use TTS (F5-TTS/XTTS), so AI voice = true
+  // All videos in this pipeline use TTS (F5-TTS-MLX), so AI voice = true
   const guide = buildManualPublishGuide({
     videoPath: resolve(videoPath),
     caption,

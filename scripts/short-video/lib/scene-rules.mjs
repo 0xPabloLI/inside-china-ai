@@ -548,11 +548,52 @@ export function checkOneBreath(scenes) {
   ];
 }
 
-/** Hook on-screen text should contain a company name for subject visibility */
-export function checkSubjectVisibility(scenes) {
+/**
+ * Hook on-screen text should contain a company name for subject visibility.
+ *
+ * Company sources (in priority order):
+ * 1. meta.keyEntities.companies — the video's own company list (dynamic)
+ * 2. scene.texts.subject — hook template renders this field
+ * 3. KNOWN_COMPANIES — hardcoded fallback (backwards compat when no meta)
+ *
+ * @param {Array} scenes - scene-data array
+ * @param {Object} [meta] - video meta with keyEntities.companies array
+ * @returns {Array} result objects
+ */
+export function checkSubjectVisibility(scenes, meta) {
   const hookTexts = sceneTexts(scenes[0] || {});
-  const hasCompany = KNOWN_COMPANIES.some((c) => hookTexts.includes(c));
-  if (hasCompany) {
+
+  // 1. Dynamic: meta.keyEntities.companies (primary source)
+  const metaCompanies = meta?.keyEntities?.companies;
+  if (Array.isArray(metaCompanies) && metaCompanies.length > 0) {
+    const hasCompany = metaCompanies.some((c) => hookTexts.includes(c.toLowerCase()));
+    if (hasCompany) {
+      return [
+        {
+          level: "pass",
+          category: "Hook",
+          check: "Subject visibility in hook",
+          detail: "Company name in on-screen text (from meta)",
+        },
+      ];
+    }
+  }
+
+  // 2. Secondary: scene.texts.subject field (hook template renders this)
+  if (hookTexts && scenes[0]?.texts?.subject) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Subject visibility in hook",
+        detail: "Company name in on-screen text (subject field)",
+      },
+    ];
+  }
+
+  // 3. Fallback: KNOWN_COMPANIES list (backwards compat when meta not passed)
+  const hasKnownCompany = KNOWN_COMPANIES.some((c) => hookTexts.includes(c));
+  if (hasKnownCompany) {
     return [
       {
         level: "pass",
@@ -730,13 +771,20 @@ export function checkCTAStacking(scenes) {
   ];
 }
 
-/** Video should target one primary goal (<=2 goal signals) */
+/**
+ * Video should target one primary goal (<=2 goal signals).
+ *
+ * Three explicit CTA verb categories (spec: removed "completion" category
+ * which was too broad — "see", "look", "here is" are narration, not CTAs):
+ * - engagement: follow, subscribe
+ * - interaction: comment, tell, ask, question
+ * - amplification: share, save
+ */
 export function checkPrimaryGoal(scenes) {
   const goalIndicators = {
-    completion: /watch|see|look|here is|this is/i,
-    saves: /save|remember|note|keep|reference/i,
-    comments: /comment|tell|ask|question|what do/i,
-    shares: /share|send|forward|tag/i,
+    engagement: /\bfollow|subscribe\b/i,
+    interaction: /\bcomment|tell|ask|question\b/i,
+    amplification: /\bshare|save\b/i,
   };
   const allVO = scenes.map((s) => s.voiceover || "").join(" ");
   let goalCount = 0;
@@ -900,10 +948,40 @@ export function checkSemanticConsistency(scenes) {
   return results;
 }
 
-/** Loop-close: last scene should reference the hook for natural rewatch */
-export function checkLoopClose(scenes) {
+/**
+ * Loop-close: last scene should reference the hook for natural rewatch.
+ *
+ * Pass state (spec: when CTA contains a core number from meta.dataPoints,
+ * the loop-close is achieved — the ending recontextualizes the opening).
+ * Falls back to word matching when meta is not available (legacy behavior).
+ *
+ * @param {Array} scenes - scene-data array
+ * @param {Object} [meta] - video meta with optional dataPoints array
+ * @returns {Array} result objects
+ */
+export function checkLoopClose(scenes, meta) {
   const firstVO = (scenes[0]?.voiceover || "").toLowerCase();
   const lastVO = (scenes[scenes.length - 1]?.voiceover || "").toLowerCase();
+
+  // New: check if CTA contains any core number from meta.dataPoints
+  if (meta?.dataPoints && Array.isArray(meta.dataPoints)) {
+    const coreNumbers = meta.dataPoints.map((dp) => String(dp.value ?? "")).filter(Boolean);
+    if (coreNumbers.length > 0) {
+      const hasCoreNumber = coreNumbers.some((num) => lastVO.includes(num.toLowerCase()));
+      if (hasCoreNumber) {
+        return [
+          {
+            level: "pass",
+            category: "De-AI",
+            check: "Loop-close design",
+            detail: "Last scene references hook's core data point",
+          },
+        ];
+      }
+    }
+  }
+
+  // Fallback: word matching (legacy behavior, always warn)
   const firstWords = firstVO
     .split(/\s+/)
     .filter((w) => w.length > 4)
@@ -931,6 +1009,135 @@ export function checkLoopClose(scenes) {
   ];
 }
 
+/** Hook scene media warning (spec D5): warns when hook scene has no media
+ *  background, reminding the creator that visual impact may be insufficient
+ *  for the first 3 seconds. Passes when media is present or when there is no
+ *  hook scene. */
+export function checkHookMediaWarning(scenes) {
+  const hook = scenes[0];
+  if (hook?.visualType !== "hook") {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Hook media background",
+        detail: "No hook scene",
+      },
+    ];
+  }
+  if (hook.media) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Hook media background",
+        detail: `${hook.media.type}: ${hook.media.path}`,
+      },
+    ];
+  }
+  return [
+    {
+      level: "warn",
+      category: "Hook",
+      check: "Hook media background",
+      detail: "Hook scene has no media — visual impact may be insufficient for first 3 seconds",
+      fix: "Add scene.media to hook scene, or run asset-sourcer to auto-assign a high-quality cover image",
+    },
+  ];
+}
+
+/**
+ * Currency dual-annotation check: warns when RMB amounts in voiceover/texts
+ * do not have a USD equivalent nearby. This is a verify-time safety net —
+ * normalizeSceneData() in main.mjs Step 0 should have already fixed them.
+ * Detects ¥<number> or <number> (billion|million|thousand) yuan without
+ * a $ within 30 chars before the match.
+ */
+export function checkCurrencyDualAnnotation(scenes) {
+  const YEN_RE = /¥[\d,.]+/gi;
+  const YUAN_RE = /\d[\d,.]*\s*(?:billion|million|thousand)\s*yuan/gi;
+
+  for (const scene of scenes) {
+    const vo = scene.voiceover || "";
+    const texts = JSON.stringify(scene.texts || "");
+    const allText = vo + " " + texts;
+
+    for (const re of [YEN_RE, YUAN_RE]) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(allText)) !== null) {
+        const windowStart = Math.max(0, m.index - 30);
+        const before = allText.substring(windowStart, m.index);
+        if (!/\$\d/.test(before)) {
+          return [
+            {
+              level: "warn",
+              category: "Content",
+              check: "Currency dual-annotation (¥ → $)",
+              detail: `RMB amount "${m[0]}" without USD equivalent in scene ${scene.id}`,
+              fix: "Run normalizeSceneData() in main.mjs Step 0 to auto-fix, or manually add $X (¥Y) format",
+            },
+          ];
+        }
+      }
+    }
+  }
+
+  return [
+    {
+      level: "pass",
+      category: "Content",
+      check: "Currency dual-annotation (¥ → $)",
+    },
+  ];
+}
+
+/**
+ * Text concatenation check: detects on-screen text fields where concatenated
+ * title + titleHighlight produces two uppercase words joined without a space.
+ * E.g. texts.title="STRATEGIC" + texts.titleHighlight="BACKERS" → "STRATEGICBACKERS"
+ */
+export function checkTextConcatenation(scenes) {
+  for (const scene of scenes) {
+    const t = scene.texts;
+    if (!t) continue;
+    // Check known concatenation pairs
+    const pairs = [
+      ["title", "titleHighlight"],
+      ["line1", "line2"],
+    ];
+    for (const [a, b] of pairs) {
+      if (t[a] && t[b]) {
+        const combined = String(t[a]) + String(t[b]);
+        // Two uppercase words joined without space: ABCDEF + GHIJKL → ABCDEFGHIJKL
+        // Heuristic: if both are all-caps and combined has no separator
+        const aStr = String(t[a]);
+        const bStr = String(t[b]);
+        if (/^[A-Z]/.test(aStr) && /^[A-Z]/.test(bStr) && !/\s$/.test(aStr)) {
+          // The template should add a space — if the raw data doesn't have one
+          // at the boundary, the rendered output will concatenate without space
+          return [
+            {
+              level: "warn",
+              category: "De-AI",
+              check: "Text concatenation spacing",
+              detail: `Scene ${scene.id}: "${aStr}" + "${bStr}" may concatenate without space`,
+              fix: `Add space between ${a} and ${b} in template, or add trailing space in scene-data`,
+            },
+          ];
+        }
+      }
+    }
+  }
+  return [
+    {
+      level: "pass",
+      category: "De-AI",
+      check: "Text concatenation spacing",
+    },
+  ];
+}
+
 // ─── Aggregate runner ───
 
 /**
@@ -940,6 +1147,7 @@ export function checkLoopClose(scenes) {
  * @returns {{ pass: Array, warn: Array, fail: Array }}
  */
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
+  const meta = opts.meta || null;
   const allChecks = [
     ...checkSceneCount(scenes, opts),
     ...checkHookVisualType(scenes),
@@ -958,7 +1166,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkShareWorthyData(scenes),
     ...checkVoiceoverWordCount(scenes, opts),
     ...checkOneBreath(scenes),
-    ...checkSubjectVisibility(scenes),
+    ...checkSubjectVisibility(scenes, meta),
     ...checkSeriesMeta(seriesMeta),
     ...checkClickbait(scenes),
     ...checkUnverifiedClaims(scenes),
@@ -967,8 +1175,11 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkCTAStacking(scenes),
     ...checkPrimaryGoal(scenes),
     ...checkSemanticConsistency(scenes),
-    ...checkLoopClose(scenes),
+    ...checkLoopClose(scenes, meta),
     ...checkBodyTextVoRedundancy(scenes),
+    ...checkHookMediaWarning(scenes),
+    ...checkCurrencyDualAnnotation(scenes),
+    ...checkTextConcatenation(scenes),
   ];
 
   return {

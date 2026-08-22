@@ -411,4 +411,88 @@ describe("buildCues", () => {
       expect(cues[i].start).toBeGreaterThanOrEqual(cues[i - 1].end);
     }
   });
+
+  // ── Hold-out extension: fill inter-scene buffer gaps (spec ticket #03) ──
+
+  it("extends a cue's end to fill a gap under 0.6s that GAP_THRESHOLD misses", () => {
+    // Speech 1 ends at 3.0s → hold_out 0.5s → end = 3.5s
+    // Speech 2 starts at 4.0s → display_start = 4.0 - lead_in(0.067) = 3.933s
+    // Gap = 3.933 - 3.5 = 0.433s → under GAP_THRESHOLD (0.5), so existing
+    // layoutCues already closes it. We need a gap between 0.5 and 0.6.
+    //
+    // Speech 1 ends at 3.0s → hold_out 0.5s → end = 3.5s
+    // Speech 2 starts at 4.15s → display_start = 4.15 - 0.067 = 4.083s
+    // Gap = 4.083 - 3.5 = 0.583s → above GAP_THRESHOLD (0.5) but under
+    // SCENE_BUFFER + 0.1 (0.6). Hold-out extension should fill this.
+    const timing = [
+      {
+        sceneId: 1,
+        segments: [
+          {
+            text: "First.",
+            start: 2.5,
+            end: 3.0,
+            words: words(["First.", 2.5, 3.0]),
+          },
+          {
+            text: "Second.",
+            start: 4.15,
+            end: 4.65,
+            words: words(["Second.", 4.15, 4.65]),
+          },
+        ],
+      },
+    ];
+    const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
+    expect(cues).toHaveLength(2);
+    // The hold-out extension should have filled the gap to within CHAIN_GAP
+    expect(cues[1].start - cues[0].end).toBeLessThanOrEqual(2 * FRAME + 0.01);
+  });
+
+  it("does not extend cues when the gap is large (> 1.0s)", () => {
+    // Two cues with a large gap between them — no extension
+    const timing = [
+      {
+        sceneId: 1,
+        segments: [
+          {
+            text: "First.",
+            start: 0.5,
+            end: 1.2,
+            words: words(["First.", 0.5, 1.2]),
+          },
+          {
+            text: "Second.",
+            start: 3.0,
+            end: 3.7,
+            words: words(["Second.", 3.0, 3.7]),
+          },
+        ],
+      },
+    ];
+    const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
+    expect(cues).toHaveLength(2);
+    // Gap stays > 0.6s, no extension
+    expect(cues[1].start - cues[0].end).toBeGreaterThan(0.6);
+  });
+
+  it("single cue does not need extension", () => {
+    const timing = [
+      {
+        sceneId: 1,
+        segments: [
+          {
+            text: "Only cue.",
+            start: 0.5,
+            end: 1.2,
+            words: words(["Only", 0.5, 0.8], ["cue.", 0.85, 1.2]),
+          },
+        ],
+      },
+    ];
+    const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
+    expect(cues).toHaveLength(1);
+    // No extension needed — just hold-out
+    expect(cues[0].end).toBeCloseTo(1.2 + 0.5, 6);
+  });
 });

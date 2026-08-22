@@ -58,15 +58,15 @@ export const SLOT_X = {
  * @returns {string} CSS string
  */
 export function slotCss() {
-  const slot = (cls, top, height) =>
+  const slot = (cls, top, height, justify = "center") =>
     `.${cls} { position: absolute; left: ${SLOT_X.left}px; right: ${CANVAS.width - SLOT_X.right}px; ` +
     `top: ${top}px; height: ${height}px; display: flex; flex-direction: column; ` +
-    `justify-content: center; align-items: center; }`;
+    `justify-content: ${justify}; align-items: center; }`;
   return `
     /* ── Slot layout system (lib/scene-layout.mjs) ── */
-    ${slot("slot-kicker", SLOTS.kickerTitle.top, SLOTS.kickerTitle.bottom - SLOTS.kickerTitle.top)}
-    ${slot("slot-hero", SLOTS.hero.top, SLOTS.hero.bottom - SLOTS.hero.top)}
-    ${slot("slot-support", SLOTS.support.top, SLOTS.support.bottom - SLOTS.support.top)}
+    ${slot("slot-kicker", SLOTS.kickerTitle.top, SLOTS.kickerTitle.bottom - SLOTS.kickerTitle.top, "space-evenly")}
+    ${slot("slot-hero", SLOTS.hero.top, SLOTS.hero.bottom - SLOTS.hero.top, "space-evenly")}
+    ${slot("slot-support", SLOTS.support.top, SLOTS.support.bottom - SLOTS.support.top, "center")}
     .slot-align-start { justify-content: flex-start; }
     .slot-align-end { justify-content: flex-end; }
   `;

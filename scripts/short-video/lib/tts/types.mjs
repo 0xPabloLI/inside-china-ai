@@ -1,32 +1,13 @@
 /**
- * Shared types and constants for TTS engine adapters.
+ * Shared constants for TTS engine modules.
  *
- * Each engine adapter is a factory function that returns a TTSEngine object
- * or null if the engine is not available on this system.
+ * ROOT_DIR is the scripts/short-video/ directory — the anchor for
+ * resolving Python scripts (text-align.py, f5_mlx_batch_tts.py,
+ * qwen_tts_batch.py) and voice sample files.
  */
-
-import { join, dirname } from "path";
+import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 
-// ── Paths ──
-const __dirname = dirname(fileURLToPath(import.meta.url));
-/** Root of the short-video pipeline: scripts/short-video/ */
-export const ROOT_DIR = join(__dirname, "..", "..");
-
-// ── Type definitions (JSDoc) ──
-
-/**
- * @typedef {Object} TTSResult
- * @property {number} sceneId
- * @property {string} audioPath
- * @property {number} duration
- */
-
-/**
- * @typedef {Object} TTSEngine
- * @property {string} name        - Machine-readable engine name
- * @property {string} info        - Human-readable description for logging
- * @property {boolean} useSilenceFilter - Whether to apply silenceremove in post-process
- * @property {boolean} resample   - Whether to resample to 44100/192k in post-process
- * @property {(scenes: Array, outputDir: string) => Promise<TTSResult[]>} generate
- */
+const __filename = fileURLToPath(import.meta.url);
+// types.mjs is at lib/tts/types.mjs → go up 2 levels to scripts/short-video/
+export const ROOT_DIR = resolve(dirname(__filename), "..", "..");

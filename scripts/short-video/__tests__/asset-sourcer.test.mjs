@@ -3,14 +3,15 @@
  *
  * TDD: Tests written first (red), implementation second (green).
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, unlinkSync, rmdirSync } from "fs";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
+import { mkdtempSync, rmSync, unlinkSync, rmdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
 import {
   extractKeywords,
   scoreCandidate,
+  preFilterCandidate,
   recommendScene,
   buildFilename,
   slugifyKeyword,
@@ -30,6 +31,11 @@ import {
   loadEnvLocal,
   getApiKey,
   persistSearchResultsCache,
+  loadCachedImages,
+  toCachedImageCandidate,
+  isLogoOrIcon,
+  hasKeywordMatch,
+  PRE_DOWNLOAD_FILTER_THRESHOLD,
 } from "../lib/asset-sourcer.mjs";
 import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
 
@@ -115,7 +121,10 @@ describe("extractKeywords", () => {
 // ─── scoreCandidate ───
 
 describe("scoreCandidate", () => {
-  it("scores exact keyword match in title as 40", () => {
+  // New rebalanced weights: title 0-28, duration 0-18, size 0-14, resolution 0-10, AI 0-30
+  // Technical max = 70, AI max = 30, total max = 100
+
+  it("scores exact keyword match in title as 28", () => {
     const candidate = {
       title: "Unitree H1 Robot Demo",
       type: "video",
@@ -124,7 +133,8 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    expect(score).toBeGreaterThanOrEqual(40);
+    // 28 (title) + 18 (dur 3-8s) + 14 (size<20M) + 7 (720p) = 67
+    expect(score).toBe(67);
   });
 
   it("scores 0 match points when keyword not in title (with resolution)", () => {
@@ -136,20 +146,18 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // No "Unitree" in title → 0 match points, but duration+size+resolution add up
-    // 0 (match) + 25 (duration) + 20 (size) + 10 (res) = 55
-    expect(score).toBe(55);
+    // 0 (title) + 18 (dur) + 14 (size) + 7 (res) = 39
+    expect(score).toBe(39);
   });
 
   it("scores 0 match points when keyword not in title (no resolution)", () => {
     const candidate = { title: "Cooking Tutorial", type: "video", duration: 6, fileSize: 5000000 };
     const score = scoreCandidate(candidate, "Unitree");
-    // keyword not in title, but duration/size may add points
-    // match portion should be 0
-    expect(score).toBeLessThanOrEqual(60); // 25+20+15 max from other dims
+    // 0 (title) + 18 (dur) + 14 (size) + 0 (no res) = 32
+    expect(score).toBe(32);
   });
 
-  it("scores video 3-8s duration as 25", () => {
+  it("scores video 3-8s duration as 18", () => {
     const candidate = {
       title: "Unitree",
       type: "video",
@@ -158,11 +166,11 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 (match) + 25 (duration) + 20 (size) + 10 (res) = 95
-    expect(score).toBe(95);
+    // 28 (title) + 18 (dur) + 14 (size) + 7 (res) = 67
+    expect(score).toBe(67);
   });
 
-  it("scores video >60s duration as 5", () => {
+  it("scores video >60s duration as 3", () => {
     const candidate = {
       title: "Unitree",
       type: "video",
@@ -171,18 +179,18 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 5 + 20 + 10 = 75
-    expect(score).toBe(75);
+    // 28 (title) + 3 (dur) + 14 (size) + 7 (res) = 52
+    expect(score).toBe(52);
   });
 
-  it("scores image as 20 duration points (fixed)", () => {
+  it("scores image as 14 duration points (fixed)", () => {
     const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "1080p" };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 20 + 20 + 15 = 95
-    expect(score).toBe(95);
+    // 28 (title) + 14 (image dur) + 14 (size<5M) + 10 (1080p) = 66
+    expect(score).toBe(66);
   });
 
-  it("scores video <20MB as 20 size points", () => {
+  it("scores video <20MB as 14 size points", () => {
     const candidate = {
       title: "Unitree",
       type: "video",
@@ -191,7 +199,8 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    expect(score).toBe(95);
+    // 28 + 18 + 14 + 7 = 67
+    expect(score).toBe(67);
   });
 
   it("scores video >50MB as 0 size points", () => {
@@ -203,22 +212,36 @@ describe("scoreCandidate", () => {
       resolution: "720p",
     };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 25 + 0 + 10 = 75
-    expect(score).toBe(75);
+    // 28 + 18 + 0 + 7 = 53
+    expect(score).toBe(53);
   });
 
-  it("scores resolution >=1080p as 15", () => {
+  it("scores resolution >=1080p as 10", () => {
     const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "1080p" };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 20 + 20 + 15 = 95
-    expect(score).toBe(95);
+    // 28 + 14 + 14 + 10 = 66
+    expect(score).toBe(66);
+  });
+
+  it("scores 4K resolution case-insensitive (Issue #44 P3 fix)", () => {
+    const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "4K" };
+    const score = scoreCandidate(candidate, "Unitree");
+    // 28 + 14 + 14 + 10 = 66
+    expect(score).toBe(66);
+  });
+
+  it("scores 2160 resolution correctly", () => {
+    const candidate = { title: "Unitree", type: "image", fileSize: 2000000, resolution: "2160p" };
+    const score = scoreCandidate(candidate, "Unitree");
+    // 28 + 14 + 14 + 10 = 66
+    expect(score).toBe(66);
   });
 
   it("scores unknown resolution as 0", () => {
     const candidate = { title: "Unitree", type: "image", fileSize: 2000000 };
     const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 20 + 20 + 0 = 80
-    expect(score).toBe(80);
+    // 28 + 14 + 14 + 0 = 56
+    expect(score).toBe(56);
   });
 
   it("caps score at 100", () => {
@@ -229,12 +252,25 @@ describe("scoreCandidate", () => {
       fileSize: 5000000,
       resolution: "1080p",
     };
-    const score = scoreCandidate(candidate, "Unitree");
-    // 40 + 25 + 20 + 15 = 100
-    expect(score).toBeLessThanOrEqual(100);
+    const score = scoreCandidate(candidate, "Unitree", "Unitree robot in lab");
+    // 28 + 18 + 14 + 10 = 70 technical + 30 AI (boundary match) = 100
+    expect(score).toBe(100);
   });
 
-  // ─── AI description scoring (Ticket 03) ───
+  it("near-100 base score with AI still capped at 100 (Issue #44 P1 cap fix)", () => {
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "1080p",
+    };
+    // 28 + 18 + 14 + 10 = 70 technical + 30 AI = 100
+    const score = scoreCandidate(candidate, "Unitree", "Unitree humanoid robot");
+    expect(score).toBe(100);
+  });
+
+  // ─── AI description scoring (Issue #44 rebalanced) ───
 
   it("adds content score when aiDescription is present and matches keyword", () => {
     const candidate = {
@@ -244,9 +280,9 @@ describe("scoreCandidate", () => {
       fileSize: 5000000,
       resolution: "720p",
     };
-    // Without aiDescription: 0 (match) + 25 + 20 + 10 = 55
+    // Without aiDescription: 0 (title) + 18 + 14 + 7 = 39
     const scoreNoAI = scoreCandidate(candidate, "Unitree");
-    expect(scoreNoAI).toBe(55);
+    expect(scoreNoAI).toBe(39);
 
     // With aiDescription that mentions "Unitree" → should score higher
     const scoreWithAI = scoreCandidate(
@@ -254,6 +290,8 @@ describe("scoreCandidate", () => {
       "Unitree",
       "A Unitree humanoid robot walking in a lab",
     );
+    // boundary match: subjects(20) + description(10) = 30 → 39 + 30 = 69
+    expect(scoreWithAI).toBe(69);
     expect(scoreWithAI).toBeGreaterThan(scoreNoAI);
   });
 
@@ -305,7 +343,7 @@ describe("scoreCandidate", () => {
       fileSize: 5000000,
       resolution: "1080p",
     };
-    // Base score: 40 (match) + 25 (dur) + 20 (size) + 15 (res) = 100
+    // Base technical: 28 + 18 + 14 + 10 = 70
     // Even with a matching aiDescription, total should not exceed 100
     const score = scoreCandidate(
       candidate,
@@ -315,27 +353,6 @@ describe("scoreCandidate", () => {
     expect(score).toBeLessThanOrEqual(100);
   });
 
-  it("content score from aiDescription is additive to keyword match", () => {
-    const candidate = {
-      title: "Unitree Robot",
-      type: "video",
-      duration: 5,
-      fileSize: 5000000,
-      resolution: "720p",
-    };
-    // Base: 40 (match) + 25 (dur) + 20 (size) + 10 (res) = 95
-    const scoreNoAI = scoreCandidate(candidate, "Unitree");
-    expect(scoreNoAI).toBe(95);
-
-    // With matching aiDescription → adds content points, capped at 100
-    const scoreWithAI = scoreCandidate(
-      candidate,
-      "Unitree",
-      "Unitree humanoid robot walking in lab",
-    );
-    expect(scoreWithAI).toBe(100); // 95 + 5 min → capped at 100
-  });
-
   it("handles aiDescription with multiple keyword matches", () => {
     const candidate = {
       title: "Demo Video",
@@ -343,19 +360,120 @@ describe("scoreCandidate", () => {
       fileSize: 2000000,
       resolution: "1080p",
     };
-    // Base: 0 (match) + 20 (image) + 20 (size) + 15 (res) = 55
+    // Base: 0 (title) + 14 (image) + 14 (size) + 10 (res) = 38
     const scoreNoAI = scoreCandidate(candidate, "Unitree");
-    expect(scoreNoAI).toBe(55);
+    expect(scoreNoAI).toBe(38);
 
-    // aiDescription with multiple keyword-relevant words
+    // aiDescription with boundary-matched keyword
     const scoreWithAI = scoreCandidate(
       candidate,
       "Unitree",
       "Unitree H1 humanoid robot performing a walking demonstration in a tech lab",
     );
+    // subjects(20) + description(10) = 30 → 38 + 30 = 68
+    expect(scoreWithAI).toBe(68);
     expect(scoreWithAI).toBeGreaterThan(scoreNoAI);
-    // Should have "unitree" matching → content score > 0
-    expect(scoreWithAI).toBeLessThanOrEqual(85); // 55 + up to 30
+  });
+
+  // ─── Boundary matching tests (Issue #44 P2) ───
+
+  it("does NOT match keyword 'AI' inside 'train' (boundary matching)", () => {
+    const candidate = {
+      title: "Train arriving at station",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "AI", "A train arriving at a station");
+    // 'AI' should NOT match 'train' → 0 relevance + title 0 + 18 + 14 + 7 = 39
+    expect(score).toBe(39);
+  });
+
+  it("does NOT match keyword 'AI' inside 'painting' (boundary matching)", () => {
+    const candidate = {
+      title: "Painting exhibition",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "AI", "A painting at an exhibition");
+    // 0 + 18 + 14 + 7 = 39
+    expect(score).toBe(39);
+  });
+
+  it("matches keyword with hyphen normalization (Unitree-H1 → Unitree)", () => {
+    const candidate = {
+      title: "Unitree-H1 Robot Demo",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "Unitree");
+    // 'unitree' boundary-matches in 'unitree h1 robot demo' after hyphen→space
+    // 28 + 18 + 14 + 7 = 67
+    expect(score).toBe(67);
+  });
+
+  it("matches CJK keywords with includes() (no word boundaries)", () => {
+    const candidate = {
+      title: "宇树科技人形机器人",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const score = scoreCandidate(candidate, "宇树");
+    // 28 (CJK match) + 18 + 14 + 7 = 67
+    expect(score).toBe(67);
+  });
+});
+
+// ─── preFilterCandidate ───
+
+describe("preFilterCandidate", () => {
+  it("marks good asset as not lowConfidence", () => {
+    const candidate = {
+      title: "Unitree Robot Demo",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 28 + 18 + 14 + 7 = 67 → not low confidence
+    expect(result.technicalScore).toBe(67);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("marks garbage asset as lowConfidence (below threshold 30)", () => {
+    const candidate = {
+      title: "Random video",
+      type: "video",
+      duration: 120,
+      fileSize: 60000000,
+      // no resolution
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 + 3 + 0 + 0 = 3 → low confidence
+    expect(result.technicalScore).toBe(3);
+    expect(result.lowConfidence).toBe(true);
+  });
+
+  it("marks borderline asset correctly (score near 30)", () => {
+    const candidate = {
+      title: "Cooking Tutorial",
+      type: "video",
+      duration: 6,
+      fileSize: 5000000,
+      // no resolution
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 + 18 + 14 + 0 = 32 → not low confidence
+    expect(result.technicalScore).toBe(32);
+    expect(result.lowConfidence).toBe(false);
   });
 });
 
@@ -396,12 +514,7 @@ describe("recommendScene", () => {
     expect(rec).toBeNull();
   });
 
-  it("returns null for hook scene", () => {
-    const scenes = [{ visualType: "hook", id: 1 }];
-    const asset = { type: "video" };
-    const rec = recommendScene(asset, scenes);
-    expect(rec).toBeNull();
-  });
+  // hook is no longer in NO_MEDIA_TYPES — it gets a recommendation
 
   it("returns null for cta scene", () => {
     const scenes = [{ visualType: "cta", id: 10 }];
@@ -411,10 +524,7 @@ describe("recommendScene", () => {
   });
 
   it("returns null when no suitable scenes exist", () => {
-    const scenes = [
-      { visualType: "hook", id: 1 },
-      { visualType: "cta", id: 2 },
-    ];
+    const scenes = [{ visualType: "cta", id: 2 }];
     const asset = { type: "video" };
     const rec = recommendScene(asset, scenes);
     expect(rec).toBeNull();
@@ -687,8 +797,8 @@ describe("downloadAsset", () => {
 // ─── AS-3: yt-dlp source definitions ───
 
 describe("YTDLP_SOURCES", () => {
-  it("has youtube source", () => {
-    const yt = YTDLP_SOURCES.find((s) => s.name === "youtube");
+  it("has youtube_search source", () => {
+    const yt = YTDLP_SOURCES.find((s) => s.name === "youtube_search");
     expect(yt).toBeDefined();
     expect(yt.platform).toBe("youtube");
     expect(yt.type).toBe("video");
@@ -709,6 +819,22 @@ describe("searchYtdlp", () => {
     // execSync can't be easily mocked in ESM without vitest config,
     // so we verify the function exists and is callable
     expect(typeof searchYtdlp).toBe("function");
+  });
+
+  // T2: unsupported platforms must return [] (not fall through to YouTube)
+  it("T2: returns [] for unsupported platform 'xiaohongshu'", () => {
+    const result = searchYtdlp("test", "xiaohongshu");
+    expect(result).toEqual([]);
+  });
+
+  it("T2: returns [] for unsupported platform 'douyin'", () => {
+    const result = searchYtdlp("test", "douyin");
+    expect(result).toEqual([]);
+  });
+
+  it("T2: returns [] for unsupported platform 'weibo'", () => {
+    const result = searchYtdlp("test", "weibo");
+    expect(result).toEqual([]);
   });
 });
 
@@ -856,12 +982,12 @@ describe("SOURCE_ATTRIBUTIONS", () => {
     expect(SOURCE_ATTRIBUTIONS.douyin.license).toBe("Fair use");
   });
 
-  it("has attribution for xiaohongshu", () => {
-    expect(SOURCE_ATTRIBUTIONS.xiaohongshu).toBeDefined();
+  it("has attribution for xhs (R3: matches yt-dlp source name)", () => {
+    expect(SOURCE_ATTRIBUTIONS.xhs).toBeDefined();
   });
 
-  it("has attribution for weibo", () => {
-    expect(SOURCE_ATTRIBUTIONS.weibo).toBeDefined();
+  it("has attribution for weibo_hot (R3: matches yt-dlp source name)", () => {
+    expect(SOURCE_ATTRIBUTIONS.weibo_hot).toBeDefined();
   });
 });
 
@@ -974,26 +1100,21 @@ describe("buildCreditsSection", () => {
 
 // ─── New yt-dlp source tests ───
 
-describe("YTDLP_SOURCES new additions", () => {
-  it("has douyin source", () => {
+// T2: douyin, xhs, weibo_hot removed from YTDLP_SOURCES (unsupported by yt-dlp)
+describe("T2 — unsupported platforms removed from YTDLP_SOURCES", () => {
+  it("does NOT have douyin in YTDLP_SOURCES", () => {
     const src = YTDLP_SOURCES.find((s) => s.name === "douyin");
-    expect(src).toBeDefined();
-    expect(src.platform).toBe("douyin");
-    expect(src.cookieRequired).toBe(true);
+    expect(src).toBeUndefined();
   });
 
-  it("has xiaohongshu source", () => {
-    const src = YTDLP_SOURCES.find((s) => s.name === "xiaohongshu");
-    expect(src).toBeDefined();
-    expect(src.platform).toBe("xiaohongshu");
-    expect(src.cookieRequired).toBe(true);
+  it("does NOT have xhs in YTDLP_SOURCES", () => {
+    const src = YTDLP_SOURCES.find((s) => s.name === "xhs");
+    expect(src).toBeUndefined();
   });
 
-  it("has weibo source", () => {
-    const src = YTDLP_SOURCES.find((s) => s.name === "weibo");
-    expect(src).toBeDefined();
-    expect(src.platform).toBe("weibo");
-    expect(src.cookieRequired).toBe(true);
+  it("does NOT have weibo_hot in YTDLP_SOURCES", () => {
+    const src = YTDLP_SOURCES.find((s) => s.name === "weibo_hot");
+    expect(src).toBeUndefined();
   });
 });
 
@@ -1372,14 +1493,14 @@ describe("assignAssetsToScenes", () => {
     expect(assigned[0].sceneId).toBe(4); // scene 2 skipped, asset goes to scene 4
   });
 
-  // #13: Scene with visualType "hook" → skipped
-  it("skips scenes with visualType in NO_MEDIA_TYPES", () => {
-    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+  // #13: hook is no longer in NO_MEDIA_TYPES — it can receive media
+  it("skips scenes with visualType in NO_MEDIA_TYPES (cta, data, stat-reveal)", () => {
+    const scenes = [makeScene(1, "cta"), makeScene(2, "narrative")];
     const assets = [makeAsset("a1.mp4", "video", 90)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.filter((r) => r.status === "assigned");
     expect(assigned).toHaveLength(1);
-    expect(assigned[0].sceneId).toBe(2); // scene 1 (hook) skipped
+    expect(assigned[0].sceneId).toBe(2); // scene 1 (cta) skipped
   });
 
   // #14: Two assets with same path → first assigned, second skipped
@@ -1443,5 +1564,604 @@ describe("assignAssetsToScenes", () => {
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("ken-burns");
+  });
+
+  // ── Hook media auto-assignment (spec-hook-media-support.md D4) ──
+
+  it("assigns to hook scene when score>=60 and fit=cover", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    assets[0].fit = "cover";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(1); // scene 1 (hook) gets the asset
+  });
+
+  it("does NOT assign to hook when score < 60", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 50)];
+    assets[0].fit = "cover";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(2); // hook rejected, goes to narrative
+  });
+
+  it("does NOT assign to hook when fit=contain (leaves for narrative)", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    assets[0].fit = "contain";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(2); // hook rejected (contain), goes to narrative
+  });
+
+  it("does NOT assign to hook when aiFit is missing", () => {
+    const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    // no aiFit set
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].sceneId).toBe(2); // hook rejected (no fit), goes to narrative
+  });
+
+  it("hook assignment uses ken-burns animation and overlay 0.5", () => {
+    const scenes = [makeScene(1, "hook")];
+    const assets = [makeAsset("a1.jpg", "image", 90)];
+    assets[0].fit = "cover";
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.animation).toBe("ken-burns");
+    expect(assigned.media.overlay).toBe(0.5);
+    expect(assigned.media.fit).toBe("cover");
+  });
+
+  it("sets correct animation for narrative+image (ken-burns)", () => {
+    const scenes = [makeScene(2, "narrative")];
+    const assets = [makeAsset("building.jpg", "image", 80)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.find((r) => r.status === "assigned");
+    expect(assigned.media.animation).toBe("ken-burns");
+  });
+});
+
+// ─── Ticket 02: scoreCandidate { description, subjects } + recommendScene contentKind (P1-1) ───
+// Scenario Matrix rows: #4, #5, #6, #7, #8, #9, #10, #17, #18
+
+describe("Ticket 02 — scoreCandidate with { description, subjects }", () => {
+  const baseCandidate = {
+    title: "Demo Video",
+    type: "video",
+    duration: 5,
+    fileSize: 5000000,
+    resolution: "720p",
+  };
+  // Technical: 0 (title) + 18 + 14 + 7 = 39
+
+  // Scenario #4: subjects exact match = 20 pts; description has no keyword = 0; total = 20
+  it("scores subjects exact match as 20 pts when description has no keyword (Scenario #4)", () => {
+    const score = scoreCandidate(baseCandidate, "Unitree", {
+      description: "robot lab",
+      subjects: ["unitree"],
+    });
+    // 39 (technical) + 20 (subjects) + 0 (description) = 59
+    expect(score).toBe(59);
+  });
+
+  // Scenario #5: subjects empty = 0 pts; description has keyword = 10 pts; total = 10
+  it("scores description match as 10 pts when subjects empty (Scenario #5)", () => {
+    const score = scoreCandidate(baseCandidate, "Unitree", {
+      description: "Unitree robot",
+      subjects: [],
+    });
+    // 39 (technical) + 0 (subjects) + 10 (description) = 49
+    expect(score).toBe(49);
+  });
+
+  // Scenario #6: string semantics (backward compat) → works as before
+  it("accepts string semantics as backward compat (Scenario #6)", () => {
+    const scoreWithString = scoreCandidate(
+      baseCandidate,
+      "Unitree",
+      "A Unitree humanoid robot walking in a lab",
+    );
+    // 39 (technical) + 20 (subjects from description boundary match) + 10 (description) = 69
+    // Old behavior: string is treated as description, boundary match gives 20+10=30
+    expect(scoreWithString).toBe(69);
+  });
+
+  // Scenario #6 (object form): { description } without subjects → only description score
+  it("accepts object { description } without subjects (Scenario #6 variant)", () => {
+    const scoreWithObj = scoreCandidate(baseCandidate, "Unitree", {
+      description: "A Unitree humanoid robot walking in a lab",
+    });
+    // 39 (technical) + 0 (no subjects) + 10 (description boundary match) = 49
+    expect(scoreWithObj).toBe(49);
+  });
+
+  // Scenario #17: subjects containing keyword as substring (not exact) → no match
+  it("does NOT match subjects substring (exact match only, case-insensitive) (Scenario #17)", () => {
+    const score = scoreCandidate(
+      baseCandidate,
+      "Unitree",
+      { description: "robot lab", subjects: ["unitreeRobot"] }, // substring, not exact
+    );
+    // 39 (technical) + 0 (subjects: "unitree" != "unitreerobot") + 0 (description) = 39
+    expect(score).toBe(39);
+  });
+
+  // Scenario #18: multi-word keyword tokenized match against subjects
+  it("matches multi-word keyword tokens against subjects (Scenario #18)", () => {
+    const score = scoreCandidate(baseCandidate, "Alibaba Cloud", {
+      description: "infrastructure",
+      subjects: ["alibaba", "cloud", "infrastructure"],
+    });
+    // 39 (technical) + 20 (subjects: both tokens match: 2/2 = proportional full 20) + 0 (description: "infrastructure" no "alibaba cloud") = 59
+    // Per-token match: 2/2 tokens match = full 20 pts
+    expect(score).toBe(59);
+  });
+
+  // Additional: both subjects and description match → combined score
+  it("combines subjects and description scores when both match", () => {
+    const score = scoreCandidate(baseCandidate, "Unitree", {
+      description: "Unitree robot in lab",
+      subjects: ["unitree", "robot"],
+    });
+    // 39 (technical) + 20 (subjects exact match) + 10 (description boundary) = 69
+    expect(score).toBe(69);
+  });
+
+  // Capped at 30 for relevance
+  it("relevance score capped at 30 with both subjects and description", () => {
+    const candidate = {
+      title: "Unitree",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "1080p",
+    };
+    // 28 + 18 + 14 + 10 = 70 technical
+    const score = scoreCandidate(candidate, "Unitree", {
+      description: "Unitree robot Unitree lab",
+      subjects: ["unitree", "robot"],
+    });
+    // 70 + min(20 + 10, 30) = 100
+    expect(score).toBe(100);
+  });
+});
+
+// ─── Ticket 02: recommendScene with contentKind mapping ───
+
+describe("Ticket 02 — recommendScene with contentKind", () => {
+  // Scenario #7: contentKind: "product_demo" → prefers narrative scene
+  it("prefers narrative scene for contentKind=product_demo (Scenario #7)", () => {
+    const scenes = [
+      { id: 1, visualType: "info-card" },
+      { id: 2, visualType: "narrative" },
+      { id: 3, visualType: "quote" },
+    ];
+    const asset = { type: "image", contentKind: "product_demo" };
+    const rec = recommendScene(asset, scenes);
+    expect(rec.sceneId).toBe(2); // narrative preferred
+  });
+
+  // Scenario #8: contentKind: "talking_head" → prefers quote scene
+  it("prefers quote scene for contentKind=talking_head (Scenario #8)", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative" },
+      { id: 2, visualType: "quote" },
+    ];
+    const asset = { type: "image", contentKind: "talking_head" };
+    const rec = recommendScene(asset, scenes);
+    expect(rec.sceneId).toBe(2); // quote preferred
+  });
+
+  // Scenario #9: contentKind null or unknown → falls back to current logic
+  it("falls back to current logic for null contentKind (Scenario #9)", () => {
+    const scenes = [
+      { id: 1, visualType: "info-card" },
+      { id: 2, visualType: "narrative" },
+    ];
+    const asset = { type: "image", contentKind: null };
+    const rec = recommendScene(asset, scenes);
+    // No preference → first available scene (info-card)
+    expect(rec.sceneId).toBe(1);
+  });
+
+  it("falls back to current logic for unknown contentKind (Scenario #9)", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative" },
+      { id: 2, visualType: "quote" },
+    ];
+    const asset = { type: "image", contentKind: "landscape" };
+    const rec = recommendScene(asset, scenes);
+    // Unknown contentKind → no preference → first available
+    expect(rec.sceneId).toBe(1);
+  });
+
+  // Scenario #10: contentKind=product_demo but all narrative scenes taken → falls through
+  it("falls through when preferred type all taken (Scenario #10)", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative", media: { type: "image" } }, // already taken
+      { id: 2, visualType: "info-card" },
+    ];
+    const asset = { type: "image", contentKind: "product_demo" };
+    const rec = recommendScene(asset, scenes);
+    // All narrative taken → fall through to info-card
+    expect(rec.sceneId).toBe(2);
+  });
+});
+
+// ─── End-to-end path contract (Review P0-1 completion criterion) ───
+// Review P0-1: "相对路径 → assignAssetsToScenes → validatePatchEntry → valid: true"
+// Verifies that the full pipeline produces patches that the apply-media-patch.mjs validator accepts.
+
+describe("End-to-end: assignAssetsToScenes → validatePatchEntry (Review P0-1)", () => {
+  // Import validatePatchEntry and isPathContained from the apply-media-patch module
+  // Using dynamic import to avoid circular dependency issues
+  let validatePatchEntry, isPathContained;
+  beforeAll(async () => {
+    const mod = await import("../apply-media-patch.mjs");
+    validatePatchEntry = mod.validatePatchEntry;
+    isPathContained = mod.isPathContained;
+  });
+
+  it("relative-path asset → assignAssetsToScenes → validatePatchEntry: valid", () => {
+    const contentDir = "/fake/content/unitree";
+    const scenes = [{ id: 1, visualType: "narrative" }];
+    const assets = [{ type: "image", path: "assets/img.jpg", score: 80, source: "pexels" }];
+    const patches = assignAssetsToScenes(assets, scenes);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].status).toBe("assigned");
+    // media.path must be relative
+    expect(patches[0].media.path).toBe("assets/img.jpg");
+    // validatePatchEntry must accept it
+    const result = validatePatchEntry(patches[0], scenes, contentDir);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("isPathContained accepts relative path", () => {
+    expect(isPathContained("assets/img.jpg", "/fake/content/unitree")).toBe(true);
+  });
+
+  it("isPathContained rejects absolute path (the P0-1 bug)", () => {
+    expect(isPathContained("/fake/content/unitree/assets/img.jpg", "/fake/content/unitree")).toBe(
+      false,
+    );
+  });
+
+  it("isPathContained rejects path traversal", () => {
+    expect(isPathContained("../../etc/passwd", "/fake/content/unitree")).toBe(false);
+  });
+});
+
+// ─── T04 (#56): Cached-image flow ───
+
+describe("loadCachedImages", () => {
+  it("returns empty array when file does not exist (T04 scenario #6)", () => {
+    const result = loadCachedImages("/nonexistent/trending-topics.json", ["DeepSeek"]);
+    expect(result).toEqual([]);
+  });
+
+  it("extracts images from trending-topics.json (T04)", () => {
+    const mockData = {
+      topics: {
+        breaking: [
+          {
+            title: "DeepSeek V4 announced",
+            sources: ["qbitai"],
+            urls: ["http://qbitai.com/1"],
+            images: [{ url: "http://qbitai.com/img/v4.jpg", sourceArticle: "http://qbitai.com/1" }],
+          },
+        ],
+        fermenting: [],
+        data: [],
+        explainer: [],
+      },
+    };
+    const tmpFile = `/tmp/test-trending-${Date.now()}.json`;
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedImages(tmpFile, ["DeepSeek"]);
+      expect(result).toHaveLength(1);
+      expect(result[0].url).toBe("http://qbitai.com/img/v4.jpg");
+      expect(result[0].sourceArticle).toBe("http://qbitai.com/1");
+      expect(result[0].sourceTitle).toBe("DeepSeek V4 announced");
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it("returns empty array when keywords do not match any topic (T04)", () => {
+    const mockData = {
+      topics: {
+        breaking: [
+          {
+            title: "Some unrelated topic",
+            sources: ["qbitai"],
+            urls: ["http://qbitai.com/1"],
+            images: [{ url: "http://qbitai.com/img/1.jpg", sourceArticle: "http://qbitai.com/1" }],
+          },
+        ],
+        fermenting: [],
+        data: [],
+        explainer: [],
+      },
+    };
+    const tmpFile = `/tmp/test-trending-${Date.now()}.json`;
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedImages(tmpFile, ["DeepSeek"]);
+      expect(result).toEqual([]);
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+});
+
+describe("toCachedImageCandidate (#56)", () => {
+  it("maps the originating topic title and stable provenance before pre-download filtering", () => {
+    const asset = toCachedImageCandidate({
+      url: "https://qbitai.com/images/deepseek-v4.jpg",
+      sourceArticle: "https://qbitai.com/articles/deepseek-v4",
+      sourceTitle: "DeepSeek V4 announced",
+    });
+
+    expect(asset).toMatchObject({
+      title: "DeepSeek V4 announced",
+      source: "cached",
+      sourceArticle: "https://qbitai.com/articles/deepseek-v4",
+      type: "image",
+    });
+    expect(preFilterCandidate(asset, "DeepSeek").technicalScore).toBeGreaterThanOrEqual(
+      PRE_DOWNLOAD_FILTER_THRESHOLD,
+    );
+  });
+});
+
+describe("isLogoOrIcon", () => {
+  it("rejects URLs containing logo (T04 scenario #7)", () => {
+    expect(isLogoOrIcon("http://example.com/logo.png")).toBe(true);
+  });
+
+  it("rejects URLs containing avatar", () => {
+    expect(isLogoOrIcon("http://example.com/avatar.jpg")).toBe(true);
+  });
+
+  it("rejects URLs containing icon", () => {
+    expect(isLogoOrIcon("http://example.com/icon-32x32.png")).toBe(true);
+  });
+
+  it("rejects URLs containing placeholder", () => {
+    expect(isLogoOrIcon("http://example.com/placeholder.png")).toBe(true);
+  });
+
+  it("rejects URLs containing spinner", () => {
+    expect(isLogoOrIcon("http://example.com/spinner.gif")).toBe(true);
+  });
+
+  it("accepts normal image URLs", () => {
+    expect(isLogoOrIcon("http://qbitai.com/img/v4.jpg")).toBe(false);
+  });
+});
+
+describe("hasKeywordMatch", () => {
+  it("returns true when title contains keyword", () => {
+    expect(hasKeywordMatch("DeepSeek V4 announced", ["DeepSeek"])).toBe(true);
+  });
+
+  it("returns true when any keyword matches", () => {
+    expect(hasKeywordMatch("Unitree robot demo", ["DeepSeek", "Unitree"])).toBe(true);
+  });
+
+  it("returns false when no keywords match", () => {
+    expect(hasKeywordMatch("Some random news", ["DeepSeek"])).toBe(false);
+  });
+
+  it("returns false for empty keywords", () => {
+    expect(hasKeywordMatch("DeepSeek V4", [])).toBe(false);
+  });
+});
+
+// ─── T05 (#57): Pre-download filter gate ───
+
+describe("T05 — Pre-download filter gate (threshold 20)", () => {
+  it("exports PRE_DOWNLOAD_FILTER_THRESHOLD as 20", () => {
+    expect(PRE_DOWNLOAD_FILTER_THRESHOLD).toBe(20);
+  });
+
+  it("preFilterCandidate returns technicalScore for good asset above threshold 20", () => {
+    // Good candidate: title match + image type + small file + 720p = 28 + 14 + 14 + 7 = 63
+    const candidate = {
+      title: "Unitree Robot Demo",
+      type: "image",
+      fileSize: 3_000_000,
+      resolution: "720p",
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    expect(result.technicalScore).toBe(63);
+    expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
+  });
+
+  it("preFilterCandidate returns technicalScore for bad asset below threshold 20", () => {
+    // Bad candidate: no title match + unknown duration + huge file = 0 + 3 + 0 + 0 = 3
+    const candidate = {
+      title: "Random unrelated video",
+      type: "video",
+      fileSize: 200_000_000,
+      duration: 300,
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    expect(result.technicalScore).toBe(3);
+    expect(result.technicalScore).toBeLessThan(PRE_DOWNLOAD_FILTER_THRESHOLD);
+  });
+
+  it("pre-download threshold (20) is lower than post-download threshold (30)", () => {
+    // This is a design assertion: pre-download is more lenient because
+    // pre-download metadata is sparser (no file size from API, resolution may be missing)
+    expect(PRE_DOWNLOAD_FILTER_THRESHOLD).toBeLessThan(30);
+  });
+
+  it("blocks asset with sparse metadata below threshold 20", () => {
+    // Candidate with no title match + bad duration = 0 + 3 + 0 + 0 = 3
+    // 3 < 20 → blocked pre-download
+    const candidate = {
+      title: "Random unrelated video",
+      type: "video",
+      duration: 300, // >60s → durationScore=3
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // title: no match=0, duration: 3, size: 0, res: 0 = 3
+    expect(result.technicalScore).toBe(3);
+    expect(result.technicalScore).toBeLessThan(PRE_DOWNLOAD_FILTER_THRESHOLD);
+    expect(result.technicalScore).toBeLessThan(30); // also below post-download
+  });
+
+  it("scenario #10: asset passes pre-download (>=20) but fails post-download (<30)", () => {
+    // This is the soft gate scenario: some assets are downloaded then skipped at post-download
+    // Example: partial title match (14) + image type (14) = 28
+    // 28 >= 20 (pre-download) but 28 < 30 (post-download)
+    // "Unitr" is the 5-char prefix of "Unitree" — must be a boundary match
+    const candidate = {
+      title: "Unitr demo video", // partial match (5-char prefix "Unitr") → titleScore=14
+      type: "image", // durationScore=14
+      // no fileSize, no resolution → sizeScore=0, resScore=0
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    expect(result.technicalScore).toBe(28);
+    // Pre-download: 28 >= 20 → downloaded
+    expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
+    // Post-download: 28 < 30 → lowConfidence (skipped from VLM)
+    expect(result.lowConfidence).toBe(true);
+  });
+});
+
+// ─── T1: Misfilter prevention tests ───
+
+describe("T1: preFilterCandidate misfilter prevention", () => {
+  it("good asset with sparse metadata (no fileSize, no resolution) is not hard-skipped", () => {
+    // API source like Pexels returns title + type but no fileSize or resolution.
+    // title match (14, partial) + duration (18) + size (0) + res (0) = 32
+    const candidate = {
+      title: "Unitree H1 Robot Walks",
+      type: "video",
+      duration: 5,
+      // no fileSize, no resolution — sparse metadata from API
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 28 (full match) + 18 + 0 + 0 = 46 — should pass both thresholds
+    expect(result.technicalScore).toBe(46);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("image with sparse metadata (no fileSize, no resolution) passes pre-download filter", () => {
+    // Image from CDP extraction: title match + type, no fileSize/resolution
+    const candidate = {
+      title: "DeepSeek AI Logo",
+      type: "image",
+      // no fileSize, no resolution
+    };
+    const result = preFilterCandidate(candidate, "DeepSeek");
+    // 28 (full match) + 14 (image duration) + 0 + 0 = 42
+    expect(result.technicalScore).toBe(42);
+    expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("CJK title vs English keyword — no boundary match (documents known gap)", () => {
+    // "优必选" is UBTECH in Chinese. hasBoundaryMatch uses includes() for CJK
+    // but keyword is Latin — Latin path uses word boundary regex.
+    // "优必选机器人" lowercased is still "优必选机器人" — no Latin "ubtech" token.
+    const candidate = {
+      title: "优必选机器人演示",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+      resolution: "720p",
+    };
+    const result = preFilterCandidate(candidate, "UBTECH");
+    // No title match (CJK vs Latin) + 18 + 14 + 7 = 39
+    // 39 >= 30 → not lowConfidence — passes because duration/size/res provide enough signal
+    expect(result.technicalScore).toBe(39);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("asset with only type match (no title match, no metadata) is lowConfidence", () => {
+    const candidate = {
+      title: "Random unrelated content",
+      type: "video",
+      duration: 5,
+      fileSize: 5000000,
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 (no title match) + 18 + 14 + 0 = 32
+    // 32 >= 30 → not lowConfidence — has enough signal from duration/size
+    expect(result.technicalScore).toBe(32);
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("asset with no metadata at all (unknown type, no duration) is lowConfidence", () => {
+    const candidate = {
+      title: "Mystery Video",
+      type: "video",
+      // no duration, no fileSize, no resolution
+    };
+    const result = preFilterCandidate(candidate, "Unitree");
+    // 0 (no title match) + 3 (unknown duration) + 0 + 0 = 3
+    expect(result.technicalScore).toBe(3);
+    expect(result.lowConfidence).toBe(true);
+  });
+});
+
+// ─── T3: CDP type handling tests ───
+
+describe("T3 — CDP type handling", () => {
+  // T3 original: CDP download loop must skip type='text' candidates from image download path
+  it("google_news primaryScript pushes type='image' when img exists", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+    expect(src).toBeDefined();
+    expect(src.primaryScript).toContain("'image'");
+  });
+
+  it("bing_news primaryScript pushes type='image' when img exists", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
+    expect(src).toBeDefined();
+    expect(src.primaryScript).toContain("'image'");
+  });
+
+  // New: CDP scripts should also push type='text' when no img but link+title exist
+  it("google_news primaryScript pushes type='text' for text-only results", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+    expect(src.primaryScript).toContain("'text'");
+  });
+
+  it("bing_news primaryScript pushes type='text' for text-only results", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
+    expect(src.primaryScript).toContain("'text'");
+  });
+
+  // All CDP sources should push text candidates (not just google/bing)
+  it("all CDP sources push type='text' for text-only results", () => {
+    for (const src of CDP_SOURCES) {
+      expect(src.primaryScript, `${src.name} missing text push`).toContain("'text'");
+    }
+  });
+
+  // All CDP sources should include sourceUrl in both image and text candidates
+  it("all CDP sources include sourceUrl in image candidates", () => {
+    for (const src of CDP_SOURCES) {
+      expect(src.primaryScript, `${src.name} missing sourceUrl`).toContain("sourceUrl");
+    }
+  });
+
+  // All CDP sources should include snippet in both image and text candidates
+  it("all CDP sources include snippet in image candidates", () => {
+    for (const src of CDP_SOURCES) {
+      expect(src.primaryScript, `${src.name} missing snippet`).toContain("snippet");
+    }
   });
 });

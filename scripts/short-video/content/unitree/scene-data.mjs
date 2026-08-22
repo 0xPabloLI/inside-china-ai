@@ -1,11 +1,12 @@
 /**
- * Scene definitions for the Unitree IPO video.
- * 10 scenes, ~60-65s. Breaking + Data type.
+ * Scene definitions for the Unitree IPO debut video — August 19, 2026.
+ * 10 scenes, ~65s. Breaking News + Data type.
  *
- * Core narrative: $9B valuation, 8,288x oversubscribed,
- * but the company's own filing admits robots can't do real work.
+ * Core narrative: Unitree IPO'd today, opened up 629%, market cap 445B yuan.
+ * Founder became a post-90s billionaire. But 219x P/E raises questions.
  *
- * Sources: Reuters, Bloomberg, SCMP, Tech Times, Nikkei Asia, Caixin
+ * Sources: Caixin, Securities Times, Wall Street_cn, China Business Journal,
+ * Global Times, Reuters, Bloomberg, Value Add VC, Investing.com HK, Forbes
  */
 
 export const scenes = [
@@ -13,17 +14,17 @@ export const scenes = [
     id: 1,
     name: "hook",
     visualType: "hook",
-    voiceover:
-      "Investors poured 118 billion dollars into a robot company that admits its robots can't do real work.",
+    voiceover: "A robot stock opened up 629 percent today. Market cap: 445 billion yuan.",
     texts: {
       badge: "BREAKING",
       subject: "UNITREE",
-      bigNumber: "$9B",
-      subtitle: "VALUATION",
-      subtitleHighlight: "8,288× OVERSUBSCRIBED",
+      subjectName: "UNITREE ROBOTICS",
+      bigNumber: "+629%",
+      subtitle: "OPENING POP",
+      subtitleHighlight: "FIRST HUMANOID ROBOT IPO",
       stats: [
-        { num: "$118B", unit: "", label: "RETAIL DEMAND" },
-        { num: "0.018%", unit: "", label: "WIN RATE" },
+        { num: "¥445B", unit: "", label: "MARKET CAP" },
+        { num: "¥1100", unit: "/share", label: "OPENING PRICE" },
       ],
     },
   },
@@ -39,31 +40,31 @@ export const scenes = [
       overlay: 0.7,
     },
     voiceover:
-      "Unitree Robotics IPO'd on Shanghai's STAR Market. First humanoid robot stock in China. Nine billion valuation overnight.",
+      "Caixin reported Yu-shu listed on Shanghai's STAR Market. First humanoid robot stock in China. Price went 150 to 1100.",
     texts: {
       badge: "SHANGHAI STAR MARKET",
       company: "UNITREE ROBOTICS",
-      action: "FIRST HUMANOID ROBOT IPO",
-      result: "$9B VALUATION",
+      action: "CHINA'S FIRST ROBOT LISTING",
+      result: "¥150 → ¥1100",
       context: "CHINA'S FIRST LISTED ROBOT MAKER",
     },
   },
   {
     id: 3,
-    name: "oversubscription",
+    name: "demand",
     visualType: "data",
     voiceover:
-      "Global Times reported 8,288 times oversubscribed. Win rate: 0.018 percent. 118 billion in demand for 900 million in shares.",
+      "Securities Times said 978 million investors tried to buy. Win rate 0.018 percent. 8288 times oversubscribed. All records.",
     texts: {
       stat: "8,288×",
       statLabel: "OVERSUBSCRIBED",
-      subtext: "$118B chased $900M IPO",
-      source: "GLOBAL TIMES · AUG 10 2026",
+      subtext: "978M investors chased $904M IPO",
+      source: "SECURITIES TIMES · AUG 19 2026",
     },
   },
   {
     id: 4,
-    name: "company-background",
+    name: "founder",
     visualType: "info-card",
     media: {
       type: "image",
@@ -73,43 +74,57 @@ export const scenes = [
       overlay: 0.75,
     },
     voiceover:
-      "Founded in 2016 by Wang Xingxing in Hangzhou. Started with robot dogs. Now builds humanoids priced at sixteen thousand dollars.",
+      "Founder Wang Xingxing started the company in 2016. Born after 1990. His stake: 130 billion yuan. China's richest post-90s founder.",
     texts: {
       title: "THE",
-      titleHighlight: "COMPANY",
-      subtitle: "Hangzhou Yushu Technology",
+      titleHighlight: "FOUNDER",
+      subtitle: "Wang Xingxing, age ~33",
       points: [
-        "Est. 2016, Hangzhou",
-        "Began with robot dogs",
-        "Humanoid H1: $16,000",
-        "Based in Hangzhou, China",
+        "Founded 2016, Hangzhou",
+        "Started with robot dogs",
+        "Controls 65% voting rights",
+        "Net worth: ¥130B+ ($18B)",
       ],
     },
   },
   {
     id: 5,
-    name: "products",
+    name: "superman-reveal",
     visualType: "narrative",
     media: {
       type: "video",
-      path: "assets/unitree-demo.mp4",
+      path: "assets/unitree-superman-demo.mp4",
       source: "Unitree Robotics",
       animation: "zoom",
       overlay: 0.6,
     },
     voiceover:
-      "Their H1 humanoid went viral. It walks, dances, and does backflips. But their own IPO filing tells a different story.",
+      "Two days before listing, the company unveiled Superman. Jumps 2 meters. Top speed 12.66 meters per second. Both beat human records.",
     texts: {
-      badge: "VIRAL DEMOS",
-      company: "H1 HUMANOID",
-      action: "WALKS, DANCES, BACKFLIPS",
-      result: "BUT THE FILING SAYS...",
-      context: "HOUSTON, WE HAVE A PROBLEM",
+      badge: "2 DAYS BEFORE IPO",
+      company: "SUPERMAN ROBOT",
+      action: "JUMPS 2M, RUNS 12.66 M/S",
+      result: "BEATS HUMAN RECORDS",
+      context: "BUILT IN 3 MONTHS",
     },
   },
   {
     id: 6,
-    name: "the-catch",
+    name: "deepseek-backing",
+    visualType: "context",
+    voiceover:
+      "DeepSeek backed the IPO. Liang Wenfeng's allocation gained 1.1 billion yuan day one. Tencent and the pension fund joined.",
+    texts: {
+      title: "STRATEGIC",
+      titleHighlight: "BACKERS",
+      context: "DEEPSEEK + TENCENT + PENSION FUND",
+      detail: "Liang Wenfeng's gain: ¥1.1B on day one",
+      badge: "STRATEGIC PLACEMENT",
+    },
+  },
+  {
+    id: 7,
+    name: "valuation-warning",
     visualType: "quote",
     media: {
       type: "video",
@@ -119,25 +134,11 @@ export const scenes = [
       overlay: 0.8,
     },
     voiceover:
-      "Tech Times reported investors bet 118 billion despite the company's own admission of limitations in its filing.",
+      "Investing.com noted opening P/E is 1600 times. IPO carried 219. A professor said the price is already high.",
     texts: {
-      quote: "The company's own filing admits robots cannot do real work.",
-      source: "TECH TIMES · AUG 10 2026",
-      verified: "$118B BET ANYWAY",
-    },
-  },
-  {
-    id: 7,
-    name: "deepseek-backing",
-    visualType: "context",
-    voiceover:
-      "DeepSeek and Tencent backed the IPO as strategic investors. The same DeepSeek that shook the AI world with V4 Flash.",
-    texts: {
-      title: "STRATEGIC",
-      titleHighlight: "BACKERS",
-      context: "DEEPSEEK + TENCENT",
-      detail: "Same lab that topped global token usage",
-      badge: "STRATEGIC PLACEMENT",
+      quote: "1,600x P/E ratio at opening. The IPO price was already 219x.",
+      source: "INVESTING.COM · AUG 19 2026",
+      verified: "PROFESSOR: PRICE ALREADY HIGH",
     },
   },
   {
@@ -145,14 +146,14 @@ export const scenes = [
     name: "agibot-rivalry",
     visualType: "contrast",
     voiceover:
-      "But AgiBot actually shipped more robots in the first half. Unitree IPO'd first, but they're not the market leader.",
+      "But AgiBot shipped more humanoids in H1. Yu-shu IPO'd first, but lost the shipment crown.",
     texts: {
-      title: "FIRST TO IPO",
+      title: "FIRST TO IPO, NOT THE LEADER",
       vs: "VS",
-      left: ["UNITREE", "First to IPO", "$9B valuation"],
-      right: ["AGIBOT", "#1 in shipments", "Dethroned Unitree"],
+      left: ["UNITREE", "First to IPO", "¥445B market cap"],
+      right: ["AGIBOT", "#1 in shipments", "8,400 vs 5,900 units"],
       note: "IPO'd first,",
-      noteHighlight: "not the leader",
+      noteHighlight: "lost the crown",
     },
   },
   {
@@ -160,19 +161,19 @@ export const scenes = [
     name: "china-dominance",
     visualType: "stat-reveal",
     voiceover:
-      "Taipei Times reported China holds 97 percent of global humanoid shipments. The industry is Chinese.",
+      "China holds 97 percent of global humanoid shipments. But 73 percent of the company's revenue is still research, not industry.",
     texts: {
       bigNumber: "97%",
       label: "CHINA'S SHARE",
-      subtext: "H1 2026 worldwide deliveries",
-      source: "TAIPEI TIMES · AUG 10 2026",
+      subtext: "H1 2026 global humanoid deliveries",
+      source: "CHINA BUSINESS JOURNAL · AUG 2026",
     },
   },
   {
     id: 10,
     name: "cta",
     visualType: "cta",
-    voiceover: "Follow for more China AI intelligence. Robots that can't work, but investors don't care.",
+    voiceover: "First robot stock popped 629 percent. Follow for more China AI intelligence.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

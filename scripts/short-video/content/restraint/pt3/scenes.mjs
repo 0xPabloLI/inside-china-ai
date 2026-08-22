@@ -24,6 +24,8 @@
  * from lib/base-styles.mjs (never redeclared here).
  */
 
+import { dirname } from "path";
+import { fileURLToPath } from "url";
 import { baseStyles, withWatermark } from "../../../lib/base-styles.mjs";
 import {
   templateCss,
@@ -35,6 +37,8 @@ import {
 } from "../../../lib/scene-templates.mjs";
 import { slotCss, sceneFrame } from "../../../lib/scene-layout.mjs";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 // Safe text accessor
 function t(texts, key) {
   return texts?.[key] ?? "";
@@ -42,7 +46,7 @@ function t(texts, key) {
 
 /* ── S1: Hook — one-rule claim (shared hookScene) ── */
 function scene1(scene, duration) {
-  return hookScene(scene, duration);
+  return hookScene(scene, duration, __dirname);
 }
 
 /* ── S2: Core interest — the one non-negotiable ── */

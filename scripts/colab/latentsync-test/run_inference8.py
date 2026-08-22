@@ -1,0 +1,16 @@
+import subprocess
+import os
+
+def run(cmd):
+    print(f">>> {cmd}", flush=True)
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    print(result.stdout, flush=True)
+    if result.stderr:
+        print(result.stderr, flush=True)
+
+# Run with correct args + expandable_segments
+print("=== Running inference with correct args ===", flush=True)
+run("cd /content/LatentSync && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -m scripts.inference --unet_config_path config/unet.yaml --inference_ckpt_path checkpoints/latentsync_unet.pt --video_path assets/demo1_video.mp4 --audio_path assets/demo1_audio.wav --video_out_path output_demo1.mp4 --inference_steps 20 --guidance_scale 1.0 2>&1 | tail -40")
+print("=== Done ===", flush=True)
+
+run("ls -la /content/LatentSync/output_demo1.mp4 2>/dev/null || echo 'No output'")

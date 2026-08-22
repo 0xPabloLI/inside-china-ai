@@ -73,3 +73,43 @@ scripts/kaggle/echomimicv3-test/**/*.mp4
 scripts/kaggle/echomimicv3-test/**/*.wav
 scripts/kaggle/echomimicv3-test/**/*.log
 scripts/kaggle/**/kaggle.json
+
+# Agent scratchpad (ephemeral issue/ticket notes, not repo content)
+.scratch/
+
+# Ad-hoc agent workspace (not repo content)
+.arts/
+.codeartsdoer/
+
+# Skill local config (per-machine, not repo content)
+skills/web-access/config.env
+
+# Kaggle/Colab kernel metadata (per-environment)
+kernel-metadata.json
+
+# Remotion lockfile (generated, not manually maintained)
+scripts/short-video/remotion/package-lock.json
+scripts/short-video/remotion/test-props.json
+
+# Large source videos (not pipeline content, too large for LFS)
+scripts/short-video/assets/MSEP07 VIDEO.mov
+
+# Remotion public audio (render-time artifacts, not source content)
+scripts/short-video/remotion/public/audio/
+
+# Top-level asset duplicates (per-content assets live in content/{slug}/assets/)
+scripts/short-video/assets/Weixin Image_*.jpg
+scripts/short-video/assets/ai-robot-hand.jpg
+scripts/short-video/assets/data-center.jpg
+scripts/short-video/assets/financial-chart.jpg
+scripts/short-video/assets/revenue-laptop.jpg
+scripts/short-video/assets/shanghai-skyline.jpg
+scripts/kaggle/echomimicv3-test/output_v24/
+scripts/kaggle/echomimicv3-test/output_v25/
+scripts/kaggle/echomimicv3-test/output_v31/
+scripts/kaggle/echomimicv3-test/output_v22 scripts/kaggle/echomimicv3-test/output_v23 scripts/kaggle/echomimicv3-test/output_v24 scripts/kaggle/echomimicv3-test/output_v25
+scripts/kaggle/echomimicv3-test/output_v*/
+scripts/kaggle/echomimicv3-test/debug_*
+scripts/kaggle/echomimicv3-test/output_*/
+scripts/kaggle/echomimicv3-test/v*-output/
+.githooks/

@@ -63,11 +63,10 @@ The repository accepts that pre-LFS binary files remain in regular Git history. 
 
 ## Consequences
 
-- `.gitattributes` committed at repo root (commit `513e546`, 2026-08-14).
-- **Pre-commit hook** (`scripts/verify-lfs-pointers.mjs`) verifies that staged binary files with LFS attributes are valid LFS pointers. Wired through `.githooks/pre-commit` (version-controlled). Activate after clone: `npm run setup:hooks` (sets `git config core.hooksPath .githooks`).
+- `.gitattributes` committed at repo root (commit `60505a6`, 2026-08-14).
 - Git LFS must be installed locally (`git lfs install`).
 - GitHub LFS storage: free tier includes 1GB storage + 1GB bandwidth/month. Paid packs available if exceeded.
-- `git check-attr` shows JPG/MP3/etc. as LFS, SVG as non-LFS.
+- SVG files are intentionally NOT tracked by LFS — they are text-based XML and should remain diffable in regular Git.
 - Future binary files are automatically LFS-tracked. No manual intervention needed.
 - The `git lfs migrate import` command should never be run on this repository while it is connected to Lovable.
 - If Lovable connection is severed in the future (project migration), history rewrite becomes possible — but should still be evaluated carefully.

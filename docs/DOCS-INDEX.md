@@ -2,7 +2,7 @@
 
 > Source of truth for doc ownership. Use it to find any document in one lookup.
 >
-> _Last inventory: 2026-08-15._
+> _Last inventory: 2026-08-21._
 
 ## Canonical Structure
 
@@ -44,7 +44,27 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 
 ### `adr/` — Architecture Decision Records
 
-Numbered sequence. Current: 0001–0006.
+Numbered sequence. Current: 0001–0017 (0006 moved to archive).
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| 0001 | Widget inline embedding via HTML comment markers | Active |
+| 0002 | Supabase admin auth for programmatic DB writes | Active |
+| 0003 | Widget registry as extension point | Active |
+| 0004 | Env file strategy | Active |
+| 0005 | Lovable file structure constraints | Active |
+| 0006 | ~~Architecture deepening completed~~ | Moved to `archive/` |
+| 0007 | RAG pipeline decisions | Active |
+| 0008 | TTS engine: F5-TTS-MLX | Active |
+| 0009 | VLM analysis layer: Qwen3-VL-8B via mlx-vlm | Active |
+| 0010 | Remotion replaces Playwright | Active |
+| 0011 | Unified venv | Active |
+| 0012 | Cloud GPU: Kaggle + Colab | Active |
+| 0013 | Asset sourcing three-layer | Active |
+| 0014 | Git LFS strategy | Active |
+| 0015 | Visual focus detection: OpenCV subprocess | Active |
+| 0016 | Cascade filtering & signal density | Active |
+| 0017 | Widget breakout layout | Active |
 
 ### `conventions/` — Engineering conventions
 
@@ -69,9 +89,22 @@ Numbered sequence. Current: 0001–0006.
 |----------|---------|
 | `video-automation-roadmap.md` | Video automation phased roadmap (ISSUE-01~14) |
 
+### Root-level tracking docs
+
+| Document | Purpose |
+|----------|---------|
+| `issue-tracker.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
+
 ### `archive/` — Completed work
 
-Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list (39 files).
+Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list.
+
+### `specs/` — Active specs
+
+| Document | Purpose |
+|----------|---------|
+| `specs/spec-visual-focus-detection.md` | 视觉焦点检测 + AI 分析层重构 — OpenCV 焦点检测、命名重构、analyzeFit 迁移策略 |
+| `specs/spec-visual-focus-detection-review.md` | 上述 spec 的初审 + 复审记录 |
 
 ### `refs/` — Reference materials
 
@@ -84,23 +117,35 @@ Deep research reports with citations.
 | Document | Purpose |
 |----------|---------|
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
+| `anti-bot-scraping-solutions.md` | Anti-bot scraping solutions — bypass strategies and alternative search engines |
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
+| `asset-focus-detection-alternatives-review.md` | 第三方审阅：asset-focus-detection-alternatives 方案评估 |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
 | `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) |
-| `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB |
-| `golden-asset-evaluation.md` | Golden Asset evaluation for VLM quality — test set design, human expectations, model/prompt versions, testing strategy |
-| `digital-human-test-progress.md` | Digital human model test progress tracking |
+| `colab-cli-guide.md` | Google Colab CLI guide — gcloud setup, kernel push/pull, GPU smoke test |
+| `digital-human-references.md` | Offloaded reference material — papers, code repos, cloud platforms, market research for digital human models |
+| `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options |
+| `echomimicv3-optimization-options.md` | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning |
+| `friendly-search-engines-comparison.md` | Friendly search engines comparison — CDP vs API, anti-bot resistance, result quality |
+| `digital-human-test-progress.md` | Digital human model test progress tracking — pointers to cloud-gpu-options for detailed analysis |
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
+| `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
 | `model-sources-reference.md` | Model search sources reference |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
+| `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
+| `source-layer-comparison.md` | Source layer comparison — CDP vs MCP vs API, capability matrix per source |
 | `safe-zone-calibration-log.md` | Safe zone calibration log with FYP screenshot evidence |
 | `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
+| `video-background-coverage-audit-2026-08-21.md` | 视频背景视觉承载审查结论 — 现状覆盖率、实现缺口与场景级视觉意图建议 |
+| `wechat-rss-tracking-mechanisms.md` | WeChat RSS tracking mechanisms — Wechat2RSS, third-party feeds, verified sources |
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
 | `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
+| `tiktok-hook-patterns-best-practices.md` | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design |
+| `tiktok-hook-patterns-wide-research-assessment.md` | TikTok hook patterns research — wide assessment and source evaluation |
 | `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |
 | `voice-cloning-solutions-m2-pro.md` | Voice cloning / TTS model research for Apple M2 Pro 32GB |
 | `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |

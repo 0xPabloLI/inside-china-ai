@@ -83,6 +83,12 @@
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
 | `spec-ai-analyzer.md` / `tickets-ai-analyzer.md` | 2026-08-17 | VLM 驱动的素材理解层 — `lib/ai_analyzer.py` Python 子进程 (mlx-vlm + Qwen3-VL-8B) + `lib/ai-analyzer.mjs` Node.js 库 (stdin/stdout JSON IPC) + `scoreCandidate` aiDescription 评分 (0-30) + asset-sourcer 集成 (`analyzeAssets` + `aiAnalysis` report)。151 tests passing。 |
+| `spec-visual-focus-detection.md` / `spec-visual-focus-detection-review.md` / `spec-visual-focus-detection-remediation.md` | 2026-08-18 | 视觉焦点检测 + AI 分析层重构 — `focus_detector.py` (OpenCV Haar + Saliency) + `visual-analyzer.mjs` (Node 网关, requestId 路由, generation 隔离) + `vlm_analyzer.py` (重命名自 ai_analyzer.py) + two-phase analysis (Phase 1 focus → Phase 2 VLM) + `review-media-patch.mjs` (人工审阅 formatter)。P0/P1 修复: fit/focus 解耦 + smoke golden 断言修正 + CLI 重命名 + 集成断言。81 tests passing。 |
+| `spec-vlm-semantic-merge.md` / `tickets-vlm-semantic-merge/` | 2026-08-18 | VLM 语义合并 — 单次 VLM 调用替代双调用 (describeImage/Video + analyzeFit → analyzeAssetSemantics)。Markdown 输出替代 JSON。`parse_markdown_to_dict()` 纯字符串解析。`asset-analysis.json` 结构化 artifact。`scoreCandidate` 重平衡 (70 technical + 30 AI) + boundary matching + 预过滤门控。`types.ts` 新增 contentKind + subjects。189 Node tests + 10 Python parser tests。 |
+| `spec-vlm-semantic-merge-remediation.md` / `tickets-vlm-semantic-merge-remediation/` | 2026-08-19 | VLM 语义合并修复 — P0: 路径隔离 (normalizePathForPatch + contentDir + 路径逃逸检测); P1-1: scoreCandidate 接受 {description, subjects} + recommendScene contentKind 映射; P1-2: pre-filter 统一为 hard gate; P1-3: artifact 按 contentSlug 隔离 (output/{slug}/); P1-4: legacy 文件标记。18 行场景矩阵全覆盖，203 tests passing。 |
+| `spec-research-evidence-pipeline.md` / `tickets-research-evidence-pipeline/` | 2026-08-18 | Research Evidence Pipeline — Stage 0.5 证据层接入内容管线。4 个 canonical data contracts (discovery/brief/evidence-pack/claim-map) + schema validators + content-scoped research workspace + 确定性 brief builder (URL normalize/dedup/prioritize) + search-sources.mjs run-scoped output + Claim-Evidence Auditor (MRL-1 gate) + scene-data claimIds (optional, backward compat)。124 tests across 6 files。 |
+| `spec-unified-source-registry.md` | 2026-08-19 | 统一数据源注册表 — `source-registry.mjs` 作为所有数据类型 (articles/images/videos) 的单一事实来源。`capabilities` 字段声明式定义获取方式。`asset-sourcer.mjs` 删除 `API_SOURCES`/`YTDLP_SOURCES`/`CDP_SOURCES` 改为按 capability 查询。跨阶段图片缓存 (trend discovery extractScript 提取 imageUrl → asset-sourcer 消费)。T05 pre-download filter gate (threshold 20)。T06 cascade order fix (pre-filter before detectFocus)。1545 tests passing。 |
+| `spec-p4-video-windows-audit-fix.md` | 2026-08-20 | P4 VLM 视频时间窗口 + 审计修复 + 误过滤测试 — `lib/media-probe.mjs` (probeMedia ffprobe 封装 + parseProbeOutput 纯函数); `analyzeAssetSemantics` 扩展可选 window 参数 { startMs, endMs, sampleFps }; `vlm_analyzer.py` 接收 window 字段, `extract_frames` 支持 -ss/-t 窗口化; Python 报告 sourceMode (native/frames/degraded); `analyzeAssets` Phase 2.5 probe + window 计算; searchYtdlp 平台守卫 (T2); CDP download loop type 检查 (T3); SOURCE_ATTRIBUTIONS 全量补全 (T1)。426 tests passing。 |
 
 ### Documentation Hierarchy Specs
 
@@ -121,3 +127,4 @@
 > - `handoff-realesrgan.md` — Real-ESRGAN 超分辨率集成，已完成（spec/tickets 已归档）
 > - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，待实施
 > - `handoff-verify-retry-loop.md` — Verify-retry loop，已完成（spec/tickets 已归档为 `spec-verify-retry-loop.md`）
+> - `handoff-source-layer-comparison.md` — Source layer CDP/MCP/API 对比 + selector 修复，已完成（spec/tickets 已归档为 `spec-source-registry-selector-fix.md`）

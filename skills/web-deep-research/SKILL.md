@@ -23,8 +23,8 @@ low anti-bot, login state).
   phases below are self-contained.
 - **Fetching**: Uses `web-access` skill (Chrome CDP proxy at localhost:3456) for
   all web content retrieval. Load web-access skill before Phase 3.
-- **Angle templates**: For China AI / tech industry research, load
-  [references/angles.md](references/angles.md) during Phase 2.
+- **Angle templates**: Load [references/angles.md](references/angles.md) during
+  Phase 2 for angle templates.
 
 ## Depth Tiers
 
@@ -47,10 +47,12 @@ a complete answer look like? Identify key terms, entities, and the domain.
 
 ## Phase 2 — PLAN
 
-Decide research angles. For China AI / tech industry research, load
-[references/angles.md](references/angles.md) and pick relevant angles.
-For any other domain, generate 3-5 angles from different perspectives (overview,
-technical, market, contrarian, primary sources).
+Decide research angles. Load [references/angles.md](references/angles.md).
+If the topic matches a section in angles.md, use those angles.
+Otherwise, use the General / Cross-Domain section or generate 3-5 angles
+from default perspectives (overview, technical, market, contrarian, primary sources).
+After research, append proven-useful angles back to angles.md (see its
+"Creating Custom Angle Templates" section).
 
 Map each angle to 2-4 search queries.
 
@@ -58,20 +60,30 @@ Map each angle to 2-4 search queries.
 
 ## Phase 3 — RETRIEVE
 
-Load `web-access` skill and follow its setup instructions (check-deps, CDP
-proxy). All web fetching goes through web-access — do not reimplement its API
-calls here.
+> **MANDATORY**: Load `web-access` skill BEFORE any retrieval — this includes
+> **search**, not just page fetching. All URL discovery, search engine queries,
+> and content extraction MUST go through web-access.
+>
+> **DO NOT** use built-in tools (jina_search, web_fetch, mcp-search-bridge,
+> Tavily) as the primary retrieval mechanism. These are fallback-only, to be
+> used **after** web-access has been attempted and failed. If you catch
+> yourself reaching for jina_search or web_fetch first, **stop** — load
+> web-access skill instead.
 
-**Retrieval strategy per angle** (decides *what tool to use when*, not *how*
-to operate the tool — that's web-access's job):
-1. Search via web-access CDP to discover sources (Google search → top results)
-2. Extract article-style content with Jina (`curl -s r.jina.ai/URL`) for
-   token efficiency
-3. For paywalled / anti-bot / JS-rendered sites: use CDP directly (login
-   state, JS rendering) — web-access handles the mechanics
+Load `web-access` skill and follow its instructions. All web fetching —
+search, page loading, content extraction — goes through web-access. Do not
+reimplement its API calls or override its tool selection here. web-access
+already handles: CDP vs Jina vs curl vs WebFetch vs WebSearch, login state,
+JS rendering, anti-bot mitigation, and token-efficient extraction.
+
+**Retrieval strategy per angle** (what to retrieve, not how — web-access
+decides the tool):
+1. Search to discover sources (open search engines, extract top results)
+2. Extract article content from discovered URLs
+3. For paywalled / anti-bot / JS-rendered sites: follow web-access's guidance
 4. For independent angles, use sub-agents to parallelize. Each sub-agent
-   creates its own CDP tabs — no race condition (shared Chrome, different
-targetIds)
+   loads web-access independently — no race condition (shared Chrome, different
+   targetIds)
 
 **Source quality hierarchy**:
 - Tier 1: Official docs, primary sources, first-party APIs, peer-reviewed
@@ -160,7 +172,7 @@ used, no placeholders. User told the file path.
 - **Scrape-summary listing**: Don't paste raw scraped content. Synthesize.
 - **Single-source claims**: No factual claim on Tier 2/3 alone. Find a second independent source or hedge explicitly.
 - **Token flooding**: Don't read full page content into context. Extract the relevant
-  passage, summarize the rest. Use Jina for token-efficient extraction of article-style
-  pages; use web-access CDP `/eval` for targeted DOM extraction on complex pages.
+  passage, summarize the rest. Use web-access's extraction methods (check its SKILL.md)
+  rather than dumping raw page content into the conversation.
 - **Premature completion**: The research isn't done when you have sources — it's done
   when every claim is triangulated and the report synthesizes, not just lists.

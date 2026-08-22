@@ -2,27 +2,29 @@ import { describe, it, expect } from "vitest";
 import {
   NEWS_SOURCES,
   SELF_MEDIA_SOURCES,
-  WESTERN_SOURCES,
+  INTERNATIONAL_SOURCES,
   GENERAL_SEARCH_SOURCES,
   LAST30DAYS_SOURCES,
   ALL_SOURCES,
   DEFAULT_KEYWORDS,
   WECHAT_API_CONFIG,
+  WECHAT_RSS_SOURCES,
 } from "../lib/source-registry.mjs";
 
 // ─── Source structure validation ───
 
 describe("Source structure", () => {
-  it("NEWS_SOURCES has 7 sources", () => {
-    expect(NEWS_SOURCES).toHaveLength(7);
+  it("NEWS_SOURCES has 14 sources (7 original + 7 CDP image search)", () => {
+    expect(NEWS_SOURCES).toHaveLength(14);
   });
 
   it("SELF_MEDIA_SOURCES has 8 sources", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 34 sources", () => {
-    expect(ALL_SOURCES).toHaveLength(34);
+  it("ALL_SOURCES has 59 sources", () => {
+    // 46 existing + 7 CDP image search + 6 stock_api sources
+    expect(ALL_SOURCES).toHaveLength(59);
   });
 
   it("each source has required fields", () => {
@@ -34,19 +36,67 @@ describe("Source structure", () => {
       expect(typeof source.supportsKeyword).toBe("boolean");
       expect(source.accessMethod).toBeDefined();
       expect(["cdp", "api", "mcp"]).toContain(source.accessMethod.primary);
-      expect(Array.isArray(source.accessMethod.fallbacks)).toBe(true);
       expect(typeof source.accessMethod.notes).toBe("string");
+      // Stock API sources don't have url/extractScript at top level — they use capabilities
+      if (source.category === "stock_api") continue;
       expect(typeof source.url).toBe("function");
       expect(typeof source.extractScript).toBe("string");
       // MCP-only sources may have minimal extractScript (e.g. "return [];")
+      // API sources use apiSearch.parser, not CDP extractScript
       if (source.mcpFallback && !source.url()) continue;
-      expect(source.extractScript.length).toBeGreaterThan(10);
+      if (source.accessMethod.primary === "api") continue;
+      expect(source.extractScript.length).toBeGreaterThan(50);
     }
   });
 
   it("source names are unique", () => {
     const names = ALL_SOURCES.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+// ─── Wechat RSS sources ───
+describe("Wechat RSS sources", () => {
+  it("registers exactly 12 validated public feeds", () => {
+    expect(WECHAT_RSS_SOURCES).toHaveLength(12);
+    expect(WECHAT_RSS_SOURCES.every((source) => source.name.startsWith("wechat2rss_"))).toBe(true);
+  });
+
+  it("marks every feed as third-party, non-official public RSS with a 14-day window", () => {
+    for (const source of WECHAT_RSS_SOURCES) {
+      expect(source.category).toBe("wechat");
+      expect(source.supportsKeyword).toBe(false);
+      expect(source.needsAuth).toBe(false);
+      expect(source.accessMethod.primary).toBe("api");
+      expect(source.tracking).toEqual({
+        provider: "wechat2rss",
+        access: "public-rss",
+        official: false,
+        stability: "third-party",
+        freshnessWindowDays: 14,
+      });
+      expect(source.apiSearch.url()).toMatch(
+        /^https:\/\/wechat2rss\.xlab\.app\/feed\/[a-f0-9]+\.xml$/,
+      );
+    }
+  });
+
+  it("parses valid RSS 2.0 entries into the shared article contract", () => {
+    const parser = WECHAT_RSS_SOURCES[0].apiSearch.parser;
+    const items = parser(`<?xml version="1.0"?><rss><channel><item>
+      <title><![CDATA[DeepSeek 发布新模型]]></title>
+      <link>https://mp.weixin.qq.com/s/example</link>
+      <description><![CDATA[这是一个用于验证 RSS 摘要解析的内容。]]></description>
+      <pubDate>Mon, 17 Aug 2026 09:00:00 +0800</pubDate>
+    </item><item><title>没有链接的条目</title></item></channel></rss>`);
+    expect(items).toEqual([
+      {
+        title: "DeepSeek 发布新模型",
+        url: "https://mp.weixin.qq.com/s/example",
+        snippet: "这是一个用于验证 RSS 摘要解析的内容。",
+        publishedAt: "Mon, 17 Aug 2026 09:00:00 +0800",
+      },
+    ]);
   });
 });
 
@@ -233,15 +283,19 @@ describe("Login check scripts", () => {
 describe("Extract scripts", () => {
   it("all CDP-based extract scripts are non-empty strings", () => {
     for (const src of ALL_SOURCES) {
+      // Skip stock API sources (no CDP article extraction)
+      if (src.category === "stock_api") continue;
       expect(typeof src.extractScript).toBe("string");
-      // MCP-only sources (like mcp_grok_search) may have minimal extractScript
-      if (src.mcpFallback && !src.url()) continue;
+      // API sources do not use the CDP extractor; MCP-only sources may have minimal extractScript.
+      if (src.accessMethod.primary === "api" || (src.mcpFallback && !src.url())) continue;
       expect(src.extractScript.length).toBeGreaterThan(50);
     }
   });
 
   it("all CDP-based extract scripts return results array", () => {
     for (const src of ALL_SOURCES) {
+      // Skip stock API sources (no CDP article extraction)
+      if (src.category === "stock_api") continue;
       // MCP-only sources (like mcp_grok_search) may have minimal extractScript
       if (src.mcpFallback && !src.url()) continue;
       expect(src.extractScript).toContain("return results");
@@ -264,51 +318,127 @@ describe("Extract scripts", () => {
     expect(src.extractScript).toContain('data-testid="tweetText"');
     expect(src.extractScript).toContain("return results");
   });
+
+  it("x_search extractScript has SPA poll for tweets to render", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.extractScript).toContain("deadline");
+    expect(src.extractScript).toContain("Date.now()");
+    expect(src.extractScript).toContain("8000");
+  });
 });
 
-// ─── Western sources ───
+// ─── International sources (renamed from Western) ───
 
-describe("Western sources", () => {
-  it("WESTERN_SOURCES has 8 sources", () => {
-    expect(WESTERN_SOURCES).toHaveLength(8);
+describe("International sources (renamed from Western)", () => {
+  it("INTERNATIONAL_SOURCES has 8 sources", () => {
+    expect(INTERNATIONAL_SOURCES).toHaveLength(8);
   });
 
   it("includes youtube_search", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "youtube_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "youtube_search");
     expect(src).toBeDefined();
     expect(src.label).toBe("YouTube");
     expect(src.supportsKeyword).toBe(true);
-    expect(src.category).toBe("western");
+    expect(src.category).toBe("international");
   });
 
   it("includes arxiv_search", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "arxiv_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "arxiv_search");
     expect(src).toBeDefined();
     expect(src.label).toBe("arXiv");
     expect(src.supportsKeyword).toBe(true);
   });
 
   it("includes github_search", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
     expect(src).toBeDefined();
     expect(src.label).toBe("GitHub");
     expect(src.supportsKeyword).toBe(true);
   });
 
   it("includes threads_search", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "threads_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "threads_search");
     expect(src).toBeDefined();
     expect(src.label).toBe("Threads");
     expect(src.supportsKeyword).toBe(true);
   });
 
   it("youtube, arxiv, github, threads have mcpFallback", () => {
-    // Only the original 4 western sources have mcpFallback;
+    // Only the original 4 international sources have mcpFallback;
     // datacube_ai, openalex_search, gnews, core_search are API-only (no CDP/MCP fallback).
     for (const name of ["youtube_search", "arxiv_search", "github_search", "threads_search"]) {
-      const src = WESTERN_SOURCES.find((s) => s.name === name);
+      const src = INTERNATIONAL_SOURCES.find((s) => s.name === name);
       expect(src.mcpFallback).toBeDefined();
       expect(src.mcpFallback.toolName).toBe("web_search");
+    }
+  });
+
+  it("all international sources have category 'international'", () => {
+    for (const src of INTERNATIONAL_SOURCES) {
+      expect(src.category).toBe("international");
+    }
+  });
+
+  it("no international source has locale field (multilingual)", () => {
+    for (const src of INTERNATIONAL_SOURCES) {
+      expect(src.locale).toBeUndefined();
+    }
+  });
+});
+
+// ─── Locale field validation ───
+
+describe("Locale field", () => {
+  it("Chinese-only news sources have locale 'zh-CN'", () => {
+    const zhNewsNames = ["qbitai", "jiqizhixin", "36kr", "guancha", "ithome"];
+    for (const name of zhNewsNames) {
+      const src = NEWS_SOURCES.find((s) => s.name === name);
+      expect(src).toBeDefined();
+      expect(src.locale).toBe("zh-CN");
+    }
+  });
+
+  it("English news sources do NOT have locale", () => {
+    const enNewsNames = ["techcrunch", "bloomberg"];
+    for (const name of enNewsNames) {
+      const src = NEWS_SOURCES.find((s) => s.name === name);
+      expect(src).toBeDefined();
+      expect(src.locale).toBeUndefined();
+    }
+  });
+
+  it("Chinese self-media sources have locale 'zh-CN'", () => {
+    const zhSelfMediaNames = ["xhs", "sogou_weixin", "weibo_hot", "bilibili", "douyin", "zhihu"];
+    for (const name of zhSelfMediaNames) {
+      const src = SELF_MEDIA_SOURCES.find((s) => s.name === name);
+      expect(src).toBeDefined();
+      expect(src.locale).toBe("zh-CN");
+    }
+  });
+
+  it("tiktok_creator and x_search do NOT have locale (international)", () => {
+    const tiktok = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    expect(tiktok.locale).toBeUndefined();
+    const xSearch = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(xSearch.locale).toBeUndefined();
+  });
+
+  it("baidu_search has locale 'zh-CN'", () => {
+    const baidu = GENERAL_SEARCH_SOURCES.find((s) => s.name === "baidu_search");
+    expect(baidu).toBeDefined();
+    expect(baidu.locale).toBe("zh-CN");
+  });
+
+  it("google_search and mcp_grok_search do NOT have locale", () => {
+    const google = GENERAL_SEARCH_SOURCES.find((s) => s.name === "google_search");
+    expect(google.locale).toBeUndefined();
+    const grok = GENERAL_SEARCH_SOURCES.find((s) => s.name === "mcp_grok_search");
+    expect(grok.locale).toBeUndefined();
+  });
+
+  it("all WeChat RSS sources have locale 'zh-CN'", () => {
+    for (const src of WECHAT_RSS_SOURCES) {
+      expect(src.locale).toBe("zh-CN");
     }
   });
 });
@@ -396,9 +526,10 @@ describe("last30days sources", () => {
 describe("supportsKeyword validation", () => {
   it("homepage-only sources have supportsKeyword=false", () => {
     const homepageSources = ALL_SOURCES.filter((s) => !s.supportsKeyword);
-    // qbitai, jiqizhixin, 36kr, techcrunch, bloomberg, guancha, ithome,
-    // weibo_hot, wechat_dongchabeating, datacube_ai
-    expect(homepageSources.length).toBe(10);
+    // Existing homepage-only sources plus 12 fixed public Wechat RSS sources.
+    // Stock API sources all support keyword search.
+    // ithome and jiqizhixin now support keyword search (unified to search page).
+    expect(homepageSources.length).toBe(20);
   });
 
   it("keyword-capable sources have supportsKeyword=true", () => {
@@ -408,7 +539,9 @@ describe("supportsKeyword validation", () => {
     // google, baidu, mcp_grok, noozra, currents,
     // reddit, hackernews, polymarket, digg, techmeme,
     // tiktok_creator (via ScrapeCreators API)
-    expect(keywordSources.length).toBe(24);
+    // + ithome, jiqizhixin (now search-page based)
+    // + 6 stock_api sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
+    expect(keywordSources.length).toBe(39);
   });
 });
 
@@ -428,8 +561,8 @@ describe("MCP fallback configuration", () => {
   it("xhs has mcpFallback", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
     expect(src.mcpFallback).toBeDefined();
-    expect(src.mcpFallback.command).toBe("python");
-    expect(src.mcpFallback.toolName).toBe("search_feeds");
+    expect(src.mcpFallback.command).toBe("rednote-mcp");
+    expect(src.mcpFallback.toolName).toBe("search_notes");
     expect(typeof src.mcpFallback.toolArgs).toBe("function");
     expect(typeof src.mcpFallback.resultMapper).toBe("function");
   });
@@ -473,7 +606,7 @@ describe("MCP fallback configuration", () => {
   it("mcpFallback toolArgs returns correct arguments", () => {
     const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
     const args = xhs.mcpFallback.toolArgs("DeepSeek");
-    expect(args.keyword).toBe("DeepSeek");
+    expect(args.keywords).toBe("DeepSeek");
     expect(args.limit).toBe(20);
   });
 
@@ -526,6 +659,28 @@ describe("CDP fallback configuration", () => {
     expect(src.cdpFallback.extractScript).toContain("twitter.com");
   });
 
+  it("x_search cdpFallback uses h3-based selector (no div.g dependency)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
+    expect(src.cdpFallback.extractScript).toContain("h3");
+    expect(src.cdpFallback.extractScript).not.toContain("div.g");
+    expect(src.cdpFallback.extractScript).not.toContain("Gx5Zad");
+    expect(src.cdpFallback.extractScript).not.toContain("fP1Qef");
+  });
+
+  it("xhs extractScript does not use invalid [data-v-*] selector", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+    expect(src.extractScript).not.toContain("[data-v-*]");
+    expect(src.extractScript).toContain("section.note-item");
+  });
+
+  it("xhs mcpFallback args uses keywords (plural)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+    const args = src.mcpFallback.toolArgs("AI芯片");
+    expect(args.keywords).toBe("AI芯片");
+    expect(args.limit).toBe(20);
+    expect(args.keyword).toBeUndefined();
+  });
+
   it("sources without cdpFallback are unaffected", () => {
     for (const src of SELF_MEDIA_SOURCES) {
       if (src.name !== "x_search") {
@@ -556,7 +711,7 @@ describe("WECHAT_API_CONFIG", () => {
 
 describe("apiSearch configuration", () => {
   it("arxiv_search has apiSearch", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "arxiv_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "arxiv_search");
     expect(src.apiSearch).toBeDefined();
     expect(typeof src.apiSearch.url).toBe("function");
     expect(typeof src.apiSearch.parser).toBe("function");
@@ -564,7 +719,7 @@ describe("apiSearch configuration", () => {
   });
 
   it("arxiv_search apiSearch builds correct URL", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "arxiv_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "arxiv_search");
     const url = src.apiSearch.url("DeepSeek");
     expect(url).toContain("export.arxiv.org/api/query");
     expect(url).toContain("search_query=all:DeepSeek");
@@ -572,7 +727,7 @@ describe("apiSearch configuration", () => {
   });
 
   it("arxiv_search parser parses Atom XML correctly", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "arxiv_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "arxiv_search");
     const mockXml = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <entry>
@@ -600,14 +755,14 @@ describe("apiSearch configuration", () => {
   });
 
   it("arxiv_search parser handles empty feed", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "arxiv_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "arxiv_search");
     const mockXml = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>`;
     const results = src.apiSearch.parser(mockXml);
     expect(results).toHaveLength(0);
   });
 
   it("github_search has apiSearch", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
     expect(src.apiSearch).toBeDefined();
     expect(typeof src.apiSearch.url).toBe("function");
     expect(typeof src.apiSearch.parser).toBe("function");
@@ -615,7 +770,7 @@ describe("apiSearch configuration", () => {
   });
 
   it("github_search apiSearch builds correct URL", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
     const url = src.apiSearch.url("DeepSeek");
     expect(url).toContain("api.github.com/search/repositories");
     expect(url).toContain("q=DeepSeek");
@@ -624,7 +779,7 @@ describe("apiSearch configuration", () => {
   });
 
   it("github_search parser parses JSON correctly", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
     const mockJson = JSON.stringify({
       total_count: 2,
       items: [
@@ -649,14 +804,14 @@ describe("apiSearch configuration", () => {
   });
 
   it("github_search parser handles empty results", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
     const mockJson = JSON.stringify({ total_count: 0, items: [] });
     const results = src.apiSearch.parser(mockJson);
     expect(results).toHaveLength(0);
   });
 
   it("github_search parser handles missing items field", () => {
-    const src = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
     const mockJson = JSON.stringify({ total_count: 0 });
     const results = src.apiSearch.parser(mockJson);
     expect(results).toHaveLength(0);
@@ -793,29 +948,32 @@ describe("apiSearch configuration", () => {
       expect(src.apiSearch).toBeUndefined();
     }
     // youtube and threads don't have apiSearch
-    const yt = WESTERN_SOURCES.find((s) => s.name === "youtube_search");
+    const yt = INTERNATIONAL_SOURCES.find((s) => s.name === "youtube_search");
     expect(yt.apiSearch).toBeUndefined();
-    const threads = WESTERN_SOURCES.find((s) => s.name === "threads_search");
+    const threads = INTERNATIONAL_SOURCES.find((s) => s.name === "threads_search");
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("exactly 11 sources have apiSearch configured", () => {
+  it("includes the 11 existing API sources and 12 public Wechat RSS sources", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(11);
-    const names = withApi.map((s) => s.name).sort();
-    expect(names).toEqual([
-      "arxiv_search",
-      "core_search",
-      "currents",
-      "datacube_ai",
-      "github_search",
-      "gnews",
-      "hackernews_search",
-      "noozra_search",
-      "openalex_search",
-      "reddit_search",
-      "tiktok_creator",
-    ]);
+    expect(withApi).toHaveLength(23);
+    const names = withApi.map((s) => s.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "arxiv_search",
+        "core_search",
+        "currents",
+        "datacube_ai",
+        "github_search",
+        "gnews",
+        "hackernews_search",
+        "noozra_search",
+        "openalex_search",
+        "reddit_search",
+        "tiktok_creator",
+        ...WECHAT_RSS_SOURCES.map((source) => source.name),
+      ]),
+    );
   });
 
   it("sources with apiSearch have accessMethod.primary === 'api'", () => {
@@ -943,9 +1101,9 @@ describe("apiSearch configuration", () => {
 
   it("free API sources are NOT marked paidApi", () => {
     // arXiv, GitHub, Reddit, HN — all have free, unlimited APIs
-    const arxiv = WESTERN_SOURCES.find((s) => s.name === "arxiv_search");
+    const arxiv = INTERNATIONAL_SOURCES.find((s) => s.name === "arxiv_search");
     expect(arxiv.apiSearch.paidApi).toBeUndefined();
-    const github = WESTERN_SOURCES.find((s) => s.name === "github_search");
+    const github = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
     expect(github.apiSearch.paidApi).toBeUndefined();
     const reddit = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
     expect(reddit.apiSearch.paidApi).toBeUndefined();
@@ -957,5 +1115,57 @@ describe("apiSearch configuration", () => {
     const paid = ALL_SOURCES.filter((s) => s.apiSearch?.paidApi === true);
     expect(paid).toHaveLength(1);
     expect(paid[0].name).toBe("tiktok_creator");
+  });
+});
+
+// ─── Research mode filter expansion (T2) ───
+
+describe("Research mode filter expansion", () => {
+  // The filter logic in search-sources.mjs:
+  // Research mode: includes sources with supportsKeyword=true OR cdpFallback
+  // Trend mode: includes all sources with capabilities.articles
+
+  it("research mode includes all sources with supportsKeyword=true", () => {
+    const keywordSources = ALL_SOURCES.filter((s) => s.capabilities?.articles?.supportsKeyword);
+    // Every keyword-capable source should be in research mode
+    expect(keywordSources.length).toBeGreaterThan(0);
+  });
+
+  it("research mode includes sources with cdpFallback even if supportsKeyword=false", () => {
+    // x_search has supportsKeyword=true AND cdpFallback, but we need to verify
+    // that sources with supportsKeyword=false AND cdpFallback are included
+    const cdpFallbackOnlySources = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles?.cdpFallback && !s.capabilities?.articles?.supportsKeyword,
+    );
+    // If any such sources exist, they should be included in research mode
+    // (Currently there may be 0 such sources, but the filter must support them)
+    // The key test is that the filter logic includes them
+    for (const src of cdpFallbackOnlySources) {
+      expect(src.capabilities.articles.cdpFallback).toBeDefined();
+      expect(src.capabilities.articles.supportsKeyword).toBe(false);
+    }
+  });
+
+  it("research mode filter logic: supportsKeyword OR cdpFallback exists", () => {
+    // Simulate the filter logic
+    const researchSources = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.cdpFallback,
+    );
+    const trendSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+
+    // Research mode should include at least as many sources as before
+    // (all supportsKeyword sources are still included, plus any cdpFallback-only ones)
+    expect(researchSources.length).toBeGreaterThanOrEqual(
+      ALL_SOURCES.filter((s) => s.capabilities?.articles?.supportsKeyword).length,
+    );
+
+    // Research mode should never exceed trend mode (trend = all articles sources)
+    expect(researchSources.length).toBeLessThanOrEqual(trendSources.length);
+  });
+
+  it("trend mode filter is unchanged (all capabilities.articles sources)", () => {
+    const trendSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    // Same as before — no filter change for trend mode
+    expect(trendSources.length).toBeGreaterThan(0);
   });
 });

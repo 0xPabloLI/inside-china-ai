@@ -6,12 +6,26 @@
 ## 管线概览
 
 ```
-入口 → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → 📚 RAG reindex（多媒体素材） → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
+入口 → [Stage 0 素材收集] → [Stage 1 文章生成] → 🔄 MRL-1 自审 → [Stage 2 文章发布 + 附件上传] → 📚 RAG reindex → [Stage 3 scene-data] → 🔄 MRL-2 自审 → 📚 RAG reindex → [Stage 4 视频制作] → 📚 RAG reindex（多媒体素材） → [Stage 5: 🔄 MRL-3 验证 → ⏸️ HITL 视频审阅 → 确认后发布] → [Stage 6 Analytics]
 ```
 
 > **📚 RAG reindex** 在文章发布后自动触发，确保新文章、源素材和 scene-data 立即进入知识库。文章在 Stage 2 发布（HITL 之前），RAG 随即收录。Stage 3 scene-data 就绪后再次触发 reindex。Stage 4 视频制作完成后，如有多媒体素材变更（新增/修改 catalog.yml 条目），再次触发 reindex（见 Stage 4b）。
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
+
+### Stage 0: Source Discovery & Material Gathering
+
+管线起点。三个入口在 Stage 0 汇合，输出统一的「素材集合」（用户素材 + 互联网全文）。
+
+**入口 1（有素材）**：用户给 PDF/URL/文本 → Agent 读素材 → 提取 keyword → `search-sources --research --content-id <slug>` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 用户素材 + 全文 = Stage 0 输出
+
+**入口 2（有话题）**：用户给话题 → `search-sources --keyword "话题" --research` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 全文 = Stage 0 输出
+
+**入口 3（无输入）**：`search-sources --trend` → Agent 从 `trending-topics.json` 选话题 → 走入口 2 路线
+
+> **Evidence 模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）保留但不接入管线。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。非阻塞审计可通过 `research-pipeline.mjs --audit-only` 手动触发（Issue #61）。
+>
+> 详细 spec 见 `docs/archive/spec-research-evidence-pipeline.md`。
 
 MRL-1 和 MRL-2 自审通过后直接进入下一 Stage，不暂停。唯一的人工确认点是 **HITL 视频审阅**：用户看视频成品后确认视频质量，然后发布视频 MP4 到网站文章 + TikTok。文章在 Stage 2 已发布（HITL 之前），HITL 仅控制视频发布。
 
@@ -71,31 +85,37 @@ Warnings：2 项（列出但不阻塞）
 
 ## 如何启动
 
+三个入口均在 **Stage 0: Source Discovery & Material Gathering** 汇合。详见上方 Stage 0 章节。
+
 ### 入口 1：有源素材（PDF / 报告 / 长文 / URL）
 
 **用户对 Agent 说**：
 
 > "读这个素材写一篇文章：[PDF 路径 / URL / 文本]"
 
-Agent 从 Stage 1 开始执行。
+Agent 从 Stage 0 开始：读素材 → 提取 keyword → 运行 `search-sources --research` → 提取全文 → 进入 Stage 1。
 
 ### 入口 2：只有话题或趋势
 
 **用户对 Agent 说**：
 
-> "跑 search-sources --trend，选一个话题做内容"
-
-或直接给话题：
-
 > "用「华为 AI 芯片突破」这个话题做一条内容"
 
-Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个支持关键词的源，输出 JSON），再用 web-access skill 深度抓取相关 URL 全文，然后从 Stage 1 开始执行。
+Agent 从 Stage 0 开始：运行 `search-sources --keyword "话题" --research` → 提取全文 → 进入 Stage 1。
+
+### 入口 3：无输入（趋势发现）
+
+**用户对 Agent 说**：
+
+> "跑 search-sources --trend，选一个话题做内容"
+
+Agent 从 Stage 0 开始：运行 `search-sources --trend` → 选话题 → 走入口 2 路线。
 
 > **搜索工具有两个模式，按场景分工**：
-> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部 34 源（含首页型源），filter/classify/dedup，输出 `trending-topics.json`
-> - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：只跑 21 个 supportsKeyword=true 的源，不过滤不分类，输出 `research-results.json`（按源分组）
+> - `search-sources.mjs --trend` — **趋势发现**（默认模式）：扫全部源（含固定公众号 RSS），filter/classify/dedup，输出 `trending-topics.json`
+> - `search-sources.mjs --keyword "xxx" --research` — **深度调研**：跑所有 supportsKeyword=true 或有 cdpFallback 的源，不过滤不分类，输出 `research-results.json`（按源分组）
 >
-> **源定义在 `lib/source-registry.mjs`（single source of source）**：34 源 = 7 news + 8 self_media + 8 western + 5 general + 5 last30days + 1 wechat。11 个源有 `apiSearch` 配置（直接 API 调用，无需 CDP）。每个源标注 `supportsKeyword`（是否支持关键词搜索 vs 首页型）。
+> **源定义在 `lib/source-registry.mjs`（single source of source）**：每个源标注 `accessMethod`（primary + fallbacks）、`supportsKeyword`、可选 `locale`、可选 `apiSearch`（直接 HTTP 调用，无需 CDP）。新增源只需添加 collector 对象。
 >
 > **补充搜索源**：需要更多新闻/学术/素材 API 时，查 `docs/tools-catalog.md` → Pipeline API 补充候选。
 >
@@ -103,37 +123,13 @@ Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个�
 >
 > **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容（已发布文章、scene-data、研究报告、源素材），用本地 Ollama bge-m3 做语义向量搜索，零费用。search-sources 搜索实时互联网（CDP + MCP）。两者不重复——RAG 查「我写过什么」，search-sources 查「外界在说什么」。
 
-#### 趋势发现源（15 个）
+趋势发现扫全部源（含固定公众号 RSS），filter/classify/dedup。源清单和各源的 `accessMethod`、`needsAuth` 等字段定义在 `scripts/short-video/lib/source-registry.mjs`。
 
-`search-sources.mjs` 通过 CDP 抓取 15 个源，覆盖新闻媒体、自媒体平台、技术社区和定向公众号监控：
+##### 第三方公众号 RSS
 
-| 类型     | 源                    | 平台                      | 登录需求           |
-| -------- | --------------------- | ------------------------- | ------------------ |
-| 新闻     | 量子位                | qbitai.com                | 无                 |
-| 新闻     | 机器之心              | jiqizhixin.com            | 无                 |
-| 新闻     | 36氪                  | 36kr.com                  | 无                 |
-| 新闻     | TechCrunch AI         | techcrunch.com            | 无                 |
-| 新闻     | Bloomberg Tech        | bloomberg.com             | 无                 |
-| 新闻     | 观察者网              | guancha.cn                | 无                 |
-| 新闻     | iThome                | ithome.com                | 无                 |
-| 自媒体   | 小红书                | xiaohongshu.com           | 需要               |
-| 自媒体   | 搜狗微信              | weixin.sogou.com          | 无                 |
-| 自媒体   | 微博热搜              | s.weibo.com               | 无                 |
-| 自媒体   | B站搜索               | search.bilibili.com       | 无                 |
-| 自媒体   | 抖音搜索              | douyin.com                | 需要               |
-| 自媒体   | TikTok Creator        | tiktok.com/creator-center | 需要               |
-| 社区     | 知乎                  | zhihu.com                 | 无（搜索无需登录） |
-| 社交     | X (Twitter)           | x.com/search              | 需要（CDP）/ mcp-search-bridge fallback |
-| 西方源   | YouTube               | youtube.com               | 无（mcp-search-bridge） |
-| 西方源   | arXiv                 | arxiv.org                 | 无（mcp-search-bridge） |
-| 西方源   | GitHub                | github.com/search         | 无（mcp-search-bridge） |
-| 西方源   | Threads               | threads.net               | 无（mcp-search-bridge） |
-| 西方源   | Web Search (Grounding) | google.com               | 无（mcp-search-bridge） |
-| 定向监控 | 动察Beating（公众号） | Google 搜索转载平台       | 无                 |
+12 个经过可访问性、近 14 天时效与中国 AI 新闻相关性验证的公众号，定义在 `WECHAT_RSS_SOURCES`。项目只读取 Wechat2RSS 提供的公开 RSS XML，不使用微信账号、扫码会话或公众号后台 API。每个来源标有 `provider: wechat2rss`、`access: public-rss`、`official: false`、`stability: third-party` 和 14 天窗口；趋势模式只消费窗口内的条目，研究模式不拉取这些固定 Feed。它们不会自动抓全文或写入 RAG。来源清单、测试场景与扩展准则见 [Wechat2RSS 接入规格](specs/spec-wechat2rss-source-tracking.md)。
 
-源定义在 `scripts/short-video/lib/source-registry.mjs`，可插拔架构，新增源只需添加 collector 对象。
-
-**mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据），也是 5 个西方源的主要搜索方式。Fallback 链：CDP → cdpFallback (Google site:搜索) → mcpFallback (mcp-search-bridge/Grok)。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`。
+**mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据），也是多个国际源的主要搜索方式。Fallback 链：CDP → cdpFallback (Google site:搜索) → mcpFallback (mcp-search-bridge/Grok)。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`。
 
 ##### 定向公众号监控
 
@@ -145,10 +141,7 @@ Agent 先用 `search-sources.mjs --research` 调研话题（广度搜索 18 个�
 - `mp.weixin.qq.com/mp/profile_ext` 要求微信客户端内打开，Chrome 登录态无效
 - Google `site:mp.weixin.qq.com` 索引率极低（只搜到 1 篇）
 
-**增强方案（可选）：微信后台 API 直爬**
-如果有微信公众平台的 cookie + token（登录 `mp.weixin.qq.com` 后获取，有效期约 2 小时），可启用 `WECHAT_API_CONFIG` 直接调后台 API 获取完整文章列表。参考 `mashukui/wechat_official_account_crawler`。设置环境变量 `WX_COOKIE` 和 `WX_TOKEN` 后将 `WECHAT_API_CONFIG.enabled` 设为 `true`。
-
-**添加新公众号监控**：在 `source-registry.mjs` 的 `WECHAT_ACCOUNT_SOURCES` 数组中复制一条，修改 `name`、`label`、`account` 即可。
+**微信公众号后台 API 的边界**：`WECHAT_API_CONFIG` 保持禁用。项目验证记录表明，该后台发布列表不能用于读取其它公众号的文章历史；它不是任意公众号追踪方案。固定公开 RSS 应添加到 `WECHAT_RSS_SOURCES`，而转载监控保留在 `WECHAT_ACCOUNT_SOURCES`。第三方与开源方案的上游机制、账号会话风险和官方授权边界见 [公众号 RSS 机制研究](research/wechat-rss-tracking-mechanisms.md)。
 
 ```bash
 # 运行趋势发现（默认关键词 "AI大模型"）
@@ -160,11 +153,11 @@ node scripts/short-video/search-sources.mjs --keyword "DeepSeek"
 
 #### 西方社媒趋势补充（last30days-skill）
 
-`search-sources.mjs` 覆盖中文平台（16 源），`last30days-skill` 覆盖西方社媒 + 学术 + 科技新闻（11 默认源 + 2 opt-in）。两个都输出 JSON，Agent 可交叉比对。
+`search-sources.mjs` 覆盖中文平台 + 国际平台，`last30days-skill` 覆盖西方社媒 + 学术 + 科技新闻。两个都输出 JSON，Agent 可交叉比对。
 
 **分工原则（按信息源，非语言）**：
-- search-sources 独占：知乎、B站、微博、抖音、36氪、量子位、机器之心、TechCrunch、Bloomberg、观察者网、IT之家、搜狗微信、动察Beating（13 源）
-- last30days 独占：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding（10 源）
+- search-sources 独占：知乎、B站、微博、抖音、36氪、量子位、机器之心、TechCrunch、Bloomberg、观察者网、IT之家、搜狗微信、动察Beating
+- last30days 独占：Reddit、Hacker News、YouTube、arXiv、Techmeme、Digg、Polymarket、GitHub、Threads、Grounding
 - 两边都有：X（CDP vs API，机制不同）、TikTok（Creator Center vs hashtag 搜索，角度不同）
 - 小红书：只在 search-sources 里用（CDP 登录态更适合），last30days 不启用
 
@@ -508,7 +501,7 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**，0 Blo
 | B3a | Widget 可视化  | Widget 必须使用图表、图形等可视化方式呈现，纯文本链接列表不通过（至少使用柱状图、矩阵、流程图等任一） | 重设计 widget 为可视化形式  |
 | B4  | 源引用           | 每个数据点（金额、日期、比例、引用语）必须有内联来源标注（媒体名+日期 或 URL）                    | 补充来源                      |
 | B5  | 链接完整性       | 所有 URL 必须指向具体文章/页面，禁止域名根链接（如 ❌ `https://bloomberg.com`）                   | 替换为完整 URL 或换可访问来源 |
-| B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注                                          | 补充标注                      |
+| B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注。Inline 标注是未来结构化 evidence 数据的来源（#61）；audit 非阻塞，仅输出 warning                                          | 补充标注                      |
 | B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                    | 删除 My Take                  |
 | B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等） | 替换为口语化表达              |
 

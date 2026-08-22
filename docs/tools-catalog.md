@@ -19,6 +19,7 @@
 | Tavily MCP | AI 搜索 | ✅ 1,000/月 | ✅ 已集成 | ⭐⭐⭐ 快速事实验证 |
 | mcp-search-bridge | 搜索（Grok） | 按用量 | ✅ 已集成 | ⭐⭐ X/Twitter+全网 |
 | `search-sources.mjs` | 趋势发现（中文平台） | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
+| Jina Reader API | 联网/抓取 | ✅ 1M tokens/月 | ✅ 已集成(MCP) | ⭐⭐⭐ URL→Markdown |
 | `pdf-parse` (npm) | 文档解析 | ✅ | ✅ 已集成 | ⭐⭐ 够用 |
 | Firecrawl `parse` | 文档解析 | 注册免费 | 📋 待评估 | ⭐⭐⭐ 补充 |
 | Firecrawl `scrape` | 联网/抓取 | 注册免费 | 📋 待评估 | ⭐⭐ 英文站 |
@@ -45,9 +46,12 @@
 - **分类**：联网/抓取
 - **费用**：免费
 - **Skill 路径**：`~/.agents/skills/web-access/`
-- **做什么**：通过 Chrome DevTools Protocol proxy（localhost:3456）连接本地 Chrome，保留登录态和 session/cookie
+- **版本**：v2.5.4（上游 https://github.com/eze-is/web-access，MIT）
+- **做什么**：通过 Chrome DevTools Protocol proxy（localhost:3456）连接本地 Chrome/Edge/Chromium，保留登录态和 session/cookie
 - **为什么对本项目重要**：中国平台（天眼查、小红书、微信公众号、微博等）反爬严格，本地 Chrome 有登录态穿透力最强。AGENTS.md 明确规定默认联网工具
-- **用法**：`node ~/.agents/skills/web-access/scripts/check-deps.mjs` → CDP proxy → `/new`、`/eval`、`/close`
+- **用法**：加载 web-access skill 并遵循其指引（check-deps → CDP proxy → HTTP API）
+- **新增能力**（v2.5.2+）：`browser-discovery.mjs` 自动发现 Chrome/Edge 调试端口；`find-url.mjs` 从本地浏览器书签/历史检索 URL；`/extract` 端点 DOM→Markdown 转换（本地优化，上游无）；闲置 Tab 自动清理（15min）
+- **Breaking change**（v2.5.3）：`/new` 和 `/navigate` 从 GET `?url=` 改为 POST body，避免 URL 含 query 时被切分
 - **何时用**：任何需要登录态或中国平台的联网操作
 - **替代方案**：无（这是本项目的核心联网工具）
 
@@ -69,6 +73,21 @@
 - **做什么**：已知 URL 的静态内容提取，HTML 转 Markdown
 - **何时用**：已知 URL、不需要登录、不需要 JS 渲染的简单抓取
 - **何时不用**：需要登录态、中国平台反爬、需要 JS 交互 → 用 `web-access` CDP
+
+### Jina Reader API — URL→Markdown 转换
+
+- **分类**：联网/抓取
+- **费用**：免费 1M tokens/月（每月更新），无 key 20 RPM
+- **配置**：MCP 已配置（`jina-mcp-tools@latest`，`JINA_API_KEY` 在 `.env.local`）
+- **做什么**：把任意 URL 转成干净 Markdown（`r.jina.ai/{url}`），或关键词搜索返回 top 5 结果（`s.jina.ai/{query}`）。双引擎：headless Chrome（JS 渲染）+ curl-impersonate（轻量级）自动选择
+- **核心技术**：Node.js + Puppeteer + curl-impersonate + PDF.js + LibreOffice（Office 文档）+ Turndown（HTML→Markdown）
+- **本地部署**：Docker `ghcr.io/jina-ai/reader:oss`（Apache-2.0），CPU 2-4 核，RAM 2-4GB，无状态模式无限调用
+- **输出格式**：默认纯文本 Markdown；JSON 模式（`Accept: application/json`）返回 `{title, description, url, content, publishedTime}`
+- **何时用**：已知 URL、需要 JS 渲染、但不需要登录态的公开页面（英文新闻、博客、文档、PDF）。比 `web_fetch` 强（能 JS 渲染），比 CDP 轻（不占用浏览器 tab）
+- **何时不用**：需要登录态的页面（中国平台）→ 用 `web-access` CDP；已知静态页面 → 用 `web_fetch`（更轻）
+- **与 /extract 的关系**：都是 HTML→Markdown，但 Jina 在云端（无登录态，Turndown 库成熟），/extract 在本地浏览器（有登录态，自写 EXTRACT_FN）。公开页面 Jina 质量更好，需登录页面 /extract 不可替代
+- **Pipeline 集成状态**：当前 Pipeline 代码不直接调用 Jina（`scripts/short-video/` 无 Jina 引用）。通过 MCP 供 Agent 调用。Issue #65（Search API Pool）实施后通过 Pool 调用；本地部署后 Pipeline 可直接 `fetch("http://localhost:3000/" + url)`
+- **Jina Embedding**（不同产品）：文本→向量，用于 RAG 语义搜索。与 Reader API 无关，消费同一 API key 额度但独立计费
 
 ### Context7 MCP — 技术文档查询
 

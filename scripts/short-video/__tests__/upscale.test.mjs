@@ -367,3 +367,42 @@ describe("constants", () => {
     expect(FFMPEG_PATH).toContain("ffmpeg-full");
   });
 });
+
+// ─── Pipeline integration scenarios (spec ticket #05) ───
+
+describe("pipeline integration scenarios", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    existsSync.mockReturnValue(true);
+    execSync.mockReturnValue("");
+    spawnSync.mockReturnValue({ status: 0, stdout: "", stderr: "" });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Scenario #18: already-720p file → no upscale (pipeline scenario)
+  it("pipeline: 720x1280 file returns original path (no upscale needed)", () => {
+    execSync.mockReturnValue("720x1280");
+    const result = autoUpscaleIfNeeded("/fake/content/assets/video.mp4");
+    expect(result.upscaled).toBe(false);
+    expect(result.path).toBe("/fake/content/assets/video.mp4");
+  });
+
+  // Scenario #9: 640x360 file → upscaled to 720p
+  it("pipeline: 640x360 file is upscaled", () => {
+    execSync.mockReturnValue("640x360");
+    const result = autoUpscaleIfNeeded("/fake/content/assets/bg.jpg");
+    expect(result.upscaled).toBe(true);
+    expect(result.path).toContain("-upscaled.");
+  });
+
+  // Scenario #13: no media in scene → skip (function receives non-existent path)
+  it("pipeline: non-existent media file returns original path", () => {
+    existsSync.mockReturnValue(false);
+    const result = autoUpscaleIfNeeded("/fake/missing.mp4");
+    expect(result.upscaled).toBe(false);
+    expect(result.path).toBe("/fake/missing.mp4");
+  });
+});

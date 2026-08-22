@@ -47,7 +47,7 @@ Stage 6  Analytics tracking
    decides everything and produces a candidate video. The user only reviews
    the final output.
 
-2. **VLM is the brain, not a helper.** Qwen3-VL-8B (via `ai-analyzer.mjs`)
+2. **VLM is the brain, not a helper.** Qwen3-VL-8B (via `visual-analyzer.mjs`)
    is the core decision-maker for visual content: it describes what each
    asset shows, scores it against scene narration, decides whether to
    overlay text (background) or let the footage speak (fullscreen), and
@@ -84,9 +84,12 @@ scripts/short-video/
 │       ├── components/       # MediaBackground, Slot, BrandBar, animations
 │       └── types.ts          # SceneData / MediaField types
 ├── lib/                      # Shared infrastructure
-│   ├── ai-analyzer.mjs       # VLM bridge (Qwen3-VL-8B via Python subprocess)
-│   ├── ai_analyzer.py        # Python side: model loading + IPC loop
+│   ├── visual-analyzer.mjs       # VLM bridge + focus detector (Qwen3-VL + OpenCV)
+│   ├── vlm_analyzer.py            # Python side: VLM model loading + IPC loop
+│   ├── focus_detector.py           # Python side: OpenCV face detection + saliency
+│   ├── requirements-focus.txt      # Pinned deps for focus_detector.py
 │   ├── asset-sourcer.mjs     # Search + download + VLM score + assign assets
+│   ├── review-media-patch.mjs  # Format media-patch.json for human review
 │   ├── media-bg.mjs          # Playwright media layer (CSS)
 │   ├── scene-templates.mjs   # Shared scene HTML templates (hook, cta, etc.)
 │   ├── scene-layout.mjs      # Slot layout system (fixed vertical bands)
@@ -100,7 +103,7 @@ scripts/short-video/
 └── output/                   # Per-pipeline output (video, audio, scenes)
 ```
 
-## The VLM layer (ai-analyzer)
+## The VLM layer (visual-analyzer)
 
 The AI analysis layer is the bridge between "assets exist" and "assets are
 correctly placed." It uses `mlx-community/Qwen3-VL-8B-Instruct-8bit` running
@@ -113,6 +116,7 @@ as a long-lived Python subprocess in `~/.video-tts-env`.
 | `describe_image` | Image file path | 1-2 sentence description | Asset-to-scene content matching (scoreCandidate) |
 | `describe_video` | Video file path | 1-2 sentence description | Same, with temporal awareness |
 | `analyze_fit` | Image/video file path | `{fit, focus, reason}` | How to place landscape media in 9:16 canvas |
+| `detectFocus` | Image file path | `{status, protectedRegions, saliency}` | Face detection + saliency map for text placement (Phase 1) |
 | `suggest_mode` | Asset description + scene voiceover | `"fullscreen" \| "background"` | Whether to overlay text or let footage speak |
 
 ### How fit + focus works
@@ -179,7 +183,8 @@ node scripts/short-video/apply-media-patch.mjs
 | Component | Path / Version | Purpose |
 |-----------|---------------|---------|
 | FFmpeg (full) | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Video assembly, rubberband, libass |
-| Python venv | `~/.video-tts-env` | F5-TTS-MLX, Qwen3-TTS, whisperx, mlx-vlm |
+| Python venv | `~/.video-tts-env` | F5-TTS-MLX, Qwen3-TTS, whisperx, mlx-vlm, OpenCV |
+| OpenCV | `opencv-contrib-python==4.10.0.84` | Focus detection (face + saliency) |
 | VLM model | `mlx-community/Qwen3-VL-8B-Instruct-8bit` | Asset analysis (~11 GB resident) |
 | TTS model | F5-TTS-MLX (default) | Voiceover generation |
 | Ollama | `bge-m3:latest` | RAG embeddings (separate from VLM) |

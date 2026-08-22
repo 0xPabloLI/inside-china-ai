@@ -23,9 +23,13 @@
  * from lib/base-styles.mjs (never redeclared here).
  */
 
+import { dirname } from "path";
+import { fileURLToPath } from "url";
 import { baseStyles, withWatermark } from "../../../lib/base-styles.mjs";
 import { templateCss, brandBar, ctaScene, hookScene } from "../../../lib/scene-templates.mjs";
 import { slotCss, sceneFrame } from "../../../lib/scene-layout.mjs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Safe text accessor — returns empty string for missing fields
 function t(texts, key) {
@@ -34,7 +38,7 @@ function t(texts, key) {
 
 /* ── S1: Hook — data breach alert (shared hookScene, red tint) ── */
 function scene1(scene, duration) {
-  return hookScene(scene, duration);
+  return hookScene(scene, duration, __dirname);
 }
 
 /* ── S2: Contrast — surface vs deep theft (vertical A/VS/B stack) ── */
@@ -107,9 +111,9 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
 <div class="scene s3"><div class="grid-bg"></div><div class="glow-red"></div><div class="glow-blue"></div><div class="scanlines"></div>
   ${brandBar()}
   ${sceneFrame({
-    kicker: `<div class="title">${t(txt, "title")}<span class="hl">${t(txt, "titleHighlight")}</span>${t(txt, "titleSuffix")}</div>`,
+    kicker: `<div class="title">${t(txt, "title")} <span class="hl">${t(txt, "titleHighlight")}</span>${t(txt, "titleSuffix")}</div>`,
     hero: `<div class="flow">${eventsHtml}</div>`,
-    support: `<div class="cost">${t(txt, "cost")}<span class="hl">${t(txt, "costHighlight")}</span></div>`,
+    support: `<div class="cost">${t(txt, "cost")} <span class="hl">${t(txt, "costHighlight")}</span></div>`,
   })}
 </div></body></html>`;
 }
@@ -230,7 +234,7 @@ ${baseStyles(duration)}${templateCss()}${slotCss()}
   ${sceneFrame({
     kicker: `<div class="title">${t(txt, "title")}</div>`,
     hero: `<div class="vstack"><div class="card left"><div class="col-title">${leftTitle}</div>${chips(left.slice(1), 0.35)}</div><div class="vs-mid">${t(txt, "vs")}</div><div class="card right"><div class="col-title">${rightTitle}</div>${chips(right.slice(1), 0.75)}</div></div>`,
-    support: `<div class="note">${t(txt, "note")}<span class="hl">${t(txt, "noteHighlight")}</span></div>`,
+    support: `<div class="note">${t(txt, "note")} <span class="hl">${t(txt, "noteHighlight")}</span></div>`,
   })}
 </div></body></html>`;
 }

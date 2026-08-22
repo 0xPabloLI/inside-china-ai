@@ -95,10 +95,10 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 | Priority | Engine      | Max Effort Parameters            | Venv                        | Notes                                                              |
 | -------- | ----------- | ------------------------------- | --------------------------- | ------------------------------------------------------------------ |
-| 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, wps=2.8, speed=1.0 | `~/.f5-tts-env` (Python 3.14) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
-| 2        | Qwen3-TTS   | `do_sample=False`, `repetition_penalty=1.3` (greedy search) | `~/.qwen-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine. |
-| 4        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
-| 5        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
+| 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
+| 2        | Qwen3-TTS   | `do_sample=False`, `repetition_penalty=1.3` (greedy search) | `~/.video-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine. |
+| 3        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
+| 4        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
 
 **F5-TTS-MLX** (DEFAULT — best rhythm + natural pacing):
 
@@ -132,14 +132,6 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - No duration control → pacing varies per scene. Cannot be made tighter.
 - Subtitle alignment may fail due to variable audio lengths.
 
-**CSM 1B** (DEPRECATED — MPS memory exhaustion):
-
-- CSM (Conversational Speech Model) 1B by Sesame AI
-- Fixed `temperature=0.6, topk=30` — no max effort variant available
-- MPS memory exhaustion issues (187-frame generation loop without `torch.inference_mode()`)
-- Even with fixes (float16, inference_mode), RTF ~2-3x — too slow for production
-- No duration or speed control parameter
-
 **Per-Scene Prosody Enhancement**（基于 `visualType`，FFmpeg `rubberband` 滤镜）:
 
 | visualType | Pitch | Tempo | Volume | Label |
@@ -165,13 +157,30 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 | atempo | OFF | OFF | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**. |
 | resample (44.1kHz) | ON | ON | Standardize sample rate for assembly |
 
-**Force engine**: `export TTS_ENGINE=f5-mlx` / `qwen-tts` / `cosyvoice` / `edge-tts`
+**Force engine**: `export TTS_ENGINE=f5-mlx` / `qwen-tts` / `edge-tts` / `say`
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition.
 
 - We already know the text (from scene-data.mjs), so we align known text to known audio directly
 - Whisper recognition approach was abandoned (TTS audio ≠ natural speech, recognition errors like "DeepSeek" → "deep seeks")
 - Output: `output/{pipelineId}/audio/subtitle-timing.json`
+
+## VLM Asset Analysis
+
+The pipeline uses two independent Python subprocesses managed by `visual-analyzer.mjs`:
+
+1. **Focus detector** (`focus_detector.py`, OpenCV) — fast spatial analysis (~180ms/image, <1s startup, ~200MB peak)
+2. **VLM** (`vlm_analyzer.py`, Qwen3-VL-8B-8bit via mlx-vlm) — semantic analysis (~20-30s/image, ~100-120s/video, 12-17s model load)
+
+Two-phase execution: Phase 1 `detectFocus()` batch → `closeFocusDetector()` (releases ~200MB) → Phase 2 `describeImage/Video()` + `analyzeFit()` → `closeVisualAnalyzer()` (releases ~11GB).
+
+Graceful degradation: if Python or model unavailable, returns empty strings. Pipeline continues with keyword-only matching.
+
+Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
+
+Known limitations: video analysis slow (~2min/asset, 20-asset batch ~40min); 8B model occasionally hallucinates brands; non-functional `objc` warnings from av/cv2 library duplication.
+
+> Decisions: ADR-0009 (VLM), ADR-0015 (Focus detection). Alternatives survey: `docs/research/asset-focus-detection-alternatives.md`
 
 ## Logo Handling
 
@@ -222,8 +231,8 @@ Full details: `docs/tiktok/tiktok-best-practices.md`. Enforcement: `verify-video
 | Source attribution (≥2 scenes mention sources)      | Scan all scene voiceovers                       | Add "Bloomberg reported..." etc. |
 | SEO keywords in ≥2 scenes (China/AI)               | Scan voiceover + texts                          | Add keywords to more scenes      |
 | Share-worthy data points (≥50% scenes have numbers) | Scan voiceover + texts                          | Add concrete numbers             |
-| All scenes have subtitle timing                     | Check subtitle-timing.json                      | Re-run force-align.py            |
-| Scene 1 (hook) has subtitles                        | Check timing for sceneId=1                      | Re-run force-align.py            |
+| All scenes have subtitle timing                     | Check subtitle-timing.json                      | Re-run text-align.py            |
+| Scene 1 (hook) has subtitles                        | Check timing for sceneId=1                      | Re-run text-align.py            |
 | No cross-platform watermark references              | Scan scene data                                 | Remove references                |
 | No clickbait patterns in hook                       | Regex check Scene 1 voiceover                   | Rewrite to be factual            |
 | No unverified "sources say" claims                  | Scan voiceovers                                 | Add specific source attribution  |
@@ -370,7 +379,7 @@ scripts/short-video/
 | Item | Path / Value | Notes |
 |------|-------------|-------|
 | ffmpeg-full | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
-| Qwen3-TTS venv | `~/.qwen-tts-env` (Python 3.11) | Qwen3-TTS (fallback) |
+| Unified TTS venv | `~/.video-tts-env` (Python 3.12) | F5-TTS-MLX + Qwen3-TTS + whisperx |
 | Qwen3-TTS model | `~/.qwen-tts-model` | Qwen3-TTS-12Hz-0.6B-Base |
 
 ### Code — Thumbnail
@@ -407,7 +416,9 @@ node scripts/short-video/export-analytics.mjs
 > (views, completion rate, shares, saves, comments), use the TikTok Analytics dashboard
 > or TikTok API directly. Record them manually via the A/B test tracker.
 
-### A/B Test Tracking
+### A/B Test Tracking (optional tool)
+
+> `ab-test-tracker.mjs` is an optional standalone tool. The primary analytics workflow uses `pending-analysis.json` + TikTok Analytics dashboard. This script is for structured A/B test tracking if needed.
 
 ```bash
 # Track a new test variant
@@ -428,14 +439,11 @@ node scripts/short-video/ab-test-tracker.mjs report
    - Which hook type performed best?
    - Which duration had highest completion rate?
    - Which publish time got most shares?
-4. **Adjust next batch** -- feed insights into `generate-calendar.mjs` output
+4. **Adjust next batch** -- feed insights into next content decisions
    - Prioritize topics in the winning content type
    - Use the winning hook formula more often
    - Schedule at the best-performing time
-5. **Content repurposing** -- run `repurpose-content.mjs` on top performers
-   - Blog post -> website SEO
-   - Newsletter -> email list
-   - X thread -> social reach
+5. **Content repurposing** -- Agent handles this directly (no script needed)
 
 ### Content Publishing Red Lines
 
@@ -489,9 +497,9 @@ Agent 在 Stage 3 Step 0 运行 `episode-evaluator.mjs`，自动判断：
 
 ---
 
-## Compilation Video
+## Compilation Video (optional tool)
 
-> 所有集发完后 3-5 天，合并为合集发布到 YouTube 长视频。
+> 所有集发完后 3-5 天，合并为合集发布到 YouTube 长视频。`compile-series.mjs` 和 `compile-series-reconstruct.mjs` 是可选 standalone 工具，不在默认管线中。
 
 ### Plan A: FFmpeg 拼接
 
@@ -585,7 +593,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 | 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
 | 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
 | 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). Per-pipeline config from `content/<dir>/dom-config.mjs` (optional, defaults if absent). FAIL aborts before recording; `--skip-dom-check` is a debug-only escape hatch (all content dirs migrated) | `verify-scene-dom.mjs` report |
-| 3 | Record scene videos (Playwright) | `output/{id}/video/scene-*.webm` |
+| 3 | Record scene videos (`--remotion` flag or `meta.renderer === "remotion"` → Remotion path; default → Playwright legacy path) | `output/{id}/video/scene-*.webm` |
 | 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
 | 5 | Assemble final video (FFmpeg) | `output/{id}/{id}-v{version}-short.mp4` + `{id}-short.mp4` (latest copy) |

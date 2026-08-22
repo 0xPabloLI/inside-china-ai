@@ -10,11 +10,11 @@
  *              research-results.json grouped by source.
  *
  * Sources are defined in lib/source-registry.mjs (single source of source).
- * 28 sources total (7 news + 8 self-media + 4 western + 3 general + 5 last30days + 1 wechat).
+ * 28 sources total (7 news + 8 self-media + 8 international + 5 general + 5 last30days + 1 wechat).
  *
  * Fallback chain: apiSearch (if configured) → CDP → cdpFallback (Google site: search) → mcpFallback (mcp-search-bridge)
  * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
- * Western/general sources primarily use mcp-search-bridge (Grok web search).
+ * International/general sources primarily use mcp-search-bridge (Grok web search).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
  *
  * Env vars for mcp-search-bridge:
@@ -30,7 +30,7 @@
  *                 Skipped by default to preserve free quota.
  *
  * Requires: Chrome Remote Debugging enabled + CDP proxy at localhost:3456
- *           (western/MCP sources work without CDP via mcp-search-bridge)
+ *           (international/MCP sources work without CDP via mcp-search-bridge)
  *
  * Output:
  *   --trend:    output/trending-topics.json
@@ -41,12 +41,20 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
+import { DISCOVERY_SCHEMA_VERSION } from "./lib/research/schemas.mjs";
+import {
+  getResearchWorkspace,
+  writeResearchArtifact,
+  RESEARCH_ARTIFACTS,
+} from "./lib/research/workspace.mjs";
+
 import {
   filterChinaAI,
   classifyTopic,
   deduplicateTopics,
   buildOutputJson,
   cleanTitle,
+  filterRecentTrackedArticles,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
@@ -83,10 +91,56 @@ function hasFlag(name) {
 const keywordArg = getArg("keyword");
 const isResearchMode = hasFlag("research");
 const includePaid = hasFlag("include-paid");
+const contentIdArg = getArg("content-id");
+const researchRunIdArg = getArg("research-run-id");
+
+// When --content-id is provided, output goes to content-scoped discovery.json
+const isScopedMode = !!contentIdArg;
 
 // ─── Source collection ───
 
 let cdpAvailable = true; // Set to false if CDP proxy check fails in main()
+
+/**
+ * R1: Enrich articles with imageUrl extracted from the same DOM.
+ *
+ * Runs a CDP eval on the still-open tab to find <img> elements near each
+ * article link. This is zero additional navigation — the tab is already open
+ * from the extractScript call. The script finds all <a> elements, then for
+ * each one checks if there's a nearby <img> (same parent or ancestor container).
+ *
+ * Articles are matched by URL: if the article's URL matches an <a href> on
+ * the page, the nearest <img> src is used as imageUrl.
+ *
+ * @param {string} tabId - CDP tab ID (still open)
+ * @param {Array<{title: string, url: string}>} articles - Articles from extractScript
+ * @returns {Promise<Array>} Articles with imageUrl/hasImage fields added
+ */
+async function enrichWithImages(tabId, articles) {
+  const imageScript = `
+    var results = {};
+    var links = document.querySelectorAll('a[href]');
+    links.forEach(function(a) {
+      var img = a.querySelector('img') || a.parentElement?.querySelector('img') || a.closest('article, .article-item, .post-item, .list-item, .kr-flow-item, .recommend-item')?.querySelector('img');
+      if (img && img.src && img.src.startsWith('http')) {
+        results[a.href] = img.src;
+      }
+    });
+    return results;
+  `;
+  const urlToImage = await extractFromTab(tabId, imageScript);
+  if (!urlToImage || typeof urlToImage !== "object") return articles;
+
+  return articles.map((a) => {
+    if (a.imageUrl) return a; // Already has imageUrl from extractScript
+    const imgUrl = urlToImage[a.url];
+    return {
+      ...a,
+      imageUrl: imgUrl || null,
+      hasImage: !!imgUrl,
+    };
+  });
+}
 
 async function collectFromCdp(source, keyword) {
   if (!cdpAvailable) return [];
@@ -135,6 +189,19 @@ async function collectFromCdp(source, keyword) {
     await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
     articles = await extractFromTab(tabId, source.extractScript);
     console.log(`  📊 Retry extracted ${articles.length} articles`);
+  }
+
+  // R1: Extract imageUrl from the same DOM — zero additional requests.
+  // The tab is still open; we run a second eval to find images alongside
+  // the same article items. enrichWithImages adds imageUrl/hasImage to
+  // each article that has a matching image.
+  if (articles.length > 0) {
+    try {
+      articles = await enrichWithImages(tabId, articles);
+    } catch (e) {
+      // Non-fatal — articles without imageUrl still work for trend discovery
+      console.warn(`  ⚠️  Image enrichment failed: ${e.message}`);
+    }
   }
 
   // Close tab
@@ -262,8 +329,16 @@ async function main() {
   console.log(`📡 China AI News Source Search — ${mode} mode`);
   console.log("=".repeat(60));
 
-  // Select sources based on mode
-  let sources = isResearchMode ? ALL_SOURCES.filter((s) => s.supportsKeyword) : ALL_SOURCES;
+  // R2: Select sources based on mode — only sources with capabilities.articles
+  // This excludes stock_api sources (Pexels, Unsplash, etc.) which only have
+  // capabilities.images/videos and should not be used for article/trend discovery.
+  // Research mode includes sources with supportsKeyword=true OR cdpFallback
+  // (homepage-only sources can still contribute via Google site: fallback).
+  let sources = isResearchMode
+    ? ALL_SOURCES.filter(
+        (s) => s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.cdpFallback,
+      )
+    : ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
   // Filter out paid-API sources unless --include-paid is passed
   const paidSources = sources.filter((s) => s.apiSearch?.paidApi || s.mcpFallback?.paidApi);
@@ -277,7 +352,7 @@ async function main() {
   const sourceBreakdown = {
     news: sources.filter((s) => s.category === "news").length,
     self_media: sources.filter((s) => s.category === "self_media").length,
-    western: sources.filter((s) => s.category === "western").length,
+    international: sources.filter((s) => s.category === "international").length,
     general: sources.filter((s) => s.category === "general").length,
     last30days: sources.filter((s) => s.category === "last30days").length,
     wechat: sources.filter((s) => s.category === "wechat").length,
@@ -323,7 +398,8 @@ async function main() {
 
   for (const source of sources) {
     try {
-      const articles = await collectFromSource(source, keywordArg);
+      const fetchedArticles = await collectFromSource(source, keywordArg);
+      const articles = filterRecentTrackedArticles(fetchedArticles, source.tracking);
       allArticles.push(...articles);
       if (isResearchMode) {
         resultsBySource[source.name] = {
@@ -345,7 +421,50 @@ async function main() {
   }
 
   if (isResearchMode) {
-    // ── Research mode: output raw results grouped by source ──
+    // ── Scoped mode: output discovery.json to content workspace ──
+    if (isScopedMode) {
+      const runId = researchRunIdArg || `run-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      const discovery = {
+        schemaVersion: DISCOVERY_SCHEMA_VERSION,
+        contentId: contentIdArg,
+        researchRunId: runId,
+        timeWindow: { days: 7, until: new Date().toISOString().slice(0, 10) },
+        locale: "zh-CN",
+        sources: allArticles.map((a) => ({
+          url: a.url || "",
+          title: a.title || "",
+          snippet: a.snippet || "",
+          sourceName: a.source || "",
+          sourceCategory: resultsBySource[a.source]?.category || "",
+          publishedAt: a.publishedAt || null,
+          collectionMethod: a.collectionMethod || "cdp",
+          collectionStatus: "ok",
+        })),
+        failedSources: failedSources.map((name) => ({
+          name,
+          reason: resultsBySource[name]?.error || "unknown",
+        })),
+        sourceCount: allArticles.length,
+        runMetadata: {
+          startedAt: new Date().toISOString(),
+          keyword: keywordArg,
+          mode: "research",
+        },
+      };
+
+      writeResearchArtifact(contentIdArg, runId, RESEARCH_ARTIFACTS.DISCOVERY, discovery);
+      const workspacePath = getResearchWorkspace(contentIdArg);
+      const discoveryPath = join(workspacePath, RESEARCH_ARTIFACTS.DISCOVERY);
+
+      console.log(`\n📁 Discovery written: ${discoveryPath}`);
+      console.log(`   Content ID: ${contentIdArg}`);
+      console.log(`   Run ID: ${runId}`);
+      console.log(`   Total sources: ${discovery.sourceCount}`);
+      console.log(`   Failed sources: ${failedSources.length}`);
+      return;
+    }
+
+    // ── Research mode (legacy): output raw results grouped by source ──
     const output = {
       keyword: keywordArg,
       mode: "research",
