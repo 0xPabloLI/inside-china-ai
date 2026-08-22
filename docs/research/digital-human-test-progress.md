@@ -267,14 +267,20 @@
 - **结论**：**480×832 在 M2 Pro 上不可行**，需降回 432×256 或使用云 GPU（≥16GB VRAM）
 - **清理**：已删除无用的 .npy 和 .mp4 文件
 
-### ✅ EchoMimicV3 — Kaggle P100 推理成功！
+### ✅ EchoMimicV3 — Kaggle T4 最优配置（v51）
 
-- **日期**：2026-08-12 ~ 2026-08-17
-- **结论**：**成功！** 在 Kaggle P100 16GB 上完成推理，生成 768×768、81帧（3.24s@25fps）视频
-- **环境**：echomimic_v3 (蚂蚁集团/antgroup), Python 3.12, PyTorch 2.4.1+cu121, **Kaggle Tesla P100 16GB**
-- **模型**：EchoMimicV3-Flash-pro（8步生成，768×768）
-- **模型大小**：~20GB（Wan2.1 基础模型 16GB + Flash 权重 3.5GB）
-- **推理时间**：24.6 分钟（sequential_cpu_offload 模式），总时间 34.9 分钟（含环境安装+模型下载）
+- **日期**：2026-08-12 ~ 2026-08-22
+- **结论**：**最优配置已固化！** Kaggle T4 上完成全链路优化，确定 v51 为最终配置
+- **最优配置（v51）**：TeaCache on + torch.compile on + 720p + 8步 + sequential_cpu_offload + diffusers 0.31.0
+- **推理时间**：~14 min/段（3.24s, 81帧），1分钟视频 ≈ 20段 × 14min ≈ 4.7小时
+- **最佳实践 Notebook**：`xpabloli/echomimicv3-flash-best-practice-t4`
+- **Kaggle Dataset**：`xpabloli/echomimicv3-flash`（17.1GB 模型权重）+ `xpabloli/echomimicv3-test-inputs`（5MB 测试输入）
+- **详细优化文档**：`docs/research/echomimicv3-optimization-options.md` → "最优配置（v51）"章节
+- **历史演进**：P100(24min) → T4(18min) → torch.compile(14min) → 固化
+- **早期 P100 测试**（2026-08-12 ~ 2026-08-17）：
+  - 环境：echomimic_v3 (蚂蚁集团/antgroup), Python 3.12, PyTorch 2.4.1+cu121, **Kaggle Tesla P100 16GB**
+  - 模型：EchoMimicV3-Flash-pro（8步生成，768×768）
+  - 推理时间：24.6 分钟（sequential_cpu_offload 模式）
 - **输出**：portrait_output.mp4, 210KB, 768×768, 81帧
 - **Kaggle kernel slug**: `xpabloli/echomimicv3-flash-test`
 - **自动化脚本**：`scripts/kaggle/echomimicv3-test/echomimicv3_inference.py`（v25）
@@ -690,9 +696,9 @@
 
 | # | 模型/版本 | 基座模型 | 类型 | 许可证 | 推荐 GPU | 本地/云端 | 优先级 | 说明 |
 |---|----------|---------|------|--------|---------|----------|--------|--------|------|
-| 1 | ~~EchoMimicV3 Flash (v33 配置)~~ | Wan2.1-Fun-V1.1-1.3B | 原始版 | Apache 2.0 | P100✅ | ✅ 已完成 | — | 当前最优配置 |
+| 1 | ~~EchoMimicV3 Flash (v51 最优配置)~~ | Wan2.1-Fun-V1.1-1.3B | 原始版 | Apache 2.0 | T4✅ | ✅ **最优** | — | TeaCache on + torch.compile + 720p + 8步，~14min/段 |
 | 2 | ~~EchoMimicV3 app_mm.py 参数组合 (v34)~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | P100✅ | ✅ 已完成 | — | 3 test case 全成功，app_mm 参数无加速 |
-| 3 | ~~EchoMimicV3 mmgp 量化 offload (v35/v36)~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 | 🔄 测试中 | ⭐⭐⭐⭐ | mmgp FP8 量化 + app_mm 参数 + 微信半身照 + demo照 |
+| 3 | ~~EchoMimicV3 NF4/bnb 量化~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 | ❌ 不可行 | — | Kaggle 29GB CPU RAM 不足，bitsandbytes 量化 OOM |
 | 4 | InfiniteTalk (原始版) | Wan2.1-I2V-14B | 原始版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 无限长度 + 中文，14B Wan2.1 基座 |
 | 5 | MultiTalk INT8 量化版 | Wan2.1-I2V-14B | 量化版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 已发布 INT8 + SageAttention |
 | 6 | LongCat GPU INT8 | LongCat-Video 13.6B DiT | 量化版 | MIT | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | INT8 仅量化 DiT；官方其余组件仍用 bf16，T4/P100 非已验证路径 |
@@ -700,7 +706,7 @@
 | 8 | EchoMimicV3 ComfyUI LCM | Wan2.1-Fun-V1.1-1.3B | 加速版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐ | 4步推理，需 ComfyUI 环境 |
 | 9 | InfiniteTalk + lightX2V LoRA | Wan2.1-I2V-14B | 加速版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐ | 4-8步推理 |
 | 10 | LongCat MLX q8 | LongCat-Video 13.6B DiT | 本地量化 | MIT | — | 本地 M2 Pro | ⭐⭐⭐ | 质量接近 bf16 |
-| 11 | EchoMimicV3 T4 平台测试 | Wan2.1-Fun-V1.1-1.3B | 平台测试 | Apache 2.0 | T4 | ✅ v35/v36 | ⭐⭐⭐⭐ | 用 T4 替代 P100，验证脚本简化 + Tensor Core 加速 |
+| 11 | ~~EchoMimicV3 T4 平台测试~~ | Wan2.1-Fun-V1.1-1.3B | 平台测试 | Apache 2.0 | T4 | ✅ 已完成 | — | T4 替代 P100，快 24%，已固化为最优配置 |
 | 12 | Sonic (原始版) | SVD UNet + Whisper-Tiny | 质量基准 | ❌ 非商用 | T4 | Kaggle/Colab | ⭐⭐⭐ | 做质量对比基准 |
 | 13 | LatentSync 1.6 省内存模式 | SD UNet + VAE | 原始版 | OpenRAIL++ | L4/A100（≥18GB） | Colab Pro+/云 GPU | ⭐⭐⭐ | 官方最低 18GB；T4 x2 显存不合并，不能视为 30GB 路径 |
 | 14 | Hallo3 (原始版) | CogVideo DiT | 原始版 | MIT | H100（A100 需先验证） | 云 GPU | ⭐⭐⭐ | 官方仅在 H100 测试；T4 16GB 无已验证路径 |
