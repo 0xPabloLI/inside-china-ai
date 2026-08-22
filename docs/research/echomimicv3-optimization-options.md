@@ -267,7 +267,7 @@ Kaggle `kernel-metadata.json` 通过 `machine_shape` 字段可选 GPU 类型：
 - **GPU 节点波动**：v43(18.1min) → v45r(21.0min) → v45s(49.3min)，同为 T4 但时间差 2.7x，说明 Kaggle T4 节点性能波动极大
 - **结论**：双 T4 metadata 无实际加速，`machine_shape` 仅用于确保分配到 T4（而非 CPU）。最优方案仍是 v43 单卡 T4 + sequential_cpu_offload。
 
-## v48 配置（当前最优：torch.compile + 无 TeaCache）
+## 最优配置（v51，TeaCache on + torch.compile on）
 
 ```python
 # 环境配置
@@ -280,20 +280,27 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 # 推理参数
 --num_inference_steps 8        # Flash 版 8 步即收敛
 --audio_guidance_scale 3.0
---GPU_memory_mode 'torch_compile'  # sequential_cpu_offload + torch.compile
-# 不使用 TeaCache（--enable_teacache 已移除）—— 会跳过部分步数影响质量
+--GPU_memory_mode 'torch_compile'  # sequential_cpu_offload + torch.compile(forward)
+--enable_teacache --teacache_threshold 0.1 --num_skip_start_steps 5  # 官方默认，talking head 场景不影响质量
 --guidance_scale 6.0
 --audio_scale 1.0 --neg_scale 1.0 --neg_steps 0
 --seed 43 --weight_dtype 'float16'
---sample_size 768 768 --fps 25 --shift 5.0
+--sample_size 720 720 --fps 25 --shift 5.0
 --ulysses_degree 1 --ring_degree 1  # 单卡模式
 ```
 
-**v48 关键变化 vs v43**：
-- TeaCache **已禁用**——用户确认 TeaCache 会跳过部分推理步数，影响质量
-- torch.compile 已启用（mode='reduce-overhead'），预估 13% 加速
-- 需修复 `.config` 属性兼容性 bug（v48 已修复）
-- expandable_segments 必须与 sequential_cpu_offload 一起用（防碎片 OOM），对速度无负面影响
+**配置决策依据**：
+- **TeaCache on**：官方为 talking head 优化，threshold=0.1 很保守，画面变化小时跳过不损失质量。实测 8 步跳 1 步，省 ~10 min（17 min vs 27 min）
+- **torch.compile on**：用 `torch.compile(transformer.forward)` 方式（v49 修复），保留 .config 属性。有 TeaCache 时 13% 加速，不影响视频质量（MD5 验证）
+- **sample_size 720**：768→720 画质差异不可见，720 更轻量
+- **8 步**：Flash 版 8 步即收敛，更多步数无质量增益
+- **expandable_segments**：与 sequential_cpu_offload 一起用，防碎片 OOM，无速度负面影响
+- **diffusers 0.31.0**：0.37.1 在 Kaggle 29GB CPU RAM 上 OOM Killed（v41/v42 验证）
+
+**实测时间**（Kaggle T4, 8步, 720p, TeaCache on, sequential_cpu_offload）:
+- v43 baseline: 18.1 min/段
+- v47 torch.compile: 14.3 min/段（+13% 加速）
+- 1 分钟视频 ≈ 20 段 × 14 min ≈ 4.7 小时
 
 **v43 数据来源**：`kagglehub.notebook_output_download('xpabloli/echomimicv3-v43-t4-diffusers031-sequential/versions/1')` 获取的 debug_log.txt
 
