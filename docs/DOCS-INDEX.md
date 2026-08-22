@@ -95,6 +95,10 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 |----------|---------|
 | `issue-tracker.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
 
+### `reviews/` — Review records
+| Document | Purpose |
+|----------|---------|
+| `reviews/video-document-layer-review-2026-08-21.md` | #103 的视频内容 L1 文档层审阅：offload 原则、迁移边界、最小加载路径与验证 guardrails |
 ### `archive/` — Completed work
 
 Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list.
