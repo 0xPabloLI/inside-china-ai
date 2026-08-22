@@ -1893,7 +1893,9 @@ export async function main(args = process.argv.slice(2)) {
             path: null,
             status: "text-only",
           });
-          console.log(`    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`);
+          console.log(
+            `    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`,
+          );
           continue;
         }
 
