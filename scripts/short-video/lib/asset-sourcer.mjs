@@ -26,6 +26,12 @@ import { join, dirname, basename, extname, relative, isAbsolute } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS } from "./source-registry.mjs";
+import {
+  getCachedSearchResults,
+  getOrSearchResults,
+  loadSearchResultsCache,
+  saveSearchResultsCache,
+} from "./search-results-cache.mjs";
 
 // Re-export SOURCE_ATTRIBUTIONS from source-registry (single source of truth)
 export { SOURCE_ATTRIBUTIONS };
@@ -1309,6 +1315,21 @@ export function hasKeywordMatch(title, keywords) {
  * @param {string[]} keywords - Asset search keywords to match against topic titles
  * @returns {Array<{url: string, sourceArticle: string|null, sourceTitle: string}>}
  */
+/**
+ * Normalize a Stage 1 cached image for the Stage 4 score, filter, and
+ * attribution pipeline. The trend topic title supplies the only reliable
+ * relevance metadata for a cached URL, while the article URL remains
+ * provenance rather than an asset source identifier.
+ */
+export function toCachedImageCandidate(candidate) {
+  return {
+    ...candidate,
+    title: candidate?.sourceTitle || candidate?.title || "",
+    source: "cached",
+    type: "image",
+  };
+}
+
 export function loadCachedImages(filePath, keywords) {
   if (!filePath || !existsSync(filePath)) return [];
   if (!keywords || keywords.length === 0) return [];
@@ -1516,6 +1537,20 @@ export function getApiKey(env, keyName) {
 // ─── Main orchestrator ───
 
 /**
+ * Persist the optional search cache without letting a filesystem failure abort
+ * the already completed media collection.
+ */
+export function persistSearchResultsCache(searchCachePath, searchCache, logger = console) {
+  const cacheSave = saveSearchResultsCache(searchCachePath, searchCache);
+  if (cacheSave.success) {
+    logger.log(`\n💾 Search cache updated: ${searchCachePath}`);
+  } else {
+    logger.warn(`\n⚠️  Search cache was not saved: ${cacheSave.error}`);
+  }
+  return cacheSave;
+}
+
+/**
  * Main entry point.
  *
  * Usage: node asset-sourcer.mjs --content unitree [--keywords "kw1,kw2"] [--max-per-source 3]
@@ -1581,14 +1616,33 @@ export async function main(args = process.argv.slice(2)) {
   const envPath = join(__dirname, "..", "..", "..", ".env.local");
   const env = loadEnvLocal(envPath);
 
-  // Check CDP proxy
-  const cdpAvailable = await checkCdpAvailable();
-  if (!cdpAvailable) {
-    console.error("❌ CDP proxy not available at localhost:3456");
-    console.error("   Enable Chrome Remote Debugging + start web-access skill proxy.");
-    process.exit(1);
+  const searchCachePath = join(contentDir, "search-cache.json");
+  const searchCache = loadSearchResultsCache(searchCachePath);
+  let searchCacheDirty = false;
+  console.log(`  Search cache: ${searchCache.entries.length} entries loaded`);
+
+  // A working CDP connection is required only when at least one CDP query is
+  // not already cached. This lets fully cached runs proceed without Chrome.
+  const cdpSearchRequired = CDP_SOURCES.some((source) =>
+    keywords.some(
+      (keyword) =>
+        !getCachedSearchResults(searchCache, {
+          source: source.name,
+          keyword,
+        }),
+    ),
+  );
+  if (cdpSearchRequired) {
+    const cdpAvailable = await checkCdpAvailable();
+    if (!cdpAvailable) {
+      console.error("❌ CDP proxy not available at localhost:3456");
+      console.error("   Enable Chrome Remote Debugging + start web-access skill proxy.");
+      process.exit(1);
+    }
+    console.log("  ✅ CDP proxy available");
+  } else {
+    console.log("  ✅ CDP search results available from cache");
   }
-  console.log("  ✅ CDP proxy available");
 
   const allAssets = [];
   const failed = [];
@@ -1603,12 +1657,13 @@ export async function main(args = process.argv.slice(2)) {
   if (cachedImages.length > 0) {
     console.log(`\n🖼️  Cached images (from trend discovery): ${cachedImages.length} found`);
     const scored = cachedImages
-      .map((c) => ({
-        ...c,
-        score: scoreCandidate(c, keywords[0]),
-        source: c.sourceArticle || "cached",
-        type: "image",
-      }))
+      .map((c) => {
+        const candidate = toCachedImageCandidate(c);
+        return {
+          ...candidate,
+          score: scoreCandidate(candidate, keywords[0]),
+        };
+      })
       .sort((a, b) => b.score - a.score)
       .slice(0, maxPerSource);
 
@@ -1650,14 +1705,30 @@ export async function main(args = process.argv.slice(2)) {
   const apiResults = await Promise.allSettled(
     API_SOURCES.map(async (source) => {
       const apiKey = source.apiKeyEnv ? getApiKey(env, source.apiKeyEnv) : null;
-      if (source.requiresApiKey && !apiKey) {
-        skipped.push({ source: source.name, reason: "no API key" });
-        return [];
-      }
+      const missingApiKey = source.requiresApiKey && !apiKey;
+      let skippedForMissingApiKey = false;
 
       const candidates = await Promise.all(
-        keywords.map((kw) => searchApiSource(source, kw, apiKey)),
+        keywords.map(async (keyword) => {
+          const result = await getOrSearchResults(searchCache, {
+            source: source.name,
+            keyword,
+            search: () => searchApiSource(source, keyword, apiKey),
+          });
+          if (result.cacheHit) {
+            console.log(`  ♻️  ${source.label} cache hit: "${keyword}"`);
+          } else if (missingApiKey) {
+            skippedForMissingApiKey = true;
+          } else if (result.results.length > 0) {
+            searchCacheDirty = true;
+            console.log(`  💾 ${source.label} search cached: "${keyword}"`);
+          }
+          return result.results;
+        }),
       );
+      if (skippedForMissingApiKey) {
+        skipped.push({ source: source.name, reason: "no API key" });
+      }
       const flat = candidates.flat();
       return flat.map((c) => ({ ...c, source: source.name }));
     }),
@@ -1738,7 +1809,18 @@ export async function main(args = process.argv.slice(2)) {
   for (const source of YTDLP_SOURCES) {
     for (const keyword of keywords) {
       console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-      const candidates = searchYtdlp(keyword, source.platform);
+      const result = await getOrSearchResults(searchCache, {
+        source: source.name,
+        keyword,
+        search: () => searchYtdlp(keyword, source.platform),
+      });
+      const candidates = result.results;
+      if (!result.cacheHit && candidates.length > 0) {
+        searchCacheDirty = true;
+        console.log("     Live search result queued for cache");
+      } else if (result.cacheHit) {
+        console.log("     Reused cached search result");
+      }
       console.log(`     Found ${candidates.length} candidates`);
 
       const scored = candidates
@@ -1780,7 +1862,18 @@ export async function main(args = process.argv.slice(2)) {
   for (const source of CDP_SOURCES) {
     for (const keyword of keywords) {
       console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-      const candidates = await searchCdpSource(source, keyword);
+      const result = await getOrSearchResults(searchCache, {
+        source: source.name,
+        keyword,
+        search: () => searchCdpSource(source, keyword),
+      });
+      const candidates = result.results;
+      if (!result.cacheHit && candidates.length > 0) {
+        searchCacheDirty = true;
+        console.log("     Live search result queued for cache");
+      } else if (result.cacheHit) {
+        console.log("     Reused cached search result");
+      }
       console.log(`     Found ${candidates.length} candidates`);
 
       const scored = candidates
@@ -1800,7 +1893,9 @@ export async function main(args = process.argv.slice(2)) {
             path: null,
             status: "text-only",
           });
-          console.log(`    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`);
+          console.log(
+            `    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`,
+          );
           continue;
         }
 
@@ -1828,6 +1923,10 @@ export async function main(args = process.argv.slice(2)) {
         }
       }
     }
+  }
+
+  if (searchCacheDirty) {
+    persistSearchResultsCache(searchCachePath, searchCache);
   }
 
   // ── AI Analysis (after download, before assignment) ──

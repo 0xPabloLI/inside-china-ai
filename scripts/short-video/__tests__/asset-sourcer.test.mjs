@@ -4,7 +4,9 @@
  * TDD: Tests written first (red), implementation second (green).
  */
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
-import { unlinkSync, rmdirSync, writeFileSync } from "fs";
+import { mkdtempSync, rmSync, unlinkSync, rmdirSync, writeFileSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 import {
   extractKeywords,
@@ -28,11 +30,40 @@ import {
   checkCdpAvailable,
   loadEnvLocal,
   getApiKey,
+  persistSearchResultsCache,
   loadCachedImages,
+  toCachedImageCandidate,
   isLogoOrIcon,
   hasKeywordMatch,
   PRE_DOWNLOAD_FILTER_THRESHOLD,
 } from "../lib/asset-sourcer.mjs";
+import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
+
+// ─── search cache persistence ───
+
+describe("persistSearchResultsCache", () => {
+  it("warns and preserves a completed search run when cache persistence fails", () => {
+    const cache = createSearchResultsCache();
+    recordSearchResults(cache, {
+      source: "youtube",
+      keyword: "Unitree",
+      results: [{ title: "Robot video", url: "https://youtube.example/1", type: "video" }],
+    });
+    const cachePath = mkdtempSync(join(tmpdir(), "asset-sourcer-cache-dir-"));
+    const logger = { log: vi.fn(), warn: vi.fn() };
+
+    try {
+      expect(persistSearchResultsCache(cachePath, cache, logger)).toEqual(
+        expect.objectContaining({ success: false }),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Search cache was not saved"),
+      );
+    } finally {
+      rmSync(cachePath, { recursive: true, force: true });
+    }
+  });
+});
 
 // ─── extractKeywords ───
 
@@ -1869,6 +1900,26 @@ describe("loadCachedImages", () => {
     } finally {
       unlinkSync(tmpFile);
     }
+  });
+});
+
+describe("toCachedImageCandidate (#56)", () => {
+  it("maps the originating topic title and stable provenance before pre-download filtering", () => {
+    const asset = toCachedImageCandidate({
+      url: "https://qbitai.com/images/deepseek-v4.jpg",
+      sourceArticle: "https://qbitai.com/articles/deepseek-v4",
+      sourceTitle: "DeepSeek V4 announced",
+    });
+
+    expect(asset).toMatchObject({
+      title: "DeepSeek V4 announced",
+      source: "cached",
+      sourceArticle: "https://qbitai.com/articles/deepseek-v4",
+      type: "image",
+    });
+    expect(preFilterCandidate(asset, "DeepSeek").technicalScore).toBeGreaterThanOrEqual(
+      PRE_DOWNLOAD_FILTER_THRESHOLD,
+    );
   });
 });
 
