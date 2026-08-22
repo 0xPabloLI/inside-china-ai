@@ -371,16 +371,23 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 ### 1 分钟视频整体耗时估算
 
-基于 v43 实测（T4 + 8步 + CPU offload = 18.1min/3.24s 段）及 v47 torch.compile 数据：
+基于 v43/v47/v49 实测数据：
 
 | 方案 | 单段 (3.24s) | 1分钟 (~20段) | 备注 |
 |------|-------------|-------------|------|
-| 当前最优 (T4, 8步, sequential offload) | 18 min | ~6 小时 | v43 实测 |
-| + torch.compile (v47) | 15.7 min | ~5.2 小时 | v47 实测 14:17 推理 + ~2min compile；需修复 config bug |
+| T4, 8步, TeaCache on, sequential offload | 17 min | ~5.7 小时 | v48 实测（TeaCache default=True） |
+| T4, 8步, TeaCache on, + torch.compile | 14 min | ~4.7 小时 | v47 实测 14:17（.config bug 未产出视频） |
+| T4, 8步, **TeaCache off**, sequential offload | 27 min | ~9 小时 | v49 实测 |
+| T4, 8步, **TeaCache off**, + torch.compile | 28.5 min | ~9.5 小时 | v49 实测（.config 修复成功，视频产出 ✅） |
 | 25步 + offload | ~23 min | ~7.7 小时 | v43 实测 22.4-23.5min |
-| 25步 + torch.compile (预估) | ~20 min | ~6.7 小时 | 按 13% 加速估算 |
 | NF4 量化 (预估) | ~10 min | ~3.3 小时 | ❌ Kaggle CPU RAM 不足，不可行 |
 | 双卡 offload 消除 (预估) | ~8 min | ~2.7 小时 | ❌ T4 14.6GB OOM，不可行 |
+
+**v49 关键发现**：
+- torch.compile 修复成功！改用 `torch.compile(transformer.forward)` 而非 `torch.compile(transformer)`，保留 `.config` 属性
+- 无 TeaCache 比 有 TeaCache 慢 60%（27 min vs 17 min）
+- torch.compile 在无 TeaCache 时仅加速 ~5%（28.5 vs 27 min），远低于有 TeaCache 时的 13%
+- compile 和 baseline 产出的视频 MD5 完全相同——**torch.compile 不影响视频质量**
 
 > **注**：1 分钟视频需要多段生成拼接（每段 3.24s/81帧）。实际分段数取决于音频长度和 video_length 参数。
 > **P100 退役**：2026-09-15 从 Kaggle 移除，之后只能用 T4。
