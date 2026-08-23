@@ -26,11 +26,11 @@ Run `gh issue list --label <state-label> --state open` to see issues in each sta
 
 ## Recommended execution order (2026-08-23 full triage)
 
-33 open issues. Grouped into phases by shared context. Issues in the same phase modify the same files or share the same design context, and should be done in one continuous session (split at phase boundaries only).
+34 open issues. Grouped into phases by shared context. Issues in the same phase modify the same files or share the same design context, and should be done in one continuous session (split at phase boundaries only).
 
 ### Phase 1: Search source infrastructure — NEXT
 
-Shared context: source-registry.mjs + search-sources.mjs fallback chain.
+Shared context: source-registry.mjs + search-sources.mjs fallback chain + asset-sourcer.mjs media search.
 
 | # | Issue | Role |
 |---|-------|------|
@@ -38,8 +38,9 @@ Shared context: source-registry.mjs + search-sources.mjs fallback chain.
 | #92 | SearXNG metasearch source | API source, becomes Pool member later |
 | #64 | Free API sources (Guardian, NYT, etc.) | Multiple API sources, enlarges Pool |
 | #65 | Search API Pool | Round-robin scheduler, depends on #92+#64 |
+| #110 | Progressive (Tiered) Media Search | Image/video fallback tiers in asset-sourcer, reuses #92 SearXNG |
 
-Internal order: #91 -> #92 -> #64 -> #65
+Internal order: #91 -> #92 -> #64 -> #65. #110 independent (does not depend on #65, uses #92 SearXNG already deployed).
 
 ### Phase 2: Source registry schema + audit
 
@@ -117,9 +118,8 @@ Best done after source infrastructure is stable.
 |---|-------|------|
 | #87 | 88 manual maintenance items audit | Benefits from #66 auto-fallback |
 | #109 | Unified search pool for web-access skill | Reuses #65 pool, different consumer |
-| #110 | Brave Image/Video Search in asset-sourcer | Media fallback tier |
 
-Depends on: Phase 1 (#65) for #109; Phase 3 for #110.
+Depends on: Phase 1 (#65) for #109.
 
 ### Dormant
 
@@ -133,5 +133,6 @@ Depends on: Phase 1 (#65) for #109; Phase 3 for #110.
 - Phase 1 -> Phase 3 (new sources before extraction optimization)
 - Phase 2 #66 -> Phase 7 #87 (auto-fallback reduces manual items)
 - Phase 1 #65 -> Phase 7 #109 (pool reused by web-access skill)
+- Phase 1 #110 <-> #65 (shared BRAVE_SEARCH_API_KEY + quota tracking; #110 does not block on #65, but quota module should be extracted to shared when #65 is done)
 
 No hard blocking edges. All phases can start independently.
