@@ -767,7 +767,7 @@ GPU count: 2
 | 1️⃣ | **Kaggle T4×2** | T4 15GB×2 | 30h/周 | 自动化批量推理（默认） |
 | 2️⃣ | **Colab 免费 T4** | T4 15GB | 不固定 | 一键运行单脚本 |
 | 3️⃣ | **Modal T4** | T4 15GB | $30/月 (~50h) | serverless 函数推理（冷启动慢） |
-| 4️⃣ | **Lightning AI L4** | L4 22.5GB (bf16) | ~8h/月 | **16GB 不够时首选** |
+| ~~4️⃣~~ | ~~**Lightning AI L4**~~ | ~~L4 22.5GB (bf16)~~ | ~~8h/月~~ | ❌ 账号被封 |
 | 5️⃣ | **AutoDL 4090** | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
 
 > **关于多 Kaggle 账号 fallback pool**：技术上可行（维护多组 API key，轮询空闲账号），但 Kaggle TOS 禁止一人多账号，有封号风险。**更安全的替代方案是加入 Lightning AI 作为第二平台**——不同平台不违反 TOS，且 Lightning AI 的 L4 (22.5GB, bf16) 正好弥补 Kaggle T4 (15GB, 无 bf16) 的不足。

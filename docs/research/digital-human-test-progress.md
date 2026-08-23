@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-18（LongCat 480×832 全黑输出确认 + 免费 GPU 平台深度调研 + 双 T4 多 GPU 分析 + Colab/AutoDL 等价对比）
+> **最后更新**：2026-08-23（Colab NF4 测试完成——Free T4 12.7GB RAM 不足，代理切换到 Clash Verge）（LongCat 480×832 全黑输出确认 + 免费 GPU 平台深度调研 + 双 T4 多 GPU 分析 + Colab/AutoDL 等价对比）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -698,7 +698,7 @@
 |---|----------|---------|------|--------|---------|----------|--------|--------|------|
 | 1 | ~~EchoMimicV3 Flash (v51 最优配置)~~ | Wan2.1-Fun-V1.1-1.3B | 原始版 | Apache 2.0 | T4✅ | ✅ **最优** | — | TeaCache on + torch.compile + 720p + 8步，~14min/段 |
 | 2 | ~~EchoMimicV3 app_mm.py 参数组合 (v34)~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | P100✅ | ✅ 已完成 | — | 3 test case 全成功，app_mm 参数无加速 |
-| 3 | ~~EchoMimicV3 NF4/bnb 量化~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 | ❌ 不可行 | — | Kaggle 29GB CPU RAM 不足，bitsandbytes 量化 OOM |
+| 3 | ~~EchoMimicV3 NF4/bnb 量化~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 | ❌ 不可行 | — | Kaggle 29GB + Colab Free 12.7GB CPU RAM 均不足。Colab Pro 32GB 理论可行但性价低 |
 | 4 | InfiniteTalk (原始版) | Wan2.1-I2V-14B | 原始版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 无限长度 + 中文，14B Wan2.1 基座 |
 | 5 | MultiTalk INT8 量化版 | Wan2.1-I2V-14B | 量化版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 已发布 INT8 + SageAttention |
 | 6 | LongCat GPU INT8 | LongCat-Video 13.6B DiT | 量化版 | MIT | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | INT8 仅量化 DiT；官方其余组件仍用 bf16，T4/P100 非已验证路径 |

@@ -106,54 +106,59 @@ colab --auth=adc delete --session echomimic-nf4
 - **Pro+ $50/月**：A100 40GB，52GB CPU RAM
 - Pro ($10/月) 和 Gemini Advanced ($20/月) 是不同产品，Gemini 不含 Colab Pro+
 
-## 代理问题（FlClash TUN + Python requests）
+## 代理问题（FlClash TUN + Python requests）— 未解决
 
-### 根因
+### 根因（三层）
 
-两层问题：
+1. **Python `requests` 读 macOS 系统代理**：FlClash 设了系统代理 `127.0.0.1:7890`（`scutil --proxy` 可见）。Python `urllib.request.getproxies()` 在 macOS 上直接读系统配置，即使 `HTTPS_PROXY=""` 也无效。设 `NO_PROXY="*"` 可绕过。
 
-1. **Python `requests` 读 macOS 系统代理**：FlClash 设了系统代理 `127.0.0.1:7890`（`scutil --proxy` 可见）。Python `urllib.request.getproxies()` 在 macOS 上直接读系统配置，即使 `HTTPS_PROXY=""` 也无效。FlClash 代理端口处理 fake-ip + 转发的组合失败，导致 `ProxyError`。
+2. **FlClash TUN fake-ip 路由间歇性失败**：`colab.research.google.com` 走 fake-ip（198.18.0.x），TUN 拦截 TCP 连接后转发到代理。GET 通常通，POST 间歇性 `RemoteDisconnected` / `ConnectTimeout`。多次请求后彻底失效。
 
-2. **FlClash TUN fake-ip 路由间歇性失败**：`colab.research.google.com` 走 fake-ip（198.18.0.x），TUN 拦截 TCP 连接后转发到代理。GET 请求通常能通，但 POST 请求（如 `_post_assignment`）间歇性 `RemoteDisconnected` / `ConnectTimeout`。多次请求后 fake-ip 路由可能彻底失效。
+   **修复**：在 FlClash profile 的 `dns:` 下添加 `fake-ip-filter`（让 colab/googleapis 走真实 IP）+ `nameserver-policy`（用海外 DNS 解析）。Profile 路径：`~/Library/Application Support/com.follow.clash/profiles/<id>.yaml`。改 `config.yaml`（运行时合成配置）会被订阅更新覆盖，改 profile 才持久。改后需重启 FlClash。
 
-### 解决方案（两层修复）
+3. **FlClash 代理端口处理 AuthorizedSession POST 请求时断连**（未解决）：即使 colab 走真实 IP + 显式代理 `HTTPS_PROXY="http://127.0.0.1:7890"`，Colab CLI 的 `AuthorizedSession`（携带 `Authorization: Bearer ya29...` 长 token header）的 POST 请求仍被代理断开（`ProxyError: Unable to connect to proxy, RemoteDisconnected`）。普通 `requests.post` 不带 auth header 时能成功。`Connection: close` header 没解决（不是 keep-alive 问题）。**这是 FlClash 代理本身的 bug**，不是配置问题。
 
-**第一层：`NO_PROXY="*"` 绕过系统代理**
+### 已尝试的方案
+
+| 方案 | 结果 | 原因 |
+|------|------|------|
+| `HTTPS_PROXY=""` | ❌ ProxyError | Python 读系统代理，env var 无效 |
+| `NO_PROXY="*"` | ✅ 绕过代理，但 TUN fake-ip 间歇性失败 | TUN 对 fake-ip 的 TCP 路由不稳定 |
+| FlClash profile `fake-ip-filter` + `nameserver-policy` | ✅ DNS 走真实 IP | 需改 profile（不是 config.yaml），重启 FlClash |
+| `NO_PROXY="colab.research.google.com"` + `HTTPS_PROXY=http://127.0.0.1:7890` | ❌ POST RemoteDisconnected | TUN 对真实 IP 的 keep-alive 连接不稳定 |
+| `Connection: close` header patch | ❌ 仍 RemoteDisconnected | 不是 keep-alive 问题，是代理对 auth header 的处理 bug |
+| 纯代理 `HTTPS_PROXY=http://127.0.0.1:7890`（真实 IP） | ❌ POST ProxyError | FlClash 代理断开带 auth header 的 POST 请求 |
+
+### 可能的后续方向
+
+- 切换 FlClash 代理节点（当前节点可能对大 header 有限制）
+- 关闭 FlClash TUN 模式，只用系统代理（HTTP 代理模式可能没有这个问题）
+- 用其他代理客户端（如 Surge、Clash Verge Rev）
+- 在不使用代理的环境下运行（如直连 VPS）
+
+### FlClash 配置文件层级
+
+- `profiles/<id>.yaml`（订阅源）→ `config.yaml`（运行时合成）。改 `config.yaml` 被覆盖，改 profile 才持久
+- `database.sqlite` 的 `rules` 表存路由规则覆写（UI「覆写」功能），不存 DNS 配置
+- FlClash 无 API 热重载（external-controller 在 config 中被设为空），改配置后需重启 FlClash
+- **pyc 缓存**：改 Python 包源码后需删除 `__pycache__/*.pyc`，否则 Python 加载旧缓存
+
+### 运行命令（当前最佳配置）
 
 ```bash
-NO_PROXY="*" HTTPS_PROXY="" HTTP_PROXY="" colab --auth=adc run --gpu T4 script.py
+# 清理 zombie assignments
+HTTPS_PROXY="http://127.0.0.1:7890" HTTP_PROXY="http://127.0.0.1:7890" python3 -c "
+import sys; sys.path.insert(0, '/opt/homebrew/lib/python3.14/site-packages')
+from colab_cli.common import state
+from colab_cli.auth import AuthProvider
+state.auth_provider = AuthProvider.ADC
+for a in state.client.list_assignments():
+    state.client.unassign(a.endpoint)
+"
+
+# 运行脚本（可能需要多次重试）
+HTTPS_PROXY="http://127.0.0.1:7890" HTTP_PROXY="http://127.0.0.1:7890" colab --auth=adc run --gpu T4 script.py
 ```
-
-> 注意：`NO_PROXY="colab.research.google.com"` 可能不匹配（`requests` 的 `NO_PROXY` 匹配规则与预期不同），用 `NO_PROXY="*"` 最可靠。但这只是绕过 Python 代理设置，不走 `127.0.0.1:7890`，流量仍走 TUN fake-ip 路由。
-
-**第二层：FlClash profile 添加 `fake-ip-filter`（永久修复）**
-
-修改 FlClash **profile 文件**（不是 `config.yaml`——后者是生成的，重启会被覆盖）：
-
-- Profile 路径：`~/Library/Application Support/com.follow.clash/profiles/<id>.yaml`
-- 在 `dns:` 下添加：
-
-```yaml
-dns:
-    # ... 已有配置 ...
-    fake-ip-filter:
-        - "dns.msftnsci.com"
-        - "www.msftnsci.com"
-        - "www.msftconnecttest.com"
-        - "+.modal.com"
-        - "+.colab.research.google.com"
-        - "+.googleapis.com"
-    nameserver-policy:
-        "+.modal.com": ["https://dns.cloudflare.com/dns-query", "https://dns.google/dns-query"]
-        "+.colab.research.google.com": ["https://dns.cloudflare.com/dns-query", "https://dns.google/dns-query"]
-        "+.googleapis.com": ["https://dns.cloudflare.com/dns-query", "https://dns.google/dns-query"]
-```
-
-> `fake-ip-filter` 让指定域名走系统 DNS 解析真实 IP（不走 fake-ip），`nameserver-policy` 让这些域名用海外 DNS 解析（避免 DNS 污染）。域名走真实 IP + 代理规则（`DOMAIN-KEYWORD,google,国际机场`），代理处理真实 IP 不会有 fake-ip 的 bug。
-
-修改后需**重启 FlClash** 使配置生效。同步修改 `config.yaml`（运行时配置）可立即生效（如果 FlClash 检测到文件变化）。
-
-> **FlClash 配置文件层级**：`profiles/<id>.yaml`（订阅源 profile）→ `config.yaml`（运行时合成配置）。改 `config.yaml` 会被订阅更新覆盖，改 profile 才是持久的。FlClash 数据库 `database.sqlite` 中的 `rules` 表存储路由规则覆写（UI 中的「覆写」功能），但不存储 DNS 配置。
 
 ## Zombie Assignment 清理
 
