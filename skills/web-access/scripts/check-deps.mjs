@@ -44,6 +44,35 @@ function ensureConfigExists() {
   }
 }
 
+// --- 读取 config.env 中的宿主工具映射 ---
+
+function readConfigEnv() {
+  const cfg = {};
+  let content;
+  try { content = fs.readFileSync(CONFIG_PATH, 'utf8'); }
+  catch { return cfg; }
+  for (const line of content.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const i = t.indexOf('=');
+    if (i === -1) continue;
+    const k = t.slice(0, i).trim();
+    const v = t.slice(i + 1).trim();
+    if (k && v) cfg[k] = v;
+  }
+  return cfg;
+}
+
+function printHostTools() {
+  const cfg = readConfigEnv();
+  const parts = [];
+  if (cfg.HOST_SEARCH_TOOL)  parts.push(`search=${cfg.HOST_SEARCH_TOOL}`);
+  if (cfg.HOST_FETCH_TOOL)   parts.push(`fetch=${cfg.HOST_FETCH_TOOL}`);
+  if (parts.length) {
+    console.log(`host-tools: ${parts.join(', ')}`);
+  }
+}
+
 // --- Node.js 版本检查 ---
 
 function checkNode() {
@@ -184,6 +213,7 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   ensureConfigExists();
   checkNode();
+  printHostTools();
 
   const { proceed, exitCode, browserId } = await resolveAndReport(opts.browser);
   if (!proceed) process.exit(exitCode);
