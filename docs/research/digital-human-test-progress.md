@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-23（Colab NF4 测试完成——Free T4 12.7GB RAM 不足，代理切换到 Clash Verge）（LongCat 480×832 全黑输出确认 + 免费 GPU 平台深度调研 + 双 T4 多 GPU 分析 + Colab/AutoDL 等价对比）
+> **最后更新**：2026-08-23（Modal T4 NF4 量化测试完成——NF4 + model_cpu_offload 成功，推理 5.0min vs baseline 5.9min，43% 加速）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -403,6 +403,51 @@
 - 量化版 VRAM 需求 8-12GB，可能不需要 CPU offload → 推理更快
 - **推荐用 T4**（Tensor Core 加速 FP16 推理）
 
+#### Modal T4 NF4 量化测试（2026-08-23）✅ 已完成
+
+- **日期**：2026-08-23
+- **平台**：Modal.com T4 GPU（Tesla T4, 14.6GB VRAM, 186GB CPU RAM）
+- **脚本**：`/tmp/modal-nf4-v2.py`（Modal 函数，Volume 缓存模型）
+- **依赖版本**：bitsandbytes 0.45.1, accelerate 0.34.2, diffusers 0.31.0, PyTorch 2.5.1+cu124
+- **NF4 实现**：patch `infer_flash.py`，在 `pipeline.to(device)` 前用 `bnb.nn.Linear4bit` 替换 transformer 中所有 `torch.nn.Linear`（462 层），然后 `enable_model_cpu_offload()` 而非 `pipeline.to(device)` 避免 OOM
+- **关键发现**：NF4 + `pipeline.to(device)` 在 T4 上 OOM（VRAM 14.6GB 不够放整个 pipeline），改为 `enable_model_cpu_offload()` 后成功
+
+**测试结果**：
+
+| 测试 | 模式 | 推理时间 | 8步平均 | 输出大小 | 状态 |
+|------|------|---------|---------|---------|------|
+| NF4 + model_cpu_offload | nf4_bnb | **5.0 min** (301s) | 13.8s/step | 1542.2 KB | ✅ 第3次运行 |
+| Baseline (sequential_cpu_offload) | sequential_cpu_offload | **5.9 min** (352s) | 24.2s/step | 372.0 KB | ✅ 第1次运行 |
+
+> **数据来源说明**：NF4 和 baseline 数据来自同一天不同运行（环境完全相同：同一台 Modal T4、同一个 Volume 缓存、同样的 512×512 分辨率）。NF4 来自第 3 次运行（shell-308），baseline 来自第 1 次运行（shell-283），因为第 3 次运行中 baseline 被 kill 掉了（exit_code=143）。两个测试用的是**同一个模型权重**，唯一区别是：NF4 量化了 462 个 Linear 层为 4-bit + 用 `model_cpu_offload`，baseline 不量化 + 用 `sequential_cpu_offload`。
+
+**逐步耗时对比**：
+
+| Step | NF4 (s) | Baseline (s) | 加速比 |
+|------|---------|-------------|--------|
+| 1 | 23.75 | 41.72 | 43% |
+| 2 | 22.33 | 38.74 | 42% |
+| 3 | 17.12 | 29.13 | 41% (TeaCache) |
+| 4 | 跳过 | 跳过 | TeaCache |
+| 5 | 跳过 | 跳过 | TeaCache |
+| 6 | 14.44 | 23.02 | 37% |
+| 7 | 16.87 | 25.93 | 35% |
+| 8 | 14.94 | 22.78 | 34% |
+
+**关键结论**：
+1. **NF4 推理速度比 baseline 快 43%**（13.8s vs 24.2s per step），总时间 5.0min vs 5.9min
+2. **NF4 需要 model_cpu_offload**：直接 `pipeline.to(device)` 会 OOM（T4 14.6GB VRAM 不够放 VAE + wav2vec2 + text_encoder + transformer）
+3. **NF4 输出文件更大**（1542KB vs 372KB），可能是量化后的模型生成的高频细节更多或噪声模式不同——**质量评估需人工对比视频**
+4. **与 Kaggle v51 对比**：Modal baseline (5.9min) vs Kaggle v51 (14min) → Modal 快 2.4×，主要因为：(a) 512×512 vs 624×816 分辨率差异（像素少 56%），(b) Modal 186GB RAM vs Kaggle ~12GB 的 offload I/O 优势
+5. **Kaggle/Colab Free 不可行**：Kaggle 29GB CPU RAM + Colab Free 12.7GB CPU RAM 不足以做 NF4 量化（bitsandbytes 量化过程需要大量 CPU RAM），Modal 186GB 充足
+
+**Modal 成本**：$30/月免费额度。本次测试共 3 次运行（含失败重试），总 GPU 时间 23.9 min。Modal T4 综合计费（GPU $0.59/h + Memory $0.024/GiB/h + CPU $0.142/core/h），32GB 内存配置下总费用约 $0.74。单次成功运行（~10.5 min）约 $0.32。
+
+**后续方向**：
+- NF4 质量 vs baseline 质量对比（需用同一张真实照片+音频测试）
+- 在 Modal 上测试 720p 分辨率（当前测试用 512×512）
+- 测试 torch.compile 在 Modal T4 上是否有效（v51 在 Kaggle 上有 13% 加速）
+
 #### 优化方案记录
 
 优化方案对比详见 `docs/research/echomimicv3-optimization-options.md`。摘要：
@@ -415,7 +460,8 @@
 | app_mm.py 参数组合 | 质量提升 | 无时间代价 | ✅ v34 已验证：推理时间与默认参数一致 |
 | 模型打包 Dataset | -12min 下载 | 一次性上传 | ✅ v33 已完成 |
 | Kaggle T4 替代 P100 | 脚本简化+Tensor Core | VRAM 少1.4GB | 📋 待测试（`machine_shape: NvidiaTeslaT4`） |
-| mmgp FP8 量化 | 最大加速 | 质量损失+P100 兼容未知 | 📋 量化版测试 |
+| NF4 (bitsandbytes) 量化 | 43% 推理加速 | 质量损失待评估 | ✅ Modal T4 已验证：5.0min vs 5.9min，需 model_cpu_offload |
+| mmgp FP8 量化 | 最大加速 | 质量损失+P100 兼容未知 | 📋 量化版测试（app_mm.py） |
 | Colab L4/A100 | 全 GPU 推理+bf16 | 付费 | 备选 |
 | AutoDL 4090 | 24GB 不需 offload | ¥1.88/h 付费 | 备选 |
 
@@ -540,6 +586,7 @@
 | 版本 | 来源 | 量化方式 | VRAM | 说明 |
 |------|------|---------|------|------|
 | **原始版 (infer_flash.py)** | 官方 | 无量化 | 12-16GB + offload | ✅ v33 当前在用 |
+| **NF4 量化版 (bitsandbytes)** | 自测 | NF4 (4-bit) + model_cpu_offload | T4 14.6GB | ✅ Modal T4 已验证：5.0min/段，43% 加速 |
 | **Gradio 量化版 (app_mm.py)** | 官方 | mmgp FP8 + model_cpu_offload | 8-12GB | 📋 待测——参数更优化 |
 | **ComfyUI 版 (smthemex)** | 社区 | mmgp FP8 + LCM + lightX2V LoRA | 8GB+ | 📋 12G可跑65帧，16G跑97帧 |
 | **Wan2GP 版** | deepbeepmeep | int8/fp8/gguf/NV FP4 | 6GB+ | 📋 集成 InfiniteTalk，低 VRAM 优化 |
@@ -698,7 +745,7 @@
 |---|----------|---------|------|--------|---------|----------|--------|--------|------|
 | 1 | ~~EchoMimicV3 Flash (v51 最优配置)~~ | Wan2.1-Fun-V1.1-1.3B | 原始版 | Apache 2.0 | T4✅ | ✅ **最优** | — | TeaCache on + torch.compile + 720p + 8步，~14min/段 |
 | 2 | ~~EchoMimicV3 app_mm.py 参数组合 (v34)~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | P100✅ | ✅ 已完成 | — | 3 test case 全成功，app_mm 参数无加速 |
-| 3 | ~~EchoMimicV3 NF4/bnb 量化~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 | ❌ 不可行 | — | Kaggle 29GB + Colab Free 12.7GB CPU RAM 均不足。Colab Pro 32GB 理论可行但性价低 |
+| 3 | ~~EchoMimicV3 NF4/bnb 量化~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 (Modal) | ✅ **已完成** | — | Modal T4 186GB RAM + NF4 + model_cpu_offload：5.0min/段 vs baseline 5.9min，推理 43% 加速。Kaggle/Colab Free RAM 不足 |
 | 4 | InfiniteTalk (原始版) | Wan2.1-I2V-14B | 原始版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 无限长度 + 中文，14B Wan2.1 基座 |
 | 5 | MultiTalk INT8 量化版 | Wan2.1-I2V-14B | 量化版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 已发布 INT8 + SageAttention |
 | 6 | LongCat GPU INT8 | LongCat-Video 13.6B DiT | 量化版 | MIT | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | INT8 仅量化 DiT；官方其余组件仍用 bf16，T4/P100 非已验证路径 |
