@@ -43,7 +43,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 ---
 
-## Execution Phases
+## Execution Tiers
 
 按对内容生产管线的实际推动力分层。同 tier 内标注依赖和冲突文件。
 
@@ -52,7 +52,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | # | Issue | Type | Blocked by | Conflict files | Notes |
 |---|-------|------|-------------|---------------|-------|
 | #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | #83 done | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests | 消除 20+ 手动配置项，每次加源都受益。Part 1: rename. Part 2: universal auto-gen |
-| #67 | capabilities.articles schema 补全 | enhancement | — | source-registry.mjs | block 最多下游（6 个 issue 依赖）。~70% done（method/apiKey/paidApi done, fallbacks array missing） |
+| #67 | capabilities.articles schema 补全 | enhancement | — | source-registry.mjs | block 最多下游（5 个直接下游：#66/#68/#76/#77/#87）。~70% done（method/apiKey/paidApi done, fallbacks array missing） |
 | #51 | Cascade-filter audit (ADR-0016) | enhancement | — | rag/query.mjs, trends-utils.mjs | Violation 2 (BM25) done. Violation 1 (filterChinaAI+classifyTopic) not yet done. 直接影响趋势发现准确率 |
 | #103 | Docs: offload/split L1 video content workflows | docs | #95 done | content-pipeline.md, video-workflow.md, DOCS-INDEX.md | 文档瘦身，提升 agent 读取效率。#106 review baseline 已 merge |
 
@@ -126,7 +126,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #88, #67, #64, #90, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件 |
+| `source-registry.mjs` | #88, #67, #64, #77, #90, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件 |
 | `asset-sourcer.mjs` | #88, #63, #75 | 🟡 中（#84 已 merge，搜索缓存已就位） |
 | `search-sources.mjs` | #66, #63, #88, #65, #90 | 🔴 高 |
 | `cdp-client.mjs` | #66, #89 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff |
