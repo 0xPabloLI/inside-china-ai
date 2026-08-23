@@ -17,6 +17,8 @@
  *   --threshold <F>   Similarity threshold (default: 0.5)
  *   --limit <N>       Max results (default: 10)
  *   --include-noise   Include results below 0.5 similarity (default: filtered out)
+ *   --no-bm25         Skip BM25 keyword pre-filter (default: enabled)
+ *   --bm25-top-k <N>  BM25 pre-filter size (default: 10)
  *
  * Spec: docs/archive/spec-rag.md §4.3
  * Q10: Default JSON for Agent consumption; --format human for debugging
@@ -30,6 +32,7 @@
 
 import { embed, isOllamaAvailable } from "./lib/ollama.mjs";
 import { createRagClient, queryContent } from "./lib/supabase-client.mjs";
+import { bm25PreFilter } from "./lib/bm25.mjs";
 
 // ─── Confidence classification (pure function, exported for testing) ───
 
@@ -86,6 +89,8 @@ if (isMainModule) {
   const useRerank = hasFlag("rerank");
   const format = getArg("format") || "json";
   const includeNoise = hasFlag("include-noise");
+  const skipBm25 = hasFlag("no-bm25");
+  const bm25TopK = getArg("bm25-top-k") ? parseInt(getArg("bm25-top-k"), 10) : 10;
   // When --include-noise is set without explicit --threshold, lower DB threshold to 0.0
   // so noise results are actually returned from the database.
   const explicitThreshold = getArg("threshold");
@@ -243,20 +248,30 @@ if (isMainModule) {
       limit,
     });
 
-    // 5. Optional rerank (Q8)
+    // 5. Filter noise unless --include-noise (default: filter < 0.5)
     let finalResults = results;
-    if (useRerank && results.length > 3) {
-      finalResults = await rerankResults(queryText, results);
-    }
-
-    // 6. Filter noise unless --include-noise (default: filter < 0.5)
     if (!includeNoise) {
       finalResults = finalResults.filter(
         (r) => classifyConfidence(r.similarity || 0).level !== "noise",
       );
     }
 
-    // 7. Output (Q10)
+    // 6. BM25 pre-filter (ADR-0016 Layer 3: cheap keyword-overlap filter)
+    //    Runs by default; --no-bm25 to skip. Truncates to --bm25-top-k (default 10).
+    if (!skipBm25 && finalResults.length > 0) {
+      try {
+        finalResults = bm25PreFilter(queryText, finalResults, bm25TopK);
+      } catch (err) {
+        console.error("BM25 pre-filter failed: " + err.message);
+      }
+    }
+
+    // 7. Optional rerank (Q8) -- runs after BM25 so reranker only processes top-K
+    if (useRerank && finalResults.length > 3) {
+      finalResults = await rerankResults(queryText, finalResults);
+    }
+
+    // 8. Output (Q10)
     if (format === "human") {
       formatHuman(finalResults);
     } else {
