@@ -97,6 +97,12 @@
 | `spec-doc-hierarchy-optimization.md` / `tickets-doc-hierarchy-01~04` | 2026-08-15 | 文档层次体系优化 — DOCS-INDEX.md Layer Placement Rules + 语义标签 (L1: Execution reference / L2: Deep research) + video-workflow.md Gapless Audio Track 抽离到 L2 + AGENTS.md 双向指针 + 7 个遗留 spec/tickets 归档。 |
 | `spec-doc-hierarchy-lint.md` / `01-lint-core-checks.md` / `02-npm-script-and-pre-commit-hook.md` | 2026-08-16 | 文档层次自动化 Lint — lint-doc-hierarchy.mjs (3 项检查: DOCS-INDEX 一致性 + L1 Design Decisions + L2 命令行启发式) + npm run lint:docs + pre-commit hook 集成 + DOCS-INDEX rule 5 (sync after changes)。17 tests。 |
 
+### Cascade Filter Specs
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `spec-cascade-filter-keyword-enhancement.md` | 2026-08-23 | Issue #51 V1a — filterChinaAI 关键词增强（人物名/公司别名/产品名/政策词）。ADR-0016 cascade Layer 0。8 new tests, 45 total passing。V2 (BM25 pre-filter) 已实现，V3 预防性无行动。 |
+
 ### ADR Remediation Trackers
 
 | 文件 | 完成时间 | 说明 |
