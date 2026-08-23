@@ -10,7 +10,7 @@ The video pipeline processes 10-20 visual assets per run across multiple stages 
 
 ## Consequences
 
-- Applied in: RAG query (metadata → vector similarity → reranker), search-sources filter/classify, asset-sourcer download pipeline.
+- Applied in: RAG query (metadata, vector similarity, noise filter, BM25 pre-filter, reranker), search-sources filter/classify, asset-sourcer download pipeline.
 - **Already applied:**
   1. VLM single call produces 6 signals (description, subjects, contentKind, fit, criticalEdgeText, reason) — no 6-call cascade.
   2. Pre-download filter gate (threshold 20) rejects obviously bad candidates before any network I/O — cheaper than post-download pre-filter (threshold 30).
