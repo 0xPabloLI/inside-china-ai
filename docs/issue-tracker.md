@@ -50,7 +50,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 | Wave | 目标与完成出口 | 可开始项 | 必须串行 / 依赖 | 并行规则 |
 |---|---|---|---|---|
-| **W0 — 决策与基线** | 固定后续实现会共享的接口与边界。 | #67 capabilities schema；#103 L1 docs offload；#111 text RAG pipeline integration。 | #67 完成后 #66/#68/#76/#77/#87 才可开始；#111 与 #21 只有推荐顺序。 | #103/#111 可与 #67 并行；#67 独占 `source-registry.mjs`。 |
+| **W0 — 决策与基线** | 固定后续实现会共享的接口与边界。 | #67 capabilities schema；#103 L1 docs offload；#111 text RAG pipeline integration。 | #67 完成后 #66/#68/#76/#77/#87 才可开始；#111 与 #21 只有推荐顺序。 | #67 可与 #103 或 #111 并行（#67 独占 `source-registry.mjs`）；#103 → #111 必须串行（均改 `content-pipeline.md`，见 Conflict Matrix）。 |
 | **W1 — 搜索/素材核心链** | 让 source schema、CDP script 和资产搜集基线一致。 | #88 universal script fallback；#63 SVE；#89 P0 rate limiter；#110 progressive media-search layers。 | #88 先于所有 `source-registry.mjs` 增源工作；#89 P0 先于 #91，#92 可 soft-start；#110 推荐在 #88/#67 后。 | #63 可与 #89 并行；#88、#63、#110 不得并行修改同一 registry/asset 文件。 |
 | **W2 — 搜索扩展与路由** | 在稳定 schema 上增加 source、fallback 与搜索路由。 | #64 API sources；#66 extract fallback；#90 Bigsong direct API；#97 WeChat RSS。 | #66 依赖 #67；#65 依赖 #64/#90；#91 依赖 #89 P0；#92 对 #89 P0 为 soft；#109 先完成与 #65 的边界 triage。 | #64/#90/#66 共享 registry/search collector，应按 Conflict Matrix 串行；#97 可并行。 |
 | **W3 — 审计与收尾** | 只在相关实现稳定后审计、收敛和补测试。 | #68 signal density；#76 SSOT；#77 source labels；#87 maintenance audit；#65 pool；#91/#92 source additions。 | #68/#76/#77 依赖 #67；#87 依赖 #66/#63/#67；#65 依赖 #64/#90。 | 先完成 registry/search 改动，再做 #77；审计项不得与其审计对象共享文件并行。 |
@@ -59,8 +59,14 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 ### Execution Semantics
 
-- **Tier**：内容生产价值与近期优先级，不表示技术依赖。
-- **Wave**：推荐实施顺序；完成前一 wave 的关键出口后再选下一 wave。
+三层结构各司其职：
+
+- **Tier**：完整 issue inventory 的权威位置；按内容生产价值分层，不表示技术依赖。新增、关闭或调整 issue 时**先更新此处**。
+- **Wave**：执行摘要，给出全局推进次序。基于 Tier 和依赖关系合成，不是独立的状态维护源。Tier/Dormant 变动后**再同步更新 Wave**。
+- **Conflict Matrix**：并行的最终裁决来源。Wave 中的并行文字只是初筛；任何并行决策**必须以 Matrix 为准**。
+
+其他术语：
+
 - **Sequence**：单一能力内的严格顺序，例如 #98 → #99。
 - **Runtime Layer**：代码运行时的降级层，#110 应使用 `L1–L4` 表示，避免同项目执行 Tier 混淆。
 - **Hard blocker**：未完成时不能开工；**soft/recommended**：可开工，但须在 issue 说明提前执行的风险和回退方案。
@@ -202,8 +208,9 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 ## Triage Protocol
 
 1. **New session start**: 读本文档 → 先检查 Recommended Execution Order 中最早未完成 wave，再从该 wave 选择无 hard blocker 的 issue
-2. **完成一个 issue**: 在对应表格行标 ✅，移到 Closed Issues 表
-3. **新发现已完成**: 代码验证 → `gh issue close` + 评论证据 → 更新本文档
-4. **新 issue 创建**: 添加到对应 Tier 表格；如果属于已有 parent，标注 `Child of #N`
-5. **依赖变化**: 更新 Blocked by 列
+2. **完成一个 issue**: 在对应 Tier 行标 ✅，移到 Closed Issues 表 → 同步更新 Wave 摘要和 Conflict Matrix
+3. **新发现已完成**: 代码验证 → `gh issue close` + 评论证据 → 更新本文档（先 Tier/Matrix，再 Wave）
+4. **新 issue 创建**: 先添加到对应 Tier 表格 + Conflict Matrix → 再同步到 Wave 摘要；如果属于已有 parent，标注 `Child of #N`
+5. **依赖变化**: 先更新 Tier 表 Blocked by 列 → 再同步 Wave 中的依赖描述
 6. **冲突检查**: 改代码前查 Conflict Risk Matrix，确认没有并行 issue 在改同一文件
+7. **更新顺序铁律**: 任何 issue 状态变动，始终先更新 Tier/Dormant 和 Conflict Matrix，再同步 Wave 摘要——Wave 是执行摘要，不是状态维护源
