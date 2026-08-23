@@ -23,7 +23,7 @@ describe("Source structure", () => {
   });
 
   it("ALL_SOURCES has 59 sources", () => {
-    // 46 existing + 7 CDP image search + 6 stock_api sources
+    // 46 existing + 7 CDP image search + 6 stock_media sources
     expect(ALL_SOURCES).toHaveLength(59);
   });
 
@@ -38,7 +38,7 @@ describe("Source structure", () => {
       expect(["cdp", "api", "mcp"]).toContain(source.accessMethod.primary);
       expect(typeof source.accessMethod.notes).toBe("string");
       // Stock API sources don't have url/extractScript at top level — they use capabilities
-      if (source.category === "stock_api") continue;
+      if (source.category === "stock_media") continue;
       expect(typeof source.url).toBe("function");
       expect(typeof source.extractScript).toBe("string");
       // MCP-only sources may have minimal extractScript (e.g. "return [];")
@@ -284,7 +284,7 @@ describe("Extract scripts", () => {
   it("all CDP-based extract scripts are non-empty strings", () => {
     for (const src of ALL_SOURCES) {
       // Skip stock API sources (no CDP article extraction)
-      if (src.category === "stock_api") continue;
+      if (src.category === "stock_media") continue;
       expect(typeof src.extractScript).toBe("string");
       // API sources do not use the CDP extractor; MCP-only sources may have minimal extractScript.
       if (src.accessMethod.primary === "api" || (src.mcpFallback && !src.url())) continue;
@@ -295,7 +295,7 @@ describe("Extract scripts", () => {
   it("all CDP-based extract scripts return results array", () => {
     for (const src of ALL_SOURCES) {
       // Skip stock API sources (no CDP article extraction)
-      if (src.category === "stock_api") continue;
+      if (src.category === "stock_media") continue;
       // MCP-only sources (like mcp_grok_search) may have minimal extractScript
       if (src.mcpFallback && !src.url()) continue;
       expect(src.extractScript).toContain("return results");
@@ -540,7 +540,7 @@ describe("supportsKeyword validation", () => {
     // reddit, hackernews, polymarket, digg, techmeme,
     // tiktok_creator (via ScrapeCreators API)
     // + ithome, jiqizhixin (now search-page based)
-    // + 6 stock_api sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
+    // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
     expect(keywordSources.length).toBe(39);
   });
 });

@@ -330,7 +330,7 @@ async function main() {
   console.log("=".repeat(60));
 
   // R2: Select sources based on mode — only sources with capabilities.articles
-  // This excludes stock_api sources (Pexels, Unsplash, etc.) which only have
+  // This excludes stock_media sources (Pexels, Unsplash, etc.) which only have
   // capabilities.images/videos and should not be used for article/trend discovery.
   // Research mode includes sources with supportsKeyword=true OR cdpFallback
   // (homepage-only sources can still contribute via Google site: fallback).

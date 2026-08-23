@@ -2101,11 +2101,11 @@ export const WECHAT_API_CONFIG = {
 //   authValue?: (key) => string
 //   userAgent?: string
 
-export const STOCK_API_SOURCES = [
+export const STOCK_MEDIA_SOURCES = [
   {
     name: "pexels",
     label: "Pexels",
-    category: "stock_api",
+    category: "stock_media",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -2140,7 +2140,7 @@ export const STOCK_API_SOURCES = [
   {
     name: "pexels-video",
     label: "Pexels Videos",
-    category: "stock_api",
+    category: "stock_media",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -2179,7 +2179,7 @@ export const STOCK_API_SOURCES = [
   {
     name: "unsplash",
     label: "Unsplash",
-    category: "stock_api",
+    category: "stock_media",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -2213,7 +2213,7 @@ export const STOCK_API_SOURCES = [
   {
     name: "wikimedia",
     label: "Wikimedia Commons",
-    category: "stock_api",
+    category: "stock_media",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -2247,7 +2247,7 @@ export const STOCK_API_SOURCES = [
   {
     name: "coverr",
     label: "Coverr",
-    category: "stock_api",
+    category: "stock_media",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -2283,7 +2283,7 @@ export const STOCK_API_SOURCES = [
   {
     name: "pixabay",
     label: "Pixabay",
-    category: "stock_api",
+    category: "stock_media",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
@@ -3009,7 +3009,7 @@ export const ALL_SOURCES = [
   ..._ENRICHED_LAST30DAYS,
   ..._ENRICHED_WECHAT_ACCOUNT,
   ..._ENRICHED_WECHAT_RSS,
-  ...STOCK_API_SOURCES,
+  ...STOCK_MEDIA_SOURCES,
 ];
 
 /**

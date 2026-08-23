@@ -17,7 +17,7 @@ import {
   GENERAL_SEARCH_SOURCES,
   LAST30DAYS_SOURCES,
   WECHAT_RSS_SOURCES,
-  STOCK_API_SOURCES,
+  STOCK_MEDIA_SOURCES,
   SOURCE_ATTRIBUTIONS,
 } from "../lib/source-registry.mjs";
 
@@ -55,15 +55,15 @@ describe("capabilities field presence", () => {
   });
 });
 
-// ─── Stock API sources ───
+// ─── Stock media sources ───
 
-describe("STOCK_API_SOURCES", () => {
-  it("has exactly 6 stock API sources", () => {
-    expect(STOCK_API_SOURCES).toHaveLength(6);
+describe("STOCK_MEDIA_SOURCES", () => {
+  it("has exactly 6 stock media sources", () => {
+    expect(STOCK_MEDIA_SOURCES).toHaveLength(6);
   });
 
   it("includes pexels (images)", () => {
-    const src = STOCK_API_SOURCES.find((s) => s.name === "pexels");
+    const src = STOCK_MEDIA_SOURCES.find((s) => s.name === "pexels");
     expect(src).toBeDefined();
     expect(src.capabilities.images).toBeDefined();
     expect(src.capabilities.images.method).toBe("api");
@@ -72,7 +72,7 @@ describe("STOCK_API_SOURCES", () => {
   });
 
   it("includes pexels-video (videos)", () => {
-    const src = STOCK_API_SOURCES.find((s) => s.name === "pexels-video");
+    const src = STOCK_MEDIA_SOURCES.find((s) => s.name === "pexels-video");
     expect(src).toBeDefined();
     expect(src.capabilities.videos).toBeDefined();
     expect(src.capabilities.videos.method).toBe("api");
@@ -81,55 +81,55 @@ describe("STOCK_API_SOURCES", () => {
   });
 
   it("includes unsplash (images)", () => {
-    const src = STOCK_API_SOURCES.find((s) => s.name === "unsplash");
+    const src = STOCK_MEDIA_SOURCES.find((s) => s.name === "unsplash");
     expect(src).toBeDefined();
     expect(src.capabilities.images).toBeDefined();
     expect(src.capabilities.images.apiKeyEnv).toBe("UNSPLASH_ACCESS_KEY");
   });
 
   it("includes wikimedia (images)", () => {
-    const src = STOCK_API_SOURCES.find((s) => s.name === "wikimedia");
+    const src = STOCK_MEDIA_SOURCES.find((s) => s.name === "wikimedia");
     expect(src).toBeDefined();
     expect(src.capabilities.images).toBeDefined();
     expect(src.capabilities.images.requiresApiKey).toBe(false);
   });
 
   it("includes coverr (videos)", () => {
-    const src = STOCK_API_SOURCES.find((s) => s.name === "coverr");
+    const src = STOCK_MEDIA_SOURCES.find((s) => s.name === "coverr");
     expect(src).toBeDefined();
     expect(src.capabilities.videos).toBeDefined();
     expect(src.capabilities.videos.apiKeyEnv).toBe("COVERR_API_KEY");
   });
 
   it("includes pixabay (images)", () => {
-    const src = STOCK_API_SOURCES.find((s) => s.name === "pixabay");
+    const src = STOCK_MEDIA_SOURCES.find((s) => s.name === "pixabay");
     expect(src).toBeDefined();
     expect(src.capabilities.images).toBeDefined();
     expect(src.capabilities.images.apiKeyEnv).toBe("PIXABAY_API_KEY");
   });
 
-  it("stock API sources have category 'stock_api'", () => {
-    for (const src of STOCK_API_SOURCES) {
-      expect(src.category).toBe("stock_api");
+  it("stock media sources have category 'stock_media'", () => {
+    for (const src of STOCK_MEDIA_SOURCES) {
+      expect(src.category).toBe("stock_media");
     }
   });
 
-  it("stock API sources do NOT have capabilities.articles", () => {
-    for (const src of STOCK_API_SOURCES) {
+  it("stock media sources do NOT have capabilities.articles", () => {
+    for (const src of STOCK_MEDIA_SOURCES) {
       expect(src.capabilities.articles).toBeUndefined();
     }
   });
 
-  it("stock API sources have no meaningful extractScript", () => {
-    for (const src of STOCK_API_SOURCES) {
-      // Stock API sources don't have CDP article extraction — empty or trivial
+  it("stock media sources have no meaningful extractScript", () => {
+    for (const src of STOCK_MEDIA_SOURCES) {
+      // Stock media sources don't have CDP article extraction — empty or trivial
       expect(!src.extractScript || src.extractScript.length === 0).toBe(true);
     }
   });
 
-  it("stock API source names are unique vs ALL_SOURCES", () => {
+  it("stock media source names are unique vs ALL_SOURCES", () => {
     const allNames = ALL_SOURCES.map((s) => s.name);
-    const stockNames = STOCK_API_SOURCES.map((s) => s.name);
+    const stockNames = STOCK_MEDIA_SOURCES.map((s) => s.name);
     for (const name of stockNames) {
       const occurrences = allNames.filter((n) => n === name).length;
       expect(occurrences).toBe(1); // appears exactly once (itself)
@@ -245,8 +245,8 @@ describe("Lorem Picsum deleted", () => {
     expect(lp).toBeUndefined();
   });
 
-  it("lorem_picsum is NOT in STOCK_API_SOURCES", () => {
-    const lp = STOCK_API_SOURCES.find((s) => s.name === "lorem_picsum");
+  it("lorem_picsum is NOT in STOCK_MEDIA_SOURCES", () => {
+    const lp = STOCK_MEDIA_SOURCES.find((s) => s.name === "lorem_picsum");
     expect(lp).toBeUndefined();
   });
 });
@@ -277,8 +277,8 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-  it("ALL_SOURCES has 59 sources (46 existing + 7 CDP image search + 6 stock_api - lorem_picsum not in registry)", () => {
-    // 46 existing + 7 CDP image search + 6 new stock_api = 59
+  it("ALL_SOURCES has 59 sources (46 existing + 7 CDP image search + 6 stock_media - lorem_picsum not in registry)", () => {
+    // 46 existing + 7 CDP image search + 6 new stock_media = 59
     // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
     expect(ALL_SOURCES).toHaveLength(59);
   });
@@ -289,19 +289,19 @@ describe("updated source counts", () => {
   });
 });
 
-// ─── R2: stock_api sources excluded from trend discovery ───
+// ─── R2: stock_media sources excluded from trend discovery ───
 
-describe("R2 — stock_api sources excluded from trend discovery", () => {
-  it("no stock_api source has capabilities.articles", () => {
-    const stockSources = ALL_SOURCES.filter((s) => s.category === "stock_api");
+describe("R2 — stock_media sources excluded from trend discovery", () => {
+  it("no stock_media source has capabilities.articles", () => {
+    const stockSources = ALL_SOURCES.filter((s) => s.category === "stock_media");
     for (const s of stockSources) {
       expect(s.capabilities?.articles).toBeUndefined();
     }
   });
 
-  it("filtering by capabilities.articles excludes all stock_api sources", () => {
+  it("filtering by capabilities.articles excludes all stock_media sources", () => {
     const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
-    const stockInArticles = articleSources.filter((s) => s.category === "stock_api");
+    const stockInArticles = articleSources.filter((s) => s.category === "stock_media");
     expect(stockInArticles).toHaveLength(0);
   });
 });
