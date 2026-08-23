@@ -406,8 +406,9 @@
 #### Modal T4 NF4 量化测试（2026-08-23）✅ 已完成
 
 - **日期**：2026-08-23
-- **平台**：Modal.com T4 GPU（Tesla T4, 14.6GB VRAM, 186GB CPU RAM）
-- **脚本**：`/tmp/modal-nf4-v2.py`（Modal 函数，Volume 缓存模型）
+- **平台**：Modal.com T4 GPU（Tesla T4, 14.6GB VRAM, 32GB CPU RAM 请求→实际计费 32.1 GiB）
+- **脚本**：`scripts/short-video/experiments/modal-echomimicv3-nf4.py`（Modal 函数，Volume 缓存模型 + 持久化输出。旧版 `/tmp/modal-nf4-v2.py` 已清理）
+- **脚本特性**：(1) 自动检测 Volume 上的真实素材（`inputs/portrait.jpg` + `inputs/audio.mp3`），不存在则生成 placeholder；(2) 输出保存到 Volume `outputs/` 目录持久化，容器销毁后不丢失；(3) 运行前需 `modal volume put echomimicv3-models <本地照片> inputs/portrait.jpg` 和 `modal volume put echomimicv3-models <本地音频> inputs/audio.mp3` 上传素材
 - **依赖版本**：bitsandbytes 0.45.1, accelerate 0.34.2, diffusers 0.31.0, PyTorch 2.5.1+cu124
 - **NF4 实现**：patch `infer_flash.py`，在 `pipeline.to(device)` 前用 `bnb.nn.Linear4bit` 替换 transformer 中所有 `torch.nn.Linear`（462 层），然后 `enable_model_cpu_offload()` 而非 `pipeline.to(device)` 避免 OOM
 - **关键发现**：NF4 + `pipeline.to(device)` 在 T4 上 OOM（VRAM 14.6GB 不够放整个 pipeline），改为 `enable_model_cpu_offload()` 后成功
@@ -438,15 +439,55 @@
 1. **NF4 推理速度比 baseline 快 43%**（13.8s vs 24.2s per step），总时间 5.0min vs 5.9min
 2. **NF4 需要 model_cpu_offload**：直接 `pipeline.to(device)` 会 OOM（T4 14.6GB VRAM 不够放 VAE + wav2vec2 + text_encoder + transformer）
 3. **NF4 输出文件更大**（1542KB vs 372KB），可能是量化后的模型生成的高频细节更多或噪声模式不同——**质量评估需人工对比视频**
-4. **与 Kaggle v51 对比**：Modal baseline (5.9min) vs Kaggle v51 (14min) → Modal 快 2.4×，主要因为：(a) 512×512 vs 624×816 分辨率差异（像素少 56%），(b) Modal 186GB RAM vs Kaggle ~12GB 的 offload I/O 优势
-5. **Kaggle/Colab Free 不可行**：Kaggle 29GB CPU RAM + Colab Free 12.7GB CPU RAM 不足以做 NF4 量化（bitsandbytes 量化过程需要大量 CPU RAM），Modal 186GB 充足
+4. **与 Kaggle v51 对比**：Modal baseline (5.9min) vs Kaggle v51 (14min) → Modal 快 2.4×，主要因为：(a) 512×512 vs 624×816 分辨率差异（像素少 56%），(b) Modal 32GB RAM vs Kaggle ~12GB 的 offload I/O 优势
+5. **Kaggle/Colab Free 不可行**：Kaggle 29GB CPU RAM + Colab Free 12.7GB CPU RAM 不足以做 NF4 量化（bitsandbytes 量化过程峰值需 >29GB）。
+   - > ⚠️ **更正**：之前写「Modal 186GB 充足」有误。billing report 反推显示 Modal 实际按 **32.1 GiB** 计费 Memory（我们请求的 `memory=32768`）。容器内 `psutil` 报告 186GB 是宿主机总量，但 Modal 只按请求值计费。NF4 量化成功是因为 32GB 比 Kaggle 29GB 多了 3GB，刚好跨过阈值。
+   - > ⚠️ **以官方文档为准，不以记忆为准**：Modal 定价、资源分配等事实性信息，必须查 [modal.com/pricing](https://modal.com/pricing) 官方文档确认，不能以 agent 记忆为准。
 
-**Modal 成本**：$30/月免费额度。本次测试共 3 次运行（含失败重试），总 GPU 时间 23.9 min。Modal T4 综合计费（GPU $0.59/h + Memory $0.024/GiB/h + CPU $0.142/core/h），32GB 内存配置下总费用约 $0.74。单次成功运行（~10.5 min）约 $0.32。
+**Modal 成本**（2026-08-24 billing report 明细验证 ✅ 完全对上）：
+- **官方定价**（来源 [modal.com/pricing](https://modal.com/pricing)，2026-08-24 抓取）：
+  - GPU T4: **$0.5904/h**（$0.000164/s）
+  - CPU: **$0.0472/core/h**（$0.0000131/core/s）—— 不是 $0.142（那是 Sandbox 定价）
+  - Memory: **$0.0080/GiB/h**（$0.00000222/GiB/s）—— 不是 $0.024（那是 Sandbox 定价）
+  - > ⚠️ **以官方文档为准，不以记忆为准**：Modal 定价有两套（标准 compute vs Sandbox+Notebooks），之前混淆了
+- **$30/月免费额度**（Starter plan）
+- **Volume 存储**：$0.09/GiB/月，含 1 TiB/月免费（来源同上）。模型缓存 ~17GB 远低于 1TB 免费额度，**不产生额外费用**
+- **billing report 明细**（`modal billing report --show-resources`，2026-08-24 重新解析）：
+  - 总计 **$0.7586**（GPU $0.488 + CPU $0.060 + Memory $0.210）
+  - 共 22 个 container 生命周期（含 image build、冷启动、推理、失败的 OOM kill 等）
+  - **4 个主要运行**（实际 NF4/baseline 推理）：
+    | App ID | GPU 时间 | GPU 费用 | CPU 费用 | Memory 费用 | 总计 | 对应运行 |
+    |--------|---------|---------|---------|------------|------|---------|
+    | ap-8VTytKy | 716s (11.9min) | $0.117 | $0.010 | $0.051 | $0.179 | Run #2 baseline 成功 |
+    | ap-eomao9u | 674s (11.2min) | $0.110 | $0.010 | $0.048 | $0.168 | Run #3 NF4 成功 |
+    | ap-AFWZ9w3 | 517s (8.6min) | $0.085 | $0.010 | $0.037 | $0.131 | Run #1（OOM 失败）|
+    | ap-SPjSOFl | 355s (5.9min) | $0.058 | $0.003 | $0.025 | $0.086 | 可能是 image build |
+  - **反推验证**：billing 中的 Memory 费用反推出 **32.1 GiB**（不是 186GB！）→ Modal 按请求的 `memory=32768` 计费
+  - **反推 CPU**：~1.1 cores（Modal 自动分配）
+  - **验证结果**：用官方定价 × 反推的秒数/GiB/cores 重新计算，与 billing 完全一致（零误差）
+- **单次成功运行成本**：
+  - NF4 (ap-eomao9u): $0.168（11.2min）
+  - Baseline (ap-8VTytKy): $0.179（11.9min）
+  - **均约 $0.17/次**
+- **L4 性价比分析**（基于 T4 billing 精确数据推导）：
+  - L4 = $0.80/h（VRAM 24GB + bf16），T4 = $0.59/h（VRAM 14.6GB, 无 bf16）
+  - **关键优势**：L4 24GB 可以放下整个 pipeline（~19GB FP16），不需要 CPU offload → 消除 I/O 瓶颈 → 预计 2-3x 推理加速
+  - **Breakeven**：L4 只要比 T4 快 **1.13x**（16GB RAM）就比 T4 划算。消除 offload 后预期 2-3x，远超 breakeven。
+  - 估算对比：
+    | 场景 | GPU 时间 | 单次费用 | vs T4 | $30/月可跑 |
+    |------|---------|---------|-------|-----------|
+    | T4 + NF4（实测） | 11.2min | $0.168 | 基准 | 179 次 |
+    | L4 conservative（2x加速, 16GB RAM） | 5.8min | $0.095 | 56% | 317 次 |
+    | L4 aggressive（3x加速, 8GB RAM） | 3.9min | $0.059 | 35% | 509 次 |
+    | L4 无量化 pipeline.to(device)（2.5x加速） | 4.6min | $0.076 | 45% | 395 次 |
+  - **结论：L4 性价比远超 T4**——单次成本降 44-65%，速度提升 2-3x，还不需要 NF4 量化（避免质量损失风险）。bf16 支持也提升数值稳定性。
 
 **后续方向**：
-- NF4 质量 vs baseline 质量对比（需用同一张真实照片+音频测试）
+- NF4 质量 vs baseline 质量对比（需用同一张真实照片+音频测试）→ 脚本已支持 Volume 素材上传，运行前执行 `modal volume put echomimicv3-models <照片> inputs/portrait.jpg` + `modal volume put echomimicv3-models <音频> inputs/audio.mp3`，跑完后 `modal volume get echomimicv3-models outputs/nf4-8steps.mp4 ./` 下载
 - 在 Modal 上测试 720p 分辨率（当前测试用 512×512）
 - 测试 torch.compile 在 Modal T4 上是否有效（v51 在 Kaggle 上有 13% 加速）
+- 考虑 Modal L4（$0.80/h，24GB VRAM + bf16）作为 T4 升级选项
+- **Volume 存储费用**：$0.09/GiB/月，含 1TB/月免费。模型缓存 ~17GB + 输出 mp4 几 MB，远低于免费额度，不产生额外费用。用 `modal volume get` 下载输出不收费（只算本地带宽）
 
 #### 优化方案记录
 

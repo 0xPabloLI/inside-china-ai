@@ -575,7 +575,7 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 | 1️⃣ | **Kaggle (T4 x2)** | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4` | T4 x2 (15GB×2) | 30h/周刷新 | 自动化批量推理（默认） |
 | 2️⃣ | **Colab CLI (T4)** | `colab run --gpu T4 script.py` | T4 14.6GB | 不固定，空闲90min | 一键运行单脚本 |
 | 3️⃣ | **Colab CDP** | web-access skill | T4 14.6GB | 同 Colab | 交互式调试、参数调优 |
-| 4️⃣ | **Modal (T4)** | `modal run script.py` | T4 15GB | $30/月 (~50h) | serverless 函数推理 |
+| 4️⃣ | **Modal (T4)** | `modal run script.py` | T4 15GB | $30/月（纯 GPU ~50h，含 186GB RAM 实际 ~20-30h） | serverless 函数推理 |
 | 5️⃣ | **Lightning AI (L4)** | Studio + SSH | L4 22.5GB (bf16) | ~8h/月 | 16GB 不够时（付费后） |
 | 6️⃣ | **AutoDL** | 手动租用 | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
 
@@ -601,7 +601,7 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 1. **首选 Kaggle T4 x2**：`kernel-metadata.json` 设 `"machine_shape": "NvidiaTeslaT4"` → push → 轮询 `kaggle kernels status`
 2. **Kaggle T4 失败/排队太长** → fallback 到 Colab CLI：`colab run --gpu T4 script.py`
-3. **Colab 失败/超时** → Modal：`modal run script.py`（$30/月额度，冷启动慢但稳定）
+3. **Colab 失败/超时** → Modal：`modal run script.py`（$30/月额度，冷启动慢但稳定，186GB RAM 适合 NF4 量化）
 4. **T4 15GB 不够** → Lightning AI L4 22.5GB（~8h/月，bf16）
 5. **L4 也不够/需要长时间** → AutoDL RTX 4090 24GB（付费，¥1.88/h）
 
@@ -697,7 +697,7 @@ GPU count: 2
 | **Colab 免费版** ✅ 已用 | T4（不保证） | 15GB | **动态**（不固定） | 不固定 | 冷却期 + 90min 空闲 | 官方 FAQ [2] |
 | **Lightning AI** | T4/L4/A10G/L40S | 15-48GB | **月度刷新** | 15 credits/月 (~22h T4) | 4h studio 重启, 不累计 | 官方 + SaaSworthy + aicreditmart [3] |
 | **Hugging Face ZeroGPU** | H200（动态） | 48-96GB | **每日刷新** | 5 min/天, 3次/天 | 极短时间 | 官方文档 + 论坛 [4] |
-| **Modal** | T4 | 15GB | **月度刷新** | $30/月 (~50h T4) | serverless 函数，冷启动慢 | Token 验证 ✅ + GPU T4 测试通过 ✅ |
+| **Modal** | T4 | 15GB | **月度刷新** | $30/月（纯 GPU ~50h，含 Memory 后实际 ~20-30h） | serverless 函数，冷启动慢 | Token 验证 ✅ + GPU T4 测试通过 ✅ + 官方定价页验证 ✅ |
 
 ### 一次性的免费 GPU（❌ 对我们没有意义）
 
@@ -766,7 +766,7 @@ GPU count: 2
 |--------|------|-----|---------|------|
 | 1️⃣ | **Kaggle T4×2** | T4 15GB×2 | 30h/周 | 自动化批量推理（默认） |
 | 2️⃣ | **Colab 免费 T4** | T4 15GB | 不固定 | 一键运行单脚本 |
-| 3️⃣ | **Modal T4** | T4 15GB | $30/月 (~50h) | serverless 函数推理（冷启动慢） |
+| 3️⃣ | **Modal T4** | T4 15GB | $30/月（含 186GB RAM 实际 ~20-30h） | serverless 函数推理（冷启动慢，186GB RAM 适合 NF4 量化） |
 | ~~4️⃣~~ | ~~**Lightning AI L4**~~ | ~~L4 22.5GB (bf16)~~ | ~~8h/月~~ | ❌ 账号被封 |
 | 5️⃣ | **AutoDL 4090** | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
 

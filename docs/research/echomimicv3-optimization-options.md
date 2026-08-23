@@ -387,7 +387,8 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 | T4, 8步, **TeaCache off**, sequential offload | 27 min | ~9 小时 | v49 实测 |
 | T4, 8步, **TeaCache off**, + torch.compile | 28.5 min | ~9.5 小时 | v49 实测（.config 修复成功，视频产出 ✅） |
 | 25步 + offload | ~23 min | ~7.7 小时 | v43 实测 22.4-23.5min |
-| NF4 量化 (预估) | ~10 min | ~3.3 小时 | ❌ Kaggle CPU RAM 不足，不可行 |
+| NF4 量化 (Kaggle) | ❌ 不可行 | — | Kaggle CPU RAM 不足 (29GB) |
+| **NF4 量化 (Modal T4)** ✅ | **5.0 min** | ~1.7 小时 | Modal 186GB RAM，NF4 + model_cpu_offload，13.8s/step vs baseline 24.2s/step，43% 加速。脚本：`scripts/short-video/experiments/modal-echomimicv3-nf4.py` |
 | 双卡 offload 消除 (预估) | ~8 min | ~2.7 小时 | ❌ T4 14.6GB OOM，不可行 |
 
 **v49 关键发现**：
