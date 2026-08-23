@@ -2,7 +2,7 @@
 
 > Source of truth for doc ownership. Use it to find any document in one lookup.
 >
-> _Last inventory: 2026-08-21._
+> _Last inventory: 2026-08-23._
 
 ## Canonical Structure
 
@@ -38,7 +38,7 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. framework, open loops, hook/CTA formulas, beat-by-beat iteration | `content-pipeline.md` Stage 3 |
-| `handoffs/video-layout-standard.md` | 视频布局安全区 session 交接（已完成，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
+| `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
 | `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
 
@@ -72,6 +72,7 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 |----------|---------|
 | `scenario-enumeration-checklist.md` | Boundary scenario enumeration checklist |
 | `scenario-matrix.md` | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios) |
+| `visual-design-loop.md` | Visual design iteration loop — impeccable skill workflow for video template polish |
 
 ### `tiktok/` — TikTok guides
 
@@ -82,6 +83,7 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 | `tiktok-do-dont.md` | Do/Don't comparison guide |
 | `tiktok-profile-setup.md` | Brand profile setup (one-time reference) |
 | `ab-testing-methodology.md` | Element iteration method — single-variable A/B testing philosophy |
+| `tiktok-analytics-review.md` | TikTok Analytics 定期复盘模板 — 周期性复制模板、CDP 抓取数据、制定行动计划 |
 
 ### `video/` — Video roadmap
 
@@ -95,10 +97,40 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 |----------|---------|
 | `issue-tracker.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
 
-### `reviews/` — Review records
+### `handoffs/` — Session handoffs
+
 | Document | Purpose |
 |----------|---------|
-| `reviews/video-document-layer-review-2026-08-21.md` | #103 的视频内容 L1 文档层审阅：offload 原则、迁移边界、最小加载路径与验证 guardrails |
+| `handoff-add-free-api-sources.md` | Adding free API sources (Guardian, NYT, Semantic Scholar, etc.) to source-registry |
+| `handoff-asset-source-unification.md` | 素材源统一命名 + 重复获取问题 |
+| `handoff-colab-nf4-test.md` | Colab NF4 量化测试 |
+| `handoff-echomimicv3-kaggle.md` | EchoMimicV3 Kaggle 测试 & 下一步数字人模型测试 |
+| `handoff-extractscript-autofix.md` | extractScript 自动修复 + warn + health 追踪 (Issue #66) |
+| `handoff-license-risk-policy.md` | License 风险策略 — 不阻塞管线 |
+| `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60) |
+| `handoff-realesrgan.md` | Real-ESRGAN 超分辨率集成 |
+| `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65) |
+| `handoff-source-layer-comparison.md` | Source layer comparison — CDP vs MCP vs API |
+| `handoff-sve-media-extraction.md` | SVE Media Extraction — 图片/视频同时提取 + Logo 排除 + Metadata (Issue #63) |
+| `handoff-unified-source-registry.md` | Unified source registry implementation (Issue #52) |
+| `handoff-verify-retry-loop.md` | Pipeline verify-retry loop — auto-fix on subtitle/audio sync FAIL |
+| `handoff-visual-focus-detection.md` | Visual focus detection — R1-R5 remediated, P4 complete |
+| `handoff-vlm-semantic-merge.md` | VLM semantic merge — P3 implementation |
+| `handoff-write-for-agents-enforcement.md` | writing-for-agents 规则执行问题 |
+
+### `reviews/` — Review records
+
+| Document | Purpose |
+|----------|---------|
+| `ai-visual-analysis-code-review-2026-08-19.md` | AI 视觉分析层代码审查报告 |
+| `research-evidence-pipeline-implementation-review.md` | Research evidence pipeline implementation review |
+| `scorecandidate-review.md` | `scoreCandidate()` code review |
+| `source-registry-capability-audit-2026-08-19.md` | Source registry capability 标注核查报告 |
+| `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
+| `unified-source-registry-implementation-review-2026-08-19.md` | Unified source registry implementation review |
+| `video-document-layer-review-2026-08-21.md` | #103 的视频内容 L1 文档层审阅：offload 原则、迁移边界、最小加载路径与验证 guardrails |
+| `vlm-semantic-merge-implementation-review.md` | VLM semantic merge 与 visual focus detection 当前实现复审 |
+
 ### `archive/` — Completed work
 
 Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list.
@@ -107,8 +139,22 @@ Historical specs, tickets, and roadmaps. Retained for reference, no longer maint
 
 | Document | Purpose |
 |----------|---------|
-| `specs/spec-visual-focus-detection.md` | 视觉焦点检测 + AI 分析层重构 — OpenCV 焦点检测、命名重构、analyzeFit 迁移策略 |
-| `specs/spec-visual-focus-detection-review.md` | 上述 spec 的初审 + 复审记录 |
+| `specs/adr-0008-0014-remediation-tracker.md` | ADR 0008–0014 修复执行追踪器 |
+| `specs/spec-asset-first-hook-media-focus-detection.md` | 素材先行 + Hook 场景 Media 支持 + OpenCV 焦点检测提案 |
+| `specs/spec-media-patch-apply.md` | Media-patch apply workflow spec |
+| `specs/spec-pipeline-generalization.md` | Pipeline generalization — verification intelligence, media upscale, currency auto-fix, layout & chart template |
+| `specs/spec-research-evidence-pipeline.md` | Research evidence pipeline spec |
+| `specs/spec-vlm-semantic-merge-remediation.md` | VLM semantic merge remediation (P0 + P1) spec |
+| `specs/spec-wechat2rss-source-tracking.md` | Wechat2RSS 第三方公众号追踪接入规格 |
+
+### Root-level active specs & tickets
+
+| Document | Purpose |
+|----------|---------|
+| `spec-hook-media-support.md` | Hook scene media support + narrative Ken-Burns + warning summary spec |
+| `spec-vlm-fit-focus.md` | VLM-driven fit/focus for landscape assets in vertical video spec |
+| `spec-issue-56-84-pr102-refresh.md` | Refresh PR #102 on current asset sourcer spec |
+| `tickets-issue-56-84-pr102-refresh.md` | Tickets for PR #102 refresh |
 
 ### `refs/` — Reference materials
 
