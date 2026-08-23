@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-22 (29 open issues after PR merges #102/#104/#106 closed #84 and #95).
+Last inventory: 2026-08-23 (29 open issues; #83 and #78 closed, #107/#108 added).
 
 ---
 
@@ -33,7 +33,7 @@ GitHub 不支持原生父子 issue，但有些 issue 天然是同一工作流的
 
 | Sequence | Why |
 |----------|-----|
-| #83 → #88 | 两个都改 `source-registry.mjs` 字段名。#83 是小改（category 名），#88 是大改（script 字段名 + fallback 机制）。先做 #83 再做 #88 避免 merge conflict |
+| #83 done -> #88 | #83 done, #88 ready. Both change source-registry.mjs field names |
 | #67 → #66 | #66 auto-fallback 需要 #67 的 method/fallback 字段 |
 | #67 → #76, #77, #68, #87 | 审计类全部依赖 capabilities schema 完整 |
 | #89 P0 → #91, #92 | rate limiter 先行，再加新搜索引擎 |
@@ -51,9 +51,8 @@ GitHub 不支持原生父子 issue，但有些 issue 天然是同一工作流的
 
 | # | Issue | Type | Conflict files | Notes |
 |---|-------|------|---------------|-------|
-| #83 | stock_api → stock_media rename | mechanical | source-registry.mjs + tests | 纯 find-replace，无行为变更 |
-| #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests, docs | Part 1: 纯 rename。Part 2: Google site: fallback 从 per-source config 改为 universal auto-generation。先做 #83 再做 #88 |
-| #78 | DOCS-INDEX sync: 22 missing docs | docs only | DOCS-INDEX.md | 无代码变更 |
+| #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests, docs | #83 done. Part 1: rename. Part 2: universal Google site: fallback |
+
 
 ### Phase 1 — 核心功能增强
 
@@ -62,7 +61,7 @@ GitHub 不支持原生父子 issue，但有些 issue 天然是同一工作流的
 | #67 | capabilities.articles schema 补全 | — | source-registry.mjs | ⚠️ ~70% done（method/apiKey/paidApi ✅, fallbacks array ❌） |
 | #66 | extractScript auto-fallback | #67 | search-sources.mjs, cdp-client.mjs | per-site → Jina → generic eval → /extract |
 | #63 | SVE: Single-Visit Extraction | #54 ✅, #55 ✅ | search-sources.mjs, asset-sourcer.mjs | enrichWithImages → enrichWithMedia |
-| #51 | Cascade-filter audit (RAG BM25 pre-filter) | — | rag/query.mjs | ⚠️ item 1 done, item 2 (BM25) not implemented |
+| #51 | Cascade-filter audit (ADR-0016 alignment) | — | rag/query.mjs, trends-utils.mjs | ⚠️ Violation 2 (BM25 pre-filter) done (commit 5a511ba). Violation 1 (filterChinaAI+classifyTopic) not yet done. Violation 3 = preventive note |
 
 ### Phase 2 — 审计类（依赖 #67 完成）
 
@@ -105,7 +104,7 @@ P3-P4 已完成（#69 closed）。以下是 P5-P8b 的线性依赖链。
 | #103 | Docs: offload/split L1 video content workflows | #95 ✅ (PR #104 merged) | 文档架构任务，content-pipeline.md + video-workflow.md 瘦身。#106 review baseline 已 merge |
 | #85 | Bloomberg paywall alternatives | — | 研究任务 |
 | #75 | 替代下载方案（小红书/微博/抖音） | #54 ✅ | ⚠️ ~25% done（RedNote-MCP ✅, weibo/chubbyskills ❌, GPL 评估待定） |
-
+| #108 | Research: free cloud inference endpoints | — | 调研 NVIDIA NIM / HF Inference API / Groq 等免费推理 endpoint. Deliverable: 结论写入 docs/tools-catalog.md. Related: #107 |
 ### Phase 6 — 触发条件未满足（暂搁置）
 
 | # | Issue | Trigger condition |
@@ -117,6 +116,7 @@ P3-P4 已完成（#69 closed）。以下是 P5-P8b 的线性依赖链。
 | #35 | F5-TTS Multi-Reference Audio | 用户录制 4 段参考音频 |
 | #60 | On-demand content audit | 设计讨论中，与 #61 合并 |
 | #61 | Non-blocking evidence audit | 与 #60 合并讨论中 |
+| #107 | Algorithm & Model Review (14 components) | 项目第一版完成 | Tracking issue, 14 个 AI/ML 组件全面审查。明确标注 Do NOT start until first version complete |
 
 ---
 
@@ -126,21 +126,23 @@ P3-P4 已完成（#69 closed）。以下是 P5-P8b 的线性依赖链。
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #83, #88, #67, #64, #81, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件 |
+| `source-registry.mjs` | #88, #67, #64, #81, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件 |
 | `asset-sourcer.mjs` | #66, #63, #75 | 🟡 中（#84 已 merge，搜索缓存已就位） |
 | `search-sources.mjs` | #66, #63, #81, #65, #90 | 🔴 高 |
 | `docs/content-pipeline.md` | #51, #94, #97, #103 | 🟡 中——#103 瘦身后其他 issue 指针需更新 |
-| `docs/DOCS-INDEX.md` | #78, #97, #103 | 🟡 中——索引变更串行 |
+| `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
 | `scene-rules.mjs` / `scene-templates.mjs` | #94（可能） | 🟢 低 |
 
 ---
 
 ## Closed Issues (2026-08-21~22 Triage)
 
-20 issues closed across three triage sessions (code verified + PR merges). Full details on GitHub.
+22 issues closed across four triage sessions (code verified + PR merges + mechanical fixes). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
+| #83 | stock_api -> stock_media rename | Commit 418f46e - pure find-replace, 163 tests pass |
+| #78 | DOCS-INDEX sync 22+ missing docs | Commit 15385be - handoffs/reviews/specs/conventions/tiktok tables added |
 | #36 | ai-analyzer → visual-analyzer rename | Code verified: completed |
 | #44 | scoreCandidate() optimization | Code verified: completed |
 | #49 | Hook Scene Media + Ken-Burns + Warning | Code verified: completed |
