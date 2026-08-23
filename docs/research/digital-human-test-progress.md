@@ -482,12 +482,13 @@
     | L4 无量化 pipeline.to(device)（2.5x加速） | 4.6min | $0.076 | 45% | 395 次 |
   - **结论：L4 性价比远超 T4**——单次成本降 44-65%，速度提升 2-3x，还不需要 NF4 量化（避免质量损失风险）。bf16 支持也提升数值稳定性。
 
-**后续方向**：
-- NF4 质量 vs baseline 质量对比（需用同一张真实照片+音频测试）→ 脚本已支持 Volume 素材上传，运行前执行 `modal volume put echomimicv3-models <照片> inputs/portrait.jpg` + `modal volume put echomimicv3-models <音频> inputs/audio.mp3`，跑完后 `modal volume get echomimicv3-models outputs/nf4-8steps.mp4 ./` 下载
-- 在 Modal 上测试 720p 分辨率（当前测试用 512×512）
-- 测试 torch.compile 在 Modal T4 上是否有效（v51 在 Kaggle 上有 13% 加速）
-- 考虑 Modal L4（$0.80/h，24GB VRAM + bf16）作为 T4 升级选项
+**后续方向**（按优先级排序）：
+1. **Modal L4 测试**（⭐最高优先级）——基于 billing 数据推导，L4 性价比远超 T4（breakeven 仅需 1.13x 加速，预期 2-3x）。24GB VRAM 可放整个 pipeline 不需 offload，且支持 bf16。改脚本 `gpu="L4"` + `pipeline.to(device)` 即可验证
+2. NF4 质量 vs baseline 质量对比——脚本已支持 Volume 素材上传，但 L4 可能直接不需要 NF4（24GB 够放 FP16）
+3. 在 Modal 上测试 720p 分辨率（当前测试用 512×512）
+4. 测试 torch.compile 在 Modal T4/L4 上是否有效（v51 在 Kaggle 上有 13% 加速）
 - **Volume 存储费用**：$0.09/GiB/月，含 1TB/月免费。模型缓存 ~17GB + 输出 mp4 几 MB，远低于免费额度，不产生额外费用。用 `modal volume get` 下载输出不收费（只算本地带宽）
+- **模型缓存策略**：Volume 上的模型缓存不需要一直在——如果不用了可以 `modal volume rm` 删除释放空间，但只要还在 1TB 免费额度内就不产生费用。下次运行时如果缓存还在就省下载时间（~5min），删了就重新下载。**建议保留**（17GB 远低于 1TB 免费额度）
 
 #### 优化方案记录
 
