@@ -24,17 +24,17 @@ Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 
 Run `gh issue list --label <state-label> --state open` to see issues in each state. Do not cache issue lists in this file — they go stale. The tracker is the source of truth.
 
-## Recommended execution order (2026-08-22 triage)
+## Recommended execution order (2026-08-23 updated)
 
 Based on dependency analysis. Most inter-issue relationships are soft (related, not blocking) — order is by impact, not topology.
 
-### T1: Immediate, no dependencies
+### T1: Immediate, no dependencies — ✅ ALL CLOSED
 
-1. **#83** — Rename `stock_api` → `stock_media` (mechanical, ready-for-agent)
-2. **#78** — DOCS-INDEX sync 22 missing docs (mechanical, ready-for-agent)
-3. **#51** — BM25 pre-filter for RAG reranker (independent module, ready-for-agent)
+1. ~~**#83**~~ — Rename `stock_api` → `stock_media` (closed 2026-08-22)
+2. ~~**#78**~~ — DOCS-INDEX sync 22 missing docs (closed 2026-08-22)
+3. ~~**#51**~~ — Cascade-filter audit: filterChinaAI keyword enhancement + BM25 pre-filter (closed 2026-08-23, commit 679877c)
 
-### T2: Search source infrastructure
+### T2: Search source infrastructure — NEXT
 
 4. **#91** — Add DuckDuckGo search source (independent, ready-for-agent)
 5. **#92** — Add SearXNG search source (independent, already deployed, ready-for-agent)
