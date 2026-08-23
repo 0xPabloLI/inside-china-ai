@@ -1,150 +1,73 @@
-# Issue Tracker 审阅报告
+# Issue Tracker 复审报告
 
-**审阅对象：** `docs/issue-tracker.md`  
-**本次复核：** 2026-08-23（triage 更新后）  
-**审阅范围：** 当前本地 tracker、GitHub Issue 状态、关键 issue 的改动范围，以及 GitHub Issues 的层级能力。
+**审阅对象：** [`docs/issue-tracker.md`](../issue-tracker.md)
+**复审日期：** 2026-08-23
+**审阅范围：** triage 修订后的 tracker、GitHub 当前 issue 状态、关键 issue scope 与冲突矩阵。
 
 ## 结论
 
-最新 triage 已显著改善 tracker 的可用性：#83 与 #78 已正确从开放阶段移入 Closed 区，#88 成为唯一 Phase 0 项；#107 已被纳入暂搁置队列；新建的 #108 也已被加入独立增强阶段；#51 的部分完成状态更具体；`docs/DOCS-INDEX.md` 的 #78 冲突已被移除。这些都是正确且值得保留的修订。
+本轮 triage **已落实此前大部分关键建议**。tracker 当前将 32 个开放 issue 全部纳入 Tier 或 Dormant 队列；顶部 inventory、Closed 区的日期与计数、hard/soft dependency、GitHub sub-issues 说明以及主要冲突矩阵错配均已修正。它现在可以作为新 session 的可靠调度入口。[1] [2]
 
-不过，tracker 仍不应被当作严格的全量事实源或可直接执行的并行计划。本次 GitHub 快照显示 **32 个开放 issue**，而 tracker 仍写 **29 个**。Phase 表已覆盖这 32 个开放 issue，却仍保留两个已关闭 issue（#81、#22），因此一共列出 34 项。Closed 区的日期范围与计数也尚未同 GitHub 对齐；Conflict Risk Matrix 与真实改动面仍有关键错配。[1] [2] [3]
+仍有 **一个 P1 冲突矩阵遗漏**：#77 的 tracker 行和 GitHub issue 都明确指出它会审计、修订或测试 `source-registry.mjs` 中的 capabilities/fallback 配置，但该文件的 Conflict Risk Matrix 行未包含 #77。因为 #67、#88、#64、#90、#91 与 #92 也共享该文件，应将 #77 纳入这一冲突组，再允许它和这些工作并行。[3]
 
-> **推荐定位：** GitHub Issue 管理范围、状态、验收与完整关闭历史；`issue-tracker.md` 只管理 triage 得出的推荐顺序、hard/soft dependency、冲突组和下一步动作。每次 triage 以 GitHub 清单重新对账后再更新 tracker。
+> **最终判断：** 文档从“概览可用但事实会漂移”升级为“可用于排程的 triage 视图”。补齐 #77，并处理两处 P2 文案精度问题后，当前版本即可视为审阅通过。
 
-## 本轮更新：已解决或明显改善的项目
+## 已核验并通过的修复
 
-| 事项 | 当前状态 | 评价 |
+| 审阅项 | 当前状态 | 核验结果 |
 |---|---|---|
-| #83 `stock_api → stock_media` | 已关闭并移入 Closed 区；Phase 0 改为 #83 done → #88。 | 正确。 |
-| #78 `DOCS-INDEX sync` | 已关闭并移入 Closed 区；从 Phase 0 和 Docs Index 冲突组移除。 | 正确。 |
-| #107 Algorithm & Model Review | 已加入 Phase 6，并保留“项目第一版完成后才开始”的触发条件。 | 正确。 |
-| #108 免费云端推理 endpoint 调研 | 已加入 Phase 5；其交付物是调研结论与 `docs/tools-catalog.md` 更新。 | 放置合理；它是可独立推进的 research issue，而非 #107 的硬 blocker。[4] |
-| #51 Cascade-filter audit | 已注明 Violation 2 的完成提交与剩余 Violation 1。 | 比笼统的完成百分比更可执行。 |
+| Open inventory | 顶部写 `32 open issues`。 | GitHub 当前为 32 个 open issue；tracker 的 Tier/Dormant 队列也恰有 32 项。通过。[1] [2] |
+| 已关闭 issue 清理 | #81、#22、#62、#70 已从开放队列迁入 Closed 区。 | 开放队列不再保留已关闭事项。通过。 |
+| Closed 区口径 | 标题为 `2026-08-21~23`，计数 26。 | GitHub 在该日期范围内关闭 26 个 issue；表内已补入此前漏记项。通过。[2] |
+| #83 与 #78 | 已进入 Closed 区；#88 成为原机械改名完成后的后续工作。 | Phase/Tier 排程正确。通过。 |
+| #107 与 #108 | #107 在 project-milestone Dormant 队列；#108 在 Tier 3 作为独立调研。 | 启动条件与 issue scope 一致。通过。 |
+| Parent–Child 说明 | 已改为 GitHub 支持原生 sub-issues、仓库暂用临时视图。 | 事实正确；#89 当前确实尚未建立原生 sub-issues。通过。[4] [5] |
+| #89 → #91/#92 依赖 | #91 标为 hard，#92 标为 soft，并说明 SearXNG backend 风险。 | 依赖语义已消除先前矛盾。通过。 |
+| 主要冲突矩阵修复 | #90 已加入 registry/search collector；#88 已加入 asset/search collector；#81 与 #66 的误配已移除；`cdp-client.mjs` 已新增。 | 先前四个 P0 错配已修复。通过。 |
+| Dormant 队列 | 已按 measurable trigger、project milestone、waiting for user input、needs triage 拆分。 | 下一步动作清晰。通过。 |
 
-## P0：inventory 仍然错误，且 phase 条目保留关闭 issue
+## P1：将 #77 加入 `source-registry.mjs` 冲突组
 
-tracker 顶部写“29 open issues”，但当前 GitHub 查询为 **32 open issues**。Phase 表合计 34 项：其中 #81 与 #22 均已关闭，剩余 32 项正好对应当前开放 backlog。这说明新增 #107/#108 已成功纳入；现存问题是 inventory 数字和两个过期条目，而不是遗漏开放 issue。[1] [2] [3]
+#77 是“59 个 source capability 与 fallback chain 审计”。它明确涉及每个 source 的 `capabilities` 标注、articles access method、fallback 链完整性以及相关测试；issue 本身也直接点名 `source-registry.mjs`。[3]
 
-| 位置 | 建议修订 |
-|---|---|
-| 顶部 inventory | **替换为：** `Last reconciled: 2026-08-23 — 32 open issues (after #78/#83 closed; #107/#108 added).` |
-| Phase 3 | **删除/迁移：** #81。它已于 2026-08-21 关闭；如保留，移入 Closed 区。 |
-| Phase 6 | **删除/迁移：** #22。它已于 2026-08-22 关闭；如保留，移入 Closed 区。 |
+当前 Tier 3 的 #77 行已正确标注 `source-registry.mjs`，但 Conflict Risk Matrix 中该文件的 issue 列表为：
 
-完成这三处后，phase 表总数和 GitHub 当前开放数会一致。
+```text
+#88, #67, #64, #90, #91, #92
+```
 
-## P0：Closed 区的标题、计数与范围仍不一致
+建议改为：
 
-当前 Closed 区标题仍为 `2026-08-21~22 Triage`、计数为 22；但 #78 与 #83 是在 2026-08-23 关闭的，已被列在该区。GitHub 在 2026-08-21 至 2026-08-23 期间共关闭 **26** 个 issue；当前表遗漏 #22、#62、#70 和 #81。[2] [3] [5]
+```text
+#88, #67, #64, #77, #90, #91, #92
+```
 
-建议在两种明确口径中选择一种：
+这不是简单的展示问题。#77 与 Tier 1 的 #67/#88 共享 capabilities schema 与 fallback 语义；若同时实施，审计结论、field rename 与 schema 补全可能产生 merge conflict 或重复修订。#77 优先级较低并不消除它与高优先级任务的文件冲突。
 
-| 方案 | 修订方式 | 优点 |
+## P2：两处文案精度改进
+
+| 位置 | 当前表述 | 建议 |
 |---|---|---|
-| **完整历史** | 标题改为 `Closed Issues (2026-08-21~23)`；补 #22/#62/#70/#81；计数改为 26。 | 文档独立提供该时间段的完整关闭记录。 |
-| **精选 triage 历史（推荐）** | 标题改为 `Recent triage closures (selection)`；删除“22 issues closed”的全量语义；完整历史交给 GitHub。 | 避免维护第二份容易漂移的关闭清单。 |
+| Tier 1 的 #67 Notes | “block 最多下游（6 个 issue 依赖）”。 | tracker 的显式依赖关系列出 #66、#68、#76、#77、#87，共 **5 个直接下游**。建议改为“阻塞 5 个直接下游；并间接影响 #87 的完整审计链”，或给出第 6 个 issue 的明确依据。 |
+| `## Execution Phases` 标题 | 下属结构已改为 Tier 1–3 与 Dormant。 | 改为 `## Execution Tiers` | `## Execution Phases` 标题 | 下属结构已改为 Tier 1–3 与 Dormant。 | 改为 `## Execution Tiers` | `##��“阶段顺序”误读为强制线性执行，并提升依赖数量的可审计性。
 
-无论采用哪一种，#81/#22 都不应继续出现在开放 phase 中。
+## 维护建议
 
-## P0：Conflict Risk Matrix 仍不足以安全指导并行
+tracker 现在已具备正确的职责边界。为保持其可信度，建议把以下轻量检查纳入每次 triage：
 
-#83 与 #78 的清理已经降低了矩阵的噪声，但下面四处错配仍然存在。鉴于 tracker 明确允许同一 phase 并行，这些需要在允许并行实施前修正。
-
-| 当前矩阵状态 | 实际 scope | 建议 |
-|---|---|---|
-| `source-registry.mjs` 未列 #90，仍列 #81 | #90 将 `x_search` 与 `xhs` 从 MCP fallback 改为 direct API fallback；#81 已关闭。 | 加入 **#90**；移除 **#81**。 |
-| `asset-sourcer.mjs` 列 #66、未列 #88 | #66 的 approved design 改 `search-sources.mjs` 与 `cdp-client.mjs`；#88 明确改 `asset-sourcer.mjs` 的字段消费者。 | 移除 **#66**；加入 **#88**。 |
-| `search-sources.mjs` 未列 #88、仍列 #81 | #88 更改 article-script 与 site-search-script 的 consumer；#81 已关闭。 | 加入 **#88**；移除 **#81**。 |
-| 无 `cdp-client.mjs` 行 | #66 增加 `/extract` fallback；#89 P1 修改 retry/backoff。 | 新增：`cdp-client.mjs — #66, #89`，标为高风险。 |
-
-更稳健的后续结构是按 **Conflict Groups** 而不是单一文件名维护，例如 `registry-schema`、`search-collector`、`cdp-transport`、`asset-download`、`docs-index`。它能覆盖新增文件、共享测试和接口迁移等情况。
-
-## P1：Parent–Child 小节仍使用过时的 GitHub 平台描述
-
-tracker 仍写“GitHub 不支持原生父子 issue”。GitHub 已支持 sub-issues、嵌套层级与父任务进度，也支持通过 `gh issue create --parent` 和 `gh issue edit --add-sub-issue` 建立关系。[6] [7]
-
-仓库的 #89 当前尚未建立原生 sub-issues，因此建议将该表述替换为：
-
-> “GitHub 支持原生 sub-issues；本仓库当前尚未建立这些关系。以下 `Parent →` 为临时 triage 视图。”
-
-随后可选择把 #91/#92 设为 #89 的原生 sub-issues，或继续维护文档式关系；两者都可行，但平台能力说明应准确。
-
-## P1：#92 与 #89 P0 的 dependency 语义仍需定稿
-
-#92 的部署前置已完成。它的主正文仍将 #89 P0 视为 blocker，但最新 Agent Brief 又把 rate limiting 写成 out of scope。这个差异会影响 #92 是否能立即实施。[8]
-
-| 决策 | tracker 表达 | 应同步的位置 |
-|---|---|---|
-| 需要保护 Google/Bing/DDG 等 backend engines | 保持 `Hard blocker: #89 P0`，并明确该限流不针对本地 SearXNG 前端。 | #92 Dependencies、Agent Brief、Parent–Child 表、Phase 3。 |
-| 本地 source 可先接入、限流后补 | 改为 `Soft dependency: #89 P0` 或移除 blocker。 | 同上。 |
-
-目标是使 issue 正文、Agent Brief 和 tracker 共享同一套 hard/soft dependency 语义。
-
-## P2：Phase 6 已改善，但仍应按暂停原因拆分
-
-#107 已被正确加入 Phase 6；但 #22 已关闭且其他事项的暂停原因各不相同。建议将现有表拆分为以下队列，以便新 session 可直接判断下一步动作：
-
-| 建议队列 | 事项 |
-|---|---|
-| `Dormant — measurable trigger` | #21、#29。 |
-| `Dormant — project milestone` | #107。 |
-| `Waiting for user input / information` | #35、#32。 |
-| `Needs triage / design decision` | #60、#61。 |
-| `Closed` | #22。 |
-
-## 建议的最小修订顺序
-
-1. 将 inventory 修正为 **32 open**，并从 phase 表迁移 #81/#22。
-2. 选择 Closed 区的全量或精选口径，修正标题日期与计数。
-3. 修正 Conflict Risk Matrix 的 #88/#90/#66/#81 归属，并新增 `cdp-client.mjs`。
-4. 修正 GitHub sub-issues 的能力描述，并明确 #89/#91/#92 是否采用原生层级。
-5. 对 #92 与 #89 P0 统一 hard/soft dependency 语义。
-6. 将 Phase 6 按暂停原因拆分。
+1. 先执行 GitHub open/closed 查询；仅在数量对齐后修改 inventory 与 Closed 区。
+2. 对每个变更 issue 的 `Conflict files` 与 Conflict Risk Matrix 做双向检查：Tier 表中出现的共享文件，矩阵必须覆盖；矩阵中的 closed issue 必须移除。
+3. 对 `hard` 和 `soft` dependency 使用固定定义：hard 表示不能开工；soft 表示可开工但建议等待或需降级策略。
+4. 新 issue 加入 tracker 时，同时归入 Tier/Dormant 队列并写入至少一个下一步动作或明确 trigger。
 
 ## References
 
-[1]: https://github.com/0xPabloLI/inside-china-ai/issues "Current open issue inventory — inside-china-ai"
-[2]: https://github.com/0xPabloLI/inside-china-ai/issues/81 "#81 — Homepage-only sources (closed)"
-[3]: https://github.com/0xPabloLI/inside-china-ai/issues/22 "#22 — RAG pre-work (closed)"
-[4]: https://github.com/0xPabloLI/inside-china-ai/issues/108 "#108 — Free cloud inference endpoints research"
-[5]: https://github.com/0xPabloLI/inside-china-ai/issues/83 "#83 — stock_api to stock_media rename"
-[6]: https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues "GitHub Docs — Adding sub-issues"
-[7]: https://github.blog/changelog/2025-01-12-evolving-github-issues-public-preview/ "GitHub Changelog — Evolving GitHub Issues"
-[8]: https://github.com/0xPabloLI/inside-china-ai/issues/92 "#92 — SearXNG self-hosted source"
-[9]: https://github.com/0xPabloLI/inside-china-ai/issues/90 "#90 — MCP to direct API migration"
-[10]: https://github.com/0xPabloLI/inside-china-ai/issues/88 "#88 — CDP script field rename"
+[1]: https://github.com/0xPabloLI/inside-china-ai/issues "inside-china-ai — current open issue inventory"
+[2]: https://github.com/0xPabloLI/inside-china-ai/issues?q=is%3Aissue%20is%3Aclosed%20closed%3A2026-08-21..2026-08-23 "inside-china-ai — issues closed 2026-08-21 to 2026-08-23"
+[3]: https://github.com/0xPabloLI/inside-china-ai/issues/77 "#77 — Source type labeling audit"
+[4]: https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues "GitHub Docs — Adding sub-issues"
+[5]: https://github.com/0xPabloLI/inside-china-ai/issues/89 "#89 — Anti-bot scraping (parent work item)"
 
 ---
 
-**审阅说明：** 本报告基于 2026-08-23 triage 更新后的静态快照。本文仅更新审阅记录，不修改 GitHub Issue、PR 或 `docs/issue-tracker.md` 本身。
-
----
-
-## 修复记录（2026-08-23）
-
-基于本报告的建议，已对 `docs/issue-tracker.md` 执行以下修复：
-
-### P0 修复
-
-| 问题 | 修复 |
-|------|------|
-| inventory 数字错误（29 vs 32） | 修正为 32 open issues |
-| #81 仍在 Phase 3 和 Conflict Matrix | 移除，移入 Closed Issues |
-| #22 仍在 Phase 6 | 移除，移入 Closed Issues |
-| Closed 区标题/计数不一致 | 标题改为 2026-08-21~23，计数改为 26，补充 #22/#62/#70/#81 |
-| Conflict Matrix 四处错配 | source-registry 加 #90 移 #81；asset-sourcer 加 #88 移 #66；search-sources 加 #88 移 #81；新增 cdp-client.mjs 行 |
-
-### P1 修复
-
-| 问题 | 修复 |
-|------|------|
-| Parent-Child 描述过时 | 改为 GitHub 已支持原生 sub-issues（2025-01 公测） |
-| #92 dependency 语义不清 | 从 hard blocker 改为 soft dep #89 P0 |
-| #89->#91/#92 sequence | 拆分为 hard/soft |
-
-### P2 修复
-
-| 问题 | 修复 |
-|------|------|
-| Phase 6 未按暂停原因分组 | 拆分为 4 个子队列：Dormant-measurable / Dormant-milestone / Waiting-user-input / Needs-triage |
+**审阅说明：** 本报告是 triage 修订后的静态复审结果；未修改 GitHub Issue、PR 或 `docs/issue-tracker.md`。报告自身以当前核验结果为准，不保留已解决问题的重复建议或独立“修复记录”附录。
