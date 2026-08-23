@@ -4,12 +4,12 @@
 > **Created**: 2026-08-18
 > **Status**: implemented (2026-08-19)
 > **Related**: `docs/archive/spec-vlm-semantic-merge.md` (original P3 spec)
-> **Review**: `docs/reviews/vlm-semantic-merge-implementation-review.md`
+> **Review**: `docs/archive/reviews/vlm-semantic-merge-implementation-review.md` (archived)
 > **Grill session**: 1 round, 5 decisions settled
 
 ## Problem Statement
 
-The VLM Semantic Merge implementation (commit `a3480b1`) passes all unit and integration tests, but the implementation review (`docs/reviews/vlm-semantic-merge-implementation-review.md`) found 5 issues — 1 P0 and 4 P1 — that prevent the generated `media-patch.json` from being safely applied to scene-data, and leave Spec-defined behavior unimplemented.
+The VLM Semantic Merge implementation (commit `a3480b1`) passes all unit and integration tests, but the implementation review (`docs/archive/reviews/vlm-semantic-merge-implementation-review.md`, archived) found 5 issues — 1 P0 and 4 P1 — that prevent the generated `media-patch.json` from being safely applied to scene-data, and leave Spec-defined behavior unimplemented.
 
 **P0-1**: `asset-sourcer.mjs` overwrites `asset.path` with an absolute path before VLM analysis. `assignAssetsToScenes` then writes this absolute path into `media-patch.json`. Scene-data requires relative paths (`assets/img.jpg`), so the generated patch is unusable as-is.
 

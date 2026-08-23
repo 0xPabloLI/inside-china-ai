@@ -193,7 +193,7 @@ Pure functions exported from `apply-media-patch.mjs`, tested via direct import. 
 
 ## Out of Scope
 
-- `scoreCandidate()` optimization (see `docs/reviews/scorecandidate-review.md` — P1/P2 findings tracked separately)
+- `scoreCandidate()` optimization (see `docs/archive/reviews/scorecandidate-review.md` — P1/P2 findings tracked separately, archived)
 - Asset discovery, VLM analysis, scene matching logic (already in `asset-sourcer.mjs`)
 - Automatic approval or auto-apply immediately after sourcing
 - Full Media-First Pipeline orchestration and visual storyboard/editor UI
@@ -202,5 +202,5 @@ Pure functions exported from `apply-media-patch.mjs`, tested via direct import. 
 
 ## Further Notes
 
-- Patch quality depends on upstream `scoreCandidate()` and VLM analysis. Known issues documented in `docs/reviews/scorecandidate-review.md` (P1: wrong keyword for re-scoring, 100-point cap neutralizes AI score). These affect patch recommendation quality but not the apply mechanism.
+- Patch quality depends on upstream `scoreCandidate()` and VLM analysis. Known issues documented in `docs/archive/reviews/scorecandidate-review.md` (archived; P1: wrong keyword for re-scoring, 100-point cap neutralizes AI score). These affect patch recommendation quality but not the apply mechanism.
 - The `apply-media-patch.mjs` is format-agnostic: it does not care whether the patch was reviewed by a human, an agent, or auto-applied. The "reviewed" in the issue title refers to the intent that someone (human or agent) has decided the patch is ready before running apply.

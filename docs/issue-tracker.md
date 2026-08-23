@@ -202,10 +202,10 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #62 | SVE architecture (unified page visitor) | Superseded by #63 (SVE implementation) |
 | #70 | Pipeline Simplification spec | All sub-tickets completed; follow-up in #82/#88 |
 | #51 | Cascade-filter audit | Completed; GitHub closed 2026-08-23 |
-| #36 | ai-analyzer → visual-analyzer rename | Code verified: completed |
-| #44 | scoreCandidate() optimization | Code verified: completed |
+| #36 | ai-analyzer → visual-analyzer rename | Code verified: completed. Review archived → `archive/reviews/ai-visual-analysis-code-review-2026-08-19.md` |
+| #44 | scoreCandidate() optimization | Code verified: completed. Reviews archived → `archive/reviews/scorecandidate-review.md` + `archive/reviews/ai-visual-analysis-code-review-2026-08-19.md` |
 | #49 | Hook Scene Media + Ken-Burns + Warning | Code verified: completed |
-| #52 | Unified Source Registry (umbrella) | All sub-tickets #53-#59 verified |
+| #52 | Unified Source Registry (umbrella) | All sub-tickets #53-#59 verified. Review archived → `archive/reviews/unified-source-registry-implementation-review-2026-08-19.md` |
 | #53 | capabilities field | Code verified: completed |
 | #54 | asset-sourcer imports from source-registry | Code verified: completed |
 | #55 | extractScript imageUrl | Code verified: completed |
@@ -213,11 +213,11 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #57 | pre-download filter gate | Code verified: completed |
 | #58 | cascade order fix | Code verified: completed |
 | #59 | ADR + CONTEXT.md docs | Dependencies all completed |
-| #69 | P4 VLM Time Windows + Audit | Code verified: completed |
+| #69 | P4 VLM Time Windows + Audit | Code verified: completed. Reviews archived → `archive/reviews/vlm-semantic-merge-implementation-review.md` + `archive/reviews/asset-focus-detection-alternatives-review.md` |
 | #79 | DOCS-INDEX sync (dup #78) | Duplicate |
 | #80 | DOCS-INDEX sync (dup #78) | Duplicate |
 | #82 | Homepage-only sources (superseded by #81) | Superseded |
-| #86 | Pipeline Generalization (7 subtasks) | Code verified: completed |
+| #86 | Pipeline Generalization (7 subtasks) | Code verified: completed. Review archived → `archive/reviews/research-evidence-pipeline-implementation-review.md` |
 | #84 | Search-call caching | PR #102 merged (Fixes #84) |
 | #93 | Scene visual intent (dup #94) | Duplicate |
 | #95 | Restore dual-track article and video workflow | PR #104 merged (closes #95) |

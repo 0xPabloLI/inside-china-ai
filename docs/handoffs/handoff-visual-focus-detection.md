@@ -74,11 +74,11 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 
 - **Vitest config**: `vitest.config.mjs` — projects "unit" (parallel) + "subprocess" (serial, `singleFork: true`) for real Python subprocess tests
 - **Exit listener guard**: `Symbol.for("visualAnalyzerExitHandler")` prevents duplicate `process.on("exit")` registration → `MaxListenersExceededWarning` resolved
-- Review doc `docs/reviews/ai-visual-analysis-code-review-2026-08-19.md` P2 marked ✅
+- Review doc `docs/archive/reviews/ai-visual-analysis-code-review-2026-08-19.md` P2 marked ✅ (archived)
 
 ### Session 4: R1-R4 Review Fixes (commit `612f042`)
 
-> Review doc: `docs/reviews/ai-visual-analysis-code-review-2026-08-19.md`
+> Review doc: `docs/archive/reviews/ai-visual-analysis-code-review-2026-08-19.md` (archived)
 
 **R1 FIXED** ✅ — VLM timeout late-response mismatch:
 - VLM worker now uses `requestId` + `vlmWorkerGeneration` routing (same pattern as Focus worker)
@@ -106,7 +106,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - **ADR-0009** updated: Architecture diagram, API surface, consequences
 - **CONTEXT.md** updated: Focus Detection, Protected Region, Saliency Map terms
 - **DOCS-INDEX.md** updated: ADR table 0001-0015, specs section
-- **Review doc** updated: `docs/reviews/ai-visual-analysis-code-review-2026-08-19.md` — R1-R4 status updated
+- **Review doc** updated: `docs/archive/reviews/ai-visual-analysis-code-review-2026-08-19.md` — R1-R4 status updated (archived)
 - **Spec/review/remediation** archived to `docs/archive/`
 - **Archive README** updated with new entries
 
@@ -136,7 +136,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - `docs/archive/spec-visual-focus-detection-review.md` — Review records (archived, P0/P1 status updated)
 - `docs/archive/spec-visual-focus-detection-remediation.md` — Remediation spec (archived)
 - `docs/research/asset-focus-detection-alternatives.md` — Alternatives survey
-- `docs/research/asset-focus-detection-alternatives-review.md` — Third-party review
+- `docs/archive/reviews/asset-focus-detection-alternatives-review.md` — Third-party review (archived)
 
 ## Current state
 

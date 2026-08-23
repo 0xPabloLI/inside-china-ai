@@ -56,7 +56,7 @@
 
    6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。
    7. **Commit & Push** — 通过验证后 commit + push（遵循 Commit Cadence 规则）。
-   8. **更新相关文档及 Issue** — 同步更新 docs、Linear issue 状态。**Spec/Ticket 归档**：将本次工作使用的 `spec-*.md` 和 `tickets-*.md` 移到 `docs/archive/`，更新 `docs/archive/README.md` 归档清单。Specs 和 tickets 是 ephemeral 文档——实施期间存在，完成后归档。详见 `docs/DOCS-INDEX.md` 的 Spec/Ticket Lifecycle 章节。
+   8. **更新相关文档及 Issue** — 同步更新 docs、Linear issue 状态。**Spec/Ticket/Review 归档**：将本次工作使用的 `spec-*.md` 和 `tickets-*.md` 移到 `docs/archive/`；将 `*-review.md` 移到 `docs/archive/reviews/`；更新 `docs/archive/README.md` 归档清单。Specs、tickets 和 reviews 是 ephemeral 文档——实施/审查期间存在，完成后归档。详见 `docs/DOCS-INDEX.md` 的 Spec/Ticket/Review Lifecycle 章节。
    9. **Session 结束验证** — 在 session 结束前，逐条确认 Step 1-8 全部完成。**未完成的步骤必须当场补做或显式标注为"跳过 + 原因"**。确认清单：
       - [ ] Step 1 Grill 完成（有 spec 或对话记录佐证）
       - [ ] Step 1b Prototype Detour（如执行，有 prototype 分支或结论引用；如跳过，标注"无需"）
@@ -66,7 +66,7 @@
       - [ ] Step 5 Code Review 完成（有审查报告）
       - [ ] Step 6 Runtime Verify 完成（有运行时验证证据：截图 / DOM 检查 / lint+build 结果）
       - [ ] Step 7 Commit & Push 完成（有 commit hash + push 成功）
-      - [ ] Step 8 文档及 Issue 更新完成（Linear 状态已更新；spec/tickets 已归档到 `docs/archive/`）
+      - [ ] Step 8 文档及 Issue 更新完成（Linear 状态已更新；spec/tickets 已归档到 `docs/archive/`；reviews 已归档到 `docs/archive/reviews/`）
       - 如有任何步骤跳过，必须在向用户汇报时**显式列出**跳过的步骤和原因，不得遗漏
 
 ## Commit Cadence (并行 agent 安全)

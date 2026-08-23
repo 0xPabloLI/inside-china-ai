@@ -118,18 +118,15 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 | `handoff-vlm-semantic-merge.md` | VLM semantic merge — P3 implementation |
 | `handoff-write-for-agents-enforcement.md` | writing-for-agents 规则执行问题 |
 
-### `reviews/` — Review records
+### `reviews/` — Active review records
+
+Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸收后归档到 `archive/reviews/`。以下为对应 issue 仍开着的 review。
 
 | Document | Purpose |
 |----------|---------|
-| `ai-visual-analysis-code-review-2026-08-19.md` | AI 视觉分析层代码审查报告 |
-| `research-evidence-pipeline-implementation-review.md` | Research evidence pipeline implementation review |
-| `scorecandidate-review.md` | `scoreCandidate()` code review |
-| `source-registry-capability-audit-2026-08-19.md` | Source registry capability 标注核查报告 |
+| `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
-| `unified-source-registry-implementation-review-2026-08-19.md` | Unified source registry implementation review |
-| `video-document-layer-review-2026-08-21.md` | #103 的视频内容 L1 文档层审阅：offload 原则、迁移边界、最小加载路径与验证 guardrails |
-| `vlm-semantic-merge-implementation-review.md` | VLM semantic merge 与 visual focus detection 当前实现复审 |
+| `video-document-layer-review-2026-08-21.md` | #103 视频内容 L1 文档层审阅：offload 原则、迁移边界、最小加载路径与验证 guardrails（W0 待做） |
 
 ### `archive/` — Completed work
 
@@ -169,7 +166,6 @@ Deep research reports with citations.
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
 | `anti-bot-scraping-solutions.md` | Anti-bot scraping solutions — bypass strategies and alternative search engines |
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
-| `asset-focus-detection-alternatives-review.md` | 第三方审阅：asset-focus-detection-alternatives 方案评估 |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
@@ -203,16 +199,17 @@ Deep research reports with citations.
 | `windows-gpu-analysis.md` | Windows device digital human model feasibility analysis & upgrade plan |
 | `windows-gpu-test-progress.md` | Windows digital human model test progress tracking |
 
-## Spec/Ticket Lifecycle
+## Spec/Ticket/Review Lifecycle
 
-Specs and tickets are **ephemeral** — they exist only during implementation, then archive.
+Specs, tickets, and reviews are **ephemeral** — they exist only during implementation or review, then archive.
 
 1. `/to-spec` creates `spec-<name>.md` (in `docs/` root or a `specs/` subdir if multiple are active)
 2. `/to-tickets` creates `tickets-<name>.md` alongside the spec
 3. `/implement` builds each ticket via TDD
-4. **On completion**: move both files to `archive/`, update this index
+4. **Code review** produces `*-review.md` in `docs/reviews/` or `docs/research/`
+5. **On completion**: move spec/tickets/review files to `archive/` (specs+tickets → `archive/`, reviews → `archive/reviews/`), update this index
 
-No `specs/` or `tickets/` directories persist between work cycles. They are created on demand and cleaned up when the work ships.
+No `specs/` or `tickets/` directories persist between work cycles. They are created on demand and cleaned up when the work ships. Review files stay in `docs/reviews/` or `docs/research/` only while the corresponding issue is open; once the issue is closed and verified, the review archives.
 
 ## Redirect Rule
 

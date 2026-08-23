@@ -106,7 +106,7 @@ T-01 and T-03 can start in parallel. T-02 blocks on T-01. T-04 blocks on T-02+T-
 ### Reference docs
 - `docs/adr/0009-vlm-qwen3-vl-mlx.md` — VLM architecture
 - `docs/adr/0015-opencv-focus-detection.md` — Focus detection
-- `docs/reviews/scorecandidate-review.md` — Issue #44 review findings
+- `docs/archive/reviews/scorecandidate-review.md` — Issue #44 review findings (archived)
 - `docs/handoffs/handoff-visual-focus-detection.md` — Previous session handoff (P0/P1 remediation)
 
 ## Architecture principle

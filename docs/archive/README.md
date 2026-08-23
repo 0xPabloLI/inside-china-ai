@@ -134,3 +134,23 @@
 > - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，待实施
 > - `handoff-verify-retry-loop.md` — Verify-retry loop，已完成（spec/tickets 已归档为 `spec-verify-retry-loop.md`）
 > - `handoff-source-layer-comparison.md` — Source layer CDP/MCP/API 对比 + selector 修复，已完成（spec/tickets 已归档为 `spec-source-registry-selector-fix.md`）
+
+### Review Docs (Archived)
+
+Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸收后归档。以下 review 对应的 issue 已关闭并验证。
+
+| 文件 | 归档时间 | 对应 Issue | 说明 |
+|------|----------|-----------|------|
+| `reviews/ai-visual-analysis-code-review-2026-08-19.md` | 2026-08-24 | #36, #44 | AI 视觉分析层代码审查——visual-analyzer 重命名 + scoreCandidate 优化已验证 |
+| `reviews/research-evidence-pipeline-implementation-review.md` | 2026-08-24 | #86 | Research Evidence Pipeline 实现审查——pipeline generalization 已验证 |
+| `reviews/scorecandidate-review.md` | 2026-08-24 | #44 | scoreCandidate() 代码审查——AI description 评分已验证 |
+| `reviews/unified-source-registry-implementation-review-2026-08-19.md` | 2026-08-24 | #52 | 统一数据源注册表实现审查——子票 #53-#59 全部验证 |
+| `reviews/vlm-semantic-merge-implementation-review.md` | 2026-08-24 | #69 | VLM 语义合并 + Visual Focus Detection 复审——P0/P1 已修复，#69 已验证 |
+| `reviews/asset-focus-detection-alternatives-review.md` | 2026-08-24 | #69 | 素材焦点检测替代方案审阅——focus detection 已实现 |
+
+> **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
+> - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
+> - `docs/reviews/video-document-layer-review-2026-08-21.md` — #103 docs offload（W0 待做）
+> - `docs/research/video-background-coverage-audit-2026-08-21.md` — #94 visual intent（W4 待做）
+> - `docs/research/issue-tracker-review.md` — tracker 结构审阅（持续活跃）
+> - `docs/tiktok/tiktok-analytics-review.md` — 周期性复盘模板（不是代码 review）
