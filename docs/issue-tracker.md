@@ -46,24 +46,27 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 ## Recommended Execution Order
 
-**Tier 决定优先级；Wave 决定推进顺序；Conflict Group 决定同一 wave 内能否并行。** 每个 session 选择最早一个尚未完成、且 hard blocker 已满足的 wave；同一 wave 内只并行不共享 Conflict Risk Matrix 行的事项。`recommended` 或 `soft` 不是开工阻塞，但应在实现方案中说明为何提前执行。
+**每个 session 做一个 issue。** 从最早未完成的 Wave 中选取无 hard blocker 的 issue；同 Wave 内优先选 Tier 1。并行前必须查 Conflict Risk Matrix——Wave 中的并行文字只是初筛。
 
-| Wave | 目标与完成出口 | 可开始项 | 必须串行 / 依赖 | 并行规则 |
+| Wave | Shared context | Session candidates (Tier) | Dependencies | Parallel rules |
 |---|---|---|---|---|
-| **W0 — 决策与基线** | 固定后续实现会共享的接口与边界。 | #67 capabilities schema；#103 L1 docs offload；#111 text RAG pipeline integration。 | #67 完成后 #66/#68/#76/#77/#87 才可开始；#111 与 #21 只有推荐顺序。 | #67 可与 #103 或 #111 并行（#67 独占 `source-registry.mjs`）；#103 → #111 必须串行（均改 `content-pipeline.md`，见 Conflict Matrix）。 |
-| **W1 — 搜索/素材核心链** | 让 source schema、CDP script 和资产搜集基线一致。 | #88 universal script fallback；#63 SVE；#89 P0 rate limiter；#110 progressive media-search layers。 | #88 先于所有 `source-registry.mjs` 增源工作；#89 P0 先于 #91，#92 可 soft-start；#110 推荐在 #88/#67 后。 | #63 可与 #89 并行；#88、#63、#110 不得并行修改同一 registry/asset 文件。 |
-| **W2 — 搜索扩展与路由** | 在稳定 schema 上增加 source、fallback 与搜索路由。 | #64 API sources；#66 extract fallback；#90 Bigsong direct API；#97 WeChat RSS。 | #66 依赖 #67；#65 依赖 #64/#90；#91 依赖 #89 P0；#92 对 #89 P0 为 soft；#109 先完成与 #65 的边界 triage。 | #64/#90/#66 共享 registry/search collector，应按 Conflict Matrix 串行；#97 可并行。 |
-| **W3 — 审计与收尾** | 只在相关实现稳定后审计、收敛和补测试。 | #68 signal density；#76 SSOT；#77 source labels；#87 maintenance audit；#65 pool；#91/#92 source additions。 | #68/#76/#77 依赖 #67；#87 依赖 #66/#63/#67；#65 依赖 #64/#90。 | 先完成 registry/search 改动，再做 #77；审计项不得与其审计对象共享文件并行。 |
-| **W4 — 延后的视频链与独立增强** | 按明确触发或业务节奏推进，不与 W0–W3 的依赖图混淆。 | #98→#99；#100 可并行；#101 推荐接 #100；以及 #75/#85/#94/#108。 | #99 依赖 #98；#101 依赖 #69，推荐接 #100；#75 依赖 #54 done。 | 视频链按 P5–P8b 的显式 Sequence 推进；独立增强仍受各自 Conflict Matrix 约束。 |
-| **Dormant / Human gate** | 不进入 wave，直到 trigger 或人工决策满足。 | #21/#29（measurable）；#107（milestone）；#32/#35（user input）；#60/#61/#109（triage）。 | 见各 issue 的 trigger 或决策项。 | 不占用实现排期。 |
+| **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#67** (T1) capabilities schema · **#103** (T1) L1 docs offload · **#111** (T1) text RAG integration | #67 完成后 #66/#68/#76/#77/#87 才可开始；#111 与 #21 只有推荐顺序 | #67 可与 #103 或 #111 并行（#67 独占 `source-registry.mjs`）；#103 → #111 必须串行（均改 `content-pipeline.md`） |
+| **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#88** (T1) universal script fallback · **#63** (T2) SVE · **#89** (T2) P0 rate limiter · **#110** (T2) progressive media-search | #88 先于所有 `source-registry.mjs` 增源工作；#89 P0 先于 #91；#110 推荐在 #88/#67 后 | #63 可与 #89 并行；#88/#63/#110 不得并行修改同一 registry/asset 文件 |
+| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS | #66 依赖 #67；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 先与 #65 定边界 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97 可并行 |
+| **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 依赖 #67；#87 依赖 #66/#63/#67；#65 依赖 #64/#90 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
+| **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#75** (T3) 下载方案 · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference | #99 依赖 #98；#101 依赖 #69 推荐接 #100；#75 依赖 #54 done | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
+| **Dormant / Human gate** | 不进入 wave，直到 trigger 或人工决策满足 | #21/#29（measurable）· #107（milestone）· #32/#35（user input）· #60/#61/#109（triage） | 见各 issue trigger | 不占用实现排期 |
 
 ### Execution Semantics
 
+**工作模式：每个 session 做一个 issue。** 新 session 启动时读 Wave 表，从最早未完成的 Wave 中选 Tier 最高的 issue。Shared context 列帮助预判这个 session 会碰到哪些文件和设计上下文。
+
 三层结构各司其职：
 
-- **Tier**：完整 issue inventory 的权威位置；按内容生产价值分层，不表示技术依赖。新增、关闭或调整 issue 时**先更新此处**。
 - **Wave**：执行摘要，给出全局推进次序。基于 Tier 和依赖关系合成，不是独立的状态维护源。Tier/Dormant 变动后**再同步更新 Wave**。
+- **Tier**：完整 issue inventory 的权威位置；按内容生产价值分层，不表示技术依赖。新增、关闭或调整 issue 时**先更新此处**。同 Wave 内选 issue 时，Tier 1 优先于 Tier 2/3。
 - **Conflict Matrix**：并行的最终裁决来源。Wave 中的并行文字只是初筛；任何并行决策**必须以 Matrix 为准**。
+- **Shared context**：每个 Wave 共享的代码文件和设计上下文。帮助判断"做这个 issue 需要加载哪些上下文"，以及"不同 Wave 的 issue 是否共享同一设计空间"。
 
 其他术语：
 
@@ -224,7 +227,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 ## Triage Protocol
 
-1. **New session start**: 读本文档 → 先检查 Recommended Execution Order 中最早未完成 wave，再从该 wave 选择无 hard blocker 的 issue
+1. **New session start**: 读 Wave 表 → 从最早未完成的 Wave 中选 Tier 最高的无 hard blocker issue → 查 Conflict Matrix 确认文件不与进行中工作冲突 → 开工
 2. **完成一个 issue**: 在对应 Tier 行标 ✅，移到 Closed Issues 表 → 同步更新 Wave 摘要和 Conflict Matrix
 3. **新发现已完成**: 代码验证 → `gh issue close` + 评论证据 → 更新本文档（先 Tier/Matrix，再 Wave）
 4. **新 issue 创建**: 先添加到对应 Tier 表格 + Conflict Matrix → 再同步到 Wave 摘要；如果属于已有 parent，标注 `Child of #N`
