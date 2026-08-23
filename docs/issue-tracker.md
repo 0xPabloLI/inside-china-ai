@@ -2,13 +2,13 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-23 (29 open issues; #83 and #78 closed, #107/#108 added).
+Last inventory: 2026-08-23 - 32 open issues (after #78/#83 closed; #107/#108 added; #81/#22/#62/#70 moved to Closed).
 
 ---
 
 ## Parent–Child Issue Groups
 
-GitHub 不支持原生父子 issue，但有些 issue 天然是同一工作流的子任务。用 `Parent →` 标注关系，子任务关闭后父任务才能关。
+GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建立原生层级。以下 `Parent →` 为临时 triage 视图。
 
 | Parent | Children | Relationship |
 |--------|----------|--------------|
@@ -36,7 +36,7 @@ GitHub 不支持原生父子 issue，但有些 issue 天然是同一工作流的
 | #83 done -> #88 | #83 done, #88 ready. Both change source-registry.mjs field names |
 | #67 → #66 | #66 auto-fallback 需要 #67 的 method/fallback 字段 |
 | #67 → #76, #77, #68, #87 | 审计类全部依赖 capabilities schema 完整 |
-| #89 P0 → #91, #92 | rate limiter 先行，再加新搜索引擎 |
+| #89 P0 → #91 (hard), #92 (soft) | #91 DDG 需 rate limiter；#92 SearXNG 自身不需要，但 backend engines 可能需要 |
 | #98 → #99 | P5 ASR → P6 timeline fusion（#99 显式依赖 #98） |
 | #100 可与 #98, #99 并行 | P7 cache 不改分析语义，只管执行和复用 |
 | #101 依赖 #69 ✅, 推荐接 #100 | P8b temporal focus 需要 P4 window + 推荐 P7 cache |
@@ -81,8 +81,7 @@ GitHub 不支持原生父子 issue，但有些 issue 天然是同一工作流的
 | #90 | MCP→API migration (Bigsong) | — | lib/bigsong-api.mjs 直接 HTTP 调用 |
 | #65 | Search API Pool | #64, #90 | Jina > Brave > Tavily > Currents > Noozra > GNews > Grok |
 | #91 | DuckDuckGo source | #89 P0 | Child of #89。html.duckduckgo.com，无 JS |
-| #92 | SearXNG source | #89 P0 | Child of #89。Docker 自托管，269 引擎聚合 |
-| #81 | Homepage-only sources search | — | WordPress REST API + in-site search + googleSiteFallback rename |
+| #92 | SearXNG source | soft dep #89 P0 | Child of #89。Docker 自托管，269 引擎聚合。SearXNG 自身不需要 rate limiter，但 backend engines 可能需要 |
 
 ### Phase 4 — 视频管线 Phase 5-8b（线性序列）
 
@@ -105,18 +104,37 @@ P3-P4 已完成（#69 closed）。以下是 P5-P8b 的线性依赖链。
 | #85 | Bloomberg paywall alternatives | — | 研究任务 |
 | #75 | 替代下载方案（小红书/微博/抖音） | #54 ✅ | ⚠️ ~25% done（RedNote-MCP ✅, weibo/chubbyskills ❌, GPL 评估待定） |
 | #108 | Research: free cloud inference endpoints | — | 调研 NVIDIA NIM / HF Inference API / Groq 等免费推理 endpoint. Deliverable: 结论写入 docs/tools-catalog.md. Related: #107 |
+
 ### Phase 6 — 触发条件未满足（暂搁置）
+
+By 暂停原因分组，便于新 session 判断下一步动作。
+
+#### Dormant — measurable trigger
 
 | # | Issue | Trigger condition |
 |---|-------|-------------------|
 | #21 | Multimodal RAG | 50+ images accumulated (当前 0) |
-| #22 | RAG pre-work | articles >= 20 OR scene-data >= 10 (当前 3+7) |
 | #29 | Analytics Workflow Part A | >10 published videos with analytics |
-| #32 | yt-dlp full video + AI segment | needs-triage（功能未实现，当前只下载前 8s）。#99 完成后可消费 timeline |
+
+#### Dormant — project milestone
+
+| # | Issue | Trigger condition |
+|---|-------|-------------------|
+| #107 | Algorithm & Model Review (14 components) | 项目第一版完成。Tracking issue，明确标注 Do NOT start until first version complete |
+
+#### Waiting for user input / information
+
+| # | Issue | Trigger condition |
+|---|-------|-------------------|
+| #32 | yt-dlp full video + AI segment | 功能未实现（当前只下载前 8s）。#99 完成后可消费 timeline |
 | #35 | F5-TTS Multi-Reference Audio | 用户录制 4 段参考音频 |
+
+#### Needs triage / design decision
+
+| # | Issue | Trigger condition |
+|---|-------|-------------------|
 | #60 | On-demand content audit | 设计讨论中，与 #61 合并 |
 | #61 | Non-blocking evidence audit | 与 #60 合并讨论中 |
-| #107 | Algorithm & Model Review (14 components) | 项目第一版完成 | Tracking issue, 14 个 AI/ML 组件全面审查。明确标注 Do NOT start until first version complete |
 
 ---
 
@@ -126,23 +144,28 @@ P3-P4 已完成（#69 closed）。以下是 P5-P8b 的线性依赖链。
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #88, #67, #64, #81, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件 |
-| `asset-sourcer.mjs` | #66, #63, #75 | 🟡 中（#84 已 merge，搜索缓存已就位） |
-| `search-sources.mjs` | #66, #63, #81, #65, #90 | 🔴 高 |
+| `source-registry.mjs` | #88, #67, #64, #90, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件 |
+| `asset-sourcer.mjs` | #88, #63, #75 | 🟡 中（#84 已 merge，搜索缓存已就位） |
+| `search-sources.mjs` | #66, #63, #88, #65, #90 | 🔴 高 |
+| `cdp-client.mjs` | #66, #89 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff |
 | `docs/content-pipeline.md` | #51, #94, #97, #103 | 🟡 中——#103 瘦身后其他 issue 指针需更新 |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
 | `scene-rules.mjs` / `scene-templates.mjs` | #94（可能） | 🟢 低 |
 
 ---
 
-## Closed Issues (2026-08-21~22 Triage)
+## Closed Issues (2026-08-21~23)
 
-22 issues closed across four triage sessions (code verified + PR merges + mechanical fixes). Full details on GitHub.
+26 issues closed across four triage sessions (code verified + PR merges + mechanical fixes + superseded). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
 | #83 | stock_api -> stock_media rename | Commit 418f46e - pure find-replace, 163 tests pass |
 | #78 | DOCS-INDEX sync 22+ missing docs | Commit 15385be - handoffs/reviews/specs/conventions/tiktok tables added |
+| #81 | Homepage-only sources search | Superseded by #88 (googleSiteFallback + universal auto-gen) |
+| #22 | RAG pre-work | RAG Phase 1 complete; remaining WP items tracked elsewhere |
+| #62 | SVE architecture (unified page visitor) | Superseded by #63 (SVE implementation) |
+| #70 | Pipeline Simplification spec | All sub-tickets completed; follow-up in #82/#88 |
 | #36 | ai-analyzer → visual-analyzer rename | Code verified: completed |
 | #44 | scoreCandidate() optimization | Code verified: completed |
 | #49 | Hook Scene Media + Ken-Burns + Warning | Code verified: completed |
