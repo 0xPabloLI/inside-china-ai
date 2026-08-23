@@ -144,7 +144,9 @@ async function enrichWithImages(tabId, articles) {
 
 async function collectFromCdp(source, keyword) {
   if (!cdpAvailable) return [];
-  const url = source.url(keyword || DEFAULT_KEYWORDS[0]);
+  // #67: Read from capabilities.articles with top-level fallback
+  const cap = source.capabilities?.articles;
+  const url = (cap?.url ?? source.url)(keyword || DEFAULT_KEYWORDS[0]);
   if (!url) return [];
   console.log(`\n🔍 Scraping ${source.label} (${source.name}) via CDP...`);
 
@@ -166,8 +168,10 @@ async function collectFromCdp(source, keyword) {
   }
 
   // Check login if needed
-  if (source.needsAuth && source.loginCheckScript) {
-    const status = await checkLogin(tabId, source.loginCheckScript);
+  const needsAuth = cap?.needsAuth ?? source.needsAuth;
+  const loginCheckScript = cap?.loginCheckScript ?? source.loginCheckScript;
+  if (needsAuth && loginCheckScript) {
+    const status = await checkLogin(tabId, loginCheckScript);
     if (status === "need_login") {
       console.warn(`  ⚠️  ${source.label} requires login — CDP failed`);
       await cdpCloseTab(tabId);
@@ -180,14 +184,15 @@ async function collectFromCdp(source, keyword) {
   }
 
   // Extract articles
-  let articles = await extractFromTab(tabId, source.extractScript);
+  const extractScript = cap?.extractScript ?? source.extractScript;
+  let articles = await extractFromTab(tabId, extractScript);
   console.log(`  📊 Extracted ${articles.length} articles`);
 
   if (articles.length === 0) {
     // Retry once
     console.log("  ⏳ No articles found, retrying...");
     await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
-    articles = await extractFromTab(tabId, source.extractScript);
+    articles = await extractFromTab(tabId, extractScript);
     console.log(`  📊 Retry extracted ${articles.length} articles`);
   }
 
@@ -212,7 +217,8 @@ async function collectFromCdp(source, keyword) {
 }
 
 async function collectFromApi(source, keyword) {
-  const api = source.apiSearch;
+  // #67: Read from capabilities.articles with top-level fallback
+  const api = source.capabilities?.articles?.apiSearch ?? source.apiSearch;
   if (!api) return [];
 
   const url = api.url(keyword || DEFAULT_KEYWORDS[0]);
@@ -246,7 +252,8 @@ async function collectFromApi(source, keyword) {
 }
 
 async function collectFromMcp(source, keyword) {
-  const fb = source.mcpFallback;
+  // #67: Read from capabilities.articles with top-level fallback
+  const fb = source.capabilities?.articles?.mcpFallback ?? source.mcpFallback;
   if (!fb) return [];
 
   console.log(`  📡 Trying MCP fallback for ${source.label}...`);
@@ -272,9 +279,16 @@ async function collectFromMcp(source, keyword) {
 }
 
 async function collectFromSource(source, keyword) {
+  // #67: Read from capabilities.articles with top-level fallback
+  const cap = source.capabilities?.articles;
+  const apiSearch = cap?.apiSearch ?? source.apiSearch;
+  const cdpFallback = cap?.cdpFallback ?? source.cdpFallback;
+  const mcpFallback = cap?.mcpFallback ?? source.mcpFallback;
+  const useCleanTitle = cap?.useCleanTitle ?? source.useCleanTitle;
+
   // Step 0: Try API direct-connect (if configured — Issue #34)
   let articles = [];
-  if (source.apiSearch) {
+  if (apiSearch) {
     articles = await collectFromApi(source, keyword);
   }
 
@@ -284,14 +298,14 @@ async function collectFromSource(source, keyword) {
   }
 
   // Step 2: If CDP failed and CDP fallback is configured, try it
-  if (articles.length === 0 && source.cdpFallback) {
+  if (articles.length === 0 && cdpFallback) {
     console.log(`  📡 Trying CDP fallback for ${source.label}...`);
     const fallbackSource = {
       ...source,
       name: source.name + "_fallback",
       label: source.label + " (fallback)",
-      url: source.cdpFallback.url,
-      extractScript: source.cdpFallback.extractScript,
+      url: cdpFallback.url,
+      extractScript: cdpFallback.extractScript,
       loginCheckScript: null,
       needsAuth: false,
     };
@@ -299,13 +313,13 @@ async function collectFromSource(source, keyword) {
   }
 
   // Step 3: If still failed and MCP fallback is configured, try MCP
-  if (articles.length === 0 && source.mcpFallback) {
+  if (articles.length === 0 && mcpFallback) {
     const mcpArticles = await collectFromMcp(source, keyword);
     articles = mcpArticles;
   }
 
   // Step 4: Clean titles if needed
-  if (source.useCleanTitle) {
+  if (useCleanTitle) {
     articles = articles.map((a) => ({
       ...a,
       title: cleanTitle(a.title || ""),
@@ -341,12 +355,17 @@ async function main() {
     : ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
   // Filter out paid-API sources unless --include-paid is passed
-  const paidSources = sources.filter((s) => s.apiSearch?.paidApi || s.mcpFallback?.paidApi);
+  // #67: Read paidApi from capabilities.articles with top-level fallback
+  const paidSources = sources.filter(
+    (s) => s.capabilities?.articles?.paidApi ?? s.apiSearch?.paidApi,
+  );
   if (paidSources.length > 0 && !includePaid) {
     const names = paidSources.map((s) => s.name).join(", ");
     console.log(`  💰 Skipping ${paidSources.length} paid-API source(s): ${names}`);
     console.log(`     Use --include-paid to enable them.`);
-    sources = sources.filter((s) => !s.apiSearch?.paidApi && !s.mcpFallback?.paidApi);
+    sources = sources.filter(
+      (s) => !(s.capabilities?.articles?.paidApi ?? s.apiSearch?.paidApi),
+    );
   }
 
   const sourceBreakdown = {

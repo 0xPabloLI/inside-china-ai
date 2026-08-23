@@ -381,3 +381,141 @@ describe("T1: attribution.text() returns non-empty string for all sources", () =
     expect(empty).toEqual([]);
   });
 });
+
+// ─── Issue #67: capabilities.articles completeness ───
+
+describe("#67 — capabilities.articles.method field", () => {
+  it("every article source has method with value cdp, api, or mcp", () => {
+    const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    for (const s of articleSources) {
+      expect(s.capabilities.articles.method).toBeDefined();
+      expect(["cdp", "api", "mcp"]).toContain(s.capabilities.articles.method);
+    }
+  });
+
+  it("method matches accessMethod.primary for all article sources", () => {
+    const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    for (const s of articleSources) {
+      expect(s.capabilities.articles.method).toBe(s.accessMethod?.primary);
+    }
+  });
+});
+
+describe("#67 — capabilities.articles.apiSearch", () => {
+  it("every API article source has apiSearch in capabilities.articles", () => {
+    const apiSources = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles && s.apiSearch,
+    );
+    for (const s of apiSources) {
+      expect(s.capabilities.articles.apiSearch).toBeDefined();
+      expect(s.capabilities.articles.apiSearch).toBe(s.apiSearch);
+    }
+  });
+
+  it("CDP-only sources have undefined apiSearch in capabilities.articles", () => {
+    const cdpOnly = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles && !s.apiSearch,
+    );
+    for (const s of cdpOnly) {
+      expect(s.capabilities.articles.apiSearch).toBeUndefined();
+    }
+  });
+
+  it("apiSearch is a direct reference (identity check)", () => {
+    const apiSources = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles?.apiSearch,
+    );
+    for (const s of apiSources) {
+      expect(s.capabilities.articles.apiSearch).toBe(s.apiSearch);
+    }
+  });
+});
+
+describe("#67 — capabilities.articles API credentials", () => {
+  it("every article source has requiresApiKey (boolean)", () => {
+    const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    for (const s of articleSources) {
+      expect(typeof s.capabilities.articles.requiresApiKey).toBe("boolean");
+    }
+  });
+
+  it("every article source has paidApi (boolean)", () => {
+    const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    for (const s of articleSources) {
+      expect(typeof s.capabilities.articles.paidApi).toBe("boolean");
+    }
+  });
+
+  it("tiktok_creator has requiresApiKey=true, paidApi=true, apiKeyEnv=SCRAPECREATORS_API_KEY", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "tiktok_creator");
+    expect(src.capabilities.articles.requiresApiKey).toBe(true);
+    expect(src.capabilities.articles.paidApi).toBe(true);
+    expect(src.capabilities.articles.apiKeyEnv).toBe("SCRAPECREATORS_API_KEY");
+  });
+
+  it("gnews has requiresApiKey=true, paidApi=false, apiKeyEnv=GNEWS_API_KEY", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "gnews");
+    expect(src.capabilities.articles.requiresApiKey).toBe(true);
+    expect(src.capabilities.articles.paidApi).toBe(false);
+    expect(src.capabilities.articles.apiKeyEnv).toBe("GNEWS_API_KEY");
+  });
+
+  it("currents has requiresApiKey=true, paidApi=false, apiKeyEnv=CURRENTS_API_KEY", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "currents");
+    expect(src.capabilities.articles.requiresApiKey).toBe(true);
+    expect(src.capabilities.articles.paidApi).toBe(false);
+    expect(src.capabilities.articles.apiKeyEnv).toBe("CURRENTS_API_KEY");
+  });
+
+  it("non-auth API sources have requiresApiKey=false, apiKeyEnv=null, paidApi=false", () => {
+    const nonAuthApi = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles?.apiSearch && !s.apiSearch.authRequired,
+    );
+    for (const s of nonAuthApi) {
+      expect(s.capabilities.articles.requiresApiKey).toBe(false);
+      expect(s.capabilities.articles.apiKeyEnv).toBeNull();
+      expect(s.capabilities.articles.paidApi).toBe(false);
+    }
+  });
+
+  it("CDP-only sources have requiresApiKey=false, apiKeyEnv=null, paidApi=false", () => {
+    const cdpOnly = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles && !s.apiSearch,
+    );
+    for (const s of cdpOnly) {
+      expect(s.capabilities.articles.requiresApiKey).toBe(false);
+      expect(s.capabilities.articles.apiKeyEnv).toBeNull();
+      expect(s.capabilities.articles.paidApi).toBe(false);
+    }
+  });
+});
+
+describe("#67 — capabilities.articles fallbacks", () => {
+  it("x_search has cdpFallback in capabilities.articles", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "x_search");
+    expect(src.capabilities.articles.cdpFallback).toBeDefined();
+    expect(src.capabilities.articles.cdpFallback).toBe(src.cdpFallback);
+  });
+
+  it("all sources with top-level mcpFallback have it in capabilities.articles", () => {
+    const mcpSources = ALL_SOURCES.filter((s) => s.mcpFallback);
+    for (const s of mcpSources) {
+      expect(s.capabilities.articles.mcpFallback).toBeDefined();
+      expect(s.capabilities.articles.mcpFallback).toBe(s.mcpFallback);
+    }
+  });
+
+  it("sources without cdpFallback have undefined in capabilities.articles", () => {
+    const noCdp = ALL_SOURCES.filter((s) => s.capabilities?.articles && !s.cdpFallback);
+    for (const s of noCdp) {
+      expect(s.capabilities.articles.cdpFallback).toBeUndefined();
+    }
+  });
+
+  it("sources without mcpFallback have undefined in capabilities.articles", () => {
+    const noMcp = ALL_SOURCES.filter((s) => s.capabilities?.articles && !s.mcpFallback);
+    for (const s of noMcp) {
+      expect(s.capabilities.articles.mcpFallback).toBeUndefined();
+    }
+  });
+});

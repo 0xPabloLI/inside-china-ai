@@ -2955,6 +2955,19 @@ export const SOURCE_ATTRIBUTIONS = {
 // Sources that are in YTDLP_VIDEO_CAPABILITIES get capabilities.videos.
 //
 // Stock API sources already have explicit capabilities and are not processed.
+//
+// Issue #67: capabilities.articles is the complete source of truth.
+// All article-consumption fields (method, apiSearch, credentials, fallbacks)
+// are direct-referenced into the capability. Top-level fields remain as
+// legacy compat — mutations reflect in both because they share references.
+
+// Hard-coded apiKeyEnv mapping for sources that require an API key.
+// Other API sources have authRequired=false and get apiKeyEnv=null.
+const API_KEY_ENV_MAP = {
+  tiktok_creator: "SCRAPECREATORS_API_KEY",
+  gnews: "GNEWS_API_KEY",
+  currents: "CURRENTS_API_KEY",
+};
 
 function enrichWithCapabilities(sources) {
   return sources.map((source) => {
@@ -2963,17 +2976,25 @@ function enrichWithCapabilities(sources) {
 
     const capabilities = {};
 
-    // R4: Articles — migrate all article-consumption fields into capabilities.articles
-    // so it becomes the complete source of truth. Top-level fields remain for
-    // backward compat with consumers that haven't migrated yet.
+    // R4 + #67: Articles — all article-consumption fields in capabilities.articles
     if (source.extractScript) {
+      const api = source.apiSearch;
       capabilities.articles = {
+        method: source.accessMethod?.primary || "cdp",
         supportsKeyword: source.supportsKeyword,
         url: source.url,
         extractScript: source.extractScript,
         loginCheckScript: source.loginCheckScript || null,
         needsAuth: source.needsAuth || false,
         useCleanTitle: source.useCleanTitle || false,
+        // API credentials (source-level, not apiSearch-level)
+        apiSearch: api, // direct reference; undefined if not configured
+        requiresApiKey: !!api?.authRequired,
+        apiKeyEnv: API_KEY_ENV_MAP[source.name] || null,
+        paidApi: !!api?.paidApi,
+        // Fallback chain (direct references; undefined if not configured)
+        cdpFallback: source.cdpFallback,
+        mcpFallback: source.mcpFallback,
       };
     }
 
