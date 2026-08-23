@@ -16,7 +16,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | **#94** Scene visual intent | → #101 (P8b Temporal Focus) | #101 为 #94 的动态媒体场景提供 temporal focus 数据 |
 | **#103** Docs offload/split | #95 ✅ closed (PR #104 merged) | #103 依赖 #95 确立的 dual-track 时序。#106 已提供 review baseline |
 
-**不需要引入父子概念的情况**：#98/#99/#100/#101 是 P5-P8b 的线性序列（有显式 `依赖与关联` 章节），不是父子关系——它们是 **pipeline phases**，用 Phase 编号追踪即可。
+**不需要引入父子概念的情况**：#98/#99/#100/#101 是 P5-P8b 的线性序列（有显式 `依赖与关联` 章节），不是父子关系——它们是视频管线的线性阶段，用 P5-P8b 编号追踪即可（见 Tier 3）。
 
 ---
 
@@ -45,69 +45,51 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 ## Execution Phases
 
-按依赖拓扑排序。同 phase 内可并行（注意冲突文件标注）。
+按对内容生产管线的实际推动力分层。同 tier 内标注依赖和冲突文件。
 
-### Phase 0 — 立即可做（无依赖，纯机械/文档）
+### Tier 1 — 直接提升内容生产效率（优先做）
 
-| # | Issue | Type | Conflict files | Notes |
-|---|-------|------|---------------|-------|
-| #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests, docs | #83 done. Part 1: rename. Part 2: universal Google site: fallback |
+| # | Issue | Type | Blocked by | Conflict files | Notes |
+|---|-------|------|-------------|---------------|-------|
+| #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | #83 done | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests | 消除 20+ 手动配置项，每次加源都受益。Part 1: rename. Part 2: universal auto-gen |
+| #67 | capabilities.articles schema 补全 | enhancement | — | source-registry.mjs | block 最多下游（6 个 issue 依赖）。~70% done（method/apiKey/paidApi done, fallbacks array missing） |
+| #51 | Cascade-filter audit (ADR-0016) | enhancement | — | rag/query.mjs, trends-utils.mjs | Violation 2 (BM25) done. Violation 1 (filterChinaAI+classifyTopic) not yet done. 直接影响趋势发现准确率 |
+| #103 | Docs: offload/split L1 video content workflows | docs | #95 done | content-pipeline.md, video-workflow.md, DOCS-INDEX.md | 文档瘦身，提升 agent 读取效率。#106 review baseline 已 merge |
 
+### Tier 2 — 有价值但不紧迫（下一轮）
 
-### Phase 1 — 核心功能增强
+| # | Issue | Blocked by | Conflict files | Notes |
+|---|-------|-------------|---------------|-------|
+| #66 | extractScript auto-fallback | #67 | search-sources.mjs, cdp-client.mjs | 搜索健壮性提升。per-site to Jina to generic eval to /extract |
+| #63 | SVE: Single-Visit Extraction | #54 done, #55 done | search-sources.mjs, asset-sourcer.mjs | 减少 CDP 调用次数，性能优化 |
+| #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92 |
+| #64 | Add free API sources | — | source-registry.mjs | 13 候选 API，Brave 需注册 |
+| #90 | MCP to API migration (Bigsong) | — | source-registry.mjs | lib/bigsong-api.mjs 直接 HTTP 调用 |
+| #65 | Search API Pool | #64, #90 | search-sources.mjs | Jina > Brave > Tavily > Currents > Noozra > GNews > Grok |
+| #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md | 12 public feeds，evidence boundary 分组 |
 
-| # | Issue | Blocked by | Conflict files | Status |
-|---|-------|-------------|---------------|--------|
-| #67 | capabilities.articles schema 补全 | — | source-registry.mjs | ⚠️ ~70% done（method/apiKey/paidApi ✅, fallbacks array ❌） |
-| #66 | extractScript auto-fallback | #67 | search-sources.mjs, cdp-client.mjs | per-site → Jina → generic eval → /extract |
-| #63 | SVE: Single-Visit Extraction | #54 ✅, #55 ✅ | search-sources.mjs, asset-sourcer.mjs | enrichWithImages → enrichWithMedia |
-| #51 | Cascade-filter audit (ADR-0016 alignment) | — | rag/query.mjs, trends-utils.mjs | ⚠️ Violation 2 (BM25 pre-filter) done (commit 5a511ba). Violation 1 (filterChinaAI+classifyTopic) not yet done. Violation 3 = preventive note |
+### Tier 3 — 低重要性 / 大幅延后
 
-### Phase 2 — 审计类（依赖 #67 完成）
+| # | Issue | Blocked by | Conflict files | Notes |
+|---|-------|-------------|---------------|-------|
+| #68 | Signal Density audit | #67 | — | ADR-0016 Rule 2 全管线排查。验证/文档工作，不产生新功能 |
+| #76 | SSOT violations audit | #67 | — | 隐式 schema 彻查 + types.mjs 创建。验证/文档工作 |
+| #77 | Source type labeling audit | #67 | source-registry.mjs | 59 源类型标注 + fallback 链完整性。验证/文档工作 |
+| #87 | 88 manual maintenance items audit | #66, #63, #67 | — | 盘点 + fallback 覆盖率。验证/文档工作 |
+| #94 | Scene-level visual intent + evidence-media audit | — | scene-rules.mjs, scene-templates.mjs | 视觉意图契约 + MRL-2 报告。设计层面 |
+| #91 | DuckDuckGo source | #89 P0 (hard) | source-registry.mjs | html.duckduckgo.com，无 JS。搜索来源已够用 |
+| #92 | SearXNG source | #89 P0 (soft) | source-registry.mjs | Docker 自托管，269 引擎聚合。搜索来源已够用 |
+| #85 | Bloomberg paywall alternatives | — | — | 单个来源研究任务 |
+| #75 | 替代下载方案（小红书/微博/抖音） | #54 done | asset-sourcer.mjs | ~25% done（RedNote-MCP done, weibo/chubbyskills missing）。剩余技术难度高 |
+| #108 | Research: free cloud inference endpoints | — | — | 纯调研，本地模型够用。Deliverable: docs/tools-catalog.md |
+| #98 | Local ASR worker (WhisperX) | #69 done | — | 视频管线 P5。当前视频管线基本可用 |
+| #99 | Deterministic media timeline fusion | #69 done, #98 | — | 视频管线 P6 |
+| #100 | Content-addressed cache + scheduler | P3 done (可与 #98/#99 并行) | — | 视频管线 P7 |
+| #101 | Temporal Focus for video backgrounds | #69 done (推荐接 #100) | — | 视频管线 P8b。Child of #94 |
 
-| # | Issue | Blocked by | Notes |
-|---|-------|-------------|-------|
-| #68 | Signal Density audit | #67 | ADR-0016 Rule 2 全管线排查 |
-| #76 | SSOT violations audit | #67 | 隐式 schema 彻查 + types.mjs 创建 |
-| #77 | Source type labeling audit | #67 | 59 源类型标注 + fallback 链完整性 |
-| #87 | 88 manual maintenance items audit | #66, #63, #67 | 盘点 + fallback 覆盖率 |
+### Dormant — 触发条件未满足
 
-### Phase 3 — 搜索基础设施
-
-| # | Issue | Blocked by | Notes |
-|---|-------|-------------|-------|
-| #89 | Anti-bot rate limiter (P0-P2) | — | P0 rate-limiter.mjs → P1 backoff → P2 CAPTCHA detection。Parent of #91, #92 |
-| #64 | Add free API sources | — (#53 ✅ preferred) | 13 候选 API，Brave 需注册 |
-| #90 | MCP→API migration (Bigsong) | — | lib/bigsong-api.mjs 直接 HTTP 调用 |
-| #65 | Search API Pool | #64, #90 | Jina > Brave > Tavily > Currents > Noozra > GNews > Grok |
-| #91 | DuckDuckGo source | #89 P0 | Child of #89。html.duckduckgo.com，无 JS |
-| #92 | SearXNG source | soft dep #89 P0 | Child of #89。Docker 自托管，269 引擎聚合。SearXNG 自身不需要 rate limiter，但 backend engines 可能需要 |
-
-### Phase 4 — 视频管线 Phase 5-8b（线性序列）
-
-P3-P4 已完成（#69 closed）。以下是 P5-P8b 的线性依赖链。
-
-| # | Issue | Phase | Blocked by | Status |
-|---|-------|-------|-------------|--------|
-| #98 | Local ASR worker (WhisperX) | P5 | #69 ✅ | ready-for-agent |
-| #99 | Deterministic media timeline fusion | P6 | #69 ✅, #98 | ready-for-agent |
-| #100 | Content-addressed cache + scheduler | P7 | P3 ✅ (可与 #98/#99 并行) | ready-for-agent |
-| #101 | Temporal Focus for video backgrounds | P8b | #69 ✅ (推荐接 #100) | ready-for-agent |
-
-### Phase 5 — 独立增强
-
-| # | Issue | Blocked by | Notes |
-|---|-------|-------------|-------|
-| #94 | Scene-level visual intent + evidence-media audit | — | 视觉意图契约 + MRL-2 报告。Child: #101 |
-| #97 | WeChat RSS tracking — research & docs closure | — | 12 public feeds，evidence boundary 分组 |
-| #103 | Docs: offload/split L1 video content workflows | #95 ✅ (PR #104 merged) | 文档架构任务，content-pipeline.md + video-workflow.md 瘦身。#106 review baseline 已 merge |
-| #85 | Bloomberg paywall alternatives | — | 研究任务 |
-| #75 | 替代下载方案（小红书/微博/抖音） | #54 ✅ | ⚠️ ~25% done（RedNote-MCP ✅, weibo/chubbyskills ❌, GPL 评估待定） |
-| #108 | Research: free cloud inference endpoints | — | 调研 NVIDIA NIM / HF Inference API / Groq 等免费推理 endpoint. Deliverable: 结论写入 docs/tools-catalog.md. Related: #107 |
-
-### Phase 6 — 触发条件未满足（暂搁置）
-
-By 暂停原因分组，便于新 session 判断下一步动作。
+按暂停原因分组，便于新 session 判断下一步动作。
 
 #### Dormant — measurable trigger
 
@@ -191,9 +173,9 @@ By 暂停原因分组，便于新 session 判断下一步动作。
 
 ## Triage Protocol
 
-1. **New session start**: 读本文档 → 检查 Phase 0-1 是否有可做项
+1. **New session start**: 读本文档 → 检查 Tier 1 是否有可做项
 2. **完成一个 issue**: 在对应表格行标 ✅，移到 Closed Issues 表
 3. **新发现已完成**: 代码验证 → `gh issue close` + 评论证据 → 更新本文档
-4. **新 issue 创建**: 添加到对应 Phase 表格；如果属于已有 parent，标注 `Child of #N`
+4. **新 issue 创建**: 添加到对应 Tier 表格；如果属于已有 parent，标注 `Child of #N`
 5. **依赖变化**: 更新 Blocked by 列
 6. **冲突检查**: 改代码前查 Conflict Risk Matrix，确认没有并行 issue 在改同一文件
