@@ -123,7 +123,7 @@ Agent 从 Stage 0 开始：运行 `search-sources --trend` → 选话题 → 走
 >
 > **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容（已发布文章、scene-data、研究报告、源素材），用本地 Ollama bge-m3 做语义向量搜索，零费用。search-sources 搜索实时互联网（CDP + MCP）。两者不重复——RAG 查「我写过什么」，search-sources 查「外界在说什么」。
 
-趋势发现扫全部源（含固定公众号 RSS），filter/classify/dedup。源清单和各源的 `accessMethod`、`needsAuth` 等字段定义在 `scripts/short-video/lib/source-registry.mjs`。
+趋势发现扫全部源（含固定公众号 RSS），filter/classify/dedup。`filterChinaAI` 的关键词表覆盖人物名（梁文锋、戴文渊等）、公司别名（幻方、商汤、High-Flyer 等）、产品/模型名（豆包、Ernie Bot 等）、政策概念词（信创、东数西算等），作为 ADR-0016 cascade Layer 0。源清单和各源的 `accessMethod`、`needsAuth` 等字段定义在 `scripts/short-video/lib/source-registry.mjs`。
 
 ##### 第三方公众号 RSS
 

@@ -408,3 +408,81 @@ describe("cleanTitle", () => {
     expect(cleanTitle("【热点】DeepSeek 🔥发布新模型#AI大模型#")).toBe("DeepSeek 发布新模型");
   });
 });
+// ─── #51 V1a: Enhanced keyword coverage ───
+
+describe("filterChinaAI — enhanced keywords", () => {
+  it("matches Chinese person names (#51 S1)", () => {
+    const articles = [
+      { title: "梁文锋出席AI峰会", source: "36kr", url: "http://1" },
+      { title: "戴文渊谈大模型趋势", source: "qbitai", url: "http://2" },
+    ];
+    const result = filterChinaAI(articles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("matches English person names (#51 S2)", () => {
+    const articles = [
+      { title: "Liang Wenfeng's hedge fund hits new highs", source: "bloomberg", url: "http://1" },
+      { title: "Robin Li speaks at AI conference", source: "techcrunch", url: "http://2" },
+    ];
+    const result = filterChinaAI(articles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("matches Chinese company aliases (#51 S3)", () => {
+    const articles = [
+      { title: "幻方量化布局AI赛道", source: "36kr", url: "http://1" },
+      { title: "商汤科技发布新品", source: "qbitai", url: "http://2" },
+      { title: "寒武纪股价大涨", source: "reuters", url: "http://3" },
+    ];
+    const result = filterChinaAI(articles);
+    expect(result).toHaveLength(3);
+  });
+
+  it("matches English company aliases — hyphenated (#51 S4)", () => {
+    const articles = [
+      { title: "High-Flyer surges on AI bet", source: "bloomberg", url: "http://1" },
+      { title: "SenseTime launches new platform", source: "techcrunch", url: "http://2" },
+    ];
+    const result = filterChinaAI(articles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("matches product/model names (#51 S5)", () => {
+    const articles = [
+      { title: "豆包用户数突破一亿", source: "36kr", url: "http://1" },
+      { title: "Ernie Bot gets major update", source: "techcrunch", url: "http://2" },
+    ];
+    const result = filterChinaAI(articles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("matches policy/concept terms (#51 S6)", () => {
+    const articles = [
+      { title: "信创产业迎来新机遇", source: "36kr", url: "http://1" },
+      { title: "东数西算工程最新进展", source: "xinhua", url: "http://2" },
+    ];
+    const result = filterChinaAI(articles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("does not match ai inside training (#51 S7)", () => {
+    const articles = [
+      { title: "Dog training tips for beginners", source: "blog", url: "http://1" },
+    ];
+    const result = filterChinaAI(articles);
+    expect(result).toEqual([]);
+  });
+});
+
+describe("extractKeywords — enhanced coverage (#51 S8)", () => {
+  it("includes new keywords in topic output", () => {
+    const articles = [
+      { title: "梁文锋谈信创", source: "36kr", url: "http://1", category: "fermenting" },
+    ];
+    const result = buildOutputJson(articles);
+    const topic = result.topics.fermenting[0];
+    expect(topic.keywords).toContain("梁文锋");
+    expect(topic.keywords).toContain("信创");
+  });
+});
