@@ -24,36 +24,114 @@ Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 
 Run `gh issue list --label <state-label> --state open` to see issues in each state. Do not cache issue lists in this file — they go stale. The tracker is the source of truth.
 
-## Recommended execution order (2026-08-23 updated)
+## Recommended execution order (2026-08-23 full triage)
 
-Based on dependency analysis. Most inter-issue relationships are soft (related, not blocking) — order is by impact, not topology.
+33 open issues. Grouped into phases by shared context. Issues in the same phase modify the same files or share the same design context, and should be done in one continuous session (split at phase boundaries only).
 
-### T1: Immediate, no dependencies — ✅ ALL CLOSED
+### Phase 1: Search source infrastructure — NEXT
 
-1. ~~**#83**~~ — Rename `stock_api` → `stock_media` (closed 2026-08-22)
-2. ~~**#78**~~ — DOCS-INDEX sync 22 missing docs (closed 2026-08-22)
-3. ~~**#51**~~ — Cascade-filter audit: filterChinaAI keyword enhancement + BM25 pre-filter (closed 2026-08-23, commit 679877c)
+Shared context: source-registry.mjs + search-sources.mjs fallback chain.
 
-### T2: Search source infrastructure — NEXT
+| # | Issue | Role |
+|---|-------|------|
+| #91 | DuckDuckGo search source | CDP source, NOT Pool member |
+| #92 | SearXNG metasearch source | API source, becomes Pool member later |
+| #64 | Free API sources (Guardian, NYT, etc.) | Multiple API sources, enlarges Pool |
+| #65 | Search API Pool | Round-robin scheduler, depends on #92+#64 |
 
-4. **#91** — Add DuckDuckGo search source (CDP source, independent, ready-for-agent). DuckDuckGo is a CDP html endpoint source, NOT a Search API Pool member — it sits alongside google_search/baidu_search in source-registry.
-5. **#92** — Add SearXNG search source (API source, already deployed, ready-for-agent). SearXNG has JSON API + unlimited rate limit — register as source-registry source now, integrate into #65 Pool later.
-6. **#64** — Add free API sources to registry (Guardian, NYT, Semantic Scholar, Crossref, etc.). Enlarges the candidate pool for #65. Brave Search API (2000 q/mo) already earmarked as #65 Pool member.
-7. **#65** — Search API Pool: round-robin Jina + Tavily + Brave + Grok + Currents + Noozra + GNews (+ SearXNG from #92). Replaces linear mcpFallback with pool scheduler. Depends on #92 + #64 for full member set.
+Internal order: #91 -> #92 -> #64 -> #65
 
-### T3: Design-decision intensive (human first)
+### Phase 2: Source registry schema + audit
 
-Start with **#67** (complete capabilities.articles schema) — it is the soft dependency source for #66, #76, #77. After #67, those three become easier.
+Shared context: source-registry.mjs capabilities schema + audit of all 59 sources.
 
-Soft dependency map (A -> B = "A done makes B easier"):
-- #92 -> #65 (SearXNG JSON API becomes Pool member)
-- #64 -> #65 (free API sources enlarge Pool candidate set)
-- #91 is independent (CDP source, not Pool member)
-- #67 -> #66 (auto-fallback needs method + fallback config)
-- #67 -> #77 (source labeling audit needs complete schema)
-- #67 -> #76 (SSOT audit needs explicit schema)
-- #76 <-> #77 (complementary audits)
-- #66 -> #87 (auto-fallback reduces manual maintenance)
-- #88 -> #67 (CDP field rename intersects schema work)
+| # | Issue | Role |
+|---|-------|------|
+| #88 | Rename CDP script fields | Do first, schema on final field names |
+| #67 | Complete capabilities.articles schema | Soft dep for #66, #76, #77 |
+| #66 | extractScript auto-fallback | Needs #67 schema |
+| #76 | SSOT violations audit | Needs #67 explicit schema |
+| #77 | Source type labeling audit | Needs #67 schema |
 
-No hard blocking edges exist — all issues can technically be done independently.
+Internal order: #88 -> #67 -> (#66 parallel #76 parallel #77)
+
+### Phase 3: CDP extraction + anti-bot
+
+Shared context: CDP scraping reliability.
+
+| # | Issue | Role |
+|---|-------|------|
+| #89 | Anti-bot scraping (parent) | Rate limiting infrastructure |
+| #63 | SVE: Single-Visit Extraction | One CDP visit for articles+images+videos |
+| #90 | MCP->API migration (Bigsong) | Replace MCP transport |
+| #85 | Bloomberg paywall alternatives | Republisher sites |
+
+Internal order: #89 first, then #63/#90/#85 parallelize. Depends on Phase 1.
+
+### Phase 4: Video pipeline automation
+
+Shared context: Video rendering P5-P8. Sequential chain.
+
+| # | Issue | Role |
+|---|-------|------|
+| #98 | P5: Local ASR worker (WhisperX) | Windowed timestamps |
+| #99 | P6: Media timeline fusion | Needs P5 |
+| #100 | P7: Content-addressed cache | Cache + scheduler |
+| #101 | P8b: Temporal focus | Needs P6 |
+| #35 | F5-TTS prosody enhancement | Independent |
+| #32 | yt-dlp full video + AI segment | Independent, needs-info |
+
+Internal order: #98 -> #99 -> #100 -> #101. #35, #32 independent.
+
+### Phase 5: Content + evidence pipeline
+
+Shared context: Evidence layer + audit.
+
+| # | Issue | Role |
+|---|-------|------|
+| #94 | Scene-level visual intent + evidence audit | Per-scene verification |
+| #60 | On-demand content audit | Agent-triggered verification |
+| #61 | Non-blocking evidence audit | Background audit |
+| #97 | WeChat RSS tracking closure | Research + docs |
+| #75 | Alternative download XHS/Weibo/Douyin | Video download |
+
+Internal order: #94 -> (#60 parallel #61). #97, #75 independent.
+
+### Phase 6: Docs + research
+
+No code dependencies. Any order.
+
+| # | Issue | Role |
+|---|-------|------|
+| #103 | Offload/split Layer 1 video docs | Doc restructuring |
+| #108 | Free cloud inference endpoints research | Research |
+| #68 | Signal Density audit (ADR-0016) | Audit |
+| #29 | Analytics workflow — retention analysis | Research |
+| #21 | Multimodal RAG — image/video retrieval | RAG extension |
+
+### Phase 7: Audit + maintenance (post Phase 1-3)
+
+Best done after source infrastructure is stable.
+
+| # | Issue | Role |
+|---|-------|------|
+| #87 | 88 manual maintenance items audit | Benefits from #66 auto-fallback |
+| #109 | Unified search pool for web-access skill | Reuses #65 pool, different consumer |
+| #110 | Brave Image/Video Search in asset-sourcer | Media fallback tier |
+
+Depends on: Phase 1 (#65) for #109; Phase 3 for #110.
+
+### Dormant
+
+| # | Issue | Trigger |
+|---|-------|---------|
+| #107 | Algorithm and Model Review | After project v1 complete |
+
+### Cross-phase soft dependencies
+
+- Phase 1 -> Phase 2 (sources exist before schema audit)
+- Phase 1 -> Phase 3 (new sources before extraction optimization)
+- Phase 2 #66 -> Phase 7 #87 (auto-fallback reduces manual items)
+- Phase 1 #65 -> Phase 7 #109 (pool reused by web-access skill)
+
+No hard blocking edges. All phases can start independently.
