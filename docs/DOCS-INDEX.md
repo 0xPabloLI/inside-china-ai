@@ -183,6 +183,7 @@ Deep research reports with citations.
 | `digital-human-test-progress.md` | Digital human model test progress tracking — pointers to cloud-gpu-options for detailed analysis |
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
+| `issue-tracker-review.md` | Issue tracker 审阅报告 — GitHub 状态、依赖、冲突组与维护建议核验 |
 | `model-sources-reference.md` | Model search sources reference |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
