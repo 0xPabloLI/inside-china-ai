@@ -36,15 +36,19 @@ Based on dependency analysis. Most inter-issue relationships are soft (related, 
 
 ### T2: Search source infrastructure — NEXT
 
-4. **#91** — Add DuckDuckGo search source (independent, ready-for-agent)
-5. **#92** — Add SearXNG search source (independent, already deployed, ready-for-agent)
-6. **#64** — Add free API sources to registry (enlarges the pool for #65)
+4. **#91** — Add DuckDuckGo search source (CDP source, independent, ready-for-agent). DuckDuckGo is a CDP html endpoint source, NOT a Search API Pool member — it sits alongside google_search/baidu_search in source-registry.
+5. **#92** — Add SearXNG search source (API source, already deployed, ready-for-agent). SearXNG has JSON API + unlimited rate limit — register as source-registry source now, integrate into #65 Pool later.
+6. **#64** — Add free API sources to registry (Guardian, NYT, Semantic Scholar, Crossref, etc.). Enlarges the candidate pool for #65. Brave Search API (2000 q/mo) already earmarked as #65 Pool member.
+7. **#65** — Search API Pool: round-robin Jina + Tavily + Brave + Grok + Currents + Noozra + GNews (+ SearXNG from #92). Replaces linear mcpFallback with pool scheduler. Depends on #92 + #64 for full member set.
 
 ### T3: Design-decision intensive (human first)
 
 Start with **#67** (complete capabilities.articles schema) — it is the soft dependency source for #66, #76, #77. After #67, those three become easier.
 
 Soft dependency map (A -> B = "A done makes B easier"):
+- #92 -> #65 (SearXNG JSON API becomes Pool member)
+- #64 -> #65 (free API sources enlarge Pool candidate set)
+- #91 is independent (CDP source, not Pool member)
 - #67 -> #66 (auto-fallback needs method + fallback config)
 - #67 -> #77 (source labeling audit needs complete schema)
 - #67 -> #76 (SSOT audit needs explicit schema)
