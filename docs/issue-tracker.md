@@ -152,6 +152,23 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 ---
 
+## Domain Index (read-only)
+
+快速定位同一领域的 issue 及其所在 Wave。不改变 Wave 推进顺序——仅用于导航。
+
+| Domain | Issues | Waves spanned |
+|--------|--------|---------------|
+| **Source / Search** | #67, #88, #89, #110, #64, #66, #90, #65, #97, #68, #76, #77, #87, #91, #92 | W0–W3 |
+| **Content Pipeline** | #103, #111, #94, #60, #61 | W0, W4, Dormant |
+| **Video Pipeline** | #98, #99, #100, #101, #35, #32, #75 | W4, Dormant |
+| **Docs / Research** | #103, #108, #29, #21, #97 | W0, W4, Dormant |
+| **Audit** | #68, #76, #77, #87, #94 | W3, W4 |
+| **Infra / Platform** | #109, #107, #85 | Dormant, W4 |
+
+> 跨领域 issue（如 #94 同时属于 Content Pipeline 和 Audit）在多个领域行出现。并行前仍需查 Conflict Risk Matrix。
+
+---
+
 ## Conflict Risk Matrix
 
 同时改同一文件的 issues **必须串行执行**：
