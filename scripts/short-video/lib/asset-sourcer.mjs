@@ -1654,6 +1654,11 @@ export async function main(args = process.argv.slice(2)) {
   const failed = [];
   const skipped = [];
 
+  // URL-level dedup across all phases (Phase 0, API, yt-dlp, CDP, Tier 3).
+  // Prevents re-downloading the same image URL when different search
+  // phases return overlapping results (Single Visit Extraction principle).
+  const downloadedUrls = new Set();
+
   // ── Phase 0: Cached-image flow (from trend discovery) ──
   // R1: Check trending-topics.json for cached image URLs before making new CDP/API requests.
   // Images are filtered by keyword match + URL pattern (exclude logos/icons), then
@@ -1687,9 +1692,16 @@ export async function main(args = process.argv.slice(2)) {
         continue;
       }
 
+      // Skip if this URL was already downloaded by a prior phase
+      if (downloadedUrls.has(candidate.url)) {
+        skipped.push({ source: "cached", reason: "URL already downloaded" });
+        continue;
+      }
+
       const filename = buildFilename("cached", keywords[0], j + 1, "jpg");
       const destPath = join(assetsDir, filename);
       const dlResult = await downloadAsset(candidate.url, destPath);
+      if (dlResult.success) downloadedUrls.add(candidate.url);
       if (dlResult.success) {
         allAssets.push({
           ...candidate,
@@ -1769,11 +1781,17 @@ export async function main(args = process.argv.slice(2)) {
         const destPath = join(assetsDir, filename);
 
         if (candidate.url) {
+          // Skip if this URL was already downloaded by a prior phase
+          if (downloadedUrls.has(candidate.url)) {
+            skipped.push({ source: candidate.source, reason: "URL already downloaded" });
+            continue;
+          }
           const headers = {};
           if (candidate.source === "wikimedia") {
             headers["User-Agent"] = "ChinaAINews/1.0 (contact@china-ai.news)";
           }
           const dlResult = await downloadAsset(candidate.url, destPath, headers);
+          if (dlResult.success) downloadedUrls.add(candidate.url);
           if (dlResult.success) {
             const assetEntry = {
               ...candidate,
@@ -1844,10 +1862,17 @@ export async function main(args = process.argv.slice(2)) {
           continue;
         }
 
+        // Skip if this URL was already downloaded by a prior phase
+        if (downloadedUrls.has(candidate.url)) {
+          skipped.push({ source: source.name, reason: "URL already downloaded" });
+          continue;
+        }
+
         const filename = buildFilename(source.name, keyword, j + 1, "mp4");
         const destPath = join(assetsDir, filename);
 
         const dlResult = downloadYtdlp(candidate.url, destPath);
+        if (dlResult.success) downloadedUrls.add(candidate.url);
         if (dlResult.success) {
           allAssets.push({
             ...candidate,
@@ -1912,10 +1937,17 @@ export async function main(args = process.argv.slice(2)) {
           continue;
         }
 
+        // Skip if this URL was already downloaded by a prior phase
+        if (downloadedUrls.has(candidate.url)) {
+          skipped.push({ source: source.name, reason: "URL already downloaded" });
+          continue;
+        }
+
         const filename = buildFilename(source.name, keyword, j + 1, "jpg");
         const destPath = join(assetsDir, filename);
 
         const dlResult = await downloadAsset(candidate.url, destPath);
+        if (dlResult.success) downloadedUrls.add(candidate.url);
         if (dlResult.success) {
           allAssets.push({
             ...candidate,
@@ -2010,9 +2042,16 @@ export async function main(args = process.argv.slice(2)) {
               continue;
             }
 
+            // Skip if this URL was already downloaded by a prior phase
+            if (downloadedUrls.has(candidate.url)) {
+              engineFailed.push({ source: source.name, reason: "URL already downloaded" });
+              continue;
+            }
+
             const filename = buildFilename(source.name, keyword, j + 1, "jpg");
             const destPath = join(assetsDir, filename);
             const dlResult = await downloadAsset(candidate.url, destPath);
+            if (dlResult.success) downloadedUrls.add(candidate.url);
             if (dlResult.success) {
               engineAssets.push({
                 ...candidate,
