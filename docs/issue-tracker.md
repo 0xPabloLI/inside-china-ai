@@ -101,7 +101,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92 |
 | #64 | Add free API sources | — | source-registry.mjs | 13 候选 API，Brave 需注册 |
 | #90 | MCP to API migration (Bigsong) | — | source-registry.mjs | lib/bigsong-api.mjs 直接 HTTP 调用 |
-| #65 | Unified Search Pool (REST + MCP, 含 #109) | #64, #90 | search-sources.mjs, config.env | Jina > Brave > Tavily > Currents > Noozra > GNews > Grok。#109 合并进 #65：MCP 封装层替代 Brave MCP（HOST_SEARCH_TOOL） |
+| #65 | Unified Search Pool (REST + MCP, 含 #109) | #64, #90 | search-sources.mjs, config.env | Brave > Tavily > Jina > Currents > GNews > Noozra > Grok (revised 08-25 by quality+quota). #109 合并：MCP 封装替代 Brave MCP |
 | #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md | 12 public feeds，evidence boundary 分组 |
 | #112 | Image search pool expansion | #91 (DDG), #103 (docs) | source-registry.mjs, asset-sourcer.mjs | Google Images (CDP) + Bing Images (CDP) + DuckDuckGo Images (CDP). Refactor Tier 3 to pluggable pool. Engines parallel, keywords serial |
 
