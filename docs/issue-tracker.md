@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-24 - 33 open issues (after #67 closed; #109/#110/#111 added; #78/#83/#81/#22/#62/#70/#51 in Closed).
+Last inventory: 2026-08-24 - 32 open issues (after #110 closed; #109/#111 added; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
 
 ---
 
@@ -51,7 +51,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | Wave | Shared context | Session candidates (Tier) | Dependencies | Parallel rules |
 |---|---|---|---|---|
 | **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** (T1) L1 docs offload · **#111** (T1) text RAG integration · **#88** (T1) universal script fallback（从 W1 提升，#67 unblock 了下游） | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 → #111 必须串行（均改 `content-pipeline.md`）；#88 独占 `source-registry.mjs` |
-| **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) SVE · **#89** (T2) P0 rate limiter · **#110** (T2) progressive media-search · **#66** (T2) extract fallback（#67 ✅ unblocked） | #89 P0 先于 #91；#110 推荐在 #88/#67 后（#67 ✅ done） | #63 可与 #89 并行；#63/#110 不得并行修改同一 registry/asset 文件 |
+| **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) SVE · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · ~~#110~~ ✅ closed | #89 P0 先于 #91；#110 ✅ done | #63 可与 #89 并行 |
 | **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 先与 #65 定边界 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97 可并行 |
 | **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
 | **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#75** (T3) 下载方案 · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference | #99 依赖 #98；#101 依赖 #69 推荐接 #100；#75 依赖 #54 done | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
@@ -94,7 +94,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 |---|-------|-------------|---------------|-------|
 | #66 | extractScript auto-fallback | — | search-sources.mjs, cdp-client.mjs | 搜索健壮性提升。per-site to Jina to generic eval to /extract。#67 ✅ unblocked |
 | #63 | SVE: Single-Visit Extraction | #54 done, #55 done | search-sources.mjs, asset-sourcer.mjs | 减少 CDP 调用次数，性能优化 |
-| #110 | Progressive media-search layers (L1–L4) | #88/#67 recommended | source-registry.mjs, asset-sourcer.mjs, content-pipeline.md | Stock → CDP → open search → HITL；共享 Brave quota，先与 #65/#109 定边界 |
+| ~~#110~~ | ✅ Progressive media-search layers (L1–L4) | #88/#67 recommended | ~~source-registry.mjs, asset-sourcer.mjs~~ | ✅ Commit 3bdadd5. Brave Image + SearXNG Image as Tier 3. Out of scope: Brave Video, SearXNG Video, Tavily, content-pipeline.md docs |
 | #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92 |
 | #64 | Add free API sources | — | source-registry.mjs | 13 候选 API，Brave 需注册 |
 | #90 | MCP to API migration (Bigsong) | — | source-registry.mjs | lib/bigsong-api.mjs 直接 HTTP 调用 |
@@ -160,7 +160,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 | Domain | Issues | Waves spanned |
 |--------|--------|---------------|
-| **Source / Search** | #88, #89, #110, #64, #66, #90, #65, #97, #68, #76, #77, #87, #91, #92 | W0–W3 |
+| **Source / Search** | #88, #89, #64, #66, #90, #65, #97, #68, #76, #77, #87, #91, #92 | W0–W3 |
 | **Content Pipeline** | #103, #111, #94, #60, #61 | W0, W4, Dormant |
 | **Video Pipeline** | #98, #99, #100, #101, #35, #32, #75 | W4, Dormant |
 | **Docs / Research** | #103, #108, #29, #21, #97 | W0, W4, Dormant |
@@ -177,11 +177,11 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #110 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件 |
-| `asset-sourcer.mjs` | #88, #63, #75, #110 | 🟡 中（#84 已 merge，搜索缓存已就位） |
+| `source-registry.mjs` | #88, #64, #77, #90, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done） |
+| `asset-sourcer.mjs` | #88, #63, #75 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done） |
 | `search-sources.mjs` | #66, #63, #88, #65, #90 | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles） |
 | `cdp-client.mjs` | #66, #89 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff |
-| `docs/content-pipeline.md` | #94, #97, #103, #110, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
+| `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
 | `Search quota / backend routing` | #65, #109, #110 | 🟡 中——Brave quota 与统一路由边界需单一 owner |
 | `scene-rules.mjs` / `scene-templates.mjs` | #94（可能） | 🟢 低 |
@@ -190,10 +190,11 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 ## Closed Issues (2026-08-21~24)
 
-28 issues closed across five triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion). Full details on GitHub.
+29 issues closed across five triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
+| #110 | Progressive (Tiered) Media Search Architecture | Commit 3bdadd5 - Brave Image + SearXNG Image as Tier 3. 28 new tests, 402 total pass. Spec/tickets archived |
 | #83 | stock_api -> stock_media rename | Commit 418f46e - pure find-replace, 163 tests pass |
 | #78 | DOCS-INDEX sync 22+ missing docs | Commit 15385be - handoffs/reviews/specs/conventions/tiktok tables added |
 | #81 | Homepage-only sources search | Superseded by #88 (googleSiteFallback + universal auto-gen) |
