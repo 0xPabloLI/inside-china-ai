@@ -170,14 +170,18 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 1. **许可证允许商用** — 接受：MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。不接受：CC-BY-NC 及任何含 Non-Commercial 限制的许可证。
 2. **Apple Silicon 加速** — 支持 MPS（PyTorch）、MLX、Metal（whisper.cpp/ggml）、CoreML 中的至少一种。纯 CPU-only 或硬性依赖 CUDA 的不入选（可在调研报告中标注为"不兼容"但不作为首选）。
 
-### 优先级排序
+### 综合评分（多维度加权）
 
-满足硬性要求后，按以下维度排序：
+满足硬性要求后，对四个维度各打 1-5 分，加权求和得总分。总分用于横向对比，不作为唯一决策依据——实际选择还需结合具体场景需求（如中文支持、实时性、部署复杂度等）。
 
-1. Apple Silicon 原生加速成熟度（MLX > Metal > CoreML > MPS > CPU）
-2. 许可证宽松度（MIT > Apache-2.0 > MPL-2.0 > CC-BY-4.0）
-3. 精度（参考 Open ASR Leaderboard / Hugging Face 排行榜）
-4. 社区活跃度和工具链成熟度
+| 维度 | 权重 | 5 分 | 3 分 | 1 分 |
+|------|------|------|------|------|
+| Apple Silicon 加速成熟度 | 30% | MLX 原生 | Metal/CoreML | MPS only / CPU |
+| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 | CC-BY-4.0（有署名要求） |
+| 精度/质量 | 30% | 业界 SOTA | 可用 | 一般 |
+| 社区与工具链 | 20% | 活跃维护 + 完善工具链 | 有更新 | 停更/无工具链 |
+
+> **评分原则**：精度和加速成熟度各占 30% 是核心考量；许可证和社区各占 20% 是约束性考量。总分相同时，优先看精度。
 
 ### 领域推荐索引
 
@@ -190,10 +194,11 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 
 ### ASR 推荐速查
 
-| 工具 | 许可证 | Apple Silicon 加速 | 推荐模型 | 状态 |
-|------|--------|-------------------|----------|------|
-| whisper.cpp | MIT | Metal + CoreML | large-v3-turbo | ⭐ 首选 |
-| mlx-whisper | MIT | MLX | large-v3 | ⭐ 备选 |
-| whisperx (faster-whisper) | BSD-4 | ❌ CPU only | base | ⚠️ 仅用于 alignment，不用于主 ASR |
-| NVIDIA Canary-Qwen | CC-BY-NC | ❌ CUDA | — | ❌ 非商用 + 无 Apple Silicon 加速 |
-| Parakeet MLX | Apache-2.0 | MLX | 0.6B | ⚠️ 英文为主，中文需验证 |
+| 工具 | 许可证 | 加速 | 推荐模型 | 加速(30%) | 许可证(20%) | 精度(30%) | 社区(20%) | 总分 | 状态 |
+|------|--------|------|----------|-----------|------------|----------|-----------|------|------|
+| whisper.cpp | MIT | Metal + CoreML | large-v3-turbo | 5 | 5 | 4 | 5 | **4.7** | ⭐ 首选 |
+| mlx-whisper | MIT | MLX | large-v3 | 5 | 5 | 5 | 3 | **4.6** | ⭐ 备选 |
+| whisperx (faster-whisper) | BSD-4 | ❌ CPU | base | 1 | 3 | 3 | 4 | **2.7** | ⚠️ 仅 alignment |
+| Parakeet MLX | Apache-2.0 | MLX | 0.6B | 5 | 5 | 3 | 3 | **4.0** | ⚠️ 英文为主 |
+
+> NVIDIA Canary-Qwen（CC-BY-NC + CUDA only）不满足硬性要求，不进入评分。
