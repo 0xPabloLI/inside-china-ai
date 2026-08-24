@@ -109,6 +109,12 @@
 |------|----------|------|
 | `adr-0008-0014-remediation-tracker.md` | 2026-08-18 | ADR 0008-0014 修复执行追踪器 — PR #45 合并 + Issue #46 延迟验收全部完成。8 个工作项全部 VERIFIED。覆盖 F5 TTS CJK 时长、Remotion 时间线统一、venv 锁定、LFS pointer 校验、Kaggle/Colab GPU smoke、VLM Golden Asset 评估方案。 |
 
+### Source Registry Specs
+
+| 文件 | 完成时间 | 说明 |
+|------|----------|------|
+| `spec-capabilities-articles-schema-completion.md` / `tickets-67-01~03` | 2026-08-24 | Issue #67 — `capabilities.articles` schema 补全。`enrichWithCapabilities()` 添加 `method`/`apiSearch`/`requiresApiKey`/`apiKeyEnv`/`paidApi`/`cdpFallback`/`mcpFallback`（直接引用）。`search-sources.mjs` 消费者迁移到读 `cap?.x ?? source.x`。修复 research-mode filter 的 `cap.articles.cdpFallback` bug。11 new tests, 374 total pass。 |
+
 ### Research Docs (Archived)
 
 | 文件 | 归档时间 | 说明 |
