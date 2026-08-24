@@ -2,7 +2,7 @@
 
 > Status: Backlog — not started. Priority: Low.
 > Created: 2026-08-15 (extracted from `docs/archive/media-asset-strategy.md` §4.1)
-> Updated: 2026-08-24 (CDP `item/detail` API download method verified)
+> Updated: 2026-08-25 (offload platform download methods to asset-source-quick-reference.md)
 > GitHub Issue: https://github.com/0xPabloLI/inside-china-ai/issues/29
 > (Issue 29 Part B covers the reference video extraction pipeline)
 >
@@ -25,35 +25,14 @@ what overlay value. Analyzing high-performing competitor videos would:
 2. Discover visual patterns we haven't considered (PiP, split screen, text-on-video)
 3. Provide data-driven guidance for new content types
 
-## Video Download Methods (by platform)
+## Video Download
 
-> Full source coverage (22 sources) see `docs/research/asset-source-quick-reference.md`.
-> This section only covers the platforms relevant to reference video extraction.
+> **Platform download methods** (YouTube, Bilibili, TikTok, Douyin) — see
+> `docs/research/asset-source-quick-reference.md` → "Chinese Video Platforms"
+> table for the full, maintained list. This section only retains TikTok CDP
+> method details (JS code too long for the quick-reference table).
 
-### YouTube — ✅ yt-dlp (verified)
-
-```bash
-yt-dlp --cookies-from-browser chrome -o "output/reference-videos/%(title)s.%(ext)s" \
-  "https://www.youtube.com/watch?v=VIDEO_ID"
-```
-
-- Cookies required: YouTube blocks downloads without authentication ("Sign in
-  to confirm you're not a bot" error). Use `--cookies-from-browser chrome`.
-- Works with Shorts, long videos, and sections (`--download-sections`)
-
-### Bilibili (B站) — ✅ yt-dlp (verified)
-
-```bash
-yt-dlp --cookies-from-browser firefox -o "output/reference-videos/%(title)s.%(ext)s" \
-  "https://www.bilibili.com/video/BV_ID"
-```
-
-- Use Firefox cookies (Chrome cookies cause `KeyError('bvid')` in some cases)
-- Search: `bilibili-api-python` package (superior to `yt-dlp bilisearch:`
-  which returns 412 errors)
-- Use `av` 号 if `BV` 号 triggers errors
-
-### TikTok — ✅ CDP `item/detail` API (verified 2026-08-24)
+### TikTok — CDP `item/detail` API (verified 2026-08-24)
 
 TikTok does **not** provide any public API for downloading video files.
 Video URLs are dynamically signed and expire. Three official APIs (Content
@@ -110,15 +89,6 @@ unavailable. Network interception only if API method fails.
   **JS execution** — yt-dlp cannot do this
 - This is a fingerprint problem, not a frequency problem
 
-### Douyin (抖音) — ⚠️ Untested
-
-- `Douyin_TikTok_Download_API` (Evil0ctal, 19K stars): self-deployed Python
-  FastAPI, handles `a_bogus` signing. Not yet tested.
-- `chubbyskills`: uses `iesdouyin.com/share/video/` endpoint, no cookie/login
-  needed. Not yet tested.
-- yt-dlp: blocked (lacks `a_bogus` signature algorithm, same issue as TikTok)
-- Manual: user downloads in app or browser, drops `.mp4` into designated dir
-
 ### Third-party TikTok/Douyin download solutions (2026-08-24 research)
 
 The `item/detail` → `playAddr` approach is the most common TikTok
@@ -142,25 +112,13 @@ reverse-engineering method in the open-source community. Key projects:
 For higher-frequency needs, **Cobalt** (self-deployed) is the best
 upgrade path — it wraps the same playAddr extraction into an HTTP API.
 
-### Existing infrastructure to build on
-
-- `lib/source-registry.mjs` — CDP extract scripts for TikTok Creator Center,
-  Douyin, Bilibili, YouTube. Used by `search-sources.mjs`.
-- `asset-sourcer.mjs` — yt-dlp download (YouTube only) + keyframe extraction
-  patterns. **yt-dlp TikTok path removed.**
-- `analytics-utils.mjs` + `fetch-tiktok-analytics.mjs` — TikTok Analytics CSV
-  parser + CLI. Already functional.
-- `verify-remotion-frames.mjs` + `frame-analysis.mjs` — ffmpeg frame extraction
-  + pixel analysis (luminance, bright pixel counting, region sampling).
-
 ## Concrete workflow
 
 ```bash
-# Step 1: Download reference video (use platform-specific method above)
-# TikTok: agent uses CDP Method A
-# YouTube: yt-dlp --cookies-from-browser chrome
-# Bilibili: yt-dlp --cookies-from-browser firefox
-# Manual fallback: user downloads and saves to output/reference-videos/<name>.mp4
+# Step 1: Download reference video
+# → See asset-source-quick-reference.md for platform-specific methods
+# → TikTok CDP Method A details: see above
+# Save to: output/reference-videos/<name>.mp4
 
 # Step 2: Extract keyframes at 1fps
 FFMPEG=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
@@ -176,15 +134,6 @@ $FFMPEG -i output/reference-videos/reference.mp4 -vf "fps=1" \
 # Agent outputs a JSON array:
 # [{ scene: 1, mediaType: "video", animation: "zoom", overlay: 0.7, ... }]
 ```
-
-### Quick reference: download method by platform
-
-| Platform | Default method | Fallback | Status |
-|----------|---------------|----------|--------|
-| **YouTube** | `yt-dlp --cookies-from-browser chrome` | Manual | ✅ Verified |
-| **Bilibili** | `yt-dlp --cookies-from-browser firefox` | Manual | ✅ Verified |
-| **TikTok** | CDP `item/detail` API (Method A) | Manual (Method C) | ✅ Verified |
-| **Douyin** | `Douyin_TikTok_Download_API` (untested) | Manual | ⚠️ Untested |
 
 ## Implementation notes
 
@@ -241,6 +190,9 @@ analysis.
 - Third-party TikTok download survey: 2026-08-24 (TikTokApi, Cobalt,
   Douyin_TikTok_Download_API, tiktok-api-dl, yt-dlp — our CDP method is
   more elegant: no signature reversing, no third-party dependency, no headless browser)
+- Platform download methods offloaded to `docs/research/asset-source-quick-reference.md`
+  on 2026-08-25 (YouTube/Bilibili/Douyin methods + Quick reference table removed;
+  only TikTok CDP details retained here — JS code too long for quick-reference table)
 - Related: `docs/research/multi-video-splitting-best-practices.md` (episode-to-episode retention patterns)
 - Related: `docs/research/short-video-script-writing-best-practices.md` (pattern interrupts, open loops)
 - Related: `docs/analytics-workflow.md` (独立 Analytics 工作流, 数据驱动优化建议)
