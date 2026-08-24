@@ -482,11 +482,12 @@
     | L4 无量化 pipeline.to(device)（2.5x加速） | 4.6min | $0.076 | 45% | 395 次 |
   - **结论：L4 性价比远超 T4**——单次成本降 44-65%，速度提升 2-3x，还不需要 NF4 量化（避免质量损失风险）。bf16 支持也提升数值稳定性。
 
-**后续方向**（按优先级排序）：
-1. **Modal L4 测试**（⭐最高优先级）——基于 billing 数据推导，L4 性价比远超 T4（breakeven 仅需 1.13x 加速，预期 2-3x）。24GB VRAM 可放整个 pipeline 不需 offload，且支持 bf16。改脚本 `gpu="L4"` + `pipeline.to(device)` 即可验证
-2. NF4 质量 vs baseline 质量对比——脚本已支持 Volume 素材上传，但 L4 可能直接不需要 NF4（24GB 够放 FP16）
-3. 在 Modal 上测试 720p 分辨率（当前测试用 512×512）
-4. 测试 torch.compile 在 Modal T4/L4 上是否有效（v51 在 Kaggle 上有 13% 加速）
+**后续方向**（2026-08-24 用户确认，按优先级排序）：
+1. ~~Modal L4 测试~~ → **暂不测**——L4 用的是同一个 EchoMimicV3 模型，billing 数据已证明性价比优势，但用户决定先看其他模型。L4 推导数据已存档，将来需要时可直接用
+2. **下一个模型：InfiniteTalk**（⭐⭐⭐⭐，Apache 2.0，无限长度 + 中文，14B Wan2.1 基座）→ Kaggle T4 测试
+3. 其他候选：MultiTalk INT8（已发布 INT8 + SageAttention）、EchoMimic V2（Apache 2.0，4279 stars）
+4. 在 Modal 上测试 720p 分辨率（当前测试用 512×512）——低优先级
+5. ~~torch.compile 在 Modal T4/L4 上是否有效~~ → **不需要单独测**：torch.compile 是 PyTorch 级别的 JIT 编译优化，效果取决于 GPU 架构（sm_75 T4 vs sm_89 L4）和算子覆盖。在 Kaggle T4 上已验证 13% 加速（v47/v49）。Modal T4 用的是同型号 GPU（Tesla T4, sm_75），torch.compile 效果应基本一致。L4（Ampere, sm_89）的 torch.compile 效果可能略好（更多算子支持），但差异不大——不是值得单独测的维度
 - **Volume 存储费用**：$0.09/GiB/月，含 1TB/月免费。模型缓存 ~17GB + 输出 mp4 几 MB，远低于免费额度，不产生额外费用。用 `modal volume get` 下载输出不收费（只算本地带宽）
 - **模型缓存策略**：Volume 上的模型缓存不需要一直在——如果不用了可以 `modal volume rm` 删除释放空间，但只要还在 1TB 免费额度内就不产生费用。下次运行时如果缓存还在就省下载时间（~5min），删了就重新下载。**建议保留**（17GB 远低于 1TB 免费额度）
 
