@@ -152,6 +152,10 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 - If user requests "先给方案", provide plan first before coding.
 - Keep implementation scoped; avoid unrelated refactors.
 
+## Model Selection
+
+选模型时（ASR/TTS/VLM/数字人）先查 `docs/research/model-sources-reference.md` → 模型选择通用标准。硬性要求：许可证允许商用 + Apple Silicon 加速（MPS/MLX/Metal/CoreML）。
+
 ## Content Pipeline
 
 统一内容管线（入口 → 共享素材 → 文章与视频脚本并行产出 → 交叉一致性检查 → 视频成品 → 单一 HITL → 文章与 TikTok 发布 → Analytics），设 1 个 **HITL 人工确认检查点**（内容包成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章草稿可用 `scripts/article/publish-article.mjs --draft` 保存；HITL 确认后再用同一文章文件公开发布。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。**HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续，不得自行假设确认。

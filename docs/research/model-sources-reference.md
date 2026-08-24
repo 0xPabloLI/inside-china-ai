@@ -158,3 +158,42 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 - **为什么 GitHub 比 HuggingFace 更重要**：很多完整的数字人项目（HeyGem、Linly-Talker、OpenTalking）只在 GitHub 上，HuggingFace 主要是模型权重仓库。
 - **为什么搜多个关键词组合**：同一个功能可能有多个表述（"talking head" vs "digital human" vs "说话头" vs "数字人"），单一关键词会遗漏。
 - **为什么检查 docker-compose.yml**：很多项目的 README 不明确说"需要 NVIDIA"，但 Docker 配置中的 `runtime: nvidia` 是硬性依赖的铁证。
+
+---
+
+## 模型选择通用标准
+
+> **触发条件**：选模型时（ASR、TTS、VLM、数字人等）先读此章节。硬性要求不满足则不入选。
+
+### 硬性要求（不满足则不入选）
+
+1. **许可证允许商用** — 接受：MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。不接受：CC-BY-NC 及任何含 Non-Commercial 限制的许可证。
+2. **Apple Silicon 加速** — 支持 MPS（PyTorch）、MLX、Metal（whisper.cpp/ggml）、CoreML 中的至少一种。纯 CPU-only 或硬性依赖 CUDA 的不入选（可在调研报告中标注为"不兼容"但不作为首选）。
+
+### 优先级排序
+
+满足硬性要求后，按以下维度排序：
+
+1. Apple Silicon 原生加速成熟度（MLX > Metal > CoreML > MPS > CPU）
+2. 许可证宽松度（MIT > Apache-2.0 > MPL-2.0 > CC-BY-4.0）
+3. 精度（参考 Open ASR Leaderboard / Hugging Face 排行榜）
+4. 社区活跃度和工具链成熟度
+
+### 领域推荐索引
+
+| 领域 | 详细对比见 |
+|------|-----------|
+| ASR（语音转文字） | 下表 |
+| TTS（语音合成） | `docs/research/voice-cloning-solutions-m2-pro.md` |
+| VLM（视觉语言模型） | `docs/research/digital-human-solutions-m2-pro.md` |
+| 数字人 | `docs/research/digital-human-solutions-m2-pro.md` |
+
+### ASR 推荐速查
+
+| 工具 | 许可证 | Apple Silicon 加速 | 推荐模型 | 状态 |
+|------|--------|-------------------|----------|------|
+| whisper.cpp | MIT | Metal + CoreML | large-v3-turbo | ⭐ 首选 |
+| mlx-whisper | MIT | MLX | large-v3 | ⭐ 备选 |
+| whisperx (faster-whisper) | BSD-4 | ❌ CPU only | base | ⚠️ 仅用于 alignment，不用于主 ASR |
+| NVIDIA Canary-Qwen | CC-BY-NC | ❌ CUDA | — | ❌ 非商用 + 无 Apple Silicon 加速 |
+| Parakeet MLX | Apache-2.0 | MLX | 0.6B | ⚠️ 英文为主，中文需验证 |
