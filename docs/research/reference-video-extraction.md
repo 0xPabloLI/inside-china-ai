@@ -34,9 +34,7 @@ what overlay value. Analyzing high-performing competitor videos would:
 
 ### TikTok — CDP `item/detail` API (verified 2026-08-24)
 
-TikTok does **not** provide any public API for downloading video files.
-Video URLs are dynamically signed and expire. Three official APIs (Content
-Posting, Research, Display) all lack a download path.
+TikTok has no public download API — video URLs are dynamically signed and expire.
 
 **Default: CDP `item/detail` API.** Fallback: manual download when CDP
 unavailable. Network interception only if API method fails.
@@ -102,17 +100,18 @@ reverse-engineering method in the open-source community. Key projects:
 | **tiktok-api-dl** (TobyG74) | Node.js wrapper around ssstik.io + musicaldown.com | — | Depends on third-party scraping services (privacy risk) |
 | **yt-dlp** | Attempts HTML rehydration JSON extraction | — | Blocked by TikTok JS challenge |
 
-**Why our CDP method (A) is more elegant than all of the above:**
-
-1. No signature reversing — the browser carries all cookies + signed headers
-2. No third-party service dependency (ssstik.io etc. have privacy risk)
-3. No Playwright headless (gets flagged by TikTok anti-bot)
-4. Only requires: user's logged-in Chrome + CDP eval
+**Why CDP over third-party:** no signature reversing (browser carries cookies +
+signed headers), no external dependency (privacy risk on ssstik.io etc.). Only
+requires: user's logged-in Chrome + CDP eval.
 
 For higher-frequency needs, **Cobalt** (self-deployed) is the best
 upgrade path — it wraps the same playAddr extraction into an HTTP API.
 
-## Concrete workflow
+## Concrete workflow (design intent — not yet implemented)
+
+> This task is `Backlog — not started`. The workflow below is the intended
+> design for when the task triggers. Execution instructions will migrate to
+> `docs/video-workflow.md` (L1) at implementation time.
 
 ```bash
 # Step 1: Download reference video
@@ -135,7 +134,7 @@ $FFMPEG -i output/reference-videos/reference.mp4 -vf "fps=1" \
 # [{ scene: 1, mediaType: "video", animation: "zoom", overlay: 0.7, ... }]
 ```
 
-## Implementation notes
+## Implementation notes (design intent)
 
 - Keyframe extraction at 1fps gives ~60 frames for a 60s video — sufficient
   for structural analysis without overwhelming the vision model
