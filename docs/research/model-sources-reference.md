@@ -163,42 +163,41 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 
 ## 模型选择通用标准
 
-> **触发条件**：选模型时（ASR、TTS、VLM、数字人等）先读此章节。硬性要求不满足则不入选。
+> **触发条件**：选模型时（ASR/TTS/VLM/数字人）读此章节。两个硬性门槛都通过才进入评分。
 
-### 硬性要求（不满足则不入选）
+### 硬性门槛
 
-1. **许可证允许商用** — 接受：MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。不接受：CC-BY-NC 及任何含 Non-Commercial 限制的许可证。
-2. **Apple Silicon 加速** — 支持 MPS（PyTorch）、MLX、Metal（whisper.cpp/ggml）、CoreML 中的至少一种。纯 CPU-only 或硬性依赖 CUDA 的不入选（可在调研报告中标注为"不兼容"但不作为首选）。
+1. **许可证允许商用** — MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。含 Non-Commercial 限制的许可证（如 CC-BY-NC）直接淘汰。
+2. **Apple Silicon 加速** — MPS（PyTorch）、MLX、Metal（whisper.cpp/ggml）、CoreML 至少支持一种。仅支持 CUDA 或纯 CPU 的淘汰。
 
-### 综合评分（多维度加权）
+### 综合评分
 
-满足硬性要求后，对四个维度各打 1-5 分，加权求和得总分。总分用于横向对比，不作为唯一决策依据——实际选择还需结合具体场景需求（如中文支持、实时性、部署复杂度等）。
+通过门槛的候选，按四维度各打 1-5 分，加权求和：
 
 | 维度 | 权重 | 5 分 | 3 分 | 1 分 |
 |------|------|------|------|------|
-| Apple Silicon 加速成熟度 | 30% | MLX 原生 | Metal/CoreML | MPS only / CPU |
-| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 | CC-BY-4.0（有署名要求） |
+| Apple Silicon 加速成熟度 | 30% | MLX 原生 | Metal / CoreML | MPS only / CPU |
+| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 | CC-BY-4.0（署名要求） |
 | 精度/质量 | 30% | 业界 SOTA | 可用 | 一般 |
-| 社区与工具链 | 20% | 活跃维护 + 完善工具链 | 有更新 | 停更/无工具链 |
+| 社区与工具链 | 20% | 活跃维护 + 完善工具链 | 有更新 | 停更 / 无工具链 |
 
-> **评分原则**：精度和加速成熟度各占 30% 是核心考量；许可证和社区各占 20% 是约束性考量。总分相同时，优先看精度。
+**完成标准**：选定一个模型，记录四维度评分和总分到调研报告中。总分相同看精度。
 
 ### 领域推荐索引
 
 | 领域 | 详细对比见 |
 |------|-----------|
-| ASR（语音转文字） | 下表 |
-| TTS（语音合成） | `docs/research/voice-cloning-solutions-m2-pro.md` |
-| VLM（视觉语言模型） | `docs/research/digital-human-solutions-m2-pro.md` |
-| 数字人 | `docs/research/digital-human-solutions-m2-pro.md` |
+| ASR | 下表 |
+| TTS | `docs/research/voice-cloning-solutions-m2-pro.md` |
+| VLM / 数字人 | `docs/research/digital-human-solutions-m2-pro.md` |
 
-### ASR 推荐速查
+### ASR 速查
 
-| 工具 | 许可证 | 加速 | 推荐模型 | 加速(30%) | 许可证(20%) | 精度(30%) | 社区(20%) | 总分 | 状态 |
-|------|--------|------|----------|-----------|------------|----------|-----------|------|------|
-| whisper.cpp | MIT | Metal + CoreML | large-v3-turbo | 5 | 5 | 4 | 5 | **4.7** | ⭐ 首选 |
-| mlx-whisper | MIT | MLX | large-v3 | 5 | 5 | 5 | 3 | **4.6** | ⭐ 备选 |
-| whisperx (faster-whisper) | BSD-4 | ❌ CPU | base | 1 | 3 | 3 | 4 | **2.7** | ⚠️ 仅 alignment |
-| Parakeet MLX | Apache-2.0 | MLX | 0.6B | 5 | 5 | 3 | 3 | **4.0** | ⚠️ 英文为主 |
+| 工具 | 许可证 | 加速 | 推荐模型 | 总分 | 状态 |
+|------|--------|------|----------|------|------|
+| whisper.cpp | MIT | Metal + CoreML | large-v3-turbo | **4.7** | ⭐ 首选 |
+| mlx-whisper | MIT | MLX | large-v3 | **4.6** | ⭐ 备选 |
+| Parakeet MLX | Apache-2.0 | MLX | 0.6B | **4.0** | ⚠️ 英文为主 |
+| whisperx | BSD-4 | CPU | base | **2.7** | ⚠️ 仅 alignment |
 
-> NVIDIA Canary-Qwen（CC-BY-NC + CUDA only）不满足硬性要求，不进入评分。
+> 评分明细：whisper.cpp 加速5/许可5/精度4/社区5；mlx-whisper 5/5/5/3；Parakeet 5/5/3/3；whisperx 1/3/3/4。
