@@ -36,6 +36,8 @@ import {
   isLogoOrIcon,
   hasKeywordMatch,
   PRE_DOWNLOAD_FILTER_THRESHOLD,
+  shouldSkipUrl,
+  markDownloaded,
 } from "../lib/asset-sourcer.mjs";
 import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
 
@@ -2163,5 +2165,127 @@ describe("T3 — CDP type handling", () => {
     for (const src of CDP_SOURCES) {
       expect(src.primaryScript, `${src.name} missing snippet`).toContain("snippet");
     }
+  });
+});
+
+// ─── URL dedup helpers (cross-phase Single Visit Extraction) ───
+// Spec: docs/spec-tier3-parallel-and-url-dedup.md
+// Scenario matrix rows #1, #2, #4, #5, #9
+
+describe("shouldSkipUrl", () => {
+  // Scenario #1: Phase 0 downloads URL X, Tier 2 returns same URL X
+  it("returns true when URL is already in the Set", () => {
+    const downloadedUrls = new Set(["https://example.com/img/123.jpg"]);
+    expect(shouldSkipUrl("https://example.com/img/123.jpg", downloadedUrls)).toBe(true);
+  });
+
+  // Scenario #2: Different source returns same URL
+  it("returns true regardless of which source added the URL", () => {
+    const downloadedUrls = new Set(["https://ithome.com/img/deepseek.jpg"]);
+    expect(shouldSkipUrl("https://ithome.com/img/deepseek.jpg", downloadedUrls)).toBe(true);
+  });
+
+  // Scenario #4: Failed download → URL NOT in Set → should NOT skip
+  it("returns false when URL was not downloaded (download failed)", () => {
+    const downloadedUrls = new Set(); // empty — download failed, nothing added
+    expect(shouldSkipUrl("https://example.com/failed.jpg", downloadedUrls)).toBe(false);
+  });
+
+  // Scenario #5: URL is null/undefined
+  it("returns false for null URL", () => {
+    const downloadedUrls = new Set();
+    expect(shouldSkipUrl(null, downloadedUrls)).toBe(false);
+  });
+
+  it("returns false for undefined URL", () => {
+    const downloadedUrls = new Set();
+    expect(shouldSkipUrl(undefined, downloadedUrls)).toBe(false);
+  });
+
+  it("returns false for empty string URL", () => {
+    const downloadedUrls = new Set();
+    expect(shouldSkipUrl("", downloadedUrls)).toBe(false);
+  });
+
+  it("returns false for non-string URL", () => {
+    const downloadedUrls = new Set();
+    expect(shouldSkipUrl(123, downloadedUrls)).toBe(false);
+  });
+
+  // Scenario: URL not yet downloaded
+  it("returns false when URL is not in the Set", () => {
+    const downloadedUrls = new Set(["https://example.com/img/123.jpg"]);
+    expect(shouldSkipUrl("https://example.com/img/456.jpg", downloadedUrls)).toBe(false);
+  });
+
+  // Case sensitivity: URLs are case-sensitive in practice
+  it("treats URLs as case-sensitive", () => {
+    const downloadedUrls = new Set(["https://Example.com/IMG/123.jpg"]);
+    expect(shouldSkipUrl("https://example.com/img/123.jpg", downloadedUrls)).toBe(false);
+  });
+});
+
+describe("markDownloaded", () => {
+  it("adds URL to the Set after successful download", () => {
+    const downloadedUrls = new Set();
+    markDownloaded("https://example.com/img/123.jpg", downloadedUrls);
+    expect(downloadedUrls.has("https://example.com/img/123.jpg")).toBe(true);
+  });
+
+  it("does not throw for null URL", () => {
+    const downloadedUrls = new Set();
+    expect(() => markDownloaded(null, downloadedUrls)).not.toThrow();
+    expect(downloadedUrls.size).toBe(0);
+  });
+
+  it("does not throw for undefined URL", () => {
+    const downloadedUrls = new Set();
+    expect(() => markDownloaded(undefined, downloadedUrls)).not.toThrow();
+    expect(downloadedUrls.size).toBe(0);
+  });
+
+  it("does not throw for empty string URL", () => {
+    const downloadedUrls = new Set();
+    expect(() => markDownloaded("", downloadedUrls)).not.toThrow();
+    expect(downloadedUrls.size).toBe(0);
+  });
+
+  it("does not throw for non-string URL", () => {
+    const downloadedUrls = new Set();
+    expect(() => markDownloaded(123, downloadedUrls)).not.toThrow();
+    expect(downloadedUrls.size).toBe(0);
+  });
+});
+
+// Integration-style: shouldSkipUrl + markDownloaded together
+describe("URL dedup flow (shouldSkipUrl + markDownloaded)", () => {
+  // Scenario #1: Phase 0 → Tier 2 same URL
+  it("simulates Phase 0 download then Tier 2 skip", () => {
+    const downloadedUrls = new Set();
+    const url = "https://ithome.com/img/deepseek-123.jpg";
+
+    // Phase 0: not yet downloaded
+    expect(shouldSkipUrl(url, downloadedUrls)).toBe(false);
+    markDownloaded(url, downloadedUrls);
+
+    // Tier 2: same URL → skip
+    expect(shouldSkipUrl(url, downloadedUrls)).toBe(true);
+  });
+
+  // Scenario #4: Failed download doesn't block retry
+  it("simulates failed download then retry in later phase", () => {
+    const downloadedUrls = new Set();
+    const url = "https://example.com/flaky.jpg";
+
+    // Phase 0: download fails → NOT marked
+    // (shouldSkipUrl returns false, but download fails, so markDownloaded not called)
+    expect(shouldSkipUrl(url, downloadedUrls)).toBe(false);
+
+    // Tier 2: same URL → not in Set → retry
+    expect(shouldSkipUrl(url, downloadedUrls)).toBe(false);
+    markDownloaded(url, downloadedUrls);
+
+    // Tier 3: same URL → now skip
+    expect(shouldSkipUrl(url, downloadedUrls)).toBe(true);
   });
 });

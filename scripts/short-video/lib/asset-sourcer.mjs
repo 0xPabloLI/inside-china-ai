@@ -1540,6 +1540,35 @@ export function getApiKey(env, keyName) {
   return env?.[keyName] || null;
 }
 
+// ─── URL dedup helpers (cross-phase Single Visit Extraction) ───
+
+/**
+ * Check if a URL has already been downloaded in this run.
+ * Returns true if the URL is in the Set — caller should skip the download.
+ *
+ * @param {string} url - Candidate image/video URL
+ * @param {Set<string>} downloadedUrls - Runtime set of already-downloaded URLs
+ * @returns {boolean} true if URL was already downloaded (should skip)
+ */
+export function shouldSkipUrl(url, downloadedUrls) {
+  if (!url || typeof url !== "string") return false;
+  return downloadedUrls.has(url);
+}
+
+/**
+ * Mark a URL as downloaded. Called after a successful download so that
+ * subsequent phases don't re-download the same URL.
+ *
+ * @param {string} url - Successfully downloaded URL
+ * @param {Set<string>} downloadedUrls - Runtime set to add to
+ * @returns {void}
+ */
+export function markDownloaded(url, downloadedUrls) {
+  if (url && typeof url === "string") {
+    downloadedUrls.add(url);
+  }
+}
+
 // ─── Main orchestrator ───
 
 /**
