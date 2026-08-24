@@ -25,53 +25,44 @@ what overlay value. Analyzing high-performing competitor videos would:
 2. Discover visual patterns we haven't considered (PiP, split screen, text-on-video)
 3. Provide data-driven guidance for new content types
 
-## Video Download Feasibility Research (2026-08-16)
+## Video Download Methods (by platform)
 
-### TikTok Official API — No Download Path
+> Full source coverage (22 sources) see `docs/research/asset-source-quick-reference.md`.
+> This section only covers the platforms relevant to reference video extraction.
 
-TikTok does **not** provide any public API for downloading video files. This
-is by design (content protection). The three official APIs are:
+### YouTube — ✅ yt-dlp (verified)
 
-| API | Purpose | Can download video? |
-|-----|---------|---------------------|
-| Content Posting API | Upload/publish videos to TikTok | ❌ Upload only |
-| Research API | Query public video metadata (academic access) | ❌ Metadata only, no video file URL |
-| Display API | Embed TikTok videos on websites | ❌ Embed HTML only |
+```bash
+yt-dlp --cookies-from-browser chrome -o "output/reference-videos/%(title)s.%(ext)s" \
+  "https://www.youtube.com/watch?v=VIDEO_ID"
+```
 
-Video file URLs on TikTok are dynamically signed and expire — there is no
-stable download endpoint.
+- Cookies required: YouTube blocks downloads without authentication ("Sign in
+  to confirm you're not a bot" error). Use `--cookies-from-browser chrome`.
+- Works with Shorts, long videos, and sections (`--download-sections`)
 
-### Download Methods (by priority)
+### Bilibili (B站) — ✅ yt-dlp (verified)
 
-> **Default: 2b** (CDP `item/detail` API). Fallback: 3 (manual) when
-> CDP/browser unavailable. 2a (network interception) only if 2b fails.
+```bash
+yt-dlp --cookies-from-browser firefox -o "output/reference-videos/%(title)s.%(ext)s" \
+  "https://www.bilibili.com/video/BV_ID"
+```
 
-**1. yt-dlp + impersonate (TikTok) — ❌ Blocked**
+- Use Firefox cookies (Chrome cookies cause `KeyError('bvid')` in some cases)
+- Search: `bilibili-api-python` package (superior to `yt-dlp bilisearch:`
+  which returns 412 errors)
+- Use `av` 号 if `BV` 号 triggers errors
 
-- `curl_cffi 0.15.0` installed (note: yt-dlp 2026.07.04 requires `<=0.15.x`,
-  not 0.16+)
-- 37 impersonate targets available (Chrome/Safari/Firefox/Edge)
-- TikTok's anti-bot challenge (`_solve_challenge_and_set_cookies`) requires
-  **JS execution** to solve — yt-dlp cannot do this
-- This is a **fingerprint problem, not a frequency problem** — slowing down
-  requests does not help
-- **Decision: remove yt-dlp for TikTok downloads.** yt-dlp remains valid for
-  YouTube (verified working with `--cookies-from-browser chrome`)
+### TikTok — ✅ CDP `item/detail` API (verified 2026-08-24)
 
-**2a. CDP network interception — ⚠️ Fallback for 2b**
+TikTok does **not** provide any public API for downloading video files.
+Video URLs are dynamically signed and expire. Three official APIs (Content
+Posting, Research, Display) all lack a download path.
 
-- TikTok uses MSE (Media Source Extensions), so `<video>.src` is a `blob:`
-  URL, not a direct file URL
-- Can extract the real stream URL via `performance.getEntriesByType("resource")`
-  (successfully retrieved `googlevideo.com/videoplayback` URL on YouTube test)
-- TikTok requires non-HK proxy exit (Clash HK node gets redirected to
-  "TikTok not available in Hong Kong" page)
-- Flow: CDP open page → wait for video load → scan resource entries →
-  filter for video stream URL → `fetch()` download
-- **Low ban risk** (real browser session + cookies), but fragile —
-  stream URLs are transient and MSE blob URLs vary by player implementation
+**Default: CDP `item/detail` API.** Fallback: manual download when CDP
+unavailable. Network interception only if API method fails.
 
-**2b. CDP `item/detail` API — ✅ DEFAULT method (verified 2026-08-24)**
+**Method A (default): CDP `item/detail` API**
 
 - Call TikTok's internal API `aweme/v1/web/item/detail/` via CDP `fetch()`
   within the browser session — the browser carries all necessary cookies
@@ -80,12 +71,9 @@ stable download endpoint.
   (no `blob:` intermediary, no MSE)
 - Download the MP4 via CDP `fetch(playAddr, {credentials:'include'})` —
   browser session provides required Referer + cookies
-- **Key advantage over 2a**: no need to intercept network traffic or wait
-  for video player to initialize — just one API call
 - **Low ban risk**: same browser session, same cookies as normal browsing
-- Requires non-HK proxy (same as 2a)
-- Community: this approach ("playAddr extraction") is the most common TikTok
-  reverse-engineering method — see third-party survey below
+- Requires non-HK proxy (Clash HK node gets redirected to "TikTok not
+  available in Hong Kong" page)
 - CDP eval JS (simplified):
   ```js
   // 1. Get video metadata (itemId from short URL redirect)
@@ -100,28 +88,51 @@ stable download endpoint.
   // 4. Convert to base64 or save via CDP download handler
   ```
 
-**3. Manual download — ✅ Fallback (when CDP unavailable)**
+**Method B (fallback): CDP network interception**
 
-Given the low trigger frequency (see below), manual download is the most
-pragmatic fallback:
-- User downloads the video in Chrome (browser extension or direct save)
-- Drops the `.mp4` into a designated directory
-- Agent runs keyframe extraction + vision analysis on the file
+- TikTok uses MSE, so `<video>.src` is a `blob:` URL, not a direct file URL
+- Extract real stream URL via `performance.getEntriesByType("resource")`
+- Flow: CDP open page → wait for video load → scan resource entries →
+  filter for video stream URL → `fetch()` download
+- Fragile: stream URLs are transient, MSE blob URLs vary by player
 
-### Third-party TikTok download solutions (2026-08-24 research)
+**Method C (last resort): Manual download**
+
+- Chrome extension: [TikTok Video Downloader](https://chromewebstore.google.com/)
+  or similar — adds a download button to TikTok pages
+- Or: right-click video → "Save video as" (not available on all TikTok versions)
+- Or: ask agent to use CDP method A
+- Save to: `output/reference-videos/<name>.mp4`
+
+**Failed: yt-dlp + impersonate**
+
+- TikTok's anti-bot challenge (`_solve_challenge_and_set_cookies`) requires
+  **JS execution** — yt-dlp cannot do this
+- This is a fingerprint problem, not a frequency problem
+
+### Douyin (抖音) — ⚠️ Untested
+
+- `Douyin_TikTok_Download_API` (Evil0ctal, 19K stars): self-deployed Python
+  FastAPI, handles `a_bogus` signing. Not yet tested.
+- `chubbyskills`: uses `iesdouyin.com/share/video/` endpoint, no cookie/login
+  needed. Not yet tested.
+- yt-dlp: blocked (lacks `a_bogus` signature algorithm, same issue as TikTok)
+- Manual: user downloads in app or browser, drops `.mp4` into designated dir
+
+### Third-party TikTok/Douyin download solutions (2026-08-24 research)
 
 The `item/detail` → `playAddr` approach is the most common TikTok
 reverse-engineering method in the open-source community. Key projects:
 
 | Project | Approach | Stars | Relevance to us |
 |---------|----------|-------|-----------------|
-| **TikTokApi** (davidteather) | Python, calls TikTok API + extracts playAddr | ~10K+ | Same concept as our 2b, but needs signature signing |
+| **TikTokApi** (davidteather) | Python, calls TikTok API + extracts playAddr | ~10K+ | Same concept as our Method A, but needs signature signing |
 | **Cobalt** (imputnet) | Node.js service, parses rehydration JSON for playAddr | ~3K+ | Self-deployable HTTP API; overkill for our low-frequency use |
 | **Douyin_TikTok_Download_API** (Evil0ctal) | Python FastAPI, handles `a_bogus` signing | 19K | Most popular but requires reversing X-Bogus/X-Argus signature |
 | **tiktok-api-dl** (TobyG74) | Node.js wrapper around ssstik.io + musicaldown.com | — | Depends on third-party scraping services (privacy risk) |
-| **yt-dlp** | Attempts HTML rehydration JSON extraction | — | Blocked by TikTok JS challenge (see method 1) |
+| **yt-dlp** | Attempts HTML rehydration JSON extraction | — | Blocked by TikTok JS challenge |
 
-**Why our CDP method (2b) is more elegant than all of the above:**
+**Why our CDP method (A) is more elegant than all of the above:**
 
 1. No signature reversing — the browser carries all cookies + signed headers
 2. No third-party service dependency (ssstik.io etc. have privacy risk)
@@ -142,12 +153,14 @@ upgrade path — it wraps the same playAddr extraction into an HTTP API.
 - `verify-remotion-frames.mjs` + `frame-analysis.mjs` — ffmpeg frame extraction
   + pixel analysis (luminance, bright pixel counting, region sampling).
 
-## Concrete workflow (manual download)
+## Concrete workflow
 
 ```bash
-# Step 1: User manually downloads reference video
-# (browser extension, or ask agent to use CDP to extract video URL)
-# Save to: output/reference-videos/<name>.mp4
+# Step 1: Download reference video (use platform-specific method above)
+# TikTok: agent uses CDP Method A
+# YouTube: yt-dlp --cookies-from-browser chrome
+# Bilibili: yt-dlp --cookies-from-browser firefox
+# Manual fallback: user downloads and saves to output/reference-videos/<name>.mp4
 
 # Step 2: Extract keyframes at 1fps
 FFMPEG=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
@@ -164,16 +177,14 @@ $FFMPEG -i output/reference-videos/reference.mp4 -vf "fps=1" \
 # [{ scene: 1, mediaType: "video", animation: "zoom", overlay: 0.7, ... }]
 ```
 
-### Download method by platform
+### Quick reference: download method by platform
 
-下载方法见 `docs/research/asset-source-quick-reference.md` 的 Quick Status Table（覆盖全部 22 个源的搜索+下载策略）。下表只记录参考视频提取场景的平台选择：
-
-| Platform | Method | Status |
-|----------|--------|--------|
-| TikTok | CDP `item/detail` API (agent) or manual download (user) | ✅ Agent: `item/detail` API (2b); Fallback: manual |
-| YouTube | `yt-dlp --cookies-from-browser chrome` | ✅ Verified working |
-| Bilibili | `yt-dlp` (no cookies needed) | ✅ Working |
-| Douyin | Manual or CDP | ✅ Manual recommended |
+| Platform | Default method | Fallback | Status |
+|----------|---------------|----------|--------|
+| **YouTube** | `yt-dlp --cookies-from-browser chrome` | Manual | ✅ Verified |
+| **Bilibili** | `yt-dlp --cookies-from-browser firefox` | Manual | ✅ Verified |
+| **TikTok** | CDP `item/detail` API (Method A) | Manual (Method C) | ✅ Verified |
+| **Douyin** | `Douyin_TikTok_Download_API` (untested) | Manual | ⚠️ Untested |
 
 ## Implementation notes
 
