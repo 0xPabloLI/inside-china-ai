@@ -163,12 +163,21 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 
 ## 模型选择通用标准
 
-> **触发条件**：选模型时（ASR/TTS/VLM/数字人）读此章节。两个硬性门槛都通过才进入评分。
+> **触发条件**：选模型时（ASR/TTS/VLM/数字人）读此章节。硬性门槛不通过 → 标注 warning，进入风险评估而非直接淘汰。
 
 ### 硬性门槛
 
-1. **许可证允许商用** — MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。含 Non-Commercial 限制的许可证（如 CC-BY-NC）直接淘汰。
+1. **许可证** — 优选：MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。⚠️ NC 许可证（如 CC-BY-NC）：不自动淘汰，但需风险评估（见下）。
 2. **Apple Silicon 加速** — MPS（PyTorch）、MLX、Metal（whisper.cpp/ggml）、CoreML 至少支持一种。仅支持 CUDA 或纯 CPU 的淘汰。
+
+### NC 许可证风险评估
+
+本项目是商业项目（内容平台 + TikTok 变现），使用 NC 模型生成的成品发布到 TikTok 属于 commercial use。选 NC 模型前必须评估：
+
+- **被发现概率**：CC 本身不追踪、不执法（[CC FAQ](https://creativecommons.org/faq/) 明确声明）。风险来自权利人主动发现——模型权重公开发布在 HuggingFace/GitHub，权利人可监控下载列表和使用情况。社区讨论、论文引用、代码 commit 均可暴露使用。
+- **被告风险**：权利人可发 DMCA takedown、 cease-and-desist，或提起版权侵权诉讼。赔偿金额取决于司法管辖权和实际损失。
+- **缓解措施**：联系权利人申请商用授权（多数 NC 许可证支持 dual licensing，权利人可单独授予商用权限）；或仅用于内部研究/原型，成品不发布。
+- **决策标准**：无法获得商用授权 → 不用于发布成品。仅用于内部实验/对比 → 可接受，但记录风险。
 
 ### 综合评分
 
@@ -177,7 +186,7 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 | 维度 | 权重 | 5 分 | 3 分 | 1 分 |
 |------|------|------|------|------|
 | Apple Silicon 加速成熟度 | 30% | MLX 原生 | Metal / CoreML | MPS only / CPU |
-| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 | CC-BY-4.0（署名要求） |
+| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 / CC-BY-4.0 | NC 许可证（需风险评估） |
 | 精度/质量 | 30% | 业界 SOTA | 可用 | 一般 |
 | 社区与工具链 | 20% | 活跃维护 + 完善工具链 | 有更新 | 停更 / 无工具链 |
 
@@ -199,5 +208,6 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 | mlx-whisper | MIT | MLX | large-v3 | **4.6** | ⭐ 备选 |
 | Parakeet MLX | Apache-2.0 | MLX | 0.6B | **4.0** | ⚠️ 英文为主 |
 | whisperx | BSD-4 | CPU | base | **2.7** | ⚠️ 仅 alignment |
+| Canary-Qwen | CC-BY-NC | ❌ CUDA | — | — | ⚠️ NC + 无加速，未评分 |
 
-> 评分明细：whisper.cpp 加速5/许可5/精度4/社区5；mlx-whisper 5/5/5/3；Parakeet 5/5/3/3；whisperx 1/3/3/4。
+> 评分明细：whisper.cpp 加速5/许可5/精度4/社区5；mlx-whisper 5/5/5/3；Parakeet 5/5/3/3；whisperx 1/3/3/4。Canary-Qwen 两个门槛均未通过（NC + CUDA only），未进入评分。
