@@ -1954,74 +1954,96 @@ export async function main(args = process.argv.slice(2)) {
       (s) => s.name === "brave_image" || s.name === "searxng_image",
     );
 
-    for (const source of tier3Sources) {
-      const apiKey = source.apiKeyEnv ? getApiKey(env, source.apiKeyEnv) : null;
-      const missingApiKey = source.requiresApiKey && !apiKey;
-      if (missingApiKey) {
-        skipped.push({ source: source.name, reason: "no API key" });
-        console.log(`  ⏭️  ${source.label}: skipped (no API key)`);
-        continue;
-      }
-
-      for (const keyword of keywords) {
-        console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-        const result = await getOrSearchResults(searchCache, {
-          source: source.name,
-          keyword,
-          search: () => {
-            if (source.name === "brave_image") {
-              return searchBraveImages(keyword, apiKey, {
-                count: 20,
-                quotaTracker: tier3QuotaTracker,
-              });
-            } else {
-              return searchSearXngImages(keyword, { count: 20 });
-            }
-          },
-        });
-        const candidates = result.results;
-        if (!result.cacheHit && candidates.length > 0) {
-          searchCacheDirty = true;
-          console.log(`     Found ${candidates.length} candidates`);
-        } else if (result.cacheHit) {
-          console.log(`     ♻️  Cache hit: ${candidates.length} candidates`);
-        } else {
-          console.log(`     Found ${candidates.length} candidates`);
+    // Engines in parallel (Promise.allSettled), each engine internally serial on keywords
+    // to avoid anti-bot rate limiting from the same engine.
+    const tier3Results = await Promise.allSettled(
+      tier3Sources.map(async (source) => {
+        const apiKey = source.apiKeyEnv ? getApiKey(env, source.apiKeyEnv) : null;
+        const missingApiKey = source.requiresApiKey && !apiKey;
+        if (missingApiKey) {
+          return { skipped: { source: source.name, reason: "no API key" }, assets: [], failed: [] };
         }
 
-        const scored = candidates
-          .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, maxPerSource);
+        const engineAssets = [];
+        const engineFailed = [];
 
-        for (let j = 0; j < scored.length; j++) {
-          const candidate = scored[j];
-          if (!candidate.url) continue;
-
-          const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-          if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-            skipped.push({
-              source: source.name,
-              reason: `pre-download filter (score: ${preScore})`,
-            });
-            continue;
-          }
-
-          const filename = buildFilename(source.name, keyword, j + 1, "jpg");
-          const destPath = join(assetsDir, filename);
-          const dlResult = await downloadAsset(candidate.url, destPath);
-          if (dlResult.success) {
-            allAssets.push({
-              ...candidate,
-              path: destPath.replace(contentDir + "/", ""),
-              status: dlResult.skipped ? "already exists" : "downloaded",
-            });
-            console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+        for (const keyword of keywords) {
+          console.log(`  🔍 ${source.label} search: "${keyword}"...`);
+          const result = await getOrSearchResults(searchCache, {
+            source: source.name,
+            keyword,
+            search: () => {
+              if (source.name === "brave_image") {
+                return searchBraveImages(keyword, apiKey, {
+                  count: 20,
+                  quotaTracker: tier3QuotaTracker,
+                });
+              } else {
+                return searchSearXngImages(keyword, { count: 20 });
+              }
+            },
+          });
+          const candidates = result.results;
+          if (!result.cacheHit && candidates.length > 0) {
+            console.log(`     Found ${candidates.length} candidates`);
+          } else if (result.cacheHit) {
+            console.log(`     ♻️  Cache hit: ${candidates.length} candidates`);
           } else {
-            failed.push({ source: source.name, keyword, error: dlResult.error });
-            console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+            console.log(`     Found ${candidates.length} candidates`);
+          }
+
+          const scored = candidates
+            .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, maxPerSource);
+
+          for (let j = 0; j < scored.length; j++) {
+            const candidate = scored[j];
+            if (!candidate.url) continue;
+
+            const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+            if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+              engineFailed.push({
+                source: source.name,
+                reason: `pre-download filter (score: ${preScore})`,
+              });
+              continue;
+            }
+
+            const filename = buildFilename(source.name, keyword, j + 1, "jpg");
+            const destPath = join(assetsDir, filename);
+            const dlResult = await downloadAsset(candidate.url, destPath);
+            if (dlResult.success) {
+              engineAssets.push({
+                ...candidate,
+                path: destPath.replace(contentDir + "/", ""),
+                status: dlResult.skipped ? "already exists" : "downloaded",
+              });
+              console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+            } else {
+              engineFailed.push({ source: source.name, keyword, error: dlResult.error });
+              console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+            }
           }
         }
+
+        return { assets: engineAssets, failed: engineFailed, cacheDirty: true };
+      }),
+    );
+
+    // Merge parallel results back into allAssets, failed, skipped
+    for (const result of tier3Results) {
+      if (result.status === "fulfilled") {
+        const { skipped: skippedEntry, assets, failed: failedEntries } = result.value;
+        if (skippedEntry) {
+          skipped.push(skippedEntry);
+          console.log(`  ⏭️  ${skippedEntry.source}: skipped (no API key)`);
+        }
+        allAssets.push(...assets);
+        failed.push(...failedEntries);
+        if (result.value.cacheDirty) searchCacheDirty = true;
+      } else {
+        console.log(`  ❌ Engine failed: ${result.reason?.message || "unknown error"}`);
       }
     }
 
