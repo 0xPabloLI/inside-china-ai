@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-24 - 32 open issues (after #110 closed; #109/#111 added; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
+Last inventory: 2026-08-24 - 33 open issues (after #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
 
 ---
 
@@ -15,6 +15,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | **#89** Anti-bot scraping | → #91 (DuckDuckGo), → #92 (SearXNG) | #91/#92 是 #89 P3 的子任务——rate limiter (#89 P0) 完成后才加新搜索引擎 |
 | **#94** Scene visual intent | → #101 (P8b Temporal Focus) | #101 为 #94 的动态媒体场景提供 temporal focus 数据 |
 | **#103** Docs offload/split | #95 ✅ closed (PR #104 merged) | #103 依赖 #95 确立的 dual-track 时序。#106 已提供 review baseline |
+| **#65** Unified search pool | → #109 (merged in) | #109 合并进 #65：#65 做 REST API pool + MCP 封装层，#109 的目标（替换 Brave MCP）由 #65 完成后自动实现 |
 
 **不需要引入父子概念的情况**：#98/#99/#100/#101 是 P5-P8b 的线性序列（有显式 `依赖与关联` 章节），不是父子关系——它们是视频管线的线性阶段，用 P5-P8b 编号追踪即可（见 Tier 3）。
 
@@ -41,6 +42,8 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #100 可与 #98, #99 并行 | P7 cache 不改分析语义，只管执行和复用 |
 | #101 依赖 #69 ✅, 推荐接 #100 | P8b temporal focus 需要 P4 window + 推荐 P7 cache |
 | #111 -> #21 (推荐顺序) | #111 先做文本 RAG 管线集成，#21 后做多模态。#111 设计好集成接口后 #21 扩展即可，无阻塞依赖 |
+| #109 merged into #65 | #109 的目标（替换 Brave MCP → 统一搜索 pool）合并进 #65 scope。#65 完成后 #109 自动关闭 |
+| #112 depends on #91, #103 | DuckDuckGo Images needs #91 shared CDP infra; image pool docs need #103 done |
 
 ---
 
@@ -52,10 +55,10 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 |---|---|---|---|---|
 | **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** (T1) L1 docs offload · **#111** (T1) text RAG integration · **#88** (T1) universal script fallback（从 W1 提升，#67 unblock 了下游） | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 → #111 必须串行（均改 `content-pipeline.md`）；#88 独占 `source-registry.mjs` |
 | **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) SVE · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · ~~#110~~ ✅ closed | #89 P0 先于 #91；#110 ✅ done | #63 可与 #89 并行 |
-| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 先与 #65 定边界 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97 可并行 |
-| **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
+| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#112** (T2) image search pool | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 已合并进 #65；#112 依赖 #91/#103 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行 |
+| **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
 | **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#75** (T3) 下载方案 · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference | #99 依赖 #98；#101 依赖 #69 推荐接 #100；#75 依赖 #54 done | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
-| **Dormant / Human gate** | 不进入 wave，直到 trigger 或人工决策满足 | #21/#29（measurable）· #107（milestone）· #32/#35（user input）· #60/#61/#109（triage） | 见各 issue trigger | 不占用实现排期 |
+| **Dormant / Human gate** | 不进入 wave，直到 trigger 或人工决策满足 | #21/#29（measurable）· #107（milestone）· #32/#35（user input）· #60/#61（triage） | 见各 issue trigger | 不占用实现排期 |
 
 ### Execution Semantics
 
@@ -98,8 +101,9 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92 |
 | #64 | Add free API sources | — | source-registry.mjs | 13 候选 API，Brave 需注册 |
 | #90 | MCP to API migration (Bigsong) | — | source-registry.mjs | lib/bigsong-api.mjs 直接 HTTP 调用 |
-| #65 | Search API Pool | #64, #90 | search-sources.mjs | Jina > Brave > Tavily > Currents > Noozra > GNews > Grok |
+| #65 | Unified Search Pool (REST + MCP, 含 #109) | #64, #90 | search-sources.mjs, config.env | Jina > Brave > Tavily > Currents > Noozra > GNews > Grok。#109 合并进 #65：MCP 封装层替代 Brave MCP（HOST_SEARCH_TOOL） |
 | #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md | 12 public feeds，evidence boundary 分组 |
+| #112 | Image search pool expansion | #91 (DDG), #103 (docs) | source-registry.mjs, asset-sourcer.mjs | Google Images (CDP) + Bing Images (CDP) + DuckDuckGo Images (CDP). Refactor Tier 3 to pluggable pool. Engines parallel, keywords serial |
 
 ### Tier 3 — 低重要性 / 大幅延后
 
@@ -150,7 +154,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 |---|-------|-------------------|
 | #60 | On-demand content audit | 设计讨论中，与 #61 合并 |
 | #61 | Non-blocking evidence audit | 与 #60 合并讨论中 |
-| #109 | Unified text search pool | 与 #65 的边界未定；先明确 MCP host search 与内容管线 API pool 的职责 |
+| #109 | ~~Unified text search pool~~ → 合并进 #65 | #109 的目标（替换 Brave MCP）合并进 #65 scope。#65 完成后 #109 自动关闭 |
 
 ---
 
@@ -160,12 +164,12 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 | Domain | Issues | Waves spanned |
 |--------|--------|---------------|
-| **Source / Search** | #88, #89, #64, #66, #90, #65, #97, #68, #76, #77, #87, #91, #92 | W0–W3 |
+| **Source / Search** | #88, #89, #64, #66, #90, #65, #97, #112, #68, #76, #77, #87, #91, #92 | W0–W3 |
 | **Content Pipeline** | #103, #111, #94, #60, #61 | W0, W4, Dormant |
 | **Video Pipeline** | #98, #99, #100, #101, #35, #32, #75 | W4, Dormant |
 | **Docs / Research** | #103, #108, #29, #21, #97 | W0, W4, Dormant |
 | **Audit** | #68, #76, #77, #87, #94 | W3, W4 |
-| **Infra / Platform** | #109, #107, #85 | Dormant, W4 |
+| **Infra / Platform** | #107, #85 | Dormant, W4 |
 
 > 跨领域 issue（如 #94 同时属于 Content Pipeline 和 Audit）在多个领域行出现。并行前仍需查 Conflict Risk Matrix。
 
@@ -183,7 +187,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | `cdp-client.mjs` | #66, #89 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff |
 | `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
-| `Search quota / backend routing` | #65, #109, #110 | 🟡 中——Brave quota 与统一路由边界需单一 owner |
+| `Search quota / backend routing` | #65, #110, #112 | 🟡 中——Brave quota 与统一路由边界需单一 owner（#109 已合并进 #65） |
 | `scene-rules.mjs` / `scene-templates.mjs` | #94（可能） | 🟢 低 |
 
 ---
