@@ -58,9 +58,9 @@ describe("capabilities field presence", () => {
 // ─── Stock media sources ───
 
 describe("STOCK_MEDIA_SOURCES", () => {
-  it("has exactly 6 stock media sources", () => {
-    expect(STOCK_MEDIA_SOURCES).toHaveLength(6);
-  });
+it("has exactly 8 stock media sources", () => {
+expect(STOCK_MEDIA_SOURCES).toHaveLength(8);
+});
 
   it("includes pexels (images)", () => {
     const src = STOCK_MEDIA_SOURCES.find((s) => s.name === "pexels");
@@ -277,11 +277,11 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-  it("ALL_SOURCES has 59 sources (46 existing + 7 CDP image search + 6 stock_media - lorem_picsum not in registry)", () => {
-    // 46 existing + 7 CDP image search + 6 new stock_media = 59
-    // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
-    expect(ALL_SOURCES).toHaveLength(59);
-  });
+it("ALL_SOURCES has 61 sources (46 existing + 7 CDP image search + 8 stock_media - lorem_picsum not in registry)", () => {
+// 46 existing + 7 CDP image search + 8 stock_media = 61
+// (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
+expect(ALL_SOURCES).toHaveLength(61);
+});
 
   it("source names are still unique after merge", () => {
     const names = ALL_SOURCES.map((s) => s.name);

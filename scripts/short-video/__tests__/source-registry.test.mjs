@@ -22,10 +22,10 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 59 sources", () => {
-    // 46 existing + 7 CDP image search + 6 stock_media sources
-    expect(ALL_SOURCES).toHaveLength(59);
-  });
+it("ALL_SOURCES has 61 sources", () => {
+// 46 existing + 7 CDP image search + 6 stock_media + 2 open search engine = 61
+expect(ALL_SOURCES).toHaveLength(61);
+});
 
   it("each source has required fields", () => {
     for (const source of ALL_SOURCES) {
@@ -541,7 +541,7 @@ describe("supportsKeyword validation", () => {
     // tiktok_creator (via ScrapeCreators API)
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
-    expect(keywordSources.length).toBe(39);
+    expect(keywordSources.length).toBe(41);
   });
 });
 

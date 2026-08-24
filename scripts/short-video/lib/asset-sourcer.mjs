@@ -32,6 +32,12 @@ import {
   loadSearchResultsCache,
   saveSearchResultsCache,
 } from "./search-results-cache.mjs";
+import {
+  shouldTriggerTier3,
+  searchBraveImages,
+  searchSearXngImages,
+  BraveQuotaTracker,
+} from "./progressive-search.mjs";
 
 // Re-export SOURCE_ATTRIBUTIONS from source-registry (single source of truth)
 export { SOURCE_ATTRIBUTIONS };
@@ -1927,6 +1933,106 @@ export async function main(args = process.argv.slice(2)) {
 
   if (searchCacheDirty) {
     persistSearchResultsCache(searchCachePath, searchCache);
+  }
+
+  // ── Tier 3: Progressive (Open Search Engine) Image Search ──
+  // Issue #110: Only triggers when Tier 1 (stock API) + Tier 2 (CDP news)
+  // yield insufficient results. Searches Brave Image API + SearXNG image
+  // search in parallel. Results are copyright-unverified — attribution
+  // marks them for manual review.
+  const scenesNeedingMedia = scenes.filter(
+    (s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media,
+  ).length;
+  if (shouldTriggerTier3(allAssets.length, scenesNeedingMedia)) {
+    console.log("\n🔍 Tier 3: Progressive Search (open search engine images):");
+    console.log(
+      `   ${allAssets.length} assets found in Tier 1+2, ${scenesNeedingMedia} scenes need media`,
+    );
+
+    const tier3QuotaTracker = new BraveQuotaTracker();
+    const tier3Sources = API_SOURCES.filter(
+      (s) => s.name === "brave_image" || s.name === "searxng_image",
+    );
+
+    for (const source of tier3Sources) {
+      const apiKey = source.apiKeyEnv ? getApiKey(env, source.apiKeyEnv) : null;
+      const missingApiKey = source.requiresApiKey && !apiKey;
+      if (missingApiKey) {
+        skipped.push({ source: source.name, reason: "no API key" });
+        console.log(`  ⏭️  ${source.label}: skipped (no API key)`);
+        continue;
+      }
+
+      for (const keyword of keywords) {
+        console.log(`  🔍 ${source.label} search: "${keyword}"...`);
+        const result = await getOrSearchResults(searchCache, {
+          source: source.name,
+          keyword,
+          search: () => {
+            if (source.name === "brave_image") {
+              return searchBraveImages(keyword, apiKey, {
+                count: 20,
+                quotaTracker: tier3QuotaTracker,
+              });
+            } else {
+              return searchSearXngImages(keyword, { count: 20 });
+            }
+          },
+        });
+        const candidates = result.results;
+        if (!result.cacheHit && candidates.length > 0) {
+          searchCacheDirty = true;
+          console.log(`     Found ${candidates.length} candidates`);
+        } else if (result.cacheHit) {
+          console.log(`     ♻️  Cache hit: ${candidates.length} candidates`);
+        } else {
+          console.log(`     Found ${candidates.length} candidates`);
+        }
+
+        const scored = candidates
+          .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, maxPerSource);
+
+        for (let j = 0; j < scored.length; j++) {
+          const candidate = scored[j];
+          if (!candidate.url) continue;
+
+          const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+          if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+            skipped.push({
+              source: source.name,
+              reason: `pre-download filter (score: ${preScore})`,
+            });
+            continue;
+          }
+
+          const filename = buildFilename(source.name, keyword, j + 1, "jpg");
+          const destPath = join(assetsDir, filename);
+          const dlResult = await downloadAsset(candidate.url, destPath);
+          if (dlResult.success) {
+            allAssets.push({
+              ...candidate,
+              path: destPath.replace(contentDir + "/", ""),
+              status: dlResult.skipped ? "already exists" : "downloaded",
+            });
+            console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+          } else {
+            failed.push({ source: source.name, keyword, error: dlResult.error });
+            console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+          }
+        }
+      }
+    }
+
+    if (searchCacheDirty) {
+      persistSearchResultsCache(searchCachePath, searchCache);
+    }
+    console.log(`   Tier 3 complete: ${allAssets.length} total assets now`);
+  } else {
+    console.log(
+      `\n✅ Tier 3 skipped: ${allAssets.length} assets >= ${scenesNeedingMedia} scenes needing media`,
+    );
   }
 
   // ── AI Analysis (after download, before assignment) ──

@@ -54,11 +54,11 @@ const NODE_BIN = "node";
 
 export const NEWS_SOURCES = [
   {
-name: "qbitai",
-label: "量子位",
-category: "news",
-locale: "zh-CN",
-supportsKeyword: false,
+    name: "qbitai",
+    label: "量子位",
+    category: "news",
+    locale: "zh-CN",
+    supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       notes: "CDP only. Homepage scraping via DOM selectors. No public API.",
@@ -90,11 +90,11 @@ supportsKeyword: false,
     `,
   },
   {
-name: "jiqizhixin",
-label: "机器之心",
-category: "news",
-locale: "zh-CN",
-supportsKeyword: true,
+    name: "jiqizhixin",
+    label: "机器之心",
+    category: "news",
+    locale: "zh-CN",
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       notes: "CDP search page. No public API.",
@@ -125,11 +125,11 @@ supportsKeyword: true,
     `,
   },
   {
-name: "36kr",
-label: "36氪",
-category: "news",
-locale: "zh-CN",
-supportsKeyword: false,
+    name: "36kr",
+    label: "36氪",
+    category: "news",
+    locale: "zh-CN",
+    supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       notes: "CDP only. Homepage scraping. No public API.",
@@ -231,11 +231,11 @@ supportsKeyword: false,
     `,
   },
   {
-name: "guancha",
-label: "观察者网",
-category: "news",
-locale: "zh-CN",
-supportsKeyword: false,
+    name: "guancha",
+    label: "观察者网",
+    category: "news",
+    locale: "zh-CN",
+    supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       notes: "CDP only. Homepage scraping. No public API.",
@@ -270,10 +270,10 @@ supportsKeyword: false,
     `,
   },
   {
-name: "ithome",
-label: "iThome",
-category: "news",
-locale: "zh-CN",
+    name: "ithome",
+    label: "iThome",
+    category: "news",
+    locale: "zh-CN",
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
@@ -500,11 +500,11 @@ locale: "zh-CN",
 
 export const SELF_MEDIA_SOURCES = [
   {
-name: "xhs",
-label: "小红书",
-category: "self_media",
-locale: "zh-CN",
-supportsKeyword: true,
+    name: "xhs",
+    label: "小红书",
+    category: "self_media",
+    locale: "zh-CN",
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       notes: "CDP (requires login) → mcpFallback (RedNote-MCP search_notes). needsAuth=true.",
@@ -552,11 +552,11 @@ supportsKeyword: true,
     `,
   },
   {
-name: "sogou_weixin",
-label: "搜狗微信",
-category: "self_media",
-locale: "zh-CN",
-supportsKeyword: true,
+    name: "sogou_weixin",
+    label: "搜狗微信",
+    category: "self_media",
+    locale: "zh-CN",
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       notes: "CDP → MCP fallback (search_wechat_articles). Has captcha check.",
@@ -607,11 +607,11 @@ supportsKeyword: true,
     `,
   },
   {
-name: "weibo_hot",
-label: "微博热搜",
-category: "self_media",
-locale: "zh-CN",
-supportsKeyword: false,
+    name: "weibo_hot",
+    label: "微博热搜",
+    category: "self_media",
+    locale: "zh-CN",
+    supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       notes:
@@ -647,11 +647,11 @@ supportsKeyword: false,
     `,
   },
   {
-name: "bilibili",
-label: "B站搜索",
-category: "self_media",
-locale: "zh-CN",
-supportsKeyword: true,
+    name: "bilibili",
+    label: "B站搜索",
+    category: "self_media",
+    locale: "zh-CN",
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       notes:
@@ -698,11 +698,11 @@ supportsKeyword: true,
     `,
   },
   {
-name: "douyin",
-label: "抖音搜索",
-category: "self_media",
-locale: "zh-CN",
-supportsKeyword: true,
+    name: "douyin",
+    label: "抖音搜索",
+    category: "self_media",
+    locale: "zh-CN",
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       notes: "CDP (requires login) → MCP fallback (search_videos). needsAuth=true.",
@@ -849,11 +849,11 @@ supportsKeyword: true,
     `,
   },
   {
-name: "zhihu",
-label: "知乎",
-category: "self_media",
-locale: "zh-CN",
-supportsKeyword: true,
+    name: "zhihu",
+    label: "知乎",
+    category: "self_media",
+    locale: "zh-CN",
+    supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
       notes: "CDP only. Search page scraping. No MCP fallback.",
@@ -1538,11 +1538,11 @@ export const GENERAL_SEARCH_SOURCES = [
     },
   },
   {
-name: "baidu_search",
-label: "百度搜索",
-category: "general",
-locale: "zh-CN",
-needsAuth: false,
+    name: "baidu_search",
+    label: "百度搜索",
+    category: "general",
+    locale: "zh-CN",
+    needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
@@ -1880,12 +1880,12 @@ export const LAST30DAYS_SOURCES = [
 
 export const WECHAT_ACCOUNT_SOURCES = [
   {
-name: "wechat_dongchabeating",
-label: "动察Beating（公众号）",
-account: "动察Beating",
-category: "wechat",
-locale: "zh-CN",
-supportsKeyword: false,
+    name: "wechat_dongchabeating",
+    label: "动察Beating（公众号）",
+    account: "动察Beating",
+    category: "wechat",
+    locale: "zh-CN",
+    supportsKeyword: false,
     accessMethod: {
       primary: "cdp",
       notes:
@@ -1977,13 +1977,13 @@ const WECHAT_RSS_TRACKING = Object.freeze({
 });
 
 function createWechatRssSource(name, label, feedUrl) {
-return {
-name,
-label,
-category: "wechat",
-locale: "zh-CN",
-supportsKeyword: false,
-needsAuth: false,
+  return {
+    name,
+    label,
+    category: "wechat",
+    locale: "zh-CN",
+    supportsKeyword: false,
+    needsAuth: false,
     useCleanTitle: false,
     accessMethod: {
       primary: "api",
@@ -2309,6 +2309,97 @@ export const STOCK_MEDIA_SOURCES = [
             duration: undefined,
             author: p.user,
           }));
+        },
+      },
+    },
+  },
+  // ─── Open search engine image sources (Issue #110: Tier 3) ───
+  //
+  // These sources use open search engine image search APIs.
+  // Triggered only when Tier 1 (stock API) + Tier 2 (CDP news) yield
+  // insufficient results. Copyright is unverified — manual review required.
+  //
+  // Brave Image Search API (verified 2026-08-24):
+  //   GET https://api.search.brave.com/res/v1/images/search?q=...&count=20
+  //   Header: X-Subscription-Token: <API_KEY>
+  //   Response: { results: [{ title, properties: { url, width, height } }] }
+  //
+  // SearXNG Image Search (self-hosted, localhost:8888):
+  //   GET http://localhost:8888/search?q=...&format=json&categories=images
+  //   Response: { results: [{ title, img_src, resolution }] }
+  {
+    name: "brave_image",
+    label: "Brave Image Search",
+    category: "stock_media",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes:
+        "API (api.search.brave.com/images, requires BRAVE_SEARCH_API_KEY). Open web image search. Copyright unverified.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      images: {
+        method: "api",
+        requiresApiKey: true,
+        apiKeyEnv: "BRAVE_SEARCH_API_KEY",
+        authHeader: "X-Subscription-Token",
+        authValue: (key) => key,
+        searchUrl: (keyword, key) =>
+          `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(keyword)}&count=20&safesearch=strict`,
+        parseResponse: (data, keyword) => {
+          const results = data?.results || [];
+          return results
+            .filter((r) => r?.properties?.url)
+            .map((r) => ({
+              title: r.title || keyword,
+              url: r.properties.url,
+              type: "image",
+              resolution:
+                r.properties.width && r.properties.height
+                  ? `${r.properties.width}x${r.properties.height}`
+                  : undefined,
+              fileSize: undefined,
+              duration: undefined,
+            }));
+        },
+      },
+    },
+  },
+  {
+    name: "searxng_image",
+    label: "SearXNG Image Search",
+    category: "stock_media",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes:
+        "Self-hosted SearXNG metasearch (localhost:8888). No auth needed. Copyright unverified.",
+    },
+    useCleanTitle: false,
+    extractScript: "",
+    capabilities: {
+      images: {
+        method: "api",
+        requiresApiKey: false,
+        apiKeyEnv: null,
+        searchUrl: (keyword, key) =>
+          `http://localhost:8888/search?q=${encodeURIComponent(keyword)}&format=json&categories=images`,
+        parseResponse: (data, keyword) => {
+          const results = data?.results || [];
+          return results
+            .filter((r) => r?.img_src)
+            .map((r) => ({
+              title: r.title || keyword,
+              url: r.img_src,
+              type: "image",
+              resolution: r.resolution || undefined,
+              fileSize: undefined,
+              duration: undefined,
+            }));
         },
       },
     },
@@ -2944,6 +3035,19 @@ export const SOURCE_ATTRIBUTIONS = {
     text: () => `文章来源: 冬奥速递 (微信公众号)`,
     license: "News copyright",
     logoRequired: false,
+  },
+  // ─── Open search engine sources (Issue #110: Tier 3) ───
+  brave_image: {
+    text: () => `Image source: Brave Search (copyright unverified)`,
+    license: "Copyright unverified — manual review required",
+    logoRequired: false,
+    attributionRequired: true,
+  },
+  searxng_image: {
+    text: () => `Image source: SearXNG (copyright unverified)`,
+    license: "Copyright unverified — manual review required",
+    logoRequired: false,
+    attributionRequired: true,
   },
 };
 
