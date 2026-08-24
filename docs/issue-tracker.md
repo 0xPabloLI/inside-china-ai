@@ -45,6 +45,26 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #109 merged into #65 | #109 的目标（替换 Brave MCP → 统一搜索 pool）合并进 #65 scope。#65 完成后 #109 自动关闭 |
 | #112 depends on #91, #103 | DuckDuckGo Images needs #91 shared CDP infra; image pool docs need #103 done |
 
+**共享模块依赖关系**：
+
+| 模块 | 产出 issue | 消费 issue | 依赖类型 |
+|------|-----------|-----------|---------|
+| `lib/quota-tracker.mjs`（通用配额管理器，从 `progressive-search.mjs` 的 `BraveQuotaTracker` 提取） | #65（产出时提取） | #112（复用 Brave Image 配额） | Soft — #112 可先用 `BraveQuotaTracker`，#65 完成后统一迁移 |
+| `lib/search-pool.mjs`（统一搜索 pool round-robin + 配额调度） | #65（产出） | #112（图片 pool 可参考 text pool 的调度模式） | Soft — 架构参考，非代码复用（text pool 是 REST API，image pool 是 API+CDP 混合） |
+| `lib/download-candidate.mjs`（统一下载逻辑 helper，从 5 个下载块提取 7 步模式） | #63 Part 2（产出） | #112（新增的 CDP image sources 也需要下载逻辑） | Hard — #63 提取后 #112 直接调用，否则 #112 要重复写下载逻辑 |
+
+**#65 pool 在 fallback chain 中的位置**：
+
+```
+collectFromSource() 层次：
+  Layer 0: apiSearch (源专用 API，如 arXiv/GitHub/Currents) ← pool 不替换
+  Layer 1: CDP (主路径，打开 Chrome 搜索页面) ← pool 不替换
+  Layer 2: cdpFallback (Google site: 搜索) ← pool 不替换
+  Layer 3: mcpFallback (当前=Grok only) → #65 pool 替换此层
+```
+
+**#65 pool 不替换专用 API**（arXiv、GitHub、Currents、GNews、OpenAlex 等）。这些源有自己的 `apiSearch`，返回结构化精确数据（论文标题/URL/摘要）。pool 成员（Brave/Tavily/Jina）返回通用网页结果，不会精确匹配学术论文。pool 只在 Layer 0-2 全部失败后作为最终兜底。
+
 ---
 
 ## Recommended Execution Order
