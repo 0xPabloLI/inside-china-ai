@@ -83,7 +83,7 @@ collectFromSource() 层次：
 
 | Wave | Shared context | Session candidates (Tier) | Dependencies | Parallel rules |
 |---|---|---|---|---|
-| **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** (T1) L1 docs offload · **#111** (T1) text RAG integration · **#88** (T1) universal script fallback（从 W1 提升，#67 unblock 了下游） | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 → #111 必须串行（均改 `content-pipeline.md`）；#88 独占 `source-registry.mjs` |
+| **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** ✅ done · **#111** (T1) text RAG integration · **#88** (T1) universal script fallback（从 W1 提升，#67 unblock 了下游） | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 ✅ done；#111 独占 `content-pipeline.md`，#88 独占 `source-registry.mjs` |
 | **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) URL dedup (standalone, 无依赖, 优先) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · **#114** (T2) SVE (依赖 #63) · **#115** (T2) downloadCandidate (依赖 #63) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · ~~#110~~ ✅ closed | #63 → #114 → #115 串行（同改 search-sources.mjs/asset-sourcer.mjs）；#89 P0 先于 #91；#63 可与 #89/#113 并行 |
 | **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#112** (T2) image search pool | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 已合并进 #65；#112 依赖 #91/#103 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行 |
 | **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
@@ -118,7 +118,7 @@ collectFromSource() 层次：
 | # | Issue | Type | Blocked by | Conflict files | Notes |
 |---|-------|------|-------------|---------------|-------|
 | #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | #83 done | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests | 消除 20+ 手动配置项，每次加源都受益。Part 1: rename. Part 2: universal auto-gen |
-| #103 | Docs: offload/split L1 video content workflows | docs | #95 done | content-pipeline.md, video-workflow.md, DOCS-INDEX.md | 文档瘦身，提升 agent 读取效率。#106 review baseline 已 merge |
+| **#103** Docs offload/split | #95 ✅ done (PR #104 merged) | content-pipeline.md, video-workflow.md, DOCS-INDEX.md | ✅ Commit df1623e — content-pipeline.md 1069→424 lines (-60%), video-workflow.md 821→379 lines (-54%). 3 new L1 docs: article-production-guide.md, series-production-guide.md, content-scaffold-guide.md. Spec/tickets/review archived |
 | #111 | Integrate text RAG retrieval into content pipeline (Stage 1 & 3) | enhancement | #15 done | content-pipeline.md, scripts/rag/query.mjs | RAG 索引+查询基础设施已就绪，缺管线集成层。Agent 写文章/scene-data 前自动查 RAG。与 #21 正交，为 #21 铺路 |
 
 ### Tier 2 — 有价值但不紧迫（下一轮）
@@ -226,12 +226,13 @@ collectFromSource() 层次：
 
 ---
 
-## Closed Issues (2026-08-21~24)
+## Closed Issues (2026-08-21~25)
 
-29 issues closed across five triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion). Full details on GitHub.
+30 issues closed across six triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
+| #103 | Docs: offload/split L1 video content workflows | ✅ Commit df1623e — 3 new L1 docs, content-pipeline.md -60%, video-workflow.md -54%. Spec/tickets/review archived |
 | #110 | Progressive (Tiered) Media Search Architecture | Commit 3bdadd5 - Brave Image + SearXNG Image as Tier 3. 28 new tests, 402 total pass. Spec/tickets archived |
 | #83 | stock_api -> stock_media rename | Commit 418f46e - pure find-replace, 163 tests pass |
 | #78 | DOCS-INDEX sync 22+ missing docs | Commit 15385be - handoffs/reviews/specs/conventions/tiktok tables added |

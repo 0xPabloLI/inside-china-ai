@@ -2,7 +2,7 @@
 
 > Source of truth for doc ownership. Use it to find any document in one lookup.
 >
-> _Last inventory: 2026-08-23._
+> _Last inventory: 2026-08-25._
 
 ## Canonical Structure
 
@@ -129,7 +129,6 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 |----------|---------|
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
-| `video-document-layer-review-2026-08-21.md` | #103 视频内容 L1 文档层审阅：offload 原则、迁移边界、最小加载路径与验证 guardrails（W0 待做） |
 
 ### `archive/` — Completed work
 
