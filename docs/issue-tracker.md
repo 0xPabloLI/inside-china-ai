@@ -273,3 +273,9 @@ collectFromSource() 层次：
 5. **依赖变化**: 先更新 Tier 表 Blocked by 列 → 再同步 Wave 中的依赖描述
 6. **冲突检查**: 改代码前查 Conflict Risk Matrix，确认没有并行 issue 在改同一文件
 7. **更新顺序铁律**: 任何 issue 状态变动，始终先更新 Tier/Dormant 和 Conflict Matrix，再同步 Wave 摘要——Wave 是执行摘要，不是状态维护源
+
+## Design Decisions & References
+
+| Topic | Reference | Content |
+|-------|-----------|---------|
+| VLM model selection benchmark | `docs/research/vlm-model-selection-benchmark.md` (L2) | Qwen3-VL 2B/4B/8B comparison with local test data — image preprocessing fix documented in #113 |

@@ -80,7 +80,7 @@ These are environment facts — the code is the source of truth, this table is a
 | Content media | `content/{slug}/assets/*` | `scene-data.mjs` `media.path` field |
 | Remotion static | `remotion/public/assets/` (symlink → `../../assets/`) | `render-remotion.mjs` copies content media here at render time |
 
-## 4. Design Decisions & References
+## Design Decisions & References
 
 - **Separation by lifecycle**: `assets/` (stable, Git-tracked) vs `experiments/` (disposable, gitignored) vs `voice-samples/` (personal, gitignored). Primary axis is lifecycle stability, not file type.
 - **`voice-samples/` not under `assets/`**: TTS reference audio is an **input** (voice profile to clone), not an **asset** (rendered into video). Different lifecycle, different consumers.
@@ -115,20 +115,11 @@ Agent writes catalog.yml entries (description + keywords) for each new asset. Wo
 - VLM → generates description text → feeds into existing `bge-m3` text pipeline (no infra change)
 - CLIP → generates image vectors directly → needs separate vector storage and hybrid query
 
-### VLM landscape (Ollama-runnable, Mac M2 Pro 32GB)
+### VLM landscape (Mac M2 Pro 32GB)
 
-| Model | Params | Size | M2 Pro | Strengths | License |
-|-------|--------|------|--------|-----------|--------|
-| **moondream2** | 1.9B | 1.9GB | ✅ fast | Smallest, edge-ready, good for simple descriptions | Apache-2.0 |
-| **MiniCPM-V 4.5** | 8B | 5GB | ✅ | Best small-model OCR + video understanding | Apache-2.0 |
-| **MiniCPM-V 4.6** | 1B | ~1GB | ✅ fastest | Ultra-efficient, phone-grade | Apache-2.0 |
-| **Llava-llama3** | 8B | 4.7GB | ✅ | Strong general VLM, mature ecosystem | Llama-3 license |
-| **Qwen2.5-VL** | 3B/7B | 2-5GB | ✅ | Chinese + English, good for China AI content | Apache-2.0 |
-| **Qwen3-VL** | 2B/4B/8B | 1.5-6GB | ✅ | Newest Qwen VLM, best benchmark scores | Apache-2.0 |
-| **Gemma 3** | 4B/12B | 3-8GB | ✅ | Google's multimodal, strong reasoning | Gemma terms |
-| **Gemma 4** | 4B/12B | 3-8GB | ✅ | Latest Google multimodal, audio+vision | Gemma terms |
+The video pipeline uses `mlx-community/Qwen3-VL-2B-Instruct-4bit` via mlx-vlm. For full benchmark comparison across 2B/4B/8B variants, community feedback, and selection rationale, see `docs/research/vlm-model-selection-benchmark.md`.
 
-> **Recommendation for China AI content**: Qwen2.5-VL or Qwen3-VL — best Chinese visual understanding, handles Chinese text in screenshots/screenshots, Apache-2.0.
+For the catalog upgrade path, any Qwen3-VL variant can be used — the 2B-4bit is recommended for its speed/memory efficiency. All variants are Apache-2.0.
 
 ### Beyond Ollama options
 
@@ -145,6 +136,6 @@ If Ollama models are insufficient, these run locally via `transformers` / `mlx-v
 ### Decision criteria
 
 - **Now (<50 assets)**: Agent catalog + bge-m3. No change needed.
-- **50-200 assets**: Path A — Qwen2.5-VL 3B via Ollama generates descriptions from extracted frames. Agent reviews. Pipeline: `ffmpeg` frame → VLM description → catalog.yml → bge-m3 → pgvector. Minimal infra change.
+- **50-200 assets**: Path A — Qwen3-VL-2B via mlx-vlm generates descriptions from extracted frames. Agent reviews. Pipeline: `ffmpeg` frame → VLM description → catalog.yml → bge-m3 → pgvector. Minimal infra change.
 - **200+ assets**: Path B or C — CLIP/Jina-CLIP direct image embedding. Separate vector column or unified model replacement. Full automation, no human review.
 - **Trigger for review**: When catalog entries >50, or when Agent descriptions are observed to be inaccurate (e.g., describing "robot walking" when video shows "robot doing backflip").

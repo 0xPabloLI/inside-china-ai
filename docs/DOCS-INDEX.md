@@ -30,13 +30,16 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 | Document | Purpose | Referenced by |
 |----------|---------|---------------|
 | `brand-system.md` | Brand visual identity — tokens, templates, rules | `brand-system` skill |
-| `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV 导出、A/B 测试、数据驱动优化建议、竞品参考视频分析 | `content-pipeline.md` Stage 6, `manual-ops.md` |
-| `content-pipeline.md` | Unified content pipeline (article → publish → video → TikTok → analytics) | AGENTS.md |
+| `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV 导出、A/B 测试、数据驱动优化建议、竞品参考视频分析 | `content-pipeline.md` Stage 5, `video-workflow.md` |
+| `article-production-guide.md` | Article generation rules — Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation | `content-pipeline.md` Stage 1/2 |
+| `content-pipeline.md` | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references | AGENTS.md |
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
 | `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
 | `tools-catalog.md` | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
-| `video-workflow.md` | Video production workflow — TTS, publishing, file paths | AGENTS.md |
+| `series-production-guide.md` | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing | `content-pipeline.md` Stage 3, `video-workflow.md` |
+| `content-scaffold-guide.md` | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style | `video-workflow.md` |
+| `video-workflow.md` | Regular video-production runbook — TTS, rendering, verify, file paths, publishing strategy | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. framework, open loops, hook/CTA formulas, beat-by-beat iteration | `content-pipeline.md` Stage 3 |
 | `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
@@ -56,7 +59,7 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 | 0006 | ~~Architecture deepening completed~~ | Moved to `archive/` |
 | 0007 | RAG pipeline decisions | Active |
 | 0008 | TTS engine: F5-TTS-MLX | Active |
-| 0009 | VLM analysis layer: Qwen3-VL-8B via mlx-vlm | Active |
+| 0009 | VLM analysis layer: Qwen3-VL-2B via mlx-vlm | Active |
 | 0010 | Remotion replaces Playwright | Active |
 | 0011 | Unified venv | Active |
 | 0012 | Cloud GPU: Kaggle + Colab | Active |
@@ -166,6 +169,7 @@ Deep research reports with citations.
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
 | `anti-bot-scraping-solutions.md` | Anti-bot scraping solutions — bypass strategies and alternative search engines |
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
+| `vlm-model-selection-benchmark.md` | VLM model selection benchmark — Qwen3-VL 2B/4B/8B comparison with local test data |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
@@ -191,6 +195,7 @@ Deep research reports with citations.
 | `wechat-rss-tracking-mechanisms.md` | WeChat RSS tracking mechanisms — Wechat2RSS, third-party feeds, verified sources |
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
 | `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
+| `tiktok-competitor-intelligence.md` | TikTok competitor intelligence — benchmarking and analysis of competing channels |
 | `tiktok-hook-patterns-best-practices.md` | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design |
 | `tiktok-hook-patterns-wide-research-assessment.md` | TikTok hook patterns research — wide assessment and source evaluation |
 | `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |
