@@ -291,6 +291,19 @@ describe("buildReport coverage gate", () => {
     expect(report.summary.errors).toBeGreaterThan(0);
     expect(report.summary.passed).toBe(false);
   });
+
+  it("treats a leading gap < 2.0s as a warning, not an error", () => {
+    // Video intro may have visuals before first subtitle starts
+    const report = buildReport({
+      cues: [{ start: 0.5, end: 5, text: "First", words: [] }],
+      expectedWords: [],
+      videoDuration: 5,
+      silenceSegments: [],
+    });
+    // Leading gap = 0.5s < 2.0s → warning
+    expect(report.coverage.gaps.length).toBeGreaterThan(0);
+    expect(report.summary.passed).toBe(true);
+  });
 });
 
 describe("buildReport", () => {

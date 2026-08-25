@@ -242,16 +242,17 @@ export function buildReport({
   const coverage = analyzeCoverage(cues, videoDuration);
 
   // Coverage gaps are errors (hard gate for 100% coverage).
-  // Exception: a single trailing gap < 1.0s at video end is a warning
-  // (CTA scene may end before video, subtitles can't cover dead air).
-  const TRAILING_GAP_TOLERANCE = 2.0;
+  // Exception: a single leading or trailing gap < 2.0s is a warning
+  // (video intro/outro may have visuals before/after subtitles).
+  const EDGE_GAP_TOLERANCE = 2.0;
   const lastCueEnd = cues?.length > 0 ? cues[cues.length - 1].end : 0;
+  const firstCueStart = cues?.length > 0 ? cues[0].start : 0;
   const coverageErrorGaps = coverage.gaps.filter(
     (g) =>
       !(
         coverage.gaps.length === 1 &&
-        g.from >= lastCueEnd - 0.1 &&
-        g.duration < TRAILING_GAP_TOLERANCE
+        ((g.from >= lastCueEnd - 0.1 && g.duration < EDGE_GAP_TOLERANCE) ||
+          (g.from < firstCueStart + 0.1 && g.duration < EDGE_GAP_TOLERANCE))
       ),
   );
   const coverageWarningGaps = coverage.gaps.length - coverageErrorGaps.length;
