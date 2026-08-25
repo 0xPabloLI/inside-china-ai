@@ -13,25 +13,26 @@ const postsQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "China AI News — Chinese AI Models, Labs & Policy" },
+      { title: "China AI News: Weekly Chinese AI Models & Policy" },
       {
         name: "description",
         content:
-          "China AI news, weekly: Chinese AI model releases, the labs behind them, and China's AI regulation — independent reporting, one new piece a week.",
+          "China AI news, weekly: Chinese AI model releases, the labs building them, and China's AI regulation. Independent reporting — one new piece a week.",
       },
-      { property: "og:title", content: "China AI News — Chinese AI Models, Labs & Policy" },
+      { property: "og:title", content: "China AI News: Weekly Chinese AI Models & Policy" },
       {
         property: "og:description",
         content:
-          "China AI news, weekly: Chinese AI model releases, the labs behind them, and China's AI regulation — independent reporting.",
+          "China AI news, weekly: Chinese AI model releases, the labs building them, and China's AI regulation. Independent reporting — one new piece a week.",
       },
       { property: "og:url", content: "https://chinaai.news/" },
       ...ogImageMeta(),
       { name: "twitter:image", content: "https://chinaai.news/china-ai-news-logo-gpt.png" },
-      { name: "twitter:title", content: "China AI News — Chinese AI Models, Labs & Policy" },
+      { name: "twitter:title", content: "China AI News: Weekly Chinese AI Models & Policy" },
       {
         name: "twitter:description",
-        content: "China AI news, weekly: Chinese AI models, labs, and policy.",
+        content:
+          "China AI news, weekly: Chinese AI model releases, the labs building them, and China's AI regulation.",
       },
     ],
 
@@ -47,7 +48,8 @@ export const Route = createFileRoute("/")({
               "@id": "https://chinaai.news/#website",
               name: "China AI News",
               url: "https://chinaai.news/",
-              description: "Independent writing on China's AI industry.",
+              description:
+                "China AI news, weekly: Chinese AI model releases, the labs building them, and China's AI regulation.",
               publisher: { "@id": "https://chinaai.news/#organization" },
             },
             {

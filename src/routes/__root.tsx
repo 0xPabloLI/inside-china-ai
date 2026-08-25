@@ -79,10 +79,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "China AI News — Articles" },
+      { title: "China AI News: Weekly Chinese AI Models & Policy" },
       {
         name: "description",
-        content: "Independent writing on China's AI industry. One email a week.",
+        content:
+          "China AI news, weekly: Chinese AI model releases, the labs building them, and China's AI regulation. Independent reporting — one new piece a week.",
       },
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: "China AI News" },
