@@ -126,7 +126,7 @@ collectFromSource() 层次：
 | # | Issue | Blocked by | Conflict files | Notes |
 |---|-------|-------------|---------------|-------|
 | #66 | extractScript auto-fallback | — | search-sources.mjs, cdp-client.mjs | 搜索健壮性提升。per-site to Jina to generic eval to /extract。#67 ✅ unblocked |
-| #63 | SVE: Single-Visit Extraction | #54 done, #55 done | search-sources.mjs, asset-sourcer.mjs | 减少 CDP 调用次数，性能优化 |
+| #63 | SVE: Single-Visit Extraction + URL dedup | #54 done, #55 done | search-sources.mjs, asset-sourcer.mjs | Part 0: URL-level dedup in allArticles (after collect, before output). Part 1: SVE single-visit. Part 2: downloadCandidate helper extraction. 减少 CDP 调用次数 + 消除跨源 URL 冗余 |
 | ~~#110~~ | ✅ Progressive media-search layers (L1–L4) | #88/#67 recommended | ~~source-registry.mjs, asset-sourcer.mjs~~ | ✅ Commit 3bdadd5. Brave Image + SearXNG Image as Tier 3. Out of scope: Brave Video, SearXNG Video, Tavily, content-pipeline.md docs |
 | #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92 |
 | #64 | Add free API sources + baidu_news | — | source-registry.mjs | 13 候选 API，Brave 需注册。+ baidu_news (CDP news.baidu.com/ns，与 google_news/bing_news 同模式) |
