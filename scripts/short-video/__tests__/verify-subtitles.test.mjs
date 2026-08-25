@@ -237,6 +237,62 @@ describe("analyzeCoverage", () => {
   });
 });
 
+describe("buildReport coverage gate", () => {
+  it("FAILS when coverage has gaps (errors > 0, not just warnings)", () => {
+    // Scenario #5: 97.9% coverage with a 1.56s gap
+    const report = buildReport({
+      cues: [{ start: 0, end: 2, text: "Hi", words: [] }],
+      expectedWords: [],
+      videoDuration: 5,
+      silenceSegments: [],
+    });
+    expect(report.coverage.gaps.length).toBeGreaterThan(0);
+    expect(report.summary.errors).toBeGreaterThan(0);
+    expect(report.summary.passed).toBe(false);
+  });
+
+  it("PASSES when coverage is 100% (no gaps)", () => {
+    // Scenario #4: full coverage
+    const report = buildReport({
+      cues: [{ start: 0, end: 5, text: "Full", words: [] }],
+      expectedWords: [],
+      videoDuration: 5,
+      silenceSegments: [],
+    });
+    expect(report.coverage.gaps).toEqual([]);
+    expect(report.summary.errors).toBe(0);
+    expect(report.summary.passed).toBe(true);
+  });
+
+  it("treats a trailing gap < 2.0s as a warning, not an error", () => {
+    // Scenario #6: CTA scene ends before video, small trailing gap
+    const report = buildReport({
+      cues: [{ start: 0, end: 4.6, text: "Last", words: [] }],
+      expectedWords: [],
+      videoDuration: 5,
+      silenceSegments: [],
+    });
+    // Trailing gap = 5.0 - 4.6 = 0.4s < 2.0s → warning
+    expect(report.coverage.gaps.length).toBeGreaterThan(0);
+    // Only trailing gap < 2.0s → still a warning, not error
+    expect(report.summary.passed).toBe(true);
+  });
+
+  it("FAILS on a trailing gap >= 2.0s", () => {
+    // Scenario #7: real coverage issue at the end
+    const report = buildReport({
+      cues: [{ start: 0, end: 2, text: "Last", words: [] }],
+      expectedWords: [],
+      videoDuration: 5,
+      silenceSegments: [],
+    });
+    // Trailing gap = 5.0 - 2.0 = 3.0s >= 2.0s → error
+    expect(report.coverage.gaps.length).toBeGreaterThan(0);
+    expect(report.summary.errors).toBeGreaterThan(0);
+    expect(report.summary.passed).toBe(false);
+  });
+});
+
 describe("buildReport", () => {
   const expected = expectedWordTimes(timingData, sceneDurations);
 

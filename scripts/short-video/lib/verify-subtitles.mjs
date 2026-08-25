@@ -32,7 +32,7 @@ import { writeDiagnosticsBundle } from "./audio/diagnostics.mjs";
  */
 export const SYNC_TOLERANCE = AUDIO_SYNC_TOLERANCE;
 /** Stretches of video longer than this with no subtitle are reported. */
-export const COVERAGE_GAP_THRESHOLD = 1.0;
+export const COVERAGE_GAP_THRESHOLD = 0.2;
 /** ASS timestamps are centisecond-resolution; allow for rounding at both ends. */
 const ROUNDING_SLACK = 0.011;
 const CHAIN_GAP = CHAIN_GAP_FRAMES / FPS;
@@ -241,8 +241,27 @@ export function buildReport({
   const wordsPerLine = analyzeWordsPerLine(cues);
   const coverage = analyzeCoverage(cues, videoDuration);
 
-  const errors = (wordSequence.matches ? 0 : 1) + sync.offenders.length + gaps.violations.length;
-  const warnings = durations.tooShort.length + wordsPerLine.overLong.length + coverage.gaps.length;
+  // Coverage gaps are errors (hard gate for 100% coverage).
+  // Exception: a single trailing gap < 1.0s at video end is a warning
+  // (CTA scene may end before video, subtitles can't cover dead air).
+  const TRAILING_GAP_TOLERANCE = 2.0;
+  const lastCueEnd = cues?.length > 0 ? cues[cues.length - 1].end : 0;
+  const coverageErrorGaps = coverage.gaps.filter(
+    (g) =>
+      !(
+        coverage.gaps.length === 1 &&
+        g.from >= lastCueEnd - 0.1 &&
+        g.duration < TRAILING_GAP_TOLERANCE
+      ),
+  );
+  const coverageWarningGaps = coverage.gaps.length - coverageErrorGaps.length;
+
+  const errors =
+    (wordSequence.matches ? 0 : 1) +
+    sync.offenders.length +
+    gaps.violations.length +
+    coverageErrorGaps.length;
+  const warnings = durations.tooShort.length + wordsPerLine.overLong.length + coverageWarningGaps;
 
   return {
     videoDuration,

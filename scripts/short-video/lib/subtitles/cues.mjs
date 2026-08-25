@@ -265,7 +265,7 @@ function layoutCues(rawCues) {
 }
 
 /** Threshold for hold-out extension: gaps under this between cues are filled. */
-const HOLD_OUT_GAP_THRESHOLD = 0.6;
+const HOLD_OUT_GAP_THRESHOLD = 2.0;
 
 /**
  * Final pass: extend cue end times to fill small inter-cue gaps (< 0.6s)

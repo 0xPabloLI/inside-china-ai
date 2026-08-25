@@ -15,7 +15,7 @@
  *   scripts/short-video/output/{pipelineId}/final.mp4
  */
 
-import { writeFileSync, mkdirSync, readdirSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, readdirSync, existsSync, readFileSync } from "fs";
 import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
@@ -178,6 +178,55 @@ async function main() {
       console.log();
     } catch (e) {
       console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
+    }
+  }
+
+  // ── Step 1.5c: Apply media-patch.json to scenes (auto-assign sourced assets) ──
+  // After asset-sourcer runs, it generates media-patch.json with scene assignments.
+  // This step reads the patch and applies assigned media to scenes that don't have media yet.
+  // Memory-only mutation — does NOT write back to scene-data.mjs.
+  {
+    const contentDirAbs = resolve(__dirname, "content", contentDir);
+    const patchPath = resolve(contentDirAbs, "..", "..", "output", contentDir, "media-patch.json");
+    if (existsSync(patchPath)) {
+      try {
+        const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
+        const assigned = Array.isArray(patch)
+          ? patch.filter((p) => p.status === "assigned" && p.media?.path)
+          : [];
+        if (assigned.length > 0) {
+          let applied = 0;
+          const appliedScenes = [];
+          for (const entry of assigned) {
+            const scene = scenes.find((s) => s.id === entry.sceneId);
+            if (!scene) continue;
+            if (scene.media?.path) continue; // Don't overwrite existing media
+            const mediaPath = resolve(contentDirAbs, entry.media.path);
+            if (!existsSync(mediaPath)) {
+              console.warn(
+                `⚠️  Patched media not found: ${entry.media.path} (scene ${entry.sceneId})`,
+              );
+              continue;
+            }
+            scene.media = { ...scene.media, ...entry.media };
+            applied++;
+            appliedScenes.push(entry.sceneId);
+          }
+          if (applied > 0) {
+            console.log(
+              `📦 Step 1.5c: Applied ${applied} media assignments to scenes: ${appliedScenes.join(", ")}\n`,
+            );
+          } else {
+            console.log(`📦 Step 1.5c: No new media to apply (all scenes already have media)\n`);
+          }
+        } else {
+          console.log(
+            `⚠️  Step 1.5c: 0 assets assigned in media-patch.json — continuing with CSS fallback\n`,
+          );
+        }
+      } catch (e) {
+        console.warn(`⚠️  Step 1.5c: Failed to apply media patch: ${e.message}\n`);
+      }
     }
   }
 

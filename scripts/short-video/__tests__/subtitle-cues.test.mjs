@@ -182,7 +182,11 @@ describe("buildCues", () => {
     expect(cues[1].start).toBeCloseTo(1.5 - 2 * FRAME, 6);
   });
 
-  it("holds a cue half a second past the speech when the next cue is far away", () => {
+  it("fills the gap when next cue is within 2.0s (hold-out extension)", () => {
+    // With HOLD_OUT_GAP_THRESHOLD=2.0, a 1.2s gap gets filled:
+    // speech 1 end=1.2 → hold_out 0.5 → end=1.7
+    // speech 2 start=3.0 → display_start=3.0-0.067=2.933
+    // gap=2.933-1.7=1.233s → under 2.0 threshold → filled
     const timing = [
       {
         sceneId: 1,
@@ -203,7 +207,8 @@ describe("buildCues", () => {
       },
     ];
     const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
-    expect(cues[0].end).toBeCloseTo(1.2 + 0.5, 6);
+    // Gap should be filled to within CHAIN_GAP (2 frames)
+    expect(cues[1].start - cues[0].end).toBeLessThanOrEqual(2 * FRAME + 0.01);
   });
 
   it("clamps the first cue to zero instead of a negative lead-in", () => {
@@ -449,8 +454,42 @@ describe("buildCues", () => {
     expect(cues[1].start - cues[0].end).toBeLessThanOrEqual(2 * FRAME + 0.01);
   });
 
-  it("does not extend cues when the gap is large (> 1.0s)", () => {
-    // Two cues with a large gap between them — no extension
+  it("extends a cue's end to fill a scene-transition gap of 1.5s", () => {
+    // Scene-transition silence is typically 1–2s.
+    // With HOLD_OUT_GAP_THRESHOLD=2.0, a 1.5s gap should be filled.
+    // Speech 1 ends at 2.0s → hold_out 0.5s → end = 2.5s
+    // Speech 2 starts at 4.5s → display_start = 4.5 - 0.067 = 4.433s
+    // Gap = 4.433 - 2.5 = 1.933s → under 2.0 threshold → should be filled
+    const timing = [
+      {
+        sceneId: 1,
+        segments: [
+          {
+            text: "First scene.",
+            start: 1.5,
+            end: 2.0,
+            words: words(["First", 1.5, 1.8], ["scene.", 1.85, 2.0]),
+          },
+          {
+            text: "Second scene.",
+            start: 4.5,
+            end: 5.2,
+            words: words(["Second", 4.5, 4.8], ["scene.", 4.85, 5.2]),
+          },
+        ],
+      },
+    ];
+    const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
+    expect(cues).toHaveLength(2);
+    // Gap should be filled to within CHAIN_GAP (2 frames)
+    expect(cues[1].start - cues[0].end).toBeLessThanOrEqual(2 * FRAME + 0.01);
+  });
+
+  it("does not extend cues when the gap exceeds 2.0s", () => {
+    // Gaps > 2.0s are real silence (music intro, dramatic pause) — don't fill.
+    // Speech 1 ends at 1.2s → hold_out 0.5s → end = 1.7s
+    // Speech 2 starts at 5.0s → display_start = 5.0 - 0.067 = 4.933s
+    // Gap = 4.933 - 1.7 = 3.233s → above 2.0 threshold → NOT filled
     const timing = [
       {
         sceneId: 1,
@@ -463,17 +502,17 @@ describe("buildCues", () => {
           },
           {
             text: "Second.",
-            start: 3.0,
-            end: 3.7,
-            words: words(["Second.", 3.0, 3.7]),
+            start: 5.0,
+            end: 5.7,
+            words: words(["Second.", 5.0, 5.7]),
           },
         ],
       },
     ];
     const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
     expect(cues).toHaveLength(2);
-    // Gap stays > 0.6s, no extension
-    expect(cues[1].start - cues[0].end).toBeGreaterThan(0.6);
+    // Gap stays > 2.0s, no extension
+    expect(cues[1].start - cues[0].end).toBeGreaterThan(2.0);
   });
 
   it("single cue does not need extension", () => {
