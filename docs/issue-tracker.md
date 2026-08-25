@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-25 - 36 open issues (#113 VLM model switch + image preprocessing added; #63 split into #63+#114 — SVE stays as #63, #114 is downloadCandidate; #65 renamed to General Search Pool, Currents/GNews/Noozra moved out; quota-tracker deferred; baidu_news added to #64 scope; #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
+Last inventory: 2026-08-25 - 36 open issues (#113 VLM image preprocessing added; #63 split into #63+#114 — SVE stays as #63, #114 is downloadCandidate; #65 renamed to General Search Pool, Currents/GNews/Noozra moved out; quota-tracker deferred; baidu_news added to #64 scope; #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
 
 ---
 
@@ -84,7 +84,7 @@ collectFromSource() 层次：
 | Wave | Shared context | Session candidates (Tier) | Dependencies | Parallel rules |
 |---|---|---|---|---|
 | **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** (T1) L1 docs offload · **#111** (T1) text RAG integration · **#88** (T1) universal script fallback（从 W1 提升，#67 unblock 了下游） | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 → #111 必须串行（均改 `content-pipeline.md`）；#88 独占 `source-registry.mjs` |
-| **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) URL dedup (standalone, 无依赖, 优先) · **#113** (T2) VLM model switch (独立于搜索链, 可并行) · **#114** (T2) SVE (依赖 #63) · **#115** (T2) downloadCandidate (依赖 #63) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · ~~#110~~ ✅ closed | #63 → #114 → #115 串行（同改 search-sources.mjs/asset-sourcer.mjs）；#89 P0 先于 #91；#63 可与 #89/#113 并行 |
+| **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) URL dedup (standalone, 无依赖, 优先) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · **#114** (T2) SVE (依赖 #63) · **#115** (T2) downloadCandidate (依赖 #63) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · ~~#110~~ ✅ closed | #63 → #114 → #115 串行（同改 search-sources.mjs/asset-sourcer.mjs）；#89 P0 先于 #91；#63 可与 #89/#113 并行 |
 | **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#112** (T2) image search pool | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 已合并进 #65；#112 依赖 #91/#103 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行 |
 | **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
 | **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#75** (T3) 下载方案 · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference | #99 依赖 #98；#101 依赖 #69 推荐接 #100；#75 依赖 #54 done | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
@@ -127,7 +127,7 @@ collectFromSource() 层次：
 |---|-------|-------------|---------------|-------|
 | #66 | extractScript auto-fallback | — | search-sources.mjs, cdp-client.mjs | 搜索健壮性提升。per-site to Jina to generic eval to /extract。#67 ✅ unblocked |
 | #63 | URL dedup (standalone) | — | search-sources.mjs | URL-level dedup in allArticles (after collect, before output). URL 标准化（去 query/fragment/统一 protocol）+ Set 去重。与标题相似度去重结合：URL 去重先跑（消除精确重复），标题去重后跑（消除近似重复）。独立于 SVE，无前置依赖，可优先做 |
-| #113 | VLM: Switch to 2B-4bit + image preprocessing | — | vlm_analyzer.py, visual-analyzer.mjs | Switch MODEL_ID to Qwen3-VL-2B-4bit (3x speed, 5x memory savings). Add PIL resize for >1920px images (all models hallucinate on high-res). Upgrade mlx-vlm for video fix. Benchmark: `docs/research/vlm-model-selection-benchmark.md` |
+| #113 | VLM: Image preprocessing (resize >1920px) | — | vlm_analyzer.py | 所有模型在高分辨率图（>1920px）上幻觉。根因是分辨率不是模型能力。PIL resize 到 1920px 长边后消除幻觉。Benchmark: `docs/research/vlm-model-selection-benchmark.md` |
 | #114 | SVE: Single-Visit Extraction | #63 done | search-sources.mjs, asset-sourcer.mjs | 减少 CDP 调用次数：一次访问提取 articles+images+全文，不重复打开同一页面。原 #63 Part 1. GitHub issue created 08-25 |
 | #115 | downloadCandidate helper extraction | #63 done | asset-sourcer.mjs | 从 5 个下载块提取 7 步 downloadCandidate helper，消除重复代码。原 #63 Part 2。#112 新增 CDP image sources 也直接调用. GitHub issue created 08-25 |
 | ~~#110~~ | ✅ Progressive media-search layers (L1–L4) | #88/#67 recommended | ~~source-registry.mjs, asset-sourcer.mjs~~ | ✅ Commit 3bdadd5. Brave Image + SearXNG Image as Tier 3. Out of scope: Brave Video, SearXNG Video, Tavily, content-pipeline.md docs |
@@ -221,7 +221,7 @@ collectFromSource() 层次：
 | `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
 | `Search quota / backend routing` | #65, #110, #112 | 🟡 中——Brave quota 与统一路由边界需单一 owner（#109 已合并进 #65） |
-| `vlm_analyzer.py` / `visual-analyzer.mjs` | #113 | 🟢 低——VLM 子系统独立于搜索/素材链，无并行冲突 |
+| `vlm_analyzer.py` | #113 | 🟢 低——VLM 图片预处理，独立于搜索/素材链，无并行冲突 |
 | `scene-rules.mjs` / `scene-templates.mjs` | #94（可能） | 🟢 低 |
 
 ---
