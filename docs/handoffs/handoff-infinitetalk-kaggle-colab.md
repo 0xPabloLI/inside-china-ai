@@ -2,7 +2,34 @@
 
 > **创建时间**: 2026-08-24
 > **更新时间**: 2026-08-25
-> **状态**: 🔄 脚本已修复（v9/v2），等待运行测试
+> **状态**: 🔄 两个任务并行运行中，需新 session 跟踪结果
+
+## ⚠️ 当前运行中的任务（新 session 需跟踪）
+
+### 1. Kaggle Dataset 创建 kernel
+- **Kernel**: `xpabloli/infinitetalk-dataset-creator` (v2)
+- **状态**: RUNNING（2026-08-25 13:22 push）
+- **目的**: 分批下载 42GB 模型 → 创建 `xpabloli/infinitetalk-models` Dataset
+- **检查命令**: `kaggle kernels status xpabloli/infinitetalk-dataset-creator`
+- **完成后验证**: `kaggle datasets files xpabloli/infinitetalk-models`
+- **如果失败**: 检查 kernel output log（`kaggle kernels output xpabloli/infinitetalk-dataset-creator -p /tmp/`）
+  - v1 失败原因：Kaggle script 模式不自动设置 KAGGLE_USERNAME/KAGGLE_KEY
+  - v2 修复：添加 `xpabloli/kaggle-secrets` dataset 作为 source，kernel 从中读取 kaggle.json
+- **依赖**: `xpabloli/kaggle-secrets` private Dataset（含 kaggle.json API credentials）
+
+### 2. Colab T4 推理测试
+- **命令**: `HTTPS_PROXY=http://127.0.0.1:7897 colab --auth=adc run --gpu T4 --timeout 36000 scripts/colab/infinitetalk-test/run_infinitetalk_colab.py`
+- **状态**: 基座模型下载中（已运行 ~3h，`hf download` 用 capture_output=True 不显示进度）
+- **PID**: 5988（本地 keep-alive 进程）
+- **Log**: `/tmp/infinitetalk-colab-v2.log`（309 行，停在 Step 4 基座下载）
+- **如果失败**: 可能是 Colab session 超时（90min 空闲限制）或下载超时
+- **如果成功**: 输出视频在 `/content/InfiniteTalk/infinitetalk_res_fp8.mp4`
+
+### Dataset 创建成功后的下一步
+1. 修改 `scripts/kaggle/infinitetalk-test/infinitetalk_inference.py`：从 `/kaggle/input/infinitetalk-models/` 读取模型（参考 EchoMimicV3 脚本 Step 4）
+2. 更新 `kernel-metadata.json`：添加 `infinitetalk-models` 到 `dataset_sources`
+3. Push 推理 kernel: `kaggle kernels push -p scripts/kaggle/infinitetalk-test/`
+4. 等待完成后下载输出视频
 
 ## 测试目标
 
