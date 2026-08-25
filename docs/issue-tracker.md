@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-24 - 33 open issues (after #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
+Last inventory: 2026-08-25 - 33 open issues (after #110 closed, #112 added, #109 merged into #65; quota-tracker deferred; baidu_news added to #64 scope; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
 
 ---
 
