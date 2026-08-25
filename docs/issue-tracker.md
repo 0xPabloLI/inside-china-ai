@@ -49,9 +49,10 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 | 模块 | 产出 issue | 消费 issue | 依赖类型 |
 |------|-----------|-----------|---------|
-| `lib/quota-tracker.mjs`（通用配额管理器，从 `progressive-search.mjs` 的 `BraveQuotaTracker` 提取） | #65（产出时提取） | #112（复用 Brave Image 配额） | Soft — #112 可先用 `BraveQuotaTracker`，#65 完成后统一迁移 |
-| `lib/search-pool.mjs`（统一搜索 pool round-robin + 配额调度） | #65（产出） | #112（图片 pool 可参考 text pool 的调度模式） | Soft — 架构参考，非代码复用（text pool 是 REST API，image pool 是 API+CDP 混合） |
+| `lib/search-pool.mjs`（统一搜索 pool round-robin，try-catch 链，不做配额追踪） | #65（产出） | #112（图片 pool 可参考 text pool 的调度模式） | Soft — 架构参考，非代码复用（text pool 是 REST API，image pool 是 API+CDP 混合） |
 | `lib/download-candidate.mjs`（统一下载逻辑 helper，从 5 个下载块提取 7 步模式） | #63 Part 2（产出） | #112（新增的 CDP image sources 也需要下载逻辑） | Hard — #63 提取后 #112 直接调用，否则 #112 要重复写下载逻辑 |
+
+> ~~`lib/quota-tracker.mjs`~~ — 暂不提取。配额超限由 API 返回 429/403，代码 catch 后继续 fallback。pool 调用频率低（Layer 3 兜底），不值得做配额追踪。
 
 **#65 pool 在 fallback chain 中的位置**：
 
@@ -60,10 +61,19 @@ collectFromSource() 层次：
   Layer 0: apiSearch (源专用 API，如 arXiv/GitHub/Currents) ← pool 不替换
   Layer 1: CDP (主路径，打开 Chrome 搜索页面) ← pool 不替换
   Layer 2: cdpFallback (Google site: 搜索) ← pool 不替换
-  Layer 3: mcpFallback (当前=Grok only) → #65 pool 替换此层
+  Layer 3: mcpFallback → #65 pool 替换此层
 ```
 
+**mcpFallback 分两类**：
+
+| 类型 | 源 | mcpFallback 指向 | #65 pool 替换？ |
+|------|------|-------------------|----------------|
+| 专用 MCP | xhs, sogou_weixin, weibo_hot, bilibili, douyin | 平台专用 MCP (rednote-mcp, weixin-mcp, etc.) | ❌ 不替换 — 搜的是特定平台数据 |
+| 通用 web_search | x_search, youtube, arxiv, github, threads, google, mcp_grok_search | mcp-search-bridge/Grok `web_search` | ✅ 替换 — 从"只调 Grok"变成 round-robin (Brave → Tavily → Jina → ... → Grok) |
+
 **#65 pool 不替换专用 API**（arXiv、GitHub、Currents、GNews、OpenAlex 等）。这些源有自己的 `apiSearch`，返回结构化精确数据（论文标题/URL/摘要）。pool 成员（Brave/Tavily/Jina）返回通用网页结果，不会精确匹配学术论文。pool 只在 Layer 0-2 全部失败后作为最终兜底。
+
+**#65 pool 设计方案（精简，2026-08-25 确定）**：try-catch 串行链，不做配额追踪。每个引擎直接调，返回空或 429 就 fallback 到下一个。不做持久化、不做月/日重置。
 
 ---
 
@@ -119,7 +129,7 @@ collectFromSource() 层次：
 | #63 | SVE: Single-Visit Extraction | #54 done, #55 done | search-sources.mjs, asset-sourcer.mjs | 减少 CDP 调用次数，性能优化 |
 | ~~#110~~ | ✅ Progressive media-search layers (L1–L4) | #88/#67 recommended | ~~source-registry.mjs, asset-sourcer.mjs~~ | ✅ Commit 3bdadd5. Brave Image + SearXNG Image as Tier 3. Out of scope: Brave Video, SearXNG Video, Tavily, content-pipeline.md docs |
 | #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92 |
-| #64 | Add free API sources | — | source-registry.mjs | 13 候选 API，Brave 需注册 |
+| #64 | Add free API sources + baidu_news | — | source-registry.mjs | 13 候选 API，Brave 需注册。+ baidu_news (CDP news.baidu.com/ns，与 google_news/bing_news 同模式) |
 | #90 | MCP to API migration (Bigsong) | — | source-registry.mjs | lib/bigsong-api.mjs 直接 HTTP 调用 |
 | #65 | Unified Search Pool (REST + MCP, 含 #109) | #64, #90 | search-sources.mjs, config.env | Brave > Tavily > Jina > Currents > GNews > Noozra > Grok (revised 08-25 by quality+quota). #109 合并：MCP 封装替代 Brave MCP |
 | #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md | 12 public feeds，evidence boundary 分组 |
