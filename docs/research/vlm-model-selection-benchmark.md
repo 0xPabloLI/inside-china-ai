@@ -3,7 +3,7 @@
 > **创建日期**：2026-08-25
 > **关联 ADR**：`docs/adr/0009-vlm-qwen3-vl-mlx.md`
 > **原始数据**：`scripts/short-video/experiments/vlm-benchmark-results.json` (R1)、`vlm-benchmark-results-r2.json` (R2)、`vlm-benchmark-results-r3.json` (R3)
-> **Judge 结果**：`scripts/short-video/experiments/vlm-judge-results.md` (R1)、`vlm-judge-results-r2.md` (R2)
+> **Judge 结果**：`scripts/short-video/experiments/vlm-judge-results.md` (R1)、`vlm-judge-results-r2.md` (R2)、`vlm-judge-results-r3.md` (R3)
 
 ---
 
@@ -73,11 +73,15 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 
 ### 普通图（1080×1920）质量对比
 
-所有模型在普通分辨率图上质量相当。2B 系列在中文品牌识别上略优（识别 "恒生"、"宇树科技"、"SFCB" 等具体品牌名），4B 在细节描述上略丰富（"mesh doors"、"wooden desk"），8B 描述更精炼。LLM-as-Judge 盲评（R1）2B-4bit 84/102 vs 8B-8bit 72/102，但 R2 显示 2B 的优势主要来自高分辨率图上的运气差异。
+所有模型在普通分辨率图上质量相当。2B 系列在中文品牌识别上略优（识别 "恒生"、"宇树科技"、"SFCB" 等具体品牌名），4B 在细节描述上略丰富（"mesh doors"、"wooden desk"），8B 描述更精炼。LLM-as-Judge 盲评：R1 2B-4bit 84/102 vs 8B-8bit 72/102；R3 4B-8bit 83/102 vs 2B-4bit 75/102（2B-4bit 在普通图上略优 72 vs 70，但高分辨率图幻觉拉低总分）。
 
 ### 视频分析
 
-所有模型在视频分析上均失败，错误为 `[broadcast_shapes] Shapes (N) and (0) cannot be broadcast`。这是 mlx-vlm 的 Qwen3-VL 原生视频处理器问题。mlx-vlm v0.6.14 新增了 "video subsampling to images fallback"（PR #1924），v0.6.6 修复了 "Qwen3-VL PIL video inputs"（PR #1642）。升级 mlx-vlm 可能修复。
+**根因已定位**：mlx-vlm `generate()` API 调用不走 `resolve_video_inputs()` 帧提取 fallback。Qwen3-VL 有 `video_processor` 组件，`processor_handles_video()` 返回 True，所以视频直接传给原生处理器。但原生处理器有 `broadcast_shapes` bug（帧提取返回空数组 shape `(0,)`，与 token shape `(N,)` 不匹配）。`resolve_video_inputs` 只在 CLI 入口 `main()` 中被调用，Python API 调用绕过了它。
+
+**升级 mlx-vlm 0.6.13 → 0.6.16 未修复**：同样的 `broadcast_shapes` 错误。
+
+**已验证的 workaround**：手动调用 `sample_video_frames()` 提取帧 + `subsample_evenly()` 取 8 帧 + 作为多图输入 `generate(image=frames)`。4B-8bit 测试成功，18.4s 生成准确描述："A humanoid robot demonstrates its real-time, multi-modal capabilities by performing various household tasks across different rooms..."。这应该在 `vlm_analyzer.py` 中实现，而非等 mlx-vlm 修复。
 
 ## 5. 社区评价汇总
 
@@ -116,7 +120,8 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 ## 7. 待办
 
 - [x] 4B-8bit 和 8B-4bit 下载完成后补充测试 (R3 已完成)
-- [ ] 升级 mlx-vlm 到 v0.6.15+，重新测试视频分析
+- [x] 升级 mlx-vlm 到 0.6.16，重新测试视频分析（未修复，但找到 workaround：手动帧提取）
 - [ ] 实现图片预处理（resize 大图到 ≤1920px）—— Issue #113
+- [ ] 实现视频分析 workaround（手动帧提取 + 多图输入）
 - [ ] 更新 `vlm_analyzer.py` 中的 MODEL_ID
 - [x] 新建 GitHub issue 跟踪图片预处理 (#113)
