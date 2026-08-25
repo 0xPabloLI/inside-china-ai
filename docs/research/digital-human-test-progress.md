@@ -553,15 +553,39 @@
 - **许可证**：Apache 2.0（商用 OK）
 - **关键特点**：稀疏帧视频配音，同步唇+头+身体+表情，**无限长度**生成，也可做 image-audio-to-video
 - **中文支持**：✅ 原生支持中英文
-- **测试重点**：M2 Pro 是否能运行；推理速度；无限长度的实际效果
+- **测试重点**：T4 16GB 是否能运行（FP8 量化 + low VRAM mode）；推理速度；无限长度的实际效果
+
+#### 源码分析结论（2026-08-25）
+
+通过阅读 InfiniteTalk 源码（`generate_infinitetalk.py` + `wan/multitalk.py` + `wan/modules/t5.py`），确认：
+
+1. **必须用 `--quant fp8`（不是 int8）**：T5 量化加载代码 `load_file(os.path.join(quant_dir, f"t5_{quant}.safetensors"))` 在 int8 时寻找 `t5_int8.safetensors`，但 HF repo 只有 `t5_fp8.safetensors`，int8 模式会崩溃。DiT 有 INT8 和 FP8 两种量化，但 T5 只有 FP8。
+2. **FP8 模式不需要 LoRA**：Pipeline 代码 `if lora_dir is not None and quant is None:` — LoRA 仅在非量化模式加载，FP8 模式跳过 LoRA（省 9.9GB）。
+3. **`config.json` MISSING 根因**：`hf download --include 'config.json' '其他文件' ...` 中 `--include` 和位置参数混用导致 filter 冲突。修复：用位置参数指定具体文件，`--include` 只用于 glob pattern。
+
+#### 测试状态（2026-08-25）
+
+- **Kaggle v5-v8**：❌ 均失败（排队超时 / huggingface-cli 废弃 / 磁盘满 / config.json MISSING + 磁盘满）
+- **Colab v1**：❌ Session 被回收（pip install `-q` 静默模式导致 WebSocket 超时）
+- **脚本已修复为 v9（Kaggle）/ v2（Colab）**：
+  - `--quant fp8`（不是 int8）
+  - 跳过 LoRA 下载（省 9.9GB）
+  - `hf download` 命令修复（位置参数 + `--include` 只用于 glob）
+  - `pip install` 去掉 `-q`（保持输出活跃，避免 WebSocket 超时）
+  - 推理命令去掉 `--infinitetalk_dir`
+- **模型总大小**：~42GB（基座 15.5GB + FP8 DiT 19.5GB + T5 FP8 6.7GB + wav2vec2 0.35GB）
+- **Colab /content 磁盘**：~70-100GB，足够
+- **Kaggle /kaggle/working**：~20GB，不够，需要 Dataset 模式
+- **下一步**：在 Colab 上运行 v2 脚本测试
+- **handoff 文档**：`docs/handoffs/handoff-infinitetalk-kaggle-colab.md`
 
 #### InfiniteTalk / MultiTalk 各版本对比
 
 | 版本 | 来源 | 量化方式 | 大小 | 说明 |
 |------|------|---------|------|------|
 | **InfiniteTalk 原始版** | MeiGen-AI | 无 | ~20GB | 14B Wan2.1 基座 + InfiniteTalk LoRA |
-| **MultiTalk INT8 量化** | MeiGen-AI | `--quant int8` | ~14GB | ✅ **已发布**！MultiTalk 已支持 INT8 + SageAttention2.2 |
-| InfiniteTalk INT8 | MeiGen-AI | TODO | — | 📋 官方 Todo List 标注但**尚未发布** |
+| **InfiniteTalk FP8 量化** | MeiGen-AI | `--quant fp8` | ~26GB(19.5+6.7) | ✅ **已发布**！DiT FP8 + T5 FP8，用 `--quant fp8` |
+| InfiniteTalk INT8 量化 | MeiGen-AI | `--quant int8` | — | ⚠️ DiT INT8 已发布，但 **T5 INT8 不存在**，实际不可用 |
 | **Wan2GP InfiniteTalk** | deepbeepmeep | int8/fp8/gguf | 6GB+ | ✅ 已集成 InfiniteTalk，6GB VRAM 可跑 |
 | ComfyUI InfiniteTalk | Kijai | 标准 | — | ✅ ComfyUI 工作流已支持 |
 | **lightX2V LoRA 加速** | 社区 | LoRA 蒸馏 | — | 4-8 步推理（vs 标准 40 步） |
@@ -611,7 +635,7 @@
 - **环境**：Colab T4 14.56GB（Tesla T4），PyTorch + diffusers
 - **测试过程**：
   1. `git clone` + `pip install` 依赖（kornia、insightface 等需要手动安装）
-  2. `huggingface-cli download bytedance/LatentSync` 下载 checkpoint（latentsync_unet.pt + whisper/tiny.pt）
+  2. `hf download bytedance/LatentSync` 下载 checkpoint（latentsync_unet.pt + whisper/tiny.pt）
   3. `bash inference.sh` → VAE 解码阶段 OOM：`Tried to allocate 2.00 GiB. GPU has 14.56 GiB total, 959 MiB free`
   4. 加 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` 重试 → 仍然 OOM
 - **OOM 位置**：`diffusers/models/resnet.py` VAE down_block forward → `(input_tensor + hidden_states) / output_scale_factor`
