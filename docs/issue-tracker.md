@@ -125,7 +125,7 @@ collectFromSource() 层次：
 
 | # | Issue | Blocked by | Conflict files | Notes |
 |---|-------|-------------|---------------|-------|
-| #66 | extractScript auto-fallback | — | search-sources.mjs, cdp-client.mjs | 搜索健壮性提升。per-site to Jina to generic eval to /extract。#67 ✅ unblocked |
+| #66 | Scenario-driven fetch layer + extractScript fallback + API→CDP fix | — | search-sources.mjs, cdp-client.mjs, source-registry.mjs, asset-sourcer.mjs, new fetch-page.mjs | 学 web-access 工具选择表：web_fetch（静态HTML）→ Jina Reader（轻量JS）→ CDP（重）。+ API→CDP fallback 合理性检查（cdpUrl==apiUrl 时 skip）。#67 ✅ unblocked |
 | #116 | Pipeline auto-start CDP proxy | — | cdp-client.mjs, search-sources.mjs | 管线自动启动 CDP proxy（学 web-access check-deps.mjs）。Inline 最小逻辑到 cdp-client.mjs，不依赖 skill 路径。启动失败不 hard-fail，API/MCP 源继续工作 |
 | #63 | URL dedup (standalone) | — | search-sources.mjs | URL-level dedup in allArticles (after collect, before output). URL 标准化（去 query/fragment/统一 protocol）+ Set 去重。与标题相似度去重结合：URL 去重先跑（消除精确重复），标题去重后跑（消除近似重复）。独立于 SVE，无前置依赖，可优先做 |
 | #113 | VLM: Image preprocessing (resize >1920px) | — | vlm_analyzer.py | 所有模型在高分辨率图（>1920px）上幻觉。根因是分辨率不是模型能力。PIL resize 到 1920px 长边后消除幻觉。Benchmark: `docs/research/vlm-model-selection-benchmark.md` |
@@ -215,8 +215,8 @@ collectFromSource() 层次：
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #88, #64, #77, #90, #91, #92 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done） |
-| `asset-sourcer.mjs` | #88, #63, #75 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done） |
+| `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #66 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done；#66 加 skipCdpOnApiFail 标记） |
+| `asset-sourcer.mjs` | #88, #63, #75, #66 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()） |
 | `search-sources.mjs` | #66, #63, #88, #65, #90, #116 | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles） |
 | `cdp-client.mjs` | #66, #89, #116 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff；#116 加 ensureCdpProxy() |
 | `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
