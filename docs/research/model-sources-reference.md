@@ -207,31 +207,44 @@ grep -r "cuda\|device" inference.py | head -20
 
 ## 4. 搜索流程模板
 
-当用户要求"找一个能做 X 的模型"时：
+当用户要求"找一个能做 X 的模型"时，按以下顺序执行。策展来源有结果时可短路跳过广覆盖搜索（Step 2-6）。
 
 ```
-Step 1: GitHub API 搜索（最宽关键词 + sort=stars）
+Step 1: 策展来源优先查
+  - Ollama Library（ollama.com/library）：验证模型可用性 + 能力标签 + MLX 变体 + 一键安装
+  - LM Studio 目录（lmstudio.ai/models）：验证 MLX/GGUF 兼容性 + 可视化搜索
+  - 策展来源已验证可用性、兼容性和许可证——找到可用候选后仍需确认准入条件（§5），但可跳过 Step 2-6
+  - 未找到 → 进入 Step 2 广覆盖搜索
+
+Step 2: GitHub API 搜索（最宽关键词 + sort=stars）
   - GitHub 搜索 API 有专属速率限制，最多返回 1,000 个结果，可能带 `incomplete_results: true`
   - 完成条件：记录查询、执行日期、认证状态、total_count、incomplete_results
   - `incomplete_results=true` 时必须缩小查询或补充第二个关键词分支
   - 高星数仅为发现信号，不替代维护状态、许可证和兼容性检查
-Step 2: HuggingFace API 搜索（找权重和量化版本）
-Step 3: GitHub API 搜索（平台限定：{模型名} mlx/onnx/mac/mps）
-Step 4: ModelScope 搜索（找中国团队模型）
-Step 5: arXiv / HF Papers 发现论文 → 以论文作者、标题和 arXiv ID 在 GitHub/HF/ModelScope 查实现与权重
-Step 6: 汇总 → 检查 GPU 兼容性 → 候选证据卡（见 Step 6a）
-Step 6a: 候选证据卡（每个进入评分的候选必须完成）
+
+Step 3: HuggingFace API 搜索（找权重和量化版本）
+  - HF 是权重仓库（UGC，需 smoke test），不是策展来源——Step 1 未找到时才查
+
+Step 4: GitHub API 搜索（平台限定：{模型名} mlx/onnx/mac/mps）
+
+Step 5: ModelScope 搜索（找中国团队模型）
+
+Step 6: arXiv / HF Papers 发现论文 → 以论文作者、标题和 arXiv ID 在 GitHub/HF/ModelScope 查实现与权重
+
+Step 7: 汇总 → 检查 GPU 兼容性 → 候选证据卡（见 Step 7a）
+Step 7a: 候选证据卡（每个进入评分的候选必须完成）
   - 用途、官方来源 URL、项目/权重修订版
   - 许可证链接、目标设备、运行时与版本
   - 安装结果、最小 smoke test、性能测量
   - 已知限制、验证日期
   - 仅状态为「可验证」且证据卡完整的候选才进入评分
-Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能是否已实现」时）
-  7a. `pip show <package>` → 确认安装版本
-  7b. `grep -rn "<关键词>" <package_path>` → 读源码确认实现
-  7c. `inspect.getsource(<function>)` → 确认正确的 API 调用方式
-  7d. 用正确的 API 调用方式做 smoke test
-  7e. 网络搜索结果只作为补充，不作为唯一依据
+
+Step 8: 本地源码验证（当调研涉及「某库是否有 bug / 某功能是否已实现」时）
+  8a. `pip show <package>` → 确认安装版本
+  8b. `grep -rn "<关键词>" <package_path>` → 读源码确认实现
+  8c. `inspect.getsource(<function>)` → 确认正确的 API 调用方式
+  8d. 用正确的 API 调用方式做 smoke test
+  8e. 网络搜索结果只作为补充，不作为唯一依据
 
 > **教训（2026-08-26）**：mlx-vlm 0.6.16 的 Qwen3-VL 原生视频一直可用，但因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(video_path=, prompt=)`），误报为「所有平台都有 broadcast_shapes bug」。网络搜索到的 bug 报告反映的是**已报告的**问题，不代表**已修复的**状态。详见 `docs/research/vlm-model-selection-benchmark.md` §4「视频分析」中已废弃结论的记录。
 ```
@@ -243,7 +256,7 @@ Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 - **为什么 GitHub 比 HuggingFace 更重要**：很多完整的数字人项目（HeyGem、Linly-Talker、OpenTalking）只在 GitHub 上，HuggingFace 主要是模型权重仓库。
 - **为什么搜多个关键词组合**：同一个功能可能有多个表述（"talking head" vs "digital human" vs "说话头" vs "数字人"），单一关键词会遗漏。
 - **为什么检查 docker-compose.yml**：很多项目的 README 不明确说"需要 NVIDIA"，但 Docker 配置中的 `runtime: nvidia` 是硬性依赖的铁证。
-- **为什么加 Step 7 本地源码验证**：网络搜索到的 bug 报告反映的是已报告的状态，不代表已修复的状态。先读本地安装的包源码，再用正确 API 调用方式做 smoke test，能避免误报。
+- **为什么加 Step 8 本地源码验证**：网络搜索到的 bug 报告反映的是已报告的状态，不代表已修复的状态。先读本地安装的包源码，再用正确 API 调用方式做 smoke test，能避免误报。
 
 ---
 
@@ -269,7 +282,7 @@ Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 
 ### 综合评分
 
-状态为「可验证」且证据卡（见 §4 Step 6a）完整的候选，按四维度各打 1-5 分，加权求和：
+状态为「可验证」且证据卡（见 §4 Step 7a）完整的候选，按四维度各打 1-5 分，加权求和：
 
 | 维度 | 权重 | 5 分 | 3 分 | 1 分 |
 |------|------|------|------|------|
