@@ -48,7 +48,7 @@
 
 ### 建议
 
-短期保持选项 A（已验证、生产中）。如果图片质量不够再考虑选项 B——但**升级前必须完成公平 A/B 测试**：同一图片/视频 corpus、统一 resize（1280px）、相同提示词、≥3 次运行，分别报告图片质量、视频任务质量、首 token/总延迟、峰值内存和失败率。选项 C/D 作为中期 upgrade path 跟踪，需先做本机 smoke test 确认可行性。
+短期保持选项 A（已验证、生产中）。**A/B 公平评估已完成（2026-08-26）**：mlx-vlm 2B-4bit 在同 corpus、同 resize（1280px）、同 prompt 下全面碾压 Ollama qwen3.5:4b——速度快 9-56 倍（3.5s vs 31-197s/图）、内存少 6 倍（1.8GB vs 11.3GB）、输出长 32%、支持原生视频（Ollama API 不支持）。选项 B（Ollama）作为 fallback 不可行。选项 C/D 作为中期 upgrade path 跟踪，需先做本机 smoke test 确认可行性。
 
 ---
 
@@ -109,7 +109,6 @@
 - [ ] 清理本地多余 VLM 模型（~20GB）
 - [ ] 端到端 pipeline 测试（验证原生视频路径在 production 中工作）
 - [x] 公平 A/B 升级评估完成（2026-08-26）— mlx-vlm 2B-4bit 全面碾压 Ollama qwen3.5:4b（速度 9-56x，内存 6x，输出长 32%，支持视频）。详见 benchmark §9
-- [ ] 公平 A/B 升级评估：同一图片/视频 corpus、统一 resize、相同提示词、≥3 次运行，比较 2B-4bit vs Ollama qwen3.5:4b
 
 ---
 
