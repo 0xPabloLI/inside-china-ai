@@ -50,7 +50,9 @@ describe("Safe Zone regression: all scene files use SAFE_ZONES", () => {
     // We look for patterns like `bottom: 0` or `bottom: <number>` where number < 770
     // on divs that contain text content (not media containers)
     // Media containers are OK to use top: 0 / height: 100%
-    const bottomMatches = content.match(/bottom:\s*(\d+)/g);
+    // Regex: only match `bottom:` at line start or after semicolon/comma (CSS property context),
+    // NOT inside object literals like `padding: { top: 2, bottom: 2 }` where `bottom:` is a key.
+    const bottomMatches = content.match(/(?:^|[;,\n])\s*bottom:\s*(\d+)/g);
     if (bottomMatches) {
       for (const match of bottomMatches) {
         const value = parseInt(match.match(/\d+/)[0]);

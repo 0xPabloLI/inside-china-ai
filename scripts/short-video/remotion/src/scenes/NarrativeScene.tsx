@@ -23,7 +23,7 @@ import {
   ScaleIn,
   FadeIn,
 } from "../components/animations/entrance";
-import { SPACING, SAFE_ZONES } from "../components/shared";
+import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
 
 type Layout = "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
@@ -38,7 +38,7 @@ export const NarrativeScene: React.FC<{
   const hasMedia = !!scene.media;
   const glowColor = scene.id % 2 === 0 ? "red" : "blue";
   const frame = useCurrentFrame();
-  const highlightProgress = interpolate(frame, [20, 40], [0, 1], {
+  const highlightProgress = interpolate(frame, ANNOTATION.highlight.progressRange, [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -62,7 +62,7 @@ export const NarrativeScene: React.FC<{
         }}
       >
         {txt.highlight ? (
-          <Highlight color="rgba(245,158,11,0.15)" progress={highlightProgress} padding={{ top: 2, bottom: 2, left: 6, right: 6 }}>
+          <Highlight color={ANNOTATION.highlight.color} progress={highlightProgress} padding={ANNOTATION.highlight.padding}>
             {txt.result as string}
           </Highlight>
         ) : (
@@ -130,6 +130,7 @@ export const NarrativeScene: React.FC<{
             left: SAFE_ZONES.left,
             right: SAFE_ZONES.right,
             height: textBarHeight,
+            maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING.xl,
             background: "rgba(10,10,20,0.85)",
             padding: `${SPACING.lg}px ${SPACING.xl}px`,
             display: "flex",
@@ -137,6 +138,7 @@ export const NarrativeScene: React.FC<{
             justifyContent: "center",
             alignItems: "center",
             gap: SPACING.sm,
+            overflow: "hidden",
             borderTop: `2px solid ${glowColor === "red" ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
           }}
         >
@@ -174,10 +176,12 @@ export const NarrativeScene: React.FC<{
           right: SAFE_ZONES.right,  // 200 → right edge at x=880
           bottom: SAFE_ZONES.bottom,  // 770 → bottom edge at y=1150
           width: 420,  // fits in x∈[460,880] (right half minus safe zone)
+          maxWidth: 420 - 2 * SPACING.xl,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
           gap: SPACING.lg,
+          overflow: "hidden",
         }}
       >
         <SlideRight delay={0.2} duration={0.5}>
@@ -216,9 +220,11 @@ export const NarrativeScene: React.FC<{
           top: SAFE_ZONES.top,  // 220
           left: SAFE_ZONES.left,  // 60
           right: SAFE_ZONES.right,  // 200 → right edge at x=880
+          maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right,
           display: "flex",
           flexDirection: "column",
           gap: SPACING.sm,
+          overflow: "hidden",
         }}
       >
         <FadeIn delay={0.2} duration={0.5}>
@@ -251,11 +257,13 @@ export const NarrativeScene: React.FC<{
           bottom: SAFE_ZONES.bottom,  // 770 → bottom edge at y=1150
           left: SAFE_ZONES.left,
           right: SAFE_ZONES.right,
+          maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING['2xl'],
           display: "flex",
           flexDirection: "column",
           gap: SPACING.sm,
           background: "linear-gradient(to top, rgba(10,10,20,0.8), transparent)",
           padding: `${SPACING.xl}px ${SPACING['2xl']}px`,
+          overflow: "hidden",
         }}
       >
         <StampIn delay={0.6} duration={0.5}>
@@ -285,10 +293,12 @@ export const NarrativeScene: React.FC<{
           left: SAFE_ZONES.left,  // 60
           right: SAFE_ZONES.right,  // 200 → right edge at x=880
           bottom: SAFE_ZONES.bottom,  // 770 → bottom edge at y=1150
+          maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
           gap: SPACING.xl,
+          overflow: "hidden",
         }}
       >
         {cards.map((card, i) => (

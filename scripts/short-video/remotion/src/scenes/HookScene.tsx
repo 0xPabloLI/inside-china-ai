@@ -21,7 +21,7 @@ import {
   FrameGlow,
 } from "../components/visuals";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
-import { SPACING } from "../components/shared";
+import { SPACING, ANNOTATION } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
 
@@ -46,11 +46,11 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   const color = COLORS[colorKey] ?? COLORS.blue;
   const stats = Array.isArray(txt.stats) ? txt.stats : [];
   const frame = useCurrentFrame();
-  const circleProgress = interpolate(frame, [15, 30], [0, 1], {
+  const circleProgress = interpolate(frame, ANNOTATION.circle.progressRange, [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const underlineProgress = interpolate(frame, [20, 40], [0, 1], {
+  const underlineProgress = interpolate(frame, ANNOTATION.underline.progressRange, [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -181,10 +181,12 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                 letterSpacing: "2px",
                 lineHeight: 1.1,
                 textShadow: `0 0 40px ${color}66`,
+                maxWidth: 756,
+                overflow: "hidden",
               }}
             >
               {txt.highlight ? (
-                <Underline color={color} progress={underlineProgress} strokeWidth={3} padding={{ top: 4 }}>
+                <Underline color={color} progress={underlineProgress} strokeWidth={ANNOTATION.underline.strokeWidth} padding={ANNOTATION.underline.padding}>
                   {txt.hookText as string}
                 </Underline>
               ) : (
@@ -204,6 +206,8 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                     lineHeight: 1.05,
                     marginTop: SPACING.xl,
                     textAlign: "center",
+                    maxWidth: 756,
+                    overflow: "hidden",
                   }}
                 >
                   {txt.revealText as string}

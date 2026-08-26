@@ -28,6 +28,26 @@ export const easeOutExpo = Easing.bezier(0.16, 1, 0.3, 1);
 export { interpolate, Easing };
 
 /**
+ * Annotation parameters — single source of truth for rough-notation components.
+ * Centralized so opacity/strokeWidth/padding are consistent across scenes.
+ */
+export const ANNOTATION = {
+  highlight: {
+    color: "rgba(245,158,11,0.15)",
+    padding: { top: 2, bottom: 2, left: 6, right: 6 },
+    progressRange: [20, 40] as const,
+  },
+  underline: {
+    strokeWidth: 3,
+    padding: { top: 4 },
+    progressRange: [20, 40] as const,
+  },
+  circle: {
+    progressRange: [15, 30] as const,
+  },
+} as const;
+
+/**
  * Spacing scale — 4pt base system (impeccable layout.md guidance).
  * Use these tokens for all gaps, margins, and padding.
  * Same-group elements: sm (8px). Between groups: xl (24px) or '2xl' (32px).

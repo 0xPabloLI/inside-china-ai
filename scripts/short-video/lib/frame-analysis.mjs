@@ -383,6 +383,77 @@ export function checkNotAllBlack(buf) {
   };
 }
 
+/**
+ * Check that bright pixel spans in each content row do not exceed the
+ * safe-zone content width. Detects text that overflows its container
+ * *within* the safe zone — something the boundary-band checks cannot catch.
+ *
+ * For each sampled row in the content area (y ∈ [safeZones.top, height - safeZones.bottom]),
+ * finds the leftmost and rightmost bright (non-exempt) pixel. If the span
+ * (rightmost − leftmost) exceeds the theoretical content width
+ * (width − safeZones.left − safeZones.right), reports a warn.
+ *
+ * @param {PixelBuffer} buf
+ * @param {{left: number, right: number, top: number, bottom: number}} safeZones
+ * @returns {AnalysisResult}
+ */
+export function checkTextOverflow(buf, safeZones) {
+  const contentLeft = safeZones.left;
+  const contentRight = buf.width - safeZones.right;
+  const contentWidth = contentRight - contentLeft;
+  const yStart = safeZones.top;
+  const yEnd = buf.height - safeZones.bottom;
+
+  const exempt = [
+    BRAND_BAR_REGION,
+    WATERMARK_REGION,
+    ...frameGlowExemptRegions(buf.width, buf.height),
+  ];
+
+  let maxOverflow = 0;
+  let overflowRow = -1;
+
+  for (let y = yStart; y < yEnd && y < buf.height; y += SAMPLE_STEP) {
+    let leftmost = -1;
+    let rightmost = -1;
+    for (let x = 0; x < buf.width; x += SAMPLE_STEP) {
+      if (isExempt(x, y, exempt)) continue;
+      const idx = (buf.width * y + x) * 4;
+      const lum = luminance(buf.data[idx], buf.data[idx + 1], buf.data[idx + 2]);
+      if (lum > BRIGHT_THRESHOLD) {
+        if (leftmost === -1) leftmost = x;
+        rightmost = x;
+      }
+    }
+    if (leftmost !== -1) {
+      const span = rightmost - leftmost;
+      if (span > contentWidth) {
+        const overflow = span - contentWidth;
+        if (overflow > maxOverflow) {
+          maxOverflow = overflow;
+          overflowRow = y;
+        }
+      }
+    }
+  }
+
+  if (maxOverflow > 0) {
+    return {
+      level: "warn",
+      check: "Text overflow within safe zone",
+      detail: `Bright pixel span exceeds content width (${contentWidth}px) by ${maxOverflow}px at row y=${overflowRow}`,
+      metrics: { maxOverflow, overflowRow, contentWidth },
+    };
+  }
+
+  return {
+    level: "pass",
+    check: "Text overflow within safe zone",
+    detail: `No row exceeds content width (${contentWidth}px)`,
+    metrics: { contentWidth },
+  };
+}
+
 // ─── Aggregate runner ───
 
 /**
@@ -398,5 +469,6 @@ export function runFrameAnalysis(buf, safeZones) {
     checkSafeZoneRight(buf, safeZones),
     checkSafeZoneBottom(buf, safeZones),
     checkContentPresence(buf, safeZones),
+    checkTextOverflow(buf, safeZones),
   ];
 }

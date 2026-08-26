@@ -9,6 +9,7 @@ import {
   checkSafeZoneBottom,
   checkContentPresence,
   checkNotAllBlack,
+  checkTextOverflow,
   runFrameAnalysis,
   BRIGHT_THRESHOLD,
   BRIGHT_RATIO_FAIL,
@@ -328,5 +329,129 @@ describe("runFrameAnalysis", () => {
     const results = runFrameAnalysis(buf, SAFE_ZONES);
     const blackResult = results.find((r) => r.check.toLowerCase().includes("black"));
     expect(blackResult.level).toBe("fail");
+  });
+});
+
+// ─── checkTextOverflow ───
+
+describe("checkTextOverflow", () => {
+  it("passes when content area is empty (no bright pixels)", () => {
+    const buf = bgBuffer();
+    const result = checkTextOverflow(buf, SAFE_ZONES);
+    expect(result.level).toBe("pass");
+  });
+
+  it("passes when text fits within content width", () => {
+    // Content width = 1080 - 60 - 200 = 820px
+    // Draw bright pixels within [60, 880] → span = 820 (exactly max)
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 100,
+      xEnd: 800,
+      yStart: 300,
+      yEnd: 1000,
+    });
+    const result = checkTextOverflow(buf, SAFE_ZONES);
+    expect(result.level).toBe("pass");
+  });
+
+  it("passes when text spans exactly the full content width", () => {
+    // span = 880 - 60 = 820 = content width → boundary case
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: SAFE_ZONES.left,
+      xEnd: CANVAS.width - SAFE_ZONES.right,
+      yStart: 400,
+      yEnd: 900,
+    });
+    const result = checkTextOverflow(buf, SAFE_ZONES);
+    expect(result.level).toBe("pass");
+  });
+
+  it("warns when text overflows content width by 8px (one sample step)", () => {
+    // Use SAMPLE_STEP-aligned coordinates so sampling is predictable.
+    // contentLeft = 60, contentRight = 880, contentWidth = 820
+    // Sampled leftmost = 64 (first multiple of 8 >= 60)
+    // Rect xEnd = 896 → sampled bright includes x=888 (> 880) → overflow detected
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: SAFE_ZONES.left,
+      xEnd: CANVAS.width - SAFE_ZONES.right + 2 * SAMPLE_STEP,
+      yStart: 400,
+      yEnd: 900,
+    });
+    const result = checkTextOverflow(buf, SAFE_ZONES);
+    expect(result.level).toBe("warn");
+    expect(result.metrics.maxOverflow).toBeGreaterThan(0);
+  });
+
+  it("warns when text overflows content width significantly (64px)", () => {
+    // span = 944 - 64 = 880 > 820 → overflow = 60px (at sample granularity)
+    // Both 64 and 944 are multiples of SAMPLE_STEP (8)
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: SAFE_ZONES.left,
+      xEnd: CANVAS.width - SAFE_ZONES.right + 64,
+      yStart: 400,
+      yEnd: 900,
+    });
+    const result = checkTextOverflow(buf, SAFE_ZONES);
+    expect(result.level).toBe("warn");
+    expect(result.metrics.maxOverflow).toBeGreaterThan(0);
+  });
+
+  it("ignores bright pixels in brand bar exempt region", () => {
+    // Brand bar at x[60,880], y[130,200] — within safe zone top (y<220)
+    // But checkTextOverflow scans y >= safeZones.top (220), so brand bar is above scan range
+    // Draw content that overflows at y=300 + brand bar pixels at y=150
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 100,
+      xEnd: 800,
+      yStart: 300,
+      yEnd: 1000,
+    });
+    // Add brand bar pixels (won't be scanned — y < 220)
+    for (let y = 130; y < 200; y++) {
+      for (let x = 60; x < 880; x++) {
+        const idx = (CANVAS.width * y + x) * 4;
+        buf.data[idx] = 200;
+        buf.data[idx + 1] = 200;
+        buf.data[idx + 2] = 200;
+      }
+    }
+    const result = checkTextOverflow(buf, SAFE_ZONES);
+    expect(result.level).toBe("pass"); // content is within width, brand bar not scanned
+  });
+
+  it("ignores frame glow border pixels", () => {
+    // Draw bright pixels in the outer 15px (frame glow) but within content y-range
+    const buf = bgBuffer();
+    // Left glow band x[0,15] at y=300
+    for (let y = 300; y < 1000; y += SAMPLE_STEP) {
+      for (let x = 0; x < 15; x += SAMPLE_STEP) {
+        const idx = (CANVAS.width * y + x) * 4;
+        buf.data[idx] = 200;
+        buf.data[idx + 1] = 200;
+        buf.data[idx + 2] = 200;
+      }
+    }
+    // Right glow band x[1065,1080] at y=300
+    for (let y = 300; y < 1000; y += SAMPLE_STEP) {
+      for (let x = CANVAS.width - 15; x < CANVAS.width; x += SAMPLE_STEP) {
+        const idx = (CANVAS.width * y + x) * 4;
+        buf.data[idx] = 200;
+        buf.data[idx + 1] = 200;
+        buf.data[idx + 2] = 200;
+      }
+    }
+    const result = checkTextOverflow(buf, SAFE_ZONES);
+    // Glow pixels are in exempt regions → no overflow detected
+    expect(result.level).toBe("pass");
+  });
+
+  it("is included in runFrameAnalysis results", () => {
+    const buf = contentBuffer();
+    const results = runFrameAnalysis(buf, SAFE_ZONES);
+    const overflowResult = results.find((r) =>
+      r.check.toLowerCase().includes("overflow"),
+    );
+    expect(overflowResult).toBeDefined();
+    expect(["pass", "warn", "fail"]).toContain(overflowResult.level);
   });
 });
