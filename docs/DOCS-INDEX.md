@@ -222,3 +222,4 @@ No `specs/` or `tickets/` directories persist between work cycles. They are crea
 ## Redirect Rule
 
 If a topic is historical or split-legacy, keep a short pointer in `archive/README.md` and move all normative content to one canonical file only.
+| `model-sources-reference-review.md` | Review of model source reference — source availability, internal consistency, and evidence-chain actions |
