@@ -12,6 +12,7 @@
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = dirname(__dirname);
@@ -108,6 +109,65 @@ export function checkL2CommandLines(files) {
   return { findings };
 }
 
+/**
+ * Check 4: writing-for-agents gate.
+ * Detects structural changes in staged docs/ files and AGENTS.md.
+ * Returns WARN for: new/deleted section headings, pointer line changes (→), AGENTS.md modifications.
+ *
+ * @param {Array<{filename: string, diffLines: Array<{type: 'add'|'del'|'ctx', content: string}>}>} stagedDiffs
+ * @returns {{findings: Array<{level: string, ruleId: string, file: string, message: string}>}}
+ */
+export function checkWritingForAgentsGate(stagedDiffs) {
+  const findings = [];
+  const headingPattern = /^#{1,4}\s/;
+  const pointerPattern = /→/;
+  const agentsMd = "AGENTS.md";
+
+  for (const { filename, diffLines } of stagedDiffs) {
+    const isDocs = filename.startsWith("docs/");
+    const isAgentsMd = filename === agentsMd;
+    if (!isDocs && !isAgentsMd) continue;
+
+    const changes = diffLines.filter(
+      (l) => (l.type === "add" || l.type === "del") && l.content.trim().length > 0,
+    );
+
+    if (changes.length === 0) continue;
+
+    if (isAgentsMd) {
+      findings.push({
+        level: "WARN",
+        ruleId: "writing-for-agents-gate",
+        file: filename,
+        message: `${filename} modified — confirm: did you load writing-for-agents skill before making these changes? (AGENTS.md → Coding Conventions → writing-for-agents 强制加载)`,
+      });
+      continue;
+    }
+
+    for (const line of changes) {
+      if (headingPattern.test(line.content)) {
+        findings.push({
+          level: "WARN",
+          ruleId: "writing-for-agents-gate",
+          file: filename,
+          message: `${filename} has heading ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (AGENTS.md → Coding Conventions → writing-for-agents 强制加载)`,
+        });
+        break;
+      }
+      if (pointerPattern.test(line.content)) {
+        findings.push({
+          level: "WARN",
+          ruleId: "writing-for-agents-gate",
+          file: filename,
+          message: `${filename} has pointer line ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (AGENTS.md → Coding Conventions → writing-for-agents 强制加载)`,
+        });
+        break;
+      }
+    }
+  }
+  return { findings };
+}
+
 // --- File system helpers ---
 
 function readMdFiles(dir) {
@@ -118,6 +178,57 @@ function readMdFiles(dir) {
       filename,
       content: readFileSync(join(dir, filename), "utf-8"),
     }));
+}
+
+// --- Git diff helpers ---
+
+/**
+ * Parse unified diff output into structured diff lines.
+ * Only parses content lines (starting with +, -, or space), skips headers.
+ */
+export function parseDiffLines(diffOutput) {
+  const lines = diffOutput.split("\n");
+  const result = [];
+  for (const line of lines) {
+    if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("@@") || line.startsWith("\\ No newline")) continue;
+    if (line.startsWith("+")) {
+      result.push({ type: "add", content: line.slice(1) });
+    } else if (line.startsWith("-")) {
+      result.push({ type: "del", content: line.slice(1) });
+    } else if (line.startsWith(" ")) {
+      result.push({ type: "ctx", content: line.slice(1) });
+    }
+  }
+  return result;
+}
+
+/**
+ * Get staged diffs for docs/ files and AGENTS.md.
+ * Returns array of { filename, diffLines }.
+ */
+export function getStagedDiffs() {
+  let stagedFiles;
+  try {
+    stagedFiles = execSync("git diff --cached --name-only --diff-filter=ACM", {
+      encoding: "utf-8",
+      cwd: PROJECT_ROOT,
+    }).trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+
+  const docsOrAgents = stagedFiles.filter(
+    (f) => f.startsWith("docs/") || f === "AGENTS.md",
+  );
+
+  return docsOrAgents.map((file) => {
+    const diff = execSync(`git diff --cached -- "${file}"`, {
+      encoding: "utf-8",
+      cwd: PROJECT_ROOT,
+    });
+    const diffLines = parseDiffLines(diff);
+    return { filename: file, diffLines };
+  });
 }
 
 // --- Main ---
@@ -134,8 +245,9 @@ export function main() {
   const indexFindings = checkDocsIndexConsistency(allFiles, indexContent).findings;
   const l1Findings = checkL1DesignDecisions(l1Files).findings;
   const l2Findings = checkL2CommandLines(l2Files).findings;
+  const gateFindings = checkWritingForAgentsGate(getStagedDiffs()).findings;
 
-  const allFindings = [...indexFindings, ...l1Findings, ...l2Findings];
+  const allFindings = [...indexFindings, ...l1Findings, ...l2Findings, ...gateFindings];
 
   // Print findings
   for (const f of allFindings) {

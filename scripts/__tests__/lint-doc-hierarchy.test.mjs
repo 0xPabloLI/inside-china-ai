@@ -3,6 +3,7 @@ import {
   checkDocsIndexConsistency,
   checkL1DesignDecisions,
   checkL2CommandLines,
+  checkWritingForAgentsGate,
 } from "../lint-doc-hierarchy.mjs";
 
 describe("checkDocsIndexConsistency", () => {
@@ -183,6 +184,117 @@ describe("integration: combined checks", () => {
     expect(fails.length).toBeGreaterThanOrEqual(2); // missing from index + missing design decisions
     expect(warns).toHaveLength(1);
   });
+
+describe("checkWritingForAgentsGate", () => {
+  it("WARN: new section heading added", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/content-pipeline.md",
+        diffLines: [
+          { type: "ctx", content: "some context" },
+          { type: "add", content: "## New Section" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    const warns = findings.filter((f) => f.level === "WARN");
+    expect(warns).toHaveLength(1);
+    expect(warns[0].ruleId).toBe("writing-for-agents-gate");
+  });
+
+  it("PASS: only typo fix (no structural patterns)", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/research/some-doc.md",
+        diffLines: [
+          { type: "ctx", content: "## Existing Section" },
+          { type: "del", content: "Thsi is a typo" },
+          { type: "add", content: "This is a typo" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(0);
+  });
+
+  it("WARN: AGENTS.md modified (any non-whitespace change)", () => {
+    const stagedDiffs = [
+      {
+        filename: "AGENTS.md",
+        diffLines: [
+          { type: "ctx", content: "some context" },
+          { type: "add", content: "- New rule: something" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    const warns = findings.filter((f) => f.level === "WARN");
+    expect(warns).toHaveLength(1);
+    expect(warns[0].file).toBe("AGENTS.md");
+  });
+
+  it("WARN: pointer line changed (contains arrow)", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/DOCS-INDEX.md",
+        diffLines: [
+          { type: "del", content: "old → docs/research/old.md" },
+          { type: "add", content: "new → docs/research/new.md" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    const warns = findings.filter((f) => f.level === "WARN");
+    expect(warns).toHaveLength(1);
+    expect(warns[0].ruleId).toBe("writing-for-agents-gate");
+  });
+
+  it("PASS: non-docs non-AGENTS.md file not checked", () => {
+    const stagedDiffs = [
+      {
+        filename: "src/components/Button.tsx",
+        diffLines: [
+          { type: "add", content: "## New Section" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(0);
+  });
+
+  it("WARN: section heading deleted", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/video-workflow.md",
+        diffLines: [
+          { type: "del", content: "### Old Subsection" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    const warns = findings.filter((f) => f.level === "WARN");
+    expect(warns).toHaveLength(1);
+  });
+
+  it("PASS: only context lines (no add/del)", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/content-pipeline.md",
+        diffLines: [
+          { type: "ctx", content: "## Section" },
+          { type: "ctx", content: "some text" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(0);
+  });
+
+  it("PASS: empty staged diffs", () => {
+    const { findings } = checkWritingForAgentsGate([]);
+    expect(findings).toHaveLength(0);
+  });
+});
 
   it("exit code 0 when only WARNs (no FAILs)", () => {
     const l2Files = [

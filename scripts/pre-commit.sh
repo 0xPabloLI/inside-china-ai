@@ -130,7 +130,7 @@ fi
 echo -e "${GREEN}[pre-commit] All checks passed.${NC}"
 
 # --- Method 4: Doc hierarchy lint (only when docs/ files are staged) ---
-DOCS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/' || true)
+DOCS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/|^AGENTS\.md$' || true)
 if [ -n "$DOCS_STAGED" ]; then
   if command -v node &>/dev/null; then
     echo -e "${YELLOW}[pre-commit] Running doc-hierarchy lint...${NC}"
