@@ -174,7 +174,7 @@ Deep research reports with citations.
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
-| `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) |
+| `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) + HuggingFace LFS 下载策略（curl -L vs hf_hub_download, Kaggle CLI --dir-mode 陷阱, Colab WebSocket 超时） |
 | `colab-cli-guide.md` | Google Colab CLI guide — gcloud setup, kernel push/pull, GPU smoke test |
 | `digital-human-references.md` | Offloaded reference material — papers, code repos, cloud platforms, market research for digital human models |
 | `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options |
@@ -197,6 +197,7 @@ Deep research reports with citations.
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
 | `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
 | `tiktok-competitor-intelligence.md` | TikTok competitor intelligence — 16 competitor videos + hashtag frequency, description patterns, self-video analytics (§3) |
+| `tiktok-creator-tools.md` | TikTok Creator Tools evaluation — Creator Academy + Research API integration assessment for pipeline and analytics |
 | `tiktok-hook-patterns-best-practices.md` | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design |
 | `tiktok-hook-patterns-wide-research-assessment.md` | TikTok hook patterns research — wide assessment and source evaluation |
 | `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |

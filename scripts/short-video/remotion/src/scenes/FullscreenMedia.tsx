@@ -9,6 +9,7 @@
  */
 import { AbsoluteFill } from "remotion";
 import { MediaBackground } from "../components/MediaBackground";
+import { SAFE_ZONES } from "../components/shared";
 import type { MediaField } from "../types";
 
 export const FullscreenMedia: React.FC<{
@@ -22,8 +23,8 @@ export const FullscreenMedia: React.FC<{
         <div
           style={{
             position: "absolute",
-            bottom: 60,
-            left: 60,
+            bottom: SAFE_ZONES.bottom,
+            left: SAFE_ZONES.left,
             fontSize: 20,
             color: "rgba(203,213,225,0.6)",
             letterSpacing: "2px",
