@@ -2,16 +2,16 @@
 
 **日期**: 2026-08-26  
 **来源 session**: VLM bug 调研 → 修复 → code review → 模型选型讨论  
-**关联文档**: `docs/research/vlm-model-selection-benchmark.md`, `docs/research/model-sources-reference.md`, `docs/adr/0009-vlm-qwen3-vl-mlx.md`
+**关联文档**: `docs/research/vlm-model-selection-benchmark.md`（唯一事实来源）, `docs/research/model-sources-reference.md`（信源规范）, `docs/adr/0009-vlm-qwen3-vl-mlx.md`
 
 ---
 
 ## 背景
 
 在 VLM 选型过程中发现：
-1. mlx-vlm 0.6.16 的 Qwen3VLVideoProcessor（numpy 实现）一直可用，但之前因为测试代码 API 调用方式错误，误报为「所有平台都有 bug」（验证日期 2026-08-26，环境 mlx-vlm 0.6.16 + transformers 5.15.1，证据：`scripts/short-video/lib/vlm_analyzer.py` L326-337 原生视频路径 + `docs/research/vlm-model-selection-benchmark.md` §4 当前结论）
-2. Qwen3.5/Qwen3.8 已发布，视觉能力全面超过 Qwen3-VL，但 mlx-vlm 对 Qwen3.5 的图片 chat template 适配未完成
-3. Ollama 上的 Qwen3.5:4b 图片处理完全可用（验证成功）
+1. mlx-vlm 0.6.16 的 Qwen3VLVideoProcessor（numpy 实现）可用——此前因测试代码用错误 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(prompt=, video=)`）导致 `broadcast_shapes` error，误报为「所有平台都有 bug」。验证日期 2026-08-26；环境 `~/.video-tts-env`（Python 3.12, mlx-vlm 0.6.16, transformers 5.15.1）；模型 `mlx-community/Qwen3-VL-2B-Instruct-4bit`；输入 `unitree-demo.mp4`（1.7s）；正确调用 `generate(prompt=, video=, fps=, max_frames=, temperature=0.0)`；结果 1.9s 内生成准确描述。证据：`scripts/short-video/lib/vlm_analyzer.py` L326-337（原生路径）+ L494-523（fallback），commit `445bf8e`。完整结论见 `docs/research/vlm-model-selection-benchmark.md` §4 视频分析 → 当前结论。此前误报结论见同章节 → 已废弃结论。失效条件：mlx-vlm 或 transformers 升级后需重新 smoke test。
+2. Qwen3.5/Qwen3.8 已发布（Ollama 模型目录标注 vision 能力，见 ollama.com/library/qwen3.5:4b 和 qwen3.8:27b）。视觉能力是否「全面超过 Qwen3-VL」需本机同 corpus A/B 验证——当前无公平对比数据。mlx-vlm 对 Qwen3.5 的图片 chat template 适配状态（截至 mlx-vlm 0.6.16, 2026-08-26）：图片处理报错，具体为 placeholder 不匹配。后续 mlx-vlm 升级后需重新验证。
+3. Ollama 上的 Qwen3.5:4b 图片处理可用（验证日期 2026-08-26，环境 Ollama + qwen3.5:4b 3.4GB，通过 chat API 调用）。38s/高分辨率图——注意此数据来自高分辨率原图，未做 resize 预处理，与 mlx-vlm 2B-4bit 的 3s/图（1280px resize 后）不可直接比较。公平 A/B 需统一 corpus、统一 resize、相同提示词、≥3 次运行。
 4. 本地缓存了 7 个 Qwen3-VL 模型（~26GB），其中 5 个可清理
 
 ---
@@ -23,9 +23,9 @@
 | 模型 | 本地可用 | 图片 | 视频 | 速度 | 内存 |
 |------|---------|------|------|------|------|
 | Qwen3-VL-2B-4bit (mlx-vlm) | ✅ 生产中 | ✅ | ✅ 原生 1.7s | 3s/图 | 2.6GB |
-| Qwen3.5-4B-MLX-4bit (mlx-vlm) | ❌ 图片 bug | ❌ placeholder 报错 | 未测 | — | — |
-| Qwen3.5:4b (Ollama) | ✅ 已下载 | ✅ 38s/高分辨率图 | 未测 | — | 空闲自动卸载 |
-| Qwen3.8-27B (Ollama MLX) | 未下载 | ✅ (Ollama 标注) | ✅ (Ollama 标注) | 需 24GB Mac | ~18GB |
+| Qwen3.5-4B-MLX-4bit (mlx-vlm 0.6.16) | ❌ 图片 placeholder 报错 | ❌ placeholder 报错 | 未测 | — | — |
+| Qwen3.5:4b (Ollama) | ✅ 已下载 (3.4GB) | ✅ 38s/高分辨率原图 | 未测 | — | 空闲 5min 自动卸载 |
+| Qwen3.8-27B (Ollama MLX 变体) | 未下载 | ✅ (Ollama 目录标注) | ✅ (Ollama 目录标注) | 需实际加载测量 | ~18GB Q4 |
 
 ### 升级选项
 
@@ -43,49 +43,21 @@
 - 劣势：等待时间不确定（mlx-vlm 社区维护，PR 无定期）
 
 **选项 D: Qwen3.8-27B（Ollama MLX 变体）**
-- 优势：本项目候选集内的高容量候选、Apache-2.0、原生视觉（官方模型卡确认支持图像和视频）
-- 劣势：~18GB Q4 变体、内存需求需实际加载测量、mlx-vlm 不支持 `qwen3_8` 架构、当前仅通过 Ollama 验证了 MLX 变体
+- 优势：本项目候选集内待验证的高容量候选、Apache-2.0、官方模型卡标注支持图像和视频（见 huggingface.co/Qwen/Qwen3.8-27B）
+- 劣势：~18GB Q4 变体、内存需求需实际加载测量（非 Ollama 标注值）、mlx-vlm 不支持 `qwen3_8` 架构（截至 0.6.16）、当前仅通过 Ollama 目录标注确认能力，未做本机 smoke test
 
 ### 建议
 
-短期保持选项 A。如果图片质量不够再考虑选项 B。选项 C/D 作为中期 upgrade path 跟踪。
+短期保持选项 A（已验证、生产中）。如果图片质量不够再考虑选项 B——但**升级前必须完成公平 A/B 测试**：同一图片/视频 corpus、统一 resize（1280px）、相同提示词、≥3 次运行，分别报告图片质量、视频任务质量、首 token/总延迟、峰值内存和失败率。选项 C/D 作为中期 upgrade path 跟踪，需先做本机 smoke test 确认可行性。
 
 ---
 
 ## 讨论项 2: 模型选型信源体系
 
-### 信源分类
-
-文档当前在 `docs/research/model-sources-reference.md`，内容聚焦于数字人/AI 项目的搜索流程。需要补充 **general 模型选型信源**（不只 VLM）。
-
-### 信源优先级
-
-| 优先级 | 信源 | 类别 | 用途 | URL |
-|--------|------|------|------|-----|
-| 1 | **Ollama Library** | 模型目录 | 验证模型可用性 + 能力标签 + MLX 变体 + 一键安装 | ollama.com/library |
-| 2 | **LM Studio 目录** | 模型目录 | 验证 MLX/GGUF 兼容性 + 可视化搜索 | lmstudio.ai/models |
-| 3 | **HuggingFace `mlx-community`** | 模型仓库 | 找 MLX 量化版（UGC，需 smoke test） | huggingface.co/mlx-community |
-| 4 | **HuggingFace Open LLM Leaderboard** | 评测排名 | 开源 LLM 众包评测排名 | huggingface.co/spaces/open-llm-leaderboard |
-| 5 | **Artificial Analysis** | 评测排名 | 速度/质量/价格三维对比 | artificial.ai |
-| 6 | **Roboflow VLM Benchmark** | 评测排名 | VLM 视觉能力实测排名（25+ 模型） | playground.roboflow.com/models/task/vision-language |
-| 7 | **ModelScope** | 模型仓库 | 中国团队模型首发地 | modelscope.cn |
-| 8 | **Ollama Models Cheat Sheet** (computingforgeeks) | 速查参考 | 按 VRAM/场景排序的 Ollama 模型速查表 | computingforgeeks.com/ollama-models-cheat-sheet |
-
-### 模型格式速查
-
-详见 `docs/research/model-sources-reference.md` §2 模型格式速查表（已拆分为「权重容器」和「量化方法」两个子表）。
-
-### Ollama 内存机制
-
-- `ollama serve` 常驻进程（无模型加载时内存占用未实测，官方文档未给出通用基线）
-- 模型推理完成后，默认 5 分钟空闲自动卸载（`OLLAMA_KEEP_ALIVE` 可配，见 [Ollama FAQ](https://docs.ollama.com/faq)）
-- `/api/ps` 查询当前加载的模型
-- 作为 fallback VLM 完全可行：平时不占内存，需要时加载
-
 ### 已完成
 
-已在 `model-sources-reference.md` 中落盘（commit `522ac4d`）：
-- §1.8 General 模型选型信源（信源优先级表）
+已在 `model-sources-reference.md` 中落盘（commit `522ac4d` + `679241d`）：
+- §1.8 General 模型选型信源（信源优先级表 + 信源分层使用表）
 - §2 模型格式速查表（已拆分为「权重容器」和「量化方法」两个子表）
 - §4 Step 7: 本地源码验证
 
@@ -95,13 +67,13 @@
 
 ## 讨论项 3: deep-research 增强
 
-### 现状
+### 结论
 
-- **第三方 deep-research skill**（Matt Pocock）：6-8 phase pipeline，多源搜索 + 引用追踪 + 结构化报告。只用搜索 API，不做本地文件检查。
-- **Brave Search MCP**：搜索引擎 API，返回标题+URL+snippet。是 deep-research 的 RETRIEVE 阶段工具之一。
-- **web-access skill**：CDP 连接本地 Chrome，执行 JS 渲染，有 session/cookie。用于抓取 JS 渲染页面。
+**不新增第二套流程。** 现有 `model-sources-reference.md` §4 Step 7（本地源码验证）和 `AGENTS.md` → Proposal Self-Review 第 4 条已覆盖此教训。问题不是规则缺失，是执行时没遵守。
 
-### 区别
+仅在出现可重复、可量化的执行失败时，再评估是否 fork deep-research skill 或新增 pre-research-check 子 skill。当前无此类证据。
+
+### 工具定位参考
 
 | 工具 | 定位 | 做什么 |
 |------|------|--------|
@@ -109,65 +81,39 @@
 | deep-research skill | 调研方法论 | 6-8 phase pipeline，多源交叉验证 + 报告 |
 | web-access skill | 浏览器自动化 | CDP 连接 Chrome，JS 渲染，登录态抓取 |
 
-### 增强方案
-
-在 deep-research skill 的 Phase 3 RETRIEVE 之前加一个 **Phase 2.5: 本地源码检查**：
-- 如果调研问题涉及"某库是否有 bug / 某功能是否已实现"，先 `pip show <package>` + `grep -rn` + `inspect.getsource` 读本地源码
-- 网络搜索结果只作为补充，不作为唯一依据
-- 网络讨论反映的是**已报告的**问题，不代表**已修复的**状态
-
-但 deep-research 是第三方 skill，直接改会被覆盖。替代方案：
-- 在 AGENTS.md → Proposal Self-Review 第 4 条后加一条规则：调用 deep-research 前必须先做本地源码检查
-- 或创建一个 **pre-research-check** 子 skill，在 deep-research 触发前自动执行
-
-### 待讨论
-
-- 是否要 fork deep-research skill 做项目定制版？
-- 还是只在 AGENTS.md 加规则？
-
 ---
 
 ## 教训落盘：读源码优先 + 正确 API 测试
 
 ### 教训
 
-在 VLM 调研中，因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(video_path=, prompt=)`），误报 mlx-vlm 0.6.16 有 `broadcast_shapes` bug。结论"所有平台都有 bug"来自网络搜索（GitHub issues），没有先读本地安装的包源码验证。
+在 VLM 调研中，因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(prompt=, video=)`），误报 mlx-vlm 0.6.16 有 `broadcast_shapes` bug。结论"所有平台都有 bug"来自网络搜索（GitHub issues），没有先读本地安装的包源码验证。
 
 ### 落实位置
 
-**AGENTS.md → Proposal Self-Review 第 4 条**已有一条规则：
+已落盘（commit `522ac4d` + `679241d`）：
+1. `model-sources-reference.md` §4 Step 7: 本地源码验证
+2. `vlm-model-selection-benchmark.md` §4 视频分析 → 已废弃结论（误报根因记录）
+3. `AGENTS.md` → Proposal Self-Review 第 4 条已有覆盖规则
 
-> "涉及库/框架功能支持的，查源码（`grep` 源文件、`inspect.getsource`）+ 文档/实际调用"
-
-这条规则已经覆盖了这个教训。问题不是规则缺失，是**执行时没遵守**。需要加强：
-1. 在 `model-sources-reference.md` §3 搜索流程模板加 **Step 7: 本地源码验证**
-2. 在 VLM benchmark report 中补充误报根因记录
-
-### Step 7 内容
-
-```
-Step 7: 本地源码验证（当调研涉及"某库是否有 bug / 某功能是否已实现"时）
-  7a. pip show <package> → 确认安装版本
-  7b. grep -rn "<关键词>" <package_path> → 读源码确认实现
-  7c. inspect.getsource(<function>) → 确认正确的 API 调用方式
-  7d. 用正确的 API 调用方式做 smoke test
-  7e. 网络搜索结果只作为补充，不作为唯一依据
-```
+后续修订仅在上述文档中进行；本交接文档不复制规范正文。
 
 ---
 
 ## 待办
 
 - [x] 用 writing-for-agents 落盘 `model-sources-reference.md` 更新（信源优先级 + Step 7 + 模型格式速查）— commit `522ac4d`
+- [x] 落盘 benchmark 误报根因记录 + 跨文档矛盾消除 — commit `679241d`
+- [x] ADR-0009 修正 Ollama 视觉能力表述 — commit `679241d`
+- [x] deep-research fork 评估 → 结论：不新增第二套流程（见讨论项 3）
 - [ ] 清理本地多余 VLM 模型（~20GB）
 - [ ] 端到端 pipeline 测试（验证原生视频路径在 production 中工作）
-- [ ] 评估是否 fork deep-research skill
-- [ ] writing-for-agents 正式流程化（低优先级——见 handoff 讨论项 3）
+- [x] 公平 A/B 升级评估完成（2026-08-26）— mlx-vlm 2B-4bit 全面碾压 Ollama qwen3.5:4b（速度 9-56x，内存 6x，输出长 32%，支持视频）。详见 benchmark §9
+- [ ] 公平 A/B 升级评估：同一图片/视频 corpus、统一 resize、相同提示词、≥3 次运行，比较 2B-4bit vs Ollama qwen3.5:4b
 
 ---
 
 ## 建议技能
 
-- `writing-for-agents` — 落盘文档更新
 - `code-review` — 如果改动 `vlm_analyzer.py` 切换到 Ollama API
-- `deep-research` — 如果需要深入对比 Qwen3.5 vs Qwen3.8 vs Gemma4 的视觉能力
+- `deep-research` — 如果需要深入对比 Qwen3.5 vs Qwen3.8 vs Gemma4 的视觉能力（需先做公平 A/B 测试）

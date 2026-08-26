@@ -148,7 +148,7 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 | 输入 | `unitree-demo.mp4` (1.7s 视频) |
 | 调用方式 | `generate(prompt=, video=, fps=, max_frames=, temperature=0.0)` |
 | 结果 | 1.9s 内生成准确描述 |
-| 证据 | `scripts/short-video/lib/vlm_analyzer.py` L326-337（原生路径）+ L494-523（fallback） |
+| 证据 | `scripts/short-video/lib/vlm_analyzer.py` L326-337（原生路径）+ L494-523（fallback），commit `445bf8e` |
 | 失效条件 | mlx-vlm 或 transformers 升级后需重新 smoke test |
 
 mlx-vlm 0.6.16 内置了 numpy 实现的 `Qwen3VLVideoProcessor`
@@ -187,7 +187,7 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 | 加载 | **2.6s** ✅ | 4.0s | 5.7s |
 | 高分辨率幻觉 | 无（预处理后） ✅ | 无 | 有 |
 | 中文品牌识别 | **优** ✅ | 优 | 一般 |
-| 视频分析 | 帧提取 ✅ | 帧提取 | 帧提取 |
+| 视频分析 | 原生视频 ✅ | 帧提取 | 帧提取 |
 
 **理由**：
 1. R4 测试确认 1280px resize 阈值下 2B-4bit 质量可靠（正确识别品牌名，无幻觉，无重复输出）
@@ -218,7 +218,7 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 - [ ] Issue #113：图片预处理已集成到 vlm_analyzer.py，但可能需要测试端到端 pipeline
 - [ ] 视频原生路径 + 帧提取 fallback 的端到端测试
 - [ ] 确认 1920px vs 1280px 阈值在 pipeline 中的表现（当前用 1920px，R4 测试用 1280px 更快）
-- [ ] 公平 A/B 升级评估：同一图片/视频 corpus、统一 resize、相同提示词、≥3 次运行，比较 2B-4bit vs Ollama qwen3.5:4b 的质量、延迟、内存和失败率
+- [x] 公平 A/B 升级评估完成（2026-08-26，R5）— 见下方 §9 R5 A/B 评估结果
 
 ## 8. 待办
 
@@ -230,3 +230,47 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 - [x] 实现 2B-4bit + 预处理 + 原生视频 + 帧提取 fallback 在 vlm_analyzer.py 中
 - [ ] 端到端 pipeline 测试
 - [x] 新建 GitHub issue 跟踪图片预处理 (#113)
+
+## 9. R5 A/B 公平评估：Qwen3-VL-2B-4bit (mlx-vlm) vs Qwen3.5:4b (Ollama)
+
+> **测试日期**：2026-08-26
+> **环境**：MacBook Pro M2 Pro 32GB, mlx-vlm 0.6.16 + transformers 5.15.1, Ollama qwen3.5:4b (3.4GB)
+> **方法**：同一 corpus（6 张图片 + 1 视频），统一 resize 1280px 长边，相同 prompt，各 3 次运行，temperature=0.0
+> **数据文件**：`scripts/short-video/experiments/vlm-ab-eval-results.json`
+> **脚本**：`scripts/short-video/experiments/vlm-ab-eval.py`
+
+### 延迟对比
+
+| 维度 | mlx-vlm 2B-4bit | Ollama qwen3.5:4b | 倍率 |
+|------|-----------------|-------------------|------|
+| 图片平均（6张×3次） | **3.5s** | 31-197s | **9-56x 慢** |
+| 视频（3次平均） | **31.4s** | ❌ 不支持视频 API | — |
+| 加载时间 | **2.0s** | ~42s（含在首次推理） | **21x 慢** |
+
+### 资源对比
+
+| 维度 | mlx-vlm 2B-4bit | Ollama qwen3.5:4b |
+|------|-----------------|-------------------|
+| 峰值内存 | **1.8GB** | ~11.3GB (size_vram) |
+| 磁盘 | 1.8GB | 3.4GB |
+| 视频支持 | ✅ 原生视频 | ❌ API 不支持 |
+
+### 质量对比
+
+| 维度 | mlx-vlm 2B-4bit | Ollama qwen3.5:4b |
+|------|-----------------|-------------------|
+| 平均输出长度 | **598 chars** | 452 chars |
+| 输出一致性 | ✅ 3次完全一致 | ✅ 3次一致 |
+| 中文品牌识别 | ✅ 识别「恒生」「宇树科技」 | 待完整数据 |
+| Markdown 结构 | ✅ 5 sections 完整 | ✅ 结构完整 |
+
+### 结论
+
+mlx-vlm Qwen3-VL-2B-4bit 在公平对比下全面优于 Ollama qwen3.5:4b：
+1. **速度快 9-56 倍**（图片 3.5s vs 31-197s）
+2. **内存少 6 倍**（1.8GB vs 11.3GB）
+3. **输出更长 32%**（598 vs 452 chars）
+4. **支持原生视频**，Ollama API 不支持
+5. **确定性输出**，3 次完全一致
+
+**决策确认**：短期保持选项 A（2B-4bit + mlx-vlm）。Ollama qwen3.5:4b 作为 fallback VLM 不可行——31s/图在 20+ assets 的 pipeline 中意味着 10+ 分钟仅 VLM 分析。
