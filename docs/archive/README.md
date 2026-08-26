@@ -36,6 +36,7 @@
 | `spec-voice-prosody-optimization.md` / `tickets-voice-prosody-optimization.md` | 2026-08-14 | 语音质量与韵律优化 4 层方案 — 参考音频替换 + 音频清洗链 (highpass + afftdn) + rubberband per-scene prosody + 消除双重 MP3 编码。F5 A/B 测试后确定 prosody DISABLED for F5。 |
 | `spec-media-volume-autofill.md` / `tickets-media-volume-autofill.md` | 2026-08-14 | Per-scene volume + envelope ducking + asset-sourcer auto-fill — `MediaField.volume` 字段 + `videoVolume = baseVolume * opacity` 渐变 + `validateMedia()` range check [0,1] + `assignAssetsToScenes()` 批量分配 + `media-patch.json` + `apply-media-patch.mjs` HITL 审查。 |
 | `spec-remotion-layout-refactor.md` / `tickets-remotion-layout-refactor.md` | 2026-08-26 | Remotion 场景模板重构 — 6 布局变体（hero-center/media-bottom-bar/media-split/media-overlay/stacked-cards/cta）+ SPACING 4pt 系统 + @remotion/media 迁移（Img→CanvasImage, Video/Audio）+ @remotion/rough-notation（Circle/Underline）+ Interactive.Div + 多样化转场（slide/wipe/fade, 10 frames）+ GridBg 弱化（0.04→0.015, 仅无媒体场景）+ scene-rules.mjs layout 验证 + safe-zone 回归测试。74 tests passing。 |
+| `spec-text-overflow-verify.mjs` / `tickets-text-overflow-verify/` | 2026-08-26 | 文字溢出双层防护 — `checkTextOverflow()` 行扫描像素检测（frame-analysis.mjs 新增纯函数）+ NarrativeScene 4 布局变体 maxWidth+overflow:hidden + HookScene hookText/revealText maxWidth + ANNOTATION 常量集中化（Highlight 透明度 0.15）+ 回归测试正则误报修复。45 tests passing。 |
 
 ### 趋势 & 发布 Specs
 
