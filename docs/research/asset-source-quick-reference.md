@@ -108,6 +108,28 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 
 > **TikTok 下载** (verified 2026-08-24) — CDP `item/detail` API 是默认方法：浏览器内 `fetch('/aweme/v1/web/item/detail/?itemId=ID&aid=1988')` → `playAddr` → `fetch(playAddr, {credentials:'include'})` → Blob → base64 分块下载。无需逆向签名、无需第三方服务。详细 JS 代码见 `docs/research/reference-video-extraction.md` TikTok section。第三方方案对比（TikTokApi, Cobalt, Douyin_TikTok_Download_API, tiktok-api-dl, yt-dlp）也见该文档。
 
+### Video Download Layer (VDL) — Unified adapter registry
+
+> Implemented: 2026-08-26 (commit a99e14c, issue #75)
+> Spec: `docs/archive/spec-video-download-layer.md`
+
+统一视频下载层 `scripts/short-video/lib/video-downloaders.mjs`，策略选择器路由到 adapter：
+
+| Adapter ID | 覆盖平台 | 状态 | 备注 |
+|------------|---------|------|------|
+| `direct-http` | 直接媒体 URL（`.mp4`、已知 CDN） | ✅ Working | 包装 HTTP fetch |
+| `ytdlp` | YouTube、B站 | ✅ Working | 包装 yt-dlp + Firefox cookies |
+| `cobalt` | 30+ 平台（含抖音/TikTok/微博/Instagram/X） | ⚠️ Adapter ready, **Cobalt 实例未部署** | 自部署 Docker，`COBALT_API_URL` 环境变量 |
+
+**DownloadResult 契约**：所有 adapter 返回统一 `DownloadResult` 对象（status / strategy / buffer / mimeType / byteLength / provenance / retryable）。
+
+**Cobalt 状态机**：`tunnel`→下载、`redirect`→下载、`picker`→needs-selection、`local-processing`→unsupported、`error`→分类（retryable/non-retryable）。
+
+**后续扩展**（留在 #75 issue body 追踪）：
+- 平台 adapter：douyin-share、tiktok-cdp-detail、weibo-visitor-api、rednote-mcp、cdp-generic
+- Cobalt Docker 部署 + live smoke test
+- `asset-sourcer.mjs` 集成（渐进替换现有下载逻辑）
+
 ### Chinese News Media (CDP)
 - **IT之家** — Best for Chinese AI product news
 - **机器之心** — AI-focused cover images
