@@ -42,6 +42,8 @@
 
    > **Context Hygiene**：Step 1-4 必须保持在同一个 unbroken context window 中。Grilling 的推理过程是 spec 和 tickets 的 primary source，压缩会丢失「为什么」。如果 session 接近 smart zone（~150k tokens），在最近的 phase boundary（Step 1-3 完成后，或 Step 4 内某个 ticket 完成后）做 `/compact`。压缩前必须将当前 ticket 的 checklist 状态落盘——在 ticket 文件中把已完成的项从 `- [ ]` 改为 `- [x]`，这是压缩安全的唯一方式：context 会丢，文件不会。
 
+   > **文档改动门槛**：在 Step 1–4 或 Step 8 创建或改动 `docs/` 内容前，按 Coding Conventions → `writing-for-agents 强制加载` 判定并执行。步骤内不重复判定规则。
+
    1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案（v1.2：grilling 采用 round-based design tree，每轮批量提问 + 推荐答案，等用户回答后进入下一轮）。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
 
    1b. **Prototype Detour（可选）** — 当 grilling 中某个问题需要 runnable answer（状态模型是否合理、UI 长什么样）时，detour：`/handoff` 出去 → fresh session 中 `/prototype` → `/handoff` 回来。Prototype 生成单个自包含 HTML 文件（logic）或单一路由多变体（UI），保存在 `prototype/<name>` 分支作为 primary source。回到主线后引用 prototype 结论。
@@ -104,7 +106,7 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 
 - TypeScript + functional React components/hooks；2-space indentation；`PascalCase` for components/types, `camelCase` for vars/functions。
 - React Query `useQuery` 的 `useState` 初始化陷阱：当组件依赖 query 数据初始化 state 时，必须确保数据就绪后再挂载组件（或在 `useEffect` 中同步），避免 `useState` 初始值只在首次挂载生效导致数据丢失。
-- **writing-for-agents 强制加载**：任何对 `docs/` 下 Agent 消费文档的编辑操作（含 AGENTS.md 自身、specs、tickets、docs/research/ 下的执行文档），**必须在编辑前执行** `writing-for-agents` skill 加载。这是硬性前置条件，不是可选步骤。Agent 消费文档 = 任何会被 Agent 在执行任务时读取的文档。加载后遵循其原则：single source of truth、progressive disclosure、no duplication。执行文档只写"做什么、用什么参数"；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 "Design Decisions & References" 索引指向它们。层次判定规则见 `docs/DOCS-INDEX.md` → Layer Placement Rules。
+- **writing-for-agents 强制加载**：在创建或改变 Agent 消费文档的信息结构前，必须加载 `writing-for-agents` skill。此类改变包括：创建、删除、移动或重命名文档；修改 `AGENTS.md`；新增、删除、合并或拆分章节；改变规则、步骤、前置条件、例外、完成标准、目录分层或 Agent 上下文指针。仅当变更不改变上述任一事项，且仅为拼写、格式、事实值、非 Agent 指针链接修复或无流程含义的状态标记更新时，才可豁免。无法确定时必须加载。豁免变更不得改变文档的信息层级、规则的唯一权威来源、或现有指针关系；如变更会新增、迁移或重复规则，转入强制加载路径。Agent 消费文档 = `docs/` 下会被 Agent 执行流程读取或由上下文指针到达的文档。规则定义以本条为准；Layer Placement 的操作检查见 `docs/DOCS-INDEX.md` → Layer Placement Rules。
 - **文档审查三查**：压缩或审查 agent 文档时必须做三类检查：(1) **跨章节矛盾**——同一规则在不同章节的限定词是否一致（如"需要确认" vs "永远不要"）；(2) **指针目标完整性**——被压缩内容的每个信息点在指针目标处是否有对应（不是"目标存在就行"，而是"逐字段覆盖"）；(3) **文件存在性**——引用的文件是否真实存在（用 `ls` 验证）。
 
 ## Git Safety
@@ -160,7 +162,18 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 统一内容管线（入口 → 共享素材 → 文章与视频脚本并行产出 → 交叉一致性检查 → 视频成品 → 单一 HITL → 文章与 TikTok 发布 → Analytics），设 1 个 **HITL 人工确认检查点**（内容包成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章草稿可用 `scripts/article/publish-article.mjs --draft` 保存；HITL 确认后再用同一文章文件公开发布。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。**HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续，不得自行假设确认。
 
-做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。改视频模板/组件的视觉设计时（间距、排版、层次、动画），加载 `impeccable` skill — 用 `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨。新建场景模板时加载 `frontend-design` skill 选择美学方向。**启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data**，Pre-render 检查未通过时管线拒绝运行（除非用户明确要求 `--skip-preflight`）。
+做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。**Skill 加载矩阵**（按任务类型，非互斥）：
+
+| 任务 | 加载的 Skill | 用途 |
+|------|-------------|------|
+| 写 scene-data / 跑管线 / 发布 | `short-video-pipeline` + `brand-system` | 管线流程 + 品牌一致性 |
+| 改 `remotion/src/` React 组件代码 | `remotion-markup`（主入口 `remotion-best-practices`） | Remotion API 最佳实践：`Interactive.Div` 结构、`@remotion/media` 组件、`@remotion/transitions` 转场、`@remotion/rough-notation` 文本标注、`@remotion/effects` 视觉效果、`perceptual-scale` 动画、`calculateMetadata` 动态时长 |
+| 改视频模板视觉设计（间距/排版/层次/动画） | `impeccable` | `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨 |
+| 新建场景模板 | `frontend-design` | 选择美学方向 |
+
+> **`remotion-markup` vs `impeccable` 分工**：`remotion-markup` 管"Remotion 代码怎么写"（API 正确用法、组件结构、转场模式、动画 timing）；`impeccable` 管"画面该怎么排"（间距节奏、视觉层次、动画多样性、可读性、AI slop 检测）。改 `remotion/src/` 时两个都加载——先 `remotion-markup` 确保 API 正确，再 `impeccable` 确保视觉质量。
+
+**启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data**，Pre-render 检查未通过时管线拒绝运行（除非用户明确要求 `--skip-preflight`）。
 
 ## Session Start Checklist
 

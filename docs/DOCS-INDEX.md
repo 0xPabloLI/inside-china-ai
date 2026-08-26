@@ -17,7 +17,7 @@
 
 ### Layer Placement Rules
 
-Before writing or modifying any document under `docs/`, load the `writing-for-agents` skill (AGENTS.md → Coding Conventions → `writing-for-agents 强制加载`), then apply these rules:
+修改文档时，先按 `AGENTS.md` → Coding Conventions → `writing-for-agents 强制加载` 判定是否加载 skill；随后应用本节的 Layer Placement 检查：
 
 1. **L1/L2 boundary**: AGENTS.md Coding Conventions defines the boundary ("执行文档只写'做什么、用什么参数'；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 Design Decisions & References 索引指向"). These rules add the operational checks:
 2. **New document: ask first.** Before writing, ask: "Is this execution instructions or research rationale?" → execution → L1; research → L2.
@@ -30,7 +30,7 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 | Document | Purpose | Referenced by |
 |----------|---------|---------------|
 | `brand-system.md` | Brand visual identity — tokens, templates, rules | `brand-system` skill |
-| `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV 导出、A/B 测试、数据驱动优化建议、竞品参考视频分析 | `content-pipeline.md` Stage 5, `video-workflow.md` |
+| `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV/CDP 导出、A/B 测试、hashtag 效果追踪、Analytics→Pipeline 联动机制、竞品参考视频分析 | `content-pipeline.md` Stage 0 + Stage 5, `video-workflow.md` |
 | `article-production-guide.md` | Article generation rules — Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation | `content-pipeline.md` Stage 1/2 |
 | `content-pipeline.md` | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references | AGENTS.md |
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
@@ -129,6 +129,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 |----------|---------|
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
+| `writing-for-agents-enforcement-proposal-review-2026-08-25.md` | `writing-for-agents` 规则执行率改善方案审核；待吸收结论后归档 |
 
 ### `archive/` — Completed work
 
@@ -183,6 +184,7 @@ Deep research reports with citations.
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
 | `issue-tracker-review.md` | Issue tracker 审阅报告 — GitHub 状态、依赖、冲突组与维护建议核验 |
+| `writing-for-agents-enforcement-proposal.md` | `writing-for-agents` 规则执行率改善方案（待审核结论吸收） |
 | `model-sources-reference.md` | Model search sources reference |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
@@ -194,7 +196,7 @@ Deep research reports with citations.
 | `wechat-rss-tracking-mechanisms.md` | WeChat RSS tracking mechanisms — Wechat2RSS, third-party feeds, verified sources |
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
 | `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
-| `tiktok-competitor-intelligence.md` | TikTok competitor intelligence — benchmarking and analysis of competing channels |
+| `tiktok-competitor-intelligence.md` | TikTok competitor intelligence — 16 competitor videos + hashtag frequency, description patterns, self-video analytics (§3) |
 | `tiktok-hook-patterns-best-practices.md` | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design |
 | `tiktok-hook-patterns-wide-research-assessment.md` | TikTok hook patterns research — wide assessment and source evaluation |
 | `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |
