@@ -89,8 +89,11 @@ _Avoid_: High quality, max settings (too generic)
 **VLM** (Vision-Language Model): A local AI model (Qwen3-VL-8B-Instruct-8bit via mlx-vlm) that describes images and videos, and analyzes how to fit landscape assets into vertical canvas. Runs as a persistent Python subprocess (`vlm_analyzer.py`) managed by `visual-analyzer.mjs`. See ADR-0009.
 _Avoid_: Vision model, image analyzer (too generic)
 
-**Asset Fit Analysis**: A VLM operation that determines whether a landscape image/video should use `cover` (crop) or `contain` (letterbox) in a 9:16 canvas, and where the main subject is positioned (top/center/bottom). Returns `{fit, focus, reason}`. Used during scene-data review. Note: `focus` output is unstable and deprecated; spatial analysis is handled by Focus Detection.
+**Asset Fit Analysis**: A VLM operation that determines whether a landscape image should use `cover` (crop) or `contain` (letterbox) in a 9:16 canvas. The VLM sees a 9:16-cropped version of the image (when landscape) and outputs `{fit, criticalEdgeText, reason}`. The `focus` field is deprecated; crop positioning is handled by Crop Decision.
 _Avoid_: Crop analysis, aspect ratio check
+
+**Crop Decision**: A deterministic evaluation of whether a 9:16 cover crop from a candidate focus point preserves all Protected Regions. Produces a `CropDecision` object: `{ status: "safe"|"unsafe"|"indeterminate", policy: "cover"|"contain", cropFocus: {x,y}|null, reason, candidates }`. Uses `resolveObjectPosition` to convert normalized source-space focus into CSS `object-position`. Written to `asset-analysis.json` for human review before `scene-data` mutation. See `docs/spec-vertical-cropping.md`.
+_Avoid_: Crop analysis (too generic — use Crop Decision for the contract), fit analysis
 
 **Focus Detection**: A deterministic, lightweight spatial analysis performed by OpenCV (Haar Cascade face detection + Spectral Residual saliency) via a dedicated Python subprocess (`focus_detector.py`). Complements the VLM's semantic analysis. Runs as Phase 2 (after pre-filter Phase 1, before VLM Phase 3) in `analyzeAssets()` — only on assets that survived the free pre-filter gate. **Never rejects** — returns schema-complete degraded results on failure. See ADR-0015.
 _Avoid_: Focus analysis, spatial analysis (too generic)
