@@ -1046,6 +1046,38 @@ export function checkHookMediaWarning(scenes) {
   ];
 }
 
+/** Narrative scene media warning: warns when any non-CTA scene (narrative,
+ *  info-card, quote, hook) lacks a media background. This catches the scenario
+ *  where scene-data.mjs was created without media fields, ensuring the pipeline
+ *  doesn't silently produce all-CSS videos with no background imagery.
+ *  CTA / data / stat-reveal scenes are exempt (they don't use media). */
+const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
+export function checkNarrativeMediaWarning(scenes) {
+  const missing = scenes.filter(
+    (s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media?.path,
+  );
+  if (missing.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Media",
+        check: "Narrative scene media coverage",
+        detail: `All ${scenes.filter((s) => !NO_MEDIA_TYPES.has(s.visualType)).length} non-CTA scenes have media`,
+      },
+    ];
+  }
+  const missingIds = missing.map((s) => s.id).join(", ");
+  return [
+    {
+      level: "warn",
+      category: "Media",
+      check: "Narrative scene media coverage",
+      detail: `${missing.length} scene(s) missing media: [${missingIds}] — scenes will render with CSS-only background (no images/video)`,
+      fix: "Run asset-sourcer to auto-search and assign media, or manually add scene.media fields to scene-data.mjs",
+    },
+  ];
+}
+
 /**
  * Currency dual-annotation check: warns when RMB amounts in voiceover/texts
  * do not have a USD equivalent nearby. This is a verify-time safety net —
@@ -1138,6 +1170,48 @@ export function checkTextConcatenation(scenes) {
   ];
 }
 
+/** Check that non-cta scenes have a valid layout field. */
+const VALID_LAYOUTS = [
+  "hero-center",
+  "media-bottom-bar",
+  "media-split",
+  "media-overlay",
+  "stacked-cards",
+  "cta",
+];
+export function checkLayoutField(scenes) {
+  const results = [];
+  for (const scene of scenes) {
+    if (scene.visualType === "cta") continue; // CTA scenes don't need layout
+    const layout = scene.layout;
+    if (!layout) {
+      results.push({
+        level: "fail",
+        category: "Structure",
+        check: `Scene ${scene.id} layout field`,
+        detail: "layout field missing",
+        fix: `Add layout to scene ${scene.id} (one of: ${VALID_LAYOUTS.join(", ")})`,
+      });
+    } else if (!VALID_LAYOUTS.includes(layout)) {
+      results.push({
+        level: "fail",
+        category: "Structure",
+        check: `Scene ${scene.id} layout field`,
+        detail: `invalid layout: ${layout}`,
+        fix: `Use one of: ${VALID_LAYOUTS.join(", ")}`,
+      });
+    } else {
+      results.push({
+        level: "pass",
+        category: "Structure",
+        check: `Scene ${scene.id} layout field`,
+        detail: `layout="${layout}"`,
+      });
+    }
+  }
+  return results;
+}
+
 // ─── Aggregate runner ───
 
 /**
@@ -1178,8 +1252,10 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkLoopClose(scenes, meta),
     ...checkBodyTextVoRedundancy(scenes),
     ...checkHookMediaWarning(scenes),
+    ...checkNarrativeMediaWarning(scenes),
     ...checkCurrencyDualAnnotation(scenes),
     ...checkTextConcatenation(scenes),
+    ...checkLayoutField(scenes),
   ];
 
   return {

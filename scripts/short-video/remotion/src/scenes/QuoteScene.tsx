@@ -2,12 +2,20 @@
  * QuoteScene — large quote with attribution and verified badge.
  * Scene 6 in the Unitree video ("filing admits robots can't do real work").
  */
+import { useCurrentFrame, interpolate } from "remotion";
+import { Underline } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
 import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { FadeIn, SlideUp, StampIn } from "../components/animations/entrance";
+import { SPACING } from "../components/shared";
 
 export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
   const txt = scene.texts || {};
+  const frame = useCurrentFrame();
+  const underlineProgress = interpolate(frame, [20, 40], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
@@ -46,12 +54,14 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({ s
                 color: "#f5f5f5",
                 lineHeight: 1.35,
               }}>
-                {txt.quote as string}
+                <Underline color="#4d8bff" progress={underlineProgress}>
+                  {txt.quote as string}
+                </Underline>
               </div>
             </SlideUp>
           )}
           {txt.source && (
-            <FadeIn delay={1.3} duration={0.5} style={{ marginTop: 36 }}>
+            <FadeIn delay={1.3} duration={0.5} style={{ marginTop: SPACING['3xl'] }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "#cbd5e1", letterSpacing: "2px" }}>
                 {txt.source as string}
               </div>

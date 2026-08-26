@@ -5,6 +5,7 @@
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
+import { SPACING } from "../components/shared";
 
 export const ContextScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
   const txt = scene.texts || {};
@@ -46,7 +47,7 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number }> = ({
         }}>
           {txt.title && (
             <SlideUp delay={0.4} duration={0.5}>
-              <div style={{ fontSize: 36, fontWeight: 900, color: "#f5f5f5", marginBottom: 8 }}>
+              <div style={{ fontSize: 36, fontWeight: 900, color: "#f5f5f5", marginBottom: SPACING.sm }}>
                 {txt.title as string}
                 {txt.titleHighlight && (
                   <span style={{ color: "#4d8bff" }}>{txt.titleHighlight as string}</span>
@@ -55,14 +56,14 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number }> = ({
             </SlideUp>
           )}
           {txt.context && (
-            <SlideUp delay={0.6} duration={0.5} style={{ marginTop: 16 }}>
+            <SlideUp delay={0.6} duration={0.5} style={{ marginTop: SPACING.lg }}>
               <div style={{ fontSize: 28, fontWeight: 700, color: "#f59e0b" }}>
                 {txt.context as string}
               </div>
             </SlideUp>
           )}
           {txt.detail && (
-            <FadeIn delay={0.8} duration={0.5} style={{ marginTop: 12 }}>
+            <FadeIn delay={0.8} duration={0.5} style={{ marginTop: SPACING.md }}>
               <div style={{ fontSize: 22, fontWeight: 600, color: "#cbd5e1" }}>
                 {txt.detail as string}
               </div>

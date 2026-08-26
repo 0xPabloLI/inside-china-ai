@@ -5,6 +5,7 @@
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { SlideUp, StampIn } from "../components/animations/entrance";
+import { SPACING } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
 
 export const InfoCardScene: React.FC<{
@@ -18,7 +19,7 @@ export const InfoCardScene: React.FC<{
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       {scene.media && <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />}
-      <GridBg />
+      {!scene.media && <GridBg />}
       <Glow color="blue" />
       <Scanlines />
       <BrandBar />

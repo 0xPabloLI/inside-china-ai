@@ -2,9 +2,11 @@
  * ContrastScene — two-column comparison (left vs right).
  * Scene 8 in the Unitree video (Unitree vs AgiBot).
  */
+import { Interactive } from "remotion";
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { SlideUp, StampIn, FadeIn } from "../components/animations/entrance";
+import { SPACING } from "../components/shared";
 
 export const ContrastScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
   const txt = scene.texts || {};
@@ -37,10 +39,10 @@ export const ContrastScene: React.FC<{ scene: SceneData; duration: number }> = (
 
       <Slot variant="hero">
         {txt.title && (
-          <SlideUp delay={0.2} duration={0.5} style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 36, fontWeight: 900, color: "#f5f5f5", textAlign: "center" }}>
+          <SlideUp delay={0.2} duration={0.5} style={{ marginBottom: SPACING.xl }}>
+            <Interactive.Div name="title" style={{ fontSize: 36, fontWeight: 900, color: "#f5f5f5", textAlign: "center" }}>
               {txt.title as string}
-            </div>
+            </Interactive.Div>
           </SlideUp>
         )}
         {txt.vs && (

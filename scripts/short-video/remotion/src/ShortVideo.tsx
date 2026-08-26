@@ -8,9 +8,12 @@
  * First scene: hard cut (no transition in) — TikTok cover frame has content.
  * Subsequent scenes: 6-frame fade transition.
  */
-import { AbsoluteFill, Audio, Sequence, staticFile } from "remotion";
+import { AbsoluteFill, Sequence, staticFile } from "remotion";
+import { Audio } from "@remotion/media";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
+import { slide } from "@remotion/transitions/slide";
+import { wipe } from "@remotion/transitions/wipe";
 import type { ShortVideoProps, SceneData } from "./types";
 import { HookScene } from "./scenes/HookScene";
 import { CtaScene } from "./scenes/CtaScene";
@@ -59,7 +62,32 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
   }
 }
 
-const TRANSITION_FRAMES = 6; // 0.2s at 30fps
+const TRANSITION_FRAMES = 10; // 0.33s at 30fps
+
+/** Get transition for scene boundary based on scene types. */
+function getTransition(prevScene: SceneData, currScene: SceneData) {
+  const prevType = prevScene.visualType;
+  const currType = currScene.visualType;
+
+  // Hook → first narrative: slide from right (breaking news entering context)
+  if (prevType === "hook" && currType === "narrative") {
+    return slide({ direction: "from-right" });
+  }
+
+  // Data scene boundary: wipe (data reveal emphasis)
+  if (currType === "data" || prevType === "data" ||
+      currType === "stat-reveal" || prevType === "stat-reveal") {
+    return wipe();
+  }
+
+  // Last content → CTA: slide from bottom (brand close rises up)
+  if (currType === "cta") {
+    return slide({ direction: "from-bottom" });
+  }
+
+  // Default: fade
+  return fade();
+}
 
 export const ShortVideo: React.FC<ShortVideoProps> = ({
   scenes,
@@ -85,10 +113,11 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
 
     // Add transition before this scene (skip first scene — hard cut)
     if (i > 0) {
+      const prevScene = scenes[i - 1];
       elements.push(
         <TransitionSeries.Transition
           key={`t-${i}`}
-          presentation={fade()}
+          presentation={getTransition(prevScene, scene) as ReturnType<typeof fade>}
           timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
         />,
       );

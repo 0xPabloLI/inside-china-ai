@@ -19,7 +19,9 @@
  *   - ken-burns + video → auto-degrade to fade
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
-import { useCurrentFrame, staticFile, Img, Video } from "remotion";
+import { useCurrentFrame, staticFile, CanvasImage } from "remotion";
+import type { EffectsProp } from "remotion";
+import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOut, easeOutExpo } from "./shared";
 import type { MediaField } from "../types";
 
@@ -36,6 +38,8 @@ interface Props {
   media: MediaField;
   duration: number;
   contentDir?: string;
+  /** Optional @remotion/effects to apply to video/image (e.g. blur, vignette). */
+  effects?: EffectsProp;
 }
 
 /** Maps focus field to CSS object-position value. */
@@ -45,7 +49,7 @@ const FOCUS_MAP: Record<string, string> = {
   bottom: "center bottom",
 };
 
-export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
+export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) => {
   const frame = useCurrentFrame();
 
   // Determine preset (ken-burns + video → degrade to fade)
@@ -138,9 +142,9 @@ export const MediaBackground: React.FC<Props> = ({ media, duration }) => {
   return (
     <>
       {media.type === "image" ? (
-        <Img src={src} style={mediaStyle} />
+        <CanvasImage src={src} style={mediaStyle} />
       ) : (
-        <Video src={src} style={mediaStyle} volume={videoVolume} />
+        <Video src={src} style={mediaStyle} volume={videoVolume} effects={effects} />
       )}
       <div
         style={{

@@ -4,10 +4,11 @@
  * Maps from ctaScene() in lib/scene-templates.mjs.
  * All font sizes, colors, positions are精确对照 from templateCss().
  */
-import { staticFile, Img } from "remotion";
+import { staticFile, CanvasImage, Interactive } from "remotion";
 import type { SceneData } from "../types";
 import { GridBg, Glow, Scanlines, Slot, FrameGlow } from "../components/visuals";
 import { ScaleIn, StampIn, FadeIn } from "../components/animations/entrance";
+import { SPACING } from "../components/shared";
 import { LogoPulse } from "../components/animations/loops";
 
 export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
@@ -29,7 +30,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
           {/* Brand logo — scaleIn 0.6s at 0.1s + logoPulse 3s at 1s */}
           <LogoPulse interval={3}>
             <ScaleIn delay={0.1} duration={0.6}>
-              <Img
+              <CanvasImage
                 src={staticFile("assets/china-ai-news-mark-video.svg")}
                 style={{
                   width: 130,
@@ -42,12 +43,12 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
 
           {/* Brand name — scaleIn 0.6s at 0.3s, 72px */}
           <ScaleIn delay={0.3} duration={0.6}>
-            <div style={{
+            <Interactive.Div name="brand" style={{
               fontSize: 72,
               fontWeight: 900,
               color: "#f5f5f5",
               letterSpacing: "4px",
-              marginBottom: 16,
+              marginBottom: SPACING.lg,
             }}>
               {brand.split(brandHighlight).map((part, i, arr) => (
                 <span key={i}>
@@ -57,20 +58,20 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                   )}
                 </span>
               ))}
-            </div>
+            </Interactive.Div>
           </ScaleIn>
 
           {/* Tagline — fadeIn 0.5s at 0.7s, 32px */}
           {txt.tagline && (
             <FadeIn delay={0.7} duration={0.5}>
-              <div style={{
+              <Interactive.Div name="tagline" style={{
                 fontSize: 32,
                 fontWeight: 600,
                 color: "#cbd5e1",
                 letterSpacing: "3px",
               }}>
                 {txt.tagline as string}
-              </div>
+              </Interactive.Div>
             </FadeIn>
           )}
         </div>

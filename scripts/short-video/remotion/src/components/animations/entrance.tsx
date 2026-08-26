@@ -86,7 +86,7 @@ export const ScaleIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.6, childr
   return (
     <div style={{
       opacity: interpolate(frame, [start, end], [0, 1], { ...clamp, easing: easeOutExpo }),
-      scale: `${interpolate(frame, [start, end], [0.7, 1], { ...clamp, easing: easeOutExpo })}`,
+      scale: `${interpolate(frame, [start, end], [0.7, 1], { ...clamp, easing: easeOutExpo, output: 'perceptual-scale' as const })}`,
       ...style,
     }}>
       {children}
@@ -102,7 +102,39 @@ export const StampIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, childr
   return (
     <div style={{
       opacity: interpolate(frame, [start, end], [0, 1], { ...clamp, easing: easeOut }),
-      scale: `${interpolate(frame, [start, end], [2, 1], { ...clamp, easing: easeOut })}`,
+      scale: `${interpolate(frame, [start, end], [2, 1], { ...clamp, easing: easeOut, output: 'perceptual-scale' as const })}`,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+};
+
+/** slideRight — opacity 0→1, translateX -50→0, 0.5s, ease-out */
+export const SlideRight: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, children, style }) => {
+  const frame = useCurrentFrame();
+  const start = secToFrames(delay);
+  const end = start + secToFrames(duration);
+  return (
+    <div style={{
+      opacity: interpolate(frame, [start, end], [0, 1], clamp),
+      translate: `${interpolate(frame, [start, end], [-50, 0], clamp)}px 0`,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+};
+
+/** slideUpFromBottom — opacity 0→1, translateY 50→0, 0.5s, ease-out */
+export const SlideUpFromBottom: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, children, style }) => {
+  const frame = useCurrentFrame();
+  const start = secToFrames(delay);
+  const end = start + secToFrames(duration);
+  return (
+    <div style={{
+      opacity: interpolate(frame, [start, end], [0, 1], clamp),
+      translate: `0 ${interpolate(frame, [start, end], [50, 0], clamp)}px`,
       ...style,
     }}>
       {children}

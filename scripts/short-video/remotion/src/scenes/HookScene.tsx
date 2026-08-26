@@ -7,7 +7,8 @@
  * Two variants: number-led (bigNumber) or claim-led (hookText + revealText).
  * Optionally renders a media background when scene.media is present.
  */
-import { staticFile, Img } from "remotion";
+import { staticFile, CanvasImage, Interactive, useCurrentFrame, interpolate } from "remotion";
+import { Circle } from "@remotion/rough-notation";
 import type { SceneData } from "../types";
 import {
   GridBg,
@@ -20,6 +21,7 @@ import {
   FrameGlow,
 } from "../components/visuals";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
+import { SPACING } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
 
@@ -43,6 +45,11 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
     : "blue";
   const color = COLORS[colorKey] ?? COLORS.blue;
   const stats = Array.isArray(txt.stats) ? txt.stats : [];
+  const frame = useCurrentFrame();
+  const circleProgress = interpolate(frame, [15, 30], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
@@ -92,7 +99,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
             }}
           >
             {txt.subjectLogo && (
-              <Img
+              <CanvasImage
                 src={staticFile(`assets/logos/${txt.subjectLogo}.svg`)}
                 style={{
                   width: 96,
@@ -120,7 +127,8 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
         {/* Focal — number-led preferred (300px amber) */}
         {txt.bigNumber ? (
           <div style={{ textAlign: "center" }}>
-            <div
+            <Interactive.Div
+              name="bigNumber"
               style={{
                 fontSize: 300,
                 fontWeight: 900,
@@ -131,18 +139,21 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
               }}
             >
               <NumberPulse interval={2} color="rgba(245,158,11">
-                {txt.bigNumber as string}
+                <Circle color="#f59e0b" progress={circleProgress}>
+                  {txt.bigNumber as string}
+                </Circle>
               </NumberPulse>
-            </div>
+            </Interactive.Div>
             {txt.numberLabel && (
               <SlideUp delay={0.6} duration={0.5}>
-                <div
+                <Interactive.Div
+                  name="numberLabel"
                   style={{
                     fontSize: 48,
                     fontWeight: 800,
                     color: "#f5f5f5",
                     letterSpacing: "3px",
-                    marginTop: 16,
+                    marginTop: SPACING.lg,
                     textAlign: "center",
                   }}
                 >
@@ -150,14 +161,15 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   {txt.numberHighlight && (
                     <span style={{ color: "#ef4444" }}>{txt.numberHighlight as string}</span>
                   )}
-                </div>
+                </Interactive.Div>
               </SlideUp>
             )}
           </div>
         ) : txt.hookText ? (
           <div style={{ textAlign: "center" }}>
             {/* Focal claim — 78px, line-height 1.1 */}
-            <div
+            <Interactive.Div
+              name="hookText"
               style={{
                 fontSize: 78,
                 fontWeight: 900,
@@ -168,23 +180,24 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
               }}
             >
               {txt.hookText as string}
-            </div>
+            </Interactive.Div>
             {/* Focal reveal — 80px, stampIn at 0.8s */}
             {txt.revealText && (
               <StampIn delay={0.8} duration={0.5}>
-                <div
+                <Interactive.Div
+                  name="revealText"
                   style={{
                     fontSize: 80,
                     fontWeight: 900,
                     color,
                     letterSpacing: "2px",
                     lineHeight: 1.05,
-                    marginTop: 24,
+                    marginTop: SPACING.xl,
                     textAlign: "center",
                   }}
                 >
                   {txt.revealText as string}
-                </div>
+                </Interactive.Div>
               </StampIn>
             )}
           </div>

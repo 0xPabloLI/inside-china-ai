@@ -8,7 +8,7 @@
  * lib/base-styles.mjs baseStyles().
  */
 import { type ReactNode } from "react";
-import { staticFile, Img } from "remotion";
+import { staticFile, CanvasImage } from "remotion";
 import { CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";
 
 // ── Background layers ──
@@ -19,8 +19,8 @@ export const GridBg: React.FC = () => (
     position: "absolute",
     inset: 0,
     backgroundImage: `
-      linear-gradient(rgba(77,139,255,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(77,139,255,0.04) 1px, transparent 1px)
+      linear-gradient(rgba(77,139,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77,139,255,0.015) 1px, transparent 1px)
     `,
     backgroundSize: "60px 60px",
   }} />
@@ -86,7 +86,7 @@ export const BrandBar: React.FC = () => (
     alignItems: "center",
     gap: 16,
   }}>
-    <Img
+    <CanvasImage
       src={staticFile("assets/china-ai-news-mark-video.svg")}
       style={{ width: 48, height: 48 }}
     />
@@ -178,7 +178,7 @@ export const StatCard: React.FC<{
 
 /** Channel watermark — top-left corner. */
 export const Watermark: React.FC = () => (
-  <Img
+  <CanvasImage
     src={staticFile("assets/china-ai-news-mark-video.svg")}
     style={{
       position: "absolute",
@@ -198,22 +198,26 @@ export const Watermark: React.FC = () => (
 export const Slot: React.FC<{
   variant: "kicker" | "hero" | "support";
   align?: "center" | "start" | "end";
+  top?: number;
+  height?: number;
   children: ReactNode;
-}> = ({ variant, align = "center", children }) => {
+}> = ({ variant, align = "center", top, height, children }) => {
   const slots = {
     kicker: { top: 220, height: 180 },       // 220-400
     hero: { top: 400, height: 550 },          // 400-950
     support: { top: 950, height: 200 },       // 950-1150
   };
-  const slot = slots[variant];
+  const defaults = slots[variant];
+  const resolvedTop = top ?? defaults.top;
+  const resolvedHeight = height ?? defaults.height;
   const justifyContent = align === "start" ? "flex-start" : align === "end" ? "flex-end" : "center";
   return (
     <div style={{
       position: "absolute",
       left: SAFE_ZONES.left,
       right: SAFE_ZONES.right,
-      top: slot.top,
-      height: slot.height,
+      top: resolvedTop,
+      height: resolvedHeight,
       display: "flex",
       flexDirection: "column",
       justifyContent,

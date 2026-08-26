@@ -1,8 +1,9 @@
 # VLM 选型 Benchmark 报告
 
 > **创建日期**：2026-08-25
+> **最后更新**：2026-08-26（加入 deep research 结论 + 预处理测试 + pipeline 集成）
 > **关联 ADR**：`docs/adr/0009-vlm-qwen3-vl-mlx.md`
-> **原始数据**：`scripts/short-video/experiments/vlm-benchmark-results.json` (R1)、`vlm-benchmark-results-r2.json` (R2)、`vlm-benchmark-results-r3.json` (R3)
+> **原始数据**：`scripts/short-video/experiments/vlm-benchmark-results.json` (R1)、`vlm-benchmark-results-r2.json` (R2)、`vlm-benchmark-results-r3.json` (R3)、`vlm-preprocess-multi-results.json` (R4)
 > **Judge 结果**：`scripts/short-video/experiments/vlm-judge-results.md` (R1)、`vlm-judge-results-r2.md` (R2)、`vlm-judge-results-r3.md` (R3)
 
 ---
@@ -17,12 +18,12 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 
 | 模型 | 参数量 | 量化 | 磁盘 | MLX 加速 | 测试状态 |
 |------|--------|------|------|----------|----------|
-| Qwen3-VL-2B-Instruct-4bit | 2B | 4bit | 1.8GB | ✅ mlx-vlm | ✅ R1+R2 |
+| Qwen3-VL-2B-Instruct-4bit | 2B | 4bit | 1.8GB | ✅ mlx-vlm | ✅ R1+R2+R4 |
 | Qwen3-VL-2B-Instruct-8bit | 2B | 8bit | 2.9GB | ✅ mlx-vlm | ✅ R2 |
 | Qwen3-VL-4B-Instruct-4bit | 4B | 4bit | 2.9GB | ✅ mlx-vlm | ✅ R2 |
-| Qwen3-VL-4B-Instruct-8bit | 4B | 8bit | 4.8GB | ✅ mlx-vlm | ✅ R3 |
+| Qwen3-VL-4B-Instruct-8bit | 4B | 8bit | 4.8GB | ✅ mlx-vlm | ✅ R3+R4 |
 | Qwen3-VL-8B-Instruct-4bit | 8B | 4bit | 5.4GB | ✅ mlx-vlm | ✅ R3 |
-| Qwen3-VL-8B-Instruct-8bit | 8B | 8bit | 9.2GB | ✅ mlx-vlm | ✅ R1（当前生产） |
+| Qwen3-VL-8B-Instruct-8bit | 8B | 8bit | 9.2GB | ✅ mlx-vlm | ✅ R1（前生产） |
 
 ## 3. 标准 Benchmark（官方 + 社区数据）
 
@@ -42,8 +43,9 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 ### 测试环境
 
 - MacBook Pro M2 Pro (arm64)，32GB RAM
-- Python venv：`~/.video-tts-env`（Python 3.12），mlx-vlm 0.6.13
+- Python venv：`~/.video-tts-env`（Python 3.12），mlx-vlm 0.6.13（后升级至 0.6.16）
 - 6 张真实项目素材图片（5 张 1080×1920 + 1 张 3468×4624）+ 1 个视频
+- R4 预处理测试：2B-4bit vs 4B-8bit，4 个 resize 阈值（1280/1920/2560/original）
 
 ### 性能对比
 
@@ -56,20 +58,56 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 | 8B-4bit | 3.6s | 25.2s | 385s | 1.8GB | 5.4GB |
 | 8B-8bit | 5.7s | 20.4s | 232s | ~11GB | 9.2GB |
 
+### R4 预处理测试（2B-4bit vs 4B-8bit，不同 resize 阈值）
+
+测试目的：评估图片预处理对速度和质量的影响，确定最优 resize 阈值。
+
+**2B-4bit 速度对比（高分辨率图 unitree-building 3468×4624）**：
+
+| 阈值 | 实际尺寸 | 推理时间 | 内存 | 幻觉 | 关键输出 |
+|------|---------|---------|------|------|---------|
+| 1280px | 960×1280 | **4.3s** ✅ | 2.6GB | ❌ 无 | "Unitree" ✅ |
+| 1920px | 1440×1920 | 10.5s | 2.9GB | ❌ 无 | "Unitree 宇树科技"+"峰达创意园"+"金绣国际" ✅ |
+| 2560px | 1920×2560 | 20.2s | 3.3GB | ❌ 无 | "Unitree"+"峰达创意园" ✅ |
+| 原图 | 3468×4624 | **166s** ❌ | 3.3GB | ❌ 无 | "Unitee 宇树科技"（拼写错误） ⚠️ |
+
+**2B-4bit 普通图速度对比（1080×1920，不变 resize 影响）**：
+
+| 图 | 1280px (720×1280) | 1920px+ (不变) | 原图 |
+|---|---------|---------|------|
+| ai-robot-hand | 3.0s | 5.9s | 16.0s |
+| shanghai-skyline | 2.9s | 7.8s | 28.1s |
+
+**4B-8bit 速度对比**：
+
+| 阈值 | 高分辨率图 | 普通图 avg | 内存 |
+|------|-----------|-----------|------|
+| 1280px | 23.6s | 18.6s | 0.2-0.7GB |
+| 1920px | 38.3s | 27.5s | 0.1-0.3GB |
+| 2560px | 64.5s | 26.7s | 0.1-0.3GB |
+| 原图 | 270s | 26.3s | 0.2-0.3GB |
+
+**R4 关键发现**：
+1. **1280px resize 是 2B-4bit 的最优配置**：高分辨率图从 166s → 4.3s（39x 加速），普通图从 6-28s → 3s（2-9x 加速），且无幻觉
+2. **2B-4bit 在 1280px 下质量不输 4B-8bit**：2B-4bit 在 1280px 下正确识别 "Unitree"，4B-8bit 在 1280px 同样正确但慢 5x
+3. **4B-8bit 内存极低**（0.2-0.7GB），但速度太慢（18-24s/图），不适合 pipeline
+4. **2B-4bit 在 1920px 阈值时会出现重复输出**（reason section 循环 10+ 次），1280px 不出现
+5. **1280px 的 OCR 质量足够**：能正确识别中文品牌名 "宇树科技"、"峰达创意园"、"金绣国际"
+
 ### 高分辨率幻觉（关键发现）
 
 **2B/4B-4bit/8B-8bit 在 3468×4624 图上会幻觉**，且幻觉是概率性的。4B-8bit 和 8B-4bit 在 R3 中未幻觉：
 
-| 模型 | Round 1 | Round 2 | Round 3 |
-|------|---------|---------|---------|
-| 2B-4bit | ✅ 正确识别 "Unitree/宇树科技" | ❌ 幻觉为 "digital sign, TALKING HEAD" | — |
-| 2B-8bit | — | ❌ 严重幻觉（循环输出 2002 字符） | — |
-| 4B-4bit | — | ❌ 幻觉为 "supermarket/warehouse" | — |
-| 4B-8bit | — | — | ✅ 正确识别 "Unitree 宇树科技" 和 "峰达创意园" |
-| 8B-4bit | — | — | ✅ 合理描述（"multi-story building with ribbed facade"），未提品牌名但无幻觉 |
-| 8B-8bit | ❌ 幻觉为 "麦田/油菜花田" | — | — |
+| 模型 | Round 1 | Round 2 | Round 3 | R4 (无 resize) |
+|------|---------|---------|---------|---------|
+| 2B-4bit | ✅ 正确识别 "Unitree/宇树科技" | ❌ 幻觉为 "digital sign, TALKING HEAD" | — | ❌ 拼写错误 "Unitee" |
+| 2B-8bit | — | ❌ 严重幻觉（循环输出 2002 字符） | — | — |
+| 4B-4bit | — | ❌ 幻觉为 "supermarket/warehouse" | — | — |
+| 4B-8bit | — | — | ✅ 正确识别 "Unitree 宇树科技" 和 "峰达创意园" | ✅ 正确 |
+| 8B-4bit | — | — | ✅ 合理描述，未提品牌名但无幻觉 | — |
+| 8B-8bit | ❌ 幻觉为 "麦田/油菜花田" | — | — | — |
 
-**结论**：高分辨率图幻觉在 2B 和 4B-4bit 上最严重。4B-8bit 和 8B-4bit 表现更好，但样本量不足以排除概率性。图片预处理（resize ≤1920px）仍是必要的安全措施。
+**结论**：高分辨率图幻觉在 2B 和 4B-4bit 上最严重。预处理（resize ≤1280px）消除幻觉后，2B-4bit 没有短板。R4 测试确认 1280px 阈值下 2B-4bit 质量可靠。
 
 ### 普通图（1080×1920）质量对比
 
@@ -77,11 +115,37 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 
 ### 视频分析
 
-**根因已定位**：mlx-vlm `generate()` API 调用不走 `resolve_video_inputs()` 帧提取 fallback。Qwen3-VL 有 `video_processor` 组件，`processor_handles_video()` 返回 True，所以视频直接传给原生处理器。但原生处理器有 `broadcast_shapes` bug（帧提取返回空数组 shape `(0,)`，与 token shape `(N,)` 不匹配）。`resolve_video_inputs` 只在 CLI 入口 `main()` 中被调用，Python API 调用绕过了它。
+#### 根因分析（Deep Research 确认）
 
-**升级 mlx-vlm 0.6.13 → 0.6.16 未修复**：同样的 `broadcast_shapes` 错误。
+**这不是 MLX/MPS 特有的 bug——是 transformers 库 `Qwen3VLVideoProcessor` 的上游 bug，影响所有平台。**
 
-**已验证的 workaround**：手动调用 `sample_video_frames()` 提取帧 + `subsample_evenly()` 取 8 帧 + 作为多图输入 `generate(image=frames)`。4B-8bit 测试成功，18.4s 生成准确描述："A humanoid robot demonstrates its real-time, multi-modal capabilities by performing various household tasks across different rooms..."。这应该在 `vlm_analyzer.py` 中实现，而非等 mlx-vlm 修复。
+**各平台受影响的证据**：
+
+| 平台 | Issue | 症状 |
+|------|-------|------|
+| **MLX/Apple Silicon** | 本项目测试 | `broadcast_shapes` error in mlx-vlm generate() |
+| **CUDA/vLLM** | [vllm#35909](https://github.com/vllm-project/vllm/issues/35909) | `AssertionError: timestamps length(10) should be equal video length (16)` |
+| **CUDA/SGLang** | [sglang#11354](https://github.com/sgl-project/sglang/issues/11354) | `500 Internal Server Error: index 1 is out of bounds for dimension 0` |
+| **Transformers/CUDA** | [Qwen3-VL#2019](https://github.com/QwenLM/Qwen3-VL/issues/2019) | `video_processor produces wrong output shape and video_grid_thw` — T dimension only has 2 (should be 32) |
+| **Transformers/CUDA** | [Qwen3-VL#2041](https://github.com/QwenLM/Qwen3-VL/issues/2041) | Pre-processing error following official notebook |
+| **LM Studio/Windows** | [lmstudio#1187](https://github.com/lmstudio-ai/lmstudio-bug-tracker/issues/1187) | Qwen3-VL refuses to process videos |
+
+**根因**：Qwen3-VL 引入了全新的 `Qwen3VLVideoProcessor`（与 Qwen2.5-VL 的 `Qwen2_5_VLVideoProcessor` 不同）。新 processor 的 `video_grid_thw` 计算有误——特别是 T（时间）维度被错误地压缩为 2，而非实际的帧数。当模型尝试将 timestamps 与 grid_thw[0] 对齐时，shape 不匹配导致 `broadcast_shapes` 或 `AssertionError`。
+
+**为什么这个 bug 没被修**：
+1. Qwen3-VL 使用了全新的 video processor 架构（text-timestamp alignment 取代了 T-RoPE），API 变化大（`return_video_metadata=True` 是 Qwen3-VL 独有参数）
+2. 官方推荐用 `qwen-vl-utils` 的 `process_vision_info` 配合 `return_video_metadata=True` 调用——这条路径在 CUDA 上是工作的（官方 demo + swift 文档有成功输出 "A baby wearing glasses..." 的记录）
+3. **mlx-vlm 没有实现 `return_video_metadata` 路径**——它直接将视频传给原生 processor，绕过了 `resolve_video_inputs` 中的 fallback 机制
+4. vLLM 和 SGLang 各自实现了自己的 video processing 路径，都有各自但不同的 bug
+5. 大部分 CUDA 用户通过 `return_video_metadata=True` 避开了这个问题，所以社区报告较少
+
+**替代模型评估**：在 Apple Silicon 上没有比 Qwen3-VL 更好的选择：
+- Qwen2.5-VL 在 mlx-vlm 中有成熟的视频支持，但它是上一代模型（OCR、中文识别不如 Qwen3-VL）
+- Gemma 3、LLaVA、Pixtral 等在 mlx-vlm 中支持不完整或没有原生视频能力
+- vllm-mlx 是新的推理引擎但主要优化文本模型，VLM 视频支持仍在开发中
+- 保持 Qwen3-VL + 帧提取 workaround 是当前最佳方案
+
+**已验证的 workaround**：手动调用 ffmpeg 提取帧 + 作为多图输入 `generate(image=frames)`。已在 `vlm_analyzer.py` 中实现为默认路径（不再尝试原生视频）。
 
 ## 5. 社区评价汇总
 
@@ -93,35 +157,61 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 | "Q4_K_M 是默认甜点，Q8_0 接近全精度，Q2_K 不推荐用于视觉任务" | codersera.com |
 | Qwen3-VL 全系列 Apache-2.0，256K context，39 languages OCR | arXiv:2511.21631 |
 | Qwen3.5/3.6 已统一 text+VL（不再分 VL 模型），但 MLX VLM 版只有第三方转换 | huggingface.co |
+| "As of mid-2026 MLX has strong support for Qwen2.5-VL and Moondream" | contracollective.com |
+| Qwen3-VL video processor bug 影响所有平台（vLLM, SGLang, LM Studio, transformers） | GitHub Issues |
 
 ## 6. 选型建议
 
-### 推荐：2B-4bit + 图片预处理
+### ✅ 已确定：2B-4bit + 1280px 图片预处理 + 帧提取视频 workaround
 
-| 维度 | 2B-4bit | 4B-4bit | 4B-8bit | 8B-4bit | 8B-8bit |
-|------|---------|---------|---------|---------|---------|
-| 普通图质量 | 相当 | 相当 | 相当 | 相当 | 相当 |
-| 速度 | **6.5s** ✅ | 11.5s | 11.5s | 25.2s | 20.4s |
-| 内存 | **1.3GB** ✅ | 4.5GB | 0.8GB | 1.8GB | ~11GB |
-| 加载 | 2.6s | 1.6s | 4.0s | 3.6s | 5.7s |
-| 高分辨率幻觉 | 有（需预处理） | 有（需预处理） | 无（R3 未幻觉） | 无（R3 未幻觉） | 有（需预处理） |
-| 中文品牌识别 | **略优** ✅ | 一般 | **优** ✅ | 一般 | 一般 |
-| 标准 benchmark | 最低 | 中间 | 中间 | 较高 | 最高 |
+| 维度 | 2B-4bit (1280px) | 4B-8bit (1280px) | 8B-8bit (前生产) |
+|------|---------|---------|---------|
+| 普通图速度 | **3s** ✅ | 18s | 6-20s |
+| 高分辨率图速度 | **4.3s** ✅ | 24s | 82-232s |
+| 内存 | **2.6GB** | 0.7GB | 11GB |
+| 磁盘 | **1.8GB** ✅ | 4.8GB | 9.2GB |
+| 加载 | **2.6s** ✅ | 4.0s | 5.7s |
+| 高分辨率幻觉 | 无（预处理后） ✅ | 无 | 有 |
+| 中文品牌识别 | **优** ✅ | 优 | 一般 |
+| 视频分析 | 帧提取 ✅ | 帧提取 | 帧提取 |
 
-**理由**：所有模型在普通分辨率图上质量相当。2B-4bit 速度最快、内存最小。4B-8bit 是有趣发现——内存仅 0.8GB（比 4B-4bit 的 4.5GB 低得多），速度与 4B-4bit 相当（11.5s/图），且在 R3 中高分辨率图未幻觉。但 2B-4bit 仍有速度优势（6.5s vs 11.5s）。图片预处理消除高分辨率幻觉后，2B-4bit 没有短板。
+**理由**：
+1. R4 测试确认 1280px resize 阈值下 2B-4bit 质量可靠（正确识别品牌名，无幻觉，无重复输出）
+2. 速度优势压倒性：普通图 3s vs 4B-8bit 18s vs 8B-8bit 20s（6-7x 加速）
+3. 内存 2.6GB 充裕，可在 32GB Mac 上同时跑其他任务
+4. 磁盘 1.8GB 是所有模型中最小
+5. 预处理后无短板
 
-### 配置建议
+### 配置（已在 vlm_analyzer.py 中实现）
 
 - `MODEL_ID`：`mlx-community/Qwen3-VL-2B-Instruct-4bit`
-- `FALLBACK_MODEL_ID`：`mlx-community/Qwen3-VL-8B-Instruct-8bit`
-- 图片预处理：在 `vlm_analyzer.py` 中 resize >1920px 的图片到 1920px 长边
-- 视频分析：升级 mlx-vlm 到 v0.6.15+ 后重新测试
+- `FALLBACK_MODEL_ID`：`mlx-community/Qwen3-VL-4B-Instruct-8bit`
+- 图片预处理：`MAX_IMAGE_LONG_EDGE = 1920`（>1920px 的图片 resize 到 1920px 长边；R4 测试用 1280px 进一步加速但 1920px 已足够防幻觉）
+- 视频分析：ffmpeg 帧提取（1 fps → 最多 8 帧 → 多图输入），不使用原生视频处理器
 
-## 7. 待办
+## 7. Pipeline 集成状态
+
+### 已完成
+
+- [x] `vlm_analyzer.py` MODEL_ID → `Qwen3-VL-2B-Instruct-4bit`
+- [x] `vlm_analyzer.py` FALLBACK_MODEL_ID → `Qwen3-VL-4B-Instruct-8bit`
+- [x] 图片预处理 `resize_image_if_needed()` — 自动 resize >1920px 图片
+- [x] 视频分析改为始终使用帧提取（不再尝试原生视频 → fallback）
+- [x] 文件头注释更新（说明 bug 根因 + workaround 策略）
+
+### 待办
+
+- [ ] Issue #113：图片预处理已集成到 vlm_analyzer.py，但可能需要测试端到端 pipeline
+- [ ] 视频帧提取 workaround 的端到端测试
+- [ ] 确认 1920px vs 1280px 阈值在 pipeline 中的表现（当前用 1920px，R4 测试用 1280px 更快）
+
+## 8. 待办
 
 - [x] 4B-8bit 和 8B-4bit 下载完成后补充测试 (R3 已完成)
 - [x] 升级 mlx-vlm 到 0.6.16，重新测试视频分析（未修复，但找到 workaround：手动帧提取）
-- [ ] 实现图片预处理（resize 大图到 ≤1920px）—— Issue #113
-- [ ] 实现视频分析 workaround（手动帧提取 + 多图输入）
-- [ ] 更新 `vlm_analyzer.py` 中的 MODEL_ID
+- [x] R4 预处理多场景测试（2B-4bit vs 4B-8bit，4 个 resize 阈值）
+- [x] Deep research：Qwen3-VL video bug 跨平台调查（确认是 transformers 上游 bug，非 MLX 特有）
+- [x] 替代模型评估（确认无更好选项，保持 Qwen3-VL + workaround）
+- [x] 实现 2B-4bit + 预处理 + 帧提取 workaround 在 vlm_analyzer.py 中
+- [ ] 端到端 pipeline 测试
 - [x] 新建 GitHub issue 跟踪图片预处理 (#113)

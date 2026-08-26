@@ -60,6 +60,8 @@ export interface SceneTexts {
   stat?: string;
   statLabel?: string;
   subtext?: string;
+  /** Keyword to highlight with @remotion/rough-notation (optional). */
+  highlight?: string;
   [key: string]: string | StatItem[] | string[] | undefined; // allow visualType-specific fields
 }
 
@@ -71,6 +73,8 @@ export interface SceneData {
   voiceover: string;
   texts?: SceneTexts;
   media?: MediaField;
+  /** Layout variant for scene rendering (required for non-cta scenes). */
+  layout?: string;
 }
 
 /** Props passed to the ShortVideo Composition via renderMedia(). */

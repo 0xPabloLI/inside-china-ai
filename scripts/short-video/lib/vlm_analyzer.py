@@ -2,7 +2,7 @@
 """
 AI Analyzer — Python subprocess for VLM-powered asset understanding.
 
-Loads mlx-community/Qwen3-VL-8B-Instruct-8bit via mlx-vlm, listens on stdin
+Loads mlx-community/Qwen3-VL-2B-Instruct-4bit via mlx-vlm, listens on stdin
 for line-delimited JSON requests, writes JSON responses to stdout.
 
 Actions:
@@ -18,9 +18,15 @@ Response format (one line):
 VLM outputs Markdown with ## Section headers. Python parses it via
 parse_markdown_to_dict() — pure string manipulation, no LLM needed.
 
-Video analysis uses Qwen3-VL native video processor (--video path --fps 1.0).
-Falls back to ffmpeg frame extraction (1 fps → multi-image input) if native
-video path raises.
+Video analysis uses ffmpeg frame extraction (1 fps → multi-image input)
+instead of Qwen3-VL native video processor. The native processor has a
+broadcast_shapes bug in Qwen3VLVideoProcessor (upstream transformers bug,
+affects all platforms including CUDA). Frame extraction workaround is
+always used — no fallback to native video.
+
+Image preprocessing: images with longest edge > MAX_IMAGE_LONG_EDGE are
+resized to prevent high-resolution hallucinations (probabilistic bug in
+Qwen3-VL at resolutions > ~2000px).
 
 Runs in ~/.video-tts-env Python venv (shared with F5-TTS and whisperx).
 ffmpeg path: /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
@@ -34,15 +40,17 @@ import time
 import subprocess
 import tempfile
 import glob
+from pathlib import Path
 
 # ─── Constants ───
 
-MODEL_ID = "mlx-community/Qwen3-VL-8B-Instruct-8bit"
-FALLBACK_MODEL_ID = "mlx-community/Qwen3-VL-8B-Instruct-4bit"
+MODEL_ID = "mlx-community/Qwen3-VL-2B-Instruct-4bit"
+FALLBACK_MODEL_ID = "mlx-community/Qwen3-VL-4B-Instruct-8bit"
 FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
 VIDEO_FPS = 1.0
 MAX_VIDEO_SECONDS = 8  # cap analysis at 8s of video
+MAX_IMAGE_LONG_EDGE = 1920  # resize images with longer edge > this to prevent hallucinations
 
 SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
 
@@ -421,6 +429,38 @@ def _cleanup_frames(frame_paths):
         pass
 
 
+# ─── Image preprocessing ───
+
+def resize_image_if_needed(img_path):
+    """Resize image if longest edge > MAX_IMAGE_LONG_EDGE.
+
+    Returns (path_to_use, temp_path_to_clean_or_None).
+    If no resize needed, returns (img_path, None).
+    """
+    try:
+        from PIL import Image
+        img = Image.open(img_path)
+        w, h = img.size
+        longest = max(w, h)
+        if longest <= MAX_IMAGE_LONG_EDGE:
+            return img_path, None
+
+        scale = MAX_IMAGE_LONG_EDGE / longest
+        new_w, new_h = int(w * scale), int(h * scale)
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        tmp = tempfile.mktemp(suffix=".jpg")
+        img.save(tmp, "JPEG", quality=90)
+        sys.stderr.write(
+            f"[vlm_analyzer] Resized {img_path} from {w}x{h} to {new_w}x{new_h}\n"
+        )
+        sys.stderr.flush()
+        return tmp, tmp
+    except Exception as e:
+        sys.stderr.write(f"[vlm_analyzer] Resize failed, using original: {e}\n")
+        sys.stderr.flush()
+        return img_path, None
+
+
 # ─── Request handler ───
 
 def handle_analyze_semantics(model, processor, path, window=None):
@@ -430,8 +470,7 @@ def handle_analyze_semantics(model, processor, path, window=None):
     Outputs Markdown which is parsed by parse_markdown_to_dict.
 
     When window is provided (dict with startMs/endMs/sampleFps), uses it for
-    both native video input and fallback frame extraction to ensure both
-    paths analyze the same temporal range.
+    frame extraction to ensure the analyzed temporal range matches.
 
     Returns (result_dict, error) tuple.
     """
@@ -453,36 +492,24 @@ def handle_analyze_semantics(model, processor, path, window=None):
 
     try:
         if is_video:
-            # Try native video input
+            # Always use frame extraction — native video processor has
+            # broadcast_shapes bug in Qwen3VLVideoProcessor (upstream transformers,
+            # affects all platforms). Manual frame extraction bypasses it.
+            frames = extract_frames(
+                path, fps=sample_fps,
+                max_seconds=MAX_VIDEO_SECONDS,
+                start_ms=start_ms, end_ms=end_ms,
+            )
+            if not frames:
+                return {}, "Video frame extraction failed"
             try:
                 raw = generate_response(
-                    model, processor, video_path=path,
-                    fps=sample_fps, prompt_text=SEMANTICS_PROMPT_VIDEO,
+                    model, processor, image_paths=frames,
+                    prompt_text=SEMANTICS_PROMPT_VIDEO,
                 )
-                source_mode = "native"
-            except Exception as e:
-                sys.stderr.write(
-                    f"[vlm_analyzer] Native video failed for analyze_semantics, "
-                    f"falling back to frames: {e}\n"
-                )
-                sys.stderr.flush()
-                frames = extract_frames(
-                    path, fps=sample_fps,
-                    max_seconds=MAX_VIDEO_SECONDS,
-                    start_ms=start_ms, end_ms=end_ms,
-                )
-                if not frames:
-                    return {}, "Both native video and frame extraction failed"
-                # R2 fix: ensure frames are cleaned up even if generate_response
-                # or parse_markdown_to_dict raises
-                try:
-                    raw = generate_response(
-                        model, processor, image_paths=frames,
-                        prompt_text=SEMANTICS_PROMPT_VIDEO,
-                    )
-                finally:
-                    _cleanup_frames(frames)
-                source_mode = "frames"
+            finally:
+                _cleanup_frames(frames)
+            source_mode = "frames"
         else:
             # Image — verify first
             try:
@@ -492,10 +519,19 @@ def handle_analyze_semantics(model, processor, path, window=None):
             except Exception as e:
                 return {}, f"Invalid or corrupt image: {e}"
 
-            raw = generate_response(
-                model, processor, image_paths=path,
-                prompt_text=SEMANTICS_PROMPT_IMAGE,
-            )
+            # Preprocess: resize large images to prevent hallucinations
+            actual_path, temp_path = resize_image_if_needed(path)
+            try:
+                raw = generate_response(
+                    model, processor, image_paths=actual_path,
+                    prompt_text=SEMANTICS_PROMPT_IMAGE,
+                )
+            finally:
+                if temp_path:
+                    try:
+                        os.unlink(temp_path)
+                    except OSError:
+                        pass
             source_mode = None  # images don't have sourceMode
     except Exception as e:
         return {}, f"VLM generation failed: {e}"

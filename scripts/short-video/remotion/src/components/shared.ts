@@ -26,3 +26,20 @@ export const easeOut = Easing.bezier(0, 0, 0.58, 1);
 export const easeOutExpo = Easing.bezier(0.16, 1, 0.3, 1);
 
 export { interpolate, Easing };
+
+/**
+ * Spacing scale — 4pt base system (impeccable layout.md guidance).
+ * Use these tokens for all gaps, margins, and padding.
+ * Same-group elements: sm (8px). Between groups: xl (24px) or '2xl' (32px).
+ */
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  '2xl': 32,
+  '3xl': 48,
+  '4xl': 64,
+  '5xl': 96,
+} as const;
