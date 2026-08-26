@@ -372,6 +372,7 @@ def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS,
     """
     tmpdir = tempfile.mkdtemp(prefix="vlm_analyzer_frames_")
     output_pattern = os.path.join(tmpdir, "frame_%04d.jpg")
+    glob_pattern = os.path.join(tmpdir, "frame_*.jpg")
 
     cmd = [
         FFMPEG_PATH,
@@ -409,7 +410,7 @@ def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS,
         sys.stderr.flush()
         return []
 
-    frames = sorted(glob.glob(output_pattern))
+    frames = sorted(glob.glob(glob_pattern))
     return frames
 
 
