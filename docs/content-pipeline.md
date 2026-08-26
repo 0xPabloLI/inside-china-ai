@@ -17,6 +17,8 @@
 
 管线起点。三个入口在 Stage 0 汇合，输出统一的「素材集合」（用户素材 + 互联网全文）。
 
+> **Analytics 结论读取（必须）**：Agent 在 Stage 0 开始前，检查 `output/analytics-conclusions.md` 是否存在。如果存在，读取其中的 Hashtag 策略和内容策略结论，在后续 Stage 3 选择 hashtag 和设计内容时参考。详见 `docs/analytics-workflow.md` → Analytics → Pipeline 联动机制。
+
 **入口 1（有素材）**：用户给 PDF/URL/文本 → Agent 读素材 → 提取 keyword → `search-sources --research --content-id <slug>` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 用户素材 + 全文 = Stage 0 输出
 
 **入口 2（有话题）**：用户给话题 → `search-sources --keyword "话题" --research` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 全文 = Stage 0 输出
@@ -186,6 +188,28 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <p
 
 > **非阻塞**：如果 Ollama 未运行或 reindex 失败，不阻塞管线后续 stage。Agent 会输出警告并建议手动 `node scripts/rag/index.mjs`。
 
+### 2e. RAG 查询
+
+写文章、做视频、选题时，用语义搜索查已有内容（零费用，本地 Ollama bge-m3）：
+
+```bash
+node scripts/rag/query.mjs "DeepSeek 估值"                    # 全类型搜索
+node scripts/rag/query.mjs "DeepSeek 估值" --type research    # 只搜研究文档
+node scripts/rag/query.mjs "数字人" --type scene-data         # 只搜已有视频场景
+node scripts/rag/query.mjs "logo" --type asset-catalog        # 只搜素材目录
+```
+
+| `content_type` | 内容 | 来源目录 |
+|----------------|------|---------|
+| `article` | 已发布文章 | `articles/*.md` |
+| `scene-data` | 视频场景数据 | `scripts/short-video/content/*/scene-data.mjs` |
+| `source-material` | 源素材文档 | `docs/refs/source-materials/` |
+| `research` | 研究文档 | `docs/research/` |
+| `tiktok-ref` | TikTok 策略参考 | `docs/refs/tiktok-skills/` |
+| `asset-catalog` | 素材目录 | `scripts/short-video/assets/catalog.yml` |
+
+`--format human` 输出可读文本；默认 JSON 供 Agent 消费。`--topics` 按 metadata.topics 过滤。`--rerank` 启用重排（需 `ollama pull bge-reranker-base`）。
+
 ---
 
 ## Stage 3: 视频脚本 + scene-data（与文章轨并行）
@@ -222,7 +246,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 4. **按内容类型选择叙事结构**（见 `docs/video-script-writing-guide.md`），按 TikTok 节奏重构为 10-12 个场景
 5. **设计 SEO 标题**（≤60 chars）——在 scene-data 中显式设计 caption 第一行（见 `docs/video-script-writing-guide.md` → 标题策略）
 6. **直接写 `scene-data.mjs`** — 不需要中间脚本（新建 content dir 时见 `docs/content-scaffold-guide.md`）
-7. **检查 TikTok Creative Center trending 标签** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查 trending 标签。如发现相关的，记录到 `metadata.trendingHashtags`。
+7. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
 
 ### 文章 → 视频的节奏适配
 
