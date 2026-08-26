@@ -11,7 +11,9 @@
  * All presets have:
  *   - Entrance: opacity 0→1 with preset-specific motion
  *   - Sustained: preset-specific continuous motion (or static)
- *   - Exit: opacity 1→0 with slight upward drift (all presets)
+ *   - Exit: no opacity ramp (TransitionSeries handles crossfade);
+ *     subtle motion drift retained for some presets
+ *   - Video volume: independent exit fade (baseVolume × 4-stop envelope)
  *
  * Rules:
  *   - All scenes can opt in to media via scene.media (hook, narrative, etc.)
@@ -69,10 +71,11 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
   const src = staticFile(media.path.startsWith("assets/") ? media.path : `assets/${media.path}`);
 
   // ─── Opacity (all presets except none) ───
+  // Entrance-only envelope: image fades in, stays at full opacity.
+  // No exit fade — TransitionSeries handles the crossfade at scene boundaries.
+  // This prevents the "double fade" / "blink to black" flicker.
   const opacity =
-    preset === "none"
-      ? 1
-      : interpolate(frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp);
+    preset === "none" ? 1 : interpolate(frame, [0, inFrames, totalFrames], [0, 1, 1], clamp);
 
   // ─── Preset-specific transforms ───
 
@@ -112,9 +115,14 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     });
   }
 
-  // ─── Volume (envelope ducking: volume follows opacity envelope) ───
+  // ─── Volume (independent exit fade: audio ducks out at scene end) ───
+  // Video volume has its own 4-stop envelope so audio still fades out
+  // at scene end, even though media opacity no longer has an exit ramp.
   const baseVolume = media.volume ?? 0.08;
-  const videoVolume = baseVolume * opacity;
+  const videoVolume =
+    preset === "none"
+      ? baseVolume
+      : baseVolume * interpolate(frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp);
 
   const mediaStyle: React.CSSProperties = {
     position: "absolute",
@@ -122,7 +130,9 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     width: "100%",
     height: "100%",
     objectFit: media.fit ?? "cover",
-    objectPosition: FOCUS_MAP[media.focus ?? "center"] ?? "center",
+    objectPosition: media.cropFocus
+      ? `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`
+      : (FOCUS_MAP[media.focus ?? "center"] ?? "center"),
     opacity,
     transform: `translate(${translateX}, ${translateY}) scale(${scale})`,
     filter: filter !== "none" ? filter : undefined,
