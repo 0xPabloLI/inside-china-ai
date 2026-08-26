@@ -35,6 +35,7 @@
 | `spec-issue-84-search-cache.md` / `tickets-issue-84-search-cache.md` | 2026-08-21 | Issue #84 搜索结果缓存 — 以内容、来源与规范化关键词为键，复用 API/CDP/yt-dlp 图片和视频候选结果；24 小时 TTL、版本化 envelope、原子单次写入与失败降级。 |
 | `spec-voice-prosody-optimization.md` / `tickets-voice-prosody-optimization.md` | 2026-08-14 | 语音质量与韵律优化 4 层方案 — 参考音频替换 + 音频清洗链 (highpass + afftdn) + rubberband per-scene prosody + 消除双重 MP3 编码。F5 A/B 测试后确定 prosody DISABLED for F5。 |
 | `spec-media-volume-autofill.md` / `tickets-media-volume-autofill.md` | 2026-08-14 | Per-scene volume + envelope ducking + asset-sourcer auto-fill — `MediaField.volume` 字段 + `videoVolume = baseVolume * opacity` 渐变 + `validateMedia()` range check [0,1] + `assignAssetsToScenes()` 批量分配 + `media-patch.json` + `apply-media-patch.mjs` HITL 审查。 |
+| `spec-remotion-layout-refactor.md` / `tickets-remotion-layout-refactor.md` | 2026-08-26 | Remotion 场景模板重构 — 6 布局变体（hero-center/media-bottom-bar/media-split/media-overlay/stacked-cards/cta）+ SPACING 4pt 系统 + @remotion/media 迁移（Img→CanvasImage, Video/Audio）+ @remotion/rough-notation（Circle/Underline）+ Interactive.Div + 多样化转场（slide/wipe/fade, 10 frames）+ GridBg 弱化（0.04→0.015, 仅无媒体场景）+ scene-rules.mjs layout 验证 + safe-zone 回归测试。74 tests passing。 |
 
 ### 趋势 & 发布 Specs
 
@@ -134,6 +135,7 @@
 | `handoff-media-mode-design.md` | 2026-08-12 | Media fullscreen 模式 — 已在 `spec-media-fullscreen-mode.md` 归档。 |
 | `handoff-spacing-fix.md` | 2026-08-12 | HookScene/CtaScene 间距修复 — 已在布局标准中完成。 |
 | `handoff-doc-hierarchy-review.md` | 2026-08-15 | 文档层次审查 — 已在 `spec-doc-hierarchy-optimization.md` + `spec-doc-hierarchy-lint.md` 归档。 |
+| `handoff-remotion-layout-refactor.md` | 2026-08-26 | Remotion 布局重构交接 — T1-T6 全部完成。6 布局变体 + SPACING + @remotion/media 迁移 + rough-notation + Interactive.Div + 转场多样化 + safe-zone 回归测试。Step 5 code review 已完成。 |
 
 > **未归档的 handoff**（`docs/handoffs/` 中仍活跃）：
 > - `handoff-asset-source-unification.md` — 素材源统一命名，待实施
