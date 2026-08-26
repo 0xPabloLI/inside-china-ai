@@ -19,6 +19,8 @@ https://api.github.com/search/repositories?q={关键词}&sort=stars&order=desc&p
 
 或用网页：`https://github.com/search?q={关键词}&type=repositories&s=stars&o=desc`
 
+> **API 文档**：[GitHub REST API Search](https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28) — 专属速率限制、1,000 结果上限、`incomplete_results` 字段。最后验证：2026-08-26。
+
 **关键词组合策略**（以"数字人"为例，从宽到窄）：
 
 | 搜索目的 | 关键词组合 |
@@ -52,6 +54,8 @@ https://huggingface.co/api/models?search={关键词}&limit=20
 https://huggingface.co/models?search={关键词}
 ```
 
+> **API 文档**：[HuggingFace Hub API](https://huggingface.co/docs/hub/en/api) — 模型搜索、文件列表、模型卡。最后验证：2026-08-26。
+
 **关键词组合**：
 - `talking head` / `lip sync` / `portrait animation` / `audio-driven portrait`
 - `{模型名} mlx` / `{模型名} onnx` / `{模型名} coreml`
@@ -73,17 +77,22 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 网页：`https://modelscope.cn/models?Query={关键词}`
 
+> **注**：ModelScope API 需登录 token，搜索结果可能因账户权限不同。最后验证：2026-08-09。
+
 ### 1.4 Gitee（中国版 GitHub）
 
 中国开发者经常在这里发布项目，特别是中文数字人项目。
 
 网页：`https://search.gitee.com/?q={关键词}&type=repository`
 
-### 1.5 PapersWithCode
+### 1.5 论文与代码发现
 
-论文 + 代码索引，适合找学术界的最新模型。
+> **注**：PapersWithCode 已于 2025 年并入 Hugging Face，搜索入口重定向至 HF Trending Papers，不再可用作代码索引。
 
-网页：`https://paperswithcode.com/search?q={关键词}`
+**发现流程**：先以 arXiv / HF Papers 发现论文，再以论文作者、标题和 arXiv ID 在 GitHub / HuggingFace / ModelScope 查找官方实现与权重。
+
+- arXiv 搜索：`https://arxiv.org/search/?query={关键词}&searchtype=all`
+- HF Trending Papers：`https://huggingface.co/papers`
 
 ### 1.6 ComfyUI 生态
 
@@ -93,7 +102,7 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 | 来源 | 网址 | 说明 |
 |------|------|------|
-| **arxiv** | arxiv.org/search | 找最新论文，确认 arxiv ID 后查代码 |
+| **arXiv** | arxiv.org/search | 找最新论文，确认 arXiv ID 后在 GitHub/HF/ModelScope 查实现（见 §1.5） |
 | **Replicate** | replicate.com | 云端模型推理，有 API |
 | **Civitai** | civitai.com | SD 社区，有 avatar 模型 |
 | **OpenXLab** | openxlab.org.cn | 上海 AI Lab 的模型平台 |
@@ -109,17 +118,23 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 | 1 | **Ollama Library** | 模型目录 | 验证模型可用性 + 能力标签（Text/Image/Tools/Thinking）+ MLX 变体 + 一键安装 | ollama.com/library |
 | 2 | **LM Studio 目录** | 模型目录 | 验证 MLX/GGUF 兼容性 + 可视化搜索 | lmstudio.ai/models |
 | 3 | **HuggingFace `mlx-community`** | 模型仓库 | 找 MLX 量化版（UGC，**需 smoke test 后再用**） | huggingface.co/mlx-community |
-| 4 | **HF Open LLM Leaderboard** | 评测排名 | 开源 LLM 众包评测排名 | huggingface.co/spaces/open-llm-leaderboard |
+| 4 | **HF Eval Results + 社区榜单** | 评测排名 | 开源 LLM 评测结果与按任务的社区榜单 | huggingface.co/docs/leaderboards |
+| ~~4a~~ | ~~HF Open LLM Leaderboard~~ | ~~已归档~~ | ~~v1 已归档，仅作历史参考，不用于当前候选排序~~ | ~~huggingface.co/spaces/open-llm-leaderboard~~ |
 | 5 | **Artificial Analysis** | 评测排名 | 速度/质量/价格三维对比 | artificial.ai |
 | 6 | **Roboflow VLM Benchmark** | 评测排名 | VLM 视觉能力实测排名（25+ 模型，按月更新） | playground.roboflow.com/models/task/vision-language |
 | 7 | **ModelScope** | 模型仓库 | 中国团队模型首发地 | modelscope.cn |
 | 8 | **Ollama Cheat Sheet** (computingforgeeks) | 速查 | 按 VRAM/场景排序的 Ollama 模型速查表 | computingforgeeks.com/ollama-models-cheat-sheet |
 
-**信源 vs 推理引擎 vs 模型仓库的区分**：
+**来源分类**（四层，避免混淆）：
 
-- **信源**（选模型时查）：Ollama Library、LM Studio、评测排名网站
-- **模型仓库**（下载权重时去）：HuggingFace、ModelScope
-- **推理引擎**（运行模型时用）：Ollama、llama.cpp、mlx-vlm、vLLM — 这些不是信源
+| 分类 | 说明 | 示例 |
+|------|------|------|
+| **模型目录**（发现与分发） | 浏览、搜索、一键安装 | Ollama Library、LM Studio 目录 |
+| **权重仓库**（获取与模型卡） | 下载权重、看模型卡和许可证 | HuggingFace、ModelScope |
+| **评测结果**（能力证据） | 质量/速度/成本对比 | HF Eval Results、Artificial Analysis、Roboflow Benchmark |
+| **运行时**（执行与本机验证） | 实际运行模型推理 | Ollama、llama.cpp、mlx-vlm、vLLM |
+
+> **注意**：Ollama 同时是模型目录（Library）和运行时（serve）。在选模型阶段查 Library，在验证阶段用 serve。
 
 **信源分层使用**：
 
@@ -130,7 +145,7 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 | 独立评估 | 质量/速度/成本对比 | 可复现实验报告、任务匹配 benchmark | 说明任务集、版本与局限 |
 | 本机决策 | 本项目生产适配性 | 固定 corpus 的 benchmark + E2E 测试 | 图片、视频、峰值内存、失败率均记录 |
 
-**Ollama 内存机制**：`ollama serve` 常驻进程，模型推理后默认 5 分钟空闲自动卸载（`OLLAMA_KEEP_ALIVE` 可配，见 [Ollama FAQ](https://docs.ollama.com/faq)）。作为 fallback 可行——平时不占内存。
+**Ollama 模型驻留**：模型推理后默认 5 分钟空闲自动卸载。可通过 API 的 `keep_alive` 参数或 `OLLAMA_KEEP_ALIVE` 环境变量覆盖（见 [Ollama FAQ](https://docs.ollama.com/faq)）。设为 `0` 立即卸载，设为 `-1` 永久驻留。作为 fallback 可行——平时不占内存。
 
 ---
 
@@ -138,13 +153,15 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 > **触发条件**：下载模型权重前确认格式。不同格式不通用。
 
-### 权重容器
+### 权重容器（文件格式）
 
 | 格式 | 推理引擎 | 跨引擎？ | Apple Silicon | 说明 |
 |------|---------|---------|--------------|------|
 | **GGUF** | llama.cpp / Ollama / LM Studio | ✅ | ✅ Metal | llama.cpp **创建**的格式（替代旧 GGML），现为本地推理通用标准 |
 | **MLX** | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生 | Apple Silicon 原生格式 |
 | **safetensors** | transformers / vLLM | ✅ | ✅ MPS | 全精度源格式，量化前的基础 |
+
+> **性能说明**：不同格式间的性能对比必须以目标模型、量化等级、上下文长度、运行时版本和目标机器的可复现实测为准，不存在普遍适用的百分比结论。
 
 ### 量化方法
 
@@ -202,11 +219,21 @@ grep -r "cuda\|device" inference.py | head -20
 
 ```
 Step 1: GitHub API 搜索（最宽关键词 + sort=stars）
+  - GitHub 搜索 API 有专属速率限制，最多返回 1,000 个结果，可能带 `incomplete_results: true`
+  - 完成条件：记录查询、执行日期、认证状态、total_count、incomplete_results
+  - `incomplete_results=true` 时必须缩小查询或补充第二个关键词分支
+  - 高星数仅为发现信号，不替代维护状态、许可证和兼容性检查
 Step 2: HuggingFace API 搜索（找权重和量化版本）
 Step 3: GitHub API 搜索（平台限定：{模型名} mlx/onnx/mac/mps）
 Step 4: ModelScope 搜索（找中国团队模型）
-Step 5: PapersWithCode 搜索（找最新学术模型）
-Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
+Step 5: arXiv / HF Papers 发现论文 → 以论文作者、标题和 arXiv ID 在 GitHub/HF/ModelScope 查实现与权重
+Step 6: 汇总 → 检查 GPU 兼容性 → 候选证据卡（见 Step 6a）
+Step 6a: 候选证据卡（每个进入评分的候选必须完成）
+  - 用途、官方来源 URL、项目/权重修订版
+  - 许可证链接、目标设备、运行时与版本
+  - 安装结果、最小 smoke test、性能测量
+  - 已知限制、验证日期
+  - 仅状态为「可验证」且证据卡完整的候选才进入评分
 Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能是否已实现」时）
   7a. `pip show <package>` → 确认安装版本
   7b. `grep -rn "<关键词>" <package_path>` → 读源码确认实现
@@ -214,7 +241,7 @@ Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
   7d. 用正确的 API 调用方式做 smoke test
   7e. 网络搜索结果只作为补充，不作为唯一依据
 
-> **教训（2026-08-26）**：mlx-vlm 0.6.16 的 Qwen3-VL 原生视频一直可用，但因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(video_path=, prompt=)`），误报为「所有平台都有 broadcast_shapes bug」。网络搜索到的 bug 报告反映的是**已报告的**问题，不代表**已修复的**状态。见 `docs/research/vlm-model-selection-benchmark.md` §4 视频分析 → 已废弃结论。
+> **教训（2026-08-26）**：mlx-vlm 0.6.16 的 Qwen3-VL 原生视频一直可用，但因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(video_path=, prompt=)`），误报为「所有平台都有 broadcast_shapes bug」。网络搜索到的 bug 报告反映的是**已报告的**问题，不代表**已修复的**状态。详见 `docs/research/vlm-model-selection-benchmark.md` §4「视频分析」中已废弃结论的记录。
 ```
 
 ---
@@ -230,30 +257,32 @@ Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 
 ## 模型选择通用标准
 
-> **触发条件**：选模型时（ASR/TTS/VLM/数字人）读此章节。硬性门槛不通过 → 标注 warning，进入风险评估而非直接淘汰。
+> **触发条件**：选模型时（ASR/TTS/VLM/数字人）读此章节。
+>
+> 候选先按准入条件分为**可验证**、**需缓解**、**不适用**三种状态。许可证或本机加速条件未满足时，记录为「需缓解」；只有在已经验证的替代路径可满足项目约束后，才进入评分。无法缓解的候选标为「不适用」，不进入总分排序。
 
-### 硬性门槛
+### 准入条件
 
-1. **许可证** — 优选：MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。⚠️ NC 许可证（如 CC-BY-NC）：不自动淘汰，但需风险评估（见下）。
-2. **Apple Silicon 加速** — MPS（PyTorch）、MLX、Metal（whisper.cpp/ggml）、CoreML 至少支持一种。仅支持 CUDA 或纯 CPU 的淘汰。
+1. **许可证** — 优选：MIT、Apache-2.0、BSD、MPL-2.0、CC-BY-4.0。出现 NC（如 CC-BY-NC）、研究限定、地域限制、非标准许可证或缺少许可文本 → 标为「需缓解」（见下）。
+2. **Apple Silicon 加速** — MPS（PyTorch）、MLX、Metal（whisper.cpp/ggml）、CoreML 至少支持一种。仅支持 CUDA 或纯 CPU → 标为「不适用」。
 
-### NC 许可证风险评估
+### NC 许可证处理
 
-本项目是商业项目（内容平台 + TikTok 变现），使用 NC 模型生成的成品发布到 TikTok 属于 commercial use。选 NC 模型前必须评估：
+模型代码、权重、训练数据和输出成品的许可可能彼此独立。出现 NC 或非标准许可条款时：
 
-- **被发现概率**：CC 本身不追踪、不执法（[CC FAQ](https://creativecommons.org/faq/) 明确声明）。风险来自权利人主动发现——模型权重公开发布在 HuggingFace/GitHub，权利人可监控下载列表和使用情况。社区讨论、论文引用、代码 commit 均可暴露使用。
-- **被告风险**：权利人可发 DMCA takedown、 cease-and-desist，或提起版权侵权诉讼。赔偿金额取决于司法管辖权和实际损失。
-- **缓解措施**：联系权利人申请商用授权（多数 NC 许可证支持 dual licensing，权利人可单独授予商用权限）；或仅用于内部研究/原型，成品不发布。
-- **决策标准**：无法获得商用授权 → 不用于发布成品。仅用于内部实验/对比 → 可接受，但记录风险。
+- **分别记录**：代码许可证、权重/模型卡条款、训练数据或上游依赖的限制、计划用途和替代方案
+- **状态**：标为「需法务确认」
+- **缓解路径**：联系权利人申请商用授权（多数 NC 许可证支持 dual licensing）；或仅用于内部研究/原型，成品不发布
+- **决策标准**：在获得书面法务结论前，不将该候选标为可发布。仅用于内部实验/对比 → 可接受，但记录风险状态
 
 ### 综合评分
 
-通过门槛的候选，按四维度各打 1-5 分，加权求和：
+状态为「可验证」且证据卡（见 §4 Step 6a）完整的候选，按四维度各打 1-5 分，加权求和：
 
 | 维度 | 权重 | 5 分 | 3 分 | 1 分 |
 |------|------|------|------|------|
 | Apple Silicon 加速成熟度 | 30% | MLX 原生 | Metal / CoreML | MPS only / CPU |
-| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 / CC-BY-4.0 | NC 许可证（需风险评估） |
+| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 / CC-BY-4.0 | NC 许可证（需法务确认） |
 | 精度/质量 | 30% | 业界 SOTA | 可用 | 一般 |
 | 社区与工具链 | 20% | 活跃维护 + 完善工具链 | 有更新 | 停更 / 无工具链 |
 

@@ -189,8 +189,7 @@ Deep research reports with citations.
 | `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
 | `issue-tracker-review.md` | Issue tracker 审阅报告 — GitHub 状态、依赖、冲突组与维护建议核验 |
 | `writing-for-agents-enforcement-proposal.md` | `writing-for-agents` 规则执行率改善方案（待审核结论吸收） |
-| `model-sources-reference.md` | Model search sources reference |
-| `model-sources-reference-review.md` | Review of model source reference — source availability, internal consistency, and evidence-chain actions |
+| `model-sources-reference.md` | Model search sources reference — sources, format guide, GPU compat checklist, search flow, admission criteria & scoring |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |

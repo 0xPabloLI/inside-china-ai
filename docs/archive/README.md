@@ -93,6 +93,7 @@
 | `spec-p4-video-windows-audit-fix.md` | 2026-08-20 | P4 VLM 视频时间窗口 + 审计修复 + 误过滤测试 — `lib/media-probe.mjs` (probeMedia ffprobe 封装 + parseProbeOutput 纯函数); `analyzeAssetSemantics` 扩展可选 window 参数 { startMs, endMs, sampleFps }; `vlm_analyzer.py` 接收 window 字段, `extract_frames` 支持 -ss/-t 窗口化; Python 报告 sourceMode (native/frames/degraded); `analyzeAssets` Phase 2.5 probe + window 计算; searchYtdlp 平台守卫 (T2); CDP download loop type 检查 (T3); SOURCE_ATTRIBUTIONS 全量补全 (T1)。426 tests passing。 |
 
 | `spec-vlm-docs-remediation.md` / `tickets-vlm-docs-remediation.md` | 2026-08-26 | VLM 选型文档修订 — 基于 review 的 11 个发现修正 4 个文档（benchmark/ADR-0009/handoff/model-sources）：消除跨文档矛盾 + 补可复现证据 + 信源分层 + 格式表拆分。12 场景 grep 验证全部通过。 |
+| `specs/spec-model-sources-remediation.md` / `tickets/tickets-model-sources-remediation.md` | 2026-08-26 | 模型搜索来源参考修复 — 基于 Manus AI 审阅的 10 个发现（4 阻塞 + 3 重要 + 3 改进）：删除失效 PapersWithCode 入口 + 替换已归档 HF Open LLM Leaderboard + 统一准入状态机 + NC 许可证改为「需法务确认」+ 格式表加性能说明 + GitHub 搜索完成条件 + Ollama 四分类重写 + 来源元数据增强 + Step 6a 候选证据卡 + memory 指针替换为仓库内路径。 |
 
 ### Documentation Hierarchy Specs
 
@@ -163,6 +164,8 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/writing-for-agents-enforcement-proposal-review-2026-08-25.md` | 2026-08-25 | — | writing-for-agents 方案第三方审核——5 个必修问题已整合到 spec v2 |
 | `reviews/writing-for-agents-enforcement-review.md` | 2026-08-25 | — | writing-for-agents 实施代码审查——Standards + Spec 双轴通过，10/10 场景验证 |
 | `reviews/handoff-vlm-model-sources-2026-08-26-review.md` | 2026-08-26 | — | VLM 模型来源交接审阅——11 个发现（F1-F11），5 步处理顺序，5 条建议修订稿。已全部执行（F10 deep-research fork 排除外） |
+| `reviews/model-sources-reference-review-2026-08-26.md` | 2026-08-26 | — | 模型搜索来源参考审阅——10 个发现（4 阻塞 + 3 重要 + 3 改进），全部修复并归档 |
+| `reviews/model-sources-remediation-review-2026-08-26.md` | 2026-08-26 | — | 模型来源修复代码审查——Standards + Spec 双轴通过，10/10 场景验证 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
