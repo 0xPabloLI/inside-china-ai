@@ -2,8 +2,8 @@
 name: web-deep-research
 description: >
   Multi-source web research with citation tracking, evidence persistence, and structured
-  report generation. Combines deep-research methodology (8-phase pipeline) with web-access
-  fetching (Chrome CDP proxy) for reliable web content retrieval.
+  report generation. Uses an 8-phase methodology (SCOPE → PACKAGE) with web-access
+  fetching (Chrome CDP proxy) and local code verification.
   Use when the user wants deep research, comprehensive analysis, research report,
   compare X vs Y, analyze trends, state of the art, or thorough investigation.
   Not for simple lookups, debugging, or questions answerable with 1-2 searches.

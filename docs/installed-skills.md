@@ -9,10 +9,9 @@
 |--------|---------------|-------------|-------|
 | **Repo skills** (`skills/`) | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo) | 4 |
 | **Matt Pocock skills** | `npx skills add mattpocock/skills` | ❌ No (local `.agents/`) | 34 |
-| **deep-research** (3rd party) | Manual install from `199-biotechnologies/claude-deep-research-skill` | ❌ No | 1 |
 | **last30days** (3rd party) | Symlink to `~/last30days-skill/` | ❌ No | 1 |
 | **Other 3rd party** (Vercel/Anthropic/community) | Various (`npx skills add` from other repos) | ❌ No | ~134 |
-| **Total** | | | ~174 |
+| **Total** | | | ~173 |
 
 ## Repo Skills (Git Tracked)
 
@@ -96,26 +95,7 @@ Agent auto-triggers based on description match.
 
 | Skill | Author / Source | Purpose | Install |
 |-------|----------------|---------|---------|
-| `deep-research` | `199-biotechnologies/claude-deep-research-skill` | Methodology backend (8-phase pipeline, Python scripts, evidence persistence). `disable-model-invocation: true` — agent does not auto-trigger; `web-deep-research` is the entry point. | Manual clone, then patch (see below) |
 | `last30days` | External (`~/last30days-skill/`) | 30-day trend discovery across Reddit/X/YouTube/TikTok/HN/Polymarket/GitHub | Symlink |
-
-#### deep-research post-install patch
-
-The original `deep-research` from `199-biotechnologies` has trigger words
-("deep research", "comprehensive analysis") that conflict with `web-deep-research`.
-After cloning, apply this patch to `SKILL.md` frontmatter:
-
-```yaml
-# Change description from:
-description: Use when the user needs multi-source research...
-# To:
-description: Methodology backend for the deep-research pipeline (8 phases, evidence persistence, claim verification). Reference files available for web-deep-research to consult. Not directly invokable — use web-deep-research instead.
-# Add:
-disable-model-invocation: true
-```
-
-This ensures the agent only auto-selects `web-deep-research` (which is
-self-contained and does not require `deep-research` to function).
 
 ### Other 3rd Party (~134 skills)
 
