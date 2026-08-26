@@ -99,10 +99,11 @@ async function main() {
     };
 
     try {
-      const videos = await client.fetchHashtagVideos(tag, {
+      const { videos, meta } = await client.fetchHashtagVideos(tag, {
         maxItems: args.maxItems,
         maxTotalChargeUsd: args.maxCostUsd,
       });
+      entry.actorBuild = meta.actorBuild;
       entry.rawItemCount = videos.length;
       entry.normalizedResult = videos;
     } catch (err) {

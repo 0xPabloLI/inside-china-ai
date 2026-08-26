@@ -285,10 +285,13 @@ Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行�
 
 **Apify 整合方式**（Free plan 每月 $5 credit，适合批量查询）：
 ```bash
-# 查询单个 hashtag 数据（views, posts, related hashtags）
+# JS 客户端已实现：scripts/short-video/lib/apify-client.mjs
+# CLI 入口：scripts/short-video/research-hashtags.mjs
+# 用法：node scripts/short-video/research-hashtags.mjs --tags deepseek,qwen --live
+# 默认 dry-run 模式， --live 启用远端请求
 # 需要 APIFY_TOKEN 环境变量（见 .env.local.example）
-# Apify Actor: clockworks/tiktok-scraper（参考实现见 docs/refs/tiktok-skills/lib/apify_client.py）
-# 替代 Actor: novi/tiktok-hashtag-api（专为 hashtag 数据优化）
+# Apify Actor: clockworks~tiktok-scraper（参考实现见 docs/refs/tiktok-skills/lib/apify_client.py）
+# 输出：output/hashtag-research/<date>.json
 # 免费额度覆盖约 500 次/月查询，足够季度更新
 ```
 
@@ -298,7 +301,10 @@ Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行�
 
 - 标签池定义：`scripts/short-video/lib/caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` + `ENTITY_HASHTAG_MAP` + `PAD_CANDIDATES` + `BLACKLISTED_HASHTAGS`
 - 自动推导：`deriveHashtags()` 函数 — 总是包含 `#ainews` + `#chinaai`，根据内容匹配实体标签，不足时用 `PAD_CANDIDATES`（#ai → #artificialintelligence → #news）补位，黑名单标签自动过滤
-- 输出分类：`generate-caption.mjs` → `tiktok-metadata.json` 中的 `hashtagStrategy` 字段
+- 分类输出：`classifyHashtags()` 函数 — 将最终标签分类为 traffic/brand/vertical/trending，返回 `selectionMode`（auto/manual）
+- 输出分类：`generate-caption.mjs` → `tiktok-metadata.json` 中的 `hashtagStrategy` 字段（含 `selectionMode`）
+- Apify 调研客户端：`scripts/short-video/lib/apify-client.mjs` → `createApifyClient()` + `fetchHashtagVideos()`（默认 dry-run， `--live` 启用远端请求）
+- 调研 CLI 入口：`scripts/short-video/research-hashtags.mjs` — `--tags`、`--live`、`--max-items`、`--max-cost`，输出到 `output/hashtag-research/<date>.json`
 - 竞品情报库：`docs/research/tiktok-competitor-intelligence.md` — 16 条竞品爆款 + 自有视频 analytics
 - Analytics 联动：`docs/analytics-workflow.md` → Hashtag 效果追踪 + Analytics → Pipeline 联动机制
 

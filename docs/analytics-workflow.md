@@ -190,7 +190,7 @@ Agent 扫描 `content/*/meta.mjs` 中的 `keyEntities.companies`，逐个检查�
 
 1. **TikTok `/tag/{hashtag}` 页面**（CDP 打开）— 最权威，直接看 TikTok 上的数据
 2. **HashtagRadar `tiktokhashtags.com/hashtag/{tag}/`**（CDP 打开）— 看历史数据 + 相关标签
-3. **Apify TikTok Hashtag API**（如需批量查询）— 免费额度 $5/月
+3. **Apify TikTok Scraper**（CLI 已实现）— `node scripts/short-video/research-hashtags.mjs --tags <tag1>,<tag2> --live`，默认 dry-run 模式；免费额度 $5/月
 
 如果实体有独立 hashtag → 加入 map。如果没有独立 hashtag → 映射到父公司 hashtag（如 `mimo` → `#xiaomi`）。
 

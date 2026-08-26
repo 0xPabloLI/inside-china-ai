@@ -1,15 +1,24 @@
-# Handoff: Hashtag 管线缺口修复（缺口 A 已完成，缺口 B 待做）
+# Handoff: Hashtag 管线缺口修复（缺口 A + B 均已完成）
 
 > 更新于 2026-08-26
 > 原始 handoff 生成于 2026-08-26（caption 格式重构 + hashtag 库扩展 session）
 > 缺口 A 完成于 2026-08-26，commit: d48c3f4 + 53085b6
+> 缺口 B + P1/P2/P3 完成于 2026-08-26，commit: befb412
 
 ## 当前状态
 
 | 缺口 | 状态 | 完成内容 |
 |------|------|---------|
 | A: trendingHashtags 代码未实现 | ✅ 已完成 | 见下方「缺口 A 完成记录」 |
-| B: Apify JS 客户端未创建 | ⏳ 待做 | 见下方「缺口 B 待做方案」 |
+| B: Apify JS 客户端未创建 | ✅ 已完成 | 见下方「缺口 B 完成记录」 |
+
+### Review 遗留问题修复（P1/P2/P3）
+
+| 问题 | 状态 | commit |
+|------|------|--------|
+| P1: #creatorsearchinsights 文档矛盾 | ✅ 已修复 | befb412 |
+| P2: hashtagStrategy.trending 来源归属 | ✅ 已修复 | befb412 |
+| P3: handoff 测试计数笔误 | ✅ 已修复 | befb412 |
 
 ## 缺口 A 完成记录
 
@@ -47,10 +56,12 @@
 5. **trending 最多 1 个** — Review 建议的宁缺毋滥原则
 6. **trendingHashtags 格式** — 纯字符串数组（如 `["#aiviral"]`），不含 views/posts 元数据
 
-## 缺口 B 待做方案
+## 缺口 B 完成记录
 
-> ⚠️ 下一 session 从这里开始
-> Review 文档：`docs/reviews/handoff-hashtag-pipeline-gaps-review-2026-08-26.md`（仍在 `docs/reviews/` 下，未归档——因为它审阅的是原始 handoff 方案，不是本次修复的 review）
+> Commit: `befb412`
+> Review 文档: `docs/reviews/handoff-hashtag-pipeline-gaps-review-2026-08-26.md`
+>
+> 实现合并了 Review 建议的三步（schema POC → spec → TDD）为一次实施，因为 Review 的验收测试已足够作为 spec。
 
 ### 问题
 
@@ -60,12 +71,12 @@
 
 原 handoff 的 `fetchHashtagStats(hashtag) → views/posts/related` 不符合 Apify Actor 的实际能力。Review 建议拆分为：
 
-| 方法 | 是否实现 | 输入/输出 | 数据来源 |
+| 方法 | 实现状态 | 输入/输出 | 数据来源 |
 |------|---------|----------|---------|
-| `runActor(actorRef, input, options)` | 是 | 原始 dataset items；认证+超时+错误校验 | 低层通用封装 |
-| `fetchHashtagVideos(hashtag, options)` | 是 | 归一化视频样本数组 | `clockworks~tiktok-scraper` |
-| `fetchHashtagMetrics(hashtags, options)` | 否，先 POC | 只承诺 POC 实测存在的字段 | 专用 Actor（需 POC 确认） |
-| `fetchHashtagBatch(hashtags, options)` | POC 后 | 每条结果带 `actor`/`fetchedAt`/`sourceSchemaVersion`/`error` | 需确认 Actor 是否支持批量 |
+| `runActor(actorRef, input, options)` | ✅ 已实现 | 原始 dataset items；认证+超时+错误校验 | 低层通用封装 |
+| `fetchHashtagVideos(hashtag, options)` | ✅ 已实现 | 归一化视频样本数组 | `clockworks~tiktok-scraper` |
+| `fetchHashtagMetrics(hashtags, options)` | ❌ 未实现（需 POC） | 只承诺 POC 实测存在的字段 | 专用 Actor（需 POC 确认） |
+| `fetchHashtagBatch(hashtags, options)` | ❌ 未实现 | 每条结果带 `actor`/`fetchedAt`/`sourceSchemaVersion`/`error` | 需确认 Actor 是否支持批量 |
 
 ### Review 对 API 契约的修正
 
@@ -105,11 +116,11 @@
 | 成本护栏 | 调用参数包含显式费用上限；超出批次限制时在本地失败 |
 | POC 集成测试 | 仅在显式 `APIFY_TOKEN` 和 opt-in 标志存在时执行；默认 CI 不产生远端费用 |
 
-### 文件
+### 实现的文件
 
-- `scripts/short-video/lib/apify-client.mjs`（新建）
-- `scripts/short-video/__tests__/apify-client.test.mjs`（新建，mock API 调用）
-- `scripts/short-video/research-hashtags.mjs`（新建，CLI 入口）
+- `scripts/short-video/lib/apify-client.mjs`（✅ 已创建）— `createApifyClient()` + `runActor()` + `fetchHashtagVideos()` + `normalizeVideo()`
+- `scripts/short-video/__tests__/apify-client.test.mjs`（✅ 已创建）— 18 个 mock 测试覆盖 Review 全部 10 个验收用例
+- `scripts/short-video/research-hashtags.mjs`（✅ 已创建）— CLI 入口 `--tags`、`--live`、`--max-items`、`--max-cost`
 
 ### 使用场景
 

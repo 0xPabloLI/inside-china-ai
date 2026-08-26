@@ -196,7 +196,7 @@ export function createApifyClient(options = {}) {
    * @param {Object} [callOptions]
    * @param {number} [callOptions.maxTotalChargeUsd] - Cost guard (default 0.10)
    * @param {boolean} [callOptions.forceRefresh] - Bypass cache (default false)
-   * @returns {Promise<Object[]>} Array of dataset items
+   * @returns {Promise<{data: Object[], meta: {actorBuild: string|null}>}>
    */
   async function runActor(actorRef, input, callOptions = {}) {
     const costCap = callOptions.maxTotalChargeUsd ?? 0.1;
@@ -267,8 +267,16 @@ export function createApifyClient(options = {}) {
               context: "schema_error",
             });
           }
-          cache.set(cacheKey, data);
-          return data;
+          // Extract build info from response headers for traceability
+          const meta = {
+            actorBuild:
+              response.headers.get("x-apify-actor-build-id") ||
+              response.headers.get("x-apify-build-id") ||
+              null,
+          };
+          const result = { data, meta };
+          cache.set(cacheKey, result);
+          return result;
         }
       } catch (error) {
         if (error instanceof ApifyError || error instanceof ApifyAuthError) {
@@ -307,7 +315,7 @@ export function createApifyClient(options = {}) {
    * @param {number} [options.maxItems] - Max videos to fetch (default 20)
    * @param {number} [options.maxTotalChargeUsd] - Cost guard (default 0.10)
    * @param {boolean} [options.forceRefresh] - Bypass cache (default false)
-   * @returns {Promise<Object[]>} Normalized video objects
+   * @returns {Promise<{videos: Object[], meta: {actorBuild: string|null}}>} Normalized videos + meta
    */
   async function fetchHashtagVideos(hashtag, options = {}) {
     const tag = hashtag.replace(/^#/, "").toLowerCase();
@@ -319,11 +327,12 @@ export function createApifyClient(options = {}) {
       shouldDownloadCovers: false,
     };
 
-    const raw = await runActor(TIKTOK_SCRAPER, input, options);
-    return raw
+    const { data, meta } = await runActor(TIKTOK_SCRAPER, input, options);
+    const videos = data
       .filter((v) => typeof v === "object" && v.id)
       .map(normalizeVideo)
       .filter(Boolean);
+    return { videos, meta };
   }
 
   return {

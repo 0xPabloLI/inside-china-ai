@@ -7,6 +7,19 @@ import {
   ApifyTimeoutError,
 } from "../lib/apify-client.mjs";
 
+// Helper: create a mock response with headers
+function mockResponse(status, jsonData, extra = {}) {
+  const headers = new Map(extra.headers || []);
+  const { headers: _omit, ...rest } = extra;
+  return {
+    status,
+    json: () => jsonData,
+    text: () => JSON.stringify(jsonData),
+    headers,
+    ...rest,
+  };
+}
+
 // ─── normalizeVideo tests ───
 
 describe("normalizeVideo", () => {
@@ -76,19 +89,13 @@ describe("createApifyClient", () => {
   // ─── Auth ───
 
   it("A1: missing token → ApifyAuthError, no network request", async () => {
-    // Mock resolveToken to return null by setting token to a sentinel
-    // createApifyClient resolves token from env/.env.local if not provided,
-    // so we pass an explicit empty string to override.
     const client = createApifyClient({ dryRun: false, token: "" });
     await expect(client.fetchHashtagVideos("deepseek")).rejects.toThrow(ApifyAuthError);
 
-    // Verify actual token value is NOT in error message
-    // (the word "token" in "APIFY_TOKEN" is fine — it's the env var name)
     try {
       await client.fetchHashtagVideos("deepseek");
     } catch (e) {
       expect(e.message).toContain("APIFY_TOKEN");
-      // No actual token value should be present
       expect(e.message).not.toMatch(/[a-f0-9]{20,}/i);
     }
   }, 10000);
@@ -108,24 +115,19 @@ describe("createApifyClient", () => {
     expect(url).toBe(
       "https://api.apify.com/v2/actors/clockworks~tiktok-scraper/run-sync-get-dataset-items",
     );
-    // Verify ~ is NOT separately encoded
     expect(url).toContain("clockworks~tiktok-scraper");
   });
 
   it("A4: buildUrl encodes dynamic actor IDs safely", () => {
     const client = createApifyClient({ dryRun: true, token: "fake-token" });
     const url = client._buildUrl("test~actor/with special chars");
-    // The / and space should be encoded, ~ should pass through
     expect(url).toContain(encodeURIComponent("test~actor/with special chars"));
   });
 
   // ─── Auth header (via fetch mock) ───
 
   it("A5: token only in Authorization header, not in URL or error text", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      json: () => [],
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, [], { headers: [] }));
     global.fetch = mockFetch;
 
     const client = createApifyClient({
@@ -136,16 +138,14 @@ describe("createApifyClient", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockFetch.mock.calls[0];
-    // Token NOT in URL
     expect(url).not.toContain("secret-token-12345");
-    // Token in Authorization header
-    expect(init.headers["Authorization"]).toBe("Bearer secret-token-12345");
+    expect(init.headers.Authorization).toBe("Bearer secret-token-12345");
   });
 
   // ─── Normal video sample ───
 
-  it("A6: fetchHashtagVideos returns normalized video array", async () => {
-    const mockResponse = [
+  it("A6: fetchHashtagVideos returns normalized video array + actorBuild", async () => {
+    const mockData = [
       {
         id: "vid1",
         text: "DeepSeek R1 is amazing",
@@ -170,32 +170,33 @@ describe("createApifyClient", () => {
         createTimeISO: "2026-08-02T00:00:00Z",
       },
     ];
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      json: () => mockResponse,
-    });
+    const mockFetch = vi.fn().mockResolvedValue(
+      mockResponse(200, mockData, {
+        headers: [["x-apify-actor-build-id", "build-abc123"]],
+      }),
+    );
     global.fetch = mockFetch;
 
     const client = createApifyClient({
       dryRun: false,
       token: "test-token",
     });
-    const result = await client.fetchHashtagVideos("deepseek", { maxItems: 2 });
+    const { videos, meta } = await client.fetchHashtagVideos("deepseek", {
+      maxItems: 2,
+    });
 
-    expect(result).toHaveLength(2);
-    expect(result[0].id).toBe("vid1");
-    expect(result[0].author).toBe("user1");
-    expect(result[0].plays).toBe(500);
-    expect(result[1].music).toBeNull();
+    expect(videos).toHaveLength(2);
+    expect(videos[0].id).toBe("vid1");
+    expect(videos[0].author).toBe("user1");
+    expect(videos[0].plays).toBe(500);
+    expect(videos[1].music).toBeNull();
+    expect(meta.actorBuild).toBe("build-abc123");
   });
 
   // ─── Non-array response ───
 
   it("A7: non-array response → schema error", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      json: () => ({ error: "unexpected object" }),
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, { error: "unexpected object" }));
     global.fetch = mockFetch;
 
     const client = createApifyClient({
@@ -213,10 +214,7 @@ describe("createApifyClient", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValueOnce({ status: 429, text: () => "rate limited" })
-      .mockResolvedValueOnce({
-        status: 200,
-        json: () => [{ id: "vid1" }],
-      });
+      .mockResolvedValueOnce(mockResponse(200, [{ id: "vid1" }]));
     global.fetch = mockFetch;
 
     const client = createApifyClient({
@@ -224,11 +222,11 @@ describe("createApifyClient", () => {
       token: "test-token",
       maxRetries: 3,
     });
-    const result = await client.fetchHashtagVideos("deepseek");
+    const { videos } = await client.fetchHashtagVideos("deepseek");
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("vid1");
+    expect(videos).toHaveLength(1);
+    expect(videos[0].id).toBe("vid1");
   });
 
   // ─── Retry exhausted on 5xx ───
@@ -271,7 +269,6 @@ describe("createApifyClient", () => {
     });
     await expect(client.fetchHashtagVideos("deepseek")).rejects.toThrow(ApifyTimeoutError);
 
-    // Verify cache is empty (timeout should not cache)
     expect(
       client._cache.get(
         'clockworks~tiktok-scraper:{"hashtags":["deepseek"],"resultsPerPage":20,"shouldDownloadVideos":false,"shouldDownloadCovers":false}',
@@ -282,10 +279,7 @@ describe("createApifyClient", () => {
   // ─── Cache ───
 
   it("A11: same tag+params → cache hit, no duplicate request", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      json: () => [{ id: "cached-vid" }],
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, [{ id: "cached-vid" }]));
     global.fetch = mockFetch;
 
     const client = createApifyClient({
@@ -295,15 +289,12 @@ describe("createApifyClient", () => {
     const r1 = await client.fetchHashtagVideos("deepseek", { maxItems: 5 });
     const r2 = await client.fetchHashtagVideos("deepseek", { maxItems: 5 });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1); // Second call used cache
+    expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(r1).toEqual(r2);
   });
 
   it("A12: forceRefresh bypasses cache", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      json: () => [{ id: "fresh-vid" }],
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, [{ id: "fresh-vid" }]));
     global.fetch = mockFetch;
 
     const client = createApifyClient({
@@ -311,7 +302,10 @@ describe("createApifyClient", () => {
       token: "test-token",
     });
     await client.fetchHashtagVideos("deepseek", { maxItems: 5 });
-    await client.fetchHashtagVideos("deepseek", { maxItems: 5, forceRefresh: true });
+    await client.fetchHashtagVideos("deepseek", {
+      maxItems: 5,
+      forceRefresh: true,
+    });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
@@ -319,10 +313,7 @@ describe("createApifyClient", () => {
   // ─── Cost guard ───
 
   it("A13: cost cap included in payload", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      json: () => [],
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, []));
     global.fetch = mockFetch;
 
     const client = createApifyClient({
