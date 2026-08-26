@@ -92,6 +92,8 @@
 | `spec-unified-source-registry.md` | 2026-08-19 | 统一数据源注册表 — `source-registry.mjs` 作为所有数据类型 (articles/images/videos) 的单一事实来源。`capabilities` 字段声明式定义获取方式。`asset-sourcer.mjs` 删除 `API_SOURCES`/`YTDLP_SOURCES`/`CDP_SOURCES` 改为按 capability 查询。跨阶段图片缓存 (trend discovery extractScript 提取 imageUrl → asset-sourcer 消费)。T05 pre-download filter gate (threshold 20)。T06 cascade order fix (pre-filter before detectFocus)。1545 tests passing。 |
 | `spec-p4-video-windows-audit-fix.md` | 2026-08-20 | P4 VLM 视频时间窗口 + 审计修复 + 误过滤测试 — `lib/media-probe.mjs` (probeMedia ffprobe 封装 + parseProbeOutput 纯函数); `analyzeAssetSemantics` 扩展可选 window 参数 { startMs, endMs, sampleFps }; `vlm_analyzer.py` 接收 window 字段, `extract_frames` 支持 -ss/-t 窗口化; Python 报告 sourceMode (native/frames/degraded); `analyzeAssets` Phase 2.5 probe + window 计算; searchYtdlp 平台守卫 (T2); CDP download loop type 检查 (T3); SOURCE_ATTRIBUTIONS 全量补全 (T1)。426 tests passing。 |
 
+| `spec-vlm-docs-remediation.md` / `tickets-vlm-docs-remediation.md` | 2026-08-26 | VLM 选型文档修订 — 基于 review 的 11 个发现修正 4 个文档（benchmark/ADR-0009/handoff/model-sources）：消除跨文档矛盾 + 补可复现证据 + 信源分层 + 格式表拆分。12 场景 grep 验证全部通过。 |
+
 ### Documentation Hierarchy Specs
 
 | 文件 | 完成时间 | 说明 |
@@ -160,6 +162,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/asset-focus-detection-alternatives-review.md` | 2026-08-24 | #69 | 素材焦点检测替代方案审阅——focus detection 已实现 |
 | `reviews/writing-for-agents-enforcement-proposal-review-2026-08-25.md` | 2026-08-25 | — | writing-for-agents 方案第三方审核——5 个必修问题已整合到 spec v2 |
 | `reviews/writing-for-agents-enforcement-review.md` | 2026-08-25 | — | writing-for-agents 实施代码审查——Standards + Spec 双轴通过，10/10 场景验证 |
+| `reviews/handoff-vlm-model-sources-2026-08-26-review.md` | 2026-08-26 | — | VLM 模型来源交接审阅——11 个发现（F1-F11），5 步处理顺序，5 条建议修订稿。已全部执行（F10 deep-research fork 排除外） |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
