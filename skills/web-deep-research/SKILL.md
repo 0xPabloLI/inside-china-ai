@@ -203,6 +203,22 @@ quotations may remain in English regardless of report language.
 **Completion criterion**: Report saved to file. Sources list complete — every URL
 used, no placeholders. User told the file path.
 
+### Post-save: RAG index refresh
+
+After saving the report, if the current repo has a RAG indexer that collects
+`docs/research/` (check: does `scripts/rag/index.mjs` exist and mention
+`docs/research`?), run an incremental reindex from the repo root:
+
+```bash
+node scripts/rag/index.mjs --incremental 2>&1 | tail -5
+```
+
+- **Non-blocking**: if the indexer fails or is missing, log a warning and
+  continue. The research report is already saved — RAG is a retrieval bonus,
+  not a delivery requirement.
+- **Repo-specific**: only run if the repo's indexer is confirmed to collect
+  `docs/research/`. Do not assume every repo has the same RAG setup.
+
 ## Anti-patterns
 
 - **Scrape-summary listing**: Don't paste raw scraped content. Synthesize.

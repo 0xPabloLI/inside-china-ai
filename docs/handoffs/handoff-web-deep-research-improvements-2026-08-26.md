@@ -145,7 +145,7 @@
 | 1 | Phase 3 单一委派 web-access | ✅ 已实施 | 删除 MANDATORY 块中对 jina_search/web_fetch/mcp-search-bridge/Tavily 的硬编码禁令，改为单一委派规则："web-access decides the tool" |
 | 2 | Phase 8 输出路径可移植化 | ✅ 已实施 | 三级优先级：repo 约定 → `docs/research/` → 请求用户确认。禁止 `~/Documents/` 兜底。Filename: kebab-case slug |
 | 3 | angles.md 新增 ML/AI Model Selection | ✅ 已实施 | 6 个角度（任务匹配、真实 workload、Apple Silicon/运行时、许可证、量化/工具链、风险维护）+ 决策规则 |
-| 4 | RAG reindex | ⏳ 待前置阻塞 | 未实施。前置阻塞：`scripts/rag/index.mjs` 尚未收集 `docs/research/`。GitHub Issue [#118](https://github.com/0xPabloLI/inside-china-ai/issues/118) 已创建跟踪此任务。需先走 repo 实施流程扩展索引器 |
+| 4 | RAG reindex | ✅ 已实施 | Issue #118 已 closed（另一 session 完成索引器扩展）。Phase 8 新增 "Post-save: RAG index refresh" 子章节：条件化检查 `scripts/rag/index.mjs` 是否存在且收集 `docs/research/`，是则运行 `node scripts/rag/index.mjs --incremental`，非阻塞（失败只 warn 不 block） |
 | 5 | 报告语言优先级 | ✅ 已实施 | 三级优先级：用户明确要求 → 仓库文档约定 → 对话语言。英文技术术语保留英文 |
 
 ### 额外实施（超出原 handoff 范围）
