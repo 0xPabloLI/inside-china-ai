@@ -263,15 +263,55 @@ AI Outline 的六段式结构（intro → core points → highlight → climatic
 | AI Outline 生成质量不稳定 | 中 | 多次 refresh + 人工选择最佳 |
 | AI Outline 输出含 BLACKLISTED_HASHTAGS | 低 | `deriveHashtags()` 已有自动过滤 |
 
-### 3.3 实施前置验证
+### 3.3 CDP 前置验证结果（2026-08-26 已完成）
 
-在写任何代码之前，需要先手动验证：
+**验证方法**：用 web-access CDP 连接用户 Chrome（已登录 TikTok），打开 `tiktok.com/inspiration`。
 
-1. **CDP 打开 `tiktok.com/inspiration`**：确认页面在用户登录态下能正常加载
-2. **CSI 可见性**：确认 Creator Search Insights 工具在用户所在地区/账号可见
-3. **AI Outline 可见性**：确认 AI Outline 功能在用户所在地区/账号已启用
-4. **DOM 结构探索**：记录 CSI 话题列表、话题详情页、AI Outline section 的 DOM 选择器
-5. **AI Outline 交互测试**：输入 prompt → 确认能生成 → 提取输出
+**验证结果**：
+
+| 验证项 | 结果 | 详情 |
+|--------|------|------|
+| CSI 可见 | ✅ 可见 | `tiktok.com/inspiration` 重定向到 `tiktok.com/csi`，话题列表正常加载 |
+| 话题列表 | ✅ 正常 | 每页 ~20 个话题，含搜索热度、增长率 |
+| Content Gap 过滤 | ✅ 可用 | 点击"内容缺口" chip 后过滤生效，返回高搜索低供给话题 |
+| 话题详情页 | ✅ 可用 | URL: `tiktok.com/csi/detail/{topicId}`，含搜索热度、地区分布、人口统计、相关视频 |
+| AI Outline | ❌ 桌面版不可用 | 话题详情页没有 AI Outline 交互组件。AI Outline 仅在移动端 App 内可用 |
+| Search Analytics | ❌ 即将上线 | `tiktok.com/csi/analytics` 显示"数据分析功能即将在电脑端上线" |
+| 用户登录态 | ✅ 已登录 | 页面显示中文界面，有通知、粉丝数据 |
+
+**关键 DOM 结构**：
+
+| 元素 | 选择器 | 用途 |
+|------|--------|------|
+| 话题行 | `tr` (含 4 个 `td`) | 话题名 + 搜索热度 + AI tips + 操作 |
+| 话题名 | `td[class*=TdCell]` 第 1 列 | `tds[0].textContent` |
+| 搜索热度+增长率 | `td[class*=TdCell]` 第 2 列 | `tds[1].textContent`（如 `148K1000%+`） |
+| Content Gap chip | `[class*=Chip]` 文本含"内容缺口" | 点击切换过滤 |
+| 导航-数据分析 | `span.HeaderTuxText` 文本="数据分析" | Search Analytics 入口（暂不可用） |
+
+**方案调整**：
+
+| Phase | 原计划 | 调整后 | 状态 |
+|-------|--------|--------|------|
+| Phase 1 (AI Outline) | CDP 生成 description/hashtags | ❌ 桌面版无 AI Outline。改为：Agent 在移动端手动使用 AI Outline | 搁置 |
+| Phase 2 (Content Gap) | CDP 抓取话题列表 | ✅ 已实施 | `scripts/short-video/lib/tiktok-csi.mjs` |
+| Phase 3 (Search Analytics) | CDP 抓取 per-video 搜索数据 | ❌ 桌面版"即将上线"。搁置 | 待 TikTok 上线后实施 |
+
+**已实现功能**（`scripts/short-video/lib/tiktok-csi.mjs`）：
+
+```bash
+# 检查 CSI 可用性
+node scripts/short-video/lib/tiktok-csi.mjs --check
+
+# 获取 Content Gap 话题（高搜索低供给）
+node scripts/short-video/lib/tiktok-csi.mjs --content-gap [--limit 20]
+
+# 获取推荐话题
+node scripts/short-video/lib/tiktok-csi.mjs --recommended [--limit 20]
+
+# 获取话题详情（搜索热度、地区分布、人口统计）
+node scripts/short-video/lib/tiktok-csi.mjs --detail <topicId>
+```
 
 ---
 
