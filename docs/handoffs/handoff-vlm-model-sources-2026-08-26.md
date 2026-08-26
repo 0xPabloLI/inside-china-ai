@@ -165,10 +165,11 @@ Step 7: 本地源码验证（当调研涉及"某库是否有 bug / 某功能是�
 
 ## 待办
 
-- [ ] 用 writing-for-agents 落盘 `model-sources-reference.md` 更新（信源优先级 + Step 7 + 模型格式速查）
+- [x] 用 writing-for-agents 落盘 `model-sources-reference.md` 更新（信源优先级 + Step 7 + 模型格式速查）— commit `522ac4d`
 - [ ] 清理本地多余 VLM 模型（~20GB）
 - [ ] 端到端 pipeline 测试（验证原生视频路径在 production 中工作）
 - [ ] 评估是否 fork deep-research skill
+- [ ] writing-for-agents 正式流程化（低优先级——见 handoff 讨论项 3）
 
 ---
 
