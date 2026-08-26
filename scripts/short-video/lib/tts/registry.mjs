@@ -20,7 +20,7 @@ import { createF5MLXEngine } from "./f5-mlx.mjs";
 import { createQwenTTSEngine } from "./qwen-tts.mjs";
 import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
-import { runWhisperAlignment, getAtempo } from "./post-process.mjs";
+import { runForcedAlignment, getAtempo } from "./post-process.mjs";
 
 /**
  * Engine factory map. Keys are both the canonical name and TTS_ENGINE aliases.
@@ -96,7 +96,7 @@ export async function generateTTS(scenes, outputDir) {
   const results = await engine.generate(scenes, outputDir);
 
   // Run subtitle alignment for accurate timing
-  await runWhisperAlignment(scenes, results, outputDir);
+  await runForcedAlignment(scenes, results, outputDir);
 
   return results;
 }

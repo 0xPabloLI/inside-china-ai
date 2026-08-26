@@ -24,11 +24,13 @@ import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { renderRemotion } from "./lib/render-remotion.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
+import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
 import { buildCues } from "./lib/subtitles/cues.mjs";
 import { renderAss } from "./lib/subtitles/ass.mjs";
 import { burnSubtitles } from "./lib/post-process.mjs";
+import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -151,13 +153,15 @@ async function main() {
   }
 
   // ── Step 1.5: Asset sourcing (auto-search missing media) ──
-  // For each scene with media where the file doesn't exist → trigger asset-sourcer.
+  // Triggers asset-sourcer when any non-CTA scene lacks media OR has media path pointing to a missing file.
   // Non-blocking: if search fails, scene renders without media (graceful degradation).
+  const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
   const scenesNeedingMedia = scenes.filter((s) => {
-    if (!s.media?.path) return false;
+    if (NO_MEDIA_TYPES.has(s.visualType)) return false;
+    if (!s.media?.path) return true; // No media field at all → needs sourcing
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     const mediaPath = resolve(contentDirAbs, s.media.path);
-    return !existsSync(mediaPath);
+    return !existsSync(mediaPath); // Media path set but file missing → needs sourcing
   });
   if (scenesNeedingMedia.length > 0) {
     console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
@@ -167,13 +171,12 @@ async function main() {
       const keywords = extractKeywords(scenes, meta, []);
       const companyKeyword = meta?.keyEntities?.companies?.[0] || keywords[0] || "china ai";
       console.log(`  Searching for: ${companyKeyword}`);
-      // Run asset-sourcer in non-interactive mode
+      // Run asset-sourcer (CLI flags only — no --non-interactive)
       await sourcerMain([
         "--content",
         contentDir,
         "--keywords",
         companyKeyword,
-        "--non-interactive",
       ]);
       console.log();
     } catch (e) {
@@ -369,6 +372,31 @@ async function main() {
   const subtitles = regenerateSubtitles({ outputDir, sceneDurations });
   if (subtitles) {
     console.log(`  📝 ASS generated: ${subtitles.cues.length} cues`);
+
+    // ── Gate 1: Canonical Text verification (before rendering) ──
+    console.log("  🔍 Gate 1: Canonical Text verification...");
+    const audioDir = join(outputDir, "audio");
+    const gateResult = await runCanonicalTextGateWithRepair(
+      subtitles.timingData,
+      scenes,
+      meta.keyEntities,
+      {
+        label: "Gate 1",
+        realignFn: async () => {
+          const { runForcedAlignment } = await import("./lib/tts/post-process.mjs");
+          await runForcedAlignment(scenes, ttsResults, audioDir);
+        },
+        reloadTimingFn: () => {
+          const timingPath = join(audioDir, "subtitle-timing.json");
+          return JSON.parse(readFileSync(timingPath, "utf8"));
+        },
+      },
+    );
+    // Update subtitles.timingData with repaired timing (if repair occurred)
+    if (gateResult.timingData) {
+      subtitles.timingData = gateResult.timingData;
+    }
+    console.log();
   }
 
   // ── Step 5: Assemble/Render final video ──
@@ -450,9 +478,24 @@ async function main() {
       }
 
       if (category === "subtitle-alignment") {
-        // Re-run whisper alignment + regenerate subtitles
-        // This requires async TTS alignment, deferred for now
-        return { success: false };
+        // Re-run forced alignment (text-align.py) + regenerate ASS + re-burn
+        // This is an async repair — verifyWithRetry supports async repairFn
+        // eslint-disable-next-line no-async-promise-executor
+        return (async () => {
+          try {
+            await runForcedAlignment(scenes, ttsResults, join(outputDir, "audio"));
+          } catch {
+            return { success: false };
+          }
+          // Re-read timing from disk (text-align.py updated it)
+          const timingPath = join(outputDir, "audio", "subtitle-timing.json");
+          if (!existsSync(timingPath)) return { success: false };
+          subtitles.timingData = JSON.parse(readFileSync(timingPath, "utf8"));
+          // Regenerate ASS
+          const { cues } = generateSubtitles(subtitles.timingData, sceneDurations, subtitles.assPath);
+          const burnResult = findBaseAndBurn();
+          return burnResult ?? { success: false };
+        })();
       }
 
       return { success: false };

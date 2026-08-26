@@ -19,6 +19,7 @@ import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
+import { runCanonicalTextGate } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -147,6 +148,14 @@ async function main() {
   const subtitles = regenerateSubtitles({ outputDir, sceneDurations });
   if (subtitles) {
     console.log(`📝 Step 4: ASS generated: ${subtitles.cues.length} cues\n`);
+
+    // ── Gate 1: Canonical Text verification (before rendering) ──
+    console.log("🔍 Gate 1: Canonical Text verification...");
+    runCanonicalTextGate(subtitles.timingData, scenes, meta.keyEntities, {
+      label: "Gate 1",
+      renderOnly: true,
+    });
+    console.log();
   } else {
     console.log("📝 Step 4: Subtitles skipped (no subtitle-timing.json)\n");
   }

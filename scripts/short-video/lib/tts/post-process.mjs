@@ -5,7 +5,7 @@
  * - getDuration():      Probe exact audio duration with ffprobe
  * - postProcessAudio(): Apply FFmpeg post-processing (silenceremove + resample)
  * - postProcessBatch(): Post-process in-place + get duration (for batch engines)
- * - runWhisperAlignment(): Subtitle timing alignment via text-align.py
+ * - runForcedAlignment(): Subtitle timing alignment via text-align.py
  *
  * Prosody enhancement (Phase 2):
  *   Per-scene pitch shift + tempo adjustment via FFmpeg rubberband filter.
@@ -232,7 +232,7 @@ export async function postProcessBatch(audioPath, opts = {}) {
  * @param {TTSResult[]} ttsResults
  * @param {string} outputDir
  */
-export async function runWhisperAlignment(scenes, ttsResults, outputDir) {
+export async function runForcedAlignment(scenes, ttsResults, outputDir) {
   const alignScript = join(ROOT_DIR, "text-align.py");
   if (!existsSync(alignScript)) {
     console.log("  ⚠️ text-align.py not found, skipping");
@@ -260,3 +260,9 @@ export async function runWhisperAlignment(scenes, ttsResults, outputDir) {
     console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
   }
 }
+
+/**
+ * Backward-compatible alias for runForcedAlignment.
+ * @deprecated Use runForcedAlignment instead — will be removed in a future release.
+ */
+export const runWhisperAlignment = runForcedAlignment;

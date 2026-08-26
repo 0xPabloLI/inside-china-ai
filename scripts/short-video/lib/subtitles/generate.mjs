@@ -12,7 +12,7 @@ import { buildCues } from "./cues.mjs";
 import { renderAss } from "./ass.mjs";
 
 /**
- * @param {Array} timingData - contents of subtitle-timing.json
+ * @param {Array|object} timingData - contents of subtitle-timing.json (old array or new {scenes:[]} format)
  * @param {Array<{sceneId: number, duration: number}>} sceneDurations
  * @param {string} outputPath - .ass file to write
  * @returns {{assPath: string, cues: Array}}
@@ -32,7 +32,7 @@ export function generateSubtitles(timingData, sceneDurations, outputPath) {
  * @param {object} options
  * @param {string} options.outputDir
  * @param {Array<{sceneId: number, duration: number}>} options.sceneDurations
- * @returns {{assPath: string, timingData: Array, cues: Array} | null}
+ * @returns {{assPath: string, timingData: (Array|object), cues: Array} | null}
  *   null when no alignment data exists
  */
 export function regenerateSubtitles({ outputDir, sceneDurations }) {

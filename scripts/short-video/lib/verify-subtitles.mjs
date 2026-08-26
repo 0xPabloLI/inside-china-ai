@@ -48,15 +48,16 @@ const SILENCE_MIN_DURATION = 0.3;
  * generator's chunking or lead-in rules, so agreement between this and the
  * rendered .ass is real evidence, not a tautology.
  *
- * @param {Array} timingData - subtitle-timing.json
+ * @param {Array|object} timingData - subtitle-timing.json (old array or new {scenes:[]} format)
  * @param {Array<{sceneId: number, duration: number}>} sceneDurations
  * @returns {Array<{sceneId: number, text: string, start: number, end: number}>}
  */
 export function expectedWordTimes(timingData, sceneDurations) {
+  const scenes = Array.isArray(timingData) ? timingData : (timingData && timingData.scenes) || [];
   const timeline = sceneTimeline(sceneDurations);
   const expected = [];
 
-  for (const scene of timingData ?? []) {
+  for (const scene of scenes) {
     const entry = findScene(timeline, scene.sceneId);
     const limit = entry.offset + entry.ttsDuration;
     for (const segment of scene.segments ?? []) {

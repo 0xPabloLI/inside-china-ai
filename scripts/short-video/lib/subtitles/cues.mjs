@@ -131,12 +131,22 @@ export function chunkWords(wordList) {
 }
 
 /**
+ * Normalize timing data: accepts both old array format [{sceneId, segments}]
+ * and new object format { scenes: [{sceneId, segments}] }.
+ * Returns the scenes array in both cases.
+ */
+function normalizeTimingScenes(timingData) {
+  if (Array.isArray(timingData)) return timingData;
+  return (timingData && timingData.scenes) || [];
+}
+
+/**
  * Convert per-scene alignment data into raw cues on the absolute timeline.
  */
 function collectRawCues(timingData, timeline) {
   const raw = [];
 
-  for (const scene of timingData ?? []) {
+  for (const scene of normalizeTimingScenes(timingData)) {
     const entry = findScene(timeline, scene.sceneId);
     const speechLimit = entry.offset + entry.ttsDuration;
     const clipEnd = entry.offset + entry.clipDuration;
@@ -292,7 +302,7 @@ function holdOutExtension(cues) {
 /**
  * Build display-ready cues from alignment data.
  *
- * @param {Array<{sceneId: number, segments: Array}>} timingData - subtitle-timing.json
+ * @param {Array<{sceneId: number, segments: Array}> | {scenes: Array<{sceneId: number, segments: Array}>}} timingData - subtitle-timing.json (old array or new object format)
  * @param {Array<{sceneId: number, duration: number}>} sceneDurations - scene-durations.json
  * @returns {Array<{start: number, end: number, text: string, words: Array}>}
  */
