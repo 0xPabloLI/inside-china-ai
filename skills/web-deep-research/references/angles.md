@@ -43,6 +43,25 @@ Use when researching Chinese AI companies, tech policy, or China tech market.
 - Wikipedia REST API: `curl` accessible if DNS resolves; otherwise use CDP
 - English media (Bloomberg, Reuters, FT): partial paywall — CDP with login state helps
 
+## ML/AI Model Selection
+
+Use when researching which ML/AI model to use for a specific task (VLM, TTS,
+ASR, digital human, embedding, etc.).
+
+| Angle | Search queries (examples) | Key sources |
+|-------|---------------------------|-------------|
+| **Task match & benchmark** | `[model] [target task] benchmark`, `[model] technical report` | Official tech reports, model cards, task-specific leaderboards. Record eval set, version, settings, date. |
+| **Real workload evaluation** | `[model] [project workload] quality latency` | Reproducible tests on project samples. Record hardware, runtime, quantization, preprocessing, metrics. |
+| **Apple Silicon / runtime** | `[model] MLX support`, `[model] llama.cpp GGUF`, `[model] Apple Silicon` | Runtime official docs, model repos, local smoke test. Distinguish "downloadable" from "actually runs on target hardware". |
+| **License & supply chain** | `[model] license commercial use`, `[model] LICENSE` | Model card, repo `LICENSE`, upstream weights & dependency licenses. Record commercial restrictions, redistribution limits, version. |
+| **Toolchain & quantization** | `[model] 4bit MLX`, `[model] GGUF`, `[model] runtime support` | Official/maintainer repos, quantization release pages, local load test. Record format, quant method, maintenance status. |
+| **Risk & maintenance** | `[model] issue`, `[model] regression`, `[model] release notes` | Upstream issues, release notes, project tests. Distinguish fixed, avoidable, and unverified risks. |
+
+**Decision rule**: Public benchmarks are screening evidence only — they cannot
+replace real-world testing on target hardware with actual project workloads.
+Conclusions must explain "why this model fits this task" and retain uncertainty
+for unverified items.
+
 ## General / Cross-Domain
 
 For topics that don't fit a specific template above. Generate angles from these

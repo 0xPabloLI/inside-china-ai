@@ -36,6 +36,7 @@
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
 | `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
 | `tools-catalog.md` | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates | AGENTS.md |
+| `installed-skills.md` | Agent skills overview — sources, invocation modes, MCP list, install commands | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `series-production-guide.md` | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing | `content-pipeline.md` Stage 3, `video-workflow.md` |
 | `content-scaffold-guide.md` | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style | `video-workflow.md` |
@@ -130,6 +131,8 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
 | `writing-for-agents-enforcement-proposal-review-2026-08-25.md` | `writing-for-agents` 规则执行率改善方案审核；待吸收结论后归档 |
+| `handoff-vertical-cropping-pipeline-review-2026-08-26.md` | Vertical cropping handoff 审阅；待修订后再进入实施 |
+| `handoff-fix-scene-flicker-review-2026-08-26.md` | Scene flicker handoff 审查；待按修订建议实施并验证 |
 
 ### `archive/` — Completed work
 
@@ -187,6 +190,7 @@ Deep research reports with citations.
 | `issue-tracker-review.md` | Issue tracker 审阅报告 — GitHub 状态、依赖、冲突组与维护建议核验 |
 | `writing-for-agents-enforcement-proposal.md` | `writing-for-agents` 规则执行率改善方案（待审核结论吸收） |
 | `model-sources-reference.md` | Model search sources reference |
+| `model-sources-reference-review.md` | Review of model source reference — source availability, internal consistency, and evidence-chain actions |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
@@ -222,4 +226,3 @@ No `specs/` or `tickets/` directories persist between work cycles. They are crea
 ## Redirect Rule
 
 If a topic is historical or split-legacy, keep a short pointer in `archive/README.md` and move all normative content to one canonical file only.
-| `model-sources-reference-review.md` | Review of model source reference — source availability, internal consistency, and evidence-chain actions |

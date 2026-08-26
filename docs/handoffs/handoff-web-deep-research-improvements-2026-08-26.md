@@ -2,11 +2,11 @@
 
 **日期**: 2026-08-26
 
-**审阅状态**: 已修订
+**审阅状态**: 已修订 + 已实施（改进 1-3、5 已落地；改进 4 RAG 待前置阻塞解决）
 
-**来源 session**: VLM bug 调研 → 模型选型 → 发现 `web-deep-research` skill 使用问题
+**来源 session**: VLM bug 调研 → 模型选型 → 发现 `web-deep-research` skill 使用问题 → skill 冗余清理 + 代码验证层 + 耦合修复
 
-**目标文件**: `~/.agents/skills/web-deep-research/SKILL.md`、`~/.agents/skills/web-deep-research/references/angles.md`
+**目标文件**: `skills/web-deep-research/SKILL.md`（repo git tracked）、`skills/web-deep-research/references/angles.md`、`~/.agents/skills/deep-research/SKILL.md`（第三方方法论后端）
 
 **关联实现**: `scripts/rag/index.mjs`、`scripts/article/lib/publish-utils.mjs`
 
@@ -133,3 +133,60 @@
 ## 审阅记录
 
 本次审阅已完成跨章节一致性、指针目标存在性和引用文件存在性检查。已确认目标 skill、角度模板、项目 `docs/research/` 目录以及 RAG helper 均存在；同时确认当前 RAG 索引器未收集 `docs/research/`，因此将原先的直接 reindex 建议升级为明确的前置实现依赖。
+
+---
+
+## 实施记录（2026-08-26 第二轮 session）
+
+### 已实施改进
+
+| # | 改进 | 状态 | 实施细节 |
+|---|------|------|---------|
+| 1 | Phase 3 单一委派 web-access | ✅ 已实施 | 删除 MANDATORY 块中对 jina_search/web_fetch/mcp-search-bridge/Tavily 的硬编码禁令，改为单一委派规则："web-access decides the tool" |
+| 2 | Phase 8 输出路径可移植化 | ✅ 已实施 | 三级优先级：repo 约定 → `docs/research/` → 请求用户确认。禁止 `~/Documents/` 兜底。Filename: kebab-case slug |
+| 3 | angles.md 新增 ML/AI Model Selection | ✅ 已实施 | 6 个角度（任务匹配、真实 workload、Apple Silicon/运行时、许可证、量化/工具链、风险维护）+ 决策规则 |
+| 4 | RAG reindex | ⏳ 待前置阻塞 | 未实施。前置阻塞：`scripts/rag/index.mjs` 尚未收集 `docs/research/`。GitHub Issue [#118](https://github.com/0xPabloLI/inside-china-ai/issues/118) 已创建跟踪此任务。需先走 repo 实施流程扩展索引器 |
+| 5 | 报告语言优先级 | ✅ 已实施 | 三级优先级：用户明确要求 → 仓库文档约定 → 对话语言。英文技术术语保留英文 |
+
+### 额外实施（超出原 handoff 范围）
+
+| 改动 | 原因 |
+|------|------|
+| **web-deep-research 增加代码验证层（Phase 3 track 5 + Tier 1 + Phase 4 + Anti-pattern）** | 用户要求。当研究目标涉及库/框架/工具时，并行 web 检索 + 本地代码验证（pip show / inspect.getsource / grep / read_file）。代码源为 Tier 1，代码与文档矛盾时代码为准 |
+| **deep-research description 去重叠触发词 + disable-model-invocation** | 两者 description 高度重叠（"deep research"、"comprehensive analysis" 等），agent 无法区分。修改 deep-research description 去掉所有触发词，并加 frontmatter `disable-model-invocation: true`（Matt Pocock 规范：此字段让 agent 不自动触发该 skill，只有被其他 skill 显式引用时才加载）。确保 agent 只选 web-deep-research |
+| **web-deep-research Dependencies 声明修正** | 原文 "load it for detailed phase instructions" 暗示 deep-research 是上游权威。实际 deep-research 的 methodology.md（422 行）包含大量不存在的工具引用（search-cli、Exa MCP）和冲突的 output contract（~/Documents/、HTML+PDF）。改为 "phases below are authoritative"，deep-research 的 reference files 降级为 supplementary |
+
+### 耦合评估：web-deep-research ↔ deep-research
+
+**结论：耦合不好，已修正为名义引用关系。**
+
+| 维度 | 修正前 | 修正后 |
+|------|--------|--------|
+| 触发词 | 高度重叠（deep research / comprehensive analysis / research report） | web-deep-research 独占触发词；deep-research 加 `disable-model-invocation: true` + description 去掉所有触发词 |
+| 方法论依赖 | web-deep-research 声称 "load deep-research for detailed phase instructions" | web-deep-research 声明 "phases below are authoritative"；deep-research 的 reference files 为 supplementary |
+| 输出约定 | deep-research 写 ~/Documents/ + HTML+PDF+JSONL；web-deep-research 写 docs/research/ | deep-research 的 output contract 不再被 web-deep-research 引用 |
+| 工具引用 | deep-research methodology.md 硬编码 search-cli / Exa MCP / Task tool | web-deep-research 委派给 web-access，不引用 deep-research 的工具 |
+
+**deep-research 作者确认**：来自 `github.com/199-biotechnologies/claude-deep-research-skill`（第三方），非 Matt Pocock。skills-lock.json 中无记录。
+
+### research 和 diagnosing-bugs 的调用类型
+
+根据 Matt Pocock 最新 repo README 的分类：
+
+| Skill | 调用类型 | 说明 |
+|-------|---------|------|
+| `research` | **Model-invoked** | agent 可直接调用（description 有触发词 "research"/"topic researched"/"docs or API facts gathered"），但设计意图是 background agent 轻量级研究——"Spin up a background agent to do the research, so you keep working while it reads" |
+| `diagnosing-bugs` | **Model-invoked** | agent 可直接调用（description 有触发词 "diagnose"/"debug this"/"broken"/"throwing"/"failing"/"slow"）。完整 6-phase 调试管线，被 `implement` skill 的 TDD 流程间接引用 |
+
+两者都是 **model-invoked**（agent 可自动触发），不是被其他 skill 独占调用的内部子 skill。它们有独立触发词，agent 会根据用户意图直接选择。
+
+### 当前研究/搜索类 skill 全景
+
+| Skill | 作者 | 调用类型 | 定位 | 触发词 |
+|-------|------|---------|------|--------|
+| `web-deep-research` | 你自己（repo） | User-invoked | 主力深度研究：8-phase + web-access + 代码验证 | "deep research"、"comprehensive analysis"、"research report"、"compare X vs Y" |
+| `deep-research` | 199-biotechnologies | **不被 agent 直接选择**（description 已改） | 方法论后端：reference files 供 web-deep-research 按需引用 | 无（已去除触发词） |
+| `research` | Matt Pocock | Model-invoked | 轻量级：background agent 读 docs/API → Markdown | "research"、"topic researched"、"docs or API facts gathered" |
+| `last30days` | 外部 | User-invoked | 趋势发现：30 天内社媒热度 | "last 30 days"、"趋势"、"trends" |
+
+**冗余判定**：`web-deep-research` 与 `deep-research` 不再冗余——前者是 agent 入口，后者是方法论后端（description 已标注不被直接调用）。`research` 和 `web-deep-research` 不冗余——前者是轻量级 background agent 单次搜索，后者是完整 8-phase 管线。

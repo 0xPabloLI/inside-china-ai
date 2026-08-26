@@ -155,7 +155,7 @@
   - ✅ **支持 JSON 输出**：`--emit=json --json-profile=agent`，输出 `{clusters: [{title, summary, engagement_total, sources}]}` 结构
   - ✅ **Reddit + HN 无需 API key**：开箱即用
   - ✅ **X 已配置**：Chrome cookie 提取，首次运行可能弹 Keychain 提示
-  - ✅ **arXiv 已配置**：FlClash 规则 `DOMAIN-SUFFIX,arxiv.org,国际机场`，TUN 模式自动生效
+  - ✅ **arXiv 已配置**：代理规则 `DOMAIN-SUFFIX,arxiv.org,国际机场`，TUN 模式自动生效
   - ✅ **CLI 源已安装**：digg-pp-cli、arxiv-pp-cli、techmeme-pp-cli
   - ✅ **Threads + Grounding 已启用**：免费 opt-in 源
   - ⚠️ **TikTok/Instagram 需 SC credits**：默认不搜，需要时手动加 `--search ...,tiktok,instagram`
@@ -200,7 +200,7 @@
 - **分类**：联网/抓取 / 文档解析 / 研究管线
 - **费用**：免费 1,000 credits/月（需注册，无需信用卡）；keyless 模式从当前 IP **不可用**（IP 被判 suspicious）
 - **注册地址**：`https://www.firecrawl.dev/signin?view=signup&source=agent-suggested`
-- **本地 skill**：`~/.agents/skills/firecrawl-deep-research/SKILL.md`（v0.1.0，纯方法论）
+- **本地 skill**：已删除（与 `web-deep-research` 重叠且方法论更浅）。如需使用，从 [firecrawl-workflows](https://github.com/firecrawl/firecrawl-workflows) 重新安装
 - **调查日期**：2026-08-11
 
 #### `firecrawl parse` — 本地文档转 Markdown ⭐⭐⭐

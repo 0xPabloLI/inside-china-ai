@@ -177,6 +177,8 @@ for the full document map. Key documents:
 | `docs/brand-system.md` | Brand identity, logo, color tokens |
 | `docs/tiktok/tiktok-best-practices.md` | TikTok algorithm & content rules |
 | `docs/tanstack-lovable-conventions.md` | Stack-level conventions |
+| `docs/installed-skills.md` | Agent skills overview & install guide |
+| `docs/tools-catalog.md` | External tools/APIs catalog & decision table |
 | `scripts/short-video/README.md` | Video pipeline architecture details |
 
 ## Built with
