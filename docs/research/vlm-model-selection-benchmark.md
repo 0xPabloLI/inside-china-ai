@@ -115,39 +115,51 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 
 ### 视频分析
 
-#### 根因分析（Deep Research 确认）
+#### 已废弃结论（2026-08-26 前的误报）
 
-**这不是 MLX/MPS 特有的 bug——是 transformers 库 `Qwen3VLVideoProcessor` 的上游 bug，影响所有平台。**
+> **废弃原因**：测试代码用了错误的 API 调用方式
+> (`apply_chat_template(num_images=0) + generate(video=)`)，导致
+> `broadcast_shapes` error。误报为「transformers 上游 bug 影响所有平台」。
+> 网络搜索到的 GitHub issues 反映的是**已报告的**问题，不代表**已修复的**状态。
+> 实际上 mlx-vlm 0.6.16 内置的 numpy `Qwen3VLVideoProcessor` 一直可用，
+> 只是测试代码绕过了正确的调用路径。
 
-**各平台受影响的证据**：
+以下为此前调查记录的跨平台 issue，保留作为历史参考。这些 issue 的根因
+> 是各平台 video processing 路径的差异，**不适用于 mlx-vlm 0.6.16 的 numpy
+> processor 路径**。
 
 | 平台 | Issue | 症状 |
 |------|-------|------|
-| **MLX/Apple Silicon** | 本项目测试 | `broadcast_shapes` error in mlx-vlm generate() |
+| **MLX/Apple Silicon** | 本项目测试 | `broadcast_shapes` error（错误 API 调用方式导致） |
 | **CUDA/vLLM** | [vllm#35909](https://github.com/vllm-project/vllm/issues/35909) | `AssertionError: timestamps length(10) should be equal video length (16)` |
 | **CUDA/SGLang** | [sglang#11354](https://github.com/sgl-project/sglang/issues/11354) | `500 Internal Server Error: index 1 is out of bounds for dimension 0` |
 | **Transformers/CUDA** | [Qwen3-VL#2019](https://github.com/QwenLM/Qwen3-VL/issues/2019) | `video_processor produces wrong output shape and video_grid_thw` — T dimension only has 2 (should be 32) |
 | **Transformers/CUDA** | [Qwen3-VL#2041](https://github.com/QwenLM/Qwen3-VL/issues/2041) | Pre-processing error following official notebook |
 | **LM Studio/Windows** | [lmstudio#1187](https://github.com/lmstudio-ai/lmstudio-bug-tracker/issues/1187) | Qwen3-VL refuses to process videos |
 
-**根因**：Qwen3-VL 引入了全新的 `Qwen3VLVideoProcessor`（与 Qwen2.5-VL 的 `Qwen2_5_VLVideoProcessor` 不同）。新 processor 的 `video_grid_thw` 计算有误——特别是 T（时间）维度被错误地压缩为 2，而非实际的帧数。当模型尝试将 timestamps 与 grid_thw[0] 对齐时，shape 不匹配导致 `broadcast_shapes` 或 `AssertionError`。
+#### 当前结论（2026-08-26 验证）
 
-**为什么这个 bug 没被修**：
-1. Qwen3-VL 使用了全新的 video processor 架构（text-timestamp alignment 取代了 T-RoPE），API 变化大（`return_video_metadata=True` 是 Qwen3-VL 独有参数）
-2. 官方推荐用 `qwen-vl-utils` 的 `process_vision_info` 配合 `return_video_metadata=True` 调用——这条路径在 CUDA 上是工作的（官方 demo + swift 文档有成功输出 "A baby wearing glasses..." 的记录）
-3. **mlx-vlm 没有实现 `return_video_metadata` 路径**——它直接将视频传给原生 processor，绕过了 `resolve_video_inputs` 中的 fallback 机制
-4. vLLM 和 SGLang 各自实现了自己的 video processing 路径，都有各自但不同的 bug
-5. 大部分 CUDA 用户通过 `return_video_metadata=True` 避开了这个问题，所以社区报告较少
+| 维度 | 值 |
+|------|-----|
+| 状态 | ✅ 原生视频路径可用 |
+| 验证日期 | 2026-08-26 |
+| 环境 | mlx-vlm 0.6.16 + transformers 5.15.1, `~/.video-tts-env` (Python 3.12) |
+| 模型 | `mlx-community/Qwen3-VL-2B-Instruct-4bit` |
+| 输入 | `unitree-demo.mp4` (1.7s 视频) |
+| 调用方式 | `generate(prompt=, video=, fps=, max_frames=, temperature=0.0)` |
+| 结果 | 1.9s 内生成准确描述 |
+| 证据 | `scripts/short-video/lib/vlm_analyzer.py` L326-337（原生路径）+ L494-523（fallback） |
+| 失效条件 | mlx-vlm 或 transformers 升级后需重新 smoke test |
 
-**替代模型评估**：在 Apple Silicon 上没有比 Qwen3-VL 更好的选择：
-- Qwen2.5-VL 在 mlx-vlm 中有成熟的视频支持，但它是上一代模型（OCR、中文识别不如 Qwen3-VL）
-- Gemma 3、LLaVA、Pixtral 等在 mlx-vlm 中支持不完整或没有原生视频能力
-- vllm-mlx 是新的推理引擎但主要优化文本模型，VLM 视频支持仍在开发中
-- 保持 Qwen3-VL + 帧提取 workaround 是当前最佳方案
+mlx-vlm 0.6.16 内置了 numpy 实现的 `Qwen3VLVideoProcessor`
+（`processing_qwen3_vl.py`），不依赖 transformers 的实现。`vlm_analyzer.py`
+已恢复原生视频优先 + 帧提取 fallback 路径。
 
-**已修复（2026-08-26 验证）**：mlx-vlm 0.6.16 内置了 numpy 实现的 `Qwen3VLVideoProcessor`（`processing_qwen3_vl.py`），不再依赖 transformers 的 buggy 实现。原生视频路径在 Qwen3-VL-2B-4bit 上测试成功：unitree-demo.mp4 在 1.9s 内生成准确描述。`vlm_analyzer.py` 已恢复原生视频优先 + 帧提取 fallback 路径。
+#### 仍存在的限制
 
-**仍存在的限制**：mlx-vlm 未实现 Qwen3-VL 的 `return_video_metadata=True` 路径（用于 text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`，不依赖该参数。
+mlx-vlm 未实现 Qwen3-VL 的 `return_video_metadata=True` 路径（用于
+text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`，
+不依赖该参数。
 
 ## 5. 社区评价汇总
 
@@ -160,7 +172,7 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 | Qwen3-VL 全系列 Apache-2.0，256K context，39 languages OCR | arXiv:2511.21631 |
 | Qwen3.5/3.6 已统一 text+VL（不再分 VL 模型），但 MLX VLM 版只有第三方转换 | huggingface.co |
 | "As of mid-2026 MLX has strong support for Qwen2.5-VL and Moondream" | contracollective.com |
-| Qwen3-VL video processor bug 影响所有平台（vLLM, SGLang, LM Studio, transformers） | GitHub Issues |
+| Qwen3-VL video processor 曾有跨平台 issue（vLLM, SGLang, LM Studio, transformers），已被 mlx-vlm 0.6.16 numpy processor 绕过 | GitHub Issues |
 
 ## 6. 选型建议
 
@@ -189,7 +201,7 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 - `MODEL_ID`：`mlx-community/Qwen3-VL-2B-Instruct-4bit`
 - `FALLBACK_MODEL_ID`：`mlx-community/Qwen3-VL-4B-Instruct-8bit`
 - 图片预处理：`MAX_IMAGE_LONG_EDGE = 1920`（>1920px 的图片 resize 到 1920px 长边；R4 测试用 1280px 进一步加速但 1920px 已足够防幻觉）
-- 视频分析：ffmpeg 帧提取（1 fps → 最多 8 帧 → 多图输入），不使用原生视频处理器
+- 视频分析：原生视频优先（`generate(video=, prompt=)`），帧提取 fallback（1 fps → 最多 8 帧 → 多图输入）
 
 ## 7. Pipeline 集成状态
 
@@ -204,16 +216,17 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 ### 待办
 
 - [ ] Issue #113：图片预处理已集成到 vlm_analyzer.py，但可能需要测试端到端 pipeline
-- [ ] 视频帧提取 workaround 的端到端测试
+- [ ] 视频原生路径 + 帧提取 fallback 的端到端测试
 - [ ] 确认 1920px vs 1280px 阈值在 pipeline 中的表现（当前用 1920px，R4 测试用 1280px 更快）
+- [ ] 公平 A/B 升级评估：同一图片/视频 corpus、统一 resize、相同提示词、≥3 次运行，比较 2B-4bit vs Ollama qwen3.5:4b 的质量、延迟、内存和失败率
 
 ## 8. 待办
 
 - [x] 4B-8bit 和 8B-4bit 下载完成后补充测试 (R3 已完成)
-- [x] 升级 mlx-vlm 到 0.6.16，重新测试视频分析（未修复，但找到 workaround：手动帧提取）
+- [x] 升级 mlx-vlm 到 0.6.16，原生视频路径验证成功（numpy processor 绕过 transformers bug）
 - [x] R4 预处理多场景测试（2B-4bit vs 4B-8bit，4 个 resize 阈值）
-- [x] Deep research：Qwen3-VL video bug 跨平台调查（确认是 transformers 上游 bug，非 MLX 特有）
-- [x] 替代模型评估（确认无更好选项，保持 Qwen3-VL + workaround）
-- [x] 实现 2B-4bit + 预处理 + 帧提取 workaround 在 vlm_analyzer.py 中
+- [x] Deep research：Qwen3-VL video bug 跨平台调查（确认误报根因是 API 调用方式错误，mlx-vlm 0.6.16 numpy processor 可用）
+- [x] 替代模型评估（确认无更好选项，保持 Qwen3-VL + 原生视频 + 帧提取 fallback）
+- [x] 实现 2B-4bit + 预处理 + 原生视频 + 帧提取 fallback 在 vlm_analyzer.py 中
 - [ ] 端到端 pipeline 测试
 - [x] 新建 GitHub issue 跟踪图片预处理 (#113)

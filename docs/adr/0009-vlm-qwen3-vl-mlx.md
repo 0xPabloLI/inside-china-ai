@@ -10,7 +10,7 @@ The video pipeline needs to understand visual assets (images, videos) before ass
 
 - **Cloud VLM APIs** (GPT-4V, Claude Vision): Faster but per-call cost, network latency, privacy concerns, and non-reproducible quality.
 - **LLaVA / other local VLMs**: Weaker on Chinese content and technology/brand recognition. Qwen3-VL has better video understanding and instruction following.
-- **Ollama-based VLM**: Ollama does not support vision models natively. mlx-vlm is purpose-built for Apple Silicon.
+- **Ollama-based VLM**: Ollama 支持部分视觉模型（如 qwen3.5:4b），但本项目以 mlx-vlm 为主路径（现有 pipeline + 原生视频 fallback 已围绕它建立）。将 Ollama 用作替代路径前需完成同 corpus 的性能、视频和集成验证。
 
 ## Consequences
 

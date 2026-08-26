@@ -9,7 +9,7 @@
 ## 背景
 
 在 VLM 选型过程中发现：
-1. mlx-vlm 0.6.16 的 Qwen3VLVideoProcessor（numpy 实现）一直可用，但之前因为测试代码 API 调用方式错误，误报为"所有平台都有 bug" [[memory:17877336917687800217]]
+1. mlx-vlm 0.6.16 的 Qwen3VLVideoProcessor（numpy 实现）一直可用，但之前因为测试代码 API 调用方式错误，误报为「所有平台都有 bug」（验证日期 2026-08-26，环境 mlx-vlm 0.6.16 + transformers 5.15.1，证据：`scripts/short-video/lib/vlm_analyzer.py` L326-337 原生视频路径 + `docs/research/vlm-model-selection-benchmark.md` §4 当前结论）
 2. Qwen3.5/Qwen3.8 已发布，视觉能力全面超过 Qwen3-VL，但 mlx-vlm 对 Qwen3.5 的图片 chat template 适配未完成
 3. Ollama 上的 Qwen3.5:4b 图片处理完全可用（验证成功）
 4. 本地缓存了 7 个 Qwen3-VL 模型（~26GB），其中 5 个可清理
@@ -43,8 +43,8 @@
 - 劣势：等待时间不确定（mlx-vlm 社区维护，PR 无定期）
 
 **选项 D: Qwen3.8-27B（Ollama MLX 变体）**
-- 优势：最强开源 VLM、Apache-2.0、原生视觉
-- 劣势：18GB 模型需 24GB+ Mac（M2 Pro 32GB 可跑但紧张）、mlx-vlm 不支持 `qwen3_8` 架构、只能通过 Ollama
+- 优势：本项目候选集内的高容量候选、Apache-2.0、原生视觉（官方模型卡确认支持图像和视频）
+- 劣势：~18GB Q4 变体、内存需求需实际加载测量、mlx-vlm 不支持 `qwen3_8` 架构、当前仅通过 Ollama 验证了 MLX 变体
 
 ### 建议
 
@@ -73,30 +73,23 @@
 
 ### 模型格式速查
 
-| 格式 | 专用引擎 | 跨引擎？ | Apple Silicon | 量化 |
-|------|---------|---------|--------------|------|
-| **GGUF** | llama.cpp / Ollama / LM Studio | 是（多引擎支持） | ✅ Metal | Q2-Q8 K-quants |
-| **MLX** | mlx-lm / mlx-vlm / Ollama (macOS) | 否（Apple only） | ✅ 原生 | 2-8 bit | Apple Silicon 上比 GGUF（Metal）快 30-50%；跨平台比 CUDA 慢 2-4x |
-| **safetensors** | transformers / vLLM | 是 | ✅ MPS | 通常不量化（FP16/BF16） |
-| **GPTQ** | vLLM / transformers | 是（NVIDIA） | ❌ | 4-bit |
-| **AWQ** | vLLM / transformers | 是（NVIDIA） | ❌ | 4-bit |
-| **EXL2** | ExLlamaV2 | 否（NVIDIA only） | ❌ | 2-8 bpw |
-
-**GGUF 是 llama.cpp 项目创建的格式**（替代旧的 GGML），但现在已成为本地推理的通用标准——Ollama、LM Studio、Jan、GPT4All 都支持 GGUF。不是 llama.cpp "专用"的，而是 llama.cpp "发明"的。
+详见 `docs/research/model-sources-reference.md` §2 模型格式速查表（已拆分为「权重容器」和「量化方法」两个子表）。
 
 ### Ollama 内存机制
 
-- `ollama serve` 常驻进程 ~16MB（无模型加载时）
-- 模型推理完成后，默认 5 分钟空闲自动卸载（`OLLAMA_KEEP_ALIVE` 可配）
+- `ollama serve` 常驻进程（无模型加载时内存占用未实测，官方文档未给出通用基线）
+- 模型推理完成后，默认 5 分钟空闲自动卸载（`OLLAMA_KEEP_ALIVE` 可配，见 [Ollama FAQ](https://docs.ollama.com/faq)）
 - `/api/ps` 查询当前加载的模型
 - 作为 fallback VLM 完全可行：平时不占内存，需要时加载
 
-### 待落盘
+### 已完成
 
-需要用 writing-for-agents skill 更新 `docs/research/model-sources-reference.md`：
-1. 在 §1.7 "其他来源"表中补充 Ollama Library、LM Studio、Artificial Analysis 等
-2. 在 §3 搜索流程模板中加 Step 7: 本地源码验证
-3. 新增 §4: 模型格式速查表
+已在 `model-sources-reference.md` 中落盘（commit `522ac4d`）：
+- §1.8 General 模型选型信源（信源优先级表）
+- §2 模型格式速查表（已拆分为「权重容器」和「量化方法」两个子表）
+- §4 Step 7: 本地源码验证
+
+后续修订仅在 `model-sources-reference.md` 中进行；本交接文档不再复制规范正文。
 
 ---
 

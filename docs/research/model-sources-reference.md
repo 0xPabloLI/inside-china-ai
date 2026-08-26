@@ -121,7 +121,16 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 - **模型仓库**（下载权重时去）：HuggingFace、ModelScope
 - **推理引擎**（运行模型时用）：Ollama、llama.cpp、mlx-vlm、vLLM — 这些不是信源
 
-**Ollama 内存机制**：`ollama serve` 常驻 ~16MB，模型推理后默认 5 分钟空闲自动卸载（`OLLAMA_KEEP_ALIVE` 可配）。作为 fallback 可行——平时不占内存。
+**信源分层使用**：
+
+| 层级 | 适用问题 | 首选证据 | 完成条件 |
+|------|---------|---------|---------|
+| 第一方事实 | 许可证、模态、参数、上下文 | 官方模型卡、LICENSE、官方仓库文档 | 每项关键结论有稳定链接与检索日期 |
+| 发行与安装 | 某变体能否拉取和运行 | Ollama Library、LM Studio、HF 文件页 | 在目标设备执行最小 smoke test |
+| 独立评估 | 质量/速度/成本对比 | 可复现实验报告、任务匹配 benchmark | 说明任务集、版本与局限 |
+| 本机决策 | 本项目生产适配性 | 固定 corpus 的 benchmark + E2E 测试 | 图片、视频、峰值内存、失败率均记录 |
+
+**Ollama 内存机制**：`ollama serve` 常驻进程，模型推理后默认 5 分钟空闲自动卸载（`OLLAMA_KEEP_ALIVE` 可配，见 [Ollama FAQ](https://docs.ollama.com/faq)）。作为 fallback 可行——平时不占内存。
 
 ---
 
@@ -129,14 +138,23 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 > **触发条件**：下载模型权重前确认格式。不同格式不通用。
 
-| 格式 | 专用引擎 | 跨引擎？ | Apple Silicon | 量化 | 说明 |
-|------|---------|---------|--------------|------|------|
-| **GGUF** | llama.cpp / Ollama / LM Studio | ✅ 多引擎 | ✅ Metal | Q2-Q8 K-quants | llama.cpp **创建**的格式（替代旧 GGML），现为本地推理通用标准 |
-| **MLX** | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生 | 2-8 bit | Apple Silicon 上比 GGUF（Metal 后端）快 30-50%；跨平台比 NVIDIA CUDA 慢 2-4x |
-| **safetensors** | transformers / vLLM | ✅ 多引擎 | ✅ MPS | 通常不量化 | 全精度源格式，量化前的基础 |
-| **GPTQ** | vLLM / transformers | ✅ NVIDIA | ❌ | 4-bit | 量化算法，权重存为 safetensors |
-| **AWQ** | vLLM / transformers | ✅ NVIDIA | ❌ | 4-bit | 量化算法，质量通常优于 GPTQ |
-| **EXL2** | ExLlamaV2 | ❌ NVIDIA only | ❌ | 2-8 bpw | 可变比特率，精确填满 VRAM 预算 |
+### 权重容器
+
+| 格式 | 推理引擎 | 跨引擎？ | Apple Silicon | 说明 |
+|------|---------|---------|--------------|------|
+| **GGUF** | llama.cpp / Ollama / LM Studio | ✅ | ✅ Metal | llama.cpp **创建**的格式（替代旧 GGML），现为本地推理通用标准 |
+| **MLX** | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生 | Apple Silicon 原生格式 |
+| **safetensors** | transformers / vLLM | ✅ | ✅ MPS | 全精度源格式，量化前的基础 |
+
+### 量化方法
+
+| 方法 | 适用引擎 | 硬件 | 量化位宽 | 说明 |
+|------|---------|------|---------|------|
+| **K-quants** | llama.cpp / Ollama | ✅ Metal | Q2-Q8 | GGUF 的量化方式 |
+| **MLX 量化** | mlx-lm / mlx-vlm | ✅ 原生 | 2-8 bit | MLX 原生量化 |
+| **GPTQ** | vLLM / transformers | ❌ NVIDIA | 4-bit | 量化算法，权重存为 safetensors |
+| **AWQ** | vLLM / transformers | ❌ NVIDIA | 4-bit | 量化算法，质量通常优于 GPTQ |
+| **EXL2** | ExLlamaV2 | ❌ NVIDIA | 2-8 bpw | 可变比特率，精确填满 VRAM 预算 |
 
 **Apple Silicon 决策**：有 MLX 版优先 MLX，没有则用 GGUF。`safetensors` 用于全精度或 fine-tuning。
 
@@ -196,7 +214,7 @@ Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
   7d. 用正确的 API 调用方式做 smoke test
   7e. 网络搜索结果只作为补充，不作为唯一依据
 
-> **教训（2026-08-26）**：mlx-vlm 0.6.16 的 Qwen3-VL 原生视频一直可用，但因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(video_path=, prompt=)`），误报为「所有平台都有 broadcast_shapes bug」。网络搜索到的 bug 报告反映的是**已报告的**问题，不代表**已修复的**状态。见 [[memory:17877336917687800217]]。
+> **教训（2026-08-26）**：mlx-vlm 0.6.16 的 Qwen3-VL 原生视频一直可用，但因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(video_path=, prompt=)`），误报为「所有平台都有 broadcast_shapes bug」。网络搜索到的 bug 报告反映的是**已报告的**问题，不代表**已修复的**状态。见 `docs/research/vlm-model-selection-benchmark.md` §4 视频分析 → 已废弃结论。
 ```
 
 ---
