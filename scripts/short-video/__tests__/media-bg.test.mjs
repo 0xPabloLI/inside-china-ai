@@ -368,10 +368,7 @@ describe("validateMedia", () => {
 
 describe("validateMedia — fit field", () => {
   it("does not warn when fit is undefined (default cover applies)", () => {
-    const result = validateMedia(
-      { type: "image", path: "assets/demo.jpg" },
-      CONTENT_DIR,
-    );
+    const result = validateMedia({ type: "image", path: "assets/demo.jpg" }, CONTENT_DIR);
     expect(result.valid).toBe(true);
     expect(result.warnings.some((w) => w.includes("fit"))).toBe(false);
   });
@@ -408,10 +405,7 @@ describe("validateMedia — fit field", () => {
 
 describe("validateMedia — focus field", () => {
   it("does not warn when focus is undefined (default center applies)", () => {
-    const result = validateMedia(
-      { type: "image", path: "assets/demo.jpg" },
-      CONTENT_DIR,
-    );
+    const result = validateMedia({ type: "image", path: "assets/demo.jpg" }, CONTENT_DIR);
     expect(result.valid).toBe(true);
     expect(result.warnings.some((w) => w.includes("focus"))).toBe(false);
   });
@@ -469,5 +463,78 @@ describe("VALID_FOCUSES constant", () => {
     expect(VALID_FOCUSES).toContain("top");
     expect(VALID_FOCUSES).toContain("center");
     expect(VALID_FOCUSES).toContain("bottom");
+  });
+});
+
+// ─── cropFocus field tests (VC-13, VC-14) ───
+
+describe("validateMedia — cropFocus field", () => {
+  it("does not warn when cropFocus is undefined (default center applies)", () => {
+    const result = validateMedia({ type: "image", path: "assets/demo.jpg" }, CONTENT_DIR);
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("cropFocus"))).toBe(false);
+  });
+
+  it("does not warn when cropFocus is valid {x: 0.3, y: 0.5}", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", cropFocus: { x: 0.3, y: 0.5 } },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("cropFocus"))).toBe(false);
+  });
+
+  it("does not warn when cropFocus is at boundary {x: 0, y: 1}", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", cropFocus: { x: 0, y: 1 } },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("cropFocus"))).toBe(false);
+  });
+
+  it("VC-13: warns when cropFocus.x is out of range (> 1)", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", cropFocus: { x: 1.5, y: 0.5 } },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true); // warning, not error
+    expect(result.warnings.some((w) => w.includes("cropFocus") && w.includes("1.5"))).toBe(true);
+  });
+
+  it("VC-13: warns when cropFocus.x is negative", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", cropFocus: { x: -0.1, y: 0.5 } },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("cropFocus") && w.includes("-0.1"))).toBe(true);
+  });
+
+  it("VC-14: warns when cropFocus.x is a string instead of number", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", cropFocus: { x: "0.5", y: 0.5 } },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("cropFocus") && w.includes("string"))).toBe(true);
+  });
+
+  it("warns when cropFocus.y is out of range", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", cropFocus: { x: 0.5, y: 2.0 } },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("cropFocus") && w.includes("2"))).toBe(true);
+  });
+
+  it("warns when cropFocus is not an object", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", cropFocus: "center" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("cropFocus"))).toBe(true);
   });
 });

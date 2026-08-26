@@ -353,6 +353,31 @@ export function validateMedia(media, contentDir) {
     warnings.push(`Unknown focus value: "${media.focus}". Will use "center" instead.`);
   }
 
+  // cropFocus validation (normalized [0,1] focus point)
+  if (media.cropFocus !== undefined && media.cropFocus !== null) {
+    if (typeof media.cropFocus !== "object" || media.cropFocus === null) {
+      warnings.push(`cropFocus must be an object { x, y }. Got: ${typeof media.cropFocus}.`);
+    } else {
+      const { x, y } = media.cropFocus;
+      if (typeof x !== "number" || typeof y !== "number") {
+        warnings.push(
+          `cropFocus.x and cropFocus.y must be numbers. Got x: ${typeof x}, y: ${typeof y}.`,
+        );
+      } else {
+        if (x < 0 || x > 1) {
+          warnings.push(
+            `cropFocus.x = ${x} is out of range [0, 1]. Will be clamped at render time.`,
+          );
+        }
+        if (y < 0 || y > 1) {
+          warnings.push(
+            `cropFocus.y = ${y} is out of range [0, 1]. Will be clamped at render time.`,
+          );
+        }
+      }
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,

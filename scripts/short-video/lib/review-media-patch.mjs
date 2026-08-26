@@ -146,6 +146,11 @@ export function formatSemanticsSummary(semantics) {
       `  // ⚠️ Low confidence (technicalScore: ${semantics.technicalScore || "?"}) — VLM skipped.`,
     );
   }
+  if (semantics.cropDecision) {
+    const d = semantics.cropDecision;
+    const focusStr = d.cropFocus ? `[${d.cropFocus.x}, ${d.cropFocus.y}]` : "null";
+    lines.push(`  // Crop Decision: ${d.status}, ${d.policy}, focus ${focusStr} — ${d.reason}`);
+  }
 
   return lines.join("\n");
 }
@@ -227,6 +232,9 @@ export function formatPatchEntry(entry, analysisMap) {
   if (media.animation) lines.push(`    animation: "${media.animation}",`);
   if (media.overlay !== undefined) lines.push(`    overlay: ${media.overlay},`);
   if (media.fit) lines.push(`    fit: "${media.fit}",`);
+  if (media.cropFocus) {
+    lines.push(`    cropFocus: { x: ${media.cropFocus.x}, y: ${media.cropFocus.y} },`);
+  }
   if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
   // Note: focus is NOT included in new output (deprecated, spec §4.8)
   lines.push(`  },`);

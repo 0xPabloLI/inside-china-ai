@@ -18,6 +18,8 @@ export interface MediaField {
   fit?: "cover" | "contain"; // default "cover" — how to place landscape media in 9:16
   /** @deprecated Replaced by protectedRegions from detectFocus() in Phase 2. Existing scene-data values still render, but new auto-analysis no longer writes this field. */
   focus?: "top" | "center" | "bottom"; // default "center" — crop focus when fit is "cover"
+  /** Normalized [0,1] source-space focus point for cover crop positioning. Overrides deprecated `focus` enum when present. Set by crop-decision.mjs selectBestCrop(). */
+  cropFocus?: { x: number; y: number }; // default undefined → falls back to `focus` enum
   source?: string;
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;

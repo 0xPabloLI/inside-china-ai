@@ -657,6 +657,10 @@ export function assignAssetsToScenes(assets, scenes) {
       if (asset.fit && asset.type !== "video") {
         media.fit = asset.fit;
       }
+      // Include crop focus from crop decision (spec: Crop Decision Contract)
+      if (asset.cropFocus) {
+        media.cropFocus = asset.cropFocus;
+      }
       if (volume !== undefined) {
         media.volume = volume;
       }
@@ -918,6 +922,47 @@ export async function analyzeAssets(assets, opts = {}) {
     });
   }
 
+  // ── Phase 3b: Crop Decision (deterministic geometry) ──
+  // For each landscape image asset, evaluate 9:16 cover crop candidates
+  // using focus detection data. Select best safe crop or fall back to contain.
+  const { selectBestCrop } = await import("./crop-decision.mjs");
+
+  for (const asset of analyzableAssets) {
+    if (asset.type !== "image") continue; // video crop not supported
+
+    // Need focusAnalysis.frame to determine aspect ratio
+    const focus = asset.focusAnalysis;
+    if (!focus?.frame?.width || !focus?.frame?.height) continue;
+
+    const sourceAspect = focus.frame.width / focus.frame.height;
+    const targetAspect = 9 / 16;
+
+    // Only run crop decision for landscape images (source wider than target)
+    if (sourceAspect <= targetAspect) continue;
+
+    const decision = selectBestCrop({
+      sourceAspect,
+      targetAspect,
+      protectedRegions: focus.protectedRegions || [],
+      saliency: focus.saliency || { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+      frame: focus.frame,
+    });
+
+    asset.cropDecision = decision;
+
+    if (decision.status === "safe" && decision.cropFocus) {
+      asset.cropFocus = decision.cropFocus;
+      // Only override fit to "cover" if VLM didn't already say "contain"
+      // (VLM's "contain" based on seeing the cropped image takes priority)
+      if (!asset.fit || asset.fit !== "contain") {
+        asset.fit = "cover";
+      }
+    } else if (decision.status === "unsafe") {
+      asset.fit = "contain";
+    }
+    // indeterminate → leave cropFocus and fit unset (defaults apply)
+  }
+
   // ── Write asset-analysis.json artifact ──
   // P1-3: isolate by content slug — write to outputDir/{contentSlug}/ when both provided
   if (outputDir) {
@@ -941,6 +986,8 @@ export async function analyzeAssets(assets, opts = {}) {
           criticalEdgeText: a.criticalEdgeText || null,
           reason: a.reason || null,
           focusAnalysis: a.focusAnalysis || null,
+          cropDecision: a.cropDecision || null,
+          cropFocus: a.cropFocus || null,
           window: a.window || null,
           sourceMode: a.sourceMode || null,
         })),
@@ -1623,7 +1670,7 @@ export async function main(args = process.argv.slice(2)) {
   // Load scene-data if available
   let scenes = [];
   let meta = null;
-  const sceneDataPath = join(contentDir, "scenes.mjs");
+  const sceneDataPath = join(contentDir, "scene-data.mjs");
   if (existsSync(sceneDataPath)) {
     try {
       const module = await import(pathToFileURL(sceneDataPath).href);
@@ -2151,7 +2198,7 @@ export async function main(args = process.argv.slice(2)) {
       console.warn(`⚠️  AI analysis layer not available: ${err.message}`);
     } finally {
       // Close VLM process — analyzeAssets no longer closes it itself,
-      // so we must close it here to release the ~11GB model.
+      // so we must close it here to release the ~2GB 2B-4bit model.
       try {
         const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
         await closeVisualAnalyzer();

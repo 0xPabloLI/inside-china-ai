@@ -39,6 +39,7 @@ import time
 import subprocess
 import tempfile
 import glob
+from PIL import Image, ImageOps
 
 # ─── Constants ───
 
@@ -430,15 +431,70 @@ def _cleanup_frames(frame_paths):
 
 # ─── Image preprocessing ───
 
+def simulate_crop(img_path, target_ratio=9/16, focus=(0.5, 0.5)):
+    """Crop image to target_ratio (simulating object-fit: cover) from a focus point.
+
+    Applies EXIF transpose + RGB conversion (matching focus_detector.py
+    normalization) before cropping. This ensures crop simulation, VLM analysis,
+    and focus detection all operate in the same coordinate system.
+
+    Args:
+        img_path: Path to the source image.
+        target_ratio: Target width/height ratio (default 9/16 = 0.5625 for vertical).
+        focus: (x, y) normalized [0,1] focus point for crop centering.
+
+    Returns:
+        (cropped_path, cleanup_path):
+          - cropped_path: Path to the cropped image (temp file or original if no crop needed)
+          - cleanup_path: Path to delete after use (or None if no temp file created)
+    """
+    try:
+        img = Image.open(img_path)
+        img = ImageOps.exif_transpose(img).convert("RGB")
+        w, h = img.size
+
+        # Check if horizontal crop is needed (source wider than target)
+        source_ratio = w / h
+        if source_ratio <= target_ratio:
+            # Source is narrower or same ratio — no horizontal crop needed
+            return img_path, None
+
+        # Calculate crop dimensions
+        new_w = int(h * target_ratio)
+        # Focus-adjusted crop start: center the crop on the focus point
+        focus_x = max(0.0, min(1.0, focus[0]))
+        left = int((w - new_w) * focus_x)
+        left = max(0, min(left, w - new_w))
+        cropped = img.crop((left, 0, left + new_w, h))
+
+        # Save cropped version
+        fd, tmp = tempfile.mkstemp(suffix=".jpg")
+        os.close(fd)
+        cropped.save(tmp, "JPEG", quality=90)
+        sys.stderr.write(
+            f"[vlm_analyzer] Cropped {img_path} from {w}x{h} to {new_w}x{h} "
+            f"(focus: {focus_x:.2f})\n"
+        )
+        sys.stderr.flush()
+        return tmp, tmp
+    except Exception as e:
+        sys.stderr.write(f"[vlm_analyzer] Crop simulation failed, using original: {e}\n")
+        sys.stderr.flush()
+        return img_path, None
+
+
 def resize_image_if_needed(img_path):
     """Resize image if longest edge > MAX_IMAGE_LONG_EDGE.
+
+    Applies EXIF transpose normalization before dimension check to ensure
+    the VLM and focus detector operate in the same coordinate system.
 
     Returns (path_to_use, temp_path_to_clean_or_None).
     If no resize needed, returns (img_path, None).
     """
     try:
-        from PIL import Image
         img = Image.open(img_path)
+        img = ImageOps.exif_transpose(img)
         w, h = img.size
         longest = max(w, h)
         if longest <= MAX_IMAGE_LONG_EDGE:
@@ -524,23 +580,32 @@ def handle_analyze_semantics(model, processor, path, window=None):
         else:
             # Image — verify first
             try:
-                from PIL import Image
                 img = Image.open(path)
                 img.verify()
             except Exception as e:
                 return {}, f"Invalid or corrupt image: {e}"
 
-            # Preprocess: resize large images to prevent hallucinations
-            actual_path, temp_path = resize_image_if_needed(path)
+            # Preprocess: simulate 9:16 center crop for landscape images
+            # (VLM sees what the viewer will see after cover crop)
+            crop_path, crop_cleanup = simulate_crop(path, target_ratio=9/16, focus=(0.5, 0.5))
             try:
-                raw = generate_response(
-                    model, processor, image_paths=actual_path,
-                    prompt_text=SEMANTICS_PROMPT_IMAGE,
-                )
+                # Preprocess: resize large images to prevent hallucinations
+                actual_path, temp_path = resize_image_if_needed(crop_path)
+                try:
+                    raw = generate_response(
+                        model, processor, image_paths=actual_path,
+                        prompt_text=SEMANTICS_PROMPT_IMAGE,
+                    )
+                finally:
+                    if temp_path:
+                        try:
+                            os.unlink(temp_path)
+                        except OSError:
+                            pass
             finally:
-                if temp_path:
+                if crop_cleanup:
                     try:
-                        os.unlink(temp_path)
+                        os.unlink(crop_cleanup)
                     except OSError:
                         pass
             source_mode = None  # images don't have sourceMode

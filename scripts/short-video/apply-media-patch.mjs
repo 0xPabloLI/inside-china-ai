@@ -127,7 +127,7 @@ export function validatePatchEntry(entry, scenes, contentDir) {
 /**
  * Format a media object as a scene-data.mjs code block.
  *
- * @param {Object} media - Media object { type, path, source?, animation?, overlay?, volume?, fit?, focus? }
+ * @param {Object} media - Media object { type, path, source?, animation?, overlay?, volume?, fit?, focus?, cropFocus? }
  * @param {string} indent - Indentation string (e.g., "    ")
  * @returns {string} Formatted media block
  */
@@ -140,6 +140,25 @@ function formatMediaBlock(media, indent = "    ") {
   if (media.overlay !== undefined) lines.push(`  overlay: ${media.overlay},`);
   if (media.volume !== undefined) lines.push(`  volume: ${media.volume},`);
   if (media.fit) lines.push(`  fit: "${media.fit}",`);
+  if (media.cropFocus) {
+    // Validate cropFocus numeric bounds
+    if (typeof media.cropFocus.x !== "number" || typeof media.cropFocus.y !== "number") {
+      throw new Error(
+        `cropFocus values must be numbers, got x: ${typeof media.cropFocus.x}, y: ${typeof media.cropFocus.y}`,
+      );
+    }
+    if (
+      media.cropFocus.x < 0 ||
+      media.cropFocus.x > 1 ||
+      media.cropFocus.y < 0 ||
+      media.cropFocus.y > 1
+    ) {
+      throw new Error(
+        `cropFocus values must be in [0, 1], got x: ${media.cropFocus.x}, y: ${media.cropFocus.y}`,
+      );
+    }
+    lines.push(`  cropFocus: { x: ${media.cropFocus.x}, y: ${media.cropFocus.y} },`);
+  }
   if (media.focus) lines.push(`  focus: "${media.focus}",`);
   lines.push("},");
   return lines.map((l) => (l === "media: {" || l === "}," ? indent + l : indent + l)).join("\n");

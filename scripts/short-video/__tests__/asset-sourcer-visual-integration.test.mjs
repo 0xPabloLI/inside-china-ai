@@ -101,9 +101,7 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     // Image: called with 1 arg (no opts)
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/img1.jpg");
     // Video: called with 2 args (path + window)
-    const videoCall = mockAnalyzeAssetSemantics.mock.calls.find(
-      (c) => c[0] === "/abs/clip1.mp4",
-    );
+    const videoCall = mockAnalyzeAssetSemantics.mock.calls.find((c) => c[0] === "/abs/clip1.mp4");
     expect(videoCall).toBeDefined();
     expect(videoCall[1]).toBeDefined();
     expect(videoCall[1].startMs).toBe(0);
@@ -705,7 +703,206 @@ describe("Ticket 03 — Pre-filter is hard gate (P1-2)", () => {
   });
 });
 
-// ─── T6: Phase 2.5 — probeMedia + window computation ───
+// ─── Phase 3b: Crop Decision integration ───
+
+describe("analyzeAssets — Phase 3b crop decision", () => {
+  const FOCUS_LANDSCAPE_OK = {
+    status: "ok",
+    errorCode: null,
+    frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+    protectedRegions: [],
+    saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] },
+  };
+
+  const FOCUS_LANDSCAPE_FACE = {
+    status: "ok",
+    errorCode: null,
+    frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+    protectedRegions: [
+      {
+        rect: [0.1, 0.4, 0.15, 0.3],
+        kind: "face",
+        confidence: null,
+        confidenceKind: "not_provided",
+      },
+    ],
+    saliency: { available: true, dispersion: 0.05, centroid: [0.2, 0.5] },
+  };
+
+  const FOCUS_PORTRAIT = {
+    status: "ok",
+    errorCode: null,
+    frame: { width: 1080, height: 1920, orientation: "portrait", orientationNormalized: true },
+    protectedRegions: [],
+    saliency: { available: true, dispersion: 0.05, centroid: [0.5, 0.5] },
+  };
+
+  it("VC-01: landscape image with no protected regions → safe crop, cropFocus set", async () => {
+    mockDetectFocus.mockResolvedValue({ ...FOCUS_LANDSCAPE_OK });
+    mockAnalyzeAssetSemantics.mockResolvedValue({ ...FULL_SEMANTICS, fit: "cover" });
+
+    const assets = [{ path: "/abs/wide.jpg", type: "image", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(assets[0].cropDecision).toBeDefined();
+    expect(assets[0].cropDecision.status).toBe("safe");
+    expect(assets[0].cropFocus).toEqual({ x: 0.5, y: 0.5 });
+    expect(assets[0].fit).toBe("cover");
+  });
+
+  it("VC-02: landscape image with face → crop focus shifted", async () => {
+    mockDetectFocus.mockResolvedValue({ ...FOCUS_LANDSCAPE_FACE });
+    mockAnalyzeAssetSemantics.mockResolvedValue({ ...FULL_SEMANTICS, fit: "cover" });
+
+    const assets = [{ path: "/abs/face.jpg", type: "image", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(assets[0].cropDecision).toBeDefined();
+    expect(assets[0].cropDecision.status).toBe("safe");
+    expect(assets[0].cropFocus).toBeDefined();
+    expect(assets[0].cropFocus.x).toBeLessThan(0.5);
+  });
+
+  it("VC-03: landscape image with wide content → unsafe, fit=contain", async () => {
+    const focusWide = {
+      ...FOCUS_LANDSCAPE_OK,
+      protectedRegions: [
+        {
+          rect: [0.0, 0.4, 0.1, 0.3],
+          kind: "face",
+          confidence: null,
+          confidenceKind: "not_provided",
+        },
+        {
+          rect: [0.9, 0.4, 0.1, 0.3],
+          kind: "face",
+          confidence: null,
+          confidenceKind: "not_provided",
+        },
+      ],
+    };
+    mockDetectFocus.mockResolvedValue(focusWide);
+    mockAnalyzeAssetSemantics.mockResolvedValue({ ...FULL_SEMANTICS, fit: "cover" });
+
+    const assets = [{ path: "/abs/wide.jpg", type: "image", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(assets[0].cropDecision.status).toBe("unsafe");
+    expect(assets[0].cropFocus).toBeUndefined();
+    expect(assets[0].fit).toBe("contain");
+  });
+
+  it("VC-04: degraded focus (no saliency, no protected) → indeterminate, no cropFocus", async () => {
+    const focusDegraded = {
+      status: "degraded",
+      errorCode: "focus_dependency_not_available",
+      frame: { width: 1920, height: 1080, orientation: "landscape", orientationNormalized: true },
+      protectedRegions: [],
+      saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+    };
+    mockDetectFocus.mockResolvedValue(focusDegraded);
+    mockAnalyzeAssetSemantics.mockResolvedValue({ ...FULL_SEMANTICS, fit: "cover" });
+
+    const assets = [{ path: "/abs/degraded.jpg", type: "image", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(assets[0].cropDecision.status).toBe("indeterminate");
+    expect(assets[0].cropFocus).toBeUndefined();
+  });
+
+  it("portrait image → no crop decision (source not wider than target)", async () => {
+    mockDetectFocus.mockResolvedValue({ ...FOCUS_PORTRAIT });
+
+    const assets = [{ path: "/abs/portrait.jpg", type: "image", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(assets[0].cropDecision).toBeUndefined();
+    expect(assets[0].cropFocus).toBeUndefined();
+  });
+
+  it("VLM says contain → crop decision still runs but does not override to cover", async () => {
+    mockDetectFocus.mockResolvedValue({ ...FOCUS_LANDSCAPE_OK });
+    mockAnalyzeAssetSemantics.mockResolvedValue({ ...FULL_SEMANTICS, fit: "contain" });
+
+    const assets = [{ path: "/abs/wide.jpg", type: "image", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    // Crop decision should be safe (no protected regions)
+    expect(assets[0].cropDecision.status).toBe("safe");
+    expect(assets[0].cropFocus).toBeDefined();
+    // But VLM's "contain" should NOT be overridden to "cover"
+    expect(assets[0].fit).toBe("contain");
+  });
+
+  it("video asset → no crop decision", async () => {
+    mockDetectFocus.mockResolvedValue({ ...FOCUS_LANDSCAPE_OK });
+
+    const assets = [{ path: "/abs/clip.mp4", type: "video", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(assets[0].cropDecision).toBeUndefined();
+    expect(assets[0].cropFocus).toBeUndefined();
+  });
+
+  it("writes cropDecision to asset-analysis.json artifact", async () => {
+    mockDetectFocus.mockResolvedValue({ ...FOCUS_LANDSCAPE_OK });
+    mockAnalyzeAssetSemantics.mockResolvedValue({ ...FULL_SEMANTICS, fit: "cover" });
+
+    const tmpDir = `/tmp/test-crop-artifact-${Date.now()}`;
+    const assets = [{ path: "/abs/wide.jpg", type: "image", searchKeyword: "test" }];
+    await analyzeAssets(assets, { outputDir: tmpDir, contentSlug: "test" });
+
+    const fs = await import("fs");
+    const artifactPath = `${tmpDir}/test/asset-analysis.json`;
+    expect(fs.existsSync(artifactPath)).toBe(true);
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+
+    expect(artifact.assets[0].cropDecision).toBeDefined();
+    expect(artifact.assets[0].cropDecision.status).toBe("safe");
+    expect(artifact.assets[0].cropFocus).toEqual({ x: 0.5, y: 0.5 });
+
+    // Cleanup
+    fs.rmSync(`${tmpDir}/test`, { recursive: true, force: true });
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+// ─── assignAssetsToScenes — cropFocus in patch ───
+
+describe("assignAssetsToScenes — cropFocus in patch output", () => {
+  const mockScenes = [{ id: 1, visualType: "narrative", voiceover: "test" }];
+
+  it("includes cropFocus in media object when asset has cropFocus", () => {
+    const assets = [
+      {
+        path: "/abs/wide.jpg",
+        type: "image",
+        score: 90,
+        source: "pexels",
+        fit: "cover",
+        cropFocus: { x: 0.3, y: 0.5 },
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, mockScenes);
+    expect(patches[0].media.cropFocus).toEqual({ x: 0.3, y: 0.5 });
+  });
+
+  it("does NOT include cropFocus when asset has none", () => {
+    const assets = [
+      {
+        path: "/abs/wide.jpg",
+        type: "image",
+        score: 90,
+        source: "pexels",
+        fit: "cover",
+      },
+    ];
+
+    const patches = assignAssetsToScenes(assets, mockScenes);
+    expect(patches[0].media.cropFocus).toBeUndefined();
+  });
+});
 
 describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
   it("calls probeMedia for video assets only (not images)", async () => {
@@ -739,10 +936,11 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     await analyzeAssets(assets);
 
     // Window = { 0, min(10000, 8000), 1.0 }
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
-      "/abs/clip1.mp4",
-      { startMs: 0, endMs: 8000, sampleFps: 1.0 },
-    );
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/clip1.mp4", {
+      startMs: 0,
+      endMs: 8000,
+      sampleFps: 1.0,
+    });
   });
 
   it("uses default window when probeMedia returns null (Scenario #2)", async () => {
@@ -756,10 +954,11 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     await analyzeAssets(assets);
 
     // Default window: { 0, 8000, 1.0 }
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
-      "/abs/clip1.mp4",
-      { startMs: 0, endMs: 8000, sampleFps: 1.0 },
-    );
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/clip1.mp4", {
+      startMs: 0,
+      endMs: 8000,
+      sampleFps: 1.0,
+    });
   });
 
   it("does NOT pass window for image assets (Scenario #3)", async () => {
@@ -793,10 +992,11 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
-      "/abs/long.mp4",
-      { startMs: 0, endMs: 8000, sampleFps: 1.0 },
-    );
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/long.mp4", {
+      startMs: 0,
+      endMs: 8000,
+      sampleFps: 1.0,
+    });
   });
 
   it("uses full duration for very short videos (Scenario #5)", async () => {
@@ -815,10 +1015,11 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith(
-      "/abs/short.mp4",
-      { startMs: 0, endMs: 500, sampleFps: 1.0 },
-    );
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/short.mp4", {
+      startMs: 0,
+      endMs: 500,
+      sampleFps: 1.0,
+    });
   });
 
   it("stores window and sourceMode on video assets", async () => {

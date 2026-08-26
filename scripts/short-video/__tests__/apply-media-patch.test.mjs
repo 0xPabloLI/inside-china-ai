@@ -196,6 +196,54 @@ describe("formatPatchEntry — output boundary", () => {
     // No focus summary comments
     expect(result).not.toContain("// Focus Analysis");
   });
+
+  // VC-15: cropFocus serialization in formatPatchEntry
+  it("VC-15: includes cropFocus in media output when present", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.jpg", fit: "cover", cropFocus: { x: 0.3, y: 0.5 } },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).toContain("cropFocus: { x: 0.3, y: 0.5 },");
+  });
+
+  it("does NOT include cropFocus line when absent", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.jpg", fit: "cover" },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).not.toContain("cropFocus");
+  });
+
+  // VC-17: crop decision in review summary
+  it("VC-17: displays crop decision in semantics summary", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.jpg", fit: "cover" },
+      status: "assigned",
+    };
+    const analysisMap = new Map();
+    analysisMap.set("test.jpg", {
+      description: "A landscape photo.",
+      subjects: ["landscape"],
+      contentKind: "other",
+      fit: "cover",
+      criticalEdgeText: null,
+      reason: null,
+      cropDecision: {
+        status: "safe",
+        policy: "cover",
+        cropFocus: { x: 0.3, y: 0.5 },
+        reason: "Safe crop at saliency anchor",
+        candidates: [],
+      },
+    });
+    const result = formatPatchEntry(entry, analysisMap);
+    expect(result).toContain("// Crop Decision: safe, cover, focus [0.3, 0.5]");
+  });
 });
 
 describe("formatMediaPatch — full output", () => {
