@@ -4,18 +4,27 @@
  * Pure functions — no file IO, no side effects.
  * Used by generate-caption.mjs and testable in isolation.
  *
- * Hashtag strategy researched 2026-08-08 via:
+ * Hashtag strategy researched 2026-08-08, updated 2026-08-25 via:
  * - tiktokhashtags.com (real view/post data from TikTok API cache)
  * - TikTok Creative Center (trending hashtags, Tech & Electronics industry)
  * - TikTok search (successful competitor hashtag analysis)
+ * - Competitor intelligence: docs/research/tiktok-competitor-intelligence.md
  * See: docs/tiktok/tiktok-best-practices.md → Hashtag Strategy section
+ *
+ * Comment hooks are AITL-generated (Agent-in-the-Loop) during scene-data
+ * production, not template-generated. See spec-caption-format-fix.md.
  */
 
-// ─── Curated Hashtag Pools (researched 2026-08-08) ───
+// ─── Curated Hashtag Pools (researched 2026-08-08, updated 2026-08-25) ───
 //
 // Data sources: tiktokhashtags.com (cached TikTok API data),
-// TikTok Creative Center, TikTok search competitor analysis.
-// Refresh guidance: Agent checks Creative Center trending each video run.
+// TikTok Creative Center, TikTok search competitor analysis,
+// competitor intelligence (docs/research/tiktok-competitor-intelligence.md).
+// Refresh guidance: Agent checks Creative Center trending each video run
+// (mandatory step in content-pipeline.md Stage 3 Step 7).
+//
+// Entity hashtags are matched from meta.keyEntities.companies only —
+// NOT from voiceover full-text (prevents competitor false-positives).
 
 /**
  * Core traffic hashtags — low competition, high precision.
@@ -24,6 +33,7 @@
 const CORE_TRAFFIC_HASHTAGS = [
   "#ainews", // 68.7M views, 8.9K posts — best ROI
   "#technews", // 1B views, 78.4K posts — tech news specific
+  "#news", // competitor intelligence: 3/16 competitor videos use it
 ];
 
 /**
@@ -31,35 +41,51 @@ const CORE_TRAFFIC_HASHTAGS = [
  * Pick 0-1 based on content focus.
  */
 const AUXILIARY_TRAFFIC_HASHTAGS = [
-  "#ai", // mega traffic, broad AI recognition
+  "#ai", // competitor intelligence: 9/16 use it — promoted from optional to pad candidate
+  "#artificialintelligence", // competitor intelligence: 4/16 use it — more precise than #ai
   "#chinaai", // niche brand hashtag, always relevant
 ];
 
 /**
- * Vertical / entity hashtags — precision targeting.
- * Pick 1-2 based on video content (auto-derived from entity matching).
+ * Blacklisted hashtags — must never be used.
+ * #creatorsearchinsights: our analytics data shows it attracts wrong audience
+ * (search queries "creator insights part 3 4 5" instead of topic keywords).
+ * See: docs/research/tiktok-competitor-intelligence.md §3.2
  */
-const ENTITY_HASHTAG_MAP = [
-  { keywords: ["deepseek", "深度求索"], hashtag: "#deepseek" },
-  { keywords: ["openai", "gpt", "chatgpt", "sam altman"], hashtag: "#chatgpt" },
-  { keywords: ["openai"], hashtag: "#openai" },
-  { keywords: ["bytedance", "字节跳动", "douyin"], hashtag: "#bytedance" },
-  { keywords: ["alibaba", "阿里", "qwen", "通义"], hashtag: "#alibaba" },
-  { keywords: ["tencent", "腾讯", "hunyuan", "混元"], hashtag: "#tencent" },
-  { keywords: ["baidu", "百度", "ernie", "文心"], hashtag: "#baidu" },
-  { keywords: ["nvidia", "黄仁勋"], hashtag: "#nvidia" },
-  { keywords: ["zhipu", "智谱", "glm"], hashtag: "#zhipu" },
-  { keywords: ["moonshot", "kimi", "月之暗面"], hashtag: "#kimi" },
-  { keywords: ["minimax", " minimax"], hashtag: "#minimax" },
-  { keywords: ["huawei", "华为", "pangu", "盘古"], hashtag: "#huawei" },
-  { keywords: ["xiaomi", "小米"], hashtag: "#xiaomi" },
-  { keywords: ["iflytek", "科大讯飞"], hashtag: "#iflytek" },
-  { keywords: ["sensetime", "商汤"], hashtag: "#sensetime" },
-  { keywords: ["future", "未来", "前沿"], hashtag: "#futuretech" },
-  { keywords: ["china", "chinese", "中国"], hashtag: "#chinanews" },
-  { keywords: ["funding", "investment", "融资", "投资", "round"], hashtag: "#technews" },
-  { keywords: ["open source", "open-source", "开源"], hashtag: "#opensource" },
+const BLACKLISTED_HASHTAGS = [
+  "#creatorsearchinsights",
 ];
+
+/**
+ * Vertical / entity hashtags — precision targeting.
+ * Looked up from meta.keyEntities.companies (NOT from voiceover full-text).
+ */
+const ENTITY_HASHTAG_MAP = {
+  deepseek: "#deepseek",
+  openai: "#chatgpt",
+  bytedance: "#bytedance",
+  doubao: "#doubao",
+  feishu: "#feishu",
+  lark: "#feishu",
+  qwen: "#qwen",
+  alibaba: "#alibaba",
+  tencent: "#tencent",
+  baidu: "#baidu",
+  nvidia: "#nvidia",
+  zhipu: "#zhipu",
+  moonshot: "#kimi",
+  minimax: "#minimax",
+  huawei: "#huawei",
+  xiaomi: "#xiaomi",
+  iflytek: "#iflytek",
+  sensetime: "#sensetime",
+};
+
+/**
+ * Pad candidates used when entity-matched tags are insufficient.
+ * Ordered by priority: #ai (competitor-validated) → #artificialintelligence → #news.
+ */
+const PAD_CANDIDATES = ["#ai", "#artificialintelligence", "#news"];
 
 /**
  * Default hashtags when no metadata and no entity match.
@@ -82,125 +108,24 @@ function getSeoKeywords(primaryEntity) {
   return [...BASE_SEO_KEYWORDS, primaryEntity.toLowerCase()];
 }
 
-/**
- * Comment hook templates — pick based on what the video contains.
- * Each returns a question string designed to elicit comments.
- */
-const COMMENT_HOOK_TEMPLATES = [
-  // Number-based: "X or Y — which surprised you more?"
-  (entities) => {
-    const nums = entities.numbers;
-    if (nums.length >= 2) {
-      return `${nums[0]} or ${nums[1]} — which surprised you more?`;
-    }
-    return null;
-  },
-  // Entity-based: "Will [company] catch up to [competitor]?"
-  (entities) => {
-    const companies = entities.companies;
-    if (companies.length >= 2) {
-      return `Will ${companies[0]} catch up to ${companies[1]}? Why or why not?`;
-    }
-    return null;
-  },
-  // Single entity: "What's your take on [company]?"
-  (entities) => {
-    if (entities.companies.length >= 1) {
-      return `What's your take on ${entities.companies[0]}? Overhyped or underrated?`;
-    }
-    return null;
-  },
-  // Generic fallback
-  () => `Did this change your mind about China AI? Let me know below 👇`,
-];
+// Comment hook templates and extractEntities have been removed.
+// Comment hooks are now AITL-generated (Agent writes metadata.commentHook
+// during scene-data production). See derivePinnedComment.
 
 /**
- * Extract entities from scene data for comment hook generation.
- * @returns {{ numbers: string[], companies: string[] }}
- */
-function extractEntities(scenes) {
-  const allText = scenes
-    .map((s) => {
-      const vo = s?.voiceover || "";
-      const texts = JSON.stringify(s?.texts || {});
-      return vo + " " + texts;
-    })
-    .join(" ");
-
-  // Extract dollar amounts and large numbers
-  const numbers = [];
-  const dollarMatches = allText.match(/\$?[\d.]+\s*(?:billion|million|B|M)\b/gi);
-  if (dollarMatches) {
-    numbers.push(...dollarMatches.slice(0, 3).map((m) => m.replace(/\s+/g, " ")));
-  }
-
-  // Extract company names (known set + capitalized words)
-  const knownCompanies = [
-    "DeepSeek",
-    "ByteDance",
-    "Alibaba",
-    "Tencent",
-    "Baidu",
-    "Alibaba",
-    "Huawei",
-    "Xiaomi",
-    "OPPO",
-    "vivo",
-    "Zhipu",
-    "MoonShot",
-    "Kimi",
-    "MiniMax",
-    "01.AI",
-    "StepFun",
-    "Baichuan",
-    "iFlytek",
-    "SenseTime",
-  ];
-  const companies = [];
-  for (const company of knownCompanies) {
-    if (new RegExp(company, "i").test(allText) && !companies.includes(company)) {
-      companies.push(company);
-    }
-  }
-
-  return { numbers, companies: companies.slice(0, 3) };
-}
-
-/**
- * Derive a comment hook — a question appended to the caption
- * to encourage viewers to comment.
+ * Derive a pinned comment from metadata.
+ * Comment hook is AITL-generated (Agent writes it to metadata.commentHook
+ * during scene-data production). This function just reads it.
  *
- * @param {Array} scenes - Scene array from scene-data.mjs
- * @param {Object} [metadata] - Optional metadata
- * @returns {string} A question string
- */
-export function deriveCommentHook(scenes, metadata) {
-  // Use metadata if provided
-  if (metadata?.commentHook && metadata.commentHook.trim().length > 0) {
-    return metadata.commentHook.trim();
-  }
-
-  const entities = extractEntities(scenes);
-  for (const template of COMMENT_HOOK_TEMPLATES) {
-    const hook = template(entities);
-    if (hook) return hook;
-  }
-  return COMMENT_HOOK_TEMPLATES[COMMENT_HOOK_TEMPLATES.length - 1](entities);
-}
-
-/**
- * Derive a pinned comment — the first comment to post and pin
- * after publishing. Combines article link (if available) with
- * a comment hook.
- *
- * @param {Array} scenes - Scene array from scene-data.mjs
- * @param {Object} [metadata] - Optional metadata { articleUrl, commentHook }
- * @returns {string} Pinned comment text
+ * @param {Array} scenes - Scene array (unused, kept for API compat)
+ * @param {Object} [metadata] - Optional metadata { commentHook, articleUrl }
+ * @returns {string} Pinned comment text, or empty string if no commentHook
  */
 export function derivePinnedComment(scenes, metadata) {
-  const hook = deriveCommentHook(scenes, metadata);
-  const url = metadata?.articleUrl?.trim();
+  const hook = metadata?.commentHook?.trim();
+  if (!hook) return "";
 
+  const url = metadata?.articleUrl?.trim();
   if (url) {
     return `${hook}\n\nFull analysis: ${url}`;
   }
@@ -337,14 +262,9 @@ export function deriveTitle(scenes, metadata) {
  * @returns {string} Description <= 2200 chars (includes CTA, NOT hashtags)
  */
 export function deriveDescription(scenes, metadata) {
-  // Generate comment hook for this video
-  const commentHook = deriveCommentHook(scenes, metadata);
-
   // Use metadata if provided and non-empty
   if (metadata?.description && metadata.description.trim().length > 0) {
     let desc = metadata.description.trim();
-    // Append comment hook before CTA
-    desc = desc + "\n\n" + commentHook;
     // Ensure CTA at end
     if (!/follow|subscribe/i.test(desc)) {
       desc = desc + "\nFollow for more China AI news.";
@@ -356,8 +276,6 @@ export function deriveDescription(scenes, metadata) {
   // S2: auto-derive from all scenes
   const CTA = "\nFollow for more China AI news.";
   const MAX_DESC_LEN = 2200;
-  const commentHookLine = "\n\n" + commentHook;
-  const maxBodyLen = MAX_DESC_LEN - CTA.length - commentHookLine.length;
 
   const sentences = [];
 
@@ -374,18 +292,15 @@ export function deriveDescription(scenes, metadata) {
   let body = sentences.join("\n");
 
   // Ensure primary entity is mentioned in the description for SEO.
-  // Uses metadata.primaryEntity (derived from meta.keyEntities.companies[0])
-  // instead of hardcoding "deepseek". If no primary entity is set, skip —
-  // the description already contains company names from scene voiceovers.
   const primaryEntity = metadata?.primaryEntity;
   if (primaryEntity && !new RegExp(primaryEntity, "i").test(body)) {
     body = `${primaryEntity} analysis.\n` + body;
   }
 
   // Truncate body first, then add CTA (CTA is always preserved)
-  body = truncateAtSentence(body, maxBodyLen);
+  body = truncateAtSentence(body, MAX_DESC_LEN - CTA.length);
 
-  return body + commentHookLine + CTA;
+  return body + CTA;
 }
 
 /**
@@ -410,69 +325,52 @@ export function deriveDescription(scenes, metadata) {
  * @returns {string[]} Array of 3-5 hashtags
  */
 export function deriveHashtags(scenes, metadata) {
-  // Use metadata if provided and non-empty
+  // Use metadata.hashtags if explicitly provided (manual override)
   if (metadata?.hashtags && Array.isArray(metadata.hashtags) && metadata.hashtags.length > 0) {
     let tags = [...metadata.hashtags];
-
-    // S5: truncate to max 5
-    if (tags.length > 5) {
-      tags = tags.slice(0, 5);
-    }
-
-    // S4: pad to min 3 if too few
+    tags = tags.filter((t) => !BLACKLISTED_HASHTAGS.includes(t));
+    if (tags.length > 5) tags = tags.slice(0, 5);
     if (tags.length < 3) {
-      for (const broad of DEFAULT_HASHTAGS) {
-        if (!tags.includes(broad)) {
-          tags.push(broad);
-        }
+      for (const broad of [...DEFAULT_HASHTAGS, ...PAD_CANDIDATES]) {
+        if (!tags.includes(broad) && !BLACKLISTED_HASHTAGS.includes(broad)) tags.push(broad);
         if (tags.length >= 3) break;
       }
     }
-
     return tags;
   }
 
-  // S2: auto-derive from entity matching
-  const allText = scenes
-    .map((s) => {
-      const vo = (s?.voiceover || "").toLowerCase();
-      const texts = JSON.stringify(s?.texts || "").toLowerCase();
-      return vo + " " + texts;
-    })
-    .join(" ");
-
+  // Auto-derive from keyEntities (NOT from voiceover full-text)
+  const companies = metadata?.keyEntitiesCompanies || [];
   const matchedTags = new Set();
 
-  // Always include #ainews (best ROI: 68.7M views, low competition)
+  // Always include #ainews (best ROI)
   matchedTags.add("#ainews");
-
-  // Always include #chinaai (brand niche hashtag)
+  // Always include #chinaai (brand niche)
   matchedTags.add("#chinaai");
 
-  // Match entities from content
-  for (const entry of ENTITY_HASHTAG_MAP) {
-    if (entry.keywords.some((kw) => allText.includes(kw))) {
-      matchedTags.add(entry.hashtag);
+  // Match entity hashtags from keyEntities only
+  for (const company of companies) {
+    const key = company.toLowerCase();
+    if (ENTITY_HASHTAG_MAP[key]) {
+      matchedTags.add(ENTITY_HASHTAG_MAP[key]);
     }
   }
 
-  // Convert to array
   let tags = Array.from(matchedTags);
 
-  // S4: pad to min 3 with core traffic hashtags
+  // Pad to min 3
   if (tags.length < 3) {
-    for (const broad of DEFAULT_HASHTAGS) {
-      if (!tags.includes(broad)) {
-        tags.push(broad);
-      }
+    for (const broad of [...DEFAULT_HASHTAGS, ...PAD_CANDIDATES]) {
+      if (!tags.includes(broad) && !BLACKLISTED_HASHTAGS.includes(broad)) tags.push(broad);
       if (tags.length >= 3) break;
     }
   }
+  while (tags.length < 3) tags.push("#technews");
 
-  // S5: truncate to max 5
-  if (tags.length > 5) {
-    tags = tags.slice(0, 5);
-  }
+  // Truncate to max 5
+  if (tags.length > 5) tags = tags.slice(0, 5);
+  // Filter blacklisted
+  tags = tags.filter((t) => !BLACKLISTED_HASHTAGS.includes(t));
 
   return tags;
 }

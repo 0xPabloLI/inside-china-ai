@@ -32,7 +32,10 @@ const args = process.argv.slice(2);
 const contentFlag = args.indexOf("--content");
 const contentDir = contentFlag >= 0 ? args[contentFlag + 1] : "";
 
-const OUTPUT_DIR = join(__dirname, "output");
+// ─── Per-content output dir (when --content is used) ───
+const OUTPUT_DIR = contentDir
+  ? join(__dirname, "output", contentDir)
+  : join(__dirname, "output");
 const SCENE_DATA_PATH = contentDir
   ? join(__dirname, "content", contentDir, "scene-data.mjs")
   : join(__dirname, "scene-data.mjs");
@@ -65,25 +68,23 @@ async function main() {
     process.exit(1);
   }
 
-  // ─── Load meta.mjs for primary entity ───
-  // The primary entity (e.g. "Moonshot", "DeepSeek") is used for:
-  //   - SEO keyword in title (replaces hardcoded "deepseek")
-  //   - Description prefix (replaces hardcoded "DeepSeek analysis.")
+  // ─── Load meta.mjs for primary entity + keyEntities ───
   let primaryEntity = null;
+  let keyEntitiesCompanies = [];
   if (existsSync(META_PATH)) {
     try {
       const metaMod = await import(`file://${META_PATH}`);
       const meta = metaMod.meta || metaMod.default?.meta;
       if (meta?.keyEntities?.companies?.length > 0) {
         primaryEntity = formatEntityName(meta.keyEntities.companies[0]);
+        keyEntitiesCompanies = meta.keyEntities.companies;
       }
     } catch (e) {
-      // Non-fatal: caption generation works without primary entity
       console.log(`  ⚠️ meta.mjs found but failed to load: ${e.message}`);
     }
   }
-  // Enrich metadata with primary entity
-  metadata = { ...(metadata || {}), primaryEntity };
+  // Enrich metadata with primary entity + keyEntities
+  metadata = { ...(metadata || {}), primaryEntity, keyEntitiesCompanies };
 
   if (!scenes || scenes.length === 0) {
     console.error("❌ No scenes found in scene-data.mjs");
@@ -96,9 +97,11 @@ async function main() {
   const hashtags = deriveHashtags(scenes, metadata);
   const pinnedComment = derivePinnedComment(scenes, metadata);
 
-  // ─── Assemble caption text ───
+  // ─── Assemble caption text (one-block format for TikTok) ───
+  // TikTok has no title field — caption is a single text block.
+  // Title hook sentence is the first line of description.
   const hashtagLine = hashtags.join(" ");
-  const captionText = `${title}\n\n${description}\n\n${hashtagLine}\n`;
+  const captionText = `${description}\n\n${hashtagLine}\n`;
 
   // ─── Assemble metadata JSON ───
   // Categorize hashtags for transparency
@@ -141,11 +144,11 @@ async function main() {
   writeFileSync(PINNED_COMMENT_PATH, pinnedComment, "utf8");
 
   console.log("📝 Caption generated:");
-  console.log(`   Title:       ${title} (${title.length} chars)`);
-  console.log(`   Description: ${description.length} chars (incl. CTA + comment hook)`);
+  console.log(`   Title (SEO): ${title} (${title.length} chars)`);
+  console.log(`   Description: ${description.length} chars (incl. CTA)`);
   console.log(`   Hashtags:    ${hashtags.join(" ")} (${hashtags.length})`);
   console.log(`   Total caption: ${captionText.length} chars (limit: 2200)`);
-  console.log(`   Pinned comment: ${pinnedComment}`);
+  console.log(`   Pinned comment: ${pinnedComment || "(none — AITL not set)"}`);
   console.log(`   Source:      ${metadataJson.source}`);
   console.log(`\n📁 Files written:`);
   console.log(`   ${CAPTION_TXT_PATH}`);

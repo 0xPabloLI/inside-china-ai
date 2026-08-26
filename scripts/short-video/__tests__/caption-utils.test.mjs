@@ -3,7 +3,6 @@ import {
   deriveTitle,
   deriveDescription,
   deriveHashtags,
-  deriveCommentHook,
   derivePinnedComment,
 } from "../lib/caption-utils.mjs";
 
@@ -72,14 +71,14 @@ describe("S1: Full metadata", () => {
     expect(result.length).toBeLessThanOrEqual(60);
   });
 
-  it("uses metadata description when present (with comment hook appended)", () => {
+  it("uses metadata description when present (no comment hook appended)", () => {
     const result = deriveDescription(mockScenes, fullMetadata);
     // Should start with the metadata description
     expect(result).toContain(fullMetadata.description);
     // Should end with CTA
     expect(result).toMatch(/follow|subscribe/i);
-    // Should include a comment hook (question)
-    expect(result).toMatch(/\?/);
+    // Should NOT include a comment hook (questions) — hooks are AITL-generated
+    expect(result).not.toMatch(/\?/);
   });
 
   it("uses metadata hashtags when present", () => {
@@ -110,7 +109,8 @@ describe("S2: No metadata → auto-derive", () => {
   });
 
   it("derives hashtags with #ainews and #chinaai always present", () => {
-    const result = deriveHashtags(mockScenes, undefined);
+    const meta = { keyEntitiesCompanies: ["deepseek"] };
+    const result = deriveHashtags(mockScenes, meta);
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.length).toBeLessThanOrEqual(5);
     // #ainews is always included (best ROI: 68.7M views, low competition)
@@ -119,9 +119,10 @@ describe("S2: No metadata → auto-derive", () => {
     expect(result).toContain("#chinaai");
   });
 
-  it("matches entity hashtags from content", () => {
-    const result = deriveHashtags(mockScenes, undefined);
-    // mockScenes contain "DeepSeek" → should match #deepseek
+  it("matches entity hashtags from keyEntities", () => {
+    const meta = { keyEntitiesCompanies: ["deepseek"] };
+    const result = deriveHashtags(mockScenes, meta);
+    // mockScenes keyEntities has "deepseek" → should match #deepseek
     expect(result).toContain("#deepseek");
   });
 });
@@ -137,7 +138,7 @@ describe("S3: Partial metadata (title only)", () => {
     expect(desc).toBeTruthy();
     expect(desc).not.toBe(partialMetadata.description); // derived, not from metadata
 
-    const tags = deriveHashtags(mockScenes, partialMetadata);
+    const tags = deriveHashtags(mockScenes, { keyEntitiesCompanies: ["deepseek"] });
     expect(tags.length).toBeGreaterThanOrEqual(3);
   });
 });
@@ -214,7 +215,8 @@ describe("S8: No entities found", () => {
         texts: { line1: "UPDATE" },
       },
     ];
-    const result = deriveHashtags(genericScenes, undefined);
+    const meta = { keyEntitiesCompanies: [] };
+    const result = deriveHashtags(genericScenes, meta);
     expect(result.length).toBeGreaterThanOrEqual(3);
     // #ainews and #chinaai are always present
     expect(result).toContain("#ainews");
@@ -224,44 +226,31 @@ describe("S8: No entities found", () => {
 
 // ─── S16: Expanded entity hashtag matching ───
 
-describe("S16: Expanded entity hashtag matching", () => {
-  it("matches #chatgpt for OpenAI/GPT content", () => {
+describe("S16: Entity hashtag from keyEntities", () => {
+  it("matches #chatgpt for OpenAI in keyEntities", () => {
     const scenes = [
       { id: 1, voiceover: "OpenAI released GPT-5 today.", texts: { line1: "GPT-5" } },
     ];
-    const result = deriveHashtags(scenes, undefined);
+    const meta = { keyEntitiesCompanies: ["openai"] };
+    const result = deriveHashtags(scenes, meta);
     expect(result).toContain("#chatgpt");
   });
 
-  it("matches #kimi for Moonshot content", () => {
+  it("matches #kimi for Moonshot in keyEntities", () => {
     const scenes = [
       { id: 1, voiceover: "Moonshot AI updated Kimi model.", texts: { line1: "KIMI" } },
     ];
-    const result = deriveHashtags(scenes, undefined);
+    const meta = { keyEntitiesCompanies: ["moonshot"] };
+    const result = deriveHashtags(scenes, meta);
     expect(result).toContain("#kimi");
   });
 
-  it("matches #chinanews for China content", () => {
-    const scenes = [
-      { id: 1, voiceover: "China announced new AI policy.", texts: { line1: "CHINA AI POLICY" } },
-    ];
-    const result = deriveHashtags(scenes, undefined);
-    expect(result).toContain("#chinanews");
-  });
-
-  it("matches #futuretech for future/forward-looking content", () => {
-    const scenes = [
-      { id: 1, voiceover: "The future of AI is autonomous agents.", texts: { line1: "FUTURE AI" } },
-    ];
-    const result = deriveHashtags(scenes, undefined);
-    expect(result).toContain("#futuretech");
-  });
-
-  it("matches #huawei for Huawei content", () => {
+  it("matches #huawei for Huawei in keyEntities", () => {
     const scenes = [
       { id: 1, voiceover: "Huawei released Pangu 5.0 model.", texts: { line1: "HUAWEI PANGU" } },
     ];
-    const result = deriveHashtags(scenes, undefined);
+    const meta = { keyEntitiesCompanies: ["huawei"] };
+    const result = deriveHashtags(scenes, meta);
     expect(result).toContain("#huawei");
   });
 });
@@ -376,38 +365,74 @@ describe("S17: Dynamic primary entity", () => {
 
 // ─── S7: Comment Hook & Pinned Comment ───
 
-describe("S7: Comment Hook & Pinned Comment", () => {
-  it("derives a comment hook from scene data", () => {
-    const result = deriveCommentHook(mockScenes, undefined);
-    expect(result).toBeTruthy();
-    expect(result.length).toBeGreaterThan(10);
-    // Should be a question
-    expect(result).toMatch(/\?/);
-  });
-
-  it("uses metadata commentHook when provided", () => {
-    const meta = { commentHook: "Will DeepSeek beat OpenAI?" };
-    const result = deriveCommentHook(mockScenes, meta);
-    expect(result).toBe("Will DeepSeek beat OpenAI?");
-  });
-
-  it("derives a pinned comment with article URL", () => {
-    const meta = { articleUrl: "https://chinaainews.com/posts/deepseek-test" };
+describe("S7: Pinned Comment (AITL-driven)", () => {
+  it("returns metadata.commentHook when set", () => {
+    const meta = { commentHook: "Will ByteDance's Feishu strategy work?" };
     const result = derivePinnedComment(mockScenes, meta);
-    expect(result).toContain("https://chinaainews.com/posts/deepseek-test");
-    // Should also contain a question (the hook)
-    expect(result).toMatch(/\?/);
+    expect(result).toBe("Will ByteDance's Feishu strategy work?");
   });
 
-  it("derives a pinned comment without article URL (just the hook)", () => {
+  it("returns empty string when no commentHook", () => {
     const result = derivePinnedComment(mockScenes, undefined);
-    expect(result).toBeTruthy();
-    expect(result).toMatch(/\?/);
+    expect(result).toBe("");
   });
 
-  it("comment hook is included in description", () => {
-    const desc = deriveDescription(mockScenes, undefined);
-    const hook = deriveCommentHook(mockScenes, undefined);
-    expect(desc).toContain(hook);
+  it("includes article URL when provided", () => {
+    const meta = {
+      commentHook: "Will ByteDance win the enterprise AI race?",
+      articleUrl: "https://chinaainews.com/posts/doubao-work",
+    };
+    const result = derivePinnedComment(mockScenes, meta);
+    expect(result).toContain("https://chinaainews.com/posts/doubao-work");
+    expect(result).toContain("Will ByteDance win");
+  });
+
+  it("comment hook is NOT included in description", () => {
+    const desc = deriveDescription(mockScenes, { commentHook: "Some question?" });
+    expect(desc).not.toContain("Some question?");
+  });
+});
+
+// ─── S18: Hashtag from keyEntities only (not voiceover full-text) ───
+
+describe("S18: Hashtag from keyEntities only", () => {
+  it("matches #bytedance from keyEntities, not #alibaba from voiceover", () => {
+    const scenes = [
+      { id: 1, voiceover: "ByteDance and Alibaba compete in AI.", texts: {} },
+    ];
+    const meta = { keyEntitiesCompanies: ["bytedance"] };
+    const result = deriveHashtags(scenes, meta);
+    expect(result).toContain("#bytedance");
+    expect(result).not.toContain("#alibaba");
+  });
+
+  it("matches #doubao for doubao content", () => {
+    const scenes = [
+      { id: 1, voiceover: "Doubao Work launched today.", texts: {} },
+    ];
+    const meta = { keyEntitiesCompanies: ["doubao"] };
+    const result = deriveHashtags(scenes, meta);
+    expect(result).toContain("#doubao");
+  });
+
+  it("matches #feishu for feishu/lark content", () => {
+    const scenes = [
+      { id: 1, voiceover: "Feishu is the differentiator.", texts: {} },
+    ];
+    const meta = { keyEntitiesCompanies: ["feishu"] };
+    const result = deriveHashtags(scenes, meta);
+    expect(result).toContain("#feishu");
+  });
+
+  it("does not match any entity when keyEntities is empty", () => {
+    const scenes = [
+      { id: 1, voiceover: "Some company did something.", texts: {} },
+    ];
+    const meta = { keyEntitiesCompanies: [] };
+    const result = deriveHashtags(scenes, meta);
+    expect(result).toContain("#ainews");
+    expect(result).toContain("#chinaai");
+    // No entity hashtags, just defaults
+    expect(result.length).toBeGreaterThanOrEqual(3);
   });
 });
