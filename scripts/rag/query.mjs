@@ -10,7 +10,7 @@
  *   node scripts/rag/query.mjs "search text" --rerank
  *
  * Options:
- *   --type <T>        Filter by content_type (article, scene-data, source-material, research, tiktok-ref)
+ *   --type <T>        Filter by content_type (article, scene-data, source-material, research, tiktok-ref, asset-catalog)
  *   --topics <a,b>    Filter by topics (comma-separated, case-insensitive)
  *   --rerank          Enable reranker (bge-reranker-base; requires `ollama pull bge-reranker-base`)
  *   --format <json|human>  Output format (default: json)
