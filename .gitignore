@@ -104,6 +104,22 @@ scripts/short-video/assets/data-center.jpg
 scripts/short-video/assets/financial-chart.jpg
 scripts/short-video/assets/revenue-laptop.jpg
 scripts/short-video/assets/shanghai-skyline.jpg
+
+# Per-content downloaded source images (not brand assets — brand assets are tracked via LFS)
+scripts/short-video/assets/bing_news-*
+scripts/short-video/assets/brave_image-*
+scripts/short-video/assets/pexels-*
+scripts/short-video/assets/pixabay-*
+scripts/short-video/assets/searxng_image-*
+scripts/short-video/assets/unsplash-*
+
+# Per-content generated assets and search cache (binary/cache, not source code)
+scripts/short-video/content/*/assets/
+scripts/short-video/content/*/search-cache.json
+scripts/short-video/content/*/research/
+
+# Remotion render output (generated, not source)
+scripts/short-video/remotion/out/
 scripts/kaggle/echomimicv3-test/output_v24/
 scripts/kaggle/echomimicv3-test/output_v25/
 scripts/kaggle/echomimicv3-test/output_v31/
@@ -112,4 +128,8 @@ scripts/kaggle/echomimicv3-test/output_v*/
 scripts/kaggle/echomimicv3-test/debug_*
 scripts/kaggle/echomimicv3-test/output_*/
 scripts/kaggle/echomimicv3-test/v*-output/
+
+# Kaggle dataset creation outputs (model cache, logs)
+scripts/kaggle/infinitetalk-dataset/output_*/
+
 .githooks/
