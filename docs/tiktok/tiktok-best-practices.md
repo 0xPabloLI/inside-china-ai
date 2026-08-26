@@ -283,11 +283,12 @@ Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行�
 
 **CDP fallback 原则**：所有需要 JS 渲染的页面都用 web-access CDP（有登录态/cookie，能执行 JS）。`web_fetch` 和 `curl` 对 TikTok 页面无效（反爬 + JS 渲染）。
 
-**Apify 整合方式**（免费额度 $5/月，适合批量查询）：
+**Apify 整合方式**（Free plan 每月 $5 credit，适合批量查询）：
 ```bash
 # 查询单个 hashtag 数据（views, posts, related hashtags）
-# 需要 SCRAPECREATORS_API_KEY 环境变量（已在 last30days 配置中）
-# Apify Actor: novi/tiktok-hashtag-api
+# 需要 APIFY_TOKEN 环境变量（见 .env.local.example）
+# Apify Actor: clockworks/tiktok-scraper（参考实现见 docs/refs/tiktok-skills/lib/apify_client.py）
+# 替代 Actor: novi/tiktok-hashtag-api（专为 hashtag 数据优化）
 # 免费额度覆盖约 500 次/月查询，足够季度更新
 ```
 

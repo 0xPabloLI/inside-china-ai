@@ -215,14 +215,9 @@ cd scripts/short-video && npx vitest run __tests__/caption-utils.test.mjs
 
 ### 调研期数据获取渠道
 
-| 渠道 | 方式 | 费用 | 用途 |
-|------|------|------|------|
-| TikTok `/tag/{hashtag}` 页面 | web-access CDP | 免费 | 验证 hashtag 存在 + 浏览量/帖子数 |
-| HashtagRadar (tiktokhashtags.com) | web-access CDP | 免费 | 历史数据 + 相关标签 + 均帖浏览量 |
-| Apify TikTok Hashtag Scraper | API | 免费额度 $5/月 | 批量查多个 hashtag |
-| TikTok Creative Center | web-access CDP | 免费 | trending 标签（运行时也用） |
-
-> 详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 数据获取渠道。
+> 详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 数据获取渠道（调研期渠道表）。
+>
+> 摘要：TikTok `/tag/{hashtag}` 页面（CDP，免费）、HashtagRadar（CDP，免费）、Apify `clockworks/tiktok-scraper`（API，Free plan 每月 $5 credit）、TikTok Creative Center（CDP，免费）。
 
 ### 与 Analytics → Pipeline 联动的关系
 
