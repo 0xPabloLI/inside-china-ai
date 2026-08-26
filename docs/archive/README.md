@@ -140,6 +140,7 @@
 | `handoff-spacing-fix.md` | 2026-08-12 | HookScene/CtaScene 间距修复 — 已在布局标准中完成。 |
 | `handoff-doc-hierarchy-review.md` | 2026-08-15 | 文档层次审查 — 已在 `spec-doc-hierarchy-optimization.md` + `spec-doc-hierarchy-lint.md` 归档。 |
 | `handoff-remotion-layout-refactor.md` | 2026-08-26 | Remotion 布局重构交接 — T1-T6 全部完成。6 布局变体 + SPACING + @remotion/media 迁移 + rough-notation + Interactive.Div + 转场多样化 + safe-zone 回归测试。Step 5 code review 已完成。 |
+| `handoff-hashtag-pipeline-gaps.md` | 2026-08-26 | Hashtag 管线缺口修复 — 缺口 A（trendingHashtags 消费：normalizeHashtag + deriveHashtags 优先级分层 + 满 5 替换 + 人工覆盖锁定）+ 缺口 B（Apify JS 客户端：runActor + fetchHashtagVideos + LRU 缓存 + 成本护栏 + research-hashtags.mjs CLI）+ P1/P2/P3 修复。84 tests passing。 |
 
 > **未归档的 handoff**（`docs/handoffs/` 中仍活跃）：
 > - `handoff-asset-source-unification.md` — 素材源统一命名，待实施
@@ -166,6 +167,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/handoff-vlm-model-sources-2026-08-26-review.md` | 2026-08-26 | — | VLM 模型来源交接审阅——11 个发现（F1-F11），5 步处理顺序，5 条建议修订稿。已全部执行（F10 deep-research fork 排除外） |
 | `reviews/model-sources-reference-review-2026-08-26.md` | 2026-08-26 | — | 模型搜索来源参考审阅——10 个发现（4 阻塞 + 3 重要 + 3 改进），全部修复并归档 |
 | `reviews/model-sources-remediation-review-2026-08-26.md` | 2026-08-26 | — | 模型来源修复代码审查——Standards + Spec 双轴通过，10/10 场景验证 |
+| `reviews/handoff-hashtag-pipeline-gaps-review-2026-08-26.md` | 2026-08-26 | — | Hashtag 管线缺口修复方案审阅——缺口 A 已关闭（61 tests）；P1 文档矛盾 + P2 来源归属 + P3 计数笔误已修复；缺口 B 10 个验收用例全覆盖（18 mock tests）。84 tests total。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
