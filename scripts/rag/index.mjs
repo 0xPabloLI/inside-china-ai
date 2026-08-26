@@ -39,6 +39,7 @@ import {
   computeChunkHash,
   fetchExistingHashes,
 } from "./lib/supabase-client.mjs";
+import { collectMarkdownSource, findFilesRecursive } from "./lib/collectors.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..", "..");
@@ -231,72 +232,6 @@ function collectAssetCatalog() {
   return results;
 }
 
-/**
- * Collect markdown files from a directory as a given content type.
- */
-function collectMarkdownSource(baseDir, contentType, excludePatterns = []) {
-  const results = [];
-
-  if (!existsSync(baseDir)) return results;
-
-  const files = findFilesRecursive(baseDir, ".md").filter(
-    (f) => !excludePatterns.some((p) => f.includes(p)),
-  );
-
-  for (const filePath of files) {
-    const raw = readFileSync(filePath, "utf8");
-    const relPath = relative(baseDir, filePath);
-    const sourceId = basename(filePath, ".md");
-
-    // Extract topic from first H1 heading
-    const h1Match = raw.match(/^#\s+(.+)$/m);
-    const topic = h1Match ? h1Match[1].trim().toLowerCase().replace(/\s+/g, "-") : contentType;
-
-    const chunks = chunkMarkdown(raw, sourceId);
-
-    for (const chunk of chunks) {
-      const metadata = normalizeMetadata({
-        source_file: relPath,
-        topic,
-      });
-
-      results.push({
-        content_type: contentType,
-        source_id: sourceId,
-        chunk_index: chunk.chunkIndex,
-        chunk_text: chunk.text,
-        chunk_title: chunk.title,
-        metadata,
-      });
-    }
-
-    console.log(`  📋 ${relPath} → ${chunks.length} chunks`);
-  }
-
-  return results;
-}
-
-// ─── File system helpers ───
-
-function findFilesRecursive(dir, suffix) {
-  const results = [];
-
-  function scan(currentDir) {
-    const entries = readdirSync(currentDir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = join(currentDir, entry.name);
-      if (entry.isDirectory()) {
-        scan(fullPath);
-      } else if (entry.name.endsWith(suffix)) {
-        results.push(fullPath);
-      }
-    }
-  }
-
-  scan(dir);
-  return results;
-}
-
 // ─── Main ───
 
 async function main() {
@@ -352,11 +287,21 @@ async function main() {
     ["AGENTS.md", "CLAUDE.md", "SKILL.md", "/raw/", "/lib/"], // Exclude agent configs, raw files, python lib
   );
 
+  console.log("\n🔬 Collecting research reports...");
+  const researchChunks = collectMarkdownSource(
+    join(projectRoot, "docs", "research"),
+    "research",
+    ["INDEX.md", "README.md"],
+    true, // useRelativePath — stable repo-relative source_id
+    projectRoot,
+  );
+
   const allChunks = [
     ...articleChunks,
     ...sceneChunks,
     ...sourceMaterialChunks,
     ...tiktokChunks,
+    ...researchChunks,
     ...assetCatalogChunks,
   ];
 
@@ -449,11 +394,11 @@ async function main() {
     console.log("\n💾 No chunks to upsert — skipping");
   }
 
-  // 8. Orphan cleanup (Q9, Q18) — always run to catch deleted sources
+  // 8. Orphan cleanup — delete by (content_type, source_id) identity + stale trailing chunks
   console.log("\n🧹 Cleaning up orphaned embeddings...");
-  const currentSourceIds = [...new Set(allChunks.map((c) => c.source_id))];
-  await cleanupOrphans(client, currentSourceIds);
-  console.log(`  ✅ Orphan cleanup complete (${currentSourceIds.length} active sources)`);
+  const currentIdentities = buildIdentities(allChunks);
+  await cleanupOrphans(client, currentIdentities);
+  console.log(`  ✅ Orphan cleanup complete (${currentIdentities.length} active identities)`);
 
   // 9. Write error log if any failures
   if (errorLog.length > 0) {
@@ -475,8 +420,32 @@ async function main() {
   console.log(`  Scene-data:     ${sceneChunks.length} chunks`);
   console.log(`  Source-mat:     ${sourceMaterialChunks.length} chunks`);
   console.log(`  TikTok-refs:    ${tiktokChunks.length} chunks`);
+  console.log(`  Research:       ${researchChunks.length} chunks`);
   console.log(`  Asset catalog:  ${assetCatalogChunks.length} chunks`);
   console.log("=".repeat(50));
+}
+
+// ─── Identity builder for orphan cleanup ───
+
+/**
+ * Build an array of {content_type, source_id, maxChunkIndex} from all chunks.
+ * Used by cleanupOrphans to delete by full identity.
+ */
+function buildIdentities(chunks) {
+  const map = new Map();
+  for (const chunk of chunks) {
+    const key = `${chunk.content_type}\u0000${chunk.source_id}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        content_type: chunk.content_type,
+        source_id: chunk.source_id,
+        maxChunkIndex: chunk.chunk_index,
+      });
+    } else {
+      map.get(key).maxChunkIndex = Math.max(map.get(key).maxChunkIndex, chunk.chunk_index);
+    }
+  }
+  return [...map.values()];
 }
 
 main().catch((err) => {

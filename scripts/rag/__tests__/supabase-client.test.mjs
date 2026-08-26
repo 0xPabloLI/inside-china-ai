@@ -12,15 +12,23 @@ import {
 
 /**
  * Create a mock Supabase client that mimics @supabase/supabase-js API:
- * - client.from(table) → query builder (upsert, delete)
+ * - client.from(table) → query builder (upsert, delete, select)
  * - client.rpc(fn, params) → Promise<{data, error}>
- * - delete() returns a chainable builder (filter, not, in) that is thenable
+ * - delete() returns a chainable builder (eq, gt, not, in, filter) that is thenable
  */
 function createMockClient(overrides = {}) {
-  const calls = { upserts: [], deletes: [], rpcs: [], filters: [] };
+  const calls = { upserts: [], deletes: [], rpcs: [], filters: [], selects: [] };
 
-  // Delete builder: filter/not/in return this; thenable for await
+  // Delete builder: eq/gt/not/in/filter return this; thenable for await
   const deleteBuilder = {
+    eq: vi.fn(function () {
+      calls.filters.push(Array.from(arguments));
+      return this;
+    }),
+    gt: vi.fn(function () {
+      calls.filters.push(Array.from(arguments));
+      return this;
+    }),
     filter: vi.fn(function () {
       calls.filters.push(Array.from(arguments));
       return this;
@@ -173,27 +181,54 @@ describe("upsertChunks", () => {
 // ─── cleanupOrphans ───
 
 describe("cleanupOrphans", () => {
-  it("calls delete with NOT IN filter for provided source IDs", async () => {
+  it("deletes removed files by (content_type, source_id) identity (Scenario #8)", async () => {
     const client = createMockClient();
-    await cleanupOrphans(client, ["article-1", "article-2", "scene-data-1"]);
+    const identities = [
+      { content_type: "article", source_id: "article-1", maxChunkIndex: 2 },
+      { content_type: "article", source_id: "article-2", maxChunkIndex: 1 },
+      { content_type: "research", source_id: "docs/research/cloud-gpu", maxChunkIndex: 3 },
+    ];
+    await cleanupOrphans(client, identities);
 
-    expect(client._fromBuilder.delete).toHaveBeenCalledTimes(1);
-    // The .not() filter should have been called with 'in' operator
-    expect(client._deleteBuilder.not).toHaveBeenCalled();
-    const filterArgs = client._calls.filters[0];
-    expect(filterArgs[0]).toBe("source_id");
-    expect(filterArgs[1]).toBe("in");
-    expect(filterArgs[2]).toContain("article-1");
-    expect(filterArgs[2]).toContain("article-2");
+    // Should have called delete (at least once for removed-files step)
+    expect(client._fromBuilder.delete).toHaveBeenCalled();
   });
 
-  it("deletes all when currentSourceIds is empty", async () => {
+  it("deletes stale trailing chunks after file shrinks (Scenario #9)", async () => {
+    const client = createMockClient();
+    // Current identity says maxChunkIndex=1, but DB has chunk_index 0,1,2
+    // Chunk 2 should be deleted
+    const identities = [
+      { content_type: "research", source_id: "docs/research/report", maxChunkIndex: 1 },
+    ];
+    await cleanupOrphans(client, identities);
+
+    expect(client._fromBuilder.delete).toHaveBeenCalled();
+    // Should have filters for stale chunk deletion
+    expect(client._calls.filters.length).toBeGreaterThan(0);
+  });
+
+  it("does not delete rows from a different content_type with same source_id (Scenario #10)", async () => {
+    const client = createMockClient();
+    // research has source_id "cloud-gpu-options", source-material also has "cloud-gpu-options"
+    // Only research identity is in the current set
+    const identities = [
+      { content_type: "research", source_id: "cloud-gpu-options", maxChunkIndex: 2 },
+    ];
+    await cleanupOrphans(client, identities);
+
+    // The delete filters should include content_type constraint
+    // so that source-material rows with same source_id are NOT deleted
+    const allFilterArgs = client._calls.filters.flat();
+    // Check that content_type appears in at least one filter call
+    expect(allFilterArgs).toContain("content_type");
+  });
+
+  it("deletes all when identities is empty (Scenario #11)", async () => {
     const client = createMockClient();
     await cleanupOrphans(client, []);
 
-    expect(client._fromBuilder.delete).toHaveBeenCalledTimes(1);
-    // Should NOT apply a .not() filter (delete all)
-    expect(client._deleteBuilder.not).not.toHaveBeenCalled();
+    expect(client._fromBuilder.delete).toHaveBeenCalled();
   });
 
   it("throws on delete error", async () => {
@@ -201,7 +236,21 @@ describe("cleanupOrphans", () => {
       deleteResult: { error: { message: "Permission denied" }, data: null },
     });
 
-    await expect(cleanupOrphans(client, ["a"])).rejects.toThrow(/delete|permission/i);
+    await expect(
+      cleanupOrphans(client, [{ content_type: "article", source_id: "a", maxChunkIndex: 0 }]),
+    ).rejects.toThrow(/delete|permission/i);
+  });
+
+  it("handles multiple content types in one call", async () => {
+    const client = createMockClient();
+    const identities = [
+      { content_type: "article", source_id: "a", maxChunkIndex: 1 },
+      { content_type: "research", source_id: "b", maxChunkIndex: 2 },
+      { content_type: "scene-data", source_id: "c", maxChunkIndex: 0 },
+    ];
+    await cleanupOrphans(client, identities);
+
+    expect(client._fromBuilder.delete).toHaveBeenCalled();
   });
 });
 

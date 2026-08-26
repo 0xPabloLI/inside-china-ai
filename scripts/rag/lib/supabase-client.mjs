@@ -124,28 +124,75 @@ export async function upsertChunks(client, chunks) {
 }
 
 /**
- * Delete embeddings whose source_id is no longer in the current set.
- * Q9, Q18: Orphan cleanup runs once at end of full rebuild.
+ * Delete embeddings that are no longer present in the current content set.
+ *
+ * Two-step deletion using full identity (content_type, source_id, chunk_index):
+ *
+ * Step A — Removed files: For each content_type, delete rows whose source_id
+ *   is NOT in the current set for that type. Deleting per content_type
+ *   ensures rows from a different type with the same source_id are preserved.
+ *
+ * Step B — Stale trailing chunks: For each current identity, delete rows
+ *   where chunk_index > maxChunkIndex (left over after a file was shortened).
  *
  * @param {Object} client - Supabase client
- * @param {string[]} currentSourceIds - Source IDs that still exist
+ * @param {Array<{content_type: string, source_id: string, maxChunkIndex: number}>} currentIdentities
+ *   Array of identity objects representing the current state of all content sources.
+ *   An empty array means no current content → delete all rows.
  * @throws {Error} On delete failure
  */
-export async function cleanupOrphans(client, currentSourceIds) {
-  let query = client.from("content_embeddings").delete();
-
-  if (currentSourceIds.length > 0) {
-    // Delete where source_id NOT IN (current set)
-    // PostgREST: .not("column", "in", "(val1,val2,...)")
-    const idsList = currentSourceIds.join(",");
-    query = query.not("source_id", "in", `(${idsList})`);
+export async function cleanupOrphans(client, currentIdentities) {
+  // Group identities by content_type for Step A
+  const byType = new Map();
+  for (const id of currentIdentities) {
+    if (!byType.has(id.content_type)) {
+      byType.set(id.content_type, new Map());
+    }
+    byType.get(id.content_type).set(id.source_id, id.maxChunkIndex);
   }
-  // If no current IDs, delete all (no filter applied)
 
-  const { error } = await query;
+  // Step A: Delete removed files (source_id not in current set for each type)
+  for (const [contentType, sourceMap] of byType) {
+    const sourceIds = [...sourceMap.keys()];
+    const idsList = sourceIds.join(",");
 
-  if (error) {
-    throw new Error(`Orphan cleanup failed: ${error.message}`);
+    const { error } = await client
+      .from("content_embeddings")
+      .delete()
+      .eq("content_type", contentType)
+      .not("source_id", "in", `(${idsList})`);
+
+    if (error) {
+      throw new Error(
+        `Orphan cleanup (removed files, type=${contentType}) failed: ${error.message}`,
+      );
+    }
+  }
+
+  // Step B: Delete stale trailing chunks (chunk_index > maxChunkIndex)
+  for (const id of currentIdentities) {
+    const { error } = await client
+      .from("content_embeddings")
+      .delete()
+      .eq("content_type", id.content_type)
+      .eq("source_id", id.source_id)
+      .gt("chunk_index", id.maxChunkIndex);
+
+    if (error) {
+      throw new Error(
+        `Orphan cleanup (stale chunks, type=${id.content_type}, source=${id.source_id}) failed: ${error.message}`,
+      );
+    }
+  }
+
+  // If currentIdentities is empty, we need to delete all rows
+  // (no per-type loop runs, so nothing gets deleted above)
+  if (currentIdentities.length === 0) {
+    const { error } = await client.from("content_embeddings").delete();
+
+    if (error) {
+      throw new Error(`Orphan cleanup (delete all) failed: ${error.message}`);
+    }
   }
 }
 
