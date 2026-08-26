@@ -263,6 +263,36 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 
 > **注意**：截至 2026-08-08，7天/30天/90天 trending 中 Tech & Electronics 类别均为 0 个标签。Trending 被娱乐、游戏、购物主导。但这不意味着以后不会出现——重大 AI 事件时可能有科技标签上榜。
 
+#### Hashtag 数据获取渠道
+
+Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行）和**调研期**（定期更新标签池时执行）两个层面：
+
+**运行时渠道**（每次做视频，content-pipeline.md Stage 3 Step 7 已整合）：
+
+| 渠道 | 方式 | 费用 | 用途 |
+|------|------|------|------|
+| TikTok Creative Center | web-access CDP 打开 trending 页面 | 免费 | 发现与视频内容高度相关的 trending 标签 |
+
+**调研期渠道**（定期更新 `ENTITY_HASHTAG_MAP` + `CORE_TRAFFIC_HASHTAGS` 数据时使用）：
+
+| 渠道 | 方式 | 费用 | 用途 |
+|------|------|------|------|
+| TikTok `/tag/{hashtag}` 页面 | web-access CDP 直接打开 | 免费 | 验证 hashtag 是否存在 + 查看浏览量/帖子数 |
+| HashtagRadar (tiktokhashtags.com) | web-access CDP 打开 `/hashtag/{tag}/` 页面 | 免费 | 查看浏览量/帖子数/均帖浏览量/相关标签 |
+| Apify TikTok Hashtag Scraper | API 调用 | 免费额度（$5/月） | 批量查多个 hashtag 的 views/posts/related |
+
+**CDP fallback 原则**：所有需要 JS 渲染的页面都用 web-access CDP（有登录态/cookie，能执行 JS）。`web_fetch` 和 `curl` 对 TikTok 页面无效（反爬 + JS 渲染）。
+
+**Apify 整合方式**（免费额度 $5/月，适合批量查询）：
+```bash
+# 查询单个 hashtag 数据（views, posts, related hashtags）
+# 需要 SCRAPECREATORS_API_KEY 环境变量（已在 last30days 配置中）
+# Apify Actor: novi/tiktok-hashtag-api
+# 免费额度覆盖约 500 次/月查询，足够季度更新
+```
+
+**Hashtag 库定期更新流程**见 `docs/analytics-workflow.md` → Hashtag 库维护。
+
 #### 代码实现
 
 - 标签池定义：`scripts/short-video/lib/caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` + `ENTITY_HASHTAG_MAP` + `PAD_CANDIDATES` + `BLACKLISTED_HASHTAGS`
