@@ -100,13 +100,53 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 | **B站** | search.bilibili.com | 搜中文教程，经常有部署指南 |
 | **小红书** | xiaohongshu.com | 搜"数字人 开源"找中文社区动态 |
 
+### 1.8 General 模型选型信源（非数字人专用）
+
+> **触发条件**：选通用 LLM/VLM/ASR/TTS 模型时，按以下优先级查证。可信度从高到低。
+
+| 优先级 | 信源 | 类别 | 用途 | URL |
+|--------|------|------|------|-----|
+| 1 | **Ollama Library** | 模型目录 | 验证模型可用性 + 能力标签（Text/Image/Tools/Thinking）+ MLX 变体 + 一键安装 | ollama.com/library |
+| 2 | **LM Studio 目录** | 模型目录 | 验证 MLX/GGUF 兼容性 + 可视化搜索 | lmstudio.ai/models |
+| 3 | **HuggingFace `mlx-community`** | 模型仓库 | 找 MLX 量化版（UGC，**需 smoke test 后再用**） | huggingface.co/mlx-community |
+| 4 | **HF Open LLM Leaderboard** | 评测排名 | 开源 LLM 众包评测排名 | huggingface.co/spaces/open-llm-leaderboard |
+| 5 | **Artificial Analysis** | 评测排名 | 速度/质量/价格三维对比 | artificial.ai |
+| 6 | **Roboflow VLM Benchmark** | 评测排名 | VLM 视觉能力实测排名（25+ 模型，按月更新） | playground.roboflow.com/models/task/vision-language |
+| 7 | **ModelScope** | 模型仓库 | 中国团队模型首发地 | modelscope.cn |
+| 8 | **Ollama Cheat Sheet** (computingforgeeks) | 速查 | 按 VRAM/场景排序的 Ollama 模型速查表 | computingforgeeks.com/ollama-models-cheat-sheet |
+
+**信源 vs 推理引擎 vs 模型仓库的区分**：
+
+- **信源**（选模型时查）：Ollama Library、LM Studio、评测排名网站
+- **模型仓库**（下载权重时去）：HuggingFace、ModelScope
+- **推理引擎**（运行模型时用）：Ollama、llama.cpp、mlx-vlm、vLLM — 这些不是信源
+
+**Ollama 内存机制**：`ollama serve` 常驻 ~16MB，模型推理后默认 5 分钟空闲自动卸载（`OLLAMA_KEEP_ALIVE` 可配）。作为 fallback 可行——平时不占内存。
+
 ---
 
-## 2. GPU 兼容性判断清单
+## 2. 模型格式速查
+
+> **触发条件**：下载模型权重前确认格式。不同格式不通用。
+
+| 格式 | 专用引擎 | 跨引擎？ | Apple Silicon | 量化 | 说明 |
+|------|---------|---------|--------------|------|------|
+| **GGUF** | llama.cpp / Ollama / LM Studio | ✅ 多引擎 | ✅ Metal | Q2-Q8 K-quants | llama.cpp **创建**的格式（替代旧 GGML），现为本地推理通用标准 |
+| **MLX** | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生 | 2-8 bit | Apple Silicon 上比 GGUF（Metal 后端）快 30-50%；跨平台比 NVIDIA CUDA 慢 2-4x |
+| **safetensors** | transformers / vLLM | ✅ 多引擎 | ✅ MPS | 通常不量化 | 全精度源格式，量化前的基础 |
+| **GPTQ** | vLLM / transformers | ✅ NVIDIA | ❌ | 4-bit | 量化算法，权重存为 safetensors |
+| **AWQ** | vLLM / transformers | ✅ NVIDIA | ❌ | 4-bit | 量化算法，质量通常优于 GPTQ |
+| **EXL2** | ExLlamaV2 | ❌ NVIDIA only | ❌ | 2-8 bpw | 可变比特率，精确填满 VRAM 预算 |
+
+**Apple Silicon 决策**：有 MLX 版优先 MLX，没有则用 GGUF。`safetensors` 用于全精度或 fine-tuning。
+
+---
+
+## 3. GPU 兼容性判断清单
 
 搜索到模型后，按以下步骤判断是否兼容目标设备：
 
-### 2.1 检查 CUDA 硬依赖
+### 3.1 检查 CUDA 硬依赖
 
 | 检查项 | 在哪里看 | CUDA 专用信号 |
 |--------|---------|-------------|
@@ -116,7 +156,7 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 | 训练代码 | `train.py` | 通常更难移植 |
 | README | 安装/硬件要求章节 | "Requires NVIDIA GPU" |
 
-### 2.2 MPS 兼容性判断
+### 3.2 MPS 兼容性判断
 
 ```
 # 无 CUDA 专用依赖 + device 可参数化 = MPS 可能可行
@@ -125,7 +165,7 @@ grep -r "cuda\|device" inference.py | head -20
 # 如果是 torch.device("cuda") 硬编码 → 需要改代码
 ```
 
-### 2.3 常见 CUDA 专用包替代方案
+### 3.3 常见 CUDA 专用包替代方案
 
 | CUDA 专用包 | macOS 替代 |
 |------------|-----------|
@@ -138,7 +178,7 @@ grep -r "cuda\|device" inference.py | head -20
 
 ---
 
-## 3. 搜索流程模板
+## 4. 搜索流程模板
 
 当用户要求"找一个能做 X 的模型"时：
 
@@ -149,6 +189,14 @@ Step 3: GitHub API 搜索（平台限定：{模型名} mlx/onnx/mac/mps）
 Step 4: ModelScope 搜索（找中国团队模型）
 Step 5: PapersWithCode 搜索（找最新学术模型）
 Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
+Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能是否已实现」时）
+  7a. `pip show <package>` → 确认安装版本
+  7b. `grep -rn "<关键词>" <package_path>` → 读源码确认实现
+  7c. `inspect.getsource(<function>)` → 确认正确的 API 调用方式
+  7d. 用正确的 API 调用方式做 smoke test
+  7e. 网络搜索结果只作为补充，不作为唯一依据
+
+> **教训（2026-08-26）**：mlx-vlm 0.6.16 的 Qwen3-VL 原生视频一直可用，但因为测试代码用了错误的 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(video_path=, prompt=)`），误报为「所有平台都有 broadcast_shapes bug」。网络搜索到的 bug 报告反映的是**已报告的**问题，不代表**已修复的**状态。见 [[memory:17877336917687800217]]。
 ```
 
 ---
@@ -158,6 +206,7 @@ Step 6: 汇总 → 检查 GPU 兼容性 → 推荐方案
 - **为什么 GitHub 比 HuggingFace 更重要**：很多完整的数字人项目（HeyGem、Linly-Talker、OpenTalking）只在 GitHub 上，HuggingFace 主要是模型权重仓库。
 - **为什么搜多个关键词组合**：同一个功能可能有多个表述（"talking head" vs "digital human" vs "说话头" vs "数字人"），单一关键词会遗漏。
 - **为什么检查 docker-compose.yml**：很多项目的 README 不明确说"需要 NVIDIA"，但 Docker 配置中的 `runtime: nvidia` 是硬性依赖的铁证。
+- **为什么加 Step 7 本地源码验证**：网络搜索到的 bug 报告反映的是已报告的状态，不代表已修复的状态。先读本地安装的包源码，再用正确 API 调用方式做 smoke test，能避免误报。
 
 ---
 
