@@ -96,6 +96,7 @@
 |------|----------|------|
 | `spec-doc-hierarchy-optimization.md` / `tickets-doc-hierarchy-01~04` | 2026-08-15 | 文档层次体系优化 — DOCS-INDEX.md Layer Placement Rules + 语义标签 (L1: Execution reference / L2: Deep research) + video-workflow.md Gapless Audio Track 抽离到 L2 + AGENTS.md 双向指针 + 7 个遗留 spec/tickets 归档。 |
 | `spec-doc-hierarchy-lint.md` / `01-lint-core-checks.md` / `02-npm-script-and-pre-commit-hook.md` | 2026-08-16 | 文档层次自动化 Lint — lint-doc-hierarchy.mjs (3 项检查: DOCS-INDEX 一致性 + L1 Design Decisions + L2 命令行启发式) + npm run lint:docs + pre-commit hook 集成 + DOCS-INDEX rule 5 (sync after changes)。17 tests。 |
+| `spec-writing-for-agents-enforcement.md` / `tickets-writing-for-agents-enforcement.md` | 2026-08-25 | writing-for-agents 规则执行率改善 — 从"任何编辑加载 skill"改为语义风险判定（信息结构变更→强制；值修正→豁免；不确定→加载）。AGENTS.md 加文档改动门槛覆盖 Step 1-4+8。DOCS-INDEX.md 改为指针引用消除双重权威。含第三方审核 + code review。 |
 
 ### Cascade Filter Specs
 
@@ -137,7 +138,7 @@
 > - `handoff-asset-source-unification.md` — 素材源统一命名，待实施
 > - `handoff-license-risk-policy.md` — License 风险策略，待实施
 > - `handoff-realesrgan.md` — Real-ESRGAN 超分辨率集成，已完成（spec/tickets 已归档）
-> - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，待实施
+> - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，已完成（spec/tickets 已归档为 `spec-writing-for-agents-enforcement.md`）
 > - `handoff-verify-retry-loop.md` — Verify-retry loop，已完成（spec/tickets 已归档为 `spec-verify-retry-loop.md`）
 > - `handoff-source-layer-comparison.md` — Source layer CDP/MCP/API 对比 + selector 修复，已完成（spec/tickets 已归档为 `spec-source-registry-selector-fix.md`）
 
@@ -153,6 +154,8 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/unified-source-registry-implementation-review-2026-08-19.md` | 2026-08-24 | #52 | 统一数据源注册表实现审查——子票 #53-#59 全部验证 |
 | `reviews/vlm-semantic-merge-implementation-review.md` | 2026-08-24 | #69 | VLM 语义合并 + Visual Focus Detection 复审——P0/P1 已修复，#69 已验证 |
 | `reviews/asset-focus-detection-alternatives-review.md` | 2026-08-24 | #69 | 素材焦点检测替代方案审阅——focus detection 已实现 |
+| `reviews/writing-for-agents-enforcement-proposal-review-2026-08-25.md` | 2026-08-25 | — | writing-for-agents 方案第三方审核——5 个必修问题已整合到 spec v2 |
+| `reviews/writing-for-agents-enforcement-review.md` | 2026-08-25 | — | writing-for-agents 实施代码审查——Standards + Spec 双轴通过，10/10 场景验证 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
