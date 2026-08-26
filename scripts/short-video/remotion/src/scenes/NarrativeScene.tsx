@@ -10,7 +10,8 @@
  * Each variant has its own entrance animation pattern and uses
  * SPACING tokens, Interactive.Div on company/result, and conditional GridBg.
  */
-import { Interactive } from "remotion";
+import { Interactive, useCurrentFrame, interpolate } from "remotion";
+import { Highlight } from "@remotion/rough-notation";
 import type { SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow } from "../components/visuals";
 import {
@@ -36,6 +37,11 @@ export const NarrativeScene: React.FC<{
   const layout = (scene.layout ?? "media-bottom-bar") as Layout;
   const hasMedia = !!scene.media;
   const glowColor = scene.id % 2 === 0 ? "red" : "blue";
+  const frame = useCurrentFrame();
+  const highlightProgress = interpolate(frame, [20, 40], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   // ─── Shared text elements with Interactive.Div ───
   const CompanyText = ({ delay }: { delay: number }) =>
@@ -55,7 +61,13 @@ export const NarrativeScene: React.FC<{
           color: glowColor === "red" ? "#ef4444" : "#f59e0b",
         }}
       >
-        {txt.result as string}
+        {txt.highlight ? (
+          <Highlight color="rgba(245,158,11,0.15)" progress={highlightProgress} padding={{ top: 2, bottom: 2, left: 6, right: 6 }}>
+            {txt.result as string}
+          </Highlight>
+        ) : (
+          (txt.result as string)
+        )}
       </Interactive.Div>
     ) : null;
 

@@ -146,3 +146,29 @@ describe("T4: MediaBackground supports effects prop", () => {
     expect(content).toMatch(/effects\??\s*:/);
   });
 });
+
+describe("Highlight field consumption", () => {
+  it("HookScene imports Underline from rough-notation and consumes texts.highlight", () => {
+    const content = readFile("scenes/HookScene.tsx");
+    expect(content).toMatch(/import.*Underline.*from.*rough-notation/);
+    expect(content).toMatch(/txt\.highlight/);
+    expect(content).toMatch(/<Underline/);
+  });
+
+  it("NarrativeScene imports Highlight from rough-notation and consumes texts.highlight", () => {
+    const content = readFile("scenes/NarrativeScene.tsx");
+    expect(content).toMatch(/import.*Highlight.*from.*rough-notation/);
+    expect(content).toMatch(/txt\.highlight/);
+    expect(content).toMatch(/<Highlight/);
+  });
+
+  it("doubao-work scene-data has highlight field on narrative scenes with result", () => {
+    const scenePath = join(__dirname, "..", "content", "doubao-work", "scene-data.mjs");
+    const content = readFileSync(scenePath, "utf-8");
+    // Scene 1 (hook) has highlight on hookText
+    expect(content).toMatch(/highlight:\s*"OPERATES"/);
+    // Narrative scenes with result also have highlight
+    expect(content).toMatch(/highlight:\s*"WHY"/);
+    expect(content).toMatch(/highlight:\s*"STRATEGY"/);
+  });
+});

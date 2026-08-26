@@ -8,7 +8,7 @@
  * Optionally renders a media background when scene.media is present.
  */
 import { staticFile, CanvasImage, Interactive, useCurrentFrame, interpolate } from "remotion";
-import { Circle } from "@remotion/rough-notation";
+import { Circle, Underline } from "@remotion/rough-notation";
 import type { SceneData } from "../types";
 import {
   GridBg,
@@ -47,6 +47,10 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   const stats = Array.isArray(txt.stats) ? txt.stats : [];
   const frame = useCurrentFrame();
   const circleProgress = interpolate(frame, [15, 30], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const underlineProgress = interpolate(frame, [20, 40], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -179,7 +183,13 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                 textShadow: `0 0 40px ${color}66`,
               }}
             >
-              {txt.hookText as string}
+              {txt.highlight ? (
+                <Underline color={color} progress={underlineProgress} strokeWidth={3} padding={{ top: 4 }}>
+                  {txt.hookText as string}
+                </Underline>
+              ) : (
+                (txt.hookText as string)
+              )}
             </Interactive.Div>
             {/* Focal reveal — 80px, stampIn at 0.8s */}
             {txt.revealText && (
