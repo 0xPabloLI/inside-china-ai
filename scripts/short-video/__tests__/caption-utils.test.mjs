@@ -4,6 +4,7 @@ import {
   deriveDescription,
   deriveHashtags,
   derivePinnedComment,
+  normalizeHashtag,
 } from "../lib/caption-utils.mjs";
 
 // ─── Mock scene data (mirrors real scene-data.mjs format) ───
@@ -397,9 +398,7 @@ describe("S7: Pinned Comment (AITL-driven)", () => {
 
 describe("S18: Hashtag from keyEntities only", () => {
   it("matches #bytedance from keyEntities, not #alibaba from voiceover", () => {
-    const scenes = [
-      { id: 1, voiceover: "ByteDance and Alibaba compete in AI.", texts: {} },
-    ];
+    const scenes = [{ id: 1, voiceover: "ByteDance and Alibaba compete in AI.", texts: {} }];
     const meta = { keyEntitiesCompanies: ["bytedance"] };
     const result = deriveHashtags(scenes, meta);
     expect(result).toContain("#bytedance");
@@ -407,32 +406,271 @@ describe("S18: Hashtag from keyEntities only", () => {
   });
 
   it("matches #doubao for doubao content", () => {
-    const scenes = [
-      { id: 1, voiceover: "Doubao Work launched today.", texts: {} },
-    ];
+    const scenes = [{ id: 1, voiceover: "Doubao Work launched today.", texts: {} }];
     const meta = { keyEntitiesCompanies: ["doubao"] };
     const result = deriveHashtags(scenes, meta);
     expect(result).toContain("#doubao");
   });
 
   it("matches #feishu for feishu/lark content", () => {
-    const scenes = [
-      { id: 1, voiceover: "Feishu is the differentiator.", texts: {} },
-    ];
+    const scenes = [{ id: 1, voiceover: "Feishu is the differentiator.", texts: {} }];
     const meta = { keyEntitiesCompanies: ["feishu"] };
     const result = deriveHashtags(scenes, meta);
     expect(result).toContain("#feishu");
   });
 
   it("does not match any entity when keyEntities is empty", () => {
-    const scenes = [
-      { id: 1, voiceover: "Some company did something.", texts: {} },
-    ];
+    const scenes = [{ id: 1, voiceover: "Some company did something.", texts: {} }];
     const meta = { keyEntitiesCompanies: [] };
     const result = deriveHashtags(scenes, meta);
     expect(result).toContain("#ainews");
     expect(result).toContain("#chinaai");
     // No entity hashtags, just defaults
     expect(result.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ─── T1: normalizeHashtag ───
+
+describe("T1: normalizeHashtag", () => {
+  it("normalizes a plain string", () => {
+    expect(normalizeHashtag("aiviral")).toBe("#aiviral");
+  });
+
+  it("normalizes a string with leading #", () => {
+    expect(normalizeHashtag("#aiviral")).toBe("#aiviral");
+  });
+
+  it("trims whitespace and lowercases", () => {
+    expect(normalizeHashtag("  #AiViral ")).toBe("#aiviral");
+  });
+
+  it("rejects empty string", () => {
+    expect(normalizeHashtag("")).toBeNull();
+  });
+
+  it("rejects whitespace-only string", () => {
+    expect(normalizeHashtag("   ")).toBeNull();
+  });
+
+  it("rejects non-string values", () => {
+    expect(normalizeHashtag(null)).toBeNull();
+    expect(normalizeHashtag(undefined)).toBeNull();
+    expect(normalizeHashtag(123)).toBeNull();
+    expect(normalizeHashtag([])).toBeNull();
+  });
+
+  it("rejects string with internal whitespace", () => {
+    expect(normalizeHashtag("ai viral")).toBeNull();
+    expect(normalizeHashtag("ai\tviral")).toBeNull();
+  });
+
+  it("normalizes #CreatorSearchInsights to #creatorsearchinsights", () => {
+    expect(normalizeHashtag("#CreatorSearchInsights")).toBe("#creatorsearchinsights");
+  });
+});
+
+// ─── T2: #creatorsearchinsights removed from blacklist ───
+
+describe("T2: #creatorsearchinsights not blacklisted", () => {
+  it("preserves #creatorsearchinsights in manual override", () => {
+    const meta = {
+      hashtags: ["#creatorsearchinsights", "#deepseek", "#chinaai"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#creatorsearchinsights");
+  });
+
+  it("allows #creatorsearchinsights in trending", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["#creatorsearchinsights"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    // Should not be filtered out by blacklist
+    expect(result).toContain("#creatorsearchinsights");
+  });
+});
+
+// ─── T3: trendingHashtags consumption (auto-derive path) ───
+
+describe("T3: trendingHashtags consumption", () => {
+  it("T3-1: no trendingHashtags → same as before", () => {
+    const meta = { keyEntitiesCompanies: ["deepseek"] };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#ainews");
+    expect(result).toContain("#chinaai");
+    expect(result).toContain("#deepseek");
+    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(result.length).toBeLessThanOrEqual(5);
+  });
+
+  it("T3-2: trending tag added when < 5 tags", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#aiviral");
+    expect(result.length).toBeLessThanOrEqual(5);
+  });
+
+  it("T3-3: trending tag added when = 3 tags", () => {
+    const meta = {
+      keyEntitiesCompanies: [],
+      trendingHashtags: ["#aiviral"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#aiviral");
+    expect(result.length).toBe(4);
+  });
+
+  it("T3-4: trending replaces secondary vertical when at 5", () => {
+    // 2 core+brand + 1 primary (deepseek) + 2 secondary (openai→#chatgpt, nvidia→#nvidia) = 5
+    const meta = {
+      keyEntitiesCompanies: ["deepseek", "openai", "nvidia"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#aiviral");
+    expect(result).toContain("#deepseek"); // primary preserved
+    expect(result.length).toBe(5);
+    // One of the secondary should be replaced
+    const hasChatGPT = result.includes("#chatgpt");
+    const hasNvidia = result.includes("#nvidia");
+    expect(hasChatGPT && hasNvidia).toBe(false); // at least one replaced
+  });
+
+  it("T3-5: trending replaces pad candidate when at 5", () => {
+    // 2 core+brand + 2 primary+secondary (deepseek, nvidia) + 1 pad (#ai) = 5
+    // trending replaces the pad candidate
+    const meta = {
+      keyEntitiesCompanies: ["deepseek", "nvidia"],
+      trendingHashtags: ["#aiviral"],
+    };
+    // With 2 entities: ainews + chinaai + deepseek(primary) + nvidia(secondary) = 4
+    // pad #ai to reach 3+ → actually 4 >= 3 so no pad, trending adds → 5
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#aiviral");
+    expect(result).toContain("#deepseek"); // primary preserved
+    expect(result.length).toBeLessThanOrEqual(5);
+    expect(result.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("T3-6: trending discarded when no replaceable tag available", () => {
+    // 2 core+brand + 1 primary + 0 secondary + 0 pad needed (only 3 tags)
+    // But if trending is #ainews (already exists), it's deduped, not added
+    // For "no replaceable": we need exactly 5 non-replaceable tags
+    // core(2) + brand(already in core set) — actually core is #ainews only, brand is #chinaai
+    // So max non-replaceable = #ainews + #chinaai + #deepseek(primary) = 3
+    // To get 5 non-replaceable we'd need 3 primary entities, but only companies[0] is primary
+    // This scenario is impossible with current design — skip with a note
+    // Instead test: trending that's already in the set → deduped
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["#ainews"], // already in set
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    // #ainews should appear only once
+    const ainewsCount = result.filter((t) => t === "#ainews").length;
+    expect(ainewsCount).toBe(1);
+  });
+
+  it("T3-7: only 1 trending tag max", () => {
+    const meta = {
+      keyEntitiesCompanies: [],
+      trendingHashtags: ["#aiviral", "#aitechtrends"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    // Only 1 trending should be included
+    const trendingCount = result.filter((t) => t === "#aiviral" || t === "#aitechtrends").length;
+    expect(trendingCount).toBe(1);
+  });
+
+  it("T3-8: trending deduped if already in set", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["#deepseek"], // already matched by entity
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    const deepseekCount = result.filter((t) => t === "#deepseek").length;
+    expect(deepseekCount).toBe(1);
+  });
+
+  it("T3-9: trending normalized (case + whitespace + #)", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["  #AiViral "],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#aiviral");
+  });
+
+  it("T3-10: trending invalid values filtered", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["", "  ", null, 123, "#aiviral"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#aiviral");
+    // No invalid values leaked
+    expect(result).not.toContain("");
+    expect(result).not.toContain("  ");
+    expect(result).not.toContain(null);
+    expect(result).not.toContain(123);
+  });
+
+  it("T3-11: manual override does not inject trending", () => {
+    const meta = {
+      hashtags: ["#deepseek", "#chinaai"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).not.toContain("#aiviral");
+    // Manual override should only return the manual tags (+ pad if < 3)
+    expect(result).toContain("#deepseek");
+    expect(result).toContain("#chinaai");
+  });
+
+  it("T3-12: primary entity tag preserved during replacement", () => {
+    // companies[0] = deepseek (primary), companies[1] = openai (secondary)
+    const meta = {
+      keyEntitiesCompanies: ["deepseek", "openai"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#deepseek"); // primary always preserved
+    expect(result).toContain("#aiviral");
+  });
+
+  it("T3-13: manual override with #creatorsearchinsights preserved", () => {
+    const meta = {
+      hashtags: ["#creatorsearchinsights", "#deepseek", "#chinaai"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#creatorsearchinsights");
+    expect(result).not.toContain("#aiviral"); // trending not injected
+  });
+
+  it("T3-14: empty trendingHashtags array → no effect", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: [],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#deepseek");
+    expect(result).toContain("#ainews");
+    expect(result).toContain("#chinaai");
+  });
+
+  it("T3-15: trendingHashtags not set → no effect", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+    };
+    const result = deriveHashtags(mockScenes, meta);
+    expect(result).toContain("#deepseek");
+    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(result.length).toBeLessThanOrEqual(5);
   });
 });

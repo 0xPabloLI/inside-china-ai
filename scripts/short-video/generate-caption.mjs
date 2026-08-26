@@ -33,9 +33,7 @@ const contentFlag = args.indexOf("--content");
 const contentDir = contentFlag >= 0 ? args[contentFlag + 1] : "";
 
 // ─── Per-content output dir (when --content is used) ───
-const OUTPUT_DIR = contentDir
-  ? join(__dirname, "output", contentDir)
-  : join(__dirname, "output");
+const OUTPUT_DIR = contentDir ? join(__dirname, "output", contentDir) : join(__dirname, "output");
 const SCENE_DATA_PATH = contentDir
   ? join(__dirname, "content", contentDir, "scene-data.mjs")
   : join(__dirname, "scene-data.mjs");
@@ -108,10 +106,24 @@ async function main() {
   const trafficHashtags = hashtags.filter((t) =>
     ["#ainews", "#technews", "#ai", "#news"].includes(t),
   );
-  const verticalHashtags = hashtags.filter(
-    (t) => !["#ainews", "#technews", "#ai", "#news", "#chinaai"].includes(t),
-  );
   const brandHashtags = hashtags.filter((t) => t === "#chinaai");
+  // Trending hashtags are those from metadata.trendingHashtags that made it into the final set
+  const trendingSourceTags = (metadata?.trendingHashtags || [])
+    .map((t) => {
+      // Normalize for comparison (lowercase, strip #)
+      if (typeof t !== "string") return null;
+      return t.trim().toLowerCase().replace(/^#/, "");
+    })
+    .filter(Boolean);
+  const trendingHashtags = hashtags.filter((t) => {
+    const normalized = t.replace(/^#/, "");
+    return trendingSourceTags.includes(normalized);
+  });
+  const verticalHashtags = hashtags.filter(
+    (t) =>
+      !["#ainews", "#technews", "#ai", "#news", "#chinaai"].includes(t) &&
+      !trendingHashtags.includes(t),
+  );
 
   const metadataJson = {
     title,
@@ -122,6 +134,7 @@ async function main() {
       traffic: trafficHashtags,
       vertical: verticalHashtags,
       brand: brandHashtags,
+      trending: trendingHashtags,
       rule: "3-5 hashtags, wrong tags → wrong audience → algorithm penalty",
       researchedAt: "2026-08-08",
       dataSource: "tiktokhashtags.com + TikTok Creative Center + competitor analysis",

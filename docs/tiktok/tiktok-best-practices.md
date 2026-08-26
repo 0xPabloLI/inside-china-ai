@@ -250,7 +250,7 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 | `#technology` (34.2B) | 同上，竞争极大（140万帖），内容被淹没 |
 | `#chinatech` | tiktokhashtags.com 无数据，TikTok 标签页内容很少 |
 | `#madeinchina` | 内容偏制造/产品，不是 AI 科技 |
-| `#creatorsearchinsights` | 2026-08-25 黑名单：我们的 Analytics 数据显示它引来错误搜索词（"creator insights part 3 4 5"），误导受众。已在代码 `BLACKLISTED_HASHTAGS` 中强制禁用 |
+| `#creatorsearchinsights` | 2026-08-26 移除黑名单：原黑名单基于 2 条视频样本（样本量不足以单独归因 hashtag 效果）。深入调研发现：(1) Buffer 和 TikTok 官方都推荐使用它；(2) 它是元标签（告知 TikTok 内容来源于 Creator Search Insights），不是内容标签；(3) 不会自动加入——Agent 在使用 Creator Search Insights 发现内容 gap 时手动通过 `metadata.hashtags` 加入 |
 
 #### TikTok Creative Center Trending 检查
 
@@ -258,8 +258,8 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 
 1. 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`
 2. 检查**所有类别**的 trending 标签（不只 Tech & Electronics）
-3. 如果发现 trending 标签与视频内容高度相关 → 建议加入（替换一个垂直标签）
-4. 如果没有相关的 → 继续用 curated 标签池
+3. 如果发现 trending 标签与视频内容高度相关 → 写入 `metadata.trendingHashtags` 字段，`deriveHashtags()` 会自动将其纳入候选（最多 1 个，优先替换最低优先级的垂直标签）
+4. 如果没有相关的 → 继续用 curated 标签池，在 metadata 中注明 `trendingChecked: true`
 
 > **注意**：截至 2026-08-08，7天/30天/90天 trending 中 Tech & Electronics 类别均为 0 个标签。Trending 被娱乐、游戏、购物主导。但这不意味着以后不会出现——重大 AI 事件时可能有科技标签上榜。
 

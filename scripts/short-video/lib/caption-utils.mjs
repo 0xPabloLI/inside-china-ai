@@ -48,13 +48,17 @@ const AUXILIARY_TRAFFIC_HASHTAGS = [
 
 /**
  * Blacklisted hashtags — must never be used.
- * #creatorsearchinsights: our analytics data shows it attracts wrong audience
- * (search queries "creator insights part 3 4 5" instead of topic keywords).
- * See: docs/research/tiktok-competitor-intelligence.md §3.2
+ *
+ * #creatorsearchinsights was previously blacklisted based on 2-video sample
+ * (tiktok-competitor-intelligence.md §3.2). Removed 2026-08-26 after deeper
+ * research: (1) sample too small for attribution; (2) Buffer and TikTok
+ * officially recommend using it; (3) it's a meta-tag for Creator Search
+ * Insights content gap, not a content tag. It is not auto-added — Agent
+ * adds it via metadata.hashtags when using Creator Search Insights.
+ *
+ * The array is kept empty but the filtering mechanism remains for future use.
  */
-const BLACKLISTED_HASHTAGS = [
-  "#creatorsearchinsights",
-];
+const BLACKLISTED_HASHTAGS = [];
 
 /**
  * Vertical / entity hashtags — precision targeting.
@@ -366,9 +370,34 @@ export function deriveDescription(scenes, metadata) {
 }
 
 /**
+ * Normalize a hashtag value to canonical form.
+ *
+ * - Accepts string only; rejects null, undefined, numbers, arrays.
+ * - Trims whitespace, removes leading #, lowercases.
+ * - Rejects empty values and values with internal whitespace.
+ * - Returns null for invalid input.
+ *
+ * TikTok hashtags are case-insensitive (verified 2026-08-26 via multiple
+ * sources: buffer.com, headlinecapitalization.com, integritive.com).
+ * Lowercasing does not affect search weight, distribution, or algorithm matching.
+ *
+ * @param {*} value - Raw hashtag value (string, possibly with #, any case)
+ * @returns {string|null} Normalized hashtag (e.g. "#aiviral") or null
+ */
+export function normalizeHashtag(value) {
+  if (typeof value !== "string") return null;
+  let s = value.trim();
+  if (s.length === 0) return null;
+  s = s.replace(/^#/, ""); // Remove leading #
+  s = s.toLowerCase(); // Case-insensitive on TikTok
+  if (s.length === 0 || /\s/.test(s)) return null; // Reject empty or whitespace-containing
+  return `#${s}`;
+}
+
+/**
  * Derive hashtags from scene data.
  *
- * Strategy (researched 2026-08-08):
+ * Strategy (researched 2026-08-08, updated 2026-08-26):
  * - 3-5 hashtags total (CapCut/TikTok official recommendation)
  * - Wrong tags → wrong audience → quick scroll → algorithm penalty
  * - Fewer is better than wrong
@@ -376,21 +405,30 @@ export function deriveDescription(scenes, metadata) {
  * Selection logic:
  * 1. Always include #ainews (core traffic, best ROI)
  * 2. Always include #chinaai (brand niche)
- * 3. Match entity hashtags from content (1-2)
- * 4. Pad with #technews if < 3
- * 5. Truncate to max 5
- * 6. If trending tags from Creative Center are provided in metadata.trendingHashtags,
- *    and they're relevant, include 1 (replacing a less important tag)
+ * 3. Match entity hashtags from keyEntities (primary = companies[0], secondary = companies[1+])
+ * 4. Pad with #ai/#artificialintelligence/#technews if < 3
+ * 5. Merge trending hashtags from metadata.trendingHashtags (max 1):
+ *    - If tags.length < 5: add trending tag directly
+ *    - If tags.length >= 5: replace the last secondary vertical or pad candidate
+ *    - Primary entity tag is never replaced
+ * 6. Truncate to max 5
+ *
+ * Manual override: if metadata.hashtags is non-empty, it is a locked override.
+ * trendingHashtags is NOT injected into the manual override path.
+ * To use trending tags with manual override, add them to metadata.hashtags directly.
  *
  * @param {Array} scenes - Scene array from scene-data.mjs
- * @param {Object} [metadata] - Optional metadata { title, description, hashtags, trendingHashtags }
+ * @param {Object} [metadata] - Optional metadata { title, description, hashtags, trendingHashtags, keyEntitiesCompanies }
  * @returns {string[]} Array of 3-5 hashtags
  */
 export function deriveHashtags(scenes, metadata) {
-  // Use metadata.hashtags if explicitly provided (manual override)
+  // ─── Manual override (locked) ───
   if (metadata?.hashtags && Array.isArray(metadata.hashtags) && metadata.hashtags.length > 0) {
-    let tags = [...metadata.hashtags];
-    tags = tags.filter((t) => !BLACKLISTED_HASHTAGS.includes(t));
+    let tags = metadata.hashtags
+      .map(normalizeHashtag)
+      .filter((t) => t !== null && !BLACKLISTED_HASHTAGS.includes(t));
+    // Deduplicate
+    tags = [...new Set(tags)];
     if (tags.length > 5) tags = tags.slice(0, 5);
     if (tags.length < 3) {
       for (const broad of [...DEFAULT_HASHTAGS, ...PAD_CANDIDATES]) {
@@ -398,36 +436,111 @@ export function deriveHashtags(scenes, metadata) {
         if (tags.length >= 3) break;
       }
     }
+    while (tags.length < 3) tags.push("#technews");
     return tags;
   }
 
-  // Auto-derive from keyEntities (NOT from voiceover full-text)
+  // ─── Auto-derive from keyEntities (NOT from voiceover full-text) ───
   const companies = metadata?.keyEntitiesCompanies || [];
-  const matchedTags = new Set();
 
-  // Always include #ainews (best ROI)
-  matchedTags.add("#ainews");
-  // Always include #chinaai (brand niche)
-  matchedTags.add("#chinaai");
+  // Layer 1: Core traffic (always include)
+  const coreTags = ["#ainews"];
+  // Layer 2: Brand (always include)
+  const brandTags = ["#chinaai"];
+  // Layer 3: Primary vertical (companies[0] — not replaceable by trending)
+  let primaryVerticalTag = null;
+  // Layer 4: Secondary vertical (companies[1+] — replaceable by trending)
+  const secondaryVerticalTags = [];
 
-  // Match entity hashtags from keyEntities only
-  for (const company of companies) {
-    const key = company.toLowerCase();
+  for (let i = 0; i < companies.length; i++) {
+    const key = companies[i].toLowerCase();
     if (ENTITY_HASHTAG_MAP[key]) {
-      matchedTags.add(ENTITY_HASHTAG_MAP[key]);
+      const tag = ENTITY_HASHTAG_MAP[key]; // Already lowercase
+      if (i === 0) {
+        primaryVerticalTag = tag;
+      } else {
+        if (!secondaryVerticalTags.includes(tag)) {
+          secondaryVerticalTags.push(tag);
+        }
+      }
     }
   }
 
-  let tags = Array.from(matchedTags);
+  // Build ordered tag list: core + brand + primary + secondary
+  let tags = [...coreTags, ...brandTags];
+  if (primaryVerticalTag) tags.push(primaryVerticalTag);
+  tags.push(...secondaryVerticalTags);
 
-  // Pad to min 3
+  // Deduplicate
+  tags = [...new Set(tags)];
+
+  // Layer 5: Pad candidates (replaceable by trending)
+  const padTagsAdded = [];
   if (tags.length < 3) {
     for (const broad of [...DEFAULT_HASHTAGS, ...PAD_CANDIDATES]) {
-      if (!tags.includes(broad) && !BLACKLISTED_HASHTAGS.includes(broad)) tags.push(broad);
+      if (!tags.includes(broad) && !BLACKLISTED_HASHTAGS.includes(broad)) {
+        tags.push(broad);
+        padTagsAdded.push(broad);
+      }
       if (tags.length >= 3) break;
     }
   }
-  while (tags.length < 3) tags.push("#technews");
+  while (tags.length < 3) {
+    tags.push("#technews");
+    padTagsAdded.push("#technews");
+  }
+
+  // ─── Merge trending hashtags (max 1) ───
+  const trendingRaw = metadata?.trendingHashtags || [];
+  if (Array.isArray(trendingRaw) && trendingRaw.length > 0) {
+    // Normalize and filter trending candidates
+    const trendingNormalized = trendingRaw
+      .map(normalizeHashtag)
+      .filter((t) => t !== null && !BLACKLISTED_HASHTAGS.includes(t));
+
+    // Find the first trending tag not already in tags
+    let trendingTag = null;
+    for (const t of trendingNormalized) {
+      if (!tags.includes(t)) {
+        trendingTag = t;
+        break;
+      }
+    }
+
+    if (trendingTag) {
+      if (tags.length < 5) {
+        // Room to add directly
+        tags.push(trendingTag);
+      } else {
+        // tags.length >= 5: need to replace a replaceable tag
+        // Priority for replacement: last secondary vertical, then last pad
+        let replaceIdx = -1;
+
+        // Find last secondary vertical tag in tags
+        for (let i = tags.length - 1; i >= 0; i--) {
+          if (secondaryVerticalTags.includes(tags[i])) {
+            replaceIdx = i;
+            break;
+          }
+        }
+
+        // If no secondary vertical, find last pad tag
+        if (replaceIdx === -1) {
+          for (let i = tags.length - 1; i >= 0; i--) {
+            if (padTagsAdded.includes(tags[i])) {
+              replaceIdx = i;
+              break;
+            }
+          }
+        }
+
+        if (replaceIdx >= 0) {
+          tags[replaceIdx] = trendingTag;
+        }
+        // If no replaceable tag found, discard trending tag
+      }
+    }
+  }
 
   // Truncate to max 5
   if (tags.length > 5) tags = tags.slice(0, 5);
