@@ -156,7 +156,7 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 ## Model Selection
 
-选模型时（ASR/TTS/VLM/数字人）先查 `docs/research/model-sources-reference.md` → 模型选择通用标准。硬性门槛：Apple Silicon 加速（MPS/MLX/Metal/CoreML）。许可证优选商用许可；NC 许可证不自动淘汰，需风险评估。
+选模型时（ASR/TTS/VLM/数字人）先查 `docs/research/model-sources-reference.md` → 模型选择通用标准。准入条件：Apple Silicon 加速（MPS/MLX/Metal/CoreML）。许可证优选商用许可；NC 许可证标为「需缓解」，需法务确认后方可用于发布成品。
 
 ## Content Pipeline
 

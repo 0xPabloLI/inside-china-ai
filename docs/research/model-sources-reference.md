@@ -119,7 +119,6 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 | 2 | **LM Studio 目录** | 模型目录 | 验证 MLX/GGUF 兼容性 + 可视化搜索 | lmstudio.ai/models |
 | 3 | **HuggingFace `mlx-community`** | 模型仓库 | 找 MLX 量化版（UGC，**需 smoke test 后再用**） | huggingface.co/mlx-community |
 | 4 | **HF Eval Results + 社区榜单** | 评测排名 | 开源 LLM 评测结果与按任务的社区榜单 | huggingface.co/docs/leaderboards |
-| ~~4a~~ | ~~HF Open LLM Leaderboard~~ | ~~已归档~~ | ~~v1 已归档，仅作历史参考，不用于当前候选排序~~ | ~~huggingface.co/spaces/open-llm-leaderboard~~ |
 | 5 | **Artificial Analysis** | 评测排名 | 速度/质量/价格三维对比 | artificial.ai |
 | 6 | **Roboflow VLM Benchmark** | 评测排名 | VLM 视觉能力实测排名（25+ 模型，按月更新） | playground.roboflow.com/models/task/vision-language |
 | 7 | **ModelScope** | 模型仓库 | 中国团队模型首发地 | modelscope.cn |
@@ -127,23 +126,16 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 **来源分类**（四层，避免混淆）：
 
-| 分类 | 说明 | 示例 |
-|------|------|------|
-| **模型目录**（发现与分发） | 浏览、搜索、一键安装 | Ollama Library、LM Studio 目录 |
-| **权重仓库**（获取与模型卡） | 下载权重、看模型卡和许可证 | HuggingFace、ModelScope |
-| **评测结果**（能力证据） | 质量/速度/成本对比 | HF Eval Results、Artificial Analysis、Roboflow Benchmark |
-| **运行时**（执行与本机验证） | 实际运行模型推理 | Ollama、llama.cpp、mlx-vlm、vLLM |
+| 分类 | 说明 | 示例 | 证据类型 |
+|------|------|------|----------|
+| **模型目录**（发现与分发） | 浏览、搜索、一键安装 | Ollama Library、LM Studio 目录 | 第一方事实（模型卡、LICENSE） |
+| **权重仓库**（获取与模型卡） | 下载权重、看模型卡和许可证 | HuggingFace、ModelScope | 第一方事实 + 发行与安装 |
+| **评测结果**（能力证据） | 质量/速度/成本对比 | HF Eval Results、Artificial Analysis、Roboflow Benchmark | 独立评估 |
+| **运行时**（执行与本机验证） | 实际运行模型推理 | Ollama、llama.cpp、mlx-vlm、vLLM | 本机决策 |
 
 > **注意**：Ollama 同时是模型目录（Library）和运行时（serve）。在选模型阶段查 Library，在验证阶段用 serve。
-
-**信源分层使用**：
-
-| 层级 | 适用问题 | 首选证据 | 完成条件 |
-|------|---------|---------|---------|
-| 第一方事实 | 许可证、模态、参数、上下文 | 官方模型卡、LICENSE、官方仓库文档 | 每项关键结论有稳定链接与检索日期 |
-| 发行与安装 | 某变体能否拉取和运行 | Ollama Library、LM Studio、HF 文件页 | 在目标设备执行最小 smoke test |
-| 独立评估 | 质量/速度/成本对比 | 可复现实验报告、任务匹配 benchmark | 说明任务集、版本与局限 |
-| 本机决策 | 本项目生产适配性 | 固定 corpus 的 benchmark + E2E 测试 | 图片、视频、峰值内存、失败率均记录 |
+>
+> **证据分层**（按可信度从高到低）：第一方事实（官方模型卡、LICENSE、仓库文档）→ 发行与安装（Library/LM Studio/HF 文件页，需 smoke test）→ 独立评估（可复现实验报告，需说明任务集与局限）→ 本机决策（固定 corpus benchmark + E2E 测试，需记录图片/视频/峰值内存/失败率）。
 
 **Ollama 模型驻留**：模型推理后默认 5 分钟空闲自动卸载。可通过 API 的 `keep_alive` 参数或 `OLLAMA_KEEP_ALIVE` 环境变量覆盖（见 [Ollama FAQ](https://docs.ollama.com/faq)）。设为 `0` 立即卸载，设为 `-1` 永久驻留。作为 fallback 可行——平时不占内存。
 
@@ -273,7 +265,7 @@ Step 7: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 - **分别记录**：代码许可证、权重/模型卡条款、训练数据或上游依赖的限制、计划用途和替代方案
 - **状态**：标为「需法务确认」
 - **缓解路径**：联系权利人申请商用授权（多数 NC 许可证支持 dual licensing）；或仅用于内部研究/原型，成品不发布
-- **决策标准**：在获得书面法务结论前，不将该候选标为可发布。仅用于内部实验/对比 → 可接受，但记录风险状态
+- **决策标准**：仅在获得书面法务结论后，才将该候选标为可发布。仅用于内部实验/对比 → 可接受，但记录风险状态
 
 ### 综合评分
 
