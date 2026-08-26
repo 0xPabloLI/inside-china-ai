@@ -242,7 +242,7 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 | `#chinanews` | — | china, chinese, 中国 |
 | `#opensource` | — | open source, 开源 |
 
-**去掉的标签**（调研后排除）：
+**排除/限制自动候选的标签**（调研后决定）：
 
 | 标签 | 排除原因 |
 |------|---------|
@@ -250,7 +250,7 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 | `#technology` (34.2B) | 同上，竞争极大（140万帖），内容被淹没 |
 | `#chinatech` | tiktokhashtags.com 无数据，TikTok 标签页内容很少 |
 | `#madeinchina` | 内容偏制造/产品，不是 AI 科技 |
-| `#creatorsearchinsights` | 2026-08-26 移除黑名单：原黑名单基于 2 条视频样本（样本量不足以单独归因 hashtag 效果）。深入调研发现：(1) Buffer 和 TikTok 官方都推荐使用它；(2) 它是元标签（告知 TikTok 内容来源于 Creator Search Insights），不是内容标签；(3) 不会自动加入——Agent 在使用 Creator Search Insights 发现内容 gap 时手动通过 `metadata.hashtags` 加入 |
+| `#creatorsearchinsights` | **不自动候选，但不黑名单**（2026-08-26 决策）：原黑名单基于 2 条视频样本（样本量不足以单独归因 hashtag 效果）。深入调研发现：(1) Buffer 和 TikTok 官方都推荐使用它；(2) 它是元标签（告知 TikTok 内容来源于 Creator Search Insights），不是内容标签；(3) `BLACKLISTED_HASHTAGS` 中已移除——`deriveHashtags()` 不会自动加入它；Agent 在使用 Creator Search Insights 发现内容 gap 时手动通过 `metadata.hashtags` 加入 |
 
 #### TikTok Creative Center Trending 检查
 

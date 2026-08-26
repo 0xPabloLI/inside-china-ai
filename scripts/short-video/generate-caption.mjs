@@ -23,6 +23,7 @@ import {
   deriveDescription,
   deriveHashtags,
   derivePinnedComment,
+  classifyHashtags,
 } from "./lib/caption-utils.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -103,27 +104,15 @@ async function main() {
 
   // ─── Assemble metadata JSON ───
   // Categorize hashtags for transparency
-  const trafficHashtags = hashtags.filter((t) =>
-    ["#ainews", "#technews", "#ai", "#news"].includes(t),
-  );
-  const brandHashtags = hashtags.filter((t) => t === "#chinaai");
-  // Trending hashtags are those from metadata.trendingHashtags that made it into the final set
-  const trendingSourceTags = (metadata?.trendingHashtags || [])
-    .map((t) => {
-      // Normalize for comparison (lowercase, strip #)
-      if (typeof t !== "string") return null;
-      return t.trim().toLowerCase().replace(/^#/, "");
-    })
-    .filter(Boolean);
-  const trendingHashtags = hashtags.filter((t) => {
-    const normalized = t.replace(/^#/, "");
-    return trendingSourceTags.includes(normalized);
-  });
-  const verticalHashtags = hashtags.filter(
-    (t) =>
-      !["#ainews", "#technews", "#ai", "#news", "#chinaai"].includes(t) &&
-      !trendingHashtags.includes(t),
-  );
+  // classifyHashtags returns {traffic, brand, vertical, trending, selectionMode}
+  // In manual override mode, trending is always [] (P2 fix, review 2026-08-26)
+  const {
+    traffic: trafficHashtags,
+    brand: brandHashtags,
+    vertical: verticalHashtags,
+    trending: trendingHashtags,
+    selectionMode,
+  } = classifyHashtags(hashtags, metadata);
 
   const metadataJson = {
     title,
@@ -135,6 +124,7 @@ async function main() {
       vertical: verticalHashtags,
       brand: brandHashtags,
       trending: trendingHashtags,
+      selectionMode,
       rule: "3-5 hashtags, wrong tags → wrong audience → algorithm penalty",
       researchedAt: "2026-08-08",
       dataSource: "tiktokhashtags.com + TikTok Creative Center + competitor analysis",

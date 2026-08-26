@@ -129,7 +129,7 @@ Agent 输出类似这样的分析报告：
 
 | Hashtag | 状态 | 证据 |
 |---------|------|------|
-| `#creatorsearchinsights` | **黑名单** | 使用它的视频引来错误搜索词 "creator insights part 3 4 5"。已在 `caption-utils.mjs` 的 `BLACKLISTED_HASHTAGS` 中禁用 |
+| `#creatorsearchinsights` | **待重新验证的历史信号** | 2 条视频样本（#2, #3）引来搜索词 "creator insights part 3 4 5"。样本量不足以单标签归因 hashtag 效果。2026-08-26 决策：从 `BLACKLISTED_HASHTAGS` 移除，不自动黑名单。Agent 在使用 Creator Search Insights 发现内容 gap 时可手动通过 `metadata.hashtags` 加入。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略 |
 | `#deepseek` | 有效 | 搜索词 "deepseek" 占 22% 搜索流量 |
 | `#ai` | 待验证 | 竞品 9/16 使用，我们仅在视频 #1 使用，播放 247（最高），但无法单独归因 |
 | `#chinaai` | 基准 | 每条必带，无法单独归因 |
@@ -200,7 +200,7 @@ Agent 扫描 `content/*/meta.mjs` 中的 `keyEntities.companies`，逐个检查�
 |---------|---------|
 | `caption-utils.mjs` → `ENTITY_HASHTAG_MAP` | 新增实体 → hashtag 映射 |
 | `caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` | 更新 views/posts 数据（如有新数据） |
-| `caption-utils.mjs` → `BLACKLISTED_HASHTAGS` | 加入 analytics 发现的有害标签 |
+| `caption-utils.mjs` → `BLACKLISTED_HASHTAGS` | 加入 analytics 发现的有害标签（2026-08-26: `BLACKLISTED_HASHTAGS` 当前为空数组，`#creatorsearchinsights` 已移除，因样本量不足以归因。如未来 analytics 积累 >10 条样本且某标签效果持续低效，可重新评估加入） |
 | `tiktok-best-practices.md` → 标签池表格 | 更新浏览量/帖子数数据 |
 | `tiktok-best-practices.md` → 垂直标签表 | 新增实体行 |
 | `docs/research/china-ai-hashtag-mapping.md` | 更新映射表（新实体 + 来源） |
@@ -225,7 +225,7 @@ cd scripts/short-video && npx vitest run __tests__/caption-utils.test.mjs
 Analytics 复盘（周级别）
   → analytics-conclusions.md（hashtag 效果结论）
     → Hashtag 库维护（季度/触发式）
-      → 更新 ENTITY_HASHTAG_MAP + BLACKLISTED_HASHTAGS
+      → 更新 ENTITY_HASHTAG_MAP + BLACKLISTED_HASHTAGS（如有确凿证据）
         → 下一轮 Pipeline Stage 3 自动使用更新后的库
           → Agent 在选 keyEntities 时参考 analytics-conclusions.md
 ```
@@ -246,7 +246,7 @@ Analytics 复盘
   ↓
 输出: analytics-conclusions.md（output/ 目录）
   │  记录本轮发现的具体结论
-  │  例："#creatorsearchinsights 有害，已禁用"
+  │  例："#creatorsearchinsights 待重新验证（样本量不足，已从黑名单移除）"
   │  例："叙事类视频搜索流量高于数据类"
   │
   ↓
@@ -268,7 +268,7 @@ Analytics 复盘
 
 ## Hashtag 策略
 - ✅ #deepseek: 搜索流量驱动（22% 搜索词匹配）
-- ❌ #creatorsearchinsights: 有害，已加入 BLACKLISTED_HASHTAGS
+- ⚠️ #creatorsearchinsights: 待重新验证的历史信号（2 条视频样本不足以归因，已从黑名单移除；Agent 使用 Creator Search Insights 发现 gap 时可手动加入）
 - ⚠️ #ai: 竞品高频使用但未验证效果，下轮 A/B 测试
 
 ## 内容策略
@@ -278,7 +278,7 @@ Analytics 复盘
 
 ## 下轮 Pipeline 建议
 - 优先选有具体数字/公司名的话题（搜索词匹配）
-- hashtag 不超过 5 个，避免 #creatorsearchinsights
+- hashtag 不超过 5 个（#creatorsearchinsights 不再自动黑名单，但仅在内容确实来源于 Creator Search Insights gap 发现时才手动加入）
 - 继续缩短视频时长到 60-70s 目标
 ```
 

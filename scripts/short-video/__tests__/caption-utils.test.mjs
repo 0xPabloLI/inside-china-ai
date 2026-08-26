@@ -5,6 +5,7 @@ import {
   deriveHashtags,
   derivePinnedComment,
   normalizeHashtag,
+  classifyHashtags,
 } from "../lib/caption-utils.mjs";
 
 // ─── Mock scene data (mirrors real scene-data.mjs format) ───
@@ -672,5 +673,70 @@ describe("T3: trendingHashtags consumption", () => {
     expect(result).toContain("#deepseek");
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.length).toBeLessThanOrEqual(5);
+  });
+});
+
+// ─── classifyHashtags integration tests (P2: source attribution) ───
+
+describe("classifyHashtags", () => {
+  it("C1: auto mode — trending tag classified as trending", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const hashtags = deriveHashtags(mockScenes, meta);
+    const result = classifyHashtags(hashtags, meta);
+    expect(result.selectionMode).toBe("auto");
+    expect(result.trending).toContain("#aiviral");
+  });
+
+  it("C2: manual mode — trending is always empty even if trendingHashtags overlaps", () => {
+    const meta = {
+      hashtags: ["#deepseek", "#aiviral", "#technews"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const hashtags = deriveHashtags(mockScenes, meta);
+    const result = classifyHashtags(hashtags, meta);
+    expect(result.selectionMode).toBe("manual");
+    expect(result.trending).toEqual([]);
+    expect(result.vertical).toContain("#deepseek");
+    expect(result.vertical).toContain("#aiviral");
+  });
+
+  it("C3: auto mode — no trendingHashtags → trending is empty", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+    };
+    const hashtags = deriveHashtags(mockScenes, meta);
+    const result = classifyHashtags(hashtags, meta);
+    expect(result.selectionMode).toBe("auto");
+    expect(result.trending).toEqual([]);
+  });
+
+  it("C4: auto mode — traffic and brand correctly classified", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      trendingHashtags: ["#aiviral"],
+    };
+    const hashtags = deriveHashtags(mockScenes, meta);
+    const result = classifyHashtags(hashtags, meta);
+    expect(result.traffic).toContain("#ainews");
+    expect(result.brand).toContain("#chinaai");
+    expect(result.vertical).toContain("#deepseek");
+    // #aiviral should be in trending, not vertical
+    expect(result.vertical).not.toContain("#aiviral");
+  });
+
+  it("C5: manual mode — traffic and brand still classified from final tags", () => {
+    const meta = {
+      hashtags: ["#ainews", "#chinaai", "#deepseek"],
+    };
+    const hashtags = deriveHashtags(mockScenes, meta);
+    const result = classifyHashtags(hashtags, meta);
+    expect(result.selectionMode).toBe("manual");
+    expect(result.traffic).toContain("#ainews");
+    expect(result.brand).toContain("#chinaai");
+    expect(result.vertical).toContain("#deepseek");
+    expect(result.trending).toEqual([]);
   });
 });

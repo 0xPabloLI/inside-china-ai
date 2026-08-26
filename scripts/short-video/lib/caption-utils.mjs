@@ -549,3 +549,48 @@ export function deriveHashtags(scenes, metadata) {
 
   return tags;
 }
+
+/**
+ * Classify final hashtags into strategy categories for analytics transparency.
+ *
+ * In auto-derive mode, trending tags are those from metadata.trendingHashtags
+ * that made it into the final set. In manual override mode (metadata.hashtags
+ * non-empty), trending is always empty — trendingHashtags is NOT injected
+ * into the manual path (see deriveHashtags()), so classifying a tag as
+ * "trending" would be a source attribution error.
+ *
+ * @param {string[]} hashtags - Final hashtag array (from deriveHashtags)
+ * @param {Object} metadata - Scene metadata
+ * @returns {{traffic: string[], brand: string[], vertical: string[], trending: string[], selectionMode: "auto"|"manual"}}
+ */
+export function classifyHashtags(hashtags, metadata) {
+  const trafficSet = ["#ainews", "#technews", "#ai", "#news"];
+  const brandSet = ["#chinaai"];
+
+  const hasManualOverride =
+    metadata?.hashtags && Array.isArray(metadata.hashtags) && metadata.hashtags.length > 0;
+  const selectionMode = hasManualOverride ? "manual" : "auto";
+
+  // Trending only classified in auto mode
+  let trending = [];
+  if (selectionMode === "auto") {
+    const trendingSourceTags = (metadata?.trendingHashtags || [])
+      .map((t) => {
+        if (typeof t !== "string") return null;
+        return t.trim().toLowerCase().replace(/^#/, "");
+      })
+      .filter(Boolean);
+    trending = hashtags.filter((t) => {
+      const normalized = t.replace(/^#/, "");
+      return trendingSourceTags.includes(normalized);
+    });
+  }
+
+  const traffic = hashtags.filter((t) => trafficSet.includes(t));
+  const brand = hashtags.filter((t) => brandSet.includes(t));
+  const vertical = hashtags.filter(
+    (t) => !trafficSet.includes(t) && !brandSet.includes(t) && !trending.includes(t),
+  );
+
+  return { traffic, brand, vertical, trending, selectionMode };
+}

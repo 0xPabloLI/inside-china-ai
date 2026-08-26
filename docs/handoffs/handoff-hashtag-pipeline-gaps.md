@@ -31,7 +31,7 @@
    - `hashtagStrategy` 新增 `trending` 分类
 
 3. `scripts/short-video/__tests__/caption-utils.test.mjs`
-   - 新增 19 个测试（normalizeHashtag 8 个 + 黑名单移除 2 个 + trending 消费 15 个）
+   - 新增 25 个测试（normalizeHashtag 8 个 + 黑名单移除 2 个 + trending 消费 15 个）
    - 总计 61/61 全绿
 
 4. `docs/tiktok/tiktok-best-practices.md`
