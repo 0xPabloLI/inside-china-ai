@@ -145,7 +145,9 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 - vllm-mlx 是新的推理引擎但主要优化文本模型，VLM 视频支持仍在开发中
 - 保持 Qwen3-VL + 帧提取 workaround 是当前最佳方案
 
-**已验证的 workaround**：手动调用 ffmpeg 提取帧 + 作为多图输入 `generate(image=frames)`。已在 `vlm_analyzer.py` 中实现为默认路径（不再尝试原生视频）。
+**已修复（2026-08-26 验证）**：mlx-vlm 0.6.16 内置了 numpy 实现的 `Qwen3VLVideoProcessor`（`processing_qwen3_vl.py`），不再依赖 transformers 的 buggy 实现。原生视频路径在 Qwen3-VL-2B-4bit 上测试成功：unitree-demo.mp4 在 1.9s 内生成准确描述。`vlm_analyzer.py` 已恢复原生视频优先 + 帧提取 fallback 路径。
+
+**仍存在的限制**：mlx-vlm 未实现 Qwen3-VL 的 `return_video_metadata=True` 路径（用于 text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`，不依赖该参数。
 
 ## 5. 社区评价汇总
 
@@ -162,7 +164,7 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 
 ## 6. 选型建议
 
-### ✅ 已确定：2B-4bit + 1280px 图片预处理 + 帧提取视频 workaround
+### ✅ 已确定：2B-4bit + 1920px 图片预处理 + 原生视频（mlx-vlm 0.6.16）
 
 | 维度 | 2B-4bit (1280px) | 4B-8bit (1280px) | 8B-8bit (前生产) |
 |------|---------|---------|---------|
@@ -196,7 +198,7 @@ Qwen3-VL 全系列均为 Apache-2.0，支持商用。2B/4B/8B/30B-A3B/32B/235B-A
 - [x] `vlm_analyzer.py` MODEL_ID → `Qwen3-VL-2B-Instruct-4bit`
 - [x] `vlm_analyzer.py` FALLBACK_MODEL_ID → `Qwen3-VL-4B-Instruct-8bit`
 - [x] 图片预处理 `resize_image_if_needed()` — 自动 resize >1920px 图片
-- [x] 视频分析改为始终使用帧提取（不再尝试原生视频 → fallback）
+- [x] 视频分析恢复原生视频优先路径（mlx-vlm 0.6.16 numpy processor 已修复 bug）+ 帧提取 fallback
 - [x] 文件头注释更新（说明 bug 根因 + workaround 策略）
 
 ### 待办
