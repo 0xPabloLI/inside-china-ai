@@ -59,26 +59,88 @@ const BLACKLISTED_HASHTAGS = [
 /**
  * Vertical / entity hashtags — precision targeting.
  * Looked up from meta.keyEntities.companies (NOT from voiceover full-text).
+ * Expanded 2026-08-26 via deep web research covering 60+ entities across
+ * 7 tiers: Big Tech, startups, AI chips, robotics, autonomous driving,
+ * international competitors, and product/platform brands.
+ * See: docs/research/china-ai-hashtag-mapping.md
  */
 const ENTITY_HASHTAG_MAP = {
-  deepseek: "#deepseek",
-  openai: "#chatgpt",
+  // Tier 1: Big Tech AI Labs
+  alibaba: "#alibaba",
+  qwen: "#qwen",
+  tongyi: "#qwen",
+  wan: "#wan",
   bytedance: "#bytedance",
   doubao: "#doubao",
+  seedance: "#seedance",
+  dreamina: "#dreamina",
+  jimeng: "#dreamina",
+  seedream: "#seedream",
   feishu: "#feishu",
   lark: "#feishu",
-  qwen: "#qwen",
-  alibaba: "#alibaba",
-  tencent: "#tencent",
+  capcut: "#capcut",
+  "volcano engine": "#volcanoengine",
   baidu: "#baidu",
-  nvidia: "#nvidia",
-  zhipu: "#zhipu",
-  moonshot: "#kimi",
-  minimax: "#minimax",
+  ernie: "#ernie",
+  wenxin: "#ernie",
+  apollo: "#apollo",
+  tencent: "#tencent",
+  hunyuan: "#hunyuan",
+  yuanbao: "#yuanbao",
   huawei: "#huawei",
+  pangu: "#pangu",
   xiaomi: "#xiaomi",
+  mimo: "#xiaomi",
+  kuaishou: "#kuaishou",
+  kling: "#kling",
   iflytek: "#iflytek",
-  sensetime: "#sensetime",
+  spark: "#iflytek",
+
+  // Tier 2: Startups (Six Tigers + DeepSeek)
+  deepseek: "#deepseek",
+  zhipu: "#zhipu",
+  "z.ai": "#zhipu",
+  glm: "#zhipu",
+  moonshot: "#kimi",
+  kimi: "#kimi",
+  minimax: "#minimax",
+  hailuo: "#hailuo",
+  talkie: "#talkie",
+  baichuan: "#baichuan",
+  stepfun: "#stepfun",
+  "01.ai": "#01ai",
+  yi: "#01ai",
+
+  // Tier 3: AI Chips
+  cambricon: "#cambricon",
+  "horizon robotics": "#horizonrobotics",
+  horizon: "#horizonrobotics",
+
+  // Tier 4: Robotics
+  unitree: "#unitree",
+  ubtech: "#ubtech",
+  agibot: "#agibot",
+  fourier: "#fourier",
+
+  // Tier 5: Autonomous Driving
+  "pony.ai": "#ponyai",
+  ponyai: "#ponyai",
+  weride: "#weride",
+  momenta: "#momenta",
+
+  // Tier 6: International Competitors
+  openai: "#chatgpt",
+  chatgpt: "#chatgpt",
+  sora: "#sora",
+  google: "#google",
+  gemini: "#gemini",
+  veo: "#veo",
+  meta: "#meta",
+  llama: "#llama",
+  anthropic: "#anthropic",
+  claude: "#claude",
+  mistral: "#mistral",
+  nvidia: "#nvidia",
 };
 
 /**
