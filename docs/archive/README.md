@@ -97,6 +97,7 @@
 | `spec-doc-hierarchy-optimization.md` / `tickets-doc-hierarchy-01~04` | 2026-08-15 | 文档层次体系优化 — DOCS-INDEX.md Layer Placement Rules + 语义标签 (L1: Execution reference / L2: Deep research) + video-workflow.md Gapless Audio Track 抽离到 L2 + AGENTS.md 双向指针 + 7 个遗留 spec/tickets 归档。 |
 | `spec-doc-hierarchy-lint.md` / `01-lint-core-checks.md` / `02-npm-script-and-pre-commit-hook.md` | 2026-08-16 | 文档层次自动化 Lint — lint-doc-hierarchy.mjs (3 项检查: DOCS-INDEX 一致性 + L1 Design Decisions + L2 命令行启发式) + npm run lint:docs + pre-commit hook 集成 + DOCS-INDEX rule 5 (sync after changes)。17 tests。 |
 | `spec-writing-for-agents-enforcement.md` / `tickets-writing-for-agents-enforcement.md` | 2026-08-25 | writing-for-agents 规则执行率改善 — 从"任何编辑加载 skill"改为语义风险判定（信息结构变更→强制；值修正→豁免；不确定→加载）。AGENTS.md 加文档改动门槛覆盖 Step 1-4+8。DOCS-INDEX.md 改为指针引用消除双重权威。含第三方审核 + code review。 |
+| `spec-writing-for-agents-precommit-gate.md` / `tickets-writing-for-agents-precommit-gate.md` | 2026-08-25 | writing-for-agents pre-commit gate — 扩展 lint-doc-hierarchy.mjs 新增 checkWritingForAgentsGate() 检测 staged docs/ 文件和 AGENTS.md 的结构性变更（标题增删/指针变更），输出 WARN 提醒确认是否加载 skill。pre-commit.sh grep 扩展覆盖 AGENTS.md。25 tests passing。 |
 
 ### Cascade Filter Specs
 
