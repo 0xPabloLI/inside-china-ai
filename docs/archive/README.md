@@ -94,6 +94,7 @@
 
 | `spec-vlm-docs-remediation.md` / `tickets-vlm-docs-remediation.md` | 2026-08-26 | VLM 选型文档修订 — 基于 review 的 11 个发现修正 4 个文档（benchmark/ADR-0009/handoff/model-sources）：消除跨文档矛盾 + 补可复现证据 + 信源分层 + 格式表拆分。12 场景 grep 验证全部通过。 |
 | `specs/spec-model-sources-remediation.md` / `tickets/tickets-model-sources-remediation.md` | 2026-08-26 | 模型搜索来源参考修复 — 基于 Manus AI 审阅的 10 个发现（4 阻塞 + 3 重要 + 3 改进）：删除失效 PapersWithCode 入口 + 替换已归档 HF Open LLM Leaderboard + 统一准入状态机 + NC 许可证改为「需法务确认」+ 格式表加性能说明 + GitHub 搜索完成条件 + Ollama 四分类重写 + 来源元数据增强 + Step 6a 候选证据卡 + memory 指针替换为仓库内路径。 |
+| `spec-vertical-cropping.md` / `tickets-vertical-cropping/` | 2026-08-27 | 竖屏裁切管线 — Crop Decision Contract（resolveObjectPosition + evaluateCropSafety + selectBestCrop 纯函数）+ VLM 9:16 裁切模拟 + EXIF 归一化修复 + cropFocus {x,y} 字段（替代 deprecated focus enum）+ Phase 3b 管线集成 + review-media-patch + apply-media-patch 序列化。185 tests passing。Supersedes `spec-vlm-fit-focus.md`。 |
 
 ### Documentation Hierarchy Specs
 
@@ -168,6 +169,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/model-sources-reference-review-2026-08-26.md` | 2026-08-26 | — | 模型搜索来源参考审阅——10 个发现（4 阻塞 + 3 重要 + 3 改进），全部修复并归档 |
 | `reviews/model-sources-remediation-review-2026-08-26.md` | 2026-08-26 | — | 模型来源修复代码审查——Standards + Spec 双轴通过，10/10 场景验证 |
 | `reviews/handoff-hashtag-pipeline-gaps-review-2026-08-26.md` | 2026-08-26 | — | Hashtag 管线缺口修复方案审阅——缺口 A 已关闭（61 tests）；P1 文档矛盾 + P2 来源归属 + P3 计数笔误已修复；缺口 B 10 个验收用例全覆盖（18 mock tests）。84 tests total。 |
+| `reviews/vertical-cropping-review-2026-08-27.md` | 2026-08-27 | #119 | 竖屏裁切管线代码审查——Standards + Spec 双轴通过。0 hard violations, 1 judgement call (validation duplication, acceptable)。20/20 场景矩阵全覆盖。185 tests passing。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
