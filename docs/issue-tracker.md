@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-25 - 36 open issues (#113 VLM image preprocessing added; #63 split into #63+#114 — SVE stays as #63, #114 is downloadCandidate; #65 renamed to General Search Pool, Currents/GNews/Noozra moved out; quota-tracker deferred; baidu_news added to #64 scope; #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed).
+Last inventory: 2026-08-26 - 38 open issues (#75 promoted from Tier 3 to Tier 2 — video source coverage expanded: B站 image search + SVE video extraction + full-source video capability audit; downloadable field dropped — all sources with videos try download, failure handled by try-catch; #75 与 #77 分工：#77 审计现有标注，#75 加新标注; #117 created — general currency conversion, Tier 3 low priority; #113 VLM image preprocessing; #63 split into #63+#114; #65 renamed; #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed). Two handoff docs created: handoff-fix-scene-flicker.md (double fade bug) + handoff-vertical-cropping-pipeline.md (crop simulation + smart object-position).
 
 ---
 
@@ -85,9 +85,9 @@ collectFromSource() 层次：
 |---|---|---|---|---|
 | **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** ✅ done · **#111** (T1) text RAG integration · **#88** (T1) universal script fallback（从 W1 提升，#67 unblock 了下游） | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 ✅ done；#111 独占 `content-pipeline.md`，#88 独占 `source-registry.mjs` |
 | **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) URL dedup (standalone, 无依赖, 优先) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · **#114** (T2) SVE (依赖 #63) · **#115** (T2) downloadCandidate (依赖 #63) · **#116** (T2) CDP proxy auto-start (独立, 可并行) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · ~~#110~~ ✅ closed | #63 → #114 → #115 串行（同改 search-sources.mjs/asset-sourcer.mjs）；#89 P0 先于 #91；#63/#116/#113 可并行 |
-| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#112** (T2) image search pool | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 已合并进 #65；#112 依赖 #91/#103 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行 |
+| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#112** (T2) image search pool · **#75** (T2) 视频源标注+下载方案（从 W4 提升） | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 已合并进 #65；#112 依赖 #91/#103；#75 依赖 #54 done | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行；#75 改 source-registry + asset-sourcer，与 #64/#66/#88 串行 |
 | **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
-| **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#75** (T3) 下载方案 · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference | #99 依赖 #98；#101 依赖 #69 推荐接 #100；#75 依赖 #54 done | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
+| **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#75** (T2) 下载方案+视频源标注 ← **从 W4 提到 W2** · **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference · **#117** (T3) currency conversion | #99 依赖 #98；#101 依赖 #69 推荐接 #100；#75 依赖 #54 done — **已提升到 Tier 2 / W2** | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
 | **Dormant / Human gate** | 不进入 wave，直到 trigger 或人工决策满足 | #21/#29（measurable）· #107（milestone）· #32/#35（user input）· #60/#61（triage） | 见各 issue trigger | 不占用实现排期 |
 
 ### Execution Semantics
@@ -138,6 +138,7 @@ collectFromSource() 层次：
 | #65 | General Search Pool (Layer 3 兜底，含 #109) | #64, #90 | search-sources.mjs, config.env | Brave > Tavily > Jina > Grok round-robin. 只替换 7 个通用 web_search 源的 mcpFallback (x_search/youtube/arxiv/github/threads/google/mcp_grok_search). Currents/GNews/Noozra 是新闻 API 不是 general search，已移出 pool → 移到 INTERNATIONAL_SOURCES 或 NEWS_API_SOURCES. #109 合并：MCP 封装替代 Brave MCP |
 | #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md | 12 public feeds，evidence boundary 分组 |
 | #112 | Image search pool expansion | #91 (DDG), #103 (docs) | source-registry.mjs, asset-sourcer.mjs | Google Images (CDP) + Bing Images (CDP) + DuckDuckGo Images (CDP). Refactor Tier 3 to pluggable pool. Engines parallel, keywords serial |
+| #75 | 替代下载方案 + 视频源标注（小红书/微博/抖音/B站） | #54 done, #77 推荐（#77 审计现有标注 → #75 加新标注） | asset-sourcer.mjs, source-registry.mjs | ~25% done（RedNote-MCP done, weibo/chubbyskills missing）。Scope expanded: B站图片搜索 + SVE 视频提取 + 全源 video capability 调研（51 个源逐个验证）+ 不用 downloadable 字段（有 videos 就尝试下载，失败由 try-catch 处理）。与 #77 分工：#77 审计现有标注，#75 加新标注。**直接影响视频素材覆盖面** — 从 Tier 3 提升 |
 
 ### Tier 3 — 低重要性 / 大幅延后
 
@@ -145,13 +146,13 @@ collectFromSource() 层次：
 |---|-------|-------------|---------------|-------|
 | #68 | Signal Density audit | — | — | ADR-0016 Rule 2 全管线排查。验证/文档工作，不产生新功能。#67 ✅ unblocked |
 | #76 | SSOT violations audit | — | — | 隐式 schema 彻查 + types.mjs 创建。验证/文档工作。#67 ✅ unblocked |
-| #77 | Source type labeling audit | — | source-registry.mjs | 59 源类型标注 + fallback 链完整性。验证/文档工作。#67 ✅ unblocked |
+| #77 | Source type labeling audit | — | source-registry.mjs | 59 源类型标注 + fallback 链完整性。新增：video capability 调研清单（与 #75 配合——#77 调研应不应该标，#75 实现标注+集成下载器）。**#77 应在 #88 后做**（#88 改字段名，先做避免其他 issue 跟着变）。#67 ✅ unblocked |
 | #87 | 88 manual maintenance items audit | #66, #63 | — | 盘点 + fallback 覆盖率。验证/文档工作。#67 ✅ unblocked |
 | #94 | Scene-level visual intent + evidence-media audit | — | scene-rules.mjs, scene-templates.mjs | 视觉意图契约 + MRL-2 报告。设计层面 |
 | #91 | DuckDuckGo source | #89 P0 (hard) | source-registry.mjs | html.duckduckgo.com，无 JS。搜索来源已够用 |
 | #92 | SearXNG source | #89 P0 (soft) | source-registry.mjs | Docker 自托管，269 引擎聚合。搜索来源已够用 |
 | #85 | Bloomberg paywall alternatives | — | — | 单个来源研究任务 |
-| #75 | 替代下载方案（小红书/微博/抖音） | #54 done | asset-sourcer.mjs | ~25% done（RedNote-MCP done, weibo/chubbyskills missing）。剩余技术难度高 |
+| #117 | General currency conversion (multi-currency + rate API) | — | normalize-currency.mjs | Low priority — China AI news is 99% RMB/HKD. EUR/GBP rarely needed. Add patterns + optional API rate fetch |
 | #108 | Research: free cloud inference endpoints | — | — | 纯调研，本地模型够用。Deliverable: docs/tools-catalog.md |
 | #98 | Local ASR worker (WhisperX) | #69 done | — | 视频管线 P5。当前视频管线基本可用 |
 | #99 | Deterministic media timeline fusion | #69 done, #98 | — | 视频管线 P6 |
@@ -215,8 +216,8 @@ collectFromSource() 层次：
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #66 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done；#66 加 skipCdpOnApiFail 标记） |
-| `asset-sourcer.mjs` | #88, #63, #75, #66 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()） |
+| `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #66, #75 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done；#66 加 skipCdpOnApiFail 标记；#75 视频源 capability 标注） |
+| `asset-sourcer.mjs` | #88, #63, #75, #66, #115 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()；#75 视频源下载+capability 标注；#115 downloadCandidate 提取） |
 | `search-sources.mjs` | #66, #63, #88, #65, #90, #116 | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles） |
 | `cdp-client.mjs` | #66, #89, #116 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff；#116 加 ensureCdpProxy() |
 | `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
