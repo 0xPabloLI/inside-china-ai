@@ -188,9 +188,10 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 - **3-5 个 hashtag，混合 reach**。1 个大类、1-2 个 niche 定义、1-2 个视频特定。堆砌在 2026 无效。
 - **Caption 可以引导评论。** Caption 里的具体问题（"哪个让你最惊讶？"）赚取评论线程，反馈触达。
 
-### Hashtag 策略（2026-08-08 调研定稿）
+### Hashtag 策略（2026-08-08 调研定稿，2026-08-25 更新）
 
-> 数据来源：tiktokhashtags.com（TikTok API 缓存数据）、TikTok Creative Center（trending 标签）、TikTok 搜索（竞品成功案例分析）。
+> 数据来源：tiktokhashtags.com（TikTok API 缓存数据）、TikTok Creative Center（trending 标签）、TikTok 搜索（竞品成功案例分析）、竞品情报库（`docs/research/tiktok-competitor-intelligence.md`）。
+> 实体→hashtag 映射库（60+ 实体，7 层级）：`docs/research/china-ai-hashtag-mapping.md`。代码实现：`scripts/short-video/lib/caption-utils.mjs` → `ENTITY_HASHTAG_MAP`。
 
 #### 核心原则
 
@@ -206,12 +207,20 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 |------|--------|--------|---------|------|
 | `#ainews` | 68.7M | 8.9K | 7,754 | **最佳 ROI**：低竞争、高精准、内容完全吻合 |
 | `#technews` | 1B | 78.4K | 13,070 | 科技新闻专用，受众精准 |
+| `#news` | — | — | — | 2026-08-25 新增：竞品情报 3/16 使用 |
 
 **品牌标签**（每次必选 1 个）：
 
 | 标签 | 说明 |
 |------|------|
 | `#chinaai` | 品牌 niche 标签，始终携带 |
+
+**辅助流量标签**（自动补位用，根据内容选 0-1 个）：
+
+| 标签 | 说明 |
+|------|------|
+| `#ai` | 2026-08-25 提升：竞品 9/16 使用，从"可选"提升为补位候选 |
+| `#artificialintelligence` | 2026-08-25 新增：竞品 4/16 使用，比 #ai 更精准 |
 
 **垂直/实体标签**（根据内容匹配 1-2 个，自动推导）：
 
@@ -221,7 +230,8 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 | `#chatgpt` | 8.3B | openai, gpt, chatgpt |
 | `#openai` | 1.5B | openai |
 | `#bytedance` | — | bytedance, 字节跳动 |
-| `#alibaba` | — | alibaba, 阿里, qwen, 通义 |
+| `#alibaba` | — | alibaba, 阿里, 阿里云 |
+| `#qwen` | — | qwen, 通义, 通义千问（2026-08-25 新增，独立于 #alibaba） |
 | `#tencent` | — | tencent, 腾讯, hunyuan |
 | `#baidu` | — | baidu, 百度, ernie, 文心 |
 | `#nvidia` | — | nvidia, 黄仁勋 |
@@ -240,6 +250,7 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 | `#technology` (34.2B) | 同上，竞争极大（140万帖），内容被淹没 |
 | `#chinatech` | tiktokhashtags.com 无数据，TikTok 标签页内容很少 |
 | `#madeinchina` | 内容偏制造/产品，不是 AI 科技 |
+| `#creatorsearchinsights` | 2026-08-25 黑名单：我们的 Analytics 数据显示它引来错误搜索词（"creator insights part 3 4 5"），误导受众。已在代码 `BLACKLISTED_HASHTAGS` 中强制禁用 |
 
 #### TikTok Creative Center Trending 检查
 
@@ -254,9 +265,11 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 
 #### 代码实现
 
-- 标签池定义：`scripts/short-video/lib/caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` + `ENTITY_HASHTAG_MAP`
-- 自动推导：`deriveHashtags()` 函数 — 总是包含 `#ainews` + `#chinaai`，根据内容匹配实体标签
+- 标签池定义：`scripts/short-video/lib/caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` + `ENTITY_HASHTAG_MAP` + `PAD_CANDIDATES` + `BLACKLISTED_HASHTAGS`
+- 自动推导：`deriveHashtags()` 函数 — 总是包含 `#ainews` + `#chinaai`，根据内容匹配实体标签，不足时用 `PAD_CANDIDATES`（#ai → #artificialintelligence → #news）补位，黑名单标签自动过滤
 - 输出分类：`generate-caption.mjs` → `tiktok-metadata.json` 中的 `hashtagStrategy` 字段
+- 竞品情报库：`docs/research/tiktok-competitor-intelligence.md` — 16 条竞品爆款 + 自有视频 analytics
+- Analytics 联动：`docs/analytics-workflow.md` → Hashtag 效果追踪 + Analytics → Pipeline 联动机制
 
 ### 发布设置（platformSettings.tiktok）
 

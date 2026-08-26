@@ -173,6 +173,7 @@ Deep research reports with citations.
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
+| `china-ai-hashtag-mapping.md` | China AI entity → TikTok hashtag mapping (60+ entities, 7 tiers: Big Tech, startups, AI chips, robotics, autonomous driving, international competitors, product brands) | `caption-utils.mjs` ENTITY_HASHTAG_MAP, `tiktok-best-practices.md` Hashtag 策略 |
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
 | `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) + HuggingFace LFS 下载策略（curl -L vs hf_hub_download, Kaggle CLI --dir-mode 陷阱, Colab WebSocket 超时） |
 | `colab-cli-guide.md` | Google Colab CLI guide — gcloud setup, kernel push/pull, GPU smoke test |
