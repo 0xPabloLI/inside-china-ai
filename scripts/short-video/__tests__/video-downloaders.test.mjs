@@ -219,13 +219,13 @@ describe("downloadDirectHttp", () => {
 describe("CobaltAdapter", () => {
   it("preflight succeeds and caches services (VD-04)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
             cobalt: {
               version: "10.0.0",
-              url: "http://localhost:3000",
+              url: "http://localhost:9000",
               services: ["youtube", "tiktok", "douyin"],
             },
             git: { commit: "abc", branch: "main", remote: "origin" },
@@ -253,7 +253,7 @@ describe("CobaltAdapter", () => {
 
   it("preflight with turnstile -> unsupported (VD-12)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -273,7 +273,7 @@ describe("CobaltAdapter", () => {
   it("POST returns tunnel -> download media URL (VD-04)", async () => {
     const mediaUrl = "https://tunnel.cobalt.example/video.mp4";
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -282,7 +282,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({ status: "tunnel", url: mediaUrl, filename: "video.mp4" }),
@@ -302,7 +302,7 @@ describe("CobaltAdapter", () => {
   it("POST returns redirect -> download media URL (VD-04)", async () => {
     const mediaUrl = "https://redirect.cobalt.example/video.mp4";
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -311,7 +311,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({ status: "redirect", url: mediaUrl, filename: "video.mp4" }),
@@ -327,7 +327,7 @@ describe("CobaltAdapter", () => {
 
   it("POST returns picker -> needs-selection (VD-05)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -336,7 +336,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({ status: "picker", picker: [{ type: "photo", url: "x" }] }),
@@ -352,7 +352,7 @@ describe("CobaltAdapter", () => {
 
   it("POST returns local-processing -> unsupported (VD-05b)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -361,7 +361,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -383,7 +383,7 @@ describe("CobaltAdapter", () => {
 
   it("POST returns error.rate_exceeded -> failed + retryable (VD-05c)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -392,7 +392,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({ status: "error", error: { code: "error.api.rate_exceeded" } }),
@@ -409,7 +409,7 @@ describe("CobaltAdapter", () => {
 
   it("POST returns error.auth.* -> failed + non-retryable (VD-05d)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -418,7 +418,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({ status: "error", error: { code: "error.api.auth.api_key.missing" } }),
@@ -435,7 +435,7 @@ describe("CobaltAdapter", () => {
 
   it("POST returns non-JSON -> failed (VD-07)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -444,7 +444,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "text/html",
         body: Buffer.from("<html><body>500 Error</body></html>"),
       }),
@@ -459,7 +459,7 @@ describe("CobaltAdapter", () => {
   it("tunnel data.url fetch returns HTML -> failed (VD-08)", async () => {
     const mediaUrl = "https://tunnel.cobalt.example/auth";
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -468,7 +468,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({ status: "tunnel", url: mediaUrl, filename: "video.mp4" }),
@@ -488,7 +488,7 @@ describe("CobaltAdapter", () => {
 
   it("URL platform not in services -> skipped (VD-06)", async () => {
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -509,7 +509,7 @@ describe("CobaltAdapter", () => {
     const bigBuf = Buffer.alloc(21 * 1024 * 1024, 0x00);
     const mediaUrl = "https://tunnel.cobalt.example/big.mp4";
     const fetchFn = makeMockFetch({
-      "http://localhost:3000/": mockResponse({
+      "http://localhost:9000/": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({
@@ -518,7 +518,7 @@ describe("CobaltAdapter", () => {
           }),
         ),
       }),
-      "http://localhost:3000": mockResponse({
+      "http://localhost:9000": mockResponse({
         contentType: "application/json",
         body: Buffer.from(
           JSON.stringify({ status: "tunnel", url: mediaUrl, filename: "video.mp4" }),
@@ -535,7 +535,7 @@ describe("CobaltAdapter", () => {
 
   it("includes API key in POST headers when configured", async () => {
     const fetchFn = makeMockFetch((url) => {
-      if (url === "http://localhost:3000/") {
+      if (url === "http://localhost:9000/") {
         return mockResponse({
           contentType: "application/json",
           body: Buffer.from(
@@ -546,7 +546,7 @@ describe("CobaltAdapter", () => {
           ),
         });
       }
-      if (url === "http://localhost:3000") {
+      if (url === "http://localhost:9000") {
         const authHeader = fetchFn.calls[1].opts.headers["Authorization"];
         expect(authHeader).toBe("Api-Key test-key-123");
         return mockResponse({

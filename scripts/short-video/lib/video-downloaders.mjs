@@ -34,8 +34,8 @@ const MAX_FILE_BYTES = 20 * 1024 * 1024;
 /** Min file size: 1KB (matches existing downloadAsset check) */
 const MIN_FILE_BYTES = 1024;
 
-/** Cobalt default instance URL */
-const DEFAULT_COBALT_URL = "http://localhost:3000";
+/** Cobalt default instance URL (port 9000 per official docs) */
+const DEFAULT_COBALT_URL = "http://localhost:9000";
 
 /** Cobalt API request timeout (ms) */
 const COBALT_TIMEOUT_MS = 30000;
