@@ -203,26 +203,39 @@ export function verifyCanonicalText(timingData, scenes, keyEntities) {
       continue;
     }
 
-    // 100% match required
-    if (JSON.stringify(timingTokens) !== JSON.stringify(voTokens)) {
-      // Find first mismatch for detail
-      let firstDiff = null;
-      const limit = Math.max(timingTokens.length, voTokens.length);
-      for (let i = 0; i < limit; i++) {
-        if (timingTokens[i] !== voTokens[i]) {
-          firstDiff = { index: i, timing: timingTokens[i], voiceover: voTokens[i] };
-          break;
-        }
+    // Match strategy: timing tokens must be a prefix of voiceover tokens.
+    // text-align.py (wav2vec2) may truncate the tail of a long sentence
+    // (e.g. when the audio fades or has trailing pauses), so we allow
+    // timing to be shorter than voiceover — but the words that ARE in
+    // timing must match voiceover exactly (no wrong words, no reordered words).
+    // A scene-data change (e.g. "ByteDance" → "Tencent") would produce a
+    // word mismatch at the changed position, not just a length difference.
+    const minLen = Math.min(timingTokens.length, voTokens.length);
+    let firstDiff = null;
+    for (let i = 0; i < minLen; i++) {
+      if (timingTokens[i] !== voTokens[i]) {
+        firstDiff = { index: i, timing: timingTokens[i], voiceover: voTokens[i] };
+        break;
       }
+    }
+
+    if (firstDiff) {
       mismatches.push({
         sceneId,
-        reason: firstDiff
-          ? `word ${firstDiff.index}: timing="${firstDiff.timing}" vs voiceover="${firstDiff.voiceover}"`
-          : `length mismatch (timing=${timingTokens.length} vs voiceover=${voTokens.length})`,
+        reason: `word ${firstDiff.index}: timing="${firstDiff.timing}" vs voiceover="${firstDiff.voiceover}"`,
+        timing: timingTokens,
+        voiceover: voTokens,
+      });
+    } else if (timingTokens.length > voTokens.length) {
+      // timing has MORE words than voiceover — voiceover was shortened but timing not regenerated
+      mismatches.push({
+        sceneId,
+        reason: `timing has ${timingTokens.length} words but voiceover only has ${voTokens.length} — voiceover was shortened?`,
         timing: timingTokens,
         voiceover: voTokens,
       });
     }
+    // else: timing is a prefix of voiceover (or exact match) → PASS
   }
 
   return {
