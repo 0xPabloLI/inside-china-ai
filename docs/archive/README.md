@@ -172,6 +172,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/handoff-hashtag-pipeline-gaps-review-2026-08-26.md` | 2026-08-26 | — | Hashtag 管线缺口修复方案审阅——缺口 A 已关闭（61 tests）；P1 文档矛盾 + P2 来源归属 + P3 计数笔误已修复；缺口 B 10 个验收用例全覆盖（18 mock tests）。84 tests total。 |
 | `reviews/vertical-cropping-review-2026-08-27.md` | 2026-08-27 | #119 | 竖屏裁切管线代码审查——Standards + Spec 双轴通过。0 hard violations, 1 judgement call (validation duplication, acceptable)。20/20 场景矩阵全覆盖。185 tests passing。 |
 | `reviews/handoff-fix-scene-flicker-review-2026-08-26.md` | 2026-08-27 | — | Scene flicker handoff 审阅——P0 路径修正 + 机制描述修正 + Option B undefined 修正 + P1 音频/overlay/范围/消费者影响修正。实施按 review 修正方向执行：只改 MediaBackground，保留 video volume 独立 fade，overlay 不变。14 tests covering 9 scenarios。 |
+| `reviews/framed-contain-composition-review-2026-08-27.md` | 2026-08-27 | #119 | Framed Contain Composition（Phase 2）代码审查——Standards + Spec 双轴通过，0 findings。10/10 场景矩阵全覆盖。品牌渐变 matte 仅 image+contain 激活，video contain 保持朴素黑底。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）

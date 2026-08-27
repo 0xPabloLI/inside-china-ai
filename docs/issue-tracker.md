@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-26 - 38 open issues (#75 promoted from Tier 3 to Tier 2 — video source coverage expanded: B站 image search + SVE video extraction + full-source video capability audit; downloadable field dropped — all sources with videos try download, failure handled by try-catch; #75 与 #77 分工：#77 审计现有标注，#75 加新标注; #117 created — general currency conversion, Tier 3 low priority; #113 VLM image preprocessing; #63 split into #63+#114; #65 renamed; #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed). Two handoff docs created: handoff-fix-scene-flicker.md (double fade bug) + handoff-vertical-cropping-pipeline.md (crop simulation + smart object-position).
+Last inventory: 2026-08-27 - 43 open issues (#119 fully closed — Phase 1 (crop decision) + Phase 2 (framed contain composition) both done, code review 0 findings, all verify pass; #120 created — Subtitle AIL Gate parent, +6 tickets #121-#126 canonical-text dual-gate verification; #75 promoted from Tier 3 to Tier 2 — video source coverage expanded: B站 image search + SVE video extraction + full-source video capability audit; downloadable field dropped — all sources with videos try download, failure handled by try-catch; #75 与 #77 分工：#77 审计现有标注，#75 加新标注; #117 created — general currency conversion, Tier 3 low priority; #113 VLM image preprocessing; #63 split into #63+#114; #65 renamed; #110 closed, #112 added, #109 merged into #65; #67/#78/#83/#81/#22/#62/#70/#51 in Closed). Two handoff docs created: handoff-fix-scene-flicker.md (double fade bug) + handoff-vertical-cropping-pipeline.md (crop simulation + smart object-position).
 
 ---
 
@@ -16,8 +16,9 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | **#94** Scene visual intent | → #101 (P8b Temporal Focus) | #101 为 #94 的动态媒体场景提供 temporal focus 数据 |
 | **#103** Docs offload/split | #95 ✅ closed (PR #104 merged) | #103 依赖 #95 确立的 dual-track 时序。#106 已提供 review baseline |
 | **#65** Unified search pool | → #109 (merged in) | #109 合并进 #65：#65 做 REST API pool + MCP 封装层，#109 的目标（替换 Brave MCP）由 #65 完成后自动实现 |
+| **#120** Subtitle AIL Gate | → #121 (T1 baseline), → #122 (T2 timing format), → #123 (T3 canonical-text), → #124 (T4 gate 1), → #125 (T5 repair), → #126 (T6 gate 2) | #120 是 spec parent，#121-#126 是线性 ticket 序列。#122 依赖 #121，#123 依赖 #122，#124/#125 依赖 #123，#126 依赖 #125 |
 
-**不需要引入父子概念的情况**：#98/#99/#100/#101 是 P5-P8b 的线性序列（有显式 `依赖与关联` 章节），不是父子关系——它们是视频管线的线性阶段，用 P5-P8b 编号追踪即可（见 Tier 3）。
+**不需要引入父子概念的情况**：#98/#99/#100/#101 是 P5-P8b 的线性序列（有显式 `依赖与关联` 章节），不是父子关系——它们是视频管线的线性阶段，用 P5-P8b 编号追踪即可（见 Tier 3）。#121-#126 虽然有 parent #120，但 ticket 之间是严格线性序列，用 T1-T6 编号追踪。
 
 ---
 
@@ -43,14 +44,15 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #101 依赖 #69 ✅, 推荐接 #100 | P8b temporal focus 需要 P4 window + 推荐 P7 cache |
 | #111 -> #21 (推荐顺序) | #111 先做文本 RAG 管线集成，#21 后做多模态。#111 设计好集成接口后 #21 扩展即可，无阻塞依赖 |
 | #109 merged into #65 | #109 的目标（替换 Brave MCP → 统一搜索 pool）合并进 #65 scope。#65 完成后 #109 自动关闭 |
-| #112 depends on #91, #103 | DuckDuckGo Images needs #91 shared CDP infra; image pool docs need #103 done |
+| #112 depends on #91, #103, #115 | DuckDuckGo Images needs #91 shared CDP infra; image pool docs need #103 done; **#115 is hard blocker** — `lib/download-candidate.mjs` must be extracted first, #112 CDP image sources call it directly |
+| #121 → #122 → #123 → #124 / #125 → #126 | Subtitle AIL Gate ticket sequence. T1 baseline → T2 timing format → T3 canonical-text validator → T4 gate 1 integration / T5 repair strategy → T6 gate 2 repairFn. T4 and T5 both depend on T3 but can parallel each other; T6 depends on T5 |
 
 **共享模块依赖关系**：
 
 | 模块 | 产出 issue | 消费 issue | 依赖类型 |
 |------|-----------|-----------|---------|
 | `lib/search-pool.mjs`（统一搜索 pool round-robin，try-catch 链，不做配额追踪） | #65（产出） | #112（图片 pool 可参考 text pool 的调度模式） | Soft — 架构参考，非代码复用（text pool 是 REST API，image pool 是 API+CDP 混合） |
-| `lib/download-candidate.mjs`（统一下载逻辑 helper，从 5 个下载块提取 7 步模式） | #115（产出） | #112（新增的 CDP image sources 也需要下载逻辑） | Hard — #115 提取后 #112 直接调用，否则 #112 要重复写下载逻辑 |
+| `lib/download-candidate.mjs`（统一下载逻辑 helper，从 5 个下载块提取 7 步模式） | #115（产出） | #112（新增的 CDP image sources 也需要下载逻辑） | Hard — #115 提取后 #112 直接调用，否则 #112 要重复写下载逻辑。**#112 Tier/Wave 已同步 #115 hard dependency** |
 
 > ~~`lib/quota-tracker.mjs`~~ — 暂不提取。配额超限由 API 返回 429/403，代码 catch 后继续 fallback。pool 调用频率低（Layer 3 兜底），不值得做配额追踪。
 
@@ -84,10 +86,10 @@ collectFromSource() 层次：
 | Wave | Shared context | Session candidates (Tier) | Dependencies | Parallel rules |
 |---|---|---|---|---|
 | **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** ✅ done · **#111** (T1) text RAG integration · **#88** (T1) universal script fallback（从 W1 提升，#67 unblock 了下游） | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 ✅ done；#111 独占 `content-pipeline.md`，#88 独占 `source-registry.mjs` |
-| **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) URL dedup (standalone, 无依赖, 优先) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · **#114** (T2) SVE (依赖 #63) · **#115** (T2) downloadCandidate (依赖 #63) · **#116** (T2) CDP proxy auto-start (独立, 可并行) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · ~~#110~~ ✅ closed | #63 → #114 → #115 串行（同改 search-sources.mjs/asset-sourcer.mjs）；#89 P0 先于 #91；#63/#116/#113 可并行 |
-| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#112** (T2) image search pool · **#75** (T2) 视频源标注+下载方案（从 W4 提升） | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0；#109 已合并进 #65；#112 依赖 #91/#103；#75 依赖 #54 done | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行；#75 改 source-registry + asset-sourcer，与 #64/#66/#88 串行 |
-| **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#91** (T3) DDG · **#92** (T3) SearXNG | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行 |
-| **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#75** (T2) 下载方案+视频源标注 ← **从 W4 提到 W2** · **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference · **#117** (T3) currency conversion | #99 依赖 #98；#101 依赖 #69 推荐接 #100；#75 依赖 #54 done — **已提升到 Tier 2 / W2** | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
+| **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | **#63** (T2) URL dedup (standalone, 无依赖, 优先) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · **#114** (T2) SVE (依赖 #63) · **#115** (T2) downloadCandidate (依赖 #63) · **#116** (T2) CDP proxy auto-start (独立, 可并行) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · **#121** (T2) AIL baseline (独立于搜索链, 可并行) · ~~#110~~ ✅ closed | #63 → #114 → #115 串行（同改 search-sources.mjs/asset-sourcer.mjs）；#89 P0 先于 #91；#63/#116/#113/#121 可并行 |
+| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback + `text-align.py` + `verify-retry.mjs` | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#91** (T3→**W2 提升**) DDG (#112 hard dep, 需前移) · **#112** (T2) image search pool · **#75** (T2) 视频源标注+下载方案（从 W4 提升） · **#122** (T2) AIL timing format (依赖 #121) · **#123** (T2) AIL canonical-text (依赖 #122) · **#124** (T2) AIL gate 1 (依赖 #123) · **#125** (T2) AIL repair (依赖 #123) | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0（**从 W3 前移到 W2**：#112 显式依赖 #91 DDG infra，不能在 #112 之后）；#109 已合并进 #65；#112 依赖 #91/#103/**#115 (hard)**；#75 依赖 #54 done；#122→#123→#124/#125 串行 | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行；#75 改 source-registry + asset-sourcer，与 #64/#66/#88 串行；#124/#125 共改 verify-retry.mjs 但 T4 改 main.mjs/render-only.mjs、T5 改 verify-retry.mjs+text-align.py，可并行 |
+| **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#92** (T3) SearXNG · **#126** (T3) AIL gate 2 repairFn (依赖 #125) | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66/#63；#65 依赖 #64/#90；#109 已合并进 #65；#126 依赖 #125 done | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行。**#91 已前移到 W2**（#112 hard dep） |
+| **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference · **#117** (T3) currency conversion | #99 依赖 #98；#101 依赖 #69 推荐接 #100 | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束 |
 | **Dormant / Human gate** | 不进入 wave，直到 trigger 或人工决策满足 | #21/#29（measurable）· #107（milestone）· #32/#35（user input）· #60/#61（triage） | 见各 issue trigger | 不占用实现排期 |
 
 ### Execution Semantics
@@ -127,18 +129,21 @@ collectFromSource() 层次：
 |---|-------|-------------|---------------|-------|
 | #66 | Scenario-driven fetch layer + extractScript fallback + API→CDP fix | — | search-sources.mjs, cdp-client.mjs, source-registry.mjs, asset-sourcer.mjs, new fetch-page.mjs | 学 web-access 工具选择表：web_fetch（静态HTML）→ Jina Reader（轻量JS）→ CDP（重）。+ API→CDP fallback 合理性检查（cdpUrl==apiUrl 时 skip）。#67 ✅ unblocked |
 | #116 | Pipeline auto-start CDP proxy | — | cdp-client.mjs, search-sources.mjs | 管线自动启动 CDP proxy（学 web-access check-deps.mjs）。Inline 最小逻辑到 cdp-client.mjs，不依赖 skill 路径。启动失败不 hard-fail，API/MCP 源继续工作 |
-| #63 | URL dedup (standalone) | — | search-sources.mjs | URL-level dedup in allArticles (after collect, before output). URL 标准化（去 query/fragment/统一 protocol）+ Set 去重。与标题相似度去重结合：URL 去重先跑（消除精确重复），标题去重后跑（消除近似重复）。独立于 SVE，无前置依赖，可优先做 |
+| #63 | URL dedup (standalone) | — | search-sources.mjs, trends-utils.mjs | URL-level dedup in allArticles (after collect, before output). URL 标准化（去 query/fragment/统一 protocol）+ Set 去重。与标题相似度去重结合：URL 去重先跑（消除精确重复），标题去重后跑（消除近似重复）。独立于 SVE，无前置依赖，可优先做。**Scope 更新**：#63 只做 URL dedup，改 `search-sources.mjs` 与 `trends-utils.mjs`，复用既有 `url-normalizer.mjs`；SVE 与 `asset-sourcer.mjs` 影响已移至 #114 |
 | #113 | VLM: Image preprocessing (resize >1920px) | — | vlm_analyzer.py | 所有模型在高分辨率图（>1920px）上幻觉。根因是分辨率不是模型能力。PIL resize 到 1920px 长边后消除幻觉。Benchmark: `docs/research/vlm-model-selection-benchmark.md` |
-| #114 | SVE: Single-Visit Extraction | #63 done | search-sources.mjs, asset-sourcer.mjs | 减少 CDP 调用次数：一次访问提取 articles+images+全文，不重复打开同一页面。原 #63 Part 1. GitHub issue created 08-25 |
-| #115 | downloadCandidate helper extraction | #63 done | asset-sourcer.mjs | 从 5 个下载块提取 7 步 downloadCandidate helper，消除重复代码。原 #63 Part 2。#112 新增 CDP image sources 也直接调用. GitHub issue created 08-25 |
+| #114 | SVE: Single-Visit Extraction | #63 done | search-sources.mjs, asset-sourcer.mjs | 减少 CDP 调用次数：一次访问提取 articles+images+全文，不重复打开同一页面。原 #63 Part 1. GitHub issue created 08-25. **已纳入 Domain Index 和 Matrix** |
+| #115 | downloadCandidate helper extraction | #63 done | asset-sourcer.mjs, new lib/download-candidate.mjs | 从 5 个下载块提取 7 步 downloadCandidate helper，消除重复代码。原 #63 Part 2。#112 新增 CDP image sources 也直接调用（**hard dependency**）。GitHub issue created 08-25 |
 | ~~#110~~ | ✅ Progressive media-search layers (L1–L4) | #88/#67 recommended | ~~source-registry.mjs, asset-sourcer.mjs~~ | ✅ Commit 3bdadd5. Brave Image + SearXNG Image as Tier 3. Out of scope: Brave Video, SearXNG Video, Tavily, content-pipeline.md docs |
-| #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92 |
-| #64 | Add free API sources + baidu_news + reclassify Currents/Noozra | — | source-registry.mjs | 13 候选 API，Brave 需注册。+ baidu_news (CDP news.baidu.com/ns，与 google_news/bing_news 同模式). + 把 currents 和 noozra_search 从 GENERAL_SEARCH_SOURCES 移到 INTERNATIONAL_SOURCES 或新建 NEWS_API_SOURCES（它们是新闻聚合 API，不是通用搜索） |
-| #90 | MCP to API migration (Bigsong) | — | source-registry.mjs | lib/bigsong-api.mjs 直接 HTTP 调用 |
+| #89 | Anti-bot rate limiter (P0-P2) | — | rate-limiter.mjs, cdp-client.mjs, proxy-manager.mjs | P0 rate-limiter to P1 backoff to P2 CAPTCHA. Parent of #91, #92. **P5 涉及 `proxy-manager.mjs`** |
+| #64 | Add free API sources + baidu_news + reclassify Currents/Noozra | — | source-registry.mjs, search-sources.mjs | 13 候选 API，Brave 需注册。+ baidu_news (CDP news.baidu.com/ns，与 google_news/bing_news 同模式). + 把 currents 和 noozra_search 从 GENERAL_SEARCH_SOURCES 移到 INTERNATIONAL_SOURCES 或新建 NEWS_API_SOURCES（它们是新闻聚合 API，不是通用搜索）。**baidu_news 和 Currents/Noozra 分类调整可能触及 `search-sources.mjs`** |
+| #90 | MCP to API migration (Bigsong) | — | source-registry.mjs, search-sources.mjs | lib/bigsong-api.mjs 直接 HTTP 调用. **Matrix/issue 也涉及 `search-sources.mjs`** |
 | #65 | General Search Pool (Layer 3 兜底，含 #109) | #64, #90 | search-sources.mjs, config.env | Brave > Tavily > Jina > Grok round-robin. 只替换 7 个通用 web_search 源的 mcpFallback (x_search/youtube/arxiv/github/threads/google/mcp_grok_search). Currents/GNews/Noozra 是新闻 API 不是 general search，已移出 pool → 移到 INTERNATIONAL_SOURCES 或 NEWS_API_SOURCES. #109 合并：MCP 封装替代 Brave MCP |
 | #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md | 12 public feeds，evidence boundary 分组 |
-| #112 | Image search pool expansion | #91 (DDG), #103 (docs) | source-registry.mjs, asset-sourcer.mjs | Google Images (CDP) + Bing Images (CDP) + DuckDuckGo Images (CDP). Refactor Tier 3 to pluggable pool. Engines parallel, keywords serial |
+| #112 | Image search pool expansion | #91 (DDG), #103 (docs), **#115 (hard)** | source-registry.mjs, asset-sourcer.mjs | Google Images (CDP) + Bing Images (CDP) + DuckDuckGo Images (CDP). Refactor Tier 3 to pluggable pool. Engines parallel, keywords serial. **#115 hard blocker**: `lib/download-candidate.mjs` must be extracted first |
 | #75 | 替代下载方案 + 视频源标注（小红书/微博/抖音/B站） | #54 done, #77 推荐（#77 审计现有标注 → #75 加新标注） | asset-sourcer.mjs, source-registry.mjs | ~25% done（RedNote-MCP done, weibo/chubbyskills missing）。Scope expanded: B站图片搜索 + SVE 视频提取 + 全源 video capability 调研（51 个源逐个验证）+ 不用 downloadable 字段（有 videos 就尝试下载，失败由 try-catch 处理）。与 #77 分工：#77 审计现有标注，#75 加新标注。**直接影响视频素材覆盖面** — 从 Tier 3 提升 |
+| #121 | AIL T1: Verify current baseline | — | — | 用已有 content 目录（如 doubao-work）证明当前管线无法检测 scene-data voiceover 被修改但 timing 未重做的场景。记录当前诊断行为作为修复基线。**Parent: #120** |
+| #122 | AIL T2: timing JSON format adaptation + runWhisperAlignment rename | #121 | text-align.py | timing JSON 从数组格式改为对象格式 `{ scenes: [...] }`，所有消费者做向后兼容适配。`runWhisperAlignment` 重命名为 `runForcedAlignment`，保留旧名为 alias。**Parent: #120** |
+| #123 | AIL T3: canonical-text validator + proper noun normalization | #122 | new lib/canonical-text.mjs | 新增 `verifyCanonicalText()` 函数：标点剥离 + 大小写折叠 + 专有名词 greedy merge（词典从 keyEntities 构建）。输出 `{ passed, mismatches, details }`。**Parent: #120** |
 
 ### Tier 3 — 低重要性 / 大幅延后
 
@@ -158,6 +163,9 @@ collectFromSource() 层次：
 | #99 | Deterministic media timeline fusion | #69 done, #98 | — | 视频管线 P6 |
 | #100 | Content-addressed cache + scheduler | P3 done (可与 #98/#99 并行) | — | 视频管线 P7 |
 | #101 | Temporal Focus for video backgrounds | #69 done (推荐接 #100) | — | 视频管线 P8b。Child of #94 |
+| #124 | AIL T4: Gate 1 integration into main.mjs + render-only.mjs | #123 | main.mjs, render-only.mjs | 在 main.mjs Step 4（ASS 生成）和 Step 5（渲染/合成）之间插入 canonical-text 门。在 render-only.mjs 的 ASS 生成后、渲染前也插入。门 1 FAIL → 硬失败并提示原因。**Parent: #120** |
+| #125 | AIL T5: canonical-text repair strategy + verify-retry integration | #123 | verify-retry.mjs, text-align.py | 在 verify-retry.mjs 新增 canonical-text 修复策略：重做 text-align.py 强制对齐 → 重新生成 ASS → 重验。最多重做 1 次。重做后仍 FAIL 则硬失败。每次 spawn 新 Python 进程。**Parent: #120** |
+| #126 | AIL T6: Gate 2 — complete subtitle-alignment repairFn | #125 | main.mjs, text-align.py | 在 main.mjs 第 453 行，把 subtitle-alignment 的 `{ success: false }` 替换为真实修复：重做 text-align.py → 重新生成 ASS → 重新烧录 → 返回更新后的 videoPath 和 assPath。**Parent: #120** |
 
 ### Dormant — 触发条件未满足
 
@@ -168,7 +176,7 @@ collectFromSource() 层次：
 | # | Issue | Trigger condition |
 |---|-------|-------------------|
 | #21 | Multimodal RAG | 50+ images accumulated (当前 0) |
-| #29 | Analytics Workflow Part A | >10 published videos with analytics |
+| #29 | Analytics Workflow Part A + Part B | >10 published videos with analytics |
 
 #### Dormant — project milestone
 
@@ -199,12 +207,12 @@ collectFromSource() 层次：
 
 | Domain | Issues | Waves spanned |
 |--------|--------|---------------|
-| **Source / Search** | #88, #89, #64, #66, #90, #65, #97, #112, #68, #76, #77, #87, #91, #92 | W0–W3 |
-| **Content Pipeline** | #103, #111, #94, #60, #61 | W0, W4, Dormant |
-| **Video Pipeline** | #98, #99, #100, #101, #113, #35, #32, #75 | W1, W4, Dormant |
-| **Docs / Research** | #103, #108, #29, #21, #97 | W0, W4, Dormant |
-| **Audit** | #68, #76, #77, #87, #94 | W3, W4 |
-| **Infra / Platform** | #107, #85 | Dormant, W4 |
+| **Source / Search** | #88, #89, #64, #66, #90, #65, #97, #112, #68, #76, #77, #87, #91, #92, #114, #116 | W0–W3 |
+| **Content Pipeline** | #103, #111, #94, #60, #61, #120, #121, #122, #123 | W0, W1, W2, W4, Dormant |
+| **Video Pipeline** | #98, #99, #100, #101, #113, #35, #32, #75, #120, #124, #125, #126 | W1, W2, W3, W4, Dormant |
+| **Docs / Research** | #103, #108, #29, #21, #97, #61 | W0, W4, Dormant |
+| **Audit** | #68, #76, #77, #87, #94, #61 | W3, W4, Dormant |
+| **Infra / Platform** | #107, #85, #117 | Dormant, W4 |
 
 > 跨领域 issue（如 #94 同时属于 Content Pipeline 和 Audit）在多个领域行出现。并行前仍需查 Conflict Risk Matrix。
 
@@ -217,20 +225,26 @@ collectFromSource() 层次：
 | File | Issues touching it | Risk |
 |------|--------------------|------|
 | `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #66, #75 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done；#66 加 skipCdpOnApiFail 标记；#75 视频源 capability 标注） |
-| `asset-sourcer.mjs` | #88, #63, #75, #66, #115 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()；#75 视频源下载+capability 标注；#115 downloadCandidate 提取） |
-| `search-sources.mjs` | #66, #63, #88, #65, #90, #116 | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles） |
+| `asset-sourcer.mjs` | #88, #114, #75, #66, #115 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()；#75 视频源下载+capability 标注；#114 SVE；#115 downloadCandidate 提取。**#63 已移除——SVE 影响移至 #114**） |
+| `search-sources.mjs` | #66, #63, #88, #65, #90, #116, #64, #114 | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles；#63 URL dedup + trends-utils.mjs；#64 baidu_news/分类调整；#90 Bigsong API 迁移；#114 SVE；#116 CDP proxy auto-start） |
 | `cdp-client.mjs` | #66, #89, #116 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff；#116 加 ensureCdpProxy() |
 | `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
 | `Search quota / backend routing` | #65, #110, #112 | 🟡 中——Brave quota 与统一路由边界需单一 owner（#109 已合并进 #65） |
 | `vlm_analyzer.py` | #113 | 🟢 低——VLM 图片预处理，独立于搜索/素材链，无并行冲突 |
 | `scene-rules.mjs` / `scene-templates.mjs` | #94（可能） | 🟢 低 |
+| `text-align.py` | #122, #125, #126 | 🟡 中——#122 timing JSON 格式适配 + rename；#125 canonical-text 修复策略；#126 subtitle-alignment repairFn |
+| `main.mjs` | #124, #126 | 🟡 中——#124 门 1 集成（canonical-text 门）；#126 门 2 repairFn（subtitle-alignment 修复） |
+| `render-only.mjs` | #124 | 🟢 低——#124 门 1 集成 |
+| `verify-retry.mjs` | #125 | 🟢 低——#125 canonical-text 修复策略集成 |
+| `normalize-currency.mjs` | #117 | 🟢 低——独立模块，无并行冲突 |
+| `proxy-manager.mjs` | #89 | 🟢 低——#89 P5 anti-bot proxy 管理 |
 
 ---
 
 ## Closed Issues (2026-08-21~25)
 
-30 issues closed across six triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload). Full details on GitHub.
+31 issues closed across seven triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload + crop decision spec). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
@@ -264,6 +278,7 @@ collectFromSource() 层次：
 | #95 | Restore dual-track article and video workflow | PR #104 merged (closes #95) |
 | #96 | WeChat RSS tracking (dup #97) | Duplicate |
 | #67 | capabilities.articles schema 补全 | Commit 0f75cdb - enrichWithCapabilities() adds method/apiSearch/requiresApiKey/apiKeyEnv/paidApi/cdpFallback/mcpFallback. search-sources.mjs migrated to cap?.x ?? source.x. Bug fix: cap.articles.cdpFallback. 374 tests pass |
+| #119 | Vertical Image Cropping Pipeline — Crop Decision + Framed Contain | ✅ Phase 1 (crop decision + smart alignment): `lib/crop-decision.mjs` + `vlm_analyzer.py` crop simulation + EXIF fix + `asset-sourcer.mjs` Phase 3b + `MediaBackground.tsx` cropFocus. Phase 2 (framed contain composition): `MediaBackground.tsx` branded matte for image+contain (radial-gradient `#0a0a14→#050508`), video contain stays bare. Code review 0 findings. tsc+build+lint+verify-video --pre all pass. Spec/tickets/review archived |
 
 ---
 
