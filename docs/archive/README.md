@@ -96,6 +96,7 @@
 | `specs/spec-model-sources-remediation.md` / `tickets/tickets-model-sources-remediation.md` | 2026-08-26 | 模型搜索来源参考修复 — 基于 Manus AI 审阅的 10 个发现（4 阻塞 + 3 重要 + 3 改进）：删除失效 PapersWithCode 入口 + 替换已归档 HF Open LLM Leaderboard + 统一准入状态机 + NC 许可证改为「需法务确认」+ 格式表加性能说明 + GitHub 搜索完成条件 + Ollama 四分类重写 + 来源元数据增强 + Step 6a 候选证据卡 + memory 指针替换为仓库内路径。 |
 | `spec-vertical-cropping.md` / `tickets-vertical-cropping/` | 2026-08-27 | 竖屏裁切管线 — Crop Decision Contract（resolveObjectPosition + evaluateCropSafety + selectBestCrop 纯函数）+ VLM 9:16 裁切模拟 + EXIF 归一化修复 + cropFocus {x,y} 字段（替代 deprecated focus enum）+ Phase 3b 管线集成 + review-media-patch + apply-media-patch 序列化。185 tests passing。Supersedes `spec-vlm-fit-focus.md`。 |
 | `spec-fix-scene-flicker.md` / `tickets-fix-scene-flicker.md` | 2026-08-27 | Scene flicker 修复 — MediaBackground exit opacity ramp 移除（4-stop→3-stop），video volume 独立 4-stop envelope 保留 audio ducking tail。overlay/preset transforms 不变。14 tests covering 9 scenario matrix rows。 |
+| `spec-url-dedup.md` / `tickets-url-dedup.md` | 2026-08-27 | Issue #63 URL dedup — `dedupByUrl()` 函数在 `trends-utils.mjs`，复用 `canonicalizeUrl()` from `url-normalizer.mjs`。Set-based dedup，空 URL 跳过，保留第一条。在 `search-sources.mjs` `allArticles.push(...)` 后调用。12 tests covering 13 scenario matrix rows。 |
 
 ### Documentation Hierarchy Specs
 
