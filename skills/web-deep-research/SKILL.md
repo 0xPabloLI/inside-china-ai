@@ -87,8 +87,8 @@ everything:
 - **Multiple angles**: Each research angle's queries are independent —
   dispatch as parallel sub-agents, each loading web-access independently
   (shared Chrome, different targetIds, no race condition)
-- **Multiple URLs**: When you have 3+ URLs to fetch, batch them (multiple
-  `web_fetch` or `jina_reader` calls in one tool block)
+- **Multiple URLs**: When you have 3+ URLs to fetch, batch them in one
+  tool block rather than serializing
 - **Search + fetch**: Once search returns URLs, start fetching the top
   results while continuing to search for the next angle
 
@@ -217,30 +217,13 @@ quotations may remain in English regardless of report language.
 **Completion criterion**: Report saved to file. Sources list complete — every URL
 used, no placeholders. User told the file path.
 
-### Post-save: RAG index refresh
-
-After saving the report, if the current repo has a RAG indexer that collects
-`docs/research/` (check: does `scripts/rag/index.mjs` exist and mention
-`docs/research`?), run an incremental reindex from the repo root:
-
-```bash
-node scripts/rag/index.mjs --incremental 2>&1 | tail -5
-```
-
-- **Non-blocking**: if the indexer fails or is missing, log a warning and
-  continue. The research report is already saved — RAG is a retrieval bonus,
-  not a delivery requirement.
-- **Repo-specific**: only run if the repo's indexer is confirmed to collect
-  `docs/research/`. Do not assume every repo has the same RAG setup.
-
 ## Anti-patterns
 
 - **Scrape-summary listing**: Don't paste raw scraped content. Synthesize.
 - **Single-source claims**: No factual claim on Tier 2/3 alone. Find a second independent source or hedge explicitly.
-- **Web-only for code-verifyable claims**: If a claim is about how a library/tool
-  works and the package is locally installed, citing only web sources is an
-  anti-pattern. Read the source code. "Stack Overflow says X" is not sufficient
-  when you can `grep` the actual implementation.
+- **Web-only for code-verifyable claims**: If a claim is about how a
+  library/tool works and the package is locally installed, citing only
+  web sources is an anti-pattern. Read the source code.
 - **Token flooding**: Don't read full page content into context. Extract the relevant
   passage, summarize the rest. Use web-access's extraction methods (check its SKILL.md)
   rather than dumping raw page content into the conversation.
