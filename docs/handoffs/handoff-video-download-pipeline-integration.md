@@ -157,6 +157,19 @@ Cobalt 项目（imputnet/cobalt）处于「有活动但更新极慢」状态：
 | #75 | Cobalt 部署状态 + smoke test 结果 + 维护评估 + 集成方案（合并到 #115） |
 | #115 | scope 加第 4 项 VDL 集成 + 与 #75 的关系 + 集成后流程图 |
 
+## Review 整合
+
+Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`）做了详细 review（`docs/reviews/handoff-video-download-breakthrough-review-2026-08-26.md`），提出 5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes。
+
+整合结论见 `docs/reviews/handoff-video-download-pipeline-integration-review-2026-08-27.md`。
+
+**总结：** Review 总体合理且高质量。5 个阻塞性发现中，3 个已被代码完全解决（Cobalt 状态机、策略选择器、状态标注），1 个部分解决（registry schema 等 #77），1 个不适用（CDP adapter 不在 scope）。12 个验收矩阵中 7 个已完全覆盖，2 个将在 #115 补全，3 个不在当前 scope。
+
+**遗留要求需在后续 issue 中处理：**
+- #77：`source-registry.mjs` schema 拆分 discovery + download adapter；`asset-source-quick-reference.md` 更新 Cobalt smoke test 结果
+- #115：VD-02 集成测试（yt-dlp 不回归）；VD-06 专用 adapter 路径
+- #75 第二批：VD-07 抖音 iesdouyin 固定样本测试
+
 ## 建议的下一步
 
 1. **开始 #63**（URL dedup）— 无依赖，小任务，可快速完成
