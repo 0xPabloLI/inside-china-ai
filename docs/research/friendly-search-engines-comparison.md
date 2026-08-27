@@ -40,7 +40,7 @@
 - 直接 `fetch()` 或 `curl` 访问 `html.duckduckgo.com` 会触发 **anomaly-modal**（异常验证弹窗）
 - 返回的 DOM 全是 `anomaly-modal__*` class，0 条搜索结果
 - 这不是 rate limit 触发（单次请求即触发），而是 **TLS 指纹检测**——Node.js/curl 的 TLS 指纹与 Chrome 不同
-- 通过 CDP（Chrome 真实 session + FlClash 代理）访问时，正常返回 10 条结果
+- 通过 CDP（Chrome 真实 session + 本地代理）访问时，正常返回 10 条结果
 - **结论：DuckDuckGo HTML 端点必须通过 CDP 访问，不能直接 fetch/curl**
 
 #### HTML 端点 DOM 结构（实测确认）
@@ -83,7 +83,7 @@ URL: https://html.duckduckgo.com/html/?q={keyword}
     notes: "CDP (DuckDuckGo HTML endpoint, no JS needed). Lenient rate limit, no CAPTCHA.",
   },
   url: (keyword) => `https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword + " China AI")}`,
-  extractScript: `
+  articleScript: `
     var results = [];
     document.querySelectorAll('#links .result, .result').forEach(function(el) {
       var link = el.querySelector('.result__a');
@@ -362,7 +362,7 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 > 测试脚本：`scripts/short-video/test-search-engines.mjs`
 > 完整 JSON：`scripts/short-video/output/search-engine-comparison.json`
 > 查询关键词：`"DeepSeek China AI"`
-> 环境：FlClash TUN + CDP proxy (localhost:3456)，M2 Pro
+> 环境：本地代理 TUN + CDP proxy (localhost:3456)，M2 Pro
 
 ### 结果总览（最终修复后）
 
@@ -378,7 +378,7 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 ### 关键发现（修复后）
 
 1. **Brave Search API 是赢家**——20 条结果、2.6 秒、snippet 完整、独立索引
-   - FlClash TUN fake-ip bug 的 workaround：`curl --resolve "api.search.brave.com:443:$(fake-ip)"` 绕过 DNS 查询
+   - TUN fake-ip bug 的 workaround：`curl --resolve "api.search.brave.com:443:$(resolved-ip)"` 绕过 DNS 查询
    - 不受反爬检测影响（REST API + 真实 API key）
    - 独立索引（40B+ 页面），不依赖 Google/Bing
 
@@ -402,10 +402,10 @@ const params = { q: keyword, country: "US", search_lang: "en" };
    - 修复策略：以 `h3` 为锚点，向上遍历 4 层父元素，依次尝试 `.c-abstract`、`[class*="summary"]`、`[class*="desc"]`、`[class*="content"]`、`[class*="main-info"]` 等 selector
    - 9 条结果，全部有 snippet ✅
 
-5. **Brave Search API 修复**：`curl --resolve` workaround 绕过 FlClash TUN fake-ip bug
-   - `api.search.brave.com` 解析到 fake-ip `198.18.1.251`（FlClash TUN 模式）
-   - Node.js `fetch()` 无法连接（TCP 超时），`curl --resolve` 指定 fake-ip 后连接成功
-   - **修复方案**：在 FlClash config 中添加 `api.search.brave.com` 走代理（不走 DIRECT），或用 `curl --resolve` workaround
+5. **Brave Search API 修复**：`curl --resolve` workaround 绕过 TUN fake-ip bug
+- `api.search.brave.com` 解析到 fake-ip `198.18.1.251`（TUN 模式）
+- Node.js `fetch()` 无法连接（TCP 超时），`curl --resolve` 指定 fake-ip 后连接成功
+- **修复方案**：在代理 config 中添加 `api.search.brave.com` 走代理（不走 DIRECT），或用 `curl --resolve` workaround
 
 6. **SearXNG 实测结果（2026-08-21 部署成功）**
    - Docker 容器在 colima VM 中运行，端口 8888
@@ -424,20 +424,20 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 
 ### DuckDuckGo CAPTCHA 发现
 
-首次测试时（非 CDP），DuckDuckGo HTML 端点返回了 `anomaly-modal`（异常验证弹窗），DOM 全是 `anomaly-modal__*` class。通过 CDP（Chrome 真实 session + FlClash 代理）访问时未触发。
+首次测试时（非 CDP），DuckDuckGo HTML 端点返回了 `anomaly-modal`（异常验证弹窗），DOM 全是 `anomaly-modal__*` class。通过 CDP（Chrome 真实 session + 本地代理）访问时未触发。
 
 **结论**：DuckDuckGo 的 anomaly detection 基于：
 - TLS 指纹（Node fetch vs Chrome 不同）
 - Cookie / session（CDP 有 Chrome 的 session）
-- IP 信誉（FlClash 代理 IP vs 直连）
+- IP 信誉（本地代理 IP vs 直连）
 
 **不能直接 `fetch()` DuckDuckGo HTML 端点——必须通过 CDP。**
 
 ### Brave API 修复方案
 
-Brave API 的 `fetch failed` 不是 Brave 服务问题，是 FlClash TUN 路由问题。修复方式（参照 Modal 的修复经验 [[memory:17868708040563040871]]）：
+Brave API 的 `fetch failed` 不是 Brave 服务问题，是 TUN 路由问题。修复方式（参照 Modal 的修复经验 [[memory:17868708040563040871]]）：
 
-1. 从 FlClash profile YAML 的 `fake-ip-filter` 中**移除** `+.search.brave.com`（如有）
+1. 从代理 profile YAML 的 `fake-ip-filter` 中**移除** `+.search.brave.com`（如有）
 2. 在 `rules` 中让 `api.search.brave.com` 走**代理**（不走 DIRECT）
 3. 或在 `nameserver-policy` 中让该域名用 Cloudflare/Google DNS 解析
 
@@ -503,4 +503,4 @@ Brave API 的 `fetch failed` 不是 Brave 服务问题，是 FlClash TUN 路由�
 - **SearXNG JSON API 配置依据**：默认只启用 HTML 输出，必须手动修改 `settings.yml` 添加 `json` 到 `formats` [7][8][9]。Docker 部署是最简单的自托管方式 [25]。
 - **Brave Search 独立索引优势**：不依赖 Google/Bing，40B+ 页面自主索引 [12][13]。API key 已在项目 `.env.local` 中配置（2026-08-20 测试通过）。
 - **Mojeek/Startpage 暂不集成**：Mojeek 免费额度太小（500 credits 试用）[17][18]；Startpage 是 Google 代理，有 CAPTCHA 风险，无 API [19]。
-- **SearXNG 后端引擎配置建议**：配置 Google + Bing + DuckDuckGo + 百度作为后端，一次查询获得多源结果，减少单独请求各搜索引擎的次数。但要注意 SearXNG 查询 Google 时用的是 SearXNG 服务器的 IP（localhost），不受本地 FlClash 代理影响——但 Google 可能限制 SearXNG 的后端请求。
+- **SearXNG 后端引擎配置建议**：配置 Google + Bing + DuckDuckGo + 百度作为后端，一次查询获得多源结果，减少单独请求各搜索引擎的次数。但要注意 SearXNG 查询 Google 时用的是 SearXNG 服务器的 IP（localhost），不受本地代理影响——但 Google 可能限制 SearXNG 的后端请求。

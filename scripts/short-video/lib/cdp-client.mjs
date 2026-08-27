@@ -92,14 +92,14 @@ export async function waitForPageLoad(tabId, retries = 2) {
  * Handles various CDP response formats: result.value, value, JSON string, or null.
  *
  * @param {string} tabId - Tab ID
- * @param {string} extractScript - JS expression that returns an array
+ * @param {string} script - JS expression that returns an array
  * @returns {Promise<Array>} Extracted articles (empty array on failure)
  */
-export async function extractFromTab(tabId, extractScript) {
+export async function extractFromTab(tabId, script) {
   try {
-    // Wrap in async IIFE — supports both sync and async extractScripts.
+    // Wrap in async IIFE — supports both sync and async scripts.
     // CDP eval has awaitPromise:true, so async scripts are properly awaited.
-    const wrappedScript = `(async function(){${extractScript}})()`;
+    const wrappedScript = `(async function(){${script}})()`;
     const resp = await cdpEval(tabId, wrappedScript);
     // CDP eval returns { value: ... } — value may be array, string, or null
     let articles = resp?.result?.value || resp?.value || resp;

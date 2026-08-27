@@ -59,15 +59,15 @@ web-deep-research skill 的 8-phase 流程不适合做视频的场景。用户�
 
 #### 3b. DOM 选择器问题 — "网站一变就失效"
 
-**事实**：CDP 是传输层（不失效），`extractScript` 是解析层（网站改版会失效）。
+**事实**：CDP 是传输层（不失效），`articleScript` 是解析层（网站改版会失效）。
 
 **解决方案**：在 `search-sources.mjs` 的 `collectFromSource()` fallback 链中插入 Jina 层：
 
 ```
-apiSearch → CDP（extractScript）→ Jina fallback（新增）→ cdpFallback（Google site:）→ mcpFallback（Grok）
+apiSearch → CDP（articleScript）→ Jina fallback（新增）→ googleSiteFallback（Google site:）→ mcpFallback（Grok）
 ```
 
-- CDP `extractScript` 返回空 → Jina 用 `r.jina.ai/{url}` 重新请求同一 URL，返回 Markdown，parser 提取 `{title, url}[]`
+- CDP `articleScript` 返回空 → Jina 用 `r.jina.ai/{url}` 重新请求同一 URL，返回 Markdown，parser 提取 `{title, url}[]`
 - Jina 也失败 → Google `site:domain keyword` 搜索
 - 以上全失败 → Grok 全网搜索关键词
 
@@ -139,7 +139,7 @@ Unified Page Visitor 打开 URL（一次）
 | 10 | Jina fallback 只改 search-sources.mjs | 2026-08-19 | asset-sourcer 走 API+yt-dlp，不走 CDP DOM 选择器 |
 | 11 | readerlm-v2 模式不使用 | 2026-08-19 | 超时率 57.7%，性能最差 |
 | 12 | 硬编码信源列表不改为规则引擎 | 2026-08-19 | URL pattern + 搜索参数 + DOM 结构每个站不同，规则化复杂度 ≥ 硬编码 |
-| 13 | per-site extractScript 不删除 | 2026-08-20 | 返回结构化数据（title+url+imageUrl），精确匹配网站 DOM。auto-fallback 使其从「必须维护」变为「有空再维护」 |
+| 13 | per-site articleScript 不删除 | 2026-08-20 | 返回结构化数据（title+url+imageUrl），精确匹配网站 DOM。auto-fallback 使其从「必须维护」变为「有空再维护」 |
 | 14 | CDP 搜索不能进 Search API Pool | 2026-08-20 | Pool 只含程序化 API 调用的搜索服务。CDP 是浏览器代理，不是 API |
 | 15 | Bing API 退役，不可用 | 2026-08-20 | 2025-08 退役，2026-08-11 完全关闭。bing_news 走 CDP 仍可用 |
 | 16 | Wikipedia 作为独立 reference source | 2026-08-20 | 不属于 general search，是实体背景信息查询。category=reference，不进 Pool |
@@ -152,11 +152,11 @@ Unified Page Visitor 打开 URL（一次）
 | 23 | Entry points unified; three entries converge at Stage 0 | 2026-08-20 | Grill Q1: 入口统一为单入口，差异仅是 keyword 来源和是否有 primary source |
 | 24 | Stage 0.5 renamed to Stage 0: Source Discovery & Material Gathering | 2026-08-20 | Grill Q8: 管线起点编号清晰化，去掉 0.5 |
 | 25 | MRL-1 B4/B6 inline markers as source for structured evidence (non-blocking) | 2026-08-20 | Grill Q4: inline 标注保留，作为 evidence schema 来源；audit 非阻塞，输出 warning。#61 追踪 |
-| 26 | Research mode filter expanded to include cdpFallback sources | 2026-08-20 | Grill Q2: 不支持 keyword 的源走 Google site: fallback |
+| 26 | Research mode filter expanded to include googleSiteFallback sources | 2026-08-20 | Grill Q2: 不支持 keyword 的源走 Google site: fallback |
 | 27 | WESTERN_SOURCES renamed to INTERNATIONAL_SOURCES | 2026-08-20 | Grill Q6: "western" 不准确，这些源是国际/多语种的 |
 | 28 | Optional locale field added; English sources not marked | 2026-08-20 | Grill Q6: 中文限定源标 zh-CN，英文/多语种源不标 |
 | 29 | No separate issue for Discussion; all tasks in existing issues | 2026-08-20 | Grill Q9: 所有未完成项已有对应 issue |
-| 30 | `site:` search (Google/Baidu/Bing/DuckDuckGo) requires CDP on all engines | 2026-08-21 | 测试确认：curl/web_fetch 全部被 CAPTCHA 拦截（Google reCAPTCHA, Baidu 滑块验证, DuckDuckGo anomaly challenge）。Bing `site:` via curl 语法不生效。只有 CDP（有 session 的浏览器）才能获取 `site:` 搜索结果。`cdpFallback` → rename to `googleSiteFallback` (tracked in #82) |
+| 30 | `site:` search (Google/Baidu/Bing/DuckDuckGo) requires CDP on all engines | 2026-08-21 | 测试确认：curl/web_fetch 全部被 CAPTCHA 拦截（Google reCAPTCHA, Baidu 滑块验证, DuckDuckGo anomaly challenge）。Bing `site:` via curl 语法不生效。只有 CDP（有 session 的浏览器）才能获取 `site:` 搜索结果。`googleSiteFallback` → rename to `googleSiteFallback` (tracked in #82) |
 | 31 | WordPress REST API search is the best approach for WordPress sites | 2026-08-21 | 测试发现：量子位 `?s=` 被 nginx 403 拦截，但 `/wp-json/wp/v2/posts?search=` 完全开放（纯 curl，JSON 响应，不需浏览器）。TechCrunch 同理。优先级：WordPress REST API > direct site search URL > Google `site:` via CDP。Implementation in #82 |
 | 32 | Bloomberg has search but paywall; alternatives tracked in #85 | 2026-08-21 | Bloomberg `/search?query={kw}` 搜索结果（标题+摘要）可获取，全文需订阅。Bloomberg Japan 用 Google Custom Search。寻找转载 Bloomberg 内容的免费平替网站 (#85) |
 
@@ -177,7 +177,7 @@ Unified Page Visitor 打开 URL（一次）
 - [x] Jina Reader API 测试（53 源 × 3 参数）
 - [x] Jina 文档合并入 docs/tools-catalog.md ✅
 - [x] 形成简化后的 spec ✅ Issue #70
-- [x] 实施 Jina fallback → Superseded by #66 (extractScript auto-fallback uses /extract)
+- [x] 实施 Jina fallback → Superseded by #66 (articleScript auto-fallback uses /extract)
 - [x] 实施 pipeline simplification: category rename + locale field + research filter expansion ✅ Issues #71, #72, #73, #74
 - [x] CDP in-site search discovery test (5 sources) ✅ Results in #82
 - [x] Search engine `site:` search test (Google/Bing/Baidu/DuckDuckGo) ✅ All require CDP, no API alternative (Decision #30)

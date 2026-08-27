@@ -110,7 +110,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | `handoff-asset-source-unification.md` | 素材源统一命名 + 重复获取问题 |
 | `handoff-colab-nf4-test.md` | Colab NF4 量化测试 |
 | `handoff-echomimicv3-kaggle.md` | EchoMimicV3 Kaggle 测试 & 下一步数字人模型测试 |
-| `handoff-extractscript-autofix.md` | extractScript 自动修复 + warn + health 追踪 (Issue #66) |
+| `handoff-extractscript-autofix.md` | articleScript 自动修复 + warn + health 追踪 (Issue #66) |
 | `handoff-license-risk-policy.md` | License 风险策略 — 不阻塞管线 |
 | `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60) |
 | `handoff-realesrgan.md` | Real-ESRGAN 超分辨率集成 |

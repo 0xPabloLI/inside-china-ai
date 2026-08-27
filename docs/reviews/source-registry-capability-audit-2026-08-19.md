@@ -55,9 +55,9 @@ Registry 将 `xhs`、`douyin`、`weibo_hot` 分别声明为 `platform: "xiaohong
 
 ## 系统性不完整：`articles` capability 仍不是事实来源
 
-`enrichWithCapabilities()` 从 top-level `source` 字段复制 `supportsKeyword`、`url`、`extractScript`、`loginCheckScript`、`needsAuth` 和 `useCleanTitle` 到 `capabilities.articles`。[1] 该复制本身没有发现值不一致；也就是说，**现有标注没有发现“复制错值”问题**。
+`enrichWithCapabilities()` 从 top-level `source` 字段复制 `supportsKeyword`、`url`、`articleScript`、`loginCheckScript`、`needsAuth` 和 `useCleanTitle` 到 `capabilities.articles`。[1] 该复制本身没有发现值不一致；也就是说，**现有标注没有发现“复制错值”问题**。
 
-问题在于实际 `search-sources.mjs` 虽用 `capabilities.articles` 来筛选信源，却在后续执行时继续读取 `source.url`、`source.extractScript`、`source.needsAuth`、`source.apiSearch` 和 `source.cdpFallback`。[3] 因此只更新 capability 不会改变真实行为；同时，对 API 文章源而言，`method`、API 凭据、付费标记、API parser 和回退策略都没有在 articles capability 内显式标注。
+问题在于实际 `search-sources.mjs` 虽用 `capabilities.articles` 来筛选信源，却在后续执行时继续读取 `source.url`、`source.articleScript`、`source.needsAuth`、`source.apiSearch` 和 `source.googleSiteFallback`。[3] 因此只更新 capability 不会改变真实行为；同时，对 API 文章源而言，`method`、API 凭据、付费标记、API parser 和回退策略都没有在 articles capability 内显式标注。
 
 | 受影响范围 | 当前情况 | 风险 | 建议 schema |
 |---|---|---|---|

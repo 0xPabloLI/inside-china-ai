@@ -12,7 +12,7 @@
  * Sources are defined in lib/source-registry.mjs (single source of source).
  * 28 sources total (7 news + 8 self-media + 8 international + 5 general + 5 last30days + 1 wechat).
  *
- * Fallback chain: apiSearch (if configured) → CDP → cdpFallback (Google site: search) → mcpFallback (mcp-search-bridge)
+ * Fallback chain: apiSearch (if configured) → CDP → googleSiteFallback (Google site: search) → mcpFallback (mcp-search-bridge)
  * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
  * International/general sources primarily use mcp-search-bridge (Grok web search).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
@@ -112,10 +112,10 @@ let cdpAvailable = true; // Set to false if CDP proxy check fails in main()
  * - og:image, og:title, article:published_time (metadata)
  *
  * This is zero additional navigation — the tab is already open
- * from the extractScript call.
+ * from the articleScript call.
  *
  * @param {string} tabId - CDP tab ID (still open)
- * @param {Array<{title: string, url: string}>} articles - Articles from extractScript
+ * @param {Array<{title: string, url: string}>} articles - Articles from articleScript
  * @returns {Promise<Array>} Articles with imageUrl/hasImage/videoUrls/metadata fields added
  */
 async function enrichWithMedia(tabId, articles) {
@@ -228,15 +228,15 @@ async function collectFromCdp(source, keyword) {
   }
 
   // Extract articles
-  const extractScript = cap?.extractScript ?? source.extractScript;
-  let articles = await extractFromTab(tabId, extractScript);
+  const articleScript = cap?.articleScript ?? source.articleScript;
+  let articles = await extractFromTab(tabId, articleScript);
   console.log(`  📊 Extracted ${articles.length} articles`);
 
   if (articles.length === 0) {
     // Retry once
     console.log("  ⏳ No articles found, retrying...");
     await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
-    articles = await extractFromTab(tabId, extractScript);
+    articles = await extractFromTab(tabId, articleScript);
     console.log(`  📊 Retry extracted ${articles.length} articles`);
   }
 
@@ -326,7 +326,7 @@ async function collectFromSource(source, keyword) {
   // #67: Read from capabilities.articles with top-level fallback
   const cap = source.capabilities?.articles;
   const apiSearch = cap?.apiSearch ?? source.apiSearch;
-  const cdpFallback = cap?.cdpFallback ?? source.cdpFallback;
+  const googleSiteFallback = cap?.googleSiteFallback ?? source.googleSiteFallback;
   const mcpFallback = cap?.mcpFallback ?? source.mcpFallback;
   const useCleanTitle = cap?.useCleanTitle ?? source.useCleanTitle;
 
@@ -342,14 +342,14 @@ async function collectFromSource(source, keyword) {
   }
 
   // Step 2: If CDP failed and CDP fallback is configured, try it
-  if (articles.length === 0 && cdpFallback) {
+  if (articles.length === 0 && googleSiteFallback) {
     console.log(`  📡 Trying CDP fallback for ${source.label}...`);
     const fallbackSource = {
       ...source,
       name: source.name + "_fallback",
       label: source.label + " (fallback)",
-      url: cdpFallback.url,
-      extractScript: cdpFallback.extractScript,
+      url: googleSiteFallback.url,
+      articleScript: googleSiteFallback.articleScript,
       loginCheckScript: null,
       needsAuth: false,
     };
@@ -390,11 +390,12 @@ async function main() {
   // R2: Select sources based on mode — only sources with capabilities.articles
   // This excludes stock_media sources (Pexels, Unsplash, etc.) which only have
   // capabilities.images/videos and should not be used for article/trend discovery.
-  // Research mode includes sources with supportsKeyword=true OR cdpFallback
+  // Research mode includes sources with supportsKeyword=true OR googleSiteFallback
   // (homepage-only sources can still contribute via Google site: fallback).
   let sources = isResearchMode
     ? ALL_SOURCES.filter(
-        (s) => s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.cdpFallback,
+        (s) =>
+          s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.googleSiteFallback,
       )
     : ALL_SOURCES.filter((s) => s.capabilities?.articles);
 

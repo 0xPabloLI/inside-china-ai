@@ -6,8 +6,8 @@ Comparison of CDP, MCP, and API fallback layers for Xiaohongshu (xhs) and X (Twi
 
 | Layer | Method | How it works |
 |-------|--------|-------------|
-| L1 | CDP | Chrome DevTools Protocol — navigates to search page in logged-in Chrome, runs `extractScript` to scrape DOM |
-| L2 | cdpFallback | Google `site:` search via CDP — fallback URL + different extractScript |
+| L1 | CDP | Chrome DevTools Protocol — navigates to search page in logged-in Chrome, runs `articleScript` to scrape DOM |
+| L2 | googleSiteFallback | Google `site:` search via CDP — fallback URL + different articleScript |
 | L2 (xhs) | RedNote-MCP | `rednote-mcp --stdio` MCP server, `search_notes` tool |
 | L3 | mcpFallback (Grok) | `mcp-search-bridge` → Bigsong API → `grok-chat-fast` model with native X data access |
 | L3 (xhs) | dots-chat | Bigsong API → `dots-chat` model (access to Xiaohongshu knowledge base, no toolcall) |
@@ -29,10 +29,10 @@ Comparison of CDP, MCP, and API fallback layers for Xiaohongshu (xhs) and X (Twi
 | Layer | Method | Success | Avg items/round | Avg time/round | Notes |
 |-------|--------|---------|-----------------|-----------------|-------|
 | L1 | CDP | **5/10 (50%)** | 5.2 | 4.1s | SPA timing issue — ~50% of rounds return 0 items. `[data-testid="tweet"]` selector is correct when page loads |
-| L2 | Google cdpFallback | **10/10 (100%)** | 9.0 | 4.0s | Fixed: `h3`-based selector (no Google class dependency). 9 x.com links/round, stable |
+| L2 | Google googleSiteFallback | **10/10 (100%)** | 9.0 | 4.0s | Fixed: `h3`-based selector (no Google class dependency). 9 x.com links/round, stable |
 | L3 | Grok (mcp-search-bridge) | **2/10 (20%)** | 7.0 | 15.2s | When it works, returns high-quality results with full tweet text + URLs. But 8/10 `fetch failed` — Bigsong API unstable |
 
-**Recommended x_search fallback order**: L1 CDP → L2 Google cdpFallback (h3-based, resilient) → L3 Grok. All three layers configured. CDP fastest but 50% reliable; Google stable but only titles; Grok highest quality but slow + unstable.
+**Recommended x_search fallback order**: L1 CDP → L2 Google googleSiteFallback (h3-based, resilient) → L3 Grok. All three layers configured. CDP fastest but 50% reliable; Google stable but only titles; Grok highest quality but slow + unstable.
 
 ## CDP vs MCP: Scenario Comparison
 
@@ -48,12 +48,12 @@ Comparison of CDP, MCP, and API fallback layers for Xiaohongshu (xhs) and X (Twi
 
 ## Fixes Applied
 
-### 1. Xiaohongshu CDP extractScript (commit pending)
+### 1. Xiaohongshu CDP articleScript (commit pending)
 - **Bug**: `[data-v-*]` is not a valid CSS selector (CSS doesn't support wildcard attribute names)
 - **Fix**: Changed to `section.note-item, .note-item, .search-result-item`
 - **Secondary selector** (unchanged): `a[href*="/search_result/"], a[href*="/explore/"]` — this was already correct and is what actually returned results
 
-### 2. X Google cdpFallback extractScript — Fixed
+### 2. X Google googleSiteFallback articleScript — Fixed
 - **Bug**: `div.g, .Gx5Zad, .fP1Qef` — Google frontend redesign broke these classes (0/10 success)
 - **Fix**: New `h3`-based selector — `h3` is a semantic tag, unlikely to change. Finds `h3`, gets parent `<a>` for href, filters `x.com`/`twitter.com` URLs. No dependency on Google internal class names.
 - **Test**: 10/10 success, 9 items/round, 4.0s avg — verified 2026-08-21
@@ -66,7 +66,7 @@ Comparison of CDP, MCP, and API fallback layers for Xiaohongshu (xhs) and X (Twi
 
 ## Untested CDP Sources
 
-Source registry has 40+ `extractScript` entries. Most were written during initial development and have never been systematically tested. See Issue #87 (88 manual maintenance items audit).
+Source registry has 40+ `articleScript` entries. Most were written during initial development and have never been systematically tested. See Issue #87 (88 manual maintenance items audit).
 
 **Priority candidates for testing**:
 - `sogou_weixin` — login wall + complex DOM
@@ -77,8 +77,8 @@ Source registry has 40+ `extractScript` entries. Most were written during initia
 
 ## Design Decisions & References
 
-- Issue #66: extractScript auto-fallback (generic eval + Jina Reader + health tracking)
+- Issue #66: articleScript auto-fallback (generic eval + Jina Reader + health tracking)
 - Issue #87: 88 manual maintenance items audit
 - `mcp-client.mjs`: MCP stdio JSON-RPC 2.0 client implementation
-- `search-sources.mjs`: `collectFromSource()` fallback chain logic (API → CDP → cdpFallback → mcpFallback)
+- `search-sources.mjs`: `collectFromSource()` fallback chain logic (API → CDP → googleSiteFallback → mcpFallback)
 - Bigsong API: `dots-chat` and `grok-chat-fast` models share the same upstream API (`key.bigsong`), which was intermittently unavailable during testing

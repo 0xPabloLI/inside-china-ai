@@ -64,7 +64,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 collectFromSource() 层次：
   Layer 0: apiSearch (源专用 API，如 arXiv/GitHub/Currents) ← pool 不替换
   Layer 1: CDP (主路径，打开 Chrome 搜索页面) ← pool 不替换
-  Layer 2: cdpFallback (Google site: 搜索) ← pool 不替换
+  Layer 2: googleSiteFallback (Google site: 搜索) ← pool 不替换
   Layer 3: mcpFallback → #65 pool 替换此层
 ```
 
@@ -129,7 +129,7 @@ collectFromSource() 层次：
 
 | # | Issue | Blocked by | Conflict files | Notes |
 |---|-------|-------------|---------------|-------|
-| #66 | Scenario-driven fetch layer + extractScript fallback + API→CDP fix | — | search-sources.mjs, cdp-client.mjs, source-registry.mjs, asset-sourcer.mjs, new fetch-page.mjs | 学 web-access 工具选择表：web_fetch（静态HTML）→ Jina Reader（轻量JS）→ CDP（重）。+ API→CDP fallback 合理性检查（cdpUrl==apiUrl 时 skip）。#67 ✅ unblocked |
+| #66 | Scenario-driven fetch layer + articleScript fallback + API→CDP fix | — | search-sources.mjs, cdp-client.mjs, source-registry.mjs, asset-sourcer.mjs, new fetch-page.mjs | 学 web-access 工具选择表：web_fetch（静态HTML）→ Jina Reader（轻量JS）→ CDP（重）。+ API→CDP fallback 合理性检查（cdpUrl==apiUrl 时 skip）。#67 ✅ unblocked |
 | #116 | Pipeline auto-start CDP proxy | — | cdp-client.mjs, search-sources.mjs | 管线自动启动 CDP proxy（学 web-access check-deps.mjs）。Inline 最小逻辑到 cdp-client.mjs，不依赖 skill 路径。启动失败不 hard-fail，API/MCP 源继续工作 |
 | #63 | URL dedup (standalone) | — | search-sources.mjs, trends-utils.mjs | URL-level dedup in allArticles (after collect, before output). URL 标准化（去 query/fragment/统一 protocol）+ Set 去重。与标题相似度去重结合：URL 去重先跑（消除精确重复），标题去重后跑（消除近似重复）。独立于 SVE，无前置依赖，可优先做。**Scope 更新**：#63 只做 URL dedup，改 `search-sources.mjs` 与 `trends-utils.mjs`，复用既有 `url-normalizer.mjs`；SVE 与 `asset-sourcer.mjs` 影响已移至 #114 |
 | #113 | VLM: Image preprocessing (resize >1920px) | — | vlm_analyzer.py | 所有模型在高分辨率图（>1920px）上幻觉。根因是分辨率不是模型能力。PIL resize 到 1920px 长边后消除幻觉。Benchmark: `docs/research/vlm-model-selection-benchmark.md` |
@@ -261,7 +261,7 @@ collectFromSource() 层次：
 | #52 | Unified Source Registry (umbrella) | All sub-tickets #53-#59 verified. Review archived → `archive/reviews/unified-source-registry-implementation-review-2026-08-19.md` |
 | #53 | capabilities field | Code verified: completed |
 | #54 | asset-sourcer imports from source-registry | Code verified: completed |
-| #55 | extractScript imageUrl | Code verified: completed |
+| #55 | articleScript imageUrl | Code verified: completed |
 | #56 | Asset-sourcer cached-image flow | Code verified: loadCachedImages() implemented |
 | #57 | pre-download filter gate | Code verified: completed |
 | #58 | cascade order fix | Code verified: completed |
@@ -275,7 +275,7 @@ collectFromSource() 层次：
 | #93 | Scene visual intent (dup #94) | Duplicate |
 | #95 | Restore dual-track article and video workflow | PR #104 merged (closes #95) |
 | #96 | WeChat RSS tracking (dup #97) | Duplicate |
-| #67 | capabilities.articles schema 补全 | Commit 0f75cdb - enrichWithCapabilities() adds method/apiSearch/requiresApiKey/apiKeyEnv/paidApi/cdpFallback/mcpFallback. search-sources.mjs migrated to cap?.x ?? source.x. Bug fix: cap.articles.cdpFallback. 374 tests pass |
+| #67 | capabilities.articles schema 补全 | Commit 0f75cdb - enrichWithCapabilities() adds method/apiSearch/requiresApiKey/apiKeyEnv/paidApi/googleSiteFallback/mcpFallback. search-sources.mjs migrated to cap?.x ?? source.x. Bug fix: cap.articles.googleSiteFallback. 374 tests pass |
 | #119 | Vertical Image Cropping Pipeline — Crop Decision + Framed Contain | ✅ Phase 1 (crop decision + smart alignment): `lib/crop-decision.mjs` + `vlm_analyzer.py` crop simulation + EXIF fix + `asset-sourcer.mjs` Phase 3b + `MediaBackground.tsx` cropFocus. Phase 2 (framed contain composition): `MediaBackground.tsx` branded matte for image+contain (radial-gradient `#0a0a14→#050508`), video contain stays bare. Code review 0 findings. tsc+build+lint+verify-video --pre all pass. Spec/tickets/review archived |
 | #120 | Subtitle AIL Gate: Canonical Text verification + dual-gate subtitle validation | ✅ Spec parent — all 6 tickets (#121-#126) completed and closed |
 | #121 | T1: Verify current baseline — prove canonical-text gap exists | ✅ CLOSED — baseline documented |

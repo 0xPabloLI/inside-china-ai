@@ -858,38 +858,38 @@ describe("CDP_SOURCES", () => {
     expect(ithome).toBeDefined();
     expect(typeof ithome.url).toBe("function");
     expect(ithome.url("Unitree")).toContain("ithome.com");
-    expect(typeof ithome.primaryScript).toBe("string");
-    expect(ithome.primaryScript).toContain("return results");
-    expect(typeof ithome.fallbackScript).toBe("string");
-    expect(ithome.fallbackScript).toContain("img");
+    expect(typeof ithome.imageScript).toBe("string");
+    expect(ithome.imageScript).toContain("return results");
+    expect(typeof ithome.imageFallbackScript).toBe("string");
+    expect(ithome.imageFallbackScript).toContain("img");
   });
 
   it("has jiqizhixin source", () => {
     const src = CDP_SOURCES.find((s) => s.name === "jiqizhixin");
     expect(src).toBeDefined();
     expect(src.url("DeepSeek")).toContain("jiqizhixin.com");
-    expect(src.primaryScript).toContain("return results");
+    expect(src.imageScript).toContain("return results");
   });
 
   it("has xinhua source", () => {
     const src = CDP_SOURCES.find((s) => s.name === "xinhua");
     expect(src).toBeDefined();
     expect(src.url("AI")).toContain("news.cn");
-    expect(src.primaryScript).toContain("return results");
+    expect(src.imageScript).toContain("return results");
   });
 
   it("has thepaper source", () => {
     const src = CDP_SOURCES.find((s) => s.name === "thepaper");
     expect(src).toBeDefined();
     expect(src.url("AI")).toContain("thepaper.cn");
-    expect(src.primaryScript).toContain("return results");
+    expect(src.imageScript).toContain("return results");
   });
 
-  it("all CDP sources have fallbackScript", () => {
+  it("all CDP sources have imageFallbackScript", () => {
     for (const src of CDP_SOURCES) {
-      expect(typeof src.fallbackScript).toBe("string");
-      expect(src.fallbackScript).toContain("img[src]");
-      expect(src.fallbackScript).toContain("naturalWidth");
+      expect(typeof src.imageFallbackScript).toBe("string");
+      expect(src.imageFallbackScript).toContain("img[src]");
+      expect(src.imageFallbackScript).toContain("naturalWidth");
     }
   });
 });
@@ -1207,14 +1207,14 @@ describe("CDP_SOURCES new additions", () => {
     const src = CDP_SOURCES.find((s) => s.name === "google_news");
     expect(src).toBeDefined();
     expect(src.url("AI")).toContain("google.com");
-    expect(src.primaryScript).toContain("return results");
+    expect(src.imageScript).toContain("return results");
   });
 
   it("has bing_news source", () => {
     const src = CDP_SOURCES.find((s) => s.name === "bing_news");
     expect(src).toBeDefined();
     expect(src.url("AI")).toContain("bing.com");
-    expect(src.primaryScript).toContain("return results");
+    expect(src.imageScript).toContain("return results");
   });
 
   it("has leiphone source", () => {
@@ -2125,47 +2125,47 @@ describe("T1: preFilterCandidate misfilter prevention", () => {
 
 describe("T3 — CDP type handling", () => {
   // T3 original: CDP download loop must skip type='text' candidates from image download path
-  it("google_news primaryScript pushes type='image' when img exists", () => {
+  it("google_news imageScript pushes type='image' when img exists", () => {
     const src = CDP_SOURCES.find((s) => s.name === "google_news");
     expect(src).toBeDefined();
-    expect(src.primaryScript).toContain("'image'");
+    expect(src.imageScript).toContain("'image'");
   });
 
-  it("bing_news primaryScript pushes type='image' when img exists", () => {
+  it("bing_news imageScript pushes type='image' when img exists", () => {
     const src = CDP_SOURCES.find((s) => s.name === "bing_news");
     expect(src).toBeDefined();
-    expect(src.primaryScript).toContain("'image'");
+    expect(src.imageScript).toContain("'image'");
   });
 
   // New: CDP scripts should also push type='text' when no img but link+title exist
-  it("google_news primaryScript pushes type='text' for text-only results", () => {
+  it("google_news imageScript pushes type='text' for text-only results", () => {
     const src = CDP_SOURCES.find((s) => s.name === "google_news");
-    expect(src.primaryScript).toContain("'text'");
+    expect(src.imageScript).toContain("'text'");
   });
 
-  it("bing_news primaryScript pushes type='text' for text-only results", () => {
+  it("bing_news imageScript pushes type='text' for text-only results", () => {
     const src = CDP_SOURCES.find((s) => s.name === "bing_news");
-    expect(src.primaryScript).toContain("'text'");
+    expect(src.imageScript).toContain("'text'");
   });
 
   // All CDP sources should push text candidates (not just google/bing)
   it("all CDP sources push type='text' for text-only results", () => {
     for (const src of CDP_SOURCES) {
-      expect(src.primaryScript, `${src.name} missing text push`).toContain("'text'");
+      expect(src.imageScript, `${src.name} missing text push`).toContain("'text'");
     }
   });
 
   // All CDP sources should include sourceUrl in both image and text candidates
   it("all CDP sources include sourceUrl in image candidates", () => {
     for (const src of CDP_SOURCES) {
-      expect(src.primaryScript, `${src.name} missing sourceUrl`).toContain("sourceUrl");
+      expect(src.imageScript, `${src.name} missing sourceUrl`).toContain("sourceUrl");
     }
   });
 
   // All CDP sources should include snippet in both image and text candidates
   it("all CDP sources include snippet in image candidates", () => {
     for (const src of CDP_SOURCES) {
-      expect(src.primaryScript, `${src.name} missing snippet`).toContain("snippet");
+      expect(src.imageScript, `${src.name} missing snippet`).toContain("snippet");
     }
   });
 });

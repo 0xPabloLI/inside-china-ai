@@ -12,7 +12,7 @@
 
 1. **Unify source definitions**: `source-registry.mjs` becomes the single source of truth. Each source gets a `capabilities` field declaring what data types it provides (articles, images, videos) and how (CDP scripts, API config, yt-dlp platform). `asset-sourcer.mjs` deletes `API_SOURCES`, `YTDLP_SOURCES`, `CDP_SOURCES` and queries source-registry by capability.
 
-2. **Cross-stage image caching**: Trend discovery's `extractScript` is enhanced to also extract `imageUrl` from the same DOM. Image URLs are stored in `trending-topics.json`. Asset sourcer (Stage 4) checks cached URLs first, filters by keyword match + URL pattern, downloads matches without new CDP requests.
+2. **Cross-stage image caching**: Trend discovery's `articleScript` is enhanced to also extract `imageUrl` from the same DOM. Image URLs are stored in `trending-topics.json`. Asset sourcer (Stage 4) checks cached URLs first, filters by keyword match + URL pattern, downloads matches without new CDP requests.
 
 3. **Cascade order fix**: In `analyzeAssets()`, move pre-filter (free) before detectFocus (~0.5s/asset). Currently detectFocus runs on all assets including ones that pre-filter will skip.
 
@@ -33,7 +33,7 @@
 - `scripts/short-video/lib/source-registry.mjs` — 1932 lines, 46 sources, to be expanded to ~53 with capabilities
 - `scripts/short-video/lib/asset-sourcer.mjs` — 2158 lines, has API_SOURCES (7), YTDLP_SOURCES (5), CDP_SOURCES (9), to be deleted and replaced with source-registry imports
 - `scripts/short-video/lib/trends-utils.mjs` — buildOutputJson needs `images` field
-- `scripts/short-video/search-sources.mjs` — 489 lines, extractScript consumer
+- `scripts/short-video/search-sources.mjs` — 489 lines, articleScript consumer
 - `scripts/short-video/lib/visual-analyzer.mjs` — 640 lines, VLM + focus detection
 - `docs/adr/0013-asset-sourcing-three-layer.md` — to be revised
 - `docs/adr/0016-cascade-filtering-signal-density.md` — to be updated
@@ -53,7 +53,7 @@
   │    ├─ #56 (T04 cached-image flow) — blocked by #54 + #55
   │    ├─ #57 (T05 pre-download filter) — blocked by #54
   │    └─ #58 (T06 cascade order fix) — blocked by #54
-  └─ #55 (T03 extractScript imageUrl) — blocked by #53
+  └─ #55 (T03 articleScript imageUrl) — blocked by #53
        └─ (feeds into #56)
 
 #59 (T07 ADR docs) — blocked by #54 + #55 + #58

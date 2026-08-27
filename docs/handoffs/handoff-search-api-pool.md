@@ -81,7 +81,7 @@ class SearchApiPool {
 
 现有链：
 ```
-apiSearch → CDP (extractScript) → cdpFallback (Google site:) → mcpFallback (Grok)
+apiSearch → CDP (articleScript) → googleSiteFallback (Google site:) → mcpFallback (Grok)
 ```
 
 新链（加入 web_fetch + Jina Reader + Pool）：
@@ -89,7 +89,7 @@ apiSearch → CDP (extractScript) → cdpFallback (Google site:) → mcpFallback
 Layer 0: apiSearch (API 直连) — 最快
 Layer 1: web_fetch — 免费、无限制
 Layer 2: Jina Reader (URL→Markdown) — JS 渲染、1M tokens/月
-Layer 3: CDP extractScript — per-site 精确选择器
+Layer 3: CDP articleScript — per-site 精确选择器
 Layer 3b: Generic eval fallback — 通用选择器
 Layer 4: Search API Pool — Jina Search + Tavily + Brave + Grok + Currents + Noozra + GNews (round-robin)
 ```
@@ -129,7 +129,7 @@ Layer 4: Search API Pool — Jina Search + Tavily + Brave + Grok + Currents + No
 ## Design Clarifications (2026-08-20 补充)
 
 ### Bing API 已退役，不可用
-Bing Search API 于 2025 年 8 月退役，2026 年 8 月 11 日完全关闭。不可加入 Pool。但 `bing_news` 源在 source-registry 中走 CDP 模式（打开 `bing.com/news/search` 页面用 extractScript），不依赖 API，仍然可用。
+Bing Search API 于 2025 年 8 月退役，2026 年 8 月 11 日完全关闭。不可加入 Pool。但 `bing_news` 源在 source-registry 中走 CDP 模式（打开 `bing.com/news/search` 页面用 articleScript），不依赖 API，仍然可用。
 
 ### CDP 搜索不能进 Pool
 Pool 只包含**程序化 API 调用**的搜索服务。CDP 搜索（google_search、baidu_search、bing_news）是浏览器代理模式，不是 API，不能放进 Pool。它们作为独立 source 留在 source-registry 中。

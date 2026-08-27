@@ -15,20 +15,20 @@
  *     { primary: "cdp" | "api" | "mcp",
  *       notes: "human-readable description of collection method" }
  * - url(keyword): function to build search URL (keyword ignored if supportsKeyword=false)
- * - extractScript: CDP eval script to extract articles from DOM
+ * - articleScript: CDP eval script to extract articles from DOM
  * - loginCheckScript: CDP eval script to check if login is needed (optional)
  * - useCleanTitle: whether to run cleanTitle on extracted titles
  * - apiSearch: API direct-connect config (optional, Issue #34)
  *     { url(keyword), parser(responseText), authRequired, headers, paidApi }
  *     paidApi: true if the API consumes a limited credits quota (e.g. ScrapeCreators).
  *     Sources with paidApi=true are skipped by default unless --include-paid flag is passed.
- * - cdpFallback: Google site: search fallback config (optional)
+ * - googleSiteFallback: Google site: search fallback config (optional)
  * - mcpFallback: MCP server fallback config (optional)
  *
  * Collection layer order (in search-sources.mjs collectFromSource):
  *   1. apiSearch (if configured) — direct API call, parse JSON/XML response
  *   2. CDP (primary for most sources)
- *   3. cdpFallback (Google site: search, if configured)
+ *   3. googleSiteFallback (Google site: search, if configured)
  *   4. mcpFallback (mcp-search-bridge/Grok, if configured)
  *
  * Used by search-sources.mjs.
@@ -66,7 +66,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: () => "https://www.qbitai.com/",
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.article-item, .post-item, .list-item, article');
       var results = [];
       if (items.length > 0) {
@@ -102,7 +102,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -137,7 +137,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: () => "https://36kr.com/",
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.kr-flow-item, .article-item, .recommend-item, article');
       var results = [];
       if (items.length > 0) {
@@ -172,7 +172,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: () => "https://techcrunch.com/category/artificial-intelligence/",
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('article.post, article, .post-block');
       var results = [];
       if (items.length > 0) {
@@ -207,7 +207,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: () => "https://www.bloomberg.com/technology",
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('article, .story-package, .lede-package');
       var results = [];
       if (items.length > 0) {
@@ -243,7 +243,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: () => "https://www.guancha.cn/",
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.article-list li, .content-list .item, .module-art .item, article');
       var results = [];
       if (items.length > 0) {
@@ -282,7 +282,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.list .item, .news-list .item, .lst .item, article, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -322,7 +322,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
       var results = [];
       items.forEach(function(el) {
@@ -347,7 +347,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
       var results = [];
       items.forEach(function(el) {
@@ -372,7 +372,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -397,7 +397,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -422,7 +422,7 @@ export const NEWS_SOURCES = [
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -448,7 +448,7 @@ export const NEWS_SOURCES = [
     useCleanTitle: false,
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -480,7 +480,7 @@ export const NEWS_SOURCES = [
     useCleanTitle: false,
     url: (keyword) =>
       `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
       var results = [];
       items.forEach(function(el) {
@@ -528,7 +528,7 @@ export const SELF_MEDIA_SOURCES = [
       var body = document.body ? document.body.innerText : '';
       (body.includes('请先登录') || body.includes('扫码登录')) ? 'need_login' : 'ok'
     `,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('section.note-item, .note-item, .search-result-item');
       var results = [];
       if (items.length > 0) {
@@ -583,7 +583,7 @@ export const SELF_MEDIA_SOURCES = [
       var body = document.body ? document.body.innerText : '';
       (body.includes('请输入验证码') || document.querySelector('img[src*="captcha"]') || document.querySelector('#seccodeForm')) ? 'captcha' : 'ok'
     `,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.news-box .news-list li, .news-list li, .txt-box');
       var results = [];
       if (items.length > 0) {
@@ -634,7 +634,7 @@ export const SELF_MEDIA_SOURCES = [
             `https://s.weibo.com/weibo?q=${encodeURIComponent(item.word || item.title || "")}`,
         })),
     },
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('td.td-02 a');
       var results = [];
       items.forEach(function(a) {
@@ -671,7 +671,7 @@ export const SELF_MEDIA_SOURCES = [
           url: item.url || item.link || item.bvid || "",
         })),
     },
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.video-list-item, .bili-video-card, .video-item');
       var results = [];
       if (items.length > 0) {
@@ -726,7 +726,7 @@ export const SELF_MEDIA_SOURCES = [
       var body = document.body ? document.body.innerText : '';
       (loginModal && body.includes('登录')) ? 'need_login' : 'ok'
     `,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('[data-e2e="search_video-item"], ul[data-e2e="search-result-list"] li, .search-result-card');
       var results = [];
       if (items.length > 0) {
@@ -818,7 +818,7 @@ export const SELF_MEDIA_SOURCES = [
       var body = document.body ? document.body.innerText : '';
       (!body || body.length < 100) ? 'need_login' : 'ok'
     `,
-    extractScript: `
+    articleScript: `
       // TikTok Creator Center Inspiration section
       // Extract trending videos from the "灵感" (Inspiration) tab
       var items = document.querySelectorAll('[data-e2e*="trend"], [data-e2e*="inspiration"], .inspiration-item, .trend-item');
@@ -865,7 +865,7 @@ export const SELF_MEDIA_SOURCES = [
       var body = document.body ? document.body.innerText : '';
       (body.includes('登录') && body.includes('注册') && !body.includes('退出')) ? 'need_login' : 'ok'
     `,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.SearchResult-Card, .List-item, .Card.SearchResult-Card');
       var results = [];
       if (items.length > 0) {
@@ -896,7 +896,7 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP (requires login) → cdpFallback (Google site:x.com, h3-based selector) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
+        "CDP (requires login) → googleSiteFallback (Google site:x.com, h3-based selector) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: false,
@@ -907,7 +907,7 @@ export const SELF_MEDIA_SOURCES = [
       (url.includes('/login') || url.includes('/i/flow/login') ||
        (body.includes('Sign in') && body.length < 500)) ? 'need_login' : 'ok'
     `,
-    extractScript: `
+    articleScript: `
       // SPA poll: wait for tweets to render (X uses client-side rendering).
       // Uses async + setTimeout (not busy-wait) so React can use the main thread.
       var tweets = [];
@@ -936,10 +936,10 @@ export const SELF_MEDIA_SOURCES = [
       });
       return results;
     `,
-    cdpFallback: {
+    googleSiteFallback: {
       url: (keyword) =>
         `https://www.google.com/search?q=${encodeURIComponent("site:x.com " + keyword)}`,
-      extractScript: `
+      articleScript: `
         var results = [];
         document.querySelectorAll('h3').forEach(function(h3) {
           var a = h3.closest('a') || h3.parentElement.querySelector('a');
@@ -1080,7 +1080,7 @@ export const INTERNATIONAL_SOURCES = [
     },
     useCleanTitle: false,
     url: (keyword) => `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('ytd-video-renderer, ytd-channel-renderer, .yt-simple-endpoint');
       var results = [];
       if (items.length > 0) {
@@ -1150,7 +1150,7 @@ export const INTERNATIONAL_SOURCES = [
     },
     url: (keyword) =>
       `https://arxiv.org/search/?searchtype=all&query=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.arxiv-result, li.arxiv-result');
       var results = [];
       if (items.length > 0) {
@@ -1219,7 +1219,7 @@ export const INTERNATIONAL_SOURCES = [
     },
     url: (keyword) =>
       `https://github.com/search?q=${encodeURIComponent(keyword)}&type=repositories&s=updated&o=desc`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('.repo-list-item, .hx_hit-repo, div[data-testid="results-list"] > div');
       var results = [];
       if (items.length > 0) {
@@ -1273,7 +1273,7 @@ export const INTERNATIONAL_SOURCES = [
     useCleanTitle: false,
     // Threads doesn't have a public search page; MCP is the primary method
     url: (keyword) => `https://www.threads.net/search?q=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var items = document.querySelectorAll('[data-pressable-container], article, div[role="article"]');
       var results = [];
       items.forEach(function(el) {
@@ -1336,7 +1336,7 @@ export const INTERNATIONAL_SOURCES = [
       authRequired: false,
     },
     url: () => "https://www.datacubeai.space/en",
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('article, .news-item, .post-item, [class*="article"]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1379,7 +1379,7 @@ export const INTERNATIONAL_SOURCES = [
       headers: {},
     },
     url: (keyword) => `https://gnews.io/search?q=${encodeURIComponent(keyword)}&lang=en`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('article, .news-item, [class*="article"]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1421,7 +1421,7 @@ export const INTERNATIONAL_SOURCES = [
       authRequired: false,
     },
     url: (keyword) => `https://core.ac.uk/search?q=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('.search-result, [class*="result"], article').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1472,7 +1472,7 @@ export const INTERNATIONAL_SOURCES = [
     },
     url: (keyword) =>
       `https://openalex.org/works?filter=default.search:${encodeURIComponent(keyword)}&sort=publication_date:desc`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('.search-result, .work-result, [class*="result"]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1510,7 +1510,7 @@ export const GENERAL_SEARCH_SOURCES = [
     useCleanTitle: false,
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword + " China AI")}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1550,7 +1550,7 @@ export const GENERAL_SEARCH_SOURCES = [
     },
     useCleanTitle: false,
     url: (keyword) => `https://www.baidu.com/s?wd=${encodeURIComponent(keyword + " AI")}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('.result, .c-container, .new-pmd').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1583,7 +1583,7 @@ export const GENERAL_SEARCH_SOURCES = [
     useCleanTitle: false,
     // No CDP page — MCP is the only method
     url: () => "",
-    extractScript: `return [];`,
+    articleScript: `return [];`,
     mcpFallback: {
       command: NODE_BIN,
       args: [MCP_SEARCH_BRIDGE_SERVER],
@@ -1626,7 +1626,7 @@ export const GENERAL_SEARCH_SOURCES = [
       headers: {},
     },
     url: (keyword) => `https://currentsapi.services/search?q=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('article, .news-item, [class*="article"]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1667,7 +1667,7 @@ export const GENERAL_SEARCH_SOURCES = [
       authRequired: false,
     },
     url: (keyword) => `https://noozra.com/search?q=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('article, .news-item, .headline, [class*="article"]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1686,7 +1686,7 @@ export const GENERAL_SEARCH_SOURCES = [
 // These sources are unique to the last30days skill and are not available
 // in search-sources' CDP-based scraping. They are included here for
 // completeness and future integration.
-// Note: These currently have no CDP extractScript — they require API-based
+// Note: These currently have no CDP articleScript — they require API-based
 // collection (to be implemented in a future ticket).
 
 export const LAST30DAYS_SOURCES = [
@@ -1722,10 +1722,10 @@ export const LAST30DAYS_SOURCES = [
       authRequired: false,
       headers: { "User-Agent": "ChinaAINews/1.0" },
     },
-    // CDP fallback: same URL, but parsed via DOM (extractScript)
+    // CDP fallback: same URL, but parsed via DOM (articleScript)
     url: (keyword) =>
       `https://www.reddit.com/search.json?q=${encodeURIComponent(keyword)}&sort=new&limit=10`,
-    extractScript: `
+    articleScript: `
       var results = [];
       try {
         var data = JSON.parse(document.body.innerText);
@@ -1769,10 +1769,10 @@ export const LAST30DAYS_SOURCES = [
       },
       authRequired: false,
     },
-    // CDP fallback: same URL, parsed via DOM (extractScript)
+    // CDP fallback: same URL, parsed via DOM (articleScript)
     url: (keyword) =>
       `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(keyword)}&tags=story&hitsPerPage=10`,
-    extractScript: `
+    articleScript: `
       var results = [];
       try {
         var data = JSON.parse(document.body.innerText);
@@ -1799,7 +1799,7 @@ export const LAST30DAYS_SOURCES = [
     },
     useCleanTitle: false,
     url: (keyword) => `https://polymarket.com/search?q=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('[class*="market"], [class*="card"]').forEach(function(el) {
         var title = el.querySelector('h2, h3, [class*="title"], [class*="question"]');
@@ -1823,7 +1823,7 @@ export const LAST30DAYS_SOURCES = [
     },
     useCleanTitle: false,
     url: (keyword) => `https://digg.com/search?q=${encodeURIComponent(keyword)}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('article, .story-item, [class*="story"]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1850,7 +1850,7 @@ export const LAST30DAYS_SOURCES = [
     // Techmeme doesn't have search; use Google site:techmeme.com
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent("site:techmeme.com " + keyword)}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -1896,7 +1896,7 @@ export const WECHAT_ACCOUNT_SOURCES = [
     // Search for articles citing this WeChat account via republish platforms
     url: () =>
       `https://www.google.com/search?q=${encodeURIComponent('"来自微信公众号" "动察Beating"')}`,
-    extractScript: `
+    articleScript: `
       var results = [];
       // Google search results
       document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
@@ -1997,7 +1997,7 @@ function createWechatRssSource(name, label, feedUrl) {
       authRequired: false,
     },
     url: () => feedUrl,
-    extractScript: "var results = []; return results;",
+    articleScript: "var results = []; return results;",
   };
 }
 
@@ -2113,7 +2113,7 @@ export const STOCK_MEDIA_SOURCES = [
       notes: "API (api.pexels.com, requires PEXELS_API_KEY). Image search.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       images: {
         method: "api",
@@ -2148,7 +2148,7 @@ export const STOCK_MEDIA_SOURCES = [
       notes: "API (api.pexels.com/videos, requires PEXELS_API_KEY). Video search.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       videos: {
         method: "api",
@@ -2168,7 +2168,7 @@ export const STOCK_MEDIA_SOURCES = [
               type: "video",
               resolution: best ? `${best.width}x${best.height}` : undefined,
               fileSize: undefined,
-              duration: v.duration ? `${v.duration}s` : undefined,
+              duration: typeof v.duration === "number" ? v.duration : undefined,
               author: v.user?.name,
             };
           });
@@ -2187,7 +2187,7 @@ export const STOCK_MEDIA_SOURCES = [
       notes: "API (api.unsplash.com, requires UNSPLASH_ACCESS_KEY). Image search.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       images: {
         method: "api",
@@ -2221,7 +2221,7 @@ export const STOCK_MEDIA_SOURCES = [
       notes: "API (commons.wikimedia.org, free, no auth). Image search.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       images: {
         method: "api",
@@ -2255,7 +2255,7 @@ export const STOCK_MEDIA_SOURCES = [
       notes: "API (api.coverr.co, requires COVERR_API_KEY). Video search.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       videos: {
         method: "api",
@@ -2291,7 +2291,7 @@ export const STOCK_MEDIA_SOURCES = [
       notes: "API (pixabay.com/api, requires PIXABAY_API_KEY). Image search.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       images: {
         method: "api",
@@ -2339,7 +2339,7 @@ export const STOCK_MEDIA_SOURCES = [
         "API (api.search.brave.com/images, requires BRAVE_SEARCH_API_KEY). Open web image search. Copyright unverified.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       images: {
         method: "api",
@@ -2380,7 +2380,7 @@ export const STOCK_MEDIA_SOURCES = [
         "Self-hosted SearXNG metasearch (localhost:8888). No auth needed. Copyright unverified.",
     },
     useCleanTitle: false,
-    extractScript: "",
+    articleScript: "",
     capabilities: {
       images: {
         method: "api",
@@ -2410,13 +2410,13 @@ export const STOCK_MEDIA_SOURCES = [
 //
 // Capabilities config for sources that also have image extraction via CDP.
 // These are merged into the source definitions below via enrichWithCapabilities.
-// Each config has: method:"cdp", url(keyword), primaryScript, fallbackScript
+// Each config has: method:"cdp", url(keyword), imageScript, imageFallbackScript
 
 const CDP_IMAGE_CAPABILITIES = {
   ithome: {
     method: "cdp",
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.list .item, .news-list .item, article, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -2433,7 +2433,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2447,7 +2447,7 @@ const CDP_IMAGE_CAPABILITIES = {
   jiqizhixin: {
     method: "cdp",
     url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
       var results = [];
       items.forEach(function(el) {
@@ -2464,7 +2464,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2479,7 +2479,7 @@ const CDP_IMAGE_CAPABILITIES = {
     method: "cdp",
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
-    primaryScript: `
+    imageScript: `
       var results = [];
       document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
         var link = el.querySelector('a[href]');
@@ -2498,7 +2498,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2515,7 +2515,7 @@ const CDP_IMAGE_CAPABILITIES = {
     method: "cdp",
     url: (keyword) =>
       `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
       var results = [];
       items.forEach(function(el) {
@@ -2535,7 +2535,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2551,7 +2551,7 @@ const CDP_IMAGE_CAPABILITIES = {
   xinhua: {
     method: "cdp",
     url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
       var results = [];
       items.forEach(function(el) {
@@ -2568,7 +2568,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2582,7 +2582,7 @@ const CDP_IMAGE_CAPABILITIES = {
   thepaper: {
     method: "cdp",
     url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
       var results = [];
       items.forEach(function(el) {
@@ -2599,7 +2599,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2613,7 +2613,7 @@ const CDP_IMAGE_CAPABILITIES = {
   leiphone: {
     method: "cdp",
     url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -2630,7 +2630,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2644,7 +2644,7 @@ const CDP_IMAGE_CAPABILITIES = {
   xinzhiyuan: {
     method: "cdp",
     url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -2661,7 +2661,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -2675,7 +2675,7 @@ const CDP_IMAGE_CAPABILITIES = {
   zhidx: {
     method: "cdp",
     url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
-    primaryScript: `
+    imageScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
       var results = [];
       items.forEach(function(el) {
@@ -2692,7 +2692,7 @@ const CDP_IMAGE_CAPABILITIES = {
       });
       return results;
     `,
-    fallbackScript: `
+    imageFallbackScript: `
       var imgs = document.querySelectorAll('img[src]');
       var results = [];
       imgs.forEach(function(img) {
@@ -3054,7 +3054,7 @@ export const SOURCE_ATTRIBUTIONS = {
 // ─── Capabilities enrichment ───
 //
 // Automatically adds a `capabilities` object to each source based on its
-// existing fields. Sources that have extractScript get capabilities.articles.
+// existing fields. Sources that have articleScript get capabilities.articles.
 // Sources that are in CDP_IMAGE_CAPABILITIES get capabilities.images.
 // Sources that are in YTDLP_VIDEO_CAPABILITIES get capabilities.videos.
 //
@@ -3081,13 +3081,13 @@ function enrichWithCapabilities(sources) {
     const capabilities = {};
 
     // R4 + #67: Articles — all article-consumption fields in capabilities.articles
-    if (source.extractScript) {
+    if (source.articleScript) {
       const api = source.apiSearch;
       capabilities.articles = {
         method: source.accessMethod?.primary || "cdp",
         supportsKeyword: source.supportsKeyword,
         url: source.url,
-        extractScript: source.extractScript,
+        articleScript: source.articleScript,
         loginCheckScript: source.loginCheckScript || null,
         needsAuth: source.needsAuth || false,
         useCleanTitle: source.useCleanTitle || false,
@@ -3097,7 +3097,7 @@ function enrichWithCapabilities(sources) {
         apiKeyEnv: API_KEY_ENV_MAP[source.name] || null,
         paidApi: !!api?.paidApi,
         // Fallback chain (direct references; undefined if not configured)
-        cdpFallback: source.cdpFallback,
+        googleSiteFallback: source.googleSiteFallback,
         mcpFallback: source.mcpFallback,
       };
     }

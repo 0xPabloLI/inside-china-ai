@@ -42,13 +42,13 @@ describe("capabilities field presence", () => {
     }
   });
 
-  it("sources with extractScript have capabilities.articles", () => {
+  it("sources with articleScript have capabilities.articles", () => {
     for (const source of ALL_SOURCES) {
-      // Skip sources with trivial extractScript (MCP-only or API-only)
+      // Skip sources with trivial articleScript (MCP-only or API-only)
       if (source.accessMethod?.primary === "api" || (source.mcpFallback && !source.url())) {
         continue;
       }
-      if (source.extractScript && source.extractScript.length > 50) {
+      if (source.articleScript && source.articleScript.length > 50) {
         expect(source.capabilities.articles).toBeDefined();
       }
     }
@@ -120,10 +120,10 @@ expect(STOCK_MEDIA_SOURCES).toHaveLength(8);
     }
   });
 
-  it("stock media sources have no meaningful extractScript", () => {
+  it("stock media sources have no meaningful articleScript", () => {
     for (const src of STOCK_MEDIA_SOURCES) {
       // Stock media sources don't have CDP article extraction — empty or trivial
-      expect(!src.extractScript || src.extractScript.length === 0).toBe(true);
+      expect(!src.articleScript || src.articleScript.length === 0).toBe(true);
     }
   });
 
@@ -158,8 +158,8 @@ describe("capabilities field structure", () => {
       if (!img) continue;
       if (img.method === "cdp") {
         expect(typeof img.url).toBe("function");
-        expect(typeof img.primaryScript).toBe("string");
-        expect(typeof img.fallbackScript).toBe("string");
+        expect(typeof img.imageScript).toBe("string");
+        expect(typeof img.imageFallbackScript).toBe("string");
       }
     }
   });
@@ -335,11 +335,11 @@ describe("R3 — yt-dlp attribution keys match source names", () => {
 // ─── R4: capabilities.articles has complete config ───
 
 describe("R4 — capabilities.articles has complete config", () => {
-  it("every source with capabilities.articles has url, extractScript, and supportsKeyword", () => {
+  it("every source with capabilities.articles has url, articleScript, and supportsKeyword", () => {
     const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
     for (const s of articleSources) {
       expect(s.capabilities.articles.url).toBeDefined();
-      expect(s.capabilities.articles.extractScript).toBeDefined();
+      expect(s.capabilities.articles.articleScript).toBeDefined();
       expect(typeof s.capabilities.articles.supportsKeyword).toBe("boolean");
     }
   });
@@ -491,10 +491,10 @@ describe("#67 — capabilities.articles API credentials", () => {
 });
 
 describe("#67 — capabilities.articles fallbacks", () => {
-  it("x_search has cdpFallback in capabilities.articles", () => {
+  it("x_search has googleSiteFallback in capabilities.articles", () => {
     const src = ALL_SOURCES.find((s) => s.name === "x_search");
-    expect(src.capabilities.articles.cdpFallback).toBeDefined();
-    expect(src.capabilities.articles.cdpFallback).toBe(src.cdpFallback);
+    expect(src.capabilities.articles.googleSiteFallback).toBeDefined();
+    expect(src.capabilities.articles.googleSiteFallback).toBe(src.googleSiteFallback);
   });
 
   it("all sources with top-level mcpFallback have it in capabilities.articles", () => {
@@ -505,10 +505,10 @@ describe("#67 — capabilities.articles fallbacks", () => {
     }
   });
 
-  it("sources without cdpFallback have undefined in capabilities.articles", () => {
-    const noCdp = ALL_SOURCES.filter((s) => s.capabilities?.articles && !s.cdpFallback);
+  it("sources without googleSiteFallback have undefined in capabilities.articles", () => {
+    const noCdp = ALL_SOURCES.filter((s) => s.capabilities?.articles && !s.googleSiteFallback);
     for (const s of noCdp) {
-      expect(s.capabilities.articles.cdpFallback).toBeUndefined();
+      expect(s.capabilities.articles.googleSiteFallback).toBeUndefined();
     }
   });
 

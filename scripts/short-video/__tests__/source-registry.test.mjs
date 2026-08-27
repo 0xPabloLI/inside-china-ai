@@ -37,15 +37,15 @@ expect(ALL_SOURCES).toHaveLength(61);
       expect(source.accessMethod).toBeDefined();
       expect(["cdp", "api", "mcp"]).toContain(source.accessMethod.primary);
       expect(typeof source.accessMethod.notes).toBe("string");
-      // Stock API sources don't have url/extractScript at top level — they use capabilities
+      // Stock API sources don't have url/articleScript at top level — they use capabilities
       if (source.category === "stock_media") continue;
       expect(typeof source.url).toBe("function");
-      expect(typeof source.extractScript).toBe("string");
-      // MCP-only sources may have minimal extractScript (e.g. "return [];")
-      // API sources use apiSearch.parser, not CDP extractScript
+      expect(typeof source.articleScript).toBe("string");
+      // MCP-only sources may have minimal articleScript (e.g. "return [];")
+      // API sources use apiSearch.parser, not CDP articleScript
       if (source.mcpFallback && !source.url()) continue;
       if (source.accessMethod.primary === "api") continue;
-      expect(source.extractScript.length).toBeGreaterThan(50);
+      expect(source.articleScript.length).toBeGreaterThan(50);
     }
   });
 
@@ -285,10 +285,10 @@ describe("Extract scripts", () => {
     for (const src of ALL_SOURCES) {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_media") continue;
-      expect(typeof src.extractScript).toBe("string");
-      // API sources do not use the CDP extractor; MCP-only sources may have minimal extractScript.
+      expect(typeof src.articleScript).toBe("string");
+      // API sources do not use the CDP extractor; MCP-only sources may have minimal articleScript.
       if (src.accessMethod.primary === "api" || (src.mcpFallback && !src.url())) continue;
-      expect(src.extractScript.length).toBeGreaterThan(50);
+      expect(src.articleScript.length).toBeGreaterThan(50);
     }
   });
 
@@ -296,34 +296,34 @@ describe("Extract scripts", () => {
     for (const src of ALL_SOURCES) {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_media") continue;
-      // MCP-only sources (like mcp_grok_search) may have minimal extractScript
+      // MCP-only sources (like mcp_grok_search) may have minimal articleScript
       if (src.mcpFallback && !src.url()) continue;
-      expect(src.extractScript).toContain("return results");
+      expect(src.articleScript).toContain("return results");
     }
   });
 
   it("weibo_hot extracts from td.td-02", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_hot");
-    expect(src.extractScript).toContain("td.td-02");
+    expect(src.articleScript).toContain("td.td-02");
   });
 
   it("bilibili extract includes video card selectors", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "bilibili");
-    expect(src.extractScript).toContain("bili-video-card");
+    expect(src.articleScript).toContain("bili-video-card");
   });
 
   it("x_search extract uses data-testid=tweet selector", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
-    expect(src.extractScript).toContain('data-testid="tweet"');
-    expect(src.extractScript).toContain('data-testid="tweetText"');
-    expect(src.extractScript).toContain("return results");
+    expect(src.articleScript).toContain('data-testid="tweet"');
+    expect(src.articleScript).toContain('data-testid="tweetText"');
+    expect(src.articleScript).toContain("return results");
   });
 
-  it("x_search extractScript has SPA poll for tweets to render", () => {
+  it("x_search articleScript has SPA poll for tweets to render", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
-    expect(src.extractScript).toContain("deadline");
-    expect(src.extractScript).toContain("Date.now()");
-    expect(src.extractScript).toContain("8000");
+    expect(src.articleScript).toContain("deadline");
+    expect(src.articleScript).toContain("Date.now()");
+    expect(src.articleScript).toContain("8000");
   });
 });
 
@@ -637,40 +637,40 @@ describe("MCP fallback configuration", () => {
 // ─── CDP fallback configuration ───
 
 describe("CDP fallback configuration", () => {
-  it("x_search has cdpFallback", () => {
+  it("x_search has googleSiteFallback", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
-    expect(src.cdpFallback).toBeDefined();
-    expect(typeof src.cdpFallback.url).toBe("function");
-    expect(typeof src.cdpFallback.extractScript).toBe("string");
+    expect(src.googleSiteFallback).toBeDefined();
+    expect(typeof src.googleSiteFallback.url).toBe("function");
+    expect(typeof src.googleSiteFallback.articleScript).toBe("string");
   });
 
-  it("x_search cdpFallback builds Google site:x.com URL", () => {
+  it("x_search googleSiteFallback builds Google site:x.com URL", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
-    const url = src.cdpFallback.url("DeepSeek");
+    const url = src.googleSiteFallback.url("DeepSeek");
     expect(url).toContain("google.com/search");
     expect(url).toContain(encodeURIComponent("site:x.com "));
     expect(url).toContain(encodeURIComponent("DeepSeek"));
   });
 
-  it("x_search cdpFallback extractScript returns results", () => {
+  it("x_search googleSiteFallback articleScript returns results", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
-    expect(src.cdpFallback.extractScript).toContain("return results");
-    expect(src.cdpFallback.extractScript).toContain("x.com");
-    expect(src.cdpFallback.extractScript).toContain("twitter.com");
+    expect(src.googleSiteFallback.articleScript).toContain("return results");
+    expect(src.googleSiteFallback.articleScript).toContain("x.com");
+    expect(src.googleSiteFallback.articleScript).toContain("twitter.com");
   });
 
-  it("x_search cdpFallback uses h3-based selector (no div.g dependency)", () => {
+  it("x_search googleSiteFallback uses h3-based selector (no div.g dependency)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "x_search");
-    expect(src.cdpFallback.extractScript).toContain("h3");
-    expect(src.cdpFallback.extractScript).not.toContain("div.g");
-    expect(src.cdpFallback.extractScript).not.toContain("Gx5Zad");
-    expect(src.cdpFallback.extractScript).not.toContain("fP1Qef");
+    expect(src.googleSiteFallback.articleScript).toContain("h3");
+    expect(src.googleSiteFallback.articleScript).not.toContain("div.g");
+    expect(src.googleSiteFallback.articleScript).not.toContain("Gx5Zad");
+    expect(src.googleSiteFallback.articleScript).not.toContain("fP1Qef");
   });
 
-  it("xhs extractScript does not use invalid [data-v-*] selector", () => {
+  it("xhs articleScript does not use invalid [data-v-*] selector", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    expect(src.extractScript).not.toContain("[data-v-*]");
-    expect(src.extractScript).toContain("section.note-item");
+    expect(src.articleScript).not.toContain("[data-v-*]");
+    expect(src.articleScript).toContain("section.note-item");
   });
 
   it("xhs mcpFallback args uses keywords (plural)", () => {
@@ -681,14 +681,14 @@ describe("CDP fallback configuration", () => {
     expect(args.keyword).toBeUndefined();
   });
 
-  it("sources without cdpFallback are unaffected", () => {
+  it("sources without googleSiteFallback are unaffected", () => {
     for (const src of SELF_MEDIA_SOURCES) {
       if (src.name !== "x_search") {
-        expect(src.cdpFallback).toBeUndefined();
+        expect(src.googleSiteFallback).toBeUndefined();
       }
     }
     for (const src of NEWS_SOURCES) {
-      expect(src.cdpFallback).toBeUndefined();
+      expect(src.googleSiteFallback).toBeUndefined();
     }
   });
 });
@@ -1122,7 +1122,7 @@ describe("apiSearch configuration", () => {
 
 describe("Research mode filter expansion", () => {
   // The filter logic in search-sources.mjs:
-  // Research mode: includes sources with supportsKeyword=true OR cdpFallback
+  // Research mode: includes sources with supportsKeyword=true OR googleSiteFallback
   // Trend mode: includes all sources with capabilities.articles
 
   it("research mode includes all sources with supportsKeyword=true", () => {
@@ -1131,30 +1131,30 @@ describe("Research mode filter expansion", () => {
     expect(keywordSources.length).toBeGreaterThan(0);
   });
 
-  it("research mode includes sources with cdpFallback even if supportsKeyword=false", () => {
-    // x_search has supportsKeyword=true AND cdpFallback, but we need to verify
-    // that sources with supportsKeyword=false AND cdpFallback are included
-    const cdpFallbackOnlySources = ALL_SOURCES.filter(
-      (s) => s.capabilities?.articles?.cdpFallback && !s.capabilities?.articles?.supportsKeyword,
+  it("research mode includes sources with googleSiteFallback even if supportsKeyword=false", () => {
+    // x_search has supportsKeyword=true AND googleSiteFallback, but we need to verify
+    // that sources with supportsKeyword=false AND googleSiteFallback are included
+    const googleSiteFallbackOnlySources = ALL_SOURCES.filter(
+      (s) => s.capabilities?.articles?.googleSiteFallback && !s.capabilities?.articles?.supportsKeyword,
     );
     // If any such sources exist, they should be included in research mode
     // (Currently there may be 0 such sources, but the filter must support them)
     // The key test is that the filter logic includes them
-    for (const src of cdpFallbackOnlySources) {
-      expect(src.capabilities.articles.cdpFallback).toBeDefined();
+    for (const src of googleSiteFallbackOnlySources) {
+      expect(src.capabilities.articles.googleSiteFallback).toBeDefined();
       expect(src.capabilities.articles.supportsKeyword).toBe(false);
     }
   });
 
-  it("research mode filter logic: supportsKeyword OR cdpFallback exists", () => {
+  it("research mode filter logic: supportsKeyword OR googleSiteFallback exists", () => {
     // Simulate the filter logic
     const researchSources = ALL_SOURCES.filter(
-      (s) => s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.cdpFallback,
+      (s) => s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.googleSiteFallback,
     );
     const trendSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
     // Research mode should include at least as many sources as before
-    // (all supportsKeyword sources are still included, plus any cdpFallback-only ones)
+    // (all supportsKeyword sources are still included, plus any googleSiteFallback-only ones)
     expect(researchSources.length).toBeGreaterThanOrEqual(
       ALL_SOURCES.filter((s) => s.capabilities?.articles?.supportsKeyword).length,
     );

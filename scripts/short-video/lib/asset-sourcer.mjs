@@ -1231,8 +1231,8 @@ function flattenCdpImageSource(source) {
     name: source.name,
     label: source.label,
     url: cap.url,
-    primaryScript: cap.primaryScript,
-    fallbackScript: cap.fallbackScript,
+    imageScript: cap.imageScript,
+    imageFallbackScript: cap.imageFallbackScript,
   };
 }
 
@@ -1611,17 +1611,17 @@ export async function searchCdpSource(source, keyword) {
   await waitForPageLoad(tabId);
 
   // Primary extraction
-  let candidates = await extractFromTab(tabId, source.primaryScript);
+  let candidates = await extractFromTab(tabId, source.imageScript);
 
   // Retry once if empty
   if (candidates.length === 0) {
     await new Promise((r) => setTimeout(r, 3000));
-    candidates = await extractFromTab(tabId, source.primaryScript);
+    candidates = await extractFromTab(tabId, source.imageScript);
   }
 
   // Fallback to generic extraction
-  if (candidates.length === 0 && source.fallbackScript) {
-    candidates = await extractFromTab(tabId, source.fallbackScript);
+  if (candidates.length === 0 && source.imageFallbackScript) {
+    candidates = await extractFromTab(tabId, source.imageFallbackScript);
   }
 
   // Close tab

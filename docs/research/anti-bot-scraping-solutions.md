@@ -54,7 +54,7 @@
   - HTML endpoint（`html.duckduckgo.com`）返回 202/403 当触发 rate limit（来源：iproyal.com [Tier 2]）
   - 10 req/s 是 API 级别上限（来源：decodo.com [Tier 2]）
 - **绕过方案**：
-  - **必须通过 CDP 访问**：实测确认，通过 CDP（Chrome 真实 session + FlClash 代理）访问 `html.duckduckgo.com` 正常返回 10 条结果，不触发 anomaly-modal。**不能直接 `fetch()` 或 `curl`。**
+  - **必须通过 CDP 访问**：实测确认，通过 CDP（Chrome 真实 session + 本地代理）访问 `html.duckduckgo.com` 正常返回 10 条结果，不触发 anomaly-modal。**不能直接 `fetch()` 或 `curl`。**
   - **非 JS 版本**：`lite.duckduckgo.com` 或 `html.duckduckgo.com` 提供纯 HTML 版本，不需要 JS 渲染（来源：DuckDuckGo 官方帮助页 [Tier 1]）。但 HTML 版本仍然检测 TLS 指纹。
   - Rate limiting：每查询间 **2-5 秒** 随机延迟
   - DDGS Python 库可用（开源 scraper，无 API key）——但同样可能触发 anomaly detection
@@ -161,7 +161,7 @@
   - 短时间内即触发 rate limit（来源：scrapfly.io 2026 指南 [Tier 2]）
 - **绕过方案**：
   - CDP + 已登录 session（用户已登录 X 时）
-  - `cdpFallback` 已配置：Google `site:x.com` 搜索
+  - `googleSiteFallback` 已配置：Google `site:x.com` 搜索
   - `mcpFallback` 已配置：mcp-search-bridge（Grok 有原生 X 数据访问）
   - Rate limiting：每查询间 **10-30 秒**，极保守
 - **项目现状**：`x_search` source 有三层 fallback：CDP → Google site: → MCP/Grok
@@ -370,7 +370,7 @@ DuckDuckGo 的 HTML endpoint 目前免费且宽松，但 DuckDuckGo 可能随时
 
 ## Open Questions
 
-1. **是否有必要引入代理 IP 轮换？** 目前所有请求来自同一 IP（用户家庭网络 + FlClash 代理出口）。对于当前的使用频率（每天 1-2 次完整运行），单 IP + 合理 rate limiting 应该足够。但如果未来需要提高频率，residential proxy 轮换可能成为必需。
+1. **是否有必要引入代理 IP 轮换？** 目前所有请求来自同一 IP（用户家庭网络 + 本地代理出口）。对于当前的使用频率（每天 1-2 次完整运行），单 IP + 合理 rate limiting 应该足够。但如果未来需要提高频率，residential proxy 轮换可能成为必需。
 2. **鼠标行为模拟是否值得实现？** 对于搜索页面抓取（打开 URL → 等待 → 提取 DOM），鼠标行为模拟的 ROI 很低。但如果未来需要抓取需要滚动加载或点击展开的页面，则需要。
 3. **是否需要 robots.txt 检查？** 大多数搜索引擎和新闻站的 robots.txt 允许搜索结果抓取（搜索引擎本身就是在抓取全网），但社交平台的 robots.txt 可能禁止搜索页抓取。法律风险需单独评估。
 

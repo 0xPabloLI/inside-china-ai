@@ -222,7 +222,7 @@ describe("extractFromTab", () => {
     expect(result).toEqual([]);
   });
 
-  it("wraps extractScript in IIFE", async () => {
+  it("wraps script in IIFE", async () => {
     global.fetch.mockResolvedValue(mockFetchResponse({ result: { value: [] } }));
 
     await extractFromTab("tab_123", "return []");

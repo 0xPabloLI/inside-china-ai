@@ -129,7 +129,7 @@
 - **独占源**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、抖音、知乎（13 源 last30days 没有）
 - **与 last30days 交叉**：X（CDP DOM + mcp-search-bridge vs API）、TikTok（Creator Center vs hashtag）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）
 - **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据访问），也是 5 个西方源的主要搜索方式。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`
-- **Fallback 链**：CDP → cdpFallback (Google site: 搜索) → mcpFallback (mcp-search-bridge/Grok)
+- **Fallback 链**：CDP → googleSiteFallback (Google site: 搜索) → mcpFallback (mcp-search-bridge/Grok)
 - **何时用**：做视频前找话题，或文章前找中文平台趋势
 
 ### pdf-parse (npm)
