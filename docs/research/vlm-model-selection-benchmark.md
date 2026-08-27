@@ -461,3 +461,142 @@ Qwen3.5-4B-MLX-4bit 不适合生产替换：
 2. Qwen3.5-4B 比 GLM-4.1V 更慢（39s vs 28.5s）且 thinking chain 同样冗余
 3. GLM-4.1V 的中文识别能力最强（识别"峰达创意园"、"中国农业银行"等）
 4. 两个模型同时加载仅 ~3GB（Qwen2B 1.8GB + GLM 1.1GB），32GB 充裕
+
+## 12. R8 Head-to-Head 质量对比：GLM-4.1V-9B vs Qwen3.5-4B-MLX
+
+> **分析日期**：2026-08-27
+> **方法**：从 R6（GLM）和 R7（Qwen3.5）已有输出数据中手动提取质量维度对比。LLM-as-Judge 盲评因 Ollama Qwen3.5:4b thinking chain 输出空 response 而失败，改为结构化手动分析。
+> **数据文件**：`scripts/short-video/experiments/glm-ab-eval-results.json` + `vlm-qwen35-mlx-eval-results.json`
+> **分析脚本**：`scripts/short-video/experiments/vlm-head-to-head-analysis.py`
+> **限制**：输出 preview 截断为 500 字符，完整 sections 未全部保留。以下分析基于 preview 中可见的信息。
+
+### 各图片质量维度对比
+
+| 图片 | 维度 | GLM-4.1V-9B | Qwen3.5-4B-MLX |
+|------|------|-------------|----------------|
+| ai-robot-hand | 内容描述 | "robotic hand interacting with a digital network of connected nodes" | "robotic hand reaching out or touching a digital network... neural network or digital web" |
+| | Thinking | ✅ "Got it, let's analyze..." | ✅ "The user wants a Markdown analysis..." |
+| | Fit | product_demo, cover | product_demo, cover |
+| data-center | 内容描述 | "server racks in a data center" | "row of black server racks or computer cabinets... receding into the distance" |
+| | Fit | other, cover | (thinking chain only, fit not in preview) |
+| shanghai-skyline | 中文识别 | ✅ "恒生"、"中国农业银行" | ❌ 误读为 "SRCB" (Shanghai Commercial Bank) 和 "China Agricultural Bank" — 用英文翻译而非原文 |
+| unitree-building | 中文识别 | ✅ "Unitree 宇树科技"、"峰达创意园" | ✅ "Unitree" — 但未识别"宇树科技"和"峰达创意园" |
+| financial-chart | 内容描述 | "calculator on top of documents with charts and graphs" | "smartphone calculator app interface... resting on top of several sheets of paper containing various charts" |
+| revenue-laptop | 内容描述 | "laptop displaying a quarterly revenue chart for Company XYZ" | "laptop is open on a desk. The screen shows a graph/chart titled 'Company XYZ Quarterly Revenue'" |
+
+### 关键发现
+
+1. **中文识别：GLM 明显更强**
+   - shanghai-skyline: GLM 识别原文"恒生"和"中国农业银行"；Qwen3.5 误读为英文翻译"SRCB"和"China Agricultural Bank"
+   - unitree-building: GLM 识别"宇树科技"和"峰达创意园"；Qwen3.5 只识别了"Unitree"英文
+
+2. **Thinking chain 风格不同但功能类似**
+   - GLM: "Got it, let's analyze the image for a 9:16 vertical video. First, the image shows..."
+   - Qwen3.5: "The user wants a Markdown analysis of the provided image for a 9:16 vertical video."
+   - 两者都在 thinking 后给出结构化答案，对 fit 判断无影响
+
+3. **描述精度相当**
+   - 两者对图片内容的描述准确度接近，都正确识别了主体
+   - Qwen3.5 偶尔描述更详细（如 data-center 提到"mesh texture and a handle"），但不影响 pipeline 决策
+
+4. **Fit 判断一致**
+   - 在 preview 可见的图片中，两者 fit 判断一致（如 ai-robot-hand 均判 cover/product_demo）
+
+### 结论
+
+GLM-4.1V-9B 在 **中文品牌识别** 上明显优于 Qwen3.5-4B-MLX（识别中文原文 vs 英文翻译/遗漏），这直接影响了 pipeline 对中国 AI 公司品牌素材的分析能力。其他维度两者相当。
+
+### 网上评价调研（2026-08-27）
+
+> 来源：mcp-search-bridge web search
+
+**GLM-4.1V-9B-Thinking 公开 benchmark**（来自 [arXiv:2507.01006](https://arxiv.org/html/2507.01006v5)）：
+
+| Benchmark | GLM-4.1V-9B-Thinking | 对比 |
+|-----------|---------------------|------|
+| MMBench-V1.1-EN | **85.8** | 超过 Qwen2.5-VL-7B (82.7)、GPT-4o (84.4*) |
+| MMBench-V1.1-CN | **84.7** | 超过 Qwen2.5-VL-7B (80.1*)、GPT-4o (83.2*) |
+| OCRBench | 84.2 | 接近 Qwen2.5-VL-7B (84.5*) |
+| MMStar | 72.9 | <10B 模型中领先 |
+
+**Qwen3.5 公开 benchmark**（来自 [HF blog](https://huggingface.co/blog/mlabonne/qwen35)）：
+
+| Benchmark | Qwen3.5 (397B-A17B 旗舰) | 备注 |
+|-----------|--------------------------|------|
+| MMMU | 85.0% | 超过 Qwen3-VL (80.6%) |
+| MathVision | 88.6% | 超过 Gemini 3 Pro (86.6%) |
+| MMStar | ~83.8% | — |
+| MMBench | ~88-93% | — |
+
+> **重要**：Qwen3.5 的公开 benchmark 是 397B-A17B 旗舰版的分数，**不是 4B 版**。4B 版的分数没有公开数据。GLM-4.1V-9B 的分数是 9B 版实测的。两者不在同一参数量级上直接可比。
+
+**公开对比结论**：无直接 head-to-head 对比 GLM-4.1V-9B 与 Qwen3.5-4B 的公开评测。GLM-4.1V 在 2025 年 <10B VLM 中 SOTA，但未进入 2026 年主要排行榜。Qwen3.5 旗舰版在 2026 年 VLM 排行榜领先，但 4B 版无公开分数。
+
+## 13. 新候选模型评估
+
+> **调研日期**：2026-08-27
+> **来源**：mlx-vlm supported models list + web search
+
+### MiniMax H3
+
+| 维度 | 值 |
+|------|-----|
+| 类型 | **视频生成模型**（omni-modal generation），不是 VLM 理解模型 |
+| 参数量 | 33B dense Transformer（~20B 激活） |
+| 架构 | 基于 Qwen3-VL-32B encoder + H3-VAE + H3-AudioVAE |
+| mlx-vlm 架构 | ❌ 不适用（H3 是 diffusion 模型，不是 VLM） |
+| 许可证 | MiniMax H3 Community License（<$20M 收入可商用） |
+| Apple Silicon | ✅ 有 mlx-h3 和 h3.c 移植，但用于视频生成 |
+| 结论 | **❌ 不适用** — H3 是视频生成模型，不做图像理解/VQA。pipeline 需要 VLM 做素材分析，不是视频生成 |
+
+### FastVLM（Apple）
+
+| 维度 | 值 |
+|------|-----|
+| 来源 | Apple ML Research (CVPR 2025) |
+| 参数量 | 0.5B / 1.5B / 7B |
+| 架构 | `fastvlm`（mlx-vlm 支持，remapped from `llava_qwen2`） |
+| 许可证 | 需查证（Apple 未明确开源许可证） |
+| 速度 | 0.5B: ~0.1s/image（sub-second） |
+| 中文识别 | ❌ 无数据支持中文 OCR |
+| 结论 | ⚠️ 速度极佳，但无中文识别能力数据，且 Apple 未明确开源许可证。pipeline 需要中文品牌识别，FastVLM 可能不适合 |
+
+### Moondream3
+
+| 维度 | 值 |
+|------|-----|
+| 参数量 | 9.27B MoE（~2B 激活） |
+| 架构 | `moondream3`（mlx-vlm 支持） |
+| 磁盘 (4bit) | ~5GB |
+| 速度 | Moondream 2: ~0.7s/image（M4 Pro），Moondream 3 无 MLX 数据 |
+| 许可证 | 需查证 |
+| 中文识别 | ❌ 无中文支持数据 |
+| 结论 | ⚠️ 轻量且快，但无中文识别数据。pipeline 核心需求之一是中文品牌识别 |
+
+### Phi-4 Multimodal
+
+| 维度 | 值 |
+|------|-----|
+| 参数量 | 5.6B（Phi-4-Mini 3.8B + SigLIP） |
+| 架构 | `phi4mm`（mlx-vlm 支持，含 audio） |
+| 磁盘 (4bit) | ~3.9GB |
+| 许可证 | MIT |
+| Benchmark | AI2D 83.0, ChartQA 86.0, DocVQA 82.8, OCRBench 840 |
+| 中文识别 | ❌ 无中文支持数据 |
+| 结论 | ⚠️ MIT 许可证好，但 MMMU 分数极低 (24.0 4bit)，无中文支持数据 |
+
+### 候选总结
+
+| 模型 | 速度 | 中文识别 | 许可证 | mlx-vlm | Cascade 适用？ |
+|------|------|---------|--------|---------|--------------|
+| **GLM-4.1V-9B** | 28.5s | ✅ 优秀 | MIT | ✅ glm4v | ✅ **已选定** |
+| Qwen3.5-4B-MLX | 39.0s | ❌ 弱 | 需查证 | ✅ qwen3_5 | ❌ 更慢 + 中文弱 |
+| MiniMax H3 | N/A | N/A | 社区许可 | ❌ 不是 VLM | ❌ 视频生成模型 |
+| FastVLM 0.5B | ~0.1s | ❌ 无数据 | 需查证 | ✅ fastvlm | ⚠️ 无中文 |
+| Moondream3 | ~0.7s | ❌ 无数据 | 需查证 | ✅ moondream3 | ⚠️ 无中文 |
+| Phi-4-MM 4bit | ? | ❌ 无数据 | MIT | ✅ phi4mm | ⚠️ MMMU 极低 |
+
+**结论**：调研了 4 个新候选，均不适合替代 GLM-4.1V-9B 作为 Cascade Router deep path。主要原因：
+1. **MiniMax H3** 不是 VLM（是视频生成模型）
+2. **FastVLM / Moondream3 / Phi-4-MM** 都缺少中文识别能力数据，而 pipeline 核心需求之一是识别中国 AI 公司品牌名（如"宇树科技"、"恒生"、"峰达创意园"）
+3. GLM-4.1V-9B 在公开 benchmark（MMBench-CN 84.7）和实测中文识别上都验证了其中文能力

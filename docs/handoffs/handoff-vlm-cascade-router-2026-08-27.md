@@ -142,9 +142,40 @@ Ollama 跑视觉模型比 mlx-vlm 慢 5-7 倍且不支持视频 API。**不适�
   - **能力虚标**: 声称支持 vision 但实际不支持，浪费磁盘和时间
   - 模型权重是二进制文件，无法人工审查，只有可信 author 的模型才安全
 
-## 5. 待办
+## 5. 深度对比与新候选调研（R8）
+
+### Head-to-Head 质量对比（R8）
+
+从 R6 + R7 已有输出做结构化对比。LLM-as-Judge 盲评因 Ollama thinking chain 问题失败，改为手动分析。详见 benchmark §12。
+
+**关键发现**：
+1. **中文识别 GLM 明显更强**：GLM 识别中文原文"恒生"、"中国农业银行"、"宇树科技"、"峰达创意园"；Qwen3.5 用英文翻译"SRCB"、"China Agricultural Bank"或遗漏中文
+2. **描述精度相当**，Fit 判断一致
+3. **Thinking chain 风格不同但功能类似**
+
+### 网上评价调研
+
+- GLM-4.1V-9B-Thinking 公开 benchmark：MMBench-CN 84.7（<10B SOTA），OCRBench 84.2
+- Qwen3.5 旗舰版（397B-A17B）在 2026 VLM 排行榜领先，但 **4B 版无公开分数**
+- 无直接 head-to-head 对比 GLM-4.1V-9B 与 Qwen3.5-4B 的公开评测
+
+### 新候选评估
+
+| 模型 | 类型 | 中文识别 | 结论 |
+|------|------|---------|------|
+| MiniMax H3 | 视频生成模型 | N/A | ❌ 不是 VLM，不做图像理解 |
+| FastVLM (Apple) | VLM 0.5-7B | ❌ 无数据 | ⚠️ 无中文支持数据 |
+| Moondream3 | VLM 9.27B MoE | ❌ 无数据 | ⚠️ 无中文支持数据 |
+| Phi-4 Multimodal | VLM 5.6B | ❌ 无数据 | ⚠️ MMMU 极低 (24.0) |
+
+**结论**：4 个新候选均不适合替代 GLM-4.1V-9B。pipeline 核心需求之一是中文品牌识别，只有 GLM-4.1V 在公开 benchmark 和实测中都验证了中文能力。详见 benchmark §13。
+
+## 6. 待办
 
 - [x] Qwen3.5:4b-mlx A/B 测试完成（R7）
 - [x] 根据 Qwen3.5 测试结果更新 `vlm-model-selection-benchmark.md`（§11 已写入）
+- [x] Head-to-Head 质量对比完成（R8, benchmark §12）
+- [x] 网上评价调研完成（benchmark §12）
+- [x] 新候选评估完成（benchmark §13）
 - [ ] 实现 Cascade Router（Issue #127）
 - [ ] 端到端 pipeline 测试
