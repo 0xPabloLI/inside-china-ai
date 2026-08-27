@@ -55,7 +55,7 @@ MAX_IMAGE_LONG_EDGE = 1920  # resize images with longer edge > this to prevent h
 # ─── Cascade Router: deep model constants ───
 
 DEEP_MODEL_ID = "mlx-community/GLM-4.1V-9B-Thinking-4bit"
-DEEP_MODEL_MIN_RAM_GB = 16  # minimum free RAM (GB) to load GLM
+DEEP_MODEL_MIN_RAM_GB = 6  # GLM peak ~1.1GB, leave headroom for 2B + OS
 
 SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
 

@@ -17,52 +17,52 @@ from vlm_analyzer import check_ram_available, DEEP_MODEL_MIN_RAM_GB
 
 
 def test_sufficient_ram():
-    """Sufficient RAM (>=16GB available) → True."""
-    # Mock psutil to return 20GB available
+    """Sufficient RAM (>=6GB available) -> True."""
+    # Mock psutil to return 10GB available
     import unittest.mock as mock
     
     class MockVM:
-        available = 20 * 1024**3  # 20GB in bytes
+        available = 10 * 1024**3  # 10GB in bytes
     
     with mock.patch("builtins.__import__", side_effect=lambda name, *args, **kwargs: mock.MagicMock(virtual_memory=mock.MagicMock(return_value=MockVM())) if name == "psutil" else __import__(name, *args, **kwargs)):
         result = check_ram_available()
-        assert result is True, f"Expected True with 20GB available, got {result}"
+        assert result is True, f"Expected True with 10GB available, got {result}"
 
 
 def test_insufficient_ram():
-    """Insufficient RAM (<16GB available) → False."""
+    """Insufficient RAM (<6GB available) -> False."""
     import unittest.mock as mock
     
     class MockVM:
-        available = 8 * 1024**3  # 8GB in bytes
+        available = 3 * 1024**3  # 3GB in bytes
     
     with mock.patch("builtins.__import__", side_effect=lambda name, *args, **kwargs: mock.MagicMock(virtual_memory=mock.MagicMock(return_value=MockVM())) if name == "psutil" else __import__(name, *args, **kwargs)):
         result = check_ram_available()
-        assert result is False, f"Expected False with 8GB available, got {result}"
+        assert result is False, f"Expected False with 3GB available, got {result}"
 
 
 def test_exact_threshold():
-    """Exactly at threshold (16GB) → True."""
+    """Exactly at threshold (6GB) -> True."""
     import unittest.mock as mock
     
     class MockVM:
-        available = DEEP_MODEL_MIN_RAM_GB * 1024**3  # exactly 16GB
+        available = DEEP_MODEL_MIN_RAM_GB * 1024**3  # exactly 6GB
     
     with mock.patch("builtins.__import__", side_effect=lambda name, *args, **kwargs: mock.MagicMock(virtual_memory=mock.MagicMock(return_value=MockVM())) if name == "psutil" else __import__(name, *args, **kwargs)):
         result = check_ram_available()
-        assert result is True, f"Expected True at exactly 16GB, got {result}"
+        assert result is True, f"Expected True at exactly 6GB, got {result}"
 
 
 def test_just_below_threshold():
-    """Just below threshold (15.9GB) → False."""
+    """Just below threshold (5.9GB) -> False."""
     import unittest.mock as mock
     
     class MockVM:
-        available = int(15.9 * 1024**3)
+        available = int(5.9 * 1024**3)
     
     with mock.patch("builtins.__import__", side_effect=lambda name, *args, **kwargs: mock.MagicMock(virtual_memory=mock.MagicMock(return_value=MockVM())) if name == "psutil" else __import__(name, *args, **kwargs)):
         result = check_ram_available()
-        assert result is False, f"Expected False with 15.9GB, got {result}"
+        assert result is False, f"Expected False with 5.9GB, got {result}"
 
 
 def test_psutil_import_fails_fail_open():
