@@ -75,13 +75,13 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 **不重试同一工具**，立即降级到下一个：
 
 ```
-Search:  brave_web_search → jina_search → CDP（导航到搜索引擎页面搜索）
+Search:  brave_web_search → curl Brave API (with --proxy) → CDP（导航到 Google 搜索）
 Fetch:   web_fetch → jina_reader → curl r.jina.ai/URL → CDP /new + /extract
 ```
 
 **Fallback 触发条件**：
 - **4xx 错误**（403, 422 等）→ 立即降级到下一工具，不换参数重试
-- **超时** → 降级到下一工具。搜索：先试 jina_search 再考虑 CDP
+- **超时** → 降级到下一工具。搜索：Brave MCP 超时后试 curl Brave API（带 --proxy），再不行用 CDP 打开 Google 搜索
 - **空结果**（HTTP 200 但无数据）→ 试下一工具；如果也空，是查询词的问题不是工具的问题
 - **内容不完整**（拿到了部分但缺关键内容）→ 试 CDP 做完整渲染
 
@@ -89,7 +89,7 @@ Fetch:   web_fetch → jina_reader → curl r.jina.ai/URL → CDP /new + /extrac
 
 | 抽象名 | CatPaw 实际工具 |
 |--------|----------------|
-| WebSearch | `brave_web_search` MCP → `jina_search` MCP（fallback） |
+| WebSearch | `brave_web_search` MCP → `curl` Brave API（带 --proxy fallback）→ CDP Google 搜索 |
 | WebFetch | `web_fetch`（builtin）→ `jina_reader` MCP（fallback） |
 | curl | `run_terminal_cmd` + `curl` |
 | 浏览器 CDP | `run_terminal_cmd` + `curl localhost:3456/*` |
