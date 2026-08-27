@@ -41,14 +41,14 @@
 | `series-production-guide.md` | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing | `content-pipeline.md` Stage 3, `video-workflow.md` |
 | `content-scaffold-guide.md` | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style | `video-workflow.md` |
 | `video-workflow.md` | Regular video-production runbook — TTS, rendering, verify, file paths, publishing strategy | AGENTS.md |
-| `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. framework, open loops, hook/CTA formulas, beat-by-beat iteration | `content-pipeline.md` Stage 3 |
+| `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3 |
 | `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
 | `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
 
 ### `adr/` — Architecture Decision Records
 
-Numbered sequence. Current: 0001–0017 (0006 moved to archive).
+Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 
 | ADR | Title | Status |
 |-----|-------|--------|
@@ -69,6 +69,7 @@ Numbered sequence. Current: 0001–0017 (0006 moved to archive).
 | 0015 | Visual focus detection: OpenCV subprocess | Active |
 | 0016 | Cascade filtering & signal density | Active |
 | 0017 | Widget breakout layout | Active |
+| 0018 | S.T.A.R.T. as primary script framework, AI Outline as HITL tool | Active |
 
 ### `conventions/` — Engineering conventions
 

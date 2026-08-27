@@ -220,7 +220,7 @@ node scripts/rag/query.mjs "logo" --type asset-catalog        # 只搜素材目�
 
 从 Stage 0 共享素材、文章 draft（如已就绪）与视频叙事目标形成独立视频脚本；视频脚本不是文章翻译。
 
-> **脚本写作方法论**：参照 `docs/video-script-writing-guide.md`（S.T.A.R.T. 框架 + open loop / pattern interrupt / loop closure + hook 公式 + CTA 公式 + 逐 scene beat-by-beat 迭代方式 + 叙事结构模板 + 标题策略）。
+> **脚本写作方法论**：参照 `docs/video-script-writing-guide.md`（S.T.A.R.T. 主框架 + AI Outline HITL 工具 + 留存引擎 + per-scene 素材要求）。
 
 ### Step 0: 分集评估
 
@@ -240,61 +240,36 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 ### 步骤
 
-1. **读文章 content** — 从 Supabase 或 admin editor 获取
-2. **去掉 widget 标记** — `<!-- widget:xxx -->` 不出现在视频中
-3. **提炼核心叙事线** — 从文章结构提取 3-5 个关键点
-4. **按内容类型选择叙事结构**（见 `docs/video-script-writing-guide.md`），按 TikTok 节奏重构为 10-12 个场景
-5. **设计 SEO 标题**（≤60 chars）——在 scene-data 中显式设计 caption 第一行（见 `docs/video-script-writing-guide.md` → 标题策略）
-6. **直接写 `scene-data.mjs`** — 不需要中间脚本（新建 content dir 时见 `docs/content-scaffold-guide.md`）
-7. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
-8. **生成 AI Outline 话题描述（双文案方案，必须执行）** — Agent 在 scene-data 完成后，额外生成一段精简话题描述，供用户在 TikTok 移动端 CSI → AI Outline 中使用。此描述与 `generate-caption.mjs` 生成的 caption 是**并行候选**，最终由用户选择最优组合写入 `metadata`。详见下方「双文案方案」章节。
+1. **读 Stage 0 素材** — 从 Stage 0 输出的素材集合（用户素材 + 互联网全文）中提取核心信息。文章 draft 如已就绪可作为一致性参考，但视频不是文章翻译。
+2. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
+3. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）
+4. **生成 AI Outline 话题描述（HITL 检查点）** — Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中。**Agent 暂停**，等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。降级：用户跳过则 Agent 自行设计。
+5. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
+6. **设计 SEO 标题**（≤60 chars）——对比 Agent 生成的 title 和 AI Outline 返回的 title，取更优者
+7. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 3 确定的素材要求——如素材未找到，标注 `[ASSET NEEDED: description]` 供 asset-sourcer 补充。
+8. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
 
-### 文章 → 视频的节奏适配
+### 素材 → 视频的节奏适配
 
-| 文章        | 视频                    |
-| ----------- | ----------------------- |
-| 6-10 个章节 | 10-12 个场景            |
-| 详细论述    | 精简为 1-2 句 voiceover |
-| 数据表格    | 数据可视化场景          |
-| 引用语句    | 大字引用场景            |
-| Widget      | 不出现（视频无法交互）  |
+| 素材         | 视频                    |
+| ------------ | ----------------------- |
+| 6-10 个信息点 | 10-12 个场景            |
+| 详细论述     | 精简为 1-2 句 voiceover |
+| 数据表格     | 数据可视化场景          |
+| 引用语句     | 大字引用场景            |
+| Widget       | 不出现（视频无法交互）  |
 
-### 双文案方案：Agent caption + AI Outline 话题描述
+### AI Outline 话题描述规则（Step 4 细则）
 
-> **背景**：TikTok AI Outline 仅在移动端 App 内可用（桌面版无此功能）。Agent 无法自动化调用。双文案方案让 Agent 和 AI Outline 各自独立生成候选文案，用户选择最优组合。
+> TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。
+>
+> 实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。
 
-**方案 A（Agent 生成）**：`generate-caption.mjs` 基于 scene-data 的 voiceover + metadata 自动生成完整 caption（标题 + description + hashtags）。这是管线已有流程，走 `metadata` 注入路径。
+**话题描述要求**：1-2 句≤30 词，含公司名+数字+事件。输出到对话中，用户粘贴到 CSI AI Outline 输入框。
 
-**方案 B（用户用 AI Outline 生成）**：Agent 输出一段精简话题描述，用户在手机端 TikTok App 中搜索 "Creator Search Insights" → 选相关话题 → 让 AI Outline 生成 hooks/title/hashtags/script outline → 用户把生成的结果抄回给 Agent。
+**AI Outline 输出用途**：消费映射表→Step 5 scene 设计；Hashtags→对比标签池；Hook→参考改写；Title→对比取优。Script 内容不用。
 
-**Agent 生成话题描述的规则**：
-
-1. **字数**：1-2 句话，≤30 词
-2. **内容**：核心话题 + 关键数字/公司名 + 内容角度
-3. **格式**：纯英文，适合在 CSI 搜索框中输入或对照选择话题
-4. **输出位置**：在 scene-data 文件末尾以注释形式输出，或在对话中直接给用户
-
-**示例**：
-
-```
-# scene-data.mjs 文件末尾注释
-
-// ─── AI Outline 话题描述（供用户在 TikTok 移动端 CSI 使用）───
-// CSI 搜索建议：搜索 "ai robot technology" 或 "unitree"
-// 话题描述：China AI robot stock Unitree listed on Shanghai STAR Market,
-//           first day 629% pop, DeepSeek backed the IPO, humanoid robot market
-// ───────────────────────────────────────────────────────────
-```
-
-**用户操作流程**：
-1. 在 TikTok App 搜索 "Creator Search Insights" → 点 View
-2. 用 Agent 给的「CSI 搜索建议」搜索相关话题
-3. 进入话题详情页 → 如果有 AI Outline → 生成
-4. 如果没有 AI Outline → 看 creator tips（keywords + hook best practices）
-5. 把 AI Outline 生成的 hashtags/title 抄回给 Agent
-6. Agent 对比方案 A 和方案 B 的结果，选最优组合写入 `metadata`
-
-**降级**：如果用户没有在手机端操作，管线继续走方案 A。方案 B 是可选增量优化，不阻塞管线。
+**降级**：用户跳过 HITL 时，Agent 自行按 S.T.A.R.T. 框架设计 scene。
 
 ### 🔄 MRL-2: 脚本自审
 
@@ -308,8 +283,8 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | B2  | 场景数          | 每集 8-12 个 scene                                                                       | 合并或拆分场景     |
 | B3  | Hook 场景       | 第一个 scene 的 `visualType` 必须为 `"hook"`                                             | 调整场景顺序或类型 |
 | B4  | CTA 场景        | 最后一个 scene 的 `visualType` 必须为 `"cta"`                                            | 调整场景顺序或类型 |
-| B5  | 无 Widget 引用  | voiceover 文本中不得包含 `<!-- widget:xxx -->`                                           | 删除 widget 标记   |
-| B6  | 数据一致性      | voiceover 中的数字/日期/金额必须与文章正文一致                                           | 修正数据           |
+| B5  | 无 Widget 标记  | voiceover 文本中不得包含 `<!-- widget:xxx -->`                                           | 删除 widget 标记   |
+| B6  | 数据一致性      | voiceover 中的数字/日期/金额必须与源素材一致                                             | 修正数据           |
 | B7  | 集数上限        | 总集数 ≤ 3（最佳实践上限）                                                               | 合并集数           |
 | B8  | AI 词汇         | 不得出现 scrub-rules Tier 2 黑名单词                                                     | 替换为口语化表达   |
 | B9  | 无 Dead Closers | 不得以 "thanks for watching" / "don't forget to subscribe" / 裸 "what do you think" 结尾 | 改写为具体 CTA     |
@@ -324,7 +299,9 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | W3  | 节奏均一      | 所有 voiceover 句子长度差异 < 15%（teleprompter rhythm） |
 | W4  | 长句          | 任何单句 > 25 词（一口气读不完）                         |
 | W5  | Hook = 字幕   | spoken hook 与 on-screen text 完全相同                   |
-| W6  | 无 Loop-close | CTA 前最后一个内容场景未回扣 Hook                        |
+| W6  | 无 Loop-close      | CTA 前最后一个内容场景未回扣 Hook                        |
+| W7  | 无 Open Loop       | Scene 2 未制造未解悬念（open loop 未在后续关闭）        |
+| W8  | 无 Pattern Interrupt | Scene 4-5 之间无 tonal shift / punch line               |
 
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）
 
@@ -474,7 +451,7 @@ node scripts/short-video/publish-tiktok.mjs --slug <slug>
 | Topic | Reference | Content |
 |-------|-----------|---------|
 | Article production rules | `docs/article-production-guide.md` (L1) | Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation |
-| Script writing methodology | `docs/video-script-writing-guide.md` (L1) | S.T.A.R.T. framework, open loops, hook/CTA formulas, narrative structure templates, title strategy |
+| Script writing methodology | `docs/video-script-writing-guide.md` (L1) | S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks |
 | Multi-video series | `docs/series-production-guide.md` (L1) | Split strategy, inter-episode linking, compilation, series publishing |
 | New content scaffold | `docs/content-scaffold-guide.md` (L1) | Directory structure, file templates, CSS overflow checklist, visual style |
 | Video production workflow | `docs/video-workflow.md` (L1) | TTS engines, rendering, publishing strategy, file paths |
