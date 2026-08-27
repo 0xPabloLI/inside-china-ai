@@ -4,6 +4,8 @@ AI Analyzer — Python subprocess for VLM-powered asset understanding.
 
 Loads mlx-community/Qwen3-VL-2B-Instruct-4bit via mlx-vlm, listens on stdin
 for line-delimited JSON requests, writes JSON responses to stdout.
+Uses a Cascade Router: complex/low-confidence results escalate to
+GLM-4.1V-9B-Thinking-4bit (lazy-loaded on first escalation).
 
 Actions:
   - analyze_semantics: {"action": "analyze_semantics", "path": "/abs/path/to/file"}
@@ -44,12 +46,16 @@ from PIL import Image, ImageOps
 # ─── Constants ───
 
 MODEL_ID = "mlx-community/Qwen3-VL-2B-Instruct-4bit"
-FALLBACK_MODEL_ID = "mlx-community/Qwen3-VL-4B-Instruct-8bit"
 FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
 VIDEO_FPS = 1.0
 MAX_VIDEO_SECONDS = 8  # cap analysis at 8s of video
 MAX_IMAGE_LONG_EDGE = 1920  # resize images with longer edge > this to prevent hallucinations
+
+# ─── Cascade Router: deep model constants ───
+
+DEEP_MODEL_ID = "mlx-community/GLM-4.1V-9B-Thinking-4bit"
+DEEP_MODEL_MIN_RAM_GB = 16  # minimum free RAM (GB) to load GLM
 
 SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
 
@@ -114,6 +120,129 @@ talking_head
 """
 
 VALID_FITS = {"cover", "contain"}
+
+# Minimum description length (chars). Below this threshold, the 2B model's
+# output is considered too short / low-confidence and escalated to GLM.
+MIN_DESCRIPTION_CHARS = 100
+
+# Minimum number of times a word must repeat to trigger repetition signal.
+MIN_REPETITION_COUNT = 3
+
+
+# ─── Cascade Router: escalation logic ───
+
+def should_escalate(parsed_result, is_video=False):
+    """Determine if the 2B model's output should be escalated to GLM-4.1V-9B.
+
+    A pure function that inspects the parsed VLM output and returns True if
+    any of the following signals are detected:
+
+    1. Short output: description < 100 characters
+    2. Missing fit (images only): fit is None for image assets
+    3. Empty description: description is None, empty, or whitespace-only
+    4. Repetition: same word/phrase repeated >= 3 times in description
+
+    Args:
+        parsed_result: Dict from parse_markdown_to_dict() with keys like
+                       description, subjects, contentKind, fit, etc.
+        is_video: If True, missing fit is NOT an escalation signal (videos
+                  don't have a fit field in their prompt).
+
+    Returns:
+        True if escalation is recommended, False otherwise.
+    """
+    if not parsed_result:
+        return True
+
+    description = parsed_result.get("description")
+
+    # Signal 3: Empty / None / whitespace-only description
+    if not description or not description.strip():
+        return True
+
+    # Signal 1: Short description (< MIN_DESCRIPTION_CHARS chars)
+    if len(description) < MIN_DESCRIPTION_CHARS:
+        return True
+
+    # Signal 2: Missing fit for images (videos don't have fit)
+    if not is_video and parsed_result.get("fit") is None:
+        return True
+
+    # Signal 4: Repetition — same word repeated >= MIN_REPETITION_COUNT times
+    words = description.lower().split()
+    if len(words) >= MIN_REPETITION_COUNT:
+        word_counts = {}
+        for word in words:
+            word_counts[word] = word_counts.get(word, 0) + 1
+        for count in word_counts.values():
+            if count >= MIN_REPETITION_COUNT:
+                return True
+
+    return False
+
+
+# ─── Cascade Router: RAM check ───
+
+def check_ram_available():
+    """Check if sufficient RAM is available to load the GLM deep model.
+
+    Returns True if available RAM >= DEEP_MODEL_MIN_RAM_GB.
+    Returns True (fail-open) if psutil is unavailable — better to try
+    loading and fail than to never try.
+    """
+    try:
+        import psutil
+        available = psutil.virtual_memory().available
+        available_gb = available / (1024 ** 3)
+        return available_gb >= DEEP_MODEL_MIN_RAM_GB
+    except ImportError:
+        sys.stderr.write(
+            "[vlm_analyzer] psutil not available, skipping RAM check (fail-open)\n"
+        )
+        sys.stderr.flush()
+        return True
+
+
+# ─── Cascade Router: deep model lazy loading ───
+
+# Module-level state for lazy-loaded GLM deep model.
+_deep_model = None
+_deep_processor = None
+_deep_loaded = False
+
+
+def get_deep_model():
+    """Lazy-load the GLM deep model on first call. Returns (model, processor)
+    or (None, None) if loading fails.
+    """
+    global _deep_model, _deep_processor, _deep_loaded
+
+    if _deep_loaded and _deep_model is not None:
+        return _deep_model, _deep_processor
+
+    if not check_ram_available():
+        sys.stderr.write(
+            f"[vlm_analyzer] Insufficient RAM for {DEEP_MODEL_ID}, "
+            f"skipping deep model load\n"
+        )
+        sys.stderr.flush()
+        return None, None
+
+    try:
+        sys.stderr.write(f"[vlm_analyzer] Loading deep model: {DEEP_MODEL_ID}\n")
+        sys.stderr.flush()
+        _deep_model, _deep_processor = load_model(DEEP_MODEL_ID)
+        _deep_loaded = True
+        sys.stderr.write("[vlm_analyzer] Deep model loaded successfully.\n")
+        sys.stderr.flush()
+        return _deep_model, _deep_processor
+    except Exception as e:
+        sys.stderr.write(
+            f"[vlm_analyzer] Failed to load deep model {DEEP_MODEL_ID}: {e}\n"
+        )
+        sys.stderr.flush()
+        _deep_loaded = False
+        return None, None
 
 
 # ─── Markdown parser ───
@@ -619,6 +748,79 @@ def handle_analyze_semantics(model, processor, path, window=None):
     if is_video and source_mode:
         result["sourceMode"] = source_mode
 
+    # ─── Cascade Router: escalate to GLM if 2B output is low-confidence ───
+    if should_escalate(result, is_video=is_video):
+        sys.stderr.write(
+            f"[vlm_analyzer] Escalating to deep model: {DEEP_MODEL_ID}\n"
+        )
+        sys.stderr.flush()
+
+        deep_model, deep_processor = get_deep_model()
+        if deep_model is not None:
+            try:
+                # Re-run with GLM using the same prompt and asset
+                if is_video:
+                    deep_raw = generate_response(
+                        deep_model, deep_processor, video_path=path,
+                        fps=sample_fps, prompt_text=SEMANTICS_PROMPT_VIDEO,
+                    )
+                else:
+                    # For images, apply same preprocessing (crop + resize)
+                    # as the 2B path. The temp files from the 2B run are
+                    # already cleaned up by their finally blocks, so we
+                    # re-preprocess here. GLM benefits from the same
+                    # hallucination prevention.
+                    crop_path2, crop_cleanup2 = simulate_crop(
+                        path, target_ratio=9/16, focus=(0.5, 0.5))
+                    try:
+                        actual_path2, temp_path2 = resize_image_if_needed(
+                            crop_path2)
+                        try:
+                            deep_raw = generate_response(
+                                deep_model, deep_processor,
+                                image_paths=actual_path2,
+                                prompt_text=SEMANTICS_PROMPT_IMAGE,
+                            )
+                        finally:
+                            if temp_path2:
+                                try:
+                                    os.unlink(temp_path2)
+                                except OSError:
+                                    pass
+                    finally:
+                        if crop_cleanup2:
+                            try:
+                                os.unlink(crop_cleanup2)
+                            except OSError:
+                                pass
+
+                deep_result = parse_markdown_to_dict(deep_raw)
+
+                # Preserve sourceMode from the 2B run for videos
+                if is_video and source_mode:
+                    deep_result["sourceMode"] = source_mode
+
+                deep_result["escalated"] = True
+                return deep_result, None
+
+            except Exception as e:
+                sys.stderr.write(
+                    f"[vlm_analyzer] Deep model generation failed, "
+                    f"using 2B result: {e}\n"
+                )
+                sys.stderr.flush()
+        else:
+            sys.stderr.write(
+                "[vlm_analyzer] Deep model unavailable, using 2B result\n"
+            )
+            sys.stderr.flush()
+    else:
+        sys.stderr.write(
+            "[vlm_analyzer] 2B output sufficient, no escalation needed\n"
+        )
+        sys.stderr.flush()
+
+    result["escalated"] = False
     return result, None
 
 
@@ -636,22 +838,14 @@ def main():
         sys.stderr.write("[vlm_analyzer] Model loaded successfully.\n")
         sys.stderr.flush()
     except Exception as e:
-        # Try fallback model
-        sys.stderr.write(
-            f"[vlm_analyzer] Failed to load {MODEL_ID}: {e}\n"
-            f"[vlm_analyzer] Trying fallback: {FALLBACK_MODEL_ID}\n"
-        )
+        # No fallback — fail fast so the caller (visual-analyzer.mjs)
+        # can handle the error and return a degraded result.
+        sys.stderr.write(f"[vlm_analyzer] Failed to load {MODEL_ID}: {e}\n")
         sys.stderr.flush()
-        try:
-            model, processor = load_model(FALLBACK_MODEL_ID)
-            sys.stderr.write(f"[vlm_analyzer] Fallback model loaded.\n")
-            sys.stderr.flush()
-        except Exception as e2:
-            # Output error JSON and exit
-            degraded = _degraded_result(f"Model load failed: {e2}")
-            sys.stdout.write(json.dumps(degraded) + "\n")
-            sys.stdout.flush()
-            sys.exit(1)
+        degraded = _degraded_result(f"Model load failed: {e}")
+        sys.stdout.write(json.dumps(degraded) + "\n")
+        sys.stdout.flush()
+        sys.exit(1)
 
     # Start idle timer
     idle_timer = IdleTimer(IDLE_TIMEOUT_SECONDS)
