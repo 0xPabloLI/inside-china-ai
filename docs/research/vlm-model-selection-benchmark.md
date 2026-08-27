@@ -198,8 +198,9 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 
 ### 配置（已在 vlm_analyzer.py 中实现）
 
-- `MODEL_ID`：`mlx-community/Qwen3-VL-2B-Instruct-4bit`
-- `FALLBACK_MODEL_ID`：`mlx-community/Qwen3-VL-4B-Instruct-8bit`
+- `MODEL_ID`：`mlx-community/Qwen3-VL-2B-Instruct-4bit`（Fast Path）
+- `DEEP_MODEL_ID`：`mlx-community/GLM-4.1V-9B-Thinking-4bit`（Deep Path，懒加载）
+- Cascade Router：`should_escalate()` 检测 2B 输出低信心 → GLM 重跑（详见 ADR-0009）
 - 图片预处理：`MAX_IMAGE_LONG_EDGE = 1920`（>1920px 的图片 resize 到 1920px 长边；R4 测试用 1280px 进一步加速但 1920px 已足够防幻觉）
 - 视频分析：原生视频优先（`generate(video=, prompt=)`），帧提取 fallback（1 fps → 最多 8 帧 → 多图输入）
 
@@ -207,16 +208,17 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 
 ### 已完成
 
-- [x] `vlm_analyzer.py` MODEL_ID → `Qwen3-VL-2B-Instruct-4bit`
-- [x] `vlm_analyzer.py` FALLBACK_MODEL_ID → `Qwen3-VL-4B-Instruct-8bit`
+- [x] `vlm_analyzer.py` MODEL_ID → `Qwen3-VL-2B-Instruct-4bit`（Fast Path）
+- [x] `vlm_analyzer.py` DEEP_MODEL_ID → `GLM-4.1V-9B-Thinking-4bit`（Deep Path，懒加载）
+- [x] Cascade Router 实现：`should_escalate()` + `check_ram_available()` + `get_deep_model()`（commit `bde12fe`）
+- [x] 删除 `FALLBACK_MODEL_ID`（4B-8bit 无质量优势，R7 确认）
 - [x] 图片预处理 `resize_image_if_needed()` — 自动 resize >1920px 图片
 - [x] 视频分析恢复原生视频优先路径（mlx-vlm 0.6.16 numpy processor 已修复 bug）+ 帧提取 fallback
 - [x] 文件头注释更新（说明 bug 根因 + workaround 策略）
 
 ### 待办
 
-- [ ] Issue #113：图片预处理已集成到 vlm_analyzer.py，但可能需要测试端到端 pipeline
-- [ ] 视频原生路径 + 帧提取 fallback 的端到端测试
+- [ ] Integration smoke test：用真实复杂图片跑 `vlm_analyzer.py`，验证 `escalated: True` + GLM 输出质量
 - [ ] 确认 1920px vs 1280px 阈值在 pipeline 中的表现（当前用 1920px，R4 测试用 1280px 更快）
 - [x] 公平 A/B 升级评估完成（2026-08-26，R5）— 见下方 §9 R5 A/B 评估结果
 
