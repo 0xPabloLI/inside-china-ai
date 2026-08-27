@@ -69,31 +69,6 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 
 **Jina**（可选预处理层，可与 WebFetch/curl 组合使用，由于其特性可节省 tokens 消耗，请积极在任务合适时组合使用）：第三方网络服务，可将网页转为 Markdown，大幅节省 token 但可能有信息损耗。调用方式为 `r.jina.ai/example.com`（URL 前加前缀，不保留原网址 http 前缀），限 20 RPM。适合文章、博客、文档、PDF 等以正文为核心的页面；对数据面板、商品页等非文章结构页面可能提取到错误区块。
 
-### 工具错误 Fallback
-
-场景路由帮你选对工具，但工具也会失败。当某个工具返回错误时，
-**不重试同一工具**，立即降级到下一个：
-
-```
-Search:  brave_web_search → curl Brave API (with --proxy) → CDP（导航到 Google 搜索）
-Fetch:   web_fetch → jina_reader → curl r.jina.ai/URL → CDP /new + /extract
-```
-
-**Fallback 触发条件**：
-- **4xx 错误**（403, 422 等）→ 立即降级到下一工具，不换参数重试
-- **超时** → 降级到下一工具。搜索：Brave MCP 超时后试 curl Brave API（带 --proxy），再不行用 CDP 打开 Google 搜索
-- **空结果**（HTTP 200 但无数据）→ 试下一工具；如果也空，是查询词的问题不是工具的问题
-- **内容不完整**（拿到了部分但缺关键内容）→ 试 CDP 做完整渲染
-
-**CatPaw 工具映射**（config.env 中的抽象名 → 实际工具）：
-
-| 抽象名 | CatPaw 实际工具 |
-|--------|----------------|
-| WebSearch | `brave_web_search` MCP → `curl` Brave API（带 --proxy fallback）→ CDP Google 搜索 |
-| WebFetch | `web_fetch`（builtin）→ `jina_reader` MCP（fallback） |
-| curl | `run_terminal_cmd` + `curl` |
-| 浏览器 CDP | `run_terminal_cmd` + `curl localhost:3456/*` |
-
 进入浏览器层后，`/eval` 就是你的眼睛和手：
 
 - **看**：用 `/eval` 查询 DOM，发现页面上的链接、按钮、表单、文本内容——相当于「看看这个页面有什么」
