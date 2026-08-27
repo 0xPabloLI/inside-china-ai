@@ -1053,9 +1053,7 @@ export function checkHookMediaWarning(scenes) {
  *  CTA / data / stat-reveal scenes are exempt (they don't use media). */
 const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
 export function checkNarrativeMediaWarning(scenes) {
-  const missing = scenes.filter(
-    (s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media?.path,
-  );
+  const missing = scenes.filter((s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media?.path);
   if (missing.length === 0) {
     return [
       {
@@ -1220,6 +1218,112 @@ export function checkLayoutField(scenes) {
  * @param {Object|null} seriesMeta - optional series metadata
  * @returns {{ pass: Array, warn: Array, fail: Array }}
  */
+/** Retention mechanism: open loop check (W7)
+ *  Checks whether the scene-data declares an open-loop retention mechanism.
+ *  Skips silently when no scene has retentionMechanism field (legacy scene-data compat).
+ *  Warning W7 when: S2 has narrativeRole "T" but retentionMechanism is not "open-loop",
+ *  or when retentionMechanism fields exist but none is "open-loop".
+ *  Pass when: at least one scene has retentionMechanism "open-loop". */
+export function checkOpenLoop(scenes) {
+  const hasRetentionField = scenes.some((s) => s.retentionMechanism !== undefined);
+  if (!hasRetentionField) return []; // skip for legacy scene-data
+
+  const hasOpenLoop = scenes.some((s) => s.retentionMechanism === "open-loop");
+  if (hasOpenLoop) {
+    const openLoopScene = scenes.find((s) => s.retentionMechanism === "open-loop");
+    return [
+      {
+        level: "pass",
+        category: "Retention",
+        check: "Open loop (W7)",
+        detail: `Scene ${openLoopScene.id} declares open-loop retention`,
+      },
+    ];
+  }
+
+  const teaseScene = scenes.find((s) => s.narrativeRole === "T");
+  const detail = teaseScene
+    ? `Scene ${teaseScene.id} has narrativeRole T (Tease) but retentionMechanism is "${teaseScene.retentionMechanism || "unset"}" — should be "open-loop"`
+    : 'No scene declares retentionMechanism "open-loop"';
+  return [
+    {
+      level: "warn",
+      category: "Retention",
+      check: "Open loop (W7)",
+      detail,
+      fix: 'Add retentionMechanism: "open-loop" to the Tease scene (narrativeRole: "T")',
+    },
+  ];
+}
+
+/** Retention mechanism: pattern interrupt check (W8)
+ *  Checks whether at least one scene declares pattern-interrupt.
+ *  Skips silently when no scene has retentionMechanism field (legacy scene-data compat).
+ *  Warning W8 when: retentionMechanism fields exist but none is "pattern-interrupt".
+ *  Pass when: at least one scene has retentionMechanism "pattern-interrupt". */
+export function checkPatternInterrupt(scenes) {
+  const hasRetentionField = scenes.some((s) => s.retentionMechanism !== undefined);
+  if (!hasRetentionField) return []; // skip for legacy scene-data
+
+  const hasPatternInterrupt = scenes.some((s) => s.retentionMechanism === "pattern-interrupt");
+  if (hasPatternInterrupt) {
+    const piScene = scenes.find((s) => s.retentionMechanism === "pattern-interrupt");
+    return [
+      {
+        level: "pass",
+        category: "Retention",
+        check: "Pattern interrupt (W8)",
+        detail: `Scene ${piScene.id} declares pattern-interrupt retention`,
+      },
+    ];
+  }
+
+  return [
+    {
+      level: "warn",
+      category: "Retention",
+      check: "Pattern interrupt (W8)",
+      detail: 'No scene declares retentionMechanism "pattern-interrupt"',
+      fix: 'Add retentionMechanism: "pattern-interrupt" to a mid-video scene (around S5) to break attention decay',
+    },
+  ];
+}
+
+/** Retention mechanism: loop closure check (W9)
+ *  Checks whether the penultimate content scene (before CTA) declares loop-closure.
+ *  Skips silently when no scene has retentionMechanism field (legacy scene-data compat).
+ *  Warning W9 when: penultimate content scene has wrong or missing retentionMechanism.
+ *  Pass when: penultimate content scene has retentionMechanism "loop-closure". */
+export function checkLoopClosureNarrative(scenes) {
+  const hasRetentionField = scenes.some((s) => s.retentionMechanism !== undefined);
+  if (!hasRetentionField) return []; // skip for legacy scene-data
+
+  const contentScenes = scenes.filter((s) => s.visualType !== "cta");
+  if (contentScenes.length < 2) return [];
+
+  const penultimate = contentScenes[contentScenes.length - 1];
+  if (penultimate.retentionMechanism === "loop-closure") {
+    return [
+      {
+        level: "pass",
+        category: "Retention",
+        check: "Loop closure (W9)",
+        detail: `Scene ${penultimate.id} declares loop-closure retention`,
+      },
+    ];
+  }
+
+  return [
+    {
+      level: "warn",
+      category: "Retention",
+      check: "Loop closure (W9)",
+      detail: `Scene ${penultimate.id} (penultimate content scene) has retentionMechanism "${penultimate.retentionMechanism || "unset"}" — should be "loop-closure"`,
+      fix: 'Add retentionMechanism: "loop-closure" to the last content scene before CTA to reference the hook',
+    },
+  ];
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const allChecks = [
@@ -1256,6 +1360,9 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkCurrencyDualAnnotation(scenes),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
+    ...checkOpenLoop(scenes),
+    ...checkPatternInterrupt(scenes),
+    ...checkLoopClosureNarrative(scenes),
   ];
 
   return {

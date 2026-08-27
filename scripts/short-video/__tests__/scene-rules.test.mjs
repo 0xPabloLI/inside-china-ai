@@ -30,6 +30,9 @@ import {
   checkSemanticConsistency,
   checkBodyTextVoRedundancy,
   checkHookMediaWarning,
+  checkOpenLoop,
+  checkPatternInterrupt,
+  checkLoopClosureNarrative,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
@@ -645,7 +648,12 @@ describe("checkSubjectVisibility", () => {
   // Scenario #1: new company not in KNOWN_COMPANIES → pass when meta has it
   it("passes when meta.keyEntities.companies has a company not in KNOWN_COMPANIES", () => {
     const scenes = [
-      { id: 1, visualType: "hook", voiceover: "Unitree raised 1.5 billion.", texts: { subject: "UNITREE" } },
+      {
+        id: 1,
+        visualType: "hook",
+        voiceover: "Unitree raised 1.5 billion.",
+        texts: { subject: "UNITREE" },
+      },
     ];
     const meta = { keyEntities: { companies: ["unitree"] } };
     const results = checkSubjectVisibility(scenes, meta);
@@ -656,7 +664,12 @@ describe("checkSubjectVisibility", () => {
   // Scenario #1: subject field present → pass (secondary source)
   it("passes when scene.texts.subject is present even without meta", () => {
     const scenes = [
-      { id: 1, visualType: "hook", voiceover: "Unitree raised 1.5 billion.", texts: { subject: "UNITREE" } },
+      {
+        id: 1,
+        visualType: "hook",
+        voiceover: "Unitree raised 1.5 billion.",
+        texts: { subject: "UNITREE" },
+      },
     ];
     const results = checkSubjectVisibility(scenes);
     expect(results[0].level).toBe("pass");
@@ -674,7 +687,12 @@ describe("checkSubjectVisibility", () => {
   // Scenario #16: meta.keyEntities.companies is empty array → fallback to KNOWN_COMPANIES
   it("falls back to KNOWN_COMPANIES when meta.keyEntities.companies is empty array", () => {
     const scenes = [
-      { id: 1, visualType: "hook", voiceover: "DeepSeek raised 1.4 billion.", texts: { hookText: "DEEPSEEK" } },
+      {
+        id: 1,
+        visualType: "hook",
+        voiceover: "DeepSeek raised 1.4 billion.",
+        texts: { hookText: "DEEPSEEK" },
+      },
     ];
     const meta = { keyEntities: { companies: [] } };
     const results = checkSubjectVisibility(scenes, meta);
@@ -684,7 +702,12 @@ describe("checkSubjectVisibility", () => {
   // Backwards compat: existing KNOWN_COMPANIES still work without meta
   it("passes for KNOWN_COMPANIES entry without meta (backwards compat)", () => {
     const scenes = [
-      { id: 1, visualType: "hook", voiceover: "DeepSeek paused.", texts: { hookText: "DEEPSEEK PAUSED" } },
+      {
+        id: 1,
+        visualType: "hook",
+        voiceover: "DeepSeek paused.",
+        texts: { hookText: "DEEPSEEK PAUSED" },
+      },
     ];
     const results = checkSubjectVisibility(scenes);
     expect(results[0].level).toBe("pass");
@@ -803,18 +826,14 @@ describe("checkPrimaryGoal", () => {
 
   // Scenario #4: "follow" only → pass (1 signal)
   it("passes with 1 goal signal (follow)", () => {
-    const scenes = [
-      { id: 1, voiceover: "Follow for more China AI news." },
-    ];
+    const scenes = [{ id: 1, voiceover: "Follow for more China AI news." }];
     const results = checkPrimaryGoal(scenes);
     expect(results[0].level).toBe("pass");
     expect(results[0].detail).toContain("1 goal");
   });
 
   it("warns when >2 goal signals (3 categories)", () => {
-    const scenes = [
-      { id: 1, voiceover: "Follow, comment, and share this video." },
-    ];
+    const scenes = [{ id: 1, voiceover: "Follow, comment, and share this video." }];
     const results = checkPrimaryGoal(scenes);
     expect(results[0].level).toBe("warn");
     expect(results[0].detail).toContain("3 goal");
@@ -1099,5 +1118,148 @@ describe("checkHookMediaWarning", () => {
     const results = runAllSceneDataChecks(scenes, null);
     const mediaWarn = results.warn.find((w) => w.check.includes("media"));
     expect(mediaWarn).toBeDefined();
+  });
+});
+
+// ── checkOpenLoop (W7) ──
+
+describe("checkOpenLoop", () => {
+  it("passes when a scene has retentionMechanism open-loop", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      {
+        id: 2,
+        visualType: "narrative",
+        voiceover: "test",
+        narrativeRole: "T",
+        retentionMechanism: "open-loop",
+      },
+    ];
+    const result = checkOpenLoop(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("warns when S2 has narrativeRole T but no open-loop", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      {
+        id: 2,
+        visualType: "narrative",
+        voiceover: "test",
+        narrativeRole: "T",
+        retentionMechanism: "curiosity-gap",
+      },
+    ];
+    const result = checkOpenLoop(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+  });
+
+  it("skips when no scene has retentionMechanism field (legacy scene-data)", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      { id: 2, visualType: "narrative", voiceover: "test" },
+    ];
+    const result = checkOpenLoop(scenes);
+    expect(result).toHaveLength(0);
+  });
+
+  it("warns when retentionMechanism exists but no open-loop anywhere", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      { id: 2, visualType: "narrative", voiceover: "test", retentionMechanism: "curiosity-gap" },
+    ];
+    const result = checkOpenLoop(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+  });
+});
+
+// ── checkPatternInterrupt (W8) ──
+
+describe("checkPatternInterrupt", () => {
+  it("passes when a scene has retentionMechanism pattern-interrupt", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      {
+        id: 2,
+        visualType: "narrative",
+        voiceover: "test",
+        retentionMechanism: "pattern-interrupt",
+      },
+    ];
+    const result = checkPatternInterrupt(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("skips when no scene has retentionMechanism field (legacy scene-data)", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      { id: 2, visualType: "narrative", voiceover: "test" },
+    ];
+    const result = checkPatternInterrupt(scenes);
+    expect(result).toHaveLength(0);
+  });
+
+  it("warns when retentionMechanism exists but no pattern-interrupt", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      { id: 2, visualType: "narrative", voiceover: "test", retentionMechanism: "open-loop" },
+      { id: 3, visualType: "narrative", voiceover: "test", retentionMechanism: "curiosity-gap" },
+    ];
+    const result = checkPatternInterrupt(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+  });
+});
+
+// ── checkLoopClosureNarrative (W9) ──
+
+describe("checkLoopClosureNarrative", () => {
+  it("passes when penultimate content scene has retentionMechanism loop-closure", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      { id: 2, visualType: "narrative", voiceover: "test", retentionMechanism: "open-loop" },
+      { id: 3, visualType: "narrative", voiceover: "test", retentionMechanism: "loop-closure" },
+      { id: 4, visualType: "cta", voiceover: "test cta" },
+    ];
+    const result = checkLoopClosureNarrative(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("skips when no scene has retentionMechanism field (legacy scene-data)", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      { id: 2, visualType: "narrative", voiceover: "test" },
+      { id: 3, visualType: "cta", voiceover: "test cta" },
+    ];
+    const result = checkLoopClosureNarrative(scenes);
+    expect(result).toHaveLength(0);
+  });
+
+  it("warns when penultimate scene has wrong retentionMechanism", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook" },
+      { id: 2, visualType: "narrative", voiceover: "test", retentionMechanism: "open-loop" },
+      { id: 3, visualType: "narrative", voiceover: "test", retentionMechanism: "curiosity-gap" },
+      { id: 4, visualType: "cta", voiceover: "test cta" },
+    ];
+    const result = checkLoopClosureNarrative(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+  });
+
+  it("handles single content scene before CTA", () => {
+    const scenes = [
+      { id: 1, visualType: "hook", voiceover: "test hook", retentionMechanism: "open-loop" },
+      { id: 2, visualType: "narrative", voiceover: "test", retentionMechanism: "loop-closure" },
+      { id: 3, visualType: "cta", voiceover: "test cta" },
+    ];
+    const result = checkLoopClosureNarrative(scenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("pass");
   });
 });
