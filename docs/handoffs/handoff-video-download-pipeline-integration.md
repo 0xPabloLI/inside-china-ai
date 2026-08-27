@@ -1,7 +1,7 @@
 # Handoff: Video Download Pipeline Integration
 
 > **日期：** 2026-08-27
-> **状态：** Ready for implementation — 需要按顺序执行 3 个 issue
+> **状态：** ✅ Completed — #63 + #115 均已完成，#114 (SVE) 为后续可选任务
 > **作者：** Agent session 2026-08-27
 > **关联 Issues：** #63 → #115 (+ #75 VDL 集成) → #114 (后续)
 
@@ -35,7 +35,7 @@ URL → canonicalizeUrl → selectStrategy → adapter.download → DownloadResu
                     (直接 .mp4)    (YouTube/B站)   (国外平台)
 ```
 
-**VDL 尚未接入管线** — `asset-sourcer.mjs` 没有调用 `downloadVideo()`。这是 #115 要做的集成。
+**VDL 已接入管线** — #115 完成后 `asset-sourcer.mjs` 通过 `downloadCandidate()` 调用 VDL `downloadVideo()`。
 
 ## 待执行的 Issue 链
 
@@ -44,10 +44,10 @@ URL → canonicalizeUrl → selectStrategy → adapter.download → DownloadResu
 ```
 #63 (URL dedup)          ✅ 已完成 (commit 80f5a13)
   ↓
-#115 (downloadCandidate)  ← #63 已完成，可立即开始
-  + #75 VDL 集成           ← 合并到 #115 一起做
+#115 (downloadCandidate)  ✅ 已完成 (commit cc699e6)
+  + #75 VDL 集成           ✅ 合并到 #115 完成
   ↓
-#114 (SVE)               ← #115 完成后的上游消费者（非阻塞，可后续做）
+#114 (SVE)               ← VDL 已接入管线，SVE 可直接调用（非阻塞，可后续做）
 ```
 
 ### Issue 1: #63 — URL dedup (standalone) — ✅ 已完成
@@ -64,10 +64,10 @@ URL → canonicalizeUrl → selectStrategy → adapter.download → DownloadResu
 
 **冲突文件：** `search-sources.mjs`, `trends-utils.mjs`
 
-### Issue 2: #115 — downloadCandidate helper + VDL 集成
+### Issue 2: #115 — downloadCandidate helper + VDL 集成 — ✅ 已完成
 
-**状态：** OPEN, 依赖 #63 先完成
-**预估：** 中（提取 helper + 替换 5 个下载块 + 集成 VDL + 测试）
+**状态：** ✅ CLOSED (commit cc699e6, 2026-08-27)
+**实现：** 创建 `lib/download-candidate.mjs` helper，包装 VDL `downloadVideo()` + 文件 I/O + DownloadResult status 映射。扩展 VDL 支持图片（`.jpg/.png/.webp/.gif` + `image/*` MIME + headers 传递）。替换 `asset-sourcer.mjs` 5 个重复下载块为 `downloadCandidate()` 调用。67 新测试 + 2111 既有测试全通过。Spec/tickets 已归档到 `docs/archive/`。
 
 **做什么：**
 1. 创建 `lib/download-candidate.mjs`，提取 `asset-sourcer.mjs` 中 5 个重复的下载块为统一的 `downloadCandidate()` helper
@@ -144,6 +144,10 @@ Cobalt 项目（imputnet/cobalt）处于「有活动但更新极慢」状态：
 | a99e14c | VDL 第一批：策略选择器 + 3 个 adapter + 42 个测试 | `video-downloaders.mjs`, `url-normalizer.mjs`, test |
 | dfa98ad | Cobalt 默认端口 3000→9000 | `video-downloaders.mjs`, test, `.env.example` |
 | c566033 | AGENTS.md 维护状态检查规则 | `AGENTS.md` |
+| 80f5a13 | #63 URL dedup | `trends-utils.mjs`, `search-sources.mjs`, test |
+| cc699e6 | #115 downloadCandidate helper + VDL 集成 | `download-candidate.mjs` (new), `video-downloaders.mjs`, `asset-sourcer.mjs`, test |
+| e38d5e8 | 归档 spec/tickets | `docs/archive/` |
+| 82eff65 | 清理 moved 文件 | 删除 `docs/spec-download-candidate-*.md`, `docs/tickets-download-candidate-*.md` |
 
 ## Issue body 更新记录
 
@@ -163,8 +167,8 @@ Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`，已归�
 
 **遗留要求需在后续 issue 中处理：**
 - #77：`source-registry.mjs` schema 拆分 discovery + download adapter；`asset-source-quick-reference.md` 更新 Cobalt smoke test 结果
-- #115：VD-02 集成测试（yt-dlp 不回归）；VD-06 专用 adapter 路径
-- #75 第二批：VD-07 抖音 iesdouyin 固定样本测试
+- ~~#115：VD-02 集成测试（yt-dlp 不回归）；VD-06 专用 adapter 路径~~ — ✅ VD-02 已在 T3 回归测试中覆盖（2111 tests passing）；VD-06 专用 adapter 路径属 #75 第二批
+- #75 第二批：VD-07 抖音 iesdouyin 固定样本测试；专用 platform adapter（douyin/weibo/xhs）
 
 ## 建议的下一步
 
