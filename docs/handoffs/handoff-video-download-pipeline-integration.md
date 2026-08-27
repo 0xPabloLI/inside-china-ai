@@ -169,5 +169,9 @@ Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`，已归�
 ## 建议的下一步
 
 1. ~~**开始 #63**（URL dedup）— ✅ 已完成 (commit 80f5a13)~~
-2. **开始 #115 + VDL 集成** — 中等任务，是核心集成工作。#63 已完成，#115 无前置阻塞
-3. **#114（SVE）可后续做** — 非阻塞，是 enhancement
+2. ~~**开始 #115 + VDL 集成** — ✅ 已完成 (commit cc699e6, 2026-08-27)~~
+   - 创建 `lib/download-candidate.mjs` helper（VDL 包装 + 文件 I/O + status 映射）
+   - 扩展 VDL 支持图片（`.jpg/.png/.webp/.gif` + `image/*` MIME + headers 传递）
+   - 替换 `asset-sourcer.mjs` 5 个重复下载块为 `downloadCandidate()` 调用
+   - 67 新测试 + 2111 既有测试全通过
+3. **#114（SVE）可后续做** — 非阻塞，是 enhancement。VDL 已接入管线，SVE 可直接调用
