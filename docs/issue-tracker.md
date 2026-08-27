@@ -140,7 +140,7 @@ collectFromSource() 层次：
 | #64 | Add free API sources + baidu_news + reclassify Currents/Noozra | — | source-registry.mjs, search-sources.mjs | 13 候选 API，Brave 需注册。+ baidu_news (CDP news.baidu.com/ns，与 google_news/bing_news 同模式). + 把 currents 和 noozra_search 从 GENERAL_SEARCH_SOURCES 移到 INTERNATIONAL_SOURCES 或新建 NEWS_API_SOURCES（它们是新闻聚合 API，不是通用搜索）。**baidu_news 和 Currents/Noozra 分类调整可能触及 `search-sources.mjs`** |
 | #90 | MCP to API migration (Bigsong) | — | source-registry.mjs, search-sources.mjs | lib/bigsong-api.mjs 直接 HTTP 调用. **Matrix/issue 也涉及 `search-sources.mjs`** |
 | #65 | General Search Pool (Layer 3 兜底，含 #109) | #64, #90 | search-sources.mjs, config.env | Brave > Tavily > Jina > Grok round-robin. 只替换 7 个通用 web_search 源的 mcpFallback (x_search/youtube/arxiv/github/threads/google/mcp_grok_search). Currents/GNews/Noozra 是新闻 API 不是 general search，已移出 pool → 移到 INTERNATIONAL_SOURCES 或 NEWS_API_SOURCES. #109 合并：MCP 封装替代 Brave MCP |
-| #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md | 12 public feeds，evidence boundary 分组 |
+| #97 | WeChat RSS tracking | — | content-pipeline.md, DOCS-INDEX.md, search-sources.mjs (may), source-registry.mjs (may) | 12 public feeds，evidence boundary 分组 + `sourceRole` 字段 |
 | #112 | Image search pool expansion | #91 (DDG), #103 (docs), **#115 (hard)** | source-registry.mjs, asset-sourcer.mjs | Google Images (CDP) + Bing Images (CDP) + DuckDuckGo Images (CDP). Refactor Tier 3 to pluggable pool. Engines parallel, keywords serial. **#115 hard blocker**: `lib/download-candidate.mjs` must be extracted first |
 | #75 | 替代下载方案 + 视频源标注（小红书/微博/抖音/B站） | #54 done, #77 推荐（#77 审计现有标注 → #75 加新标注） | asset-sourcer.mjs, source-registry.mjs | ~25% done（RedNote-MCP done, weibo/chubbyskills missing）。Scope expanded: B站图片搜索 + SVE 视频提取 + 全源 video capability 调研（51 个源逐个验证）+ 不用 downloadable 字段（有 videos 就尝试下载，失败由 try-catch 处理）。与 #77 分工：#77 审计现有标注，#75 加新标注。**直接影响视频素材覆盖面** — 从 Tier 3 提升 |
 | #127 | VLM Cascade Router: Qwen3-VL-2B fast path + GLM-4.1V-9B deep analysis fallback | — | vlm_analyzer.py | 级联路由器：2B 分析所有图片（~3s），低置信度自动升级到 9B 深度分析（~28s）。Router 信号：输出<100 chars / fit 缺失 / 重复文本 / 高分辨率+content_kind=other。两模型同时加载 ~3GB。Benchmark: `docs/research/vlm-model-selection-benchmark.md` §9-10。Handoff: `docs/handoffs/handoff-vlm-cascade-router-2026-08-27.md`。与 #113 共改 `vlm_analyzer.py`，须串行 |
@@ -156,7 +156,7 @@ collectFromSource() 层次：
 | #94 | Scene-level visual intent + evidence-media audit | — | scene-rules.mjs, scene-templates.mjs | 视觉意图契约 + MRL-2 报告。设计层面 |
 | #91 | DuckDuckGo source | #89 P0 (hard) | source-registry.mjs | html.duckduckgo.com，无 JS。搜索来源已够用 |
 | #92 | SearXNG source | #89 P0 (soft) | source-registry.mjs | Docker 自托管，269 引擎聚合。搜索来源已够用 |
-| #85 | Bloomberg paywall alternatives | — | — | 单个来源研究任务 |
+| #85 | Bloomberg paywall alternatives | — | source-registry.mjs (may) | 单个来源研究任务。落地后可能加新 source entry |
 | #117 | General currency conversion (multi-currency + rate API) | — | normalize-currency.mjs | Low priority — China AI news is 99% RMB/HKD. EUR/GBP rarely needed. Add patterns + optional API rate fetch |
 | #108 | Research: free cloud inference endpoints | — | — | 纯调研，本地模型够用。Deliverable: docs/tools-catalog.md |
 | #98 | Local ASR worker (WhisperX) | #69 done | — | 视频管线 P5。当前视频管线基本可用 |
@@ -221,9 +221,9 @@ collectFromSource() 层次：
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #66, #75 | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done；#66 加 skipCdpOnApiFail 标记；#75 视频源 capability 标注） |
+| `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #66, #75, #97 (may), #85 (may) | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done；#66 加 skipCdpOnApiFail 标记；#75 视频源 capability 标注；#97 sourceRole if scope expands；#85 if republisher added） |
 | `asset-sourcer.mjs` | #88, #114, #75, #66, #115 | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()；#75 视频源下载+capability 标注；#114 SVE；#115 downloadCandidate 提取。**#63 已移除——SVE 影响移至 #114**） |
-| `search-sources.mjs` | #66, #63, #88, #65, #90, #116, #64, #114 | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles；#63 URL dedup + trends-utils.mjs；#64 baidu_news/分类调整；#90 Bigsong API 迁移；#114 SVE；#116 CDP proxy auto-start） |
+| `search-sources.mjs` | #66, #63, #88, #65, #90, #116, #64, #114, #97 (may) | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles；#63 URL dedup + trends-utils.mjs；#64 baidu_news/分类调整；#90 Bigsong API 迁移；#114 SVE；#116 CDP proxy auto-start；#97 evidence 分组+sourceRole if scope expands） |
 | `cdp-client.mjs` | #66, #89, #116 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff；#116 加 ensureCdpProxy() |
 | `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
