@@ -39,6 +39,13 @@ analytics"，但实际上 analytics 需要等数据沉淀。
    │  → 追加到 output/hashtag-effect-tracker.jsonl
    │  → 数据见 docs/research/tiktok-competitor-intelligence.md §3
    │
+④c CSI Content Gap 对比（CDP 抓取方式）
+   │  Agent 运行 node scripts/short-video/lib/tiktok-csi.mjs --content-gap
+   │  + node scripts/short-video/lib/tiktok-csi.mjs --recommended
+   │  → 对比已发布视频的话题在 CSI 中的搜索热度
+   │  → 识别选题机会（高搜索低供给的话题）
+   │  → 记录到 output/analytics-conclusions.md 的 CSI Content Gap 对比章节
+   │
 ⑤ 标记完成
       Agent 将 pending-analysis.json 的 status 改为 "done"
 ```
@@ -62,6 +69,18 @@ analytics"，但实际上 analytics 需要等数据沉淀。
 3. 提取搜索词 Top 5 和流量来源分布
 
 CDP 方式不需要用户手动导出 CSV，但需要用户的 TikTok 登录态。两种方式互补使用。
+
+### CSI Content Gap 对比方式（CDP 抓取，步骤 ④c）
+
+Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
+
+1. 运行 `node scripts/short-video/lib/tiktok-csi.mjs --content-gap --limit 20` → 获取高搜索低供给话题
+2. 运行 `node scripts/short-video/lib/tiktok-csi.mjs --recommended --limit 20` → 获取推荐热门话题
+3. 对比已发布视频的话题在 CSI 中的搜索热度，识别选题机会
+4. 记录到 `output/analytics-conclusions.md` 的 "CSI Content Gap 对比" 章节
+
+> **前置条件**：CDP proxy 已启动（`node ~/.agents/skills/web-access/scripts/check-deps.mjs`），用户已登录 TikTok。
+> CSI 桌面版可用功能：话题列表 ✅、Content Gap ✅、话题详情 ✅。AI Outline ❌（仅移动端）、Search Analytics ❌（桌面版即将上线）。详见 `docs/research/tiktok-creator-tools.md` §3.3。
 
 ---
 

@@ -247,6 +247,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 5. **设计 SEO 标题**（≤60 chars）——在 scene-data 中显式设计 caption 第一行（见 `docs/video-script-writing-guide.md` → 标题策略）
 6. **直接写 `scene-data.mjs`** — 不需要中间脚本（新建 content dir 时见 `docs/content-scaffold-guide.md`）
 7. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
+8. **生成 AI Outline 话题描述（双文案方案，必须执行）** — Agent 在 scene-data 完成后，额外生成一段精简话题描述，供用户在 TikTok 移动端 CSI → AI Outline 中使用。此描述与 `generate-caption.mjs` 生成的 caption 是**并行候选**，最终由用户选择最优组合写入 `metadata`。详见下方「双文案方案」章节。
 
 ### 文章 → 视频的节奏适配
 
@@ -257,6 +258,43 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 | 数据表格    | 数据可视化场景          |
 | 引用语句    | 大字引用场景            |
 | Widget      | 不出现（视频无法交互）  |
+
+### 双文案方案：Agent caption + AI Outline 话题描述
+
+> **背景**：TikTok AI Outline 仅在移动端 App 内可用（桌面版无此功能）。Agent 无法自动化调用。双文案方案让 Agent 和 AI Outline 各自独立生成候选文案，用户选择最优组合。
+
+**方案 A（Agent 生成）**：`generate-caption.mjs` 基于 scene-data 的 voiceover + metadata 自动生成完整 caption（标题 + description + hashtags）。这是管线已有流程，走 `metadata` 注入路径。
+
+**方案 B（用户用 AI Outline 生成）**：Agent 输出一段精简话题描述，用户在手机端 TikTok App 中搜索 "Creator Search Insights" → 选相关话题 → 让 AI Outline 生成 hooks/title/hashtags/script outline → 用户把生成的结果抄回给 Agent。
+
+**Agent 生成话题描述的规则**：
+
+1. **字数**：1-2 句话，≤30 词
+2. **内容**：核心话题 + 关键数字/公司名 + 内容角度
+3. **格式**：纯英文，适合在 CSI 搜索框中输入或对照选择话题
+4. **输出位置**：在 scene-data 文件末尾以注释形式输出，或在对话中直接给用户
+
+**示例**：
+
+```
+# scene-data.mjs 文件末尾注释
+
+// ─── AI Outline 话题描述（供用户在 TikTok 移动端 CSI 使用）───
+// CSI 搜索建议：搜索 "ai robot technology" 或 "unitree"
+// 话题描述：China AI robot stock Unitree listed on Shanghai STAR Market,
+//           first day 629% pop, DeepSeek backed the IPO, humanoid robot market
+// ───────────────────────────────────────────────────────────
+```
+
+**用户操作流程**：
+1. 在 TikTok App 搜索 "Creator Search Insights" → 点 View
+2. 用 Agent 给的「CSI 搜索建议」搜索相关话题
+3. 进入话题详情页 → 如果有 AI Outline → 生成
+4. 如果没有 AI Outline → 看 creator tips（keywords + hook best practices）
+5. 把 AI Outline 生成的 hashtags/title 抄回给 Agent
+6. Agent 对比方案 A 和方案 B 的结果，选最优组合写入 `metadata`
+
+**降级**：如果用户没有在手机端操作，管线继续走方案 A。方案 B 是可选增量优化，不阻塞管线。
 
 ### 🔄 MRL-2: 脚本自审
 
