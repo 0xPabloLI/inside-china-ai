@@ -21,7 +21,7 @@
  *   - ken-burns + video → auto-degrade to fade
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
-import { useCurrentFrame, staticFile, CanvasImage } from "remotion";
+import { AbsoluteFill, useCurrentFrame, staticFile, CanvasImage } from "remotion";
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOut, easeOutExpo } from "./shared";
@@ -138,6 +138,14 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     filter: filter !== "none" ? filter : undefined,
   };
 
+  // ─── Branded matte (image + contain only) ───
+  // When an image uses fit:"contain" (landscape source that can't survive
+  // 9:16 cover crop), render a quiet brand gradient behind the letterboxed
+  // image instead of bare #0a0a14. Video contain stays bare — only images
+  // get the matte (Issue #119 comment feedback #1).
+  const isContain = (media.fit ?? "cover") === "contain";
+  const showBrandedMatte = media.type === "image" && isContain;
+
   // Overlay also fades in/out slightly for smoother transitions
   const overlayOpacity =
     preset === "none"
@@ -151,6 +159,14 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
 
   return (
     <>
+      {showBrandedMatte && (
+        <AbsoluteFill
+          style={{
+            background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
+            opacity,
+          }}
+        />
+      )}
       {media.type === "image" ? (
         <CanvasImage src={src} style={mediaStyle} />
       ) : (
