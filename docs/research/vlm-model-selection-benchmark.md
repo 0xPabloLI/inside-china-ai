@@ -1,7 +1,7 @@
 # VLM 选型 Benchmark 报告
 
 > **创建日期**：2026-08-25
-> **最后更新**：2026-08-26（加入 deep research 结论 + 预处理测试 + pipeline 集成）
+> **最后更新**：2026-08-27（R7 Qwen3.5-4B-MLX 测试 + R6 GLM-4.1V-9B 测试 + Qwen3.8/3.5/GLM-5 评估）
 > **关联 ADR**：`docs/adr/0009-vlm-qwen3-vl-mlx.md`
 > **原始数据**：`scripts/short-video/experiments/vlm-benchmark-results.json` (R1)、`vlm-benchmark-results-r2.json` (R2)、`vlm-benchmark-results-r3.json` (R3)、`vlm-preprocess-multi-results.json` (R4)
 > **Judge 结果**：`scripts/short-video/experiments/vlm-judge-results.md` (R1)、`vlm-judge-results-r2.md` (R2)、`vlm-judge-results-r3.md` (R3)
@@ -274,3 +274,190 @@ mlx-vlm Qwen3-VL-2B-4bit 在公平对比下全面优于 Ollama qwen3.5:4b：
 5. **确定性输出**，3 次完全一致
 
 **决策确认**：短期保持选项 A（2B-4bit + mlx-vlm）。Ollama qwen3.5:4b 作为 fallback VLM 不可行——31s/图在 20+ assets 的 pipeline 中意味着 10+ 分钟仅 VLM 分析。
+
+## 10. R6 GLM-4.1V-9B-Thinking-4bit 测试
+
+> **测试日期**：2026-08-27
+> **环境**：MacBook Pro M2 Pro 32GB, mlx-vlm 0.6.16, Python 3.12 (`~/.video-tts-env`)
+> **方法**：同一 corpus（6 张图片），统一 resize 1280px 长边，相同 prompt，1 run/image，temperature=0.0, max_tokens=512
+> **模型**：`mlx-community/GLM-4.1V-9B-Thinking-4bit`（MIT 许可证，glm4v 架构）
+> **数据文件**：`/tmp/glm-ab-eval-results.json`
+
+### 性能对比
+
+| 维度 | Qwen3-VL-2B-4bit (R5) | GLM-4.1V-9B-Thinking-4bit | 倍率 |
+|------|----------------------|---------------------------|------|
+| 加载时间 | 2.0s | 7.4s | 3.7x 慢 |
+| 图片平均推理 | **3.5s** | 28.5s | **8.1x 慢** |
+| 最快图片 | ~1.5s | 22.7s | ~15x 慢 |
+| 最慢图片 | ~5.0s | 37.4s | ~7.5x 慢 |
+| 峰值内存 | **1.8GB** | 1.1GB | 0.6x（更少） |
+| 磁盘 | **1.8GB** | 6.6GB | 3.7x 大 |
+| 视频支持 | ✅ 原生 | ✅ 架构支持（未实测） | — |
+
+### 各图片推理时间
+
+| 图片 | GLM-4.1V (9B) | Qwen3-VL (2B, R5 参考) |
+|------|--------------|----------------------|
+| ai-robot-hand.jpg | 23.6s | ~1.5s |
+| data-center.jpg | 22.7s | ~1.2s |
+| financial-chart.jpg | 31.1s | ~2.0s |
+| shanghai-skyline.jpg | 24.9s | ~1.5s |
+| revenue-laptop.jpg | 31.2s | ~2.0s |
+| unitree-building.jpg | 37.4s | ~2.0s |
+
+### 质量观察
+
+| 维度 | GLM-4.1V-9B | Qwen3-VL-2B |
+|------|-------------|-------------|
+| 输出长度 | 1304-2238 chars | 300-500 chars |
+| Thinking 链 | ✅ 完整推理过程（`Got it, let's analyze...`） | ❌ 直接输出 |
+| 中文识别 | ✅ 识别「宇树科技」「峰达创意园」「恒生」「中国农业银行」 | ✅ 同等水平 |
+| Markdown 结构 | ✅ 5 sections 完整 | ✅ 5 sections 完整 |
+| 推理深度 | 更丰富（逐步分析 → 结论） | 简洁直接 |
+
+### 结论
+
+GLM-4.1V-9B-Thinking-4bit 在质量上有明显优势（thinking 推理链 + 更丰富的输出），但速度上不适用生产：
+1. **推理慢 8.1x**：28.5s/图 vs 3.5s/图。20+ assets 的 pipeline 需要 9.5 分钟仅 VLM 分析
+2. **磁盘大 3.7x**：6.6GB vs 1.8GB
+3. **质量优势明显但不关键**：thinking 推理链对 fit/cover-contain 判断不影响（2B 已足够准确）
+4. **内存反而更优**：1.1GB vs 1.8GB（9B-4bit 量化后内存效率高）
+
+**决策**：不替换生产 VLM。GLM-4.1V-9B 可作为未来需要更复杂推理（如 OCR + 逻辑分析复合任务）时的候选。生产维持 Qwen3-VL-2B-4bit。
+
+### 其他候选评估
+
+| 模型 | 参数量 | 评估结论 |
+|------|--------|---------|
+| Qwen3.8-27B-4bit | 27B | ❌ mlx-community 只有 27B，在 32GB Mac 上可加载但推理极慢（2B 的 13.5x），不做候选 |
+| Qwen3.5-4B-MLX-4bit | 4B | ❌ R7 已测，见下方 §11 |
+| Qwen3.5-9B-MLX-4bit | 9B | ⏳ 下载中，未完成测试 |
+| Ollama qwen3.5:4b | 4B | ❌ R5 已测，慢 9-56x，不支持视频 |
+
+### GLM-5 系列评估
+
+| 模型 | 架构 | 许可证 | 状态 |
+|------|------|--------|------|
+| GLM-5.2 | glm_moe_dsa | MIT | 纯语言，无视觉 |
+| GLM-5.2-Vision-NVFP4 | glm5v | MIT | ❌ NVFP4 格式需 Blackwell GPU |
+| GLM-5.3-Flash | glm5_next | MIT | ❌ MoE 大模型，2-bit 量化 135GB，32GB Mac 不可用 |
+| orcarouter/GLM-5.3-Flash-MLX | glm5_next | MIT | ❌ MLX 量化版存在但 mlx-vlm 不支持 glm5_next 架构 |
+
+**结论**：GLM 全系列 MIT 开源。最新 GLM-5 系列因 MoE 架构太大 + mlx-vlm 不支持，当前可用的最佳 GLM 视觉模型仍是 GLM-4.1V-9B-Thinking-4bit。
+
+## 11. R7 Qwen3.5-4B-MLX-4bit 公平 A/B 测试
+
+> **测试日期**：2026-08-27
+> **环境**：MacBook Pro M2 Pro 32GB, mlx-vlm 0.6.16, Python 3.12 (`~/.video-tts-env`)
+> **方法**：同一 corpus（6 张图片），统一 resize 1280px 长边，相同 prompt，各 3 runs/image, temperature=0.0
+> **模型**：`mlx-community/Qwen3.5-4B-MLX-4bit`（vision-language-model, qwen3_5 架构）
+> **数据文件**：`scripts/short-video/experiments/vlm-qwen35-mlx-eval-results.json`
+> **脚本**：`scripts/short-video/experiments/vlm-qwen35-mlx-eval.py`
+
+### 性能对比
+
+| 维度 | Qwen3-VL-2B-4bit (基线) | Qwen3.5-4B-MLX-4bit | 倍率 |
+|------|----------------------|---------------------|------|
+| 加载时间 | **4.0s** | 4.7s | 1.2x 慢 |
+| 图片平均推理 | **4.7s** | 39.0s | **8.3x 慢** |
+| 最快图片 | 4.3s | 29.1s | 6.8x 慢 |
+| 最慢图片 | 5.7s | 63.1s | 11.1x 慢 |
+| 峰值内存 | 0.5GB | 0.6GB | 1.2x（几乎相同） |
+| 失败率 | 0% | 0% | — |
+
+### 各图片推理时间
+
+| 图片 | Qwen3-VL-2B (avg) | Qwen3.5-4B (avg) | 倍率 |
+|------|-------------------|------------------|------|
+| ai-robot-hand.jpg | 4.7s | 30.6s | 6.5x |
+| data-center.jpg | 4.6s | 52.6s | 11.4x |
+| financial-chart.jpg | 4.3s | 30.0s | 7.0x |
+| shanghai-skyline.jpg | 4.8s | 44.7s | 9.3x |
+| revenue-laptop.jpg | 4.4s | 29.7s | 6.8x |
+| unitree-building.jpg | 5.5s | 46.2s | 8.4x |
+
+### 质量对比
+
+| 维度 | Qwen3-VL-2B-4bit | Qwen3.5-4B-MLX-4bit |
+|------|-----------------|---------------------|
+| 输出长度 | 493-710 chars | 3607-7745 chars |
+| 输出格式 | 直接 Markdown | Thinking 链 + Markdown |
+| 输出一致性 | ✅ 3次完全一致 | ✅ 3次完全一致 |
+| Thinking 链 | ❌ 直接输出 | ✅ 完整推理过程（`The user wants...`） |
+
+### 关键发现
+
+Qwen3.5-4B 输出量大 6-12 倍不是因为"质量好"，而是**包含 thinking 过程 + 最终答案**：
+- 2B：直接输出 `## Description\nA robotic hand...`
+- 4B：输出 `The user wants a Markdown analysis...\n**1. Description:**\n*Observation:*...\n*Drafting:*...`
+
+4B 模型内置 thinking chain（类似 GLM-4.1V），但这个 thinking chain 对 fit/cover-contain 判断没有帮助——2B 的直接输出已足够准确。
+
+### 结论
+
+Qwen3.5-4B-MLX-4bit 不适合生产替换：
+1. **推理慢 8.3x**：39.0s/图 vs 4.7s/图。20+ assets pipeline 需要 13+ 分钟仅 VLM 分析
+2. **输出冗余**：thinking chain 占 80%+ 输出量，对 pipeline 无用
+3. **内存几乎相同**：0.6GB vs 0.5GB，无优势
+4. **质量不优于 2B**：thinking chain 不影响 fit 判断
+
+**决策确认**：生产维持 Qwen3-VL-2B-4bit。Qwen3.5 系列在 Apple Silicon 上不提供有意义的升级。
+
+### Cascade Router 方案
+
+基于 R6 + R7 结果，提出 Cascade Router 方案（[Issue #127](https://github.com/0xPabloLI/inside-china-ai/issues/127)）：
+- **Fast path**：Qwen3-VL-2B 分析所有图片（~4.7s/图）
+- **Deep path**：GLM-4.1V-9B 对 2B 低信心图片做深度分析（~28.5s/图）
+- 预期：20 assets, 3 flagged → 20×4.7s + 3×28.5s = 181s（3 min）vs 全 GLM 9.5 min
+
+### Deep Path 选型分析
+
+> 用户提问：GLM 更新的视觉模型能不能替代 GLM-4.1V-9B 作为 deep path？
+
+#### GLM-4.5V（最新 GLM 视觉模型）
+
+| 维度 | 值 |
+|------|-----|
+| 许可证 | MIT |
+| 架构 | `glm4v_moe`（MoE，激活 8 专家/token） |
+| 基础 | 基于 `GLM-4.5-Air-Base` 微调 |
+| mlx-vlm 支持 | ✅ 有完整实现（`mlx_vlm/models/glm4v_moe/`） |
+| 视觉 | ✅ `vision_config.hidden_size = 1536` |
+
+**各量化版本大小**：
+
+| 量化 | 格式 | 大小 | 32GB Mac | 来源 |
+|------|------|------|---------|------|
+| 3-bit | MLX | **45.2GB** | ❌ OOM | `mlx-community/GLM-4.5V-3bit` |
+| 4-bit | MLX | 57.6GB | ❌ | `mlx-community/GLM-4.5V-4bit` |
+| Q2_K | GGUF | 40.6GB | ❌ | `mradermacher/GLM-4.5V-GGUF` |
+| IQ4_XS | GGUF | 54.7GB | ❌ | `mradermacher/GLM-4.5V-GGUF` |
+
+**结论**：GLM-4.5V 所有量化版本都 ≥40GB，在 32GB Mac（系统 ~8GB，剩 ~24GB）上无法加载。需要至少 **64GB 统一内存**的 Mac 才能跑 3-bit/Q2_K。
+
+#### GLM-4.1V-9B（当前可用最新 GLM 视觉模型）
+
+| 维度 | 值 |
+|------|-----|
+| 最小量化 | 4-bit（6.6GB） |
+| 峰值内存 | 1.1GB |
+| 推理速度 | 28.5s/图 |
+| mlx-vlm 支持 | ✅ `glm4v` 架构 |
+
+**GLM-4.1V 是 32GB Mac 上能跑的最新 GLM 视觉模型**。GLM-4.5V 虽然更新，但 MoE 架构总参数量太大，所有量化版都超过 40GB。
+
+#### Deep Path 候选对比
+
+| 模型 | 参数量 | 量化 | 磁盘 | 推理/图 | Thinking | 中文识别 | Cascade 适用？ |
+|------|--------|------|------|---------|----------|---------|--------------|
+| **GLM-4.1V-9B** | 9B | 4bit | 6.6GB | 28.5s | ✅ | ✅ 优秀 | ✅ **推荐** |
+| Qwen3.5-4B-MLX | 4B | 4bit | 4.0GB | 39.0s | ✅ | ✅ 可识别 | ❌ 更慢且无质量优势 |
+| GLM-4.5V | MoE | 3bit | 45.2GB | N/A | ✅ | ✅ | ❌ OOM |
+| Qwen3-VL-8B | 8B | 4bit | 5.4GB | 25.2s | ❌ | 一般 | ⚠️ 无 thinking chain |
+
+**决策**：Cascade Router deep path 维持 **GLM-4.1V-9B-Thinking-4bit**。理由：
+1. GLM-4.5V 不可用（40GB+）
+2. Qwen3.5-4B 比 GLM-4.1V 更慢（39s vs 28.5s）且 thinking chain 同样冗余
+3. GLM-4.1V 的中文识别能力最强（识别"峰达创意园"、"中国农业银行"等）
+4. 两个模型同时加载仅 ~3GB（Qwen2B 1.8GB + GLM 1.1GB），32GB 充裕

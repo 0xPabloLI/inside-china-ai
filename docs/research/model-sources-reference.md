@@ -67,6 +67,30 @@ https://huggingface.co/models?search={关键词}
 - 看 `library_name` 确认推理框架
 - 看 README 中的性能数据和兼容性说明
 
+**冒牌模型识别**（2026-08-27 教训）：
+
+HuggingFace 是开放平台，任何人都可以上传模型。存在冒牌模型——使用与官方品牌极其相似的 author 名注册，上传虚假或恶意的模型权重。
+
+| 检查项 | 官方模型 | 冒牌模型示例 |
+|--------|---------|-------------|
+| **author 名** | `Qwen`、`mlx-community`、`zai-org` | `QwennAI`（多一个 n）、`QwenAI` |
+| **downloads/likes** | 万级至百万级 | <500 downloads, <10 likes |
+| **base_model 标签** | 有 `base_model: Qwen/...` | 无 base_model 标签 |
+| **pipeline_tag** | 与声称能力匹配（如 `image-text-to-text`） | 声称视觉但标为 `text-generation` |
+| **LICENSE 文件** | 有明确许可证文件 | 无或可疑 |
+
+**风险**：模型权重是二进制文件，无法人工审查。冒牌模型可能：
+- **后门注入**：在模型训练时植入恶意行为（如特定触发词下输出恶意代码/URL）
+- **能力虚标**：声称支持某能力但实际不支持，浪费磁盘和时间
+- **不可审查**：几百 GB 的二进制权重无法通过代码审查发现恶意行为
+
+**防护措施**：只从可信 author 下载模型（官方 author、`mlx-community`、`unsloth` 等知名量化社区）。发现可疑模型时先查 author 的其他模型和 follower 数确认可信度。
+
+**HITL 规则**：非 Verified Author 的模型，下载前必须暂停并请求用户确认。具体判断：
+- ✅ 可直接下载：author 是模型官方（如 `Qwen`、`zai-org`、`THUDM`）、知名量化社区（`mlx-community`、`unsloth`）、或 HuggingFace 显示 verified 标记
+- ⚠️ 需用户确认：author 不在上述列表，但 downloads/likes 较高（>1k downloads），有 base_model 标签
+- ❌ 禁止下载：author 名与官方品牌极其相似（如 `QwennAI` vs `Qwen`）、downloads < 500、无 base_model 标签
+
 ### 1.3 ModelScope（阿里巴巴）
 
 中国版 HuggingFace，很多中国团队的模型首发在这里。
