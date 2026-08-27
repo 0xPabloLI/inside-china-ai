@@ -3,7 +3,7 @@ name: web-deep-research
 description: >
   Multi-source web research with citation tracking, evidence persistence, and structured
   report generation. Uses an 8-phase methodology (SCOPE → PACKAGE) with web-access
-  fetching (Chrome CDP proxy) and local code verification.
+  fetching (scenario routing + error fallback) and local code verification.
   Use when the user wants deep research, comprehensive analysis, research report,
   compare X vs Y, analyze trends, state of the art, or thorough investigation.
   Not for simple lookups, debugging, or questions answerable with 1-2 searches.
@@ -12,18 +12,20 @@ description: >
 # Web Deep Research
 
 Three-layer research: **8-phase methodology** (claim verification, evidence
-persistence) + **fetching** from web-access (Chrome CDP proxy, low anti-bot,
-login state) + **code verification** from local source inspection (grep,
-read_file, codebase_search against installed packages and repo code).
+persistence) + **web-access fetching** (delegates tool selection and error
+fallback to web-access skill) + **code verification** from local source
+inspection (grep, read_file, codebase_search against installed packages and
+repo code).
 
 ## Dependencies
 
 - **Methodology**: The 8-phase structure (SCOPE → PLAN → RETRIEVE → TRIANGULATE →
   SYNTHESIZE → CRITIQUE → REFINE → PACKAGE) is self-contained in this file.
-- **Fetching**: Uses `web-access` skill for all web content retrieval. Load
-  web-access skill before Phase 3. web-access decides the actual tool (CDP, Jina,
-  curl, WebFetch, WebSearch) based on the target — this skill does not override
-  its tool selection.
+- **Fetching**: Delegates to `web-access` skill for all web content retrieval
+  (search, page fetch, browser). web-access handles: tool selection (scenario
+  routing), error fallback (Brave → Jina → CDP), login state, JS rendering,
+  anti-bot mitigation. Run `node ~/.agents/skills/web-access/scripts/check-deps.mjs`
+  before Phase 3 to verify CDP availability.
 - **Code verification**: When the research topic involves a library, framework, tool,
   or any claim that can be verified against source code, inspect the local installed
   package or repo code in parallel with web retrieval. Use `grep`, `read_file`,
@@ -67,33 +69,48 @@ Map each angle to 2-4 search queries.
 
 ## Phase 3 — RETRIEVE
 
-> **MANDATORY**: Load `web-access` skill BEFORE any retrieval. All URL discovery,
-> search, page fetching, and content extraction goes through web-access — it
-> decides the tool (CDP, Jina, curl, WebFetch, WebSearch, Brave API) based on the
-> target. Do not reimplement its API calls, override its tool selection, or
-> hardcode tool bans at this layer. web-access already handles: login state,
-> JS rendering, anti-bot mitigation, and token-efficient extraction.
+Load `web-access` skill and follow its tool selection table and error
+fallback chain for all search and page fetching. web-access decides
+the tool (Brave → Jina → CDP) based on the scenario, and falls back
+automatically on errors. Do not reimplement its routing or override
+its fallback here.
 
-**Retrieval strategy per angle** (what to retrieve, not how — web-access
-decides the tool):
-1. Search to discover sources (open search engines, extract top results)
-2. Extract article content from discovered URLs
-3. For paywalled / anti-bot / JS-rendered sites: follow web-access's guidance
-4. For independent angles, use sub-agents to parallelize. Each sub-agent
-   loads web-access independently — no race condition (shared Chrome, different
-   targetIds)
-5. **Code verification track** (run in parallel with web retrieval when the topic
-   involves code-verifyable claims):
-   - Locate installed package: `pip show <package>`, `npm ls <package>`,
-     `which <tool>`
-   - Read source: `inspect.getsource()` (Python), `read_file` on `node_modules/`,
-     `grep` for API/function signatures
-   - Write a minimal smoke test to verify the claim (does the API work as the
-     web source says?)
-   - Record the file path + line number as a "code source" (Tier 1, same as
-     official docs)
+**Before starting Phase 3**: Run `node ~/.agents/skills/web-access/scripts/check-deps.mjs`
+to verify CDP availability. If CDP is ready, the browser fallback is
+available — you don't need CDP for every query, web-access will route
+to it only when needed.
 
-**Source quality hierarchy**:
+### Parallel Retrieval
+
+Multiple independent queries can run **in parallel** — don't serialize
+everything:
+
+- **Search + Code verification**: Run web search for sources while
+  simultaneously `grep`/`read_file` for local source verification
+- **Multiple angles**: Each research angle's queries are independent —
+  dispatch as parallel sub-agents, each loading web-access independently
+  (shared Chrome, different targetIds, no race condition)
+- **Multiple URLs**: When you have 3+ URLs to fetch, batch them (multiple
+  `web_fetch` or `jina_reader` calls in one tool block)
+- **Search + fetch**: Once search returns URLs, start fetching the top
+  results while continuing to search for the next angle
+
+### Code Verification Track
+
+Run in parallel with web retrieval when the topic involves
+code-verifyable claims (library behavior, API existence, framework
+features):
+- Locate installed package: `pip show <package>`, `npm ls <package>`,
+  `which <tool>`
+- Read source: `inspect.getsource()` (Python), `read_file` on
+  `node_modules/`, `grep` for API/function signatures
+- Write a minimal smoke test to verify the claim (does the API work
+  as the web source says?)
+- Record the file path + line number as a "code source" (Tier 1, same
+  as official docs)
+
+### Source Quality Hierarchy
+
 - Tier 1: Official docs, primary sources, first-party APIs, peer-reviewed,
   **local source code** (file path + line number)
 - Tier 2: Reputable media (Bloomberg, Reuters, FT, trade publications)
