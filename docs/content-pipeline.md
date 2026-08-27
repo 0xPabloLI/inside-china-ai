@@ -302,6 +302,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | W6  | 无 Loop-close      | CTA 前最后一个内容场景未回扣 Hook                        |
 | W7  | 无 Open Loop       | Scene 2 未制造未解悬念（open loop 未在后续关闭）        |
 | W8  | 无 Pattern Interrupt | Scene 4-5 之间无 tonal shift / punch line               |
+| W9  | 无 Loop Closure  | CTA 前最后一个内容 scene 未声明 `retentionMechanism: "loop-closure"` |
 
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）
 
