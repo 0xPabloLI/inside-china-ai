@@ -1,151 +1,103 @@
 # Handoff: SVE Media Extraction (图片/视频同时提取 + Logo 排除 + Metadata)
 
 > Created: 2026-08-20
+> Updated: 2026-08-27 — SVE (#114) **已实现**，commit `f7c3567` + `cdcc8c7`
 > Parent discussion: `docs/research/pipeline-simplification-discussion.md` (Topic 4)
-> Trigger: User wants Single-Visit Extraction — one CDP visit extracts articles + images + videos simultaneously
+> Issue: #114 (OPEN — 代码已实现，Issue 未关闭)
 
-## Context
+## ✅ 实现状态：已完成
 
-当前管线中，同一个 URL 会被多次访问：
+SVE 三层全部实现并通过验证（2026-08-27）：
 
-```
-Stage 0: search-sources 打开 jiqizhixin.com → 提取文章 → 关闭
-Stage 3: asset-sourcer 打开 jiqizhixin.com → 提取图片 → 关闭
-         ↑ 同一个网站被 CDP 打开了两次
-```
+| Layer | 文件 | 状态 |
+|-------|------|------|
+| Layer 1: `enrichWithMedia` | `search-sources.mjs` + `trends-utils.mjs` | ✅ 完成 |
+| Layer 2: `extract-media.mjs` | `scripts/short-video/lib/extract-media.mjs`（新） | ✅ 完成 |
+| Layer 3: Phase 0b | `asset-sourcer.mjs` | ✅ 完成 |
+| 文档 | `content-pipeline.md` Stage 0 SVE 规则 | ✅ 完成 |
 
-用户要求实现 **Single-Visit Extraction (SVE)**：每个 URL 只用 CDP 访问一次，提取所有资源类型并持久化缓存。**无论什么模式**（trend / research），都要缓存图片和视频。
+**验证**：28 new tests，302 total passing，lint + tsc + build 全绿。
+**Spec/tickets/review**：已归档到 `docs/archive/`。
 
-## What exists already
+## 已实现的内容
 
-### search-sources.mjs
-- `collectFromCdp(source, keyword)` — 打开 CDP tab → 提取文章 → `enrichWithImages(tabId, articles)` 提取图片 → 关闭 tab
-- `enrichWithImages(tabId, articles)` — 在已打开的 tab 上 eval 一次 imageScript，把 imageUrl 关联到文章
-- **限制**：只提取文章列表页的缩略图 URL，不提取内嵌视频、不提取大图、不提取 metadata
-- Fallback 链：`apiSearch → CDP(extractScript) → cdpFallback(Google site:) → mcpFallback(Grok)`
+### Layer 1: enrichWithMedia（搜索结果页媒体提取）
 
-### asset-sourcer.mjs
-- `loadCachedImages(filePath, keywords)` — 从 `trending-topics.json` 读缓存的图片 URL，按 keyword 匹配
-- `isLogoOrIcon(url)` — 正则过滤 `logo|avatar|icon|placeholder|spinner|favicon|badge|button|sprite`
-- `preFilterCandidate(candidate, keyword)` — 下载前技术评分（分辨率、标题匹配等）
-- `downloadAsset(url, destPath)` — 下载图片
-- `downloadYtdlp(url, destPath)` — yt-dlp 下载视频
+`search-sources.mjs` 中 `enrichWithImages` → `enrichWithMedia`：
+- 单次 CDP eval 同时提取 images + videos + metadata
+- 视频：`<video>` src, `<source>` child, `<iframe>` YouTube/Bilibili/Douyin/Youku embeds, `og:video` meta
+- Metadata：`og:image`, `og:title`, `article:published_time`
+- Articles 获得 `videoUrls: string[]` 和 `metadata: {ogImage?, ogTitle?, publishedTime?}` 字段
+- `buildOutputJson` 在 `trends-utils.mjs` 中写入 `videos[]` 和 `metadata{}` 到 topic entries（additive，backward compatible）
 
-### source-registry.mjs
-- `CDP_IMAGE_CAPABILITIES` — per-site 图片提取脚本（ithome, jiqizhixin, google_news 等 7 个源）
-- `YTDLP_VIDEO_CAPABILITIES` — per-site 视频提取配置（bilibili, douyin, xhs, weibo, youtube）
-- `STOCK_API_SOURCES` — Pexels, Unsplash, Coverr, Pixabay（API 图片/视频搜索）
-- `SOURCE_ATTRIBUTIONS` — per-source 归属信息
+### Layer 2: extract-media.mjs（详情页媒体缓存）
 
-## What's missing (the gap)
+新脚本 `scripts/short-video/lib/extract-media.mjs`：
+- Agent 在 Stage 0 打开详情页后调用
+- CLI: `--url <url> --content <slug>` 或 `--tab <tabId> --content <slug>`（复用已开 tab）
+- CDP eval 提取所有 `<img>` (naturalWidth > 400), `<video>`, `<iframe>`, `og:image`
+- 过滤 logos/icons（复用 `isLogoOrIcon()` from asset-sourcer）
+- 输出 `content/<slug>/research/media-cache.json`（versioned schema, merge by sourceUrl）
+- 视频平台识别：youtube, bilibili, douyin, youku, direct
 
-### 1. `enrichWithMedia` 替代 `enrichWithImages`
-- 现有 `enrichWithImages` 只提取文章列表页缩略图
-- 需要升级为 `enrichWithMedia`，同时提取：
-  - **图片**：文章缩略图 + 页面大图（`<img>` with naturalWidth > 400）
-  - **视频**：内嵌 `<video>` 标签的 src + `<iframe>` 视频 URL（YouTube/B站/抖音 embed）
-  - **Metadata**：`<meta og:image>`, `<meta og:title>`, `<meta og:description>`, `<meta article:published_time>`
-- 所有媒体都带上 `sourceUrl`（来源页面 URL）和 `sourceTitle`（来源文章标题）
+### Layer 3: asset-sourcer Phase 0b（缓存媒体消费）
 
-### 2. Logo/Icon 排除增强
-- 现有 `LOGO_ICON_REGEX`：`/logo|avatar|icon|placeholder|spinner|favicon|badge|button|sprite/i`
-- 需要增加的过滤模式：
-  - 尺寸过滤：`naturalWidth < 200 || naturalHeight < 200`（太小的图通常是 icon）
-  - 路径模式：`/loading|blank|default|skeleton|placeholder/i`
-  - SVG data URI：`data:image/svg+xml`
-  - 广告类：`/ad-|advert|sponsor/i`
-  - 平台 UI 图标：`/emoji|reaction|clap|heart|share|comment/i`
+`asset-sourcer.mjs` 新增：
+- `loadCachedMedia(filePath, keywords)` — 读 `media-cache.json`，按 keyword 匹配
+- `toCachedMediaCandidate(candidate)` — 规范化为 score/filter/download pipeline
+- Phase 0b 在 Phase 0 (cached images) 和 Phase 1 (API sources) 之间运行
+- 复用 `downloadCandidate()`，cross-phase dedup via `downloadedUrls` Set
 
-### 3. 视频提取脚本
-- `enrichWithMedia` 的视频提取部分需要处理：
-  - `<video src>` 或 `<video><source src>`
-  - `<iframe src*="youtube.com/embed"]>` → 提取 video ID → 转为标准 URL
-  - `<iframe src*="player.bilibili.com"]>` → 提取 BV 号
-  - 抖音/小红书的 `<video>` 标签（CDP 已加载）
-- 视频候选需带上 `duration`（从 `<video>` 元素的 `.duration` 属性获取）和 `poster`（封面图 URL）
+### content-pipeline.md 更新
 
-### 4. 缓存结构升级
-- 当前 `trending-topics.json` 结构：
-  ```json
-  { "topics": { "category": [{ "title": "...", "url": "...", "imageUrl": "..." }] } }
-  ```
-- 目标结构：
-  ```json
-  {
-    "topics": {
-      "category": [{
-        "title": "...",
-        "url": "...",
-        "images": [{ "url": "...", "width": 800, "alt": "...", "sourceArticle": "..." }],
-        "videos": [{ "url": "...", "duration": 30, "poster": "...", "platform": "bilibili" }],
-        "metadata": { "og:image": "...", "og:title": "...", "publishedAt": "..." }
-      }]
-    }
-  }
-  ```
+Stage 0 入口 1/2 加入 SVE 规则：Agent 打开详情页后必须调用 `extract-media.mjs` 缓存媒体 URL。
 
-### 5. Trend 模式也缓存媒体
-- 当前 `enrichWithImages` 只在 CDP 成功时调用
-- 需要在所有提取路径（CDP、Jina fallback、API）成功后都调用 `enrichWithMedia`
-- Jina 的 `X-With-Images-Summary: true` header 可一次性返回文章 + 图片 URL（不需要额外 CDP 请求）
-- API 路径返回的 JSON 通常不含图片 URL（arXiv、Reddit 等），这些源的图片只走 asset-sourcer 的独立搜索
+## 遗留问题与下一步
 
-## Implementation Scope
+### 1. ⚠️ 未做运行时集成测试
 
-### 改动文件
-1. `scripts/short-video/search-sources.mjs`
-   - `enrichWithImages()` → `enrichWithMedia()` — 升级提取逻辑
-   - `collectFromCdp()` — 调用 `enrichWithMedia` 代替 `enrichWithImages`
-   - `collectFromApi()` — API 成功后也尝试 `enrichWithMedia`（如果有 CDP tab 可用）
-   - `collectFromSource()` — 在 fallback 链每层成功后都 enrich
-   - Trend 模式输出 — `trending-topics.json` 结构升级
+`extract-media.mjs` 需要 CDP 连接（Chrome 后台运行在 localhost:3456）才能工作。当前只有单元测试（mock CDP eval 输出），没有端到端 smoke test。
 
-2. `scripts/short-video/lib/asset-sourcer.mjs`
-   - `loadCachedImages()` → `loadCachedMedia()` — 同时读图片和视频
-   - `LOGO_ICON_REGEX` — 扩展过滤模式
-   - `isLogoOrIcon()` — 增加尺寸判断参数
+**下一步**：在下次实际跑 Stage 0 流程时（有真实 URL），Agent 应手动调用 `extract-media.mjs` 验证：
+1. CDP 打开详情页
+2. 运行 `node scripts/short-video/lib/extract-media.mjs --tab <tabId> --content <slug>`
+3. 检查 `content/<slug>/research/media-cache.json` 是否生成且内容正确
+4. 在 Stage 4 跑 `main.mjs` 时检查 asset-sourcer Phase 0b 是否读到缓存
 
-3. `scripts/short-video/lib/source-registry.mjs`
-   - `CDP_IMAGE_CAPABILITIES` → `CDP_MEDIA_CAPABILITIES` — 合并图片和视频提取脚本
-   - 新增 `VIDEO_IFRAME_PATTERNS` — iframe 视频解析规则
+### 2. ⚠️ enrichWithMedia 未做运行时验证
 
-4. 测试文件：
-   - `__tests__/search-sources.test.mjs`（如果存在）或新建
-   - `__tests__/asset-sourcer.test.mjs` — `loadCachedMedia` 测试 + `isLogoOrIcon` 新模式测试
+`enrichWithMedia` 的 CDP eval 脚本只在单元测试中验证了逻辑（通过 `buildOutputJson` 的纯函数测试间接验证）。实际 CDP eval 脚本在真实搜索结果页上的行为未验证。
 
-### 不改动的文件
-- `lib/cdp-client.mjs` — CDP 传输层不变
-- `lib/mcp-client.mjs` — MCP 传输层不变
-- `STOCK_API_SOURCES` — Pexels/Unsplash 等仍走独立 API
-- `YTDLP_VIDEO_CAPABILITIES` — yt-dlp 视频下载仍走独立路径
+**下一步**：跑 `search-sources --trend` 时检查 `trending-topics.json` 是否包含 `videos[]` 和 `metadata{}` 字段。
 
-## Suggested Skills
+### 3. Issue #114 未关闭
 
-- `implement` skill — 标准 TDD 实施
-- `tdd` skill — red → green → refactor
-- `writing-for-agents` skill — 如果需要更新 `docs/content-pipeline.md` 中的 SVE 描述
+GitHub Issue #114 仍为 OPEN 状态。已评论完成摘要，但未关闭——等运行时集成测试通过后再关闭。
 
-## Design Clarifications (2026-08-20 补充)
+### 4. 旧 handoff 中的未实现部分
 
-### Jina Reader 本地部署与 Pipeline 集成
-- Jina Reader 开源（Apache-2.0），预构建 Docker 镜像 `ghcr.io/jina-ai/reader:oss`
-- 核心技术：Node.js + Puppeteer（headless Chrome）+ curl-impersonate + PDF.js + LibreOffice
-- 资源消耗：CPU 2-4 核，内存 2-4GB，磁盘 ~5GB
-- **Pipeline 代码中 Jina 不通过 MCP 调用**——当前 `scripts/short-video/` 代码中没有 Jina 引用。Jina 目前只作为 MCP tool 供 Agent 直接调用。
-- SVE 实施时，如果用 Jina Reader 做 fallback（Layer 2），pipeline 代码可直接 `fetch("http://localhost:3000/" + url)` 替代 MCP 调用，无需经过 MCP 传输层
-- 本地部署可消除 Jina 的 1M tokens/月限制（无状态模式下无 rate limit）
+以下在旧 handoff 中提到但**本次未实现**的设计点：
 
-### collectFromCdp 是代码，不调用 skill
-`collectFromCdp()` 是 `search-sources.mjs` 中的函数，直接调用 `lib/cdp-client.mjs` 的 CDP HTTP API（`localhost:3456`），不调用 web-access skill。Web-access skill 和 pipeline 的 CDP 代理共享同一端口（3456），但提取策略不同：Pipeline 用 per-site extractScript，Web-access skill 有 /extract 自动检测。
+- **Logo/Icon 排除增强**（旧 handoff §2）：`naturalWidth < 200` 尺寸过滤、`/loading|blank|default|skeleton/` 路径模式、SVG data URI 过滤、`/ad-|advert|sponsor/` 广告类过滤、`/emoji|reaction|clap|heart|share|comment/` 平台 UI 图标过滤 — 这些**没有做**。当前 `isLogoOrIcon()` 保持原样。如需增强，单独开 issue。
+- **Jina Reader 本地部署**（旧 handoff §Design Clarifications）：**未实现**。Jina 仍作为 MCP tool 供 Agent 直接调用，pipeline 代码中没有 Jina 引用。
+- **`collectFromApi` 也调用 `enrichWithMedia`**（旧 handoff §Implementation Scope §1）：**未实现**。`enrichWithMedia` 只在 `collectFromCdp` 内调用，API 路径不调用。
+- **source-registry.mjs `CDP_IMAGE_CAPABILITIES` → `CDP_MEDIA_CAPABILITIES`**（旧 handoff §Implementation Scope §3）：**未实现**。source-registry 未改动。
+- **视频 duration/poster 字段**（旧 handoff §3）：**未实现**。视频候选只有 `url` 和 `platform`，没有 `duration` 和 `poster`。
 
-### collectFromMcp 是代码调用 MCP Search Bridge
-`collectFromMcp()` 通过 `lib/mcp-client.mjs` spawn mcp-search-bridge 子进程，调用 `web_search` tool。这是代码级调用，不经过 Agent。
+### 5. 非 session 改动
+
+git status 中有大量非本 session 的未提交改动（`docs/research/` 下的多个文件、`scripts/short-video/lib/` 下的 normalize-currency/base-styles/source-registry/visual-analyzer 等）。这些不是 SVE 工作引入的，不碰。
 
 ## Key References
 
-- 源文件：`scripts/short-video/search-sources.mjs` 第 119-212 行（`enrichWithImages` + `collectFromCdp`）
-- 源文件：`scripts/short-video/lib/asset-sourcer.mjs` 第 1227-1304 行（`LOGO_ICON_REGEX` + `loadCachedImages`）
-- 源文件：`scripts/short-video/lib/source-registry.mjs` 第 2345-2605 行（`CDP_IMAGE_CAPABILITIES`）
-- Jina Reader 本地部署：https://github.com/jina-ai/reader（Docker `ghcr.io/jina-ai/reader:oss`）
-- 讨论：`docs/research/pipeline-simplification-discussion.md` Topic 4
-- Pipeline 文档：`docs/content-pipeline.md`
+- 实现文件：`scripts/short-video/lib/extract-media.mjs`（新）
+- 实现文件：`scripts/short-video/search-sources.mjs`（`enrichWithMedia` 函数）
+- 实现文件：`scripts/short-video/lib/trends-utils.mjs`（`buildOutputJson` videos/metadata）
+- 实现文件：`scripts/short-video/lib/asset-sourcer.mjs`（`loadCachedMedia`, `toCachedMediaCandidate`, Phase 0b）
+- 测试文件：`__tests__/extract-media.test.mjs`（17 tests）
+- 测试文件：`__tests__/trends-utils.test.mjs`（7 SVE tests）
+- 测试文件：`__tests__/asset-sourcer.test.mjs`（4 SVE tests）
+- Spec（归档）：`docs/archive/spec-sve-single-visit-extraction.md`
+- Tickets（归档）：`docs/archive/tickets-sve-single-visit-extraction.md`
+- Review（归档）：`docs/archive/reviews/sve-single-visit-extraction-review-2026-08-27.md`
+- content-pipeline.md SVE 规则：Stage 0 入口 1/2 + blockquote
