@@ -5,6 +5,8 @@
  * Used by search-sources.mjs and testable in isolation.
  */
 
+import { canonicalizeUrl } from "./url-normalizer.mjs";
+
 // ─── China AI filter keywords ───
 
 const CHINA_AI_KEYWORDS = [
@@ -466,4 +468,43 @@ export function cleanTitle(title) {
   }
 
   return cleaned;
+}
+
+// ─── #63: dedupByUrl ───
+
+/**
+ * Deduplicate articles by canonical URL.
+ *
+ * Uses `canonicalizeUrl()` from url-normalizer.mjs (VDL #75) to normalize
+ * URLs before comparison. Articles with empty/undefined URLs are kept
+ * (not deduped against each other).
+ *
+ * When multiple articles share the same canonical URL, only the first
+ * one is kept. The `source` field is NOT merged — URL dedup is exact
+ * (same URL = same article); cross-URL semantic dedup is handled by
+ * `deduplicateTopics()` downstream.
+ *
+ * @param {Array<{url?: string}>} articles
+ * @returns {Array} Deduplicated array (first occurrence wins)
+ */
+export function dedupByUrl(articles) {
+  const seen = new Set();
+  const result = [];
+
+  for (const article of articles) {
+    const canonical = canonicalizeUrl(article.url);
+
+    // Empty canonical URL — keep article, don't add to seen set
+    if (!canonical) {
+      result.push(article);
+      continue;
+    }
+
+    if (!seen.has(canonical)) {
+      seen.add(canonical);
+      result.push(article);
+    }
+  }
+
+  return result;
 }

@@ -6,6 +6,7 @@ import {
   buildOutputJson,
   cleanTitle,
   filterRecentTrackedArticles,
+  dedupByUrl,
 } from "../lib/trends-utils.mjs";
 
 // ─── Mock article data ───
@@ -484,5 +485,124 @@ describe("extractKeywords — enhanced coverage (#51 S8)", () => {
     const topic = result.topics.fermenting[0];
     expect(topic.keywords).toContain("梁文锋");
     expect(topic.keywords).toContain("信创");
+  });
+});
+
+// ─── #63: dedupByUrl ───
+
+describe("dedupByUrl", () => {
+  it("removes duplicate URL from different sources (S1)", () => {
+    const articles = [
+      { title: "DeepSeek发布新模型", source: "qbitai", url: "https://jiqizhixin.com/article/abc" },
+      { title: "DeepSeek新模型发布", source: "36kr", url: "https://jiqizhixin.com/article/abc" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(1);
+    expect(result[0].source).toBe("qbitai");
+  });
+
+  it("removes duplicate URL even with different titles (S2)", () => {
+    const articles = [
+      { title: "Title A", source: "qbitai", url: "https://example.com/1" },
+      { title: "Completely Different Title B", source: "36kr", url: "https://example.com/1" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("Title A");
+  });
+
+  it("keeps different URLs with same title (S3)", () => {
+    const articles = [
+      { title: "DeepSeek发布新模型", source: "qbitai", url: "https://qbitai.com/1" },
+      { title: "DeepSeek发布新模型", source: "36kr", url: "https://36kr.com/1" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("dedupes URLs with different query params (S4)", () => {
+    const articles = [
+      { title: "A", source: "s1", url: "https://example.com/article?utm_source=feed" },
+      { title: "B", source: "s2", url: "https://example.com/article?from=baidu" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(1);
+  });
+
+  it("dedupes http vs https (S5)", () => {
+    const articles = [
+      { title: "A", source: "s1", url: "http://example.com/article" },
+      { title: "B", source: "s2", url: "https://example.com/article" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(1);
+  });
+
+  it("dedupes trailing slash difference (S6)", () => {
+    const articles = [
+      { title: "A", source: "s1", url: "https://example.com/article/" },
+      { title: "B", source: "s2", url: "https://example.com/article" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(1);
+  });
+
+  it("dedupes URLs with fragments (S7)", () => {
+    const articles = [
+      { title: "A", source: "s1", url: "https://example.com/article#section" },
+      { title: "B", source: "s2", url: "https://example.com/article" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(1);
+  });
+
+  it("keeps articles with empty/undefined URLs (S8)", () => {
+    const articles = [
+      { title: "No URL A", source: "s1", url: "" },
+      { title: "No URL B", source: "s2", url: undefined },
+      { title: "No URL C", source: "s3" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(3);
+  });
+
+  it("keeps all articles when no URL duplicates (S9)", () => {
+    const articles = [
+      { title: "A", source: "s1", url: "https://a.com/1" },
+      { title: "B", source: "s1", url: "https://b.com/1" },
+      { title: "C", source: "s1", url: "https://c.com/1" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(3);
+  });
+
+  it("handles empty array (S10)", () => {
+    expect(dedupByUrl([])).toEqual([]);
+  });
+
+  it("keeps same hostname different paths (S11)", () => {
+    const articles = [
+      { title: "A", source: "s1", url: "https://jiqizhixin.com/article/abc" },
+      { title: "B", source: "s2", url: "https://jiqizhixin.com/article/def" },
+    ];
+    const result = dedupByUrl(articles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("returns deduped array usable by downstream consumers (S12+S13)", () => {
+    // Simulates the pipeline: dedupByUrl → filterChinaAI → classifyTopic → deduplicateTopics
+    const articles = [
+      { title: "DeepSeek 发布新模型", source: "qbitai", url: "https://jiqizhixin.com/article/abc" },
+      { title: "DeepSeek 发布新模型", source: "36kr", url: "https://jiqizhixin.com/article/abc" }, // dup URL
+      { title: "Baidu announces new chip", source: "bloomberg", url: "https://bloomberg.com/1" },
+    ];
+    const deduped = dedupByUrl(articles);
+    expect(deduped).toHaveLength(2);
+    // Downstream pipeline works on deduped array
+    const filtered = filterChinaAI(deduped);
+    expect(filtered).toHaveLength(2);
+    const classified = filtered.map((a) => ({ ...a, category: classifyTopic(a.title) }));
+    const dedupedTopics = deduplicateTopics(classified);
+    expect(dedupedTopics).toHaveLength(2);
   });
 });

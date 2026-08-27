@@ -55,6 +55,7 @@ import {
   buildOutputJson,
   cleanTitle,
   filterRecentTrackedArticles,
+  dedupByUrl,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
@@ -437,6 +438,18 @@ async function main() {
   console.log(`\n📊 Total articles scraped: ${allArticles.length}`);
   if (failedSources.length > 0) {
     console.warn(`⚠️  Failed sources: ${failedSources.join(", ")}`);
+  }
+
+  // #63: URL-level dedup — eliminate cross-source URL redundancy
+  const beforeDedup = allArticles.length;
+  const dedupedArticles = dedupByUrl(allArticles);
+  allArticles.length = 0;
+  allArticles.push(...dedupedArticles);
+  const removedCount = beforeDedup - allArticles.length;
+  if (removedCount > 0) {
+    console.log(
+      `🔗 URL dedup: ${beforeDedup} → ${allArticles.length} (${removedCount} duplicates removed)`,
+    );
   }
 
   if (isResearchMode) {
