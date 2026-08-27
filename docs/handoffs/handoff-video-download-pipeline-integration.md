@@ -42,31 +42,27 @@ URL → canonicalizeUrl → selectStrategy → adapter.download → DownloadResu
 ### 依赖关系图
 
 ```
-#63 (URL dedup)          无依赖，可立即开始
+#63 (URL dedup)          ✅ 已完成 (commit 80f5a13)
   ↓
-#115 (downloadCandidate)  ← 依赖 #63
+#115 (downloadCandidate)  ← #63 已完成，可立即开始
   + #75 VDL 集成           ← 合并到 #115 一起做
   ↓
 #114 (SVE)               ← #115 完成后的上游消费者（非阻塞，可后续做）
 ```
 
-### Issue 1: #63 — URL dedup (standalone)
+### Issue 1: #63 — URL dedup (standalone) — ✅ 已完成
 
-**状态：** OPEN, 无依赖, 可立即开始
-**预估：** 小（1 个函数 + 1 个调用点 + 几个测试）
+**状态：** ✅ CLOSED (commit 80f5a13, 2026-08-27)
+**实现：** `dedupByUrl()` in `trends-utils.mjs`，复用 `canonicalizeUrl()` from `url-normalizer.mjs`。在 `search-sources.mjs` `allArticles.push(...)` 后调用。12 tests covering 13 scenario matrix rows。57/57 tests passing。
 
-**做什么：**
-- 在 `search-sources.mjs` 的 `allArticles.push(...)` 之后、模式分支之前，插入 URL 去重
-- 复用 `scripts/short-video/lib/url-normalizer.mjs` 中的 `canonicalizeUrl()`（#75 已实现，不要重写）
-- 新增 `dedupByUrl(articles)` 函数在 `trends-utils.mjs`
+**做了什么：**
+- 在 `trends-utils.mjs` 新增 `dedupByUrl(articles)` 函数（Set-based dedup，空 URL 跳过，保留第一条）
+- 在 `search-sources.mjs` 的 `allArticles.push(...)` 循环后调用 `dedupByUrl(allArticles)` + 日志
+- 复用 `canonicalizeUrl()` from `url-normalizer.mjs`（未重写）
 
-**不做什么：**
-- 不改下载逻辑（那是 #115）
-- 不改 source-registry schema
+**未做（留给 #115）：** 下载逻辑不改，source-registry schema 不改
 
 **冲突文件：** `search-sources.mjs`, `trends-utils.mjs`
-
-**与 #75 的重叠：** #63 scope 第 3 项（URL normalization helper）已被 #75 的 `url-normalizer.mjs` 覆盖。#63 直接 import 即可，不要重新实现。已更新 #63 body 标注此重叠。
 
 ### Issue 2: #115 — downloadCandidate helper + VDL 集成
 
@@ -172,6 +168,6 @@ Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`，已归�
 
 ## 建议的下一步
 
-1. **开始 #63**（URL dedup）— 无依赖，小任务，可快速完成
-2. **然后 #115 + VDL 集成** — 中等任务，是核心集成工作
+1. ~~**开始 #63**（URL dedup）— ✅ 已完成 (commit 80f5a13)~~
+2. **开始 #115 + VDL 集成** — 中等任务，是核心集成工作。#63 已完成，#115 无前置阻塞
 3. **#114（SVE）可后续做** — 非阻塞，是 enhancement
