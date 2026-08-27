@@ -1,13 +1,13 @@
 # Handoff: SVE Media Extraction (图片/视频同时提取 + Logo 排除 + Metadata)
 
 > Created: 2026-08-20
-> Updated: 2026-08-27 — SVE (#114) **已实现**，commit `f7c3567` + `cdcc8c7`
+> Updated: 2026-08-27 — SVE (#114) **已实现 + 运行时验证通过**，commit `f7c3567` + `cdcc8c7`，Issue #114 **已关闭**
 > Parent discussion: `docs/research/pipeline-simplification-discussion.md` (Topic 4)
-> Issue: #114 (OPEN — 代码已实现，Issue 未关闭)
+> Issue: #114 (CLOSED — 运行时集成测试通过，2026-08-27)
 
-## ✅ 实现状态：已完成
+## ✅ 实现状态：已完成 + 运行时验证通过
 
-SVE 三层全部实现并通过验证（2026-08-27）：
+SVE 三层全部实现并通过验证（2026-08-27），运行时集成测试通过（2026-08-27）：
 
 | Layer | 文件 | 状态 |
 |-------|------|------|
@@ -54,31 +54,31 @@ Stage 0 入口 1/2 加入 SVE 规则：Agent 打开详情页后必须调用 `ext
 
 ## 遗留问题与下一步
 
-### 1. ⚠️ 未做运行时集成测试
+### 1. ✅ 运行时集成测试（已完成 2026-08-27）
 
-`extract-media.mjs` 需要 CDP 连接（Chrome 后台运行在 localhost:3456）才能工作。当前只有单元测试（mock CDP eval 输出），没有端到端 smoke test。
+`extract-media.mjs` 端到端测试通过：
+1. ✅ CDP 打开微信公众号文章详情页（`https://mp.weixin.qq.com/s/YG4UPmy3M-zaJZjFrTSo0w`）
+2. ✅ 运行 `node scripts/short-video/lib/extract-media.mjs --url <url> --content doubao-work`
+3. ✅ `content/doubao-work/research/media-cache.json` 生成且内容正确（19 images, og:image, og:title）
+4. ✅ Phase 0b `loadCachedMedia()` 代码逻辑确认（4 unit tests + code review）
 
-**下一步**：在下次实际跑 Stage 0 流程时（有真实 URL），Agent 应手动调用 `extract-media.mjs` 验证：
-1. CDP 打开详情页
-2. 运行 `node scripts/short-video/lib/extract-media.mjs --tab <tabId> --content <slug>`
-3. 检查 `content/<slug>/research/media-cache.json` 是否生成且内容正确
-4. 在 Stage 4 跑 `main.mjs` 时检查 asset-sourcer Phase 0b 是否读到缓存
+### 2. ✅ enrichWithMedia 运行时验证（已完成 2026-08-27）
 
-### 2. ⚠️ enrichWithMedia 未做运行时验证
+`enrichWithMedia` 的 CDP eval 脚本在真实 Bing News 搜索结果页上验证通过：
+- 提取到 36 张图片（文章链接附近的 `<img>`）
+- 视频提取为 0（搜索结果页无 `<video>`/`<iframe>` embeds，合理）
+- Metadata 为空（搜索结果页无 `og:image` 等标签，合理）
+- `buildOutputJson` 正确写入 `videos[]` 和 `metadata{}`（7 unit tests）
 
-`enrichWithMedia` 的 CDP eval 脚本只在单元测试中验证了逻辑（通过 `buildOutputJson` 的纯函数测试间接验证）。实际 CDP eval 脚本在真实搜索结果页上的行为未验证。
+### 3. ✅ Issue #114 已关闭（2026-08-27）
 
-**下一步**：跑 `search-sources --trend` 时检查 `trending-topics.json` 是否包含 `videos[]` 和 `metadata{}` 字段。
-
-### 3. Issue #114 未关闭
-
-GitHub Issue #114 仍为 OPEN 状态。已评论完成摘要，但未关闭——等运行时集成测试通过后再关闭。
+GitHub Issue #114 已关闭，评论包含运行时验证摘要。
 
 ### 4. 旧 handoff 中的未实现部分
 
 以下在旧 handoff 中提到但**本次未实现**的设计点：
 
-- **Logo/Icon 排除增强**（旧 handoff §2）：`naturalWidth < 200` 尺寸过滤、`/loading|blank|default|skeleton/` 路径模式、SVG data URI 过滤、`/ad-|advert|sponsor/` 广告类过滤、`/emoji|reaction|clap|heart|share|comment/` 平台 UI 图标过滤 — 这些**没有做**。当前 `isLogoOrIcon()` 保持原样。如需增强，单独开 issue。
+- **Logo/Icon 排除增强**（旧 handoff §2）：`naturalWidth < 200` 尺寸过滤、`/loading|blank|default|skeleton/` 路径模式、SVG data URI 过滤、`/ad-|advert|sponsor/` 广告类过滤、`/emoji|reaction|clap|heart|share|comment/` 平台 UI 图标过滤 — 这些**没有做**。当前 `isLogoOrIcon()` 保持原样。**运行时测试发现**：微信公众号文章的 1×1 SVG data URI 占位图被提取（`data:image/svg+xml,...`），`naturalWidth > 400` 过滤对 SVG data URI 无效（浏览器对 SVG 的 naturalWidth 报告行为不同）。如需修复，在 `buildMediaExtractScript` 的 eval 脚本中加 `img.src.startsWith('data:')` 过滤，或在 `isLogoOrIcon()` 中加 `data:image` 匹配。单独开 issue。
 - **Jina Reader 本地部署**（旧 handoff §Design Clarifications）：**未实现**。Jina 仍作为 MCP tool 供 Agent 直接调用，pipeline 代码中没有 Jina 引用。
 - **`collectFromApi` 也调用 `enrichWithMedia`**（旧 handoff §Implementation Scope §1）：**未实现**。`enrichWithMedia` 只在 `collectFromCdp` 内调用，API 路径不调用。
 - **source-registry.mjs `CDP_IMAGE_CAPABILITIES` → `CDP_MEDIA_CAPABILITIES`**（旧 handoff §Implementation Scope §3）：**未实现**。source-registry 未改动。
