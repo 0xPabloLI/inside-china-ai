@@ -98,6 +98,7 @@
 | `spec-fix-scene-flicker.md` / `tickets-fix-scene-flicker.md` | 2026-08-27 | Scene flicker 修复 — MediaBackground exit opacity ramp 移除（4-stop→3-stop），video volume 独立 4-stop envelope 保留 audio ducking tail。overlay/preset transforms 不变。14 tests covering 9 scenario matrix rows。 |
 | `spec-url-dedup.md` / `tickets-url-dedup.md` | 2026-08-27 | Issue #63 URL dedup — `dedupByUrl()` 函数在 `trends-utils.mjs`，复用 `canonicalizeUrl()` from `url-normalizer.mjs`。Set-based dedup，空 URL 跳过，保留第一条。在 `search-sources.mjs` `allArticles.push(...)` 后调用。12 tests covering 13 scenario matrix rows。 |
 | `spec-narrative-framework-structural-enforcement.md` / `tickets-narrative-framework-structural-enforcement/` | 2026-08-27 | 叙事框架结构化落实 — S.T.A.R.T. 定为主框架，AI Outline 降为 HITL 工具输入 + 5 段消费映射表。scene-data 新增 `narrativeRole`/`retentionMechanism` 可选字段。scene-rules.mjs 新增 W7/W8/W9 检查函数（checkOpenLoop/checkPatternInterrupt/checkLoopClosureNarrative），旧 scene-data skip 兼容。ADR-0018。13 new tests。 |
+| `spec-sve-single-visit-extraction.md` / `tickets-sve-single-visit-extraction.md` | 2026-08-27 | Issue #114 SVE — Single-Visit Extraction。三层：Layer 1 `enrichWithMedia` 升级 search-sources.mjs 提取视频+metadata；Layer 2 `extract-media.mjs` Agent 调用缓存详情页媒体 URL；Layer 3 asset-sourcer Phase 0b 消费 `media-cache.json`。28 new tests，302 total passing。 |
 
 ### Documentation Hierarchy Specs
 
@@ -178,6 +179,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/framed-contain-composition-review-2026-08-27.md` | 2026-08-27 | #119 | Framed Contain Composition（Phase 2）代码审查——Standards + Spec 双轴通过，0 findings。10/10 场景矩阵全覆盖。品牌渐变 matte 仅 image+contain 激活，video contain 保持朴素黑底。 |
 | `reviews/handoff-video-download-pipeline-integration-review-2026-08-27.md` | 2026-08-27 | #75, #115, #77 | Video Download Pipeline Integration review 整合——Manus AI 对旧版 handoff 的 5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes，对照已实现代码逐条分析。3 个完全解决、1 个部分解决（registry schema 等 #77）、1 个不适用（CDP adapter 不在 scope）。12 个验收矩阵中 7 个完全覆盖。遗留要求分配到 #77（schema 拆分）、#115（集成测试）、#75 第二批（专用 adapter）。 |
 | `reviews/handoff-video-download-breakthrough-review-2026-08-26.md` | 2026-08-27 | #75 | Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`）的原始 review——5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes。结论已被整合 review（上方条目）吸收。 |
+| `reviews/sve-single-visit-extraction-review-2026-08-27.md` | 2026-08-27 | #114 | SVE Single-Visit Extraction 代码审查——Standards + Spec 双轴通过。2 judgement calls (acceptable duplication), 1 minor naming, 0 hard violations。All 19 scenario matrix rows covered。28 new tests，302 total passing。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
