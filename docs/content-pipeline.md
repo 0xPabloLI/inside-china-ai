@@ -299,9 +299,9 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | W3  | 节奏均一      | 所有 voiceover 句子长度差异 < 15%（teleprompter rhythm） |
 | W4  | 长句          | 任何单句 > 25 词（一口气读不完）                         |
 | W5  | Hook = 字幕   | spoken hook 与 on-screen text 完全相同                   |
-| W6  | 无 Loop-close      | CTA 前最后一个内容场景未回扣 Hook                        |
-| W7  | 无 Open Loop       | Scene 2 未制造未解悬念（open loop 未在后续关闭）        |
-| W8  | 无 Pattern Interrupt | Scene 4-5 之间无 tonal shift / punch line               |
+| W6  | 无 Loop-close      | CTA 前最后一个内容场景未回扣 Hook（文本启发式，`checkLoopClose`） |
+| W7  | 无 Open Loop       | Scene 2 未声明 `retentionMechanism: "open-loop"`（有字段时检查，无字段 skip） |
+| W8  | 无 Pattern Interrupt | 无 scene 声明 `retentionMechanism: "pattern-interrupt"`（有字段时检查，无字段 skip） |
 | W9  | 无 Loop Closure  | CTA 前最后一个内容 scene 未声明 `retentionMechanism: "loop-closure"` |
 
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）
