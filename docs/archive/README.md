@@ -143,6 +143,7 @@
 | `handoff-doc-hierarchy-review.md` | 2026-08-15 | 文档层次审查 — 已在 `spec-doc-hierarchy-optimization.md` + `spec-doc-hierarchy-lint.md` 归档。 |
 | `handoff-remotion-layout-refactor.md` | 2026-08-26 | Remotion 布局重构交接 — T1-T6 全部完成。6 布局变体 + SPACING + @remotion/media 迁移 + rough-notation + Interactive.Div + 转场多样化 + safe-zone 回归测试。Step 5 code review 已完成。 |
 | `handoff-hashtag-pipeline-gaps.md` | 2026-08-26 | Hashtag 管线缺口修复 — 缺口 A（trendingHashtags 消费：normalizeHashtag + deriveHashtags 优先级分层 + 满 5 替换 + 人工覆盖锁定）+ 缺口 B（Apify JS 客户端：runActor + fetchHashtagVideos + LRU 缓存 + 成本护栏 + research-hashtags.mjs CLI）+ P1/P2/P3 修复。84 tests passing。 |
+| `handoff-video-download-breakthrough.md` | 2026-08-27 | 视频下载突破研究 — 旧版 handoff（伪代码 + Cobalt-first 方案）。已被 VDL 实际代码（`video-downloaders.mjs` + 42 tests）和新版 handoff（`handoff-video-download-pipeline-integration.md`）替代。保留作历史参考。 |
 
 > **未归档的 handoff**（`docs/handoffs/` 中仍活跃）：
 > - `handoff-asset-source-unification.md` — 素材源统一命名，待实施
@@ -173,6 +174,8 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/vertical-cropping-review-2026-08-27.md` | 2026-08-27 | #119 | 竖屏裁切管线代码审查——Standards + Spec 双轴通过。0 hard violations, 1 judgement call (validation duplication, acceptable)。20/20 场景矩阵全覆盖。185 tests passing。 |
 | `reviews/handoff-fix-scene-flicker-review-2026-08-26.md` | 2026-08-27 | — | Scene flicker handoff 审阅——P0 路径修正 + 机制描述修正 + Option B undefined 修正 + P1 音频/overlay/范围/消费者影响修正。实施按 review 修正方向执行：只改 MediaBackground，保留 video volume 独立 fade，overlay 不变。14 tests covering 9 scenarios。 |
 | `reviews/framed-contain-composition-review-2026-08-27.md` | 2026-08-27 | #119 | Framed Contain Composition（Phase 2）代码审查——Standards + Spec 双轴通过，0 findings。10/10 场景矩阵全覆盖。品牌渐变 matte 仅 image+contain 激活，video contain 保持朴素黑底。 |
+| `reviews/handoff-video-download-pipeline-integration-review-2026-08-27.md` | 2026-08-27 | #75, #115, #77 | Video Download Pipeline Integration review 整合——Manus AI 对旧版 handoff 的 5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes，对照已实现代码逐条分析。3 个完全解决、1 个部分解决（registry schema 等 #77）、1 个不适用（CDP adapter 不在 scope）。12 个验收矩阵中 7 个完全覆盖。遗留要求分配到 #77（schema 拆分）、#115（集成测试）、#75 第二批（专用 adapter）。 |
+| `reviews/handoff-video-download-breakthrough-review-2026-08-26.md` | 2026-08-27 | #75 | Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`）的原始 review——5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes。结论已被整合 review（上方条目）吸收。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）

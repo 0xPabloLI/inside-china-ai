@@ -119,16 +119,16 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 |------------|---------|------|------|
 | `direct-http` | 直接媒体 URL（`.mp4`、已知 CDN） | ✅ Working | 包装 HTTP fetch |
 | `ytdlp` | YouTube、B站 | ✅ Working | 包装 yt-dlp + Firefox cookies |
-| `cobalt` | 30+ 平台（含抖音/TikTok/微博/Instagram/X） | ⚠️ Adapter ready, **Cobalt 实例未部署** | 自部署 Docker，`COBALT_API_URL` 环境变量 |
+| `cobalt` | 30+ 平台（含抖音/TikTok/微博/Instagram/X） | ⚠️ Adapter ready, Cobalt 已部署（v11.7.1, localhost:9000, Watchtower 自动更新）。Smoke test: YouTube ✅ tunnel / Streamable ✅ redirect / 其他平台因 Cobalt parser 过期或代理 IP 被封而失败。**不作为核心依赖**，有 ytdlp + direct-http fallback |
 
 **DownloadResult 契约**：所有 adapter 返回统一 `DownloadResult` 对象（status / strategy / buffer / mimeType / byteLength / provenance / retryable）。
 
 **Cobalt 状态机**：`tunnel`→下载、`redirect`→下载、`picker`→needs-selection、`local-processing`→unsupported、`error`→分类（retryable/non-retryable）。
 
-**后续扩展**（留在 #75 issue body 追踪）：
-- 平台 adapter：douyin-share、tiktok-cdp-detail、weibo-visitor-api、rednote-mcp、cdp-generic
-- Cobalt Docker 部署 + live smoke test
-- `asset-sourcer.mjs` 集成（渐进替换现有下载逻辑）
+**后续扩展**（留在 issue 追踪：#75 第二批 + #115 集成 + #77 schema 更新）：
+- 平台 adapter：douyin-share、tiktok-cdp-detail、weibo-visitor-api、rednote-mcp、cdp-generic（#75 第二批）
+- `asset-sourcer.mjs` 集成 `downloadVideo()`（#115）
+- `source-registry.mjs` schema 拆分 discovery + download adapter（#77）
 
 ### Chinese News Media (CDP)
 - **IT之家** — Best for Chinese AI product news

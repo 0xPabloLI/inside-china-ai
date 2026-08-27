@@ -159,9 +159,9 @@ Cobalt 项目（imputnet/cobalt）处于「有活动但更新极慢」状态：
 
 ## Review 整合
 
-Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`）做了详细 review（`docs/reviews/handoff-video-download-breakthrough-review-2026-08-26.md`），提出 5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes。
+Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`，已归档到 `docs/archive/`）做了详细 review（`docs/archive/reviews/handoff-video-download-breakthrough-review-2026-08-26.md`），提出 5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes。
 
-整合结论见 `docs/reviews/handoff-video-download-pipeline-integration-review-2026-08-27.md`。
+整合结论见 `docs/archive/reviews/handoff-video-download-pipeline-integration-review-2026-08-27.md`。
 
 **总结：** Review 总体合理且高质量。5 个阻塞性发现中，3 个已被代码完全解决（Cobalt 状态机、策略选择器、状态标注），1 个部分解决（registry schema 等 #77），1 个不适用（CDP adapter 不在 scope）。12 个验收矩阵中 7 个已完全覆盖，2 个将在 #115 补全，3 个不在当前 scope。
 
