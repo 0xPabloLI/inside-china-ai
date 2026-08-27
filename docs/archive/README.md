@@ -97,6 +97,7 @@
 | `spec-vertical-cropping.md` / `tickets-vertical-cropping/` | 2026-08-27 | 竖屏裁切管线 — Crop Decision Contract（resolveObjectPosition + evaluateCropSafety + selectBestCrop 纯函数）+ VLM 9:16 裁切模拟 + EXIF 归一化修复 + cropFocus {x,y} 字段（替代 deprecated focus enum）+ Phase 3b 管线集成 + review-media-patch + apply-media-patch 序列化。185 tests passing。Supersedes `spec-vlm-fit-focus.md`。 |
 | `spec-fix-scene-flicker.md` / `tickets-fix-scene-flicker.md` | 2026-08-27 | Scene flicker 修复 — MediaBackground exit opacity ramp 移除（4-stop→3-stop），video volume 独立 4-stop envelope 保留 audio ducking tail。overlay/preset transforms 不变。14 tests covering 9 scenario matrix rows。 |
 | `spec-url-dedup.md` / `tickets-url-dedup.md` | 2026-08-27 | Issue #63 URL dedup — `dedupByUrl()` 函数在 `trends-utils.mjs`，复用 `canonicalizeUrl()` from `url-normalizer.mjs`。Set-based dedup，空 URL 跳过，保留第一条。在 `search-sources.mjs` `allArticles.push(...)` 后调用。12 tests covering 13 scenario matrix rows。 |
+| `spec-narrative-framework-structural-enforcement.md` / `tickets-narrative-framework-structural-enforcement/` | 2026-08-27 | 叙事框架结构化落实 — S.T.A.R.T. 定为主框架，AI Outline 降为 HITL 工具输入 + 5 段消费映射表。scene-data 新增 `narrativeRole`/`retentionMechanism` 可选字段。scene-rules.mjs 新增 W7/W8/W9 检查函数（checkOpenLoop/checkPatternInterrupt/checkLoopClosureNarrative），旧 scene-data skip 兼容。ADR-0018。13 new tests。 |
 
 ### Documentation Hierarchy Specs
 

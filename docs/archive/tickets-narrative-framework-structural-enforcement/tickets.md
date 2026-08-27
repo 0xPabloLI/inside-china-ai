@@ -81,6 +81,6 @@ T-01 无前置，可立即开始。T-02/T-03/T-04 都依赖 T-01（因为文档�
 
 - [x] 创建 `docs/adr/0018-start-primary-framework.md`（ADR-FORMAT：1-3 句决策 + 可选 sections）
 - [x] DOCS-INDEX.md ADR table 新增 0018 条目
-- [ ] spec 文件移到 `docs/archive/spec-narrative-framework-structural-enforcement.md`
-- [ ] tickets 文件移到 `docs/archive/tickets-narrative-framework-structural-enforcement/`
-- [ ] 更新 `docs/archive/README.md` 归档清单
+- [x] spec 文件移到 `docs/archive/spec-narrative-framework-structural-enforcement.md`
+- [x] tickets 文件移到 `docs/archive/tickets-narrative-framework-structural-enforcement/`
+- [x] 更新 `docs/archive/README.md` 归档清单
