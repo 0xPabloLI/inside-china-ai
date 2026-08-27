@@ -381,6 +381,20 @@ export function buildOutputJson(articles) {
         ];
       }
 
+      // SVE (#114): Extract videoUrls from article for cross-stage video caching
+      if (Array.isArray(article.videoUrls) && article.videoUrls.length > 0) {
+        topicEntry.videos = article.videoUrls.map((url) => ({
+          url,
+          sourceArticle: article.url || (article.urls && article.urls[0]) || null,
+        }));
+      }
+
+      // SVE (#114): Extract metadata (og:image, og:title, published_time) for
+      // cross-stage enrichment
+      if (article.metadata) {
+        topicEntry.metadata = { ...article.metadata };
+      }
+
       topics[category].push(topicEntry);
     }
   }

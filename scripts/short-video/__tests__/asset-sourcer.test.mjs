@@ -38,6 +38,8 @@ import {
   PRE_DOWNLOAD_FILTER_THRESHOLD,
   shouldSkipUrl,
   markDownloaded,
+  loadCachedMedia,
+  toCachedMediaCandidate,
 } from "../lib/asset-sourcer.mjs";
 import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
 
@@ -2287,5 +2289,188 @@ describe("URL dedup flow (shouldSkipUrl + markDownloaded)", () => {
 
     // Tier 3: same URL → now skip
     expect(shouldSkipUrl(url, downloadedUrls)).toBe(true);
+  });
+});
+
+// ─── SVE (#114): Phase 0b — cached media from detail pages ───
+
+describe("loadCachedMedia", () => {
+  it("returns empty array when file does not exist (SVE scenario #11)", () => {
+    const result = loadCachedMedia("/nonexistent/media-cache.json", ["DeepSeek"]);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array when keywords are empty", () => {
+    const tmpFile = `/tmp/test-media-cache-${Date.now()}.json`;
+    writeFileSync(tmpFile, JSON.stringify({ version: 1, entries: [] }));
+    try {
+      const result = loadCachedMedia(tmpFile, []);
+      expect(result).toEqual([]);
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it("returns empty array when file is malformed (SVE scenario #12)", () => {
+    const tmpFile = `/tmp/test-media-cache-${Date.now()}.json`;
+    writeFileSync(tmpFile, "{ not valid json }");
+    try {
+      const result = loadCachedMedia(tmpFile, ["DeepSeek"]);
+      expect(result).toEqual([]);
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it("returns empty array when no entries match keywords (SVE scenario #13)", () => {
+    const tmpFile = `/tmp/test-media-cache-${Date.now()}.json`;
+    const mockData = {
+      version: 1,
+      entries: [
+        {
+          sourceUrl: "https://example.com/article-1",
+          scrapedAt: "2026-08-27T10:00:00Z",
+          images: [{ url: "https://example.com/img1.jpg" }],
+          videos: [],
+          metadata: { ogTitle: "Completely unrelated topic" },
+        },
+      ],
+    };
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedMedia(tmpFile, ["DeepSeek"]);
+      expect(result).toEqual([]);
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it("loads cached images and videos matching keywords", () => {
+    const tmpFile = `/tmp/test-media-cache-${Date.now()}.json`;
+    const mockData = {
+      version: 1,
+      entries: [
+        {
+          sourceUrl: "https://example.com/deepseek-article",
+          scrapedAt: "2026-08-27T10:00:00Z",
+          images: [{ url: "https://example.com/img1.jpg", alt: "DeepSeek V4" }],
+          videos: [{ url: "https://youtube.com/embed/abc", platform: "youtube" }],
+          metadata: { ogTitle: "DeepSeek V4 announced", ogImage: "https://example.com/og.jpg" },
+        },
+        {
+          sourceUrl: "https://example.com/other-article",
+          scrapedAt: "2026-08-27T11:00:00Z",
+          images: [{ url: "https://example.com/other.jpg" }],
+          videos: [],
+          metadata: { ogTitle: "Other topic" },
+        },
+      ],
+    };
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedMedia(tmpFile, ["DeepSeek"]);
+      expect(result.length).toBeGreaterThan(0);
+      // Should include images from the DeepSeek entry
+      const images = result.filter((r) => r.type === "image");
+      expect(images.length).toBeGreaterThanOrEqual(1);
+      expect(images[0].url).toBe("https://example.com/img1.jpg");
+      // Should include videos from the DeepSeek entry
+      const videos = result.filter((r) => r.type === "video");
+      expect(videos.length).toBeGreaterThanOrEqual(1);
+      expect(videos[0].url).toBe("https://youtube.com/embed/abc");
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it("includes og:image as an additional image candidate", () => {
+    const tmpFile = `/tmp/test-media-cache-${Date.now()}.json`;
+    const mockData = {
+      version: 1,
+      entries: [
+        {
+          sourceUrl: "https://example.com/deepseek-article",
+          scrapedAt: "2026-08-27T10:00:00Z",
+          images: [],
+          videos: [],
+          metadata: { ogImage: "https://example.com/og-cover.jpg", ogTitle: "DeepSeek V4" },
+        },
+      ],
+    };
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedMedia(tmpFile, ["DeepSeek"]);
+      const images = result.filter((r) => r.type === "image");
+      expect(images.length).toBeGreaterThanOrEqual(1);
+      expect(images[0].url).toBe("https://example.com/og-cover.jpg");
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+
+  it("filters out logo/icon images from cache entries (SVE scenario #17)", () => {
+    const tmpFile = `/tmp/test-media-cache-${Date.now()}.json`;
+    const mockData = {
+      version: 1,
+      entries: [
+        {
+          sourceUrl: "https://example.com/deepseek-article",
+          scrapedAt: "2026-08-27T10:00:00Z",
+          images: [
+            { url: "https://example.com/logo.png", alt: "logo" },
+            { url: "https://example.com/content.jpg", alt: "DeepSeek V4" },
+          ],
+          videos: [],
+          metadata: { ogTitle: "DeepSeek V4" },
+        },
+      ],
+    };
+    writeFileSync(tmpFile, JSON.stringify(mockData));
+    try {
+      const result = loadCachedMedia(tmpFile, ["DeepSeek"]);
+      const images = result.filter((r) => r.type === "image");
+      expect(images).toHaveLength(1);
+      expect(images[0].url).toBe("https://example.com/content.jpg");
+    } finally {
+      unlinkSync(tmpFile);
+    }
+  });
+});
+
+describe("toCachedMediaCandidate", () => {
+  it("preserves image type from cached media entry", () => {
+    const candidate = {
+      url: "https://example.com/img.jpg",
+      type: "image",
+      sourceArticle: "https://example.com/article",
+      sourceTitle: "DeepSeek V4",
+    };
+    const result = toCachedMediaCandidate(candidate);
+    expect(result.type).toBe("image");
+    expect(result.source).toBe("cached-media");
+    expect(result.title).toBe("DeepSeek V4");
+  });
+
+  it("preserves video type from cached media entry", () => {
+    const candidate = {
+      url: "https://youtube.com/embed/abc",
+      type: "video",
+      sourceArticle: "https://example.com/article",
+      sourceTitle: "DeepSeek V4",
+    };
+    const result = toCachedMediaCandidate(candidate);
+    expect(result.type).toBe("video");
+    expect(result.source).toBe("cached-media");
+  });
+
+  it("maps ogTitle to title field", () => {
+    const candidate = {
+      url: "https://example.com/img.jpg",
+      type: "image",
+      sourceArticle: "https://example.com/article",
+      sourceTitle: "DeepSeek V4 announced",
+    };
+    const result = toCachedMediaCandidate(candidate);
+    expect(result.title).toBe("DeepSeek V4 announced");
   });
 });

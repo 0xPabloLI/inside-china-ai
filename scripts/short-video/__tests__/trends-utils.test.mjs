@@ -350,6 +350,145 @@ describe("buildOutputJson", () => {
     const topic = result.topics.breaking[0];
     expect(!topic.images || topic.images.length === 0).toBe(true);
   });
+
+  // ─── SVE (#114): videos and metadata in buildOutputJson ───
+
+  it("includes videos field when article has videoUrls (SVE)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        imageUrl: "http://qbitai.com/img/v4.jpg",
+        hasImage: true,
+        videoUrls: ["https://www.youtube.com/watch?v=abc123"],
+      },
+    ];
+    const result = buildOutputJson(articles);
+    expect(result.topics.breaking).toHaveLength(1);
+    const topic = result.topics.breaking[0];
+    expect(topic.videos).toBeDefined();
+    expect(topic.videos).toHaveLength(1);
+    expect(topic.videos[0].url).toBe("https://www.youtube.com/watch?v=abc123");
+    expect(topic.videos[0].sourceArticle).toBe("http://qbitai.com/1");
+  });
+
+  it("excludes videos field when article has no videoUrls (SVE)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        imageUrl: "http://qbitai.com/img/v4.jpg",
+        hasImage: true,
+      },
+    ];
+    const result = buildOutputJson(articles);
+    const topic = result.topics.breaking[0];
+    expect(!topic.videos || topic.videos.length === 0).toBe(true);
+  });
+
+  it("includes metadata field when article has metadata (SVE)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        metadata: {
+          ogImage: "http://qbitai.com/og-image.jpg",
+          ogTitle: "DeepSeek V4 Official Announcement",
+          publishedTime: "2026-08-27T10:00:00Z",
+        },
+      },
+    ];
+    const result = buildOutputJson(articles);
+    const topic = result.topics.breaking[0];
+    expect(topic.metadata).toBeDefined();
+    expect(topic.metadata.ogImage).toBe("http://qbitai.com/og-image.jpg");
+    expect(topic.metadata.ogTitle).toBe("DeepSeek V4 Official Announcement");
+    expect(topic.metadata.publishedTime).toBe("2026-08-27T10:00:00Z");
+  });
+
+  it("excludes metadata field when article has no metadata (SVE)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+      },
+    ];
+    const result = buildOutputJson(articles);
+    const topic = result.topics.breaking[0];
+    expect(topic.metadata).toBeUndefined();
+  });
+
+  it("handles articles without videoUrls or metadata (backward compat, SVE)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        imageUrl: "http://qbitai.com/img/v4.jpg",
+        hasImage: true,
+      },
+    ];
+    const result = buildOutputJson(articles);
+    const topic = result.topics.breaking[0];
+    // images should still work, videos/metadata should be absent
+    expect(topic.images).toBeDefined();
+    expect(topic.images).toHaveLength(1);
+    expect(!topic.videos || topic.videos.length === 0).toBe(true);
+    expect(topic.metadata).toBeUndefined();
+  });
+
+  it("includes both images and videos when article has both (SVE)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        imageUrl: "http://qbitai.com/img/v4.jpg",
+        hasImage: true,
+        videoUrls: [
+          "https://www.youtube.com/watch?v=abc123",
+          "https://player.bilibili.com/player.html?bvid=BV1xx411c7mD",
+        ],
+        metadata: {
+          ogImage: "http://qbitai.com/og-cover.jpg",
+          publishedTime: "2026-08-27T10:00:00Z",
+        },
+      },
+    ];
+    const result = buildOutputJson(articles);
+    const topic = result.topics.breaking[0];
+    expect(topic.images).toHaveLength(1);
+    expect(topic.videos).toHaveLength(2);
+    expect(topic.videos[0].url).toBe("https://www.youtube.com/watch?v=abc123");
+    expect(topic.videos[1].url).toBe("https://player.bilibili.com/player.html?bvid=BV1xx411c7mD");
+    expect(topic.metadata.ogImage).toBe("http://qbitai.com/og-cover.jpg");
+    expect(topic.metadata.publishedTime).toBe("2026-08-27T10:00:00Z");
+  });
+
+  it("handles empty videoUrls array (SVE)", () => {
+    const articles = [
+      {
+        title: "DeepSeek V4 announced",
+        source: "qbitai",
+        url: "http://qbitai.com/1",
+        category: "breaking",
+        videoUrls: [],
+      },
+    ];
+    const result = buildOutputJson(articles);
+    const topic = result.topics.breaking[0];
+    expect(!topic.videos || topic.videos.length === 0).toBe(true);
+  });
 });
 
 // ─── TE-T1: cleanTitle ───

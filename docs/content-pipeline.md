@@ -19,9 +19,11 @@
 
 > **Analytics 结论读取（必须）**：Agent 在 Stage 0 开始前，检查 `output/analytics-conclusions.md` 是否存在。如果存在，读取其中的 Hashtag 策略和内容策略结论，在后续 Stage 3 选择 hashtag 和设计内容时参考。详见 `docs/analytics-workflow.md` → Analytics → Pipeline 联动机制。
 
-**入口 1（有素材）**：用户给 PDF/URL/文本 → Agent 读素材 → 提取 keyword → `search-sources --research --content-id <slug>` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 用户素材 + 全文 = Stage 0 输出
+**入口 1（有素材）**：用户给 PDF/URL/文本 → Agent 读素材 → 提取 keyword → `search-sources --research --content-id <slug>` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → **每个详情页调用 `extract-media.mjs --tab <tabId> --content <slug>` 缓存媒体 URL**（SVE #114）→ 用户素材 + 全文 = Stage 0 输出
 
-**入口 2（有话题）**：用户给话题 → `search-sources --keyword "话题" --research` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → 全文 = Stage 0 输出
+**入口 2（有话题）**：用户给话题 → `search-sources --keyword "话题" --research` → Agent 从 `discovery.json` 挑选 URL → `web-access`/Jina 提取全文 → **每个详情页调用 `extract-media.mjs --tab <tabId> --content <slug>` 缓存媒体 URL**（SVE #114）→ 全文 = Stage 0 输出
+
+> **SVE（Single-Visit Extraction，#114）**：Agent 用 `web-access` 打开详情页后，CDP tab 已在手中。立即在该 tab 上运行 `node scripts/short-video/lib/extract-media.mjs --tab <tabId> --content <slug>`，提取页面所有图片/视频/og:image URL 并缓存到 `content/<slug>/research/media-cache.json`。asset-sourcer Phase 0b 会读此缓存，避免重复搜索。`--tab` 复用 Agent 已打开的 tab（Agent `/new` 拿到 tabId 后传给 extract-media.mjs），`--url` 则由 extract-media.mjs 自行开新 tab。
 
 **入口 3（无输入）**：`search-sources --trend` → Agent 从 `trending-topics.json` 选话题 → 走入口 2 路线
 

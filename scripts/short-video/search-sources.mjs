@@ -103,43 +103,86 @@ const isScopedMode = !!contentIdArg;
 let cdpAvailable = true; // Set to false if CDP proxy check fails in main()
 
 /**
- * R1: Enrich articles with imageUrl extracted from the same DOM.
+ * SVE (#114): Enrich articles with imageUrl, videoUrls, and metadata
+ * extracted from the same DOM.
  *
- * Runs a CDP eval on the still-open tab to find <img> elements near each
- * article link. This is zero additional navigation — the tab is already open
- * from the extractScript call. The script finds all <a> elements, then for
- * each one checks if there's a nearby <img> (same parent or ancestor container).
+ * Runs a single CDP eval on the still-open tab to find:
+ * - <img> elements near article links (existing image enrichment)
+ * - <video> src, <iframe> embeds, og:video meta (video signals)
+ * - og:image, og:title, article:published_time (metadata)
  *
- * Articles are matched by URL: if the article's URL matches an <a href> on
- * the page, the nearest <img> src is used as imageUrl.
+ * This is zero additional navigation — the tab is already open
+ * from the extractScript call.
  *
  * @param {string} tabId - CDP tab ID (still open)
  * @param {Array<{title: string, url: string}>} articles - Articles from extractScript
- * @returns {Promise<Array>} Articles with imageUrl/hasImage fields added
+ * @returns {Promise<Array>} Articles with imageUrl/hasImage/videoUrls/metadata fields added
  */
-async function enrichWithImages(tabId, articles) {
-  const imageScript = `
-    var results = {};
+async function enrichWithMedia(tabId, articles) {
+  const mediaScript = `
+    var results = { images: {}, videos: {}, metadata: {} };
+
+    // Extract images near article links (existing behavior)
     var links = document.querySelectorAll('a[href]');
     links.forEach(function(a) {
       var img = a.querySelector('img') || a.parentElement?.querySelector('img') || a.closest('article, .article-item, .post-item, .list-item, .kr-flow-item, .recommend-item')?.querySelector('img');
       if (img && img.src && img.src.startsWith('http')) {
-        results[a.href] = img.src;
+        results.images[a.href] = img.src;
       }
     });
+
+    // Extract video signals from the page
+    // <video> elements
+    document.querySelectorAll('video[src]').forEach(function(v) {
+      if (v.src) results.videos._page = results.videos._page || [];
+      if (v.src && !results.videos._page.includes(v.src)) results.videos._page.push(v.src);
+    });
+    // <video><source> elements
+    document.querySelectorAll('video source[src]').forEach(function(s) {
+      if (s.src) {
+        results.videos._page = results.videos._page || [];
+        if (!results.videos._page.includes(s.src)) results.videos._page.push(s.src);
+      }
+    });
+    // <iframe> embeds (YouTube, Bilibili, Douyin)
+    document.querySelectorAll('iframe[src]').forEach(function(f) {
+      var src = f.src || '';
+      if (/youtube\.com\/embed|player\.bilibili\.com|douyin\.com|player\.youku\.com/i.test(src)) {
+        results.videos._page = results.videos._page || [];
+        if (!results.videos._page.includes(src)) results.videos._page.push(src);
+      }
+    });
+
+    // Extract metadata from <meta> tags
+    var ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+    var ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    var ogVideo = document.querySelector('meta[property="og:video"]')?.getAttribute('content');
+    var publishedTime = document.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
+    if (ogImage) results.metadata.ogImage = ogImage;
+    if (ogTitle) results.metadata.ogTitle = ogTitle;
+    if (publishedTime) results.metadata.publishedTime = publishedTime;
+    if (ogVideo) {
+      results.videos._page = results.videos._page || [];
+      if (!results.videos._page.includes(ogVideo)) results.videos._page.push(ogVideo);
+    }
+
     return results;
   `;
-  const urlToImage = await extractFromTab(tabId, imageScript);
-  if (!urlToImage || typeof urlToImage !== "object") return articles;
+  const mediaData = await extractFromTab(tabId, mediaScript);
+  if (!mediaData || typeof mediaData !== "object") return articles;
 
-  return articles.map((a) => {
-    if (a.imageUrl) return a; // Already has imageUrl from extractScript
-    const imgUrl = urlToImage[a.url];
-    return {
-      ...a,
-      imageUrl: imgUrl || null,
+  var pageVideos = (mediaData.videos && mediaData.videos._page) || [];
+  var metadata = mediaData.metadata || {};
+
+  return articles.map(function (a) {
+    var imgUrl = a.imageUrl || (mediaData.images && mediaData.images[a.url]) || null;
+    var result = Object.assign({}, a, {
+      imageUrl: imgUrl,
       hasImage: !!imgUrl,
-    };
+    });
+    if (pageVideos.length > 0) result.videoUrls = pageVideos.slice();
+    if (Object.keys(metadata).length > 0) result.metadata = Object.assign({}, metadata);
+    return result;
   });
 }
 
@@ -203,10 +246,10 @@ async function collectFromCdp(source, keyword) {
   // each article that has a matching image.
   if (articles.length > 0) {
     try {
-      articles = await enrichWithImages(tabId, articles);
+      articles = await enrichWithMedia(tabId, articles);
     } catch (e) {
-      // Non-fatal — articles without imageUrl still work for trend discovery
-      console.warn(`  ⚠️  Image enrichment failed: ${e.message}`);
+      // Non-fatal — articles without media still work for trend discovery
+      console.warn(`  ⚠️  Media enrichment failed: ${e.message}`);
     }
   }
 
@@ -364,9 +407,7 @@ async function main() {
     const names = paidSources.map((s) => s.name).join(", ");
     console.log(`  💰 Skipping ${paidSources.length} paid-API source(s): ${names}`);
     console.log(`     Use --include-paid to enable them.`);
-    sources = sources.filter(
-      (s) => !(s.capabilities?.articles?.paidApi ?? s.apiSearch?.paidApi),
-    );
+    sources = sources.filter((s) => !(s.capabilities?.articles?.paidApi ?? s.apiSearch?.paidApi));
   }
 
   const sourceBreakdown = {

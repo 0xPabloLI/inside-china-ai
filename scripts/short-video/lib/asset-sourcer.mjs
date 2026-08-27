@@ -1424,6 +1424,95 @@ export function loadCachedImages(filePath, keywords) {
 }
 
 /**
+ * SVE (#114): Normalize a cached media candidate from media-cache.json
+ * for the score, filter, and download pipeline.
+ *
+ * The sourceTitle (from metadata.ogTitle or topic title) supplies the
+ * relevance metadata, while sourceArticle is provenance.
+ */
+export function toCachedMediaCandidate(candidate) {
+  return {
+    ...candidate,
+    title: candidate?.sourceTitle || candidate?.title || "",
+    source: "cached-media",
+    type: candidate?.type || "image",
+  };
+}
+
+/**
+ * SVE (#114): Load cached media from a media-cache.json file.
+ *
+ * Reads entries from detail-page media extraction (extract-media.mjs),
+ * filters by keyword match on metadata.ogTitle or sourceUrl context,
+ * and returns a flat array of image + video candidates.
+ *
+ * File missing → empty array. Malformed → empty array. No keyword
+ * match → empty array. All gracefully degrading.
+ *
+ * @param {string} filePath - Path to media-cache.json
+ * @param {string[]} keywords - Keywords to filter entries by
+ * @returns {Array<{url, type, sourceArticle, sourceTitle}>}
+ */
+export function loadCachedMedia(filePath, keywords) {
+  if (!filePath || !existsSync(filePath)) return [];
+  if (!keywords || keywords.length === 0) return [];
+
+  try {
+    const content = readFileSync(filePath, "utf8");
+    const data = JSON.parse(content);
+    const results = [];
+
+    const entries = Array.isArray(data.entries) ? data.entries : [];
+    for (const entry of entries) {
+      // Check if entry matches any keyword
+      const matchText = [entry?.metadata?.ogTitle || "", entry?.sourceUrl || ""].join(" ");
+      if (!hasKeywordMatch(matchText, keywords)) continue;
+
+      // Extract images
+      const images = Array.isArray(entry.images) ? entry.images : [];
+      for (const img of images) {
+        if (!img || !img.url) continue;
+        if (isLogoOrIcon(img.url)) continue;
+        results.push({
+          url: img.url,
+          type: "image",
+          sourceArticle: entry.sourceUrl || null,
+          sourceTitle: entry.metadata?.ogTitle || "",
+        });
+      }
+
+      // Extract videos
+      const videos = Array.isArray(entry.videos) ? entry.videos : [];
+      for (const vid of videos) {
+        if (!vid || !vid.url) continue;
+        results.push({
+          url: vid.url,
+          type: "video",
+          sourceArticle: entry.sourceUrl || null,
+          sourceTitle: entry.metadata?.ogTitle || "",
+        });
+      }
+
+      // Extract og:image as additional image candidate
+      if (entry.metadata?.ogImage) {
+        if (!isLogoOrIcon(entry.metadata.ogImage)) {
+          results.push({
+            url: entry.metadata.ogImage,
+            type: "image",
+            sourceArticle: entry.sourceUrl || null,
+            sourceTitle: entry.metadata?.ogTitle || "",
+          });
+        }
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Generate a credits section for TikTok description.
  *
  * Includes assets where:
@@ -1796,6 +1885,59 @@ export async function main(args = process.argv.slice(2)) {
     }
   } else {
     console.log("\n🖼️  No cached images found in trending-topics.json");
+  }
+
+  // ── Phase 0b: Cached media from detail pages (SVE #114) ──
+  // Reads media-cache.json produced by extract-media.mjs during Stage 0.
+  // Contains images + videos extracted from article detail pages that the
+  // Agent already opened. Reuses existing score/filter/download pipeline.
+  const mediaCachePath = join(contentDir, "research", "media-cache.json");
+  const cachedMedia = loadCachedMedia(mediaCachePath, keywords);
+  if (cachedMedia.length > 0) {
+    console.log(`\n🎬  Cached media (from detail pages): ${cachedMedia.length} found`);
+    const scoredMedia = cachedMedia
+      .map((c) => {
+        const candidate = toCachedMediaCandidate(c);
+        return {
+          ...candidate,
+          score: scoreCandidate(candidate, keywords[0]),
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxPerSource);
+
+    for (let j = 0; j < scoredMedia.length; j++) {
+      const candidate = scoredMedia[j];
+      if (!candidate.url) continue;
+
+      // Skip if this URL was already downloaded by Phase 0 or prior
+      if (downloadedUrls.has(candidate.url)) {
+        skipped.push({ source: "cached-media", reason: "URL already downloaded" });
+        continue;
+      }
+
+      const ext = candidate.type === "video" ? "mp4" : "jpg";
+      const filename = buildFilename("cached-media", keywords[0], j + 1, ext);
+      const destPath = join(assetsDir, filename);
+      const dl = await downloadCandidate(candidate, { destPath, contentDir });
+      if (dl.success) downloadedUrls.add(candidate.url);
+      if (dl.success) {
+        allAssets.push({
+          ...candidate,
+          path: dl.path,
+          status: dl.skipped ? "already exists" : "downloaded",
+        });
+        console.log(`    ✅ cached-media: ${filename} (score: ${candidate.score})`);
+      } else if (dl.skipped) {
+        skipped.push({ source: "cached-media", reason: dl.error });
+        console.log(`    ⏭️  cached-media: ${dl.error}`);
+      } else {
+        failed.push({ source: "cached-media", keyword: keywords[0], error: dl.error });
+        console.log(`    ❌ cached-media: ${dl.error}`);
+      }
+    }
+  } else {
+    console.log("\n🎬  No cached media found in media-cache.json");
   }
 
   // ── API sources (parallel) ──
