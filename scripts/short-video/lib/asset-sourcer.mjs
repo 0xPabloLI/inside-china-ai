@@ -38,6 +38,7 @@ import {
   searchSearXngImages,
   BraveQuotaTracker,
 } from "./progressive-search.mjs";
+import { downloadCandidate } from "./download-candidate.mjs";
 
 // Re-export SOURCE_ATTRIBUTIONS from source-registry (single source of truth)
 export { SOURCE_ATTRIBUTIONS };
@@ -1776,18 +1777,21 @@ export async function main(args = process.argv.slice(2)) {
 
       const filename = buildFilename("cached", keywords[0], j + 1, "jpg");
       const destPath = join(assetsDir, filename);
-      const dlResult = await downloadAsset(candidate.url, destPath);
-      if (dlResult.success) downloadedUrls.add(candidate.url);
-      if (dlResult.success) {
+      const dl = await downloadCandidate(candidate, { destPath, contentDir });
+      if (dl.success) downloadedUrls.add(candidate.url);
+      if (dl.success) {
         allAssets.push({
           ...candidate,
-          path: destPath.replace(contentDir + "/", ""),
-          status: dlResult.skipped ? "already exists" : "downloaded",
+          path: dl.path,
+          status: dl.skipped ? "already exists" : "downloaded",
         });
         console.log(`    ✅ cached: ${filename} (score: ${candidate.score})`);
+      } else if (dl.skipped) {
+        skipped.push({ source: "cached", reason: dl.error });
+        console.log(`    ⏭️  cached: ${dl.error}`);
       } else {
-        failed.push({ source: "cached", keyword: keywords[0], error: dlResult.error });
-        console.log(`    ❌ cached: ${dlResult.error}`);
+        failed.push({ source: "cached", keyword: keywords[0], error: dl.error });
+        console.log(`    ❌ cached: ${dl.error}`);
       }
     }
   } else {
@@ -1866,13 +1870,13 @@ export async function main(args = process.argv.slice(2)) {
           if (candidate.source === "wikimedia") {
             headers["User-Agent"] = "ChinaAINews/1.0 (contact@china-ai.news)";
           }
-          const dlResult = await downloadAsset(candidate.url, destPath, headers);
-          if (dlResult.success) downloadedUrls.add(candidate.url);
-          if (dlResult.success) {
+          const dl = await downloadCandidate(candidate, { destPath, contentDir, headers });
+          if (dl.success) downloadedUrls.add(candidate.url);
+          if (dl.success) {
             const assetEntry = {
               ...candidate,
-              path: destPath.replace(contentDir + "/", ""),
-              status: dlResult.skipped ? "already exists" : "downloaded",
+              path: dl.path,
+              status: dl.skipped ? "already exists" : "downloaded",
             };
 
             // For Wikimedia assets, fetch per-file license metadata
@@ -1889,9 +1893,12 @@ export async function main(args = process.argv.slice(2)) {
 
             allAssets.push(assetEntry);
             console.log(`    ✅ ${candidate.source}: ${filename} (score: ${candidate.score})`);
+          } else if (dl.skipped) {
+            skipped.push({ source: candidate.source, reason: dl.error });
+            console.log(`    ⏭️  ${candidate.source}: ${dl.error}`);
           } else {
-            failed.push({ source: candidate.source, keyword: keywords[0], error: dlResult.error });
-            console.log(`    ❌ ${candidate.source}: ${dlResult.error}`);
+            failed.push({ source: candidate.source, keyword: keywords[0], error: dl.error });
+            console.log(`    ❌ ${candidate.source}: ${dl.error}`);
           }
         }
       }
@@ -1947,18 +1954,21 @@ export async function main(args = process.argv.slice(2)) {
         const filename = buildFilename(source.name, keyword, j + 1, "mp4");
         const destPath = join(assetsDir, filename);
 
-        const dlResult = downloadYtdlp(candidate.url, destPath);
-        if (dlResult.success) downloadedUrls.add(candidate.url);
-        if (dlResult.success) {
+        const dl = await downloadCandidate(candidate, { destPath, contentDir });
+        if (dl.success) downloadedUrls.add(candidate.url);
+        if (dl.success) {
           allAssets.push({
             ...candidate,
-            path: destPath.replace(contentDir + "/", ""),
-            status: dlResult.skipped ? "already exists" : "downloaded",
+            path: dl.path,
+            status: dl.skipped ? "already exists" : "downloaded",
           });
           console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+        } else if (dl.skipped) {
+          skipped.push({ source: source.name, reason: dl.error });
+          console.log(`    ⏭️  ${source.name}: ${dl.error}`);
         } else {
-          failed.push({ source: source.name, keyword, error: dlResult.error });
-          console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+          failed.push({ source: source.name, keyword, error: dl.error });
+          console.log(`    ❌ ${source.name}: ${dl.error}`);
         }
       }
     }
@@ -2022,18 +2032,21 @@ export async function main(args = process.argv.slice(2)) {
         const filename = buildFilename(source.name, keyword, j + 1, "jpg");
         const destPath = join(assetsDir, filename);
 
-        const dlResult = await downloadAsset(candidate.url, destPath);
-        if (dlResult.success) downloadedUrls.add(candidate.url);
-        if (dlResult.success) {
+        const dl = await downloadCandidate(candidate, { destPath, contentDir });
+        if (dl.success) downloadedUrls.add(candidate.url);
+        if (dl.success) {
           allAssets.push({
             ...candidate,
-            path: destPath.replace(contentDir + "/", ""),
-            status: dlResult.skipped ? "already exists" : "downloaded",
+            path: dl.path,
+            status: dl.skipped ? "already exists" : "downloaded",
           });
           console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+        } else if (dl.skipped) {
+          skipped.push({ source: source.name, reason: dl.error });
+          console.log(`    ⏭️  ${source.name}: ${dl.error}`);
         } else {
-          failed.push({ source: source.name, keyword, error: dlResult.error });
-          console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+          failed.push({ source: source.name, keyword, error: dl.error });
+          console.log(`    ❌ ${source.name}: ${dl.error}`);
         }
       }
     }
@@ -2126,18 +2139,21 @@ export async function main(args = process.argv.slice(2)) {
 
             const filename = buildFilename(source.name, keyword, j + 1, "jpg");
             const destPath = join(assetsDir, filename);
-            const dlResult = await downloadAsset(candidate.url, destPath);
-            if (dlResult.success) downloadedUrls.add(candidate.url);
-            if (dlResult.success) {
+            const dl = await downloadCandidate(candidate, { destPath, contentDir });
+            if (dl.success) downloadedUrls.add(candidate.url);
+            if (dl.success) {
               engineAssets.push({
                 ...candidate,
-                path: destPath.replace(contentDir + "/", ""),
-                status: dlResult.skipped ? "already exists" : "downloaded",
+                path: dl.path,
+                status: dl.skipped ? "already exists" : "downloaded",
               });
               console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+            } else if (dl.skipped) {
+              engineFailed.push({ source: source.name, reason: dl.error });
+              console.log(`    ⏭️  ${source.name}: ${dl.error}`);
             } else {
-              engineFailed.push({ source: source.name, keyword, error: dlResult.error });
-              console.log(`    ❌ ${source.name}: ${dlResult.error}`);
+              engineFailed.push({ source: source.name, keyword, error: dl.error });
+              console.log(`    ❌ ${source.name}: ${dl.error}`);
             }
           }
         }

@@ -192,7 +192,7 @@ describe("downloadDirectHttp", () => {
     });
     const result = await downloadDirectHttp("https://cdn.example.com/page.mp4", { fetchFn });
     expect(result.status).toBe("skipped");
-    expect(result.reason).toBe("non-video-mime");
+    expect(result.reason).toBe("non-media-mime");
   });
 
   it("fails on HTTP 404", async () => {
@@ -603,5 +603,127 @@ describe("downloadVideo", () => {
     });
     expect(result.status).toBe("skipped");
     expect(result.reason).toBe("cobalt-unavailable");
+  });
+});
+
+// ─── T1: Image extension + MIME + headers support ───
+
+describe("T1 — Image support in VDL", () => {
+  // Scenario #1: .jpg URL → selectStrategy selects direct-http
+  it("selects direct-http for .jpg URL (scenario #1)", () => {
+    const result = selectStrategy("https://images.pexels.com/photos/12345.jpg");
+    expect(result.adapter).toBe(ADAPTER_IDS.DIRECT_HTTP);
+  });
+
+  it("selects direct-http for .png URL", () => {
+    const result = selectStrategy("https://images.unsplash.com/photo-123.png");
+    expect(result.adapter).toBe(ADAPTER_IDS.DIRECT_HTTP);
+  });
+
+  it("selects direct-http for .webp URL", () => {
+    const result = selectStrategy("https://cdn.example.com/image.webp");
+    expect(result.adapter).toBe(ADAPTER_IDS.DIRECT_HTTP);
+  });
+
+  it("selects direct-http for .gif URL", () => {
+    const result = selectStrategy("https://cdn.example.com/animation.gif");
+    expect(result.adapter).toBe(ADAPTER_IDS.DIRECT_HTTP);
+  });
+
+  // Scenario #2: image MIME accepted by downloadDirectHttp
+  it("accepts image/jpeg MIME in downloadDirectHttp (scenario #2)", async () => {
+    const fetchFn = makeMockFetch({
+      "https://cdn.example.com/photo.jpg": mockResponse({
+        contentType: "image/jpeg",
+        body: validBuffer,
+      }),
+    });
+    const result = await downloadDirectHttp("https://cdn.example.com/photo.jpg", { fetchFn });
+    expect(result.status).toBe("downloaded");
+    expect(result.mimeType).toBe("image/jpeg");
+  });
+
+  it("accepts image/png MIME in downloadDirectHttp", async () => {
+    const fetchFn = makeMockFetch({
+      "https://cdn.example.com/photo.png": mockResponse({
+        contentType: "image/png",
+        body: validBuffer,
+      }),
+    });
+    const result = await downloadDirectHttp("https://cdn.example.com/photo.png", { fetchFn });
+    expect(result.status).toBe("downloaded");
+  });
+
+  it("accepts image/webp MIME in downloadDirectHttp", async () => {
+    const fetchFn = makeMockFetch({
+      "https://cdn.example.com/photo.webp": mockResponse({
+        contentType: "image/webp",
+        body: validBuffer,
+      }),
+    });
+    const result = await downloadDirectHttp("https://cdn.example.com/photo.webp", { fetchFn });
+    expect(result.status).toBe("downloaded");
+  });
+
+  // Scenario #3: .mp4 URL still works (no regression)
+  it("still selects direct-http for .mp4 URL (scenario #3, no regression)", () => {
+    const result = selectStrategy("https://cdn.pexels.com/videos/123.mp4");
+    expect(result.adapter).toBe(ADAPTER_IDS.DIRECT_HTTP);
+  });
+
+  // T1.10: text/html still rejected (no regression)
+  it("still rejects text/html MIME (no regression)", async () => {
+    const fetchFn = makeMockFetch({
+      "https://cdn.example.com/page.jpg": mockResponse({
+        contentType: "text/html",
+        body: validBuffer,
+      }),
+    });
+    const result = await downloadDirectHttp("https://cdn.example.com/page.jpg", { fetchFn });
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toBe("non-media-mime");
+  });
+
+  // Scenario #20: custom headers passed to fetch
+  it("passes custom headers to fetch call (scenario #20)", async () => {
+    const calls = [];
+    const fetchFn = async (url, opts) => {
+      calls.push({ url, opts });
+      return mockResponse({ body: validBuffer, contentType: "image/jpeg" });
+    };
+    const customHeaders = { "User-Agent": "ChinaAINews/1.0 (contact@china-ai.news)" };
+    await downloadDirectHttp("https://cdn.example.com/photo.jpg", {
+      fetchFn,
+      headers: customHeaders,
+    });
+    expect(calls[0].opts).toBeDefined();
+    expect(calls[0].opts.headers).toEqual(customHeaders);
+  });
+
+  it("passes custom headers through downloadVideo to DirectHttp", async () => {
+    const calls = [];
+    const fetchFn = async (url, opts) => {
+      calls.push({ url, opts });
+      return mockResponse({ body: validBuffer, contentType: "image/jpeg" });
+    };
+    const customHeaders = { "User-Agent": "TestAgent/1.0" };
+    await downloadVideo("https://cdn.example.com/photo.jpg", {
+      fetchFn,
+      headers: customHeaders,
+      skipCobaltPreflight: true,
+    });
+    expect(calls[0].opts).toBeDefined();
+    expect(calls[0].opts.headers).toEqual(customHeaders);
+  });
+
+  it("does not pass headers when not provided (backward compat)", async () => {
+    const calls = [];
+    const fetchFn = async (url, opts) => {
+      calls.push({ url, opts });
+      return mockResponse({ body: validBuffer, contentType: "video/mp4" });
+    };
+    await downloadDirectHttp("https://cdn.example.com/video.mp4", { fetchFn });
+    // opts should be undefined when no headers
+    expect(calls[0].opts).toBeUndefined();
   });
 });

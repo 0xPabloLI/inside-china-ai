@@ -85,13 +85,25 @@ const DIRECT_MEDIA_DOMAINS = [
   "videos.pexels.com",
   "images.unsplash.com",
   "images.pexels.com",
+  "img.pexels.com",
   "commondatastorage.googleapis.com",
   "cdn.coverr.co",
   "player.vimeo.com",
 ];
 
-/** File extensions that indicate direct media. */
-const DIRECT_MEDIA_EXTENSIONS = [".mp4", ".webm", ".mov", ".avi", ".mkv"];
+/** File extensions that indicate direct media (video + image). */
+const DIRECT_MEDIA_EXTENSIONS = [
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".avi",
+  ".mkv",
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+];
 
 /** YouTube hostname patterns. */
 const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "m.youtube.com"];
@@ -209,7 +221,7 @@ export async function downloadDirectHttp(url, opts = {}) {
   const source = "direct";
 
   try {
-    const resp = await fetchFn(url);
+    const resp = await fetchFn(url, opts.headers ? { headers: opts.headers } : undefined);
     if (!resp.ok) {
       return makeResult({
         status: "failed",
@@ -223,13 +235,18 @@ export async function downloadDirectHttp(url, opts = {}) {
 
     // Check Content-Type before downloading body
     const contentType = resp.headers.get("content-type") || "";
-    if (contentType && !contentType.startsWith("video/") && !contentType.includes("octet-stream")) {
+    if (
+      contentType &&
+      !contentType.startsWith("video/") &&
+      !contentType.startsWith("image/") &&
+      !contentType.includes("octet-stream")
+    ) {
       return makeResult({
         status: "skipped",
         strategy: ADAPTER_IDS.DIRECT_HTTP,
         source,
         sourceUrl: url,
-        reason: "non-video-mime",
+        reason: "non-media-mime",
       });
     }
 
@@ -767,7 +784,7 @@ export async function downloadVideo(url, opts = {}) {
 
   switch (adapter) {
     case ADAPTER_IDS.DIRECT_HTTP:
-      return downloadDirectHttp(canonicalUrl, { fetchFn });
+      return downloadDirectHttp(canonicalUrl, { fetchFn, headers: opts.headers });
 
     case ADAPTER_IDS.YTDLP:
       return downloadYtdlpAdapter(canonicalUrl);
