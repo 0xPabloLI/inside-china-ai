@@ -3,7 +3,7 @@ name: web-deep-research
 description: >
   Multi-source web research with citation tracking, evidence persistence, and structured
   report generation. Uses an 8-phase methodology (SCOPE → PACKAGE) with web-access
-  fetching (scenario routing + error fallback) and local code verification.
+  fetching (scenario routing) and local code verification.
   Use when the user wants deep research, comprehensive analysis, research report,
   compare X vs Y, analyze trends, state of the art, or thorough investigation.
   Not for simple lookups, debugging, or questions answerable with 1-2 searches.
@@ -12,10 +12,9 @@ description: >
 # Web Deep Research
 
 Three-layer research: **8-phase methodology** (claim verification, evidence
-persistence) + **web-access fetching** (delegates tool selection and error
-fallback to web-access skill) + **code verification** from local source
-inspection (grep, read_file, codebase_search against installed packages and
-repo code).
+persistence) + **web-access fetching** (delegates tool selection to web-access
+skill) + **code verification** from local source inspection (grep, read_file,
+codebase_search against installed packages and repo code).
 
 ## Dependencies
 
@@ -23,9 +22,9 @@ repo code).
   SYNTHESIZE → CRITIQUE → REFINE → PACKAGE) is self-contained in this file.
 - **Fetching**: Delegates to `web-access` skill for all web content retrieval
   (search, page fetch, browser). web-access handles: tool selection (scenario
-  routing), error fallback (Brave → Jina → CDP), login state, JS rendering,
-  anti-bot mitigation. Run `node ~/.agents/skills/web-access/scripts/check-deps.mjs`
-  before Phase 3 to verify CDP availability.
+  routing), login state, JS rendering, anti-bot mitigation. Run
+  `node ~/.agents/skills/web-access/scripts/check-deps.mjs` before Phase 3 to
+  verify CDP availability.
 - **Code verification**: When the research topic involves a library, framework, tool,
   or any claim that can be verified against source code, inspect the local installed
   package or repo code in parallel with web retrieval. Use `grep`, `read_file`,
@@ -69,14 +68,12 @@ Map each angle to 2-4 search queries.
 
 ## Phase 3 — RETRIEVE
 
-Load `web-access` skill and follow its tool selection table and error
-fallback chain for all search and page fetching. web-access decides
-the tool (Brave → Jina → CDP) based on the scenario, and falls back
-automatically on errors. Do not reimplement its routing or override
-its fallback here.
+Load `web-access` skill and follow its tool selection table for all
+search and page fetching. web-access routes to the right tool based
+on the scenario. Do not reimplement its routing here.
 
 **Before starting Phase 3**: Run `node ~/.agents/skills/web-access/scripts/check-deps.mjs`
-to verify CDP availability. If CDP is ready, the browser fallback is
+to verify CDP availability. If CDP is ready, the browser is
 available — you don't need CDP for every query, web-access will route
 to it only when needed.
 
