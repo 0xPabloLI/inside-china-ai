@@ -217,6 +217,9 @@ quotations may remain in English regardless of report language.
 **Completion criterion**: Report saved to file. Sources list complete — every URL
 used, no placeholders. User told the file path.
 
+**Post-save**: If this project has a RAG indexer (check for `scripts/rag/`),
+trigger a reindex so the report is searchable in future sessions.
+
 ## Anti-patterns
 
 - **Scrape-summary listing**: Don't paste raw scraped content. Synthesize.
