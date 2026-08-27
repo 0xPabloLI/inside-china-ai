@@ -56,7 +56,7 @@
 
    > **Phase Boundaries**：Step 5 完成后是 session-level phase boundary。Step 4 内每完成一个 ticket 是 ticket-level phase boundary——此时可做 `/compact`，但必须先落盘 ticket checklist。context 切换决策（Continue / `/clear` / `/handoff` / Subagent / `/compact`）见 `ask-matt` skill 的 Phase Boundaries 决策树。
 
-   6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。
+   6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。改动涉及 `scripts/short-video/` 管线逻辑（`lib/`、`main.mjs`、`render-only.mjs`）时，还需执行 **Real Data Smoke Test**：用至少一个已有 content 目录的真实数据（timing JSON、scene-data、TTS 音频）跑一次被改动的函数或管线步骤，验证输出符合预期。Mock 测试全绿 ≠ 真实数据通过——text-align.py 尾部截断、音频格式差异等只在真实数据中暴露。如果找不到已有真实数据，必须标注"无真实数据可用"并说明原因。
    7. **Commit & Push** — 通过验证后 commit + push（遵循 Commit Cadence 规则）。
    8. **更新相关文档及 Issue** — 同步更新 docs、Linear issue 状态。**Spec/Ticket/Review 归档**：将本次工作使用的 `spec-*.md` 和 `tickets-*.md` 移到 `docs/archive/`；将 `*-review.md` 移到 `docs/archive/reviews/`；更新 `docs/archive/README.md` 归档清单。Specs、tickets 和 reviews 是 ephemeral 文档——实施/审查期间存在，完成后归档。详见 `docs/DOCS-INDEX.md` 的 Spec/Ticket/Review Lifecycle 章节。
    9. **Session 结束验证** — 在 session 结束前，逐条确认 Step 1-8 全部完成。**未完成的步骤必须当场补做或显式标注为"跳过 + 原因"**。确认清单：
@@ -66,7 +66,7 @@
       - [ ] Step 3 Tickets 完成（有 ticket 拆分）
       - [ ] Step 4 TDD 完成（测试 red → green → refactor）
       - [ ] Step 5 Code Review 完成（有审查报告）
-      - [ ] Step 6 Runtime Verify 完成（有运行时验证证据：截图 / DOM 检查 / lint+build 结果）
+      - [ ] Step 6 Runtime Verify 完成（有运行时验证证据：截图 / DOM 检查 / lint+build 结果 / **管线改动还需 Real Data Smoke Test 输出**）
       - [ ] Step 7 Commit & Push 完成（有 commit hash + push 成功）
       - [ ] Step 8 文档及 Issue 更新完成（Linear 状态已更新；spec/tickets 已归档到 `docs/archive/`；reviews 已归档到 `docs/archive/reviews/`）
       - 如有任何步骤跳过，必须在向用户汇报时**显式列出**跳过的步骤和原因，不得遗漏
