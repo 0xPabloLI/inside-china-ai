@@ -31,6 +31,25 @@
 >
 > 详细 spec 见 `docs/archive/spec-research-evidence-pipeline.md`。
 
+### Stage 0 末尾：RAG 查询（已有内容检索）
+
+Stage 0 素材收集完成后、文章轨/视频轨分叉前，Agent 查 RAG 检索项目已有内容：
+
+```bash
+node scripts/rag/query.mjs "话题关键词 公司名" --type article --format json
+node scripts/rag/query.mjs "话题关键词 公司名" --type source-material --format json
+```
+
+Agent 从 Stage 0 的 `discovery.json` 和素材中提炼查询词（话题关键词 + 主要公司名/实体名）。查询结果供 Stage 1（文章生成）和 Stage 3（scene-data）共享参考。
+
+**结果消费**：
+- 避免重复已有文章的角度和数据
+- 融入公司背景上下文（如公司名出现时带入已有背景）
+- 可选在文章中添加交叉引用（如 markdown link 到已有文章 slug）
+- 不持久化查询结果——即时参考，不是管线状态
+
+> **非阻塞**：Ollama 未运行或查询失败时跳过，输出 `⚠️ RAG query skipped: <reason>`，继续管线。与 Stage 2d 降级规则一致。
+
 Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：视频脚本不是文章翻译，也不等待文章公开。MRL-1 和 MRL-2 自审通过后不暂停。唯一的人工确认点是 **HITL 内容包审阅**：用户同时审阅文章 draft、scene-data 与视频成品；确认后才公开文章、上传附件并发布 TikTok。
 
 ### 语言规则
@@ -190,9 +209,11 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <p
 
 > **非阻塞**：如果 Ollama 未运行或 reindex 失败，不阻塞管线后续 stage。Agent 会输出警告并建议手动 `node scripts/rag/index.mjs`。
 
-### 2e. RAG 查询
+### 2e. RAG 工具参考（随时可用）
 
-写文章、做视频、选题时，用语义搜索查已有内容（零费用，本地 Ollama bge-m3）：
+> 管线在 Stage 0 末尾和 Stage 3 Step 2 已集成 RAG 查询步骤。以下 CLI 参考供 Agent 在管线任何阶段随时查询已有内容。
+
+用语义搜索查已有内容（零费用，本地 Ollama bge-m3）：
 
 ```bash
 node scripts/rag/query.mjs "DeepSeek 估值"                    # 全类型搜索
@@ -243,13 +264,19 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 ### 步骤
 
 1. **读 Stage 0 素材** — 从 Stage 0 输出的素材集合（用户素材 + 互联网全文）中提取核心信息。文章 draft 如已就绪可作为一致性参考，但视频不是文章翻译。
-2. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
-3. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）
-4. **生成 AI Outline 话题描述（HITL 检查点）** — Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中。**Agent 暂停**，等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。降级：用户跳过则 Agent 自行设计。
-5. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
-6. **设计 SEO 标题**（≤60 chars）——对比 Agent 生成的 title 和 AI Outline 返回的 title，取更优者
-7. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 3 确定的素材要求——如素材未找到，标注 `[ASSET NEEDED: description]` 供 asset-sourcer 补充。
-8. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
+2. **RAG 查询（已有 scene-data 检索）** — 用叙事角度 + 公司名查 RAG，检索已有视频场景和文章背景：
+   ```bash
+   node scripts/rag/query.mjs "叙事角度 公司名" --type scene-data --format json
+   node scripts/rag/query.mjs "叙事角度 公司名" --type article --format json
+   ```
+   Agent 读取结果后：避免重复已有场景的叙事结构和角度；在公司名出现时融入已有背景信息到 voiceover 脚本中。**非阻塞**：Ollama 不可用时跳过 + 输出警告 + 继续。
+3. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
+4. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）
+5. **生成 AI Outline 话题描述（HITL 检查点）** — Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中。**Agent 暂停**，等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。降级：用户跳过则 Agent 自行设计。
+6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
+7. **设计 SEO 标题**（≤60 chars）——对比 Agent 生成的 title 和 AI Outline 返回的 title，取更优者
+8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——如素材未找到，标注 `[ASSET NEEDED: description]` 供 asset-sourcer 补充。
+9. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
 
 ### 素材 → 视频的节奏适配
 
