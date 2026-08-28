@@ -109,15 +109,10 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 | Document | Purpose |
 |----------|---------|
 | `handoff-add-free-api-sources.md` | Adding free API sources (Guardian, NYT, Semantic Scholar, etc.) to source-registry (Issue #64 OPEN) |
-| `handoff-asset-source-unification.md` | 素材源统一命名 + 重复获取问题（未实施） |
 | `handoff-extractscript-autofix.md` | articleScript 自动修复 + warn + health 追踪 (Issue #66 OPEN) |
-| `handoff-fix-scene-flicker.md` | Fix scene flicker — double fade at scene boundaries（未实施） |
-| `handoff-license-risk-policy.md` | License 风险策略 — 不阻塞管线（未实施） |
 | `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60/#61 OPEN) |
-| `handoff-realesrgan.md` | Real-ESRGAN 超分辨率集成（未实施） |
 | `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN) |
 | `handoff-vlm-cascade-router-2026-08-27.md` | VLM Cascade Router 调研完成 (Issue #127 OPEN) |
-| `handoff-write-for-agents-enforcement.md` | writing-for-agents 规则执行问题（未实施） |
 
 ### `reviews/` — Active review records
 
