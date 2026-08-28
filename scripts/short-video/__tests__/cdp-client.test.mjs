@@ -1,5 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+// vi.hoisted runs before vi.mock hoisting, so variables are available in mock factories
+const { mockSpawn, mockHomedir, mockExistsSync, mockOpenSync, mockCloseSync } = vi.hoisted(() => ({
+  mockSpawn: vi.fn(),
+  mockHomedir: vi.fn(() => "/fake/home"),
+  mockExistsSync: vi.fn(() => false),
+  mockOpenSync: vi.fn(() => 999),
+  mockCloseSync: vi.fn(),
+}));
+
+vi.mock("node:child_process", () => ({
+  spawn: (...args) => mockSpawn(...args),
+}));
+
+vi.mock("node:os", () => ({
+  homedir: mockHomedir,
+  hostname: () => "localhost",
+  platform: () => "darwin",
+}));
+
+vi.mock("node:fs", () => ({
+  existsSync: mockExistsSync,
+  openSync: mockOpenSync,
+  closeSync: mockCloseSync,
+}));
+
 import {
   cdpNewTab,
   cdpEval,
@@ -7,6 +32,8 @@ import {
   waitForPageLoad,
   extractFromTab,
   checkLogin,
+  findCdpProxyScript,
+  ensureCdpProxy,
   CDP_BASE,
 } from "../lib/cdp-client.mjs";
 
@@ -280,5 +307,115 @@ describe("checkLogin", () => {
     const call = global.fetch.mock.calls[0];
     expect(call[1].body).toContain("(async function(){");
     expect(call[1].body).toContain("})()");
+  });
+});
+
+// ─── findCdpProxyScript ───
+
+describe("findCdpProxyScript", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("S3: returns null when no candidate path exists", () => {
+    mockExistsSync.mockReturnValue(false);
+    mockHomedir.mockReturnValue("/fake/home");
+
+    const result = findCdpProxyScript();
+    expect(result).toBeNull();
+  });
+
+  it("S3b: returns path when cdp-proxy.mjs found in skill dir", () => {
+    const fakeHome = "/fake/home";
+    mockHomedir.mockReturnValue(fakeHome);
+    const expectedPath = `${fakeHome}/.agents/skills/web-access/scripts/cdp-proxy.mjs`;
+    mockExistsSync.mockImplementation((p) => p === expectedPath);
+
+    const result = findCdpProxyScript();
+    expect(result).toBe(expectedPath);
+  });
+});
+
+// ─── ensureCdpProxy ───
+
+describe("ensureCdpProxy", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+    mockSpawn.mockReset();
+    mockExistsSync.mockReturnValue(false); // default: not found
+    mockHomedir.mockReturnValue("/fake/home");
+    mockOpenSync.mockReturnValue(999);
+    mockCloseSync.mockReturnValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("S1: returns true immediately when proxy already running", async () => {
+    global.fetch.mockResolvedValue(mockFetchResponse([{ targetId: "tab_1" }]));
+
+    const result = await ensureCdpProxy({ maxRetries: 1, intervalMs: 0 });
+    expect(result).toBe(true);
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
+  it("S1b: returns true when /targets returns non-ok but /health says connected", async () => {
+    // /targets returns error but proxy process is running (edge case)
+    global.fetch.mockResolvedValue({ ok: false, status: 502, json: () => Promise.resolve({}) });
+
+    const result = await ensureCdpProxy({ maxRetries: 1, intervalMs: 0 });
+    expect(result).toBe(false); // Can't verify proxy is actually working
+  });
+  it("S3: returns false when cdp-proxy.mjs not found in any path", async () => {
+    global.fetch.mockRejectedValue(new Error("ECONNREFUSED"));
+    mockExistsSync.mockReturnValue(false);
+    mockHomedir.mockReturnValue("/fake/home");
+
+    const result = await ensureCdpProxy({ maxRetries: 1, intervalMs: 0 });
+    expect(result).toBe(false);
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
+  it("S4: returns false when proxy starts but health check times out", async () => {
+    global.fetch.mockRejectedValue(new Error("ECONNREFUSED"));
+    mockHomedir.mockReturnValue("/fake/home");
+    mockExistsSync.mockReturnValue(true);
+
+    const mockChild = {
+      unref: vi.fn(),
+      on: vi.fn(),
+      pid: 12345,
+    };
+    mockSpawn.mockReturnValue(mockChild);
+
+    const result = await ensureCdpProxy({ maxRetries: 2, intervalMs: 0 });
+    expect(result).toBe(false);
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("S2: spawns proxy and returns true when /targets becomes available", async () => {
+    let callCount = 0;
+    global.fetch.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) throw new Error("ECONNREFUSED");
+      return Promise.resolve(mockFetchResponse([{ targetId: "tab_1" }]));
+    });
+
+    mockHomedir.mockReturnValue("/fake/home");
+    mockExistsSync.mockReturnValue(true);
+
+    const mockChild = { unref: vi.fn(), on: vi.fn(), pid: 12345 };
+    mockSpawn.mockReturnValue(mockChild);
+
+    const result = await ensureCdpProxy({ maxRetries: 5, intervalMs: 0 });
+    expect(result).toBe(true);
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
   });
 });

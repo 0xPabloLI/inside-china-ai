@@ -65,6 +65,7 @@ import {
   waitForPageLoad,
   extractFromTab,
   checkLogin,
+  ensureCdpProxy,
   CDP_BASE,
   RETRY_WAIT_MS,
 } from "./lib/cdp-client.mjs";
@@ -431,25 +432,19 @@ async function main() {
   // Check CDP proxy availability
   // CDP is required for most sources, but MCP-only sources (e.g. mcp_grok_search)
   // and API-based sources (e.g. reddit_search, hackernews_search) can work without it.
+  // #116: Auto-start CDP proxy if not running. Graceful degradation on failure.
   console.log("\n🔌 Checking CDP proxy...");
-  cdpAvailable = false;
-  try {
-    const resp = await fetch(`${CDP_BASE}/targets`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    cdpAvailable = true;
-    console.log("  ✅ CDP proxy available");
-  } catch {
+  cdpAvailable = await ensureCdpProxy();
+  if (!cdpAvailable) {
     const mcpOrApiSources = sources.filter(
       (s) => s.accessMethod?.primary === "mcp" || s.apiSearch,
     ).length;
     if (mcpOrApiSources === sources.length) {
-      // All sources are MCP/API-based — CDP not needed
       console.log("  ⚠️  CDP proxy not available, but all sources are MCP/API-based — continuing");
     } else {
-      console.error("❌ CDP proxy not available at localhost:3456");
-      console.error("   Enable Chrome Remote Debugging: chrome://inspect/#remote-debugging");
-      console.error("   Or filter to MCP/API-only sources: --research --keyword <kw>");
-      process.exit(1);
+      console.warn("  ⚠️  CDP proxy could not be started. CDP sources will be skipped.");
+      console.warn("     To enable: open Chrome and visit chrome://inspect/#remote-debugging");
+      console.warn("     Or run: node ~/.agents/skills/web-access/scripts/check-deps.mjs");
     }
   }
 
