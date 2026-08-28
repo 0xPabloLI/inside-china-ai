@@ -104,24 +104,20 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 
 ### `handoffs/` — Session handoffs
 
+Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
+
 | Document | Purpose |
 |----------|---------|
-| `handoff-add-free-api-sources.md` | Adding free API sources (Guardian, NYT, Semantic Scholar, etc.) to source-registry |
-| `handoff-asset-source-unification.md` | 素材源统一命名 + 重复获取问题 |
-| `handoff-colab-nf4-test.md` | Colab NF4 量化测试 |
-| `handoff-echomimicv3-kaggle.md` | EchoMimicV3 Kaggle 测试 & 下一步数字人模型测试 |
-| `handoff-extractscript-autofix.md` | articleScript 自动修复 + warn + health 追踪 (Issue #66) |
-| `handoff-license-risk-policy.md` | License 风险策略 — 不阻塞管线 |
-| `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60) |
-| `handoff-realesrgan.md` | Real-ESRGAN 超分辨率集成 |
-| `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65) |
-| `handoff-source-layer-comparison.md` | Source layer comparison — CDP vs MCP vs API |
-| `handoff-sve-media-extraction.md` | SVE Media Extraction — 图片/视频同时提取 + Logo 排除 + Metadata (Issue #63) |
-| `handoff-unified-source-registry.md` | Unified source registry implementation (Issue #52) |
-| `handoff-verify-retry-loop.md` | Pipeline verify-retry loop — auto-fix on subtitle/audio sync FAIL |
-| `handoff-visual-focus-detection.md` | Visual focus detection — R1-R5 remediated, P4 complete |
-| `handoff-vlm-semantic-merge.md` | VLM semantic merge — P3 implementation |
-| `handoff-write-for-agents-enforcement.md` | writing-for-agents 规则执行问题 |
+| `handoff-add-free-api-sources.md` | Adding free API sources (Guardian, NYT, Semantic Scholar, etc.) to source-registry (Issue #64 OPEN) |
+| `handoff-asset-source-unification.md` | 素材源统一命名 + 重复获取问题（未实施） |
+| `handoff-extractscript-autofix.md` | articleScript 自动修复 + warn + health 追踪 (Issue #66 OPEN) |
+| `handoff-fix-scene-flicker.md` | Fix scene flicker — double fade at scene boundaries（未实施） |
+| `handoff-license-risk-policy.md` | License 风险策略 — 不阻塞管线（未实施） |
+| `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60/#61 OPEN) |
+| `handoff-realesrgan.md` | Real-ESRGAN 超分辨率集成（未实施） |
+| `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN) |
+| `handoff-vlm-cascade-router-2026-08-27.md` | VLM Cascade Router 调研完成 (Issue #127 OPEN) |
+| `handoff-write-for-agents-enforcement.md` | writing-for-agents 规则执行问题（未实施） |
 
 ### `reviews/` — Active review records
 
@@ -131,9 +127,6 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 |----------|---------|
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
-| `writing-for-agents-enforcement-proposal-review-2026-08-25.md` | `writing-for-agents` 规则执行率改善方案审核；待吸收结论后归档 |
-| `handoff-vertical-cropping-pipeline-review-2026-08-26.md` | Vertical cropping handoff 审阅；待修订后再进入实施 |
-| `handoff-fix-scene-flicker-review-2026-08-26.md` | Scene flicker handoff 审查；待按修订建议实施并验证 |
 
 ### `archive/` — Completed work
 
