@@ -2,9 +2,9 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-28 - #111 CLOSED (RAG pipeline integration, Stage 0 末尾 + Stage 3 Step 2 新增查询步骤, Stage 2e 重新定位, commit dea33a5). #129 created — lint-doc-hierarchy gate false positive (Tier 3, non-blocking). #63 CLOSED, #115 CLOSED, #116 CLOSED, #114 CLOSED, #128 created. Previous: #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed).
+Last inventory: 2026-08-28 — 全量核对完成。35 open issues（GitHub 实际）与 tracker 完全一致（35 open + 44 closed = 79 tracked）。审阅报告 19/19 项 Comment 全部已修复（8 P1 + 11 P2）。#76/#77 P0 title vs Tier 3 不一致已通过 GitHub comment 解决。#65 GitHub issue body 已同步 pool fallback 定义。Previous: #111 CLOSED, #129 created, #63/#115/#116/#114 CLOSED, #128 created, #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed.
 
-**Tracker review**: `docs/research/issue-tracker-review.md` — 2026-08-26 全量逐项审阅（38 open issues），19 项通过 / 19 项 Comment（8 P1 + 11 P2）。本轮已修复全部 P1 和大部分 P2。
+**Tracker review**: `docs/archive/reviews/issue-tracker-review-2026-08-26.md` — 2026-08-26 全量逐项审阅（38 open issues），19 项通过 / 19 项 Comment（8 P1 + 11 P2）。**2026-08-28：19/19 项全部已修复，报告已归档。**
 
 ---
 
@@ -311,4 +311,4 @@ collectFromSource() 层次：
 |-------|-----------|---------|
 | VLM model selection benchmark | `docs/research/vlm-model-selection-benchmark.md` (L2) | Qwen3-VL 2B/4B/8B comparison + GLM-4.1V-9B A/B test + cascade router design — §9-10 cover GLM cascade |
 | VLM cascade router | `docs/handoffs/handoff-vlm-cascade-router-2026-08-27.md` | Qwen3-VL-2B fast path + GLM-4.1V-9B deep analysis fallback — Issue #127 |
-| Issue tracker review | `docs/research/issue-tracker-review.md` (L2) | 2026-08-26 全量逐项审阅 — 38 open issues, 19 pass / 19 comment (8 P1 + 11 P2) |
+| Issue tracker review | `docs/archive/reviews/issue-tracker-review-2026-08-26.md` | 2026-08-26 全量逐项审阅 — 38 open issues, 19 pass / 19 comment (8 P1 + 11 P2)。2026-08-28 全部修复后归档 |

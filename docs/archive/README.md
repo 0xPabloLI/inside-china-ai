@@ -180,10 +180,10 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/handoff-video-download-pipeline-integration-review-2026-08-27.md` | 2026-08-27 | #75, #115, #77 | Video Download Pipeline Integration review 整合——Manus AI 对旧版 handoff 的 5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes，对照已实现代码逐条分析。3 个完全解决、1 个部分解决（registry schema 等 #77）、1 个不适用（CDP adapter 不在 scope）。12 个验收矩阵中 7 个完全覆盖。遗留要求分配到 #77（schema 拆分）、#115（集成测试）、#75 第二批（专用 adapter）。 |
 | `reviews/handoff-video-download-breakthrough-review-2026-08-26.md` | 2026-08-27 | #75 | Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`）的原始 review——5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes。结论已被整合 review（上方条目）吸收。 |
 | `reviews/sve-single-visit-extraction-review-2026-08-27.md` | 2026-08-27 | #114 | SVE Single-Visit Extraction 代码审查——Standards + Spec 双轴通过。2 judgement calls (acceptable duplication), 1 minor naming, 0 hard violations。All 19 scenario matrix rows covered。28 new tests，302 total passing。 |
+| `reviews/issue-tracker-review-2026-08-26.md` | 2026-08-28 | — | Issue tracker 全量逐项审阅——38 open issues，19 pass / 19 comment (8 P1 + 11 P2)。2026-08-28 全部 19 项修复后归档。含修复状态追踪表。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
 > - `docs/reviews/video-document-layer-review-2026-08-21.md` — #103 docs offload（W0 待做）
 > - `docs/research/video-background-coverage-audit-2026-08-21.md` — #94 visual intent（W4 待做）
-> - `docs/research/issue-tracker-review.md` — tracker 结构审阅（持续活跃）
 > - `docs/tiktok/tiktok-analytics-review.md` — 周期性复盘模板（不是代码 review）
