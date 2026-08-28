@@ -164,7 +164,6 @@ Deep research reports with citations.
 | `vlm-model-selection-benchmark.md` | VLM model selection benchmark — Qwen3-VL 2B/4B/8B comparison with local test data |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
-| `chatgpt-reverse-proxy-options.md` | 免费 LLM API 方案对比 — 程序化调用 LLM 的免费/低成本路径（reverse proxy、官方免费层等） |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
 | `china-ai-hashtag-mapping.md` | China AI entity → TikTok hashtag mapping (60+ entities, 7 tiers: Big Tech, startups, AI chips, robotics, autonomous driving, international competitors, product brands) | `caption-utils.mjs` ENTITY_HASHTAG_MAP, `tiktok-best-practices.md` Hashtag 策略 |
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
@@ -174,6 +173,7 @@ Deep research reports with citations.
 | `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options |
 | `echomimicv3-optimization-options.md` | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning |
 | `friendly-search-engines-comparison.md` | Friendly search engines comparison — CDP vs API, anti-bot resistance, result quality |
+| `free-llm-api-options.md` | 免费 LLM API 方案对比 — 合规的程序化 LLM 调用路径（官方 API / Puter.js User-Pays / 免费替代平台）+ 实测吞吐量数据 |
 | `digital-human-test-progress.md` | Digital human model test progress tracking — pointers to cloud-gpu-options for detailed analysis |
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
