@@ -243,7 +243,7 @@ collectFromSource() 层次：
 
 ## Closed Issues (2026-08-21~27)
 
-40 issues closed across multiple triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload + crop decision spec + subtitle AIL gate + URL dedup + downloadCandidate extraction). Full details on GitHub.
+42 issues closed across multiple triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload + crop decision spec + subtitle AIL gate + URL dedup + downloadCandidate extraction + RAG index extension + LLM filter superseded). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
@@ -289,6 +289,8 @@ collectFromSource() 层次：
 | #116 | Pipeline auto-start CDP proxy | ✅ Commit 4d9e684 — `ensureCdpProxy()` + `findCdpProxyScript()` in cdp-client.mjs. Multi-path search for cdp-proxy.mjs, detached spawn, health check retry. Replaced `process.exit(1)` with graceful degradation in search-sources.mjs. 29 tests (7 new). Lint+tsc+build pass |
 | #63 | URL dedup (standalone) | ✅ Commit 80f5a13 — `dedupByUrl()` in trends-utils.mjs reuses `canonicalizeUrl()` from url-normalizer.mjs. 12 tests covering 13 scenario matrix rows. 57/57 tests passing |
 | #115 | downloadCandidate helper extraction | ✅ Commit cc699e6 — Created `lib/download-candidate.mjs` helper wrapping VDL `downloadVideo()` with file I/O + status mapping. Extended VDL to support images. Replaced 5 duplicated download blocks in asset-sourcer.mjs. 67 new tests + 2111 existing tests passing. Spec/tickets archived |
+| #33 | Replace filterChinaAI + classifyTopic regex with local LLM | Superseded by #51 (cascade direction correction). Closed and confirmed out of scope for P3 |
+| #118 | RAG: extend index.mjs to collect docs/research/ markdown | ✅ Commit f6f0e6c + e77dcad — chunkCatalog() + collectAssetCatalog() + catalog.yml + migration. 551 chunks. Incremental indexing (chunk_hash SHA-256). triggerRagReindex() in publish-utils.mjs |
 
 ---
 
