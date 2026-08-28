@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-28 - #63 CLOSED (URL dedup, dedupByUrl() in trends-utils.mjs reuses canonicalizeUrl(), 12 tests, commit 80f5a13). #115 CLOSED (downloadCandidate helper extraction, lib/download-candidate.mjs + VDL extended to images, 5 download blocks replaced, 67 new tests, commit cc699e6). #112 hard blocker (#115) now satisfied. Previous: #116 CLOSED (CDP proxy auto-start), #114 CLOSED (SVE runtime verified), #128 created, #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed).
+Last inventory: 2026-08-28 - #129 created — lint-doc-hierarchy writing-for-agents gate false positive on file rename/archive (Tier 3, non-blocking). #63 CLOSED, #115 CLOSED, #116 CLOSED, #114 CLOSED, #128 created. Previous: #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed).
 
 **Tracker review**: `docs/research/issue-tracker-review.md` — 2026-08-26 全量逐项审阅（38 open issues），19 项通过 / 19 项 Comment（8 P1 + 11 P2）。本轮已修复全部 P1 和大部分 P2。
 
@@ -164,6 +164,7 @@ collectFromSource() 层次：
 | #100 | Content-addressed cache + scheduler | P3 done (可与 #98/#99 并行) | — | 视频管线 P7 |
 | #101 | Temporal Focus for video backgrounds | #69 done (推荐接 #100) | — | 视频管线 P8b。**不是 #94 的 child**——是 P5-P8b 线性序列的最后一环（P8b），有独立依赖链 |
 | #128 | SVE follow-up: Logo/Icon SVG filter + 4 deferred design points | — | extract-media.mjs, asset-sourcer.mjs (may), source-registry.mjs (may) | Item 1 (SVG data URI filter) is runtime-confirmed bug from #114 runtime test. Items 2-5 are low-priority enhancements. All non-blocking. Reference: `docs/handoffs/handoff-sve-media-extraction.md` §4 |
+| #129 | lint-doc-hierarchy: writing-for-agents gate false positive on file rename/archive | — | scripts/lint-doc-hierarchy.mjs | Non-blocking WARN. Fix: skip `docs/archive/` path in checkWritingForAgentsGate, or add `R` to `--diff-filter` |
 
 ### Dormant — 触发条件未满足
 
