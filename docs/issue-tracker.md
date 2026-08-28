@@ -37,7 +37,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 
 | Sequence | Why |
 |----------|-----|
-| #83 done -> #88 | #83 done, #88 ready. Both change source-registry.mjs field names |
+| ~~#83~~ ✅ done -> ~~#88~~ ✅ done | #83 done, #88 done. Both changed source-registry.mjs field names |
 | #67 ✅ → #66 | #66 auto-fallback 需要 #67 的 method/fallback 字段——#67 已完成，#66 unblocked |
 | #67 ✅ → #76, #77, #68, #87 | 审计类全部依赖 capabilities schema 完整——#67 已完成，全部 unblocked |
 | #89 P0 → #91 (hard), #92 (soft) | #91 DDG 需 rate limiter；#92 SearXNG 自身不需要，但 backend engines 可能需要 |
@@ -89,7 +89,7 @@ collectFromSource() 层次：
 |---|---|---|---|---|
 | **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | ~~**#103**~~ ✅ done · ~~**#111**~~ ✅ done (RAG integration) · ~~**#88**~~ ✅ done (Part 1 field rename + Part 2 universal auto-gen) | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | ~~#103~~ ✅ done；~~#111~~ ✅ done；~~#88~~ ✅ done — W0 全部完成 |
 | **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | ~~**#63**~~ ✅ closed (URL dedup, commit 80f5a13) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · ~~**#114**~~ ✅ closed (SVE + runtime verified) · ~~**#115**~~ ✅ closed (downloadCandidate, commit cc699e6) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · **#127** (T2) VLM Cascade Router (独立于搜索链, 改 vlm_analyzer.py, 与 #113 须串行) · ~~#110~~ ✅ closed · ~~#121~~ ✅ closed · ~~#116~~ ✅ closed | ~~#63~~ ✅ → ~~#114~~ ✅ → ~~#115~~ ✅ 全部 closed（串行链完成）；#89 P0 先于 #91；#113/#127 须串行（同改 vlm_analyzer.py） |
-| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#91** (T3→**W2 提升**) DDG (#112 hard dep, 需前移) · **#112** (T2) image search pool · **#75** (T2) 视频源标注+下载方案（从 W4 提升） · ~~#122~~ ✅ closed · ~~#123~~ ✅ closed · ~~#124~~ ✅ closed · ~~#125~~ ✅ closed | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0（**从 W3 前移到 W2**：#112 显式依赖 #91 DDG infra，不能在 #112 之后）；#109 已合并进 #65；#112 依赖 #91/#103 ✅/~~**#115 (hard)**~~ ✅ **hard blocker 已解除**；#75 依赖 #54 done | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行；#75 改 source-registry + asset-sourcer，与 #64/#66/#88 串行 |
+| **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#91** (T3→**W2 提升**) DDG (#112 hard dep, 需前移) · **#112** (T2) image search pool · **#75** (T2) 视频源标注+下载方案（从 W4 提升） · ~~#122~~ ✅ closed · ~~#123~~ ✅ closed · ~~#124~~ ✅ closed · ~~#125~~ ✅ closed | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0（**从 W3 前移到 W2**：#112 显式依赖 #91 DDG infra，不能在 #112 之后）；#109 已合并进 #65；#112 依赖 #91/#103 ✅/~~**#115 (hard)**~~ ✅ **hard blocker 已解除**；#75 依赖 #54 done | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行；#75 改 source-registry + asset-sourcer，与 #64/#66 串行（~~#88~~ ✅ done，不再约束） |
 | **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#92** (T3) SearXNG · ~~#126~~ ✅ closed | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66（~~#63~~ ✅ done）；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行。**#91 已前移到 W2**（#112 hard dep） |
 | **W4 — 延后视频链 + 独立增强** | 视频渲染 P5-P8b 线性序列 + 独立研究/增强任务 | **#98** (T3) P5 ASR · **#99** (T3) P6 timeline · **#100** (T3) P7 cache · **#101** (T3) P8b focus · **#85** (T3) Bloomberg · **#94** (T3) visual intent · **#108** (T3) free inference · **#117** (T3) currency conversion | #99 依赖 #98；#101 依赖 #69 推荐接 #100 | 视频链按 P5–P8b 显式 Sequence 推进；独立增强受各自 Matrix 约束。**#101 不是 #94 的 child**——是 P5-P8b 线性序列中的 P8b（见 Tier 3） |
 | **Dormant / Human gate** | 不进入 wave，直到 trigger 或人工决策满足 | #21/#29（measurable）· #107（milestone）· #32/#35（user input）· #60/#61（triage） | 见各 issue trigger | 不占用实现排期 |
@@ -151,7 +151,7 @@ collectFromSource() 层次：
 |---|-------|-------------|---------------|-------|
 | #68 | Signal Density audit | — | — | ADR-0016 Rule 2 全管线排查。验证/文档工作，不产生新功能。#67 ✅ unblocked |
 | #76 | SSOT violations audit | — | — | 隐式 schema 彻查 + types.mjs 创建。验证/文档工作。#67 ✅ unblocked |
-| #77 | Source type labeling audit | — | source-registry.mjs | 59 源类型标注 + fallback 链完整性。新增：video capability 调研清单（与 #75 配合——#77 调研应不应该标，#75 实现标注+集成下载器）。**#77 应在 #88 后做**（#88 改字段名，先做避免其他 issue 跟着变）。#67 ✅ unblocked |
+| #77 | Source type labeling audit | — | source-registry.mjs | 59 源类型标注 + fallback 链完整性。新增：video capability 调研清单（与 #75 配合——#77 调研应不应该标，#75 实现标注+集成下载器）。**#88 ✅ done** — #77 不再被 #88 阻塞。#67 ✅ unblocked |
 | #87 | 88 manual maintenance items audit | #66, ~~#63~~ ✅ | — | 盘点 + fallback 覆盖率。验证/文档工作。#67 ✅ unblocked, ~~#63 ✅ done~~ |
 | #94 | Scene-level visual intent + evidence-media audit | — | scene-rules.mjs, scene-templates.mjs | 视觉意图契约 + MRL-2 报告。设计层面 |
 | #91 | DuckDuckGo source | #89 P0 (hard) | source-registry.mjs | html.duckduckgo.com，无 JS。搜索来源已够用 |
@@ -206,7 +206,7 @@ collectFromSource() 层次：
 
 | Domain | Issues | Waves spanned |
 |--------|--------|---------------|
-| **Source / Search** | #88, #89, #64, #66, #90, #65, #97, #112, #68, #76, #77, #87, #91, #92, ~~#63~~ ✅, ~~#114~~ ✅, ~~#115~~ ✅, ~~#116~~ ✅, #128 | W0–W3 |
+| **Source / Search** | ~~#88~~ ✅, #89, #64, #66, #90, #65, #97, #112, #68, #76, #77, #87, #91, #92, ~~#63~~ ✅, ~~#114~~ ✅, ~~#115~~ ✅, ~~#116~~ ✅, #128 | W0–W3 |
 | **Content Pipeline** | #103, ~~#111~~ ✅, #94, #60, #61 | W0, W2, W4, Dormant |
 | **Video Pipeline** | #98, #99, #100, #101, #113, #35, #32, #75, #127, #29 | W1, W2, W4, Dormant |
 | **Docs / Research** | #103, #108, #29, #21, #97, #61 | W0, W4, Dormant |
@@ -223,9 +223,9 @@ collectFromSource() 层次：
 
 | File | Issues touching it | Risk |
 |------|--------------------|------|
-| `source-registry.mjs` | #88, #64, #77, #90, #91, #92, #66, #75, #97 (may), #85 (may) | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（#110 ✅ done；#66 加 skipCdpOnApiFail 标记；#75 视频源 capability 标注；#97 sourceRole if scope expands；#85 if republisher added） |
-| `asset-sourcer.mjs` | #88, ~~#114~~ ✅, #75, #66, ~~#115~~ ✅, #128 (may) | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()；#75 视频源下载+capability 标注；#114 ✅ SVE done；#115 ✅ downloadCandidate 提取 done；#128 SVG filter may touch isLogoOrIcon） |
-| `search-sources.mjs` | #66, ~~#63~~ ✅, #88, #65, #90, #64, ~~#114~~ ✅, ~~#116~~ ✅, #97 (may) | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles；#63 ✅ URL dedup done；#64 baidu_news/分类调整；#90 Bigsong API 迁移；#114 ✅ SVE done；#116 ✅ CDP proxy auto-start done；#97 evidence 分组+sourceRole if scope expands） |
+| `source-registry.mjs` | ~~#88~~ ✅, #64, #77, #90, #91, #92, #66, #75, #97 (may), #85 (may) | 🔴 最高——所有加源/改字段的 issue 都碰这个文件（~~#88~~ ✅ done；#110 ✅ done；#66 加 skipCdpOnApiFail 标记；#75 视频源 capability 标注；#97 sourceRole if scope expands；#85 if republisher added） |
+| `asset-sourcer.mjs` | ~~#88~~ ✅, ~~#114~~ ✅, #75, #66, ~~#115~~ ✅, #128 (may) | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()；#75 视频源下载+capability 标注；#114 ✅ SVE done；#115 ✅ downloadCandidate 提取 done；#128 SVG filter may touch isLogoOrIcon） |
+| `search-sources.mjs` | #66, ~~#63~~ ✅, ~~#88~~ ✅, #65, #90, #64, ~~#114~~ ✅, ~~#116~~ ✅, #97 (may) | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles；#63 ✅ URL dedup done；#88 ✅ zero-impact on search-sources.mjs；#64 baidu_news/分类调整；#90 Bigsong API 迁移；#114 ✅ SVE done；#116 ✅ CDP proxy auto-start done；#97 evidence 分组+sourceRole if scope expands） |
 | `cdp-client.mjs` | #66, #89 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff。（~~#116~~ ✅ done — ensureCdpProxy() added） |
 | `docs/content-pipeline.md` | #94, #97, #103, ~~#111~~ ✅ | 🟡 中——#103 瘦身后其他 issue 指针需更新；~~#111 RAG 查询步骤已集成~~ |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
