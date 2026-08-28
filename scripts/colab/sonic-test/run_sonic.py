@@ -31,7 +31,7 @@ run("pip install timm einops transformers accelerate", check=False)
 
 # 3. Download checkpoints from HuggingFace
 run("pip install huggingface-hub", check=False)
-run("huggingface-cli download xcf/Sonic --local-dir /content/Sonic/checkpoints", check=False)
+run("hf download xcf/Sonic --local-dir /content/Sonic/checkpoints", check=False)
 
 # 4. Prepare input data
 IMAGE = "/content/image.jpg"

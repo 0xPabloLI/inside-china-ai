@@ -75,6 +75,57 @@
 | **自动化** | 有官方 API/CLI（`pip install kaggle`），可编程创建/推送 Notebook |
 | **当前状态** | ✅ 已配置（CLI v2.2.4 + kaggle.json），全链路验证通过 |
 
+### 2.3b HuggingFace LFS 文件下载策略（Kaggle 专属）
+
+> **核心结论**：Kaggle 环境下，**LFS 大文件必须用 `curl -L` 下载，小文件用 `hf_hub_download`（设 `HF_HUB_DISABLE_XET=1`）**。这是唯一可靠方案（2026-08-26 验证，EchoMimicV3 + InfiniteTalk 双案例）。
+
+**问题根因**：`huggingface_hub` 1.x 默认使用 Xet 协议（HTTP/2 并行分块下载）传输 LFS 文件。该协议在 Kaggle 网络中挂起，返回 0B 文件不报错。`hf download` CLI、`hf_hub_download()`、`snapshot_download()`、`requests.get()` 全部受影响。`curl -L` 走 HTTP/1.1 + keepalive 不受影响。
+
+**LFS 大文件下载（.safetensors, .pth, .bin）**：
+```python
+url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+subprocess.run(["curl", "-L", "--max-time", "3600", "-o", dest_path, url], check=True)
+if os.path.getsize(dest_path) == 0:
+    raise RuntimeError(f"0B file: {dest_path}")
+```
+
+**小文件 / Tokenizer 下载**：
+```python
+os.environ["HF_HUB_DISABLE_XET"] = "1"        # 必须在 import 前设
+os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)  # 不要设为 0，要 pop 掉
+from huggingface_hub import hf_hub_download
+cached = hf_hub_download(repo_id=repo_id, filename=filename, cache_dir="/kaggle/working/hf_cache")
+shutil.copy2(os.path.realpath(cached), dest_path)  # 不要用 move，跨文件系统会失败
+```
+
+**Kaggle CLI `--dir-mode` 陷阱**：`kaggle datasets version/create` 默认 `--dir-mode=skip`，会**静默跳过所有子目录**。必须加 `--dir-mode zip`。另外 CLI 在某些错误下 `returncode == 0` 但实际失败（如 "Please upload at least one file"），必须检查 stdout 内容。
+
+**Colab 上的 WebSocket 超时**：Colab 没有下载问题，但 `subprocess.run(capture_output=True)` 会吞掉所有 stdout → WebSocket 无数据 → idle timeout → 连接断开。必须用 `Popen` 实时输出 + `sys.stdout.flush()`。
+
+**ModelScope 备选源**：部分模型在 ModelScope 有镜像，Kaggle 可直连：
+```bash
+curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/master/pytorch_model.bin"
+```
+
+**快速检查清单**：
+- LFS 文件用 `curl -L`？小文件用 `hf_hub_download`？
+- `HF_HUB_DISABLE_XET=1` 在 import 前设置？`HF_HUB_ENABLE_HF_TRANSFER` 已 pop？
+- 下载后验证文件大小 > 0？
+- Kaggle: `kaggle datasets version/create` 加了 `--dir-mode zip`？检查 stdout 而非仅看 returncode？
+- Colab: subprocess 用 `Popen` + `sys.stdout.flush()`？通过 Clash Verge（端口 7897）代理？
+
+**失败版本历史**（InfiniteTalk Dataset Creator）：
+
+| 版本 | 方法 | 结果 | 根因 |
+|------|------|------|------|
+| v2-v3 | `hf download` CLI | 0B | Xet 协议在 Kaggle 上挂起 |
+| v4-v5 | `hf_hub_download()` | 0B / ERROR | HF cache blob 0B (Xet) + symlink 跨文件系统 |
+| v6 | `requests.get()` | 0B | CDN 返回空 body |
+| v7 | `curl -L` (LFS) + `hf_hub_download` (small) | ✅ 下载成功 | curl 走 HTTP/1.1 不受 Xet 影响 |
+| v8 | v7 + `--dir-mode zip` | ✅ 上传成功 | 修复 CLI 默认跳过子目录 |
+
+> 参考实现：`scripts/kaggle/infinitetalk-dataset/create_dataset_kernel.py`（v8）
+
 ### 2.4 轮流使用策略
 
 | 时间 | 平台 | GPU | 能跑模型 |

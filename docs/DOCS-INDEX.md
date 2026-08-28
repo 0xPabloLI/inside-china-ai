@@ -164,6 +164,7 @@ Deep research reports with citations.
 | `vlm-model-selection-benchmark.md` | VLM model selection benchmark — Qwen3-VL 2B/4B/8B comparison with local test data |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
+| `chatgpt-reverse-proxy-options.md` | 免费 LLM API 方案对比 — 程序化调用 LLM 的免费/低成本路径（reverse proxy、官方免费层等） |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
 | `china-ai-hashtag-mapping.md` | China AI entity → TikTok hashtag mapping (60+ entities, 7 tiers: Big Tech, startups, AI chips, robotics, autonomous driving, international competitors, product brands) | `caption-utils.mjs` ENTITY_HASHTAG_MAP, `tiktok-best-practices.md` Hashtag 策略 |
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |

@@ -16,8 +16,8 @@ run("ls -la /content/LatentSync/checkpoints/whisper/ 2>/dev/null || echo 'No whi
 # Download checkpoints manually from HuggingFace
 print("=== Downloading checkpoints manually ===", flush=True)
 run("mkdir -p /content/LatentSync/checkpoints/whisper")
-run("cd /content/LatentSync && huggingface-cli download bytedance/LatentSync latentsync_unet.pt --local-dir checkpoints/")
-run("cd /content/LatentSync && huggingface-cli download bytedance/LatentSync whisper/tiny.pt --local-dir checkpoints/")
+run("cd /content/LatentSync && hf download bytedance/LatentSync latentsync_unet.pt --local-dir checkpoints/")
+run("cd /content/LatentSync && hf download bytedance/LatentSync whisper/tiny.pt --local-dir checkpoints/")
 run("ls -la /content/LatentSync/checkpoints/")
 run("ls -la /content/LatentSync/checkpoints/whisper/")
 

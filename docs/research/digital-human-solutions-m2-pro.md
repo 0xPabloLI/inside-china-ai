@@ -1,6 +1,6 @@
 # 数字人方案调研报告：适配 Apple M2 Pro（32GB）
 
-> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk/SadTalker/HeyGen/D-ID/LatentSync 1.5/1.6/Sonic/Hallo2 MPS 实测结果）
+> **调研日期**：2026-08-09（初次），2026-08-10（更新：MuseTalk/SadTalker/HeyGen/D-ID/LatentSync 1.5/1.6/Sonic/Hallo2 MPS 实测结果），2026-08-25（更新：补充 LeapTalk/SoulX-FlashHead/FantasyTalking2/SkyReels-V3/Soul/Wan2.2-S2V/SoulX-LiveAct/MiniMax H3 八个 2026 年新模型）
 > **目标设备**：MacBook Pro (Mac14,10), Apple M2 Pro, 32 GB, macOS 26.5.1, Metal 4
 > **核心需求**：(1) 语音/文本 → 自然说话的数字人视频；(2) 用个人照片匹配最相似的数字人形象
 > **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README、HuggingFace API、官方平台首页
@@ -407,6 +407,14 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 | **JoyHallo** | jdh-algo | 扩散 | — | — | CUDA | — | Hallo 的中文扩展版 |
 | **HeyGem** | 硅基智能 (GuijiAI) | ONNX 唇同步 | — | 486+ | CUDA (Linux) | Other | 中国开源数字人，`Holasyb918/HeyGem-Linux-Python-Hack`，需 onnxruntime-gpu |
 | **Linly-Talker** | Kedreamix | LLM+SadTalker | — | 3424 | CUDA | — | 对话式数字人系统，整合 LLM+Whisper+SadTalker |
+| **LeapTalk** | zhangrongxiang | DiT 1步推理 | arXiv 2026.07 | 62 | CUDA | ❓ | 1 步 200 FPS，基座 SoulX-FlashHead-1.3B，GH: `zhangrongxiang/LeapTalk` |
+| **SoulX-FlashHead** | Soul-AILab | DiT 实时流式 | 2026.02 | — | CUDA | ❓ | 1.3B 无限长度实时，GH: `Soul-AILab/SoulX-FlashHead` |
+| **FantasyTalking2** | Fantasy-AMAP (阿里) | DiT+偏好优化 | **AAAI 2026** | — | CUDA | ❓ | Wan2.1-14B，TLPO，GH: `Fantasy-AMAP/fantasy-talking2` |
+| **SkyReels-V3** | Skywork (昆仑万维) | Wan2.1 19B | 2026.01 | — | CUDA | ❓ | 统一多模态，talking avatar 19B，GH: `SkyworkAI/SkyReels-V3` |
+| **Soul** | 多机构 | 多模态 DiT | **CVPR 2026** | — | CUDA | ❓ | 图+文+音频→1080P 分钟级，arXiv 2512.13495 |
+| **Wan2.2-S2V** | Wan-Video (阿里) | Wan2.2 14B | 2025.08 | — | CUDA | ✅ Apache 2.0 | 官方 audio-driven cinematic video，GH: `Wan-Video/Wan2.2` |
+| **SoulX-LiveAct** | Soul-AILab | DiT+Flow Matching | 2026.03 | 1100 | CUDA 4090+ | ❓ | 小时级实时，GH: `Soul-AILab/SoulX-LiveAct` |
+| **MiniMax H3** | MiniMax | 全模态 DiT 33B | 2026.07 | — | API only | ⚠️ Community License | Ref2VA 支持 talking head，HF: `MiniMaxAI/MiniMax-H3` |
 
 ### 3.18 全球模型综合排名与技术标注
 
@@ -425,6 +433,10 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 | 7 | **LatentSync 1.5** | 扩散+SyncNet | — | 2024.12 | ✅（MPS ⚠️） | ✅ | ✅ OpenRAIL++ | **8GB** | ⭐⭐⭐⭐ | — |
 | 8 | **Hallo2** | 分层扩散 | — | 2024.10 | ✅ | ✅ | ✅ MIT | 20GB+ | ⭐⭐⭐⭐ | 8658 |
 | 9 | **Hallo4** | 扩散 | — | 2025.05 | ✅ | ✅ | ✅ MIT | 未标注 | ⭐⭐⭐⭐ | — |
+| 10 | **LeapTalk** | DiT 1步推理 | arXiv 2026.07 | 2026.07 | ✅ | ✅ | ❓ | ~12GB（估） | ⭐⭐⭐⭐⭐ | 62 |
+| 11 | **Soul** | 多模态 DiT | **CVPR 2026** | 2025.12 | ✅ | ✅+文本 | ❓ | 未标注 | ⭐⭐⭐⭐⭐ | — |
+| 12 | **FantasyTalking2** | DiT+偏好优化 | **AAAI 2026** | 2025.11 | ✅ | ✅ | ❓ | ~24GB | ⭐⭐⭐⭐⭐ | — |
+| 13 | **MiniMax H3** | 全模态 DiT 33B | — | 2026.07 | API only | ✅ | ⚠️ Community License | 134GB | ⭐⭐⭐⭐⭐ | — |
 
 #### T1 — 扩散方案（未达顶会但技术先进）
 
@@ -437,6 +449,10 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 | 14 | **DreamTalk** | 扩散 | — | 2024 | ✅ | ✅ | ❓ | 未标注 | ⭐⭐⭐ | 1789 |
 | 15 | **Hallo** (v1) | 分层扩散 | — | 2024.06 | ✅ A100 | ✅英文 | ❓ | A100 | ⭐⭐⭐ | 8658 |
 | 16 | **Hallo-Live** | 扩散实时 | — | — | ✅ | ✅ | ✅ MIT | 未标注 | ⭐⭐⭐ | — |
+| 17 | **SoulX-FlashHead** | DiT 实时流式 | — | 2026.02 | ✅ | ✅ | ❓ | ~12GB（估） | ⭐⭐⭐⭐ | — |
+| 18 | **SkyReels-V3 A2V** | Wan2.1 19B | — | 2026.01 | ✅ | ✅ | ❓ | ~40GB+ | ⭐⭐⭐⭐ | — |
+| 19 | **Wan2.2-S2V** | Wan2.2 14B | — | 2025.08 | ✅ | ✅ | ✅ Apache | ~24GB+ | ⭐⭐⭐⭐ | — |
+| 20 | **SoulX-LiveAct** | DiT+Flow Matching | — | 2026.03 | ✅ 4090+ | ✅ | ❓ | RTX 4090+ | ⭐⭐⭐ | 1100 |
 
 #### T2 — 3DMM / GAN 方案（2020-2023，技术较旧但可参考）
 
@@ -463,8 +479,8 @@ PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -u -m scripts.inference \
 
 | 技术路线 | 先进性 | 代表模型 | 数量 | 趋势 |
 |---------|--------|---------|------|------|
-| **扩散模型 (Diffusion)** | ✅ 最先进 | LatentSync, Sonic, Hallo2/3/4, EMO, DICE-Talk, V-Express, JoyVASA, EchoMimic | 15+ | 2024-2026 所有顶会论文 |
-| **DiT (Diffusion Transformer)** | ✅ 最前沿 | Hallo3, PersonaLive | 2 | 2025+ 新趋势，比 UNet 更强 |
+| **扩散模型 (Diffusion)** | ✅ 最先进 | LatentSync, Sonic, Hallo2/3/4, EMO, DICE-Talk, V-Express, JoyVASA, EchoMimic, Soul, FantasyTalking2 | 18+ | 2024-2026 所有顶会论文 |
+| **DiT (Diffusion Transformer)** | ✅ 最前沿 | Hallo3, PersonaLive, LeapTalk, SoulX-FlashHead, MiniMax H3 | 7 | 2025+ 新趋势，比 UNet 更强 |
 | **3DMM** | ⚠️ 中等 | SadTalker, GeneFace++, Real3D-Portrait | 3 | 2022-2023，被扩散替代 |
 | **GAN** | ❌ 过时 | Wav2Lip | 1 | 2020，已淘汰 |
 | **VAE 单步替换** | ❌ 错误路线 | MuseTalk | 1 | 已证明效果差 |

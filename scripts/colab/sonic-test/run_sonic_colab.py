@@ -40,7 +40,7 @@ run("pip install -q timm einops transformers accelerate", check=False)
 # 4. Download checkpoints from HuggingFace
 run("pip install -q huggingface-hub", check=False)
 print("\n--- Downloading Sonic checkpoints ---", flush=True)
-run("huggingface-cli download xcf/Sonic --local-dir /content/Sonic/checkpoints", check=False)
+run("hf download xcf/Sonic --local-dir /content/Sonic/checkpoints", check=False)
 run("ls -la /content/Sonic/checkpoints/", check=False)
 
 # 5. Check demo files

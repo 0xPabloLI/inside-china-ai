@@ -106,61 +106,23 @@ colab --auth=adc delete --session echomimic-nf4
 - **Pro+ $50/月**：A100 40GB，52GB CPU RAM
 - Pro ($10/月) 和 Gemini Advanced ($20/月) 是不同产品，Gemini 不含 Colab Pro+
 
-## 代理问题（FlClash TUN + Python requests）— 未解决
+## 代理配置
 
-### 根因（三层）
+Colab CLI 需要通过 HTTP 代理访问 Google 服务。在 macOS TUN 模式下：
 
-1. **Python `requests` 读 macOS 系统代理**：FlClash 设了系统代理 `127.0.0.1:7890`（`scutil --proxy` 可见）。Python `urllib.request.getproxies()` 在 macOS 上直接读系统配置，即使 `HTTPS_PROXY=""` 也无效。设 `NO_PROXY="*"` 可绕过。
+- **正确用法**：`HTTPS_PROXY=http://127.0.0.1:<port> colab --auth=adc run --gpu T4 script.py`
+- **端口获取**：`scutil --proxy` 查看当前系统代理端口（两个 Clash 客户端轮用，端口不同）
+- **不要用 `NO_PROXY` 绕过代理** — TUN 模式下 WebSocket 长连接需要走代理才稳定
+- **长任务必须设 `--timeout`**：默认 30 秒，长时间推理设 `--timeout 36000`（10 小时）
+- **已知问题**：某些代理客户端会断开带 `Authorization` header 的 POST 请求。如果遇到 `ProxyError: RemoteDisconnected`，切换到另一个 Clash 客户端即可
 
-2. **FlClash TUN fake-ip 路由间歇性失败**：`colab.research.google.com` 走 fake-ip（198.18.0.x），TUN 拦截 TCP 连接后转发到代理。GET 通常通，POST 间歇性 `RemoteDisconnected` / `ConnectTimeout`。多次请求后彻底失效。
+### `colab exec` vs `colab run`
 
-   **修复**：在 FlClash profile 的 `dns:` 下添加 `fake-ip-filter`（让 colab/googleapis 走真实 IP）+ `nameserver-policy`（用海外 DNS 解析）。Profile 路径：`~/Library/Application Support/com.follow.clash/profiles/<id>.yaml`。改 `config.yaml`（运行时合成配置）会被订阅更新覆盖，改 profile 才持久。改后需重启 FlClash。
+- `colab run`：ephemeral session，执行完自动 teardown。适合短脚本
+- `colab exec --session NAME --file script.py --timeout 36000`：在持久 session 中执行。适合长任务
+- `colab exec` 的 WebSocket 连接在 `pip install -q`（静默模式）时可能因长时间无输出而超时。脚本中避免用 `-q`，或用 `colab run` 替代
 
-3. **FlClash 代理端口处理 AuthorizedSession POST 请求时断连**（未解决）：即使 colab 走真实 IP + 显式代理 `HTTPS_PROXY="http://127.0.0.1:7890"`，Colab CLI 的 `AuthorizedSession`（携带 `Authorization: Bearer ya29...` 长 token header）的 POST 请求仍被代理断开（`ProxyError: Unable to connect to proxy, RemoteDisconnected`）。普通 `requests.post` 不带 auth header 时能成功。`Connection: close` header 没解决（不是 keep-alive 问题）。**这是 FlClash 代理本身的 bug**，不是配置问题。
-
-### 已尝试的方案
-
-| 方案 | 结果 | 原因 |
-|------|------|------|
-| `HTTPS_PROXY=""` | ❌ ProxyError | Python 读系统代理，env var 无效 |
-| `NO_PROXY="*"` | ✅ 绕过代理，但 TUN fake-ip 间歇性失败 | TUN 对 fake-ip 的 TCP 路由不稳定 |
-| FlClash profile `fake-ip-filter` + `nameserver-policy` | ✅ DNS 走真实 IP | 需改 profile（不是 config.yaml），重启 FlClash |
-| `NO_PROXY="colab.research.google.com"` + `HTTPS_PROXY=http://127.0.0.1:7890` | ❌ POST RemoteDisconnected | TUN 对真实 IP 的 keep-alive 连接不稳定 |
-| `Connection: close` header patch | ❌ 仍 RemoteDisconnected | 不是 keep-alive 问题，是代理对 auth header 的处理 bug |
-| 纯代理 `HTTPS_PROXY=http://127.0.0.1:7890`（真实 IP） | ❌ POST ProxyError | FlClash 代理断开带 auth header 的 POST 请求 |
-
-### 可能的后续方向
-
-- 切换 FlClash 代理节点（当前节点可能对大 header 有限制）
-- 关闭 FlClash TUN 模式，只用系统代理（HTTP 代理模式可能没有这个问题）
-- 用其他代理客户端（如 Surge、Clash Verge Rev）
-- 在不使用代理的环境下运行（如直连 VPS）
-
-### FlClash 配置文件层级
-
-- `profiles/<id>.yaml`（订阅源）→ `config.yaml`（运行时合成）。改 `config.yaml` 被覆盖，改 profile 才持久
-- `database.sqlite` 的 `rules` 表存路由规则覆写（UI「覆写」功能），不存 DNS 配置
-- FlClash 无 API 热重载（external-controller 在 config 中被设为空），改配置后需重启 FlClash
-- **pyc 缓存**：改 Python 包源码后需删除 `__pycache__/*.pyc`，否则 Python 加载旧缓存
-
-### 运行命令（当前最佳配置）
-
-```bash
-# 清理 zombie assignments
-HTTPS_PROXY="http://127.0.0.1:7890" HTTP_PROXY="http://127.0.0.1:7890" python3 -c "
-import sys; sys.path.insert(0, '/opt/homebrew/lib/python3.14/site-packages')
-from colab_cli.common import state
-from colab_cli.auth import AuthProvider
-state.auth_provider = AuthProvider.ADC
-for a in state.client.list_assignments():
-    state.client.unassign(a.endpoint)
-"
-
-# 运行脚本（可能需要多次重试）
-HTTPS_PROXY="http://127.0.0.1:7890" HTTP_PROXY="http://127.0.0.1:7890" colab --auth=adc run --gpu T4 script.py
-```
-
-## Zombie Assignment 清理
+### Zombie Assignment 清理
 
 **现象**：`colab run`/`colab new` 报 `TooManyAssignmentsError: Precondition Failed`（HTTP 412），但 `colab sessions` 显示无活跃 session。
 

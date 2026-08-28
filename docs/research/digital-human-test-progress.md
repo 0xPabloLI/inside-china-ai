@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-23（Modal T4 NF4 量化测试完成——NF4 + model_cpu_offload 成功，推理 5.0min vs baseline 5.9min，43% 加速）
+> **最后更新**：2026-08-25（补充 8 个 2026 年新发布模型：LeapTalk、SoulX-FlashHead、FantasyTalking2、SkyReels-V3、Soul、Wan2.2-S2V、SoulX-LiveAct、MiniMax H3）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -694,6 +694,108 @@
 - **适用场景**：有 NVIDIA A100/H100 的云 GPU 场景，而非 M2 Pro 本地
 - **测试重点**：仅在有云 GPU 时测试；验证 talking head LoRA + OmniNFT 叠加效果
 
+### 📋 LeapTalk（最高优先级新模型）
+
+- **优先级**：⭐⭐⭐⭐⭐（1 步推理 + 1.3B + 无限长度，潜在解决 EchoMimicV3 多段拼接瓶颈）
+- **来源**：arXiv 2608.00079（2026-07-29）
+- **GitHub**：`zhangrongxiang/LeapTalk`
+- **HuggingFace**：`z-rx/leaptalk`（LoRA 权重）、`Soul-AILab/SoulX-FlashHead-1_3B`（基座）
+- **技术**：reference-anchored data-to-data transport，不做传统扩散去噪，1 步推理 200 FPS，流式无限长度
+- **基座**：SoulX-FlashHead-1.3B（1.3B 参数，与 EchoMimicV3 Flash 同量级）
+- **许可证**：❓ 待确认（基座 SoulX-FlashHead 许可证需查）
+- **VRAM**：1.3B 基座，预估 ~8-12GB，**T4 可能可跑**
+- **关键特点**：1 步推理（vs EchoMimicV3 8 步）+ 流式生成（vs EchoMimicV3 多段拼接）。如果质量达标，1 分钟视频可能从 4.7 小时压缩到分钟级
+- **风险**：非常新（7 月 29 日 arxiv），社区验证少；质量未经独立验证；LoRA 方式可能依赖基座质量
+- **测试重点**：与 EchoMimicV3 v51 做同素材 A/B 对比；验证 1 步推理的唇同步质量；测试流式生成是否真的无限长度
+
+### 📋 SoulX-FlashHead
+
+- **优先级**：⭐⭐⭐⭐（LeapTalk 基座，1.3B 实时流式 talking head）
+- **来源**：Soul-AILab，2026-02-12 发布
+- **GitHub**：`Soul-AILab/SoulX-FlashHead`
+- **HuggingFace**：`Soul-AILab/SoulX-FlashHead-1_3B`
+- **技术**：1.3B 参数，oracle-guided 无限长度实时流式 talking head
+- **许可证**：❓ 待确认
+- **VRAM**：1.3B，预估 ~8-12GB，**T4 可能可跑**
+- **关键特点**：LeapTalk 的基座模型，本身也是独立产品。支持实时流式 + 无限长度
+- **测试重点**：独立于 LeapTalk 测试基座质量；验证是否需要 oracle guide（如果需要额外输入则复杂度高）
+
+### 📋 FantasyTalking2
+
+- **优先级**：⭐⭐⭐⭐（AAAI 2026，v1 已在列表，v2 升级版）
+- **来源**：阿里 Fantasy-AMAP，AAAI 2026
+- **GitHub**：`Fantasy-AMAP/fantasy-talking2`
+- **技术**：Wan2.1-14B 基座，Timestep-Layer Adaptive Preference Optimization（TLPO），410K preference pairs
+- **许可证**：❓ 待确认
+- **VRAM**：14B，需 ~24GB+，T4 需重度量化
+- **关键特点**：v2 用 TLPO 对齐多维度人类偏好（运动自然度+唇同步+视觉质量），声称超 SOTA
+- **与 v1 区别**：v1（ACM MM 2025）是 coherent motion synthesis；v2（AAAI 2026）加了偏好优化，质量更高
+- **测试重点**：v1 vs v2 质量对比；14B 在 T4 上的量化可行性
+
+### 📋 SkyReels-V3 (A2V-19B)
+
+- **优先级**：⭐⭐⭐（Wan2.1 基座 19B，有 GGUF 量化，但需付费 GPU）
+- **来源**：Skywork（昆仑万维），2026-01-29 开源
+- **GitHub**：`SkyworkAI/SkyReels-V3`
+- **HuggingFace**：`Skywork/SkyReels-V3-A2V-19B`（talking avatar 19B）
+- **技术**：Wan2.1 架构，统一多模态 in-context learning 框架，支持 audio-to-video
+- **许可证**：❓ 待确认（Skywork 模型通常有自定义许可）
+- **VRAM**：19B 需 ~40GB+，T4 不可行；有社区 GGUF 量化版（`vantagewithai/SkyReels-V3-14B-GGUF`）
+- **关键特点**：与 EchoMimicV3 同基座（Wan2.1），但 19B 参数更大，可能有质量优势
+- **测试重点**：GGUF 量化后能否在 T4 上跑；与 EchoMimicV3 1.3B 做质量对比
+
+### 📋 Soul (CVPR 2026)
+
+- **优先级**：⭐⭐⭐（CVPR 2026，声称超 SOTA，但代码/权重开源状态待确认）
+- **来源**：arXiv 2512.13495，CVPR 2026
+- **项目页**：`zhangzjn.github.io/projects/Soul/`
+- **技术**：多模态驱动（单帧图+文本+音频），1080P 分钟级长视频，唇同步+表情+身份保持
+- **许可证**：❓ 待确认
+- **VRAM**：未知
+- **关键特点**：声称显著超过当前开源和商业模型；配套 Soul-1M 数据集 + Soul-Bench 基准
+- **风险**：代码/权重是否开源未确认；VRAM 需求未知
+- **测试重点**：确认代码/权重是否开源；如果开源则测质量
+
+### 📋 Wan2.2-S2V-14B
+
+- **优先级**：⭐⭐⭐（Apache 2.0 ✅，Wan 官方 audio-to-video，但 14B 需量化）
+- **来源**：阿里 Wan 团队，2025-08-26
+- **GitHub**：`Wan-Video/Wan2.2`
+- **技术**：audio-driven cinematic video generation，14B
+- **许可证**：✅ Apache 2.0
+- **VRAM**：14B 需 ~24GB+，T4 需重度量化
+- **关键特点**：EchoMimicV3 基于 Wan2.1，这是 Wan2.2 官方 S2V 模式，同族升级
+- **测试重点**：与 EchoMimicV3（Wan2.1 基座）做质量对比；14B INT8 量化后 T4 可行性
+
+### 📋 SoulX-LiveAct
+
+- **优先级**：⭐⭐（小时级实时，但需 RTX 4090/H100）
+- **来源**：Soul-AILab，arXiv 2603.11746，2026-03-16 开源
+- **GitHub**：`Soul-AILab/SoulX-LiveAct`（1.1k stars）
+- **HuggingFace**：`Soul-AILab/LiveAct`
+- **技术**：DiT + Flow Matching，Neighbor Forcing + ConvKV Memory，小时级实时生成
+- **许可证**：❓ 待确认
+- **VRAM**：支持 RTX 4090/5090（FP8 KV cache + CPU offload），T4 未提及
+- **关键特点**：小时级实时动画是终极目标，但硬件门槛高
+- **测试重点**：T4 是否可行（可能需要重度量化）；如果不可行则标记为付费 GPU 候选
+
+### 📋 MiniMax H3 (API only)
+
+- **优先级**：⭐⭐（质量好但本地不可行，仅 API 路线）
+- **来源**：MiniMax，2026-07-31 发布，2026-08-03 开源权重
+- **HuggingFace**：`MiniMaxAI/MiniMax-H3`
+- **技术**：33B 全模态 DiT（H3-Omni Transformer），Ref2VA checkpoint 支持音频驱动+口型同步
+- **许可证**：⚠️ **MiniMax H3 Community License**（不是 MIT/Apache）：
+  - 商用免费但年收入 <$20M
+  - **地域限制**：排除 US/EU/UK/South Korea
+  - 必须 prominently display "MiniMax H3"
+  - 禁止用输出改进其他 AI 模型
+- **VRAM**：完整 BF16 ~150GB；INT8/offload ~80GB；社区 ComfyUI INT4 最低 ~16GB（大量 offload）。**所有路径在免费 GPU 上不可行**
+- **API 定价**：$0.13/s（2K）或 ~¥0.09/s（768p）
+- **关键特点**：Ref2VA 模式支持参考图+音频→口型同步视频，社区已有 ComfyUI talking avatar 工作流
+- **风险评估**：Community License 不是宽松许可，需按 NC-like 风险评估流程审核。地域限制对中国用户不构成障碍，但许可条款比 MIT/Apache 严格
+- **测试重点**：API 路线质量验证（如果决定接受 Community License 条款）
+
 ---
 
 ## 统一测试素材
@@ -839,6 +941,14 @@
 | 27 | **Hallo (v1)** | 分层扩散 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐ | 2024.06，8658 stars |
 | 28 | **Hallo2 (云 GPU)** | 分层扩散 | 原始版 | MIT | A100（20GB+） | 云 GPU | ⭐⭐⭐⭐ | 2024.10，MIT 许可，已本地测过 256px |
 | 29 | **LatentSync 1.5** | SD UNet + VAE | 原始版 | OpenRAIL++ | T4（8GB） | Kaggle | ⭐⭐⭐⭐ | 8GB 即可跑，T4 单卡足够 |
+| 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ❓ 待确认 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐⭐ | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
+| 31 | **SoulX-FlashHead** | Soul-AILab 自研 (1.3B) | 实时流式 | ❓ 待确认 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐ | 2026-02-12 开源，LeapTalk 基座，无限长度+实时流式 talking head |
+| 32 | **FantasyTalking2** | Wan2.1-14B (DiT) | 原始版 | ❓ 待确认 | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | AAAI 2026，v2 升级版（TLPO 偏好优化），v1 已在列表 |
+| 33 | **SkyReels-V3 A2V** | Wan2.1-19B | 原始版 | ❓ 待确认 | A100（40GB+） | 云 GPU | ⭐⭐⭐ | 2026-01-29 开源，统一多模态框架，talking avatar 19B，有 GGUF 量化 |
+| 34 | **Soul** | 自研 DiT | 原始版 | ❓ 待确认 | A100 | 云 GPU | ⭐⭐⭐ | CVPR 2026，多模态驱动（图+文+音频），1080P 分钟级长视频，声称超 SOTA |
+| 35 | **Wan2.2-S2V-14B** | Wan2.2-14B | 原始版 | ✅ Apache 2.0 | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐ | 2025-08 官方 audio-driven cinematic video，Wan2.2 系列 |
+| 36 | **SoulX-LiveAct** | DiT + Flow Matching | 实时版 | ❓ 待确认 | RTX 4090/H100 | 云 GPU | ⭐⭐ | 2026-03 开源，小时级实时动画，Neighbor Forcing+ConvKV，需 RTX 4090+ |
+| 37 | **MiniMax H3** | H3-Omni Transformer 33B | API/权重 | ⚠️ Community License | API only | API | ⭐⭐ | 2026-07-31 发布，33B 全模态，Ref2VA 支持 talking head，134GB 权重本地不可行，地域限制 US/EU/UK/KR |
 
 ---
 

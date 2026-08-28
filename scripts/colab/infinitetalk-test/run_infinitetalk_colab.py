@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """
-InfiniteTalk v2: Colab T4 GPU + FP8 quantization + low VRAM mode
+InfiniteTalk v10.15: Colab T4 GPU + FP8 + pure SDPA + max speed (steps=5, teacache=0.35)
 
-Key changes from v1:
+Synced with Kaggle v10.6 patches:
+- SDPA fallback for flash_attention (CLIP visual encoder)
+- xformers compat wrapper (SDPA-based)
+- wav2vec2 attn_implementation="eager" (SDPA doesn't support output_attentions)
+- multitalk.py ArgSpec import fix (Python 3.12)
+- All xfuser imports commented out
+
+Key changes from v3:
+- FIX: run() uses subprocess.Popen with real-time output (not capture_output=True)
+  v2 bug: hf download output was captured silently → WebSocket idle timeout → connection dropped
+  v3 fix: Popen streams stdout/stderr line-by-line → constant output keeps WebSocket alive
 - Use --quant fp8 (NOT int8): T5 only has fp8 quantized weights (t5_fp8.safetensors)
-  t5_int8.safetensors does NOT exist in HF repo → int8 mode would crash at T5 loading
-- Skip LoRA download: quant mode bypasses LoRA (code: `if lora_dir is not None and quant is None`)
+- Skip LoRA download: quant mode bypasses LoRA
 - Fix hf download: use file positional args, NOT --include + filenames mix
-  (v8 bug: --include 'config.json' filtered out other positional file args → config.json MISSING)
 - pip install without -q: keep WebSocket alive during long installs
 
 Model files needed (total ~42GB, Colab /content has ~70-100GB):
@@ -41,6 +49,12 @@ Usage:
 """
 import os, sys, subprocess, time, shutil, json, atexit, traceback, re, glob
 
+# CRITICAL: Disable Xet protocol BEFORE importing huggingface_hub
+# Even on Colab, Xet can cause issues
+os.environ["HF_HUB_DISABLE_XET"] = "1"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 DEBUG_LOG = "/content/debug_log.txt"
 WORK_DIR = "/content"
 
@@ -57,12 +71,31 @@ def print(*args, **kwargs):
     except: pass
 
 def run(cmd, timeout=600, check=True):
+    """Run command with real-time output streaming.
+
+    v3 FIX: Use Popen instead of subprocess.run(capture_output=True).
+    capture_output=True swallows all stdout/stderr → Colab CLI WebSocket sees no data
+    → idle timeout → connection dropped. Popen streams line-by-line to keep it alive.
+    """
     print(f"\n>>> {cmd[:200]}{'...' if len(cmd) > 200 else ''}")
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-    if r.stdout: print(r.stdout[-3000:])
-    if r.stderr:
-        lines = [l for l in r.stderr.split('\n') if l.strip() and 'it/s]' not in l and 's/it]' not in l and not l.startswith('  Downloading')]
-        if lines: print("STDERR:", '\n'.join(lines[-50:]))
+    sys.stdout.flush()
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, bufsize=1, universal_newlines=True)
+    stdout_lines = []
+    try:
+        for line in proc.stdout:
+            line = line.rstrip()
+            if not line:
+                continue
+            # Filter tqdm progress bars (they spam \r lines)
+            if 'it/s]' in line or 's/it]' in line:
+                continue
+            print(line)
+            sys.stdout.flush()
+            stdout_lines.append(line)
+    finally:
+        proc.wait(timeout=timeout)
+    r = subprocess.CompletedProcess(cmd, proc.returncode, '\n'.join(stdout_lines), '')
     if check and r.returncode != 0:
         print(f"Command failed with exit code {r.returncode}"); sys.exit(1)
     return r
@@ -82,10 +115,10 @@ def _excepthook(et, ev, tb):
 sys.excepthook = _excepthook
 
 print("=" * 70)
-print("InfiniteTalk Inference on Colab T4 GPU (v2)")
+print("InfiniteTalk Inference on Colab T4 GPU (v10.15 — pure SDPA, max speed)")
 print("=" * 70)
 print("FP8 quantization + low VRAM mode + 480P + TeaCache")
-print("Key fixes: --quant fp8 (not int8), skip LoRA, fix hf download, no -q on pip")
+print("Patches: Pure SDPA (no SageAttention) + xformers compat + wav2vec2 eager + ArgSpec fix")
 total_start = time.time()
 
 # Step 0: GPU Check + Disk Space
@@ -102,9 +135,6 @@ if not bf16: print("  T4 does NOT support bfloat16. Will use float16.")
 
 # Step 1: Environment
 print("\n--- Step 1: Environment Setup ---")
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Step 2: Clone InfiniteTalk
 print("\n--- Step 2: Clone InfiniteTalk ---")
@@ -129,8 +159,8 @@ run(f"{sys.executable} -m pip install 'opencv-python' 'diffusers>=0.31.0' "
 print("  Installing optimum-quanto for INT8/FP8 quantization support...")
 run(f"{sys.executable} -m pip install 'optimum-quanto==0.2.6'", timeout=300, check=False)
 
-print("  Installing hf_transfer + huggingface_hub...")
-run(f"{sys.executable} -m pip install hf_transfer huggingface_hub", timeout=120)
+print("  Installing huggingface_hub...")
+run(f"{sys.executable} -m pip install huggingface_hub", timeout=120)
 
 print("  Installing kokoro (TTS pipeline dependency)...")
 run(f"{sys.executable} -m pip install 'misaki[en]' kokoro", timeout=300, check=False)
@@ -139,35 +169,124 @@ print("  Installing remaining deps...")
 run(f"{sys.executable} -m pip install einops safetensors timm albumentations "
     f"SentencePiece omegaconf soundfile librosa", timeout=300)
 
-# Step 3b: Patch xfuser
-print("\n--- Step 3b: Patch xfuser dependency ---")
+# Skip SageAttention - T4 Triton compile always fails, causes 12h timeout
+print("  Skipping SageAttention (T4 -> pure SDPA)")
+
+# Step 3b: Patch xfuser + xformers + flash_attn (v10.9 patches)
+print("\n--- Step 3b: Patch xfuser + xformers + flash_attn (v10.6 patches) ---")
 attn_path = os.path.join(WORK_DIR, "InfiniteTalk", "wan", "modules", "attention.py")
 if os.path.exists(attn_path):
     with open(attn_path, "r") as f: content = f.read()
-    old = """from xfuser.core.distributed import (
-    get_sequence_parallel_rank,
-    get_sequence_parallel_world_size,
-    get_sp_group,
-)"""
-    new = """# PATCHED: xfuser not available
+    # 1. Replace xfuser import with dummy functions
+    new_xfuser = """# PATCHED: xfuser not available
 def get_sequence_parallel_rank(): return 0
 def get_sequence_parallel_world_size(): return 1
 def get_sp_group(): return None
 """
-    if old in content:
-        content = content.replace(old, new)
-        with open(attn_path, "w") as f: f.write(content)
-        print("  [OK] Patched attention.py")
-    else:
-        content = re.sub(r'from xfuser\.[^\n]+\n(?:\s+\w+[,\n]*)+\)', new, content)
-        with open(attn_path, "w") as f: f.write(content)
-        print("  [OK] Brute-force patched attention.py")
+    content = re.sub(r'from xfuser\.[^\n]+\n(?:\s+\w+[,\n]*)+\)', new_xfuser, content)
+    # 2. Replace `import xformers.ops` with SDPA wrapper
+    content = content.replace('import xformers.ops',
+        '# PATCHED: xformers not available, using SDPA\n'
+        'import torch.nn.functional as _F\n'
+        'class _XformersOpsCompat:\n'
+        '    @staticmethod\n'
+        '    def memory_efficient_attention(q, k, v, attn_bias=None, op=None):\n'
+        '        # q/k/v: [B, M, H, K] -> need [B, H, M, K] for SDPA\n'
+        '        q = q.transpose(1, 2)\n'
+        '        k = k.transpose(1, 2)\n'
+        '        v = v.transpose(1, 2)\n'
+        '        out = _F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)\n'
+        '        return out.transpose(1, 2)  # back to [B, M, H, K]\n'
+        'class _XformersCompat:\n'
+        '    ops = _XformersOpsCompat\n'
+        'xformers = _XformersCompat()\n'
+    )
+    # Also handle xformers.ops.fmha.attn_bias.BlockDiagonalMask in enable_sp branch
+    content = content.replace('xformers.ops.fmha.attn_bias.BlockDiagonalMask.from_seqlens',
+                              'None  # PATCHED: BlockDiagonalMask not available, enable_sp=False anyway')
+    # --- PATCH v10.9: Rewrite flash_attention with tiered fallback ---
+    # Priority: SageAttention V1 (INT8, T4-compatible) > SDPA > CPU offload SDPA
+    flash_fn_end = '\n\ndef attention('
+    flash_start_idx = content.find('def flash_attention(')
+    flash_end_idx = content.find(flash_fn_end, flash_start_idx)
+    if flash_start_idx >= 0 and flash_end_idx >= 0:
+        old_flash_fn = content[flash_start_idx:flash_end_idx]
+        new_flash_fn = '''# Pure SDPA - no SageAttention (T4 can't compile Triton kernels, causes 12h timeout)
 
+def flash_attention(
+    q,
+    k,
+    v,
+    q_lens=None,
+    k_lens=None,
+    dropout_p=0.,
+    softmax_scale=None,
+    q_scale=None,
+    causal=False,
+    window_size=(-1, -1),
+    deterministic=False,
+    dtype=torch.bfloat16,
+    version=None,
+):
+    """Pure SDPA attention (SageAttention disabled for T4)."""
+    half_dtypes = (torch.float16, torch.bfloat16)
+    assert dtype in half_dtypes
+    out_dtype = q.dtype
+
+    if q_lens is not None or k_lens is not None:
+        warnings.warn(
+            'Padding mask is disabled when using fallback attention.'
+        )
+
+    try:
+        q_h = q.transpose(1, 2).to(dtype)
+        k_h = k.transpose(1, 2).to(dtype)
+        v_h = v.transpose(1, 2).to(dtype)
+        x = torch.nn.functional.scaled_dot_product_attention(
+            q_h, k_h, v_h, attn_mask=None, is_causal=causal, dropout_p=dropout_p)
+        return x.transpose(1, 2).contiguous().type(out_dtype)
+    except torch.OutOfMemoryError:
+        warnings.warn('GPU SDPA OOM, falling back to CPU offload attention (slow!)')
+        torch.cuda.empty_cache()
+
+    # CPU offload SDPA (very slow but won't OOM)
+    q_cpu = q.transpose(1, 2).to(dtype).cpu()
+    k_cpu = k.transpose(1, 2).to(dtype).cpu()
+    v_cpu = v.transpose(1, 2).to(dtype).cpu()
+    x = torch.nn.functional.scaled_dot_product_attention(
+        q_cpu, k_cpu, v_cpu, attn_mask=None, is_causal=causal, dropout_p=0.0)
+    return x.transpose(1, 2).contiguous().to(q.device).type(out_dtype)
+'''
+        content = content[:flash_start_idx] + new_flash_fn + content[flash_end_idx:]
+        print("  [OK] Replaced entire flash_attention function with pure SDPA version")
+    else:
+        print("  [WARNING] Could not find flash_attention function boundaries!")
+    with open(attn_path, "w") as f: f.write(content)
+    print("  [OK] Patched attention.py (xfuser + xformers + flash_attn → tiered SDPA)")
+
+# Patch multitalk.py: remove `from inspect import ArgSpec` (removed in Python 3.12)
+mt_path = os.path.join(WORK_DIR, "InfiniteTalk", "wan", "multitalk.py")
+if os.path.exists(mt_path):
+    with open(mt_path, "r") as f: mt_content = f.read()
+    if "from inspect import ArgSpec" in mt_content:
+        mt_content = mt_content.replace("from inspect import ArgSpec",
+                                        "# PATCHED: ArgSpec removed in Python 3.12, not used anyway")
+        with open(mt_path, "w") as f: f.write(mt_content)
+        print("  [OK] Patched multitalk.py (removed ArgSpec import)")
+
+# Patch generate_infinitetalk.py
 gen_path = os.path.join(WORK_DIR, "InfiniteTalk", "generate_infinitetalk.py")
 if os.path.exists(gen_path):
     with open(gen_path, "r") as f: gc = f.read()
+    # Patch 1: wav2vec2 from_pretrained needs attn_implementation="eager" (SDPA doesn't support output_attentions)
+    if 'Wav2Vec2Model.from_pretrained(wav2vec' in gc:
+        gc = gc.replace(
+            'Wav2Vec2Model.from_pretrained(wav2vec, local_files_only=True)',
+            'Wav2Vec2Model.from_pretrained(wav2vec, local_files_only=True, attn_implementation="eager")'
+        )
+        print("  [OK] Patched generate_infinitetalk.py (wav2vec2 attn_implementation=eager)")
+    # Patch 2: comment out xfuser imports
     if "xfuser" in gc:
-        print("  Patching generate_infinitetalk.py...")
         lines = gc.split('\n'); nl = []; in_blk = False
         for line in lines:
             if 'from xfuser' in line and not line.strip().startswith('#'):
@@ -178,14 +297,40 @@ if os.path.exists(gen_path):
                 if ')' in line: in_blk = False
                 nl.append('# ' + line); continue
             nl.append(line)
-        with open(gen_path, "w") as f: f.write('\n'.join(nl))
-        print("  [OK] Patched generate_infinitetalk.py")
+        gc = '\n'.join(nl)
+    # Patch 3: skip kokoro import (not needed for video-only mode, misaki/spacy incompatible with Python 3.13)
+    if "from kokoro import KPipeline" in gc:
+        gc = gc.replace("from kokoro import KPipeline",
+                        "# PATCHED: kokoro import skipped (not needed for video-only mode)\nKPipeline = None")
+        print("  [OK] Patched generate_infinitetalk.py (skip kokoro import)")
+    with open(gen_path, "w") as f: f.write(gc)
+    print("  [OK] Patched generate_infinitetalk.py")
 
-print("\n  Patching all remaining xfuser files...")
+# Patch multitalk_model.py: replace sageattn with SDPA (T4's Triton can't compile SageAttn kernels)
+mt_model_path = os.path.join(WORK_DIR, "InfiniteTalk", "wan", "modules", "multitalk_model.py")
+if os.path.exists(mt_model_path):
+    with open(mt_model_path, "r") as f: mtm = f.read()
+    mtm = mtm.replace(
+        "x = sageattn(q.to(torch.bfloat16), k.to(torch.bfloat16), v, tensor_layout='NHD')",
+        "x = torch.nn.functional.scaled_dot_product_attention(q.to(torch.float16).transpose(1, 2), k.to(torch.float16).transpose(1, 2), v.to(torch.float16).transpose(1, 2)).transpose(1, 2)"
+    )
+    mtm = mtm.replace(
+        "img_x = sageattn(q, k_img, v_img, tensor_layout='NHD')",
+        "img_x = torch.nn.functional.scaled_dot_product_attention(q.to(torch.float16).transpose(1, 2), k_img.to(torch.float16).transpose(1, 2), v_img.to(torch.float16).transpose(1, 2)).transpose(1, 2)"
+    )
+    mtm = mtm.replace(
+        "x = sageattn(q, k, v, tensor_layout='NHD')",
+        "x = torch.nn.functional.scaled_dot_product_attention(q.to(torch.float16).transpose(1, 2), k.to(torch.float16).transpose(1, 2), v.to(torch.float16).transpose(1, 2)).transpose(1, 2)"
+    )
+    mtm = mtm.replace("USE_SAGEATTN = True", "USE_SAGEATTN = False  # PATCHED: T4 can't compile SageAttn Triton kernels")
+    with open(mt_model_path, "w") as f: f.write(mtm)
+    print("  [OK] Patched multitalk_model.py (sageattn → SDPA, USE_SAGEATTN=False)")
+
+# Patch all remaining files
 for pyfile in glob.glob("wan/**/*.py", recursive=True):
-    fp = os.path.join(WORK_DIR, "InfiniteTalk", pyfile) if not pyfile.startswith("/") else pyfile
-    if not os.path.exists(fp): continue
-    with open(fp, "r") as f: c = f.read()
+    fpath = os.path.join(WORK_DIR, "InfiniteTalk", pyfile)
+    if not os.path.exists(fpath): continue
+    with open(fpath, "r") as f: c = f.read()
     if 'from xfuser' in c or 'import xfuser' in c:
         lines = c.split('\n'); nl = []; in_blk = False
         for line in lines:
@@ -196,11 +341,13 @@ for pyfile in glob.glob("wan/**/*.py", recursive=True):
                 if ')' in line: in_blk = False
                 nl.append('# PATCHED: ' + line); continue
             nl.append(line)
-        with open(fp, "w") as f: f.write('\n'.join(nl))
+        with open(fpath, "w") as f: f.write('\n'.join(nl))
         print(f"    [OK] Patched {pyfile}")
 
 print("\n--- Verifying imports ---")
 run(f"{sys.executable} -c 'import torch; import diffusers; import transformers; print(\"imports OK\")'", timeout=120, check=False)
+run(f"{sys.executable} -c 'import sys; sys.path.insert(0, \"/content/InfiniteTalk\"); from wan.modules.attention import attention; print(\"attention.py OK\")'", timeout=60, check=False)
+run(f"{sys.executable} -c 'import sys; sys.path.insert(0, \"/content/InfiniteTalk\"); import wan; print(\"wan import OK\")'", timeout=60, check=False)
 
 # Step 4: Download models
 print("\n--- Step 4: Download Models from HuggingFace ---")
@@ -208,19 +355,24 @@ WEIGHTS_DIR = os.path.join(WORK_DIR, "weights")
 os.makedirs(WEIGHTS_DIR, exist_ok=True)
 
 # 4a: Download Wan2.1 base model (selective — skip 70GB DiT shards, not needed for FP8 mode)
-# FIX: Use positional file args directly, NOT --include (v8 bug: --include filtered out positional args)
 WAN_DIR = os.path.join(WEIGHTS_DIR, "Wan2.1-I2V-14B-480P")
 if not os.path.exists(os.path.join(WAN_DIR, "config.json")):
     print("\n  Downloading Wan2.1-I2V-14B-480P (selective, ~16GB — skip DiT shards for FP8 mode)...")
     t0 = time.time()
-    # Use positional file args + --include for glob patterns (tokenizer dirs)
-    run(f"HF_HUB_ENABLE_HF_TRANSFER=1 hf download Wan-AI/Wan2.1-I2V-14B-480P "
+    run(f"HF_HUB_DISABLE_XET=1 hf download Wan-AI/Wan2.1-I2V-14B-480P "
         f"config.json "
         f"Wan2.1_VAE.pth "
         f"models_t5_umt5-xxl-enc-bf16.pth "
         f"models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth "
         f"diffusion_pytorch_model.safetensors.index.json "
-        f"--include 'google/umt5-xxl/*' 'xlm-roberta-large/*' "
+        f"google/umt5-xxl/tokenizer.json "
+        f"google/umt5-xxl/spiece.model "
+        f"google/umt5-xxl/tokenizer_config.json "
+        f"google/umt5-xxl/special_tokens_map.json "
+        f"xlm-roberta-large/sentencepiece.bpe.model "
+        f"xlm-roberta-large/special_tokens_map.json "
+        f"xlm-roberta-large/tokenizer_config.json "
+        f"xlm-roberta-large/tokenizer.json "
         f"--local-dir {WAN_DIR}", timeout=1800)
     print(f"  Download time: {(time.time()-t0)/60:.1f} min")
 else:
@@ -237,22 +389,18 @@ WAV2VEC_DIR = os.path.join(WEIGHTS_DIR, "chinese-wav2vec2-base")
 if not os.path.exists(os.path.join(WAV2VEC_DIR, "pytorch_model.bin")):
     print("\n  Downloading chinese-wav2vec2-base (~350MB)...")
     t0 = time.time()
-    run(f"HF_HUB_ENABLE_HF_TRANSFER=1 hf download TencentGameMate/chinese-wav2vec2-base --local-dir {WAV2VEC_DIR}", timeout=300)
-    run(f"HF_HUB_ENABLE_HF_TRANSFER=1 hf download TencentGameMate/chinese-wav2vec2-base model.safetensors --revision refs/pr/1 --local-dir {WAV2VEC_DIR}", timeout=300, check=False)
+    run(f"HF_HUB_DISABLE_XET=1 hf download TencentGameMate/chinese-wav2vec2-base --local-dir {WAV2VEC_DIR}", timeout=300)
+    run(f"HF_HUB_DISABLE_XET=1 hf download TencentGameMate/chinese-wav2vec2-base model.safetensors --revision refs/pr/1 --local-dir {WAV2VEC_DIR}", timeout=300, check=False)
     print(f"  Download time: {(time.time()-t0)/60:.1f} min")
 else:
     print(f"  [OK] chinese-wav2vec2-base exists")
 
 # 4c: Download InfiniteTalk FP8 quantized model
-# NOTE: Use FP8 (not INT8) because T5 quantized weights only exist as t5_fp8.safetensors
-#   T5 code: load_file(os.path.join(quant_dir, f"t5_{quant}.safetensors"))
-#   quant='int8' → t5_int8.safetensors → DOES NOT EXIST → crash
-#   quant='fp8'  → t5_fp8.safetensors   → EXISTS ✅
 FP8_FILE = os.path.join(WEIGHTS_DIR, "InfiniteTalk", "quant_models", "infinitetalk_single_fp8.safetensors")
 if not os.path.exists(FP8_FILE):
     print("\n  Downloading InfiniteTalk FP8 quantized model (~19.5GB)...")
     t0 = time.time()
-    run(f"HF_HUB_ENABLE_HF_TRANSFER=1 hf download MeiGen-AI/InfiniteTalk "
+    run(f"HF_HUB_DISABLE_XET=1 hf download MeiGen-AI/InfiniteTalk "
         f"quant_models/infinitetalk_single_fp8.safetensors "
         f"quant_models/infinitetalk_single_fp8.json "
         f"--local-dir {os.path.join(WEIGHTS_DIR, 'InfiniteTalk')}", timeout=1200)
@@ -265,7 +413,7 @@ T5_FP8_FILE = os.path.join(WEIGHTS_DIR, "InfiniteTalk", "quant_models", "t5_fp8.
 if not os.path.exists(T5_FP8_FILE):
     print("\n  Downloading T5 FP8 quantized (~6.7GB)...")
     t0 = time.time()
-    run(f"HF_HUB_ENABLE_HF_TRANSFER=1 hf download MeiGen-AI/InfiniteTalk "
+    run(f"HF_HUB_DISABLE_XET=1 hf download MeiGen-AI/InfiniteTalk "
         f"quant_models/t5_fp8.safetensors "
         f"quant_models/t5_map_fp8.json "
         f"--local-dir {os.path.join(WEIGHTS_DIR, 'InfiniteTalk')}", timeout=600)
@@ -274,8 +422,6 @@ else:
     print(f"  [OK] T5 FP8 exists ({os.path.getsize(T5_FP8_FILE)/1024**3:.2f} GB)")
 
 # 4e: SKIP LoRA download — not needed in FP8 quant mode
-# Pipeline code: `if lora_dir is not None and quant is None:` → LoRA only loads when quant is None
-# Saving 9.9GB disk space
 print("\n  [SKIP] LoRA download — not needed in FP8 quant mode (saves 9.9GB)")
 
 # Print total download time and disk usage
@@ -332,8 +478,10 @@ print(f"  Created input JSON: {json_path}")
 print("\n--- Step 7: Run InfiniteTalk Inference ---")
 print(f"  GPU: {gpu_name} ({gpu_mem:.1f} GB VRAM)")
 print(f"  Mode: FP8 quantization + low VRAM + 480P + TeaCache")
+print("  Attention: Pure SDPA (SageAttention disabled - T4 Triton cant compile)")
+print("  Frames: 13/chunk | Steps: 5 (talking head optimal) | TeaCache: 0.35 (max aggressive)")
+print("  Audio: 3s clip -> ~6 chunks -> ~1.8s per chunk (5 steps) ~= 11 min total")
 print(f"  NOTE: --quant fp8 (NOT int8, because t5_int8.safetensors doesn't exist)")
-print(f"  NOTE: No --infinitetalk_dir (not needed in quant mode, saves LoRA load)")
 
 cmd = (
     f"cd {WORK_DIR}/InfiniteTalk && "
@@ -345,12 +493,14 @@ cmd = (
     f"--quant fp8 "
     f"--input_json {json_path} "
     f"--size infinitetalk-480 "
-    f"--sample_steps 40 "
+    f"--frame_num 13 "
+    f"--max_frame_num 81 "
+    f"--sample_steps 5 "
     f"--mode streaming "
     f"--motion_frame 9 "
     f"--num_persistent_param_in_dit 0 "
     f"--use_teacache "
-    f"--teacache_thresh 0.2 "
+    f"--teacache_thresh 0.35 "
     f"--sample_text_guide_scale 5.0 "
     f"--sample_audio_guide_scale 4.0 "
     f"--save_file infinitetalk_res_fp8"

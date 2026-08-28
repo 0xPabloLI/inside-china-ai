@@ -9,7 +9,7 @@
   "enable_tpu": false,
   "enable_internet": true,
   "machine_shape": "NvidiaTeslaT4",
-  "dataset_sources": ["xpabloli/infinitetalk-test-inputs"],
+  "dataset_sources": ["xpabloli/infinitetalk-input"],
   "kernel_sources": [],
   "competition_sources": []
 }

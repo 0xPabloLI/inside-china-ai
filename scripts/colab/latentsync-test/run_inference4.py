@@ -10,15 +10,15 @@ def run(cmd):
 
 # Check what's in the HF repo
 print("=== Checking HF repo structure ===", flush=True)
-run("huggingface-cli download bytedance/LatentSync --repo-type model 2>&1 | head -20")
+run("hf download bytedance/LatentSync --repo-type model 2>&1 | head -20")
 
 # Try downloading with the correct paths
 print("=== Downloading latentsync_unet.pt ===", flush=True)
-run("cd /content/LatentSync && huggingface-cli download bytedance/LatentSync latentsync_unet.pt --repo-type model --local-dir checkpoints")
+run("cd /content/LatentSync && hf download bytedance/LatentSync latentsync_unet.pt --repo-type model --local-dir checkpoints")
 
 print("=== Downloading whisper/tiny.pt ===", flush=True)
 run("mkdir -p /content/LatentSync/checkpoints/whisper")
-run("cd /content/LatentSync && huggingface-cli download bytedance/LatentSync whisper/tiny.pt --repo-type model --local-dir checkpoints")
+run("cd /content/LatentSync && hf download bytedance/LatentSync whisper/tiny.pt --repo-type model --local-dir checkpoints")
 
 # Check if files exist now
 run("ls -la /content/LatentSync/checkpoints/")

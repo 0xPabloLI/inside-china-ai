@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # colima-proxy-tunnel.sh — Persistent SSH reverse tunnel for colima Docker proxy
 #
-# Purpose: Lets colima VM's Docker daemon access Docker Hub through host's FlClash proxy.
-# FlClash only listens on 127.0.0.1:7890 (not LAN), so colima VM can't reach it directly.
-# This script creates a reverse SSH tunnel: VM:127.0.0.1:7891 → host:127.0.0.1:7890
+# Purpose: Lets colima VM's Docker daemon access Docker Hub through host's HTTP proxy.
+# Proxy clients listen on 127.0.0.1 (not LAN), so colima VM can't reach them directly.
+# This script creates a reverse SSH tunnel: VM:127.0.0.1:7891 → host:127.0.0.1:<PROXY_PORT>
+# Proxy port is auto-detected from `scutil --proxy` (falls back to HTTP_PROXY env var).
 #
 # Usage:
 #   ./colima-proxy-tunnel.sh start   # Start tunnel in background
@@ -24,7 +25,12 @@ set -euo pipefail
 
 TUNNEL_PORT=7891
 PROXY_HOST=127.0.0.1
-PROXY_PORT=7890
+# Auto-detect proxy port from system config or HTTP_PROXY env var
+PROXY_PORT="${HTTP_PROXY_PORT:-$(scutil --proxy 2>/dev/null | grep -o 'HTTPPort : [0-9]*' | head -1 | grep -o '[0-9]*')}"
+if [ -z "$PROXY_PORT" ]; then
+  echo "❌ No proxy port found. Set HTTP_PROXY_PORT or ensure system proxy is configured."
+  exit 1
+fi
 PIDFILE="/tmp/colima-proxy-tunnel.pid"
 SSHD_CONFIG="/tmp/colima_ssh_config"
 
@@ -55,7 +61,7 @@ start() {
   if colima ssh -- bash -c "curl -x http://127.0.0.1:${TUNNEL_PORT} -s -o /dev/null -w '%{http_code}' --connect-timeout 5 https://registry-1.docker.io/v2/" 2>/dev/null | grep -q "401"; then
     echo "✅ Tunnel active (PID $ssh_pid): VM:127.0.0.1:${TUNNEL_PORT} → host:${PROXY_HOST}:${PROXY_PORT}"
   else
-    echo "⚠️  Tunnel started but connectivity test failed. FlClash may not be running."
+    echo "⚠️  Tunnel started but connectivity test failed. Proxy may not be running on port ${PROXY_PORT}."
     echo "   PID: $ssh_pid"
   fi
 }
