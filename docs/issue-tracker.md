@@ -44,7 +44,7 @@ GitHub 已支持原生 sub-issues（2025-01 公测）；本仓库当前尚未建
 | #98 → #99 | P5 ASR → P6 timeline fusion（#99 显式依赖 #98） |
 | #100 可与 #98, #99 并行 | P7 cache 不改分析语义，只管执行和复用 |
 | #101 依赖 #69 ✅, 推荐接 #100 | P8b temporal focus 需要 P4 window + 推荐 P7 cache |
-| #111 -> #21 (推荐顺序) | #111 先做文本 RAG 管线集成，#21 后做多模态。#111 设计好集成接口后 #21 扩展即可，无阻塞依赖 |
+| ~~#111~~ ✅ -> #21 (推荐顺序) | ~~#111 先做文本 RAG 管线集成~~ ✅ done，#21 后做多模态。#111 已集成 RAG 查询步骤，#21 扩展即可，无阻塞依赖 |
 | #109 merged into #65 | #109 的目标（替换 Brave MCP → 统一搜索 pool）合并进 #65 scope。#65 完成后 #109 自动关闭 |
 | #112 depends on #91, ~~#103~~ ✅, ~~#115~~ ✅ | DuckDuckGo Images needs #91 shared CDP infra; ~~#103 docs done~~; ~~**#115 hard blocker resolved**~~ — `lib/download-candidate.mjs` extracted, #112 can call it directly. **Only #91 remains** |
 | #121 → #122 → #123 → #124 / #125 → #126 | ✅ Subtitle AIL Gate ticket sequence — all CLOSED. T1 baseline → T2 timing format → T3 canonical-text validator → T4 gate 1 integration / T5 repair strategy → T6 gate 2 repairFn |
@@ -207,7 +207,7 @@ collectFromSource() 层次：
 | Domain | Issues | Waves spanned |
 |--------|--------|---------------|
 | **Source / Search** | #88, #89, #64, #66, #90, #65, #97, #112, #68, #76, #77, #87, #91, #92, ~~#63~~ ✅, ~~#114~~ ✅, ~~#115~~ ✅, ~~#116~~ ✅, #128 | W0–W3 |
-| **Content Pipeline** | #103, #111, #94, #60, #61 | W0, W2, W4, Dormant |
+| **Content Pipeline** | #103, ~~#111~~ ✅, #94, #60, #61 | W0, W2, W4, Dormant |
 | **Video Pipeline** | #98, #99, #100, #101, #113, #35, #32, #75, #127, #29 | W1, W2, W4, Dormant |
 | **Docs / Research** | #103, #108, #29, #21, #97, #61 | W0, W4, Dormant |
 | **Audit** | #68, #76, #77, #87, #94, #61 | W3, W4, Dormant. #61 也属 Audit domain（non-blocking evidence audit） |
