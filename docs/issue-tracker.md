@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-28 - #129 created — lint-doc-hierarchy writing-for-agents gate false positive on file rename/archive (Tier 3, non-blocking). #63 CLOSED, #115 CLOSED, #116 CLOSED, #114 CLOSED, #128 created. Previous: #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed).
+Last inventory: 2026-08-28 - #111 CLOSED (RAG pipeline integration, Stage 0 末尾 + Stage 3 Step 2 新增查询步骤, Stage 2e 重新定位, commit dea33a5). #129 created — lint-doc-hierarchy gate false positive (Tier 3, non-blocking). #63 CLOSED, #115 CLOSED, #116 CLOSED, #114 CLOSED, #128 created. Previous: #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed).
 
 **Tracker review**: `docs/research/issue-tracker-review.md` — 2026-08-26 全量逐项审阅（38 open issues），19 项通过 / 19 项 Comment（8 P1 + 11 P2）。本轮已修复全部 P1 和大部分 P2。
 
@@ -87,7 +87,7 @@ collectFromSource() 层次：
 
 | Wave | Shared context | Session candidates (Tier) | Dependencies | Parallel rules |
 |---|---|---|---|---|
-| **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** ✅ done · **#111** (T1) text RAG integration · **#88** (T1) Part 1 ✅ done (field rename), Part 2 pending (universal auto-gen) | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 ✅ done；#111 独占 `content-pipeline.md`，#88 独占 `source-registry.mjs` |
+| **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** ✅ done · ~~**#111**~~ ✅ done (RAG integration) · **#88** (T1) Part 1 ✅ done (field rename), Part 2 pending (universal auto-gen) | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 ✅ done；~~#111~~ ✅ done；#88 独占 `source-registry.mjs` |
 | **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | ~~**#63**~~ ✅ closed (URL dedup, commit 80f5a13) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · ~~**#114**~~ ✅ closed (SVE + runtime verified) · ~~**#115**~~ ✅ closed (downloadCandidate, commit cc699e6) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · **#127** (T2) VLM Cascade Router (独立于搜索链, 改 vlm_analyzer.py, 与 #113 须串行) · ~~#110~~ ✅ closed · ~~#121~~ ✅ closed · ~~#116~~ ✅ closed | ~~#63~~ ✅ → ~~#114~~ ✅ → ~~#115~~ ✅ 全部 closed（串行链完成）；#89 P0 先于 #91；#113/#127 须串行（同改 vlm_analyzer.py） |
 | **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#91** (T3→**W2 提升**) DDG (#112 hard dep, 需前移) · **#112** (T2) image search pool · **#75** (T2) 视频源标注+下载方案（从 W4 提升） · ~~#122~~ ✅ closed · ~~#123~~ ✅ closed · ~~#124~~ ✅ closed · ~~#125~~ ✅ closed | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0（**从 W3 前移到 W2**：#112 显式依赖 #91 DDG infra，不能在 #112 之后）；#109 已合并进 #65；#112 依赖 #91/#103 ✅/~~**#115 (hard)**~~ ✅ **hard blocker 已解除**；#75 依赖 #54 done | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行；#75 改 source-registry + asset-sourcer，与 #64/#66/#88 串行 |
 | **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#92** (T3) SearXNG · ~~#126~~ ✅ closed | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66（~~#63~~ ✅ done）；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行。**#91 已前移到 W2**（#112 hard dep） |
@@ -123,7 +123,7 @@ collectFromSource() 层次：
 |---|-------|------|-------------|---------------|-------|
 | #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | #83 done | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests | 消除 20+ 手动配置项，每次加源都受益。**Part 1 ✅ done** (commit 759f07d): field rename (articleScript/imageScript/imageFallbackScript/googleSiteFallback) across 6 code + 4 test + 14 doc files. 422 tests pass. Part 2 pending: universal auto-gen Google site: fallback |
 | **#103** Docs offload/split | #95 ✅ done (PR #104 merged) | content-pipeline.md, video-workflow.md, DOCS-INDEX.md | ✅ Commit df1623e — content-pipeline.md 1069→424 lines (-60%), video-workflow.md 821→379 lines (-54%). 3 new L1 docs: article-production-guide.md, series-production-guide.md, content-scaffold-guide.md. Spec/tickets/review archived |
-| #111 | Integrate text RAG retrieval into content pipeline (Stage 1 & 3) | enhancement | #15 done | content-pipeline.md, scripts/rag/query.mjs | RAG 索引+查询基础设施已就绪，缺管线集成层。Agent 写文章/scene-data 前自动查 RAG。与 #21 正交，为 #21 铺路 |
+| ~~#111~~ | ✅ Integrate text RAG retrieval into content pipeline (Stage 0 & 3) | enhancement | #15 done | ~~content-pipeline.md~~ | ✅ Commit dea33a5. Stage 0 末尾 + Stage 3 Step 2 新增 RAG 查询步骤。Stage 2e 重新定位为工具参考块。非阻塞降级与 Stage 2d 一致。无新代码。 Spec/tickets archived |
 
 ### Tier 2 — 有价值但不紧迫（下一轮）
 
@@ -227,7 +227,7 @@ collectFromSource() 层次：
 | `asset-sourcer.mjs` | #88, ~~#114~~ ✅, #75, #66, ~~#115~~ ✅, #128 (may) | 🟡 中（#84 已 merge，搜索缓存已就位；#110 ✅ done；#66 全文提取改用 fetchPage()；#75 视频源下载+capability 标注；#114 ✅ SVE done；#115 ✅ downloadCandidate 提取 done；#128 SVG filter may touch isLogoOrIcon） |
 | `search-sources.mjs` | #66, ~~#63~~ ✅, #88, #65, #90, #64, ~~#114~~ ✅, ~~#116~~ ✅, #97 (may) | 🔴 高（#67 ✅ 已迁移消费者到 capabilities.articles；#63 ✅ URL dedup done；#64 baidu_news/分类调整；#90 Bigsong API 迁移；#114 ✅ SVE done；#116 ✅ CDP proxy auto-start done；#97 evidence 分组+sourceRole if scope expands） |
 | `cdp-client.mjs` | #66, #89 | 🔴 高——#66 加 /extract fallback；#89 P1 改 retry/backoff。（~~#116~~ ✅ done — ensureCdpProxy() added） |
-| `docs/content-pipeline.md` | #94, #97, #103, #111 | 🟡 中——#103 瘦身后其他 issue 指针需更新；#111 在 Stage 0/1/3 加 RAG 查询步骤 |
+| `docs/content-pipeline.md` | #94, #97, #103, ~~#111~~ ✅ | 🟡 中——#103 瘦身后其他 issue 指针需更新；~~#111 RAG 查询步骤已集成~~ |
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
 | `Search quota / backend routing` | #65, #110, #112 | 🟡 中——Brave quota 与统一路由边界需单一 owner（#109 已合并进 #65） |
 | `vlm_analyzer.py` | #113, #127 | 🟡 中——#113 图片预处理（resize），#127 级联路由器（cascade router + deep_analyze）。两者都改 vlm_analyzer.py，须串行 |
@@ -243,7 +243,7 @@ collectFromSource() 层次：
 
 ## Closed Issues (2026-08-21~27)
 
-42 issues closed across multiple triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload + crop decision spec + subtitle AIL gate + URL dedup + downloadCandidate extraction + RAG index extension + LLM filter superseded). Full details on GitHub.
+43 issues closed across multiple triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload + crop decision spec + subtitle AIL gate + URL dedup + downloadCandidate extraction + RAG index extension + LLM filter superseded + RAG pipeline integration). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
@@ -289,6 +289,7 @@ collectFromSource() 层次：
 | #116 | Pipeline auto-start CDP proxy | ✅ Commit 4d9e684 — `ensureCdpProxy()` + `findCdpProxyScript()` in cdp-client.mjs. Multi-path search for cdp-proxy.mjs, detached spawn, health check retry. Replaced `process.exit(1)` with graceful degradation in search-sources.mjs. 29 tests (7 new). Lint+tsc+build pass |
 | #63 | URL dedup (standalone) | ✅ Commit 80f5a13 — `dedupByUrl()` in trends-utils.mjs reuses `canonicalizeUrl()` from url-normalizer.mjs. 12 tests covering 13 scenario matrix rows. 57/57 tests passing |
 | #115 | downloadCandidate helper extraction | ✅ Commit cc699e6 — Created `lib/download-candidate.mjs` helper wrapping VDL `downloadVideo()` with file I/O + status mapping. Extended VDL to support images. Replaced 5 duplicated download blocks in asset-sourcer.mjs. 67 new tests + 2111 existing tests passing. Spec/tickets archived |
+| #111 | Integrate text RAG retrieval into content pipeline | ✅ Commit dea33a5 — Stage 0 末尾 + Stage 3 Step 2 新增 RAG 查询步骤（`query.mjs --type article/source-material/scene-data`）。Stage 2e 重新定位为工具参考块。非阻塞降级与 Stage 2d 一致。无新代码。 Spec/tickets archived |
 | #33 | Replace filterChinaAI + classifyTopic regex with local LLM | Superseded by #51 (cascade direction correction). Closed and confirmed out of scope for P3 |
 | #118 | RAG: extend index.mjs to collect docs/research/ markdown | ✅ Commit f6f0e6c + e77dcad — chunkCatalog() + collectAssetCatalog() + catalog.yml + migration. 551 chunks. Incremental indexing (chunk_hash SHA-256). triggerRagReindex() in publish-utils.mjs |
 
