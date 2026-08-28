@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeSceneData, CNY_TO_USD_RATE } from "../lib/normalize-currency.mjs";
+import { normalizeSceneData, CNY_TO_USD_RATE, HKD_TO_USD_RATE } from "../lib/normalize-currency.mjs";
 
 describe("normalizeSceneData", () => {
   // Scenario #10: "445 billion yuan" → "$63 billion (445 billion yuan)"
@@ -87,10 +87,56 @@ describe("normalizeSceneData", () => {
     const result = normalizeSceneData(scenes, {});
     expect(result).toBe(scenes);
   });
+
+  // RMB suffix: "12.4 billion RMB" → "$1.7 billion (12.4 billion RMB)"
+  it("converts 'X billion RMB' to dual-annotation", () => {
+    const scenes = [
+      { id: 1, voiceover: "AI product revenue hit 12.4 billion RMB last quarter." },
+    ];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toContain("$2 billion");
+    expect(result[0].voiceover).toContain("12.4 billion RMB");
+  });
+
+  // HKD suffix: "80B HKD" → "$10 billion (80B HKD)"
+  it("converts 'XB HKD' to dual-annotation", () => {
+    const scenes = [
+      { id: 1, texts: { stat: "80B HKD" } },
+    ];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].texts.stat).toContain("$10 billion");
+    expect(result[0].texts.stat).toContain("80B HKD");
+  });
+
+  // RMB in texts field: "67.7B RMB" → "$9 billion (67.7B RMB)"
+  it("converts 'XB RMB' in texts field to dual-annotation", () => {
+    const scenes = [
+      { id: 1, texts: { company: "CAPEX: 67.7B RMB" } },
+    ];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].texts.company).toContain("$9 billion");
+    expect(result[0].texts.company).toContain("67.7B RMB");
+  });
+
+  // HKD with full word: "80 billion HKD" → "$10 billion (80 billion HKD)"
+  it("converts 'X billion HKD' to dual-annotation", () => {
+    const scenes = [
+      { id: 1, voiceover: "They raised 80 billion HKD in the placement." },
+    ];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toContain("$10 billion");
+    expect(result[0].voiceover).toContain("80 billion HKD");
+  });
 });
 
 describe("CNY_TO_USD_RATE", () => {
   it("is 0.14 (¥1 ≈ $0.14)", () => {
     expect(CNY_TO_USD_RATE).toBe(0.14);
+  });
+});
+
+describe("HKD_TO_USD_RATE", () => {
+  it("is 0.13 (HK$1 ≈ $0.13)", () => {
+    expect(HKD_TO_USD_RATE).toBe(0.13);
   });
 });

@@ -2,7 +2,7 @@
  * Visual Analyzer — VLM-powered asset understanding + OpenCV focus detection.
  *
  * Wraps two independent Python subprocesses:
- *   1. vlm_analyzer.py  — mlx-vlm Qwen3-VL-8B (analyzeAssetSemantics)
+ *   1. vlm_analyzer.py  — mlx-vlm Qwen3-VL-2B-Instruct-4bit (analyzeAssetSemantics)
  *   2. focus_detector.py — OpenCV Haar Cascade + Saliency (detectFocus)
  *
  * API:
@@ -653,7 +653,7 @@ function settleAllPendingFocus(errorCode) {
 /**
  * Detect focus regions and protected areas in an image.
  * Uses OpenCV Saliency + Face Detection (lightweight subprocess).
- * Independent from VLM — does NOT load the 11GB model.
+ * Independent from VLM — does NOT load the ~2GB 2B-4bit model.
  *
  * NEVER rejects. On failure, returns a schema-complete empty result
  * with status="degraded" or "unsupported".

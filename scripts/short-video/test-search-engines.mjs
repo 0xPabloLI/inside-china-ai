@@ -114,7 +114,7 @@ async function testDuckDuckGo(query) {
   return { engine: "DuckDuckGo (HTML)", elapsedMs: Date.now()-t0, resultCount: results.length, results, status };
 }
 
-// ─── Brave Search API (curl fallback for FlClash TUN bug) ───
+// ─── Brave Search API (curl with --resolve to bypass TUN fake-ip DNS) ───
 import { execSync } from "child_process";
 
 async function testBraveSearch(query) {
@@ -126,18 +126,17 @@ async function testBraveSearch(query) {
   const apiUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=20`;
   const t0 = Date.now();
   
-  // Node.js fetch fails due to FlClash TUN fake-ip routing bug.
-  // Use curl with --resolve to bypass DNS resolution (fake-ip 198.18.x.x).
-  // Pre-resolve via nslookup to get the fake-ip, then pass to curl --resolve.
+  // Node.js fetch fails under TUN fake-ip routing.
+  // Use curl with --resolve to bypass DNS resolution.
   try {
-    // Get fake-ip from FlClash DNS
+    // Pre-resolve IP to bypass fake-ip DNS
     const nslookupOut = execSync(`nslookup api.search.brave.com 2>/dev/null`, { timeout: 5000, encoding: "utf8" });
     const ipMatch = nslookupOut.match(/Address:\s*(\d+\.\d+\.\d+\.\d+)/g);
     if (!ipMatch || ipMatch.length < 2) throw new Error("DNS resolution failed");
-    const fakeIp = ipMatch[1].replace("Address: ", "").trim();
-    console.log(`  Resolved fake-ip: ${fakeIp}`);
+    const resolvedIp = ipMatch[1].replace("Address: ", "").trim();
+    console.log(`  Resolved IP: ${resolvedIp}`);
     
-    const curlCmd = `curl -s --connect-timeout 15 --resolve "api.search.brave.com:443:${fakeIp}" "${apiUrl}" -H "Accept: application/json" -H "X-Subscription-Token: ${apiKey}"`;
+    const curlCmd = `curl -s --connect-timeout 15 --resolve "api.search.brave.com:443:${resolvedIp}" "${apiUrl}" -H "Accept: application/json" -H "X-Subscription-Token: ${apiKey}"`;
     const raw = execSync(curlCmd, { timeout: 20000, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
     const data = JSON.parse(raw);
     const results = (data.web?.results || []).map(r => ({
@@ -147,7 +146,7 @@ async function testBraveSearch(query) {
     return { engine: "Brave Search API", elapsedMs: Date.now()-t0, resultCount: results.length, results };
   } catch(e) {
     console.log(`  ❌ ${e.message}`);
-    // Fallback: try plain fetch (might work if FlClash config changes)
+    // Fallback: try plain fetch (works when not behind TUN proxy)
     try {
       const resp = await fetch(apiUrl, {
         headers: { "Accept": "application/json", "X-Subscription-Token": apiKey },

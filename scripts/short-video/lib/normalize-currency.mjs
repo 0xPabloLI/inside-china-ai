@@ -1,19 +1,21 @@
 /**
- * Currency Normalization — RMB → USD dual-annotation auto-fix.
+ * Currency Normalization — RMB/HKD → USD dual-annotation auto-fix.
  *
- * Scans all voiceover and texts string values for RMB amounts
- * (¥\d+ or \d+ (?:billion|million|thousand) yuan) and inserts
+ * Scans all voiceover and texts string values for RMB/HKD amounts
+ * (¥\d+ or \d+ (?:billion|million|thousand) (?:yuan|RMB|HKD)) and inserts
  * the USD equivalent in $X (¥Y) format when a $ equivalent is
  * not already present nearby.
  *
  * Called in main.mjs Step 0 (after scene-data load, before TTS).
- * Exchange rate: ¥1 ≈ $0.14 (7.14 CNY/USD). Review semi-annually.
+ * Exchange rates: ¥1 ≈ $0.14 (7.14 CNY/USD), HK$1 ≈ $0.13 (7.8 HKD/USD).
+ * Review semi-annually.
  *
  * @module normalize-currency
  */
 
-/** Exchange rate: ¥1 ≈ $0.14 (7.14 CNY/USD). */
+/** Exchange rates: ¥1 ≈ $0.14 (7.14 CNY/USD), HK$1 ≈ $0.13 (7.8 HKD/USD). */
 export const CNY_TO_USD_RATE = 0.14;
+export const HKD_TO_USD_RATE = 0.13;
 
 // ─── Patterns ───
 
@@ -22,6 +24,12 @@ const YEN_PATTERN = /¥([\d,.]+)\s*(billion|million|thousand|K|B|M)?/gi;
 
 /** Matches "<number> (billion|million|thousand) yuan" patterns */
 const YUAN_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand)\s*yuan/gi;
+
+/** Matches "<number> (billion|million|thousand|B|M|K) RMB" patterns */
+const RMB_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand|B|M|K)\s*RMB/gi;
+
+/** Matches "<number> (billion|million|thousand) HKD" or "<number> (B|M) HKD" patterns */
+const HKD_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand|B|M)?\s*HKD/gi;
 
 // ─── Helpers ───
 
@@ -45,19 +53,19 @@ function parseAmount(numStr, magnitude) {
  * Format a USD amount for display.
  * Uses "billion"/"million" suffix for large amounts, rounded number for small.
  * @param {number} usdAmount - USD value
- * @param {string} [originalMagnitude] - magnitude word from original ("billion", "million")
+ * @param {string} [originalMagnitude] - magnitude word from original ("billion", "B", "million", "M", etc.)
  * @returns {string} formatted USD string, e.g. "$63 billion" or "$154"
  */
 function formatUsd(usdAmount, originalMagnitude) {
   if (originalMagnitude) {
     const mag = originalMagnitude.toLowerCase();
-    if (mag === "billion") {
+    if (mag === "billion" || mag === "b") {
       return `$${Math.round(usdAmount / 1_000_000_000)} billion`;
     }
-    if (mag === "million") {
+    if (mag === "million" || mag === "m") {
       return `$${Math.round(usdAmount / 1_000_000)} million`;
     }
-    if (mag === "thousand") {
+    if (mag === "thousand" || mag === "k") {
       return `$${Math.round(usdAmount / 1_000)} thousand`;
     }
   }
@@ -100,6 +108,24 @@ function normalizeString(str) {
     if (hasNearbyUsd(fullStr, offset)) return match;
     const cnyAmount = parseAmount(numStr, magnitude);
     const usdAmount = cnyAmount * CNY_TO_USD_RATE;
+    const usdStr = formatUsd(usdAmount, magnitude);
+    return `${usdStr} (${match})`;
+  });
+
+  // Process "<number> (billion|million|thousand) RMB" patterns
+  str = str.replace(RMB_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
+    if (hasNearbyUsd(fullStr, offset)) return match;
+    const cnyAmount = parseAmount(numStr, magnitude);
+    const usdAmount = cnyAmount * CNY_TO_USD_RATE;
+    const usdStr = formatUsd(usdAmount, magnitude);
+    return `${usdStr} (${match})`;
+  });
+
+  // Process "<number> HKD" patterns (e.g. "80B HKD", "12.4 billion HKD")
+  str = str.replace(HKD_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
+    if (hasNearbyUsd(fullStr, offset)) return match;
+    const hkdAmount = parseAmount(numStr, magnitude);
+    const usdAmount = hkdAmount * HKD_TO_USD_RATE;
     const usdStr = formatUsd(usdAmount, magnitude);
     return `${usdStr} (${match})`;
   });

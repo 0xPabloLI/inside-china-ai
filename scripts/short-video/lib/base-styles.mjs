@@ -11,7 +11,7 @@
  *     new content should import from scene-templates.mjs directly)
  *
  * All video pipelines share this module to maintain consistent channel
- * identity. Content-specific scene designs live in content/{article}/scenes.mjs
+ * identity. Content-specific scene designs live in content/{slug}/scenes.mjs
  * and import from here.
  */
 
