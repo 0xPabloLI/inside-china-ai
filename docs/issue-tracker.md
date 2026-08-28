@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
-Last inventory: 2026-08-28 — 全量核对完成。35 open issues（GitHub 实际）与 tracker 完全一致（35 open + 44 closed = 79 tracked）。审阅报告 19/19 项 Comment 全部已修复（8 P1 + 11 P2）。#76/#77 P0 title vs Tier 3 不一致已通过 GitHub comment 解决。#65 GitHub issue body 已同步 pool fallback 定义。Previous: #111 CLOSED, #129 created, #63/#115/#116/#114 CLOSED, #128 created, #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed.
+Last inventory: 2026-08-28 — 全量核对完成。34 open issues（GitHub 实际）与 tracker 完全一致（34 open + 45 closed = 79 tracked）。#88 Part 2 completed (commit c177213): auto-gen googleSiteFallback for 13 sources, W0 fully done. Previous: #111 CLOSED, #129 created, #63/#115/#116/#114 CLOSED, #128 created, #120-#126 all CLOSED, #127 created, #119 fully closed, #75 promoted to Tier 2, #117 created, #113 VLM image preprocessing, #63 split into #63+#114, #65 renamed, #110 closed, #112 added, #109 merged into #65, #67/#78/#83/#81/#22/#62/#70/#51 Closed.
 
 **Tracker review**: `docs/archive/reviews/issue-tracker-review-2026-08-26.md` — 2026-08-26 全量逐项审阅（38 open issues），19 项通过 / 19 项 Comment（8 P1 + 11 P2）。**2026-08-28：19/19 项全部已修复，报告已归档。**
 
@@ -87,7 +87,7 @@ collectFromSource() 层次：
 
 | Wave | Shared context | Session candidates (Tier) | Dependencies | Parallel rules |
 |---|---|---|---|---|
-| **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | **#103** ✅ done · ~~**#111**~~ ✅ done (RAG integration) · **#88** (T1) Part 1 ✅ done (field rename), Part 2 pending (universal auto-gen) | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | #103 ✅ done；~~#111~~ ✅ done；#88 独占 `source-registry.mjs` |
+| **W0 — 决策与基线** | `source-registry.mjs` schema 基线 + `content-pipeline.md` 文档结构 + RAG 查询接口 | ~~**#103**~~ ✅ done · ~~**#111**~~ ✅ done (RAG integration) · ~~**#88**~~ ✅ done (Part 1 field rename + Part 2 universal auto-gen) | #67 ✅ 已完成（commit 0f75cdb），#66/#68/#76/#77/#87 全部 unblocked；#111 与 #21 只有推荐顺序 | ~~#103~~ ✅ done；~~#111~~ ✅ done；~~#88~~ ✅ done — W0 全部完成 |
 | **W1 — 搜索/素材核心链** | `source-registry.mjs` + `search-sources.mjs` fallback chain + `asset-sourcer.mjs` media search + `cdp-client.mjs` retry | ~~**#63**~~ ✅ closed (URL dedup, commit 80f5a13) · **#113** (T2) VLM image preprocessing (独立于搜索链, 可并行) · ~~**#114**~~ ✅ closed (SVE + runtime verified) · ~~**#115**~~ ✅ closed (downloadCandidate, commit cc699e6) · **#89** (T2) P0 rate limiter · **#66** (T2) extract fallback（#67 ✅ unblocked） · **#127** (T2) VLM Cascade Router (独立于搜索链, 改 vlm_analyzer.py, 与 #113 须串行) · ~~#110~~ ✅ closed · ~~#121~~ ✅ closed · ~~#116~~ ✅ closed | ~~#63~~ ✅ → ~~#114~~ ✅ → ~~#115~~ ✅ 全部 closed（串行链完成）；#89 P0 先于 #91；#113/#127 须串行（同改 vlm_analyzer.py） |
 | **W2 — 搜索扩展与路由** | `source-registry.mjs` 增源 + `search-sources.mjs` 路由 + `cdp-client.mjs` fallback | **#64** (T2) API sources · **#66** (T2) extract fallback · **#90** (T2) Bigsong API · **#97** (T2) WeChat RSS · **#91** (T3→**W2 提升**) DDG (#112 hard dep, 需前移) · **#112** (T2) image search pool · **#75** (T2) 视频源标注+下载方案（从 W4 提升） · ~~#122~~ ✅ closed · ~~#123~~ ✅ closed · ~~#124~~ ✅ closed · ~~#125~~ ✅ closed | #66 unblocked（#67 ✅）；#65 依赖 #64/#90；#91 依赖 #89 P0（**从 W3 前移到 W2**：#112 显式依赖 #91 DDG infra，不能在 #112 之后）；#109 已合并进 #65；#112 依赖 #91/#103 ✅/~~**#115 (hard)**~~ ✅ **hard blocker 已解除**；#75 依赖 #54 done | #64/#90/#66 共享 registry/search collector，按 Matrix 串行；#97/#112 可并行；#75 改 source-registry + asset-sourcer，与 #64/#66/#88 串行 |
 | **W3 — 审计与收尾** | 验证/文档工作——审计已实现的 registry/schema/fallback，不产生新功能 | **#68** (T3) signal density · **#76** (T3) SSOT · **#77** (T3) source labels · **#87** (T3) maintenance audit · **#65** (T2) pool (含 #109 MCP 封装) · **#92** (T3) SearXNG · ~~#126~~ ✅ closed | #68/#76/#77 unblocked（#67 ✅）；#87 依赖 #66（~~#63~~ ✅ done）；#65 依赖 #64/#90；#109 已合并进 #65 | 先完成 registry/search 改动再做 #77；审计项不得与其审计对象共享文件并行。**#91 已前移到 W2**（#112 hard dep） |
@@ -121,7 +121,7 @@ collectFromSource() 层次：
 
 | # | Issue | Type | Blocked by | Conflict files | Notes |
 |---|-------|------|-------------|---------------|-------|
-| #88 | Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | #83 done | source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests | 消除 20+ 手动配置项，每次加源都受益。**Part 1 ✅ done** (commit 759f07d): field rename (articleScript/imageScript/imageFallbackScript/googleSiteFallback) across 6 code + 4 test + 14 doc files. 422 tests pass. Part 2 pending: universal auto-gen Google site: fallback |
+| ~~#88~~ | ✅ Rename CDP script fields + universal Google site: fallback | mechanical + enhancement | ~~#83~~ ✅ done | ~~source-registry.mjs, asset-sourcer.mjs, search-sources.mjs, tests~~ | ✅ **Part 1** (commit 759f07d): field rename. **Part 2** (commit c177213): auto-gen `googleSiteFallback` for 13 applicable sources via `enrichWithCapabilities()`. `SHARED_GOOGLE_SITE_SEARCH_SCRIPT` + `autoGenerateGoogleSiteFallback()` + `shouldAutoGenGoogleSiteFallback()`. Zero-impact on `search-sources.mjs`. CDP test: 12/13 OK. 22 new tests, 206 total pass. Spec/tickets archived |
 | **#103** Docs offload/split | #95 ✅ done (PR #104 merged) | content-pipeline.md, video-workflow.md, DOCS-INDEX.md | ✅ Commit df1623e — content-pipeline.md 1069→424 lines (-60%), video-workflow.md 821→379 lines (-54%). 3 new L1 docs: article-production-guide.md, series-production-guide.md, content-scaffold-guide.md. Spec/tickets/review archived |
 | ~~#111~~ | ✅ Integrate text RAG retrieval into content pipeline (Stage 0 & 3) | enhancement | #15 done | ~~content-pipeline.md~~ | ✅ Commit dea33a5. Stage 0 末尾 + Stage 3 Step 2 新增 RAG 查询步骤。Stage 2e 重新定位为工具参考块。非阻塞降级与 Stage 2d 一致。无新代码。 Spec/tickets archived |
 
@@ -241,12 +241,13 @@ collectFromSource() 层次：
 
 ---
 
-## Closed Issues (2026-08-21~27)
+## Closed Issues (2026-08-21~28)
 
-43 issues closed across multiple triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload + crop decision spec + subtitle AIL gate + URL dedup + downloadCandidate extraction + RAG index extension + LLM filter superseded + RAG pipeline integration). Full details on GitHub.
+44 issues closed across multiple triage/implementation sessions (code verified + PR merges + mechanical fixes + superseded + schema completion + docs offload + crop decision spec + subtitle AIL gate + URL dedup + downloadCandidate extraction + RAG index extension + LLM filter superseded + RAG pipeline integration + universal Google site: fallback). Full details on GitHub.
 
 | # | Issue | Reason |
 |---|-------|--------|
+| #88 | Rename CDP script fields + universal Google site: fallback | ✅ Part 1 (commit 759f07d): field rename. Part 2 (commit c177213): auto-gen googleSiteFallback for 13 applicable sources. SHARED_GOOGLE_SITE_SEARCH_SCRIPT + autoGenerateGoogleSiteFallback + shouldAutoGenGoogleSiteFallback. Zero-impact on search-sources.mjs. CDP test: 12/13 OK. 22 new tests, 206 total. Spec/tickets archived |
 | #103 | Docs: offload/split L1 video content workflows | ✅ Commit df1623e — 3 new L1 docs, content-pipeline.md -60%, video-workflow.md -54%. Spec/tickets/review archived |
 | #110 | Progressive (Tiered) Media Search Architecture | Commit 3bdadd5 - Brave Image + SearXNG Image as Tier 3. 28 new tests, 402 total pass. Spec/tickets archived |
 | #83 | stock_api -> stock_media rename | Commit 418f46e - pure find-replace, 163 tests pass |
