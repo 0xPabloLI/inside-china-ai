@@ -57,6 +57,8 @@ const DEGRADED_RESULT = Object.freeze({
   fit: null,
   criticalEdgeText: null,
   reason: null,
+  relevance: null,
+  relevanceReason: null,
 });
 
 // ─── Module state ───
@@ -338,6 +340,7 @@ function processQueue() {
     action: request.action,
     path: request.path,
     ...(request.window ? { window: request.window } : {}),
+    ...(request.claim ? { claim: request.claim } : {}),
   });
 
   try {
@@ -404,6 +407,9 @@ export function analyzeAssetSemantics(assetPath, opts) {
         sampleFps: opts.sampleFps,
       }
     : undefined;
+  // Scene claim ({voiceover, assetNeed}) — routes through to the Python
+  // prompt builder; absent claim keeps the legacy prompt untouched.
+  const claim = opts?.claim || undefined;
 
   return new Promise((resolve, reject) => {
     requestQueue.push({
@@ -412,6 +418,7 @@ export function analyzeAssetSemantics(assetPath, opts) {
       action: "analyze_semantics",
       path: assetPath,
       window,
+      claim,
     });
     processQueue();
   });

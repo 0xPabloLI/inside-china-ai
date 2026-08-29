@@ -14,6 +14,7 @@ Actions:
 Response format (one line):
   {"description": "...", "subjects": ["..."], "contentKind": "...",
    "fit": "..."|null, "criticalEdgeText": "..."|null, "reason": "..."|null,
+   "relevance": int 0-100|null, "relevanceReason": "..."|null,
    "error": null}
   {"description": "", "subjects": [], ..., "error": "reason"}
 
@@ -36,6 +37,7 @@ ffmpeg path: /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
 import sys
 import json
 import os
+import re
 import threading
 import time
 import subprocess
@@ -120,6 +122,36 @@ talking_head
 """
 
 VALID_FITS = {"cover", "contain"}
+
+def build_semantics_prompt(is_video=False, claim=None):
+    """Build the semantics prompt, optionally with a scene-claim relevance block.
+
+    claim=None → exactly the base prompt (backward compatible with all
+    existing callers). When a claim ({voiceover, assetNeed}) is provided,
+    the scene's narration and desired visual are injected and the model is
+    asked for `## Relevance` (bare 0-100 integer) + `## Relevance Reason`.
+    """
+    base = SEMANTICS_PROMPT_VIDEO if is_video else SEMANTICS_PROMPT_IMAGE
+    if not claim:
+        return base
+
+    voiceover = str(claim.get("voiceover") or "").strip()
+    need = str(claim.get("assetNeed") or "").strip()
+
+    block = "\n\n## Scene Claim (judge relevance against this)\n"
+    if voiceover:
+        block += f'Scene narration: "{voiceover}"\n'
+    if need:
+        block += f'Desired visual: "{need}"\n'
+    block += (
+        "\n## Relevance\n"
+        "Score 0-100: how well this asset supports the scene claim above. "
+        "100 = directly supports it, 50 = loosely related, 0 = completely unrelated. "
+        "Output the bare integer only.\n\n"
+        "## Relevance Reason\n"
+        "One sentence explaining the score.\n"
+    )
+    return base + block
 
 # Minimum description length (chars). Below this threshold, the 2B model's
 # output is considered too short / low-confidence and escalated to GLM.
@@ -248,7 +280,7 @@ def get_deep_model():
 # ─── Markdown parser ───
 
 def parse_markdown_to_dict(raw_text):
-    """Parse VLM Markdown output into a dict with 6 mandatory keys.
+    """Parse VLM Markdown output into a dict with 8 mandatory keys.
 
     Logic:
     1. Strip markdown code fences (```markdown ... ```) if present
@@ -261,7 +293,8 @@ def parse_markdown_to_dict(raw_text):
     8. If no '## ' found at all → entire text becomes description, other fields = null
 
     Returns dict with mandatory keys: description, subjects, contentKind,
-    fit, criticalEdgeText, reason. Missing fields = None/[].
+    fit, criticalEdgeText, reason, relevance (int 0-100 or None),
+    relevanceReason. Missing fields = None/[].
     """
     result = {
         "description": None,
@@ -270,6 +303,8 @@ def parse_markdown_to_dict(raw_text):
         "fit": None,
         "criticalEdgeText": None,
         "reason": None,
+        "relevance": None,
+        "relevanceReason": None,
     }
 
     if not raw_text or not raw_text.strip():
@@ -364,9 +399,26 @@ def parse_markdown_to_dict(raw_text):
     else:
         result["reason"] = None
 
+    # relevance — bare integer 0-100 or None (missing/invalid = fail-closed upstream)
+    if "relevance" in raw_sections:
+        rel_match = re.fullmatch(r"\s*(\d{1,3})\s*", raw_sections["relevance"])
+        if rel_match:
+            rel_val = int(rel_match.group(1))
+            result["relevance"] = rel_val if 0 <= rel_val <= 100 else None
+        else:
+            result["relevance"] = None
+    else:
+        result["relevance"] = None
+
+    # relevanceReason
+    if "relevance_reason" in raw_sections:
+        result["relevanceReason"] = raw_sections["relevance_reason"]
+    else:
+        result["relevanceReason"] = None
+
     # 5. Add unknown sections as extra key-value pairs
     known_keys = {"description", "subjects", "content_kind", "fit",
-                  "critical_edge_text", "reason"}
+                  "critical_edge_text", "reason", "relevance", "relevance_reason"}
     for key, value in raw_sections.items():
         if key not in known_keys:
             result[key] = value
@@ -648,7 +700,7 @@ def resize_image_if_needed(img_path):
 
 # ─── Request handler ───
 
-def handle_analyze_semantics(model, processor, path, window=None):
+def handle_analyze_semantics(model, processor, path, window=None, claim=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -657,6 +709,9 @@ def handle_analyze_semantics(model, processor, path, window=None):
     When window is provided (dict with startMs/endMs/sampleFps), uses it for
     frame extraction to ensure the analyzed temporal range matches.
 
+    When claim ({voiceover, assetNeed}) is provided, the prompt gains a
+    scene-claim block and the output gains Relevance/Relevance Reason.
+
     Returns (result_dict, error) tuple.
     """
     if not os.path.exists(path):
@@ -664,6 +719,7 @@ def handle_analyze_semantics(model, processor, path, window=None):
 
     ext = os.path.splitext(path)[1].lower()
     is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
+    prompt_text = build_semantics_prompt(is_video, claim)
 
     # Parse window parameters
     if window:
@@ -683,7 +739,7 @@ def handle_analyze_semantics(model, processor, path, window=None):
             try:
                 raw = generate_response(
                     model, processor, video_path=path,
-                    fps=sample_fps, prompt_text=SEMANTICS_PROMPT_VIDEO,
+                    fps=sample_fps, prompt_text=prompt_text,
                 )
                 source_mode = "native"
             except Exception as e:
@@ -701,7 +757,7 @@ def handle_analyze_semantics(model, processor, path, window=None):
                 try:
                     raw = generate_response(
                         model, processor, image_paths=frames,
-                        prompt_text=SEMANTICS_PROMPT_VIDEO,
+                        prompt_text=prompt_text,
                     )
                 finally:
                     _cleanup_frames(frames)
@@ -723,7 +779,7 @@ def handle_analyze_semantics(model, processor, path, window=None):
                 try:
                     raw = generate_response(
                         model, processor, image_paths=actual_path,
-                        prompt_text=SEMANTICS_PROMPT_IMAGE,
+                        prompt_text=prompt_text,
                     )
                 finally:
                     if temp_path:
@@ -762,7 +818,7 @@ def handle_analyze_semantics(model, processor, path, window=None):
                 if is_video:
                     deep_raw = generate_response(
                         deep_model, deep_processor, video_path=path,
-                        fps=sample_fps, prompt_text=SEMANTICS_PROMPT_VIDEO,
+                        fps=sample_fps, prompt_text=prompt_text,
                     )
                 else:
                     # For images, apply same preprocessing (crop + resize)
@@ -779,7 +835,7 @@ def handle_analyze_semantics(model, processor, path, window=None):
                             deep_raw = generate_response(
                                 deep_model, deep_processor,
                                 image_paths=actual_path2,
-                                prompt_text=SEMANTICS_PROMPT_IMAGE,
+                                prompt_text=prompt_text,
                             )
                         finally:
                             if temp_path2:
@@ -873,7 +929,8 @@ def main():
             elif action == "analyze_semantics":
                 path = request.get("path", "")
                 window = request.get("window")
-                result, err = handle_analyze_semantics(model, processor, path, window=window)
+                claim = request.get("claim")
+                result, err = handle_analyze_semantics(model, processor, path, window=window, claim=claim)
                 if err:
                     response = _degraded_result(err)
                 else:
@@ -896,7 +953,11 @@ def main():
 
 
 def _degraded_result(error):
-    """Return a degraded result dict with all fields null/empty."""
+    """Return a degraded result dict with all fields null/empty.
+
+    Field set mirrors the JS-side DEGRADED_RESULT in visual-analyzer.mjs so
+    the IPC shape stays symmetric across the boundary.
+    """
     return {
         "description": "",
         "subjects": [],
@@ -904,6 +965,8 @@ def _degraded_result(error):
         "fit": None,
         "criticalEdgeText": None,
         "reason": None,
+        "relevance": None,
+        "relevanceReason": None,
         "error": error,
     }
 
