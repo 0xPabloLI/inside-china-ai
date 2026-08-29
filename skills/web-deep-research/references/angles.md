@@ -62,6 +62,32 @@ replace real-world testing on target hardware with actual project workloads.
 Conclusions must explain "why this model fits this task" and retain uncertainty
 for unverified items.
 
+## China AI Coding Tools（国产 AI 编程 IDE / Agent 工具）
+
+Use when researching 国内 AI 编程工具、AI IDE、Coding Agent、模型 credits 额度、国内外版本定价。
+
+| Angle | Search queries（已验证有效） | Key sources |
+|-------|--------------------------|-------------|
+| **产品全景** | "国产 AI 编程工具 2026 盘点"、"[厂商] AI 编程 IDE 发布" | IT之家 20 款横评、CSDN 系列盘点、aihub.cn 工具库 |
+| **长尾/遗漏产品** | "SolonCode AiXcoder CodeFuse 蚂蚁 开源 AI编程"、"除了Trae 通义灵码 还有哪些" | 长尾盘点是最大盲区 —— 大厂五强之外还有 ZCode、JoyCode、Marvis、QClaw、CodeFuse、SolonCode、AiXcoder、Fitten Code |
+| **免费额度与计费口径** | "[工具] 免费额度 credits 每月 限制"、"[工具] 计费模式 公告" | **阿里云/腾讯云官方公告页最准**；社区实测与官方口径常冲突，必须并列 |
+| **模型倍率（隐藏变量）** | "[工具] 模型倍率 credits 消耗"、"[工具] Credits 调整 降价" | 月费便宜 ≠ 划算。Qoder CN 曾因倍率 3x vs 国际 0.6x 导致真实成本反超 2 倍 |
+| **厂商产品矩阵** | "[厂商] AI 产品 矩阵 发布 2026"、"[厂商] 效率智能体 工具集" | 大厂同名/近名产品极多（腾讯有 CodeBuddy/WorkBuddy/Marvis/QClaw/NPC） |
+| **模型代际与免费天花板** | "[模型] 发布日期 benchmark AA 指数"、"[工具] 支持哪些模型" | Artificial Analysis、SWE-bench、Terminal-Bench、官方发布稿 |
+| **国内版 vs 国际版** | "[工具] 国际版 国内版 区别 价格" | 两站体系常不互通（账号/Credits/订阅分离），不可直接比价 |
+
+**Tier 1 sources worth returning to**:
+- 阿里云公告 `aliyun.com/notice/*`、帮助中心 `help.aliyun.com` —— 计费调整最权威
+- 腾讯云文档 `cloud.tencent.com/document/product/*`、国际站 `intl.cloud.tencent.com`
+- 厂商官网发布稿（meituan.com/news、tencent.com、zhipu 官方）
+- 聚合比对站：`codingplan.org`、`llmrates.ai`、`vibetokenplan.com`（引官方但需复核）
+
+**Verified pitfalls**:
+- 免费额度常有多个互相冲突的口径（官方 vs 社区实测），**必须以账号内"用量统计"页为准**，报告中并列标注
+- "限时加赠"会退坡，"限免期"常无截止日期 —— 标注为风险而非既成事实
+- 新模型跑分多为厂商自选基准，等 Artificial Analysis 收录（通常 1–2 周）才算第三方验证
+- 社区评测（CSDN/头条/公众号）常带厂商倾向，需 T1 交叉验证
+
 ## General / Cross-Domain
 
 For topics that don't fit a specific template above. Generate angles from these
