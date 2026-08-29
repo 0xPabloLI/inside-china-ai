@@ -275,7 +275,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 5. **生成 AI Outline 话题描述（HITL 检查点）** — Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中。**Agent 暂停**，等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。降级：用户跳过则 Agent 自行设计。
 6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
 7. **设计 SEO 标题**（≤60 chars）——对比 Agent 生成的 title 和 AI Outline 返回的 title，取更优者
-8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——如素材未找到，标注 `[ASSET NEEDED: description]` 供 asset-sourcer 补充。
+8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 填写 `assetNeed` 字段，asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限（见 `docs/video-script-writing-guide.md` → assetNeed 约定）。
 9. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
 
 ### 素材 → 视频的节奏适配
@@ -320,6 +320,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | B10 | Series Meta     | `seriesMeta` 存在，`partNumber`/`totalParts`/`prevPartSlug`/`nextPartSlug` 正确          | 修正 seriesMeta    |
 | B11 | 文本宽度预算    | 每 scene 的 result/company/action/context/subtext 字符数 ≤ 布局预算（media-split 半宽单独收紧，衬线加宽已计入，见 `scene-rules.mjs` `TEXT_WIDTH_BUDGETS`） | 缩短文案或换全宽布局 |
 | B12 | visualType 白名单 | Remotion 路径下 visualType ∈ Remotion dispatch 表（hook/cta/narrative/data/info-card/quote/context/contrast/stat-reveal）；Playwright 路径跳过 | 映射到支持类型，或 meta.renderer 设为 playwright |
+| B13 | 标注位置 | voiceover 不得含内嵌 `[ASSET NEEDED` 标注（TTS 会读出）；素材需求写 `assetNeed` 字段 | 移到 scene 的 `assetNeed` 字段 |
 
 **Warnings（列出但不阻塞 HITL）：**
 

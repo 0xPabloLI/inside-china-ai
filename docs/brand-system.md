@@ -98,7 +98,9 @@ Base: `#0a0a14`. Cards: `rgba(255,255,255,0.06)`. Borders: `rgba(255,255,255,0.0
 
 ## Typography
 
-Font stack: `'Helvetica Neue', 'Arial Black', Arial, sans-serif`
+Font stack: `'Times New Roman', Times, serif`（**衬线渲染基准**）
+
+> 渲染环境缺 Helvetica Neue，所有已发布视频实际以浏览器默认衬线（Times）渲染并多次通过 HITL。自 2026-08 起（spec #130），衬线栈在 `safe-zones.mjs` `BRAND_FONT_STACK` 显式声明、两条渲染路径（Remotion 根容器 + Playwright base-styles）共同消费——字体可用性不再可能悄悄改变成片外观。`scene-rules` 的文本宽度预算按衬线校准。原 Helvetica Neue sans 栈作废；若未来做品牌升级换开源 sans（如 Inter），需重校宽度预算（见 backlog）。
 
 | Context      | Size     | Weight  | Spacing          |
 | ------------ | -------- | ------- | ---------------- |

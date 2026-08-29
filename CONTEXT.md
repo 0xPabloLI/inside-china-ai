@@ -89,6 +89,15 @@ _Avoid_: High quality, max settings (too generic)
 **VLM** (Vision-Language Model): A local AI model (Qwen3-VL-8B-Instruct-8bit via mlx-vlm) that describes images and videos, and analyzes how to fit landscape assets into vertical canvas. Runs as a persistent Python subprocess (`vlm_analyzer.py`) managed by `visual-analyzer.mjs`. See ADR-0009.
 _Avoid_: Vision model, image analyzer (too generic)
 
+**Asset Claim**: A scene's declared visual need, written as the structured `assetNeed` field in Scene Data. asset-sourcer turns each claim into deterministic search keywords, sources candidates bound to that scene (`claimSceneId`), and the VLM judges them against the claim. The inline `[ASSET NEEDED: ...]` text annotation is deprecated — scene-rules B13 fails if it leaks into voiceover.
+_Avoid_: Asset need annotation, [ASSET NEEDED] marker
+
+**Relevance Gate**: The fail-closed check that an asset must pass before entering media-patch: VLM `Relevance` score (claim-bound assets) or deterministic token overlap vs the scene's voiceover (fallback assets) must reach the threshold (default 60). Below threshold → no media, Scene renders with CSS fallback — 宁缺毋滥. VLM failure counts as below threshold.
+_Avoid_: Relevance filter (it gates assignment, not search results)
+
+**Used-Asset Index**: A cross-content index of media already used by previous content packages (file sha256 under `content/*/assets/` + canonicalized URLs from `research/media-cache.json`, current slug excluded). asset-sourcer caps reused assets at 40% of what gets assigned per run. Degrades to empty sets on missing dirs or broken caches.
+_Avoid_: Asset dedup cache, media-cache (that name belongs to the per-content research cache)
+
 **Asset Fit Analysis**: A VLM operation that determines whether a landscape image should use `cover` (crop) or `contain` (letterbox) in a 9:16 canvas. The VLM sees a 9:16-cropped version of the image (when landscape) and outputs `{fit, criticalEdgeText, reason}`. The `focus` field is deprecated; crop positioning is handled by Crop Decision.
 _Avoid_: Crop analysis, aspect ratio check
 

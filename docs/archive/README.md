@@ -21,6 +21,7 @@
 | `spec-gapless-audio-track.md` / `tickets-gapless-audio-track.md` | 2026-08-06 | 无间隙连续音轨 + 音频同步验证 |
 | `spec-subtitle-karaoke-timeline.md` / `tickets-subtitle-karaoke-timeline.md` | 2026-08-06 | Karaoke 字幕漏词与不同步修复 |
 | `spec-subtitle-rendering.md` / `tickets-subtitle-rendering.md` | 2026-08-06 | 字幕渲染重构（CSS→JS rAF + ASS 烧录） |
+| `spec-asset-relevance-refactor.md` / `tickets-asset-relevance-refactor.md` | 2026-08-30 | 素材相关性重构：assetNeed per-scene claim 搜索 + used-asset 40% cap + VLM relevance gate + 衬线基准化（#130，issues #131-#139） |
 | `spec-subtitle-verification.md` / `tickets-subtitle-verification.md` | 2026-08-06 | 字幕验证系统 |
 | `spec-scene-extraction.md` / `tickets-scene-extraction.md` | 2026-08-06 | 场景提取 + 共享视觉系统分离 |
 | `spec-pipeline-isolation.md` / `tickets-pipeline-isolation.md` | 2026-08-06 | 多 Pipeline 隔离架构 |

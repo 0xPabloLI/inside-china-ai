@@ -66,6 +66,10 @@ Text assets (articles, scene-data) have auto-triggers in the content pipeline (S
 
 **Catalog entry quality**: Agent writes `description` and `keywords` when downloading assets. Description quality directly affects RAG search relevance — Agent should review and edit entries for clarity before reindexing. Do not auto-generate catalog entries from `asset-sourcer.mjs` (quality control matters).
 
+### Cross-content reuse cap (asset-sourcer)
+
+asset-sourcer 构建跨内容已用素材索引（扫描各内容包 `assets/` 的文件 sha256 + `research/media-cache.json` 的 URL，排除当前 slug），单次 sourcing 的采用素材中与历史重复的比例超过 40% 即拒绝后续重复候选——治「素材同质化」。索引纯按文件系统扫描，**不依赖 catalog.yml**（catalog 是给 RAG 语义检索用的，两者独立）。降级安全：目录缺失、JSON 损坏、单文件 hash 失败都只产生空集合，不会误判或中断。
+
 ## 3. Key paths the codebase expects
 
 These are environment facts — the code is the source of truth, this table is a cache for quick lookup:

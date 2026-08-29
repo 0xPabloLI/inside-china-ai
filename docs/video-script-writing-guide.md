@@ -80,7 +80,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。用户跳�
 
 - **narrativeRole**: `"S"`
 - **留存机制**：埋下 open loop 的种子（暗示有更深层的东西）
-- **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。如素材未找到，标注 `[ASSET NEEDED: company logo or product screenshot]`
+- **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。素材需求写入 scene 的 `assetNeed` 字段（如 `assetNeed: "company logo or product screenshot"`），asset-sourcer 按此做 per-scene claim 搜索
 - **voiceover**：≤10 词。从 4 种 hook 公式中轮换选择（见 Step 5）
 - **visualType**: `"hook"`
 - **时间**：0-3s
@@ -99,7 +99,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。用户跳�
 
 - **narrativeRole**: `"A"`
 - **留存机制**：curiosity gap — 暗示但不揭露全部
-- **素材要求**：数据可视化素材（图表、数字截图、官方文件截图）。引用源 logo。如素材未找到，标注 `[ASSET NEEDED: data chart or source screenshot]`
+- **素材要求**：数据可视化素材（图表、数字截图、官方文件截图）。引用源 logo。素材需求写入 scene 的 `assetNeed` 字段（如 `assetNeed: "data chart or source screenshot"`）
 - **voiceover**：≤25 词/scene。每句承载一个想法
 - **visualType**: `"narrative"`
 - **时间**：8-20s
@@ -118,7 +118,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。用户跳�
 
 - **narrativeRole**: `"R"`
 - **留存机制**：approaching closure — 观众感到答案要来了
-- **素材要求**：产品演示截图/视频、功能画面、实际操作 GIF。**必须有视觉证据**。如素材未找到，标注 `[ASSET NEEDED: product demo screenshot or GIF]`
+- **素材要求**：产品演示截图/视频、功能画面、实际操作 GIF。**必须有视觉证据**。素材需求写入 scene 的 `assetNeed` 字段（如 `assetNeed: "product demo screenshot or GIF"`）
 - **voiceover**：≤25 词/scene
 - **visualType**: `"narrative"`
 - **时间**：30-42s
@@ -251,4 +251,6 @@ CTA 公式：`[Action Verb] + [What They Get]`
 - **为什么不创建独立 skill**：按 `writing-for-agents` 原则，新 skill 如果 model-invoked 会永久占 context load。此文档作为 disclosed reference 被 `content-pipeline.md` 引用，agent 只在 Stage 3 时加载。
 - **S.T.A.R.T. 为主框架的原因**：15 源验证的创作者社区共识最高框架。AI Outline 来自 TikTok 官方 Creator Search Insights（2026-08-27 实测验证），是平台数据的工具化输出，作为 HITL 工具输入消费——Agent 拿到用户抄回的 AI Outline 后按消费映射表提取内容建议，而非用其结构替代 S.T.A.R.T.。
 - **为什么每个 scene 有素材要求**：之前 scene 的 media 字段是事后填充的——先写 voiceover 再找图。现在每个 scene 在设计时就定义素材需求，让脚本驱动素材收集，而不是素材适配脚本。
+
+**assetNeed 约定（Stage 3 必填实践）**：scene 的素材需求写入结构化字段 `assetNeed: "一句英文视觉描述"`（不是 voiceover 里的文字标注——TTS 会把内嵌 `[ASSET NEEDED` 标注读出来，scene-rules B13 会 FAIL）。asset-sourcer 消费 `assetNeed` 做 per-scene claim 搜索并绑定到该 scene；VLM 对照 voiceover 主张做相关性审查，低于阈值的素材宁缺毋滥（scene 保持纯 CSS 是合法结果）。公司实体关键词仅作为无 `assetNeed` scene 的 fallback。
 - **研究报告 vs 操作指南**：研究报告是 "为什么"，本指南是 "怎么做"。两者互补。
