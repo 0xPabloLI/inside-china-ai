@@ -27,6 +27,7 @@ import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { SAFE_ZONES } from "./lib/safe-zones.mjs";
 import { FPS, sceneClipFrames } from "./lib/timeline.mjs";
+import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { runFrameAnalysis } from "./lib/frame-analysis.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -64,7 +65,7 @@ if (!videoPath) {
     const subject = meta?.subject;
     if (subject && subject !== pipelineId) filePrefix = `${subject}-${pipelineId}`;
   } catch {}
-  videoPath = join(OUTPUT_DIR, `${filePrefix}-short.mp4`);
+  videoPath = resolveOutputVideo(OUTPUT_DIR, filePrefix);
 }
 
 // ─── Results tracking ───

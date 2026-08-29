@@ -286,7 +286,7 @@ export function deriveTitle(scenes, metadata) {
   // Try: "{textFocus} {entity}'s {number} {action}"
   // Simpler: take first sentence, condense
 
-  const firstSentence = vo.split(/[.!?]/)[0].trim();
+  const firstSentence = vo.split(/(?<=[.!?])\s+/)[0].trim();
 
   // Build a title: prefer text words + key info from voiceover
   let title = "";
@@ -348,7 +348,7 @@ export function deriveDescription(scenes, metadata) {
   for (const scene of scenes) {
     const vo = scene?.voiceover || "";
     // Take first sentence of each scene
-    const firstSent = vo.split(/[.!?]/)[0].trim();
+    const firstSent = vo.split(/(?<=[.!?])\s+/)[0].trim();
     if (firstSent.length > 0) {
       sentences.push(firstSent);
     }

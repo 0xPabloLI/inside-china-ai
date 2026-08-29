@@ -5,7 +5,7 @@
  */
 
 import { execSync } from "child_process";
-import { writeFileSync, unlinkSync, existsSync, renameSync } from "fs";
+import { writeFileSync, unlinkSync, existsSync, renameSync, readdirSync } from "fs";
 import { join } from "path";
 import { FPS, sceneClipFrames, sceneClipDuration } from "./timeline.mjs";
 import { buildVoiceoverTrack, TRACK_SAMPLE_RATE } from "./audio/track.mjs";
@@ -13,6 +13,25 @@ import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
 
 function run(cmd) {
   execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
+}
+
+/**
+ * Resolve the canonical output video for a pipeline: the latest versioned
+ * `{filePrefix}-v{version}-short.mp4`, falling back to the legacy unversioned
+ * `{filePrefix}-short.mp4` for old outputs. Version suffixes sort
+ * lexicographically (vYYYY-MM-DDTHH-MM-SS), matching assemble's own ordering.
+ */
+export function resolveOutputVideo(outputDir, filePrefix) {
+  let latest;
+  try {
+    latest = readdirSync(outputDir)
+      .filter((f) => f.startsWith(`${filePrefix}-v`) && f.endsWith("-short.mp4"))
+      .sort()
+      .reverse()[0];
+  } catch {
+    // outputDir missing or unreadable — fall through to the legacy path.
+  }
+  return latest ? join(outputDir, latest) : join(outputDir, `${filePrefix}-short.mp4`);
 }
 
 export function assembleVideo(

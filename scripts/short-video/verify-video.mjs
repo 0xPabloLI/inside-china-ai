@@ -26,6 +26,7 @@ import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
+import { resolveOutputVideo } from "./lib/assemble.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -68,7 +69,7 @@ const SUBTITLE_TIMING_PATH = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
 const subject = meta?.subject;
 let filePrefix = pipelineId;
 if (subject && subject !== pipelineId) filePrefix = `${subject}-${pipelineId}`;
-const VIDEO_PATH = join(OUTPUT_DIR, `${filePrefix}-short.mp4`);
+const VIDEO_PATH = resolveOutputVideo(OUTPUT_DIR, filePrefix);
 
 // ─── Results tracking ───
 const results = {
