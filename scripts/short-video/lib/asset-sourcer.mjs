@@ -39,6 +39,13 @@ import {
   BraveQuotaTracker,
 } from "./progressive-search.mjs";
 import { downloadCandidate } from "./download-candidate.mjs";
+import {
+  tokenizeClaimWords,
+  extractSceneClaims,
+  claimToKeywords,
+  NO_MEDIA_TYPES as SHARED_NO_MEDIA_TYPES,
+} from "./claim-keywords.mjs";
+import { isReusedAsset } from "./used-asset-index.mjs";
 
 // Re-export SOURCE_ATTRIBUTIONS from source-registry (single source of truth)
 export { SOURCE_ATTRIBUTIONS };
@@ -78,8 +85,11 @@ const KNOWN_COMPANIES = [
   "Feishu",
 ];
 
-/** Scene types that should NOT have media assigned. */
-const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
+/**
+ * Scene types that should NOT have media assigned — re-exported from
+ * claim-keywords (single source of truth).
+ */
+export const NO_MEDIA_TYPES = SHARED_NO_MEDIA_TYPES;
 
 /** Minimum score for hook scene auto-assignment (spec D1). */
 const HOOK_MIN_SCORE = 60;
@@ -88,6 +98,38 @@ const HOOK_MIN_SCORE = 60;
 const HOOK_REQUIRED_FIT = "cover";
 
 // ─── Pure functions ───
+
+/**
+ * Build the per-run search plan from scene-data claims + fallback keywords.
+ *
+ * Pure function so the "no queries available" edge is testable without
+ * touching the CLI (spec #130 Scenario row 2: empty pool → graceful
+ * degradation, never a hard failure — sourcerMain runs in-process from
+ * main.mjs, so process.exit here would kill the whole pipeline).
+ *
+ * @param {Array} scenes - Scene data array
+ * @param {Object|null} meta - Metadata with keyEntities
+ * @param {string[]|null} cliKeywords - CLI --keywords override (fallback pool)
+ * @returns {{queryGroups: Array<{keywords: string[], claimSceneId: number|null}>, allKeywords: string[], claimCount: number}}
+ */
+export function buildQueryGroups(scenes, meta, cliKeywords) {
+  const claims = extractSceneClaims(scenes);
+  const queryGroups = [];
+  for (const claimInfo of claims) {
+    const kws = claimToKeywords(claimInfo.claim);
+    if (kws.length === 0) continue; // all stopwords → covered by fallback pool
+    queryGroups.push({ keywords: kws, claimSceneId: claimInfo.sceneId });
+  }
+  const fallbackKeywords = extractKeywords(scenes, meta, cliKeywords);
+  if (fallbackKeywords.length > 0) {
+    queryGroups.push({ keywords: fallbackKeywords, claimSceneId: null });
+  }
+  return {
+    queryGroups,
+    allKeywords: queryGroups.flatMap((g) => g.keywords),
+    claimCount: claims.length,
+  };
+}
 
 /**
  * Extract keywords from scene-data, CLI args, or voiceover text.
@@ -514,6 +556,35 @@ export function normalizePathForPatch(assetPath, contentDir) {
 }
 
 /**
+ * Score how well an asset supports a scene's claim via deterministic token
+ * overlap between the asset's VLM description/subjects and the scene's
+ * voiceover + assetNeed. Scene-anchored: coverage of the scene's claim
+ * tokens. 0-100. Used for fallback (unbound) assets — claim-bound assets
+ * use the VLM's own Relevance score instead.
+ *
+ * @param {Object|null} asset - { description?, subjects? }
+ * @param {Object|null} scene - { voiceover?, assetNeed? }
+ * @returns {number} 0-100
+ */
+export function scoreRelevanceOverlap(asset, scene) {
+  if (!asset || !scene) return 0;
+
+  const assetText = [asset.description || "", ...(asset.subjects || [])].join(" ");
+  const assetTokens = new Set(tokenizeClaimWords(assetText));
+  if (assetTokens.size === 0) return 0;
+
+  const sceneText = [scene.voiceover || "", scene.assetNeed || ""].join(" ");
+  const sceneTokens = [...new Set(tokenizeClaimWords(sceneText))];
+  if (sceneTokens.length === 0) return 0;
+
+  let matched = 0;
+  for (const token of sceneTokens) {
+    if (assetTokens.has(token)) matched++;
+  }
+  return Math.min(100, Math.round((matched / sceneTokens.length) * 100));
+}
+
+/**
  * Batch-assign downloaded assets to scenes using greedy matching.
  *
  * Assets are sorted by score descending. Each asset is assigned to the
@@ -523,14 +594,34 @@ export function normalizePathForPatch(assetPath, contentDir) {
  * Assets that can't be assigned (no available scene, no path, duplicate path)
  * are included in the result with status: "unassigned".
  *
+ * Gated mode (opt-in via opts.relevanceThreshold) adds the relevance pipeline
+ * from spec #130:
+ *   - claim binding: assets with `claimSceneId` only enter their bound scene
+ *     and must carry a VLM `relevanceScore` >= threshold (missing → fail-closed)
+ *   - fallback assets are overlap-scored per scene (scoreRelevanceOverlap)
+ *   - cross-content reuse cap: a reused asset is rejected when accepting it
+ *     would push reused/total above opts.reusedCap (default 0.4); rejection
+ *     happens before scene search so it never consumes a scene slot
+ *   - assigned entries carry relevanceScore/relevanceSource/relevanceReason/reused
+ *
  * @param {Array} assets - Downloaded assets (each must have score, type, path)
  * @param {Array} scenes - Scene data array
+ * @param {Object} [opts] - Gated-mode options
+ * @param {number} [opts.relevanceThreshold] - Enable gating when numeric (default 60 at call sites)
+ * @param {{hashes: Set<string>, urls: Set<string>}} [opts.usedIndex] - Used-asset index (buildUsedAssetIndex)
+ * @param {number} [opts.reusedCap=0.4] - Max reused share of accepted assets
  * @returns {Array<{ sceneId?: number, sceneName?: string, visualType?: string,
  *   media?: Object, assetScore: number, source: string, attribution?: Object,
- *   status: "assigned" | "unassigned" }>}
+ *   status: "assigned" | "unassigned", reason?: string,
+ *   relevanceScore?: number, relevanceSource?: string, relevanceReason?: string,
+ *   reused?: boolean }>}
  */
-export function assignAssetsToScenes(assets, scenes) {
+export function assignAssetsToScenes(assets, scenes, opts = {}) {
   if (!assets || assets.length === 0) return [];
+
+  const gated = typeof opts.relevanceThreshold === "number";
+  const threshold = opts.relevanceThreshold;
+  const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
 
   // Sort assets by score descending (greedy: highest score gets first pick)
   const sorted = [...assets].sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -540,32 +631,131 @@ export function assignAssetsToScenes(assets, scenes) {
   const assignedPaths = new Set();
   const result = [];
 
+  // Online reused-cap counters (gated mode)
+  let acceptedTotal = 0;
+  let acceptedReused = 0;
+
+  const detectReused = (asset) => {
+    if (typeof asset.reused === "boolean") return asset.reused;
+    if (!opts.usedIndex) return false;
+    return isReusedAsset({ url: asset.url, filePath: asset.absPath }, opts.usedIndex);
+  };
+
+  /** Gated-mode audit fields shared by the hook and general assignment passes. */
+  const gatedEntryFields = (asset, scene, reused, overlap) => ({
+    relevanceScore: overlap,
+    relevanceSource: "overlap",
+    relevanceReason: `token overlap vs scene ${scene.id} claim`,
+    reused,
+  });
+
+  const unassignedEntry = (asset, reason) => {
+    const entry = {
+      assetScore: asset.score || 0,
+      source: asset.source || asset.from || "unknown",
+      attribution: asset.attribution || null,
+      status: "unassigned",
+    };
+    if (reason) {
+      entry.reason = reason;
+      entry.path = asset.path; // audit trail for gated rejections
+    }
+    return entry;
+  };
+
   for (const asset of sorted) {
     // Skip assets without a path (can't assign without knowing file location)
     if (!asset.path) {
-      result.push({
-        assetScore: asset.score || 0,
-        source: asset.source || asset.from || "unknown",
-        attribution: asset.attribution || null,
-        status: "unassigned",
-      });
+      result.push(unassignedEntry(asset));
       continue;
     }
 
     // Skip duplicate paths (first occurrence already assigned)
     if (assignedPaths.has(asset.path)) {
-      result.push({
-        assetScore: asset.score || 0,
-        source: asset.source || asset.from || "unknown",
-        attribution: asset.attribution || null,
-        status: "unassigned",
-      });
+      result.push(unassignedEntry(asset, gated ? "duplicate asset path" : undefined));
       continue;
     }
 
-    // Find first available scene — hook scenes get priority (spec D1)
-    let assigned = false;
     const isVideo = asset.type === "video";
+    let assigned = false;
+    const reused = gated ? detectReused(asset) : false;
+
+    if (gated) {
+      // Online reused cap — reject before scene search so a rejected reused
+      // asset never consumes a scene slot.
+      if (reused && (acceptedReused + 1) / (acceptedTotal + 1) > reusedCap) {
+        result.push(
+          unassignedEntry(
+            asset,
+            `cross-content reuse cap exceeded (${Math.round(reusedCap * 100)}%)`,
+          ),
+        );
+        continue;
+      }
+
+      // ── Claim binding: per-scene sourced assets never spill to other scenes ──
+      if (asset.claimSceneId != null) {
+        const target = scenes.find((s) => s.id === asset.claimSceneId);
+        let reason = null;
+        if (!target) {
+          reason = `claim scene ${asset.claimSceneId} not found`;
+        } else if (asset.relevanceScore == null) {
+          reason = "VLM relevance missing — fail-closed (宁缺毋滥)";
+        } else if (asset.relevanceScore < threshold) {
+          reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold}`;
+        } else if (
+          assignedSceneIds.has(target.id) ||
+          target.media ||
+          NO_MEDIA_TYPES.has(target.visualType)
+        ) {
+          reason = `claim scene ${target.id} unavailable (occupied/manual media/no-media type)`;
+        } else if (
+          target.visualType === "hook" &&
+          ((asset.score || 0) < HOOK_MIN_SCORE || asset.fit !== HOOK_REQUIRED_FIT)
+        ) {
+          reason = "hook gates not met (score>=60 + fit=cover)";
+        }
+
+        if (reason) {
+          result.push(unassignedEntry(asset, reason));
+          continue;
+        }
+
+        const vt = target.visualType;
+        const media = {
+          type: asset.type,
+          path: asset.path,
+          source: asset.source || asset.from || undefined,
+          animation: vt === "hook" ? "ken-burns" : isVideo ? "zoom" : "ken-burns",
+          overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
+        };
+        if (vt === "hook") media.fit = "cover";
+        else if (asset.fit && !isVideo) media.fit = asset.fit;
+        if (asset.cropFocus) media.cropFocus = asset.cropFocus;
+        if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
+
+        result.push({
+          sceneId: target.id,
+          sceneName: target.name,
+          visualType: vt,
+          media,
+          analysis: asset.focusAnalysis ? { focusAnalysis: asset.focusAnalysis } : undefined,
+          assetScore: asset.score || 0,
+          source: asset.source || asset.from || "unknown",
+          attribution: asset.attribution || null,
+          status: "assigned",
+          relevanceScore: asset.relevanceScore,
+          relevanceSource: "vlm",
+          relevanceReason: asset.relevanceReason || null,
+          reused,
+        });
+        assignedSceneIds.add(target.id);
+        assignedPaths.add(asset.path);
+        acceptedTotal++;
+        if (reused) acceptedReused++;
+        continue;
+      }
+    }
 
     // Pass 1: hook scenes (require score>=60 and aiFit="cover")
     for (const scene of scenes) {
@@ -576,6 +766,12 @@ export function assignAssetsToScenes(assets, scenes) {
       // Hook gate: score >= 60 AND fit === "cover"
       if ((asset.score || 0) < HOOK_MIN_SCORE) continue;
       if (asset.fit !== HOOK_REQUIRED_FIT) continue;
+
+      // Relevance gate (gated mode): hook must also clear the overlap check
+      if (gated) {
+        const ov = scoreRelevanceOverlap(asset, scene);
+        if (ov < threshold) continue;
+      }
 
       const media = {
         type: asset.type,
@@ -590,7 +786,7 @@ export function assignAssetsToScenes(assets, scenes) {
         media.volume = VOLUME_RECOMMENDATIONS["narrative"].video;
       }
 
-      result.push({
+      const entry = {
         sceneId: scene.id,
         sceneName: scene.name,
         visualType: "hook",
@@ -600,10 +796,19 @@ export function assignAssetsToScenes(assets, scenes) {
         source: asset.source || asset.from || "unknown",
         attribution: asset.attribution || null,
         status: "assigned",
-      });
+      };
+      if (gated) {
+        Object.assign(
+          entry,
+          gatedEntryFields(asset, scene, reused, scoreRelevanceOverlap(asset, scene)),
+        );
+      }
+      result.push(entry);
 
       assignedSceneIds.add(scene.id);
       assignedPaths.add(asset.path);
+      acceptedTotal++;
+      if (reused) acceptedReused++;
       assigned = true;
       break;
     }
@@ -615,6 +820,12 @@ export function assignAssetsToScenes(assets, scenes) {
       if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
       if (scene.visualType === "hook") continue; // already handled in pass 1
       if (scene.media) continue;
+
+      // Relevance gate (gated mode): per-scene overlap check
+      if (gated) {
+        const ov = scoreRelevanceOverlap(asset, scene);
+        if (ov < threshold) continue;
+      }
 
       // Assign this asset to this scene
       const vt = scene.visualType;
@@ -672,7 +883,7 @@ export function assignAssetsToScenes(assets, scenes) {
         analysis.focusAnalysis = asset.focusAnalysis;
       }
 
-      result.push({
+      const entry = {
         sceneId: scene.id,
         sceneName: scene.name,
         visualType: vt,
@@ -682,21 +893,30 @@ export function assignAssetsToScenes(assets, scenes) {
         source: asset.source || asset.from || "unknown",
         attribution: asset.attribution || null,
         status: "assigned",
-      });
+      };
+      if (gated) {
+        Object.assign(
+          entry,
+          gatedEntryFields(asset, scene, reused, scoreRelevanceOverlap(asset, scene)),
+        );
+      }
+      result.push(entry);
 
       assignedSceneIds.add(scene.id);
       assignedPaths.add(asset.path);
+      acceptedTotal++;
+      if (reused) acceptedReused++;
       assigned = true;
       break;
     }
 
     if (!assigned) {
-      result.push({
-        assetScore: asset.score || 0,
-        source: asset.source || asset.from || "unknown",
-        attribution: asset.attribution || null,
-        status: "unassigned",
-      });
+      result.push(
+        unassignedEntry(
+          asset,
+          gated ? "relevance below threshold for all eligible scenes" : undefined,
+        ),
+      );
     }
   }
 
@@ -800,6 +1020,11 @@ export async function analyzeAssets(assets, opts = {}) {
   const modelId = opts.model || "mlx-community/Qwen3-VL-8B-Instruct-8bit";
   const contentDir = opts.contentDir || null;
   const contentSlug = opts.contentSlug || null;
+  // Claims map: sceneId -> { voiceover, assetNeed } — claim-bound assets are
+  // analyzed with the scene-claim prompt so the VLM judges relevance.
+  const claimsMap = new Map(
+    (Array.isArray(opts.claims) ? opts.claims : []).map((c) => [c.sceneId, c]),
+  );
 
   // ── Phase 1: Pre-filter (free — runs before expensive focus detection) ──
   // T06 fix: move pre-filter before detectFocus so OpenCV doesn't waste 0.5s
@@ -880,10 +1105,16 @@ export async function analyzeAssets(assets, opts = {}) {
     let semantics;
     let success = false;
 
+    const claimInfo = asset.claimSceneId != null ? claimsMap.get(asset.claimSceneId) : null;
+    const analyzeOpts = asset.window
+      ? { ...asset.window, ...(claimInfo ? { claim: claimInfo } : {}) }
+      : claimInfo
+        ? { claim: claimInfo }
+        : undefined;
     try {
       // Pass window opts for video assets; omit for images (backward compat)
-      semantics = asset.window
-        ? await analyzeAssetSemantics(absPath, asset.window)
+      semantics = analyzeOpts
+        ? await analyzeAssetSemantics(absPath, analyzeOpts)
         : await analyzeAssetSemantics(absPath);
       success = !!(semantics.description && semantics.description.length > 0);
     } catch (err) {
@@ -895,6 +1126,8 @@ export async function analyzeAssets(assets, opts = {}) {
         fit: null,
         criticalEdgeText: null,
         reason: null,
+        relevance: null,
+        relevanceReason: null,
       };
     }
 
@@ -905,6 +1138,9 @@ export async function analyzeAssets(assets, opts = {}) {
     asset.fit = semantics.fit;
     asset.criticalEdgeText = semantics.criticalEdgeText;
     asset.reason = semantics.reason;
+    // Relevance gate inputs — null relevance means fail-closed downstream
+    asset.relevanceScore = semantics.relevance ?? null;
+    asset.relevanceReason = semantics.relevanceReason ?? null;
     // Store window and sourceMode for video assets (T6)
     if (semantics.window) {
       asset.window = semantics.window;
@@ -986,6 +1222,8 @@ export async function analyzeAssets(assets, opts = {}) {
           fit: a.fit || null,
           criticalEdgeText: a.criticalEdgeText || null,
           reason: a.reason || null,
+          relevanceScore: a.relevanceScore ?? null,
+          relevanceReason: a.relevanceReason ?? null,
           focusAnalysis: a.focusAnalysis || null,
           cropDecision: a.cropDecision || null,
           cropFocus: a.cropFocus || null,
@@ -1739,6 +1977,7 @@ export async function main(args = process.argv.slice(2)) {
   const contentSlug = getArg("content");
   const keywordsArg = getArg("keywords");
   const maxPerSource = parseInt(getArg("max-per-source") || "3", 10);
+  const relevanceThreshold = parseFloat(getArg("relevance-threshold") || "60");
 
   if (!contentSlug) {
     console.error(
@@ -1774,14 +2013,27 @@ export async function main(args = process.argv.slice(2)) {
     console.log("  Scene-data: not found (will use CLI keywords only)");
   }
 
-  // Extract keywords
+  // Per-scene claims (structured assetNeed) + company-entity fallback pool.
+  // Claim-bound candidates are tagged with claimSceneId so they can only be
+  // assigned to the scene they were sourced for (spec #130 D3/D7).
   const cliKeywords = keywordsArg ? keywordsArg.split(",").map((k) => k.trim()) : null;
-  const keywords = extractKeywords(scenes, meta, cliKeywords);
-  console.log(`  Keywords: ${keywords.join(", ") || "(none)"}`);
+  const { queryGroups, allKeywords, claimCount } = buildQueryGroups(scenes, meta, cliKeywords);
+  const primaryKeyword = queryGroups[0]?.keywords[0] || "asset";
+  console.log(
+    `  Claims: ${claimCount} scene(s) with assetNeed → ${queryGroups.length} query group(s)`,
+  );
+  console.log(`  Keywords: ${allKeywords.join(", ") || "(none)"}`);
 
-  if (keywords.length === 0) {
-    console.error("❌ No keywords found. Provide --keywords or scene-data with keyEntities.");
-    process.exit(1);
+  if (allKeywords.length === 0) {
+    // Graceful degradation (spec #130 Scenario row 2): scenes render with
+    // CSS fallback instead of aborting the in-process pipeline run.
+    console.warn(
+      "⚠️  No search queries available (no assetNeed claims, no meta.keyEntities, no --keywords).",
+    );
+    console.warn(
+      "   Scenes will render with CSS fallback. Add assetNeed to scene-data for per-scene sourcing.",
+    );
+    return;
   }
 
   // Load environment
@@ -1796,7 +2048,7 @@ export async function main(args = process.argv.slice(2)) {
   // A working CDP connection is required only when at least one CDP query is
   // not already cached. This lets fully cached runs proceed without Chrome.
   const cdpSearchRequired = CDP_SOURCES.some((source) =>
-    keywords.some(
+    allKeywords.some(
       (keyword) =>
         !getCachedSearchResults(searchCache, {
           source: source.name,
@@ -1826,11 +2078,13 @@ export async function main(args = process.argv.slice(2)) {
   const downloadedUrls = new Set();
 
   // ── Phase 0: Cached-image flow (from trend discovery) ──
+  // Cached trend images enter the fallback pool (claimSceneId: null) —
+  // gated assignment relevance-screens them via token overlap (spec #130).
   // R1: Check trending-topics.json for cached image URLs before making new CDP/API requests.
   // Images are filtered by keyword match + URL pattern (exclude logos/icons), then
   // pre-download filtered (technicalScore >= 20), then downloaded.
   const trendingTopicsPath = join(__dirname, "..", "output", "trending-topics.json");
-  const cachedImages = loadCachedImages(trendingTopicsPath, keywords);
+  const cachedImages = loadCachedImages(trendingTopicsPath, allKeywords);
   if (cachedImages.length > 0) {
     console.log(`\n🖼️  Cached images (from trend discovery): ${cachedImages.length} found`);
     const scored = cachedImages
@@ -1838,7 +2092,7 @@ export async function main(args = process.argv.slice(2)) {
         const candidate = toCachedImageCandidate(c);
         return {
           ...candidate,
-          score: scoreCandidate(candidate, keywords[0]),
+          score: scoreCandidate(candidate, primaryKeyword),
         };
       })
       .sort((a, b) => b.score - a.score)
@@ -1849,7 +2103,7 @@ export async function main(args = process.argv.slice(2)) {
       if (!candidate.url) continue;
 
       // T05: Pre-download filter
-      const { technicalScore: preScore } = preFilterCandidate(candidate, keywords[0]);
+      const { technicalScore: preScore } = preFilterCandidate(candidate, primaryKeyword);
       if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
         skipped.push({
           source: "cached",
@@ -1864,7 +2118,7 @@ export async function main(args = process.argv.slice(2)) {
         continue;
       }
 
-      const filename = buildFilename("cached", keywords[0], j + 1, "jpg");
+      const filename = buildFilename("cached", primaryKeyword, j + 1, "jpg");
       const destPath = join(assetsDir, filename);
       const dl = await downloadCandidate(candidate, { destPath, contentDir });
       if (dl.success) downloadedUrls.add(candidate.url);
@@ -1879,7 +2133,7 @@ export async function main(args = process.argv.slice(2)) {
         skipped.push({ source: "cached", reason: dl.error });
         console.log(`    ⏭️  cached: ${dl.error}`);
       } else {
-        failed.push({ source: "cached", keyword: keywords[0], error: dl.error });
+        failed.push({ source: "cached", keyword: primaryKeyword, error: dl.error });
         console.log(`    ❌ cached: ${dl.error}`);
       }
     }
@@ -1892,7 +2146,7 @@ export async function main(args = process.argv.slice(2)) {
   // Contains images + videos extracted from article detail pages that the
   // Agent already opened. Reuses existing score/filter/download pipeline.
   const mediaCachePath = join(contentDir, "research", "media-cache.json");
-  const cachedMedia = loadCachedMedia(mediaCachePath, keywords);
+  const cachedMedia = loadCachedMedia(mediaCachePath, allKeywords);
   if (cachedMedia.length > 0) {
     console.log(`\n🎬  Cached media (from detail pages): ${cachedMedia.length} found`);
     const scoredMedia = cachedMedia
@@ -1900,7 +2154,7 @@ export async function main(args = process.argv.slice(2)) {
         const candidate = toCachedMediaCandidate(c);
         return {
           ...candidate,
-          score: scoreCandidate(candidate, keywords[0]),
+          score: scoreCandidate(candidate, primaryKeyword),
         };
       })
       .sort((a, b) => b.score - a.score)
@@ -1917,7 +2171,7 @@ export async function main(args = process.argv.slice(2)) {
       }
 
       const ext = candidate.type === "video" ? "mp4" : "jpg";
-      const filename = buildFilename("cached-media", keywords[0], j + 1, ext);
+      const filename = buildFilename("cached-media", primaryKeyword, j + 1, ext);
       const destPath = join(assetsDir, filename);
       const dl = await downloadCandidate(candidate, { destPath, contentDir });
       if (dl.success) downloadedUrls.add(candidate.url);
@@ -1932,7 +2186,7 @@ export async function main(args = process.argv.slice(2)) {
         skipped.push({ source: "cached-media", reason: dl.error });
         console.log(`    ⏭️  cached-media: ${dl.error}`);
       } else {
-        failed.push({ source: "cached-media", keyword: keywords[0], error: dl.error });
+        failed.push({ source: "cached-media", keyword: primaryKeyword, error: dl.error });
         console.log(`    ❌ cached-media: ${dl.error}`);
       }
     }
@@ -1949,22 +2203,28 @@ export async function main(args = process.argv.slice(2)) {
       let skippedForMissingApiKey = false;
 
       const candidates = await Promise.all(
-        keywords.map(async (keyword) => {
-          const result = await getOrSearchResults(searchCache, {
-            source: source.name,
-            keyword,
-            search: () => searchApiSource(source, keyword, apiKey),
-          });
-          if (result.cacheHit) {
-            console.log(`  ♻️  ${source.label} cache hit: "${keyword}"`);
-          } else if (missingApiKey) {
-            skippedForMissingApiKey = true;
-          } else if (result.results.length > 0) {
-            searchCacheDirty = true;
-            console.log(`  💾 ${source.label} search cached: "${keyword}"`);
-          }
-          return result.results;
-        }),
+        queryGroups.flatMap((group) =>
+          group.keywords.map(async (keyword) => {
+            const result = await getOrSearchResults(searchCache, {
+              source: source.name,
+              keyword,
+              search: () => searchApiSource(source, keyword, apiKey),
+            });
+            if (result.cacheHit) {
+              console.log(`  ♻️  ${source.label} cache hit: "${keyword}"`);
+            } else if (missingApiKey) {
+              skippedForMissingApiKey = true;
+            } else if (result.results.length > 0) {
+              searchCacheDirty = true;
+              console.log(`  💾 ${source.label} search cached: "${keyword}"`);
+            }
+            return result.results.map((c) => ({
+              ...c,
+              searchKeyword: keyword,
+              claimSceneId: group.claimSceneId,
+            }));
+          }),
+        ),
       );
       if (skippedForMissingApiKey) {
         skipped.push({ source: source.name, reason: "no API key" });
@@ -1980,7 +2240,7 @@ export async function main(args = process.argv.slice(2)) {
       const candidates = result.value;
       // Score and sort
       const scored = candidates
-        .map((c) => ({ ...c, score: scoreCandidate(c, keywords[0]) }))
+        .map((c) => ({ ...c, score: scoreCandidate(c, c.searchKeyword || primaryKeyword) }))
         .sort((a, b) => b.score - a.score)
         .slice(0, maxPerSource);
 
@@ -1989,7 +2249,10 @@ export async function main(args = process.argv.slice(2)) {
         const candidate = scored[j];
 
         // T05: Skip candidates with technicalScore < 20 before downloading
-        const { technicalScore: preScore } = preFilterCandidate(candidate, keywords[0]);
+        const { technicalScore: preScore } = preFilterCandidate(
+          candidate,
+          candidate.searchKeyword || primaryKeyword,
+        );
         if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
           skipped.push({
             source: candidate.source,
@@ -2039,7 +2302,11 @@ export async function main(args = process.argv.slice(2)) {
             skipped.push({ source: candidate.source, reason: dl.error });
             console.log(`    ⏭️  ${candidate.source}: ${dl.error}`);
           } else {
-            failed.push({ source: candidate.source, keyword: keywords[0], error: dl.error });
+            failed.push({
+              source: candidate.source,
+              keyword: candidate.searchKeyword || primaryKeyword,
+              error: dl.error,
+            });
             console.log(`    ❌ ${candidate.source}: ${dl.error}`);
           }
         }
@@ -2047,7 +2314,7 @@ export async function main(args = process.argv.slice(2)) {
     } else {
       failed.push({
         source: API_SOURCES[i].name,
-        keyword: keywords[0],
+        keyword: primaryKeyword,
         error: result.reason?.message || "API error",
       });
     }
@@ -2055,62 +2322,73 @@ export async function main(args = process.argv.slice(2)) {
 
   // ── yt-dlp sources (serial) ──
   console.log("\n🎬 yt-dlp sources:");
-  for (const source of YTDLP_SOURCES) {
-    for (const keyword of keywords) {
-      console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-      const result = await getOrSearchResults(searchCache, {
-        source: source.name,
-        keyword,
-        search: () => searchYtdlp(keyword, source.platform),
-      });
-      const candidates = result.results;
-      if (!result.cacheHit && candidates.length > 0) {
-        searchCacheDirty = true;
-        console.log("     Live search result queued for cache");
-      } else if (result.cacheHit) {
-        console.log("     Reused cached search result");
-      }
-      console.log(`     Found ${candidates.length} candidates`);
-
-      const scored = candidates
-        .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, maxPerSource);
-
-      for (let j = 0; j < scored.length; j++) {
-        const candidate = scored[j];
-
-        // T05: Skip candidates with technicalScore < 20 before downloading
-        const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-        if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-          skipped.push({ source: source.name, reason: `pre-download filter (score: ${preScore})` });
-          continue;
+  for (const { keywords: groupKeywords, claimSceneId } of queryGroups) {
+    for (const source of YTDLP_SOURCES) {
+      for (const keyword of groupKeywords) {
+        console.log(`  🔍 ${source.label} search: "${keyword}"...`);
+        const result = await getOrSearchResults(searchCache, {
+          source: source.name,
+          keyword,
+          search: () => searchYtdlp(keyword, source.platform),
+        });
+        const candidates = result.results;
+        if (!result.cacheHit && candidates.length > 0) {
+          searchCacheDirty = true;
+          console.log("     Live search result queued for cache");
+        } else if (result.cacheHit) {
+          console.log("     Reused cached search result");
         }
+        console.log(`     Found ${candidates.length} candidates`);
 
-        // Skip if this URL was already downloaded by a prior phase
-        if (downloadedUrls.has(candidate.url)) {
-          skipped.push({ source: source.name, reason: "URL already downloaded" });
-          continue;
-        }
+        const scored = candidates
+          .map((c) => ({
+            ...c,
+            searchKeyword: keyword,
+            claimSceneId,
+            score: scoreCandidate(c, keyword),
+            source: source.name,
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, maxPerSource);
 
-        const filename = buildFilename(source.name, keyword, j + 1, "mp4");
-        const destPath = join(assetsDir, filename);
+        for (let j = 0; j < scored.length; j++) {
+          const candidate = scored[j];
 
-        const dl = await downloadCandidate(candidate, { destPath, contentDir });
-        if (dl.success) downloadedUrls.add(candidate.url);
-        if (dl.success) {
-          allAssets.push({
-            ...candidate,
-            path: dl.path,
-            status: dl.skipped ? "already exists" : "downloaded",
-          });
-          console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
-        } else if (dl.skipped) {
-          skipped.push({ source: source.name, reason: dl.error });
-          console.log(`    ⏭️  ${source.name}: ${dl.error}`);
-        } else {
-          failed.push({ source: source.name, keyword, error: dl.error });
-          console.log(`    ❌ ${source.name}: ${dl.error}`);
+          // T05: Skip candidates with technicalScore < 20 before downloading
+          const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+          if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+            skipped.push({
+              source: source.name,
+              reason: `pre-download filter (score: ${preScore})`,
+            });
+            continue;
+          }
+
+          // Skip if this URL was already downloaded by a prior phase
+          if (downloadedUrls.has(candidate.url)) {
+            skipped.push({ source: source.name, reason: "URL already downloaded" });
+            continue;
+          }
+
+          const filename = buildFilename(source.name, keyword, j + 1, "mp4");
+          const destPath = join(assetsDir, filename);
+
+          const dl = await downloadCandidate(candidate, { destPath, contentDir });
+          if (dl.success) downloadedUrls.add(candidate.url);
+          if (dl.success) {
+            allAssets.push({
+              ...candidate,
+              path: dl.path,
+              status: dl.skipped ? "already exists" : "downloaded",
+            });
+            console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+          } else if (dl.skipped) {
+            skipped.push({ source: source.name, reason: dl.error });
+            console.log(`    ⏭️  ${source.name}: ${dl.error}`);
+          } else {
+            failed.push({ source: source.name, keyword, error: dl.error });
+            console.log(`    ❌ ${source.name}: ${dl.error}`);
+          }
         }
       }
     }
@@ -2118,77 +2396,88 @@ export async function main(args = process.argv.slice(2)) {
 
   // ── CDP sources (serial) ──
   console.log("\n📰 CDP sources (Chinese news sites):");
-  for (const source of CDP_SOURCES) {
-    for (const keyword of keywords) {
-      console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-      const result = await getOrSearchResults(searchCache, {
-        source: source.name,
-        keyword,
-        search: () => searchCdpSource(source, keyword),
-      });
-      const candidates = result.results;
-      if (!result.cacheHit && candidates.length > 0) {
-        searchCacheDirty = true;
-        console.log("     Live search result queued for cache");
-      } else if (result.cacheHit) {
-        console.log("     Reused cached search result");
-      }
-      console.log(`     Found ${candidates.length} candidates`);
-
-      const scored = candidates
-        .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, maxPerSource);
-
-      for (let j = 0; j < scored.length; j++) {
-        const candidate = scored[j];
-        if (!candidate.url) continue;
-
-        // T3 updated: text candidates are article references, not downloadable images.
-        // Add them directly as article sources (no file download needed).
-        if (candidate.type === "text") {
-          allAssets.push({
-            ...candidate,
-            path: null,
-            status: "text-only",
-          });
-          console.log(
-            `    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`,
-          );
-          continue;
+  for (const { keywords: groupKeywords, claimSceneId } of queryGroups) {
+    for (const source of CDP_SOURCES) {
+      for (const keyword of groupKeywords) {
+        console.log(`  🔍 ${source.label} search: "${keyword}"...`);
+        const result = await getOrSearchResults(searchCache, {
+          source: source.name,
+          keyword,
+          search: () => searchCdpSource(source, keyword),
+        });
+        const candidates = result.results;
+        if (!result.cacheHit && candidates.length > 0) {
+          searchCacheDirty = true;
+          console.log("     Live search result queued for cache");
+        } else if (result.cacheHit) {
+          console.log("     Reused cached search result");
         }
+        console.log(`     Found ${candidates.length} candidates`);
 
-        // T05: Skip candidates with technicalScore < 20 before downloading
-        const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-        if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-          skipped.push({ source: source.name, reason: `pre-download filter (score: ${preScore})` });
-          continue;
-        }
+        const scored = candidates
+          .map((c) => ({
+            ...c,
+            searchKeyword: keyword,
+            claimSceneId,
+            score: scoreCandidate(c, keyword),
+            source: source.name,
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, maxPerSource);
 
-        // Skip if this URL was already downloaded by a prior phase
-        if (downloadedUrls.has(candidate.url)) {
-          skipped.push({ source: source.name, reason: "URL already downloaded" });
-          continue;
-        }
+        for (let j = 0; j < scored.length; j++) {
+          const candidate = scored[j];
+          if (!candidate.url) continue;
 
-        const filename = buildFilename(source.name, keyword, j + 1, "jpg");
-        const destPath = join(assetsDir, filename);
+          // T3 updated: text candidates are article references, not downloadable images.
+          // Add them directly as article sources (no file download needed).
+          if (candidate.type === "text") {
+            allAssets.push({
+              ...candidate,
+              path: null,
+              status: "text-only",
+            });
+            console.log(
+              `    📄 ${source.name}: text article "${candidate.title}" (score: ${candidate.score})`,
+            );
+            continue;
+          }
 
-        const dl = await downloadCandidate(candidate, { destPath, contentDir });
-        if (dl.success) downloadedUrls.add(candidate.url);
-        if (dl.success) {
-          allAssets.push({
-            ...candidate,
-            path: dl.path,
-            status: dl.skipped ? "already exists" : "downloaded",
-          });
-          console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
-        } else if (dl.skipped) {
-          skipped.push({ source: source.name, reason: dl.error });
-          console.log(`    ⏭️  ${source.name}: ${dl.error}`);
-        } else {
-          failed.push({ source: source.name, keyword, error: dl.error });
-          console.log(`    ❌ ${source.name}: ${dl.error}`);
+          // T05: Skip candidates with technicalScore < 20 before downloading
+          const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+          if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+            skipped.push({
+              source: source.name,
+              reason: `pre-download filter (score: ${preScore})`,
+            });
+            continue;
+          }
+
+          // Skip if this URL was already downloaded by a prior phase
+          if (downloadedUrls.has(candidate.url)) {
+            skipped.push({ source: source.name, reason: "URL already downloaded" });
+            continue;
+          }
+
+          const filename = buildFilename(source.name, keyword, j + 1, "jpg");
+          const destPath = join(assetsDir, filename);
+
+          const dl = await downloadCandidate(candidate, { destPath, contentDir });
+          if (dl.success) downloadedUrls.add(candidate.url);
+          if (dl.success) {
+            allAssets.push({
+              ...candidate,
+              path: dl.path,
+              status: dl.skipped ? "already exists" : "downloaded",
+            });
+            console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+          } else if (dl.skipped) {
+            skipped.push({ source: source.name, reason: dl.error });
+            console.log(`    ⏭️  ${source.name}: ${dl.error}`);
+          } else {
+            failed.push({ source: source.name, keyword, error: dl.error });
+            console.log(`    ❌ ${source.name}: ${dl.error}`);
+          }
         }
       }
     }
@@ -2230,72 +2519,80 @@ export async function main(args = process.argv.slice(2)) {
         const engineAssets = [];
         const engineFailed = [];
 
-        for (const keyword of keywords) {
-          console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-          const result = await getOrSearchResults(searchCache, {
-            source: source.name,
-            keyword,
-            search: () => {
-              if (source.name === "brave_image") {
-                return searchBraveImages(keyword, apiKey, {
-                  count: 20,
-                  quotaTracker: tier3QuotaTracker,
-                });
-              } else {
-                return searchSearXngImages(keyword, { count: 20 });
-              }
-            },
-          });
-          const candidates = result.results;
-          if (!result.cacheHit && candidates.length > 0) {
-            console.log(`     Found ${candidates.length} candidates`);
-          } else if (result.cacheHit) {
-            console.log(`     ♻️  Cache hit: ${candidates.length} candidates`);
-          } else {
-            console.log(`     Found ${candidates.length} candidates`);
-          }
-
-          const scored = candidates
-            .map((c) => ({ ...c, score: scoreCandidate(c, keyword), source: source.name }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, maxPerSource);
-
-          for (let j = 0; j < scored.length; j++) {
-            const candidate = scored[j];
-            if (!candidate.url) continue;
-
-            const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-            if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-              engineFailed.push({
-                source: source.name,
-                reason: `pre-download filter (score: ${preScore})`,
-              });
-              continue;
-            }
-
-            // Skip if this URL was already downloaded by a prior phase
-            if (downloadedUrls.has(candidate.url)) {
-              engineFailed.push({ source: source.name, reason: "URL already downloaded" });
-              continue;
-            }
-
-            const filename = buildFilename(source.name, keyword, j + 1, "jpg");
-            const destPath = join(assetsDir, filename);
-            const dl = await downloadCandidate(candidate, { destPath, contentDir });
-            if (dl.success) downloadedUrls.add(candidate.url);
-            if (dl.success) {
-              engineAssets.push({
-                ...candidate,
-                path: dl.path,
-                status: dl.skipped ? "already exists" : "downloaded",
-              });
-              console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
-            } else if (dl.skipped) {
-              engineFailed.push({ source: source.name, reason: dl.error });
-              console.log(`    ⏭️  ${source.name}: ${dl.error}`);
+        for (const { keywords: groupKeywords, claimSceneId } of queryGroups) {
+          for (const keyword of groupKeywords) {
+            console.log(`  🔍 ${source.label} search: "${keyword}"...`);
+            const result = await getOrSearchResults(searchCache, {
+              source: source.name,
+              keyword,
+              search: () => {
+                if (source.name === "brave_image") {
+                  return searchBraveImages(keyword, apiKey, {
+                    count: 20,
+                    quotaTracker: tier3QuotaTracker,
+                  });
+                } else {
+                  return searchSearXngImages(keyword, { count: 20 });
+                }
+              },
+            });
+            const candidates = result.results;
+            if (!result.cacheHit && candidates.length > 0) {
+              console.log(`     Found ${candidates.length} candidates`);
+            } else if (result.cacheHit) {
+              console.log(`     ♻️  Cache hit: ${candidates.length} candidates`);
             } else {
-              engineFailed.push({ source: source.name, keyword, error: dl.error });
-              console.log(`    ❌ ${source.name}: ${dl.error}`);
+              console.log(`     Found ${candidates.length} candidates`);
+            }
+
+            const scored = candidates
+              .map((c) => ({
+                ...c,
+                searchKeyword: keyword,
+                claimSceneId,
+                score: scoreCandidate(c, keyword),
+                source: source.name,
+              }))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, maxPerSource);
+
+            for (let j = 0; j < scored.length; j++) {
+              const candidate = scored[j];
+              if (!candidate.url) continue;
+
+              const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+              if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+                engineFailed.push({
+                  source: source.name,
+                  reason: `pre-download filter (score: ${preScore})`,
+                });
+                continue;
+              }
+
+              // Skip if this URL was already downloaded by a prior phase
+              if (downloadedUrls.has(candidate.url)) {
+                engineFailed.push({ source: source.name, reason: "URL already downloaded" });
+                continue;
+              }
+
+              const filename = buildFilename(source.name, keyword, j + 1, "jpg");
+              const destPath = join(assetsDir, filename);
+              const dl = await downloadCandidate(candidate, { destPath, contentDir });
+              if (dl.success) downloadedUrls.add(candidate.url);
+              if (dl.success) {
+                engineAssets.push({
+                  ...candidate,
+                  path: dl.path,
+                  status: dl.skipped ? "already exists" : "downloaded",
+                });
+                console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
+              } else if (dl.skipped) {
+                engineFailed.push({ source: source.name, reason: dl.error });
+                console.log(`    ⏭️  ${source.name}: ${dl.error}`);
+              } else {
+                engineFailed.push({ source: source.name, keyword, error: dl.error });
+                console.log(`    ❌ ${source.name}: ${dl.error}`);
+              }
             }
           }
         }
@@ -2345,7 +2642,7 @@ export async function main(args = process.argv.slice(2)) {
       // Re-score assets with VLM description (Phase 2c: semantic scoring)
       for (const asset of allAssets) {
         if (asset.description) {
-          const kw = asset.searchKeyword || keywords[0];
+          const kw = asset.searchKeyword || primaryKeyword;
           asset.score = scoreCandidate(asset, kw, {
             description: asset.description,
             subjects: asset.subjects || [],
@@ -2378,24 +2675,64 @@ export async function main(args = process.argv.slice(2)) {
     asset.attribution = buildAttribution(asset.source || asset.from, asset);
   }
 
+  // ── Generate media-patch.json (auto-fill suggestions) ──
+  // P0-1 fix: normalize any absolute paths back to relative before writing patch.
+  // absPath is kept for hash-based reuse detection during gated assignment.
+  for (const asset of allAssets) {
+    if (asset.path) {
+      asset.absPath = asset.path;
+      asset.path = normalizePathForPatch(asset.path, contentDir);
+    }
+  }
+  // Relevance-gated assignment (spec #130 D6/D7): claim-bound assets need VLM
+  // relevance >= threshold; fallback assets are overlap-scored per scene;
+  // cross-content reuse capped online at 40%.
+  let usedAssetIndex = null;
+  try {
+    usedAssetIndex = buildUsedAssetIndex({
+      contentRoot: join(__dirname, "..", "content"),
+      currentSlug: contentSlug,
+    });
+  } catch (e) {
+    console.warn(`⚠️  Used-asset index unavailable (${e.message}) — reuse cap inactive`);
+  }
+  const patches = assignAssetsToScenes(allAssets, scenes, {
+    relevanceThreshold: relevanceThreshold,
+    usedIndex: usedAssetIndex,
+  });
+  const assignedEntries = patches.filter((p) => p.status === "assigned");
+  const reusedCount = assignedEntries.filter((p) => p.reused === true).length;
+  const reuseStats = {
+    threshold: relevanceThreshold,
+    assigned: assignedEntries.length,
+    reusedCount,
+    freshCount: assignedEntries.length - reusedCount,
+    reusedRatio: assignedEntries.length ? reusedCount / assignedEntries.length : 0,
+    perSource: assignedEntries.reduce((acc, p) => {
+      const s = p.source || "unknown";
+      acc[s] = (acc[s] || 0) + 1;
+      return acc;
+    }, {}),
+  };
+
+  // Mirror the reused flag back onto report assets (spec #130 D8)
+  for (const entry of assignedEntries) {
+    if (entry.media?.path) {
+      const asset = allAssets.find((a) => a.path === entry.media.path);
+      if (asset) asset.reused = entry.reused === true;
+    }
+  }
+
   // ── Write report ──
   const creditsText = buildCreditsSection(allAssets);
-  const report = buildReport(contentSlug, keywords, allAssets, failed, skipped, { aiAnalysis });
+  const report = buildReport(contentSlug, allKeywords, allAssets, failed, skipped, { aiAnalysis });
   report.credits = creditsText;
+  report.reuseStats = reuseStats;
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
   }
   writeFileSync(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
-
-  // ── Generate media-patch.json (auto-fill suggestions) ──
-  // P0-1 fix: normalize any absolute paths back to relative before writing patch
-  for (const asset of allAssets) {
-    if (asset.path) {
-      asset.path = normalizePathForPatch(asset.path, contentDir);
-    }
-  }
-  const patches = assignAssetsToScenes(allAssets, scenes);
   // Defensive: also normalize media.path in patches
   for (const patch of patches) {
     if (patch.media?.path) {

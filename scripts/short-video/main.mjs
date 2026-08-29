@@ -169,18 +169,11 @@ async function main() {
   if (scenesNeedingMedia.length > 0) {
     console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
     try {
-      const contentDirAbs = resolve(__dirname, "content", contentDir);
-      const { extractKeywords, main: sourcerMain } = await import("./lib/asset-sourcer.mjs");
-      const keywords = extractKeywords(scenes, meta, []);
-      const companyKeyword = meta?.keyEntities?.companies?.[0] || keywords[0] || "china ai";
-      console.log(`  Searching for: ${companyKeyword}`);
-      // Run asset-sourcer (CLI flags only — no --non-interactive)
-      await sourcerMain([
-        "--content",
-        contentDir,
-        "--keywords",
-        companyKeyword,
-      ]);
+      // Per-scene claims (assetNeed) + company-entity fallback are consumed
+      // inside asset-sourcer from scene-data directly (spec #130 D3/D11) —
+      // main no longer narrows the search to companies[0].
+      const { main: sourcerMain } = await import("./lib/asset-sourcer.mjs");
+      await sourcerMain(["--content", contentDir]);
       console.log();
     } catch (e) {
       console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
