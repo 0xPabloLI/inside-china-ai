@@ -23,6 +23,7 @@ declare module "../../../lib/safe-zones.mjs" {
   export const SUBTITLE_LANE_BOTTOM: number;
   export const SUBTITLE_LANE_TOP: number;
   export const WATERMARK_POS: { top: number; left: number };
+  export const BRAND_FONT_STACK: string;
 }
 
 declare module "../../../lib/timeline.mjs" {
@@ -32,3 +33,4 @@ declare module "../../../lib/timeline.mjs" {
   export function sceneClipFrames(ttsDuration: number, fps?: number): number;
   export function sceneClipDuration(ttsDuration: number, fps?: number): number;
 }
+

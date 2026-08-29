@@ -7,7 +7,13 @@
 import { interpolate, Easing } from "remotion";
 
 // Re-export shared constants from the existing pipeline lib/
-export { CANVAS, SAFE_ZONES, SUBTITLE_LANE, WATERMARK_POS } from "../../../lib/safe-zones.mjs";
+export {
+  CANVAS,
+  SAFE_ZONES,
+  SUBTITLE_LANE,
+  WATERMARK_POS,
+  BRAND_FONT_STACK,
+} from "../../../lib/safe-zones.mjs";
 export { FPS, sceneClipFrames, sceneClipDuration } from "../../../lib/timeline.mjs";
 
 /** Seconds → frames conversion (at 30fps). */
@@ -58,8 +64,8 @@ export const SPACING = {
   md: 12,
   lg: 16,
   xl: 24,
-  '2xl': 32,
-  '3xl': 48,
-  '4xl': 64,
-  '5xl': 96,
+  "2xl": 32,
+  "3xl": 48,
+  "4xl": 64,
+  "5xl": 96,
 } as const;

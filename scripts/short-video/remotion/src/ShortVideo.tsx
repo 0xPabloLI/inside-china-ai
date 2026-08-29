@@ -25,7 +25,7 @@ import { ContextScene } from "./scenes/ContextScene";
 import { ContrastScene } from "./scenes/ContrastScene";
 import { StatRevealScene } from "./scenes/StatRevealScene";
 import { FullscreenMedia } from "./scenes/FullscreenMedia";
-import { sceneClipFrames, sceneClipDuration } from "./components/shared";
+import { sceneClipFrames, sceneClipDuration, BRAND_FONT_STACK } from "./components/shared";
 
 /** Dispatch a scene to its React component based on visualType. */
 function renderScene(scene: SceneData, duration: number, contentDir: string) {
@@ -143,7 +143,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
   }
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0a0a14" }}>
+    <AbsoluteFill style={{ backgroundColor: "#0a0a14", fontFamily: BRAND_FONT_STACK }}>
       <TransitionSeries>{elements}</TransitionSeries>
       {audioElements}
     </AbsoluteFill>

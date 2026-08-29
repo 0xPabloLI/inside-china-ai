@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import {
   baseStyles,
   BRAND_MARK_SVG,
@@ -7,6 +10,7 @@ import {
   breakingBadge,
   statCard,
   fadeToBlack,
+  BRAND_FONT_STACK,
 } from "../lib/base-styles.mjs";
 
 describe("baseStyles", () => {
@@ -147,5 +151,26 @@ describe("UI components", () => {
       const html = fadeToBlack(2);
       expect(html).toContain("1.5s");
     });
+  });
+});
+
+// ── Serif rendering baseline (spec #130 D9) ──
+
+const testDir = dirname(fileURLToPath(import.meta.url));
+
+describe("BRAND_FONT_STACK — serif rendering baseline", () => {
+  it("exports the explicit Times serif stack", () => {
+    expect(BRAND_FONT_STACK).toBe("'Times New Roman', Times, serif");
+  });
+
+  it("baseStyles CSS uses the serif stack instead of the Helvetica sans stack", () => {
+    const css = baseStyles(10);
+    expect(css).toContain("'Times New Roman', Times, serif");
+    expect(css).not.toContain("Helvetica Neue");
+  });
+
+  it("ShortVideo root composition applies BRAND_FONT_STACK (Remotion path)", () => {
+    const src = readFileSync(join(testDir, "..", "remotion", "src", "ShortVideo.tsx"), "utf8");
+    expect(src).toContain("BRAND_FONT_STACK");
   });
 });

@@ -22,7 +22,9 @@ import {
   statCard,
   fadeToBlack,
 } from "./scene-templates.mjs";
-import { WATERMARK_POS } from "./safe-zones.mjs";
+import { WATERMARK_POS, BRAND_FONT_STACK } from "./safe-zones.mjs";
+
+export { BRAND_FONT_STACK };
 
 /**
  * Base CSS for all scenes: reset, variables, background layers, shared
@@ -36,7 +38,7 @@ function baseStyles(duration) {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 1080px; height: 1920px; overflow: hidden;
-      font-family: 'Helvetica Neue', 'Arial Black', Arial, sans-serif;
+      font-family: ${BRAND_FONT_STACK};
       background: #0a0a14;
     }
     :root {
