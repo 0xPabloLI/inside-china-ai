@@ -1324,6 +1324,110 @@ export function checkLoopClosureNarrative(scenes) {
   ];
 }
 
+// ─── Text width budget (serif-adjusted) ───
+
+// The Remotion render environment lacks Helvetica Neue and falls back to a
+// serif face roughly 30% wider than the sans metrics the layout templates
+// were designed against. Measured anchors (qwen4-preview v1, 2026-08-29):
+// "1/9 THE TRAINING COST" (21 chars) clipped to ~13 visible chars in a
+// media-split half column at 52px; "6B ACTIVE PER TOKEN" (19 chars) fits the
+// full 820px band at the same size. Budgets below encode those anchors with
+// a safety margin; budgets are uppercase-char counts per on-screen field.
+const TEXT_WIDTH_BUDGETS = {
+  half: { result: 12, company: 16, action: 22, context: 30, subtext: 24 },
+  full: { result: 24, company: 30, action: 44, context: 60, subtext: 48 },
+};
+const HALF_WIDTH_LAYOUTS = new Set(["media-split"]);
+// Fields checked per scene type; hook/cta have their own structural contracts.
+const WIDTH_CHECKED_TYPES = new Set([
+  "narrative",
+  "stat-reveal",
+  "data",
+  "info-card",
+  "quote",
+  "context",
+  "contrast",
+]);
+
+export function checkTextWidthBudget(scenes) {
+  const results = [];
+  for (const scene of scenes) {
+    if (!WIDTH_CHECKED_TYPES.has(scene.visualType)) continue;
+    const layout = HALF_WIDTH_LAYOUTS.has(scene.layout) ? "half" : "full";
+    const budgets = TEXT_WIDTH_BUDGETS[layout];
+    for (const [field, budget] of Object.entries(budgets)) {
+      const value = scene.texts?.[field];
+      if (typeof value !== "string" || value.length === 0) continue;
+      if (value.length <= budget) continue;
+      results.push({
+        level: "fail",
+        category: "Layout",
+        check: `Text width budget — ${field} in ${layout}-width layout`,
+        detail: `${value.length} chars (budget ${budget}): "${value}"`,
+        fix: `Shorten ${field} to ≤${budget} chars, or move the scene to a full-width layout (e.g. media-overlay). Remotion renders serif ~30% wider than the design metrics.`,
+      });
+    }
+  }
+  if (results.length === 0) {
+    results.push({
+      level: "pass",
+      category: "Layout",
+      check: "Text width budget (serif-adjusted)",
+    });
+  }
+  return results;
+}
+
+// ─── visualType whitelist (Remotion dispatch table) ───
+
+// The Remotion renderer dispatches on a fixed component set; an unknown
+// visualType silently degrades to NarrativeScene and drops custom text
+// fields (observed: "benchmark" scene rendered without its bars, qwen4-preview
+// v1). The whitelist below mirrors scripts/short-video/remotion/src/ShortVideo.tsx.
+const REMOTION_VISUAL_TYPES = new Set([
+  "hook",
+  "cta",
+  "narrative",
+  "data",
+  "info-card",
+  "quote",
+  "context",
+  "contrast",
+  "stat-reveal",
+]);
+
+export function checkVisualTypeWhitelist(scenes, opts = {}) {
+  const renderer = opts?.meta?.renderer ?? "remotion";
+  if (renderer !== "remotion") {
+    return [
+      {
+        level: "pass",
+        category: "Structure",
+        check: "visualType whitelist — skipped (Playwright renderer)",
+      },
+    ];
+  }
+  const results = [];
+  for (const scene of scenes) {
+    if (REMOTION_VISUAL_TYPES.has(scene.visualType)) continue;
+    results.push({
+      level: "fail",
+      category: "Structure",
+      check: `Scene ${scene.id} visualType in Remotion dispatch table`,
+      detail: `"${scene.visualType}" is not in the Remotion component set and will silently render as narrative`,
+      fix: `Map scene ${scene.id} to one of: ${[...REMOTION_VISUAL_TYPES].join(", ")}. (Legacy Playwright-only pipelines may set meta.renderer="playwright" to skip this check.)`,
+    });
+  }
+  if (results.length === 0) {
+    results.push({
+      level: "pass",
+      category: "Structure",
+      check: "visualType whitelist (Remotion dispatch table)",
+    });
+  }
+  return results;
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const allChecks = [
@@ -1363,6 +1467,8 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkOpenLoop(scenes),
     ...checkPatternInterrupt(scenes),
     ...checkLoopClosureNarrative(scenes),
+    ...checkTextWidthBudget(scenes),
+    ...checkVisualTypeWhitelist(scenes, opts),
   ];
 
   return {

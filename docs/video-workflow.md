@@ -104,6 +104,11 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - Ref audio: `voice-samples/voice-sample-24k.wav`（24kHz mono WAV）
 - Ref text: `assets/voice-sample-ref-text.txt`（必须精确匹配 ref audio）
 - Model: `lucasnewman/f5-tts-mlx` (HF cache, 1.3GB)
+- **缓存加载必须离线**：`huggingface_hub` 加载模型前默认向 HF 发 etag 检查请求（确认本地缓存是否最新）。
+  该请求走系统代理，曾出现连接建立后 9 分钟零数据流动的挂死（qwen4-preview, 2026-08-29）——
+  推理本身是纯本地的，卡死的只是「查更新」。跑管线前 `export HF_HUB_OFFLINE=1`（权重已在缓存时），
+  或先确认代理可用。症状识别：main.mjs 停在 "Loading F5-TTS-MLX model" 超过 3 分钟且
+  `nettop` 显示零流量。
 - Max effort: `steps=32`, `cfg_strength=3.0`, `method='rk4'`, `speed=1.0`
 - Duration: `estimate_target_seconds(text)` — CJK chars / 4.5 + Latin words / 2.8 + punctuation × 0.15s
 - Internal `duration` parameter controls audio length precisely → **no atempo needed**

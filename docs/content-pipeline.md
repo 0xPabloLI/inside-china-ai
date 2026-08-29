@@ -83,7 +83,7 @@ Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：
 | MRL       | 位置                         | 检查对象                    | Blocker 数              | Warning 数 |
 | --------- | ---------------------------- | --------------------------- | ----------------------- | ---------- |
 | **MRL-1** | Stage 1（自审，不暂停）      | 文章 frontmatter + markdown | 8                       | 5          |
-| **MRL-2** | Stage 3（自审，不暂停）      | scene-data.mjs（每集）      | 10                      | 6          |
+| **MRL-2** | Stage 3（自审，不暂停）      | scene-data.mjs（每集）      | 12                      | 6          |
 | **MRL-3** | Stage 5 → HITL 前            | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查  |
 
 **MRL 报告格式**（Agent 在 HITL 输出中附带）：
@@ -318,6 +318,8 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | B8  | AI 词汇         | 不得出现 scrub-rules Tier 2 黑名单词                                                     | 替换为口语化表达   |
 | B9  | 无 Dead Closers | 不得以 "thanks for watching" / "don't forget to subscribe" / 裸 "what do you think" 结尾 | 改写为具体 CTA     |
 | B10 | Series Meta     | `seriesMeta` 存在，`partNumber`/`totalParts`/`prevPartSlug`/`nextPartSlug` 正确          | 修正 seriesMeta    |
+| B11 | 文本宽度预算    | 每 scene 的 result/company/action/context/subtext 字符数 ≤ 布局预算（media-split 半宽单独收紧，衬线加宽已计入，见 `scene-rules.mjs` `TEXT_WIDTH_BUDGETS`） | 缩短文案或换全宽布局 |
+| B12 | visualType 白名单 | Remotion 路径下 visualType ∈ Remotion dispatch 表（hook/cta/narrative/data/info-card/quote/context/contrast/stat-reveal）；Playwright 路径跳过 | 映射到支持类型，或 meta.renderer 设为 playwright |
 
 **Warnings（列出但不阻塞 HITL）：**
 

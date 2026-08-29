@@ -454,6 +454,86 @@ export function checkTextOverflow(buf, safeZones) {
   };
 }
 
+// ─── Clipped text heuristic ───
+
+// Overflow-hidden containers clip oversized text at the content-band edge,
+// which is invisible to brightness-based zone checks (clipping REMOVES bright
+// pixels from forbidden zones). Observed on qwen4-preview v1: "1/9 THE TRAIN…"
+// and "MICRO-BLOC…" cut hard at x=880. This heuristic flags a sustained run of
+// rows where bright pixels sit flush against the right boundary with darkness
+// immediately beyond it — the signature of text cut mid-glyph. WARN-level:
+// right-aligned text can false-positive, so the width budget in scene-rules
+// remains the primary prevention.
+const CUT_PROBE_STRIP = 20; // px band left of the boundary treated as "at edge"
+const CUT_BEYOND_STRIP = 30; // px band right of the boundary that must be dark
+const CUT_WINDOW = 15; // sampled rows per sliding window (~120px tall)
+// A 52px text line spans only ~6 sampled rows at SAMPLE_STEP=8, so a single
+// clipped line yields ~4-6 cut rows (measured on qwen4-preview v1: 5 and 4).
+// Measured negatives (street/photo/stat/CTA frames) all have 0.
+const CUT_MIN_ROWS_IN_WINDOW = 4;
+
+export function checkClippedText(buf, safeZones) {
+  const contentRight = buf.width - safeZones.right;
+  const yStart = safeZones.top;
+  const yEnd = buf.height - safeZones.bottom;
+  const exempt = [
+    BRAND_BAR_REGION,
+    WATERMARK_REGION,
+    ...frameGlowExemptRegions(buf.width, buf.height),
+  ];
+
+  const rowIsCut = (y) => {
+    let brightAtEdge = false;
+    for (let x = contentRight - CUT_PROBE_STRIP; x < contentRight; x += 4) {
+      if (x < 0) continue;
+      if (isExempt(x, y, exempt)) continue;
+      const idx = (buf.width * y + x) * 4;
+      if (luminance(buf.data[idx], buf.data[idx + 1], buf.data[idx + 2]) > BRIGHT_THRESHOLD) {
+        brightAtEdge = true;
+        break;
+      }
+    }
+    if (!brightAtEdge) return false;
+    for (let x = contentRight + 4; x < contentRight + CUT_BEYOND_STRIP; x += 4) {
+      if (x >= buf.width) continue;
+      const idx = (buf.width * y + x) * 4;
+      if (luminance(buf.data[idx], buf.data[idx + 1], buf.data[idx + 2]) > BRIGHT_THRESHOLD) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Sliding window over sampled rows: glyph gaps break per-row runs, so count
+  // cut rows within a window instead of requiring strict consecutiveness.
+  let bestCount = 0;
+  let bestStartY = -1;
+  const windowRows = [];
+  for (let y = yStart; y < yEnd && y < buf.height; y += SAMPLE_STEP) {
+    windowRows.push({ y, cut: rowIsCut(y) });
+    if (windowRows.length > CUT_WINDOW) windowRows.shift();
+    const cuts = windowRows.filter((r) => r.cut);
+    if (cuts.length > bestCount) {
+      bestCount = cuts.length;
+      bestStartY = windowRows[0].y;
+    }
+  }
+
+  if (bestCount >= CUT_MIN_ROWS_IN_WINDOW) {
+    return {
+      level: "warn",
+      check: "Possible clipped text at right boundary",
+      detail: `${bestCount} rows with bright pixels cut hard at x=${contentRight} within a ${CUT_WINDOW}-row window starting y=${bestStartY}`,
+      metrics: { rows: bestCount, startY: bestStartY, contentRight },
+    };
+  }
+  return {
+    level: "pass",
+    check: "Possible clipped text at right boundary",
+    detail: "No hard bright-to-dark cut at the content edge",
+  };
+}
+
 // ─── Aggregate runner ───
 
 /**
@@ -470,5 +550,6 @@ export function runFrameAnalysis(buf, safeZones) {
     checkSafeZoneBottom(buf, safeZones),
     checkContentPresence(buf, safeZones),
     checkTextOverflow(buf, safeZones),
+    checkClippedText(buf, safeZones),
   ];
 }

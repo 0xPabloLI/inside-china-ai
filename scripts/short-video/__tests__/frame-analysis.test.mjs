@@ -10,6 +10,7 @@ import {
   checkContentPresence,
   checkNotAllBlack,
   checkTextOverflow,
+  checkClippedText,
   runFrameAnalysis,
   BRIGHT_THRESHOLD,
   BRIGHT_RATIO_FAIL,
@@ -453,5 +454,42 @@ describe("checkTextOverflow", () => {
     );
     expect(overflowResult).toBeDefined();
     expect(["pass", "warn", "fail"]).toContain(overflowResult.level);
+  });
+});
+
+describe("checkClippedText", () => {
+  it("passes when no bright pixels touch the right boundary", () => {
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 600,
+      xEnd: 800,
+      yStart: 400,
+      yEnd: 700,
+    });
+    const result = checkClippedText(buf, SAFE_ZONES);
+    expect(result.level).toBe("pass");
+  });
+
+  it("warns when bright pixels are cut hard at the boundary across a text-height band", () => {
+    // Bright rect flush against content right edge (x=880), nothing beyond —
+    // the overflow-hidden clipping signature. 200px tall = 25 sampled rows.
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 830,
+      xEnd: 880,
+      yStart: 400,
+      yEnd: 600,
+    });
+    const result = checkClippedText(buf, SAFE_ZONES);
+    expect(result.level).toBe("warn");
+  });
+
+  it("passes when brightness continues past the boundary (not a cut)", () => {
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 830,
+      xEnd: 950,
+      yStart: 400,
+      yEnd: 600,
+    });
+    const result = checkClippedText(buf, SAFE_ZONES);
+    expect(result.level).toBe("pass");
   });
 });

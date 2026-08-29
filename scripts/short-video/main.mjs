@@ -158,6 +158,9 @@ async function main() {
   const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
   const scenesNeedingMedia = scenes.filter((s) => {
     if (NO_MEDIA_TYPES.has(s.visualType)) return false;
+    // Intentional CSS-only scene: scene-data opts out of auto-sourcing so a
+    // rerun cannot re-assign stock imagery to a scene that dropped it.
+    if (s.mediaOptOut === true) return false;
     if (!s.media?.path) return true; // No media field at all → needs sourcing
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     const mediaPath = resolve(contentDirAbs, s.media.path);
