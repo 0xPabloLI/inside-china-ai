@@ -1,0 +1,25 @@
+export const meta = {
+  subject: "qwen4-preview",
+  pipelineId: "qwen4-preview",
+  title: "Qwen3.8-Flash-Next: Alibaba Open-Sources Qwen4's Engine",
+  article: "qwen4-preview",
+  renderer: "remotion",
+  createdAt: "2026-08-29",
+  topics: ["qwen", "alibaba", "china-ai", "open-source", "qwen4", "moe"],
+  keyEntities: {
+    companies: ["alibaba", "qwen"],
+    people: [],
+    models: ["qwen3.8-flash-next", "qwen3.7-plus", "claude-opus-4.6", "deepseek-v4-flash"],
+  },
+  dataPoints: [
+    "Qwen3.8-Flash-Next open weights released August 26, 2026",
+    "125B total parameters + 51B N-gram embedding, 6B active per token, 4B MTP",
+    "Training cost approximately 1/9 of Qwen3.7-Plus (official blog)",
+    "Native 262,144 token context, YaRN extends to 1,000,000",
+    "SWE-bench Pro 62.5 vs Claude-Opus-4.6 Max 53.4 (official numbers)",
+    "AndroidWorld 84.5 vs Claude 62.0",
+    "QSA attention kernel at 1M tokens: prefill up to 7.6x, decode up to 4.9x",
+    "Prefill throughput at 1M context, 90% cache hit: 8.6x Qwen3.7-Plus",
+    "Production Qwen3.8-Flash pricing: 0.8 RMB input / 2.7 RMB output per 1M tokens",
+  ],
+};

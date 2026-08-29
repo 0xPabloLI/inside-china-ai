@@ -95,6 +95,11 @@ export const WIDGETS: Record<string, LazyWidget> = {
       default: m.APIPricingView,
     })),
   ),
+  "qwen4-benchmarks": lazy(() =>
+    import("./qwen4-benchmarks/benchmarks-view").then((m) => ({
+      default: m.Qwen4BenchmarksView,
+    })),
+  ),
 };
 
 /** Get the list of available widget names (for editor dropdown). */
