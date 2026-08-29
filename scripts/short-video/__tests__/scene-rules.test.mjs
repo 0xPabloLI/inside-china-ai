@@ -33,6 +33,7 @@ import {
   checkOpenLoop,
   checkPatternInterrupt,
   checkLoopClosureNarrative,
+  checkAssetNeedAnnotation,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
@@ -1266,5 +1267,54 @@ describe("checkLoopClosureNarrative", () => {
     const result = checkLoopClosureNarrative(scenes);
     expect(result).toHaveLength(1);
     expect(result[0].level).toBe("pass");
+  });
+});
+
+// ── B13: checkAssetNeedAnnotation — voiceover must not carry [ASSET NEEDED markers ──
+
+describe("checkAssetNeedAnnotation", () => {
+  it("fails when voiceover contains an inline [ASSET NEEDED marker", () => {
+    const scenes = [
+      {
+        id: 2,
+        visualType: "narrative",
+        voiceover: "It previews the architecture. [ASSET NEEDED: architecture diagram]",
+      },
+    ];
+    const result = checkAssetNeedAnnotation(scenes);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].detail).toContain("2");
+  });
+
+  it("passes when voiceover is clean regardless of assetNeed field", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative", voiceover: "Clean narration.", assetNeed: "chip diagram" },
+      { id: 2, visualType: "narrative", voiceover: "Also clean." },
+      { id: 3, visualType: "narrative", voiceover: "Empty need.", assetNeed: "   " },
+    ];
+    const result = checkAssetNeedAnnotation(scenes);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("flags every offending scene", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative", voiceover: "[ASSET NEEDED: chart]" },
+      { id: 2, visualType: "narrative", voiceover: "ok" },
+      { id: 3, visualType: "quote", voiceover: "lowercase [asset needed: photo] marker" },
+    ];
+    const result = checkAssetNeedAnnotation(scenes);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].detail).toContain("1");
+    expect(result[0].detail).toContain("3");
+    expect(result[0].detail).not.toContain("2");
+  });
+
+  it("is wired into runAllSceneDataChecks as a fail", () => {
+    const scenes = [
+      { id: 1, visualType: "narrative", voiceover: "text with [ASSET NEEDED: x] inside" },
+    ];
+    const result = runAllSceneDataChecks(scenes, null);
+    const b13 = result.fail.filter((r) => r.check === "Asset need annotation placement");
+    expect(b13).toHaveLength(1);
   });
 });

@@ -1428,6 +1428,33 @@ export function checkVisualTypeWhitelist(scenes, opts = {}) {
   return results;
 }
 
+/**
+ * B13: Inline [ASSET NEEDED: ...] markers must never leak into voiceover —
+ * TTS would read them aloud. Asset requirements belong in the structured
+ * `assetNeed` field, which asset-sourcer consumes.
+ */
+export function checkAssetNeedAnnotation(scenes) {
+  const found = [];
+  for (const scene of scenes) {
+    const vo = scene.voiceover || "";
+    if (/\[\s*asset\s+needed/i.test(vo)) {
+      found.push(scene.id);
+    }
+  }
+  if (found.length === 0) {
+    return [{ level: "pass", category: "Structure", check: "Asset need annotation placement" }];
+  }
+  return [
+    {
+      level: "fail",
+      category: "Structure",
+      check: "Asset need annotation placement",
+      detail: `Inline [ASSET NEEDED marker found in voiceover of scenes: ${found.join(", ")} — TTS would read it aloud`,
+      fix: 'Move the asset requirement to the scene\'s `assetNeed` field (e.g. assetNeed: "architecture diagram") and remove the marker from voiceover',
+    },
+  ];
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const allChecks = [
@@ -1469,6 +1496,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkLoopClosureNarrative(scenes),
     ...checkTextWidthBudget(scenes),
     ...checkVisualTypeWhitelist(scenes, opts),
+    ...checkAssetNeedAnnotation(scenes),
   ];
 
   return {
