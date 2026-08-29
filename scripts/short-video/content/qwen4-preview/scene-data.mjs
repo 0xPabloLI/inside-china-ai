@@ -44,14 +44,8 @@ export const scenes = [
     visualType: "narrative",
     narrativeRole: "T",
     retentionMechanism: "open-loop",
-    layout: "media-bottom-bar",
-    media: {
-      type: "image",
-      path: "assets/pexels-alibaba-01.jpg",
-      source: "Pexels",
-      animation: "ken-burns",
-      overlay: 0.7,
-    },
+    layout: "stacked-cards",
+    mediaOptOut: true,
     voiceover:
       "It's called Qwen3.8-Flash-Next. Not Qwen4. So why is Alibaba publishing its blueprint early?",
     texts: {
@@ -70,14 +64,8 @@ export const scenes = [
     visualType: "narrative",
     narrativeRole: "A",
     retentionMechanism: "curiosity-gap",
-    layout: "media-bottom-bar",
-    media: {
-      type: "image",
-      path: "assets/pixabay-alibaba-01.jpg",
-      source: "Pixabay",
-      animation: "ken-burns",
-      overlay: 0.7,
-    },
+    layout: "stacked-cards",
+    mediaOptOut: true,
     voiceover:
       "According to Qwen's blog, it previews the architecture that will underpin Qwen4. Open weights, on Hugging Face.",
     texts: {
@@ -96,14 +84,8 @@ export const scenes = [
     visualType: "narrative",
     narrativeRole: "A",
     retentionMechanism: null,
-    layout: "media-bottom-bar",
-    media: {
-      type: "video",
-      path: "assets/pexels-video-alibaba-01.mp4",
-      source: "Pexels",
-      animation: "zoom",
-      overlay: 0.7,
-    },
+    layout: "stacked-cards",
+    mediaOptOut: true,
     voiceover:
       "Qwen stated the spec sheet: 125 billion total parameters, 51 billion in n-gram embeddings, 6 billion active per token.",
     texts: {
@@ -122,14 +104,8 @@ export const scenes = [
     visualType: "narrative",
     narrativeRole: "R",
     retentionMechanism: "pattern-interrupt",
-    layout: "media-split",
-    media: {
-      type: "video",
-      path: "assets/pexels-video-alibaba-03.mp4",
-      source: "Pexels",
-      animation: "zoom",
-      overlay: 0.7,
-    },
+    layout: "stacked-cards",
+    mediaOptOut: true,
     voiceover:
       "Here's the number that stings. Training cost just one ninth of Qwen3.7-Plus.",
     texts: {
@@ -146,7 +122,7 @@ export const scenes = [
     id: 6,
     name: "hybrid-attention",
     visualType: "narrative",
-    layout: "media-split",
+    layout: "media-overlay",
     narrativeRole: "R",
     retentionMechanism: null,
     media: {
