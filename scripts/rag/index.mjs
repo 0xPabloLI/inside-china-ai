@@ -179,13 +179,7 @@ async function collectSceneData() {
  * - YAML parse error → console.warn, returns []
  */
 function collectAssetCatalog() {
-  const catalogPath = join(
-    projectRoot,
-    "scripts",
-    "short-video",
-    "assets",
-    "catalog.yml",
-  );
+  const catalogPath = join(projectRoot, "scripts", "short-video", "assets", "catalog.yml");
 
   if (!existsSync(catalogPath)) {
     return [];
@@ -320,12 +314,15 @@ async function main() {
   // 5. Determine which chunks need embedding (incremental: hash diff; full: all)
   let chunksToEmbed;
 
+  // Active source identities — hoisted so the summary can report the count
+  // on both the full-rebuild and incremental paths.
+  const allSourceIds = [...new Set(allChunks.map((c) => c.source_id))];
+
   if (isFullRebuild) {
     chunksToEmbed = allChunks;
     console.log(`\n🧠 Full rebuild: embedding all ${allChunks.length} chunks...`);
   } else {
     console.log("\n🔎 Fetching existing hashes from DB...");
-    const allSourceIds = [...new Set(allChunks.map((c) => c.source_id))];
     const existingHashes = await fetchExistingHashes(client, allSourceIds);
     console.log(`  Found ${existingHashes.size} existing chunk hashes in DB`);
 
@@ -415,7 +412,7 @@ async function main() {
   console.log(`  Embedded:       ${chunksWithEmbeddings.length} chunks`);
   console.log(`  Skipped (same): ${allChunks.length - chunksToEmbed.length} chunks`);
   console.log(`  Errors:         ${errorLog.length} chunks`);
-  console.log(`  Sources:        ${currentSourceIds.length} active`);
+  console.log(`  Sources:        ${allSourceIds.length} active`);
   console.log(`  Articles:       ${articleChunks.length} chunks`);
   console.log(`  Scene-data:     ${sceneChunks.length} chunks`);
   console.log(`  Source-mat:     ${sourceMaterialChunks.length} chunks`);
