@@ -11,6 +11,7 @@ import {
   checkNotAllBlack,
   checkTextOverflow,
   checkClippedText,
+  checkFinalFrameHasContent,
   runFrameAnalysis,
   BRIGHT_THRESHOLD,
   BRIGHT_RATIO_FAIL,
@@ -490,6 +491,34 @@ describe("checkClippedText", () => {
       yEnd: 600,
     });
     const result = checkClippedText(buf, SAFE_ZONES);
+    expect(result.level).toBe("pass");
+  });
+});
+
+describe("checkFinalFrameHasContent", () => {
+  it("FAILS on a background-only last frame (black tail after the CTA)", () => {
+    // qwen4-preview v1: the composition ran 3s past the last scene, so the
+    // final frames were #0a0a14 background with subtitles still burning in.
+    // checkNotAllBlack passes those (background luminance ≈ 13 > threshold 5),
+    // and checkContentPresence only warns — the tail must FAIL instead.
+    const result = checkFinalFrameHasContent(bgBuffer(), SAFE_ZONES);
+    expect(result.level).toBe("fail");
+  });
+
+  it("FAILS when only the subtitle lane has content (tail with captions)", () => {
+    // Subtitles live at y 1188-1350, outside the content area.
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 200,
+      xEnd: 880,
+      yStart: 1200,
+      yEnd: 1250,
+    });
+    const result = checkFinalFrameHasContent(buf, SAFE_ZONES);
+    expect(result.level).toBe("fail");
+  });
+
+  it("passes when the CTA is still on screen on the last frame", () => {
+    const result = checkFinalFrameHasContent(contentBuffer(), SAFE_ZONES);
     expect(result.level).toBe("pass");
   });
 });

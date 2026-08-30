@@ -26,9 +26,9 @@ import { resolveSceneAudio } from "./lib/audio/sync.mjs";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { SAFE_ZONES } from "./lib/safe-zones.mjs";
-import { FPS, sceneClipFrames } from "./lib/timeline.mjs";
+import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./lib/timeline.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
-import { runFrameAnalysis } from "./lib/frame-analysis.mjs";
+import { runFrameAnalysis, checkFinalFrameHasContent } from "./lib/frame-analysis.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -134,16 +134,18 @@ mkdirSync(tempDir, { recursive: true });
 // ─── Extract and analyze frames ───
 let failed = 0;
 
+// Shared schedule: sample where each scene's VISUAL actually is, which is the
+// same place its audio and subtitles start (timeline option A2).
+const schedule = sceneTimeline(
+  scenes.map((scene, i) => ({ sceneId: scene.id ?? i + 1, duration: durations[i] ?? 5 })),
+  { transitionOverlap: TRANSITION_FRAMES },
+);
+const totalFrames = scheduleTotalFrames(schedule);
+
 for (let i = 0; i < scenes.length; i++) {
   const scene = scenes[i];
-  const clipFrames = sceneClipFrames(durations[i] ?? 5);
-
-  // Calculate cumulative frame offset up to this scene's midpoint
-  let cumulativeFrames = 0;
-  for (let j = 0; j < i; j++) {
-    cumulativeFrames += sceneClipFrames(durations[j] ?? 5);
-  }
-  const midFrame = cumulativeFrames + Math.floor(clipFrames / 2);
+  const entry = schedule[i];
+  const midFrame = entry.visualStartFrames + Math.floor(entry.visualFrames / 2);
 
   console.log(`Scene ${scene.id} (${scene.name || "scene"}): frame ${midFrame}`);
 
@@ -195,6 +197,39 @@ for (let i = 0; i < scenes.length; i++) {
 
   console.log();
 }
+
+// ─── Last frame: the CTA must hold to the very last frame ───
+const lastFrame = totalFrames - 1;
+console.log(`Final frame (${lastFrame}/${totalFrames}): CTA must still be on screen`);
+
+const lastFramePath = join(tempDir, `final-frame-${lastFrame}.png`);
+let lastFrameExtracted = true;
+try {
+  execSync(
+    `ffmpeg -i "${videoPath}" -vf "select=eq(n\\,${lastFrame})" -vframes 1 -y "${lastFramePath}" -loglevel quiet`,
+  );
+} catch (e) {
+  lastFrameExtracted = false;
+  console.log(`  ❌ Final frame extraction failed: ${String(e.message).slice(0, 120)}`);
+  results.fail++;
+  failed++;
+}
+
+if (lastFrameExtracted && existsSync(lastFramePath)) {
+  const buf = await new Promise((resolve, reject) => {
+    createReadStream(lastFramePath)
+      .pipe(new PNG())
+      .on("parsed", function (data) {
+        resolve({ data, width: this.width, height: this.height });
+      })
+      .on("error", reject);
+  });
+  const tailResult = checkFinalFrameHasContent(buf, SAFE_ZONES);
+  logResult(tailResult);
+  if (tailResult.level === "fail") failed++;
+}
+
+console.log();
 
 // ─── Cleanup ───
 try {

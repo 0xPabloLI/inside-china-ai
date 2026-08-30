@@ -25,7 +25,11 @@ import { ContextScene } from "./scenes/ContextScene";
 import { ContrastScene } from "./scenes/ContrastScene";
 import { StatRevealScene } from "./scenes/StatRevealScene";
 import { FullscreenMedia } from "./scenes/FullscreenMedia";
-import { sceneClipFrames, sceneClipDuration, BRAND_FONT_STACK } from "./components/shared";
+import {
+  sceneTimeline,
+  TRANSITION_FRAMES,
+  BRAND_FONT_STACK,
+} from "./components/shared";
 
 /** Dispatch a scene to its React component based on visualType. */
 function renderScene(scene: SceneData, duration: number, contentDir: string) {
@@ -62,8 +66,6 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
   }
 }
 
-const TRANSITION_FRAMES = 10; // 0.33s at 30fps
-
 /** Get transition for scene boundary based on scene types. */
 function getTransition(prevScene: SceneData, currScene: SceneData) {
   const prevType = prevScene.visualType;
@@ -99,17 +101,24 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
     return <AbsoluteFill style={{ backgroundColor: "#0a0a14" }} />;
   }
 
+  // Shared schedule: visual Sequences, audio and subtitles all read their
+  // offsets from here (single source of truth in lib/timeline.mjs).
+  //
+  // Non-final scenes are allocated `clipFrames + TRANSITION_FRAMES` because
+  // TransitionSeries subtracts that overlap again when it places them — which
+  // is what makes each scene's visual start equal its audio/subtitle start.
+  const schedule = sceneTimeline(
+    scenes.map((scene, i) => ({ sceneId: scene.id ?? i + 1, duration: durations[i] ?? 5 })),
+    { transitionOverlap: TRANSITION_FRAMES },
+  );
+
   // Build the sequence of scenes with transitions (visual only)
   const elements: React.ReactNode[] = [];
-  // Build audio sequences with frame-precise offsets matching sceneTimeline()
+  // Build audio sequences with frame-precise offsets matching the schedule
   const audioElements: React.ReactNode[] = [];
-  let cumulativeOffsetFrames = 0;
 
-  for (let i = 0; i < scenes.length; i++) {
+  schedule.forEach((entry, i) => {
     const scene = scenes[i];
-    const duration = durations[i] ?? 5; // fallback 5s
-    const clipFrames = sceneClipFrames(duration);
-    const clipDuration = sceneClipDuration(duration);
 
     // Add transition before this scene (skip first scene — hard cut)
     if (i > 0) {
@@ -124,23 +133,22 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
     }
 
     elements.push(
-      <TransitionSeries.Sequence key={`s-${i}`} durationInFrames={clipFrames}>
-        {renderScene(scene, clipDuration, contentDir)}
+      <TransitionSeries.Sequence key={`s-${i}`} durationInFrames={entry.visualFrames}>
+        {renderScene(scene, entry.visualDuration, contentDir)}
       </TransitionSeries.Sequence>,
     );
 
     // Audio is placed OUTSIDE TransitionSeries to avoid transition overlap
-    // shifting audio onsets. The `from` offset matches sceneTimeline() exactly.
+    // shifting audio onsets. `entry.offsetFrames` is the same value the visual
+    // starts on once the allocated transition frames are given back.
     if (audioPaths[i]) {
       audioElements.push(
-        <Sequence key={`a-${i}`} from={cumulativeOffsetFrames} durationInFrames={clipFrames}>
+        <Sequence key={`a-${i}`} from={entry.offsetFrames} durationInFrames={entry.clipFrames}>
           <Audio src={staticFile(audioPaths[i])} />
         </Sequence>,
       );
     }
-
-    cumulativeOffsetFrames += clipFrames;
-  }
+  });
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#0a0a14", fontFamily: BRAND_FONT_STACK }}>

@@ -42,6 +42,9 @@ export const SAMPLE_STEP = 8;
  */
 export const BLACK_THRESHOLD = 5;
 
+/** Bright-pixel ratio below which the LAST frame counts as empty background. */
+export const FINAL_FRAME_BRIGHT_RATIO_FAIL = 0.01;
+
 // ─── Types (JSDoc) ───
 
 /**
@@ -380,6 +383,48 @@ export function checkNotAllBlack(buf) {
     check: "Frame not all black",
     detail: `${blackCount}/${total} black pixels`,
     metrics: { blackCount, total },
+  };
+}
+
+/**
+ * Check that the LAST frame of the video still shows scene content.
+ *
+ * The CTA must hold to the final frame. A tail of plain background with
+ * subtitles still burning in is a FAIL, not a warn: it means the composition is
+ * longer than the rendered content (see timeline option A2 in lib/timeline.mjs).
+ *
+ * `checkNotAllBlack` cannot catch this — the #0a0a14 background has luminance
+ * ≈ 13, well above BLACK_THRESHOLD — and `checkContentPresence` only warns.
+ *
+ * @param {PixelBuffer} buf
+ * @param {{left: number, right: number, top: number, bottom: number}} safeZones
+ * @returns {AnalysisResult}
+ */
+export function checkFinalFrameHasContent(buf, safeZones) {
+  const region = {
+    xStart: safeZones.left,
+    xEnd: buf.width - safeZones.right,
+    yStart: safeZones.top,
+    yEnd: buf.height - safeZones.bottom,
+  };
+  const { bright, total, ratio } = countBrightPixels(buf, region, BRIGHT_THRESHOLD, SAMPLE_STEP);
+
+  if (ratio < FINAL_FRAME_BRIGHT_RATIO_FAIL) {
+    return {
+      level: "fail",
+      check: "Last frame has scene content",
+      detail:
+        `Only ${bright}/${total} bright pixels (${(ratio * 100).toFixed(1)}%) in the content area — ` +
+        "the video ends on empty background; the CTA must hold to the last frame",
+      metrics: { bright, total, brightRatio: ratio },
+    };
+  }
+
+  return {
+    level: "pass",
+    check: "Last frame has scene content",
+    detail: `${bright}/${total} bright pixels (${(ratio * 100).toFixed(1)}%)`,
+    metrics: { bright, total, brightRatio: ratio },
   };
 }
 

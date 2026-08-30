@@ -14,7 +14,14 @@ export {
   WATERMARK_POS,
   BRAND_FONT_STACK,
 } from "../../../lib/safe-zones.mjs";
-export { FPS, sceneClipFrames, sceneClipDuration } from "../../../lib/timeline.mjs";
+export {
+  FPS,
+  sceneClipFrames,
+  sceneClipDuration,
+  sceneTimeline,
+  scheduleTotalFrames,
+  TRANSITION_FRAMES,
+} from "../../../lib/timeline.mjs";
 
 /** Seconds → frames conversion (at 30fps). */
 export const secToFrames = (s: number): number => Math.round(s * 30);

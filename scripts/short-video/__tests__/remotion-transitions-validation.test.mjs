@@ -34,9 +34,15 @@ describe("T5: Diversified transitions in ShortVideo.tsx", () => {
   });
 
   it("Transition duration is 10 frames (not 6)", () => {
+    // The constant lives in lib/timeline.mjs so that the shared schedule can
+    // compensate for the overlap (timeline option A2). ShortVideo must consume
+    // it rather than define its own, or visuals drift away from audio.
     const content = readRemotionFile("ShortVideo.tsx");
-    expect(content).toMatch(/10/);
-    expect(content).not.toMatch(/TRANSITION_FRAMES\s*=\s*6/);
+    expect(content).toMatch(/TRANSITION_FRAMES/);
+    expect(content).not.toMatch(/TRANSITION_FRAMES\s*=\s*(6|10)\b/);
+
+    const timeline = readScriptFile("lib/timeline.mjs");
+    expect(timeline).toMatch(/export\s+const\s+TRANSITION_FRAMES\s*=\s*10/);
   });
 
   it("Hook→S2 transition uses slide({ direction: from-right })", () => {

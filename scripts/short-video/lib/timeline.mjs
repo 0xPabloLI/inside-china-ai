@@ -17,6 +17,16 @@ export const FPS = 30;
 /** Recording buffer appended to each scene's voiceover, in seconds. */
 export const SCENE_BUFFER = 0.5;
 
+/**
+ * Frames consumed by one TransitionSeries transition (Remotion path only).
+ *
+ * TransitionSeries OVERLAPS: each transition subtracts its own length from the
+ * following scene's start (see `@remotion/transitions`
+ * `resolvedTransitionOffsets -= duration`). Callers that place audio or read the
+ * visual timeline must account for it — see `sceneTimeline()`.
+ */
+export const TRANSITION_FRAMES = 10;
+
 // Guards against `4.5 * 30 = 135.00000000000003` rounding up to 136 frames.
 const FRAME_EPSILON = 1e-6;
 
@@ -59,33 +69,69 @@ export function sceneClipDuration(ttsDuration, fps = FPS) {
  * @property {number} ttsDuration - Voiceover duration in seconds.
  * @property {number} clipFrames  - Frames in the assembled clip.
  * @property {number} clipDuration - Clip length in seconds (clipFrames / fps).
+ * @property {number} visualFrames - Frames allocated to the scene's visual
+ *   Sequence. For every non-final scene this is `clipFrames + transitionOverlap`,
+ *   which is exactly what TransitionSeries subtracts again when it overlaps the
+ *   scenes — so the visual starts on the plain running sum.
+ * @property {number} visualDuration - `visualFrames / fps`.
+ * @property {number} visualStartFrames - Absolute frame where the scene's visual
+ *   begins in the composition.
  * @property {number} offset - Clip start on the final video timeline, in seconds.
+ * @property {number} offsetFrames - `offset` in frames.
  */
 
 /**
  * Build the scene timeline: clip lengths plus their absolute start offsets.
  *
+ * Single source of truth for every track — visual Sequences, audio, subtitles
+ * and frame sampling must all read their offsets from here.
+ *
  * @param {Array<{sceneId: number, duration: number}>} sceneDurations
- * @param {number} [fps]
+ * @param {{fps?: number, transitionOverlap?: number}} [options]
+ *   `transitionOverlap` is the per-transition frame count used by
+ *   TransitionSeries (Remotion path). Playwright path passes 0 / omits it.
  * @returns {SceneTimelineEntry[]}
  */
-export function sceneTimeline(sceneDurations, fps = FPS) {
+export function sceneTimeline(sceneDurations, options = {}) {
+  const { fps = FPS, transitionOverlap = 0 } = options;
   const timeline = [];
   let offsetFrames = 0;
+  const scenes = sceneDurations ?? [];
 
-  for (const scene of sceneDurations ?? []) {
+  scenes.forEach((scene, index) => {
     const clipFrames = sceneClipFrames(scene.duration, fps);
+    const isFinal = index === scenes.length - 1;
+    const visualFrames = clipFrames + (isFinal ? 0 : transitionOverlap);
+
     timeline.push({
       sceneId: scene.sceneId,
       ttsDuration: scene.duration,
       clipFrames,
       clipDuration: clipFrames / fps,
+      visualFrames,
+      visualDuration: visualFrames / fps,
+      visualStartFrames: offsetFrames,
       offset: offsetFrames / fps,
+      offsetFrames,
     });
     offsetFrames += clipFrames;
-  }
+  });
 
   return timeline;
+}
+
+/**
+ * Total composition frames for a schedule.
+ *
+ * Under `transitionOverlap > 0` the allocated visual frames exceed this by
+ * `(n - 1) * transitionOverlap`; TransitionSeries gives those back when it
+ * overlaps the scenes, so the rendered video is exactly this long.
+ *
+ * @param {SceneTimelineEntry[]} schedule
+ * @returns {number}
+ */
+export function scheduleTotalFrames(schedule) {
+  return schedule.reduce((sum, entry) => sum + entry.clipFrames, 0);
 }
 
 /**
