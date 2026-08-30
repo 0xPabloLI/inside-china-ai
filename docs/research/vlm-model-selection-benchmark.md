@@ -218,7 +218,7 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 
 ### 待办
 
-- [ ] Integration smoke test：用真实复杂图片跑 `vlm_analyzer.py`，验证 `escalated: True` + GLM 输出质量
+- [x] Integration smoke test：用真实复杂图片跑 `vlm_analyzer.py`，验证 `escalated: True` + GLM 输出质量 — **2026-08-30 完成**：`unitree-building.jpg` 触发 `escalated: true`，GLM 正确识别 "Unitree" / "峰达创意园"，无幻觉。证据见 Issue #113 closing comment
 - [ ] 确认 1920px vs 1280px 阈值在 pipeline 中的表现（当前用 1920px，R4 测试用 1280px 更快）
 - [x] 公平 A/B 升级评估完成（2026-08-26，R5）— 见下方 §9 R5 A/B 评估结果
 
