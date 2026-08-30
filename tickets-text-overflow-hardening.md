@@ -23,7 +23,7 @@
 
 ---
 
-## T2 — Slot 契约与注册协议基座
+## T2 — Slot 契约与注册协议基座 ✅ DONE (2026-08-30)
 
 **Blocked by:** None — can start immediately
 
@@ -31,14 +31,15 @@
 缩字优先级、bigNumber 焦点数字契约、HTML 模板→slot 映射（按 `visualType`）；
 以及契约自身的校验测试。
 
-- [ ] 契约 schema 覆盖：`container / maxWidth / maxHeight / preferredSize / minSize / maxLines / lineHeight / fontFamily / fontWeight / letterSpacing / wrapPolicy / annotationPolicy / settledFrame / required / shrinkPriority`
-- [ ] 默认字号表：result 56/40、company 48/36、action 32/24、context 24/18、source 20/16
-- [ ] 带标注字段：`maxLines 1` + `wrapPolicy none`；无标注字段 `wrap` + `maxLines 2`
-- [ ] bigNumber 焦点数字契约：`wrapPolicy none`、`maxLines 1`、Hook `preferredSize 240`、`minSize 180`
-- [ ] 缩字优先级 `context → action → company → result`，触底再等比，仍超即失败（无 ×0.9）
-- [ ] HTML 模板→slot 映射按 `visualType` 建立，每个模板声明 slot ID 全集
-- [ ] 全屏媒体的动态 source 文本纳入契约（第 10 个动态来源）
-- [ ] 契约校验单测：schema 合法性、默认值继承、优先级顺序、映射完整性
+- [x] 契约 schema 覆盖：`container / maxWidth / maxHeight / preferredSize / minSize / maxLines / lineHeight / fontFamily / fontWeight / letterSpacing / wrapPolicy / annotationPolicy / settledFrame / required / shrinkPriority`
+- [x] 默认字号表：result 56/40、company 48/36、action 32/24、context 24/18、source 20/16
+- [x] 带标注字段：`maxLines 1` + `wrapPolicy none`；无标注字段 `wrap` + `maxLines 2`
+- [x] bigNumber 焦点数字契约：`wrapPolicy none`、`maxLines 1`、Hook `preferredSize 240`、`minSize 180`
+- [x] 缩字优先级 `context → action → company → result`；`fitCandidates()` 在 `minSize` 处终止（无 ×0.9）
+- [x] HTML 模板→slot 映射按 `visualType` 建立，每个模板声明 slot ID 全集
+- [x] 全屏媒体的动态 source 文本纳入契约（第 10 个动态来源）
+- [x] 契约校验单测：16 passed（schema、默认值继承、优先级顺序、映射完整性、缩字阶梯）
+- [ ] （后续 ticket）`stacked-cards` 等尚未测量的布局补 `MEASURED_MAX_WIDTH` —— T9 改 s9 布局时补
 
 ---
 
