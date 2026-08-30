@@ -13,6 +13,7 @@
 - **Caption/Pinned**：`output/qwen4-preview/tiktok-caption.txt` + `tiktok-pinned-comment.txt` 已生成
 - **BGM**：已选 `news-cc-theme04.mp3`（选项 A），用户未拍板 A/B/C
 - **HITL 未过**：用户尚未说「发布」。发布前依赖：新 widget `qwen4-benchmarks` 需 Lovable Publish + `verify-widget-a11y`
+- **技术债已清理（2026-08-30, `a5b4f22`）**：asset-sourcer 四处搜索 phase 结构重复 → 共享 helper（`shouldSkipByPreFilter` / `shouldSkipByDedup` / `downloadAndRecord`）；relevance 字段散装原语 → `makeRelevance` + `RELEVANCE_SOURCE`；另修复 API phase `keywords[0]` ReferenceError（存量崩溃 bug）。行为不变（330 tests 全绿 + 真实 scene-data 冒烟）。spec/tickets/review 见 `docs/archive/`（`spec-asset-sourcer-techdebt-cleanup.md` / `tickets-asset-sourcer-techdebt-cleanup.md` / `reviews/review-asset-sourcer-techdebt-cleanup.md`）
 - 相关 commits：`18ac70b`（管线第一轮）、`eb48293`（内容包）
 
 ## 本轮已落地的管线修复（2026-08-29，全部有测试）

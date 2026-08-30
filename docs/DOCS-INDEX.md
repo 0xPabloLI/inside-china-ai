@@ -113,6 +113,8 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 | `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60/#61 OPEN) |
 | `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN) |
 | `handoff-vlm-cascade-router-2026-08-27.md` | VLM Cascade Router 调研完成 (Issue #127 OPEN) |
+| `handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固（素材相关性/文字截断/验证盲区）— HITL 待发布；asset-sourcer 技术债已清理（`a5b4f22`） |
+| `handoff-infinitetalk-modal-2026-08-28.md` | InfiniteTalk Modal 推理 handoff（状态：推理运行中） |
 
 ### `reviews/` — Active review records
 

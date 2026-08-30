@@ -22,6 +22,7 @@
 | `spec-subtitle-karaoke-timeline.md` / `tickets-subtitle-karaoke-timeline.md` | 2026-08-06 | Karaoke 字幕漏词与不同步修复 |
 | `spec-subtitle-rendering.md` / `tickets-subtitle-rendering.md` | 2026-08-06 | 字幕渲染重构（CSS→JS rAF + ASS 烧录） |
 | `spec-asset-relevance-refactor.md` / `tickets-asset-relevance-refactor.md` | 2026-08-30 | 素材相关性重构：assetNeed per-scene claim 搜索 + used-asset 40% cap + VLM relevance gate + 衬线基准化（#130，issues #131-#139） |
+| `spec-asset-sourcer-techdebt-cleanup.md` / `tickets-asset-sourcer-techdebt-cleanup.md` | 2026-08-30 | asset-sourcer 技术债清理：四处搜索 phase 结构重复 → 共享 helper（`shouldSkipByPreFilter`/`shouldSkipByDedup`/`downloadAndRecord`）；relevance 散装原语 → `makeRelevance` + `RELEVANCE_SOURCE`；API phase `keywords[0]` ReferenceError 修复。行为不变（330 tests + 真实 scene-data 冒烟，commit `a5b4f22`）。见 `reviews/review-asset-sourcer-techdebt-cleanup.md` |
 | `spec-subtitle-verification.md` / `tickets-subtitle-verification.md` | 2026-08-06 | 字幕验证系统 |
 | `spec-scene-extraction.md` / `tickets-scene-extraction.md` | 2026-08-06 | 场景提取 + 共享视觉系统分离 |
 | `spec-pipeline-isolation.md` / `tickets-pipeline-isolation.md` | 2026-08-06 | 多 Pipeline 隔离架构 |
@@ -182,6 +183,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/handoff-video-download-breakthrough-review-2026-08-26.md` | 2026-08-27 | #75 | Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`）的原始 review——5 个阻塞性发现 + 12 个验收矩阵 + 7 条 Track Changes。结论已被整合 review（上方条目）吸收。 |
 | `reviews/sve-single-visit-extraction-review-2026-08-27.md` | 2026-08-27 | #114 | SVE Single-Visit Extraction 代码审查——Standards + Spec 双轴通过。2 judgement calls (acceptable duplication), 1 minor naming, 0 hard violations。All 19 scenario matrix rows covered。28 new tests，302 total passing。 |
 | `reviews/issue-tracker-review-2026-08-26.md` | 2026-08-28 | — | Issue tracker 全量逐项审阅——38 open issues，19 pass / 19 comment (8 P1 + 11 P2)。2026-08-28 全部 19 项修复后归档。含修复状态追踪表。 |
+| `reviews/review-asset-sourcer-techdebt-cleanup.md` | 2026-08-30 | — | asset-sourcer 技术债清理双轴审查——Standards 0 hard violations（1 judgement 已修复）；Spec 轴全对齐、无 scope creep。330 tests + 真实数据冒烟。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
