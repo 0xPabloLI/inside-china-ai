@@ -183,6 +183,7 @@ Deep research reports with citations.
 | `writing-for-agents-enforcement-proposal.md` | `writing-for-agents` 规则执行率改善方案（待审核结论吸收） |
 | `model-sources-reference.md` | Model search sources reference — sources, format guide, GPU compat checklist, search flow, admission criteria & scoring |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
+| `open-source-video-generation-landscape-2026.md` | Open-source video generation landscape 2026 — model/engine comparison, local Apple Silicon viability |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
 | `source-layer-comparison.md` | Source layer comparison — CDP vs MCP vs API, capability matrix per source |

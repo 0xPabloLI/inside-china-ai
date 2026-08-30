@@ -39,6 +39,7 @@
 | `spec-media-volume-autofill.md` / `tickets-media-volume-autofill.md` | 2026-08-14 | Per-scene volume + envelope ducking + asset-sourcer auto-fill — `MediaField.volume` 字段 + `videoVolume = baseVolume * opacity` 渐变 + `validateMedia()` range check [0,1] + `assignAssetsToScenes()` 批量分配 + `media-patch.json` + `apply-media-patch.mjs` HITL 审查。 |
 | `spec-remotion-layout-refactor.md` / `tickets-remotion-layout-refactor.md` | 2026-08-26 | Remotion 场景模板重构 — 6 布局变体（hero-center/media-bottom-bar/media-split/media-overlay/stacked-cards/cta）+ SPACING 4pt 系统 + @remotion/media 迁移（Img→CanvasImage, Video/Audio）+ @remotion/rough-notation（Circle/Underline）+ Interactive.Div + 多样化转场（slide/wipe/fade, 10 frames）+ GridBg 弱化（0.04→0.015, 仅无媒体场景）+ scene-rules.mjs layout 验证 + safe-zone 回归测试。74 tests passing。 |
 | `spec-text-overflow-verify.mjs` / `tickets-text-overflow-verify/` | 2026-08-26 | 文字溢出双层防护 — `checkTextOverflow()` 行扫描像素检测（frame-analysis.mjs 新增纯函数）+ NarrativeScene 4 布局变体 maxWidth+overflow:hidden + HookScene hookText/revealText maxWidth + ANNOTATION 常量集中化（Highlight 透明度 0.15）+ 回归测试正则误报修复。45 tests passing。 |
+| `spec-issue-89-rate-limiter.md` / `tickets-issue-89-rate-limiter.md` | 2026-08-30 | Issue #89 P0 CDP 按域名限流器 — `lib/rate-limiter.mjs`（createRateLimiter 注入时钟/睡眠/持久化 + 域名后缀匹配 + jitter 间隔 + 1h 滑窗 maxPerHour + 10min cap 跳过 + 跨进程持久化 + RATE_LIMITER_DISABLED 逃生阀）+ `cdpNewTab` 集成（4 消费方零改动自动生效，skip 抛错走现有 fallback 链）。16 单测 + 2 集成，47 tests + 真实数据冒烟（跨进程聚合验证）。P1 backoff 留同 issue 下一切片。见 `reviews/review-issue-89-rate-limiter-2026-08-30.md` |
 
 ### 趋势 & 发布 Specs
 
@@ -184,6 +185,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/sve-single-visit-extraction-review-2026-08-27.md` | 2026-08-27 | #114 | SVE Single-Visit Extraction 代码审查——Standards + Spec 双轴通过。2 judgement calls (acceptable duplication), 1 minor naming, 0 hard violations。All 19 scenario matrix rows covered。28 new tests，302 total passing。 |
 | `reviews/issue-tracker-review-2026-08-26.md` | 2026-08-28 | — | Issue tracker 全量逐项审阅——38 open issues，19 pass / 19 comment (8 P1 + 11 P2)。2026-08-28 全部 19 项修复后归档。含修复状态追踪表。 |
 | `reviews/review-asset-sourcer-techdebt-cleanup.md` | 2026-08-30 | — | asset-sourcer 技术债清理双轴审查——Standards 0 hard violations（1 judgement 已修复）；Spec 轴全对齐、无 scope creep。330 tests + 真实数据冒烟。 |
+| `reviews/review-issue-89-rate-limiter-2026-08-30.md` | 2026-08-30 | #89 | #89 P0 rate limiter 双轴审查——Standards 1 hard violation（ESM `__dirname` 未定义，已修复 + 真实 node import 验证）；Spec 轴 17/17 场景矩阵全覆盖，1 scope creep（smoke 脚本，已验证后待删）。47 tests + 真实数据冒烟。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）

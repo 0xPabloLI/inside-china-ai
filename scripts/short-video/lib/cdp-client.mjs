@@ -14,17 +14,60 @@ import { join, dirname } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { createRateLimiter } from "./rate-limiter.mjs";
+
 export const CDP_BASE = "http://localhost:3456";
 export const RETRY_WAIT_MS = 3000;
+
+// #89 P0: per-domain rate limiting for every CDP navigation.
+// Wired into cdpNewTab so all consumers (search-sources, asset-sourcer,
+// extract-media, video-understand) are covered without caller changes.
+// Hourly sliding-window timestamps persist to the gitignored output dir so
+// consecutive runs keep aggregating request volume per domain.
+const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
+const rateLimiter = createRateLimiter({
+  loadState: () => {
+    try {
+      const p = join(STATE_DIR, "rate-limiter-state.json");
+      if (!nodeFs.existsSync(p)) return null;
+      return JSON.parse(nodeFs.readFileSync(p, "utf8"));
+    } catch {
+      return null;
+    }
+  },
+  saveState: (state) => {
+    try {
+      nodeFs.mkdirSync(STATE_DIR, { recursive: true });
+      nodeFs.writeFileSync(
+        join(STATE_DIR, "rate-limiter-state.json"),
+        JSON.stringify(state),
+        "utf8",
+      );
+    } catch (e) {
+      console.warn(`⚠️  Rate limiter state save failed: ${e.message}`);
+    }
+  },
+});
 
 /**
  * Create a new browser tab via the CDP proxy.
  *
+ * Rate-limited per domain (#89 P0): waits a randomized interval between
+ * navigations to the same site and enforces an hourly cap. When the cap
+ * would force an unaffordable wait, throws so callers degrade via their
+ * existing fallback chain (CDP → googleSiteFallback → MCP).
+ *
  * @param {string} url - URL to navigate to
  * @returns {Promise<string>} Tab ID (targetId)
- * @throws {Error} If the proxy doesn't return a targetId
+ * @throws {Error} If the proxy doesn't return a targetId, or navigation is
+ *   skipped by the rate limiter
  */
 export async function cdpNewTab(url) {
+  const limit = await rateLimiter.wait(url);
+  if (limit.action === "skip") {
+    throw new Error(`Rate limited: ${limit.domain} hourly cap exceeded — navigation skipped`);
+  }
+
   const resp = await fetch(`${CDP_BASE}/new`, {
     method: "POST",
     body: url,

@@ -37,6 +37,11 @@ import {
   CDP_BASE,
 } from "../lib/cdp-client.mjs";
 
+// #89 P0: the per-domain rate limiter is unit-tested separately
+// (rate-limiter.test.mjs). Keep these integration tests free of real waits
+// and state writes via the escape hatch.
+vi.stubEnv("RATE_LIMITER_DISABLED", "1");
+
 // ─── Helpers ───
 
 function mockFetchResponse(data) {
