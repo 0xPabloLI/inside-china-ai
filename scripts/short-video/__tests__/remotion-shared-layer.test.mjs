@@ -24,10 +24,12 @@ describe("T1: SPACING system", () => {
     expect(content).toMatch(/md:\s*12/);
     expect(content).toMatch(/lg:\s*16/);
     expect(content).toMatch(/xl:\s*24/);
-    expect(content).toMatch(/'2xl':\s*32/);
-    expect(content).toMatch(/'3xl':\s*48/);
-    expect(content).toMatch(/'4xl':\s*64/);
-    expect(content).toMatch(/'5xl':\s*96/);
+    // Keys needing quotes are written with double quotes in shared.ts; accept
+    // either quote style — this asserts the scale values, not the formatting.
+    expect(content).toMatch(/["']2xl["']:\s*32/);
+    expect(content).toMatch(/["']3xl["']:\s*48/);
+    expect(content).toMatch(/["']4xl["']:\s*64/);
+    expect(content).toMatch(/["']5xl["']:\s*96/);
   });
 });
 

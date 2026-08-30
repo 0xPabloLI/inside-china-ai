@@ -12,6 +12,7 @@
  * Skipped if Python/OpenCV not available.
  */
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
+import { execSync } from "child_process";
 import { existsSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
@@ -24,8 +25,29 @@ const TEST_IMAGE = join(process.cwd(), "scripts/short-video/assets/shanghai-skyl
 const PYTHON_BIN = join(process.env.HOME || "/Users/pabloli", ".video-tts-env/bin/python3");
 const FOCUS_SCRIPT = join(process.cwd(), "scripts/short-video/lib/focus_detector.py");
 
+// The detector degrades to `classifier_load_failed` when OpenCV lacks the API it
+// needs. OpenCV 5.x dropped `cv2.CascadeClassifier`, and a stray `opencv-python`
+// install can shadow the pinned `opencv-contrib-python` from
+// lib/requirements-focus.txt. The pipeline runs degraded in that case by design,
+// so the suite must skip rather than fail — probe the API we actually use.
+function opencvUsable() {
+  try {
+    execSync(
+      `"${PYTHON_BIN}" -c "import cv2; assert hasattr(cv2, 'CascadeClassifier')"`,
+      { stdio: "ignore" },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Skip entire suite if Python or OpenCV not available
-const shouldRun = existsSync(PYTHON_BIN) && existsSync(FOCUS_SCRIPT) && existsSync(TEST_IMAGE);
+const shouldRun =
+  existsSync(PYTHON_BIN) &&
+  existsSync(FOCUS_SCRIPT) &&
+  existsSync(TEST_IMAGE) &&
+  opencvUsable();
 
 // P2: Serial execution enforced by vitest.config.mjs (subprocess project: fileParallelism=false, singleFork=true)
 const maybeDescribe = shouldRun ? describe : describe.skip;
