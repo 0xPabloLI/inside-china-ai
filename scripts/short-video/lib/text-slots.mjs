@@ -11,7 +11,7 @@
  * the same scene-data ended up rendering at 64px on one path and 80px on the
  * other, and how a clipped "THAT'S THE WHOLE POIN" passed every check.
  */
-import { BRAND_FONT_STACK, CANVAS, SAFE_ZONES, SPACING } from "./safe-zones.mjs";
+import { BRAND_FONT_STACK, CANVAS, SAFE_ZONES } from "./safe-zones.mjs";
 
 /**
  * Per-field typography defaults.
@@ -145,7 +145,11 @@ export const HTML_SLOT_MAP = {
     "stat-reveal.hero-center.source",
   ],
   cta: ["cta.hero-center.subject", "cta.hero-center.tagline", "cta.hero-center.topic"],
-  callout: ["callout.hero-center.title", "callout.hero-center.quote", "callout.hero-center.attribution"],
+  callout: [
+    "callout.hero-center.title",
+    "callout.hero-center.quote",
+    "callout.hero-center.attribution",
+  ],
   // FullscreenMedia renders media.source — the one dynamic text that comes from
   // the media block instead of scene.texts, and the easiest one to overlook.
   fullscreen: ["fullscreen.source"],
@@ -276,9 +280,8 @@ export function htmlSlotsFor(visualType) {
   return [...slots];
 }
 
-/** Content band the contract measures against, for anyone needing the frame. */
+/** Canvas and safe-zone frame the contract measures against. */
 export const SLOT_FRAME = {
   canvas: CANVAS,
   safeZones: SAFE_ZONES,
-  spacing: SPACING,
 };
