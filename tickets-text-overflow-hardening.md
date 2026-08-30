@@ -6,7 +6,7 @@
 
 ---
 
-## T1 — Remotion 版本统一 + layout-utils 评估
+## T1 — Remotion 版本统一 + layout-utils 评估 ✅ DONE (2026-08-30)
 
 **Blocked by:** None — can start immediately
 
@@ -14,12 +14,12 @@
 按匹配版本安装，`npx remotion versions` 校验通过；产出 fitText/fitTextOnNLines
 的复用评估结论。
 
-- [ ] `npx remotion upgrade --version 4.0.517` 执行成功
-- [ ] `npx remotion add @remotion/layout-utils` 安装，版本与 remotion 一致
-- [ ] `package.json` 移除 `^`，精确锁定
-- [ ] `npx remotion versions` 无版本不一致告警
-- [ ] 评估结论落盘：fitText / fitTextOnNLines 能否作 Fit 层候选字号选择器（能/不能 + 理由）
-- [ ] 既有渲染冒烟：qwen4-preview 一个 still 帧渲染成功
+- [x] `npx remotion upgrade --version 4.0.517` 执行成功
+- [x] `npx remotion add @remotion/layout-utils` 安装（`--save-exact`，4.0.517）
+- [x] `package.json` 全部精确锁定 4.0.517（含 `remotion` 核心）
+- [x] `npx remotion versions` → "All packages have the correct version."
+- [ ] 评估结论落盘：fitText / fitTextOnNLines 能否作 Fit 层候选字号选择器 —— **顺延到 T4**（届时才有 Fit 层可评估）
+- [x] 冒烟：qwen4 全片渲染成功（此前因 4.0.508/4.0.517 混用直接失败）
 
 ---
 
@@ -124,7 +124,7 @@ materialize/fit、注入字号、写 final HTML；验证器与录制器消费同
 
 ---
 
-## T7 — 共享 final-media gate（阶段化）
+## T7 — 共享 final-media gate（阶段化）✅ DONE (2026-08-30)
 
 **Blocked by:** None — can start immediately
 
@@ -132,13 +132,14 @@ materialize/fit、注入字号、写 final HTML；验证器与录制器消费同
 preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性硬 FAIL，
 `render-only` 在渲染前调用同一 gate。
 
-- [ ] 共享 gate 模块：输入最终场景 + 内容目录，输出 PASS/FAIL + 缺失清单
-- [ ] preflight 阶段：缺媒体 = pending/WARN，不阻断 sourcing
-- [ ] main：Step 1.5 sourcing **之后**调用，硬 FAIL
-- [ ] render-only：渲染**之前**调用（无 sourcing 阶段）
-- [ ] `mediaOptOut=true` + media 依赖型布局（overlay/bottom-bar/split）→ 立即 FAIL
-- [ ] `mediaOptOut=true` + `stacked-cards` → PASS，无 WARN
-- [ ] 单测覆盖上述 4 种组合
+- [x] 共享 gate 模块（\`lib/final-media-gate.mjs\`）：输入最终场景 + 内容目录，输出 PASS/FAIL + 缺失清单
+- [x] preflight 阶段：缺媒体 = pending/WARN，不阻断 sourcing（\`checkNarrativeMediaWarning\` 维持 WARN）
+- [x] main：Step 1.6（sourcing 1.5 → patch 1.5c → upscale 1.5b 之后）调用，硬 FAIL
+- [x] render-only：Step 2.6（渲染之前）调用（无 sourcing 阶段）
+- [x] `mediaOptOut=true` + media 依赖型布局 → FAIL（reason: opt-out-on-media-layout）
+- [x] `mediaOptOut=true` + `stacked-cards` → PASS，无 WARN
+- [x] 单测 9 passed（含"全部违规场景都上报，不只第一个"）
+- [x] 真实数据：gate 正确拦下 qwen4 Scene 9（media-overlay 无 media）；改 `stacked-cards + mediaOptOut` 后放行并渲染成功
 
 ---
 
@@ -170,7 +171,11 @@ s9 不再出现中部空洞；补齐后的垂直空间由契约与缩字优先�
 - [ ] MediaOverlay 顶部补 action、底部补 context
 - [ ] 补齐后垂直空间重新标定 `media-overlay.*` 各 slot 的 `maxHeight`
 - [ ] 多字段总高超限时按 `context → action → company → result` 缩字，触底再等比，仍超失败
-- [ ] s9 改为 `stacked-cards`
+- [x] s9 数据改为 `stacked-cards` + `mediaOptOut: true`（T7 提交，632a96a）
+- [ ] **Remotion 的 stacked-cards 视觉待修**：改布局后 gate 放行、渲染成功，但 53s 抽帧显示
+      s9 仍透出 s8 的媒体图（qwen-throughput 曲线）——Remotion 的 stacked-cards 分支没有清空
+      媒体背景。**数据层已正确，视觉层未完**；本 ticket 要保证 CSS-only 布局确实不显示任何 media
+- [ ] 补测 `stacked-cards` 各 slot 的 `MEASURED_MAX_WIDTH`（T2 遗留）
 - [ ] s9 左缘裁切现象纳入契约观察（ink-bound 落地后复测；当前不作为已确认根因）
 - [ ] s6/s8/s9 重渲染：action/context 上屏，中部无空洞，不违反垂直契约
 
