@@ -43,6 +43,7 @@
 | `video-workflow.md` | Regular video-production runbook — TTS, rendering, verify, file paths, publishing strategy | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3 |
 | `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
+| `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽） | — |
 | `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
 | `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
 
@@ -113,7 +114,6 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 | `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60/#61 OPEN) |
 | `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN) |
 | `handoff-vlm-cascade-router-2026-08-27.md` | VLM Cascade Router 调研完成 (Issue #127 OPEN) |
-| `handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固（素材相关性/文字截断/验证盲区）— HITL 待发布；asset-sourcer 技术债已清理（`a5b4f22`） |
 | `handoff-infinitetalk-modal-2026-08-28.md` | InfiniteTalk Modal 推理 handoff（状态：推理运行中） |
 
 ### `reviews/` — Active review records
