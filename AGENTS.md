@@ -100,6 +100,7 @@
 3. **影响面核查**：提出改动前，必须 grep/搜索所有受影响的文件（测试、文档、其他调用方），完整列出影响面。不允许「改了代码但漏了测试/文档」的情况。
 4. **事实性陈述双源验证**：任何「X 工具/CLI 是否存在」「Y 平台是否支持 Z 功能」「W 已于 D 日期发布」等事实性断言，必须查两个独立来源后再下结论，禁止仅凭 memory 或单一文档直接断言。涉及库/框架功能支持的，**先查本地源码**（`pip show <package>` 确认版本 → `grep`/`inspect.getsource` 读实现 → 用正确 API 调用方式做 smoke test）→ 再查文档/网络讨论作为补充。涉及工具/CLI 是否存在的，`which`/`command -v` + 官方文档。冲突时以源码/实际调用为准（文档可能滞后于代码）。网络讨论反映的是**已报告的**问题，不代表**已修复的**状态。工具选择见下方 `## Web Scraping & Content Fetching`。**定价、费率、资源分配等数值性事实**，必须查官方定价页面（如 modal.com/pricing）或 CLI（如 `modal billing rates`）确认，不能以 agent 记忆为准——同一平台可能有多套定价（如 Modal 标准 compute vs Sandbox），容易混淆。**引入新工具/框架/服务前，必须检查维护状态**：查 GitHub repo 的 `archived` 字段、最近 commit 日期、open/closed issue 活跃度、是否有新 release。已停止维护或超过 6 个月无新 commit 的项目，不得推荐引入——平台 API 变更后无人修复会导致生产故障。
 5. **推理参数不跨模型借鉴**：每个 AI 模型（ASR/TTS/VLM/数字人）的推理参数（steps、CFG scale、teacache threshold、temperature 等）必须查该模型自己的 README/HF Model Card 中的推理命令示例，用官方默认参数作为起点。禁止把上一个模型的参数套用到新模型上——蒸馏模型（5-8 步）和非蒸馏模型（40+ 步）的步数需求差异巨大，跨模型套用会导致质量严重下降。
+6. **GPU 推理参数全量核对**：切换 GPU 或调整推理参数时，不能只改个别参数、沿用其余参数。必须从头重新核对**所有**影响推理速度和质量的参数（offload 模式、步数、guide scale、teacache、timeout），对照该模型的官方源码确认每个参数的实际生效逻辑——特别警惕「设了 A 参数但 B 参数默认值覆盖了 A」的隐藏交互（如 InfiniteTalk 的 `offload_model` 默认 True 会覆盖 `num_persistent_param_in_dit` 的效果）。核对方式：查源码中参数默认值和条件分支逻辑，确认参数组合的净效果与预期一致后再启动。
 
 ## Coding Conventions
 

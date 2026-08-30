@@ -1,10 +1,12 @@
-# Proposal v3.1: 短视频文本溢出（截断）的根治方案
+# Proposal v3.3: 短视频文本溢出（截断）的根治方案
 
-> Created: 2026-08-30 ｜ v2 / v3 / v3.1 同日 ｜ **v3.2（四轮 review 后修订）**
-> Review 轨迹：v1 Request changes → v2 → v2 Request changes（二轮）→ v3 →
-> v3 Request changes（三轮）→ v3.1（自包含）→ v3.1 **Request changes（四轮：
-> 非常接近可进入 Grill）** → **v3.2（本文）**
-> 二/三/四轮 review 原文存档：`docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md`
+> Created: 2026-08-30 ｜ v2 / v3 / v3.1 / v3.2 同日 ｜ **v3.3（五轮 review 后修订，
+> 方向已通过，无需再完整 review —— 修完进入 Grill）**
+> Review 轨迹：v1 Request changes → v2 → RC（二轮）→ v3 → RC（三轮）→ v3.1（自包含）
+> → RC（四轮）→ v3.2 → **RC（五轮：两处技术错误 + 同步遗漏）→ v3.3（本文）**
+> 二/三/四/五轮 review 原文存档：`docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md`
+> **已拍板项**：时间轴 = **A2**；Remotion 统一到 **4.0.517**；s9 改 **stacked-cards**
+> **Grill 只剩 3 项**：ink-bound A/B、bigNumber 纳入 Fit、2% 阈值（见 §9）
 > 下一步：**Grill → Spec → Tickets → TDD 实施**（不直接进 to-spec）
 > 关联：`docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md`（R2；黑帧时间轴 A/A2、
 > 缺媒体门控、圆标注碰撞阈值的权威真源）、`docs/brand-system.md`、spec #130
@@ -65,6 +67,17 @@
 | StampIn 从 2× 缩放，transient SAFE_ZONES 保证需定义逐帧采样 | ✅ 成立 | `entrance.tsx:97-105` `scale [2,1]`；逐帧采样口径（§6.2 第 6 条） |
 | F6 "历史长文案"不可恢复，应写死确定性 fixture 文案 | ✅ 成立 | F6 文案全文写死（§6.8） |
 
+### 1.5 五轮（v3.2 → v3.3）
+
+| 断言 | 核实 | 处置 |
+|---|---|---|
+| `generateScene()` 是同步字符串生成，无法等 `fonts.ready` / 测 DOM | ✅ 成立 | HTML Fit 改为 raw → Chromium materialize/fit → inject → final 五步管线；**HTML 抛 `TextFitError` 终止管线，只有 Remotion 用 `cancelRender()`**（§6.2） |
+| ink-bound 公式符号写反（`-actualLeft` 漏掉左外溢） | ✅ 成立（实测 Times italic f `actualBoundingBoxLeft = 9.76px`，旧公式得 0） | 改为四方向分别计算：`left = max(0, actualBoundingBoxLeft)`；`right = max(0, actualBoundingBoxRight − width)`（§6.2 第 7 条） |
+| 方案 B 无法捕获静默裁切（`overflow:hidden` 已删像素） | ✅ 成立 | B 降级为**差分**辅助（诊断帧 vs 正常帧），不作阻断 gate（§6.2、§9.2） |
+| highlight 迁移实为 **17 处**而非 7 处 | ✅ 成立 | 复核：`grep -rn "highlight:" content/*/scene-data.mjs` → qwen4-preview 7 / doubao-work 9 / light-society 1 = 17。逐处字段归属已盘点，light-society `4M beliefs rewritten` 非 `quote` 子串 → 改写 `{field:"quote", text:"4M beliefs"}`（§6.4b 完整表） |
+| 文档未体现"只剩三项"；标题/正文版本不一致；F8 后仍写 F1–F7 | ✅ 成立 | 全文同步（§9、§8、§10、标题） |
+| 生产最宽 Hook 数字 `"+629%"` 在 240px 下约 687px | ⚠️ 采信（reviewer 实测，待 F7/F9 复核） | 记录于 §6.1 与 §9.2，作为"纳入 Fit 不伤视觉"的依据 |
+
 ---
 
 ## 2. 版本变更汇总
@@ -92,6 +105,17 @@
 | 6 | **final-media gate 抽为共享函数**：main 在 sourcing 后调、render-only 在渲染前调 |
 | 7 | **`FullscreenMedia` 的动态 `media.source` 纳入契约**；动态文本来源 9 → 10 |
 | 8 | **F6 确定性文案写死**（不依赖不可恢复的历史产物） |
+
+### 2.3 v3.2 → v3.3
+
+| # | 变更 |
+|---|---|
+| 1 | **HTML Fit 时序重写**为可执行的 `generateScene(raw)` → Chromium materialize/fit → inject 字号 → 写 final HTML；verifier 与 recorder 都 `page.goto(final)`；HTML 抛 `TextFitError` 终止管线，**只有 Remotion 用 `cancelRender()`** |
+| 2 | **ink-bound 公式符号修正**为四方向分别计算；B 降级为差分辅助；新增 **F9** |
+| 3 | **highlight 迁移补全为 17 处**（qwen4 7 / doubao 9 / light-society 1），含 light-society 非子串改写 |
+| 4 | 新增 **bigNumber 焦点数字契约**（240/180、Fit→Circle→F7 顺序、碰撞即 FAIL） |
+| 5 | §7 删除"放弃 canvas measureText"旧结论，改为"DOM 管布局盒 + canvas 管 ink，互补" |
+| 6 | 全文版本/F1–F9 编号同步；§9 收敛为**只剩 3 项 Grill 输入**，已拍板项单独列出 |
 
 ---
 
@@ -206,6 +230,23 @@ v3.1 曾写"等比阶段允许缩至 `minSize × 0.9`"——与 §5 第 6 条和
 `FullscreenMedia.tsx:22,34` 渲染的动态 `media.source`（"SOURCE: …" 标签）
 **必须纳入 slot 契约与几何验证**。即动态文本来源共 **10 个**，不是 9 个。
 
+**焦点数字（bigNumber）的独立契约**（Grill 输入 #2，推荐纳入 Fit）：
+
+```js
+slot: {
+  container: "hook.focus-number",
+  wrapPolicy: "none", maxLines: 1,
+  preferredSize: 240, minSize: 180,     // Hook：300 → 240，硬下限 180
+  annotationPolicy: "circle",
+  fitOrder: "number-first",             // ① Fit 数字 → ② 再生成 Circle → ③ F7 碰撞 Assert
+}
+```
+
+- **顺序固定**：先 Fit 数字字号，**再**生成 Circle 标注，**最后**执行 F7 碰撞 Assert
+- **碰撞失败不得偷偷继续缩字**：应 FAIL，让布局参数（间距/字号）显式调整
+- 可行性：生产最宽的 Hook 数字是 unitree 的 `"+629%"`；在 240px 下实测约 **687px**，
+  可放入 820px 内容区 → 纳入 Fit **不会伤害现有视觉**
+
 **HTML 路径对齐**：`scene-templates.mjs`（~15 个模板函数，独立 CSS 块）+
 `scene-layout.mjs` 的字号/容器尺寸改为取契约值；存量内容包逐包盘点对齐（§8）。
 
@@ -253,14 +294,36 @@ v3.1 曾写"等比阶段允许缩至 `minSize × 0.9`"——与 §5 第 6 条和
    成本可接受：入场窗口通常 ≤ 45 帧。settled frame 后一律不得越 slot content box。
 7. **ink overhang（字形墨迹外溢）**：`getBoundingClientRect()` / `Range` / scroll
    指标只覆盖 advance box，**测不到字形 ink overhang**（Times 斜体 T/f 可超出
-   advance box 约 5–11px 而 scroll 仍合法）。补充机制（Grill 二选一，默认 A）：
-   - **A. ink-bound 测量**：用 `CanvasRenderingContext2D.measureText()` 的
-     `actualBoundingBoxLeft/Right/Ascent/Descent` 算真实墨迹盒，
-     `inkPad = max(0, actualRight − width, −actualLeft)` 计入各边余量，
-     再与 AABB 取并集
-   - **B. 像素回归**：settled frame 渲染 still，对 slot content box 外扩
-     N px 的带状区域检测"是否存在非背景像素"（N 默认 12px，覆盖实测 11px）
-   采用 A 时 F1/F4/F7 无需改动；采用 B 时需附加像素断言。
+   advance box 约 5–11px 而 scroll 仍合法）。
+
+   **A. Canvas ink-bound（阻断 gate，Grill 输入 #1 推荐采纳）**——四方向分别计算，
+   **不使用单一对称 inkPad**：
+
+   ```js
+   const m = ctx.measureText(text);
+   // canvas 的 actualBoundingBoxLeft 是"对齐点向左"的距离，正值即左外溢
+   leftOverhang   = Math.max(0, m.actualBoundingBoxLeft);
+   rightOverhang  = Math.max(0, m.actualBoundingBoxRight - m.width);
+   ascentOverhang = Math.max(0, m.actualBoundingBoxAscent - fontAscent);
+   descentOverhang= Math.max(0, m.actualBoundingBoxDescent - fontDescent);
+   ```
+   ⚠️ v3.2 写的 `inkPad = max(0, actualRight − width, −actualLeft)` **符号写反**：
+   `-actualLeft` 会把真实左外溢算成 0（实测 Times italic f 的
+   `actualBoundingBoxLeft = 9.76px` → 旧公式得 0，漏检）。已按上式修正。
+
+   测量粒度与上下文同步要求：
+   - 每个**实际渲染行**单独测量；行内每个**不同样式的 text run**（span / 高亮子串 /
+     不同字重）单独测量后取并集
+   - `measureText` 前必须把 canvas ctx 的 `font`、`letterSpacing`、`fontKerning`、
+     `fontStretch`、`fontVariantCaps`、`textRendering` 与被测元素**逐项同步**
+     （不同步即等于用另一套字体度量）
+   - 结果并入 §6.2 的 AABB（与 stroke paint margin 取并集）
+
+   **B. 像素回归（仅辅助，不能当阻断 gate）**：`overflow:hidden` 会**删除**
+   越界像素，因此"检测 slot 外侧是否有非背景像素"在裁切生效时反而会 PASS——
+   与现有帧检查同一个假绿模式。B 只有在做**差分**时才有效：
+   渲染"关闭裁切的诊断帧"与"正常帧"，比对两者差异区域是否落在 slot 之外。
+   即便如此也只作抽样辅助，不阻断。
 
 **HTML 路径：Fit 持久化 + 单一产物（四轮 review：现状是假绿）**
 
@@ -272,21 +335,38 @@ v3.1 曾写"等比阶段允许缩至 `minSize × 0.9`"——与 §5 第 6 条和
 - `lib/record-scenes.mjs:30` `page.goto(\`file://${scene.htmlPath}\`)` 录制落盘文件
   → **验证产物 ≠ 录制产物**，Fit 结果还可能根本没落盘
 
-要求：
+**HTML Fit 的可执行时序**（五轮 review 修正：`generateScene()` 是**同步字符串生成**，
+不可能 `await document.fonts.ready` 或测 DOM——v3.2 的写法不可执行）：
 
-1. **Fit 结果必须落盘并被录制消费**：Fit 在 `generateScene` 阶段完成，字号以
-   内联 style 写入返回的 HTML；verifier 与 recorder **都只读落盘文件**
-   （`readFileSync(htmlPath)`），不再各自 `generateScene`
-2. **Verifier 只读不改**：`verify-scene-dom.mjs` 删除重新生成逻辑，改为对同一
-   HTML 文件跑 DOM gate；文件不存在 → FAIL
+```
+generateScene(scene, duration)      // ① 同步生成 RAW HTML（含 slot 标记，字号为契约 preferredSize）
+  ↓  writeFileSync(rawPath)         //    落盘 raw（仅调试产物，不用于录制）
+Chromium materialize                // ② Playwright 打开 raw，等 fonts.ready + settled
+  ↓  Fit（页面内测 DOM/ink，算字号）
+  ↓  Assert（同上；失败 → 抛 TextFitError）
+inject fitted font sizes            // ③ 把 Fit 结果以内联 style 注入 DOM
+  ↓  writeFileSync(finalPath)       // ④ 写 FINAL HTML（唯一产物）
+Verifier page.goto(finalPath)       // ⑤ 只读校验，不再 generateScene
+Recorder page.goto(finalPath)       // ⑥ 录制同一 final 文件
+```
+
+1. **单一产物**：verifier 与 recorder **都 `page.goto()` 同一个 final 文件**；
+   `verify-scene-dom.mjs` **删除重新 `generateScene` 的逻辑**（现状 `:114-123`
+   用 `generateScene(scene, 8)` 生成另一份内存 HTML，连 duration 都不同）。
+   final 文件不存在 → FAIL
+2. **失败语义分路径**：
+   - **HTML 路径** → 抛结构化 **`TextFitError`**（含 sceneId / slotId / field /
+     measured vs available / fontSize / inkPad），由 `main.mjs` / `render-only.mjs`
+     捕获并**终止管线**（`process.exit(1)`）
+   - **Remotion 路径** → `cancelRender()`（Remotion 的渲染阻塞机制）
+   - 两者都输出同一结构的机器可读错误；**只有 Remotion 用 `cancelRender()`**
 3. **HTML 模板 → slot 契约映射**：qwen 的 HTML renderer **不消费 `scene.layout`**
    （`scene-layout.mjs` 只有 Slot 布局系统，无 layout 派发），因此映射按
    **`visualType`** 建立：`hookScene → hook.*`、`narrativeScene → narrative.default.*`、
-   `statRevealScene → stat-reveal.*`、`ctaScene → cta.*` …
+   `statRevealScene → stat-reveal.*`、`ctaScene → cta.*`、`calloutScene → callout.*` …
    每个 HTML 模板函数声明它渲染的 slot ID 全集。若将来要让 HTML 支持
    `media-split` 等布局变体，**须先实现布局等价性**再补映射
-4. Fit/Assert 时机：HTML 在真实浏览器渲染，Fit 在页面内截图前执行；
-   Assert 在 settled 时刻（模板 `settledFrame` 换算为 ms）执行；
+4. Assert 在 settled 时刻（模板 `settledFrame` 换算为 ms）执行；
    Playwright 截图取 settled 帧
 
 ### 6.3 【降级】字符预算 → 内容创作提示（WARN）
@@ -306,10 +386,11 @@ v3.1 曾写"等比阶段允许缩至 `minSize × 0.9`"——与 §5 第 6 条和
 rough-notation Tracker 是 `inline-block + white-space:pre`
 （源码 `:2538-2554`），**带标注文本无法自然换行**。定案：
 
-- **带标注的 result 强制单行缩放**：`wrapPolicy: "none"`、`maxLines: 1`，
-  溢出走 Fit 缩字 → 触底 → `cancelRender`
-- **无标注字段**（action/context/company）按契约 `wrapPolicy: "wrap"`、`maxLines: 2`，
-  先换行（≤ maxLines 且总高 ≤ maxHeight）、仍溢出再缩字
+- **任何带标注字段**强制单行缩放（字段由 `highlight.field` 决定，
+  **不只是 result**——qwen4 s6 标的就是 `action`）：`wrapPolicy: "none"`、
+  `maxLines: 1`，溢出走 Fit 缩字 → 触底 → `cancelRender`
+- **无标注字段**（action/context/company/hookText 等）按契约 `wrapPolicy: "wrap"`、
+  `maxLines: 2`，先换行（≤ maxLines 且总高 ≤ maxHeight）、仍溢出再缩字
 - 逐行标注（每行一个 Highlight 实例）作为未来扩展记录在案，本期不做；
   替换标注结构（自绘 SVG）同样不做——两者都无现有内容需求
 
@@ -330,17 +411,32 @@ rough-notation Tracker 是 `inline-block + white-space:pre`
 - 被标注字段仍为 `wrapPolicy: "none"`、`maxLines: 1`（§6.4）
 - Assert 层必须包含该子串标注的 SVG 绘制 bbox
 
-**存量迁移表**（字段归属按实际包含关系确定）：
+**存量迁移表（完整 17 处，五轮 review 修正：v3.2 只列了 qwen4 的 7 处）**
+盘点命令：`grep -rn "highlight:" content/*/scene-data.mjs`
+→ **qwen4-preview 7 / doubao-work 9 / light-society 1**。字段归属按实际包含关系确定：
 
-| 场景 | highlight | 归属字段 |
-|---|---|---|
-| s2 | QWEN4 | result（"QWEN4 PREVIEWED"） |
-| s3 | FREE | result（"FREE TO DOWNLOAD"） |
-| s4 | 6B | result（"6B ACTIVE PER TOKEN"） |
-| s5 | 1/9 | result（"1/9 THE TRAINING COST"） |
-| **s6** | **LOOKS UP** | **action**（"3 LAYERS REMEMBER, 1 LAYER LOOKS UP"） |
-| s8 | 8.6X | result（"8.6X FASTER"） |
-| s9 | POINT | result（"THAT'S THE WHOLE POINT"） |
+| 内容包 | 场景 | highlight | 归属 field | 子串校验 |
+|---|---|---|---|---|
+| qwen4-preview | s2 | QWEN4 | result（"QWEN4 PREVIEWED"） | ✅ |
+| qwen4-preview | s3 | FREE | result（"FREE TO DOWNLOAD"） | ✅ |
+| qwen4-preview | s4 | 6B | result（"6B ACTIVE PER TOKEN"） | ✅ |
+| qwen4-preview | s5 | 1/9 | result（"1/9 THE TRAINING COST"） | ✅ |
+| **qwen4-preview** | **s6** | **LOOKS UP** | **action**（"3 LAYERS REMEMBER, 1 LAYER LOOKS UP"） | ✅ |
+| qwen4-preview | s8 | 8.6X | result（"8.6X FASTER"） | ✅ |
+| qwen4-preview | s9 | POINT | result（"THAT'S THE WHOLE POINT"） | ✅ |
+| doubao-work | s1 | OPERATES | **hookText**（"AI THAT OPERATES"） | ✅ |
+| doubao-work | s2 | WHY | result（"WHY?"） | ✅ |
+| doubao-work | s3 | BUILDS | result（"EVEN BUILDS APPS"） | ✅ |
+| doubao-work | s4 | SLEEP | result（"WORKS WHILE YOU SLEEP"） | ✅ |
+| doubao-work | s5 | MEETINGS | result（"CHATS, DOCS, MEETINGS"） | ✅ |
+| doubao-work | s6 | SMARTER | result（"AGENT GETS SMARTER"） | ✅ |
+| doubao-work | s7 | $28B | result（"AI SPEND: $28B/YEAR"） | ✅ |
+| doubao-work | s8 | ALIBABA | result（"ALIBABA QIANWEN OFFICE"） | ✅ |
+| doubao-work | s9 | STRATEGY | result（"NOT A PRODUCT. A STRATEGY."） | ✅ |
+| **light-society** | callout | **4M beliefs rewritten** | quote（"…it did rewrite 4M beliefs at scale."） | ❌ **非子串** → 改写为 `{ field: "quote", text: "4M beliefs" }` |
+
+迁移脚本需对 16 处 ✅ 自动填 `field`，对 light-society 按人工改写值处理；
+迁移后跑子串校验，全部通过才算完成。
 
 **放弃的选项**：whole-result boolean（`highlight: true`）——最省事，但丢弃作者
 "强调特定关键词"的意图，且 s6 的关键词会落在错误的字段上。
@@ -371,8 +467,9 @@ rough-notation Tracker 是 `inline-block + white-space:pre`
 ### 6.8 确定性回归 Fixture（回归主断言）
 
 目录：`scripts/short-video/__tests__/fixtures/text-overflow/`。
-F1–F7 用固定输入 + Remotion still 渲染，完全确定性、不依赖内容包现状
-（s5 已改 stacked-cards，无法用重渲染复现历史事故）；**F8 走 HTML 路径**（§6.2）。
+F1–F7、F9 用固定输入 + Remotion still 渲染，完全确定性、不依赖内容包现状
+（s5 已改 stacked-cards，无法用重渲染复现历史事故）；
+**F8 走 HTML 路径**（§6.2 的 raw → materialize/fit → inject → final 管线）。
 
 | Fixture | 输入 | 断言 |
 |---|---|---|
@@ -383,7 +480,8 @@ F1–F7 用固定输入 + Remotion still 渲染，完全确定性、不依赖内
 | **F5** 字段完整性样本 | 未识别字段 / `rendered` 字段缺失 | 注册协议 FAIL |
 | **F6** media-split 形态 | 真实 Remotion `NarrativeScene` 的 MediaSplit（`NarrativeScene.tsx:165-203`，栏宽 420 / `maxWidth: 372`），绕过 Fit。**确定性 fixture 文案全文写死**（不依赖不可恢复的 v1/v2 产物）：`layout: "media-split"`、`result: "1/9 THE TRAINING COST"`、`fontSize: 52`、`fontWeight: 900`、`fontFamily: BRAND_FONT_STACK`、`company: "THE COST"`、`action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)"` | Assert gate FAIL（HTML 路径 `scene-templates.mjs` 无 media-split 布局，grep -c = 0，不可用 HTML 复现；若将来要做 HTML 等价布局，需先实现布局等价性并另立 fixture） |
 | **F8** HTML 路径 Fit 持久化（新增） | ① 生成后落盘 HTML → ② `verify-scene-dom` **只读**落盘文件跑 DOM gate → ③ 断言 recorder `page.goto` 的是同一文件；并用超长文案验证 Fit 结果**出现在落盘 HTML 的内联字号中** | 旧实现红（verifier 重新 `generateScene` → Fit 未落盘也能绿）；新实现绿（Fit 内联落盘 + 单一产物） |
-| **F7** Hook 圆标注碰撞（新增） | Hook 场景 settled frame，Circle 标注 + subject + numberLabel | 圆标注绘制 AABB 与 **subject / numberLabel 文本 AABB 的重叠面积** ≤ 阈值：**重叠面积 ≤ 被比较文本 AABB 面积的 2%**；**被标注目标本身（bigNumber）不计入**（圆本就该覆盖它），但 bigNumber 自身必须完整可读（不越安全区、不被压字） |
+| **F7** Hook 圆标注碰撞 | Hook settled frame；**先 Fit 数字 → 再生成 Circle → 最后 F7** | **每个文字元素分别** ≤ 2%：圆标注绘制 AABB 与 subject 的重叠面积 ≤ subject AABB 的 2%，与 numberLabel 的重叠面积 ≤ numberLabel AABB 的 2%——**分开计算、不合并分母**；**被标注目标本身（bigNumber）不计入**（圆本就该覆盖它），但 bigNumber 自身必须完整可读（不越安全区、不被压字）。**记录实际 overlap ratio** 供 Grill 查看。碰撞失败 → FAIL，不偷偷继续缩字 |
+| **F9** ink overhang（新增） | 覆盖：italic `f` / `T`、`letter-spacing`、混合 span、多行文本 | 采用 ink-bound（A）时必须检出左/右/上/下四方向外溢；每个渲染行、每个样式 text run 单独测量；ctx 属性（font / letterSpacing / fontKerning / fontStretch）与被测元素同步。旧的错误公式（`-actualLeft`）必须让本 fixture 变红 |
 
 **阈值说明**：R2 §2 的"重叠面积 ≈ 0"改为本条的可计算阈值（2%），
 并在 R2 §2 / §4 同步；F7 是 Hook 圆修复（R2 §2）的自动验收。
@@ -420,7 +518,7 @@ F1–F7 用固定输入 + Remotion still 渲染，完全确定性、不依赖内
 | 字符预算继续当门槛 | 平均字宽原理性不足，s9 假绿已证 |
 | 逐行标注 / 替换标注结构 | 复杂度与需求不匹配，未来扩展 |
 | 字体打包混入本批 | 根因已过时；跨机确定性独立决策 |
-| canvas measureText | 与真实排版偏差；DOM 测量零成本真实值 |
+| ~~用 canvas measureText 取代 DOM 测量~~ | **（五轮删除）**该结论针对"以 canvas 替代 DOM 测量"，与本方案用法不同：canvas `measureText` 的 `actualBoundingBox*` 是**唯一能拿到 ink overhang 的渠道**，DOM 指标拿不到。现定位：**DOM 测量管布局盒，canvas ink-bound 管墨迹外溢，两者互补**（§6.2 第 7 条，F9 覆盖） |
 | 只修 Remotion 路径 | HTML 路径不能延期 |
 | 缺媒体门控写进本文 | 属管线门控，单一真源应在 R2 §3.5，本文只定义接口 |
 
@@ -430,8 +528,8 @@ F1–F7 用固定输入 + Remotion still 渲染，完全确定性、不依赖内
 
 - **前置**：`remotion upgrade --version X` + `remotion add @remotion/layout-utils` +
   移除 `^` + `remotion versions` 校验
-- **新增**：`lib/text-slots.mjs`（契约 + 注册协议 + 缩字优先级）；
-  fixture 目录（§6.8，F1–F7）
+- **新增**：`lib/text-slots.mjs`（契约 + 注册协议 + 缩字优先级 + bigNumber 焦点数字契约）；
+  fixture 目录（§6.8，**F1–F9**）
 - **Remotion**：Fit/Assert 验证组件；**10 个动态文本来源**接入（9 个场景模板 +
   `FullscreenMedia` 的 `media.source`）+ `data-text-*` 注册标注；
   `MediaOverlay` 补 action/context；`highlight` 改为 `{field, text}` 并实现子串切分
@@ -444,7 +542,8 @@ F1–F7 用固定输入 + Remotion still 渲染，完全确定性、不依赖内
 - **验证器**：DOM verifier（overflow:hidden 祖先 + 坐标统一 + 标注绘制 bbox）；
   `verify-remotion-frames.mjs` 接入共享 schedule + 末帧检查（R2 §5c）
 - **测试**：`remotion-timeline.test.mjs` 重写（假绿修复，R2 §5c）；契约/注册协议测试；
-  Fit/Assert 单测；F1–F7 fixture；存量回归
+  Fit/Assert 单测（含 ink-bound 四方向）；**F1–F9 fixture**（F8 HTML 路径、F9 ink）；
+  存量回归
 - **内容**：qwen4 端到端冒烟重渲染（s9 完整 + 无空洞、s6/8/9 补字段、无黑帧尾巴、
   CTA 到最后一帧；时间轴方案 A/A2 由 Grill 定夺）
 - **文档**：`docs/content-pipeline.md`、`docs/brand-system.md`、`docs/video-workflow.md`
@@ -454,17 +553,45 @@ F1–F7 用固定输入 + Remotion still 渲染，完全确定性、不依赖内
 
 ---
 
-## 9. 开放问题（Grill 输入）
+## 9. Grill 输入（只剩 3 项）+ 已拍板项
 
-| 问题 | 状态 |
+### 9.1 已拍板（五轮，不再进 Grill）
+
+| 项 | 决定 |
 |---|---|
-| 换行策略 / floor / HTML 时机 / 方案 C / highlight 语义 | ✅ 已定（§6.3–6.5、§6.7） |
-| 版本统一流程 / 影响面数字 / F6 布局 / Assert 算法 | ✅ 三轮已定（§6.0、§8、§6.8、§6.2） |
-| Q4 校准维护契约 | ⚠️ 随预算降为 WARN 提示，spec 细化 |
-| Q6 bigNumber 纳入 Fit | ⚠️ 倾向纳入，Grill 定 |
-| Q7 存量内容处理策略 | ⚠️ 回归职责由 F1–F7 承担；存量批量校验只出决策清单，Grill 定 |
-| A2 vs A 时间轴方案 | ⚠️ Grill 定（R2 §1），与本方案同批交付 |
-| 2% 碰撞阈值是否合适 | ⚠️ 初值，Grill 可用 F7 实测调整 |
+| 时间轴方案 | **A2**（非末幕 `clipFrames + TRANSITION_FRAMES`；CTA 视觉 1784→1953，与总时长完全一致；音/字幕/`Root.tsx` 零改动）—— R2 §1 |
+| Remotion 版本 | 统一到 **4.0.517**（`upgrade --version 4.0.517` + `remotion add`） |
+| s9 布局 | 改 **stacked-cards**（R2 §3.5，配合缺媒体门控） |
+| Q4 校准维护契约 | 随预算降为 WARN 提示，spec 细化（实施级事项，非 Grill） |
+| Q7 存量内容处理 | 回归职责由 **F1–F9** fixture 承担；15 个生产内容包批量校验只出决策清单 |
+| 换行 / floor / HTML 时机 / 方案 C / highlight 语义 | ✅ 已定（§6.3–6.5、§6.4b、§6.7） |
+
+### 9.2 Grill 三项
+
+**1. ink-bound：A / B（推荐 A）**
+
+- **A（推荐）**：Canvas ink-bound 作为**阻断 gate**。四方向分别计算，
+  **不使用单一对称 inkPad**；每个实际渲染行、每个不同样式 text run 单独测量；
+  ctx 与被测元素同步 `font` / `letterSpacing` / `fontKerning` / `fontStretch` 等属性；
+  **F9** 覆盖 italic f/T、letter-spacing、混合 span、多行文本
+- **B（不推荐作 gate）**：仅保留为**少量像素回归辅助**；且必须是
+  "关闭裁切的诊断帧 vs 正常帧"的**差分形式**——单独使用无法捕获静默裁切
+  （`overflow:hidden` 已把越界像素删除，slot 外侧检测反而 PASS）
+
+**2. bigNumber 纳入 Fit（推荐纳入）**
+
+- 独立焦点数字契约：`wrapPolicy: "none"`、`maxLines: 1`、Hook `preferredSize: 240`、
+  **硬下限 180**；执行顺序 = **Fit 数字 → 生成 Circle → F7 碰撞 Assert**
+- 碰撞失败 → **FAIL**，不偷偷继续缩字（让布局参数显式调整）
+- 影响评估：生产最宽的 Hook 数字 `"+629%"`（unitree）在 240px 下实测约 687px
+  < 820px 内容区 → 纳入 Fit 不伤害现有视觉
+
+**3. 2% 阈值（推荐先保持，不提前放宽）**
+
+- 初始硬门槛：**每个文字元素分别** ≤ 2%（subject 与 numberLabel **分开计算、不合并分母**）
+- 记录实际 overlap ratio 供 Grill 查看
+- 若结果普遍 < 0.5% → 可收紧至 1%；若出现 2–3% 假阳性 → **改进几何算法**，
+  而不是直接放宽门槛
 
 ---
 
@@ -472,9 +599,11 @@ F1–F7 用固定输入 + Remotion still 渲染，完全确定性、不依赖内
 
 1. **单测**：契约 schema + 注册协议；Fit/Assert 分层路径（mock 几何）；
    坐标变换与 stroke margin 计算；`cancelRender` 错误格式；预算 WARN 推导
-2. **Fixture（回归主断言，F1–F8）**：F1 旧 gate 绿/新 gate 红、F2 Fit 后绿
+2. **Fixture（回归主断言，F1–F9）**：F1 旧 gate 绿/新 gate 红、F2 Fit 后绿
    （且字号 ≥ `minSize`，硬下限）、F3 cancelRender、F4 标注越界红、F5 字段完整性红、
-   F6 media-split 形态红（确定性文案）、F7 碰撞阈值绿、F8 HTML Fit 落盘红→绿。
+   F6 media-split 形态红（确定性文案）、F7 碰撞阈值绿（per-element ≤2%，记录 ratio）、
+   F8 HTML Fit 落盘红→绿、F9 ink 四方向外溢检出（含 italic f/T、letter-spacing、
+   混合 span、多行）。
    附加断言：**ink overhang**（若采用 A，F1/F4/F7 各加 `inkPad` 版本；
    若采用 B，加像素回归）、**transient 逐帧 SAFE_ZONES**（入场窗口逐帧不越界）、
    **`FullscreenMedia` 的 `media.source`** 纳入几何验证

@@ -36,6 +36,7 @@
 | pbakaus/impeccable (24 commands) | 视觉设计 | ✅ | ✅ 已集成 | ⭐⭐⭐ 视觉打磨 |
 | leonxlnx/taste-skill (design-taste-frontend) | 设计推理 | ✅ | 📋 备选(安全✅) | ⭐ 设计决策 |
 | public-apis/public-apis | API 资源索引 | ✅ | 📖 参考 | 📖 查免费 API |
+| AutoVio | 视频管线（参考） | ✅ 自托管 | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考 |
 
 ---
 
@@ -263,6 +264,22 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
   "headers": { "Authorization": "Bearer fc-YOUR_API_KEY" }
 }
 ```
+
+### AutoVio — 开源生成式视频管线（参考项目，不采用）
+
+- **分类**：视频生成管线（参考）
+- **费用**：免费自托管（需 Bun + MongoDB + FFmpeg；生成模型 BYO API key：Gemini/DALL-E/Veo/Runway/Kling/Luma）
+- **仓库**：`https://github.com/Auto-Vio/autovio`（Stars ~27）
+- **许可**：⚠️ **PolyForm Noncommercial** — 仅限非商用。本项目内容对外发布，**禁止复用其代码**
+- **做什么**：Text prompt → LLM 分镜（scenario）→ AI 生图 → 图生视频 → 时间线编辑器 → MP4。Express + MongoDB + React 架构；provider 接口抽象（`packages/backend/src/providers/interfaces.ts` + `registry.ts`）；REST API + OpenAPI；独立 MCP server（`autovio-mcp`）
+- **为什么对本项目有用**：仅两点参考价值——(1) `packages/backend/src/prompts/scenario.ts` 的分镜 prompt 结构（LLM 如何把每段叙事映射到逐场景的视觉设计/转场），与「场景-内容匹配」研究相关；(2) 生成式管线全流程演示。**路线不同**：AutoVio 是生成式虚构画面，本项目是事实性新闻的确定性模板渲染
+- **用法**：不安装。只读仓库源码参考（`gh api` 读取或 clone 到仓库外目录）
+- **何时用**：研究 scenario→visual 映射的 prompt 设计、或想看生成式管线 demo 时
+- **何时不用**：任何生产场景——NC 许可禁止；生成式画面有幻觉风险，与品牌一致性/事实准确性要求冲突
+- **维护状态**：⚠️ 2026-03-05 创建，main 分支最后实质提交 2026-03-22（其后提交多为 README 翻译），趋近 AGENTS.md 6 个月维护红线
+- **安全审计**：未审计（不安装、不进管线；如本地跑 demo，需先审查其后端对 API key 的使用范围）
+- **调查日期**：2026-08-30
+- **状态**：❌ 不推荐（NC 许可 + 维护趋停滞 + 问题域不匹配），仅作分镜 prompt 结构参考
 
 ---
 
@@ -614,6 +631,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 演示文稿/PPT 生成              → guizang-ppt-skill（待安装）
 找特定功能的 skill             → VoltAgent/awesome-agent-skills 目录
 找免费 API（任意领域）          → public-apis/public-apis README 按分类查
+分镜/场景-内容匹配 prompt 参考  → AutoVio `prompts/scenario.ts`（仅参考，不安装）
 ```
 
 ---

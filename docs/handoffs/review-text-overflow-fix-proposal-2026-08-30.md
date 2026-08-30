@@ -1,9 +1,10 @@
-# Review 存档：text-overflow-fix-proposal 二轮 / 三轮 / 四轮意见（2026-08-30）
+# Review 存档：text-overflow-fix-proposal 二轮 / 三轮 / 四轮 / 五轮意见（2026-08-30）
 
 > 本文按轮次追加存档：
 > - **二轮**（针对 v2）→ Verdict: Request changes，核实见 Proposal §1.2
 > - **三轮**（针对 v3）→ Verdict: Request changes（接近可批准），核实见 Proposal §1.3
-> - **四轮**（针对 v3.1）→ Verdict: Request changes（**非常接近可进入 Grill**），核实见 Proposal §1.4
+> - **四轮**（针对 v3.1）→ Verdict: Request changes（非常接近可进入 Grill），核实见 Proposal §1.4
+> - **五轮**（针对 v3.2）→ Verdict: **方向已通过**，两处技术错误 + 同步遗漏；**修正后无需再做完整 review，可进入 Grill**，核实见 Proposal §1.5
 >
 > Reviewer: 第三方（用户提供原文）。接收方对每条事实断言的本地核实标注写在
 > `docs/handoffs/handoff-text-overflow-fix-proposal.md` 对应小节。
@@ -300,3 +301,76 @@ Review archive 标题应覆盖"二、三轮"，与实际追加内容一致。
 ## 最终判断（四轮）
 
 完成这些文档修订后，我会批准进入 Grill。
+
+---
+
+# 五轮 review（2026-08-30 追加，针对 v3.2）
+
+> Verdict: **v3.2 方向已通过**，但仍有两处技术错误和若干同步遗漏。
+> **修正后无需再做完整 review，可以进入 Grill。** 核实见 Proposal §1.5。
+
+## 必须修正
+
+### HTML Fit 时序仍不可执行
+
+generateScene() 是同步字符串生成，无法等待 document.fonts.ready 或测 DOM。应定义：
+generateScene(raw HTML) → Chromium materialize/fit → 注入字号 → 写最终 HTML。
+Verifier 与 Recorder 都应 page.goto() 同一个最终文件。
+HTML 失败应抛结构化 TextFitError 并终止管线，只有 Remotion 使用 cancelRender()。
+
+### ink-bound A 的公式符号写反
+
+正确水平外溢为：
+
+```js
+leftOverhang  = Math.max(0, actualBoundingBoxLeft);
+rightOverhang = Math.max(0, actualBoundingBoxRight - width);
+```
+
+当前 `-actualLeft` 会漏掉真正的左外溢。实测 Times italic f：actualBoundingBoxLeft=9.76px，
+当前公式会错误算成 0。
+
+方案 B 无法捕获静默裁切：overflow:hidden 已把越界像素删除，检测 slot 外侧是否有
+非背景像素反而会 PASS，重复现有帧检查的假绿模式。B 只有做"关闭裁切的诊断帧 vs 正常帧"
+差分才有效。
+
+### Highlight 迁移盘点不完整
+
+实际有 17 处，不是 7 处：qwen4-preview 7、doubao-work 9、light-society 1。
+其中 light-society 的 "4M beliefs rewritten" 不是 quote 的字面子串，
+需要改为例如 {field:"quote", text:"4M beliefs"}。
+
+### 文档仍未体现"只剩三项"
+
+R2 仍把 A/A2、旧 Highlight 语义列为待定/有效。Proposal §9 仍列 Q4、Q7、A/A2，
+却没有正式列 ink-bound A/B。F8 已新增，但 §8 多处仍写 F1–F7。
+标题仍为 Proposal v3.1，正文称 v3.2。§6.4 应把"带标注的 result"改为"任何带标注字段"，
+因为 s6 标注 action。
+
+## 三项 Grill 输入建议
+
+### 1. ink-bound：选 A
+
+采用 Canvas ink-bound 作为阻断 gate，B 仅保留为少量像素回归辅助。要求：
+四方向分别计算，不使用单一对称 inkPad；每个实际渲染行、每个不同样式 text run
+单独测量；同步 font、letterSpacing、fontKerning、fontStretch 等属性；
+F9 覆盖 italic f/T、letter-spacing、混合 span、多行文本；
+删除 §7 中"放弃 canvas measureText"的旧结论。
+
+### 2. bigNumber：纳入 Fit
+
+建议纳入，但使用独立的焦点数字契约：wrapPolicy none / maxLines 1；
+Hook preferredSize=240，建议硬下限 180；先 Fit 数字，再生成 Circle，最后执行 F7 碰撞 Assert；
+碰撞失败不要继续偷偷缩字，应 FAIL，让布局参数显式调整。
+当前生产 Hook 最宽的 +629% 在 240px 下实测约 687px，能放入 820px 区域，因此不会伤害现有视觉。
+
+### 3. 2%：先保持，不提前放宽
+
+建议初始硬门槛仍为每个文字元素分别 ≤2%：subject 与 numberLabel 分开计算，不合并分母；
+记录实际 overlap ratio 供 Grill 查看；如果结果普遍低于 0.5%，可收紧至 1%；
+如果出现 2–3% 假阳性，应改进几何算法，而不是直接放宽门槛。
+
+## 建议同步直接拍板
+
+时间轴选 A2、Remotion 统一到 4.0.517、s9 改 stacked-cards。
+A2 已重算确认 CTA 为 1784→1953，与总时长完全一致。

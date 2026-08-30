@@ -14,6 +14,9 @@
 > → Step 1.5c 后硬 FAIL，因 preflight 早于自动 sourcing）；§2 圆修复推荐组合统一为 A+C、
 > 阈值改为可计算 2% 并交由 Proposal fixture F7 验收；§3/§4 的文本方案改为**只链接 Proposal**
 > （本文与 Proposal 不设两个真源：本文只保留视频级结论）。
+> 修订 4（2026-08-30，五轮 review）：**时间轴方案定为 A2**（CTA 视觉 1784→1953，与总时长一致）；
+> 拍板 Remotion 统一 4.0.517、s9 改 `stacked-cards`；`highlight` 定为结构化 `{field, text}`
+> （17 处迁移表见 Proposal §6.4b），本文不再列为待定。Grill 只剩 3 项，见 Proposal §9。
 > 分析对象：`scripts/short-video/output/qwen4-preview/qwen4-preview-v2026-08-29T12-23-09-short.mp4`
 > （65.1s / 1953 帧 @30fps）
 
@@ -285,7 +288,7 @@ asset-sourcer）。若在 preflight 直接 FAIL，自动 sourcing 就没有机�
 
 | # | 问题 | 严重度 | 影响范围 | 建议 |
 |---|---|---|---|---|
-| 1 | 结尾 3s 黑帧 | **P0 阻断发布** | 所有 Remotion 路径视频（含 doubao-work） | 方案 **A2**（§1 初判更优，Grill 定夺） |
+| 1 | 结尾 3s 黑帧 | **P0 阻断发布** | 所有 Remotion 路径视频（含 doubao-work） | **方案 A2（已定）**：CTA 视觉 1784→1953 与总时长一致，音/字幕/Root 零改动（§1） |
 | 2 | 音画累积漂移（最大 3s） | **P0** | 同上 | 随 #1 一起修 |
 | 3 | `media-overlay` 丢 action/context | **P1 内容损失** | 所有用 `media-overlay` 的场景 | 补渲染 + 高度回归 |
 | 4 | s9 "…POINT" 截断 | P1 | 长 result 文本 | **见 Proposal（真实几何 Fit/Assert）**，本文不重复给方案 |
@@ -354,8 +357,8 @@ review 轨迹：v1 Request changes → v2 修订 → v2 仍 Request changes（�
 
 ## 5c. 后续待办（进入 Grill → Spec → Tickets 流程）
 
-1. **时间轴方案定夺**：Grill 对照场景矩阵比较 A2（非末幕补转场帧；音/字幕/Root 零改动）
-   与 A（统一时间轴 + CTA_HOLD=8.63s）。无论选哪个，都要按二轮 review 要求重构时间轴验证：
+1. **时间轴方案已定为 A2**（不再进 Grill）：非末幕补转场帧，CTA 视觉 1784→1953 与
+   总时长完全一致，音/字幕/`Root.tsx` 零改动。实施时仍要按二轮 review 要求重构时间轴验证：
    - 共享 schedule 同时驱动 `ShortVideo`、`Root`、字幕、音频、帧抽样
    - 重写 `__tests__/remotion-timeline.test.mjs`（现状 12/12 PASS 是**假绿**：
      "visual start" 断言是 `timeline[1].offset` 与自身比较，注释与 `ShortVideo.tsx`
@@ -367,16 +370,19 @@ review 轨迹：v1 Request changes → v2 修订 → v2 仍 Request changes（�
    **15 个生产 `content/**/scenes.mjs`**、5 个显式声明 renderer；未声明者默认 Remotion 且
    **跳过帧检查**（三轮 review 修正：旧稿写"10 个内容包"系深度 1 遍历漏计
    `distillation/pt1-3`、`restraint/pt1,pt3`）
-3. `highlight` 语义已定（不再待定）：`txt.highlight` 必须是 `txt.result` 的子串
-   （scene-rules 校验兜底）+ 带标注 result 单行缩放（Proposal §6.4）
+3. `highlight` 语义已定（不再待定）：结构化 **`{ field, text }` 局部标注**，
+   渲染器对 `text` **做子串切分并只包裹该子串**（不再是"校验一个渲染器忽略的字符串"）；
+   带标注的**任何字段**（不限 result）单行缩放。存量 **17 处**迁移表见
+   Proposal §6.4b（qwen4 7 / doubao 9 / light-society 1，后者需改写为
+   `{field:"quote", text:"4M beliefs"}`）
 3b. **缺媒体门控阶段化已定**（三轮 review）：见 §3.5 表——preflight WARN/pending →
    Step 1.5c 后硬 FAIL → `mediaOptOut` + media 依赖布局立即 FAIL →
    `stacked-cards` + `mediaOptOut` PASS。**本文是此规则的单一真源**，
    Proposal 只定义与 slot 契约的接口（§6.9）
 3c. **圆标注碰撞验收**：由 Proposal 确定性 fixture **F7** 自动验收
    （重叠面积 ≤ 被比较文本 AABB 的 2%，排除被标注目标本身）；本文 §2 阈值同步
-4. 其余 Grill 输入：Fixture 设计（**Proposal v3.1 §6.8**）、slot 注册协议细节、
-   缩字 floor 语义（v3.1 已取消 minSize×0.9 降级，minSize 为硬下限）
+4. 其余待办（实施级，非 Grill）：Fixture 设计（**Proposal v3.3 §6.8，F1–F9**）、
+   slot 注册协议细节、缩字 floor 语义（minSize 为硬下限，已取消 ×0.9 降级）
 5. 与 R1 的 Backlog 合并去重；实施后重渲染 qwen4-preview 全片，验证：无黑帧尾巴 /
    CTA 到最后一帧 / 圆不遮挡 / s9 完整 / media-overlay 补出 action+context
 6. **media 依赖型布局校验（四轮 review 修正）**：采用 §3.5 的**阶段化门控**——
@@ -385,6 +391,10 @@ review 轨迹：v1 Request changes → v2 修订 → v2 仍 Request changes（�
    main.mjs 在 sourcing 后调用、render-only.mjs 在渲染前调用
    （后者无 sourcing 阶段，见 `render-only.mjs` Step 2/2.5/3 均无 sourcing）；
    s9 补素材或改 `stacked-cards`，重渲染后中部无空洞
+7. **五轮已拍板（不再进 Grill）**：时间轴 = **A2**；Remotion 统一到 **4.0.517**；
+   **s9 改 `stacked-cards`**（配合 §3.5 门控，重渲染后中部无空洞）。
+   **Grill 只剩 3 项**：ink-bound A/B（推荐 A）、bigNumber 纳入 Fit（推荐纳入）、
+   2% 阈值（推荐保持）—— 详见 **Proposal §9.2**
 
 ## 6. 复现/验证用命令
 
