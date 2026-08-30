@@ -1,7 +1,7 @@
 # InfiniteTalk Modal 推理 Handoff
 
-**日期**: 2026-08-28
-**状态**: 推理运行中（`--detach` + spawn + 自动轮询下载）
+**日期**: 2026-08-29
+**状态**: ❌ 推理完成但质量不达标，参数需调整
 
 ## 背景
 
@@ -23,11 +23,12 @@
 - max_frame_num=81 导致 streaming mode 多段生成，12h 超时
 - SageAttention Triton 编译在 T4 上必失败但每次编译耗时几十秒
 
-### v10.15 (Modal L4, 修复中)
-- **纯 SDPA**: 完全移除 SageAttention，flash_attention 直接用 SDPA
-- **tokenizer 下载**: `hf download` 用具体文件路径
-- **kokoro 跳过**: Python 3.13+ 不兼容 → patch 跳过 import
-- **参数**: steps=5, teacache=0.35, max_frame_num=81, 3s 音频
+### v10.15 (Modal A100 40GB, ✅ 完成但质量不达标)
+- **结果**: 576×704, 25fps, 76帧, 3s 视频，332.9 KB
+- **耗时**: 75.9 分钟（推理），77.0 分钟（总计）
+- **成本**: A100 $2.10/h × 1.28h ≈ $2.69
+- **参数**: steps=5, teacache=0.35, max_frame_num=81, 3s 音频, num_persistent_param_in_dit=0
+- **问题**: 表情太夸张 — **steps=5 对 InfiniteTalk 太少**（非蒸馏模型，官方推荐 40 步）
 
 ## Modal v10.15 修复历史
 
@@ -46,66 +47,92 @@
 - **同时**: 设置 `CUDA_HOME=/usr/local/cuda` 环境变量
 
 ### Fix 4: Modal heartbeat 超时 + spawn 被取消（推理耗时 >60 分钟）
-- **根因**: `num_persistent_param_in_dit=0` 全 CPU offload，每步推理需要传输 19.5GB FP8 权重在 CPU↔GPU 之间，L4 上 ~70+ 分钟完成
-- **症状 1**: Modal CLI heartbeat 在 ~68 分钟后超时断开（`Deadline exceeded` + `ConnectionResetError`）
-- **症状 2**: 即使使用 `spawn()` 异步推理，本地 CLI 退出后 spawn 的函数也被取消（日志: `Received a cancellation signal`）
-- **修复**: `modal run --detach` 标志确保 CLI 断开后 app 继续运行。脚本中加了自动轮询 Volume + 自动下载逻辑，检测到输出文件后自动 `modal volume get` 到本地
+- **根因**: `num_persistent_param_in_dit=0` 全 CPU offload，每步推理需要传输 19.5GB FP8 权重在 CPU↔GPU 之间，~76 分钟完成
+- **症状 1**: Modal CLI heartbeat 在 ~68 分钟后超时断开
+- **症状 2**: 即使使用 `spawn()` 异步推理，本地 CLI 退出后 spawn 的函数也被取消
+- **修复**: `modal run --detach` 标志确保 CLI 断开后 app 继续运行。脚本中加了自动轮询 Volume + 自动下载逻辑
 
-## 当前状态（2026-08-28 15:02 UTC）
+### Fix 5: L4 24GB VRAM 不够（2h 超时被杀）
+- **根因**: FP8 模型 19.5GB + 推理中间变量 ~6GB = 25.5GB > 24GB，必须 `num_persistent_param_in_dit=0` 全 offload
+- **修复**: 切换到 A100 40GB
+
+### 参数错误: steps=5 太少（非蒸馏模型）
+- **根因**: steps=5 是 EchoMimicV3 Flash（蒸馏模型）的参数，错误地套用到了 InfiniteTalk（非蒸馏模型）上
+- **官方推荐**: `sample_steps=40`（标准推理），FusionX/lightX2V LoRA 可降到 8/4 步
+- **当前参数对比**:
+
+| 参数 | v10.15 当前值 | 官方推荐 | 说明 |
+|------|--------------|---------|------|
+| sample_steps | 5 | 40 | InfiniteTalk 非蒸馏模型，5 步去噪极度不充分 |
+| teacache_thresh | 0.35 | 0.1（官方默认） | 过于激进，跳步太多加剧质量下降 |
+| sample_text_guide_scale | 5.0 | 5.0（无 LoRA） | ✅ 正确 |
+| sample_audio_guide_scale | 4.0 | 4.0（无 LoRA） | ✅ 正确 |
+| num_persistent_param_in_dit | 0 | 0（低 VRAM 模式） | A100 40GB 可改为大值跳过 offload |
+
+## 当前状态（2026-08-29）
 
 1. ✅ 所有依赖修复完成（transformers pin、diffusers pin、no_init_weights inline、CUDA devel image）
-2. ✅ 所有 import 验证通过（`imports OK`、`attention.py OK`、`wan import OK`）
-3. ✅ 上次推理（`fc-01M14CHNVQ72ME79MZA9TNYMNZ`）在 14:27 UTC 被取消 — 根因: `spawn()` 没加 `--detach`，CLI 断开后函数被取消
-4. ✅ 已用 `--detach` 重新启动推理（App: `ap-yA0npYj9aS4IlkboUm28rM`，函数调用: `fc-01M14E9XS0CTYZJTJYMEFB925Y`）
-5. ⏳ 推理在远程独立运行中（预计 ~70 分钟，~16:12 UTC 完成）
-6. ⏳ 本地 CLI 正在轮询 Volume，检测到输出后自动下载到本地
-7. ⏳ 输出将保存到: `scripts/short-video/experiments/digital-human/infinitetalk/modal-infinitetalk-v10.15-l4.mp4`
+2. ✅ `--detach` + 自动轮询下载逻辑已验证可用
+3. ✅ A100 40GB 推理完成，视频已自动下载到本地
+4. ❌ 视频质量不达标 — 表情太夸张，根因是 steps=5 太少
+5. 🔧 **下一步**: 调整参数重跑
+
+## InfiniteTalk 模型特性
+
+- **类型**: Talking body（不是 talking head）— 同步唇 + 头 + 身体 + 表情
+- **基座**: Wan2.1-I2V-14B-480P
+- **非蒸馏模型**: 标准推理 40 步，不是蒸馏模型（不能像 EchoMimicV3 Flash 那样用 5-8 步）
+- **加速选项**: FusionX LoRA（8 步）或 lightX2V LoRA（4 步），但需额外下载 LoRA 权重
+- **许可证**: Apache 2.0（商用 OK）
+
+## 下一步计划
+
+### 选项 A: 用官方推荐参数重跑（steps=40）
+- **预估时间**: 76 min × (40/5) ≈ 608 min（~10h）—— **太长，不可行**
+- **原因**: 全 CPU offload 模式下每步都需传 19.5GB
+
+### 选项 B: 去掉 offload + steps=40（推荐）
+- 改 `num_persistent_param_in_dit` 为大值（如 40），让全模型常驻 A100 GPU
+- A100 40GB: 19.5GB 模型 + ~6GB overhead = 25.5GB < 40GB ✅
+- 预估时间: ~15 min（无 offload 瓶颈）
+- 成本: ~$0.53
+
+### 选项 C: 用 FusionX LoRA（8 步）
+- 下载 FusionX LoRA 权重
+- 改 `sample_steps=8, sample_text_guide_scale=1.0, sample_audio_guide_scale=2.0, sample_shift=2`
+- 需要去掉 `--quant fp8`（LoRA 不兼容量化模式）
+- 预估时间: 取决于是否 offload
+
+### 选项 D: 换模型 — 测试其他数字人方案
+参见 `docs/research/digital-human-test-progress.md` 推荐测试顺序：
+1. **EchoMimicV3 Flash** — 已有 Kaggle v51 最优配置，talking head，8 步蒸馏模型
+2. **LeapTalk** — 1 步推理，200 FPS，1.3B 参数
+3. **SoulX-FlashHead** — 实时流式 talking head，1.3B
+4. **LongCat-Video-Avatar-1.5** — InfiniteTalk 同团队升级版，8 步蒸馏
 
 ## 新 Session 恢复指南
 
 1. 读此 handoff 文件了解上下文
-2. 检查 Volume 上是否有输出：
+2. 本地已有视频: `scripts/short-video/experiments/digital-human/infinitetalk/modal-infinitetalk-v10.15-a100.mp4`
+3. 如果要重跑（image 已 cached，模型在 Volume 上）：
    ```bash
    HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 NODE_USE_ENV_PROXY=1 \
-     modal volume ls infinitetalk-models outputs/
+     modal run --detach scripts/short-video/experiments/modal-infinitetalk.py
    ```
-3. 如果有 `modal-infinitetalk-v10.15-l4.mp4`：
-   - 下载到本地：
-     ```bash
-     HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 NODE_USE_ENV_PROXY=1 \
-       modal volume get infinitetalk-models outputs/modal-infinitetalk-v10.15-l4.mp4 \
-       scripts/short-video/experiments/digital-human/infinitetalk/modal-infinitetalk-v10.15-l4.mp4
-     ```
-   - 播放验证视频质量
-4. 如果没有输出：
-   - 检查 Modal app 日志（需要 App ID）：
-     ```bash
-     HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 NODE_USE_ENV_PROXY=1 \
-       modal app list
-     HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 NODE_USE_ENV_PROXY=1 \
-       modal app logs <APP_ID>
-     ```
-   - 如果推理失败，检查错误并修复
-   - 如果需要重跑（image 已 cached，模型在 Volume 上，应该秒级启动）：
-     ```bash
-     HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 NODE_USE_ENV_PROXY=1 \
-       modal run --detach scripts/short-video/experiments/modal-infinitetalk.py
-     ```
-     **注意**: 必须加 `--detach` 标志，否则 CLI 断开后 spawn 的推理函数会被取消
+   **注意**: 必须加 `--detach` 标志，否则 CLI 断开后 spawn 的推理函数会被取消
 
 ## 关键文件
 
-- `scripts/short-video/experiments/modal-infinitetalk.py` — Modal L4 GPU 推理脚本（v10.15，含所有修复）
+- `scripts/short-video/experiments/modal-infinitetalk.py` — Modal A100 40GB 推理脚本（v10.15，含所有修复）
 - `scripts/short-video/voice-samples/voice-sample-24k-3s.wav` — 3 秒音频
 - `scripts/short-video/assets/self-portrait.jpg` — 用户照片
-- `scripts/short-video/experiments/digital-human/infinitetalk/` — 本地输出目录
+- `scripts/short-video/experiments/digital-human/infinitetalk/modal-infinitetalk-v10.15-a100.mp4` — 输出视频（质量不达标）
 
 ## Modal 配置
 
 - **Workspace**: qingshun-li
-- **Token**: insidechina
 - **Volume**: `infinitetalk-models` — 持久化模型存储（42GB + outputs/）
-- **GPU**: L4 ($0.80/h, 24GB VRAM)
+- **GPU**: A100 40GB ($2.10/h)
 - **Image**: `nvidia/cuda:12.1.0-devel-ubuntu22.04` + Python 3.11 + torch 2.4.1+cu121
 - **运行命令**（必须加 `--detach`）:
   ```bash
@@ -140,3 +167,5 @@
 8. **diffusers 0.31+ 移除了 no_init_weights** → 内联定义
 9. **optimum-quanto Marlin 需要 CUDA_HOME** → 用 nvidia/cuda devel image
 10. **Modal heartbeat 超时 + spawn 被取消** → `modal run --detach` 标志 + 自动轮询下载
+11. **L4 24GB VRAM 不够** → A100 40GB
+12. **steps=5 表情夸张** → InfiniteTalk 非蒸馏模型，需 40 步或 LoRA 加速
