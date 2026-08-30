@@ -18,6 +18,7 @@ import { writeFileSync, existsSync } from "fs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { renderRemotion } from "./lib/render-remotion.mjs";
+import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { runCanonicalTextGate } from "./lib/verify-canonical-text.mjs";
@@ -140,6 +141,22 @@ async function main() {
       process.exit(1);
     }
     console.log();
+  }
+
+  // ── Step 2.6: Final media gate ──
+  // render-only never runs asset sourcing, so the same shared gate is called
+  // here instead: a missing media file must stop the re-render, not silently
+  // produce a frame with an empty middle band.
+  {
+    const contentDirAbs = resolve(__dirname, "content", contentDir);
+    const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+    if (!gate.pass) {
+      console.error("❌ Step 2.6: Final media check FAILED\n");
+      console.error(`   ${formatFinalMediaFailures(gate)}\n`);
+      console.error("   render-only does not source assets — supply the media first.");
+      process.exit(1);
+    }
+    console.log("✅ Step 2.6: Final media check passed\n");
   }
 
   // ── Step 3: Re-record videos (Playwright path only) ──

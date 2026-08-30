@@ -106,6 +106,12 @@ export const scenes = [
     retentionMechanism: "pattern-interrupt",
     layout: "stacked-cards",
     mediaOptOut: true,
+    // EXPERIMENTAL ai-video asset need (FastMetal/MLX B-roll). Not yet consumed
+    // by asset-sourcer; this field is the real prompt FastVideo runs for the scene.
+    aiVideo: {
+      prompt:
+        "A glowing 3D bar chart of AI training cost collapsing, nine stacked neon blocks compressing into a single bright block, cinematic data visualization, dark studio background, slow push-in, high detail, no hands.",
+    },
     voiceover:
       "Here's the number that stings. Training cost just one ninth of Qwen3.7-Plus.",
     texts: {
@@ -166,6 +172,12 @@ export const scenes = [
     visualType: "narrative",
     narrativeRole: "R",
     retentionMechanism: null,
+    // EXPERIMENTAL ai-video asset need (FastMetal/MLX B-roll) — motion counterpart
+    // to the real assets/qwen-throughput.png diagram in this scene.
+    aiVideo: {
+      prompt:
+        "Streams of text tokens racing through a neural pipeline at high speed, glowing throughput meters climbing and pulsing, dark blue tech aesthetic, cinematic slow orbit, high detail, no hands.",
+    },
     layout: "media-overlay",
     media: {
       type: "image",
@@ -192,7 +204,10 @@ export const scenes = [
     visualType: "narrative",
     narrativeRole: "R",
     retentionMechanism: "loop-closure",
-    layout: "media-overlay",
+    // Was media-overlay with no media — which rendered an empty middle band
+    // (R2 §3.5). stacked-cards is CSS-only, so the layout matches the data.
+    layout: "stacked-cards",
+    mediaOptOut: true,
     voiceover:
       "Remember 6 billion? That tiny active footprint is the whole point. Capacity without the compute bill.",
     texts: {

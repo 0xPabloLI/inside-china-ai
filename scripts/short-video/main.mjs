@@ -23,6 +23,7 @@ import { generateTTS } from "./lib/generate-tts.mjs";
 import { recordScenes } from "./lib/record-scenes.mjs";
 import { assembleVideo } from "./lib/assemble.mjs";
 import { renderRemotion } from "./lib/render-remotion.mjs";
+import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
@@ -259,6 +260,23 @@ async function main() {
     }
   }
 
+  // ── Step 1.6: Final media gate ──
+  // Runs here, after sourcing (1.5), patch application (1.5c) and upscale
+  // (1.5b) — everything that can still supply a missing file has had its turn.
+  // Preflight cannot do this: it runs before Step 1.5 and would block sourcing.
+  {
+    const contentDirAbs = resolve(__dirname, "content", contentDir);
+    const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+    if (!gate.pass) {
+      console.error("❌ Step 1.6: Final media check FAILED\n");
+      console.error(`   ${formatFinalMediaFailures(gate)}\n`);
+      console.error("   A media-dependent layout renders an empty middle band without media.");
+      console.error("   Supply the media, or switch the scene to a CSS-only layout.");
+      process.exit(1);
+    }
+    console.log("✅ Step 1.6: Final media check passed (all layouts have the media they need)\n");
+  }
+
   // ── Isolated output directory ──
   const outputDir = join(__dirname, "output", meta.pipelineId);
   const audioDir = join(outputDir, "audio");
@@ -476,7 +494,7 @@ async function main() {
       if (category === "subtitle-alignment") {
         // Re-run forced alignment (text-align.py) + regenerate ASS + re-burn
         // This is an async repair — verifyWithRetry supports async repairFn
-        // eslint-disable-next-line no-async-promise-executor
+
         return (async () => {
           try {
             await runForcedAlignment(scenes, ttsResults, join(outputDir, "audio"));
@@ -488,7 +506,11 @@ async function main() {
           if (!existsSync(timingPath)) return { success: false };
           subtitles.timingData = JSON.parse(readFileSync(timingPath, "utf8"));
           // Regenerate ASS
-          const { cues } = generateSubtitles(subtitles.timingData, sceneDurations, subtitles.assPath);
+          const { cues } = generateSubtitles(
+            subtitles.timingData,
+            sceneDurations,
+            subtitles.assPath,
+          );
           const burnResult = findBaseAndBurn();
           return burnResult ?? { success: false };
         })();
