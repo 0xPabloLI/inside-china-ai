@@ -584,6 +584,35 @@ export function scoreRelevanceOverlap(asset, scene) {
   return Math.min(100, Math.round((matched / sceneTokens.length) * 100));
 }
 
+/** Canonical relevance sources recorded in assigned entries. */
+export const RELEVANCE_SOURCE = {
+  VLM: "vlm",
+  OVERLAP: "overlap",
+};
+
+/**
+ * Build the flat relevance field group carried by assigned patch entries.
+ * Keeps the four fields (relevanceScore / relevanceSource / relevanceReason /
+ * reused) as a single construction site instead of hand-written primitives.
+ * NOTE: `reason || null` (not `??`) — a falsy reason is normalized to null,
+ * preserving the historical `asset.relevanceReason || null` semantics.
+ *
+ * @param {Object} params
+ * @param {number} params.score - relevanceScore
+ * @param {string} params.source - RELEVANCE_SOURCE member
+ * @param {string|null} params.reason - relevanceReason (falsy → null)
+ * @param {boolean} params.reused - reused flag
+ * @returns {{relevanceScore: number, relevanceSource: string, relevanceReason: string|null, reused: boolean}}
+ */
+export function makeRelevance({ score, source, reason, reused }) {
+  return {
+    relevanceScore: score,
+    relevanceSource: source,
+    relevanceReason: reason || null,
+    reused,
+  };
+}
+
 /**
  * Batch-assign downloaded assets to scenes using greedy matching.
  *
@@ -642,12 +671,13 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
   };
 
   /** Gated-mode audit fields shared by the hook and general assignment passes. */
-  const gatedEntryFields = (asset, scene, reused, overlap) => ({
-    relevanceScore: overlap,
-    relevanceSource: "overlap",
-    relevanceReason: `token overlap vs scene ${scene.id} claim`,
-    reused,
-  });
+  const gatedEntryFields = (asset, scene, reused, overlap) =>
+    makeRelevance({
+      score: overlap,
+      source: RELEVANCE_SOURCE.OVERLAP,
+      reason: `token overlap vs scene ${scene.id} claim`,
+      reused,
+    });
 
   const unassignedEntry = (asset, reason) => {
     const entry = {
@@ -744,10 +774,12 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
           source: asset.source || asset.from || "unknown",
           attribution: asset.attribution || null,
           status: "assigned",
-          relevanceScore: asset.relevanceScore,
-          relevanceSource: "vlm",
-          relevanceReason: asset.relevanceReason || null,
-          reused,
+          ...makeRelevance({
+            score: asset.relevanceScore,
+            source: RELEVANCE_SOURCE.VLM,
+            reason: asset.relevanceReason,
+            reused,
+          }),
         });
         assignedSceneIds.add(target.id);
         assignedPaths.add(asset.path);
@@ -1138,7 +1170,10 @@ export async function analyzeAssets(assets, opts = {}) {
     asset.fit = semantics.fit;
     asset.criticalEdgeText = semantics.criticalEdgeText;
     asset.reason = semantics.reason;
-    // Relevance gate inputs — null relevance means fail-closed downstream
+    // Relevance gate inputs — null relevance means fail-closed downstream.
+    // NOTE: `relevance` is the VLM output contract (visual-analyzer.mjs /
+    // vlm_analyzer.py); `relevanceScore` is the asset/entry contract consumed
+    // by assignAssetsToScenes + makeRelevance. Mapping stays here on purpose.
     asset.relevanceScore = semantics.relevance ?? null;
     asset.relevanceReason = semantics.relevanceReason ?? null;
     // Store window and sourceMode for video assets (T6)
@@ -1944,6 +1979,94 @@ export function markDownloaded(url, downloadedUrls) {
   }
 }
 
+// ─── Phase download helpers (shared across search phases) ───
+// Unify the duplicated download-loop structure in main(): every search phase
+// (cached, cached-media, API, yt-dlp, CDP, Tier 3) repeated the preFilter →
+// URL dedup → download → tri-branch record pattern. Behavior is line-for-line
+// equivalent to the original hand-written branches.
+
+/**
+ * Pre-download filter gate. Records a skip when the candidate's technicalScore
+ * is below PRE_DOWNLOAD_FILTER_THRESHOLD.
+ *
+ * @param {Object} candidate - Candidate to score
+ * @param {string} keyword - Keyword used for scoring (searchKeyword || primaryKeyword)
+ * @param {string} sourceName - Source label recorded in skipped entries
+ * @param {Array} skipped - Skip record array (mutated)
+ * @returns {boolean} true when the candidate should be skipped
+ */
+export function shouldSkipByPreFilter(candidate, keyword, sourceName, skipped) {
+  const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
+  if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+    skipped.push({ source: sourceName, reason: `pre-download filter (score: ${preScore})` });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Cross-phase URL dedup gate. Records a skip when the candidate URL was
+ * already downloaded by an earlier phase.
+ *
+ * @param {Object} candidate - Candidate with .url
+ * @param {Set<string>} downloadedUrls - Runtime downloaded-URL set
+ * @param {string} sourceName - Source label recorded in skipped entries
+ * @param {Array} skipped - Skip record array (mutated)
+ * @returns {boolean} true when the candidate should be skipped
+ */
+export function shouldSkipByDedup(candidate, downloadedUrls, sourceName, skipped) {
+  if (downloadedUrls.has(candidate.url)) {
+    skipped.push({ source: sourceName, reason: "URL already downloaded" });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Download a scored candidate and record the outcome (success / skipped /
+ * failed). Shared tri-branch record logic for every search phase in main().
+ *
+ * @param {Object} candidate - Scored candidate ({ url, score, type, ... })
+ * @param {Object} opts
+ * @param {string} opts.destPath - Absolute destination path
+ * @param {string} opts.contentDir - Content dir (passed to downloadCandidate)
+ * @param {string} opts.label - Console prefix (e.g. "cached", source name)
+ * @param {string} opts.sourceName - Source label recorded in skipped/failed
+ * @param {string} opts.keyword - Keyword recorded in failed entries
+ * @param {Set<string>} opts.downloadedUrls - Marked on success
+ * @param {Array} opts.allAssets - Successful entries (mutated)
+ * @param {Array} opts.failed - Hard failures (mutated)
+ * @param {Array} opts.skipped - Skips (mutated)
+ * @param {Object} [opts.downloadOpts] - Extra downloadCandidate options (e.g. headers)
+ * @param {Function} [opts.onDownloaded] - Async hook before push (e.g. Wikimedia license)
+ * @returns {Promise<void>}
+ */
+export async function downloadAndRecord(candidate, opts) {
+  const { destPath, contentDir, label, sourceName, keyword } = opts;
+  const dl = await downloadCandidate(candidate, {
+    destPath,
+    contentDir,
+    ...(opts.downloadOpts || {}),
+  });
+  if (dl.success) {
+    opts.downloadedUrls.add(candidate.url);
+    const entry = {
+      ...candidate,
+      path: dl.path,
+      status: dl.skipped ? "already exists" : "downloaded",
+    };
+    if (opts.onDownloaded) await opts.onDownloaded(entry, candidate);
+    opts.allAssets.push(entry);
+    console.log(`    ✅ ${label}: ${basename(destPath)} (score: ${candidate.score})`);
+  } else if (dl.skipped) {
+    opts.skipped.push({ source: sourceName, reason: dl.error });
+    console.log(`    ⏭️  ${label}: ${dl.error}`);
+  } else {
+    opts.failed.push({ source: sourceName, keyword, error: dl.error });
+    console.log(`    ❌ ${label}: ${dl.error}`);
+  }
+}
+
 // ─── Main orchestrator ───
 
 /**
@@ -2102,40 +2225,25 @@ export async function main(args = process.argv.slice(2)) {
       const candidate = scored[j];
       if (!candidate.url) continue;
 
-      // T05: Pre-download filter
-      const { technicalScore: preScore } = preFilterCandidate(candidate, primaryKeyword);
-      if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-        skipped.push({
-          source: "cached",
-          reason: `pre-download filter (score: ${preScore})`,
-        });
-        continue;
-      }
+      // T05: Pre-download filter (runs before URL dedup in this phase)
+      if (shouldSkipByPreFilter(candidate, primaryKeyword, "cached", skipped)) continue;
 
       // Skip if this URL was already downloaded by a prior phase
-      if (downloadedUrls.has(candidate.url)) {
-        skipped.push({ source: "cached", reason: "URL already downloaded" });
-        continue;
-      }
+      if (shouldSkipByDedup(candidate, downloadedUrls, "cached", skipped)) continue;
 
       const filename = buildFilename("cached", primaryKeyword, j + 1, "jpg");
       const destPath = join(assetsDir, filename);
-      const dl = await downloadCandidate(candidate, { destPath, contentDir });
-      if (dl.success) downloadedUrls.add(candidate.url);
-      if (dl.success) {
-        allAssets.push({
-          ...candidate,
-          path: dl.path,
-          status: dl.skipped ? "already exists" : "downloaded",
-        });
-        console.log(`    ✅ cached: ${filename} (score: ${candidate.score})`);
-      } else if (dl.skipped) {
-        skipped.push({ source: "cached", reason: dl.error });
-        console.log(`    ⏭️  cached: ${dl.error}`);
-      } else {
-        failed.push({ source: "cached", keyword: primaryKeyword, error: dl.error });
-        console.log(`    ❌ cached: ${dl.error}`);
-      }
+      await downloadAndRecord(candidate, {
+        destPath,
+        contentDir,
+        label: "cached",
+        sourceName: "cached",
+        keyword: primaryKeyword,
+        downloadedUrls,
+        allAssets,
+        failed,
+        skipped,
+      });
     }
   } else {
     console.log("\n🖼️  No cached images found in trending-topics.json");
@@ -2164,31 +2272,23 @@ export async function main(args = process.argv.slice(2)) {
       const candidate = scoredMedia[j];
       if (!candidate.url) continue;
 
-      // Skip if this URL was already downloaded by Phase 0 or prior
-      if (downloadedUrls.has(candidate.url)) {
-        skipped.push({ source: "cached-media", reason: "URL already downloaded" });
-        continue;
-      }
+      // No pre-download filter in this phase (metadata is sparse) — dedup only
+      if (shouldSkipByDedup(candidate, downloadedUrls, "cached-media", skipped)) continue;
 
       const ext = candidate.type === "video" ? "mp4" : "jpg";
       const filename = buildFilename("cached-media", primaryKeyword, j + 1, ext);
       const destPath = join(assetsDir, filename);
-      const dl = await downloadCandidate(candidate, { destPath, contentDir });
-      if (dl.success) downloadedUrls.add(candidate.url);
-      if (dl.success) {
-        allAssets.push({
-          ...candidate,
-          path: dl.path,
-          status: dl.skipped ? "already exists" : "downloaded",
-        });
-        console.log(`    ✅ cached-media: ${filename} (score: ${candidate.score})`);
-      } else if (dl.skipped) {
-        skipped.push({ source: "cached-media", reason: dl.error });
-        console.log(`    ⏭️  cached-media: ${dl.error}`);
-      } else {
-        failed.push({ source: "cached-media", keyword: primaryKeyword, error: dl.error });
-        console.log(`    ❌ cached-media: ${dl.error}`);
-      }
+      await downloadAndRecord(candidate, {
+        destPath,
+        contentDir,
+        label: "cached-media",
+        sourceName: "cached-media",
+        keyword: primaryKeyword,
+        downloadedUrls,
+        allAssets,
+        failed,
+        skipped,
+      });
     }
   } else {
     console.log("\n🎬  No cached media found in media-cache.json");
@@ -2247,68 +2347,52 @@ export async function main(args = process.argv.slice(2)) {
       // Download — T05: pre-download filter gate (threshold 20)
       for (let j = 0; j < scored.length; j++) {
         const candidate = scored[j];
+        const keyword = candidate.searchKeyword || primaryKeyword;
 
         // T05: Skip candidates with technicalScore < 20 before downloading
-        const { technicalScore: preScore } = preFilterCandidate(
-          candidate,
-          candidate.searchKeyword || primaryKeyword,
-        );
-        if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-          skipped.push({
-            source: candidate.source,
-            reason: `pre-download filter (score: ${preScore})`,
-          });
-          continue;
-        }
+        // (runs before the URL guard — original ordering preserved)
+        if (shouldSkipByPreFilter(candidate, keyword, candidate.source, skipped)) continue;
 
         const ext = candidate.type === "video" ? "mp4" : "jpg";
-        const filename = buildFilename(candidate.source, keywords[0], j + 1, ext);
+        const filename = buildFilename(candidate.source, keyword, j + 1, ext);
         const destPath = join(assetsDir, filename);
 
         if (candidate.url) {
           // Skip if this URL was already downloaded by a prior phase
-          if (downloadedUrls.has(candidate.url)) {
-            skipped.push({ source: candidate.source, reason: "URL already downloaded" });
-            continue;
-          }
+          if (shouldSkipByDedup(candidate, downloadedUrls, candidate.source, skipped)) continue;
+
           const headers = {};
           if (candidate.source === "wikimedia") {
             headers["User-Agent"] = "ChinaAINews/1.0 (contact@china-ai.news)";
           }
-          const dl = await downloadCandidate(candidate, { destPath, contentDir, headers });
-          if (dl.success) downloadedUrls.add(candidate.url);
-          if (dl.success) {
-            const assetEntry = {
-              ...candidate,
-              path: dl.path,
-              status: dl.skipped ? "already exists" : "downloaded",
-            };
 
-            // For Wikimedia assets, fetch per-file license metadata
+          // For Wikimedia assets, fetch per-file license metadata after download
+          const onDownloaded = async (entry) => {
             if (candidate.source === "wikimedia" && candidate.fileTitle) {
               const licenseInfo = await fetchWikimediaLicense(candidate.fileTitle);
               if (licenseInfo) {
-                assetEntry.licenseInfo = licenseInfo;
-                assetEntry.author = licenseInfo.author || assetEntry.author;
+                entry.licenseInfo = licenseInfo;
+                entry.author = licenseInfo.author || entry.author;
                 console.log(
                   `    📄 License: ${licenseInfo.license}, attribution: ${licenseInfo.attributionRequired}`,
                 );
               }
             }
+          };
 
-            allAssets.push(assetEntry);
-            console.log(`    ✅ ${candidate.source}: ${filename} (score: ${candidate.score})`);
-          } else if (dl.skipped) {
-            skipped.push({ source: candidate.source, reason: dl.error });
-            console.log(`    ⏭️  ${candidate.source}: ${dl.error}`);
-          } else {
-            failed.push({
-              source: candidate.source,
-              keyword: candidate.searchKeyword || primaryKeyword,
-              error: dl.error,
-            });
-            console.log(`    ❌ ${candidate.source}: ${dl.error}`);
-          }
+          await downloadAndRecord(candidate, {
+            destPath,
+            contentDir,
+            label: candidate.source,
+            sourceName: candidate.source,
+            keyword,
+            downloadOpts: { headers },
+            onDownloaded,
+            downloadedUrls,
+            allAssets,
+            failed,
+            skipped,
+          });
         }
       }
     } else {
@@ -2355,40 +2439,25 @@ export async function main(args = process.argv.slice(2)) {
           const candidate = scored[j];
 
           // T05: Skip candidates with technicalScore < 20 before downloading
-          const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-          if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-            skipped.push({
-              source: source.name,
-              reason: `pre-download filter (score: ${preScore})`,
-            });
-            continue;
-          }
+          if (shouldSkipByPreFilter(candidate, keyword, source.name, skipped)) continue;
 
           // Skip if this URL was already downloaded by a prior phase
-          if (downloadedUrls.has(candidate.url)) {
-            skipped.push({ source: source.name, reason: "URL already downloaded" });
-            continue;
-          }
+          if (shouldSkipByDedup(candidate, downloadedUrls, source.name, skipped)) continue;
 
           const filename = buildFilename(source.name, keyword, j + 1, "mp4");
           const destPath = join(assetsDir, filename);
 
-          const dl = await downloadCandidate(candidate, { destPath, contentDir });
-          if (dl.success) downloadedUrls.add(candidate.url);
-          if (dl.success) {
-            allAssets.push({
-              ...candidate,
-              path: dl.path,
-              status: dl.skipped ? "already exists" : "downloaded",
-            });
-            console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
-          } else if (dl.skipped) {
-            skipped.push({ source: source.name, reason: dl.error });
-            console.log(`    ⏭️  ${source.name}: ${dl.error}`);
-          } else {
-            failed.push({ source: source.name, keyword, error: dl.error });
-            console.log(`    ❌ ${source.name}: ${dl.error}`);
-          }
+          await downloadAndRecord(candidate, {
+            destPath,
+            contentDir,
+            label: source.name,
+            sourceName: source.name,
+            keyword,
+            downloadedUrls,
+            allAssets,
+            failed,
+            skipped,
+          });
         }
       }
     }
@@ -2444,40 +2513,25 @@ export async function main(args = process.argv.slice(2)) {
           }
 
           // T05: Skip candidates with technicalScore < 20 before downloading
-          const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-          if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-            skipped.push({
-              source: source.name,
-              reason: `pre-download filter (score: ${preScore})`,
-            });
-            continue;
-          }
+          if (shouldSkipByPreFilter(candidate, keyword, source.name, skipped)) continue;
 
           // Skip if this URL was already downloaded by a prior phase
-          if (downloadedUrls.has(candidate.url)) {
-            skipped.push({ source: source.name, reason: "URL already downloaded" });
-            continue;
-          }
+          if (shouldSkipByDedup(candidate, downloadedUrls, source.name, skipped)) continue;
 
           const filename = buildFilename(source.name, keyword, j + 1, "jpg");
           const destPath = join(assetsDir, filename);
 
-          const dl = await downloadCandidate(candidate, { destPath, contentDir });
-          if (dl.success) downloadedUrls.add(candidate.url);
-          if (dl.success) {
-            allAssets.push({
-              ...candidate,
-              path: dl.path,
-              status: dl.skipped ? "already exists" : "downloaded",
-            });
-            console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
-          } else if (dl.skipped) {
-            skipped.push({ source: source.name, reason: dl.error });
-            console.log(`    ⏭️  ${source.name}: ${dl.error}`);
-          } else {
-            failed.push({ source: source.name, keyword, error: dl.error });
-            console.log(`    ❌ ${source.name}: ${dl.error}`);
-          }
+          await downloadAndRecord(candidate, {
+            destPath,
+            contentDir,
+            label: source.name,
+            sourceName: source.name,
+            keyword,
+            downloadedUrls,
+            allAssets,
+            failed,
+            skipped,
+          });
         }
       }
     }
@@ -2560,39 +2614,25 @@ export async function main(args = process.argv.slice(2)) {
               const candidate = scored[j];
               if (!candidate.url) continue;
 
-              const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-              if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
-                engineFailed.push({
-                  source: source.name,
-                  reason: `pre-download filter (score: ${preScore})`,
-                });
-                continue;
-              }
-
-              // Skip if this URL was already downloaded by a prior phase
-              if (downloadedUrls.has(candidate.url)) {
-                engineFailed.push({ source: source.name, reason: "URL already downloaded" });
-                continue;
-              }
+              // Tier 3 records every non-download outcome (pre-filter, dedup,
+              // skip, hard failure) into engineFailed — merged into failed later.
+              if (shouldSkipByPreFilter(candidate, keyword, source.name, engineFailed)) continue;
+              if (shouldSkipByDedup(candidate, downloadedUrls, source.name, engineFailed)) continue;
 
               const filename = buildFilename(source.name, keyword, j + 1, "jpg");
               const destPath = join(assetsDir, filename);
-              const dl = await downloadCandidate(candidate, { destPath, contentDir });
-              if (dl.success) downloadedUrls.add(candidate.url);
-              if (dl.success) {
-                engineAssets.push({
-                  ...candidate,
-                  path: dl.path,
-                  status: dl.skipped ? "already exists" : "downloaded",
-                });
-                console.log(`    ✅ ${source.name}: ${filename} (score: ${candidate.score})`);
-              } else if (dl.skipped) {
-                engineFailed.push({ source: source.name, reason: dl.error });
-                console.log(`    ⏭️  ${source.name}: ${dl.error}`);
-              } else {
-                engineFailed.push({ source: source.name, keyword, error: dl.error });
-                console.log(`    ❌ ${source.name}: ${dl.error}`);
-              }
+
+              await downloadAndRecord(candidate, {
+                destPath,
+                contentDir,
+                label: source.name,
+                sourceName: source.name,
+                keyword,
+                downloadedUrls,
+                allAssets: engineAssets,
+                failed: engineFailed,
+                skipped: engineFailed,
+              });
             }
           }
         }

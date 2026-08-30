@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { assignAssetsToScenes, scoreRelevanceOverlap } from "../lib/asset-sourcer.mjs";
+import {
+  assignAssetsToScenes,
+  scoreRelevanceOverlap,
+  makeRelevance,
+  RELEVANCE_SOURCE,
+} from "../lib/asset-sourcer.mjs";
 
 // ── Fixtures ──
 
@@ -246,5 +251,44 @@ describe("scoreRelevanceOverlap", () => {
   it("handles missing fields gracefully", () => {
     expect(scoreRelevanceOverlap({}, {})).toBe(0);
     expect(scoreRelevanceOverlap(null, null)).toBe(0);
+  });
+});
+
+// ── makeRelevance / RELEVANCE_SOURCE contract ──
+
+describe("makeRelevance — relevance field group factory", () => {
+  it("builds the flat patch-entry field group from structured inputs", () => {
+    expect(
+      makeRelevance({
+        score: 80,
+        source: RELEVANCE_SOURCE.VLM,
+        reason: "shows the benchmark chart",
+        reused: false,
+      }),
+    ).toEqual({
+      relevanceScore: 80,
+      relevanceSource: "vlm",
+      relevanceReason: "shows the benchmark chart",
+      reused: false,
+    });
+  });
+
+  it("preserves the ||-semantics: falsy reason ('' or null) becomes null", () => {
+    expect(
+      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.OVERLAP, reason: "", reused: true })
+        .relevanceReason,
+    ).toBe(null);
+    expect(
+      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.OVERLAP, reason: null, reused: true })
+        .relevanceReason,
+    ).toBe(null);
+    expect(
+      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.OVERLAP, reason: "x", reused: true })
+        .relevanceReason,
+    ).toBe("x");
+  });
+
+  it("exposes the two canonical relevance sources", () => {
+    expect(RELEVANCE_SOURCE).toEqual({ VLM: "vlm", OVERLAP: "overlap" });
   });
 });
