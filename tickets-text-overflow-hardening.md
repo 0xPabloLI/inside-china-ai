@@ -63,25 +63,29 @@
 
 ---
 
-## T4 — Fit / Assert 几何 gate 核心
+## T4 — Fit / Assert 几何 gate 核心 ✅ DONE (2026-08-31)
 
 **Blocked by:** T2
+
+> 2026-08-31 grill 已固化实施层决策（独立 fixture 入口 / 两层测试 / fitGroup 纯函数 /
+> TextFitError 结构 / EPS 0.5px / 逐帧校验 / 六形态 fixture），见
+> `spec-text-overflow-hardening.md` § T4 Implementation Refinement（决策 18–38）。
 
 **What to build:** 渲染时几何判定核心：Fit 层按真实几何选字号（触底失败），
 Assert 层在稳定帧用统一坐标校验文本与标注绘制边界（含字形 ink 外溢），
 入场窗口逐帧校验安全区；Remotion 侧失败用 `cancelRender()` 输出机器可读错误。
 
-- [ ] Fit：字体 ready 后测量；标注 Tracker 挂载后测量；双轴 scroll/client 判定
-- [ ] Fit：`preferredSize → minSize` 降字号；`minSize` 为硬下限（无 ×0.9）
-- [ ] Fit 触底 → `cancelRender()` + 机器可读错误（sceneId/slotId/field/measured vs available/fontSize/inkPad）
-- [ ] 失败/降级：字体加载超时 → 失败（不静默用回退字体度量）
-- [ ] Assert：统一 composition 坐标（`getBBox()` → `getScreenCTM()` 四角变换 + `useCurrentScale()`）
-- [ ] Assert：文本 AABB 与标注绘制 AABB 并集四边落在 slot content box 内
-- [ ] Assert：只加 stroke paint margin，**不重复计入随机偏移**
-- [ ] ink-bound：四方向分别计算（左 `max(0, actualBoundingBoxLeft)`，右 `max(0, actualBoundingBoxRight − width)`，上下同理）
-- [ ] ink-bound：每个渲染行、每个样式 text run 单独测量；ctx 同步 font/letterSpacing/fontKerning/fontStretch
-- [ ] 入场窗口逐帧校验不越 SAFE_ZONES；settled frame 后不越 slot content box
-- [ ] 单测：坐标变换、stroke margin、ink 四方向、minSize 硬下限、超时路径
+- [x] Fit：字体 ready 后测量；标注 Tracker 挂载后测量；布局溢出用 Range 几何（`textExtentLocal`，只测文本）并集 ink 判定（spec 决策 29 精化）
+- [x] Fit：`preferredSize → minSize` 降字号；`minSize` 为硬下限（无 ×0.9）
+- [x] Fit 触底 → `cancelRender()` + 机器可读错误（sceneId/slotId/field/measured vs available/fontSize/inkPad）
+- [x] 失败/降级：字体加载超时 → 失败（不静默用回退字体度量）
+- [x] Assert：统一 composition 坐标（`getBBox()` → `getScreenCTM()` 四角变换；scale 用元素自身 `rect.width/offsetWidth` 比率，不用 `useCurrentScale()` —— 见 spec 决策 31 精化）
+- [x] Assert：文本 AABB 与标注绘制 AABB 并集四边落在 slot content box 内
+- [x] Assert：只加 stroke paint margin，**不重复计入随机偏移**
+- [x] ink-bound：四方向分别计算（左 `max(0, actualBoundingBoxLeft)`，右 `max(0, actualBoundingBoxRight − width)`，上下同理）
+- [x] ink-bound：每个渲染行、每个样式 text run 单独测量；ctx 同步 font/letterSpacing/fontKerning/fontStretch
+- [x] 入场窗口逐帧校验不越 SAFE_ZONES；settled frame 后不越 slot content box
+- [x] 单测：坐标变换、stroke margin、ink 四方向、minSize 硬下限、超时路径（纯层 24/24 + 运行时层真实 Chromium 8/8）
 
 ---
 
