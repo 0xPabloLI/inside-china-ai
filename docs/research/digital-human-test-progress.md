@@ -29,7 +29,7 @@
 | 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
 | 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
-| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ✅ Apache 2.0 | ❌ **表情夸张**(steps=5太少, 非蒸馏模型需40步) | 2026-08-29 |
+| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ✅ Apache 2.0 | ❌ **v10.15 表情夸张 + v10.16 超时**（单卡 40 步不可行，需 Kaggle 或 LoRA 8 步） | 2026-08-30 |
 | 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
 | 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
@@ -563,21 +563,26 @@
 2. **FP8 模式不需要 LoRA**：Pipeline 代码 `if lora_dir is not None and quant is None:` — LoRA 仅在非量化模式加载，FP8 模式跳过 LoRA（省 9.9GB）。
 3. **`config.json` MISSING 根因**：`hf download --include 'config.json' '其他文件' ...` 中 `--include` 和位置参数混用导致 filter 冲突。修复：用位置参数指定具体文件，`--include` 只用于 glob pattern。
 
-#### 测试状态（2026-08-29 更新）
+#### 测试状态（2026-08-30 更新）
 
 - **Kaggle v5-v8**：❌ 均失败（排队超时 / huggingface-cli 废弃 / 磁盘满 / config.json MISSING + 磁盘满）
 - **Colab v1**：❌ Session 被回收（pip install `-q` 静默模式导致 WebSocket 超时）
 - **Kaggle v10.11-v10.12**：✅ 成功生成视频（13帧，0.52s），但质量待验证
 - **Kaggle v10.13-v10.14**：❌ 12h 超时（streaming mode + max_frame_num=81）
-- **Modal v10.15 L4**：❌ 2h 超时被杀（VRAM 24GB 不够，全 offload 太慢）
 - **Modal v10.15 A100 40GB**：✅ 推理完成（76 min，576×704，3s 视频），❌ 质量不达标（表情太夸张）
-  - **根因**: steps=5 对 InfiniteTalk 太少（非蒸馏模型，官方推荐 40 步）
+  - **根因**: steps=5 对 InfiniteTalk 太少（非蒸馏模型，官方推荐 40 步），从 EchoMimicV3 Flash 错误套用
   - **模型类型**: Talking body（唇+头+身体+表情同步），不是 talking head
   - **成本**: $2.69（A100 $2.10/h × 1.28h）
-  - **全 CPU offload**: num_persistent_param_in_dit=0 导致 76 min（即使 A100 40GB 够放全模型）
-  - **handoff 文档**: `docs/handoffs/handoff-infinitetalk-modal-2026-08-28.md`
+- **Modal v10.16 A100 40GB**：❌ 标准 40 步推理 4h 超时（即使 `offload_model=False`，全模型常驻 GPU）
+  - **结论**: 官方推荐 40 步是为多卡 FSDP 设计的，单卡 A100 不可行
+  - **隐藏交互**: `offload_model` 默认 True 会覆盖 `num_persistent_param_in_dit` 的效果，必须显式 `--offload_model False`
+  - **Modal 总花费**: ~$26（L4 调试 + 3 次 A100 运行）
 - **模型总大小**：~42GB（基座 15.5GB + FP8 DiT 19.5GB + T5 FP8 6.7GB + wav2vec2 0.35GB）
-- **下一步**：选项 B（去掉 offload + steps=40）或选项 D（换模型测 LeapTalk/LongCat-Video-Avatar-1.5）
+- **handoff 文档**: `docs/handoffs/handoff-infinitetalk-modal-2026-08-28.md`（含完整恢复指南）
+- **下一步**（按优先级）：
+  1. **方案 A**: Kaggle T4/P100 + 官方推荐 40 步（免费，已有 v10.11 成功先例，预估 ~7h）
+  2. **方案 B**: FusionX LoRA 8 步 + Modal A100（预估 ~$1.68，⚠️ CC BY-NC-SA 许可证，仅限质量验证）
+  3. **方案 C**: 换模型（LeapTalk 1 步推理 / LongCat-Video-Avatar-1.5 8 步蒸馏）
 
 #### InfiniteTalk / MultiTalk 各版本对比
 
