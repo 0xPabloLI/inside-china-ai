@@ -2,13 +2,14 @@
 
 > **本文件是导航层，不是方案本身。** 它追踪 T1–T11 的实施进度、记录本 session 做了什么、告诉下一 session 从哪开始。
 > 所有最终决策、验收标准、场景矩阵都在下面的「源文档」里 —— 读那些，别在这里找细节。
-> 创建：2026-08-31 ｜ 父 issue #141 ｜ 本 session 关闭 #142/#143/#144/#148，余下 #145–#152 + #153/#154 开放。
+> 创建：2026-08-31 ｜ 父 issue #141 ｜ 已关闭 #142/#143/#144/#145/#148，余下 #146/#147/#149–#152 + #153/#154 开放。
 
 ---
 
 ## 0. TL;DR
 
-- **进度：4 / 11 完成**（T1 / T2 / T3 / T7）。下一步 = **T4（Fit/Assert 几何 gate 核心，#145）** —— 全项目最细的一块，需要清醒的窗口。
+- **进度：5 / 11 完成**（T1 / T2 / T3 / T4 / T7）。下一步 = **T5（Remotion 模板接入 + F1/F2/F3，#146）**，或并行 **T6（HTML 管线化 + F8，#147）**。
+- T4 交付：纯几何层 `lib/text-geometry.mjs`（Remotion/HTML 共享）+ 运行时层 `TextGate` 组件（时序编排集中一处）；纯层 24 + 真实 Chromium 8 测试全绿；commit `080a6c2`。
 - **全量测试：2748 passed，3 failed**。3 个失败全是 **#153 存量 preflight**（按依赖顺序刻意延后到 T7 之后）。
 - 本 session 顺手修了 **OpenCV 冲突**（focus detector 已恢复）和 **Remotion 版本混用**（渲染不再崩）。
 - 切换成本极低：spec / tickets / proposal / review 都在盘上，新 session 只需读「源文档」+ 对应 ticket。
@@ -17,43 +18,43 @@
 
 ## 1. 源文档（必读，按此顺序）
 
-| 文档 | 角色 | 何时读 |
-|---|---|---|
-| `tickets-text-overflow-hardening.md` | **ticket 清单 + 逐条验收 checklist**（本 session 状态以它为准） | 第一 | 
-| `spec-text-overflow-hardening.md` | 11-ticket 拆分依据 + 验收标准 | 接 T4 前 |
-| `docs/handoffs/handoff-text-overflow-fix-proposal.md` | 方案 v3.3（自包含，方向已批准） | 想理解"为什么"时 |
-| `docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md` | 五轮 review 存档（阻断项如何被解决） | 怀疑某决策时 |
-| `docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md` | R2：黑帧时间轴 A2 / 缺媒体门控 / 圆标注碰撞阈值 的**权威真源** | 改时间轴或媒体 gate 前 |
-| `docs/brand-system.md` | 字号 / 字体栈 / 安全区契约 | 改样式前 |
+| 文档                                                            | 角色                                                            | 何时读                 |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
+| `tickets-text-overflow-hardening.md`                            | **ticket 清单 + 逐条验收 checklist**（本 session 状态以它为准） | 第一                   |
+| `spec-text-overflow-hardening.md`                               | 11-ticket 拆分依据 + 验收标准                                   | 接 T4 前               |
+| `docs/handoffs/handoff-text-overflow-fix-proposal.md`           | 方案 v3.3（自包含，方向已批准）                                 | 想理解"为什么"时       |
+| `docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md` | 五轮 review 存档（阻断项如何被解决）                            | 怀疑某决策时           |
+| `docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md`        | R2：黑帧时间轴 A2 / 缺媒体门控 / 圆标注碰撞阈值 的**权威真源**  | 改时间轴或媒体 gate 前 |
+| `docs/brand-system.md`                                          | 字号 / 字体栈 / 安全区契约                                      | 改样式前               |
 
 ---
 
-## 2. 本 session 已完成（T1 / T2 / T3 / T7）
+## 2. 已完成（T1 / T2 / T3 / T4 / T7）
 
-| Ticket | Issue | Commit | 验证了什么 |
-|---|---|---|---|
-| T1 Remotion 统一 4.0.517 | #142 ✅ | `632a96a` | `npx remotion versions` → 全 4.0.517；qwen4 渲染不再因版本混用崩 |
-| T2 slot 契约 | #143 ✅ | `80e5bae` + `be0ae3e`（SPACING 导入修复）+ `e34ce06`（HTML 字号 64 对齐）+ `fc53381` | 契约单测 16 passed；9 个 final-media 单测 |
-| T3 时间轴 A2 | #144 ✅ | `ed4560a` | remotion-timeline + frame-analysis 测试改写（旧断言恒真已删）；无黑尾、CTA 到末帧、音画对齐 |
-| T7 共享 final-media gate | #148 ✅ | `632a96a` + `16a9a41` | 9 单测；gate 准确拦下 qwen4 Scene 9（media-overlay 无 media）；改 `stacked-cards` 后放行并渲染成功（71/0/0 帧检查） |
+| Ticket                       | Issue   | Commit                                                                               | 验证了什么                                                                                                                                                                                                                                                                       |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T1 Remotion 统一 4.0.517     | #142 ✅ | `632a96a`                                                                            | `npx remotion versions` → 全 4.0.517；qwen4 渲染不再因版本混用崩                                                                                                                                                                                                                 |
+| T2 slot 契约                 | #143 ✅ | `80e5bae` + `be0ae3e`（SPACING 导入修复）+ `e34ce06`（HTML 字号 64 对齐）+ `fc53381` | 契约单测 16 passed；9 个 final-media 单测                                                                                                                                                                                                                                        |
+| T3 时间轴 A2                 | #144 ✅ | `ed4560a`                                                                            | remotion-timeline + frame-analysis 测试改写（旧断言恒真已删）；无黑尾、CTA 到末帧、音画对齐                                                                                                                                                                                      |
+| T7 共享 final-media gate     | #148 ✅ | `632a96a` + `16a9a41`                                                                | 9 单测；gate 准确拦下 qwen4 Scene 9（media-overlay 无 media）；改 `stacked-cards` 后放行并渲染成功（71/0/0 帧检查）                                                                                                                                                              |
+| T4 Fit/Assert 几何 gate 核心 | #145 ✅ | `080a6c2`                                                                            | 纯层 24 单测（ink 公式 A 四方向、CTM 坐标变换、EPS 0.5、minSize 硬下限、fitGroup 三阶段）；运行时层 8 真实 Chromium 集成（F1 固定字号反证 / F2 缩字 / F3 触底 / F4 标注越界 / ink 运行时反证 / 字体超时 / 入场越安全区）；`FIT_REASONS` 共享常量；重渲染冒烟 + 71/0/0 帧检查通过 |
 
 > **qwen4 Scene 9 已改为 `stacked-cards + mediaOptOut: true`**（T7 提交）。数据层正确，但 **Remotion 的 stacked-cards 分支仍透出上一幕媒体图** —— 视觉层未完，记在 T9。
 
 ---
 
-## 3. 下一 session 启动：T4（#145）
+## 3. 下一 session 启动：T5（#146）
 
-**读这些文件**（按序）：`tickets-text-overflow-hardening.md` §T4 → `spec-text-overflow-hardening.md` §6.2 → `lib/text-slots.mjs`（`getSlot` / `fitCandidates` / `MEASURED_MAX_WIDTH`，T2 已落地的契约）→ `lib/safe-zones.mjs`（`CANVAS` / `SAFE_ZONES` / `BRAND_FONT_STACK`）→ `remotion/src/Root.tsx` + `remotion/src/scenes/NarrativeScene.tsx`（坐标变换需 `useCurrentScale()`）→ `rough-notation/dist/esm/index.mjs`（标注 Tracker 挂载时序）。
+**读这些文件**（按序）：`tickets-text-overflow-hardening.md` §T5 → `spec-text-overflow-hardening.md` § T4 Implementation Refinement（决策 18–38，含四条实施精化）→ `remotion/src/components/text-gate.tsx`（TextGate API：`sceneId/slotId/lockFontSize?/children(fontSize)`，时序已内置）→ `lib/text-geometry.mjs`（`FIT_REASONS` / `TextFitError`）→ `remotion/src/text-gate-fixture.tsx`（接入样板：八个场景怎么套 TextGate）→ `lib/text-slots.mjs`（10 个文本源的 slot ID 全集）。
 
-**第一个 RED 测试**建议从这三个独立维度各写一个（都来自 §T4 checklist，不依赖彼此）：
+**要点**：
 
-1. **ink-bound A 公式**（拦截静默裁切的核心）：用 `ctx.measureText` 测 italic `"f"`，断言 `actualBoundingBoxLeft > 0`，且一个按修正公式 `leftOverhang = max(0, actualBoundingBoxLeft)` 的函数标出左外溢 —— 而旧公式 `-actualLeft` 算成 0（漏报）。这是 F9 要抓的回归。
-2. **坐标变换**：给定 rough-notation SVG `getBBox()` + `getScreenCTM()` 四角 + `useCurrentScale()`，断言 `screenCorners()` 返回的屏幕坐标 = CTM 变换后的四角。Spec §6.2 明确要求统一 composition 坐标。
-3. **minSize 硬下限**：构造「preferredSize 降到 minSize 仍溢出」的输入，断言调用 `cancelRender()` 并抛出**机器可读**错误对象 `{ sceneId, slotId, field, measured, available, fontSize, inkPad }`（不是字符串、不是静默、不是硬裁切）。
+- TextGate 已把所有时序（字体/标注挂载/阶梯/逐帧 Assert）封装；模板层只需逐文本容器套用 + `data-text-*` 可寻址。**不要**在模板里重新实现测量。
+- **不要用 `useCurrentScale()`**（T4 已验证：`useVideoConfig` 在 Composition 渲染中 throw）；scale 由 TextGate 内部用元素 `rect.width/offsetWidth` 比率恢复。
+- T5 的 F1/F2/F3 反证用真实内容包文案（s9 事故场景），与 T4 fixture 的合成文案互补；载体可复用 `text-gate-fixture.tsx` 的模式。
+- T6 可并行启动：纯层 `fitGroup`/`TextFitError`/`FIT_REASONS` 已就位，HTML 路径直接 throw 同一错误类（不用 `cancelRender`）。
 
-**验收口径**（来自 §T4 checklist）：Fit 须字体 ready 后测、标注挂载后测；双轴 scroll/client 判定；触底 `cancelRender`；字体加载超时 → 失败（不静默回退字体度量）；Assert 四方向 ink 各 run 单独测；入场窗口逐帧校验安全区、settled 后不越 slot content box。
-
-**已知坑（T4 特别容易踩）**：DOM 几何 ≠ 文字绘制边界 —— `getBoundingClientRect()` / Range / scroll 指标都可能漏掉字形 ink overhang；`overflow:hidden` 已把越界像素删掉，所以「slot 外侧有无非背景像素」这种反向探测会**假绿**（重复现有帧检查的老问题）。必须用 ink-bound（F9）或像素差分。
+**已知坑（接人时注意）**：`lockFontSize` 绕过 Fit 但仍被 Assert 拦截（F1 形态的设计意图）；`fit-shrink` 类测试文案长度要按真实字体实测宽度估算（大写 Times 900 约 0.6em/字符），拍脑袋文案会造成假红。
 
 ---
 
@@ -69,17 +70,17 @@ T7(#148, done) ─────────────────────�
 #154(HTML/Remotion 字号契约统一) ← T2 已定义契约但 HTML 模板未消费，待 T6 落地
 ```
 
-| Ticket | Issue | Blocked by | 一句话 |
-|---|---|---|---|
-| T4 Fit/Assert 核心 | #145 OPEN | T2 | 几何判定 + 触底 cancelRender |
-| T5 Remotion 模板接入 + F1/F2/F3 | #146 OPEN | T2,T4 | 10 文本源接入契约 + `data-text-*` |
-| T6 HTML 管线化 + F8 | #147 OPEN | T2,T4 | Chromium materialize/fit，单一 final 产物 |
-| T8 highlight {field,text} + 17 处 | #149 OPEN | T2,T5 | 标什么亮什么，子串校验 |
-| T9 media-overlay + s9 | #150 OPEN | T2,T5 | 补 action/context；s9 视觉待修 |
-| T10 F4/F6/F7/F9 + 圆修复 | #151 OPEN | T4,T5 | 四 fixture；Hook 圆 `box="inside"` 240 |
-| T11 端到端 + 归档 | #152 OPEN | 几乎全部 | qwen4 重渲染 + 存量清单 + 归档 |
-| #153 存量 preflight 全红 | #153 OPEN | T2,T7 | 14/15 包缺 layout / visualType 不在派发表 |
-| #154 字号路径不一致 | #154 OPEN | T2 | HTML 80px→64px 已做；模板未吃契约 |
+| Ticket                            | Issue     | Blocked by | 一句话                                                          |
+| --------------------------------- | --------- | ---------- | --------------------------------------------------------------- |
+| T4 Fit/Assert 核心                | #145 ✅   | —          | 已完成（`080a6c2`）：几何判定 + 触底 cancelRender + 逐帧 Assert |
+| T5 Remotion 模板接入 + F1/F2/F3   | #146 OPEN | T2✅,T4✅  | 10 文本源接入契约 + `data-text-*`                               |
+| T6 HTML 管线化 + F8               | #147 OPEN | T2✅,T4✅  | Chromium materialize/fit，单一 final 产物                       |
+| T8 highlight {field,text} + 17 处 | #149 OPEN | T2,T5      | 标什么亮什么，子串校验                                          |
+| T9 media-overlay + s9             | #150 OPEN | T2,T5      | 补 action/context；s9 视觉待修                                  |
+| T10 F4/F6/F7/F9 + 圆修复          | #151 OPEN | T4,T5      | 四 fixture；Hook 圆 `box="inside"` 240                          |
+| T11 端到端 + 归档                 | #152 OPEN | 几乎全部   | qwen4 重渲染 + 存量清单 + 归档                                  |
+| #153 存量 preflight 全红          | #153 OPEN | T2,T7      | 14/15 包缺 layout / visualType 不在派发表                       |
+| #154 字号路径不一致               | #154 OPEN | T2         | HTML 80px→64px 已做；模板未吃契约                               |
 
 ---
 
@@ -91,6 +92,11 @@ T7(#148, done) ─────────────────────�
 - **验证器不能验证 `overflow:hidden` 内的真实溢出。** DOM/帧检查会假绿。见 §3 T4 坑。
 - **Highlight 是 17 处不是 7 处**（qwen4 7 / doubao-work 9 / light-society 1）。T8 迁移别漏。
 - **不要在 preflight 把 `mediaOptOut` 当文本省略**。它是媒体开关，与文本字段省略无关。
+- **（T4 session）`useCurrentScale()` / `useVideoConfig` 只属于 Player 上下文**：Composition 渲染（remotion still / 成片）中调用会 throw。scale 一律用元素自身 `getBoundingClientRect().width / offsetWidth` 比率恢复，入场变换自动抵消。
+- **（T4 session）wrapper 的 `scrollWidth/Height` 会把绝对定位的标注 SVG 算进去**：Fit 的布局溢出判定改用 Range 几何（`textExtentLocal`：TreeWalker 只测文本节点 → `getClientRects()` 并集），标注绘制边界归 Assert 管。混用会造成 Fit 误杀合法文案。
+- **（T4 session）vitest node 环境解析不到 remotion 工作区的 node_modules**：程序化 `@remotion/renderer.renderStill` 不可行；集成测试用 `execFileSync("npx remotion still")` CLI 驱动（cwd = remotion 目录，真实 Chromium，单场景约 3–25s）。
+- **（T4 session）`cancelRender(err)` 只把 `error.message` 第一行传回调用方**（经 `window.remotion_cancelledError`）：机器可读错误的 message 必须是 `[TextFitError] ${JSON.stringify(payload)}` 格式，单行。
+- **（T4 session）测试文案长度必须按真实字体宽度验证**：大写 Times 900 约 0.6em/字符；拍脑袋的“应该溢出/应该容得下”文案会造成假红/假绿。
 
 ---
 
@@ -98,6 +104,7 @@ T7(#148, done) ─────────────────────�
 
 - **OpenCV（已收口，但留记录）**：`~/.video-tts-env` 原来同时装了 `opencv-python 5.0.0.93`（requirements 没它）和 `opencv-contrib-python 4.10.0.84`。5.x 移除 `CascadeClassifier`，导致 `focus_detector.py` 每次降级（main.mjs 只打 warning，管线静默失效）。本 session 卸载了 5.x、保留 contrib 4.10.0.84（CascadeClassifier/data/saliency 全 TRUE，34 个 focus 单测转 PASS）。**注意**：`mlx-vlm` 声明 `opencv-python>=4.12`，是 pip 元数据 floor，cv2 4.10 可正常 import，功能不受影响；若日后 VLM 分析真出问题，升级到 `opencv-contrib-python==4.12.0.88`（仍含 CascadeClassifier/saliency）—— 但本环境 PyPI 下载极慢，命令会 idle 超时，需后台或 curl 下载 wheel。
 - **stacked-cards 视觉**（T9）：Remotion 的 stacked-cards 分支没清空媒体背景，s9 仍透出 s8 的 qwen-throughput 图。数据层已对，视觉层未完。
+- **s9 左缘 ink overhang（待调查，非 ticket）**：R2 §3.3 报告 s9 左缘 `G` 字疑似 ink overhang（初版推测 = 衬线回退字体左 bearing 为负 + 容器 `overflow:hidden`）。本地浏览器实测**未复现** G 左侧 overhang，根因不成立，降为待调查现象。该现象将由 **T4 的 ink-bound（F9）机制**落地后照亮 —— T4 完成后回看本项：若 ink-bound 能稳定测到左 overhang 则据此修，否则维持待调查、不入 ticket（非阻断）。权威真源：`docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md` §3.3。
 - **#153 回填规则**：有 media → media 依赖型布局（overlay/bottom-bar/split）；无 media → `stacked-cards`。回填前先确认 T7 的 gate 已就位（已就位）。
 - **#154**：T2 定义了字号契约（`getSlot` / `fitCandidates`），但 HTML 模板仍硬编码字号、未消费契约。T6 落地 HTML Fit 时一并接。
 
@@ -130,9 +137,11 @@ ffmpeg -ss 53 -i output/qwen4-preview/<file>.mp4 -frames:v 1 -y /tmp/s9.png
 
 ## 9. 收尾清单（本 session 已做）
 
-- [x] T1/T2/T3/T7 实现 + 单测 + 验证 + issue 关闭
+- [x] T1/T2/T3/T7 实现 + 单测 + 验证 + issue 关闭（2026-08-31 第一 session）
+- [x] T4 (#145) 实现 + 双层测试 + code-review + 冒烟 + issue 关闭（2026-08-31 第二 session，commit `080a6c2`）
 - [x] OpenCV 冲突收口（focus detector 恢复，34 单测 PASS）
 - [x] Remotion 版本统一 4.0.517（渲染恢复）
 - [x] 工作树干净（文档演进 + SPACING 修复已提交）
-- [x] 本 handoff 文档创建
-- [ ] 下一 session：从 T4 (#145) 起，建议新开 session（T4 最细，需清醒窗口）
+- [x] 本 handoff 文档创建（每 session 更新）
+- [x] 下一 session（#1）：从 T4 (#145) 起 —— 已完成，见 §2/§3
+- [ ] 后续 session（#2…N）：T5(#146)→T8/T9(#149/#150)、T6(#147)→T10(#151)→T11(#152) + #153/#154，按 §4 依赖图推进。**预计多个 session**（每个 ticket 都是 substantial 改动，不是 1 个 session 能收口）；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）
