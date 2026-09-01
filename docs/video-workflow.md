@@ -2,6 +2,17 @@
 
 > The **workflow steps** (research → write scene-data → run pipeline → thumbnail → quality check) live in the `short-video-pipeline` skill. This document covers project-specific content: content standards, best practices, publishing strategy, and file locations.
 
+## Skill Loading Matrix（按任务类型，非互斥）
+
+| 任务 | 加载的 Skill | 用途 |
+|------|-------------|------|
+| 写 scene-data / 跑管线 / 发布 | `short-video-pipeline` + `brand-system` | 管线流程 + 品牌一致性 |
+| 改 `remotion/src/` React 组件代码 | `remotion-markup`（主入口 `remotion-best-practices`） | Remotion API 最佳实践：`Interactive.Div` 结构、`@remotion/media` 组件、`@remotion/transitions` 转场、`@remotion/rough-notation` 文本标注、`@remotion/effects` 视觉效果、`perceptual-scale` 动画、`calculateMetadata` 动态时长 |
+| 改视频模板视觉设计（间距/排版/层次/动画） | `impeccable` | `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨 |
+| 新建场景模板 | `frontend-design` | 选择美学方向 |
+
+> **`remotion-markup` vs `impeccable` 分工**：`remotion-markup` 管"Remotion 代码怎么写"（API 正确用法、组件结构、转场模式、动画 timing）；`impeccable` 管"画面该怎么排"（间距节奏、视觉层次、动画多样性、可读性、AI slop 检测）。改 `remotion/src/` 时两个都加载——先 `remotion-markup` 确保 API 正确，再 `impeccable` 确保视觉质量。
+
 ## Best Practices
 
 ### Duration

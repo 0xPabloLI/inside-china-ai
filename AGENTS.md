@@ -155,20 +155,10 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 
 ## Content Pipeline
 
-统一内容管线（入口 → 共享素材 → 文章与视频脚本并行产出 → 交叉一致性检查 → 视频成品 → 单一 HITL → 文章与 TikTok 发布 → Analytics），设 1 个 **HITL 人工确认检查点**（内容包成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章草稿可用 `scripts/article/publish-article.mjs --draft` 保存；HITL 确认后再用同一文章文件公开发布。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。**HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续，不得自行假设确认。
-
-做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。视频技术参考（TTS 引擎、B-roll 生成、发布策略、文件路径）：`docs/video-workflow.md`。**Skill 加载矩阵**（按任务类型，非互斥）：
-
-| 任务 | 加载的 Skill | 用途 |
-|------|-------------|------|
-| 写 scene-data / 跑管线 / 发布 | `short-video-pipeline` + `brand-system` | 管线流程 + 品牌一致性 |
-| 改 `remotion/src/` React 组件代码 | `remotion-markup`（主入口 `remotion-best-practices`） | Remotion API 最佳实践：`Interactive.Div` 结构、`@remotion/media` 组件、`@remotion/transitions` 转场、`@remotion/rough-notation` 文本标注、`@remotion/effects` 视觉效果、`perceptual-scale` 动画、`calculateMetadata` 动态时长 |
-| 改视频模板视觉设计（间距/排版/层次/动画） | `impeccable` | `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨 |
-| 新建场景模板 | `frontend-design` | 选择美学方向 |
-
-> **`remotion-markup` vs `impeccable` 分工**：`remotion-markup` 管"Remotion 代码怎么写"（API 正确用法、组件结构、转场模式、动画 timing）；`impeccable` 管"画面该怎么排"（间距节奏、视觉层次、动画多样性、可读性、AI slop 检测）。改 `remotion/src/` 时两个都加载——先 `remotion-markup` 确保 API 正确，再 `impeccable` 确保视觉质量。
-
-**启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data**，Pre-render 检查未通过时管线拒绝运行（除非用户明确要求 `--skip-preflight`）。
+统一内容管线（入口 → 并行产出 → 交叉检查 → 视频成品 → HITL → 发布 → Analytics）：流程与各 Stage 详见 `docs/content-pipeline.md`，手工操作清单见 `docs/manual-ops.md`。
+**HITL 强制规则**：Agent 到达检查点必须暂停、输出审阅内容、等用户明确确认后才可继续，不得自行假设确认（检查点详情见 content-pipeline.md）。
+**Preflight 硬规则**：启动视频管线前必须 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data；未通过拒绝运行（除非用户明确要求 `--skip-preflight`）。
+做视频时（默认 TikTok）：写 scene-data/跑管线/发布 → `short-video-pipeline` + `brand-system`；改 `remotion/src/` React 代码 → 先 `remotion-markup` 再 `impeccable`（前者管 API 正确，后者管画面质量）；改模板视觉设计 → `impeccable`；新建场景模板 → `frontend-design`。用途与分工详见 `docs/video-workflow.md`。
 
 ## Session Start Checklist
 
