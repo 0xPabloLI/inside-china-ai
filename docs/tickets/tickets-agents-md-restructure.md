@@ -99,11 +99,11 @@
 
 **Blocked by:** T5。
 
-- [ ] red 走查：`wc -w` 基线记录；三查基线
-- [ ] 三项修改按 spec 执行
-- [ ] 三查：Core Commands 信息点确认 package.json 全覆盖；TL;DR 与六条规则无信息点丢失
-- [ ] green：words 度量记录（目标 ≤1,330）
-- [ ] commit（显式列路径）
+- [x] red 走查：`wc -w` 基线记录；三查基线
+- [x] 三项修改按 spec 执行
+- [x] 三查：Core Commands 信息点确认 package.json 全覆盖；TL;DR 与六条规则无信息点丢失
+- [x] green：words 度量记录（目标 ≤1,330）
+- [x] commit（显式列路径）
 
 ## T7a — DOCS-INDEX 同步 + rollout tracker
 
