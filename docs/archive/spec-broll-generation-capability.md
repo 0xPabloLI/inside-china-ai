@@ -1,6 +1,6 @@
 # Spec: B-roll 生成能力（管线化）
 
-> 日期：2026-08-31 ｜ 状态：已确认（3 轮 Grill，18 项决策）｜ 来源：`docs/handoffs/handoff-video-prompt-quality-fastvideo-params.md` + 本 session Grill 共识
+> 日期：2026-08-31 ｜ 状态：已确认（3 轮 Grill，18 项决策）｜ 来源：上游 spike/handoff session 调研 + 本 session Grill 共识（handoff 文档已消化删除：任务 A/B 由本 spec 落地，调研注入 GitHub #157/#158，历史见 git）
 > 范围：**管线能力**（可复用的 T2V B-roll 生产机制）。不改任何单条视频内容；`qwen4-preview` 仅作真实数据 smoke test 夹具。**无需向后兼容**（`mediaStrategy` 缺省即 `'asset'` 是默认语义，不做迁移/兼容 shim）。
 
 ---
