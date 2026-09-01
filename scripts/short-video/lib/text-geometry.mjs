@@ -30,6 +30,7 @@ export const FIT_REASONS = {
   safeZoneBreach: "safe-zone-breach",
   annotationOutOfSlot: "annotation-out-of-slot",
   textOutOfSlot: "text-out-of-slot",
+  containerOverflow: "container-overflow",
 };
 
 /**

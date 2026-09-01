@@ -12,8 +12,11 @@ import {
   getSlot,
   shrinkOrder,
   htmlSlotsFor,
+  remotionSlotsFor,
   fitCandidates,
+  assertKnownTextFields,
   SLOT_FIELDS,
+  REMOTION_SLOT_MAP,
 } from "../lib/text-slots.mjs";
 
 describe("slot id", () => {
@@ -24,9 +27,9 @@ describe("slot id", () => {
   });
 
   it("indexes repeated text (cards, rows, stats)", () => {
-    expect(slotId({ visualType: "narrative", layout: "stacked-cards", field: "value", index: 0 })).toBe(
-      "narrative.stacked-cards.value[0]",
-    );
+    expect(
+      slotId({ visualType: "narrative", layout: "stacked-cards", field: "value", index: 0 }),
+    ).toBe("narrative.stacked-cards.value[0]");
   });
 
   it("falls back to a default layout when a scene omits it", () => {
@@ -81,17 +84,22 @@ describe("focus number (bigNumber) contract", () => {
 
 describe("measured content widths", () => {
   it("uses the measured content width for media-overlay result", () => {
-    // 756px is the content box measured on qwen4 Scene 9 (border box 820).
-    expect(getSlot("narrative.media-overlay.result").maxWidth).toBe(756);
+    // 692px = container content box: band 756 minus 2×SPACING['2xl'] (64)
+    // horizontal padding. The gate asserts against the content box, so the
+    // contract width must exclude padding.
+    expect(getSlot("narrative.media-overlay.result").maxWidth).toBe(692);
   });
 
   it("uses the narrower media-split column", () => {
-    // NarrativeScene allocates width 420 with maxWidth 420 - 2*SPACING.xl.
+    // 372px = media-split right column content box, measured in a real
+    // Chromium render by measure-slot-widths.mjs (Ticket D).
     expect(getSlot("narrative.media-split.result").maxWidth).toBe(372);
   });
 
   it("refuses to invent a width it has not measured", () => {
-    expect(() => getSlot("narrative.media-bottom-bar.result")).toThrow(/maxWidth/);
+    // attribution is registered but no Remotion template renders it in a
+    // quote slot today, so no width has been measured for it.
+    expect(() => getSlot("quote.hero-center.attribution")).toThrow(/maxWidth/);
   });
 });
 
@@ -138,5 +146,198 @@ describe("HTML template mapping", () => {
     // FullscreenMedia renders media.source; it is easy to forget because it is
     // the only text that comes from the media block rather than scene.texts.
     expect(htmlSlotsFor("fullscreen")).toContain("fullscreen.source");
+  });
+});
+
+// T5: the Remotion templates converge on the contract (spec decisions 39–53).
+// No backwards compatibility: the contract is the single source of truth and
+// every field a template actually renders must be declared here.
+
+describe("remotion slot map (T5 contract)", () => {
+  const KNOWN = [
+    "narrative",
+    "hook",
+    "stat-reveal",
+    "cta",
+    "quote",
+    "context",
+    "contrast",
+    "data",
+    "info-card",
+    "fullscreen",
+  ];
+
+  it("registers every template the Remotion renderer can dispatch", () => {
+    for (const vt of KNOWN) {
+      expect(REMOTION_SLOT_MAP[vt], `missing REMOTION_SLOT_MAP entry for ${vt}`).toBeDefined();
+    }
+  });
+
+  it("declares all four field categories for every layout", () => {
+    for (const [vt, layouts] of Object.entries(REMOTION_SLOT_MAP)) {
+      for (const [layout, groups] of Object.entries(layouts)) {
+        for (const key of ["rendered", "control", "optional", "intentionallyOmitted"]) {
+          expect(Array.isArray(groups[key]), `${vt}.${layout}.${key} must be an array`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("gives every rendered/optional field a size entry and a measured width", () => {
+    for (const [vt, layouts] of Object.entries(REMOTION_SLOT_MAP)) {
+      for (const [layout, groups] of Object.entries(layouts)) {
+        for (const field of [...groups.rendered, ...groups.optional]) {
+          const id = slotId({ visualType: vt, layout, field });
+          const slot = getSlot(id);
+          expect(slot.minSize).toBeGreaterThan(0);
+          expect(Number.isFinite(slot.maxWidth), `missing measured width for ${id}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("resolves indexed fields through their base width entry", () => {
+    expect(getSlot("contrast.hero-center.left[0]").maxWidth).toBe(
+      getSlot("contrast.hero-center.left").maxWidth,
+    );
+  });
+
+  it("throws for an unknown visualType", () => {
+    expect(() => remotionSlotsFor("nope")).toThrow(/visualType/);
+  });
+
+  it("throws for an unknown layout of a known visualType", () => {
+    expect(() => remotionSlotsFor("hook", "somewhere-else")).toThrow(/layout/);
+  });
+});
+
+describe("T5 field registry", () => {
+  it("registers the fields the templates render today", () => {
+    for (const field of [
+      "badge",
+      "brand",
+      "label",
+      "subtext",
+      "detail",
+      "subtitle",
+      "note",
+      "vs",
+      "verified",
+      "points",
+      "statCard",
+    ]) {
+      expect(SLOT_FIELDS[field], `missing registry entry for ${field}`).toBeDefined();
+    }
+  });
+
+  it("floors new fields at round(0.72 × preferred)", () => {
+    for (const field of [
+      "badge",
+      "brand",
+      "detail",
+      "vs",
+      "verified",
+      "points",
+      "subtext",
+      "statCard",
+    ]) {
+      const { preferredSize, minSize } = SLOT_FIELDS[field];
+      expect(minSize, `${field} minSize`).toBe(Math.round(0.72 * preferredSize));
+    }
+  });
+
+  it("keeps the focus number family single-line at 240/180", () => {
+    for (const field of ["bigNumber", "stat"]) {
+      const { preferredSize, minSize, maxLines, wrapPolicy } = SLOT_FIELDS[field];
+      expect(preferredSize).toBe(240);
+      expect(minSize).toBe(180);
+      expect(maxLines).toBe(1);
+      expect(wrapPolicy).toBe("none");
+    }
+  });
+
+  it("keeps the focus stat's annotation circle", () => {
+    // DataScene draws an animated circle around its stat number.
+    const slot = getSlot("data.hero-center.stat");
+    expect(slot.annotationPolicy).toBe("circle");
+  });
+});
+
+describe("assertKnownTextFields (T5 render-layer validation)", () => {
+  it("accepts every field a template renders, including control fields", () => {
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        badge: "B",
+        company: "C",
+        action: "A",
+        result: "R",
+        highlight: "H",
+        context: "X",
+        source: "S",
+        mediaOptOut: true,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertKnownTextFields("contrast", "hero-center", {
+        title: "T",
+        vs: "VS",
+        left: ["L"],
+        right: ["R"],
+        note: "N",
+        noteHighlight: "H",
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects a typo'd field with its name and a registration pointer (#32)", () => {
+    expect(() => assertKnownTextFields("narrative", "media-overlay", { compny: "C" })).toThrow(
+      /Unknown text field "compny"/,
+    );
+  });
+
+  it("rejects a real field used on a template that never declared it", () => {
+    // `quote` is registered in SLOT_FIELDS but quote.hero-center is not the
+    // narrative template's business.
+    expect(() => assertKnownTextFields("narrative", "media-overlay", { quote: "Q" })).toThrow(
+      /quote/,
+    );
+  });
+
+  it("maps the data scene's statLabel key onto the label contract field", () => {
+    expect(() =>
+      assertKnownTextFields("data", "hero-center", {
+        stat: "8×",
+        statLabel: "OVERSUBSCRIBED",
+        subtext: "S",
+        source: "X",
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts hook stats as a structural container (subfields gate separately)", () => {
+    expect(() =>
+      assertKnownTextFields("hook", "hero-center", {
+        stats: [{ num: "1", unit: "U", label: "L" }],
+        color: "blue",
+        subjectLogo: "qwen",
+      }),
+    ).not.toThrow();
+  });
+
+  it("treats absent or empty texts as nothing to validate (#34)", () => {
+    expect(() => assertKnownTextFields("narrative", "media-overlay", undefined)).not.toThrow();
+    expect(() => assertKnownTextFields("contrast", "hero-center", {})).not.toThrow();
+  });
+
+  it("does not read mediaOptOut as text omission (#38)", () => {
+    // mediaOptOut is control: it steers the media layer, never the text gates.
+    expect(() =>
+      assertKnownTextFields("narrative", "media-bottom-bar", {
+        company: "C",
+        action: "A",
+        result: "R",
+        mediaOptOut: true,
+      }),
+    ).not.toThrow();
   });
 });
