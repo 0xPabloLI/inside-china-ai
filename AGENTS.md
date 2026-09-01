@@ -170,18 +170,8 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 
 ## Web Scraping & Content Fetching
 
-| 场景 | 工具 |
-|------|------|
-| 技术文档 | Context7 MCP |
-| 事实查询 / URL 抓取 | `web_fetch` → `web-access` CDP（fallback） |
-| 深度研究 | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
-| 趋势发现 | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X） |
-
-用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
-
-**Tavily MCP 是有限付费资源。** 已知 URL 一律用 `web_fetch`（免费、无限制）；GitHub 无反爬，`web_fetch` 直接可读。用 Tavily 前必须先走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily。只有 `web_fetch` 返回空/超时/JS 渲染失败 **且** CDP 也无法完成（如需要多关键词并行搜索、需要 AI 结构化摘要）时，才用 Tavily。
-
-**工具/API 发现**：需要找免费 API、替代付费 SaaS、补充搜索源或素材源、查某领域有哪些可用工具时，查 `docs/tools-catalog.md`（本项目所有可用工具/服务/API 的完整清单 + 评估流程 + 任务→工具决策表 + Pipeline API 候选）。新增工具必须先走完 4 步评估流程再入库。
+**Tavily 是有限付费资源（硬规则）**：已知 URL 一律 `web_fetch`（免费、无限制；GitHub 无反爬直接可读）。用 Tavily 前必须走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily；只有前两者失败或无法完成（如需多关键词并行搜索、AI 结构化摘要）时才可用。
+场景 → 工具决策表、工具/API 发现、新增工具评估流程：见 `docs/tools-catalog.md`。深度研究用 `web-deep-research` skill（触发词："deep research"、"调研"）。抓取用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
 
 ## Agent skills
 
