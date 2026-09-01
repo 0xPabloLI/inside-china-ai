@@ -81,6 +81,12 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | `fact-verification.md` | PSR item-4 operational procedures (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |
 | `visual-design-loop.md` | Visual design iteration loop — impeccable skill workflow for video template polish |
 
+### `plans/` — Active design plans
+
+| Document | Purpose |
+|----------|---------|
+| `2026-09-01-agent-implementation-workflow-design.md` | Risk × planning-scale workflow design and Matt Pocock skill adaptation |
+
 ### `tiktok/` — TikTok guides
 
 | Document | Purpose |
