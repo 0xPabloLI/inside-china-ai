@@ -236,56 +236,151 @@ inkPad: {left, right, top, bottom} }`；`inkPad` 是四方向对象，与 ink-bo
 
 ---
 
+## T5 Implementation Refinement（2026-09-01 grill 固化，全部经用户确认）
+
+范围仅限 T5（#146）；不推翻上文任何决策，是其实施层细化。
+用户总原则（覆盖全章）：**不做向后兼容、不保护存量管线产物与已发布内容；
+只保证未来生成内容的管线正确**（决策 39）。
+
+**架构边界（Round 1）**
+
+39. 无向后兼容约束：存量内容包视觉变化、渲染 FAIL 均不保护、不迁移、不批量跑；
+    契约可以放心做 single source of truth，模板向契约收敛。
+40. 契约对齐方向：**现实迁就契约**（与决策 39 配套）。模板字段全量注册进契约，
+    字号按决策 46 收敛；不做“契约迁就现实”的保视觉方案。
+41. 字段四分类归属：`badge / vs / verified`（边框 pill 短文本）归 **rendered** 并注册
+    契约（它们也会溢出）；`color / subjectLogo / *Highlight / brandHighlight /
+numberHighlight / mediaOptOut` 归 **control**（控制渲染行为，不做几何校验）；
+    `stats[].num/unit/label` 是渲染文本 → rendered。`mediaOptOut` 不是文本省略标记（同决策 3）。
+42. 数组字段 slot ID 命名：单字符串数组直接 `field[index]`（`left[0] / right[0] /
+points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / statUnit`，已有
+    `statLabel`），ID 形如 `hook.hero-center.statNum[0]`。`parseSlotId` 语法不变。
+43. 缺失宽度测量：一次性测量脚本（`remotion still` + page evaluate 读各容器元素
+    `clientWidth`）实测后回填 `MEASURED_MAX_WIDTH`，脚本落盘复用；绝不从 padding 推算（T2 教训）。
+44. 垂直总高/容器裁切捕获：场景文本容器挂 `data-text-container`；TextGate settled 时
+    额外断言 gate drawn rect ⊆ 最近容器祖先 rect，越界 `cancelRender("container-overflow")`。
+    容器不做 Fit，只做 Assert。
+45. 未知 `visualType`：ShortVideo dispatch 直接 **throw**，取消 `console.warn` + 回退。
+46. 字号收敛取值（三类）：
+    - 焦点数字统一：`bigNumber / stat` 语义同族，统一 `240/180`——Hook 现渲染 300、
+      StatReveal 220、DataScene 180 全部收敛到 240；
+    - 已有契约的常规字段：模板收敛到契约值（`quote 36`、`title 48`、`context 24`、
+      `source 20`、Hook `source 26→20` 等）；
+    - 新注册字段（`badge/label/subtext/detail/statLabel/subtitle/note/vs/verified/points` 等）：
+      `preferred` 取模板当前字号，`minSize = round(0.72 × preferred)`。
+
+**失败语义与接口契约（Round 2）**
+
+47. 存量内容包策略：不迁移、不批量跑、不保证；qwen4-preview 也可弃。
+    冒烟对象 = 未来内容：专用 smoke 内容包（`content/_gate-smoke/` 性质）+ fixture 渲染。
+48. F1/F2/F3 fixture 数据：s9 原始事故文案（`result: "THAT'S THE WHOLE POINT"` 等，
+    git `eb48293` 原文）**写死进 fixture**（确定性、不依赖内容包状态，与场景 #6 口径一致）。
+49. TextGate API 扩展：新增可选 `checkContainer?: boolean`（默认 true）——settled 时向上找
+    最近 `[data-text-container]` 祖先，断言包含关系；找不到容器祖先则跳过（兼容 fixture）。
+    `data-text-slot / data-text-field` 由 TextGate 自动输出，模板无需手写。
+50. 字段四分类声明载体：`text-slots.mjs` 新增 `REMOTION_SLOT_MAP`——按 `visualType + layout`
+    声明 `rendered / control / optional / intentionallyOmitted` 四个列表，与 `HTML_SLOT_MAP`
+    并列；契约单测断言：每个 `rendered` 字段必须有 `SLOT_FIELDS` 条目 + `MEASURED_MAX_WIDTH`
+    实测宽度，否则抛错。这是“未识别字段”判定的唯一权威来源。
+51. “未识别字段 FAIL”的判定位置：**只在渲染层**（`TextGate → getSlot` 抛错 → `cancelRender`
+    机器可读）——不新增数据层第二判定点，避免双重标准。
+52. 测试载体：
+    - 契约单测扩展 `text-slots.test.mjs`（`REMOTION_SLOT_MAP` 完整性、四分类齐全、
+      收敛后默认字号锁定）；
+    - 运行时层新建 `scene-gate-fixture.tsx`（独立 `registerRoot`，不碰 Root.tsx）：
+      9 模板各一个 PASS 基线 + F1（s9 原文案 + 固定 56 → FAIL）+ F2（同文案 + Fit → PASS）+
+      F3（超长 → `fit-bottom`）+ 未注册字段 → FAIL + `container-overflow` → FAIL；
+      沿用 T4 的 `execFileSync("npx remotion still")` CLI 驱动（决策 18 精化）。
+53. `stacked-cards`：T5 只接入 gate（带索引 `card[0]/card[1]` slot），**不**修它的媒体背景
+    透出问题，该项留在 T9（#150）。
+
+**Ticket E 冒烟驱动修正（Round 3，2026-09-01 落盘）**
+
+54. 决策 41/42 修正——hook `stats[]` 不扫平为 `statNum/statUnit`：num+unit 共享
+    nowrap 行，宽度竞争无法分别 gate → 整卡单 gate（`hook.hero-center.statCard[i]`，
+    200px 实测）。`REMOTION_SLOT_MAP` 中 `stats` 归 control、`statCard` 归 optional
+    （gate 输出）；DataScene 的 `statLabel` 经 `FIELD_ALIASES`（statLabel→label）
+    走既有 `label` slot，不新增字段。
+55. 决策 52 载体修正——`container-overflow` 回归场景落在 T4 的 `text-gate-fixture.tsx`
+    （overflow + late-entrance 场景）而非 `scene-gate-fixture.tsx`；覆盖等价。
+56. 断言语义变更（修订 Modified Files Impact 表中“只加不改既有路径”约束）：
+    Ticket E 全管线冒烟暴露 6 类失败，迫使：(a) 入场窗口断言从 drawn rect 改为
+    transform-free 布局盒（StampIn 收缩尾段、场景转场横移、入场位移均收敛 identity，
+    drawn 必假阳性）；(b) settled 容器断言同改布局盒（SlideUp 在 settledFrame 后仍在运动）；
+    (c) annotation 容忍 `ANNOTATION_OVERDRAW=64px`（rough-notation 椭圆族实测超绘 48-91px，
+    场景 #4 的容器内检出相应放宽，slot 内 text⊆断言不受影响）；(d) T4 `entrance-breach`
+    测试改写为布局语义违规。T4 其余测试仍作回归哨兵保持全绿；新增 `late-entrance`
+    测试锁定 (b)。
+
+---
+
 # Scenario & Risk Verification
 
 ## Section 1: Modified Files Impact
 
-| 文件                                                                  | 修改内容                                                 | 风险                                                                     | 评估                                                                                                                                                         |
-| --------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `scripts/short-video/remotion/src/ShortVideo.tsx`                     | 非末幕序列时长 +`TRANSITION_FRAMES`；接入共享 schedule   | **High**（视频管线核心，黑帧/漂移的根源）                                | 改动仅 1 处时长计算 + offset 来源；由 F1–F9 + 重渲染冒烟（无黑帧、CTA 到最后一帧、音画对齐）验证。最坏后果：成片时长/对齐错误 → 帧审计与末帧检查会 FAIL 拦截 |
-| `scripts/short-video/remotion/src/Root.tsx`                           | `calculateMetadata` 改用共享 schedule                    | Medium                                                                   | A2 下总时长不变（仍 1953），回归风险低；由时间轴测试锁定                                                                                                     |
-| `scripts/short-video/lib/timeline.mjs`                                | 新增共享 schedule（视觉/音频/字幕/帧抽样同源）           | **High**（多消费者：ShortVideo、Root、cues.mjs、verify-remotion-frames） | 保持现有 `sceneTimeline()` 语义不变，新增导出；Playwright 路径传 overlap=0 行为不变。最坏后果：字幕偏移 → 现有 sync 校验（tolerance 0.08s）会 FAIL           |
-| `scripts/short-video/remotion/src/scenes/*.tsx`（9 个）               | 接入 Fit/Assert + `data-text-*` 注册                     | Medium                                                                   | 逐模板接入 + 逐模板帧审计；FullscreenMedia 一并接入                                                                                                          |
-| `scripts/short-video/remotion/src/scenes/NarrativeScene.tsx`          | MediaOverlay 补 action/context；highlight 子串切分       | Medium                                                                   | 补字段改变垂直空间 → 由 slot `maxHeight` 与缩字优先级兜底（F5/总高用例）                                                                                     |
-| `scripts/short-video/lib/scene-templates.mjs`                         | 字号/容器取契约值；模板声明 slot ID 全集                 | Medium                                                                   | 影响 15 个生产内容包外观；逐包批量校验出清单后再改                                                                                                           |
-| `scripts/short-video/lib/verify-scene-dom.mjs`                        | 删除重新 `generateScene`，改为只读 final HTML            | Medium                                                                   | 之前验的是"另一份 HTML"，改后可能暴露历史隐藏问题 → 正收益；由 F8 验证                                                                                       |
-| `scripts/short-video/main.mjs`                                        | Step 1.5 后调用 final-media gate；HTML 走新管线          | **High**（主流程）                                                       | 门控阶段化后 preflight 不再阻断 sourcing；最坏后果：缺素材视频渲染出空洞 → gate 在渲染前 FAIL 拦截                                                           |
-| `scripts/short-video/render-only.mjs`                                 | 渲染前调用同一 gate                                      | Medium                                                                   | 无 sourcing 阶段，直接按文件存在性判定                                                                                                                       |
-| `scripts/short-video/lib/scene-rules.mjs`                             | 预算降为 WARN + 推导；highlight 子串校验；缺媒体 pending | Medium                                                                   | 门槛放松（FAIL→WARN）是有意的：真实判定交给几何层；由 F1 反证                                                                                                |
-| `scripts/short-video/__tests__/remotion-timeline.test.mjs`            | 重写（当前断言恒真）                                     | Low                                                                      | 纯测试文件                                                                                                                                                   |
-| `content/qwen4-preview/scene-data.mjs`                                | s9 改 `stacked-cards`；highlight 结构化                  | Low                                                                      | 内容包；重渲染冒烟验证                                                                                                                                       |
-| `content/{doubao-work,light-society,qwen4-preview}/scene-data.mjs`    | highlight 17 处迁移                                      | Low                                                                      | 迁移脚本 + 子串校验全通过才算完成                                                                                                                            |
-| `scripts/short-video/verify-video.mjs` / `verify-remotion-frames.mjs` | 接入共享 schedule；末帧检查；纯背景尾帧 FAIL             | Medium                                                                   | 新增判定可能让历史成片变红 → 正是目的；先跑存量清单                                                                                                          |
+| 文件                                                                                 | 修改内容                                                                                     | 风险                                                                     | 评估                                                                                                                                                         |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/short-video/remotion/src/ShortVideo.tsx`                                    | 非末幕序列时长 +`TRANSITION_FRAMES`；接入共享 schedule                                       | **High**（视频管线核心，黑帧/漂移的根源）                                | 改动仅 1 处时长计算 + offset 来源；由 F1–F9 + 重渲染冒烟（无黑帧、CTA 到最后一帧、音画对齐）验证。最坏后果：成片时长/对齐错误 → 帧审计与末帧检查会 FAIL 拦截 |
+| `scripts/short-video/remotion/src/Root.tsx`                                          | `calculateMetadata` 改用共享 schedule                                                        | Medium                                                                   | A2 下总时长不变（仍 1953），回归风险低；由时间轴测试锁定                                                                                                     |
+| `scripts/short-video/lib/timeline.mjs`                                               | 新增共享 schedule（视觉/音频/字幕/帧抽样同源）                                               | **High**（多消费者：ShortVideo、Root、cues.mjs、verify-remotion-frames） | 保持现有 `sceneTimeline()` 语义不变，新增导出；Playwright 路径传 overlap=0 行为不变。最坏后果：字幕偏移 → 现有 sync 校验（tolerance 0.08s）会 FAIL           |
+| `scripts/short-video/remotion/src/scenes/*.tsx`（9 个）                              | 接入 Fit/Assert + `data-text-*` 注册                                                         | Medium                                                                   | 逐模板接入 + 逐模板帧审计；FullscreenMedia 一并接入                                                                                                          |
+| `scripts/short-video/remotion/src/scenes/NarrativeScene.tsx`                         | MediaOverlay 补 action/context；highlight 子串切分                                           | Medium                                                                   | 补字段改变垂直空间 → 由 slot `maxHeight` 与缩字优先级兜底（F5/总高用例）                                                                                     |
+| `scripts/short-video/lib/scene-templates.mjs`                                        | 字号/容器取契约值；模板声明 slot ID 全集                                                     | Medium                                                                   | 影响 15 个生产内容包外观；逐包批量校验出清单后再改                                                                                                           |
+| `scripts/short-video/lib/verify-scene-dom.mjs`                                       | 删除重新 `generateScene`，改为只读 final HTML                                                | Medium                                                                   | 之前验的是"另一份 HTML"，改后可能暴露历史隐藏问题 → 正收益；由 F8 验证                                                                                       |
+| `scripts/short-video/main.mjs`                                                       | Step 1.5 后调用 final-media gate；HTML 走新管线                                              | **High**（主流程）                                                       | 门控阶段化后 preflight 不再阻断 sourcing；最坏后果：缺素材视频渲染出空洞 → gate 在渲染前 FAIL 拦截                                                           |
+| `scripts/short-video/render-only.mjs`                                                | 渲染前调用同一 gate                                                                          | Medium                                                                   | 无 sourcing 阶段，直接按文件存在性判定                                                                                                                       |
+| `scripts/short-video/lib/scene-rules.mjs`                                            | 预算降为 WARN + 推导；highlight 子串校验；缺媒体 pending                                     | Medium                                                                   | 门槛放松（FAIL→WARN）是有意的：真实判定交给几何层；由 F1 反证                                                                                                |
+| `scripts/short-video/__tests__/remotion-timeline.test.mjs`                           | 重写（当前断言恒真）                                                                         | Low                                                                      | 纯测试文件                                                                                                                                                   |
+| `content/qwen4-preview/scene-data.mjs`                                               | s9 改 `stacked-cards`；highlight 结构化                                                      | Low                                                                      | 内容包；重渲染冒烟验证                                                                                                                                       |
+| `content/{doubao-work,light-society,qwen4-preview}/scene-data.mjs`                   | highlight 17 处迁移                                                                          | Low                                                                      | 迁移脚本 + 子串校验全通过才算完成                                                                                                                            |
+| `scripts/short-video/verify-video.mjs` / `verify-remotion-frames.mjs`                | 接入共享 schedule；末帧检查；纯背景尾帧 FAIL                                                 | Medium                                                                   | 新增判定可能让历史成片变红 → 正是目的；先跑存量清单                                                                                                          |
+| `scripts/short-video/lib/text-slots.mjs`（T5）                                       | SLOT_FIELDS 扩展（新字段 + 焦点数字统一 240/180）+ `REMOTION_SLOT_MAP` 四分类 + 实测宽度回填 | **High**（多消费者契约：Remotion/HTML/verifier/预算）                    | 决策 39 豁免存量视觉影响；渲染层 `getSlot` 抛错拦截未注册字段；契约单测锁完整性                                                                              |
+| `scripts/short-video/remotion/src/scenes/*.tsx`（9 个）+ `FullscreenMedia.tsx`（T5） | 逐字段套 `TextGate` + 字号收敛契约值 + 容器挂 `data-text-container`                          | **High**（视觉变化，决策 39 豁免）                                       | 逐模板接入 + `scene-gate-fixture` 9 基线；T4 既有 8 测试兼回归哨兵                                                                                           |
+| `scripts/short-video/remotion/src/components/text-gate.tsx`（T5）                    | 新增 `checkContainer` 容器断言                                                               | Medium（改 T4 核心组件）                                                 | 新 reason `container-overflow`；冒烟后断言语义有变更，见决策 56；T4 测试 + T5 新用例双向锁定                                                                 |
+| `scripts/short-video/remotion/src/ShortVideo.tsx`（T5）                              | 未知 `visualType` 回退改 throw                                                               | Low                                                                      | 决策 45；无合法内容依赖回退路径                                                                                                                              |
+| `scripts/short-video/remotion/src/scene-gate-fixture.tsx`（T5 新建）                 | 独立 `registerRoot` fixture：9 基线 + F1/F2/F3 + 未注册字段 + 容器越界                       | Low                                                                      | 测试载体，不进生产入口                                                                                                                                       |
+| `scripts/short-video/measure-slot-widths.mjs`（T5 新建）                             | 一次性测量脚本：still + evaluate 读 `clientWidth` 回填宽度                                   | Low                                                                      | 工具脚本；决策 43                                                                                                                                            |
+| `scripts/short-video/content/_gate-smoke/`（T5 新建）                                | 专用 smoke 内容包（未来内容冒烟载体）                                                        | Low                                                                      | 决策 47；`render-only` + 帧检查跑绿即冒烟通过                                                                                                                |
 
 ## Section 2: Behavioral Scenarios
 
-| #   | Scenario                                                                           | Expected Behavior                                        | Risk                          | Mitigation                         |
-| --- | ---------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------- | ---------------------------------- |
-| 1   | s9 原始文案 + 固定 56px，绕过 Fit                                                  | 新 Assert gate FAIL（旧 gate PASS）                      | Gate 抓不住真实事故           | F1 强制反证                        |
-| 2   | 同文案 + Fit 启用                                                                  | PASS，字号 ≥ `minSize`，帧上无裁切                       | 缩字后仍裁                    | F2 + 帧审计                        |
-| 3   | 超长文案（minSize 也放不下）                                                       | 失败 + 机器可读错误，非静默非硬裁                        | 悄悄缩到不可读                | F3                                 |
-| 4   | 文字合法但标注 SVG stroke 越 slot 边界                                             | Assert FAIL（scroll 指标合法）                           | 只测布局盒漏检                | F4                                 |
-| 5   | scene-data 含未识别字段 / `rendered` 字段缺失                                      | 注册协议 FAIL                                            | 拼错字段被静默忽略            | F5                                 |
-| 6   | media-split 形态 + `"1/9 THE TRAINING COST"` @52px（Remotion 真实 NarrativeScene） | Assert FAIL                                              | 历史形态无法复现              | F6 写死确定性文案                  |
-| 7   | Hook settled frame：`box="inside"` + 240px 圆                                      | 圆与 subject / numberLabel 各自重叠 ≤ 2%，ratio 被记录   | 圆压字                        | F7                                 |
-| 8   | HTML 路径：Fit 未落盘                                                              | verifier FAIL（旧实现会绿）                              | 验证产物 ≠ 录制产物           | F8                                 |
-| 9   | HTML 路径：Fit 内联落盘                                                            | verifier PASS，recorder 消费同一 final 文件              | 两产物漂移                    | F8                                 |
-| 10  | Times italic `f` / `T`、`letter-spacing`、混合 span、多行                          | ink-bound 检出四方向外溢；旧错误公式 fixture 变红        | 字形墨迹外溢漏检              | F9                                 |
-| 11  | `minSize` 触底后多字段总高仍超 `maxHeight`                                         | 失败，**不**突破 minSize（无 ×0.9）                      | 偷偷缩到不可读                | 单测 + F3                          |
-| 12  | 多字段组合：`context → action → company → result` 缩字                             | 按优先级缩到各自 minSize，再等比，仍超则失败             | 缩错字段                      | 契约单测                           |
-| 13  | 入场动画中（StampIn 2× 起缩）                                                      | 逐帧校验不越 SAFE_ZONES；settled 后不越 slot content box | 入场瞬间压到 UI 区            | 逐帧采样断言                       |
-| 14  | `highlight.text` 非 `field` 文本子串（如 light-society 原值）                      | FAIL，提示改写                                           | 校验渲染器忽略的字符串        | 17 处迁移后全量校验                |
-| 15  | `highlight` 指向 action（qwen4 s6）                                                | 只高亮 action 内的 "LOOKS UP"                            | 框错字段                      | 子串切分单测                       |
-| 16  | 标注字段（任意 field）                                                             | `maxLines: 1`、单行缩放                                  | 多行与 `white-space:pre` 冲突 | 契约单测                           |
-| 17  | preflight 阶段缺媒体（可 sourcing 修复）                                           | pending/WARN，**不阻断**                                 | 阻断自动搜图                  | gate 阶段化                        |
-| 18  | Step 1.5c 后仍缺媒体（media 依赖型布局）                                           | 硬 FAIL                                                  | 渲染出空洞                    | gate 单测                          |
-| 19  | `mediaOptOut=true` + `media-overlay`                                               | 立即 FAIL（逻辑矛盾）                                    | 布局依赖 media 却声明不用     | gate 单测                          |
-| 20  | `mediaOptOut=true` + `stacked-cards`                                               | PASS，无 WARN                                            | 误报                          | gate 单测                          |
-| 21  | `render-only.mjs` 重渲染（无 sourcing）                                            | 渲染前调用同一 gate，缺媒体即 FAIL                       | 绕过校验                      | gate 单测                          |
-| 22  | 时间轴 A2 后成片                                                                   | 无黑帧尾；CTA 视觉到最后一帧；音画偏差 0                 | 时长/对齐回归                 | 末帧检查 + 帧抽样                  |
-| 23  | 末幕是 CTA 且总时长 = `Σ clipFrames`                                               | CTA 视觉 1784→1953                                       | 尾部黑帧                      | 末帧检查 FAIL 纯背景               |
-| 24  | 字体加载超时 / 未 ready 就测量                                                     | Fit 等待 `document.fonts.ready`，超时 → 失败             | 用错字体度量                  | 超时路径单测                       |
-| 25  | final HTML 文件缺失                                                                | verifier FAIL（不允许自行重新生成）                      | 验了内存里的另一份            | F8                                 |
-| 26  | Remotion 版本不一致（4.0.508 / 4.0.517 混用）                                      | 锁 4.0.517，`npx remotion versions` 校验通过             | 依赖漂移                      | CI/本地校验                        |
-| 27  | CI/无头环境字体缺失                                                                | Fit 走字体加载超时路径并失败（而非静默用回退字体）       | CI 与本地结果不一致           | 超时路径单测 + 文档标注            |
-| 28  | 空值：`stats: []`、空字符串字段、无标注字段                                        | 跳过几何校验，不 FAIL                                    | 空值误报                      | 单测覆盖 `""` / `[]` / `undefined` |
+| #   | Scenario                                                                           | Expected Behavior                                            | Risk                          | Mitigation                                 |
+| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------- | ------------------------------------------ |
+| 1   | s9 原始文案 + 固定 56px，绕过 Fit                                                  | 新 Assert gate FAIL（旧 gate PASS）                          | Gate 抓不住真实事故           | F1 强制反证                                |
+| 2   | 同文案 + Fit 启用                                                                  | PASS，字号 ≥ `minSize`，帧上无裁切                           | 缩字后仍裁                    | F2 + 帧审计                                |
+| 3   | 超长文案（minSize 也放不下）                                                       | 失败 + 机器可读错误，非静默非硬裁                            | 悄悄缩到不可读                | F3                                         |
+| 4   | 文字合法但标注 SVG stroke 越 slot 边界                                             | Assert FAIL（scroll 指标合法）                               | 只测布局盒漏检                | F4                                         |
+| 5   | scene-data 含未识别字段 / `rendered` 字段缺失                                      | 注册协议 FAIL                                                | 拼错字段被静默忽略            | F5                                         |
+| 6   | media-split 形态 + `"1/9 THE TRAINING COST"` @52px（Remotion 真实 NarrativeScene） | Assert FAIL                                                  | 历史形态无法复现              | F6 写死确定性文案                          |
+| 7   | Hook settled frame：`box="inside"` + 240px 圆                                      | 圆与 subject / numberLabel 各自重叠 ≤ 2%，ratio 被记录       | 圆压字                        | F7                                         |
+| 8   | HTML 路径：Fit 未落盘                                                              | verifier FAIL（旧实现会绿）                                  | 验证产物 ≠ 录制产物           | F8                                         |
+| 9   | HTML 路径：Fit 内联落盘                                                            | verifier PASS，recorder 消费同一 final 文件                  | 两产物漂移                    | F8                                         |
+| 10  | Times italic `f` / `T`、`letter-spacing`、混合 span、多行                          | ink-bound 检出四方向外溢；旧错误公式 fixture 变红            | 字形墨迹外溢漏检              | F9                                         |
+| 11  | `minSize` 触底后多字段总高仍超 `maxHeight`                                         | 失败，**不**突破 minSize（无 ×0.9）                          | 偷偷缩到不可读                | 单测 + F3                                  |
+| 12  | 多字段组合：`context → action → company → result` 缩字                             | 按优先级缩到各自 minSize，再等比，仍超则失败                 | 缩错字段                      | 契约单测                                   |
+| 13  | 入场动画中（StampIn 2× 起缩）                                                      | 逐帧校验不越 SAFE_ZONES；settled 后不越 slot content box     | 入场瞬间压到 UI 区            | 逐帧采样断言                               |
+| 14  | `highlight.text` 非 `field` 文本子串（如 light-society 原值）                      | FAIL，提示改写                                               | 校验渲染器忽略的字符串        | 17 处迁移后全量校验                        |
+| 15  | `highlight` 指向 action（qwen4 s6）                                                | 只高亮 action 内的 "LOOKS UP"                                | 框错字段                      | 子串切分单测                               |
+| 16  | 标注字段（任意 field）                                                             | `maxLines: 1`、单行缩放                                      | 多行与 `white-space:pre` 冲突 | 契约单测                                   |
+| 17  | preflight 阶段缺媒体（可 sourcing 修复）                                           | pending/WARN，**不阻断**                                     | 阻断自动搜图                  | gate 阶段化                                |
+| 18  | Step 1.5c 后仍缺媒体（media 依赖型布局）                                           | 硬 FAIL                                                      | 渲染出空洞                    | gate 单测                                  |
+| 19  | `mediaOptOut=true` + `media-overlay`                                               | 立即 FAIL（逻辑矛盾）                                        | 布局依赖 media 却声明不用     | gate 单测                                  |
+| 20  | `mediaOptOut=true` + `stacked-cards`                                               | PASS，无 WARN                                                | 误报                          | gate 单测                                  |
+| 21  | `render-only.mjs` 重渲染（无 sourcing）                                            | 渲染前调用同一 gate，缺媒体即 FAIL                           | 绕过校验                      | gate 单测                                  |
+| 22  | 时间轴 A2 后成片                                                                   | 无黑帧尾；CTA 视觉到最后一帧；音画偏差 0                     | 时长/对齐回归                 | 末帧检查 + 帧抽样                          |
+| 23  | 末幕是 CTA 且总时长 = `Σ clipFrames`                                               | CTA 视觉 1784→1953                                           | 尾部黑帧                      | 末帧检查 FAIL 纯背景                       |
+| 24  | 字体加载超时 / 未 ready 就测量                                                     | Fit 等待 `document.fonts.ready`，超时 → 失败                 | 用错字体度量                  | 超时路径单测                               |
+| 25  | final HTML 文件缺失                                                                | verifier FAIL（不允许自行重新生成）                          | 验了内存里的另一份            | F8                                         |
+| 26  | Remotion 版本不一致（4.0.508 / 4.0.517 混用）                                      | 锁 4.0.517，`npx remotion versions` 校验通过                 | 依赖漂移                      | CI/本地校验                                |
+| 27  | CI/无头环境字体缺失                                                                | Fit 走字体加载超时路径并失败（而非静默用回退字体）           | CI 与本地结果不一致           | 超时路径单测 + 文档标注                    |
+| 28  | 空值：`stats: []`、空字符串字段、无标注字段                                        | 跳过几何校验，不 FAIL                                        | 空值误报                      | 单测覆盖 `""` / `[]` / `undefined`         |
+| 29  | T5 F1：s9 原始文案 + `media-overlay` + `lockFontSize: 56`（绕过 Fit）              | 新 gate FAIL（`fit-bottom`，measured > available）           | Gate 抓不住真实事故           | `scene-gate-fixture` F1（写死原文案）      |
+| 30  | T5 F2：同文案 + Fit 启用                                                           | PASS，选定字号 ≥ `minSize`（40）                             | 缩字后仍裁                    | `scene-gate-fixture` F2                    |
+| 31  | T5 F3：超长文案（`minSize` 也放不下）                                              | FAIL `fit-bottom` @ `minSize`，机器可读错误                  | 悄悄缩到不可读                | `scene-gate-fixture` F3                    |
+| 32  | T5：scene-data 含未注册字段（拼错）                                                | 渲染层 FAIL，错误信息含字段名 + 注册指引                     | 拼错字段静默渲染              | `getSlot` 抛错 → `cancelRender`（F5 形态） |
+| 33  | T5：字段垂直总高超容器（被 `overflow:hidden` 裁）                                  | FAIL `container-overflow`（非假绿）                          | 容器裁切漏检                  | `data-text-container` 断言                 |
+| 34  | T5：空值 `""` / `[]` / `undefined` 字段                                            | 跳过几何校验，不误报                                         | 空值误报                      | 契约单测 + fixture 空值场景                |
+| 35  | T5：9 模板 + fullscreen 契约字号 + 合法文案                                        | 全部 PASS 基线（逐模板可寻址 `data-text-*`）                 | 接入破坏合法渲染              | `scene-gate-fixture` 9 基线                |
+| 36  | T5：数组字段 `left[0]` / `points[0]` / `statCard[0]`                               | 索引 slot 独立可寻址 + 各自 gate（statCard 整卡，见决策 54） | 重复文本漏检                  | 契约单测 + fixture 数组场景                |
+| 37  | T5：未知 `visualType`                                                              | dispatch 直接 throw（无静默回退）                            | 未识别模板静默降级            | 单测断言抛错                               |
+| 38  | T5：`mediaOptOut: true` + 合法文本字段                                             | 文本照常校验，不因 `mediaOptOut` 误判省略                    | 媒体开关被误读为文本省略      | 契约单测（同 #20 口径）                    |

@@ -9,29 +9,44 @@
  */
 import { AbsoluteFill } from "remotion";
 import { MediaBackground } from "../components/MediaBackground";
+import { TextGate } from "../components/text-gate";
 import { SAFE_ZONES } from "../components/shared";
 import type { MediaField } from "../types";
 
 export const FullscreenMedia: React.FC<{
   media: MediaField;
   duration: number;
-}> = ({ media, duration }) => {
+  sceneId?: string;
+}> = ({ media, duration, sceneId = "fullscreen" }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#0a0a14" }}>
       <MediaBackground media={media} duration={duration} />
       {media.source && (
+        // The gate wrapper owns the positioning (its height must track the
+        // label — an absolutely-positioned child would escape the flow and
+        // leave the wrapper height 0, which Fit rejects).
         <div
           style={{
             position: "absolute",
             bottom: SAFE_ZONES.bottom,
             left: SAFE_ZONES.left,
-            fontSize: 20,
-            color: "rgba(203,213,225,0.6)",
-            letterSpacing: "2px",
+            right: SAFE_ZONES.right,
             zIndex: 10,
           }}
         >
-          SOURCE: {media.source}
+          <TextGate sceneId={sceneId} slotId="fullscreen.media.source">
+            {(fontSize) => (
+              <div
+                style={{
+                  fontSize,
+                  color: "rgba(203,213,225,0.6)",
+                  letterSpacing: "2px",
+                }}
+              >
+                SOURCE: {media.source}
+              </div>
+            )}
+          </TextGate>
         </div>
       )}
     </AbsoluteFill>

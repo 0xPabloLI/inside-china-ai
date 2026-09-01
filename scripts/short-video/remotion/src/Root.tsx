@@ -3,12 +3,7 @@ import { ShortVideo } from "./ShortVideo";
 import type { ShortVideoProps } from "./types";
 // Import from the single source of truth in lib/timeline.mjs
 // (re-exported through components/shared.ts)
-import {
-  FPS,
-  sceneTimeline,
-  scheduleTotalFrames,
-  TRANSITION_FRAMES,
-} from "./components/shared";
+import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./components/shared";
 
 // Default empty props — real props are injected via --props at render time
 const defaultProps: ShortVideoProps = {

@@ -33,4 +33,3 @@ declare module "../../../lib/timeline.mjs" {
   export function sceneClipFrames(ttsDuration: number, fps?: number): number;
   export function sceneClipDuration(ttsDuration: number, fps?: number): number;
 }
-

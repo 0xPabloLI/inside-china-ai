@@ -21,10 +21,12 @@ export const FadeIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.4, childre
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], clamp),
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], clamp),
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -36,11 +38,13 @@ export const SlideUp: React.FC<AnimProps> = ({ delay = 0, duration = 0.4, childr
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], clamp),
-      translate: `0 ${interpolate(frame, [start, end], [30, 0], clamp)}px`,
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], clamp),
+        translate: `0 ${interpolate(frame, [start, end], [30, 0], clamp)}px`,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -52,11 +56,13 @@ export const SlideLeft: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, chil
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], clamp),
-      translate: `${interpolate(frame, [start, end], [-50, 0], clamp)}px 0`,
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], clamp),
+        translate: `${interpolate(frame, [start, end], [-50, 0], clamp)}px 0`,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -68,11 +74,13 @@ export const SlideDown: React.FC<AnimProps> = ({ delay = 0, duration = 0.3, chil
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], clamp),
-      translate: `0 ${interpolate(frame, [start, end], [-30, 0], clamp)}px`,
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], clamp),
+        translate: `0 ${interpolate(frame, [start, end], [-30, 0], clamp)}px`,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -84,11 +92,13 @@ export const ScaleIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.6, childr
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], { ...clamp, easing: easeOutExpo }),
-      scale: `${interpolate(frame, [start, end], [0.7, 1], { ...clamp, easing: easeOutExpo, output: 'perceptual-scale' as const })}`,
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], { ...clamp, easing: easeOutExpo }),
+        scale: `${interpolate(frame, [start, end], [0.7, 1], { ...clamp, easing: easeOutExpo, output: "perceptual-scale" as const })}`,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -100,11 +110,13 @@ export const StampIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, childr
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], { ...clamp, easing: easeOut }),
-      scale: `${interpolate(frame, [start, end], [2, 1], { ...clamp, easing: easeOut, output: 'perceptual-scale' as const })}`,
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], { ...clamp, easing: easeOut }),
+        scale: `${interpolate(frame, [start, end], [2, 1], { ...clamp, easing: easeOut, output: "perceptual-scale" as const })}`,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
@@ -116,27 +128,36 @@ export const SlideRight: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, chi
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], clamp),
-      translate: `${interpolate(frame, [start, end], [-50, 0], clamp)}px 0`,
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], clamp),
+        translate: `${interpolate(frame, [start, end], [-50, 0], clamp)}px 0`,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
 };
 
 /** slideUpFromBottom — opacity 0→1, translateY 50→0, 0.5s, ease-out */
-export const SlideUpFromBottom: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, children, style }) => {
+export const SlideUpFromBottom: React.FC<AnimProps> = ({
+  delay = 0,
+  duration = 0.5,
+  children,
+  style,
+}) => {
   const frame = useCurrentFrame();
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
-    <div style={{
-      opacity: interpolate(frame, [start, end], [0, 1], clamp),
-      translate: `0 ${interpolate(frame, [start, end], [50, 0], clamp)}px`,
-      ...style,
-    }}>
+    <div
+      style={{
+        opacity: interpolate(frame, [start, end], [0, 1], clamp),
+        translate: `0 ${interpolate(frame, [start, end], [50, 0], clamp)}px`,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );

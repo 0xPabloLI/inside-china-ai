@@ -24,6 +24,7 @@ import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
 import { SPACING, ANNOTATION } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
+import { TextGate } from "../components/text-gate";
 
 const COLORS: Record<string, string> = {
   blue: "#4d8bff",
@@ -45,6 +46,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
     : "blue";
   const color = COLORS[colorKey] ?? COLORS.blue;
   const stats = Array.isArray(txt.stats) ? txt.stats : [];
+  const sceneId = `hook-${scene.id}`;
   const frame = useCurrentFrame();
   const circleProgress = interpolate(frame, ANNOTATION.circle.progressRange, [0, 1], {
     extrapolateLeft: "clamp",
@@ -82,7 +84,9 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
       {txt.badge && (
         <Slot variant="kicker">
           <StampIn delay={0.2} duration={0.4}>
-            <BadgePill text={txt.badge as string} />
+            <TextGate sceneId={sceneId} slotId="hook.hero-center.badge">
+              {(fontSize) => <BadgePill text={txt.badge as string} fontSize={fontSize} />}
+            </TextGate>
           </StampIn>
         </Slot>
       )}
@@ -113,105 +117,132 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
               />
             )}
             {txt.subject && (
-              <span
-                style={{
-                  fontSize: 64,
-                  fontWeight: 900,
-                  color: "#f5f5f5",
-                  letterSpacing: "4px",
-                  textShadow: `0 0 30px ${color}66`,
-                }}
-              >
-                {txt.subject as string}
-              </span>
+              <TextGate sceneId={sceneId} slotId="hook.hero-center.subject">
+                {(fontSize) => (
+                  <span
+                    style={{
+                      fontSize,
+                      fontWeight: 900,
+                      color: "#f5f5f5",
+                      letterSpacing: "4px",
+                      textShadow: `0 0 30px ${color}66`,
+                    }}
+                  >
+                    {txt.subject as string}
+                  </span>
+                )}
+              </TextGate>
             )}
           </SlideUp>
         )}
 
-        {/* Focal — number-led preferred (300px amber) */}
+        {/* Focal — number-led preferred (contract bigNumber 240, amber) */}
         {txt.bigNumber ? (
           <div style={{ textAlign: "center" }}>
-            <Interactive.Div
-              name="bigNumber"
-              style={{
-                fontSize: 300,
-                fontWeight: 900,
-                color: "#f59e0b",
-                letterSpacing: "-10px",
-                lineHeight: 0.9,
-                textShadow: "0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3)",
-              }}
-            >
-              <NumberPulse interval={2} color="rgba(245,158,11">
-                <Circle color="#f59e0b" progress={circleProgress}>
-                  {txt.bigNumber as string}
-                </Circle>
-              </NumberPulse>
-            </Interactive.Div>
-            {txt.numberLabel && (
-              <SlideUp delay={0.6} duration={0.5}>
+            <TextGate sceneId={sceneId} slotId="hook.hero-center.bigNumber">
+              {(fontSize) => (
                 <Interactive.Div
-                  name="numberLabel"
+                  name="bigNumber"
                   style={{
-                    fontSize: 48,
-                    fontWeight: 800,
-                    color: "#f5f5f5",
-                    letterSpacing: "3px",
-                    marginTop: SPACING.lg,
-                    textAlign: "center",
+                    fontSize,
+                    fontWeight: 900,
+                    color: "#f59e0b",
+                    letterSpacing: "-10px",
+                    // ≥ the font's natural ascent+descent (~1.1em): 0.9 made
+                    // the inline text rects poke ~19px above the gate box and
+                    // false-fail Fit (T5).
+                    lineHeight: 1.2,
+                    textShadow: "0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3)",
                   }}
                 >
-                  {(txt.numberLabel as string).replace((txt.numberHighlight as string) ?? "", "")}
-                  {txt.numberHighlight && (
-                    <span style={{ color: "#ef4444" }}>{txt.numberHighlight as string}</span>
-                  )}
+                  <NumberPulse interval={2} color="rgba(245,158,11">
+                    <Circle color="#f59e0b" progress={circleProgress}>
+                      {txt.bigNumber as string}
+                    </Circle>
+                  </NumberPulse>
                 </Interactive.Div>
+              )}
+            </TextGate>
+            {txt.numberLabel && (
+              <SlideUp delay={0.6} duration={0.5}>
+                <TextGate sceneId={sceneId} slotId="hook.hero-center.numberLabel">
+                  {(fontSize) => (
+                    <Interactive.Div
+                      name="numberLabel"
+                      style={{
+                        fontSize,
+                        fontWeight: 800,
+                        color: "#f5f5f5",
+                        letterSpacing: "3px",
+                        marginTop: SPACING.lg,
+                        textAlign: "center",
+                      }}
+                    >
+                      {(txt.numberLabel as string).replace(
+                        (txt.numberHighlight as string) ?? "",
+                        "",
+                      )}
+                      {txt.numberHighlight && (
+                        <span style={{ color: "#ef4444" }}>{txt.numberHighlight as string}</span>
+                      )}
+                    </Interactive.Div>
+                  )}
+                </TextGate>
               </SlideUp>
             )}
           </div>
         ) : txt.hookText ? (
           <div style={{ textAlign: "center" }}>
-            {/* Focal claim — 78px, line-height 1.1 */}
-            <Interactive.Div
-              name="hookText"
-              style={{
-                fontSize: 78,
-                fontWeight: 900,
-                color: "#f5f5f5",
-                letterSpacing: "2px",
-                lineHeight: 1.1,
-                textShadow: `0 0 40px ${color}66`,
-                maxWidth: 756,
-                overflow: "hidden",
-              }}
-            >
-              {txt.highlight ? (
-                <Underline color={color} progress={underlineProgress} strokeWidth={ANNOTATION.underline.strokeWidth} padding={ANNOTATION.underline.padding}>
-                  {txt.hookText as string}
-                </Underline>
-              ) : (
-                (txt.hookText as string)
-              )}
-            </Interactive.Div>
-            {/* Focal reveal — 80px, stampIn at 0.8s */}
-            {txt.revealText && (
-              <StampIn delay={0.8} duration={0.5}>
+            {/* Focal claim — contract hookText 78, line-height 1.1 */}
+            <TextGate sceneId={sceneId} slotId="hook.hero-center.hookText">
+              {(fontSize) => (
                 <Interactive.Div
-                  name="revealText"
+                  name="hookText"
                   style={{
-                    fontSize: 80,
+                    fontSize,
                     fontWeight: 900,
-                    color,
+                    color: "#f5f5f5",
                     letterSpacing: "2px",
-                    lineHeight: 1.05,
-                    marginTop: SPACING.xl,
-                    textAlign: "center",
-                    maxWidth: 756,
-                    overflow: "hidden",
+                    lineHeight: 1.1,
+                    textShadow: `0 0 40px ${color}66`,
                   }}
                 >
-                  {txt.revealText as string}
+                  {txt.highlight ? (
+                    <Underline
+                      color={color}
+                      progress={underlineProgress}
+                      strokeWidth={ANNOTATION.underline.strokeWidth}
+                      padding={ANNOTATION.underline.padding}
+                    >
+                      {txt.hookText as string}
+                    </Underline>
+                  ) : (
+                    (txt.hookText as string)
+                  )}
                 </Interactive.Div>
+              )}
+            </TextGate>
+            {/* Focal reveal — contract revealText 80, stampIn at 0.8s */}
+            {txt.revealText && (
+              <StampIn delay={0.8} duration={0.5}>
+                <TextGate sceneId={sceneId} slotId="hook.hero-center.revealText">
+                  {(fontSize) => (
+                    <Interactive.Div
+                      name="revealText"
+                      style={{
+                        fontSize,
+                        fontWeight: 900,
+                        color,
+                        letterSpacing: "2px",
+                        lineHeight: 1.05,
+                        marginTop: SPACING.xl,
+                        textAlign: "center",
+                      }}
+                    >
+                      {txt.revealText as string}
+                    </Interactive.Div>
+                  )}
+                </TextGate>
               </StampIn>
             )}
           </div>
@@ -221,7 +252,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
       {/* Support slot — stats + source */}
       <Slot variant="support">
         {stats.length > 0 && (
-          <div style={{ display: "flex", gap: 24, justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: 24, justifyContent: "center", width: "100%" }}>
             {stats.map((s, i) => (
               <SlideUp key={i} delay={0.8 + i * 0.15} duration={0.5}>
                 <StatCard
@@ -229,25 +260,34 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   unit={s.unit}
                   label={s.label}
                   color={i === 0 ? "#f59e0b" : color}
+                  sceneId={sceneId}
+                  index={i}
                 />
               </SlideUp>
             ))}
           </div>
         )}
         {txt.source && (
-          <div
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              color: "#cbd5e1",
-              letterSpacing: "3px",
-              textAlign: "center",
-              lineHeight: 1,
-              marginTop: stats.length > 0 ? 24 : 0,
-            }}
-          >
-            {txt.source as string}
-          </div>
+          <TextGate sceneId={sceneId} slotId="hook.hero-center.source">
+            {(fontSize) => (
+              <div
+                style={{
+                  fontSize,
+                  fontWeight: 700,
+                  color: "#cbd5e1",
+                  letterSpacing: "3px",
+                  textAlign: "center",
+                  // ≥ the font's natural ascent+descent (~1.1em): tighter
+                  // line-height makes the inline text rects poke below the
+                  // gate box and false-fail the settled assert (T5).
+                  lineHeight: 1.2,
+                  marginTop: stats.length > 0 ? 24 : 0,
+                }}
+              >
+                {txt.source as string}
+              </div>
+            )}
+          </TextGate>
         )}
       </Slot>
     </div>

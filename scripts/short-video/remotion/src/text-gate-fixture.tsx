@@ -12,10 +12,15 @@
  *   annotation-overhang F4 shape: circle drawn bounds leave the slot → FAIL
  *   ink-overhang       layout fits, glyph ink overhangs → FAIL
  *   font-timeout       fonts never ready → FAIL (no silent fallback)
- *   entrance-breach    2× entrance scale at frame 0 leaves SAFE_ZONES → FAIL
+ *   entrance-breach    slot resting below the safe zone breaches it during
+ *                      the entrance window → FAIL
+ *   late-entrance      entrance translate still running at settledFrame with
+ *                      a flush rest box → PASS (layout assert is motion-blind)
+ *   container-overflow T5: text taller than its [data-text-container] → FAIL
+ *   container-pass     T5: same copy, generous container → PASS
  *
  * Spec: spec-text-overflow-hardening.md § T4 Implementation Refinement,
- * decisions 18, 36.
+ * decisions 18, 36; § T5 Implementation Refinement, decisions 44, 49.
  */
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Composition, interpolate, registerRoot, useCurrentFrame } from "remotion";
@@ -35,6 +40,10 @@ const COPY_FLOOR = "THAT'S THE WHOLE POINT OF THE ANNOUNCEMENT TODAY";
 /** Italic string whose glyph ink overhangs the advance box in Times. */
 const COPY_INK = "ffffff";
 const INK_SIZE = 140;
+
+/** ~80 chars: wraps to several lines at 48px in a 600px gate. */
+const COPY_WRAP =
+  "THE WHOLE POINT OF THE ANNOUNCEMENT IS THAT CAPACITY GROWS WHILE COMPUTE STAYS FLAT";
 
 /** A promise that never settles — simulates fonts that never become ready. */
 const NEVER_READY = new Promise<never>(() => {});
@@ -58,19 +67,24 @@ function textNode(fontSize: number, copy: string, italic = false): React.ReactNo
   );
 }
 
-/** Centered stage inside the safe zones, brand background. */
+/**
+ * Centered stage inside the safe zones, brand background. `offsetY` shifts
+ * the whole stage down through LAYOUT (top) — entrance-breach uses it to
+ * rest a slot BELOW the safe-zone bottom. The entrance assert polices
+ * transform-free layout boxes (entrance/scene transforms all converge to
+ * identity and are exempt), so a bad REST position must be expressed in
+ * layout to be caught during the entrance window.
+ */
 const Stage: React.FC<{
   children: React.ReactNode;
-  scale?: number;
-}> = ({ children, scale = 1 }) => (
+  offsetY?: number;
+}> = ({ children, offsetY = 0 }) => (
   <div style={{ position: "absolute", inset: 0, background: "#101014" }}>
     <div
       style={{
         position: "absolute",
         left: 160,
-        top: 700,
-        transform: `scale(${scale})`,
-        transformOrigin: "center",
+        top: 700 + offsetY,
       }}
     >
       {children}
@@ -105,9 +119,17 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass" }) => {
   }
 
   if (scenario === "entrance-breach") {
-    const scale = interpolate(frame, [0, 30], [2, 1], { extrapolateRight: "clamp" });
+    // The stage rests 400px too low (via layout, not transform): every
+    // entrance-window frame lays the slot below SAFE_ZONES.bottom, which the
+    // transform-free entrance assert must catch. Real entrance animations
+    // only move through transforms that converge to identity — exempt — so a
+    // layout-expressed bad rest position is the true failure shape.
+    const progress = interpolate(frame, [0, 30], [1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
     return (
-      <Stage scale={scale}>
+      <Stage offsetY={400 + progress * 40}>
         <TextGate sceneId={SCENE_ID} slotId={SLOT_ID}>
           {(fontSize) => textNode(fontSize, COPY_FIT)}
         </TextGate>
@@ -132,6 +154,68 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass" }) => {
 
   if (scenario === "ink-overhang") {
     return <InkScenario />;
+  }
+
+  if (scenario === "late-entrance") {
+    // Regression from the _gate-smoke pipeline run (contrast-6 right[1]): a
+    // gate whose REST box sits flush inside its container while its entrance
+    // translate (30→0 over 60 frames) is still running at settledFrame 40.
+    // The drawn assert fires mid-motion (a false positive); the layout-based
+    // settled assert sees the rest geometry and stays green.
+    const slide = interpolate(frame, [0, 60], [30, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    return (
+      <Stage>
+        <div data-text-container style={{ width: 600, height: 200, position: "relative" }}>
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              translate: `0 ${slide}px`,
+            }}
+          >
+            <TextGate sceneId={SCENE_ID} slotId={SLOT_ID} slotWidth={600}>
+              {(fontSize) => textNode(fontSize, COPY_FIT)}
+            </TextGate>
+          </div>
+        </div>
+      </Stage>
+    );
+  }
+
+  if (scenario === "container-overflow" || scenario === "container-pass") {
+    // Wrapping copy inside a fixed-height container: Fit only sees the gate's
+    // own box (which grows with the text), so ONLY the container assert can
+    // catch the vertical clipping that overflow:hidden would hide.
+    const containerHeight = scenario === "container-overflow" ? 90 : 500;
+    return (
+      <Stage>
+        <div
+          data-text-container
+          style={{ width: 600, height: containerHeight, overflow: "hidden" }}
+        >
+          <TextGate sceneId={SCENE_ID} slotId={SLOT_ID} slotWidth={600}>
+            {(fontSize) => (
+              <div
+                style={{
+                  fontSize,
+                  fontWeight: 900,
+                  fontFamily: BRAND_FONT_STACK,
+                  whiteSpace: "normal",
+                  color: "#fff",
+                }}
+              >
+                {COPY_WRAP}
+              </div>
+            )}
+          </TextGate>
+        </div>
+      </Stage>
+    );
   }
 
   const copy =

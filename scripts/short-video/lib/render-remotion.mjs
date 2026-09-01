@@ -149,8 +149,13 @@ export function renderRemotion({
       stdio: ["pipe", "pipe", "pipe"],
     });
   } catch (e) {
-    const stderr = e.stderr?.toString()?.substring(0, 500) ?? "";
-    throw new Error(`Remotion render failed: ${e.message?.substring(0, 200)}\nstderr: ${stderr}`);
+    const stderr = e.stderr?.toString() ?? "";
+    // The structured gate failure sits on the LAST TextFitError line; head-
+    // truncating stderr buries it under per-frame browser console noise
+    // (burned a debugging session on the _gate-smoke run).
+    const fitError = [...stderr.matchAll(/\[TextFitError\] (\{.*\})/g)].pop()?.[1];
+    const detail = fitError ?? stderr.slice(-800);
+    throw new Error(`Remotion render failed: ${e.message?.substring(0, 200)}\nstderr: ${detail}`);
   }
 
   console.log(`  ✅ Remotion render complete: ${rawPath}`);

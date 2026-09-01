@@ -170,7 +170,10 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
       {media.type === "image" ? (
         <CanvasImage src={src} style={mediaStyle} />
       ) : (
-        <Video src={src} style={mediaStyle} volume={videoVolume} effects={effects} />
+        // Background video is a texture, not a clip to be watched once: a
+        // source shorter than the scene must keep moving (matches the `loop`
+        // in lib/media-bg.mjs mediaLayer for the HTML renderer).
+        <Video src={src} style={mediaStyle} volume={videoVolume} effects={effects} loop />
       )}
       <div
         style={{

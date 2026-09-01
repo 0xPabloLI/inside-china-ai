@@ -12,7 +12,8 @@
  *      plus glyph ink overhangs (Canvas formula A, per direction); the floor
  *      is hard (no ×0.9); hitting it cancels the render with a TextFitError
  *   4. Assert, every frame:
- *      - frame < settledFrame: the drawn slot box must stay in SAFE_ZONES
+ *      - frame < settledFrame: the slot's transform-free LAYOUT box must stay
+ *        in SAFE_ZONES (and inside its text container when checkContainer)
  *      - frame ≥ settledFrame: text AABB (ink-inflated) ∪ annotation drawn
  *        AABB (getBBox → getScreenCTM four corners → composition coords,
  *        plus stroke paint margin ONLY — random offsets are baked into the
@@ -23,8 +24,9 @@
  * hardening.md § T4 Implementation Refinement, decisions 28–35.
  *
  * Render-viewport contract: Remotion renders with the page viewport equal to
- * the composition size (root scale 1). The entrance-window safe-zone assert
- * therefore uses the drawn rect directly; after settling, the gate's own
+ * the composition size (root scale 1). The entrance-window asserts therefore
+ * police transform-free LAYOUT boxes (entrance/scene transforms converge to
+ * identity and cannot false-positive); after settling, the gate's own
  * rect/offsetWidth ratio recovers whatever scale applies to annotation
  * coordinates.
  */
@@ -40,7 +42,6 @@ import {
   transformCorner,
   bboxFromCorners,
   toCompositionCoords,
-  unionBox,
   boxWithin,
 } from "../../../lib/text-geometry.mjs";
 import { CANVAS, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
@@ -59,6 +60,61 @@ type SlotLike = {
 };
 
 const ZERO_PAD: Pad = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/**
+ * Drawn-bound tolerance for rough-notation inside scene containers.
+ * Measured from the T5 render runs: the Circle ellipse overdraws ~48px past
+ * the Slot band edge at fontSize 240, the DataScene circle ~91px, and the
+ * NarrativeScene highlight pad pushes ~6px past a band's clip edge. 64px
+ * covers the ellipse family with margin for rough-notation's random
+ * roughness offsets; a genuinely oversized annotation still trips
+ * Fit (its text ⊆ slot) or container-overflow (gate box ⊆ container).
+ */
+const ANNOTATION_OVERDRAW = 64;
+
+/** Transform-free page position: the offset chain ignores CSS transforms. */
+function layoutOffsetOf(el: HTMLElement): { left: number; top: number } {
+  let left = 0;
+  let top = 0;
+  for (let n: HTMLElement | null = el; n; n = n.offsetParent as HTMLElement | null) {
+    left += n.offsetLeft;
+    top += n.offsetTop;
+  }
+  return { left, top };
+}
+
+/**
+ * Transform-free CONTENT box of a text container: layout position from the
+ * offset chain plus clientWidth/clientHeight minus padding (the same content
+ * box the settled container assert uses, but immune to scene-transition and
+ * entrance transforms, which move the drawn rect without changing layout).
+ * Border widths must be added: offsetLeft lands on the border box, and the
+ * settled assert's `(rect + border + pad)` shape is the reference — e.g.
+ * StatCard's 1px side / 5px top border fail containment by exactly that
+ * amount if skipped.
+ */
+function layoutContentBoxOf(el: HTMLElement): Box {
+  const style = getComputedStyle(el);
+  const borderL = Number.parseFloat(style.borderLeftWidth) || 0;
+  const borderT = Number.parseFloat(style.borderTopWidth) || 0;
+  const padL = Number.parseFloat(style.paddingLeft) || 0;
+  const padR = Number.parseFloat(style.paddingRight) || 0;
+  const padT = Number.parseFloat(style.paddingTop) || 0;
+  const padB = Number.parseFloat(style.paddingBottom) || 0;
+  const pos = layoutOffsetOf(el);
+  return {
+    x: pos.left + borderL + padL,
+    y: pos.top + borderT + padT,
+    width: el.clientWidth - padL - padR,
+    height: el.clientHeight - padT - padB,
+  };
+}
+
+/** Transform-free layout box of a gate (offset chain + layout sizes). */
+function layoutBoxOf(el: HTMLElement): Box {
+  const pos = layoutOffsetOf(el);
+  return { x: pos.left, y: pos.top, width: el.offsetWidth, height: el.offsetHeight };
+}
 
 /** Content region of the canvas that must never be covered by platform UI. */
 const SAFE_BOX: Box = {
@@ -174,6 +230,62 @@ function textExtentLocal(gate: HTMLElement): Box {
 }
 
 /**
+ * Rendered opacity of an element: the minimum computed opacity along its
+ * ancestor chain (an ancestor's fade hides the element just as its own
+ * would). Used to skip entrance asserts for frames where nothing is drawn.
+ */
+function effectiveOpacityOf(el: HTMLElement): number {
+  let opacity = 1;
+  let node: HTMLElement | null = el;
+  while (node) {
+    opacity = Math.min(opacity, Number.parseFloat(getComputedStyle(node).opacity) || 0);
+    if (opacity <= 0) return 0;
+    node = node.parentElement;
+  }
+  return opacity;
+}
+
+/**
+ * Union of the gate's TEXT-run rects in composition coordinates — the same
+ * geometry Fit measured, so Assert and Fit agree. Never the wrapper's rect:
+ * a block wrapper spans the whole gate width, and with a centered layout that
+ * box sits OFF-center (a full-width box under textAlign:center shifts right
+ * by half the slack), failing slots whose text runs are actually inside.
+ */
+function textExtentComposition(gate: HTMLElement): Box {
+  const range = document.createRange();
+  const walker = document.createTreeWalker(gate, NodeFilter.SHOW_TEXT);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let node: Node | null = walker.nextNode();
+  while (node) {
+    if ((node.textContent ?? "").trim().length > 0) {
+      range.selectNodeContents(node);
+      for (const r of Array.from(range.getClientRects())) {
+        minX = Math.min(minX, r.left);
+        minY = Math.min(minY, r.top);
+        maxX = Math.max(maxX, r.right);
+        maxY = Math.max(maxY, r.bottom);
+      }
+    }
+    node = walker.nextNode();
+  }
+  if (!Number.isFinite(minX)) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+  const gateRect = gate.getBoundingClientRect();
+  const scale = gate.offsetWidth > 0 ? gateRect.width / gate.offsetWidth : 1;
+  return {
+    x: minX / scale,
+    y: minY / scale,
+    width: (maxX - minX) / scale,
+    height: (maxY - minY) / scale,
+  };
+}
+
+/**
  * Stroke paint margin of a rough-notation SVG: half the widest path stroke.
  * The random roughness offsets are already baked into the path `d`, so this
  * is the ONLY extra margin the assert may add (spec refinement decision B3).
@@ -208,6 +320,12 @@ export type TextGateProps = {
   slotWidth?: number;
   /** Force annotation-mount waiting even when the contract says "none". */
   expectAnnotation?: boolean;
+  /**
+   * Assert the gate's drawn box stays inside the nearest [data-text-container]
+   * ancestor once settled (vertical clipping that overflow:hidden would hide).
+   * Skipped when no container ancestor exists. Default true.
+   */
+  checkContainer?: boolean;
   /** Render prop: receives the gate's chosen font size. */
   children: (fontSize: number) => React.ReactNode;
 };
@@ -226,6 +344,7 @@ export const TextGate: React.FC<TextGateProps> = ({
   settledFrame,
   slotWidth,
   expectAnnotation,
+  checkContainer = true,
   children,
 }) => {
   const slot = getSlot(slotId) as unknown as SlotLike;
@@ -355,27 +474,57 @@ export const TextGate: React.FC<TextGateProps> = ({
   useLayoutEffect(() => {
     const gate = gateRef.current;
     if (!gate || !ready) return;
-    const textEl = (gate.firstElementChild as HTMLElement | null) ?? gate;
 
     if (frame < settledAt) {
-      // Entrance window: the drawn box (entrance transforms included) must
-      // stay inside the safe zones. Render-viewport contract: viewport ==
-      // composition, so the rect is already in composition coordinates.
-      const rect = gate.getBoundingClientRect();
-      const drawn: Box = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
-      if (!boxWithin(drawn, SAFE_BOX, EPS)) {
+      // Entrance window: police the REST geometry on transform-free layout
+      // boxes. During this window the drawn rect is unreliable — StampIn
+      // shrinks 2→1 (transiently oversized until the scale reaches 1),
+      // slide/wipe scene transitions translate the whole scene for the
+      // overlap window, and chip entrances move within their band — none of
+      // which changes layout. Rest geometry is what the contract covers; the
+      // settled asserts (frame ≥ settledAt) police the same thing on drawn
+      // rects once all motion has ended.
+      if (effectiveOpacityOf(gate) <= 0) {
+        return; // the entrance hasn't started, nothing is drawn
+      }
+      const gateBox = layoutBoxOf(gate);
+      if (!boxWithin(gateBox, SAFE_BOX, EPS)) {
         fail(
           FIT_REASONS.safeZoneBreach,
-          { width: drawn.width, height: drawn.height },
+          { width: gateBox.width, height: gateBox.height },
           { width: SAFE_BOX.width, height: SAFE_BOX.height },
           fontSize,
           inkRef.current,
         );
       }
+      // Container assert (same duty as the settled check): catch a gate that
+      // does not fit its band — vertical clipping that overflow:hidden hides.
+      // Both boxes are transform-free layout boxes, so entrance and scene
+      // motion cannot false-positive; a resting position outside the band is
+      // still caught here and (once motion ends) by the settled drawn check.
+      if (checkContainer) {
+        const entranceContainer = gate.closest("[data-text-container]") as HTMLElement | null;
+        if (entranceContainer) {
+          const containerBox = layoutContentBoxOf(entranceContainer);
+          if (!boxWithin(gateBox, containerBox, EPS)) {
+            fail(
+              FIT_REASONS.containerOverflow,
+              { width: gateBox.width, height: gateBox.height },
+              { width: containerBox.width, height: containerBox.height },
+              fontSize,
+              inkRef.current,
+            );
+          }
+        }
+      }
       return;
     }
 
-    // Settled: text (ink-inflated) ∪ annotation drawn bounds ⊆ content box.
+    // Settled: text (ink-inflated) ⊆ content box. The annotation's drawn
+    // bounds are checked against the scene container below — rough-notation
+    // deliberately draws OUTSIDE the text's line box (ellipse vertical range,
+    // underline understroke), so requiring union ⊆ content box would fail
+    // every annotated slot whose line-height tracks the text alone.
     const rect = gate.getBoundingClientRect();
     const scale = gate.offsetWidth > 0 ? rect.width / gate.offsetWidth : 1;
     const contentBox: Box = {
@@ -385,13 +534,20 @@ export const TextGate: React.FC<TextGateProps> = ({
       height: gate.offsetHeight,
     };
     const ink = inkRef.current;
-    const tr = textEl.getBoundingClientRect();
-    const textBox = inflate(
-      { x: tr.left / scale, y: tr.top / scale, width: tr.width / scale, height: tr.height / scale },
-      ink,
-    );
-    const boxes: Box[] = [textBox];
+    // Text-run extent (what Fit sized against), not the wrapper rect — see
+    // textExtentComposition.
+    const textBox = inflate(textExtentComposition(gate), ink);
+    if (!boxWithin(textBox, contentBox, EPS)) {
+      fail(
+        FIT_REASONS.textOutOfSlot,
+        { width: textBox.width, height: textBox.height },
+        { width: contentBox.width, height: contentBox.height },
+        fontSize,
+        ink,
+      );
+    }
     const svg = gate.querySelector("svg") as SVGSVGElement | null;
+    let annotationBox: Box | null = null;
     if (svg && typeof svg.getBBox === "function") {
       const ctm = svg.getScreenCTM();
       if (ctm) {
@@ -399,16 +555,83 @@ export const TextGate: React.FC<TextGateProps> = ({
           cornersFromBBox(svg.getBBox()).map((c) => transformCorner(c, ctm)),
           scale,
         );
-        boxes.push(inflate(bboxFromCorners(corners), strokePaintMarginOf(svg)));
+        annotationBox = inflate(bboxFromCorners(corners), strokePaintMarginOf(svg));
       }
     }
-    const union = unionBox(boxes);
-    if (!boxWithin(union, contentBox, EPS)) {
+
+    // Container assert, three duties:
+    //  1. a scene's text region can be shorter than the slot it hands the gate
+    //     (fixed-height band + overflow:hidden) — Fit never sees it, the gate's
+    //     own box grows with the text, so clipping would hide here;
+    //  2. gated cards (flex:1, variable width) catch a gate wider than their
+    //     actual content box;
+    //  3. annotations must stay inside the container even though they may
+    //     overdraw the slot box.
+    // The gate check uses layout boxes (see below); the annotation check
+    // needs the DRAWN content box (its bounds come from the SVG's screen
+    // CTM), which is also why border/padding are parsed here.
+    let containerEl: HTMLElement | null = null;
+    if (checkContainer) {
+      containerEl = gate.closest("[data-text-container]") as HTMLElement | null;
+      if (containerEl) {
+        const cRect = containerEl.getBoundingClientRect();
+        const cScale = containerEl.offsetWidth > 0 ? cRect.width / containerEl.offsetWidth : 1;
+        const cStyle = getComputedStyle(containerEl);
+        const borderL = Number.parseFloat(cStyle.borderLeftWidth) || 0;
+        const borderT = Number.parseFloat(cStyle.borderTopWidth) || 0;
+        const padL = Number.parseFloat(cStyle.paddingLeft) || 0;
+        const padR = Number.parseFloat(cStyle.paddingRight) || 0;
+        const padT = Number.parseFloat(cStyle.paddingTop) || 0;
+        const padB = Number.parseFloat(cStyle.paddingBottom) || 0;
+        const containerBox: Box = {
+          x: (cRect.left + borderL + padL) / cScale,
+          y: (cRect.top + borderT + padT) / cScale,
+          width: containerEl.clientWidth - padL - padR,
+          height: containerEl.clientHeight - padT - padB,
+        };
+        // Gate ⊆ container polices transform-free LAYOUT boxes, the same
+        // geometry the entrance window uses: entrance translates can still be
+        // running at settledFrame (contrast chips' SlideUp ends ~frame 43
+        // with a rest bottom flush on the container bottom — pipeline
+        // regression contrast-6 right[1]), and scene transitions move drawn
+        // rects afterwards. Rest geometry is what the contract covers; a
+        // resting overflow still fails here because layout never lies about
+        // it.
+        const containerLayout = layoutContentBoxOf(containerEl);
+        const gateLayoutBox = layoutBoxOf(gate);
+        if (!boxWithin(gateLayoutBox, containerLayout, EPS)) {
+          fail(
+            FIT_REASONS.containerOverflow,
+            { width: gateLayoutBox.width, height: gateLayoutBox.height },
+            { width: containerLayout.width, height: containerLayout.height },
+            fontSize,
+            ink,
+          );
+        }
+        // Annotation bounds: the content box plus the overdraw tolerance.
+        // rough-notation deliberately draws outside its target box (ellipse
+        // extent, highlight pad), and even a clipping container lets the ink
+        // bleed into its padding before overflow:hidden cuts — a few px of
+        // highlight fading at a band edge is cosmetic, while a genuinely
+        // oversized annotation still fails Fit or container-overflow.
+        const annotationBounds = inflate(containerBox, ANNOTATION_OVERDRAW);
+        if (annotationBox && !boxWithin(annotationBox, annotationBounds, EPS)) {
+          fail(
+            FIT_REASONS.annotationOutOfSlot,
+            { width: annotationBox.width, height: annotationBox.height },
+            { width: annotationBounds.width, height: annotationBounds.height },
+            fontSize,
+            ink,
+          );
+        }
+      }
+    }
+    // Annotation fallback: with no container ancestor the slot box is the only
+    // bound on record, so the drawn annotation must stay inside it there.
+    if (!containerEl && annotationBox && !boxWithin(annotationBox, contentBox, EPS)) {
       fail(
-        boxWithin(textBox, contentBox, EPS)
-          ? FIT_REASONS.annotationOutOfSlot
-          : FIT_REASONS.textOutOfSlot,
-        { width: union.width, height: union.height },
+        FIT_REASONS.annotationOutOfSlot,
+        { width: annotationBox.width, height: annotationBox.height },
         { width: contentBox.width, height: contentBox.height },
         fontSize,
         ink,
@@ -422,7 +645,10 @@ export const TextGate: React.FC<TextGateProps> = ({
       ref={gateRef}
       data-text-slot={slotId}
       data-text-field={field}
-      style={{ width: contentWidth, position: "relative" }}
+      // display:block + auto margins: a full-width inline-block under
+      // textAlign:center shifts right by half the parent's slack and
+      // overflows its container (seen on quote.hero-center.verified).
+      style={{ width: contentWidth, position: "relative", display: "block", margin: "0 auto" }}
     >
       {children(fontSize)}
     </div>

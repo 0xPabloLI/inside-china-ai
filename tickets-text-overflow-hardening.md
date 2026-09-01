@@ -91,21 +91,36 @@ Assert 层在稳定帧用统一坐标校验文本与标注绘制边界（含字�
 
 ## T5 — Remotion 场景模板接入 + F1/F2/F3
 
-**Blocked by:** T2, T4
+**Blocked by:** T2 ✅, T4 ✅
+
+> 2026-09-01 grill 已固化实施层决策（无向后兼容/现实迁就契约/字段四分类归属/数组 slot
+> 命名/实测宽度回填/容器裁切断言/字号三类收敛/REMOTION_SLOT_MAP/渲染层唯一判定/
+> 测试载体/stacked-cards 只接不修），见 `spec-text-overflow-hardening.md`
+> § T5 Implementation Refinement（决策 39–53）。总原则：不保护存量，只保未来管线。
 
 **What to build:** 10 个动态文本来源全部接入契约与 gate，DOM 上可寻址
 （`data-text-slot` / `data-text-field`），未识别字段 FAIL；并用 fixture 证明
 新 gate 能抓住 s9 真实事故（F1）、Fit 能吸收（F2）、触底会失败（F3）。
 
-- [ ] 9 个场景模板 + 全屏媒体 source 接入 Fit/Assert 与 `data-text-*` 注册
-- [ ] 数组/卡片/行等重复文本使用带索引 slot ID
-- [ ] 字段四分类（rendered/control/optional/intentionallyOmitted）声明齐全
-- [ ] 未识别字段、`rendered` 字段缺失 → FAIL
-- [ ] `mediaOptOut` 不被当作文本省略标记
-- [ ] **F1**：s9 原始文案 + 固定 56px（绕过 Fit）→ 新 gate FAIL（旧 gate PASS）
-- [ ] **F2**：同输入 + Fit → PASS，字号 ≥ `minSize`，帧上无裁切
-- [ ] **F3**：超长文案 → 失败 + 机器可读错误，非静默非硬裁
-- [ ] 空值覆盖：`""` / `[]` / `undefined` 字段跳过几何校验且不误报
+- [x] 9 个场景模板 + 全屏媒体 source 接入 Fit/Assert 与 `data-text-*` 注册
+- [x] 数组/卡片/行等重复文本使用带索引 slot ID
+- [x] 字段四分类（rendered/control/optional/intentionallyOmitted）声明齐全
+- [x] 未识别字段、`rendered` 字段缺失 → FAIL（#32/#37 渲染层测试）
+- [x] `mediaOptOut` 不被当作文本省略标记（字段注册中为 control 类，契约测试覆盖）
+- [x] **F1**：s9 原始文案 + 固定 56px（绕过 Fit）→ 新 gate FAIL（旧 gate PASS）
+- [x] **F2**：同输入 + Fit → PASS，字号 ≥ `minSize`，帧上无裁切（baseline-narrative 即 F2 形态）
+- [x] **F3**：超长文案 → 失败 + 机器可读错误，非静默非硬裁（fit-bottom @ 40px floor）
+- [x] 空值覆盖：`""` / `[]` / `undefined` 字段跳过几何校验且不误报
+- [x] **Ticket D**：`measure-slot-widths.mjs` 实测回填（13 场景真 Chromium 渲染，
+      probe 经 TextFitError payload 通道回传约束宽度）；修正 708→724（bottom-bar）、
+      356→372（split）、740→752（stacked-cards 卡片内，source 独立 820）、
+      372→768（contrast chips 换行区）、820→736（cta action 外框）；
+      82/82 套件全绿（契约/几何/T4/场景）
+- [x] **Ticket E**：`_gate-smoke` 全管线冒烟（`render-only`，9 场景 / 1109 帧 /
+      37.1s / 1080×1920）✅；冒烟暴露并修复 6 类失败：①③ StampIn 收缩尾段（EPS 误用 + 820 贴边超调）② 场景转场横移 ④⑤ 入场动画在 settledFrame 后仍在运动（settled
+      容器断言改无 transform 布局盒，含 `layoutContentBoxOf` border 修正）⑥ quote-7
+      verified 820 块被 880 宽 inline-fit badge 居中右移（反转嵌套：gate 包 badge）；
+      28 门测试全绿（11 text-gate + 17 scene-gate），含 late-entrance 回归锁定
 
 ---
 

@@ -25,17 +25,32 @@ import { ContextScene } from "./scenes/ContextScene";
 import { ContrastScene } from "./scenes/ContrastScene";
 import { StatRevealScene } from "./scenes/StatRevealScene";
 import { FullscreenMedia } from "./scenes/FullscreenMedia";
+import { sceneTimeline, TRANSITION_FRAMES, BRAND_FONT_STACK } from "./components/shared";
 import {
-  sceneTimeline,
-  TRANSITION_FRAMES,
-  BRAND_FONT_STACK,
-} from "./components/shared";
+  assertKnownTextFields,
+  DEFAULT_NARRATIVE_LAYOUT,
+  REMOTION_SLOT_MAP,
+} from "../../lib/text-slots.mjs";
 
 /** Dispatch a scene to its React component based on visualType. */
 function renderScene(scene: SceneData, duration: number, contentDir: string) {
+  // Typo'd text fields must fail the render, not silently drop (decision 51).
+  // Unknown visualTypes skip validation and fail at the dispatch switch below.
+  if ((REMOTION_SLOT_MAP as Record<string, unknown>)[scene.visualType]) {
+    const layout =
+      scene.visualType === "narrative"
+        ? ((scene.layout ?? DEFAULT_NARRATIVE_LAYOUT) as string)
+        : scene.visualType === "fullscreen"
+          ? "media"
+          : "hero-center";
+    assertKnownTextFields(scene.visualType, layout, scene.texts as Record<string, unknown>);
+  }
+
   // fullscreen mode: render only media + source label, skip text Slot layout
   if (scene.media?.mode === "fullscreen") {
-    return <FullscreenMedia media={scene.media} duration={duration} />;
+    return (
+      <FullscreenMedia media={scene.media} duration={duration} sceneId={`fullscreen-${scene.id}`} />
+    );
   }
 
   const common = { scene, duration };
@@ -60,9 +75,12 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
     case "stat-reveal":
       return <StatRevealScene {...common} />;
     default:
-      // Fallback: render as narrative (most generic)
-      console.warn(`Unknown visualType: ${scene.visualType}, using NarrativeScene`);
-      return <NarrativeScene {...common} contentDir={contentDir} />;
+      // Unknown visualType is a scene-data bug: fail the render instead of
+      // silently re-interpreting the scene as a narrative (spec decision 45).
+      throw new Error(
+        `Unknown visualType "${scene.visualType}" (scene ${scene.id}) — ` +
+          "register it in REMOTION_SLOT_MAP and add a scene component",
+      );
   }
 }
 
@@ -77,8 +95,12 @@ function getTransition(prevScene: SceneData, currScene: SceneData) {
   }
 
   // Data scene boundary: wipe (data reveal emphasis)
-  if (currType === "data" || prevType === "data" ||
-      currType === "stat-reveal" || prevType === "stat-reveal") {
+  if (
+    currType === "data" ||
+    prevType === "data" ||
+    currType === "stat-reveal" ||
+    prevType === "stat-reveal"
+  ) {
     return wipe();
   }
 

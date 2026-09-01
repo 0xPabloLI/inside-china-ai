@@ -120,11 +120,40 @@ describe(
       expect(payload.reason).toBe("font-timeout");
     });
 
-    it("entrance window: 2× start scale at frame 0 breaches SAFE_ZONES → FAIL", () => {
+    it("entrance window: a slot resting below the safe zone breaches it at frame 0 → FAIL", () => {
+      // A bad REST position expressed in layout is the breach shape: entrance
+      // transforms (StampIn/slide) converge to identity and are exempt, but
+      // a slot whose layout rest sits below the safe zone must FAIL during
+      // the entrance window — the settled drawn check owns it from settledFrame.
       const { ok, payload, raw } = renderFixture({ scenario: "entrance-breach" }, 0);
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("safe-zone-breach");
+    });
+
+    it("late entrance: a flush rest box still translating at settledFrame does not false-positive", () => {
+      // Regression from the _gate-smoke pipeline run (contrast-6 right[1]):
+      // the chip's SlideUp translate (30→0 over 60 frames) is still running
+      // when the settled assert takes over at frame 40, and its rest bottom
+      // is flush with the container bottom — any mid-motion frame overflows
+      // the DRAWN container box while the REST geometry is legal. The settled
+      // container assert polices layout boxes, so motion is invisible to it.
+      const { ok, payload, raw } = renderFixture({ scenario: "late-entrance" });
+      expect(ok, raw).toBe(true);
+      expect(payload).toBeNull();
+    });
+
+    it("T5: wrapping copy taller than its [data-text-container] FAILs (no hidden clipping)", () => {
+      const { ok, payload, raw } = renderFixture({ scenario: "container-overflow" });
+      expect(ok, raw).toBe(false);
+      expect(payload, raw).toBeTruthy();
+      expect(payload.reason).toBe("container-overflow");
+      expect(payload.measured.height).toBeGreaterThan(payload.available.height);
+    });
+
+    it("T5: same copy inside a generous container still PASSes", () => {
+      const { ok, raw } = renderFixture({ scenario: "container-pass" });
+      expect(ok, raw).toBe(true);
     });
   },
 );
