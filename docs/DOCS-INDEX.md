@@ -35,12 +35,12 @@
 | `content-pipeline.md` | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references | AGENTS.md |
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
 | `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
-| `tools-catalog.md` | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates | AGENTS.md |
+| `tools-catalog.md` | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates; scenario→tool decision table (Tavily fallback authority lives in AGENTS.md) | AGENTS.md |
 | `installed-skills.md` | Agent skills overview — sources, invocation modes, MCP list, install commands | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `series-production-guide.md` | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing | `content-pipeline.md` Stage 3, `video-workflow.md` |
 | `content-scaffold-guide.md` | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style | `video-workflow.md` |
-| `video-workflow.md` | Regular video-production runbook — TTS, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy | AGENTS.md |
+| `video-workflow.md` | Regular video-production runbook — TTS, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy, skill loading matrix | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3 |
 | `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
 | `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽） | — |
@@ -78,6 +78,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 |----------|---------|
 | `scenario-enumeration-checklist.md` | Boundary scenario enumeration checklist |
 | `scenario-matrix.md` | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios) |
+| `fact-verification.md` | PSR item-4 operational procedures (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |
 | `visual-design-loop.md` | Visual design iteration loop — impeccable skill workflow for video template polish |
 
 ### `tiktok/` — TikTok guides
