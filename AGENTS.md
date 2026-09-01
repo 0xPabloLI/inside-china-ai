@@ -138,23 +138,9 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 - **Supabase migrations**: `supabase/migrations/` — schema 变更需谨慎，不可逆操作需确认。
 - **Agent 治理文件**: `AGENTS.md`、workflow/skill 路由文档、上下文指针 — 规则源头，影响所有后续 session，任何修改一律 Substantial。
 
-## Media Asset Placement (图片/视频/音频素材存放)
+## 媒体素材存放（图片/视频/音频）
 
-新文件按用途存放，**不要扔进 `assets/`**。规则见 `docs/media-asset-management.md`，速查：
-
-| 文件类型 | 放哪里 | 例子 |
-|---------|--------|------|
-| 品牌 logo/mark/头像 | `scripts/short-video/assets/` 下（已有 `brand/`、`logos/`、`bgm/` 子目录） | `deepseek.svg` → `assets/logos/` |
-| BGM 音乐 | `scripts/short-video/assets/bgm/` | `news-cc-theme01.mp3` |
-| 视频内容素材（per-content） | `scripts/short-video/content/{slug}/assets/` | `unitree-demo.mp4` → `content/unitree/assets/` |
-| TTS 参考音频 | `scripts/short-video/voice-samples/`（gitignored） | `voice-sample-24k.wav` |
-| 实验产物（数字人、TTS 对比等） | `scripts/short-video/experiments/`（gitignored，可随时删） | `hallo2-test-output.mp4` → `experiments/digital-human/` |
-
-**判断规则**：如果文件是"渲染进视频的素材"→ `content/{slug}/assets/`；如果是"全局复用的品牌资产"→ `assets/`；如果是"给 TTS 引擎克隆的声音样本"→ `voice-samples/`；如果不确定是不是临时实验→ `experiments/`。
-
-## Audio File Handling (M4A → WAV)
-
-M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 libsndfile）。必须先 `ffmpeg` 转 WAV。转换命令见 `docs/video-workflow.md` TTS Engine Configuration 章节。报错 `LibsndfileError: Format not recognised` = 传了 M4A。
+创建/移动媒体文件时，先查 `docs/media-asset-management.md` 的位置规则（品牌资产 → `scripts/short-video/assets/`；渲染进视频的素材 → `content/{slug}/assets/`；TTS 声音样本 → `voice-samples/`；不确定的实验产物 → `experiments/`）。**不要扔进仓库根/应用的 `assets/`**——`scripts/short-video/assets/` 才是视频品牌资产的家。M4A 不被 Python 音频库支持，先 `ffmpeg` 转 WAV（报 `LibsndfileError: Format not recognised` = 传了 M4A；转换命令见 `docs/video-workflow.md` TTS Engine Configuration）。
 
 ## Learned Preferences
 
