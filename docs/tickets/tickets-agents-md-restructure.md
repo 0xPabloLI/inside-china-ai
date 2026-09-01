@@ -61,11 +61,11 @@
 
 **Blocked by:** T0b, T2。
 
-- [ ] red 走查：场景 18（对现行文本确认信息点清单）+ 三查基线
-- [ ] 压成 2 行指针（触发词 front-load；两个 `assets/` 显式消歧；`LibsndfileError` 触发词保留）
-- [ ] 三查：指针目标完整性——原 13+3 行每个信息点在 media-asset-management.md / video-workflow.md 可找到（缺则先补目标文档）
-- [ ] green 走查：场景 18 过；信息点逐字段覆盖确认
-- [ ] commit（显式列路径）
+- [x] red 走查：场景 18（对现行文本确认信息点清单）+ 三查基线
+- [x] 压成 2 行指针（触发词 front-load；两个 `assets/` 显式消歧；`LibsndfileError` 触发词保留）
+- [x] 三查：指针目标完整性——原 13+3 行每个信息点在 media-asset-management.md / video-workflow.md 可找到（缺则先补目标文档）
+- [x] green 走查：场景 18 过；信息点逐字段覆盖确认
+- [x] commit（显式列路径）
 
 ## T4 — Content Pipeline 指针化（不复制概述）
 
