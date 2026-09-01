@@ -10,11 +10,11 @@
 
 **Blocked by:** None — can start immediately.
 
-- [ ] red 走查：grep 全文 Tavily，确认 3 处规范性表述（L100 Context7「何时不用」、L101 Context7「容错」、L112 主条目「容错」）与 AGENTS.md 硬规则冲突
-- [ ] L112 主条目「容错」改为回指 AGENTS.md fallback 链
-- [ ] L100「何时不用」去掉「用 Tavily」的规范性指向
-- [ ] L101「容错」去掉「→ Tavily 搜库名」的规范性指向
-- [ ] green 走查：grep 全文无规范性 fallback 表述残留；AGENTS.md（未改前）硬规则仍是唯一权威
+- [x] red 走查：grep 全文 Tavily，确认 3 处规范性表述（L100 Context7「何时不用」、L101 Context7「容错」、L112 主条目「容错」）与 AGENTS.md 硬规则冲突
+- [x] L112 主条目「容错」改为回指 AGENTS.md fallback 链
+- [x] L100「何时不用」去掉「用 Tavily」的规范性指向
+- [x] L101「容错」去掉「→ Tavily 搜库名」的规范性指向
+- [x] green 走查：grep 全文无规范性 fallback 表述残留；AGENTS.md（未改前）硬规则仍是唯一权威
 - [ ] commit（显式列路径）
 
 ## T0b — video-workflow 过期路径修正
@@ -23,9 +23,9 @@
 
 **Blocked by:** None — can start immediately.
 
-- [ ] red 走查：L105 `assets/voice-sample-ref-text.txt`、L350-351 `assets/voice-sample-24k.wav` 与 voice-samples 规则冲突
-- [ ] 按 `docs/media-asset-management.md` 修正全部过期路径（含 voice-samples gitignored 标注一致性）
-- [ ] green 走查：grep `assets/voice` 无残留
+- [x] red 走查：L105 `assets/voice-sample-ref-text.txt`、L350-351 `assets/voice-sample-24k.wav` 与 voice-samples 规则冲突
+- [x] 按 `docs/media-asset-management.md` 修正全部过期路径（含 voice-samples gitignored 标注一致性）
+- [x] green 走查：grep `assets/voice` 无残留
 - [ ] commit（显式列路径）
 
 ## T1 — AGENTS.md 路由三档 + 流程同步
