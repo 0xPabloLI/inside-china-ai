@@ -74,7 +74,7 @@ describe("scene schedule — A2 (Compensated Start), Remotion path", () => {
   });
 });
 
-describe("scene schedule — Playwright path (no transitions)", () => {
+describe("scene schedule — transitionOverlap: 0 (no transitions)", () => {
   const schedule = sceneTimeline(QWEN4, { transitionOverlap: 0 });
 
   it("keeps today's timing: visual frames equal clip frames", () => {

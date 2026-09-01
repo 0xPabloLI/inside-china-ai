@@ -100,8 +100,9 @@ describe("applyAudioSyncToSummary", () => {
  * Integration: verifyAudioSync against real files through real ffmpeg.
  * Scene voiceovers are deterministic noise bursts (unique correlation peak),
  * encoded to actual mp3s; the "final video" is assembled from those mp3s by
- * buildVoiceoverTrack — exactly what assemble.mjs does — so encoder delay
- * affects needle and haystack identically and cancels out.
+ * buildVoiceoverTrack — exactly what the retired FFmpeg assembler
+ * (retired-html-path/) did — so encoder delay affects needle and haystack
+ * identically and cancels out.
  */
 describe("verifyAudioSync (integration, real ffmpeg)", () => {
   // durations → clips 1.5s + 1.0s → scene 2 expected offset = 1.5s

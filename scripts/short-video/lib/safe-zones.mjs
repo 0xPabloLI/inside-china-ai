@@ -105,8 +105,8 @@ export const WATERMARK_POS = { top: 60, left: 60 };
  * actually rendered in the browser's default serif (Times). That shipped look
  * passed HITL repeatedly; declare it explicitly so font availability can
  * never silently change the video's appearance. Lives in this dependency-free
- * module because both render paths (Playwright CSS and the Remotion root
- * composition) consume it, and the Remotion bundler must not pull in
- * node-only modules (scene-templates reads the brand SVG via fs).
+ * module because the render root and the gate verifiers both consume it,
+ * and the Remotion bundler must not pull in node-only modules (the retired
+ * HTML templates read the brand SVG via fs — see retired-html-path/).
  */
 export const BRAND_FONT_STACK = "'Times New Roman', Times, serif";

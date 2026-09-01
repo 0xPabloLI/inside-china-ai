@@ -9,6 +9,10 @@
  * transcoder (TikTok ingest, QuickTime, ffmpeg WAV extraction) to compact,
  * which is the failure mode that made subtitles drift toward the end of a
  * video.
+ *
+ * Consumer note: the FFmpeg assembler that mixed this stem was retired with
+ * the HTML render path (decision 59); `buildVoiceoverTrack` is kept as the
+ * contract reference and is test-locked (audio-sync.test.mjs).
  */
 
 import { dirname, join } from "path";

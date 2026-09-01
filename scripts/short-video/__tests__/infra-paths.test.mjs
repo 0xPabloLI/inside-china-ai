@@ -35,24 +35,13 @@ describe("infra path resolution after lib/ migration", () => {
 });
 
 describe("assemble.mjs interface", () => {
-  it("export uses pipelineId parameter", async () => {
+  // The FFmpeg scene-by-scene assembler was retired with the HTML/Playwright
+  // render path (decision 59); the module keeps the output-path resolver only
+  // (behavioral coverage: lib/__tests__/assemble-output-resolve.test.mjs).
+  it("exports resolveOutputVideo and no longer exports assembleVideo", async () => {
     const mod = await import("../lib/assemble.mjs");
-    // The function should accept pipelineId as 3rd arg
-    expect(typeof mod.assembleVideo).toBe("function");
-    // Verify the function has at least 3 parameters (scenes, outputDir, pipelineId, ...)
-    expect(mod.assembleVideo.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it("refuses to assemble when a scene has no audioPath", async () => {
-    const { assembleVideo } = await import("../lib/assemble.mjs");
-    // The guard must fire before any fs/ffmpeg work, so bogus paths are fine.
-    expect(() =>
-      assembleVideo(
-        [{ sceneId: 1, videoPath: "/nonexistent.webm", duration: 1 }],
-        "/tmp/x",
-        "test",
-      ),
-    ).toThrow(/audioPath/);
+    expect(typeof mod.resolveOutputVideo).toBe("function");
+    expect(mod.assembleVideo).toBeUndefined();
   });
 });
 

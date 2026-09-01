@@ -259,7 +259,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 **Agent 行为**：每个 stage 完成后更新；MRL 通过后写入 `mrl` 状态；HITL 暂停时 `nextAction` 写明等待什么；新 session 启动时先读此文件判断未完成管线。
 
-**`main.mjs` 支持**：`node main.mjs --content <dir>`（如 `deepseek`、`distillation/pt1`、`restraint/pt1`；要求目录内 `meta.mjs` + `scene-data.mjs` + `scenes.mjs` 三者齐备。`dom-config.mjs` 可选）。
+**`main.mjs` 支持**：`node main.mjs --content <dir>`（如 `deepseek`、`distillation/pt1`、`restraint/pt1`；要求目录内 `meta.mjs` + `scene-data.mjs` 两者齐备）。
 
 ### 步骤
 
@@ -319,7 +319,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | B9  | 无 Dead Closers | 不得以 "thanks for watching" / "don't forget to subscribe" / 裸 "what do you think" 结尾 | 改写为具体 CTA     |
 | B10 | Series Meta     | `seriesMeta` 存在，`partNumber`/`totalParts`/`prevPartSlug`/`nextPartSlug` 正确          | 修正 seriesMeta    |
 | B11 | 文本宽度预算    | 每 scene 的 result/company/action/context/subtext 字符数 ≤ 布局预算（media-split 半宽单独收紧，衬线加宽已计入，见 `scene-rules.mjs` `TEXT_WIDTH_BUDGETS`） | 缩短文案或换全宽布局 |
-| B12 | visualType 白名单 | Remotion 路径下 visualType ∈ Remotion dispatch 表（hook/cta/narrative/data/info-card/quote/context/contrast/stat-reveal）；Playwright 路径跳过 | 映射到支持类型，或 meta.renderer 设为 playwright |
+| B12 | visualType 白名单 | visualType ∈ Remotion dispatch 表（hook/cta/narrative/data/info-card/quote/context/contrast/stat-reveal）；HTML/Playwright 路径已于 2026-09-01 退役（决策 59），无跳过分支 | 映射到支持类型 |
 | B13 | 标注位置 | voiceover 不得含内嵌 `[ASSET NEEDED` 标注（TTS 会读出）；素材需求写 `assetNeed` 字段 | 移到 scene 的 `assetNeed` 字段 |
 
 **Warnings（列出但不阻塞 HITL）：**

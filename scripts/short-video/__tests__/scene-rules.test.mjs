@@ -35,6 +35,7 @@ import {
   checkLoopClosureNarrative,
   checkAssetNeedAnnotation,
   checkMediaStrategyContract,
+  checkBrollPromptDimensions,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
@@ -132,7 +133,7 @@ describe("checkHookContract", () => {
   it("fails when no focal is present", () => {
     const results = checkHookContract([{ visualType: "hook", texts: { subject: "DEEPSEEK" } }]);
     expect(results[0].level).toBe("fail");
-    expect(results[0].fix).toContain("hookScene");
+    expect(results[0].fix).toContain("HookScene");
   });
 
   it("fails when focal fields are empty/whitespace strings", () => {
@@ -1395,5 +1396,174 @@ describe("checkMediaStrategyContract", () => {
   it("is wired into runAllSceneDataChecks", () => {
     const result = runAllSceneDataChecks([broll({ mediaStrategy: "nope" })], null);
     expect(result.fail.filter((r) => r.check === "B-roll strategy contract")).toHaveLength(1);
+  });
+});
+
+// ── B-roll prompt dimensions (spec S1-S20) ──
+
+// Covers all three NEGATIVE groups and carries no digits.
+const FULL_NEGATIVE_PROMPT =
+  "One tall glowing bar shrinking beside a short one, dark reflective studio floor, " +
+  "cinematic slow push-in, high detail, no text, no watermark, no hands";
+
+describe("checkBrollPromptDimensions", () => {
+  const broll = (prompt, overrides = {}) => ({
+    id: 5,
+    visualType: "narrative",
+    voiceover: "Training cost just one ninth of the old flagship.",
+    mediaStrategy: "b-roll",
+    aiVideo: { prompt },
+    ...overrides,
+  });
+
+  it("S1/S4: stays silent when every NEGATIVE group is covered", () => {
+    expect(checkBrollPromptDimensions([broll(FULL_NEGATIVE_PROMPT)])).toEqual([]);
+  });
+
+  it("S2: warns and names the missing ARTIFACT group", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar shrinking slowly, no text, no hands"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].category).toBe("Media");
+    expect(result[0].check).toBe("B-roll prompt dimensions");
+    expect(result[0].detail).toContain("5");
+    expect(result[0].detail).toContain("ARTIFACT");
+    expect(result[0].detail).not.toContain("HANDS");
+  });
+
+  it("S3/S6: names every missing group when only HANDS is covered", () => {
+    const result = checkBrollPromptDimensions([
+      broll("Abstract layers compressing a stream of history, high detail, no hands"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail).toContain("TEXT");
+    expect(result[0].detail).toContain("ARTIFACT");
+    expect(result[0].detail).not.toContain("HANDS");
+  });
+
+  it("S5: names all three groups when the prompt has no NEGATIVE clause at all", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar shrinking slowly on a dark floor"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail).toContain("TEXT");
+    expect(result[0].detail).toContain("HANDS");
+    expect(result[0].detail).toContain("ARTIFACT");
+  });
+
+  it("US3: suggests concrete replacement words in the fix hint", () => {
+    const result = checkBrollPromptDimensions([broll("A glowing bar, no hands")]);
+    expect(result[0].fix).toContain("no watermark");
+  });
+
+  it("S21: never fails, so preflight keeps exiting 0", () => {
+    const result = checkBrollPromptDimensions(qwenScenes);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.every((r) => r.level === "warn")).toBe(true);
+  });
+
+  it("S7: stays silent for content that uses no b-roll fields", () => {
+    expect(checkBrollPromptDimensions(validScenes)).toEqual([]);
+  });
+
+  it("S8: stays silent when the strategy is asset even if a prompt is present", () => {
+    const result = checkBrollPromptDimensions([broll("A glowing bar", { mediaStrategy: "asset" })]);
+    expect(result).toEqual([]);
+  });
+
+  it("S9/S10: skips empty and whitespace prompts — the contract check already fails those", () => {
+    expect(checkBrollPromptDimensions([broll("")])).toEqual([]);
+    expect(checkBrollPromptDimensions([broll("   \t ")])).toEqual([]);
+  });
+
+  it("S18: emits one warning per scene, in scene order", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar, no hands", { id: 2 }),
+      broll("A flowing stream of data, no hands", { id: 7 }),
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0].detail).toContain("2");
+    expect(result[1].detail).toContain("7");
+  });
+
+  it("S14: warns when the prompt carries an Arabic numeral", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A bar chart showing 8.6 times throughput, no text, no hands, no watermark"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail).toContain("8.6");
+  });
+
+  it("S15: still warns on an element count, and the fix explains both readings", () => {
+    const result = checkBrollPromptDimensions([
+      broll("Three glowing layers, say 3 layers, no text, no hands, no watermark"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail).toContain("3");
+    expect(result[0].fix).toContain("texts");
+    expect(result[0].fix.toLowerCase()).toContain("count");
+  });
+
+  it("S16: ignores spelled-out numbers", () => {
+    const result = checkBrollPromptDimensions([
+      broll("Two parallel lanes of glowing data, no text, no hands, no watermark"),
+    ]);
+    expect(result).toEqual([]);
+  });
+
+  it("S17: merges a missing group and a numeral into one warning", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A bar shrinking to 1/9 of its height, no hands"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail).toContain("ARTIFACT");
+    expect(result[0].detail).toContain("1");
+  });
+
+  it("S11: does not credit 'no texture' with text protection", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A bar with no texture and a smooth surface, no hands, no watermark"),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail).toContain("TEXT");
+  });
+
+  it("S12: matches NEGATIVE clauses regardless of case", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar, No Text, No Hands, No Watermark"),
+    ]);
+    expect(result).toEqual([]);
+  });
+
+  it("S13: matches the singular 'no hand'", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar, no text, no hand, no watermark"),
+    ]);
+    expect(result).toEqual([]);
+  });
+
+  it("S20: pins the real qwen4-preview prompts", () => {
+    // This pins today's state, not a desired end state — the two incomplete
+    // prompts are the evidence this check exists for. If someone completes
+    // them, update the expectation here rather than treating the red as a
+    // regression.
+    const result = checkBrollPromptDimensions(qwenScenes);
+    const details = result.map((r) => r.detail);
+
+    // Scene 5 covers text/letters/hands but never mentions a watermark.
+    expect(details.some((d) => d.includes("Scene 5") && d.includes("ARTIFACT"))).toBe(true);
+    // Scene 6 declares only "no hands".
+    expect(details.some((d) => d.includes("Scene 6") && d.includes("TEXT"))).toBe(true);
+    expect(details.some((d) => d.includes("Scene 6") && d.includes("ARTIFACT"))).toBe(true);
+    // Scene 8 is the only prompt covering all three groups.
+    expect(details.some((d) => d.includes("Scene 8"))).toBe(false);
+    expect(result).toHaveLength(2);
+  });
+
+  it("S19: is wired into runAllSceneDataChecks", () => {
+    const result = runAllSceneDataChecks([broll("A glowing bar, no hands")], null);
+    expect(result.warn.filter((r) => r.check === "B-roll prompt dimensions")).toHaveLength(1);
   });
 });

@@ -153,7 +153,7 @@ collectFromSource() 层次：
 | #76 | SSOT violations audit | — | — | 隐式 schema 彻查 + types.mjs 创建。验证/文档工作。#67 ✅ unblocked |
 | #77 | Source type labeling audit | — | source-registry.mjs | 59 源类型标注 + fallback 链完整性。新增：video capability 调研清单（与 #75 配合——#77 调研应不应该标，#75 实现标注+集成下载器）。**#88 ✅ done** — #77 不再被 #88 阻塞。#67 ✅ unblocked |
 | #87 | 88 manual maintenance items audit | #66, ~~#63~~ ✅ | — | 盘点 + fallback 覆盖率。验证/文档工作。#67 ✅ unblocked, ~~#63 ✅ done~~ |
-| #94 | Scene-level visual intent + evidence-media audit | — | scene-rules.mjs, scene-templates.mjs | 视觉意图契约 + MRL-2 报告。设计层面 |
+| #94 | Scene-level visual intent + evidence-media audit | — | scene-rules.mjs, remotion/src scene components | 视觉意图契约 + MRL-2 报告。设计层面（原列的 scene-templates.mjs 已随 HTML 路径退役） |
 | #91 | DuckDuckGo source | #89 P0 ✅ done（unblocked） | source-registry.mjs | html.duckduckgo.com，无 JS。搜索来源已够用 |
 | #92 | SearXNG source | #89 P0 ✅ done（unblocked） | source-registry.mjs | Docker 自托管，269 引擎聚合。搜索来源已够用 |
 | #85 | Bloomberg paywall alternatives | — | source-registry.mjs (may) | 单个来源研究任务。落地后可能加新 source entry |
@@ -167,7 +167,7 @@ collectFromSource() 层次：
 | #129 | lint-doc-hierarchy: writing-for-agents gate false positive on file rename/archive | — | scripts/lint-doc-hierarchy.mjs | Non-blocking WARN. Fix: skip `docs/archive/` path in checkWritingForAgentsGate, or add `R` to `--diff-filter` |
 | #140 | Anti-bot follow-up（承接 #89 未交付切片） | — | cdp-client.mjs (P1/P2), source-registry.mjs + search-sources.mjs (P4), proxy-manager.mjs (P6) | #89 closed 后，剩余切片需要独立 tracking 载体：P1 exponential backoff / P2 通用 CAPTCHA 检测 / P4 Google 源合并（tbm=nws toggle）/ P5 selector auto-healing（agent 驱动自愈）/ P6 FlClash 节点自动切换 / P7 Colima VM 重建。P3=#91、P3b=#92、P3c=#64+#65，不在本 issue。一片一个 session，P1→P7 |
 | #155 | B-roll follow-up: aiImage 静态图生成（T2I） | — | lib/b-roll/*, scene-rules.mjs | B-roll spec §7.1 范围外。管线机制（策略契约 + 门 + 报告 + 缓存/轮次）已就绪，缺 T2I 后端；引入哪个（本地 MLX vs Cloudflare FLUX）需人确认账号与许可 |
-| #156 | B-roll follow-up: 垫层合成模式（生成素材垫在真实素材下） | 建议先做 #155 | MediaBackground.tsx, media-bg.mjs, lib/b-roll/orchestrator.mjs, verify-scene-dom.mjs | 现 media 契约每 scene 只有一个素材，b-roll 只能替换不能垫底。夹具 scene 8 现在是「生成 + 过门 + 丢弃」，此 issue 把那笔 GPU 时间变成产出 |
+| #156 | B-roll follow-up: 垫层合成模式（生成素材垫在真实素材下） | 建议先做 #155 | MediaBackground.tsx, media-bg.mjs, lib/b-roll/orchestrator.mjs, remotion/src TextGate | 现 media 契约每 scene 只有一个素材，b-roll 只能替换不能垫底。夹具 scene 8 现在是「生成 + 过门 + 丢弃」，此 issue 把那笔 GPU 时间变成产出（原列的 verify-scene-dom.mjs 已随 HTML 路径退役，决策 59） |
 | #157 | B-roll follow-up: 生成模型横评 | — | lib/b-roll/runner.mjs | incumbent `FastVideo/FastMetal-1.3B-QAD`（Apache-2.0）Tier A 是质量上限，Tier B 在 M3 Max OOM。候选 FastMetal 更高档 / Wan 2.2 / LTX / Helios，先查维护状态与 MPS 路径 |
 | #158 | B-roll follow-up: ComfyUI / MCP 迭代式生成后端 | 建议接 #157 | lib/b-roll/runner.mjs (seam) | 现回路是批次级（一轮 ≥8min 才拿到分数，无法单候选重跑）。接缝已备好：`{jobs} → {ok, results[]}`，门/报告/缓存不感知后端。云端 RunComfy 路线见 `docs/tools-catalog.md`（用户暂不注册账号） |
 | #159 | B-roll follow-up: runner 未透传 `--model-root` | — | lib/b-roll/runner.mjs, b-roll-runner.test.mjs | `buildPythonArgs` 从不传 `--model-root`/`--mlx-checkpoint` → `resolve_model_root(None)` 每批次打 HF `GET /revision/main`，缓存缺件时重下 1.5 GB（用户两次质疑「为什么又下载」）。修法：`BROLL_MODEL_ROOT`/`BROLL_MLX_CHECKPOINT` 透传 + 离线 fail-fast。**T10 已落地 offline 默认**（spawn 注入 `HF_HUB_OFFLINE=1`，哑端点零网络验证）——联网重下载风险已消，本 issue 剩余范围 = 透传 |
@@ -238,7 +238,7 @@ collectFromSource() 层次：
 | `docs/DOCS-INDEX.md` | #97, #103 | 🟡 低——#78 ✅ 已同步 |
 | `Search quota / backend routing` | #65, #110, #112 | 🟡 中——Brave quota 与统一路由边界需单一 owner（#109 已合并进 #65） |
 | `vlm_analyzer.py` | ~~#113~~ ✅, #127 | 🟢 低（2026-08-30 起——~~#113 图片预处理已 CLOSED~~；只剩 #127 级联路由器的收尾项「抽取 `deep_analyze()`」，见 Tier 2 行）。串行约束随 #113 关闭而解除 |
-| `scene-rules.mjs` / `scene-templates.mjs` | #94（可能）, #155 | 🟢 低 |
+| `scene-rules.mjs` / `remotion/src` 场景组件 | #94（可能）, #155 | 🟢 低 |
 | `lib/b-roll/*` | #155, #156, #157, #158 | 🟡 中——B-roll stage 模块（orchestrator / runner / gate / report）。#157 与 #158 都改 `runner.mjs` 的后端边界，须串行；#156 另碰渲染层（`MediaBackground.tsx` / `media-bg.mjs`） |
 | `text-align.py` | — | ✅ ~~#122, #125, #126~~ all CLOSED |
 | `main.mjs` | — | ✅ ~~#124, #126~~ all CLOSED |

@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  checkTextWidthBudget,
-  checkVisualTypeWhitelist,
-} from "../lib/scene-rules.mjs";
+import { checkTextWidthBudget, checkVisualTypeWhitelist } from "../lib/scene-rules.mjs";
 
 // Serif-adjusted budgets: the Remotion render falls back to a serif face
 // ~30% wider than the sans metrics the templates were designed against.
@@ -129,11 +126,13 @@ describe("checkVisualTypeWhitelist", () => {
     expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
   });
 
-  it("skips the whitelist when the pipeline opts into the Playwright renderer", () => {
+  it("still applies the whitelist when a retired renderer opt-out is present", () => {
+    // The Playwright renderer was retired (decision 59) — its opt-out can no
+    // longer bypass the Remotion dispatch whitelist.
     const scenes = [{ id: 3, visualType: "timeline", texts: {} }];
     const results = checkVisualTypeWhitelist(scenes, {
       meta: { renderer: "playwright" },
     });
-    expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
+    expect(results.filter((r) => r.level === "fail")).toHaveLength(1);
   });
 });

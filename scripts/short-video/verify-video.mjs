@@ -232,7 +232,7 @@ if (!preMode) {
       "Specs",
       "Resolution 1080×1920 (9:16)",
       `Got ${width}×${height}`,
-      "Check record-scenes.mjs viewport settings",
+      "Check the Remotion composition size (remotion/src/Root.tsx)",
     );
   }
 

@@ -30,7 +30,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 | **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)       | A static frame in autoplay feed looks like a still image, not a video       |
 | **Max 2 stat cards**   | Don't stack 3+ data points on the hook frame          | Users can't parse 3+ numbers in 1 second; 2 is the limit                    |
 
-**Standard hook template**: Scene 1 MUST use the shared `hookScene` opening card (`lib/scene-templates.mjs`) — fixed skeleton (badge → subject → focal → stats/source in the `lib/scene-layout.mjs` slot grid), two focal variants (number-led `bigNumber` / claim-led `hookText`+`revealText`). The focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`. Data contract in the `hookScene()` docblock (spec: `docs/specs/spec-hook-opening-card.md`). The claim or number renders on frame 1 with no animation delay — the thumbnail itself must carry the hook.
+**Standard hook template**: Scene 1 MUST use the shared HookScene opening card (`remotion/src/scenes/HookScene.tsx`) — fixed skeleton (badge → subject → focal → stats/source in the `lib/scene-layout.mjs` slot grid), two focal variants (number-led `bigNumber` / claim-led `hookText`+`revealText`). The focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`. Data contract in the HookScene docblock (spec: `docs/specs/spec-hook-opening-card.md`). The claim or number renders on frame 1 with no animation delay — the thumbnail itself must carry the hook.
 
 ### Silent Autoplay
 
@@ -229,6 +229,8 @@ SUBJECT · VISUAL METAPHOR · BRAND · REFERENCE · CAMERA · MOTION · LIGHTING
 
 Text belongs to the caption layer: `scene.texts` carries numbers and names, and the clip behind it carries none — T2V models garble glyphs. Keep the whole prompt inside the 512-token budget.
 
+`verify-video.mjs --pre` checks one of the eight mechanically — **NEGATIVE** — plus a numeral sweep, and warns without blocking (check `B-roll prompt dimensions`). A prompt must cover all three groups NEGATIVE guards against: TEXT (`no text` / `no letters`), HANDS (`no hands`), ARTIFACT (`no watermark` / `no logo`). These are fixed defaults, so they differ from prompt to prompt only by omission. The sweep also flags any Arabic numeral: a data value belongs in `texts`, though an element count (`3 layers`) is a legitimate thing to write. The other seven dimensions stay on the agent — they are the ones a template cannot write for you.
+
 ### Agent prompt-iteration protocol
 
 The agent rewrites prompts; a human does not. After any run leaves a scene short of `won`:
@@ -244,7 +246,7 @@ The agent rewrites prompts; a human does not. After any run leaves a scene short
 
 - **Brand bar** (top-left on opener/mid scenes): 48px, in `brandBar()`
 - **Watermark** (top-left on non-brand scenes): 55px, `opacity: 0.35`, at `top: 60px; left: 60px` (`WATERMARK_POS` in `lib/safe-zones.mjs`)
-- **CTA scene**: 130px centered in the hero slot — rendered by the shared `ctaScene()` end card (`lib/scene-templates.mjs`), never hand-rolled
+- **CTA scene**: 130px centered in the hero slot — rendered by the shared CtaScene end card (`remotion/src/scenes/CtaScene.tsx`), never hand-rolled
 
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 
@@ -300,7 +302,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 ```text
 scripts/short-video/
-├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --skip-dom-check, --max-retries)
+├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --max-retries)
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
 ├── generate-broll.mjs      # Standalone B-roll generation entrypoint (--help)
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
@@ -319,8 +321,9 @@ scripts/short-video/
 │   │   ├── cues.mjs        # Alignment → cues (chunking + Netflix timing rules)
 │   │   ├── ass.mjs         # ASS render + parse (\kt anchors, 1ms precision)
 │   │   └── generate.mjs    # Entry point: timing JSON → subtitles.ass
-│   ├── assemble.mjs        # FFmpeg assembly + ASS burn-in + BGM mix
-│   ├── record-scenes.mjs   # Playwright recording (1080×1920)
+│   ├── assemble.mjs        # Output-path resolution for the final video (rendering lives in render-remotion.mjs)
+│   ├── render-remotion.mjs # Remotion render driver (React → frame-by-frame → final MP4)
+│   ├── renderer-guard.mjs  # Fails fast on the retired --playwright flag / meta.renderer opt-out
 │   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
 │   ├── verify-subtitles.mjs # Reads back the .ass and checks it against the alignment data
 │   ├── verify-retry.mjs    # Verify-retry loop: classify failure → repair → re-verify (--max-retries)
@@ -336,12 +339,11 @@ scripts/short-video/
 │   │   ├── track.mjs       # Gapless voiceover master (pad each scene to its clip length)
 │   │   ├── sync.mjs        # End-to-end check: scene onsets measured in the SHIPPED audio
 │   │   └── diagnostics.mjs # FAIL-time bundle: drift table, packet gaps, stream durations
-│   └── base-styles.mjs     # Shared visual system (CSS vars, backgrounds, animations, brand SVG)
+├── retired-html-path/      # Frozen archive of the retired HTML/Playwright renderer (decision 59)
 ├── content/                # Content pipelines (each article = one dir)
 │   ├── deepseek/           # DeepSeek story
 │   │   ├── meta.mjs        # { pipelineId: "deepseek" }
-│   │   ├── scene-data.mjs  # 12 scenes (voiceover, texts, visualType)
-│   │   └── scenes.mjs      # 12 visual templates (read scene.texts)
+│   │   └── scene-data.mjs  # 12 scenes (voiceover, texts, visualType)
 │   └── distillation/       # LLM distillation series
 │       ├── pt1/            # Part 1 (8 unique scenes, red/glitch DNA)
 │       ├── pt2/            # Part 2 — Kimi's Gambit (9 scenes)
@@ -398,19 +400,18 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 | Step | Action | Output |
 |------|--------|--------|
 | 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
-| 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
-| 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). Per-pipeline config from `content/<dir>/dom-config.mjs` (optional, defaults if absent). FAIL aborts before recording; `--skip-dom-check` is a debug-only escape hatch (all content dirs migrated) | `verify-scene-dom.mjs` report |
-| 3 | Record scene videos (`--remotion` flag or `meta.renderer === "remotion"` → Remotion path; default → Playwright legacy path) | `output/{id}/video/scene-*.webm` |
-| 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
+| 1.6 | **Final media gate — hard FAIL** after sourcing/patch/upscale/b-roll (media layouts must have their media) | `lib/final-media-gate.mjs` failure list |
+| 2 | Validate every scene received a TTS result | fail-fast on missing voiceover |
+| 3 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
-| 5 | Assemble final video (FFmpeg) | `output/{id}/{id}-v{version}-short.mp4` + `{id}-short.mp4` (latest copy) |
+| 5 | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]` — replaces the retired HTML DOM verifier) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4` |
 | 6 | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2) | `output/{id}/verification-report.json` |
 
 ### Version Numbers
 
 Every pipeline run generates a **versioned output file**: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`.
 
-A **latest copy** (`{pipelineId}-short.mp4`) is also created for compatibility with verify-video.mjs and other tools.
+A **latest copy** (`{pipelineId}-short.mp4`) is NOT created — the versioned file is the canonical output; the unversioned name only appears as a fallback when resolving outputs produced before versioning existed.
 
 ```bash
 # List all versions, newest first

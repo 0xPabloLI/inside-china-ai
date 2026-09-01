@@ -1,11 +1,11 @@
 /**
  * Visual components — brand system elements shared across all scenes.
  *
- * These replace the CSS classes in base-styles.mjs and scene-templates.mjs
+ * These replace the CSS classes of the retired HTML templates
+ * (retired-html-path/base-styles.mjs + scene-templates.mjs)
  * with React components using safe-zones.mjs constants for positioning.
  *
- * All values are精确对照 from lib/scene-templates.mjs templateCss() and
- * lib/base-styles.mjs baseStyles().
+ * All values are精确对照 from their templateCss() / baseStyles().
  */
 import { staticFile, CanvasImage } from "remotion";
 import { CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";

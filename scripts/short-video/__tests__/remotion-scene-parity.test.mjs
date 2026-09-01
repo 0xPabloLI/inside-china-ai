@@ -7,14 +7,14 @@
  * line that appears in the support slot of data/narrative/hook/quote scenes.
  *
  * Motivation: NarrativeScene.tsx was missing `txt.source` rendering — the
- * Playwright HTML path (scenes.mjs) had it, but the Remotion React component
- * omitted it, causing source attribution to silently disappear in all
- * Remotion-rendered narrative scenes.
+ * (since retired) Playwright HTML templates had it, but the Remotion React
+ * component omitted it, causing source attribution to silently disappear in
+ * all Remotion-rendered narrative scenes.
  *
  * Scope: only checks the `source` field (the cross-scene-type attribution
- * line). Other field mismatches between Playwright and Remotion paths are
- * expected for legacy content (deepseek, distillation, etc.) that was
- * written for Playwright and not yet migrated to Remotion.
+ * line). The HTML path was retired on 2026-09-01 (decision 59); this guard
+ * remains as a source-level lock so the field cannot silently disappear
+ * again from the Remotion components.
  */
 
 import { describe, it, expect } from "vitest";
@@ -57,7 +57,7 @@ describe("Remotion scene parity — source field rendering", () => {
       expect(
         rendersTxtSource(componentPath),
         `${file} does not render txt.source — source attribution is silently dropped in Remotion renders. ` +
-        `Add {txt.source && (<FadeIn delay={1.0}><div style={{fontSize:20,fontWeight:600,color:"#94a3b8",letterSpacing:"1px"}}>{txt.source as string}</div></FadeIn>)} to the support slot. See DataScene.tsx for the pattern.`,
+          `Add {txt.source && (<FadeIn delay={1.0}><div style={{fontSize:20,fontWeight:600,color:"#94a3b8",letterSpacing:"1px"}}>{txt.source as string}</div></FadeIn>)} to the support slot. See DataScene.tsx for the pattern.`,
       ).toBe(true);
     });
   }

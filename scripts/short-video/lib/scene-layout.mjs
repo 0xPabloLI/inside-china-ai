@@ -6,8 +6,8 @@
  *
  * The canvas is divided into fixed vertical slots; every scene composes its
  * content into slots via sceneFrame(). Slots are anchored constants — the
- * same values the DOM verifier (verify-scene-dom.mjs) enforces, so a scene
- * either fits the grid or the pipeline refuses to ship it.
+ * same values the render-time gates enforce (TextGate / safe zones), so a
+ * scene either fits the grid or the pipeline refuses to ship it.
  *
  *   brandHeader 60-200    channel chrome zone (watermark 60-115 / brand bar 140-188)
  *   kickerTitle 220-400   badge / section title

@@ -152,7 +152,7 @@ export const scenes = ${JSON.stringify(merged, null, 2)};
   console.log(`   📁 Output: ${outputPath}`);
   console.log(`   🎬 Total scenes: ${merged.length}`);
   console.log(
-    "   📋 Next step: place the output as content/<dir>/scene-data.mjs (add meta.mjs + scenes.mjs in the same dir), then run node scripts/short-video/main.mjs --content <dir>",
+    "   📋 Next step: place the output as content/<dir>/scene-data.mjs (add meta.mjs in the same dir), then run node scripts/short-video/main.mjs --content <dir>",
   );
   console.log("=".repeat(60));
 }

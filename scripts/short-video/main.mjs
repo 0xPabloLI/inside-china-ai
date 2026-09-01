@@ -20,9 +20,8 @@ import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
-import { recordScenes } from "./lib/record-scenes.mjs";
-import { assembleVideo } from "./lib/assemble.mjs";
 import { renderRemotion } from "./lib/render-remotion.mjs";
+import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
@@ -66,18 +65,16 @@ async function main() {
   }
   const contentPath = `./content/${contentDir}`;
 
-  let meta, scenes, generateScene;
+  let meta, scenes;
   try {
     const metaMod = await import(`${contentPath}/meta.mjs`);
     meta = metaMod.meta;
     const dataMod = await import(`${contentPath}/scene-data.mjs`);
     scenes = dataMod.scenes;
-    const scenesMod = await import(`${contentPath}/scenes.mjs`);
-    generateScene = scenesMod.generateScene;
   } catch (e) {
     console.error(`❌ Failed to load content pipeline: ${contentPath}`);
     console.error(`   ${e.message}`);
-    console.error(`   Ensure content/${contentDir}/ has meta.mjs, scene-data.mjs, scenes.mjs`);
+    console.error(`   Ensure content/${contentDir}/ has meta.mjs + scene-data.mjs`);
     process.exit(1);
   }
 
@@ -104,12 +101,16 @@ async function main() {
   console.log(`   Content: ${meta.title || contentDir}`);
   console.log(`   Pipeline ID: ${meta.pipelineId}`);
   console.log(`   Version: ${version}`);
-  // ── Renderer selection ──
-  // Default: Remotion (better quality). Opt out with --playwright or meta.renderer="playwright".
-  const useRemotion = !process.argv.includes("--playwright") && meta.renderer !== "playwright";
-  console.log(
-    `   Renderer: ${useRemotion ? "Remotion (React → frame-by-frame)" : "Playwright (HTML → screen record)"}`,
-  );
+  // ── Renderer guard ──
+  // The HTML/Playwright path was retired (decision 59): Remotion is the only
+  // renderer. Fail fast before any real work on attempts to opt back in.
+  try {
+    assertRemotionRenderer({ argv: args, meta });
+  } catch (e) {
+    console.error(`❌ ${e.message}`);
+    process.exit(1);
+  }
+  console.log(`   Renderer: Remotion (React → frame-by-frame)`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
   // ── Pre-Render Verification (validates scene-data against SKILL.md rules) ──
@@ -340,12 +341,8 @@ async function main() {
   // ── Isolated output directory ──
   const outputDir = join(__dirname, "output", meta.pipelineId);
   const audioDir = join(outputDir, "audio");
-  const videoDir = join(outputDir, "video");
-  const scenesDir = join(outputDir, "scenes");
 
-  for (const dir of [audioDir, videoDir, scenesDir]) {
-    mkdirSync(dir, { recursive: true });
-  }
+  mkdirSync(audioDir, { recursive: true });
 
   // ── Step 1: Generate TTS ──
   console.log("📝 Step 1: Generating TTS voiceover...\n");
@@ -353,83 +350,18 @@ async function main() {
   const totalDuration = ttsResults.reduce((s, t) => s + t.duration, 0);
   console.log(`\n  Total voiceover: ${totalDuration.toFixed(1)}s\n`);
 
-  // ── Step 2: Generate HTML scenes (Playwright only) ──
-  const sceneData = [];
-  if (!useRemotion) {
-    console.log("🎨 Step 2: Generating HTML scene templates...\n");
-    for (const scene of scenes) {
-      const tts = ttsResults.find((t) => t.sceneId === scene.id);
-      if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
-
-      const html = generateScene(scene, tts.duration, scene.voiceover);
-      const htmlPath = join(scenesDir, `scene-${scene.id}.html`);
-      writeFileSync(htmlPath, html);
-
-      sceneData.push({
-        sceneId: scene.id,
-        htmlPath,
-        duration: tts.duration,
-        audioPath: tts.audioPath,
-      });
-      console.log(`  Scene ${scene.id} (${scene.name}): ${tts.duration.toFixed(1)}s`);
-    }
-    console.log();
-  } else {
-    console.log("🎨 Step 2: Skipped (Remotion renders React components directly)\n");
-    for (const scene of scenes) {
-      const tts = ttsResults.find((t) => t.sceneId === scene.id);
-      if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
-      sceneData.push({
-        sceneId: scene.id,
-        duration: tts.duration,
-        audioPath: tts.audioPath,
-      });
-    }
+  // ── Step 2: Validate every scene received a TTS result ──
+  for (const scene of scenes) {
+    const tts = ttsResults.find((t) => t.sceneId === scene.id);
+    if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
   }
 
-  // ── Step 2.5: DOM layout verification (Playwright only) ──
-  if (!useRemotion) {
-    const skipDomCheck = process.argv.includes("--skip-dom-check");
-    if (skipDomCheck) {
-      console.log("📐 Step 2.5: DOM layout verification skipped (--skip-dom-check)\n");
-    } else {
-      console.log("📐 Step 2.5: Verifying scene DOM layout (safe zones)...\n");
-      try {
-        execSync(`node "${join(__dirname, "verify-scene-dom.mjs")}" --content "${contentDir}"`, {
-          stdio: "inherit",
-        });
-      } catch {
-        console.error(
-          "\n❌ DOM layout verification FAILED — scene content enters a TikTok safe zone.",
-        );
-        console.error(
-          "   Fix the scene layout (slot system, docs/brand-system.md), or bypass with",
-        );
-        console.error("   --skip-dom-check (escape hatch only, not recommended).");
-        process.exit(1);
-      }
-      console.log();
-    }
-  } else {
-    console.log("📐 Step 2.5: Skipped (Remotion uses declarative React layout)\n");
-  }
-
-  // ── Step 3: Record/Render videos ──
-  let videoResults = null;
-  if (!useRemotion) {
-    console.log("📹 Step 3: Recording scene videos with Playwright...\n");
-    videoResults = await recordScenes(sceneData, videoDir);
-    console.log();
-  } else {
-    console.log("📹 Step 3: Skipped (Remotion renders in Step 5)\n");
-  }
-
-  // ── Step 3.5: Select background music (optional, --bgm flag) ──
+  // ── Step 3: Select background music (optional, --bgm flag) ──
   const useBGM = process.argv.includes("--bgm");
   const bgmFileOverride = getArg("bgm-file");
   let bgmPath = null;
   if (useBGM) {
-    console.log("🎵 Step 3.5: Selecting background music...\n");
+    console.log("🎵 Step 3: Selecting background music...\n");
     bgmPath = selectBGM(meta.pipelineId, bgmFileOverride);
     if (bgmPath) {
       console.log(`  🎵 BGM: ${bgmPath.split("/").pop()}`);
@@ -438,7 +370,7 @@ async function main() {
       console.log("  ⚠️  No BGM file found — skipping\n");
     }
   } else {
-    console.log("🎵 Step 3.5: BGM skipped (use --bgm to enable)\n");
+    console.log("🎵 Step 3: BGM skipped (use --bgm to enable)\n");
   }
 
   // ── Step 4: Generate ASS subtitles from word-level timing ──
@@ -473,34 +405,20 @@ async function main() {
     console.log();
   }
 
-  // ── Step 5: Assemble/Render final video ──
-  let result;
-  if (useRemotion) {
-    console.log("🔧 Step 5: Rendering final video with Remotion...\n");
-    result = renderRemotion({
-      scenes,
-      audioPaths: ttsResults.map((t) => t.audioPath),
-      durations: ttsResults.map((t) => t.duration),
-      outputDir,
-      pipelineId: meta.pipelineId,
-      contentDir: resolve(__dirname, "content", contentDir),
-      subtitlesPath: subtitles?.assPath ?? null,
-      bgmPath,
-      version,
-      subject: meta.subject,
-    });
-  } else {
-    console.log("🔧 Step 5: Assembling final video with FFmpeg...\n");
-    result = assembleVideo(
-      videoResults,
-      outputDir,
-      meta.pipelineId,
-      bgmPath,
-      subtitles?.assPath ?? null,
-      version,
-      meta.subject,
-    );
-  }
+  // ── Step 5: Render final video ──
+  console.log("🔧 Step 5: Rendering final video with Remotion...\n");
+  const result = renderRemotion({
+    scenes,
+    audioPaths: ttsResults.map((t) => t.audioPath),
+    durations: ttsResults.map((t) => t.duration),
+    outputDir,
+    pipelineId: meta.pipelineId,
+    contentDir: resolve(__dirname, "content", contentDir),
+    subtitlesPath: subtitles?.assPath ?? null,
+    bgmPath,
+    version,
+    subject: meta.subject,
+  });
 
   // ── Step 6: Verify subtitles with auto-retry (optional, --skip-verify to skip) ──
   const skipVerify = process.argv.includes("--skip-verify");

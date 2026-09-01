@@ -16,7 +16,7 @@
  *     skipped anyway.
  *
  * Does NOT auto-modify scene-data — the user reviews the report and manually
- * fills the `media` field in scenes.mjs.
+ * fills the `media` field in scene-data.mjs.
  *
  * @module asset-sourcer
  */

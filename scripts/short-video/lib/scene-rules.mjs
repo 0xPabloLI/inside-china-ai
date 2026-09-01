@@ -100,7 +100,7 @@ export function checkHookVisualType(scenes) {
 }
 
 /**
- * Hook focal contract (hookScene, lib/scene-templates.mjs): Scene 1 must
+ * Hook focal contract (HookScene, remotion/src/scenes/HookScene.tsx): Scene 1 must
  * carry EXACTLY one focal — bigNumber (number-led) or hookText (claim-led).
  * Both present or both absent = fail. Legacy line1/line2 shapes carry
  * neither key, so they fail with a migration pointer (spec:
@@ -128,7 +128,7 @@ export function checkHookContract(scenes) {
         category: "Structure",
         check: "Hook focal contract",
         detail: "bigNumber and hookText both present",
-        fix: "Keep ONE focal: texts.bigNumber (number-led) or texts.hookText (claim-led) — see hookScene() contract in lib/scene-templates.mjs (docs/archive/spec-hook-opening-card.md)",
+        fix: "Keep ONE focal: texts.bigNumber (number-led) or texts.hookText (claim-led) — see the HookScene docblock in remotion/src/scenes/HookScene.tsx (docs/archive/spec-hook-opening-card.md)",
       },
     ];
   }
@@ -139,7 +139,7 @@ export function checkHookContract(scenes) {
         category: "Structure",
         check: "Hook focal contract",
         detail: "missing focal",
-        fix: "Add texts.bigNumber (number-led) or texts.hookText (claim-led) — see hookScene() contract in lib/scene-templates.mjs (docs/archive/spec-hook-opening-card.md). Legacy line1/line2 hooks must migrate to the hookText/revealText contract",
+        fix: "Add texts.bigNumber (number-led) or texts.hookText (claim-led) — see the HookScene docblock in remotion/src/scenes/HookScene.tsx (docs/archive/spec-hook-opening-card.md). Legacy line1/line2 hooks must migrate to the hookText/revealText contract",
       },
     ];
   }
@@ -174,7 +174,7 @@ export function checkCTAVisualType(scenes) {
 
 /**
  * Last CTA scene must carry the standardized action slot (end-card contract,
- * see ctaScene() in lib/scene-templates.mjs): texts.action is the amber stamp
+ * see CtaScene in remotion/src/scenes/CtaScene.tsx): texts.action is the amber stamp
  * copy that renders on the final frame. Missing action = end card without a
  * call-to-action, which the shared template would render empty.
  */
@@ -207,7 +207,7 @@ export function checkCTAActionContract(scenes) {
       category: "Structure",
       check: "CTA action contract",
       detail: "Last CTA scene is missing texts.action",
-      fix: 'Add `action: "FOLLOW FOR MORE"` (or the series variant, e.g. "FOLLOW FOR PART 2") to the last scene\'s texts — see ctaScene() contract in lib/scene-templates.mjs',
+      fix: 'Add `action: "FOLLOW FOR MORE"` (or the series variant, e.g. "FOLLOW FOR PART 2") to the last scene\'s texts — see the CtaScene docblock in remotion/src/scenes/CtaScene.tsx',
     },
   ];
 }
@@ -1397,16 +1397,10 @@ const REMOTION_VISUAL_TYPES = new Set([
 ]);
 
 export function checkVisualTypeWhitelist(scenes, opts = {}) {
-  const renderer = opts?.meta?.renderer ?? "remotion";
-  if (renderer !== "remotion") {
-    return [
-      {
-        level: "pass",
-        category: "Structure",
-        check: "visualType whitelist — skipped (Playwright renderer)",
-      },
-    ];
-  }
+  // Remotion is the only renderer since the HTML/Playwright path was retired
+  // (decision 59); the whitelist always applies. `opts` is kept for call-site
+  // compatibility and no longer carries a renderer opt-out.
+  void opts;
   const results = [];
   for (const scene of scenes) {
     if (REMOTION_VISUAL_TYPES.has(scene.visualType)) continue;
@@ -1415,7 +1409,7 @@ export function checkVisualTypeWhitelist(scenes, opts = {}) {
       category: "Structure",
       check: `Scene ${scene.id} visualType in Remotion dispatch table`,
       detail: `"${scene.visualType}" is not in the Remotion component set and will silently render as narrative`,
-      fix: `Map scene ${scene.id} to one of: ${[...REMOTION_VISUAL_TYPES].join(", ")}. (Legacy Playwright-only pipelines may set meta.renderer="playwright" to skip this check.)`,
+      fix: `Map scene ${scene.id} to one of: ${[...REMOTION_VISUAL_TYPES].join(", ")}.`,
     });
   }
   if (results.length === 0) {
@@ -1484,8 +1478,7 @@ export function checkMediaStrategyContract(scenes) {
       optedOut.push(scene.id);
       continue;
     }
-    const prompt = scene.aiVideo?.prompt;
-    if (typeof prompt !== "string" || prompt.trim() === "") {
+    if (generatingPrompt(scene) === null) {
       missingPrompt.push(`${scene.id} (${strategy})`);
     }
   }
@@ -1523,6 +1516,111 @@ export function checkMediaStrategyContract(scenes) {
   return engaged
     ? [{ level: "pass", category: CATEGORY, check: CHECK, detail: "B-roll strategies valid" }]
     : [];
+}
+
+/**
+ * NEGATIVE clauses the 8-dimension template treats as fixed defaults, grouped
+ * by what each one guards against. A prompt must cover every group.
+ *
+ * FACE is deliberately absent: no existing prompt declares it, so requiring it
+ * would warn on every scene and train the reader to ignore the warning. Add it
+ * here once a real face artifact shows up in a generated clip.
+ *
+ * Key order is the reporting order, so a new group is a one-line change.
+ */
+const NEGATIVE_GROUPS = {
+  TEXT: [
+    "no text",
+    "no letters",
+    "no words",
+    "no captions",
+    "no labels",
+    "no writing",
+    "no typography",
+    "no lettering",
+    "no signage",
+  ],
+  HANDS: ["no hands", "no hand", "no fingers", "no people", "no person"],
+  ARTIFACT: ["no watermark", "no logo", "no signature", "no overlay"],
+};
+
+// Arabic numerals only — spelled-out counts ("Two parallel lanes") are a
+// legitimate way to describe the number of things on screen.
+const NUMERAL_PATTERN = /\d+(?:\.\d+)?/g;
+
+// Word boundaries matter: a plain substring match would credit "no texture"
+// with text protection.
+function coversNegativeGroup(prompt, phrases) {
+  return phrases.some((phrase) => new RegExp(`\\b${phrase}\\b`, "i").test(prompt));
+}
+
+// The prompt that will actually reach the generator, or null when the scene
+// never generates. Shared with the strategy-contract check so both agree on
+// which scenes they are talking about.
+function generatingPrompt(scene) {
+  if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) return null;
+  const prompt = scene.aiVideo?.prompt;
+  if (typeof prompt !== "string" || prompt.trim() === "") return null;
+  return prompt;
+}
+
+/**
+ * Check the two things about an opted-in b-roll prompt that a machine can
+ * judge: NEGATIVE group coverage, and stray Arabic numerals. The other six
+ * dimensions stay on the agent — a template cannot write them for you.
+ *
+ * Silent for scenes that never generate (no generating strategy, or a blank
+ * prompt the contract check already fails) and for clean prompts: a warn-only
+ * rule has nothing to say when nothing is wrong.
+ */
+export function checkBrollPromptDimensions(scenes) {
+  const CHECK = "B-roll prompt dimensions";
+  const CATEGORY = "Media";
+  const results = [];
+
+  for (const scene of scenes) {
+    const prompt = generatingPrompt(scene);
+    if (prompt === null) continue;
+
+    const missing = Object.keys(NEGATIVE_GROUPS).filter(
+      (group) => !coversNegativeGroup(prompt, NEGATIVE_GROUPS[group]),
+    );
+
+    const problems = [];
+    const fixes = [];
+
+    if (missing.length > 0) {
+      const suggestions = missing
+        .map((group) => {
+          const words = NEGATIVE_GROUPS[group].slice(0, 2).map((w) => `"${w}"`);
+          return `${group}: ${words.join(" / ")}`;
+        })
+        .join("; ");
+      problems.push(`missing NEGATIVE coverage for: ${missing.join(", ")}`);
+      fixes.push(`Add a NEGATIVE clause for each missing group — ${suggestions}`);
+    }
+
+    const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
+    if (numerals.length > 0) {
+      problems.push(`contains Arabic numerals (${numerals.join(", ")})`);
+      fixes.push(
+        "Move data values into texts — T2V garbles glyphs; " +
+          "an element count (e.g. '3 layers') is fine as-is",
+      );
+    }
+
+    if (problems.length === 0) continue;
+
+    results.push({
+      level: "warn",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene ${scene.id} prompt ${problems.join("; ")}`,
+      fix: fixes.join(" "),
+    });
+  }
+
+  return results;
 }
 
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
@@ -1568,6 +1666,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkVisualTypeWhitelist(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaStrategyContract(scenes),
+    ...checkBrollPromptDimensions(scenes),
   ];
 
   return {
