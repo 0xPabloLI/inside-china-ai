@@ -31,14 +31,17 @@
 
 ## Session Workflow
 
-1. **Decision: which workflow?**
-   - **Lightweight**（检查、解释、常规工作）：直接进行，不需要加载额外 skill。
-   - **UI/UX 设计任务**: 用 `impeccable` skill。
-   - **做视频内容**（写 scene-data、跑管线、发布）：走 `docs/content-pipeline.md`，不走 Spec/Tickets/TDD。改视频管线代码（`lib/`、`remotion/src/`）则走 Substantial。
-   - **Substantial implementation**（改 repo 基础代码：`src/`、`supabase/`、`scripts/short-video/lib/`、`remotion/src/`）：按以下 Mandatory Implementation Workflow 执行。
+1. **Decision: which workflow?**（先定档，再动手；**档位由影响面决定，文件数与行数只是提示，不作定档依据**）
+   - **Trivial** — 同时满足：无行为变化（typo/注释/格式）；单文件；不新增/升级依赖 → 直接改 → **最窄相关检查**（自查 diff + 跑受影响的最小验证，如相关断言/`npm run lint`）→ commit（遵循 Commit Cadence）。
+   - **Small** — 不满足 Trivial，但**全部满足**：无跨模块契约/API/schema/RLS 变化；不触碰持久化、权限、安全面；不新增/升级依赖、不改 CI/部署配置；不碰 High-Risk Areas；不改视频管线核心（`scripts/short-video/lib/`、`remotion/src/`）→ 轻量流程：想清楚最佳改法 → 有关键逻辑则 TDD（**实现 + 测试多文件属正常 Small，不因文件数升档**）→ Runtime Verify → commit。跳过 Grill/Spec/Tickets/Code Review。
+   - **Substantial** — 触及上述任一门槛；依赖新增/升级或 CI/部署配置变更；或 **Small 执行中途发现触及门槛 → 见升级协议** → 完整 Mandatory Implementation Workflow。
+   - **升级协议（Small → Substantial）**：立即停止编辑；**不 stash、不丢弃、不提交未完成工作**；补齐 Grill/Spec/Tickets 后从断点继续；仅**已独立完成并验证**的原子改动可按 Cadence 保留 commit。
+   - **UI/UX 设计任务**：用 `impeccable` skill（改动本身按上述路由；混合任务取最高档或按档位拆分）。
+   - **做视频内容**（写 scene-data、跑管线、发布）：走 `docs/content-pipeline.md`，不走 Spec/Tickets/TDD；改管线代码走 Substantial。
+   - **边界判定**：拿不准向上升档（宁 Substantial 勿 Small，宁 Small 勿 Trivial）。
 2. **Git safety**: never run `stash` related commands without explicit user confirmation in current chat. `checkout`/`switch` 分支切换见 Cross-Branch Workflow（绝对禁止）。
 3. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
-4. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
+4. **Mandatory implementation workflow**（**仅路由为 Substantial 时执行**；Trivial/Small 按其档位执行对应检查，不进入本 workflow）：Substantial session 必须走完以下工作流，不得跳步：
 
    > **Context Hygiene**：Step 1-4 必须保持在同一个 unbroken context window 中。Grilling 的推理过程是 spec 和 tickets 的 primary source，压缩会丢失「为什么」。如果 session 接近 smart zone（~150k tokens），在最近的 phase boundary（Step 1-3 完成后，或 Step 4 内某个 ticket 完成后）做 `/compact`。压缩前必须将当前 ticket 的 checklist 状态落盘——在 ticket 文件中把已完成的项从 `- [ ]` 改为 `- [x]`，这是压缩安全的唯一方式：context 会丢，文件不会。
 
@@ -59,7 +62,7 @@
    6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。改动涉及 `scripts/short-video/` 管线逻辑（`lib/`、`main.mjs`、`render-only.mjs`）时，还需执行 **Real Data Smoke Test**：用至少一个已有 content 目录的真实数据（timing JSON、scene-data、TTS 音频）跑一次被改动的函数或管线步骤，验证输出符合预期。Mock 测试全绿 ≠ 真实数据通过——text-align.py 尾部截断、音频格式差异等只在真实数据中暴露。如果找不到已有真实数据，必须标注"无真实数据可用"并说明原因。
    7. **Commit & Push** — 通过验证后 commit + push（遵循 Commit Cadence 规则）。
    8. **更新相关文档及 Issue** — 同步更新 docs、Linear issue 状态。**Spec/Ticket/Review 归档**：将本次工作使用的 `spec-*.md` 和 `tickets-*.md` 移到 `docs/archive/`；将 `*-review.md` 移到 `docs/archive/reviews/`；更新 `docs/archive/README.md` 归档清单。Specs、tickets 和 reviews 是 ephemeral 文档——实施/审查期间存在，完成后归档。详见 `docs/DOCS-INDEX.md` 的 Spec/Ticket/Review Lifecycle 章节。
-   9. **Session 结束验证** — 在 session 结束前，逐条确认 Step 1-8 全部完成。**未完成的步骤必须当场补做或显式标注为"跳过 + 原因"**。确认清单：
+   9. **Session 结束验证**（**仅 Substantial session 适用**；Trivial/Small session 的结束验证 = 档位对应检查：Trivial 为最窄相关检查 + commit，Small 为 Runtime Verify + commit）— 在 session 结束前，逐条确认 Step 1-8 全部完成。**未完成的步骤必须当场补做或显式标注为"跳过 + 原因"**。确认清单：
       - [ ] Step 1 Grill 完成（有 spec 或对话记录佐证）
       - [ ] Step 1b Prototype Detour（如执行，有 prototype 分支或结论引用；如跳过，标注"无需"）
       - [ ] Step 2 Spec 完成（有 spec 文件，含 Scenario Matrix）
@@ -129,6 +132,7 @@ Stack 级约定（路由、server functions、env/secrets、RLS、storage、emai
 - **Auth gating**: `src/routes/_authenticated/route.tsx` + `admin.tsx` 的 `isAdmin` 检查 — 两层 gating 必须一致。
 - **Post rendering**: `src/routes/posts.$slug.tsx` + `src/components/markdown-content.tsx` — Markdown 渲染 + SEO meta。
 - **Supabase migrations**: `supabase/migrations/` — schema 变更需谨慎，不可逆操作需确认。
+- **Agent 治理文件**: `AGENTS.md`、workflow/skill 路由文档、上下文指针 — 规则源头，影响所有后续 session，任何修改一律 Substantial。
 
 ## Media Asset Placement (图片/视频/音频素材存放)
 
