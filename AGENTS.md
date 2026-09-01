@@ -44,6 +44,8 @@
 
    > **文档改动门槛**：在 Step 1–4 或 Step 8 创建或改动 `docs/` 内容前，按 Coding Conventions → `writing-for-agents 强制加载` 判定并执行。步骤内不重复判定规则。
 
+   > **Skill / Subagent 降级**：Step 1–5 依赖的 skill（`grill-with-docs`、`to-spec`、`to-tickets`、`implement`）或 subagent 不可用时，主 agent 直接自己执行该步骤。判定信号：skill 不在可用列表；subagent 缺少该步骤必需的工具（例：`code-review` 需要 shell 执行 `git diff`，只读型 subagent 拿不到 diff，只能按文件内容推断）；或 subagent 返回的结论是推断而非真实产物。降级后 step 的完成标准不变——不跳过、不降低要求，并在最终汇报标注「Step N 降级为主 agent 执行 + 原因」。
+
    1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案（v1.2：grilling 采用 round-based design tree，每轮批量提问 + 推荐答案，等用户回答后进入下一轮）。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
 
    1b. **Prototype Detour（可选）** — 当 grilling 中某个问题需要 runnable answer（状态模型是否合理、UI 长什么样）时，detour：`/handoff` 出去 → fresh session 中 `/prototype` → `/handoff` 回来。Prototype 生成单个自包含 HTML 文件（logic）或单一路由多变体（UI），保存在 `prototype/<name>` 分支作为 primary source。回到主线后引用 prototype 结论。
