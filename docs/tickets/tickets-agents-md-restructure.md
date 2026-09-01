@@ -47,13 +47,13 @@
 
 **Blocked by:** T1。
 
-- [ ] red 走查：场景 9、10、15（对现行文本）——「给出修改方案前」触发不到研究/建议场景
-- [ ] `## PSR` 章节按 spec 草案改写（co-location，单章节）
-- [ ] Grill 入口 + Spec 前两处短指针
-- [ ] 新建 `docs/conventions/fact-verification.md`（第 4 条操作程序全量：源码链/CLI 链/定价查询/维护状态 4 步）
-- [ ] 三查：PSR 措辞两处指针与章节一致；fact-verification.md 信息点逐字段来自原第 4 条；`ls` 验证
-- [ ] green 走查：场景 9、10、15 全过
-- [ ] commit（显式列路径）
+- [x] red 走查：场景 9、10、15（对现行文本）——「给出修改方案前」触发不到研究/建议场景
+- [x] `## PSR` 章节按 spec 草案改写（co-location，单章节）
+- [x] Grill 入口 + Spec 前两处短指针
+- [x] 新建 `docs/conventions/fact-verification.md`（第 4 条操作程序全量：源码链/CLI 链/定价查询/维护状态 4 步）
+- [x] 三查：PSR 措辞两处指针与章节一致；fact-verification.md 信息点逐字段来自原第 4 条；`ls` 验证
+- [x] green 走查：场景 9、10、15 全过
+- [x] commit（显式列路径）
 
 ## T3 — media/audio 外移 + assets 消歧
 
