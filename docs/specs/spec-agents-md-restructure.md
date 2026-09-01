@@ -71,6 +71,7 @@ AGENTS.md 重构为：路由三档（Trivial/Small/Substantial，影响面定档
 - 测试先行（Grill Q3 采纳）：每个 ticket 先把其对应的矩阵行写成走查清单，对改动前文本执行确认 red，改后 green。不写伪单测。
 - 文档审查三查（AGENTS.md → Coding Conventions → 文档审查三查）作为 T3-T6 的附加断言：跨章节矛盾、指针目标完整性（逐字段）、文件存在性（ls）。
 - 度量：`wc -w` / `wc -c` 为主判据（words ≤1,330，基线 1,778）；行数 ≤200 仅粗护栏。
+- **Reviewer-approved deviation（2026-09-01 第二轮 review 裁定）**：实测 **1,506 words / 21,091 bytes / 178 行**，words 目标 ≤1,330 **未达成**（-15.3%）。reviewer **接受偏差、不授权继续压缩**；本条保留为未达标记录，不得标记为达成。原因：review 轮裁定回填的 in-file 硬规则/触发规则 + `wc -w` 对 CJK 文本低计。
 - `npm run lint:docs` 须通过，但已知其不扫 `docs/proposals/`（已验证 lint-doc-hierarchy.mjs 扫描范围），不作为 proposal/spec 自身完整性的证据。
 - 注意：commit AGENTS.md 会触发 `.githooks` 的 doc-hierarchy lint（staged 检查），属预期行为。
 

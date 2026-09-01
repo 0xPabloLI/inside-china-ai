@@ -34,12 +34,12 @@
 
 **Blocked by:** None（AGENTS.md 首个 ticket，后续 AGENTS.md tickets 串行在其后）。
 
-- [ ] red 走查：场景 1-8、11、12、14（对现行文本）——现行「Lightweight（常规工作）」不可检查、L41「每次」与三档冲突
-- [ ] Step 1 重写（按 spec §Implementation Decisions 路由节全文）
-- [ ] L41 限定 Substantial；Step 9 限定 + Trivial/Small 结束验证行
-- [ ] High-Risk Areas 增治理文件条目；Small 判定引用不枚举
-- [ ] green 走查：场景 1-8、11、12、14 全过；`grep -n "每次改代码"` 无冲突残留
-- [ ] commit（显式列路径；触发 pre-commit doc-hierarchy lint 属预期）
+- [x] red 走查：场景 1-8、11、12、14（对现行文本）——现行「Lightweight（常规工作）」不可检查、L41「每次」与三档冲突
+- [x] Step 1 重写（按 spec §Implementation Decisions 路由节全文）
+- [x] L41 限定 Substantial；Step 9 限定 + Trivial/Small 结束验证行
+- [x] High-Risk Areas 增治理文件条目；Small 判定引用不枚举
+- [x] green 走查：场景 1-8、11、12、14 全过；`grep -n "每次改代码"` 无冲突残留
+- [x] commit（显式列路径；触发 pre-commit doc-hierarchy lint 属预期）
 
 ## T2 — 单一 PSR 章节 + fact-verification.md
 
@@ -113,10 +113,10 @@
 
 - [x] DOCS-INDEX.md 更新（受影响文档的 pointer 关系）
 - [x] `gh issue create`：rollout tracker（#167）（PSR 发布 Gate 出现率、路由命中率；回滚阈值 = Gate 未执行 ≥2 次或路由误判 ≥3 次）
-- [x] PR 创建（#168）
+- [x] ~~PR 创建（#168）~~ #168 含存量 B-roll 代码 commit（验证基准错用本地 main），按 reviewer 裁定以 v2 替代 PR 取代
 - [x] 实测记录：214→178 行；1,778→1,506 words；23,427→21,091 bytes。**偏差**：words 目标 ≤1,330 未达（实际 -15.3%）；原因 = review 轮按裁定回填 in-file 硬规则/触发规则 + wc -w 对 CJK 低计；已在 PR 显式记录
-- [ ] `npm run lint && npm run lint:docs` 通过
-- [ ] commit + push（普通 push，不改写历史）
+- [x] `npm run lint:docs` PASS（每 commit pre-commit 均过）；ESLint 冷跑 >17min CPU 未完成（存量环境问题，已留证）——v2 PR 纯 docs，代码验证正交性成立
+- [x] commit + push：#168 全部 commits 已 push；reviewer 要求范围修正后，改由 v2 分支替代（见下）
 
 ## T7b — 观察期 + 归档（PR merge 后）
 
