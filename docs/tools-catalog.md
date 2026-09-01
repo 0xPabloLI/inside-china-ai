@@ -97,8 +97,8 @@
 - **配置**：全局 MCP 设置（HTTP 模式连 `https://mcp.context7.com/mcp`）
 - **做什么**：查询任意库/框架的最新文档（API 签名、参数、版本变更）
 - **何时用**：验证技术事实（某库 API 是否支持 X 参数、某版本是否已发布）
-- **何时不用**：通用事实验证（用 Tavily 或 web-access CDP）
-- **容错**：Context7 挂了 → Tavily 搜库名 → `web_fetch` 官方文档
+- **何时不用**：通用事实验证（搜索类需求走 AGENTS.md 抓取 fallback 链对应工具）
+- **容错**：Context7 挂了 → 按抓取 fallback 链换源（`web_fetch` 官方文档等），Tavily 须待链路前段失败
 
 ### Tavily MCP — AI 搜索
 
@@ -106,10 +106,10 @@
 - **费用**：免费 1,000 credits/月（无需信用卡；basic search 1 credit，advanced 2 credits）
 - **配置**：全局 MCP 设置（HTTP 远程 `https://mcp.tavily.com/mcp/?tavilyApiKey=...`）+ `.env.local` 存 key
 - **做什么**：AI 搜索引擎，返回结构化结果（title, url, content snippet），不需要 CDP 操作
-- **何时用**：需要快速查一个通用事实，且 Google CDP 操作太慢时
+- **何时用**：仅当 AGENTS.md 抓取 fallback 链（`web_fetch` → `web-access` CDP）走完仍失败时的 AI 搜索
 - **何时不用**：需要登录态/JS 渲染/反爬穿透（用 web-access）；需要深度多源交叉验证（用 web-deep-research）
 - **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用 search-sources/last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
-- **容错**：Tavily 挂了/credits 用完 → `web-access` CDP Google 搜索（慢但无限）
+- **容错**：Tavily 挂了/credits 用完 → 维持 fallback 链前段（`web-access` CDP），无更高优先级替代
 
 ### mcp-search-bridge — Grok 搜索
 
