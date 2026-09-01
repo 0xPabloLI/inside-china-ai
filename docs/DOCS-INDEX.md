@@ -192,6 +192,7 @@ Deep research reports with citations.
 | `video-background-coverage-audit-2026-08-21.md` | 视频背景视觉承载审查结论 — 现状覆盖率、实现缺口与场景级视觉意图建议 |
 | `wechat-rss-tracking-mechanisms.md` | WeChat RSS tracking mechanisms — Wechat2RSS, third-party feeds, verified sources |
 | `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
+| `text-auto-fit-landscape-research.md` | 文本自动适配两轮 deep research — 官方 layout-utils 边界、行业方案对比、官方能力利用审计；spec 决策 57–62（T6 pivot）的决策依据 |
 | `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
 | `tiktok-competitor-intelligence.md` | TikTok competitor intelligence — 16 competitor videos + hashtag frequency, description patterns, self-video analytics (§3) |
 | `tiktok-creator-tools.md` | TikTok Creator Tools evaluation — Creator Academy + Research API integration assessment for pipeline and analytics |

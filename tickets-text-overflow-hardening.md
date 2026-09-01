@@ -124,22 +124,21 @@ Assert 层在稳定帧用统一坐标校验文本与标注绘制边界（含字�
 
 ---
 
-## T6 — HTML 路径管线化 + F8
+## T6 — HTML（Playwright）路径退役 ⚠️ 方向已改（2026-09-01 调研修订，决策 59）
 
-**Blocked by:** T2, T4
+**Blocked by:** 无 ｜ Issue: #147（原标题「HTML 路径管线化 + F8」，scope 已 pivot）
 
-**What to build:** HTML 渲染路径不再假绿：模板只产出 raw，随后在 Chromium 中
-materialize/fit、注入字号、写 final HTML；验证器与录制器消费同一个 final 文件；
-失败抛结构化 `TextFitError` 并终止管线（**不用 `cancelRender()`**）。
+**为什么改方向**：调研确认 15/15 内容包均不使用 playwright renderer（`--playwright`
+仅手工旗标），HTML 路径是零消费者 legacy；且「Remotion 与 HTML 共享同一份几何判定」
+是自建 fit 内核的主要动机，路径退役后该约束消解（详见 spec 决策 57–62 与
+`docs/research/text-auto-fit-landscape-research.md`）。原「管线化 + F8」方案作废。
+**#154（HTML 字号契约）随本票关闭为过时。**
 
-- [ ] `generateScene` 只产出 raw HTML（不再承担测量）
-- [ ] Chromium materialize：`fonts.ready` + settled 后执行 Fit/Assert
-- [ ] Fit 结果以内联 style 注入并写入 final HTML
-- [ ] 验证器改为**只读 final 文件**（删除重新生成的逻辑）；final 缺失 → FAIL
-- [ ] 录制器 `page.goto` 同一个 final 文件
-- [ ] HTML 失败抛结构化 `TextFitError`（与 Remotion 错误结构一致）并终止管线
-- [ ] **F8**：Fit 未落盘 → 红；Fit 内联落盘 + 单一产物 → 绿
-- [ ] 存量 HTML 内容包渲染冒烟（至少 1 个）
+- [ ] `main.mjs` / `render-only.mjs`：`--playwright` 旗标改为 fail-fast 报错（指向退役说明）
+- [ ] 移除/归档 `lib/record-scenes.mjs`、`verify-scene-dom.mjs` 及 main.mjs HTML 分支
+- [ ] 15 个内容包的 `scenes.mjs` 退役处理（与 `lib/scene-templates.mjs` 等 HTML 积木一并评估归档或删除）
+- [ ] 回归哨兵：Remotion 路径全量测试 + `_gate-smoke` 冒烟保持全绿（确认退役零外溢）
+- [ ] `docs/content-pipeline.md` / `docs/video-workflow.md` 移除 HTML 路径描述
 
 ---
 
@@ -232,3 +231,22 @@ s9 不再出现中部空洞；补齐后的垂直空间由契约与缩字优先�
 - [ ] `docs/brand-system.md` / `docs/video-workflow.md` 同步契约引用
 - [ ] spec / tickets / review 归档到 `docs/archive/`，更新 `docs/archive/README.md`
 - [ ] 关联 issue #141 收尾
+
+---
+
+## T12 — Fit 内核替换为官方 `@remotion/layout-utils`（2026-09-01 调研修订新增，决策 57/62）
+
+**Blocked by:** T5（需 28 门测试 + 冒烟基线在位当回归哨兵）｜ Issue: 待建（新 session 创建）
+
+**What to build:** `fitGroup` 的单字段缩字阶梯换为官方 `fitText`（单行）/
+`fitTextOnNLines`（多行，如需），保留外层编排（shrinkOrder、minSize 硬下限、EPS）
+与终态验证（Range 几何）。这是「已绿代码的等价替换」——先存档基线再动手。
+**Assert 层（ink/标注/逐帧/容器）不动**（决策 58：官方与行业均无等价物）。
+
+- [ ] 基线存档：现有 28 门测试 + `_gate-smoke` 冒烟结果记录在案（替换前全绿）
+- [ ] Times 900 大写连字场景实测官方 `fitText` 线性外推误差；超 EPS 则线性外推后接一步二分精化（决策 57）
+- [ ] `fitGroup` 内核替换；`text-geometry.mjs` 中被官方覆盖的阶梯代码删除，ink/坐标变换保留（决策 58）
+- [ ] 新增契约测试：官方 `fitText` 输出必须通过本项目终态验证（防官方行为漂移）
+- [ ] 全部既有门测试 + 冒烟全绿（决策 62）
+- [ ] 契约单测补锁定 `validateFontIsLoaded` 开启（字体未加载 → throw，与 font-timeout 语义合并）
+- [ ] 已知局限写入代码注释：官方多行函数按空格分词，中文场景失效 → 见低优先级 issue（决策 60）

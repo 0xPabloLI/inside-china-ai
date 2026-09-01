@@ -2,13 +2,15 @@
 
 > **本文件是导航层，不是方案本身。** 它追踪 T1–T11 的实施进度、记录本 session 做了什么、告诉下一 session 从哪开始。
 > 所有最终决策、验收标准、场景矩阵都在下面的「源文档」里 —— 读那些，别在这里找细节。
-> 创建：2026-08-31 ｜ 父 issue #141 ｜ 已关闭 #142/#143/#144/#145/#146/#148，余下 #147/#149–#152 + #153/#154 开放。
+> 创建：2026-08-31 ｜ 父 issue #141 ｜ 已关闭 #142/#143/#144/#145/#146/#148/#154（过时），余下 #147（已 pivot）/#149–#153 + #165（中文分词，最低优先级）开放。
 
 ---
 
 ## 0. TL;DR
 
-- **进度：6 / 11 完成**（T1 / T2 / T3 / T4 / T5 / T7）。下一步 = **T6（HTML 管线化 + F8，#147）**；T8/T9/T10 已解除阻塞（只等 T5）可任选。
+- **进度：6 / 11 完成**（T1 / T2 / T3 / T4 / T5 / T7）。下一步 = **T6（#147，已 pivot：HTML/Playwright 路径退役 + Fit 内核换官方 `fitText`）**；T8/T9/T10 已解除阻塞可任选。
+- **2026-09-01 调研驱动方向修订（决策 57–62，全部经用户确认）**：两轮 deep research + 官方能力利用审计 → 推翻决策 26（「layout-utils 本票不必用」）与原 T6 方向。依据：`docs/research/text-auto-fit-landscape-research.md`；决策全文：spec「T6 方向修订」章节。
+- 修订核心：① 自建缩字内核换官方 `fitText`（保留终态验证，官方不验证）；② HTML 路径零消费者 → 退役而非管线化；③ #154 关闭为过时；④ 中文分词缺陷立 #165 最低优先级。
 - T5 交付：9 模板 + 全屏媒体 source 逐字段接入 TextGate；`REMOTION_SLOT_MAP` 四分类 + 实测宽度回填；`_gate-smoke` 冒烟包全管线渲染通过（1109 帧 / 37.1s）；commit `8a024e5`。
 - T5 冒烟暴露并修复 **6 类失败**（入场/转场假阳性 → 断言改无 transform 布局盒；QuoteScene verified badge 反转嵌套），全部有回归测试锁定；28 门测试全绿。
 - **全量测试：2394 passed，3 failed**。3 个失败仍是 **#153 存量 preflight**（verify-guard-cli，按依赖顺序刻意延后）。
@@ -21,8 +23,9 @@
 | 文档                                                            | 角色                                                            | 何时读                 |
 | --------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
 | `tickets-text-overflow-hardening.md`                            | **ticket 清单 + 逐条验收 checklist**（本 session 状态以它为准） | 第一                   |
-| `spec-text-overflow-hardening.md`                               | 11-ticket 拆分依据 + 验收标准                                   | 接 T4 前               |
+| `spec-text-overflow-hardening.md`                               | 11-ticket 拆分依据 + 验收标准（**含「T6 方向修订」决策 57–62**） | 接 T6 前               |
 | `docs/handoffs/handoff-text-overflow-fix-proposal.md`           | 方案 v3.3（自包含，方向已批准）                                 | 想理解"为什么"时       |
+| `docs/research/text-auto-fit-landscape-research.md`             | 两轮 deep research：官方边界 + 行业方案 + 能力利用审计          | 接 T6 前（决策 57–62 依据） |
 | `docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md` | 五轮 review 存档（阻断项如何被解决）                            | 怀疑某决策时           |
 | `docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md`        | R2：黑帧时间轴 A2 / 缺媒体门控 / 圆标注碰撞阈值 的**权威真源**  | 改时间轴或媒体 gate 前 |
 | `docs/brand-system.md`                                          | 字号 / 字体栈 / 安全区契约                                      | 改样式前               |
@@ -44,15 +47,15 @@
 
 ---
 
-## 3. 下一 session 启动：T6（#147）
+## 3. 下一 session 启动：T6（#147，已 pivot）+ 决策 57 换官方内核
 
-**读这些文件**（按序）：`tickets-text-overflow-hardening.md` §T6 → `spec-text-overflow-hardening.md`（§ T4 Implementation Refinement 决策 18–38 + § T5 Implementation Refinement 决策 39–56，**含冒烟驱动修正**）→ `lib/text-geometry.mjs`（纯几何层，HTML 路径直接复用）→ `lib/text-slots.mjs`（`HTML_SLOT_MAP` + `REMOTION_SLOT_MAP`）→ `lib/render-remotion.mjs`（TextFitError payload 提取通道，HTML 路径照抄此格式）。
+**读这些文件**（按序）：`tickets-text-overflow-hardening.md` §T6（新 checklist）→ `spec-text-overflow-hardening.md`（「T6 方向修订」决策 57–62，**先读这段再读决策 18–56**）→ `docs/research/text-auto-fit-landscape-research.md`（官方边界与官方能力利用审计）→ `lib/text-geometry.mjs`（待换内核的缩字阶梯所在）。
 
 **要点**：
 
-- HTML 路径直接 throw 同一 `TextFitError` 类（不用 `cancelRender`）；纯层 `fitGroup`/`FIT_REASONS` 已就位。
-- T5 冒烟的最大教训：**单场景测试全绿 ≠ 全管线通过**（入场动画在 settledFrame 后仍在运动、场景转场横移都只在顺序全量渲染中暴露）。T6 落地后同样需要一次全管线冒烟。
-- TextGate 断言已定稿为「入场窗口 + settled 容器断言用无 transform 布局盒，settled 文本/标注用 drawn 几何」（见 spec 决策 56）；HTML 路径无入场动画，可直接用 drawn 几何。
+- T6 新 scope = 退役：`--playwright` 旗标 fail-fast、移除/归档 `record-scenes.mjs` + `verify-scene-dom.mjs` + main.mjs HTML 分支、内容包 `scenes.mjs` 退役处理、回归哨兵全绿、文档同步。原「Chromium materialize/fit + final HTML」方案作废。
+- 决策 57 可与 T6 同 session 或单独一票：**只换单字段缩字内核**（`fitGroup` 内）为官方 `fitText`，外层编排（shrinkOrder、minSize、EPS）与终态验证（Range 几何）不动；替换前先实测 Times 900 大写连字场景线性外推误差，超 EPS 则接一步二分精化；回归哨兵 = 28 门测试 + `_gate-smoke` 冒烟全绿（决策 62）。
+- T5 冒烟的最大教训仍适用：**单场景测试全绿 ≠ 全管线通过**——决策 57 落地后同样需要一次全管线冒烟。
 - T8/T9/T10 也已解除阻塞（只等 T5），可任选：T8 highlight 结构化（17 处迁移）、T9 media-overlay + s9 视觉（含 stacked-cards 背景透出问题）、T10 剩余 fixture + Hook 圆修复。
 - 冒烟包再生：`node scripts/short-video/.scratch-gate-smoke-audio.mjs`（content 资产 gitignored，新机器需先跑它合成音频+占位图）→ `node render-only.mjs --content _gate-smoke`。
 
@@ -65,24 +68,26 @@
 ```
 T4(#145) ─┬─→ T5(#146) ─┬─→ T8(#149) ─┐
            │             ├─→ T9(#150) ─┤
-           └─→ T6(#147) ─┘             ├─→ T10(#151) ─→ T11(#152)
+           └─→ T6(#147,pivot) ─┘        ├─→ T10(#151) ─→ T11(#152)
                                          │
 T7(#148, done) ─────────────────────────┘
 #153(存量 preflight) ← 依赖 T2 已 done + T7 已 done，可现在回填
-#154(HTML/Remotion 字号契约统一) ← T2 已定义契约但 HTML 模板未消费，待 T6 落地
+#154(HTML/Remotion 字号契约) ← 已关闭为过时（决策 59，HTML 路径退役）
+#165(中文空格分词) ← 最低优先级；决策 57（换官方内核）不阻塞任何票
 ```
 
 | Ticket                            | Issue     | Blocked by | 一句话                                                          |
 | --------------------------------- | --------- | ---------- | --------------------------------------------------------------- |
 | T4 Fit/Assert 核心                | #145 ✅   | —          | 已完成（`080a6c2`）：几何判定 + 触底 cancelRender + 逐帧 Assert |
 | T5 Remotion 模板接入 + F1/F2/F3   | #146 ✅   | T2✅,T4✅  | 已完成（`8a024e5`）：10 文本源接入 + 冒烟包全管线通过           |
-| T6 HTML 管线化 + F8               | #147 OPEN | T2✅,T4✅  | Chromium materialize/fit，单一 final 产物                       |
+| T6 HTML 路径退役（已 pivot）      | #147 OPEN | 无         | `--playwright` fail-fast + 归档 HTML 积木 + 回归哨兵全绿        |
+| 决策 57 Fit 内核换官方 `fitText`   | 随 T6 或单独 | 无      | 只换单字段缩字内核；先实测线性外推误差（决策 62 哨兵）      |
 | T8 highlight {field,text} + 17 处 | #149 OPEN | T2✅,T5✅  | 标什么亮什么，子串校验                                          |
 | T9 media-overlay + s9             | #150 OPEN | T2✅,T5✅  | 补 action/context；s9 视觉待修                                  |
 | T10 F4/F6/F7/F9 + 圆修复          | #151 OPEN | T4✅,T5✅  | 四 fixture；Hook 圆 `box="inside"` 240                          |
 | T11 端到端 + 归档                 | #152 OPEN | 几乎全部   | qwen4 重渲染 + 存量清单 + 归档                                  |
 | #153 存量 preflight 全红          | #153 OPEN | T2,T7      | 14/15 包缺 layout / visualType 不在派发表                       |
-| #154 字号路径不一致               | #154 OPEN | T2         | HTML 80px→64px 已做；模板未吃契约                               |
+| #165 中文空格分词                 | #165 OPEN | —          | 官方多行函数对无空格文本失效；现文案英文，最低优先级          |
 
 ---
 
@@ -112,7 +117,8 @@ T7(#148, done) ─────────────────────�
 - **stacked-cards 视觉**（T9）：Remotion 的 stacked-cards 分支没清空媒体背景，s9 仍透出 s8 的 qwen-throughput 图。数据层已对，视觉层未完。
 - **s9 左缘 ink overhang（待调查，非 ticket）**：R2 §3.3 报告 s9 左缘 `G` 字疑似 ink overhang（初版推测 = 衬线回退字体左 bearing 为负 + 容器 `overflow:hidden`）。本地浏览器实测**未复现** G 左侧 overhang，根因不成立，降为待调查现象。该现象将由 **T4 的 ink-bound（F9）机制**落地后照亮 —— T4 完成后回看本项：若 ink-bound 能稳定测到左 overhang 则据此修，否则维持待调查、不入 ticket（非阻断）。权威真源：`docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md` §3.3。
 - **#153 回填规则**：有 media → media 依赖型布局（overlay/bottom-bar/split）；无 media → `stacked-cards`。回填前先确认 T7 的 gate 已就位（已就位）。
-- **#154**：T2 定义了字号契约（`getSlot` / `fitCandidates`），但 HTML 模板仍硬编码字号、未消费契约。T6 落地 HTML Fit 时一并接。
+- **#154 已关闭为过时**（2026-09-01，决策 59）：HTML 路径退役后「字号契约统一」失去对象。
+- **#165（最低优先级）**：官方 `fillTextBox`/`fitTextOnNLines` 按空格分词，中文文案会误判溢出；现文案英文不受影响，引入中文时才触发。
 - **#164（环境）**：`npm run lint` 被 `experiments/fastvideo-spike/repo/.venv` 拖死（45+ 分钟不收敛）。在修复前，Step 6 用 scoped eslint（显式列改动路径）替代全量。
 
 ---
@@ -156,4 +162,5 @@ ffmpeg -ss 53 -i output/qwen4-preview/<file>.mp4 -frames:v 1 -y /tmp/s9.png
 - [x] 工作树干净（文档演进 + SPACING 修复已提交）
 - [x] 本 handoff 文档创建（每 session 更新）
 - [x] 下一 session（#1）：从 T4 (#145) 起 —— 已完成，见 §2/§3
-- [ ] 后续 session（#2…N）：T6(#147)→T10(#151)→T11(#152) + T8/T9(#149/#150) + #153/#154，按 §4 依赖图推进。**预计多个 session**（每个 ticket 都是 substantial 改动，不是 1 个 session 能收口）；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）
+- [x] 调研修订 session（2026-09-01）：两轮 deep research + 官方能力审计 → 决策 57–62 落盘（spec/tickets）；#147 改名 pivot、#154 关闭、#165 立票；未改任何代码（用户要求文档先行，新 session 再实施）
+- [ ] 后续 session（#2…N）：T6(#147, 退役) + 决策 57（换官方内核）→ T10(#151) → T11(#152) + T8/T9(#149/#150) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）

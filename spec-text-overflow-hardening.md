@@ -314,7 +314,55 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
 
 ---
 
+## T6 方向修订（2026-09-01 调研驱动修订，全部经用户确认）
+
+依据两轮 deep research（`docs/research/text-auto-fit-landscape-research.md`）与官方能力利用审计。
+**推翻决策 26**（「layout-utils 本票不必用」）与 T6/#154 原方向；不推翻 T1–T5 任何已交付决策。
+
+**调研事实（决策依据）**
+
+- 官方 `@remotion/layout-utils` 四函数（measureText / fitText / fillTextBox /
+  fitTextOnNLines，共 266 行，已装 4.0.517）覆盖「文本+宽度 → 求字号」；官方 skill 的
+  `measuring-text.md` 将其定义为标准模式。T1 验收本就含「产出 fitText 评估」，决策 26 是
+  T5 期的延期判断，现解除。
+- 官方边界（本地源码 + 最新文档双源验证）：`fitText` 100px 采样线性外推、**不做终态验证**；
+  无 minFontSize 参数（官方示例调用方自行 `Math.min` 封顶）；`fillTextBox`/
+  `fitTextOnNLines` 按 `text.split(' ')` 空格分词（中文失效）；不覆盖 ink 字形外溢、
+  标注越界、逐帧断言、容器溢出、结构化失败。
+- 行业交叉：Motion Canvas 需手写动态字号；CSS container queries 不感知文本长度；
+  `auto-text-size` 等社区库与自建模式同构（二分 + 收敛后二次验证 + 亚像素修正）；
+  字形溢出是跨渲染栈公认缺口（Flutter 引擎注释、univer 斜体裁切修复），无框架官方处理。
+- 官方能力利用审计：TransitionSeries / calculateMetadata / rough-notation / @remotion/effects
+  均已正常使用；layout-utils 是本 epic 唯一被搁置的核心官方能力。15/15 内容包不用
+  playwright renderer，HTML 路径是零消费者 legacy。
+
+**决策**
+
+57. Fit 内核换官方实现：`fitGroup` 的单字段缩字阶梯换为 `fitText`（单行）/
+    `fitTextOnNLines`（多行，如需）；保留外层编排（shrinkOrder、minSize 硬下限、EPS）
+    与**终态验证**（Range 几何）——官方不验证结果，验证层是闸门本体。
+    替换前先实测 Times 900 大写连字场景的线性外推误差；超 EPS 则线性外推后接一步二分精化。
+58. Assert 层不动：ink 四方向 / 标注 overdraw / 入场逐帧 / 容器溢出——官方与行业均无等价物，
+    且非误读（最新 `fitText` API 仍无此能力）。`text-geometry.mjs` 的 ink 公式、坐标变换与
+    TextGate 断言栈全部保留。
+59. HTML（Playwright）渲染路径退役：零消费者；`--playwright` 分支、`record-scenes.mjs`、
+    `verify-scene-dom.mjs`、各内容包 `scenes.mjs` 按新 T6 scope 退役；原「管线化 + F8」
+    方案作废，**#154（HTML 字号契约）关闭为过时**。连带效果：user story 13
+    （两路径共享几何判定）约束消解，自建 fit 内核的双路径共享动机消失 → 强化决策 57。
+60. 中文空格分词问题：官方多行函数对无空格文本整段判溢出。现文案为英文不受影响；
+    立独立 issue（最低优先级），引入中文文案时才触发。
+61. opentype.js / fontkit 确定性字形测量（`Glyph.getBoundingBox`，无 DOM）记录为 ink 层
+    未来备选（若转向非 DOM 渲染）；现 `actualBoundingBox*` 是浏览器原生方案且已被测试锁定，
+    本次不采纳。
+62. 回归哨兵：决策 57 是「已绿代码的等价替换」——替换前存档现有 28 门测试 + `_gate-smoke`
+    冒烟基线，替换后全绿 + 全管线冒烟一次通过才算完成。
+
+---
+
 # Scenario & Risk Verification
+
+> **修订注（决策 59）**：下表 `verify-scene-dom.mjs` 行已作废（随 HTML 路径退役）；
+> `main.mjs` 行中「HTML 走新管线」同作废，gate 部分仍有效。
 
 ## Section 1: Modified Files Impact
 
@@ -326,8 +374,8 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
 | `scripts/short-video/remotion/src/scenes/*.tsx`（9 个）                              | 接入 Fit/Assert + `data-text-*` 注册                                                         | Medium                                                                   | 逐模板接入 + 逐模板帧审计；FullscreenMedia 一并接入                                                                                                          |
 | `scripts/short-video/remotion/src/scenes/NarrativeScene.tsx`                         | MediaOverlay 补 action/context；highlight 子串切分                                           | Medium                                                                   | 补字段改变垂直空间 → 由 slot `maxHeight` 与缩字优先级兜底（F5/总高用例）                                                                                     |
 | `scripts/short-video/lib/scene-templates.mjs`                                        | 字号/容器取契约值；模板声明 slot ID 全集                                                     | Medium                                                                   | 影响 15 个生产内容包外观；逐包批量校验出清单后再改                                                                                                           |
-| `scripts/short-video/lib/verify-scene-dom.mjs`                                       | 删除重新 `generateScene`，改为只读 final HTML                                                | Medium                                                                   | 之前验的是"另一份 HTML"，改后可能暴露历史隐藏问题 → 正收益；由 F8 验证                                                                                       |
-| `scripts/short-video/main.mjs`                                                       | Step 1.5 后调用 final-media gate；HTML 走新管线                                              | **High**（主流程）                                                       | 门控阶段化后 preflight 不再阻断 sourcing；最坏后果：缺素材视频渲染出空洞 → gate 在渲染前 FAIL 拦截                                                           |
+| `scripts/short-video/lib/verify-scene-dom.mjs`                                       | ~~删除重新 `generateScene`，改为只读 final HTML~~ **已作废（决策 59：随 HTML 路径退役）** | —                                                                        | —                                                                                                                                                            |
+| `scripts/short-video/main.mjs`                                                       | Step 1.5 后调用 final-media gate；~~HTML 走新管线~~（作废，决策 59）                         | **High**（主流程）                                                       | 门控阶段化后 preflight 不再阻断 sourcing；最坏后果：缺素材视频渲染出空洞 → gate 在渲染前 FAIL 拦截                                                           |
 | `scripts/short-video/render-only.mjs`                                                | 渲染前调用同一 gate                                                                          | Medium                                                                   | 无 sourcing 阶段，直接按文件存在性判定                                                                                                                       |
 | `scripts/short-video/lib/scene-rules.mjs`                                            | 预算降为 WARN + 推导；highlight 子串校验；缺媒体 pending                                     | Medium                                                                   | 门槛放松（FAIL→WARN）是有意的：真实判定交给几何层；由 F1 反证                                                                                                |
 | `scripts/short-video/__tests__/remotion-timeline.test.mjs`                           | 重写（当前断言恒真）                                                                         | Low                                                                      | 纯测试文件                                                                                                                                                   |
