@@ -20,6 +20,8 @@ export default defineConfig({
           exclude: [
             "**/focus-smoke.test.mjs",
             "**/focus_detector.test.mjs",
+            // Vendored spike checkouts ship their own test suites; never collect them.
+            "**/experiments/**",
             "**/node_modules/**",
           ],
         },
@@ -27,10 +29,7 @@ export default defineConfig({
       {
         test: {
           name: "subprocess",
-          include: [
-            "**/focus-smoke.test.mjs",
-            "**/focus_detector.test.mjs",
-          ],
+          include: ["**/focus-smoke.test.mjs", "**/focus_detector.test.mjs"],
           // Real Python subprocess tests must run serially to avoid
           // resource contention (OpenCV, Python venv contention).
           fileParallelism: false,

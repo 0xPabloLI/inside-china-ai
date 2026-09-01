@@ -116,7 +116,10 @@ function spawnPython() {
 
   const proc = spawn(PYTHON_BIN, [PYTHON_SCRIPT], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env },
+    // Offline by default: both VLMs are in the local HF cache; without this
+    // every spawn pays a revision check to huggingface.co. HF_HUB_OFFLINE=0
+    // opts back in.
+    env: { ...process.env, HF_HUB_OFFLINE: process.env.HF_HUB_OFFLINE || "1" },
   });
 
   // Line buffer for stdout
@@ -387,13 +390,15 @@ function processQueue() {
  * - criticalEdgeText (string | null) — images only
  * - reason (string | null) — images only
  * - window ({ startMs, endMs, sampleFps } | undefined) — videos only, when opts provided
- * - sourceMode ("native" | "frames" | "degraded" | undefined) — videos only
+ * - sourceMode ("frames" | "degraded" | undefined) — videos only; analysis
+ *   always runs on ffmpeg-extracted frames
+ * - relevance (int 0-100 | null) / relevanceReason — claim mode only
  *
  * On any failure (VLM unavailable, parse error, timeout), resolves with
  * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
- * @param {{startMs?: number, endMs?: number, sampleFps?: number}} [opts] - Optional time window (video only)
+ * @param {{startMs?: number, endMs?: number, sampleFps?: number, claim?: {voiceover: string, assetNeed: string}}} [opts] - Optional time window (video only) and scene claim (relevance judging)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
  *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
  *   window?: {startMs: number, endMs: number, sampleFps: number},

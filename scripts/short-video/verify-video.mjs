@@ -25,6 +25,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
+import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 
@@ -341,6 +342,26 @@ if (scenesWithMedia.length > 0) {
   }
 } else {
   pass("Media", "No media backgrounds (all CSS)", "");
+}
+
+// ─── B-roll stage summary (shared: pre-render + post-render) ───
+// The report is keyed by content dir — the same path generate-broll.mjs and
+// main.mjs Step 1.5d write to, unlike the pipelineId output dir above. B-roll
+// winners live in memory at render time, so this block, not the media checks,
+// is what HITL sees about generated clips. Silent when nothing ran.
+const brollLines = summarizeBrollReport(
+  readReport(join(__dirname, "output", contentDir, "b-roll-report.json")),
+  {
+    fileExists: (file) => existsSync(join(CONTENT_DIR_ABS, "assets", "b-roll", file)),
+  },
+);
+if (brollLines.length > 0) {
+  console.log("\n🎬 B-roll Checks");
+  console.log("─".repeat(50));
+  for (const line of brollLines) {
+    if (line.level === "pass") pass("B-roll", line.check, line.detail);
+    else warn("B-roll", line.check, line.detail, line.fix);
+  }
 }
 
 // ─── Post-render: Subtitle checks ───

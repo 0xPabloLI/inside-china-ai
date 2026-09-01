@@ -105,15 +105,16 @@ export const scenes = [
     narrativeRole: "R",
     retentionMechanism: "pattern-interrupt",
     layout: "stacked-cards",
-    mediaOptOut: true,
-    // EXPERIMENTAL ai-video asset need (FastMetal/MLX B-roll). Not yet consumed
-    // by asset-sourcer; this field is the real prompt FastVideo runs for the scene.
+    // FIXTURE (spec T8): this scene exercises the B-roll stage end to end —
+    // generate → VLM gate → winner assigned to scene.media in memory.
+    // mediaOptOut was dropped because a scene that asks for generated
+    // background video is by definition not CSS-only. Not a content decision.
+    mediaStrategy: "b-roll",
     aiVideo: {
       prompt:
-        "A glowing 3D bar chart of AI training cost collapsing, nine stacked neon blocks compressing into a single bright block, cinematic data visualization, dark studio background, slow push-in, high detail, no hands.",
+        "One tall glowing vertical bar shrinking down beside one short glowing bar, minimalist bar chart on a dark reflective studio floor, cinematic data visualization, slow push-in, high detail, no text, no letters, no hands.",
     },
-    voiceover:
-      "Here's the number that stings. Training cost just one ninth of Qwen3.7-Plus.",
+    voiceover: "Here's the number that stings. Training cost just one ninth of Qwen3.7-Plus.",
     texts: {
       badge: "PATTERN INTERRUPT",
       company: "THE COST",
@@ -131,6 +132,15 @@ export const scenes = [
     layout: "media-overlay",
     narrativeRole: "R",
     retentionMechanism: null,
+    // FIXTURE (spec T8): exercises the `asset-then-broll` + existing-media
+    // branch — the stage must skip this scene (asset wins, no GPU spent).
+    // The prompt is still required by the contract (spec §3): preflight runs
+    // before Step 1.5 sourcing, so a fallback prompt must exist either way.
+    mediaStrategy: "asset-then-broll",
+    aiVideo: {
+      prompt:
+        "Abstract transformer layers compressing a stream of history, three wide glowing memory channels folding inward while one narrow spotlight channel scans for matches, dark blue tech aesthetic, cinematic slow dolly-in, high detail, no hands.",
+    },
     media: {
       type: "image",
       path: "assets/qwen-architecture.png",
@@ -157,8 +167,7 @@ export const scenes = [
     narrativeRole: "R",
     retentionMechanism: null,
     layout: "hero-center",
-    voiceover:
-      "On SWE-bench Pro it scores 62.5. The best Claude? 53.4. On phones, it dominates.",
+    voiceover: "On SWE-bench Pro it scores 62.5. The best Claude? 53.4. On phones, it dominates.",
     texts: {
       bigNumber: "62.5",
       label: "SWE-BENCH PRO",
@@ -172,11 +181,15 @@ export const scenes = [
     visualType: "narrative",
     narrativeRole: "R",
     retentionMechanism: null,
-    // EXPERIMENTAL ai-video asset need (FastMetal/MLX B-roll) — motion counterpart
-    // to the real assets/qwen-throughput.png diagram in this scene.
+    // FIXTURE (spec T8): exercises the non-destructive branch — a `b-roll`
+    // scene that already has media generates + gates candidates, but the
+    // winner must NOT replace the curated diagram (assignWinner returns false).
+    mediaStrategy: "b-roll",
     aiVideo: {
+      // Round 2 — reason pointed at SUBJECT / VISUAL METAPHOR ("does not
+      // directly depict the ... throughput visual elements").
       prompt:
-        "Streams of text tokens racing through a neural pipeline at high speed, glowing throughput meters climbing and pulsing, dark blue tech aesthetic, cinematic slow orbit, high detail, no hands.",
+        "Two parallel lanes of glowing data particles flowing left to right across a dark studio: the upper lane a wide bright fast flood with long motion streaks, the lower lane a thin dim slow trickle, deep blue and cyan palette, cinematic side-tracking camera moving with the fast lane, high contrast rim lighting, subtle depth of field, no text, no watermark, no hands.",
     },
     layout: "media-overlay",
     media: {
@@ -226,8 +239,7 @@ export const scenes = [
     visualType: "cta",
     narrativeRole: "T-Tell",
     retentionMechanism: null,
-    voiceover:
-      "Qwen4 is coming. Those 6 billion parameters are the blueprint. Follow for more.",
+    voiceover: "Qwen4 is coming. Those 6 billion parameters are the blueprint. Follow for more.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

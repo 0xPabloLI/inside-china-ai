@@ -1034,7 +1034,7 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     mockAnalyzeAssetSemantics.mockResolvedValue({
       ...FULL_SEMANTICS,
-      sourceMode: "native",
+      sourceMode: "frames",
     });
 
     const assets = [
@@ -1045,7 +1045,7 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     // Asset should have window and sourceMode stored
     expect(assets[0].window).toEqual({ startMs: 0, endMs: 8000, sampleFps: 1.0 });
-    expect(assets[0].sourceMode).toBe("native");
+    expect(assets[0].sourceMode).toBe("frames");
   });
 
   it("writes window and sourceMode to asset-analysis.json artifact", async () => {

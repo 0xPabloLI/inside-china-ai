@@ -142,6 +142,56 @@ def test_empty_dict():
     assert should_escalate({}, is_video=False) is True
 
 
+# ─── Claim mode (B-roll gate / relevance judging) ───
+
+CLAIM_VIDEO_RESULT = {
+    **NORMAL_VIDEO_RESULT,
+    "relevance": 70,
+    "relevanceReason": "Directly supports the scene claim.",
+}
+
+
+def test_claim_mode_short_description_no_escalation():
+    """Claim mode: short description + parsed relevance → NO escalation."""
+    result = {**CLAIM_VIDEO_RESULT, "description": "Neon blocks stack up."}
+    assert should_escalate(result, is_video=True, claim_mode=True) is False
+
+
+def test_claim_mode_repetition_no_escalation():
+    """Claim mode: repeated claim nouns + parsed relevance → NO escalation."""
+    result = {**CLAIM_VIDEO_RESULT, "description": "chart chart chart of cost"}
+    assert should_escalate(result, is_video=True, claim_mode=True) is False
+
+
+def test_claim_mode_missing_relevance_escalates():
+    """Claim mode: relevance unparseable (None) → escalate regardless of description."""
+    result = {**CLAIM_VIDEO_RESULT, "relevance": None}
+    assert should_escalate(result, is_video=True, claim_mode=True) is True
+
+
+def test_claim_mode_missing_relevance_key_escalates():
+    """Claim mode: relevance key absent entirely → escalate."""
+    result = {k: v for k, v in CLAIM_VIDEO_RESULT.items() if k != "relevance"}
+    assert should_escalate(result, is_video=True, claim_mode=True) is True
+
+
+def test_claim_mode_empty_description_escalates():
+    """Claim mode: empty description → escalate (even with relevance parsed)."""
+    result = {**CLAIM_VIDEO_RESULT, "description": ""}
+    assert should_escalate(result, is_video=True, claim_mode=True) is True
+
+
+def test_claim_mode_empty_dict_escalates():
+    """Claim mode: empty dict → escalate."""
+    assert should_escalate({}, is_video=True, claim_mode=True) is True
+
+
+def test_non_claim_mode_short_still_escalates():
+    """Non-claim mode must keep the description-length signal (regression guard)."""
+    result = {**NORMAL_VIDEO_RESULT, "description": "Robot walks."}
+    assert should_escalate(result, is_video=True, claim_mode=False) is True
+
+
 if __name__ == "__main__":
     # Run tests directly without pytest
     tests = [
@@ -161,6 +211,13 @@ if __name__ == "__main__":
         ("test_exact_100_chars_no_escalation", test_exact_100_chars_no_escalation),
         ("test_99_chars_escalates", test_99_chars_escalates),
         ("test_empty_dict", test_empty_dict),
+        ("test_claim_mode_short_description_no_escalation", test_claim_mode_short_description_no_escalation),
+        ("test_claim_mode_repetition_no_escalation", test_claim_mode_repetition_no_escalation),
+        ("test_claim_mode_missing_relevance_escalates", test_claim_mode_missing_relevance_escalates),
+        ("test_claim_mode_missing_relevance_key_escalates", test_claim_mode_missing_relevance_key_escalates),
+        ("test_claim_mode_empty_description_escalates", test_claim_mode_empty_description_escalates),
+        ("test_claim_mode_empty_dict_escalates", test_claim_mode_empty_dict_escalates),
+        ("test_non_claim_mode_short_still_escalates", test_non_claim_mode_short_still_escalates),
     ]
 
     passed = 0

@@ -21,10 +21,11 @@ Response format (one line):
 VLM outputs Markdown with ## Section headers. Python parses it via
 parse_markdown_to_dict() — pure string manipulation, no LLM needed.
 
-Video analysis uses Qwen3-VL native video processor (mlx-vlm 0.6.16+ has
-a numpy-based Qwen3VLVideoProcessor that fixes the upstream broadcast_shapes
-bug in transformers). Falls back to ffmpeg frame extraction if native video
-fails.
+Video analysis always runs on ffmpeg-extracted frames (fps=1.0, capped at
+MAX_VIDEO_SECONDS). Native video input was removed: GLM-4.1V never receives
+the pixels of a native video through mlx_vlm.generate — it judges from the
+prompt text alone — so a single frame-based path keeps both cascade tiers
+grounded.
 
 Image preprocessing: images with longest edge > MAX_IMAGE_LONG_EDGE are
 resized to prevent high-resolution hallucinations (probabilistic bug in
@@ -163,7 +164,7 @@ MIN_REPETITION_COUNT = 3
 
 # ─── Cascade Router: escalation logic ───
 
-def should_escalate(parsed_result, is_video=False):
+def should_escalate(parsed_result, is_video=False, claim_mode=False):
     """Determine if the 2B model's output should be escalated to GLM-4.1V-9B.
 
     A pure function that inspects the parsed VLM output and returns True if
@@ -174,11 +175,17 @@ def should_escalate(parsed_result, is_video=False):
     3. Empty description: description is None, empty, or whitespace-only
     4. Repetition: same word/phrase repeated >= 3 times in description
 
+    Claim mode (claim_mode=True, relevance judging for the B-roll gate)
+    replaces signals 1/2/4: claim-driven outputs are inherently short and
+    echo the claim's nouns, so only an empty description or an unparseable
+    relevance (None) escalates.
+
     Args:
         parsed_result: Dict from parse_markdown_to_dict() with keys like
                        description, subjects, contentKind, fit, etc.
         is_video: If True, missing fit is NOT an escalation signal (videos
                   don't have a fit field in their prompt).
+        claim_mode: True when the prompt carried a scene claim.
 
     Returns:
         True if escalation is recommended, False otherwise.
@@ -191,6 +198,10 @@ def should_escalate(parsed_result, is_video=False):
     # Signal 3: Empty / None / whitespace-only description
     if not description or not description.strip():
         return True
+
+    if claim_mode:
+        # The only quality signal that matters here: was a score parseable?
+        return parsed_result.get("relevance") is None
 
     # Signal 1: Short description (< MIN_DESCRIPTION_CHARS chars)
     if len(description) < MIN_DESCRIPTION_CHARS:
@@ -278,6 +289,30 @@ def get_deep_model():
 
 
 # ─── Markdown parser ───
+
+def _parse_relevance_value(body):
+    """Extract a 0-100 integer from a `## Relevance` section body.
+
+    Models don't always emit the bare integer the prompt asks for — observed
+    variants: "70", "**70**", "Score 0\\n<prose>", "0 - <prose>". The first
+    line must BE the score (bare, /100-suffixed, or dash + prose tail);
+    digit-initial prose like "3 examples of charts" or "85 out of 100"
+    fails closed to None — a fabricated score here is how the gate
+    hallucination incident happened.
+    """
+    if not body:
+        return None
+    first_line = body.strip().split("\n", 1)[0].strip().strip("*").strip()
+    match = re.match(
+        r"^(?:score|relevance)?\s*[:\-]?\s*(\d{1,3})(?:\s*/\s*100)?(?:\s*[-–]\s.*)?$",
+        first_line,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    value = int(match.group(1))
+    return value if 0 <= value <= 100 else None
+
 
 def parse_markdown_to_dict(raw_text):
     """Parse VLM Markdown output into a dict with 8 mandatory keys.
@@ -399,14 +434,9 @@ def parse_markdown_to_dict(raw_text):
     else:
         result["reason"] = None
 
-    # relevance — bare integer 0-100 or None (missing/invalid = fail-closed upstream)
+    # relevance — integer 0-100 or None (missing/invalid = fail-closed upstream)
     if "relevance" in raw_sections:
-        rel_match = re.fullmatch(r"\s*(\d{1,3})\s*", raw_sections["relevance"])
-        if rel_match:
-            rel_val = int(rel_match.group(1))
-            result["relevance"] = rel_val if 0 <= rel_val <= 100 else None
-        else:
-            result["relevance"] = None
+        result["relevance"] = _parse_relevance_value(raw_sections["relevance"])
     else:
         result["relevance"] = None
 
@@ -473,13 +503,12 @@ def load_model(model_id):
     return model, processor
 
 
-def generate_response(model, processor, image_paths=None, video_path=None,
-                      fps=VIDEO_FPS, max_frames=None, prompt_text=None):
-    """Generate a text response from image(s) or video.
+def generate_response(model, processor, image_paths=None, prompt_text=None):
+    """Generate a text response from image(s).
 
     Uses mlx_vlm.generate with the specified prompt at temperature 0.0.
     The prompt is formatted via processor.apply_chat_template so that the
-    correct image/video token placeholders are inserted into input_ids.
+    correct image token placeholders are inserted into input_ids.
 
     Args:
         prompt_text: The prompt to use (SEMANTICS_PROMPT_IMAGE or
@@ -489,15 +518,13 @@ def generate_response(model, processor, image_paths=None, video_path=None,
 
     effective_prompt = prompt_text if prompt_text is not None else SEMANTICS_PROMPT_IMAGE
 
-    # Build chat-template-formatted prompt with image/video placeholder
     content = []
-    if video_path is not None:
-        content.append({"type": "video", "video": video_path})
-    if image_paths is not None:
-        if isinstance(image_paths, str):
-            image_paths = [image_paths]
-        for img_path in image_paths:
-            content.append({"type": "image", "image": img_path})
+    if image_paths is None:
+        raise ValueError("image_paths is required")
+    if isinstance(image_paths, str):
+        image_paths = [image_paths]
+    for img_path in image_paths:
+        content.append({"type": "image", "image": img_path})
     content.append({"type": "text", "text": effective_prompt})
 
     messages = [{"role": "user", "content": content}]
@@ -505,29 +532,14 @@ def generate_response(model, processor, image_paths=None, video_path=None,
         messages, tokenize=False, add_generation_prompt=True
     )
 
-    if video_path is not None:
-        # Native video input path
-        response = generate(
-            model,
-            processor,
-            prompt=prompt,
-            video=video_path,
-            fps=fps,
-            max_frames=max_frames,
-            temperature=0.0,
-            verbose=False,
-        )
-    elif image_paths is not None:
-        response = generate(
-            model,
-            processor,
-            prompt=prompt,
-            image=image_paths,
-            temperature=0.0,
-            verbose=False,
-        )
-    else:
-        raise ValueError("Either image_paths or video_path must be provided")
+    response = generate(
+        model,
+        processor,
+        prompt=prompt,
+        image=image_paths,
+        temperature=0.0,
+        verbose=False,
+    )
 
     # mlx_vlm.generate returns a GenerationResult with .text attribute,
     # or a dict with 'text' key, or a plain string.
@@ -733,35 +745,25 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
 
     try:
         if is_video:
-            # Try native video input (mlx-vlm 0.6.16+ has numpy-based
-            # Qwen3VLVideoProcessor that fixes the broadcast_shapes bug).
-            # Fall back to ffmpeg frame extraction if native fails.
+            # Video is always analyzed as extracted frames: GLM-4.1V never
+            # receives the pixels of a native video through mlx_vlm.generate
+            # (it judges from prompt text alone and hallucinates), so a
+            # single frame-based path keeps both cascade tiers grounded.
+            frames = extract_frames(
+                path, fps=sample_fps,
+                max_seconds=MAX_VIDEO_SECONDS,
+                start_ms=start_ms, end_ms=end_ms,
+            )
+            if not frames:
+                return {}, "Frame extraction failed"
             try:
                 raw = generate_response(
-                    model, processor, video_path=path,
-                    fps=sample_fps, prompt_text=prompt_text,
+                    model, processor, image_paths=frames,
+                    prompt_text=prompt_text,
                 )
-                source_mode = "native"
-            except Exception as e:
-                sys.stderr.write(
-                    f"[vlm_analyzer] Native video failed, falling back to frames: {e}\n"
-                )
-                sys.stderr.flush()
-                frames = extract_frames(
-                    path, fps=sample_fps,
-                    max_seconds=MAX_VIDEO_SECONDS,
-                    start_ms=start_ms, end_ms=end_ms,
-                )
-                if not frames:
-                    return {}, "Both native video and frame extraction failed"
-                try:
-                    raw = generate_response(
-                        model, processor, image_paths=frames,
-                        prompt_text=prompt_text,
-                    )
-                finally:
-                    _cleanup_frames(frames)
-                source_mode = "frames"
+            finally:
+                _cleanup_frames(frames)
+            source_mode = "frames"
         else:
             # Image — verify first
             try:
@@ -805,7 +807,7 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
         result["sourceMode"] = source_mode
 
     # ─── Cascade Router: escalate to GLM if 2B output is low-confidence ───
-    if should_escalate(result, is_video=is_video):
+    if should_escalate(result, is_video=is_video, claim_mode=claim is not None):
         sys.stderr.write(
             f"[vlm_analyzer] Escalating to deep model: {DEEP_MODEL_ID}\n"
         )
@@ -816,10 +818,20 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
             try:
                 # Re-run with GLM using the same prompt and asset
                 if is_video:
-                    deep_raw = generate_response(
-                        deep_model, deep_processor, video_path=path,
-                        fps=sample_fps, prompt_text=prompt_text,
+                    deep_frames = extract_frames(
+                        path, fps=sample_fps,
+                        max_seconds=MAX_VIDEO_SECONDS,
+                        start_ms=start_ms, end_ms=end_ms,
                     )
+                    if not deep_frames:
+                        raise RuntimeError("Frame extraction failed for deep model")
+                    try:
+                        deep_raw = generate_response(
+                            deep_model, deep_processor, image_paths=deep_frames,
+                            prompt_text=prompt_text,
+                        )
+                    finally:
+                        _cleanup_frames(deep_frames)
                 else:
                     # For images, apply same preprocessing (crop + resize)
                     # as the 2B path. The temp files from the 2B run are

@@ -1455,6 +1455,76 @@ export function checkAssetNeedAnnotation(scenes) {
   ];
 }
 
+export const MEDIA_STRATEGIES = ["asset", "b-roll", "asset-then-broll"];
+const GENERATING_STRATEGIES = new Set(["b-roll", "asset-then-broll"]);
+
+/**
+ * Contract for the B-roll fields (`mediaStrategy` / `aiVideo.prompt`).
+ * Silent for content that uses neither field, so existing scene-data is
+ * never judged by a rule it does not opt into.
+ */
+export function checkMediaStrategyContract(scenes) {
+  const CHECK = "B-roll strategy contract";
+  const CATEGORY = "Media";
+  const invalid = [];
+  const missingPrompt = [];
+  const optedOut = [];
+  let engaged = false;
+
+  for (const scene of scenes) {
+    if (!scene.mediaStrategy && !scene.aiVideo) continue;
+    engaged = true;
+    const strategy = scene.mediaStrategy;
+    if (strategy && !MEDIA_STRATEGIES.includes(strategy)) {
+      invalid.push(`${scene.id}="${strategy}"`);
+      continue;
+    }
+    if (!GENERATING_STRATEGIES.has(strategy)) continue;
+    if (scene.mediaOptOut === true) {
+      optedOut.push(scene.id);
+      continue;
+    }
+    const prompt = scene.aiVideo?.prompt;
+    if (typeof prompt !== "string" || prompt.trim() === "") {
+      missingPrompt.push(`${scene.id} (${strategy})`);
+    }
+  }
+
+  const results = [];
+  if (invalid.length > 0) {
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `mediaStrategy on scene(s) ${invalid.join(", ")} is not a known strategy`,
+      fix: `Use one of: ${MEDIA_STRATEGIES.join(" | ")} (omitting the field means 'asset')`,
+    });
+  }
+  if (missingPrompt.length > 0) {
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${missingPrompt.join(", ")} request b-roll but have no aiVideo.prompt`,
+      fix: "Add aiVideo.prompt using the 8-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / CAMERA / MOTION / LIGHTING / NEGATIVE) — see docs/video-workflow.md",
+    });
+  }
+  if (optedOut.length > 0) {
+    results.push({
+      level: "warn",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut with a b-roll strategy — generation will be skipped`,
+      fix: "Drop mediaOptOut to let the scene generate B-roll, or keep it for a deliberate CSS-only scene",
+    });
+  }
+  if (results.length > 0) return results;
+
+  return engaged
+    ? [{ level: "pass", category: CATEGORY, check: CHECK, detail: "B-roll strategies valid" }]
+    : [];
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const allChecks = [
@@ -1497,6 +1567,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkTextWidthBudget(scenes),
     ...checkVisualTypeWhitelist(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
+    ...checkMediaStrategyContract(scenes),
   ];
 
   return {

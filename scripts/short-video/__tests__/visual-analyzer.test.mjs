@@ -185,6 +185,51 @@ describe("visual-analyzer module", () => {
       expect(result.reason).toContain("cropped");
     });
 
+    it("spawns the VLM with HF_HUB_OFFLINE=1 by default (cache-only, no version check)", async () => {
+      const prev = process.env.HF_HUB_OFFLINE;
+      delete process.env.HF_HUB_OFFLINE;
+      try {
+        const promise = visualAnalyzer.analyzeAssetSemantics("/abs/path/to/file.jpg");
+
+        await new Promise((r) => setTimeout(r, 10));
+
+        const spawnOpts = mockSpawn.mock.calls[0][2];
+        expect(spawnOpts.env.HF_HUB_OFFLINE).toBe("1");
+        // Rest of the parent environment must still pass through
+        expect(spawnOpts.env.PATH).toBeDefined();
+
+        mockProc.emitStdout(
+          JSON.stringify({ ...DEGRADED, description: "test", error: null }) + "\n",
+        );
+
+        await promise;
+      } finally {
+        if (prev === undefined) delete process.env.HF_HUB_OFFLINE;
+        else process.env.HF_HUB_OFFLINE = prev;
+      }
+    });
+
+    it("honours HF_HUB_OFFLINE=0 from the parent environment (opt-out)", async () => {
+      const prev = process.env.HF_HUB_OFFLINE;
+      process.env.HF_HUB_OFFLINE = "0";
+      try {
+        const promise = visualAnalyzer.analyzeAssetSemantics("/abs/path/to/file.jpg");
+
+        await new Promise((r) => setTimeout(r, 10));
+
+        expect(mockSpawn.mock.calls[0][2].env.HF_HUB_OFFLINE).toBe("0");
+
+        mockProc.emitStdout(
+          JSON.stringify({ ...DEGRADED, description: "test", error: null }) + "\n",
+        );
+
+        await promise;
+      } finally {
+        if (prev === undefined) delete process.env.HF_HUB_OFFLINE;
+        else process.env.HF_HUB_OFFLINE = prev;
+      }
+    });
+
     it("sends analyze_semantics action to Python subprocess", async () => {
       const promise = visualAnalyzer.analyzeAssetSemantics("/abs/path/to/file.jpg");
 
@@ -886,13 +931,13 @@ describe("analyzeAssetSemantics — window parameter (T5)", () => {
         fit: null,
         criticalEdgeText: null,
         reason: null,
-        sourceMode: "native",
+        sourceMode: "frames",
         error: null,
       }) + "\n",
     );
 
     const result = await promise;
-    expect(result.sourceMode).toBe("native");
+    expect(result.sourceMode).toBe("frames");
   });
 
   it("does NOT include window when opts omitted (backward compat)", async () => {
@@ -989,12 +1034,12 @@ describe("analyzeAssetSemantics — window parameter (T5)", () => {
         fit: null,
         criticalEdgeText: null,
         reason: null,
-        sourceMode: "native",
+        sourceMode: "frames",
         error: null,
       }) + "\n",
     );
 
     const result = await promise;
-    expect(result.sourceMode).toBe("native");
+    expect(result.sourceMode).toBe("frames");
   });
 });

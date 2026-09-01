@@ -226,6 +226,89 @@ Wide landscape.
           "fit": None,
           "criticalEdgeText": None,
           "reason": None}),
+
+        # Test 11: Relevance body prefixed with "Score N" — the real 2B
+        # claim-mode output format observed in T8 verification
+        ("test_relevance_score_prefix", """
+## Description
+A series of neon-lit 3D cubes stacked in a vertical column.
+
+## Content Kind
+text_screenshot
+
+## Relevance
+Score 0
+The provided video does not contain any information about AI training cost.
+
+## Relevance Reason
+The video does not match the scene claim in any way.
+""",
+         {"relevance": 0,
+          "relevanceReason": "The video does not match the scene claim in any way."}),
+
+        # Test 12: Relevance body is a bolded integer
+        ("test_relevance_bold_int", """
+## Description
+A glowing bar chart.
+
+## Relevance
+**70**
+""",
+         {"relevance": 70}),
+
+        # Test 13: Relevance body starts with integer then dash + prose
+        ("test_relevance_int_dash_prose", """
+## Description
+A factory floor.
+
+## Relevance
+0 - the video is unrelated to the scene claim
+""",
+         {"relevance": 0}),
+
+        # Test 14: Relevance body is prose with spelled-out numbers —
+        # must fail closed to None (no fabricated score)
+        ("test_relevance_prose_no_int", """
+## Description
+A city skyline.
+
+## Relevance
+The video shows nine blocks but no chart at all.
+""",
+         {"relevance": None}),
+
+        # Test 15: Relevance integer out of range must fail closed
+        ("test_relevance_out_of_range", """
+## Description
+A demo.
+
+## Relevance
+135
+""",
+         {"relevance": None}),
+
+        # Test 16: Digit-initial prose must fail closed — only a number that
+        # IS the score (bare / /100 / dash-prose tail) is trusted; "3
+        # examples…" is prose that happens to start with a digit
+        ("test_relevance_digit_initial_prose", """
+## Description
+A chart.
+
+## Relevance
+3 examples of charts and nothing more
+""",
+         {"relevance": None}),
+
+        # Test 17: "N out of 100" phrasing is prose, not the enumerated
+        # score format — fail closed rather than guess
+        ("test_relevance_out_of_100_prose", """
+## Description
+A demo.
+
+## Relevance
+85 out of 100 for matching the claim
+""",
+         {"relevance": None}),
     ]
 
     passed = 0

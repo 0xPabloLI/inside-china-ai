@@ -153,6 +153,16 @@ async function main() {
     }
   }
 
+  // ── B-roll module (optional) ──
+  // Loaded once so both the Step 1.5 sourcing filter and the Step 1.5d stage
+  // share it. A load failure only disables B-roll; the pipeline keeps running.
+  let broll = null;
+  try {
+    broll = await import("./lib/b-roll/orchestrator.mjs");
+  } catch (e) {
+    console.warn(`⚠️  B-roll stage unavailable: ${e.message}\n`);
+  }
+
   // ── Step 1.5: Asset sourcing (auto-search missing media) ──
   // Triggers asset-sourcer when any non-CTA scene lacks media OR has media path pointing to a missing file.
   // Non-blocking: if search fails, scene renders without media (graceful degradation).
@@ -162,6 +172,8 @@ async function main() {
     // Intentional CSS-only scene: scene-data opts out of auto-sourcing so a
     // rerun cannot re-assign stock imagery to a scene that dropped it.
     if (s.mediaOptOut === true) return false;
+    // A scene that chose pure b-roll must not spend the sourcing budget.
+    if (broll && !broll.shouldSourceStock(s)) return false;
     if (!s.media?.path) return true; // No media field at all → needs sourcing
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     const mediaPath = resolve(contentDirAbs, s.media.path);
@@ -260,9 +272,57 @@ async function main() {
     }
   }
 
+  // ── Step 1.5d: B-roll generation (mediaStrategy opt-in scenes) ──
+  // Runs after upscale on purpose: Tier A clips are 480x832 and must not be
+  // handed to Real-ESRGAN. Winners are assigned in memory only — scene-data is
+  // never rewritten. Non-blocking: any failure leaves the scenes untouched.
+  if (broll) {
+    const pending = broll.scenesRequiringGeneration(scenes);
+    if (pending.length > 0) {
+      console.log(`🎬 Step 1.5d: Generating B-roll for ${pending.length} scene(s)...\n`);
+      try {
+        const { closeVisualAnalyzer } = await import("./lib/visual-analyzer.mjs");
+        let result;
+        try {
+          result = await broll.runBrollStage({
+            scenes,
+            contentSlug: contentDir,
+            contentDir: resolve(__dirname, "content", contentDir),
+            // Report lives beside media-patch.json, keyed by content dir (same
+            // convention the standalone generate-broll.mjs entrypoint uses).
+            outputDir: join(__dirname, "output", contentDir),
+            onProgress: (line) => console.log(line),
+          });
+        } finally {
+          await closeVisualAnalyzer();
+        }
+        if (result.depsError) {
+          console.warn(`⚠️  Step 1.5d: B-roll skipped — ${result.depsError}\n`);
+        } else {
+          const { counts } = result;
+          console.log(
+            `🎬 Step 1.5d: B-roll ${counts.generated} generated, ${counts.cached} cached, ` +
+              `${counts.failed} failed, ${counts.escalated} escalated, ${counts.skipped} skipped`,
+          );
+          if (result.reportFile)
+            console.log(`   Report: ${relative(__dirname, result.reportFile)}`);
+          if (counts.failed > 0 || counts.escalated > 0) {
+            console.log(
+              "   → Rewrite the failing aiVideo prompts (8-dimension template) and rerun.",
+            );
+          }
+          console.log();
+        }
+      } catch (e) {
+        console.warn(`⚠️  Step 1.5d: B-roll stage failed: ${e.message}\n`);
+      }
+    }
+  }
+
   // ── Step 1.6: Final media gate ──
-  // Runs here, after sourcing (1.5), patch application (1.5c) and upscale
-  // (1.5b) — everything that can still supply a missing file has had its turn.
+  // Runs here, after sourcing (1.5), patch application (1.5c), upscale
+  // (1.5b) and B-roll generation (1.5d) — everything that can still supply a
+  // missing file has had its turn.
   // Preflight cannot do this: it runs before Step 1.5 and would block sourcing.
   {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
