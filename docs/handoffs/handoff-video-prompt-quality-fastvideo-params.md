@@ -1,6 +1,6 @@
 # Handoff: 短视频素材 prompt 质量 + FastVideo 生成参数优化
 
-> Created: 2026-08-31 ｜ 状态：**方案已调研清楚，待新 session 实施**
+> Created: 2026-08-31 ｜ 状态：**已实施（2026-09-01）** — 任务 A/B 落地为 B-roll 生成能力（`mediaStrategy` 契约 + Tier A 参数，spec/tickets 归档于 `docs/archive/`）；prompt 质量改为 agent 迭代协议（`docs/video-workflow.md` → Agent prompt-iteration protocol）；任务 C/D 范围外项拆入 GitHub #155–#159
 > 上游 session：在 `scripts/short-video/experiments/fastvideo-spike/` 跑了 FastVideo MLX (Wan 1.3B) 文生视频 spike，
 > 生成了 qwen4-preview 的 3 条 B-roll（path1/scene6、path2/scene5、path2/scene8），并回答了用户两个问题：
 > (1) 有没有专用开源项目/skill 写场景→素材 prompt、推荐什么模型、prompt 要不要更多 context；

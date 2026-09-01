@@ -170,7 +170,7 @@ collectFromSource() 层次：
 | #156 | B-roll follow-up: 垫层合成模式（生成素材垫在真实素材下） | 建议先做 #155 | MediaBackground.tsx, media-bg.mjs, lib/b-roll/orchestrator.mjs, verify-scene-dom.mjs | 现 media 契约每 scene 只有一个素材，b-roll 只能替换不能垫底。夹具 scene 8 现在是「生成 + 过门 + 丢弃」，此 issue 把那笔 GPU 时间变成产出 |
 | #157 | B-roll follow-up: 生成模型横评 | — | lib/b-roll/runner.mjs | incumbent `FastVideo/FastMetal-1.3B-QAD`（Apache-2.0）Tier A 是质量上限，Tier B 在 M3 Max OOM。候选 FastMetal 更高档 / Wan 2.2 / LTX / Helios，先查维护状态与 MPS 路径 |
 | #158 | B-roll follow-up: ComfyUI / MCP 迭代式生成后端 | 建议接 #157 | lib/b-roll/runner.mjs (seam) | 现回路是批次级（一轮 ≥8min 才拿到分数，无法单候选重跑）。接缝已备好：`{jobs} → {ok, results[]}`，门/报告/缓存不感知后端。云端 RunComfy 路线见 `docs/tools-catalog.md`（用户暂不注册账号） |
-| #159 | B-roll follow-up: runner 未透传 `--model-root` | — | lib/b-roll/runner.mjs, b-roll-runner.test.mjs | `buildPythonArgs` 从不传 `--model-root`/`--mlx-checkpoint` → `resolve_model_root(None)` 每批次打 HF `GET /revision/main`，缓存缺件时重下 1.5 GB（用户两次质疑「为什么又下载」）。修法：`BROLL_MODEL_ROOT`/`BROLL_MLX_CHECKPOINT` 透传 + 离线 fail-fast |
+| #159 | B-roll follow-up: runner 未透传 `--model-root` | — | lib/b-roll/runner.mjs, b-roll-runner.test.mjs | `buildPythonArgs` 从不传 `--model-root`/`--mlx-checkpoint` → `resolve_model_root(None)` 每批次打 HF `GET /revision/main`，缓存缺件时重下 1.5 GB（用户两次质疑「为什么又下载」）。修法：`BROLL_MODEL_ROOT`/`BROLL_MLX_CHECKPOINT` 透传 + 离线 fail-fast。**T10 已落地 offline 默认**（spawn 注入 `HF_HUB_OFFLINE=1`，哑端点零网络验证）——联网重下载风险已消，本 issue 剩余范围 = 透传 |
 
 ### Dormant — 触发条件未满足
 

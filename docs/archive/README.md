@@ -17,7 +17,7 @@
 
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
-| `spec-broll-generation-capability.md` / `tickets-broll-generation-capability.md` | 2026-09-01 | B-roll 生成能力 — `mediaStrategy` 契约（asset/b-roll/asset-then-broll）+ FastVideo FastMetal 批跑（T2 runner）+ VLM claim gate（threshold 60 fail-closed）+ won 文件缓存 + 3 轮报告驱动 agent 迭代。T9 VLM 修复：视频一律抽帧分析（native video 无像素到达 GLM-4.1V，判词幻觉）、relevance 宽容解析（观测变体收窄后仍 fail-closed）、claim-mode 升级判据 = relevance 缺失。T10 `HF_HUB_OFFLINE=1` 固化双 spawn 点（`HF_HUB_OFFLINE=0` 退出；哑端点零网络验证）。夹具 scene 5/6/8；scene 5 round-2 重写 won@relevance 80（agent 迭代协议闭环）。mjs 102+242、python 17+23 tests。遗留：成片渲染确认（并行 text-overflow session 的 `stacked-cards.badge` 测量值缺失阻塞，见 ticket T8）；follow-up = GitHub #155–#159 |
+| `spec-broll-generation-capability.md` / `tickets-broll-generation-capability.md` | 2026-09-01 | B-roll 生成能力 — `mediaStrategy` 契约（asset/b-roll/asset-then-broll）+ FastVideo FastMetal 批跑（T2 runner）+ VLM claim gate（threshold 60 fail-closed）+ won 文件缓存 + 3 轮报告驱动 agent 迭代。T9 VLM 修复：视频一律抽帧分析（native video 无像素到达 GLM-4.1V，判词幻觉）、relevance 宽容解析（观测变体收窄后仍 fail-closed）、claim-mode 升级判据 = relevance 缺失。T10 `HF_HUB_OFFLINE=1` 固化双 spawn 点（`HF_HUB_OFFLINE=0` 退出；哑端点零网络验证）。夹具 scene 5/6/8；scene 5 round-2 重写 won@relevance 80（agent 迭代协议闭环）。mjs 102+242、python 17+23 tests。成片渲染确认按用户决定不专门重跑（B-roll 侧证据已绿，随下一个真实内容视频自然验证，见 ticket T8）；follow-up = GitHub #155–#159 |
 | `spec-audio-diagnostics.md` / `tickets-audio-diagnostics.md` | 2026-08-06 | 验证失败诊断包 |
 | `spec-gapless-audio-track.md` / `tickets-gapless-audio-track.md` | 2026-08-06 | 无间隙连续音轨 + 音频同步验证 |
 | `spec-subtitle-karaoke-timeline.md` / `tickets-subtitle-karaoke-timeline.md` | 2026-08-06 | Karaoke 字幕漏词与不同步修复 |
