@@ -73,12 +73,12 @@
 
 **Blocked by:** T3。
 
-- [ ] red 走查：场景 16 + 信息点清单（HITL 强制规则、preflight、--draft 用法、RAG reindex 触发点、skill 矩阵、remotion-markup vs impeccable）
-- [ ] 核对 content-pipeline.md 对概述类信息点的覆盖（L6 管线概览、L61 HITL 已确认存在）；缺口先补目标文档再改指针
-- [ ] skill 矩阵表 + 分工注外移 video-workflow.md；触发规则 3 行留 in-file
-- [ ] 三查
-- [ ] green 走查：场景 16 过；HITL/preflight 仍 in-file 可见
-- [ ] commit（显式列路径）
+- [x] red 走查：场景 16 + 信息点清单（HITL 强制规则、preflight、--draft 用法、RAG reindex 触发点、skill 矩阵、remotion-markup vs impeccable）
+- [x] 核对 content-pipeline.md 对概述类信息点的覆盖（L6 管线概览、L61 HITL 已确认存在）；缺口先补目标文档再改指针
+- [x] skill 矩阵表 + 分工注外移 video-workflow.md；触发规则 3 行留 in-file
+- [x] 三查
+- [x] green 走查：场景 16 过；HITL/preflight 仍 in-file 可见
+- [x] commit（显式列路径）
 
 ## T5 — Web Scraping 外移（Tavily 硬规则留 in-file）
 
