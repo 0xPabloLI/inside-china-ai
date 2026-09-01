@@ -27,13 +27,26 @@ export const RESULT_PREFIX = `${RESULTS_PREFIX} `;
 export const EST_SECONDS_PER_CLIP = 240;
 // 6 clips x ~4-5min + model load + decode margin.
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+// Markers of a packed MLX DiT directory. Mirrors
+// fastvideo.mlx_runtime.checkpoint_compat so a misconfigured
+// BROLL_MLX_CHECKPOINT fails here with a readable message instead of deep
+// inside the python run (or, worse, after a fresh 1.5 GB download).
+const MLX_DIT_MANIFEST = "mlx_dit.json";
+const MLX_DIT_WEIGHTS = "mlx_dit.safetensors";
+
+function isPackedMlxCheckpoint(dir) {
+  return existsSync(join(dir, MLX_DIT_MANIFEST)) && existsSync(join(dir, MLX_DIT_WEIGHTS));
+}
 
 /**
  * Probe FastVideo dependencies. Environment overrides: FASTVIDEO_REPO,
  * FASTVIDEO_PYTHON (an explicit python override is honored strictly — no
- * fallback probing when it is set). Without an override, probes
- * <repo>/.venv/bin/python3 then ~/.video-tts-env/bin/python3.
- * Returns { ok, repo, python, missing[], message }.
+ * fallback probing when it is set), BROLL_MODEL_ROOT, BROLL_MLX_CHECKPOINT
+ * (the last two pin the weights instead of re-resolving the HF cache every
+ * batch). Without an override, probes <repo>/.venv/bin/python3 then
+ * ~/.video-tts-env/bin/python3.
+ * Returns { ok, repo, python, modelRoot, mlxCheckpoint, missing[], message };
+ * modelRoot/mlxCheckpoint are null when unpinned.
  */
 export function resolveDependencies(env = process.env) {
   const repo = env.FASTVIDEO_REPO || DEFAULT_REPO;
@@ -41,24 +54,52 @@ export function resolveDependencies(env = process.env) {
     ? env.FASTVIDEO_PYTHON
     : ([join(repo, ".venv", "bin", "python3"), FALLBACK_PYTHON].find((p) => existsSync(p)) ??
       DEFAULT_PYTHON);
+  const modelRoot = env.BROLL_MODEL_ROOT || null;
+  const mlxCheckpoint = env.BROLL_MLX_CHECKPOINT || null;
   const missing = [];
-  if (!existsSync(repo)) missing.push("repo");
-  if (!existsSync(python)) missing.push("python");
+  const parts = [];
+  if (!existsSync(repo)) {
+    missing.push("repo");
+    parts.push(`FastVideo repo not found at ${repo}`);
+  }
+  if (!existsSync(python)) {
+    missing.push("python");
+    parts.push(`python interpreter not found at ${python}`);
+  }
+  if (modelRoot && !existsSync(modelRoot)) {
+    missing.push("modelRoot");
+    parts.push(`BROLL_MODEL_ROOT not found at ${modelRoot}`);
+  }
+  if (mlxCheckpoint && !isPackedMlxCheckpoint(mlxCheckpoint)) {
+    missing.push("mlxCheckpoint");
+    parts.push(
+      `BROLL_MLX_CHECKPOINT at ${mlxCheckpoint} is not a packed MLX DiT ` +
+        `(expected ${MLX_DIT_MANIFEST} and ${MLX_DIT_WEIGHTS})`,
+    );
+  }
   if (missing.length > 0) {
-    const parts = [];
-    if (missing.includes("repo")) parts.push(`FastVideo repo not found at ${repo}`);
-    if (missing.includes("python")) parts.push(`python interpreter not found at ${python}`);
+    const hints = [];
+    if (missing.includes("repo") || missing.includes("python")) {
+      hints.push(
+        "Set FASTVIDEO_REPO / FASTVIDEO_PYTHON or install the fastvideo-spike environment",
+      );
+    }
+    if (missing.includes("modelRoot") || missing.includes("mlxCheckpoint")) {
+      hints.push(
+        "fix or unset BROLL_MODEL_ROOT / BROLL_MLX_CHECKPOINT to fall back to the HF cache",
+      );
+    }
     return {
       ok: false,
       repo,
       python,
+      modelRoot,
+      mlxCheckpoint,
       missing,
-      message:
-        `${parts.join("; ")}. Set FASTVIDEO_REPO / FASTVIDEO_PYTHON or install ` +
-        `the fastvideo-spike environment; skipping B-roll generation.`,
+      message: `${parts.join("; ")}. ${hints.join("; ")}; skipping B-roll generation.`,
     };
   }
-  return { ok: true, repo, python, missing, message: null };
+  return { ok: true, repo, python, modelRoot, mlxCheckpoint, missing, message: null };
 }
 
 /**
@@ -77,12 +118,21 @@ export function buildPythonArgs(opts) {
     decodeBackend = "taehv",
     dmdDenoisingSteps = "1000,757,522",
     maxSequenceLength = 512,
+    modelRoot = null,
+    mlxCheckpoint = null,
   } = opts;
+  // Omitted when unset so python falls back to resolve_model_root(None), which
+  // reads whatever snapshot the local HF cache already holds.
+  const modelArgs = [
+    ...(modelRoot ? ["--model-root", modelRoot] : []),
+    ...(mlxCheckpoint ? ["--mlx-checkpoint", mlxCheckpoint] : []),
+  ];
   return [
     "--repo",
     repo,
     "--jobs",
     jobsFile,
+    ...modelArgs,
     "--height",
     String(height),
     "--width",
@@ -133,13 +183,18 @@ export function runGeneration(opts) {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     onProgress = null,
     env = process.env,
+    modelRoot = null,
+    mlxCheckpoint = null,
   } = opts;
 
   mkdirSync(workDir, { recursive: true });
   const jobsFile = join(workDir, JOBS_FILENAME);
   writeFileSync(jobsFile, `${JSON.stringify(jobs, null, 2)}\n`, "utf8");
 
-  const args = [scriptPath, ...buildPythonArgs({ repo, jobsFile, height, width })];
+  const args = [
+    scriptPath,
+    ...buildPythonArgs({ repo, jobsFile, height, width, modelRoot, mlxCheckpoint }),
+  ];
 
   return new Promise((resolve) => {
     let stdout = "";

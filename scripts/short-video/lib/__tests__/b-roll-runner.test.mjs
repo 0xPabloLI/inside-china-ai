@@ -50,6 +50,84 @@ describe("resolveDependencies (scenario #11)", () => {
     expect(res.repo).toBe(repo);
     expect(res.python).toBe(python);
   });
+
+  test("#159 no model overrides -> null model paths, still ok", () => {
+    const repo = join(dir, "repo3");
+    writeFileSync(repo, "");
+    const python = join(dir, "python3");
+    writeFileSync(python, "#!/bin/sh\n");
+    const res = resolveDependencies({ FASTVIDEO_REPO: repo, FASTVIDEO_PYTHON: python });
+    expect(res.ok).toBe(true);
+    expect(res.modelRoot).toBeNull();
+    expect(res.mlxCheckpoint).toBeNull();
+  });
+
+  test("#159 BROLL_MODEL_ROOT pointing nowhere -> ok:false naming the path", () => {
+    const repo = join(dir, "repo4");
+    writeFileSync(repo, "");
+    const python = join(dir, "python4");
+    writeFileSync(python, "#!/bin/sh\n");
+    const res = resolveDependencies({
+      FASTVIDEO_REPO: repo,
+      FASTVIDEO_PYTHON: python,
+      BROLL_MODEL_ROOT: join(dir, "no-such-model"),
+    });
+    expect(res.ok).toBe(false);
+    expect(res.missing).toContain("modelRoot");
+    expect(res.message).toContain("no-such-model");
+  });
+
+  test("#159 BROLL_MLX_CHECKPOINT without mlx_dit.safetensors -> ok:false naming the file", () => {
+    const repo = join(dir, "repo5");
+    writeFileSync(repo, "");
+    const python = join(dir, "python5");
+    writeFileSync(python, "#!/bin/sh\n");
+    const empty = mkdtempSync(join(dir, "ckpt-empty-"));
+    const res = resolveDependencies({
+      FASTVIDEO_REPO: repo,
+      FASTVIDEO_PYTHON: python,
+      BROLL_MLX_CHECKPOINT: empty,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.missing).toContain("mlxCheckpoint");
+    expect(res.message).toContain("mlx_dit.safetensors");
+  });
+
+  test("#159 valid overrides -> forwarded verbatim", () => {
+    const repo = join(dir, "repo6");
+    writeFileSync(repo, "");
+    const python = join(dir, "python6");
+    writeFileSync(python, "#!/bin/sh\n");
+    const modelRoot = mkdtempSync(join(dir, "model-"));
+    const ckpt = mkdtempSync(join(dir, "ckpt-"));
+    writeFileSync(join(ckpt, "mlx_dit.json"), "{}");
+    writeFileSync(join(ckpt, "mlx_dit.safetensors"), "");
+    const res = resolveDependencies({
+      FASTVIDEO_REPO: repo,
+      FASTVIDEO_PYTHON: python,
+      BROLL_MODEL_ROOT: modelRoot,
+      BROLL_MLX_CHECKPOINT: ckpt,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.modelRoot).toBe(modelRoot);
+    expect(res.mlxCheckpoint).toBe(ckpt);
+  });
+
+  test("#159 model root without a packed DiT is fine (text encoder/VAE only)", () => {
+    const repo = join(dir, "repo7");
+    writeFileSync(repo, "");
+    const python = join(dir, "python7");
+    writeFileSync(python, "#!/bin/sh\n");
+    const modelRoot = mkdtempSync(join(dir, "model-nodit-"));
+    const res = resolveDependencies({
+      FASTVIDEO_REPO: repo,
+      FASTVIDEO_PYTHON: python,
+      BROLL_MODEL_ROOT: modelRoot,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.modelRoot).toBe(modelRoot);
+    expect(res.mlxCheckpoint).toBeNull();
+  });
 });
 
 describe("buildPythonArgs (scenario #26)", () => {
@@ -81,6 +159,34 @@ describe("buildPythonArgs (scenario #26)", () => {
     const flat = args.join(" ");
     expect(flat).toMatch(/--height 480/);
     expect(flat).toMatch(/--width 832/);
+  });
+
+  test("#159 no model override -> no model flags (still resolves via the HF cache)", () => {
+    const args = buildPythonArgs({ repo: "/r", jobsFile: "/j.json" });
+    expect(args).not.toContain("--model-root");
+    expect(args).not.toContain("--mlx-checkpoint");
+  });
+
+  test("#159 explicit model root + mlx checkpoint are forwarded to python", () => {
+    const args = buildPythonArgs({
+      repo: "/r",
+      jobsFile: "/j.json",
+      modelRoot: "/models/FastMetal-1.3B-QAD",
+      mlxCheckpoint: "/models/FastMetal-1.3B-QAD",
+    });
+    const flat = args.join(" ");
+    expect(flat).toMatch(/--model-root \/models\/FastMetal-1\.3B-QAD/);
+    expect(flat).toMatch(/--mlx-checkpoint \/models\/FastMetal-1\.3B-QAD/);
+  });
+
+  test("#159 each model flag is forwarded independently", () => {
+    const rootOnly = buildPythonArgs({ repo: "/r", jobsFile: "/j.json", modelRoot: "/root" });
+    expect(rootOnly).toContain("--model-root");
+    expect(rootOnly).not.toContain("--mlx-checkpoint");
+
+    const ckptOnly = buildPythonArgs({ repo: "/r", jobsFile: "/j.json", mlxCheckpoint: "/ckpt" });
+    expect(ckptOnly).toContain("--mlx-checkpoint");
+    expect(ckptOnly).not.toContain("--model-root");
   });
 });
 
@@ -291,5 +397,57 @@ describe("runGeneration (scenario #23 + fault tolerance)", () => {
     });
     expect(result.results[0].ok).toBe(true);
     expect(result.results[0].label).toBe("echo-seed1");
+  });
+
+  test("#159 model overrides reach the python argv", async () => {
+    const out = join(dir, "model-args.mp4");
+    const stub = writeStub(
+      "stub-model-args.mjs",
+      `
+      import { writeFileSync } from "node:fs";
+      console.log("[batch] argv=" + process.argv.slice(2).join(" "));
+      writeFileSync(${JSON.stringify(out)}, "fake");
+      console.log('[batch][results] ' + JSON.stringify({ ok: ["model-args"], failed: [] }));
+      `,
+    );
+    const lines = [];
+    await runGeneration({
+      python: process.execPath,
+      scriptPath: stub,
+      repo: dir,
+      workDir: dir,
+      jobs: [{ label: "model-args", prompt: "p", output_path: out, seed: 1 }],
+      modelRoot: "/models/FastMetal-1.3B-QAD",
+      mlxCheckpoint: "/models/FastMetal-1.3B-QAD",
+      onProgress: (line) => lines.push(line),
+    });
+    const argv = lines.find((l) => l.startsWith("[batch] argv=")) ?? "";
+    expect(argv).toContain("--model-root /models/FastMetal-1.3B-QAD");
+    expect(argv).toContain("--mlx-checkpoint /models/FastMetal-1.3B-QAD");
+  });
+
+  test("#159 unpinned models -> no model flags in the python argv", async () => {
+    const out = join(dir, "model-none.mp4");
+    const stub = writeStub(
+      "stub-model-none.mjs",
+      `
+      import { writeFileSync } from "node:fs";
+      console.log("[batch] argv=" + process.argv.slice(2).join(" "));
+      writeFileSync(${JSON.stringify(out)}, "fake");
+      console.log('[batch][results] ' + JSON.stringify({ ok: ["model-none"], failed: [] }));
+      `,
+    );
+    const lines = [];
+    await runGeneration({
+      python: process.execPath,
+      scriptPath: stub,
+      repo: dir,
+      workDir: dir,
+      jobs: [{ label: "model-none", prompt: "p", output_path: out, seed: 1 }],
+      onProgress: (line) => lines.push(line),
+    });
+    const argv = lines.find((l) => l.startsWith("[batch] argv=")) ?? "";
+    expect(argv).not.toContain("--model-root");
+    expect(argv).not.toContain("--mlx-checkpoint");
   });
 });

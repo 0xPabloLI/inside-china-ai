@@ -215,6 +215,11 @@ export async function runBrollStage(opts) {
     jobs,
     workDir: join(outputDir, "b-roll-work"),
     onProgress,
+    // Pinned weights (BROLL_MODEL_ROOT / BROLL_MLX_CHECKPOINT) or null, in
+    // which case the runner resolves the local HF cache snapshot.
+    modelRoot: deps.modelRoot ?? null,
+    mlxCheckpoint: deps.mlxCheckpoint ?? null,
+    env,
   });
 
   const resultsByLabel = new Map((batch.results ?? []).map((r) => [r.label, r]));

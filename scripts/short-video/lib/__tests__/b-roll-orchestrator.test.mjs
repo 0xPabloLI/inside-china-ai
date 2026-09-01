@@ -399,6 +399,62 @@ describe("runBrollStage", () => {
     expect(result.depsError).toMatch(/repo not found/);
   });
 
+  test("#159 pinned model paths resolved by deps reach the runner", async () => {
+    const dirs = stageDirs();
+    const calls = [];
+    const scenes = [scene({ id: "6", mediaStrategy: "b-roll" })];
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        env: { HF_HUB_OFFLINE: "1" },
+        resolveDeps: () => ({
+          ok: true,
+          repo: "/repo",
+          python: "/py",
+          modelRoot: "/models/root",
+          mlxCheckpoint: "/models/ckpt",
+          missing: [],
+          message: null,
+        }),
+        generate: async (opts) => {
+          calls.push(opts);
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0].modelRoot).toBe("/models/root");
+    expect(calls[0].mlxCheckpoint).toBe("/models/ckpt");
+    expect(calls[0].env).toEqual({ HF_HUB_OFFLINE: "1" });
+  });
+
+  test("#159 unpinned models -> runner receives nulls (HF-cache default)", async () => {
+    const dirs = stageDirs();
+    const calls = [];
+    const scenes = [scene({ id: "6", mediaStrategy: "b-roll" })];
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        resolveDeps: () => ({
+          ok: true,
+          repo: "/repo",
+          python: "/py",
+          modelRoot: null,
+          mlxCheckpoint: null,
+          missing: [],
+          message: null,
+        }),
+        generate: async (opts) => {
+          calls.push(opts);
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0].modelRoot).toBeNull();
+    expect(calls[0].mlxCheckpoint).toBeNull();
+  });
+
   test("winner never overwrites existing scene.media", async () => {
     const dirs = stageDirs();
     const { generate } = okGenerateMock();
