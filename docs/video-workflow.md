@@ -99,6 +99,12 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 | 3        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
 | 4        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
 
+**M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
+
+```bash
+ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
+```
+
 **F5-TTS-MLX** (DEFAULT):
 - Voice cloning via reference audio + reference text (zero-shot)
 - Ref audio: `voice-samples/voice-sample-24k.wav`（24kHz mono WAV）
