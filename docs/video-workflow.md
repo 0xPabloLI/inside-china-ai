@@ -106,7 +106,9 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - Model: `lucasnewman/f5-tts-mlx` (HF cache, 1.3GB)
 - **缓存加载必须离线**：`huggingface_hub` 加载模型前默认向 HF 发 etag 检查请求（确认本地缓存是否最新）。
   该请求走系统代理，曾出现连接建立后 9 分钟零数据流动的挂死（qwen4-preview, 2026-08-29）——
-  推理本身是纯本地的，卡死的只是「查更新」。跑管线前 `export HF_HUB_OFFLINE=1`（权重已在缓存时），
+  推理本身是纯本地的，卡死的只是「查更新」。B-roll 生成与 VLM 分析的子进程已默认注入
+  `HF_HUB_OFFLINE=1`（`lib/b-roll/runner.mjs` + `lib/visual-analyzer.mjs`，设 `HF_HUB_OFFLINE=0` 可退出），
+  无需手动 export；TTS 等其余路径仍需跑管线前手动 `export HF_HUB_OFFLINE=1`（权重已在缓存时），
   或先确认代理可用。症状识别：main.mjs 停在 "Loading F5-TTS-MLX model" 超过 3 分钟且
   `nettop` 显示零流量。
 - Max effort: `steps=32`, `cfg_strength=3.0`, `method='rk4'`, `speed=1.0`
@@ -167,6 +169,74 @@ Graceful degradation: if Python or model unavailable, returns empty strings. Pip
 Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 
 > Decisions: ADR-0009 (VLM), ADR-0015 (Focus detection). Alternatives survey: `docs/research/asset-focus-detection-alternatives.md`
+
+## B-roll Generation (FastVideo MLX)
+
+Scene-matched generated video backgrounds, on-device (FastVideo `FastMetal-1.3B-QAD` on MLX — see Checkpoint below). Opt-in per scene; a scene-data file using none of these fields behaves exactly as before.
+
+| Field | Value | Effect |
+| ----- | ----- | ------ |
+| `mediaStrategy` | absent or `"asset"` | stock sourcing only (default) |
+| | `"b-roll"` | skip sourcing, generate 2 candidates |
+| | `"asset-then-broll"` | source first; generate only if the scene ended up without media |
+| `aiVideo.prompt` | string | required whenever the strategy generates — 8 dimensions below |
+
+`verify-video.mjs --pre` enforces the contract (rule `B-roll strategy contract` in `lib/scene-rules.mjs`): an unknown strategy value FAILs, a generating strategy with a missing or blank `aiVideo.prompt` FAILs, and `mediaOptOut: true` on a generating scene WARNs and skips — a deliberate CSS-only scene is a choice, not an error.
+
+**Where it runs**: Step 1.5d of `main.mjs`, after upscale. A 480×832 clip trips the "short side < 720" rule, so the assigned media carries `upscale: false` — that covers both upscale boundaries (Step 1.5b and `render-remotion.mjs`'s copy-to-`public/` step), and a generated clip never reaches Real-ESRGAN. Standalone entrypoint: `node scripts/short-video/generate-broll.mjs --content <dir>` (`--help` lists the flags; `--force` regenerates past the cache, `--scene <id>` targets one scene while iterating on a prompt).
+
+**Non-destructive**: a gated winner is assigned to `scene.media` in memory. `scene-data.mjs` is never rewritten, so every rerun starts from the same declared intent and a content dir shows no diff from the stage alone.
+
+**Report**: `output/<contentDir>/b-roll-report.json` — per scene the strategy, `promptHash`, `round`, status, every candidate with its score and the VLM's reason, and the winner. It is the agent's iteration input. `verify-video.mjs` renders it as the `B-roll Checks` block, which is the only B-roll surface HITL sees; anything short of `won` warns there and never blocks publishing.
+
+### Tier A parameters
+
+Defaults live in `lib/b-roll/runner.mjs`; what the code cannot say is why each one is fixed:
+
+| Parameter | Reason |
+| --------- | ------ |
+| 480×832, 81 frames, 16fps | portrait native — the spike's landscape clips lost both edges to the 9:16 crop |
+| int8 | baked into the checkpoint; there is no runtime quantization flag to set |
+| `taehv` decode | the decoder that fits this footprint |
+| 3-step DMD `1000,757,522` | the distilled schedule; the full one blows the time budget |
+| `maxSequenceLength 512` | the prompt's token budget — a longer prompt truncates silently |
+
+Measured ≈235 s per clip on M3 Max (encode 28.6 + denoise 183.7 + decode 22.3); `EST_SECONDS_PER_CLIP = 240` is what the CLI estimate prints from.
+
+**Tier B** — refine pass, `wan-vae`, full-precision DiT — OOMs on M3 Max. Quality gains come from the prompt, not from these knobs.
+
+In `mlx_wan_batch.py` every job denoises before anything decodes: `taehv` calls `mx.clear_cache()`, which evicts the compiled DiT, so interleaving decode would re-trace per clip. Preserve that ordering.
+
+### Dependencies
+
+| Env var | Default |
+| ------- | ------- |
+| `FASTVIDEO_REPO` | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout) |
+| `FASTVIDEO_PYTHON` | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3` |
+
+The repo-local venv is the working interpreter — `~/.video-tts-env` lacks `cloudpickle`. A `FASTVIDEO_PYTHON` you set yourself is honored as given, with no fallback. When a dependency is missing the stage prints `⚠️ B-roll skipped: …` and the pipeline continues without generated media.
+
+**Checkpoint** — `FastVideo/FastMetal-1.3B-QAD` (base `FastWan2.1-T2V-1.3B-Diffusers`: DMD2-distilled 1.3B Wan 2.1, INT8 quantization-aware) under **Apache-2.0**, so generated clips need no license review before publishing. The weights live in neither the repo checkout nor the venv: the batch script resolves them from the Hugging Face cache through the repo's **current `main` revision**, which means an upstream push silently turns a warm cache into a fresh 1.5 GB download in the middle of a run. Two things that cost a session to learn:
+
+- Keep the cache where it is (`~/.cache/huggingface/hub`). The spike's `--model-root /tmp/fastmetal_model` is gone the next boot — and the run does not say so, it just starts fetching.
+- If that fetch hangs, it is the `xet` transport, not the network (observed: frozen at 142 KB for 14 minutes while plain HTTP pulled 3 MB/s). Re-fetch over HTTP, then rerun: `HF_HUB_DISABLE_XET=1 python -c "from huggingface_hub import snapshot_download; snapshot_download('FastVideo/FastMetal-1.3B-QAD')"`.
+
+The batch script's stdout streams through `generate-broll.mjs` and Step 1.5d as it runs (child launched with `PYTHONUNBUFFERED=1`), so a stalled download and a slow denoise look different: `content/<dir>/assets/b-roll/` appears once job 1 starts.
+
+### The 8-dimension prompt
+
+SUBJECT · VISUAL METAPHOR · BRAND · REFERENCE · CAMERA · MOTION · LIGHTING · NEGATIVE — one clause each. A prompt that only names a subject reproduces the spike's failure mode: generic glow, unrelated to the narration.
+
+Text belongs to the caption layer: `scene.texts` carries numbers and names, and the clip behind it carries none — T2V models garble glyphs. Keep the whole prompt inside the 512-token budget.
+
+### Agent prompt-iteration protocol
+
+The agent rewrites prompts; a human does not. After any run leaves a scene short of `won`:
+
+1. Read the scene's report entry — the prompt, both candidate scores, and the VLM reason.
+2. Attack the dimension the reason points at: off-topic → SUBJECT / VISUAL METAPHOR; watermark or garbled text → NEGATIVE; static or flat → CAMERA / MOTION / LIGHTING.
+3. Re-run `generate-broll.mjs --content <dir> --scene <id>` and read the report again.
+4. `round` counts generations per scene. Past 3 the entry becomes `escalated` and the stage refuses to spend more time on it — surface the escalated scene, its candidates and scores to the user.
 
 ## Logo Handling
 
@@ -232,6 +302,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 scripts/short-video/
 ├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --skip-dom-check, --max-retries)
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
+├── generate-broll.mjs      # Standalone B-roll generation entrypoint (--help)
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
 ├── qwen_tts_batch.py       # Qwen3-TTS batch TTS (fallback engine)
@@ -253,6 +324,12 @@ scripts/short-video/
 │   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
 │   ├── verify-subtitles.mjs # Reads back the .ass and checks it against the alignment data
 │   ├── verify-retry.mjs    # Verify-retry loop: classify failure → repair → re-verify (--max-retries)
+│   ├── b-roll/             # Generated B-roll (FastVideo MLX)
+│   │   ├── orchestrator.mjs # Route by mediaStrategy, cache + rounds, batch, gate, assign winner
+│   │   ├── runner.mjs      # spawn the MLX batch + Tier A defaults + dependency probe
+│   │   ├── mlx_wan_batch.py # Python batch runner (denoise all, decode last)
+│   │   ├── gate.mjs        # VLM relevance gate (threshold 60, fail-closed)
+│   │   └── report.mjs      # b-roll-report.json read/write, promptHash, round rules
 │   ├── audio/
 │   │   ├── wav.mjs         # Mono s16 PCM WAV read/write + ffmpeg decode bridge
 │   │   ├── fft.mjs         # Radix-2 FFT + cross-correlation onset finder

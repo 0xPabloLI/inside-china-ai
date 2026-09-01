@@ -40,7 +40,7 @@
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `series-production-guide.md` | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing | `content-pipeline.md` Stage 3, `video-workflow.md` |
 | `content-scaffold-guide.md` | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style | `video-workflow.md` |
-| `video-workflow.md` | Regular video-production runbook — TTS, rendering, verify, file paths, publishing strategy | AGENTS.md |
+| `video-workflow.md` | Regular video-production runbook — TTS, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3 |
 | `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
 | `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽） | — |
