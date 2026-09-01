@@ -113,6 +113,7 @@ T7(#148, done) ─────────────────────�
 - **s9 左缘 ink overhang（待调查，非 ticket）**：R2 §3.3 报告 s9 左缘 `G` 字疑似 ink overhang（初版推测 = 衬线回退字体左 bearing 为负 + 容器 `overflow:hidden`）。本地浏览器实测**未复现** G 左侧 overhang，根因不成立，降为待调查现象。该现象将由 **T4 的 ink-bound（F9）机制**落地后照亮 —— T4 完成后回看本项：若 ink-bound 能稳定测到左 overhang 则据此修，否则维持待调查、不入 ticket（非阻断）。权威真源：`docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md` §3.3。
 - **#153 回填规则**：有 media → media 依赖型布局（overlay/bottom-bar/split）；无 media → `stacked-cards`。回填前先确认 T7 的 gate 已就位（已就位）。
 - **#154**：T2 定义了字号契约（`getSlot` / `fitCandidates`），但 HTML 模板仍硬编码字号、未消费契约。T6 落地 HTML Fit 时一并接。
+- **#164（环境）**：`npm run lint` 被 `experiments/fastvideo-spike/repo/.venv` 拖死（45+ 分钟不收敛）。在修复前，Step 6 用 scoped eslint（显式列改动路径）替代全量。
 
 ---
 

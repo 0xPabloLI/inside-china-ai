@@ -171,6 +171,7 @@ collectFromSource() 层次：
 | #157 | B-roll follow-up: 生成模型横评 | — | lib/b-roll/runner.mjs | incumbent `FastVideo/FastMetal-1.3B-QAD`（Apache-2.0）Tier A 是质量上限，Tier B 在 M3 Max OOM。候选 FastMetal 更高档 / Wan 2.2 / LTX / Helios，先查维护状态与 MPS 路径 |
 | #158 | B-roll follow-up: ComfyUI / MCP 迭代式生成后端 | 建议接 #157 | lib/b-roll/runner.mjs (seam) | 现回路是批次级（一轮 ≥8min 才拿到分数，无法单候选重跑）。接缝已备好：`{jobs} → {ok, results[]}`，门/报告/缓存不感知后端。云端 RunComfy 路线见 `docs/tools-catalog.md`（用户暂不注册账号） |
 | #159 | B-roll follow-up: runner 未透传 `--model-root` | — | lib/b-roll/runner.mjs, b-roll-runner.test.mjs | `buildPythonArgs` 从不传 `--model-root`/`--mlx-checkpoint` → `resolve_model_root(None)` 每批次打 HF `GET /revision/main`，缓存缺件时重下 1.5 GB（用户两次质疑「为什么又下载」）。修法：`BROLL_MODEL_ROOT`/`BROLL_MLX_CHECKPOINT` 透传 + 离线 fail-fast。**T10 已落地 offline 默认**（spawn 注入 `HF_HUB_OFFLINE=1`，哑端点零网络验证）——联网重下载风险已消，本 issue 剩余范围 = 透传 |
+| #164 | eslint 全仓库 lint 被 experiments/.venv 拖死 | — | eslint.config.js | `eslint .` 爬进 `scripts/short-video/experiments/fastvideo-spike/repo/.venv`（Python site-packages 内 gradio 前端产物），`npm run lint` 45+ 分钟不收敛，阻断 AGENTS.md Step 6。修法：eslint.config.js ignores 加 `scripts/short-video/experiments/**`。发现于 T5 (#146) session（2026-09-01） |
 
 ### Dormant — 触发条件未满足
 
@@ -217,7 +218,7 @@ collectFromSource() 层次：
 | **Video Pipeline** | #98, #99, #100, #101, ~~#113~~ ✅, #35, #32, #75, #127, #29, #155, #156, #157, #158 | W1, W2, W4, Dormant, T3 |
 | **Docs / Research** | #103, #108, #29, #21, #97, #61 | W0, W4, Dormant |
 | **Audit** | #68, #76, #77, #87, #94, #61 | W3, W4, Dormant. #61 也属 Audit domain（non-blocking evidence audit） |
-| **Infra / Platform** | #107, #85, #117, #140 | Dormant, W4（#140 的 P5 自愈 / P6 代理 / P7 Colima 属平台层） |
+| **Infra / Platform** | #107, #85, #117, #140, #164 | Dormant, W4（#140 的 P5 自愈 / P6 代理 / P7 Colima 属平台层；#164 为独立小项） |
 
 > 跨领域 issue（如 #94 同时属于 Content Pipeline 和 Audit）在多个领域行出现。并行前仍需查 Conflict Risk Matrix。
 
@@ -245,6 +246,7 @@ collectFromSource() 层次：
 | `verify-retry.mjs` | — | ✅ ~~#125~~ CLOSED |
 | `normalize-currency.mjs` | #117 | 🟢 低——独立模块，无并行冲突 |
 | `proxy-manager.mjs` | #140 (**P6**) | 🟢 低——FlClash 出口节点自动切换（#89 原文中这是 **P6**；旧 tracker 行误标为 P5，P5 实为 selector auto-healing）。独立新模块，无并行冲突 |
+| `eslint.config.js` | #164 | 🟢 低——独立配置变更，无并行冲突 |
 
 ---
 
