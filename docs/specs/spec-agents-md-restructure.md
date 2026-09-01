@@ -90,6 +90,12 @@ AGENTS.md 重构为：路由三档（Trivial/Small/Substantial，影响面定档
 | `docs/DOCS-INDEX.md` | pointer 关系登记 | Low | |
 | rollout tracker（GitHub Issue） | 新建，观察期数据 + 回滚阈值 | Low | |
 
+**统一影响评估**（按 `scenario-matrix.md` 三问）：
+
+1. **现有功能**：本改动只重排规则文本与指针，不改任何代码路径；AGENTS.md 作为 always-injected context，行为影响 = Agent 对路由/PSR 的解读变化。验证 = 18 行矩阵逐行走查（Testing Decisions）+ 第三方 review（已三轮）。
+2. **下游消费者**：所有读 AGENTS.md 的 agent session（路由/PSR 行为变化）；`tools-catalog` / `video-workflow` / `fact-verification` 的读者（pointer 回指）；DOCS-INDEX（新增登记）。无代码消费者。
+3. **最坏后果**：Agent 误读新路由或漏执行 PSR 发布 Gate → 流程降级但不破坏产出物；观察期 tracker（#167）设回滚阈值（Gate 未执行 ≥2 或路由误判 ≥3 → revert），后果可控且可回滚。
+
 ### Behavioral Scenarios
 
 | # | Scenario | Expected Behavior | 风险维度 | Mitigation |
@@ -98,7 +104,7 @@ AGENTS.md 重构为：路由三档（Trivial/Small/Substantial，影响面定档
 | 2 | `src/` ≤10 行行为修改 | Small，不是 Trivial | 路由 | 行数不作定档依据 |
 | 3 | 实现+测试双文件，无契约变化 | Small 正常 | 路由 | 影响面定档 |
 | 4 | `admin.tsx` state 改动 | Substantial | 路由 | High-Risk |
-| 5 | `scripts/article/` 大改动 | Substantial | 路由 | risk-based 全覆盖 |
+| 5 | `scripts/article/` 改动触及发布、持久化或跨阶段契约 | Substantial | 路由 | risk-based 全覆盖；定档按影响面，「大」不作依据 |
 | 6 | 纯 AGENTS.md 修改 | 一律 Substantial | 治理 | |
 | 7 | Trivial/Small session 结束 | 不执行 Step 1-8 清单 | 流程一致性 | L41/Step 9 限定 |
 | 8 | Substantial session 结束 | 现行清单照常 | 流程一致性 | |

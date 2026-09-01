@@ -113,10 +113,12 @@
 
 - [x] DOCS-INDEX.md 更新（受影响文档的 pointer 关系）
 - [x] `gh issue create`：rollout tracker（#167）（PSR 发布 Gate 出现率、路由命中率；回滚阈值 = Gate 未执行 ≥2 次或路由误判 ≥3 次）
-- [x] ~~PR 创建（#168）~~ #168 含存量 B-roll 代码 commit（验证基准错用本地 main），按 reviewer 裁定以 v2 替代 PR 取代
+- [x] ~~PR 创建（#168）~~ #168 含存量 B-roll 代码 commit（验证基准错用本地 main），按 reviewer 裁定关闭，由替代 PR 取代（历史保留，见下行）
+- [x] 替代 PR：**#169**（`feat/agents-md-restructure-v2`，基于 origin/main fe86b89；18 个 doc commits cherry-pick + review-fix 2b06d04；vs origin/main 实测 8 文件全 docs、0 代码/二进制）
+- [x] #169 追加 docs-only 修复 commit（第三轮 review 必修：Scenario 5 路由条件改为可执行影响面条件、Modified Files Impact 补统一评估、本节 PR 记录更正）；未 amend/rebase 已推送历史，最终 head 见 PR
 - [x] 实测记录：214→178 行；1,778→1,506 words；23,427→21,091 bytes。**偏差**：words 目标 ≤1,330 未达（实际 -15.3%）；原因 = review 轮按裁定回填 in-file 硬规则/触发规则 + wc -w 对 CJK 低计；已在 PR 显式记录
 - [x] `npm run lint:docs` PASS（每 commit pre-commit 均过）；ESLint 冷跑 >17min CPU 未完成（存量环境问题，已留证）——v2 PR 纯 docs，代码验证正交性成立
-- [x] commit + push：#168 全部 commits 已 push；reviewer 要求范围修正后，改由 v2 分支替代（见下）
+- [x] commit + push：#168 全部 commits 已 push；范围修正后改由 #169 替代（#168 已关闭，历史保留）；#169 后续修复 commit 均 普通 push 追加
 
 ## T7b — 观察期 + 归档（PR merge 后）
 

@@ -145,6 +145,12 @@ Workflow 内指针（不展开内容，避免 duplication）：Step 1 Grill 入�
 | rollout tracker（新建，随 T7a） | 记录观察期数据 + 回滚阈值 | Low | 形态实施时定（GitHub Issue 优先，符合 issue-tracker.md） |
 | `.agents/skills/*` | **不改** | — | git 未跟踪；如未来需要，先入库再改 |
 
+**统一影响评估**（按 `scenario-matrix.md` 三问）：
+
+1. **现有功能**：只重排规则文本与指针，不改代码路径；行为影响 = Agent 对路由/PSR 的解读变化，验证靠 18 行矩阵走查 + 第三方 review。
+2. **下游消费者**：所有读 AGENTS.md 的 agent session；外移文档读者（pointer 回指）；DOCS-INDEX（新增登记）。无代码消费者。
+3. **最坏后果**：Agent 误读新路由或漏执行 PSR 发布 Gate → 流程降级但不破坏产出物；rollout tracker 设回滚阈值，可控可回滚。
+
 ### Section 2: Behavioral Scenarios
 
 | # | Scenario | Expected Behavior | Risk | Mitigation |
@@ -153,7 +159,7 @@ Workflow 内指针（不展开内容，避免 duplication）：Step 1 Grill 入�
 | 2 | `src/` ≤10 行**行为**修改 | **Small**，不是 Trivial | Low | 行数不作定档依据 |
 | 3 | 实现+测试双文件，无契约变化 | Small 正常 | Low | 判定看影响面 |
 | 4 | `admin.tsx` state 改动（High-Risk） | Substantial | Medium | |
-| 5 | `scripts/article/` 大改动 | Substantial（旧行为：无 workflow） | Medium | |
+| 5 | `scripts/article/` 改动触及发布、持久化或跨阶段契约 | Substantial（旧行为：无 workflow） | Medium | 定档按影响面；「大」改为可执行条件（第三轮 review 裁定） |
 | 6 | 纯 AGENTS.md 规则修改 | **一律 Substantial**（即使一行） | Medium | |
 | 7 | Trivial/Small session 结束 | **不执行 Step 1-8 结束清单**；结束验证 = 档位对应检查 | Medium | §3a 同步修改消除冲突 |
 | 8 | Substantial session 结束 | 现行 Step 9 清单照常执行 | Low | |
