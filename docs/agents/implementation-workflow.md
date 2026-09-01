@@ -33,6 +33,8 @@
 
 不要修改安装目录中的 Matt skill 文件。`npx skills update` 会更新这些副本；长期项目适配只写在本文件。
 
+> **Skill / Subagent 降级**：决策与实施阶段依赖的 skill（`grill-with-docs`、`to-spec`、`to-tickets`、`implement`）或 subagent 不可用时，主 agent 直接自己执行该步骤。判定信号：skill 不在可用列表；subagent 缺少该步骤必需的工具（例：`code-review` 需要 shell 执行 `git diff`，只读型 subagent 拿不到 diff，只能按文件内容推断）；或 subagent 返回的结论是推断而非真实产物。降级后该阶段的完成标准不变——不跳过、不降低要求，并在最终汇报标注「阶段 N 降级为主 agent 执行 + 原因」。（自 ee93a74 迁入，原落在旧 AGENTS.md Step 1）
+
 ## 3. 第一次分流：Planning Scale
 
 选择能可靠完成任务的最低等级。代码量和目录不是判定标准。
