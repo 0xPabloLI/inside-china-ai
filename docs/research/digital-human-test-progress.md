@@ -29,7 +29,7 @@
 | 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
 | 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
-| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ✅ Apache 2.0 | ❌ **v10.15 表情夸张 + v10.16 超时**（单卡 40 步不可行，需 Kaggle 或 LoRA 8 步） | 2026-08-30 |
+| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ⚠️ base Apache 2.0 / FusionX LoRA NC | ✅ **v10.17 FusionX 8 步成功**（12.2min/3s 段，$0.56，表情自然 + ID 保持良好；lip sync 人眼确认达标 2026-09-02；NC 许可证只能验证不能发布） | 2026-09-02 |
 | 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
 | 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
@@ -595,6 +595,27 @@
 | ComfyUI InfiniteTalk | Kijai | 标准 | — | ✅ ComfyUI 工作流已支持 |
 | **lightX2V LoRA 加速** | 社区 | LoRA 蒸馏 | — | 4-8 步推理（vs 标准 40 步） |
 | TeaCache | 官方 | 缓存加速 | — | ✅ 已支持，2-3x 加速 |
+
+#### 参数矩阵（按 artifact 组合，2026-08-31 建立）
+
+> **规则**：不同 artifact 组合用不同参数，禁止跨组合套用（依据 AGENTS.md Proposal Self-Review #5）。有官方值的维度用官方值；组合维度无官方值时，取两个 artifact 各自官方默认作起点。来源必须标注；`作废` 的值禁止回用。
+
+| 参数 | ① base + fp8 量化（v10.11/10.16 已测） | ② bf16 非量化 + FusionX I2V LoRA（✅ v10.17 已验证） | 来源 |
+|------|------|------|------|
+| sample_steps | 40 | 8 | ②: FusionX 卡（6-8，实践 8-10） |
+| sample_text_guide_scale | 5.0 | 1.0 | ②: FusionX 卡硬性要求 CFG=1；①: InfiniteTalk README |
+| sample_audio_guide_scale | 4.0 | 2.0（官方 LoRA 章节；lip sync 不足上探 3-4） | 官方 README tips：非 LoRA 最优 4，LoRA 后推荐 2 |
+| sample_shift | 7 | 2（官方 LoRA 命令原值；非 LoRA 默认 7） | 官方源码/README：shift 默认随分辨率，LoRA 命令传 2 |
+| lora_scale | — | 1.0 | 官方 LoRA 命令原值（参数默认 1.2，2.0 仅草稿降步数用） |
+| use_teacache | 0.1（thresh） | **禁用**（跳步与蒸馏冲突） | — |
+| quant | fp8 | 无（LoRA 与 fp8 格式冲突） | — |
+| frame_num / max_frame_num | 81 / 81 | 81 / 81 | 官方默认（frame_num 13 是 v10.15 遗留，作废） |
+| GPU | T4 16GB / A100 40GB | A100 80GB（40GB 贴线 OOM 风险） | Modal 定价 2026-08-31 |
+| 状态 | ✅ 可跑（40 步单卡 A100 超时不可行） | ✅ 已验证（2026-09-02，12.2min/3s 段，/bin/zsh.56） | |
+
+> **纠错（2026-08-31）**：本表初版曾将组合 ② 的 audio/shift 标为 4.0/7.0 并注「旧值无出处」——实为误判，官方 README 有专门的 LoRA 章节（「Run with FusioniX or Lightx2v」）明文推荐 audio=2.0、shift=2，已改回。教训：**查官方默认值之前，先确认 README 是否有专门的 LoRA/加速章节**——加速用法常有独立推荐值，不能拿非 LoRA 默认覆盖。
+
+后续新增 artifact 组合（如 lightx2v StepDistill、LongCat）时在表中加列，不加新文档。
 
 ### 📋 Hallo3
 

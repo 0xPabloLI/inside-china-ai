@@ -71,6 +71,17 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - Use absolute positioning with explicit `top:` values — not flex centering (which can shift with dynamic content)
 - Test at thumbnail size: if text is unreadable at 240×426 (1/4 scale), it's too small
 
+### Cloud GPU Batch-Running（Modal / Kaggle / Colab 通用经验）
+
+按 session 或时长计费（或有限额）的云 GPU 都适用一条总原则：**启动开销摊销 + 结果尽早落盘 + 失败隔离**。
+
+- **启动开销摊销**：镜像拉起 + git clone + 模型加载通常占 5-10min，每个变体单独跑一次就重复付一次。参数已确定的网格扫描（如 audio_guide × shift 的 2-3 个组合）应在同一个容器 session 里串行跑完。反例：需要"看一个结果再定下一个参数"的串行调参不适合批量——批量只适合参数已定的组合。
+- **结果尽早落盘**：每个变体出片后立即写入 Volume/持久存储并 commit，再跑下一个。单变体崩溃不应损失已完成的结果。
+- **失败隔离**：变体之间用独立子进程跑（GPU 显存随进程退出天然释放），变体间不做同进程内的增量调用；如必须同进程，显式 `del` + `torch.cuda.empty_cache()` 清显存，避免显存碎片让后面的变体假性 OOM。
+- **平台差异**：Modal 按容器占用秒计费，批量省的是真实费用；Kaggle/Colab 免费但有 12h session 上限和随机断连，批量省的是额度，且"尽早落盘"要从建议升级为铁律（每变体完成就推 output/dataset）。
+- **权重下载与 GPU 解耦**（Modal 特有优化）：大模型权重下载放 CPU-only 容器写 Volume（CPU 计费便宜约两个数量级），GPU 容器起来时权重已在本地。Kaggle/Colab 的等价做法是把权重做成 Dataset/Drive 持久化，避免每次 session 重新下载。
+- **计费口径**：按容器存活时间计费，与生成视频的秒数无固定单价关系；视频时长只影响推理时长（约按帧数线性增长）。
+
 ## Content Standards
 
 - **Information density**: every scene delivers a concrete fact or insight, not filler
@@ -213,13 +224,17 @@ In `mlx_wan_batch.py` every job denoises before anything decodes: `taehv` calls 
 | ------- | ------- |
 | `FASTVIDEO_REPO` | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout) |
 | `FASTVIDEO_PYTHON` | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3` |
+| `BROLL_MODEL_ROOT` | unset → HF cache snapshot of `FastMetal-1.3B-QAD` |
+| `BROLL_MLX_CHECKPOINT` | unset → discovered under `BROLL_MODEL_ROOT` |
 
 The repo-local venv is the working interpreter — `~/.video-tts-env` lacks `cloudpickle`. A `FASTVIDEO_PYTHON` you set yourself is honored as given, with no fallback. When a dependency is missing the stage prints `⚠️ B-roll skipped: …` and the pipeline continues without generated media.
 
-**Checkpoint** — `FastVideo/FastMetal-1.3B-QAD` (base `FastWan2.1-T2V-1.3B-Diffusers`: DMD2-distilled 1.3B Wan 2.1, INT8 quantization-aware) under **Apache-2.0**, so generated clips need no license review before publishing. The weights live in neither the repo checkout nor the venv: the batch script resolves them from the Hugging Face cache through the repo's **current `main` revision**. Opted-in network means an upstream push silently turns a warm cache into a fresh 1.5 GB download in the middle of a run — pipeline runs are offline by default (`HF_HUB_OFFLINE=1`, see TTS section) and fail fast on a missing weight instead; opting out restores the online check, which is also how a deliberate model upgrade fetches the new revision. Two things that cost a session to learn:
+**Checkpoint** — `FastVideo/FastMetal-1.3B-QAD`: DMD2-distilled 1.3B Wan 2.1 with an INT8 quantization-aware-trained DiT, **Apache-2.0**, so generated clips need no license review before publishing. The `FastWan2.1-T2V-1.3B-Diffusers` named as its base is **lineage only** — the full-precision weights it was distilled from; this pipeline loads the MLX-packed DiT, never those. The weights live in neither the repo checkout nor the venv: the batch script resolves them from the Hugging Face cache through the repo's **current `main` revision**. Opted-in network means an upstream push silently turns a warm cache into a fresh 1.5 GB download in the middle of a run — pipeline runs are offline by default (`HF_HUB_OFFLINE=1`, see TTS section) and fail fast on a missing weight instead; opting out restores the online check, which is also how a deliberate model upgrade fetches the new revision. Two things that cost a session to learn:
 
 - Keep the cache where it is (`~/.cache/huggingface/hub`). The spike's `--model-root /tmp/fastmetal_model` is gone the next boot — and the run does not say so, it just starts fetching.
 - If that fetch hangs, it is the `xet` transport, not the network (observed: frozen at 142 KB for 14 minutes while plain HTTP pulled 3 MB/s). Re-fetch over HTTP, then rerun: `HF_HUB_DISABLE_XET=1 python -c "from huggingface_hub import snapshot_download; snapshot_download('FastVideo/FastMetal-1.3B-QAD')"`.
+
+**Pinning them** — left unset, every batch re-resolves the cache snapshot, which costs a `GET /revision/main` and re-downloads silently on a cache miss. Both vars are checked before the batch starts — `BROLL_MODEL_ROOT` for existence, `BROLL_MLX_CHECKPOINT` for a packed DiT (`mlx_dit.json` + `mlx_dit.safetensors`) — and a failed check prints `⚠️ B-roll skipped: …` while the pipeline continues. Pin the checkpoint alone and the text encoder / VAE still come from the cache; pin the root as well to take those off the network too. Passing `--mlx-checkpoint` also drops `transformer/*` from resolution — the raw DiT weights a packed checkpoint makes unnecessary.
 
 The batch script's stdout streams through `generate-broll.mjs` and Step 1.5d as it runs (child launched with `PYTHONUNBUFFERED=1`), so a stalled download and a slow denoise look different: `content/<dir>/assets/b-roll/` appears once job 1 starts.
 
