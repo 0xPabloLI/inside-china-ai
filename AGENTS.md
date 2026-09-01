@@ -47,10 +47,10 @@
 
    > **文档改动门槛**：在 Step 1–4 或 Step 8 创建或改动 `docs/` 内容前，按 Coding Conventions → `writing-for-agents 强制加载` 判定并执行。步骤内不重复判定规则。
 
-   1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案（v1.2：grilling 采用 round-based design tree，每轮批量提问 + 推荐答案，等用户回答后进入下一轮）。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
+   1. **Grill with Docs** — 入口先执行 **PSR Preflight**（见 `## PSR`）。用 `grill-with-docs` skill 审视方案（v1.2：grilling 采用 round-based design tree，每轮批量提问 + 推荐答案，等用户回答后进入下一轮）。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
 
    1b. **Prototype Detour（可选）** — 当 grilling 中某个问题需要 runnable answer（状态模型是否合理、UI 长什么样）时，detour：`/handoff` 出去 → fresh session 中 `/prototype` → `/handoff` 回来。Prototype 生成单个自包含 HTML 文件（logic）或单一路由多变体（UI），保存在 `prototype/<name>` 分支作为 primary source。回到主线后引用 prototype 结论。
-   2. **To Spec** — 用 `to-spec` skill 合成 spec。**必须包含 Scenario & Risk Verification 章节**（场景矩阵），含两个必填 section：Modified Files Impact + Behavioral Scenarios，矩阵行直接成为测试用例。**无矩阵 = spec 不完整**。格式见 `docs/conventions/scenario-matrix.md`。
+   2. **To Spec** — 发布前过 **PSR 发布 Gate**（见 `## PSR`）。用 `to-spec` skill 合成 spec。**必须包含 Scenario & Risk Verification 章节**（场景矩阵），含两个必填 section：Modified Files Impact + Behavioral Scenarios，矩阵行直接成为测试用例。**无矩阵 = spec 不完整**。格式见 `docs/conventions/scenario-matrix.md`。
    3. **To Tickets** — 用 `to-tickets` skill 将 spec 拆分为带依赖边的 tracer-bullet tickets。**不需用户确认**——拆分完直接进入 Step 4 实施。
    4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。每个 ticket 完成后立即在 ticket 文件中把 checklist 已完成项打 `[x]` 落盘。
    >
@@ -94,14 +94,18 @@
 - If a PR includes a Testing section, include only items that are already verified (so all items are checked); otherwise omit Testing.
 - After opening/pushing a PR, do not amend/rebase that history; use new commits for follow-ups.
 
-## Proposal Self-Review
+## PSR
 
-**给出任何修改方案前，必须自审以下 5 条，不通过则不输出方案：**
+**触发范围**：仓库修改方案，以及包含事实或参数断言的模型/工具/配置建议。日常问答、纯解释、无断言的对话不触发。
+
+**PSR Preflight** — 输出方案/建议前，先列**证据需求**：将做出的每类断言（因果、事实、参数）需要什么证据（代码行/文档/数据/实测）。轻量动作，证据允许在后续 Grill/研究中补齐。
+
+**PSR 发布 Gate** — 方案/建议**发布给用户前**，产出完整 PSR 清单：以下五条逐条附证据，不适用的条目标注「不适用 + 原因」。**清单未附 = 方案未发布**。
 
 1. **因果依据**：每个「A 导致 B」的推断必须有可追溯的证据（代码行、Analytics 数据、文档 spec、测试结果）。禁止从单一数据点直接跳跃到代码层面的因果结论。
 2. **设计决策不是免死金牌**：当有效果数据（如 Analytics）显示当前表现不佳时，不能以「这是设计决策」为由拒绝优化。设计决策在没有数据时做出的，有了数据就该 revisited。但反过来，优化也必须有合理的因果推理，不能盲目改。
 3. **影响面核查**：提出改动前，必须 grep/搜索所有受影响的文件（测试、文档、其他调用方），完整列出影响面。不允许「改了代码但漏了测试/文档」的情况。
-4. **事实性陈述双源验证**：任何「X 工具/CLI 是否存在」「Y 平台是否支持 Z 功能」「W 已于 D 日期发布」等事实性断言，必须查两个独立来源后再下结论，禁止仅凭 memory 或单一文档直接断言。涉及库/框架功能支持的，**先查本地源码**（`pip show <package>` 确认版本 → `grep`/`inspect.getsource` 读实现 → 用正确 API 调用方式做 smoke test）→ 再查文档/网络讨论作为补充。涉及工具/CLI 是否存在的，`which`/`command -v` + 官方文档。冲突时以源码/实际调用为准（文档可能滞后于代码）。网络讨论反映的是**已报告的**问题，不代表**已修复的**状态。工具选择见下方 `## Web Scraping & Content Fetching`。**定价、费率、资源分配等数值性事实**，必须查官方定价页面（如 modal.com/pricing）或 CLI（如 `modal billing rates`）确认，不能以 agent 记忆为准——同一平台可能有多套定价（如 Modal 标准 compute vs Sandbox），容易混淆。**引入新工具/框架/服务前，必须检查维护状态**：查 GitHub repo 的 `archived` 字段、最近 commit 日期、open/closed issue 活跃度、是否有新 release。已停止维护或超过 6 个月无新 commit 的项目，不得推荐引入——平台 API 变更后无人修复会导致生产故障。
+4. **事实性陈述双源验证**：事实性断言必须查两个独立来源后再下结论，禁止仅凭 memory 或单一文档直接断言；冲突时以源码/实际调用为准（文档可能滞后于代码）。操作程序（源码验证链、CLI 确认、定价查询、新工具维护状态检查）见 `docs/conventions/fact-verification.md`。
 5. **推理参数从官方推荐起步**：每个 AI 模型的推理参数（steps、CFG、teacache、offload 等）必须从该模型自己的 README/HF Model Card 官方示例命令开始，不跨模型套用。查源码确认每个参数的默认值和条件分支——警惕「设了 A 但 B 的默认值覆盖了 A」的隐藏交互（如 InfiniteTalk `offload_model` 默认 True 会覆盖 `num_persistent_param_in_dit`）。从官方推荐配置开始首次测试，确认基线质量后再优化。
 
 ## Coding Conventions
