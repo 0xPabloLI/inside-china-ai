@@ -102,7 +102,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 **F5-TTS-MLX** (DEFAULT):
 - Voice cloning via reference audio + reference text (zero-shot)
 - Ref audio: `voice-samples/voice-sample-24k.wav`（24kHz mono WAV）
-- Ref text: `assets/voice-sample-ref-text.txt`（必须精确匹配 ref audio）
+- Ref text: `voice-samples/voice-sample-ref-text.txt`（必须精确匹配 ref audio）
 - Model: `lucasnewman/f5-tts-mlx` (HF cache, 1.3GB)
 - **缓存加载必须离线**：`huggingface_hub` 加载模型前默认向 HF 发 etag 检查请求（确认本地缓存是否最新）。
   该请求走系统代理，曾出现连接建立后 9 分钟零数据流动的挂死（qwen4-preview, 2026-08-29）——
@@ -347,9 +347,8 @@ scripts/short-video/
 │       ├── pt2/            # Part 2 — Kimi's Gambit (9 scenes)
 │       └── pt3/            # Part 3 — The Fallout (9 scenes)
 ├── assets/
-│   ├── voice-sample-24k.wav # F5/Qwen3 ref audio (24kHz mono)
-│   ├── voice-sample-ref-text.txt # F5/Qwen3 ref text (must match ref audio exactly)
 │   └── logos/              # Company logos (deepseek.svg, ...)
+├── voice-samples/          # TTS ref audio/text (gitignored, personal)
 └── output/                 # Pipeline outputs (isolated per pipelineId)
     └── {pipelineId}/
         ├── audio/          # TTS audio + subtitle-timing.json
