@@ -8,6 +8,15 @@
 
 ---
 
+## 场景 → 工具决策表
+
+| 场景 | 工具 |
+|------|------|
+| 技术文档 | Context7 MCP |
+| 事实查询 / URL 抓取 | `web_fetch` → `web-access` CDP（fallback）；Tavily 仅在链路走完后可用（硬规则见 `AGENTS.md` → Web Scraping） |
+| 深度研究 | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
+| 趋势发现 | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X） |
+
 ## 速览表
 
 | 工具 | 分类 | 免费 | 状态 | 对本项目价值 |
