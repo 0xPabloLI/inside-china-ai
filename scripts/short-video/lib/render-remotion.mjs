@@ -95,18 +95,24 @@ export function renderRemotion({
   const sanitizedScenes = scenes.map((s) => ({ ...s }));
   for (const scene of sanitizedScenes) {
     if (scene.media && scene.media.path) {
-      let mediaSrc = join(contentDir || ".", scene.media.path);
+      const mediaSrc = join(contentDir || ".", scene.media.path);
       if (existsSync(mediaSrc)) {
-        // Auto-upscale sub-720p assets before copying (only for adopted assets)
-        const upscaleResult = autoUpscaleIfNeeded(mediaSrc);
-        if (upscaleResult.upscaled) {
-          console.log(`  📈 Upscaled: ${basename(upscaleResult.path)} → 720p`);
-          mediaSrc = upscaleResult.path;
+        // Auto-upscale sub-720p assets before copying (only for adopted assets).
+        // `upscale: false` is an asset's own opt-out of this safety net —
+        // generated B-roll clips are 480×832 by design and must not be sent
+        // through per-frame Real-ESRGAN here.
+        let srcPath = mediaSrc;
+        if (scene.media.upscale !== false) {
+          const upscaleResult = autoUpscaleIfNeeded(mediaSrc);
+          if (upscaleResult.upscaled) {
+            console.log(`  📈 Upscaled: ${basename(upscaleResult.path)} → 720p`);
+          }
+          srcPath = upscaleResult.path;
         }
-        const filename = basename(upscaleResult.path);
+        const filename = basename(srcPath);
         const mediaDest = join(publicAssetsDir, filename);
         if (!existsSync(mediaDest)) {
-          copyFileSync(mediaSrc, mediaDest);
+          copyFileSync(srcPath, mediaDest);
           console.log(`  📸 Copied media: ${filename}`);
         }
         // Rewrite path to just the filename (relative to public/assets/)

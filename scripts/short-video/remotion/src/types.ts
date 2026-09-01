@@ -24,8 +24,11 @@ export interface MediaField {
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;
   volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
+  /** Opt out of render-remotion.mjs's sub-720p Real-ESRGAN safety net. Set by the B-roll stage — Tier A clips are 480×832 by design. Default (unset/true) = auto-upscale. */
+  upscale?: boolean;
   /** VLM content classification (P3). Used by recommendScene for scene-type matching. */
-  contentKind?: "product_demo" | "talking_head" | "landscape" | "chart" | "text_screenshot" | "other" | string;
+  contentKind?:
+    "product_demo" | "talking_head" | "landscape" | "chart" | "text_screenshot" | "other" | string;
   /** VLM key subject terms (P3). Used for semantic scoring in scoreCandidate. */
   subjects?: string[];
 }

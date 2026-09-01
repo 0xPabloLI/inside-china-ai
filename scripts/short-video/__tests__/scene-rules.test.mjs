@@ -34,6 +34,7 @@ import {
   checkPatternInterrupt,
   checkLoopClosureNarrative,
   checkAssetNeedAnnotation,
+  checkMediaStrategyContract,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
@@ -43,6 +44,7 @@ import { scenes as restraintPt3Scenes } from "../content/restraint/pt3/scene-dat
 import { scenes as pt1Scenes } from "../content/distillation/pt1/scene-data.mjs";
 import { scenes as pt2Scenes } from "../content/distillation/pt2/scene-data.mjs";
 import { scenes as pt3Scenes } from "../content/distillation/pt3/scene-data.mjs";
+import { scenes as qwenScenes } from "../content/qwen4-preview/scene-data.mjs";
 
 // ── Mock scene data ──
 
@@ -1316,5 +1318,82 @@ describe("checkAssetNeedAnnotation", () => {
     const result = runAllSceneDataChecks(scenes, null);
     const b13 = result.fail.filter((r) => r.check === "Asset need annotation placement");
     expect(b13).toHaveLength(1);
+  });
+});
+
+// ── B-roll preflight contract (spec rows #3/#4/#5/#6/#7) ──
+
+describe("checkMediaStrategyContract", () => {
+  const broll = (overrides = {}) => ({
+    id: 5,
+    visualType: "narrative",
+    voiceover: "The model ships with a native million-token context.",
+    mediaStrategy: "b-roll",
+    aiVideo: { prompt: "SUBJECT: a server rack dissolving into light" },
+    ...overrides,
+  });
+
+  it("#3: fails an invalid mediaStrategy, naming the scene and the allowed values", () => {
+    const result = checkMediaStrategyContract([broll({ mediaStrategy: "broll" })]);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].detail).toContain("5");
+    expect(result[0].detail).toContain("broll");
+    expect(result[0].fix).toContain("asset-then-broll");
+  });
+
+  it("#4: fails a b-roll strategy with no aiVideo.prompt", () => {
+    const result = checkMediaStrategyContract([broll({ aiVideo: undefined })]);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].check).toBe("B-roll strategy contract");
+    expect(result[0].detail).toContain("5");
+  });
+
+  it("#5: fails an empty or whitespace-only aiVideo.prompt", () => {
+    const empty = checkMediaStrategyContract([broll({ aiVideo: { prompt: "" } })]);
+    const blank = checkMediaStrategyContract([broll({ aiVideo: { prompt: "   \t " } })]);
+    expect(empty[0].level).toBe("fail");
+    expect(blank[0].level).toBe("fail");
+  });
+
+  it("applies the same prompt requirement to asset-then-broll", () => {
+    const result = checkMediaStrategyContract([
+      broll({ mediaStrategy: "asset-then-broll", aiVideo: null }),
+    ]);
+    expect(result[0].level).toBe("fail");
+  });
+
+  it("#7: mediaOptOut with a b-roll strategy warns instead of failing", () => {
+    const result = checkMediaStrategyContract([broll({ mediaOptOut: true, aiVideo: undefined })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("5");
+  });
+
+  it("#6: ignores aiVideo when the strategy is asset or absent", () => {
+    const explicit = checkMediaStrategyContract([broll({ mediaStrategy: "asset", aiVideo: {} })]);
+    const implicit = checkMediaStrategyContract([broll({ mediaStrategy: undefined })]);
+    expect(explicit[0].level).toBe("pass");
+    expect(implicit[0].level).toBe("pass");
+  });
+
+  it("passes a well-formed b-roll scene", () => {
+    const result = checkMediaStrategyContract([broll()]);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("stays silent for content that uses no b-roll fields (spec #2: no log noise)", () => {
+    expect(checkMediaStrategyContract(validScenes)).toEqual([]);
+  });
+
+  it("passes the real qwen4-preview fixture scenes", () => {
+    // "aiVideo without a strategy is ignored" is covered by #6 above; this is
+    // the whole-file check against live scene-data.
+    const result = checkMediaStrategyContract(qwenScenes);
+    expect(result.every((r) => r.level === "pass")).toBe(true);
+  });
+
+  it("is wired into runAllSceneDataChecks", () => {
+    const result = runAllSceneDataChecks([broll({ mediaStrategy: "nope" })], null);
+    expect(result.fail.filter((r) => r.check === "B-roll strategy contract")).toHaveLength(1);
   });
 });

@@ -163,7 +163,7 @@ M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 li
 
 统一内容管线（入口 → 共享素材 → 文章与视频脚本并行产出 → 交叉一致性检查 → 视频成品 → 单一 HITL → 文章与 TikTok 发布 → Analytics），设 1 个 **HITL 人工确认检查点**（内容包成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章草稿可用 `scripts/article/publish-article.mjs --draft` 保存；HITL 确认后再用同一文章文件公开发布。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。**HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续，不得自行假设确认。
 
-做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。视频技术参考（TTS 引擎、发布策略、文件路径）：`docs/video-workflow.md`。**Skill 加载矩阵**（按任务类型，非互斥）：
+做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。视频技术参考（TTS 引擎、B-roll 生成、发布策略、文件路径）：`docs/video-workflow.md`。**Skill 加载矩阵**（按任务类型，非互斥）：
 
 | 任务 | 加载的 Skill | 用途 |
 |------|-------------|------|
