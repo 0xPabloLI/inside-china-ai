@@ -86,6 +86,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | Document | Purpose |
 |----------|---------|
 | `2026-09-01-agent-implementation-workflow-design.md` | Risk × planning-scale workflow design and Matt Pocock skill adaptation |
+| `2026-09-01-agent-implementation-workflow.md` | Task-by-task implementation plan for the agent workflow redesign |
 
 ### `tiktok/` — TikTok guides
 
