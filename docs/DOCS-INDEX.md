@@ -80,6 +80,12 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | `scenario-matrix.md` | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios) |
 | `visual-design-loop.md` | Visual design iteration loop — impeccable skill workflow for video template polish |
 
+### `plans/` — Active design plans
+
+| Document | Purpose |
+|----------|---------|
+| `2026-09-01-agent-implementation-workflow-design.md` | Risk × planning-scale workflow design and Matt Pocock skill adaptation |
+
 ### `tiktok/` — TikTok guides
 
 | Document | Purpose |
