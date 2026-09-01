@@ -16,18 +16,8 @@
 ## Project Snapshot
 
 - **App**: China AI News — a content/blog platform (articles + subscribers) with an admin editor and short video production pipeline.
-- **Stack**: React 19 + TypeScript + TanStack Start (file-based routing, server functions) + TanStack Query + Supabase (auth + database) + TailwindCSS v4 + shadcn/ui components.
-- **Core directories**: `src/routes/` (TanStack file routes), `src/components/` (UI + shared), `src/lib/` (server functions & utils), `src/integrations/supabase/` (client), `supabase/migrations/` (DB schema).
 - **Auth model**: Supabase Auth + RPC `has_role(_user_id, _role)` for admin gating. The `_authenticated` layout route guards all admin pages.
-- **Publishable stack conventions**: `docs/tanstack-lovable-conventions.md` — rules for routing, server functions, env/secrets, RLS, storage, email, SEO, and deployment.
-
-## Core Commands
-
-- `npm run dev` — local development server
-- `npm run lint` — ESLint
-- `npm run build` — production build
-- `npm run format` — Prettier write
-- `npx tsc --noEmit` — type check (no emit)
+- **Publishable stack conventions**: `docs/tanstack-lovable-conventions.md` — rules for routing, server functions, env/secrets, RLS, storage, email, SEO, and deployment.（Stack 与目录结构见 `package.json` + 仓库目录）
 
 ## Session Workflow
 
@@ -76,7 +66,7 @@
 
 ## Commit Cadence (并行 agent 安全)
 
-**TL;DR**: 每完成一个原子任务立即 commit;同任务的后续修复 amend 原 commit;`stage` 时显式列路径(绝不 `git add -A` / `.`);不还原他人未提交改动;push 改写用 `--force-with-lease`（注意：Lovable 连接分支禁止改写已 push 历史，见顶部规则块）。
+规则唯一来源是下方六条。核心：原子任务立即 commit、显式列路径、绝不 `git add -A`。
 
 ### 六条规则
 
