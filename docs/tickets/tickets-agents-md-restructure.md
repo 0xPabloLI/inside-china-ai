@@ -86,12 +86,12 @@
 
 **Blocked by:** T0a, T4。
 
-- [ ] red 走查：场景 17 + 三查基线
-- [ ] 工具表外移 tools-catalog（T0a 已完成，目标无规范性冲突）
-- [ ] Tavily 硬规则留 in-file（唯一权威）
-- [ ] 三查
-- [ ] green 走查：场景 17 过
-- [ ] commit（显式列路径）
+- [x] red 走查：场景 17 + 三查基线
+- [x] 工具表外移 tools-catalog（T0a 已完成，目标无规范性冲突）
+- [x] Tavily 硬规则留 in-file（唯一权威）
+- [x] 三查
+- [x] green 走查：场景 17 过
+- [x] commit（显式列路径）
 
 ## T6 — Core Commands 删除 + Snapshot/Cadence 压缩
 
