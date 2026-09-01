@@ -111,9 +111,10 @@
 
 **Blocked by:** T6。
 
-- [ ] DOCS-INDEX.md 更新（受影响文档的 pointer 关系）
-- [ ] `gh issue create`：rollout tracker（PSR 发布 Gate 出现率、路由命中率；回滚阈值 = Gate 未执行 ≥2 次或路由误判 ≥3 次）
-- [ ] PR 创建（worktree 分支 → main），PR body 仅总结相对 origin/main 的 commits，英文
+- [x] DOCS-INDEX.md 更新（受影响文档的 pointer 关系）
+- [x] `gh issue create`：rollout tracker（#167）（PSR 发布 Gate 出现率、路由命中率；回滚阈值 = Gate 未执行 ≥2 次或路由误判 ≥3 次）
+- [x] PR 创建（#168）
+- [x] 实测记录：214→178 行；1,778→1,506 words；23,427→21,091 bytes。**偏差**：words 目标 ≤1,330 未达（实际 -15.3%）；原因 = review 轮按裁定回填 in-file 硬规则/触发规则 + wc -w 对 CJK 低计；已在 PR 显式记录
 - [ ] `npm run lint && npm run lint:docs` 通过
 - [ ] commit + push（普通 push，不改写历史）
 
