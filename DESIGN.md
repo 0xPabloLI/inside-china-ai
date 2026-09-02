@@ -142,12 +142,12 @@ A cool, blue-tinted neutral foundation with one saturated brand accent. The pale
 ### Dark Mode
 
 - **Dark Ink** (`oklch(0.18 0.015 260)` / `#1a1d23`): Dark mode background. Blue-tinted near-black.
-- **Dark Card** (`oklch(0.25 0.02 260)`): Dark mode card surface. ΔL 0.07 from background — above perceptible threshold (was 0.22/ΔL 0.04, cards blended into bg).
+- **Dark Card** (`oklch(0.25 0.02 260)`): Dark mode card surface. ΔL 0.07 from background — above perceptible threshold (raised after a lower ΔL let cards blend into the background).
 - **Dark Muted** (`oklch(0.31 0.02 260)`): Dark mode muted surfaces (code blocks, table headers). ΔL 0.06 from card.
 - **Dark Accent** (`oklch(0.35 0.02 260)`): Dark mode accent surfaces.
-- **Light Mist** (`oklch(0.78 0.02 255)`): Dark mode muted foreground — secondary text, labels, metadata. Meets WCAG AA 9.41:1 against Dark Ink (was 0.7/7.05:1 — passed mathematically but perceptually dim; impeccable audit identified as dark-mode equivalent of "light gray for elegance").
+- **Light Mist** (`oklch(0.78 0.02 255)`): Dark mode muted foreground — secondary text, labels, metadata. Meets WCAG AA 9.41:1 against Dark Ink (raised from a dimmer value that passed contrast math but read as "light gray for elegance").
 - **Brand Light** (`oklch(0.78 0.15 260)`): Dark mode brand-foreground text. 9.04:1 against Dark Ink.
-- **Dark Hairline** (`oklch(1 0 0 / 20%)`): Dark mode borders — white at 20% opacity. At `/60` modifier (used by most components) yields 12% effective — perceptible (was 10%/6% effective, ratio 1.15:1 — essentially invisible).
+- **Dark Hairline** (`oklch(1 0 0 / 20%)`): Dark mode borders — white at 20% opacity. At `/60` modifier (used by most components) yields 12% effective — perceptible (raised after a dimmer value was essentially invisible at effective 6%).
 - **Dark Status Muted** (`oklch(0.28 0.05 ...)`): Success/warning/danger muted surfaces at L=0.28 — above card (0.25), below muted (0.31), with semantic chroma.
 
 **Dark mode content overrides** (in `src/styles.css`):
@@ -178,7 +178,7 @@ A cool, blue-tinted neutral foundation with one saturated brand accent. The pale
 
 **The Serif-For-Headlines Rule.** All headings use Source Serif 4. UI labels, buttons, data, and navigation use Hanken Grotesk. Never use serif for buttons, form labels, or data values — it undermines the editorial hierarchy.
 
-**Font Loading Note.** Source Serif 4 loads `ital,wght@0,400;0,600;0,700;1,400` from Google Fonts in `src/routes/__root.tsx` — semibold/bold headlines render with the intended serif (resolved 2026-08-08; previous note said 600+ fell back to system serif).
+**Font Loading Note.** Source Serif 4 loads `ital,wght@0,400;0,600;0,700;1,400` from Google Fonts in `src/routes/__root.tsx` — semibold/bold headlines render with the intended serif.
 
 ## 4. Elevation
 
@@ -189,7 +189,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Subscribe Lift** (`box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05)` / `shadow-sm`): The subscribe card — the only surface shadow in the system.
 - **Control baseline (shadcn/ui)**: `shadow-sm` on form controls, buttons, switches, toggles, badges from the component-library defaults. Presentational affordance, not elevation.
 - **Floating layers**: popovers, dropdowns, context menus, sheets, toasts carry `shadow-md`/`shadow-lg` to separate them from the page (shadcn standard).
-- **Widget micro-shadows**: small separation details — timeline/phase dots, callout chips (`shadow-sm`/`shadow-md`). Audited 2026-08-08.
+- **Widget micro-shadows**: small separation details — timeline/phase dots, callout chips (`shadow-sm`/`shadow-md`).
 
 **The Flat-By-Default Rule.** Page surfaces are flat at rest; the only *surface* shadow is the subscribe card. If a new component needs elevation, use a background tint change (card > muted > background) or a border, not a shadow. New decorative elevation shadows require a design review; the shadcn control/floating-layer vocabulary above is the baseline.
 
@@ -201,7 +201,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Primary:** Ink Slate background, Cool Paper text, 8px/16px padding, `text-sm font-medium`. Hover: slightly lighter (`#3a3f47`). Used for "Subscribe", "Save", "New post", "Export CSV".
 - **Outline:** Transparent background, foreground text, 1px Hairline border. Hover: accent background tint. Used for "Edit", secondary actions.
 - **Ghost:** Transparent, muted-foreground text. Hover: accent tint. Used for "Delete", "Sign out", "Cancel".
-- **States:** All buttons must have default, hover, focus-visible, active, and disabled states. Custom widget buttons carry the `focus-visible:outline-brand` recipe (applied 2026-08-08, guarded by `src/components/widgets/a11y-container-contract.test.ts`).
+- **States:** All buttons must have default, hover, focus-visible, active, and disabled states. Custom widget buttons carry the `focus-visible:outline-brand` recipe (guarded by `src/components/widgets/a11y-container-contract.test.ts`).
 
 ### Inputs
 
@@ -211,13 +211,13 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 
 ### Widget Keyboard Access
 
-- **Focus-visible:** All interactive widget elements (buttons, toggles, chart bars, keyword chips, accordion triggers) carry `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand` (applied 2026-08-08). Keyboard equivalents exist for hover-only interactions.
+- **Focus-visible:** All interactive widget elements (buttons, toggles, chart bars, keyword chips, accordion triggers) carry `focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand`. Keyboard equivalents exist for hover-only interactions.
 
 ### Cards / Containers
 
 - **Subscribe Card:** Card White background, 1px Hairline/70 border, `--radius-xl` (12px), 32px padding, Subscribe Lift shadow. The signature container.
 - **Admin List Container:** Card White background, 1px Hairline/60 border, `--radius-lg` (8px), no shadow. Items divided by Hairline/60.
-- **Widget Containers:** Outer cards are owned by the route wrapper (no redundant self-containers); inner panels use `bg-muted/30` + `rounded-lg`, no ad-hoc opacity variants or native colors (standardized 2026-08-08, guarded by `src/components/widgets/a11y-container-contract.test.ts` T3).
+- **Widget Containers:** Outer cards are owned by the route wrapper (no redundant self-containers); inner panels use `bg-muted/30` + `rounded-lg`, no ad-hoc opacity variants or native colors (guarded by `src/components/widgets/a11y-container-contract.test.ts` T3).
 
 ### Navigation
 
@@ -243,23 +243,23 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 ### Do:
 
 - **Do** use OKLCH for all color values. The system is OKLCH-native; hex values in this document are approximate references only.
-- **Do** keep article prose at 65ch maximum line length with 1.75 line-height. This is the reading comfort floor.
-- **Do** use Source Serif 4 for all headings and Hanken Grotesk for all UI text. The pairing is the editorial voice.
-- **Do** tint all neutrals toward hue 260 (blue). This is the anti-cream/sand doctrine.
-- **Do** use Dispatch Blue (`#4d8bff`) for brand identity markers only: wordmark "AI", reading progress bar, link hover. Keep it under 10% of any surface.
+- **Do** follow the 65ch Rule (§3) — the reading comfort floor.
+- **Do** follow the Serif-For-Headlines Rule (§3) — the pairing is the editorial voice.
+- **Do** follow the Cool-Not-Warm Rule (§2) — the anti-cream/sand doctrine.
+- **Do** follow the Dispatch Blue Rule (§2) — brand markers only, under 10% of any surface.
 - **Do** provide skeleton loading states in admin/product UI, not "Loading…" text.
 - **Do** label all widget interactive elements with `aria-label` and provide `focus-visible` outlines.
 - **Do** use `prefers-reduced-motion` for every animation. The reading progress bar is the reference implementation.
 
 ### Don't:
 
-- **Don't** use cream, sand, beige, paper, parchment, linen, ivory, or any warm-neutral background. The system is cool-tinted. This is the single biggest anti-AI-default decision.
+- **Don't** violate the Cool-Not-Warm Rule (§2) — no cream/sand/warm-neutral backgrounds. The single biggest anti-AI-default decision.
 - **Don't** use gradient text (`background-clip: text`). Emphasis comes from weight or size, not gradients.
 - **Don't** use `border-left` or `border-right` greater than 1px as a colored accent stripe. Full borders or background tints only.
 - **Don't** use glassmorphism (backdrop-blur on translucent surfaces). Rare and purposeful, or nothing.
-- **Don't** use decorative elevation shadows on page surfaces — the subscribe card is the single surface exception. Control/floating-layer shadows follow the shadcn baseline; widget micro-shadows are limited to separation details (audited 2026-08-08).
+- **Don't** violate the Flat-By-Default Rule (§4) — the subscribe card is the single surface exception; control/floating-layer shadows follow the shadcn baseline.
 - **Don't** use Tailwind native colors (`blue-500`, `green-600`, `yellow-700`) in widgets. Map all colors to the design token system or the chart palette.
-- **Don't** use font sizes below 12px in any user-facing text. Widget labels audited 2026-08-08 — no sub-12px text remains.
+- **Don't** use font sizes below 12px in any user-facing text.
 - **Don't** use native `confirm()` dialogs. Use shadcn `AlertDialog` for brand consistency.
-- **Don't** use display fonts in UI labels, buttons, or data. Serif is for headings only.
+- **Don't** violate the Serif-For-Headlines Rule (§3) — serif is for headings only.
 - **Don't** use `border-radius` greater than 16px on cards. 12px is the card ceiling; full-pill is for chips/buttons only.
