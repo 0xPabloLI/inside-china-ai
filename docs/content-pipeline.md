@@ -84,7 +84,7 @@ Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：
 | MRL       | 位置                         | 检查对象                    | Blocker 数              | Warning 数 |
 | --------- | ---------------------------- | --------------------------- | ----------------------- | ---------- |
 | **MRL-1** | Stage 1（自审，不暂停）      | 文章 frontmatter + markdown | 8                       | 5          |
-| **MRL-2** | Stage 3（自审，不暂停）      | scene-data.mjs（每集）      | 12                      | 6          |
+| **MRL-2** | Stage 3（自审，不暂停）      | scene-data.mjs（每集）      | 13                      | 9          |
 | **MRL-3** | Stage 5 → HITL 前            | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查  |
 
 **MRL 报告格式**（Agent 在 HITL 输出中附带）：
@@ -293,39 +293,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循环（每集单独检查），0 Blockers 后直接进入 Stage 4（不暂停）。
 
-**Blockers（任一 FAIL = 必须修复后重新检查）：**
-
-> B1–B13 与 W1–W9 由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。下表供报告参考。
-
-| #   | 检查项          | 阈值 / 规则                                                                              | 修复方式           |
-| --- | --------------- | ---------------------------------------------------------------------------------------- | ------------------ |
-| B1  | Voiceover 字数  | 每集 ≤ 180 词（目标 ~165 词 = 60-70s @ 2.5 wps）                                         | 精简 voiceover     |
-| B2  | 场景数          | 每集 8-12 个 scene                                                                       | 合并或拆分场景     |
-| B3  | Hook 场景       | 第一个 scene 的 `visualType` 必须为 `"hook"`                                             | 调整场景顺序或类型 |
-| B4  | CTA 场景        | 最后一个 scene 的 `visualType` 必须为 `"cta"`                                            | 调整场景顺序或类型 |
-| B5  | 无 Widget 标记  | voiceover 文本中不得包含 `<!-- widget:xxx -->`                                           | 删除 widget 标记   |
-| B6  | 数据一致性      | voiceover 中的数字/日期/金额必须与源素材一致                                             | 修正数据           |
-| B7  | 集数上限        | 总集数 ≤ 3（最佳实践上限）                                                               | 合并集数           |
-| B8  | AI 词汇         | 不得出现 scrub-rules Tier 2 黑名单词                                                     | 替换为口语化表达   |
-| B9  | 无 Dead Closers | 不得以 "thanks for watching" / "don't forget to subscribe" / 裸 "what do you think" 结尾 | 改写为具体 CTA     |
-| B10 | Series Meta     | `seriesMeta` 存在，`partNumber`/`totalParts`/`prevPartSlug`/`nextPartSlug` 正确          | 修正 seriesMeta    |
-| B11 | 文本宽度预算    | 每 scene 的 result/company/action/context/subtext 字符数 ≤ 布局预算（media-split 半宽单独收紧，衬线加宽已计入，见 `scene-rules.mjs` `TEXT_WIDTH_BUDGETS`） | 缩短文案或换全宽布局 |
-| B12 | visualType 白名单 | visualType ∈ Remotion dispatch 表（hook/cta/narrative/data/info-card/quote/context/contrast/stat-reveal）；HTML/Playwright 路径已于 2026-09-01 退役（决策 59），无跳过分支 | 映射到支持类型 |
-| B13 | 标注位置 | voiceover 不得含内嵌 `[ASSET NEEDED` 标注（TTS 会读出）；素材需求写 `assetNeed` 字段 | 移到 scene 的 `assetNeed` 字段 |
-
-**Warnings（列出但不阻塞 HITL）：**
-
-| #   | 检查项        | 阈值                                                     |
-| --- | ------------- | -------------------------------------------------------- |
-| W1  | 估算时长      | 每集 < 55s 或 > 75s（字数 / 2.5 wps）                    |
-| W2  | Hook 具体性   | Hook voiceover 中无具体数字                              |
-| W3  | 节奏均一      | 所有 voiceover 句子长度差异 < 15%（teleprompter rhythm） |
-| W4  | 长句          | 任何单句 > 25 词（一口气读不完）                         |
-| W5  | Hook = 字幕   | spoken hook 与 on-screen text 完全相同                   |
-| W6  | 无 Loop-close      | CTA 前最后一个内容场景未回扣 Hook（文本启发式，`checkLoopClose`） |
-| W7  | 无 Open Loop       | Scene 2 未声明 `retentionMechanism: "open-loop"`（有字段时检查，无字段 skip） |
-| W8  | 无 Pattern Interrupt | 无 scene 声明 `retentionMechanism: "pattern-interrupt"`（有字段时检查，无字段 skip） |
-| W9  | 无 Loop Closure  | CTA 前最后一个内容 scene 未声明 `retentionMechanism: "loop-closure"` |
+**MRL-2 检查项**（B1–B13 Blockers + W1–W9 Warnings）：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。完整清单与阈值见 `scene-rules.mjs`。
 
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）
 

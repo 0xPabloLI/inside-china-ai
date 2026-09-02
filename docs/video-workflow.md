@@ -109,7 +109,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 | Priority | Engine      | Max Effort Parameters            | Venv                        | Notes                                                              |
 | -------- | ----------- | ------------------------------- | --------------------------- | ------------------------------------------------------------------ |
-| 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
+| 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
 | 2        | Qwen3-TTS   | `do_sample=False`, `repetition_penalty=1.3` (greedy search) | `~/.video-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine. |
 | 3        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
 | 4        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
@@ -132,7 +132,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
   无需手动 export；TTS 等其余路径仍需跑管线前手动 `export HF_HUB_OFFLINE=1`（权重已在缓存时），
   或先确认代理可用。症状识别：main.mjs 停在 "Loading F5-TTS-MLX model" 超过 3 分钟且
   `nettop` 显示零流量。
-- Max effort: `steps=32`, `cfg_strength=3.0`, `method='rk4'`, `speed=1.0`
+
 - Duration: `estimate_target_seconds(text)` — CJK chars / 4.5 + Latin words / 2.8 + punctuation × 0.15s
 - Internal `duration` parameter controls audio length precisely → **no atempo needed**
 - Post-processing: **silenceremove DISABLED**. Only resample (44.1kHz) applied.
@@ -140,7 +140,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Qwen3-TTS** (BACKUP):
 - Model: `~/.qwen-tts-model` (Qwen3-TTS-12Hz-0.6B-Base)
-- Max effort: `do_sample=False` (greedy search), `repetition_penalty=1.3`
+
 - Post-processing: **silenceremove DISABLED**. Only resample applied.
 - No duration control → pacing varies per scene.
 - Subtitle alignment may fail due to variable audio lengths.
@@ -157,8 +157,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 | `cta` | -2% | -5% | 0% | cta (warm/inviting) |
 | 其他 | 无变化 | 无变化 | 无变化 | baseline |
 
-- **F5: DISABLED** — rubberband introduces mechanical artifacts on F5's natural output
-- **Qwen**: ENABLED — prosody helps add variation to less-natural engines
+
 - 参数推导：`docs/research/voice-prosody-hook-optimization.md`
 
 **Post-Processing** (applied to all engines):
@@ -421,7 +420,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 | 2 | Validate every scene received a TTS result | fail-fast on missing voiceover |
 | 3 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
-| 5 | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]` — replaces the retired HTML DOM verifier) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4` |
+| 5 | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]`) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4` |
 | 6 | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2) | `output/{id}/verification-report.json` |
 
 ### Version Numbers

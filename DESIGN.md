@@ -106,13 +106,7 @@ The system rejects three things explicitly: (1) SaaS landing-page clichés — h
 
 Density is permitted in data widgets (funding charts, keyword clouds) where the user expects information concentration, but the article surface stays generous: 65ch line length, 1.75 line-height, ample section spacing. The tension between dense data viz and spacious prose is intentional — it mirrors the publication's editorial stance of "complex story, clear telling."
 
-**Key Characteristics:**
-- Cool off-white background tinted toward brand blue (hue 260), not warm-neutral
-- Serif display (Source Serif 4) + sans body (Hanken Grotesk) pairing on a contrast axis
-- Restrained color strategy: brand blue ≤10% of any surface, used for identity markers only
-- OKLCH color space throughout for perceptual consistency
-- 65ch prose column as the typographic anchor
-- Flat elevation by default; the only surface shadow is the subscribe card lift (controls/floating layers follow the shadcn baseline)
+**Key Characteristics:** Cool off-white tinted toward brand blue hue 260 (§2) · Serif display (Source Serif 4) + sans body (Hanken Grotesk) on a contrast axis (§3) · Brand blue ≤10% of any surface, identity markers only (§2) · OKLCH throughout (§2) · 65ch prose column (§3) · Flat by default, only subscribe-card lift (§4)
 
 ## 2. Colors: The Dispatch Palette
 
