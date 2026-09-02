@@ -14,7 +14,7 @@
 
 **Files:**
 - Create: `docs/agents/implementation-workflow.md`
-- Reference: `docs/plans/2026-09-01-agent-implementation-workflow-design.md`
+- Reference: `docs/archive/plans/2026-09-01-agent-implementation-workflow-design.md`
 - Reference: `.agents/skills/ask-matt/SKILL.md`
 - Reference: `.agents/skills/to-spec/SKILL.md`
 - Reference: `.agents/skills/to-tickets/SKILL.md`

@@ -13,7 +13,7 @@
 | **L0: AGENTS.md** (必读) | Pointers + top-level rules only | No technical details | Agent every session start |
 | **L1: Execution reference** | Execution instructions: what to do, what params to use, how to configure. Loaded on-demand when doing that workflow | Research rationale, parameter derivation, multi-source comparison, methodology — push to L2, pointer from L1 bottom | Agent loaded on-demand when doing that workflow |
 | **L2: Deep research** | Research rationale: why this was chosen, how params were derived, what sources were surveyed, methodology comparison | Execution instructions — extract to L1 as pointer targets | Agent only when deep-diving into specific topic |
-| **L3: Archive** | Completed work: specs, tickets, roadmaps — retained for reference, no longer maintained | No active reference material | Historical reference only |
+| **L3: Archive** | Completed work: specs, tickets, plans, roadmaps — retained for reference, no longer maintained | No active reference material | Historical reference only |
 
 ### Layer Placement Rules
 
@@ -92,13 +92,6 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | `triage-labels.md` | Canonical issue category and state labels |
 | `domain.md` | Domain context and ADR layout |
 
-### `plans/` — Active design plans
-
-| Document | Purpose |
-|----------|---------|
-| `2026-09-01-agent-implementation-workflow-design.md` | Risk × planning-scale workflow design and Matt Pocock skill adaptation |
-| `2026-09-01-agent-implementation-workflow.md` | Task-by-task implementation plan for the agent workflow redesign |
-
 ### `tiktok/` — TikTok guides
 
 | Document | Purpose |
@@ -146,7 +139,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 
 ### `archive/` — Completed work
 
-Historical specs, tickets, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list.
+Historical specs, tickets, plans, and roadmaps. Retained for reference, no longer maintained. See `archive/README.md` for the full list.
 
 ### `specs/` — Active specs
 
@@ -164,7 +157,6 @@ Historical specs, tickets, and roadmaps. Retained for reference, no longer maint
 
 | Document | Purpose |
 |----------|---------|
-| `spec-hook-media-support.md` | Hook scene media support + narrative Ken-Burns + warning summary spec |
 | `spec-vlm-fit-focus.md` | VLM-driven fit/focus for landscape assets in vertical video spec |
 | `spec-issue-56-84-pr102-refresh.md` | Refresh PR #102 on current asset sourcer spec |
 | `tickets-issue-56-84-pr102-refresh.md` | Tickets for PR #102 refresh |
@@ -230,7 +222,7 @@ Specs, tickets, and durable review records are **active execution artifacts**, n
 2. S2/S3 runs `to-spec` and `to-tickets` by reference. Active artifacts follow the repository's established location for that effort (`docs/`, `docs/specs/`, or a feature-specific ticket directory) and must be listed in this index.
 3. Each implementation ticket follows the TDD/evidence rules in `docs/agents/implementation-workflow.md`.
 4. `code-review` runs against a fixed committed baseline. If a durable review file is needed, keep it in `docs/reviews/` while active; research rationale belongs in `docs/research/`, not in a review file.
-5. An incomplete implementation, or an issue that still represents unfinished scope, remains active. After the actual scope is complete and verified, move specs/tickets to `docs/archive/`, durable reviews to `docs/archive/reviews/`, and update this index plus `docs/archive/README.md`. If tracker authorization is absent, report the stale remote state rather than mislabelling completed implementation as incomplete.
+5. An incomplete implementation, or an issue that still represents unfinished scope, remains active. After the actual scope is complete and verified, move specs/tickets to `docs/archive/`, completed plan-only artifacts to `docs/archive/plans/`, durable reviews to `docs/archive/reviews/`, and update this index plus `docs/archive/README.md`. If tracker authorization is absent, report the stale remote state rather than mislabelling completed implementation as incomplete.
 
 Active `specs/`, ticket directories, and review files may persist across work cycles while their effort remains open. Archive only after the implementation or corresponding issue is actually complete.
 

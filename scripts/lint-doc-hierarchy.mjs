@@ -5,7 +5,7 @@
  * 1. DOCS-INDEX consistency — every docs/*.md and docs/research/*.md is listed in DOCS-INDEX.md
  * 2. L1 Design Decisions — L1 docs with L2 references must have ## Design Decisions heading
  * 3. L2 command-line heuristic — L2 docs with ≥5 command-line patterns get WARN
- * 4. Structural agent-doc changes remind the author to load writing-for-agents
+ * 4. Structural pointer or normative rule changes remind the author to load writing-for-agents
  *
  * Exit codes: 0 = PASS/WARN, 1 = FAIL
  */
@@ -27,6 +27,11 @@ const CMD_LINE_PATTERNS = [/npm run\s/, /node scripts\//, /git\s+\w/];
 
 const CMD_LINE_THRESHOLD = 5;
 const WRITING_FOR_AGENTS_POINTER = "AGENTS.md → Workflow Router → Agent documents";
+const LOCAL_MARKDOWN_LINK_PATTERN = /\]\((?!https?:\/\/|mailto:|#)[^)]+\)/i;
+const BACKTICKED_LOCAL_PATH_PATTERN =
+  /`(?:AGENTS\.md|CONTEXT\.md|DESIGN\.md|README\.md|package\.json|(?:\.{1,2}\/)?(?:\.agents|\.claude|docs|skills|scripts|src|supabase)\/[^`\s]+)`/;
+const NORMATIVE_QUALIFIER_PATTERN =
+  /\b(?:must|shall|required|mandatory|never|always|only|cannot|can't|may not|should|should not|do not|don't)\b|(?:必须|强制|不得|禁止|只能|仅当|需要|无需|不可|不允许|应当|应该)/i;
 
 // Files excluded from checks (index itself, ephemeral specs)
 const EXCLUDED_FILES = new Set([
@@ -114,7 +119,8 @@ export function checkL2CommandLines(files) {
 /**
  * Check 4: writing-for-agents gate.
  * Detects structural changes in staged docs/ files and AGENTS.md.
- * Returns WARN for: new/deleted section headings, pointer line changes (→), AGENTS.md modifications.
+ * Returns WARN for: new/deleted headings, local pointer changes, normative qualifier changes,
+ * and all AGENTS.md modifications.
  *
  * @param {Array<{filename: string, diffLines: Array<{type: 'add'|'del'|'ctx', content: string}>}>} stagedDiffs
  * @returns {{findings: Array<{level: string, ruleId: string, file: string, message: string}>}}
@@ -122,7 +128,7 @@ export function checkL2CommandLines(files) {
 export function checkWritingForAgentsGate(stagedDiffs) {
   const findings = [];
   const headingPattern = /^#{1,4}\s/;
-  const pointerPattern = /→/;
+  const pointerPatterns = [/→/, LOCAL_MARKDOWN_LINK_PATTERN, BACKTICKED_LOCAL_PATH_PATTERN];
   const agentsMd = "AGENTS.md";
 
   for (const { filename, diffLines } of stagedDiffs) {
@@ -156,12 +162,21 @@ export function checkWritingForAgentsGate(stagedDiffs) {
         });
         break;
       }
-      if (pointerPattern.test(line.content)) {
+      if (pointerPatterns.some((pattern) => pattern.test(line.content))) {
         findings.push({
           level: "WARN",
           ruleId: "writing-for-agents-gate",
           file: filename,
           message: `${filename} has pointer line ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${WRITING_FOR_AGENTS_POINTER})`,
+        });
+        break;
+      }
+      if (NORMATIVE_QUALIFIER_PATTERN.test(line.content)) {
+        findings.push({
+          level: "WARN",
+          ruleId: "writing-for-agents-gate",
+          file: filename,
+          message: `${filename} has normative rule line ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${WRITING_FOR_AGENTS_POINTER})`,
         });
         break;
       }
