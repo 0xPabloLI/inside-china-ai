@@ -43,7 +43,7 @@
 | 10 | ~~LongCat-VA-1.5 MLX~~ | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ❌ **不可用**（不像本人+唇同步错位） | 2026-08-19 |
 | 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
 | 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
-| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步成功**（4.3min/3.2s 段，$0.18，ID 保持好；抽帧发现 t2.5s 眼镜片绿色反光伪影；lip sync 待用户人眼确认 2026-09-02） | 2026-09-02 |
+| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0） | 2026-09-02 |
 | 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ⚠️ base Apache 2.0 / FusionX LoRA NC | ✅ **v10.17 FusionX 8 步成功**（12.2min/3s 段，$0.56，表情自然 + ID 保持良好；lip sync 人眼确认达标 2026-09-02；NC 许可证只能验证不能发布） | 2026-09-02 |
 | 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
@@ -544,9 +544,10 @@
 - **权重**（Volume longcat-models，~61GB）：LongCat-Video 仓只下 tokenizer/text_encoder/vae（跳过 dit/ 54GB，avatar 不用）；Avatar-1.5 仓 base_model + dmd_lora + whisper fp16 单格式 + vocal_separator（跳过 INT8 与 whisper 冗余格式 ~37GB）
 - **运行**：app ap-NB4fegRbepTDyO9j2Dksfv，二次触发成功；GPU 总计 4.3min ≈ **$0.18**（首跑 ap-ai58 因 Volume 隐式提交延迟失败，损失 ~$0.1）
 - **产出**：`experiments/digital-human/longcat/longcat_v111_bf16_distill.mp4`（3.24s，323KB，93 帧@官方硬编码）
-- **抽帧评估**（t=0.5/1.5/2.5s）：ID 保持好（眼镜/胡型/发型与源照一致），t1.5s 静止帧几乎与源照无异；口型开合幅度大且自然；**发现伪影：t2.5s 眼镜片出现绿色反光斑块**，单帧看明显，需视频动态确认是否持续；**lip sync 待用户人眼确认**
-- **成本对比（同素材 3s 段）**：LongCat bf16 $0.18/4.3min < InfiniteTalk lightx2v $0.42/9.3min < InfiniteTalk FusionX $0.56/12.2min —— LongCat 又快又便宜且 MIT
-- **遗留**：① lip sync 人眼确认；② 眼镜伪影是否持续（若持续，可试 720p 或调 ref_img_index）；③ INT8 A/B（省钱有限，同卡只省 ~1min 加载）；④ Volume 下载路径修正（本地下载用 `modal volume get longcat-models outputs/<file>`，脚本里 /weights 前缀写错待修）
+- **抽帧评估**（t=0.5/1.5/2.5s）：ID 保持好（眼镜/胡型/发型与源照一致），t1.5s 静止帧几乎与源照无异；口型开合幅度大且过渡自然
+- **用户人眼确认（2026-09-02）**：唇同步基本正常，但**口型幅度偏大、偏夸张**（待优化项）；镜片绿色斑块实为**镜片反光**，属正常物理表现而非伪影
+- **成本对比（同素材 3s 段）**：LongCat bf16 $0.18/4.3min < InfiniteTalk lightx2v $0.42/9.3min < InfiniteTalk FusionX $0.56/12.2min —— LongCat 又快又便宜且 MIT，**当前可商用首选**
+- **遗留/调优方向**：① 口型幅度：官方 tip 说 audio CFG 3-5 影响唇同步强度，下探 3.0 可能收敛幅度（与 lip sync 精度权衡，需 A/B）；② 720p 档未测；③ INT8 A/B 优先级低（同卡只省 ~1min 加载）
 
 ### ❌ LongCat-Video-Avatar-1.5（本地不可用，云 GPU 低优先级）
 
