@@ -20,74 +20,92 @@ These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 
 | Skill | Purpose | Used by |
 |-------|---------|---------|
-| `web-deep-research` | 8-phase deep research pipeline + web-access fetching + code verification | AGENTS.md "Web Scraping & Content Fetching" → "深度研究" |
+| `web-deep-research` | 8-phase deep research pipeline + web-access fetching + code verification | `docs/tools-catalog.md` research routing |
 | `web-access` | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency |
 | `brand-system` | Brand consistency enforcement for generated visual content | `short-video-pipeline` skill |
-| `short-video-pipeline` | Video production pipeline orchestration | AGENTS.md "Content Pipeline" |
+| `short-video-pipeline` | Video production pipeline orchestration | AGENTS.md "Content and Video" |
 
 ## Matt Pocock Skills
 
 Installed via `npx skills add mattpocock/skills`. Tracked in
 `.cursor/skills/skills-lock.json`. Source: `github.com/mattpocock/skills`.
 
+The project workflow was audited against upstream **v1.2.3** at commit
+`6654f6b60cd9d5be8b54c6fafe44346dabeb3b76` (verified 2026-09-01).
+`skills-lock.json` tracks per-skill hashes rather than the upstream release
+number, so repeat the audit after `npx skills update`.
+
 ### User-invoked (`disable-model-invocation: true`)
 
-Agent does NOT auto-trigger these; user must invoke by name.
+These skills are intentionally excluded from implicit model invocation. A human
+normally starts them by name. In this repository, an authorized implementation
+may instead execute the relevant `SKILL.md` **by reference** under
+`docs/agents/implementation-workflow.md`; this preserves the skill's method
+without falsely claiming a Skill-tool invocation.
 
-| Skill | Purpose | AGENTS.md reference |
-|-------|---------|---------------------|
-| `ask-matt` | Router over user-invoked skills | — |
-| `grill-with-docs` | Grilling + ADR/glossary creation | Step 1 (Mandatory) |
-| `to-spec` | Conversation → spec | Step 2 |
-| `to-tickets` | Spec → tracer-bullet tickets | Step 3 |
-| `implement` | Build from spec/tickets with TDD | Step 4 |
-| `code-review` | Two-axis review (Standards + Spec) | Step 5 |
-| `triage` | Issue triage state machine | — |
-| `improve-codebase-architecture` | Deepening opportunities survey | — |
-| `setup-matt-pocock-skills` | Repo config (issue tracker, labels, domain docs) | — |
-| `wayfinder` | Large work planning as decision tickets | — |
-| `handoff` | Compact conversation for another agent | Phase Boundaries |
-| `grill-me` | Non-code grilling | — |
-| `teach` | Multi-session teaching | — |
-| `to-questionnaire` | Generate questionnaire for human | — |
-| `wait-what` | Re-pitch unclear message | — |
-| `loop-me` | Grill about specs for workflows | — |
+| Skill | Purpose |
+|-------|---------|
+| `ask-matt` | Router over Matt's flows |
+| `grill-with-docs` | Grilling with ADR/glossary updates in a repository |
+| `to-spec` | Synthesize settled conversation into a spec |
+| `to-tickets` | Split a spec into tracer-bullet tickets with blocking edges |
+| `implement` | Build an agreed scope or ticket using TDD where possible |
+| `wayfinder` | Multi-session planning through map and decision tickets |
+| `handoff` | Carry durable context across a phase or session boundary |
+| `grill-me` | Grilling without repository docs |
+| `triage` | Issue triage state machine |
+| `improve-codebase-architecture` | Deepening-opportunity survey |
+| `setup-matt-pocock-skills` | Configure tracker, labels and domain docs |
+| `teach` | Multi-session teaching flow |
+| `to-questionnaire` | Generate a human questionnaire |
+| `wait-what` | Re-pitch an unclear message |
+| `loop-me` | Experimental workflow-spec grilling |
+| `setup-ts-deep-modules` | Experimental TypeScript deep-module setup |
+| `writing-beats` | Experimental writing discipline |
+| `writing-fragments` | Experimental writing discipline |
+| `writing-shape` | Experimental writing discipline |
 
 ### Model-invoked (no `disable-model-invocation`)
 
-Agent auto-triggers based on description match.
+Agent may invoke these through the Skill tool when their description matches.
 
-| Skill | Purpose | AGENTS.md reference |
-|-------|---------|---------------------|
-| `grilling` | Reusable interview primitive | Behind grill-with-docs |
-| `writing-for-agents` | Writing docs for agents (skills, AGENTS.md) | Coding Conventions |
-| `tdd` | Red-green-refactor loop | Step 4 |
-| `diagnosing-bugs` | 6-phase debugging discipline | — |
-| `research` | Background agent lightweight research | — |
-| `prototype` | Throwaway prototype for design questions | Step 1b |
-| `domain-modeling` | Build/sharpen domain model | — |
-| `codebase-design` | Deep module design vocabulary | — |
-| `code-review` | (also model-invoked for sub-agent use) | Step 5 |
-| `resolving-merge-conflicts` | Hunk-by-hunk merge conflict resolution | — |
-| `wizard` | Interactive bash wizard for human steps | — |
-
-### In-progress (experimental)
-
-| Skill | Notes |
-|-------|-------|
-| `setup-ts-deep-modules` | TS deep modules setup |
-| `writing-beats` | Writing discipline |
-| `writing-fragments` | Writing discipline |
-| `writing-shape` | Writing discipline |
-
-### Misc
-
-| Skill | Notes |
-|-------|-------|
-| `git-guardrails-claude-code` | Block dangerous git commands |
-| `migrate-to-shoehorn` | `as` → `@total-typescript/shoehorn` |
+| Skill | Purpose |
+|-------|---------|
+| `grilling` | Reusable round-based interview primitive |
+| `domain-modeling` | Build or sharpen the domain model |
+| `prototype` | Runnable answer for a design or state question |
+| `tdd` | Red-green-refactor loop |
+| `code-review` | Fixed-baseline Standards + Spec review |
+| `diagnosing-bugs` | Tight diagnosis loop for hard failures |
+| `research` | Bounded background research |
+| `codebase-design` | Deep-module design vocabulary |
+| `writing-for-agents` | Agent-document hierarchy and progressive disclosure |
+| `resolving-merge-conflicts` | Hunk-by-hunk conflict resolution |
+| `wizard` | Interactive shell wizard for human steps |
+| `git-guardrails-claude-code` | Dangerous Git command guardrails |
+| `migrate-to-shoehorn` | Replace unsafe TypeScript assertions |
 | `scaffold-exercises` | Exercise scaffolding |
 | `setup-pre-commit` | Pre-commit hook setup |
+
+### Project execution adaptation
+
+The canonical S0-S3 routes and stage transitions live only in
+`docs/agents/implementation-workflow.md`. This inventory retains two routing
+distinctions needed to choose a skill:
+
+- Grill sharpens bounded decisions. Wayfinder is reserved for planning that
+  itself spans sessions and still contains real fog; it is not a general Grill
+  replacement.
+- Multi-session implementation earns Spec/Tickets; single-session work does
+  not create them solely for ceremony.
+
+In the core flow, `grill-with-docs` calls model-invoked `grilling` and
+`domain-modeling`; `implement` uses model-invoked `tdd` where behavior is
+testable; `code-review` reviews the recorded committed baseline.
+
+Do not edit update-managed copies under `.agents/skills/` or
+`.claude/skills/`. Put durable repository overrides in
+`docs/agents/implementation-workflow.md`.
 
 ## Third-Party Skills (Non-Matt-Pocock)
 
@@ -116,7 +134,7 @@ were removed (redundant with MCP):
 | `railway-mcp-server` | Railway deploy/service management |
 | `vercel` | Vercel deploy/preview |
 | `github` | Issues, PRs, code search |
-| `linear` | Linear issue tracking |
+| `linear` | Available integration for other contexts; this repository tracks work in GitHub Issues |
 | `brave-search` | Web search |
 | `context7` | Library docs lookup |
 | `jina` | Web page reading |

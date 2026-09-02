@@ -97,20 +97,18 @@ GRANT ALL ON public.<table> TO service_role;
 - 后端改动（迁移、server function、API route）在发布时自动部署。
 - 前端改动需要在发布对话框中点击 **Update** 才会生效。
 - 修改 Secret 后必须重新发布，生产环境才能读到新值。
-- 发布前检查：
-  1. `npm run lint`
-  2. `npx tsc --noEmit`
-  3. `npm run build`
-  4. 关键页面在本地 dev server 通过浏览器验证
+- 发布前执行本文 §13 的检查清单；关键页面还必须在本地 dev server 通过浏览器验证。
 
 ## 12. Stack 约束
 
+- TypeScript 使用 functional React components/hooks；2-space indentation；组件和类型使用 `PascalCase`，变量和函数使用 `camelCase`。
 - Server function / SSR：仅用浏览器兼容 API；Node-only 包（`child_process`、`sharp`、`puppeteer`、`canvas`）仅在后端脚本中使用。
 - 模块顶层：保持纯函数——`Math.random()`、`crypto.randomUUID()`、文件 I/O、浏览器全局变量放在 handler 内部。
 - `VITE_*` 前缀 = 公开 key；后端 secret 不加 `VITE_` 前缀，通过 Lovable Secrets 管理。
 - `.server.ts` 文件仅可在 server function / API route 中导入。
 - Server function 调用走 `useServerFn`；如需 raw HTTP，创建 server route。
 - Storage bucket 保持 private + RLS 控制访问。
+- React Query 数据用于初始化组件 state 时，必须在数据就绪后再挂载组件，或在 `useEffect` 中显式同步；`useState` initializer 只在首次挂载执行，不能依赖稍后返回的 query 数据自动重算。
 
 ## 13. 快速检查清单（每次发布前）
 
@@ -119,4 +117,5 @@ GRANT ALL ON public.<table> TO service_role;
 - [ ] 没有在前端 `.env` 中泄露敏感 key
 - [ ] 邮件模板 From 为 China AI News
 - [ ] 所有新路由都有独立 `head()`
+- [ ] affected tests 与 `npm test` 全绿
 - [ ] `npm run lint && npx tsc --noEmit && npm run build` 全绿

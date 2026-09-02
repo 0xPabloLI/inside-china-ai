@@ -1,10 +1,11 @@
 /**
  * Documentation Hierarchy Lint
  *
- * Checks three rules:
+ * Checks four rules:
  * 1. DOCS-INDEX consistency — every docs/*.md and docs/research/*.md is listed in DOCS-INDEX.md
  * 2. L1 Design Decisions — L1 docs with L2 references must have ## Design Decisions heading
  * 3. L2 command-line heuristic — L2 docs with ≥5 command-line patterns get WARN
+ * 4. Structural agent-doc changes remind the author to load writing-for-agents
  *
  * Exit codes: 0 = PASS/WARN, 1 = FAIL
  */
@@ -25,6 +26,7 @@ const INDEX_PATH = join(DOCS_DIR, "DOCS-INDEX.md");
 const CMD_LINE_PATTERNS = [/npm run\s/, /node scripts\//, /git\s+\w/];
 
 const CMD_LINE_THRESHOLD = 5;
+const WRITING_FOR_AGENTS_POINTER = "AGENTS.md → Workflow Router → Agent documents";
 
 // Files excluded from checks (index itself, ephemeral specs)
 const EXCLUDED_FILES = new Set([
@@ -139,7 +141,7 @@ export function checkWritingForAgentsGate(stagedDiffs) {
         level: "WARN",
         ruleId: "writing-for-agents-gate",
         file: filename,
-        message: `${filename} modified — confirm: did you load writing-for-agents skill before making these changes? (AGENTS.md → Coding Conventions → writing-for-agents 强制加载)`,
+        message: `${filename} modified — confirm: did you load writing-for-agents skill before making these changes? (${WRITING_FOR_AGENTS_POINTER})`,
       });
       continue;
     }
@@ -150,7 +152,7 @@ export function checkWritingForAgentsGate(stagedDiffs) {
           level: "WARN",
           ruleId: "writing-for-agents-gate",
           file: filename,
-          message: `${filename} has heading ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (AGENTS.md → Coding Conventions → writing-for-agents 强制加载)`,
+          message: `${filename} has heading ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${WRITING_FOR_AGENTS_POINTER})`,
         });
         break;
       }
@@ -159,7 +161,7 @@ export function checkWritingForAgentsGate(stagedDiffs) {
           level: "WARN",
           ruleId: "writing-for-agents-gate",
           file: filename,
-          message: `${filename} has pointer line ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (AGENTS.md → Coding Conventions → writing-for-agents 强制加载)`,
+          message: `${filename} has pointer line ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${WRITING_FOR_AGENTS_POINTER})`,
         });
         break;
       }
