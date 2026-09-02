@@ -124,7 +124,7 @@ Assert 层在稳定帧用统一坐标校验文本与标注绘制边界（含字�
 
 ---
 
-## T6 — HTML（Playwright）路径退役 ⚠️ 方向已改（2026-09-01 调研修订，决策 59）
+## T6 — HTML（Playwright）路径退役 ✅ DONE (2026-09-02)
 
 **Blocked by:** 无 ｜ Issue: #147（原标题「HTML 路径管线化 + F8」，scope 已 pivot）
 
@@ -134,11 +134,11 @@ Assert 层在稳定帧用统一坐标校验文本与标注绘制边界（含字�
 `docs/research/text-auto-fit-landscape-research.md`）。原「管线化 + F8」方案作废。
 **#154（HTML 字号契约）随本票关闭为过时。**
 
-- [ ] `main.mjs` / `render-only.mjs`：`--playwright` 旗标改为 fail-fast 报错（指向退役说明）
-- [ ] 移除/归档 `lib/record-scenes.mjs`、`verify-scene-dom.mjs` 及 main.mjs HTML 分支
-- [ ] 15 个内容包的 `scenes.mjs` 退役处理（与 `lib/scene-templates.mjs` 等 HTML 积木一并评估归档或删除）
-- [ ] 回归哨兵：Remotion 路径全量测试 + `_gate-smoke` 冒烟保持全绿（确认退役零外溢）
-- [ ] `docs/content-pipeline.md` / `docs/video-workflow.md` 移除 HTML 路径描述
+- [x] `main.mjs` / `render-only.mjs`：`--playwright` 旗标改为 fail-fast 报错（指向退役说明）—— `lib/renderer-guard.mjs`，7 tests（含两入口真实进程检查）
+- [x] 移除/归档 `lib/record-scenes.mjs`、`verify-scene-dom.mjs` 及 main.mjs HTML 分支 —— 6 个 HTML 积木 `git mv` 到 `retired-html-path/`（冻结归档 + README）；assemble.mjs 只留 `resolveOutputVideo`
+- [x] 15 个内容包的 `scenes.mjs` 退役处理（与 `lib/scene-templates.mjs` 等 HTML 积木一并评估归档或删除）—— 实删 17 个 `scenes.mjs` + 4 个 `dom-config.mjs` + 8 个 HTML 绑定测试；保留 build-mark-svg.test.mjs 活路径覆盖
+- [x] 回归哨兵：Remotion 路径全量测试 + `_gate-smoke` 冒烟保持全绿（确认退役零外溢）—— 全量 2645 passed / 3 failed（#153 存量）；render-only + main.mjs 双冒烟 PASS
+- [x] `docs/content-pipeline.md` / `docs/video-workflow.md` 移除 HTML 路径描述 —— 另同步 SKILL.md / brand-system / content-scaffold-guide / visual-design-loop / spec-pipeline-generalization / issue-tracker / README
 
 ---
 
