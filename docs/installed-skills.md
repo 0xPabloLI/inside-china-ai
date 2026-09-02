@@ -106,10 +106,11 @@ repository overrides in `docs/agents/implementation-workflow.md`.
   `migrate-to-shoehorn`, `wizard`, `scaffold-exercises`. Upstream marks them
   Experimental; no project reference. Removed from `.agents/skills/` and
   `skills-lock.json` (34 → 22).
-- **System skills not project-installed** — HarmonyOS (`hmos-dev-pipeline`),
-  SDD (`creating-sdd-directory` etc.), bug-fix workflow (`issue-analysis` etc.),
-  `prd`, `doc-expert` live in `~/.codeartsdoer/cache/` (harness-managed), not
-  in `.agents/skills/`. Cannot uninstall from project; noted as not relevant
+- **14 system/enterprise skills uninstalled from cache** — HarmonyOS
+  (`hmos-dev-pipeline`), SDD (`creating-sdd-directory`, `managing-spec/design/tasks-document`),
+  bug-fix workflow (`issue-analysis`, `issue-reproduction`, `static/dynamic-root-cause-localization`,
+  `patch-generation`, `codebase-structure`, `fix-build-command`), `prd`, `doc-expert`.
+  Removed from `~/.codeartsdoer/cache/` + `SystemSkillStatus.txt`. Not relevant
   (React/TanStack stack, no ArkTS; Matt `diagnosing-bugs`/`to-spec` overlap).
 
 ## Third-Party Skills (Non-Matt-Pocock)
