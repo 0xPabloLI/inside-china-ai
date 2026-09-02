@@ -8,10 +8,10 @@
 | Source | Install method | Git tracked? | Count |
 |--------|---------------|-------------|-------|
 | **Repo skills** (`skills/`) | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo) | 4 |
-| **Matt Pocock skills** | `npx skills add mattpocock/skills` | ❌ No (local `.agents/`) | 34 |
+| **Matt Pocock skills** | `npx skills add mattpocock/skills` | ❌ No (local `.agents/`) | 22 |
 | **last30days** (3rd party) | Symlink to `~/last30days-skill/` | ❌ No | 1 |
 | **Other 3rd party** (Vercel/Anthropic/community) | Various (`npx skills add` from other repos) | ❌ No | ~134 |
-| **Total** | | | ~173 |
+| **Total** | | | ~161 |
 
 ## Repo Skills (Git Tracked)
 
@@ -56,14 +56,7 @@ without falsely claiming a Skill-tool invocation.
 | `triage` | Issue triage state machine |
 | `improve-codebase-architecture` | Deepening-opportunity survey |
 | `setup-matt-pocock-skills` | Configure tracker, labels and domain docs |
-| `teach` | Multi-session teaching flow |
-| `to-questionnaire` | Generate a human questionnaire |
-| `wait-what` | Re-pitch an unclear message |
-| `loop-me` | Experimental workflow-spec grilling |
-| `setup-ts-deep-modules` | Experimental TypeScript deep-module setup |
-| `writing-beats` | Experimental writing discipline |
-| `writing-fragments` | Experimental writing discipline |
-| `writing-shape` | Experimental writing discipline |
+
 
 ### Model-invoked (no `disable-model-invocation`)
 
@@ -81,11 +74,7 @@ Agent may invoke these through the Skill tool when their description matches.
 | `codebase-design` | Deep-module design vocabulary |
 | `writing-for-agents` | Agent-document hierarchy and progressive disclosure |
 | `resolving-merge-conflicts` | Hunk-by-hunk conflict resolution |
-| `wizard` | Interactive shell wizard for human steps |
 | `git-guardrails-claude-code` | Dangerous Git command guardrails |
-| `migrate-to-shoehorn` | Replace unsafe TypeScript assertions |
-| `scaffold-exercises` | Exercise scaffolding |
-| `setup-pre-commit` | Pre-commit hook setup |
 
 ### Project execution adaptation
 
@@ -103,9 +92,25 @@ In the core flow, `grill-with-docs` calls model-invoked `grilling` and
 `domain-modeling`; `implement` uses model-invoked `tdd` where behavior is
 testable; `code-review` reviews the recorded committed baseline.
 
-Do not edit update-managed copies under `.agents/skills/` or
-`.claude/skills/`. Put durable repository overrides in
-`docs/agents/implementation-workflow.md`.
+Do not edit update-managed copies under `.agents/skills/`. Put durable
+repository overrides in `docs/agents/implementation-workflow.md`.
+
+### Removed (2026-09-02)
+
+- **`.claude/skills/` mirror deleted** — was 173 symlinks to `.agents/skills/*`,
+  duplicated `.agents/skills/` via `.cursor/skills` → `.agents/skills` symlink.
+  Claude Code harness reads `.agents/skills/` directly; the mirror was redundant.
+- **12 Matt experimental skills uninstalled** — `teach`, `writing-beats`,
+  `writing-fragments`, `writing-shape`, `loop-me`, `wait-what`,
+  `to-questionnaire`, `setup-ts-deep-modules`, `setup-pre-commit`,
+  `migrate-to-shoehorn`, `wizard`, `scaffold-exercises`. Upstream marks them
+  Experimental; no project reference. Removed from `.agents/skills/` and
+  `skills-lock.json` (34 → 22).
+- **System skills not project-installed** — HarmonyOS (`hmos-dev-pipeline`),
+  SDD (`creating-sdd-directory` etc.), bug-fix workflow (`issue-analysis` etc.),
+  `prd`, `doc-expert` live in `~/.codeartsdoer/cache/` (harness-managed), not
+  in `.agents/skills/`. Cannot uninstall from project; noted as not relevant
+  (React/TanStack stack, no ArkTS; Matt `diagnosing-bugs`/`to-spec` overlap).
 
 ## Third-Party Skills (Non-Matt-Pocock)
 
