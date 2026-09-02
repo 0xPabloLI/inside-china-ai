@@ -32,7 +32,9 @@
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cancelRender, continueRender, delayRender, useCurrentFrame } from "remotion";
-import { fitCandidates, getSlot, parseSlotId } from "../../../lib/text-slots.mjs";
+import { getSlot, parseSlotId } from "../../../lib/text-slots.mjs";
+import { fitCandidatesFromSeed, minContainerSeed } from "../../../lib/official-fit-kernel.mjs";
+import { predictGateSeeds } from "./official-fit";
 import {
   EPS,
   FIT_REASONS,
@@ -55,6 +57,7 @@ type SlotLike = {
   preferredSize: number;
   minSize: number;
   maxWidth: number;
+  maxLines?: number;
   settledFrame: number;
   annotationPolicy: string;
 };
@@ -435,7 +438,33 @@ export const TextGate: React.FC<TextGateProps> = ({
       }
 
       // 3. Fit ladder on real geometry: layout box + glyph ink.
-      const candidates = lockFontSize != null ? [lockFontSize] : fitCandidates(slot);
+      // T12 (decisions 57/63): the candidate walk is seeded by the official
+      // layout-utils measurement (fitText / fitTextOnNLines, px-letterSpacing
+      // corrected). fitCandidatesFromSeed reorders — never trims — the same
+      // lattice the old linear ladder walked, so the terminal validation
+      // below keeps deciding: a bad official prediction costs probes, never
+      // correctness. If the official path cannot model the gate it returns
+      // nothing and the seed defaults to preferredSize, i.e. exactly the
+      // pre-T12 full ladder.
+      let seed: number | null = null;
+      if (lockFontSize == null) {
+        try {
+          seed = minContainerSeed(
+            predictGateSeeds({
+              textEl,
+              maxWidth: contentLocal.width,
+              preferredSize: slot.preferredSize,
+              maxLines: slot.maxLines ?? 2,
+            }),
+          );
+        } catch {
+          seed = null; // official measurement is an optimization, not a gate
+        }
+      }
+      const candidates =
+        lockFontSize != null
+          ? [lockFontSize]
+          : fitCandidatesFromSeed(slot, seed ?? slot.preferredSize);
       let chosen: number | null = null;
       let lastInk: Pad = { ...ZERO_PAD };
       let lastBox: Box = { ...contentLocal };

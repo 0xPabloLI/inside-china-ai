@@ -500,6 +500,10 @@ export function getSlot(id, overrides = {}) {
  * fit at the floor is a content problem: callers must fail the render and let
  * the copy be rewritten, not quietly render something unreadable.
  *
+ * T12 keeps this lattice as the fallback: remotion/src/components/
+ * official-fit.ts may reorder it around an official layout-utils seed via
+ * fitCandidatesFromSeed (same sizes, better probe order).
+ *
  * @param {{preferredSize: number, minSize: number}} slot
  * @param {number} [step]
  * @returns {number[]}

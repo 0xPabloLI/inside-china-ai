@@ -2,12 +2,11 @@
  * Pure text-geometry layer for the Fit/Assert gate (T4).
  *
  * Browser-independent maths over measurement inputs: ink overhang formulas,
- * annotation coordinate transforms, box containment and the multi-field shrink
- * orchestration. The DOM-facing behaviour (fonts.ready timing, annotation
- * mount, scroll/client metrics) lives in the render layer
- * (remotion/src/components/text-gate.tsx) and the HTML path (T6) — both
- * consume these functions so the two paths can never drift (spec decision 13
- * of Further Notes, refinement decisions 19–33).
+ * annotation coordinate transforms and box containment. The DOM-facing
+ * behaviour (fonts.ready timing, annotation mount, scroll/client metrics)
+ * lives in the render layer (remotion/src/components/text-gate.tsx), which
+ * consumes these functions (spec decision 13 of Further Notes, refinement
+ * decisions 19–33).
  *
  * Spec: spec-text-overflow-hardening.md § T4 Implementation Refinement.
  */
@@ -192,120 +191,4 @@ export function boxWithin(inner, outer, eps = EPS) {
     inner.x + inner.width <= outer.x + outer.width + eps &&
     inner.y + inner.height <= outer.y + outer.height + eps
   );
-}
-
-/**
- * Multi-field shrink orchestration (spec decision 17): per-field width fit,
- * then total-height fit shrinking lowest shrinkPriority first, then a
- * proportional pass — stopping dead at each field's minSize (no ×0.9).
- *
- * `field.measure(fontSize)` must return the laid-out `{width, height}` of the
- * field at that size; keeping this an injected oracle keeps the algorithm
- * browser-independent and testable (refinement decision 20).
- *
- * @param {{
- *   fields: Array<{
- *     slotId: string,
- *     field: string,
- *     preferredSize: number,
- *     minSize: number,
- *     shrinkPriority: number,
- *     measure: (fontSize: number) => {width: number, height: number},
- *   }>,
- *   maxWidth: number,
- *   maxHeight: number|null,
- *   sceneId: string,
- *   step?: number,
- * }} params
- * @returns {{fontSizes: Record<string, number>, boxes: Record<string, {width: number, height: number}>}}
- */
-export function fitGroup({ fields, maxWidth, maxHeight, sceneId, step = 2 }) {
-  const active = fields.filter((f) => f.preferredSize > 0 && f.minSize > 0);
-  const sizes = new Map(active.map((f) => [f.slotId, f.preferredSize]));
-  const boxOf = (f, size) => f.measure(size);
-
-  const fail = (f, measured, available, reason) => {
-    throw new TextFitError({
-      reason,
-      sceneId,
-      slotId: f.slotId,
-      field: f.field,
-      measured,
-      available,
-      fontSize: sizes.get(f.slotId),
-      inkPad: { left: 0, right: 0, top: 0, bottom: 0 },
-    });
-  };
-
-  // Phase 1 — each field must fit its own width ladder (preferred → min).
-  for (const f of active) {
-    let size = f.preferredSize;
-    let box = boxOf(f, size);
-    while (box.width > maxWidth + EPS && size > f.minSize) {
-      size = Math.max(f.minSize, size - step);
-      box = boxOf(f, size);
-      sizes.set(f.slotId, size);
-    }
-    if (box.width > maxWidth + EPS) {
-      fail(f, box, { width: maxWidth, height: maxHeight }, FIT_REASONS.fitBottom);
-    }
-  }
-
-  if (maxHeight === null || active.length === 0) {
-    return exportResult(active, sizes);
-  }
-
-  // Phase 2 — total height: shrink the lowest shrinkPriority field first,
-  // each down to its own floor before touching the next one.
-  const byPriority = [...active].sort((a, b) => a.shrinkPriority - b.shrinkPriority);
-  const totalHeight = () =>
-    active.reduce((sum, f) => sum + boxOf(f, sizes.get(f.slotId)).height, 0);
-
-  for (const f of byPriority) {
-    if (totalHeight() <= maxHeight + EPS) break;
-    let size = sizes.get(f.slotId);
-    while (totalHeight() > maxHeight + EPS && size > f.minSize) {
-      size = Math.max(f.minSize, size - step);
-      sizes.set(f.slotId, size);
-    }
-  }
-
-  // Phase 3 — everyone at floor and still too tall: shrink proportionally,
-  // never below any floor; if the floors themselves do not suffice, fail.
-  while (totalHeight() > maxHeight + EPS) {
-    let moved = false;
-    for (const f of active) {
-      if (totalHeight() <= maxHeight + EPS) break;
-      const size = sizes.get(f.slotId);
-      if (size > f.minSize) {
-        sizes.set(f.slotId, Math.max(f.minSize, size - step));
-        moved = true;
-      }
-    }
-    if (!moved) {
-      const worst = byPriority.find((f) => boxOf(f, sizes.get(f.slotId)).height > 0) ?? active[0];
-      fail(
-        worst,
-        { width: maxWidth, height: totalHeight() },
-        { width: maxWidth, height: maxHeight },
-        FIT_REASONS.fitBottom,
-      );
-    }
-  }
-
-  return exportResult(active, sizes);
-
-  function exportResult(list, sizeMap) {
-    const fontSizes = {};
-    const boxes = {};
-    for (const f of list) {
-      fontSizes[f.slotId] = sizeMap.get(f.slotId);
-      boxes[f.slotId] = boxOf(f, sizeMap.get(f.slotId));
-    }
-    // Empty / zero-size fields keep their preferred size untouched.
-    for (const f of fields) {
-      if (!list.includes(f)) fontSizes[f.slotId] = f.preferredSize;
-    }
-    return { fontSizes, boxes };
-  }
 }

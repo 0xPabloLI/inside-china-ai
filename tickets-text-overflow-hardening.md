@@ -283,7 +283,7 @@ preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性
 
 ## T12 — 官方 `fitText` 接入 TextGate 生产路径（2026-09-01 新增；2026-09-02 审计修订，决策 57/63/64）
 
-**Blocked by:** T5 ✅（需 28 门测试 + 冒烟基线在位当回归哨兵）｜ Issue: 待建（新 session 创建，建票时用本节修订后 scope）
+**Blocked by:** T5 ✅（需 28 门测试 + 冒烟基线在位当回归哨兵）｜ Issue: #175
 
 > **2026-09-02 审计修订（决策 63/64）**：原目标 `fitGroup` 无生产调用者（仅单测）——
 > 按原样实施不改变生产行为。接入点改为 **TextGate → `fitCandidates()` 生产路径**
@@ -296,14 +296,27 @@ preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性
 ink）不动——官方不验证结果，验证层是闸门本体。**Assert 层（ink/标注/逐帧/容器）不动**
 （决策 58）。这是「已绿代码的等价替换」——先存档基线再动手。
 
-- [ ] 基线存档：现有 28 门测试 + `_gate-smoke` 冒烟结果记录在案（替换前全绿）
-- [ ] Times 900 大写连字场景实测官方 `fitText` 线性外推误差；超 EPS 则线性外推后接一步二分精化（决策 57）
-- [ ] **TextGate 候选生成接入官方 `fitText`**（TextGate 内或 Remotion 工作区 browser
-      helper）；候选序列仍受 `minSize` 硬下限与 `shrinkOrder` 编排约束（决策 63）
-- [ ] `fitGroup` 处置：官方接入后确认无生产消费者则随本票退役（连同仅剩的单测），
-      否则留纯函数层（决策 63）
-- [ ] 新增契约测试：官方 `fitText` 输出必须通过本项目终态验证（防官方行为漂移）
+- [x] 基线存档：2026-09-02（commit `b0250c0` 工作树态）门测试 96/96 全绿
+      （text-slots 34 + text-geometry 25 + final-media + text-gate-render 11 + scene-gate-render 19）；
+      管线基线 = T9 session 的 qwen4 全渲染（1953 帧 + 71/71 帧检查，见 handoff §2）
+- [x] Times 900 实测（真实 Chromium 探针，2026-09-02）：无 px letter-spacing 场景官方
+      线性外推误差 ≤0.01px（≪ EPS 0.5，精化条件不触发，未加精化步）；fixed-px
+      letter-spacing（−10px focus 数字）官方外推炸到 89.9px —— helper 改走双测量 +
+      精确求解（`solveSingleLinePxLetterSpacing`），修正后误差 0.02px（kernel 注释存档）
+- [x] **TextGate 候选生成接入官方 `fitText`**：`remotion/src/components/official-fit.ts`
+      browser helper + `lib/official-fit-kernel.mjs` 纯内核。单行 nowrap/pre → 官方
+      `fitText`（px-LS 走修正路径）；折行 → 官方 `fitTextOnNLines`（maxLines=slot 契约值）；
+      复合块（statCard）逐块建模取最紧约束。`fitCandidatesFromSeed` 只重排不裁剪旧阶梯
+      格子（kernel 性质测试锁定：任意 seed 下候选集合与旧 `fitCandidates` 全等）——
+      官方预测只影响探测起点、不影响选中字号；minSize 硬下限与 preferred 封顶在
+      `officialSeedSize` 强制（决策 63）
+- [x] `fitGroup` 处置：确认零生产消费者（仅 text-geometry.test.mjs）→ 随本票退役
+      （text-geometry.mjs 函数与单测 describe 一并删除；决策 68 已先行否定其等比阶段）
+- [x] 契约测试：内核性质测试锁「官方种子只重排格子、终态验证仍是唯一裁判」；30 个真渲染
+      门测试在 official 种子路径下全部通过终态验证（PASS 形状不回归、FAIL 形状字号/理由
+      逐项不变）；official-lock 场景锁定官方输出在终态验证下可渲染（防官方行为漂移）
 - [ ] 全部既有门测试 + 冒烟全绿（决策 62）
 - [ ] ~~契约单测补锁定 `validateFontIsLoaded` 开启~~ **（删除，决策 64）**：
       保留 `document.fonts.ready` + 超时 FAIL 门；未来需精确字体验证时先打包命名字体
-- [ ] 已知局限写入代码注释：官方多行函数按空格分词，中文场景失效 → 见低优先级 issue（决策 60）
+- [x] 已知局限写入代码注释：official-fit.ts 模块头声明空格分词局限（→ #165，决策 60）、
+      validateFontIsLoaded 不开启原因（决策 64）、复合块与 px-LS 近似边界

@@ -33,3 +33,21 @@ declare module "../../../lib/timeline.mjs" {
   export function sceneClipFrames(ttsDuration: number, fps?: number): number;
   export function sceneClipDuration(ttsDuration: number, fps?: number): number;
 }
+
+declare module "../../../lib/official-fit-kernel.mjs" {
+  export function officialSeedSize(
+    predicted: number,
+    slot: { minSize: number; preferredSize: number; step?: number },
+  ): number;
+  export function fitCandidatesFromSeed(
+    slot: { preferredSize: number; minSize: number },
+    seed?: number,
+    step?: number,
+  ): number[];
+  export function minContainerSeed(seeds: number[]): number | null;
+  export function solveSingleLinePxLetterSpacing(p: {
+    adv100: number;
+    letterSpacingTotal: number;
+    maxWidth: number;
+  }): number | null;
+}
