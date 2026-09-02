@@ -57,6 +57,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                     color: "#f5f5f5",
                     letterSpacing: "4px",
                     marginBottom: SPACING.lg,
+                    textAlign: "center",
                   }}
                 >
                   {brand.split(brandHighlight).map((part, i, arr) => (
@@ -84,6 +85,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                       fontWeight: 600,
                       color: "#cbd5e1",
                       letterSpacing: "3px",
+                      textAlign: "center",
                     }}
                   >
                     {txt.tagline as string}
