@@ -8,7 +8,7 @@
 
 ## 0. TL;DR
 
-- **进度：7 / 12 完成 + T9 首项落地**（T1–T5 / T6 / T7 ✅，T9 首项 `15b4419` ✅）。下一步 = **T12（官方 `fitText` 接入 TextGate 生产路径，scope 已审计修订，先建 issue）→ T9 余项（parent/group gate、MediaOverlay 补 action/context、s6/s8/s9 重渲染）**；T8/T10 也可任选。
+- **进度：8 / 12 完成 + T9 首项落地**（T1–T5 / T6 / T7 / T12 ✅，T9 首项 `15b4419` ✅；T12 = `44fa8da`，issue #175）。下一步 = **T9 余项（parent/group gate、MediaOverlay 补 action/context、s6/s8/s9 重渲染）**；T8/T10 也可任选。qwen4 全管线冒烟（T12 后）待并行 session 的场景改动稳定后补跑。
 - **2026-09-02 第二 session（T9 首项，commit `15b4419` 本地未 push）**：badge 接入 + rendered 缺失 FAIL + mediaOptOut 归位 + `HTML_SLOT_MAP`/`htmlSlotsFor()` 清理（决策 65/66 + 决策 59 收尾）一次落地；qwen4 s9 全管线渲染通过（**P1 阻断解除**：1953 帧 + 71/71 帧检查 + badge chip 像素验证）；review 双轴完成（1 硬伤 JSDoc 误删已修，amend 并入）；全量 2651 passed / 3 failed（#153 存量不变）。⚠️ qwen4 冒烟时 subtitle verification 报 2 errors = **存量 coverage gap，与 T9 无关**（见 §6）。
 - **2026-09-02 实施审计修订（决策 63–71，全部经用户确认；spec/tickets 已同步）**：
   - **P1 阻断**：① qwen4 等场景的 stacked-cards 数据含 `texts.badge`，但 `REMOTION_SLOT_MAP.stacked-cards` 未声明 badge、模板不渲染 → 渲染层立即 FAIL（`no measured maxWidth`）——T9 新首项；② T12 原目标 `fitGroup()` 无生产调用者（生产路径是 TextGate → `fitCandidates()`），按原样实施不改变生产行为——T12 接入点已改写。
@@ -48,6 +48,7 @@
 | T5 Remotion 模板接入 + F1/F2/F3 | #146 ✅ | `8a024e5`                                                                            | 10 文本源全接入（契约字号 + `data-text-*` 寻址 + 容器断言）；`REMOTION_SLOT_MAP` 四分类 + 未注册字段渲染层 throw；`measure-slot-widths.mjs` 实测宽度回填（修 5 处估算）；`scene-gate-fixture` 10 基线 + F1/F3；`_gate-smoke` 9 场景全管线冒烟通过（6 类失败全修：入场/转场假阳性→布局盒断言、badge 反转嵌套等）；28 门测试全绿 |
 | T6 HTML 路径退役（pivot）        | #147 ✅ | `830cd44` + `9914777`（review fix，本地，待 push）                                                           | renderer-guard fail-fast 7 tests（含两入口真实进程）；全量 2645/3（#153 存量）；render-only + main.mjs 双 `_gate-smoke` 冒烟 PASS；scoped eslint + 根/remotion 双 tsc + `npm run build` 全绿；#147/#154 已关闭；review 双轴完成（3 处文档硬伤已修 + retired-path lint ignore） |
 | T9 首项（badge 接入 + rendered FAIL + mediaOptOut 归位 + HTML 清理） | #150 部分完成 | `15b4419`（本地，待 push） | 契约 33/33 + gate 渲染 19/19（新增 baseline-narrative-stacked / missing-rendered 场景）；全量 2651/3（#153 存量不变）；qwen4 全管线 1953 帧 + 71/71 帧检查；badge 像素验证（amber 带 y≈464–476，8/31 旧渲染无此带）；measure 全表 ok（badge=820，无回归）；scoped eslint + remotion tsc 全绿 |
+| T12 官方 `fitText` 接入 TextGate 生产路径 | #175 ✅（待 push 后关闭） | `44fa8da`（本地，待 push） | 内核性质测试（任意 seed 下候选集合与旧阶梯全等）+ gate 真渲染 30/30（PASS 形状/FAIL 字号逐项保持）；官方线性外推实测 0.01px（≪EPS，不加精化步），fixed-px letterSpacing 官方炸 89.9px → 双测量精确求解 0.02px；fitGroup 连同单测退役；tsc/eslint 全绿；哨兵 2659 passed / 13 failed，失败均非本票（并行 session 10：official-fit-render 6 + text-slots 3 + used-asset 1；#153 存量 3）；qwen4 冒烟待并行场景稳定后补跑 |
 
 > **qwen4 Scene 9 已改为 `stacked-cards + mediaOptOut: true`**（T7 提交）。~~数据层正确，但渲染层
 > 当前因 **badge 未注册而直接 FAIL**（决策 65，P1 阻断）——修复记在 T9 首项。~~
@@ -209,4 +210,5 @@ ffmpeg -ss 53 -i output/qwen4-preview/<file>.mp4 -frames:v 1 -y /tmp/s9.png
 - [x] T6 (#147) 实现 + renderer-guard 测试 + code-review 双轴 + 双冒烟 + scoped lint/tsc/build + issue 关闭（2026-09-02，`830cd44` 实现 + `9914777` review 修复 + `0025f73` review 归档，**全部本地待 push**）
 - [x] 2026-09-02 实施审计修订（决策 63–71）：P1 阻断确认（badge + fitGroup 接入点）、T5/T6 完成声明更正、T9/T10/T11/T12 scope 重写、误诊更正（s9 转场）、文档同步（spec/tickets/handoff/README/pipeline/workflow/scripts README）；纯文档修订，未改代码
 - [x] 2026-09-02 T9 首项 session：badge 接入 + rendered 缺失 FAIL + mediaOptOut 归位 + `HTML_SLOT_MAP`/`htmlSlotsFor()` 清理（commit `15b4419`，含 review 双轴修复 amend）；qwen4 冒烟 + 71/71 帧检查 + badge 像素验证通过；T12 未动（**先建 issue 的事留给下一 session**）；未 push
-- [ ] 后续 session（#2…N）：**开场 git 核实（勿自动 rebase，见 §3）→ T9 首项 badge（P1）→ T12（scope 已修订，先建 issue）→ T10(#151) → T11(#152) + T8(#149) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）
+- [x] 2026-09-02 T12 session：建 issue #175 → 基线存档（96/96 门测试 @`b0250c0`）→ official-fit kernel/helper/text-gate 接入 + fitGroup 退役 → 内核单测 + gate 真渲染 30/30 + tsc/eslint + 误差探针 → commit `44fa8da`（只 stage 本 session 文件；text-slots 混合改动按「临时还原→add→恢复」法分离）。code-review 双轴完成（eeab5c→`44fa8da`）：Standards 零硬伤（2 条 judgement：kernel degenerate fallback 有文档属设计；text-slots 4 行注释即决策引用）；Spec 无缺失/无 scope creep/无实现错误（注：Spec 子代理误读 diff 只见测试文件，实际 commit 9 文件已由主 session 核对）。qwen4 冒烟按用户指示延后（并行 session 正在改 HookScene/CtaScene/fixture）
+- [ ] 后续 session（#3…N）：**开场 git 核实（勿自动 rebase，见 §3）→ T9 余项 (#150) → T10(#151) → T11(#152) + T8(#149) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）。注意：并行 session 正在同epic上工作（其 official-fit-render 契约测试 + bigNumber minSize 150 改动在途，落地后 T12 的渲染契约轴即闭合）
