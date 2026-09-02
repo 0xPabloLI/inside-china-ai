@@ -803,7 +803,7 @@
 - **官方速度口径**：论文摘要 "up to **200 FPS** in the Lite setting"（arXiv 2608.00079）；基座 README "Lite **96 FPS** on single RTX 4090"（Soul-AILab/SoulX-FlashHead）。两者均为官方口径，200 FPS 为论文最优-case，96 FPS 为 RTX4090 实测。
 - **`guidance_scale` 提示**：默认 1.0 = 禁用音频 CFG。论文提出 audio-driven CFG 以增强唇同步，但 README/源码未给推荐非零值——如需更强唇同步需实验探索（标注 `待验证`，无官方值，社区亦未见推荐值）。
 
-#### 测试计划（待执行）
+#### 测试计划（执行中 · 2026-09-02 已提交 Kaggle T4 首测）
 
 1. **平台**：Kaggle T4（15GB）或 Modal T4；官方 Lite 单卡 6.4GB，T4 充裕（信源：Soul-AILab README）。
 2. **权重**：按 README 下载 3 份 — `SoulX-FlashHead-1_3B`（基座）、`facebook/wav2vec2-base-960h`、`z-rx/leaptalk`（LoRA + `audio_proj_step_10400.pt` + Lite TAE）。
@@ -811,6 +811,8 @@
 4. **A/B**：同素材对比 EchoMimicV3 v51（Kaggle T4，8 步，~14min/段）。
 5. **验证项**：唇同步（人眼确认）、无限长度流式、ID 保持、单段推理耗时。
 6. **风险点**：`guidance_scale` 默认值禁用音频 CFG，唇同步强度待实验；CUDA-only，无 MPS/MLX 本地路径（M2 Pro 不可跑，必须云 GPU）。
+
+- **首测提交（2026-09-02）**：已 `kaggle kernels push` 至 Kaggle T4（`xpabloli/leaptalk-test`，脚本 `scripts/kaggle/leaptalk-test/leaptalk_inference.py` + `kernel-metadata.json`）。复用 `xpabloli/infinitetalk-input`（portrait.jpg + audio.wav）做同素材 A/B。推理用 `inf.sh` 默认（`--num_inference_steps 1 --lite --compile off`）。结果（mp4 + debug_log）拉回 `/tmp/leaptalk_out` 后回填本表。运行/结果见 Kaggle：https://www.kaggle.com/code/xpabloli/leaptalk-test
 
 ### 📋 SoulX-FlashHead
 
