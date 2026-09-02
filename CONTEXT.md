@@ -70,7 +70,7 @@ _Avoid_: Topic (too generic), keyword
 **Source Registry**: The single source of truth for all source definitions in `source-registry.mjs`. Contains 59 sources (news, self-media, western, stock APIs, video platforms, WeChat RSS). Each source has an optional `capabilities` object declaring what data types it provides (`articles`, `images`, `videos`) and how (CDP scripts, API config, yt-dlp platform). Consumers query by capability: `search-sources.mjs` filters `capabilities.articles`, `asset-sourcer.mjs` filters `capabilities.images` / `capabilities.videos`. Adding a source = adding one object with capabilities; no code changes in consumers.
 _Avoid_: Feed, scraper
 
-**Capabilities**: An optional field on each source in the Source Registry, declaring what data types the source can provide and the access method for each. Shape: `{ articles?: {...}, images?: {...}, videos?: {...} }`. A source can have one, two, or all three capabilities (e.g., all 9 CDP search sources have `articles` + `images`; Pexels has `images` + `videos`; arXiv has `articles` only). For dual-capability CDP sources, `extractScript` returns `{ url: articleUrl, imageUrl }` for trend discovery, while `capabilities.images.primaryScript` returns `{ url: imageUrl, type: 'image' }` for asset sourcing — same DOM, different field semantics. This replaces the previous pattern where `asset-sourcer.mjs` maintained separate `API_SOURCES` / `YTDLP_SOURCES` / `CDP_SOURCES` arrays that duplicated source definitions.
+**Capabilities**: An optional field on each source in the Source Registry, declaring what data types the source can provide and the access method for each. Shape: `{ articles?: {...}, images?: {...}, videos?: {...} }`. A source can have one, two, or all three capabilities (e.g., all 9 CDP search sources have `articles` + `images`; Pexels has `images` + `videos`; arXiv has `articles` only). For dual-capability CDP sources, `extractScript` returns `{ url: articleUrl, imageUrl }` for trend discovery, while `capabilities.images.primaryScript` returns `{ url: imageUrl, type: 'image' }` for asset sourcing — same DOM, different field semantics.
 _Avoid_: Source config, source flags
 
 ## TTS & Voice
@@ -78,10 +78,10 @@ _Avoid_: Source config, source flags
 **TTS Engine Adapter**: A module in `lib/tts/` that implements a common interface (`isAvailable()`, `generate()`, `info`) for a specific TTS provider. Registered in `registry.mjs` via `ENGINE_FACTORIES` and selected by `PRIORITY` order or `TTS_ENGINE` env override. Current engines: F5-TTS-MLX (default), Qwen3-TTS (backup), edge-tts (fallback), macOS `say` (last resort).
 _Avoid_: TTS provider, voice generator
 
-**Reference Voice**: A WAV audio sample (`voice-samples/voice-sample-24k.wav`) + matching transcript file used by F5-TTS-MLX and Qwen3-TTS for voice cloning. All videos use the same Reference Voice for brand consistency. Must be 24kHz mono WAV. The transcript must exactly match the audio content (Whisper-transcribed text causes artifacts).
+**Reference Voice**: The paired WAV audio sample + matching transcript used by F5-TTS-MLX and Qwen3-TTS for zero-shot voice cloning. All videos use the same Reference Voice for brand consistency. Format (24kHz mono WAV) and path details: `docs/video-workflow.md` → F5-TTS-MLX.
 _Avoid_: Voice sample, ref audio (use Reference Voice for the paired audio+text)
 
-**Max Effort**: The highest-quality configuration for a TTS engine. F5-TTS-MLX Max Effort = `steps=32` (4× default), `cfg_strength=3.0`, `wps=2.8`, `method='rk4'`. Other engines have their own Max Effort parameters (Qwen3: `do_sample=False` + `repetition_penalty=1.3`).
+**Max Effort**: The highest-quality configuration for a TTS engine (F5-TTS-MLX `steps=32`/`cfg_strength=3.0`/`wps=2.8`/`method='rk4'`; Qwen3 `do_sample=False`/`repetition_penalty=1.3`). Parameters and rationale: `docs/video-workflow.md` → TTS Engine Configuration.
 _Avoid_: High quality, max settings (too generic)
 
 ## VLM & Asset Analysis
@@ -107,7 +107,7 @@ _Avoid_: Crop analysis (too generic — use Crop Decision for the contract), fit
 **Focus Detection**: A deterministic, lightweight spatial analysis performed by OpenCV (Haar Cascade face detection + Spectral Residual saliency) via a dedicated Python subprocess (`focus_detector.py`). Complements the VLM's semantic analysis. Runs as Phase 2 (after pre-filter Phase 1, before VLM Phase 3) in `analyzeAssets()` — only on assets that survived the free pre-filter gate. **Never rejects** — returns schema-complete degraded results on failure. See ADR-0015.
 _Avoid_: Focus analysis, spatial analysis (too generic)
 
-**Protected Region**: A normalized bounding box `[x, y, w, h]` (all in [0, 1]) identifying an area in a source image that should not be covered by text overlays. Currently produced only for faces (`kind: "face"`). Written to `media-patch.json`'s `analysis.focusAnalysis` field for human review. Phase 2 will feed these to Remotion for automatic slot scoring.
+**Protected Region**: A normalized bounding box `[x, y, w, h]` (all in [0, 1]) identifying an area in a source image that should not be covered by text overlays. Currently produced only for faces (`kind: "face"`). Written to `media-patch.json`'s `analysis.focusAnalysis` field for human review.
 _Avoid_: Focus box, face box (too narrow — future kinds include body, text, object)
 
 **Saliency Map**: A heatmap of visual attention computed via Spectral Residual algorithm. Summarized as `dispersion` (variance-based concentration, 0 = uniform, 1 = focal point) and `centroid` (weighted center of attention, `[cx, cy]`). Always computed as a soft signal, independent of face detection results.
@@ -118,7 +118,7 @@ _Avoid_: Heatmap, attention map
 **Remotion**: A React-based video rendering framework used as the primary rendering engine. Renders frames deterministically via server-side rendering (frame-accurate). Replaces Playwright screencast recording. See ADR-0010.
 _Avoid_: Video framework, renderer (too generic)
 
-**Playwright Recording** (retired): The previous rendering method — HTML/CSS scenes recorded via Playwright's `page.screencast()` API. Retired (decision 59, #147): tooling archived to `scripts/short-video/retired-html-path/`; Remotion is the only renderer.
+**Playwright Recording** (retired): Previous HTML/CSS + Playwright `page.screencast()` renderer; retired (decision 59, #147), tooling in `scripts/short-video/retired-html-path/`. `renderer-guard.mjs` fails fast on the retired flag; Remotion is the only renderer.
 _Avoid_: Browser recording, screencast
 
 **Scene Component**: A Remotion React component that renders one scene type (HookScene, ContentScene, NarrativeScene, DataScene, QuoteScene, CtaScene). Each maps to a `visualType` in Scene Data. See ADR-0010.
