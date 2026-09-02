@@ -10,6 +10,21 @@
 
 ---
 
+## 文档规则
+
+### 参数信源标注（强制，2026-09-02 起）
+
+所有测试参数（推理步数 `sample_steps`、文本/音频引导 `sample_text/audio_guide_scale`、`sample_shift`、帧数 `frame_num`/`max_frame_num`、分辨率、量化方式 `quant`、GPU 类型、LoRA `lora_scale` 等）**必须逐条标注信源**。信源优先级：
+
+1. **官方文档优先**：模型官方 README、源码（含默认参数）、HuggingFace 模型卡、官方论文、官方加速/LoRA 章节（如 FusionX、lightx2v 的专门章节）。
+2. **社区讨论次之**：GitHub Issues、社区 LoRA 发布页、Reddit/Discord、博客教程——仅在无官方值或官方值需补充时使用，并明确标注「社区来源：…」。
+3. **禁止无信源参数**：既无官方也无社区来源的参数，标注 `待验证` 并写明假设依据；`作废` 的值禁止回用（见 §参数矩阵 规则）。
+4. **License 门禁**：商用许可不明确或 NC 的候选一律不测试；筛选阶段即在模型条目标注「不测」，只测可商用或许可已核实的（2026-09-02 用户规则）。
+
+> 与 §参数矩阵 规则一致：有官方值用官方值；组合维度无官方值时，取各 artifact 各自官方默认作起点；来源必须标注。
+
+---
+
 ## 测试总览
 
 ### 本地模型
@@ -28,7 +43,7 @@
 | 10 | ~~LongCat-VA-1.5 MLX~~ | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ❌ **不可用**（不像本人+唇同步错位） | 2026-08-19 |
 | 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
 | 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
-| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | — | ✅ **有 MLX 移植** | ✅ MIT | 📋 待测 | — |
+| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步成功**（4.3min/3.2s 段，$0.18，ID 保持好；抽帧发现 t2.5s 眼镜片绿色反光伪影；lip sync 待用户人眼确认 2026-09-02） | 2026-09-02 |
 | 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ⚠️ base Apache 2.0 / FusionX LoRA NC | ✅ **v10.17 FusionX 8 步成功**（12.2min/3s 段，$0.56，表情自然 + ID 保持良好；lip sync 人眼确认达标 2026-09-02；NC 许可证只能验证不能发布） | 2026-09-02 |
 | 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
@@ -515,6 +530,23 @@
 - **MPS**：⚠️ 12GB VRAM，MPS 可能可行
 - **ComfyUI**：`okdalto/ComfyUI-PersonaLive`
 - **备注**：所有基于 SD1.5 的扩散模型在 M2 Pro 上都已失败，PersonaLive 不太可能例外
+
+### ✅ LongCat-Video-Avatar-1.5 云端原版（Modal A100-80GB，bf16 + DMD 蒸馏）— v11.1
+
+- **日期**：2026-09-02；脚本：`scripts/short-video/experiments/modal-longcat-avatar.py`（v11.1）
+- **许可**：MIT ✅（符合 License 门禁）
+- **参数**（全部官方信源，2026-09-02 抓取）：HF 模型卡 Quick Inference 命令 + 官方源码 `run_demo_avatar_single_audio_to_video.py`
+  - steps=8：源码 L71-72，`use_distill + avatar-v1.5` 硬编码（DMD2 蒸馏 50→8）
+  - text/audio CFG = 4.0/4.0：源码默认；模型卡 tip「Audio CFG 最优 3-5，越高唇同步越好」
+  - 480p、ref_img_index=10、mask_frame_range=3：官方默认
+  - bf16 全精度首跑（INT8 变体已注释，待 A/B）
+- **硬件**：A100-80GB 单卡 —— 权重全部常驻 GPU（源码 L172 `pipe.to()`）：UMT5 text encoder ~23GB + DiT bf16 ~31.7GB + whisper-large-v3 ~3GB + VAE ~0.5GB ≈ 58GB+激活。40GB/48GB 卡装不下（社区 A6000 48GB INT8 OOM 案例 CSDN 9672748；GitHub issue #79 48GB OOM）
+- **权重**（Volume longcat-models，~61GB）：LongCat-Video 仓只下 tokenizer/text_encoder/vae（跳过 dit/ 54GB，avatar 不用）；Avatar-1.5 仓 base_model + dmd_lora + whisper fp16 单格式 + vocal_separator（跳过 INT8 与 whisper 冗余格式 ~37GB）
+- **运行**：app ap-NB4fegRbepTDyO9j2Dksfv，二次触发成功；GPU 总计 4.3min ≈ **$0.18**（首跑 ap-ai58 因 Volume 隐式提交延迟失败，损失 ~$0.1）
+- **产出**：`experiments/digital-human/longcat/longcat_v111_bf16_distill.mp4`（3.24s，323KB，93 帧@官方硬编码）
+- **抽帧评估**（t=0.5/1.5/2.5s）：ID 保持好（眼镜/胡型/发型与源照一致），t1.5s 静止帧几乎与源照无异；口型开合幅度大且自然；**发现伪影：t2.5s 眼镜片出现绿色反光斑块**，单帧看明显，需视频动态确认是否持续；**lip sync 待用户人眼确认**
+- **成本对比（同素材 3s 段）**：LongCat bf16 $0.18/4.3min < InfiniteTalk lightx2v $0.42/9.3min < InfiniteTalk FusionX $0.56/12.2min —— LongCat 又快又便宜且 MIT
+- **遗留**：① lip sync 人眼确认；② 眼镜伪影是否持续（若持续，可试 720p 或调 ref_img_index）；③ INT8 A/B（省钱有限，同卡只省 ~1min 加载）；④ Volume 下载路径修正（本地下载用 `modal volume get longcat-models outputs/<file>`，脚本里 /weights 前缀写错待修）
 
 ### ❌ LongCat-Video-Avatar-1.5（本地不可用，云 GPU 低优先级）
 

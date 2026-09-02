@@ -79,7 +79,10 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - **结果尽早落盘**：每个变体出片后立即写入 Volume/持久存储并 commit，再跑下一个。单变体崩溃不应损失已完成的结果。
 - **失败隔离**：变体之间用独立子进程跑（GPU 显存随进程退出天然释放），变体间不做同进程内的增量调用；如必须同进程，显式 `del` + `torch.cuda.empty_cache()` 清显存，避免显存碎片让后面的变体假性 OOM。
 - **平台差异**：Modal 按容器占用秒计费，批量省的是真实费用；Kaggle/Colab 免费但有 12h session 上限和随机断连，批量省的是额度，且"尽早落盘"要从建议升级为铁律（每变体完成就推 output/dataset）。
-- **权重下载与 GPU 解耦**（Modal 特有优化）：大模型权重下载放 CPU-only 容器写 Volume（CPU 计费便宜约两个数量级），GPU 容器起来时权重已在本地。Kaggle/Colab 的等价做法是把权重做成 Dataset/Drive 持久化，避免每次 session 重新下载。
+- **权重下载与 GPU 解耦**（Modal 特有优化）：大模型权重下载放 CPU-only 容器写 Volume（CPU 计费便宜约两个数量级），GPU 容器起来时权重已在本地。Kaggle/Colab 的等价做法是把权重做成 Dataset/Drive 持久化，避免每次 session 重新下载。注意 Modal **没有 CPU 免费额度**——"放 CPU"省的是 CPU 与 GPU 的单价差（约两个数量级），不是免费；真正的免费额度是 Volume 存储每月前 1 TiB（$0.09/GiB/月之后）。
+- **不变成本能进镜像层的都进镜像层**：git clone、pip 依赖、flash-attn 预编译 wheel 全部放镜像构建层（构建在 CPU 侧执行一次并永久缓存）；GPU 容器里只留"必须每变体做"的事。判断标准：产出不随变体变的准备工作都不该消耗 GPU 计费秒。
+- **量化省钱的前提是能换更便宜的卡**：Modal 按时长×GPU 单价计费，显存大小不单独收费。INT8/fp8 量化只有当它让模型挤进低价 GPU 档（如 A100-80GB → L40S 48GB，省 22%）时才产生真实省钱；同一张卡上 INT8 只省权重加载时间（GB 级差别 ≈ 1min ≈ 几分钱）。且注意显存大头常常不是 DiT（如 LongCat 的 UMT5 text encoder ~23GB bf16 不参与量化），算显存账要逐组件加总。
+- **跨容器读 Volume 前必须显式 commit + 全量校验**（v11.1 实测教训）：下载函数结束时若不调用 `vol.commit()`，紧接的 GPU 容器可能挂到旧快照——文件"明明下了却 FileNotFoundError"。校验要覆盖**全部分片**（如 6 片 safetensors 逐片查），只抽首尾片兜不住中间片缺失。
 - **计费口径**：按容器存活时间计费，与生成视频的秒数无固定单价关系；视频时长只影响推理时长（约按帧数线性增长）。
 
 ## Content Standards
