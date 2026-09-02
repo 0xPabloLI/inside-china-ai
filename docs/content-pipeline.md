@@ -6,7 +6,8 @@
 ## 管线概览
 
 ```
-入口 → [Stage 0 共享素材收集] → ┬─ [文章轨：Stage 1 文章草稿 → MRL-1 → Stage 2 保存 draft]\n                              └─ [视频轨：Stage 3 scene-data → MRL-2 → Stage 4 视频制作] → [Stage 5: MRL-3 → ⏸️ HITL 内容包审阅 → 确认后公开文章 + TikTok] → [Stage 6 Analytics]
+入口 → [Stage 0 共享素材收集] → ┬─ [文章轨：Stage 1 文章草稿 → MRL-1 → Stage 2 保存 draft]
+                              └─ [视频轨：Stage 3 scene-data → MRL-2 → Stage 4 视频制作] → [Stage 5: MRL-3 → ⏸️ HITL 内容包审阅 → 确认后公开文章 + TikTok] → [Stage 6 Analytics]
 ```
 
 > **📚 内容状态与 RAG reindex**：Stage 1 的文章可用 `publish-article.mjs --draft` 保存为非公开 draft；draft 与 Stage 0 素材可供后续工作引用。文章公开发布、附件上传和 TikTok URL 回写都在 HITL 确认后执行。每次 `publish-article.mjs` 调用会非阻塞触发 RAG reindex；其成败不阻塞视频轨。scene-data 就绪后以及 Stage 4 有多媒体素材变更时，仍按各自触发点 reindex。
@@ -132,9 +133,6 @@ Agent 从 Stage 0 开始：运行 `search-sources --trend` → 选话题 → 走
 >
 > **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容，用本地 Ollama bge-m3 做语义向量搜索，零费用。search-sources 搜索实时互联网。两者不重复。
 
-### 入口 3：新 session，未指定任务
-
-Agent 读 `AGENTS.md` Session Start Checklist → 检查 `pending-analysis.json` → 检查未完成工作流 → 简要提示："可以写文章（给素材）或做视频（给话题/跑 trends）"
 
 ---
 
@@ -264,12 +262,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 ### 步骤
 
 1. **读 Stage 0 素材** — 从 Stage 0 输出的素材集合（用户素材 + 互联网全文）中提取核心信息。文章 draft 如已就绪可作为一致性参考，但视频不是文章翻译。
-2. **RAG 查询（已有 scene-data 检索）** — 用叙事角度 + 公司名查 RAG，检索已有视频场景和文章背景：
-   ```bash
-   node scripts/rag/query.mjs "叙事角度 公司名" --type scene-data --format json
-   node scripts/rag/query.mjs "叙事角度 公司名" --type article --format json
-   ```
-   Agent 读取结果后：避免重复已有场景的叙事结构和角度；在公司名出现时融入已有背景信息到 voiceover 脚本中。**非阻塞**：Ollama 不可用时跳过 + 输出警告 + 继续。
+2. **RAG 查询（已有 scene-data 检索）** — 用叙事角度 + 公司名查 RAG（命令同 Stage 0 末尾，`--type scene-data` 与 `--type article` 各一次），检索已有视频场景和文章背景。Agent 读取结果后：避免重复已有场景的叙事结构和角度；在公司名出现时融入已有背景信息到 voiceover 脚本中。**非阻塞**：Ollama 不可用时跳过 + 输出警告 + 继续。
 3. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
 4. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）
 5. **生成 AI Outline 话题描述（HITL 检查点）** — Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中。**Agent 暂停**，等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。降级：用户跳过则 Agent 自行设计。
@@ -288,23 +281,21 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 | 引用语句     | 大字引用场景            |
 | Widget       | 不出现（视频无法交互）  |
 
-### AI Outline 话题描述规则（Step 4 细则）
+### AI Outline 话题描述规则（Step 5 细则）
 
-> TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。
->
-> 实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。
-
-**话题描述要求**：1-2 句≤30 词，含公司名+数字+事件。输出到对话中，用户粘贴到 CSI AI Outline 输入框。
+> TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。
 
 **AI Outline 输出用途**：消费映射表→Step 5 scene 设计；Hashtags→对比标签池；Hook→参考改写；Title→对比取优。Script 内容不用。
 
-**降级**：用户跳过 HITL 时，Agent 自行按 S.T.A.R.T. 框架设计 scene。
+要求（1-2 句≤30 词、含公司名+数字+事件）与降级路径见 Step 5。
 
 ### 🔄 MRL-2: 脚本自审
 
 Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循环（每集单独检查），0 Blockers 后直接进入 Stage 4（不暂停）。
 
 **Blockers（任一 FAIL = 必须修复后重新检查）：**
+
+> B1–B13 与 W1–W9 由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。下表供报告参考。
 
 | #   | 检查项          | 阈值 / 规则                                                                              | 修复方式           |
 | --- | --------------- | ---------------------------------------------------------------------------------------- | ------------------ |
@@ -469,13 +460,6 @@ node scripts/short-video/publish-tiktok.mjs --slug <slug>
 | TikTok 手工操作       | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
 | Analytics 导出        | 独立工作流                     | 人工操作 | 用户   | 按需            |
 
-### Agent 行为准则
-
-1. MRL-1、MRL-2 自审通过后不暂停，直接进入下一 Stage。MRL-3 通过后才进入 HITL
-2. 到达 HITL 检查点时必须暂停 — 输出 MRL-3 报告 + 视频成品 + 文章 draft 预览 + 场景概览 + 等待用户确认
-3. 不得自行假设确认 — 确认必须是用户主动发出
-4. 用户提出修改意见时必须做联动检查 — 视频修改可能影响文章和脚本，Agent 必须回溯检查并输出「联动检查报告」
-5. Stage 1-4 全自动 — MRL 是自审门，HITL 是唯一人工门
 
 ---
 
