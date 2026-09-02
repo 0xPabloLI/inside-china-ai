@@ -153,14 +153,6 @@ Historical specs, tickets, plans, and roadmaps. Retained for reference, no longe
 | `specs/spec-research-evidence-pipeline.md` | Research evidence pipeline spec |
 | `specs/spec-vlm-semantic-merge-remediation.md` | VLM semantic merge remediation (P0 + P1) spec |
 | `specs/spec-wechat2rss-source-tracking.md` | Wechat2RSS 第三方公众号追踪接入规格 |
-| `specs/spec-agents-md-restructure.md` | AGENTS.md restructure spec — three-tier routing + unified PSR gate + layered slimming (proposal v3, two review rounds) |
-
-### `proposals/` & `tickets/` — Ephemeral work docs
-
-| Document | Purpose |
-|----------|---------|
-| `proposals/proposal-agents-md-restructure.md` | AGENTS.md restructure proposal (v3, conditionally approved; archive after rollout per #167) |
-| `tickets/tickets-agents-md-restructure.md` | 10 tracer-bullet tickets for the AGENTS.md restructure (T0–T7b) |
 
 ### Root-level active specs & tickets
 
