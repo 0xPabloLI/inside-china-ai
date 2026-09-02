@@ -36,32 +36,30 @@ describe("verify-video.mjs --pre guard (CLI contract)", () => {
   });
 
   it("T1-12: compliant content passes with no flag (exit 0)", () => {
-    // Every content directory passes data-level preflight: all seven dirs
-    // use the shared hookScene contract (checkHookContract) and are within
-    // word/scene limits — bytedance-distillation is the canonical baseline.
-    const res = runPre(["--content", "bytedance-distillation"]);
+    // zhipu-glm6-self-training is the canonical baseline: written against the
+    // current slot contract (layout field + Remotion visualType whitelist) and
+    // fully compliant with no flag.
+    const res = runPre(["--content", "zhipu-glm6-self-training"]);
     expect(res.status).toBe(0);
   });
 
-  it("all content dirs pass data-level preflight (hook focal contract migrated)", () => {
-    // deepseek (12 scenes) and restraint/pt1 (11 scenes) are historical
-    // long-form productions that intentionally exceed the 6-10 TikTok
-    // scene-count rule; they opt in via --long-form (downgrades count +
-    // word-count to WARN). Every other dir must pass with no flag.
-    for (const dir of [
-      "bytedance-distillation",
-      "restraint/pt3",
-      "distillation/pt1",
-      "distillation/pt2",
-      "distillation/pt3",
-    ]) {
+  it("contract-era content dirs pass data-level preflight (spec decision 47)", () => {
+    // Decision 47 (2026-09-01, user-confirmed): legacy packs are NOT migrated,
+    // batch-run or guaranteed — preflight red for them is expected and tracked
+    // as inventory-only in #153. Only packs written against the current
+    // contract (layout + visualType whitelist) must exit 0 here.
+    for (const dir of ["qwen4-preview", "zhipu-glm6-self-training"]) {
       const res = runPre(["--content", dir]);
       expect(res.status, `${dir} preflight should exit 0`).toBe(0);
     }
-    for (const dir of ["deepseek", "restraint/pt1"]) {
-      const res = runPre(["--long-form", "--content", dir]);
-      expect(res.status, `${dir} preflight with --long-form should exit 0`).toBe(0);
-    }
+  });
+
+  it("all content dirs pass data-level preflight (hook focal contract migrated)", () => {
+    // Historical long-form opt-in path still works: --long-form downgrades
+    // scene-count + word-count to WARN for the synthetic fixture (T1-11).
+    // Real legacy packs are NOT asserted here — decision 47 (see above).
+    const res = runPre(["--long-form", "--content", "_test-fixtures/overlimit"]);
+    expect(res.status).toBe(0);
   });
 });
 

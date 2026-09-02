@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { checkTextWidthBudget, checkVisualTypeWhitelist } from "../lib/scene-rules.mjs";
 
-// Serif-adjusted budgets: the Remotion render falls back to a serif face
-// ~30% wider than the sans metrics the templates were designed against.
-// Measured anchors (qwen4-preview v1): "1/9 THE TRAINING COST" (21 chars)
-// clipped at ~13 visible chars in a media-split half column at 52px;
-// "6B ACTIVE PER TOKEN" (19 chars) fits the full 820px band.
+// Spec decision 14/71: the character budget is a contract-derived CREATIVE
+// HINT at warn level — the final judgment is the TextGate real geometry, not
+// this check. Budgets derive from MEASURED_MAX_WIDTH + SLOT_FIELDS preferred
+// size (no hand-written anchors) and only cover fields the slot contract
+// declares for the scene's visualType + layout.
 
 const fullNarrative = {
   id: 2,
@@ -21,12 +21,7 @@ const fullNarrative = {
 };
 
 describe("checkTextWidthBudget", () => {
-  it("passes a full-width narrative whose fields fit the serif budgets", () => {
-    const results = checkTextWidthBudget([fullNarrative]);
-    expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
-  });
-
-  it("fails a result line that exceeds the half-column budget in media-split", () => {
+  it("warns (not fails) when a result line busts the derived budget in media-split", () => {
     const clipped = {
       id: 5,
       visualType: "narrative",
@@ -39,33 +34,40 @@ describe("checkTextWidthBudget", () => {
       },
     };
     const results = checkTextWidthBudget([clipped]);
-    const fails = results.filter((r) => r.level === "fail");
-    expect(fails.length).toBeGreaterThan(0);
-    const resultFail = fails.find((r) => r.check?.includes("result"));
-    expect(resultFail).toBeTruthy();
-    expect(resultFail.fix).toMatch(/shorten|full-width/i);
-  });
-
-  it("passes the same result text once the scene moves to a full-width layout", () => {
-    const fixed = { ...clonedScene5FullWidth() };
-    const results = checkTextWidthBudget([fixed]);
     expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
+    const warns = results.filter((r) => r.level === "warn");
+    expect(warns.length).toBeGreaterThan(0);
+    const resultWarn = warns.find((r) => r.check?.includes("result"));
+    expect(resultWarn).toBeTruthy();
+    expect(resultWarn.fix).toMatch(/shorten|full-width|geometry/i);
   });
 
-  it("checks stat-reveal subtext but tolerates the measured 25-char label line", () => {
-    const stat = {
-      id: 7,
-      visualType: "stat-reveal",
-      layout: "hero-center",
+  it("does not warn for the same texts once the scene moves to the wider media-overlay band", () => {
+    const fixed = clonedScene5FullWidth();
+    const results = checkTextWidthBudget([fixed]);
+    expect(results.filter((r) => r.level === "warn")).toHaveLength(0);
+  });
+
+  it("passes a full-width narrative whose fields fit the derived budgets", () => {
+    const results = checkTextWidthBudget([fullNarrative]);
+    expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
+    expect(results.filter((r) => r.level === "warn")).toHaveLength(0);
+  });
+
+  it("skips fields the slot contract does not declare for the visualType", () => {
+    // "title" is not declared for any narrative layout — legacy packs carry
+    // it, but the render layer owns the unknown-field FAIL (decision 51).
+    const legacy = {
+      id: 3,
+      visualType: "narrative",
+      layout: "media-bottom-bar",
       texts: {
-        bigNumber: "62.5",
-        label: "SWE-BENCH PRO",
-        subtext: "CLAUDE-OPUS-4.6 MAX: 53.4",
-        source: "SOURCE: Qwen official benchmarks",
+        title: "AN UNDECLARED FIELD THAT WOULD BUST ANY CONCEIVABLE BUDGET",
+        result: "OK",
       },
     };
-    const results = checkTextWidthBudget([stat]);
-    expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
+    const results = checkTextWidthBudget([legacy]);
+    expect(results.filter((r) => r.level === "warn")).toHaveLength(0);
   });
 
   it("skips hook and cta scenes (their contracts are checked elsewhere)", () => {
@@ -86,6 +88,7 @@ describe("checkTextWidthBudget", () => {
     ];
     const results = checkTextWidthBudget(scenes);
     expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
+    expect(results.filter((r) => r.level === "warn")).toHaveLength(0);
   });
 });
 

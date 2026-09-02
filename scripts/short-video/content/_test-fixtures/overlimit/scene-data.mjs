@@ -10,11 +10,14 @@
 //   - >=50% scenes carry concrete numbers, no clickbait/dead closers
 //   - total VO ~11 x 14 words < 180 (word-count check stays PASS so the
 //     --long-form exit-0 assertion isolates the scene-count downgrade)
+//   - non-CTA scenes carry layout="hero-center" (checkLayoutField is not a
+//     long-form downgrade candidate, so it must PASS here, not WARN)
 
 const SCENE = (id, word) => ({
   id,
   name: word,
   visualType: id === 1 ? "hook" : id === 11 ? "cta" : "data",
+  layout: id === 11 ? undefined : "hero-center",
   voiceover: `Scene ${id}: China AI ${word} hit a fresh 1.4 billion dollar mark.`,
   texts:
     id === 1 ? { hookText: "DEEPSEEK HIT", revealText: "$1.4B MARK" } : { stat: `SCENE ${id}` },

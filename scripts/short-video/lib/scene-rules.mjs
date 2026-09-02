@@ -27,6 +27,12 @@ import {
   KNOWN_COMPANIES,
   THRESHOLDS,
 } from "./tiktok-rules.mjs";
+import {
+  REMOTION_SLOT_MAP,
+  MEASURED_MAX_WIDTH,
+  SLOT_FIELDS,
+  DEFAULT_NARRATIVE_LAYOUT,
+} from "./text-slots.mjs";
 
 // Re-export AI_BLACKLIST to maintain public API
 export const AI_BLACKLIST = _AI_BLACKLIST;
@@ -1324,20 +1330,20 @@ export function checkLoopClosureNarrative(scenes) {
   ];
 }
 
-// ─── Text width budget (serif-adjusted) ───
+// ─── Text width budget (contract-derived hint, spec decision 14/71) ───
 
-// The Remotion render environment lacks Helvetica Neue and falls back to a
-// serif face roughly 30% wider than the sans metrics the layout templates
-// were designed against. Measured anchors (qwen4-preview v1, 2026-08-29):
-// "1/9 THE TRAINING COST" (21 chars) clipped to ~13 visible chars in a
-// media-split half column at 52px; "6B ACTIVE PER TOKEN" (19 chars) fits the
-// full 820px band at the same size. Budgets below encode those anchors with
-// a safety margin; budgets are uppercase-char counts per on-screen field.
-const TEXT_WIDTH_BUDGETS = {
-  half: { result: 12, company: 16, action: 22, context: 30, subtext: 24 },
-  full: { result: 24, company: 30, action: 44, context: 60, subtext: 48 },
-};
-const HALF_WIDTH_LAYOUTS = new Set(["media-split"]);
+// Character budgets derive from the slot contract — MEASURED_MAX_WIDTH (real
+// content-box widths, measured in Chromium) and SLOT_FIELDS preferredSize —
+// instead of hand-written char anchors. The result is a warn-level creative
+// hint only: the final judgment is TextGate's real per-line geometry, so this
+// check neither gates nor blocks anything.
+//
+// AVG_UPPERCASE_EM approximates the uppercase advance width of the serif
+// fallback face (≈0.55em, wider than the sans design metrics). It only
+// converts measured pixels into an advisory char count; being off does not
+// create false security — the geometry layer still fails real overflow.
+const AVG_UPPERCASE_EM = 0.55;
+
 // Fields checked per scene type; hook/cta have their own structural contracts.
 const WIDTH_CHECKED_TYPES = new Set([
   "narrative",
@@ -1349,22 +1355,41 @@ const WIDTH_CHECKED_TYPES = new Set([
   "contrast",
 ]);
 
+function deriveCharBudget(maxWidth, preferredSize) {
+  return Math.floor(maxWidth / (preferredSize * AVG_UPPERCASE_EM));
+}
+
 export function checkTextWidthBudget(scenes) {
   const results = [];
   for (const scene of scenes) {
     if (!WIDTH_CHECKED_TYPES.has(scene.visualType)) continue;
-    const layout = HALF_WIDTH_LAYOUTS.has(scene.layout) ? "half" : "full";
-    const budgets = TEXT_WIDTH_BUDGETS[layout];
-    for (const [field, budget] of Object.entries(budgets)) {
+    // Narrative without an explicit layout runs the runtime default
+    // (text-slots DEFAULT_NARRATIVE_LAYOUT); other types are hero-center only.
+    const layout =
+      scene.visualType === "narrative"
+        ? (scene.layout ?? DEFAULT_NARRATIVE_LAYOUT)
+        : "hero-center";
+    const declared =
+      REMOTION_SLOT_MAP[scene.visualType]?.[layout] ?? null;
+    if (!declared) continue;
+    const checkable = new Set([...declared.rendered, ...declared.optional]);
+    for (const field of checkable) {
       const value = scene.texts?.[field];
       if (typeof value !== "string" || value.length === 0) continue;
+      const maxWidth =
+        MEASURED_MAX_WIDTH[`${scene.visualType}.${layout}.${field}`];
+      // Contract rule: never guess widths — unmeasured slots are skipped.
+      if (!maxWidth) continue;
+      const preferredSize = SLOT_FIELDS[field]?.preferredSize;
+      if (!preferredSize) continue;
+      const budget = deriveCharBudget(maxWidth, preferredSize);
       if (value.length <= budget) continue;
       results.push({
-        level: "fail",
+        level: "warn",
         category: "Layout",
-        check: `Text width budget — ${field} in ${layout}-width layout`,
-        detail: `${value.length} chars (budget ${budget}): "${value}"`,
-        fix: `Shorten ${field} to ≤${budget} chars, or move the scene to a full-width layout (e.g. media-overlay). Remotion renders serif ~30% wider than the design metrics.`,
+        check: `Text width budget — ${field} in ${scene.visualType}.${layout}`,
+        detail: `${value.length} chars (contract budget ${budget} @ ${maxWidth}px/${preferredSize}px): "${value}"`,
+        fix: `Consider shortening ${field} to ≤${budget} chars or moving to a wider layout — final judgment is the TextGate real-geometry gate.`,
       });
     }
   }
@@ -1372,7 +1397,7 @@ export function checkTextWidthBudget(scenes) {
     results.push({
       level: "pass",
       category: "Layout",
-      check: "Text width budget (serif-adjusted)",
+      check: "Text width budget (contract-derived hint)",
     });
   }
   return results;
