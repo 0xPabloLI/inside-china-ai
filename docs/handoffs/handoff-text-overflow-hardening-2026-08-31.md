@@ -8,7 +8,7 @@
 
 ## 0. TL;DR
 
-- **进度：8 / 12 完成 + T9 余项落地（待 commit）**（T1–T5 / T6 / T7 / T12 ✅，T9 首项 `15b4419` ✅；T12 = `44fa8da`，issue #175）。**T9 全部 checklist 已完成（2026-09-03 凌晨 session，见下）**，issue #150 待用户授权后关闭；T8/T10/T11 可任选。
+- **进度：9 / 12 完成**（T1–T7 / T9 / T12 ✅；T9 = `15b4419` + `eed95d4`，issue #150 已关闭；T12 = `44fa8da`，issue #175）。**下一步 = T8 / T10 / T11 任选**（T11 被 T10/T12 blocked，T10 优先）。
 - **2026-09-03 第四 session（T9 收尾：parent/group gate + overlay 补齐 + 重渲染）**：
   `TextGroupGate` 落地（band 容器本体，子 gate Fit 后交出字号与 `apply()`，全员报告后量
   band 内容高对 `getGroup()` 预算，超限沿契约 `shrinkOrder` 逐字段缩到 minSize、每步重测，
@@ -84,7 +84,7 @@ digital-human / leaptalk / f5-mlx / zhipu / didi-robotaxi 改动，且会话中�
 坚持：只显式列路径 stage 自己的文件，`git status --short` 核对 staged 清单后再 commit；
 push 需用户授权，默认只 commit 不 push。
 
-**主线：T9 首项 ✅（`15b4419`）→ T12 ✅（`44fa8da`）→ 下一 session 顺序：T9 余项**
+**主线：T9 全部 ✅（`15b4419` + `eed95d4`，#150 已关闭）→ T12 ✅（`44fa8da`）→ 下一 session 顺序：T10 → T8 → T11**
 
 1. ~~T9 首项：stacked-cards badge 接入~~ ✅ 已完成（2026-09-02，见 §2）。
 2. ~~T12~~ ✅ 已完成（2026-09-02，`44fa8da`，issue #175 已关闭，冒烟由用户豁免）——原接入说明留存：
@@ -127,7 +127,7 @@ T7(#148, done) ─────────────────────�
 | T4 Fit/Assert 核心                | #145 ✅   | —          | 已完成（`080a6c2`）：几何判定 + 触底 cancelRender + 逐帧 Assert |
 | T5 Remotion 模板接入 + F1/F2/F3   | #146 ✅   | T2✅,T4✅  | 已完成（`8a024e5`）：10 文本源接入 + 冒烟包全管线通过；**审计更正：rendered 缺失 FAIL 未实现（承接 T9）、mediaOptOut 注册位置错误（承接 T9）** |
 | T6 HTML 路径退役（已 pivot）      | #147 ✅   | 无         | 已完成（`830cd44` + `9914777` 本地）：renderer-guard fail-fast + 归档 retired-html-path + 回归哨兵全绿 + review 双轴修复；**审计补充：`HTML_SLOT_MAP`/`htmlSlotsFor()` 仍在活代码（text-slots.mjs），待迁 retired archive** |
-| T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 OPEN | T2✅,T5✅  | **全部 checklist ✅（2026-09-03，`eed95d4`）**：首项三项（`15b4419`）+ 余项（TextGroupGate 垂直门 / `MEASURED_MAX_HEIGHT` 594/336 / `group-overflow` 结构化失败 / MediaOverlay 补 action+context / s6-s8-s9 重渲染验证）。#150 待用户授权关闭 |
+| T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 ✅ CLOSED | T2✅,T5✅  | **全部 checklist ✅（2026-09-03，`eed95d4` 已推送，#150 已关闭）**：首项三项（`15b4419`）+ 余项（TextGroupGate 垂直门 / `MEASURED_MAX_HEIGHT` 594/336 / `group-overflow` 结构化失败 / MediaOverlay 补 action+context / s6-s8-s9 重渲染验证） |
 | T12 官方 `fitText` 接入 TextGate 生产路径 | 待建   | T5✅       | **scope 已修订（决策 63/64）**：接入 `fitCandidates()` 生产路径；官方输出只作候选值；不开启 validateFontIsLoaded；**先建 issue** |
 | T8 highlight {field,text} + 17 处 | #149 OPEN | T2✅,T5✅  | 标什么亮什么，子串校验                                          |
 | T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 OPEN | T4✅,T5✅  | **scope 已修订（决策 67/70）**：ink 逐行实现、annotation fail-open 修复、OVERDRAW 口径统一；F4 不重复认领 |
