@@ -78,8 +78,8 @@ These are environment facts — the code is the source of truth, this table is a
 |------|-------------|--------|
 | TTS ref audio | `voice-samples/voice-sample-24k.wav` | `lib/tts/{qwen-tts,f5-mlx}.mjs` via `ROOT_DIR` |
 | TTS ref text | `voice-samples/voice-sample-ref-text.txt` | same |
-| Company logo SVG | `assets/logos/{key}.svg` | `lib/scene-templates.mjs` `logoSvg()` |
-| Brand mark SVG | `assets/china-ai-news-mark-video.svg` | `lib/scene-templates.mjs`, `build-mark-svg.mjs` |
+| Company logo SVG | `assets/logos/{key}.svg` | `remotion/src/scenes/HookScene.tsx` (staticFile) |
+| Brand mark SVG | `assets/china-ai-news-mark-video.svg` | `build-mark-svg.mjs`（生成）；`remotion/src`（CtaScene / visuals.tsx 消费） |
 | BGM library | `assets/bgm/*.mp3` | `lib/bgm.mjs` |
 | Content media | `content/{slug}/assets/*` | `scene-data.mjs` `media.path` field |
 | Remotion static | `remotion/public/assets/` (symlink → `../../assets/`) | `render-remotion.mjs` copies content media here at render time |

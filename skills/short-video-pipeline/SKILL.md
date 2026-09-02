@@ -363,7 +363,7 @@ News is event-driven, but you can still build a rhythm:
 ## Prerequisites
 
 ```bash
-brew install ffmpeg && npx playwright install chromium
+brew install ffmpeg
 pip3 install pysubs2   # ASS subtitle generation
 # Unified venv (~/.video-tts-env, Python 3.12): f5_tts_mlx + qwen_tts + whisperx (for text-align.py)
 ```
@@ -394,7 +394,7 @@ pip3 install pysubs2   # ASS subtitle generation
 4. `remotion/src/` scene components take `(scene, duration)` → React render; TextGate enforces slot geometry before render
 5. `lib/subtitles/cues.mjs` + `ass.mjs` chunk `subtitle-timing.json` by pixel width and render the ASS with `\kf` karaoke tags
 6. `generate-bgm.mjs` synthesizes ambient track for `totalDuration + 10s` (if `--bgm`)
-7. `lib/render-remotion.mjs` renders the composition to `{pipelineId}-v{version}-short.mp4` (versioned output + symlink); `post-process.mjs` burns ASS subtitles via libass and mixes BGM at 12%
+7. `lib/render-remotion.mjs` renders the composition to `{pipelineId}-v{version}-short.mp4` (versioned output, canonical — no symlink); `post-process.mjs` burns ASS subtitles via libass and mixes BGM at 12%
 
 ### Subtitle system
 
@@ -439,7 +439,7 @@ Read `docs/brand-system.md` for color tokens, typography, animation library, and
 
 **Audio concat (gapless master track)**: `assemble.mjs` renders each scene clip VIDEO-ONLY (`-an`), builds one continuous voiceover master track (`lib/audio/track.mjs` — real silence padded to each scene's clip length, sample-exact), concat the video with stream copy, then mux the master track once. Audio is encoded a single time, so AAC encoder delay can never accumulate per-scene (~46ms/scene drift) — no per-scene audio re-encode during concat.
 
-**Versioning**: Output files are versioned with timestamp: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`. A symlink `{pipelineId}-short.mp4` always points to the latest version. Old versions beyond the 3 most recent are auto-deleted.
+**Versioning**: Output files are versioned with timestamp: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`. There is no symlink — the timestamped file is canonical, and old versions are cleaned up manually.
 **Network retry**: edge-tts connection drops handled with exponential backoff (3 retries) in `generate-tts.mjs`.
 
 **Scene length**: 6-12 seconds each. If TTS > 12s, split into two scenes. Total target: 60-70s for TikTok (default).
