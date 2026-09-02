@@ -25,6 +25,7 @@
 | `spec-subtitle-karaoke-timeline.md` / `tickets-subtitle-karaoke-timeline.md` | 2026-08-06 | Karaoke 字幕漏词与不同步修复 |
 | `spec-subtitle-rendering.md` / `tickets-subtitle-rendering.md` | 2026-08-06 | 字幕渲染重构（CSS→JS rAF + ASS 烧录） |
 | `spec-asset-relevance-refactor.md` / `tickets-asset-relevance-refactor.md` | 2026-08-30 | 素材相关性重构：assetNeed per-scene claim 搜索 + used-asset 40% cap + VLM relevance gate + 衬线基准化（#130，issues #131-#139） |
+| `spec-broll-prompt-dimension-check.md` / `tickets-broll-prompt-dimension-check.md` | 2026-09-02 | B-roll prompt 八维校验第一层 — preflight warn 级检查 `checkBrollPromptDimensions()`：NEGATIVE 三语义组覆盖（TEXT/HANDS/ARTIFACT，`\b` 词边界 + `i` flag）+ 阿拉伯数字检测（数据值应进 texts 层，元素数量可忽略）。每 scene 一条合并 warn、不阻断，生成策略 opt-in 才生效。真实 fixture 固化 qwen4-preview scene 5/6 缺组现状（scene 5 缺 ARTIFACT、scene 6 缺 TEXT+ARTIFACT）。S1-S21 场景矩阵全覆盖，159 tests。follow-up = GitHub #166（第二层常量注入） |
 | `spec-asset-sourcer-techdebt-cleanup.md` / `tickets-asset-sourcer-techdebt-cleanup.md` | 2026-08-30 | asset-sourcer 技术债清理：四处搜索 phase 结构重复 → 共享 helper（`shouldSkipByPreFilter`/`shouldSkipByDedup`/`downloadAndRecord`）；relevance 散装原语 → `makeRelevance` + `RELEVANCE_SOURCE`；API phase `keywords[0]` ReferenceError 修复。行为不变（330 tests + 真实 scene-data 冒烟，commit `a5b4f22`）。见 `reviews/review-asset-sourcer-techdebt-cleanup.md` |
 | `spec-subtitle-verification.md` / `tickets-subtitle-verification.md` | 2026-08-06 | 字幕验证系统 |
 | `spec-scene-extraction.md` / `tickets-scene-extraction.md` | 2026-08-06 | 场景提取 + 共享视觉系统分离 |
