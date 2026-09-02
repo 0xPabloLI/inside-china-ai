@@ -128,6 +128,7 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 | `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN) |
 | `handoff-vlm-cascade-router-2026-08-27.md` | VLM Cascade Router 调研完成 (Issue #127 OPEN) |
 | `handoff-infinitetalk-modal-2026-08-28.md` | InfiniteTalk Modal 推理 handoff（状态：推理运行中） |
+| `handoff-token-audit-impl-2026-09-02.md` | Agent 文档 token 审计实施总结 — 5 commits/省 5,105B/7 项遗留（2 待裁决+3 可选补做+2 不做） |
 | `handoff-agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计（状态：待新 session 执行只读审计） |
 
 ### `reviews/` — Active review records
