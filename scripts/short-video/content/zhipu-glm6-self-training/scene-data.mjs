@@ -1,0 +1,241 @@
+/**
+ * Scene definitions for Zhipu AI GLM-6.0 Self-Training video.
+ * 10 scenes, ~67s. Based on Zhipu AI 2026 H1 earnings call.
+ * S.T.A.R.T. framework: Stop, Tease, Authority, Relay, Tell.
+ */
+
+export const scenes = [
+  {
+    id: 1,
+    name: "hook",
+    visualType: "hook",
+    layout: "hero-center",
+    narrativeRole: "S",
+    media: {
+      type: "image",
+      path: "assets/ai-robot-hand.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.65,
+    },
+    voiceover:
+      "China's Zhipu AI just disclosed GLM-6.0. The next model will train itself.",
+    texts: {
+      badge: "BREAKING",
+      subject: "ZHIPU AI",
+      bigNumber: "GLM-6.0",
+      numberLabel: "NEW MODEL. FULLY SELF-TRAINING.",
+      source: "SOURCE: Zhipu earnings call, Sep 2, 2026",
+    },
+  },
+  {
+    id: 2,
+    name: "what-is-self-training",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "T",
+    retentionMechanism: "open-loop",
+    media: {
+      type: "image",
+      path: "assets/data-center.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.68,
+    },
+    voiceover:
+      "Fully self-training means the model runs its own pre-training, mid-training, and post-training. The question is how.",
+    texts: {
+      badge: "WHAT IS SELF-TRAINING?",
+      company: "MODEL TRAINS ITSELF",
+      context: "PRE-TRAINING AND POST-TRAINING",
+      action: "NO HUMAN IN THE LOOP",
+      result: "RECURSIVE IMPROVEMENT",
+      highlight: "SELF-TRAINING",
+    },
+  },
+  {
+    id: 3,
+    name: "financials",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "A",
+    media: {
+      type: "image",
+      path: "assets/financial-chart.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.65,
+    },
+    voiceover:
+      "Zhipu's CFO reported 400 percent revenue growth at the earnings call. ARR hit 1.6 billion dollars. API revenue is now 86 percent of total.",
+    texts: {
+      badge: "2026 H1 FINANCIALS",
+      company: "ARR 1.6 BILLION DOLLARS",
+      context: "REVENUE UP 400 PERCENT",
+      action: "API IS 86% OF TOTAL",
+      result: "CFO REPORTED",
+      highlight: "400%",
+      source: "SOURCE: Zhipu earnings call, Sep 2, 2026",
+    },
+  },
+  {
+    id: 4,
+    name: "model-iteration",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "A",
+    media: {
+      type: "image",
+      path: "assets/ai-benchmark-chart.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.65,
+    },
+    voiceover:
+      "On Artificial Analysis, GLM climbed from intelligence index 32 to 60 in 11 months. Cost per task fell to 4.5 cents.",
+    texts: {
+      badge: "11 MONTHS, 6 ITERATIONS",
+      company: "INTELLIGENCE INDEX 32 TO 60",
+      context: "ON ARTIFICIAL ANALYSIS",
+      action: "COST PER TASK 4.5 CENTS",
+      result: "GLM CLIMBED THE RANKINGS",
+      highlight: "32 TO 60",
+      source: "SOURCE: Artificial Analysis",
+    },
+  },
+  {
+    id: 5,
+    name: "not-bigger",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "R",
+    retentionMechanism: "pattern-interrupt",
+    media: {
+      type: "video",
+      path: "assets/b-roll/scene-5-seed1024.mp4",
+      source: "B-roll",
+      animation: "fade",
+      overlay: 0.65,
+      volume: 0,
+    },
+    voiceover:
+      "But the gains did not come from bigger parameters. They came from training.",
+    texts: {
+      badge: "PATTERN INTERRUPT",
+      company: "NOT BIGGER PARAMETERS",
+      context: "BETTER TRAINED",
+      action: "GAINS FROM TRAINING DEPTH",
+      result: "NOT FROM SCALE",
+      highlight: "TRAINING",
+    },
+  },
+  {
+    id: 6,
+    name: "post-training-proof",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "R",
+    media: {
+      type: "image",
+      path: "assets/shanghai-skyline.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.68,
+    },
+    voiceover:
+      "Chief Scientist Tang Jie said GLM-5.3 uses the same base as GLM-5.2. Same parameters. Only post-training scaled. Completion rate jumped 50 percent.",
+    texts: {
+      badge: "POST-TRAINING PROOF",
+      company: "SAME BASE AS GLM-5.2",
+      context: "ONLY POST-TRAINING SCALED",
+      action: "COMPLETION RATE UP 50%",
+      result: "TANG JIE CONFIRMED",
+      highlight: "50%",
+      source: "SOURCE: Tang Jie, earnings call",
+    },
+  },
+  {
+    id: 7,
+    name: "national-chips",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "R",
+    media: {
+      type: "image",
+      path: "assets/microchip.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.65,
+    },
+    voiceover:
+      "Zhipu runs 100 thousand domestic chips for inference. Cost dropped 80 percent. The self-training loop gets cheaper every iteration.",
+    texts: {
+      badge: "100K DOMESTIC CHIPS",
+      company: "100K GPU CLUSTER",
+      context: "INFERENCE COST DOWN 80%",
+      action: "CHEAPER EVERY ITERATION",
+      result: "LOOP GETS CHEAPER",
+      highlight: "80%",
+    },
+  },
+  {
+    id: 8,
+    name: "peak",
+    visualType: "context",
+    layout: "hero-center",
+    narrativeRole: "R",
+    media: {
+      type: "image",
+      path: "assets/ai-robot-hand.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.68,
+    },
+    voiceover:
+      "The next GLM trains inside the environment the current GLM built. The model trains the model.",
+    texts: {
+      badge: "PEAK",
+      title: "THE MODEL TRAINS",
+      titleHighlight: "THE MODEL",
+      context: "NEXT GLM TRAINS IN THE ENVIRONMENT THE CURRENT GLM BUILT",
+    },
+  },
+  {
+    id: 9,
+    name: "loop-closure",
+    visualType: "context",
+    layout: "hero-center",
+    narrativeRole: "R",
+    retentionMechanism: "loop-closure",
+    media: {
+      type: "image",
+      path: "assets/shanghai-skyline.jpg",
+      source: "Pexels",
+      animation: "zoom",
+      overlay: 0.68,
+    },
+    voiceover:
+      "GLM-6.0 has no release date. No parameter count. But the direction is clear. The model that trains itself is the endpoint.",
+    texts: {
+      badge: "LOOP CLOSURE",
+      title: "GLM-6.0: DIRECTION LOCKED",
+      context: "NO RELEASE DATE. NO PARAMETER COUNT.",
+      detail: "THE MODEL THAT TRAINS ITSELF IS THE ENDPOINT",
+    },
+  },
+  {
+    id: 10,
+    name: "cta",
+    visualType: "cta",
+    layout: "hero-center",
+    narrativeRole: "T-Tell",
+    voiceover:
+      "Follow China AI News for the AGI self-training race.",
+    texts: {
+      brand: "CHINA AI NEWS",
+      brandHighlight: "AI",
+      tagline: "CHINA AI, DECODED",
+      action: "FOLLOW FOR MORE",
+    },
+  },
+];

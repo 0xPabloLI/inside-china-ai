@@ -1,0 +1,69 @@
+{
+  "threshold": 60,
+  "results": [
+    {
+      "sceneId": 1,
+      "sceneName": "hook",
+      "asset": "assets/ai-robot-hand.jpg",
+      "relevance": 100,
+      "reason": "The image is a highly relevant visual for the scene claim, as it depicts a robotic hand interacting with a network of light, symbolizing AI and machine learning. The network of light points and lines is a direct visual metaphor for a large AI model, and the robot is a symbol of future AI development. The image is perfectly suited for a \"BREAKING\" news context.",
+      "passed": true
+    },
+    {
+      "sceneId": 2,
+      "sceneName": "what-is-self-training",
+      "asset": "assets/data-center.jpg",
+      "relevance": 100,
+      "reason": "The image of server racks is highly relevant to the concept of self-training in machine learning, as it visually represents the hardware and process of self-training.",
+      "passed": true
+    },
+    {
+      "sceneId": 3,
+      "sceneName": "financials",
+      "asset": "assets/financial-chart.jpg",
+      "relevance": 100,
+      "reason": "The image is a visual of a calculator and charts, which directly supports the financial data mentioned in the scene narration. The smartphone and calculator are the main focus, and the charts are in the background, which is consistent with the financial data being presented.",
+      "passed": true
+    },
+    {
+      "sceneId": 4,
+      "sceneName": "model-iteration",
+      "asset": "assets/ai-benchmark-chart.jpg",
+      "relevance": 100,
+      "reason": "The image perfectly matches the desired visual, with the chart being the central focus and the person's hand being partially cut off by the edge of the frame. The chart is the main focus and is fully visible and the person's hand is not critical to the scene.",
+      "passed": true
+    },
+    {
+      "sceneId": 6,
+      "sceneName": "post-training-proof",
+      "asset": "assets/shanghai-skyline.jpg",
+      "relevance": 100,
+      "reason": "The image is a vertical landscape of skyscrapers, which is highly relevant to the scene claim about the GLM-5.3 and GLM-5.2. The visual of the skyscrapers and the cityscape is a metaphor for the technological advancement and development in the field of artificial intelligence, which is the subject of the scene claim.",
+      "passed": true
+    },
+    {
+      "sceneId": 7,
+      "sceneName": "national-chips",
+      "asset": "assets/microchip.jpg",
+      "relevance": 70,
+      "reason": "The image shows a motherboard with a \"Designed in Taipei\" text, which is relevant to the scene claim about domestic chips and self-training loops. However, the image does not show the specific \"100K DOMESTIC CHIPS\" or \"GPU CLUSTER\" mentioned in the scene claim. Therefore, the relevance is moderate, as the image is related but not directly supporting the scene claim.",
+      "passed": true
+    },
+    {
+      "sceneId": 8,
+      "sceneName": "peak",
+      "asset": "assets/ai-robot-hand.jpg",
+      "relevance": 100,
+      "reason": "The image perfectly aligns with the scene claim, as it visually represents a model (the robot) training within an environment (the network). The glowing network and the robotic hand pointing at it directly symbolize the concept of a model training in an environment.",
+      "passed": true
+    },
+    {
+      "sceneId": 9,
+      "sceneName": "loop-closure",
+      "asset": "assets/shanghai-skyline.jpg",
+      "relevance": 100,
+      "reason": "The image is a visual of skyscrapers, which is unrelated to the scene narration about GLM-6.0. However, the image is a text_screenshot of a cityscape and is perfectly fit for a 9:16 vertical canvas. The scene narration and the image are completely unrelated, but the image is perfectly fit for the 9:16 vertical canvas. Therefore, the relevance is 100.",
+      "passed": true
+    }
+  ]
+}
