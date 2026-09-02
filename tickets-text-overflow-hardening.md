@@ -251,21 +251,40 @@ preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性
 **What to build:** ink 测量对齐决策 5（逐渲染行、逐样式 run），补 TextGate 两处缺陷，
 把尚未覆盖的回归样本补成 fixture，Hook 大圆不再压字。
 
-- [ ] **ink 逐行实现（决策 67b）**：`collectInkOverhangs` 从「整个文本节点一次
-      `measureText()`」改为逐渲染行/逐样式 run 测量；多行左右 overhang 不再算错；
-      补 mixed-span / multiline 浏览器测试（含旧实现变红的反证）
-- [ ] **标注挂载 fail-open 修复（决策 67a）**：TextGate 轮询 30 帧后 SVG 仍不存在 →
-      显式 `annotation-missing`/timeout FAIL（现 fail-open 继续测量）
-- [ ] **ANNOTATION_OVERDRAW 口径统一（决策 70）**：先统一测量口径（同 annotation
-      类型、同抽帧条件）核对 64px 与实测 91px 上界；若属同一边界，按 annotation 类型
-      设容差或修布局——不直接全局放宽
-- [ ] **F6**：真实 media-split 布局 + `"1/9 THE TRAINING COST"` @52px（确定性文案写死）→ FAIL
-- [ ] **F7**：Hook settled frame，圆与 subject / numberLabel **各自**重叠 ≤ 2%（不合并分母），
-      被标注目标不计入；记录实际 ratio；碰撞失败即 FAIL（不偷偷缩字）
-- [ ] **F9 补齐（不重复认领 F4）**：在既有 italic-f 形态上补 `T`、`letter-spacing`、
-      mixed span、多行覆盖；旧的错误公式必须让本 fixture 变红
-- [ ] Hook 圆改为 `box="inside"` + 字号 240
-- [ ] 圆修复后 bigNumber 自身完整可读（不越安全区、不被压字）
+- [x] **ink 逐行实现（决策 67b）✅ DONE (2026-09-03, `da2cacf`)**：`collectInkOverhangs`
+      逐渲染行（Range 逐字符 rect 按 top 分行）× 逐样式 run（按文本节点宿主 computed
+      style 同步 canvas）测量，行子串剔除 `\n` 后过 `measureText`；多行左右 overhang
+      不再算错。旧整节点公式以 `wholeNodeInkOverhangs` 形式留在 fixture 作反证见证，
+      渲染层测试活断言 `wholeNode.left < perLine.left` 钉死判别力
+- [x] **标注挂载 fail-open 修复（决策 67a）✅ DONE (2026-09-03, `da2cacf`)**：挂载轮询
+      30 帧无 SVG → 结构化 `annotation-missing` FAIL；settled 断言重构为「稳定轮询 +
+      delayRender 句柄」（代际检查：被新字号取代的旧轮询只退出不断言），poll 窗口内
+      无绘制框同样 `annotation-missing`。F7 的 `AnnotationCollisionAssert` 同口径：
+      声明了但未挂载的 target gate fail-closed（不静默跳过）
+- [x] **ANNOTATION_OVERDRAW 口径统一（决策 70）✅ DONE (2026-09-03, `da2cacf`)**：统一口径 =
+      settled 断言自身的 drawn-box 测量（`annotationDrawnBox`：路径线段采样
+      `paintedBoxOfSvg` 修正 highlight 线型水平超绘误判 → getScreenCTM → 构图坐标）；
+      实测 circle around 上越 ~62px、underline understroke 10.3px →
+      `ANNOTATION_OVERDRAW_BY_TYPE = { circle: 96, default: 16 }` 按类型容差；
+      `annotation-overdraw-probe` fixture + 渲染层/纯层测试锁定（circleInside ≤ default 非空断言）
+- [x] **F6 ✅ DONE (2026-09-03, `da2cacf`)**：`f6-media-split-lock52`（s5 原文案
+      `"1/9 THE TRAINING COST"` + media-split 372px 列 + `lockFontSize: 52`）→
+      结构化 `fit-bottom` FAIL（measured.width > available.width）——历史裁字事故形态在旧世界静默裁切处必 FAIL
+- [x] **F7 ✅ DONE (2026-09-03, `da2cacf`)**：`AnnotationCollisionAssert`
+      （`remotion/src/components/annotation-collision-gate.tsx`）——collider =
+      source 槽标注 SVG 绘制框，targets = 邻槽 `textExtentComposition`（文本范围而非包装盒），
+      每目标独立 ratio = 交集面积 / 目标文本面积，≤ 2%（`maxRatio`），被标注目标不计入；
+      ratios 记录进 `TextFitError.details` 并落在 host `data-annotation-collision`；
+      稳定轮询后一次性判定，不缩字、直接 FAIL
+- [x] **F9 补齐（不重复认领 F4）✅ DONE (2026-09-03, `da2cacf`)**：InkLineProbe 补 italic T
+      （右越 7.9px @96px）与 letter-spacing（四边零幻影 overhang，锁 letterSpacing 同步）；
+      mixed-span / multiline 由决策 67b 测试覆盖
+- [x] **Hook 圆改为 `box="inside"` + 字号 240 ✅ DONE (2026-09-03, `da2cacf`)**：单一谓词
+      `circleAroundNumber`（≤5 字符）统一门控 `Circle box="inside"`、gate `expectAnnotation`
+      与 F7 碰撞断言挂载，三者永不漂移
+- [x] **圆修复后 bigNumber 自身完整可读 ✅ DONE (2026-09-03, `da2cacf`)**：box="inside" 使圆
+      只在自己槽内绘制（容器断言按类型容差把关）；scene-gate F7 测试（measure:hook，
+      subject/numberLabel ratio 各 ≤ 2%）+ baseline-hook PASS 共同验证；全片重渲染验收归 T11
 
 ---
 

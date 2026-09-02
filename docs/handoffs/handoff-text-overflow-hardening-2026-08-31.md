@@ -8,7 +8,20 @@
 
 ## 0. TL;DR
 
-- **进度：9 / 12 完成**（T1–T7 / T9 / T12 ✅；T9 = `15b4419` + `eed95d4`，issue #150 已关闭；T12 = `44fa8da`，issue #175）。**下一步 = T8 / T10 / T11 任选**（T11 被 T10/T12 blocked，T10 优先）。
+- **进度：10 / 12 完成**（T1–T7 / T9 / T10 / T12 ✅；T9 = `15b4419` + `eed95d4`，issue #150 已关闭；T10 = `da2cacf`（本地，待推送）；T12 = `44fa8da`，issue #175）。**下一步 = T8 / T11 任选**（T11 已解除 T10/T12 阻塞，仅余 T8；#151 关闭待用户确认后随 docs 提交/push 处理）。
+- **2026-09-03 第五 session（T10：ink 逐行 + fail-closed 标注 + F6/F7/F9 + 口径统一，commit `da2cacf` 本地待推送）**：
+  `collectInkOverhangs` 逐渲染行×逐样式 run（决策 67b，既单节点公式留 fixture 反证 +
+  活断言钉死判别力）；标注挂载/settled 轮询 fail-open 闭合（决策 67a：无 SVG/绘制框 →
+  `annotation-missing`，稳定轮询 + delayRender 句柄 + 代际检查防缩字期间旧轮询误判）；
+  `paintedBoxOfSvg` 路径线段采样修正 highlight 水平超绘误判；决策 70 实测口径统一 →
+  `ANNOTATION_OVERDRAW_BY_TYPE {circle:96, default:16}`（annotation-overdraw-probe fixture）；
+  新组件 `AnnotationCollisionAssert`（F7：圆 vs subject/numberLabel 每目标独立 ratio ≤2%，
+  details 记录 ratios，声明未挂载 target fail-closed）；Hook 圆 `box="inside"` + 单谓词
+  `circleAroundNumber` 三处统一门控；fixture 补 `f6-media-split-lock52`（s5 历史裁字事故
+  @52px → 结构化 FAIL）。测试：tsc 全绿；text-geometry 21/21、text-gate+scene-gate 渲染
+  62/62（新增 F6/F7/决策 70/F9/67a/67b 共 10 例）、text-slots+official-fit 55/55。
+  review 双轴：spec 轴 spec-complete；standards 轴修复 4 项（debug 残留删除、missing-target
+  fail-closed、catch 先 release 再 rethrow、ZERO_PAD/nextFrame 收敛导出）后复跑全绿。
 - **2026-09-03 第四 session（T9 收尾：parent/group gate + overlay 补齐 + 重渲染）**：
   `TextGroupGate` 落地（band 容器本体，子 gate Fit 后交出字号与 `apply()`，全员报告后量
   band 内容高对 `getGroup()` 预算，超限沿契约 `shrinkOrder` 逐字段缩到 minSize、每步重测，
@@ -84,7 +97,7 @@ digital-human / leaptalk / f5-mlx / zhipu / didi-robotaxi 改动，且会话中�
 坚持：只显式列路径 stage 自己的文件，`git status --short` 核对 staged 清单后再 commit；
 push 需用户授权，默认只 commit 不 push。
 
-**主线：T9 全部 ✅（`15b4419` + `eed95d4`，#150 已关闭）→ T12 ✅（`44fa8da`）→ 下一 session 顺序：T10 → T8 → T11**
+**主线：T9 全部 ✅（`15b4419` + `eed95d4`，#150 已关闭）→ T12 ✅（`44fa8da`）→ T10 ✅（`da2cacf` 本地待推送，#151 关闭待确认）→ 下一 session 顺序：T8 → T11**
 
 1. ~~T9 首项：stacked-cards badge 接入~~ ✅ 已完成（2026-09-02，见 §2）。
 2. ~~T12~~ ✅ 已完成（2026-09-02，`44fa8da`，issue #175 已关闭，冒烟由用户豁免）——原接入说明留存：
@@ -130,7 +143,7 @@ T7(#148, done) ─────────────────────�
 | T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 ✅ CLOSED | T2✅,T5✅  | **全部 checklist ✅（2026-09-03，`eed95d4` 已推送，#150 已关闭）**：首项三项（`15b4419`）+ 余项（TextGroupGate 垂直门 / `MEASURED_MAX_HEIGHT` 594/336 / `group-overflow` 结构化失败 / MediaOverlay 补 action+context / s6-s8-s9 重渲染验证） |
 | T12 官方 `fitText` 接入 TextGate 生产路径 | 待建   | T5✅       | **scope 已修订（决策 63/64）**：接入 `fitCandidates()` 生产路径；官方输出只作候选值；不开启 validateFontIsLoaded；**先建 issue** |
 | T8 highlight {field,text} + 17 处 | #149 OPEN | T2✅,T5✅  | 标什么亮什么，子串校验                                          |
-| T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 OPEN | T4✅,T5✅  | **scope 已修订（决策 67/70）**：ink 逐行实现、annotation fail-open 修复、OVERDRAW 口径统一；F4 不重复认领 |
+| T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 OPEN | T4✅,T5✅  | **全部 checklist ✅（2026-09-03，`da2cacf` 本地待推送）**：ink 逐行×逐 run（67b）+ 标注 fail-closed（67a）+ `paintedBoxOfSvg` 路径采样 + 决策 70 按类型容差 + `AnnotationCollisionAssert`（F7 各目标 ≤2%）+ Hook 圆 box="inside" 单谓词门控 + F6/F9 fixture；review 双轴过（standards 4 项已修）；#151 关闭待用户确认 |
 | T11 端到端 + 预算 WARN 化 + 归档   | #152 OPEN | T8,T9,T10,**T12** | **scope 已修订（决策 71）**：+字符预算契约推导 WARN 化；+#153 前置；+blocked-by T12 |
 | #153 存量 preflight 全红          | #153 OPEN | T2,T7      | 14/15 包缺 layout / visualType 不在派发表                       |
 | #165 中文空格分词                 | #165 OPEN | —          | 官方多行函数对无空格文本失效；现文案英文，最低优先级          |
