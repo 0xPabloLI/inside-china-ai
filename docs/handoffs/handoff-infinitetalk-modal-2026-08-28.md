@@ -80,7 +80,7 @@ python generate_infinitetalk.py \
 - **运行**：app ap-9E3dUlTyVWFuJiHVyqmj0d，2026-09-02，**一次成功**；推理 9.3min（比 FusionX 8 步的 12.2min 快 ~24%），总计费 10.2min ≈ **$0.42**
 - **产出**：`experiments/digital-human/infinitetalk/infinitetalk_v1018_lightx2v_audio2.0.mp4`（3.04s，238KB）
 - 抽帧质量评估（t=0.5/1.5/2.5s vs FusionX 基线同时刻）：ID 完全保持（眼镜/胡型/发型一致）、口型自然（噘唇/开口/圆唇过渡）、无明显伪影，与 FusionX 基线同级；**待用户 lip sync 人眼确认**
-- **结论（待 lip sync 确认后生效）**：lightx2v 4 步 = 更快（9.3 vs 12.2min）+ 更便宜（$0.42 vs $0.56）+ 可商用 → 若 lip sync 达标，它取代 FusionX 成为 InfiniteTalk 云端首选蒸馏方案；唯一遗留：Kijai 转存权重许可标注商用前需核实
+- **结论（2026-09-02 用户人眼确认）**：lip sync 达标；**表情略僵，整体不如 FusionX**（蒸馏步数 8→4 的典型 trade-off：更快更便宜换表情保真度）。质量排序：FusionX > lightx2v，但 FusionX NC 已停测 → lightx2v 是当前**可商用里最好的 InfiniteTalk 蒸馏方案**；唯一遗留：Kijai 转存权重许可标注商用前需核实
 - 脚本版本：modal-infinitetalk.py **v10.18**（VARIANTS 改 4 元组 steps/audio/shift/save_file）
 
 ### 方案 A: Kaggle T4 + 官方推荐参数（⏸️ 2026-08-31 用户决定暂缓）
