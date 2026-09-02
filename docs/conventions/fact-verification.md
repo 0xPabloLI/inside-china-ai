@@ -1,6 +1,6 @@
 # Fact Verification Procedures（PSR 第 4 条操作程序）
 
-> 规则本体在 `AGENTS.md` → `## PSR` 第 4 条；本文件是其操作程序。加载时机：执行 PSR 清单第 4 条时。
+> 规则本体在 `docs/agents/proposal-review.md`（§3 事实双源、§4 新工具准入）；本文件是其操作程序。加载时机：执行 proposal-review 的 §3/§4 检查时。
 
 ## 源码验证链（库/框架功能支持）
 
@@ -15,7 +15,7 @@
 
 ## 工具选择（搜索/抓取）
 
-- 按 `AGENTS.md` → Web Scraping & Content Fetching 的工具决策与 fallback 规则执行
+- 按 `docs/tools-catalog.md` → Tavily 小节的工具决策与 fallback 硬规则执行
 
 ## 网络讨论的解读边界
 
