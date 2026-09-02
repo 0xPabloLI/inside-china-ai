@@ -79,7 +79,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 |----------|---------|
 | `scenario-enumeration-checklist.md` | Boundary scenario enumeration checklist |
 | `scenario-matrix.md` | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios) |
-| `fact-verification.md` | PSR item-4 operational procedures (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |
+| `fact-verification.md` | Operational procedures for proposal-review §3/§4 (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |
 | `visual-design-loop.md` | Visual design iteration loop — impeccable skill workflow for video template polish |
 
 ### `agents/` — Agent execution references
