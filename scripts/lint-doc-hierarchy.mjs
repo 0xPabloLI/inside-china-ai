@@ -26,12 +26,16 @@ const INDEX_PATH = join(DOCS_DIR, "DOCS-INDEX.md");
 const CMD_LINE_PATTERNS = [/npm run\s/, /node scripts\//, /git\s+\w/];
 
 const CMD_LINE_THRESHOLD = 5;
-const WRITING_FOR_AGENTS_POINTER = "AGENTS.md → Workflow Router → Agent documents";
+const AGENT_DOC_POINTER_CHAIN = "AGENTS.md → Workflow Router → Agent documents";
 const LOCAL_MARKDOWN_LINK_PATTERN = /\]\((?!https?:\/\/|mailto:|#)[^)]+\)/i;
 const BACKTICKED_LOCAL_PATH_PATTERN =
   /`(?:AGENTS\.md|CONTEXT\.md|DESIGN\.md|README\.md|package\.json|(?:\.{1,2}\/)?(?:\.agents|\.claude|docs|skills|scripts|src|supabase)\/[^`\s]+)`/;
 const NORMATIVE_QUALIFIER_PATTERN =
   /\b(?:must|shall|required|mandatory|never|always|only|cannot|can't|may not|should|should not|do not|don't)\b|(?:必须|强制|不得|禁止|只能|仅当|需要|无需|不可|不允许|应当|应该)/i;
+
+// Check 4 gate classifiers (module scope: pure, shared by classifyGateChange)
+const GATE_HEADING_PATTERN = /^#{1,4}\s/;
+const GATE_POINTER_PATTERNS = [/→/, LOCAL_MARKDOWN_LINK_PATTERN, BACKTICKED_LOCAL_PATH_PATTERN];
 
 // Files excluded from checks (index itself, ephemeral specs)
 const EXCLUDED_FILES = new Set([
@@ -54,7 +58,7 @@ function isExcluded(filename) {
  */
 export function checkDocsIndexConsistency(docs, indexContent) {
   const findings = [];
-  for (const { filename, content } of docs) {
+  for (const { filename } of docs) {
     if (isExcluded(filename)) continue;
     if (!indexContent.includes(filename)) {
       findings.push({
@@ -116,6 +120,26 @@ export function checkL2CommandLines(files) {
   return { findings };
 }
 
+function gateFinding(filename, message) {
+  return {
+    level: "WARN",
+    ruleId: "writing-for-agents-gate",
+    file: filename,
+    message,
+  };
+}
+
+function changeVerb(line) {
+  return line.type === "add" ? "added" : "deleted";
+}
+
+function classifyGateChange(content) {
+  if (GATE_HEADING_PATTERN.test(content)) return "heading";
+  if (GATE_POINTER_PATTERNS.some((p) => p.test(content))) return "pointer line";
+  if (NORMATIVE_QUALIFIER_PATTERN.test(content)) return "normative rule line";
+  return null;
+}
+
 /**
  * Check 4: writing-for-agents gate.
  * Detects structural changes in staged docs/ files and AGENTS.md.
@@ -127,8 +151,6 @@ export function checkL2CommandLines(files) {
  */
 export function checkWritingForAgentsGate(stagedDiffs) {
   const findings = [];
-  const headingPattern = /^#{1,4}\s/;
-  const pointerPatterns = [/→/, LOCAL_MARKDOWN_LINK_PATTERN, BACKTICKED_LOCAL_PATH_PATTERN];
   const agentsMd = "AGENTS.md";
 
   for (const { filename, diffLines } of stagedDiffs) {
@@ -143,43 +165,25 @@ export function checkWritingForAgentsGate(stagedDiffs) {
     if (changes.length === 0) continue;
 
     if (isAgentsMd) {
-      findings.push({
-        level: "WARN",
-        ruleId: "writing-for-agents-gate",
-        file: filename,
-        message: `${filename} modified — confirm: did you load writing-for-agents skill before making these changes? (${WRITING_FOR_AGENTS_POINTER})`,
-      });
+      findings.push(
+        gateFinding(
+          filename,
+          `${filename} modified — confirm: did you load writing-for-agents skill before making these changes? (${AGENT_DOC_POINTER_CHAIN})`,
+        ),
+      );
       continue;
     }
 
     for (const line of changes) {
-      if (headingPattern.test(line.content)) {
-        findings.push({
-          level: "WARN",
-          ruleId: "writing-for-agents-gate",
-          file: filename,
-          message: `${filename} has heading ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${WRITING_FOR_AGENTS_POINTER})`,
-        });
-        break;
-      }
-      if (pointerPatterns.some((pattern) => pattern.test(line.content))) {
-        findings.push({
-          level: "WARN",
-          ruleId: "writing-for-agents-gate",
-          file: filename,
-          message: `${filename} has pointer line ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${WRITING_FOR_AGENTS_POINTER})`,
-        });
-        break;
-      }
-      if (NORMATIVE_QUALIFIER_PATTERN.test(line.content)) {
-        findings.push({
-          level: "WARN",
-          ruleId: "writing-for-agents-gate",
-          file: filename,
-          message: `${filename} has normative rule line ${line.type === "add" ? "added" : "deleted"}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${WRITING_FOR_AGENTS_POINTER})`,
-        });
-        break;
-      }
+      const kind = classifyGateChange(line.content);
+      if (!kind) continue;
+      findings.push(
+        gateFinding(
+          filename,
+          `${filename} has ${kind} ${changeVerb(line)}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${AGENT_DOC_POINTER_CHAIN})`,
+        ),
+      );
+      break;
     }
   }
   return { findings };
