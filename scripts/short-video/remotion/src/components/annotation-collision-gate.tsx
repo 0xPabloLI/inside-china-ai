@@ -39,7 +39,7 @@ import { getSlot, parseSlotId } from "../../../lib/text-slots.mjs";
 import { FIT_REASONS, TextFitError } from "../../../lib/text-geometry.mjs";
 import {
   annotationDrawnBox,
-  nextFrame,
+  pollUntilStable,
   textExtentComposition,
   ZERO_PAD,
   type Box,
@@ -113,25 +113,13 @@ export const AnnotationCollisionAssert: React.FC<AnnotationCollisionAssertProps>
       // Poll until the geometry has been stable for a few consecutive frames:
       // the gate's Fit ladder moves font sizes (and with them the ellipse and
       // the neighbour text boxes) frame by frame, so an early evaluation
-      // would measure a transient state.
-      let prev: string | null = null;
-      let stable = 0;
-      let snap = snapshot();
-      for (let tries = 0; tries < 90 && !cancelled; tries += 1) {
-        if (!snap) {
-          await nextFrame();
-          snap = snapshot();
-          continue;
-        }
-        // Stability key over PLAIN geometry only — snapshot.sourceGate is a
-        // live HTMLElement (cyclic), JSON.stringify on it would throw.
-        const key = JSON.stringify({ collider: snap.collider, targets: snap.targets });
-        stable = key === prev ? stable + 1 : 0;
-        prev = key;
-        if (stable >= 5) break;
-        await nextFrame();
-        snap = snapshot();
-      }
+      // would measure a transient state. Stability keys over PLAIN geometry
+      // only — snapshot.sourceGate is a live HTMLElement (cyclic).
+      const snap = await pollUntilStable(
+        snapshot,
+        (s) => (s == null ? "none" : JSON.stringify({ collider: s.collider, targets: s.targets })),
+        { tries: 90, stableFrames: 5, isCancelled: () => cancelled },
+      );
       if (cancelled) return;
       if (!snap) {
         // No source slot / annotation ever appeared — not this assert's

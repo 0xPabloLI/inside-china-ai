@@ -15,6 +15,7 @@ import {
   EPS,
   TextFitError,
   ANNOTATION_OVERDRAW_BY_TYPE,
+  annotationOverdrawOf,
   inkOverhangsOfRun,
   cornersFromBBox,
   transformCorner,
@@ -225,12 +226,10 @@ describe("ANNOTATION_OVERDRAW_BY_TYPE (decision 70)", () => {
   });
 
   it("unknown policy falls back through the gate's lookup, never undefined", () => {
-    // Mirrors annotationOverdrawOf in text-gate.tsx.
-    const overdrawOf = (policy) =>
-      ANNOTATION_OVERDRAW_BY_TYPE[policy] ?? ANNOTATION_OVERDRAW_BY_TYPE.default;
-    expect(overdrawOf("circle")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.circle);
-    expect(overdrawOf("underline")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
-    expect(overdrawOf("highlight")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
-    expect(overdrawOf("none")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
+    // The gate imports THIS annotationOverdrawOf — no mirrored copy to drift.
+    expect(annotationOverdrawOf("circle")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.circle);
+    expect(annotationOverdrawOf("underline")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
+    expect(annotationOverdrawOf("highlight")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
+    expect(annotationOverdrawOf("none")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
   });
 });

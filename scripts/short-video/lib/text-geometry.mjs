@@ -59,6 +59,20 @@ export const ANNOTATION_OVERDRAW_BY_TYPE = {
 };
 
 /**
+ * Drawn-bound tolerance for one slot's annotation policy (decision 70):
+ * the policy names the annotation family, the map carries the measured
+ * bleed per family, unknown policies fall back to the conservative
+ * `default`. Single source — TextGate's container assert and the unit
+ * tests both read this function, so the fallback can never drift.
+ * @param {string} policy - annotation policy of the slot (e.g. "circle",
+ *   "underline", "highlight", "none")
+ * @returns {number} tolerated drawn overdraw past the container box, px
+ */
+export function annotationOverdrawOf(policy) {
+  return ANNOTATION_OVERDRAW_BY_TYPE[policy] ?? ANNOTATION_OVERDRAW_BY_TYPE.default;
+}
+
+/**
  * Machine-readable fit/assert failure.
  *
  * Remotion's cancelRender() surfaces only the message's FIRST LINE to the

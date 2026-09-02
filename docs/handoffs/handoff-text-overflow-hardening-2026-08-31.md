@@ -22,6 +22,9 @@
   62/62（新增 F6/F7/决策 70/F9/67a/67b 共 10 例）、text-slots+official-fit 55/55。
   review 双轴：spec 轴 spec-complete；standards 轴修复 4 项（debug 残留删除、missing-target
   fail-closed、catch 先 release 再 rethrow、ZERO_PAD/nextFrame 收敛导出）后复跑全绿。
+  两个延后 nit 已随后处理（同日）：稳定轮询骨架提取为共享 `pollUntilStable`
+  （text-gate 30/3 与 collision 90/5 共用）；`annotationOverdrawOf` 下沉
+  lib/text-geometry.mjs 单一来源（单测镜像删除）。
 - **2026-09-03 第四 session（T9 收尾：parent/group gate + overlay 补齐 + 重渲染）**：
   `TextGroupGate` 落地（band 容器本体，子 gate Fit 后交出字号与 `apply()`，全员报告后量
   band 内容高对 `getGroup()` 预算，超限沿契约 `shrinkOrder` 逐字段缩到 minSize、每步重测，

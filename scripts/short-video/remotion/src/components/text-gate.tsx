@@ -40,7 +40,7 @@ import {
   EPS,
   FIT_REASONS,
   TextFitError,
-  ANNOTATION_OVERDRAW_BY_TYPE,
+  annotationOverdrawOf,
   inkOverhangsOfRun,
   cornersFromBBox,
   transformCorner,
@@ -69,17 +69,12 @@ export { ZERO_PAD };
 
 /**
  * Drawn-bound tolerance for the slot's annotation family (decision 70):
- * measured per type under the unified settled-assert口径 (see
- * ANNOTATION_OVERDRAW_BY_TYPE in lib/text-geometry.mjs for the numbers).
+ * `annotationOverdrawOf` in lib/text-geometry.mjs is the single source —
  * rough-notation deliberately draws OUTSIDE its target box (ellipse vertical
  * range, underline understroke, highlight pad); a genuinely oversized
  * annotation still trips Fit (its text ⊆ slot) or container-overflow (gate
  * box ⊆ container) — only the ink bleed past the band edge is tolerated.
  */
-function annotationOverdrawOf(policy: string): number {
-  const map = ANNOTATION_OVERDRAW_BY_TYPE as Record<string, number>;
-  return map[policy] ?? map.default;
-}
 
 /** Transform-free page position: the offset chain ignores CSS transforms. */
 function layoutOffsetOf(el: HTMLElement): { left: number; top: number } {
@@ -399,6 +394,39 @@ function nextFrame(): Promise<void> {
 export { nextFrame };
 
 /**
+ * Shared stability poll (T10): read a geometry value frame by frame until its
+ * key has been unchanged for `stableFrames` consecutive frames or `tries`
+ * frames have elapsed. The helper only decides WHEN the geometry may be
+ * judged — callers own the verdict (assert / fail / release handles).
+ *
+ * Consumers: TextGate's settled annotation assert (30 tries / 3 stable —
+ * rough-notation's ResizeObserver lands its SVG resize a frame AFTER the
+ * text relayouts) and AnnotationCollisionAssert (90 / 5 — the source gate's
+ * Fit ladder moves the ellipse and neighbour boxes together frame by frame).
+ * A null read is keyed like any value, so "never appeared" can stabilize
+ * early instead of always burning the whole window.
+ */
+export async function pollUntilStable<T>(
+  read: () => T,
+  keyOf: (value: T) => string,
+  opts: { tries: number; stableFrames: number; isCancelled?: () => boolean },
+): Promise<T> {
+  let prev: string | null = null;
+  let stable = 0;
+  let value = read();
+  for (let tries = 0; tries < opts.tries; tries += 1) {
+    if (opts.isCancelled?.()) return value;
+    const key = keyOf(value);
+    stable = key === prev ? stable + 1 : 0;
+    prev = key;
+    if (stable >= opts.stableFrames) break;
+    await nextFrame();
+    value = read();
+  }
+  return value;
+}
+
+/**
  * Drawn bounds of the gate's annotation SVG in composition coordinates:
  * painted stroke geometry (see paintedBoxOfSvg) → getScreenCTM four-corner
  * transform into composition units. Null when the gate has no mounted
@@ -694,20 +722,17 @@ export const TextGate: React.FC<TextGateProps> = ({
     void (async () => {
       // remotion blocks frame advance while `handle` is open, so this poll
       // cannot race a re-render; no cancellation bookkeeping is needed.
-      let prev = "";
-      let stable = 0;
-      for (let tries = 0; tries < 30; tries += 1) {
-        const gate = gateRef.current;
-        const next = gate ? annotationDrawnBox(gate) : null;
-        const nextKey =
+      await pollUntilStable(
+        () => {
+          const gate = gateRef.current;
+          return gate ? annotationDrawnBox(gate) : null;
+        },
+        (next) =>
           next == null
             ? "none"
-            : `${next.x.toFixed(2)},${next.y.toFixed(2)},${next.width.toFixed(2)},${next.height.toFixed(2)}`;
-        stable = nextKey === prev ? stable + 1 : 0;
-        prev = nextKey;
-        if (stable >= 3) break;
-        await nextFrame();
-      }
+            : `${next.x.toFixed(2)},${next.y.toFixed(2)},${next.width.toFixed(2)},${next.height.toFixed(2)}`,
+        { tries: 30, stableFrames: 3 },
+      );
       // A newer font size superseded this poll (group shrink walk) — it owns
       // the verdict; this one must not assert on geometry it watched change
       // mid-walk.
