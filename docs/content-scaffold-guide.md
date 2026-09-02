@@ -15,9 +15,7 @@
 ```
 scripts/short-video/content/{article-slug}/
 ├── meta.mjs         # Pipeline metadata
-├── scene-data.mjs   # Scene definitions (voiceover + texts)
-├── scenes.mjs       # Visual templates (HTML/CSS per scene)
-└── dom-config.mjs   # (optional) DOM verification config — defaults if absent
+└── scene-data.mjs   # Scene definitions (voiceover + texts)
 ```
 
 ### Multi-part series
@@ -26,8 +24,7 @@ scripts/short-video/content/{article-slug}/
 scripts/short-video/content/{series-slug}/
 ├── pt1/
 │   ├── meta.mjs
-│   ├── scene-data.mjs
-│   └── scenes.mjs
+│   └── scene-data.mjs
 ├── pt2/
 │   └── ...
 └── pt3/
@@ -56,7 +53,7 @@ export const scenes = [
     name: "hook",           // Scene name for logging
     visualType: "hook",     // Visual type (hook, narrative, data, quote, etc.)
     voiceover: "One breath of text. Max 25 words.",  // Drives TTS duration
-    texts: {                 // On-screen text (read by scenes.mjs)
+    texts: {                 // On-screen text (read by the Remotion scene components)
       line1: "BIG TEXT",
       line2: "SUPPORTING",
     },
@@ -85,53 +82,16 @@ export const scenes = [
 - ≥2 scenes mention sources
 - "China", "AI", and main subject each appear in ≥2 scenes
 
-## scenes.mjs Template
+## Scene Visuals (Remotion)
 
-```javascript
-import { baseStyles, BRAND_MARK_SVG, withWatermark } from "../../../lib/base-styles.mjs";
+内容包只提供数据（`meta.mjs` + `scene-data.mjs`）；视觉渲染完全由 `scripts/short-video/remotion/src/` 的 React 场景组件承担（Remotion 是唯一渲染器——HTML/Playwright 路径已于 2026-09-01 退役，决策 59，冻结归档在 `scripts/short-video/retired-html-path/`）。
 
-// Safe text accessor
-function t(texts, key) { return texts?.[key] ?? ""; }
+新内容包的视觉工作 = 选对 `visualType`，让场景调度器分发到正确的组件（`hook` → HookScene、`cta` → CtaScene、其余 → 叙事/数据组件）。需要新视觉类型时才改 `remotion/src/`（走 Substantial 工作流），不要在内容包里写一次性视觉代码。
 
-function scene1(scene, duration) {
-  const txt = scene.texts || {};
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-${baseStyles(duration)}
-.s1 { /* Your scene CSS here */ }
-/* Compose into the fixed slot grid — kicker 220-400 / hero 400-950 /
-   support 950-1150, x∈[60,880] — via sceneFrame({...}) from lib/scene-layout.mjs.
-   Hand-rolled full-screen flex is banned by the DOM gate (verify-scene-dom.mjs).
-   Check text width!
-   - Content band: 820px wide (x 60-880)
-   - At 42px bold: ~25px avg char width → max ~32 chars per 820px line
-   - At 56px bold: ~33px avg char width → max ~24 chars per 820px line
-   - ALWAYS add `word-break: break-word` as safety net
-*/
-</style></head><body>
-<div class="scene s1">
-  <div class="grid-bg"></div><div class="glow-blue"></div><div class="scanlines"></div>
-  <!-- Your content here -->
-</div></body></html>`;
-}
-
-// ... more scene functions
-
-const sceneGenerators = { 1: scene1, /* ... */ };
-export function generateScene(scene, duration) {
-  const gen = sceneGenerators[scene.id];
-  if (!gen) throw new Error(`No scene generator for id ${scene.id}`);
-  return withWatermark(gen(scene, duration));  // MUST wrap with withWatermark
-}
-```
-
-**Reuse the shared scene templates** (`lib/scene-templates.mjs`) for recurring layouts: `brandBar(tag)`, `breakingBadge(text)`, `statCard({num, unit, label})`, `quoteBox({quote, highlight, speaker, source})`, `titleBlock(text, {highlight, fontSize})`, `bigNumberAnchor(num)`, `pointsList(points)`, `stampBox({text, sub, color})`, `fadeToBlack(duration)`, and `ctaScene(scene, duration)` — the **standard CTA end card**. Never write a bespoke CTA scene: delegate to `ctaScene`, and `scene-rules.mjs` `checkCTAActionContract` fails preflight when the last scene's `texts.action` is missing (contract: `{ brand, brandHighlight, tagline, action, topic? }`).
-
-```javascript
-import { templateCss } from "../../../lib/scene-templates.mjs";
-// ...compose: `${baseStyles(duration)}\n${templateCss()}\n.s1 { /* scene-specific */ }`
-```
-
-All display copy must come from `scene.texts` via the `t()` accessor — the template layer and `scenes.mjs` must not hardcode business copy (channel constants `CHINA AI NEWS` / `INTELLIGENCE BRIEFING` are the only exceptions, in `brandBar`).
+- 文案契约：所有展示文案来自 `scene-data.mjs` 的 `texts`，组件与模板不硬编码业务文案（品牌常量 `CHINA AI NEWS` / `INTELLIGENCE BRIEFING` 是唯一例外）。
+- CTA 结尾卡是标准组件，禁止自造：`scene-rules.mjs` `checkCTAActionContract` 会在 preflight 拦截缺 `texts.action` 的末场景（契约：`{ brand, brandHighlight, tagline, action, topic? }`）。
+- 几何约束（安全区、溢出、换词）由 TextGate（`remotion/src/` + `lib/text-geometry.mjs`）在渲染前强制，手搓全屏布局会被拦截。
+- 文本宽度预算：内容带 820px 宽（x 60–880），42px bold 约 32 字符/行、56px bold 约 24 字符/行（见下方 CSS Overflow Checklist）。
 
 ## CSS Overflow Checklist
 
@@ -160,9 +120,8 @@ Each video can have a different visual DNA while sharing the same brand system:
 | Explainer | Blue + cyan | Sequential reveal | Brand at CTA |
 
 **Mandatory across all styles:**
-- Use CSS variables from `base-styles.mjs` (`var(--blue)`, `var(--red)`, etc.) — never hardcode hex
-- Call `withWatermark()` on every scene's HTML
-- Use `baseStyles(duration)` as the CSS foundation
+- Use the brand color tokens from `docs/brand-system.md` (implemented in `remotion/src/`) — never hardcode hex
+- Watermark + brand chrome come from the shared Remotion components — every scene includes them
 - Brand logo appears in CTA scene at 130px+
 
 ## Run and Verify

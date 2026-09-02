@@ -30,6 +30,12 @@ Options:
   --threshold N        Gate relevance threshold (default 60)
   --help               Show this help
 
+Environment:
+  FASTVIDEO_REPO           FastVideo checkout (default: experiments/fastvideo-spike/repo)
+  FASTVIDEO_PYTHON         Interpreter override (honored strictly, no probing)
+  BROLL_MODEL_ROOT         Pin the weights dir instead of re-resolving the HF cache
+  BROLL_MLX_CHECKPOINT     Pin the packed MLX DiT dir (mlx_dit.json + mlx_dit.safetensors)
+
 Candidates: 2 per scene, portrait 480x832, Tier A params. See
 docs/video-workflow.md for the agent prompt-iteration protocol.`;
 

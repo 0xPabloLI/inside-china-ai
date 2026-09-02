@@ -1,6 +1,6 @@
 # Handoff: 短视频文本溢出根治 — 实施进度 + 下一 session 启动
 
-> **本文件是导航层，不是方案本身。** 它追踪 T1–T11 的实施进度、记录本 session 做了什么、告诉下一 session 从哪开始。
+> **本文件是导航层，不是方案本身。** 它追踪 T1–T12 的实施进度、记录本 session 做了什么、告诉下一 session 从哪开始。
 > 所有最终决策、验收标准、场景矩阵都在下面的「源文档」里 —— 读那些，别在这里找细节。
 > 创建：2026-08-31 ｜ 父 issue #141 ｜ 已关闭 #142/#143/#144/#145/#146/#148/#154（过时），余下 #147（已 pivot）/#149–#153 + #165（中文分词，最低优先级）开放。
 
@@ -8,12 +8,15 @@
 
 ## 0. TL;DR
 
-- **进度：6 / 11 完成**（T1 / T2 / T3 / T4 / T5 / T7）。下一步 = **T6（#147，已 pivot：HTML/Playwright 路径退役 + Fit 内核换官方 `fitText`）**；T8/T9/T10 已解除阻塞可任选。
+- **进度：7 / 12 完成**（T1–T5 / T6 / T7）。下一步 = **T9 首项：stacked-cards badge 接入（P1 阻断）→ T12（官方 `fitText` 接入 TextGate 生产路径，scope 已审计修订）**；T8/T10 也可任选。
+- **2026-09-02 实施审计修订（决策 63–71，全部经用户确认；spec/tickets 已同步）**：
+  - **P1 阻断**：① qwen4 等场景的 stacked-cards 数据含 `texts.badge`，但 `REMOTION_SLOT_MAP.stacked-cards` 未声明 badge、模板不渲染 → 渲染层立即 FAIL（`no measured maxWidth`）——T9 新首项；② T12 原目标 `fitGroup()` 无生产调用者（生产路径是 TextGate → `fitCandidates()`），按原样实施不改变生产行为——T12 接入点已改写。
+  - **完成声明更正**：T5「rendered 字段缺失 → FAIL」未实现（`assertKnownTextFields` 只拒未知键）；标注挂载轮询 fail-open；ink 按整节点 `measureText()` 而非逐行；`mediaOptOut` 被错放进 texts control 列表（实际是 scene 顶层字段）。
+  - **误诊更正**：s9「53s 透出上一幕媒体」实为转场窗口内抽帧（52.7667s 起 + 10 帧转场），53.2s 后复测；stacked-cards 五个现存 slot 宽度已实测（752/820）。
 - **2026-09-01 调研驱动方向修订（决策 57–62，全部经用户确认）**：两轮 deep research + 官方能力利用审计 → 推翻决策 26（「layout-utils 本票不必用」）与原 T6 方向。依据：`docs/research/text-auto-fit-landscape-research.md`；决策全文：spec「T6 方向修订」章节。
-- 修订核心：① 自建缩字内核换官方 `fitText`（保留终态验证，官方不验证）；② HTML 路径零消费者 → 退役而非管线化；③ #154 关闭为过时；④ 中文分词缺陷立 #165 最低优先级。
 - T5 交付：9 模板 + 全屏媒体 source 逐字段接入 TextGate；`REMOTION_SLOT_MAP` 四分类 + 实测宽度回填；`_gate-smoke` 冒烟包全管线渲染通过（1109 帧 / 37.1s）；commit `8a024e5`。
-- T5 冒烟暴露并修复 **6 类失败**（入场/转场假阳性 → 断言改无 transform 布局盒；QuoteScene verified badge 反转嵌套），全部有回归测试锁定；28 门测试全绿。
-- **全量测试：2394 passed，3 failed**。3 个失败仍是 **#153 存量 preflight**（verify-guard-cli，按依赖顺序刻意延后）。
+- T6 交付（2026-09-02，commit `830cd44`）：`lib/renderer-guard.mjs` fail-fast + HTML 积木归档 `retired-html-path/` + 17 `scenes.mjs`/4 `dom-config.mjs`/8 测试删除 + agent 文档同步到单渲染器世界（TextGate 取代 DOM gate）。**注（2026-09-02 审计）**：「全部文档已同步」不准确——README / content-pipeline / video-workflow / scripts README 的 HTML 残留已在审计修订中清理；活代码中的 `HTML_SLOT_MAP`/`htmlSlotsFor()`（text-slots.mjs）及其测试待迁入 retired archive（记入 T9/T11 执行时的清理项）。
+- **全量测试：2645 passed，3 failed**。3 个失败仍是 **#153 存量 preflight**（verify-guard-cli，按依赖顺序刻意延后）。⚠️ **git 状态（2026-09-02 审计口径）：本地 ahead 15 / behind origin/main 21+，且存在并行 session 修改——不要自动 `pull --rebase`**。新 session 必须先 `git status` / `git log` 核实工作树与并行改动，再与用户确认 push/rebase 策略（见 §3）。
 - 切换成本极低：spec / tickets / proposal / review 都在盘上，新 session 只需读「源文档」+ 对应 ticket。
 
 ---
@@ -23,7 +26,7 @@
 | 文档                                                            | 角色                                                            | 何时读                 |
 | --------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
 | `tickets-text-overflow-hardening.md`                            | **ticket 清单 + 逐条验收 checklist**（本 session 状态以它为准） | 第一                   |
-| `spec-text-overflow-hardening.md`                               | 11-ticket 拆分依据 + 验收标准（**含「T6 方向修订」决策 57–62**） | 接 T6 前               |
+| `spec-text-overflow-hardening.md`                               | 12-ticket 拆分依据 + 验收标准（含「T6 方向修订」决策 57–62、「T12 方向修正」决策 63–71） | 接 T9/T12 前           |
 | `docs/handoffs/handoff-text-overflow-fix-proposal.md`           | 方案 v3.3（自包含，方向已批准）                                 | 想理解"为什么"时       |
 | `docs/research/text-auto-fit-landscape-research.md`             | 两轮 deep research：官方边界 + 行业方案 + 能力利用审计          | 接 T6 前（决策 57–62 依据） |
 | `docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md` | 五轮 review 存档（阻断项如何被解决）                            | 怀疑某决策时           |
@@ -42,36 +45,58 @@
 | T7 共享 final-media gate        | #148 ✅ | `632a96a` + `16a9a41`                                                                | 9 单测；gate 准确拦下 qwen4 Scene 9（media-overlay 无 media）；改 `stacked-cards` 后放行并渲染成功（71/0/0 帧检查）                                                                                                                                                                                                            |
 | T4 Fit/Assert 几何 gate 核心    | #145 ✅ | `080a6c2`                                                                            | 纯层 24 单测（ink 公式 A 四方向、CTM 坐标变换、EPS 0.5、minSize 硬下限、fitGroup 三阶段）；运行时层 8 真实 Chromium 集成（F1 固定字号反证 / F2 缩字 / F3 触底 / F4 标注越界 / ink 运行时反证 / 字体超时 / 入场越安全区）；`FIT_REASONS` 共享常量；重渲染冒烟 + 71/0/0 帧检查通过                                               |
 | T5 Remotion 模板接入 + F1/F2/F3 | #146 ✅ | `8a024e5`                                                                            | 10 文本源全接入（契约字号 + `data-text-*` 寻址 + 容器断言）；`REMOTION_SLOT_MAP` 四分类 + 未注册字段渲染层 throw；`measure-slot-widths.mjs` 实测宽度回填（修 5 处估算）；`scene-gate-fixture` 10 基线 + F1/F3；`_gate-smoke` 9 场景全管线冒烟通过（6 类失败全修：入场/转场假阳性→布局盒断言、badge 反转嵌套等）；28 门测试全绿 |
+| T6 HTML 路径退役（pivot）        | #147 ✅ | `830cd44` + `9914777`（review fix，本地，待 push）                                                           | renderer-guard fail-fast 7 tests（含两入口真实进程）；全量 2645/3（#153 存量）；render-only + main.mjs 双 `_gate-smoke` 冒烟 PASS；scoped eslint + 根/remotion 双 tsc + `npm run build` 全绿；#147/#154 已关闭；review 双轴完成（3 处文档硬伤已修 + retired-path lint ignore） |
 
-> **qwen4 Scene 9 已改为 `stacked-cards + mediaOptOut: true`**（T7 提交）。数据层正确，但 **Remotion 的 stacked-cards 分支仍透出上一幕媒体图** —— 视觉层未完，记在 T9。
+> **qwen4 Scene 9 已改为 `stacked-cards + mediaOptOut: true`**（T7 提交）。数据层正确，但渲染层
+> 当前因 **badge 未注册而直接 FAIL**（决策 65，P1 阻断）——修复记在 T9 首项。
+> （2026-09-02 误诊更正：旧记录「Remotion stacked-cards 分支透出上一幕媒体图」实为
+> 转场窗口内抽帧，见 §6。）
 
 ---
 
-## 3. 下一 session 启动：T6（#147，已 pivot）+ 决策 57 换官方内核
+## 3. 下一 session 启动
 
-**读这些文件**（按序）：`tickets-text-overflow-hardening.md` §T6（新 checklist）→ `spec-text-overflow-hardening.md`（「T6 方向修订」决策 57–62，**先读这段再读决策 18–56**）→ `docs/research/text-auto-fit-landscape-research.md`（官方边界与官方能力利用审计）→ `lib/text-geometry.mjs`（待换内核的缩字阶梯所在）。
+**开场（git，先于一切实施）**：本地 ahead 15 / behind origin/main 21+，且存在并行
+session 修改。**禁止自动 `pull --rebase`**：先 `git status` + `git log` 核实工作树与
+并行改动，识别 `830cd44`/`9914777`/`4e1d3bc`/`0025f73` 四个本地 commit 是否仍仅存本地，
+然后**与用户确认** push/rebase 策略后再动。
 
-**要点**：
+**主线：P1 阻断修复 → T12（均需先读 tickets 对应节）**
 
-- T6 新 scope = 退役：`--playwright` 旗标 fail-fast、移除/归档 `record-scenes.mjs` + `verify-scene-dom.mjs` + main.mjs HTML 分支、内容包 `scenes.mjs` 退役处理、回归哨兵全绿、文档同步。原「Chromium materialize/fit + final HTML」方案作废。
-- 决策 57 可与 T6 同 session 或单独一票：**只换单字段缩字内核**（`fitGroup` 内）为官方 `fitText`，外层编排（shrinkOrder、minSize、EPS）与终态验证（Range 几何）不动；替换前先实测 Times 900 大写连字场景线性外推误差，超 EPS 则接一步二分精化；回归哨兵 = 28 门测试 + `_gate-smoke` 冒烟全绿（决策 62）。
-- T5 冒烟的最大教训仍适用：**单场景测试全绿 ≠ 全管线通过**——决策 57 落地后同样需要一次全管线冒烟。
-- T8/T9/T10 也已解除阻塞（只等 T5），可任选：T8 highlight 结构化（17 处迁移）、T9 media-overlay + s9 视觉（含 stacked-cards 背景透出问题）、T10 剩余 fixture + Hook 圆修复。
+1. **T9 首项：stacked-cards badge 接入（决策 65，P1）**——读 `tickets-...md` §T9：
+   模板渲染 badge + 接 TextGate + `REMOTION_SLOT_MAP` 声明 + 实测宽度回填；qwen4 s9
+   渲染通过即解除阻断。同票顺带承接：rendered 缺失 FAIL、mediaOptOut 归位（决策 66）。
+2. **T12：官方 `fitText` 接入 TextGate 生产路径（决策 63/64，scope 已修订）**——
+   读序：`tickets-...md` §T12 → `spec-...md`（决策 57/63/64/58/62）→
+   `docs/research/text-auto-fit-landscape-research.md`（官方边界）→
+   `text-gate.tsx`（生产 Fit 阶梯）+ `lib/text-slots.mjs`（`fitCandidates`）。**先建 issue**（T12 未建票）。
+   要点：官方输出只作候选值，终态验证（Range + ink）与 Assert 层不动；
+   替换前实测 Times 900 线性外推误差；**不开启 `validateFontIsLoaded`**（Times 栈与
+   fallback 指标一致会被误判），保留 `document.fonts.ready` 超时门（决策 64）；
+   `fitGroup` 若确认无消费者随票退役。
+
+**要点（通用）**：
+
+- **回归哨兵规范跑法**：从**仓库根**跑 `CI=true npx vitest run --root . --config scripts/short-video/vitest.config.mjs`（在 scripts/short-video 下直接跑会因部分测试的 cwd 依赖假红）。
+- **单场景测试全绿 ≠ 全管线通过**——内核/断言类改动落地后必须跑一次全管线冒烟。
+- T8/T10 已解除阻塞（只等 T5），可任选：T8 highlight 结构化（17 处迁移）、
+  T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径统一（scope 已审计修订）。
 - 冒烟包再生：`node scripts/short-video/.scratch-gate-smoke-audio.mjs`（content 资产 gitignored，新机器需先跑它合成音频+占位图）→ `node render-only.mjs --content _gate-smoke`。
 
-**已知坑（接人时注意）**：`remotion still` 不转发页面 console（只有视频 render 转发）；fail payload 后的附加调试串不能含花括号（提取正则贪婪止于最后一个 `}`）；单帧 still 跳过入场窗口，运动中的断言失败只能在全量顺序渲染复现。
+**已知坑（接人时注意）**：`remotion still` 不转发页面 console（只有视频 render 转发）；fail payload 后的附加调试串不能含花括号（提取正则贪婪止于最后一个 `}`）；单帧 still 跳过入场窗口，运动中的断言失败只能在全量顺序渲染复现；**转场窗口内抽帧会看到上一幕残留**（10 帧转场，抽帧点选视觉起点 + 0.3s 之后，见决策 69）。
 
 ---
 
 ## 4. 剩余 ticket 一览（依赖图 + issue）
 
 ```
-T4(#145) ─┬─→ T5(#146) ─┬─→ T8(#149) ─┐
-           │             ├─→ T9(#150) ─┤
-           └─→ T6(#147,pivot) ─┘        ├─→ T10(#151) ─→ T11(#152)
-                                         │
-T7(#148, done) ─────────────────────────┘
-#153(存量 preflight) ← 依赖 T2 已 done + T7 已 done，可现在回填
+T4(#145) ✅ ─┬─→ T5(#146) ✅ ─┬─→ T8(#149) ─┐
+             │               ├─→ T9(#150，scope 已修订) ─┤
+             │               └─→ T12(待建，scope 已修订) ─┤
+             └─→ T6(#147) ✅                ├─→ T10(#151，scope 已修订) ─→ T11(#152)
+                                            │
+T7(#148, done) ────────────────────────────┘
+#153(存量 preflight) ← 依赖 T2 已 done + T7 已 done，可现在回填；关闭 #141 前必须处理（决策 71）
 #154(HTML/Remotion 字号契约) ← 已关闭为过时（决策 59，HTML 路径退役）
 #165(中文空格分词) ← 最低优先级；决策 57（换官方内核）不阻塞任何票
 ```
@@ -79,13 +104,13 @@ T7(#148, done) ─────────────────────�
 | Ticket                            | Issue     | Blocked by | 一句话                                                          |
 | --------------------------------- | --------- | ---------- | --------------------------------------------------------------- |
 | T4 Fit/Assert 核心                | #145 ✅   | —          | 已完成（`080a6c2`）：几何判定 + 触底 cancelRender + 逐帧 Assert |
-| T5 Remotion 模板接入 + F1/F2/F3   | #146 ✅   | T2✅,T4✅  | 已完成（`8a024e5`）：10 文本源接入 + 冒烟包全管线通过           |
-| T6 HTML 路径退役（已 pivot）      | #147 OPEN | 无         | `--playwright` fail-fast + 归档 HTML 积木 + 回归哨兵全绿        |
-| 决策 57 Fit 内核换官方 `fitText`   | 随 T6 或单独 | 无      | 只换单字段缩字内核；先实测线性外推误差（决策 62 哨兵）      |
+| T5 Remotion 模板接入 + F1/F2/F3   | #146 ✅   | T2✅,T4✅  | 已完成（`8a024e5`）：10 文本源接入 + 冒烟包全管线通过；**审计更正：rendered 缺失 FAIL 未实现（承接 T9）、mediaOptOut 注册位置错误（承接 T9）** |
+| T6 HTML 路径退役（已 pivot）      | #147 ✅   | 无         | 已完成（`830cd44` + `9914777` 本地）：renderer-guard fail-fast + 归档 retired-html-path + 回归哨兵全绿 + review 双轴修复；**审计补充：`HTML_SLOT_MAP`/`htmlSlotsFor()` 仍在活代码（text-slots.mjs），待迁 retired archive** |
+| T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 OPEN | T2✅,T5✅  | **新首项（P1）**：stacked-cards badge 接入；rendered 缺失 FAIL；mediaOptOut 归位；parent/group gate 先行（maxHeight 全 null）；s9 53.2s 复测（决策 65–69） |
+| T12 官方 `fitText` 接入 TextGate 生产路径 | 待建   | T5✅       | **scope 已修订（决策 63/64）**：接入 `fitCandidates()` 生产路径；官方输出只作候选值；不开启 validateFontIsLoaded；**先建 issue** |
 | T8 highlight {field,text} + 17 处 | #149 OPEN | T2✅,T5✅  | 标什么亮什么，子串校验                                          |
-| T9 media-overlay + s9             | #150 OPEN | T2✅,T5✅  | 补 action/context；s9 视觉待修                                  |
-| T10 F4/F6/F7/F9 + 圆修复          | #151 OPEN | T4✅,T5✅  | 四 fixture；Hook 圆 `box="inside"` 240                          |
-| T11 端到端 + 归档                 | #152 OPEN | 几乎全部   | qwen4 重渲染 + 存量清单 + 归档                                  |
+| T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 OPEN | T4✅,T5✅  | **scope 已修订（决策 67/70）**：ink 逐行实现、annotation fail-open 修复、OVERDRAW 口径统一；F4 不重复认领 |
+| T11 端到端 + 预算 WARN 化 + 归档   | #152 OPEN | T8,T9,T10,**T12** | **scope 已修订（决策 71）**：+字符预算契约推导 WARN 化；+#153 前置；+blocked-by T12 |
 | #153 存量 preflight 全红          | #153 OPEN | T2,T7      | 14/15 包缺 layout / visualType 不在派发表                       |
 | #165 中文空格分词                 | #165 OPEN | —          | 官方多行函数对无空格文本失效；现文案英文，最低优先级          |
 
@@ -108,30 +133,39 @@ T7(#148, done) ─────────────────────�
 - **（T5 session）单场景测试全绿 ≠ 全管线通过**：单帧 still/单帧 render 直接挂载目标帧（跳过入场窗口），部分失败只在顺序全量渲染中暴露。断言类改动必须跑一次全量渲染冒烟。
 - **（T5 session）取证通道陷阱**：`remotion still` 不转发页面 console（只有视频 render 转发）；fail payload 后的附加调试串不能含花括号（`/\[TextFitError\] (\{.*\})/` 贪婪止于最后一个 `}`）。
 - **（T5 session）inline-fit 容器居中会位移块级 gate**：820px 块塞进 880 宽 `inline-flex` badge 被 `text-align:center` 右移 30px——gate 包 badge，不是 badge 包 gate（quote-7 回归）。
+- **（T6 session）全量回归哨兵必须从仓库根跑**：`CI=true npx vitest run --root . --config scripts/short-video/vitest.config.mjs`。部分测试（publish-utils / research e2e）有 cwd 依赖，在 scripts/short-video 下直接跑会假红 8 个（`validateVideoFile("package.json")`、双重前缀路径）。从仓库根跑这些全部通过。
+- **（T6 session）归档≠删测试要看活路径覆盖**：build-mark-svg.test.mjs 只有最后一个 describe 绑已退役的 `BRAND_MARK_SVG`，前 89 行测的是仍在服役的 `build-mark-svg.mjs`——整文件删掉就丢活覆盖。退役退役批次里删测试前逐 describe 核对被测对象。
+- **（T6 session）双 session 并行时的 index 竞争**：另一 session 在本地会话间并行 stage/commit。commit 前先 `git status --short` 确认 staged 内容只含自己的文件；混 hunk 文件用「临时还原对方行为 HEAD → add → 恢复」法分离（勿 stash，Git Safety 禁止）。push 被阻塞时只 commit 不 push，把状态写进 handoff。
+- **（2026-09-02 审计）单测绿 ≠ 生产路径接入**：`fitGroup()` 有完整单测但零生产调用者（生产 Fit 阶梯是 TextGate → `fitCandidates()`）。判定「已实施」要看生产调用链，不看测试覆盖。
+- **（2026-09-02 审计）`REMOTION_SLOT_MAP` 与数据字段漂移会直接阻断渲染**：数据含 `texts.badge` 而 SLOT_MAP 未声明 → 渲染层立即 FAIL。改数据或改模板时两侧必须同步核对。
+- **（2026-09-02 审计）转场窗口内抽帧会看到上一幕残留**：10 帧转场 ≈0.33s，s9 53s 抽帧的「媒体透出」是转场正常现象而非泄漏。复测点 = 视觉起点 + 0.3s 之后（决策 69）。
+- **（2026-09-02 审计）Times 字体栈与浏览器 fallback 指标一致**：`validateFontIsLoaded` 的对照启发式会误判未加载——字体验证靠 `fonts.ready` + 超时门即可（决策 64）。
 
 ---
 
 ## 6. 开放项 / 待决
 
 - **OpenCV（已收口，但留记录）**：`~/.video-tts-env` 原来同时装了 `opencv-python 5.0.0.93`（requirements 没它）和 `opencv-contrib-python 4.10.0.84`。5.x 移除 `CascadeClassifier`，导致 `focus_detector.py` 每次降级（main.mjs 只打 warning，管线静默失效）。本 session 卸载了 5.x、保留 contrib 4.10.0.84（CascadeClassifier/data/saliency 全 TRUE，34 个 focus 单测转 PASS）。**注意**：`mlx-vlm` 声明 `opencv-python>=4.12`，是 pip 元数据 floor，cv2 4.10 可正常 import，功能不受影响；若日后 VLM 分析真出问题，升级到 `opencv-contrib-python==4.12.0.88`（仍含 CascadeClassifier/saliency）—— 但本环境 PyPI 下载极慢，命令会 idle 超时，需后台或 curl 下载 wheel。
-- **stacked-cards 视觉**（T9）：Remotion 的 stacked-cards 分支没清空媒体背景，s9 仍透出 s8 的 qwen-throughput 图。数据层已对，视觉层未完。
+- **stacked-cards 视觉（T9，2026-09-02 误诊更正）**：旧记录「53s 透出上一幕媒体 = stacked-cards 未清空媒体背景」不成立——53s 落在 10 帧转场窗口内，且该布局无媒体层。53.2s 后复测；若转场首帧仍透出上一幕媒体，按转场策略决策处理（调转场或加不透明背景），不是媒体泄漏。
 - **s9 左缘 ink overhang（待调查，非 ticket）**：R2 §3.3 报告 s9 左缘 `G` 字疑似 ink overhang（初版推测 = 衬线回退字体左 bearing 为负 + 容器 `overflow:hidden`）。本地浏览器实测**未复现** G 左侧 overhang，根因不成立，降为待调查现象。该现象将由 **T4 的 ink-bound（F9）机制**落地后照亮 —— T4 完成后回看本项：若 ink-bound 能稳定测到左 overhang 则据此修，否则维持待调查、不入 ticket（非阻断）。权威真源：`docs/handoffs/handoff-qwen4-preview-r2-visual-audit.md` §3.3。
+- **ANNOTATION_OVERDRAW 口径（T10，决策 70）**：现值 64px 覆盖不了决策 56 自述的 91px 实测上界——先统一测量口径，再按 annotation 类型设容差或修布局，不直接全局放宽。
 - **#153 回填规则**：有 media → media 依赖型布局（overlay/bottom-bar/split）；无 media → `stacked-cards`。回填前先确认 T7 的 gate 已就位（已就位）。
 - **#154 已关闭为过时**（2026-09-01，决策 59）：HTML 路径退役后「字号契约统一」失去对象。
 - **#165（最低优先级）**：官方 `fillTextBox`/`fitTextOnNLines` 按空格分词，中文文案会误判溢出；现文案英文不受影响，引入中文时才触发。
 - **#164（环境）**：`npm run lint` 被 `experiments/fastvideo-spike/repo/.venv` 拖死（45+ 分钟不收敛）。在修复前，Step 6 用 scoped eslint（显式列改动路径）替代全量。
+- **活代码 HTML 残留（T9/T11 执行时清理）**：`text-slots.mjs` 的 `HTML_SLOT_MAP`/`htmlSlotsFor()` 及 text-slots.test.mjs 对应测试仍在服役路径上——迁入 `retired-html-path/` 或删除（决策 59 收尾）。
 
 ---
 
 ## 7. 快速命令
 
 ```bash
-# 全量测试
-cd scripts/short-video && CI=true npx vitest run
-# 单 ticket 测试
-CI=true npx vitest run __tests__/text-slots.test.mjs __tests__/final-media-gate.test.mjs
+# 全量测试（必须从仓库根跑——在 scripts/short-video 下跑会因 cwd 依赖假红 8 个，见 §5 T6 坑）
+CI=true npx vitest run --root . --config scripts/short-video/vitest.config.mjs
+# 单 ticket 测试（cd 到 scripts/short-video 下跑，限指定文件——无全量套件的 cwd 陷阱）
+cd scripts/short-video && CI=true npx vitest run __tests__/text-slots.test.mjs __tests__/final-media-gate.test.mjs
 # gate 门测试（T4/T5）
-CI=true npx vitest run __tests__/text-gate-render.test.mjs __tests__/scene-gate-render.test.mjs
+cd scripts/short-video && CI=true npx vitest run __tests__/text-gate-render.test.mjs __tests__/scene-gate-render.test.mjs
 # 真实渲染冒烟（必经，单测不足以证明正确）
 node render-only.mjs --content qwen4-preview
 # gate 全管线冒烟包（新机器先跑 .scratch-gate-smoke-audio.mjs 再生资产）
@@ -163,4 +197,6 @@ ffmpeg -ss 53 -i output/qwen4-preview/<file>.mp4 -frames:v 1 -y /tmp/s9.png
 - [x] 本 handoff 文档创建（每 session 更新）
 - [x] 下一 session（#1）：从 T4 (#145) 起 —— 已完成，见 §2/§3
 - [x] 调研修订 session（2026-09-01）：两轮 deep research + 官方能力审计 → 决策 57–62 落盘（spec/tickets）；#147 改名 pivot、#154 关闭、#165 立票；未改任何代码（用户要求文档先行，新 session 再实施）
-- [ ] 后续 session（#2…N）：T6(#147, 退役) + 决策 57（换官方内核）→ T10(#151) → T11(#152) + T8/T9(#149/#150) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）
+- [x] T6 (#147) 实现 + renderer-guard 测试 + code-review 双轴 + 双冒烟 + scoped lint/tsc/build + issue 关闭（2026-09-02，`830cd44` 实现 + `9914777` review 修复 + `0025f73` review 归档，**全部本地待 push**）
+- [x] 2026-09-02 实施审计修订（决策 63–71）：P1 阻断确认（badge + fitGroup 接入点）、T5/T6 完成声明更正、T9/T10/T11/T12 scope 重写、误诊更正（s9 转场）、文档同步（spec/tickets/handoff/README/pipeline/workflow/scripts README）；纯文档修订，未改代码
+- [ ] 后续 session（#2…N）：**开场 git 核实（勿自动 rebase，见 §3）→ T9 首项 badge（P1）→ T12（scope 已修订，先建 issue）→ T10(#151) → T11(#152) + T8(#149) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）

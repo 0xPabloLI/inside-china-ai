@@ -41,7 +41,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 | **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)       | A static frame in autoplay feed looks like a still image, not a video       |
 | **Max 2 stat cards**   | Don't stack 3+ data points on the hook frame          | Users can't parse 3+ numbers in 1 second; 2 is the limit                    |
 
-**Standard hook template**: Scene 1 MUST use the shared `hookScene` opening card (`lib/scene-templates.mjs`) — fixed skeleton (badge → subject → focal → stats/source in the `lib/scene-layout.mjs` slot grid), two focal variants (number-led `bigNumber` / claim-led `hookText`+`revealText`). The focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`. Data contract in the `hookScene()` docblock (spec: `docs/specs/spec-hook-opening-card.md`). The claim or number renders on frame 1 with no animation delay — the thumbnail itself must carry the hook.
+**Standard hook template**: Scene 1 MUST use the shared HookScene opening card (`remotion/src/scenes/HookScene.tsx`) — fixed skeleton (badge → subject → focal → stats/source in the `lib/scene-layout.mjs` slot grid), two focal variants (number-led `bigNumber` / claim-led `hookText`+`revealText`). The focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`. Data contract in the HookScene docblock (spec: `docs/specs/spec-hook-opening-card.md`). The claim or number renders on frame 1 with no animation delay — the thumbnail itself must carry the hook.
 
 ### Silent Autoplay
 
@@ -81,6 +81,20 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - Never put critical info below y=1150 (`1920 − SAFE_ZONES.bottom`): the burned-subtitle lane (y≈1188–1350) and TikTok caption UI live there — see Layout Safety in `docs/brand-system.md`
 - Use absolute positioning with explicit `top:` values — not flex centering (which can shift with dynamic content)
 - Test at thumbnail size: if text is unreadable at 240×426 (1/4 scale), it's too small
+
+### Cloud GPU Batch-Running（Modal / Kaggle / Colab 通用经验）
+
+按 session 或时长计费（或有限额）的云 GPU 都适用一条总原则：**启动开销摊销 + 结果尽早落盘 + 失败隔离**。
+
+- **启动开销摊销**：镜像拉起 + git clone + 模型加载通常占 5-10min，每个变体单独跑一次就重复付一次。参数已确定的网格扫描（如 audio_guide × shift 的 2-3 个组合）应在同一个容器 session 里串行跑完。反例：需要"看一个结果再定下一个参数"的串行调参不适合批量——批量只适合参数已定的组合。
+- **结果尽早落盘**：每个变体出片后立即写入 Volume/持久存储并 commit，再跑下一个。单变体崩溃不应损失已完成的结果。
+- **失败隔离**：变体之间用独立子进程跑（GPU 显存随进程退出天然释放），变体间不做同进程内的增量调用；如必须同进程，显式 `del` + `torch.cuda.empty_cache()` 清显存，避免显存碎片让后面的变体假性 OOM。
+- **平台差异**：Modal 按容器占用秒计费，批量省的是真实费用；Kaggle/Colab 免费但有 12h session 上限和随机断连，批量省的是额度，且"尽早落盘"要从建议升级为铁律（每变体完成就推 output/dataset）。
+- **权重下载与 GPU 解耦**（Modal 特有优化）：大模型权重下载放 CPU-only 容器写 Volume（CPU 计费便宜约两个数量级），GPU 容器起来时权重已在本地。Kaggle/Colab 的等价做法是把权重做成 Dataset/Drive 持久化，避免每次 session 重新下载。注意 Modal **没有 CPU 免费额度**——"放 CPU"省的是 CPU 与 GPU 的单价差（约两个数量级），不是免费；真正的免费额度是 Volume 存储每月前 1 TiB（$0.09/GiB/月之后）。
+- **不变成本能进镜像层的都进镜像层**：git clone、pip 依赖、flash-attn 预编译 wheel 全部放镜像构建层（构建在 CPU 侧执行一次并永久缓存）；GPU 容器里只留"必须每变体做"的事。判断标准：产出不随变体变的准备工作都不该消耗 GPU 计费秒。
+- **量化省钱的前提是能换更便宜的卡**：Modal 按时长×GPU 单价计费，显存大小不单独收费。INT8/fp8 量化只有当它让模型挤进低价 GPU 档（如 A100-80GB → L40S 48GB，省 22%）时才产生真实省钱；同一张卡上 INT8 只省权重加载时间（GB 级差别 ≈ 1min ≈ 几分钱）。且注意显存大头常常不是 DiT（如 LongCat 的 UMT5 text encoder ~23GB bf16 不参与量化），算显存账要逐组件加总。
+- **跨容器读 Volume 前必须显式 commit + 全量校验**（v11.1 实测教训）：下载函数结束时若不调用 `vol.commit()`，紧接的 GPU 容器可能挂到旧快照——文件"明明下了却 FileNotFoundError"。校验要覆盖**全部分片**（如 6 片 safetensors 逐片查），只抽首尾片兜不住中间片缺失。
+- **计费口径**：按容器存活时间计费，与生成视频的秒数无固定单价关系；视频时长只影响推理时长（约按帧数线性增长）。
 
 ## Content Standards
 
@@ -241,13 +255,17 @@ In `mlx_wan_batch.py` every job denoises before anything decodes: `taehv` calls 
 | ------- | ------- |
 | `FASTVIDEO_REPO` | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout) |
 | `FASTVIDEO_PYTHON` | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3` |
+| `BROLL_MODEL_ROOT` | unset → HF cache snapshot of `FastMetal-1.3B-QAD` |
+| `BROLL_MLX_CHECKPOINT` | unset → discovered under `BROLL_MODEL_ROOT` |
 
 The repo-local venv is the working interpreter — `~/.video-tts-env` lacks `cloudpickle`. A `FASTVIDEO_PYTHON` you set yourself is honored as given, with no fallback. When a dependency is missing the stage prints `⚠️ B-roll skipped: …` and the pipeline continues without generated media.
 
-**Checkpoint** — `FastVideo/FastMetal-1.3B-QAD` (base `FastWan2.1-T2V-1.3B-Diffusers`: DMD2-distilled 1.3B Wan 2.1, INT8 quantization-aware) under **Apache-2.0**, so generated clips need no license review before publishing. The weights live in neither the repo checkout nor the venv: the batch script resolves them from the Hugging Face cache through the repo's **current `main` revision**. Opted-in network means an upstream push silently turns a warm cache into a fresh 1.5 GB download in the middle of a run — pipeline runs are offline by default (`HF_HUB_OFFLINE=1`, see TTS section) and fail fast on a missing weight instead; opting out restores the online check, which is also how a deliberate model upgrade fetches the new revision. Two things that cost a session to learn:
+**Checkpoint** — `FastVideo/FastMetal-1.3B-QAD`: DMD2-distilled 1.3B Wan 2.1 with an INT8 quantization-aware-trained DiT, **Apache-2.0**, so generated clips need no license review before publishing. The `FastWan2.1-T2V-1.3B-Diffusers` named as its base is **lineage only** — the full-precision weights it was distilled from; this pipeline loads the MLX-packed DiT, never those. The weights live in neither the repo checkout nor the venv: the batch script resolves them from the Hugging Face cache through the repo's **current `main` revision**. Opted-in network means an upstream push silently turns a warm cache into a fresh 1.5 GB download in the middle of a run — pipeline runs are offline by default (`HF_HUB_OFFLINE=1`, see TTS section) and fail fast on a missing weight instead; opting out restores the online check, which is also how a deliberate model upgrade fetches the new revision. Two things that cost a session to learn:
 
 - Keep the cache where it is (`~/.cache/huggingface/hub`). The spike's `--model-root /tmp/fastmetal_model` is gone the next boot — and the run does not say so, it just starts fetching.
 - If that fetch hangs, it is the `xet` transport, not the network (observed: frozen at 142 KB for 14 minutes while plain HTTP pulled 3 MB/s). Re-fetch over HTTP, then rerun: `HF_HUB_DISABLE_XET=1 python -c "from huggingface_hub import snapshot_download; snapshot_download('FastVideo/FastMetal-1.3B-QAD')"`.
+
+**Pinning them** — left unset, every batch re-resolves the cache snapshot, which costs a `GET /revision/main` and re-downloads silently on a cache miss. Both vars are checked before the batch starts — `BROLL_MODEL_ROOT` for existence, `BROLL_MLX_CHECKPOINT` for a packed DiT (`mlx_dit.json` + `mlx_dit.safetensors`) — and a failed check prints `⚠️ B-roll skipped: …` while the pipeline continues. Pin the checkpoint alone and the text encoder / VAE still come from the cache; pin the root as well to take those off the network too. Passing `--mlx-checkpoint` also drops `transformer/*` from resolution — the raw DiT weights a packed checkpoint makes unnecessary.
 
 The batch script's stdout streams through `generate-broll.mjs` and Step 1.5d as it runs (child launched with `PYTHONUNBUFFERED=1`), so a stalled download and a slow denoise look different: `content/<dir>/assets/b-roll/` appears once job 1 starts.
 
@@ -256,6 +274,8 @@ The batch script's stdout streams through `generate-broll.mjs` and Step 1.5d as 
 SUBJECT · VISUAL METAPHOR · BRAND · REFERENCE · CAMERA · MOTION · LIGHTING · NEGATIVE — one clause each. A prompt that only names a subject reproduces the spike's failure mode: generic glow, unrelated to the narration.
 
 Text belongs to the caption layer: `scene.texts` carries numbers and names, and the clip behind it carries none — T2V models garble glyphs. Keep the whole prompt inside the 512-token budget.
+
+`verify-video.mjs --pre` checks one of the eight mechanically — **NEGATIVE** — plus a numeral sweep, and warns without blocking (check `B-roll prompt dimensions`). A prompt must cover all three groups NEGATIVE guards against: TEXT (`no text` / `no letters`), HANDS (`no hands`), ARTIFACT (`no watermark` / `no logo`). These are fixed defaults, so they differ from prompt to prompt only by omission. The sweep also flags any Arabic numeral: a data value belongs in `texts`, though an element count (`3 layers`) is a legitimate thing to write. The other seven dimensions stay on the agent — they are the ones a template cannot write for you.
 
 ### Agent prompt-iteration protocol
 
@@ -272,7 +292,7 @@ The agent rewrites prompts; a human does not. After any run leaves a scene short
 
 - **Brand bar** (top-left on opener/mid scenes): 48px, in `brandBar()`
 - **Watermark** (top-left on non-brand scenes): 55px, `opacity: 0.35`, at `top: 60px; left: 60px` (`WATERMARK_POS` in `lib/safe-zones.mjs`)
-- **CTA scene**: 130px centered in the hero slot — rendered by the shared `ctaScene()` end card (`lib/scene-templates.mjs`), never hand-rolled
+- **CTA scene**: 130px centered in the hero slot — rendered by the shared CtaScene end card (`remotion/src/scenes/CtaScene.tsx`), never hand-rolled
 
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 
@@ -328,7 +348,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 ```text
 scripts/short-video/
-├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --skip-dom-check, --max-retries)
+├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --max-retries)
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
 ├── generate-broll.mjs      # Standalone B-roll generation entrypoint (--help)
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
@@ -347,8 +367,9 @@ scripts/short-video/
 │   │   ├── cues.mjs        # Alignment → cues (chunking + Netflix timing rules)
 │   │   ├── ass.mjs         # ASS render + parse (\kt anchors, 1ms precision)
 │   │   └── generate.mjs    # Entry point: timing JSON → subtitles.ass
-│   ├── assemble.mjs        # FFmpeg assembly + ASS burn-in + BGM mix
-│   ├── record-scenes.mjs   # Playwright recording (1080×1920)
+│   ├── assemble.mjs        # Output-path resolution for the final video (rendering lives in render-remotion.mjs)
+│   ├── render-remotion.mjs # Remotion render driver (React → frame-by-frame → final MP4)
+│   ├── renderer-guard.mjs  # Fails fast on the retired --playwright flag / meta.renderer opt-out
 │   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
 │   ├── verify-subtitles.mjs # Reads back the .ass and checks it against the alignment data
 │   ├── verify-retry.mjs    # Verify-retry loop: classify failure → repair → re-verify (--max-retries)
@@ -364,12 +385,11 @@ scripts/short-video/
 │   │   ├── track.mjs       # Gapless voiceover master (pad each scene to its clip length)
 │   │   ├── sync.mjs        # End-to-end check: scene onsets measured in the SHIPPED audio
 │   │   └── diagnostics.mjs # FAIL-time bundle: drift table, packet gaps, stream durations
-│   └── base-styles.mjs     # Shared visual system (CSS vars, backgrounds, animations, brand SVG)
+├── retired-html-path/      # Frozen archive of the retired HTML/Playwright renderer (decision 59)
 ├── content/                # Content pipelines (each article = one dir)
 │   ├── deepseek/           # DeepSeek story
 │   │   ├── meta.mjs        # { pipelineId: "deepseek" }
-│   │   ├── scene-data.mjs  # 12 scenes (voiceover, texts, visualType)
-│   │   └── scenes.mjs      # 12 visual templates (read scene.texts)
+│   │   └── scene-data.mjs  # 12 scenes (voiceover, texts, visualType)
 │   └── distillation/       # LLM distillation series
 │       ├── pt1/            # Part 1 (8 unique scenes, red/glitch DNA)
 │       ├── pt2/            # Part 2 — Kimi's Gambit (9 scenes)
@@ -380,8 +400,7 @@ scripts/short-video/
 └── output/                 # Pipeline outputs (isolated per pipelineId)
     └── {pipelineId}/
         ├── audio/          # TTS audio + subtitle-timing.json
-        ├── scenes/         # HTML scene files
-        ├── video/          # Recorded WebM per scene
+        ├── video/          # Remotion-rendered MP4 (single renderer; HTML/Playwright path retired 2026-09-01, decision 59)
         ├── subtitles.ass   # ASS subtitle file
         ├── verification-report.json # Subtitle verification report
         └── {pipelineId}-short.mp4  # Final video
@@ -435,19 +454,18 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 | Step | Action | Output |
 |------|--------|--------|
 | 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
-| 2 | Generate HTML scene templates | `output/{id}/scenes/scene-*.html` |
-| 2.5 | **DOM layout verification — hard gate** (safe zones / right rail / overflow, headless Chromium). Per-pipeline config from `content/<dir>/dom-config.mjs` (optional, defaults if absent). FAIL aborts before recording; `--skip-dom-check` is a debug-only escape hatch (all content dirs migrated) | `verify-scene-dom.mjs` report |
-| 3 | Record scene videos (`--remotion` flag or `meta.renderer === "remotion"` → Remotion path; default → Playwright legacy path) | `output/{id}/video/scene-*.webm` |
-| 3.5 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
+| 1.6 | **Final media gate — hard FAIL** after sourcing/patch/upscale/b-roll (media layouts must have their media) | `lib/final-media-gate.mjs` failure list |
+| 2 | Validate every scene received a TTS result | fail-fast on missing voiceover |
+| 3 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
 | 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
-| 5 | Assemble final video (FFmpeg) | `output/{id}/{id}-v{version}-short.mp4` + `{id}-short.mp4` (latest copy) |
+| 5 | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]` — replaces the retired HTML DOM verifier) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4` |
 | 6 | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2) | `output/{id}/verification-report.json` |
 
 ### Version Numbers
 
 Every pipeline run generates a **versioned output file**: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`.
 
-A **latest copy** (`{pipelineId}-short.mp4`) is also created for compatibility with verify-video.mjs and other tools.
+A **latest copy** (`{pipelineId}-short.mp4`) is NOT created — the versioned file is the canonical output; the unversioned name only appears as a fallback when resolving outputs produced before versioning existed.
 
 ```bash
 # List all versions, newest first

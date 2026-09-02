@@ -24,9 +24,9 @@ import {
  *   content (down to y=1150) → gap → subtitle lane (y≈1188-1350, 60px, 62-70%)
  *   → clean margin → TikTok caption UI (y≥1500 worst case).
  *
- * These tests lock the chain so the three consumers — scene content
- * (SAFE_ZONES), burned subtitles (SUBTITLE_LANE), DOM verification
- * (verify-scene-dom.mjs) — can never drift into the same band again.
+ * These tests lock the chain so the consumers — scene content
+ * (SAFE_ZONES), burned subtitles (SUBTITLE_LANE), and the render-time
+ * geometry gates — can never drift into the same band again.
  */
 
 const contentBottomEdge = CANVAS.height - SAFE_ZONES.bottom;

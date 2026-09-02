@@ -89,7 +89,7 @@ export function sceneClipDuration(ttsDuration, fps = FPS) {
  * @param {Array<{sceneId: number, duration: number}>} sceneDurations
  * @param {{fps?: number, transitionOverlap?: number}} [options]
  *   `transitionOverlap` is the per-transition frame count used by
- *   TransitionSeries (Remotion path). Playwright path passes 0 / omits it.
+ *   TransitionSeries (Remotion path). 0 / omitted = no transitions.
  * @returns {SceneTimelineEntry[]}
  */
 export function sceneTimeline(sceneDurations, options = {}) {

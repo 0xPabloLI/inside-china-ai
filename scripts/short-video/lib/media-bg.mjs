@@ -2,15 +2,17 @@
  * Media Background Support — bgImage + bgVideo for short video scenes.
  *
  * Provides:
- *   - Path resolution: relative → absolute file:// URL for Playwright
- *   - Animation presets: 5 entrance/exit animation CSS generators
- *   - HTML generation: image div or <video> element + overlay layer
+ *   - Path resolution: relative → absolute (validateMedia / resolveMediaPath
+ *     are consumed by verify-video.mjs preflight and apply-media-patch.mjs)
  *   - Validation: file existence, preset compatibility
  *
+ * Legacy (retired HTML/Playwright path, see retired-html-path/README.md):
+ *   `animationCss()` and `mediaLayer()` generated the CSS/HTML the Playwright
+ *   recorder used. Kept exported as the media-contract CSS reference (zero
+ *   production consumers, test-locked); the Remotion renderer uses
+ *   remotion/src/components/MediaBackground.tsx instead.
+ *
  * Design (Grill Round 1-2, 2026-08-11):
- *   - Single rendering path: images use CSS background-image, videos use
- *     HTML <video> — both captured by Playwright's recordVideo.
- *   - No FFmpeg compositing needed (verified via headless test).
  *   - Animation presets use CSS @keyframes with percentage-based timing
  *     so in/out transitions auto-scale to any scene duration.
  *   - All scene templates (hook, narrative, info-card, quote) can opt in to

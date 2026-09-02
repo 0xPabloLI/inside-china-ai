@@ -172,7 +172,7 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
       ) : (
         // Background video is a texture, not a clip to be watched once: a
         // source shorter than the scene must keep moving (matches the `loop`
-        // in lib/media-bg.mjs mediaLayer for the HTML renderer).
+        // in lib/media-bg.mjs mediaLayer (the retired HTML renderer).
         <Video src={src} style={mediaStyle} volume={videoVolume} effects={effects} loop />
       )}
       <div

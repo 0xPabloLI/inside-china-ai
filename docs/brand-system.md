@@ -100,7 +100,7 @@ Base: `#0a0a14`. Cards: `rgba(255,255,255,0.06)`. Borders: `rgba(255,255,255,0.0
 
 Font stack: `'Times New Roman', Times, serif`（**衬线渲染基准**）
 
-> 渲染环境缺 Helvetica Neue，所有已发布视频实际以浏览器默认衬线（Times）渲染并多次通过 HITL。自 2026-08 起（spec #130），衬线栈在 `safe-zones.mjs` `BRAND_FONT_STACK` 显式声明、两条渲染路径（Remotion 根容器 + Playwright base-styles）共同消费——字体可用性不再可能悄悄改变成片外观。`scene-rules` 的文本宽度预算按衬线校准。原 Helvetica Neue sans 栈作废；若未来做品牌升级换开源 sans（如 Inter），需重校宽度预算（见 backlog）。
+> 渲染环境缺 Helvetica Neue，所有已发布视频实际以浏览器默认衬线（Times）渲染并多次通过 HITL。自 2026-08 起（spec #130），衬线栈在 `safe-zones.mjs` `BRAND_FONT_STACK` 显式声明、由 Remotion 根容器消费（原 Playwright base-styles 消费方已随 HTML 路径退役）——字体可用性不再可能悄悄改变成片外观。`scene-rules` 的文本宽度预算按衬线校准。原 Helvetica Neue sans 栈作废；若未来做品牌升级换开源 sans（如 Inter），需重校宽度预算（见 backlog）。
 
 | Context      | Size     | Weight  | Spacing          |
 | ------------ | -------- | ------- | ---------------- |
@@ -223,7 +223,7 @@ Same as color tokens — each company has a consistent semantic color:
 
 ## Layout Safety (Safe Zones & Watermark)
 
-TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by `scripts/short-video/verify-scene-dom.mjs` (measures real DOM geometry, wired into the pipeline as a FAIL-gate) and guarded at source level by `scripts/short-video/__tests__/scene-drift.test.mjs`.
+TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by TextGate in `scripts/short-video/remotion/src/` + `lib/text-geometry.mjs` (slot geometry FAIL-gate wired into the Remotion renderer). The former DOM verifier (`verify-scene-dom.mjs`) was retired with the HTML render path (decision 59); archive: `scripts/short-video/retired-html-path/`.
 
 Calibrated against real FYP playback screenshots cross-checked with 2026 research. Full calibration history and OCR evidence: `docs/research/safe-zone-calibration-log.md`.
 
@@ -236,9 +236,7 @@ Calibrated against real FYP playback screenshots cross-checked with 2026 researc
 
 Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350, left-shifted to x∈[110,830]); the TikTok caption UI starts ~y1500.
 
-Enforcement levels in `verify-scene-dom.mjs` (per-pipeline config in `content/<dir>/dom-config.mjs`, defaults if absent):
-- **Top / bottom band crossing → FAIL** (content enters TikTok chrome or the subtitle lane).
-- **Right band crossing (x > 880) → FAIL** when the element's bottom is inside the action rail (y > 640); **WARN** only above the rail (top chrome, where nothing occludes).
+Enforcement semantics (top / bottom band crossing → FAIL; right band crossing x > 880 → FAIL when the element's bottom is inside the action rail y > 640, WARN above it) are implemented by TextGate/text-geometry on the Remotion side.
 
 Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / SUBTITLE_LANE / WATERMARK_POS constants — the single source of truth every other layer derives from).
 
@@ -251,19 +249,19 @@ Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / SUBTITLE_LANE / WAT
 ### Bottom Elements Strategy
 
 - **No content anchor below y = 1150** (`1920 − SAFE_ZONES.bottom`). Critical copy, numbers, CTAs, and labels must sit above it, clear of the subtitle lane.
-- If a scene has a bottom slot, use `fadeToBlack(duration)` (shared `fadeOut` keyframe in the base-styles bundle) — not a local footer element.
+- If a scene has a bottom slot, use the shared fade-to-black (Remotion 场景组件的共享渐隐) — not a local footer element.
 
 ## Scene Layout Templates
 
 9 layout patterns for **1080×1920 vertical mobile video** scenes. CSS-animated, timed to TTS duration. All scenes must be 9:16 — never horizontal.
 
-> **Slot system (mandatory).** Every scene composes its content into the fixed vertical slots from `lib/scene-layout.mjs` via `sceneFrame({ kicker, hero, support })` — never a hand-rolled full-screen `flex` with `justify-content: space-between` (that pattern stretched scenes into three islands with dead space and pushed content into the subtitle lane). Slots: `kicker` 220–400, `hero` 400–950, `support` 950–1150. Slot edges derive from `SAFE_ZONES`, so a scene either fits the grid or the DOM gate refuses to ship it.
+> **Slot system (mandatory).** Every scene composes its content into the fixed vertical slots from `lib/scene-layout.mjs` via `sceneFrame({ kicker, hero, support })` — never a hand-rolled full-screen `flex` with `justify-content: space-between` (that pattern stretched scenes into three islands with dead space and pushed content into the subtitle lane). Slots: `kicker` 220–400, `hero` 400–950, `support` 950–1150. Slot edges derive from `SAFE_ZONES`, so a scene either fits the grid or TextGate refuses to ship it.
 
-> **Vertical-stacking rule (mandatory for comparisons).** Any comparison / contrast / VS scene must stack its items **vertically** (A on top, VS divider in the middle, B on the bottom) — never place two or more cards **side by side** in a horizontal row. A 1080-wide portrait frame cannot fit a landscape two-column layout without shrinking text to unreadable sizes or overflowing the right safe zone. Reference: `bytedance-distillation` S6/S7/S8. Guarded by `scene-drift.test.mjs` (side-by-side classes banned in migrated content).
+> **Vertical-stacking rule (mandatory for comparisons).** Any comparison / contrast / VS scene must stack its items **vertically** (A on top, VS divider in the middle, B on the bottom) — never place two or more cards **side by side** in a horizontal row. A 1080-wide portrait frame cannot fit a landscape two-column layout without shrinking text to unreadable sizes or overflowing the right safe zone. Reference: `bytedance-distillation` S6/S7/S8.（原 `scene-drift.test.mjs` 守卫已随 HTML 路径退役，现由 `remotion/src/` 场景组件的纵向结构本身保证）
 
 ### 1. Hook Scene
 
-**Standard: the shared `hookScene` opening card** (`lib/scene-templates.mjs`, spec: `docs/archive/spec-hook-opening-card.md`). Scene 1 of every new video must delegate to `hookScene` — fixed skeleton, data-driven slots, zero hand-written offsets. Old hand-written hooks (deepseek / distillation / restraint) migrate when next revisited.
+**Standard: the shared HookScene opening card** (`remotion/src/scenes/HookScene.tsx`, spec: `docs/archive/spec-hook-opening-card.md`). Scene 1 of every new video must delegate to HookScene — fixed skeleton, data-driven slots, zero hand-written offsets. Old hand-written hooks (deepseek / distillation / restraint) migrate when next revisited.
 
 Slot composition (1080×1920; bands from `lib/scene-layout.mjs` — kicker / hero / support):
 
@@ -356,7 +354,7 @@ Numbered analysis cards.
 
 ### 9. CTA Scene
 
-Brand closer — the single shared `ctaScene` template (`lib/scene-templates.mjs`), routed through the slot system. No URL (testing phase).
+Brand closer — the single shared CtaScene component (`remotion/src/scenes/CtaScene.tsx`), routed through the slot system. No URL (testing phase).
 
 - **Hero slot (400–950)**: brand logo (130px) → brand name `CHINA AI NEWS` (72px, 900, "AI" in blue) → tagline `CHINA AI, DECODED` (32px, sec)
 - **Support slot (950–1150)**: action stamp `FOLLOW FOR MORE →` (amber stampBox) → optional series `topic` teaser
@@ -366,19 +364,17 @@ Brand closer — the single shared `ctaScene` template (`lib/scene-templates.mjs
 
 The CSS implementation of these specs lives in:
 
-- `scripts/short-video/lib/safe-zones.mjs` — **single source of truth** for safe-zone + subtitle-lane + watermark constants. Every other layer (slot layout, subtitle ASS, DOM verifier) derives from these values; never hardcode them elsewhere.
+- `scripts/short-video/lib/safe-zones.mjs` — **single source of truth** for safe-zone + subtitle-lane + watermark constants. Every other layer (slot layout, subtitle ASS, TextGate) derives from these values; never hardcode them elsewhere.
 - `scripts/short-video/lib/scene-layout.mjs` — the fixed slot system (`SLOTS`, `slotCss()`, `sceneFrame()`). All scenes compose into kicker/hero/support slots.
-- `scripts/short-video/lib/base-styles.mjs` — shared base styles + keyframes bundle (`baseStyles(duration)`, `withWatermark`). Keyframes are single-source here; scenes must not redeclare them (drift guard).
-- `scripts/short-video/lib/scene-templates.mjs` — data-only scene building blocks (`brandBar`, `breakingBadge`, `statCard`, `quoteBox`, `titleBlock`, `bigNumberAnchor`, `pointsList`, `stampBox`, `fadeToBlack`) + the shared `hookScene` / `ctaScene` + `templateCss()`. No business copy; the channel constants in `brandBar` are the only hardcoded strings.
-- `scripts/short-video/content/{article}/scenes.mjs` — per-video scene HTML/CSS, composed from the templates above; all display copy comes from `scene-data.mjs` via the `t(txt, key)` helper.
+- `scripts/short-video/remotion/src/` — Remotion scene components (hook/cta/narrative/…); scene building blocks live in `components/`. Display copy comes from `scene-data.mjs`.
+- `scripts/short-video/retired-html-path/` — frozen archive of the retired HTML/CSS layer (`base-styles.mjs`, `scene-templates.mjs`, …). Reference only, not imported.
 - `scripts/youtube-thumbnail.html` — thumbnail HTML/CSS
 
 ### Enforcement (how the standard is applied to every video)
 
-1. **Constants single source** — `safe-zones.mjs` values are test-locked (`safe-zones.test.mjs`, `scene-drift.test.mjs`); editing them turns the suite red.
+1. **Constants single source** — `safe-zones.mjs` values are test-locked (`safe-zones.test.mjs`); editing them turns the suite red.
 2. **Data-level preflight** — `verify-video.mjs --pre --content <dir>` runs before the pipeline (SKILL.md hard rules) and blocks non-compliant scene data.
-3. **Render-level DOM gate** — `verify-scene-dom.mjs` runs automatically as **Step 2.5** in both `main.mjs` and `render-only.mjs`. Any scene whose geometry crosses a safe zone (top / bottom / right action rail), overflows horizontally, renders `undefined`, or breaks a word fails the build **before recording**. All content directories are on the slot layout, so `--skip-dom-check` is a debug-only escape hatch.
-4. **Source-level drift guards** — `scene-drift.test.mjs` bans side-by-side comparison classes and legacy footer classes in migrated content, and locks the shared hook/CTA templates byte-for-byte.
+3. **Render-level geometry gate** — TextGate (`remotion/src/` + `lib/text-geometry.mjs`) enforces slot geometry (safe zones, overflow, word-break) in the Remotion renderer, failing the build before frames render.
 
 When changing brand specs, update this file first, then update the implementation files to match.
 

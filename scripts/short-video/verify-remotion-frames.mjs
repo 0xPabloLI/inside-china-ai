@@ -6,9 +6,9 @@
  * via ffmpeg, analyzes each frame for safe-zone compliance, content presence,
  * and render integrity using lib/frame-analysis.mjs (pure functions).
  *
- * This is the Remotion-path counterpart of verify-scene-dom.mjs (which does
- * DOM-based checks for the Playwright path). Since Remotion renders to pixels
- * not DOM, we analyze the actual rendered output.
+ * Since Remotion renders to pixels not DOM, we analyze the actual rendered
+ * output. (This replaced the DOM-based verify-scene-dom.mjs gate when the
+ * HTML/Playwright render path was retired — see retired-html-path/README.md.)
  *
  * Usage:
  *   node verify-remotion-frames.mjs --content <dir> [--video <path>]
@@ -85,8 +85,7 @@ console.log("─".repeat(50));
 if (!existsSync(videoPath)) {
   console.error(`❌ Video not found: ${videoPath}`);
   console.error(
-    "   Run the pipeline first: node scripts/short-video/main.mjs --remotion --content " +
-      contentDir,
+    `   Run the pipeline first: node scripts/short-video/main.mjs --content ${contentDir}`,
   );
   process.exit(1);
 }

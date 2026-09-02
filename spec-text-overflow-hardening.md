@@ -26,13 +26,14 @@ Scene 9 的 "THAT'S THE WHOLE POINT" 被切掉尾字母 T：字符预算 PASS、
 把"宽度判定"从估算改为**测量**：
 
 - 每个动态文本声明一个 **slot 契约**（可用宽高、字号首选值/硬下限、行数、换行策略、
-  标注策略、settled frame），Remotion 组件、HTML 模板、创作提示、验证器四处共同消费
+  标注策略、settled frame），Remotion 组件、创作提示、验证器共同消费
 - 渲染时 **Fit 层**按真实几何选字号（触底即 `cancelRender`），**Assert 层**在稳定帧
   用统一坐标校验文本与标注绘制（含字形 ink 外溢），任一失败即终止渲染
-- HTML 路径改为 `raw → Chromium materialize/fit → 注入字号 → final`，
-  验证器与录制器消费**同一个 final 文件**
 - 时间轴采用 **A2**：非末幕 `clipFrames + TRANSITION_FRAMES`，视觉起点回到 `Σ clipFrames`，
   黑帧与音画漂移同时消失，音频/字幕/`Root` 零改动
+
+> **修订注（决策 59）**：原第四条「HTML 路径管线化（raw → Chromium materialize/fit →
+> final）」已随 HTML（Playwright）路径退役作废——15/15 内容包零消费者，单渲染器世界。
 
 ---
 
@@ -46,13 +47,15 @@ Scene 9 的 "THAT'S THE WHOLE POINT" 被切掉尾字母 T：字符预算 PASS、
    而不是渲染器忽略它去框整个 result
 5. As 视频作者，我希望 media 依赖型布局缺素材时被拦住，且不会因为我还没跑自动搜图就先失败
 6. As 视频作者，我希望 `render-only` 重渲染时也走同样的媒体校验，而不是绕过
-7. As 视频作者，我希望 HTML 渲染路径和 Remotion 路径有一致的保护，而不是只有一条路径安全
+7. ~~As 视频作者，我希望 HTML 渲染路径和 Remotion 路径有一致的保护，而不是只有一条路径安全~~
+   （已消解：决策 59 HTML 路径退役，只剩单渲染器）
 8. As 视频作者，我希望改了文案/字号后，回归测试能自动告诉我有没有裁切，不靠肉眼审片
 9. As 观众，我希望视频结尾是 CTA 而不是黑屏 + 还在跑的字幕
 10. As 观众，我希望语音与画面对齐，而不是声音比画面晚 3 秒
 11. As 观众，我希望斜体/特殊字形的边缘不被切掉（ink overhang）
 12. As 观众，我希望 Hook 的数字圆圈不压住其他文字
-13. As 维护者，我希望几何判定只有一份实现，Remotion 与 HTML 共享，不会各自漂移
+13. ~~As 维护者，我希望几何判定只有一份实现，Remotion 与 HTML 共享，不会各自漂移~~
+    （已消解：决策 59，同上）
 14. As 维护者，我希望每个 slot 有唯一 ID 并在 DOM 上可寻址，以便自动校验
 15. As 维护者，我希望 scene-data 里出现拼错/未识别的字段时直接 FAIL，而不是被静默忽略
 16. As 维护者，我希望 fixture 覆盖历史事故形态且不依赖内容包现状（s5 已改布局）
@@ -97,14 +100,16 @@ required / shrinkPriority`。契约值覆盖 10 个动态文本来源（9 个场
    该子串；`text` 必须是 `field` 所指字段文本的子串，否则 FAIL。
    存量 17 处迁移（qwen4 7 / doubao 9 / light-society 1；light-society 改写为
    `{field:"quote", text:"4M beliefs"}`）。
-9. **HTML 路径管线化**：`generateScene` 只产出 raw HTML；随后在 Chromium 中
+9. ~~**HTML 路径管线化**：`generateScene` 只产出 raw HTML；随后在 Chromium 中
    materialize + Fit（等 `fonts.ready` 与 settled）→ 注入字号 → 写 final HTML；
-   **验证器与录制器都 `page.goto(final)`**。verifier 删除重新 `generateScene` 的逻辑。
-10. **失败语义分路径**：HTML 路径抛结构化 `TextFitError`（sceneId / slotId / field /
-    measured vs available / fontSize / inkPad）并终止管线；**只有 Remotion 用
-    `cancelRender()`**。两者输出同一结构的机器可读错误。
-11. **HTML 模板 → slot 映射按 `visualType`**（HTML renderer 不消费 `scene.layout`）；
-    每个模板函数声明它渲染的 slot ID 全集。HTML 支持 `media-split` 需先实现布局等价性（本期不做）。
+   **验证器与录制器都 `page.goto(final)`**。verifier 删除重新 `generateScene` 的逻辑。~~
+   （已作废：决策 59 HTML 路径退役）
+10. **失败语义**：结构化 `TextFitError`（sceneId / slotId / field /
+    measured vs available / fontSize / inkPad）；Remotion 用 `cancelRender()` 传播。
+    （修订注：决策 59 后只有 Remotion 一条路径，原「HTML 路径直接 throw」分叉删除。）
+11. ~~**HTML 模板 → slot 映射按 `visualType`**（HTML renderer 不消费 `scene.layout`）；
+    每个模板函数声明它渲染的 slot ID 全集。HTML 支持 `media-split` 需先实现布局等价性（本期不做）。~~
+    （已作废：决策 59；slot 字段四分类的唯一权威来源是 `REMOTION_SLOT_MAP`，决策 50。）
 12. **时间轴 A2**：非末幕 `visualDuration = clipFrames + TRANSITION_FRAMES`，
     末幕不变；每幕视觉起点回到 `Σ clipFrames`，总时长仍 1953 帧，
     CTA 视觉 1784→1953 与总时长一致。引入**共享 schedule** 驱动 `ShortVideo`、`Root`、
@@ -130,7 +135,7 @@ required / shrinkPriority`。契约值覆盖 10 个动态文本来源（9 个场
 HTML final 产物链路、final-media gate、共享 schedule、highlight 子串切分。
 
 **回归主断言 = 确定性 fixture（F1–F9）**，每个用固定输入 + Remotion still 渲染，
-不依赖内容包现状；HTML 路径的 F8 走 Playwright。
+不依赖内容包现状。（修订注：F8 原针对 HTML final 产物链路，随决策 59 作废；F 编号保留不重排。）
 
 **既有先验**：`__tests__/remotion-timeline.test.mjs`（需重写：当前断言恒真）、
 `scene-rules.test.mjs`、`frame-analysis.test.mjs`。
@@ -143,7 +148,7 @@ HTML final 产物链路、final-media gate、共享 schedule、highlight 子串�
 ## Out of Scope
 
 - **字体打包**（跨机渲染确定性）——独立 backlog，触发条件：渲染离开本机
-- **HTML 布局等价性**（让 HTML 支持 `media-split` 等 Remotion 布局变体）
+- ~~**HTML 布局等价性**（让 HTML 支持 `media-split` 等 Remotion 布局变体）~~（随决策 59 作废）
 - **逐行标注 / 替换 rough-notation 标注结构**
 - **逐行标注所需的多行高亮**
 - **存量 15 个内容包的批量文案修复**——只出决策清单，不在本 spec 内改文案
@@ -156,7 +161,7 @@ HTML final 产物链路、final-media gate、共享 schedule、highlight 子串�
 - 期刊式教训（已写入 Proposal §11）：方案文档先 commit 再大改；CLI 帮助看完整输出；
   文件盘点用 `find` 递归；样式关键字连字符与驼峰都要匹配。
 - 2% 阈值与 240/180 字号为初值，F7/F9 跑出实测 ratio 后在实施中微调（不放宽门槛的前提下）。
-- Remotion 与 HTML 的 Assert **共享同一实现**，避免两套判定漂移。
+- ~~Remotion 与 HTML 的 Assert **共享同一实现**，避免两套判定漂移。~~（决策 59 后单渲染器，约束自然满足。）
 
 ---
 
@@ -338,9 +343,11 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
 
 **决策**
 
-57. Fit 内核换官方实现：`fitGroup` 的单字段缩字阶梯换为 `fitText`（单行）/
-    `fitTextOnNLines`（多行，如需）；保留外层编排（shrinkOrder、minSize 硬下限、EPS）
-    与**终态验证**（Range 几何）——官方不验证结果，验证层是闸门本体。
+57. Fit 内核换官方实现：官方 `fitText`（单行）/`fitTextOnNLines`（多行，如需）替换
+    **自建单字段缩字内核**，接入点为 **TextGate 生产路径的候选字号生成**
+    （`fitCandidates()` 的消费侧，见决策 63 修正——不是无生产调用者的 `fitGroup`）；
+    保留外层编排（shrinkOrder、minSize 硬下限、EPS）与**终态验证**（Range 几何）——
+    官方不验证结果，验证层是闸门本体。
     替换前先实测 Times 900 大写连字场景的线性外推误差；超 EPS 则线性外推后接一步二分精化。
 58. Assert 层不动：ink 四方向 / 标注 overdraw / 入场逐帧 / 容器溢出——官方与行业均无等价物，
     且非误读（最新 `fitText` API 仍无此能力）。`text-geometry.mjs` 的 ink 公式、坐标变换与
@@ -356,6 +363,55 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
     本次不采纳。
 62. 回归哨兵：决策 57 是「已绿代码的等价替换」——替换前存档现有 28 门测试 + `_gate-smoke`
     冒烟基线，替换后全绿 + 全管线冒烟一次通过才算完成。
+
+---
+
+## T12 方向修正（2026-09-02 实施审计驱动，全部经用户确认）
+
+> 审计发现两处 P1 阻断与多处完成声明失真，T12 原方向按其原样实施不会改变生产行为。
+> 本节不推翻 T1–T7 交付，只修正 T9/T10/T11/T12 的实施前提与 checklist。
+
+**决策**
+
+63. **Fit 内核接入点修正（修订决策 57 的实施目标）**：`fitGroup()` 无生产调用者
+    （仅 `text-geometry.test.mjs` 单测）；生产 Fit 阶梯是 TextGate → `fitCandidates()`
+    （`text-gate.tsx` Fit 循环，候选序列由 `text-slots.mjs` 生成）。官方 `fitText`/
+    `fitTextOnNLines` 的接入点 = **TextGate 候选字号生成**（TextGate 内或 Remotion 工作区
+    新增 browser helper，供 TextGate 调用）：官方输出只作候选值，最终仍由既有
+    Range 几何 + ink 终态验证（决策 58 不变）。`fitGroup` 若替换后确认无消费者，随 T12
+    一并退役。
+64. **`validateFontIsLoaded` 不强制开启**：项目 Times 字体栈与浏览器 fallback 指标一致，
+    官方对照启发式会误判未加载。保留现有 `document.fonts.ready` + 超时 FAIL 门（决策 30）；
+    未来若需精确字体验证，先打包命名字体再评估开启。
+65. **stacked-cards badge 阻断（T9 新首项）**：qwen4 s9 等场景数据含 `texts.badge`
+    （如 `content/qwen4-preview/scene-data.mjs` s9），但
+    `REMOTION_SLOT_MAP.narrative.stacked-cards` 未声明 badge、模板不渲染 → 渲染层立即
+    FAIL（`no measured maxWidth`）。修复方向：模板渲染 badge 并接 TextGate + 实测宽度
+    回填（推荐）；删除数据为备选。stacked-cards 现存五个 slot 宽度已实测（752/820），
+    「尚未测量」旧项仅剩 badge。
+66. **mediaOptOut 契约归位**：它是 scene 顶层字段（scene-rules / final-media-gate /
+    b-roll orchestrator 全部读 `scene.mediaOptOut`），却被 `REMOTION_SLOT_MAP` 四个
+    narrative 布局放进 texts `control` 列表，现有测试锁定的还是错误的 `texts.mediaOptOut`
+    位置。修正：从文本 map 移除，SceneData 顶层类型补声明，测试改锁顶层。
+67. **TextGate 两处实施缺陷**：(a) 标注挂载轮询（30 帧）耗尽后 fail-open——SVG 不存在
+    也继续测量；改为显式 `annotation-missing`/timeout 失败。(b) ink 测量按整个文本节点
+    调用 `measureText()`，与决策 5「每个渲染行、每个样式 run 单独测量」不符——多行时
+    左右 overhang 计算错误；T10 补真正的逐行实现 + mixed-span/multiline 浏览器测试。
+68. **多字段缩字编排前提缺失（修订决策 17）**：所有 slot `maxHeight: null` 且
+    `shrinkOrder()`/`fitGroup()` 无生产调用者——「总高超限按优先级缩字」目前只是单测
+    算法。T9 必须先设计并接入 parent/group gate（多字段垂直门）再谈字段缩序。
+    决策 17 第三阶段「再等比」与决策 2 minSize 硬下限矛盾（等比必低于硬下限或被阻断，
+    第三阶段不可达）——**删除等比阶段**：逐字段缩到各自 minSize，仍超则失败。
+69. **s9「53s 透出上一幕媒体」为转场窗口误诊**：s9 视觉起点 ≈52.7667s，30fps × 10 帧
+    转场至 ≈53.1s；53s 抽帧落在转场窗口内，非 stacked-cards 媒体泄漏（该布局无媒体层）。
+    53.2s 后复测；若要求转场第一帧即清空上一幕媒体，属转场策略决策（调转场或加不透明
+    背景），不是媒体 gate 缺陷。
+70. **ANNOTATION_OVERDRAW 测量口径统一先行**：现值 64px 覆盖不了决策 56 自述的 91px
+    实测上界。先统一测量口径（同一 annotation 类型、同一抽帧条件）；若 91px 与 64px 属
+    同一边界，按 annotation 类型设容差或修布局，不直接全局放宽。
+71. **T11 修订**：blocked-by 增加 T12；补代码项——字符预算按决策 14 降为契约推导
+    WARN（当前 `scene-rules.mjs` 仍手写锚点 + `level: "fail"`）；关闭父 issue #141 前
+    必须处理 #153（存量 preflight）。
 
 ---
 
@@ -401,8 +457,8 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
 | 5   | scene-data 含未识别字段 / `rendered` 字段缺失                                      | 注册协议 FAIL                                                | 拼错字段被静默忽略            | F5                                         |
 | 6   | media-split 形态 + `"1/9 THE TRAINING COST"` @52px（Remotion 真实 NarrativeScene） | Assert FAIL                                                  | 历史形态无法复现              | F6 写死确定性文案                          |
 | 7   | Hook settled frame：`box="inside"` + 240px 圆                                      | 圆与 subject / numberLabel 各自重叠 ≤ 2%，ratio 被记录       | 圆压字                        | F7                                         |
-| 8   | HTML 路径：Fit 未落盘                                                              | verifier FAIL（旧实现会绿）                                  | 验证产物 ≠ 录制产物           | F8                                         |
-| 9   | HTML 路径：Fit 内联落盘                                                            | verifier PASS，recorder 消费同一 final 文件                  | 两产物漂移                    | F8                                         |
+| 8   | ~~HTML 路径：Fit 未落盘 → verifier FAIL~~                                         | 已作废（决策 59，F8 随 HTML 路径退役）                       | —                            | —                                          |
+| 9   | ~~HTML 路径：Fit 内联落盘 → verifier PASS~~                                        | 已作废（决策 59）                                            | —                            | —                                          |
 | 10  | Times italic `f` / `T`、`letter-spacing`、混合 span、多行                          | ink-bound 检出四方向外溢；旧错误公式 fixture 变红            | 字形墨迹外溢漏检              | F9                                         |
 | 11  | `minSize` 触底后多字段总高仍超 `maxHeight`                                         | 失败，**不**突破 minSize（无 ×0.9）                          | 偷偷缩到不可读                | 单测 + F3                                  |
 | 12  | 多字段组合：`context → action → company → result` 缩字                             | 按优先级缩到各自 minSize，再等比，仍超则失败                 | 缩错字段                      | 契约单测                                   |
@@ -418,7 +474,7 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
 | 22  | 时间轴 A2 后成片                                                                   | 无黑帧尾；CTA 视觉到最后一帧；音画偏差 0                     | 时长/对齐回归                 | 末帧检查 + 帧抽样                          |
 | 23  | 末幕是 CTA 且总时长 = `Σ clipFrames`                                               | CTA 视觉 1784→1953                                           | 尾部黑帧                      | 末帧检查 FAIL 纯背景                       |
 | 24  | 字体加载超时 / 未 ready 就测量                                                     | Fit 等待 `document.fonts.ready`，超时 → 失败                 | 用错字体度量                  | 超时路径单测                               |
-| 25  | final HTML 文件缺失                                                                | verifier FAIL（不允许自行重新生成）                          | 验了内存里的另一份            | F8                                         |
+| 25  | ~~final HTML 文件缺失 → verifier FAIL~~                                            | 已作废（决策 59，无 final HTML 产物）                        | —                            | —                                          |
 | 26  | Remotion 版本不一致（4.0.508 / 4.0.517 混用）                                      | 锁 4.0.517，`npx remotion versions` 校验通过                 | 依赖漂移                      | CI/本地校验                                |
 | 27  | CI/无头环境字体缺失                                                                | Fit 走字体加载超时路径并失败（而非静默用回退字体）           | CI 与本地结果不一致           | 超时路径单测 + 文档标注                    |
 | 28  | 空值：`stats: []`、空字符串字段、无标注字段                                        | 跳过几何校验，不 FAIL                                        | 空值误报                      | 单测覆盖 `""` / `[]` / `undefined`         |

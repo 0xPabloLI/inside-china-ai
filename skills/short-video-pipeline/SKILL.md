@@ -1,6 +1,6 @@
 ---
 name: short-video-pipeline
-description: Automated pipeline for generating 9:16 vertical short videos from scene data — TTS voiceover, HTML/CSS scene rendering, Playwright recording, FFmpeg assembly. Use when creating short-form video content for TikTok (default), YouTube Shorts, or Instagram Reels.
+description: Automated pipeline for generating 9:16 vertical short videos from scene data — TTS voiceover, Remotion frame-by-frame rendering, burned karaoke subtitles. Use when creating short-form video content for TikTok (default), YouTube Shorts, or Instagram Reels.
 ---
 
 # Short Video Pipeline
@@ -132,7 +132,7 @@ The TikTok Hook is three things firing in the first 1-3 seconds:
 |-----------|------|-----|
 | **One core message** | First frame conveys ONE number/word/claim, not a menu | Users scroll ~1/sec; multi-item frames = "too much work" |
 | **Text ≥ 32px** | Minimum 32px on 1080×1920 canvas; titles ≥ 60px; hero numbers ≥ 200px | At thumbnail size in-feed, < 32px invisible |
-| **Three-zone layout** | Top (220–640px) = hook text/title/badge; Middle (640–1150px) = main subject/data viz; Below y≈1188 = subtitle lane (y≈1188–1350) + TikTok caption UI (y≥1500) | Visual hierarchy flows top→bottom: grab attention → deliver content → read captions. **Not a size constraint** — describes placement priority. All content must stay inside the safe-zone band x[60,880] × y[220,1150] (SAFE_ZONES in `lib/safe-zones.mjs`; enforced by `verify-scene-dom.mjs`, Step 2.5 hard gate). Hook scenes: hero number may span top + middle |
+| **Three-zone layout** | Top (220–640px) = hook text/title/badge; Middle (640–1150px) = main subject/data viz; Below y≈1188 = subtitle lane (y≈1188–1350) + TikTok caption UI (y≥1500) | Visual hierarchy flows top→bottom: grab attention → deliver content → read captions. **Not a size constraint** — describes placement priority. All content must stay inside the safe-zone band x[60,880] × y[220,1150] (SAFE_ZONES in `lib/safe-zones.mjs`; enforced by TextGate in `remotion/src/` + `lib/text-geometry.mjs`). Hook scenes: hero number may span top + middle |
 | **No dead space** | Fill full 1920px height — no > 200px gaps | Blank zones signal "no content" → scroll past |
 | **Bold color blocks** | Use solid-color areas (not gradients) for contrast | Gradients compress poorly at thumbnail size |
 | **Max 2 stat cards** | Don't stack 3+ data points on hook frame | Users can't parse 3+ numbers in 1 second |
@@ -152,9 +152,9 @@ node scripts/short-video/main.mjs           # No BGM (default)
 node scripts/short-video/main.mjs --bgm     # With procedural BGM
 ```
 
-Pipeline stages: TTS → HTML scenes → DOM check → Record (Playwright or Remotion `--remotion`) → (BGM if --bgm) → ASS subtitles → FFmpeg assemble.
+Pipeline stages: media gate → TTS → validate TTS results → (BGM if --bgm) → ASS subtitles → Remotion render → subtitle verification. Remotion is the only renderer — the HTML/Playwright path was retired (decision 59, archive: `scripts/short-video/retired-html-path/`).
 
-Output: `scripts/short-video/output/{pipelineId}/{subject}-{pipelineId}-v{version}-short.mp4` (versioned, timestamp-based) + symlink `{subject}-{pipelineId}-short.mp4` → latest version. The `subject` field in `meta.mjs` (e.g. "deepseek", "china-llm") ensures the filename identifies WHO the video is about.
+Output: `scripts/short-video/output/{pipelineId}/{subject}-{pipelineId}-v{version}-short.mp4` (versioned, timestamp-based, canonical — no symlink). The `subject` field in `meta.mjs` (e.g. "deepseek", "china-llm") ensures the filename identifies WHO the video is about.
 
 **Completion criterion**: versioned output file exists and is non-empty.
 
@@ -363,7 +363,7 @@ News is event-driven, but you can still build a rhythm:
 ## Prerequisites
 
 ```bash
-brew install ffmpeg && npx playwright install chromium
+brew install ffmpeg
 pip3 install pysubs2   # ASS subtitle generation
 # Unified venv (~/.video-tts-env, Python 3.12): f5_tts_mlx + qwen_tts + whisperx (for text-align.py)
 ```
@@ -373,7 +373,6 @@ pip3 install pysubs2   # ASS subtitle generation
 | File | Role |
 |------|------|
 | `content/{article}/scene-data.mjs` | Scene definitions: voiceover + visual metadata. **Edit this first** to change content. |
-| `content/{article}/scenes.mjs` | HTML/CSS scene templates. Reads brand tokens from `docs/brand-system.md`. |
 | `content/{article}/meta.mjs` | Pipeline metadata: `{ pipelineId, title }`. |
 | `lib/tts/registry.mjs` | TTS engine selector. Engine priority: F5-TTS-MLX > Qwen3-TTS > edge-tts > say. |
 | `lib/tts/f5-mlx.mjs` | F5-TTS-MLX engine adapter (default, best quality on Apple Silicon). |
@@ -382,23 +381,20 @@ pip3 install pysubs2   # ASS subtitle generation
 | `text-align.py` | Forced alignment: wav2vec2 aligns KNOWN text to audio → per-word timestamps in `subtitle-timing.json`. Replaces Whisper (which tries to RECOGNIZE, not ALIGN). |
 | `lib/subtitles/cues.mjs` + `ass.mjs` | Subtitles: pixel-width chunking (cues; ≤720px hard, ≤6 words) + ASS render with `\kf` karaoke tags (ass.mjs). Values derive from `SUBTITLE_LANE`. |
 | `lib/generate-bgm.mjs` | Procedural cyber-ambient background music via FFmpeg audio synthesis (7-layer mix at 12% volume). |
-| `lib/record-scenes.mjs` | Playwright headless browser records each scene as WebM. |
-| `lib/assemble.mjs` | FFmpeg merges video+audio per scene, burns ASS subtitles, mixes BGM, concatenates into final MP4. Versioned output + symlink. |
-| `main.mjs` | Orchestrator: TTS → HTML → DOM check (Step 2.5 hard gate) → Record → (BGM) → ASS → Assemble. |
+| `lib/render-remotion.mjs` | Remotion renderer: React scene components → frame-by-frame → final MP4 (single renderer; the HTML/Playwright path was retired, see `retired-html-path/`). |
+| `main.mjs` | Orchestrator: media gate → TTS → validate → (BGM) → ASS → Remotion render (TextGate enforced in-render) → verify. |
 | `lib/verify-subtitles.mjs` | Subtitle coverage + sync verification. |
 | `verify-video.mjs` | TikTok best practices compliance gate (MRL-3). |
-| `lib/base-styles.mjs` | Shared visual system (CSS vars, backgrounds, animations, brand SVG). |
 
 ### Data flow
 
 1. `scene-data.mjs` exports `scenes[]` — each has `id`, `voiceover`, `texts`
 2. `lib/tts/registry.mjs` selects engine (F5 > Qwen > edge > say), produces one MP3/WAV per scene + returns exact durations
 3. `text-align.py` (wav2vec2) aligns KNOWN text to audio → `subtitle-timing.json` with per-word timestamps
-4. `scenes.mjs` takes `(scene, duration)` → returns HTML with CSS animations (`--d: ${duration}s`)
-5. `record-scenes.mjs` records for `duration + 0.5s` buffer
-6. `lib/subtitles/cues.mjs` + `ass.mjs` chunk `subtitle-timing.json` by pixel width and render the ASS with `\kf` karaoke tags (Step 2.5 `verify-scene-dom.mjs` runs right after scene HTML generation)
-7. `generate-bgm.mjs` synthesizes ambient track for `totalDuration + 10s` (if `--bgm`)
-8. `assemble.mjs` merges each WebM+audio → MP4 with fade, burns ASS subtitles via libass, mixes BGM at 12%, concatenates all. Output: `{pipelineId}-v{version}-short.mp4` + symlink `{pipelineId}-short.mp4`
+4. `remotion/src/` scene components take `(scene, duration)` → React render; TextGate enforces slot geometry before render
+5. `lib/subtitles/cues.mjs` + `ass.mjs` chunk `subtitle-timing.json` by pixel width and render the ASS with `\kf` karaoke tags
+6. `generate-bgm.mjs` synthesizes ambient track for `totalDuration + 10s` (if `--bgm`)
+7. `lib/render-remotion.mjs` renders the composition to `{pipelineId}-v{version}-short.mp4` (versioned output, canonical — no symlink); `post-process.mjs` burns ASS subtitles via libass and mixes BGM at 12%
 
 ### Subtitle system
 
@@ -443,7 +439,7 @@ Read `docs/brand-system.md` for color tokens, typography, animation library, and
 
 **Audio concat (gapless master track)**: `assemble.mjs` renders each scene clip VIDEO-ONLY (`-an`), builds one continuous voiceover master track (`lib/audio/track.mjs` — real silence padded to each scene's clip length, sample-exact), concat the video with stream copy, then mux the master track once. Audio is encoded a single time, so AAC encoder delay can never accumulate per-scene (~46ms/scene drift) — no per-scene audio re-encode during concat.
 
-**Versioning**: Output files are versioned with timestamp: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`. A symlink `{pipelineId}-short.mp4` always points to the latest version. Old versions beyond the 3 most recent are auto-deleted.
+**Versioning**: Output files are versioned with timestamp: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`. There is no symlink — the timestamped file is canonical, and old versions are cleaned up manually.
 **Network retry**: edge-tts connection drops handled with exponential backoff (3 retries) in `generate-tts.mjs`.
 
 **Scene length**: 6-12 seconds each. If TTS > 12s, split into two scenes. Total target: 60-70s for TikTok (default).

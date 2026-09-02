@@ -1,8 +1,9 @@
 /**
  * HookScene — the opening "hook" scene template.
  *
- * Maps from hookScene() in lib/scene-templates.mjs.
- * All font sizes, colors, positions are精确对照 from templateCss().
+ * Derived from the retired hookScene() HTML template
+ * (retired-html-path/scene-templates.mjs).
+ * All font sizes, colors, positions are精确对照 from its templateCss().
  *
  * Two variants: number-led (bigNumber) or claim-led (hookText + revealText).
  * Optionally renders a media background when scene.media is present.

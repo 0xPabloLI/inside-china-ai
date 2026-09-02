@@ -3,6 +3,8 @@
 > Created: 2026-08-19
 > Status: Ready for implementation
 > Source: Grill session 3 rounds, 2026-08-19
+>
+> **后续变动注记（2026-09-01）**：本 spec 中关于 Playwright 渲染路径的保留/回退设计（§11、§13-14、Out of Scope）已被决策 59 推翻——HTML/Playwright 路径已全部退役并归档到 `scripts/short-video/retired-html-path/`，`--playwright` 旗标现为 fail-fast（`lib/renderer-guard.mjs`）。涉及 `scenes.mjs` / `scene-templates.mjs` 的模板改动项对应物现在是 `remotion/src/` 场景组件。
 
 ## Problem Statement
 

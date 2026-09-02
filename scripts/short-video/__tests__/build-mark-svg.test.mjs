@@ -8,7 +8,6 @@ import {
   BRAND_BLUE,
   BRAND_RED,
 } from "../build-mark-svg.mjs";
-import { BRAND_MARK_SVG } from "../lib/scene-templates.mjs";
 
 /**
  * Brand mark repair (spec D5).
@@ -19,8 +18,7 @@ import { BRAND_MARK_SVG } from "../lib/scene-templates.mjs";
  *
  * The build script produces a video-specific asset (mark-video.svg) with a
  * correct viewBox and brand-palette fills; the source SVG never changes.
- * BRAND_MARK_SVG (used by brandBar / watermark / CTA logo) must read the
- * repaired asset.
+ * The Remotion components (CtaScene / visuals) must read the repaired asset.
  */
 
 const SOURCE_PATH = new URL("../assets/china-ai-news-mark.svg", import.meta.url);
@@ -85,16 +83,5 @@ describe("buildMarkSvg (source → video asset)", () => {
     const first = buildMarkSvg(SOURCE_PATH, OUTPUT_PATH).output;
     const second = buildMarkSvg(SOURCE_PATH, OUTPUT_PATH).output;
     expect(second).toBe(first);
-  });
-});
-
-describe("BRAND_MARK_SVG points at the repaired video asset", () => {
-  it("carries a viewBox so CSS scaling works at any size", () => {
-    expect(BRAND_MARK_SVG).toMatch(/<svg[^>]*viewBox=/);
-  });
-
-  it("carries brand palette fills, not the old dark blues", () => {
-    expect(BRAND_MARK_SVG).not.toMatch(/#0000|#FF0000|#770046/i);
-    expect(BRAND_MARK_SVG).toContain(BRAND_BLUE);
   });
 });

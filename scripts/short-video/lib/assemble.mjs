@@ -1,19 +1,16 @@
 /**
- * Assembles the final video using FFmpeg.
- * For each scene: combines WebM video + audio → MP4 with fade transitions.
- * Then concatenates all scene MP4s into the final short video.
+ * Output-path helpers for the final video.
+ *
+ * The FFmpeg scene-by-scene assembler (`assembleVideo`) lived here until the
+ * HTML/Playwright render path was retired (decision 59,
+ * spec-text-overflow-hardening.md): it existed to concatenate the WebM clips
+ * recorded by record-scenes.mjs, and Remotion renders the whole composition
+ * itself. Final assembly now lives in lib/render-remotion.mjs; the post-roll
+ * helpers (burnSubtitles / mixBgm / normalizeLoudness) live in post-process.mjs.
  */
 
-import { execSync } from "child_process";
-import { writeFileSync, unlinkSync, existsSync, renameSync, readdirSync } from "fs";
+import { readdirSync } from "fs";
 import { join } from "path";
-import { FPS, sceneClipFrames, sceneClipDuration } from "./timeline.mjs";
-import { buildVoiceoverTrack, TRACK_SAMPLE_RATE } from "./audio/track.mjs";
-import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
-
-function run(cmd) {
-  execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] });
-}
 
 /**
  * Resolve the canonical output video for a pipeline: the latest versioned
@@ -32,147 +29,4 @@ export function resolveOutputVideo(outputDir, filePrefix) {
     // outputDir missing or unreadable — fall through to the legacy path.
   }
   return latest ? join(outputDir, latest) : join(outputDir, `${filePrefix}-short.mp4`);
-}
-
-export function assembleVideo(
-  scenes,
-  outputDir,
-  pipelineId,
-  bgmPath = null,
-  subtitlesPath = null,
-  version = null,
-  subject = null,
-) {
-  // File prefix: {subject}-{pipelineId} if subject exists and differs from pipelineId, else {pipelineId}
-  const filePrefix = subject && subject !== pipelineId ? `${subject}-${pipelineId}` : pipelineId;
-  // Versioned output: {filePrefix}-v{version}-short.mp4, or {filePrefix}-short.mp4 if no version
-  const versionSuffix = version ? `-v${version}` : "";
-  const finalPath = join(outputDir, `${filePrefix}${versionSuffix}-short.mp4`);
-  const concatFile = join(outputDir, "concat.txt");
-  const sceneFiles = [];
-
-  const missingAudio = scenes.find((s) => !s.audioPath);
-  if (missingAudio) {
-    throw new Error(
-      `Scene ${missingAudio.sceneId} has no audioPath — cannot build the voiceover track`,
-    );
-  }
-
-  for (const [i, scene] of scenes.entries()) {
-    const sceneOutput = join(outputDir, `scene-${scene.sceneId}_final.mp4`);
-    // Clip length is defined in frames (see lib/timeline.mjs). Requesting a
-    // duration in seconds would be rounded up to the next frame by FFmpeg,
-    // drifting the subtitle timeline a few ms per scene.
-    const clipFrames = sceneClipFrames(scene.duration);
-    const clipDuration = sceneClipDuration(scene.duration);
-    const fadeOutStart = Math.max(clipDuration - 0.3, 0.1).toFixed(3);
-
-    // First scene starts at full impact — no fade-in — so the opening frame
-    // carries the hook content immediately (TikTok's auto-selected cover and
-    // any early-frame selection gets real content, not a black frame).
-    const fadeIn = i === 0 ? "" : "fade=t=in:st=0:d=0.2,";
-
-    // Video-only clips: the audio lives in exactly one place — the voiceover
-    // master track. Carrying a per-scene audio stream here would create a
-    // second, container-level copy of the timeline for concat to drift from.
-    const parts = [
-      "ffmpeg -y",
-      `-i "${scene.videoPath}"`,
-      `-c:v libx264 -preset fast -crf 23 -r ${FPS}`,
-      "-an",
-      // Fade out near end (fade-in skipped for first scene)
-      `-vf "${fadeIn}fade=t=out:st=${fadeOutStart}:d=0.3"`,
-      `-frames:v ${clipFrames}`,
-      `"${sceneOutput}"`,
-    ];
-
-    run(parts.join(" "));
-    sceneFiles.push(sceneOutput);
-    console.log(`  Scene ${scene.sceneId}: video rendered (${clipFrames} frames)`);
-  }
-
-  // Build the continuous voiceover master track: every scene padded with real
-  // silence to its clip length, concatenated sample-exactly. Its length equals
-  // the video length, so no downstream decode→re-encode (player, TikTok ingest)
-  // can compact anything — subtitles and audio stay on one timeline forever.
-  const voiceoverPath = join(outputDir, "voiceover.wav");
-  const { samples: trackSamples } = buildVoiceoverTrack({
-    sceneAudioPaths: scenes.map((s) => s.audioPath),
-    ttsDurations: scenes.map((s) => s.duration),
-    outputPath: voiceoverPath,
-  });
-  console.log(
-    `  🎙 voiceover.wav: ${(trackSamples / TRACK_SAMPLE_RATE).toFixed(3)}s — gapless master track`,
-  );
-
-  // Create concat list file
-  const concatContent = sceneFiles.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join("\n");
-  writeFileSync(concatFile, concatContent);
-
-  // Marry the concatenated video (stream-copied) to the gapless master track.
-  // Audio is encoded once here; the optional --bgm pass below re-encodes the
-  // already-continuous track, which can only add a constant whole-file offset
-  // (AAC priming), never per-scene drift.
-  run(
-    `ffmpeg -y -f concat -safe 0 -i "${concatFile}" -i "${voiceoverPath}" ` +
-      `-map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ar 44100 "${finalPath}"`,
-  );
-
-  // Burn in subtitles (ASS) if provided
-  if (subtitlesPath && existsSync(subtitlesPath)) {
-    const tempPath = finalPath.replace(".mp4", "-presubs.mp4");
-    renameSync(finalPath, tempPath);
-    burnSubtitles(tempPath, subtitlesPath, finalPath);
-  }
-
-  // Mix background music if provided
-  if (bgmPath) {
-    const tempPath = finalPath.replace(".mp4", "-prebgm.mp4");
-    renameSync(finalPath, tempPath);
-    mixBgm(tempPath, bgmPath, finalPath);
-  }
-
-  // Normalize loudness to EBU R128 -16 LUFS (applied to both paths)
-  // Skip with TTS_NO_LOUDNORM=1 (for A/B testing raw vs normalized audio)
-  if (process.env.TTS_NO_LOUDNORM !== "1") {
-    const tempPath = finalPath.replace(".mp4", "-prenorm.mp4");
-    renameSync(finalPath, tempPath);
-    normalizeLoudness(tempPath, finalPath);
-    try { unlinkSync(tempPath); } catch {}
-  }
-
-  // Clean up temp files
-  unlinkSync(concatFile);
-
-  // No symlink — the versioned file is the canonical output.
-  // Clean up old versioned files (keep latest 3)
-  try {
-    const versionedFiles = execSync(
-      `ls -1 "${outputDir}" | grep '${filePrefix}-v.*-short.mp4' | sort -r`,
-      { encoding: "utf8" },
-    )
-      .trim()
-      .split("\n")
-      .filter(Boolean);
-    if (versionedFiles.length > 20) {
-      for (const oldFile of versionedFiles.slice(20)) {
-        const oldPath = join(outputDir, oldFile);
-        try {
-          unlinkSync(oldPath);
-          console.log(`  🗑️ Cleaned old version: ${oldFile}`);
-        } catch {}
-      }
-    }
-  } catch {}
-
-  // Get final duration
-  let finalDuration = "unknown";
-  try {
-    const info = execSync(
-      `ffprobe -i "${finalPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    finalDuration = `${parseFloat(info.trim()).toFixed(1)}s`;
-  } catch {}
-
-  return { path: finalPath, duration: finalDuration };
 }

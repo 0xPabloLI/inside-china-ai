@@ -128,6 +128,7 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 | `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN) |
 | `handoff-vlm-cascade-router-2026-08-27.md` | VLM Cascade Router 调研完成 (Issue #127 OPEN) |
 | `handoff-infinitetalk-modal-2026-08-28.md` | InfiniteTalk Modal 推理 handoff（状态：推理运行中） |
+| `handoff-agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计（状态：待新 session 执行只读审计） |
 
 ### `reviews/` — Active review records
 
@@ -172,6 +173,7 @@ Deep research reports with citations.
 
 | Document | Purpose |
 |----------|---------|
+| `agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计 — 9 份文档逐句发现（sediment/no-ops/duplication/下沉）、预估节省、skill 目录统计与卸载候选；实施需用户批准 |
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
 | `anti-bot-scraping-solutions.md` | Anti-bot scraping solutions — bypass strategies and alternative search engines |
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |

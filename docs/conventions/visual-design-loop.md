@@ -12,7 +12,6 @@
 
 - `remotion/src/scenes/*.tsx` — Remotion 场景组件（实际渲染的代码）
 - `remotion/src/components/visuals.tsx` — 共享视觉组件（StatCard、BadgePill 等）
-- `lib/scene-templates.mjs` — HTML 模板（DOM 验证用的代码）
 - `lib/scene-layout.mjs` — Slot 布局系统
 - 任何影响 scene 视觉间距/字号/层次结构的改动
 
@@ -34,15 +33,13 @@
 | **Visual Hierarchy** | 字号层次分明？squint test 通过？ | 相邻层级 ratio ≥ 1.25×；同 zone 内无相同字号 |
 | **Rhythm** | tight/medium/generous 交替？ | 组内 tight (8-12px)、组间 medium (24px) 或 large (32px+) |
 | **Density** | slot 占用率合理？ | 60-99% slot 高度；不溢出 safe zone |
-| **Consistency** | React 组件 ↔ HTML 模板同步？ | `verify-template-sync.mjs` 全 pass |
+| **Consistency** | 间距/字号值与 `lib/scene-layout.mjs`、`lib/safe-zones.mjs` 单一真源一致？ | 无硬编码重复值 |
 
 **工具支持**（自动执行）：
 ```bash
-# 间距 scale 检查（WARN 级，集成在 DOM 验证中）
-node scripts/short-video/verify-scene-dom.mjs --content <content-dir>
-
-# React ↔ HTML 模板同步检查
-node scripts/short-video/verify-template-sync.mjs
+# 几何强制（安全区 + 溢出 + 换词）在渲染时由 TextGate 执行：
+# 渲染即验证，任何越界场景直接 fail
+node scripts/short-video/render-only.mjs --content _gate-smoke
 ```
 
 **人工审查**（Agent 执行）：
@@ -52,9 +49,7 @@ node scripts/short-video/verify-template-sync.mjs
 
 #### Step 2: 修复（Fix）
 
-- 一次性修复本轮发现的所有问题
-- React 组件（`.tsx`）和 HTML 模板（`.mjs`）必须同步修改
-- 修复后立即运行 `verify-template-sync.mjs` 确认同步
+- 一次性修复本轮发现的所有问题（Remotion 组件是唯一渲染源，无需双端同步）
 
 #### Step 3: 验证（Verify）
 
@@ -62,13 +57,7 @@ node scripts/short-video/verify-template-sync.mjs
 # TypeScript 类型检查
 cd scripts/short-video/remotion && npx tsc --noEmit
 
-# DOM 验证（含间距 scale 检查）
-node scripts/short-video/verify-scene-dom.mjs --content _test-fixtures/hook-standard
-
-# 模板同步检查
-node scripts/short-video/verify-template-sync.mjs
-
-# 渲染
+# 渲染验证（TextGate 在渲染中强制几何）
 node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-preflight --skip-verify
 ```
 
@@ -92,9 +81,9 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 | 属性 | 规则 | 自动检查 |
 |------|------|---------|
-| margin-top / margin-bottom | 必须是 8 的倍数 | `verify-scene-dom.mjs` check #6 |
-| gap (flex/grid) | 必须是 8 的倍数 | `verify-scene-dom.mjs` check #6 |
-| padding | 必须是 4 的倍数 | `verify-scene-dom.mjs` check #6 |
+| margin-top / margin-bottom | 必须是 8 的倍数 | 代码审查 |
+| gap (flex/grid) | 必须是 8 的倍数 | 代码审查 |
+| padding | 必须是 4 的倍数 | 代码审查 |
 
 #### Hierarchy Ratio（字号层次）
 
@@ -108,14 +97,12 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 | 属性 | 规则 | 自动检查 |
 |------|------|---------|
-| 内容不溢出 safe zone | bottom ≤ 1150px | `verify-scene-dom.mjs` check #1 |
-| slot 占用率 | 60-99% | DOM 测量 |
+| 内容不溢出 safe zone | bottom ≤ 1150px | TextGate（渲染时强制） |
+| slot 占用率 | 60-99% | 代码审查 |
 
 #### Sync（一致性）
 
-| 属性 | 规则 | 自动检查 |
-|------|------|---------|
-| React 组件值 = HTML 模板值 | 所有间距/字号/padding 值一致 | `verify-template-sync.mjs` |
+> Remotion 是唯一渲染器后（决策 59，2026-09-01），不再有 React ↔ HTML 双源，原 `verify-template-sync.mjs` 随 HTML 路径退役（`retired-html-path/`）。一致性现在由单一真源保证：间距/安全区常量只在 `lib/scene-layout.mjs` / `lib/safe-zones.mjs` 定义。
 
 ### 间距语义角色参考
 
@@ -142,12 +129,12 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 | 工具 | 路径 | 作用 |
 |------|------|------|
-| `verify-scene-dom.mjs` | `scripts/short-video/` | DOM 安全区 + 间距 scale 检查（check #6） |
-| `verify-template-sync.mjs` | `scripts/short-video/` | React ↔ HTML 模板值同步检查（9 项） |
+| TextGate | `scripts/short-video/remotion/src/` + `lib/text-geometry.mjs` | 渲染时几何强制（安全区、溢出、换词） |
+| `render-only.mjs` | `scripts/short-video/` | 快速渲染验证（`--content _gate-smoke`） |
 | `impeccable` skill | `.agents/skills/impeccable/` | 5 维度设计审查框架（layout.md） |
 
 ## Design Decisions & References
 
 - **8px scale 选择**：基于 Impeccable `layout.md` 的"consistent spacing scale"原则。4px base 太细（8 和 16 之间需要 12），8px base 在视频画布（1080×1920）上粒度合适。
 - **loop 最大 3 轮**：实践中第 1 轮发现主要问题，第 2 轮发现修复引入的次生问题，第 3 轮应收敛。超过 3 轮说明设计本身有结构性问题，需要人介入。
-- **自动化 vs 人工**：间距 scale 值和模板同步是确定性检查（自动化）。层次 ratio 和语义角色判断需要上下文理解（人工/Agent 审查）。两者结合：工具挡住低级错误，人工审查挡住设计判断错误。
+- **自动化 vs 人工**：几何越界由 TextGate 在渲染时确定性拦截（自动化）；间距 scale、层次 ratio 和语义角色判断需要上下文理解（人工/Agent 审查）。两者结合：工具挡住低级错误，人工审查挡住设计判断错误。

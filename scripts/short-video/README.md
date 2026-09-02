@@ -28,7 +28,7 @@ Stage 3b Asset sourcing + VLM analysis
   │  (VLM auto-detects: content match, fullscreen vs background, fit + focus)
   ▼
 Stage 4  Video production
-  │  (TTS → HTML/Remotion scenes → FFmpeg assembly → ASS subtitles → BGM)
+  │  (TTS → Remotion scenes → FFmpeg assembly → ASS subtitles → BGM)
   ▼
 Stage 5  Verification ────────────→ MRL-3 self-review (auto)
   │  (verify-video.mjs: scene rules + media + subtitles + frame analysis)
@@ -74,9 +74,8 @@ scripts/short-video/
 ├── verify-video.mjs          # Pre/post-render verification
 ├── content/                  # Per-content pipeline definitions
 │   └── <slug>/
-│       ├── meta.mjs          # Title, pipeline ID, key entities, renderer
-│       ├── scene-data.mjs    # Scenes array (id, visualType, voiceover, texts, media)
-│       └── scenes.mjs        # Scene HTML template generators (Playwright)
+│       ├── meta.mjs          # Title, pipeline ID, key entities
+│       └── scene-data.mjs    # Scenes array (id, visualType, voiceover, texts, media)
 ├── remotion/                 # Remotion renderer (React → frame-by-frame)
 │   └── src/
 │       ├── ShortVideo.tsx    # Main composition + scene dispatcher
@@ -90,17 +89,17 @@ scripts/short-video/
 │   ├── requirements-focus.txt      # Pinned deps for focus_detector.py
 │   ├── asset-sourcer.mjs     # Search + download + VLM score + assign assets
 │   ├── review-media-patch.mjs  # Format media-patch.json for human review
-│   ├── media-bg.mjs          # Playwright media layer (CSS)
-│   ├── scene-templates.mjs   # Shared scene HTML templates (hook, cta, etc.)
+│   ├── media-bg.mjs          # Media layer validation (validateMedia)
 │   ├── scene-layout.mjs      # Slot layout system (fixed vertical bands)
 │   ├── safe-zones.mjs        # TikTok safe zones + subtitle lane constants
 │   ├── scene-rules.mjs       # Scene-data validation rules (20+ checks)
 │   ├── generate-tts.mjs      # TTS orchestration (F5-TTS-MLX / Qwen3-TTS)
-│   ├── record-scenes.mjs     # Playwright scene recording
-│   ├── assemble.mjs          # FFmpeg assembly + subtitle burn + BGM mix
+│   ├── assemble.mjs          # Output-path helpers (resolveOutputVideo)
+│   ├── renderer-guard.mjs    # Fail-fast on the retired HTML/Playwright path
 │   └── render-remotion.mjs   # Remotion CLI wrapper
+├── retired-html-path/        # Frozen archive of the retired HTML/Playwright renderer
 ├── assets/                   # Brand logos, BGM, shared images
-└── output/                   # Per-pipeline output (video, audio, scenes)
+└── output/                   # Per-pipeline output (video, audio)
 ```
 
 ## The VLM layer (visual-analyzer)
