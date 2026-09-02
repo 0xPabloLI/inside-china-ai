@@ -26,6 +26,7 @@ import { SPACING, ANNOTATION } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
+import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
 
 const COLORS: Record<string, string> = {
   blue: "#4d8bff",
@@ -57,6 +58,11 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+
+  // Decision 7: the circle annotation exists only around a SHORT number —
+  // one predicate gates the box="inside" Circle, the gate's annotation
+  // expectation, and the F7 collision assert so the three can never drift.
+  const circleAroundNumber = !!txt.bigNumber && (txt.bigNumber as string).length <= 5;
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
@@ -140,7 +146,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
         {/* Focal — number-led preferred (contract bigNumber 240, amber) */}
         {txt.bigNumber ? (
           <div style={{ textAlign: "center" }}>
-            <TextGate sceneId={sceneId} slotId="hook.hero-center.bigNumber" expectAnnotation={(txt.bigNumber as string).length <= 5}>
+            <TextGate sceneId={sceneId} slotId="hook.hero-center.bigNumber" expectAnnotation={circleAroundNumber}>
               {(fontSize) => (
                 <Interactive.Div
                   name="bigNumber"
@@ -158,8 +164,12 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   }}
                 >
                   <NumberPulse interval={2} color="rgba(245,158,11">
-                    {(txt.bigNumber as string).length <= 5 ? (
-                      <Circle color="#f59e0b" progress={circleProgress}>
+                    {circleAroundNumber ? (
+                      // T10 (decision 7): box="inside" keeps the ellipse within
+                      // the number's own box — the circle must never cover the
+                      // subject above or the numberLabel below. F7 asserts that
+                      // contract on every settled frame (assert mounted below).
+                      <Circle color="#f59e0b" progress={circleProgress} box="inside">
                         {txt.bigNumber as string}
                       </Circle>
                     ) : (
@@ -195,6 +205,18 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   )}
                 </TextGate>
               </SlideUp>
+            )}
+            {/* F7 (decision 7): the circle vs subject / numberLabel, each its
+                own ≤2% denominator — mounted only when the circle exists. */}
+            {circleAroundNumber && (
+              <AnnotationCollisionAssert
+                sceneId={sceneId}
+                sourceSlotId="hook.hero-center.bigNumber"
+                targetSlotIds={[
+                  ...(txt.subject ? ["hook.hero-center.subject"] : []),
+                  ...(txt.numberLabel ? ["hook.hero-center.numberLabel"] : []),
+                ]}
+              />
             )}
           </div>
         ) : txt.hookText ? (

@@ -24,6 +24,19 @@
  *                      forward page console). Proves the seeded walk lands on
  *                      the same size the pre-T12 full ladder chose, and pins
  *                      the official extrapolation error (decision 57).
+ *   annotation-missing decision 67a: expectAnnotation gate with no SVG → FAIL
+ *   ink-line-probe     T10 decision 67b: per-line/per-run ink measurements of
+ *                      a multiline node, a mixed-span line, the italic T
+ *                      glyph and a letter-spaced run via payload (old
+ *                      whole-node measureText goes red on the wrapped line's
+ *                      leading overhang)
+ *   f7-collision-fail  T10 F7 (decision 7): a circle covering a neighbour
+ *                      slot's text FAILs annotation-collision with the
+ *                      per-target ratio
+ *   annotation-overdraw-probe  T10 decision 70: every annotation family's
+ *                      drawn box vs host box under the unified settled-assert
+ *                      measurement, per edge (basis for the per-type
+ *                      overdraw tolerance)
  *
  * Spec: spec-text-overflow-hardening.md § T4 Implementation Refinement,
  * decisions 18, 36; § T5 Implementation Refinement, decisions 44, 49;
@@ -31,9 +44,10 @@
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cancelRender, Composition, delayRender, interpolate, registerRoot, useCurrentFrame } from "remotion";
-import { Circle } from "@remotion/rough-notation";
-import { BRAND_FONT_STACK, FPS } from "./components/shared";
-import { TextGate } from "./components/text-gate";
+import { Circle, Highlight, Underline } from "@remotion/rough-notation";
+import { ANNOTATION, BRAND_FONT_STACK, FPS } from "./components/shared";
+import { annotationDrawnBox, collectInkOverhangs, TextGate } from "./components/text-gate";
+import { AnnotationCollisionAssert } from "./components/annotation-collision-gate";
 import { predictGateSeeds } from "./components/official-fit";
 import {
   fitCandidatesFromSeed,
@@ -41,6 +55,7 @@ import {
   officialSeedSize,
 } from "../../lib/official-fit-kernel.mjs";
 import { fitCandidates } from "../../lib/text-slots.mjs";
+import { inkOverhangsOfRun } from "../../lib/text-geometry.mjs";
 
 const SLOT_ID = "narrative.media-overlay.result";
 const SCENE_ID = "fixture";
@@ -316,8 +331,89 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass", probe }) => {
     );
   }
 
+  if (scenario === "annotation-missing") {
+    // Decision 67a: expectAnnotation gates whose annotation never mounts
+    // (children render plain text, no rough-notation SVG) must FAIL after the
+    // mount poll — the old fail-open measured and rendered anyway.
+    return (
+      <Stage>
+        <TextGate sceneId={SCENE_ID} slotId={SLOT_ID} expectAnnotation>
+          {(fontSize) => textNode(fontSize, COPY_FIT)}
+        </TextGate>
+      </Stage>
+    );
+  }
+
+  if (scenario === "f7-collision-fail") {
+    // T10 F7 (decision 7): the annotated number's circle covers a neighbour
+    // slot's text. The subject gate rests 200px down — inside the number's
+    // own text box (0–288px tall at the fitted 240px), i.e. exactly where the
+    // T10 box="inside" ellipse draws. Everything sits in a data-text-container
+    // like the real HookScene's Slot band (the container assert's per-type
+    // overdraw tolerance applies there, not the zero-tolerance slot fallback),
+    // so the gate's own asserts stay quiet and the scene-level COLLISION
+    // assert is the only failure point.
+    return (
+      <Stage>
+        <div data-text-container style={{ position: "relative", width: 820, height: 620 }}>
+          <TextGate sceneId={SCENE_ID} slotId="hook.hero-center.bigNumber">
+            {(fontSize) => (
+              <div
+                style={{
+                  fontSize,
+                  fontWeight: 900,
+                  fontFamily: BRAND_FONT_STACK,
+                  color: "#f59e0b",
+                  letterSpacing: "-10px",
+                  lineHeight: 1.2,
+                  whiteSpace: "nowrap",
+                  textAlign: "center",
+                }}
+              >
+                <Circle color="#f59e0b" progress={1} box="inside">
+                  {"6B"}
+                </Circle>
+              </div>
+            )}
+          </TextGate>
+          <div style={{ position: "absolute", top: 200, left: 0, width: "100%" }}>
+            <TextGate sceneId={SCENE_ID} slotId="hook.hero-center.subject">
+              {(fontSize) => (
+                <div
+                  style={{
+                    fontSize,
+                    fontWeight: 900,
+                    fontFamily: BRAND_FONT_STACK,
+                    color: "#fff",
+                    letterSpacing: "4px",
+                    textAlign: "center",
+                  }}
+                >
+                  QWEN3.8 FLASH
+                </div>
+              )}
+            </TextGate>
+          </div>
+          <AnnotationCollisionAssert
+            sceneId={SCENE_ID}
+            sourceSlotId="hook.hero-center.bigNumber"
+            targetSlotIds={["hook.hero-center.subject"]}
+          />
+        </div>
+      </Stage>
+    );
+  }
+
   if (scenario === "ink-overhang") {
     return <InkScenario />;
+  }
+
+  if (scenario === "ink-line-probe") {
+    return <InkLineProbe />;
+  }
+
+  if (scenario === "annotation-overdraw-probe") {
+    return <AnnotationOverdrawProbe />;
   }
 
   if (scenario === "official-seed-probe") {
@@ -405,6 +501,307 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass", probe }) => {
       <TextGate sceneId={SCENE_ID} slotId={SLOT_ID} lockFontSize={lock}>
         {(fontSize) => textNode(fontSize, scenario === "fixed-overflow" ? COPY_FLOOR : copy)}
       </TextGate>
+    </Stage>
+  );
+};
+
+/**
+ * The OLD (pre-T10) ink algorithm, kept verbatim as the counterproof
+ * witness: one `measureText()` per text node run through the SAME formula A
+ * (inkOverhangsOfRun) — canvas collapses `\n`, so a wrapped node is measured
+ * as a single line and only its outermost edge glyphs are seen. The tests
+ * assert the per-line implementation detects what this shape misses.
+ */
+function wholeNodeInkOverhangs(el: HTMLElement): {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+} {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D unavailable");
+  const pad = { left: 0, right: 0, top: 0, bottom: 0 };
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let node: Node | null = walker.nextNode();
+  while (node) {
+    const text = node.textContent ?? "";
+    if (text.trim().length > 0) {
+      const host = (node.parentElement ?? el) as HTMLElement;
+      const style = getComputedStyle(host);
+      ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const run = inkOverhangsOfRun(ctx.measureText(text));
+      pad.left = Math.max(pad.left, run.left);
+      pad.right = Math.max(pad.right, run.right);
+      pad.top = Math.max(pad.top, run.top);
+      pad.bottom = Math.max(pad.bottom, run.bottom);
+    }
+    node = walker.nextNode();
+  }
+  return pad;
+}
+
+/**
+ * T10 (decision 67b) probe: surface the ink measurement of a MULTILINE text
+ * node, a MIXED-SPAN line, the italic f/T glyph shapes and a LETTER-SPACED
+ * run through the cancelRender payload channel.
+ *
+ * The counterproof shape: one italic text node whose `pre-line` newline puts
+ * an `ffffff` run on its OWN rendered line below a `HHHHHHHHHH` line. The
+ * whole-node `measureText()` the old implementation used collapses the node
+ * to a single line (canvas treats `\n` as whitespace), so the wrapped line's
+ * LEADING overhang is invisible to it; the per-line implementation reports
+ * line 2's left overhang. The mixed-span element (normal + italic spans on
+ * one line) locks per-run coverage. The lone italic T pins the second F9
+ * glyph shape; the letter-spaced run pins that the synced measurement stays
+ * truthful (trailing letter-space carries no ink — a regression that drops
+ * the letterSpacing sync would report a phantom right overhang).
+ */
+const InkLineProbe: React.FC = () => {
+  const multilineRef = useRef<HTMLDivElement>(null);
+  const reversedRef = useRef<HTMLDivElement>(null);
+  const mixedSpanRef = useRef<HTMLDivElement>(null);
+  const italicTRef = useRef<HTMLDivElement>(null);
+  const letterSpacingRef = useRef<HTMLDivElement>(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    delayRender("ink-line probe");
+
+    void (async () => {
+      const multiline = multilineRef.current;
+      const reversed = reversedRef.current;
+      const mixedSpan = mixedSpanRef.current;
+      const italicT = italicTRef.current;
+      const letterSpacing = letterSpacingRef.current;
+      if (!multiline || !reversed || !mixedSpan || !italicT || !letterSpacing) {
+        cancelRender(new Error('[InkLineProbe] {"error":"refs-not-mounted"}'));
+        return;
+      }
+      await document.fonts.ready;
+      await nextFrame();
+
+      const payload = {
+        multiline: {
+          perLine: collectInkOverhangs(multiline),
+          wholeNode: wholeNodeInkOverhangs(multiline),
+        },
+        multilineReversed: {
+          perLine: collectInkOverhangs(reversed),
+          wholeNode: wholeNodeInkOverhangs(reversed),
+        },
+        mixedSpan: {
+          perLine: collectInkOverhangs(mixedSpan),
+          wholeNode: wholeNodeInkOverhangs(mixedSpan),
+        },
+        italicT: {
+          perLine: collectInkOverhangs(italicT),
+          wholeNode: wholeNodeInkOverhangs(italicT),
+        },
+        letterSpacing: {
+          perLine: collectInkOverhangs(letterSpacing),
+          wholeNode: wholeNodeInkOverhangs(letterSpacing),
+        },
+      };
+      cancelRender(new Error(`[InkLineProbe] ${JSON.stringify(payload)}`));
+    })();
+  }, []);
+
+  const lineStyle: React.CSSProperties = {
+    fontSize: 96,
+    fontStyle: "italic",
+    fontWeight: 900,
+    fontFamily: BRAND_FONT_STACK,
+    whiteSpace: "pre-line",
+    color: "#fff",
+  };
+
+  return (
+    <Stage>
+      <div ref={multilineRef} style={lineStyle}>
+        {"WWWWWWWWWW\nffffff"}
+      </div>
+      <div ref={reversedRef} style={{ ...lineStyle, marginTop: 40 }}>
+        {"ffffff\nWWWWWWWWWW"}
+      </div>
+      <div
+        ref={mixedSpanRef}
+        style={{ marginTop: 40, fontSize: 96, fontWeight: 900, fontFamily: BRAND_FONT_STACK }}
+      >
+        <span style={{ fontStyle: "normal", color: "#fff" }}>WWW</span>
+        <span style={{ fontStyle: "italic", color: "#fff" }}>ffffff</span>
+      </div>
+      <div ref={italicTRef} style={{ ...lineStyle, marginTop: 40, whiteSpace: "nowrap" }}>
+        T
+      </div>
+      <div
+        ref={letterSpacingRef}
+        style={{
+          marginTop: 40,
+          fontSize: 96,
+          fontWeight: 900,
+          fontFamily: BRAND_FONT_STACK,
+          whiteSpace: "nowrap",
+          letterSpacing: "24px",
+        }}
+      >
+        WWW
+      </div>
+    </Stage>
+  );
+};
+
+/**
+ * T10 (decision 70) probe: measure every annotation family's DRAWN box
+ * against its host box under ONE unified口径 — the settled assert's own
+ * measurement (annotationDrawnBox: getBBox → getScreenCTM four corners →
+ * composition coords, plus stroke paint margin ONLY). Each sample mirrors a
+ * real scene's annotation shape at its contract size; the per-edge overdraw
+ * (positive = the annotation pokes past the host box) is the quantity the
+ * per-type tolerance map must cover. remotion still has no page-console
+ * channel, so the numbers ride out on the cancelRender payload.
+ */
+const AnnotationOverdrawProbe: React.FC = () => {
+  const circleAroundRef = useRef<HTMLDivElement>(null);
+  const circleInsideRef = useRef<HTMLDivElement>(null);
+  const underlineRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    delayRender("annotation overdraw probe");
+
+    void (async () => {
+      const hosts = {
+        circleAround: circleAroundRef.current,
+        circleInside: circleInsideRef.current,
+        underline: underlineRef.current,
+        highlight: highlightRef.current,
+      };
+      if (Object.values(hosts).some((h) => !h)) {
+        cancelRender(new Error('[AnnotationOverdrawProbe] {"error":"refs-not-mounted"}'));
+        return;
+      }
+      await document.fonts.ready;
+      // Annotation SVGs mount through rough-notation's Tracker; give them the
+      // same mount window the gate's poll uses before measuring.
+      for (let tries = 0; tries < 30; tries += 1) {
+        if (Object.values(hosts).every((h) => h!.querySelector("svg"))) break;
+        await nextFrame();
+      }
+
+      const measure = (host: HTMLElement) => {
+        const annotation = annotationDrawnBox(host);
+        // Host box in the SAME space as the annotation: page rect divided by
+        // the page→composition scale (identical to the gate's settled assert
+        // contentBox shape).
+        const rect = host.getBoundingClientRect();
+        const scale = host.offsetWidth > 0 ? rect.width / host.offsetWidth : 1;
+        const hostBox = {
+          x: rect.left / scale,
+          y: rect.top / scale,
+          width: host.offsetWidth,
+          height: host.offsetHeight,
+        };
+        if (!annotation) return { hostBox, annotation: null, overdraw: null };
+        return {
+          hostBox,
+          annotation,
+          overdraw: {
+            // Positive = the drawn box pokes past the host edge on that side.
+            left: hostBox.x - annotation.x,
+            top: hostBox.y - annotation.y,
+            right: annotation.x + annotation.width - (hostBox.x + hostBox.width),
+            bottom: annotation.y + annotation.height - (hostBox.y + hostBox.height),
+          },
+        };
+      };
+
+      const payload: Record<string, unknown> = {};
+      for (const [key, host] of Object.entries(hosts)) {
+        payload[key] = measure(host as HTMLElement);
+      }
+      cancelRender(new Error(`[AnnotationOverdrawProbe] ${JSON.stringify(payload)}`));
+    })();
+  }, []);
+
+  const numberStyle: React.CSSProperties = {
+    fontSize: 240,
+    fontWeight: 900,
+    fontFamily: BRAND_FONT_STACK,
+    color: "#f59e0b",
+    letterSpacing: "-10px",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
+    textAlign: "center",
+    width: 820,
+  };
+
+  return (
+    <Stage>
+      {/* Hook/DataScene focal-number shape at its contract 240px. */}
+      <div ref={circleAroundRef} style={numberStyle}>
+        <Circle color="#f59e0b" progress={1}>
+          {"6B"}
+        </Circle>
+      </div>
+      <div ref={circleInsideRef} style={{ ...numberStyle, marginTop: 80 }}>
+        <Circle color="#f59e0b" progress={1} box="inside">
+          {"6B"}
+        </Circle>
+      </div>
+      {/* hookText shape: Underline at its contract 78px. */}
+      <div
+        ref={underlineRef}
+        style={{
+          fontSize: 78,
+          fontWeight: 900,
+          fontFamily: BRAND_FONT_STACK,
+          color: "#f5f5f5",
+          letterSpacing: "2px",
+          lineHeight: 1.1,
+          whiteSpace: "pre",
+          textAlign: "center",
+          width: 820,
+          marginTop: 80,
+        }}
+      >
+        <Underline
+          color="#4d8bff"
+          progress={1}
+          strokeWidth={ANNOTATION.underline.strokeWidth}
+          padding={ANNOTATION.underline.padding}
+        >
+          {"CAPACITY"}
+        </Underline>
+      </div>
+      {/* narrative result shape: Highlight at its contract 56px. */}
+      <div
+        ref={highlightRef}
+        style={{
+          fontSize: 56,
+          fontWeight: 900,
+          fontFamily: BRAND_FONT_STACK,
+          color: "#f5f5f5",
+          lineHeight: 1.15,
+          whiteSpace: "pre",
+          textAlign: "center",
+          width: 692,
+          marginTop: 80,
+        }}
+      >
+        <Highlight
+          color={ANNOTATION.highlight.color}
+          progress={1}
+          padding={ANNOTATION.highlight.padding}
+        >
+          {"POINT"}
+        </Highlight>
+      </div>
     </Stage>
   );
 };

@@ -28,9 +28,34 @@ export const FIT_REASONS = {
   fontTimeout: "font-timeout",
   safeZoneBreach: "safe-zone-breach",
   annotationOutOfSlot: "annotation-out-of-slot",
+  annotationMissing: "annotation-missing",
+  annotationCollision: "annotation-collision",
   textOutOfSlot: "text-out-of-slot",
   containerOverflow: "container-overflow",
   groupOverflow: "group-overflow",
+};
+
+/**
+ * Per-annotation-type drawn overdraw tolerance for the container assert
+ * (decision 70: per-type, measured under ONE unified口径 — the settled
+ * assert's own drawn-box measurement, not ad-hoc frame grabs).
+ *
+ * Basis (annotation-overdraw-probe, text-gate-fixture, 2026-09-02):
+ *   - circle (rough-notation Circle, box="around", contract 240px): the
+ *     ellipse pokes 61.9px above / 59.4px below the host box → 96 gives
+ *     headroom for roughness random offsets and the legacy 91px claim that
+ *     motivated the decision (a different, now-retired measurement口径).
+ *   - default (underline / highlight): underline understroke measured 10.3px;
+ *     highlight pad is 6px by config → 16.
+ * Hook's bigNumber circle now draws box="inside" (~5px) — the circle entry is
+ * sized by the DataScene stat circle, the widest remaining around-family user.
+ * A genuinely oversized annotation still trips Fit (text ⊆ slot) or
+ * container-overflow (gate box ⊆ container); only the ink bleed past the band
+ * edge is tolerated here.
+ */
+export const ANNOTATION_OVERDRAW_BY_TYPE = {
+  circle: 96,
+  default: 16,
 };
 
 /**
@@ -53,6 +78,7 @@ export class TextFitError extends Error {
    *   fontSize: number,
    *   inkPad: {left: number, right: number, top: number, bottom: number},
    *   steps?: {slotId: string, fontSize: number}[],
+   *   details?: Record<string, unknown>,
    * }} payload
    */
   constructor(payload) {
@@ -69,6 +95,8 @@ export class TextFitError extends Error {
     // Group-gate only (T9): the shrink walk's trace, present when the walk
     // exhausted the shrink order before failing.
     this.steps = payload.steps ?? null;
+    // Reason-specific extras (T10 F7: collision ratios per target, maxRatio).
+    this.details = payload.details ?? null;
   }
 }
 

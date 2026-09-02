@@ -115,6 +115,21 @@ describe(
       expect(payload.fontSize).toBe(40); // hard floor of the result field
     });
 
+    it("T10 F6: s5 copy in media-split locked at the shipped 52px FAILs (the clipped-text incident)", () => {
+      // qwen4-preview s5's original copy ("1/9 THE TRAINING COST", highlight
+      // nowrap) in the media-split column it shipped in. The old world
+      // clipped it at 52px; the gate asserts instead — one nowrap line of
+      // ~620px against the 372px column.
+      const { ok, payload, raw } = renderScenario("f6-media-split-lock52");
+      expect(ok, raw).toBe(false);
+      expect(payload, raw).toBeTruthy();
+      expect(payload.reason).toBe("fit-bottom");
+      expect(payload.slotId).toBe("narrative.media-split.result");
+      expect(payload.field).toBe("result");
+      expect(payload.fontSize).toBe(52);
+      expect(payload.measured.width).toBeGreaterThan(payload.available.width);
+    });
+
     it("#32: a typo'd texts key fails the render with the field name", () => {
       const { ok, raw } = renderScenario("unknown-field");
       expect(ok).toBe(false);
@@ -165,6 +180,27 @@ describe(
       for (const s of payload.steps) lastStepByField[s.slotId.split(".").pop()] = s.fontSize;
       expect(Object.keys(lastStepByField)).toEqual(["source", "context", "result"]);
       expect(lastStepByField.result).toBe(40);
+    });
+
+    it("T10 F7: hook circle vs subject / numberLabel — per-target ratios recorded, each ≤ 2%", () => {
+      // decision 7: subject and numberLabel are SEPARATE denominators (never
+      // merged), and the annotated number itself is not a target. The probe
+      // surfaces the ratios the scene-level assert measured on the settled
+      // frame; with the T10 box="inside" circle both must be ≤ the 2% gate.
+      // This pins the actual numbers the ticket asks to record.
+      const { ok, payload, raw } = renderScenario("measure:hook");
+      expect(ok, raw).toBe(false);
+      expect(payload, raw).toBeTruthy();
+      expect(payload.reason).toBe("measurement");
+      const collision = payload.measuredCollisionRatios["hook.hero-center.bigNumber"];
+      expect(collision, raw).toBeTruthy();
+      expect(Object.keys(collision.ratios).sort()).toEqual([
+        "hook.hero-center.numberLabel",
+        "hook.hero-center.subject",
+      ]);
+      for (const ratio of Object.values(collision.ratios)) {
+        expect(ratio).toBeLessThanOrEqual(0.02);
+      }
     });
 
     it("#37: an unknown visualType throws at dispatch (no silent narrative fallback)", () => {

@@ -11,6 +11,9 @@
  *   baseline-narrative                   doubles as F2 (#30): s9 copy + Fit on
  *   f1-lock56                            #29 s9 copy + lockFontSize 56 → FAIL
  *   f3-floor                             #31 over-long copy FAILs at minSize
+ *   f6-media-split-lock52                T10 F6: s5 copy in media-split at the
+ *                                        shipped 52px → FAIL (clipped-text
+ *                                        incident the old gate passed)
  *   unknown-field                        #32 typo'd texts key fails the render
  *   unknown-visualtype                   #37 dispatch throws, no silent fallback
  *   empty-fields                         #34 empty strings/arrays → no false fail
@@ -72,6 +75,30 @@ const F3_SCENE: SceneData = {
     ...S9_TEXTS,
     result:
       "THAT'S THE WHOLE POINT OF THE ENTIRE ANNOUNCEMENT AND EVERYTHING WE COVERED IN THIS BRIEFING",
+  },
+};
+
+/**
+ * F6 shape (T10): qwen4-preview s5's original copy, verbatim (the "1/9"
+ * highlight keeps the result on ONE line via rough-notation's pre/nowrap
+ * wrapper), rendered in the media-split layout the pack used before its T7
+ * relayout. At the locked 52px the old pipeline shipped, the line is far
+ * wider than the 372px column — the historical clipped-text incident. The
+ * scene-level gate must FAIL where the old world silently clipped.
+ */
+const F6_SCENE: SceneData = {
+  id: 5,
+  name: "training-cost",
+  visualType: "narrative",
+  layout: "media-split",
+  voiceover: "Here's the number that stings. Training cost just one ninth of Qwen3.7-Plus.",
+  texts: {
+    company: "THE COST",
+    action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)",
+    result: "1/9 THE TRAINING COST",
+    highlight: "1/9",
+    context: "AND STRONGER ON CODING AND OFFICE TASKS",
+    source: "SOURCE: Qwen official blog, Aug 26, 2026",
   },
 };
 
@@ -355,6 +382,12 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         // settle signal — annotation SVGs and font sizes do not move layout.
         const settled = gates.every((g) => g.offsetWidth > 0);
         if (!settled) continue;
+        // T10 F7: when the scene mounts collision asserts, wait for them to
+        // record — the ratios only exist after the settled-frame evaluation.
+        const collisionHosts = Array.from(
+          document.querySelectorAll("[data-annotation-collision-source]"),
+        ) as HTMLElement[];
+        if (!collisionHosts.every((h) => h.dataset.annotationCollision)) continue;
         recent.push(gates.reduce((sum, g) => sum + g.offsetWidth, 0));
         if (recent.length > 3) recent.shift();
         if (recent.length === 3 && recent.every((w) => w === recent[0])) {
@@ -389,11 +422,30 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         measuredGroupFits[el.dataset.textGroup] = JSON.parse(el.dataset.groupFit);
       }
     }
+    // T10 F7: AnnotationCollisionAssert mirrors its per-target overlap ratios
+    // onto data-annotation-collision once it has evaluated the settled frame —
+    // surfaced here so the hook-circle ratios can be pinned by tests.
+    const measuredCollisionRatios: Record<string, unknown> = {};
+    for (
+      const el of Array.from(
+        document.querySelectorAll("[data-annotation-collision-source]"),
+      ) as HTMLElement[]
+    ) {
+      const source = el.dataset.annotationCollisionSource;
+      if (source && el.dataset.annotationCollision) {
+        measuredCollisionRatios[source] = JSON.parse(el.dataset.annotationCollision);
+      }
+    }
     // Same first-line JSON shape as TextFitError (cancelRender only surfaces
     // the message's first line); `measuredWidths` is the measurement channel.
     throw cancelRender(
       new Error(
-        `[TextFitError] ${JSON.stringify({ reason: "measurement", measuredWidths, measuredGroupFits })}`,
+        `[TextFitError] ${JSON.stringify({
+          reason: "measurement",
+          measuredWidths,
+          measuredGroupFits,
+          measuredCollisionRatios,
+        })}`,
       ),
     );
   }
@@ -418,6 +470,18 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "baseline-narrative" 
   // F3 shape: copy that cannot fit even at the 40px floor.
   if (scenario === "f3-floor") {
     return <NarrativeScene scene={F3_SCENE} duration={4} contentDir="" />;
+  }
+  // F6 shape: s5's original copy in media-split, locked at the shipped 52px
+  // (Fit off) — the assert must fail where the old gate clipped silently.
+  if (scenario === "f6-media-split-lock52") {
+    return (
+      <NarrativeScene
+        scene={F6_SCENE}
+        duration={4}
+        contentDir=""
+        gateOverrides={{ "narrative.media-split.result": { lockFontSize: 52 } }}
+      />
+    );
   }
   // T9 group-gate scenarios: NarrativeScene rendered directly so the fixture
   // can squeeze the bottom band's vertical budget via the groupMaxHeight

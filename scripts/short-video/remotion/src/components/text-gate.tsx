@@ -40,6 +40,7 @@ import {
   EPS,
   FIT_REASONS,
   TextFitError,
+  ANNOTATION_OVERDRAW_BY_TYPE,
   inkOverhangsOfRun,
   cornersFromBBox,
   transformCorner,
@@ -50,8 +51,8 @@ import {
 import { CANVAS, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 
 /** Local geometry shapes (the .mjs layer is untyped at this boundary). */
-type Pad = { left: number; right: number; top: number; bottom: number };
-type Box = { x: number; y: number; width: number; height: number };
+export type Pad = { left: number; right: number; top: number; bottom: number };
+export type Box = { x: number; y: number; width: number; height: number };
 
 /** The slice of the slot contract the gate consumes. */
 type SlotLike = {
@@ -64,17 +65,21 @@ type SlotLike = {
 };
 
 const ZERO_PAD: Pad = { left: 0, right: 0, top: 0, bottom: 0 };
+export { ZERO_PAD };
 
 /**
- * Drawn-bound tolerance for rough-notation inside scene containers.
- * Measured from the T5 render runs: the Circle ellipse overdraws ~48px past
- * the Slot band edge at fontSize 240, the DataScene circle ~91px, and the
- * NarrativeScene highlight pad pushes ~6px past a band's clip edge. 64px
- * covers the ellipse family with margin for rough-notation's random
- * roughness offsets; a genuinely oversized annotation still trips
- * Fit (its text ⊆ slot) or container-overflow (gate box ⊆ container).
+ * Drawn-bound tolerance for the slot's annotation family (decision 70):
+ * measured per type under the unified settled-assert口径 (see
+ * ANNOTATION_OVERDRAW_BY_TYPE in lib/text-geometry.mjs for the numbers).
+ * rough-notation deliberately draws OUTSIDE its target box (ellipse vertical
+ * range, underline understroke, highlight pad); a genuinely oversized
+ * annotation still trips Fit (its text ⊆ slot) or container-overflow (gate
+ * box ⊆ container) — only the ink bleed past the band edge is tolerated.
  */
-const ANNOTATION_OVERDRAW = 64;
+function annotationOverdrawOf(policy: string): number {
+  const map = ANNOTATION_OVERDRAW_BY_TYPE as Record<string, number>;
+  return map[policy] ?? map.default;
+}
 
 /** Transform-free page position: the offset chain ignores CSS transforms. */
 function layoutOffsetOf(el: HTMLElement): { left: number; top: number } {
@@ -159,25 +164,57 @@ function syncCtx(ctx: CanvasRenderingContext2D, style: CSSStyleDeclaration): voi
 }
 
 /**
- * Max glyph-ink overhang per direction across the element's text runs.
- * Each text node is measured as its own run under its own element's computed
- * style (spec: "每个渲染行、每个样式 text run 单独测量").
+ * Max glyph-ink overhang per direction across the element's text, measured
+ * per RENDERED LINE per style run (spec decision 5, refinement 67b). The
+ * pre-T10 implementation measured each text node as ONE `measureText()` call
+ * — canvas collapses `\n` and the browser wraps text the same way — so a
+ * wrapped node's interior line edges (e.g. an italic `f` opening line 2)
+ * were invisible to it. Each text node is split into its rendered lines via
+ * per-character Range rects (layout geometry; grouping tolerance absorbs
+ * fractional tops), and each line's substring is measured under the host's
+ * computed typography.
  */
-function collectInkOverhangs(el: HTMLElement): Pad {
+export function collectInkOverhangs(el: HTMLElement): Pad {
   const ctx = measureCtx();
   const pad: Pad = { ...ZERO_PAD };
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  /** Fractional-top noise between rects of the same rendered line. */
+  const LINE_EPS = 2;
   let node: Node | null = walker.nextNode();
   while (node) {
     const text = node.textContent ?? "";
     if (text.trim().length > 0) {
       const host = (node.parentElement ?? el) as HTMLElement;
       syncCtx(ctx, getComputedStyle(host));
-      const run = inkOverhangsOfRun(ctx.measureText(text));
-      pad.left = Math.max(pad.left, run.left);
-      pad.right = Math.max(pad.right, run.right);
-      pad.top = Math.max(pad.top, run.top);
-      pad.bottom = Math.max(pad.bottom, run.bottom);
+      let lineStart = 0;
+      let lineTop: number | null = null;
+      const flushLine = (endExclusive: number) => {
+        // Newline characters decide line grouping but carry no ink and no
+        // on-line advance — including them in the measured substring changes
+        // the canvas shaping (and thus the overhang) asymmetrically.
+        const line = text.slice(lineStart, endExclusive).replace(/\n/g, "");
+        if (line.trim().length > 0) {
+          const run = inkOverhangsOfRun(ctx.measureText(line));
+          pad.left = Math.max(pad.left, run.left);
+          pad.right = Math.max(pad.right, run.right);
+          pad.top = Math.max(pad.top, run.top);
+          pad.bottom = Math.max(pad.bottom, run.bottom);
+        }
+      };
+      for (let i = 0; i < text.length; i += 1) {
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const rect = range.getClientRects()[0];
+        if (!rect) continue; // collapsed (never laid out)
+        if (lineTop == null) lineTop = rect.top;
+        if (rect.top > lineTop + LINE_EPS) {
+          flushLine(i);
+          lineStart = i;
+          lineTop = rect.top;
+        }
+      }
+      flushLine(text.length);
     }
     node = walker.nextNode();
   }
@@ -255,8 +292,12 @@ function effectiveOpacityOf(el: HTMLElement): number {
  * a block wrapper spans the whole gate width, and with a centered layout that
  * box sits OFF-center (a full-width box under textAlign:center shifts right
  * by half the slack), failing slots whose text runs are actually inside.
+ *
+ * Exported for the scene-level AnnotationCollisionAssert (F7), which needs
+ * the neighbour slots' TEXT boxes as collision denominators — the wrapper
+ * box would inflate the denominator with dead space and dilute the ratio.
  */
-function textExtentComposition(gate: HTMLElement): Box {
+export function textExtentComposition(gate: HTMLElement): Box {
   const range = document.createRange();
   const walker = document.createTreeWalker(gate, NodeFilter.SHOW_TEXT);
   let minX = Infinity;
@@ -290,21 +331,95 @@ function textExtentComposition(gate: HTMLElement): Box {
 }
 
 /**
- * Stroke paint margin of a rough-notation SVG: half the widest path stroke.
- * The random roughness offsets are already baked into the path `d`, so this
- * is the ONLY extra margin the assert may add (spec refinement decision B3).
+ * Painted (stroked) bounds of an SVG in its OWN user space. Rough-notation
+ * draws its families as stroked paths, and `getBBox()` reports the CENTERLINE
+ * only — the paint is the stroke around it. Inflating the bbox by half the
+ * stroke width in EVERY direction is truthful for closed shapes (the circle
+ * family) but WRONG for the highlight/underline families: they are a thick
+ * horizontal LINE (stroke-width = line height + padding — 62px on a 50px
+ * scene line), and a butt-capped line's paint extends perpendicular to the
+ * stroke only — along the line it ends at the centerline's endpoints (the
+ * 6px config padding, baked into `d`). The all-directions inflation
+ * overcounted the highlight's horizontal paint by (sw/2 − padding) ≈ 25px per
+ * side, which the legacy flat 64px tolerance masked and decision 70's
+ * measured 16px tolerance exposed as a false annotation-out-of-slot.
+ *
+ * So the paint is measured per SEGMENT of the centerline: each sampled
+ * segment is inflated by half the stroke width along its own perpendicular
+ * only (butt caps add nothing along the segment). For closed paths the
+ * segments point in every direction and the union converges to the old
+ * bbox+sw/2 box; for lines it stays tight to the true band.
  */
-function strokePaintMarginOf(svg: SVGSVGElement): number {
-  let max = 0;
+function paintedBoxOfSvg(svg: SVGSVGElement): { x: number; y: number; width: number; height: number } | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const include = (x: number, y: number): void => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
   svg.querySelectorAll("path").forEach((path) => {
-    const w = Number.parseFloat(path.getAttribute("stroke-width") ?? "0");
-    if (Number.isFinite(w)) max = Math.max(max, w);
+    const sw = Number.parseFloat(path.getAttribute("stroke-width") ?? "0") || 0;
+    const half = sw / 2;
+    let len = 0;
+    try {
+      len = path.getTotalLength();
+    } catch {
+      return; // not rendered — nothing painted
+    }
+    if (len <= 0) return;
+    const steps = Math.max(2, Math.min(64, Math.ceil(len / 12)));
+    let prev = path.getPointAtLength(0);
+    for (let i = 1; i <= steps; i += 1) {
+      const p = path.getPointAtLength((len * i) / steps);
+      const dx = p.x - prev.x;
+      const dy = p.y - prev.y;
+      const segLen = Math.hypot(dx, dy) || 1;
+      // Perpendicular unit of this segment; the stroke band around the
+      // segment is the segment's endpoints offset ±half along it.
+      const nx = (-dy / segLen) * half;
+      const ny = (dx / segLen) * half;
+      include(prev.x + nx, prev.y + ny);
+      include(prev.x - nx, prev.y - ny);
+      include(p.x + nx, p.y + ny);
+      include(p.x - nx, p.y - ny);
+      prev = p;
+    }
   });
-  return max / 2;
+  if (!Number.isFinite(minX)) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+export { nextFrame };
+
+/**
+ * Drawn bounds of the gate's annotation SVG in composition coordinates:
+ * painted stroke geometry (see paintedBoxOfSvg) → getScreenCTM four-corner
+ * transform into composition units. Null when the gate has no mounted
+ * annotation (or the annotation has painted nothing yet). Exported for the
+ * scene-level AnnotationCollisionAssert (F7), which reuses the exact
+ * geometry the gate's own settled assert polices.
+ */
+export function annotationDrawnBox(gate: HTMLElement): Box | null {
+  const svg = gate.querySelector("svg") as SVGSVGElement | null;
+  if (!svg || typeof svg.getBBox !== "function") return null;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const painted = paintedBoxOfSvg(svg);
+  if (!painted) return null; // nothing painted yet — no drawn bounds on record
+  const rect = gate.getBoundingClientRect();
+  const scale = gate.offsetWidth > 0 ? rect.width / gate.offsetWidth : 1;
+  const corners = toCompositionCoords(
+    cornersFromBBox(painted).map((c) => transformCorner(c, ctm)),
+    scale,
+  );
+  return bboxFromCorners(corners);
 }
 
 export type TextGateProps = {
@@ -366,6 +481,13 @@ export const TextGate: React.FC<TextGateProps> = ({
   const [ready, setReady] = useState(false);
   const inkRef = useRef<Pad>({ ...ZERO_PAD });
   const fitStartedRef = useRef(false);
+  // T10: the settled annotation assert is stability-polled on first
+  // evaluation (and after every font-size change) — see the settled branch.
+  // One delayRender handle per verdict; `size` keys the verdict to the size
+  // whose geometry it validated.
+  const annotationAssertRef = useRef<{ size: number; settled: boolean; handle: number } | null>(
+    null,
+  );
 
   const fail = (
     reason: string,
@@ -438,11 +560,23 @@ export const TextGate: React.FC<TextGateProps> = ({
       await nextFrame();
 
       // 2. Annotation mount: never measure before the Tracker's SVG exists.
+      // Decision 67a: exhaustion is a FAIL, not fail-open — measuring without
+      // the annotation would validate an incomplete render and the settled
+      // assert would then police nothing (no SVG, no bounds).
       if (wantsAnnotation) {
         let tries = 0;
         while (!gate.querySelector("svg") && tries < 30) {
           await nextFrame();
           tries += 1;
+        }
+        if (!gate.querySelector("svg")) {
+          fail(
+            FIT_REASONS.annotationMissing,
+            { width: 0, height: null },
+            { width: contentLocal.width, height: contentLocal.height },
+            fontSize,
+            ZERO_PAD,
+          );
         }
       }
 
@@ -519,6 +653,101 @@ export const TextGate: React.FC<TextGateProps> = ({
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Settled annotation containment (shared by the container and fallback
+   * branches). STABILITY-POLLED whenever the governing font size changes
+   * (T10): rough-notation resizes its SVG via ResizeObserver, which lands a
+   * frame AFTER the text relayouts — a synchronous check at the ready-commit
+   * measures the PREVIOUS size's drawn box (baseline-narrative regression:
+   * the Highlight SVG still carried the pre-shrink 56px width, ~40px off,
+   * and the per-type tolerance of decision 70 no longer absorbs such drift).
+   * The first evaluation for a size holds the render open (delayRender) and
+   * polls the drawn box across frames until it has been unchanged for 3
+   * consecutive frames — the same discipline AnnotationCollisionAssert uses
+   * — then asserts and caches the verdict for that size; later frames re-
+   * assert synchronously on live geometry (static once stable).
+   */
+  const assertAnnotation = (box: Box, bounds: Box): void => {
+    const verdict = annotationAssertRef.current;
+    if (verdict != null && verdict.size === fontSize) {
+      // This size's verdict is already in force (or being polled): assert on
+      // the live box without re-polling.
+      if (verdict.settled && !boxWithin(box, bounds, EPS)) {
+        fail(
+          FIT_REASONS.annotationOutOfSlot,
+          { width: box.width, height: box.height },
+          { width: bounds.width, height: bounds.height },
+          fontSize,
+          inkRef.current,
+        );
+      }
+      return;
+    }
+    if (verdict != null) {
+      // Superseded poll for an older size — release its handle; its verdict
+      // never mattered once the size moved on.
+      continueRender(verdict.handle);
+    }
+    const handle = delayRender(`text-gate annotation settle ${slotId}@${fontSize}`);
+    annotationAssertRef.current = { size: fontSize, settled: false, handle };
+    void (async () => {
+      // remotion blocks frame advance while `handle` is open, so this poll
+      // cannot race a re-render; no cancellation bookkeeping is needed.
+      let prev = "";
+      let stable = 0;
+      for (let tries = 0; tries < 30; tries += 1) {
+        const gate = gateRef.current;
+        const next = gate ? annotationDrawnBox(gate) : null;
+        const nextKey =
+          next == null
+            ? "none"
+            : `${next.x.toFixed(2)},${next.y.toFixed(2)},${next.width.toFixed(2)},${next.height.toFixed(2)}`;
+        stable = nextKey === prev ? stable + 1 : 0;
+        prev = nextKey;
+        if (stable >= 3) break;
+        await nextFrame();
+      }
+      // A newer font size superseded this poll (group shrink walk) — it owns
+      // the verdict; this one must not assert on geometry it watched change
+      // mid-walk.
+      if (annotationAssertRef.current?.handle !== handle) return;
+      const gate = gateRef.current;
+      const stableBox = gate ? annotationDrawnBox(gate) : null;
+      if (!stableBox) {
+        // assertAnnotation is only called with a drawn box on record (the
+        // call site guards on annotationBox != null), and within one poll
+        // there is no remount (a size change supersedes the poll) — so a
+        // null box after 30 frames, whether never-appeared or seen-then-
+        // vanished, means the captured frame has no measurable annotation.
+        // Same fail-open decision 67a closed for the mount wait.
+        fail(
+          FIT_REASONS.annotationMissing,
+          { width: 0, height: null },
+          { width: bounds.width, height: bounds.height },
+          fontSize,
+          inkRef.current,
+        );
+      } else if (!boxWithin(stableBox, bounds, EPS)) {
+        fail(
+          FIT_REASONS.annotationOutOfSlot,
+          { width: stableBox.width, height: stableBox.height },
+          { width: bounds.width, height: bounds.height },
+          fontSize,
+          inkRef.current,
+        );
+      }
+      if (annotationAssertRef.current?.handle === handle) {
+        annotationAssertRef.current.settled = true;
+      }
+      continueRender(handle);
+    })().catch((err) => {
+      // fail() unwinds via cancelRender's throw; release the handle first so
+      // the render can never wedge on this path, then re-propagate.
+      continueRender(handle);
+      throw cancelRender(err instanceof Error ? err : new Error(String(err)));
+    });
+  };
 
   // Assert every frame once fit has settled.
   useLayoutEffect(() => {
@@ -597,17 +826,10 @@ export const TextGate: React.FC<TextGateProps> = ({
       );
     }
     const svg = gate.querySelector("svg") as SVGSVGElement | null;
-    let annotationBox: Box | null = null;
-    if (svg && typeof svg.getBBox === "function") {
-      const ctm = svg.getScreenCTM();
-      if (ctm) {
-        const corners = toCompositionCoords(
-          cornersFromBBox(svg.getBBox()).map((c) => transformCorner(c, ctm)),
-          scale,
-        );
-        annotationBox = inflate(bboxFromCorners(corners), strokePaintMarginOf(svg));
-      }
-    }
+    // The drawn box comes from the shared helper (getBBox → screen CTM →
+    // composition coords + stroke paint margin) — the same geometry the
+    // scene-level AnnotationCollisionAssert polices.
+    const annotationBox = svg ? annotationDrawnBox(gate) : null;
 
     // Container assert, three duties:
     //  1. a scene's text region can be shorter than the slot it hands the gate
@@ -658,34 +880,19 @@ export const TextGate: React.FC<TextGateProps> = ({
             ink,
           );
         }
-        // Annotation bounds: the content box plus the overdraw tolerance.
-        // rough-notation deliberately draws outside its target box (ellipse
-        // extent, highlight pad), and even a clipping container lets the ink
-        // bleed into its padding before overflow:hidden cuts — a few px of
-        // highlight fading at a band edge is cosmetic, while a genuinely
-        // oversized annotation still fails Fit or container-overflow.
-        const annotationBounds = inflate(containerBox, ANNOTATION_OVERDRAW);
-        if (annotationBox && !boxWithin(annotationBox, annotationBounds, EPS)) {
-          fail(
-            FIT_REASONS.annotationOutOfSlot,
-            { width: annotationBox.width, height: annotationBox.height },
-            { width: annotationBounds.width, height: annotationBounds.height },
-            fontSize,
-            ink,
-          );
+        // Annotation bounds: the content box plus the annotation family's
+        // measured overdraw tolerance (decision 70) — stability-polled, see
+        // assertAnnotation below.
+        const annotationBounds = inflate(containerBox, annotationOverdrawOf(slot.annotationPolicy));
+        if (annotationBox) {
+          assertAnnotation(annotationBox, annotationBounds);
         }
       }
     }
     // Annotation fallback: with no container ancestor the slot box is the only
     // bound on record, so the drawn annotation must stay inside it there.
-    if (!containerEl && annotationBox && !boxWithin(annotationBox, contentBox, EPS)) {
-      fail(
-        FIT_REASONS.annotationOutOfSlot,
-        { width: annotationBox.width, height: annotationBox.height },
-        { width: contentBox.width, height: contentBox.height },
-        fontSize,
-        ink,
-      );
+    if (!containerEl && annotationBox) {
+      assertAnnotation(annotationBox, contentBox);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frame, ready, fontSize]);
@@ -700,7 +907,24 @@ export const TextGate: React.FC<TextGateProps> = ({
       // overflows its container (seen on quote.hero-center.verified).
       style={{ width: contentWidth, position: "relative", display: "block", margin: "0 auto" }}
     >
-      {children(fontSize)}
+      {/*
+        Keyed by the governing font size. The gate's Fit walk mutates
+        textEl.style.fontSize DIRECTLY (no React re-render), so when the size
+        is chosen (or the group walk steps it down) the children re-render
+        around an unchanged annotation DOM — and @remotion/rough-notation only
+        redraws its SVG when its `size` state changes (ResizeObserver → React
+        state) or `frame` advances. In VIDEO renders the per-frame redraw keeps
+        the SVG on the live geometry; in still renders (fixtures, probes)
+        neither trigger fires while the render is held open — the RO event is
+        delivered but the library's state commit never lands, so the SVG
+        freezes at the MOUNT size (measured regression: the baseline result
+        Highlight stayed at the 56px mount box, ~72px off the settled 50px
+        text, forever). Remounting on every size change re-runs the library's
+        own initial measurement against the CURRENT layout, so the drawn box
+        is correct in both render modes; same frame, same seed, same progress
+        → the redrawn paths are visually identical.
+      */}
+      <React.Fragment key={fontSize}>{children(fontSize)}</React.Fragment>
     </div>
   );
 };

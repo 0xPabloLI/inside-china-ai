@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import {
   EPS,
   TextFitError,
+  ANNOTATION_OVERDRAW_BY_TYPE,
   inkOverhangsOfRun,
   cornersFromBBox,
   transformCorner,
@@ -205,5 +206,31 @@ describe("box containment with EPS", () => {
         { x: 0, y: 10, width: 10, height: 100 },
       ]),
     ).toEqual({ x: 0, y: 10, width: 40, height: 100 });
+  });
+});
+
+describe("ANNOTATION_OVERDRAW_BY_TYPE (decision 70)", () => {
+  // The probe measured, under the unified settled-assert口径: circle-around
+  // @240 pokes 61.9/59.4px, underline understroke 10.3px, highlight pad 6px.
+  // The map must keep covering the measured maxima — tightening below them
+  // would fail honest renders, and the probe render test re-measures live.
+  it("circle tolerance covers the measured 62px ellipse overdraw with margin", () => {
+    expect(ANNOTATION_OVERDRAW_BY_TYPE.circle).toBeGreaterThanOrEqual(62);
+    expect(ANNOTATION_OVERDRAW_BY_TYPE.circle).toBeLessThanOrEqual(128);
+  });
+
+  it("default tolerance covers underline/highlight without the old global 64", () => {
+    expect(ANNOTATION_OVERDRAW_BY_TYPE.default).toBeGreaterThanOrEqual(10.3);
+    expect(ANNOTATION_OVERDRAW_BY_TYPE.default).toBeLessThan(ANNOTATION_OVERDRAW_BY_TYPE.circle);
+  });
+
+  it("unknown policy falls back through the gate's lookup, never undefined", () => {
+    // Mirrors annotationOverdrawOf in text-gate.tsx.
+    const overdrawOf = (policy) =>
+      ANNOTATION_OVERDRAW_BY_TYPE[policy] ?? ANNOTATION_OVERDRAW_BY_TYPE.default;
+    expect(overdrawOf("circle")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.circle);
+    expect(overdrawOf("underline")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
+    expect(overdrawOf("highlight")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
+    expect(overdrawOf("none")).toBe(ANNOTATION_OVERDRAW_BY_TYPE.default);
   });
 });
