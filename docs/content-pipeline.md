@@ -353,7 +353,7 @@ node scripts/rag/index.mjs
 `short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。
 
 ```bash
-node scripts/short-video/main.mjs                    # TTS → HTML → 录制 → 合成（不含 BGM）
+node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 → 合成（不含 BGM）
 ```
 
 > **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。

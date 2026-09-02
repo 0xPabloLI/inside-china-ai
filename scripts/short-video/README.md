@@ -28,7 +28,7 @@ Stage 3b Asset sourcing + VLM analysis
   │  (VLM auto-detects: content match, fullscreen vs background, fit + focus)
   ▼
 Stage 4  Video production
-  │  (TTS → HTML/Remotion scenes → FFmpeg assembly → ASS subtitles → BGM)
+  │  (TTS → Remotion scenes → FFmpeg assembly → ASS subtitles → BGM)
   ▼
 Stage 5  Verification ────────────→ MRL-3 self-review (auto)
   │  (verify-video.mjs: scene rules + media + subtitles + frame analysis)

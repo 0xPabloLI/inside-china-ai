@@ -37,7 +37,7 @@ Stage 3b Asset sourcing + VLM analysis
   ▼
 Stage 4  Video production
   │     — TTS voiceover (F5-TTS-MLX, Apple Silicon native)
-  │     — Scene rendering (Remotion or Playwright HTML → screen record)
+  │     — Scene rendering (Remotion, React → frame-by-frame)
   │     — FFmpeg assembly + karaoke subtitles (ASS) + background music
   ▼
 Stage 5  Verification                — verify-video.mjs: 20+ scene rules,
@@ -79,7 +79,7 @@ Stage 6  Analytics tracking         — TikTok metrics, A/B testing, optimizatio
 | Web app | React 19 + TanStack Start + TypeScript | Website, articles, admin editor |
 | Database | Supabase (PostgreSQL + Auth + RLS) | Articles, subscribers, auth |
 | UI | Tailwind CSS v4 + shadcn/ui | Component system |
-| Video rendering | Remotion (React → frame-by-frame) or Playwright (HTML → screen record) | Scene generation |
+| Video rendering | Remotion (React → frame-by-frame) | Scene generation |
 | TTS | F5-TTS-MLX (Apple Silicon) | Voiceover generation |
 | VLM | Qwen3-VL-8B-Instruct-8bit via mlx-vlm | Asset analysis & visual decision-making |
 | Video assembly | FFmpeg (full build with rubberband + libass) | Concatenation, subtitles, BGM, loudness |

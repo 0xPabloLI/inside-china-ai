@@ -384,8 +384,7 @@ scripts/short-video/
 └── output/                 # Pipeline outputs (isolated per pipelineId)
     └── {pipelineId}/
         ├── audio/          # TTS audio + subtitle-timing.json
-        ├── scenes/         # HTML scene files
-        ├── video/          # Recorded WebM per scene
+        ├── video/          # Remotion-rendered MP4 (single renderer; HTML/Playwright path retired 2026-09-01, decision 59)
         ├── subtitles.ass   # ASS subtitle file
         ├── verification-report.json # Subtitle verification report
         └── {pipelineId}-short.mp4  # Final video

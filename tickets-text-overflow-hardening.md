@@ -39,7 +39,8 @@
 - [x] HTML 模板→slot 映射按 `visualType` 建立，每个模板声明 slot ID 全集
 - [x] 全屏媒体的动态 source 文本纳入契约（第 10 个动态来源）
 - [x] 契约校验单测：16 passed（schema、默认值继承、优先级顺序、映射完整性、缩字阶梯）
-- [ ] （后续 ticket）`stacked-cards` 等尚未测量的布局补 `MEASURED_MAX_WIDTH` —— T9 改 s9 布局时补
+- [x] （修正 2026-09-02，决策 65）`stacked-cards` 实测宽度已回填（T5 Ticket D：卡片内 752 / source 820）——
+      「尚未测量」仅剩新增 `badge` slot，由 T9 承接
 
 ---
 
@@ -105,8 +106,12 @@ Assert 层在稳定帧用统一坐标校验文本与标注绘制边界（含字�
 - [x] 9 个场景模板 + 全屏媒体 source 接入 Fit/Assert 与 `data-text-*` 注册
 - [x] 数组/卡片/行等重复文本使用带索引 slot ID
 - [x] 字段四分类（rendered/control/optional/intentionallyOmitted）声明齐全
-- [x] 未识别字段、`rendered` 字段缺失 → FAIL（#32/#37 渲染层测试）
-- [x] `mediaOptOut` 不被当作文本省略标记（字段注册中为 control 类，契约测试覆盖）
+- [x] 未识别字段 → FAIL（#32/#37 渲染层测试）
+- [ ] ~~`rendered` 字段缺失 → FAIL~~ **（2026-09-02 审计更正：未实现）**
+      `assertKnownTextFields()` 只拒绝未知键，不检查 required/rendered 缺失
+      （`text-slots.test.mjs` 传 `undefined`/`{}` 均 not.toThrow 自证）——由 T9 承接
+- [ ] （修正 2026-09-02，决策 66）`mediaOptOut` 归位：原「注册为 control 类」落在错误的
+      texts 层（实际是 scene 顶层字段，所有消费方读 `scene.mediaOptOut`）——由 T9 承接
 - [x] **F1**：s9 原始文案 + 固定 56px（绕过 Fit）→ 新 gate FAIL（旧 gate PASS）
 - [x] **F2**：同输入 + Fit → PASS，字号 ≥ `minSize`，帧上无裁切（baseline-narrative 即 F2 形态）
 - [x] **F3**：超长文案 → 失败 + 机器可读错误，非静默非硬裁（fit-bottom @ 40px floor）
@@ -179,54 +184,86 @@ preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性
 
 ---
 
-## T9 — media-overlay 补齐字段 + s9 布局修正
+## T9 — stacked-cards badge 接入 + rendered 缺失门 + 多字段垂直 gate + media-overlay 补齐
 
-**Blocked by:** T2, T5
+**Blocked by:** T2 ✅, T5 ✅ ｜ Issue: #150（scope 2026-09-02 审计修订，决策 65–68）
 
-**What to build:** media-overlay 场景把丢失的主张句与上下文补回画面，
-s9 不再出现中部空洞；补齐后的垂直空间由契约与缩字优先级兜底。
+> **2026-09-02 审计修订**：原「补测 stacked-cards 各 slot 宽度」已完成（752/820，T5 Ticket D）；
+> 原「53s 透出上一幕媒体」为转场窗口误诊（决策 69）——不是媒体泄漏；原「缩到 minSize
+> 再等比」与 minSize 硬下限矛盾（决策 68）——等比阶段删除。
 
+**What to build:** 让 stacked-cards 数据（含 badge）真正通过渲染层；把「rendered 字段
+缺失 FAIL」补上；为多字段缩字先建 parent/group gate（否则缩序只是无生产调用者的单测
+算法）；media-overlay 补回 action/context。
+
+- [ ] **badge 接入（新首项，决策 65）**：stacked-cards 模板渲染 `texts.badge` 并接
+      TextGate（`data-text-*` 寻址）；`REMOTION_SLOT_MAP.narrative.stacked-cards`
+      声明 badge（rendered 或 optional）；`measure-slot-widths.mjs` 实测宽度回填；
+      qwen4 s9（`badge: "LOOP CLOSURE"`）渲染通过
+- [ ] **rendered 缺失 FAIL（T5 审计更正承接，#5）**：`assertKnownTextFields()` 或
+      渲染层对声明为 rendered 且数据缺失的字段 FAIL（现只拒未知键）；
+      契约单测锁定 required/rendered 缺失路径
+- [ ] **mediaOptOut 归位（决策 66）**：从 `REMOTION_SLOT_MAP` 四个 narrative 布局的
+      texts `control` 列表移除；SceneData 顶层类型补 `mediaOptOut` 声明；
+      修正锁定 `texts.mediaOptOut` 错误位置的契约测试（text-slots.test.mjs #38）
 - [ ] MediaOverlay 顶部补 action、底部补 context
-- [ ] 补齐后垂直空间重新标定 `media-overlay.*` 各 slot 的 `maxHeight`
-- [ ] 多字段总高超限时按 `context → action → company → result` 缩字，触底再等比，仍超失败
+- [ ] **parent/group gate 设计并接入（决策 68 前置）**：为 `maxHeight` 编排补生产
+      调用者——slot 补 `maxHeight` 标定 + TextGate（或新 helper）实现多字段总高判定；
+      `shrinkOrder()`（或 `fitGroup`）接入生产路径后才算落地
+- [ ] 多字段总高超限时按 `context → action → company → result` 逐字段缩到各自
+      `minSize`，仍超则失败（**无等比阶段**，决策 68 修订）
 - [x] s9 数据改为 `stacked-cards` + `mediaOptOut: true`（T7 提交，632a96a）
-- [ ] **Remotion 的 stacked-cards 视觉待修**：改布局后 gate 放行、渲染成功，但 53s 抽帧显示
-      s9 仍透出 s8 的媒体图（qwen-throughput 曲线）——Remotion 的 stacked-cards 分支没有清空
-      媒体背景。**数据层已正确，视觉层未完**；本 ticket 要保证 CSS-only 布局确实不显示任何 media
-- [ ] 补测 `stacked-cards` 各 slot 的 `MEASURED_MAX_WIDTH`（T2 遗留）
-- [ ] s9 左缘裁切现象纳入契约观察（ink-bound 落地后复测；当前不作为已确认根因）
+- [ ] **s9 视觉复测（决策 69 修正口径）**：53.2s 后抽帧复测 stacked-cards；
+      若转场第一帧仍透出上一幕媒体，按转场策略决策处理（调转场或加不透明背景），
+      不再作为「stacked-cards 媒体泄漏」修复项
 - [ ] s6/s8/s9 重渲染：action/context 上屏，中部无空洞，不违反垂直契约
 
 ---
 
-## T10 — 剩余 fixture（F4/F6/F7/F9）+ ink 集成 + 圆标注修复
+## T10 — ink 逐行修正 + F6/F7 fixture + F9 补齐 + 标注口径统一 + 圆标注修复
 
-**Blocked by:** T4, T5
+**Blocked by:** T4 ✅, T5 ✅（2026-09-02 审计修订，决策 67/70）
 
-**What to build:** 把四个高价值回归样本固化为确定性 fixture，并让 Hook 的大圆
-不再压住其他文字：`box="inside"` + 字号 240，由 F7 自动验收碰撞阈值。
+> **2026-09-02 审计修订**：F4 已有真实 Chromium 用例（T4 运行时 8/8 含 F4 标注越界）、
+> F9 已有公式测试 + italic-f 运行时形态——不重复认领。新增两处实施缺陷修复：
+> 标注挂载 fail-open、ink 按整节点测量（决策 67）；ANNOTATION_OVERDRAW 口径统一（决策 70）。
 
-- [ ] **F4**：文字合法但标注 SVG stroke 越界 → Assert FAIL（scroll 合法）
+**What to build:** ink 测量对齐决策 5（逐渲染行、逐样式 run），补 TextGate 两处缺陷，
+把尚未覆盖的回归样本补成 fixture，Hook 大圆不再压字。
+
+- [ ] **ink 逐行实现（决策 67b）**：`collectInkOverhangs` 从「整个文本节点一次
+      `measureText()`」改为逐渲染行/逐样式 run 测量；多行左右 overhang 不再算错；
+      补 mixed-span / multiline 浏览器测试（含旧实现变红的反证）
+- [ ] **标注挂载 fail-open 修复（决策 67a）**：TextGate 轮询 30 帧后 SVG 仍不存在 →
+      显式 `annotation-missing`/timeout FAIL（现 fail-open 继续测量）
+- [ ] **ANNOTATION_OVERDRAW 口径统一（决策 70）**：先统一测量口径（同 annotation
+      类型、同抽帧条件）核对 64px 与实测 91px 上界；若属同一边界，按 annotation 类型
+      设容差或修布局——不直接全局放宽
 - [ ] **F6**：真实 media-split 布局 + `"1/9 THE TRAINING COST"` @52px（确定性文案写死）→ FAIL
 - [ ] **F7**：Hook settled frame，圆与 subject / numberLabel **各自**重叠 ≤ 2%（不合并分母），
       被标注目标不计入；记录实际 ratio；碰撞失败即 FAIL（不偷偷缩字）
-- [ ] **F9**：ink 四方向外溢检出，覆盖 italic f/T、letter-spacing、混合 span、多行；
-      旧的错误公式必须让本 fixture 变红
+- [ ] **F9 补齐（不重复认领 F4）**：在既有 italic-f 形态上补 `T`、`letter-spacing`、
+      mixed span、多行覆盖；旧的错误公式必须让本 fixture 变红
 - [ ] Hook 圆改为 `box="inside"` + 字号 240
 - [ ] 圆修复后 bigNumber 自身完整可读（不越安全区、不被压字）
 
 ---
 
-## T11 — 端到端重渲染 + 存量清单 + 文档 + 归档
+## T11 — 端到端重渲染 + 字符预算 WARN 化 + 存量清单 + 文档 + 归档
 
-**Blocked by:** T1, T3, T5, T6, T7, T8, T9, T10
+**Blocked by:** T1 ✅, T3 ✅, T5 ✅, T6 ✅, T7 ✅, T8, T9, T10, **T12**
+（2026-09-02 审计修订：+T12，决策 71）｜ Issue: #152
 
-**What to build:** qwen4-preview 全片重渲染通过全部验收项；存量内容包批量校验出清单；
-文档同步；spec/tickets/review 归档。
+**What to build:** qwen4-preview 全片重渲染通过全部验收项；字符预算按决策 14 落地；
+存量内容包批量校验出清单；文档同步；spec/tickets/review 归档。
 
+- [ ] **字符预算 WARN 化（决策 14 补实施，决策 71）**：`scene-rules.mjs` 的
+      TEXT_WIDTH_BUDGETS 手写锚点 + `level: "fail"` 改为从契约推导 + `level: "warn"`
+      （仅创作提示，不阻断；最终判定只认真实几何）；预算测试同步改写
 - [ ] qwen4 全片重渲染：s9 完整且无空洞、s6/8/9 action+context 上屏、
       无黑帧尾巴、CTA 到最后一帧、圆不压字、逐场景帧审计零裁切
 - [ ] 存量 15 个生产内容包批量校验，输出 FAIL 清单（仅清单，不改文案）
+- [ ] **#153 存量 preflight 回填完成**（关闭父 issue #141 的前置，决策 71）
 - [ ] `docs/content-pipeline.md`：预算降为提示级 + 新增几何验证门槛条目
 - [ ] `docs/brand-system.md` / `docs/video-workflow.md` 同步契约引用
 - [ ] spec / tickets / review 归档到 `docs/archive/`，更新 `docs/archive/README.md`
@@ -234,19 +271,29 @@ s9 不再出现中部空洞；补齐后的垂直空间由契约与缩字优先�
 
 ---
 
-## T12 — Fit 内核替换为官方 `@remotion/layout-utils`（2026-09-01 调研修订新增，决策 57/62）
+## T12 — 官方 `fitText` 接入 TextGate 生产路径（2026-09-01 新增；2026-09-02 审计修订，决策 57/63/64）
 
-**Blocked by:** T5（需 28 门测试 + 冒烟基线在位当回归哨兵）｜ Issue: 待建（新 session 创建）
+**Blocked by:** T5 ✅（需 28 门测试 + 冒烟基线在位当回归哨兵）｜ Issue: 待建（新 session 创建，建票时用本节修订后 scope）
 
-**What to build:** `fitGroup` 的单字段缩字阶梯换为官方 `fitText`（单行）/
-`fitTextOnNLines`（多行，如需），保留外层编排（shrinkOrder、minSize 硬下限、EPS）
-与终态验证（Range 几何）。这是「已绿代码的等价替换」——先存档基线再动手。
-**Assert 层（ink/标注/逐帧/容器）不动**（决策 58：官方与行业均无等价物）。
+> **2026-09-02 审计修订（决策 63/64）**：原目标 `fitGroup` 无生产调用者（仅单测）——
+> 按原样实施不改变生产行为。接入点改为 **TextGate → `fitCandidates()` 生产路径**
+> （text-gate.tsx Fit 阶梯）；官方输出只作候选值，最终仍由 Range + ink 终态验证。
+> 删除 `validateFontIsLoaded` 强制开启项（Times 栈与 fallback 指标一致，会被官方
+> 启发式误判）；保留 `document.fonts.ready` + 超时 FAIL 门。
+
+**What to build:** 官方 `fitText`（单行）/`fitTextOnNLines`（多行，如需）替换 TextGate
+候选字号生成中的自建线性外推：官方结果作为候选序列来源，既有终态验证（Range 几何 +
+ink）不动——官方不验证结果，验证层是闸门本体。**Assert 层（ink/标注/逐帧/容器）不动**
+（决策 58）。这是「已绿代码的等价替换」——先存档基线再动手。
 
 - [ ] 基线存档：现有 28 门测试 + `_gate-smoke` 冒烟结果记录在案（替换前全绿）
 - [ ] Times 900 大写连字场景实测官方 `fitText` 线性外推误差；超 EPS 则线性外推后接一步二分精化（决策 57）
-- [ ] `fitGroup` 内核替换；`text-geometry.mjs` 中被官方覆盖的阶梯代码删除，ink/坐标变换保留（决策 58）
+- [ ] **TextGate 候选生成接入官方 `fitText`**（TextGate 内或 Remotion 工作区 browser
+      helper）；候选序列仍受 `minSize` 硬下限与 `shrinkOrder` 编排约束（决策 63）
+- [ ] `fitGroup` 处置：官方接入后确认无生产消费者则随本票退役（连同仅剩的单测），
+      否则留纯函数层（决策 63）
 - [ ] 新增契约测试：官方 `fitText` 输出必须通过本项目终态验证（防官方行为漂移）
 - [ ] 全部既有门测试 + 冒烟全绿（决策 62）
-- [ ] 契约单测补锁定 `validateFontIsLoaded` 开启（字体未加载 → throw，与 font-timeout 语义合并）
+- [ ] ~~契约单测补锁定 `validateFontIsLoaded` 开启~~ **（删除，决策 64）**：
+      保留 `document.fonts.ready` + 超时 FAIL 门；未来需精确字体验证时先打包命名字体
 - [ ] 已知局限写入代码注释：官方多行函数按空格分词，中文场景失效 → 见低优先级 issue（决策 60）
