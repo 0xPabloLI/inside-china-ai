@@ -187,6 +187,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/issue-tracker-review-2026-08-26.md` | 2026-08-28 | — | Issue tracker 全量逐项审阅——38 open issues，19 pass / 19 comment (8 P1 + 11 P2)。2026-08-28 全部 19 项修复后归档。含修复状态追踪表。 |
 | `reviews/review-asset-sourcer-techdebt-cleanup.md` | 2026-08-30 | — | asset-sourcer 技术债清理双轴审查——Standards 0 hard violations（1 judgement 已修复）；Spec 轴全对齐、无 scope creep。330 tests + 真实数据冒烟。 |
 | `reviews/review-issue-89-rate-limiter-2026-08-30.md` | 2026-08-30 | #89 | #89 P0 rate limiter 双轴审查——Standards 1 hard violation（ESM `__dirname` 未定义，已修复 + 真实 node import 验证）；Spec 轴 17/17 场景矩阵全覆盖，1 scope creep（smoke 脚本，已验证后待删）。47 tests + 真实数据冒烟。 |
+| `reviews/text-overflow-t6-review.md` | 2026-09-02 | #147 | T6 HTML 路径退役双轴审查——Standards 6 findings（4 hard：3 处文档指针硬伤已修 `9914777` + b-roll 检查搭车提交记录在案不拆分）；Spec 轴无缺失项、1 scope creep（同 b-roll）。2645/3 tests + 双冒烟。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）
