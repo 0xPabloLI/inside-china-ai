@@ -19,9 +19,10 @@
  * Never hard-code an extension — always use resolveSceneAudio().
  */
 
-import { existsSync, mkdtempSync, rmSync } from "fs";
+import { existsSync, mkdtempSync, renameSync, rmSync, unlinkSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { execFileSync } from "child_process";
 import { sceneTimeline, findScene } from "../timeline.mjs";
 import { decodeToWavFile, readWavPcm } from "./wav.mjs";
 import { findOnset } from "./fft.mjs";
@@ -183,8 +184,7 @@ export function verifyAudioSync({ videoPath, outputDir, sceneDurations, toleranc
       // Prefer the exact audio path used during assembly (index-aligned to
       // sceneDurations) so we measure the file that is actually in the video.
       // Fall back to re-resolution only when the caller didn't pin a path.
-      const scenePath =
-        (audioPaths && audioPaths[i]) || resolveSceneAudio(audioDir, scene.sceneId);
+      const scenePath = (audioPaths && audioPaths[i]) || resolveSceneAudio(audioDir, scene.sceneId);
       if (!scenePath) {
         skippedScenes.push(scene.sceneId);
         continue;
@@ -223,4 +223,84 @@ export function verifyAudioSync({ videoPath, outputDir, sceneDurations, toleranc
   } finally {
     cleanup();
   }
+}
+
+/**
+ * Deterministic alignment fix for the shipped audio track.
+ *
+ * Remotion's raw mp4 audio starts 86–101ms late (mp3 decoder delay + AAC
+ * priming, varying per render — issue #176). The subtitles are burned into
+ * video frames at timeline 0, so the voiceover lags every cue by that
+ * constant. The delay is a global constant on the audio track (every scene
+ * drifts by the same amount), so it can be removed by trimming (or padding,
+ * for early audio) the track head after the final encode — ffmpeg's own
+ * re-encode delay is edit-list-compensated, so the trim is exact.
+ *
+ * Drift must be constant across scenes (spread ≤ REALIGN_MAX_SPREAD): a
+ * per-scene-varying drift means inter-scene gaps were mangled and head
+ * trimming would misalign everything after scene 1 — that class of bug is
+ * left to fail the verifier loudly instead of being "fixed" here.
+ *
+ * @param {object} options - Same shape as verifyAudioSync.
+ * @param {string} options.videoPath - The shipped video; realigned IN PLACE.
+ * @returns {object} { realigned, driftMsBefore, reason?, filter? }
+ */
+export function realignAudioToTimeline({ videoPath, outputDir, sceneDurations, audioPaths }) {
+  const THRESHOLD = 0.005; // 5ms — below AAC frame size, not worth a re-encode
+  const MAX_SPREAD = 0.05; // 50ms — drift must be constant across scenes
+
+  const result = verifyAudioSync({ videoPath, outputDir, sceneDurations, audioPaths });
+  const drifts = (result.scenes ?? []).map((s) => s.drift).filter(Number.isFinite);
+  const base = { realigned: false, driftMsBefore: null };
+
+  if (result.errored || drifts.length === 0) {
+    return { ...base, reason: "no measurable scenes — nothing to realign against" };
+  }
+
+  const sorted = [...drifts].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const spread = sorted[sorted.length - 1] - sorted[0];
+  const driftMsBefore = median * 1000;
+
+  if (spread > MAX_SPREAD) {
+    return {
+      ...base,
+      driftMsBefore,
+      reason: `drift not constant across scenes (spread ${(spread * 1000).toFixed(1)}ms) — refusing head trim`,
+    };
+  }
+
+  if (Math.abs(median) < THRESHOLD) {
+    return { ...base, driftMsBefore, reason: "drift below threshold" };
+  }
+
+  // Early audio (negative drift) → pad the head; late audio (positive,
+  // the #176 case) → cut the head. Video is never touched.
+  const af =
+    median < 0
+      ? `adelay=${Math.round(-median * 1000)}:all=1`
+      : `atrim=start=${median.toFixed(6)},asetpts=PTS-STARTPTS`;
+  const tempPath = videoPath.replace(/(\.\w+)$/, "-realign$1");
+  // Container-appropriate audio codec: the shipped artifact is mp4 (aac), but
+  // wav fixtures (tests, diagnostics) must be re-encoded as PCM or the wav
+  // muxer rejects the stream outright.
+  const audioArgs = /\.(wav)$/i.test(videoPath)
+    ? ["-c:a", "pcm_s16le"]
+    : ["-c:a", "aac", "-b:a", "192k"];
+
+  try {
+    execFileSync(
+      "ffmpeg",
+      ["-y", "-i", videoPath, "-af", af, "-c:v", "copy", ...audioArgs, tempPath],
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
+    renameSync(tempPath, videoPath);
+  } catch (e) {
+    try {
+      unlinkSync(tempPath);
+    } catch {}
+    return { ...base, driftMsBefore, reason: `ffmpeg realign failed: ${e.message}` };
+  }
+
+  return { realigned: true, driftMsBefore, filter: af };
 }

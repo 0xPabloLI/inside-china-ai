@@ -27,6 +27,7 @@ import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
+import { realignAudioToTimeline } from "./audio/sync.mjs";
 import { autoUpscaleIfNeeded } from "./upscale.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -191,6 +192,33 @@ export function renderRemotion({
     try {
       unlinkSync(tempPath);
     } catch {}
+  }
+
+  // ── 5b. Audio realignment (issue #176) ──
+  // Remotion's raw AAC track starts 86–101ms late (mp3 decoder delay + AAC
+  // priming, varies per render). Subtitles are burned into video frames at
+  // timeline 0, so the voiceover lags every cue by that constant. Measure the
+  // shipped track against the timeline and trim the constant head delay.
+  {
+    const realign = realignAudioToTimeline({
+      videoPath: currentPath,
+      outputDir, // scene audio for measurement lives here
+      sceneDurations: scenes.map((s, i) => ({
+        sceneId: s.id ?? i + 1,
+        duration: durations[i],
+      })),
+      audioPaths: audioPaths.map((p) => p.replace("file://", "")),
+    });
+    if (realign.realigned) {
+      console.log(
+        `  🔊 Audio realigned: trimmed ${realign.driftMsBefore.toFixed(1)}ms leading delay (#176)`,
+      );
+    } else if (realign.driftMsBefore != null && Math.abs(realign.driftMsBefore) > 20) {
+      // Measurable but not corrected — surface why instead of failing silently.
+      console.log(
+        `  ⚠️ Audio drift ${realign.driftMsBefore.toFixed(1)}ms NOT realigned: ${realign.reason}`,
+      );
+    }
   }
 
   // Rename raw → final if different

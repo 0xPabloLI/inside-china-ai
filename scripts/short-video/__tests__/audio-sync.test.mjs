@@ -7,6 +7,7 @@ import {
   evaluateAudioSync,
   applyAudioSyncToSummary,
   verifyAudioSync,
+  realignAudioToTimeline,
   resolveSceneAudio,
 } from "../lib/audio/sync.mjs";
 import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
@@ -460,9 +461,7 @@ describe("verifyAudioSync honors audioPaths (assembly-source regression)", () =>
       const wavSrc = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(wavSrc, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execSync(
-        `ffmpeg -y -i "${wavSrc}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`,
-      );
+      execSync(`ffmpeg -y -i "${wavSrc}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`);
       mp3Paths.push(mp3Path);
       // Stale .wav from a different generation — undecodable, so re-resolution
       // that picks it lands in failedScenes instead of silently matching.
@@ -516,4 +515,138 @@ describe("verifyAudioSync honors audioPaths (assembly-source regression)", () =>
     expect(scene2.expected).toBeCloseTo(SCENE2_OFFSET, 3);
     expect(Math.abs(scene2.measured - SCENE2_OFFSET)).toBeLessThan(0.03);
   }, 20000);
+});
+
+describe("realignAudioToTimeline (integration, real ffmpeg)", () => {
+  // Same fixture family as the verifyAudioSync integration tests above.
+  const SCENE_DURATIONS = [
+    { sceneId: 1, duration: 1.0 },
+    { sceneId: 2, duration: 0.5 },
+  ];
+  let dirs = [];
+
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    dirs = [];
+  });
+
+  function noise(seconds, seed, rate = 44100) {
+    const n = Math.round(seconds * rate);
+    const out = new Float32Array(n);
+    let s = seed;
+    for (let i = 0; i < n; i++) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      out[i] = (s / 0x40000000 - 1) * 0.5;
+    }
+    return out;
+  }
+
+  function makeFixture() {
+    const dir = mkdtempSync(join(tmpdir(), "realign-it-"));
+    dirs.push(dir);
+    const audioDir = join(dir, "audio");
+    mkdirSync(audioDir);
+
+    for (const [id, seconds, seed] of [
+      [1, 1.0, 42],
+      [2, 0.5, 1337],
+    ]) {
+      const srcWav = join(dir, `scene-${id}-src.wav`);
+      writeWavPcm(srcWav, noise(seconds, seed), 44100);
+      execSync(
+        `ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${join(audioDir, `scene-${id}.mp3`)}" 2>/dev/null`,
+      );
+    }
+
+    const finalPath = join(dir, "final.wav");
+    buildVoiceoverTrack({
+      sceneAudioPaths: [join(dir, "audio", "scene-1.mp3"), join(dir, "audio", "scene-2.mp3")],
+      ttsDurations: [1.0, 0.5],
+      outputPath: finalPath,
+    });
+    return { dir, finalPath };
+  }
+
+  /** Simulate the Remotion AAC-priming delay: pad the whole track's start. */
+  function delayTrack(finalPath, ms) {
+    const delayed = finalPath.replace(".wav", `-delayed${ms}.wav`);
+    execSync(`ffmpeg -y -i "${finalPath}" -af adelay=${ms}:all=1 "${delayed}" 2>/dev/null`);
+    return delayed;
+  }
+
+  /** Simulate audio placed early: cut into the track's head. */
+  function trimTrack(finalPath, seconds) {
+    const early = finalPath.replace(".wav", `-early.wav`);
+    execSync(
+      `ffmpeg -y -i "${finalPath}" -af atrim=start=${seconds},asetpts=PTS-STARTPTS "${early}" 2>/dev/null`,
+    );
+    return early;
+  }
+
+  it("trims a constant leading delay back onto the timeline", () => {
+    const { dir, finalPath } = makeFixture();
+    const delayedPath = delayTrack(finalPath, 120);
+
+    const result = realignAudioToTimeline({
+      videoPath: delayedPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.realigned).toBe(true);
+    expect(result.driftMsBefore).toBeGreaterThan(100);
+
+    const after = verifyAudioSync({
+      videoPath: delayedPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+    expect(after.passed).toBe(true);
+    for (const scene of after.scenes) {
+      expect(Math.abs(scene.driftMs)).toBeLessThan(20);
+    }
+  }, 30000);
+
+  it("leaves an already-aligned track untouched", () => {
+    const { dir, finalPath } = makeFixture();
+
+    const result = realignAudioToTimeline({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    expect(result.realigned).toBe(false);
+
+    const after = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+    expect(after.passed).toBe(true);
+  }, 30000);
+
+  it("refuses early audio (negative drift) — not the AAC-priming bug class", () => {
+    const { dir, finalPath } = makeFixture();
+    const earlyPath = trimTrack(finalPath, 0.12);
+
+    const result = realignAudioToTimeline({
+      videoPath: earlyPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    // Scene 1's correlation peak clamps at track start for early audio, so
+    // the drift is not measurable as a constant — head trimming must refuse
+    // rather than guess, and the verifier stays the loud failure path.
+    expect(result.realigned).toBe(false);
+    expect(result.reason).toBeTruthy();
+
+    const after = verifyAudioSync({
+      videoPath: earlyPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+    expect(after.passed).toBe(false);
+  }, 30000);
 });
