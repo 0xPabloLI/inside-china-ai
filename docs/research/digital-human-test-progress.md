@@ -600,18 +600,18 @@
 
 > **规则**：不同 artifact 组合用不同参数，禁止跨组合套用（依据 AGENTS.md Proposal Self-Review #5）。有官方值的维度用官方值；组合维度无官方值时，取两个 artifact 各自官方默认作起点。来源必须标注；`作废` 的值禁止回用。
 
-| 参数 | ① base + fp8 量化（v10.11/10.16 已测） | ② bf16 非量化 + FusionX I2V LoRA（✅ v10.17 已验证） | 来源 |
-|------|------|------|------|
-| sample_steps | 40 | 8 | ②: FusionX 卡（6-8，实践 8-10） |
-| sample_text_guide_scale | 5.0 | 1.0 | ②: FusionX 卡硬性要求 CFG=1；①: InfiniteTalk README |
-| sample_audio_guide_scale | 4.0 | 2.0（官方 LoRA 章节；lip sync 不足上探 3-4） | 官方 README tips：非 LoRA 最优 4，LoRA 后推荐 2 |
-| sample_shift | 7 | 2（官方 LoRA 命令原值；非 LoRA 默认 7） | 官方源码/README：shift 默认随分辨率，LoRA 命令传 2 |
-| lora_scale | — | 1.0 | 官方 LoRA 命令原值（参数默认 1.2，2.0 仅草稿降步数用） |
-| use_teacache | 0.1（thresh） | **禁用**（跳步与蒸馏冲突） | — |
-| quant | fp8 | 无（LoRA 与 fp8 格式冲突） | — |
-| frame_num / max_frame_num | 81 / 81 | 81 / 81 | 官方默认（frame_num 13 是 v10.15 遗留，作废） |
-| GPU | T4 16GB / A100 40GB | A100 80GB（40GB 贴线 OOM 风险） | Modal 定价 2026-08-31 |
-| 状态 | ✅ 可跑（40 步单卡 A100 超时不可行） | ✅ 已验证（2026-09-02，12.2min/3s 段，/bin/zsh.56） | |
+| 参数 | ① base + fp8 量化（v10.11/10.16 已测） | ② bf16 非量化 + FusionX I2V LoRA（✅ v10.17 已验证） | ③ bf16 非量化 + lightx2v LoRA（✅ v10.18 已验证） | 来源 |
+|------|------|------|------|------|
+| sample_steps | 40 | 8 | 4 | ②: FusionX 卡（6-8，实践 8-10）；③: lightx2v 官方 4 步（官方 LoRA 章节注明 4-8） |
+| sample_text_guide_scale | 5.0 | 1.0 | 1.0 | ②③: 蒸馏 LoRA 硬性要求 CFG=1；①: InfiniteTalk README |
+| sample_audio_guide_scale | 4.0 | 2.0（官方 LoRA 章节；lip sync 不足上探 3-4） | 2.0（官方 LoRA 章节同一配方） | 官方 README tips：非 LoRA 最优 4，LoRA 后推荐 2 |
+| sample_shift | 7 | 2（官方 LoRA 命令原值；非 LoRA 默认 7） | 2 | 官方源码/README：shift 默认随分辨率，LoRA 命令传 2 |
+| lora_scale | — | 1.0 | 1.0 | 官方 LoRA 命令原值（参数默认 1.2，2.0 仅草稿降步数用） |
+| use_teacache | 0.1（thresh） | **禁用**（跳步与蒸馏冲突） | **禁用**（同 ②） | — |
+| quant | fp8 | 无（LoRA 与 fp8 格式冲突） | 无（同 ②） | — |
+| frame_num / max_frame_num | 81 / 81 | 81 / 81 | 81 / 81 | 官方默认（frame_num 13 是 v10.15 遗留，作废） |
+| GPU | T4 16GB / A100 40GB | A100 80GB（40GB 贴线 OOM 风险） | A100 80GB（同 ②） | Modal 定价 2026-08-31 |
+| 状态 | ✅ 可跑（40 步单卡 A100 超时不可行） | ✅ 已验证（2026-09-02，12.2min/3s 段，$0.56，lip sync 人眼确认；NC 仅验证用） | ✅ 已验证（2026-09-02，9.3min/3s 段，$0.42；抽帧对比与 ② 同级，待用户 lip sync 人眼确认；可商用，许可标注待核实） | |
 
 > **纠错（2026-08-31）**：本表初版曾将组合 ② 的 audio/shift 标为 4.0/7.0 并注「旧值无出处」——实为误判，官方 README 有专门的 LoRA 章节（「Run with FusioniX or Lightx2v」）明文推荐 audio=2.0、shift=2，已改回。教训：**查官方默认值之前，先确认 README 是否有专门的 LoRA/加速章节**——加速用法常有独立推荐值，不能拿非 LoRA 默认覆盖。
 
