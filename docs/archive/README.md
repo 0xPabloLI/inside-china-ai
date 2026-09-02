@@ -13,6 +13,7 @@
 | `phase1-spec.md` / `phase1-tickets.md` | 2026-08-02 | 发布效率（ISSUE-02 + ISSUE-04） |
 | `roadmap-phase2.md` / `spec-phase2.md` / `tickets-phase2.md` | 2026-08-03 | 文章创作管线 + 分析自动化 |
 | `plans/2026-09-01-agent-implementation-workflow-design.md` / `plans/2026-09-01-agent-implementation-workflow.md` | 2026-09-02 | Risk × Planning Scale Agent 工作流设计与实施计划；现行规则见 `docs/agents/implementation-workflow.md` |
+| `proposal-agents-md-restructure.md` / `spec-agents-md-restructure.md` / `tickets-agents-md-restructure.md` | 2026-09-02 | AGENTS.md 重构（#169/#170）：三档路由+PSR gate 方案（v3，三轮 review，words 偏差已裁定）→ 10 tickets；后继工作流 #170 落地、rollout tracker #167 superseded 后归档 |
 
 ### 视频管线 Specs
 
@@ -25,7 +26,6 @@
 | `spec-subtitle-karaoke-timeline.md` / `tickets-subtitle-karaoke-timeline.md` | 2026-08-06 | Karaoke 字幕漏词与不同步修复 |
 | `spec-subtitle-rendering.md` / `tickets-subtitle-rendering.md` | 2026-08-06 | 字幕渲染重构（CSS→JS rAF + ASS 烧录） |
 | `spec-asset-relevance-refactor.md` / `tickets-asset-relevance-refactor.md` | 2026-08-30 | 素材相关性重构：assetNeed per-scene claim 搜索 + used-asset 40% cap + VLM relevance gate + 衬线基准化（#130，issues #131-#139） |
-| `spec-broll-prompt-dimension-check.md` / `tickets-broll-prompt-dimension-check.md` | 2026-09-02 | B-roll prompt 八维校验第一层 — preflight warn 级检查 `checkBrollPromptDimensions()`：NEGATIVE 三语义组覆盖（TEXT/HANDS/ARTIFACT，`\b` 词边界 + `i` flag）+ 阿拉伯数字检测（数据值应进 texts 层，元素数量可忽略）。每 scene 一条合并 warn、不阻断，生成策略 opt-in 才生效。真实 fixture 固化 qwen4-preview scene 5/6 缺组现状（scene 5 缺 ARTIFACT、scene 6 缺 TEXT+ARTIFACT）。S1-S21 场景矩阵全覆盖，159 tests。follow-up = GitHub #166（第二层常量注入） |
 | `spec-asset-sourcer-techdebt-cleanup.md` / `tickets-asset-sourcer-techdebt-cleanup.md` | 2026-08-30 | asset-sourcer 技术债清理：四处搜索 phase 结构重复 → 共享 helper（`shouldSkipByPreFilter`/`shouldSkipByDedup`/`downloadAndRecord`）；relevance 散装原语 → `makeRelevance` + `RELEVANCE_SOURCE`；API phase `keywords[0]` ReferenceError 修复。行为不变（330 tests + 真实 scene-data 冒烟，commit `a5b4f22`）。见 `reviews/review-asset-sourcer-techdebt-cleanup.md` |
 | `spec-subtitle-verification.md` / `tickets-subtitle-verification.md` | 2026-08-06 | 字幕验证系统 |
 | `spec-scene-extraction.md` / `tickets-scene-extraction.md` | 2026-08-06 | 场景提取 + 共享视觉系统分离 |
@@ -190,7 +190,6 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/issue-tracker-review-2026-08-26.md` | 2026-08-28 | — | Issue tracker 全量逐项审阅——38 open issues，19 pass / 19 comment (8 P1 + 11 P2)。2026-08-28 全部 19 项修复后归档。含修复状态追踪表。 |
 | `reviews/review-asset-sourcer-techdebt-cleanup.md` | 2026-08-30 | — | asset-sourcer 技术债清理双轴审查——Standards 0 hard violations（1 judgement 已修复）；Spec 轴全对齐、无 scope creep。330 tests + 真实数据冒烟。 |
 | `reviews/review-issue-89-rate-limiter-2026-08-30.md` | 2026-08-30 | #89 | #89 P0 rate limiter 双轴审查——Standards 1 hard violation（ESM `__dirname` 未定义，已修复 + 真实 node import 验证）；Spec 轴 17/17 场景矩阵全覆盖，1 scope creep（smoke 脚本，已验证后待删）。47 tests + 真实数据冒烟。 |
-| `reviews/text-overflow-t6-review.md` | 2026-09-02 | #147 | T6 HTML 路径退役双轴审查——Standards 6 findings（4 hard：3 处文档指针硬伤已修 `9914777` + b-roll 检查搭车提交记录在案不拆分）；Spec 轴无缺失项、1 scope creep（同 b-roll）。2645/3 tests + 双冒烟。 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 > - `docs/reviews/source-registry-capability-audit-2026-08-19.md` — #77 source labels audit（W3 待做）

@@ -2,6 +2,17 @@
 
 > The **workflow steps** (research → write scene-data → run pipeline → thumbnail → quality check) live in the `short-video-pipeline` skill. This document covers project-specific content: content standards, best practices, publishing strategy, and file locations.
 
+## Skill Loading Matrix（按任务类型，非互斥）
+
+| 任务 | 加载的 Skill | 用途 |
+|------|-------------|------|
+| 写 scene-data / 跑管线 / 发布 | `short-video-pipeline` + `brand-system` | 管线流程 + 品牌一致性 |
+| 改 `remotion/src/` React 组件代码 | `remotion-markup`（主入口 `remotion-best-practices`） | Remotion API 最佳实践：`Interactive.Div` 结构、`@remotion/media` 组件、`@remotion/transitions` 转场、`@remotion/rough-notation` 文本标注、`@remotion/effects` 视觉效果、`perceptual-scale` 动画、`calculateMetadata` 动态时长 |
+| 改视频模板视觉设计（间距/排版/层次/动画） | `impeccable` | `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨 |
+| 新建场景模板 | `frontend-design` | 选择美学方向 |
+
+> **`remotion-markup` vs `impeccable` 分工**：`remotion-markup` 管"Remotion 代码怎么写"（API 正确用法、组件结构、转场模式、动画 timing）；`impeccable` 管"画面该怎么排"（间距节奏、视觉层次、动画多样性、可读性、AI slop 检测）。改 `remotion/src/` 时两个都加载——先 `remotion-markup` 确保 API 正确，再 `impeccable` 确保视觉质量。
+
 ## Best Practices
 
 ### Duration
@@ -113,10 +124,16 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 | 3        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
 | 4        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
 
+**M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
+
+```bash
+ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
+```
+
 **F5-TTS-MLX** (DEFAULT):
 - Voice cloning via reference audio + reference text (zero-shot)
 - Ref audio: `voice-samples/voice-sample-24k.wav`（24kHz mono WAV）
-- Ref text: `assets/voice-sample-ref-text.txt`（必须精确匹配 ref audio）
+- Ref text: `voice-samples/voice-sample-ref-text.txt`（必须精确匹配 ref audio）
 - Model: `lucasnewman/f5-tts-mlx` (HF cache, 1.3GB)
 - **缓存加载必须离线**：`huggingface_hub` 加载模型前默认向 HF 发 etag 检查请求（确认本地缓存是否最新）。
   该请求走系统代理，曾出现连接建立后 9 分钟零数据流动的挂死（qwen4-preview, 2026-08-29）——
@@ -378,9 +395,8 @@ scripts/short-video/
 │       ├── pt2/            # Part 2 — Kimi's Gambit (9 scenes)
 │       └── pt3/            # Part 3 — The Fallout (9 scenes)
 ├── assets/
-│   ├── voice-sample-24k.wav # F5/Qwen3 ref audio (24kHz mono)
-│   ├── voice-sample-ref-text.txt # F5/Qwen3 ref text (must match ref audio exactly)
 │   └── logos/              # Company logos (deepseek.svg, ...)
+├── voice-samples/          # TTS ref audio/text (gitignored, personal)
 └── output/                 # Pipeline outputs (isolated per pipelineId)
     └── {pipelineId}/
         ├── audio/          # TTS audio + subtitle-timing.json
