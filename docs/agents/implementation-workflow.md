@@ -158,6 +158,7 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 |------|---------|
 | 仅 Agent 文档 | `npm run lint:docs`、指针检查、`git diff --check` |
 | `src/`、Supabase、应用配置 | affected tests、`npm test`、`npm run lint`、`npm run build`、`npx tsc --noEmit` |
+| Python 代码或 Python/Node 跨进程边界 | affected Python tests（优先项目既有 `pytest`/runner）+ 对应 Node consumer tests；涉及真实模型、媒体或格式时再加 smoke |
 | UI 交互、布局或样式 | 上述相关检查 + dev server 浏览器核心路径；对齐测量同时记录 `width`、`left`、`right` |
 | 视频管线逻辑 | affected/full relevant tests + 至少一个已有 content 目录的 Real Data Smoke Test |
 | Remotion 视觉或时间线 | relevant tests + 实际 composition/still/render 检查 |
@@ -166,14 +167,14 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 
 ## 8. Review 与修复循环
 
-`code-review` 只看 fixed point 到 `HEAD` 的 committed diff，因此顺序固定为：
+`code-review` 只看两个 fixed points 之间的 committed diff，因此顺序固定为：
 
 1. 记录整个工作开始前的 baseline commit。
 2. 每个已验证 ticket 创建 atomic commit。
-3. 对 baseline 到当前 `HEAD` 调用 `code-review`，分别输出 Standards 与 Spec。
+3. review 开始前立即记录当前任务终点 `taskHead = git rev-parse HEAD`；对 `baseline...taskHead` 调用 `code-review`，分别输出 Standards 与 Spec。不得把会继续移动的裸 `HEAD` 当作 review 终点。
 4. 每个 accepted finding 回到 Implement/TDD，修复并重新验证。
-5. 未 push 时，同一原子任务的修复按 Git workflow 选择 amend；已经发布的历史只追加 commit。
-6. 修复后重新审查受影响部分，直到没有阻塞 finding。
+5. 修复 commit 后记录新的 `taskHead`，重新审查 `baseline...taskHead` 受影响部分；已经发布的历史只追加 commit。
+6. 重复修复、验证与固定终点 review，直到没有阻塞 finding。
 
 Review 报告不能只生成后忽略。
 

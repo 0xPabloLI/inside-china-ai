@@ -1,6 +1,6 @@
 # Archive
 
-已完成的 spec、tickets、roadmap 和 handoff 文档。保留作历史参考，不再活跃维护。
+已完成的 spec、tickets、plans、roadmap 和 handoff 文档。保留作历史参考，不再活跃维护。
 
 当前规范行为见根目录的活跃文档和 [`DOCS-INDEX.md`](../DOCS-INDEX.md)。
 
@@ -12,11 +12,13 @@
 |------|----------|------|
 | `phase1-spec.md` / `phase1-tickets.md` | 2026-08-02 | 发布效率（ISSUE-02 + ISSUE-04） |
 | `roadmap-phase2.md` / `spec-phase2.md` / `tickets-phase2.md` | 2026-08-03 | 文章创作管线 + 分析自动化 |
+| `plans/2026-09-01-agent-implementation-workflow-design.md` / `plans/2026-09-01-agent-implementation-workflow.md` | 2026-09-02 | Risk × Planning Scale Agent 工作流设计与实施计划；现行规则见 `docs/agents/implementation-workflow.md` |
 
 ### 视频管线 Specs
 
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
+| `spec-hook-media-support.md` | 2026-08-21 | Hook Scene 可选 media、Narrative Ken-Burns 与 warning summary；实施 commit `8acdd2c` |
 | `spec-broll-generation-capability.md` / `tickets-broll-generation-capability.md` | 2026-09-01 | B-roll 生成能力 — `mediaStrategy` 契约（asset/b-roll/asset-then-broll）+ FastVideo FastMetal 批跑（T2 runner）+ VLM claim gate（threshold 60 fail-closed）+ won 文件缓存 + 3 轮报告驱动 agent 迭代。T9 VLM 修复：视频一律抽帧分析（native video 无像素到达 GLM-4.1V，判词幻觉）、relevance 宽容解析（观测变体收窄后仍 fail-closed）、claim-mode 升级判据 = relevance 缺失。T10 `HF_HUB_OFFLINE=1` 固化双 spawn 点（`HF_HUB_OFFLINE=0` 退出；哑端点零网络验证）。夹具 scene 5/6/8；scene 5 round-2 重写 won@relevance 80（agent 迭代协议闭环）。mjs 102+242、python 17+23 tests。成片渲染确认按用户决定不专门重跑（B-roll 侧证据已绿，随下一个真实内容视频自然验证，见 ticket T8）；follow-up = GitHub #155–#159 |
 | `spec-audio-diagnostics.md` / `tickets-audio-diagnostics.md` | 2026-08-06 | 验证失败诊断包 |
 | `spec-gapless-audio-track.md` / `tickets-gapless-audio-track.md` | 2026-08-06 | 无间隙连续音轨 + 音频同步验证 |

@@ -47,8 +47,9 @@
 
 1. 开工前记录 baseline commit。
 2. ticket 定向验证通过后 commit。
-3. `code-review` 比较 baseline 到 `HEAD`，确保 review 能看到 committed diff。
-4. review 修复后重新验证；未 push 时可按本文件 amend，已 push 时只追加 commit。
+3. review 开始前记录 `taskHead = git rev-parse HEAD`；`code-review` 比较 `baseline...taskHead`，不使用会被并行 session 移动的裸 `HEAD`。
+4. 若 `baseline..taskHead` 含其他 session 的 commit，改用本任务首个 commit 的直接父提交作 baseline；仍无法形成连续任务区间时，停止并报告，不用路径过滤伪装成完整 review。
+5. review 修复后重新验证并创建修复 commit，再记录新的 `taskHead`；已 push 时只追加 commit。
 
 ## 7. PR Guardrails
 
