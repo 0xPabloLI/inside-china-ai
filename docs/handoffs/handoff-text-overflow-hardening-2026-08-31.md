@@ -133,12 +133,12 @@ T7(#148, done) ─────────────────────�
 ## 7. 快速命令
 
 ```bash
-# 全量测试
-cd scripts/short-video && CI=true npx vitest run
-# 单 ticket 测试
-CI=true npx vitest run __tests__/text-slots.test.mjs __tests__/final-media-gate.test.mjs
+# 全量测试（必须从仓库根跑——在 scripts/short-video 下跑会因 cwd 依赖假红 8 个，见 §5 T6 坑）
+CI=true npx vitest run --root . --config scripts/short-video/vitest.config.mjs
+# 单 ticket 测试（cd 到 scripts/short-video 下跑，限指定文件——无全量套件的 cwd 陷阱）
+cd scripts/short-video && CI=true npx vitest run __tests__/text-slots.test.mjs __tests__/final-media-gate.test.mjs
 # gate 门测试（T4/T5）
-CI=true npx vitest run __tests__/text-gate-render.test.mjs __tests__/scene-gate-render.test.mjs
+cd scripts/short-video && CI=true npx vitest run __tests__/text-gate-render.test.mjs __tests__/scene-gate-render.test.mjs
 # 真实渲染冒烟（必经，单测不足以证明正确）
 node render-only.mjs --content qwen4-preview
 # gate 全管线冒烟包（新机器先跑 .scratch-gate-smoke-audio.mjs 再生资产）
@@ -170,5 +170,5 @@ ffmpeg -ss 53 -i output/qwen4-preview/<file>.mp4 -frames:v 1 -y /tmp/s9.png
 - [x] 本 handoff 文档创建（每 session 更新）
 - [x] 下一 session（#1）：从 T4 (#145) 起 —— 已完成，见 §2/§3
 - [x] 调研修订 session（2026-09-01）：两轮 deep research + 官方能力审计 → 决策 57–62 落盘（spec/tickets）；#147 改名 pivot、#154 关闭、#165 立票；未改任何代码（用户要求文档先行，新 session 再实施）
-- [x] T6 (#147) 实现 + renderer-guard 测试 + code-review 双轴 + 双冒烟 + scoped lint/tsc/build + issue 关闭（2026-09-02，commit `830cd44` **本地待 push**）
-- [ ] 后续 session（#2…N）：T12(决策 57，先建 issue) → T10(#151) → T11(#152) + T8/T9(#149/#150) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）。新 session 开场先处理 `830cd44` 的 push（见 §0）
+- [x] T6 (#147) 实现 + renderer-guard 测试 + code-review 双轴 + 双冒烟 + scoped lint/tsc/build + issue 关闭（2026-09-02，`830cd44` 实现 + `9914777` review 修复 + `0025f73` review 归档，**全部本地待 push**）
+- [ ] 后续 session（#2…N）：T12(决策 57，先建 issue) → T10(#151) → T11(#152) + T8/T9(#149/#150) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）。新 session 开场先处理 `830cd44`/`9914777`/`4e1d3bc`/`0025f73` 四个本地 commit 的 push（见 §0）
