@@ -196,16 +196,26 @@ preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性
 缺失 FAIL」补上；为多字段缩字先建 parent/group gate（否则缩序只是无生产调用者的单测
 算法）；media-overlay 补回 action/context。
 
-- [ ] **badge 接入（新首项，决策 65）**：stacked-cards 模板渲染 `texts.badge` 并接
-      TextGate（`data-text-*` 寻址）；`REMOTION_SLOT_MAP.narrative.stacked-cards`
-      声明 badge（rendered 或 optional）；`measure-slot-widths.mjs` 实测宽度回填；
-      qwen4 s9（`badge: "LOOP CLOSURE"`）渲染通过
-- [ ] **rendered 缺失 FAIL（T5 审计更正承接，#5）**：`assertKnownTextFields()` 或
-      渲染层对声明为 rendered 且数据缺失的字段 FAIL（现只拒未知键）；
-      契约单测锁定 required/rendered 缺失路径
-- [ ] **mediaOptOut 归位（决策 66）**：从 `REMOTION_SLOT_MAP` 四个 narrative 布局的
-      texts `control` 列表移除；SceneData 顶层类型补 `mediaOptOut` 声明；
-      修正锁定 `texts.mediaOptOut` 错误位置的契约测试（text-slots.test.mjs #38）
+- [x] **badge 接入（新首项，决策 65）✅ DONE (2026-09-02, `15b4419`)**：stacked-cards 模板渲染
+      `texts.badge` 并接 TextGate（gate 包 chip，padding/border 留在 slot 内）；
+      `REMOTION_SLOT_MAP.narrative.stacked-cards` 声明 badge 为 optional；
+      `measure-slot-widths.mjs` 实测确认 820（13 场景全表 ok 无回归）；
+      qwen4 s9（`badge: "LOOP CLOSURE"`）全管线渲染通过（1953 帧 + 71/71 帧检查 +
+      badge chip 像素验证：amber 带 y≈464–476，8/31 旧渲染无此带）
+- [x] **rendered 缺失 FAIL（T5 审计更正承接，#5）✅ DONE (2026-09-02, `15b4419`)**：
+      `assertKnownTextFields()` 对声明为 rendered 且数据缺失（key 缺失或 null）的字段
+      FAIL（空串/空数组 present 仍放行，#34 语义保留；alias 感知）；契约单测锁定
+      undefined/{}/单缺失/无 rendered 模板四条路径 + fixture `missing-rendered` 渲染层测试。
+      存量影响：bytedance-distillation / kimi-sandbox / zhipu-glm6-self-training 有缺
+      rendered 的场景，但这些包当前本就因未知 visualType 或非法 layout 无法渲染（决策 45
+      throw），不新增破坏
+- [x] **mediaOptOut 归位（决策 66）✅ DONE (2026-09-02, `15b4419`)**：从 `REMOTION_SLOT_MAP`
+      四个 narrative 布局的 texts `control` 列表移除；`SceneData` 顶层类型补
+      `mediaOptOut?: boolean` 声明；text-slots.test.mjs #38 改锁：texts 内 mediaOptOut
+      → Unknown text field throw + 遍历断言四布局 texts 列表不再含 mediaOptOut
+- [x] 活代码 HTML 残留清理（handoff §6 记录的决策 59 收尾项）✅ (2026-09-02, `15b4419`)：
+      删除 `HTML_SLOT_MAP`/`htmlSlotsFor()` 及 text-slots.test.mjs 对应 describe；
+      review 双轴修复（`remotionSlotsFor` JSDoc 误删已恢复，amend 并入 `15b4419`）
 - [ ] MediaOverlay 顶部补 action、底部补 context
 - [ ] **parent/group gate 设计并接入（决策 68 前置）**：为 `maxHeight` 编排补生产
       调用者——slot 补 `maxHeight` 标定 + TextGate（或新 helper）实现多字段总高判定；
