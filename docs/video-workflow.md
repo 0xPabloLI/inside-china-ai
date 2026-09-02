@@ -303,6 +303,8 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 **Agent should design the title explicitly in scene-data** (via `metadata.title`), not rely on `generate-caption.mjs` auto-derivation. `generate-caption.mjs` uses `metadata.title` when available (see `deriveTitle()` in `caption-utils.mjs`).
 
+**Hashtag 手动覆盖**：在 `meta.mjs` 中设置 `hashtags` 数组（3-5 个）可锁定 hashtag 输出，跳过自动推导。`generate-caption.mjs` 读取 `meta.mjs.hashtags`（非空时优先于 `keyEntities` 自动匹配）。锁定模式下 trending hashtags 不隐式注入——如需 trending tag，手动加入数组。未设置时 `deriveHashtags()` 从 `keyEntities.companies` 自动匹配 + 默认流量标签。
+
 > Enforcement: `verify-video.mjs` runs automated checks after every video — do NOT publish until all checks pass. TikTok best practices, analytics, series strategy and scaffold guides: see "Design Decisions & References" at the bottom.
 
 ## File Locations
