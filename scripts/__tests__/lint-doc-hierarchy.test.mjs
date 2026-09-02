@@ -231,8 +231,8 @@ describe("checkWritingForAgentsGate", () => {
     const warns = findings.filter((f) => f.level === "WARN");
     expect(warns).toHaveLength(1);
     expect(warns[0].file).toBe("AGENTS.md");
-    expect(warns[0].message).toContain("AGENTS.md → Workflow Router → Agent documents");
-    expect(warns[0].message).not.toContain("Coding Conventions");
+      expect(warns[0].message).toContain("AGENTS.md → Workflow Router → Agent documents");
+      expect(warns[0].message).not.toContain("Coding Conventions");
   });
 
   it("WARN: pointer line changed (contains arrow)", () => {
