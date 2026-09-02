@@ -13,6 +13,7 @@
 | `phase1-spec.md` / `phase1-tickets.md` | 2026-08-02 | 发布效率（ISSUE-02 + ISSUE-04） |
 | `roadmap-phase2.md` / `spec-phase2.md` / `tickets-phase2.md` | 2026-08-03 | 文章创作管线 + 分析自动化 |
 | `plans/2026-09-01-agent-implementation-workflow-design.md` / `plans/2026-09-01-agent-implementation-workflow.md` | 2026-09-02 | Risk × Planning Scale Agent 工作流设计与实施计划；现行规则见 `docs/agents/implementation-workflow.md` |
+| `proposal-agents-md-restructure.md` / `spec-agents-md-restructure.md` / `tickets-agents-md-restructure.md` | 2026-09-02 | AGENTS.md 重构（#169/#170）：三档路由+PSR gate 方案（v3，三轮 review，words 偏差已裁定）→ 10 tickets；后继工作流 #170 落地、rollout tracker #167 superseded 后归档 |
 
 ### 视频管线 Specs
 
