@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-08-25（补充 8 个 2026 年新发布模型：LeapTalk、SoulX-FlashHead、FantasyTalking2、SkyReels-V3、Soul、Wan2.2-S2V、SoulX-LiveAct、MiniMax H3）
+> **最后更新**：2026-09-02（新增「文档规则：参数信源标注」；核验 LeapTalk 全栈 Apache 2.0 许可通过门禁；补全 LeapTalk 官方推理参数与测试计划）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -44,11 +44,12 @@
 | 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
 | 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0） | 2026-09-02 |
-| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ⚠️ base Apache 2.0 / FusionX LoRA NC | ✅ **v10.17 FusionX 8 步成功**（12.2min/3s 段，$0.56，表情自然 + ID 保持良好；lip sync 人眼确认达标 2026-09-02；NC 许可证只能验证不能发布） | 2026-09-02 |
+| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
 | 12 | **Hallo3** | Transformer DiT | — | ⚠️ 待测 | ✅ MIT | 📋 待测 | — |
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
 | 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
 | 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
+| 16 | **LeapTalk** | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | ❌ CUDA only | ✅ Apache 2.0 | 📋 待测（门禁已通过） | — |
 
 ### 云端 API
 
@@ -755,19 +756,61 @@
 - **适用场景**：有 NVIDIA A100/H100 的云 GPU 场景，而非 M2 Pro 本地
 - **测试重点**：仅在有云 GPU 时测试；验证 talking head LoRA + OmniNFT 叠加效果
 
-### 📋 LeapTalk（最高优先级新模型）
+### 📋 LeapTalk（最高优先级新模型）✅ 门禁已通过，下一个测试目标
 
 - **优先级**：⭐⭐⭐⭐⭐（1 步推理 + 1.3B + 无限长度，潜在解决 EchoMimicV3 多段拼接瓶颈）
-- **来源**：arXiv 2608.00079（2026-07-29）
+- **来源**：arXiv 2608.00079（2026-07-29，Zhang & Liu，上海交通大学 AI 学院 + 哈工大）
 - **GitHub**：`zhangrongxiang/LeapTalk`
 - **HuggingFace**：`z-rx/leaptalk`（LoRA 权重）、`Soul-AILab/SoulX-FlashHead-1_3B`（基座）
-- **技术**：reference-anchored data-to-data transport，不做传统扩散去噪，1 步推理 200 FPS，流式无限长度
+- **技术**：reference-anchored data-to-data transport（Brownian bridge），不做传统扩散去噪，1 步推理（1 NFE），流式无限长度；audio-driven classifier-free guidance 保唇同步
 - **基座**：SoulX-FlashHead-1.3B（1.3B 参数，与 EchoMimicV3 Flash 同量级）
-- **许可证**：❓ 待确认（基座 SoulX-FlashHead 许可证需查）
-- **VRAM**：1.3B 基座，预估 ~8-12GB，**T4 可能可跑**
-- **关键特点**：1 步推理（vs EchoMimicV3 8 步）+ 流式生成（vs EchoMimicV3 多段拼接）。如果质量达标，1 分钟视频可能从 4.7 小时压缩到分钟级
-- **风险**：非常新（7 月 29 日 arxiv），社区验证少；质量未经独立验证；LoRA 方式可能依赖基座质量
+- **许可证**：✅ **Apache 2.0（门禁通过，可商用）** — LeapTalk repo `LICENSE`（2026-08-11 提交 "Add Apache License 2.0"，OpenTrain 确认 "Apache-2.0 license"）+ 基座 `SoulX-FlashHead-1_3B` ModelScope/HF 标注 `apache-2.0`（airosetta："Apache-2.0 licensed for commercial use"）。全栈 Apache 2.0，无 NC 风险
+- **VRAM**：官方 Lite 模式单 RTX 4090 仅 **6.4GB**（96 FPS，3 并发实时）；**T4 15GB 充裕**；模型磁盘 ~14.33GB（SoulX-FlashHead-1_3B）+ LeapTalk LoRA 小（信源：Soul-AILab/SoulX-FlashHead README + airosetta）
+- **关键特点**：1 步推理（vs EchoMimicV3 8 步）+ 流式生成（vs EchoMimicV3 多段拼接）。若质量达标，1 分钟视频可能从 4.7 小时压缩到分钟级
+- **风险**：非常新（2026-07-29 arxiv），社区验证少；质量未经独立验证；LoRA 方式依赖基座质量
 - **测试重点**：与 EchoMimicV3 v51 做同素材 A/B 对比；验证 1 步推理的唇同步质量；测试流式生成是否真的无限长度
+
+#### 官方推理参数（信源：仓库 `inference.py` argparse 默认值 + README `inf.sh`，2026-09-02 核验）
+
+> 全部为官方代码默认值，非推测。`inference.py` 的 argparse 即权威来源；`inf.sh` 是官方推荐运行配置。按「文档规则：参数信源标注」逐条标注。
+
+| 参数 | 官方默认 | 信源 |
+|------|---------|------|
+| `num_inference_steps` | **1**（单步） | `inference.py` `default=1` |
+| `height` / `width` | 512 / 512 | `inference.py` `default=512` |
+| `frame_num`（每块总帧） | 33 | `inference.py` `default=33` |
+| `motion_frames_latent_num` | 2 | `inference.py` `default=2` |
+| `fps` | 25 | `inference.py` `default=25` |
+| `guidance_scale`（Audio CFG） | 1.0（=1.0 即禁用引导） | `inference.py` `default=1.0` |
+| `audio_encode_mode` | `stream` | `inference.py` `default="stream"` |
+| `cached_audio_duration` | 8 s | `inference.py` `default=8` |
+| `max_chunks` | 0（跑全部块） | `inference.py` `default=0` |
+| `history_update_mode` | `roundtrip` | `inference.py` `default="roundtrip"` |
+| `dtype` | `bf16` | `inference.py` `default="bf16"` |
+| `lite`（Lite TAE 后端） | `True`（启用 TAE） | `inference.py` `default=True` |
+| `tae_model_type` | `wan21` | `inference.py` `default="wan21"` |
+| `compile` | `off` | `inference.py` `default="off"` |
+| `noise_scale` | 1.0 | `inference.py` `default=1.0` |
+| `shift_gamma` | 5.0 | `inference.py` `default=5.0` |
+| `seed` | 42 | `inference.py` `default=42` |
+| `device` | `cuda` | `inference.py` `default="cuda"` |
+| `usp`（多卡序列并行） | `on` | `inference.py` `default="on"` |
+| `model_type` | `pro` | `inference.py` `default="pro"` |
+| 基座 `CKPT_DIR` | `SoulX-FlashHead-1_3B` | README `inf.sh` |
+| `WAV2VEC_DIR` | `facebook/wav2vec2-base-960h` | README `inf.sh` |
+| `LORA_DIR` + `AUDIO_PROJ` | `z-rx/leaptalk` / `audio_proj_step_10400.pt` | README `inf.sh` |
+
+- **官方速度口径**：论文摘要 "up to **200 FPS** in the Lite setting"（arXiv 2608.00079）；基座 README "Lite **96 FPS** on single RTX 4090"（Soul-AILab/SoulX-FlashHead）。两者均为官方口径，200 FPS 为论文最优-case，96 FPS 为 RTX4090 实测。
+- **`guidance_scale` 提示**：默认 1.0 = 禁用音频 CFG。论文提出 audio-driven CFG 以增强唇同步，但 README/源码未给推荐非零值——如需更强唇同步需实验探索（标注 `待验证`，无官方值，社区亦未见推荐值）。
+
+#### 测试计划（待执行）
+
+1. **平台**：Kaggle T4（15GB）或 Modal T4；官方 Lite 单卡 6.4GB，T4 充裕（信源：Soul-AILab README）。
+2. **权重**：按 README 下载 3 份 — `SoulX-FlashHead-1_3B`（基座）、`facebook/wav2vec2-base-960h`、`z-rx/leaptalk`（LoRA + `audio_proj_step_10400.pt` + Lite TAE）。
+3. **首跑配置**：`inf.sh` 默认（`LITE=1`、`NUM_INFERENCE_STEPS=1`、`COMPILE=off`），参考图=微信照片，音频=scene-1 mp3。
+4. **A/B**：同素材对比 EchoMimicV3 v51（Kaggle T4，8 步，~14min/段）。
+5. **验证项**：唇同步（人眼确认）、无限长度流式、ID 保持、单段推理耗时。
+6. **风险点**：`guidance_scale` 默认值禁用音频 CFG，唇同步强度待实验；CUDA-only，无 MPS/MLX 本地路径（M2 Pro 不可跑，必须云 GPU）。
 
 ### 📋 SoulX-FlashHead
 
@@ -776,7 +819,7 @@
 - **GitHub**：`Soul-AILab/SoulX-FlashHead`
 - **HuggingFace**：`Soul-AILab/SoulX-FlashHead-1_3B`
 - **技术**：1.3B 参数，oracle-guided 无限长度实时流式 talking head
-- **许可证**：❓ 待确认
+- **许可证**：✅ **Apache 2.0**（ModelScope/HF 标注 `apache-2.0`；Soul-AILab README；airosetta 报道 "Apache-2.0 licensed for commercial use"）— 与 LeapTalk 同栈，门禁通过
 - **VRAM**：1.3B，预估 ~8-12GB，**T4 可能可跑**
 - **关键特点**：LeapTalk 的基座模型，本身也是独立产品。支持实时流式 + 无限长度
 - **测试重点**：独立于 LeapTalk 测试基座质量；验证是否需要 oracle guide（如果需要额外输入则复杂度高）
@@ -1002,8 +1045,8 @@
 | 27 | **Hallo (v1)** | 分层扩散 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐ | 2024.06，8658 stars |
 | 28 | **Hallo2 (云 GPU)** | 分层扩散 | 原始版 | MIT | A100（20GB+） | 云 GPU | ⭐⭐⭐⭐ | 2024.10，MIT 许可，已本地测过 256px |
 | 29 | **LatentSync 1.5** | SD UNet + VAE | 原始版 | OpenRAIL++ | T4（8GB） | Kaggle | ⭐⭐⭐⭐ | 8GB 即可跑，T4 单卡足够 |
-| 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ❓ 待确认 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐⭐ | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
-| 31 | **SoulX-FlashHead** | Soul-AILab 自研 (1.3B) | 实时流式 | ❓ 待确认 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐ | 2026-02-12 开源，LeapTalk 基座，无限长度+实时流式 talking head |
+| 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐⭐ | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
+| 31 | **SoulX-FlashHead** | Soul-AILab 自研 (1.3B) | 实时流式 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐ | 2026-02-12 开源，LeapTalk 基座，无限长度+实时流式 talking head |
 | 32 | **FantasyTalking2** | Wan2.1-14B (DiT) | 原始版 | ❓ 待确认 | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | AAAI 2026，v2 升级版（TLPO 偏好优化），v1 已在列表 |
 | 33 | **SkyReels-V3 A2V** | Wan2.1-19B | 原始版 | ❓ 待确认 | A100（40GB+） | 云 GPU | ⭐⭐⭐ | 2026-01-29 开源，统一多模态框架，talking avatar 19B，有 GGUF 量化 |
 | 34 | **Soul** | 自研 DiT | 原始版 | ❓ 待确认 | A100 | 云 GPU | ⭐⭐⭐ | CVPR 2026，多模态驱动（图+文+音频），1080P 分钟级长视频，声称超 SOTA |
