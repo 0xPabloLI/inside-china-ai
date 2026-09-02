@@ -213,3 +213,19 @@ ffmpeg -ss 53 -i output/qwen4-preview/<file>.mp4 -frames:v 1 -y /tmp/s9.png
 - [x] 2026-09-02 T9 首项 session：badge 接入 + rendered 缺失 FAIL + mediaOptOut 归位 + `HTML_SLOT_MAP`/`htmlSlotsFor()` 清理（commit `15b4419`，含 review 双轴修复 amend）；qwen4 冒烟 + 71/71 帧检查 + badge 像素验证通过；T12 未动（**先建 issue 的事留给下一 session**）；已推送
 - [x] 2026-09-02 T12 session：建 issue #175 → 基线存档（96/96 门测试 @`b0250c0`）→ official-fit kernel/helper/text-gate 接入 + fitGroup 退役 → 内核单测 + gate 真渲染 30/30 + tsc/eslint + 误差探针 → commit `44fa8da`（只 stage 本 session 文件；text-slots 混合改动按「临时还原→add→恢复」法分离）。code-review 双轴完成（eeab5c→`44fa8da`）：Standards 零硬伤（2 条 judgement：kernel degenerate fallback 有文档属设计；text-slots 4 行注释即决策引用）；Spec 无缺失/无 scope creep/无实现错误（注：Spec 子代理误读 diff 只见测试文件，实际 commit 9 文件已由主 session 核对）。qwen4 冒烟先延后、后由用户豁免（2026-09-02「qwen 冒烟不做了」）；tickets §T12 冒烟项已标记豁免
 - [ ] 后续 session（#3…N）：**开场 git 核实（勿自动 rebase，见 §3）→ T9 余项 (#150) → T10(#151) → T11(#152) + T8(#149) + #153，按 §4 依赖图推进。**预计多个 session**；每 session 完成若干 ticket 后更新 §2 完成表与本状态行，再交付下一 session（见 §8）。注意：并行 session 正在同epic上工作（其 official-fit-render 契约测试 + bigNumber minSize 150 改动在途，落地后 T12 的渲染契约轴即闭合）
+
+---
+
+## 10. 附录：_gate-smoke 音频同步 FAIL triage（2026-09-02 晚）
+
+`_gate-smoke` 冒烟音频同步段报 9 scene 偏移。triage 拆出**两个根因**：
+
+### 根因 1（已修）：音频同步验证器拿错代音频
+- 装配 `render-only.mjs` Step 1 用 **.mp3 优先**选音频；验证器 `verifyAudioSync` 经 `resolveSceneAudio` 用 **.wav 优先**重解析。当内容包同场景并存旧 mp3 + 新 wav（并行 session 重生成）时，装配用 mp3、验证用 wav → 互相关乱飞，报 scattered 假失败。
+- `main.mjs` 早已算好 `audioPaths` 传给 `renderRemotion`，但 `verifySubtitles` 签名未接该参数被静默吞掉。
+- **修复 `bac686e`**：`verifyAudioSync` 接受可选 `audioPaths`（按 index 对齐 sceneDurations），优先用它（= 真正烧进成片的源文件）；`verifySubtitles` 透传；`main.mjs`/`render-only.mjs` 把装配 audioPaths 喂入。回归测试 `audio-sync.test.mjs` 加「stale mp3 + undecodable wav」用例：重解析 FAIL、audioPaths 透传 PASS。57/57 audio-sync+verify-subtitles 测试绿。**本地提交，未推送**（推送需用户授权）。
+
+### 根因 2（新建 #176，未修）：Remotion 渲染 mp4 音频轨 ~93ms 前导静音
+- 修好根因 1 后，9 scene 偏移从「乱飞」收敛为**统一 +93ms**（scene1 0.09 vs 0.00… 恒定）。`ffmpeg silencedetect` 证实成片音频轨**开头 93ms 真实前导静音**，源 mp3 无前导静音；三次历史渲染（09-01 至 09-02）全 86–93ms 确定性常量；音频流 `aac @96000, start_pts=0` → AAC 编码器 priming（mp3→Remotion 解码→AAC 重编码 double-encode）。字幕按 timeline 0.00 烧入视频帧（无该偏移），故字幕比音频早 93ms，超 `AUDIO_SYNC_TOLERANCE=0.08` 13ms → 校验 FAIL。**影响所有该管线产出短视频**。
+- 修复方向（见 #176）：确认 93ms 来自 Remotion raw 还是 post-process；剥离 AAC priming（`-af aresample=async=1` / 去 edit list / 喂 WAV 避免 double-encode）；修复后 `audio-sync.test.mjs` + `_gate-smoke` 实跑回归。
+- **注意**：根因 1 修复后 `_gate-smoke` 会因根因 2 恒为红——这是校验正确工作的结果（真实 desync），**不应为让冒烟变绿而放宽 80ms 容差**。
