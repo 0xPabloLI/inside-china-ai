@@ -231,6 +231,8 @@ describe("checkWritingForAgentsGate", () => {
     const warns = findings.filter((f) => f.level === "WARN");
     expect(warns).toHaveLength(1);
     expect(warns[0].file).toBe("AGENTS.md");
+      expect(warns[0].message).toContain("AGENTS.md → Workflow Router → Agent documents");
+      expect(warns[0].message).not.toContain("Coding Conventions");
   });
 
   it("WARN: pointer line changed (contains arrow)", () => {
@@ -248,6 +250,71 @@ describe("checkWritingForAgentsGate", () => {
     expect(warns).toHaveLength(1);
     expect(warns[0].ruleId).toBe("writing-for-agents-gate");
   });
+
+    it("WARN: local Markdown link changed", () => {
+      const stagedDiffs = [
+        {
+          filename: "docs/DOCS-INDEX.md",
+          diffLines: [
+            {
+              type: "add",
+              content: "See [workflow](docs/agents/implementation-workflow.md).",
+            },
+          ],
+        },
+      ];
+      const { findings } = checkWritingForAgentsGate(stagedDiffs);
+      expect(findings).toHaveLength(1);
+      expect(findings[0].ruleId).toBe("writing-for-agents-gate");
+    });
+
+    it("WARN: backticked local path changed", () => {
+      const stagedDiffs = [
+        {
+          filename: "docs/tools-catalog.md",
+          diffLines: [
+            {
+              type: "add",
+              content: "Read `docs/agents/proposal-review.md` first.",
+            },
+          ],
+        },
+      ];
+      const { findings } = checkWritingForAgentsGate(stagedDiffs);
+      expect(findings).toHaveLength(1);
+      expect(findings[0].ruleId).toBe("writing-for-agents-gate");
+    });
+
+    it("WARN: normative qualifier changed", () => {
+      const stagedDiffs = [
+        {
+          filename: "docs/video-workflow.md",
+          diffLines: [
+            { type: "del", content: "Agent may run preflight." },
+            { type: "add", content: "Agent must run preflight." },
+          ],
+        },
+      ];
+      const { findings } = checkWritingForAgentsGate(stagedDiffs);
+      expect(findings).toHaveLength(1);
+      expect(findings[0].ruleId).toBe("writing-for-agents-gate");
+    });
+
+    it("PASS: external Markdown link without a rule change", () => {
+      const stagedDiffs = [
+        {
+          filename: "docs/research/some-doc.md",
+          diffLines: [
+            {
+              type: "add",
+              content: "See [source](https://example.com/reference).",
+            },
+          ],
+        },
+      ];
+      const { findings } = checkWritingForAgentsGate(stagedDiffs);
+      expect(findings).toHaveLength(0);
+    });
 
   it("PASS: non-docs non-AGENTS.md file not checked", () => {
     const stagedDiffs = [
