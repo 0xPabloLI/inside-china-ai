@@ -132,7 +132,7 @@ collectFromSource() 层次：
 | #141 | Spec parent: 短视频文本溢出根治 + 时间轴对齐 | — | — | Spec 定稿于 `spec-text-overflow-hardening.md`。tickets #142–#147（T1–T7 已交付）已随交付关闭；剩余 T8–T12 见下 |
 | #149 | T8: highlight 结构化 {field,text} + 17 处迁移 | — | content/*/scene-data.mjs, verify 管线 | ready-for-agent |
 | #150 | T9: media-overlay 补齐 action/context + s9 布局修正 | #175（决策 65：badge 阻断是 T9 新首项，需 TextGate 生产路径先就位） | scene 组件, scene-rules.mjs | ready-for-agent |
-| #151 | T10: F4/F6/F7/F9 fixture + ink 集成 + 圆标注修复 | #175（ink/标注断言栈在 T12 后验证） | text-gate.tsx, text-geometry.mjs, fixtures | ready-for-agent |
+| ~~#151~~ | ✅ T10: F4/F6/F7/F9 fixture + ink 集成 + 圆标注修复 | ~~#175~~ ✅ | ~~text-gate.tsx, text-geometry.mjs, fixtures~~ | ✅ **2026-09-03 关闭**（Triage Protocol step 3）：交付 commit da2cacf（per-line ink 决策 67b / fail-closed annotation 决策 67a / F7 collision assert / 决策 70 overdraw circle 96 + default 16）；本 session 复验 text-geometry + text-gate-render + scene-gate-render 62/62 pass；文档 1c3aac7 已标记 complete。GitHub #151 CLOSED |
 | #152 | T11: 端到端重渲染 + 存量清单 + 文档 + 归档 | #175（决策 71） | verify-video.mjs, docs | ready-for-agent；关闭 #141 前必须处理 #153 |
 | #175 | T12: 官方 layout-utils fitText 接入 TextGate 生产候选路径 | — | text-gate.tsx, text-slots.mjs, text-geometry.mjs, lib/official-fit-kernel.mjs | ✅ **2026-09-02 交付**（commit `44fa8da` 已推送，issue 已关闭；交付记录见 handoff §2 T12 行）。后续收尾（2026-09-02 第三 session）：防漂移渲染契约探针 official-fit-render.test.mjs 6/6（GLM-6.0 @820 官方预测 224px = 真值 9 探测）；全量 2713 passed / 4 failed（4 个失败均非 T12：3 个 #153 存量 preflight + 1 个 verify-lfs 环境 flake）；bigNumber 硬下限 180→150 经用户确认（spec 决策 72） |
 
@@ -184,7 +184,7 @@ collectFromSource() 层次：
 | #157 | B-roll follow-up: 生成模型横评 | — | lib/b-roll/runner.mjs | incumbent `FastVideo/FastMetal-1.3B-QAD`（Apache-2.0）Tier A 是质量上限，Tier B 在 M3 Max OOM。候选 FastMetal 更高档 / Wan 2.2 / LTX / Helios，先查维护状态与 MPS 路径 |
 | #158 | B-roll follow-up: ComfyUI / MCP 迭代式生成后端 | 建议接 #157 | lib/b-roll/runner.mjs (seam) | 现回路是批次级（一轮 ≥8min 才拿到分数，无法单候选重跑）。接缝已备好：`{jobs} → {ok, results[]}`，门/报告/缓存不感知后端。云端 RunComfy 路线见 `docs/tools-catalog.md`（用户暂不注册账号） |
 | ~~#159~~ | ✅ B-roll follow-up: runner 未透传 `--model-root` | — | ~~lib/b-roll/runner.mjs, b-roll-runner.test.mjs~~ | ✅ **2026-09-01 closed**（原问题：`buildPythonArgs` 从不传 `--model-root`/`--mlx-checkpoint`，每批次打 HF `GET /revision/main`，缓存缺件时重下 1.5 GB。T10 已落地 offline 默认 `HF_HUB_OFFLINE=1`——联网重下载风险已消，剩余范围 = 透传）。落地：`resolveDependencies` 读 `BROLL_MODEL_ROOT`/`BROLL_MLX_CHECKPOINT`，批次前校验（目录缺失 / 无 `mlx_dit.safetensors` → `⚠️ B-roll skipped`，不阻断主管线）；`buildPythonArgs` 仅非 null 时追加 flag（未设则原样走 HF 缓存解析）；`orchestrator` 透传 `modelRoot`/`mlxCheckpoint` + `env`。副作用：设了 mlx-checkpoint 后 python 跳过 `transformer/*` 解析。验证：52 tests 全绿 + 真实 HF 快照 pin 跑通 1 clip（480×832 / 81f / 5.06s，encode 37s + denoise 187s + decode 42s）。**2026-09-02 复核：GitHub #159 已于 2026-09-02 02:23 UTC close，tracker 与 GitHub 状态一致** |
-| #164 | eslint 全仓库 lint 被 experiments/.venv 拖死 | — | eslint.config.js | `eslint .` 爬进 `scripts/short-video/experiments/fastvideo-spike/repo/.venv`（Python site-packages 内 gradio 前端产物），`npm run lint` 45+ 分钟不收敛，阻断 AGENTS.md Step 6。修法：eslint.config.js ignores 加 `scripts/short-video/experiments/**`。发现于 T5 (#146) session（2026-09-01） |
+| ~~#164~~ | ✅ eslint 全仓库 lint 被 experiments/.venv 拖死 | — | ~~eslint.config.js~~ | ✅ **2026-09-03 交付**：ignores 增加 `scripts/short-video/experiments/**`。`npm run lint` 从 45+ 分钟不收敛 → 14 秒收敛。GitHub #164 CLOSED |
 | #166 | B-roll follow-up: 八维 prompt 常量注入（第二层） | 建议等 b-roll 用量 10+ scene | `lib/b-roll/*`（orchestrator / runner / gate / report）, `scene-rules.mjs` | 八维 prompt 目前 **100% 由 agent 手工写入** `aiVideo.prompt`，代码只校验非空、不参与生成任何一维；真实证据见 `content/qwen4-preview/scene-data.mjs`——仅有的 3 条 prompt 里 NEGATIVE 互不一致且两条不完整。**第一层（warn 级校验）已交付**：spec `docs/archive/spec-broll-prompt-dimension-check.md`，校验 NEGATIVE 三个语义组覆盖（TEXT / HANDS / ARTIFACT）与阿拉伯数字，warn 不阻断。本 issue 承载把固定维度从手写改为**代码注入**。三个动手前必须先解决的约束：① `promptHash` 缓存会因 prompt 字符串变化而集体失效，已 `won` 的 clip 全部重跑（≈235 s/条）② 512 token 静默截断会吞掉追加在尾部的常量 ③ VLM gate 的 `buildClaim()` 直接拿 prompt 当正向 `assetNeed`，注入负向描述会污染打分（须拆成「生成用注入后 prompt / gate 用原始 prompt」）。**不在范围**：SUBJECT 自动提取、VISUAL METAPHOR、REFERENCE 自动化、CAMERA/MOTION/LIGHTING 机器检测 |
 
 ### Dormant — 触发条件未满足
@@ -260,7 +260,7 @@ collectFromSource() 层次：
 | `verify-retry.mjs` | — | ✅ ~~#125~~ CLOSED |
 | `normalize-currency.mjs` | #117 | 🟢 低——独立模块，无并行冲突 |
 | `proxy-manager.mjs` | #140 (**P6**) | 🟢 低——FlClash 出口节点自动切换（#89 原文中这是 **P6**；旧 tracker 行误标为 P5，P5 实为 selector auto-healing）。独立新模块，无并行冲突 |
-| `eslint.config.js` | #164 | 🟢 低——独立配置变更，无并行冲突 |
+| `eslint.config.js` | ~~#164~~ ✅ | 🟢 低——独立配置变更，无并行冲突（✅ 2026-09-03 done） |
 
 ---
 
