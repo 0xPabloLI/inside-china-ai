@@ -1,14 +1,14 @@
 # Scenario Enumeration Checklist
 
-> 每次 `grill-with-docs` 阶段逐类检查。产出直接进入 spec 的 **Scenario & Risk Verification Matrix**，矩阵行成为 TDD 测试用例。
+> 在 R2/R3 的决策阶段逐类检查适用场景。S1 把结论记入当前 scope 与验证计划；S2/S3 固化到 spec 的 **Scenario & Risk Verification Matrix**。每行都必须有 evidence，但不一定各自对应一个自动化测试。
 >
 > 与 `scenario-matrix.md` 互补：本文档定义**查什么**，scenario-matrix 定义**怎么记**。
 
 ## 用法
 
-1. Grill 阶段：逐类过一遍"要问的问题"，确保每类都有明确答案。
-2. Spec 阶段：将确认的边界场景写入 Scenario & Risk Verification Matrix（含 Modified Files Impact + Behavioral Scenarios），每行标注风险维度。
-3. TDD 阶段：矩阵行 = 测试用例，先写测试（red）再实现（green）。
+1. 决策阶段：逐类过一遍“要问的问题”，只保留与本次改动相关的场景并给出明确答案。
+2. 记录阶段：S1 写入当前 scope/验证计划；S2/S3 写入 Scenario & Risk Verification Matrix（含 Modified Files Impact + Behavioral Scenarios）。
+3. 实施阶段：确定且可自动验证的行为走 TDD；其余场景使用静态检查、runtime/real-data smoke 或 human acceptance，并保留行到 evidence 的映射。
 
 ---
 
@@ -19,11 +19,12 @@
 - 所有 optional 字段为 `undefined` 时行为是否定义？
 - 空数组（`[]`）、空字符串（`""`）、空对象（`{}`）是否独立测试？
 - `0` vs `null` vs `undefined` 的语义差异是否处理？
-- `?? null` 是否吞掉了 `0` / `false` / `""`？
+- 使用 `??` 还是 `||` 是否符合 `0`、`false`、`""`、`null`、`undefined` 的业务语义？
 
 **常见陷阱**：
 
-- `value ?? defaultValue` 在 `value = 0` 或 `""` 时也走 fallback——对计数 / 字段可能 bug。
+- `value ?? defaultValue` **只在 `value` 为 `null` 或 `undefined` 时走 fallback**，会保留 `0`、`false` 和 `""`。
+- `value || defaultValue` 会把 `0`、`false` 和 `""` 也视为 falsy 并走 fallback；这些值有业务意义时常导致 bug。
 - Supabase 查询返回 `null` 字段 vs 字段不存在——前端需统一处理。
 - `null` 表示"明确无值"（如文章无封面图），`undefined` 表示"未查询"——不可互换。
 

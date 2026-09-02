@@ -2,27 +2,28 @@
 
 ## Why
 
-Grill 阶段要求"必须主动做场景风险分析"。本文档定义风险分析的**必填维度**和**输出格式**，确保 Agent 不遗漏维度，不依赖用户提醒。
+R2/R3 实施要求主动做适用的场景风险分析。本文档定义风险分析的维度、输出格式和 evidence contract，确保每个已识别风险都有可追溯验证，而不是把每行机械转换成测试。
 
 ## When
 
-涉及**数据流、计算对齐、跨组件契约、修改已有文件**的决策，必须做场景矩阵。纯 UI 样式、文案修改不强制。
+R2/R3 且涉及**数据流、计算对齐、跨组件或跨 step 契约、高风险既有行为**时必须做场景分析。纯 UI 样式、文案或其他 R1 修改不强制。
 
 ## How
 
-### Grill 阶段
+### 决策阶段
 
-按 `scenario-enumeration-checklist.md` 逐类**穷举**边界场景，验证各消费者行为一致性。**修改已有文件时**：列出所有被修改的文件，评估影响。
+按 `scenario-enumeration-checklist.md` 逐类检查适用边界，验证各消费者行为一致性。R3 修改必须列出 Modified Files Impact；R2 至少记录会改变行为或契约的文件。
 
-### Spec 阶段
+### 记录位置
 
-固化成场景矩阵，**无矩阵 = spec 不完整**。
+- S1：记录在当前 scope、todo 或验证计划中，不为矩阵单独创建 spec。
+- S2/S3：固化到 spec；R3 spec 无 Modified Files Impact 与 Behavioral Scenarios = 不完整。
 
-矩阵包含**两个必填 section**：
+S2/S3 的 R3 spec 包含**两个必填 section**：
 
 #### Section 1: Modified Files Impact（修改影响评估）
 
-每次涉及修改已有文件时**必填**。纯新建文件可跳过此 section。
+R3 修改已有文件时必填。纯新建且没有既有消费者时可标为 N/A 并说明原因。
 
 格式：
 
@@ -49,11 +50,18 @@ Grill 阶段要求"必须主动做场景风险分析"。本文档定义风险分
 格式（列名按实际消费者调整）：
 
 ```
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | ...      | ...               | ...  | ...         |
+| # | Scenario | Expected Behavior | Risk | Evidence | Mitigation |
+|---|----------|-------------------|------|----------|------------|
+| 1 | ...      | ...               | ...  | automated test / static-type-lint / runtime-real-data / human acceptance | ... |
 ```
 
-### TDD 阶段
+### Evidence Contract
 
-矩阵每一行 = 一个测试用例，必须全部覆盖。
+矩阵每一行都是 verification obligation，必须指定至少一种 evidence：
+
+- **automated test**：预期行为确定，且存在稳定、预先同意的 seam；先 red，再 green。
+- **static/type/lint check**：类型、schema、格式、导入边界或文档指针等静态约束。
+- **runtime or real-data smoke test**：依赖浏览器、媒体、外部进程、真实格式或跨 step 组合的行为。
+- **human acceptance**：视觉取舍、内容判断或明确保留给 HITL 的行为。
+
+只有确定且可在稳定 seam 自动验证的行为强制 TDD。一个测试可以覆盖多行，一行也可以需要多种 evidence，但映射必须可追溯；不得为了“一行一测”制造脆弱或无行为价值的测试。

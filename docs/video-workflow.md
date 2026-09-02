@@ -164,6 +164,17 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 **Force engine**: `export TTS_ENGINE=f5-mlx` / `qwen-tts` / `edge-tts` / `say`
 
+### Reference Audio Format (M4A → WAV)
+
+不要把 `.m4a` 参考音频直接传给本管线的 Python 音频读取路径。`soundfile` 和部分 `librosa`/TTS 路径会落到 libsndfile，并在这里拒绝 M4A。先转换为 24 kHz、mono、PCM 16-bit WAV：
+
+```bash
+ffmpeg -y -i input.m4a -ar 24000 -ac 1 -c:a pcm_s16le \
+  scripts/short-video/voice-samples/voice-sample-24k.wav
+```
+
+用 `ffprobe` 确认 `codec_name=pcm_s16le`、`sample_rate=24000`、`channels=1`。`LibsndfileError: Format not recognised` 通常表示输入仍是 M4A，或文件不是有效的 WAV。
+
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition. We already know the text (from scene-data.mjs), so we align known text to known audio directly. Output: `output/{pipelineId}/audio/subtitle-timing.json`.
 
 ## VLM Asset Analysis
@@ -386,6 +397,16 @@ scripts/short-video/
 | Qwen3-TTS model | `~/.qwen-tts-model` | Qwen3-TTS-12Hz-0.6B-Base |
 
 ## Running the Pipeline
+
+### Pre-render Gate
+
+启动主管线前先验证 Scene Data：
+
+```bash
+node scripts/short-video/verify-video.mjs --pre --content <dir>
+```
+
+`main.mjs` 会在 Step 0 再执行同一检查，失败时拒绝继续。只有用户明确批准本次例外时才可传 `--skip-preflight`。Preflight 位于素材自动补全之前，因此可自动修复的缺媒体只产生待处理信号；素材处理后的 Step 1.6 final media gate 才对最终缺失执行 hard FAIL。
 
 ```bash
 # DeepSeek video (default content)

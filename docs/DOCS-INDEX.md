@@ -2,7 +2,7 @@
 
 > Source of truth for doc ownership. Use it to find any document in one lookup.
 >
-> _Last inventory: 2026-08-25._
+> _Last inventory: 2026-09-02._
 
 ## Canonical Structure
 
@@ -17,13 +17,14 @@
 
 ### Layer Placement Rules
 
-修改文档时，先按 `AGENTS.md` → Coding Conventions → `writing-for-agents 强制加载` 判定是否加载 skill；随后应用本节的 Layer Placement 检查：
+创建、移动、删除、重命名或结构性修改 `AGENTS.md`、`docs/`、skill 或其他 Agent-reached 文档前，先按 `AGENTS.md` → Workflow Router → Agent documents 加载 `writing-for-agents`；随后应用本节的 Layer Placement 检查：
 
-1. **L1/L2 boundary**: AGENTS.md Coding Conventions defines the boundary ("执行文档只写'做什么、用什么参数'；研究依据和方法论放 `docs/research/` 或 `docs/tiktok/`，底部用 Design Decisions & References 索引指向"). These rules add the operational checks:
+1. **L1/L2 boundary**: 执行文档只写“做什么、用什么参数”；研究依据、参数推导和方法比较放 `docs/research/` 或相应的 L2 目录，并由 L1 底部的 Design Decisions & References 指向。
 2. **New document: ask first.** Before writing, ask: "Is this execution instructions or research rationale?" → execution → L1; research → L2.
 3. **Modifying an L1 doc: check for L2 intrusion.** If research rationale has crept in, extract it to L2 and add a pointer in the L1 doc bottom.
 4. **L2 docs: no execution instructions.** L2 writes "why this was chosen, how params were derived, what was surveyed" — execution instructions belong in L1 as pointer targets.
 5. **Sync DOCS-INDEX after changes.** After creating, moving, or deleting any doc, add/remove/rename the corresponding table row here. Run `npm run lint:docs` to verify.
+6. **Compression/restructure audit.** Check (a) cross-section and cross-document qualifiers for contradictions, (b) every moved information field has a destination rather than merely an existing pointer, and (c) every changed local pointer resolves to a real file.
 
 ### Root — Active reference (AGENTS.md pointers)
 
@@ -33,14 +34,14 @@
 | `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV/CDP 导出、A/B 测试、hashtag 效果追踪、Analytics→Pipeline 联动机制、竞品参考视频分析 | `content-pipeline.md` Stage 0 + Stage 5, `video-workflow.md` |
 | `article-production-guide.md` | Article generation rules — Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation | `content-pipeline.md` Stage 1/2 |
 | `content-pipeline.md` | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references | AGENTS.md |
-| `manual-ops.md` | Manual operations checklist, sorted by frequency | AGENTS.md |
+| `manual-ops.md` | Manual operations checklist, sorted by frequency | `content-pipeline.md` |
 | `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
 | `tools-catalog.md` | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates | AGENTS.md |
 | `installed-skills.md` | Agent skills overview — sources, invocation modes, MCP list, install commands | AGENTS.md |
 | `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
 | `series-production-guide.md` | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing | `content-pipeline.md` Stage 3, `video-workflow.md` |
 | `content-scaffold-guide.md` | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style | `video-workflow.md` |
-| `video-workflow.md` | Regular video-production runbook — TTS, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy | AGENTS.md |
+| `video-workflow.md` | Regular video-production runbook — preflight, TTS/audio conversion, B-roll generation, rendering, verify, file paths, publishing strategy | AGENTS.md |
 | `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3 |
 | `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
 | `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽） | — |
@@ -79,6 +80,17 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | `scenario-enumeration-checklist.md` | Boundary scenario enumeration checklist |
 | `scenario-matrix.md` | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios) |
 | `visual-design-loop.md` | Visual design iteration loop — impeccable skill workflow for video template polish |
+
+### `agents/` — Agent execution references
+
+| Document | Purpose |
+|----------|---------|
+| `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation |
+| `git-workflow.md` | Git safety, worktrees, commit cadence, review baseline, push and PR rules |
+| `proposal-review.md` | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks |
+| `issue-tracker.md` | GitHub Issues operations and roadmap pointer |
+| `triage-labels.md` | Canonical issue category and state labels |
+| `domain.md` | Domain context and ADR layout |
 
 ### `plans/` — Active design plans
 
@@ -187,7 +199,6 @@ Deep research reports with citations.
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
 | ~~`issue-tracker-review.md`~~ | ✅ 已归档至 `docs/archive/reviews/issue-tracker-review-2026-08-26.md` — 19/19 项全部修复后归档 |
-| `writing-for-agents-enforcement-proposal.md` | `writing-for-agents` 规则执行率改善方案（待审核结论吸收） |
 | `model-sources-reference.md` | Model search sources reference — sources, format guide, GPU compat checklist, search flow, admission criteria & scoring |
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `open-source-video-generation-landscape-2026.md` | Open-source video generation landscape 2026 — model/engine comparison, local Apple Silicon viability |
@@ -213,15 +224,15 @@ Deep research reports with citations.
 
 ## Spec/Ticket/Review Lifecycle
 
-Specs, tickets, and reviews are **ephemeral** — they exist only during implementation or review, then archive.
+Specs, tickets, and durable review records are **active execution artifacts**, not permanent reference docs. They exist only when the Planning Scale or an explicit user request requires them.
 
-1. `/to-spec` creates `spec-<name>.md` (in `docs/` root or a `specs/` subdir if multiple are active)
-2. `/to-tickets` creates `tickets-<name>.md` alongside the spec
-3. `/implement` builds each ticket via TDD
-4. **Code review** produces `*-review.md` in `docs/reviews/` or `docs/research/`
-5. **On completion**: move spec/tickets/review files to `archive/` (specs+tickets → `archive/`, reviews → `archive/reviews/`), update this index
+1. S1 work normally keeps its contract in the current context and does not create standalone Spec/Tickets solely for ceremony.
+2. S2/S3 runs `to-spec` and `to-tickets` by reference. Active artifacts follow the repository's established location for that effort (`docs/`, `docs/specs/`, or a feature-specific ticket directory) and must be listed in this index.
+3. Each implementation ticket follows the TDD/evidence rules in `docs/agents/implementation-workflow.md`.
+4. `code-review` runs against a fixed committed baseline. If a durable review file is needed, keep it in `docs/reviews/` while active; research rationale belongs in `docs/research/`, not in a review file.
+5. An incomplete implementation, or an issue that still represents unfinished scope, remains active. After the actual scope is complete and verified, move specs/tickets to `docs/archive/`, durable reviews to `docs/archive/reviews/`, and update this index plus `docs/archive/README.md`. If tracker authorization is absent, report the stale remote state rather than mislabelling completed implementation as incomplete.
 
-No `specs/` or `tickets/` directories persist between work cycles. They are created on demand and cleaned up when the work ships. Review files stay in `docs/reviews/` or `docs/research/` only while the corresponding issue is open; once the issue is closed and verified, the review archives.
+Active `specs/`, ticket directories, and review files may persist across work cycles while their effort remains open. Archive only after the implementation or corresponding issue is actually complete.
 
 ## Redirect Rule
 

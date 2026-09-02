@@ -13,204 +13,84 @@
 
 # Repository Guidelines
 
-## Project Snapshot
+## Project
 
-- **App**: China AI News — a content/blog platform (articles + subscribers) with an admin editor and short video production pipeline.
-- **Stack**: React 19 + TypeScript + TanStack Start (file-based routing, server functions) + TanStack Query + Supabase (auth + database) + TailwindCSS v4 + shadcn/ui components.
-- **Core directories**: `src/routes/` (TanStack file routes), `src/components/` (UI + shared), `src/lib/` (server functions & utils), `src/integrations/supabase/` (client), `supabase/migrations/` (DB schema).
-- **Auth model**: Supabase Auth + RPC `has_role(_user_id, _role)` for admin gating. The `_authenticated` layout route guards all admin pages.
-- **Publishable stack conventions**: `docs/tanstack-lovable-conventions.md` — rules for routing, server functions, env/secrets, RLS, storage, email, SEO, and deployment.
+- **App**: China AI News, an article and subscriber platform with an admin editor and short-video production pipeline.
+- **Stack**: React 19, TypeScript, TanStack Start/Query, Supabase, TailwindCSS v4, shadcn/ui and Remotion.
+- **Domain language**: read `CONTEXT.md`; domain-document layout and ADR rules are in `docs/agents/domain.md`.
+- **Design system**: follow `DESIGN.md` for UI and visual work.
 
-## Core Commands
+## Workflow Router
 
-- `npm run dev` — local development server
-- `npm run lint` — ESLint
-- `npm run build` — production build
-- `npm run format` — Prettier write
-- `npx tsc --noEmit` — type check (no emit)
+1. **Read-only work**: reviews, explanations, diagnosis and research do not modify files unless the user also requests implementation.
+2. **Implementation authorization**: do not change files until the user explicitly asks to implement, modify, fix or begin. Once authorized, proceed automatically except at a hard gate.
+3. **Implementation**: before changing code, scripts, migrations, test infrastructure or Agent behavior rules, and before high-risk, multi-session or Wayfinder work, read and follow `docs/agents/implementation-workflow.md`. It classifies work by independent Planning Scale and Risk axes, executes installed Matt Pocock user-invoked skill files by reference, and calls model-invoked skills through the Skill tool.
+4. **UI/UX design**: load `impeccable`; use `frontend-design` for a new visual direction. UI implementation still follows the implementation workflow.
+5. **Content production**: article, Scene Data, video rendering and publishing follow `docs/content-pipeline.md`; video execution details are in `docs/video-workflow.md`. Content production does not use the code Spec/Tickets/TDD route unless pipeline or application code changes.
+6. **Agent documents**: before creating, moving, deleting, renaming or structurally changing `AGENTS.md`, `docs/`, a skill or any Agent-reached document, load `writing-for-agents` and apply `docs/DOCS-INDEX.md` placement rules.
+7. **Proposals and external facts**: before recommending a code change, architecture, tool, service or model, follow `docs/agents/proposal-review.md`.
+8. **Git actions**: before staging, committing, pushing, opening a PR, working across branches or changing context with unfinished work, follow `docs/agents/git-workflow.md`.
 
-## Session Workflow
+## Hard Safety Gates
 
-1. **Decision: which workflow?**
-   - **Lightweight**（检查、解释、常规工作）：直接进行，不需要加载额外 skill。
-   - **UI/UX 设计任务**: 用 `impeccable` skill。
-   - **做视频内容**（写 scene-data、跑管线、发布）：走 `docs/content-pipeline.md`，不走 Spec/Tickets/TDD。改视频管线代码（`lib/`、`remotion/src/`）则走 Substantial。
-   - **Substantial implementation**（改 repo 基础代码：`src/`、`supabase/`、`scripts/short-video/lib/`、`remotion/src/`）：按以下 Mandatory Implementation Workflow 执行。
-2. **Git safety**: never run `stash` related commands without explicit user confirmation in current chat. `checkout`/`switch` 分支切换见 Cross-Branch Workflow（绝对禁止）。
-3. **No code changes without explicit go-ahead**: 在用户确认开始或给出明确实施指令前，不修改任何代码文件。讨论、调研、Grill 阶段只做分析和方案设计。
-4. **Mandatory implementation workflow**: 每次改代码之前必须走完以下工作流，不得跳步：
+- Treat existing tracked and untracked changes as user work. Never overwrite, restore, move, delete, clean or include unrelated work.
+- Never switch branches in the current working directory. Use a worktree for cross-branch work.
+- Never run stash commands without explicit confirmation in the current chat.
+- Keep secrets out of code, logs and responses. Public frontend variables and server secrets follow `docs/tanstack-lovable-conventions.md`.
+- Authentication, admin gating and RLS are coordinated security boundaries. Preserve both authenticated-layout and `isAdmin` checks unless an approved design changes them together.
+- Supabase schema changes live in `supabase/migrations/`; confirm before destructive or irreversible database operations.
+- Consequential external actions, including publishing, messaging, deployment and remote Issue changes, require user authorization for that action.
+- The content-pipeline HITL in `docs/content-pipeline.md` is mandatory. Do not publish the article or TikTok package before explicit approval.
 
-   > **Context Hygiene**：Step 1-4 必须保持在同一个 unbroken context window 中。Grilling 的推理过程是 spec 和 tickets 的 primary source，压缩会丢失「为什么」。如果 session 接近 smart zone（~150k tokens），在最近的 phase boundary（Step 1-3 完成后，或 Step 4 内某个 ticket 完成后）做 `/compact`。压缩前必须将当前 ticket 的 checklist 状态落盘——在 ticket 文件中把已完成的项从 `- [ ]` 改为 `- [x]`，这是压缩安全的唯一方式：context 会丢，文件不会。
+## Engineering References
 
-   > **文档改动门槛**：在 Step 1–4 或 Step 8 创建或改动 `docs/` 内容前，按 Coding Conventions → `writing-for-agents 强制加载` 判定并执行。步骤内不重复判定规则。
+- **Application architecture, routing, server functions, env/secrets, RLS, storage, email, SEO and deployment**: `docs/tanstack-lovable-conventions.md`
+- **Risk and boundary scenario enumeration**: `docs/conventions/scenario-enumeration-checklist.md`
+- **Scenario and evidence format**: `docs/conventions/scenario-matrix.md`
+- **Media placement and lifecycle**: `docs/media-asset-management.md`
+- **Video/TTS/Remotion execution, including M4A conversion and real-data commands**: `docs/video-workflow.md`
+- **Installed skills and task-to-skill routing**: `docs/installed-skills.md`
+- **Issue operations and roadmap**: `docs/agents/issue-tracker.md` and `docs/issue-tracker.md`
+- **Available tools and tool-admission process**: `docs/tools-catalog.md`
+- **Model discovery, license and Apple Silicon admission**: `docs/research/model-sources-reference.md`
 
-   > **Skill / Subagent 降级**：Step 1–5 依赖的 skill（`grill-with-docs`、`to-spec`、`to-tickets`、`implement`）或 subagent 不可用时，主 agent 直接自己执行该步骤。判定信号：skill 不在可用列表；subagent 缺少该步骤必需的工具（例：`code-review` 需要 shell 执行 `git diff`，只读型 subagent 拿不到 diff，只能按文件内容推断）；或 subagent 返回的结论是推断而非真实产物。降级后 step 的完成标准不变——不跳过、不降低要求，并在最终汇报标注「Step N 降级为主 agent 执行 + 原因」。
+## Content and Video
 
-   1. **Grill with Docs** — 用 `grill-with-docs` skill 审视方案（v1.2：grilling 采用 round-based design tree，每轮批量提问 + 推荐答案，等用户回答后进入下一轮）。**必须主动做场景风险分析**：按 `docs/conventions/scenario-enumeration-checklist.md` 逐类**穷举**边界场景（含跨 step 接口契约验证），验证跨消费者一致性。涉及修改已有文件时，**必须包含修改影响评估**（Modified Files Impact），格式见 `docs/conventions/scenario-matrix.md`。
+- Default short-video platform is TikTok.
+- Before Scene Data, pipeline or publishing work, load the project `short-video-pipeline` and `brand-system` skills.
+- Remotion code changes use `remotion-markup` via `remotion-best-practices`; visual template changes also use `impeccable`.
+- Run the preflight required by `docs/video-workflow.md` before starting the video pipeline. Only an explicit user exception may bypass it.
+- Store new media according to `docs/media-asset-management.md`; do not use a generic root `assets/` dumping ground.
 
-   1b. **Prototype Detour（可选）** — 当 grilling 中某个问题需要 runnable answer（状态模型是否合理、UI 长什么样）时，detour：`/handoff` 出去 → fresh session 中 `/prototype` → `/handoff` 回来。Prototype 生成单个自包含 HTML 文件（logic）或单一路由多变体（UI），保存在 `prototype/<name>` 分支作为 primary source。回到主线后引用 prototype 结论。
-   2. **To Spec** — 用 `to-spec` skill 合成 spec。**必须包含 Scenario & Risk Verification 章节**（场景矩阵），含两个必填 section：Modified Files Impact + Behavioral Scenarios，矩阵行直接成为测试用例。**无矩阵 = spec 不完整**。格式见 `docs/conventions/scenario-matrix.md`。
-   3. **To Tickets** — 用 `to-tickets` skill 将 spec 拆分为带依赖边的 tracer-bullet tickets。**不需用户确认**——拆分完直接进入 Step 4 实施。
-   4. **TDD Implement** — 逐 ticket 先思考最佳实践的改法是什么，再用 `implement` skill 实施；`implement` 必须强制调用 `tdd`（red → green → refactor），关键逻辑必须先写测试。**测试用例必须覆盖场景矩阵的所有行**。每个 ticket 完成后立即在 ticket 文件中把 checklist 已完成项打 `[x]` 落盘。
-   >
-   > **压缩恢复协议**：`/compact` 后恢复时，必须先读取当前 ticket 文件，逐项核对 checklist 状态。Summary 会把「正在做」压缩成「已完成」；ticket 文件中的 `[x]` 是唯一可靠的状态来源。
-   5. **Code Review** — 实施完成后用 `code-review` skill 做双轴审查（Standards + Spec）
+## Web and Research
 
-   > **Phase Boundaries**：Step 5 完成后是 session-level phase boundary。Step 4 内每完成一个 ticket 是 ticket-level phase boundary——此时可做 `/compact`，但必须先落盘 ticket checklist。context 切换决策（Continue / `/clear` / `/handoff` / Subagent / `/compact`）见 `ask-matt` skill 的 Phase Boundaries 决策树。
+- Technical library documentation uses Context7 when available.
+- Known URLs, logged-in pages, deep research, trend discovery and paid fallbacks follow the routing and cost controls in `docs/tools-catalog.md`.
+- New APIs, scraping tools, model providers or services must pass the proposal and tool-admission checks before recommendation or integration.
 
-   6. **Runtime Verify** — `npm run lint && npm run build && npx tsc --noEmit` 全部通过。涉及 UI 交互/布局/样式的改动，还需在 dev server 中验证（`npm run dev` + 浏览器核心交互检查）。使用 Playwright 验证对齐时，**必须同时测量 `width` + `left` + `right`**（`getBoundingClientRect()`），不能只测 width。改动涉及 `scripts/short-video/` 管线逻辑（`lib/`、`main.mjs`、`render-only.mjs`）时，还需执行 **Real Data Smoke Test**：用至少一个已有 content 目录的真实数据（timing JSON、scene-data、TTS 音频）跑一次被改动的函数或管线步骤，验证输出符合预期。Mock 测试全绿 ≠ 真实数据通过——text-align.py 尾部截断、音频格式差异等只在真实数据中暴露。如果找不到已有真实数据，必须标注"无真实数据可用"并说明原因。
-   7. **Commit & Push** — 通过验证后 commit + push（遵循 Commit Cadence 规则）。
-   8. **更新相关文档及 Issue** — 同步更新 docs、Linear issue 状态。**Spec/Ticket/Review 归档**：将本次工作使用的 `spec-*.md` 和 `tickets-*.md` 移到 `docs/archive/`；将 `*-review.md` 移到 `docs/archive/reviews/`；更新 `docs/archive/README.md` 归档清单。Specs、tickets 和 reviews 是 ephemeral 文档——实施/审查期间存在，完成后归档。详见 `docs/DOCS-INDEX.md` 的 Spec/Ticket/Review Lifecycle 章节。
-   9. **Session 结束验证** — 在 session 结束前，逐条确认 Step 1-8 全部完成。**未完成的步骤必须当场补做或显式标注为"跳过 + 原因"**。确认清单：
-      - [ ] Step 1 Grill 完成（有 spec 或对话记录佐证）
-      - [ ] Step 1b Prototype Detour（如执行，有 prototype 分支或结论引用；如跳过，标注"无需"）
-      - [ ] Step 2 Spec 完成（有 spec 文件，含 Scenario Matrix）
-      - [ ] Step 3 Tickets 完成（有 ticket 拆分）
-      - [ ] Step 4 TDD 完成（测试 red → green → refactor）
-      - [ ] Step 5 Code Review 完成（有审查报告）
-      - [ ] Step 6 Runtime Verify 完成（有运行时验证证据：截图 / DOM 检查 / lint+build 结果 / **管线改动还需 Real Data Smoke Test 输出**）
-      - [ ] Step 7 Commit & Push 完成（有 commit hash + push 成功）
-      - [ ] Step 8 文档及 Issue 更新完成（Linear 状态已更新；spec/tickets 已归档到 `docs/archive/`；reviews 已归档到 `docs/archive/reviews/`）
-      - 如有任何步骤跳过，必须在向用户汇报时**显式列出**跳过的步骤和原因，不得遗漏
+## Session Start
 
-## Commit Cadence (并行 agent 安全)
+1. If `scripts/short-video/output/pending-analysis.json` exists and `publishedAt` is more than 48 hours old, remind the user to export Analytics CSV.
+2. Check for an unfinished content pipeline or a pending HITL checkpoint before starting conflicting pipeline work.
+3. If the user supplied no task, offer the content entry points: “写文章（给素材）” or “做视频（给话题/跑 trends）”.
 
-**TL;DR**: 每完成一个原子任务立即 commit;同任务的后续修复 amend 原 commit;`stage` 时显式列路径(绝不 `git add -A` / `.`);不还原他人未提交改动;push 改写用 `--force-with-lease`（注意：Lovable 连接分支禁止改写已 push 历史，见顶部规则块）。
+## Collaboration Preferences
 
-### 六条规则
+- Prefer Chinese for collaboration text.
+- Prefer evidence from logs, APIs, tests and runtime artifacts over speculation.
+- If the user requests a plan first, stop after the plan until approval.
+- Keep implementation scoped and avoid unrelated refactors.
 
-1. **每完成一个原子任务立即 commit** — "原子任务" = 一个 bug fix、一个独立 feature slice、一个组件抽取。验证全绿立刻 commit，不要攒 batch。
-2. **同任务后续修复优先 amend 原 commit** — 未 push: `git commit --amend --no-edit`；已 push 但在自己分支顶端: amend 后 `git push --force-with-lease`（仅限非 Lovable 连接分支）；跨任务: `git commit --fixup=<sha>` + `git rebase -i --autosquash`。
-3. **push 后改写历史用 `--force-with-lease`，绝不用 `--force`** — 仅适用于改写历史（amend/rebase/squash）。新增 commit 一律用普通 `git push`。
-4. **新增 commit 用普通 `git push`** — 不要对新增 commit 用 `--force-with-lease`，那会掩盖应该先 `git pull --rebase` 的正确流程。
-5. **stage 时显式列出自己改的文件，绝不 `git add -A` / `git add .`** — 先 `git status --short` 确认，只 add 自己改的路径。
-6. **Session Boundary** — 只 commit 本 session 改动（详见下方 Session Boundary 章节）。
-
-## PR / Merge Guardrails
-
-- 不要 "cosmetically resolve" review thread,要么真修要么留待 maintainer 拍板。
-- For PRs, summarize only commits relative to `origin/main`; use English for PR titles and bodies.
-- If a PR includes a Testing section, include only items that are already verified (so all items are checked); otherwise omit Testing.
-- After opening/pushing a PR, do not amend/rebase that history; use new commits for follow-ups.
-
-## Proposal Self-Review
-
-**给出任何修改方案前，必须自审以下 5 条，不通过则不输出方案：**
-
-1. **因果依据**：每个「A 导致 B」的推断必须有可追溯的证据（代码行、Analytics 数据、文档 spec、测试结果）。禁止从单一数据点直接跳跃到代码层面的因果结论。
-2. **设计决策不是免死金牌**：当有效果数据（如 Analytics）显示当前表现不佳时，不能以「这是设计决策」为由拒绝优化。设计决策在没有数据时做出的，有了数据就该 revisited。但反过来，优化也必须有合理的因果推理，不能盲目改。
-3. **影响面核查**：提出改动前，必须 grep/搜索所有受影响的文件（测试、文档、其他调用方），完整列出影响面。不允许「改了代码但漏了测试/文档」的情况。
-4. **事实性陈述双源验证**：任何「X 工具/CLI 是否存在」「Y 平台是否支持 Z 功能」「W 已于 D 日期发布」等事实性断言，必须查两个独立来源后再下结论，禁止仅凭 memory 或单一文档直接断言。涉及库/框架功能支持的，**先查本地源码**（`pip show <package>` 确认版本 → `grep`/`inspect.getsource` 读实现 → 用正确 API 调用方式做 smoke test）→ 再查文档/网络讨论作为补充。涉及工具/CLI 是否存在的，`which`/`command -v` + 官方文档。冲突时以源码/实际调用为准（文档可能滞后于代码）。网络讨论反映的是**已报告的**问题，不代表**已修复的**状态。工具选择见下方 `## Web Scraping & Content Fetching`。**定价、费率、资源分配等数值性事实**，必须查官方定价页面（如 modal.com/pricing）或 CLI（如 `modal billing rates`）确认，不能以 agent 记忆为准——同一平台可能有多套定价（如 Modal 标准 compute vs Sandbox），容易混淆。**引入新工具/框架/服务前，必须检查维护状态**：查 GitHub repo 的 `archived` 字段、最近 commit 日期、open/closed issue 活跃度、是否有新 release。已停止维护或超过 6 个月无新 commit 的项目，不得推荐引入——平台 API 变更后无人修复会导致生产故障。
-5. **推理参数从官方推荐起步**：每个 AI 模型的推理参数（steps、CFG、teacache、offload 等）必须从该模型自己的 README/HF Model Card 官方示例命令开始，不跨模型套用。查源码确认每个参数的默认值和条件分支——警惕「设了 A 但 B 的默认值覆盖了 A」的隐藏交互（如 InfiniteTalk `offload_model` 默认 True 会覆盖 `num_persistent_param_in_dit`）。从官方推荐配置开始首次测试，确认基线质量后再优化。
-
-## Coding Conventions
-
-Stack 级约定（路由、server functions、env/secrets、RLS、storage、email、SEO）见 `docs/tanstack-lovable-conventions.md`。以下为项目特定补充：
-
-- TypeScript + functional React components/hooks；2-space indentation；`PascalCase` for components/types, `camelCase` for vars/functions。
-- React Query `useQuery` 的 `useState` 初始化陷阱：当组件依赖 query 数据初始化 state 时，必须确保数据就绪后再挂载组件（或在 `useEffect` 中同步），避免 `useState` 初始值只在首次挂载生效导致数据丢失。
-- **writing-for-agents 强制加载**：在创建或改变 Agent 消费文档的信息结构前，必须加载 `writing-for-agents` skill。此类改变包括：创建、删除、移动或重命名文档；修改 `AGENTS.md`；新增、删除、合并或拆分章节；改变规则、步骤、前置条件、例外、完成标准、目录分层或 Agent 上下文指针。仅当变更不改变上述任一事项，且仅为拼写、格式、事实值、非 Agent 指针链接修复或无流程含义的状态标记更新时，才可豁免。无法确定时必须加载。豁免变更不得改变文档的信息层级、规则的唯一权威来源、或现有指针关系；如变更会新增、迁移或重复规则，转入强制加载路径。Agent 消费文档 = `docs/` 下会被 Agent 执行流程读取或由上下文指针到达的文档。规则定义以本条为准；Layer Placement 的操作检查见 `docs/DOCS-INDEX.md` → Layer Placement Rules。
-- **文档审查三查**：压缩或审查 agent 文档时必须做三类检查：(1) **跨章节矛盾**——同一规则在不同章节的限定词是否一致（如"需要确认" vs "永远不要"）；(2) **指针目标完整性**——被压缩内容的每个信息点在指针目标处是否有对应（不是"目标存在就行"，而是"逐字段覆盖"）；(3) **文件存在性**——引用的文件是否真实存在（用 `ls` 验证）。
-
-## Git Safety
-
-- 禁止未经确认执行 `git stash pop/apply/drop/clear`；暂存用 `stash push -m "msg"`，恢复前先 `stash list` 供审查。
-- **如果 push 需要先 stash 预存改动，那就只 commit 不 push** — 不要为了 push 而 stash 非本 session 的改动，commit 留在本地即可，等用户手动处理后再 push。
-
-## Cross-Branch Workflow（禁止本地切分支）
-
-永远不要在当前工作目录执行 `git checkout`/`git switch`。跨分支操作通过 worktree（`git worktree add`）、cherry-pick（`git cherry-pick <sha>`）、或只读查看（`git show branch:path`）完成。向 main 提交走 PR：worktree → 新分支 → commit → push → `gh pr create`。
-
-## Session Boundary
-
-**只 commit 本 session 的改动，非本 session 的不碰。** 不修非本 session 引入的问题；`git diff` 确认来源，已有问题告知用户决定。同一文件混合改动时用 `git add -p` 只选本 session 的 hunk。
-
-## High-Risk Areas (Coordinate Carefully)
-
-- **Admin editor**: `src/routes/_authenticated/admin.tsx` — PostEditor 组件的 state 初始化与 query 数据时序（参考 useState 初始化陷阱）。
-- **Auth gating**: `src/routes/_authenticated/route.tsx` + `admin.tsx` 的 `isAdmin` 检查 — 两层 gating 必须一致。
-- **Post rendering**: `src/routes/posts.$slug.tsx` + `src/components/markdown-content.tsx` — Markdown 渲染 + SEO meta。
-- **Supabase migrations**: `supabase/migrations/` — schema 变更需谨慎，不可逆操作需确认。
-
-## Media Asset Placement (图片/视频/音频素材存放)
-
-新文件按用途存放，**不要扔进 `assets/`**。规则见 `docs/media-asset-management.md`，速查：
-
-| 文件类型 | 放哪里 | 例子 |
-|---------|--------|------|
-| 品牌 logo/mark/头像 | `scripts/short-video/assets/` 下（已有 `brand/`、`logos/`、`bgm/` 子目录） | `deepseek.svg` → `assets/logos/` |
-| BGM 音乐 | `scripts/short-video/assets/bgm/` | `news-cc-theme01.mp3` |
-| 视频内容素材（per-content） | `scripts/short-video/content/{slug}/assets/` | `unitree-demo.mp4` → `content/unitree/assets/` |
-| TTS 参考音频 | `scripts/short-video/voice-samples/`（gitignored） | `voice-sample-24k.wav` |
-| 实验产物（数字人、TTS 对比等） | `scripts/short-video/experiments/`（gitignored，可随时删） | `hallo2-test-output.mp4` → `experiments/digital-human/` |
-
-**判断规则**：如果文件是"渲染进视频的素材"→ `content/{slug}/assets/`；如果是"全局复用的品牌资产"→ `assets/`；如果是"给 TTS 引擎克隆的声音样本"→ `voice-samples/`；如果不确定是不是临时实验→ `experiments/`。
-
-## Audio File Handling (M4A → WAV)
-
-M4A 不被 Python 音频库支持（`soundfile`/`torchaudio`/`librosa` 基于 libsndfile）。必须先 `ffmpeg` 转 WAV。转换命令见 `docs/video-workflow.md` TTS Engine Configuration 章节。报错 `LibsndfileError: Format not recognised` = 传了 M4A。
-
-## Learned Preferences
-
-- Prefer Chinese for collaboration text and direct execution once confirmed.
-- Prefer evidence-based debugging (logs/API/runtime artifacts) over speculation.
-- If user requests "先给方案", provide plan first before coding.
-- Keep implementation scoped; avoid unrelated refactors.
-
-## Model Selection
-
-选模型时（ASR/TTS/VLM/数字人）先查 `docs/research/model-sources-reference.md` → 模型选择通用标准。准入条件：Apple Silicon 加速（MPS/MLX/Metal/CoreML）。许可证优选商用许可；NC 许可证标为「需缓解」，需法务确认后方可用于发布成品。
-
-## Content Pipeline
-
-统一内容管线（入口 → 共享素材 → 文章与视频脚本并行产出 → 交叉一致性检查 → 视频成品 → 单一 HITL → 文章与 TikTok 发布 → Analytics），设 1 个 **HITL 人工确认检查点**（内容包成品审阅）。管线文档：`docs/content-pipeline.md`。手工操作清单：`docs/manual-ops.md`。文章草稿可用 `scripts/article/publish-article.mjs --draft` 保存；HITL 确认后再用同一文章文件公开发布。多媒体素材 RAG reindex 触发点见 `docs/content-pipeline.md` Stage 4b + `docs/media-asset-management.md` §2。**HITL 强制规则**：Agent 到达检查点时必须暂停，输出审阅内容，等待用户明确确认后才可继续，不得自行假设确认。
-
-做视频时（**默认 TikTok**），`short-video-pipeline` skill 自动加载，`brand-system` skill 同时加载控制视觉一致性。视频技术参考（TTS 引擎、B-roll 生成、发布策略、文件路径）：`docs/video-workflow.md`。**Skill 加载矩阵**（按任务类型，非互斥）：
-
-| 任务 | 加载的 Skill | 用途 |
-|------|-------------|------|
-| 写 scene-data / 跑管线 / 发布 | `short-video-pipeline` + `brand-system` | 管线流程 + 品牌一致性 |
-| 改 `remotion/src/` React 组件代码 | `remotion-markup`（主入口 `remotion-best-practices`） | Remotion API 最佳实践：`Interactive.Div` 结构、`@remotion/media` 组件、`@remotion/transitions` 转场、`@remotion/rough-notation` 文本标注、`@remotion/effects` 视觉效果、`perceptual-scale` 动画、`calculateMetadata` 动态时长 |
-| 改视频模板视觉设计（间距/排版/层次/动画） | `impeccable` | `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨 |
-| 新建场景模板 | `frontend-design` | 选择美学方向 |
-
-> **`remotion-markup` vs `impeccable` 分工**：`remotion-markup` 管"Remotion 代码怎么写"（API 正确用法、组件结构、转场模式、动画 timing）；`impeccable` 管"画面该怎么排"（间距节奏、视觉层次、动画多样性、可读性、AI slop 检测）。改 `remotion/src/` 时两个都加载——先 `remotion-markup` 确保 API 正确，再 `impeccable` 确保视觉质量。
-
-**启动视频管线前，Agent 必须运行 `node scripts/short-video/verify-video.mjs --pre --content <dir>` 验证 scene-data**，Pre-render 检查未通过时管线拒绝运行（除非用户明确要求 `--skip-preflight`）。
-
-## Session Start Checklist
-
-**每次新 session 启动时，Agent 被动检查**（Agent 不是常驻进程，只在用户打开 session 时检查）：
-
-1. 读 `scripts/short-video/output/pending-analysis.json`（如存在）→ 检查 `publishedAt` 是否 >48h → 如是，提醒用户导出 Analytics CSV
-2. 检查是否有未完成的管线（如上一 session 的 HITL 检查点待确认、视频待发布）
-3. 如用户未指定任务，简要提示可用入口：「写文章（给素材）」或「做视频（给话题/跑 trends）」
-
-## Web Scraping & Content Fetching
-
-| 场景 | 工具 |
-|------|------|
-| 技术文档 | Context7 MCP |
-| 事实查询 / URL 抓取 | `web_fetch` → `web-access` CDP（fallback） |
-| 深度研究 | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
-| 趋势发现 | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X） |
-
-用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
-
-**Tavily MCP 是有限付费资源。** 已知 URL 一律用 `web_fetch`（免费、无限制）；GitHub 无反爬，`web_fetch` 直接可读。用 Tavily 前必须先走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily。只有 `web_fetch` 返回空/超时/JS 渲染失败 **且** CDP 也无法完成（如需要多关键词并行搜索、需要 AI 结构化摘要）时，才用 Tavily。
-
-**工具/API 发现**：需要找免费 API、替代付费 SaaS、补充搜索源或素材源、查某领域有哪些可用工具时，查 `docs/tools-catalog.md`（本项目所有可用工具/服务/API 的完整清单 + 评估流程 + 任务→工具决策表 + Pipeline API 候选）。新增工具必须先走完 4 步评估流程再入库。
-
-## Agent skills
+## Agent Skills
 
 ### Issue tracker
 
-Issues tracked in **GitHub Issues** using `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues are tracked in **GitHub Issues**. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Five canonical roles with default label strings. See `docs/agents/triage-labels.md`.
+See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context layout (one CONTEXT.md + docs/adr/ at root). See `docs/agents/domain.md`.
+This repository uses one root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
