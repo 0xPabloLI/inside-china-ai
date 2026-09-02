@@ -8,8 +8,8 @@
 
 ## 0. TL;DR
 
-- **进度：10 / 12 完成**（T1–T7 / T9 / T10 / T12 ✅；T9 = `15b4419` + `eed95d4`，issue #150 已关闭；T10 = `da2cacf`（本地，待推送）；T12 = `44fa8da`，issue #175）。**下一步 = T8 / T11 任选**（T11 已解除 T10/T12 阻塞，仅余 T8；#151 关闭待用户确认后随 docs 提交/push 处理）。
-- **2026-09-03 第五 session（T10：ink 逐行 + fail-closed 标注 + F6/F7/F9 + 口径统一，commit `da2cacf` 本地待推送）**：
+- **进度：10 / 12 完成**（T1–T7 / T9 / T10 / T12 ✅；T9 = `15b4419` + `eed95d4`，issue #150 已关闭；T10 = `da2cacf` + `1c3aac7` + `c478935` 已推送（`284fb86..c478935`），#151 已关闭；T12 = `44fa8da`，issue #175）。**下一步 = T8 / T11 任选**（T11 已解除 T10/T12 阻塞，仅余 T8）。
+- **2026-09-03 第五 session（T10：ink 逐行 + fail-closed 标注 + F6/F7/F9 + 口径统一，`da2cacf` + `1c3aac7` + `c478935` 已推送，#151 已关闭）**：
   `collectInkOverhangs` 逐渲染行×逐样式 run（决策 67b，既单节点公式留 fixture 反证 +
   活断言钉死判别力）；标注挂载/settled 轮询 fail-open 闭合（决策 67a：无 SVG/绘制框 →
   `annotation-missing`，稳定轮询 + delayRender 句柄 + 代际检查防缩字期间旧轮询误判）；
@@ -100,7 +100,7 @@ digital-human / leaptalk / f5-mlx / zhipu / didi-robotaxi 改动，且会话中�
 坚持：只显式列路径 stage 自己的文件，`git status --short` 核对 staged 清单后再 commit；
 push 需用户授权，默认只 commit 不 push。
 
-**主线：T9 全部 ✅（`15b4419` + `eed95d4`，#150 已关闭）→ T12 ✅（`44fa8da`）→ T10 ✅（`da2cacf` 本地待推送，#151 关闭待确认）→ 下一 session 顺序：T8 → T11**
+**主线：T9 全部 ✅（`15b4419` + `eed95d4`，#150 已关闭）→ T12 ✅（`44fa8da`）→ T10 ✅（`da2cacf` + `c478935` 已推送，#151 已关闭）→ 下一 session 顺序：T8 → T11**
 
 1. ~~T9 首项：stacked-cards badge 接入~~ ✅ 已完成（2026-09-02，见 §2）。
 2. ~~T12~~ ✅ 已完成（2026-09-02，`44fa8da`，issue #175 已关闭，冒烟由用户豁免）——原接入说明留存：
@@ -146,7 +146,7 @@ T7(#148, done) ─────────────────────�
 | T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 ✅ CLOSED | T2✅,T5✅  | **全部 checklist ✅（2026-09-03，`eed95d4` 已推送，#150 已关闭）**：首项三项（`15b4419`）+ 余项（TextGroupGate 垂直门 / `MEASURED_MAX_HEIGHT` 594/336 / `group-overflow` 结构化失败 / MediaOverlay 补 action+context / s6-s8-s9 重渲染验证） |
 | T12 官方 `fitText` 接入 TextGate 生产路径 | 待建   | T5✅       | **scope 已修订（决策 63/64）**：接入 `fitCandidates()` 生产路径；官方输出只作候选值；不开启 validateFontIsLoaded；**先建 issue** |
 | T8 highlight {field,text} + 17 处 | #149 OPEN | T2✅,T5✅  | 标什么亮什么，子串校验                                          |
-| T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 OPEN | T4✅,T5✅  | **全部 checklist ✅（2026-09-03，`da2cacf` 本地待推送）**：ink 逐行×逐 run（67b）+ 标注 fail-closed（67a）+ `paintedBoxOfSvg` 路径采样 + 决策 70 按类型容差 + `AnnotationCollisionAssert`（F7 各目标 ≤2%）+ Hook 圆 box="inside" 单谓词门控 + F6/F9 fixture；review 双轴过（standards 4 项已修）；#151 关闭待用户确认 |
+| T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 ✅ CLOSED | T4✅,T5✅  | **全部 checklist ✅（2026-09-03，`da2cacf` + `c478935` 已推送，#151 已关闭）**：ink 逐行×逐 run（67b）+ 标注 fail-closed（67a）+ `paintedBoxOfSvg` 路径采样 + 决策 70 按类型容差 + `AnnotationCollisionAssert`（F7 各目标 ≤2%）+ Hook 圆 box="inside" 单谓词门控 + F6/F9 fixture；review 双轴过（standards 4 项 + 2 nit 已修） |
 | T11 端到端 + 预算 WARN 化 + 归档   | #152 OPEN | T8,T9,T10,**T12** | **scope 已修订（决策 71）**：+字符预算契约推导 WARN 化；+#153 前置；+blocked-by T12 |
 | #153 存量 preflight 全红          | #153 OPEN | T2,T7      | 14/15 包缺 layout / visualType 不在派发表                       |
 | #165 中文空格分词                 | #165 OPEN | —          | 官方多行函数对无空格文本失效；现文案英文，最低优先级          |
