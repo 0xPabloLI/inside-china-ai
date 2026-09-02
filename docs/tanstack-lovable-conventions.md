@@ -4,9 +4,7 @@
 
 ## 1. 项目身份
 
-- **应用名**: China AI News
-- **定位**: 英文内容/博客平台（文章 + 邮件订阅 + 短视频管线）
-- **技术栈**: React 19 + TypeScript + TanStack Start + TanStack Query + Lovable Cloud（Supabase Auth/DB/Storage/Email）+ TailwindCSS v4 + shadcn/ui
+China AI News — 英文内容/博客平台（文章 + 邮件订阅 + 短视频管线）。技术栈与定位见 `AGENTS.md` → Project；本文件只记录栈级发布约定。
 
 ## 2. 路由约定
 

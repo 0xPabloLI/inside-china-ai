@@ -24,7 +24,7 @@
 
 1. **Read-only work**: reviews, explanations, diagnosis and research do not modify files unless the user also requests implementation.
 2. **Implementation authorization**: do not change files until the user explicitly asks to implement, modify, fix or begin. Once authorized, proceed automatically except at a hard gate.
-3. **Implementation**: before changing code, scripts, migrations, test infrastructure or Agent behavior rules, and before high-risk, multi-session or Wayfinder work, read and follow `docs/agents/implementation-workflow.md`. It classifies work by independent Planning Scale and Risk axes, executes installed Matt Pocock user-invoked skill files by reference, and calls model-invoked skills through the Skill tool.
+3. **Implementation**: before changing code, scripts, migrations, test infrastructure or Agent behavior rules, and before high-risk, multi-session or Wayfinder work, read and follow `docs/agents/implementation-workflow.md`.
 4. **UI/UX design**: load `impeccable`; use `frontend-design` for a new visual direction. UI implementation still follows the implementation workflow.
 5. **Content production**: article, Scene Data, video rendering and publishing follow `docs/content-pipeline.md`; video execution details are in `docs/video-workflow.md`. Content production does not use the code Spec/Tickets/TDD route unless pipeline or application code changes.
 6. **Agent documents**: before creating, moving, deleting, renaming or structurally changing `AGENTS.md`, `docs/`, a skill or any Agent-reached document, load `writing-for-agents` and apply `docs/DOCS-INDEX.md` placement rules.
