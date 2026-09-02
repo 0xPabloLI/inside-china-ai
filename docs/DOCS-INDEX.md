@@ -172,6 +172,7 @@ Deep research reports with citations.
 
 | Document | Purpose |
 |----------|---------|
+| `agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计 — 9 份文档逐句发现（sediment/no-ops/duplication/下沉）、预估节省、skill 目录统计与卸载候选；实施需用户批准 |
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
 | `anti-bot-scraping-solutions.md` | Anti-bot scraping solutions — bypass strategies and alternative search engines |
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
