@@ -1,4 +1,4 @@
-# Fact Verification Procedures（PSR 第 4 条操作程序）
+# Fact Verification Procedures（proposal-review §3/§4 操作程序）
 
 > 规则本体在 `docs/agents/proposal-review.md`（§3 事实双源、§4 新工具准入）；本文件是其操作程序。加载时机：执行 proposal-review 的 §3/§4 检查时。
 
