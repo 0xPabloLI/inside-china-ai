@@ -26,7 +26,7 @@
 
 `ask-matt`、`grill-with-docs`、`wayfinder`、`to-spec`、`to-tickets`、`implement` 带有 `disable-model-invocation: true`。当本文件要求 Agent 自动执行其中一个阶段时，采用 **execute-by-reference**：
 
-1. 读取 `.agents/skills/<name>/SKILL.md`；不存在时检查 `.claude/skills/<name>/SKILL.md`。
+1. 读取 `.agents/skills/<name>/SKILL.md`。
 2. 以该文件为方法来源，执行适用步骤和完成标准。
 3. 应用本文件明确列出的项目覆写。
 4. 如实描述为“按 `<name>` 执行”，不得声称 Skill tool 已调用它。
