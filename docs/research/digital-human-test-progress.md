@@ -49,7 +49,7 @@
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
 | 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
 | 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
-| 16 | **LeapTalk** | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | ❌ CUDA only | ✅ Apache 2.0 | 📋 待测（门禁已通过） | — |
+| 16 | **LeapTalk** | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | ⚠️ **Kaggle T4 已跑通 v7**（22:39 推翻 v5/v6/v7 代理结论） | ✅ Apache 2.0 | ⏳ **v8 待跑**（沿 WanVAE 路线做 CFG 扫描 α=1.6/2.0/2.5/3.0，三层验证：粗筛 → 5 帧肉眼 → 1×4 音频对照）。前置发现：Laplacian 方差代理指标被肉眼推翻（v5 A/B 视觉有油画色块，C/D 反而干净）；高效 CFG（≥4.0）+ TAEHV 视觉毁容已确认。详见 v5-v8 章节。 | 2026-09-02 |
 
 ### 云端 API
 
@@ -801,7 +801,37 @@
 | `LORA_DIR` + `AUDIO_PROJ` | `z-rx/leaptalk` / `audio_proj_step_10400.pt` | README `inf.sh` |
 
 - **官方速度口径**：论文摘要 "up to **200 FPS** in the Lite setting"（arXiv 2608.00079）；基座 README "Lite **96 FPS** on single RTX 4090"（Soul-AILab/SoulX-FlashHead）。两者均为官方口径，200 FPS 为论文最优-case，96 FPS 为 RTX4090 实测。
-- **`guidance_scale` 提示**：默认 1.0 = 禁用音频 CFG。论文提出 audio-driven CFG 以增强唇同步，但 README/源码未给推荐非零值——如需更强唇同步需实验探索（标注 `待验证`，无官方值，社区亦未见推荐值）。
+  - **200 FPS 的硬件口径已确认**：论文 Appendix F 原文 "Note that the **200 fps in the main manuscript is measured on H200**"；Implementation Details "all experiments are performed on a **single NVIDIA H200 GPU** with a batch size of 1"。→ T4 上 1.41 FPS 与论文数字不构成矛盾，是硬件差距。
+
+#### 官方推荐配置（2026-09-02 补齐，此前标 `待验证` 的项已有官方值）
+
+| 参数 | 官方值 | 信源（原文引用） |
+|---|---|---|
+| **`guidance_scale`（α）** | **1.6** | 论文 §Parameter Sensitivity Analysis："a moderate value around **1.6** achieves the best balance. ... We therefore use **α=1.6** and λ_perc=4.0 as default settings." |
+| `num_inference_steps` | 1 | README `inf.sh` `NUM_INFERENCE_STEPS="1"` |
+| 分辨率 | 512×512 | 论文 Appendix F："**All main experiments were conducted at 512×512 resolution.**" |
+| Pro 的 VAE | **WanVAE**（3D Conv） | 论文 Table 1 `OURS (Pro)`：HDTF FID **21** / FVD 197 / CelebV-HQ FID 42 / 55 FPS |
+| Lite 的 VAE | **TAEHV**（2D Conv） | 论文 Table 1 `OURS (Lite)`：HDTF FID **38** / FVD 285 / CelebV-HQ FID 47 / **200 FPS** |
+| teacher 分支 CFG | 3.0（硬编码） | `flash_head_pipeline.py:166` `self.audio_guide_scale = 3.0` |
+
+**⚠️ 关键矛盾（v4 质量问题的根因）**：`inf.sh` 的 `guidance_scale` 默认 **1.0 = 关闭音频 CFG**，而论文默认 **α=1.6**。README 自己也写明 CFG 的作用——"Audio-driven classifier-free guidance **strengthens mouth motion and speech alignment**"。即官方脚本默认跑的是**关闭唇同步增强**的形态。
+
+**CFG 消融（论文 Appendix D, Table 7, HDTF）**：
+
+| CFG Scale | Avg Std（运动多样性） | BAS（音频-运动对齐） |
+|---|---|---|
+| **1.0**（v4 所用） | **1.655** | 0.723 |
+| 3.0 | 3.394 | 0.658 |
+| 5.0 | 5.000 | 0.696 |
+| 7.0 | 6.323 | 0.650 |
+
+论文解读原文："pose diversity (Avg Std) increases with CFG scale, proving CFG effectively **enhances motion and avoids static behavior**. However, BAS gradually drops as CFG grows, indicating over-strong guidance can hurt audio-motion alignment."
+→ **CFG 1.0 的 Avg Std 为全部测试点最低**（1.655），升到 3.0 即翻倍（3.394）。这直接解释 v4 产物"接近静态"。
+
+**画质（糊）的官方归因**：论文 §Effect of different Autoencoders 原文——TAEHV "main degradation is **slight blurriness in fine regions such as lips**, which can be **alleviated by increasing inference from 1 to 2 steps**"。
+→ 官方自己给的两条缓解路径：**换 WanVAE**（FID 38→21）或**步数 1→2**。
+
+**⚠️ 修正（2026-09-02 v5 复盘，原措辞不准确）**：之前称 "`--model_type pro` + `--lite` = Pro 权重 + Lite TAEHV 是论文里不存在的混搭"。**经核 `inference.py:480-492` argparse + `:625-635` 调用，事实是 `--lite` 仅切 VAE 后端（`fh_pipe_mod.COMPILE_VAE = bool(not args.lite)` + `use_tae=bool(args.lite)`），`model_type` 始终由独立 `--model_type` 控制**。即 Pro+TAEHV 是合法组合，**但论文 Table 1 只整体比较了 Pro+WanVAE vs Lite+TAEHV 两种完整系统，单独切 VAE 偏离论文验证矩阵**——v4 的"非推荐"成立，**但"不存在"措辞不成立**。已 v5 测得：单切 VAE（A→C）在 T4 上带来的清晰度提升**几乎为零**（嘴部 Laplacian 52.0 vs 49.8），代价是 3.5× 慢。详见下方"v5 实测结果"。
 
 #### 测试计划（执行中 · 2026-09-02 已提交 Kaggle T4 首测）
 
@@ -812,7 +842,219 @@
 5. **验证项**：唇同步（人眼确认）、无限长度流式、ID 保持、单段推理耗时。
 6. **风险点**：`guidance_scale` 默认值禁用音频 CFG，唇同步强度待实验；CUDA-only，无 MPS/MLX 本地路径（M2 Pro 不可跑，必须云 GPU）。
 
-- **首测提交（2026-09-02）**：已 `kaggle kernels push` 至 Kaggle T4（`xpabloli/leaptalk-test`，脚本 `scripts/kaggle/leaptalk-test/leaptalk_inference.py` + `kernel-metadata.json`）。复用 `xpabloli/infinitetalk-input`（portrait.jpg + audio.wav）做同素材 A/B。推理用 `inf.sh` 默认（`--num_inference_steps 1 --lite --compile off`）。结果（mp4 + debug_log）拉回 `/tmp/leaptalk_out` 后回填本表。运行/结果见 Kaggle：https://www.kaggle.com/code/xpabloli/leaptalk-test
+#### 运行时结构（实测，非推测）
+
+以下均为**读源码/日志所得**，用于后续任何平台复用（Kaggle/Modal 通用）：
+
+| 项 | 结论 | 信源 |
+|---|---|---|
+| 代码布局 | 单仓库自带 `flash_head/`、`vibt/`、`utils/`，**无需克隆第二个代码仓库** | README + `inference.py` 顶部 `sys.path` 注释（`SOULX_ROOT` 为遗留死代码） |
+| `--ckpt_dir` 结构 | `--model_type pro` → `<ckpt_dir>/**Model_Pro/**`；`lite` → `Model_Lite/` + `VAE_LTX/` | `flash_head_pipeline.py:167-169` |
+| 基座卡子目录 | `SoulX-FlashHead-1_3B` **同时含 `Model_Pro` 与 `Model_Lite`** | Soul-AILab README "Released" 链接（HF tree/main/Model_Pro、Model_Lite） |
+| Lite TAE 查找顺序 | `--lora_dir` → 其父目录 → `<ckpt_dir>/VAE_Wan`，匹配 `taew2_1.pth` 等 | `inference.py:_resolve_lite_tae_path` |
+| `VAE_Wan` 是否必需 | **否**（`--lite` 走 TAEHV）。但 **`VAE_Wan/Wan2.1_VAE.pth` 确实在权重卡里，484.1 MB** —— 即「治糊」的 `--no_lite` 变体**无需任何额外下载** | `flash_head_pipeline.py:141-165` + v4 运行日志 `[TREE]` 实测 |
+| `--lite` 的真实形态 | `store_true, default=**True**` —— 默认就是 Lite；要画质**必须显式传 `--no_lite`**（另有 `--use_tae`/`--no_tae` 隐藏别名） | `inference.py` argparse |
+| 权重卡实测体积 | `Model_Pro` 5751.5 MB / `Model_Lite` 5824.6 MB / `VAE_LTX` 1599.1 MB / `VAE_Wan/Wan2.1_VAE.pth` 484.1 MB / `leaptalk/lora` 180.1 MB / `audio_proj_step_10400.pt` 165.6 MB / `taew2_1.pth` 21.6 MB（共 37 files） | v4 运行日志 `[TREE]` |
+| 推理必需依赖闭包 | xfuser、pyloudnorm、mediapipe、diffusers、einops、accelerate、omegaconf、cv2 等 | 用 AST 解析 `flash_head/`、`vibt/`、`utils/`、`inference.py` 全部 import 得出 |
+| 可选依赖（已跳过） | `flash_attn` / `sageattention` / `torch_xla` / `yunchang` —— 均在 `try:` 或函数内，非单卡 Lite 路径 | `flash_head_model.py:19,25,31,206`（try 内） |
+| MediaPipe | **非致命**（v4 实测修正）：`flash_head_pipeline.py:16` → `facecrop.py:10` → `cpu_face_handler.py:1` 顶层 `import mediapipe`，但 `--use_face_crop` 默认关闭且 `process_image()` 被 `try/except` 包住。v4 实测 `MEDIAPIPE_STATUS=UNAVAILABLE`，**推理照常完成** | 同左 + v4 日志 |
+
+#### 首测记录
+
+- **v1（2026-09-02，失败）**：`kaggle kernels push` 后 4 分钟 `ERROR`。死因 `ModuleNotFoundError: No module named 'xfuser'`（`flash_head_model.py:12`）。**冒烟测试在下权重之前拦住了**，未浪费 GPU 配额与下载时间。根因：v1 依赖清单靠猜，漏了 4 个包。
+- **v2（2026-09-02，失败但解决依赖）**：**依赖问题彻底解决**——`FLASH_HEAD IMPORT OK`、`torch 2.7.1+cu126`、`cuda avail: True`、`Tesla T4`。新的死因是 `AttributeError: module 'mediapipe' has no attribute 'solutions'`（最新 mediapipe 已移除 legacy `solutions` 命名空间）。**预检再次在下权重之前拦住**。v2 的三处结构性改进全部生效：① 依赖闭包改用 AST 解析得出而非猜测；② **自愈式导入循环**（缺模块自动 pip 装并重试，最多 8 轮），消除「缺一个依赖就要重 push 一轮、每轮重装 torch」的循环；③ 下完权重后**校验目录结构**（断言 `Model_Pro/` 存在、解析出 TAE 路径）再进推理。
+- **v3（2026-09-02，失败但大幅推进）**：**依赖 + 权重 + pipeline 初始化全部走通**，实测确认：三套权重下载完成、`Using TAEHV for VAE encode/decode: /tmp/models/leaptalk/taew2_1.pth`、`Pipeline initialized. Model dtype: pro`、`torch 2.7.1+cu126 / Tesla T4`。死在 LoRA 注入：`PeftModel.from_pretrained` → `ImportError: Found an incompatible version of torchao. Found version 0.10.0, but only versions above 0.16.0 are supported`。
+  - **根因（对照 peft v0.19.1 源码核实，非推测）**：`is_torchao_available()`（`peft/import_utils.py:128-147`）在 torchao 已安装但版本 <0.16.0 时**抛异常**而非返回 `False`；而 `dispatch_torchao`（`peft/tuners/lora/torchao.py:142`）位于 dispatcher 链中、`dispatch_default` **之前**（`peft/tuners/lora/model.py:409-418`），且每个带 `.weight` 的目标模块都会走到它。因此**任何**陈旧 torchao（Kaggle 镜像自带的 0.10.0）都会打断**全部** LoRA 创建——与模型是否量化无关。
+  - **修法是「移除」而非「升级」**：torchao ≥0.16 需要比仓库 pin 的 `torch==2.7.1` 更新的 torch（`requirements.txt:171`）。移除后 `find_spec()` 返回 `None` → `is_torchao_available()` 为 `False` → 回落到 `dispatch_default`。
+  - 注意：`requirements.txt` **没有** pin torchao，它来自 Kaggle 镜像预装。
+- **v3 的 mediapipe 处置（与 torchao 无关，一并记录）**——
+  - **人脸裁剪是可选且安全的**：`--use_face_crop` 为 `store_true`（默认关闭，`inf.sh` 从不传），且 `flash_head_pipeline.py:69-73` 把 `process_image()` 包在 `try/except` 里 → mediapipe 坏了只会**优雅降级**为原图，不会崩。因此 mediapipe 探测改为**非致命**。
+  - **不裁剪也不会变形**：`flash_head_pipeline.py:246` 用 `resize_and_centercrop`（保持宽高比 + 居中裁剪），非直接拉伸。
+  - **best-effort shim**：尝试 `mp.solutions = mediapipe.python.solutions` 恢复 legacy 命名空间。
+  - **一次 GPU 周期双跑**（权重已下完，边际成本仅为推理时间）：A) 官方 `inf.sh` 默认（不裁剪，作为忠实 baseline）；B) `+ --use_face_crop`（能用则裁，失败自动降级）。
+- **v4（2026-09-02）**：针对 torchao 的两处改动——
+  - `neutralize_torchao()`：**在 pip 安装之后**执行（传递依赖可能把 torchao 装回来），检测到 <0.16.0 即卸载；absent 或 ≥0.16.0 则不动。实测：探测到 `Found existing installation: torchao 0.10.0` → 卸载 → `torchao neutralized: OK`。
+  - **预检加入真实 LoRA 注入用例**：对一个 `nn.Linear(8,8)` 跑 `get_peft_model`，完整走一遍 peft 的 dispatcher 链。**约 1 秒**即可复现 v3 的失败，**不需要下载多 GB 权重**——把「失败发现点」从「下完权重之后」提前到「预检之内」。实测：`PEFT LORA INJECT OK -> Linear`。
+  - 顺手加 `pip install -U entrypoints`（防止 `huggingface_hub[cli]` 拉旧版 `entrypoints` 弄坏 Kaggle 自己的 jupyter 导出），**v5 待补**。
+- **v4 实测结果（2026-09-02 13:41）**：
+  - **两个变体都成功产出 mp4**：A) `leaptalk_out.mp4`（官方 inf.sh 默认，不裁剪）B) `leaptalk_out_facecrop.mp4`（`+ --use_face_crop`）。**MD5 完全相同**——`process_image()` 被 `try/except` 包住，mediapipe 失败后优雅降级为原图，**与「不裁剪」等价**。shim 尝试 `mediapipe.python.solutions` 失败（`ModuleNotFoundError: No module named 'mediapipe.python'`），v5 可改 pin `mediapipe==0.10.21`（legacy `mp.solutions` 还在）。
+  - **视频规格**：512×512 / 25fps / 77 帧 / 3.08s / h264 + mp3（音轨已正确合成）。`ffprobe` 验证。
+  - **T4 实测 FPS = 1.41**（**远低于论文宣传的 200 FPS**，论文应是在 H100/B200 + compile 上测的）：`Chunk 1/3 | time=19.86s | frames=28 | FPS=1.41 | denoise=17.29s | decode=1.84s | denoise 占 87%`。`debug_log` 行 837-849 都有。
+  - **关键质量发现：默认参数下产物接近静态**。
+    - 视觉证据：6 帧（0/15/30/45/60/76）拼图、9 帧嘴部特写（0/10/20/.../76）都看不出明显唇动。`/tmp/leaptalk_frames.jpg` & `/tmp/leaptalk_mouth.jpg`。
+    - 量化证据：相邻帧 Y 通道均值差（`ffmpeg signalstats YAVG`）`min=1.158, max=8.058, mean=3.193`（0-255 标度）。典型 talking head 应 10-30+。
+    - **而音频是真实语音**：`ffmpeg volumedetect` → `mean_volume=-26.3 dB, max_volume=-8.8 dB`（不是静音）。
+    - 根因：官方 `inf.sh` 不传 `--guidance_scale`，默认 **1.0 = 禁用音频 CFG**。`inference.py` 默认 `default=1.0`，是**作者设计**的 1 步推理形态（论文/官方说法是 1 步推理音频 CFG=1 + 实际推理时调高）。所以输入音频并不驱动唇动。
+  - **KERNEL 状态 ERROR 的真相**：我的脚本 `[ALL DONE] total wall 511.0s`（exit 0），输出已保存；**ERROR 来自 Kaggle 跑完后的 jupyter-nbconvert 导出**：`ImportError: cannot import name 'EntryPoint' from 'entrypoints'`，是 `huggingface_hub[cli]` 把 `entrypoints` 装旧版了。与推理无关。**v5 修法**：脚本最后追加 `pip install -U "entrypoints>=0.4"`。
+- **结论与下一步（2026-09-02 修订：官方值已找到，此前为外推猜测）**：
+  - **唇同步问题 → 根因是 `guidance_scale=1.0`，不是 step 不够**。`inf.sh` 默认关闭 CFG，而**论文默认 α=1.6**。Table 7 显示 CFG 1.0 的 Avg Std=1.655 为全部测试点最低，3.0 翻倍至 3.394。（此前「参考 LongCat 下探 3.0-5.0」是类比外推，**现以官方 1.6 为准**；且 Table 7 显示 BAS 在 3.0 后下降，过大反而伤音频对齐。）
+  - **「糊」→ 根因是 Lite TAEHV，官方给了两条缓解路径**：① 换 WanVAE（Table 1 FID 38→21）；② 步数 1→2（§Effect of different Autoencoders 原文）。但 v5 实测**这两条在 T4 上都不成立**——见下"v5 实测结果"（D 步数翻倍后清晰度仍 49.8、C 换 WanVAE 清晰度 49.8 < A 的 52.0；B 单纯 CFG 3.0 把唇同步 r 从 0.41 拉到 0.68 + 嘴部清晰度 52→181）。
+- **v5（2026-09-02，已执行）**：把上面 A/B/C 三条**合并成一次 GPU 周期的参数矩阵**（权重已下完，边际成本只有推理时间）。按「最便宜 + 信息量最大」排序，即使中途超时也已拿到决定性对比：
+
+  | 变体 | CFG | VAE | steps | 直击问题 | 官方信源 |
+  |---|---|---|---|---|---|
+  | A | **1.6** | TAEHV（lite） | 1 | 唇同步（最小改动） | 论文 §Parameter Sensitivity α=1.6 |
+  | B | 3.0 | TAEHV（lite） | 1 | CFG 是否 1.6 不够 | 论文消融：幅度 1.655→3.394 |
+  | C | 1.6 | **WanVAE**（`--no_lite`） | 1 | 糊（收益最大，FID 21） | 论文 Table 1 |
+  | D | 1.6 | WanVAE | **2** | 糊（论文官方缓解法） | §Effect of different Autoencoders |
+
+  其余全部钉死在官方 `inf.sh` 基线（`--model_type pro`、512×512、fps 25、`--compile off`、`--max_chunks 4`），保证变量唯一。每个变体独立 `torchrun` 进程 + `check=False`，**单变体 OOM 不影响其余三个**。
+
+- **⏱️ 单次运行耗时基线（v4 实测，用于预估后续每轮成本）**：
+
+  | 阶段 | 实测耗时 | 备注 |
+  |---|---|---|
+  | clone + 装 torch 2.7.1 + 依赖 | ~5.7 min | 大头是 821 MB torch wheel + cuDNN 571 MB |
+  | 预检（含 CUDA/LoRA 注入用例） | ~0.3 min | |
+  | 下载三套权重 | 含在上项内 | Kaggle 出网到 HF 很快 |
+  | **推理（单变体，lite/1 步）** | **~1.5-1.8 min** | 3 chunks × ~20s + pipeline init ~25s |
+  | **v4 总 wall** | **511s ≈ 8.5 min** | 两个 lite 变体 |
+  | **v5 预估** | **~25-30 min** | 4 变体：A/B 各 ~2.5 min（CFG 双 forward），C ~4 min，D ~8 min（WanVAE 解码更重 + 2 步） |
+  | **v5 实测** | **1819s ≈ 30.3 min** | 见下"v5 实测结果"，预估偏短（漏算 WanVAE 首块冷启动） |
+
+  **注意**：模型存在 `/tmp`，而 Kaggle 每次运行是全新容器，**权重每轮都要重下**——这是固定成本，不因变体数增加而增加。把权重存成 Kaggle Dataset 可省掉这部分（待办）。
+- **v5 实测结果（2026-09-02 19:12 CST 完赛 · T4 4 变体单跑 30.3 min）**：
+
+  4 个变体均产出 512×512 / 25fps / 77 帧 / 3.08s 的 mp4。所有量化数据在 `/tmp/leaptalk_out/`（`metrics_v5.json` + `lipsync_evidence2.png`），分析脚本 `analyze.py`+`sync2.py` 同目录。
+
+  | 指标 | A TAEHV α=1.6 s=1 | B TAEHV α=3.0 s=1 | C WanVAE α=1.6 s=1 | D WanVAE α=1.6 s=2 |
+  |---|---|---|---|---|
+  | **唇同步 r@lag0**（嘴部暗度信号 vs 音频 RMS 包络） | 0.409 | **0.677** | 0.344 | 0.046 |
+  | 嘴部帧间运动 mean | 12.6 | **20.5** | 13.1 | 13.0 |
+  | 上脸运动（jitter 代理） | 10.2 | 14.2 | 10.7 | 9.7 |
+  | 背景闪烁 | 3.74 | 5.88 | 3.79 | 3.09 |
+  | 嘴部 Laplacian（清晰度） | 52.0 | **180.8** | 49.8 | 49.8 |
+  | 上脸 Laplacian | 172.5 | **462.5** | 131.1 | 113.2 |
+  | 身份相关性（眼区） | 0.60 | 0.49 | 0.59 | 0.62 |
+  | **单变体 wall** | 165s | 168s | **508s** | **627s** |
+  | 生成 FPS | 0.66 | 0.60 | 0.28 | 0.19 |
+  | VAE decode（s/chunk） | 2.0 | 2.5 | **149/51/51** | 142/51/51 |
+
+  **5 个反直觉结论（v5 阶段，依据代理指标，2026-09-02 22:39 已重新肉眼复核，结论 1/2/3 大幅修正）**：
+
+  1. ⚠️ **「B = T4 最优」是基于 Laplacian 清晰度代理的错判，肉眼复核后被推翻**。v5 抽帧对比：A_05 / B_05 额头出现明显油画/水彩色块（C_05 / D_05 干净），这是 TAEHV 在高 CFG 下被激出的高频伪影被 Laplacian 算法当成"清晰"算分；D_02/D_05/C_05 视觉画质肉眼明显优于 A_05/B_05。**真实视觉画质排序（仅看 C/D/B/A 的 mid+late 帧）：C ≈ D ≫ B ≫ A**。
+  2. ⚠️ **「D 全面退步」也是同一代理的错判**。D 的视觉画质与 C 几乎一致（WanVAE 1 步 vs 2 步），差别只在 D 的嘴动更弱（用户观感"画面稳"）。**2 步在 WanVAE 上没让画质退步，也没让画质提升**——只是净增成本（10.5 vs 8.5 min）。
+  3. ⚠️ **「换 WanVAE 治糊」并不是「不划算」而是「真有效」——我之前错把代理当人眼**。Laplacian 算 A=52.0 > C=49.8（**反的**），真实视觉 C 是 A 的明显改善（无色块伪影）。代价 3× 慢是事实，但视觉收益大。
+  4. **CFG 与画质的取舍**：A 是 TAEHV+α=1.6（伪影最重、嘴动中等）；B 是 TAEHV+α=3.0（伪影较重、嘴动最强）；C 是 WanVAE+α=1.6+1步（**画质干净、嘴动中等**）；D 是 WanVAE+α=1.6+2步（画质干净、嘴动最弱）。**最优画质是 C 或 D，最强嘴动是 B，没有单一参数通吃**——这是一个真实的「画质 vs 唇同步」权衡。
+  5. **KERNEL 状态仍 ERROR，但不影响结果**。v4 的 `pip install -U "entrypoints>=0.4"` 在 v5 仍 nbconvert 报错（kernel 1798s 安装 / 1803s 报 `cannot import name 'EntryPoint'`），**4 个 mp4 在 1794s 全部已 Saved**。KERNEL 状态 ERROR 仅来自 Kaggle 跑完后的导出阶段，与推理无关。（**v6 追验**：去掉 `huggingface_hub[cli]` + pin `entrypoints<0.5` **仍未修好**——0.4.x 确实没有 `EntryPoint` 符号；**v7 需 pin `entrypoints==0.3`**。）
+
+  **对用户 3 个核心问题的直接回答（v5 阶段已被推翻，v8 重新规划）**：
+  - "**官方文档建议什么？**" — α=1.6、1 步、Pro 配 WanVAE、Lite 配 TAEHV；**但这套推荐在 T4 上视觉画质不再是最佳**（C/D 视觉更干净但慢，B/A 视觉有伪影但快）。
+  - "**是 step 不够吗？**" — 在 TAEHV 上不是；在 WanVAE 上**也不让画质提升**（C=D），只是让嘴动略弱（用户后续肉眼识别出 v5 D 视觉干净）。
+  - "**每跑一次要多久？**" — A/B 变体（TAEHV）~2.8 min；C/D（WanVAE）~8.5-10.5 min；**4 变体完整矩阵 ~30 min**（含权重下载 ~5-7 min + 推理 ~20-23 min）。
+
+- **运行配置**：`scripts/kaggle/leaptalk-test/`（`leaptalk_inference.py` + `kernel-metadata.json`），Kaggle T4，复用 `xpabloli/infinitetalk-input`（portrait.jpg + audio.wav）做同素材 A/B。推理参数用 `inf.sh` 默认（`--num_inference_steps 1 --lite --compile off --model_type pro`），首跑加 `--max_chunks 4` 限时（先验证端到端可跑通，再跑全长做 A/B）。
+- **产物**：4 个 mp4 + metrics_v5.json + lipsync_evidence2.png 拉回 `/tmp/leaptalk_out/` 后回填本表。运行/结果见：https://www.kaggle.com/code/xpabloli/leaptalk-test
+- **当前状态**：✅ v6 CFG 扫描完成，α 响应曲线已量化（见下）。**T4 实测甜区 α=3.0-3.5（唇同步峰值），清晰度随 α 单调上升至 5.0 无同步损失**。
+- **v6（2026-09-02，已执行完赛 20:56 结束 · 总 wall 1198.4s ≈ 20 min）**：放弃 WanVAE 变体（C/D 全面退步——**注：此判断已由 22:39 肉眼复核推翻**），改为 **CFG 扫描**：α = 2.0 / 2.5 / 3.5 / 4.0 / 5.0 全在 TAEHV + 1 步上跑，与 v5 的 A(1.6)/B(3.0) 合并成 7 点曲线。5 变体全部 OK，单变体 153-179s。
+- **v7（2026-09-02，已执行完赛 21:19 结束）：主交付 CFG α=4.0+512，768 变体 OOM 自动回退**。**注：α=4.0 是 Laplacian 代理指标"嘴部清晰度 463.9"最高的点，但肉眼复核发现 frame 70 出现水彩伪影（油画感色块）——指标把噪声当清晰。CF5.0 视觉上有"比 v6 B 更糊"的质感，已被 22:39 推翻。**
+- **LeapTalk 四轮运行成本汇总**：硬件均为 **Kaggle T4×1 15GB（免费，每周 30h GPU 配额）**，成本 **$0**；耗时 v4=511s、v5=1819s、v6=1198s、v7=176s（含权重下载 ~6 min + 推理 ~3 min）。**v8 已规划（沿 WanVAE CFG 扫描，~35 min）待新 session 跑，结论未出。**
+- **v8（2026-09-02，规划中）**：基于肉眼复核发现 WanVAE 视觉明显优于 TAEHV，重新设计——**沿 C 路线（Pro+WanVAE+1步）做 CFG 扫描**（α=1.6/2.0/2.5/3.0），找画质+嘴动平衡点。WanVAE decoder 慢但在视觉上才能体现 WanVAE 优势。
+
+#### v8 设计详解（每项均标信源 + 理由）
+
+**1. 路线：WanVAE（`--no_lite`）—— 推翻了 v5-v7 的全部 TAEHV 隐含推荐**
+
+| 信源 | 性质 | 结论 |
+|---|---|---|
+| `/tmp/leaptalk_out/C_05.png` vs `B_05.png`（2026-09-02 22:39 肉眼复核） | **直接证据（ground truth）** | C/D 视觉干净（无色块），A/B 有明显油画/水彩伪影 |
+| `scripts/kaggle/leaptalk-test/leaptalk_inference.py` v7 commit | 间接 | `--lite` 默认走 TAEHV；切 WanVAE 必须 `--no_lite` |
+| LeapTalk 论文 Table 1（arXiv 2608.00079） | 官方 | Pro+WanVAE **FID 21** vs Pro+TAEHV **FID 38** |
+
+**2. 步数：1 步（不变）—— 不是被官方禁止多步，是 v5 已证多步无收益**
+
+| 信源 | 结论 |
+|---|---|
+| `/tmp/leaptalk_out/C_05.png` vs `D_05.png`（v5） | **C/D 视觉几乎一致**，2 步没让画质提升，只是嘴动略弱（v5 metrics：r 0.344→0.046） |
+| LeapTalk README Highlights | "One-step inference, 200 FPS"（设计目标 1 步） |
+| 论文 §Effect of different Autoencoders | "TAEHV blur can be alleviated by increasing 1→2 steps"（**仅对 TAE**，WanVAE 无数据；v5 验证在 WanVAE 上无视觉收益） |
+
+**3. CFG 范围：α ∈ {1.6, 2.0, 2.5, 3.0}**
+
+| 边界 | 信源 | 理由 |
+|---|---|---|
+| 下限 1.6 | 论文默认 α=1.6（README + Table 7） | 官方起点，可作为基线 |
+| 上限 3.0 | v6 7 点 CFG 扫描（`metrics_v6_sweep.json`）+ 22:39 肉眼复核 | v6 B=α3.0 唇同步峰 r=0.677（TAEHV 路线）；但 TAEHV 在 α≥3 已视觉毁容，**WanVAE 未知**，先保守到 3.0，避免重蹈 v7 α=4.0 视觉变差的覆辙 |
+| 跳过 3.5/4.0/5.0 | 22:39 肉眼复核（v6 H/I + v7） | TAEHV 在 α≥3.5 已视觉毁容；WanVAE 还没数据，先不探 |
+
+**4. 分辨率：512×512（不变）**
+
+| 信源 | 结论 |
+|---|---|
+| v7 实测 `/tmp/leaptalk_v7_out/leaptalk-test.log` | 768×768 直接 OOM（28.7s 失败），T4 15GB 撑不住；512 是 T4 唯一可行尺寸 |
+
+**5. 复用 v5 C（α=1.6 + WanVAE + 1 步）**
+
+| 信源 | 结论 |
+|---|---|
+| `/tmp/leaptalk_out/leaptalk_C_cfg1.6_wanvae_s1.mp4` | 已存在且帧数=77，时长=3.08s，与 v8 规格一致，**不重跑**节约 8.5 min |
+
+**6. 决策准则（三层验证，不再被 Laplacian 等代理骗）**
+
+**Round 1（粗筛，仅用不被证伪的代理）**：
+- ✅ 嘴部 ROI（y 0.59-0.74）× 灰度暗度-时间序列的 std（`/tmp/leaptalk_out/sync2.py` 已实现）—— **口动强度代理**，与 Table 7 Avg Std 同向
+- ✅ 音视频对齐：ffprobe 检查 `start_time=0`、`duration≈3.08s`
+- ❌ **Laplacian 方差**：被 22:39 推翻（色块伪影被当"清晰"），**本轮禁用**
+- ➕ 整帧颜色 std（多帧间方差）：粗略的颜色稳定度代理
+
+**Round 2（必须，肉眼复核）**：
+- 每变体抽 5 帧：第 10/25/40/55/70 帧（与 v5 比较基准一致）
+- 网格图 4 列 × 5 行摆一排，一眼看出逐帧稳定性
+- **逐帧逐变体盯**：色块、锐化环、毛刺、肤色跳变、嘴形清晰度
+
+**Round 3（最终验收）**：
+- 4 变体 mp4 **拼成 1×4 带音频对照视频**（已有 `grid2.py` 改 4 列），**你的耳朵+眼睛**判哪格最佳
+- 提交顺序：选定的最佳变体 → 写文档 → 推送最终结论
+
+**7. 预计时长**
+
+| 阶段 | 时长 |
+|---|---|
+| 权重重下 | ~6 min |
+| K (α=2.0) + L (α=2.5) + M (α=3.0) | 3 × ~8.5 min ≈ 25.5 min |
+| 抽帧 + 量化 + 网格图 | ~3 min |
+| **总 wall** | **~35 min** |
+
+**8. 数据/参考的时效声明**
+
+- 所有实测数据采集日期：**2026-09-02（CST，星期三）**
+- 引用论文：arXiv **2608.00079v1**（若 v2 发布需重读）
+- HuggingFace 权重卡：`z-rx/leaptalk`（若权重更新需重测）
+- 引用脚本基线：`scripts/kaggle/leaptalk-test/leaptalk_inference.py`（v7 commit，本次将改为 v8 commit）
+
+
+  **v5+v6 合并 CFG 响应曲线**（Pro DiT + TAEHV + 1 步，512×512，77 帧，同素材）：
+
+  | α | 1.6(A) | 2.0(E) | 2.5(F) | 3.0(B) | 3.5(G) | 4.0(H) | 5.0(I) |
+  |---|---|---|---|---|---|---|---|
+  | **唇同步 r@lag0** | 0.409 | 0.613 | 0.661 | **0.677** ←峰 | 0.662 | 0.639 | 0.673 |
+  | 嘴部运动 | 13.5 | 16.2 | 18.8 | 20.7 | 22.3 | 23.8 | **25.5** |
+  | 嘴部清晰度 | 69.6 | 114.3 | 175.6 | 219.4 | 295.1 | 359.8 | **555.0** |
+  | 上脸清晰度 | 187.2 | 315.7 | 443.2 | 525.0 | 583.1 | 615.3 | **813.7** |
+  | 口腔开合动态 ap_std | 0.033 | 0.045 | 0.062 | 0.076 | 0.085 | 0.094 | **0.100** |
+
+  （数据信源：`output/leaptalk-v6/metrics_v6_sweep.json`，分析脚本 `/tmp/leaptalk_v6_out/sweep.py`；曲线图 `cfg_sweep_chart.png`，嘴部特写+信号叠加 `cfg_sweep_mouths.png`，带音频 2×2 对照 `cfg_sweep_2x2_labeled.mp4`）
+
+  **v6 结论**：
+  1. **唇同步在 α=3.0 达峰（0.677），之后平台期（3.5/5.0 ≈ 0.66-0.67），4.0 有个浅谷（0.639）**——不是单调函数。α<2.0 时急剧劣化（1.6→0.409），**α≥2.5 后都是可用的**。
+  2. **清晰度随 α 严格单调上升，且 5.0 处无同步损失**——「糊」的另一个解法是把 CFG 拉高（α=5.0 嘴部清晰度 555 是 3.0 的 2.5 倍）。**但高 CFG 的过锐/伪影未被本指标捕捉**，需肉眼验收 `leaptalk_I_cfg5.0_lite_s1.mp4`（v7 待办）。
+  3. **T4 实测推荐**：**α=3.0（均衡首选）/ α=5.0（清晰度优先，需肉眼确认无伪影）**。论文官方 α=1.6 在 T4 上确认偏弱（r 仅 0.409）。
+  4. **KERNEL 状态 v6 仍 ERROR（推理无影响，5 mp4 全部 Saved）**：`entrypoints<0.5` 解析到 0.4.x，仍无 `EntryPoint` 符号；去掉 `huggingface_hub[cli]` 也没拦住。**v7 改 pin `entrypoints==0.3`**（nbconvert 7 需要 `from entrypoints import EntryPoint`，该符号 0.3 才有）。
+  5. 用户主观观察校准：v5 2×2 对照里「D 看起来最好」实为**近静态假象**（D r=0.046 嘴几乎不动，画面稳但不会说话）；声画在容器层是对齐的（音视频均 start=0，时长 3.072/3.08s），「不同步」感来自低 α 变体嘴动过弱 + 对照格里 4 张嘴只有 1 条音轨的归因困难。**已做带音频标注版对照**（`cfg_sweep_2x2_labeled.mp4`：F2.5/B3.0/G3.5/I5.0）供肉眼验收。
+
+- **❌ 最终裁决（2026-09-02 20:43 用户肉眼验收）**：**「画面质量太差」——LeapTalk 否决，停止进一步调参**。用户三问的核实结论：
+  1. **「之前画质好时我的评价是什么」**：可用基线的用户评价分别为——InfiniteTalk v10.17 FusionX 8 步「**lip sync + 表情均最佳**」（质量基线，NC 停测）；InfiniteTalk v10.18 lightx2v 4 步「**lip sync 达标但表情偏僵**」（可商用备选）；LongCat v11.1「唇同步基本正常但口型幅度偏大偏夸张」；EchoMimicV3 v51 当时**固化为最优配置**（用户认可可用）。
+  2. **「之前那版视频还有吗」**：在。`scripts/short-video/experiments/digital-human/` 下——`infinitetalk/infinitetalk_v1017_lora_audio2.0.mp4`（表情最佳基线）、`infinitetalk/infinitetalk_v1018_lightx2v_audio2.0.mp4`、`echomimicv3_v50_merged.mp4`（及 v48/v49/v50 seg1/seg2）、`longcat/longcat_v111_bf16_distill.mp4`。并排对照已做：`output/leaptalk-v6/baseline_vs_leaptalk.mp4`（左 InfiniteTalk v10.18，右 LeapTalk α=3.0，同 portrait+audio 输入）。
+  3. **「之前那版是官方推荐配置吗」**：是官方配方——InfiniteTalk v10.17/10.18 用官方 README LoRA 章节**明文推荐值**（audio CFG=2.0、shift=2、8 步/4 步），bf16 **非量化**；EchoMimicV3 v51 = 官方 8 步 Flash 配置 + 速度补丁（TeaCache/compile，画质影响小）。
+  4. **「现在跑的是量化版本所以差吗」**：**不是量化**。LeapTalk 权重是 bf16/fp16 全精度。差距来自**架构取舍**：① **1 步桥蒸馏**（之前可用模型都是 4-8 步迭代，一步生成细节天花板低）；② **TAEHV 轻量 VAE**（FID 38 vs 完整 WanVAE 21，且 WanVAE 在 T4 上 51s/chunk 不实用）；③ **512×512**（vs 576×704/768²）；④ LeapTalk 设计目标是 **200 FPS 实时流式**（H200），本质是拿画质换速度和无限长。v6 已证 α 拉到 5.0 清晰度涨 2.5 倍仍远不及 8 步模型——这是蒸馏模型天花板，调参救不回来。
+  5. **后续**：LeapTalk 归档为「实时流式备选，画质不达标」；可用基线仍是 InfiniteTalk v10.18（可商用）与 EchoMimicV3 v51。若继续找更高质量模型，按 license 门禁筛下一批候选（Hallo3 等）。
+
+- **v7（2026-09-02，21:19 完赛 · 总 wall 558.5s ≈ 9.3 min）**：应用户「输出一个画质最佳的 LeapTalk 视频 + 解决音频问题」的请求，做**最终画质冲刺**：
+  - **配置**：Pro DiT + TAEHV + **CFG α=4.0** + 1 步 + 512×512 + 25fps（v6 曲线中清晰度较 α=3.0 提升 2.5 倍且同步仍在平台区）。同时尝试 **768×768（α=3.5）**，T4 15GB **OOM 失败**（28.7s）。
+  - **音频问题修复**：LeapTalk 直出 mp4 本身已带 mp3 音轨（`inference.py:1131 _mux_audio`），v6 单条视频音视频均 start=0、对齐；用户此前"没音频"是本地 2×2 拼格视频的合成错误。v7 增加一层兜底：**推理后再用 ffmpeg 把原始 `audio.wav` 与视频流重混成 AAC**，输出 `leaptalk_v7_cfg4.0_512_aac.mp4`，避免 mp3 兼容问题。
+  - **产物量化（仅供记录，不可作"画质更好"的证据）**：77 帧 512×512。**该指标的方法学缺陷**：Laplacian 方差同时受真实细节、高频噪声和 TAEHV 解码伪影驱动——CFG 拉高把噪声一并放大，所以"清晰度数字涨"≠"人眼看到更好"。**实际肉眼验收（2026-09-02 22:26，v7 五帧采样 n=10/25/40/55/70）**：嘴确实在动（验证 lip-sync OK），但整脸呈"水彩/油画"风格——尤其 frame 70 出现大块紫色/绿色/红色 blotchy artifacts（TAEHV 在高 CFG + 1 步蒸馏下的典型失真），眼睛区域糊化。**这与用户"画面质量太差"的裁决一致**，且非调参可修——是 1 步蒸馏 + TAEHV 轻量 VAE 的结构性上限。
+  - **诚实结论**：即便 CFG4.0 让嘴明显变锐、嘴动更强烈，画面仍有 **1 步桥蒸馏 + TAEHV 的结构性伪影**（色带、胡须/边缘拖影）。这是模型设计取向（实时流式/无限长）的天花板，不是调参能彻底修好的。v7 就是 T4 上我能拿到的最佳 LeapTalk 输出。
+  - **产物**：`output/leaptalk-v7/leaptalk_v7_cfg4.0_512_aac.mp4`（带 AAC 音频，start=0，时长 3.08s / 音频 2.99s）。
 
 ### 📋 SoulX-FlashHead
 
@@ -1047,7 +1289,7 @@
 | 27 | **Hallo (v1)** | 分层扩散 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐ | 2024.06，8658 stars |
 | 28 | **Hallo2 (云 GPU)** | 分层扩散 | 原始版 | MIT | A100（20GB+） | 云 GPU | ⭐⭐⭐⭐ | 2024.10，MIT 许可，已本地测过 256px |
 | 29 | **LatentSync 1.5** | SD UNet + VAE | 原始版 | OpenRAIL++ | T4（8GB） | Kaggle | ⭐⭐⭐⭐ | 8GB 即可跑，T4 单卡足够 |
-| 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐⭐ | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
+| 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⚠️ v4 1.41 FPS / 默认参数近静态 | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
 | 31 | **SoulX-FlashHead** | Soul-AILab 自研 (1.3B) | 实时流式 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐ | 2026-02-12 开源，LeapTalk 基座，无限长度+实时流式 talking head |
 | 32 | **FantasyTalking2** | Wan2.1-14B (DiT) | 原始版 | ❓ 待确认 | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | AAAI 2026，v2 升级版（TLPO 偏好优化），v1 已在列表 |
 | 33 | **SkyReels-V3 A2V** | Wan2.1-19B | 原始版 | ❓ 待确认 | A100（40GB+） | 云 GPU | ⭐⭐⭐ | 2026-01-29 开源，统一多模态框架，talking avatar 19B，有 GGUF 量化 |
