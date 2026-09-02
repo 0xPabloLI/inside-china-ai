@@ -175,6 +175,8 @@ export const MEASURED_MAX_WIDTH = {
   // measure-slot-widths.mjs (T9, decision 65).
   "narrative.stacked-cards.badge": 820,
   "hook.hero-center.badge": 820,
+  "hook.hero-center.subtitle": 820,
+  "hook.hero-center.subtitleHighlight": 820,
   // One stat card's content box (three flex:1 cards in the 820 support band,
   // each with its own border+padding) — measured 200.
   "hook.hero-center.statCard": 200,

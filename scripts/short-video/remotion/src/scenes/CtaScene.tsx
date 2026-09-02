@@ -27,8 +27,9 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
       <Scanlines />
       <FrameGlow variant="blue" />
 
-      {/* Hero slot — brand logo 130px + name 72px + tagline 32px */}
-      <Slot variant="hero">
+      {/* Hero slot — brand logo + name + tagline.
+          Override top/height for vertical centering within safe zone. */}
+      <Slot variant="hero" top={335} height={550}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
           {/* Brand logo — scaleIn 0.6s at 0.1s + logoPulse 3s at 1s */}
           <LogoPulse interval={3}>
@@ -36,8 +37,8 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
               <CanvasImage
                 src={staticFile("assets/china-ai-news-mark-video.svg")}
                 style={{
-                  width: 130,
-                  height: 130,
+                  width: 160,
+                  height: 104,
                   marginBottom: 40,
                 }}
               />
@@ -94,8 +95,9 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
         </div>
       </Slot>
 
-      {/* Support slot — action stamp + topic */}
-      <Slot variant="support">
+      {/* Support slot — action stamp + topic.
+          Shifted up to match hero slot centering. */}
+      <Slot variant="support" top={885} height={200}>
         {/* Action — stampIn 0.5s at 1.0s, contract action 32px amber */}
         {txt.action && (
           <StampIn delay={1.0} duration={0.5}>

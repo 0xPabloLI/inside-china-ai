@@ -69,7 +69,7 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
     case "quote":
       return <QuoteScene {...common} />;
     case "context":
-      return <ContextScene {...common} />;
+      return <ContextScene {...common} contentDir={contentDir} />;
     case "contrast":
       return <ContrastScene {...common} />;
     case "stat-reveal":

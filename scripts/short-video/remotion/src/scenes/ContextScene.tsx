@@ -7,14 +7,19 @@ import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../component
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
 import { SPACING } from "../components/shared";
 import { TextGate } from "../components/text-gate";
+import { MediaBackground } from "../components/MediaBackground";
 
-export const ContextScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
+export const ContextScene: React.FC<{ scene: SceneData; duration: number; contentDir: string }> = ({ scene, duration, contentDir }) => {
   const txt = scene.texts || {};
   const sceneId = `context-${scene.id}`;
+  const hasMedia = !!scene.media;
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <GridBg />
+      {hasMedia && (
+        <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+      )}
+      {!hasMedia && <GridBg />}
       <Glow color="blue" />
       <Scanlines />
       <BrandBar />

@@ -140,7 +140,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
         {/* Focal — number-led preferred (contract bigNumber 240, amber) */}
         {txt.bigNumber ? (
           <div style={{ textAlign: "center" }}>
-            <TextGate sceneId={sceneId} slotId="hook.hero-center.bigNumber">
+            <TextGate sceneId={sceneId} slotId="hook.hero-center.bigNumber" expectAnnotation={(txt.bigNumber as string).length <= 5}>
               {(fontSize) => (
                 <Interactive.Div
                   name="bigNumber"
@@ -153,13 +153,18 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                     // the inline text rects poke ~19px above the gate box and
                     // false-fail Fit (T5).
                     lineHeight: 1.2,
+                    whiteSpace: "nowrap",
                     textShadow: "0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3)",
                   }}
                 >
                   <NumberPulse interval={2} color="rgba(245,158,11">
-                    <Circle color="#f59e0b" progress={circleProgress}>
-                      {txt.bigNumber as string}
-                    </Circle>
+                    {(txt.bigNumber as string).length <= 5 ? (
+                      <Circle color="#f59e0b" progress={circleProgress}>
+                        {txt.bigNumber as string}
+                      </Circle>
+                    ) : (
+                      txt.bigNumber as string
+                    )}
                   </NumberPulse>
                 </Interactive.Div>
               )}

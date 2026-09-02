@@ -295,8 +295,10 @@ export const Slot: React.FC<{
   align?: "center" | "start" | "end";
   top?: number;
   height?: number;
+  left?: number;
+  right?: number;
   children: ReactNode;
-}> = ({ variant, align = "center", top, height, children }) => {
+}> = ({ variant, align = "center", top, height, left, right, children }) => {
   const slots = {
     kicker: { top: 220, height: 180 }, // 220-400
     hero: { top: 400, height: 550 }, // 400-950
@@ -305,14 +307,16 @@ export const Slot: React.FC<{
   const defaults = slots[variant];
   const resolvedTop = top ?? defaults.top;
   const resolvedHeight = height ?? defaults.height;
+  const resolvedLeft = left ?? SAFE_ZONES.left;
+  const resolvedRight = right ?? SAFE_ZONES.right;
   const justifyContent = align === "start" ? "flex-start" : align === "end" ? "flex-end" : "center";
   return (
     <div
       data-text-container
       style={{
         position: "absolute",
-        left: SAFE_ZONES.left,
-        right: SAFE_ZONES.right,
+        left: resolvedLeft,
+        right: resolvedRight,
         top: resolvedTop,
         height: resolvedHeight,
         display: "flex",

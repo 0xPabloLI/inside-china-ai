@@ -70,6 +70,7 @@ async function main() {
   // ─── Load meta.mjs for primary entity + keyEntities ───
   let primaryEntity = null;
   let keyEntitiesCompanies = [];
+  let metaHashtags = null;
   if (existsSync(META_PATH)) {
     try {
       const metaMod = await import(`file://${META_PATH}`);
@@ -78,12 +79,15 @@ async function main() {
         primaryEntity = formatEntityName(meta.keyEntities.companies[0]);
         keyEntitiesCompanies = meta.keyEntities.companies;
       }
+      if (meta?.hashtags && Array.isArray(meta.hashtags) && meta.hashtags.length > 0) {
+        metaHashtags = meta.hashtags;
+      }
     } catch (e) {
       console.log(`  ⚠️ meta.mjs found but failed to load: ${e.message}`);
     }
   }
-  // Enrich metadata with primary entity + keyEntities
-  metadata = { ...(metadata || {}), primaryEntity, keyEntitiesCompanies };
+  // Enrich metadata with primary entity + keyEntities + manual hashtag override
+  metadata = { ...(metadata || {}), primaryEntity, keyEntitiesCompanies, ...(metaHashtags ? { hashtags: metaHashtags } : {}) };
 
   if (!scenes || scenes.length === 0) {
     console.error("❌ No scenes found in scene-data.mjs");

@@ -472,6 +472,9 @@ export const NarrativeScene: React.FC<{
   // ─── Render ───
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      {scene.layout === "stacked-cards" && hasMedia && (
+        <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+      )}
       {renderLayout()}
       {/* GridBg only when no media */}
       {!hasMedia && <GridBg />}
