@@ -91,7 +91,7 @@ required / shrinkPriority`。契约值覆盖 10 个动态文本来源（9 个场
    （关闭裁切的诊断帧 vs 正常帧），不作阻断 gate——`overflow:hidden` 已删除越界像素，
    单独使用只会重复假绿。
 6. **bigNumber 纳入 Fit**，使用独立焦点数字契约：`wrapPolicy: none`、`maxLines: 1`、
-   Hook `preferredSize: 240`、硬下限 `180`；顺序固定为 **Fit 数字 → 生成 Circle →
+   Hook `preferredSize: 240`、硬下限 `150`（决策 72 修订，原 180）；顺序固定为 **Fit 数字 → 生成 Circle →
    F7 碰撞 Assert**；碰撞失败即 FAIL，不偷偷继续缩字。
 7. **圆标注碰撞阈值**：**每个文字元素分别** ≤ 2%（subject 与 numberLabel 分开计算、
    不合并分母），被标注目标本身不计入；记录实际 ratio。普遍 < 0.5% 可收紧至 1%；
@@ -160,7 +160,7 @@ HTML final 产物链路、final-media gate、共享 schedule、highlight 子串�
 
 - 期刊式教训（已写入 Proposal §11）：方案文档先 commit 再大改；CLI 帮助看完整输出；
   文件盘点用 `find` 递归；样式关键字连字符与驼峰都要匹配。
-- 2% 阈值与 240/180 字号为初值，F7/F9 跑出实测 ratio 后在实施中微调（不放宽门槛的前提下）。
+- 2% 阈值与 240/150 字号为初值（决策 72 修订），F7/F9 跑出实测 ratio 后在实施中微调（不放宽门槛的前提下）。
 - ~~Remotion 与 HTML 的 Assert **共享同一实现**，避免两套判定漂移。~~（决策 59 后单渲染器，约束自然满足。）
 
 ---
@@ -267,7 +267,7 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
     容器不做 Fit，只做 Assert。
 45. 未知 `visualType`：ShortVideo dispatch 直接 **throw**，取消 `console.warn` + 回退。
 46. 字号收敛取值（三类）：
-    - 焦点数字统一：`bigNumber / stat` 语义同族，统一 `240/180`——Hook 现渲染 300、
+    - 焦点数字统一：`bigNumber / stat` 语义同族，统一 `240/150`（决策 72 修订）——Hook 现渲染 300、
       StatReveal 220、DataScene 180 全部收敛到 240；
     - 已有契约的常规字段：模板收敛到契约值（`quote 36`、`title 48`、`context 24`、
       `source 20`、Hook `source 26→20` 等）；
@@ -412,6 +412,13 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
 71. **T11 修订**：blocked-by 增加 T12；补代码项——字符预算按决策 14 降为契约推导
     WARN（当前 `scene-rules.mjs` 仍手写锚点 + `level: "fail"`）；关闭父 issue #141 前
     必须处理 #153（存量 preflight）。
+72. **bigNumber 硬下限 180 → 150（2026-09-02，用户确认）**：新内容包
+    `zhipu-glm6-self-training` 的 `bigNumber: "GLM-6.0"`（7 字符，全部内容包最长）在
+    820px 容宽内 180px 放不下；按原 180 触底即 FAIL 会倒逼改文案。用户裁定 150px 的
+    焦点数字「仍然挺大」，接受放宽：`bigNumber` 契约改为 `preferredSize 240 / minSize 150`
+    （比值 0.625，低于常规字段的 0.72 系数，属焦点数字特例）。spec 决策 6/46、
+    初值说明与 T5 表格同步修订；契约单测锁 150。不改变 minSize 硬下限语义——
+    触底仍 FAIL。
 
 ---
 
@@ -438,7 +445,7 @@ points[0]`）；`stats[]` 子字段扁平为独立字段名（新增 `statNum / 
 | `content/qwen4-preview/scene-data.mjs`                                               | s9 改 `stacked-cards`；highlight 结构化                                                      | Low                                                                      | 内容包；重渲染冒烟验证                                                                                                                                       |
 | `content/{doubao-work,light-society,qwen4-preview}/scene-data.mjs`                   | highlight 17 处迁移                                                                          | Low                                                                      | 迁移脚本 + 子串校验全通过才算完成                                                                                                                            |
 | `scripts/short-video/verify-video.mjs` / `verify-remotion-frames.mjs`                | 接入共享 schedule；末帧检查；纯背景尾帧 FAIL                                                 | Medium                                                                   | 新增判定可能让历史成片变红 → 正是目的；先跑存量清单                                                                                                          |
-| `scripts/short-video/lib/text-slots.mjs`（T5）                                       | SLOT_FIELDS 扩展（新字段 + 焦点数字统一 240/180）+ `REMOTION_SLOT_MAP` 四分类 + 实测宽度回填 | **High**（多消费者契约：Remotion/HTML/verifier/预算）                    | 决策 39 豁免存量视觉影响；渲染层 `getSlot` 抛错拦截未注册字段；契约单测锁完整性                                                                              |
+| `scripts/short-video/lib/text-slots.mjs`（T5）                                       | SLOT_FIELDS 扩展（新字段 + 焦点数字统一 240/150）+ `REMOTION_SLOT_MAP` 四分类 + 实测宽度回填 | **High**（多消费者契约：Remotion/HTML/verifier/预算）                    | 决策 39 豁免存量视觉影响；渲染层 `getSlot` 抛错拦截未注册字段；契约单测锁完整性                                                                              |
 | `scripts/short-video/remotion/src/scenes/*.tsx`（9 个）+ `FullscreenMedia.tsx`（T5） | 逐字段套 `TextGate` + 字号收敛契约值 + 容器挂 `data-text-container`                          | **High**（视觉变化，决策 39 豁免）                                       | 逐模板接入 + `scene-gate-fixture` 9 基线；T4 既有 8 测试兼回归哨兵                                                                                           |
 | `scripts/short-video/remotion/src/components/text-gate.tsx`（T5）                    | 新增 `checkContainer` 容器断言                                                               | Medium（改 T4 核心组件）                                                 | 新 reason `container-overflow`；冒烟后断言语义有变更，见决策 56；T4 测试 + T5 新用例双向锁定                                                                 |
 | `scripts/short-video/remotion/src/ShortVideo.tsx`（T5）                              | 未知 `visualType` 回退改 throw                                                               | Low                                                                      | 决策 45；无合法内容依赖回退路径                                                                                                                              |

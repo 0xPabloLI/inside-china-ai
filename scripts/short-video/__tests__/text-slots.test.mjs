@@ -71,10 +71,10 @@ describe("wrap policy", () => {
 });
 
 describe("focus number (bigNumber) contract", () => {
-  it("has its own sizes: 240 preferred, 180 floor, single line", () => {
+  it("has its own sizes: 240 preferred, 150 floor, single line", () => {
     const slot = getSlot("hook.hero-center.bigNumber");
     expect(slot.preferredSize).toBe(240);
-    expect(slot.minSize).toBe(180);
+    expect(slot.minSize).toBe(150);
     expect(slot.maxLines).toBe(1);
     expect(slot.wrapPolicy).toBe("none");
     expect(slot.annotationPolicy).toBe("circle");
@@ -113,10 +113,10 @@ describe("fit ladder", () => {
     expect(Math.min(...ladder)).toBe(40);
   });
 
-  it("walks the focus number down from 240 to 180", () => {
+  it("walks the focus number down from 240 to 150", () => {
     const ladder = fitCandidates(getSlot("hook.hero-center.bigNumber"));
     expect(ladder[0]).toBe(240);
-    expect(Math.min(...ladder)).toBe(180);
+    expect(Math.min(...ladder)).toBe(150);
   });
 });
 
@@ -231,11 +231,14 @@ describe("T5 field registry", () => {
     }
   });
 
-  it("keeps the focus number family single-line at 240/180", () => {
+  it("keeps the focus number family single-line at 240 preferred", () => {
+    // spec decision 72: bigNumber floor relaxed 180 -> 150 (GLM-6.0, 7 chars);
+    // stat keeps the original 0.72-ratio floor.
+    const floors = { bigNumber: 150, stat: 180 };
     for (const field of ["bigNumber", "stat"]) {
       const { preferredSize, minSize, maxLines, wrapPolicy } = SLOT_FIELDS[field];
       expect(preferredSize).toBe(240);
-      expect(minSize).toBe(180);
+      expect(minSize, `${field} minSize`).toBe(floors[field]);
       expect(maxLines).toBe(1);
       expect(wrapPolicy).toBe("none");
     }

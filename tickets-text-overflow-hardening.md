@@ -34,7 +34,7 @@
 - [x] 契约 schema 覆盖：`container / maxWidth / maxHeight / preferredSize / minSize / maxLines / lineHeight / fontFamily / fontWeight / letterSpacing / wrapPolicy / annotationPolicy / settledFrame / required / shrinkPriority`
 - [x] 默认字号表：result 56/40、company 48/36、action 32/24、context 24/18、source 20/16
 - [x] 带标注字段：`maxLines 1` + `wrapPolicy none`；无标注字段 `wrap` + `maxLines 2`
-- [x] bigNumber 焦点数字契约：`wrapPolicy none`、`maxLines 1`、Hook `preferredSize 240`、`minSize 180`
+- [x] bigNumber 焦点数字契约：`wrapPolicy none`、`maxLines 1`、Hook `preferredSize 240`、`minSize 150`（2026-09-02 决策 72 放宽，原 180——GLM-6.0 七字符焦点数字适配，stat 保持 180）
 - [x] 缩字优先级 `context → action → company → result`；`fitCandidates()` 在 `minSize` 处终止（无 ×0.9）
 - [x] HTML 模板→slot 映射按 `visualType` 建立，每个模板声明 slot ID 全集
 - [x] 全屏媒体的动态 source 文本纳入契约（第 10 个动态来源）
@@ -312,10 +312,18 @@ ink）不动——官方不验证结果，验证层是闸门本体。**Assert �
       `officialSeedSize` 强制（决策 63）
 - [x] `fitGroup` 处置：确认零生产消费者（仅 text-geometry.test.mjs）→ 随本票退役
       （text-geometry.mjs 函数与单测 describe 一并删除；决策 68 已先行否定其等比阶段）
-- [x] 契约测试：内核性质测试锁「官方种子只重排格子、终态验证仍是唯一裁判」；30 个真渲染
-      门测试在 official 种子路径下全部通过终态验证（PASS 形状不回归、FAIL 形状字号/理由
-      逐项不变）；official-lock 场景锁定官方输出在终态验证下可渲染（防官方行为漂移）
-- [x] 全部既有门测试全绿（哨兵 2659/13，失败均非本票，见 handoff §2）；~~冒烟全绿~~ **冒烟由用户豁免（2026-09-02，qwen 冒烟不做）**（决策 62）
+- [x] 契约测试：内核性质测试锁「官方种子只重排格子、终态验证仍是唯一裁判」（任意 seed 下
+      候选集合与旧阶梯全等）；30 个真渲染门测试在 official 种子路径下全部通过终态验证
+      （PASS 形状不回归、FAIL 形状字号/理由逐项不变）；防官方行为漂移的渲染契约探针
+      （official-fit-render.test.mjs，等价性 + 精度 + 探测次数三轴）✅ 2026-09-02 落地 6/6：
+      Times 900 预测落在一级阶梯内、seeded walk 与盲阶梯同字号、探测次数不多于盲阶梯、
+      px-LS 修正解吻合真实几何、fitTextOnNLines 种子吻合、GLM-6.0 @820 官方预测 224px =
+      真值（9 次探测，宽 819.66px）
+- [x] 全部既有门测试全绿（2026-09-02 本 session：纯层 65/65 + 门测试 30/30 + 全量
+      2713 passed / 4 failed——4 个失败均非本票：3 个 #153 存量 preflight + 1 个
+      verify-lfs-pointers 环境 flake，该文件数月未改且不在 T12 范围）；
+      ~~冒烟全绿~~ **qwen 冒烟由用户豁免（2026-09-02）**（决策 62）；_gate-smoke 全管线
+      冒烟补跑中（handoff §2）
 - [ ] ~~契约单测补锁定 `validateFontIsLoaded` 开启~~ **（删除，决策 64）**：
       保留 `document.fonts.ready` + 超时 FAIL 门；未来需精确字体验证时先打包命名字体
 - [x] 已知局限写入代码注释：official-fit.ts 模块头声明空格分词局限（→ #165，决策 60）、

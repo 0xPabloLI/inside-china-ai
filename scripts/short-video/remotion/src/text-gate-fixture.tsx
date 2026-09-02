@@ -18,15 +18,29 @@
  *                      a flush rest box → PASS (layout assert is motion-blind)
  *   container-overflow T5: text taller than its [data-text-container] → FAIL
  *   container-pass     T5: same copy, generous container → PASS
+ *   official-seed-probe T12: surface the official layout-utils fit seed AND
+ *                      the real-geometry ground truth through the
+ *                      cancelRender payload channel (remotion still does not
+ *                      forward page console). Proves the seeded walk lands on
+ *                      the same size the pre-T12 full ladder chose, and pins
+ *                      the official extrapolation error (decision 57).
  *
  * Spec: spec-text-overflow-hardening.md § T4 Implementation Refinement,
- * decisions 18, 36; § T5 Implementation Refinement, decisions 44, 49.
+ * decisions 18, 36; § T5 Implementation Refinement, decisions 44, 49;
+ * § T12 Implementation, decisions 57, 63.
  */
-import React, { useLayoutEffect, useRef, useState } from "react";
-import { Composition, interpolate, registerRoot, useCurrentFrame } from "remotion";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { cancelRender, Composition, delayRender, interpolate, registerRoot, useCurrentFrame } from "remotion";
 import { Circle } from "@remotion/rough-notation";
 import { BRAND_FONT_STACK, FPS } from "./components/shared";
 import { TextGate } from "./components/text-gate";
+import { predictGateSeeds } from "./components/official-fit";
+import {
+  fitCandidatesFromSeed,
+  minContainerSeed,
+  officialSeedSize,
+} from "../../lib/official-fit-kernel.mjs";
+import { fitCandidates } from "../../lib/text-slots.mjs";
 
 const SLOT_ID = "narrative.media-overlay.result";
 const SCENE_ID = "fixture";
@@ -48,7 +62,157 @@ const COPY_WRAP =
 /** A promise that never settles — simulates fonts that never become ready. */
 const NEVER_READY = new Promise<never>(() => {});
 
-type FixtureProps = { scenario?: string };
+type FixtureProps = { scenario?: string; probe?: ProbeSpec };
+
+/**
+ * T12 probe scenario spec. The probe renders `text` inside a `boxWidth`-wide
+ * band at `preferredSize`, asks the official layout-utils path for its seed,
+ * then walks the candidate ladder on REAL Chromium geometry to find the size
+ * the gate would actually choose. Both numbers leave the browser through the
+ * cancelRender payload (remotion still forwards stdout, not page console).
+ */
+type ProbeSpec = {
+  text: string;
+  boxWidth: number;
+  preferredSize: number;
+  minSize: number;
+  letterSpacing?: string;
+  wrap?: boolean;
+  maxLines?: number;
+};
+
+const PROBE_EPS = 0.5;
+
+const nextFrame = (): Promise<void> =>
+  new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+/**
+ * Laid-out text advance/ink union width inside `box`, in box-local units —
+ * the same Range technique the gate uses (textExtentLocal), minus the
+ * annotation handling a bare probe does not need.
+ */
+function probeTextWidth(box: HTMLElement): number {
+  const range = document.createRange();
+  const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let node: Node | null = walker.nextNode();
+  while (node) {
+    if ((node.textContent ?? "").trim().length > 0) {
+      range.selectNodeContents(node);
+      for (const r of Array.from(range.getClientRects())) {
+        minX = Math.min(minX, r.left);
+        maxX = Math.max(maxX, r.right);
+      }
+    }
+    node = walker.nextNode();
+  }
+  if (!Number.isFinite(minX)) return 0;
+  const boxRect = box.getBoundingClientRect();
+  const scale = box.offsetWidth > 0 ? boxRect.width / box.offsetWidth : 1;
+  return (maxX - minX) / scale;
+}
+
+/**
+ * T12 probe: is the official seed the size the gate really picks?
+ *
+ * Walks the candidate ladder twice against real geometry — once in the
+ * pre-T12 order (preferredSize down to minSize) and once in the seeded order
+ * — and cancels the render with both results plus the raw prediction. The
+ * test asserts the two walks agree (the seed changes probe count, never the
+ * outcome) and that the prediction sits within one ladder step of the truth
+ * (drift guard if @remotion/layout-utils changes its extrapolation).
+ */
+const OfficialSeedProbe: React.FC<{ spec: ProbeSpec }> = ({ spec }) => {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    delayRender("official-fit probe");
+
+    void (async () => {
+      const box = boxRef.current;
+      const textEl = textRef.current;
+      if (!box || !textEl) {
+        cancelRender(new Error('[OfficialFitProbe] {"error":"refs-not-mounted"}'));
+        return;
+      }
+      await document.fonts.ready;
+      await nextFrame();
+
+      const available = box.offsetWidth;
+      const slot = { preferredSize: spec.preferredSize, minSize: spec.minSize };
+
+      const rawSeeds = predictGateSeeds({
+        textEl,
+        maxWidth: available,
+        preferredSize: spec.preferredSize,
+        maxLines: spec.maxLines ?? 1,
+      });
+      const raw = minContainerSeed(rawSeeds);
+      const seed = officialSeedSize(raw ?? spec.preferredSize, slot);
+
+      const widthAt = async (size: number): Promise<number> => {
+        textEl.style.fontSize = `${size}px`;
+        await nextFrame();
+        return probeTextWidth(box);
+      };
+      const walk = async (order: number[]): Promise<{ size: number | null; probes: number }> => {
+        let probes = 0;
+        for (const size of order) {
+          probes += 1;
+          if ((await widthAt(size)) <= available + PROBE_EPS) return { size, probes };
+        }
+        return { size: null, probes };
+      };
+
+      // Old ladder first: it is the pre-T12 ground truth.
+      const full = await walk(fitCandidates(slot));
+      const seeded = await walk(fitCandidatesFromSeed(slot, seed));
+      const widthAtSeed = await widthAt(seed);
+      const widthAtTruth = full.size == null ? null : await widthAt(full.size);
+
+      const payload = {
+        text: spec.text,
+        available,
+        preferredSize: spec.preferredSize,
+        minSize: spec.minSize,
+        rawSeeds,
+        seed,
+        truth: full.size,
+        truthProbes: full.probes,
+        seeded: seeded.size,
+        seededProbes: seeded.probes,
+        widthAtSeed,
+        widthAtTruth,
+      };
+      cancelRender(new Error(`[OfficialFitProbe] ${JSON.stringify(payload)}`));
+    })();
+  }, [spec]);
+
+  return (
+    <Stage>
+      <div ref={boxRef} style={{ width: spec.boxWidth, position: "relative" }}>
+        <div
+          ref={textRef}
+          style={{
+            fontSize: spec.preferredSize,
+            fontWeight: 900,
+            fontFamily: BRAND_FONT_STACK,
+            letterSpacing: spec.letterSpacing ?? "normal",
+            whiteSpace: spec.wrap ? "normal" : "pre",
+            color: "#fff",
+          }}
+        >
+          {spec.text}
+        </div>
+      </div>
+    </Stage>
+  );
+};
 
 function textNode(fontSize: number, copy: string, italic = false): React.ReactNode {
   return (
@@ -92,7 +256,7 @@ const Stage: React.FC<{
   </div>
 );
 
-const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass" }) => {
+const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass", probe }) => {
   const frame = useCurrentFrame();
 
   if (scenario === "annotation-overhang") {
@@ -154,6 +318,21 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass" }) => {
 
   if (scenario === "ink-overhang") {
     return <InkScenario />;
+  }
+
+  if (scenario === "official-seed-probe") {
+    return (
+      <OfficialSeedProbe
+        spec={
+          probe ?? {
+            text: COPY_FIT,
+            boxWidth: 756,
+            preferredSize: 56,
+            minSize: 40,
+          }
+        }
+      />
+    );
   }
 
   if (scenario === "late-entrance") {

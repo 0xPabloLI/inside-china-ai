@@ -33,7 +33,7 @@ export const SLOT_FIELDS = {
   subject: { preferredSize: 64, minSize: 48, fontWeight: 900, shrinkPriority: 35 },
   bigNumber: {
     preferredSize: 240,
-    minSize: 180,
+    minSize: 150,
     fontWeight: 900,
     letterSpacing: -10,
     shrinkPriority: 45,
