@@ -127,6 +127,46 @@ describe(
       expect(raw).toMatch(/Rendered text field\(s\) "company" missing/);
     });
 
+    it("T9 group gate: band over its height budget shrinks low-priority fields, result keeps its fitted size", () => {
+      // The probe cancels the render with the measurement payload once every
+      // gate (and group approval) has settled; measuredGroupFits carries each
+      // band's final font sizes. The budget override (116) sits between the
+      // floors height (~102) and the preferred-size content height (124) for
+      // this fixture copy, so the walk must shrink source (priority 5) and
+      // context (10) until the band fits while result (priority 40, the
+      // headline) stays untouched. Width Fit already chose 50 for result
+      // (692px constraint), so "untouched" means it keeps that 50 — the walk
+      // never steps a field below its chosen size unless the band needs it.
+      const { ok, payload, raw } = renderScenario("group-shrink-measure");
+      expect(ok, raw).toBe(false);
+      expect(payload, raw).toBeTruthy();
+      expect(payload.reason).toBe("measurement");
+      const fit = payload.measuredGroupFits["narrative.media-overlay.bottom-band"];
+      expect(fit, raw).toBeTruthy();
+      expect(fit.shrunk).toBe(true);
+      expect(fit.sizes["narrative.media-overlay.source"]).toBe(16); // minSize
+      expect(fit.sizes["narrative.media-overlay.context"]).toBe(20);
+      expect(fit.sizes["narrative.media-overlay.result"]).toBe(50);
+      expect(fit.contentHeight).toBeLessThanOrEqual(fit.maxHeight + 0.5);
+    });
+
+    it("T9 group gate: copy that cannot fit even at the floors fails structured (group-overflow)", () => {
+      const { ok, payload, raw } = renderScenario("group-overflow-fail");
+      expect(ok, raw).toBe(false);
+      expect(payload, raw).toBeTruthy();
+      expect(payload.reason).toBe("group-overflow");
+      expect(payload.slotId).toBe("narrative.media-overlay.bottom-band");
+      expect(payload.measured.height).toBeGreaterThan(payload.available.height);
+      // The walk must have exhausted the order down to the floors before
+      // failing. First-insertion order of the last-step map IS the shrink
+      // order (source 5 → context 10 → result 40); result's final step must
+      // be its hard floor.
+      const lastStepByField = {};
+      for (const s of payload.steps) lastStepByField[s.slotId.split(".").pop()] = s.fontSize;
+      expect(Object.keys(lastStepByField)).toEqual(["source", "context", "result"]);
+      expect(lastStepByField.result).toBe(40);
+    });
+
     it("#37: an unknown visualType throws at dispatch (no silent narrative fallback)", () => {
       const { ok, raw } = renderScenario("unknown-visualtype");
       expect(ok).toBe(false);

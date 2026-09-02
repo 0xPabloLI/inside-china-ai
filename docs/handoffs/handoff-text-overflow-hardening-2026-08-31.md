@@ -8,7 +8,23 @@
 
 ## 0. TL;DR
 
-- **进度：8 / 12 完成 + T9 首项落地**（T1–T5 / T6 / T7 / T12 ✅，T9 首项 `15b4419` ✅；T12 = `44fa8da`，issue #175）。下一步 = **T9 余项（parent/group gate、MediaOverlay 补 action/context、s6/s8/s9 重渲染）**；T8/T10 也可任选。qwen4 全管线冒烟由用户豁免（2026-09-02）。
+- **进度：8 / 12 完成 + T9 余项落地（待 commit）**（T1–T5 / T6 / T7 / T12 ✅，T9 首项 `15b4419` ✅；T12 = `44fa8da`，issue #175）。**T9 全部 checklist 已完成（2026-09-03 凌晨 session，见下）**，issue #150 待用户授权后关闭；T8/T10/T11 可任选。
+- **2026-09-03 第四 session（T9 收尾：parent/group gate + overlay 补齐 + 重渲染）**：
+  `TextGroupGate` 落地（band 容器本体，子 gate Fit 后交出字号与 `apply()`，全员报告后量
+  band 内容高对 `getGroup()` 预算，超限沿契约 `shrinkOrder` 逐字段缩到 minSize、每步重测，
+  仍超 `group-overflow` 结构化失败带 `steps` 轨迹）；`MEASURED_MAX_HEIGHT` 标定 top 594 /
+  bottom 336；MediaOverlay top band 补 ActionText、bottom band 补 ContextText；
+  `shrinkOrder()` 从此有生产调用者（决策 68 前置解除）。测试：契约单测 +2、渲染层 +2
+  （`group-shrink-measure`：预算 116 落在 floors 高 ~102 与 preferred 高 124 之间，断言
+  source→16、context→20、result 保持 Fit 所选 50；`group-overflow-fail`：预算 60 触底
+  结构化失败，终态 source→context→result=40）；scene-gate 21/21、text-gate+official-fit
+  17/17、纯层 53/53；qwen4 全管线 1953 帧 + 文本 gate 零取消 + 71/71 帧检查，s6/s8 抽帧
+  action/context 上屏，s9 53.2/53.5/55.5s 复测无上一幕媒体透出（53.2s「MEMBER/CITY 缺头」
+  = band 入场滑动中途帧，非泄漏）。全量哨兵 2259 passed / 12 failed——4 个失败文件
+  （e2e-pipeline 双写路径 MODULE_NOT_FOUND、publish-utils 缺 fixture 视频、verify-guard、
+  verify-lfs）均不 import T9 模块，属环境/并行遗留。⚠️ 同文件并行 hunk 处理：NarrativeScene
+  的 stacked-cards MediaBackground、text-slots 的 `hook.hero-center.subtitle*` 宽度属并行
+  session，T9 commit 用过滤 patch 排除。subtitle verification 仍为存量 2 coverage gap（§6）。
 - **2026-09-02 第三 session（T12 收尾 + 验证链闭环 + tracker 补录）**：防漂移渲染契约探针 `official-fit-render.test.mjs` 落地 **6/6**（GLM-6.0 @820 官方预测 224px = 真值 9 次探测、宽 819.66px；等价性/精度/探测次数三轴全过）；**bigNumber 硬下限 180→150 经用户确认**（spec 决策 72：zhipu-glm6-self-training 的 7 字符焦点数字适配；stat 保持 180，契约单测按字段分断言）；纯层 65/65 + 门测试 30/30 + 全量 **2713 passed / 4 failed**（4 个失败均非 T12：3 个 #153 存量 preflight + 1 个 verify-lfs 环境 flake，该文件数月未改）；`_gate-smoke` 全管线复跑：1109 帧渲染 + 文本 gate 运行时零取消，**但 subtitle verification 音频同步段 FAIL（9 scene 偏移）——T12 未触碰音频/verify 代码，冒烟包音频资产由并行 session 当日 15:40–15:50 重新生成（f5-manifest + wav），失败归因待独立 triage**。tracker 补录 9 行达成 GitHub open 48 = tracker open 48 集合一致；#159 双侧 closed 同步。沙箱注意：**WorkBuddy fs shim 会弄挂 remotion 打包（EEXIST mkdir）**——跑 remotion still / 门测试须 `env -u NODE_OPTIONS -u CODEBUDDY_BROKERED_FS_HOOK_ENABLED`。
 - **2026-09-02 第二 session（T9 首项，commit `15b4419` 已推送）**：badge 接入 + rendered 缺失 FAIL + mediaOptOut 归位 + `HTML_SLOT_MAP`/`htmlSlotsFor()` 清理（决策 65/66 + 决策 59 收尾）一次落地；qwen4 s9 全管线渲染通过（**P1 阻断解除**：1953 帧 + 71/71 帧检查 + badge chip 像素验证）；review 双轴完成（1 硬伤 JSDoc 误删已修，amend 并入）；全量 2651 passed / 3 failed（#153 存量不变）。⚠️ qwen4 冒烟时 subtitle verification 报 2 errors = **存量 coverage gap，与 T9 无关**（见 §6）。
 - **2026-09-02 实施审计修订（决策 63–71，全部经用户确认；spec/tickets 已同步）**：
@@ -111,7 +127,7 @@ T7(#148, done) ─────────────────────�
 | T4 Fit/Assert 核心                | #145 ✅   | —          | 已完成（`080a6c2`）：几何判定 + 触底 cancelRender + 逐帧 Assert |
 | T5 Remotion 模板接入 + F1/F2/F3   | #146 ✅   | T2✅,T4✅  | 已完成（`8a024e5`）：10 文本源接入 + 冒烟包全管线通过；**审计更正：rendered 缺失 FAIL 未实现（承接 T9）、mediaOptOut 注册位置错误（承接 T9）** |
 | T6 HTML 路径退役（已 pivot）      | #147 ✅   | 无         | 已完成（`830cd44` + `9914777` 本地）：renderer-guard fail-fast + 归档 retired-html-path + 回归哨兵全绿 + review 双轴修复；**审计补充：`HTML_SLOT_MAP`/`htmlSlotsFor()` 仍在活代码（text-slots.mjs），待迁 retired archive** |
-| T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 OPEN | T2✅,T5✅  | 首项三项 ✅（`15b4419`：badge 接入 / rendered 缺失 FAIL / mediaOptOut 归位 + HTML 清理）；**余项 = parent/group gate（决策 68 前置，maxHeight 全 null）、MediaOverlay 补 action/context、多字段缩序、s6/s8/s9 重渲染**；s9 badge 已像素验证（决策 69 转场口径，53.5s/55.5s 无异常） |
+| T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 OPEN | T2✅,T5✅  | **全部 checklist ✅（2026-09-03，`dbab891`）**：首项三项（`15b4419`）+ 余项（TextGroupGate 垂直门 / `MEASURED_MAX_HEIGHT` 594/336 / `group-overflow` 结构化失败 / MediaOverlay 补 action+context / s6-s8-s9 重渲染验证）。#150 待用户授权关闭 |
 | T12 官方 `fitText` 接入 TextGate 生产路径 | 待建   | T5✅       | **scope 已修订（决策 63/64）**：接入 `fitCandidates()` 生产路径；官方输出只作候选值；不开启 validateFontIsLoaded；**先建 issue** |
 | T8 highlight {field,text} + 17 处 | #149 OPEN | T2✅,T5✅  | 标什么亮什么，子串校验                                          |
 | T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 OPEN | T4✅,T5✅  | **scope 已修订（决策 67/70）**：ink 逐行实现、annotation fail-open 修复、OVERDRAW 口径统一；F4 不重复认领 |

@@ -209,6 +209,44 @@ export const MEASURED_MAX_WIDTH = {
   "info-card.hero-center.points": 752,
 };
 
+/**
+ * Measured group budgets: the vertical content-box height a multi-field band
+ * may occupy before the group gate starts shrinking fields (T9, decision 68).
+ *
+ * Like the widths above these are constraints the surroundings grant, not the
+ * content's own height — keyed by the group id the template puts on its
+ * `data-text-group` band. Current calibration (media-overlay, safe zone
+ * y ∈ [220, 1150]):
+ *   - bottom band 336 — the pipeline's established bottom-band budget, the
+ *     same text-bar height media-bottom-bar anchors at y=1150;
+ *   - top band 594 — from the safe-zone top (220) down to the bottom band's
+ *     highest possible top edge (1150 − 336 = 814), so the two overlay bands
+ *     can never overlap.
+ */
+export const MEASURED_MAX_HEIGHT = {
+  "narrative.media-overlay.top-band": 594,
+  "narrative.media-overlay.bottom-band": 336,
+};
+
+/**
+ * Resolve a band's group contract. Throws rather than guessing, exactly like
+ * `getSlot` does for unmeasured widths.
+ *
+ * @param {string} groupId
+ * @param {{maxHeight?: number}} [overrides] fixture-only budget override
+ * @returns {{groupId: string, maxHeight: number}}
+ */
+export function getGroup(groupId, overrides = {}) {
+  const maxHeight = overrides.maxHeight ?? MEASURED_MAX_HEIGHT[groupId];
+  if (maxHeight === undefined) {
+    throw new Error(
+      `Group ${groupId} has no measured maxHeight — measure the band's vertical ` +
+        "budget and add it to MEASURED_MAX_HEIGHT (do not derive it from padding maths)",
+    );
+  }
+  return { groupId, maxHeight };
+}
+
 /** Layout the Remotion narrative template has always fallen back to. */
 export const DEFAULT_NARRATIVE_LAYOUT = "media-bottom-bar";
 

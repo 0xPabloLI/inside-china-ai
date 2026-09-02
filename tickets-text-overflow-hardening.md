@@ -216,17 +216,27 @@ preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性
 - [x] 活代码 HTML 残留清理（handoff §6 记录的决策 59 收尾项）✅ (2026-09-02, `15b4419`)：
       删除 `HTML_SLOT_MAP`/`htmlSlotsFor()` 及 text-slots.test.mjs 对应 describe；
       review 双轴修复（`remotionSlotsFor` JSDoc 误删已恢复，amend 并入 `15b4419`）
-- [ ] MediaOverlay 顶部补 action、底部补 context
-- [ ] **parent/group gate 设计并接入（决策 68 前置）**：为 `maxHeight` 编排补生产
-      调用者——slot 补 `maxHeight` 标定 + TextGate（或新 helper）实现多字段总高判定；
-      `shrinkOrder()`（或 `fitGroup`）接入生产路径后才算落地
-- [ ] 多字段总高超限时按 `context → action → company → result` 逐字段缩到各自
-      `minSize`，仍超则失败（**无等比阶段**，决策 68 修订）
+- [x] **MediaOverlay 顶部补 action、底部补 context ✅ DONE (2026-09-03)**：top band 补
+      `ActionText`（SlideUp 0.55s）、bottom band 补 `ContextText`（FadeIn 0.75s），
+      均经 TextGate；s6/s8 抽帧确认上屏、中部无空洞
+- [x] **parent/group gate 设计并接入（决策 68 前置）✅ DONE (2026-09-03)**：
+      `TextGroupGate`（`remotion/src/components/text-group-gate.tsx`）= band 容器本体
+      （`data-text-group` + `data-text-container`）；子 TextGate Fit 后把所选字号连同
+      `apply()` 交给 group 而不释放渲染；全员报告后量 band 内容高（scrollHeight 减
+      padding）对 `getGroup()` 预算；`MEASURED_MAX_HEIGHT` 标定 top 594 / bottom 336
+      （实测推演，拒绝 padding 推导，未标定即 throw）；`shrinkOrder()` 从此有生产调用者
+- [x] 多字段总高超限时按契约 `shrinkOrder` 逐字段沿各自 `fitCandidates` 阶梯缩到
+      `minSize`，每步重测量，仍超则结构化失败 ✅ DONE (2026-09-03)（**无等比阶段**，
+      决策 68 修订）：新失败原因 `group-overflow`（`TextFitError.steps` 带缩字轨迹）；
+      渲染层两测试锁定「缩低优先级、headline 保持」与「触底结构化失败」（终态顺序
+      source 5 → context 10 → result 40，result 终步 = 40 硬下限）
 - [x] s9 数据改为 `stacked-cards` + `mediaOptOut: true`（T7 提交，632a96a）
-- [ ] **s9 视觉复测（决策 69 修正口径）**：53.2s 后抽帧复测 stacked-cards；
-      若转场第一帧仍透出上一幕媒体，按转场策略决策处理（调转场或加不透明背景），
-      不再作为「stacked-cards 媒体泄漏」修复项
-- [ ] s6/s8/s9 重渲染：action/context 上屏，中部无空洞，不违反垂直契约
+- [x] **s9 视觉复测（决策 69 修正口径）✅ DONE (2026-09-03)**：新渲染 53.2s/53.5s/55.5s
+      抽帧——无上一幕媒体透出；53.2s 观察到的「MEMBER/CITY 缺头」为 band 入场滑动
+      中途帧（top/bottom band 先后入场，55.5s 稳定帧全部字段完整），非泄漏非裁剪
+- [x] s6/s8/s9 重渲染 ✅ DONE (2026-09-03)：qwen4 全管线 1953 帧（v2026-09-02T16-49-12）
+      + 文本 gate 零取消 + 71/71 帧检查 PASS；s6/s8 抽帧 action/context 上屏、band
+      无重叠；字幕 verification 仅存量 2 coverage gap（§6 已记录，非 T9）
 
 ---
 

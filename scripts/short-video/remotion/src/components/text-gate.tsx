@@ -34,6 +34,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cancelRender, continueRender, delayRender, useCurrentFrame } from "remotion";
 import { getSlot, parseSlotId } from "../../../lib/text-slots.mjs";
 import { fitCandidatesFromSeed, minContainerSeed } from "../../../lib/official-fit-kernel.mjs";
+import { useTextGroup } from "./text-group-gate";
 import { predictGateSeeds } from "./official-fit";
 import {
   EPS,
@@ -358,6 +359,9 @@ export const TextGate: React.FC<TextGateProps> = ({
 
   const gateRef = useRef<HTMLDivElement>(null);
   const frame = useCurrentFrame();
+  // T9: when mounted inside a TextGroupGate band, the group owns the vertical
+  // budget — this gate registers with it instead of releasing the render.
+  const group = useTextGroup();
   const [fontSize, setFontSize] = useState(lockFontSize ?? slot.preferredSize);
   const [ready, setReady] = useState(false);
   const inkRef = useRef<Pad>({ ...ZERO_PAD });
@@ -385,11 +389,16 @@ export const TextGate: React.FC<TextGateProps> = ({
   };
 
   // Fit once after mount: fonts → annotation mount → size ladder. Registered
-  // with delayRender so Remotion never captures a frame mid-fit.
+  // with delayRender so Remotion never captures a frame mid-fit. Inside a
+  // group the handle stays open until the group's vertical check approves.
   useEffect(() => {
     if (fitStartedRef.current) return;
     fitStartedRef.current = true;
     const handle = delayRender(`text-gate fit for ${slotId}`);
+    // Group registration happens synchronously in the effect body, before
+    // any await: the parent group's mount effect runs after all children's
+    // effects and relies on the expected set being complete there.
+    if (group) group.expect(slotId, handle);
 
     (async () => {
       const gate = gateRef.current;
@@ -493,6 +502,18 @@ export const TextGate: React.FC<TextGateProps> = ({
       inkRef.current = lastInk;
       setFontSize(chosen);
       setReady(true);
+      if (group) {
+        // The group gate owns the vertical budget: hand over the chosen size
+        // and let IT release the render after the band-height check (T9).
+        group.report(slotId, {
+          size: chosen,
+          apply: async (size: number) => {
+            setFontSize(size);
+            await nextFrame();
+          },
+        });
+        return;
+      }
       await nextFrame();
       continueRender(handle);
     })();

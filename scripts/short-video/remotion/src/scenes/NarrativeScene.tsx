@@ -26,13 +26,20 @@ import {
 import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
+import { TextGroupGate } from "../components/text-group-gate";
 
 type Layout = "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
 
 /** Fixture-only per-slot TextGate overrides (e.g. lockFontSize for F1). */
 type GateOverrides = Record<
   string,
-  { lockFontSize?: number; slotWidth?: number; checkContainer?: boolean }
+  {
+    lockFontSize?: number;
+    slotWidth?: number;
+    checkContainer?: boolean;
+    /** Fixture-only vertical budget override for a TextGroupGate band. */
+    groupMaxHeight?: number;
+  }
 >;
 
 export const NarrativeScene: React.FC<{
@@ -278,6 +285,9 @@ export const NarrativeScene: React.FC<{
   // ─── Variant: media-overlay ───
   // Fullscreen media, text overlay top+bottom within safe zone
   // Safe zone: y∈[220,1150]. Top overlay at y=220, bottom overlay anchored to y=1150.
+  // T9 (decision 68): each band's fields share one vertical budget enforced
+  // by TextGroupGate — over budget it shrinks the band's fields in contract
+  // order instead of silently growing into the other band.
   const MediaOverlay: React.FC = () => (
     <>
       {hasMedia && (
@@ -285,9 +295,11 @@ export const NarrativeScene: React.FC<{
           <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
         </div>
       )}
-      {/* Top overlay — badge/company, starting at safe zone top (y=220) */}
-      <div
-        data-text-container
+      {/* Top overlay — badge/company/action, starting at safe zone top (y=220) */}
+      <TextGroupGate
+        sceneId={sceneId}
+        groupId="narrative.media-overlay.top-band"
+        maxHeight={ov("narrative.media-overlay.top-band").groupMaxHeight}
         style={{
           position: "absolute",
           top: SAFE_ZONES.top, // 220
@@ -327,10 +339,15 @@ export const NarrativeScene: React.FC<{
         <SlideDown delay={0.4} duration={0.5}>
           <CompanyText variant="media-overlay" />
         </SlideDown>
-      </div>
-      {/* Bottom overlay — result/source, anchored to safe zone bottom (y=1150) */}
-      <div
-        data-text-container
+        <SlideUp delay={0.55} duration={0.5}>
+          <ActionText variant="media-overlay" />
+        </SlideUp>
+      </TextGroupGate>
+      {/* Bottom overlay — result/context/source, anchored to safe zone bottom (y=1150) */}
+      <TextGroupGate
+        sceneId={sceneId}
+        groupId="narrative.media-overlay.bottom-band"
+        maxHeight={ov("narrative.media-overlay.bottom-band").groupMaxHeight}
         style={{
           position: "absolute",
           bottom: SAFE_ZONES.bottom, // 770 → bottom edge at y=1150
@@ -348,10 +365,13 @@ export const NarrativeScene: React.FC<{
         <StampIn delay={0.6} duration={0.5}>
           <ResultText variant="media-overlay" />
         </StampIn>
+        <FadeIn delay={0.75} duration={0.5}>
+          <ContextText variant="media-overlay" />
+        </FadeIn>
         <FadeIn delay={0.9} duration={0.5}>
           <SourceText variant="media-overlay" />
         </FadeIn>
-      </div>
+      </TextGroupGate>
     </>
   );
 

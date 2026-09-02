@@ -380,10 +380,21 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     for (const gate of gates) {
       measuredWidths[gate.dataset.textSlot ?? "unknown"] = availableWidthFor(gate);
     }
+    // T9: group bands mirror their final state onto data-group-fit (JSON:
+    // shrunk / maxHeight / contentHeight / sizes) once the vertical check has
+    // approved — surfaced here for the group-gate tests.
+    const measuredGroupFits: Record<string, unknown> = {};
+    for (const el of Array.from(document.querySelectorAll("[data-text-group]")) as HTMLElement[]) {
+      if (el.dataset.groupFit && el.dataset.textGroup) {
+        measuredGroupFits[el.dataset.textGroup] = JSON.parse(el.dataset.groupFit);
+      }
+    }
     // Same first-line JSON shape as TextFitError (cancelRender only surfaces
     // the message's first line); `measuredWidths` is the measurement channel.
     throw cancelRender(
-      new Error(`[TextFitError] ${JSON.stringify({ reason: "measurement", measuredWidths })}`),
+      new Error(
+        `[TextFitError] ${JSON.stringify({ reason: "measurement", measuredWidths, measuredGroupFits })}`,
+      ),
     );
   }
 
@@ -407,6 +418,33 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "baseline-narrative" 
   // F3 shape: copy that cannot fit even at the 40px floor.
   if (scenario === "f3-floor") {
     return <NarrativeScene scene={F3_SCENE} duration={4} contentDir="" />;
+  }
+  // T9 group-gate scenarios: NarrativeScene rendered directly so the fixture
+  // can squeeze the bottom band's vertical budget via the groupMaxHeight
+  // override. group-shrink-measure wraps the scene in the measurement probe
+  // (the walk's final sizes ride out on data-group-fit); group-overflow-fail
+  // relies on the group's own structured group-overflow TextFitError.
+  if (scenario === "group-shrink-measure") {
+    return (
+      <MeasureProbe>
+        <NarrativeScene
+          scene={S9_SCENE}
+          duration={4}
+          contentDir=""
+          gateOverrides={{ "narrative.media-overlay.bottom-band": { groupMaxHeight: 116 } }}
+        />
+      </MeasureProbe>
+    );
+  }
+  if (scenario === "group-overflow-fail") {
+    return (
+      <NarrativeScene
+        scene={S9_SCENE}
+        duration={4}
+        contentDir=""
+        gateOverrides={{ "narrative.media-overlay.bottom-band": { groupMaxHeight: 60 } }}
+      />
+    );
   }
   if (scenario === "unknown-field") {
     return <ShortVideo scenes={[UNKNOWN_FIELD_SCENE]} audioPaths={[]} durations={[4]} />;

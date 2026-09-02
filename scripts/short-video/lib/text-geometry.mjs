@@ -30,6 +30,7 @@ export const FIT_REASONS = {
   annotationOutOfSlot: "annotation-out-of-slot",
   textOutOfSlot: "text-out-of-slot",
   containerOverflow: "container-overflow",
+  groupOverflow: "group-overflow",
 };
 
 /**
@@ -51,6 +52,7 @@ export class TextFitError extends Error {
    *   available: {width: number, height: number|null},
    *   fontSize: number,
    *   inkPad: {left: number, right: number, top: number, bottom: number},
+   *   steps?: {slotId: string, fontSize: number}[],
    * }} payload
    */
   constructor(payload) {
@@ -64,6 +66,9 @@ export class TextFitError extends Error {
     this.available = payload.available;
     this.fontSize = payload.fontSize;
     this.inkPad = payload.inkPad;
+    // Group-gate only (T9): the shrink walk's trace, present when the walk
+    // exhausted the shrink order before failing.
+    this.steps = payload.steps ?? null;
   }
 }
 

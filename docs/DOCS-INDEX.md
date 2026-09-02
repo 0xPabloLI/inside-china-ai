@@ -192,6 +192,7 @@ Deep research reports with citations.
 | `friendly-search-engines-comparison.md` | Friendly search engines comparison — CDP vs API, anti-bot resistance, result quality |
 | `free-llm-api-options.md` | 免费 LLM API 方案对比 — 合规的程序化 LLM 调用路径（官方 API / Puter.js User-Pays / 免费替代平台）+ 实测吞吐量数据 |
 | `digital-human-test-progress.md` | Digital human model test progress tracking — pointers to cloud-gpu-options for detailed analysis |
+| `leaptalk-v8-params-review.md` | LeapTalk v8 方案参数合理性评估 — arXiv 2608.00079 论文 + 源码 + v4-v7 实测逐项核对 |
 | `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
 | `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
 | ~~`issue-tracker-review.md`~~ | ✅ 已归档至 `docs/archive/reviews/issue-tracker-review-2026-08-26.md` — 19/19 项全部修复后归档 |
