@@ -412,3 +412,108 @@ describe("verifyAudioSync with .wav scene files (integration, real ffmpeg)", () 
     expect(result.checked).toBe(2);
   }, 20000);
 });
+
+// ─── verifyAudioSync honors audioPaths over re-resolution (regression) ───
+//
+// Render-only packs can retain a stale .mp3 while a fresh .wav (from a later
+// TTS regeneration) sits beside it. Assembly picks .mp3 (mp3-first); the old
+// verifier re-resolved with wav-priority and measured the WRONG generation,
+// producing a false audio-sync-drift failure across every scene. audioPaths
+// threads the exact assembly source through so the verifier measures the file
+// actually burned into the shipped artifact.
+describe("verifyAudioSync honors audioPaths (assembly-source regression)", () => {
+  const SCENE_DURATIONS = [
+    { sceneId: 1, duration: 1.0 },
+    { sceneId: 2, duration: 0.5 },
+  ];
+  const SCENE2_OFFSET = 1.5;
+  let dirs = [];
+
+  afterEach(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    dirs = [];
+  });
+
+  function noise(seconds, seed, rate = 44100) {
+    const n = Math.round(seconds * rate);
+    const out = new Float32Array(n);
+    let s = seed;
+    for (let i = 0; i < n; i++) {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      out[i] = (s / 0x40000000 - 1) * 0.5;
+    }
+    return out;
+  }
+
+  /** Real .mp3 per scene + an undecodable stale .wav, like a regenerated pack. */
+  function makeStaleMp3Fixture() {
+    const dir = mkdtempSync(join(tmpdir(), "audiosync-stale-"));
+    dirs.push(dir);
+    const audioDir = join(dir, "audio");
+    mkdirSync(audioDir);
+
+    const mp3Paths = [];
+    for (const [id, seconds, seed] of [
+      [1, 1.0, 42],
+      [2, 0.5, 1337],
+    ]) {
+      const wavSrc = join(dir, `scene-${id}-src.wav`);
+      writeWavPcm(wavSrc, noise(seconds, seed), 44100);
+      const mp3Path = join(audioDir, `scene-${id}.mp3`);
+      execSync(
+        `ffmpeg -y -i "${wavSrc}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`,
+      );
+      mp3Paths.push(mp3Path);
+      // Stale .wav from a different generation — undecodable, so re-resolution
+      // that picks it lands in failedScenes instead of silently matching.
+      writeFileSync(join(audioDir, `scene-${id}.wav`), "this is not audio");
+    }
+    return { dir, mp3Paths };
+  }
+
+  function buildFinal(dir, ttsDurations) {
+    const finalPath = join(dir, "final.wav");
+    buildVoiceoverTrack({
+      sceneAudioPaths: [join(dir, "audio", "scene-1.mp3"), join(dir, "audio", "scene-2.mp3")],
+      ttsDurations,
+      outputPath: finalPath,
+    });
+    return finalPath;
+  }
+
+  it("re-resolution picks .wav and FAILS when mp3 was assembled (the old bug)", () => {
+    const { dir } = makeStaleMp3Fixture();
+    const finalPath = buildFinal(dir, [1.0, 0.5]);
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+    });
+
+    // resolveSceneAudio chose the undecodable .wav for each scene → failures.
+    expect(result.passed).toBe(false);
+    expect(result.errors).toBeGreaterThan(0);
+  }, 20000);
+
+  it("audioPaths pins the assembled .mp3 and PASSES (the fix)", () => {
+    const { dir, mp3Paths } = makeStaleMp3Fixture();
+    const finalPath = buildFinal(dir, [1.0, 0.5]);
+
+    const result = verifyAudioSync({
+      videoPath: finalPath,
+      outputDir: dir,
+      sceneDurations: SCENE_DURATIONS,
+      audioPaths: mp3Paths,
+    });
+
+    expect(result.errored).toBe(false);
+    expect(result.passed).toBe(true);
+    expect(result.checked).toBe(2);
+    expect(result.errors).toBe(0);
+    expect(result.skipped).toBe(0);
+    const scene2 = result.scenes.find((s) => s.sceneId === 2);
+    expect(scene2.expected).toBeCloseTo(SCENE2_OFFSET, 3);
+    expect(Math.abs(scene2.measured - SCENE2_OFFSET)).toBeLessThan(0.03);
+  }, 20000);
+});

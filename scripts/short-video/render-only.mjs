@@ -174,6 +174,7 @@ async function main() {
       timingData: subtitles.timingData,
       sceneDurations,
       outputDir,
+      audioPaths: sceneData.map((sd) => sd.audioPath),
     });
     if (!report.summary.passed) {
       console.error("❌ Subtitle verification failed — refusing to ship a broken video.");

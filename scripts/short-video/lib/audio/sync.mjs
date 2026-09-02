@@ -134,9 +134,19 @@ function syncFailure(error) {
  * @param {string} options.outputDir - output/{pipelineId}, scene audio lives in {outputDir}/audio
  * @param {Array<{sceneId: number, duration: number}>} options.sceneDurations
  * @param {number} [options.tolerance]
+ * @param {string[]} [options.audioPaths] - the EXACT source audio files burned
+ *   into the shipped video, index-aligned to `sceneDurations`. When supplied,
+ *   the verifier measures against these files instead of re-resolving via
+ *   resolveSceneAudio(). Pass it straight from the assembly step so the check
+ *   measures the artifact the user actually hears — not a same-scene file from
+ *   a different TTS generation that both happen to exist on disk.
+ *   (Render-only packs can retain a stale .mp3 while a fresh .wav sits beside
+ *   it; re-resolving with wav-priority while assembly used mp3-priority made
+ *   every scene's correlation peak land on the wrong generation — a false
+ *   audio-sync-drift failure.)
  * @returns {object} evaluation result + skip/failure bookkeeping
  */
-export function verifyAudioSync({ videoPath, outputDir, sceneDurations, tolerance }) {
+export function verifyAudioSync({ videoPath, outputDir, sceneDurations, tolerance, audioPaths }) {
   const rate = CORRELATION_SAMPLE_RATE;
   const workDir = mkdtempSync(join(tmpdir(), "audiosync-"));
   const skippedScenes = [];
@@ -164,11 +174,17 @@ export function verifyAudioSync({ videoPath, outputDir, sceneDurations, toleranc
 
     const timeline = sceneTimeline(sceneDurations ?? []);
     const audioDir = join(outputDir, "audio");
+    const scenes = sceneDurations ?? [];
 
-    for (const scene of sceneDurations ?? []) {
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
       // Keep scenes in timeline order; unknown ids are caught by findScene.
       const entry = findScene(timeline, scene.sceneId);
-      const scenePath = resolveSceneAudio(audioDir, scene.sceneId);
+      // Prefer the exact audio path used during assembly (index-aligned to
+      // sceneDurations) so we measure the file that is actually in the video.
+      // Fall back to re-resolution only when the caller didn't pin a path.
+      const scenePath =
+        (audioPaths && audioPaths[i]) || resolveSceneAudio(audioDir, scene.sceneId);
       if (!scenePath) {
         skippedScenes.push(scene.sceneId);
         continue;

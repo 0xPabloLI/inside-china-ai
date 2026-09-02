@@ -350,6 +350,11 @@ export function getVideoDuration(videoPath, fallbackDuration = 0) {
  * @param {Array} options.timingData - subtitle-timing.json
  * @param {Array<{sceneId: number, duration: number}>} options.sceneDurations
  * @param {string|null} [options.outputDir] - where to write verification-report.json
+ * @param {string[]} [options.audioPaths] - the EXACT source audio files burned
+ *   into the video (index-aligned to sceneDurations). Threaded straight into
+ *   verifyAudioSync so the end-to-end check measures the artifact the user
+ *   actually hears, not a same-scene file from a different TTS generation.
+ *   When omitted, verifyAudioSync re-resolves per scene (legacy behavior).
  * @returns {object} report
  */
 export function verifySubtitles({
@@ -358,6 +363,7 @@ export function verifySubtitles({
   timingData,
   sceneDurations,
   outputDir = null,
+  audioPaths = null,
 }) {
   const cues = parseAss(readFileSync(assPath, "utf8"));
   const expectedWords = expectedWordTimes(timingData, sceneDurations);
@@ -379,7 +385,7 @@ export function verifySubtitles({
   // alignment timeline — both pre-assembly — and cannot see assembly-stage
   // drift; this check measures the artifact the user actually hears.
   if (outputDir) {
-    report.audioSync = verifyAudioSync({ videoPath, outputDir, sceneDurations });
+    report.audioSync = verifyAudioSync({ videoPath, outputDir, sceneDurations, audioPaths });
     report.summary = applyAudioSyncToSummary(report.summary, report.audioSync);
 
     // Guard against silent skip: if every scene was skipped (e.g. file format

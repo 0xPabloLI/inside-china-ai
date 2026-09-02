@@ -505,6 +505,7 @@ async function main() {
           timingData: subtitles.timingData,
           sceneDurations,
           outputDir,
+          audioPaths: ttsResults.map((t) => t.audioPath),
         }),
       repairFn,
       maxRetries,
