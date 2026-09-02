@@ -9,7 +9,7 @@
  * Optionally renders a media background when scene.media is present.
  */
 import { staticFile, CanvasImage, Interactive, useCurrentFrame, interpolate } from "remotion";
-import { Circle, Underline } from "@remotion/rough-notation";
+import { Circle } from "@remotion/rough-notation";
 import type { SceneData } from "../types";
 import {
   GridBg,
@@ -27,6 +27,7 @@ import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
+import { SplitHighlight } from "../components/substring-highlight";
 
 const COLORS: Record<string, string> = {
   blue: "#4d8bff",
@@ -235,18 +236,14 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                     textShadow: `0 0 40px ${color}66`,
                   }}
                 >
-                  {txt.highlight ? (
-                    <Underline
-                      color={color}
-                      progress={underlineProgress}
-                      strokeWidth={ANNOTATION.underline.strokeWidth}
-                      padding={ANNOTATION.underline.padding}
-                    >
-                      {txt.hookText as string}
-                    </Underline>
-                  ) : (
-                    (txt.hookText as string)
-                  )}
+                  <SplitHighlight
+                    text={txt.hookText as string}
+                    highlight={txt.highlight}
+                    field="hookText"
+                    progress={underlineProgress}
+                    variant="underline"
+                    color={color}
+                  />
                 </Interactive.Div>
               )}
             </TextGate>

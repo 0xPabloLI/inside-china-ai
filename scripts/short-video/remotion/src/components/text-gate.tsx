@@ -695,13 +695,21 @@ export const TextGate: React.FC<TextGateProps> = ({
    * consecutive frames — the same discipline AnnotationCollisionAssert uses
    * — then asserts and caches the verdict for that size; later frames re-
    * assert synchronously on live geometry (static once stable).
+   *
+   * `box` may be null on entry (the SVG exists but has painted nothing yet):
+   * the poll still starts (or an older size's poll is superseded) and only
+   * the poll's final stable read decides. The gate remounts its children on
+   * every font-size change (key={fontSize}), so during a group shrink walk
+   * each step tears the annotation down and mounts a fresh, momentarily
+   * unpainted SVG — skipping the call on a null drawn box would leave the
+   * PREVIOUS size's poll running to a false annotation-missing verdict.
    */
-  const assertAnnotation = (box: Box, bounds: Box): void => {
+  const assertAnnotation = (box: Box | null, bounds: Box): void => {
     const verdict = annotationAssertRef.current;
     if (verdict != null && verdict.size === fontSize) {
       // This size's verdict is already in force (or being polled): assert on
       // the live box without re-polling.
-      if (verdict.settled && !boxWithin(box, bounds, EPS)) {
+      if (verdict.settled && box != null && !boxWithin(box, bounds, EPS)) {
         fail(
           FIT_REASONS.annotationOutOfSlot,
           { width: box.width, height: box.height },
@@ -740,12 +748,10 @@ export const TextGate: React.FC<TextGateProps> = ({
       const gate = gateRef.current;
       const stableBox = gate ? annotationDrawnBox(gate) : null;
       if (!stableBox) {
-        // assertAnnotation is only called with a drawn box on record (the
-        // call site guards on annotationBox != null), and within one poll
-        // there is no remount (a size change supersedes the poll) — so a
-        // null box after 30 frames, whether never-appeared or seen-then-
-        // vanished, means the captured frame has no measurable annotation.
-        // Same fail-open decision 67a closed for the mount wait.
+        // A null box after 30 frames — never-appeared, seen-then-vanished, or
+        // a group walk that kept remounting past this poll's window — means
+        // the captured frame has no measurable annotation. Same fail-closed
+        // decision 67a closed for the mount wait.
         fail(
           FIT_REASONS.annotationMissing,
           { width: 0, height: null },
@@ -907,16 +913,18 @@ export const TextGate: React.FC<TextGateProps> = ({
         }
         // Annotation bounds: the content box plus the annotation family's
         // measured overdraw tolerance (decision 70) — stability-polled, see
-        // assertAnnotation below.
+        // assertAnnotation below. Called whenever the SVG exists, painted or
+        // not: a fresh remount paints a frame later, and the poll must be
+        // superseded by the new size immediately (see assertAnnotation doc).
         const annotationBounds = inflate(containerBox, annotationOverdrawOf(slot.annotationPolicy));
-        if (annotationBox) {
+        if (svg) {
           assertAnnotation(annotationBox, annotationBounds);
         }
       }
     }
     // Annotation fallback: with no container ancestor the slot box is the only
     // bound on record, so the drawn annotation must stay inside it there.
-    if (!containerEl && annotationBox) {
+    if (!containerEl && svg) {
       assertAnnotation(annotationBox, contentBox);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

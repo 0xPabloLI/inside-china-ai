@@ -65,9 +65,20 @@ export interface SceneTexts {
   stat?: string;
   statLabel?: string;
   subtext?: string;
-  /** Keyword to highlight with @remotion/rough-notation (optional). */
-  highlight?: string;
-  [key: string]: string | StatItem[] | string[] | undefined; // allow visualType-specific fields
+  /**
+   * Structured highlight (T8): `field` names the texts field the fragment
+   * lives in, `text` is the exact substring to annotate with rough-notation.
+   * The render fails unless `text` is a substring of `texts[field]`
+   * (assertKnownTextFields); only the fragment gets the annotation, the
+   * surrounding copy renders plain.
+   */
+  highlight?: { field: string; text: string };
+  [key: string]:
+    | string
+    | StatItem[]
+    | string[]
+    | { field: string; text: string }
+    | undefined; // allow visualType-specific fields + the structured highlight
 }
 
 /** A single scene definition (from scene-data.mjs). */

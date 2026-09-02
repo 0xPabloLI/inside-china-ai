@@ -38,7 +38,7 @@ export const scenes = [
       company: "FRONTIER LAB",
       action: "SHIPS SMALL MODEL",
       result: "EDGE MATCHES CLOUD",
-      highlight: "CLOUD",
+      highlight: { field: "result", text: "CLOUD" },
       context: "SIX BILLION PARAMS RUN ON DEVICE",
       source: "GATE SMOKE PACK",
     },

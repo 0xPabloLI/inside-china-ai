@@ -308,7 +308,9 @@ export const REMOTION_SLOT_MAP = {
       rendered: [],
       // `stats` is a structural container: each card gates whole as
       // statCard[i] (num+unit share a nowrap row and cannot gate apart).
-      control: ["subjectLogo", "numberHighlight", "color", "stats"],
+      // `highlight` (T8) is structured — { field, text } — and only annotates
+      // a fragment of hookText when its field targets that claim.
+      control: ["subjectLogo", "numberHighlight", "color", "stats", "highlight"],
       optional: [
         "subject",
         "bigNumber",
@@ -451,6 +453,45 @@ export function assertKnownTextFields(visualType, layout, texts) {
       `Unknown text field "${key}" for visualType "${visualType}" (layout "${layout}") — ` +
         "declare it in REMOTION_SLOT_MAP or remove it from scene-data",
     );
+  }
+  // T8: `highlight` is structured — { field, text }. The renderer splits the
+  // named field's copy around `text` and annotates ONLY that fragment; a
+  // fragment that is not a substring of the field would silently render no
+  // annotation (the old world wrapped the WHOLE field instead), so the render
+  // fails with the offending data. The target field must itself be a known
+  // string text — unknown names are caught by the key loop above, arrays
+  // (stats/left/…) are not annotatable.
+  const h = t.highlight;
+  if (h !== undefined && h !== null) {
+    if (
+      typeof h !== "object" ||
+      Array.isArray(h) ||
+      typeof h.field !== "string" ||
+      h.field === "" ||
+      typeof h.text !== "string" ||
+      h.text === ""
+    ) {
+      throw new Error(
+        `highlight must be { field, text } — the texts field holding the copy and the ` +
+          `exact substring to annotate (visualType "${visualType}", layout "${layout}"); ` +
+          `got ${JSON.stringify(h)}`,
+      );
+    }
+    const target = t[h.field];
+    if (typeof target !== "string") {
+      throw new Error(
+        `highlight.field "${h.field}" is not a string text in this scene's texts ` +
+          `(visualType "${visualType}", layout "${layout}") — set it, or point the ` +
+          "highlight at the field that carries the copy",
+      );
+    }
+    if (!target.includes(h.text)) {
+      throw new Error(
+        `highlight.text ${JSON.stringify(h.text)} is not a substring of texts.${h.field} ` +
+          `${JSON.stringify(target)} (visualType "${visualType}", layout "${layout}") — ` +
+          "the fragment must appear in the field verbatim",
+      );
+    }
   }
 }
 

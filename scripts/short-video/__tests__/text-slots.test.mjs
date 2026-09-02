@@ -275,7 +275,7 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
         company: "C",
         action: "A",
         result: "R",
-        highlight: "H",
+        highlight: { field: "result", text: "R" },
         context: "X",
         source: "S",
       }),
@@ -394,10 +394,69 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
         context: "X",
         action: "A",
         result: "R",
-        highlight: "R",
+        highlight: { field: "result", text: "R" },
         source: "S",
       }),
     ).not.toThrow();
     expect(getSlot("narrative.stacked-cards.badge").maxWidth).toBeGreaterThan(0);
+  });
+
+  it("accepts a structured highlight whose fragment is a substring of its field (T8)", () => {
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        company: "C",
+        action: "3 LAYERS REMEMBER, 1 LAYER LOOKS UP",
+        result: "R",
+        highlight: { field: "action", text: "LOOKS UP" },
+      }),
+    ).not.toThrow();
+    // Hook declares highlight too (the hookText claim annotation).
+    expect(() =>
+      assertKnownTextFields("hook", "hero-center", {
+        hookText: "AI THAT OPERATES",
+        highlight: { field: "hookText", text: "OPERATES" },
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects a legacy string highlight (T8): the structured shape is mandatory", () => {
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        company: "C",
+        action: "A",
+        result: "R",
+        highlight: "R",
+      }),
+    ).toThrow(/highlight must be \{ field, text \}/);
+  });
+
+  it("rejects a highlight fragment that is not a substring of its field (T8)", () => {
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        company: "C",
+        action: "A",
+        result: "THAT'S THE WHOLE POINT",
+        highlight: { field: "result", text: "ABSENT FRAGMENT" },
+      }),
+    ).toThrow(/not a substring of texts\.result/);
+  });
+
+  it("rejects a highlight pointing at a field that is absent or not a string (T8)", () => {
+    // Typo'd target: nothing to annotate.
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        company: "C",
+        action: "A",
+        result: "R",
+        highlight: { field: "reslt", text: "R" },
+      }),
+    ).toThrow(/highlight\.field "reslt" is not a string text/);
+    // Array fields are containers, not annotatable copy.
+    expect(() =>
+      assertKnownTextFields("hook", "hero-center", {
+        stats: [{ num: "1", unit: "U", label: "L" }],
+        highlight: { field: "stats", text: "1" },
+      }),
+    ).toThrow(/highlight\.field "stats" is not a string text/);
   });
 });

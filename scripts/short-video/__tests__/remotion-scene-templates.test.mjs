@@ -147,28 +147,29 @@ describe("T4: MediaBackground supports effects prop", () => {
   });
 });
 
-describe("Highlight field consumption", () => {
-  it("HookScene imports Underline from rough-notation and consumes texts.highlight", () => {
+describe("Highlight field consumption (T8: structured { field, text })", () => {
+  it("HookScene consumes texts.highlight through the SplitHighlight fragment annotation", () => {
     const content = readFile("scenes/HookScene.tsx");
-    expect(content).toMatch(/import.*Underline.*from.*rough-notation/);
+    expect(content).toMatch(/SplitHighlight/);
     expect(content).toMatch(/txt\.highlight/);
-    expect(content).toMatch(/<Underline/);
+    expect(content).toMatch(/field="hookText"/);
   });
 
-  it("NarrativeScene imports Highlight from rough-notation and consumes texts.highlight", () => {
+  it("NarrativeScene consumes texts.highlight through the SplitHighlight fragment annotation", () => {
     const content = readFile("scenes/NarrativeScene.tsx");
-    expect(content).toMatch(/import.*Highlight.*from.*rough-notation/);
+    expect(content).toMatch(/SplitHighlight/);
     expect(content).toMatch(/txt\.highlight/);
-    expect(content).toMatch(/<Highlight/);
+    expect(content).toMatch(/field="result"/);
+    expect(content).toMatch(/field="action"/);
   });
 
-  it("doubao-work scene-data has highlight field on narrative scenes with result", () => {
+  it("doubao-work scene-data has a structured highlight on narrative scenes with result", () => {
     const scenePath = join(__dirname, "..", "content", "doubao-work", "scene-data.mjs");
     const content = readFileSync(scenePath, "utf-8");
     // Scene 1 (hook) has highlight on hookText
-    expect(content).toMatch(/highlight:\s*"OPERATES"/);
+    expect(content).toMatch(/highlight:\s*\{\s*field:\s*"hookText",\s*text:\s*"OPERATES"\s*\}/);
     // Narrative scenes with result also have highlight
-    expect(content).toMatch(/highlight:\s*"WHY"/);
-    expect(content).toMatch(/highlight:\s*"STRATEGY"/);
+    expect(content).toMatch(/highlight:\s*\{\s*field:\s*"result",\s*text:\s*"WHY"\s*\}/);
+    expect(content).toMatch(/highlight:\s*\{\s*field:\s*"result",\s*text:\s*"STRATEGY"\s*\}/);
   });
 });

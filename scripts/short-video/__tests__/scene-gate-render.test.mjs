@@ -142,16 +142,23 @@ describe(
       expect(raw).toMatch(/Rendered text field\(s\) "company" missing/);
     });
 
-    it("T9 group gate: band over its height budget shrinks low-priority fields, result keeps its fitted size", () => {
+    it("T8: a highlight fragment that is not a substring of its field fails validation", () => {
+      const { ok, raw } = renderScenario("bad-highlight");
+      expect(ok, raw).toBe(false);
+      expect(raw).toMatch(/not a substring of texts\.result/);
+    });
+
+    it("T9 group gate: band over its height budget shrinks low-priority fields down its order", () => {
       // The probe cancels the render with the measurement payload once every
       // gate (and group approval) has settled; measuredGroupFits carries each
       // band's final font sizes. The budget override (116) sits between the
-      // floors height (~102) and the preferred-size content height (124) for
-      // this fixture copy, so the walk must shrink source (priority 5) and
-      // context (10) until the band fits while result (priority 40, the
-      // headline) stays untouched. Width Fit already chose 50 for result
-      // (692px constraint), so "untouched" means it keeps that 50 — the walk
-      // never steps a field below its chosen size unless the band needs it.
+      // floors height (~102) and the initial content height (~194: T8's
+      // partial-fragment highlight no longer forces the result line nowrap,
+      // so width Fit accepts 56 on two lines and context starts at its
+      // preferred 24), so the walk must exhaust source (priority 5, floor 16)
+      // and context (10, floor 18) and then step result (40) 56 → 50, where
+      // the copy fits ONE line and the band settles at 113 ≤ 116 — the walk
+      // never steps a field below what the band needs.
       const { ok, payload, raw } = renderScenario("group-shrink-measure");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
@@ -160,7 +167,7 @@ describe(
       expect(fit, raw).toBeTruthy();
       expect(fit.shrunk).toBe(true);
       expect(fit.sizes["narrative.media-overlay.source"]).toBe(16); // minSize
-      expect(fit.sizes["narrative.media-overlay.context"]).toBe(20);
+      expect(fit.sizes["narrative.media-overlay.context"]).toBe(18); // minSize
       expect(fit.sizes["narrative.media-overlay.result"]).toBe(50);
       expect(fit.contentHeight).toBeLessThanOrEqual(fit.maxHeight + 0.5);
     });

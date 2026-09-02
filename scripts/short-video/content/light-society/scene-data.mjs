@@ -169,7 +169,7 @@ export const scenes = [
       title: "THE REAL STORY",
       quote: "The paper never says 're-education.' But it did rewrite 4M beliefs at scale.",
       attribution: "Light Society, arXiv 2506.12078",
-      highlight: "4M beliefs rewritten",
+      highlight: { field: "quote", text: "4M beliefs" },
     },
   },
   {

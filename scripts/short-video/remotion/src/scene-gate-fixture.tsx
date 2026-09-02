@@ -15,6 +15,8 @@
  *                                        shipped 52px → FAIL (clipped-text
  *                                        incident the old gate passed)
  *   unknown-field                        #32 typo'd texts key fails the render
+ *   bad-highlight                        T8: highlight.text not a substring of
+ *                                        its field fails validation
  *   unknown-visualtype                   #37 dispatch throws, no silent fallback
  *   empty-fields                         #34 empty strings/arrays → no false fail
  *   measure:<scene>                      T5 Ticket D: legal copy renders, then
@@ -23,13 +25,17 @@
  *                                         payload and cancels the render
  *
  * F1/F2/F3 hard-code the ORIGINAL s9 copy of the qwen4-preview pack (git
- * eb48293, decision 48) — the exact scene that shipped clipped text. The
- * `highlight` field stays: rough-notation forces nowrap, which is what makes
- * width overflow visible to Fit (annotationPolicy of the result field). On
- * the auto-height media-overlay band that nowrap drives the ladder all the
- * way to the 40px floor, where Fit fails structured (F3). The wrapping
- * variant of over-long copy failing on a FIXED-HEIGHT container has its own
- * coverage in the T4 render suite (container-overflow there).
+ * eb48293, decision 48) — the exact scene that shipped clipped text. T8 made
+ * `highlight` structured ({ field, text }): only the named FRAGMENT gets the
+ * rough-notation nowrap wrapper now. The old renderer wrapped the WHOLE field
+ * in the annotation, and that whole-line nowrap is exactly what made width
+ * overflow visible to Fit — so F1/F3/F6 replay the incident with the full
+ * result line as the highlight fragment (a legal substring), preserving the
+ * incident's geometry bit for bit. Partial fragments (the normal authoring
+ * case, e.g. s9's "POINT") only nowrap their own span; the fitted baselines
+ * and group-gate scenarios exercise that shape. The wrapping variant of
+ * over-long copy failing on a FIXED-HEIGHT container has its own coverage in
+ * the T4 render suite (container-overflow there).
  *
  * Baselines render through ShortVideo so dispatch + field validation are
  * exercised too; F1/F3 render NarrativeScene directly to use the fixture-only
@@ -49,7 +55,7 @@ const S9_TEXTS = {
   company: "REMEMBER 6B PARAMS?",
   action: "CAPACITY GROWTH, COMPUTE FLAT",
   result: "THAT'S THE WHOLE POINT",
-  highlight: "POINT",
+  highlight: { field: "result", text: "POINT" },
   context: "51B EMBEDDINGS SIT IN REGULAR RAM, NOT VRAM",
   source: "CHINA AI NEWS ANALYSIS",
 };
@@ -65,8 +71,25 @@ const S9_SCENE: SceneData = {
 };
 
 /**
+ * F1 shape (#29): the ORIGINAL s9 copy at the locked 56px it shipped with
+ * (Fit off) — the incident replay. T8: the highlight fragment is the WHOLE
+ * result line (a legal substring), so rough-notation's inline-block nowrap
+ * keeps it on ONE line and the width overflow is visible to the gate. With a
+ * partial fragment the plain runs would wrap and a locked 56px would be legal
+ * (two lines inside the band) — that shape is the group-gate scenarios'.
+ */
+const F1_SCENE: SceneData = {
+  ...S9_SCENE,
+  texts: {
+    ...S9_TEXTS,
+    highlight: { field: "result", text: "THAT'S THE WHOLE POINT" },
+  },
+};
+
+/**
  * F3 shape: same scene, but the result copy no longer fits at the 40px
- * floor — the highlight's nowrap keeps the full width in one line, so the
+ * floor — the highlight fragment is the WHOLE result line (T8 structured
+ * form), so rough-notation's nowrap keeps the full width in one line, the
  * ladder exhausts itself and Fit fails structured at minSize.
  */
 const F3_SCENE: SceneData = {
@@ -75,16 +98,21 @@ const F3_SCENE: SceneData = {
     ...S9_TEXTS,
     result:
       "THAT'S THE WHOLE POINT OF THE ENTIRE ANNOUNCEMENT AND EVERYTHING WE COVERED IN THIS BRIEFING",
+    highlight: {
+      field: "result",
+      text: "THAT'S THE WHOLE POINT OF THE ENTIRE ANNOUNCEMENT AND EVERYTHING WE COVERED IN THIS BRIEFING",
+    },
   },
 };
 
 /**
- * F6 shape (T10): qwen4-preview s5's original copy, verbatim (the "1/9"
- * highlight keeps the result on ONE line via rough-notation's pre/nowrap
- * wrapper), rendered in the media-split layout the pack used before its T7
- * relayout. At the locked 52px the old pipeline shipped, the line is far
- * wider than the 372px column — the historical clipped-text incident. The
- * scene-level gate must FAIL where the old world silently clipped.
+ * F6 shape (T10): qwen4-preview s5's original copy, verbatim. T8: the
+ * highlight fragment is the WHOLE result line, so rough-notation's pre/nowrap
+ * wrapper still holds it on ONE line. Rendered in the media-split layout the
+ * pack used before its T7 relayout. At the locked 52px the old pipeline
+ * shipped, the line is far wider than the 372px column — the historical
+ * clipped-text incident. The scene-level gate must FAIL where the old world
+ * silently clipped.
  */
 const F6_SCENE: SceneData = {
   id: 5,
@@ -96,7 +124,7 @@ const F6_SCENE: SceneData = {
     company: "THE COST",
     action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)",
     result: "1/9 THE TRAINING COST",
-    highlight: "1/9",
+    highlight: { field: "result", text: "1/9 THE TRAINING COST" },
     context: "AND STRONGER ON CODING AND OFFICE TASKS",
     source: "SOURCE: Qwen official blog, Aug 26, 2026",
   },
@@ -238,9 +266,21 @@ const MISSING_RENDERED_SCENE: SceneData = {
     badge: "LOOP CLOSURE",
     action: "CAPACITY GROWTH, COMPUTE FLAT",
     result: "THAT'S THE WHOLE POINT",
-    highlight: "POINT",
+    highlight: { field: "result", text: "POINT" },
     context: "51B EMBEDDINGS SIT IN REGULAR RAM, NOT VRAM",
     source: "CHINA AI NEWS ANALYSIS",
+  },
+};
+
+/**
+ * T8: a highlight fragment that is not a substring of its field fails the
+ * render at validation — the author must quote the field verbatim.
+ */
+const BAD_HIGHLIGHT_SCENE: SceneData = {
+  ...S9_SCENE,
+  texts: {
+    ...S9_TEXTS,
+    highlight: { field: "result", text: "ABSENT FRAGMENT" },
   },
 };
 
@@ -456,11 +496,12 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 type FixtureProps = { scenario?: string };
 
 const FixtureScene: React.FC<FixtureProps> = ({ scenario = "baseline-narrative" }) => {
-  // F1 shape: the incident replay — original copy at a locked 56px (Fit off).
+  // F1 shape: the incident replay — original copy at a locked 56px (Fit off),
+  // with the whole result line as the highlight fragment (see F1_SCENE).
   if (scenario === "f1-lock56") {
     return (
       <NarrativeScene
-        scene={S9_SCENE}
+        scene={F1_SCENE}
         duration={4}
         contentDir=""
         gateOverrides={{ "narrative.media-overlay.result": { lockFontSize: 56 } }}
@@ -515,6 +556,9 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "baseline-narrative" 
   }
   if (scenario === "missing-rendered") {
     return <ShortVideo scenes={[MISSING_RENDERED_SCENE]} audioPaths={[]} durations={[4]} />;
+  }
+  if (scenario === "bad-highlight") {
+    return <ShortVideo scenes={[BAD_HIGHLIGHT_SCENE]} audioPaths={[]} durations={[4]} />;
   }
   if (scenario === "unknown-visualtype") {
     return <ShortVideo scenes={[UNKNOWN_TYPE_SCENE]} audioPaths={[]} durations={[4]} />;

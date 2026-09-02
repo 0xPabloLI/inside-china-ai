@@ -11,7 +11,6 @@
  * SPACING tokens, Interactive.Div on company/result, and conditional GridBg.
  */
 import { Interactive, useCurrentFrame, interpolate } from "remotion";
-import { Highlight } from "@remotion/rough-notation";
 import type { SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow } from "../components/visuals";
 import {
@@ -27,6 +26,7 @@ import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
 import { TextGroupGate } from "../components/text-group-gate";
+import { SplitHighlight } from "../components/substring-highlight";
 
 type Layout = "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
 
@@ -94,17 +94,13 @@ export const NarrativeScene: React.FC<{
               color: glowColor === "red" ? "#ef4444" : "#f59e0b",
             }}
           >
-            {txt.highlight ? (
-              <Highlight
-                color={ANNOTATION.highlight.color}
-                progress={highlightProgress}
-                padding={ANNOTATION.highlight.padding}
-              >
-                {txt.result as string}
-              </Highlight>
-            ) : (
-              (txt.result as string)
-            )}
+            <SplitHighlight
+              text={txt.result as string}
+              highlight={txt.highlight}
+              field="result"
+              progress={highlightProgress}
+              variant="highlight"
+            />
           </Interactive.Div>
         )}
       </TextGate>
@@ -118,7 +114,15 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.action`)}
       >
         {(fontSize) => (
-          <div style={{ fontSize, fontWeight: 700, color: "#cbd5e1" }}>{txt.action as string}</div>
+          <div style={{ fontSize, fontWeight: 700, color: "#cbd5e1" }}>
+            <SplitHighlight
+              text={txt.action as string}
+              highlight={txt.highlight}
+              field="action"
+              progress={highlightProgress}
+              variant="highlight"
+            />
+          </div>
         )}
       </TextGate>
     ) : null;
