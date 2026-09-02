@@ -170,6 +170,10 @@ export const MEASURED_MAX_WIDTH = {
   "narrative.stacked-cards.action": 752,
   "narrative.stacked-cards.result": 752,
   "narrative.stacked-cards.source": 820,
+  // The badge chip sits directly in the 820 band container (the gate wraps
+  // the chip, so its padding/border stay inside the slot) — measured by
+  // measure-slot-widths.mjs (T9, decision 65).
+  "narrative.stacked-cards.badge": 820,
   "hook.hero-center.badge": 820,
   // One stat card's content box (three flex:1 cards in the 820 support band,
   // each with its own border+padding) — measured 200.
@@ -209,45 +213,10 @@ export const MEASURED_MAX_WIDTH = {
 export const DEFAULT_NARRATIVE_LAYOUT = "media-bottom-bar";
 
 /**
- * Slot ids rendered by each HTML template, by visualType.
+ * `HTML_SLOT_MAP`/`htmlSlotsFor()` were removed on 2026-09-02 with the
+ * retired Playwright renderer (decision 59) — they had zero remaining
+ * consumers in the live pipeline.
  *
- * The HTML renderer does not consume `scene.layout` — one template serves every
- * layout variant — so this mapping is keyed by visualType only. Adding an HTML
- * layout variant means adding entries here and measuring their widths.
- */
-export const HTML_SLOT_MAP = {
-  hook: [
-    "hook.hero-center.subject",
-    "hook.hero-center.bigNumber",
-    "hook.hero-center.numberLabel",
-    "hook.hero-center.hookText",
-    "hook.hero-center.revealText",
-    "hook.hero-center.source",
-  ],
-  narrative: [
-    `narrative.${DEFAULT_NARRATIVE_LAYOUT}.company`,
-    `narrative.${DEFAULT_NARRATIVE_LAYOUT}.action`,
-    `narrative.${DEFAULT_NARRATIVE_LAYOUT}.result`,
-    `narrative.${DEFAULT_NARRATIVE_LAYOUT}.context`,
-    `narrative.${DEFAULT_NARRATIVE_LAYOUT}.source`,
-  ],
-  "stat-reveal": [
-    "stat-reveal.hero-center.bigNumber",
-    "stat-reveal.hero-center.numberLabel",
-    "stat-reveal.hero-center.source",
-  ],
-  cta: ["cta.hero-center.subject", "cta.hero-center.tagline", "cta.hero-center.topic"],
-  callout: [
-    "callout.hero-center.title",
-    "callout.hero-center.quote",
-    "callout.hero-center.attribution",
-  ],
-  // FullscreenMedia renders media.source — the one dynamic text that comes from
-  // the media block instead of scene.texts, and the easiest one to overlook.
-  fullscreen: ["fullscreen.source"],
-};
-
-/**
  * Field classification for every Remotion template, by visualType + layout.
  *
  * Four categories per layout (spec decision 50):
@@ -263,29 +232,32 @@ export const HTML_SLOT_MAP = {
  */
 export const REMOTION_SLOT_MAP = {
   narrative: {
+    // `mediaOptOut` is deliberately absent from every texts list below: it is
+    // a scene-level field (scene-rules, final-media-gate and the b-roll
+    // orchestrator all read scene.mediaOptOut), not a text (decision 66).
     "media-bottom-bar": {
       rendered: ["company", "action", "result"],
-      control: ["highlight", "mediaOptOut"],
+      control: ["highlight"],
       optional: ["source"],
       intentionallyOmitted: [],
     },
     "media-overlay": {
       rendered: ["company", "action", "result"],
-      control: ["highlight", "mediaOptOut"],
+      control: ["highlight"],
       optional: ["context", "source", "badge"],
       intentionallyOmitted: [],
     },
     "media-split": {
       rendered: ["company", "action", "result"],
-      control: ["highlight", "mediaOptOut"],
+      control: ["highlight"],
       optional: ["context", "source"],
       intentionallyOmitted: [],
     },
     "stacked-cards": {
       // Cards read label/value from company+context and action+result.
       rendered: ["company", "context", "action", "result"],
-      control: ["highlight", "mediaOptOut"],
-      optional: ["source"],
+      control: ["highlight"],
+      optional: ["source", "badge"],
       intentionallyOmitted: [],
     },
   },
@@ -412,7 +384,25 @@ export function assertKnownTextFields(visualType, layout, texts) {
     ...groups.intentionallyOmitted,
   ]);
   const aliases = FIELD_ALIASES[visualType] ?? {};
-  for (const key of Object.keys(texts ?? {})) {
+  const t = texts ?? {};
+  // Rendered fields are contract-promised: the template draws them
+  // unconditionally, so absent data would ship a hollow scene (T9, spec
+  // audit of the T5 claim). Only ABSENCE fails — an empty string or empty
+  // array present under its key stays a deliberate "render nothing" (#34).
+  const missing = groups.rendered.filter((field) => {
+    if (t[field] !== undefined && t[field] !== null) return false;
+    return !Object.entries(aliases).some(
+      ([key, aliased]) => aliased === field && t[key] !== undefined && t[key] !== null,
+    );
+  });
+  if (missing.length > 0) {
+    throw new Error(
+      `Rendered text field(s) ${missing.map((f) => `"${f}"`).join(", ")} missing from ` +
+        `scene-data texts for visualType "${visualType}" (layout "${layout}") — the ` +
+        "template renders them unconditionally; add the data or move the field to optional",
+    );
+  }
+  for (const key of Object.keys(t)) {
     const field = aliases[key] ?? key;
     if (known.has(field)) continue;
     // Throws "Unknown text field …" when the field is not registered at all.
@@ -535,23 +525,6 @@ export function shrinkOrder(ids) {
     const pb = SLOT_FIELDS[parseSlotId(b).field]?.shrinkPriority ?? Number.MAX_SAFE_INTEGER;
     return pa - pb;
   });
-}
-
-/**
- * Slot ids an HTML template renders.
- *
- * @param {string} visualType
- * @returns {string[]}
- */
-export function htmlSlotsFor(visualType) {
-  const slots = HTML_SLOT_MAP[visualType];
-  if (!slots) {
-    throw new Error(
-      `No HTML slot mapping for visualType "${visualType}" — declare it in HTML_SLOT_MAP ` +
-        "so the contract covers every dynamic text the template renders",
-    );
-  }
-  return [...slots];
 }
 
 /**

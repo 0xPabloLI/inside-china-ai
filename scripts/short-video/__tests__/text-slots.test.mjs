@@ -11,7 +11,6 @@ import {
   slotId,
   getSlot,
   shrinkOrder,
-  htmlSlotsFor,
   remotionSlotsFor,
   fitCandidates,
   assertKnownTextFields,
@@ -132,20 +131,6 @@ describe("shrink order", () => {
       "company",
       "result",
     ]);
-  });
-});
-
-describe("HTML template mapping", () => {
-  it("maps by visualType, because the HTML renderer ignores scene.layout", () => {
-    const slots = htmlSlotsFor("hook");
-    expect(slots).toContain("hook.hero-center.bigNumber");
-    expect(slots).toContain("hook.hero-center.subject");
-  });
-
-  it("includes the fullscreen media source label (the 10th dynamic text)", () => {
-    // FullscreenMedia renders media.source; it is easy to forget because it is
-    // the only text that comes from the media block rather than scene.texts.
-    expect(htmlSlotsFor("fullscreen")).toContain("fullscreen.source");
   });
 });
 
@@ -274,7 +259,6 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
         highlight: "H",
         context: "X",
         source: "S",
-        mediaOptOut: true,
       }),
     ).not.toThrow();
     expect(() =>
@@ -290,17 +274,29 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
   });
 
   it("rejects a typo'd field with its name and a registration pointer (#32)", () => {
-    expect(() => assertKnownTextFields("narrative", "media-overlay", { compny: "C" })).toThrow(
-      /Unknown text field "compny"/,
-    );
+    // Rendered fields must be present first, or the rendered-missing check
+    // (T9) fires before the typo check.
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        company: "C",
+        action: "A",
+        result: "R",
+        compny: "TYPO",
+      }),
+    ).toThrow(/Unknown text field "compny"/);
   });
 
   it("rejects a real field used on a template that never declared it", () => {
     // `quote` is registered in SLOT_FIELDS but quote.hero-center is not the
     // narrative template's business.
-    expect(() => assertKnownTextFields("narrative", "media-overlay", { quote: "Q" })).toThrow(
-      /quote/,
-    );
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        company: "C",
+        action: "A",
+        result: "R",
+        quote: "Q",
+      }),
+    ).toThrow(/quote/);
   });
 
   it("maps the data scene's statLabel key onto the label contract field", () => {
@@ -324,13 +320,38 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
     ).not.toThrow();
   });
 
-  it("treats absent or empty texts as nothing to validate (#34)", () => {
-    expect(() => assertKnownTextFields("narrative", "media-overlay", undefined)).not.toThrow();
-    expect(() => assertKnownTextFields("contrast", "hero-center", {})).not.toThrow();
+  it("treats empty (but present) values as a deliberate render-nothing (#34)", () => {
+    expect(() =>
+      assertKnownTextFields("contrast", "hero-center", {
+        title: "T",
+        vs: "",
+        left: [],
+        right: [],
+      }),
+    ).not.toThrow();
   });
 
-  it("does not read mediaOptOut as text omission (#38)", () => {
-    // mediaOptOut is control: it steers the media layer, never the text gates.
+  it("fails absent rendered fields (T9): a hollow template is a scene-data bug", () => {
+    // No texts at all → every rendered promise is broken.
+    expect(() => assertKnownTextFields("narrative", "media-overlay", undefined)).toThrow(
+      /Rendered text field\(s\) "company", "action", "result" missing/,
+    );
+    expect(() => assertKnownTextFields("contrast", "hero-center", {})).toThrow(
+      /Rendered text field\(s\) "title", "left", "right" missing/,
+    );
+    // A single missing rendered field is named on its own.
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", { company: "C", action: "A" }),
+    ).toThrow(/Rendered text field\(s\) "result" missing/);
+    // Templates without rendered promises still accept empty texts.
+    expect(() => assertKnownTextFields("fullscreen", "media", undefined)).not.toThrow();
+    expect(() => assertKnownTextFields("hook", "hero-center", {})).not.toThrow();
+  });
+
+  it("keeps mediaOptOut out of the texts contract (decision 66)", () => {
+    // mediaOptOut is a scene-level field (scene-rules / final-media-gate /
+    // the b-roll orchestrator all read scene.mediaOptOut). Inside texts it is
+    // a misplaced key the render layer rejects.
     expect(() =>
       assertKnownTextFields("narrative", "media-bottom-bar", {
         company: "C",
@@ -338,6 +359,26 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
         result: "R",
         mediaOptOut: true,
       }),
+    ).toThrow(/Unknown text field "mediaOptOut"/);
+    for (const layout of Object.values(REMOTION_SLOT_MAP.narrative)) {
+      for (const group of Object.values(layout)) {
+        expect(group).not.toContain("mediaOptOut");
+      }
+    }
+  });
+
+  it("declares stacked-cards badge so qwen4 s9 renders through (decision 65)", () => {
+    expect(() =>
+      assertKnownTextFields("narrative", "stacked-cards", {
+        badge: "LOOP CLOSURE",
+        company: "C",
+        context: "X",
+        action: "A",
+        result: "R",
+        highlight: "R",
+        source: "S",
+      }),
     ).not.toThrow();
+    expect(getSlot("narrative.stacked-cards.badge").maxWidth).toBeGreaterThan(0);
   });
 });

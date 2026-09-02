@@ -381,6 +381,35 @@ export const NarrativeScene: React.FC<{
           overflow: "hidden",
         }}
       >
+        {/* Badge chip above the cards — same shape as the media-overlay chip;
+            the gate wraps the chip so its padding/border stay INSIDE the slot
+            (quote-7 lesson: never nest the gate inside the decoration). */}
+        {txt.badge && (
+          <FadeIn delay={0.1} duration={0.5}>
+            <TextGate sceneId={sceneId} slotId="narrative.stacked-cards.badge">
+              {(fontSize) => (
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: SPACING.md + "px " + SPACING.xl + "px",
+                    border:
+                      "2px solid " +
+                      (glowColor === "red" ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"),
+                    borderRadius: 8,
+                    background:
+                      glowColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
+                    fontSize,
+                    fontWeight: 800,
+                    color: glowColor === "red" ? "#ef4444" : "#f59e0b",
+                    letterSpacing: "2px",
+                  }}
+                >
+                  {txt.badge as string}
+                </div>
+              )}
+            </TextGate>
+          </FadeIn>
+        )}
         {cards.map((card, i) => (
           <StampIn key={i} delay={card.delay} duration={0.5}>
             <div

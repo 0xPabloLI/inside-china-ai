@@ -64,6 +64,7 @@ const GATE_TIMEOUT = 300_000;
 const BASELINES = [
   "baseline-hook",
   "baseline-narrative",
+  "baseline-narrative-stacked",
   "baseline-stat-reveal",
   "baseline-cta",
   "baseline-quote",
@@ -76,8 +77,9 @@ const BASELINES = [
 
 // baseline-quote renders after the verified badge's StampIn settles (delay
 // 1.8s + 0.4s = frame 66; that gate declares settledFrame={66}), so its
-// settled asserts actually run.
-const BASELINE_FRAMES = { "baseline-quote": 75 };
+// settled asserts actually run. baseline-narrative-stacked gives one frame
+// of margin over its source label's SlideUp (delay 1.0s + 0.5s = frame 45).
+const BASELINE_FRAMES = { "baseline-quote": 75, "baseline-narrative-stacked": 48 };
 
 describe(
   "Gated scene templates (real Chromium via remotion still)",
@@ -117,6 +119,12 @@ describe(
       const { ok, raw } = renderScenario("unknown-field");
       expect(ok).toBe(false);
       expect(raw).toMatch(/Unknown text field "compny"/);
+    });
+
+    it("T9 rendered contract: a scene missing a rendered field fails validation", () => {
+      const { ok, raw } = renderScenario("missing-rendered");
+      expect(ok).toBe(false);
+      expect(raw).toMatch(/Rendered text field\(s\) "company" missing/);
     });
 
     it("#37: an unknown visualType throws at dispatch (no silent narrative fallback)", () => {

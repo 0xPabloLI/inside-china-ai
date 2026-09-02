@@ -97,6 +97,9 @@ const BASELINE_SCENES: Record<string, SceneData> = {
     },
   },
   "baseline-narrative": S9_SCENE,
+  // qwen4 s9's real shape since the T7 relayout: same texts, stacked-cards.
+  // Exercises the badge slot end to end (decision 65).
+  "baseline-narrative-stacked": { ...S9_SCENE, layout: "stacked-cards" },
   "baseline-stat-reveal": {
     id: 3,
     visualType: "stat-reveal",
@@ -196,6 +199,24 @@ const UNKNOWN_FIELD_SCENE: SceneData = {
   texts: { ...S9_TEXTS, compny: "TYPO FIELD" },
 };
 
+/**
+ * Rendered-field contract (T9): a scene whose rendered fields are absent
+ * fails validation instead of shipping a hollow template. stacked-cards
+ * promises company/context/action/result; company is missing here.
+ */
+const MISSING_RENDERED_SCENE: SceneData = {
+  ...S9_SCENE,
+  layout: "stacked-cards",
+  texts: {
+    badge: "LOOP CLOSURE",
+    action: "CAPACITY GROWTH, COMPUTE FLAT",
+    result: "THAT'S THE WHOLE POINT",
+    highlight: "POINT",
+    context: "51B EMBEDDINGS SIT IN REGULAR RAM, NOT VRAM",
+    source: "CHINA AI NEWS ANALYSIS",
+  },
+};
+
 /** #37: an unregistered visualType must throw at dispatch. */
 const UNKNOWN_TYPE_SCENE: SceneData = {
   id: 1,
@@ -253,7 +274,7 @@ const MEASURE_LAYOUT_SCENES: Record<string, SceneData> = {
     visualType: "narrative",
     layout: "stacked-cards",
     voiceover: "measure",
-    texts: MEASURE_NARRATIVE_TEXTS,
+    texts: { ...MEASURE_NARRATIVE_TEXTS, badge: "MEASURE" },
   },
 };
 
@@ -389,6 +410,9 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "baseline-narrative" 
   }
   if (scenario === "unknown-field") {
     return <ShortVideo scenes={[UNKNOWN_FIELD_SCENE]} audioPaths={[]} durations={[4]} />;
+  }
+  if (scenario === "missing-rendered") {
+    return <ShortVideo scenes={[MISSING_RENDERED_SCENE]} audioPaths={[]} durations={[4]} />;
   }
   if (scenario === "unknown-visualtype") {
     return <ShortVideo scenes={[UNKNOWN_TYPE_SCENE]} audioPaths={[]} durations={[4]} />;

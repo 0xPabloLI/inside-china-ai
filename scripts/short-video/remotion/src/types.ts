@@ -80,6 +80,13 @@ export interface SceneData {
   media?: MediaField;
   /** Layout variant for scene rendering (required for non-cta scenes). */
   layout?: string;
+  /**
+   * Scene-level opt-out of auto media sourcing (a deliberate CSS-only scene).
+   * Read by scene-rules, final-media-gate and the b-roll orchestrator at the
+   * SCENE level — never a text field (decision 66: it was briefly misplaced
+   * in the texts contract, where the render layer now rejects it).
+   */
+  mediaOptOut?: boolean;
 }
 
 /** Props passed to the ShortVideo Composition via renderMedia(). */
