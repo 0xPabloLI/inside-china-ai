@@ -154,6 +154,10 @@ export function checkWritingForAgentsGate(stagedDiffs) {
   const agentsMd = "AGENTS.md";
 
   for (const { filename, diffLines } of stagedDiffs) {
+    // Archived docs are moved verbatim (rename/archive), so their headings and
+    // pointer lines show up as additions without any authoring decision —
+    // relocation, not new agent-doc structure (issue #129 false positive).
+    if (filename.startsWith("docs/archive/")) continue;
     const isDocs = filename.startsWith("docs/");
     const isAgentsMd = filename === agentsMd;
     if (!isDocs && !isAgentsMd) continue;

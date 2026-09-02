@@ -178,7 +178,7 @@ collectFromSource() 层次：
 | #100 | Content-addressed cache + scheduler | P3 done (可与 #98/#99 并行) | — | 视频管线 P7 |
 | #101 | Temporal Focus for video backgrounds | #69 done (推荐接 #100) | — | 视频管线 P8b。**不是 #94 的 child**——是 P5-P8b 线性序列的最后一环（P8b），有独立依赖链 |
 | #128 | SVE follow-up: Logo/Icon SVG filter + 4 deferred design points | — | extract-media.mjs, asset-sourcer.mjs (may), source-registry.mjs (may) | Item 1 (SVG data URI filter) is runtime-confirmed bug from #114 runtime test. Items 2-5 are low-priority enhancements. All non-blocking. Reference: `docs/archive/handoffs/handoff-sve-media-extraction.md` §4 |
-| #129 | lint-doc-hierarchy: writing-for-agents gate false positive on file rename/archive | — | scripts/lint-doc-hierarchy.mjs | Non-blocking WARN. Fix: skip `docs/archive/` path in checkWritingForAgentsGate, or add `R` to `--diff-filter` |
+| ~~#129~~ | ✅ lint-doc-hierarchy: writing-for-agents gate false positive on file rename/archive | — | ~~scripts/lint-doc-hierarchy.mjs~~ | ✅ **2026-09-03 交付**：`checkWritingForAgentsGate` 跳过 `docs/archive/` 路径——归档移动是 verbatim 搬迁，标题/指针行以 add 形式出现但不构成创作决策。TDD 新增归档跳过用例，34/34 pass。GitHub #129 CLOSED |
 | #140 | Anti-bot follow-up（承接 #89 未交付切片） | — | cdp-client.mjs (P1/P2), source-registry.mjs + search-sources.mjs (P4), proxy-manager.mjs (P6) | #89 closed 后，剩余切片需要独立 tracking 载体：P1 exponential backoff / P2 通用 CAPTCHA 检测 / P4 Google 源合并（tbm=nws toggle）/ P5 selector auto-healing（agent 驱动自愈）/ P6 FlClash 节点自动切换 / P7 Colima VM 重建。P3=#91、P3b=#92、P3c=#64+#65，不在本 issue。一片一个 session，P1→P7 |
 | #155 | B-roll follow-up: aiImage 静态图生成（T2I） | — | lib/b-roll/*, scene-rules.mjs | B-roll spec §7.1 范围外。管线机制（策略契约 + 门 + 报告 + 缓存/轮次）已就绪，缺 T2I 后端；引入哪个（本地 MLX vs Cloudflare FLUX）需人确认账号与许可 |
 | #156 | B-roll follow-up: 垫层合成模式（生成素材垫在真实素材下） | 建议先做 #155 | MediaBackground.tsx, media-bg.mjs, lib/b-roll/orchestrator.mjs, remotion/src TextGate | 现 media 契约每 scene 只有一个素材，b-roll 只能替换不能垫底。夹具 scene 8 现在是「生成 + 过门 + 丢弃」，此 issue 把那笔 GPU 时间变成产出（原列的 verify-scene-dom.mjs 已随 HTML 路径退役，决策 59） |
@@ -198,6 +198,7 @@ collectFromSource() 层次：
 |---|-------|-------------------|
 | #21 | Multimodal RAG | 50+ images accumulated (当前 0) |
 | #29 | Analytics Workflow Part A + Part B | >10 published videos with analytics。Part A: retention pattern analysis。Part B: reference video extraction |
+| #165 | layout-utils 多行分词中文误判（`fitTextOnNLines` 的 `split(' ')`） | 引入中文/无空格语言文案且需多行适配时。2026-09-03 复核：契约期包零 CJK，`fitTextOnNLines` 仅 wrapping 分支，触发未满足 |
 
 #### Dormant — project milestone
 

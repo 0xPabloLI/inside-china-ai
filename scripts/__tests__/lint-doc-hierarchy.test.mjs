@@ -376,6 +376,27 @@ describe("checkWritingForAgentsGate", () => {
     expect(findings).toHaveLength(0);
   });
 
+  it("PASS: docs/archive/ moves are mechanical, not authored structure (#129)", () => {
+    // Archiving moves a doc verbatim: the diff shows its headings and pointer
+    // lines as additions, but no authoring decision was made. The gate must
+    // not fire on relocation (issue #129 false positive).
+    const stagedDiffs = [
+      {
+        filename: "docs/archive/spec-old-thing.md",
+        diffLines: [
+          { type: "add", content: "# Spec: Old Thing" },
+          { type: "add", content: "Details → docs/research/old.md" },
+        ],
+      },
+      {
+        filename: "docs/archive/reviews/old-review.md",
+        diffLines: [{ type: "add", content: "## Findings" }],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(0);
+  });
+
   it("WARN: section heading deleted", () => {
     const stagedDiffs = [
       {
