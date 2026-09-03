@@ -12,7 +12,7 @@
  * Sources are defined in lib/source-registry.mjs (single source of source).
  * 28 sources total (7 news + 8 self-media + 8 international + 5 general + 5 last30days + 1 wechat).
  *
- * Fallback chain: apiSearch (if configured) → CDP → googleSiteFallback (Google site: search) → mcpFallback (mcp-search-bridge)
+ * Fallback chain: apiSearch (if configured) → CDP → googleSiteFallback (Google site: search) → apiFallback (direct Bigsong API, #90) → mcpFallback (mcp-search-bridge)
  * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
  * International/general sources primarily use mcp-search-bridge (Grok web search).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
@@ -59,6 +59,7 @@ import {
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
+import { searchX, searchXhs } from "./lib/bigsong-api.mjs";
 import {
   cdpNewTab,
   cdpCloseTab,
@@ -324,6 +325,34 @@ async function collectFromMcp(source, keyword) {
 }
 
 /**
+ * Issue #90: direct Bigsong API fallback — same upstream as the MCP bridge,
+ * minus the subprocess + JSON-RPC hop. apiFallback carries the resultMapper;
+ * the search function is picked per source (xhs → dots-chat, x → SEARCH_MODEL).
+ *
+ * @param {Object} source - Source definition from source-registry
+ * @param {string|null} keyword - Search keyword (null → DEFAULT_KEYWORDS[0])
+ * @param {Object} apiFallback - apiFallback config (resultMapper + optional model)
+ * @returns {Array} Extracted articles, or empty array on failure
+ */
+async function collectFromBigsong(source, keyword, apiFallback) {
+  console.log(`  🔎 Trying Bigsong API for ${source.label}...`);
+
+  const kw = keyword || DEFAULT_KEYWORDS[0];
+  const search = source.name === "xhs" ? searchXhs : searchX;
+  const result = await search(kw, apiFallback);
+
+  if (!result.success) {
+    console.warn(`  ⚠️  Bigsong API failed: ${result.error}`);
+    return [];
+  }
+
+  const mapped = apiFallback.resultMapper(result.data);
+  console.log(`  📊 Bigsong API extracted ${mapped.length} articles`);
+
+  return mapped;
+}
+
+/**
  * Issue #66 Step 0.5: should CDP be skipped when the API layer returned 0?
  *
  * True when the source's CDP url points at the SAME endpoint as its API url
@@ -361,6 +390,7 @@ async function collectFromSource(source, keyword) {
   const apiSearch = cap?.apiSearch ?? source.apiSearch;
   const googleSiteFallback = cap?.googleSiteFallback ?? source.googleSiteFallback;
   const mcpFallback = cap?.mcpFallback ?? source.mcpFallback;
+  const apiFallback = cap?.apiFallback ?? source.apiFallback;
   const useCleanTitle = cap?.useCleanTitle ?? source.useCleanTitle;
 
   // Step 0: Try API direct-connect (if configured — Issue #34)
@@ -389,6 +419,12 @@ async function collectFromSource(source, keyword) {
       needsAuth: false,
     };
     articles = await collectFromCdp(fallbackSource, keyword);
+  }
+
+  // Step 2.5 (Issue #90): If still failed and a direct Bigsong API fallback is
+  // configured, call lib/bigsong-api.mjs directly — no subprocess, no JSON-RPC.
+  if (articles.length === 0 && apiFallback) {
+    articles = await collectFromBigsong(source, keyword, apiFallback);
   }
 
   // Step 3: If still failed and MCP fallback is configured, try MCP

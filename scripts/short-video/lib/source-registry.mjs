@@ -546,22 +546,18 @@ export const SELF_MEDIA_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP (requires login) → mcpFallback (RedNote-MCP search_notes). needsAuth=true.",
+      notes: "CDP (requires login) → apiFallback (direct Bigsong dots-chat API, #90). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: true,
     url: (keyword) =>
       `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
-    mcpFallback: {
-      command: "rednote-mcp",
-      args: ["--stdio"],
-      toolName: "search_notes",
-      toolArgs: (keyword) => ({ keywords: keyword, limit: 20 }),
-      resultMapper: (items) =>
-        items.map((item) => ({
-          title: item.title || item.desc || item.note_card?.title || "",
-          url: item.url || item.link || item.note_id || "",
-        })),
+    // Issue #90: dots-chat lives on the same Bigsong upstream — direct API,
+    // no rednote-mcp subprocess (mcp-client.mjs retained for real-MCP servers).
+    apiFallback: {
+      type: "http",
+      model: "dots-chat",
+      resultMapper: parseTweetList,
     },
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
@@ -925,7 +921,7 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP (requires login) → googleSiteFallback (Google site:x.com, h3-based selector) → mcpFallback (mcp-search-bridge/Grok, native X data). needsAuth=true.",
+        "CDP (requires login) → googleSiteFallback (Google site:x.com, h3-based selector) → apiFallback (direct Bigsong API, #90). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: false,
@@ -982,66 +978,66 @@ export const SELF_MEDIA_SOURCES = [
         return results;
       `,
     },
-    // mcp-search-bridge as MCP fallback — uses Grok model which has native
+    // Issue #90: direct Bigsong API fallback — no MCP subprocess. The model
+    // comes from SEARCH_MODEL env (grok-chat-fast today), which has native
     // access to X/Twitter data. Returns higher-quality results than CDP DOM
     // scraping: full tweet text, author handles, and URLs.
-    // Configured via env: SEARCH_BASE_URL, SEARCH_API_KEY, SEARCH_MODEL
-    mcpFallback: {
-      command: NODE_BIN,
-      args: [MCP_SEARCH_BRIDGE_SERVER],
-      // Env vars (SEARCH_BASE_URL, SEARCH_API_KEY, SEARCH_MODEL) are inherited
-      // from process.env via spawn in mcp-client.mjs
-      toolName: "web_search",
-      toolArgs: (keyword) => ({
-        query: `Search X/Twitter for recent posts about "${keyword}". List the top 10 most relevant tweets. For each tweet, include: full text, author display name, author handle (@), and the tweet URL. Format as a numbered list.`,
-      }),
-      timeoutMs: 60000,
-      resultMapper: (items) => {
-        // mcp-search-bridge returns natural-language text, not JSON.
-        // parseMcpResult wraps it as [{ text: "..." }].
-        // Parse the text to extract individual tweets.
-        const text = items[0]?.text || "";
-        const tweets = [];
-        const lines = text.split("\n");
-        let currentTweet = null;
-        for (const line of lines) {
-          // Match start of a tweet entry (numbered list)
-          const numMatch = line.match(/^\*?(\d+)\.\s*\*\*Full text\*\*:\s*"(.+)"/i);
-          if (numMatch) {
-            if (currentTweet) tweets.push(currentTweet);
-            currentTweet = { title: numMatch[2].substring(0, 150), url: "", author: "" };
-            continue;
-          }
-          // Also match entries that start with a number and quote
-          const altMatch = line.match(/^\*?(\d+)\.\s*"(.+)"/);
-          if (altMatch && !currentTweet) {
-            currentTweet = { title: altMatch[2].substring(0, 150), url: "", author: "" };
-            continue;
-          }
-          // Extract author
-          if (currentTweet) {
-            const authorMatch = line.match(/\*\*Author\*\*:\s*(.+?)(?:\s*\((@[\w]+)\))?/i);
-            if (authorMatch) {
-              currentTweet.author = authorMatch[2] || authorMatch[1];
-            }
-            // Extract URL
-            const urlMatch = line.match(/\*\*URL\*\*:\s*(https?:\/\/[\w./-]+)/i);
-            if (urlMatch) {
-              currentTweet.url = urlMatch[1];
-            }
-            // Also catch URLs in the text
-            const inlineUrl = line.match(/(https?:\/\/(?:x\.com|twitter\.com)\/[\w./-]+)/i);
-            if (inlineUrl && !currentTweet.url) {
-              currentTweet.url = inlineUrl[1];
-            }
-          }
-        }
-        if (currentTweet) tweets.push(currentTweet);
-        return tweets;
-      },
+    apiFallback: {
+      type: "http",
+      resultMapper: parseTweetList,
     },
   },
 ];
+
+/**
+ * Shared Bigsong tweet-list parser (x_search + xhs apiFallback, #90).
+ *
+ * dots-chat / grok-chat-fast return numbered markdown lists with bold
+ * metadata lines (**Full text**, **Author**, **URL**). Parses each numbered
+ * entry into { title, url, author }.
+ *
+ * @param {string} text - Natural-language search result text
+ * @returns {Array} Parsed tweet entries
+ */
+function parseTweetList(text) {
+  const tweets = [];
+  const lines = text.split("\n");
+  let currentTweet = null;
+  for (const line of lines) {
+    // Match start of a tweet entry (numbered list)
+    const numMatch = line.match(/^\*?(\d+)\.\s*\*\*Full text\*\*:\s*"(.+)"/i);
+    if (numMatch) {
+      if (currentTweet) tweets.push(currentTweet);
+      currentTweet = { title: numMatch[2].substring(0, 150), url: "", author: "" };
+      continue;
+    }
+    // Also match entries that start with a number and quote
+    const altMatch = line.match(/^\*?(\d+)\.\s*"(.+)"/);
+    if (altMatch && !currentTweet) {
+      currentTweet = { title: altMatch[2].substring(0, 150), url: "", author: "" };
+      continue;
+    }
+    // Extract author
+    if (currentTweet) {
+      const authorMatch = line.match(/\*\*Author\*\*:\s*(.+?)(?:\s*\((@[\w]+)\))?/i);
+      if (authorMatch) {
+        currentTweet.author = authorMatch[2] || authorMatch[1];
+      }
+      // Extract URL
+      const urlMatch = line.match(/\*\*URL\*\*:\s*(https?:\/\/[\w./-]+)/i);
+      if (urlMatch) {
+        currentTweet.url = urlMatch[1];
+      }
+      // Also catch URLs in the text
+      const inlineUrl = line.match(/(https?:\/\/(?:x\.com|twitter\.com)\/[\w./-]+)/i);
+      if (inlineUrl && !currentTweet.url) {
+        currentTweet.url = inlineUrl[1];
+      }
+    }
+  }
+  if (currentTweet) tweets.push(currentTweet);
+  return tweets;
+}
 
 // ─── Western/English sources (from last30days default search) ───
 //
@@ -3238,6 +3234,7 @@ const AUTOGEN_EXCLUDED_SOURCES = new Set([
  * - Has articleScript (i.e., has capabilities.articles)
  * - Does NOT have explicit googleSiteFallback
  * - Does NOT have apiSearch (API sources don't need Google site: fallback)
+ * - Does NOT have apiFallback (direct Bigsong API fallback, #90 — same rationale)
  * - Does NOT have mcpFallback (MCP is more precise than Google site:)
  * - Is NOT in the exclusion list (search engines, image libraries, etc.)
  *
@@ -3253,6 +3250,8 @@ export function shouldAutoGenGoogleSiteFallback(source) {
   if (source.googleSiteFallback) return false;
   // Skip API sources — if API fails, site is down, Google won't help
   if (source.apiSearch) return false;
+  // Skip direct-API fallback sources — same rationale as apiSearch (#90)
+  if (source.apiFallback) return false;
   // Skip MCP sources — MCP is more precise than Google site:
   if (source.mcpFallback) return false;
   // Skip excluded sources (search engines, image libraries, special cases)
@@ -3317,6 +3316,7 @@ function enrichWithCapabilities(sources) {
         // Fallback chain: explicit config takes priority, then auto-generated
         googleSiteFallback: source.googleSiteFallback || autoFallback,
         mcpFallback: source.mcpFallback,
+        apiFallback: source.apiFallback,
       };
     }
 

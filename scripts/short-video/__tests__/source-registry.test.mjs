@@ -645,13 +645,13 @@ describe("Default keywords", () => {
 // ─── MCP fallback configuration (MF-T2) ───
 
 describe("MCP fallback configuration", () => {
-  it("xhs has mcpFallback", () => {
+  it("xhs has apiFallback (direct dots-chat API, #90) and no mcpFallback", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    expect(src.mcpFallback).toBeDefined();
-    expect(src.mcpFallback.command).toBe("rednote-mcp");
-    expect(src.mcpFallback.toolName).toBe("search_notes");
-    expect(typeof src.mcpFallback.toolArgs).toBe("function");
-    expect(typeof src.mcpFallback.resultMapper).toBe("function");
+    expect(src.apiFallback).toBeDefined();
+    expect(src.apiFallback.type).toBe("http");
+    expect(src.apiFallback.model).toBe("dots-chat");
+    expect(typeof src.apiFallback.resultMapper).toBe("function");
+    expect(src.mcpFallback).toBeUndefined();
   });
 
   it("sogou_weixin has mcpFallback", () => {
@@ -689,24 +689,14 @@ describe("MCP fallback configuration", () => {
     }
   });
 
-  it("mcpFallback toolArgs returns correct arguments", () => {
+  it("apiFallback resultMapper normalizes Bigsong list text", () => {
     const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    const args = xhs.mcpFallback.toolArgs("DeepSeek");
-    expect(args.keywords).toBe("DeepSeek");
-    expect(args.limit).toBe(20);
-  });
-
-  it("mcpFallback resultMapper normalizes items", () => {
-    const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    const mockItems = [
-      { title: "DeepSeek新模型", url: "https://xhs.com/1" },
-      { desc: "AI芯片突破", link: "https://xhs.com/2" },
-    ];
-    const mapped = xhs.mcpFallback.resultMapper(mockItems);
+    const text = '1. **Full text**: "DeepSeek新模型发布" **Author**: demo\n   **URL**: https://xhs.com/1\n2. **Full text**: "AI芯片突破" **Author**: demo\n   **URL**: https://xhs.com/2';
+    const mapped = xhs.apiFallback.resultMapper(text);
     expect(mapped).toHaveLength(2);
-    expect(mapped[0].title).toBe("DeepSeek新模型");
+    expect(mapped[0].title).toContain("DeepSeek新模型");
     expect(mapped[0].url).toBe("https://xhs.com/1");
-    expect(mapped[1].title).toBe("AI芯片突破");
+    expect(mapped[1].title).toContain("AI芯片突破");
     expect(mapped[1].url).toBe("https://xhs.com/2");
   });
 
@@ -759,12 +749,10 @@ describe("CDP fallback configuration", () => {
     expect(src.articleScript).toContain("section.note-item");
   });
 
-  it("xhs mcpFallback args uses keywords (plural)", () => {
+  it("xhs apiFallback carries the dots-chat model (#90)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    const args = src.mcpFallback.toolArgs("AI芯片");
-    expect(args.keywords).toBe("AI芯片");
-    expect(args.limit).toBe(20);
-    expect(args.keyword).toBeUndefined();
+    expect(src.apiFallback.model).toBe("dots-chat");
+    expect(src.mcpFallback).toBeUndefined();
   });
 
   it("sources without googleSiteFallback are unaffected", () => {
@@ -1349,6 +1337,11 @@ describe("#88 Part 2 — shouldAutoGenGoogleSiteFallback", () => {
 
   it("returns false for source with mcpFallback (youtube_search)", () => {
     const src = ALL_SOURCES.find((s) => s.name === "youtube_search");
+    expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
+  });
+
+  it("returns false for source with apiFallback (xhs, #90)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "xhs");
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 
