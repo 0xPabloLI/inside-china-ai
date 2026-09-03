@@ -72,7 +72,6 @@
 同仓库可能有并行 session 写 git（2026-09-03 事故：两 session 竞态互挤提交，一方 rebase 回滚了另一方的磁盘文件）。
 
 1. 检测到对方操作进行中（reflog 持续推进、存在 rebase 目录）时等待其停滞，期间不写任何 ref。
-2. 并行期间需要 commit 时，用临时 index 隔离：`GIT_INDEX_FILE=<tmp>` 下 `git read-tree <base>`，显式 `git add` 本任务路径（或 `git update-index --cacheinfo` 装入指定 blob），`git write-tree` 后核对树内容只含本任务文件，再 `git commit-tree -p <base>` 与 `git update-ref refs/heads/<branch>`。全程不触碰当前 index 与工作区。
-3. 自己的提交被并行 amend 或 rebase 挤出分支历史（reflog 可达的孤儿提交）时内容并未丢失：等对方停止，在新 HEAD 上按第 2 条重做提交。
-4. 从孤儿提交恢复单个文件：`git rev-parse <sha>:<path>` 取 blob，经第 2 条的 `update-index --cacheinfo` 组装提交，不经过工作区。
-5. 并行工作改为长期方案时，各 session 用 `git worktree add` 在独立目录操作，使 rebase 与 checkout 只回滚各自磁盘。
+2. 竞态应急（你的提交被并行挤出、或必须在不动共享工作区与 index 的前提下提交）按 `docs/agents/git-concurrent-recovery.md` 的配方执行；该路径绕过 commit hooks 与 §4 校验，完成后须按配方对齐 index。可预判的并行任务直接按第 3 条用 worktree，不走应急路径。
+3. **写入者独占**是并行工作的默认规则：写入型并行 session 各自 `git worktree add` 独立目录操作——共享工作目录即共享 staging 区，是并行冲突的根因；worktree 使 rebase 与 checkout 只影响各自磁盘。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
+4. 目标文件已有非本 session 的未提交改动时，本 session 停止并报告，由用户决定落库顺序。应急配方的临时 index 只覆盖互不重叠的文件——同文件交叠时 `git add` 会把混合内容装进树。

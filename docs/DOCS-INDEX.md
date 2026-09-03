@@ -88,6 +88,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 |----------|---------|
 | `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation；含 ponytail-lite 试点期规则（§6 步骤 2 A-lite/D、§8 步骤 3 B-lite、§9 步骤 3 回写，裁决后移除） |
 | `git-workflow.md` | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery |
+| `git-concurrent-recovery.md` | 竞态应急配方（git-workflow §9 指向）：临时 index 隔离提交、孤儿提交找回、单文件恢复；含试点收尾复评触发条款 |
 | `proposal-review.md` | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks |
 | `issue-tracker.md` | GitHub Issues operations and roadmap pointer |
 | `triage-labels.md` | Canonical issue category and state labels |
@@ -187,6 +188,7 @@ Deep research reports with citations.
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
 | `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) + HuggingFace LFS 下载策略（curl -L vs hf_hub_download, Kaggle CLI --dir-mode 陷阱, Colab WebSocket 超时） |
 | `colab-cli-guide.md` | Google Colab CLI guide — gcloud setup, kernel push/pull, GPU smoke test |
+| `commit-session-association-id-proposal.md` | Commit Session-Id 关联标识提案 v4（三轮评审 9/10，待决项已裁决，待软试点）— tool-agnostic 方案：精确匹配查询、Session-Id 唯一性、compact 恢复规则、本地 merge 白名单豁免、试点表即 id→会话 登记处；试点期唯一操作手册为本文件 §3 |
 | `digital-human-references.md` | Offloaded reference material — papers, code repos, cloud platforms, market research for digital human models |
 | `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options |
 | `echomimicv3-optimization-options.md` | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning |
@@ -202,7 +204,6 @@ Deep research reports with citations.
 | `open-source-video-generation-landscape-2026.md` | Open-source video generation landscape 2026 — model/engine comparison, local Apple Silicon viability |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
 | `ponytail-minimal-code-adoption-proposal.md` | Ponytail 最小实现规则引入提案（v4，已批准试点 2026-09-03）— A-lite/根因规则落 §6 步骤 2、B-lite 落 §8 步骤 3、试点路由落 §9；含 JetBrains 独立评测与 A/B/D 逐条裁决门槛 |
-| `commit-session-association-id-proposal.md` | Commit Session-Id 关联标识提案 v4（已吸收三轮评审，9/10，可进入软试点）— 吸收 pacifio/atlas 概念的 tool-agnostic 方案；含精确匹配查询、eligible commit 范围的 Session-Id 唯一性规则、结构化校验口径、compact 恢复规则、hook 安装路径统一（setup:hooks）与试点分母采集方法 |
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
 | `source-layer-comparison.md` | Source layer comparison — CDP vs MCP vs API, capability matrix per source |
 | `safe-zone-calibration-log.md` | Safe zone calibration log with FYP screenshot evidence |
