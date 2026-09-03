@@ -34,6 +34,7 @@
 3. 跨任务更正默认创建新的 atomic commit，不 amend 另一个任务。只有用户明确要求整理、相关历史尚未发布且不属于 Lovable 连接历史时，才使用 `git commit --fixup=<sha>` 与 autosquash。
 4. commit 前检查 staged diff 和 staged file list，确保只有本 session 内容。
 5. pre-commit hook 修改文件时，复查后只 amend 一次以纳入修复。
+6. commit 后立即用 `git show --stat HEAD` 核对文件清单只含本任务文件；发现混入其他 session 的文件立即向用户报告，共享分支上不用改写历史来修复混入。
 
 ## 5. Push 与历史
 
@@ -65,3 +66,13 @@
 - 不顺手修复无关或非本 session 引入的问题。
 - 无法确认改动来源时停止，向用户报告。
 - session 结束时记录 commit hash、未 push 状态、验证证据和剩余 blocker。
+
+## 9. 并发 Session 与恢复
+
+同仓库可能有并行 session 写 git（2026-09-03 事故：两 session 竞态互挤提交，一方 rebase 回滚了另一方的磁盘文件）。
+
+1. 检测到对方操作进行中（reflog 持续推进、存在 rebase 目录）时等待其停滞，期间不写任何 ref。
+2. 并行期间需要 commit 时，用临时 index 隔离：`GIT_INDEX_FILE=<tmp>` 下 `git read-tree <base>`，显式 `git add` 本任务路径（或 `git update-index --cacheinfo` 装入指定 blob），`git write-tree` 后核对树内容只含本任务文件，再 `git commit-tree -p <base>` 与 `git update-ref refs/heads/<branch>`。全程不触碰当前 index 与工作区。
+3. 自己的提交被并行 amend 或 rebase 挤出分支历史（reflog 可达的孤儿提交）时内容并未丢失：等对方停止，在新 HEAD 上按第 2 条重做提交。
+4. 从孤儿提交恢复单个文件：`git rev-parse <sha>:<path>` 取 blob，经第 2 条的 `update-index --cacheinfo` 组装提交，不经过工作区。
+5. 并行工作改为长期方案时，各 session 用 `git worktree add` 在独立目录操作，使 rebase 与 checkout 只回滚各自磁盘。

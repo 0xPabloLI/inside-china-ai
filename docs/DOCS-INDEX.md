@@ -87,7 +87,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | Document | Purpose |
 |----------|---------|
 | `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation；含 ponytail-lite 试点期规则（§6 步骤 2 A-lite/D、§8 步骤 3 B-lite、§9 步骤 3 回写，裁决后移除） |
-| `git-workflow.md` | Git safety, worktrees, commit cadence, review baseline, push and PR rules |
+| `git-workflow.md` | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery |
 | `proposal-review.md` | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks |
 | `issue-tracker.md` | GitHub Issues operations and roadmap pointer |
 | `triage-labels.md` | Canonical issue category and state labels |
