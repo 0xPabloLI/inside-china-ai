@@ -27,6 +27,8 @@ Liu Debin's summary: the next-generation GLM will self-train inside the environm
 
 ## Financial results: revenue up 400%, API now 86.5% of revenue
 
+<!-- widget:zhipu-financials -->
+
 The CFO reported 2026 H1 total revenue of **954 million RMB** (about $142 million), up nearly **400% year-over-year**. The bigger story is the revenue mix: open-platform and API business revenue reached **825 million RMB** ($123 million), up over **27x** from the same period last year, now accounting for **86.5%** of total revenue, up from 15.2% a year ago ([earnings call transcript, WeChat, Sep 2, 2026](https://mp.weixin.qq.com/s/u95WhpIZs3jB0RtyPGmw-Q)).
 
 As of August 2026, ARR reached **$1.6 billion** on a monthly-annualized basis. Using the more aggressive weekly-annualized method common among frontier model companies, ARR exceeds **$2 billion**. API average pricing rose about **101%**, while token call volume grew over **40x** since the start of the year. The gross margin of the open-platform and API business improved from -0.4% to **24.6%** ([earnings call transcript, WeChat, Sep 2, 2026](https://mp.weixin.qq.com/s/u95WhpIZs3jB0RtyPGmw-Q)).
@@ -34,6 +36,8 @@ As of August 2026, ARR reached **$1.6 billion** on a monthly-annualized basis. U
 R&D spending was 2.13 billion RMB ($317 million). The adjusted net loss of 1.964 billion RMB was below R&D spending, meaning business gross profit has started to partially fund R&D.
 
 ## Model iteration: 32 to 60 in 11 months
+
+<!-- widget:zhipu-model-iteration -->
 
 The GLM family completed six iterations in about 11 months. On Artificial Analysis, the intelligence index went from **32 to 60**, while single-task cost stayed around **$0.20**. GLM-5.3 Flash brought single-task cost down to **$0.045** ([earnings call transcript, WeChat, Sep 2, 2026](https://mp.weixin.qq.com/s/u95WhpIZs3jB0RtyPGmw-Q)).
 

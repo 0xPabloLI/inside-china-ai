@@ -100,6 +100,16 @@ export const WIDGETS: Record<string, LazyWidget> = {
       default: m.Qwen4BenchmarksView,
     })),
   ),
+  "zhipu-model-iteration": lazy(() =>
+    import("./zhipu-model-iteration/model-iteration-view").then((m) => ({
+      default: m.ZhipuModelIterationView,
+    })),
+  ),
+  "zhipu-financials": lazy(() =>
+    import("./zhipu-financials/financials-view").then((m) => ({
+      default: m.ZhipuFinancialsView,
+    })),
+  ),
 };
 
 /** Get the list of available widget names (for editor dropdown). */
