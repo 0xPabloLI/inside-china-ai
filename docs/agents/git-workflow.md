@@ -66,6 +66,7 @@
 - 不顺手修复无关或非本 session 引入的问题。
 - 无法确认改动来源时停止，向用户报告。
 - session 结束时记录 commit hash、未 push 状态、验证证据和剩余 blocker。
+- **Session-Id 软试点进行中（至收尾裁决）**：session 开工先读 `docs/research/commit-session-association-id-proposal.md` §3（生成 id、登记 `.session-pilot/pilot-log.md`、写入与恢复规则），commit 时按其 trailer 约定执行；试点结束后本条由正式迁入的规则替换。
 
 ## 9. 并发 Session 与恢复
 
