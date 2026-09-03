@@ -115,7 +115,7 @@ describe("fetchCdp", () => {
     expect(cdpCloseTab).toHaveBeenCalledWith("tab-123");
   });
 
-  it("closes the tab even when extraction fails", async () => {
+  it("does not close a tab that was never opened (cdpNewTab rejected)", async () => {
     cdpNewTab.mockRejectedValue(new Error("no browser"));
     const result = await fetchCdp("https://example.com/x");
     expect(result.ok).toBe(false);

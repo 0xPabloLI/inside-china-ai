@@ -651,7 +651,9 @@ async function main() {
 // Auto-run only when invoked directly as a CLI script (same pattern as
 // asset-sourcer.mjs). Required so tests can import shouldSkipCdpOnApiFail
 // without triggering a live discovery run.
-const isMainModule = process.argv[1] && process.argv[1].endsWith("search-sources.mjs");
+// Resolved from the module's own path (not argv) so the guard holds no matter
+// how the CLI is invoked; same idiom as fetch-page.mjs / asset-sourcer.mjs.
+const isMainModule = __filename.endsWith("search-sources.mjs");
 if (isMainModule) {
   main().catch((e) => {
     console.error(`❌ ${e.message}`);

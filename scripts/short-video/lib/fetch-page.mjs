@@ -29,7 +29,48 @@
 /** Jina Reader endpoint prefix (free tier ~20 RPM). */
 const JINA_READER_PREFIX = "https://r.jina.ai/";
 
-const FETCH_METHODS = ["static", "jina", "cdp"];
+/** Browser-like User-Agent for plain HTTP GETs. */
+const DEFAULT_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+/**
+ * Shared HTTP GET used by every non-browser layer. Returns the layer's
+ * normalized result shape ({ ok, method, text, status?, error? }) so the
+ * fetchStatic/fetchJina wrappers only contribute URL and headers.
+ *
+ * @param {string} url - URL to fetch
+ * @param {Object} [opts]
+ * @param {number} [opts.timeoutMs=15000] - Abort timeout
+ * @param {Object} [opts.headers] - Extra request headers
+ * @param {"static"|"jina"} [opts.method] - Layer tag stamped onto the result
+ * @returns {Promise<{ok: boolean, method: string, text: string, status?: number, error?: string}>}
+ */
+async function httpGet(url, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? 15000;
+  try {
+    const resp = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent": DEFAULT_USER_AGENT,
+        ...(opts.headers || {}),
+      },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!resp.ok) {
+      return {
+        ok: false,
+        method: opts.method,
+        text: "",
+        status: resp.status,
+        error: `HTTP ${resp.status}`,
+      };
+    }
+    const text = await resp.text();
+    return { ok: true, method: opts.method, text, status: resp.status };
+  } catch (e) {
+    return { ok: false, method: opts.method, text: "", error: e.message };
+  }
+}
 
 /**
  * Plain HTTP GET — the lightest layer. Returns raw response text (HTML,
@@ -42,31 +83,7 @@ const FETCH_METHODS = ["static", "jina", "cdp"];
  * @returns {Promise<{ok: boolean, method: "static", text: string, status?: number, error?: string}>}
  */
 export async function fetchStatic(url, opts = {}) {
-  const timeoutMs = opts.timeoutMs ?? 15000;
-  try {
-    const resp = await fetch(url, {
-      method: "GET",
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-        ...(opts.headers || {}),
-      },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!resp.ok) {
-      return {
-        ok: false,
-        method: "static",
-        text: "",
-        status: resp.status,
-        error: `HTTP ${resp.status}`,
-      };
-    }
-    const text = await resp.text();
-    return { ok: true, method: "static", text, status: resp.status };
-  } catch (e) {
-    return { ok: false, method: "static", text: "", error: e.message };
-  }
+  return httpGet(url, { ...opts, method: "static" });
 }
 
 /**
@@ -79,31 +96,16 @@ export async function fetchStatic(url, opts = {}) {
  * @returns {Promise<{ok: boolean, method: "jina", text: string, status?: number, error?: string}>}
  */
 export async function fetchJina(url, opts = {}) {
-  const timeoutMs = opts.timeoutMs ?? 30000;
   const headers = {};
   if (process.env.JINA_API_KEY) {
     headers.Authorization = `Bearer ${process.env.JINA_API_KEY}`;
   }
-  try {
-    const resp = await fetch(`${JINA_READER_PREFIX}${url}`, {
-      method: "GET",
-      headers,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!resp.ok) {
-      return {
-        ok: false,
-        method: "jina",
-        text: "",
-        status: resp.status,
-        error: `HTTP ${resp.status}`,
-      };
-    }
-    const text = await resp.text();
-    return { ok: true, method: "jina", text, status: resp.status };
-  } catch (e) {
-    return { ok: false, method: "jina", text: "", error: e.message };
-  }
+  return httpGet(`${JINA_READER_PREFIX}${url}`, {
+    ...opts,
+    method: "jina",
+    timeoutMs: opts.timeoutMs ?? 30000,
+    headers,
+  });
 }
 
 /**
@@ -143,6 +145,16 @@ export async function fetchCdp(url, opts = {}) {
   }
 }
 
+/** Layer → implementation map. Single source for dispatch order. */
+const LAYERS = {
+  static: fetchStatic,
+  jina: fetchJina,
+  cdp: fetchCdp,
+};
+
+/** Dispatch order for auto mode (lightest first). */
+const FETCH_METHODS = Object.keys(LAYERS);
+
 /**
  * Whether a layer result counts as a usable extraction in auto mode.
  *
@@ -173,23 +185,19 @@ function isUsable(result, minLength) {
 export async function fetchPage(url, opts = {}) {
   const method = opts.method || "auto";
 
-  if (method === "static") return fetchStatic(url, opts);
-  if (method === "jina") return fetchJina(url, opts);
-  if (method === "cdp") return fetchCdp(url, opts);
   if (method !== "auto") {
-    throw new Error(`fetchPage: unknown method "${method}" (expected auto|static|jina|cdp)`);
+    const layer = LAYERS[method];
+    if (!layer) {
+      throw new Error(`fetchPage: unknown method "${method}" (expected auto|static|jina|cdp)`);
+    }
+    return layer(url, opts);
   }
 
   const minLength = opts.minLength ?? 1;
   const errors = {};
 
   for (const layer of FETCH_METHODS) {
-    const result =
-      layer === "static"
-        ? await fetchStatic(url, opts)
-        : layer === "jina"
-          ? await fetchJina(url, opts)
-          : await fetchCdp(url, opts);
+    const result = await LAYERS[layer](url, opts);
     if (isUsable(result, minLength)) {
       return result;
     }
