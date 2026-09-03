@@ -1326,6 +1326,10 @@
 | 26 | **DreamTalk** | 扩散 | 原始版 | ❓ | T4 | Kaggle | ⭐⭐⭐ | 阿里，1789 stars |
 | 27 | **Hallo (v1)** | 分层扩散 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐ | 2024.06，8658 stars |
 | 28 | ~~**Hallo2 (云 GPU)**~~ | 分层扩散 | 原始版 | MIT | A100 | ❌ 256px 太低 | — | 已本地测过 256px 放弃 |
+| 29 | **SoulX-FlashHead** | 1.3B DiT | 原始版 | ✅ Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | LeapTalk 基座，未蒸馏，验证"LeapTalk 差是蒸馏还是基座"；1.3B ~8-12GB，T4 可跑，零成本 |
+| 30 | **Wan2.2-S2V-14B** | Wan2.2-14B | 原始版 | ✅ Apache 2.0 | L4/A100 | 云 GPU | ⭐⭐⭐ | Wan 官方 2025.08 audio-to-video，EchoMimicV3 同族升级；14B 需 20GB+，T4 跑不了需付费 GPU |
+| 31 | **FantasyTalking2** | Wan2.1-14B | 原始版 | ❓ 待确认 | L4/A100 | 云 GPU | ⭐⭐⭐⭐ | AAAI 2026，TLPO 偏好优化，声称超 SOTA；license 待核实 |
+| 32 | **JoyVASA** | 扩散+解耦 | 原始版 | ❓ 待确认 | A100 | 云 GPU | ⭐⭐⭐⭐ | 京东健康，中文支持，876 stars；license 待核实 |
 | 29 | **LatentSync 1.5** | SD UNet + VAE | 原始版 | OpenRAIL++ | T4（8GB） | Kaggle | ⭐⭐⭐⭐ | 8GB 即可跑，T4 单卡足够 |
 | 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⚠️ v4 1.41 FPS / 默认参数近静态 | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
 | 31 | **SoulX-FlashHead** | Soul-AILab 自研 (1.3B) | 实时流式 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐ | 2026-02-12 开源，LeapTalk 基座，无限长度+实时流式 talking head |
