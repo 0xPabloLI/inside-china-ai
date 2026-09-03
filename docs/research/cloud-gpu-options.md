@@ -20,30 +20,18 @@
 
 ## 2. 免费 GPU 服务（推荐：先薅羊毛）
 
-### 2.1 Lightning AI ⭐⭐ 备选（免费额度一次性）
+### 2.1 智星云 ⭐⭐⭐ 国产最低价（含 NVLink）
 
-| 项目 | 详情 |
-|------|------|
-| **网址** | https://lightning.ai/ |
-| **注册** | Google 或 GitHub 账号，不需要信用卡 |
-| **免费额度** | 5 credits 初始 + 25 credits 绑卡后（共 ~$30），**一次性**，用完就没了 |
-| **限制** | 4h 自动重启；同时 1 个 Studio；免费方案无法创建 App（仅 Studio） |
-| **注意** | 免费额度是 **"to start"** 一次性起始额度，不是周期性刷新 |
-| **当前状态** | 账号显示 5.00 credits；"New App" 功能返回 403（免费方案限制） |
+智星云是**非免费平台**，但 RTX 4090 价格全国最低。RTX 4090 24GB 仅 ¥1.65/h，低于 AutoDL 的 ¥1.98/h。RTX 3090 仅 ¥1.10/h，与 AutoDL RTX 3090 (¥1.32/h) 相比便宜约 17%。适合**数字人 pipeline 训练/推理的高性能场景**，支持 NVLink 8 卡互联，适合大模型 TP 并行。
 
-**可用 GPU 及免费时长**：
-
-| GPU | 显存 | 价格 | 免费时长 | 能跑模型 |
-|-----|------|------|---------|---------|
-| T4 | 16GB | $0.42/h | 75h | Sonic ✅, PersonaLive ✅, V-Express ✅ |
-| L4 | 24GB | $0.48/h | 31h | **LatentSync 1.6 ✅, Hallo2 ✅** |
-| L40S | 48GB | $2.14/h | 5h | + JoyVASA ✅ |
-| A100 40GB | 40GB | $2.19/h | 10h | + JoyVASA ✅ |
-| A100 80GB | 80GB | $2.71/h | 5h | **全部含 Hallo3** ✅ |
-| H100 80GB | 80GB | $4.50/h | 0h | 需付费 |
-| H200 141GB | 141GB | $6.53/h | 3h | 全部 ✅ |
-
-> ⚠️ GPU 都是 **NVIDIA** 产品（T4/L4/L40S/A100/H100），不是 Google TPU。完整 CUDA 支持。
+| 维度 | 智星云 | AutoDL | 差距 |
+|------|--------|--------|------|
+| RTX 4090/h | ¥1.65 | ¥1.98 | 智星云便宜 17% |
+| RTX 3090/h | ¥1.10 | ¥1.32 | 智星云便宜 17% |
+| NVLink 8卡 | ✅ 原生支持 | ❌ 无 | 智星云唯一优势 |
+| 自定义镜像 | ✅ 持久保存 | ✅ | 持平 |
+| 学生折扣 | 有 | 有 | 持平 |
+| 规模 | 8万+ 用户 | 更大 | AutoDL 略胜 |
 
 ### 2.2 Google Colab
 
@@ -162,40 +150,38 @@ curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/mas
 | A800-80GB | 80GB | ¥4.98/h | 全部含 Hallo3 |
 | H800 80GB | 80GB | ¥8.88/h | 全部 |
 
-### 3.2 海外平台
+### 3.2 AutoDL vs 智星云 vs Vast.ai vs RunPod（国内+海外付费 GPU 横评）
+
+> **价格从低到高**：AutoDL RTX 4090（¥1.98）< Vast.ai P2P（~¥2.5）< RunPod（~¥4.9）。
+> **智星云（未详细测试）** 标称 ¥1.65/h RTX 4090，低于 AutoDL，但规模较小（8万用户）。
 
 | 平台 | GPU | 价格 | 备注 |
 |------|-----|------|------|
-| Vast.ai (P2P) | RTX 3090 24GB | ~$0.20/h (~¥1.4) | 全球最低价，机器不稳定 |
-| Vast.ai | RTX 4090 24GB | ~$0.35/h (~¥2.5) | |
-| RunPod | RTX 3090 24GB | $0.50/h (~¥3.5) | 稳定 |
-| RunPod | RTX 4090 24GB | $0.69/h (~¥4.9) | 有 Serverless 模板 |
+| Vast.ai (P2P) | RTX 3090 24GB | ~$0.20/h (~¥1.4) | 全球最低价，P2P 节点不稳定 |
+| Vast.ai | RTX 4090 24GB | ~$0.35/h (~¥2.5) | 无实名认证、全球多节点 |
+| RunPod | RTX 3090 24GB | $0.50/h (~¥3.5) | 稳定，Docker 预装 |
+| RunPod | RTX 4090 24GB | $0.69/h (~¥4.9) | 有 Serverless 模板、社区模板丰富 |
 | RunPod | A100 80GB | $1.39/h (~¥10) | |
 | RunPod | H100 80GB | $2.89/h (~¥20) | |
-| Lightning AI | L4 24GB | $0.48/h (~¥3.4) | 一次性免费额度 |
 
-### 3.3 AutoDL vs Lightning AI GPU 质量对比
+> 📌 **价格从低到高**：AutoDL RTX 4090（¥1.88）< Vast.ai RTX 4090（~¥2.5）< RunPod RTX 4090（~¥4.9）。AutoDL 是三者中最便宜的。
+>
+> **Vast.ai 比 AutoDL 贵的价值**：
+> - **无需实名认证**：AutoDL 需要手机号+支付宝实名，Vast.ai 只需邮箱
+> - **全球节点选择**：美/欧/亚/中东可选，适合海外部署和对延迟敏感场景
+> - **灵活配置**：可定制 GPU 数量、CPU、内存、磁盘，AutoDL 是套餐制
+> - **按秒计费**：比 AutoDL 按分钟更精细，短任务更便宜
+> - **零排队**：AutoDL 热门机型（4090/5090）经常无货，Vast.ai 供应充足
+> - **风险**：P2P 市场机器随时可能被房东回收，不适合长训练，适合临时跑推理
+>
+> **RunPod 的不可替代价值**（比前两者都贵）：
+> - **Serverless 部署**：模型封装为 auto-scaling API，按请求计费，缩容到零不花钱
+> - **社区模板丰富**：一键部署 SD/ComfyUI/数字人等热门应用，Docker 顶装省心
+> - **适合场景**：把模型封装成 API 对外服务、海外用户低延迟访问、不想运维环境
+>
+> **对数字人调研来说**：纯跑训练/推理首选 AutoDL（最便宜+货源足）；需要匿名/海外节点临时跑推理选 Vast.ai；需要把模型做成 Serverless API 对外服务选 RunPod。
 
-> **核心结论：AutoDL GPU 不比 Lightning AI 差，反而更强。**
-
-AutoDL 的 GPU 是**消费级/企业级游戏卡**（RTX 4090/3090），Lightning AI 的 GPU 是**云数据中心卡**（T4/L4）。两者都是 NVIDIA CUDA GPU，但定位不同：
-
-| 维度 | AutoDL RTX 4090 | Lightning AI L4 | AutoDL RTX 3090 |
-|------|-----------------|-----------------|-----------------|
-| 架构 | Ada (2022) | Ada (2023) | Ampere (2020) |
-| 显存 | 24GB GDDR6X | 24GB GDDR6 | 24GB GDDR6X |
-| 半精算力 | 165.2 TFLOPS | ~120 TFLOPS | 71 TFLOPS |
-| 带宽 | 1008 GB/s | ~300 GB/s | 936 GB/s |
-| 价格 | ¥1.88/h | ~¥3.4/h ($0.48) | ¥1.32/h |
-| 性价比 | 🏆 最高 | 一般 | 便宜但慢 |
-
-**关键差异**：
-- **RTX 4090 比 L4 算力高 ~37%**（165 vs ~120 TFLOPS），带宽高 3 倍以上（1008 vs 300 GB/s），**推理速度更快**
-- **RTX 4090 比 L4 便宜 45%**（¥1.88 vs ¥3.4/h）
-- AutoDL 的 RTX 4090/3090 是**独享物理机**，性能稳定；Lightning AI 是**虚拟化实例**，可能有邻居噪声
-- 两者都完整支持 CUDA 12.x，数字人模型兼容性无差异
-
-**显存不够时的选择**：
+### 3.3 显存不够时的选择（按需求选 GPU）
 
 | 需求 | 推荐 | 价格 |
 |------|------|------|
@@ -791,34 +777,6 @@ GPU count: 2
 - **没有说会重新开放注册**。AWS 的方向是把免费 GPU 体验引导到付费的 SageMaker Studio
 
 **关键判断**：这不是一个临时关闭——AWS 正在系统性地退出"免费 GPU notebook"市场，把资源集中到 SageMaker Unified Studio（付费产品）。SageMaker Studio Lab 的关闭是战略性的，不是技术问题。
-
-### Lightning AI Credits 详细分析（重点交叉验证）
-
-**矛盾发现**：
-- Lightning AI 官方 pricing FAQ 说："You get 5 free Lightning credits upon registration. Add a card for 25 more. If you don't use them, they expire in 12 months."
-- 但 SaaSworthy（数据抓自官方页面）说："15 monthly Lightning credits included"
-- aicreditmart.com 说："15 credits/month, Renews monthly; unused credits don't roll over"
-- YouTube 实测视频（2026-05-12）说："in the free plan, you get 15 monthly credits"
-
-**交叉验证结论**：
-- 官方 FAQ 的 "5 credits + 25 (add card)" 指的是**初始注册赠送的一次性 bonus credits**，12 个月过期
-- "15 monthly credits" 是**月度更新的免费额度**，每月刷新，不累计
-- 两者是**独立的**——注册时拿到 5+25=30 一次性 credits，之后每月还有 15 credits 自动补充
-- Reddit r/lightningAI 有帖子 "How does lightning ai free credit reset?" 确认用户也在困惑这个问题
-
-**Lightning AI 免费层实际配置**：
-- 15 credits/月（1 credit ≈ $1 ≈ 1.5h T4）
-- 总计 ~22h T4/月 或 ~8h L4/月
-- GPU 选项：T4 (15GB), L4 (22.5GB), A10G (24GB), L40S (48GB)
-- 1 个 free active Studio，4 小时重启
-- 持久化存储 100GB
-- SSH/VS Code 连接
-- 不需要信用卡，只需手机验证
-
-**对你最有价值的 GPU 选项**：
-- **L4 (22.5GB, bf16)** — 正好解决 LatentSync 1.6 的 OOM（需要 >15GB），且支持 bf16
-- **A10G (24GB, bf16)** — 比 L4 多 1.5GB，可以跑更多模型
-- 15 credits ≈ 8h L4/月，足够做几次测试
 
 ### Hugging Face ZeroGPU 详细分析
 

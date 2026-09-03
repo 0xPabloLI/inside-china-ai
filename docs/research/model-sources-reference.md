@@ -91,15 +91,17 @@ HuggingFace 是开放平台，任何人都可以上传模型。存在冒牌模�
 - ⚠️ 需用户确认：author 不在上述列表，但 downloads/likes 较高（>1k downloads），有 base_model 标签
 - ❌ 禁止下载：author 名与官方品牌极其相似（如 `QwennAI` vs `Qwen`）、downloads < 500、无 base_model 标签
 
-### 1.3 ModelScope（阿里巴巴）
+### 1.3 ModelScope（阿里巴巴）— 最直接的"中国版 HuggingFace"
 
-中国版 HuggingFace，很多中国团队的模型首发在这里。
+中国版 HuggingFace，很多中国团队的模型首发在这里。**17 万+ 模型**，Qwen 全系、DeepSeek 全系、InternVL、CosyVoice 等核心数字人依赖模型均有收录。国内下载速度 30-100 MB/s。
 
 ```
 https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 ```
 
 网页：`https://modelscope.cn/models?Query={关键词}`
+
+**免费推理 API**：每天 2000 次调用，DeepSeek-R1 限 200 次/天。需阿里云实名认证 + DashScope 接入。推荐用作模型发现 → 在线体验 → 下载到本地 CUDA 机器的完整 workflow。
 
 > **注**：ModelScope API 需登录 token，搜索结果可能因账户权限不同。最后验证：2026-08-09。
 
@@ -132,6 +134,7 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 | **OpenXLab** | openxlab.org.cn | 上海 AI Lab 的模型平台 |
 | **B站** | search.bilibili.com | 搜中文教程，经常有部署指南 |
 | **小红书** | xiaohongshu.com | 搜"数字人 开源"找中文社区动态 |
+| **AtomGit AI** | ai.atomgit.com/models | 昇腾 NPU 模型库（~39k+ 模型），以昇腾优化/量化版为特色。**实测（2026-09-03）**：API 仅 12 个模型可调用（Qwen3 系列、DeepSeek-V4、GLM-5.2、Kimi-K2.6、Pangu 等），认证用 `PRIVATE-TOKEN` header（非 Bearer）；免费 200 万 Token/月 + 1000 核时/月 NPU。**定位为备选**：数字人模型全部不可跑（CUDA 硬依赖 + 无 NPU 适配版），大部分模型库权重不可下载到 CUDA 硬件直接跑 |
 
 ### 1.8 General 模型选型信源（非数字人专用）
 

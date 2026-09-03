@@ -182,6 +182,7 @@ Deep research reports with citations.
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
 | `vlm-model-selection-benchmark.md` | VLM model selection benchmark — Qwen3-VL 2B/4B/8B comparison with local test data |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
+| `atomgit-ai-platform-research.md` | AtomGit AI 平台调研（2026-09-03）— 昇腾模型平台（ai.atomgit.com）：NPU 910B 硬件（无 GPU）、200 万 Token/月推理额度（月度刷新）+ 1000 核时/月 NPU 算力、AtomCode CodingPlan（编码助手，独立于推理 Token）、OpenAI 兼容 API（`/v1/chat_completions` 等 4 端点）、15 种 Token 任务类型、竞品对比（ModelScope/OpenXLab/模力方舟/Replicate）、数字人模型 NPU 适配限制（CUDA 硬依赖模型不可跑）、可替代本地小模型评估 |
 | `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
 | `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
 | `china-ai-hashtag-mapping.md` | China AI entity → TikTok hashtag mapping (60+ entities, 7 tiers: Big Tech, startups, AI chips, robotics, autonomous driving, international competitors, product brands) | `caption-utils.mjs` ENTITY_HASHTAG_MAP, `tiktok-best-practices.md` Hashtag 策略 |

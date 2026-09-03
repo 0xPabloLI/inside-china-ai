@@ -41,8 +41,10 @@ OpenAI 提供 REST API（`api.openai.com/v1/chat/completions` 等），是唯一
 | Google AI Studio | Gemini 3.7 Flash / 3.5 Flash-Lite | ~1,500 req/day | 5-15 RPM，仅 Flash 系列（Pro 已移到付费）；2026-03 起新用户可能被要求 Prepay |
 | Groq | GPT-OSS 120B, Llama 3.3 70B, Qwen3-32B 等 | ~14,400 req/day | 30 RPM，所有模型免费 |
 | SiliconFlow (硅基流动) | GLM-4-9B, Qwen3-8B, GLM-Z1-9B 等 | 免费模型按模型计 | 中国平台，中文好，无公开 pricing API |
-| OpenRouter | 多个免费模型 | 各异 | 质量不一 |
-| Cloudflare Workers AI | 多种小模型 | 10K req/day | 模型较小 |
+| Cloudflare Workers AI | Llama-3.1-70B-Instruct-BF16、Llama-3-8B-Instruct、Mixtral-8x7B、Mistral-7B-Instruct、Gemma-7B、Qwen 1.5 (0.5B/7B/14B)、Hermes-3-Llama-3.1-70B | 10K req/day | 模型较小、速度快，仅限文本生成 |
+| **GitHub Models** | Llama-3.3-70B-Instruct-FP8-Fast、Phi-4、GPT-2、Whisper-Large-V3、Phi-4-Mini-Reasoning | 15 req/min；150 req/day；50K tokens/min；不可商用 | 免费层有 RPM 限制；模型适合 demo；需要 GitHub 账户 |
+| **AtomGit (昇腾模型平台)** | **实测仅 12 个模型 API 可调用**：Qwen3-30B-A3B、Qwen3-32B、Qwen2-VL-72B、DeepSeek-V4-Flash/Pro、GLM-5.2、Kimi-K2.6、openPangu-2.0 等 | **200 万 Token/月**（月度刷新）| 昇腾 NPU 平台，OpenAI 端点兼容但**认证用 `PRIVATE-TOKEN` header**（非 Bearer）；模型库 39k+ 但大部分不可 API 调用；额外 1000 核时/月 NPU 算力；**定位为备选**——当前无我们需要的数字人/ASR/TTS 模型，详见 atomgit-ai-platform-research.md |
+| **ModelScope (魔搭)** | Qwen 全系、DeepSeek 全系、InternVL、InternLM、CosyVoice、Qwen2-Audio 等 17 万+ 模型 | **2000 次/天**，DeepSeek-R1 限 200 次/天 | 国内下载速度快（30-100MB/s CDN）；接入阿里云 DashScope 全面；免费额度按 App/模型对应不同；最直接的"中国版 Hugging Face"；需阿里云实名认证 |
 | DeepSeek | DeepSeek V4 (1.6T MoE) | 已转付费（2026 年 8 月） | 审查敏感话题 |
 | Microsoft Copilot | GPT-5.x | 每日限制 | 非标准 API |
 
