@@ -7,11 +7,13 @@ const translations = {
     model: "Model",
     params: "Parameters",
     cost: "Cost / Task",
-    index: "Intelligence Index",
     change: "Key Change",
   },
+  params: {
+    same: "same as predecessor",
+    tbd: "not disclosed",
+  },
   legend: {
-    shipped: "Shipped",
     next: "Next generation",
   },
   source: "Source: Zhipu AI 2026 H1 earnings call, Sep 2, 2026.",
@@ -33,7 +35,6 @@ export function ZhipuModelIterationView() {
               <th className="py-2 pr-3 text-left font-medium text-muted-foreground">{t.columns.model}</th>
               <th className="py-2 pr-3 text-left font-medium text-muted-foreground">{t.columns.params}</th>
               <th className="py-2 pr-3 text-left font-medium text-muted-foreground">{t.columns.cost}</th>
-              <th className="py-2 pr-3 text-left font-medium text-muted-foreground">{t.columns.index}</th>
               <th className="py-2 text-left font-medium text-muted-foreground">{t.columns.change}</th>
             </tr>
           </thead>
@@ -54,24 +55,19 @@ export function ZhipuModelIterationView() {
                     )}
                   </td>
                   <td className="py-2.5 pr-3 text-muted-foreground">
-                    {m.totalParams === "Same as 5.2" ? (
-                      <span className="text-muted-foreground italic">same as 5.2</span>
-                    ) : (
+                    {m.paramsMode === "same" && (
+                      <span className="italic">{t.params.same}</span>
+                    )}
+                    {m.paramsMode === "tbd" && t.params.tbd}
+                    {m.paramsMode === "value" && (
                       <>
-                        {m.totalParams}
-                        {m.activeParams !== "—" && m.activeParams !== "Same as 5.2" && m.activeParams !== "TBD" && (
-                          <span className="block text-xs text-muted-foreground">{m.activeParams} active</span>
-                        )}
+                        <span className="font-medium text-foreground">{m.totalParams}</span>
+                        <span className="block text-xs">{m.activeParams} active</span>
                       </>
                     )}
                   </td>
-                  <td className="py-2.5 pr-3 font-medium text-foreground">{m.costPerTask}</td>
-                  <td className="py-2.5 pr-3 text-foreground">
-                    {m.intelligenceIndex !== null ? (
-                      <span className="font-semibold text-brand">{m.intelligenceIndex}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                  <td className="py-2.5 pr-3 font-medium text-foreground">
+                    {m.costPerTask ?? <span className="text-muted-foreground">{t.params.tbd}</span>}
                   </td>
                   <td className="py-2.5 text-muted-foreground">{m.keyChange}</td>
                 </tr>

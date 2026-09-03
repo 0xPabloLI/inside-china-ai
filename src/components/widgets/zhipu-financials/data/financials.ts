@@ -7,8 +7,8 @@ export interface FinancialMetric {
   label: string;
   value: string;
   subtext: string;
+  /** "—" = no reported change (value itself is the headline); otherwise a change label like "+400%" */
   trend: string;
-  trendDirection: "up" | "flat";
 }
 
 export const METRICS: FinancialMetric[] = [
@@ -17,28 +17,24 @@ export const METRICS: FinancialMetric[] = [
     value: "¥954M ($142M)",
     subtext: "Up ~400% year-over-year",
     trend: "+400%",
-    trendDirection: "up",
   },
   {
     label: "API Revenue Share",
     value: "86.5%",
     subtext: "Up from 15.2% a year ago — 27x growth",
     trend: "27x",
-    trendDirection: "up",
   },
   {
     label: "ARR (Aug 2026)",
     value: "$1.6B",
     subtext: "Monthly-annualized; >$2B weekly-annualized",
     trend: "—",
-    trendDirection: "up",
   },
   {
     label: "Gross Margin",
     value: "24.6%",
     subtext: "Up from -0.4% a year ago (+25pp)",
     trend: "+25pp",
-    trendDirection: "up",
   },
 ];
 

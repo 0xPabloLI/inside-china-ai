@@ -83,7 +83,7 @@ Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：
 
 | MRL       | 位置                         | 检查对象                    | Blocker 数              | Warning 数 |
 | --------- | ---------------------------- | --------------------------- | ----------------------- | ---------- |
-| **MRL-1** | Stage 1（自审，不暂停）      | 文章 frontmatter + markdown | 8                       | 5          |
+| **MRL-1** | Stage 1（自审，不暂停）      | 文章 frontmatter + markdown | 清单见 guide            | 清单见 guide |
 | **MRL-2** | Stage 3（自审，不暂停）      | scene-data.mjs（每集）      | 13                      | 9          |
 | **MRL-3** | Stage 5 → HITL 前            | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查  |
 
@@ -165,9 +165,11 @@ Agent 接收任意格式的源素材，读取并理解核心内容。
 
 Agent 从 Stage 0 共享素材出发，生成含交互 Widget 的富文章。完整的文章生产规则（Widget 决策树、宽度规则、创建新 Widget 流程、Frontmatter 格式、声明验证标注规范、MRL-1 检查清单、源引用要求、原创分析要求）见 **`docs/article-production-guide.md`**。
 
+**Widget 设计（必须执行）**：文章中包含结构化数据（财务、对比、时间线、规格）的章节，必须设计至少 1 个 Widget，补充数据类优先（见 guide → Widget 定位）。Widget 数据逐项来自源素材或公开资料并标注来源。已有 Widget 可复用时直接引用 `<!-- widget:xxx -->` 标记；可复用 scene-data `meta.dataPoints` / `meta.keyEntities` 作为数据源，两个轨道共用一次提取。
+
 ### 🔄 MRL-1: 文章自审
 
-Agent 生成 frontmatter markdown 后，运行 MRL-1 自审循环（8 Blockers + 5 Warnings，详见 `docs/article-production-guide.md`）。0 Blockers 后保存 article draft，与视频轨并行推进（不暂停）。
+Agent 生成 frontmatter markdown 后，运行 MRL-1 自审循环（Blockers + Warnings 清单以 `docs/article-production-guide.md` 为唯一权威版本）。0 Blockers 后保存 article draft，与视频轨并行推进（不暂停）。
 
 ---
 
