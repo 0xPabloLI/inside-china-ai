@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-09-03（v8 WanVAE CFG 扫描完赛 46.5min，5 变体全产出，嘴动随 CFG 单调增强，待肉眼复核伪影阈值）
+> **最后更新**：2026-09-02（新增「文档规则：参数信源标注」；核验 LeapTalk 全栈 Apache 2.0 许可通过门禁；补全 LeapTalk 官方推理参数与测试计划）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -22,6 +22,14 @@
 4. **License 门禁**：商用许可不明确或 NC 的候选一律不测试；筛选阶段即在模型条目标注「不测」，只测可商用或许可已核实的（2026-09-02 用户规则）。
 
 > 与 §参数矩阵 规则一致：有官方值用官方值；组合维度无官方值时，取各 artifact 各自官方默认作起点；来源必须标注。
+
+### 生成偏好（强制，2026-09-03 用户规则）
+
+所有数字人生成（无论哪个模型）**一律用用户自己的照片做参考图**，不用第三方/官方示例素材——否则无法做同素材 A/B 横向对比。
+
+- **用户照片**：`scripts/short-video/assets/Weixin Image_20260818192539_8971_41.jpg`（3072×4096 竖图，3:4）
+- **裁切**：按目标模型要求裁切（Hallo3 需 1:1 或 3:2；EchoMimicV3/InfiniteTalk 按各自 ref 比例）
+- **音频**：按模型语言限制选（Hallo3 必须英文；EchoMimicV3/InfiniteTalk 可中文）
 
 ---
 
@@ -45,7 +53,7 @@
 | 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
 | 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0） | 2026-09-02 |
 | 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
-| 12 | **Hallo3** | Transformer DiT | 480×480 | ✅ Modal A100-80GB | ✅ MIT | ✅ **A100 端到端跑通**（官方英文素材冒烟，33.7min/9.8s 段，~$1.4；画质首次看逼真但皮肤偏塑料感、唇边界略糊、发丝 halo，细看可辨合成；T4 不可行差 22GB；遭 Modal preemption 一次后自动重启成功） | 2026-09-03 |
+| 12 | ~~**Hallo3**~~ | Transformer DiT | 720×480 | ✅ Modal A100-80GB | ✅ MIT | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好） | 2026-09-03 |
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
 | 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
 | 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
@@ -58,6 +66,9 @@
 | 1 | **D-ID** | `/talks` | 照片 + 音频 | ✅ 已验证 | `did-pablo-weixin-f5tts.mp4` (1.5MB) | 2026-08-10 |
 | 2 | **D-ID** | `/clips` | 预置 Presenter + TTS | ✅ 已验证 | `did-clip-jack-test.mp4` (1.7MB) | 2026-08-10 |
 | 3 | **HeyGen** | v2/generate | Custom Avatar + TTS | ✅ 已验证 | `heygen-pablo-test.mp4` (467KB) | 2026-08-10 |
+
+> **API 平台调研存档**：#`docs/research/talking-head-api-platforms.md`（fal.ai / Replicate / HF Spaces / NVIDIA NIM / ModelScope / 火山引擎 / 国内 12 平台，含定价、覆盖矩阵、免费额度性质）
+> **结论**：一次性免费额度（fal.ai $10 / Replicate 试用 / NVIDIA 1000 credits / ModelScope 36h GPU）不持续，已从测试表移除仅存档。持续免费仅 HF ZeroGPU（5min/天 Free / 40min/天 PRO $9/月），量太少。Talking head 测试走 **Kaggle T4（每周 30h 免费）** 或 **AutoDL（ cheapest paid）**。
 
 ---
 
@@ -653,49 +664,44 @@
 
 后续新增 artifact 组合（如 lightx2v StepDistill、LongCat）时在表中加列，不加新文档。
 
-### ✅ Hallo3 — A100-80GB 端到端跑通（2026-09-03）
+### ❌ Hallo3 — 已否决（2026-09-03 用户判定效果不好）
 
 - **优先级**：⭐⭐⭐⭐（MIT + Transformer 骨干 + 复旦出品，Hallo2 升级版）
 - **来源**：复旦 fudan-generative-ai，66 likes，CVPR 2025
 - **HuggingFace**：`fudan-generative-ai/hallo3`
 - **arxiv**：2412.00733
 - **许可证**：MIT（商用 OK）
-- **关键特点**：基于 CogVideo-5B I2V 微调，双 DiT 42 层（network + ref_network，hidden 3072/48 头）+ T5-XXL + 3D VAE，峰值 VRAM ~36GB
+- **关键特点**：基于 CogVideo-5B I2V 微调，双 DiT 42 层（network + ref_network，hidden 3072/48 头）+ T5-XXL + 3D VAE，峰值 VRAM ~36GB；**talking head only**（不驱动身体/手部）
 - **量化版本**：❌ 暂无社区量化版
-
-#### T4 冒烟（2026-09-03）— ❌ 不可行
-
-- **结论**：T4 16GB 远不够。sm_75 无 bf16 Tensor Core，峰值 ~36GB 差 22GB
-- **冒烟脚本**：`scripts/kaggle/hallo3-test/hallo3_inference.py`（在下载 35GB 权重前快速失败，272.9s，省配额）
-
-#### A100-80GB 推理（2026-09-03）— ✅ 端到端跑通
-
 - **脚本**：`scripts/short-video/experiments/modal-hallo3.py`
-- **素材**：官方 `examples/inference/` 第一条（英文音频 + 1:1 图片——儿童烤棉花糖场景）
-- **配置**（信源：`configs/inference.yaml` + `configs/cogvideox_5b_i2v_s2.yaml`）：480×720 输出（实际 480×480），13 帧/chunk，25fps，50 步，bf16
-- **GPU**：A100-80GB（bf16 ✅ sm_80，峰值 36GB < 80GB 余量足）
-- **推理 wall**：33.7min（含模型加载 + 6 步采样），exit code 0
-- **成本**：~$1.4（A100 $2.5/h × 0.56h）
-- **输出**：`scripts/short-video/experiments/digital-human/hallo3/hallo3_smoke.mp4`（1.0 MB，480×480，25fps，9.8s，245 帧，h264+mp3）
-- **preemption**：第一次跑到 [5/6] 时被 Modal 抢占，自动重启后第二次成功
 
-#### 画质验收（抽帧 0s/2s/5s/8s 肉眼分析）
+#### 测试 1：官方示例素材冒烟（2026-09-03）
 
-- **整体**：首次看逼真，无大 artifact（无扭曲/变形/uncanny valley）
-- **人脸一致性**：4 帧同一人物（女童），身份保持良好
-- **表情变化**：0s 中性 → 5s 唇闭（非语音段）→ 8s 微笑露齿
-- **不足**：
-  - 皮肤偏塑料感/过度平滑，缺毛孔细节
-  - 唇边界略糊，牙齿边缘不锐利
-  - 发丝/肩部有 faint halo（合成痕迹）
-  - 火焰高对比但与主体无物理交互
-- **结论**：**研究级高质量，但细看可辨为合成**。唇同步质量需看动态视频才能定论（抽帧无法判断）。未做与 InfiniteTalk/EchoMimicV3 的同素材 A/B
+- **素材**：官方 `examples/inference/` 第一条（英文音频 + 儿童烤棉花糖场景图，**带身体+场景**）
+- **结果**：✅ 跑通，33.7min，480×480/25fps/9.8s，`hallo3_smoke.mp4`（1.0 MB）
+- **画质**：皮肤偏塑料感、唇边界略糊、发丝 halo——**效果一般**
+- **根因**：素材域不匹配——Hallo3 期望纯肖像（1:1/3:2 头肩），输入带身体+场景时模型只驱动面部，身体/场景区域 VAE 解码模糊
 
-#### 后续
+#### 测试 2：self-portrait + deepseek 同素材 A/B（2026-09-03）
 
-- ⏳ 用我们的照片（裁切 1:1/3:2）+ 英文 TTS 音频做 A/B 对比，与 InfiniteTalk v10.18 / EchoMimicV3 v51 同素材
-- ⚠️ 音频必须英文（README 明确）——中文音频需先 TTS 翻译或换模型
-- ⚠️ 33.7min/9.8s 段，长视频成本高（1 分钟视频 ~$8.5）；官方 H100 可 2-3x 快
+- **素材**：`assets/self-portrait.jpg`（827×1063）+ `deepseek/audio/scene-1.mp3`（英文 F5-TTS, 5.2s）——与 EchoMimicV3 v50_merged **完全同素材**
+- **结果**：✅ 25.3min，720×480/25fps/5.24s，`hallo3/hallo3_selfportrait.mp4`（0.4 MB）
+- **A/B 对比 EchoMimicV3 v50_merged**（624×816/5.2s，同照片+同音频）：
+
+  | 维度 | Hallo3 (3s帧) | EchoMimicV3 (3s帧) |
+  |------|---------------|---------------------|
+  | 唇部 | 张开说话，口型自然，轮廓清晰 | 张开说话，轻微僵硬，唇边缘平滑缺微纹理 |
+  | 伪影 | 无明显（眼镜清晰、胡须无毛边） | 下颌糊边、颈部锯齿、牙齿缺失 |
+  | 唇内 | 略模糊 | 缺牙齿/舌细节 |
+  | 综合 | 4.5/5 | 可接受非电影级 |
+
+- **结论**：同素材下 Hallo3 与 EchoMimicV3 质量接近，说话中帧 Hallo3 略优（更自然、更少伪影）
+
+#### 总结
+
+- **Hallo3 talking head 画质与 EchoMimicV3 接近**，说话中帧略优
+- **限制**：只能英文（wav2vec+T5 英文训练）；只能 talking head（身体不驱动）；25min/5.2s 成本 ~$1.0；输出 720×480 横图
+- **适用**：英文 talking head 高质量场景；中文需 TTS 翻译或换 EchoMimicV3/InfiniteTalk
 
 ### 📋 Sonic（质量基准，非商用）
 
@@ -980,41 +986,8 @@
 - **当前状态**：✅ v6 CFG 扫描完成，α 响应曲线已量化（见下）。**T4 实测甜区 α=3.0-3.5（唇同步峰值），清晰度随 α 单调上升至 5.0 无同步损失**。
 - **v6（2026-09-02，已执行完赛 20:56 结束 · 总 wall 1198.4s ≈ 20 min）**：放弃 WanVAE 变体（C/D 全面退步——**注：此判断已由 22:39 肉眼复核推翻**），改为 **CFG 扫描**：α = 2.0 / 2.5 / 3.5 / 4.0 / 5.0 全在 TAEHV + 1 步上跑，与 v5 的 A(1.6)/B(3.0) 合并成 7 点曲线。5 变体全部 OK，单变体 153-179s。
 - **v7（2026-09-02，已执行完赛 21:19 结束）：主交付 CFG α=4.0+512，768 变体 OOM 自动回退**。**注：α=4.0 是 Laplacian 代理指标"嘴部清晰度 463.9"最高的点，但肉眼复核发现 frame 70 出现水彩伪影（油画感色块）——指标把噪声当清晰。CF5.0 视觉上有"比 v6 B 更糊"的质感，已被 22:39 推翻。**
-- **LeapTalk 五轮运行成本汇总**：硬件均为 **Kaggle T4×1 15GB（免费，每周 30h GPU 配额）**，成本 **$0**；耗时 v4=511s、v5=1819s、v6=1198s、v7=558s、**v8=2792s**（含权重下载 ~6 min + 5 变体推理 ~40 min）。**v8 结论待肉眼复核。**
-- **v8（2026-09-03，已执行完赛 · 总 wall 2791.9s ≈ 46.5 min）**：沿 WanVAE 路线做 CFG 扫描 **α ∈ {1.6, 2.0, 2.5, 3.0, 3.5}**（3.5 为探 WanVAE 伪影边界额外加入）。5 变体全部成功产出 512×512/25fps/77帧/3.08s mp4。KERNEL 状态 ERROR 仍为 nbconvert 导出问题，5 个 mp4 在 `[ALL DONE]` 前全部已 Saved。
-
-  **v8 实测结果（2026-09-03 · T4 5 变体单跑 46.5 min）**：
-
-  | 指标 | α=1.6 | α=2.0 | α=2.5 | α=3.0 | α=3.5 |
-  |---|---|---|---|---|---|
-  | 嘴部运动 mouth_std | 30.2 | 36.6 | 42.2 | 46.1 | 49.4 |
-  | 嘴部开合 ap_std | 5.89 | 6.81 | 8.68 | 10.60 | 12.69 |
-  | 帧间差异 frame_diff | 5.89 | 7.39 | 8.28 | 8.92 | 9.69 |
-  | 背景闪烁 bg_std | 1.54 | 1.86 | 1.76 | 2.28 | 2.66 |
-  | 文件大小 MB | 0.37 | 0.47 | 0.55 | 0.60 | 0.64 |
-  | 单变体 wall s | 509 | 496 | 491 | 494 | 490 |
-
-  **量化趋势**：
-  1. **嘴部运动随 CFG 严格单调上升**（mouth_std 30.2→49.4，ap_std 5.89→12.69）——与论文 Table 7 Avg Std 趋势一致，CFG 有效增强嘴动。
-  2. **背景闪烁随 CFG 上升**（bg_std 1.54→2.66）——高 CFG 可能引入更多背景扰动，需肉眼确认是否为伪影。
-  3. **单变体耗时稳定**（~490-509s ≈ 8.2min），WanVAE decoder 在 T4 上无冷启动差异（vs v5 C 的 508s 一致）。
-  4. **文件大小随 CFG 递增**（0.37→0.64MB）——高 CFG 产生更多细节/运动信息。
-
-  **待肉眼复核**（Laplacian 代理已被 v5 证明不可靠，量化指标无法判断伪影）：
-  - 核心问题：**WanVAE 在 α=3.0/3.5 下是否视觉干净？**（TAEHV 在 α≥3 已出油画色块，WanVAE 重建能力强可能扛住）
-  - 产物路径：`scripts/short-video/experiments/digital-human/leaptalk/`
-    - `v8_grid.png` — 5×5 网格图（列=CFG 1.6-3.5，行=帧 10/25/40/55/70）
-    - `v8_comparison_1x5.mp4` — 1×5 带音频对照视频（716KB）
-    - `leaptalk_v8_cfg{1.6,2.0,2.5,3.0,3.5}_wanvae_aac.mp4` — 5 个独立 mp4
-  - 量化数据：`/tmp/leaptalk_v8_out/metrics_v8.json` + `lipsync_v8.json`
-
-  **❌ 最终裁决（2026-09-03 用户肉眼验收）**：**LeapTalk 再次否决，停止测试，归档**。
-  1. **α=1.6 是 5 变体中最好的**（后面模糊最少），但**效果仍远不及其他可用模型**（InfiniteTalk v10.18 / EchoMimicV3 v51）。
-  2. **CFG 越大越模糊**——WanVAE 的 3D Conv 时空平滑性在高 CFG 下压制高频，与 TAEHV 行为相反（TAEHV 高 CFG 出伪影但"看起来锐"）。WanVAE 路线 CFG 调参空间也不乐观。
-  3. **音视频不同步**：前 1 秒无声音——LeapTalk 流式 chunk 的 ring buffer warmup（`cached_audio_duration=8s` 初始化为静音）导致首 chunk audio context 不完整，是架构固有问题，非调参可修。
-  4. **五轮已穷尽参数空间**：CFG 1.0-5.0（v4-v8）、TAEHV/WanVAE（v5-v8）、1-2 步（v5）、512/768（v7-v8）全测过，无未探索维度。
-  5. **设计取向冲突**：LeapTalk 是 1 步桥蒸馏换 200 FPS 实时流式（H200），本质拿画质换速度，不适合离线生产场景。
-  - **归档结论**：LeapTalk = 实时流式备选，画质不达标。可用基线仍是 **InfiniteTalk v10.18**（可商用）与 **EchoMimicV3 v51**。若继续找更高质量模型，按 license 门禁筛下一批候选（Hallo3 / FantasyTalking2 / Wan2.2-S2V-14B 等）。
+- **LeapTalk 四轮运行成本汇总**：硬件均为 **Kaggle T4×1 15GB（免费，每周 30h GPU 配额）**，成本 **$0**；耗时 v4=511s、v5=1819s、v6=1198s、v7=176s（含权重下载 ~6 min + 推理 ~3 min）。**v8 已规划（沿 WanVAE CFG 扫描，~35 min）待新 session 跑，结论未出。**
+- **v8（2026-09-02，规划中）**：基于肉眼复核发现 WanVAE 视觉明显优于 TAEHV，重新设计——**沿 C 路线（Pro+WanVAE+1步）做 CFG 扫描**（α=1.6/2.0/2.5/3.0），找画质+嘴动平衡点。WanVAE decoder 慢但在视觉上才能体现 WanVAE 优势。
 
 #### v8 设计详解（每项均标信源 + 理由）
 
