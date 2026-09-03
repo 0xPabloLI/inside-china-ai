@@ -38,7 +38,7 @@
  *                      measurement, per edge (basis for the per-type
  *                      overdraw tolerance)
  *
- * Spec: spec-text-overflow-hardening.md § T4 Implementation Refinement,
+ * Spec: docs/archive/spec-text-overflow-hardening.md § T4 Implementation Refinement,
  * decisions 18, 36; § T5 Implementation Refinement, decisions 44, 49;
  * § T12 Implementation, decisions 57, 63.
  */

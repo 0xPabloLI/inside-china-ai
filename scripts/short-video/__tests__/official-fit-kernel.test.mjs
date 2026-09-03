@@ -7,7 +7,7 @@
  * locks the seed→candidate decision logic that must never change the gate's
  * outcome.
  *
- * Spec: spec-text-overflow-hardening.md decisions 57/63; tickets §T12
+ * Spec: docs/archive/spec-text-overflow-hardening.md decisions 57/63; tickets §T12
  * (official output only seeds the walk — terminal validation stays the gate).
  */
 import { describe, it, expect } from "vitest";

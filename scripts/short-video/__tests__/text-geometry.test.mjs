@@ -7,7 +7,7 @@
  * annotation mount timing, scroll/client overflow) lives in the render-layer
  * integration tests (text-gate-render.test.mjs).
  *
- * Spec: spec-text-overflow-hardening.md § T4 Implementation Refinement,
+ * Spec: docs/archive/spec-text-overflow-hardening.md § T4 Implementation Refinement,
  * decisions 19–22, 28–33.
  */
 import { describe, it, expect } from "vitest";

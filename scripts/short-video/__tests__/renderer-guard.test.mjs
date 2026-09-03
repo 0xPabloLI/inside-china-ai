@@ -1,6 +1,6 @@
 /**
  * Renderer guard — the HTML/Playwright render path was retired (decision 59,
- * spec-text-overflow-hardening.md, 2026-09-01). Remotion is the only renderer.
+ * docs/archive/spec-text-overflow-hardening.md, 2026-09-01). Remotion is the only renderer.
  * The guard fails fast on any attempt to opt back into the retired path:
  * the `--playwright` CLI flag or `meta.renderer = "playwright"`.
  */

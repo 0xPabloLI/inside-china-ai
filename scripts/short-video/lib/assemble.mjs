@@ -3,7 +3,7 @@
  *
  * The FFmpeg scene-by-scene assembler (`assembleVideo`) lived here until the
  * HTML/Playwright render path was retired (decision 59,
- * spec-text-overflow-hardening.md): it existed to concatenate the WebM clips
+ * docs/archive/spec-text-overflow-hardening.md): it existed to concatenate the WebM clips
  * recorded by record-scenes.mjs, and Remotion renders the whole composition
  * itself. Final assembly now lives in lib/render-remotion.mjs; the post-roll
  * helpers (burnSubtitles / mixBgm / normalizeLoudness) live in post-process.mjs.

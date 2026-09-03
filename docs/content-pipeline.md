@@ -296,6 +296,11 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 
 **MRL-2 检查项**（B1–B13 Blockers + W1–W9 Warnings）：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。完整清单与阈值见 `scene-rules.mjs`。
 
+**文本溢出双层防线**（spec 决策 14/71，T11 同步）：
+
+1. **字符预算 = 提示级（WARN）**：`checkTextWidthBudget`（`scene-rules.mjs`）从文本槽契约推导预算——`slotCharBudget()`（`lib/text-slots.mjs`）用实测内容盒宽度 ÷ `SLOT_FIELDS.preferredSize` 计算，不手写字符锚点；未实测的槽位直接跳过（不猜测）。超预算只产生 `warn` 级创作提示（建议缩短或换布局），**不阻断**。仅覆盖文本槽契约声明的字段。
+2. **几何验证门槛 = 渲染时硬门**：真实判定交给 Remotion 渲染期的 TextGate（`remotion/src/` + `lib/text-geometry.mjs`）——逐行、逐样式 run 的真实几何 + ink 外溢检查，`minSize` 触底仍超即 `cancelRender`（`[TextFitError]`），文案必须改写而非静默缩到不可读。
+
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）
 
 ```bash

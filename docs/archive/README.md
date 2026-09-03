@@ -19,6 +19,7 @@
 
 | 文件 | 完成时间 | 说明 |
 |------|----------|------|
+| `spec-text-overflow-hardening.md` / `tickets-text-overflow-hardening.md` | 2026-09-03 | 短视频文本溢出根治 + 时间轴对齐 12-ticket epic（#141；T1–T12，issues #142–#153/#175/#149/#150/#151/#152）。最终契约：`lib/text-slots.mjs`（slot 注册表 + `slotCharBudget()` 契约推导预算）+ TextGate 渲染时几何硬门 + `scene-rules.mjs` 预算 WARN 提示级（决策 14/71）；72 条决策（63–72 为 2026-09-02 方向修正）。T11 收尾 commit `c850113`+（slotCharBudget 单一来源、qwen4 全片重渲染帧审计 71/71、归档） |
 | `spec-hook-media-support.md` | 2026-08-21 | Hook Scene 可选 media、Narrative Ken-Burns 与 warning summary；实施 commit `8acdd2c` |
 | `spec-broll-generation-capability.md` / `tickets-broll-generation-capability.md` | 2026-09-01 | B-roll 生成能力 — `mediaStrategy` 契约（asset/b-roll/asset-then-broll）+ FastVideo FastMetal 批跑（T2 runner）+ VLM claim gate（threshold 60 fail-closed）+ won 文件缓存 + 3 轮报告驱动 agent 迭代。T9 VLM 修复：视频一律抽帧分析（native video 无像素到达 GLM-4.1V，判词幻觉）、relevance 宽容解析（观测变体收窄后仍 fail-closed）、claim-mode 升级判据 = relevance 缺失。T10 `HF_HUB_OFFLINE=1` 固化双 spawn 点（`HF_HUB_OFFLINE=0` 退出；哑端点零网络验证）。夹具 scene 5/6/8；scene 5 round-2 重写 won@relevance 80（agent 迭代协议闭环）。mjs 102+242、python 17+23 tests。成片渲染确认按用户决定不专门重跑（B-roll 侧证据已绿，随下一个真实内容视频自然验证，见 ticket T8）；follow-up = GitHub #155–#159 |
 | `spec-audio-diagnostics.md` / `tickets-audio-diagnostics.md` | 2026-08-06 | 验证失败诊断包 |

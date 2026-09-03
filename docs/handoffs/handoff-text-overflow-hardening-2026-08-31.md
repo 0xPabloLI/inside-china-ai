@@ -2,13 +2,13 @@
 
 > **本文件是导航层，不是方案本身。** 它追踪 T1–T12 的实施进度、记录本 session 做了什么、告诉下一 session 从哪开始。
 > 所有最终决策、验收标准、场景矩阵都在下面的「源文档」里 —— 读那些，别在这里找细节。
-> 创建：2026-08-31 ｜ 父 issue #141 ｜ 已关闭 #142/#143/#144/#145/#146/#148/#150/#154（过时）/#175，余下 #147（已 pivot）/#149/#151/#152/#153 + #165（中文分词，最低优先级）开放。
+> 创建：2026-08-31 ｜ 父 issue #141 ｜ **epic 全部收官（2026-09-03）：T1–T12 对应 issue 全部关闭（#142–#153、#175、#149/#150/#151/#152），spec/tickets 已归档。** 仅 #165（中文分词）转 dormant——引入中文多行文案时触发。
 
 ---
 
 ## 0. TL;DR
 
-- **进度：10 / 12 完成**（T1–T7 / T9 / T10 / T12 ✅；T9 = `15b4419` + `eed95d4`，issue #150 已关闭；T10 = `da2cacf` + `1c3aac7` + `c478935` 已推送（`284fb86..c478935`），#151 已关闭；T12 = `44fa8da`，issue #175）。**下一步 = T8 / T11 任选**（T11 已解除 T10/T12 阻塞，仅余 T8）。
+- **进度：12 / 12 完成，epic 收官（2026-09-03 第四 session）**（T1–T12 全部 ✅；T8 = `2a0b86a` #149 关闭，T11/#152 关闭——slotCharBudget 单一来源 `c850113` + qwen4 全片重渲染帧审计 71/71 + 文档/归档；#153 处置关闭；T12 = `44fa8da` #175）。**spec/tickets 已归档 `docs/archive/`；本 handoff 转为历史参考。** 余下仅 #165（中文分词，dormant，触发条件未满足）。
 - **2026-09-03 第五 session（T10：ink 逐行 + fail-closed 标注 + F6/F7/F9 + 口径统一，`da2cacf` + `1c3aac7` + `c478935` 已推送，#151 已关闭）**：
   `collectInkOverhangs` 逐渲染行×逐样式 run（决策 67b，既单节点公式留 fixture 反证 +
   活断言钉死判别力）；标注挂载/settled 轮询 fail-open 闭合（决策 67a：无 SVG/绘制框 →
@@ -100,7 +100,7 @@ digital-human / leaptalk / f5-mlx / zhipu / didi-robotaxi 改动，且会话中�
 坚持：只显式列路径 stage 自己的文件，`git status --short` 核对 staged 清单后再 commit；
 push 需用户授权，默认只 commit 不 push。
 
-**主线：T9 全部 ✅（`15b4419` + `eed95d4`，#150 已关闭）→ T12 ✅（`44fa8da`）→ T10 ✅（`da2cacf` + `c478935` 已推送，#151 已关闭）→ 下一 session 顺序：T8 → T11**
+**主线：全部完成 ✅（2026-09-03）——T9（`15b4419`+`eed95d4`）→ T12（`44fa8da`）→ T10（`da2cacf`+`c478935`）→ T8（`2a0b86a`，#149）→ T11（slotCharBudget `c850113` + qwen4 全片重渲染 + 归档，#152）。#141 父 issue 随 T11 关闭。**
 
 1. ~~T9 首项：stacked-cards badge 接入~~ ✅ 已完成（2026-09-02，见 §2）。
 2. ~~T12~~ ✅ 已完成（2026-09-02，`44fa8da`，issue #175 已关闭，冒烟由用户豁免）——原接入说明留存：
@@ -145,10 +145,10 @@ T7(#148, done) ─────────────────────�
 | T6 HTML 路径退役（已 pivot）      | #147 ✅   | 无         | 已完成（`830cd44` + `9914777` 本地）：renderer-guard fail-fast + 归档 retired-html-path + 回归哨兵全绿 + review 双轴修复；**审计补充：`HTML_SLOT_MAP`/`htmlSlotsFor()` 仍在活代码（text-slots.mjs），待迁 retired archive** |
 | T9 badge 接入 + rendered 门 + 垂直 gate + overlay 补齐 | #150 ✅ CLOSED | T2✅,T5✅  | **全部 checklist ✅（2026-09-03，`eed95d4` 已推送，#150 已关闭）**：首项三项（`15b4419`）+ 余项（TextGroupGate 垂直门 / `MEASURED_MAX_HEIGHT` 594/336 / `group-overflow` 结构化失败 / MediaOverlay 补 action+context / s6-s8-s9 重渲染验证） |
 | T12 官方 `fitText` 接入 TextGate 生产路径 | 待建   | T5✅       | **scope 已修订（决策 63/64）**：接入 `fitCandidates()` 生产路径；官方输出只作候选值；不开启 validateFontIsLoaded；**先建 issue** |
-| T8 highlight {field,text} + 17 处 | #149 OPEN | T2✅,T5✅  | 标什么亮什么，子串校验                                          |
+| T8 highlight {field,text} + 17 处 | #149 ✅ CLOSED | T2✅,T5✅  | **全部 checklist ✅（2026-09-03 第三 session，`2a0b86a` 已推送，#149 已关闭）**：highlight 结构化 `{field,text}` + `assertKnownTextFields` 子串 fail-closed 校验 + `SplitHighlight` 子串标注（Narrative/Hook）+ 24 处存量迁移逐条过校验 + gate 修复（settled annotation 断言改「SVG 存在即轮询」） |
 | T10 ink 逐行修正 + F6/F7/F9 补齐 + 标注口径 | #151 ✅ CLOSED | T4✅,T5✅  | **全部 checklist ✅（2026-09-03，`da2cacf` + `c478935` 已推送，#151 已关闭）**：ink 逐行×逐 run（67b）+ 标注 fail-closed（67a）+ `paintedBoxOfSvg` 路径采样 + 决策 70 按类型容差 + `AnnotationCollisionAssert`（F7 各目标 ≤2%）+ Hook 圆 box="inside" 单谓词门控 + F6/F9 fixture；review 双轴过（standards 4 项 + 2 nit 已修） |
-| T11 端到端 + 预算 WARN 化 + 归档   | #152 OPEN | T8,T9,T10,**T12** | **scope 已修订（决策 71）**：+字符预算契约推导 WARN 化；+#153 前置；+blocked-by T12 |
-| #153 存量 preflight 全红          | #153 OPEN | T2,T7      | 14/15 包缺 layout / visualType 不在派发表                       |
+| T11 端到端 + 预算 WARN 化 + 归档   | #152 ✅ CLOSED | T8✅,T9✅,T10✅,**T12✅** | **全部 checklist ✅（2026-09-03 第四 session，#152 已关闭）**：slotCharBudget() 抽进 text-slots.mjs（#153 review 遗留，`c850113`）；qwen4 全片重渲染（`v2026-09-03T00-46-05`，帧审计 71/71 含 s9/CTA 末帧/零裁切；字幕 coverage 2 error 为 09-02 即存在的同一旁白停顿，非回归，如实记录）；content-pipeline.md 预算 WARN + 几何门槛条目；spec/tickets 归档 docs/archive/；#153 已处置关闭（15 包清单见其 close comment） |
+| #153 存量 preflight 全红          | #153 ✅ CLOSED | T2,T7      | **2026-09-03 处置关闭**（部分交付 + 决策 47 取代余项）：15 包逐包 FAIL 盘点 + 契约推导预算 WARN + guard-cli 恢复绿；11 包红为预期状态。清单见 #153 close comment |
 | #165 中文空格分词                 | #165 OPEN | —          | 官方多行函数对无空格文本失效；现文案英文，最低优先级          |
 
 ---

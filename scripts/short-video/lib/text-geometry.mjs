@@ -8,7 +8,7 @@
  * consumes these functions (spec decision 13 of Further Notes, refinement
  * decisions 19–33).
  *
- * Spec: spec-text-overflow-hardening.md § T4 Implementation Refinement.
+ * Spec: docs/archive/spec-text-overflow-hardening.md § T4 Implementation Refinement.
  */
 
 /**
