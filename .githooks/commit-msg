@@ -8,7 +8,9 @@
 # Check: Session-Id provenance gate.
 #   Every non-merge, non-revert commit must carry exactly one Session-Id
 #   trailer with a well-formed id, so parallel sessions can attribute work.
-#   Registration (id -> session) lives in .session-pilot/pilot-log.md.
+#   When .session-pilot/pilot-log.md exists, the id must also be registered
+#   there (the hook reads the filesystem, so gitignore does not hide it).
+#   No registry file -> registration check is skipped (portability).
 #
 # Exemptions: merge in progress (MERGE_HEAD), revert in progress (REVERT_HEAD).
 # Bypass (emergency only):  git commit --no-verify
@@ -58,6 +60,24 @@ fi
 ID=$(printf '%s\n' "$IDS" | head -1)
 if ! printf '%s' "$ID" | grep -qE '^[0-9]{8}-[a-z0-9][a-z0-9-]*-[0-9a-f]{6}$'; then
   fail "malformed: \"$ID\" (expected <yyyymmdd>-<task>-<6hex>, e.g. 20260903-refactor-a1b2c3)"
+fi
+
+# --- Registration check (repo-local) ----------------------------------------
+# The registry is gitignored but the hook runs on the filesystem, so it can
+# verify the id was registered at session start. Absent registry -> skip.
+REGISTRY="$(git rev-parse --show-toplevel 2>/dev/null)/.session-pilot/pilot-log.md"
+if [ -f "$REGISTRY" ] && ! grep -qF -- "$ID" "$REGISTRY"; then
+  echo ""
+  echo "[commit-msg] BLOCKED: Session-Id \"$ID\" is not registered in .session-pilot/pilot-log.md"
+  echo "A trailer alone cannot map id -> session; registration is what makes work attributable."
+  echo ""
+  echo "Repair:"
+  echo "  1. Add an entry to .session-pilot/pilot-log.md: Session-Id / tool / baseline / commits"
+  echo "  2. Re-commit with the same trailer: git commit --trailer \"Session-Id: $ID\""
+  echo ""
+  echo "Emergency bypass (discouraged): git commit --no-verify"
+  echo ""
+  exit 1
 fi
 
 exit 0
