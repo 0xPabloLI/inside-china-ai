@@ -598,6 +598,33 @@ export function fitCandidates(slot, step = 2) {
   return sizes;
 }
 
+// Approximates the uppercase advance width of the serif fallback face
+// (≈0.55em, wider than the sans design metrics). It only converts measured
+// pixels into an advisory char count; being off does not create false
+// security — the TextGate geometry layer still fails real overflow.
+const AVG_UPPERCASE_EM = 0.55;
+
+/**
+ * Advisory character budget for a slot, derived from the slot contract
+ * (MEASURED_MAX_WIDTH real content-box width ÷ SLOT_FIELDS preferredSize, per
+ * spec decision 14/71). Single source for the content-hint budget in
+ * scene-rules.mjs — do not rebuild the width/size arithmetic at call sites.
+ *
+ * Returns null when the slot has no measured width or the field declares no
+ * preferredSize: callers must skip the field, never guess.
+ *
+ * @param {{visualType: string, layout?: string, field: string}} parts
+ * @returns {number|null}
+ */
+export function slotCharBudget({ visualType, layout, field }) {
+  const id = slotId({ visualType, layout, field });
+  const maxWidth = MEASURED_MAX_WIDTH[id];
+  if (!maxWidth) return null;
+  const preferredSize = SLOT_FIELDS[field]?.preferredSize;
+  if (!preferredSize) return null;
+  return Math.floor(maxWidth / (preferredSize * AVG_UPPERCASE_EM));
+}
+
 /**
  * Order slots by who gives up size first (lowest shrinkPriority first).
  *

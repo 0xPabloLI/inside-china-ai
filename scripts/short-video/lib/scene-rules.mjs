@@ -29,9 +29,8 @@ import {
 } from "./tiktok-rules.mjs";
 import {
   REMOTION_SLOT_MAP,
-  MEASURED_MAX_WIDTH,
-  SLOT_FIELDS,
   DEFAULT_NARRATIVE_LAYOUT,
+  slotCharBudget,
 } from "./text-slots.mjs";
 
 // Re-export AI_BLACKLIST to maintain public API
@@ -1332,17 +1331,11 @@ export function checkLoopClosureNarrative(scenes) {
 
 // ─── Text width budget (contract-derived hint, spec decision 14/71) ───
 
-// Character budgets derive from the slot contract — MEASURED_MAX_WIDTH (real
-// content-box widths, measured in Chromium) and SLOT_FIELDS preferredSize —
-// instead of hand-written char anchors. The result is a warn-level creative
+// Character budgets derive from the slot contract via slotCharBudget()
+// (text-slots.mjs) — MEASURED_MAX_WIDTH (real content-box widths, measured in
+// Chromium) ÷ SLOT_FIELDS preferredSize. The result is a warn-level creative
 // hint only: the final judgment is TextGate's real per-line geometry, so this
 // check neither gates nor blocks anything.
-//
-// AVG_UPPERCASE_EM approximates the uppercase advance width of the serif
-// fallback face (≈0.55em, wider than the sans design metrics). It only
-// converts measured pixels into an advisory char count; being off does not
-// create false security — the geometry layer still fails real overflow.
-const AVG_UPPERCASE_EM = 0.55;
 
 // Fields checked per scene type; hook/cta have their own structural contracts.
 const WIDTH_CHECKED_TYPES = new Set([
@@ -1354,10 +1347,6 @@ const WIDTH_CHECKED_TYPES = new Set([
   "context",
   "contrast",
 ]);
-
-function deriveCharBudget(maxWidth, preferredSize) {
-  return Math.floor(maxWidth / (preferredSize * AVG_UPPERCASE_EM));
-}
 
 export function checkTextWidthBudget(scenes) {
   const results = [];
@@ -1376,19 +1365,21 @@ export function checkTextWidthBudget(scenes) {
     for (const field of checkable) {
       const value = scene.texts?.[field];
       if (typeof value !== "string" || value.length === 0) continue;
-      const maxWidth =
-        MEASURED_MAX_WIDTH[`${scene.visualType}.${layout}.${field}`];
-      // Contract rule: never guess widths — unmeasured slots are skipped.
-      if (!maxWidth) continue;
-      const preferredSize = SLOT_FIELDS[field]?.preferredSize;
-      if (!preferredSize) continue;
-      const budget = deriveCharBudget(maxWidth, preferredSize);
+      // Contract rule: slotCharBudget returns null for unmeasured slots or
+      // fields without a preferredSize — skip them, never guess.
+      const budget = slotCharBudget({
+        visualType: scene.visualType,
+        layout,
+        field,
+      });
+      if (budget == null) continue;
       if (value.length <= budget) continue;
+      const maxWidthNote = `${scene.visualType}.${layout}.${field}`;
       results.push({
         level: "warn",
         category: "Layout",
         check: `Text width budget — ${field} in ${scene.visualType}.${layout}`,
-        detail: `${value.length} chars (contract budget ${budget} @ ${maxWidth}px/${preferredSize}px): "${value}"`,
+        detail: `${value.length} chars (contract budget ${budget} @ ${maxWidthNote}): "${value}"`,
         fix: `Consider shortening ${field} to ≤${budget} chars or moving to a wider layout — final judgment is the TextGate real-geometry gate.`,
       });
     }
