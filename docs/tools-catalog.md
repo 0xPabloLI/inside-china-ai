@@ -46,6 +46,7 @@
 | leonxlnx/taste-skill (design-taste-frontend) | 设计推理 | ✅ | 📋 备选(安全✅) | ⭐ 设计决策 |
 | public-apis/public-apis | API 资源索引 | ✅ | 📖 参考 | 📖 查免费 API |
 | AutoVio | 视频管线（参考） | ✅ 自托管 | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考 |
+| VoiceStudio | 音频/TTS 聚合器（参考） | ✅ 自托管 | 📖 参考（不采用） | ⭐ GUI 试听底层引擎情感效果 |
 
 ---
 
@@ -463,6 +464,21 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **适配评估**：CLI 工具，与项目管线集成方式：RunComfy 生成数字人片段 → 作为 `<Video>` 源嵌入 Remotion 场景。需 RunComfy 账号才能试用
 - **调查日期**：2026-08-12
 - **状态**：📋 备选——需要 RunComfy 账号才能试用。用户暂不注册，等本地数字人模型方案确定后再决定是否引入云端方案
+
+### VoiceStudio — 开源本地语音工作台（聚合器，参考项目，不采用）
+
+- **分类**：AI 媒体（音频/TTS 聚合器）
+- **费用**：免费自托管
+- **仓库**：`https://github.com/debpalash/VoiceStudio`（14,623 stars，近期 +834/周，Trendshift 周榜；前身 OmniVoice-Studio）
+- **许可**：应用 AGPL-3.0（本地使用/生成音频无碍；网络服务提供修改版才触发开源义务）；**底层模型各有条款**——默认 OmniVoice 权重 CC-BY-NC（非商用），IndexTTS 2.5 为 Bilibili 自有许可
+- **做什么**：Python + Tauri 桌面应用，封装 16 个 TTS 引擎（OmniVoice/CosyVoice 3/VoxCPM2/IndexTTS 2.5/GPT-SoVITS 等）+ 11 个 ASR 引擎，提供语音克隆（3-15s 参考）、语音设计、视频配音（转录→翻译→时间轴对齐→重合成）、有声书、听写、人声分离。646 语言，macOS 13.3+ 支持 MPS/MLX，可离线
+- **为什么对本项目有用**：❌ 基本无用——它不产生引擎层新知识（所有底层引擎已在 `docs/research/voice-cloning-solutions-m2-pro.md` 独立评估），配音对齐链路管线已有对应实现，且不提供管线所需的 `TTSEngine` 接口
+- **为何走红**：X 病毒式传播"免费 ElevenLabs 替代品"叙事（ElevenLabs $5-330/月 vs 本地免费），用户为内容创作者/有声书作者/自托管人群。工程上是壳，营销上是平替
+- **用法**：不安装
+- **何时用**：仅在想用 GUI 快速试听某引擎的情感效果、不想写测试脚本时，可临时装一个
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-03
+- **状态**：📖 参考（聚合器壳，不进测试列表、不进管线；详见 `docs/research/voice-cloning-solutions-m2-pro.md` §3.12）
 
 ---
 
