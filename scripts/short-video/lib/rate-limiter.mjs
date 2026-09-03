@@ -20,6 +20,9 @@ export const SITE_RATE_CONFIG = {
   "google.com": { baseDelay: 8000, jitter: [0.5, 1.5], maxPerHour: 30 },
   "bing.com": { baseDelay: 5000, jitter: [0.6, 1.4], maxPerHour: 60 },
   "baidu.com": { baseDelay: 7000, jitter: [0.7, 1.3], maxPerHour: 40 },
+  // DuckDuckGo is scraping-friendly (10 req/s API-level ceiling, no CAPTCHA);
+  // the HTML endpoint may return 202/403 when rate limited (#91).
+  "duckduckgo.com": { baseDelay: 3000, jitter: [0.6, 1.4], maxPerHour: 120 },
   "bilibili.com": { baseDelay: 5000, jitter: [0.6, 1.4], maxPerHour: 50 },
   "zhihu.com": { baseDelay: 7000, jitter: [0.7, 1.3], maxPerHour: 40 },
   "xiaohongshu.com": { baseDelay: 15000, jitter: [0.6, 1.4], maxPerHour: 20 },

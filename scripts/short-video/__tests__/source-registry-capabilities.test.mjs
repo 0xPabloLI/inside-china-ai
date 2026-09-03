@@ -277,10 +277,10 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-  it("ALL_SOURCES has 61 sources (46 existing + 7 CDP image search + 8 stock_media - lorem_picsum not in registry)", () => {
-    // 46 existing + 7 CDP image search + 8 stock_media = 61
+  it("ALL_SOURCES has 62 sources (61 + duckduckgo_search #91)", () => {
+    // 46 existing + 7 CDP image search + 8 stock_media + duckduckgo = 62
     // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
-    expect(ALL_SOURCES).toHaveLength(61);
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 
   it("source names are still unique after merge", () => {

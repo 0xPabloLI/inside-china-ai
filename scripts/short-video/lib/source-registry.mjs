@@ -1571,6 +1571,42 @@ export const GENERAL_SEARCH_SOURCES = [
     `,
   },
   {
+    name: "duckduckgo_search",
+    label: "DuckDuckGo Search",
+    category: "general",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes:
+        "CDP (html.duckduckgo.com non-JS endpoint — no rendering needed). Lenient rate limit, no CAPTCHA (#91). Best scraping-friendly search engine.",
+    },
+    useCleanTitle: false,
+    url: (keyword) =>
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword + " China AI")}`,
+    articleScript: `
+      var results = [];
+      document.querySelectorAll('.result, .web-result, .results_links').forEach(function(el) {
+        var link = el.querySelector('a.result__a, a[href]');
+        var title = el.querySelector('.result__a, .result__title, h2, a');
+        var snippet = el.querySelector('.result__snippet, .snippet');
+        if (link && title) {
+          var rawUrl = link.href;
+          // html.duckduckgo.com wraps result URLs in /l/?uddg=<encoded> — unwrap
+          // so downstream dedup/attribution sees the real target URL (#91).
+          var m = rawUrl.match(/[?&]uddg=([^&]+)/);
+          if (m) rawUrl = decodeURIComponent(m[1]);
+          results.push({
+            title: title.textContent.trim(),
+            url: rawUrl,
+            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+          });
+        }
+      });
+      return results.slice(0, 20);
+    `,
+  },
+  {
     name: "mcp_grok_search",
     label: "Grok Web Search",
     category: "general",
@@ -2834,6 +2870,11 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "Varies",
     logoRequired: false,
   },
+  duckduckgo_search: {
+    text: (a) => `Source: ${a.sourceUrl || "DuckDuckGo"} (via DuckDuckGo Search)`,
+    license: "Varies",
+    logoRequired: false,
+  },
   bing_news: {
     text: (a) => `Image source: ${a.sourceUrl || "Bing News"}`,
     license: "Varies",
@@ -3105,6 +3146,7 @@ const AUTOGEN_EXCLUDED_SOURCES = new Set([
   "bing_news",
   "google_search",
   "baidu_search",
+  "duckduckgo_search",
   "digg_search",
   "techmeme_search",
   "polymarket_search",

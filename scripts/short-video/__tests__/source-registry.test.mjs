@@ -25,9 +25,9 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 61 sources", () => {
-    // 46 existing + 7 CDP image search + 6 stock_media + 2 open search engine = 61
-    expect(ALL_SOURCES).toHaveLength(61);
+  it("ALL_SOURCES has 62 sources", () => {
+    // 46 existing + 7 CDP image search + 6 stock_media + 2 open search engine + duckduckgo = 62
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 
   it("each source has required fields", () => {
@@ -449,8 +449,8 @@ describe("Locale field", () => {
 // ─── General search sources ───
 
 describe("General search sources", () => {
-  it("GENERAL_SEARCH_SOURCES has 5 sources", () => {
-    expect(GENERAL_SEARCH_SOURCES).toHaveLength(5);
+  it("GENERAL_SEARCH_SOURCES has 6 sources", () => {
+    expect(GENERAL_SEARCH_SOURCES).toHaveLength(6);
   });
 
   it("includes google_search (was web_grounding)", () => {
@@ -481,6 +481,33 @@ describe("General search sources", () => {
   it("baidu_search does NOT have mcpFallback (CDP-only)", () => {
     const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "baidu_search");
     expect(src.mcpFallback).toBeUndefined();
+  });
+
+  it("includes duckduckgo_search on the non-JS HTML endpoint (#91)", () => {
+    const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "duckduckgo_search");
+    expect(src).toBeDefined();
+    expect(src.label).toBe("DuckDuckGo Search");
+    expect(src.category).toBe("general");
+    expect(src.supportsKeyword).toBe(true);
+    expect(src.needsAuth).toBe(false);
+    // html.duckduckgo.com — non-JS endpoint, no rendering required
+    expect(src.url("qwen").toString()).toContain("html.duckduckgo.com/html/?q=");
+    expect(src.url("qwen").toString()).toContain("China%20AI");
+    expect(src.accessMethod.primary).toBe("cdp");
+    expect(src.articleScript.length).toBeGreaterThan(50);
+    // HTML endpoint selectors
+    expect(src.articleScript).toContain("result__a");
+    expect(src.articleScript).toContain("result__snippet");
+    // DDG wraps result URLs in /l/?uddg= — extractScript must unwrap them
+    expect(src.articleScript).toContain("uddg=");
+    expect(src.articleScript).toContain("decodeURIComponent");
+    // CDP-only like baidu: no MCP fallback
+    expect(src.mcpFallback).toBeUndefined();
+  });
+
+  it("duckduckgo_search is excluded from googleSiteFallback auto-gen (search engine)", () => {
+    const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "duckduckgo_search");
+    expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 });
 
@@ -544,7 +571,8 @@ describe("supportsKeyword validation", () => {
     // tiktok_creator (via ScrapeCreators API)
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
-    expect(keywordSources.length).toBe(41);
+    // + duckduckgo_search (#91)
+    expect(keywordSources.length).toBe(42);
   });
 });
 
