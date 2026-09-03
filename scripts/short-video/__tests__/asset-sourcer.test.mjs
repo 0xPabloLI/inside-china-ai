@@ -1948,6 +1948,10 @@ describe("isLogoOrIcon", () => {
     expect(isLogoOrIcon("http://example.com/spinner.gif")).toBe(true);
   });
 
+  it("rejects data URI images (WeChat 1x1 SVG placeholders)", () => {
+    expect(isLogoOrIcon("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22")).toBe(true);
+  });
+
   it("accepts normal image URLs", () => {
     expect(isLogoOrIcon("http://qbitai.com/img/v4.jpg")).toBe(false);
   });

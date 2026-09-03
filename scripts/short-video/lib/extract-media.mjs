@@ -53,9 +53,11 @@ export function buildMediaExtractScript() {
   return `
     var results = { images: [], videos: [], metadata: {} };
 
-    // Images: naturalWidth > 400 (content images, not icons/thumbnails)
+    // Images: naturalWidth > 400 (content images, not icons/thumbnails).
+    // data: URIs are excluded — WeChat 1x1 SVG placeholders report a
+    // viewBox-derived naturalWidth that defeats the pixel filter (#128).
     document.querySelectorAll('img').forEach(function(img) {
-      if ((img.naturalWidth > ${MIN_IMAGE_WIDTH} || img.width > ${MIN_IMAGE_WIDTH}) && img.src) {
+      if ((img.naturalWidth > ${MIN_IMAGE_WIDTH} || img.width > ${MIN_IMAGE_WIDTH}) && img.src && !img.src.startsWith('data:')) {
         results.images.push({ url: img.src, alt: img.alt || '' });
       }
     });

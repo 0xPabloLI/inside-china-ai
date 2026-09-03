@@ -33,6 +33,11 @@ describe("buildMediaExtractScript", () => {
     expect(script).toContain("400");
   });
 
+  it("excludes data URI images (1x1 SVG placeholders report viewBox naturalWidth)", () => {
+    const script = buildMediaExtractScript();
+    expect(script).toContain("startsWith('data:')");
+  });
+
   it("includes video extraction for <video> and <iframe>", () => {
     const script = buildMediaExtractScript();
     expect(script).toContain("video");

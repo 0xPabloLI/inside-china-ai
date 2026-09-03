@@ -308,7 +308,7 @@ export const NEWS_SOURCES = [
     `,
   },
   // ─── CDP image search sources (capabilities.images via CDP) ───
-  // These sources have CDP_IMAGE_CAPABILITIES entries but need source definitions
+  // These sources have CDP_MEDIA_CAPABILITIES entries but need source definitions
   // so enrichWithCapabilities() can inject their capabilities.
   {
     name: "xinhua",
@@ -2412,7 +2412,7 @@ export const STOCK_MEDIA_SOURCES = [
 // These are merged into the source definitions below via enrichWithCapabilities.
 // Each config has: method:"cdp", url(keyword), imageScript, imageFallbackScript
 
-const CDP_IMAGE_CAPABILITIES = {
+const CDP_MEDIA_CAPABILITIES = {
   ithome: {
     method: "cdp",
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
@@ -3055,7 +3055,7 @@ export const SOURCE_ATTRIBUTIONS = {
 //
 // Automatically adds a `capabilities` object to each source based on its
 // existing fields. Sources that have articleScript get capabilities.articles.
-// Sources that are in CDP_IMAGE_CAPABILITIES get capabilities.images.
+// Sources that are in CDP_MEDIA_CAPABILITIES get capabilities.images.
 // Sources that are in YTDLP_VIDEO_CAPABILITIES get capabilities.videos.
 //
 // Stock API sources already have explicit capabilities and are not processed.
@@ -3212,9 +3212,9 @@ function enrichWithCapabilities(sources) {
       };
     }
 
-    // Images: from CDP_IMAGE_CAPABILITIES
-    if (CDP_IMAGE_CAPABILITIES[source.name]) {
-      capabilities.images = CDP_IMAGE_CAPABILITIES[source.name];
+    // Images: from CDP_MEDIA_CAPABILITIES
+    if (CDP_MEDIA_CAPABILITIES[source.name]) {
+      capabilities.images = CDP_MEDIA_CAPABILITIES[source.name];
     }
 
     // Videos: from YTDLP_VIDEO_CAPABILITIES

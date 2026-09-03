@@ -116,7 +116,7 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
   const claims = extractSceneClaims(scenes);
   const queryGroups = [];
   for (const claimInfo of claims) {
-    const kws = claimToKeywords(claimInfo.claim);
+    const kws = claimToKeywords(claimInfo.assetNeed);
     if (kws.length === 0) continue; // all stopwords → covered by fallback pool
     queryGroups.push({ keywords: kws, claimSceneId: claimInfo.sceneId });
   }
@@ -1599,10 +1599,12 @@ export function buildAttribution(source, asset) {
 // ─── T04 (#56): Cached-image flow ───
 
 /**
- * Regex to detect logos, avatars, icons, placeholders, and spinners in image URLs.
- * Case-insensitive match on common non-content image patterns.
+ * Regex to detect logos, avatars, icons, placeholders, spinners, and data URI
+ * images in image URLs. Case-insensitive match on common non-content image
+ * patterns; `data:image` covers WeChat 1x1 SVG placeholders whose
+ * viewBox-derived naturalWidth defeats pixel filters (#128).
  */
-const LOGO_ICON_REGEX = /logo|avatar|icon|placeholder|spinner|favicon|badge|button|sprite/i;
+const LOGO_ICON_REGEX = /logo|avatar|icon|placeholder|spinner|favicon|badge|button|sprite|data:image/i;
 
 /**
  * Check if a URL points to a logo, avatar, icon, or other non-content image.
@@ -2136,11 +2138,25 @@ export async function main(args = process.argv.slice(2)) {
     console.log("  Scene-data: not found (will use CLI keywords only)");
   }
 
+  // Load meta from separate meta.mjs if not exported by scene-data
+  if (!meta) {
+    const metaPath = join(contentDir, "meta.mjs");
+    if (existsSync(metaPath)) {
+      try {
+        const metaModule = await import(pathToFileURL(metaPath).href);
+        meta = metaModule.meta || null;
+      } catch (e) {
+        console.warn(`  ⚠️  Failed to load meta.mjs: ${e.message}`);
+      }
+    }
+  }
+
   // Per-scene claims (structured assetNeed) + company-entity fallback pool.
   // Claim-bound candidates are tagged with claimSceneId so they can only be
   // assigned to the scene they were sourced for (spec #130 D3/D7).
   const cliKeywords = keywordsArg ? keywordsArg.split(",").map((k) => k.trim()) : null;
   const { queryGroups, allKeywords, claimCount } = buildQueryGroups(scenes, meta, cliKeywords);
+  const sceneClaims = extractSceneClaims(scenes);
   const primaryKeyword = queryGroups[0]?.keywords[0] || "asset";
   console.log(
     `  Claims: ${claimCount} scene(s) with assetNeed → ${queryGroups.length} query group(s)`,
@@ -2678,6 +2694,7 @@ export async function main(args = process.argv.slice(2)) {
         outputDir: join(__dirname, "..", "output"),
         contentDir,
         contentSlug,
+        claims: sceneClaims,
       });
       // Re-score assets with VLM description (Phase 2c: semantic scoring)
       for (const asset of allAssets) {
