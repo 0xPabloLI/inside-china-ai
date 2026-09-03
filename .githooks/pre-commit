@@ -12,6 +12,7 @@
 #   2. .env.local guard
 #   3. Doc hierarchy lint (when docs/ files staged)
 #   4. LFS pointer verification (when binary files staged)
+#   (commit-msg handles Session-Id provenance — see .githooks/commit-msg)
 #
 # Bypass (emergency only):  git commit --no-verify
 # =============================================================================

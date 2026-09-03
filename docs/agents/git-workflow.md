@@ -66,7 +66,11 @@
 - 不顺手修复无关或非本 session 引入的问题。
 - 无法确认改动来源时停止，向用户报告。
 - session 结束时记录 commit hash、未 push 状态、验证证据和剩余 blocker。
-- **Session-Id 软试点进行中（至收尾裁决）**：session 开工先读 `docs/research/commit-session-association-id-proposal.md` §3（生成 id、登记 `.session-pilot/pilot-log.md`、写入与恢复规则），commit 时按其 trailer 约定执行；试点结束后本条由正式迁入的规则替换。
+- **Session-Id 溯源（所有 commit 强制，commit-msg hook 校验）**：session 开工生成 id（格式 `<yyyymmdd>-<task>-<6hex>`，如 `20260903-refactor-a1b2c3`）并登记 `.session-pilot/pilot-log.md`（tool / Session-Id / baseline / commit 清单 / compact 状态）。commit 带 `--trailer "Session-Id: <id>"`；amend 不得叠加第二个 id（双 id 会让两边的精确查询都失效）。按 id 查提交（精确匹配，勿用 grep）：
+  ```bash
+  git log --all --format='%h%x09%(trailers:key=Session-Id,valueonly)%x09%s' | awk -F '\t' -v id="<id>" '$2 == id'
+  ```
+  生成、登记、compact 恢复与豁免边界（merge/revert）的完整规则见 `docs/research/commit-session-association-id-proposal.md`。
 
 ## 9. 并发 Session 与恢复
 

@@ -1,0 +1,63 @@
+#!/bin/bash
+# =============================================================================
+# commit-msg hook (version-controlled)
+#
+# Lives in .githooks/ and is activated via `git config core.hooksPath .githooks`
+# (run `npm run setup:hooks` after cloning).
+#
+# Check: Session-Id provenance gate.
+#   Every non-merge, non-revert commit must carry exactly one Session-Id
+#   trailer with a well-formed id, so parallel sessions can attribute work.
+#   Registration (id -> session) lives in .session-pilot/pilot-log.md.
+#
+# Exemptions: merge in progress (MERGE_HEAD), revert in progress (REVERT_HEAD).
+# Bypass (emergency only):  git commit --no-verify
+# =============================================================================
+set -u
+
+MSG_FILE="$1"
+if [ ! -f "$MSG_FILE" ]; then
+  echo "[commit-msg] message file not found: $MSG_FILE" >&2
+  exit 1
+fi
+
+# --- Exemptions -------------------------------------------------------------
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+  exit 0
+fi
+if git rev-parse -q --verify REVERT_HEAD >/dev/null 2>&1; then
+  exit 0
+fi
+
+# --- Extract Session-Id trailers -------------------------------------------
+IDS=$(git interpret-trailers --parse < "$MSG_FILE" | grep -i '^Session-Id:' | sed 's/^[Ss]ession-[Ii]d:[[:space:]]*//' || true)
+COUNT=$(printf '%s\n' "$IDS" | grep -c . || true)
+
+fail() {
+  echo ""
+  echo "[commit-msg] BLOCKED: expected exactly 1 well-formed Session-Id trailer, $1"
+  echo "Every non-merge commit carries provenance so parallel sessions can attribute work."
+  echo ""
+  echo "Repair:"
+  echo "  1. If you don't have an id, generate one: <yyyymmdd>-<task>-<6hex>  (e.g. 20260903-refactor-a1b2c3)"
+  echo "  2. Register it in .session-pilot/pilot-log.md (tool / Session-Id / baseline / commits)"
+  echo "  3. Re-commit with: git commit --trailer \"Session-Id: <your-id>\""
+  echo ""
+  echo "Emergency bypass (discouraged): git commit --no-verify"
+  echo ""
+  exit 1
+}
+
+if [ "$COUNT" -eq 0 ]; then
+  fail "found 0"
+fi
+if [ "$COUNT" -gt 1 ]; then
+  fail "found $COUNT (amend stacking a second id makes both sessions unfindable)"
+fi
+
+ID=$(printf '%s\n' "$IDS" | head -1)
+if ! printf '%s' "$ID" | grep -qE '^[0-9]{8}-[a-z0-9][a-z0-9-]*-[0-9a-f]{6}$'; then
+  fail "malformed: \"$ID\" (expected <yyyymmdd>-<task>-<6hex>, e.g. 20260903-refactor-a1b2c3)"
+fi
+
+exit 0
