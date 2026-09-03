@@ -193,9 +193,11 @@ collectFromSource() 层次：
 | #158 | B-roll follow-up: ComfyUI / MCP 迭代式生成后端 | 建议接 #157 | lib/b-roll/runner.mjs (seam) | 现回路是批次级（一轮 ≥8min 才拿到分数，无法单候选重跑）。接缝已备好：`{jobs} → {ok, results[]}`，门/报告/缓存不感知后端。云端 RunComfy 路线见 `docs/tools-catalog.md`（用户暂不注册账号） |
 | ~~#159~~ | ✅ B-roll follow-up: runner 未透传 `--model-root` | — | ~~lib/b-roll/runner.mjs, b-roll-runner.test.mjs~~ | ✅ **2026-09-01 closed**（原问题：`buildPythonArgs` 从不传 `--model-root`/`--mlx-checkpoint`，每批次打 HF `GET /revision/main`，缓存缺件时重下 1.5 GB。T10 已落地 offline 默认 `HF_HUB_OFFLINE=1`——联网重下载风险已消，剩余范围 = 透传）。落地：`resolveDependencies` 读 `BROLL_MODEL_ROOT`/`BROLL_MLX_CHECKPOINT`，批次前校验（目录缺失 / 无 `mlx_dit.safetensors` → `⚠️ B-roll skipped`，不阻断主管线）；`buildPythonArgs` 仅非 null 时追加 flag（未设则原样走 HF 缓存解析）；`orchestrator` 透传 `modelRoot`/`mlxCheckpoint` + `env`。副作用：设了 mlx-checkpoint 后 python 跳过 `transformer/*` 解析。验证：52 tests 全绿 + 真实 HF 快照 pin 跑通 1 clip（480×832 / 81f / 5.06s，encode 37s + denoise 187s + decode 42s）。**2026-09-02 复核：GitHub #159 已于 2026-09-02 02:23 UTC close，tracker 与 GitHub 状态一致** |
 | ~~#164~~ | ✅ eslint 全仓库 lint 被 experiments/.venv 拖死 | — | ~~eslint.config.js~~ | ✅ **2026-09-03 交付**：ignores 增加 `scripts/short-video/experiments/**`。`npm run lint` 从 45+ 分钟不收敛 → 14 秒收敛。GitHub #164 CLOSED。**收敛后新发现 → #177**（prettier 环境漂移 1169 既有 findings） |
-| #177 | prettier 3.9.6（node_modules）vs ^3.7.3 pin — 1169 既有 prettier findings | — | package.json（或全量 reformat） | #164 收敛后暴露：全部位于已提交干净文件，0 重叠未提交工作（lint 列表 × git dirty 已验证）。二选一需决策：① 锁版本重装（省事）② 接受新口径全量 `--fix`（diff 大，单独 commit、避开并行） |
+| #177 | prettier 3.9.6（node_modules）vs ^3.7.3 pin — 1169 既有 prettier findings | — | package.json（或全量 reformat） | #164 收敛后暴露：全部位于已提交干净文件，0 重叠未提交工作（lint 列表 × git dirty 已验证）。**决策 2026-09-03（用户确认）：① 锁 3.9.6 重装（省事，diff 最小）**——全量 reformat 口径被否（diff 大）；实施待下 session（先 proposal-review） |
 | #178 | docs-lint: tracker Last-inventory 轮换行豁免 writing-for-agents gate WARN | — | lint-doc-hierarchy.mjs + 测试 | ready-for-agent；2026-09-03 第六 session 新建。每轮 `docs(tracker)` 轮换必命中反引号路径/箭头模式弹非阻塞 WARN，纯噪音。方案：「替换且同 diff 存在新 `Last inventory:` 行」豁免，净删除仍 WARN；改 `checkWritingForAgentsGate` + 同步用例。实施前按 proposal-review 走查；认定 WARN 值得保留也可 close 不做 |
 | #166 | B-roll follow-up: 八维 prompt 常量注入（第二层） | 建议等 b-roll 用量 10+ scene | `lib/b-roll/*`（orchestrator / runner / gate / report）, `scene-rules.mjs` | 八维 prompt 目前 **100% 由 agent 手工写入** `aiVideo.prompt`，代码只校验非空、不参与生成任何一维；真实证据见 `content/qwen4-preview/scene-data.mjs`——仅有的 3 条 prompt 里 NEGATIVE 互不一致且两条不完整。**第一层（warn 级校验）已交付**：spec `docs/archive/spec-broll-prompt-dimension-check.md`，校验 NEGATIVE 三个语义组覆盖（TEXT / HANDS / ARTIFACT）与阿拉伯数字，warn 不阻断。本 issue 承载把固定维度从手写改为**代码注入**。三个动手前必须先解决的约束：① `promptHash` 缓存会因 prompt 字符串变化而集体失效，已 `won` 的 clip 全部重跑（≈235 s/条）② 512 token 静默截断会吞掉追加在尾部的常量 ③ VLM gate 的 `buildClaim()` 直接拿 prompt 当正向 `assetNeed`，注入负向描述会污染打分（须拆成「生成用注入后 prompt / gate 用原始 prompt」）。**不在范围**：SUBJECT 自动提取、VISUAL METAPHOR、REFERENCE 自动化、CAMERA/MOTION/LIGHTING 机器检测 |
+| #187 | #66 交付物 3: asset-sourcer.mjs 全文提取接线（fetchPage 分层） | 拆票自 #66（用户决策：关闭 #66，交付物 3 拆成新 issue） | `scripts/short-video/lib/asset-sourcer.mjs`, new 全文提取消费方 | 管线中无全文提取阶段（无 articleScript/fullText/readability 消费方），净新功能；基础设施（fetch-page.mjs 四层 + Step 0.5）已由 #66 交付（bc733bd/ff29ebc） |
+| #188 | verify-lfs-pointers.test.mjs fixture 未中和现代 git-lfs（process filter + required + 全局回退） | bug | — | verify-lfs-pointers.test.mjs, verify-lfs-pointers.mjs（只读参考） | #66 session 根因定位（分段实验）：fixture 只清 `clean/smudge` 未清 `process`/`required`，staged blob 仍变 pointer → gate 对真实 pointer 放行是正确行为；修复 = fixture 同时 unset `process`/`required`；基线可复现 |
 
 ### Dormant — 触发条件未满足
 
@@ -272,6 +274,8 @@ collectFromSource() 层次：
 | `normalize-currency.mjs` | #117 | 🟢 低——独立模块，无并行冲突 |
 | `proxy-manager.mjs` | #140 (**P6**) | 🟢 低——FlClash 出口节点自动切换（#89 原文中这是 **P6**；旧 tracker 行误标为 P5，P5 实为 selector auto-healing）。独立新模块，无并行冲突 |
 | `eslint.config.js` | ~~#164~~ ✅ | 🟢 低——独立配置变更，无并行冲突（✅ 2026-09-03 done） |
+| `verify-lfs-pointers.test.mjs` | #188 | 🟢 低——独立 fixture 测试，无并行冲突 |
+| `package.json` | #177 | 🟢 低——锁 3.9.6 重装（依赖变更，reproducible；与已关闭切片无文件交集） |
 
 ---
 

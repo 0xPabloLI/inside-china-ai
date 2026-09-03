@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-09-02（新增「文档规则：参数信源标注」；核验 LeapTalk 全栈 Apache 2.0 许可通过门禁；补全 LeapTalk 官方推理参数与测试计划）
+> **最后更新**：2026-09-03（LeapTalk v8 测试完成并否决；talking head API 平台全面调研；测试路线更新为 Kaggle T4 + Modal + ModelScope + AutoDL）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
