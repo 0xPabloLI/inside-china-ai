@@ -146,7 +146,7 @@ function classifyGateChange(content) {
  * Returns WARN for: new/deleted headings, local pointer changes, normative qualifier changes,
  * and all AGENTS.md modifications.
  *
- * @param {Array<{filename: string, diffLines: Array<{type: 'add'|'del'|'ctx', content: string}>}>} stagedDiffs
+ * @param {Array<{filename: string, diffLines: DiffLine[]}>} stagedDiffs
  * @returns {{findings: Array<{level: string, ruleId: string, file: string, message: string}>}}
  */
 export function checkWritingForAgentsGate(stagedDiffs) {
@@ -208,8 +208,18 @@ function readMdFiles(dir) {
 // --- Git diff helpers ---
 
 /**
+ * One parsed content line of a unified diff.
+ * @typedef {Object} DiffLine
+ * @property {'add'|'del'|'ctx'} type — line kind (added/deleted/context).
+ * @property {string} content — line text without the diff prefix character.
+ */
+
+/**
  * Parse unified diff output into structured diff lines.
  * Only parses content lines (starting with +, -, or space), skips headers.
+ *
+ * @param {string} diffOutput
+ * @returns {DiffLine[]}
  */
 export function parseDiffLines(diffOutput) {
   const lines = diffOutput.split("\n");

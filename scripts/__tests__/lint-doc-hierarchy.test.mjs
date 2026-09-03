@@ -9,6 +9,8 @@ import {
 
 const warnsOf = (findings) => findings.filter((f) => f.level === "WARN");
 const failsOf = (findings) => findings.filter((f) => f.level === "FAIL");
+const messageOf = (findings, level = "WARN") =>
+  findings.find((f) => f.level === level)?.message ?? "";
 
 describe("checkDocsIndexConsistency", () => {
   it("PASS: L1 doc listed in DOCS-INDEX", () => {
@@ -156,6 +158,25 @@ git push
     const { findings } = checkL2CommandLines(files);
     expect(warnsOf(findings)).toHaveLength(1);
   });
+
+  it("git commands count toward the command-line threshold", () => {
+    // Pins the `git\s+\w` pattern explicitly: research docs full of git
+    // sequences are execution instructions just like npm/node lines.
+    const content = [
+      "# Research",
+      "git add file.txt",
+      "git stash list",
+      "git rebase main",
+      "git merge main",
+      "git cherry-pick abc123",
+      "",
+    ].join("\n");
+    const files = [{ filename: "git-heavy.md", content }];
+    const { findings } = checkL2CommandLines(files);
+    const warns = warnsOf(findings);
+    expect(warns).toHaveLength(1);
+    expect(messageOf(findings)).toContain("git-heavy.md has 5 command-line references");
+  });
 });
 
 describe("parseDiffLines", () => {
@@ -280,8 +301,8 @@ describe("checkWritingForAgentsGate", () => {
     const warns = warnsOf(findings);
     expect(warns).toHaveLength(1);
     expect(warns[0].file).toBe("AGENTS.md");
-    expect(warns[0].message).toContain("AGENTS.md → Workflow Router → Agent documents");
-    expect(warns[0].message).not.toContain("Coding Conventions");
+    expect(messageOf(findings)).toContain("AGENTS.md → Workflow Router → Agent documents");
+    expect(messageOf(findings)).not.toContain("Coding Conventions");
   });
 
   it("WARN: pointer line changed (contains arrow)", () => {
