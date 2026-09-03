@@ -710,6 +710,81 @@ def resize_image_if_needed(img_path):
         return img_path, None
 
 
+# ─── Shared inference seam (2B fast path + deep tier) ───
+
+def _unlink_quiet(path):
+    """Unlink a temp file, ignoring missing/unremovable paths."""
+    if not path:
+        return
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def run_vlm_inference(model, processor, path, is_video, prompt_text,
+                      start_ms=None, end_ms=None, sample_fps=VIDEO_FPS):
+    """Run one VLM generation pass over `path` with media-type preprocessing.
+
+    Video: extract frames in the requested window → generate → cleanup frames.
+    Image: simulate the 9:16 cover crop → resize if > MAX_IMAGE_LONG_EDGE →
+    generate → unlink both temp files.
+
+    This is the single seam both cascade tiers go through, so the deep model
+    sees exactly the same preprocessed pixels as the 2B model. Returns the raw
+    markdown string; raises on failure (caller decides fallback behavior).
+    """
+    if is_video:
+        frames = extract_frames(
+            path, fps=sample_fps,
+            max_seconds=MAX_VIDEO_SECONDS,
+            start_ms=start_ms, end_ms=end_ms,
+        )
+        if not frames:
+            raise RuntimeError("Frame extraction failed")
+        try:
+            return generate_response(
+                model, processor, image_paths=frames,
+                prompt_text=prompt_text,
+            )
+        finally:
+            _cleanup_frames(frames)
+
+    # Image — simulate 9:16 center crop (VLM sees what the viewer will see
+    # after cover crop), then resize large images to prevent hallucinations.
+    crop_path, crop_cleanup = simulate_crop(path, target_ratio=9/16, focus=(0.5, 0.5))
+    try:
+        actual_path, temp_path = resize_image_if_needed(crop_path)
+        try:
+            return generate_response(
+                model, processor, image_paths=actual_path,
+                prompt_text=prompt_text,
+            )
+        finally:
+            _unlink_quiet(temp_path)
+    finally:
+        _unlink_quiet(crop_cleanup)
+
+
+def deep_analyze(deep_model, deep_processor, path, is_video, prompt_text,
+                 start_ms=None, end_ms=None, sample_fps=VIDEO_FPS):
+    """Deep-tier analysis with the GLM-4.1V-9B model.
+
+    Runs the same inference seam as the 2B fast path and returns the parsed
+    result with escalated=True (plus sourceMode for videos). Raises on
+    failure — handle_analyze_semantics falls back to the 2B result.
+    """
+    deep_raw = run_vlm_inference(
+        deep_model, deep_processor, path, is_video, prompt_text,
+        start_ms=start_ms, end_ms=end_ms, sample_fps=sample_fps,
+    )
+    deep_result = parse_markdown_to_dict(deep_raw)
+    if is_video:
+        deep_result["sourceMode"] = "frames"
+    deep_result["escalated"] = True
+    return deep_result
+
+
 # ─── Request handler ───
 
 def handle_analyze_semantics(model, processor, path, window=None, claim=None):
@@ -745,24 +820,6 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
 
     try:
         if is_video:
-            # Video is always analyzed as extracted frames: GLM-4.1V never
-            # receives the pixels of a native video through mlx_vlm.generate
-            # (it judges from prompt text alone and hallucinates), so a
-            # single frame-based path keeps both cascade tiers grounded.
-            frames = extract_frames(
-                path, fps=sample_fps,
-                max_seconds=MAX_VIDEO_SECONDS,
-                start_ms=start_ms, end_ms=end_ms,
-            )
-            if not frames:
-                return {}, "Frame extraction failed"
-            try:
-                raw = generate_response(
-                    model, processor, image_paths=frames,
-                    prompt_text=prompt_text,
-                )
-            finally:
-                _cleanup_frames(frames)
             source_mode = "frames"
         else:
             # Image — verify first
@@ -771,31 +828,12 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
                 img.verify()
             except Exception as e:
                 return {}, f"Invalid or corrupt image: {e}"
-
-            # Preprocess: simulate 9:16 center crop for landscape images
-            # (VLM sees what the viewer will see after cover crop)
-            crop_path, crop_cleanup = simulate_crop(path, target_ratio=9/16, focus=(0.5, 0.5))
-            try:
-                # Preprocess: resize large images to prevent hallucinations
-                actual_path, temp_path = resize_image_if_needed(crop_path)
-                try:
-                    raw = generate_response(
-                        model, processor, image_paths=actual_path,
-                        prompt_text=prompt_text,
-                    )
-                finally:
-                    if temp_path:
-                        try:
-                            os.unlink(temp_path)
-                        except OSError:
-                            pass
-            finally:
-                if crop_cleanup:
-                    try:
-                        os.unlink(crop_cleanup)
-                    except OSError:
-                        pass
             source_mode = None  # images don't have sourceMode
+
+        raw = run_vlm_inference(
+            model, processor, path, is_video, prompt_text,
+            start_ms=start_ms, end_ms=end_ms, sample_fps=sample_fps,
+        )
     except Exception as e:
         return {}, f"VLM generation failed: {e}"
 
@@ -816,59 +854,13 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
         deep_model, deep_processor = get_deep_model()
         if deep_model is not None:
             try:
-                # Re-run with GLM using the same prompt and asset
-                if is_video:
-                    deep_frames = extract_frames(
-                        path, fps=sample_fps,
-                        max_seconds=MAX_VIDEO_SECONDS,
-                        start_ms=start_ms, end_ms=end_ms,
-                    )
-                    if not deep_frames:
-                        raise RuntimeError("Frame extraction failed for deep model")
-                    try:
-                        deep_raw = generate_response(
-                            deep_model, deep_processor, image_paths=deep_frames,
-                            prompt_text=prompt_text,
-                        )
-                    finally:
-                        _cleanup_frames(deep_frames)
-                else:
-                    # For images, apply same preprocessing (crop + resize)
-                    # as the 2B path. The temp files from the 2B run are
-                    # already cleaned up by their finally blocks, so we
-                    # re-preprocess here. GLM benefits from the same
-                    # hallucination prevention.
-                    crop_path2, crop_cleanup2 = simulate_crop(
-                        path, target_ratio=9/16, focus=(0.5, 0.5))
-                    try:
-                        actual_path2, temp_path2 = resize_image_if_needed(
-                            crop_path2)
-                        try:
-                            deep_raw = generate_response(
-                                deep_model, deep_processor,
-                                image_paths=actual_path2,
-                                prompt_text=prompt_text,
-                            )
-                        finally:
-                            if temp_path2:
-                                try:
-                                    os.unlink(temp_path2)
-                                except OSError:
-                                    pass
-                    finally:
-                        if crop_cleanup2:
-                            try:
-                                os.unlink(crop_cleanup2)
-                            except OSError:
-                                pass
-
-                deep_result = parse_markdown_to_dict(deep_raw)
-
-                # Preserve sourceMode from the 2B run for videos
-                if is_video and source_mode:
-                    deep_result["sourceMode"] = source_mode
-
-                deep_result["escalated"] = True
+                # Re-run with GLM using the same prompt and asset. The seam
+                # re-preprocesses the asset, so GLM sees the same crop/resize
+                # the 2B model saw (the 2B run's temp files are already gone).
+                deep_result = deep_analyze(
+                    deep_model, deep_processor, path, is_video, prompt_text,
+                    start_ms=start_ms, end_ms=end_ms, sample_fps=sample_fps,
+                )
                 return deep_result, None
 
             except Exception as e:
