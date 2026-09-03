@@ -191,7 +191,9 @@ node scripts/article/publish-article.mjs --file <path> --draft
 
 ### 2c. 准备源文件附件（公开操作在 Stage 5）
 
-将所有引用的原始素材文件上传为 article attachments：
+附件只用于**无公开 URL 的素材**（用户提供的 PDF、内部报告等）——读者没有链接可验证，所以挂文件。有公开 URL 的资料用正文链接溯源即可，不挂附件（分层规则见 `docs/article-production-guide.md` → 源引用要求）。
+
+需要附件时：
 
 ```bash
 # 上传单个文件
