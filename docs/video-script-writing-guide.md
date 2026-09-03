@@ -194,6 +194,27 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | **Curiosity Gap** | "别急着 [常见行为]，先看 [这个]" | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析 |
 | **Question** | "如果 [假设] 是错的呢？" | "What if China's biggest AI bet isn't a model at all?" | 哲学/分析 |
 
+### bigNumber 选择规则
+
+bigNumber 是 hook scene 最大的视觉焦点。**优先用抓得住眼球的具体内容（产品名/品牌名/事件名），而不是抽象数字公式。**
+
+| ❌ 差 | ✅ 好 | 原因 |
+|-------|-------|------|
+| "0" + "DRIVERS NEEDED" | "ROBOTAXI" + "R2 NOW LIVE" | "0 驾驶员"是抽象公式；"ROBOTAXI" 一看就知道是什么 |
+| "R2" + "DIDI ROBOTAXI" | "ROBOTAXI" + "R2 NOW LIVE" | "R2" 是陌生型号名，无信息量；"ROBOTAXI" 自解释 |
+| "V3" | "691%" + "REVENUE SURGE" | 型号号无信息量；百分比直接传达增长规模 |
+| "Pro" | "$10B" + "FOR AI ONLY" | 产品线名无冲击力；金额+限定词传达规模 |
+
+**选择优先级**：自解释产品类型词（如 ROBOTAXI）> 有冲击力的数字 > 反直觉概念 > 行业术语 > 型号名（最后选）
+
+**关键规则**：当视频是新产品/新事件发布时，hook 必须用**观众一看就懂的词**（如 "ROBOTAXI"），而不是陌生型号名（如 "R2"）或抽象数字（如 "0"）。型号名对不熟悉品牌的观众无意义；自解释词（ROBOTAXI = robot + taxi）立刻传达内容。
+
+**经验来源**：
+- didi-robotaxi-r2 v1 用 "R2" 作 bigNumber，用户反馈"开头只写个 R2 谁知道是什么"
+- didi-robotaxi-r2 v2 改用 "0" + "DRIVERS NEEDED"，用户反馈"用 0 开头没有意义，用抓得住眼球的内容"
+- didi-robotaxi-r2 v3 用 "R2" + "DIDI ROBOTAXI"，用户反馈"R2 是陌生型号，用 ROBOTAXI 一看就知道"
+- didi-robotaxi-r2 v4 用 "ROBOTAXI" + "R2 NOW LIVE"，自解释词做主视觉焦点
+
 ---
 
 ## Step 6: 优化 CTA
@@ -208,6 +229,8 @@ CTA 公式：`[Action Verb] + [What They Get]`
 | ✅ Specific ask | "Comment which Chinese AI company I should cover next." | 驱动评论互动 |
 
 **规则**：CTA 回扣 Hook 的关键词或主题。系列视频 CTA 预告下一集。
+
+**视觉约定**：CTA scene 的所有文字（brand、tagline、action、topic）必须居中对齐。`CtaScene.tsx` 中每个文字 div 都需要 `textAlign: "center"`——外层容器的对齐不会穿透到内层 block div。漏加会导致 topic 或 action 文字左对齐，破坏 end card 的视觉对称。
 
 ---
 
@@ -253,4 +276,18 @@ CTA 公式：`[Action Verb] + [What They Get]`
 - **为什么每个 scene 有素材要求**：之前 scene 的 media 字段是事后填充的——先写 voiceover 再找图。现在每个 scene 在设计时就定义素材需求，让脚本驱动素材收集，而不是素材适配脚本。
 
 **assetNeed 约定（Stage 3 必填实践）**：scene 的素材需求写入结构化字段 `assetNeed: "一句英文视觉描述"`（不是 voiceover 里的文字标注——TTS 会把内嵌 `[ASSET NEEDED` 标注读出来，scene-rules B13 会 FAIL）。asset-sourcer 消费 `assetNeed` 做 per-scene claim 搜索并绑定到该 scene；VLM 对照 voiceover 主张做相关性审查，低于阈值的素材宁缺毋滥（scene 保持纯 CSS 是合法结果）。公司实体关键词仅作为无 `assetNeed` scene 的 fallback。
+
+**asset-sourcer 当前限制（2026-09-03 实测）**：
+- 中文新闻 CDP 源（如量子位 `qbitai`）`supportsKeyword=false` 且未在 `CDP_MEDIA_CAPABILITIES` 中注册 → asset-sourcer 无法按关键词搜索这些源，只能全量抓取最新文章列表
+- `claimToKeywords` 只从 `assetNeed` 生成英文视觉概念短语，不包含中文产品名/公司名 → 搜不到中文新闻站点的官方图片
+- 量子位等站点图片有 Referer 保护，下载链路不发送 Referer header → 403 AccessDenied
+- **手动 fallback**：从量子位文章手动下载图片时加 `-H "Referer: https://www.qbitai.com/"` header；下载后放入 `content/<topic>/assets/` 并在 scene-data 的 `media` 字段手动绑定
+- **改进方向**（未实现）：给中文新闻 CDP 源添加 `supportsKeyword=true` + 搜索 URL；`claimToKeywords` 融合 scene 的公司实体中文名；下载链路按源域名添加 Referer header
+
+**视频素材搜索限制（2026-09-03 实测）**：
+- 抖音、小红书、微博的 yt-dlp 下载被禁用（`YTDLP_VIDEO_CAPABILITIES` 只允许 bilibili 和 youtube）→ 中文社交平台视频无法自动获取
+- 中文新闻 CDP 源只有 `imageScript`，没有 `videoScript` → 无法从新闻站点抓取视频
+- Pexels/Coverr/YouTube/B站 搜英文关键词返回通用 stock 视频，VLM 相关性审查通常全部拒绝
+- **当前状态**：视频素材几乎只能靠手动提供。中文新闻事件视频需用户手动下载后放入 `content/<topic>/assets/` 并在 scene-data `media` 字段绑定
+- **改进方向**（未实现）：给中文新闻 CDP 源添加 `videoScript`；按平台政策启用抖音/小红书 MCP 视频下载
 - **研究报告 vs 操作指南**：研究报告是 "为什么"，本指南是 "怎么做"。两者互补。

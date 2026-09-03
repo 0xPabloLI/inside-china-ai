@@ -85,6 +85,41 @@ const KNOWN_COMPANIES = [
   "Feishu",
 ];
 
+/** English → Chinese company name mapping for CDP source search. */
+const COMPANY_NAME_ZH = {
+  didi: "滴滴",
+  baidu: "百度",
+  alibaba: "阿里巴巴",
+  tencent: "腾讯",
+  bytedance: "字节跳动",
+  huawei: "华为",
+  xiaomi: "小米",
+  nio: "蔚来",
+  xpeng: "小鹏",
+  "li auto": "理想",
+  "pony-ai": "小马智行",
+  "pony ai": "小马智行",
+  waymo: "Waymo",
+  tesla: "特斯拉",
+  deepseek: "深度求索",
+  unitree: "宇树",
+  moonshot: "月之暗面",
+  zhipu: "智谱",
+  minimax: "MiniMax",
+  sensetime: "商汤",
+  iflytek: "科大讯飞",
+  cambricon: "寒武纪",
+  "horizon robotics": "地平线",
+  ubtech: "优必选",
+  agibot: "智元",
+  bilibili: "哔哩哔哩",
+  douyin: "抖音",
+  wechat: "微信",
+  dingtalk: "钉钉",
+  feishu: "飞书",
+  "gac-aion": "广汽埃安",
+};
+
 /**
  * Scene types that should NOT have media assigned — re-exported from
  * claim-keywords (single source of truth).
@@ -143,9 +178,13 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
 export function extractKeywords(scenes, meta, cliKeywords) {
   const keywords = [];
 
-  // Tier 1: meta.keyEntities.companies
+  // Tier 1: meta.keyEntities.companies (+ Chinese names for CDP search)
   if (meta?.keyEntities?.companies && Array.isArray(meta.keyEntities.companies)) {
     keywords.push(...meta.keyEntities.companies);
+    for (const company of meta.keyEntities.companies) {
+      const zh = COMPANY_NAME_ZH[company.toLowerCase()];
+      if (zh) keywords.push(zh);
+    }
   }
 
   // Tier 2: CLI keywords
@@ -2537,12 +2576,18 @@ export async function main(args = process.argv.slice(2)) {
           const filename = buildFilename(source.name, keyword, j + 1, "jpg");
           const destPath = join(assetsDir, filename);
 
+          const headers = {};
+          if (source.name === "qbitai") {
+            headers["Referer"] = "https://www.qbitai.com/";
+          }
+
           await downloadAndRecord(candidate, {
             destPath,
             contentDir,
             label: source.name,
             sourceName: source.name,
             keyword,
+            downloadOpts: { headers },
             downloadedUrls,
             allAssets,
             failed,

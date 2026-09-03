@@ -1,20 +1,22 @@
 """
-LeapTalk v7: best-quality single video + audio guarantee (Kaggle T4)
+LeapTalk v8: WanVAE CFG sweep (Kaggle T4)
 
-Pattern borrowed from scripts/kaggle/infinitetalk-test/infinitetalk_inference.py
-(Xet disabled, /tmp for models, debug_log + atexit copy, Popen streaming).
+v8 rationale (2026-09-02 22:39 肉眼复核推翻 v5-v7 的 TAEHV 路线):
+  v5 A/B (TAEHV) 额头出现油画/水彩色块; C/D (WanVAE) 视觉干净.
+  => WanVAE 才是视觉正确路线, 之前 v6/v7 的 CFG 扫描全在 TAEHV 上做, 伪影
+  阈值结论不能外推到 WanVAE. v8 在 WanVAE 上重做 CFG 扫描.
 
-v6 result: 7-point CFG sweep (1.6-5.0, TAEHV, 1 step). lip-sync peaks at 3.0
-(r=0.677); mouth sharpness MONOTONICALLY rises with CFG (219@3.0 -> 360@4.0
--> 555@5.0) with NO sync loss up to 5.0. => quality lever = raise CFG + raise res.
-Source: inference.py argparse (height/width free, no bucket) + v6 local measure.
+Paper anchors (arXiv 2608.00079):
+  - Pro+WanVAE FID 21 (Table 1) vs Lite+TAEHV FID 38
+  - α=1.6 paper default (§Parameter Sensitivity)
+  - 1 step design goal (200 FPS on H200, Appendix F)
+  - 512×512 main experiments (Appendix F)
+  - WanVAE Dec 5.26s/10.1GB vs TAEHV 0.24s/0.4GB (Table 5) -> 3x slower but T4 15GB fits
 
-v7 plan: emit the best-looking single clip, then RE-MUX audio (AAC, start=0) so
-the deliverable is guaranteed to have a clean, broadly-playable sound track
-(the model's own mux is mp3 and the 2x2 grids lost audio in local re-encode).
-  C/D showed 3x slower and no sharpness gain on T4 -> WanVAE abandoned for v6.
-  v5 KERNEL ERROR traced to huggingface_hub[cli] -> broken entrypoints; root-cause
-  fixed in v6 by dropping [cli] extra (lib only).
+v8 sweep: α ∈ {1.6, 2.0, 2.5, 3.0, 3.5} × WanVAE × 1 step × 512² × Pro
+  - 1.6 = paper default (baseline)
+  - 2.0-3.0 = v6 TAEHV sweet spot, untested on WanVAE
+  - 3.5 = probe WanVAE artifact threshold (TAEHV destroys at α≥3, WanVAE unknown)
 
 v1 result: FAILED at STEP 3 (smoke import) -- ModuleNotFoundError: xfuser.
   Caught BEFORE the multi-GB download, so no GPU quota wasted. Good.
@@ -148,7 +150,7 @@ os.makedirs(WORK_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 with open(DEBUG_LOG, "w") as f:
-    f.write("LEAPTALK v5 SCRIPT STARTED\n")
+    f.write("LEAPTALK v8 SCRIPT STARTED\n")
     f.flush()
     os.fsync(f.fileno())
 
@@ -541,7 +543,8 @@ def main():
     print(f"  [OK] Model_Pro/ present | Lite TAE resolved: {tae}")
     print(f"  [{'OK' if HAVE_WAN_VAE else 'WARN'}] WanVAE {'found' if HAVE_WAN_VAE else 'MISSING'}: {wan_vae}")
     if not HAVE_WAN_VAE:
-        print("  -> --no_lite (WanVAE) variants will be skipped")
+        print(f"[FATAL] WanVAE missing at {wan_vae} -- v8 is WanVAE-only, cannot proceed")
+        sys.exit(1)
 
     print("=== STEP 5/7: prepare inputs (reuse infinitetalk-input dataset) ===")
     cond_image = os.path.join(WORK_DIR, "portrait.jpg")
@@ -550,18 +553,21 @@ def main():
     shutil.copy(os.path.join(INPUT_DIR, "audio.wav"), audio_path)
     print(f"  inputs: {cond_image} | {audio_path}")
 
-    print("=== STEP 6/7: run best-quality inference ===")
-    print("  v7 plan: best-looking single clip + higher-resolution attempt")
-    print("  Why: v6 proved quality levers are CFG (sharpness rises to 5.0, no sync")
-    print("       loss) and resolution (inference.py accepts free height/width).")
-    print("  V1 = CFG 4.0 @512 (sharp, solid sync) -> primary deliverable")
-    print("  V2 = CFG 3.5 @768 (more pixels; guarded, OOM falls back to V1)")
-    print("  WanVAE dropped: v5 C/D showed 3x slower + no sharpness gain on T4.")
+    print("=== STEP 6/7: run v8 WanVAE CFG sweep ===")
+    print("  v8: WanVAE (--no_lite) × CFG {1.6,2.0,2.5,3.0,3.5} × 1 step × 512² × Pro")
+    print("  Why: v5 肉眼复核 22:39 发现 WanVAE 视觉明显优于 TAEHV (无色块伪影),")
+    print("       但 v5 只在 WanVAE 上测了 α=1.6 单点 (唇同步 r=0.344 偏弱).")
+    print("       v6 在 TAEHV 上证 α 1.6→3.0 把 r 从 0.409 拉到 0.677, 但 TAEHV α≥3 毁容.")
+    print("       WanVAE 重建强 (FID 21 vs 38), 可能扛住高 CFG -> 找画质+唇同步双达标.")
+    print("  3.5 探 WanVAE 伪影边界 (TAEHV 在 α≥3.5 已毁容, WanVAE 未知).")
 
-    # (label, extra args, height, width). All TAEHV (Pro DiT), 1 step, fps 25.
+    # (label, extra args, height, width). All WanVAE (Pro DiT --no_lite), 1 step, fps 25.
     variants = [
-        ("v7_cfg4.0_512", "--guidance_scale 4.0 --lite --num_inference_steps 1 ", 512, 512),
-        ("v7_cfg3.5_768", "--guidance_scale 3.5 --lite --num_inference_steps 1 ", 768, 768),
+        ("v8_cfg1.6_wanvae", "--guidance_scale 1.6 --no_lite --num_inference_steps 1 ", 512, 512),
+        ("v8_cfg2.0_wanvae", "--guidance_scale 2.0 --no_lite --num_inference_steps 1 ", 512, 512),
+        ("v8_cfg2.5_wanvae", "--guidance_scale 2.5 --no_lite --num_inference_steps 1 ", 512, 512),
+        ("v8_cfg3.0_wanvae", "--guidance_scale 3.0 --no_lite --num_inference_steps 1 ", 512, 512),
+        ("v8_cfg3.5_wanvae", "--guidance_scale 3.5 --no_lite --num_inference_steps 1 ", 512, 512),
     ]
 
     def remux_audio(src, dst):

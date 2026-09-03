@@ -19,7 +19,7 @@ describe("extractSceneClaims", () => {
     expect(extractSceneClaims(scenes)).toEqual([
       {
         sceneId: 2,
-        claim: "transformer architecture diagram",
+        assetNeed: "transformer architecture diagram",
         voiceover: "It previews the Qwen4 architecture.",
       },
     ]);

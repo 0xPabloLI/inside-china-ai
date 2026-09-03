@@ -2449,6 +2449,33 @@ export const STOCK_MEDIA_SOURCES = [
 // Each config has: method:"cdp", url(keyword), imageScript, imageFallbackScript
 
 const CDP_MEDIA_CAPABILITIES = {
+  qbitai: {
+    method: "cdp",
+    url: () => "https://www.qbitai.com/",
+    imageScript: `
+      var results = [];
+      document.querySelectorAll('a[href*="qbitai.com"]').forEach(function(a) {
+        var text = a.textContent.trim();
+        if (text.length < 10 || text.length > 200) return;
+        var img = a.querySelector('img[src]') || a.parentElement.querySelector('img[src]');
+        if (img && !img.src.startsWith('data:') && (img.naturalWidth > 200 || img.width > 200)) {
+          results.push({ title: text, url: img.src, type: 'image', sourceUrl: a.href, snippet: text.substring(0, 200) });
+        } else {
+          results.push({ title: text, url: a.href, type: 'text', sourceUrl: a.href, snippet: text.substring(0, 200) });
+        }
+      });
+      return results;
+    `,
+    imageFallbackScript: `
+      var results = [];
+      document.querySelectorAll('img[src]').forEach(function(img) {
+        if ((img.naturalWidth > 200 || img.width > 200) && !img.src.startsWith('data:')) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
   ithome: {
     method: "cdp",
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,

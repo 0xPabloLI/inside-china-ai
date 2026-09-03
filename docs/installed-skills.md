@@ -95,6 +95,21 @@ testable; `code-review` reviews the recorded committed baseline.
 Do not edit update-managed copies under `.agents/skills/`. Put durable
 repository overrides in `docs/agents/implementation-workflow.md`.
 
+### Removed (2026-09-03)
+
+- **145 project-level duplicate skills deleted** — `.agents/skills/` and
+  `.cursor/skills/` each held full copies of skills already installed
+  identically at user level (`~/.agents/skills/`). Deleted the project-level
+  copies after byte-identical diff verification; skills remain available
+  globally. Kept in project: the 4 repo-skill symlinks (`web-deep-research`,
+  `web-access`, `brand-system`, `short-video-pipeline`), the `last30days`
+  symlink, the 10 project-only TanStack Start skills (`react-start`,
+  `router-core`, `router-plugin`, `start-core`, `start-server-core`,
+  `virtual-file-routes`, `devtools-bidirectional`, `devtools-event-client`,
+  `devtools-instrumentation`, `devtools-vite-plugin`), and `animation-porting`
+  (user-level copy differs). `skills-lock.json` retained. Project skill counts:
+  162 → 17 per directory.
+
 ### Removed (2026-09-02)
 
 - **`.claude/skills/` mirror deleted** — was 173 symlinks to `.agents/skills/*`,
@@ -112,6 +127,10 @@ repository overrides in `docs/agents/implementation-workflow.md`.
   `patch-generation`, `codebase-structure`, `fix-build-command`), `prd`, `doc-expert`.
   Removed from `~/.codeartsdoer/cache/` + `SystemSkillStatus.txt`. Not relevant
   (React/TanStack stack, no ArkTS; Matt `diagnosing-bugs`/`to-spec` overlap).
+- **Droid-side symlinks removed (2026-09-02)** — the 12 Matt experimental skills
+  above were also unlinked from `~/.factory/skills/` (117 → 105). Sources in
+  `~/.agents/skills/` and the `~/.claude`/`~/.cursor` symlinks were left untouched
+  (Droid-only scope, user decision).
 
 ## Third-Party Skills (Non-Matt-Pocock)
 

@@ -88,7 +88,7 @@ export function extractSceneClaims(scenes) {
 
     claims.push({
       sceneId: scene.id,
-      claim,
+      assetNeed: claim,
       voiceover: scene.voiceover || "",
     });
   }

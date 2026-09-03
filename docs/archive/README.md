@@ -155,6 +155,7 @@
 | `handoff-remotion-layout-refactor.md` | 2026-08-26 | Remotion 布局重构交接 — T1-T6 全部完成。6 布局变体 + SPACING + @remotion/media 迁移 + rough-notation + Interactive.Div + 转场多样化 + safe-zone 回归测试。Step 5 code review 已完成。 |
 | `handoff-hashtag-pipeline-gaps.md` | 2026-08-26 | Hashtag 管线缺口修复 — 缺口 A（trendingHashtags 消费：normalizeHashtag + deriveHashtags 优先级分层 + 满 5 替换 + 人工覆盖锁定）+ 缺口 B（Apify JS 客户端：runActor + fetchHashtagVideos + LRU 缓存 + 成本护栏 + research-hashtags.mjs CLI）+ P1/P2/P3 修复。84 tests passing。 |
 | `handoff-video-download-breakthrough.md` | 2026-08-27 | 视频下载突破研究 — 旧版 handoff（伪代码 + Cobalt-first 方案）。已被 VDL 实际代码（`video-downloaders.mjs` + 42 tests）和新版 handoff（`handoff-video-download-pipeline-integration.md`）替代。保留作历史参考。 |
+| `handoff-text-overflow-hardening-2026-08-31.md` | 2026-09-03 | 短视频文本溢出根治 epic 实施 handoff — T1–T12 进度追踪 + 逐 session 交付记录 + 下一 session 启动导航（12/12 完成，父票 #141 收官；spec/tickets 见 `docs/archive/spec-text-overflow-hardening.md`，最终契约在 `scripts/short-video/lib/text-slots.mjs` + TextGate 几何硬门）。余 #165 中文分词 dormant |
 
 > **未归档的 handoff**（`docs/handoffs/` 中仍活跃）：
 > - `handoff-asset-source-unification.md` — 素材源统一命名，待实施

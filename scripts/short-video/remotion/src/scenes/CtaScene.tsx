@@ -122,6 +122,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                       color: "#f59e0b",
                       letterSpacing: "2px",
                       textShadow: "0 0 30px rgba(245,158,11,0.3)",
+                      textAlign: "center",
                     }}
                   >
                     {txt.action as string}
@@ -143,6 +144,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                     color: "#cbd5e1",
                     letterSpacing: "3px",
                     marginTop: 24,
+                    textAlign: "center",
                   }}
                 >
                   {txt.topic as string}
