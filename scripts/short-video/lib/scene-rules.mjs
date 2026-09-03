@@ -30,6 +30,7 @@ import {
 import {
   REMOTION_SLOT_MAP,
   DEFAULT_NARRATIVE_LAYOUT,
+  slotId,
   slotCharBudget,
 } from "./text-slots.mjs";
 
@@ -1374,12 +1375,12 @@ export function checkTextWidthBudget(scenes) {
       });
       if (budget == null) continue;
       if (value.length <= budget) continue;
-      const maxWidthNote = `${scene.visualType}.${layout}.${field}`;
+      const slotLabel = slotId({ visualType: scene.visualType, layout, field });
       results.push({
         level: "warn",
         category: "Layout",
         check: `Text width budget — ${field} in ${scene.visualType}.${layout}`,
-        detail: `${value.length} chars (contract budget ${budget} @ ${maxWidthNote}): "${value}"`,
+        detail: `${value.length} chars (contract budget ${budget} @ ${slotLabel}): "${value}"`,
         fix: `Consider shortening ${field} to ≤${budget} chars or moving to a wider layout — final judgment is the TextGate real-geometry gate.`,
       });
     }
