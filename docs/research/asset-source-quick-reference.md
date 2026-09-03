@@ -99,12 +99,12 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 |----------|--------------|-----------------|--------|--------|
 | **YouTube** | MCP fallback (search) | `yt-dlp --cookies-from-browser firefox` | No | ✅ Search + Download working |
 | **B站** | `bilibili-api-python` (search) + CDP fallback | `yt-dlp --cookies-from-browser firefox` | No | ✅ Search + Download tested |
-| **抖音** | CDP (needs login) → MCP fallback | `Douyin_TikTok_Download_API` (local, handles a_bogus) or `chubbyskills` (no login) | Search: yes, Download: no | ⚠️ Download untested |
+| **抖音** | CDP (needs login) → MCP fallback | CDP `iesdouyin.com/share/video/` → `video.currentSrc` → curl with Referer | Search: yes, Download: yes | ✅ Download verified 2026-09-03 |
 | **小红书** | CDP (needs login) → MCP fallback (RedNote-MCP) | RedNote-MCP or XHS-Downloader | Yes (both) | ⚠️ MCP tested, needs `rednote-mcp init` |
 | **微博** | CDP (search needs login) → Google site: fallback | weibo-downloader-skill (visitor cookie, no login) | Search: yes, Download: no | ✅ Download API tested |
 | **TikTok** | ScrapeCreators API (primary, no login) | CDP `item/detail` API (default) → manual (fallback) | No (search) | ✅ Search + Download verified |
 
-> **抖音下载不依赖第三方付费 API** — `Douyin_TikTok_Download_API` 是开源本地部署方案（19K stars），自己实现 `a_bogus` 签名算法。`chubbyskills` 用 `iesdouyin.com/share/video/` 端点也无需 cookie/登录。两者都未测试验证。
+> **抖音下载** (verified 2026-09-03) — CDP 访问 `https://www.iesdouyin.com/share/video/{video_id}`（无需 cookie/登录），从 `<video>` 元素的 `currentSrc` 提取 CDN 下载链接，用 `curl -H "Referer: https://www.douyin.com/"` 下载。注意：chubbyskills 的 SSR 方案（从 `window._ROUTER_DATA` 提取 `videoInfoRes`）已失效——页面结构变化，`videoInfoRes` 不再存在；但 CDP 方案（客户端 JS 渲染后从 video 元素提取）可用。测试样本：video ID `7680095489249536842`（滴滴自动驾驶 R2），下载 327KB MP4 成功。
 
 > **TikTok 下载** (verified 2026-08-24) — CDP `item/detail` API 是默认方法：浏览器内 `fetch('/aweme/v1/web/item/detail/?itemId=ID&aid=1988')` → `playAddr` → `fetch(playAddr, {credentials:'include'})` → Blob → base64 分块下载。无需逆向签名、无需第三方服务。详细 JS 代码见 `docs/research/reference-video-extraction.md` TikTok section。第三方方案对比（TikTokApi, Cobalt, Douyin_TikTok_Download_API, tiktok-api-dl, yt-dlp）也见该文档。
 

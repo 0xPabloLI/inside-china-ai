@@ -617,10 +617,9 @@ describe("MCP fallback configuration", () => {
     expect(src.mcpFallback.toolName).toBe("search_videos");
   });
 
-  it("douyin has mcpFallback", () => {
+  it("douyin does NOT have mcpFallback (douyin_mcp never installed, iesdouyin CDP download verified 2026-09-03)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "douyin");
-    expect(src.mcpFallback).toBeDefined();
-    expect(src.mcpFallback.toolName).toBe("search_videos");
+    expect(src.mcpFallback).toBeUndefined();
   });
 
   it("tiktok_creator does NOT have mcpFallback (API + CDP only)", () => {

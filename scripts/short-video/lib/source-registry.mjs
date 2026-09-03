@@ -705,22 +705,12 @@ export const SELF_MEDIA_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP (requires login) → MCP fallback (search_videos). needsAuth=true.",
+      notes: "CDP (requires login for search) → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
     },
     needsAuth: true,
     useCleanTitle: true,
     url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}`,
-    mcpFallback: {
-      command: "python",
-      args: ["-m", "douyin_mcp"],
-      toolName: "search_videos",
-      toolArgs: (keyword) => ({ keyword, count: 20 }),
-      resultMapper: (items) =>
-        items.map((item) => ({
-          title: item.title || item.desc || "",
-          url: item.url || item.link || item.video_id || "",
-        })),
-    },
+
     loginCheckScript: `
       var loginModal = document.querySelector('[class*="login"], [class*="Login"]');
       var body = document.body ? document.body.innerText : '';

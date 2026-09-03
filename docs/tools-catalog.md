@@ -277,6 +277,52 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 }
 ```
 
+### 搜索 MCP 配置参考（公开模板）
+
+> 以下记录本项目搜索管线依赖的 MCP 工具配置结构。敏感 token 已替换为 `<PLACEHOLDER>`，实际值在 `.env.local` 或全局 `mcopilot_mcp_settings.json` 中。仅列非通用、专门为 source-registry 搜索配的 MCP。
+
+#### CatPaw 全局 MCP（`mcopilot_mcp_settings.json` 中搜索相关）
+
+```json
+{
+  "mcpServers": {
+    "mcp-search-bridge": {
+      "command": "node",
+      "args": ["~/mcp-search-bridge/server.js"],
+      "env": {
+        "SEARCH_BASE_URL": "<SEARCH_BASE_URL>",
+        "SEARCH_API_KEY": "<SEARCH_API_KEY>",
+        "SEARCH_MODEL": "grok-chat-fast"
+      }
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@brave/brave-search-mcp-server"],
+      "env": { "BRAVE_API_KEY": "<BRAVE_API_KEY>" }
+    },
+    "jina": {
+      "command": "npx",
+      "args": ["-y", "jina-mcp-tools@latest"],
+      "env": { "JINA_API_KEY": "<JINA_API_KEY>" }
+    },
+    "tavily": {
+      "type": "http",
+      "url": "https://mcp.tavily.com/mcp/?tavilyApiKey=<TAVILY_API_KEY>"
+    }
+  }
+}
+```
+
+#### source-registry MCP fallback（独立安装，不在全局 MCP settings 中）
+
+| 工具 | 安装命令 | source-registry 用途 | 安装状态 |
+|------|---------|---------------------|---------|
+| `rednote-mcp` | `npm install -g rednote-mcp` | 小红书 `search_notes`（source-registry `xiaohongshu` 源 mcpFallback） | ✅ 已安装 |
+| `douyin_mcp` | `pip install douyin_mcp`（待确认包名） | 抖音 `search_videos`（source-registry `douyin` 源 mcpFallback） | ❌ 未安装 |
+| `mcp-search-bridge` | 自建 Node.js server（`~/mcp-search-bridge/server.js`） | X/Twitter + 5 个西方源 mcpFallback | ✅ 已安装 |
+
+**确认**：这些 MCP 工具是 source-registry 中 `mcpFallback` 字段指向的抓取方案。`rednote-mcp` 和 `douyin_mcp` 分别用于小红书和抖音的视频搜索；`mcp-search-bridge` 用于 X/Twitter 等西方源的搜索 fallback。
+
 ### AutoVio — 开源生成式视频管线（参考项目，不采用）
 
 - **分类**：视频生成管线（参考）
