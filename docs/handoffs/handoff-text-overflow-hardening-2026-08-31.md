@@ -60,7 +60,7 @@
 | 文档                                                            | 角色                                                            | 何时读                 |
 | --------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
 | `tickets-text-overflow-hardening.md`                            | **ticket 清单 + 逐条验收 checklist**（本 session 状态以它为准） | 第一                   |
-| `spec-text-overflow-hardening.md`                               | 12-ticket 拆分依据 + 验收标准（含「T6 方向修订」决策 57–62、「T12 方向修正」决策 63–71） | 接 T9/T12 前           |
+| `docs/archive/spec-text-overflow-hardening.md`                   | 12-ticket 拆分依据 + 验收标准（含「T6 方向修订」决策 57–62、「T12 方向修正」决策 63–71）——已归档 | 接 T9/T12 前           |
 | `docs/handoffs/handoff-text-overflow-fix-proposal.md`           | 方案 v3.3（自包含，方向已批准）                                 | 想理解"为什么"时       |
 | `docs/research/text-auto-fit-landscape-research.md`             | 两轮 deep research：官方边界 + 行业方案 + 能力利用审计          | 接 T6 前（决策 57–62 依据） |
 | `docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md` | 五轮 review 存档（阻断项如何被解决）                            | 怀疑某决策时           |
