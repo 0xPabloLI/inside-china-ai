@@ -3,7 +3,7 @@
 The short-video pipeline originally rendered scenes twice: HTML/CSS templates
 recorded by Playwright, and React components rendered by Remotion. On
 2026-09-01 the HTML path was **retired** (decision 59,
-`spec-text-overflow-hardening.md`, issue #147): an audit found 15/15 content
+`docs/archive/spec-text-overflow-hardening.md`, issue #147): an audit found 15/15 content
 packs already on the Remotion renderer, making this path zero-consumer legacy.
 
 These files are kept for reference only — **they are not imported, tested, or

@@ -3,7 +3,7 @@
 > 创建：2026-09-01 ｜ 触发：text-overflow hardening（T1–T5 已交付 ~1,650 行核心代码）后
 > 质疑「是否过度设计、复杂度是否由 Remotion 引入」
 > 方法：Standard tier，本地源码验证（Tier 1）优先，网络来源交叉印证；两轮（第二轮补官方能力利用审计与官方边界复核）
-> **落地状态**：调研结论已转为 spec 决策 57–62（`spec-text-overflow-hardening.md`「T6 方向修订」章节）——Fit 内核换官方 `fitText`、HTML 路径退役、中文分词问题立 #165。本报告保留为决策依据存档。
+> **落地状态**：调研结论已转为 spec 决策 57–62（`docs/archive/spec-text-overflow-hardening.md`「T6 方向修订」章节）——Fit 内核换官方 `fitText`、HTML 路径退役、中文分词问题立 #165。本报告保留为决策依据存档。
 
 ## Executive Summary
 
