@@ -146,7 +146,8 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
    - 只写足以变 green 的实现；
    - review 发现设计问题后再 refactor，并保持测试 green。
 4. 每个 scenario 都是 verification obligation，但不等于必须各写一个自动化测试；按 `docs/conventions/scenario-matrix.md` 指定可追溯 evidence。
-5. 运行定向验证，完成 ticket checklist，然后按 `docs/agents/git-workflow.md` 创建 atomic commit。
+5. **对同一文件的多次编辑必须串行执行，不得放进同一批并行工具调用**：并行调用各自基于同一旧内容读-改-写回，后写者会静默冲掉先写者（2026-09-03 事故：hook 文件的两个编辑并行发出，登记校验块被头部注释编辑覆盖，测试 red 后才暴露）。每轮编辑后核对全部预期改动都落在工作区（grep 关键标记），再进入下一步。
+6. 运行定向验证，完成 ticket checklist，然后按 `docs/agents/git-workflow.md` 创建 atomic commit。
 
 难复现 bug 先调用 `diagnosing-bugs` 建立 tight red-capable loop，再进入本节。
 
