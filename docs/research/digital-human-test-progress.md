@@ -1300,32 +1300,32 @@
 |---|----------|---------|------|--------|---------|----------|--------|--------|------|
 | 1 | ~~EchoMimicV3 Flash (v51 最优配置)~~ | Wan2.1-Fun-V1.1-1.3B | 原始版 | Apache 2.0 | T4✅ | ✅ **最优** | — | TeaCache on + torch.compile + 720p + 8步，~14min/段 |
 | 2 | ~~EchoMimicV3 app_mm.py 参数组合 (v34)~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | P100✅ | ✅ 已完成 | — | 3 test case 全成功，app_mm 参数无加速 |
-| 3 | ~~EchoMimicV3 NF4/bnb 量化~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 (Modal) | ✅ **已完成** | — | Modal T4 186GB RAM + NF4 + model_cpu_offload：5.0min/段 vs baseline 5.9min，推理 43% 加速。Kaggle/Colab Free RAM 不足 |
-| 4 | InfiniteTalk (原始版) | Wan2.1-I2V-14B | 原始版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 无限长度 + 中文，14B Wan2.1 基座 |
+| 3 | ~~EchoMimicV3 NF4/bnb 量化~~ | Wan2.1-Fun-V1.1-1.3B | 量化版 | Apache 2.0 | T4 (Modal) | ✅ **已完成** | — | Modal T4 186GB RAM + NF4 + model_cpu_offload：5.0min/段 vs baseline 5.9min，推理 43% 加速 |
+| 4 | ~~InfiniteTalk (原始版)~~ | Wan2.1-I2V-14B | 原始版 | Apache 2.0 | A100 | ✅ **v10.18 已测** | — | lightx2v 4步可商用，9.3min/3s，lip sync 达标表情偏僵 |
 | 5 | MultiTalk INT8 量化版 | Wan2.1-I2V-14B | 量化版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 已发布 INT8 + SageAttention |
-| 6 | LongCat GPU INT8 | LongCat-Video 13.6B DiT | 量化版 | MIT | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | INT8 仅量化 DiT；官方其余组件仍用 bf16，T4/P100 非已验证路径 |
+| 6 | ~~LongCat GPU INT8~~ | LongCat-Video 13.6B DiT | 量化版 | MIT | A100 | ✅ **v11.1 已测** | — | bf16+DMD 8步，4.3min/3.2s，唇同步正常但口型偏夸张 |
 | 7 | Wan2GP InfiniteTalk 低VRAM | Wan2.1 (deepbeepmeep 优化) | 优化版 | 开源 | T4 | Kaggle | ⭐⭐⭐ | deepbeepmeep，6GB 可跑 |
 | 8 | EchoMimicV3 ComfyUI LCM | Wan2.1-Fun-V1.1-1.3B | 加速版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐ | 4步推理，需 ComfyUI 环境 |
-| 9 | InfiniteTalk + lightX2V LoRA | Wan2.1-I2V-14B | 加速版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐ | 4-8步推理 |
-| 10 | LongCat MLX q8 | LongCat-Video 13.6B DiT | 本地量化 | MIT | — | 本地 M2 Pro | ⭐⭐⭐ | 质量接近 bf16 |
+| 9 | ~~InfiniteTalk + lightX2V LoRA~~ | Wan2.1-I2V-14B | 加速版 | Apache 2.0 | A100 | ✅ **v10.18 已测** | — | 即 #4 的加速版 |
+| 10 | ~~LongCat MLX q8~~ | LongCat-Video 13.6B DiT | 本地量化 | MIT | — | ❌ 本地失败 | — | MLX 移植不像本人+全黑；云 GPU 版已测（#6） |
 | 11 | ~~EchoMimicV3 T4 平台测试~~ | Wan2.1-Fun-V1.1-1.3B | 平台测试 | Apache 2.0 | T4 | ✅ 已完成 | — | T4 替代 P100，快 24%，已固化为最优配置 |
-| 12 | Sonic (原始版) | SVD UNet + Whisper-Tiny | 质量基准 | ❌ 非商用 | T4 | Kaggle/Colab | ⭐⭐⭐ | 做质量对比基准 |
-| 13 | LatentSync 1.6 省内存模式 | SD UNet + VAE | 原始版 | OpenRAIL++ | L4/A100（≥18GB） | Colab Pro+/云 GPU | ⭐⭐⭐ | 官方最低 18GB；T4 x2 显存不合并，不能视为 30GB 路径 |
-| 14 | Hallo3 (原始版) | CogVideo DiT | 原始版 | MIT | H100（A100 需先验证） | 云 GPU | ⭐⭐⭐ | 官方仅在 H100 测试；T4 16GB 无已验证路径 |
-| 15 | FeatherTalk | 轻量 CNN | 轻量级 | ❓ | — | 本地 M2 Pro | ⭐⭐ | 超轻量 |
+| 12 | ~~Sonic (原始版)~~ | SVD UNet + Whisper-Tiny | 质量基准 | ❌ 非商用 | T4 | ❌ 不测 | — | 非商用，license 门禁不通过 |
+| 13 | ~~LatentSync 1.6 省内存模式~~ | SD UNet + VAE | 原始版 | OpenRAIL++ | L4/A100 | ❌ T4 OOM | — | T4 16GB 不够（需 18GB），已验证 |
+| 14 | ~~Hallo3 (原始版)~~ | CogVideo DiT | 原始版 | MIT | A100 | ❌ **否决** | — | self-portrait+deepseek A/B 与 EchoMimicV3 接近无优势；只能英文+只能 head |
+| 15 | FeatherTalk | 轻量 CNN | 轻量级 | ❓ | — | 本地 M2 Pro | ⭐⭐ | 超轻量，license 待确认 |
 | 16 | LTX-2.3 + AV-LoRA | LTX-Video 22B DiT | DiT+LoRA | OpenRAIL | L4/A100 | Colab Pro+ | ⭐⭐ | 22B 需大显存 + bf16 |
 | 17 | **EMO** | Stable Diffusion + Audio2Video | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐⭐⭐ | 阿里，ECCV 2024，7601 stars，未公开 weights |
-| 18 | **PersonaLive** | 扩散 (SD1.5 基座) | 原始版 | ❌ 非商用 | T4（12GB） | Kaggle | ⭐⭐⭐⭐⭐ | CVPR 2026，实时流式，ComfyUI 已支持 |
-| 19 | **DICE-Talk** | 扩散+情感解耦 | 原始版 | ❌ 非商用 | L4/A100（20GB+） | Colab Pro+/云 GPU | ⭐⭐⭐⭐⭐ | ACM MM 2025，情感解耦，20GB+ |
+| 18 | ~~**PersonaLive**~~ | 扩散 (SD1.5 基座) | 原始版 | ❌ 非商用 | T4 | ❌ 不测 | — | 非商用，license 门禁不通过 |
+| 19 | ~~**DICE-Talk**~~ | 扩散+情感解耦 | 原始版 | ❌ 非商用 | L4/A100 | ❌ 不测 | — | 非商用，license 门禁不通过 |
 | 20 | **Hallo4** | 扩散 (Hallo 系列最新) | 原始版 | MIT | A100 | 云 GPU | ⭐⭐⭐⭐ | 2025.05，Hallo 系列最新版 |
 | 21 | **Hallo-Live** | 扩散实时 | 实时版 | MIT | T4 | Kaggle | ⭐⭐⭐ | 实时版本，MIT 许可 |
-| 22 | **V-Express** | SD 1.5 | 原始版 | ❓ | T4（~12GB） | Kaggle | ⭐⭐⭐⭐ | 腾讯，渐进式训练扩散，2357 stars |
+| 22 | ~~**V-Express**~~ | SD 1.5 | 原始版 | ❓ | T4 | ❌ MPS 太慢 | — | 17min/sub-step，已本地测放弃 |
 | 23 | **JoyVASA** | 扩散+解耦表示 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐⭐ | 京东健康，中文支持，876 stars |
-| 24 | **EchoMimic V2** | SD + 关键点 | 原始版 | Apache 2.0 | T4（~16GB） | Kaggle | ⭐⭐⭐⭐ | 2024.07，4279 stars |
-| 25 | **AniPortrait** | SD + 关键点 | 原始版 | ❓ | T4（~12GB） | Kaggle | ⭐⭐⭐⭐ | 2024.03，5019 stars |
+| 24 | **EchoMimic V2** | SD + 关键点 | 原始版 | Apache 2.0 | T4 | Kaggle | ⭐⭐⭐⭐ | 2024.07，4279 stars |
+| 25 | **AniPortrait** | SD + 关键点 | 原始版 | ❓ | T4 | Kaggle | ⭐⭐⭐⭐ | 2024.03，5019 stars |
 | 26 | **DreamTalk** | 扩散 | 原始版 | ❓ | T4 | Kaggle | ⭐⭐⭐ | 阿里，1789 stars |
 | 27 | **Hallo (v1)** | 分层扩散 | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐ | 2024.06，8658 stars |
-| 28 | **Hallo2 (云 GPU)** | 分层扩散 | 原始版 | MIT | A100（20GB+） | 云 GPU | ⭐⭐⭐⭐ | 2024.10，MIT 许可，已本地测过 256px |
+| 28 | ~~**Hallo2 (云 GPU)**~~ | 分层扩散 | 原始版 | MIT | A100 | ❌ 256px 太低 | — | 已本地测过 256px 放弃 |
 | 29 | **LatentSync 1.5** | SD UNet + VAE | 原始版 | OpenRAIL++ | T4（8GB） | Kaggle | ⭐⭐⭐⭐ | 8GB 即可跑，T4 单卡足够 |
 | 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⚠️ v4 1.41 FPS / 默认参数近静态 | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
 | 31 | **SoulX-FlashHead** | Soul-AILab 自研 (1.3B) | 实时流式 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐ | 2026-02-12 开源，LeapTalk 基座，无限长度+实时流式 talking head |
