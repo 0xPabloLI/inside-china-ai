@@ -323,6 +323,38 @@ async function collectFromMcp(source, keyword) {
   return articles;
 }
 
+/**
+ * Issue #66 Step 0.5: should CDP be skipped when the API layer returned 0?
+ *
+ * True when the source's CDP url points at the SAME endpoint as its API url
+ * (e.g. wechat2rss_* RSS feeds, hackernews_search Algolia JSON, reddit_search
+ * .json): same URL means same result, so opening a browser tab after an API
+ * failure is pure waste. Sources whose CDP url is a distinct site-search page
+ * (gnews, arxiv_search, github_search, ...) keep the normal fallback.
+ *
+ * @param {Object} source - Source definition from source-registry
+ * @param {string|null} keyword - Search keyword (null → DEFAULT_KEYWORDS[0])
+ * @returns {boolean} true when CDP fallback after API failure is redundant
+ */
+export function shouldSkipCdpOnApiFail(source, keyword) {
+  // #67: Read from capabilities.articles with top-level fallback
+  const cap = source?.capabilities?.articles;
+  const apiSearch = cap?.apiSearch ?? source?.apiSearch;
+  const cdpUrlFn = cap?.url ?? source?.url;
+  if (!apiSearch || !cdpUrlFn) return false;
+
+  const kw = keyword || DEFAULT_KEYWORDS[0];
+  let apiUrl;
+  let cdpUrl;
+  try {
+    apiUrl = apiSearch.url(kw);
+    cdpUrl = cdpUrlFn(kw);
+  } catch {
+    return false; // Can't prove redundancy → keep the normal fallback
+  }
+  return !!apiUrl && apiUrl === cdpUrl;
+}
+
 async function collectFromSource(source, keyword) {
   // #67: Read from capabilities.articles with top-level fallback
   const cap = source.capabilities?.articles;
@@ -337,8 +369,10 @@ async function collectFromSource(source, keyword) {
     articles = await collectFromApi(source, keyword);
   }
 
-  // Step 1: If API failed (or not configured), try CDP
-  if (articles.length === 0) {
+  // Step 0.5 (Issue #66): If API failed AND the CDP url is the same endpoint
+  // as the API url, skip CDP — same URL, same result, pure browser waste.
+  // Sources without an API are unaffected (shouldSkipCdpOnApiFail returns false).
+  if (articles.length === 0 && !shouldSkipCdpOnApiFail(source, keyword)) {
     articles = await collectFromCdp(source, keyword);
   }
 
@@ -614,7 +648,13 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(`❌ ${e.message}`);
-  process.exit(1);
-});
+// Auto-run only when invoked directly as a CLI script (same pattern as
+// asset-sourcer.mjs). Required so tests can import shouldSkipCdpOnApiFail
+// without triggering a live discovery run.
+const isMainModule = process.argv[1] && process.argv[1].endsWith("search-sources.mjs");
+if (isMainModule) {
+  main().catch((e) => {
+    console.error(`❌ ${e.message}`);
+    process.exit(1);
+  });
+}
