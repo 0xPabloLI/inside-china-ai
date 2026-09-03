@@ -494,6 +494,45 @@ export const NEWS_SOURCES = [
       return results;
     `,
   },
+  {
+    name: "baidu_news",
+    label: "百度新闻搜索",
+    category: "news",
+    locale: "zh-CN",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes: "CDP search page (news.baidu.com/ns). Articles + images from same DOM. No account, no API key.",
+    },
+    needsAuth: false,
+    useCleanTitle: false,
+    url: (keyword) =>
+      `https://www.baidu.com/ns?word=${encodeURIComponent(keyword)}&tn=news&rtt=4&medium=0`,
+    articleScript: `
+      var items = document.querySelectorAll('.result-op, .result, .news-result, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('h3, h2, .news-title-font_1xS-F, .title, a[aria-label]');
+        if (link && title) {
+          var titleText = title.textContent.trim();
+          if (titleText && titleText.length > 5) {
+            results.push({ title: titleText, url: link.href, imageUrl: img ? img.src : null });
+          }
+        }
+      });
+      if (results.length === 0) {
+        document.querySelectorAll('a[href]').forEach(function(a) {
+          var text = a.textContent.trim();
+          if (text.length > 10 && text.length < 200) {
+            results.push({ title: text, url: a.href, imageUrl: null });
+          }
+        });
+      }
+      return results;
+    `,
+  },
 ];
 
 // ─── New self-media sources (TE-T2) ───
@@ -1474,6 +1513,94 @@ export const INTERNATIONAL_SOURCES = [
       return results.slice(0, 20);
     `,
   },
+  {
+    // #64: Reclassified from GENERAL_SEARCH_SOURCES — Currents is a news
+    // aggregation API, not a general web search engine.
+    name: "currents",
+    label: "Currents",
+    category: "international",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes:
+        "API (currentsapi.services/v1/search, free tier 200 req/day). Requires CURRENTS_API_KEY. Real-time global news from 50+ countries.",
+    },
+    useCleanTitle: false,
+    // Currents API: returns JSON with news[] containing title, description, url, published
+    apiSearch: {
+      url: (keyword) =>
+        `https://api.currentsapi.services/v1/search?keywords=${encodeURIComponent(keyword)}&language=en&limit=10&apiKey=${process.env.CURRENTS_API_KEY || ""}`,
+      parser: (text) => {
+        const data = JSON.parse(text);
+        if (!data.news) return [];
+        return data.news.map((article) => ({
+          title: article.title || "",
+          url: article.url || "",
+          snippet: article.description ? article.description.substring(0, 200) : "",
+          publishedAt: article.published || "",
+          author: article.author || article.source_category?.[0] || "",
+        }));
+      },
+      authRequired: true,
+      headers: {},
+    },
+    url: (keyword) => `https://currentsapi.services/search?q=${encodeURIComponent(keyword)}`,
+    articleScript: `
+      var results = [];
+      document.querySelectorAll('article, .news-item, [class*="article"]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h2, h3, .title, [class*="title"]');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href });
+        }
+      });
+      return results.slice(0, 20);
+    `,
+  },
+  {
+    // #64: Reclassified from GENERAL_SEARCH_SOURCES — Noozra is a news
+    // aggregation API (200+ curated RSS sources), not a general web search engine.
+    name: "noozra_search",
+    label: "Noozra",
+    category: "international",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes:
+        "API (noozra.com/api/search, free, no auth, 100 req/day per IP). News headlines from 200+ curated RSS sources. JSON response.",
+    },
+    useCleanTitle: false,
+    // Noozra API: returns JSON with articles[] containing headline, url, published_at, source
+    apiSearch: {
+      url: (keyword) => `https://noozra.com/api/search?q=${encodeURIComponent(keyword)}&limit=10`,
+      parser: (text) => {
+        const data = JSON.parse(text);
+        if (!data.articles) return [];
+        return data.articles.map((article) => ({
+          title: article.headline || "",
+          url: article.url || "",
+          snippet: article.description ? article.description.substring(0, 200) : "",
+          publishedAt: article.published_at || "",
+          author: article.source || "",
+        }));
+      },
+      authRequired: false,
+    },
+    url: (keyword) => `https://noozra.com/search?q=${encodeURIComponent(keyword)}`,
+    articleScript: `
+      var results = [];
+      document.querySelectorAll('article, .news-item, .headline, [class*="article"]').forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var title = el.querySelector('h2, h3, .title, [class*="headline"]');
+        if (link && title) {
+          results.push({ title: title.textContent.trim(), url: link.href });
+        }
+      });
+      return results.slice(0, 20);
+    `,
+  },
 ];
 
 // ─── General search sources ───
@@ -1620,90 +1747,6 @@ export const GENERAL_SEARCH_SOURCES = [
       timeoutMs: 60000,
       resultMapper: parseGrokListResult,
     },
-  },
-  {
-    name: "currents",
-    label: "Currents",
-    category: "general",
-    needsAuth: false,
-    supportsKeyword: true,
-    accessMethod: {
-      primary: "api",
-      notes:
-        "API (currentsapi.services/v1/search, free tier 200 req/day). Requires CURRENTS_API_KEY. Real-time global news from 50+ countries.",
-    },
-    useCleanTitle: false,
-    // Currents API: returns JSON with news[] containing title, description, url, published
-    apiSearch: {
-      url: (keyword) =>
-        `https://api.currentsapi.services/v1/search?keywords=${encodeURIComponent(keyword)}&language=en&limit=10&apiKey=${process.env.CURRENTS_API_KEY || ""}`,
-      parser: (text) => {
-        const data = JSON.parse(text);
-        if (!data.news) return [];
-        return data.news.map((article) => ({
-          title: article.title || "",
-          url: article.url || "",
-          snippet: article.description ? article.description.substring(0, 200) : "",
-          publishedAt: article.published || "",
-          author: article.author || article.source_category?.[0] || "",
-        }));
-      },
-      authRequired: true,
-      headers: {},
-    },
-    url: (keyword) => `https://currentsapi.services/search?q=${encodeURIComponent(keyword)}`,
-    articleScript: `
-      var results = [];
-      document.querySelectorAll('article, .news-item, [class*="article"]').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h2, h3, .title, [class*="title"]');
-        if (link && title) {
-          results.push({ title: title.textContent.trim(), url: link.href });
-        }
-      });
-      return results.slice(0, 20);
-    `,
-  },
-  {
-    name: "noozra_search",
-    label: "Noozra",
-    category: "general",
-    needsAuth: false,
-    supportsKeyword: true,
-    accessMethod: {
-      primary: "api",
-      notes:
-        "API (noozra.com/api/search, free, no auth, 100 req/day per IP). News headlines from 200+ curated RSS sources. JSON response.",
-    },
-    useCleanTitle: false,
-    // Noozra API: returns JSON with articles[] containing headline, url, published_at, source
-    apiSearch: {
-      url: (keyword) => `https://noozra.com/api/search?q=${encodeURIComponent(keyword)}&limit=10`,
-      parser: (text) => {
-        const data = JSON.parse(text);
-        if (!data.articles) return [];
-        return data.articles.map((article) => ({
-          title: article.headline || "",
-          url: article.url || "",
-          snippet: article.description ? article.description.substring(0, 200) : "",
-          publishedAt: article.published_at || "",
-          author: article.source || "",
-        }));
-      },
-      authRequired: false,
-    },
-    url: (keyword) => `https://noozra.com/search?q=${encodeURIComponent(keyword)}`,
-    articleScript: `
-      var results = [];
-      document.querySelectorAll('article, .news-item, .headline, [class*="article"]').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h2, h3, .title, [class*="headline"]');
-        if (link && title) {
-          results.push({ title: title.textContent.trim(), url: link.href });
-        }
-      });
-      return results.slice(0, 20);
-    `,
   },
 ];
 
@@ -2897,6 +2940,11 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "Varies",
     logoRequired: false,
   },
+  baidu_news: {
+    text: (a) => `文章来源: 百度新闻 (baidu.com)`,
+    license: "Varies",
+    logoRequired: false,
+  },
   // ─── WeChat RSS sources (微信公众号 RSS 转载) ───
   wechat2rss_geekpark: {
     text: () => `文章来源: 极客公园 (微信公众号)`,
@@ -3161,6 +3209,7 @@ const AUTOGEN_EXCLUDED_SOURCES = new Set([
   // Search engines — they ARE search, no "own domain" to site:
   "google_news",
   "bing_news",
+  "baidu_news",
   "google_search",
   "baidu_search",
   "duckduckgo_search",

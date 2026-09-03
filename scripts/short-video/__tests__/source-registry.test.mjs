@@ -12,22 +12,23 @@ import {
   SHARED_GOOGLE_SITE_SEARCH_SCRIPT,
   autoGenerateGoogleSiteFallback,
   shouldAutoGenGoogleSiteFallback,
+  SOURCE_ATTRIBUTIONS,
 } from "../lib/source-registry.mjs";
 
 // ─── Source structure validation ───
 
 describe("Source structure", () => {
-  it("NEWS_SOURCES has 14 sources (7 original + 7 CDP image search)", () => {
-    expect(NEWS_SOURCES).toHaveLength(14);
+  it("NEWS_SOURCES has 15 sources (7 original + 7 CDP image search + baidu_news #64)", () => {
+    expect(NEWS_SOURCES).toHaveLength(15);
   });
 
   it("SELF_MEDIA_SOURCES has 8 sources", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 62 sources", () => {
-    // 46 existing + 7 CDP image search + 6 stock_media + 2 open search engine + duckduckgo = 62
-    expect(ALL_SOURCES).toHaveLength(62);
+  it("ALL_SOURCES has 63 sources", () => {
+    // 62 + baidu_news (#64)
+    expect(ALL_SOURCES).toHaveLength(63);
   });
 
   it("each source has required fields", () => {
@@ -333,8 +334,8 @@ describe("Extract scripts", () => {
 // ─── International sources (renamed from Western) ───
 
 describe("International sources (renamed from Western)", () => {
-  it("INTERNATIONAL_SOURCES has 8 sources", () => {
-    expect(INTERNATIONAL_SOURCES).toHaveLength(8);
+  it("INTERNATIONAL_SOURCES has 10 sources (8 + currents + noozra_search #64)", () => {
+    expect(INTERNATIONAL_SOURCES).toHaveLength(10);
   });
 
   it("includes youtube_search", () => {
@@ -449,8 +450,8 @@ describe("Locale field", () => {
 // ─── General search sources ───
 
 describe("General search sources", () => {
-  it("GENERAL_SEARCH_SOURCES has 6 sources", () => {
-    expect(GENERAL_SEARCH_SOURCES).toHaveLength(6);
+  it("GENERAL_SEARCH_SOURCES has 4 sources (currents/noozra moved to INTERNATIONAL_SOURCES #64)", () => {
+    expect(GENERAL_SEARCH_SOURCES).toHaveLength(4);
   });
 
   it("includes google_search (was web_grounding)", () => {
@@ -511,6 +512,63 @@ describe("General search sources", () => {
   });
 });
 
+// ─── Issue #64: baidu_news CDP source + Currents/Noozra reclassification ───
+
+describe("#64 — baidu_news CDP source", () => {
+  it("NEWS_SOURCES includes baidu_news", () => {
+    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
+    expect(src).toBeDefined();
+    expect(src.label).toBe("百度新闻搜索");
+    expect(src.category).toBe("news");
+    expect(src.locale).toBe("zh-CN");
+    expect(src.supportsKeyword).toBe(true);
+    expect(src.needsAuth).toBe(false);
+    expect(src.accessMethod.primary).toBe("cdp");
+  });
+
+  it("baidu_news mirrors the google_news CDP pattern (news.baidu.com/ns)", () => {
+    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
+    const url = src.url("DeepSeek");
+    expect(url).toContain("baidu.com/ns");
+    expect(url).toContain(encodeURIComponent("DeepSeek"));
+    // No account, no API key — CDP-only like google_news/bing_news
+    expect(src.apiSearch).toBeUndefined();
+    expect(src.mcpFallback).toBeUndefined();
+    expect(src.loginCheckScript).toBeUndefined();
+    expect(src.articleScript.length).toBeGreaterThan(50);
+    expect(src.articleScript).toContain("return results");
+    expect(src.useCleanTitle).toBe(false);
+  });
+
+  it("baidu_news is excluded from googleSiteFallback auto-gen (search engine)", () => {
+    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
+    expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
+  });
+
+  it("baidu_news has a SOURCE_ATTRIBUTIONS key", () => {
+    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
+    expect(SOURCE_ATTRIBUTIONS[src.name]).toBeDefined();
+  });
+});
+
+describe("#64 — Currents/Noozra reclassified as news aggregation APIs", () => {
+  it("GENERAL_SEARCH_SOURCES no longer contains currents or noozra_search", () => {
+    const names = GENERAL_SEARCH_SOURCES.map((s) => s.name);
+    expect(names).not.toContain("currents");
+    expect(names).not.toContain("noozra_search");
+  });
+
+  it("INTERNATIONAL_SOURCES contains currents and noozra_search with category 'international'", () => {
+    for (const name of ["currents", "noozra_search"]) {
+      const src = INTERNATIONAL_SOURCES.find((s) => s.name === name);
+      expect(src, `${name} must be in INTERNATIONAL_SOURCES`).toBeDefined();
+      expect(src.category).toBe("international");
+      expect(src.accessMethod.primary).toBe("api");
+      expect(src.apiSearch).toBeDefined();
+    }
+  });
+});
+
 // ─── last30days sources ───
 
 describe("last30days sources", () => {
@@ -564,15 +622,13 @@ describe("supportsKeyword validation", () => {
 
   it("keyword-capable sources have supportsKeyword=true", () => {
     const keywordSources = ALL_SOURCES.filter((s) => s.supportsKeyword);
-    // xhs, sogou_weixin, bilibili, douyin, zhihu, x_search,
-    // youtube, arxiv, github, threads, openalex, gnews, core_search,
     // google, baidu, mcp_grok, noozra, currents,
     // reddit, hackernews, polymarket, digg, techmeme,
     // tiktok_creator (via ScrapeCreators API)
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
-    // + duckduckgo_search (#91)
-    expect(keywordSources.length).toBe(42);
+    // + duckduckgo_search (#91) + baidu_news (#64)
+    expect(keywordSources.length).toBe(43);
   });
 });
 
@@ -972,9 +1028,9 @@ describe("apiSearch configuration", () => {
       if (src.name === "tiktok_creator") continue;
       expect(src.apiSearch).toBeUndefined();
     }
-    // General search sources: noozra_search and currents have apiSearch, others don't
+    // General search sources: none have apiSearch (currents/noozra_search
+    // were moved to INTERNATIONAL_SOURCES in #64)
     for (const src of GENERAL_SEARCH_SOURCES) {
-      if (src.name === "noozra_search" || src.name === "currents") continue;
       expect(src.apiSearch).toBeUndefined();
     }
     // youtube and threads don't have apiSearch
