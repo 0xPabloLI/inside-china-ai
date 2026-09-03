@@ -443,6 +443,76 @@ describe("checkWritingForAgentsGate", () => {
     expect(findings).toHaveLength(0);
   });
 
+  it("PASS: tracker Last-inventory del+add rotation is exempt (#178)", () => {
+    // The rotation commit mechanically replaces the "Last inventory:" line;
+    // the del+add pair is re-inventory, not an authoring decision. These lines
+    // contain backticked script paths, so without the exemption they would
+    // hit the pointer-line pattern and WARN.
+    const stagedDiffs = [
+      {
+        filename: "docs/issue-tracker.md",
+        diffLines: [
+          {
+            type: "del",
+            content:
+              "Last inventory: 2026-09-02（第五 session）— 文本溢出 epic 收官批次全量推送（含 `scripts/lint-doc-hierarchy.mjs` 引用等）",
+          },
+          {
+            type: "add",
+            content:
+              "Last inventory: 2026-09-03（第六 session）— **#178 新建**：docs-lint 豁免轮换行 WARN（改 `scripts/lint-doc-hierarchy.mjs` + 同步用例）",
+          },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(0);
+  });
+
+  it("WARN: tracker Last-inventory line net-deleted (no replacement) (#178)", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/issue-tracker.md",
+        diffLines: [
+          {
+            type: "del",
+            content:
+              "Last inventory: 2026-09-02（第五 session）— 文本溢出 epic 收官批次全量推送（含 `scripts/lint-doc-hierarchy.mjs` 引用等）",
+          },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].level).toBe("WARN");
+    expect(findings[0].ruleId).toBe("writing-for-agents-gate");
+  });
+
+  it("WARN: inventory exemption is line-scoped, other changes still warn (#178)", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/issue-tracker.md",
+        diffLines: [
+          {
+            type: "del",
+            content:
+              "Last inventory: 2026-09-02（第五 session）— 文本溢出 epic 收官批次全量推送（含 `scripts/lint-doc-hierarchy.mjs` 引用等）",
+          },
+          {
+            type: "add",
+            content:
+              "Last inventory: 2026-09-03（第六 session）— **#178 新建**：docs-lint 豁免轮换行 WARN（改 `scripts/lint-doc-hierarchy.mjs` + 同步用例）",
+          },
+          { type: "add", content: "## New Section" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].level).toBe("WARN");
+    expect(findings[0].ruleId).toBe("writing-for-agents-gate");
+  });
+
   it("PASS: empty staged diffs", () => {
     const { findings } = checkWritingForAgentsGate([]);
     expect(findings).toHaveLength(0);

@@ -37,6 +37,14 @@ const NORMATIVE_QUALIFIER_PATTERN =
 const GATE_HEADING_PATTERN = /^#{1,4}\s/;
 const GATE_POINTER_PATTERNS = [/→/, LOCAL_MARKDOWN_LINK_PATTERN, BACKTICKED_LOCAL_PATH_PATTERN];
 
+// The tracker rotation commit mechanically replaces the "Last inventory:"
+// line — del of the old line + add of the new one in the same diff. That
+// replacement is re-inventory, not an authoring decision (issue #178).
+// Net deletion — an inventory line removed with no replacement — is
+// still an authoring decision and still warns.
+const TRACKER_PATH = "docs/issue-tracker.md";
+const LAST_INVENTORY_LINE_PATTERN = /^\s*Last inventory:?/i;
+
 // Files excluded from checks (index itself, ephemeral specs)
 const EXCLUDED_FILES = new Set([
   "DOCS-INDEX.md", // index file itself — not listed in itself
@@ -168,6 +176,11 @@ export function checkWritingForAgentsGate(stagedDiffs) {
 
     if (changes.length === 0) continue;
 
+    const isLastInventoryRotation =
+      filename === TRACKER_PATH &&
+      changes.some((l) => l.type === "del" && LAST_INVENTORY_LINE_PATTERN.test(l.content)) &&
+      changes.some((l) => l.type === "add" && LAST_INVENTORY_LINE_PATTERN.test(l.content));
+
     if (isAgentsMd) {
       findings.push(
         gateFinding(
@@ -179,6 +192,7 @@ export function checkWritingForAgentsGate(stagedDiffs) {
     }
 
     for (const line of changes) {
+      if (isLastInventoryRotation && LAST_INVENTORY_LINE_PATTERN.test(line.content)) continue;
       const kind = classifyGateChange(line.content);
       if (!kind) continue;
       findings.push(
