@@ -10,7 +10,7 @@
 
 ## 1. 执行摘要
 
-**当前状态**：项目管线已有 4 级 TTS 引擎降级链（CosyVoice 3 → Qwen3-TTS → edge-tts → macOS say），CosyVoice 3 为默认引擎（LLM + Flow Matching），Qwen3-TTS 为快速备选（MPS 原生）。F5-TTS-MLX / XTTS v2 / Kokoro 已移除。
+**当前状态**（2026-09-03 与代码核对，以 `scripts/short-video/lib/tts/registry.mjs` 为准）：管线为 4 级 TTS 引擎降级链（**F5-TTS-MLX → Qwen3-TTS → edge-tts → macOS say**）。F5-TTS-MLX 为默认引擎（rhythm/自然停顿最佳，内部 duration 控制），Qwen3-TTS 为快速备选（MPS 原生）。CosyVoice 3 因 MPS RTF 39.8x 不实用，**从未集成进管线**；XTTS v2 / Kokoro 已从 registry 移除。本地模型统一使用 venv `~/.video-tts-env`（Python 3.12，F5 + Qwen + whisperx 共用）。
 
 **2024-2026 关键变化**：TTS 领域经历了从"GAN/VITS 为主"到"LLM-based + Flow Matching 为主"的范式转移。2025-2026 年涌现了大量基于 Qwen2.5/Llama 等大语言模型 backbone 的 TTS 系统，质量显著提升，但多数需要 NVIDIA CUDA。
 
@@ -18,9 +18,9 @@
 
 | 优先级 | 方案 | 类型 | 质量 | M2 Pro 兼容 | 商用 | 测试状态 |
 |--------|------|------|------|------------|------|---------|
-| 1 | **CosyVoice 3.0**（管线默认） | 本地 | ⭐⭐⭐⭐⭐ | ✅ MPS 可用 | ✅ Apache-2.0 | ✅ **已采用** |
+| 1 | **F5-TTS-MLX**（管线默认） | 本地 | ⭐⭐⭐⭐ | ✅ MLX 原生 | ⚠️ 权重 CC-BY-NC | ✅ **已部署，默认引擎** |
 | 2 | **Qwen3-TTS**（备选） | 本地 | ⭐⭐⭐⭐⭐ | ✅ **MPS 已验证** | ✅ Apache-2.0 | ✅ **已采用** |
-| 3 | **F5-TTS-MLX**（已移除） | 本地 | ⭐⭐⭐⭐ | ✅ MLX 原生 | ⚠️ 权重 CC-BY-NC | ❌ 已移除（质量不如 CosyVoice） |
+| — | **CosyVoice 3.0** | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ MPS RTF 39.8x | ✅ Apache-2.0 | ❌ 未集成进管线（实测过慢） |
 | 4 | **Zonos**（已测试） | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ CPU only（MPS 有 bug） | ✅ Apache-2.0 | ✅ 已测试 |
 | 5 | **Sesame CSM** | 本地 | ⭐⭐⭐⭐ | ❌ MPS 卡死，CPU RTF 120x | ✅ Apache-2.0 | ✅ **已测试** |
 | 5b | **Spark-TTS** | 本地 | ⭐⭐⭐⭐ | ✅ **MPS 已验证** | ⚠️ 模型 CC-BY-NC-SA | ✅ **已测试** |
@@ -29,8 +29,8 @@
 | 6 | **Fish Speech S2** | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA | ❌ 非商用 | 不兼容 |
 | 7 | **ElevenLabs API** | 云端 | ⭐⭐⭐⭐⭐ | ✅ 无需 GPU | ✅ | 业界 SOTA |
 | 8 | **OpenAI TTS API** | 云端 | ⭐⭐⭐⭐ | ✅ 无需 GPU | ✅ | 无克隆 |
-| 9 | **XTTS v2**（已有） | 本地 | ⭐⭐⭐ | ✅ MPS hybrid | ✅ MPL-2.0 | ✅ 已用，降级引擎 |
-| 10 | **Kokoro**（已有） | 本地 | ⭐⭐⭐ | ✅ CPU 原生 | ✅ Apache-2.0 | ✅ 已用，降级引擎 |
+| 9 | **XTTS v2** | 本地 | ⭐⭐⭐ | ✅ MPS hybrid | ✅ MPL-2.0 | ❌ 已从 registry 移除 |
+| 10 | **Kokoro** | 本地 | ⭐⭐⭐ | ✅ CPU 原生 | ✅ Apache-2.0 | ❌ 已从 registry 移除 |
 
 ---
 
@@ -316,11 +316,11 @@
 
 | 属性 | 详情 |
 |------|------|
-| **来源** | Index-TTS Team |
+| **来源** | Bilibili（哔哩哔哩），Index-TTS Team |
 | **GitHub** | github.com/index-tts/index-tts（22,490 stars） |
-| **技术原理** | 工业级可控零样本 TTS |
+| **技术原理** | 工业级可控零样本 TTS，主打情感/表现力控制 |
 | **参数量** | 1.5B |
-| **许可证** | 待确认 |
+| **许可证** | 模型为 **Bilibili 自有许可**（非标准开源许可，商用前需单独确认；2026-09-03 经 VoiceStudio README 证实） |
 | **M2 Pro 兼容** | ⚠️ 工业级系统，可能需 CUDA |
 | **ComfyUI** | ✅ `chenpipi0807/ComfyUI-Index-TTS`（731 stars） |
 
@@ -407,6 +407,7 @@
 | **OmniVoice** | k2-fsa | — | — | 8,870 | Apache | 600+ 语言 |
 | **MockingBird** | babysor | SV2TTS | — | 36,919 | — | 中文克隆，RTVC 仿制 |
 | **RTVC** | CorentinJ | SV2TTS | — | 60,083 | — | 2019 经典，已过时 |
+| **VoiceStudio** | debpalash | 聚合器（HF 模型 + Tauri 桌面壳） | — | 14,623 | — | 开源本地 ElevenLabs 替代品；克隆/配音/转录/播客，646 语言，可离线。Apple Silicon 可用（MPS+MLX，macOS 13.3+）。Instruct 情感控制仅限部分底层引擎（OmniVoice/CosyVoice3/VoxCPM2/IndexTTS 2.5）。应用 AGPL-3.0；默认 OmniVoice 权重 CC-BY-NC。⚠️ 它封装底层模型（多为 CUDA 系），不替代 M2 Pro 上的独立引擎选型 |
 
 ### 3.13 全球模型综合排名与技术标注
 
@@ -571,11 +572,11 @@
 ### 6.1 当前管线 TTS 引擎降级链
 
 ```
-CosyVoice 3 (priority 1) ──失败──→ Qwen3-TTS (priority 2)
+F5-TTS-MLX (priority 1) ──失败──→ Qwen3-TTS (priority 2)
     ──失败──→ edge-tts (priority 3) ──失败──→ macOS say (priority 4)
 ```
 
-代码位置：`scripts/short-video/lib/tts/registry.mjs`
+代码位置：`scripts/short-video/lib/tts/registry.mjs`（优先级更新于 2026-08-16）。本地引擎统一 venv `~/.video-tts-env`。
 
 ### 6.2 F5-TTS-MLX 实战教训
 
@@ -640,6 +641,14 @@ CosyVoice 3 (priority 1) ──失败──→ Qwen3-TTS (priority 2)
 | 2 | **Sesame CSM** | Apache-2.0 + MPS 代码已有 + HF Transformers 集成 | ✅ | ✅ |
 | 3 | **CosyVoice 3.0** | Apache-2.0 + RL 对齐 + 9 语言 + 方言 + benchmark SOTA | ⚠️ | ✅ |
 | 4 | **GPT-SoVITS** | MIT + 60K stars + 1 分钟克隆 + 社区最大 | ⚠️ | ✅ |
+| 5 | **Index-TTS 2.5** | Bilibili 出品 + 情感/表现力控制主打 | ⚠️ 待验证 | ⚠️ Bilibili 自有许可 |
+| 6 | **Fish Speech S2**（远程 GPU） | 情感控制最强（子词级 15000+ tags，EmergentTTS 胜率 81.9%）+ WER 全场最佳 | ❌ 需 CUDA | ❌ 非商用 |
+| 7 | **VoxCPM2**（远程 GPU） | Apache-2.0 + 48kHz + 30 语言 + 英文 SS 顶级 | ❌ 需 CUDA | ✅ |
+| 8 | **Fun-CosyVoice3 RL**（远程 GPU） | Apache-2.0 + RL 对齐 + 中文 CER/困难集开源最佳（MPS 上 RTF 39.8x 已排除本地） | ❌ 建议远程 GPU | ✅ |
+
+**情感/声调优先子集**：Index-TTS 2.5 > Fish Speech S2 > Zonos > CosyVoice 3（instruct）> CSM（对话表现力）。
+
+> 注：VoiceStudio 不列入本表——它是聚合器应用（封装 16 个 TTS 引擎的 GUI 壳，配音/有声书/听写 workflow），不产生引擎层面的测试结论，仅作 §3.12 发现记录。
 
 **测试标准**：
 1. 安装可行性 — M2 Pro 上能否成功安装
@@ -649,9 +658,9 @@ CosyVoice 3 (priority 1) ──失败──→ Qwen3-TTS (priority 2)
 5. 内存占用 — 峰值在 32GB 以内
 6. 引擎集成 — 能否适配 `lib/tts/registry.mjs` 的 engine 接口
 
-### 7.3 长期（如有远程 GPU）：VoxCPM2 / Fish Speech S2
+### 7.3 远程 GPU 候选（远程 GPU 已具备）
 
-如果获得远程 NVIDIA GPU（如 [[memory:17862429060283302855]] 中提到的 Tailscale 远程 GPU 方案），优先测试：
+远程 NVIDIA GPU（Tailscale 方案）已可用，以下 CUDA 系模型升为正式测试候选（见 §7.2 表 #6-#8）：
 
 1. **VoxCPM2** — 48kHz + Apache-2.0 + 30 语言 + benchmark 顶级
 2. **Fish Speech S2** — Dual-AR + 15000+ 情感 tags + WER 最佳
@@ -813,6 +822,7 @@ Zonos       █████████████████████ 7100
 | GPT-SoVITS | `/tmp/test-gpt-sovits-cn.py` | `~/.gpt-sovits-env` | `/tmp/GPT-SoVITS/` |
 
 - 音频输出：`scripts/short-video/assets/tts-comparison/`
+- 注：表中 venv 为 2026-08-10 测试时的独立环境；此后管线已统一为 `~/.video-tts-env`（Python 3.12，F5 + Qwen + whisperx 共用），见 `scripts/short-video/lib/tts/registry.mjs`。
 
 ---
 
