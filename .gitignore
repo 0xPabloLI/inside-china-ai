@@ -133,3 +133,6 @@ scripts/kaggle/echomimicv3-test/v*-output/
 scripts/kaggle/infinitetalk-dataset/output_*/
 
 .githooks/
+
+# Session-Id 软试点本地登记表（不提交，见 docs/research/commit-session-association-id-proposal.md §7.6）
+.session-pilot/
