@@ -28,8 +28,8 @@ import { FullscreenMedia } from "./scenes/FullscreenMedia";
 import { sceneTimeline, TRANSITION_FRAMES, BRAND_FONT_STACK } from "./components/shared";
 import {
   assertKnownTextFields,
-  DEFAULT_NARRATIVE_LAYOUT,
   REMOTION_SLOT_MAP,
+  resolveRenderLayout,
 } from "../../lib/text-slots.mjs";
 
 /** Dispatch a scene to its React component based on visualType. */
@@ -37,12 +37,9 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
   // Typo'd text fields must fail the render, not silently drop (decision 51).
   // Unknown visualTypes skip validation and fail at the dispatch switch below.
   if ((REMOTION_SLOT_MAP as Record<string, unknown>)[scene.visualType]) {
-    const layout =
-      scene.visualType === "narrative"
-        ? ((scene.layout ?? DEFAULT_NARRATIVE_LAYOUT) as string)
-        : scene.visualType === "fullscreen"
-          ? "media"
-          : "hero-center";
+    // resolveRenderLayout is the shared layout resolution — the preflight
+    // (checkTemplateContract) validates against the exact same contract (#190).
+    const layout = resolveRenderLayout(scene);
     assertKnownTextFields(scene.visualType, layout, scene.texts as Record<string, unknown>);
   }
 

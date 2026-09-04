@@ -253,6 +253,26 @@ export function getGroup(groupId, overrides = {}) {
 export const DEFAULT_NARRATIVE_LAYOUT = "media-bottom-bar";
 
 /**
+ * The layout the render layer actually uses for `scene` — the resolution
+ * ShortVideo.tsx's renderScene performs before assertKnownTextFields.
+ *
+ * Narrative is the only type that consumes scene.layout; fullscreen always
+ * renders "media"; every other template renders "hero-center" regardless of
+ * what scene-data says. Contract validation (preflight and render) must
+ * resolve through this function so both sides judge the same contract (#190).
+ *
+ * @param {{visualType: string, layout?: string}} scene
+ * @returns {string}
+ */
+export function resolveRenderLayout(scene) {
+  if (scene.visualType === "narrative") {
+    return scene.layout ?? DEFAULT_NARRATIVE_LAYOUT;
+  }
+  if (scene.visualType === "fullscreen") return "media";
+  return "hero-center";
+}
+
+/**
  * `HTML_SLOT_MAP`/`htmlSlotsFor()` were removed on 2026-09-02 with the
  * retired Playwright renderer (decision 59) — they had zero remaining
  * consumers in the live pipeline.

@@ -30,6 +30,8 @@ import {
 import {
   REMOTION_SLOT_MAP,
   DEFAULT_NARRATIVE_LAYOUT,
+  assertKnownTextFields,
+  resolveRenderLayout,
   slotId,
   slotCharBudget,
 } from "./text-slots.mjs";
@@ -1216,6 +1218,60 @@ export function checkLayoutField(scenes) {
   return results;
 }
 
+/**
+ * Template contract preflight (#190): run the render layer's
+ * assertKnownTextFields against every scene BEFORE the TTS + render cycle.
+ *
+ * ShortVideo.tsx calls the same assert mid-render; a violation there wastes a
+ * full TTS + render cycle (kimi-ipo shipped 4 categories of violations that
+ * all passed this preflight and only blew up in Remotion). Layout resolution
+ * goes through resolveRenderLayout so preflight and render judge the same
+ * contract — hand-rolling the resolution here is how the drift started.
+ */
+export function checkTemplateContract(scenes) {
+  const results = [];
+  for (const scene of scenes) {
+    // visualTypes outside the slot map belong to the dispatch whitelist
+    // (checkVisualTypeWhitelist) — ShortVideo.tsx skips the assert for them too.
+    if (!REMOTION_SLOT_MAP[scene.visualType]) continue;
+    const layout = resolveRenderLayout(scene);
+    try {
+      assertKnownTextFields(scene.visualType, layout, scene.texts);
+    } catch (e) {
+      results.push({
+        level: "fail",
+        category: "Structure",
+        check: `Scene ${scene.id} template contract`,
+        detail: e.message,
+        fix: "Fix the layout/field named above in scene-data — Remotion throws the same error mid-render, after TTS",
+      });
+    }
+    // Non-narrative templates never read scene.layout (renderScene forces the
+    // layout), so a divergent value is dead data that misleads authors.
+    if (
+      scene.visualType !== "narrative" &&
+      typeof scene.layout === "string" &&
+      scene.layout !== layout
+    ) {
+      results.push({
+        level: "warn",
+        category: "Structure",
+        check: `Scene ${scene.id} template contract`,
+        detail: `layout="${scene.layout}" is ignored — ${scene.visualType} templates always render "${layout}"`,
+        fix: `Remove the layout field from scene ${scene.id}, or use narrative if the layout choice matters`,
+      });
+    }
+  }
+  if (results.length === 0) {
+    results.push({
+      level: "pass",
+      category: "Structure",
+      check: "Template contract (REMOTION_SLOT_MAP)",
+    });
+  }
+  return results;
+}
+
 // ─── Aggregate runner ───
 
 /**
@@ -1676,6 +1732,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkCurrencyDualAnnotation(scenes),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
+    ...checkTemplateContract(scenes),
     ...checkOpenLoop(scenes),
     ...checkPatternInterrupt(scenes),
     ...checkLoopClosureNarrative(scenes),

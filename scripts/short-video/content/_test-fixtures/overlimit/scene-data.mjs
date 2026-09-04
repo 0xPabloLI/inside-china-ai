@@ -35,7 +35,14 @@ export const scenes = Array.from({ length: 11 }, (_, i) => {
   }
   if (i === 10) {
     s.voiceover = "Follow China AI News for the next DeepSeek milestone.";
-    s.texts = { action: "FOLLOW FOR MORE", line1: "CHINA AI NEWS" };
+    // cta.hero-center contract: brand + tagline are rendered (must be present),
+    // action is optional but required by checkCTAActionContract. `line1` is not
+    // in the slot map — the template contract check (#190) fails unknown fields.
+    s.texts = {
+      brand: "CHINA AI NEWS",
+      tagline: "DAILY CHINA AI BRIEFING",
+      action: "FOLLOW FOR MORE",
+    };
   }
   return s;
 });

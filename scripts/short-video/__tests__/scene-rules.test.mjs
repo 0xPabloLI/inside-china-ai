@@ -62,15 +62,15 @@ const validScenes = [
     id: 2,
     name: "context",
     visualType: "context",
-    layout: "media-bottom-bar",
+    layout: "hero-center",
     voiceover: "Bloomberg reported the news first. Liang Wenfeng confirmed it.",
-    texts: { line1: "BLOOMBERG EXCLUSIVE" },
+    texts: { title: "BLOOMBERG EXCLUSIVE", context: "LIANG WENFENG CONFIRMED IT" },
   },
   {
     id: 3,
     name: "data",
     visualType: "data",
-    layout: "media-overlay",
+    layout: "hero-center",
     voiceover: "China AI spending hit 47 billion in 2024.",
     texts: { stat: "$47B" },
   },
@@ -78,15 +78,15 @@ const validScenes = [
     id: 4,
     name: "analysis",
     visualType: "contrast",
-    layout: "media-split",
+    layout: "hero-center",
     voiceover: "DeepSeek chose open source. Others chose closed.",
-    texts: { left: "OPEN", right: "CLOSED" },
+    texts: { title: "OPEN VS CLOSED", left: ["OPEN"], right: ["CLOSED"] },
   },
   {
     id: 5,
     name: "analysis2",
     visualType: "data",
-    layout: "stacked-cards",
+    layout: "hero-center",
     voiceover: "Tencent and Alibaba joined the race with rival models.",
     texts: { stat: "2X" },
   },
@@ -95,7 +95,15 @@ const validScenes = [
     name: "cta",
     visualType: "cta",
     voiceover: "Follow for more China AI news that matters.",
-    texts: { action: "FOLLOW FOR MORE", line1: "CHINA AI NEWS" },
+    // cta.hero-center contract: brand + tagline rendered, action per the CTA
+    // action contract. `line1` is unknown to the slot map (template contract
+    // check, #190) — the render resolves non-narrative layouts to hero-center,
+    // so per-type layout values below are dead data and were removed.
+    texts: {
+      brand: "CHINA AI NEWS",
+      tagline: "DAILY CHINA AI BRIEFING",
+      action: "FOLLOW FOR MORE",
+    },
   },
 ];
 
