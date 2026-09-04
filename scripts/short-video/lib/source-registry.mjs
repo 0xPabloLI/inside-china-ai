@@ -2481,9 +2481,35 @@ export const STOCK_MEDIA_SOURCES = [
 // These are merged into the source definitions below via enrichWithCapabilities.
 // Each config has: method:"cdp", url(keyword), imageScript, imageFallbackScript
 
+// Generic CDP video extraction shared by Chinese news CDP sources (#183):
+// self-hosted <video> sources + B站/YouTube iframe embeds. Embed URLs are
+// emitted as-is; normalizeCdpVideoCandidates (asset-sourcer side) converts
+// them to canonical watch URLs for the yt-dlp download path.
+const CDP_VIDEO_SCRIPT = `
+  var results = [];
+  document.querySelectorAll('video').forEach(function(v) {
+    var src = v.src || (v.querySelector('source') && v.querySelector('source').src) || '';
+    if (src && src.indexOf('http') === 0 && src.indexOf('data:') !== 0) {
+      results.push({ title: (v.getAttribute('title') || v.textContent || '').trim().substring(0, 200), url: src, type: 'video' });
+    }
+  });
+  document.querySelectorAll('iframe[src]').forEach(function(f) {
+    var s = f.src || '';
+    if (s.indexOf('player.bilibili.com') >= 0) {
+      var m = s.match(/bvid=([\\w]+)/);
+      if (m) results.push({ title: '', url: 'https://www.bilibili.com/video/' + m[1], type: 'video' });
+    } else if (s.indexOf('youtube.com/embed/') >= 0 || s.indexOf('youtube-nocookie.com/embed/') >= 0) {
+      var m2 = s.match(/embed\\/([\\w-]+)/);
+      if (m2) results.push({ title: '', url: 'https://www.youtube.com/watch?v=' + m2[1], type: 'video' });
+    }
+  });
+  return results;
+`;
+
 const CDP_MEDIA_CAPABILITIES = {
   qbitai: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: () => "https://www.qbitai.com/",
     imageScript: `
       var results = [];
@@ -2511,6 +2537,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   ithome: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.list .item, .news-list .item, article, .search-result .item');
@@ -2542,6 +2569,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   jiqizhixin: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
@@ -2573,6 +2601,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   google_news: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
     imageScript: `
@@ -2609,6 +2638,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   bing_news: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) =>
       `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
     imageScript: `
@@ -2646,6 +2676,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   xinhua: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
@@ -2677,6 +2708,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   thepaper: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
@@ -2708,6 +2740,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   leiphone: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
@@ -2739,6 +2772,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   xinzhiyuan: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
@@ -2770,6 +2804,7 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   zhidx: {
     method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
@@ -3327,6 +3362,15 @@ function enrichWithCapabilities(sources) {
     // Images: from CDP_MEDIA_CAPABILITIES
     if (CDP_MEDIA_CAPABILITIES[source.name]) {
       capabilities.images = CDP_MEDIA_CAPABILITIES[source.name];
+    }
+
+    // Videos: CDP sources declaring a videoScript (#183)
+    if (CDP_MEDIA_CAPABILITIES[source.name]?.videoScript) {
+      capabilities.videos = {
+        method: "cdp",
+        url: CDP_MEDIA_CAPABILITIES[source.name].url,
+        videoScript: CDP_MEDIA_CAPABILITIES[source.name].videoScript,
+      };
     }
 
     // Videos: from YTDLP_VIDEO_CAPABILITIES

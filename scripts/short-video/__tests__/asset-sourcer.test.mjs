@@ -22,6 +22,7 @@ import {
   API_SOURCES,
   YTDLP_SOURCES,
   CDP_SOURCES,
+  CDP_VIDEO_SOURCES,
   SOURCE_ATTRIBUTIONS,
   buildAttribution,
   buildCreditsSection,
@@ -2585,5 +2586,22 @@ describe("toCachedMediaCandidate", () => {
     };
     const result = toCachedMediaCandidate(candidate);
     expect(result.title).toBe("DeepSeek V4 announced");
+  });
+});
+
+// ─── #183: CDP video sources ───
+
+describe("CDP_VIDEO_SOURCES", () => {
+  it("derives cdp video sources from capabilities.videos", () => {
+    expect(CDP_VIDEO_SOURCES.length).toBeGreaterThanOrEqual(10);
+    for (const s of CDP_VIDEO_SOURCES) {
+      expect(s.videoScript).toBeTruthy();
+      expect(s.videoScript).toContain("iframe");
+      expect(typeof s.url).toBe("function");
+    }
+    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "qbitai")).toBeDefined();
+    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "ithome")).toBeDefined();
+    // ytdlp sources must not leak into the CDP video list
+    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "bilibili")).toBeUndefined();
   });
 });

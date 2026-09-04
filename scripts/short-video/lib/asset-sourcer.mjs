@@ -37,6 +37,8 @@ import {
   IMAGE_SEARCH_ENGINES,
   BraveQuotaTracker,
   searchCdpSource,
+  searchCdpVideoSource,
+  normalizeCdpVideoCandidates,
 } from "./progressive-search.mjs";
 import { downloadCandidate } from "./download-candidate.mjs";
 import {
@@ -1757,6 +1759,19 @@ export const CDP_SOURCES = ALL_SOURCES.filter((s) => s.capabilities?.images?.met
 );
 
 /**
+ * CDP video source definitions — derived from source-registry capabilities.
+ * Sources with capabilities.videos.method === "cdp" (#183).
+ */
+export const CDP_VIDEO_SOURCES = ALL_SOURCES.filter(
+  (s) => s.capabilities?.videos?.method === "cdp" && s.capabilities.videos.videoScript,
+).map((s) => ({
+  name: s.name,
+  label: s.label,
+  url: s.capabilities.videos.url,
+  videoScript: s.capabilities.videos.videoScript,
+}));
+
+/**
  * Build attribution object for an asset.
  *
  * For sources with `dynamicAttribution: true` (e.g., Wikimedia), the `attributionRequired`
@@ -2728,6 +2743,74 @@ export async function main(args = process.argv.slice(2)) {
 
   if (searchCacheDirty) {
     persistSearchResultsCache(searchCachePath, searchCache);
+  }
+
+  // ── CDP video sources (serial, #183) ──
+  // Chinese news CDP sources embed B站/YouTube videos (player iframes) and
+  // occasionally self-hosted <video> files. Embeds are normalized to canonical
+  // watch URLs; platform candidates download via yt-dlp, direct sources via HTTP.
+  if (CDP_VIDEO_SOURCES.length > 0) {
+    console.log("\n🎬 CDP video sources:");
+    for (const source of CDP_VIDEO_SOURCES) {
+      for (const { keywords: groupKeywords, claimSceneId } of queryGroups) {
+        for (const keyword of groupKeywords) {
+          console.log(`  🎬 ${source.label} video search: "${keyword}"...`);
+          const result = await getOrSearchResults(searchCache, {
+            source: source.name,
+            keyword: `video:${keyword}`,
+            search: () => searchCdpVideoSource(source, keyword),
+          });
+          const candidates = result.results;
+          if (!result.cacheHit && candidates.length > 0) searchCacheDirty = true;
+
+          const scored = normalizeCdpVideoCandidates(candidates, source.name, keyword)
+            .map((c) => ({
+              ...c,
+              searchKeyword: keyword,
+              claimSceneId,
+              score: scoreCandidate(c, keyword),
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, maxPerSource);
+
+          for (let j = 0; j < scored.length; j++) {
+            const candidate = scored[j];
+            if (shouldSkipByPreFilter(candidate, keyword, source.name, skipped)) continue;
+            if (shouldSkipByDedup(candidate, downloadedUrls, source.name, skipped)) continue;
+
+            const filename = buildFilename(source.name, keyword, j + 1, "mp4");
+            const destPath = join(assetsDir, filename);
+
+            if (candidate.platform) {
+              // Embed-derived watch URL — reuse the proven yt-dlp download path.
+              const dl = downloadYtdlp(candidate.url, destPath);
+              if (dl.success) {
+                downloadedUrls.add(candidate.url);
+                allAssets.push({ ...candidate, path: dl.path, status: "downloaded" });
+                console.log(
+                  `    ✅ ${source.label}: ${basename(destPath)} (yt-dlp, score: ${candidate.score})`,
+                );
+              } else {
+                failed.push({ source: source.name, keyword, url: candidate.url, error: dl.error });
+                console.log(`    ❌ ${source.label}: ${dl.error}`);
+              }
+            } else {
+              await downloadAndRecord(candidate, {
+                destPath,
+                contentDir,
+                label: source.label,
+                sourceName: source.name,
+                keyword,
+                downloadedUrls,
+                allAssets,
+                failed,
+                skipped,
+              });
+            }
+          }
+        }
+      }
+    }
   }
 
   // ── Tier 3: Progressive (Open Search Engine) Image Search ──

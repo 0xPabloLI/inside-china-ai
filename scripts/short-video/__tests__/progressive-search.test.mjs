@@ -26,6 +26,8 @@ import {
   searchDuckDuckGoImages,
   parseTavilyImagesResponse,
   searchTavilyImages,
+  searchCdpVideoSource,
+  normalizeCdpVideoCandidates,
 } from "../lib/progressive-search.mjs";
 import { ALL_SOURCES } from "../lib/source-registry.mjs";
 import { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } from "../lib/cdp-client.mjs";
@@ -904,5 +906,92 @@ describe("searchTavilyImages", () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("offline"));
     const candidates = await searchTavilyImages("kw", "key");
     expect(candidates).toEqual([]);
+  });
+});
+
+// ─── #183: CDP video search ───
+
+describe("searchCdpVideoSource", () => {
+  it("opens the source url, extracts with videoScript and closes", async () => {
+    const source = {
+      name: "ithome",
+      url: (kw) => `https://www.ithome.com/search?word=${encodeURIComponent(kw)}`,
+      videoScript: "var r = []; return r;",
+    };
+    cdpNewTab.mockResolvedValue("tab-v");
+    waitForPageLoad.mockResolvedValue(true);
+    extractFromTab.mockResolvedValue([
+      { url: "https://www.bilibili.com/video/BV1x", type: "video" },
+    ]);
+    cdpCloseTab.mockResolvedValue(undefined);
+
+    const out = await searchCdpVideoSource(source, "滴滴");
+    expect(cdpNewTab).toHaveBeenCalledWith(expect.stringContaining("ithome.com"));
+    expect(extractFromTab).toHaveBeenCalledWith("tab-v", "var r = []; return r;");
+    expect(out).toHaveLength(1);
+    expect(cdpCloseTab).toHaveBeenCalledWith("tab-v");
+  });
+});
+
+describe("normalizeCdpVideoCandidates", () => {
+  it("normalizes bilibili player iframe urls to watch urls", () => {
+    const out = normalizeCdpVideoCandidates(
+      [{ url: "//player.bilibili.com/player.html?bvid=BV1gJ5T6CEt7" }],
+      "ithome",
+      "kw",
+    );
+    expect(out).toEqual([
+      {
+        url: "https://www.bilibili.com/video/BV1gJ5T6CEt7",
+        title: "kw",
+        platform: "bilibili",
+        type: "video",
+        source: "ithome",
+      },
+    ]);
+  });
+
+  it("normalizes youtube embeds to watch urls", () => {
+    const out = normalizeCdpVideoCandidates(
+      [{ url: "https://www.youtube.com/embed/n7J6dPuk6Ek" }],
+      "ithome",
+      "kw",
+    );
+    expect(out[0]).toMatchObject({
+      url: "https://www.youtube.com/watch?v=n7J6dPuk6Ek",
+      platform: "youtube",
+    });
+  });
+
+  it("keeps direct http video sources with platform null", () => {
+    const out = normalizeCdpVideoCandidates(
+      [{ url: "https://media.example/clip.mp4", title: "clip" }],
+      "qbitai",
+      "kw",
+    );
+    expect(out[0]).toMatchObject({
+      url: "https://media.example/clip.mp4",
+      platform: null,
+      title: "clip",
+    });
+  });
+
+  it("dedupes by url and rejects non-video urls", () => {
+    const out = normalizeCdpVideoCandidates(
+      [
+        { url: "https://www.bilibili.com/video/BV1x" },
+        { url: "https://www.bilibili.com/video/BV1x" },
+        { url: "https://page.example/article" },
+        { url: "data:text/html,x" },
+      ],
+      "ithome",
+      "kw",
+    );
+    expect(out).toHaveLength(1);
+  });
+
+  it("returns [] for empty/invalid raw", () => {
+    expect(normalizeCdpVideoCandidates(null, "ithome")).toEqual([]);
+    expect(normalizeCdpVideoCandidates([], "ithome")).toEqual([]);
   });
 });

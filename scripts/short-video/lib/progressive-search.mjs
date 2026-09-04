@@ -523,6 +523,97 @@ export async function searchTavilyImages(keyword, apiKey) {
   }
 }
 
+// ─── CDP video engine (from CDP_MEDIA_CAPABILITIES videoScript, #183) ───
+
+/**
+ * Search a CDP source page for video candidates (videoScript field).
+ * Same tab flow as searchCdpSource but extracts with source.videoScript.
+ *
+ * @param {Object} source - Flattened CDP video source ({ url, videoScript })
+ * @param {string} keyword - Search keyword
+ * @param {Object} [options] - { waitMs }
+ * @returns {Promise<Array>} Raw extraction output (empty on failure)
+ */
+export async function searchCdpVideoSource(source, keyword, options = {}) {
+  const { waitMs = 3000 } = options;
+  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } =
+    await import("./cdp-client.mjs");
+
+  let tabId;
+  try {
+    tabId = await cdpNewTab(source.url(keyword));
+  } catch {
+    return [];
+  }
+
+  await new Promise((r) => setTimeout(r, waitMs));
+  await waitForPageLoad(tabId);
+
+  let candidates = await extractFromTab(tabId, source.videoScript);
+  if (candidates.length === 0) {
+    await new Promise((r) => setTimeout(r, waitMs));
+    candidates = await extractFromTab(tabId, source.videoScript);
+  }
+
+  await cdpCloseTab(tabId);
+  return candidates;
+}
+
+/**
+ * Normalize raw CDP video extraction into candidates with a canonical
+ * watch URL and a download platform hint (#183).
+ *
+ * - Bilibili player iframes (player.bilibili.com/player.html?bvid=BVx)
+ *   → https://www.bilibili.com/video/BVx (platform "bilibili")
+ * - YouTube embeds (/embed/ID) → https://www.youtube.com/watch?v=ID
+ *   (platform "youtube")
+ * - Direct self-hosted video sources kept as-is (platform null)
+ * - Dedupe by URL; non-video URLs dropped.
+ *
+ * @param {Array} raw - Raw extraction output (may be null/undefined)
+ * @param {string} sourceName - Source name stamped into candidates
+ * @param {string} [keyword] - Keyword used as title fallback
+ * @returns {Array<{url: string, title: string, type: string, source: string, platform: string|null}>}
+ */
+export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    let url = item?.url;
+    if (!url || typeof url !== "string") continue;
+    url = url.trim();
+
+    let platform = null;
+    let m = url.match(/player\.bilibili\.com\/player\.html\?.*?bvid=([\w]+)/);
+    if (m) {
+      url = `https://www.bilibili.com/video/${m[1]}`;
+      platform = "bilibili";
+    } else if ((m = url.match(/(?:youtube(?:-nocookie))?\.com\/embed\/([\w-]+)/))) {
+      url = `https://www.youtube.com/watch?v=${m[1]}`;
+      platform = "youtube";
+    } else if ((m = url.match(/^https?:\/\/www\.bilibili\.com\/video\/([\w]+)/))) {
+      url = `https://www.bilibili.com/video/${m[1]}`;
+      platform = "bilibili";
+    } else if (/^https?:\/\//i.test(url) && /\.(mp4|webm|m3u8|mov|ogg)([?#]|$)/i.test(url)) {
+      platform = null; // self-hosted direct video source
+    } else {
+      continue; // relative/data:/garbage
+    }
+
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push({
+      url,
+      title: item.title || keyword,
+      type: "video",
+      source: sourceName,
+      platform,
+    });
+  }
+  return out;
+}
+
 // ─── Pluggable engine pool (#112) ───
 
 /**

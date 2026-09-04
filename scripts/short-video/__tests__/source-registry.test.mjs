@@ -1381,3 +1381,15 @@ describe("#88 Part 2 — shouldAutoGenGoogleSiteFallback", () => {
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 });
+
+describe("CDP video capabilities (#183)", () => {
+  it("exposes capabilities.videos (method cdp) for Chinese news CDP sources", async () => {
+    const { ALL_SOURCES } = await import("../lib/source-registry.mjs");
+    const ithome = ALL_SOURCES.find((s) => s.name === "ithome");
+    expect(ithome.capabilities.videos).toBeDefined();
+    expect(ithome.capabilities.videos.method).toBe("cdp");
+    expect(ithome.capabilities.videos.videoScript).toContain("iframe");
+    const qbitai = ALL_SOURCES.find((s) => s.name === "qbitai");
+    expect(qbitai.capabilities.videos.method).toBe("cdp");
+  });
+});
