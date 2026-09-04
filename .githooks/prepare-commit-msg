@@ -1,0 +1,48 @@
+#!/bin/bash
+# =============================================================================
+# prepare-commit-msg hook (version-controlled)
+#
+# Auto-fills the Session-Id trailer from the per-session state file written by
+# the session launcher (scripts/session-launcher.sh, `npm run session:start`):
+#
+#   $(git rev-parse --absolute-git-dir)/session-pilot/current-session
+#
+# The path is worktree-specific (inside a linked worktree --git-dir points at
+# .git/worktrees/<name>), so two parallel sessions each fill their OWN id.
+# Line 1 of the file = the session id. With it present, a plain
+# `git commit -m ...` carries provenance — no manual --trailer needed.
+#
+# Skips (never stack a second id):
+#   - merge / squash sources (merge commits carry no Session-Id by design)
+#   - messages that already contain a Session-Id (amend, explicit --trailer)
+# Format/registration validation stays in the commit-msg hook; this hook only
+# fills. Hooks not running (no hooksPath) = no auto-fill, manual --trailer.
+# =============================================================================
+set -u
+
+MSG_FILE="${1:-}"
+SOURCE="${2:-}"
+[ -f "$MSG_FILE" ] || exit 0
+case "$SOURCE" in
+  merge|squash) exit 0 ;;
+esac
+
+# Already provenanced (explicit --trailer, amend of a provenanced commit)?
+if git interpret-trailers --parse < "$MSG_FILE" 2>/dev/null | grep -qi '^Session-Id:'; then
+  exit 0
+fi
+
+GITDIR=$(git rev-parse --absolute-git-dir 2>/dev/null) || exit 0
+STATE="$GITDIR/session-pilot/current-session"
+[ -f "$STATE" ] || exit 0
+ID=$(head -n 1 "$STATE" | tr -d '[:space:]')
+printf '%s' "$ID" | grep -qE '^[0-9]{8}-[a-z0-9][a-z0-9-]*-[0-9a-f]{6}$' || exit 0
+
+# Join an existing trailer block (last line looks like `Key: value`) or start
+# a new trailer paragraph, so interpret-trailers always parses the id.
+if [ "$(tail -n 1 "$MSG_FILE" | grep -cE '^[A-Za-z][A-Za-z0-9-]*: ' || true)" -gt 0 ]; then
+  printf '\nSession-Id: %s\n' "$ID" >> "$MSG_FILE"
+else
+  printf '\n\nSession-Id: %s\n' "$ID" >> "$MSG_FILE"
+fi
+exit 0

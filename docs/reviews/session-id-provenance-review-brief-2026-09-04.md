@@ -1,4 +1,4 @@
-# 独立复核材料：Session-Id 关联标识落地（2026-09-03 session 交付，v4 修订版）
+# 独立复核材料：Session-Id 关联标识落地（2026-09-03 session 交付，v5 修订版）
 
 > 用途：交给未参与本工作的第三方 Agent 做独立 review。本文自包含——reviewer 不需要读对话历史。
 > 交付方 Session-Id：`20260903-pilot1-384b29`｜仓库：`inside-china-ai`｜分支：`main`
@@ -10,6 +10,10 @@
 > 3 个 VLM 文件）；§11 方案 B 改为 reference-transaction 门控（第二轮复核指出的关键事实：
 > git 有 pre-reset 等价物，硬拦做得到）、atlas 两处表述修正、Q11 改 per-session 文件；
 > 新增 §12 记录第二轮裁决 Q9–Q12 的落实回执。落实后的复测：验收 35/35。
+> **v5（2026-09-04 深夜）**：方案 A 落地——`scripts/session-launcher.sh`（worktree + per-session
+> 状态文件 + 登记）与 `.githooks/prepare-commit-msg`（trailer 自动填写）；ref-gate 状态文件改
+> per-worktree（`--absolute-git-dir`），worktree 内 hooks 需绝对 hooksPath（实测相对路径在
+> linked worktree 中静默失效）。验收 45/45。§12 回执同步更新。
 > 日期：2026-09-04。
 
 ---
@@ -256,11 +260,11 @@ README 核对）：
 
 | 项 | 第二轮裁决 | 落实状态 |
 |---|---|---|
-| **B 的钩子前提** | git 有 pre-reset 等价物：reference-transaction prepared 阶段非零退出中止整个事务（复核实测 reset --hard exit 128）；post-checkout 对 reset 调用 0 次。结论是**换钩子**，不是放弃硬拦 | ✅ 已实测复核（临时仓库重现）并**实现** `.githooks/reference-transaction`：refs/heads/* 非快进更新 → 检查被丢弃 commit 的 Session-Id；有本会话状态文件（common-dir `session-pilot/current-session`，launcher 写入）且含外会话 id 则 block，否则 warn。场景 S29–S31 入库 |
-| **Q9 launcher** | 值得做，定性从"治本"改"采用成本削减"；闭环设计 = launcher 写 per-worktree 状态文件（含 id 与过期时间），`prepare-commit-msg` 自动填 trailer，commit-msg 只校验 | ✅ 采纳定性并写入 §11 方案 A；**待实施**（依赖 launcher UX 决策，按裁决顺序在 B 之后） |
+| **B 的钩子前提** | git 有 pre-reset 等价物：reference-transaction prepared 阶段非零退出中止整个事务（复核实测 reset --hard exit 128）；post-checkout 对 reset 调用 0 次。结论是**换钩子**，不是放弃硬拦 | ✅ 已实测复核（临时仓库重现）并**实现** `.githooks/reference-transaction`：refs/heads/* 非快进更新 → 检查被丢弃 commit 的 Session-Id；有本会话状态文件（**per-worktree** `$(git rev-parse --absolute-git-dir)/session-pilot/current-session`，launcher 写入——两会话在两个 worktree 各用各的 id 各自拦截）且含外会话 id 则 block，否则 warn。场景 S29–S31 入库 |
+| **Q9 launcher** | 值得做，定性从"治本"改"采用成本削减"；闭环设计 = launcher 写 per-worktree 状态文件（含 id 与过期时间），`prepare-commit-msg` 自动填 trailer，commit-msg 只校验 | ✅ **已实现（v5）**：`scripts/session-launcher.sh`（`npm run session:start <task>`：worktree + 绝对 hooksPath + id 生成/查重 + 登记 + per-session 状态文件；`session:stop` 清状态）+ `.githooks/prepare-commit-msg`（自动填，amend/显式 trailer 不叠加）。实测发现并修复：相对 hooksPath 在 linked worktree 内静默失效（hooks 全不跑），launcher 用 `extensions.worktreeConfig` + 绝对路径修复。场景 S32–S36 入库，验收 45/45 |
 | **Q10 孤儿检测** | 按修正版 reference-transaction 门控；阈值 = refs/heads/* + 非快进 + 被丢弃 commit 带外会话 id（正常 pull/rebase 不报警）；放弃 post-checkout 路线 | ✅ 完全按此实现并放弃 post-checkout |
-| **Q11 登记结构化** | 不上 SQLite；改 per-session 文件（`sessions/<id>.md`），登记校验退化为文件存在性检查，子串假阳性与并发写同文件隐患一起消失。atlas 自己的 commit 带 `Claude-Session:` trailer——trailer 路线的同业实证 | ⚠️ 部分落实：token 精确匹配先行（S27）；per-session 文件与 launcher（A）同批实施；`Claude-Session:` 实证已记录 |
-| **Q12 充分条件** | 已满足：3 起 reset 级事故 + worktree 0% 自发采用 + d9ce6b1 单 id 错误归因，4 个证据点。顺序：C 立即 → 修正版 B 紧随 → A 跟进；**不需要**纯文档观察期 | ✅ C 已入 runbook（配方 4）、B 已实现、A 排队 |
+| **Q11 登记结构化** | 不上 SQLite；改 per-session 文件（`sessions/<id>.md`），登记校验退化为文件存在性检查，子串假阳性与并发写同文件隐患一起消失。atlas 自己的 commit 带 `Claude-Session:` trailer——trailer 路线的同业实证 | ⚠️ 部分落实：token 精确匹配已先行（S27）；launcher 阶段仍写共享 registry markdown（并发写隐患存在但 launcher 是唯一写入方时窗口小）；per-session 文件仍待做 |
+| **Q12 充分条件** | 已满足：3 起 reset 级事故 + worktree 0% 自发采用 + d9ce6b1 单 id 错误归因，4 个证据点。顺序：C 立即 → 修正版 B 紧随 → A 跟进；**不需要**纯文档观察期 | ✅ 全部落地：C 入 runbook（配方 4）、B 已实现（S29–S31）、A 已实现（v5，S32–S36） |
 | 提案 cherry-pick 事实错误（:109、:318、§3.5） | brief 改对了但提案没改干净，两处自相矛盾 | ✅ 提案 v5 三处已改为实测结论（不触发、沿用原 id、--no-commit 规则） |
 | 登记校验子串匹配 | `grep -qF` 短 id 前缀可命中更长串；改 token 精确匹配 | ✅ hook 改 token 边界匹配（S27：嵌入长 token 中的 id 不再算已登记） |
 | 双登记表并存 | 两份可写真源会漂移；给退出条件或降级警告 | ✅ hook 对 legacy 路径命中时打印弃用警告（S28）；退出条件写入提案 §7.6（legacy 仅过渡，launcher/新会话一律 common-dir） |

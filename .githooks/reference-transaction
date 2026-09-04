@@ -32,8 +32,8 @@ stage="${1:-}"
 
 Z=0000000000000000000000000000000000000000
 
-COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
-STATE="${COMMON_DIR:+$COMMON_DIR/session-pilot/current-session}"
+GIT_DIR=$(git rev-parse --absolute-git-dir 2>/dev/null || echo "")
+STATE="${GIT_DIR:+$GIT_DIR/session-pilot/current-session}"
 CURRENT_ID=""
 if [ -n "$STATE" ] && [ -f "$STATE" ]; then
   CURRENT_ID=$(head -n 1 "$STATE" | tr -d '[:space:]')

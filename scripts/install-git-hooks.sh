@@ -7,7 +7,8 @@
 #
 # What it does:
 #   1. Points core.hooksPath at .githooks/ so ALL version-controlled hooks run
-#      (pre-commit secret scan + doc lint, commit-msg Session-Id gate).
+#      (pre-commit secret scan + doc lint, commit-msg Session-Id gate,
+#      prepare-commit-msg trailer auto-fill, reference-transaction ref-gate).
 #      Installing only .git/hooks/pre-commit would leave the Session-Id gate off.
 #   2. Marks every hook executable.
 #   3. Enables the strict registration gate (session.provenance=strict).
@@ -88,7 +89,7 @@ else
   echo "✅ Registration file already present: $REGISTRY"
 fi
 
-echo "✅ hooksPath set to $HOOKS_DIR (pre-commit + commit-msg both active)"
+echo "✅ hooksPath set to $HOOKS_DIR (pre-commit + commit-msg + prepare-commit-msg + reference-transaction active)"
 echo "✅ Session-Id gate: strict (trailer + registration enforced)"
 echo ""
 echo "   Registry:  $REGISTRY"

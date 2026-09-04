@@ -7,6 +7,8 @@
     "dev": "vite dev",
     "setup:dev": "npm install && vite dev",
     "setup:hooks": "bash scripts/install-git-hooks.sh",
+    "session:start": "bash scripts/session-launcher.sh start",
+    "session:stop": "bash scripts/session-launcher.sh stop",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

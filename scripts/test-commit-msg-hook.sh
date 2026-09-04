@@ -271,6 +271,56 @@ check "S31a normal FF commit passes the gate" 0 "$FF31_EXIT"
 OWN31_EXIT="$(cd "$R16" && git reset --hard HEAD~1 >/dev/null 2>&1; echo $?)"
 check "S31b own-id rewind allowed (rebase/amend of own work)" 0 "$OWN31_EXIT"
 
+# --- Group I: session launcher + prepare-commit-msg auto-fill (concurrency plan A)
+PCM="$REPO_ROOT/.githooks/prepare-commit-msg"
+LAUNCHER="$REPO_ROOT/scripts/session-launcher.sh"
+
+# S32 launcher: worktree + per-worktree state + registry entry + branch
+RL=$(new_repo "launcher")
+( cd "$RL" && mkdir -p .githooks scripts &&
+  cp "$HOOK" .githooks/commit-msg && cp "$REFTX" .githooks/reference-transaction &&
+  cp "$PCM" .githooks/prepare-commit-msg && chmod +x .githooks/* &&
+  cp "$LAUNCHER" scripts/session-launcher.sh &&
+  COMMON=$(git rev-parse --git-common-dir) && mkdir -p "$COMMON/session-pilot" &&
+  printf '# Session Registration Log\n' > "$COMMON/session-pilot/pilot-log.md" &&
+  bash scripts/session-launcher.sh start demo-task ) >/dev/null 2>&1
+WT_PATH="$(cd "$RL" && git worktree list --porcelain | grep '^worktree ' | sed -n '2s/^worktree //p')"
+check "S32 launcher creates a worktree" "yes" "$([ -n "$WT_PATH" ] && [ -d "$WT_PATH" ] && echo yes || echo no)"
+STATE_ABS="$(cd "$WT_PATH" 2>/dev/null && git rev-parse --absolute-git-dir 2>/dev/null)/session-pilot/current-session"
+check "S32b launcher writes per-worktree state file" "yes" "$([ -f "$STATE_ABS" ] && echo yes || echo no)"
+STATE_ID="$(head -n 1 "$STATE_ABS" 2>/dev/null)"
+check "S32c launcher registers the id in the shared registry" "yes" "$([ -n "$STATE_ID" ] && grep -qE "(^|[^0-9A-Za-z-])$STATE_ID(\$|[^0-9A-Za-z-])" "$RL/.git/session-pilot/pilot-log.md" 2>/dev/null && echo yes || echo no)"
+check "S32d launcher creates a session/* branch" "yes" "$(cd "$RL" && git branch --list "session/$STATE_ID" | grep -q . && echo yes || echo no)"
+
+# S33 commit -m inside the worktree gets the trailer auto-filled
+( cd "$WT_PATH" && echo w >> a.txt && git add a.txt && git commit -q -m "work" >/dev/null 2>&1 )
+AUTO_ID="$(cd "$WT_PATH" && git log --format='%(trailers:key=Session-Id,valueonly)' -1)"
+check "S33 prepare-commit-msg auto-fills the trailer" "$STATE_ID" "$AUTO_ID"
+
+# S34 explicit --trailer wins; no second id stacked
+( cd "$WT_PATH" && echo w2 >> a.txt && git add a.txt &&
+  git commit -q -m "explicit" --trailer "Session-Id: 20260904-manual-999999" >/dev/null 2>&1 )
+EXPLICIT_ID="$(cd "$WT_PATH" && git log --format='%(trailers:key=Session-Id,valueonly)' -1)"
+check "S34 explicit trailer kept as-is" "20260904-manual-999999" "$EXPLICIT_ID"
+( cd "$WT_PATH" && git commit -q --amend --no-edit >/dev/null 2>&1 )
+AMENDED_ID="$(cd "$WT_PATH" && git log --format='%(trailers:key=Session-Id,valueonly)' -1)"
+check "S34b amend after explicit trailer keeps single id" "20260904-manual-999999" "$AMENDED_ID"
+
+# S35 reference-transaction reads the PER-WORKTREE state in a linked worktree
+( cd "$WT_PATH" && git checkout -q -b other2 && echo o > o.txt && git add o.txt &&
+  git commit -q -m "theirs" --trailer "Session-Id: 20260904-foreign-444444" &&
+  git checkout -q "session/$STATE_ID" &&
+  git merge -q --no-ff other2 -m "merge" >/dev/null 2>&1 ) >/dev/null 2>&1
+BEFORE35="$(cd "$WT_PATH" && git rev-parse HEAD)"
+BLOCK35="$(cd "$WT_PATH" && git reset --hard HEAD^ >/dev/null 2>&1; echo $?)"
+AFTER35="$(cd "$WT_PATH" && git rev-parse HEAD)"
+check "S35 per-worktree ref-gate blocks foreign-id drop (exit 128)" 128 "$BLOCK35"
+check "S35b ref untouched after blocked reset" "$BEFORE35" "$AFTER35"
+
+# S36 stop clears the per-session state (worktree kept if dirty)
+( cd "$RL" && bash scripts/session-launcher.sh stop "$WT_PATH" ) >/dev/null 2>&1
+check "S36 stop removes the state file" "no" "$([ -f "$STATE_ABS" ] && echo yes || echo no)"
+
 echo "---"
 echo "pass=$pass fail=$fail"
 [ "$fail" = "0" ]
