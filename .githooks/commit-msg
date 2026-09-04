@@ -94,11 +94,20 @@ for r in "$REGISTRY" "$LEGACY"; do
   [ -n "$r" ] || continue
   [ -f "$r" ] || continue
   ANY_REGISTRY="$r"
-  if grep -qF -- "$ID" "$r"; then
+  # Token-exact match: the id must appear as a whole token, so a short id can
+  # never satisfy itself by being a substring of a longer registered string.
+  if grep -qE "(^|[^0-9A-Za-z-])${ID}(\$|[^0-9A-Za-z-])" "$r"; then
     FOUND="$r"
     break
   fi
 done
+
+# Legacy registry deprecation: common-dir is canonical; the worktree-root copy
+# is a transition fallback scheduled for removal (see proposal §7.6). Two
+# writable sources would drift, so using the legacy path warns every time.
+if [ -n "$FOUND" ] && [ "$FOUND" = "$LEGACY" ] && [ -f "$REGISTRY" ]; then
+  echo "[commit-msg] WARNING: id registered in legacy $LEGACY; canonical registry is $REGISTRY (legacy path is scheduled for removal)" >&2
+fi
 
 if [ -z "$FOUND" ]; then
   echo ""

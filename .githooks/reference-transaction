@@ -1,0 +1,87 @@
+#!/bin/bash
+# =============================================================================
+# reference-transaction hook (version-controlled)
+#
+# Orphan gate (concurrency plan B). Fires on EVERY ref update; the "prepared"
+# stage can abort the whole transaction with a non-zero exit — this is the
+# only hook-level place where `git reset`, `git rebase`, `git branch -D` and
+# amend-style rewrites can be intercepted (post-checkout does NOT fire for
+# reset; measured, see scripts/test-commit-msg-hook.sh Group H).
+#
+# Gate (deliberately narrow to stay quiet):
+#   only refs/heads/*  +  only NON-fast-forward updates  +  only commits
+#   dropped by the update that carry a Session-Id belonging to ANOTHER
+#   session. Normal commits (FF), own-id rewrites (rebase/amend of own work)
+#   and branch creation pass silently. Rebase discards of own old SHAs are
+#   therefore never flagged.
+#
+# Mode depends on the per-session state file written by the session launcher:
+#   $(git rev-parse --git-common-dir)/session-pilot/current-session
+#   - file exists  -> BLOCK (exit 1 aborts the transaction, fail-closed)
+#   - file missing -> WARN only (exit 0) — until every session runs the
+#     launcher, warning is the only safe default; still turns silent loss
+#     into a loud signal.
+#
+# Emergency bypass (discouraged):
+#   git -c core.hooksPath=<empty dir> reset --hard <target>
+# =============================================================================
+set -u
+
+stage="${1:-}"
+[ "$stage" = "prepared" ] || exit 0
+
+Z=0000000000000000000000000000000000000000
+
+COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
+STATE="${COMMON_DIR:+$COMMON_DIR/session-pilot/current-session}"
+CURRENT_ID=""
+if [ -n "$STATE" ] && [ -f "$STATE" ]; then
+  CURRENT_ID=$(head -n 1 "$STATE" | tr -d '[:space:]')
+fi
+
+while read -r old new ref; do
+  case "$ref" in refs/heads/*) ;; *) continue ;; esac
+  [ "$old" = "$Z" ] && continue                      # branch creation
+  if [ "$new" != "$Z" ]; then
+    git merge-base --is-ancestor "$old" "$new" 2>/dev/null && continue  # FF
+  fi
+
+  # Non-fast-forward (or branch deletion): inspect dropped commits.
+  if [ "$new" = "$Z" ]; then RANGE="$old"; else RANGE="$new..$old"; fi
+  DROPPED=$(git rev-list --format='%H%x09%(trailers:key=Session-Id,valueonly)' "$RANGE" 2>/dev/null \
+    | grep -v '^commit ' | awk -F'\t' '$2 != "" {print $1 " " $2}' || true)
+
+  FOREIGN=""
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    id="${entry#* }"
+    [ "$id" = "$CURRENT_ID" ] && continue
+    FOREIGN="$FOREIGN  $entry"$'\n'
+  done <<EOF_DROPPED
+$DROPPED
+EOF_DROPPED
+
+  [ -n "$FOREIGN" ] || continue
+
+  if [ -n "$CURRENT_ID" ]; then
+    echo ""
+    echo "[ref-gate] BLOCKED: this update would drop commits provenanced to ANOTHER session:" >&2
+    printf '%s' "$FOREIGN" >&2
+    echo "branch: $ref" >&2
+    echo "Your session id: $CURRENT_ID (from $STATE)" >&2
+    echo "" >&2
+    echo "This is how silently-lost work happens (3 incidents on record). Instead:" >&2
+    echo "  - recover/later:    the dropped commits stay reachable via git reflog" >&2
+    echo "  - legitimate rewrite of mixed work: re-land foreign commits first" >&2
+    echo "    (see docs/agents/git-concurrent-recovery.md), then retry" >&2
+    echo "  - emergency bypass (discouraged): git -c core.hooksPath=<empty dir> <cmd>" >&2
+    echo "" >&2
+    exit 1
+  else
+    echo "[ref-gate] WARNING: dropping commits provenanced to another session (no current-session state file, so not blocking):" >&2
+    printf '%s' "$FOREIGN" >&2
+    echo "branch: $ref — enable blocking via the session launcher (writes $STATE)" >&2
+  fi
+done
+
+exit 0

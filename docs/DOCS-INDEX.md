@@ -141,7 +141,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 |----------|---------|
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
-| `session-id-provenance-review-brief-2026-09-04.md` | Session-Id 关联标识交付的第三方独立复核材料 v2 — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、复核裁决落实状态、未解决事项 |
+| `session-id-provenance-review-brief-2026-09-04.md` | Session-Id 关联标识交付的第三方独立复核材料 **v4（已吸收两轮复核）** — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、并发 reset 事故与单 id 错误归因证据、atlas 调研、reference-transaction 门控与并发方案 A/B/C、两轮裁决落实回执、未解决事项 |
 | `ponytail-adoption-review-brief-2026-09-04.md` | ponytail 改造的第三方独立复核材料 **v3** — 上游分层体积实测（固定 SHA，合计闭合）、适配器逐目录层级表（4 注入 + 9 指令层）、三处落地文本与统一字节口径、逐 tag 拒绝理由、证据分级与自我反驳、两轮复核（Q1–Q7、R1–R6）裁决落实 |
 
 ### `archive/` — Completed work

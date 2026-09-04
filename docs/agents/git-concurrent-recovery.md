@@ -53,6 +53,18 @@ GIT_INDEX_FILE=<tmp> git update-index --cacheinfo 100644,<blob-sha>,<path>
 
 随后按配方 1 的 `write-tree` 起继续。
 
+## 配方 4：pathspec 重提（混合 index 场景，2026-09-04 实战验证）
+
+staging 区含他方 staged 改动、而你自己的改动在工作区时，**禁止裸 `git commit`**（会把 index
+里全部 staged 内容一锅端进你的提交）。用 pathspec commit 只取指定文件的工作区内容：
+
+```bash
+git commit <你的文件...> --trailer "Session-Id: <your-id>"   # 他方 staged 原样留在 index
+```
+
+注意：untracked 文件不能直接走 pathspec commit，先 `git add <file>` 再列入 pathspec。
+适用前提：你的文件与他方 staged 文件**不交叠**（同文件交叠回到配方 1）。
+
 ## 复评触发（不要遗忘项）
 
 本文件是应急路径，每次实际使用后复评一次：

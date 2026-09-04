@@ -106,9 +106,11 @@ transcript（那是 Atlas 检查点的功能），也不能证明归因正确（
     | revert 子命令（`--no-edit`） | **不触发** | 生成的 commit 无 Session-Id（实测确认为空） |
     | revert 子命令（默认，开编辑器） | **不触发** | 同上——revert 从不调用 commit-msg |
     | 本地 `merge --no-ff -m` | **触发** | 无 trailer 时**被拦截，merge 中止并留下 MERGE_HEAD** |
-    | cherry-pick 后 commit | 触发 | 按普通 commit 校验 |
+    | cherry-pick（默认提交） | **不触发** | 新 commit **沿用原提交的 id**——归因错配且校验被跳过（v5 实测修正：v4 此处误记为"触发"；S19 已锁定该行为） |
+    | `cherry-pick --no-commit` 后普通 commit | 触发 | 正确路径：新 commit 归到本 session，正常校验 |
 
-    结论：revert 与"平台服务端生成的 merge commit"是**天然豁免**（不经过 hook）；但**本地
+    结论：revert、cherry-pick（默认提交）与"平台服务端生成的 merge commit"是**绕过点**
+    （不经过 hook；cherry-pick 还会把新 commit 错归到源 session）；但**本地
     生成的 merge commit 不豁免**——它经过 hook 且会被拦死。v3 §7.2 把 merge commit 笼统列为
     排除项，在启用 hook 后会直接卡住本地 merge，v4 已在 §7.2 区分。
 15. **校验口径：原始行匹配会误判，结构化解析不会（v4 新增，实测）**：对同一段 commit message，
@@ -194,13 +196,17 @@ v4 曾规定"登记不强制"，与落地后的 commit-msg hook（strict 模式�
   （主 worktree 即 `.git/session-pilot/pilot-log.md`）。放 common dir 是因为 linked worktree
   不复制 gitignored 文件——放工作区根会让每个 worktree 看到不同的登记表，strict 校验在
   worktree 里静默失效（复核实测）。hook 同时接受工作区根 `.session-pilot/pilot-log.md`
-  作为过渡兜底。
+  作为过渡兜底，**但命中即打印弃用警告**——legacy 路径退出条件：installer 迁移完成后新会话
+  一律写 common dir；legacy 文件不再新增条目，待在库条目全部迁入且连续一个试点周期无 legacy
+  命中后由 installer 删除。两个可写真源并存是过渡期已知代价，靠警告抑制漂移。
 - **仍禁止**为登记 Session-Id 单独创建或修改仓库内文档——登记只写上述本地文件；已有
   spec/ticket/handoff 的任务可以顺带引用 id，但来源以登记表为准。
 
 ### 3.5 唯一性硬规则（v3 新增，v4 收窄适用范围并改校验口径）
 
-**适用范围：每个 eligible commit**（§7.2 定义）。revert commit 与平台服务端生成的 merge
+**适用范围：每个 eligible commit**（§7.2 定义）。revert commit、cherry-pick 默认提交产生的
+commit（不触发 hook，且沿用原提交 id 造成归因错配——必须改用 `cherry-pick --no-commit` 后
+正常提交）与平台服务端生成的 merge
 commit 明确豁免（事实 14）——v3 表述为"每个 commit 必须且只能有一个"，与 §7.2 的排除项自相
 矛盾，v4 已修正。本地生成的 merge commit **待定**，见 §7.2 表格与待决项，不在此处预设归属。
 
@@ -298,7 +304,9 @@ commit 明确豁免（事实 14）——v3 表述为"每个 commit 必须且只�
 
 v4 仍保持 2 处命令块（§3.2 写入、§3.3 查询）：§3.5 的结构化校验、§6.0 的 `setup:hooks`
 均以子命令/参数名描述（写作 `interpret-trailers --parse`、`setup:hooks`），不计入命令行数。
-**完整的命令块仍在采纳步骤中迁入 L1 后从本文件移除**，在此之前本文件保持自足以便评审。
+**完整的命令块已在结项时迁入 L1（`git-workflow.md` §8）**；本文件因转为设计依据仍保留少量
+命令示例，`npm run lint:docs` 对本文件的 1 条 `l2-execution-instructions` WARN（命令行 6≥5）
+为**已接受的稳态**——后续清理命令示例时自然消除，不阻塞任何门禁。
 
 `README.md:131` 的指引在**已启用 `core.hooksPath` 的 checkout 无效、在新 clone 有效**（事实
 12）——v3 曾表述为普遍失效，已修正。它仍是与本提案独立的既有缺陷，随 §6.0 一并修或单独立项。
@@ -315,7 +323,7 @@ v4 仍保持 2 处命令块（§3.2 写入、§3.3 查询）：§3.5 的结构�
    |---|---|---|
    | 普通 commit（人工或 agent） | ✅ 是 | commit-msg 会触发，可控 |
    | `commit --amend` | ✅ 是 | commit-msg 会触发（事实 14） |
-   | cherry-pick 落地的 commit | ✅ 是 | 走普通 commit 路径，commit-msg 触发 |
+   | cherry-pick 落地的 commit（默认提交） | ❌ 否 | **不触发 commit-msg** 且沿用原提交的 id——归因错配（v5 实测修正）；规则：`cherry-pick --no-commit` 后正常提交 |
    | **revert commit** | ❌ 豁免 | revert 子命令**从不调用 commit-msg**（`--no-edit` 与编辑器模式实测均不触发），生成的 commit 无 Session-Id，无法也无需合规 |
    | **平台服务端生成的 merge commit** | ❌ 豁免 | GitHub UI / PR merge 在服务端创建，不经过本地 hook |
    | **本地 `merge --no-ff`** | ⚠️ **不豁免，需显式决策** | 实测 commit-msg **会触发**；无 trailer 时 merge 被拦死并留下 MERGE_HEAD。v3 把它笼统列为排除项是错的——启用 hook 后本地 merge 会直接卡住 |
