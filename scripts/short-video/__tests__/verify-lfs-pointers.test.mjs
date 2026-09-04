@@ -66,6 +66,10 @@ describe("verify-lfs-pointers.mjs", () => {
     execSync("git lfs uninstall", { cwd: tempRepo });
     execSync("git config filter.lfs.clean ''", { cwd: tempRepo });
     execSync("git config filter.lfs.smudge ''", { cwd: tempRepo });
+    // Modern git-lfs also installs a `process` filter (required=true) in
+    // .git/config — unset both, or the staged blob still becomes a pointer.
+    execSync("git config filter.lfs.process ''", { cwd: tempRepo });
+    execSync("git config filter.lfs.required ''", { cwd: tempRepo });
 
     // Write actual binary content (PNG header bytes) — NOT an LFS pointer
     const binaryContent = Buffer.from([
@@ -95,6 +99,8 @@ describe("verify-lfs-pointers.mjs", () => {
     execSync("git lfs install", { cwd: tempRepo });
     execSync("git config --unset filter.lfs.clean", { cwd: tempRepo });
     execSync("git config --unset filter.lfs.smudge", { cwd: tempRepo });
+    execSync("git config --unset filter.lfs.process", { cwd: tempRepo });
+    execSync("git config --unset filter.lfs.required", { cwd: tempRepo });
   });
 
   it("passes when no LFS-tracked files are staged", () => {
