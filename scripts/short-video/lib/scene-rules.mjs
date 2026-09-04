@@ -1258,7 +1258,10 @@ export function checkTemplateContract(scenes) {
         category: "Structure",
         check: `Scene ${scene.id} template contract`,
         detail: `layout="${scene.layout}" is ignored — ${scene.visualType} templates always render "${layout}"`,
-        fix: `Remove the layout field from scene ${scene.id}, or use narrative if the layout choice matters`,
+        // The layout FIELD stays: checkLayoutField fails any non-cta scene
+        // without one. Only the value is dead data — point at the value the
+        // template actually renders.
+        fix: `Set scene ${scene.id} layout to "${layout}" (the value ${scene.visualType} renders)`,
       });
     }
   }

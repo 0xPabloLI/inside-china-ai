@@ -98,7 +98,7 @@ const validScenes = [
     // cta.hero-center contract: brand + tagline rendered, action per the CTA
     // action contract. `line1` is unknown to the slot map (template contract
     // check, #190) — the render resolves non-narrative layouts to hero-center,
-    // so per-type layout values below are dead data and were removed.
+    // so the per-type layout values below were replaced with hero-center.
     texts: {
       brand: "CHINA AI NEWS",
       tagline: "DAILY CHINA AI BRIEFING",
