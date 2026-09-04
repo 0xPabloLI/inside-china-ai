@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-09-03（LeapTalk v8 测试完成并否决；talking head API 平台全面调研；测试路线更新为 Kaggle T4 + Modal + ModelScope + AutoDL）
+> **最后更新**：2028-09-04（SoulX-FlashHead 基座测试完成：Model_Pro + Model_Lite 均跑通，嘴部有动态变化，验证 LeapTalk 否决根因是1步桥蒸馏而非基座；LeapTalk v8 测试完成并否决；talking head API 平台全面调研；测试路线更新为 Kaggle T4 + Modal + ModelScope + AutoDL）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -58,6 +58,8 @@
 | 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
 | 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
 | 16 | ~~**LeapTalk**~~ | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | ⚠️ Kaggle T4 | ✅ Apache 2.0 | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产） | 2026-09-03 |
+| 17 | **SoulX-FlashHead (Model_Pro)** | Wan2.1 DiT 1.3B 基座（未蒸馏） | 512×512 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座） | 2026-09-04 |
+| 18 | **SoulX-FlashHead (Model_Lite)** | LTX-VAE 轻量基座 | 512×512 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（197.5s/3.08s段；嘴部有动态，画质略逊 Pro——稍平滑；实时路线 96 FPS on RTX4090） | 2026-09-04 |
 
 ### 云端 API
 
@@ -794,6 +796,55 @@
 - **适用场景**：有 NVIDIA A100/H100 的云 GPU 场景，而非 M2 Pro 本地
 - **测试重点**：仅在有云 GPU 时测试；验证 talking head LoRA + OmniNFT 叠加效果
 
+### ✅ SoulX-FlashHead 基座测试（2026-09-04 完成）
+
+**目的**：验证 LeapTalk 否决根因是"1步桥蒸馏+TAEHV 结构性上限"还是基座本身。基座未蒸馏，用官方 `generate_video.py` 跑 Model_Pro + Model_Lite。
+
+**信源**：仓库 `Soul-AILab/SoulX-FlashHead`，权重 `Soul-AILab/SoulX-FlashHead-1_3B`，License Apache 2.0。推理脚本 `generate_video.py`，配置 `flash_head/configs/infer_params.yaml`。
+
+#### 测试结果
+
+| 变体 | VAE | FID（论文） | T4 耗时 | T4 FPS | RTX4090 FPS | VRAM | 画质 | 嘴部动态 |
+|------|-----|-----------|---------|--------|-------------|------|------|---------|
+| Model_Pro | WanVAE | 21 | 675.7s (11.3min) / 3s段 | 0.11 | 10.8 | ~15GB | 清晰，无伪影 | ✅ 有变化 |
+| Model_Lite | TAEHV | 38 | 197.5s (3.3min) / 3s段 | 0.39 | **96** | **6.4GB** | 稍平滑，略逊 Pro | ✅ 有变化 |
+
+- 输出：512×512, 77 帧, 25fps, 3.08s, h264+aac
+- 产物：`scripts/short-video/experiments/digital-human/soulx-flashhead/`（mp4 + 关键帧）
+- Kaggle 脚本：`scripts/kaggle/soulx-test/`
+
+#### 关键结论
+
+1. **LeapTalk 的差是1步桥蒸馏造成，不是基座的问题**：基座嘴部有自然动态变化（LeapTalk 蒸馏版嘴部几乎不动），画质清晰无伪影（LeapTalk 蒸馏版画质差、有色块）
+2. **Pro 优于 Lite**：WanVAE FID 21 vs TAEHV FID 38，与论文 Table 1 一致；肉眼 Pro 细节更锐利
+3. **Pro 成本更高**：11.3min vs 3.3min（Pro 慢 3.4 倍），但都可接受
+
+#### 分辨率与比例
+
+- `infer_params.yaml` 有 `height: 512` `width: 512`，**可改**（改 yaml），`generate_video.py` 无命令行覆盖
+- **比例可改**：height/width 独立设置，理论上可设竖版（如 512×910），但模型训练时为 512×512，超出训练分布可能变形/质量下降，**未测试**
+- **768×768 在 T4 OOM**（LeapTalk 测试已证），更大分辨率需 A100 80GB
+- **后处理超分可行**：可用 Real-ESRGAN / Topaz Video AI / waifu2x 将 512×512 超分到 1024×1024+
+
+#### 平台适配
+
+- **CUDA only**：基于 PyTorch + CUDA，不支持 MPS / 华为 NPU / AMD ROCm
+- **无社区适配版**：GitHub 搜 "SoulX-FlashHead mps/mlx" 均 0 结果（2026-09-04 确认）；模型 2026-02 开源，太新
+- **GTX 1080（Pascal sm_61）不能跑**：PyTorch 2.7.1 最低 sm_75；降级 PyTorch 理论可行但 xfuser/xformers 依赖不兼容；且 8GB VRAM 只够 Lite（6.4GB），不够 Pro
+- **可跑环境**：Kaggle T4（免费，已验证）/ RTX 20xx+ / RTX 30xx+ / RTX 40xx+ / AutoDL 4090 ¥1.88/h
+
+#### Talking Body
+
+- SoulX-FlashHead 是 **Talking Head only**（512×512 头部/肩部）
+- Soul-AILab 还有 **SoulX-FlashTalk**（14B，README Acknowledgement 提及），可能是 Talking Body/全身版，但**未开源**
+- Talking Body 需求用 InfiniteTalk（576×704，Apache 2.0，已测可用）或 LongCat（480p，MIT，已测可用）
+
+#### 下一步
+
+- SoulX-FlashHead Model_Pro vs EchoMimicV3 v51 同素材 A/B 对比（未做）
+- 竖版比例测试（改 yaml 设 512×910，未做）
+- 后处理超分测试（Real-ESRGAN，未做）
+
 ### 📋 LeapTalk（最高优先级新模型）✅ 门禁已通过，下一个测试目标
 
 - **优先级**：⭐⭐⭐⭐⭐（1 步推理 + 1.3B + 无限长度，潜在解决 EchoMimicV3 多段拼接瓶颈）
@@ -1332,7 +1383,7 @@
 | 32 | **JoyVASA** | 扩散+解耦 | 原始版 | ❓ 待确认 | A100 | 云 GPU | ⭐⭐⭐⭐ | 京东健康，中文支持，876 stars；license 待核实 |
 | 29 | **LatentSync 1.5** | SD UNet + VAE | 原始版 | OpenRAIL++ | T4（8GB） | Kaggle | ⭐⭐⭐⭐ | 8GB 即可跑，T4 单卡足够 |
 | 30 | **LeapTalk** | SoulX-FlashHead-1.3B (DiT) | 1步推理 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⚠️ v4 1.41 FPS / 默认参数近静态 | 2026-07-29 arXiv，1步推理 200 FPS，无限长度流式，基座 1.3B 同 EchoMimicV3 量级 |
-| 31 | **SoulX-FlashHead** | Soul-AILab 自研 (1.3B) | 实时流式 | ✅ Apache 2.0 | T4（~15GB） | Kaggle | ⭐⭐⭐⭐ | 2026-02-12 开源，LeapTalk 基座，无限长度+实时流式 talking head |
+| 31 | ~~**SoulX-FlashHead**~~ | Soul-AILab 自研 (1.3B) | 实时流式 | ✅ Apache 2.0 | T4（~15GB） | ✅ 已完成 | — | 2026-09-04 测完：Model_Pro 675.7s + Model_Lite 197.5s，嘴部有动态变化，画质清晰；验证 LeapTalk 差是1步桥蒸馏造成而非基座；产物 `experiments/digital-human/soulx-flashhead/` |
 | 32 | **FantasyTalking2** | Wan2.1-14B (DiT) | 原始版 | ❓ 待确认 | L4/A100 | Colab Pro+/云 GPU | ⭐⭐⭐⭐ | AAAI 2026，v2 升级版（TLPO 偏好优化），v1 已在列表 |
 | 33 | **SkyReels-V3 A2V** | Wan2.1-19B | 原始版 | ❓ 待确认 | A100（40GB+） | 云 GPU | ⭐⭐⭐ | 2026-01-29 开源，统一多模态框架，talking avatar 19B，有 GGUF 量化 |
 | 34 | **Soul** | 自研 DiT | 原始版 | ❓ 待确认 | A100 | 云 GPU | ⭐⭐⭐ | CVPR 2026，多模态驱动（图+文+音频），1080P 分钟级长视频，声称超 SOTA |
