@@ -29,7 +29,8 @@
  *   1. apiSearch (if configured) — direct API call, parse JSON/XML response
  *   2. CDP (primary for most sources)
  *   3. googleSiteFallback (Google site: search, if configured)
- *   4. mcpFallback (mcp-search-bridge/Grok, if configured)
+ *   4. search pool (Brave > Tavily > Jina, #65 — generic web_search fallbacks only)
+ *   5. mcpFallback (mcp-search-bridge/Grok last resort; platform MCPs go here directly)
  *
  * Used by search-sources.mjs.
  */

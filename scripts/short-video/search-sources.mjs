@@ -12,7 +12,7 @@
  * Sources are defined in lib/source-registry.mjs (single source of source).
  * 28 sources total (7 news + 8 self-media + 8 international + 5 general + 5 last30days + 1 wechat).
  *
- * Fallback chain: apiSearch (if configured) → CDP → googleSiteFallback (Google site: search) → apiFallback (direct Bigsong API, #90) → mcpFallback (mcp-search-bridge)
+ * Fallback chain: apiSearch (if configured) → CDP → googleSiteFallback (Google site: search) → apiFallback (direct Bigsong API, #90) → search pool (Brave > Tavily > Jina, #65) → mcpFallback (mcp-search-bridge/Grok, generic web_search sources only; other MCPs go straight to mcpFallback)
  * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
  * International/general sources primarily use mcp-search-bridge (Grok web search).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
@@ -60,6 +60,7 @@ import {
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
 import { searchX, searchXhs } from "./lib/bigsong-api.mjs";
+import { searchPool, isPoolEligible } from "./lib/search-pool.mjs";
 import {
   cdpNewTab,
   cdpCloseTab,
@@ -384,7 +385,8 @@ export function shouldSkipCdpOnApiFail(source, keyword) {
   return !!apiUrl && apiUrl === cdpUrl;
 }
 
-async function collectFromSource(source, keyword) {
+// Exported for tests/integration drivers (same pattern as shouldSkipCdpOnApiFail)
+export async function collectFromSource(source, keyword) {
   // #67: Read from capabilities.articles with top-level fallback
   const cap = source.capabilities?.articles;
   const apiSearch = cap?.apiSearch ?? source.apiSearch;
@@ -427,10 +429,29 @@ async function collectFromSource(source, keyword) {
     articles = await collectFromBigsong(source, keyword, apiFallback);
   }
 
-  // Step 3: If still failed and MCP fallback is configured, try MCP
+  // Step 3: If still failed and MCP fallback is configured, try MCP.
+  // #65: For the generic web_search sources (x_search/youtube/arxiv/github/
+  // threads/google/mcp_grok_search), the REST pool (Brave > Tavily > Jina)
+  // runs first; the Grok bridge stays as the last resort. Platform-specific
+  // MCP fallbacks (xhs/sogou_weixin/weibo_hot/bilibili) keep the direct MCP
+  // path — the pool does not replace them.
   if (articles.length === 0 && mcpFallback) {
-    const mcpArticles = await collectFromMcp(source, keyword);
-    articles = mcpArticles;
+    if (isPoolEligible(source)) {
+      console.log(`  🏊 Trying search pool for ${source.label}...`);
+      const poolResult = await searchPool(keyword || DEFAULT_KEYWORDS[0]);
+      for (const attempt of poolResult.attempts) {
+        console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
+      }
+      if (poolResult.articles.length > 0) {
+        articles = poolResult.articles;
+        console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
+      } else {
+        articles = await collectFromMcp(source, keyword);
+      }
+    } else {
+      const mcpArticles = await collectFromMcp(source, keyword);
+      articles = mcpArticles;
+    }
   }
 
   // Step 4: Clean titles if needed
@@ -685,11 +706,9 @@ async function main() {
 }
 
 // Auto-run only when invoked directly as a CLI script (same pattern as
-// asset-sourcer.mjs). Required so tests can import shouldSkipCdpOnApiFail
-// without triggering a live discovery run.
-// Resolved from the module's own path (not argv) so the guard holds no matter
-// how the CLI is invoked; same idiom as fetch-page.mjs / asset-sourcer.mjs.
-const isMainModule = __filename.endsWith("search-sources.mjs");
+// asset-sourcer.mjs). Required so tests can import collectFromSource /
+// shouldSkipCdpOnApiFail without triggering a live discovery run.
+const isMainModule = process.argv[1] && process.argv[1].endsWith("search-sources.mjs");
 if (isMainModule) {
   main().catch((e) => {
     console.error(`❌ ${e.message}`);
