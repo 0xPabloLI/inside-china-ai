@@ -3,16 +3,28 @@
 # commit-msg hook (version-controlled)
 #
 # Lives in .githooks/ and is activated via `git config core.hooksPath .githooks`
-# (run `npm run setup:hooks` after cloning).
+# (run `npm run setup:hooks` or `bash scripts/install-git-hooks.sh` after cloning;
+#  both enable this hook and the strict registration gate).
 #
-# Check: Session-Id provenance gate.
-#   Every non-merge, non-revert commit must carry exactly one Session-Id
-#   trailer with a well-formed id, so parallel sessions can attribute work.
-#   When .session-pilot/pilot-log.md exists, the id must also be registered
-#   there (the hook reads the filesystem, so gitignore does not hide it).
-#   No registry file -> registration check is skipped (portability).
+# Check: Session-Id provenance gate (LOCAL GUARDRAIL, not a server-side rule).
+#   Every commit that reaches this hook must carry exactly one Session-Id
+#   trailer with a well-formed id (<yyyymmdd>-<task>-<6hex>), so parallel
+#   sessions can associate work. With `session.provenance=strict` (set by the
+#   installer) the id must also be registered; strict mode is fail-closed.
 #
-# Exemptions: merge in progress (MERGE_HEAD), revert in progress (REVERT_HEAD).
+# Registration lookup (worktree-safe, both paths accepted):
+#   1. $(git rev-parse --git-common-dir)/session-pilot/pilot-log.md  (canonical:
+#      shared by every worktree, never committable)
+#   2. .session-pilot/pilot-log.md at the worktree root (legacy, transition only)
+#
+# Paths that never reach this hook (measured, see scripts/test-commit-msg-hook.sh):
+#   revert (no hook invocation at all), cherry-pick (keeps the ORIGINAL commit's
+#   id, so the new commit is mis-attributed), commit-tree, git commit --no-verify,
+#   and any checkout where hooksPath is not set.
+#   Rules: use `revert --no-commit` and `cherry-pick --no-commit`, then commit
+#   normally so the gate applies.
+#   `git merge --no-ff` DOES reach this hook and is exempted by choice (below).
+#
 # Bypass (emergency only):  git commit --no-verify
 # =============================================================================
 set -u
@@ -23,11 +35,12 @@ if [ ! -f "$MSG_FILE" ]; then
   exit 1
 fi
 
-# --- Exemptions -------------------------------------------------------------
+# --- Merge exemption (deliberate) -------------------------------------------
+# commit-msg DOES run for `git merge --no-ff` (measured on git 2.50.1), so this
+# is a choice, not a platform limit: merge commits add no original work and
+# blocking a routine merge/pull is worse than the attribution gap. Consequence:
+# merge commits carry no Session-Id by design.
 if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
-  exit 0
-fi
-if git rev-parse -q --verify REVERT_HEAD >/dev/null 2>&1; then
   exit 0
 fi
 
@@ -38,11 +51,11 @@ COUNT=$(printf '%s\n' "$IDS" | grep -c . || true)
 fail() {
   echo ""
   echo "[commit-msg] BLOCKED: expected exactly 1 well-formed Session-Id trailer, $1"
-  echo "Every non-merge commit carries provenance so parallel sessions can attribute work."
+  echo "Every commit that reaches this hook carries provenance so parallel sessions can associate work."
   echo ""
   echo "Repair:"
   echo "  1. If you don't have an id, generate one: <yyyymmdd>-<task>-<6hex>  (e.g. 20260903-refactor-a1b2c3)"
-  echo "  2. Register it in .session-pilot/pilot-log.md (tool / Session-Id / baseline / commits)"
+  echo "  2. Register it (registration failures print the exact file to edit)"
   echo "  3. Re-commit with: git commit --trailer \"Session-Id: <your-id>\""
   echo ""
   echo "Emergency bypass (discouraged): git commit --no-verify"
@@ -62,19 +75,51 @@ if ! printf '%s' "$ID" | grep -qE '^[0-9]{8}-[a-z0-9][a-z0-9-]*-[0-9a-f]{6}$'; t
   fail "malformed: \"$ID\" (expected <yyyymmdd>-<task>-<6hex>, e.g. 20260903-refactor-a1b2c3)"
 fi
 
-# --- Registration check (repo-local) ----------------------------------------
-# The registry is gitignored but the hook runs on the filesystem, so it can
-# verify the id was registered at session start. Absent registry -> skip.
-REGISTRY="$(git rev-parse --show-toplevel 2>/dev/null)/.session-pilot/pilot-log.md"
-if [ -f "$REGISTRY" ] && ! grep -qF -- "$ID" "$REGISTRY"; then
+# --- Registration check (opt-in, fail-closed) -------------------------------
+# Enabled by the installer: git config session.provenance strict
+# When enabled an unregistered id is blocked, and a missing registry is a
+# failure too — otherwise deleting the registry would silently switch the gate off.
+if [ "$(git config --get session.provenance 2>/dev/null || echo '')" != "strict" ]; then
+  exit 0
+fi
+
+COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
+WORKTREE=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+REGISTRY="${COMMON_DIR:+$COMMON_DIR/session-pilot/pilot-log.md}"
+LEGACY="${WORKTREE:+$WORKTREE/.session-pilot/pilot-log.md}"
+
+FOUND=""
+ANY_REGISTRY=""
+for r in "$REGISTRY" "$LEGACY"; do
+  [ -n "$r" ] || continue
+  [ -f "$r" ] || continue
+  ANY_REGISTRY="$r"
+  if grep -qF -- "$ID" "$r"; then
+    FOUND="$r"
+    break
+  fi
+done
+
+if [ -z "$FOUND" ]; then
   echo ""
-  echo "[commit-msg] BLOCKED: Session-Id \"$ID\" is not registered in .session-pilot/pilot-log.md"
-  echo "A trailer alone cannot map id -> session; registration is what makes work attributable."
+  if [ -z "$ANY_REGISTRY" ]; then
+    echo "[commit-msg] BLOCKED: strict mode is on but no registration file exists."
+    echo "A trailer alone cannot map id -> session; registration is what makes work associable."
+    echo ""
+    echo "Repair:"
+    echo "  1. mkdir -p \"${COMMON_DIR:-.git}/session-pilot\""
+    echo "  2. Add an entry to \"${COMMON_DIR:-.git}/session-pilot/pilot-log.md\": Session-Id / tool / baseline / commits"
+    echo "  3. Re-commit with the same trailer: git commit --trailer \"Session-Id: $ID\""
+  else
+    echo "[commit-msg] BLOCKED: Session-Id \"$ID\" is not registered."
+    echo "Searched: ${REGISTRY}${LEGACY:+ and $LEGACY}"
+    echo ""
+    echo "Repair:"
+    echo "  1. Add an entry to \"${REGISTRY:-$LEGACY}\": Session-Id / tool / baseline / commits"
+    echo "  2. Re-commit with the same trailer: git commit --trailer \"Session-Id: $ID\""
+  fi
   echo ""
-  echo "Repair:"
-  echo "  1. Add an entry to .session-pilot/pilot-log.md: Session-Id / tool / baseline / commits"
-  echo "  2. Re-commit with the same trailer: git commit --trailer \"Session-Id: $ID\""
-  echo ""
+  echo "Disable the registration gate: git config --unset session.provenance"
   echo "Emergency bypass (discouraged): git commit --no-verify"
   echo ""
   exit 1

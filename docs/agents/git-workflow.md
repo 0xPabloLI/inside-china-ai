@@ -66,11 +66,16 @@
 - 不顺手修复无关或非本 session 引入的问题。
 - 无法确认改动来源时停止，向用户报告。
 - session 结束时记录 commit hash、未 push 状态、验证证据和剩余 blocker。
-- **Session-Id 溯源（所有 commit 强制，commit-msg hook 校验 trailer 与登记）**：session 开工生成 id（格式 `<yyyymmdd>-<task>-<6hex>`，如 `20260903-refactor-a1b2c3`）并登记 `.session-pilot/pilot-log.md`（tool / Session-Id / baseline / commit 清单 / compact 状态）。commit 带 `--trailer "Session-Id: <id>"`；hook 同时校验 id 已登记（hook 读文件系统，gitignore 不影响）；amend 不得叠加第二个 id（双 id 会让两边的精确查询都失效）。按 id 查提交（精确匹配，勿用 grep）：
+- **Session-Id 关联标识（安装了 hooks 的 checkout 强制，commit-msg hook 校验 trailer；strict 模式另校验登记）**：
+  - 开工先确认已安装：`git config core.hooksPath` 应为 `.githooks`（新 clone 跑 `npm run setup:hooks`；它同时设置 strict 登记门控）。未安装时本规则仍是约定，只是无 hook 兜底。
+  - session 开工生成 id（格式 `<yyyymmdd>-<task>-<6hex>`，如 `20260903-refactor-a1b2c3`）并登记 `$(git rev-parse --git-common-dir)/session-pilot/pilot-log.md`（所有 worktree 共享；tool / Session-Id / baseline / commit 清单 / compact 状态）。
+  - commit 带 `--trailer "Session-Id: <id>"`；strict 下 hook 校验 id 已登记（fail-closed：无登记表也拦截）；amend 不得叠加第二个 id（双 id 让两侧精确查询都失效）。
+  - **已实测的绕过面**（hook 管不到，靠约定）：`revert` 与 `cherry-pick` 不触发 commit-msg——cherry-pick 会沿用原提交的 id 造成归因错配，两者都必须用 `--no-commit` 后正常提交；`commit-tree` / `--no-verify` 同样绕过；merge commit 按裁决豁免（无 id 属设计行为）。
+  - 按 id 查提交（精确匹配，勿用 grep；`separator=%x2C` 保证双 id 时两侧都查不到而不是误命中）：
   ```bash
-  git log --all --format='%h%x09%(trailers:key=Session-Id,valueonly)%x09%s' | awk -F '\t' -v id="<id>" '$2 == id'
+  git log --all --format='%h%x09%(trailers:key=Session-Id,valueonly,separator=%x2C)%x09%s' | awk -F '\t' -v id="<id>" '$2 == id'
   ```
-  生成、登记、compact 恢复与豁免边界（merge/revert）的完整规则见 `docs/research/commit-session-association-id-proposal.md`。
+  生成、登记、compact 恢复与豁免边界的完整规则见 `docs/research/commit-session-association-id-proposal.md`；验收场景见 `scripts/test-commit-msg-hook.sh`。
 
 ## 9. 并发 Session 与恢复
 

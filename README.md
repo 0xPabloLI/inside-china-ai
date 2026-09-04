@@ -127,7 +127,8 @@ git clone <this-repository-url>
 cd inside-china-ai
 npm install
 
-# Install pre-commit hook for secret scanning
+# Install git hooks: secret scanning (pre-commit) + Session-Id gate (commit-msg)
+# Equivalent to: npm run setup:hooks
 bash scripts/install-git-hooks.sh
 
 # Start dev server

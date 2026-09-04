@@ -1,10 +1,18 @@
 # 提案：Commit Session-Id 关联标识（Git trailer 约定）
 
-> 状态：**已结项（2026-09-03 试点完成）**——v4 修订版吸收第三轮评审（9/10）意见后软试点；
-> 试点结论：纯文档链路漏写率 67%（公平窗口 9 eligible，仅 2 合规 + 1 半合规），超出零容忍
-> 门槛 → hook 决策为「加」；命令已迁入 `docs/agents/git-workflow.md` §8（本文件转为设计依据，
-> 不再是操作手册）；commit-msg gate 已落地（`0281c7c`，7/7 acceptance scenarios）。
-> 审计明细见 `.session-pilot/pilot-log.md` 收尾审计节。
+> 状态：**已结项（2026-09-03 试点完成；2026-09-04 第三方复核修订至 v5）**——v4 修订版吸收
+> 第三轮评审（9/10）意见后软试点；
+> 试点结论：纯文档链路漏写率 67%（公平窗口 9 eligible，2 合规 + 1 半合规 + 6 漏写；按 v5 的
+> 6hex 口径，原"合规"样本 `20260903-hallo3-ab-caf56c17` 为 8hex，实际不满足现行格式），超出
+> 零容忍门槛 → hook 决策为「加」；命令已迁入 `docs/agents/git-workflow.md` §8（本文件转为设计
+> 依据，不再是操作手册）；commit-msg gate 已落地并由
+> `scripts/test-commit-msg-hook.sh` 覆盖（27 scenarios）。
+> v5 相对 v4 的实质修正（第三方复核，2026-09-04）：id 统一为 6hex（与实现及在库 id 一致）；
+> §3.4 登记由"不强制"改为 strict 模式强制且 fail-closed；登记表迁至 git common dir（worktree
+> 共享）；安装链修复（`scripts/install-git-hooks.sh` 设置 hooksPath + strict，README 同步）；
+> 措辞统一为「关联标识」——本机制只做 commit↔会话的关联，不证明真实身份、不恢复对话。
+> 审计明细见登记表（git common dir 下，`git rev-parse --git-common-dir` 得到的
+> `.git/session-pilot/pilot-log.md`，所有 worktree 共享）。
 > 日期：2026-09-03（v4 同日）。v3 吸收第二轮评审（8/10）的 4 项实质意见；v2 吸收首轮评审
 > （7/10）；v1 版本名"会话溯源提案"，因"溯源"表述过度承诺已更名。
 > v4 相对 v3 的实质修正：事实 12 由"新 clone 失效"改正为"两套互斥安装路径"；唯一性规则的
@@ -126,11 +134,13 @@ transcript（那是 Atlas 检查点的功能），也不能证明归因正确（
 ### 3.1 ID 规范
 
 ```
-Session-Id: 20260903-kimi-ipo-a1b2c3d4
+Session-Id: 20260903-kimi-ipo-a1b2c3
 ```
 
-- 格式：`YYYYMMDD-<slug>-<8hex 随机>`。随机后缀消除相邻会话同日同 slug 的碰撞（评审修正项）。
-- slug 禁止包含客户名、事故信息、未公开项目名、密钥等敏感内容（会进 git 历史）。
+- 格式：`YYYYMMDD-<slug>-<6hex 随机>`。随机后缀消除相邻会话同日同 slug 的碰撞（评审修正项）。
+  v5 复核修订：v4 规定 8hex，与已落地的 hook（6hex）及全部在库 id 冲突；按实现统一为 6hex——
+  16^6 ≈ 1677 万组合，对日级会话数碰撞概率可忽略，且现有历史 id 均为 6hex，改 8hex 反而制造
+  两代不兼容。slug 禁止包含客户名、事故信息、未公开项目名、密钥等敏感内容（会进 git 历史）。
 - 复用规则：
   - 同一连续会话（含 compaction 延续）**复用同一 id**；
   - fresh context / handoff 交接 = **新 id**；
@@ -145,7 +155,7 @@ Session-Id: 20260903-kimi-ipo-a1b2c3d4
 
 ```bash
 git commit -m "<type>: <subject>" \
-  --trailer "Session-Id: 20260903-kimi-ipo-a1b2c3d4" \
+  --trailer "Session-Id: 20260903-kimi-ipo-a1b2c3" \
   --trailer "Refs: #152"
 ```
 
@@ -156,7 +166,7 @@ git commit -m "<type>: <subject>" \
 
 ```bash
 # 某会话全部 commit：必须按 trailer 列整体比较
-id='20260903-kimi-ipo-a1b2c3d4'
+id='20260903-kimi-ipo-a1b2c3'
 git log --all \
   --format='%h%x09%(trailers:key=Session-Id,valueonly,separator=%x2C)%x09%s' |
   awk -F '\t' -v id="$id" '$2 == id'
@@ -173,11 +183,20 @@ trailer 的 commit（事实 8）。
 | awk -F '\t' '$2 ~ /,/ {print "VIOLATION(multi Session-Id): " $0}'
 ```
 
-### 3.4 登记规则（评审修正：不强制）
+### 3.4 登记规则（v5 复核修订：strict 模式下强制）
 
-trailer 本身是唯一必需来源。已有 spec/ticket/handoff 的任务**可以**顺带登记 id；**禁止**
-为登记 Session-Id 单独创建或修改文档——S1 工作本不需要持久文档，多会话同时编辑 tracker
-反而制造并发冲突。
+v4 曾规定"登记不强制"，与落地后的 commit-msg hook（strict 模式强制登记）冲突，v5 按实现统一：
+
+- **开关**：`session.provenance=strict`（安装脚本 `scripts/install-git-hooks.sh` 设置）。
+  strict 开启时 hook 校验 id 已登记，且**fail-closed**——登记文件不存在同样拦截，防止删表静默
+  关闭门控。未开启（新 clone 未跑安装脚本）时 hook 仍校验 trailer 格式，但不校验登记。
+- **登记位置（canonical）**：`$(git rev-parse --git-common-dir)/session-pilot/pilot-log.md`
+  （主 worktree 即 `.git/session-pilot/pilot-log.md`）。放 common dir 是因为 linked worktree
+  不复制 gitignored 文件——放工作区根会让每个 worktree 看到不同的登记表，strict 校验在
+  worktree 里静默失效（复核实测）。hook 同时接受工作区根 `.session-pilot/pilot-log.md`
+  作为过渡兜底。
+- **仍禁止**为登记 Session-Id 单独创建或修改仓库内文档——登记只写上述本地文件；已有
+  spec/ticket/handoff 的任务可以顺带引用 id，但来源以登记表为准。
 
 ### 3.5 唯一性硬规则（v3 新增，v4 收窄适用范围并改校验口径）
 
@@ -197,7 +216,7 @@ commit 明确豁免（事实 14）——v3 表述为"每个 commit 必须且只�
 
 1. 解析结果中 `Session-Id` **恰好一条**（不是"至少一条"）；
 2. 值**非空**（`Session-Id: ` 与 `Session-Id:` 都判非法——事实 15 证明原始行匹配会放过前者）；
-3. 值匹配 §3.1 的 `YYYYMMDD-<slug>-<8hex>` 格式；
+3. 值匹配 §3.1 的 `YYYYMMDD-<slug>-<6hex>` 格式；
 4. 正文中的伪 trailer 不参与判定（事实 15 证明原始行匹配会把它误算为合规）。
 
 未来的 `.githooks/commit-msg` 按同一口径实现，且**必须覆盖以下测试用例**（事实 15 实测）：
@@ -325,10 +344,12 @@ v4 仍保持 2 处命令块（§3.2 写入、§3.3 查询）：§3.5 的结构�
 
    **方法**：每个试点会话在**本地试点表**中逐条自报，字段如下：
 
-   **试点表路径（固定，工具中立）**：仓库根目录 `.session-pilot/pilot-log.md`（已 gitignore，
-   不提交）。不放任何单一工具的私有目录——试点覆盖多个 coding tool，**任何工具都要能在
-   同一张表登记与查询**。读仓库规则链的工具开工时按本节路径自行登记；不读规则链的工具
-   由用户在开工时口头告知路径与规则，并代其登记。
+   **试点表路径（v5 修订，工具中立）**：`$(git rev-parse --git-common-dir)/session-pilot/pilot-log.md`
+   （主 worktree 即 `.git/session-pilot/pilot-log.md`，随机器本地保存、不提交）。不放任何单一
+   工具的私有目录——试点覆盖多个 coding tool，**任何工具都要能在同一张表登记与查询**；放
+   common dir 是为了让 linked worktree 共享同一张表。历史位置（仓库根 `.session-pilot/`）
+   作为过渡兜底仍被 hook 接受。读仓库规则链的工具开工时按本节路径自行登记；不读规则链的
+   工具由用户在开工时口头告知路径与规则，并代其登记。
 
    | 字段 | 说明 |
    |---|---|
