@@ -1,9 +1,11 @@
-# 独立复核材料：Session-Id 关联标识落地（2026-09-03 session 交付，v2 修订版）
+# 独立复核材料：Session-Id 关联标识落地（2026-09-03 session 交付，v3 修订版）
 
 > 用途：交给未参与本工作的第三方 Agent 做独立 review。本文自包含——reviewer 不需要读对话历史。
 > 交付方 Session-Id：`20260903-pilot1-384b29`｜仓库：`inside-china-ai`｜分支：`main`
 > **v2（2026-09-04）**：按第一轮第三方复核意见修订。v1 的过度表述已更正，复核指出的三处规范
 > 冲突、worktree 登记盲区、runbook 安全问题、安装链缺口均已修复（落实状态见 §8）。
+> **v3（2026-09-04 下午）**：新增 §10（复核修订被并行会话 reset 出历史——第 3 起并发事故及
+> pathspec 重提）与 §11（参考 repo pacifio/atlas 调研 + 并发防护候选方案，请 reviewer 裁决）。
 > 日期：2026-09-04。
 
 ---
@@ -164,3 +166,60 @@ index（先 `git diff --cached --quiet` 检查）；`commit-tree` 手写 trailer
 3. 登记表无稳定 session reference 映射（自由文本 tool 字段），Q8 的完整裁决未达成。
 4. 样本局限（§3）：试点统计不可作严格证据，仅作方向判断。
 5. hook 无法校验登记表内容质量——id 字符串出现即通过。
+
+---
+
+## 10. v3 增补：复核修订本身被并发 reset 丢弃（2026-09-04 16:40–17:30，第 3 起 reset 级事故）
+
+第一轮复核修订落库为 `5cc94a4`（10:46）。同日 16:40 一个并行会话将其 **amend** 为 `d9ce6b1`，
+16:43 又 **reset 到另一个提交**，把该修订整体移出了分支历史——直到 17:30 交付方才发现（本次
+待办"push `5cc94a4`"时 reflog 核查暴露）。这是三天内第 3 起并行会话破坏他方工作的事故
+（前两起：文档同文件旧内容覆盖；staged blob 被 reset 清掉），且 **amend+reset 组合发生在
+交付方 commit 上，说明并行会话读到了该 commit 却仍将其丢弃**。
+
+**恢复过程与 technique**：
+
+1. 内容完好性核查：工作区 6 个文件与孤儿 commit `d9ce6b1` 逐字节一致（reset --mixed 落回工作区）；
+   test 脚本与 brief 变回 untracked；DOCS-INDEX 的条目已被并行会话后续 commit 顺带带上 HEAD。
+2. 重提用 **pathspec commit**：`git commit <文件...>` 只取指定文件的工作区内容建 commit，
+   无视 staging 区其余内容——当时 index 里存有另一会话的 3 处 staged 改动（含一个删除），
+   裸 `git commit` 会把它们一锅端进本提交。pathspec 路径下他方 staged 内容原样保留。
+3. 落库为 `1980a63`（10 files, +614/−76），新 hook 实弹通过（trailer+登记双检），HEAD 守卫
+   通过，验收 27/27，已 push。
+
+**事故面的规律**（供 reviewer 校准威胁模型）：三起事故全部是**共享工作目录 = 共享 staging 区
++ 共享 ref** 的结构性后果；`git-workflow.md` §9 的 worktree 规则落地后**没有任何一个会话实际
+开过 worktree**（纯文档约束的采用率为 0）。归因层（Session-Id hook）有效，冲突防护层无效。
+
+## 11. v3 增补：参考 repo 调研与并发防护候选方案（请 reviewer 裁决）
+
+**参考 repo pacifio/atlas（本提案的原始参考，评估后未引入其客户端）调研结论**（2026-09-04
+README 核对）：
+
+| 能力 | atlas 的做法 | 与本仓库现状对比 |
+|---|---|---|
+| commit→session 归因 | 外置登记：SQLite 存于 gitignored `.atlas/`（"checkpoint record … is SQLite … because it is queried, not read"），客户端自动捕获 prompts/tool calls/reasoning | 与我们的登记表（gitignored、commit→id 映射）同构；差异在 atlas 由宿主客户端**自动**捕获，我们靠读文档自觉 + hook 兜底 |
+| 并发隔离 | **无**——多 agent "against the same codebase"，无 worktree、无锁、无写队列 | 我们的 §9 worktree 规则至少在纸面上更进一步 |
+| 冲突防护 | 无（依赖单一宿主进程经由同一 send path 调度，事实上的串行化） | — |
+
+结论：**参考 repo 没有现成的并发冲突解决方案**；它只解决归因（且更丰富）。这反向说明我们的
+归因路线（trailer + 外置登记表）与业界方向一致，而**并发防护需要自己设计**。候选方案：
+
+| 方案 | 内容 | 性质 | 成本 |
+|---|---|---|---|
+| A. session launcher（治本） | `npm run session:start <task>` 一条命令：自动 `git worktree add` + 设 hooksPath + 生成并登记 Session-Id + 开 strict。§9 从"文档说"变"命令做"，复制 install-git-hooks.sh 的成功路径 | 结构化入口 | 一个脚本（配方已在 runbook） |
+| B. 孤儿检测 hook（兜底） | post-checkout 扫 reflog：HEAD 移动若丢弃带**其他 session id** 的 commit → 大声警告 + 给出捞回命令。git 无 pre-reset hook，硬拦做不到，检测是上限 | 检测型（"犯了会响"） | 一个 hook + 测试 |
+| C. pathspec commit 入 runbook | 混合 index 场景的标准动作（§10 实战验证） | 文档 | 3–5 行 |
+
+**请 reviewer 对以下问题给出裁决意见**：
+
+- **Q9**：方案 A 的 launcher 是否值得立项？注意其成立前提是"所有会话都被引导走同一条开工
+  命令"——这仍是软约束（用户/会话可以不开），与 §9 的差别只在成本从"读文档+手做 4 步"降到
+  "敲 1 条命令"。这样的降幅是否足以改变采用率？
+- **Q10**：方案 B 的孤儿检测，告警阈值如何定才不噪声化（例如只对"丢弃他 session id 的
+  non-merge commit"报警是否足够）？post-checkout 时机能否覆盖 reset 的主要路径（reset
+  本身不触发任何 hook，checkout 触发是否足够）？
+- **Q11**：是否值得吸收 atlas 的方向，把登记表从自由文本 markdown 升级为结构化存储
+  （JSON/SQLite）以支撑 Q8 的"稳定 session reference"？还是维持现状、等待宿主工具
+  （Claude Code 等）原生暴露 session id？
+- **Q12**：三起事故是否已构成"结构性手段"的充分条件？还是应先给 §9 + 方案 C 一个观察期？
