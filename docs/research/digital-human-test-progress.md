@@ -843,6 +843,12 @@
   - 推理时间：348s（5.8min）；费用 ≈ $0.20（348s × $2.10/h）
   - 修复两个兼容性问题：① wav2vec2 hidden_states（monkey-patch `Wav2Vec2Encoder.forward` 支持 `output_hidden_states`，transformers ≥4.49 移除了该参数）；② ffmpeg in-place 编辑（`--save_file` 加 `res_` 前缀，`save_video` 用 `replace('res_','')` 做 temp 路径）
   - 脚本：`scripts/modal/soulx-flashtalk-test/run_flashtalk.py` + `patch_wav2vec.py`
+  - **✅ portrait-original-4k.jpg 对比测试（2026-09-04）**：
+    - 输入：`portrait-original-4k.jpg`（3072×4096）+ 同 audio；输出 468KB（vs fullbody 222KB），比特率 733kbps（vs 267kbps），细节显著更多
+    - 输出：`scripts/short-video/experiments/digital-human/soulx-flashtalk/flashtalk_14b_a100_original.mp4`
+    - 推理时间：350s（5.8min）；费用 ≈ $0.20
+    - **用户评价**：「效果是看到现在最好的 Talking Body 效果，手指的细节全都很好」
+    - **结论**：SoulX-FlashTalk 14B 是目前最佳 Talking Body 方案；输出固定 416×720（Wan VAE 决定，不可改），输入任意尺寸自动 resize；成本 $0.20/5s（Modal A100），AutoDL A800 可降至 ≈$0.07/5s
 - Talking Body 需求用 InfiniteTalk（576×704，Apache 2.0，已测可用）或 LongCat（480p，MIT，已测可用）
 
 #### 下一步
