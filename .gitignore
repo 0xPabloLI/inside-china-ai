@@ -74,6 +74,13 @@ scripts/kaggle/echomimicv3-test/**/*.wav
 scripts/kaggle/echomimicv3-test/**/*.log
 scripts/kaggle/**/kaggle.json
 
+# Kaggle test input staging (synced from dh-fixtures via sync-fixtures.sh)
+scripts/kaggle/*/input/*.jpg
+scripts/kaggle/*/input/*.jpeg
+scripts/kaggle/*/input/*.png
+scripts/kaggle/*/input/*.mp3
+scripts/kaggle/*/input/*.wav
+
 # Agent scratchpad (ephemeral issue/ticket notes, not repo content)
 .scratch/
 

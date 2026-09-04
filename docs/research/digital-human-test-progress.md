@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2028-09-04（SoulX-FlashHead 基座测试完成：Model_Pro + Model_Lite 均跑通，嘴部有动态变化，验证 LeapTalk 否决根因是1步桥蒸馏而非基座；LeapTalk v8 测试完成并否决；talking head API 平台全面调研；测试路线更新为 Kaggle T4 + Modal + ModelScope + AutoDL）
+> **最后更新**：2026-09-04（SoulX-FlashHead 基座测试完成 + 全平台适配搜索 + 测试素材整理到 `dh-fixtures/`；SoulX-FlashTalk 14B 已开源但需 64GB+ VRAM；超分工具已有但未接入数字人 pipeline）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -27,7 +27,7 @@
 
 所有数字人生成（无论哪个模型）**一律用用户自己的照片做参考图**，不用第三方/官方示例素材——否则无法做同素材 A/B 横向对比。
 
-- **用户照片**：`scripts/short-video/assets/Weixin Image_20260818192539_8971_41.jpg`（3072×4096 竖图，3:4）
+- **用户照片**：`scripts/short-video/assets/dh-fixtures/portrait-original-4k.jpg`（3072×4096 竖图，3:4）→ 裁切版 `portrait-face.jpg`（827×1063）/ `portrait-fullbody.jpg`（1080×1920）/ `portrait-small.jpg`（240×308）
 - **裁切**：按目标模型要求裁切（Hallo3 需 1:1 或 3:2；EchoMimicV3/InfiniteTalk 按各自 ref 比例）
 - **音频**：按模型语言限制选（Hallo3 必须英文；EchoMimicV3/InfiniteTalk 可中文）
 
@@ -829,21 +829,27 @@
 #### 平台适配
 
 - **CUDA only**：基于 PyTorch + CUDA，不支持 MPS / 华为 NPU / AMD ROCm
-- **无社区适配版**：GitHub 搜 "SoulX-FlashHead mps/mlx" 均 0 结果（2026-09-04 确认）；模型 2026-02 开源，太新
+- **全平台搜索（2026-09-04）**：GitHub 0 结果 / HuggingFace 只有官方 CUDA 版 + 1 镜像 / ModelScope 只有从 GitHub 同步的官方版（`FromSite: "github"`, 2326 downloads, CUDA only）/ Gitee API 返回空 / AtomGit API 不可访问但无 NPU 适配证据。**结论：所有主流平台均无 MPS/NPU/AMD/CoreML 适配版**
 - **GTX 1080（Pascal sm_61）不能跑**：PyTorch 2.7.1 最低 sm_75；降级 PyTorch 理论可行但 xfuser/xformers 依赖不兼容；且 8GB VRAM 只够 Lite（6.4GB），不够 Pro
 - **可跑环境**：Kaggle T4（免费，已验证）/ RTX 20xx+ / RTX 30xx+ / RTX 40xx+ / AutoDL 4090 ¥1.88/h
 
 #### Talking Body
 
 - SoulX-FlashHead 是 **Talking Head only**（512×512 头部/肩部）
-- Soul-AILab 还有 **SoulX-FlashTalk**（14B，README Acknowledgement 提及），可能是 Talking Body/全身版，但**未开源**
+- Soul-AILab 还有 **SoulX-FlashTalk**（14B，**已开源** `Soul-AILab/SoulX-FlashTalk`，Apache 2.0，1.5k stars）：talking body/全身 avatar，实时流式；但需 **64GB+ VRAM**（或 40GB + cpu_offload），实时需 8×H800——硬件门槛远高于 FlashHead
 - Talking Body 需求用 InfiniteTalk（576×704，Apache 2.0，已测可用）或 LongCat（480p，MIT，已测可用）
 
 #### 下一步
 
 - SoulX-FlashHead Model_Pro vs EchoMimicV3 v51 同素材 A/B 对比（未做）
 - 竖版比例测试（改 yaml 设 512×910，未做）
-- 后处理超分测试（Real-ESRGAN，未做）
+- 后处理超分测试：本地已有 `scripts/short-video/lib/upscale.mjs`（Real-ESRGAN ncnn-vulkan, Metal/Vulkan），但**未接入数字人 pipeline**——需整合后用 `autoUpscaleIfNeeded()` 将 512×512 输出超分到 1024×1024+
+
+#### 测试素材
+
+- **规范位置**：`scripts/short-video/assets/dh-fixtures/`（进 git + LFS，详见 `README.md`）
+- **Kaggle 同步**：`scripts/kaggle/sync-fixtures.sh` → 复制到各 test 的 `input/` 暂存区 → `kaggle datasets push`
+- **文件**：`portrait-face.jpg`（827×1063 主用）/ `portrait-fullbody.jpg`（1080×1920）/ `portrait-original-4k.jpg`（3072×4096 原图）/ `portrait-small.jpg`（240×308）/ `audio.wav` / `audio.mp3` / `audio-10s.mp3`
 
 ### 📋 LeapTalk（最高优先级新模型）✅ 门禁已通过，下一个测试目标
 
