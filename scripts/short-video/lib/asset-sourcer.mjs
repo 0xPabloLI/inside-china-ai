@@ -1080,6 +1080,33 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
  * @param {string} [opts.model] - VLM model ID (for artifact metadata)
  * @returns {Promise<Array<{path: string, description: string, success: boolean, analysisTimeMs: number}>>}
  */
+/**
+ * Run an async fn over items with bounded concurrency (#189).
+ * Results keep input order regardless of completion order.
+ * Individual failures propagate to Promise.all — callers wrap per-item
+ * errors inside fn (Phase 3a degrades per asset instead of rejecting).
+ *
+ * @template T, R
+ * @param {T[]} items
+ * @param {number} limit
+ * @param {(item: T, index: number) => Promise<R>} fn
+ * @returns {Promise<R[]>}
+ */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workerLoop = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  };
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: workerCount }, workerLoop));
+  return results;
+}
+
 export async function analyzeAssets(assets, opts = {}) {
   const { analyzeAssetSemantics, detectFocus, closeFocusDetector } =
     await import("./visual-analyzer.mjs");
@@ -1161,11 +1188,18 @@ export async function analyzeAssets(assets, opts = {}) {
     }
   }
 
-  // ── Phase 3a: VLM semantic analysis (single call per asset) ──
+  // ── Phase 3a: VLM semantic analysis (concurrent, cache-backed — #189) ──
   const report = [];
 
-  for (let i = 0; i < analyzableAssets.length; i++) {
-    const asset = analyzableAssets[i];
+  const { getVlmConcurrency } = await import("./visual-analyzer.mjs");
+  const { computeCacheKey, getCachedSemantics, writeCachedSemantics } =
+    await import("./vlm-cache.mjs");
+
+  const vlmConcurrency = Math.max(1, getVlmConcurrency());
+  const cacheDir = contentDir ? join(contentDir, ".vlm-cache") : null;
+  const cacheDisabled = process.env.VLM_CACHE_DISABLED === "1";
+
+  const analyzeOne = async (asset, i) => {
     // Resolve to absolute path for VLM subprocess, keeping asset.path relative (P0-1 fix)
     const absPath =
       contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
@@ -1173,33 +1207,71 @@ export async function analyzeAssets(assets, opts = {}) {
     const startTime = Date.now();
     console.log(`  🔍 Analyzing: ${absPath}... (${i + 1}/${analyzableAssets.length})`);
 
-    let semantics;
-    let success = false;
-
     const claimInfo = asset.claimSceneId != null ? claimsMap.get(asset.claimSceneId) : null;
     const analyzeOpts = asset.window
       ? { ...asset.window, ...(claimInfo ? { claim: claimInfo } : {}) }
       : claimInfo
         ? { claim: claimInfo }
         : undefined;
-    try {
-      // Pass window opts for video assets; omit for images (backward compat)
-      semantics = analyzeOpts
-        ? await analyzeAssetSemantics(absPath, analyzeOpts)
-        : await analyzeAssetSemantics(absPath);
-      success = !!(semantics.description && semantics.description.length > 0);
-    } catch (err) {
-      console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
-      semantics = {
-        description: "",
-        subjects: [],
-        contentKind: null,
-        fit: null,
-        criticalEdgeText: null,
-        reason: null,
-        relevance: null,
-        relevanceReason: null,
-      };
+
+    // Cache lookup (#189): key = promptVersion + model + file hash + window/claim
+    let semantics = null;
+    let cacheHit = false;
+    if (cacheDir && !cacheDisabled) {
+      try {
+        const cacheKey = await computeCacheKey({
+          filePath: absPath,
+          model: modelId,
+          window: asset.window,
+          claim: claimInfo,
+        });
+        const cached = getCachedSemantics(cacheDir, cacheKey);
+        if (cached) {
+          semantics = cached;
+          cacheHit = true;
+          console.log(`  💾 Cache hit: ${absPath}`);
+        }
+      } catch {
+        // Cache read problems never block analysis (unreadable file → miss)
+      }
+    }
+
+    if (!cacheHit) {
+      let success = false;
+      try {
+        // Pass window opts for video assets; omit for images (backward compat)
+        semantics = analyzeOpts
+          ? await analyzeAssetSemantics(absPath, analyzeOpts)
+          : await analyzeAssetSemantics(absPath);
+        success = !!(semantics.description && semantics.description.length > 0);
+      } catch (err) {
+        console.warn(`  ⚠️  Analysis failed for ${absPath}: ${err.message}`);
+        semantics = {
+          description: "",
+          subjects: [],
+          contentKind: null,
+          fit: null,
+          criticalEdgeText: null,
+          reason: null,
+          relevance: null,
+          relevanceReason: null,
+        };
+      }
+      // Persist successful raw VLM output; failed/degraded runs are not cached
+      // so a rerun retries inference instead of pinning the degraded result.
+      if (cacheDir && !cacheDisabled && success) {
+        try {
+          const cacheKey = await computeCacheKey({
+            filePath: absPath,
+            model: modelId,
+            window: asset.window,
+            claim: claimInfo,
+          });
+          writeCachedSemantics(cacheDir, cacheKey, { ...semantics });
+        } catch {
+          // Cache write failures are warn-and-continue (see vlm-cache.mjs)
+        }
+      }
     }
 
     // Store VLM fields on asset (replaces old aiDescription/aiFit/aiFitReason)
@@ -1225,13 +1297,16 @@ export async function analyzeAssets(assets, opts = {}) {
 
     const analysisTimeMs = Date.now() - startTime;
 
-    report.push({
+    return {
       path: absPath,
       description: semantics.description,
-      success,
+      success: cacheHit ? true : !!(semantics.description && semantics.description.length > 0),
       analysisTimeMs,
-    });
-  }
+    };
+  };
+
+  const reportEntries = await mapWithConcurrency(analyzableAssets, vlmConcurrency, analyzeOne);
+  report.push(...reportEntries);
 
   // ── Phase 3b: Crop Decision (deterministic geometry) ──
   // For each landscape image asset, evaluate 9:16 cover crop candidates
@@ -1643,7 +1718,8 @@ export function buildAttribution(source, asset) {
  * patterns; `data:image` covers WeChat 1x1 SVG placeholders whose
  * viewBox-derived naturalWidth defeats pixel filters (#128).
  */
-const LOGO_ICON_REGEX = /logo|avatar|icon|placeholder|spinner|favicon|badge|button|sprite|data:image/i;
+const LOGO_ICON_REGEX =
+  /logo|avatar|icon|placeholder|spinner|favicon|badge|button|sprite|data:image/i;
 
 /**
  * Check if a URL points to a logo, avatar, icon, or other non-content image.

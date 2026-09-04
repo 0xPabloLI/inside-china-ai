@@ -14,9 +14,11 @@
  * Lifecycle:
  *   - Each subprocess spawns on first call, reuses for subsequent calls.
  *   - If process exits (crash/idle timeout), respawns on next call.
- *   - VLM requests are queued serially (one at a time).
+ *   - VLM runs as a pool of VLM_CONCURRENCY (default 2) subprocesses (#189);
+ *     requests are dispatched from a shared queue to idle workers, one
+ *     in-flight request per worker.
  *   - Focus requests use requestId-based pending Map (concurrent-safe).
- *   - closeVisualAnalyzer() sends exit + kills both subprocesses.
+ *   - closeVisualAnalyzer() sends exit + kills all pool subprocesses.
  *
  * Graceful degradation:
  *   - VLM: Python not found / model load fails -> warn + return degraded AssetSemantics.
@@ -36,12 +38,13 @@ const __dirname = dirname(__filename);
 
 // ─── Constants ───
 
-const PYTHON_SCRIPT = join(__dirname, "vlm_analyzer.py");
+const PYTHON_SCRIPT = process.env.VLM_ANALYZER_SCRIPT || join(__dirname, "vlm_analyzer.py");
 const FOCUS_SCRIPT = join(__dirname, "focus_detector.py");
 const HOME = process.env.HOME || "/Users/pabloli";
-const PYTHON_BIN = join(HOME, ".video-tts-env", "bin", "python3");
+const PYTHON_BIN =
+  process.env.VLM_ANALYZER_PYTHON_BIN || join(HOME, ".video-tts-env", "bin", "python3");
 
-const RESPONSE_TIMEOUT_MS = 180_000; // 180s per VLM asset (video analysis can take 100s+)
+const RESPONSE_TIMEOUT_MS = Number(process.env.VLM_RESPONSE_TIMEOUT_MS) || 180_000; // 180s per VLM asset (video analysis can take 100s+)
 const FOCUS_RESPONSE_TIMEOUT_MS = 10_000; // 10s per focus detection (target <1s)
 
 // ─── Degraded result ───
@@ -63,56 +66,64 @@ const DEGRADED_RESULT = Object.freeze({
 
 // ─── Module state ───
 
-/** @type {import('child_process').ChildProcess | null} */
-let pythonProc = null;
-
-/** @type {boolean} — null = unknown, true = available, false = unavailable */
-let vlmAvailable = null;
-
 /**
- * Pending Map: requestId -> { resolve, timer, workerGeneration }
- * Each VLM request gets a unique requestId for response routing.
+ * Pool size (#189): number of concurrent VLM subprocesses. Each worker
+ * handles one request at a time — the legacy Python main loop stays
+ * unchanged (one in-flight request per process, FIFO fallback safe).
  */
-/** @type {Map<string, {resolve: Function, reject: Function, action: string, path: string, timer: ReturnType<typeof setTimeout>, workerGeneration: number}>} */
-const vlmPending = new Map();
+const VLM_CONCURRENCY = Math.max(1, Number(process.env.VLM_CONCURRENCY) || 2);
 
 /**
- * Worker generation counter. Incremented on every respawn.
- * Old worker responses are discarded if generation doesn't match.
- * R1 fix: prevents late responses from timed-out workers being
- * mismatched to the next request.
+ * A VLM worker owns one Python subprocess, its own pending map and
+ * generation counter. Responses are read from that worker's stdout only,
+ * so per-worker pending size is at most 1 and the legacy FIFO fallback
+ * (no requestId echo) routes correctly.
  */
-let vlmWorkerGeneration = 0;
+function createVlmWorker() {
+  return {
+    /** @type {import('child_process').ChildProcess | null} */
+    proc: null,
+    /** @type {boolean|null} — null = unknown, true = available, false = unavailable */
+    available: null,
+    /** Generation counter, incremented on every respawn of this worker. */
+    generation: 0,
+    /** Pending Map: requestId -> { resolve, timer, workerGeneration, window } */
+    pending: new Map(),
+  };
+}
+
+/** @type {Array<ReturnType<createVlmWorker>>} */
+const vlmWorkers = Array.from({ length: VLM_CONCURRENCY }, createVlmWorker);
 
 /**
- * Request queue: requests waiting to be sent to the Python subprocess.
- * A request is shifted from here, sent to Python with a requestId,
- * and tracked in vlmPending until the response arrives.
+ * Request queue: requests waiting to be dispatched to an idle worker.
+ * A request is shifted from here, sent to a worker with a requestId,
+ * and tracked in that worker's pending map until the response arrives.
  */
 let requestQueue = [];
 
 // ─── Internal: subprocess management ───
 
 /**
- * Spawn the Python subprocess.
+ * Spawn the Python subprocess for a pool worker.
  * Sets up stdout line reader and exit listener.
  * Returns the process or null on failure.
  */
-function spawnPython() {
+function spawnPython(worker) {
   if (!existsSync(PYTHON_BIN)) {
     console.warn(`AI analysis layer not available: Python not found at ${PYTHON_BIN}`);
-    vlmAvailable = false;
+    worker.available = false;
     return null;
   }
 
   if (!existsSync(PYTHON_SCRIPT)) {
     console.warn(`AI analysis layer not available: Script not found at ${PYTHON_SCRIPT}`);
-    vlmAvailable = false;
+    worker.available = false;
     return null;
   }
 
-  vlmWorkerGeneration++;
-  const myGen = vlmWorkerGeneration;
+  worker.generation++;
+  const myGen = worker.generation;
 
   const proc = spawn(PYTHON_BIN, [PYTHON_SCRIPT], {
     stdio: ["pipe", "pipe", "pipe"],
@@ -131,7 +142,7 @@ function spawnPython() {
 
     for (const line of lines) {
       if (!line.trim()) continue;
-      handleResponse(line, myGen);
+      handleResponse(line, worker, myGen);
     }
   });
 
@@ -150,45 +161,49 @@ function spawnPython() {
 
   // Handle process exit
   proc.on("exit", (code, signal) => {
-    if (pythonProc === proc) {
-      pythonProc = null;
-      vlmAvailable = null; // reset: next call will retry
+    if (worker.proc === proc) {
+      worker.proc = null;
+      worker.available = null; // reset: next call will retry
     }
     // R1 fix: settle all pending requests from this worker generation
-    settlePendingVlm(myGen, { ...DEGRADED_RESULT });
-    processQueue();
+    settlePendingVlm(worker, myGen, { ...DEGRADED_RESULT });
+    dispatchQueue();
   });
 
   // Handle spawn errors
   proc.on("error", (err) => {
     console.warn(`AI analysis layer not available: ${err.message}`);
-    if (pythonProc === proc) {
-      pythonProc = null;
-      vlmAvailable = false;
+    if (worker.proc === proc) {
+      worker.proc = null;
+      worker.available = false;
     }
-    settlePendingVlm(myGen, { ...DEGRADED_RESULT });
-    processQueue();
+    settlePendingVlm(worker, myGen, { ...DEGRADED_RESULT });
+    dispatchQueue();
   });
 
-  pythonProc = proc;
-  vlmAvailable = null; // will be confirmed on first successful response
+  worker.proc = proc;
+  // #189: writing to a crashed/killed worker's stdin can emit an async
+  // EPIPE 'error' event; without a listener it surfaces as an unhandled
+  // error. sendRequest already degrades the request — swallow the event.
+  proc.stdin?.on?.("error", () => {});
+  worker.available = null; // will be confirmed on first successful response
   return proc;
 }
 
 /**
- * Ensure the Python subprocess is running (spawn if needed).
+ * Ensure a worker's Python subprocess is running (spawn if needed).
  * Returns true if running, false if unavailable.
  */
-function ensureProcess() {
-  if (pythonProc && !pythonProc.killed && pythonProc.exitCode === null) {
+function ensureProcess(worker) {
+  if (worker.proc && !worker.proc.killed && worker.proc.exitCode === null) {
     return true;
   }
 
-  if (vlmAvailable === false) {
+  if (worker.available === false) {
     return false;
   }
 
-  const proc = spawnPython();
+  const proc = spawnPython(worker);
   return proc !== null;
 }
 
@@ -199,20 +214,20 @@ function ensureProcess() {
  * degraded result. Otherwise resolves with the response object (minus
  * the error field, which is removed if null).
  */
-function handleResponse(line, workerGen) {
+function handleResponse(line, worker, workerGen) {
   let response;
   try {
     response = JSON.parse(line);
   } catch {
     // Malformed JSON — settle the only pending request (if any) with degraded
-    if (vlmPending.size === 1) {
-      const iter = vlmPending.entries().next();
+    if (worker.pending.size === 1) {
+      const iter = worker.pending.entries().next();
       const [fifoId, entry] = iter.value;
       if (entry.workerGeneration === workerGen) {
         clearTimeout(entry.timer);
-        vlmPending.delete(fifoId);
+        worker.pending.delete(fifoId);
         entry.resolve({ ...DEGRADED_RESULT });
-        processQueue();
+        dispatchQueue();
       }
     }
     return;
@@ -220,20 +235,22 @@ function handleResponse(line, workerGen) {
 
   // R1 fix: route by requestId when available, fallback to FIFO for
   // backwards compatibility with older Python that doesn't echo requestId.
+  // Per-worker pending size is at most 1 (#189 pool), so the FIFO fallback
+  // stays correct: each worker's stdout only carries that worker's response.
   let entry;
   const id = response.requestId;
-  if (id && vlmPending.has(id)) {
-    entry = vlmPending.get(id);
+  if (id && worker.pending.has(id)) {
+    entry = worker.pending.get(id);
     // Generation check for explicit requestId routing
     if (entry.workerGeneration !== workerGen) {
       return;
     }
-  } else if (!id && vlmPending.size === 1) {
+  } else if (!id && worker.pending.size === 1) {
     // FIFO fallback: no requestId in response, take the only pending entry
     // This path is for backwards compatibility. R1's generation isolation
     // still protects against late responses from killed workers because
     // killed workers' stdout no longer emits to this handler.
-    const iter = vlmPending.entries().next();
+    const iter = worker.pending.entries().next();
     entry = iter.value[1];
     // Still check generation for safety
     if (entry.workerGeneration !== workerGen) {
@@ -247,12 +264,12 @@ function handleResponse(line, workerGen) {
   clearTimeout(entry.timer);
   // Delete the correct key: explicit requestId if present, else the FIFO key
   if (id) {
-    vlmPending.delete(id);
+    worker.pending.delete(id);
   } else {
-    const fifoKey = vlmPending.keys().next().value;
-    vlmPending.delete(fifoKey);
+    const fifoKey = worker.pending.keys().next().value;
+    worker.pending.delete(fifoKey);
   }
-  vlmAvailable = true;
+  worker.available = true;
 
   if (response.error) {
     console.warn(`AI analysis error: ${response.error}`);
@@ -272,18 +289,18 @@ function handleResponse(line, workerGen) {
     entry.resolve(result);
   }
 
-  processQueue();
+  dispatchQueue();
 }
 
 /**
  * Settle all pending VLM requests from a specific worker generation.
  * Each pending Promise resolves with the given degraded result.
  */
-function settlePendingVlm(workerGen, degradedResult) {
-  for (const [id, entry] of vlmPending) {
+function settlePendingVlm(worker, workerGen, degradedResult) {
+  for (const [id, entry] of worker.pending) {
     if (entry.workerGeneration === workerGen) {
       clearTimeout(entry.timer);
-      vlmPending.delete(id);
+      worker.pending.delete(id);
       const degraded = { ...degradedResult };
       if (entry.window) {
         degraded.window = entry.window;
@@ -295,48 +312,66 @@ function settlePendingVlm(workerGen, degradedResult) {
 }
 
 /**
- * Reset the VLM worker: kill current process, increment generation,
+ * Reset one VLM worker: kill its process, increment generation,
  * settle all pending from the old generation.
  * R1 fix: called on timeout to prevent late-response mismatch.
  */
-function resetVlmWorker() {
-  const oldGen = vlmWorkerGeneration;
-  if (pythonProc && !pythonProc.killed) {
+function resetVlmWorker(worker) {
+  const oldGen = worker.generation;
+  if (worker.proc && !worker.proc.killed) {
     try {
-      pythonProc.kill("SIGTERM");
+      worker.proc.kill("SIGTERM");
     } catch (_e) {
       // ignore
     }
   }
-  pythonProc = null;
+  worker.proc = null;
   // Increment generation so any late response from the killed worker
   // will be discarded by handleResponse (generation mismatch)
-  vlmWorkerGeneration++;
+  worker.generation++;
   // Settle all pending from the old generation with degraded result
-  settlePendingVlm(oldGen, { ...DEGRADED_RESULT });
+  settlePendingVlm(worker, oldGen, { ...DEGRADED_RESULT });
 }
 
 /**
- * Process the next request in the queue.
+ * Dispatch queued requests to idle workers (#189 pool).
+ * Each worker holds at most one in-flight request; when several workers
+ * are idle, the queue is drained across them until it is empty or every
+ * worker is busy/unavailable.
  */
-function processQueue() {
-  if (vlmPending.size > 0) return; // already processing
-
-  // Find the next request that hasn't been settled
-  // (vlmPending is empty here, so we need a separate queue for pending requests)
+function dispatchQueue() {
   if (requestQueue.length === 0) return;
 
-  if (!ensureProcess()) {
-    while (requestQueue.length > 0) {
-      const req = requestQueue.shift();
-      req.resolve({ ...DEGRADED_RESULT });
-    }
-    return;
+  for (const worker of vlmWorkers) {
+    if (requestQueue.length === 0) break;
+    if (worker.pending.size > 0) continue; // busy
+
+    if (!ensureProcess(worker)) continue; // try another worker
+
+    sendRequest(worker, requestQueue.shift());
   }
 
-  const request = requestQueue.shift();
+  // Every worker is busy or unavailable — flush the queue with degraded
+  // results so callers never hang (legacy behavior).
+  if (requestQueue.length > 0) {
+    const anyUsable = vlmWorkers.some(
+      (w) => w.available !== false || (w.proc && !w.proc.killed && w.proc.exitCode === null),
+    );
+    if (!anyUsable) {
+      while (requestQueue.length > 0) {
+        const req = requestQueue.shift();
+        req.resolve({ ...DEGRADED_RESULT });
+      }
+    }
+  }
+}
+
+/**
+ * Send one request to a worker and track it in that worker's pending map.
+ */
+function sendRequest(worker, request) {
   const requestId = randomUUID();
-  const myGen = vlmWorkerGeneration;
+  const myGen = worker.generation;
 
   const jsonStr = JSON.stringify({
     requestId,
@@ -347,25 +382,25 @@ function processQueue() {
   });
 
   try {
-    pythonProc.stdin.write(jsonStr + "\n");
+    worker.proc.stdin.write(jsonStr + "\n");
   } catch (_err) {
     request.resolve({ ...DEGRADED_RESULT });
-    processQueue();
+    dispatchQueue();
     return;
   }
 
   // Timeout safety — R1 fix: kill worker on timeout, don't reuse it
   const timer = setTimeout(() => {
-    if (vlmPending.has(requestId)) {
-      vlmPending.delete(requestId);
+    if (worker.pending.has(requestId)) {
+      worker.pending.delete(requestId);
       request.resolve({ ...DEGRADED_RESULT });
       // Kill the worker and increment generation to isolate late responses
-      resetVlmWorker();
-      processQueue();
+      resetVlmWorker(worker);
+      dispatchQueue();
     }
   }, RESPONSE_TIMEOUT_MS);
 
-  vlmPending.set(requestId, {
+  worker.pending.set(requestId, {
     resolve: request.resolve,
     reject: request.reject,
     action: request.action,
@@ -377,6 +412,15 @@ function processQueue() {
 }
 
 // ─── Public API ───
+
+/**
+ * Number of concurrent VLM workers in the pool (#189).
+ * Callers (e.g. asset-sourcer Phase 3a) use this to match their own
+ * request concurrency to the pool size.
+ */
+export function getVlmConcurrency() {
+  return VLM_CONCURRENCY;
+}
 
 /**
  * Analyze an asset (image or video) using the VLM in a single call.
@@ -425,13 +469,13 @@ export function analyzeAssetSemantics(assetPath, opts) {
       window,
       claim,
     });
-    processQueue();
+    dispatchQueue();
   });
 }
 
 /**
- * Close the analyzer subprocess.
- * Sends an exit command, then kills the process.
+ * Close all analyzer subprocesses in the pool (#189).
+ * Sends an exit command to each, then kills them.
  * Also closes the focus detector subprocess if running.
  *
  * @returns {Promise<void>}
@@ -440,32 +484,39 @@ export function closeVisualAnalyzer() {
   return new Promise((resolve) => {
     // Close focus detector first (lightweight, fast to exit)
     closeFocusDetector().then(() => {
-      if (!pythonProc) {
+      const liveWorkers = vlmWorkers.filter(
+        (w) => w.proc && !w.proc.killed && w.proc.exitCode === null,
+      );
+      if (liveWorkers.length === 0) {
         resolve();
         return;
       }
 
-      try {
-        pythonProc.stdin.write(JSON.stringify({ action: "exit" }) + "\n");
-      } catch (_e) {
-        // ignore
+      for (const worker of liveWorkers) {
+        try {
+          worker.proc.stdin.write(JSON.stringify({ action: "exit" }) + "\n");
+        } catch (_e) {
+          // ignore
+        }
       }
 
       setTimeout(() => {
-        if (pythonProc && !pythonProc.killed) {
-          try {
-            pythonProc.kill("SIGTERM");
-          } catch (_e) {
-            // ignore
+        for (const worker of vlmWorkers) {
+          if (worker.proc && !worker.proc.killed) {
+            try {
+              worker.proc.kill("SIGTERM");
+            } catch (_e) {
+              // ignore
+            }
           }
+          worker.proc = null;
+          // R1 fix: settle all pending VLM requests per worker
+          for (const [id, entry] of worker.pending) {
+            clearTimeout(entry.timer);
+            entry.resolve({ ...DEGRADED_RESULT });
+          }
+          worker.pending.clear();
         }
-        pythonProc = null;
-        // R1 fix: settle all pending VLM requests and clear queue
-        for (const [id, entry] of vlmPending) {
-          clearTimeout(entry.timer);
-          entry.resolve({ ...DEGRADED_RESULT });
-        }
-        vlmPending.clear();
         requestQueue.length = 0;
         resolve();
       }, 100);
@@ -784,11 +835,13 @@ const _exitHandlerRegistered = Symbol.for("visualAnalyzerExitHandler");
 if (!process[_exitHandlerRegistered]) {
   process[_exitHandlerRegistered] = true;
   process.on("exit", () => {
-    if (pythonProc && !pythonProc.killed) {
-      try {
-        pythonProc.kill("SIGTERM");
-      } catch (_e) {
-        // ignore
+    for (const worker of vlmWorkers) {
+      if (worker.proc && !worker.proc.killed) {
+        try {
+          worker.proc.kill("SIGTERM");
+        } catch (_e) {
+          // ignore
+        }
       }
     }
     if (focusProc && !focusProc.killed) {
