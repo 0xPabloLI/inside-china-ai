@@ -104,7 +104,7 @@ def run_test() -> bytes:
         sys.executable, "generate_video.py",
         "--ckpt_dir", "/root/models/SoulX-FlashTalk-14B",
         "--wav2vec_dir", "/root/models/chinese-wav2vec2-base",
-        "--cond_image", "/root/fixtures/portrait-fullbody.jpg",
+        "--cond_image", "/root/fixtures/portrait-original-4k.jpg",
         "--audio_path", "/root/fixtures/audio.wav",
         "--input_prompt", "A person is talking. Only the foreground characters are moving, the background remains static.",
         "--audio_encode_mode", "stream",
@@ -132,7 +132,7 @@ def main():
     video_bytes = run_test.remote()
     out_dir = "scripts/short-video/experiments/digital-human/soulx-flashtalk"
     os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, "flashtalk_14b_a100.mp4")
+    out_path = os.path.join(out_dir, "flashtalk_14b_a100_original.mp4")
     with open(out_path, "wb") as f:
         f.write(video_bytes)
     print(f"[saved] {out_path} ({len(video_bytes)} bytes)")
