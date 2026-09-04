@@ -15,6 +15,8 @@
 
 | task | 日期 | S/R | 规则是否到达（evidence） | A-lite 选择及放弃的替代 | B-lite finding（独有/重复/误报 → 裁决） | spec parity | 返工 | D（bug？触发？） | 实际收益（定性） |
 |------|------|-----|--------------------------|--------------------------|------------------------------------------|-------------|------|------------------|------------------|
+| #112 image search pool | 2026-09-04 | S1/R3 | 到达——实施前复述 §6.2 选择顺序，注册表复用既有 search-results-cache/downloadCandidate seam 而非新建管线 | 复用既有 seam（cache/下载/评分管道），放弃在 asset-sourcer 内为每个新引擎写独立搜索函数；未改变选择方向 | Standards 轴报告了 Duplicated Code（两个字节相同的 CDP fallback 脚本，接受→合并 GENERIC_IMAGE_FALLBACK_SCRIPT）、Middle Man（包装闭包，接受→直引函数）；B-lite stdlib 重复检查无 finding | 完整（Spec 轴 review 无缺失；DDG 纯 fetch 为用户确认偏差） | 0（review 修复均为接受 finding） | 非 bug 任务，N/A | 更少——4 个新引擎全部只落注册表 + 引擎级纯函数，asset-sourcer 净删行 |
+| #180 bilibili zh keywords | 2026-09-04 | S1/R3 | 到达——§6.2 根因搜索先于实现：搜索 searchYtdlp 调用链后发现 yt-dlp 2026.07.04 模板 `\t` 字面输出是双平台共同根因，在共享 seam（searchYtdlp/parseYtdlpSearchOutput）修复而非按调用方分别修 | 中文池复用 extractKeywords 既有 3-tier 链（公司名→CLI→voiceover）映射 COMPANY_NAME_ZH，放弃重写公司抽取；YouTube 保持现状由报告评估而非改代码 | Standards 轴 correctness note（新解析器丢失旧解析器对标题含 TAB 的容忍）→ 接受并修复（fe70670）；Repeated Switches（platform 分支 ×3）拒绝——当前规模 platform 描述符 map 属过度设计；B-lite stdlib 重复检查无 finding | 完整（bilibili 中文池 + YouTube 评估留报告 = 约定交付物） | 0 | 部分触发——parse bug 任务执行了根因搜索，"调用方共享同一不变量"判断被 live 验证正确（双平台标题同时恢复） | 更少——单 seam 修复同时救活双平台视频搜索（YouTube 候选标题此前全空），中文路由 ~30 行纯函数 |
 
 ### 字段口径
 
