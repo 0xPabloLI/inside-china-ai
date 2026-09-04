@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-09-04（SoulX-FlashHead 基座测试完成 + 全平台适配搜索 + 测试素材整理到 `dh-fixtures/`；SoulX-FlashTalk 14B 已开源但需 64GB+ VRAM；超分工具已有但未接入数字人 pipeline）
+> **最后更新**：2026-09-04（SoulX-FlashTalk 14B ✅ Modal A100-80GB 测试成功；SoulX-FlashHead 基座测试完成 + 全平台适配搜索 + 测试素材整理到 `dh-fixtures/`；超分工具已有但未接入数字人 pipeline）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -837,6 +837,12 @@
 
 - SoulX-FlashHead 是 **Talking Head only**（512×512 头部/肩部）
 - Soul-AILab 还有 **SoulX-FlashTalk**（14B，**已开源** `Soul-AILab/SoulX-FlashTalk`，Apache 2.0，1.5k stars）：talking body/全身 avatar，实时流式；但需 **64GB+ VRAM**（或 40GB + cpu_offload），实时需 8×H800——硬件门槛远高于 FlashHead
+- **✅ Modal A100-80GB 测试成功（2026-09-04）**：
+  - 输入：`portrait-fullbody.jpg`（1080×1920）+ `audio.wav`（5.23s, 16kHz mono）；`--audio_encode_mode stream`
+  - 输出：`scripts/short-video/experiments/digital-human/soulx-flashtalk/flashtalk_14b_a100.mp4`（416×720, 25fps, 5.24s, 131帧, h264+aac, 222KB）
+  - 推理时间：348s（5.8min）；费用 ≈ $0.20（348s × $2.10/h）
+  - 修复两个兼容性问题：① wav2vec2 hidden_states（monkey-patch `Wav2Vec2Encoder.forward` 支持 `output_hidden_states`，transformers ≥4.49 移除了该参数）；② ffmpeg in-place 编辑（`--save_file` 加 `res_` 前缀，`save_video` 用 `replace('res_','')` 做 temp 路径）
+  - 脚本：`scripts/modal/soulx-flashtalk-test/run_flashtalk.py` + `patch_wav2vec.py`
 - Talking Body 需求用 InfiniteTalk（576×704，Apache 2.0，已测可用）或 LongCat（480p，MIT，已测可用）
 
 #### 下一步
