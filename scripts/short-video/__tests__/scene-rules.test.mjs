@@ -1380,9 +1380,20 @@ describe("checkMediaStrategyContract", () => {
 
   it("#6: ignores aiVideo when the strategy is asset or absent", () => {
     const explicit = checkMediaStrategyContract([broll({ mediaStrategy: "asset", aiVideo: {} })]);
-    const implicit = checkMediaStrategyContract([broll({ mediaStrategy: undefined })]);
     expect(explicit[0].level).toBe("pass");
-    expect(implicit[0].level).toBe("pass");
+  });
+
+  it("#193: warns when scenes omit mediaStrategy (silent asset default skips b-roll)", () => {
+    const result = checkMediaStrategyContract([
+      { id: 3, visualType: "narrative", voiceover: "The cabin interior feels spacious." },
+      { id: 7, visualType: "data", voiceover: "Rides grew 40 percent year over year." },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].check).toBe("B-roll strategy contract");
+    expect(result[0].detail).toContain("3");
+    expect(result[0].detail).toContain("7");
+    expect(result[0].fix).toContain("asset-then-broll");
   });
 
   it("passes a well-formed b-roll scene", () => {
@@ -1390,15 +1401,21 @@ describe("checkMediaStrategyContract", () => {
     expect(result[0].level).toBe("pass");
   });
 
-  it("stays silent for content that uses no b-roll fields (spec #2: no log noise)", () => {
-    expect(checkMediaStrategyContract(validScenes)).toEqual([]);
+  it("warns once for content without b-roll fields (supersedes spec #2 silence — #193)", () => {
+    const result = checkMediaStrategyContract(validScenes);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    // every scene id is named exactly once
+    for (const scene of validScenes) {
+      expect(result[0].detail).toContain(String(scene.id));
+    }
   });
 
   it("passes the real qwen4-preview fixture scenes", () => {
-    // "aiVideo without a strategy is ignored" is covered by #6 above; this is
-    // the whole-file check against live scene-data.
+    // Whole-file check against live scene-data: no FAIL results. Missing
+    // mediaStrategy produces a warn (issue #193), never a fail.
     const result = checkMediaStrategyContract(qwenScenes);
-    expect(result.every((r) => r.level === "pass")).toBe(true);
+    expect(result.every((r) => r.level !== "fail")).toBe(true);
   });
 
   it("is wired into runAllSceneDataChecks", () => {

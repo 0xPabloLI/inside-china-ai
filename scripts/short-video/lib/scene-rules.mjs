@@ -1536,9 +1536,11 @@ export function checkMediaStrategyContract(scenes) {
   const invalid = [];
   const missingPrompt = [];
   const optedOut = [];
+  const missingStrategy = [];
   let engaged = false;
 
   for (const scene of scenes) {
+    if (!scene.mediaStrategy) missingStrategy.push(String(scene.id));
     if (!scene.mediaStrategy && !scene.aiVideo) continue;
     engaged = true;
     const strategy = scene.mediaStrategy;
@@ -1582,6 +1584,15 @@ export function checkMediaStrategyContract(scenes) {
       check: CHECK,
       detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut with a b-roll strategy — generation will be skipped`,
       fix: "Drop mediaOptOut to let the scene generate B-roll, or keep it for a deliberate CSS-only scene",
+    });
+  }
+  if (missingStrategy.length > 0) {
+    results.push({
+      level: "warn",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${missingStrategy.join(", ")} omit mediaStrategy (silently defaults to "asset" — B-roll generation is skipped, so a scene whose sourced image falls through will reuse another scene's media)`,
+      fix: 'Set mediaStrategy explicitly on every scene: "asset" (sourced image only) | "asset-then-broll" (source first, fall back to B-roll generation) | "b-roll" (always generate)',
     });
   }
   if (results.length > 0) return results;

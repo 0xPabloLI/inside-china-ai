@@ -105,6 +105,10 @@ describe("verify-video.mjs B-roll summary (spec #27)", () => {
 
   it("prints nothing about B-roll for content that never ran the stage", () => {
     const res = runPre(["--content", "bytedance-distillation"]);
-    expect(res.stdout).not.toContain("B-roll");
+    // spec #27: the report-derived summary section only prints when a
+    // b-roll-report.json exists. The scene-data strategy WARN (issue #193)
+    // is preflight-level and fires even when the stage never ran, so only
+    // the summary header is asserted absent here.
+    expect(res.stdout).not.toContain("B-roll Checks");
   });
 });
