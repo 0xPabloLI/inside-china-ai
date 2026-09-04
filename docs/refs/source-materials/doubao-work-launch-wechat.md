@@ -20,6 +20,7 @@
 8月25日，豆包工作正式发布。作为豆包面向生产力场景推出的全新Agent产品与品牌，豆包工作能围绕用户目标自主拆解任务、调用工具、持续推进复杂工作流程。豆包工作还与飞书深度打通，让Agent基于企业上下文更准确地完成工作。
 
 ### Key Features:
+
 1. **Content generation & editing**: Write plans, meeting notes, reports, research summaries, spreadsheets, data analysis. Also generates/edits images, videos, web pages, applications.
 2. **AI collaborative editing**: "Point and edit" — select any part of generated documents/spreadsheets/PPTs/web pages and modify directly, no need to regenerate.
 3. **Browser & computer operation**: With user authorization, can operate across software, use professional software to process data, browse web, fill forms. Can use cloud computer for long-running tasks even when local computer is off. Remote control via phone.
@@ -29,6 +30,7 @@
 7. **Enterprise security**: Full-chain Agent security system covering device access, permission settings, quota management, data encryption, operation audit. First in China to pass dual certification for office agent capabilities and cloud benchmark testing.
 
 ### Availability:
+
 - Desktop version available for download from official website
 - Also available within latest Doubao desktop app
 - Free 30-day subscription upon download/login/upgrade
@@ -36,6 +38,7 @@
 ## Context (from search results)
 
 ### Organizational Restructuring (July 30, 2026):
+
 - ByteDance merged Feishu product team into Doubao team
 - New "Doubao Product Team" led by Zhao Qi (赵祺)
 - Feishu CEO Xie Xin reports to Zhao Qi
@@ -43,6 +46,7 @@
 - Reason: AI office strategy — "model + scenario" dual-wheel drive
 
 ### Market Context:
+
 - Doubao MAU: 382 million (June 2026, QuestMobile) — #1 in China
 - But daily revenue < 1M RMB, annual AI infra spend ~200B RMB
 - ByteDance AI business ARR: $4B (July 2026 stats)

@@ -78,7 +78,9 @@ describe("T5: verify-video.mjs validates layout field (via scene-rules.mjs)", ()
   it("scene-rules.mjs checks for valid layout enum values", () => {
     const content = readFileSync(join(SCRIPTS_DIR, "lib", "scene-rules.mjs"), "utf-8");
     // Should reference valid layout values
-    expect(content).toMatch(/media-bottom-bar|media-split|media-overlay|stacked-cards|hero-center|cta/);
+    expect(content).toMatch(
+      /media-bottom-bar|media-split|media-overlay|stacked-cards|hero-center|cta/,
+    );
   });
 
   it("scene-rules.mjs has checkLayoutField function", () => {

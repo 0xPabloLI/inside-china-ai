@@ -106,6 +106,7 @@
 ### ByteDance Seed Model Lineup
 
 #### Overview
+
 - Seed is ByteDance's internal AI research division
 - Consumer brand: **Doubao** (豆包) — China's #1 AI chatbot, 155 million weekly active users (Reuters, Feb 2026)
 - Enterprise API: **Volcano Engine** (火山引擎)
@@ -115,69 +116,72 @@
 
 #### Model Release Timeline
 
-| Date | Model | Type | Key Details |
-|------|-------|------|-------------|
-| May 2025 | Seed1.5-VL | Vision-language | 20B params, thinking capabilities. GitHub: https://github.com/ByteDance-Seed/Seed1.5-VL |
-| Feb 14, 2026 | **Seed 2.0** (Doubao 2.0) | LLM family | Pro/Lite/Mini/Code variants. Released 2 days before Spring Festival Gala. Source: https://www.reuters.com/world/asia-pacific/chinas-bytedance-releases-doubao-20-ai-chatbot-2026-02-14/ |
-| Feb 12, 2026 | **Seedance 2.0** | Video generation | Unified multimodal, 15s multi-shot clips, native stereo audio. ~80 ELO above next competitor on Arena. Source: https://thursdai.news/companies/bytedance |
-| Jun 2026 | **Seed 2.1** (Doubao 2.1) | Agent-focused LLM | Shift from chatbot to general agent. Source: https://seed.bytedance.com/en/seed2_1 |
-| Jul 8, 2026 | **Seedream 5.0 Pro** | Image generation | Precision editing, layer separation, 10+ language text. Source: https://thursdai.news/companies/bytedance |
-| Apr 2025 | Seed-Thinking-v1.5 | Reasoning model | Tech report published (GitHub) |
-| Apr 2025 | Seedream 3.0 | Image generation | Bilingual 2K text-to-image |
-| Apr 2025 | Seaweed-7B | Video generation | 7B parameter foundation model |
-| Mar 2025 | DAPO | RL method | Improvement over GRPO, open GitHub |
-| Dec 2025 | SeeDream 4.5 | Image generation | Multi-reference fusion |
-| Sep 2025 | HuMo (with Tsinghua) | Video generation | Human-centric, open weights on HF |
+| Date         | Model                     | Type              | Key Details                                                                                                                                                                             |
+| ------------ | ------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| May 2025     | Seed1.5-VL                | Vision-language   | 20B params, thinking capabilities. GitHub: https://github.com/ByteDance-Seed/Seed1.5-VL                                                                                                 |
+| Feb 14, 2026 | **Seed 2.0** (Doubao 2.0) | LLM family        | Pro/Lite/Mini/Code variants. Released 2 days before Spring Festival Gala. Source: https://www.reuters.com/world/asia-pacific/chinas-bytedance-releases-doubao-20-ai-chatbot-2026-02-14/ |
+| Feb 12, 2026 | **Seedance 2.0**          | Video generation  | Unified multimodal, 15s multi-shot clips, native stereo audio. ~80 ELO above next competitor on Arena. Source: https://thursdai.news/companies/bytedance                                |
+| Jun 2026     | **Seed 2.1** (Doubao 2.1) | Agent-focused LLM | Shift from chatbot to general agent. Source: https://seed.bytedance.com/en/seed2_1                                                                                                      |
+| Jul 8, 2026  | **Seedream 5.0 Pro**      | Image generation  | Precision editing, layer separation, 10+ language text. Source: https://thursdai.news/companies/bytedance                                                                               |
+| Apr 2025     | Seed-Thinking-v1.5        | Reasoning model   | Tech report published (GitHub)                                                                                                                                                          |
+| Apr 2025     | Seedream 3.0              | Image generation  | Bilingual 2K text-to-image                                                                                                                                                              |
+| Apr 2025     | Seaweed-7B                | Video generation  | 7B parameter foundation model                                                                                                                                                           |
+| Mar 2025     | DAPO                      | RL method         | Improvement over GRPO, open GitHub                                                                                                                                                      |
+| Dec 2025     | SeeDream 4.5              | Image generation  | Multi-reference fusion                                                                                                                                                                  |
+| Sep 2025     | HuMo (with Tsinghua)      | Video generation  | Human-centric, open weights on HF                                                                                                                                                       |
 
 #### Seed 2.0 Pro Benchmarks
 
-| Benchmark | Score | Comparison |
-|-----------|-------|------------|
-| AIME 2025 | 98.3 | Competitive with GPT-5.2, Claude Opus 4.5 |
-| AIME 2026 | 94.2 | |
-| GPQA Diamond | 88.9 | |
-| MMLU-Pro | 87 | |
-| Codeforces | 3020 | |
-| LiveCodeBench v6 | 87.8 | |
-| SWE-Bench Verified | 76.5% | **Trails Claude Opus 4.5 (80.9%)** |
-| Terminal Bench 2.0 | 55.8 | **Trails GPT-5.2 (62.4)** |
-| VideoMME | 89.5 | Surpasses human benchmark (73%) |
-| MathVision | 88.8 | SOTA |
-| MMMU | 85.4 | |
-| BrowseComp | 77.3 | |
-| tau2-Bench (Retail) | 90.4 | |
-| tau2-Bench (Telecom) | 94.2 | |
-| WideSearch | 74.7 | |
-| LMSYS Chatbot Arena | 6th text, 3rd vision | |
+| Benchmark            | Score                | Comparison                                |
+| -------------------- | -------------------- | ----------------------------------------- |
+| AIME 2025            | 98.3                 | Competitive with GPT-5.2, Claude Opus 4.5 |
+| AIME 2026            | 94.2                 |                                           |
+| GPQA Diamond         | 88.9                 |                                           |
+| MMLU-Pro             | 87                   |                                           |
+| Codeforces           | 3020                 |                                           |
+| LiveCodeBench v6     | 87.8                 |                                           |
+| SWE-Bench Verified   | 76.5%                | **Trails Claude Opus 4.5 (80.9%)**        |
+| Terminal Bench 2.0   | 55.8                 | **Trails GPT-5.2 (62.4)**                 |
+| VideoMME             | 89.5                 | Surpasses human benchmark (73%)           |
+| MathVision           | 88.8                 | SOTA                                      |
+| MMMU                 | 85.4                 |                                           |
+| BrowseComp           | 77.3                 |                                           |
+| tau2-Bench (Retail)  | 90.4                 |                                           |
+| tau2-Bench (Telecom) | 94.2                 |                                           |
+| WideSearch           | 74.7                 |                                           |
+| LMSYS Chatbot Arena  | 6th text, 3rd vision |                                           |
 
 - IMO: 35/42 points (gold medals), CMO gold, all 5 ICPC competitions
 - Source: https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing
 
 #### Seed 2.0 Pro Pricing (Feb 2026)
 
-| Model | Input ($/1M tokens) | Output ($/1M tokens) |
-|-------|---------------------|----------------------|
-| Seed 2.0 Pro | $0.47 | $2.37 |
-| Seed 2.0 Lite | $0.09 | $0.53 |
-| Seed 2.0 Mini | $0.03 | $0.31 |
-| GPT-5.2 High | $1.75 | $14.00 |
-| Claude Opus 4.5 | $5.00 | $25.00 |
+| Model           | Input ($/1M tokens) | Output ($/1M tokens) |
+| --------------- | ------------------- | -------------------- |
+| Seed 2.0 Pro    | $0.47               | $2.37                |
+| Seed 2.0 Lite   | $0.09               | $0.53                |
+| Seed 2.0 Mini   | $0.03               | $0.31                |
+| GPT-5.2 High    | $1.75               | $14.00               |
+| Claude Opus 4.5 | $5.00               | $25.00               |
 
 - 73-84% cheaper than GPT-5.2, ~10x cheaper than Claude Opus 4.5
 - Source: https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing
 
 #### Compute Constraints
+
 - ByteDance trained Seedance 2.0 using Nvidia H20 chips (export-compliant for China)
 - H20 overall training performance only a fraction of B200
 - US export restrictions prevent purchase of B200/Blackwell
 - Source: https://www.pekingnology.com/p/bytedances-ban-on-distilling-rival
 
 #### ByteDance AI Organization (Feb 2026 update)
+
 - Seed team = internal AI research
 - Flow and Stone = other AI-related units
 - Source: https://www.chooseai.net/news/2664/
 
 #### Key Limitations
+
 - Flagship models closed, API-only (no open weights)
 - SWE-Bench and Terminal Bench trail Western competitors
 - Underperforms on hallucination avoidance

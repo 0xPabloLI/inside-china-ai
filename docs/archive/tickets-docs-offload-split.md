@@ -9,6 +9,7 @@
 **Conflict files**: none (new file)
 
 ### Checklist
+
 - [x] Create `docs/article-production-guide.md` with the following content extracted from `content-pipeline.md` Stage 1b:
   - [x] Widget 定位 (supplement new info, not repeat)
   - [x] Widget 决策树 table
@@ -30,6 +31,7 @@
 **Conflict files**: none (new file)
 
 ### Checklist
+
 - [x] Create `docs/series-production-guide.md` with content extracted from `video-workflow.md`:
   - [x] When to Split (episode evaluator trigger)
   - [x] Series Types table (Explicit Part N, Loop-and-Flashback, Deep Dive, 对比系列)
@@ -47,6 +49,7 @@
 **Conflict files**: none (new file)
 
 ### Checklist
+
 - [x] Create `docs/content-scaffold-guide.md` with content extracted from `video-workflow.md` "Creating a New Content Pipeline" section:
   - [x] Directory structure (single + multi-part)
   - [x] meta.mjs template
@@ -63,6 +66,7 @@
 **Conflict files**: `content-pipeline.md` (#111 not started — safe)
 
 ### Checklist
+
 - [x] Stage 0: Delete 内容品类战略优先级 section
 - [x] Stage 0: Delete last30days full config block (~40 lines)
 - [x] Stage 0: Delete Western social media supplement section (~40 lines)
@@ -93,6 +97,7 @@
 **Conflict files**: `video-workflow.md`
 
 ### Checklist
+
 - [x] Keep Best Practices (Duration, Hook-First, Silent Autoplay, Pacing, Audio, Mobile-First)
 - [x] Keep Content Standards + Brand Voice
 - [x] Keep TTS Engine Configuration (param tables, post-processing matrix)
@@ -116,6 +121,7 @@
 **Conflict files**: `DOCS-INDEX.md`
 
 ### Checklist
+
 - [x] Add `article-production-guide.md` to Root — Active reference table
 - [x] Add `series-production-guide.md` to Root — Active reference table
 - [x] Add `content-scaffold-guide.md` to Root — Active reference table
@@ -129,6 +135,7 @@
 **Conflict files**: none
 
 ### Checklist
+
 - [x] Run `npm run lint:docs` — 0 FAILs (3 pre-existing FAILs not introduced by this session)
 - [x] Grep verification: no contradictory duplicates (section titles in both parent and child)
 - [x] Grep verification: all pointer targets exist

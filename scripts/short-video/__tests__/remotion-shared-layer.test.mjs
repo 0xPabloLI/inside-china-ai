@@ -104,23 +104,17 @@ describe("T1: remotion.config.ts with ANGLE", () => {
 
 describe("T1: package.json has new dependencies", () => {
   it("@remotion/media is in dependencies", () => {
-    const pkg = JSON.parse(
-      readFileSync(join(REMOTION_SRC, "..", "package.json"), "utf-8"),
-    );
+    const pkg = JSON.parse(readFileSync(join(REMOTION_SRC, "..", "package.json"), "utf-8"));
     expect(pkg.dependencies).toHaveProperty("@remotion/media");
   });
 
   it("@remotion/rough-notation is in dependencies", () => {
-    const pkg = JSON.parse(
-      readFileSync(join(REMOTION_SRC, "..", "package.json"), "utf-8"),
-    );
+    const pkg = JSON.parse(readFileSync(join(REMOTION_SRC, "..", "package.json"), "utf-8"));
     expect(pkg.dependencies).toHaveProperty("@remotion/rough-notation");
   });
 
   it("@remotion/effects is in dependencies", () => {
-    const pkg = JSON.parse(
-      readFileSync(join(REMOTION_SRC, "..", "package.json"), "utf-8"),
-    );
+    const pkg = JSON.parse(readFileSync(join(REMOTION_SRC, "..", "package.json"), "utf-8"));
     expect(pkg.dependencies).toHaveProperty("@remotion/effects");
   });
 });

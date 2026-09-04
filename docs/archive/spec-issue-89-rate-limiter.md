@@ -55,33 +55,33 @@
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `lib/cdp-client.mjs` | `cdpNewTab` 内新增 limiter 调用 + 模块级实例化 + 导出 limiter 供测试 | Medium | 4 个生产消费方 + 测试套件受影响。缓解：仅追加等待语义、逃生阀变量、单测注入时钟、现有用例加 disable 后必须全绿。最坏后果：限流器误拦导致 source 静默变空 → 由日志 warn + fallback 链兜底 |
-| `__tests__/cdp-client.test.mjs` | 顶部设置 disable env；新增跳过路径用例 | Low | 现有用例语义不变 |
-| `lib/rate-limiter.mjs`（新） | 全新模块 | Low | 无下游，单点消费方为 cdp-client |
-| `__tests__/rate-limiter.test.mjs`（新） | 全新测试 | Low | — |
+| 文件                                    | 修改内容                                                             | 风险等级 | 评估                                                                                                                                                                                     |
+| --------------------------------------- | -------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/cdp-client.mjs`                    | `cdpNewTab` 内新增 limiter 调用 + 模块级实例化 + 导出 limiter 供测试 | Medium   | 4 个生产消费方 + 测试套件受影响。缓解：仅追加等待语义、逃生阀变量、单测注入时钟、现有用例加 disable 后必须全绿。最坏后果：限流器误拦导致 source 静默变空 → 由日志 warn + fallback 链兜底 |
+| `__tests__/cdp-client.test.mjs`         | 顶部设置 disable env；新增跳过路径用例                               | Low      | 现有用例语义不变                                                                                                                                                                         |
+| `lib/rate-limiter.mjs`（新）            | 全新模块                                                             | Low      | 无下游，单点消费方为 cdp-client                                                                                                                                                          |
+| `__tests__/rate-limiter.test.mjs`（新） | 全新测试                                                             | Low      | —                                                                                                                                                                                        |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | 域名首次请求 | 不等待，导航即发，时间戳记录+持久化 | Low | — |
-| 2 | 同域名第二次请求，间隔 < baseDelay×jitter | sleep 差值后导航 | Low | — |
-| 3 | sleep 时长落在 `jitter min..max × baseDelay` 区间 | 断言区间 | Low | 注入确定性随机 |
-| 4 | `www.google.com` 与 `google.com` | 同一桶 | Low | — |
-| 5 | `google_search` 与 `googleSiteFallback`（google URL）连续请求 | 共享 google 桶，第二次触发等待（聚合验证） | Medium | 场景 2 断言复用 |
-| 6 | google 与 baidu 交替请求 | 各自独立桶，互不等待 | Low | — |
-| 7 | 未配置域名 / 不可解析 URL | `_default` 配置，不 crash | Low | — |
-| 8 | 1h 滑窗达到 maxPerHour，最老时间戳出窗等待 ≤ cap | 等待到出窗时刻后放行 | Medium | 注入时钟推进 |
-| 9 | 出窗等待 > 10 min cap | 抛错跳过，不导航；错误含域名 | Medium | search-sources 现有 catch → fallback 链（集成层验证） |
-| 10 | 窗口内 >1h 旧时间戳 | 加载/写入时修剪，容量释放 | Low | — |
-| 11 | 状态文件缺失 | 空状态启动；保存时自动建目录 | Low | — |
-| 12 | 状态文件 JSON 损坏 | warn + 重置空状态，管线继续 | Medium | 场景 13 断言继续可用 |
-| 13 | 本进程记录后，新实例加载状态文件 | 旧时间戳计入滑窗（跨 run 聚合） | High（核心需求） | 持久化读写直测 |
-| 14 | 导航随后失败 | 时间戳已记录（失败也计数） | Low | 场景 1 断言顺序 |
-| 15 | `RATE_LIMITER_DISABLED=1` | 零等待、零写盘 | Low | — |
-| 16 | 限流开启时 `cdpNewTab` 正常路径 | 返回 targetId；无 targetId 仍 throw（契约不变） | Medium | 现有用例 disable 后全绿 + 新开启态用例 |
-| 17 | 持久化保存与加载往返 | 时间戳数组 roundtrip 一致 | Low | — |
+| #   | Scenario                                                      | Expected Behavior                               | Risk             | Mitigation                                            |
+| --- | ------------------------------------------------------------- | ----------------------------------------------- | ---------------- | ----------------------------------------------------- |
+| 1   | 域名首次请求                                                  | 不等待，导航即发，时间戳记录+持久化             | Low              | —                                                     |
+| 2   | 同域名第二次请求，间隔 < baseDelay×jitter                     | sleep 差值后导航                                | Low              | —                                                     |
+| 3   | sleep 时长落在 `jitter min..max × baseDelay` 区间             | 断言区间                                        | Low              | 注入确定性随机                                        |
+| 4   | `www.google.com` 与 `google.com`                              | 同一桶                                          | Low              | —                                                     |
+| 5   | `google_search` 与 `googleSiteFallback`（google URL）连续请求 | 共享 google 桶，第二次触发等待（聚合验证）      | Medium           | 场景 2 断言复用                                       |
+| 6   | google 与 baidu 交替请求                                      | 各自独立桶，互不等待                            | Low              | —                                                     |
+| 7   | 未配置域名 / 不可解析 URL                                     | `_default` 配置，不 crash                       | Low              | —                                                     |
+| 8   | 1h 滑窗达到 maxPerHour，最老时间戳出窗等待 ≤ cap              | 等待到出窗时刻后放行                            | Medium           | 注入时钟推进                                          |
+| 9   | 出窗等待 > 10 min cap                                         | 抛错跳过，不导航；错误含域名                    | Medium           | search-sources 现有 catch → fallback 链（集成层验证） |
+| 10  | 窗口内 >1h 旧时间戳                                           | 加载/写入时修剪，容量释放                       | Low              | —                                                     |
+| 11  | 状态文件缺失                                                  | 空状态启动；保存时自动建目录                    | Low              | —                                                     |
+| 12  | 状态文件 JSON 损坏                                            | warn + 重置空状态，管线继续                     | Medium           | 场景 13 断言继续可用                                  |
+| 13  | 本进程记录后，新实例加载状态文件                              | 旧时间戳计入滑窗（跨 run 聚合）                 | High（核心需求） | 持久化读写直测                                        |
+| 14  | 导航随后失败                                                  | 时间戳已记录（失败也计数）                      | Low              | 场景 1 断言顺序                                       |
+| 15  | `RATE_LIMITER_DISABLED=1`                                     | 零等待、零写盘                                  | Low              | —                                                     |
+| 16  | 限流开启时 `cdpNewTab` 正常路径                               | 返回 targetId；无 targetId 仍 throw（契约不变） | Medium           | 现有用例 disable 后全绿 + 新开启态用例                |
+| 17  | 持久化保存与加载往返                                          | 时间戳数组 roundtrip 一致                       | Low              | —                                                     |
 
 每行 = 一个 TDD 测试用例，Step 4 必须全覆盖。

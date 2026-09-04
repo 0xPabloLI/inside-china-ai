@@ -90,8 +90,7 @@ export const listTrackedKeywords = createServerFn({ method: "GET" })
         active: k.active,
         position,
         previousPosition,
-        delta:
-          position !== null && previousPosition !== null ? previousPosition - position : null,
+        delta: position !== null && previousPosition !== null ? previousPosition - position : null,
         searchVolume: latest?.search_volume ?? null,
         difficulty: latest?.difficulty ?? null,
         rankingUrl: latest?.ranking_url ?? null,
@@ -135,10 +134,7 @@ export const deleteTrackedKeyword = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("tracked_keywords")
-      .delete()
-      .eq("id", data.id);
+    const { error } = await context.supabase.from("tracked_keywords").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -151,9 +147,8 @@ export const deleteTrackedKeyword = createServerFn({ method: "POST" })
 export const refreshKeywordSnapshots = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async () => {
-    const { refreshSnapshots, sendRankingAlert, listAlertRecipients } = await import(
-      "@/lib/keyword-tracking.server"
-    );
+    const { refreshSnapshots, sendRankingAlert, listAlertRecipients } =
+      await import("@/lib/keyword-tracking.server");
     const { updated, alerts } = await refreshSnapshots();
 
     if (alerts.length > 0) {
@@ -254,7 +249,6 @@ export const deleteAlertRecipient = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-
 /**
  * Sends the real ranking-alert email using simulated keyword changes so an
  * admin can check the wording before a genuine alert fires. The recipient is
@@ -280,18 +274,15 @@ export const sendTestAlertNotification = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { sendRankingAlert, listAlertRecipients, listAdminEmails } = await import(
-      "@/lib/keyword-tracking.server"
-    );
+    const { sendRankingAlert, listAlertRecipients, listAdminEmails } =
+      await import("@/lib/keyword-tracking.server");
 
     const claimEmail =
       typeof context.claims?.["email"] === "string"
         ? (context.claims["email"] as string).toLowerCase()
         : null;
     const allowed = new Set(
-      [...(await listAlertRecipients()), ...(await listAdminEmails())].map((e) =>
-        e.toLowerCase(),
-      ),
+      [...(await listAlertRecipients()), ...(await listAdminEmails())].map((e) => e.toLowerCase()),
     );
     if (claimEmail) allowed.add(claimEmail);
 

@@ -4,20 +4,20 @@ The triage skill uses five canonical roles. Label strings match role names.
 
 ## Category Labels
 
-| Label | Meaning |
-|-------|---------|
-| `bug` | Something is broken |
+| Label         | Meaning                    |
+| ------------- | -------------------------- |
+| `bug`         | Something is broken        |
 | `enhancement` | New feature or improvement |
 
 ## State Labels
 
-| Label | Meaning |
-|-------|---------|
-| `needs-triage` | Maintainer needs to evaluate |
-| `needs-info` | Waiting on reporter for more information |
-| `ready-for-agent` | Fully specified, ready for an AFK agent |
-| `ready-for-human` | Needs human implementation |
-| `wontfix` | Will not be actioned |
+| Label             | Meaning                                  |
+| ----------------- | ---------------------------------------- |
+| `needs-triage`    | Maintainer needs to evaluate             |
+| `needs-info`      | Waiting on reporter for more information |
+| `ready-for-agent` | Fully specified, ready for an AFK agent  |
+| `ready-for-human` | Needs human implementation               |
+| `wontfix`         | Will not be actioned                     |
 
 ## Triage Flow
 

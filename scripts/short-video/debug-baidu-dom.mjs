@@ -20,7 +20,9 @@ async function cdpEvalRaw(tabId, script) {
 }
 
 async function cdpCloseTab(tabId) {
-  try { await fetch(`${CDP_BASE}/close?target=${tabId}`); } catch {}
+  try {
+    await fetch(`${CDP_BASE}/close?target=${tabId}`);
+  } catch {}
 }
 
 async function waitForLoad(tabId, maxWait = 8000) {
@@ -31,7 +33,7 @@ async function waitForLoad(tabId, maxWait = 8000) {
       const val = resp?.result?.value || resp?.value || "";
       if (val === "complete" || val === "interactive") return true;
     } catch {}
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 500));
   }
   return false;
 }
@@ -40,19 +42,25 @@ async function cdpEvalJSON(tabId, script) {
   // Script must end with return JSON.stringify(data)
   const resp = await cdpEvalRaw(tabId, script);
   const val = resp?.result?.value || resp?.value || "[]";
-  try { return JSON.parse(val); } catch { return []; }
+  try {
+    return JSON.parse(val);
+  } catch {
+    return [];
+  }
 }
 
 async function main() {
   const query = "DeepSeek China AI";
   const url = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`;
-  
+
   console.log("Opening Baidu:", url);
   const tabId = await cdpNewTab(url);
-  await new Promise(r => setTimeout(r, 5000));
+  await new Promise((r) => setTimeout(r, 5000));
   await waitForLoad(tabId);
-  
-  const results = await cdpEvalJSON(tabId, `
+
+  const results = await cdpEvalJSON(
+    tabId,
+    `
     var data = [];
     
     // Find ALL h3 elements in the page
@@ -116,11 +124,12 @@ async function main() {
     });
     
     return JSON.stringify(data);
-  `);
-  
+  `,
+  );
+
   console.log("\n=== Baidu DOM Debug Results ===");
   console.log(JSON.stringify(results, null, 2));
-  
+
   await cdpCloseTab(tabId);
 }
 

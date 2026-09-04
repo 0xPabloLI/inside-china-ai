@@ -8,19 +8,19 @@
 
 ## 基准数据（v25/v28 实测）
 
-| 指标 | 值 |
-|------|-----|
-| GPU | Tesla P100-PCIE-16GB (sm_60) |
-| 推理模式 | sequential_cpu_offload |
-| 推理步数 | 8 (Flash) |
-| 视频长度 | 81 帧 / 3.24s @ 25fps |
-| 分辨率 | 768×768 |
-| 精度 | float16 (P100 不支持 bfloat16) |
-| 单次推理时间 | ~24.6 min |
-| 环境安装 | ~10 min |
-| 模型下载 | ~12 min (19GB → /tmp) |
-| 总时间（1 test case） | ~47 min |
-| 总时间（2 test case） | ~62 min (v28 实测) |
+| 指标                  | 值                             |
+| --------------------- | ------------------------------ |
+| GPU                   | Tesla P100-PCIE-16GB (sm_60)   |
+| 推理模式              | sequential_cpu_offload         |
+| 推理步数              | 8 (Flash)                      |
+| 视频长度              | 81 帧 / 3.24s @ 25fps          |
+| 分辨率                | 768×768                        |
+| 精度                  | float16 (P100 不支持 bfloat16) |
+| 单次推理时间          | ~24.6 min                      |
+| 环境安装              | ~10 min                        |
+| 模型下载              | ~12 min (19GB → /tmp)          |
+| 总时间（1 test case） | ~47 min                        |
+| 总时间（2 test case） | ~62 min (v28 实测)             |
 
 ---
 
@@ -28,28 +28,28 @@
 
 ### 方案 1：model_cpu_offload 替代 sequential_cpu_offload
 
-| 维度 | 详情 |
-|------|------|
-| **改动** | `--GPU_memory_mode 'model_cpu_offload'` |
-| **收益** | 3-5x 推理加速（理论），整模块搬运减少 CPU-GPU 通信开销 |
-| **代价** | VRAM 需求更高——最大单模块 T5 encoder 10.8GB + 运行时中间张量可能 >16GB → OOM 风险 |
-| **风险** | 中——可能 OOM 白跑一轮 |
-| **验证状态** | ❌ v29 (version 29) OOM；✅ v32 (version 32) + `expandable_segments:True` **成功！** |
-| **结论** | **可行！** 加 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` 后 model_cpu_offload 不再 OOM。推荐作为默认模式。 |
-| **v32 实测数据** | A-sequential-expandable: 26.2 min; B-model-expandable: 24.0 min。 |
+| 维度             | 详情                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **改动**         | `--GPU_memory_mode 'model_cpu_offload'`                                                                                                           |
+| **收益**         | 3-5x 推理加速（理论），整模块搬运减少 CPU-GPU 通信开销                                                                                            |
+| **代价**         | VRAM 需求更高——最大单模块 T5 encoder 10.8GB + 运行时中间张量可能 >16GB → OOM 风险                                                                 |
+| **风险**         | 中——可能 OOM 白跑一轮                                                                                                                             |
+| **验证状态**     | ❌ v29 (version 29) OOM；✅ v32 (version 32) + `expandable_segments:True` **成功！**                                                              |
+| **结论**         | **可行！** 加 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` 后 model_cpu_offload 不再 OOM。推荐作为默认模式。                                |
+| **v32 实测数据** | A-sequential-expandable: 26.2 min; B-model-expandable: 24.0 min。                                                                                 |
 | **v33 实测数据** | A-weixin: 23.9 min (1434.6s), model_cpu_offload, audio_guidance_scale=2.0; B-video-frame: 24.2 min (1453.7s)。总时间 51.5 min。Dataset 读取成功。 |
 
 ### 方案 2：减少推理步数（5 步代替 8 步）
 
-| 维度 | 详情 |
-|------|------|
-| **改动** | `--num_inference_steps 5` |
-| **收益** | -37.5% 推理时间（5/8） |
-| **代价** | 质量可能下降——去噪不充分影响嘴部细节和皮肤纹理 |
-| **风险** | 低——可以随时改回 8 步 |
-| **验证状态** | ✅ v30 (version 30) 已验证 |
-| **结论** | 5 步推理时间 22.4 min vs 8 步 24.1 min（-7.1%），时间差异极小，不推荐为速度优化手段。质量对比需从 Kaggle 网页下载两个 mp4 后人工评估 |
-| **v30 实测数据** | A-weixin-5steps: 22.4 min, 432.7 KB; B-weixin-8steps: 24.1 min, 421.4 KB。总时间 57.4 min（含环境安装+模型下载+两次推理） |
+| 维度             | 详情                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **改动**         | `--num_inference_steps 5`                                                                                                            |
+| **收益**         | -37.5% 推理时间（5/8）                                                                                                               |
+| **代价**         | 质量可能下降——去噪不充分影响嘴部细节和皮肤纹理                                                                                       |
+| **风险**         | 低——可以随时改回 8 步                                                                                                                |
+| **验证状态**     | ✅ v30 (version 30) 已验证                                                                                                           |
+| **结论**         | 5 步推理时间 22.4 min vs 8 步 24.1 min（-7.1%），时间差异极小，不推荐为速度优化手段。质量对比需从 Kaggle 网页下载两个 mp4 后人工评估 |
+| **v30 实测数据** | A-weixin-5steps: 22.4 min, 432.7 KB; B-weixin-8steps: 24.1 min, 421.4 KB。总时间 57.4 min（含环境安装+模型下载+两次推理）            |
 
 #### 推理步数说明
 
@@ -61,76 +61,76 @@
 
 ### 方案 3：mmgp FP8 量化
 
-| 维度 | 详情 |
-|------|------|
-| **改动** | 集成 mmgp 库做 FP8 量化 + block_offload |
-| **收益** | 可能全 GPU 推理（12GB VRAM 可跑 768×768），速度最快 |
-| **代价** | ① FP8 量化降低精度——面部细节（嘴唇边缘、牙齿）可能变模糊；② 代码改动大——需改 pipeline 调用逻辑；③ P100 无 FP8 硬件支持（无 Tensor Core FP8 单元），只能软件模拟 |
-| **风险** | 高——兼容性未知，质量损失不可逆 |
-| **验证状态** | 未验证 |
-| **结论** | 不推荐——质量代价过高，P100 兼容性不确定 |
+| 维度         | 详情                                                                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **改动**     | 集成 mmgp 库做 FP8 量化 + block_offload                                                                                                                         |
+| **收益**     | 可能全 GPU 推理（12GB VRAM 可跑 768×768），速度最快                                                                                                             |
+| **代价**     | ① FP8 量化降低精度——面部细节（嘴唇边缘、牙齿）可能变模糊；② 代码改动大——需改 pipeline 调用逻辑；③ P100 无 FP8 硬件支持（无 Tensor Core FP8 单元），只能软件模拟 |
+| **风险**     | 高——兼容性未知，质量损失不可逆                                                                                                                                  |
+| **验证状态** | 未验证                                                                                                                                                          |
+| **结论**     | 不推荐——质量代价过高，P100 兼容性不确定                                                                                                                         |
 
 ### 方案 4：模型打包成 Kaggle Dataset
 
-| 维度 | 详情 |
-|------|------|
-| **改动** | 创建 `echomimicv3-models` Kaggle Dataset (19GB)，kernel 直接从 `/kaggle/input/` 读取 |
-| **收益** | 省去每次 ~12 min 模型下载时间 |
-| **代价** | ① 一次性上传 30-60 min；② Kaggle Dataset 大小限制 20GB，19GB 卡边缘；③ 模型更新需重新上传 |
-| **风险** | 低 |
-| **验证状态** | ✅ v33 已验证 Dataset 挂载成功，模型从 `/kaggle/input/echomimicv3-flash/` 直接读取 |
-| **结论** | **已完成！** 模型打包为 `xpabloli/echomimicv3-flash` Dataset，每次省 ~12 min 下载时间。 |
-| **是否固定模型** | 是——只打包当前使用的 Flash-pro 权重 + Wan2.1 基础模型 + chinese-wav2vec2-base |
+| 维度             | 详情                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| **改动**         | 创建 `echomimicv3-models` Kaggle Dataset (19GB)，kernel 直接从 `/kaggle/input/` 读取      |
+| **收益**         | 省去每次 ~12 min 模型下载时间                                                             |
+| **代价**         | ① 一次性上传 30-60 min；② Kaggle Dataset 大小限制 20GB，19GB 卡边缘；③ 模型更新需重新上传 |
+| **风险**         | 低                                                                                        |
+| **验证状态**     | ✅ v33 已验证 Dataset 挂载成功，模型从 `/kaggle/input/echomimicv3-flash/` 直接读取        |
+| **结论**         | **已完成！** 模型打包为 `xpabloli/echomimicv3-flash` Dataset，每次省 ~12 min 下载时间。   |
+| **是否固定模型** | 是——只打包当前使用的 Flash-pro 权重 + Wan2.1 基础模型 + chinese-wav2vec2-base             |
 
 ### 方案 5：Colab T4 替代 P100
 
-| 维度 | 详情 |
-|------|------|
-| **改动** | 用 `colab run --gpu T4 script.py` 在 Colab T4 上运行 |
-| **收益** | Colab CLI 一键运行；T4 有 Tensor Core（sm_75）支持 FP16 加速 |
-| **代价** | ① T4 算力与 P100 相当（不一定是升级）；② 同样 16GB VRAM 需 CPU offload；③ Colab 预装环境不同，PyTorch/diffusers/transformers patch 需重新调试；④ GPU 分配不保证，可能排队 90min；⑤ Colab CLI `--timeout` 默认 30s，长推理需要用 `--keep` + `exec` 分步操作 |
-| **风险** | 中——环境兼容性未知 |
-| **验证状态** | ✅ Colab T4 已验证可用（40.6s 完成创建+运行+销毁） |
-| **结论** | T4 可用但 VRAM 仅 14.6GB（比 P100 16GB 少），需 CPU offload；bfloat16 支持是优势；`colab run --timeout` 需要设置足够长 |
-| **T4 vs P100 对比** | T4: 14.6GB VRAM, bfloat16 ❌ (sm_75 不支持), Tensor Core ✅, sm_75; P100: 16GB VRAM, bfloat16 ❌, sm_60。**两者都不支持 bf16**，bf16 需要 Ampere(sm_80+) 或更新架构。 |
-| **T4 bf16 更正** | 之前信息有误——T4 (Turing, sm_75) **不支持 bfloat16**。bf16 硬件支持从 Ampere(sm_80, A100) 开始。T4 和 P100 在精度上一样，都用 float16。 |
-| **Colab CLI 限制** | `colab run --timeout` 默认 30s，推理脚本需要 `--keep` + 分步 `exec`，或把脚本写成自包含单文件 |
+| 维度                | 详情                                                                                                                                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **改动**            | 用 `colab run --gpu T4 script.py` 在 Colab T4 上运行                                                                                                                                                                                                       |
+| **收益**            | Colab CLI 一键运行；T4 有 Tensor Core（sm_75）支持 FP16 加速                                                                                                                                                                                               |
+| **代价**            | ① T4 算力与 P100 相当（不一定是升级）；② 同样 16GB VRAM 需 CPU offload；③ Colab 预装环境不同，PyTorch/diffusers/transformers patch 需重新调试；④ GPU 分配不保证，可能排队 90min；⑤ Colab CLI `--timeout` 默认 30s，长推理需要用 `--keep` + `exec` 分步操作 |
+| **风险**            | 中——环境兼容性未知                                                                                                                                                                                                                                         |
+| **验证状态**        | ✅ Colab T4 已验证可用（40.6s 完成创建+运行+销毁）                                                                                                                                                                                                         |
+| **结论**            | T4 可用但 VRAM 仅 14.6GB（比 P100 16GB 少），需 CPU offload；bfloat16 支持是优势；`colab run --timeout` 需要设置足够长                                                                                                                                     |
+| **T4 vs P100 对比** | T4: 14.6GB VRAM, bfloat16 ❌ (sm_75 不支持), Tensor Core ✅, sm_75; P100: 16GB VRAM, bfloat16 ❌, sm_60。**两者都不支持 bf16**，bf16 需要 Ampere(sm_80+) 或更新架构。                                                                                      |
+| **T4 bf16 更正**    | 之前信息有误——T4 (Turing, sm_75) **不支持 bfloat16**。bf16 硬件支持从 Ampere(sm_80, A100) 开始。T4 和 P100 在精度上一样，都用 float16。                                                                                                                    |
+| **Colab CLI 限制**  | `colab run --timeout` 默认 30s，推理脚本需要 `--keep` + 分步 `exec`，或把脚本写成自包含单文件                                                                                                                                                              |
 
 ### 方案 6：Colab L4 / A100（更强 GPU）
 
-| 维度 | 详情 |
-|------|------|
-| **改动** | `colab run --gpu L4` 或 `--gpu A100` |
-| **收益** | L4 24GB / A100 40GB → 不需要 CPU offload，推理直接全 GPU |
-| **代价** | ① Colab 免费版只有 T4，L4/A100 需要 Pro/Pro+ 付费；② A100 Pro+ $50/月 |
-| **风险** | 低（如果愿意付费） |
-| **验证状态** | 未验证 |
-| **结论** | 付费方案，如果免费方案不够快可考虑 |
+| 维度         | 详情                                                                  |
+| ------------ | --------------------------------------------------------------------- |
+| **改动**     | `colab run --gpu L4` 或 `--gpu A100`                                  |
+| **收益**     | L4 24GB / A100 40GB → 不需要 CPU offload，推理直接全 GPU              |
+| **代价**     | ① Colab 免费版只有 T4，L4/A100 需要 Pro/Pro+ 付费；② A100 Pro+ $50/月 |
+| **风险**     | 低（如果愿意付费）                                                    |
+| **验证状态** | 未验证                                                                |
+| **结论**     | 付费方案，如果免费方案不够快可考虑                                    |
 
 ### 方案 7：AutoDL RTX 4090（付费按需）
 
-| 维度 | 详情 |
-|------|------|
-| **改动** | 手动租用 AutoDL RTX 4090 24GB |
-| **收益** | 24GB VRAM 不需要 CPU offload，推理速度应该最快 |
-| **代价** | ¥1.88/h 付费；手动操作不能自动化 |
-| **风险** | 低 |
-| **验证状态** | 未验证 |
-| **结论** | 免费 GPU 跑不动时的付费备选 |
+| 维度         | 详情                                           |
+| ------------ | ---------------------------------------------- |
+| **改动**     | 手动租用 AutoDL RTX 4090 24GB                  |
+| **收益**     | 24GB VRAM 不需要 CPU offload，推理速度应该最快 |
+| **代价**     | ¥1.88/h 付费；手动操作不能自动化               |
+| **风险**     | 低                                             |
+| **验证状态** | 未验证                                         |
+| **结论**     | 免费 GPU 跑不动时的付费备选                    |
 
 ---
 
 ## 多 GPU 并行方案
 
-| 方案 | 说明 | 可行性 |
-|------|------|--------|
-| Kaggle + Colab 并行 | 两个平台同时跑不同 test case | ✅ 可行——完全独立的 GPU 资源 |
-| AutoDL + Kaggle 并行 | 付费 GPU 跑高质量，免费 GPU 跑快速验证 | ✅ 可行 |
-| Kaggle 多 kernel 并行 | 多个 kernel 同时 push | ⚠️ 受 30h/周配额限制，不能大规模并行 |
-| Kaggle 多账号并行 | 多个 Kaggle 账号各 push kernel | ⚠️ 违反 Kaggle ToS，不推荐 |
-| Kaggle T4 x2 数据并行 | 同一模型复制到两张 T4，各跑不同输入 | ✅ 可行——需 `torch.nn.DataParallel` 适配 |
-| Kaggle T4 x2 模型并行 | 模型不同层放到不同卡 | ✅ 可行——适合 >15GB 模型，需手动分层 |
-| Kaggle + Colab 跨平台显存合并 | 把模型拆到 Kaggle T4 + Colab T4 | ❌ 不可行——不同机器的 GPU 无法通过 PCIe/NVLink 互通 |
+| 方案                          | 说明                                   | 可行性                                              |
+| ----------------------------- | -------------------------------------- | --------------------------------------------------- |
+| Kaggle + Colab 并行           | 两个平台同时跑不同 test case           | ✅ 可行——完全独立的 GPU 资源                        |
+| AutoDL + Kaggle 并行          | 付费 GPU 跑高质量，免费 GPU 跑快速验证 | ✅ 可行                                             |
+| Kaggle 多 kernel 并行         | 多个 kernel 同时 push                  | ⚠️ 受 30h/周配额限制，不能大规模并行                |
+| Kaggle 多账号并行             | 多个 Kaggle 账号各 push kernel         | ⚠️ 违反 Kaggle ToS，不推荐                          |
+| Kaggle T4 x2 数据并行         | 同一模型复制到两张 T4，各跑不同输入    | ✅ 可行——需 `torch.nn.DataParallel` 适配            |
+| Kaggle T4 x2 模型并行         | 模型不同层放到不同卡                   | ✅ 可行——适合 >15GB 模型，需手动分层                |
+| Kaggle + Colab 跨平台显存合并 | 把模型拆到 Kaggle T4 + Colab T4        | ❌ 不可行——不同机器的 GPU 无法通过 PCIe/NVLink 互通 |
 
 **推荐**：Kaggle（日常验证 + 批量推理）+ Colab T4（并行跑不同参数组合）+ AutoDL 4090（最终生产质量输出）
 
@@ -168,32 +168,33 @@
 
 ### A 批：确认有效 / 不降质量（优先测试）
 
-| # | 方案 | 原理 | 为什么不降质量 | 验证计划 |
-|---|------|------|-------------|---------|
-| A1 | **T4 替代 P100** | Tensor Core (sm_75) FP16 矩阵加速 | 只是换 GPU 型号，模型/参数/精度全一样 | ✅ **v43 成功**（2026-08-19）：T4 + diffusers 0.31.0 + sequential_cpu_offload，3/3 成功。25步 22.4min，8步 18.1min（比 P100 快 24%）。v41/v42 失败因 diffusers 0.37.1 OOM；v43 降级到 0.31.0 解决。 |
-| A2 | ~~**双 T4 `device_map`**~~ | text_encoder→GPU1, transformer→GPU0 | ~~组件分配到不同卡，避免 CPU offload~~ | ❌ **v45o/v45p OOM**。最终 v45r/v45s 用 `sequential_cpu_offload` 成功——双卡 metadata 确保 Kaggle 分配双卡但实际用单卡推理。 |
+| #   | 方案                       | 原理                                | 为什么不降质量                         | 验证计划                                                                                                                                                                                            |
+| --- | -------------------------- | ----------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | **T4 替代 P100**           | Tensor Core (sm_75) FP16 矩阵加速   | 只是换 GPU 型号，模型/参数/精度全一样  | ✅ **v43 成功**（2026-08-19）：T4 + diffusers 0.31.0 + sequential_cpu_offload，3/3 成功。25步 22.4min，8步 18.1min（比 P100 快 24%）。v41/v42 失败因 diffusers 0.37.1 OOM；v43 降级到 0.31.0 解决。 |
+| A2  | ~~**双 T4 `device_map`**~~ | text_encoder→GPU1, transformer→GPU0 | ~~组件分配到不同卡，避免 CPU offload~~ | ❌ **v45o/v45p OOM**。最终 v45r/v45s 用 `sequential_cpu_offload` 成功——双卡 metadata 确保 Kaggle 分配双卡但实际用单卡推理。                                                                         |
 
 ### B 批：未验证 / 可能轻微影响（A 批跑完后再测）
 
-| # | 方案 | 原理 | 风险 |
-|---|------|------|------|
-| B1 | `cfg_skip_ratio=0.5` | 后半段 steps 跳过 negative CFG 前向（每步省一次 transformer forward） | diffusers 标准参数，非 EchoMimicV3 官方设计。CFG 跳过会影响后半段去噪方向。Flash 版仅 8 步，跳过范围有限；25 步时影响可能较小。**需对比视频验证质量** |
-| B2 | `tomesd` Token Merging | 合并相似 token 减少注意力计算 | requirements.txt 有但代码未调用，需集成；可能轻微影响细节 |
-| B3 | `torch.compile` | JIT 编译 transformer 计算图 | T4 (sm_75) 对 compile 支持有限，主要加速 Ampere+；compile 耗时 3-5min。对多段推理（1分钟视频 ≈20段）划算。预估 10-20% 加速。 |
-| B4 | ComfyUI LCM LoRA | 4 步推理（而非 8 步） | 需 ComfyUI 环境 + LCM LoRA 权重 |
-| B5 | lightX2V LoRA | 加速步数到 4-8 步 | InfiniteTalk 用的，EchoMimicV3 未验证 |
+| #   | 方案                   | 原理                                                                  | 风险                                                                                                                                                  |
+| --- | ---------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | `cfg_skip_ratio=0.5`   | 后半段 steps 跳过 negative CFG 前向（每步省一次 transformer forward） | diffusers 标准参数，非 EchoMimicV3 官方设计。CFG 跳过会影响后半段去噪方向。Flash 版仅 8 步，跳过范围有限；25 步时影响可能较小。**需对比视频验证质量** |
+| B2  | `tomesd` Token Merging | 合并相似 token 减少注意力计算                                         | requirements.txt 有但代码未调用，需集成；可能轻微影响细节                                                                                             |
+| B3  | `torch.compile`        | JIT 编译 transformer 计算图                                           | T4 (sm_75) 对 compile 支持有限，主要加速 Ampere+；compile 耗时 3-5min。对多段推理（1分钟视频 ≈20段）划算。预估 10-20% 加速。                          |
+| B4  | ComfyUI LCM LoRA       | 4 步推理（而非 8 步）                                                 | 需 ComfyUI 环境 + LCM LoRA 权重                                                                                                                       |
+| B5  | lightX2V LoRA          | 加速步数到 4-8 步                                                     | InfiniteTalk 用的，EchoMimicV3 未验证                                                                                                                 |
 
 ### C 批：可能降质量（最后测）
 
-| # | 方案 | 原理 | 代价 |
-|---|------|------|------|
-| C1 | 减少 steps (5步) | 少跑去噪步数 | v30 已测：时间仅省 7%，质量可能下降 |
+| #   | 方案             | 原理         | 代价                                |
+| --- | ---------------- | ------------ | ----------------------------------- |
+| C1  | 减少 steps (5步) | 少跑去噪步数 | v30 已测：时间仅省 7%，质量可能下降 |
 
 ### 各模型测试完成后再进行的下一批数字人模型
 
 > 用户指示：先把 EchoMimicV3 测完，再测其他模型。详见 `digital-human-test-progress.md` 待测模型列表。
 
 优先级排序（2026-08-18 更新）：
+
 1. **Ditto**（蚂蚁，Apache 2.0，实时 RTF 0.635，~8GB VRAM，T4 可跑）
 2. **FantasyTalking**（阿里，ACM MM 2025，Wan2.1 基座，5GB 低 VRAM 模式）
 3. **LatentSync 1.5**（字节，8GB，T4 单卡）
@@ -213,39 +214,40 @@ Kaggle `kernel-metadata.json` 通过 `machine_shape` 字段可选 GPU 类型：
 }
 ```
 
-| 对比项 | P100 (sm_60) | T4 (sm_75) |
-|--------|-------------|-----------|
-| 默认 PyTorch 兼容 | ❌ 需手动降级到 2.4.1+cu121 | ✅ 默认 cu128 可用 |
-| Tensor Core | ❌ | ✅ FP16 加速 |
-| VRAM | 16GB | 14.6GB |
-| bfloat16 | ❌ | ❌ |
-| 脚本复杂度 | ~50行 patch 代码 | 可能只需正常 pip install |
+| 对比项            | P100 (sm_60)                | T4 (sm_75)               |
+| ----------------- | --------------------------- | ------------------------ |
+| 默认 PyTorch 兼容 | ❌ 需手动降级到 2.4.1+cu121 | ✅ 默认 cu128 可用       |
+| Tensor Core       | ❌                          | ✅ FP16 加速             |
+| VRAM              | 16GB                        | 14.6GB                   |
+| bfloat16          | ❌                          | ❌                       |
+| 脚本复杂度        | ~50行 patch 代码            | 可能只需正常 pip install |
 
 **推荐**：后续模型测试默认用 T4，仅当 VRAM 不够（>14.6GB）时才用 P100。
 
 ## 推理步数时间对比（v30 + v31 + v33 + v34 实测）
 
-| 步数 | 推理时间 | offload 模式 | 版本 | 备注 |
-|------|---------|-------------|------|------|
-| 5 步 | 22.4 min (1342.3s) | sequential_cpu_offload | v30 | audio_guidance_scale=3.0 |
-| 8 步 | 24.1 min (1444.9s) | sequential_cpu_offload | v30 | audio_guidance_scale=3.0 |
-| 8 步 | 23.9 min (1434.6s) | model_cpu_offload | v33 | audio_guidance_scale=2.0, Dataset 读取 |
-| 8 步 | 24.2 min (1453.7s) | model_cpu_offload | v33 | video-frame 参考图 |
-| 8 步 | 24.1 min (1445.5s) | model_cpu_offload | v34 | app_mm 参数 (guidance=4.5, DPM++, dynamic_cfg) |
-| 8 步 | 24.6 min (1473.8s) | model_cpu_offload | v34 | 官方 demo + app_mm 参数 + 1941字 prompt |
-| 15 步 | 29.4 min (1765.7s) | sequential_cpu_offload | v31 | audio_guidance_scale=3.0 |
-| 20 步 | 29.1 min (1746.0s) | model_cpu_offload | v34 | app_mm 参数 |
-| 25 步 | 31.4 min (1882.7s) | sequential_cpu_offload | v31 | audio_guidance_scale=3.0, P100 |
-| 25 步 | 22.4 min (1344.0s) | sequential_cpu_offload | v43 | T4, halfbody-portrait |
-| 25 步 | 23.5 min (1407.5s) | sequential_cpu_offload | v43 | T4, weixin-portrait |
-| 8 步 | 18.1 min (1086.5s) | sequential_cpu_offload | v43 | T4, weixin-portrait |
-| 25 步 | 27.1 min (1628s) | sequential_cpu_offload | v45r | 双 T4 metadata, weixin-portrait, cp -r |
-| 8 步 | 21.0 min (1258s) | sequential_cpu_offload | v45r | 双 T4 metadata, weixin-portrait, cp -r |
-| 25 步 | 54.7 min (3284s) | sequential_cpu_offload | v45s | 双 T4 metadata, weixin-portrait, symlink |
-| 8 步 | 49.3 min (2958s) | sequential_cpu_offload | v45s | 双 T4 metadata, weixin-portrait, symlink |
-| 25 步 | 26.5 min (1590s) | sequential_cpu_offload | v45r | 双 T4 metadata, halfbody-portrait, cp -r |
+| 步数  | 推理时间           | offload 模式           | 版本 | 备注                                           |
+| ----- | ------------------ | ---------------------- | ---- | ---------------------------------------------- |
+| 5 步  | 22.4 min (1342.3s) | sequential_cpu_offload | v30  | audio_guidance_scale=3.0                       |
+| 8 步  | 24.1 min (1444.9s) | sequential_cpu_offload | v30  | audio_guidance_scale=3.0                       |
+| 8 步  | 23.9 min (1434.6s) | model_cpu_offload      | v33  | audio_guidance_scale=2.0, Dataset 读取         |
+| 8 步  | 24.2 min (1453.7s) | model_cpu_offload      | v33  | video-frame 参考图                             |
+| 8 步  | 24.1 min (1445.5s) | model_cpu_offload      | v34  | app_mm 参数 (guidance=4.5, DPM++, dynamic_cfg) |
+| 8 步  | 24.6 min (1473.8s) | model_cpu_offload      | v34  | 官方 demo + app_mm 参数 + 1941字 prompt        |
+| 15 步 | 29.4 min (1765.7s) | sequential_cpu_offload | v31  | audio_guidance_scale=3.0                       |
+| 20 步 | 29.1 min (1746.0s) | model_cpu_offload      | v34  | app_mm 参数                                    |
+| 25 步 | 31.4 min (1882.7s) | sequential_cpu_offload | v31  | audio_guidance_scale=3.0, P100                 |
+| 25 步 | 22.4 min (1344.0s) | sequential_cpu_offload | v43  | T4, halfbody-portrait                          |
+| 25 步 | 23.5 min (1407.5s) | sequential_cpu_offload | v43  | T4, weixin-portrait                            |
+| 8 步  | 18.1 min (1086.5s) | sequential_cpu_offload | v43  | T4, weixin-portrait                            |
+| 25 步 | 27.1 min (1628s)   | sequential_cpu_offload | v45r | 双 T4 metadata, weixin-portrait, cp -r         |
+| 8 步  | 21.0 min (1258s)   | sequential_cpu_offload | v45r | 双 T4 metadata, weixin-portrait, cp -r         |
+| 25 步 | 54.7 min (3284s)   | sequential_cpu_offload | v45s | 双 T4 metadata, weixin-portrait, symlink       |
+| 8 步  | 49.3 min (2958s)   | sequential_cpu_offload | v45s | 双 T4 metadata, weixin-portrait, symlink       |
+| 25 步 | 26.5 min (1590s)   | sequential_cpu_offload | v45r | 双 T4 metadata, halfbody-portrait, cp -r       |
 
 **关键结论**：
+
 - 5步→8步仅差 1.7min（TeaCache 已启用，瓶颈在 CPU-GPU 传输）
 - 8步→15步差 5.0min（+20.8%）
 - 8步→25步差 7.0min（+29.2%）
@@ -253,6 +255,7 @@ Kaggle `kernel-metadata.json` 通过 `machine_shape` 字段可选 GPU 类型：
 - **步数增加的时间代价远小于预期**（之前预估25步42min，实际31.4min）
 
 **T4 vs P100 对比（v43 vs v33）**：
+
 - T4 8步 sequential: 18.1min vs P100 8步 model_cpu_offload: 23.9min → **T4 快 24.3%**
 - T4 25步 sequential: 22.4min vs P100 25步 sequential: 31.4min → **T4 快 28.7%**
 - T4 用 sequential_cpu_offload（更慢的 offload 模式）但仍比 P100 model_cpu_offload 快——Tensor Core FP16 加速效果显著
@@ -260,6 +263,7 @@ Kaggle `kernel-metadata.json` 通过 `machine_shape` 字段可选 GPU 类型：
 - 注意：T4 用 diffusers 0.31.0，P100 用 0.37.1；0.31.0 不支持 model_cpu_offload 的最新优化，但 T4 的 Tensor Core 弥补了这一劣势
 
 **v45r/v45s 双 T4 metadata 测试结论**：
+
 - v45r（cp -r 复制模型）：25步 27.1min, 8步 21.0min → 比 v43 单卡慢 15-20%（可能 GPU 节点不同）
 - v45s（symlink 替代 cp -r）：25步 54.7min, 8步 49.3min → 比 v45r 慢 2x（GPU 节点退化，非 symlink 问题）
 - **关键发现**：v45r/v45s 实际只用单卡推理（`sequential_cpu_offload`），双卡 metadata 仅影响 Kaggle 分配的 GPU 类型
@@ -290,6 +294,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 ```
 
 **配置决策依据**：
+
 - **TeaCache on**：官方为 talking head 优化，threshold=0.1 很保守，画面变化小时跳过不损失质量。实测 8 步跳 1 步，省 ~10 min（17 min vs 27 min）
 - **torch.compile on**：用 `torch.compile(transformer.forward)` 方式（v49 修复），保留 .config 属性。有 TeaCache 时 13% 加速，不影响视频质量（MD5 验证）
 - **sample_size 720**：768→720 画质差异不可见，720 更轻量
@@ -298,6 +303,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 - **diffusers 0.31.0**：0.37.1 在 Kaggle 29GB CPU RAM 上 OOM Killed（v41/v42 验证）
 
 **实测时间**（Kaggle T4, 8步, 720p, TeaCache on, sequential_cpu_offload）:
+
 - v43 baseline: 18.1 min/段
 - v47 torch.compile: 14.3 min/段（+13% 加速）
 - 1 分钟视频 ≈ 20 段 × 14 min ≈ 4.7 小时
@@ -308,11 +314,11 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 ## v41/v42 失败分析（diffusers 版本兼容性）
 
-| 版本 | diffusers | offload 模式 | 结果 | 原因 |
-|------|-----------|-------------|------|------|
-| v41 | 0.37.1 | model_cpu_offload | ❌ OOM Killed | diffusers 0.37.1 的 `enable_model_cpu_offload` 在加载时将所有模块（T5 10.8GB + transformer 3.5GB + CLIP 4.4GB + VAE 0.5GB ≈ 19GB）同时加载到 CPU RAM，Kaggle 29GB 限制下被 OS Killed |
-| v42 | 0.37.1 | sequential_cpu_offload | ❌ OOM Killed | 同上——0.37.1 的 sequential 加载路径也先在 CPU RAM 中初始化完整模型 |
-| v43 | 0.31.0 | sequential_cpu_offload | ✅ 成功 | 0.31.0 的加载路径更轻量，逐模块加载而非一次性全加载 |
+| 版本 | diffusers | offload 模式           | 结果          | 原因                                                                                                                                                                                 |
+| ---- | --------- | ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| v41  | 0.37.1    | model_cpu_offload      | ❌ OOM Killed | diffusers 0.37.1 的 `enable_model_cpu_offload` 在加载时将所有模块（T5 10.8GB + transformer 3.5GB + CLIP 4.4GB + VAE 0.5GB ≈ 19GB）同时加载到 CPU RAM，Kaggle 29GB 限制下被 OS Killed |
+| v42  | 0.37.1    | sequential_cpu_offload | ❌ OOM Killed | 同上——0.37.1 的 sequential 加载路径也先在 CPU RAM 中初始化完整模型                                                                                                                   |
+| v43  | 0.31.0    | sequential_cpu_offload | ✅ 成功       | 0.31.0 的加载路径更轻量，逐模块加载而非一次性全加载                                                                                                                                  |
 
 **根因**：diffusers 0.37.1 引入了新的 sharded loading 逻辑，`from_pretrained` 时需要在 CPU RAM 中同时持有完整模型权重。0.31.0 的加载更轻量，逐模块加载。
 
@@ -350,16 +356,17 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 ### Flash vs 完整版
 
-| 维度 | Flash (蒸馏版) | 完整版 (非蒸馏) |
-|------|---------------|----------------|
-| HF 路径 | `BadToBest/EchoMimicV3/echomimicv3-flash-pro/` | `BadToBest/EchoMimicV3/transformer/` |
-| 文件大小 | 3.35GB | 3.18GB |
-| 参数量 | 1.3B (dim=1536, 30 layers, 12 heads) | 1.3B (完全一样) |
-| 推理步数 | 8 步 (蒸馏训练) | 50 步 |
-| 质量 | 8 步即收敛，更多步数无增益 | 50 步质量更高，但慢 6x |
-| 开源状态 | ✅ 已开源 | ✅ 已开源 |
+| 维度     | Flash (蒸馏版)                                 | 完整版 (非蒸馏)                      |
+| -------- | ---------------------------------------------- | ------------------------------------ |
+| HF 路径  | `BadToBest/EchoMimicV3/echomimicv3-flash-pro/` | `BadToBest/EchoMimicV3/transformer/` |
+| 文件大小 | 3.35GB                                         | 3.18GB                               |
+| 参数量   | 1.3B (dim=1536, 30 layers, 12 heads)           | 1.3B (完全一样)                      |
+| 推理步数 | 8 步 (蒸馏训练)                                | 50 步                                |
+| 质量     | 8 步即收敛，更多步数无增益                     | 50 步质量更高，但慢 6x               |
+| 开源状态 | ✅ 已开源                                      | ✅ 已开源                            |
 
 **关键结论**：
+
 - Flash 版走 50 步**无意义**——蒸馏训练已收敛，多出的步数不提升质量
 - 完整版可用 `--transformer_path` 指向完整版权重，但需 50 步推理，T4 + CPU offload 下预计 ~113min
 - 两者参数量完全相同，区别仅在权重（Flash 经蒸馏训练）
@@ -367,31 +374,32 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 ### Flash 版剩余提速空间
 
-| 优化 | 原理 | 预估收益 | 代价 | 状态 |
-|------|------|---------|------|------|
-| 量化 (FP8/NF4) | 降低 VRAM → 可能消除 CPU offload | 30-50% | FP8 几乎无损；NF4 可能有轻微画质损失 | ❌ 不可行——torchao/NF4 与模型不兼容 |
-| 双 T4 device_map | T5→GPU1, 其余→GPU0，消除 offload | 40-60% | pipeline patch 脆弱，依赖官方代码不变 | ❌ 不可行——T4 14.6GB OOM |
-| 双 T4 sequential_cpu_offload | 双卡 metadata + 单卡推理 | 0%（仅确保 T4 分配） | 无额外代价 | ✅ v45r/v45s 验证成功，但无加速 |
-| torch.compile | JIT 编译 transformer 计算图 | **13.4% 实测** | compile 耗时 ~2min；有 `.config` 属性兼容性 bug | ✅ v47 已测，14:17 vs 16:28 |
-| 减少 sample_size | 768→512，像素减少 2.25x | ~40% | 画质显著下降 | 不推荐 |
-| 减少 video_length | 81→49 帧 | ~40% | 视频更短 | 非加速方案 |
+| 优化                         | 原理                             | 预估收益             | 代价                                            | 状态                                |
+| ---------------------------- | -------------------------------- | -------------------- | ----------------------------------------------- | ----------------------------------- |
+| 量化 (FP8/NF4)               | 降低 VRAM → 可能消除 CPU offload | 30-50%               | FP8 几乎无损；NF4 可能有轻微画质损失            | ❌ 不可行——torchao/NF4 与模型不兼容 |
+| 双 T4 device_map             | T5→GPU1, 其余→GPU0，消除 offload | 40-60%               | pipeline patch 脆弱，依赖官方代码不变           | ❌ 不可行——T4 14.6GB OOM            |
+| 双 T4 sequential_cpu_offload | 双卡 metadata + 单卡推理         | 0%（仅确保 T4 分配） | 无额外代价                                      | ✅ v45r/v45s 验证成功，但无加速     |
+| torch.compile                | JIT 编译 transformer 计算图      | **13.4% 实测**       | compile 耗时 ~2min；有 `.config` 属性兼容性 bug | ✅ v47 已测，14:17 vs 16:28         |
+| 减少 sample_size             | 768→512，像素减少 2.25x          | ~40%                 | 画质显著下降                                    | 不推荐                              |
+| 减少 video_length            | 81→49 帧                         | ~40%                 | 视频更短                                        | 非加速方案                          |
 
 ### 1 分钟视频整体耗时估算
 
 基于 v43/v47/v49 实测数据：
 
-| 方案 | 单段 (3.24s) | 1分钟 (~20段) | 备注 |
-|------|-------------|-------------|------|
-| T4, 8步, TeaCache on, sequential offload | 17 min | ~5.7 小时 | v48 实测（TeaCache default=True） |
-| T4, 8步, TeaCache on, + torch.compile | 14 min | ~4.7 小时 | v47 实测 14:17（.config bug 未产出视频） |
-| T4, 8步, **TeaCache off**, sequential offload | 27 min | ~9 小时 | v49 实测 |
-| T4, 8步, **TeaCache off**, + torch.compile | 28.5 min | ~9.5 小时 | v49 实测（.config 修复成功，视频产出 ✅） |
-| 25步 + offload | ~23 min | ~7.7 小时 | v43 实测 22.4-23.5min |
-| NF4 量化 (Kaggle) | ❌ 不可行 | — | Kaggle CPU RAM 不足 (29GB) |
-| **NF4 量化 (Modal T4)** ✅ | **5.0 min** | ~1.7 小时 | Modal 186GB RAM，NF4 + model_cpu_offload，13.8s/step vs baseline 24.2s/step，43% 加速。脚本：`scripts/short-video/experiments/modal-echomimicv3-nf4.py` |
-| 双卡 offload 消除 (预估) | ~8 min | ~2.7 小时 | ❌ T4 14.6GB OOM，不可行 |
+| 方案                                          | 单段 (3.24s) | 1分钟 (~20段) | 备注                                                                                                                                                    |
+| --------------------------------------------- | ------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T4, 8步, TeaCache on, sequential offload      | 17 min       | ~5.7 小时     | v48 实测（TeaCache default=True）                                                                                                                       |
+| T4, 8步, TeaCache on, + torch.compile         | 14 min       | ~4.7 小时     | v47 实测 14:17（.config bug 未产出视频）                                                                                                                |
+| T4, 8步, **TeaCache off**, sequential offload | 27 min       | ~9 小时       | v49 实测                                                                                                                                                |
+| T4, 8步, **TeaCache off**, + torch.compile    | 28.5 min     | ~9.5 小时     | v49 实测（.config 修复成功，视频产出 ✅）                                                                                                               |
+| 25步 + offload                                | ~23 min      | ~7.7 小时     | v43 实测 22.4-23.5min                                                                                                                                   |
+| NF4 量化 (Kaggle)                             | ❌ 不可行    | —             | Kaggle CPU RAM 不足 (29GB)                                                                                                                              |
+| **NF4 量化 (Modal T4)** ✅                    | **5.0 min**  | ~1.7 小时     | Modal 186GB RAM，NF4 + model_cpu_offload，13.8s/step vs baseline 24.2s/step，43% 加速。脚本：`scripts/short-video/experiments/modal-echomimicv3-nf4.py` |
+| 双卡 offload 消除 (预估)                      | ~8 min       | ~2.7 小时     | ❌ T4 14.6GB OOM，不可行                                                                                                                                |
 
 **v49 关键发现**：
+
 - torch.compile 修复成功！改用 `torch.compile(transformer.forward)` 而非 `torch.compile(transformer)`，保留 `.config` 属性
 - 无 TeaCache 比 有 TeaCache 慢 60%（27 min vs 17 min）
 - torch.compile 在无 TeaCache 时仅加速 ~5%（28.5 vs 27 min），远低于有 TeaCache 时的 13%
@@ -445,6 +453,7 @@ def apply_dual_gpu_patch(pipeline, GPU_memory_mode, device):
 ### Patch bug 历史
 
 v44d-g 和 v45d-g 反复失败的根因：
+
 1. 字符串替换的缩进不匹配——替换文本缺少 4 空格前缀
 2. 双替换 bug——`content.replace()` 替换所有出现，第二次替换的 `old_to` 在 `new_to` 内部被找到
 3. apply model 在做 string_replace 时会回退之前的修复——最终用 write 工具整体重写脚本解决
@@ -455,11 +464,11 @@ v44d-g 和 v45d-g 反复失败的根因：
 
 ### 测试环境与结果
 
-| 测试 | 平台 | CPU RAM | 结果 | 失败原因 |
-|------|------|---------|------|----------|
-| v46 NF4 bnb | Kaggle T4 | 29GB | ❌ OS Killed (~120min) | bitsandbytes + 模型加载 + 量化过程总 CPU RAM > 29GB |
-| v46 NF4 bnb (无 accelerate) | Kaggle T4 | 29GB | ❌ OS Killed | 即使去掉 accelerate 依赖仍不足 |
-| Colab NF4 bnb | Colab Pro T4 | 32GB | 未测 | 需手动上传 notebook 运行 |
+| 测试                        | 平台         | CPU RAM | 结果                   | 失败原因                                            |
+| --------------------------- | ------------ | ------- | ---------------------- | --------------------------------------------------- |
+| v46 NF4 bnb                 | Kaggle T4    | 29GB    | ❌ OS Killed (~120min) | bitsandbytes + 模型加载 + 量化过程总 CPU RAM > 29GB |
+| v46 NF4 bnb (无 accelerate) | Kaggle T4    | 29GB    | ❌ OS Killed           | 即使去掉 accelerate 依赖仍不足                      |
+| Colab NF4 bnb               | Colab Pro T4 | 32GB    | 未测                   | 需手动上传 notebook 运行                            |
 
 ### 根因分析
 
@@ -489,23 +498,24 @@ v44d-g 和 v45d-g 反复失败的根因：
 
 ### 推理时间对比（8步，同一 session 的 GPU 节点）
 
-| 步骤 | baseline (无 compile) | torch.compile | 加速 |
-|------|----------------------|---------------|------|
-| 1/8 | 172s | 136s | -21% |
-| 2/8 | 178s | 148s | -17% |
-| 3/8 | 139s | 117s | -16% |
-| 4/8 | 跳过(TeaCache) | 跳过(TeaCache) | — |
-| 5/8 | 119s | 103s | -13% |
-| 6/8 | 140s | 123s | -12% |
-| 7/8 | 124s | 109s | -12% |
-| 8/8 | 113s | 101s | -11% |
-| **总计** | **16:28 (988s)** | **14:17 (857s)** | **-13.4%** |
+| 步骤     | baseline (无 compile) | torch.compile    | 加速       |
+| -------- | --------------------- | ---------------- | ---------- |
+| 1/8      | 172s                  | 136s             | -21%       |
+| 2/8      | 178s                  | 148s             | -17%       |
+| 3/8      | 139s                  | 117s             | -16%       |
+| 4/8      | 跳过(TeaCache)        | 跳过(TeaCache)   | —          |
+| 5/8      | 119s                  | 103s             | -13%       |
+| 6/8      | 140s                  | 123s             | -12%       |
+| 7/8      | 124s                  | 109s             | -12%       |
+| 8/8      | 113s                  | 101s             | -11%       |
+| **总计** | **16:28 (988s)**      | **14:17 (857s)** | **-13.4%** |
 
 ### 兼容性 Bug
 
 `torch.compile` 返回 `OptimizedModule` 对象，在 diffusers 0.31.0 的 pipeline 代码中访问 `self.transformer.config.patch_size` 时报 `AttributeError: 'function' object has no attribute 'config'`。
 
 **修复方案**（未实现）：在 compile 后给返回对象附加 `.config` 属性：
+
 ```python
 compiled = torch.compile(pipeline.transformer, mode='reduce-overhead', fullgraph=False)
 compiled.config = pipeline.transformer.config  # 代理 config 属性

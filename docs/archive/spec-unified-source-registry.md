@@ -134,11 +134,11 @@ Sources without a capability (e.g., arXiv has no `images` or `videos`) simply om
 
 ```js
 // search-sources.mjs — unchanged behavior, queries articles
-const articleSources = ALL_SOURCES.filter(s => s.capabilities?.articles);
+const articleSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
 // asset-sourcer.mjs — new behavior, queries images + videos
-const imageSources = ALL_SOURCES.filter(s => s.capabilities?.images);
-const videoSources = ALL_SOURCES.filter(s => s.capabilities?.videos);
+const imageSources = ALL_SOURCES.filter((s) => s.capabilities?.images);
+const videoSources = ALL_SOURCES.filter((s) => s.capabilities?.videos);
 ```
 
 ### 3. `extractScript` enhancement
@@ -149,8 +149,8 @@ Trend discovery's `extractScript` adds `imageUrl` and `hasImage` fields:
 results.push({
   title: title.textContent.trim(),
   url: link.href,
-  imageUrl: img ? img.src : null,   // NEW
-  hasImage: !!img,                   // NEW
+  imageUrl: img ? img.src : null, // NEW
+  hasImage: !!img, // NEW
 });
 ```
 
@@ -164,9 +164,7 @@ Each topic in the `topics` object gets an optional `images` field:
   "sources": ["qbitai"],
   "urls": ["https://qbitai.com/1"],
   "keywords": ["deepseek"],
-  "images": [
-    { "url": "https://qbitai.com/img/v4.jpg", "sourceArticle": "https://qbitai.com/1" }
-  ]
+  "images": [{ "url": "https://qbitai.com/img/v4.jpg", "sourceArticle": "https://qbitai.com/1" }]
 }
 ```
 
@@ -176,9 +174,8 @@ Each topic in the `topics` object gets an optional `images` field:
 // Phase 0: Check trending-topics.json for cached images
 const cachedImages = loadCachedImages(trendingTopicsPath, keywords);
 // Filter: title keyword match + URL pattern (exclude logo/avatar/icon)
-const filtered = cachedImages.filter(img =>
-  hasKeywordMatch(img.sourceTitle, keywords) &&
-  !isLogoOrIcon(img.url)
+const filtered = cachedImages.filter(
+  (img) => hasKeywordMatch(img.sourceTitle, keywords) && !isLogoOrIcon(img.url),
 );
 // Download survivors, add to allAssets[]
 ```
@@ -195,6 +192,7 @@ Phase 4: semantic re-scoring (free) → uses VLM output
 ### 7. Pre-download filter gate
 
 Before downloading each candidate:
+
 ```js
 const { technicalScore, lowConfidence } = preFilterCandidate(candidate, keyword);
 if (lowConfidence && technicalScore < 20) {
@@ -239,41 +237,41 @@ Remove the `lorem_picsum` entry from `API_SOURCES` (which becomes part of `sourc
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `lib/source-registry.mjs` | Add `capabilities` to all 46 existing sources; add 7 new stock_api sources; add 7 new CDP image capabilities to news sources; delete Lorem Picsum | **High** | Core source definitions. 46 sources × structural change. Worst case: malformed capability → consumer query returns empty → source silently skipped. Mitigated by structural validation tests. |
-| `lib/asset-sourcer.mjs` | Delete `API_SOURCES`, `YTDLP_SOURCES`, `CDP_SOURCES`, `SOURCE_ATTRIBUTIONS` (move to source-registry); import from source-registry; add cached-image flow; add pre-download filter; fix cascade order in `analyzeAssets()` | **High** | Core orchestrator. Import path change affects all downstream code. Worst case: import returns empty array → no assets found → empty report. Mitigated by existing 100+ tests rewritten with new imports. |
-| `search-sources.mjs` | Change extractScript calls to include imageUrl extraction; update `buildOutputJson` consumer in trends-utils | **Medium** | CDP extraction changes. Worst case: extractScript syntax error → 0 results from that source → existing graceful degradation. Mitigated by trends-utils tests. |
-| `lib/trends-utils.mjs` | `buildOutputJson` adds `images` field to topic output | **Low** | Additive change. Existing fields unchanged. |
-| `__tests__/source-registry.test.mjs` | Add capability structure tests; update count assertions (46→53) | **Medium** | Count changes break existing tests. All assertions recalculated. |
-| `__tests__/asset-sourcer.test.mjs` | Rewrite imports; add pre-download filter tests; add cached-image tests | **Medium** | Import path changes. All `API_SOURCES`/`YTDLP_SOURCES`/`CDP_SOURCES` references replaced with source-registry queries. |
-| `__tests__/asset-sourcer-visual-integration.test.mjs` | Update cascade order assertions | **Medium** | Mock spy assertions change. Verify detectFocus NOT called for lowConfidence assets. |
-| `__tests__/trends-utils.test.mjs` | Add images field tests to buildOutputJson | **Low** | Additive — existing tests unchanged. |
-| `docs/adr/0013-*.md` | Revise "separate set" statement | **Low** | Documentation only. |
-| `docs/adr/0016-*.md` | Add 4th "Already applied" point | **Low** | Documentation only. |
-| `CONTEXT.md` | Update "Source Registry" definition; add "Capabilities" term | **Low** | Glossary update. |
+| File                                                  | Modification                                                                                                                                                                                                               | Risk       | Assessment                                                                                                                                                                                               |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/source-registry.mjs`                             | Add `capabilities` to all 46 existing sources; add 7 new stock_api sources; add 7 new CDP image capabilities to news sources; delete Lorem Picsum                                                                          | **High**   | Core source definitions. 46 sources × structural change. Worst case: malformed capability → consumer query returns empty → source silently skipped. Mitigated by structural validation tests.            |
+| `lib/asset-sourcer.mjs`                               | Delete `API_SOURCES`, `YTDLP_SOURCES`, `CDP_SOURCES`, `SOURCE_ATTRIBUTIONS` (move to source-registry); import from source-registry; add cached-image flow; add pre-download filter; fix cascade order in `analyzeAssets()` | **High**   | Core orchestrator. Import path change affects all downstream code. Worst case: import returns empty array → no assets found → empty report. Mitigated by existing 100+ tests rewritten with new imports. |
+| `search-sources.mjs`                                  | Change extractScript calls to include imageUrl extraction; update `buildOutputJson` consumer in trends-utils                                                                                                               | **Medium** | CDP extraction changes. Worst case: extractScript syntax error → 0 results from that source → existing graceful degradation. Mitigated by trends-utils tests.                                            |
+| `lib/trends-utils.mjs`                                | `buildOutputJson` adds `images` field to topic output                                                                                                                                                                      | **Low**    | Additive change. Existing fields unchanged.                                                                                                                                                              |
+| `__tests__/source-registry.test.mjs`                  | Add capability structure tests; update count assertions (46→53)                                                                                                                                                            | **Medium** | Count changes break existing tests. All assertions recalculated.                                                                                                                                         |
+| `__tests__/asset-sourcer.test.mjs`                    | Rewrite imports; add pre-download filter tests; add cached-image tests                                                                                                                                                     | **Medium** | Import path changes. All `API_SOURCES`/`YTDLP_SOURCES`/`CDP_SOURCES` references replaced with source-registry queries.                                                                                   |
+| `__tests__/asset-sourcer-visual-integration.test.mjs` | Update cascade order assertions                                                                                                                                                                                            | **Medium** | Mock spy assertions change. Verify detectFocus NOT called for lowConfidence assets.                                                                                                                      |
+| `__tests__/trends-utils.test.mjs`                     | Add images field tests to buildOutputJson                                                                                                                                                                                  | **Low**    | Additive — existing tests unchanged.                                                                                                                                                                     |
+| `docs/adr/0013-*.md`                                  | Revise "separate set" statement                                                                                                                                                                                            | **Low**    | Documentation only.                                                                                                                                                                                      |
+| `docs/adr/0016-*.md`                                  | Add 4th "Already applied" point                                                                                                                                                                                            | **Low**    | Documentation only.                                                                                                                                                                                      |
+| `CONTEXT.md`                                          | Update "Source Registry" definition; add "Capabilities" term                                                                                                                                                               | **Low**    | Glossary update.                                                                                                                                                                                         |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Source has `capabilities.articles` but no `capabilities.images` (e.g., arXiv) | search-sources includes it; asset-sourcer skips it | Low | Consumer query filters by capability |
-| 2 | Source has `capabilities.images` but no `capabilities.articles` (e.g., Pexels) | search-sources skips it; asset-sourcer includes it | Low | Consumer query filters by capability |
-| 3 | Source has both (e.g., IT之家) | Both consumers include it, each using its own capability config | Low | Capabilities are independent |
-| 4 | Source has neither (malformed) | Both consumers skip it; structural validation test catches it | Low | Test seam 5 validates every source has ≥1 capability |
-| 5 | `extractScript` extracts imageUrl but page has no images | `imageUrl: null`, `hasImage: false` stored; asset-sourcer skips null URLs | Low | Null check in cached-image flow |
-| 6 | `trending-topics.json` doesn't exist (asset-sourcer run without prior trend discovery) | Cached-image phase returns empty array; normal source search proceeds | Low | `existsSync` check before reading |
-| 7 | Cached image URL matches keyword but is a logo/avatar (false positive) | URL pattern filter rejects it; not downloaded | Low | Regex filter: `logo\|avatar\|icon\|placeholder\|spinner` |
-| 8 | All cached images filtered out; asset-sourcer falls back to source search | Normal search flow runs; no degradation | Low | Cached-image is Phase 0, search is Phase 1 |
-| 9 | Pre-download filter rejects all candidates from a source | Source contributes 0 assets; logged in `skipped[]` | Low | Same pattern as existing "no API key" skip |
-| 10 | Pre-download filter threshold (20) lets through a bad asset that post-download filter (30) catches | Asset downloaded but skipped at post-download pre-filter | Low | Soft gate — VLM cascade still runs. Cost: one wasted download. Acceptable. |
-| 11 | Cascade order: `lowConfidence` asset should NOT be sent to `detectFocus` | `detectFocus` mock spy assertion: not called for lowConfidence assets | Medium | Test seam 3 verifies call order |
-| 12 | `analyzeAssets()` called with assets where ALL are lowConfidence | Phase 2 (detectFocus) receives empty array; Phase 3 (VLM) receives empty array; `asset-analysis.json` written with all assets marked lowConfidence | Low | Guard: `if (analyzableAssets.length === 0) skip to artifact write` |
-| 13 | Pexels API key missing | Source skipped with "no API key" reason (same as current behavior) | Low | Unchanged — capability config carries `apiKeyEnv` |
-| 14 | yt-dlp source (B站) cookie required but not available | Download fails with "needs auth"; logged in `failed[]` (same as current) | Low | Unchanged — capability config carries `cookieRequired` |
-| 15 | Source name collision after merge (e.g., "bilibili" exists for both articles and videos) | Single source with `capabilities.articles` + `capabilities.videos`; no collision | Low | Capabilities are on the same source object |
-| 16 | `SOURCE_ATTRIBUTIONS` moved to source-registry | `buildAttribution()` in asset-sourcer imports from source-registry instead of local | Low | Pure import path change |
-| 17 | Existing `search-sources.mjs --research` mode (keyword-only sources) | Unaffected — queries `capabilities.articles` with `supportsKeyword=true` | Low | No behavior change for articles consumers |
+| #   | Scenario                                                                                           | Expected Behavior                                                                                                                                  | Risk   | Mitigation                                                                 |
+| --- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------- |
+| 1   | Source has `capabilities.articles` but no `capabilities.images` (e.g., arXiv)                      | search-sources includes it; asset-sourcer skips it                                                                                                 | Low    | Consumer query filters by capability                                       |
+| 2   | Source has `capabilities.images` but no `capabilities.articles` (e.g., Pexels)                     | search-sources skips it; asset-sourcer includes it                                                                                                 | Low    | Consumer query filters by capability                                       |
+| 3   | Source has both (e.g., IT之家)                                                                     | Both consumers include it, each using its own capability config                                                                                    | Low    | Capabilities are independent                                               |
+| 4   | Source has neither (malformed)                                                                     | Both consumers skip it; structural validation test catches it                                                                                      | Low    | Test seam 5 validates every source has ≥1 capability                       |
+| 5   | `extractScript` extracts imageUrl but page has no images                                           | `imageUrl: null`, `hasImage: false` stored; asset-sourcer skips null URLs                                                                          | Low    | Null check in cached-image flow                                            |
+| 6   | `trending-topics.json` doesn't exist (asset-sourcer run without prior trend discovery)             | Cached-image phase returns empty array; normal source search proceeds                                                                              | Low    | `existsSync` check before reading                                          |
+| 7   | Cached image URL matches keyword but is a logo/avatar (false positive)                             | URL pattern filter rejects it; not downloaded                                                                                                      | Low    | Regex filter: `logo\|avatar\|icon\|placeholder\|spinner`                   |
+| 8   | All cached images filtered out; asset-sourcer falls back to source search                          | Normal search flow runs; no degradation                                                                                                            | Low    | Cached-image is Phase 0, search is Phase 1                                 |
+| 9   | Pre-download filter rejects all candidates from a source                                           | Source contributes 0 assets; logged in `skipped[]`                                                                                                 | Low    | Same pattern as existing "no API key" skip                                 |
+| 10  | Pre-download filter threshold (20) lets through a bad asset that post-download filter (30) catches | Asset downloaded but skipped at post-download pre-filter                                                                                           | Low    | Soft gate — VLM cascade still runs. Cost: one wasted download. Acceptable. |
+| 11  | Cascade order: `lowConfidence` asset should NOT be sent to `detectFocus`                           | `detectFocus` mock spy assertion: not called for lowConfidence assets                                                                              | Medium | Test seam 3 verifies call order                                            |
+| 12  | `analyzeAssets()` called with assets where ALL are lowConfidence                                   | Phase 2 (detectFocus) receives empty array; Phase 3 (VLM) receives empty array; `asset-analysis.json` written with all assets marked lowConfidence | Low    | Guard: `if (analyzableAssets.length === 0) skip to artifact write`         |
+| 13  | Pexels API key missing                                                                             | Source skipped with "no API key" reason (same as current behavior)                                                                                 | Low    | Unchanged — capability config carries `apiKeyEnv`                          |
+| 14  | yt-dlp source (B站) cookie required but not available                                              | Download fails with "needs auth"; logged in `failed[]` (same as current)                                                                           | Low    | Unchanged — capability config carries `cookieRequired`                     |
+| 15  | Source name collision after merge (e.g., "bilibili" exists for both articles and videos)           | Single source with `capabilities.articles` + `capabilities.videos`; no collision                                                                   | Low    | Capabilities are on the same source object                                 |
+| 16  | `SOURCE_ATTRIBUTIONS` moved to source-registry                                                     | `buildAttribution()` in asset-sourcer imports from source-registry instead of local                                                                | Low    | Pure import path change                                                    |
+| 17  | Existing `search-sources.mjs --research` mode (keyword-only sources)                               | Unaffected — queries `capabilities.articles` with `supportsKeyword=true`                                                                           | Low    | No behavior change for articles consumers                                  |
 
 ## Out of Scope
 
@@ -300,6 +298,7 @@ Stock API sources (Pexels, Unsplash, etc.) serve as implicit fallbacks — their
 ### Pre-download vs post-download filter thresholds
 
 Pre-download threshold (20) is lower than post-download (30) because:
+
 - Pre-download: no file size info (API responses don't always include it), resolution may be missing
 - Post-download: file size is known (downloaded file), technicalScore is more accurate
 - A 20→30 gap means some assets are downloaded then skipped — this is acceptable (cost of one download vs cost of VLM analysis)

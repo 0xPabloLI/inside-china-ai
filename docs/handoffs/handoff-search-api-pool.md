@@ -14,22 +14,22 @@ Pool 包含两类成员：(A) 独立搜索 API——只做关键词搜索，不�
 
 ### A. 独立搜索 API（不在 source-registry 中）
 
-| API | 免费额度 | 刷新周期 | 超额行为 | 集成方式 |
-|-----|---------|----------|----------|----------|
-| **Jina Search** | 1M tokens/月 | 每月更新 | 降级到无 key 模式（20 RPM） | **直接 API** — `fetch("https://s.jina.ai/" + query)` + `Authorization: Bearer {key}` |
-| **Tavily** | 1000 credits/月 | 每月1号重置 | 请求停止 | **直接 API** — `fetch("https://api.tavily.com/search", { method: POST, body: { api_key, query } })` |
-| **Brave Search** | 2000 queries/月 | 每月更新 | 请求停止 | **直接 API** — `fetch("https://api.search.brave.com/res/v1/web/search?q=...")` + `X-Subscription-Token` header |
-| **mcp-search-bridge (Grok)** | 无限（自建） | 不适用 | 无限制 | **MCP** — 唯一没有 REST API 的成员，通过 `lib/mcp-client.mjs` 调用 |
+| API                          | 免费额度        | 刷新周期    | 超额行为                    | 集成方式                                                                                                       |
+| ---------------------------- | --------------- | ----------- | --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Jina Search**              | 1M tokens/月    | 每月更新    | 降级到无 key 模式（20 RPM） | **直接 API** — `fetch("https://s.jina.ai/" + query)` + `Authorization: Bearer {key}`                           |
+| **Tavily**                   | 1000 credits/月 | 每月1号重置 | 请求停止                    | **直接 API** — `fetch("https://api.tavily.com/search", { method: POST, body: { api_key, query } })`            |
+| **Brave Search**             | 2000 queries/月 | 每月更新    | 请求停止                    | **直接 API** — `fetch("https://api.search.brave.com/res/v1/web/search?q=...")` + `X-Subscription-Token` header |
+| **mcp-search-bridge (Grok)** | 无限（自建）    | 不适用      | 无限制                      | **MCP** — 唯一没有 REST API 的成员，通过 `lib/mcp-client.mjs` 调用                                             |
 
 ### B. source-registry 中已有额度限制的 general search 源
 
 这些源在 source-registry 中已定义为 `category: "general"`（`currents`、`noozra_search`）或 `category: "international"`（`gnews`），有自己的 `apiSearch` 配置。加入 Pool 后，它们的 API 额度也被 Pool 追踪，其他源 fallback 时可以复用它们的搜索能力。
 
-| 源名 (source-registry) | category | 免费额度 | 刷新周期 | 集成方式 | env var |
-|------------------------|----------|---------|----------|----------|---------|
-| **currents** | general | 200 req/day | 每日 | — | `CURRENTS_API_KEY` |
-| **noozra_search** | general | 100 req/day/IP | 每日 | — | 无 |
-| **gnews** | international | 100 req/day | 每日 | — | `GNEWS_API_KEY` |
+| 源名 (source-registry) | category      | 免费额度       | 刷新周期 | 集成方式 | env var            |
+| ---------------------- | ------------- | -------------- | -------- | -------- | ------------------ |
+| **currents**           | general       | 200 req/day    | 每日     | —        | `CURRENTS_API_KEY` |
+| **noozra_search**      | general       | 100 req/day/IP | 每日     | —        | 无                 |
+| **gnews**              | international | 100 req/day    | 每日     | —        | `GNEWS_API_KEY`    |
 
 > **刷新周期**：全部每日重置（与 A 类成员月度不同）。Pool 调度器按日重置 B 类成员。
 
@@ -47,13 +47,16 @@ Pool 包含两类成员：(A) 独立搜索 API——只做关键词搜索，不�
 ## What's missing (the gap)
 
 ### 1. Pool 调度器
+
 需要一个 `SearchApiPool` 类/模块，管理七个成员的调用和额度追踪：
 
 ```javascript
 // 目标接口
 class SearchApiPool {
-  constructor(members) { /* [{ name, callMethod: 'mcp'|'api', mcpToolName?, apiUrl?, apiKeyEnv?, priority, monthlyLimit, currentUsage }] */ }
-  
+  constructor(members) {
+    /* [{ name, callMethod: 'mcp'|'api', mcpToolName?, apiUrl?, apiKeyEnv?, priority, monthlyLimit, currentUsage }] */
+  }
+
   async search(keyword) {
     // 1. 按 priority + remaining quota 选最优 member
     // 2. 调用该 member 的 MCP tool
@@ -61,18 +64,24 @@ class SearchApiPool {
     // 4. 失败 → 尝试下一个 member
     // 5. 全失败 → throw
   }
-  
-  resetMonthlyUsage() { /* A类成员按月重置；B类成员按日重置 */ }
-  getStatus() { /* 返回各 member 的剩余额度 */ }
+
+  resetMonthlyUsage() {
+    /* A类成员按月重置；B类成员按日重置 */
+  }
+  getStatus() {
+    /* 返回各 member 的剩余额度 */
+  }
 }
 ```
 
 ### 2. 额度追踪持久化
+
 - 当前用量需要持久化（写入文件或 DB），否则重启后丢失
 - 简单方案：`output/search-api-usage.json`，记录 `{ member, month, usageCount }`
 - 每次调用后 increment，A类按月重置、B类按日重置
 
 ### 3. source-registry 集成
+
 - A 类成员（Jina/Tavily/Brave/Grok）不在 source-registry 中，Pool 模块直接管理
 - B 类成员（currents/noozra_search/gnews）已在 source-registry 中，Pool 复用其 `apiSearch` 配置
 - `mcpFallback` 字段保留但降级为 Pool 的一个 member（Grok），不再作为独立 fallback 层
@@ -80,11 +89,13 @@ class SearchApiPool {
 ### 4. 与现有 fallback 链的关系
 
 现有链：
+
 ```
 apiSearch → CDP (articleScript) → googleSiteFallback (Google site:) → mcpFallback (Grok)
 ```
 
 新链（加入 web_fetch + Jina Reader + Pool）：
+
 ```
 Layer 0: apiSearch (API 直连) — 最快
 Layer 1: web_fetch — 免费、无限制
@@ -95,6 +106,7 @@ Layer 4: Search API Pool — Jina Search + Tavily + Brave + Grok + Currents + No
 ```
 
 注意 Layer 2 (Jina Reader) 和 Layer 4 (Jina Search) 用的是 Jina 的不同功能：
+
 - Jina Reader: `r.jina.ai/{url}` — 已知 URL 提取正文
 - Jina Search: 关键词搜索，发现新 URL
 
@@ -103,12 +115,14 @@ Layer 4: Search API Pool — Jina Search + Tavily + Brave + Grok + Currents + No
 ## Implementation Scope
 
 ### 改动文件
+
 1. `scripts/short-video/lib/search-api-pool.mjs` — 新建，Pool 调度器
 2. `scripts/short-video/lib/source-registry.mjs` — 新增 `searchApiPool` 配置
 3. `scripts/short-video/search-sources.mjs` — `collectFromSource` 新增 Layer 1-4
 4. `scripts/short-video/__tests__/search-api-pool.test.mjs` — 新建，Pool 单元测试
 
 ### 不改动的文件
+
 - `lib/mcp-client.mjs` — 已有的 MCP 调用逻辑不变
 - `lib/cdp-client.mjs` — CDP 传输层不变
 - MCP 配置文件 — 三个搜索 MCP 已配置好
@@ -129,35 +143,39 @@ Layer 4: Search API Pool — Jina Search + Tavily + Brave + Grok + Currents + No
 ## Design Clarifications (2026-08-20 补充)
 
 ### Bing API 已退役，不可用
+
 Bing Search API 于 2025 年 8 月退役，2026 年 8 月 11 日完全关闭。不可加入 Pool。但 `bing_news` 源在 source-registry 中走 CDP 模式（打开 `bing.com/news/search` 页面用 articleScript），不依赖 API，仍然可用。
 
 ### CDP 搜索不能进 Pool
+
 Pool 只包含**程序化 API 调用**的搜索服务。CDP 搜索（google_search、baidu_search、bing_news）是浏览器代理模式，不是 API，不能放进 Pool。它们作为独立 source 留在 source-registry 中。
 
 ### Wikipedia 不属于 general search，单独作为 reference source
+
 Wikipedia REST API（`https://en.wikipedia.org/api/rest_v1/page/summary/{title}`）是实体背景信息查询，不是关键词搜索。应作为独立的 `category: "reference"` source 加入 source-registry，不放进 Search API Pool。适合在 content-pipeline Stage 1（写文章时查实体信息）调用。
 
 ### Search API Pool 的消费者
 
 **当前（Pool 未实现）没有消费者**。各场景直接消费具体的 API 或 MCP：
 
-| 场景 | 当前消费什么 | 怎么消费 |
-|------|-------------|---------|
-| `search-sources.mjs` 遍历 general+international 源 | 每个源各自的 API/CDP/MCP | `google_search`→CDP, `baidu_search`→CDP, `mcp_grok_search`→MCP, `currents`→API, `noozra_search`→API, `gnews`→API |
-| `search-sources.mjs` fallback 链末端 | `mcpFallback`（只调 Grok） | 12 个源有 `mcpFallback` 配置，全部指向 mcp-search-bridge |
-| Agent 对话即时搜索 | `web_fetch` → `web-access` CDP → Tavily MCP | 按 AGENTS.md fallback 链，不走任何 Pool |
-| Agent 趋势发现 | `search-sources.mjs` 或 `last30days` skill | 同第一行 |
+| 场景                                               | 当前消费什么                                | 怎么消费                                                                                                         |
+| -------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `search-sources.mjs` 遍历 general+international 源 | 每个源各自的 API/CDP/MCP                    | `google_search`→CDP, `baidu_search`→CDP, `mcp_grok_search`→MCP, `currents`→API, `noozra_search`→API, `gnews`→API |
+| `search-sources.mjs` fallback 链末端               | `mcpFallback`（只调 Grok）                  | 12 个源有 `mcpFallback` 配置，全部指向 mcp-search-bridge                                                         |
+| Agent 对话即时搜索                                 | `web_fetch` → `web-access` CDP → Tavily MCP | 按 AGENTS.md fallback 链，不走任何 Pool                                                                          |
+| Agent 趋势发现                                     | `search-sources.mjs` 或 `last30days` skill  | 同第一行                                                                                                         |
 
 **Pool 实施后**的消费者：
 
-| 场景 | 改造前 | 改造后 |
-|------|--------|--------|
-| `search-sources.mjs` fallback 链末端 | `mcpFallback` 单独调 Grok | Pool 轮转（Jina → Brave → Tavily → Grok → Currents → Noozra → GNews） |
-| Agent 对话即时搜索 | 直接 `web_fetch` → CDP → Tavily MCP | 不在 Issue #65 范围内（Issue #66 auto-fallback 负责） |
+| 场景                                 | 改造前                              | 改造后                                                                |
+| ------------------------------------ | ----------------------------------- | --------------------------------------------------------------------- |
+| `search-sources.mjs` fallback 链末端 | `mcpFallback` 单独调 Grok           | Pool 轮转（Jina → Brave → Tavily → Grok → Currents → Noozra → GNews） |
+| Agent 对话即时搜索                   | 直接 `web_fetch` → CDP → Tavily MCP | 不在 Issue #65 范围内（Issue #66 auto-fallback 负责）                 |
 
 Pool 是 fallback 链的 Layer 4，替代当前 `mcpFallback` 单独指向 Grok 的模式。Pool 不替代各源自己的 `apiSearch`（Layer 0）和 CDP（Layer 1-3）——只有这些全失败后才落入 Pool。
 
 ### Jina 本地部署
+
 - 预构建 Docker 镜像：`ghcr.io/jina-ai/reader:oss`
 - 核心技术：Node.js + Puppeteer（headless Chrome）+ curl-impersonate + PDF.js + LibreOffice
 - 资源消耗：CPU 2-4 核，内存 2-4GB（Chrome 是大头），磁盘 ~5GB（镜像）

@@ -57,23 +57,23 @@ Planning scale and implementation risk are independent.
 
 ### Planning Scale
 
-| Level | Condition | Planning route |
-|---|---|---|
-| S0 | Read-only analysis or no implementation requested | Inspect and report |
-| S1 | The decisions and implementation fit one context window | Clarify only if needed, then implement directly |
-| S2 | The route is clear, but implementation needs multiple context windows | Grill as needed, then Spec, Tickets, and one implementation run per ticket |
-| S3 | The destination is known, but planning itself spans sessions and the route contains substantial fog | Wayfinder decision map, then Spec, Tickets, and one implementation run per ticket |
+| Level | Condition                                                                                           | Planning route                                                                    |
+| ----- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| S0    | Read-only analysis or no implementation requested                                                   | Inspect and report                                                                |
+| S1    | The decisions and implementation fit one context window                                             | Clarify only if needed, then implement directly                                   |
+| S2    | The route is clear, but implementation needs multiple context windows                               | Grill as needed, then Spec, Tickets, and one implementation run per ticket        |
+| S3    | The destination is known, but planning itself spans sessions and the route contains substantial fog | Wayfinder decision map, then Spec, Tickets, and one implementation run per ticket |
 
 Single-session work may skip standalone Spec and Tickets even when it is high risk. It must still state acceptance criteria, test seams, and relevant risk scenarios in the active context before implementation.
 
 ### Risk
 
-| Level | Condition | Required assurance |
-|---|---|---|
-| R0 | Read-only | No implementation gates |
-| R1 | No behavior, contract, data flow, authorization, or release-path change | Targeted validation and diff self-review |
-| R2 | Ordinary behavior change with bounded impact | Acceptance scenarios, TDD where behavior is testable, affected tests, review |
-| R3 | Auth/RLS, migration, public contract, publishing, irreversible data effect, cross-step contract, or core video-pipeline change | Scenario and impact analysis, testable failure baseline, cumulative review, full relevant verification, and runtime or real-data evidence where applicable |
+| Level | Condition                                                                                                                      | Required assurance                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Read-only                                                                                                                      | No implementation gates                                                                                                                                    |
+| R1    | No behavior, contract, data flow, authorization, or release-path change                                                        | Targeted validation and diff self-review                                                                                                                   |
+| R2    | Ordinary behavior change with bounded impact                                                                                   | Acceptance scenarios, TDD where behavior is testable, affected tests, review                                                                               |
+| R3    | Auth/RLS, migration, public contract, publishing, irreversible data effect, cross-step contract, or core video-pipeline change | Scenario and impact analysis, testable failure baseline, cumulative review, full relevant verification, and runtime or real-data evidence where applicable |
 
 Risk controls change assurance depth. Planning scale decides whether durable Spec and Ticket artifacts are needed.
 
@@ -111,15 +111,15 @@ Risk controls change assurance depth. Planning scale decides whether durable Spe
 
 ## Project Overrides for Known Upstream Gaps
 
-| Upstream behavior or gap | Project override |
-|---|---|
-| User-invoked stages require manual slash commands | The agent executes their installed files by reference after implementation authorization |
-| `to-tickets` always quizzes the user | The agent first performs the same granularity and blocking-edge review; it asks only when a material decision remains |
-| `implement` calls review before commit, while review only sees committed `HEAD` | Commit the verified ticket first, then review the committed cumulative diff |
-| `implement` does not act on review findings | Findings return to the implementation and verification loop |
-| `implement` does not update ticket state | Reconcile acceptance criteria and status immediately after verification |
-| `tdd` documentation describes red-green slices and defers refactoring | Keep each slice red-green; perform review-driven refactoring with tests green before completion |
-| Wayfinder can over-plan | Use it only for multi-session planning with real fog and a bounded destination |
+| Upstream behavior or gap                                                        | Project override                                                                                                      |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| User-invoked stages require manual slash commands                               | The agent executes their installed files by reference after implementation authorization                              |
+| `to-tickets` always quizzes the user                                            | The agent first performs the same granularity and blocking-edge review; it asks only when a material decision remains |
+| `implement` calls review before commit, while review only sees committed `HEAD` | Commit the verified ticket first, then review the committed cumulative diff                                           |
+| `implement` does not act on review findings                                     | Findings return to the implementation and verification loop                                                           |
+| `implement` does not update ticket state                                        | Reconcile acceptance criteria and status immediately after verification                                               |
+| `tdd` documentation describes red-green slices and defers refactoring           | Keep each slice red-green; perform review-driven refactoring with tests green before completion                       |
+| Wayfinder can over-plan                                                         | Use it only for multi-session planning with real fog and a bounded destination                                        |
 
 ## Documentation Structure
 

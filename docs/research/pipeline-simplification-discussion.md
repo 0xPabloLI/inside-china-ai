@@ -16,6 +16,7 @@
 **状态**: 已决定
 
 已实现的 evidence 相关模块：
+
 - `lib/research/schemas.mjs` — 定义了 `evidence-pack.json` 和 `article-claim-map.json` 的 schema
 - `lib/research/claim-auditor.mjs` — MRL-1 审计门，检查 fact claim 是否有 verified evidence
 - `lib/research/scene-claims.mjs` — scene-data 里的 claimIds 追溯
@@ -24,11 +25,13 @@
 **问题**：用户不需要 academic 级事实审计。可信度应该是标注（影响话术），不是门卫（阻断 pipeline）。
 
 **决定**：
+
 - 代码 + 测试全部保留，不接入管线，不调用
 - 可信度由 agent 在 web-access CDP 提取全文后自行标注（prompt 级判断，非代码逻辑）
 - 不改造 web-deep-research skill（通用 skill，不能为 evidence 改）
 
 **Future feature（发 issue + handoff，另外做）**：
+
 - 用户要求 Agent 审计某条内容时，Agent 能召唤 claim-auditor + evidence-pack 生成
 - 要实现这个需要：
   1. evidence-pack 生成逻辑（目前不存在，web-deep-research 不改）
@@ -72,6 +75,7 @@ apiSearch → CDP（articleScript）→ Jina fallback（新增）→ googleSiteF
 - 以上全失败 → Grok 全网搜索关键词
 
 **Jina 测试结果**（2026-08-19，53 源 × 3 参数）：
+
 - default 模式：44/52 成功（84.6%）——主力模式
 - browser 模式（`X-Engine: browser`）：47/52 成功——额外救活 GitHub、Threads、DataCube AI、百度、Reddit
 - readerlm-v2 模式：22/52 成功（42.3%）——超时率太高，不使用
@@ -80,9 +84,9 @@ apiSearch → CDP（articleScript）→ Jina fallback（新增）→ googleSiteF
 **适用范围**：只改 `search-sources.mjs`。`asset-sourcer.mjs` 暂不改——图片来源走 Pexels/Unsplash API + yt-dlp，不走 CDP DOM 选择器。SVE 架构实现后，Jina 的 `X-With-Images-Summary: true` 可一次性提取文章+图片 URL，asset-sourcer 直接从 SVE 产物读取。
 
 **Fallback 语义区分**：
+
 - Jina fallback = "同一个网页换一种方式提取"（CDP DOM 选择器失效 → Jina 无选择器提取）
 - Grok fallback = "放弃这个网页，用搜索引擎找替代内容"（全网搜索关键词）
-
 
 ---
 
@@ -93,6 +97,7 @@ apiSearch → CDP（articleScript）→ Jina fallback（新增）→ googleSiteF
 **原则**：一个视频 pipeline 内，每个 URL 只用 CDP 访问一次，这一次就把文章、图片、视频全部提取完。后续步骤按需引用已有素材。
 
 **现状问题**：
+
 ```
 Stage 0: search-sources 打开 jiqizhixin.com → 提取文章 → 关闭
 Stage 3: asset-sourcer 打开 jiqizhixin.com → 提取图片 → 关闭
@@ -100,11 +105,13 @@ Stage 3: asset-sourcer 打开 jiqizhixin.com → 提取图片 → 关闭
 ```
 
 **现有缓存**：
+
 - 图片：`loadCachedImages()` 从 `trending-topics.json` 读 URL 缓存 + `downloadAsset()` 文件级缓存
 - 视频：只有 `downloadAsset()` 文件级缓存（`existsSync`），无 URL 级缓存
 - 文章：无缓存
 
 **目标架构**：
+
 ```
 Unified Page Visitor 打开 URL（一次）
   ├─ extractArticles → 文章标题+链接+摘要
@@ -116,6 +123,7 @@ Unified Page Visitor 打开 URL（一次）
 ```
 
 **待设计**：
+
 - Unified Page Visitor 的接口（打开 URL → 返回多种资源类型）
 - 与现有 search-sources.mjs 和 asset-sourcer.mjs 的关系（替换？包装？重构？）
 - URL 去重逻辑（跨 Stage 的 URL registry）
@@ -125,40 +133,40 @@ Unified Page Visitor 打开 URL（一次）
 
 ## Decisions Log
 
-| # | Decision | Date | Rationale |
-|---|----------|------|-----------|
-| 1 | 砍掉 web-deep-research 8-phase 流程 | 2026-08-19 | 不适合做视频的场景，agent 用 web-access CDP 直接提取 |
-| 2 | 简化 Stage 0.5（从 evidence audit 改为素材挖掘） | 2026-08-19 | 用户不需要 academic 级事实审计 |
-| 3 | 可信度从门卫改成标注 | 2026-08-19 | 不误删独家报道，用话术区分可信度 |
-| 4 | 文章和 video script 并行产出（双轨） | 2026-08-19 | 不从文章翻译成视频，各自为优化目标写 |
-| 5 | evidence 模块保留但不接入 | 2026-08-19 | 代码+测试留着，不调用，不删。未来按需接回 |
-| 6 | 不改 web-deep-research skill | 2026-08-19 | 通用 skill 不能为 evidence 审计改输出格式 |
-| 7 | on-demand audit 作为 future feature | 2026-08-19 | 发 issue + handoff，另外做 |
-| 8 | Jina Reader API 作为 CDP fallback | 2026-08-19 | 84.6% 信源 default 模式可用，不依赖 per-site DOM 选择器 |
-| 9 | Jina 文档合并入 tools-catalog.md | 2026-08-19 | 已完成：tools-catalog.md 新增 Jina Reader API 条目（速览表 + 详细说明） |
-| 10 | Jina fallback 只改 search-sources.mjs | 2026-08-19 | asset-sourcer 走 API+yt-dlp，不走 CDP DOM 选择器 |
-| 11 | readerlm-v2 模式不使用 | 2026-08-19 | 超时率 57.7%，性能最差 |
-| 12 | 硬编码信源列表不改为规则引擎 | 2026-08-19 | URL pattern + 搜索参数 + DOM 结构每个站不同，规则化复杂度 ≥ 硬编码 |
-| 13 | per-site articleScript 不删除 | 2026-08-20 | 返回结构化数据（title+url+imageUrl），精确匹配网站 DOM。auto-fallback 使其从「必须维护」变为「有空再维护」 |
-| 14 | CDP 搜索不能进 Search API Pool | 2026-08-20 | Pool 只含程序化 API 调用的搜索服务。CDP 是浏览器代理，不是 API |
-| 15 | Bing API 退役，不可用 | 2026-08-20 | 2025-08 退役，2026-08-11 完全关闭。bing_news 走 CDP 仍可用 |
-| 16 | Wikipedia 作为独立 reference source | 2026-08-20 | 不属于 general search，是实体背景信息查询。category=reference，不进 Pool |
-| 17 | accessMethod.fallbacks 字段是文档性的 | 2026-08-20 | collectFromSource() 硬编码 fallback 链，不读该字段。实施时可删除简化 |
-| 18 | Jina 可本地 Docker 部署 | 2026-08-20 | ghcr.io/jina-ai/reader:oss，2-4GB RAM，无状态模式无限调用。Pipeline 代码可直接 fetch 而非 MCP |
-| 19 | Brave Search 以直接 API 调用集成，不配 MCP | 2026-08-20 | Brave 是 REST API（fetch + X-Subscription-Token header），不需要 MCP transport。同时作为 source-registry 独立 source（apiSearch）和 Search API Pool 成员 |
-| 20 | Search API Pool 全部用直接 API 调用，除 Grok 外 | 2026-08-20 | Jina、Tavily、Brave 都有 REST API，pipeline 代码统一用 fetch() 调用。Grok 是自建 Node.js server 无 REST endpoint，保持 MCP |
-| 21 | 删除 accessMethod.fallbacks 字段 | 2026-08-20 | 文档性字段，collectFromSource() 硬编码 fallback 链不读它。删除 49 个实例 + 1 个测试断言 |
-| 22 | content-pipeline.md 不硬编码源数量 | 2026-08-20 | 源数量是 source-registry.mjs 的 cache，会过时。改为指针指向 source-registry |
-| 23 | Entry points unified; three entries converge at Stage 0 | 2026-08-20 | Grill Q1: 入口统一为单入口，差异仅是 keyword 来源和是否有 primary source |
-| 24 | Stage 0.5 renamed to Stage 0: Source Discovery & Material Gathering | 2026-08-20 | Grill Q8: 管线起点编号清晰化，去掉 0.5 |
-| 25 | MRL-1 B4/B6 inline markers as source for structured evidence (non-blocking) | 2026-08-20 | Grill Q4: inline 标注保留，作为 evidence schema 来源；audit 非阻塞，输出 warning。#61 追踪 |
-| 26 | Research mode filter expanded to include googleSiteFallback sources | 2026-08-20 | Grill Q2: 不支持 keyword 的源走 Google site: fallback |
-| 27 | WESTERN_SOURCES renamed to INTERNATIONAL_SOURCES | 2026-08-20 | Grill Q6: "western" 不准确，这些源是国际/多语种的 |
-| 28 | Optional locale field added; English sources not marked | 2026-08-20 | Grill Q6: 中文限定源标 zh-CN，英文/多语种源不标 |
-| 29 | No separate issue for Discussion; all tasks in existing issues | 2026-08-20 | Grill Q9: 所有未完成项已有对应 issue |
-| 30 | `site:` search (Google/Baidu/Bing/DuckDuckGo) requires CDP on all engines | 2026-08-21 | 测试确认：curl/web_fetch 全部被 CAPTCHA 拦截（Google reCAPTCHA, Baidu 滑块验证, DuckDuckGo anomaly challenge）。Bing `site:` via curl 语法不生效。只有 CDP（有 session 的浏览器）才能获取 `site:` 搜索结果。`googleSiteFallback` → rename to `googleSiteFallback` (tracked in #82) |
-| 31 | WordPress REST API search is the best approach for WordPress sites | 2026-08-21 | 测试发现：量子位 `?s=` 被 nginx 403 拦截，但 `/wp-json/wp/v2/posts?search=` 完全开放（纯 curl，JSON 响应，不需浏览器）。TechCrunch 同理。优先级：WordPress REST API > direct site search URL > Google `site:` via CDP。Implementation in #82 |
-| 32 | Bloomberg has search but paywall; alternatives tracked in #85 | 2026-08-21 | Bloomberg `/search?query={kw}` 搜索结果（标题+摘要）可获取，全文需订阅。Bloomberg Japan 用 Google Custom Search。寻找转载 Bloomberg 内容的免费平替网站 (#85) |
+| #   | Decision                                                                    | Date       | Rationale                                                                                                                                                                                                                                                                          |
+| --- | --------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 砍掉 web-deep-research 8-phase 流程                                         | 2026-08-19 | 不适合做视频的场景，agent 用 web-access CDP 直接提取                                                                                                                                                                                                                               |
+| 2   | 简化 Stage 0.5（从 evidence audit 改为素材挖掘）                            | 2026-08-19 | 用户不需要 academic 级事实审计                                                                                                                                                                                                                                                     |
+| 3   | 可信度从门卫改成标注                                                        | 2026-08-19 | 不误删独家报道，用话术区分可信度                                                                                                                                                                                                                                                   |
+| 4   | 文章和 video script 并行产出（双轨）                                        | 2026-08-19 | 不从文章翻译成视频，各自为优化目标写                                                                                                                                                                                                                                               |
+| 5   | evidence 模块保留但不接入                                                   | 2026-08-19 | 代码+测试留着，不调用，不删。未来按需接回                                                                                                                                                                                                                                          |
+| 6   | 不改 web-deep-research skill                                                | 2026-08-19 | 通用 skill 不能为 evidence 审计改输出格式                                                                                                                                                                                                                                          |
+| 7   | on-demand audit 作为 future feature                                         | 2026-08-19 | 发 issue + handoff，另外做                                                                                                                                                                                                                                                         |
+| 8   | Jina Reader API 作为 CDP fallback                                           | 2026-08-19 | 84.6% 信源 default 模式可用，不依赖 per-site DOM 选择器                                                                                                                                                                                                                            |
+| 9   | Jina 文档合并入 tools-catalog.md                                            | 2026-08-19 | 已完成：tools-catalog.md 新增 Jina Reader API 条目（速览表 + 详细说明）                                                                                                                                                                                                            |
+| 10  | Jina fallback 只改 search-sources.mjs                                       | 2026-08-19 | asset-sourcer 走 API+yt-dlp，不走 CDP DOM 选择器                                                                                                                                                                                                                                   |
+| 11  | readerlm-v2 模式不使用                                                      | 2026-08-19 | 超时率 57.7%，性能最差                                                                                                                                                                                                                                                             |
+| 12  | 硬编码信源列表不改为规则引擎                                                | 2026-08-19 | URL pattern + 搜索参数 + DOM 结构每个站不同，规则化复杂度 ≥ 硬编码                                                                                                                                                                                                                 |
+| 13  | per-site articleScript 不删除                                               | 2026-08-20 | 返回结构化数据（title+url+imageUrl），精确匹配网站 DOM。auto-fallback 使其从「必须维护」变为「有空再维护」                                                                                                                                                                         |
+| 14  | CDP 搜索不能进 Search API Pool                                              | 2026-08-20 | Pool 只含程序化 API 调用的搜索服务。CDP 是浏览器代理，不是 API                                                                                                                                                                                                                     |
+| 15  | Bing API 退役，不可用                                                       | 2026-08-20 | 2025-08 退役，2026-08-11 完全关闭。bing_news 走 CDP 仍可用                                                                                                                                                                                                                         |
+| 16  | Wikipedia 作为独立 reference source                                         | 2026-08-20 | 不属于 general search，是实体背景信息查询。category=reference，不进 Pool                                                                                                                                                                                                           |
+| 17  | accessMethod.fallbacks 字段是文档性的                                       | 2026-08-20 | collectFromSource() 硬编码 fallback 链，不读该字段。实施时可删除简化                                                                                                                                                                                                               |
+| 18  | Jina 可本地 Docker 部署                                                     | 2026-08-20 | ghcr.io/jina-ai/reader:oss，2-4GB RAM，无状态模式无限调用。Pipeline 代码可直接 fetch 而非 MCP                                                                                                                                                                                      |
+| 19  | Brave Search 以直接 API 调用集成，不配 MCP                                  | 2026-08-20 | Brave 是 REST API（fetch + X-Subscription-Token header），不需要 MCP transport。同时作为 source-registry 独立 source（apiSearch）和 Search API Pool 成员                                                                                                                           |
+| 20  | Search API Pool 全部用直接 API 调用，除 Grok 外                             | 2026-08-20 | Jina、Tavily、Brave 都有 REST API，pipeline 代码统一用 fetch() 调用。Grok 是自建 Node.js server 无 REST endpoint，保持 MCP                                                                                                                                                         |
+| 21  | 删除 accessMethod.fallbacks 字段                                            | 2026-08-20 | 文档性字段，collectFromSource() 硬编码 fallback 链不读它。删除 49 个实例 + 1 个测试断言                                                                                                                                                                                            |
+| 22  | content-pipeline.md 不硬编码源数量                                          | 2026-08-20 | 源数量是 source-registry.mjs 的 cache，会过时。改为指针指向 source-registry                                                                                                                                                                                                        |
+| 23  | Entry points unified; three entries converge at Stage 0                     | 2026-08-20 | Grill Q1: 入口统一为单入口，差异仅是 keyword 来源和是否有 primary source                                                                                                                                                                                                           |
+| 24  | Stage 0.5 renamed to Stage 0: Source Discovery & Material Gathering         | 2026-08-20 | Grill Q8: 管线起点编号清晰化，去掉 0.5                                                                                                                                                                                                                                             |
+| 25  | MRL-1 B4/B6 inline markers as source for structured evidence (non-blocking) | 2026-08-20 | Grill Q4: inline 标注保留，作为 evidence schema 来源；audit 非阻塞，输出 warning。#61 追踪                                                                                                                                                                                         |
+| 26  | Research mode filter expanded to include googleSiteFallback sources         | 2026-08-20 | Grill Q2: 不支持 keyword 的源走 Google site: fallback                                                                                                                                                                                                                              |
+| 27  | WESTERN_SOURCES renamed to INTERNATIONAL_SOURCES                            | 2026-08-20 | Grill Q6: "western" 不准确，这些源是国际/多语种的                                                                                                                                                                                                                                  |
+| 28  | Optional locale field added; English sources not marked                     | 2026-08-20 | Grill Q6: 中文限定源标 zh-CN，英文/多语种源不标                                                                                                                                                                                                                                    |
+| 29  | No separate issue for Discussion; all tasks in existing issues              | 2026-08-20 | Grill Q9: 所有未完成项已有对应 issue                                                                                                                                                                                                                                               |
+| 30  | `site:` search (Google/Baidu/Bing/DuckDuckGo) requires CDP on all engines   | 2026-08-21 | 测试确认：curl/web_fetch 全部被 CAPTCHA 拦截（Google reCAPTCHA, Baidu 滑块验证, DuckDuckGo anomaly challenge）。Bing `site:` via curl 语法不生效。只有 CDP（有 session 的浏览器）才能获取 `site:` 搜索结果。`googleSiteFallback` → rename to `googleSiteFallback` (tracked in #82) |
+| 31  | WordPress REST API search is the best approach for WordPress sites          | 2026-08-21 | 测试发现：量子位 `?s=` 被 nginx 403 拦截，但 `/wp-json/wp/v2/posts?search=` 完全开放（纯 curl，JSON 响应，不需浏览器）。TechCrunch 同理。优先级：WordPress REST API > direct site search URL > Google `site:` via CDP。Implementation in #82                                       |
+| 32  | Bloomberg has search but paywall; alternatives tracked in #85               | 2026-08-21 | Bloomberg `/search?query={kw}` 搜索结果（标题+摘要）可获取，全文需订阅。Bloomberg Japan 用 Google Custom Search。寻找转载 Bloomberg 内容的免费平替网站 (#85)                                                                                                                       |
 
 ## Open Questions
 

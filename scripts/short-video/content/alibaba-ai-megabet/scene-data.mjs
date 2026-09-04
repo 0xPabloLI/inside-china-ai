@@ -205,8 +205,7 @@ export const scenes = [
     name: "cta",
     visualType: "cta",
     layout: "cta",
-    voiceover:
-      "Alibaba just bet 10 billion dollars on AI. Follow for what happens next.",
+    voiceover: "Alibaba just bet 10 billion dollars on AI. Follow for what happens next.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

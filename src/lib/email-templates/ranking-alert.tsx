@@ -56,8 +56,8 @@ const Email = ({ alerts = [], capturedOn }: Props) => (
         </Section>
         <Hr style={hr} />
         <Text style={footnote}>
-          Ranking data from Semrush. Open the Keyword Rankings dashboard in your admin area for
-          the full history.
+          Ranking data from Semrush. Open the Keyword Rankings dashboard in your admin area for the
+          full history.
         </Text>
       </Container>
     </Body>

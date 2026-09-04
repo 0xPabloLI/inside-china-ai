@@ -185,7 +185,11 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
     const result = generateSubtitles(oldFormatTiming, mockSceneDurations, "/output/sub.ass");
     expect(result.assPath).toBe("/output/sub.ass");
     expect(result.cues.length).toBeGreaterThan(0);
-    expect(fsMock.writeFileSync).toHaveBeenCalledWith("/output/sub.ass", expect.any(String), "utf8");
+    expect(fsMock.writeFileSync).toHaveBeenCalledWith(
+      "/output/sub.ass",
+      expect.any(String),
+      "utf8",
+    );
   });
 
   it("generateSubtitles works with new object format", () => {
@@ -193,6 +197,10 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
     const result = generateSubtitles(newFormatTiming, mockSceneDurations, "/output/sub.ass");
     expect(result.assPath).toBe("/output/sub.ass");
     expect(result.cues.length).toBeGreaterThan(0);
-    expect(fsMock.writeFileSync).toHaveBeenCalledWith("/output/sub.ass", expect.any(String), "utf8");
+    expect(fsMock.writeFileSync).toHaveBeenCalledWith(
+      "/output/sub.ass",
+      expect.any(String),
+      "utf8",
+    );
   });
 });

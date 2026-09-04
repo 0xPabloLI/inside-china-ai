@@ -18,9 +18,8 @@ export const Route = createFileRoute("/api/public/hooks/refresh-keyword-snapshot
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { refreshSnapshots, sendRankingAlert, listAlertRecipients } = await import(
-          "@/lib/keyword-tracking.server"
-        );
+        const { refreshSnapshots, sendRankingAlert, listAlertRecipients } =
+          await import("@/lib/keyword-tracking.server");
 
         try {
           const { updated, alerts } = await refreshSnapshots();

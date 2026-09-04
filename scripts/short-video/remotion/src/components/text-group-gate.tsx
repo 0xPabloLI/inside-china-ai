@@ -123,10 +123,12 @@ export const TextGroupGate: React.FC<TextGroupGateProps> = ({
         if (total <= budget.maxHeight + EPS) break;
         const rep = reportsRef.current.get(slotId);
         if (!rep) continue;
-        const ladder = fitCandidates(getSlot(slotId) as unknown as {
-          preferredSize: number;
-          minSize: number;
-        });
+        const ladder = fitCandidates(
+          getSlot(slotId) as unknown as {
+            preferredSize: number;
+            minSize: number;
+          },
+        );
         for (const size of ladder) {
           if (size >= rep.size) continue; // only sizes below the chosen one
           await rep.apply(size);

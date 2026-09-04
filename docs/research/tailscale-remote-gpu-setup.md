@@ -8,20 +8,20 @@
 
 ## 当前配置状态（2026-08-15 检查）
 
-| 配置项 | 状态 | 说明 |
-|--------|------|------|
-| Tailscale（Windows 端） | ✅ 在线 | IP `100.114.x.x`，设备名已脱敏 |
-| Tailscale（Mac 端） | ✅ 在线 | IP `100.71.x.x`，设备名已脱敏 |
-| P2P 直连 | ✅ | ICMP `<1ms`，NAT Cone（`MappingVariesByDestIP: false`），UDP 可用 |
-| OpenSSH 服务 | ⚠️ 需确认 | 已安装，StartupType=Automatic，但重启后可能未启动。需验证防火墙规则（见 Step 2.2） |
-| SSH 公钥认证 | ✅ 已配置 | 公钥在 `C:\ProgramData\ssh\administrators_authorized_keys`，ACL 正确（SYSTEM + Administrators） |
-| 防休眠 | ✅ | AC 电源：睡眠=永不、休眠=永不、显示器=永不 |
-| GPU 驱动 | ✅ | GTX 1080 8GB，Driver 551.61，CUDA 12.4 |
-| WSL2 | ✅ 已装 | Ubuntu 22.04.1 LTS，WSL2，内核 6.18.33.2 |
-| WSL2 GPU | ✅ 可见 | WSL2 内 `nvidia-smi` 正常 |
-| CUDA Toolkit（WSL2） | ❌ 未装 | `nvcc` 未找到（Step 3.3） |
-| Python/Conda/PyTorch（WSL2） | ❌ 未装 | 只有系统 Python 3.10.6（Step 3.4） |
-| Docker | ❌ 未装 | Windows 和 WSL2 内均无（Step 4） |
+| 配置项                       | 状态      | 说明                                                                                            |
+| ---------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
+| Tailscale（Windows 端）      | ✅ 在线   | IP `100.114.x.x`，设备名已脱敏                                                                  |
+| Tailscale（Mac 端）          | ✅ 在线   | IP `100.71.x.x`，设备名已脱敏                                                                   |
+| P2P 直连                     | ✅        | ICMP `<1ms`，NAT Cone（`MappingVariesByDestIP: false`），UDP 可用                               |
+| OpenSSH 服务                 | ⚠️ 需确认 | 已安装，StartupType=Automatic，但重启后可能未启动。需验证防火墙规则（见 Step 2.2）              |
+| SSH 公钥认证                 | ✅ 已配置 | 公钥在 `C:\ProgramData\ssh\administrators_authorized_keys`，ACL 正确（SYSTEM + Administrators） |
+| 防休眠                       | ✅        | AC 电源：睡眠=永不、休眠=永不、显示器=永不                                                      |
+| GPU 驱动                     | ✅        | GTX 1080 8GB，Driver 551.61，CUDA 12.4                                                          |
+| WSL2                         | ✅ 已装   | Ubuntu 22.04.1 LTS，WSL2，内核 6.18.33.2                                                        |
+| WSL2 GPU                     | ✅ 可见   | WSL2 内 `nvidia-smi` 正常                                                                       |
+| CUDA Toolkit（WSL2）         | ❌ 未装   | `nvcc` 未找到（Step 3.3）                                                                       |
+| Python/Conda/PyTorch（WSL2） | ❌ 未装   | 只有系统 Python 3.10.6（Step 3.4）                                                              |
+| Docker                       | ❌ 未装   | Windows 和 WSL2 内均无（Step 4）                                                                |
 
 ### Mac 端如何 SSH 连接
 
@@ -70,15 +70,15 @@ Windows GPU (hostname redacted)
 
 ### GTX 1080 8GB 显存兼容性
 
-| 模型 | VRAM 需求 | 1080 8GB | 质量 | 说明 |
-|------|----------|----------|------|------|
-| LatentSync 1.5 | 8GB | ✅ 刚好 | ⭐⭐ | 256px，Mac 已测，效果不达标 |
-| HeyGem Lite | 8GB | ✅ 刚好 | ⭐⭐⭐ | Docker 单容器，ONNX 唇同步 |
-| SadTalker | ~6GB | ✅ | ⭐⭐ | Mac 已测，效果差 |
-| Wav2Lip | ~4GB | ✅ | ⭐⭐ | 2020 老模型，贴片感 |
-| Sonic | 12GB | ❌ 不够 | ⭐⭐⭐⭐⭐ | ComfyUI 版可能有显存优化，不保证 |
-| LatentSync 1.6 | 18GB | ❌ | ⭐⭐⭐⭐⭐ | Mac 32GB 都 OOM |
-| Hallo2 | 20GB+ | ❌ | ⭐⭐⭐⭐ | |
+| 模型           | VRAM 需求 | 1080 8GB | 质量       | 说明                             |
+| -------------- | --------- | -------- | ---------- | -------------------------------- |
+| LatentSync 1.5 | 8GB       | ✅ 刚好  | ⭐⭐       | 256px，Mac 已测，效果不达标      |
+| HeyGem Lite    | 8GB       | ✅ 刚好  | ⭐⭐⭐     | Docker 单容器，ONNX 唇同步       |
+| SadTalker      | ~6GB      | ✅       | ⭐⭐       | Mac 已测，效果差                 |
+| Wav2Lip        | ~4GB      | ✅       | ⭐⭐       | 2020 老模型，贴片感              |
+| Sonic          | 12GB      | ❌ 不够  | ⭐⭐⭐⭐⭐ | ComfyUI 版可能有显存优化，不保证 |
+| LatentSync 1.6 | 18GB      | ❌       | ⭐⭐⭐⭐⭐ | Mac 32GB 都 OOM                  |
+| Hallo2         | 20GB+     | ❌       | ⭐⭐⭐⭐   |                                  |
 
 > **结论**：GTX 1080 8GB（Pascal 架构，2016 年）显存够用但架构老——不支持 FlashAttention 2、bf16 等新特性，部分新模型（如 VoxCPM2 需 CUDA 12.0+ 但依赖 Ampere+ 架构的 bf16）可能不兼容。能跑 LatentSync 1.5 和 HeyGem Lite 验证管线，但高质量模型需要 12GB+ 显存 + 更新架构。建议升级到 RTX 4060 Ti 16GB / 4070 12GB / 4090 24GB，或用云端 GPU（AutoDL / RunPod RTX 4090 ~$0.3-0.5/h）。
 
@@ -99,6 +99,7 @@ sudo tailscale up
 - NAT 类型：Cone（`MappingVariesByDestIP: false`），UDP 可用，打洞基础条件满足
 
 验证：
+
 ```bash
 tailscale netcheck
 # UDP: true, MappingVariesByDestIP: false → NAT 友好
@@ -122,8 +123,8 @@ Mac 上实际运行的是 **Clash client**（不是 Clash Verge）。Clash clien
        - "dns.msftnsci.com"
        - "www.msftnsci.com"
        - "www.msftconnecttest.com"
-       - "+.tailscale.com"    # ← 新增
-       - "+.tailscale.io"     # ← 新增
+       - "+.tailscale.com" # ← 新增
+       - "+.tailscale.io" # ← 新增
    ```
 
    原因：让 tailscale.com 域名返回真实 IP，tailscaled 走路由表 → TUN → Clash → 代理 → 协调服务器。
@@ -136,7 +137,7 @@ Mac 上实际运行的是 **Clash client**（不是 Clash Verge）。Clash clien
      stack: "mixed"
      auto-route: true
      route-exclude-address:
-       - 100.64.0.0/10    # ← 新增，排除 Tailscale CGNAT 网段
+       - 100.64.0.0/10 # ← 新增，排除 Tailscale CGNAT 网段
    ```
 
    原因：TUN 的 auto-route 用 `0.0.0.0/1 + 128.0.0.0/1` 覆盖整个 IPv4 空间。加排除后，发往 100.x.x.x 的流量绕过 TUN 走 Tailscale 的 utun 接口。
@@ -160,8 +161,8 @@ profile:
 dns:
   use-system-hosts: false
   fake-ip-filter:
-    - '+.tailscale.com'
-    - '+.tailscale.io'
+    - "+.tailscale.com"
+    - "+.tailscale.io"
 
 tun:
   route-exclude-address:
@@ -199,6 +200,7 @@ Windows 的 Administrator 账户无密码，OpenSSH 默认拒绝空密码远程�
 > ⚠️ **Administrator 账户的公钥路径与普通用户不同**：Windows OpenSSH 的 `sshd_config` 末尾有一行 `AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys`，这是 Administrator 组用户的专用公钥路径。**放在 `C:\Users\Administrator\.ssh\authorized_keys` 不会生效**。
 
 **前提**：Windows OpenSSH 服务已安装并配置开机自启。如未安装，在管理员 PowerShell 中执行：
+
 ```powershell
 # 安装 OpenSSH Server
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
@@ -235,6 +237,7 @@ icacls "C:\ProgramData\ssh\administrators_authorized_keys" /inheritance:r /grant
 > GitHub 的 `.keys` 页面（`github.com/<用户名>.keys`）是官方 API，公开返回用户上传的所有 SSH 公钥。Mac 的公钥指纹：`SHA256:Xk8jizoK9/z/LGTFeEh5j246buoypgppFF+i9o7Muno`。
 >
 > **安全提示**：从 GitHub 拉取时会获取所有 key。如只需 Mac 的，手动只复制第一个 key 到 `administrators_authorized_keys`。用 `from=` 限制来源 IP 可进一步收紧：
+>
 > ```
 > from="100.71.x.x" ssh-rsa AAAA...（你的 Mac key）
 > ```
@@ -426,6 +429,7 @@ sudo tailscale up
 ```
 
 > **WSL2 注意**：WSL2 默认无 systemd，`tailscaled` 需手动启动。可写一个启动脚本：
+>
 > ```bash
 > echo '#!/bin/bash
 > sudo tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock &>/dev/null &
@@ -434,6 +438,7 @@ sudo tailscale up
 > ' | sudo tee /usr/local/bin/ts-start.sh
 > sudo chmod +x /usr/local/bin/ts-start.sh
 > ```
+>
 > 每次打开 WSL2 终端时运行 `ts-start.sh` 即可。
 
 ---
@@ -443,11 +448,13 @@ sudo tailscale up
 ### 4.1 安装 Docker
 
 **方式 A：Docker Desktop（简单）**
+
 1. 安装 Docker Desktop: https://www.docker.com/products/docker-desktop/
 2. 设置 → Resources → WSL Integration → 勾选 Ubuntu-22.04
 3. 设置 → Resources → GPU → 勾选 Enable GPU support
 
 **方式 B：WSL2 内直接装 Docker（更灵活）**
+
 ```bash
 sudo apt update
 sudo apt install docker.io docker-compose
@@ -467,6 +474,7 @@ sudo systemctl restart docker
 ```
 
 验证：
+
 ```bash
 docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu22.04 nvidia-smi
 ```
@@ -474,6 +482,7 @@ docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu22.04 nvidia-smi
 ### 4.3 部署 HeyGem
 
 **完整版（推荐 RTX 4070 12GB+）**：
+
 ```bash
 git clone https://github.com/GuijiAI/HeyGem.ai.git
 cd HeyGem.ai/deploy
@@ -487,6 +496,7 @@ docker-compose up -d
 ```
 
 **Lite 版（适合 GTX 1080 8GB）**：
+
 ```bash
 git clone https://github.com/GuijiAI/HeyGem.ai.git
 cd HeyGem.ai/deploy
@@ -497,6 +507,7 @@ docker-compose -f docker-compose-lite.yml up -d
 ```
 
 验证：
+
 ```bash
 docker ps
 curl http://localhost:8383/
@@ -565,6 +576,7 @@ sudo route add -host <对端公网IP> -interface en0
 ### Q: Docker 镜像下载很慢？
 
 使用国内镜像加速：
+
 ```json
 // /etc/docker/daemon.json
 {
@@ -598,13 +610,13 @@ Windows OpenSSH 默认 `PermitEmptyPasswords no`。解决方案：配置 SSH 公
 
 ## 安全注意事项
 
-| 事项 | 说明 |
-|------|------|
+| 事项                                          | 说明                                                                                                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `administrators_authorized_keys` 只放一把公钥 | 从 GitHub 拉取时会获取所有 key。如只需 Mac 的，手动只复制第一个。路径是 `C:\ProgramData\ssh\administrators_authorized_keys`（Administrator 账户专用） |
-| `from=` 限制来源 IP | 在 key 前加 `from="100.71.x.x"` 限制只有 Mac 的 Tailscale IP 能登录 |
-| Windows 防火墙 | OpenSSH 端口 22 已开放，确认防火墙规则仅允许 Tailscale 网段（100.64.0.0/10）访问 |
-| 空密码风险 | Administrator 无密码，本地登录无阻拦。已配置 SSH 公钥认证（见 Step 2.2），远程登录不依赖密码。建议设密码或至少锁屏 |
-| DERP 中继安全性 | DERP 服务器无法解密数据（WireGuard 端到端加密），但能看到流量大小和时间 |
+| `from=` 限制来源 IP                           | 在 key 前加 `from="100.71.x.x"` 限制只有 Mac 的 Tailscale IP 能登录                                                                                   |
+| Windows 防火墙                                | OpenSSH 端口 22 已开放，确认防火墙规则仅允许 Tailscale 网段（100.64.0.0/10）访问                                                                      |
+| 空密码风险                                    | Administrator 无密码，本地登录无阻拦。已配置 SSH 公钥认证（见 Step 2.2），远程登录不依赖密码。建议设密码或至少锁屏                                    |
+| DERP 中继安全性                               | DERP 服务器无法解密数据（WireGuard 端到端加密），但能看到流量大小和时间                                                                               |
 
 ---
 

@@ -22,46 +22,46 @@
 
 ## Model Releases
 
-| Date | Model | Type | Key Metrics | Source |
-|------|-------|------|-------------|--------|
-| 2023-2024 | Kimi K1.x | LLM | Long-context pioneer (200K-2M tokens) | [Business Insider](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7) |
-| 2025 | Kimi K2.x | LLM | Improved reasoning, RL sandbox (AgentENV) | Various |
-| Jul 16, 2026 | **Kimi K3** | LLM (2.8T MoE, ~50B active) | 896 experts (16 active + 2 shared), 1M context, multimodal via MoonViT-V2. Open weights Jul 27. | [Hugging Face](https://huggingface.co/blog/ResterChed/kimi-k3-model-overview) |
+| Date         | Model       | Type                        | Key Metrics                                                                                     | Source                                                                                                        |
+| ------------ | ----------- | --------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 2023-2024    | Kimi K1.x   | LLM                         | Long-context pioneer (200K-2M tokens)                                                           | [Business Insider](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7) |
+| 2025         | Kimi K2.x   | LLM                         | Improved reasoning, RL sandbox (AgentENV)                                                       | Various                                                                                                       |
+| Jul 16, 2026 | **Kimi K3** | LLM (2.8T MoE, ~50B active) | 896 experts (16 active + 2 shared), 1M context, multimodal via MoonViT-V2. Open weights Jul 27. | [Hugging Face](https://huggingface.co/blog/ResterChed/kimi-k3-model-overview)                                 |
 
 ### K3 Architecture Innovations
 
-| Technology | Description |
-|------------|-------------|
-| Kimi Delta Attention (KDA) | Hybrid linear attention; ~2.5x decoding speedup at 1M context |
-| Attention Residuals (AttnRes) | Layers can retrieve representations from any earlier layer |
-| Quantile Balancing | Expert assignment from router-score quantiles |
-| Per-Head Muon | Independent optimization per attention head |
+| Technology                    | Description                                                   |
+| ----------------------------- | ------------------------------------------------------------- |
+| Kimi Delta Attention (KDA)    | Hybrid linear attention; ~2.5x decoding speedup at 1M context |
+| Attention Residuals (AttnRes) | Layers can retrieve representations from any earlier layer    |
+| Quantile Balancing            | Expert assignment from router-score quantiles                 |
+| Per-Head Muon                 | Independent optimization per attention head                   |
 
 ### K3 Benchmark Performance
 
-| Metric | K3 | K2.6 | Claude | Notes |
-|--------|----|------|--------|-------|
-| Accuracy (AA-Omniscience) | 46% | 33% | 72% | Improved but far behind Claude |
-| Hallucination Rate | 51% | 39% | 14% | **Worse** than K2.6 |
-| Arena Frontend Code Rank | #1 | #18 | #2 | Jumped 17 places |
-| Coding (SWE-bench) | 51.5% | 40% | 69% | Trails Claude by ~18 pts |
-| Security Testing | 30% | 35% | 85% | "Significantly below" US rivals (SCMP) |
+| Metric                    | K3    | K2.6 | Claude | Notes                                  |
+| ------------------------- | ----- | ---- | ------ | -------------------------------------- |
+| Accuracy (AA-Omniscience) | 46%   | 33%  | 72%    | Improved but far behind Claude         |
+| Hallucination Rate        | 51%   | 39%  | 14%    | **Worse** than K2.6                    |
+| Arena Frontend Code Rank  | #1    | #18  | #2     | Jumped 17 places                       |
+| Coding (SWE-bench)        | 51.5% | 40%  | 69%    | Trails Claude by ~18 pts               |
+| Security Testing          | 30%   | 35%  | 85%    | "Significantly below" US rivals (SCMP) |
 
 Source: [Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5), [SCMP](https://www.scmp.com/tech/tech-war/article/3361711/chinas-kimi-k3-significantly-below-us-rivals-hacking-power-uk-us-study-shows)
 
 ## Funding History
 
-| Date | Round | Amount | Valuation | Investors | Source |
-|------|-------|--------|-----------|-----------|--------|
-| 2023-2024 | Early rounds | — | — | Alibaba, Sequoia China, ZhenFund,红杉中国 | Industry reports |
-| Jul 29, 2026 | **$3.5B raise** | $3.5B | $35B post-money | Bloomberg reported; Alibaba reportedly backing with ~20K Nvidia chips | [Bloomberg](https://www.bloomberg.com/technology-ai) |
-| Late Jul 2026 | IPO target | — | $50B target | KrASIA reported Hong Kong IPO targeting $50B | [KrASIA](https://kr-asia.com) |
-| Aug 3, 2026 | **IPO denied** | — | — | Moonshot denied plans to file for IPO in August | [The Standard (HK)](https://www.thestandard.com.hk) |
+| Date          | Round           | Amount | Valuation       | Investors                                                             | Source                                               |
+| ------------- | --------------- | ------ | --------------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| 2023-2024     | Early rounds    | —      | —               | Alibaba, Sequoia China, ZhenFund,红杉中国                             | Industry reports                                     |
+| Jul 29, 2026  | **$3.5B raise** | $3.5B  | $35B post-money | Bloomberg reported; Alibaba reportedly backing with ~20K Nvidia chips | [Bloomberg](https://www.bloomberg.com/technology-ai) |
+| Late Jul 2026 | IPO target      | —      | $50B target     | KrASIA reported Hong Kong IPO targeting $50B                          | [KrASIA](https://kr-asia.com)                        |
+| Aug 3, 2026   | **IPO denied**  | —      | —               | Moonshot denied plans to file for IPO in August                       | [The Standard (HK)](https://www.thestandard.com.hk)  |
 
 ## Key People
 
-| Name | Role | Notes | Source |
-|------|------|-------|--------|
+| Name                     | Role          | Notes                                            | Source                                                                                                        |
+| ------------------------ | ------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | **Yang Zhilin (杨植麟)** | Founder & CEO | Leads RL and agentic capabilities. PhD from CMU. | [Business Insider](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7) |
 
 ## Compute Infrastructure

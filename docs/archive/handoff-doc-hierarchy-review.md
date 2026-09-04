@@ -7,6 +7,7 @@
 ## Purpose
 
 User wants to thoroughly review the project's documentation hierarchy:
+
 1. Whether the current layer/tier system is being followed every time docs are written
 2. Whether the current layer definitions need updating
 3. Use `writing-for-agents` skill to check if it covers this requirement
@@ -17,16 +18,17 @@ User wants to thoroughly review the project's documentation hierarchy:
 
 Defined in `docs/DOCS-INDEX.md` Canonical Structure:
 
-| Layer | What goes here | Who reads it |
-|-------|---------------|-------------|
-| **L0: AGENTS.md** (必读) | Pointers + top-level rules only. No technical details. | Agent every session start |
+| Layer                    | What goes here                                                                                                    | Who reads it                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **L0: AGENTS.md** (必读) | Pointers + top-level rules only. No technical details.                                                            | Agent every session start                 |
 | **L1: Active reference** | `content-pipeline.md`, `video-workflow.md`, `brand-system.md`, `manual-ops.md`, `tanstack-lovable-conventions.md` | Loaded on-demand when doing that workflow |
-| **L2: Deep technical** | `docs/tiktok/`, `docs/research/`, `docs/conventions/`, `docs/adr/` | Only when deep-diving into specific topic |
-| **L3: Archive** | `docs/archive/` — completed work, no longer maintained | Historical reference only |
+| **L2: Deep technical**   | `docs/tiktok/`, `docs/research/`, `docs/conventions/`, `docs/adr/`                                                | Only when deep-diving into specific topic |
+| **L3: Archive**          | `docs/archive/` — completed work, no longer maintained                                                            | Historical reference only                 |
 
 ## Concrete Example That Triggered This Review
 
 During F5 A/B testing, user asked where to record "potential unnaturalness points" (per-scene TTS generation → cross-scene coherence). Options:
+
 - `docs/video-workflow.md` (L1) — too high-level, this is an observation/tracking item
 - `docs/research/f5-tts-known-limitations.md` (L2) — appropriate level
 
@@ -59,11 +61,11 @@ User confirmed: L1 docs should only have "what params to use, how to configure".
 
 ## Context: A/B Test Results (For Reference)
 
-| Version | highpass | denoise | loudnorm | mean_vol | max_vol | LUFS |
-|---------|----------|---------|----------|----------|---------|------|
-| f5-clean | ❌ | ❌ | ✅ | -16.9 dB | -1.3 dB | -16.76 |
-| f5-ffmpeg | ✅ | ❌ | ✅ | -16.6 dB | -1.4 dB | -16.65 |
-| f5-raw | ❌ | ❌ | ❌ | -19.8 dB | -0.4 dB | -19.63 |
+| Version   | highpass | denoise | loudnorm | mean_vol | max_vol | LUFS   |
+| --------- | -------- | ------- | -------- | -------- | ------- | ------ |
+| f5-clean  | ❌       | ❌      | ✅       | -16.9 dB | -1.3 dB | -16.76 |
+| f5-ffmpeg | ✅       | ❌      | ✅       | -16.6 dB | -1.4 dB | -16.65 |
+| f5-raw    | ❌       | ❌      | ❌       | -19.8 dB | -0.4 dB | -19.63 |
 
 Conclusion: highpass+denoise is no-op for F5. loudnorm solves inter-scene loudness inconsistency. **Best config = f5-clean (current default).**
 

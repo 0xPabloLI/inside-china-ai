@@ -30,12 +30,12 @@ scripts/short-video/lib/tiktok-csi.mjs     # CDP 交互库（核心）
 
 ### 3.2 不修改的现有文件
 
-| 文件 | 理由 |
-|------|------|
-| `caption-utils.mjs` | metadata 注入路径已完备，无需修改 |
-| `generate-caption.mjs` | 已有 metadata 读取逻辑 |
-| `scene-rules.mjs` | 不消费 metadata |
-| `analytics-utils.mjs` | CSV 解析逻辑不变，CSI 数据是补充 |
+| 文件                   | 理由                              |
+| ---------------------- | --------------------------------- |
+| `caption-utils.mjs`    | metadata 注入路径已完备，无需修改 |
+| `generate-caption.mjs` | 已有 metadata 读取逻辑            |
+| `scene-rules.mjs`      | 不消费 metadata                   |
+| `analytics-utils.mjs`  | CSV 解析逻辑不变，CSI 数据是补充  |
 
 ### 3.3 数据流
 
@@ -66,40 +66,47 @@ async function checkCsiAvailability(): Promise<{
   aiOutlineAvailable: boolean;
   loginRequired: boolean;
   region?: string;
-}>
+}>;
 
 // Phase 1: AI Outline 生成
-async function generateAiOutline(prompt: string, opts?: {
-  refresh?: number;  // 获取多少个版本，默认 1
-  topic?: string;    // CSI 话题名（如已知）
-}): Promise<{
+async function generateAiOutline(
+  prompt: string,
+  opts?: {
+    refresh?: number; // 获取多少个版本，默认 1
+    topic?: string; // CSI 话题名（如已知）
+  },
+): Promise<{
   titles: string[];
   hashtags: string[];
   hooks: string[];
-  scriptOutline?: string;  // 六段式 outline（参考用）
-  source: "ai-outline" | "creator-tips";  // 降级标记
-}>
+  scriptOutline?: string; // 六段式 outline（参考用）
+  source: "ai-outline" | "creator-tips"; // 降级标记
+}>;
 
 // Phase 2: Content Gap 话题
 async function fetchContentGapTopics(opts?: {
-  category?: string;  // 按类别过滤
-  limit?: number;     // 默认 20
-}): Promise<Array<{
-  topic: string;
-  searchVolume?: string;  // "High", "Medium", "Low"
-  contentGap: boolean;
-  trendDirection?: "up" | "stable" | "down";
-}>>
+  category?: string; // 按类别过滤
+  limit?: number; // 默认 20
+}): Promise<
+  Array<{
+    topic: string;
+    searchVolume?: string; // "High", "Medium", "Low"
+    contentGap: boolean;
+    trendDirection?: "up" | "stable" | "down";
+  }>
+>;
 
 // Phase 3: Search Analytics (per-video)
-async function fetchSearchAnalytics(): Promise<Array<{
-  videoTitle: string;
-  searchViews: number | null;
-  searchImpressions: number | null;
-  searchViewPercentage: number | null;
-  averageCTR: number | null;
-  searchRanking: string | null;
-}>>
+async function fetchSearchAnalytics(): Promise<
+  Array<{
+    videoTitle: string;
+    searchViews: number | null;
+    searchImpressions: number | null;
+    searchViewPercentage: number | null;
+    averageCTR: number | null;
+    searchRanking: string | null;
+  }>
+>;
 ```
 
 ### 4.2 CLI 入口
@@ -122,40 +129,40 @@ node scripts/short-video/lib/tiktok-csi.mjs --search-analytics
 
 ### 5.1 Modified Files Impact
 
-| 文件 | 改动 | 消费者影响 |
-|------|------|-----------|
-| `tiktok-csi.mjs`（新增） | 新建 CDP 库 | 无现有消费者 |
-| `content/*/scene-data.mjs` | Agent 手动新增 metadata export | `generate-caption.mjs` 已有读取逻辑 |
-| `docs/content-pipeline.md` | 新增 Stage 1b 步骤 | 不改现有 Stage 步骤 |
-| `docs/analytics-workflow.md` | 新增 CSI Search Analytics 步骤 | 不改现有步骤 |
+| 文件                         | 改动                           | 消费者影响                          |
+| ---------------------------- | ------------------------------ | ----------------------------------- |
+| `tiktok-csi.mjs`（新增）     | 新建 CDP 库                    | 无现有消费者                        |
+| `content/*/scene-data.mjs`   | Agent 手动新增 metadata export | `generate-caption.mjs` 已有读取逻辑 |
+| `docs/content-pipeline.md`   | 新增 Stage 1b 步骤             | 不改现有 Stage 步骤                 |
+| `docs/analytics-workflow.md` | 新增 CSI Search Analytics 步骤 | 不改现有步骤                        |
 
 ### 5.2 Behavioral Scenarios（测试用例来源）
 
-| # | 场景 | 前置条件 | 预期行为 | 测试 |
-|---|------|---------|---------|------|
-| 1 | CDP 打开 inspiration 页面正常 | 已登录 TikTok | 返回 available=true | `checkCsiAvailability()` mock test |
-| 2 | 用户未登录 | 无 TikTok session | available=false, loginRequired=true | mock login redirect |
-| 3 | CSI 可见但 AI Outline 不可用 | 地区不支持 AI Outline | available=true, aiOutlineAvailable=false | mock partial page |
-| 4 | AI Outline 生成正常输出 | AI Outline 已启用 | 返回 titles/hashtags/hooks | mock AI response |
-| 5 | AI Outline 不可用→降级 creator tips | 仅 CSI creator tips | source="creator-tips", 返回 keywords | mock fallback |
-| 6 | AI Outline hashtags 含大写/特殊字符 | 任意大小写 | `normalizeHashtag()` 处理 | 已有测试覆盖 |
-| 7 | hashtags > 5 个 | AI 返回 6+ | `deriveHashtags()` 截断 | 已有逻辑 |
-| 8 | description > 2200 字符 | AI 返回长文本 | `deriveDescription()` 截断 | 已有逻辑 |
-| 9 | AI Outline 输出为空 | 页面加载慢 | 脚本报错 + fallback 到自动推导 | 错误处理测试 |
-| 10 | DOM 结构变化 | TikTok 更新 | 语义选择器 + fallback | 多选择器策略 |
-| 11 | 多次 refresh 获取多版本 | --refresh 3 | 返回 3 组候选 | 参数测试 |
-| 12 | Content Gap 话题抓取 | Phase 2 | 输出 JSON 数组 | schema 验证 |
-| 13 | Search Analytics 抓取 | Phase 3 | 追加到 jsonl | JSONL 格式 |
-| 14 | scene-data 已有 metadata | Agent 已手动写 | 提示确认覆盖 | 交互式确认 |
+| #   | 场景                                | 前置条件              | 预期行为                                 | 测试                               |
+| --- | ----------------------------------- | --------------------- | ---------------------------------------- | ---------------------------------- |
+| 1   | CDP 打开 inspiration 页面正常       | 已登录 TikTok         | 返回 available=true                      | `checkCsiAvailability()` mock test |
+| 2   | 用户未登录                          | 无 TikTok session     | available=false, loginRequired=true      | mock login redirect                |
+| 3   | CSI 可见但 AI Outline 不可用        | 地区不支持 AI Outline | available=true, aiOutlineAvailable=false | mock partial page                  |
+| 4   | AI Outline 生成正常输出             | AI Outline 已启用     | 返回 titles/hashtags/hooks               | mock AI response                   |
+| 5   | AI Outline 不可用→降级 creator tips | 仅 CSI creator tips   | source="creator-tips", 返回 keywords     | mock fallback                      |
+| 6   | AI Outline hashtags 含大写/特殊字符 | 任意大小写            | `normalizeHashtag()` 处理                | 已有测试覆盖                       |
+| 7   | hashtags > 5 个                     | AI 返回 6+            | `deriveHashtags()` 截断                  | 已有逻辑                           |
+| 8   | description > 2200 字符             | AI 返回长文本         | `deriveDescription()` 截断               | 已有逻辑                           |
+| 9   | AI Outline 输出为空                 | 页面加载慢            | 脚本报错 + fallback 到自动推导           | 错误处理测试                       |
+| 10  | DOM 结构变化                        | TikTok 更新           | 语义选择器 + fallback                    | 多选择器策略                       |
+| 11  | 多次 refresh 获取多版本             | --refresh 3           | 返回 3 组候选                            | 参数测试                           |
+| 12  | Content Gap 话题抓取                | Phase 2               | 输出 JSON 数组                           | schema 验证                        |
+| 13  | Search Analytics 抓取               | Phase 3               | 追加到 jsonl                             | JSONL 格式                         |
+| 14  | scene-data 已有 metadata            | Agent 已手动写        | 提示确认覆盖                             | 交互式确认                         |
 
 ## 6. 实施顺序
 
-| Phase | 内容 | 依赖 | 测试 |
-|-------|------|------|------|
-| 0 | CDP 前置验证 | 无 | 手动验证 + 记录 DOM 结构 |
-| 1 | `tiktok-csi.mjs` 核心库 + `--ai-outline` + `--check` | Phase 0 | mock 单测 + CDP 集成测试 |
-| 2 | `--content-gap` | Phase 1（复用 CDP 基础设施） | mock 单测 |
-| 3 | `--search-analytics` | Phase 1 | mock 单测 |
+| Phase | 内容                                                 | 依赖                         | 测试                     |
+| ----- | ---------------------------------------------------- | ---------------------------- | ------------------------ |
+| 0     | CDP 前置验证                                         | 无                           | 手动验证 + 记录 DOM 结构 |
+| 1     | `tiktok-csi.mjs` 核心库 + `--ai-outline` + `--check` | Phase 0                      | mock 单测 + CDP 集成测试 |
+| 2     | `--content-gap`                                      | Phase 1（复用 CDP 基础设施） | mock 单测                |
+| 3     | `--search-analytics`                                 | Phase 1                      | mock 单测                |
 
 ## 7. 降级策略
 

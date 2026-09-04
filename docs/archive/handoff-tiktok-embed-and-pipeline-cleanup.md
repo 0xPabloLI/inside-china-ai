@@ -29,11 +29,13 @@
 Current pipeline Stage 5a uploads the TikTok video MP4 as a Supabase Storage attachment to the article. The article page (`src/routes/posts.$slug.tsx`) renders it as a `<video>` tag in a "Watch" section.
 
 **Issues:**
+
 1. TikTok videos are 9:16 vertical — embedding as `<video>` in a horizontal article layout looks bad
 2. Many videos are uploaded to TikTok manually (not via pipeline) — the MP4 attachment step is easily missed
 3. The MP4 is a duplicate of what's already on TikTok — better to embed the TikTok player directly
 
 **Desired outcome:**
+
 - Article page shows a TikTok embed (not a raw `<video>` tag)
 - No more MP4 upload to Supabase Storage
 - TikTok video URL stored on the post record (new field or metadata)
@@ -48,8 +50,12 @@ Current pipeline Stage 5a uploads the TikTok video MP4 as a Supabase Storage att
 TikTok's official embed uses a blockquote + script:
 
 ```html
-<blockquote class="tiktok-embed" cite="https://www.tiktok.com/@chinaainews/video/VIDEO_ID"
-  data-video-id="VIDEO_ID" style="max-width: 880px; min-width: 288px;">
+<blockquote
+  class="tiktok-embed"
+  cite="https://www.tiktok.com/@chinaainews/video/VIDEO_ID"
+  data-video-id="VIDEO_ID"
+  style="max-width: 880px; min-width: 288px;"
+>
   <section></section>
 </blockquote>
 <script async src="https://www.tiktok.com/embed.js"></script>
@@ -68,6 +74,7 @@ File: `src/routes/posts.$slug.tsx`
 ### Database
 
 Supabase `posts` table currently has no `tiktok_url` field. Options:
+
 1. **Add a `tiktok_url` column** (migration) — cleanest, queryable
 2. **Use an existing JSON metadata field** — check if posts table has one
 3. **Use post_attachments with a special type** — overcomplicated
@@ -78,22 +85,25 @@ Recommend option 1: `ALTER TABLE posts ADD COLUMN tiktok_url TEXT;`
 
 **`docs/content-pipeline.md`:**
 
-| Current | Proposed |
-|---------|----------|
-| Stage 5a: Upload MP4 attachment | ~~Deleted~~ |
-| Stage 5d: Publish to TikTok | Stage 5d: Publish to TikTok → save video URL to post |
-| (no step for manual TikTok) | New: If manual TikTok upload, user provides URL → Agent saves to post |
+| Current                         | Proposed                                                              |
+| ------------------------------- | --------------------------------------------------------------------- |
+| Stage 5a: Upload MP4 attachment | ~~Deleted~~                                                           |
+| Stage 5d: Publish to TikTok     | Stage 5d: Publish to TikTok → save video URL to post                  |
+| (no step for manual TikTok)     | New: If manual TikTok upload, user provides URL → Agent saves to post |
 
 **`scripts/article/publish-article.mjs`:**
+
 - No change needed (already runs in Stage 2, before TikTok)
 
 **New script or extension needed:**
+
 - A way to update `posts.tiktok_url` after TikTok publish (either extend `publish-tiktok.mjs` or a small `update-tiktok-url.mjs` script)
 - For manual uploads: a simple CLI `node scripts/article/set-tiktok-url.mjs --slug <slug> --url <url>`
 
 ### Frontend Changes
 
 **`src/routes/posts.$slug.tsx`:**
+
 - Remove `<video>` rendering from attachments section
 - Add TikTok embed component: if `post.tiktok_url` exists, render TikTok blockquote + load embed.js
 - Extract video ID from URL (regex: `tiktok.com/.*/video/(\d+)`)
@@ -125,20 +135,21 @@ Recommend option 1: `ALTER TABLE posts ADD COLUMN tiktok_url TEXT;`
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/routes/posts.$slug.tsx` | Article page — currently renders `<video>` from attachments |
-| `docs/content-pipeline.md` | Pipeline doc — Stage 5a uploads MP4, needs update |
-| `scripts/article/publish-article.mjs` | Article publish script (Stage 2, no change needed) |
+| File                                     | Role                                                          |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| `src/routes/posts.$slug.tsx`             | Article page — currently renders `<video>` from attachments   |
+| `docs/content-pipeline.md`               | Pipeline doc — Stage 5a uploads MP4, needs update             |
+| `scripts/article/publish-article.mjs`    | Article publish script (Stage 2, no change needed)            |
 | `scripts/short-video/publish-tiktok.mjs` | TikTok publish script — needs to save video URL after publish |
-| `supabase/migrations/` | DB migrations — needs new migration for `tiktok_url` column |
-| `src/integrations/supabase/types.ts` | Supabase types — will need regeneration after migration |
+| `supabase/migrations/`                   | DB migrations — needs new migration for `tiktok_url` column   |
+| `src/integrations/supabase/types.ts`     | Supabase types — will need regeneration after migration       |
 
 ---
 
 ## Uncommitted State
 
 Local working tree has non-session changes (not committed by this agent):
+
 - `src/integrations/supabase/types.ts` — modified
 - `src/routes/posts.$slug.tsx` — modified
 - `src/routes/widgets.$name.tsx` — modified

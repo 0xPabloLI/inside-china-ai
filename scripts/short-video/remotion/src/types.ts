@@ -73,12 +73,7 @@ export interface SceneTexts {
    * surrounding copy renders plain.
    */
   highlight?: { field: string; text: string };
-  [key: string]:
-    | string
-    | StatItem[]
-    | string[]
-    | { field: string; text: string }
-    | undefined; // allow visualType-specific fields + the structured highlight
+  [key: string]: string | StatItem[] | string[] | { field: string; text: string } | undefined; // allow visualType-specific fields + the structured highlight
 }
 
 /** A single scene definition (from scene-data.mjs). */

@@ -37,24 +37,24 @@ WARN writing-for-agents-gate: <filename> has structural changes (new/deleted sec
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/lint-doc-hierarchy.mjs` | 新增 `checkWritingForAgentsGate()` 纯函数 + main() 调用 | Medium | 修改有下游消费者的工具脚本。下游消费者：`scripts/pre-commit.sh` Method 4。新增检查只追加 WARN，不改现有 FAIL 逻辑。现有 3 项检查行为不变 |
-| `scripts/pre-commit.sh` | grep 范围从 `^docs/` 扩展到 `^docs/|^AGENTS\.md$` | Medium | 修改 pre-commit hook 的触发条件。影响所有包含 AGENTS.md 的 commit。AGENTS.md 之前不触发 doc-hierarchy lint，现在会触发 |
-| `scripts/__tests__/lint-doc-hierarchy.test.mjs` | 新增测试用例覆盖 `checkWritingForAgentsGate` | Low | 纯追加 |
+| 文件                                            | 修改内容                                                | 风险等级      | 评估                                                                                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/lint-doc-hierarchy.mjs`                | 新增 `checkWritingForAgentsGate()` 纯函数 + main() 调用 | Medium        | 修改有下游消费者的工具脚本。下游消费者：`scripts/pre-commit.sh` Method 4。新增检查只追加 WARN，不改现有 FAIL 逻辑。现有 3 项检查行为不变 |
+| `scripts/pre-commit.sh`                         | grep 范围从 `^docs/` 扩展到 `^docs/                     | ^AGENTS\.md$` | Medium                                                                                                                                   | 修改 pre-commit hook 的触发条件。影响所有包含 AGENTS.md 的 commit。AGENTS.md 之前不触发 doc-hierarchy lint，现在会触发 |
+| `scripts/__tests__/lint-doc-hierarchy.test.mjs` | 新增测试用例覆盖 `checkWritingForAgentsGate`            | Low           | 纯追加                                                                                                                                   |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | staged docs/ 文件 + 新增 `##` 标题 | WARN: structural change detected | 误判（非结构性的 `##` 变更） | `##` 标题是信息结构的可靠信号，误判率低 |
-| 2 | staged docs/ 文件 + 仅改错别字 | 无 WARN（纯值修正不触发） | 漏判（错别字掩盖了结构变更） | diff 按行分析，改错别字的行不会同时匹配 `^##` 模式 |
-| 3 | staged AGENTS.md + 任何非空白修改 | WARN: AGENTS.md modified | 过度触发（AGENTS.md 小改也触发） | AGENTS.md 是最高风险文档，任何修改都值得提醒。设计选择 |
-| 4 | staged docs/ 文件 + 修改了指针行（含 `→`） | WARN: pointer change detected | 误判（`→` 出现在非指针上下文） | `→` 在 markdown 中极少用于非指针，误判率低 |
-| 5 | staged docs/ 文件 + 新增规则行（含"必须"/"强制"等关键词） | WARN: rule change detected | 误判（关键词出现在非规则上下文） | 关键词匹配限定为行首或独立句子 |
-| 6 | Agent 用 `--no-verify` 跳过 hook | hook 不执行，无提醒 | 无法拦截 | `--no-verify` 是 git 的设计意图，不是方案缺陷 |
-| 7 | 非 docs/ 非 AGENTS.md 的文件 commit | 不触发新检查（grep 不匹配） | 无 | grep 范围限定 |
-| 8 | docs/ 文件 + 删除了标题行 | WARN: section deleted | 误判 | 删除标题 = 结构变更，正确触发 |
+| #   | Scenario                                                  | Expected Behavior                | Risk                             | Mitigation                                             |
+| --- | --------------------------------------------------------- | -------------------------------- | -------------------------------- | ------------------------------------------------------ |
+| 1   | staged docs/ 文件 + 新增 `##` 标题                        | WARN: structural change detected | 误判（非结构性的 `##` 变更）     | `##` 标题是信息结构的可靠信号，误判率低                |
+| 2   | staged docs/ 文件 + 仅改错别字                            | 无 WARN（纯值修正不触发）        | 漏判（错别字掩盖了结构变更）     | diff 按行分析，改错别字的行不会同时匹配 `^##` 模式     |
+| 3   | staged AGENTS.md + 任何非空白修改                         | WARN: AGENTS.md modified         | 过度触发（AGENTS.md 小改也触发） | AGENTS.md 是最高风险文档，任何修改都值得提醒。设计选择 |
+| 4   | staged docs/ 文件 + 修改了指针行（含 `→`）                | WARN: pointer change detected    | 误判（`→` 出现在非指针上下文）   | `→` 在 markdown 中极少用于非指针，误判率低             |
+| 5   | staged docs/ 文件 + 新增规则行（含"必须"/"强制"等关键词） | WARN: rule change detected       | 误判（关键词出现在非规则上下文） | 关键词匹配限定为行首或独立句子                         |
+| 6   | Agent 用 `--no-verify` 跳过 hook                          | hook 不执行，无提醒              | 无法拦截                         | `--no-verify` 是 git 的设计意图，不是方案缺陷          |
+| 7   | 非 docs/ 非 AGENTS.md 的文件 commit                       | 不触发新检查（grep 不匹配）      | 无                               | grep 范围限定                                          |
+| 8   | docs/ 文件 + 删除了标题行                                 | WARN: section deleted            | 误判                             | 删除标题 = 结构变更，正确触发                          |
 
 ### 验证计划
 

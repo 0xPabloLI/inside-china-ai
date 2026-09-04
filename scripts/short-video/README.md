@@ -110,13 +110,13 @@ as a long-lived Python subprocess in `~/.video-tts-env`.
 
 ### What the VLM does
 
-| Action | Input | Output | Used for |
-|--------|-------|--------|----------|
-| `describe_image` | Image file path | 1-2 sentence description | Asset-to-scene content matching (scoreCandidate) |
-| `describe_video` | Video file path | 1-2 sentence description | Same, with temporal awareness |
-| `analyze_fit` | Image/video file path | `{fit, focus, reason}` | How to place landscape media in 9:16 canvas |
-| `detectFocus` | Image file path | `{status, protectedRegions, saliency}` | Face detection + saliency map for text placement (Phase 1) |
-| `suggest_mode` | Asset description + scene voiceover | `"fullscreen" \| "background"` | Whether to overlay text or let footage speak |
+| Action           | Input                               | Output                                 | Used for                                                   |
+| ---------------- | ----------------------------------- | -------------------------------------- | ---------------------------------------------------------- |
+| `describe_image` | Image file path                     | 1-2 sentence description               | Asset-to-scene content matching (scoreCandidate)           |
+| `describe_video` | Video file path                     | 1-2 sentence description               | Same, with temporal awareness                              |
+| `analyze_fit`    | Image/video file path               | `{fit, focus, reason}`                 | How to place landscape media in 9:16 canvas                |
+| `detectFocus`    | Image file path                     | `{status, protectedRegions, saliency}` | Face detection + saliency map for text placement (Phase 1) |
+| `suggest_mode`   | Asset description + scene voiceover | `"fullscreen" \| "background"`         | Whether to overlay text or let footage speak               |
 
 ### How fit + focus works
 
@@ -179,23 +179,23 @@ node scripts/short-video/apply-media-patch.mjs
 
 ## Environment requirements
 
-| Component | Path / Version | Purpose |
-|-----------|---------------|---------|
-| FFmpeg (full) | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Video assembly, rubberband, libass |
-| Python venv | `~/.video-tts-env` | F5-TTS-MLX, Qwen3-TTS, whisperx, mlx-vlm, OpenCV |
-| OpenCV | `opencv-contrib-python==4.10.0.84` | Focus detection (face + saliency) |
-| VLM model | `mlx-community/Qwen3-VL-8B-Instruct-8bit` | Asset analysis (~11 GB resident) |
-| TTS model | F5-TTS-MLX (default) | Voiceover generation |
-| Ollama | `bge-m3:latest` | RAG embeddings (separate from VLM) |
-| Chrome + CDP | `localhost:3456` | Asset search (Pexels, Unitree, etc.) |
+| Component     | Path / Version                             | Purpose                                          |
+| ------------- | ------------------------------------------ | ------------------------------------------------ |
+| FFmpeg (full) | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Video assembly, rubberband, libass               |
+| Python venv   | `~/.video-tts-env`                         | F5-TTS-MLX, Qwen3-TTS, whisperx, mlx-vlm, OpenCV |
+| OpenCV        | `opencv-contrib-python==4.10.0.84`         | Focus detection (face + saliency)                |
+| VLM model     | `mlx-community/Qwen3-VL-8B-Instruct-8bit`  | Asset analysis (~11 GB resident)                 |
+| TTS model     | F5-TTS-MLX (default)                       | Voiceover generation                             |
+| Ollama        | `bge-m3:latest`                            | RAG embeddings (separate from VLM)               |
+| Chrome + CDP  | `localhost:3456`                           | Asset search (Pexels, Unitree, etc.)             |
 
 ## Key design documents
 
-| Document | Purpose |
-|----------|---------|
-| `docs/content-pipeline.md` | End-to-end pipeline stages, HITL, MRL |
-| `docs/video-workflow.md` | TTS engines, publishing, file paths |
-| `docs/brand-system.md` | Brand identity, logo, color tokens |
-| `docs/media-asset-management.md` | Asset placement + RAG reindex triggers |
-| `scripts/short-video/lib/safe-zones.mjs` | TikTok safe zone constants (single source) |
+| Document                                   | Purpose                                      |
+| ------------------------------------------ | -------------------------------------------- |
+| `docs/content-pipeline.md`                 | End-to-end pipeline stages, HITL, MRL        |
+| `docs/video-workflow.md`                   | TTS engines, publishing, file paths          |
+| `docs/brand-system.md`                     | Brand identity, logo, color tokens           |
+| `docs/media-asset-management.md`           | Asset placement + RAG reindex triggers       |
+| `scripts/short-video/lib/safe-zones.mjs`   | TikTok safe zone constants (single source)   |
 | `scripts/short-video/lib/scene-layout.mjs` | Slot layout system (kicker / hero / support) |

@@ -56,6 +56,7 @@ node main.mjs --bgm
 ## content/ 目录约定
 
 每个内容目录必须有 3 个文件：
+
 - `meta.mjs` — `export const meta = { pipelineId: "deepseek", title: "..." }`
 - `scene-data.mjs` — `export const scenes = [...]`
 - `scenes.mjs` — `export function generateScene(sceneId, duration) { return html }`（视觉模板）
@@ -75,27 +76,27 @@ const outputDir = join(__dirname, "output", meta.pipelineId);
 
 ## Modified Files Impact
 
-| 文件 | 修改 | 风险 | 评估 |
-|------|------|------|------|
-| `generate-scenes.mjs` | 拆分：共享部分→lib/，DeepSeek 场景→content/deepseek/scenes.mjs | High | 核心重构。验证：DeepSeek pipeline 正常出视频 |
-| `main.mjs` | 加 --content 参数，动态加载 content 目录 | Medium | 改动入口逻辑。验证：--content deepseek 和 --content distillation/pt1 都能跑 |
-| `scene-data.mjs` | 移到 content/deepseek/scene-data.mjs（当前内容是蒸馏 pt3，需从 git 恢复原 DeepSeek 数据） | Medium | scene-data.mjs 已被其他 session 改为蒸馏 pt3。需要从 git history 恢复 DeepSeek 原始数据 |
-| `scene-data-pt1/2/3.mjs` | 移到 content/distillation/pt1/2/3/scene-data.mjs | Low | 文件移动 |
-| `generate-tts.mjs` | 移到 lib/，输出路径改为 output/{pipelineId}/audio/ | Low | outputDir 已是参数 |
-| `assemble.mjs` | 移到 lib/，输出路径改为 output/{pipelineId}/ | Low | outputDir 已是参数 |
-| `generate-srt.mjs` | 移到 lib/，输出路径改为 output/{pipelineId}/ | Low | outputPath 已是参数 |
-| `record-scenes.mjs` | 移到 lib/ | Low | 文件移动 |
-| `generate-bgm.mjs` | 移到 lib/ | Low | 文件移动 |
+| 文件                     | 修改                                                                                      | 风险   | 评估                                                                                    |
+| ------------------------ | ----------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------- |
+| `generate-scenes.mjs`    | 拆分：共享部分→lib/，DeepSeek 场景→content/deepseek/scenes.mjs                            | High   | 核心重构。验证：DeepSeek pipeline 正常出视频                                            |
+| `main.mjs`               | 加 --content 参数，动态加载 content 目录                                                  | Medium | 改动入口逻辑。验证：--content deepseek 和 --content distillation/pt1 都能跑             |
+| `scene-data.mjs`         | 移到 content/deepseek/scene-data.mjs（当前内容是蒸馏 pt3，需从 git 恢复原 DeepSeek 数据） | Medium | scene-data.mjs 已被其他 session 改为蒸馏 pt3。需要从 git history 恢复 DeepSeek 原始数据 |
+| `scene-data-pt1/2/3.mjs` | 移到 content/distillation/pt1/2/3/scene-data.mjs                                          | Low    | 文件移动                                                                                |
+| `generate-tts.mjs`       | 移到 lib/，输出路径改为 output/{pipelineId}/audio/                                        | Low    | outputDir 已是参数                                                                      |
+| `assemble.mjs`           | 移到 lib/，输出路径改为 output/{pipelineId}/                                              | Low    | outputDir 已是参数                                                                      |
+| `generate-srt.mjs`       | 移到 lib/，输出路径改为 output/{pipelineId}/                                              | Low    | outputPath 已是参数                                                                     |
+| `record-scenes.mjs`      | 移到 lib/                                                                                 | Low    | 文件移动                                                                                |
+| `generate-bgm.mjs`       | 移到 lib/                                                                                 | Low    | 文件移动                                                                                |
 
 ## Behavioral Scenarios
 
-| # | 场景 | 预期行为 | 验证方式 |
-|---|------|---------|---------|
-| 1 | `--content deepseek` | 加载 content/deepseek/ 下 3 个文件，输出到 output/deepseek/ | 输出目录存在且有 final.mp4 |
-| 2 | `--content distillation/pt1` | 加载 content/distillation/pt1/ 下 3 个文件 | 输出到 output/distillation-pt1/ |
-| 3 | 无 --content | 默认加载 content/deepseek/ | 同场景 1 |
-| 4 | 两个 pipeline 并行跑 | 各自输出目录独立，无文件冲突 | output/deepseek/ 和 output/distillation-pt1/ 同时存在 |
-| 5 | content 目录缺少 scenes.mjs | 报错退出，不产生输出 | console.error + exit(1) |
-| 6 | 视觉模板和音频匹配 | 场景 HTML 中的文字与 TTS 口播文字一致 | 人工检查 |
-| 7 | 字幕烧录 | subtitles.ass 在 output/{pipelineId}/ 下 | 文件存在 |
-| 8 | 旧 output/ 目录残留 | 不影响新 pipeline 运行 | 新 pipeline 只写自己的子目录 |
+| #   | 场景                         | 预期行为                                                    | 验证方式                                              |
+| --- | ---------------------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
+| 1   | `--content deepseek`         | 加载 content/deepseek/ 下 3 个文件，输出到 output/deepseek/ | 输出目录存在且有 final.mp4                            |
+| 2   | `--content distillation/pt1` | 加载 content/distillation/pt1/ 下 3 个文件                  | 输出到 output/distillation-pt1/                       |
+| 3   | 无 --content                 | 默认加载 content/deepseek/                                  | 同场景 1                                              |
+| 4   | 两个 pipeline 并行跑         | 各自输出目录独立，无文件冲突                                | output/deepseek/ 和 output/distillation-pt1/ 同时存在 |
+| 5   | content 目录缺少 scenes.mjs  | 报错退出，不产生输出                                        | console.error + exit(1)                               |
+| 6   | 视觉模板和音频匹配           | 场景 HTML 中的文字与 TTS 口播文字一致                       | 人工检查                                              |
+| 7   | 字幕烧录                     | subtitles.ass 在 output/{pipelineId}/ 下                    | 文件存在                                              |
+| 8   | 旧 output/ 目录残留          | 不影响新 pipeline 运行                                      | 新 pipeline 只写自己的子目录                          |

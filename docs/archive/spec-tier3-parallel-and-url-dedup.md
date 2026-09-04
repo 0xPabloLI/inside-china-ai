@@ -43,24 +43,24 @@ Two issues identified after #110 implementation:
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/asset-sourcer.mjs` | Tier 3 serial → parallel (`Promise.allSettled`); add `downloadedUrls` Set + checks at 5 download points | Medium | 修改了 `main()` 核心编排逻辑。223 existing tests pass as regression. Parallel logic isolated to Tier 3 block. URL dedup is additive (skip before download), doesn't change existing download logic. |
+| 文件                                        | 修改内容                                                                                                | 风险等级 | 评估                                                                                                                                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/asset-sourcer.mjs` | Tier 3 serial → parallel (`Promise.allSettled`); add `downloadedUrls` Set + checks at 5 download points | Medium   | 修改了 `main()` 核心编排逻辑。223 existing tests pass as regression. Parallel logic isolated to Tier 3 block. URL dedup is additive (skip before download), doesn't change existing download logic. |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Phase 0 downloads URL X, Tier 2 returns same URL X | Tier 2 skips download, pushes to `skipped` with reason "URL already downloaded" | Low | `downloadedUrls.has(X)` check before `downloadAsset()` |
-| 2 | API source and CDP source return same URL | Second occurrence skipped | Low | Same check at CDP download point |
-| 3 | Tier 3 two engines return same URL (race condition) | Both may download — no `Set` locking | Low | Different search engines index different image sources; URL collision near-zero. Documented as known limitation. |
-| 4 | Download fails (HTTP error) | URL NOT added to Set | Correct | `if (dlResult.success) downloadedUrls.add(url)` — only on success |
-| 5 | URL is null/undefined | `downloadedUrls.has(null)` → false, proceeds to download | Correct | `null` URL candidates are filtered by `if (!candidate.url) continue` before dedup check |
-| 6 | One Tier 3 engine rejects | Other engine still completes | Correct | `Promise.allSettled` isolates failures |
-| 7 | All Tier 3 engines lack API keys | All skipped, Tier 3 produces no assets | Correct | Existing test coverage in `progressive-search.test.mjs` |
-| 8 | Cache hit for all source/keyword pairs | No download triggered, no dedup needed | Correct | `getOrSearchResults` returns `cacheHit: true`, candidates come from cache, but download still runs — dedup check applies |
-| 9 | yt-dlp source returns URL already downloaded by API source | yt-dlp skips download | Low | Same `downloadedUrls.has()` check at yt-dlp download point |
-| 10 | Tier 3 runs after CDP, both downloaded same image | Tier 3 skips | Low | Same check at Tier 3 download point (inside `Promise.allSettled` callback) |
+| #   | Scenario                                                   | Expected Behavior                                                               | Risk    | Mitigation                                                                                                               |
+| --- | ---------------------------------------------------------- | ------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Phase 0 downloads URL X, Tier 2 returns same URL X         | Tier 2 skips download, pushes to `skipped` with reason "URL already downloaded" | Low     | `downloadedUrls.has(X)` check before `downloadAsset()`                                                                   |
+| 2   | API source and CDP source return same URL                  | Second occurrence skipped                                                       | Low     | Same check at CDP download point                                                                                         |
+| 3   | Tier 3 two engines return same URL (race condition)        | Both may download — no `Set` locking                                            | Low     | Different search engines index different image sources; URL collision near-zero. Documented as known limitation.         |
+| 4   | Download fails (HTTP error)                                | URL NOT added to Set                                                            | Correct | `if (dlResult.success) downloadedUrls.add(url)` — only on success                                                        |
+| 5   | URL is null/undefined                                      | `downloadedUrls.has(null)` → false, proceeds to download                        | Correct | `null` URL candidates are filtered by `if (!candidate.url) continue` before dedup check                                  |
+| 6   | One Tier 3 engine rejects                                  | Other engine still completes                                                    | Correct | `Promise.allSettled` isolates failures                                                                                   |
+| 7   | All Tier 3 engines lack API keys                           | All skipped, Tier 3 produces no assets                                          | Correct | Existing test coverage in `progressive-search.test.mjs`                                                                  |
+| 8   | Cache hit for all source/keyword pairs                     | No download triggered, no dedup needed                                          | Correct | `getOrSearchResults` returns `cacheHit: true`, candidates come from cache, but download still runs — dedup check applies |
+| 9   | yt-dlp source returns URL already downloaded by API source | yt-dlp skips download                                                           | Low     | Same `downloadedUrls.has()` check at yt-dlp download point                                                               |
+| 10  | Tier 3 runs after CDP, both downloaded same image          | Tier 3 skips                                                                    | Low     | Same check at Tier 3 download point (inside `Promise.allSettled` callback)                                               |
 
 ## Out of Scope
 

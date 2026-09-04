@@ -17,6 +17,7 @@ T-1 (下载安装 Real-ESRGAN)
 **依赖**：无
 
 **内容**：
+
 - 用 `curl -L -o` 下载 macOS 版 Real-ESRGAN v0.2.5.0
 - 解压到 `~/.local/realesrgan/`
 - 验证二进制可执行：`~/.local/realesrgan/realesrgan-ncnn-vulkan -h`
@@ -31,6 +32,7 @@ T-1 (下载安装 Real-ESRGAN)
 **依赖**：T-1
 
 **内容**：
+
 - 新建 `scripts/short-video/lib/upscale.mjs`
 - 实现 `checkResolution(filePath)`：
   - 用 `execSync` 调用 ffprobe 获取宽高
@@ -49,6 +51,7 @@ T-1 (下载安装 Real-ESRGAN)
 **依赖**：T-2
 
 **内容**：
+
 - 实现 `upscaleVideo(inputPath, outputPath, targetShortSide=720)`：
   - 调用 Real-ESRGAN `realesr-animevideov3 -s 2 -t 256`
   - 再用 ffmpeg 缩放到目标分辨率（`-vf scale=-1:1280` 竖版 / `scale=720:-1` 横版）
@@ -69,6 +72,7 @@ T-1 (下载安装 Real-ESRGAN)
 **依赖**：T-3
 
 **内容**：
+
 - 实现 `autoUpscaleIfNeeded(filePath, targetShortSide=720)`：
   - 调用 `checkResolution(filePath)`
   - `needsUpscale=false` → 返回 `{ upscaled: false, path: filePath }`
@@ -87,6 +91,7 @@ T-1 (下载安装 Real-ESRGAN)
 **依赖**：T-4
 
 **内容**：
+
 - 在 `asset-sourcer.mjs` 顶部 import `autoUpscaleIfNeeded`
 - 在 `main()` 函数中：
   - API 下载成功后（约第 1460 行），调用 `autoUpscaleIfNeeded(dlResult.path)`，用返回的 path 更新 `assetEntry.path`

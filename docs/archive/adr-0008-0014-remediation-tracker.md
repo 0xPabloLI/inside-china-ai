@@ -14,14 +14,14 @@
 
 状态只能按下表流转。凡是需要人工决定、真实听感判断、云端认证、付费或会修改现有用户改动的事项，都应标为 `BLOCKED`，不要自行假设完成。
 
-| 状态 | 含义 | 可转入状态 | 使用要求 |
-|---|---|---|---|
-| `NOT_STARTED` | 尚未准备开始 | `READY`、`BLOCKED` | 不得直接编码。 |
-| `READY` | 前置条件明确，可由一个 Session 独立完成 | `IN_PROGRESS` | 开始 Session 前记录基线。 |
-| `IN_PROGRESS` | 本 Session 正在实施 | `DONE`、`BLOCKED`、`READY` | 只允许一个工作项处于该状态。 |
-| `BLOCKED` | 缺人工决策、凭据、真实样本或上游结果 | `READY` | 必须写明解除条件。 |
-| `DONE` | 代码/文档/测试已完成，但尚未越过全局验收门 | `VERIFIED`、`READY` | 写入可复现证据。 |
-| `VERIFIED` | 本项验收已通过，后续 Session 不应改动除非回归 | `READY`（发现回归时） | 填写验收日期和命令/产物。 |
+| 状态          | 含义                                          | 可转入状态                 | 使用要求                     |
+| ------------- | --------------------------------------------- | -------------------------- | ---------------------------- |
+| `NOT_STARTED` | 尚未准备开始                                  | `READY`、`BLOCKED`         | 不得直接编码。               |
+| `READY`       | 前置条件明确，可由一个 Session 独立完成       | `IN_PROGRESS`              | 开始 Session 前记录基线。    |
+| `IN_PROGRESS` | 本 Session 正在实施                           | `DONE`、`BLOCKED`、`READY` | 只允许一个工作项处于该状态。 |
+| `BLOCKED`     | 缺人工决策、凭据、真实样本或上游结果          | `READY`                    | 必须写明解除条件。           |
+| `DONE`        | 代码/文档/测试已完成，但尚未越过全局验收门    | `VERIFIED`、`READY`        | 写入可复现证据。             |
+| `VERIFIED`    | 本项验收已通过，后续 Session 不应改动除非回归 | `READY`（发现回归时）      | 填写验收日期和命令/产物。    |
 
 ## 1. 不可违反的安全边界
 
@@ -38,42 +38,42 @@ git status --short --branch
 git log -1 --oneline
 ```
 
-| 禁止动作 | 原因 | 可接受替代 |
-|---|---|---|
-| `git lfs migrate import`、`git filter-repo` | 会重写 Lovable 关联历史。 | 只为新二进制配置/验证 LFS。 |
-| `git stash` 既有用户改动 | 可能覆盖或遗失非本 Session 的工作。 | 使用独立 worktree。 |
-| 在一个提交混入多个工作项 | 无法独立测试或回滚。 | 每个工作项一个可独立验收的提交。 |
-| 未运行真实样本即宣称音画质量已验证 | 静态/单元测试不能证明语速与字幕成品。 | 在相应工作项记录试听/视频证据。 |
-| 未跑云端任务即写“已验证 GPU” | CLI 安装不等于远端配额和认证可用。 | 写“本地准备已验证”，并保留云端 smoke run 证据。 |
+| 禁止动作                                    | 原因                                  | 可接受替代                                      |
+| ------------------------------------------- | ------------------------------------- | ----------------------------------------------- |
+| `git lfs migrate import`、`git filter-repo` | 会重写 Lovable 关联历史。             | 只为新二进制配置/验证 LFS。                     |
+| `git stash` 既有用户改动                    | 可能覆盖或遗失非本 Session 的工作。   | 使用独立 worktree。                             |
+| 在一个提交混入多个工作项                    | 无法独立测试或回滚。                  | 每个工作项一个可独立验收的提交。                |
+| 未运行真实样本即宣称音画质量已验证          | 静态/单元测试不能证明语速与字幕成品。 | 在相应工作项记录试听/视频证据。                 |
+| 未跑云端任务即写“已验证 GPU”                | CLI 安装不等于远端配额和认证可用。    | 写“本地准备已验证”，并保留云端 smoke run 证据。 |
 
 ## 2. 总览仪表盘
 
 **唯一允许同时推进的事务是互不修改同一文件的 P1/P2 项。** P0-A 与 P0-B 必须串行完成，因为两者都会影响 Scene 的全局时间语义。
 
-| 序号 | 工作项 | 优先级 | 依赖 | 当前状态 | 计划提交 | 验收证据 | 下一 Session 动作 |
-|---:|---|---:|---|---|---|---|---|
-| 00 | 建立隔离基线与失败归属 | P0 | 无 | `VERIFIED` | `chore` | worktree 已建、3 failed / 1248 passed、Remotion compositions OK | 01 已 READY，可开始。 |
-| 01 | F5 中文/混合文本时长与 RK4 事实修复 | P0 | 00 | `VERIFIED` | `fix(tts)` | 34 Python + 5 vitest 测试通过；commit `138a392`；ADR-0008 + video-workflow 同步；F5 真实 TTS 生成 2 场景（CJK+mixed），estimate_target_seconds 误差 <1% | 无。 |
-| 02 | Remotion 视觉、音频、ASS 统一时间线 | P0 | 00、01 | `VERIFIED` | `fix(video)` | 12 timeline 测试通过；Remotion compositions OK；ADR-0010 已更新；3-scene Remotion 实渲染 29.89s 1080×1920 30fps，音视频同步 | 无。 |
-| 03 | 统一 AI venv 锁定与 smoke test | P1 | 00 | `VERIFIED` | `build(video)` | verify-ai-env.py 10/10 passed；158 packages locked；干净 venv 重建 `~/.video-tts-env-test` 通过 10/10（lockfile 依赖冲突需后续修复） | 无。 |
-| 04 | LFS 提交前 pointer 校验与 ADR 哈希修正 | P1 | 00 | `VERIFIED` | `chore(git)` | verify-lfs-pointers.mjs + hook 集成；ADR-0014 哈希修正；PR #47 验证全链路（pointer → hook → commit → push → ls-files） | 无。 |
-| 05 | Kaggle/Colab 可复现 smoke 工件 | P1 | 00 | `VERIFIED` | `test(cloud)` | smoke_gpu.py + README + .gitignore；ADR-0012 更新；Kaggle P100 smoke PASS（torch 2.4.1+cu121，matmul 3.0ms）；Colab ADC 过期待重认证 | 无。 |
-| 06 | 素材采集 ADR 漂移、VLM 质量与遥测 | P2 | 00 | `VERIFIED` | `docs` | ADR-0013 28→34 来源同步；source-registry 100 tests passed；Golden Asset 评估方案已设计（docs/research/golden-asset-evaluation.md） | 无。 |
-| 07 | 既有 CSS 测试失败的设计归属 | P2 | 00 | `DONE` | `fix(scene)` | brand-system.md 规定 ≥80px；commit f8a3aa7 误改为 64px；已恢复 | 无。 |
-| 08 | 全局验收、ADR 同步、PR 收口 | P0 | 01–07（07 可有明确豁免） | `VERIFIED` | `docs(adr)` | 全量测试 2 failed / 1266 passed（已知环境限制）；ADR 0008-0014 全部同步；Git 安全边界无违反；PR #45 已合并；6 项延迟验收全部完成（Issue #46） | 归档本追踪器。 |
+| 序号 | 工作项                                 | 优先级 | 依赖                     | 当前状态   | 计划提交       | 验收证据                                                                                                                                                | 下一 Session 动作     |
+| ---: | -------------------------------------- | -----: | ------------------------ | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+|   00 | 建立隔离基线与失败归属                 |     P0 | 无                       | `VERIFIED` | `chore`        | worktree 已建、3 failed / 1248 passed、Remotion compositions OK                                                                                         | 01 已 READY，可开始。 |
+|   01 | F5 中文/混合文本时长与 RK4 事实修复    |     P0 | 00                       | `VERIFIED` | `fix(tts)`     | 34 Python + 5 vitest 测试通过；commit `138a392`；ADR-0008 + video-workflow 同步；F5 真实 TTS 生成 2 场景（CJK+mixed），estimate_target_seconds 误差 <1% | 无。                  |
+|   02 | Remotion 视觉、音频、ASS 统一时间线    |     P0 | 00、01                   | `VERIFIED` | `fix(video)`   | 12 timeline 测试通过；Remotion compositions OK；ADR-0010 已更新；3-scene Remotion 实渲染 29.89s 1080×1920 30fps，音视频同步                             | 无。                  |
+|   03 | 统一 AI venv 锁定与 smoke test         |     P1 | 00                       | `VERIFIED` | `build(video)` | verify-ai-env.py 10/10 passed；158 packages locked；干净 venv 重建 `~/.video-tts-env-test` 通过 10/10（lockfile 依赖冲突需后续修复）                    | 无。                  |
+|   04 | LFS 提交前 pointer 校验与 ADR 哈希修正 |     P1 | 00                       | `VERIFIED` | `chore(git)`   | verify-lfs-pointers.mjs + hook 集成；ADR-0014 哈希修正；PR #47 验证全链路（pointer → hook → commit → push → ls-files）                                  | 无。                  |
+|   05 | Kaggle/Colab 可复现 smoke 工件         |     P1 | 00                       | `VERIFIED` | `test(cloud)`  | smoke_gpu.py + README + .gitignore；ADR-0012 更新；Kaggle P100 smoke PASS（torch 2.4.1+cu121，matmul 3.0ms）；Colab ADC 过期待重认证                    | 无。                  |
+|   06 | 素材采集 ADR 漂移、VLM 质量与遥测      |     P2 | 00                       | `VERIFIED` | `docs`         | ADR-0013 28→34 来源同步；source-registry 100 tests passed；Golden Asset 评估方案已设计（docs/research/golden-asset-evaluation.md）                      | 无。                  |
+|   07 | 既有 CSS 测试失败的设计归属            |     P2 | 00                       | `DONE`     | `fix(scene)`   | brand-system.md 规定 ≥80px；commit f8a3aa7 误改为 64px；已恢复                                                                                          | 无。                  |
+|   08 | 全局验收、ADR 同步、PR 收口            |     P0 | 01–07（07 可有明确豁免） | `VERIFIED` | `docs(adr)`    | 全量测试 2 failed / 1266 passed（已知环境限制）；ADR 0008-0014 全部同步；Git 安全边界无违反；PR #45 已合并；6 项延迟验收全部完成（Issue #46）           | 归档本追踪器。        |
 
 ## 3. 跨 Session 更新协议
 
 每次实施 Session 必须执行以下过程。任何遗漏都意味着该 Session 不能把状态改成 `DONE`。
 
-| 时点 | 必做动作 | 写回本文件的位置 |
-|---|---|---|
-| 开始前 | 读取本文件；确认所选项是第一个 `READY` 项；检查 worktree。 | 对应项的“Session 记录”新增一行。 |
-| 开始时 | 把该项从 `READY` 改为 `IN_PROGRESS`；记录基线 commit 与测试结果。 | 仪表盘 + 对应项的状态块。 |
-| 实施中 | 发现不属于该项的改动、需求或风险时停止扩展范围。 | “阻塞/决策”表。 |
-| 实施后 | 运行本项验收命令；保存命令、输出摘要、文件路径和 commit。 | “验收证据”表。 |
-| 结束前 | 将状态改为 `DONE`、`VERIFIED` 或 `BLOCKED`；填下一步。 | 仪表盘 + Session 交接块。 |
-| 下个 Session | 只从上一个交接块的“下一步”继续。 | 新增交接块，不回写历史记录。 |
+| 时点         | 必做动作                                                          | 写回本文件的位置                 |
+| ------------ | ----------------------------------------------------------------- | -------------------------------- |
+| 开始前       | 读取本文件；确认所选项是第一个 `READY` 项；检查 worktree。        | 对应项的“Session 记录”新增一行。 |
+| 开始时       | 把该项从 `READY` 改为 `IN_PROGRESS`；记录基线 commit 与测试结果。 | 仪表盘 + 对应项的状态块。        |
+| 实施中       | 发现不属于该项的改动、需求或风险时停止扩展范围。                  | “阻塞/决策”表。                  |
+| 实施后       | 运行本项验收命令；保存命令、输出摘要、文件路径和 commit。         | “验收证据”表。                   |
+| 结束前       | 将状态改为 `DONE`、`VERIFIED` 或 `BLOCKED`；填下一步。            | 仪表盘 + Session 交接块。        |
+| 下个 Session | 只从上一个交接块的“下一步”继续。                                  | 新增交接块，不回写历史记录。     |
 
 ### 3.1 Session 交接块模板
 
@@ -82,18 +82,18 @@ git log -1 --oneline
 ```markdown
 ### Session 交接 — YYYY-MM-DD / <工作项 ID>
 
-| 字段 | 内容 |
-|---|---|
-| 状态变更 | `IN_PROGRESS` → `DONE` |
+| 字段            | 内容                                                              |
+| --------------- | ----------------------------------------------------------------- |
+| 状态变更        | `IN_PROGRESS` → `DONE`                                            |
 | worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
-| 起始 commit | `<sha>` |
-| 本次修改文件 | `path/a`, `path/b` |
-| 执行命令 | `<command>` |
-| 结果摘要 | 通过/失败及关键数字 |
-| 证据位置 | 测试名、产物路径、截图或日志（不含秘密） |
-| 未解决问题 | 无 / 明确问题 |
-| 下一步 | 下一 Session 只做的一个动作 |
-| 阻塞条件 | 无 / 需要谁提供什么 |
+| 起始 commit     | `<sha>`                                                           |
+| 本次修改文件    | `path/a`, `path/b`                                                |
+| 执行命令        | `<command>`                                                       |
+| 结果摘要        | 通过/失败及关键数字                                               |
+| 证据位置        | 测试名、产物路径、截图或日志（不含秘密）                          |
+| 未解决问题      | 无 / 明确问题                                                     |
+| 下一步          | 下一 Session 只做的一个动作                                       |
+| 阻塞条件        | 无 / 需要谁提供什么                                               |
 ```
 
 ## 4. 工作项 00：建立隔离基线与失败归属
@@ -107,7 +107,7 @@ git log -1 --oneline
 1. 创建或确认 `../inside-china-ai-adr-fixes` worktree。
 2. 记录 `git status --short --branch`、`git log -1 --oneline` 和工作目录。
 3. 运行短视频全量测试及 Re3. 运行短视频全量测试及 Re3. 运行短��为：本计划处理、已有用户改动、环境限制或未知。
-5. 只有基线完成后，才将工作项 01、03、04、05、06 标为 `READY`。工作项 02 必须等待 01 完成，因为它需要稳定的 TTS 时长语义。
+4. 只有基线完成后，才将工作项 01、03、04、05、06 标为 `READY`。工作项 02 必须等待 01 完成，因为它需要稳定的 TTS 时长语义。
 
 ```bash
 npx vitest run scripts/short-video/__tests__ --reporter=dot
@@ -117,18 +117,18 @@ cd ../../..
 
 ### 4.3 验收
 
-| 验收项 | 通过标准 |
-|---|---|
-| 隔离性 | 当前功能 worktree 与用户原目录不同。 |
-| 基线 | 已记录测试总数、通过数、失败文件及命令。 |
+| 验收项        | 通过标准                                                                        |
+| ------------- | ------------------------------------------------------------------------------- |
+| 隔离性        | 当前功能 worktree 与用户原目录不同。                                            |
+| 基线          | 已记录测试总数、通过数、失败文件及命令。                                        |
 | 已知 CSS 失败 | `scene-templates.test.mjs` 的 64px/80px 差异被记录为工作项 07，而非在本项修复。 |
-| 状态流转 | 00 为 `VERIFIED`；01、03、04、05、06 为 `READY`；02 仍等待 01。 |
+| 状态流转      | 00 为 `VERIFIED`；01、03、04、05、06 为 `READY`；02 仍等待 01。                 |
 
 ### 4.4 Session 记录
 
-| 日期 | 状态 | 执行者 | 证据 | 下一步 |
-|---|---|---|---|---|
-| — | `READY` | — | — | 创建隔离 worktree。 |
+| 日期       | 状态       | 执行者 | 证据                                                                                                                                                                                                                                                                                                                                                                   | 下一步                          |
+| ---------- | ---------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| —          | `READY`    | —      | —                                                                                                                                                                                                                                                                                                                                                                      | 创建隔离 worktree。             |
 | 2026-08-18 | `VERIFIED` | CatPaw | worktree `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs`；HEAD `136bf68`；vitest 3 failed / 1248 passed / 1251 total；Remotion compositions OK (ShortVideo 30fps 1080×1920 300frames)；失败归属：① scene-templates 80px/64px → 工作项 07 BLOCKED；② infra-paths voice-samples gitignored → 环境限制；③ post-process node:test vs vitest → 环境限制。 | 01 已 READY，开始 F5 签名检查。 |
 
 ## 5. 工作项 01：F5 中文/混合文本时长与 RK4 事实修复
@@ -139,12 +139,12 @@ cd ../../..
 
 ### 5.2 修改范围
 
-| 文件 | 本项允许修改 | 不允许修改 |
-|---|---|---|
-| `scripts/short-video/f5_mlx_batch_tts.py` | 抽取纯时长估算函数、修正 CJK/混合文本计算、依据真实 API 处理 `method`。 | 不改变 manifest/output JSON 结构。 |
-| `scripts/short-video/__tests__/...` 或合理的 Python 测试位置 | 加入纯中文、英文、混合文本 fixture。 | 不把模型下载加入每次单元测试。 |
-| `docs/adr/0008-tts-engine-f5-mlx.md` | 只同步最终可证明的公式和求解器事实。 | 不修改历史替代方案判断。 |
-| `docs/video-workflow.md` | 同步运行参数和验收方法。 | 不做无关 TTS 重构。 |
+| 文件                                                         | 本项允许修改                                                            | 不允许修改                         |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------- |
+| `scripts/short-video/f5_mlx_batch_tts.py`                    | 抽取纯时长估算函数、修正 CJK/混合文本计算、依据真实 API 处理 `method`。 | 不改变 manifest/output JSON 结构。 |
+| `scripts/short-video/__tests__/...` 或合理的 Python 测试位置 | 加入纯中文、英文、混合文本 fixture。                                    | 不把模型下载加入每次单元测试。     |
+| `docs/adr/0008-tts-engine-f5-mlx.md`                         | 只同步最终可证明的公式和求解器事实。                                    | 不修改历史替代方案判断。           |
+| `docs/video-workflow.md`                                     | 同步运行参数和验收方法。                                                | 不做无关 TTS 重构。                |
 
 ### 5.3 决策门：先确认库签名
 
@@ -153,11 +153,11 @@ cd ../../..
   'from f5_tts_mlx.generate import generate; import inspect; print(inspect.signature(generate))'
 ```
 
-| 结果 | 处理 | ADR 表述 |
-|---|---|---|
-| 有 `method` 参数 | 显式传入 `method="rk4"`，再测试。 | 保留“RK4”。 |
+| 结果                                       | 处理                                                | ADR 表述                 |
+| ------------------------------------------ | --------------------------------------------------- | ------------------------ |
+| 有 `method` 参数                           | 显式传入 `method="rk4"`，再测试。                   | 保留“RK4”。              |
 | 无 `method` 参数，但锁定版本可证明默认 RK4 | 不传未知参数；在代码/锁定文件中写明版本和默认行为。 | 改为“锁定版本默认 RK4”。 |
-| 无法证明默认值 | 不宣称 RK4；评估升级或修订 ADR。 | 删除强制 RK4 的断言。 |
+| 无法证明默认值                             | 不宣称 RK4；评估升级或修订 ADR。                    | 删除强制 RK4 的断言。    |
 
 ### 5.4 实施原则
 
@@ -188,29 +188,29 @@ def estimate_target_seconds(text: str) -> float:
 
 ### 5.6 交接与状态
 
-| 字段 | 当前值 |
-|---|---|
-| 状态 | `DONE` |
-| 前置条件 | 00 已验证。 |
-| 提交主题 | `fix(tts): estimate F5 duration for CJK and mixed text` |
-| Commit | `138a392` |
+| 字段     | 当前值                                                        |
+| -------- | ------------------------------------------------------------- |
+| 状态     | `DONE`                                                        |
+| 前置条件 | 00 已验证。                                                   |
+| 提交主题 | `fix(tts): estimate F5 duration for CJK and mixed text`       |
+| Commit   | `138a392`                                                     |
 | 回滚边界 | 只回滚估算函数与参数；不回滚 venv、注册表优先级或无关后处理。 |
-| 下一步 | 真实 TTS 试听验证（需模型加载 ~12s）。 |
+| 下一步   | 真实 TTS 试听验证（需模型加载 ~12s）。                        |
 
 ### Session 交接 — 2026-08-18 / 01
 
-| 字段 | 内容 |
-|---|---|
-| 状态变更 | `READY` → `DONE` |
-| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
-| 起始 commit | `136bf68` |
-| 本次修改文件 | `f5_mlx_batch_tts.py`, `test_f5_duration.py`, `test-f5-duration.test.mjs`, `0008-tts-engine-f5-mlx.md`, `video-workflow.md` |
-| 执行命令 | `~/.video-tts-env/bin/python3 __tests__/test_f5_duration.py` → 34 passed / 0 failed；`npx vitest run test-f5-duration.test.mjs` → 5 passed |
-| 结果摘要 | F5 签名确认 `method` 参数存在且默认 `rk4`；`F5TTS.sample()` 源码确认 rk4 分支；`estimate_target_seconds()` 替换 `len(text.split())/2.8`；全量测试无回归（3 failed → 3 failed，同一 3 个已知失败） |
-| 证据位置 | `test_f5_duration.py` (34 tests), `test-f5-duration.test.mjs` (5 tests), commit `138a392` |
-| 未解决问题 | 真实 TTS 试听未做（需模型加载， ~12s+per scene） |
-| 下一步 | 真实 TTS 试听或直接进入工作项 02 |
-| 阻塞条件 | 无（试听为人工确认，不阻塞代码验收） |
+| 字段            | 内容                                                                                                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态变更        | `READY` → `DONE`                                                                                                                                                                                  |
+| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs`                                                                                                                                 |
+| 起始 commit     | `136bf68`                                                                                                                                                                                         |
+| 本次修改文件    | `f5_mlx_batch_tts.py`, `test_f5_duration.py`, `test-f5-duration.test.mjs`, `0008-tts-engine-f5-mlx.md`, `video-workflow.md`                                                                       |
+| 执行命令        | `~/.video-tts-env/bin/python3 __tests__/test_f5_duration.py` → 34 passed / 0 failed；`npx vitest run test-f5-duration.test.mjs` → 5 passed                                                        |
+| 结果摘要        | F5 签名确认 `method` 参数存在且默认 `rk4`；`F5TTS.sample()` 源码确认 rk4 分支；`estimate_target_seconds()` 替换 `len(text.split())/2.8`；全量测试无回归（3 failed → 3 failed，同一 3 个已知失败） |
+| 证据位置        | `test_f5_duration.py` (34 tests), `test-f5-duration.test.mjs` (5 tests), commit `138a392`                                                                                                         |
+| 未解决问题      | 真实 TTS 试听未做（需模型加载， ~12s+per scene）                                                                                                                                                  |
+| 下一步          | 真实 TTS 试听或直接进入工作项 02                                                                                                                                                                  |
+| 阻塞条件        | 无（试听为人工确认，不阻塞代码验收）                                                                                                                                                              |
 
 ## 6. 工作项 02：Remotion 视觉、音频、ASS 统一时间线
 
@@ -222,20 +222,20 @@ def estimate_target_seconds(text: str) -> float:
 
 开始编码前，所有者必须在本节的“决策记录”里选择一个时间线契约。未选择时保持 `BLOCKED`。
 
-| 选项 | 语义 | 优点 | 代价 | 建议 |
-|---|---|---|---|---|
-| A：固定 Scene 起点 | 音频、字幕、视觉均在 `sce| A：固e` 同一 offset 开始；转场不得压缩全局时长。 | 最容易保证字幕和语音一致。 | 不能使用会扣除时长的真实交叉淡化。 | **推荐** |
-| B：重叠全局时间线 | 每次 transition 将后续视觉、音频、字幕和总时长按同一公式前移。 | 保留真实交叉淡化。 | 需要明确语音是否重叠、字幕如何切换。 | 仅当视觉效果必须保留时采用。 |
+| 选项               | 语义                                                           | 优点                                             | 代价                                 | 建议                               |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------ | ---------------------------------- |
+| A：固定 Scene 起点 | 音频、字幕、视觉均在 `sce                                      | A：固e` 同一 offset 开始；转场不得压缩全局时长。 | 最容易保证字幕和语音一致。           | 不能使用会扣除时长的真实交叉淡化。 | **推荐** |
+| B：重叠全局时间线  | 每次 transition 将后续视觉、音频、字幕和总时长按同一公式前移。 | 保留真实交叉淡化。                               | 需要明确语音是否重叠、字幕如何切换。 | 仅当视觉效果必须保留时采用。       |
 
 ### 6.3 决策记录
 
-| 字段 | 填写内容 |
-|---|---|
-| 选择的契约 | `A：固定 Scene 起点` |
-| 决策者 | CatPaw（用户授权逐项执行） |
-| 决策日期 | 2026-08-18 |
-| 选择理由 | 音频和字幕已按无重叠设计（sceneTimeline），仅视觉 TransitionSeries 引入了 6 帧重叠。选项 A 保持已有设计，最小化变更。 |
-| 对 ADR-0010 的文案影响 | TransitionSeries 移除，改为绝对 Sequence + 内部 fade-in；已更新。 |
+| 字段                   | 填写内容                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 选择的契约             | `A：固定 Scene 起点`                                                                                                  |
+| 决策者                 | CatPaw（用户授权逐项执行）                                                                                            |
+| 决策日期               | 2026-08-18                                                                                                            |
+| 选择理由               | 音频和字幕已按无重叠设计（sceneTimeline），仅视觉 TransitionSeries 引入了 6 帧重叠。选项 A 保持已有设计，最小化变更。 |
+| 对 ADR-0010 的文案影响 | TransitionSeries 移除，改为绝对 Sequence + 内部 fade-in；已更新。                                                     |
 
 ### 6.4 选项 A 的实施蓝图（推荐）
 
@@ -252,13 +252,13 @@ def estimate_target_seconds(text: str) -> float:
 
 新增 `remotion-timeline.test.mjs`，以 2 Scene 和 3 Scene fixture 验证。
 
-| 断言 | 选项 A | 选项 B |
-|---|---|---|
-| Composition 总帧 | clipFrames 总和 | 总和减去 transition overlap。 |
-| audio 起点 | 等于 `sceneTimeline` offset | 等于公共 render timeline。 |
-| ASS 起点 | 等于 audio 起点 | 等于契约定义的 subtitle start。 |
-| visual 起点 | 等于 audio/ASS 起点 | 等于公共 visual start。 |
-| 最后一帧 | 不出现非预期空背景。 | 不出现非预期空背景。 |
+| 断言             | 选项 A                      | 选项 B                          |
+| ---------------- | --------------------------- | ------------------------------- |
+| Composition 总帧 | clipFrames 总和             | 总和减去 transition overlap。   |
+| audio 起点       | 等于 `sceneTimeline` offset | 等于公共 render timeline。      |
+| ASS 起点         | 等于 audio 起点             | 等于契约定义的 subtitle start。 |
+| visual 起点      | 等于 audio/ASS 起点         | 等于公共 visual start。         |
+| 最后一帧         | 不出现非预期空背景。        | 不出现非预期空背景。            |
 
 ### 6.7 验收清单
 
@@ -272,28 +272,28 @@ def estimate_target_seconds(text: str) -> float:
 
 ### 6.8 交接与状态
 
-| 字段 | 当前值 |
-|---|---|
-| 状态 | `DONE` |
-| 前置条件 | 00、01 已验证；6.3 已选选项 A。 |
+| 字段     | 当前值                                                          |
+| -------- | --------------------------------------------------------------- |
+| 状态     | `DONE`                                                          |
+| 前置条件 | 00、01 已验证；6.3 已选选项 A。                                 |
 | 提交主题 | `fix(video): unify Remotion visual audio and subtitle timeline` |
-| 回滚边界 | 只回滚 Remotion 时间线；保留 Playwright 回退。 |
-| 下一步 | 3 Scene 实渲染 + 人工观看验收。 |
+| 回滚边界 | 只回滚 Remotion 时间线；保留 Playwright 回退。                  |
+| 下一步   | 3 Scene 实渲染 + 人工观看验收。                                 |
 
 ### Session 交接 — 2026-08-18 / 02
 
-| 字段 | 内容 |
-|---|---|
-| 状态变更 | `NOT_STARTED` → `DONE` |
-| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
-| 起始 commit | `456a338` |
-| 本次修改文件 | `ShortVideo.tsx`, `Root.tsx`, `render-remotion.mjs`, `0010-remotion-replaces-playwright.md`, `remotion-timeline.test.mjs` |
-| 执行命令 | `npx vitest run remotion-timeline.test.mjs` → 12 passed；`npx remotion compositions src/Root.tsx` → OK |
-| 结果摘要 | TransitionSeries 移除，改为绝对 Sequence + FadeIn 内部动画；Root.tsx 和 render-remotion.mjs 统一使用 sceneClipFrames；ADR-0010 更新 |
-| 证据位置 | `remotion-timeline.test.mjs` (12 tests), Remotion compositions output |
-| 未解决问题 | 3 Scene 实渲染 + 人工观看未做（需 TTS 音频和完整管线运行） |
-| 下一步 | 人工实渲染验收或进入工作项 03 |
-| 阻塞条件 | 无（实渲染为人工确认，不阻塞代码验收） |
+| 字段            | 内容                                                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 状态变更        | `NOT_STARTED` → `DONE`                                                                                                              |
+| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs`                                                                   |
+| 起始 commit     | `456a338`                                                                                                                           |
+| 本次修改文件    | `ShortVideo.tsx`, `Root.tsx`, `render-remotion.mjs`, `0010-remotion-replaces-playwright.md`, `remotion-timeline.test.mjs`           |
+| 执行命令        | `npx vitest run remotion-timeline.test.mjs` → 12 passed；`npx remotion compositions src/Root.tsx` → OK                              |
+| 结果摘要        | TransitionSeries 移除，改为绝对 Sequence + FadeIn 内部动画；Root.tsx 和 render-remotion.mjs 统一使用 sceneClipFrames；ADR-0010 更新 |
+| 证据位置        | `remotion-timeline.test.mjs` (12 tests), Remotion compositions output                                                               |
+| 未解决问题      | 3 Scene 实渲染 + 人工观看未做（需 TTS 音频和完整管线运行）                                                                          |
+| 下一步          | 人工实渲染验收或进入工作项 03                                                                                                       |
+| 阻塞条件        | 无（实渲染为人工确认，不阻塞代码验收）                                                                                              |
 
 ## 7. 工作项 03：统一 AI venv 锁定与 smoke test
 
@@ -335,27 +335,27 @@ docs/adr/0011-unified-venv.md
 
 ### 7.5 交接与状态
 
-| 字段 | 当前值 |
-|---|---|
-| 状态 | `DONE` |
-| 前置条件 | 00 已验证。 |
+| 字段     | 当前值                                                         |
+| -------- | -------------------------------------------------------------- |
+| 状态     | `DONE`                                                         |
+| 前置条件 | 00 已验证。                                                    |
 | 提交主题 | `build(video): lock unified AI environment and add smoke test` |
-| 下一步 | 干净 venv 重建验证（可选，当前 venv 已验证可用）。 |
+| 下一步   | 干净 venv 重建验证（可选，当前 venv 已验证可用）。             |
 
 ### Session 交接 — 2026-08-18 / 03
 
-| 字段 | 内容 |
-|---|---|
-| 状态变更 | `READY` → `DONE` |
-| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
-| 起始 commit | `3c451ba` |
-| 本次修改文件 | `requirements-video-ai.in`, `requirements-video-ai.lock`, `verify-ai-env.py`, `0011-unified-venv.md` |
-| 执行命令 | `~/.video-tts-env/bin/python3 verify-ai-env.py` → 10/10 passed |
-| 结果摘要 | 158 packages locked；10/10 imports verified；upgrade protocol documented in ADR-0011 |
-| 证据位置 | `requirements-video-ai.lock` (158 lines), `verify-ai-env.py` output |
-| 未解决问题 | 干净 venv 重建未验证（需要新 Python 3.12 环境，耗时较长） |
-| 下一步 | 进入工作项 04 |
-| 阻塞条件 | 无 |
+| 字段            | 内容                                                                                                 |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| 状态变更        | `READY` → `DONE`                                                                                     |
+| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs`                                    |
+| 起始 commit     | `3c451ba`                                                                                            |
+| 本次修改文件    | `requirements-video-ai.in`, `requirements-video-ai.lock`, `verify-ai-env.py`, `0011-unified-venv.md` |
+| 执行命令        | `~/.video-tts-env/bin/python3 verify-ai-env.py` → 10/10 passed                                       |
+| 结果摘要        | 158 packages locked；10/10 imports verified；upgrade protocol documented in ADR-0011                 |
+| 证据位置        | `requirements-video-ai.lock` (158 lines), `verify-ai-env.py` output                                  |
+| 未解决问题      | 干净 venv 重建未验证（需要新 Python 3.12 环境，耗时较长）                                            |
+| 下一步          | 进入工作项 04                                                                                        |
+| 阻塞条件        | 无                                                                                                   |
 
 ## 8. 工作项 04：LFS pointer 校验与 ADR-0014 哈希修正
 
@@ -385,13 +385,13 @@ docs/adr/0011-unified-venv.md
 
 ### 8.4 交接与状态
 
-| 字段 | 当前值 |
-|---|---|
-| 状态 | `DONE` |
-| 前置条件 | 00 已验证。 |
+| 字段     | 当前值                                                    |
+| -------- | --------------------------------------------------------- |
+| 状态     | `DONE`                                                    |
+| 前置条件 | 00 已验证。                                               |
 | 提交主题 | `chore(git): verify staged binary files use LFS pointers` |
-| Commit | `ebf69d7` |
-| 下一步 | 首次 LFS 媒体提交后验证 ls-files。 |
+| Commit   | `ebf69d7`                                                 |
+| 下一步   | 首次 LFS 媒体提交后验证 ls-files。                        |
 
 ## 9. 工作项 05：Kaggle/Colab 可复现 GPU smoke 工件
 
@@ -417,13 +417,13 @@ docs/adr/0011-unified-venv.md
 
 ### 9.4 交接与状态
 
-| 字段 | 当前值 |
-|---|---|
-| 状态 | `DONE` |
-| 前置条件 | 00 已验证；云端认证可由用户在需要时接管。 |
+| 字段     | 当前值                                              |
+| -------- | --------------------------------------------------- |
+| 状态     | `DONE`                                              |
+| 前置条件 | 00 已验证；云端认证可由用户在需要时接管。           |
 | 提交主题 | `test(cloud): add reproducible CUDA smoke fixtures` |
-| Commit | `765f9e5` |
-| 下一步 | 远端 smoke run 待实际执行。 |
+| Commit   | `765f9e5`                                           |
+| 下一步   | 远端 smoke run 待实际执行。                         |
 
 ## 10. 工作项 06：素材采集 ADR 漂移、VLM 质量与遥测
 
@@ -432,6 +432,7 @@ docs/adr/0011-unified-venv.md
 ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；执行顺序实际上是 API → CDP primary → CDP fallback → MCP fallback。现有 paid API opt-in 护�ADR-0013 写 28 丁。VLM 已有“不可用则降级”的行为，但对描述臆造和 fit/focus 质量缺乏 Golden Asset 评估。
 
 ### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�#的 primary/fallback 两种尝试”，或正式改为“四阶段”；必须与代码一致。
+
 2. 使文档从硬编码来源数改为“由 `ALL_SOURCES` 测试约束”，或同步为 31。
 3. 在运行报告（非静态 registry）记录：source、attemptedLayers、successfulLayer、每层耗时、失败原因、结果数与 paid API 使用情况。
 4. 设计 Golden Asset 集：横图含边缘文字、top/center/bottom 主体、无可见品牌设备、短视频样本。
@@ -447,13 +448,13 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 
 ### 10.4 交接与状态
 
-| 字段 | 当前值 |
-|---|---|
-| 状态 | `DONE` |
-| 前置条件 | 00 已验证。 |
+| 字段     | 当前值                                                          |
+| -------- | --------------------------------------------------------------- |
+| 状态     | `DONE`                                                          |
+| 前置条件 | 00 已验证。                                                     |
 | 提交主题 | `docs(adr): align source collection record with implementation` |
-| Commit | `4b14387` |
-| 下一步 | Golden Asset 评估方案待实施。 |
+| Commit   | `4b14387`                                                       |
+| 下一步   | Golden Asset 评估方案待实施。                                   |
 
 ## 11. 工作项 07：既有 CSS 测试失败的设计归属
 
@@ -463,20 +464,20 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 
 ### 11.2 需要的人工输入
 
-| 所有者选择 | 后续动作 |
-|---|---|
+| 所有者选择                | 后续动作                                                     |
+| ------------------------- | ------------------------------------------------------------ |
 | 64px 是经视觉审查的新规格 | 更新测试期望，附设计/截图证据，并核对 Remotion counterpart。 |
-| 80px 才是规格 | 恢复 CSS 为 80px，并检查相关视觉路径。 |
-| 两条渲染路径允许不同规格 | 写出正式规范/ADR，不能让单一测试隐含冲突需求。 |
+| 80px 才是规格             | 恢复 CSS 为 80px，并检查相关视觉路径。                       |
+| 两条渲染路径允许不同规格  | 写出正式规范/ADR，不能让单一测试隐含冲突需求。               |
 
 ### 11.3 状态
 
-| 字段 | 当前值 |
-|---|---|
-| 状态 | `DONE` |
+| 字段     | 当前值                                                       |
+| -------- | ------------------------------------------------------------ |
+| 状态     | `DONE`                                                       |
 | 解除条件 | 已解除：用户确认 80px 是规格（brand-system.md 规定 ≥80px）。 |
-| Commit | `b60ca81` |
-| 下一步 | 无。 |
+| Commit   | `b60ca81`                                                    |
+| 下一步   | 无。                                                         |
 
 ## 12. 工作项 08：全局验收、ADR 同步与 PR 收口
 
@@ -486,28 +487,28 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 
 ### 12.2 ADR 更新表
 
-| ADR | 完成时必须同步的事实 |
-|---|---|
-| 0008 | CJK/混合文本时长公式、`method` 的真实保证方式、真实样本验收。 |
-| 0009 | 若加入 Golden Asset 或遥测，写入质量控制后果。 |
+| ADR  | 完成时必须同步的事实                                                |
+| ---- | ------------------------------------------------------------------- |
+| 0008 | CJK/混合文本时长公式、`method` 的真实保证方式、真实样本验收。       |
+| 0009 | 若加入 Golden Asset 或遥测，写入质量控制后果。                      |
 | 0010 | 选择的时间线契约、TransitionSeries 是否仍存在、实际 Scene mapping。 |
-| 0011 | lockfile、smoke test 和升级协议。 |
-| 0012 | 仅写实际执行过的 Kaggle/Colab smoke 结果。 |
-| 0013 | 34 来源与准确的访问能力/回退表述。 |
-| 0014 | 513e546…` 与 staged-pointer 校验。 |
+| 0011 | lockfile、smoke test 和升级协议。                                   |
+| 0012 | 仅写实际执行过的 Kaggle/Colab smoke 结果。                          |
+| 0013 | 34 来源与准确的访问能力/回退表述。                                  |
+| 0014 | 513e546…` 与 staged-pointer 校验。                                  |
 
 ### 12.3 最终验收门
 
-| 验收门 | 通过定义 |
-|---|---|
-| F5 时长 | 中、英、混合文本的估算与真实音频在已定义容差内。 |
-| Remotion 时间线 | 2/3 Scene 真实视频中字幕、语音、视觉和总帧遵循同一契约。 |
-| venv | 干净 Python 3.12 环境可依 lockfile 重建并通过 smoke。 |
-| LFS | 新的受管媒体形成 LFS pointer；旧历史未被迁移。 |
-| 云端 | 文档只描述已验证的远端 smoke，不夸大本地准备。 |
-| 素材采集/VLM | registry、paid API 护栏、降级行为与 ADR 一致。 |
-| 测试 | 全量测试有可复现摘要；所有豁免都明确。 |
-| Git 安全 | 无 history rewrite、无 force-push、无触碰原工作树已有修改。 |
+| 验收门          | 通过定义                                                    |
+| --------------- | ----------------------------------------------------------- |
+| F5 时长         | 中、英、混合文本的估算与真实音频在已定义容差内。            |
+| Remotion 时间线 | 2/3 Scene 真实视频中字幕、语音、视觉和总帧遵循同一契约。    |
+| venv            | 干净 Python 3.12 环境可依 lockfile 重建并通过 smoke。       |
+| LFS             | 新的受管媒体形成 LFS pointer；旧历史未被迁移。              |
+| 云端            | 文档只描述已验证的远端 smoke，不夸大本地准备。              |
+| 素材采集/VLM    | registry、paid API 护栏、降级行为与 ADR 一致。              |
+| 测试            | 全量测试有可复现摘要；所有豁免都明确。                      |
+| Git 安全        | 无 history rewrite、无 force-push、无触碰原工作树已有修改。 |
 
 ### 12.4 PR 收口规则
 
@@ -519,36 +520,36 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 
 ### 12.5 Session 交接 — 2026-08-18 / 08
 
-| 字段 | 内容 |
-|---|---|
-| 状态变更 | `NOT_STARTED` → `DONE` |
-| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs` |
-| 起始 commit | `b60ca81` |
-| 本次修改文件 | `docs/specs/adr-0008-0014-remediation-tracker.md`（仅状态更新） |
-| 执行命令 | `npx vitest run scripts/short-video/__tests__ --reporter=dot` → 2 failed / 1266 passed / 1268 total；ADR 逐项核查；`git reflog` + `git log --oneline --all --graph` 安全边界检查 |
-| 结果摘要 | 全量测试无新回归（基线 3 failed → 2 failed，Item 07 修复 CSS 80px 减少 1 个）；ADR 0008-0014 全部与代码/测试一致；Git 安全边界无违反（1 次 amend 在 push 前、无 force-push、无 history rewrite、worktree 隔离）；7 个独立 commit 覆盖 Item 01-07 |
-| 证据位置 | vitest 输出（2 failed = post-process node:test 不兼容 + infra-paths voice-samples gitignored，均为已知环境限制）；ADR 文件内容逐项核查；reflog 无改写 |
-| 未解决问题 | ① 真实 TTS 试听（Item 01）；② 3 Scene 实渲染人工观看（Item 02）；③ 干净 venv 重建（Item 03）；④ 首次 LFS 媒体提交验证（Item 04）；⑤ 远端 Kaggle/Colab smoke run（Item 05）；⑥ Golden Asset 评估方案实施（Item 06）。以上均为人工确认或远端执行，不阻塞代码验收。 |
-| 下一步 | 推送分支 `fix/adr-implementation-repairs` → 创建 PR → 合并后归档本追踪器到 `docs/archive/` |
-| 阻塞条件 | 无 |
+| 字段            | 内容                                                                                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态变更        | `NOT_STARTED` → `DONE`                                                                                                                                                                                                                                           |
+| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs`                                                                                                                                                                                                |
+| 起始 commit     | `b60ca81`                                                                                                                                                                                                                                                        |
+| 本次修改文件    | `docs/specs/adr-0008-0014-remediation-tracker.md`（仅状态更新）                                                                                                                                                                                                  |
+| 执行命令        | `npx vitest run scripts/short-video/__tests__ --reporter=dot` → 2 failed / 1266 passed / 1268 total；ADR 逐项核查；`git reflog` + `git log --oneline --all --graph` 安全边界检查                                                                                 |
+| 结果摘要        | 全量测试无新回归（基线 3 failed → 2 failed，Item 07 修复 CSS 80px 减少 1 个）；ADR 0008-0014 全部与代码/测试一致；Git 安全边界无违反（1 次 amend 在 push 前、无 force-push、无 history rewrite、worktree 隔离）；7 个独立 commit 覆盖 Item 01-07                 |
+| 证据位置        | vitest 输出（2 failed = post-process node:test 不兼容 + infra-paths voice-samples gitignored，均为已知环境限制）；ADR 文件内容逐项核查；reflog 无改写                                                                                                            |
+| 未解决问题      | ① 真实 TTS 试听（Item 01）；② 3 Scene 实渲染人工观看（Item 02）；③ 干净 venv 重建（Item 03）；④ 首次 LFS 媒体提交验证（Item 04）；⑤ 远端 Kaggle/Colab smoke run（Item 05）；⑥ Golden Asset 评估方案实施（Item 06）。以上均为人工确认或远端执行，不阻塞代码验收。 |
+| 下一步          | 推送分支 `fix/adr-implementation-repairs` → 创建 PR → 合并后归档本追踪器到 `docs/archive/`                                                                                                                                                                       |
+| 阻塞条件        | 无                                                                                                                                                                                                                                                               |
 
 ## 13. 证据索引
 
-| 证据 | 路径/命令 | 用途 |
-|---|---|---|
-| 术语 | `CONTEXT.md` | Scene、Scene Data、MRL、HITL 的项目定义。 |
-| F5 决策 | `docs/adr/0008-tts-engine-f5-mlx.md` | 默认引擎与时长约束。 |
-| VLM 决策 | `docs/adr/0009-vlm-qwen3-vl-mlx.md` | 本地模型、降级与素材分析。 |
-| Remotion 决策 | `docs/adr/0010-remotion-replaces-playwright.md` | 迁移范围与确定性时间线目标。 |
-| venv 决策 | `docs/adr/0011-unified-venv.md` | Python 3.12 与统一环境。 |
-| GPU 决策 | `docs/adr/0012-cloud-gpu-kaggle-colab.md` | 云端实验边界。 |
-| 素材决策 | `docs/adr/0013-asset-sourcing-three-layer.md` | API/CDP/MCP 与 paid API 护栏。 |
-| LFS 决策 | `docs/adr/0014-git-lfs-strategy.md` | 无历史迁移的 LFS 策略。 |
-| 共享时间线 | `scripts/short-video/lib/timeline.mjs` | Scene clip、frame、subtitle offset 的真源。 |
-| Remotion 组合 | `scripts/short-video/remotion/src/ShortVideo.tsx`、`Root.tsx` | 视觉、音频与 metadata 的帧行为。 |
+| 证据          | 路径/命令                                                     | 用途                                        |
+| ------------- | ------------------------------------------------------------- | ------------------------------------------- |
+| 术语          | `CONTEXT.md`                                                  | Scene、Scene Data、MRL、HITL 的项目定义。   |
+| F5 决策       | `docs/adr/0008-tts-engine-f5-mlx.md`                          | 默认引擎与时长约束。                        |
+| VLM 决策      | `docs/adr/0009-vlm-qwen3-vl-mlx.md`                           | 本地模型、降级与素材分析。                  |
+| Remotion 决策 | `docs/adr/0010-remotion-replaces-playwright.md`               | 迁移范围与确定性时间线目标。                |
+| venv 决策     | `docs/adr/0011-unified-venv.md`                               | Python 3.12 与统一环境。                    |
+| GPU 决策      | `docs/adr/0012-cloud-gpu-kaggle-colab.md`                     | 云端实验边界。                              |
+| 素材决策      | `docs/adr/0013-asset-sourcing-three-layer.md`                 | API/CDP/MCP 与 paid API 护栏。              |
+| LFS 决策      | `docs/adr/0014-git-lfs-strategy.md`                           | 无历史迁移的 LFS 策略。                     |
+| 共享时间线    | `scripts/short-video/lib/timeline.mjs`                        | Scene clip、frame、subtitle offset 的真源。 |
+| Remotion 组合 | `scripts/short-video/remotion/src/ShortVideo.tsx`、`Root.tsx` | 视觉、音频与 metadata 的帧行为。            |
 
 ## 14. 变更日志
 
-| 日期 | 变更 | 维护者 |
-|---|---|---|
+| 日期       | 变更                                                                      | 维护者   |
+| ---------- | ------------------------------------------------------------------------- | -------- |
 | 2026-08-17 | 创建 Active 追踪器；根据 ADR 0008–0014 审阅建立初始工作项、依赖和验收门。 | Manus AI |

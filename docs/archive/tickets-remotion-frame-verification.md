@@ -8,10 +8,12 @@
 **阻塞**：T-2, T-3
 
 **交付物**：
+
 - `scripts/short-video/lib/frame-analysis.mjs`
 - `scripts/short-video/__tests__/frame-analysis.test.mjs`
 
 **内容**：
+
 - `luminance(r, g, b)` — 亮度计算
 - `getPixel(buf, x, y)` — 从 PixelBuffer 读取像素
 - `sampleRegion(buf, region, step)` — 区域采样
@@ -24,6 +26,7 @@
 - `runFrameAnalysis(buf, safeZones)` — 整合所有检查
 
 **常量**：
+
 - `BRIGHT_THRESHOLD = 80`
 - `BRIGHT_RATIO_FAIL = 0.05`
 - `SAMPLE_STEP = 8`
@@ -32,6 +35,7 @@
 **测试覆盖**：Scenario matrix 行 1-6, 9-10
 
 **验收**：
+
 - `npx vitest run __tests__/frame-analysis.test.mjs` 全绿
 - 所有函数为纯函数（无 IO、无副作用）
 
@@ -43,10 +47,12 @@
 **阻塞**：T-3
 
 **交付物**：
+
 - `scripts/short-video/verify-remotion-frames.mjs`
 - `scripts/short-video/package.json` 加 `pngjs` 依赖
 
 **内容**：
+
 - CLI: `--content <dir> --video <path>`
 - 加载 scene-data.mjs + safe-zones.mjs + timeline.mjs
 - 计算每个场景中间帧号
@@ -59,6 +65,7 @@
 **测试覆盖**：Scenario matrix 行 7-8, 11-12（集成行为）
 
 **验收**：
+
 - 对已渲染的 Remotion 视频执行，输出 pass/warn/fail 汇总
 - 非 Remotion 内容不触发
 - ffmpeg/pngjs 失败时容错（skip + warn）
@@ -71,15 +78,18 @@
 **阻塞**：无
 
 **交付物**：
+
 - `scripts/short-video/verify-video.mjs` 修改
 
 **内容**：
+
 - 在 post-render 模式下，subtitle checks 之后、manual items 之前
 - 检测 Remotion 内容（meta.renderer === "remotion"）
 - 调用 `verify-remotion-frames.mjs`
 - 结果合入 verify-video.mjs 的 pass/warn/fail 汇总
 
 **验收**：
+
 - `node verify-video.mjs --content <remotion-content>` 在 post-render 模式下自动执行帧分析
 - `node verify-video.mjs --pre --content <dir>` 不执行帧分析（pre-render 模式）
 - 非 Remotion 内容不执行帧分析

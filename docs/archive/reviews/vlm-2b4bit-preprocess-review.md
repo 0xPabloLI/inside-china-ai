@@ -40,16 +40,16 @@
 
 **Issue #113 acceptance criteria check**:
 
-| Criterion | Status | Notes |
-|-----------|--------|-------|
-| Resize images >1920px on longest edge | ✅ Implemented | `MAX_IMAGE_LONG_EDGE = 1920`, `resize_image_if_needed()` |
-| Use `Image.LANCZOS` for quality | ✅ Implemented | `Image.Resampling.LANCZOS` (correct modern API) |
-| Save to temp file, pass to VLM, cleanup | ✅ Implemented | `tempfile.mktemp` → `img.save` → `os.unlink` in `finally` |
-| Test with unitree-building.jpg | ✅ Verified | R4 benchmark report documents results |
-| Add unit test for resize logic | ❌ **Missing** | No test was added for `resize_image_if_needed()` |
-| High-res images no longer hallucinate | ✅ Verified | R4 data shows no hallucinations at 1920px |
-| Normal resolution images not affected | ✅ Verified | `resize_image_if_needed` returns original path when ≤1920px |
-| No regression in existing pipeline tests | ✅ Verified | 16/16 tests passing (per conversation) |
+| Criterion                                | Status         | Notes                                                       |
+| ---------------------------------------- | -------------- | ----------------------------------------------------------- |
+| Resize images >1920px on longest edge    | ✅ Implemented | `MAX_IMAGE_LONG_EDGE = 1920`, `resize_image_if_needed()`    |
+| Use `Image.LANCZOS` for quality          | ✅ Implemented | `Image.Resampling.LANCZOS` (correct modern API)             |
+| Save to temp file, pass to VLM, cleanup  | ✅ Implemented | `tempfile.mktemp` → `img.save` → `os.unlink` in `finally`   |
+| Test with unitree-building.jpg           | ✅ Verified    | R4 benchmark report documents results                       |
+| Add unit test for resize logic           | ❌ **Missing** | No test was added for `resize_image_if_needed()`            |
+| High-res images no longer hallucinate    | ✅ Verified    | R4 data shows no hallucinations at 1920px                   |
+| Normal resolution images not affected    | ✅ Verified    | `resize_image_if_needed` returns original path when ≤1920px |
+| No regression in existing pipeline tests | ✅ Verified    | 16/16 tests passing (per conversation)                      |
 
 **Scope creep**: None — changes are tightly scoped to VLM analyzer + docs.
 
@@ -75,6 +75,7 @@
 3. **Qwen3.8**（2026-08-08 发布）：最新开源旗舰，支持图片+视频输入
 
 **结论**：Qwen 确实推出了后续版本（3.5/3.6/3.8），架构层面统一了 VL。但 **在 Apple Silicon / MLX 生态中，这些新版本的原生视频处理路径尚未成熟**：
+
 - mlx-vlm 尚未适配 Qwen3.5 的视频处理 API
 - llama.cpp 社区有实验性补丁但非原生
 - 所有平台仍存在 video processor shape 问题
@@ -85,12 +86,13 @@
 
 ## Summary
 
-| Axis | Findings | Worst Issue |
-|------|----------|-------------|
-| **Standards** | 3 violations + 2 smells | `tempfile.mktemp` deprecated (hard) |
-| **Spec** | 1 missing (unit test for resize) | Issue #113 task "Add unit test" not done |
+| Axis          | Findings                         | Worst Issue                              |
+| ------------- | -------------------------------- | ---------------------------------------- |
+| **Standards** | 3 violations + 2 smells          | `tempfile.mktemp` deprecated (hard)      |
+| **Spec**      | 1 missing (unit test for resize) | Issue #113 task "Add unit test" not done |
 
 **Action items**:
+
 1. Replace `tempfile.mktemp` with `tempfile.mkstemp` or `NamedTemporaryFile` (hard)
 2. Remove unused `from pathlib import Path` import (hard)
 3. Add unit test for `resize_image_if_needed()` (spec requirement)

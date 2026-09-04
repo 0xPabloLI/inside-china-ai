@@ -12,12 +12,12 @@
 
 ## 2. 修订文件清单
 
-| 文件 | 简称 | 修订内容 |
-|------|------|----------|
-| `docs/research/vlm-model-selection-benchmark.md` | benchmark | F1/F4/F5/F8/F9/F11 — 视频章节重构 + 性能断言修正 |
-| `docs/adr/0009-vlm-qwen3-vl-mlx.md` | ADR-0009 | F3 — Ollama 视觉能力修正 |
-| `docs/handoffs/handoff-vlm-model-sources-2026-08-26.md` | handoff | F1/F2/F7/F8/F9 — 待办收束 + 断言修正 + memory 指针替换 |
-| `docs/research/model-sources-reference.md` | model-sources | F6/F7/F8 — 信源表分层 + 格式表拆分 + 性能断言修正 |
+| 文件                                                    | 简称          | 修订内容                                               |
+| ------------------------------------------------------- | ------------- | ------------------------------------------------------ |
+| `docs/research/vlm-model-selection-benchmark.md`        | benchmark     | F1/F4/F5/F8/F9/F11 — 视频章节重构 + 性能断言修正       |
+| `docs/adr/0009-vlm-qwen3-vl-mlx.md`                     | ADR-0009      | F3 — Ollama 视觉能力修正                               |
+| `docs/handoffs/handoff-vlm-model-sources-2026-08-26.md` | handoff       | F1/F2/F7/F8/F9 — 待办收束 + 断言修正 + memory 指针替换 |
+| `docs/research/model-sources-reference.md`              | model-sources | F6/F7/F8 — 信源表分层 + 格式表拆分 + 性能断言修正      |
 
 ## 3. 详细修订方案
 
@@ -87,6 +87,7 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 **当前第 94-100 行**："待落盘"section 列出三项需写入 model-sources-reference.md 的内容。这些已在 commit `522ac4d` 中落盘。
 
 **改为**：
+
 ```
 ### 已完成
 
@@ -111,12 +112,14 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 ### 3.7 handoff — Qwen3.8 断言修正（F9）
 
 **当前第 46-47 行**选项 D：
+
 ```
 - 优势：最强开源 VLM、Apache-2.0、原生视觉
 - 劣势：18GB 模型需 24GB+ Mac（M2 Pro 32GB 可跑但紧张）、mlx-vlm 不支持 `qwen3_8` 架构、只能通过 Ollama
 ```
 
 **改为**：
+
 ```
 - 优势：本项目候选集内的高容量候选、Apache-2.0、原生视觉（官方模型卡确认支持图像和视频）
 - 劣势：~18GB Q4 变体、内存需求需实际加载测量、mlx-vlm 不支持 `qwen3_8` 架构、当前仅通过 Ollama 验证了 MLX 变体
@@ -141,12 +144,12 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 ```markdown
 **信源分层使用**：
 
-| 层级 | 适用问题 | 首选证据 | 完成条件 |
-|------|---------|---------|---------|
-| 第一方事实 | 许可证、模态、参数、上下文 | 官方模型卡、LICENSE、官方仓库文档 | 每项关键结论有稳定链接与检索日期 |
-| 发行与安装 | 某变体能否拉取和运行 | Ollama Library、LM Studio、HF 文件页 | 在目标设备执行最小 smoke test |
-| 独立评估 | 质量/速度/成本对比 | 可复现实验报告、任务匹配 benchmark | 说明任务集、版本与局限 |
-| 本机决策 | 本项目生产适配性 | 固定 corpus 的 benchmark + E2E 测试 | 图片、视频、峰值内存、失败率均记录 |
+| 层级       | 适用问题                   | 首选证据                             | 完成条件                           |
+| ---------- | -------------------------- | ------------------------------------ | ---------------------------------- |
+| 第一方事实 | 许可证、模态、参数、上下文 | 官方模型卡、LICENSE、官方仓库文档    | 每项关键结论有稳定链接与检索日期   |
+| 发行与安装 | 某变体能否拉取和运行       | Ollama Library、LM Studio、HF 文件页 | 在目标设备执行最小 smoke test      |
+| 独立评估   | 质量/速度/成本对比         | 可复现实验报告、任务匹配 benchmark   | 说明任务集、版本与局限             |
+| 本机决策   | 本项目生产适配性           | 固定 corpus 的 benchmark + E2E 测试  | 图片、视频、峰值内存、失败率均记录 |
 ```
 
 ### 3.11 model-sources — §2 格式表拆分（F7）
@@ -155,21 +158,21 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 
 **权重容器**：
 
-| 格式 | 推理引擎 | 跨引擎？ | Apple Silicon | 说明 |
-|------|---------|---------|--------------|------|
-| **GGUF** | llama.cpp / Ollama / LM Studio | ✅ | ✅ Metal | llama.cpp 创建的格式，现为本地推理通用标准 |
-| **MLX** | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生 | Apple Silicon 原生格式 |
-| **safetensors** | transformers / vLLM | ✅ | ✅ MPS | 全精度源格式，量化前的基础 |
+| 格式            | 推理引擎                          | 跨引擎？      | Apple Silicon | 说明                                       |
+| --------------- | --------------------------------- | ------------- | ------------- | ------------------------------------------ |
+| **GGUF**        | llama.cpp / Ollama / LM Studio    | ✅            | ✅ Metal      | llama.cpp 创建的格式，现为本地推理通用标准 |
+| **MLX**         | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生       | Apple Silicon 原生格式                     |
+| **safetensors** | transformers / vLLM               | ✅            | ✅ MPS        | 全精度源格式，量化前的基础                 |
 
 **量化方法**：
 
-| 方法 | 适用引擎 | 硬件 | 量化位宽 | 说明 |
-|------|---------|------|---------|------|
-| **K-quants** | llama.cpp / Ollama | ✅ Metal | Q2-Q8 | GGUF 的量化方式 |
-| **MLX 量化** | mlx-lm / mlx-vlm | ✅ 原生 | 2-8 bit | MLX 原生量化 |
-| **GPTQ** | vLLM / transformers | ❌ NVIDIA | 4-bit | 权重存为 safetensors |
-| **AWQ** | vLLM / transformers | ❌ NVIDIA | 4-bit | 质量通常优于 GPTQ |
-| **EXL2** | ExLlamaV2 | ❌ NVIDIA | 2-8 bpw | 可变比特率 |
+| 方法         | 适用引擎            | 硬件      | 量化位宽 | 说明                 |
+| ------------ | ------------------- | --------- | -------- | -------------------- |
+| **K-quants** | llama.cpp / Ollama  | ✅ Metal  | Q2-Q8    | GGUF 的量化方式      |
+| **MLX 量化** | mlx-lm / mlx-vlm    | ✅ 原生   | 2-8 bit  | MLX 原生量化         |
+| **GPTQ**     | vLLM / transformers | ❌ NVIDIA | 4-bit    | 权重存为 safetensors |
+| **AWQ**      | vLLM / transformers | ❌ NVIDIA | 4-bit    | 质量通常优于 GPTQ    |
+| **EXL2**     | ExLlamaV2           | ❌ NVIDIA | 2-8 bpw  | 可变比特率           |
 
 ### 3.12 model-sources — 性能断言修正（F8）
 
@@ -193,29 +196,29 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 
 ### Modified Files Impact
 
-| 文件 | 修改类型 | 影响范围 | 风险 |
-|------|---------|---------|------|
-| benchmark | 内容重构（§4 视频章节 + §5 社区评价 + §7/§8 待办） | VLM 选型决策依据 | 低——不改变选型结论（2B-4bit），只修正叙述一致性 |
-| ADR-0009 | 事实修正（1 行） | 架构决策记录 | 低——不改变决策（仍用 mlx-vlm），只修正 Ollama 表述 |
-| handoff | 收束 + 修正（多行） | 交接文档 | 低——交接文档是历史记录，修正不影响当前执行 |
-| model-sources | 结构调整（§1.8 + §2 + §4） | 模型搜索流程参考 | 中——格式表拆分可能影响已有引用 |
+| 文件          | 修改类型                                           | 影响范围         | 风险                                               |
+| ------------- | -------------------------------------------------- | ---------------- | -------------------------------------------------- |
+| benchmark     | 内容重构（§4 视频章节 + §5 社区评价 + §7/§8 待办） | VLM 选型决策依据 | 低——不改变选型结论（2B-4bit），只修正叙述一致性    |
+| ADR-0009      | 事实修正（1 行）                                   | 架构决策记录     | 低——不改变决策（仍用 mlx-vlm），只修正 Ollama 表述 |
+| handoff       | 收束 + 修正（多行）                                | 交接文档         | 低——交接文档是历史记录，修正不影响当前执行         |
+| model-sources | 结构调整（§1.8 + §2 + §4）                         | 模型搜索流程参考 | 中——格式表拆分可能影响已有引用                     |
 
 ### Behavioral Scenarios
 
-| # | 场景 | 预期行为 | 验证方式 |
-|---|------|---------|---------|
-| S1 | Agent 读 benchmark §4 视频分析 | 先看到"已废弃结论"（标注废弃原因），再看到"当前结论"（含验证日期、环境、证据），不会混淆 | 读文件检查结构 |
-| S2 | Agent 读 ADR-0009 | 看到"Ollama 支持部分视觉模型"，不会误认为 Ollama 完全不支持视觉 | grep "does not support vision" = 0 hits |
-| S3 | Agent 读 handoff 待办 | 第 1 项标记 [x]，"待落盘"section 已替换为"已完成"指针 | grep "待落盘" = 0 hits |
-| S4 | Agent 读 handoff 选项 D | 看到"本项目候选集内的高容量候选"而非"最强开源 VLM" | grep "最强开源 VLM" = 0 hits in handoff |
-| S5 | Agent 读 model-sources §2 | 看到"权重容器"和"量化方法"两个子表，不再混合 | 读文件检查结构 |
-| S6 | Agent 读 model-sources §1.8 | 线性表保留作为速查，下方有"决策证据分层"指导 | 读文件检查存在性 |
-| S7 | 在 4 个文件中搜索 `[[memory:` | 0 hits | grep 检查 |
-| S8 | 在 4 个文件中搜索 `~16MB` 或 `16 MB` | 0 hits（Ollama 进程内存数字已删除） | grep 检查 |
-| S9 | 在 benchmark 中搜索"影响所有平台" | 只出现在"已废弃结论"小节内，且标注为废弃 | grep + 上下文检查 |
-| S10 | 在 model-sources 中搜索"快 30-50%"或"慢 2-4x" | 0 hits | grep 检查 |
-| S11 | 跨文档一致性：ADR-0009 和 handoff 对 Ollama 的表述 | 一致——都说"Ollama 支持部分视觉模型，但本项目以 mlx-vlm 为主路径" | 交叉对比 |
-| S12 | benchmark §4 当前结论和 handoff 背景描述 | 一致——都说"原生视频路径可用，误报原因是 API 调用方式错误" | 交叉对比 |
+| #   | 场景                                               | 预期行为                                                                                 | 验证方式                                |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------- |
+| S1  | Agent 读 benchmark §4 视频分析                     | 先看到"已废弃结论"（标注废弃原因），再看到"当前结论"（含验证日期、环境、证据），不会混淆 | 读文件检查结构                          |
+| S2  | Agent 读 ADR-0009                                  | 看到"Ollama 支持部分视觉模型"，不会误认为 Ollama 完全不支持视觉                          | grep "does not support vision" = 0 hits |
+| S3  | Agent 读 handoff 待办                              | 第 1 项标记 [x]，"待落盘"section 已替换为"已完成"指针                                    | grep "待落盘" = 0 hits                  |
+| S4  | Agent 读 handoff 选项 D                            | 看到"本项目候选集内的高容量候选"而非"最强开源 VLM"                                       | grep "最强开源 VLM" = 0 hits in handoff |
+| S5  | Agent 读 model-sources §2                          | 看到"权重容器"和"量化方法"两个子表，不再混合                                             | 读文件检查结构                          |
+| S6  | Agent 读 model-sources §1.8                        | 线性表保留作为速查，下方有"决策证据分层"指导                                             | 读文件检查存在性                        |
+| S7  | 在 4 个文件中搜索 `[[memory:`                      | 0 hits                                                                                   | grep 检查                               |
+| S8  | 在 4 个文件中搜索 `~16MB` 或 `16 MB`               | 0 hits（Ollama 进程内存数字已删除）                                                      | grep 检查                               |
+| S9  | 在 benchmark 中搜索"影响所有平台"                  | 只出现在"已废弃结论"小节内，且标注为废弃                                                 | grep + 上下文检查                       |
+| S10 | 在 model-sources 中搜索"快 30-50%"或"慢 2-4x"      | 0 hits                                                                                   | grep 检查                               |
+| S11 | 跨文档一致性：ADR-0009 和 handoff 对 Ollama 的表述 | 一致——都说"Ollama 支持部分视觉模型，但本项目以 mlx-vlm 为主路径"                         | 交叉对比                                |
+| S12 | benchmark §4 当前结论和 handoff 背景描述           | 一致——都说"原生视频路径可用，误报原因是 API 调用方式错误"                                | 交叉对比                                |
 
 ---
 

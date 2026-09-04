@@ -8,10 +8,10 @@ The `.env` file is committed to git and pushed to GitHub. This was done by Lovab
 
 This is **intentional and correct** for the Lovable + Supabase stack. The project uses a two-layer env separation:
 
-| File | Contents | In Git | Why |
-|---|---|---|---|
-| `.env` | Supabase publishable key, project ID, URL | ✅ Yes | These are **public by design** — publishable keys are embedded in the frontend bundle and visible to every site visitor. No security benefit in hiding them. |
-| `.env.local` | Admin email/password, refresh tokens | ❌ No (via `*.local`) | Real secrets. Used by server-side scripts (e.g. `publish-article.mjs`). Must never be committed. |
+| File         | Contents                                  | In Git                | Why                                                                                                                                                          |
+| ------------ | ----------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.env`       | Supabase publishable key, project ID, URL | ✅ Yes                | These are **public by design** — publishable keys are embedded in the frontend bundle and visible to every site visitor. No security benefit in hiding them. |
+| `.env.local` | Admin email/password, refresh tokens      | ❌ No (via `*.local`) | Real secrets. Used by server-side scripts (e.g. `publish-article.mjs`). Must never be committed.                                                             |
 
 ## Why this is safe
 

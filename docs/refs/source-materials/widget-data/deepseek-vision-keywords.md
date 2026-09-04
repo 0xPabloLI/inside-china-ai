@@ -9,28 +9,28 @@
 
 ### Vision Keywords (20 entries, sorted by frequency)
 
-| English | Chinese | Frequency |
-|---------|---------|-----------|
-| Vision | 愿景 | 45 |
-| Restraint | 克制 | 42 |
-| Open Source | 开源 | 38 |
-| AGI | 通用人工智能 | 35 |
-| Team Stability | 团队稳定性 | 33 |
-| Kindness | 善意 | 30 |
-| Pricing | 定价 | 28 |
-| Commercialization | 商业化 | 25 |
-| CoT | 思维链 | 24 |
-| Agents | 智能体 | 22 |
-| Continuous Learning | 持续学习 | 20 |
-| Self-Iteration | 自我迭代 | 18 |
-| Embodied AI | 具身智能 | 16 |
-| Profit | 利润 | 15 |
-| Competition | 竞争 | 14 |
-| KPI | 绩效考核 | 12 |
-| Organization | 组织 | 11 |
-| Strategy | 战略 | 10 |
-| Ordinary People | 平凡的人 | 9 |
-| Dimensionality Reduction | 降维打击 | 8 |
+| English                  | Chinese      | Frequency |
+| ------------------------ | ------------ | --------- |
+| Vision                   | 愿景         | 45        |
+| Restraint                | 克制         | 42        |
+| Open Source              | 开源         | 38        |
+| AGI                      | 通用人工智能 | 35        |
+| Team Stability           | 团队稳定性   | 33        |
+| Kindness                 | 善意         | 30        |
+| Pricing                  | 定价         | 28        |
+| Commercialization        | 商业化       | 25        |
+| CoT                      | 思维链       | 24        |
+| Agents                   | 智能体       | 22        |
+| Continuous Learning      | 持续学习     | 20        |
+| Self-Iteration           | 自我迭代     | 18        |
+| Embodied AI              | 具身智能     | 16        |
+| Profit                   | 利润         | 15        |
+| Competition              | 竞争         | 14        |
+| KPI                      | 绩效考核     | 12        |
+| Organization             | 组织         | 11        |
+| Strategy                 | 战略         | 10        |
+| Ordinary People          | 平凡的人     | 9         |
+| Dimensionality Reduction | 降维打击     | 8         |
 
 ## Sources
 

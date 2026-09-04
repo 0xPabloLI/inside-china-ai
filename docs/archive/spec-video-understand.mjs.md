@@ -34,6 +34,7 @@ A reusable module `scripts/short-video/lib/video-understand.mjs` that orchestrat
 New file: `scripts/short-video/lib/video-understand.mjs`
 
 Three exported functions:
+
 - `downloadVideo(url, options)` → `{ videoPath, platform, videoId, author, title }`
 - `transcribeVideo(videoPath, options)` → `{ segments, fullText }` or `null`
 - `understandVideo(url, options)` → `{ url, platform, author, title, duration, transcript, visualAnalysis, summary, status }`
@@ -118,11 +119,11 @@ Three exported functions:
 ### Constants
 
 ```javascript
-const WHISPER_CLI = '/opt/homebrew/bin/whisper-cli';
-const WHISPER_MODEL = '~/.cache/whisper/ggml-large-v3-turbo.bin';
-const FFMPEG = '/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg';
-const YTDLP = '/opt/homebrew/bin/yt-dlp';
-const CDP_BASE = 'http://localhost:3456';
+const WHISPER_CLI = "/opt/homebrew/bin/whisper-cli";
+const WHISPER_MODEL = "~/.cache/whisper/ggml-large-v3-turbo.bin";
+const FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+const YTDLP = "/opt/homebrew/bin/yt-dlp";
+const CDP_BASE = "http://localhost:3456";
 ```
 
 ## Testing Decisions
@@ -152,31 +153,31 @@ Pure new files — no existing files modified. This section is skipped per scena
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | TikTok short URL (`vt.tiktok.com/xxx`) | fetch redirect → parse `@user/video/ID` → CDP download | Medium | fetch redirect is network-dependent; fallback: throw clear error |
-| 2 | TikTok full URL (`tiktok.com/@user/video/ID`) | Direct regex parse → CDP download | Low | Straightforward regex |
-| 3 | YouTube URL (`youtube.com/watch?v=xxx`) | Regex parse → yt-dlp download with cookies | Low | yt-dlp verified working |
-| 4 | YouTube Shorts URL (`youtube.com/shorts/xxx`) | Regex parse → yt-dlp download with `--remote-components ejs:github` | Low | Verified in handoff |
-| 5 | Bilibili URL (`bilibili.com/video/BVxxx`) | Regex parse → yt-dlp download (no cookies) | Low | Verified working |
-| 6 | Unknown/unrecognized URL | Throw `Error('Unsupported platform: ...')` | Low | Clear error message |
-| 7 | whisper-cli not found | `transcript: null` + warning, `status: "degraded"` | Low | Graceful degradation |
-| 8 | whisper-cli fails (corrupt audio) | `transcript: null` + warning, `status: "degraded"` | Low | Catch exec error, return null |
-| 9 | VLM unavailable (Python/model not found) | `visualAnalysis: DEGRADED_RESULT` (existing behavior), `status: "degraded"` | Low | Reuses visual-analyzer.mjs degradation |
-| 10 | CDP proxy not running (TikTok download) | Throw `Error('CDP proxy not available at localhost:3456')` | Medium | Check `cdpAvailable()` before attempting TikTok download |
-| 11 | TikTok CDP API returns no `playAddr` | Throw `Error('TikTok API returned no playAddr')` | Medium | Check response structure, throw with context |
-| 12 | Video file > 50MB (large video) | Base64 chunking handles arbitrarily large blobs | Low | 2MB chunks via cdpEval loop |
-| 13 | options = undefined | Use defaults: `{ transcript: true, visual: true, outputDir: '/tmp' }` | Low | Default parameter pattern |
-| 14 | options.transcript = false, options.visual = true | Skip ASR, only run VLM | Low | Conditional execution |
-| 15 | options.transcript = true, options.visual = false | Skip VLM, only run ASR | Low | Conditional execution + skip closeVisualAnalyzer |
-| 16 | Empty whisper transcript (no speech detected) | `transcript: { segments: [], fullText: "" }`, `status: "degraded"` | Low | Parse empty JSON, don't crash |
-| 17 | Video has no audio track | ffmpeg produces empty WAV → whisper returns empty → `transcript: { segments: [], fullText: "" }` | Low | Handled by scenario 16 |
-| 18 | outputDir not provided | Use `/tmp` as default, still write file | Low | Default parameter |
-| 19 | writeFile = false | Return JS object only, don't write to disk | Low | Conditional write |
-| 20 | Cross-step contract: videoPath → ffmpeg input | Download produces valid MP4 that ffmpeg can read | Medium | Verify file exists before ffmpeg; throw if missing |
-| 21 | Cross-step contract: audioPath → whisper input | ffmpeg produces valid 16kHz mono WAV | Medium | Verify file exists before whisper; return null if missing |
-| 22 | Cross-step contract: whisper JSON → transcript fields | Parse segments array + concatenate fullText | Low | Pure function, testable |
-| 23 | Both transcript and visual fail | `status: "degraded"`, both fields null/degraded, summary null | Low | Each step independent degradation |
+| #   | Scenario                                              | Expected Behavior                                                                                | Risk   | Mitigation                                                       |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------- |
+| 1   | TikTok short URL (`vt.tiktok.com/xxx`)                | fetch redirect → parse `@user/video/ID` → CDP download                                           | Medium | fetch redirect is network-dependent; fallback: throw clear error |
+| 2   | TikTok full URL (`tiktok.com/@user/video/ID`)         | Direct regex parse → CDP download                                                                | Low    | Straightforward regex                                            |
+| 3   | YouTube URL (`youtube.com/watch?v=xxx`)               | Regex parse → yt-dlp download with cookies                                                       | Low    | yt-dlp verified working                                          |
+| 4   | YouTube Shorts URL (`youtube.com/shorts/xxx`)         | Regex parse → yt-dlp download with `--remote-components ejs:github`                              | Low    | Verified in handoff                                              |
+| 5   | Bilibili URL (`bilibili.com/video/BVxxx`)             | Regex parse → yt-dlp download (no cookies)                                                       | Low    | Verified working                                                 |
+| 6   | Unknown/unrecognized URL                              | Throw `Error('Unsupported platform: ...')`                                                       | Low    | Clear error message                                              |
+| 7   | whisper-cli not found                                 | `transcript: null` + warning, `status: "degraded"`                                               | Low    | Graceful degradation                                             |
+| 8   | whisper-cli fails (corrupt audio)                     | `transcript: null` + warning, `status: "degraded"`                                               | Low    | Catch exec error, return null                                    |
+| 9   | VLM unavailable (Python/model not found)              | `visualAnalysis: DEGRADED_RESULT` (existing behavior), `status: "degraded"`                      | Low    | Reuses visual-analyzer.mjs degradation                           |
+| 10  | CDP proxy not running (TikTok download)               | Throw `Error('CDP proxy not available at localhost:3456')`                                       | Medium | Check `cdpAvailable()` before attempting TikTok download         |
+| 11  | TikTok CDP API returns no `playAddr`                  | Throw `Error('TikTok API returned no playAddr')`                                                 | Medium | Check response structure, throw with context                     |
+| 12  | Video file > 50MB (large video)                       | Base64 chunking handles arbitrarily large blobs                                                  | Low    | 2MB chunks via cdpEval loop                                      |
+| 13  | options = undefined                                   | Use defaults: `{ transcript: true, visual: true, outputDir: '/tmp' }`                            | Low    | Default parameter pattern                                        |
+| 14  | options.transcript = false, options.visual = true     | Skip ASR, only run VLM                                                                           | Low    | Conditional execution                                            |
+| 15  | options.transcript = true, options.visual = false     | Skip VLM, only run ASR                                                                           | Low    | Conditional execution + skip closeVisualAnalyzer                 |
+| 16  | Empty whisper transcript (no speech detected)         | `transcript: { segments: [], fullText: "" }`, `status: "degraded"`                               | Low    | Parse empty JSON, don't crash                                    |
+| 17  | Video has no audio track                              | ffmpeg produces empty WAV → whisper returns empty → `transcript: { segments: [], fullText: "" }` | Low    | Handled by scenario 16                                           |
+| 18  | outputDir not provided                                | Use `/tmp` as default, still write file                                                          | Low    | Default parameter                                                |
+| 19  | writeFile = false                                     | Return JS object only, don't write to disk                                                       | Low    | Conditional write                                                |
+| 20  | Cross-step contract: videoPath → ffmpeg input         | Download produces valid MP4 that ffmpeg can read                                                 | Medium | Verify file exists before ffmpeg; throw if missing               |
+| 21  | Cross-step contract: audioPath → whisper input        | ffmpeg produces valid 16kHz mono WAV                                                             | Medium | Verify file exists before whisper; return null if missing        |
+| 22  | Cross-step contract: whisper JSON → transcript fields | Parse segments array + concatenate fullText                                                      | Low    | Pure function, testable                                          |
+| 23  | Both transcript and visual fail                       | `status: "degraded"`, both fields null/degraded, summary null                                    | Low    | Each step independent degradation                                |
 
 ## Out of Scope
 

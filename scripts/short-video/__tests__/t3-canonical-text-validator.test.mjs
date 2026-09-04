@@ -20,7 +20,8 @@ const scenes = [
   },
   {
     id: 3,
-    voiceover: "Doubao Work doesn't just generate content. It writes plans, analyzes data, builds apps.",
+    voiceover:
+      "Doubao Work doesn't just generate content. It writes plans, analyzes data, builds apps.",
   },
   {
     id: 4,
@@ -213,7 +214,9 @@ describe("verifyCanonicalText", () => {
     const words = splitTiming[0].segments[0].words;
     const bdIdx = words.findIndex((w) => w.text === "ByteDance's");
     expect(bdIdx).toBeGreaterThanOrEqual(0);
-    words.splice(bdIdx, 1,
+    words.splice(
+      bdIdx,
+      1,
       { text: "Byte", start: 1.1, end: 1.3 },
       { text: "Dance's", start: 1.3, end: 1.5 },
     );
@@ -227,7 +230,9 @@ describe("verifyCanonicalText", () => {
     // Replace "Feishu," with ["Fei", "shu,"] in scene 2
     const words = splitTiming[1].segments[0].words;
     const feishuIdx = words.findIndex((w) => w.text === "Feishu,");
-    words.splice(feishuIdx, 1,
+    words.splice(
+      feishuIdx,
+      1,
       { text: "Fei", start: 0.6, end: 0.75 },
       { text: "shu,", start: 0.75, end: 0.9 },
     );

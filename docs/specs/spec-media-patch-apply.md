@@ -158,38 +158,38 @@ Pure functions exported from `apply-media-patch.mjs`, tested via direct import. 
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `scripts/short-video/apply-media-patch.mjs` | New file | N/A | No existing code affected |
-| `scripts/short-video/__tests__/apply-media-patch.test.mjs` | New file | N/A | No existing code affected |
-| `scripts/short-video/content/*/scene-data.mjs` | Runtime modification by the script | Medium | Protected by backup + atomic write + validateMedia rollback. Worst case: `.bak` file preserves original. No code file is modified. |
-| `scripts/short-video/lib/media-bg.mjs` | Not modified | — | Only imports `validateMedia()` |
-| `scripts/short-video/lib/asset-sourcer.mjs` | Not modified | — | Patch format is consumed as-is |
+| File                                                       | Modification                       | Risk   | Assessment                                                                                                                         |
+| ---------------------------------------------------------- | ---------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/apply-media-patch.mjs`                | New file                           | N/A    | No existing code affected                                                                                                          |
+| `scripts/short-video/__tests__/apply-media-patch.test.mjs` | New file                           | N/A    | No existing code affected                                                                                                          |
+| `scripts/short-video/content/*/scene-data.mjs`             | Runtime modification by the script | Medium | Protected by backup + atomic write + validateMedia rollback. Worst case: `.bak` file preserves original. No code file is modified. |
+| `scripts/short-video/lib/media-bg.mjs`                     | Not modified                       | —      | Only imports `validateMedia()`                                                                                                     |
+| `scripts/short-video/lib/asset-sourcer.mjs`                | Not modified                       | —      | Patch format is consumed as-is                                                                                                     |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Patch with all entries `status: "assigned"`, scenes have no existing media | All media fields inserted into scene-data.mjs | Low | Standard path — most common case |
-| 2 | `--dry-run` flag | No files modified; per-scene diff printed to console | Low | Dry-run writes nothing |
-| 3 | Scene already has `media` with different `type` or `path`, no `--force` | Entry marked as `conflict`, skipped, no modification | Medium | Default preserve behavior prevents overwrite |
-| 4 | Scene already has `media` with same `type` and `path` | Entry marked as `already-applied`, skipped, no modification | Low | Idempotency check prevents duplicate writes |
-| 5 | Scene already has `media`, `--force` flag set | Existing `media` block replaced with new one | Medium | Backup file + rollback on validation failure |
-| 6 | Patch entry has `status: "unassigned"` | Entry skipped, recorded in receipt as `skipped: "unassigned"` | Low | Non-assignment entries are never applied |
-| 7 | Patch entry `media.path` is absolute (`/etc/passwd`) | Validation error, entry skipped, no mutation | High | Path containment check rejects before any write |
-| 8 | Patch entry `media.path` contains `../` traversal | Validation error, entry skipped, no mutation | High | Path containment check resolves and compares prefix |
-| 9 | Patch entry `media.type` is `"audio"` (invalid) | Validation error, entry skipped | Low | Type check rejects non-image/video |
-| 10 | Patch entry `sceneId` not found in scene-data.mjs | Validation error, entry skipped | Low | Scene existence check |
-| 11 | Patch file missing or not JSON | Script exits with error, no files touched | Low | File read + JSON.parse in try/catch |
-| 12 | scene-data.mjs missing | Script exits with error | Low | File existence check |
-| 13 | Multiple patch entries for same scene | Only first processed; subsequent marked as `conflict` or `already-applied` | Medium | In-memory tracking of applied scene IDs |
-| 14 | Re-run same patch after successful apply | All entries marked `already-applied`, no writes | Low | Idempotency via type+path comparison |
-| 15 | `validateMedia()` returns errors after write | scene-data.mjs restored from backup, receipt marked "rolled back" | High | Rollback + backup preservation |
-| 16 | `validateMedia()` returns warnings (not errors) after write | scene-data.mjs kept (warnings are non-blocking), warnings in receipt | Low | Warnings are acceptable (e.g., file not found yet) |
-| 17 | Patch entry `media` is null or undefined | Entry skipped as `unassigned` (or `invalid` if status is assigned but media is null) | Low | Null check before field access |
-| 18 | Patch is empty array `[]` | No changes, receipt with 0 applied, 0 skipped | Low | Empty array is valid — no-op |
-| 19 | Scene has `media` field but `--force` replaces it, new media fails containment | Entire patch rejected (validation before mutation) | Medium | All validation runs before any write |
-| 20 | `scene-data.mjs` has non-standard formatting (single-line scene objects) | Regex may fail to locate scene; error reported, no mutation | Medium | Regex strategy documented; non-standard format is out of scope |
+| #   | Scenario                                                                       | Expected Behavior                                                                    | Risk   | Mitigation                                                     |
+| --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------- |
+| 1   | Patch with all entries `status: "assigned"`, scenes have no existing media     | All media fields inserted into scene-data.mjs                                        | Low    | Standard path — most common case                               |
+| 2   | `--dry-run` flag                                                               | No files modified; per-scene diff printed to console                                 | Low    | Dry-run writes nothing                                         |
+| 3   | Scene already has `media` with different `type` or `path`, no `--force`        | Entry marked as `conflict`, skipped, no modification                                 | Medium | Default preserve behavior prevents overwrite                   |
+| 4   | Scene already has `media` with same `type` and `path`                          | Entry marked as `already-applied`, skipped, no modification                          | Low    | Idempotency check prevents duplicate writes                    |
+| 5   | Scene already has `media`, `--force` flag set                                  | Existing `media` block replaced with new one                                         | Medium | Backup file + rollback on validation failure                   |
+| 6   | Patch entry has `status: "unassigned"`                                         | Entry skipped, recorded in receipt as `skipped: "unassigned"`                        | Low    | Non-assignment entries are never applied                       |
+| 7   | Patch entry `media.path` is absolute (`/etc/passwd`)                           | Validation error, entry skipped, no mutation                                         | High   | Path containment check rejects before any write                |
+| 8   | Patch entry `media.path` contains `../` traversal                              | Validation error, entry skipped, no mutation                                         | High   | Path containment check resolves and compares prefix            |
+| 9   | Patch entry `media.type` is `"audio"` (invalid)                                | Validation error, entry skipped                                                      | Low    | Type check rejects non-image/video                             |
+| 10  | Patch entry `sceneId` not found in scene-data.mjs                              | Validation error, entry skipped                                                      | Low    | Scene existence check                                          |
+| 11  | Patch file missing or not JSON                                                 | Script exits with error, no files touched                                            | Low    | File read + JSON.parse in try/catch                            |
+| 12  | scene-data.mjs missing                                                         | Script exits with error                                                              | Low    | File existence check                                           |
+| 13  | Multiple patch entries for same scene                                          | Only first processed; subsequent marked as `conflict` or `already-applied`           | Medium | In-memory tracking of applied scene IDs                        |
+| 14  | Re-run same patch after successful apply                                       | All entries marked `already-applied`, no writes                                      | Low    | Idempotency via type+path comparison                           |
+| 15  | `validateMedia()` returns errors after write                                   | scene-data.mjs restored from backup, receipt marked "rolled back"                    | High   | Rollback + backup preservation                                 |
+| 16  | `validateMedia()` returns warnings (not errors) after write                    | scene-data.mjs kept (warnings are non-blocking), warnings in receipt                 | Low    | Warnings are acceptable (e.g., file not found yet)             |
+| 17  | Patch entry `media` is null or undefined                                       | Entry skipped as `unassigned` (or `invalid` if status is assigned but media is null) | Low    | Null check before field access                                 |
+| 18  | Patch is empty array `[]`                                                      | No changes, receipt with 0 applied, 0 skipped                                        | Low    | Empty array is valid — no-op                                   |
+| 19  | Scene has `media` field but `--force` replaces it, new media fails containment | Entire patch rejected (validation before mutation)                                   | Medium | All validation runs before any write                           |
+| 20  | `scene-data.mjs` has non-standard formatting (single-line scene objects)       | Regex may fail to locate scene; error reported, no mutation                          | Medium | Regex strategy documented; non-standard format is out of scope |
 
 ## Out of Scope
 

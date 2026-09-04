@@ -10,26 +10,26 @@
 
 ### Funding Rounds (6 events)
 
-| Date | Status | Event (EN) | Amount | Valuation | Key Investors | Source |
-|------|--------|------------|--------|-----------|---------------|--------|
-| 2023.07 | self-funded | DeepSeek Founded | — | — | High-Flyer / 幻方量化 | Wikipedia |
-| 2026.04 | target | Fundraising Launched | — | ~$10B | Whitelist funds | elsewhere + The Information |
-| 2026.05 | target | Valuation Jump + 4-Hour Investor Meeting | — | ~$45B | Confirmed investors | elsewhere + The Silicon Review |
-| 2026.06 | completed | First External Round Closed | ~$7.4B | ~$50B post-money | Monolith, IDG, CATL, Loyal Valley, Guozhi, ~100 total | elsewhere + TechStartups |
-| 2026.07 | target | Round 2 Target $71B | — | ~$71B pre-money (+42%) | TBD | Financial Times + Cryptonomist |
-| 2026.07.25 | paused | Round 2 Paused (Leaked Remarks Go Viral) | — | ~$71B (paused) | TBD | Bloomberg (Haze Fan & Pei Li) |
+| Date       | Status      | Event (EN)                               | Amount | Valuation              | Key Investors                                         | Source                         |
+| ---------- | ----------- | ---------------------------------------- | ------ | ---------------------- | ----------------------------------------------------- | ------------------------------ |
+| 2023.07    | self-funded | DeepSeek Founded                         | —      | —                      | High-Flyer / 幻方量化                                 | Wikipedia                      |
+| 2026.04    | target      | Fundraising Launched                     | —      | ~$10B                  | Whitelist funds                                       | elsewhere + The Information    |
+| 2026.05    | target      | Valuation Jump + 4-Hour Investor Meeting | —      | ~$45B                  | Confirmed investors                                   | elsewhere + The Silicon Review |
+| 2026.06    | completed   | First External Round Closed              | ~$7.4B | ~$50B post-money       | Monolith, IDG, CATL, Loyal Valley, Guozhi, ~100 total | elsewhere + TechStartups       |
+| 2026.07    | target      | Round 2 Target $71B                      | —      | ~$71B pre-money (+42%) | TBD                                                   | Financial Times + Cryptonomist |
+| 2026.07.25 | paused      | Round 2 Paused (Leaked Remarks Go Viral) | —      | ~$71B (paused)         | TBD                                                   | Bloomberg (Haze Fan & Pei Li)  |
 
 ### Investor Data (7 entries)
 
-| Investor | Amount (B RMB) | Note |
-|----------|---------------|------|
-| Monolith 砺思资本 | 3.0 | Initially 1.5B, increased to 3B |
-| IDG Capital | 3.0 | Strong insurance-funded character |
-| 国智投资 Guozhi | 0.98 | Intentionally below 1B threshold |
-| CATL ecosystem (Puquan Capital) | undisclosed | Xiamen/Ordos gov capital + CATL + National Green Development Fund |
-| 厚朴投资 Loyal Valley | undisclosed | Among earliest VCs to talk with DeepSeek |
-| iHealth (Andon Health) | undisclosed | Participated as LP — backer behind multiple GPs |
-| Other ~90 institutions/individuals | 43.02 | Through fund structures — ~100 total participants |
+| Investor                           | Amount (B RMB) | Note                                                              |
+| ---------------------------------- | -------------- | ----------------------------------------------------------------- |
+| Monolith 砺思资本                  | 3.0            | Initially 1.5B, increased to 3B                                   |
+| IDG Capital                        | 3.0            | Strong insurance-funded character                                 |
+| 国智投资 Guozhi                    | 0.98           | Intentionally below 1B threshold                                  |
+| CATL ecosystem (Puquan Capital)    | undisclosed    | Xiamen/Ordos gov capital + CATL + National Green Development Fund |
+| 厚朴投资 Loyal Valley              | undisclosed    | Among earliest VCs to talk with DeepSeek                          |
+| iHealth (Andon Health)             | undisclosed    | Participated as LP — backer behind multiple GPs                   |
+| Other ~90 institutions/individuals | 43.02          | Through fund structures — ~100 total participants                 |
 
 ## Sources
 

@@ -237,6 +237,7 @@ export const scenes = [
 ];
 
 export const metadata = {
-  commentHook: "Will ByteDance's Feishu integration give it an edge over standalone AI tools like Copilot? What's your experience with enterprise AI platforms?",
+  commentHook:
+    "Will ByteDance's Feishu integration give it an edge over standalone AI tools like Copilot? What's your experience with enterprise AI platforms?",
   articleUrl: "https://chinaainews.com/posts/doubao-work",
 };

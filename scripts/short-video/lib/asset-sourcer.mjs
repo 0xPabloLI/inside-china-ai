@@ -1540,8 +1540,7 @@ export function parseYtdlpSearchOutput(output, platform) {
     if (!id || id === "NA") continue;
     // Rejoin middle fields so titles containing a real tab keep their text
     // (the old parser's one robustness win worth keeping).
-    const rawTitle =
-      parts.length > 3 ? parts.slice(1, -1).join("\t") : parts[1];
+    const rawTitle = parts.length > 3 ? parts.slice(1, -1).join("\t") : parts[1];
     const rawDuration = parts[parts.length - 1];
     const title = rawTitle === "NA" ? "" : rawTitle;
     const duration = Number.parseFloat(rawDuration);

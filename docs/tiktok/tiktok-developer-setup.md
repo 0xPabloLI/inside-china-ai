@@ -15,7 +15,7 @@
 
 | 项目         | 状态                                                                                |
 | ------------ | ----------------------------------------------------------------------------------- |
-| Publora 账号 | ✅ 已注册 |
+| Publora 账号 | ✅ 已注册                                                                           |
 | Publora MCP  | ✅ 已配置 (`https://mcp.publora.com` + Bearer token)                                |
 | TikTok 连接  | ✅ 已连接 (@chinaainews, platformId: `tiktok--000Kl6Oyj0RoTYJaS3zByCnVyhcTlRBHOy5`) |
 | Token 状态   | ✅ valid, 364 天有效期                                                              |

@@ -27,10 +27,10 @@ China AI News — 英文内容/博客平台（文章 + 邮件订阅 + 短视频�
 
 ## 4. 环境变量与 Secrets
 
-| 类型 | 位置 | 用途 | 风险 |
-|------|------|------|------|
-| 公共变量 | `.env` 中 `VITE_*` | 前端运行时需要，如 `VITE_TIKTOK_CLIENT_KEY`、`VITE_SUPABASE_URL` | 会随代码同步到 GitHub，**不能放敏感密钥** |
-| 后端 Secrets | Lovable Secrets / `process.env` | 后端 server function 中使用，如 `TIKTOK_CLIENT_KEY`、`OPENAI_API_KEY` | 不会提交到仓库，仅运行时注入 |
+| 类型         | 位置                            | 用途                                                                  | 风险                                      |
+| ------------ | ------------------------------- | --------------------------------------------------------------------- | ----------------------------------------- |
+| 公共变量     | `.env` 中 `VITE_*`              | 前端运行时需要，如 `VITE_TIKTOK_CLIENT_KEY`、`VITE_SUPABASE_URL`      | 会随代码同步到 GitHub，**不能放敏感密钥** |
+| 后端 Secrets | Lovable Secrets / `process.env` | 后端 server function 中使用，如 `TIKTOK_CLIENT_KEY`、`OPENAI_API_KEY` | 不会提交到仓库，仅运行时注入              |
 
 - `.env` 文件会被 GitHub 同步，因此只放公开可泄露的值。
 - 任何需要保密或具备写权限的 key，都通过 Lovable Secrets 管理，在后端代码中读取。

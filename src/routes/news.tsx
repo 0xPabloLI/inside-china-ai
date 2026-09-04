@@ -73,15 +73,17 @@ function NewsHub() {
   const topic = getTopic(topicId);
   const counts = countByTopic(posts);
 
-  const filtered =
-    topic.id === "all" ? posts : posts.filter((p) => topicForPost(p) === topic.id);
+  const filtered = topic.id === "all" ? posts : posts.filter((p) => topicForPost(p) === topic.id);
   const [lead, ...rest] = filtered;
 
   return (
     <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-6 pt-12 pb-24">
-        <nav aria-label="Breadcrumb" className="text-xs uppercase tracking-wider text-muted-foreground">
+        <nav
+          aria-label="Breadcrumb"
+          className="text-xs uppercase tracking-wider text-muted-foreground"
+        >
           <Link to="/" className="hover:text-foreground">
             Home
           </Link>

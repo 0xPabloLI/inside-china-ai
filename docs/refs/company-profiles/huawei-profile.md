@@ -36,13 +36,13 @@ Huawei's AI efforts span two divisions:
 
 > The following data comes from Liang Wenfeng's investor meeting (May 2026), providing the most detailed public assessment of Huawei's AI chip capabilities by a major customer.
 
-| Metric | Huawei 950 | Nvidia GB300 | Ratio/Lag |
-|--------|-----------|-------------|-----------|
-| Performance ratio | 1 | 4 | **4 Huawei = 1 Nvidia** |
-| Technology lag | — | — | **2 years behind** |
-| Price premium | — | — | 50-100% more expensive (acceptable) |
-| Depreciation | ~3 years | ~5 years | Shorter lifespan |
-| Super-node capability | Can replace GB200/GB300 | Baseline | Performance + price competitive |
+| Metric                | Huawei 950              | Nvidia GB300 | Ratio/Lag                           |
+| --------------------- | ----------------------- | ------------ | ----------------------------------- |
+| Performance ratio     | 1                       | 4            | **4 Huawei = 1 Nvidia**             |
+| Technology lag        | —                       | —            | **2 years behind**                  |
+| Price premium         | —                       | —            | 50-100% more expensive (acceptable) |
+| Depreciation          | ~3 years                | ~5 years     | Shorter lifespan                    |
+| Super-node capability | Can replace GB200/GB300 | Baseline     | Performance + price competitive     |
 
 Source: `docs/refs/source-materials/deepseek-liang-investor-meeting-research.md`
 
@@ -63,28 +63,28 @@ Source: `docs/refs/source-materials/deepseek-liang-investor-meeting-research.md`
 
 ## Model Releases
 
-| Date | Model | Type | Key Details | Source |
-|------|-------|------|-------------|--------|
-| 2021 | Pangu α | LLM | 200B parameters | Huawei announcements |
-| 2023 | Pangu Series 2 | LLM | Industry-specific models (mining, railway, meteorology) | Huawei Cloud |
-| 2024 | Pangu 3.0 | LLM | Improved industry models | Huawei Cloud |
-| 2025 | Ascend 950 | AI Chip | Latest generation, 4:1 vs Nvidia GB300 | DeepSeek investor meeting |
+| Date | Model          | Type    | Key Details                                             | Source                    |
+| ---- | -------------- | ------- | ------------------------------------------------------- | ------------------------- |
+| 2021 | Pangu α        | LLM     | 200B parameters                                         | Huawei announcements      |
+| 2023 | Pangu Series 2 | LLM     | Industry-specific models (mining, railway, meteorology) | Huawei Cloud              |
+| 2024 | Pangu 3.0      | LLM     | Improved industry models                                | Huawei Cloud              |
+| 2025 | Ascend 950     | AI Chip | Latest generation, 4:1 vs Nvidia GB300                  | DeepSeek investor meeting |
 
 ## Funding History
 
 Huawei is private (employee-owned). No external funding rounds. Revenue funds R&D.
 
-| Year | Revenue | Notes |
-|------|---------|-------|
-| 2023 | ~$99B (700B RMB) | Despite US sanctions |
+| Year | Revenue           | Notes                                                |
+| ---- | ----------------- | ---------------------------------------------------- |
+| 2023 | ~$99B (700B RMB)  | Despite US sanctions                                 |
 | 2024 | ~$118B (860B RMB) | Strong recovery, driven by smartphone + auto + cloud |
 
 ## Key People
 
-| Name | Role | Notes | Source |
-|------|------|-------|--------|
-| **Ren Zhengfei (任正非)** | Founder | Former PLA officer. Founded Huawei in 1987 with $5,000. | [Wikipedia](https://en.wikipedia.org/wiki/Huawei) |
-| Meng Wanzhou (孟晚舟) | CFO, Rotating Chairwoman | Ren's daughter. Detained in Canada 2018-2021. | [Wikipedia](https://en.wikipedia.org/wiki/Huawei) |
+| Name                      | Role                     | Notes                                                   | Source                                            |
+| ------------------------- | ------------------------ | ------------------------------------------------------- | ------------------------------------------------- |
+| **Ren Zhengfei (任正非)** | Founder                  | Former PLA officer. Founded Huawei in 1987 with $5,000. | [Wikipedia](https://en.wikipedia.org/wiki/Huawei) |
+| Meng Wanzhou (孟晚舟)     | CFO, Rotating Chairwoman | Ren's daughter. Detained in Canada 2018-2021.           | [Wikipedia](https://en.wikipedia.org/wiki/Huawei) |
 
 ## Compute Infrastructure
 

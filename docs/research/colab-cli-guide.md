@@ -13,6 +13,7 @@ pip3 install --break-system-packages google-colab-cli
 ```
 
 **兼容性修复**：需降级 `jupyter-kernel-client<1.0`（v1.0.1 API 变更导致 `KernelClient` 找不到）：
+
 ```bash
 pip3 install --break-system-packages 'jupyter-kernel-client<1.0'
 ```
@@ -28,13 +29,13 @@ gcloud auth application-default login \
 
 ## 常用命令
 
-| 命令 | 用途 | 示例 |
-|------|------|------|
-| `colab run` | 一键运行脚本（provision → execute → teardown） | `colab --auth=adc run --gpu T4 script.py` |
-| `colab new` | 创建新 session（保持运行） | `colab --auth=adc new --gpu T4 --session my-session` |
-| `colab exec` | 在已存在的 session 中执行命令 | `colab --auth=adc exec --session my-session "python script.py"` |
-| `colab install` | 在 session 中安装依赖 | `colab --auth=adc install --session my-session pip bitsandbytes` |
-| `colab download` | 从 session 下载文件 | `colab --auth=adc download --session my-session output.mp4` |
+| 命令             | 用途                                           | 示例                                                             |
+| ---------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
+| `colab run`      | 一键运行脚本（provision → execute → teardown） | `colab --auth=adc run --gpu T4 script.py`                        |
+| `colab new`      | 创建新 session（保持运行）                     | `colab --auth=adc new --gpu T4 --session my-session`             |
+| `colab exec`     | 在已存在的 session 中执行命令                  | `colab --auth=adc exec --session my-session "python script.py"`  |
+| `colab install`  | 在 session 中安装依赖                          | `colab --auth=adc install --session my-session pip bitsandbytes` |
+| `colab download` | 从 session 下载文件                            | `colab --auth=adc download --session my-session output.mp4`      |
 
 ### `colab run` 详解（最常用）
 
@@ -68,25 +69,25 @@ colab --auth=adc delete --session echomimic-nf4
 
 ## GPU 选项
 
-| GPU | 命令参数 | VRAM | CPU RAM | 套餐 |
-|-----|---------|------|---------|------|
-| T4 | `--gpu T4` | 14.6GB | 12GB（免费）/ 32GB（Pro $10/月） | 免费 |
-| L4 | `--gpu L4` | 22.5GB | 32GB | Pro |
-| A100 | `--gpu A100` | 40GB | 52GB | Pro+ $50/月 |
+| GPU  | 命令参数     | VRAM   | CPU RAM                          | 套餐        |
+| ---- | ------------ | ------ | -------------------------------- | ----------- |
+| T4   | `--gpu T4`   | 14.6GB | 12GB（免费）/ 32GB（Pro $10/月） | 免费        |
+| L4   | `--gpu L4`   | 22.5GB | 32GB                             | Pro         |
+| A100 | `--gpu A100` | 40GB   | 52GB                             | Pro+ $50/月 |
 
 > Colab 的 T4 是**单卡**（不像 Kaggle 可通过 metadata 申请双卡）。
 
 ## Colab vs Kaggle 对比
 
-| 维度 | Kaggle | Colab CLI |
-|------|--------|-----------|
-| GPU 分配 | T4 ×2（metadata） | T4 单卡 |
-| CPU RAM | 29GB（固定） | 12GB（免费）/ 32GB（Pro） |
-| 免费额度 | 30h/周刷新 | 不固定，空闲 90min 断连 |
-| 自动化 | CLI push → status → output | `colab run` 一键 |
+| 维度     | Kaggle                           | Colab CLI                   |
+| -------- | -------------------------------- | --------------------------- |
+| GPU 分配 | T4 ×2（metadata）                | T4 单卡                     |
+| CPU RAM  | 29GB（固定）                     | 12GB（免费）/ 32GB（Pro）   |
+| 免费额度 | 30h/周刷新                       | 不固定，空闲 90min 断连     |
+| 自动化   | CLI push → status → output       | `colab run` 一键            |
 | 模型数据 | Dataset 挂载（`/kaggle/input/`） | 需从 HuggingFace/Drive 下载 |
-| 脚本格式 | 自包含单文件 | 自包含单文件（同样需要） |
-| 时长限制 | 12h/kernel | 90min 空闲断连（Pro 24h） |
+| 脚本格式 | 自包含单文件                     | 自包含单文件（同样需要）    |
+| 时长限制 | 12h/kernel                       | 90min 空闲断连（Pro 24h）   |
 
 ## Colab 脚本 vs Kaggle 脚本
 
@@ -96,6 +97,7 @@ colab --auth=adc delete --session echomimic-nf4
 - **Colab**：脚本运行时从 HuggingFace `snapshot_download` 下载模型（Colab 有快速互联网）
 
 所以 Colab 脚本结构和 Kaggle 脚本一样，只是模型路径不同：
+
 - Kaggle: `/kaggle/input/echomimicv3-flash/...`
 - Colab: `/content/models/flash/...`（运行时从 HuggingFace 下载）
 

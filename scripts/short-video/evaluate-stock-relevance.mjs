@@ -108,7 +108,9 @@ async function main() {
   if (failed.length > 0) {
     console.log(`\n=== Scenes needing replacement ===`);
     for (const f of failed) {
-      console.log(`  Scene ${f.sceneId} (${f.sceneName}): ${f.asset} — relevance ${f.relevance ?? "null"}`);
+      console.log(
+        `  Scene ${f.sceneId} (${f.sceneName}): ${f.asset} — relevance ${f.relevance ?? "null"}`,
+      );
     }
   }
 

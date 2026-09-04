@@ -22,10 +22,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { setTimeout as sleep } from "timers/promises";
 
-const USER_DATA_DIR = join(
-  homedir(),
-  "Library/Application Support/cloudstudio-checkin",
-);
+const USER_DATA_DIR = join(homedir(), "Library/Application Support/cloudstudio-checkin");
 const LOG_FILE = join(homedir(), "Library/Logs/cloudstudio-checkin.log");
 const CHECKIN_URL = "https://cloudstudio.net/user-center";
 const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours

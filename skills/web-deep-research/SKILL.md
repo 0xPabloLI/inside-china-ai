@@ -38,11 +38,11 @@ codebase_search against installed packages and repo code).
 
 Infer from context or ask: "How deep should this go?"
 
-| Tier | Phases | Sources | Time | Use when |
-|------|--------|---------|------|----------|
-| Quick | SCOPE, RETRIEVE, PACKAGE | 5-10 | ~5 min | Quick overview, one question |
-| Standard | SCOPE, PLAN, RETRIEVE, TRIANGULATE, SYNTHESIZE, PACKAGE | 10-20 | ~15 min | Default — balanced depth |
-| Deep | All 8 phases | 20-35 | ~30 min | Critical decisions, comprehensive |
+| Tier     | Phases                                                  | Sources | Time    | Use when                          |
+| -------- | ------------------------------------------------------- | ------- | ------- | --------------------------------- |
+| Quick    | SCOPE, RETRIEVE, PACKAGE                                | 5-10    | ~5 min  | Quick overview, one question      |
+| Standard | SCOPE, PLAN, RETRIEVE, TRIANGULATE, SYNTHESIZE, PACKAGE | 10-20   | ~15 min | Default — balanced depth          |
+| Deep     | All 8 phases                                            | 20-35   | ~30 min | Critical decisions, comprehensive |
 
 Default: **Standard** unless the user says "exhaustive", "comprehensive", or the topic is complex.
 
@@ -97,6 +97,7 @@ everything:
 Run in parallel with web retrieval when the topic involves
 code-verifyable claims (library behavior, API existence, framework
 features):
+
 - Locate installed package: `pip show <package>`, `npm ls <package>`,
   `which <tool>`
 - Read source: `inspect.getsource()` (Python), `read_file` on
@@ -116,7 +117,7 @@ features):
 - **Code sources override web sources**: When a web claim about library behavior
   contradicts what the local source code shows, the code wins. Note the discrepancy
   in the report ("Documentation says X, but source code at line Y shows Z").
-  Web discussions reflect *reported* issues, not necessarily *fixed* state.
+  Web discussions reflect _reported_ issues, not necessarily _fixed_ state.
 
 **Completion criterion**: Every angle has ≥3 sources extracted, with raw content
 saved or summarized. Source URLs and quality tiers recorded.
@@ -124,6 +125,7 @@ saved or summarized. Source URLs and quality tiers recorded.
 ## Phase 4 — TRIANGULATE
 
 Cross-reference claims across sources. For each key claim:
+
 - How many independent sources confirm it?
 - Are they truly independent (not all citing the same origin)?
 - Any contradictions? Record both sides.
@@ -153,6 +155,7 @@ individual sources said.
 ## Phase 6 — CRITIQUE (Deep tier only)
 
 Read the draft adversarially:
+
 - What's the weakest claim? Can it be strengthened or must it be hedged?
 - What's missing — what angle didn't we cover?
 - Are there contrarian views we dismissed too quickly?
@@ -176,22 +179,28 @@ Final output structure:
 # Deep Research: [Topic]
 
 ## Executive Summary
+
 [2-3 paragraphs, key findings up front]
 
 ## Key Findings
+
 1. [Finding with evidence and citations]
 2. ...
 
 ## Detailed Analysis
+
 [Themed sections with synthesis, not scrape summaries]
 
 ## Contrarian Views & Risks
+
 [Counterarguments, limitations, failure modes]
 
 ## Open Questions
+
 [What remains uncertain]
 
 ## Sources
+
 1. [URL] — [one-line note] — [Tier 1/2/3]
 2. ...
 ```
@@ -207,6 +216,7 @@ Save to the repo's research notes directory. Priority:
 Filename: kebab-case topic slug (e.g., `tiktok-color-best-practices.md`).
 
 Report language priority:
+
 1. User's explicit request (e.g. "用中文写")
 2. Repo's documentation language convention
 3. Current conversation language

@@ -5,7 +5,20 @@ excerpt: "Liang Wenfeng explains why DeepSeek chooses restraint, open source, an
 published: true
 topics: ["deepseek", "agi", "open-source", "funding", "liang-wenfeng", "nvidia", "huawei", "vision"]
 entities:
-  companies: ["deepseek", "nvidia", "huawei", "openai", "anthropic", "google", "bytedance", "alibaba", "tencent", "zhipu", "moonshot"]
+  companies:
+    [
+      "deepseek",
+      "nvidia",
+      "huawei",
+      "openai",
+      "anthropic",
+      "google",
+      "bytedance",
+      "alibaba",
+      "tencent",
+      "zhipu",
+      "moonshot",
+    ]
   people: ["liang_wenfeng", "jack_welch"]
   models: ["deepseek_v3", "deepseek_r1", "deepseek_v4_flash"]
 sources:
@@ -83,13 +96,13 @@ He calls this "dimensionality reduction attack": pursuing AGI at a high level, t
 
 DeepSeek views AGI development as a series of steps, each building on the last:
 
-| Phase | Technology | What It Solved | What's Next |
-| ----- | ---------- | -------------- | ----------- |
-| **Past** | Language Models | Basic understanding | Chain-of-Thought |
-| **2024** | Chain-of-Thought (CoT) | Self-reasoning capability | Agents |
-| **2025** | Agents | Multi-task orchestration | Continuous Learning |
-| **Future** | Continuous Learning | In-context knowledge retention | Self-Iteration Singularity |
-| **Beyond** | Self-Iteration | AI develops next AI versions | Embodied AI |
+| Phase      | Technology             | What It Solved                 | What's Next                |
+| ---------- | ---------------------- | ------------------------------ | -------------------------- |
+| **Past**   | Language Models        | Basic understanding            | Chain-of-Thought           |
+| **2024**   | Chain-of-Thought (CoT) | Self-reasoning capability      | Agents                     |
+| **2025**   | Agents                 | Multi-task orchestration       | Continuous Learning        |
+| **Future** | Continuous Learning    | In-context knowledge retention | Self-Iteration Singularity |
+| **Beyond** | Self-Iteration         | AI develops next AI versions   | Embodied AI                |
 
 "We're at the Agent step now," Liang said. "The bottleneck we see is continuous learning — enabling models to learn incrementally, like humans."
 
@@ -155,9 +168,11 @@ Time will tell. But for now, they're executing on a vision that's both ambitious
 ## Sources
 
 **Primary source:**
+
 - [Liang Wenfeng Investor Meeting Transcript (PDF)](https://inside-china-ai.com/posts/deepseek-art-of-restraint/) — May 20, 2026, ~3 hours 44 minutes. AI-transcribed from audio. All quotes and strategic positions derive from this document.
 
 **Public reporting referenced:**
+
 1. [DeepSeek Website](https://www.deepseek.com/) — official company information and model pricing
 2. [Hugging Face — DeepSeek V3 Models](https://huggingface.co/deepseek-ai) — model architecture and performance benchmarks
 3. [GitHub — DeepSeek-MoE](https://github.com/deepseek-ai/DeepSeek-MoE) — open-source model repositories
@@ -166,6 +181,7 @@ Time will tell. But for now, they're executing on a vision that's both ambitious
 6. [r/LocalLLM — DeepSeek threads](https://www.reddit.com/r/LocalLLM/) — technical community discussions
 
 **Related reading:**
+
 - [The Distillation Storm: Inside China's LLM Distillation Controversy](https://inside-china-ai.com/posts/china-llm-distillation-storm) — previous coverage of DeepSeek
 - [Wikipedia — Artificial General Intelligence](https://en.wikipedia.org/wiki/Artificial_general_intelligence) — AGI context and definitions
 

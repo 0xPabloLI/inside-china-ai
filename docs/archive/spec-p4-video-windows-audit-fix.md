@@ -15,6 +15,7 @@ Three independent but related issues:
 ### 1. VLM video analysis has no explicit time window (P4)
 
 The VLM (`vlm_analyzer.py`) analyzes videos without a defined time window. Native video input path passes the entire video to mlx-vlm. Fallback frame extraction caps at `MAX_VIDEO_SECONDS = 8` but native does not. This means:
+
 - Native and fallback paths analyze **different temporal ranges** — semantic inconsistency
 - No time window metadata is returned — downstream consumers (P5 ASR, P6 timeline fusion) cannot align
 - `probeMedia()` is not available — no ffprobe-based media metadata extraction
@@ -29,6 +30,7 @@ Third-party audit (`docs/reviews/source-registry-capability-audit-2026-08-19.md`
 ### 3. Misfilter test gaps
 
 Pre-filter cascade has no tests for:
+
 - Good assets killed by sparse metadata (API sources without fileSize/resolution)
 - CJK title vs English keyword mismatch
 - All source names lacking SOURCE_ATTRIBUTIONS coverage check
@@ -68,6 +70,7 @@ When `opts` is omitted (image or backward compat): current behavior unchanged.
 When `opts` provided (video): Python receives `window: { startMs, endMs, sampleFps }` in the IPC message.
 
 Python `analyze_semantics` action checks for `window` field:
+
 - Present → native path uses `startMs`/`endMs` to trim; fallback extraction uses same window
 - Absent → current behavior (native sees whole video, fallback caps at 8s)
 
@@ -77,6 +80,7 @@ Python reports `sourceMode`: `"native" | "frames" | "degraded"`.
 Node `visual-analyzer.mjs` attaches `window: { startMs, endMs, sampleFps }` from request params.
 
 Final result shape for video with window:
+
 ```
 {
   description: "...",
@@ -93,6 +97,7 @@ Final result shape for video with window:
 #### A4: `analyzeAssets()` orchestration
 
 New Phase 2.5 (after focus detection, before VLM):
+
 - For video assets only: call `probeMedia()` → compute window `{ startMs: 0, endMs: min(durationMs, 8000), sampleFps: 1.0 }`
 - If `probeMedia()` returns null: use default window `{ startMs: 0, endMs: 8000, sampleFps: 1.0 }`, `sourceMode` will be `"degraded"`
 - Pass window to `analyzeAssetSemantics(absPath, { startMs, endMs, sampleFps })`
@@ -101,6 +106,7 @@ New Phase 2.5 (after focus detection, before VLM):
 #### A5: Python fallback frame extraction with window
 
 `extract_frames()` updated to accept `startMs`/`endMs`:
+
 - ffmpeg `-ss {startMs/1000} -t {(endMs-startMs)/1000}` for windowed extraction
 - `maxFrames = 16` cap (Qwen3-VL 16-image limit)
 - When `sampleFps` provided: `fps={sampleFps}` in ffmpeg filter
@@ -145,29 +151,36 @@ New tests in `asset-sourcer.test.mjs` and `source-registry-capabilities.test.mjs
 ## Implementation Decisions
 
 ### Modules to create
+
 - `lib/media-probe.mjs` — ffprobe wrapper + `parseProbeOutput()` pure function
 
 ### Modules to modify
+
 - `lib/visual-analyzer.mjs` — extend `analyzeAssetSemantics()` signature, attach window metadata
 - `lib/vlm_analyzer.py` — accept `window` field in `analyze_semantics` action, update `extract_frames()` for windowed extraction
 - `lib/asset-sourcer.mjs` — Phase 2.5 probe + window calculation, `searchYtdlp()` guard, CDP download loop type check
 - `lib/source-registry.mjs` — remove `capabilities.videos` from `xhs`/`douyin`/`weibo_hot`, fix `google_news`/`bing_news` CDP scripts
 
 ### Interfaces
+
 - `probeMedia(videoPath) → ProbeResult | null`
 - `analyzeAssetSemantics(assetPath, opts?: { startMs?, endMs?, sampleFps? }) → Promise<AssetSemantics>`
 - `searchYtdlp(keyword, platform)` — platform must be in supported set, else returns `[]`
 
 ### ffprobe path
+
 `/opt/homebrew/opt/ffmpeg-full/bin/ffprobe` — same as `upscale.mjs` and `tts/post-process.mjs`.
 
 ### Default window
+
 `{ startMs: 0, endMs: 8000, sampleFps: 1.0 }` — matches current `MAX_VIDEO_SECONDS = 8`.
 
 ### maxFrames for fallback
+
 16 — Qwen3-VL's multi-image input limit. When `sampleFps * windowSeconds > 16`, reduce effective fps to fit.
 
 ### IPC message format (Node → Python)
+
 ```json
 {
   "requestId": "uuid",
@@ -176,9 +189,11 @@ New tests in `asset-sourcer.test.mjs` and `source-registry-capabilities.test.mjs
   "window": { "startMs": 0, "endMs": 8000, "sampleFps": 1.0 }
 }
 ```
+
 `window` is optional. Images never include it.
 
 ### Python response format
+
 ```json
 {
   "requestId": "uuid",
@@ -194,6 +209,7 @@ New tests in `asset-sourcer.test.mjs` and `source-registry-capabilities.test.mjs
 ```
 
 ### sourceMode values
+
 - `"native"` — mlx-vlm native video input succeeded
 - `"frames"` — ffmpeg frame extraction fallback used
 - `"degraded"` — probeMedia failed, default window used
@@ -201,20 +217,24 @@ New tests in `asset-sourcer.test.mjs` and `source-registry-capabilities.test.mjs
 ## Testing Decisions
 
 ### Pure function tests (parallel)
+
 - `parseProbeOutput()` — various ffprobe output formats (CSV, JSON, missing fields, empty)
 - `preFilterCandidate()` — sparse metadata, CJK mismatch, borderline scores
 - `searchYtdlp()` — unsupported platform returns `[]` (mock `execSync`)
 
 ### Smoke tests (serial, `--maxWorkers=1`)
+
 - `probeMedia()` with real ffprobe on test video file
 - `analyzeAssetSemantics()` with window on test video (optional — requires VLM)
 
 ### Regression tests (parallel)
+
 - `google_news`/`bing_news` primaryScript mock DOM — only image candidates produced
 - All source names in ALL_SOURCES have SOURCE_ATTRIBUTIONS key
 - `attribution.text()` returns non-empty string for all sources
 
 ### Test seams
+
 - `parseProbeOutput` — pure function, no I/O
 - `preFilterCandidate` — pure function, existing seam
 - `searchYtdlp` — mock `execSync` (existing pattern in asset-sourcer tests)
@@ -235,36 +255,36 @@ New tests in `asset-sourcer.test.mjs` and `source-registry-capabilities.test.mjs
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `lib/visual-analyzer.mjs` | Extend `analyzeAssetSemantics()` signature with optional `opts` param | Medium | Backward compat: no `opts` = current behavior. Image path ignores `opts`. Video path uses window when present. |
-| `lib/vlm_analyzer.py` | Accept `window` field in `analyze_semantics` action; update `extract_frames()` with `-ss`/`-t` params | Medium | Python checks `window` presence — absent = current behavior. `extract_frames()` new params are optional with defaults. |
-| `lib/asset-sourcer.mjs` | Phase 2.5 probe for videos; `searchYtdlp()` platform guard; CDP download loop type check | Medium | Phase 2.5 only runs on video assets. `searchYtdlp()` guard returns `[]` for unsupported platforms (was silently returning YouTube results — this is a bug fix). CDP type check skips non-image candidates (was downloading HTML as .jpg — bug fix). |
+| File                      | Modification                                                                                              | Risk   | Assessment                                                                                                                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/visual-analyzer.mjs` | Extend `analyzeAssetSemantics()` signature with optional `opts` param                                     | Medium | Backward compat: no `opts` = current behavior. Image path ignores `opts`. Video path uses window when present.                                                                                                                                       |
+| `lib/vlm_analyzer.py`     | Accept `window` field in `analyze_semantics` action; update `extract_frames()` with `-ss`/`-t` params     | Medium | Python checks `window` presence — absent = current behavior. `extract_frames()` new params are optional with defaults.                                                                                                                               |
+| `lib/asset-sourcer.mjs`   | Phase 2.5 probe for videos; `searchYtdlp()` platform guard; CDP download loop type check                  | Medium | Phase 2.5 only runs on video assets. `searchYtdlp()` guard returns `[]` for unsupported platforms (was silently returning YouTube results — this is a bug fix). CDP type check skips non-image candidates (was downloading HTML as .jpg — bug fix).  |
 | `lib/source-registry.mjs` | Remove `capabilities.videos` from `xhs`/`douyin`/`weibo_hot`; fix `google_news`/`bing_news` primaryScript | Medium | Removing `capabilities.videos` means `YTDLP_SOURCES` no longer includes these 3 sources. They still have `capabilities.articles` for trend discovery. Fixing CDP scripts changes image extraction behavior — only image candidates will be returned. |
-| `lib/media-probe.mjs` | New file — no existing code modified | Low | Pure addition. No existing consumers affected. |
+| `lib/media-probe.mjs`     | New file — no existing code modified                                                                      | Low    | Pure addition. No existing consumers affected.                                                                                                                                                                                                       |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Video asset with probeMedia success | Window = { 0, min(duration, 8000), 1.0 }. VLM receives window. sourceMode = "native" or "frames" | Low | probeMedia returns valid metadata. Window computed from duration. |
-| 2 | Video asset with probeMedia failure (corrupt file / ffprobe missing) | probeMedia returns null. Default window { 0, 8000, 1.0 } used. sourceMode = "degraded" | Low | VLM proceeds with default window. No crash. |
-| 3 | Image asset with opts passed | opts ignored. Image path unchanged. No window in output. | Low | Image path doesn't read opts. |
-| 4 | Video asset, no opts passed (backward compat) | Current behavior: native sees whole video, fallback caps at 8s. No window metadata. | Low | opts is optional. Python checks window field presence. |
-| 5 | Very short video (< 1s) | Window = { 0, duration, 1.0 }. Fallback may produce 1 frame. VLM analyzes single frame. | Low | maxFrames=16 cap. Single frame is valid input. |
-| 6 | Video with no audio track | probeMedia returns hasAudio=false. VLM analysis unaffected (VLM doesn't use audio). | Low | hasAudio is informational for P5 ASR. |
-| 7 | searchYtdlp called with platform="xiaohongshu" | Returns `[]` (unsupported platform). No YouTube results. | Low | Guard check: only bilibili and youtube_search produce results. |
-| 8 | searchYtdlp called with platform="bilibili" | Uses `bilisearch:` as before. Returns B站 results. | Low | Existing behavior unchanged. |
-| 9 | google_news CDP extraction with article-only result (no images) | primaryScript returns `[]`. No text candidates produced. | Low | Script only pushes when img exists. |
-| 10 | bing_news CDP extraction with mixed image/text results | Only image candidates returned. Text candidates filtered. | Low | Script only pushes when img exists. |
-| 11 | CDP download loop receives candidate with type="text" | Skipped (type check guard). Not downloaded. | Low | `if (candidate.type && candidate.type !== "image") continue;` |
-| 12 | Good asset from Pexels API (no fileSize, no resolution) | technicalScore = 14 (title match) + 14 (image type) = 28. ≥20 → downloaded. <30 → lowConfidence=true → skipped from VLM. | Medium | This is current behavior. API sources with sparse metadata get lowConfidence. Not a regression — but test documents it. |
-| 13 | CJK title "优必选机器人" with keyword "UBTECH" | No boundary match (CJK vs Latin). technicalScore may be low. | Medium | `hasBoundaryMatch` uses `includes()` for CJK. "优必选" doesn't contain "UBTECH". This is a real gap — but P3 VLM subjects matching handles it post-analysis. |
-| 14 | All sources have SOURCE_ATTRIBUTIONS key | Every source name in ALL_SOURCES has a matching key in SOURCE_ATTRIBUTIONS | Low | New test assertion. Any missing key would cause `buildAttribution()` to return null. |
-| 15 | attribution.text() returns empty string | Test catches sources with empty attribution text | Low | New test assertion. |
-| 16 | probeMedia on non-video file (image) | Returns null (ffprobe can't probe images, or returns empty). analyzeAssets skips probe for images. | Low | Phase 2.5 only calls probeMedia for video assets (type === "video"). |
-| 17 | extract_frames with window where startMs > endMs | ffmpeg handles gracefully (returns 0 frames). VLM gets empty frame list → degraded result. | Low | Window computation: `endMs = min(durationMs, 8000)`. startMs always 0 in P4. |
-| 18 | Native video path fails, fallback uses window | extract_frames uses startMs/endMs for `-ss`/`-t`. Same temporal range as native would have used. | Low | Both paths use same window from IPC message. |
+| #   | Scenario                                                             | Expected Behavior                                                                                                        | Risk   | Mitigation                                                                                                                                                   |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Video asset with probeMedia success                                  | Window = { 0, min(duration, 8000), 1.0 }. VLM receives window. sourceMode = "native" or "frames"                         | Low    | probeMedia returns valid metadata. Window computed from duration.                                                                                            |
+| 2   | Video asset with probeMedia failure (corrupt file / ffprobe missing) | probeMedia returns null. Default window { 0, 8000, 1.0 } used. sourceMode = "degraded"                                   | Low    | VLM proceeds with default window. No crash.                                                                                                                  |
+| 3   | Image asset with opts passed                                         | opts ignored. Image path unchanged. No window in output.                                                                 | Low    | Image path doesn't read opts.                                                                                                                                |
+| 4   | Video asset, no opts passed (backward compat)                        | Current behavior: native sees whole video, fallback caps at 8s. No window metadata.                                      | Low    | opts is optional. Python checks window field presence.                                                                                                       |
+| 5   | Very short video (< 1s)                                              | Window = { 0, duration, 1.0 }. Fallback may produce 1 frame. VLM analyzes single frame.                                  | Low    | maxFrames=16 cap. Single frame is valid input.                                                                                                               |
+| 6   | Video with no audio track                                            | probeMedia returns hasAudio=false. VLM analysis unaffected (VLM doesn't use audio).                                      | Low    | hasAudio is informational for P5 ASR.                                                                                                                        |
+| 7   | searchYtdlp called with platform="xiaohongshu"                       | Returns `[]` (unsupported platform). No YouTube results.                                                                 | Low    | Guard check: only bilibili and youtube_search produce results.                                                                                               |
+| 8   | searchYtdlp called with platform="bilibili"                          | Uses `bilisearch:` as before. Returns B站 results.                                                                       | Low    | Existing behavior unchanged.                                                                                                                                 |
+| 9   | google_news CDP extraction with article-only result (no images)      | primaryScript returns `[]`. No text candidates produced.                                                                 | Low    | Script only pushes when img exists.                                                                                                                          |
+| 10  | bing_news CDP extraction with mixed image/text results               | Only image candidates returned. Text candidates filtered.                                                                | Low    | Script only pushes when img exists.                                                                                                                          |
+| 11  | CDP download loop receives candidate with type="text"                | Skipped (type check guard). Not downloaded.                                                                              | Low    | `if (candidate.type && candidate.type !== "image") continue;`                                                                                                |
+| 12  | Good asset from Pexels API (no fileSize, no resolution)              | technicalScore = 14 (title match) + 14 (image type) = 28. ≥20 → downloaded. <30 → lowConfidence=true → skipped from VLM. | Medium | This is current behavior. API sources with sparse metadata get lowConfidence. Not a regression — but test documents it.                                      |
+| 13  | CJK title "优必选机器人" with keyword "UBTECH"                       | No boundary match (CJK vs Latin). technicalScore may be low.                                                             | Medium | `hasBoundaryMatch` uses `includes()` for CJK. "优必选" doesn't contain "UBTECH". This is a real gap — but P3 VLM subjects matching handles it post-analysis. |
+| 14  | All sources have SOURCE_ATTRIBUTIONS key                             | Every source name in ALL_SOURCES has a matching key in SOURCE_ATTRIBUTIONS                                               | Low    | New test assertion. Any missing key would cause `buildAttribution()` to return null.                                                                         |
+| 15  | attribution.text() returns empty string                              | Test catches sources with empty attribution text                                                                         | Low    | New test assertion.                                                                                                                                          |
+| 16  | probeMedia on non-video file (image)                                 | Returns null (ffprobe can't probe images, or returns empty). analyzeAssets skips probe for images.                       | Low    | Phase 2.5 only calls probeMedia for video assets (type === "video").                                                                                         |
+| 17  | extract_frames with window where startMs > endMs                     | ffmpeg handles gracefully (returns 0 frames). VLM gets empty frame list → degraded result.                               | Low    | Window computation: `endMs = min(durationMs, 8000)`. startMs always 0 in P4.                                                                                 |
+| 18  | Native video path fails, fallback uses window                        | extract_frames uses startMs/endMs for `-ss`/`-t`. Same temporal range as native would have used.                         | Low    | Both paths use same window from IPC message.                                                                                                                 |
 
 ## Further Notes
 

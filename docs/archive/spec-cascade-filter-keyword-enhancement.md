@@ -16,16 +16,17 @@ filterChinaAI keyword list too sparse — missed people names, company aliases, 
 
 ## Scenario Matrix
 
-| # | Scenario | Status |
-|---|----------|--------|
-| 1 | CN person name match | PASS |
-| 2 | EN person name match | PASS |
-| 3 | CN company alias match | PASS |
-| 4 | EN company alias match (hyphen) | PASS |
-| 5 | Product name match | PASS |
-| 6 | Policy term match | PASS |
-| 7 | ai-in-training no match | PASS |
-| 8 | extractKeywords returns new keywords | PASS |
+| #   | Scenario                             | Status |
+| --- | ------------------------------------ | ------ |
+| 1   | CN person name match                 | PASS   |
+| 2   | EN person name match                 | PASS   |
+| 3   | CN company alias match               | PASS   |
+| 4   | EN company alias match (hyphen)      | PASS   |
+| 5   | Product name match                   | PASS   |
+| 6   | Policy term match                    | PASS   |
+| 7   | ai-in-training no match              | PASS   |
+| 8   | extractKeywords returns new keywords | PASS   |
 
 ## Reference
+
 - ADR-0016, Issue #51, Issue #33 (closed)

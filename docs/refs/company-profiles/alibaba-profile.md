@@ -22,31 +22,31 @@
 
 ## Model Releases
 
-| Date | Model | Type | Key Details | Source |
-|------|-------|------|-------------|--------|
-| 2023 | Qwen-1.x | LLM | Initial release, open-source | [Wikipedia](https://en.wikipedia.org/wiki/Qwen) |
-| 2024 | Qwen2 / Qwen2.5 | LLM family | Up to 72B parameters. Open weights (Apache 2.0). Qwen2.5-72B: $0.08/$0.16 per 1M tokens. | [Alibaba Cloud](https://www.alibabacloud.com/) |
-| 2024 | Qwen2-VL | Vision-language | Multimodal model | [Hugging Face](https://huggingface.co/Qwen) |
-| 2025 | Qwen2.5-Max | LLM | Proprietary, API-only, MoE architecture | [Alibaba Cloud](https://www.alibabacloud.com/) |
-| 2026 | Qwen3 | LLM | Next-generation (anticipated) | Industry reports |
+| Date | Model           | Type            | Key Details                                                                              | Source                                          |
+| ---- | --------------- | --------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 2023 | Qwen-1.x        | LLM             | Initial release, open-source                                                             | [Wikipedia](https://en.wikipedia.org/wiki/Qwen) |
+| 2024 | Qwen2 / Qwen2.5 | LLM family      | Up to 72B parameters. Open weights (Apache 2.0). Qwen2.5-72B: $0.08/$0.16 per 1M tokens. | [Alibaba Cloud](https://www.alibabacloud.com/)  |
+| 2024 | Qwen2-VL        | Vision-language | Multimodal model                                                                         | [Hugging Face](https://huggingface.co/Qwen)     |
+| 2025 | Qwen2.5-Max     | LLM             | Proprietary, API-only, MoE architecture                                                  | [Alibaba Cloud](https://www.alibabacloud.com/)  |
+| 2026 | Qwen3           | LLM             | Next-generation (anticipated)                                                            | Industry reports                                |
 
 ## Funding History
 
 Alibaba is publicly listed. AI division funded internally.
 
-| Date | Event | Notes |
-|------|-------|-------|
-| Sep 2014 | NYSE IPO | Largest US IPO at the time ($25B) |
-| Nov 2019 | HKEX secondary listing | — |
-| 2023-2026 | AI investment | Internal funding for Qwen team; cloud infrastructure investment |
+| Date      | Event                  | Notes                                                           |
+| --------- | ---------------------- | --------------------------------------------------------------- |
+| Sep 2014  | NYSE IPO               | Largest US IPO at the time ($25B)                               |
+| Nov 2019  | HKEX secondary listing | —                                                               |
+| 2023-2026 | AI investment          | Internal funding for Qwen team; cloud infrastructure investment |
 
 ## Key People
 
-| Name | Role | Notes | Source |
-|------|------|-------|--------|
-| **Jack Ma (马云)** | Founder |stepped back from operational roles; returned to public life in 2023-2024 |
-| Eddie Wu (吴泳铭) | CEO (Alibaba Group) | Took over as CEO in 2023 | Industry reports |
-| **Qwen Team** | AI research | Based within Alibaba Cloud | [Wikipedia](https://en.wikipedia.org/wiki/Qwen) |
+| Name               | Role                | Notes                                                                     | Source                                          |
+| ------------------ | ------------------- | ------------------------------------------------------------------------- | ----------------------------------------------- |
+| **Jack Ma (马云)** | Founder             | stepped back from operational roles; returned to public life in 2023-2024 |
+| Eddie Wu (吴泳铭)  | CEO (Alibaba Group) | Took over as CEO in 2023                                                  | Industry reports                                |
+| **Qwen Team**      | AI research         | Based within Alibaba Cloud                                                | [Wikipedia](https://en.wikipedia.org/wiki/Qwen) |
 
 ## Compute Infrastructure
 
@@ -72,6 +72,7 @@ Alibaba is publicly listed. AI division funded internally.
 ## Open Source Impact
 
 Qwen is one of the most popular open-source LLM families globally:
+
 - Apache 2.0 license for many models
 - Active Hugging Face community
 - Widely used by third-party developers

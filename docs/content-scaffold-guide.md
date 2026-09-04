@@ -35,9 +35,9 @@ scripts/short-video/content/{series-slug}/
 
 ```javascript
 export const meta = {
-  pipelineId: "my-article",        // Used for output directory: output/my-article/
-  title: "My Article Title",       // Display name
-  article: "my-article-slug",      // Website article slug (for reference)
+  pipelineId: "my-article", // Used for output directory: output/my-article/
+  title: "My Article Title", // Display name
+  article: "my-article-slug", // Website article slug (for reference)
   // For series:
   // seriesId: "my-series",
   // partNumber: 1,
@@ -50,10 +50,11 @@ export const meta = {
 export const scenes = [
   {
     id: 1,
-    name: "hook",           // Scene name for logging
-    visualType: "hook",     // Visual type (hook, narrative, data, quote, etc.)
-    voiceover: "One breath of text. Max 25 words.",  // Drives TTS duration
-    texts: {                 // On-screen text (read by the Remotion scene components)
+    name: "hook", // Scene name for logging
+    visualType: "hook", // Visual type (hook, narrative, data, quote, etc.)
+    voiceover: "One breath of text. Max 25 words.", // Drives TTS duration
+    texts: {
+      // On-screen text (read by the Remotion scene components)
       line1: "BIG TEXT",
       line2: "SUPPORTING",
     },
@@ -75,6 +76,7 @@ export const scenes = [
 ```
 
 **Rules** (enforced by `verify-video.mjs`):
+
 - Each `voiceover` ≤ 25 words (one breath)
 - No em/en/double dashes (`—`, `–`, `--`)
 - No AI vocabulary (leverage, delve, harness, etc.)
@@ -96,12 +98,12 @@ export const scenes = [
 ## CSS Overflow Checklist
 
 | Font size | Max chars per 820px line | Max chars per 360px card |
-|-----------|--------------------------|------------------------|
-| 32px bold | ~43 chars | ~19 chars |
-| 42px bold | ~32 chars | ~14 chars |
-| 48px bold | ~28 chars | ~12 chars |
-| 56px bold | ~24 chars | ~10 chars |
-| 72px bold | ~19 chars | ~8 chars |
+| --------- | ------------------------ | ------------------------ |
+| 32px bold | ~43 chars                | ~19 chars                |
+| 42px bold | ~32 chars                | ~14 chars                |
+| 48px bold | ~28 chars                | ~12 chars                |
+| 56px bold | ~24 chars                | ~10 chars                |
+| 72px bold | ~19 chars                | ~8 chars                 |
 
 - For flex columns with `gap: 40px`: each column = `(available - 40) / 2`
 - For cards with padding: text area = `card_width - padding * 2`
@@ -112,14 +114,15 @@ export const scenes = [
 
 Each video can have a different visual DNA while sharing the same brand system:
 
-| Video type | Color dominance | Animation style | Logo usage |
-|------------|----------------|-----------------|------------|
-| Breaking news | Red, urgent | Glitch, stamp-in | Brand bar at top |
-| Deep analysis | Blue, authoritative | Slide, fade | Watermark only |
-| Data reveal | Amber, focused | Number pulse, bar grow | Minimal |
-| Explainer | Blue + cyan | Sequential reveal | Brand at CTA |
+| Video type    | Color dominance     | Animation style        | Logo usage       |
+| ------------- | ------------------- | ---------------------- | ---------------- |
+| Breaking news | Red, urgent         | Glitch, stamp-in       | Brand bar at top |
+| Deep analysis | Blue, authoritative | Slide, fade            | Watermark only   |
+| Data reveal   | Amber, focused      | Number pulse, bar grow | Minimal          |
+| Explainer     | Blue + cyan         | Sequential reveal      | Brand at CTA     |
 
 **Mandatory across all styles:**
+
 - Use the brand color tokens from `docs/brand-system.md` (implemented in `remotion/src/`) — never hardcode hex
 - Watermark + brand chrome come from the shared Remotion components — every scene includes them
 - Brand logo appears in CTA scene at 130px+
@@ -138,7 +141,7 @@ Fix all FAIL items before presenting to user. WARN items are acceptable.
 
 ## Design Decisions & References
 
-| Topic | Reference | Content |
-|-------|-----------|---------|
-| Brand visual identity | `docs/brand-system.md` (L1) | Color tokens, typography, animation library, 9 scene templates |
-| Video production workflow | `docs/video-workflow.md` (L1) | TTS engines, rendering, publishing strategy, file paths |
+| Topic                     | Reference                     | Content                                                        |
+| ------------------------- | ----------------------------- | -------------------------------------------------------------- |
+| Brand visual identity     | `docs/brand-system.md` (L1)   | Color tokens, typography, animation library, 9 scene templates |
+| Video production workflow | `docs/video-workflow.md` (L1) | TTS engines, rendering, publishing strategy, file paths        |

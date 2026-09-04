@@ -450,9 +450,7 @@ describe("checkTextOverflow", () => {
   it("is included in runFrameAnalysis results", () => {
     const buf = contentBuffer();
     const results = runFrameAnalysis(buf, SAFE_ZONES);
-    const overflowResult = results.find((r) =>
-      r.check.toLowerCase().includes("overflow"),
-    );
+    const overflowResult = results.find((r) => r.check.toLowerCase().includes("overflow"));
     expect(overflowResult).toBeDefined();
     expect(["pass", "warn", "fail"]).toContain(overflowResult.level);
   });

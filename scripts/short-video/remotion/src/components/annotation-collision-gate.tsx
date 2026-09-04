@@ -76,7 +76,8 @@ export const AnnotationCollisionAssert: React.FC<AnnotationCollisionAssertProps>
   maxRatio = 0.02,
   settledFrame,
 }) => {
-  const settledAt = settledFrame ?? (getSlot(sourceSlotId) as { settledFrame: number }).settledFrame;
+  const settledAt =
+    settledFrame ?? (getSlot(sourceSlotId) as { settledFrame: number }).settledFrame;
   const hostRef = useRef<HTMLDivElement>(null);
   const frame = useCurrentFrame();
   // The evaluation polls across frames (the source gate's async Fit can

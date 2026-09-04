@@ -79,16 +79,16 @@ AGENTS.md 重构为：路由三档（Trivial/Small/Substantial，影响面定档
 
 ### Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `AGENTS.md` | L41/Step 9 限定、Step 1 重写、PSR 章节改写、6 章节外移/压缩 | High | 规则源头；缓解：矩阵逐行走查 + 三查 + 第三方已两轮 review |
-| `docs/tools-catalog.md` | T0a 三处 Tavily 表述改回指 + 接收工具表 | Medium | 实施时 grep 全文 Tavily 确认无遗漏 |
-| `docs/video-workflow.md` | T0b 修过期路径 + 接收 skill 矩阵/分工注/M4A 细节 | Medium | 以 media-asset-management.md 为准 |
-| `docs/content-pipeline.md` | 仅验证覆盖 + 补缺口（如有） | Low | 已确认 L6/L61 存在 |
-| `docs/conventions/fact-verification.md` | 新建 | Low | |
-| `docs/media-asset-management.md` | 不改内容 | Low | |
-| `docs/DOCS-INDEX.md` | pointer 关系登记 | Low | |
-| rollout tracker（GitHub Issue） | 新建，观察期数据 + 回滚阈值 | Low | |
+| 文件                                    | 修改内容                                                    | 风险等级 | 评估                                                      |
+| --------------------------------------- | ----------------------------------------------------------- | -------- | --------------------------------------------------------- |
+| `AGENTS.md`                             | L41/Step 9 限定、Step 1 重写、PSR 章节改写、6 章节外移/压缩 | High     | 规则源头；缓解：矩阵逐行走查 + 三查 + 第三方已两轮 review |
+| `docs/tools-catalog.md`                 | T0a 三处 Tavily 表述改回指 + 接收工具表                     | Medium   | 实施时 grep 全文 Tavily 确认无遗漏                        |
+| `docs/video-workflow.md`                | T0b 修过期路径 + 接收 skill 矩阵/分工注/M4A 细节            | Medium   | 以 media-asset-management.md 为准                         |
+| `docs/content-pipeline.md`              | 仅验证覆盖 + 补缺口（如有）                                 | Low      | 已确认 L6/L61 存在                                        |
+| `docs/conventions/fact-verification.md` | 新建                                                        | Low      |                                                           |
+| `docs/media-asset-management.md`        | 不改内容                                                    | Low      |                                                           |
+| `docs/DOCS-INDEX.md`                    | pointer 关系登记                                            | Low      |                                                           |
+| rollout tracker（GitHub Issue）         | 新建，观察期数据 + 回滚阈值                                 | Low      |                                                           |
 
 **统一影响评估**（按 `scenario-matrix.md` 三问）：
 
@@ -98,26 +98,26 @@ AGENTS.md 重构为：路由三档（Trivial/Small/Substantial，影响面定档
 
 ### Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | 风险维度 | Mitigation |
-|---|----------|-------------------|---------|------------|
-| 1 | `src/` 单文件 typo | Trivial：直接改+最窄检查+commit | 路由 | |
-| 2 | `src/` ≤10 行行为修改 | Small，不是 Trivial | 路由 | 行数不作定档依据 |
-| 3 | 实现+测试双文件，无契约变化 | Small 正常 | 路由 | 影响面定档 |
-| 4 | `admin.tsx` state 改动 | Substantial | 路由 | High-Risk |
-| 5 | `scripts/article/` 改动触及发布、持久化或跨阶段契约 | Substantial | 路由 | risk-based 全覆盖；定档按影响面，「大」不作依据 |
-| 6 | 纯 AGENTS.md 修改 | 一律 Substantial | 治理 | |
-| 7 | Trivial/Small session 结束 | 不执行 Step 1-8 清单 | 流程一致性 | L41/Step 9 限定 |
-| 8 | Substantial session 结束 | 现行清单照常 | 流程一致性 | |
-| 9 | 方案/建议未附 PSR 清单 | 未发布；含断言的建议被覆盖；无断言对话不触发 | PSR | 触发范围收窄 |
-| 10 | Grill 中证据未齐 | Preflight 已列需求，发布 Gate 在 Grill 后 | PSR | 两段式 |
-| 11 | Small 中途触及 schema | 停止编辑；不 stash/丢弃/提交未完成工作；补齐流程后继续 | 升级安全 | 升级协议 |
-| 12 | 混合任务 | 取最高档或拆分 | 路由 | |
-| 13 | Small 中 Verify 失败 | 修复重验或走升级协议 | 升级 | |
-| 14 | 依赖/CI/部署变更 | Substantial | 路由 | |
-| 15 | PSR 某条不适用 | 标注不适用+原因 | PSR | |
-| 16 | 做视频任务 | content-pipeline；skill 触发规则 in-file | 路由 | |
-| 17 | 抓网页倾向 Tavily | 硬规则：fallback 链未走完不用；tools-catalog 无规范性表述可绕过 | 单权威 | 回指 |
-| 18 | 创建媒体文件 | pointer → 权威文档 → 正确位置 | 指针 | T0c 消歧 |
+| #   | Scenario                                            | Expected Behavior                                               | 风险维度   | Mitigation                                      |
+| --- | --------------------------------------------------- | --------------------------------------------------------------- | ---------- | ----------------------------------------------- |
+| 1   | `src/` 单文件 typo                                  | Trivial：直接改+最窄检查+commit                                 | 路由       |                                                 |
+| 2   | `src/` ≤10 行行为修改                               | Small，不是 Trivial                                             | 路由       | 行数不作定档依据                                |
+| 3   | 实现+测试双文件，无契约变化                         | Small 正常                                                      | 路由       | 影响面定档                                      |
+| 4   | `admin.tsx` state 改动                              | Substantial                                                     | 路由       | High-Risk                                       |
+| 5   | `scripts/article/` 改动触及发布、持久化或跨阶段契约 | Substantial                                                     | 路由       | risk-based 全覆盖；定档按影响面，「大」不作依据 |
+| 6   | 纯 AGENTS.md 修改                                   | 一律 Substantial                                                | 治理       |                                                 |
+| 7   | Trivial/Small session 结束                          | 不执行 Step 1-8 清单                                            | 流程一致性 | L41/Step 9 限定                                 |
+| 8   | Substantial session 结束                            | 现行清单照常                                                    | 流程一致性 |                                                 |
+| 9   | 方案/建议未附 PSR 清单                              | 未发布；含断言的建议被覆盖；无断言对话不触发                    | PSR        | 触发范围收窄                                    |
+| 10  | Grill 中证据未齐                                    | Preflight 已列需求，发布 Gate 在 Grill 后                       | PSR        | 两段式                                          |
+| 11  | Small 中途触及 schema                               | 停止编辑；不 stash/丢弃/提交未完成工作；补齐流程后继续          | 升级安全   | 升级协议                                        |
+| 12  | 混合任务                                            | 取最高档或拆分                                                  | 路由       |                                                 |
+| 13  | Small 中 Verify 失败                                | 修复重验或走升级协议                                            | 升级       |                                                 |
+| 14  | 依赖/CI/部署变更                                    | Substantial                                                     | 路由       |                                                 |
+| 15  | PSR 某条不适用                                      | 标注不适用+原因                                                 | PSR        |                                                 |
+| 16  | 做视频任务                                          | content-pipeline；skill 触发规则 in-file                        | 路由       |                                                 |
+| 17  | 抓网页倾向 Tavily                                   | 硬规则：fallback 链未走完不用；tools-catalog 无规范性表述可绕过 | 单权威     | 回指                                            |
+| 18  | 创建媒体文件                                        | pointer → 权威文档 → 正确位置                                   | 指针       | T0c 消歧                                        |
 
 ### Rollout & Rollback
 

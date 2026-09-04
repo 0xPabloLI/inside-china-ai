@@ -44,6 +44,7 @@ node scripts/rag/query.mjs "话题关键词 公司名" --type source-material --
 Agent 从 Stage 0 的 `discovery.json` 和素材中提炼查询词（话题关键词 + 主要公司名/实体名）。查询结果供 Stage 1（文章生成）和 Stage 3（scene-data）共享参考。
 
 **结果消费**：
+
 - 避免重复已有文章的角度和数据
 - 融入公司背景上下文（如公司名出现时带入已有背景）
 - 可选在文章中添加交叉引用（如 markdown link 到已有文章 slug）
@@ -63,8 +64,8 @@ Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：
 
 管线设 1 个强制人工确认点。Agent 到达 HITL 检查点时 **必须暂停**，输出审阅内容，等待用户在对话中明确确认后方可继续。
 
-| 检查点   | 位置                           | 审阅内容                                                        | 确认方式              |
-| -------- | ------------------------------ | --------------------------------------------------------------- | --------------------- |
+| 检查点   | 位置                           | 审阅内容                                                       | 确认方式                |
+| -------- | ------------------------------ | -------------------------------------------------------------- | ----------------------- |
 | **HITL** | Stage 5 内部（验证后、公开前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 draft + 场景概览表 | 用户说「内容 OK，发布」 |
 
 > **Agent 行为约束**：用户未明确确认前，Agent 不得执行 TikTok 发布。确认必须是用户主动发出（如「继续」「OK」「确认」「发布」等），Agent 不得自行假设确认。
@@ -81,11 +82,11 @@ Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：
  → ⏸️ HITL（附 MRL 报告供用户参考）
 ```
 
-| MRL       | 位置                         | 检查对象                    | Blocker 数              | Warning 数 |
-| --------- | ---------------------------- | --------------------------- | ----------------------- | ---------- |
-| **MRL-1** | Stage 1（自审，不暂停）      | 文章 frontmatter + markdown | 清单见 guide            | 清单见 guide |
-| **MRL-2** | Stage 3（自审，不暂停）      | scene-data.mjs（每集）      | 13                      | 9          |
-| **MRL-3** | Stage 5 → HITL 前            | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查  |
+| MRL       | 位置                    | 检查对象                    | Blocker 数              | Warning 数   |
+| --------- | ----------------------- | --------------------------- | ----------------------- | ------------ |
+| **MRL-1** | Stage 1（自审，不暂停） | 文章 frontmatter + markdown | 清单见 guide            | 清单见 guide |
+| **MRL-2** | Stage 3（自审，不暂停） | scene-data.mjs（每集）      | 13                      | 9            |
+| **MRL-3** | Stage 5 → HITL 前       | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查    |
 
 **MRL 报告格式**（Agent 在 HITL 输出中附带）：
 
@@ -132,7 +133,6 @@ Agent 从 Stage 0 开始：运行 `search-sources --trend` → 选话题 → 走
 > **补充搜索源**：需要更多新闻/学术/素材 API 时，查 `docs/tools-catalog.md` → Pipeline API 补充候选。
 >
 > **与 RAG 的区别**：RAG（`scripts/rag/`）搜索项目已有内容，用本地 Ollama bge-m3 做语义向量搜索，零费用。search-sources 搜索实时互联网。两者不重复。
-
 
 ---
 
@@ -224,14 +224,14 @@ node scripts/rag/query.mjs "数字人" --type scene-data         # 只搜已有�
 node scripts/rag/query.mjs "logo" --type asset-catalog        # 只搜素材目录
 ```
 
-| `content_type` | 内容 | 来源目录 |
-|----------------|------|---------|
-| `article` | 已发布文章 | `articles/*.md` |
-| `scene-data` | 视频场景数据 | `scripts/short-video/content/*/scene-data.mjs` |
-| `source-material` | 源素材文档 | `docs/refs/source-materials/` |
-| `research` | 研究文档 | `docs/research/` |
-| `tiktok-ref` | TikTok 策略参考 | `docs/refs/tiktok-skills/` |
-| `asset-catalog` | 素材目录 | `scripts/short-video/assets/catalog.yml` |
+| `content_type`    | 内容            | 来源目录                                       |
+| ----------------- | --------------- | ---------------------------------------------- |
+| `article`         | 已发布文章      | `articles/*.md`                                |
+| `scene-data`      | 视频场景数据    | `scripts/short-video/content/*/scene-data.mjs` |
+| `source-material` | 源素材文档      | `docs/refs/source-materials/`                  |
+| `research`        | 研究文档        | `docs/research/`                               |
+| `tiktok-ref`      | TikTok 策略参考 | `docs/refs/tiktok-skills/`                     |
+| `asset-catalog`   | 素材目录        | `scripts/short-video/assets/catalog.yml`       |
 
 `--format human` 输出可读文本；默认 JSON 供 Agent 消费。`--topics` 按 metadata.topics 过滤。`--rerank` 启用重排（需 `ollama pull bge-reranker-base`）。
 
@@ -273,18 +273,18 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
 7. **设计 SEO 标题**（≤60 chars）——对比 Agent 生成的 title 和 AI Outline 返回的 title，取更优者
 8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 填写 `assetNeed` 字段，asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限（见 `docs/video-script-writing-guide.md` → assetNeed 约定）。素材**生成**比采购更合适的 scene（抽象概念、无现成画面）声明 `mediaStrategy` + `aiVideo.prompt`：字段契约、8 维模板与 preflight 规则见 `docs/video-workflow.md` → B-roll Generation。
-8b. **VLM stock 图片相关性评判** — scene-data 写完后，对每个 `media.type === "image"` 的场景运行 VLM 相关性评判：`node scripts/short-video/evaluate-stock-relevance.mjs --content <dir>`。Qwen3-VL 对每张 stock 图片评分（0-100），检查与 voiceover + texts 的相关性。**完成标准**：所有图片 relevance ≥ 60。低于阈值的场景用 `search-replacement-images.mjs` 搜索 Pexels 替换，或声明 `mediaStrategy: "b-roll"` 转为 AI 生成。
+   8b. **VLM stock 图片相关性评判** — scene-data 写完后，对每个 `media.type === "image"` 的场景运行 VLM 相关性评判：`node scripts/short-video/evaluate-stock-relevance.mjs --content <dir>`。Qwen3-VL 对每张 stock 图片评分（0-100），检查与 voiceover + texts 的相关性。**完成标准**：所有图片 relevance ≥ 60。低于阈值的场景用 `search-replacement-images.mjs` 搜索 Pexels 替换，或声明 `mediaStrategy: "b-roll"` 转为 AI 生成。
 9. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
 
 ### 素材 → 视频的节奏适配
 
-| 素材         | 视频                    |
-| ------------ | ----------------------- |
+| 素材          | 视频                    |
+| ------------- | ----------------------- |
 | 6-10 个信息点 | 10-12 个场景            |
-| 详细论述     | 精简为 1-2 句 voiceover |
-| 数据表格     | 数据可视化场景          |
-| 引用语句     | 大字引用场景            |
-| Widget       | 不出现（视频无法交互）  |
+| 详细论述      | 精简为 1-2 句 voiceover |
+| 数据表格      | 数据可视化场景          |
+| 引用语句      | 大字引用场景            |
+| Widget        | 不出现（视频无法交互）  |
 
 ### AI Outline 话题描述规则（Step 5 细则）
 
@@ -354,6 +354,7 @@ node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查 = MRL-
 **MRL-3 Blockers**（verify-video.mjs 已覆盖）：视频文件有效、时长在 TikTok 60-70s 范围、分辨率/码率/编码合规、字幕文件存在且时间轴对齐、无黑屏/空帧。
 
 **MRL-3 内容补充检查**（Agent 手动执行）：
+
 - TTS 音频时长与 voiceover 估算一致（±5s）
 - 字幕文本与 scene-data voiceover 一致（无 Whisper 识别误差导致的 "deep seeks" vs "DeepSeek's"）
 - 品牌元素（logo、配色）符合 brand-system 规范
@@ -427,34 +428,33 @@ node scripts/short-video/publish-tiktok.mjs --slug <slug>
 
 ## 检查点总结
 
-| 检查点                | 位置                           | 类型     | 谁操作 | 必须？          |
-| --------------------- | ------------------------------ | -------- | ------ | --------------- |
-| **🔄 MRL-1** 文章自审 | Stage 1（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
-| 新 widget 部署        | Stage 2（文章准备时）          | 人工操作 | 用户   | 仅当有新 widget |
-| **🔄 MRL-2** 脚本自审 | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须         |
-| 📚 RAG reindex（多媒体） | Stage 4b（视频制作后）       | 脚本执行 | Agent  | 仅当有多媒体素材变更 |
-| **🔄 MRL-3** 视频自审 | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须         |
-| **HITL** 内容包成品审阅 | Stage 5 内部（验证后、公开前） | 人工确认 | 用户   | ✅ 必须         |
-| 文章公开发布 + 附件上传 | Stage 5（HITL 确认后）         | 脚本执行 | Agent  | ✅ 必须         |
-| TikTok 发布 + URL 保存 | Stage 5 HITL 确认后          | 脚本执行 | Agent  | ✅ 必须         |
-| TikTok 手工操作       | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须         |
-| Analytics 导出        | 独立工作流                     | 人工操作 | 用户   | 按需            |
-
+| 检查点                   | 位置                           | 类型     | 谁操作 | 必须？               |
+| ------------------------ | ------------------------------ | -------- | ------ | -------------------- |
+| **🔄 MRL-1** 文章自审    | Stage 1（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须              |
+| 新 widget 部署           | Stage 2（文章准备时）          | 人工操作 | 用户   | 仅当有新 widget      |
+| **🔄 MRL-2** 脚本自审    | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须              |
+| 📚 RAG reindex（多媒体） | Stage 4b（视频制作后）         | 脚本执行 | Agent  | 仅当有多媒体素材变更 |
+| **🔄 MRL-3** 视频自审    | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须              |
+| **HITL** 内容包成品审阅  | Stage 5 内部（验证后、公开前） | 人工确认 | 用户   | ✅ 必须              |
+| 文章公开发布 + 附件上传  | Stage 5（HITL 确认后）         | 脚本执行 | Agent  | ✅ 必须              |
+| TikTok 发布 + URL 保存   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须              |
+| TikTok 手工操作          | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须              |
+| Analytics 导出           | 独立工作流                     | 人工操作 | 用户   | 按需                 |
 
 ---
 
 ## Design Decisions & References
 
-| Topic | Reference | Content |
-|-------|-----------|---------|
-| Article production rules | `docs/article-production-guide.md` (L1) | Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation |
-| Script writing methodology | `docs/video-script-writing-guide.md` (L1) | S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks |
-| Multi-video series | `docs/series-production-guide.md` (L1) | Split strategy, inter-episode linking, compilation, series publishing |
-| New content scaffold | `docs/content-scaffold-guide.md` (L1) | Directory structure, file templates, CSS overflow checklist, visual style |
-| Video production workflow | `docs/video-workflow.md` (L1) | TTS engines, rendering, publishing strategy, file paths |
-| Media asset management | `docs/media-asset-management.md` (L1) | Asset placement rules, catalog & RAG integration, reindex trigger matrix |
-| TikTok best practices | `docs/tiktok/tiktok-best-practices.md` (L2) | Signal weights, voice rules, hook formulas, audit checklist |
-| Analytics workflow | `docs/analytics-workflow.md` (L1) | TikTok Analytics, CSV export, A/B testing, optimization loop |
-| Script writing research | `docs/research/short-video-script-writing-best-practices.md` (L2) | 15+ sources — psychological retention engines, hook formulas |
-| Multi-video splitting research | `docs/research/multi-video-splitting-best-practices.md` (L2) | 15 sources — TikTok algorithm analysis, episode linking |
-| Article pipeline research | `docs/research/china-ai-article-pipeline-2026.md` (L2) | Content strategy, widget design, SEO |
+| Topic                          | Reference                                                         | Content                                                                                                                                            |
+| ------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Article production rules       | `docs/article-production-guide.md` (L1)                           | Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation                                                     |
+| Script writing methodology     | `docs/video-script-writing-guide.md` (L1)                         | S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks |
+| Multi-video series             | `docs/series-production-guide.md` (L1)                            | Split strategy, inter-episode linking, compilation, series publishing                                                                              |
+| New content scaffold           | `docs/content-scaffold-guide.md` (L1)                             | Directory structure, file templates, CSS overflow checklist, visual style                                                                          |
+| Video production workflow      | `docs/video-workflow.md` (L1)                                     | TTS engines, rendering, publishing strategy, file paths                                                                                            |
+| Media asset management         | `docs/media-asset-management.md` (L1)                             | Asset placement rules, catalog & RAG integration, reindex trigger matrix                                                                           |
+| TikTok best practices          | `docs/tiktok/tiktok-best-practices.md` (L2)                       | Signal weights, voice rules, hook formulas, audit checklist                                                                                        |
+| Analytics workflow             | `docs/analytics-workflow.md` (L1)                                 | TikTok Analytics, CSV export, A/B testing, optimization loop                                                                                       |
+| Script writing research        | `docs/research/short-video-script-writing-best-practices.md` (L2) | 15+ sources — psychological retention engines, hook formulas                                                                                       |
+| Multi-video splitting research | `docs/research/multi-video-splitting-best-practices.md` (L2)      | 15 sources — TikTok algorithm analysis, episode linking                                                                                            |
+| Article pipeline research      | `docs/research/china-ai-article-pipeline-2026.md` (L2)            | Content strategy, widget design, SEO                                                                                                               |

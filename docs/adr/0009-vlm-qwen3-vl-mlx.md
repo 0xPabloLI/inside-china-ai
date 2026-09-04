@@ -8,10 +8,10 @@ The video pipeline needs to understand visual assets (images, videos) before ass
 
 ## Cascade Router Design
 
-| Path | Model | Speed | Trigger |
-|------|-------|-------|---------|
-| Fast | Qwen3-VL-2B-4bit | ~3-5s/image | All assets run here first |
-| Deep | GLM-4.1V-9B-Thinking-4bit | ~28s/image | `should_escalate()` signals: short output (<100 chars), missing fit (images), empty description, repetition (≥3x) |
+| Path | Model                     | Speed       | Trigger                                                                                                           |
+| ---- | ------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| Fast | Qwen3-VL-2B-4bit          | ~3-5s/image | All assets run here first                                                                                         |
+| Deep | GLM-4.1V-9B-Thinking-4bit | ~28s/image  | `should_escalate()` signals: short output (<100 chars), missing fit (images), empty description, repetition (≥3x) |
 
 GLM loads lazily on first escalation (7.4s load time). RAM check (`psutil`, ≥16GB free) gates loading. If GLM unavailable at any point, 2B result is returned with `escalated: False`. Response includes `escalated: True/False` metadata.
 

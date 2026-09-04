@@ -67,25 +67,25 @@ Before writing or modifying any document under `docs/`, load the `writing-for-ag
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `AGENTS.md` | 修订 Coding Conventions 的 writing-for-agents 条目（规则语义从"任何编辑加载"改为"信息结构变更才加载"）；在工作流 Step 1 前加文档改动门槛 | **High** | AGENTS.md 是每个 session 的必读文件，规则改动影响所有 Agent 的文档编辑行为。缓解：新规则是收紧而非放宽（不确定时默认加载）；审核已通过 |
-| `docs/DOCS-INDEX.md` | 修订 Layer Placement Rules 第 20 行（从重复规则改为指针引用 AGENTS.md） | **Medium** | DOCS-INDEX 是文档索引的 single source of truth。修改后不再包含规则定义，只保留操作检查。下游消费者：所有读 DOCS-INDEX 做 Layer Placement 判定的 Agent。缓解：改为指针后语义不变，只是权威来源归一到 AGENTS.md |
+| 文件                 | 修改内容                                                                                                                                 | 风险等级   | 评估                                                                                                                                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`          | 修订 Coding Conventions 的 writing-for-agents 条目（规则语义从"任何编辑加载"改为"信息结构变更才加载"）；在工作流 Step 1 前加文档改动门槛 | **High**   | AGENTS.md 是每个 session 的必读文件，规则改动影响所有 Agent 的文档编辑行为。缓解：新规则是收紧而非放宽（不确定时默认加载）；审核已通过                                                                        |
+| `docs/DOCS-INDEX.md` | 修订 Layer Placement Rules 第 20 行（从重复规则改为指针引用 AGENTS.md）                                                                  | **Medium** | DOCS-INDEX 是文档索引的 single source of truth。修改后不再包含规则定义，只保留操作检查。下游消费者：所有读 DOCS-INDEX 做 Layer Placement 判定的 Agent。缓解：改为指针后语义不变，只是权威来源归一到 AGENTS.md |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Agent 在 Step 2 创建新 spec 文档 | 强制加载 writing-for-agents skill | Agent 跳过门槛（Step 2 未提及） | 门槛覆盖 Step 1-4 全范围，前置在 Step 1 之前 |
-| 2 | Agent 在 Step 3 创建新 ticket 文档 | 强制加载 writing-for-agents skill | 同上 | 同上 |
-| 3 | Agent 在 Step 4 实施代码时顺手创建 docs/research/ 文档 | 强制加载 writing-for-agents skill | Agent 在"写代码"mindset 下忽略文档规则 | 门槛前置触发词："创建或改动 docs/ 内容前" |
-| 4 | Agent 在 Step 4 修正一个 docs 文件中的错别字 | 豁免 skill 加载 | 无 | 豁免条件明确：仅拼写修正，不改变信息结构 |
-| 5 | Agent 修复 docs 文件中一个普通外链（非 Agent 指针） | 豁免 skill 加载 | 误把 Agent 指针链接当普通链接豁免 | 豁免条件限定"非 Agent 指针链接" |
-| 6 | Agent 将 AGENTS.md 中的指针换到新文档 | 强制加载 writing-for-agents skill | 误判为"链接修复"而豁免 | 新规则明确列出"改变 Agent 上下文指针"为强制触发 |
-| 7 | Agent 在 Step 8 归档 spec/ticket 并更新 DOCS-INDEX 目录 | 强制加载 writing-for-agents skill | Step 8 归档涉及索引变更，Agent 不认为这是"文档编辑" | 门槛覆盖 Step 8 |
-| 8 | Agent 修改一个 docs 文件中的事实数据值（如参数表中的数字） | 豁免 skill 加载 | 事实值变更可能影响 Agent 执行行为 | 豁免条件限定"事实值"但不允许改变"规则、步骤、前置条件"——参数表如果是执行指令的一部分，则不豁免 |
-| 9 | Agent 无法判定某次状态标记更新是否影响流程含义 | 强制加载 writing-for-agents skill | Agent 自行降级为豁免 | 规则明确："无法确定时必须加载" |
-| 10 | Agent 修改 docs/DOCS-INDEX.md 的目录分层或指针语义 | 强制加载 writing-for-agents skill | 误判为普通编辑 | 新规则明确列出"目录分层或 Agent 上下文指针"为强制触发 |
+| #   | Scenario                                                   | Expected Behavior                 | Risk                                                | Mitigation                                                                                     |
+| --- | ---------------------------------------------------------- | --------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 1   | Agent 在 Step 2 创建新 spec 文档                           | 强制加载 writing-for-agents skill | Agent 跳过门槛（Step 2 未提及）                     | 门槛覆盖 Step 1-4 全范围，前置在 Step 1 之前                                                   |
+| 2   | Agent 在 Step 3 创建新 ticket 文档                         | 强制加载 writing-for-agents skill | 同上                                                | 同上                                                                                           |
+| 3   | Agent 在 Step 4 实施代码时顺手创建 docs/research/ 文档     | 强制加载 writing-for-agents skill | Agent 在"写代码"mindset 下忽略文档规则              | 门槛前置触发词："创建或改动 docs/ 内容前"                                                      |
+| 4   | Agent 在 Step 4 修正一个 docs 文件中的错别字               | 豁免 skill 加载                   | 无                                                  | 豁免条件明确：仅拼写修正，不改变信息结构                                                       |
+| 5   | Agent 修复 docs 文件中一个普通外链（非 Agent 指针）        | 豁免 skill 加载                   | 误把 Agent 指针链接当普通链接豁免                   | 豁免条件限定"非 Agent 指针链接"                                                                |
+| 6   | Agent 将 AGENTS.md 中的指针换到新文档                      | 强制加载 writing-for-agents skill | 误判为"链接修复"而豁免                              | 新规则明确列出"改变 Agent 上下文指针"为强制触发                                                |
+| 7   | Agent 在 Step 8 归档 spec/ticket 并更新 DOCS-INDEX 目录    | 强制加载 writing-for-agents skill | Step 8 归档涉及索引变更，Agent 不认为这是"文档编辑" | 门槛覆盖 Step 8                                                                                |
+| 8   | Agent 修改一个 docs 文件中的事实数据值（如参数表中的数字） | 豁免 skill 加载                   | 事实值变更可能影响 Agent 执行行为                   | 豁免条件限定"事实值"但不允许改变"规则、步骤、前置条件"——参数表如果是执行指令的一部分，则不豁免 |
+| 9   | Agent 无法判定某次状态标记更新是否影响流程含义             | 强制加载 writing-for-agents skill | Agent 自行降级为豁免                                | 规则明确："无法确定时必须加载"                                                                 |
+| 10  | Agent 修改 docs/DOCS-INDEX.md 的目录分层或指针语义         | 强制加载 writing-for-agents skill | 误判为普通编辑                                      | 新规则明确列出"目录分层或 Agent 上下文指针"为强制触发                                          |
 
 ### 验证计划
 

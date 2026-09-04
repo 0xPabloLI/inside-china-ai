@@ -12,33 +12,33 @@
 
 ## 模式采纳/拒绝清单
 
-| humanizer 模式 | 处置 | 理由 |
-| --- | --- | --- |
-| #7 AI 高频词 | 已覆盖 | B8 Tier 2 黑名单。语料实测：delve / testament / pivotal / crucial / robust / seamless / tapestry 在 10 篇文章中全部 0 次，landscape / leverage / underscore / showcas 各 1 次，词汇层已干净 |
-| #14 em-dash | 采纳 → W7（密度版） | 全库 128 个，集中 4 篇（57 / 29 / 16 / 15）。不做硬禁：em-dash 是既定修辞，只限密度 |
-| #1–#6 内容层套路 | 采纳 → W8 | 拔高意义、name-dropping、浅层 -ing 分析串、销售腔、模糊归因、challenges-and-outlook 模板。B8 只管词汇，不管结构 |
-| #11 同义换名与重复句首 | 采纳 → W8 | |
-| #20–#22 chatbot 残留 | 采纳 → B9 | 机械可查且无豁免场景，所以是 Blocker 不是 Warning |
-| #31 假高潮短句连排 | 采纳 → W8 | |
-| #34/#35 信息密度判定法 | 采纳 → W9 | 「每句必须提供前文没有的信息」作为压缩判定器 |
-| #16–#19 排版层（sentence case 标题、emoji、bold 列表） | 拒绝 | 与现行标题体例（Title Case）和既有格式规范冲突 |
-| #23–#25 filler / qualifiers / 通用结尾 | 暂缓 | 与 B8 相邻、边际小；观察 W8 运行情况后再议 |
-| #12 假 from-X-to-Y、#13 被动语态 | 暂缓 | 判定主观、误报率高，无法稳定人工复核 |
+| humanizer 模式                                         | 处置                | 理由                                                                                                                                                                                        |
+| ------------------------------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #7 AI 高频词                                           | 已覆盖              | B8 Tier 2 黑名单。语料实测：delve / testament / pivotal / crucial / robust / seamless / tapestry 在 10 篇文章中全部 0 次，landscape / leverage / underscore / showcas 各 1 次，词汇层已干净 |
+| #14 em-dash                                            | 采纳 → W7（密度版） | 全库 128 个，集中 4 篇（57 / 29 / 16 / 15）。不做硬禁：em-dash 是既定修辞，只限密度                                                                                                         |
+| #1–#6 内容层套路                                       | 采纳 → W8           | 拔高意义、name-dropping、浅层 -ing 分析串、销售腔、模糊归因、challenges-and-outlook 模板。B8 只管词汇，不管结构                                                                             |
+| #11 同义换名与重复句首                                 | 采纳 → W8           |                                                                                                                                                                                             |
+| #20–#22 chatbot 残留                                   | 采纳 → B9           | 机械可查且无豁免场景，所以是 Blocker 不是 Warning                                                                                                                                           |
+| #31 假高潮短句连排                                     | 采纳 → W8           |                                                                                                                                                                                             |
+| #34/#35 信息密度判定法                                 | 采纳 → W9           | 「每句必须提供前文没有的信息」作为压缩判定器                                                                                                                                                |
+| #16–#19 排版层（sentence case 标题、emoji、bold 列表） | 拒绝                | 与现行标题体例（Title Case）和既有格式规范冲突                                                                                                                                              |
+| #23–#25 filler / qualifiers / 通用结尾                 | 暂缓                | 与 B8 相邻、边际小；观察 W8 运行情况后再议                                                                                                                                                  |
+| #12 假 from-X-to-Y、#13 被动语态                       | 暂缓                | 判定主观、误报率高，无法稳定人工复核                                                                                                                                                        |
 
 ## 语料实测（2026-09-04，`articles/*.md` 共 10 篇）
 
-| 文章 | 词数 | em-dash |
-| --- | --- | --- |
-| china-llm-distillation-scandal | 3063 | 57 |
-| bytedance-zhang-yiming-no-distillation | 2538 | 3 |
-| deepseek-art-of-restraint | 1515 | 29 |
-| zhipu-glm6-self-training | 1382 | 0 |
-| qwen4-preview | 1246 | 15 |
-| kimi-k3-sandbox-escape | 1167 | 0 |
-| unitree-ipo-debut | 1074 | 0 |
-| kimi-ipo-50b | 997 | 16 |
-| alibaba-80b-ai-megabet | 886 | 4 |
-| doubao-work-bytedance-enterprise-agent | 800 | 4 |
+| 文章                                   | 词数 | em-dash |
+| -------------------------------------- | ---- | ------- |
+| china-llm-distillation-scandal         | 3063 | 57      |
+| bytedance-zhang-yiming-no-distillation | 2538 | 3       |
+| deepseek-art-of-restraint              | 1515 | 29      |
+| zhipu-glm6-self-training               | 1382 | 0       |
+| qwen4-preview                          | 1246 | 15      |
+| kimi-k3-sandbox-escape                 | 1167 | 0       |
+| unitree-ipo-debut                      | 1074 | 0       |
+| kimi-ipo-50b                           | 997  | 16      |
+| alibaba-80b-ai-megabet                 | 886  | 4       |
+| doubao-work-bytedance-enterprise-agent | 800  | 4       |
 
 ## 阈值推导
 

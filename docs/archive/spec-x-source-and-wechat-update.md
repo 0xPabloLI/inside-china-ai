@@ -45,6 +45,7 @@ collectFromSource(source, keyword):
 ### 2.3 X.com 搜索源数据提取
 
 从 `[data-testid="tweet"]` 元素提取：
+
 - `title`：推文全文前 150 字符（截断 + "..."）
 - `url`：推文链接（从 `time` 元素的父级 `a` 标签）
 - `author`：用户名（`a[href] [dir]`）
@@ -186,29 +187,29 @@ console.warn(`  ⚠️  ${source.label} 触发验证码，请在 Chrome 中手�
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/trend-sources.mjs` | 新增 `x_search` 源到 SELF_MEDIA_SOURCES；更新 WECHAT_API_CONFIG 注释 | **Low** | 纯追加新源 + 注释更新，不修改现有源定义。下游 ALL_SOURCES 自动包含新源。验证：现有源测试不受影响 |
-| `scripts/short-video/discover-trends.mjs` | collectFromSource 新增 Step 2 (cdpFallback)；更新 captcha 提示信息 | **Medium** | 修改核心趋势发现脚本的 fallback 逻辑。新增逻辑仅在 `articles.length === 0 && source.cdpFallback` 时触发，不影响现有源（现有源无 cdpFallback 字段）。验证：运行脚本确认现有 11 源仍正常工作 |
-| `scripts/short-video/__tests__/trend-sources.test.mjs` | 更新数量断言（6→7, 11→12）；新增 X.com 源测试；新增 cdpFallback 测试 | **Low** | 纯追加测试 + 更新数量常量 |
+| 文件                                                   | 修改内容                                                             | 风险等级   | 评估                                                                                                                                                                                       |
+| ------------------------------------------------------ | -------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/short-video/lib/trend-sources.mjs`            | 新增 `x_search` 源到 SELF_MEDIA_SOURCES；更新 WECHAT_API_CONFIG 注释 | **Low**    | 纯追加新源 + 注释更新，不修改现有源定义。下游 ALL_SOURCES 自动包含新源。验证：现有源测试不受影响                                                                                           |
+| `scripts/short-video/discover-trends.mjs`              | collectFromSource 新增 Step 2 (cdpFallback)；更新 captcha 提示信息   | **Medium** | 修改核心趋势发现脚本的 fallback 逻辑。新增逻辑仅在 `articles.length === 0 && source.cdpFallback` 时触发，不影响现有源（现有源无 cdpFallback 字段）。验证：运行脚本确认现有 11 源仍正常工作 |
+| `scripts/short-video/__tests__/trend-sources.test.mjs` | 更新数量断言（6→7, 11→12）；新增 X.com 源测试；新增 cdpFallback 测试 | **Low**    | 纯追加测试 + 更新数量常量                                                                                                                                                                  |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| S1 | X.com 已登录，搜索正常 | 提取推文列表，title 为前 150 字符 | 低 | 实测验证可用 |
-| S2 | X.com 未登录（登录态过期） | loginCheckScript 检测 → warn + skip | 低 | URL 包含 /login 或页面含 "Sign in" 且内容 <500 字符 |
-| S3 | X.com 搜索返回 0 条推文 | 走 cdpFallback → Google site:x.com 搜索 | 低 | cdpFallback 提取 Google 结果中 x.com/twitter.com 链接 |
-| S4 | X.com 页面 JS 渲染慢 | 等待 3s 后提取，空则 retry 3s | 低 | 复用现有 PAGE_LOAD_WAIT_MS + retry 逻辑 |
-| S5 | cdpFallback 也返回空 | 走 mcpFallback（如有），否则返回空 | 低 | 现有 fallback 链逻辑不变 |
-| S6 | Google fallback 页面结构变化 | extractScript 返回空 → 该源 0 结果 | 低 | 返回空不影响其他源 |
-| S7 | 现有源（无 cdpFallback 字段） | 不触发 Step 2，行为不变 | 低 | `source.cdpFallback` 为 undefined → 跳过 |
-| S8 | 搜狗微信触发验证码 | 输出中文提示"请在 Chrome 中手动通过验证码后重试" + skip | 低 | 仅改提示信息，行为不变 |
-| S9 | X.com 推文文本 >150 字符 | title 截断为 150 字符 + "..." | 低 | extractScript 中 substring 处理 |
-| S10 | X.com 推文无 time 元素 | url 为空字符串 | 低 | link 为 null 时 url = '' |
-| S11 | X.com 推文无 tweetText | 该推文被跳过 | 低 | if (textEl) 判断 |
-| S12 | 12 个源全部失败 | 输出空 JSON（totalTopics: 0）+ warn | 低 | 已有 < 5 topics warn 逻辑 |
-| S13 | 新源数据与现有源重叠 | deduplicateTopics 正确合并 | 低 | 已有 Jaccard + containment 去重 |
+| #   | Scenario                      | Expected Behavior                                       | Risk | Mitigation                                            |
+| --- | ----------------------------- | ------------------------------------------------------- | ---- | ----------------------------------------------------- |
+| S1  | X.com 已登录，搜索正常        | 提取推文列表，title 为前 150 字符                       | 低   | 实测验证可用                                          |
+| S2  | X.com 未登录（登录态过期）    | loginCheckScript 检测 → warn + skip                     | 低   | URL 包含 /login 或页面含 "Sign in" 且内容 <500 字符   |
+| S3  | X.com 搜索返回 0 条推文       | 走 cdpFallback → Google site:x.com 搜索                 | 低   | cdpFallback 提取 Google 结果中 x.com/twitter.com 链接 |
+| S4  | X.com 页面 JS 渲染慢          | 等待 3s 后提取，空则 retry 3s                           | 低   | 复用现有 PAGE_LOAD_WAIT_MS + retry 逻辑               |
+| S5  | cdpFallback 也返回空          | 走 mcpFallback（如有），否则返回空                      | 低   | 现有 fallback 链逻辑不变                              |
+| S6  | Google fallback 页面结构变化  | extractScript 返回空 → 该源 0 结果                      | 低   | 返回空不影响其他源                                    |
+| S7  | 现有源（无 cdpFallback 字段） | 不触发 Step 2，行为不变                                 | 低   | `source.cdpFallback` 为 undefined → 跳过              |
+| S8  | 搜狗微信触发验证码            | 输出中文提示"请在 Chrome 中手动通过验证码后重试" + skip | 低   | 仅改提示信息，行为不变                                |
+| S9  | X.com 推文文本 >150 字符      | title 截断为 150 字符 + "..."                           | 低   | extractScript 中 substring 处理                       |
+| S10 | X.com 推文无 time 元素        | url 为空字符串                                          | 低   | link 为 null 时 url = ''                              |
+| S11 | X.com 推文无 tweetText        | 该推文被跳过                                            | 低   | if (textEl) 判断                                      |
+| S12 | 12 个源全部失败               | 输出空 JSON（totalTopics: 0）+ warn                     | 低   | 已有 < 5 topics warn 逻辑                             |
+| S13 | 新源数据与现有源重叠          | deduplicateTopics 正确合并                              | 低   | 已有 Jaccard + containment 去重                       |
 
 ## 5. 非目标 (Non-Goals)
 

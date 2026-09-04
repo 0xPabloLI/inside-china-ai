@@ -22,23 +22,23 @@
 
 ### CDP 完整抓取的来源（Phase 3）
 
-| # | 来源 | URL | 抓取方式 | Tier |
-|---|------|-----|---------|------|
-| 1 | stratboost.ai | `https://www.stratboost.ai/blogs/ai-script-templates-2026-viral-structure` | CDP `/eval` DOM 提取 | 2 |
-| 2 | shareb.io | `https://shareb.io/blog/tiktok-hooks` | CDP `/eval` DOM 提取 + scroll | 3 |
-| 3 | greenfroglabs.com | `https://greenfroglabs.com/blog/anatomy-of-viral-hook` | CDP `/eval` DOM 提取 | 2 |
-| 4 | hookmafia.io | `https://www.hookmafia.io/tiktok-hook-examples` | CDP `/eval` DOM 提取 | 3 |
-| 5 | stayabundant.com | `https://www.stayabundant.com/blog/instagram-reels-hook-formulas` | CDP `/eval` DOM 提取 + scroll | 3 |
+| #   | 来源              | URL                                                                        | 抓取方式                      | Tier |
+| --- | ----------------- | -------------------------------------------------------------------------- | ----------------------------- | ---- |
+| 1   | stratboost.ai     | `https://www.stratboost.ai/blogs/ai-script-templates-2026-viral-structure` | CDP `/eval` DOM 提取          | 2    |
+| 2   | shareb.io         | `https://shareb.io/blog/tiktok-hooks`                                      | CDP `/eval` DOM 提取 + scroll | 3    |
+| 3   | greenfroglabs.com | `https://greenfroglabs.com/blog/anatomy-of-viral-hook`                     | CDP `/eval` DOM 提取          | 2    |
+| 4   | hookmafia.io      | `https://www.hookmafia.io/tiktok-hook-examples`                            | CDP `/eval` DOM 提取          | 3    |
+| 5   | stayabundant.com  | `https://www.stayabundant.com/blog/instagram-reels-hook-formulas`          | CDP `/eval` DOM 提取 + scroll | 3    |
 
 ### 上一轮 Tavily 搜索发现的来源（Phase 3 补充，未完整抓取）
 
-| # | 来源 | 价值 | 问题 |
-|---|------|------|------|
-| 6 | thecontentlabs.app | 8,426 视频分析，7 种 hook + 参与率数据 | Tavily 搜索拿到摘要，CDP 需登录 |
-| 7 | opus.pro | 5 种 hook 类型 + 模板 | CDP 抓取被地区限制拦截 |
-| 8 | virvid.ai | 50 个 copy-paste 模板 | Tavily extract 仅拿到 FAQ |
-| 9 | socialync.io | 64 个 hook + 留存率测试 | CDP 抓取为 SPA，内容未渲染 |
-| 10 | reloop.so | 20 个 hook 公式 + 10 个脚本模板 | Tavily extract 仅拿到 FAQ |
+| #   | 来源               | 价值                                   | 问题                            |
+| --- | ------------------ | -------------------------------------- | ------------------------------- |
+| 6   | thecontentlabs.app | 8,426 视频分析，7 种 hook + 参与率数据 | Tavily 搜索拿到摘要，CDP 需登录 |
+| 7   | opus.pro           | 5 种 hook 类型 + 模板                  | CDP 抓取被地区限制拦截          |
+| 8   | virvid.ai          | 50 个 copy-paste 模板                  | Tavily extract 仅拿到 FAQ       |
+| 9   | socialync.io       | 64 个 hook + 留存率测试                | CDP 抓取为 SPA，内容未渲染      |
+| 10  | reloop.so          | 20 个 hook 公式 + 10 个脚本模板        | Tavily extract 仅拿到 FAQ       |
 
 > 来源 6-10 的数据在交叉验证中仅作为辅助参考，不作为独立验证来源。
 
@@ -48,26 +48,26 @@
 
 每个句式模式在多少个独立来源中出现。以下"独立"指来源之间不是转载/引用关系。出现频次高 = 社区共识度高，不等于效果验证。
 
-| 句式模式 | stratboost | shareb | greenfrog | hookmafia | stayabundant | contentlabs(辅) | 独立来源 | 信心 |
-|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **P1 结果先行** | ✅ Result hook | ✅ | ✅ Pattern interrupt | ✅ Result First | ✅ F3 | ✅ Lead with Proof | 6 | **High** |
-| **P2 反直觉断言** | ✅ Contrarian | ✅ | — | ✅ Contrarian | ✅ F2 | ✅ Hot Take | 5 | **High** |
-| **P3 好奇心缺口** | ✅ Curiosity | ✅ | ✅ Curiosity gap | ✅ Curiosity Gap | ✅ F10 | ✅ Pull Them In | 6 | **High** |
-| **P4 模式打断** | ✅ Mistake | ✅ Pattern Interrupt | ✅ Pattern interrupt | ✅ Mid-Action | ✅ F8 | — | 5 | **High** |
-| **P5 权威拆解** | — | — | — | ✅ "I worked at TikTok 2 years" | ✅ F12 Authority | ✅ Expert Explainer | 3 | **Medium** |
-| **P6 清单承诺** | — | ✅ Listicle | — | ✅ Countdown Tests | ✅ F3 | — | 3 | **Medium** |
+| 句式模式          |   stratboost   |        shareb        |      greenfrog       |            hookmafia            |   stayabundant   |   contentlabs(辅)   | 独立来源 |    信心    |
+| ----------------- | :------------: | :------------------: | :------------------: | :-----------------------------: | :--------------: | :-----------------: | :------: | :--------: |
+| **P1 结果先行**   | ✅ Result hook |          ✅          | ✅ Pattern interrupt |         ✅ Result First         |      ✅ F3       | ✅ Lead with Proof  |    6     |  **High**  |
+| **P2 反直觉断言** | ✅ Contrarian  |          ✅          |          —           |          ✅ Contrarian          |      ✅ F2       |     ✅ Hot Take     |    5     |  **High**  |
+| **P3 好奇心缺口** |  ✅ Curiosity  |          ✅          |   ✅ Curiosity gap   |        ✅ Curiosity Gap         |      ✅ F10      |   ✅ Pull Them In   |    6     |  **High**  |
+| **P4 模式打断**   |   ✅ Mistake   | ✅ Pattern Interrupt | ✅ Pattern interrupt |          ✅ Mid-Action          |      ✅ F8       |          —          |    5     |  **High**  |
+| **P5 权威拆解**   |       —        |          —           |          —           | ✅ "I worked at TikTok 2 years" | ✅ F12 Authority | ✅ Expert Explainer |    3     | **Medium** |
+| **P6 清单承诺**   |       —        |     ✅ Listicle      |          —           |       ✅ Countdown Tests        |      ✅ F3       |          —          |    3     | **Medium** |
 
 ### 未纳入核心体系的模式（Low 信心，按需使用）
 
-| 模式 | 来源 | 信心 | 原因 |
-|------|------|:---:|------|
-| 价格对比 | hookmafia 仅 1 | Low | 单源，可能是 niche 模式 |
-| FOMO | hookmafia 仅 1 | Low | 单源 |
-| 社会证明预告 | stayabundant 仅 1 | Low | 单源 |
-| 坦白/忏悔 | hookmafia + stayabundant | Medium | 2 源但场景偏个人创作者 |
-| 时间敏感 | stratboost + stayabundant | Medium | 2 源但新闻账号场景有限 |
-| 身份点名 | shareb + hookmafia + stayabundant | Medium | 3 源但偏个人创作者场景 |
-| 故事开场 | stayabundant + contentlabs | Medium | 2 源但新闻账号少用 |
+| 模式         | 来源                              |  信心  | 原因                    |
+| ------------ | --------------------------------- | :----: | ----------------------- |
+| 价格对比     | hookmafia 仅 1                    |  Low   | 单源，可能是 niche 模式 |
+| FOMO         | hookmafia 仅 1                    |  Low   | 单源                    |
+| 社会证明预告 | stayabundant 仅 1                 |  Low   | 单源                    |
+| 坦白/忏悔    | hookmafia + stayabundant          | Medium | 2 源但场景偏个人创作者  |
+| 时间敏感     | stratboost + stayabundant         | Medium | 2 源但新闻账号场景有限  |
+| 身份点名     | shareb + hookmafia + stayabundant | Medium | 3 源但偏个人创作者场景  |
+| 故事开场     | stayabundant + contentlabs        | Medium | 2 源但新闻账号少用      |
 
 ---
 
@@ -85,29 +85,29 @@
 
 项目已制作的 12 个视频覆盖的内容类型：
 
-| 内容类型 | 实际使用 | 对应模式 | 覆盖？ |
-|---------|---------|---------|:---:|
-| 融资/泄露新闻 | DeepSeek "$1.4B funding paused" | P1 结果先行 | ✅ |
-| IPO/估值新闻 | Unitree "$9B valuation, 8288× oversubscribed" | P1 结果先行 | ✅ |
-| 财报新闻 | SenseTime "$700M revenue, strongest year" | P1 结果先行 | ✅ |
-| 安全事件 | Kimi K3 "escaped sandbox" | P1 结果先行 | ✅ |
-| 深度分析 | DeepSeek "0 KPIs, only a vision" | P2 反直觉断言 | ✅ |
-| 行业争议 | Distillation "3 labs caught stealing" | P1 结果先行 | ✅ |
-| 里程碑 | Light Society "1B AI agents simulated" | P1 结果先行 | ✅ |
-| 海外扩张 | SenseTime Saudi "1.2M students" | P1 结果先行 | ✅ |
+| 内容类型      | 实际使用                                      | 对应模式      | 覆盖？ |
+| ------------- | --------------------------------------------- | ------------- | :----: |
+| 融资/泄露新闻 | DeepSeek "$1.4B funding paused"               | P1 结果先行   |   ✅   |
+| IPO/估值新闻  | Unitree "$9B valuation, 8288× oversubscribed" | P1 结果先行   |   ✅   |
+| 财报新闻      | SenseTime "$700M revenue, strongest year"     | P1 结果先行   |   ✅   |
+| 安全事件      | Kimi K3 "escaped sandbox"                     | P1 结果先行   |   ✅   |
+| 深度分析      | DeepSeek "0 KPIs, only a vision"              | P2 反直觉断言 |   ✅   |
+| 行业争议      | Distillation "3 labs caught stealing"         | P1 结果先行   |   ✅   |
+| 里程碑        | Light Society "1B AI agents simulated"        | P1 结果先行   |   ✅   |
+| 海外扩张      | SenseTime Saudi "1.2M students"               | P1 结果先行   |   ✅   |
 
 **未覆盖的新闻场景**（China AI News 可能遇到但当前句式模板未覆盖的）：
 
-| 新闻场景 | 可能的句式 | 建议归入 |
-|---------|----------|---------|
-| 人物专访/高管言论 | "[Person] just said [quote]." | P1 变体 |
-| 政策法规变化 | "China just [banned/required] [thing]." | P1 变体 |
-| 中美对比 | "[China company] does [X]. [US company] does [Y]." | 附录：价格对比 |
-| 产品发布 | "[Company] just released [product]. [specific number]." | P1 变体 |
-| 人事变动 | "[Person] just left/joined [Company]." | P1 变体 |
-| 行业排行 | "[N] companies [ranked/competed]. Only [X] [result]." | P6 清单承诺 |
-| 纠正/辟谣 | "I reported [X]. The real story is [Y]." | 附录：坦白式 |
-| 系列回顾 | "Part [N]: [topic]. Now: [next topic]." | 附录：系列开场 |
+| 新闻场景          | 可能的句式                                              | 建议归入       |
+| ----------------- | ------------------------------------------------------- | -------------- |
+| 人物专访/高管言论 | "[Person] just said [quote]."                           | P1 变体        |
+| 政策法规变化      | "China just [banned/required] [thing]."                 | P1 变体        |
+| 中美对比          | "[China company] does [X]. [US company] does [Y]."      | 附录：价格对比 |
+| 产品发布          | "[Company] just released [product]. [specific number]." | P1 变体        |
+| 人事变动          | "[Person] just left/joined [Company]."                  | P1 变体        |
+| 行业排行          | "[N] companies [ranked/competed]. Only [X] [result]."   | P6 清单承诺    |
+| 纠正/辟谣         | "I reported [X]. The real story is [Y]."                | 附录：坦白式   |
+| 系列回顾          | "Part [N]: [topic]. Now: [next topic]."                 | 附录：系列开场 |
 
 → 大部分未覆盖场景可以通过 P1 结果先行的变体覆盖。真正缺的是"人物引用先行"和"系列回顾开场"两个，放在附录。
 
@@ -125,20 +125,22 @@
 
 **填空模板**：
 
-| # | 口播句式 | 屏幕文字句式 | 适用新闻场景 |
-|---|---------|------------|------------|
-| P1a | `[Company] just [action verb past tense] [specific number] [unit].` | `[COMPANY]` + `[NUMBER] [UNIT]` 或 `[RESULT]` | 融资/发布/财报 |
-| P1b | `A leaked [document type] just [past tense verb] [Company]'s [specific number] [unit].` | `[NUMBER]` + `PAUSED / CANCELLED / REVEALED` | 独家/泄露 |
-| P1c | `[Company] hit [specific number] [unit] in [timeframe].` | `[NUMBER]` (大数字) | 里程碑 |
-| P1d | `[Specific number] [what it measures]. Most people guess way off.` | `[ODD NUMBER] [UNIT]` | 反直觉数据 |
+| #   | 口播句式                                                                                | 屏幕文字句式                                  | 适用新闻场景   |
+| --- | --------------------------------------------------------------------------------------- | --------------------------------------------- | -------------- |
+| P1a | `[Company] just [action verb past tense] [specific number] [unit].`                     | `[COMPANY]` + `[NUMBER] [UNIT]` 或 `[RESULT]` | 融资/发布/财报 |
+| P1b | `A leaked [document type] just [past tense verb] [Company]'s [specific number] [unit].` | `[NUMBER]` + `PAUSED / CANCELLED / REVEALED`  | 独家/泄露      |
+| P1c | `[Company] hit [specific number] [unit] in [timeframe].`                                | `[NUMBER]` (大数字)                           | 里程碑         |
+| P1d | `[Specific number] [what it measures]. Most people guess way off.`                      | `[ODD NUMBER] [UNIT]`                         | 反直觉数据     |
 
 **项目实际范例**：
-- DeepSeek: "A leaked four-hour investor meeting just paused DeepSeek's $1.4B funding round." → `$1.4B` + `FUNDING ROUND PAUSED` (P1b)
-- SenseTime: "SenseTime just posted its strongest year ever. Revenue topped $700M." → `$700M / ¥5B` + `STRONGEST YEAR EVER` (P1a)
-- Unitree: "Investors poured $118B into a robot company that admits its robots can't do real work." → `$9B` + `8,288× OVERSUBSCRIBED` (P1a + P2 混合)
+
+- DeepSeek: "A leaked four-hour investor meeting just paused DeepSeek's $1.4B funding round." → `$1.4B`+`FUNDING ROUND PAUSED` (P1b)
+- SenseTime: "SenseTime just posted its strongest year ever. Revenue topped $700M." → `$700M / ¥5B`+`STRONGEST YEAR EVER` (P1a)
+- Unitree: "Investors poured $118B into a robot company that admits its robots can't do real work." → `$9B`+`8,288× OVERSUBSCRIBED` (P1a + P2 混合)
 - Light Society: "China built the first simulation of one billion AI humans." → `1B` + `AI AGENTS SIMULATED` (P1c)
 
 **补充来源的具体范例**（来自 hookmafia + shareb）：
+
 - "I made $4,200 in 3 days with this one strategy..." → 结果 + 时间 + 好奇缺口
 - "This tiny change doubled my watch time..." → 小变化 + 大结果
 - "I dropped 18 pounds without the gym. One habit did most of the work..." → 反预期方法 + 结果
@@ -155,18 +157,20 @@
 
 **填空模板**：
 
-| # | 口播句式 | 屏幕文字句式 | 适用新闻场景 |
-|---|---------|------------|------------|
-| P2a | `[Company] is not a [expected category]. It is [unexpected category].` | `[COMPANY] IS NOT [EXPECTED]` | 重新定义 |
-| P2b | `Everything you know about [topic] is wrong.` | `EVERYTHING YOU KNOW IS WRONG` | 认知颠覆 |
-| P2c | `[Common belief] is actually wrong. Here is what [experts] do instead.` | `[BELIEF] IS WRONG` | 专家纠正 |
-| P2d | `Stop [common practice]. [Reason why it fails].` | `STOP [PRACTICE]` | 常见错误纠正 |
+| #   | 口播句式                                                                | 屏幕文字句式                   | 适用新闻场景 |
+| --- | ----------------------------------------------------------------------- | ------------------------------ | ------------ |
+| P2a | `[Company] is not a [expected category]. It is [unexpected category].`  | `[COMPANY] IS NOT [EXPECTED]`  | 重新定义     |
+| P2b | `Everything you know about [topic] is wrong.`                           | `EVERYTHING YOU KNOW IS WRONG` | 认知颠覆     |
+| P2c | `[Common belief] is actually wrong. Here is what [experts] do instead.` | `[BELIEF] IS WRONG`            | 专家纠正     |
+| P2d | `Stop [common practice]. [Reason why it fails].`                        | `STOP [PRACTICE]`              | 常见错误纠正 |
 
 **项目实际范例**：
+
 - DeepSeek: "DeepSeek has no KPIs. No org chart. Only a vision." → `0 KPIs. 0 ORG CHARTS.` + `ONLY A VISION` (P2a 变体)
 - Distillation Pt2: "This China AI thinks it's Claude 15% of the time." → `I'M CLAUDE` + `KIMI K3 · 15%` (P2a 变体)
 
 **补充来源范例**（hookmafia + stayabundant）：
+
 - "Stop using trending sounds. Here's what actually gets you on the FYP..." (P2d)
 - "Meal prep is the worst advice for weight loss. Here's why..." (P2c)
 - "Posting every day on Instagram is actually wrong. Here's what accounts with real engagement do instead..." (P2c)
@@ -183,13 +187,14 @@
 
 **填空模板**：
 
-| # | 口播句式 | 屏幕文字句式 | 适用新闻场景 |
-|---|---------|------------|------------|
-| P3a | `Why does [surprising thing] happen? The answer changes how you think about [topic].` | `WHY DOES [THING] HAPPEN?` | 反直觉现象 |
-| P3b | `The reason [thing] happens is not what you think.` | `THE REASON IS NOT WHAT YOU THINK` | 揭秘/拆解 |
-| P3c | `Most [audience] do not know this about [topic], and it is costing them [consequence].` | `MOST PEOPLE DON'T KNOW` | 信息缺口 |
+| #   | 口播句式                                                                                | 屏幕文字句式                       | 适用新闻场景 |
+| --- | --------------------------------------------------------------------------------------- | ---------------------------------- | ------------ |
+| P3a | `Why does [surprising thing] happen? The answer changes how you think about [topic].`   | `WHY DOES [THING] HAPPEN?`         | 反直觉现象   |
+| P3b | `The reason [thing] happens is not what you think.`                                     | `THE REASON IS NOT WHAT YOU THINK` | 揭秘/拆解    |
+| P3c | `Most [audience] do not know this about [topic], and it is costing them [consequence].` | `MOST PEOPLE DON'T KNOW`           | 信息缺口     |
 
 **补充来源范例**（stratboost + hookmafia + stayabundant）：
+
 - "Nobody talks about why this $12 product outsells the $80 version..." (P3b)
 - "I worked at TikTok for 2 years. Here's what they don't tell creators..." (P3c)
 - "Most [target audience] don't know this about [topic], and it's costing them [specific consequence]..." (P3c)
@@ -206,13 +211,14 @@
 
 **填空模板**：
 
-| # | 口播句式 | 屏幕文字句式 | 适用新闻场景 |
-|---|---------|------------|------------|
-| P4a | `Stop [common action]. You are doing it wrong.` | `YOU'RE DOING [THING] WRONG` | 常见误区 |
-| P4b | `Before you [common action], watch this.` | `BEFORE YOU [ACTION]` | 紧急/警告 |
-| P4c | `Do not [action] until you [condition].` | `DON'T [ACTION] UNTIL [CONDITION]` | 警告/提醒 |
+| #   | 口播句式                                        | 屏幕文字句式                       | 适用新闻场景 |
+| --- | ----------------------------------------------- | ---------------------------------- | ------------ |
+| P4a | `Stop [common action]. You are doing it wrong.` | `YOU'RE DOING [THING] WRONG`       | 常见误区     |
+| P4b | `Before you [common action], watch this.`       | `BEFORE YOU [ACTION]`              | 紧急/警告    |
+| P4c | `Do not [action] until you [condition].`        | `DON'T [ACTION] UNTIL [CONDITION]` | 警告/提醒    |
 
 **补充来源范例**（greenfroglabs + hookmafia + stayabundant）：
+
 - Pattern interrupt = 意外视觉（第一帧展示与 niche 不匹配的画面）+ 口播打断
 - "An unexpected visual in the first frame (a laptop underwater, a CEO in a warehouse)"
 - "Motion or action that starts mid-sequence, with no setup or context"
@@ -232,13 +238,14 @@
 
 **填空模板**：
 
-| # | 口播句式 | 屏幕文字句式 | 适用新闻场景 |
-|---|---------|------------|------------|
-| P5a | `I have [tracked / covered] [field] for [specific number] [time unit]. Here is what nobody tells you about [topic].` | `THE THING ABOUT [TOPIC]` | 深度分析 |
-| P5b | `After [credential/experience], I have learned that [insight]. Here is what most people get wrong.` | `MOST PEOPLE GET [THING] WRONG` | 专家纠正 |
-| P5c | `I spent [time] in [field]. The real answer is not [common answer]. It is [counterintuitive answer].` | `NOT [COMMON]. [REAL ANSWER]` | 反直觉揭秘 |
+| #   | 口播句式                                                                                                             | 屏幕文字句式                    | 适用新闻场景 |
+| --- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------ |
+| P5a | `I have [tracked / covered] [field] for [specific number] [time unit]. Here is what nobody tells you about [topic].` | `THE THING ABOUT [TOPIC]`       | 深度分析     |
+| P5b | `After [credential/experience], I have learned that [insight]. Here is what most people get wrong.`                  | `MOST PEOPLE GET [THING] WRONG` | 专家纠正     |
+| P5c | `I spent [time] in [field]. The real answer is not [common answer]. It is [counterintuitive answer].`                | `NOT [COMMON]. [REAL ANSWER]`   | 反直觉揭秘   |
 
 **补充来源范例**（hookmafia + stayabundant + opus.pro）：
+
 - "I worked at TikTok for 2 years. Here's what they don't tell creators..." (P5a)
 - "After [credential], I've learned that [insight]. Here's what most people get wrong..." (P5b)
 - opus.pro: "I've worked in [role] for 12 years. Here's the thing nobody tells you about [topic]." — 在 2,626 个样本片段中出现，是最常见叙事结构
@@ -257,12 +264,13 @@
 
 **填空模板**：
 
-| # | 口播句式 | 屏幕文字句式 | 适用新闻场景 |
-|---|---------|------------|------------|
-| P6a | `[N] [things] that [specific payoff]. Number [X] surprised even me.` | `[N] [THINGS] FOR [PAYOFF]` | 榜单/排行 |
-| P6b | `I tested [N] [things]. Only [X] are worth it.` | `[X] / [N] WORTH IT` | 筛选/对比 |
+| #   | 口播句式                                                             | 屏幕文字句式                | 适用新闻场景 |
+| --- | -------------------------------------------------------------------- | --------------------------- | ------------ |
+| P6a | `[N] [things] that [specific payoff]. Number [X] surprised even me.` | `[N] [THINGS] FOR [PAYOFF]` | 榜单/排行    |
+| P6b | `I tested [N] [things]. Only [X] are worth it.`                      | `[X] / [N] WORTH IT`        | 筛选/对比    |
 
 **补充来源范例**：
+
 - "5 Instagram features that will double your engagement (number 3 changed everything)" (P6a)
 - "I tested 47 X and only 3 are worth it." — hookmafia 称为 "Countdown Tests" 模式
 - stayabundant: "Numbers create concrete expectations. The parenthetical teaser for a specific number creates additional curiosity that drives completion."
@@ -275,11 +283,11 @@
 
 ### 三层时间预算
 
-| 层 | 时间 | 发生什么 | 项目状态 |
-|---|------|---------|---------|
+| 层       | 时间     | 发生什么                                  | 项目状态              |
+| -------- | -------- | ----------------------------------------- | --------------------- |
 | 视觉触发 | 0.0-0.5s | 动作/意外帧/大数字/截图——纯视觉，不需声音 | ✅ hookScene 模板已有 |
-| 口播承诺 | 0.5-1.5s | 一句清晰的话：承诺/好奇/问题。无寒暄 | ✅ voiceover 已有 |
-| 语境锁定 | 1.5-3.0s | 补充上下文让观众理解"为什么跟我有关" | ⚠️ source 字段部分有 |
+| 口播承诺 | 0.5-1.5s | 一句清晰的话：承诺/好奇/问题。无寒暄      | ✅ voiceover 已有     |
+| 语境锁定 | 1.5-3.0s | 补充上下文让观众理解"为什么跟我有关"      | ⚠️ source 字段部分有  |
 
 ### 3秒留存率的定性共识
 
@@ -313,28 +321,27 @@ Pattern Interrupt + Curiosity Gap + Payoff + Specific Audience
 
 ## 新闻账号句式模式选择矩阵
 
-| 内容类型 | 占比 | 首选模式 | 次选模式 | 偶尔使用 |
-|---------|------|---------|---------|---------|
-| 突发新闻 | 40% | **P1** 结果先行 | — | — |
-| 深度分析 | 30% | **P5** 权威拆解 | **P2** 反直觉断言 | **P3** 好奇心缺口 |
-| 数据揭示 | 20% | **P1** 结果先行 | **P6** 清单承诺 | — |
-| 科普解释 | 10% | **P3** 好奇心缺口 | **P5** 权威拆解 | — |
+| 内容类型 | 占比 | 首选模式          | 次选模式          | 偶尔使用          |
+| -------- | ---- | ----------------- | ----------------- | ----------------- |
+| 突发新闻 | 40%  | **P1** 结果先行   | —                 | —                 |
+| 深度分析 | 30%  | **P5** 权威拆解   | **P2** 反直觉断言 | **P3** 好奇心缺口 |
+| 数据揭示 | 20%  | **P1** 结果先行   | **P6** 清单承诺   | —                 |
+| 科普解释 | 10%  | **P3** 好奇心缺口 | **P5** 权威拆解   | —                 |
 
 ### 公式优先级排序
 
 **第一梯队（80% 视频使用）：**
+
 1. **P1 结果先行** — 新闻天然有数字和结果，6 源验证
 2. **P5 权威拆解** — 分析类内容首选，3 源验证
 3. **P2 反直觉断言** — 引发讨论，5 源验证
 
-**第二梯队（15% 视频使用）：**
-4. **P3 好奇心缺口** — 引发评论，6 源验证
-5. **P6 清单承诺** — 榜单/排行，3 源验证
+**第二梯队（15% 视频使用）：** 4. **P3 好奇心缺口** — 引发评论，6 源验证 5. **P6 清单承诺** — 榜单/排行，3 源验证
 
-**第三梯队（5% 视频使用，按需）：**
-6. **P4 模式打断** — 政策变化/安全提醒，5 源验证但新闻适配低
+**第三梯队（5% 视频使用，按需）：** 6. **P4 模式打断** — 政策变化/安全提醒，5 源验证但新闻适配低
 
 **附录模式（按需，Low 信心）：**
+
 - 价格对比（API 定价/成本对比）
 - 坦白/纠正（纠正先前报道）
 - FOMO（独家/突发）
@@ -346,6 +353,7 @@ Pattern Interrupt + Curiosity Gap + Payoff + Specific Audience
 ### 问题诊断
 
 当前 scene-data 中 hook 的 voiceover 和 texts 是 agent 每次自由生成的。问题：
+
 1. **质量参差不齐**：取决于 agent 理解力和上下文
 2. **句式不一致**：有时是 P1 风格，有时是 P2，没有系统化选择
 3. **口播线与屏幕文字关系不固定**：有时重复，有时互补，没有规则
@@ -368,15 +376,15 @@ Pattern Interrupt + Curiosity Gap + Payoff + Specific Audience
 
 ### 与现有 T1-T10 的关系
 
-| 新模式 | 包含的旧公式 | 说明 |
-|-------|------------|------|
-| P1 结果先行 | T1 + T3 | 合并：结果和数字本质相同 |
-| P2 反直觉断言 | T6 | 不变 |
-| P3 好奇心缺口 | T4 | 不变 |
-| P4 模式打断 | T2 | 不变 |
-| P5 权威拆解 | 新增（T11 归入） | 项目原来没有 |
-| P6 清单承诺 | T7 | 不变 |
-| 附录 | T5/T8/T9/T10 + T12-T15 | 低频/按需 |
+| 新模式        | 包含的旧公式           | 说明                     |
+| ------------- | ---------------------- | ------------------------ |
+| P1 结果先行   | T1 + T3                | 合并：结果和数字本质相同 |
+| P2 反直觉断言 | T6                     | 不变                     |
+| P3 好奇心缺口 | T4                     | 不变                     |
+| P4 模式打断   | T2                     | 不变                     |
+| P5 权威拆解   | 新增（T11 归入）       | 项目原来没有             |
+| P6 清单承诺   | T7                     | 不变                     |
+| 附录          | T5/T8/T9/T10 + T12-T15 | 低频/按需                |
 
 T5/T8/T9/T10 保留在附录，不删除——它们在某些场景下仍有价值，只是不作为核心体系。
 

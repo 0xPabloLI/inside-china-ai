@@ -53,13 +53,8 @@ console.log();
 
 // Test 3: render-only.mjs scenario
 console.log("─── Test 3: render-only.mjs scenario ───");
-console.log(
-  "If render-only.mjs were called with modified scene-data,",
-);
-console.log(
-  "Gate 1 would",
-  result2.passed ? "PASS (bad!)" : "FAIL and hard-exit (correct)",
-);
+console.log("If render-only.mjs were called with modified scene-data,");
+console.log("Gate 1 would", result2.passed ? "PASS (bad!)" : "FAIL and hard-exit (correct)");
 console.log();
 
 console.log("══════════════════════════════════════════");

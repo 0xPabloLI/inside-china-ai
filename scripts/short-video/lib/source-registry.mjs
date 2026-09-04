@@ -503,7 +503,8 @@ export const NEWS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP search page (news.baidu.com/ns). Articles + images from same DOM. No account, no API key.",
+      notes:
+        "CDP search page (news.baidu.com/ns). Articles + images from same DOM. No account, no API key.",
     },
     needsAuth: false,
     useCleanTitle: false,
@@ -547,7 +548,8 @@ export const SELF_MEDIA_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP (requires login) → apiFallback (direct Bigsong dots-chat API, #90). needsAuth=true.",
+      notes:
+        "CDP (requires login) → apiFallback (direct Bigsong dots-chat API, #90). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: true,
@@ -741,7 +743,8 @@ export const SELF_MEDIA_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP (requires login for search) → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
+      notes:
+        "CDP (requires login for search) → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
     },
     needsAuth: true,
     useCleanTitle: true,

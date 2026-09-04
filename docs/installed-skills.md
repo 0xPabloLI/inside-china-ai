@@ -5,25 +5,25 @@
 
 ## Sources
 
-| Source | Install method | Git tracked? | Count |
-|--------|---------------|-------------|-------|
-| **Repo skills** (`skills/`) | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo) | 4 |
-| **Matt Pocock skills** | `npx skills add mattpocock/skills` | ❌ No (local `.agents/`) | 22 |
-| **last30days** (3rd party) | Symlink to `~/last30days-skill/` | ❌ No | 1 |
-| **Other 3rd party** (Vercel/Anthropic/community) | Various (`npx skills add` from other repos) | ❌ No | ~134 |
-| **Total** | | | ~161 |
+| Source                                           | Install method                                                   | Git tracked?             | Count |
+| ------------------------------------------------ | ---------------------------------------------------------------- | ------------------------ | ----- |
+| **Repo skills** (`skills/`)                      | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo)            | 4     |
+| **Matt Pocock skills**                           | `npx skills add mattpocock/skills`                               | ❌ No (local `.agents/`) | 22    |
+| **last30days** (3rd party)                       | Symlink to `~/last30days-skill/`                                 | ❌ No                    | 1     |
+| **Other 3rd party** (Vercel/Anthropic/community) | Various (`npx skills add` from other repos)                      | ❌ No                    | ~134  |
+| **Total**                                        |                                                                  |                          | ~161  |
 
 ## Repo Skills (Git Tracked)
 
 These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 `.agents/skills/` point back to the repo source.
 
-| Skill | Purpose | Used by |
-|-------|---------|---------|
-| `web-deep-research` | 8-phase deep research pipeline + web-access fetching + code verification | `docs/tools-catalog.md` research routing |
-| `web-access` | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency |
-| `brand-system` | Brand consistency enforcement for generated visual content | `short-video-pipeline` skill |
-| `short-video-pipeline` | Video production pipeline orchestration | AGENTS.md "Content and Video" |
+| Skill                  | Purpose                                                                     | Used by                                  |
+| ---------------------- | --------------------------------------------------------------------------- | ---------------------------------------- |
+| `web-deep-research`    | 8-phase deep research pipeline + web-access fetching + code verification    | `docs/tools-catalog.md` research routing |
+| `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency     |
+| `brand-system`         | Brand consistency enforcement for generated visual content                  | `short-video-pipeline` skill             |
+| `short-video-pipeline` | Video production pipeline orchestration                                     | AGENTS.md "Content and Video"            |
 
 ## Matt Pocock Skills
 
@@ -43,38 +43,37 @@ may instead execute the relevant `SKILL.md` **by reference** under
 `docs/agents/implementation-workflow.md`; this preserves the skill's method
 without falsely claiming a Skill-tool invocation.
 
-| Skill | Purpose |
-|-------|---------|
-| `ask-matt` | Router over Matt's flows |
-| `grill-with-docs` | Grilling with ADR/glossary updates in a repository |
-| `to-spec` | Synthesize settled conversation into a spec |
-| `to-tickets` | Split a spec into tracer-bullet tickets with blocking edges |
-| `implement` | Build an agreed scope or ticket using TDD where possible |
-| `wayfinder` | Multi-session planning through map and decision tickets |
-| `handoff` | Carry durable context across a phase or session boundary |
-| `grill-me` | Grilling without repository docs |
-| `triage` | Issue triage state machine |
-| `improve-codebase-architecture` | Deepening-opportunity survey |
-| `setup-matt-pocock-skills` | Configure tracker, labels and domain docs |
-
+| Skill                           | Purpose                                                     |
+| ------------------------------- | ----------------------------------------------------------- |
+| `ask-matt`                      | Router over Matt's flows                                    |
+| `grill-with-docs`               | Grilling with ADR/glossary updates in a repository          |
+| `to-spec`                       | Synthesize settled conversation into a spec                 |
+| `to-tickets`                    | Split a spec into tracer-bullet tickets with blocking edges |
+| `implement`                     | Build an agreed scope or ticket using TDD where possible    |
+| `wayfinder`                     | Multi-session planning through map and decision tickets     |
+| `handoff`                       | Carry durable context across a phase or session boundary    |
+| `grill-me`                      | Grilling without repository docs                            |
+| `triage`                        | Issue triage state machine                                  |
+| `improve-codebase-architecture` | Deepening-opportunity survey                                |
+| `setup-matt-pocock-skills`      | Configure tracker, labels and domain docs                   |
 
 ### Model-invoked (no `disable-model-invocation`)
 
 Agent may invoke these through the Skill tool when their description matches.
 
-| Skill | Purpose |
-|-------|---------|
-| `grilling` | Reusable round-based interview primitive |
-| `domain-modeling` | Build or sharpen the domain model |
-| `prototype` | Runnable answer for a design or state question |
-| `tdd` | Red-green-refactor loop |
-| `code-review` | Fixed-baseline Standards + Spec review |
-| `diagnosing-bugs` | Tight diagnosis loop for hard failures |
-| `research` | Bounded background research |
-| `codebase-design` | Deep-module design vocabulary |
-| `writing-for-agents` | Agent-document hierarchy and progressive disclosure |
-| `resolving-merge-conflicts` | Hunk-by-hunk conflict resolution |
-| `git-guardrails-claude-code` | Dangerous Git command guardrails |
+| Skill                        | Purpose                                             |
+| ---------------------------- | --------------------------------------------------- |
+| `grilling`                   | Reusable round-based interview primitive            |
+| `domain-modeling`            | Build or sharpen the domain model                   |
+| `prototype`                  | Runnable answer for a design or state question      |
+| `tdd`                        | Red-green-refactor loop                             |
+| `code-review`                | Fixed-baseline Standards + Spec review              |
+| `diagnosing-bugs`            | Tight diagnosis loop for hard failures              |
+| `research`                   | Bounded background research                         |
+| `codebase-design`            | Deep-module design vocabulary                       |
+| `writing-for-agents`         | Agent-document hierarchy and progressive disclosure |
+| `resolving-merge-conflicts`  | Hunk-by-hunk conflict resolution                    |
+| `git-guardrails-claude-code` | Dangerous Git command guardrails                    |
 
 ### Project execution adaptation
 
@@ -136,8 +135,8 @@ repository overrides in `docs/agents/implementation-workflow.md`.
 
 ### Research / Search
 
-| Skill | Author / Source | Purpose | Install |
-|-------|----------------|---------|---------|
+| Skill        | Author / Source                  | Purpose                                                                    | Install |
+| ------------ | -------------------------------- | -------------------------------------------------------------------------- | ------- |
 | `last30days` | External (`~/last30days-skill/`) | 30-day trend discovery across Reddit/X/YouTube/TikTok/HN/Polymarket/GitHub | Symlink |
 
 ### Other 3rd Party (~134 skills)
@@ -153,31 +152,33 @@ Anthropic frontend-design, community skills (impeccable, p7/p9/p10, etc.).
 These platforms have MCP servers configured — platform-specific deploy skills
 were removed (redundant with MCP):
 
-| MCP | Purpose |
-|-----|---------|
-| `cloudflare` | Workers, Pages, D1, R2, KV, etc. |
-| `railway-mcp-server` | Railway deploy/service management |
-| `vercel` | Vercel deploy/preview |
-| `github` | Issues, PRs, code search |
-| `linear` | Available integration for other contexts; this repository tracks work in GitHub Issues |
-| `brave-search` | Web search |
-| `context7` | Library docs lookup |
-| `jina` | Web page reading |
-| `tavily` | Web search (limited, fallback only) |
-| `mcp-search-bridge` | X (Twitter) search |
-| `colab` | Google Colab execution |
-| `publora` | Social media publishing |
-| `lovable` | Lovable project sync |
+| MCP                  | Purpose                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| `cloudflare`         | Workers, Pages, D1, R2, KV, etc.                                                       |
+| `railway-mcp-server` | Railway deploy/service management                                                      |
+| `vercel`             | Vercel deploy/preview                                                                  |
+| `github`             | Issues, PRs, code search                                                               |
+| `linear`             | Available integration for other contexts; this repository tracks work in GitHub Issues |
+| `brave-search`       | Web search                                                                             |
+| `context7`           | Library docs lookup                                                                    |
+| `jina`               | Web page reading                                                                       |
+| `tavily`             | Web search (limited, fallback only)                                                    |
+| `mcp-search-bridge`  | X (Twitter) search                                                                     |
+| `colab`              | Google Colab execution                                                                 |
+| `publora`            | Social media publishing                                                                |
+| `lovable`            | Lovable project sync                                                                   |
 
 ## Update Protocol
 
 When adding a new skill:
+
 1. Install it (symlink to `.cursor/skills/` + `.agents/skills/`)
 2. Add an entry to the appropriate table above
 3. If it's a repo skill, ensure it's in `skills/` and git tracked
 4. If it's from Matt Pocock, `skills-lock.json` auto-updates via `npx skills`
 
 When removing a skill:
+
 1. Delete from `.cursor/skills/`, `.agents/skills/`, and all `~/.*/skills/` symlinks
 2. Remove from the table above
 3. If Matt Pocock: update `skills-lock.json`

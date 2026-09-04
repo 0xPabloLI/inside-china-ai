@@ -4,6 +4,7 @@
 **结论：** **核心架构已落地，P0/P1 修复已于 2026-08-18 完成（commit 8f4d7dd）。** 独立 Focus 子进程、延迟依赖加载、EXIF 规范化、requestId 路由、worker reset 降级、Patch 人工审阅摘要与 `analysis.focusAnalysis` 映射均已实现，并且基础 IPC/Smoke 路径能运行。P0-1（fit/focus 解耦）和 P0-2（smoke golden 断言修正）已修复并通过 81 项测试验证。P1-3a（集成断言）、P1-3b（CLI 重命名）、P1-2（并行测试隔离注释）也已修复。P1-1（fixtures/exif + benchmark）标记为后续任务。
 
 > **修复记录（2026-08-18，commit 8f4d7dd）：**
+>
 > - P0-1: `parseFitResponse()` 只校验 `fit`；`handleResponse()` 在 `response.fit` 存在时立即解析。3 个回归测试已添加。✅
 > - P0-2: `focus-golden.json` 的 `real-image-ok` 重命名为 `real-image-ok-no-faces`，`minProtectedRegions` 改为 0，移除人脸数量硬断言。`maxResponseTimeMs` 放宽至 10s（冷启动）。✅
 > - P1-3a: `asset-sourcer-visual-integration.test.mjs` 新增 4 个测试覆盖 `analysis.focusAnalysis` schema、`media.fit` 写入、`media.focus` 不写入。✅
@@ -17,15 +18,15 @@
 
 ## 结果总览
 
-| 维度 | 结果 | 证据与判断 |
-|---|---|---|
-| Focus 子进程与降级 | **通过** | `focus_detector.py` 实现了 Event + Lock 的 idle watchdog、依赖延迟加载、图片白名单、EXIF RGB 规范化、异常 envelope 与无响应 `exit`。 |
-| Node requestId 与生命周期 | **通过** | `visual-analyzer.mjs` 用 `pending Map + workerGeneration` 匹配响应；超时、进程 exit、pipe 写失败与 close 均会 resolve 为 schema 完整的降级结果。 |
-| 素材到 patch 数据流 | **代码通过，测试不足** | `analyzeAssets()` 先写入 `asset.focusAnalysis`；`assignAssetsToScenes()` 显式映射到 `analysis.focusAnalysis`。现有集成测试没有断言这条映射。 |
-| 旧 `fit` 兼容 | **P0 未通过** | Node 解析器仍要求 `fit` 与 `focus` 同时有效，与 Spec 的“fit 必填、focus 可选”直接矛盾。 |
-| 人脸 golden / smoke 质量 | **P0 未通过** | Smoke 使用的是城市天际线，却要求至少一个 face protectedRegion；它不能证明真实人脸检测，反而会把 Haar 假阳性当成功。 |
-| Exif、golden/baseline、benchmark 验证 | **P1 未完成** | Spec 列出的 EXIF、benchmark、golden、baseline fixture 目录与 benchmark 脚本尚未出现；现有 JSON fixture 不能替代这些素材与几何断言。 |
-| Patch 人工摘要 | **通过但入口需澄清** | `lib/apply-media-patch.mjs` 正确生成注释摘要且不输出 `analysis`/`focusAnalysis` 到 copyable media block；顶层同名脚本目前是自动写入工具，需避免用户混淆。 |
+| 维度                                  | 结果                   | 证据与判断                                                                                                                                                |
+| ------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Focus 子进程与降级                    | **通过**               | `focus_detector.py` 实现了 Event + Lock 的 idle watchdog、依赖延迟加载、图片白名单、EXIF RGB 规范化、异常 envelope 与无响应 `exit`。                      |
+| Node requestId 与生命周期             | **通过**               | `visual-analyzer.mjs` 用 `pending Map + workerGeneration` 匹配响应；超时、进程 exit、pipe 写失败与 close 均会 resolve 为 schema 完整的降级结果。          |
+| 素材到 patch 数据流                   | **代码通过，测试不足** | `analyzeAssets()` 先写入 `asset.focusAnalysis`；`assignAssetsToScenes()` 显式映射到 `analysis.focusAnalysis`。现有集成测试没有断言这条映射。              |
+| 旧 `fit` 兼容                         | **P0 未通过**          | Node 解析器仍要求 `fit` 与 `focus` 同时有效，与 Spec 的“fit 必填、focus 可选”直接矛盾。                                                                   |
+| 人脸 golden / smoke 质量              | **P0 未通过**          | Smoke 使用的是城市天际线，却要求至少一个 face protectedRegion；它不能证明真实人脸检测，反而会把 Haar 假阳性当成功。                                       |
+| Exif、golden/baseline、benchmark 验证 | **P1 未完成**          | Spec 列出的 EXIF、benchmark、golden、baseline fixture 目录与 benchmark 脚本尚未出现；现有 JSON fixture 不能替代这些素材与几何断言。                       |
+| Patch 人工摘要                        | **通过但入口需澄清**   | `lib/apply-media-patch.mjs` 正确生成注释摘要且不输出 `analysis`/`focusAnalysis` 到 copyable media block；顶层同名脚本目前是自动写入工具，需避免用户混淆。 |
 
 ## 已验证的实现行为
 
@@ -37,12 +38,12 @@
 
 ### 实测测试结果
 
-| 验证命令/范围 | 结果 | 说明 |
-|---|---|---|
-| `focus_detector.py` IPC 测试，单独执行 | **7 / 7 通过** | 覆盖 requestId envelope、坏路径、unsupported、协议错误和无响应 exit。 |
-| 真实 Focus smoke 测试，单独执行 | **6 / 6 通过** | 首次图片检测约 613ms，随后基线约 137ms；但其人脸断言样本不正确，不能作为质量证据。 |
-| 5 个相关测试文件以默认文件并行执行 | **70 通过，3 失败** | Focus IPC 与 smoke 首请求分别发生 10–20s timeout；这表明真实子进程测试在并行执行时不稳定。 |
-| 同一 5 个测试文件串行执行 | **73 / 73 通过** | 证明组合失败与并发运行的资源争用/启动调度有关，而非每个隔离路径必然失败。 |
+| 验证命令/范围                          | 结果                | 说明                                                                                       |
+| -------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+| `focus_detector.py` IPC 测试，单独执行 | **7 / 7 通过**      | 覆盖 requestId envelope、坏路径、unsupported、协议错误和无响应 exit。                      |
+| 真实 Focus smoke 测试，单独执行        | **6 / 6 通过**      | 首次图片检测约 613ms，随后基线约 137ms；但其人脸断言样本不正确，不能作为质量证据。         |
+| 5 个相关测试文件以默认文件并行执行     | **70 通过，3 失败** | Focus IPC 与 smoke 首请求分别发生 10–20s timeout；这表明真实子进程测试在并行执行时不稳定。 |
+| 同一 5 个测试文件串行执行              | **73 / 73 通过**    | 证明组合失败与并发运行的资源争用/启动调度有关，而非每个隔离路径必然失败。                  |
 
 ## P0：必须修复
 
@@ -77,11 +78,11 @@ if (!focus || !VALID_FOCUSES.includes(focus)) {
 
 **修订要求：**
 
-| Fixture 类型 | 内容 | 阻断规则 |
-|---|---|---|
-| `fixtures/golden/` | 至少一张稳定正面单人照与一张稳定多人照；附人工标注框 | 单人 IoU ≥ 0.5；多人匹配计数满足约定容差；失败即 CI 红。 |
-| `fixtures/baseline/` | 侧脸、遮挡、低光 | 记录命中/漏检，不阻断。 |
-| `shanghai-skyline.jpg` | 无脸/天际线 | 断言零 face protectedRegions；允许 `low_information` 或 saliency 可用的 `ok`，但不能期待人脸。 |
+| Fixture 类型           | 内容                                                 | 阻断规则                                                                                       |
+| ---------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `fixtures/golden/`     | 至少一张稳定正面单人照与一张稳定多人照；附人工标注框 | 单人 IoU ≥ 0.5；多人匹配计数满足约定容差；失败即 CI 红。                                       |
+| `fixtures/baseline/`   | 侧脸、遮挡、低光                                     | 记录命中/漏检，不阻断。                                                                        |
+| `shanghai-skyline.jpg` | 无脸/天际线                                          | 断言零 face protectedRegions；允许 `low_information` 或 saliency 可用的 `ok`，但不能期待人脸。 |
 
 ## P1：应在本功能合入稳定分支前补齐
 

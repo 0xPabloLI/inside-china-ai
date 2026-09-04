@@ -70,6 +70,7 @@ A practical test suggested by the same source is to "take a screenshot of your f
 This finding is triangulated by the Color Psychology on TikTok article, which states: "The use of bright, contrasting colors helps videos stand out in TikTok's feed, increasing the likelihood that users will interact with them" [1]. The article specifically notes that cooking content creators use "vibrant colors like yellow and red to highlight ingredients and grab attention" — warm, high-saturation colors that contrast with TikTok's dark UI [1].
 
 **Key Evidence:**
+
 - "TikTok is dark with pops of red and white" — Thumbnail Psychology for Short-Form Video [3]
 - "Bright, contrasting colors helps videos stand out in TikTok's feed" — Color Psychology on TikTok [1]
 - "If your cover disappears into the mush, you likely don't have enough contrast or distinct shapes" — Thumbnail Psychology [3]
@@ -92,6 +93,7 @@ However, the same research provides a critical counterpoint: "while warm colors 
 Furthermore, cross-platform data shows that color performance is context-dependent: "For direct response campaigns where you need immediate clicks, warm colors win. For brand awareness or complex products that require thought, cool colors do better" [2]. Our content is complex (AI news, data analysis) — this places us in the "cool colors do better" category.
 
 **Key Evidence:**
+
 - "TikTok rewards color boldness in ways that would seem excessive on other platforms" [2]
 - "While warm colors grab attention faster, cool colors hold engagement longer" [2]
 - "For brand awareness or complex products that require thought, cool colors do better" [2]
@@ -117,6 +119,7 @@ For data visualization specifically — our core content pattern (big numbers, s
 Netflix, Spotify, and Disney+ all use dark interfaces to make their content "pop through the screen" [5]. The dark canvas functions like "a theater with the lights down" — directing all attention to the foreground content. For our data-heavy news content, this is precisely the effect we want.
 
 **Key Evidence:**
+
 - Deep navy background beat white by 31% CTR, 22% conversion rate (2026 A/B test) [2]
 - "Dark interfaces are associated with professionalism, sophistication, and technical capability" [5]
 - "Dark backgrounds reduce peripheral visual noise and make foreground content stand out" [5]
@@ -147,6 +150,7 @@ The 3-second checkpoint is where viewers "commit to the premise, or bail once th
 The Thumbnail Psychology guide reinforces this: "Your thumbnail has maybe 100-300 milliseconds to trigger that 'wait, what's this?' micro-pause" [3]. While TikTok videos autoplay (unlike YouTube thumbnails), the same rapid-assessment mechanism applies to the first frame.
 
 **Key Evidence:**
+
 - "1s — 1-second hold: Did the viewer stay past the first beat? This is decided entirely by your very first frame" [7]
 - "The visual has to register before the brain even processes audio" [7]
 - "Your thumbnail has maybe 100-300 milliseconds to trigger that 'wait, what's this?' micro-pause" [3]
@@ -174,6 +178,7 @@ The Dark Mode Design Guide corroborates this from a different angle: "Dark mode 
 Additionally, the earth-tone trend is emerging as the post-dopamine movement: "Environmental consciousness is reshaping color preferences, particularly among younger consumers. Earth tones — browns, tans, olive greens, terracottas — are having a renaissance" [2]. While our cyber palette is not earth-tone, the broader signal is that audiences are tiring of maximum saturation and seeking visual "depth."
 
 **Key Evidence:**
+
 - "By late 2026, we'll start seeing dopamine color fatigue" [2]
 - "When every brand uses the same intensely saturated palette, none of them stand out" [2]
 - "82.7% of consumers now use dark mode on their devices" [5]
@@ -197,6 +202,7 @@ The color psychology research confirms: "Mobile screens, particularly OLED displ
 However, there is a caveat: "Pure black backgrounds (#000000) creates excessive contrast and can cause halation — a blurring effect around text on OLED screens. Use #121212 or similar dark grey instead" [5]. Our `#050508` is very close to pure black — this could cause mild halation on OLED screens, slightly blurring our `#f5f5f5` text edges. Adjusting to `#0a0a12` or `#0d0d18` (slightly lighter, with a blue tint) would reduce halation while maintaining the dark aesthetic.
 
 **Key Evidence:**
+
 - "OLED screens light each pixel individually. Black pixels are effectively off" [5]
 - "Dark mode can reduce battery consumption by up to 63% on OLED screens" [5]
 - "Mobile screens, particularly OLED displays, render colors more vibrantly than desktop monitors" [2]
@@ -378,6 +384,7 @@ The finding that "color boldness" (saturation/contrast) matters more than "color
 **Total Sources:** 12
 
 **Source Types:**
+
 - Industry analysis/blog posts: 6
 - Design guides: 3
 - Platform documentation: 1
@@ -389,6 +396,7 @@ The finding that "color boldness" (saturation/contrast) matters more than "color
 ### Verification Approach
 
 **Triangulation:**
+
 - Core claims required 3+ independent sources
 - Camouflage effect: supported by [1], [3], [8]
 - Color boldness vs brightness: supported by [2], [7], [1]
@@ -398,6 +406,7 @@ The finding that "color boldness" (saturation/contrast) matters more than "color
 - OLED rendering: supported by [2], [5], [9]
 
 **Credibility Assessment:**
+
 - Sources scored on relevance, recency, and authority
 - High credibility (>80): [2] jasminedirectory (comprehensive 2026 research with data), [5] FallingBrick (detailed technical guide), [7] HypeNest (TikTok-specific 2026 data)
 - Medium credibility (60-80): [1] ggyess, [3] faceless.so, [4] coinis, [6] Digital Silk
@@ -405,14 +414,14 @@ The finding that "color boldness" (saturation/contrast) matters more than "color
 
 ### Claims-Evidence Table
 
-| Claim ID | Major Claim | Evidence Type | Supporting Sources | Confidence |
-|----------|-------------|---------------|-------------------|------------|
-| C1 | Dark backgrounds camouflage against TikTok's dark UI | Expert analysis + platform observation | [1], [3], [8] | High |
-| C2 | TikTok rewards color boldness (saturation), not brightness | Research data + expert analysis | [2], [7], [1] | High |
-| C3 | Dark backgrounds outperform in premium/data-viz contexts | A/B test data + psychological research | [2], [5], [6] | High |
-| C4 | First 0.5s visual trigger is the critical retention window | Platform analytics patterns + expert analysis | [3], [7], [8] | High |
-| C5 | Dopamine color fatigue predicted by late 2026 | Trend analysis + prediction | [2], [5] | Medium |
-| C6 | OLED screens render dark-bg colors more vibrantly | Technical research + display science | [2], [5], [9] | High |
+| Claim ID | Major Claim                                                | Evidence Type                                 | Supporting Sources | Confidence |
+| -------- | ---------------------------------------------------------- | --------------------------------------------- | ------------------ | ---------- |
+| C1       | Dark backgrounds camouflage against TikTok's dark UI       | Expert analysis + platform observation        | [1], [3], [8]      | High       |
+| C2       | TikTok rewards color boldness (saturation), not brightness | Research data + expert analysis               | [2], [7], [1]      | High       |
+| C3       | Dark backgrounds outperform in premium/data-viz contexts   | A/B test data + psychological research        | [2], [5], [6]      | High       |
+| C4       | First 0.5s visual trigger is the critical retention window | Platform analytics patterns + expert analysis | [3], [7], [8]      | High       |
+| C5       | Dopamine color fatigue predicted by late 2026              | Trend analysis + prediction                   | [2], [5]           | Medium     |
+| C6       | OLED screens render dark-bg colors more vibrantly          | Technical research + display science          | [2], [5], [9]      | High       |
 
 ---
 

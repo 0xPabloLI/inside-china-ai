@@ -9,14 +9,14 @@
 
 ### AGI Roadmap Phases (6 stages)
 
-| ID | Period | Technology | Description | Status | Icon |
-|----|--------|------------|-------------|--------|------|
-| llm | Past | Language Models | Basic text understanding and generation | past | 📝 |
-| cot | 2024 | Chain-of-Thought (CoT) | Self-reasoning capability through step-by-step thinking | past | 🧠 |
-| agents | 2025 | Agents | Multi-task orchestration and autonomous decision-making | current | 🤖 |
-| continuous-learning | Future | Continuous Learning | Incremental in-context knowledge retention, like human learning | future | 📚 |
-| self-iteration | Future | Self-Iteration Singularity | AI develops and improves its own next versions | future | 🔄 |
-| embodied | Beyond | Embodied AI | Robots entering physical world for daily tasks and elder care | future | 🦾 |
+| ID                  | Period | Technology                 | Description                                                     | Status  | Icon |
+| ------------------- | ------ | -------------------------- | --------------------------------------------------------------- | ------- | ---- |
+| llm                 | Past   | Language Models            | Basic text understanding and generation                         | past    | 📝   |
+| cot                 | 2024   | Chain-of-Thought (CoT)     | Self-reasoning capability through step-by-step thinking         | past    | 🧠   |
+| agents              | 2025   | Agents                     | Multi-task orchestration and autonomous decision-making         | current | 🤖   |
+| continuous-learning | Future | Continuous Learning        | Incremental in-context knowledge retention, like human learning | future  | 📚   |
+| self-iteration      | Future | Self-Iteration Singularity | AI develops and improves its own next versions                  | future  | 🔄   |
+| embodied            | Beyond | Embodied AI                | Robots entering physical world for daily tasks and elder care   | future  | 🦾   |
 
 ## Sources
 

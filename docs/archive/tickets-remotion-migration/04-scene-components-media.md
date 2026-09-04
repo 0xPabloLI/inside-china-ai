@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 组件：
+
 - `HookScene.tsx` — 消费 scene.texts（badge, subject, subjectLogo, bigNumber, hookText, revealText, stats, source），忽略 media 字段。首帧 background 全 opacity=1（grid/glow/scanlines），focal 元素 scaleIn。slot 布局：kicker(220-400) / hero(400-950) / support(950-1150)。
 - `CtaScene.tsx` — 消费 scene.texts（brand, brandHighlight, tagline, action, topic），忽略 media 字段。brand logo + name + tagline + action box + topic。
 - `MediaBackground.tsx` — 消费 scene.media（type, path, source, animation, overlay）。image 用 `<Img>`，video 用 `<Video>`。5 种预设用 `interpolate()`：fade/ken-burns/slide/zoom/none。文件不存在 → warn + null。ken-burns + video → 降级为 fade。

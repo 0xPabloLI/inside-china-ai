@@ -7,8 +7,20 @@ import { applyDriftCorrection } from "../lib/verify-retry.mjs";
 describe("applyDriftCorrection — basic shifting", () => {
   it("shifts cue start and end by the scene's drift", () => {
     const cues = [
-      { sceneId: 1, start: 0.04, end: 1.52, text: "Hello", words: [{ text: "Hello", onset: 0.04, fill: 0.2 }] },
-      { sceneId: 2, start: 4.73, end: 6.0, text: "World", words: [{ text: "World", onset: 4.73, fill: 0.2 }] },
+      {
+        sceneId: 1,
+        start: 0.04,
+        end: 1.52,
+        text: "Hello",
+        words: [{ text: "Hello", onset: 0.04, fill: 0.2 }],
+      },
+      {
+        sceneId: 2,
+        start: 4.73,
+        end: 6.0,
+        text: "World",
+        words: [{ text: "World", onset: 4.73, fill: 0.2 }],
+      },
     ];
     const driftMap = { 1: 0.02, 2: -0.157 };
 
@@ -25,7 +37,13 @@ describe("applyDriftCorrection — basic shifting", () => {
 
   it("handles negative drift (audio early → subtitles earlier)", () => {
     const cues = [
-      { sceneId: 1, start: 1.0, end: 2.0, text: "Test", words: [{ text: "Test", onset: 1.0, fill: 0.2 }] },
+      {
+        sceneId: 1,
+        start: 1.0,
+        end: 2.0,
+        text: "Test",
+        words: [{ text: "Test", onset: 1.0, fill: 0.2 }],
+      },
     ];
     const driftMap = { 1: -0.2 };
 
@@ -40,7 +58,13 @@ describe("applyDriftCorrection — basic shifting", () => {
 describe("applyDriftCorrection — purity", () => {
   it("does not mutate the input array", () => {
     const cues = [
-      { sceneId: 1, start: 1.0, end: 2.0, text: "A", words: [{ text: "A", onset: 1.0, fill: 0.2 }] },
+      {
+        sceneId: 1,
+        start: 1.0,
+        end: 2.0,
+        text: "A",
+        words: [{ text: "A", onset: 1.0, fill: 0.2 }],
+      },
     ];
     const driftMap = { 1: 0.1 };
 
@@ -62,7 +86,13 @@ describe("applyDriftCorrection — purity", () => {
 describe("applyDriftCorrection — edge cases", () => {
   it("returns shallow copy when driftMap is empty", () => {
     const cues = [
-      { sceneId: 1, start: 1.0, end: 2.0, text: "A", words: [{ text: "A", onset: 1.0, fill: 0.2 }] },
+      {
+        sceneId: 1,
+        start: 1.0,
+        end: 2.0,
+        text: "A",
+        words: [{ text: "A", onset: 1.0, fill: 0.2 }],
+      },
     ];
     const result = applyDriftCorrection(cues, {});
     expect(result).not.toBe(cues);
@@ -76,8 +106,20 @@ describe("applyDriftCorrection — edge cases", () => {
 
   it("leaves cues with no scene in driftMap unchanged", () => {
     const cues = [
-      { sceneId: 1, start: 1.0, end: 2.0, text: "A", words: [{ text: "A", onset: 1.0, fill: 0.2 }] },
-      { sceneId: 99, start: 3.0, end: 4.0, text: "B", words: [{ text: "B", onset: 3.0, fill: 0.2 }] },
+      {
+        sceneId: 1,
+        start: 1.0,
+        end: 2.0,
+        text: "A",
+        words: [{ text: "A", onset: 1.0, fill: 0.2 }],
+      },
+      {
+        sceneId: 99,
+        start: 3.0,
+        end: 4.0,
+        text: "B",
+        words: [{ text: "B", onset: 3.0, fill: 0.2 }],
+      },
     ];
     const driftMap = { 1: 0.1 };
 
@@ -89,7 +131,13 @@ describe("applyDriftCorrection — edge cases", () => {
 
   it("handles zero drift (no change)", () => {
     const cues = [
-      { sceneId: 1, start: 1.0, end: 2.0, text: "A", words: [{ text: "A", onset: 1.0, fill: 0.2 }] },
+      {
+        sceneId: 1,
+        start: 1.0,
+        end: 2.0,
+        text: "A",
+        words: [{ text: "A", onset: 1.0, fill: 0.2 }],
+      },
     ];
     const result = applyDriftCorrection(cues, { 1: 0 });
     expect(result[0].start).toBe(1.0);
@@ -97,9 +145,7 @@ describe("applyDriftCorrection — edge cases", () => {
   });
 
   it("handles cue with no words array", () => {
-    const cues = [
-      { sceneId: 1, start: 1.0, end: 2.0, text: "No words here" },
-    ];
+    const cues = [{ sceneId: 1, start: 1.0, end: 2.0, text: "No words here" }];
     const result = applyDriftCorrection(cues, { 1: 0.05 });
     expect(result[0].start).toBeCloseTo(1.05, 6);
     expect(result[0].end).toBeCloseTo(2.05, 6);

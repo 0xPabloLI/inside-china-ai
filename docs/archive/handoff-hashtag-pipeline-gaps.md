@@ -7,18 +7,18 @@
 
 ## 当前状态
 
-| 缺口 | 状态 | 完成内容 |
-|------|------|---------|
+| 缺口                           | 状态      | 完成内容                  |
+| ------------------------------ | --------- | ------------------------- |
 | A: trendingHashtags 代码未实现 | ✅ 已完成 | 见下方「缺口 A 完成记录」 |
-| B: Apify JS 客户端未创建 | ✅ 已完成 | 见下方「缺口 B 完成记录」 |
+| B: Apify JS 客户端未创建       | ✅ 已完成 | 见下方「缺口 B 完成记录」 |
 
 ### Review 遗留问题修复（P1/P2/P3）
 
-| 问题 | 状态 | commit |
-|------|------|--------|
-| P1: #creatorsearchinsights 文档矛盾 | ✅ 已修复 | befb412 |
+| 问题                                  | 状态      | commit  |
+| ------------------------------------- | --------- | ------- |
+| P1: #creatorsearchinsights 文档矛盾   | ✅ 已修复 | befb412 |
 | P2: hashtagStrategy.trending 来源归属 | ✅ 已修复 | befb412 |
-| P3: handoff 测试计数笔误 | ✅ 已修复 | befb412 |
+| P3: handoff 测试计数笔误              | ✅ 已修复 | befb412 |
 
 ## 缺口 A 完成记录
 
@@ -71,12 +71,12 @@
 
 原 handoff 的 `fetchHashtagStats(hashtag) → views/posts/related` 不符合 Apify Actor 的实际能力。Review 建议拆分为：
 
-| 方法 | 实现状态 | 输入/输出 | 数据来源 |
-|------|---------|----------|---------|
-| `runActor(actorRef, input, options)` | ✅ 已实现 | 原始 dataset items；认证+超时+错误校验 | 低层通用封装 |
-| `fetchHashtagVideos(hashtag, options)` | ✅ 已实现 | 归一化视频样本数组 | `clockworks~tiktok-scraper` |
-| `fetchHashtagMetrics(hashtags, options)` | ❌ 未实现（需 POC） | 只承诺 POC 实测存在的字段 | 专用 Actor（需 POC 确认） |
-| `fetchHashtagBatch(hashtags, options)` | ❌ 未实现 | 每条结果带 `actor`/`fetchedAt`/`sourceSchemaVersion`/`error` | 需确认 Actor 是否支持批量 |
+| 方法                                     | 实现状态            | 输入/输出                                                    | 数据来源                    |
+| ---------------------------------------- | ------------------- | ------------------------------------------------------------ | --------------------------- |
+| `runActor(actorRef, input, options)`     | ✅ 已实现           | 原始 dataset items；认证+超时+错误校验                       | 低层通用封装                |
+| `fetchHashtagVideos(hashtag, options)`   | ✅ 已实现           | 归一化视频样本数组                                           | `clockworks~tiktok-scraper` |
+| `fetchHashtagMetrics(hashtags, options)` | ❌ 未实现（需 POC） | 只承诺 POC 实测存在的字段                                    | 专用 Actor（需 POC 确认）   |
+| `fetchHashtagBatch(hashtags, options)`   | ❌ 未实现           | 每条结果带 `actor`/`fetchedAt`/`sourceSchemaVersion`/`error` | 需确认 Actor 是否支持批量   |
 
 ### Review 对 API 契约的修正
 
@@ -95,26 +95,26 @@
 
 ### Review 建议的实施顺序
 
-| 阶段 | 产物 | 完成标准 |
-|------|------|---------|
-| 1. B 的 schema POC | 单独、可限额的脚本和匿名化样例响应 | 明确哪个 Actor 的哪个字段可用于 metrics；记录费用与失败模式 |
-| 2. 决定 B API | 小型技术规格 | 只暴露 POC 证明的字段；定义运行入口、缓存、错误、工件与费用策略 |
-| 3. TDD 实现 B | 新客户端、mock 测试与可选 opt-in smoke test | 不影响逐视频管线；CI 不依赖 token 且不产生外部费用 |
+| 阶段               | 产物                                        | 完成标准                                                        |
+| ------------------ | ------------------------------------------- | --------------------------------------------------------------- |
+| 1. B 的 schema POC | 单独、可限额的脚本和匿名化样例响应          | 明确哪个 Actor 的哪个字段可用于 metrics；记录费用与失败模式     |
+| 2. 决定 B API      | 小型技术规格                                | 只暴露 POC 证明的字段；定义运行入口、缓存、错误、工件与费用策略 |
+| 3. TDD 实现 B      | 新客户端、mock 测试与可选 opt-in smoke test | 不影响逐视频管线；CI 不依赖 token 且不产生外部费用              |
 
 ### Review 的 B 验收测试
 
-| 用例 | 期望结果 |
-|------|---------|
-| 缺少 token | 抛出明确、不可泄露凭据的配置错误；不发网络请求 |
-| URL 构造 | 使用 `actors/clockworks~tiktok-scraper/run-sync-get-dataset-items`，动态 ID 被安全编码 |
-| 认证 | token 仅在 `Authorization` header，不出现在异常文本或 URL |
-| 正常视频样本 | 输入 hashtag，返回与 Python `_video()` 对齐的归一化视频字段 |
-| 非数组响应 | 抛出 schema error，不把对象误当作 dataset |
-| 429/5xx/网络中断 | 限次指数退避；重试耗尽后保留状态码与 request context |
-| 408/超时 | 返回可识别的 timeout error；不把未确认结果写入缓存 |
-| 缓存 | 同 tag、同参数在 TTL 内不重复发起远端请求；`forceRefresh` 可绕过 |
-| 成本护栏 | 调用参数包含显式费用上限；超出批次限制时在本地失败 |
-| POC 集成测试 | 仅在显式 `APIFY_TOKEN` 和 opt-in 标志存在时执行；默认 CI 不产生远端费用 |
+| 用例             | 期望结果                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| 缺少 token       | 抛出明确、不可泄露凭据的配置错误；不发网络请求                                         |
+| URL 构造         | 使用 `actors/clockworks~tiktok-scraper/run-sync-get-dataset-items`，动态 ID 被安全编码 |
+| 认证             | token 仅在 `Authorization` header，不出现在异常文本或 URL                              |
+| 正常视频样本     | 输入 hashtag，返回与 Python `_video()` 对齐的归一化视频字段                            |
+| 非数组响应       | 抛出 schema error，不把对象误当作 dataset                                              |
+| 429/5xx/网络中断 | 限次指数退避；重试耗尽后保留状态码与 request context                                   |
+| 408/超时         | 返回可识别的 timeout error；不把未确认结果写入缓存                                     |
+| 缓存             | 同 tag、同参数在 TTL 内不重复发起远端请求；`forceRefresh` 可绕过                       |
+| 成本护栏         | 调用参数包含显式费用上限；超出批次限制时在本地失败                                     |
+| POC 集成测试     | 仅在显式 `APIFY_TOKEN` 和 opt-in 标志存在时执行；默认 CI 不产生远端费用                |
 
 ### 实现的文件
 

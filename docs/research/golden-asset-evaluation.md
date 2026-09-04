@@ -20,29 +20,29 @@ Quality drift in any of these capabilities causes silent regression: assets get 
 
 Each asset targets a specific edge case that the VLM must handle correctly:
 
-| Category | What it tests | Why it matters |
-|----------|--------------|----------------|
-| Edge text | `contain` (not `cover`) — text at borders must not be cropped | Cropping Chinese text renders it unreadable |
-| Top subject | `focus: top` — subject in upper third | Focus positioning affects crop alignment |
-| Center subject | `focus: center` — subject in middle | Default case, most common |
-| Bottom subject | `focus: bottom` — subject in lower third | Crop must preserve bottom content |
-| No visible brand | Description must not hallucinate brand names | 8B model has known hallucination tendency |
-| Short video | Video description + fit analysis | Native video path vs. frame extraction fallback |
-| Mixed content | Image with both tech product and human | Description must capture both subjects |
+| Category         | What it tests                                                 | Why it matters                                  |
+| ---------------- | ------------------------------------------------------------- | ----------------------------------------------- |
+| Edge text        | `contain` (not `cover`) — text at borders must not be cropped | Cropping Chinese text renders it unreadable     |
+| Top subject      | `focus: top` — subject in upper third                         | Focus positioning affects crop alignment        |
+| Center subject   | `focus: center` — subject in middle                           | Default case, most common                       |
+| Bottom subject   | `focus: bottom` — subject in lower third                      | Crop must preserve bottom content               |
+| No visible brand | Description must not hallucinate brand names                  | 8B model has known hallucination tendency       |
+| Short video      | Video description + fit analysis                              | Native video path vs. frame extraction fallback |
+| Mixed content    | Image with both tech product and human                        | Description must capture both subjects          |
 
 ### Asset Inventory
 
 > **Note**: Assets are stored in `scripts/short-video/assets/golden/` (gitignored — too large for git, tracked via LFS if committed).
 
-| ID | File | Type | Dimensions | Key Feature | Expected `fit` | Expected `focus` | Expected Description Keywords |
-|----|------|------|-----------|-------------|----------------|------------------|-------------------------------|
-| GA-01 | `golden-chart-with-labels.png` | image | 1920×1080 | Financial chart with axis labels at all edges | `contain` | `center` | "chart", "data", "graph" |
-| GA-02 | `golden-robot-top.png` | image | 1920×1080 | Robot in upper third, plain background at bottom | `cover` | `top` | "robot", "machine", "technology" |
-| GA-03 | `golden-cityscape-center.png` | image | 1920×1080 | City skyline centered, sky above, road below | `cover` | `center` | "city", "building", "skyline" |
-| GA-04 | `golden-product-bottom.png` | image | 1920×1080 | Product on table in lower third, shelf above | `cover` | `bottom` | "product", "device", "table" |
-| GA-05 | `golden-no-brand-photo.png` | image | 1920×1080 | Generic office scene, no logos or brand marks | any | any | Must NOT contain brand names (DeepSeek, Huawei, etc.) |
-| GA-06 | `golden-tech-demo-clip.mp4` | video | 1920×1080, 5s | Short tech demo with person + screen | `cover` | `center` | "person", "screen", "demo" |
-| GA-07 | `golden-text-overlay.png` | image | 1920×1080 | Image with large Chinese text overlay at bottom | `contain` | `top` | "text", "Chinese characters" |
+| ID    | File                           | Type  | Dimensions    | Key Feature                                      | Expected `fit` | Expected `focus` | Expected Description Keywords                         |
+| ----- | ------------------------------ | ----- | ------------- | ------------------------------------------------ | -------------- | ---------------- | ----------------------------------------------------- |
+| GA-01 | `golden-chart-with-labels.png` | image | 1920×1080     | Financial chart with axis labels at all edges    | `contain`      | `center`         | "chart", "data", "graph"                              |
+| GA-02 | `golden-robot-top.png`         | image | 1920×1080     | Robot in upper third, plain background at bottom | `cover`        | `top`            | "robot", "machine", "technology"                      |
+| GA-03 | `golden-cityscape-center.png`  | image | 1920×1080     | City skyline centered, sky above, road below     | `cover`        | `center`         | "city", "building", "skyline"                         |
+| GA-04 | `golden-product-bottom.png`    | image | 1920×1080     | Product on table in lower third, shelf above     | `cover`        | `bottom`         | "product", "device", "table"                          |
+| GA-05 | `golden-no-brand-photo.png`    | image | 1920×1080     | Generic office scene, no logos or brand marks    | any            | any              | Must NOT contain brand names (DeepSeek, Huawei, etc.) |
+| GA-06 | `golden-tech-demo-clip.mp4`    | video | 1920×1080, 5s | Short tech demo with person + screen             | `cover`        | `center`         | "person", "screen", "demo"                            |
+| GA-07 | `golden-text-overlay.png`      | image | 1920×1080     | Image with large Chinese text overlay at bottom  | `contain`      | `top`            | "text", "Chinese characters"                          |
 
 ### Asset Acquisition
 
@@ -83,22 +83,23 @@ Each golden asset has a human-verified expectation file in `golden-expectations.
 
 ### Model Versions (Pinned)
 
-| Component | Model | Version | Size | Source |
-|-----------|-------|---------|------|--------|
-| VLM (primary) | `mlx-community/Qwen3-VL-8B-Instruct-8bit` | mlx-vlm 0.6.13 | 9.2 GB | HuggingFace |
-| VLM (fallback) | `mlx-community/Qwen3-VL-8B-Instruct-4bit` | — | 4.8 GB | HuggingFace |
-| Focus detector | OpenCV Haar Cascade + Spectral Residual | OpenCV 4.x | — | pip |
+| Component      | Model                                     | Version        | Size   | Source      |
+| -------------- | ----------------------------------------- | -------------- | ------ | ----------- |
+| VLM (primary)  | `mlx-community/Qwen3-VL-8B-Instruct-8bit` | mlx-vlm 0.6.13 | 9.2 GB | HuggingFace |
+| VLM (fallback) | `mlx-community/Qwen3-VL-8B-Instruct-4bit` | —              | 4.8 GB | HuggingFace |
+| Focus detector | OpenCV Haar Cascade + Spectral Residual   | OpenCV 4.x     | —      | pip         |
 
 ### Prompt Versions
 
-| Prompt | Version | Text | Last Reviewed |
-|--------|---------|------|---------------|
-| `PROMPT` (describe) | v1 | `"Describe what is happening in this video/image in 1-2 sentences. Focus on the main subject, setting, and any visible technology, products, or brands."` | 2026-08-17 |
-| `FIT_PROMPT` (analyzeFit) | v1 | `"This image/video will be placed in a 9:16 vertical video canvas. Look at where the main subject is and whether the edges contain critical content (text, UI, charts). Respond as JSON: {\"fit\": \"cover\" or \"contain\", \"focus\": \"top\" or \"center\" or \"bottom\", \"reason\": \"one sentence\"}. Use \"cover\" if edge content is non-critical and we can crop. Use \"contain\" if edges have text/UI that must not be cropped. Use focus to indicate where the main subject is positioned."` | 2026-08-17 |
+| Prompt                    | Version | Text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Last Reviewed |
+| ------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `PROMPT` (describe)       | v1      | `"Describe what is happening in this video/image in 1-2 sentences. Focus on the main subject, setting, and any visible technology, products, or brands."`                                                                                                                                                                                                                                                                                                                                                | 2026-08-17    |
+| `FIT_PROMPT` (analyzeFit) | v1      | `"This image/video will be placed in a 9:16 vertical video canvas. Look at where the main subject is and whether the edges contain critical content (text, UI, charts). Respond as JSON: {\"fit\": \"cover\" or \"contain\", \"focus\": \"top\" or \"center\" or \"bottom\", \"reason\": \"one sentence\"}. Use \"cover\" if edge content is non-critical and we can crop. Use \"contain\" if edges have text/UI that must not be cropped. Use focus to indicate where the main subject is positioned."` | 2026-08-17    |
 
 ### Prompt Change Protocol
 
 When prompts change:
+
 1. Update the version number (v1 → v2)
 2. Re-run golden asset evaluation against the new prompt
 3. Update `golden-expectations.json` if expectations shift
@@ -111,6 +112,7 @@ When prompts change:
 **Location**: `scripts/short-video/__tests__/visual-analyzer.test.mjs`
 
 These tests mock `child_process.spawn` to verify:
+
 - Request/response JSON IPC format
 - Subprocess lifecycle (spawn / reuse / respawn / close)
 - Serial request queuing
@@ -124,6 +126,7 @@ These tests mock `child_process.spawn` to verify:
 **Script**: `scripts/short-video/lib/golden-eval.mjs` (to be implemented)
 
 **Flow**:
+
 1. Load `golden-expectations.json`
 2. For each golden asset:
    a. Call `describeImage()` or `describeVideo()` → compare keywords
@@ -136,11 +139,13 @@ These tests mock `child_process.spawn` to verify:
 4. Output JSON report + human-readable summary
 
 **Pass Criteria**:
+
 - Description keywords: at least 1 expected keyword present, 0 forbidden keywords
 - Fit: exact match (`contain` vs `cover`)
 - Focus: exact match (`top` vs `center` vs `bottom`)
 
 **Run Frequency**:
+
 - After model upgrade (e.g., Qwen3-VL-8B → Qwen3-VL-14B)
 - After prompt change
 - Monthly regression check
@@ -151,26 +156,27 @@ These tests mock `child_process.spawn` to verify:
 ### Layer 3: Production Monitoring (runtime, passive)
 
 During actual pipeline runs, `asset-sourcer.mjs` logs VLM analysis results. These are reviewed manually when:
+
 - Asset assignment quality drops (human notices wrong assets in video)
 - New asset types are introduced (different resolution, aspect ratio, content type)
 
 ## 6. Evaluation History
 
-| Date | Evaluator | Model | Prompt v | Assets Tested | Description Pass Rate | Fit Pass Rate | Focus Pass Rate | Notes |
-|------|-----------|-------|----------|---------------|----------------------|---------------|-----------------|-------|
-| 2026-08-17 | Agent (smoke) | Qwen3-VL-8B-8bit | v1 | 2 (shanghai-skyline.jpg, unitree-demo.mp4) | 100% | N/A | N/A | Smoke test only — describeImage + describeVideo verified. Fit/focus not tested in this run. |
-| _pending_ | — | — | — | GA-01~07 | — | — | — | First full golden eval pending golden asset creation |
+| Date       | Evaluator     | Model            | Prompt v | Assets Tested                              | Description Pass Rate | Fit Pass Rate | Focus Pass Rate | Notes                                                                                       |
+| ---------- | ------------- | ---------------- | -------- | ------------------------------------------ | --------------------- | ------------- | --------------- | ------------------------------------------------------------------------------------------- |
+| 2026-08-17 | Agent (smoke) | Qwen3-VL-8B-8bit | v1       | 2 (shanghai-skyline.jpg, unitree-demo.mp4) | 100%                  | N/A           | N/A             | Smoke test only — describeImage + describeVideo verified. Fit/focus not tested in this run. |
+| _pending_  | —             | —                | —        | GA-01~07                                   | —                     | —             | —               | First full golden eval pending golden asset creation                                        |
 
 ## 7. Implementation Status
 
-| Component | Status | Notes |
-|-----------|--------|-------|
+| Component                   | Status      | Notes                                                                     |
+| --------------------------- | ----------- | ------------------------------------------------------------------------- |
 | Golden asset set (GA-01~07) | **Pending** | Assets need to be curated/created in `scripts/short-video/assets/golden/` |
-| `golden-expectations.json` | **Pending** | Schema defined (§3), file not yet created |
-| `golden-eval.mjs` script | **Pending** | Eval logic defined (§5), script not yet implemented |
-| Mock unit tests | **Done** | 14 tests in `visual-analyzer.test.mjs` |
-| Model/prompt versioning | **Done** | Documented in §4 |
-| First full golden eval | **Pending** | Blocked by asset creation |
+| `golden-expectations.json`  | **Pending** | Schema defined (§3), file not yet created                                 |
+| `golden-eval.mjs` script    | **Pending** | Eval logic defined (§5), script not yet implemented                       |
+| Mock unit tests             | **Done**    | 14 tests in `visual-analyzer.test.mjs`                                    |
+| Model/prompt versioning     | **Done**    | Documented in §4                                                          |
+| First full golden eval      | **Pending** | Blocked by asset creation                                                 |
 
 ## Design Decisions & References
 

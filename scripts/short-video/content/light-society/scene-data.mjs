@@ -52,14 +52,8 @@ export const scenes = [
       title: "THE REAL",
       titleHighlight: "PAPER",
       subtitle: "arXiv: 2506.12078",
-      institutions: [
-        "USTC + Tsinghua + Fudan",
-      ],
-      points: [
-        "1B+ AI agents simulated",
-        "LLM-powered behavior",
-        "Real demographic data",
-      ],
+      institutions: ["USTC + Tsinghua + Fudan"],
+      points: ["1B+ AI agents simulated", "LLM-powered behavior", "Real demographic data"],
     },
   },
   {

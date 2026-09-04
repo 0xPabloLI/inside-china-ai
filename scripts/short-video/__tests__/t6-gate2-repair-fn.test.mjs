@@ -26,23 +26,23 @@ vi.mock("fs", () => ({
 import { runForcedAlignment } from "../lib/tts/post-process.mjs";
 import { regenerateSubtitles } from "../lib/subtitles/generate.mjs";
 
-const scenes = [
-  { id: 1, voiceover: "ByteDance launched Doubao Work today." },
-];
+const scenes = [{ id: 1, voiceover: "ByteDance launched Doubao Work today." }];
 const ttsResults = [{ sceneId: 1, audioPath: "/output/audio/scene-1.mp3", duration: 1.5 }];
 
 const matchingTiming = [
   {
     sceneId: 1,
-    segments: [{
-      words: [
-        { text: "ByteDance", start: 0, end: 0.5 },
-        { text: "launched", start: 0.5, end: 0.8 },
-        { text: "Doubao", start: 0.8, end: 1.0 },
-        { text: "Work", start: 1.0, end: 1.2 },
-        { text: "today.", start: 1.2, end: 1.5 },
-      ],
-    }],
+    segments: [
+      {
+        words: [
+          { text: "ByteDance", start: 0, end: 0.5 },
+          { text: "launched", start: 0.5, end: 0.8 },
+          { text: "Doubao", start: 0.8, end: 1.0 },
+          { text: "Work", start: 1.0, end: 1.2 },
+          { text: "today.", start: 1.2, end: 1.5 },
+        ],
+      },
+    ],
   },
 ];
 

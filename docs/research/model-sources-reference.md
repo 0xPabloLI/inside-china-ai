@@ -23,18 +23,19 @@ https://api.github.com/search/repositories?q={关键词}&sort=stars&order=desc&p
 
 **关键词组合策略**（以"数字人"为例，从宽到窄）：
 
-| 搜索目的 | 关键词组合 |
-|---------|----------|
-| 找所有数字人项目 | `digital human open source` |
-| 找 talking head 模型 | `talking head audio driven` |
-| 找唇形同步 | `lip sync video` |
-| 找特定平台移植 | `{模型名} mlx` / `{模型名} onnx` / `{模型名} mac` / `{模型名} mps` |
-| 找替代方案 | `heygen alternative open source` |
-| 找中文项目 | `数字人 开源` / `说话头 模型` |
-| 找特定功能 | `photo to talking video` / `avatar clone voice` |
-| 找框架/集成 | `comfyui talking head` / `comfyui digital human` |
+| 搜索目的             | 关键词组合                                                         |
+| -------------------- | ------------------------------------------------------------------ |
+| 找所有数字人项目     | `digital human open source`                                        |
+| 找 talking head 模型 | `talking head audio driven`                                        |
+| 找唇形同步           | `lip sync video`                                                   |
+| 找特定平台移植       | `{模型名} mlx` / `{模型名} onnx` / `{模型名} mac` / `{模型名} mps` |
+| 找替代方案           | `heygen alternative open source`                                   |
+| 找中文项目           | `数字人 开源` / `说话头 模型`                                      |
+| 找特定功能           | `photo to talking video` / `avatar clone voice`                    |
+| 找框架/集成          | `comfyui talking head` / `comfyui digital human`                   |
 
 **技巧**：
+
 - 用 GitHub API `q=` 参数 + `sort=stars` 找高星项目
 - 搜索后看 `description` 和 `topics` 字段筛选
 - 查看 README 中的 `Installation` 和 `Requirements` 部分确认 GPU/OS 要求
@@ -57,11 +58,13 @@ https://huggingface.co/models?search={关键词}
 > **API 文档**：[HuggingFace Hub API](https://huggingface.co/docs/hub/en/api) — 模型搜索、文件列表、模型卡。最后验证：2026-08-26。
 
 **关键词组合**：
+
 - `talking head` / `lip sync` / `portrait animation` / `audio-driven portrait`
 - `{模型名} mlx` / `{模型名} onnx` / `{模型名} coreml`
 - `digital human` / `avatar`
 
 **技巧**：
+
 - 看 `likes` 和 `downloads` 判断模型热度
 - 看 `tags` 字段找特定平台版本（`mlx`、`onnx`、`coreml`）
 - 看 `library_name` 确认推理框架
@@ -71,15 +74,16 @@ https://huggingface.co/models?search={关键词}
 
 HuggingFace 是开放平台，任何人都可以上传模型。存在冒牌模型——使用与官方品牌极其相似的 author 名注册，上传虚假或恶意的模型权重。
 
-| 检查项 | 官方模型 | 冒牌模型示例 |
-|--------|---------|-------------|
-| **author 名** | `Qwen`、`mlx-community`、`zai-org` | `QwennAI`（多一个 n）、`QwenAI` |
-| **downloads/likes** | 万级至百万级 | <500 downloads, <10 likes |
-| **base_model 标签** | 有 `base_model: Qwen/...` | 无 base_model 标签 |
-| **pipeline_tag** | 与声称能力匹配（如 `image-text-to-text`） | 声称视觉但标为 `text-generation` |
-| **LICENSE 文件** | 有明确许可证文件 | 无或可疑 |
+| 检查项              | 官方模型                                  | 冒牌模型示例                     |
+| ------------------- | ----------------------------------------- | -------------------------------- |
+| **author 名**       | `Qwen`、`mlx-community`、`zai-org`        | `QwennAI`（多一个 n）、`QwenAI`  |
+| **downloads/likes** | 万级至百万级                              | <500 downloads, <10 likes        |
+| **base_model 标签** | 有 `base_model: Qwen/...`                 | 无 base_model 标签               |
+| **pipeline_tag**    | 与声称能力匹配（如 `image-text-to-text`） | 声称视觉但标为 `text-generation` |
+| **LICENSE 文件**    | 有明确许可证文件                          | 无或可疑                         |
 
 **风险**：模型权重是二进制文件，无法人工审查。冒牌模型可能：
+
 - **后门注入**：在模型训练时植入恶意行为（如特定触发词下输出恶意代码/URL）
 - **能力虚标**：声称支持某能力但实际不支持，浪费磁盘和时间
 - **不可审查**：几百 GB 的二进制权重无法通过代码审查发现恶意行为
@@ -87,6 +91,7 @@ HuggingFace 是开放平台，任何人都可以上传模型。存在冒牌模�
 **防护措施**：只从可信 author 下载模型（官方 author、`mlx-community`、`unsloth` 等知名量化社区）。发现可疑模型时先查 author 的其他模型和 follower 数确认可信度。
 
 **HITL 规则**：非 Verified Author 的模型，下载前必须暂停并请求用户确认。具体判断：
+
 - ✅ 可直接下载：author 是模型官方（如 `Qwen`、`zai-org`、`THUDM`）、知名量化社区（`mlx-community`、`unsloth`）、或 HuggingFace 显示 verified 标记
 - ⚠️ 需用户确认：author 不在上述列表，但 downloads/likes 较高（>1k downloads），有 base_model 标签
 - ❌ 禁止下载：author 名与官方品牌极其相似（如 `QwennAI` vs `Qwen`）、downloads < 500、无 base_model 标签
@@ -126,39 +131,39 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 ### 1.7 其他来源
 
-| 来源 | 网址 | 说明 |
-|------|------|------|
-| **arXiv** | arxiv.org/search | 找最新论文，确认 arXiv ID 后在 GitHub/HF/ModelScope 查实现（见 §1.5） |
-| **Replicate** | replicate.com | 云端模型推理，有 API |
-| **Civitai** | civitai.com | SD 社区，有 avatar 模型 |
-| **OpenXLab** | openxlab.org.cn | 上海 AI Lab 的模型平台 |
-| **B站** | search.bilibili.com | 搜中文教程，经常有部署指南 |
-| **小红书** | xiaohongshu.com | 搜"数字人 开源"找中文社区动态 |
+| 来源           | 网址                  | 说明                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **arXiv**      | arxiv.org/search      | 找最新论文，确认 arXiv ID 后在 GitHub/HF/ModelScope 查实现（见 §1.5）                                                                                                                                                                                                                                                                                                 |
+| **Replicate**  | replicate.com         | 云端模型推理，有 API                                                                                                                                                                                                                                                                                                                                                  |
+| **Civitai**    | civitai.com           | SD 社区，有 avatar 模型                                                                                                                                                                                                                                                                                                                                               |
+| **OpenXLab**   | openxlab.org.cn       | 上海 AI Lab 的模型平台                                                                                                                                                                                                                                                                                                                                                |
+| **B站**        | search.bilibili.com   | 搜中文教程，经常有部署指南                                                                                                                                                                                                                                                                                                                                            |
+| **小红书**     | xiaohongshu.com       | 搜"数字人 开源"找中文社区动态                                                                                                                                                                                                                                                                                                                                         |
 | **AtomGit AI** | ai.atomgit.com/models | 昇腾 NPU 模型库（~39k+ 模型），以昇腾优化/量化版为特色。**实测（2026-09-03）**：API 仅 12 个模型可调用（Qwen3 系列、DeepSeek-V4、GLM-5.2、Kimi-K2.6、Pangu 等），认证用 `PRIVATE-TOKEN` header（非 Bearer）；免费 200 万 Token/月 + 1000 核时/月 NPU。**定位为备选**：数字人模型全部不可跑（CUDA 硬依赖 + 无 NPU 适配版），大部分模型库权重不可下载到 CUDA 硬件直接跑 |
 
 ### 1.8 General 模型选型信源（非数字人专用）
 
 > **触发条件**：选通用 LLM/VLM/ASR/TTS 模型时，按以下优先级查证。可信度从高到低。
 
-| 优先级 | 信源 | 类别 | 用途 | URL |
-|--------|------|------|------|-----|
-| 1 | **Ollama Library** | 模型目录 | 验证模型可用性 + 能力标签（Text/Image/Tools/Thinking）+ MLX 变体 + 一键安装 | ollama.com/library |
-| 2 | **LM Studio 目录** | 模型目录 | 验证 MLX/GGUF 兼容性 + 可视化搜索 | lmstudio.ai/models |
-| 3 | **HuggingFace `mlx-community`** | 模型仓库 | 找 MLX 量化版（UGC，**需 smoke test 后再用**） | huggingface.co/mlx-community |
-| 4 | **HF Eval Results + 社区榜单** | 评测排名 | 开源 LLM 评测结果与按任务的社区榜单 | huggingface.co/docs/leaderboards |
-| 5 | **Artificial Analysis** | 评测排名 | 速度/质量/价格三维对比 | artificial.ai |
-| 6 | **Roboflow VLM Benchmark** | 评测排名 | VLM 视觉能力实测排名（25+ 模型，按月更新） | playground.roboflow.com/models/task/vision-language |
-| 7 | **ModelScope** | 模型仓库 | 中国团队模型首发地 | modelscope.cn |
-| 8 | **Ollama Cheat Sheet** (computingforgeeks) | 速查 | 按 VRAM/场景排序的 Ollama 模型速查表 | computingforgeeks.com/ollama-models-cheat-sheet |
+| 优先级 | 信源                                       | 类别     | 用途                                                                        | URL                                                 |
+| ------ | ------------------------------------------ | -------- | --------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1      | **Ollama Library**                         | 模型目录 | 验证模型可用性 + 能力标签（Text/Image/Tools/Thinking）+ MLX 变体 + 一键安装 | ollama.com/library                                  |
+| 2      | **LM Studio 目录**                         | 模型目录 | 验证 MLX/GGUF 兼容性 + 可视化搜索                                           | lmstudio.ai/models                                  |
+| 3      | **HuggingFace `mlx-community`**            | 模型仓库 | 找 MLX 量化版（UGC，**需 smoke test 后再用**）                              | huggingface.co/mlx-community                        |
+| 4      | **HF Eval Results + 社区榜单**             | 评测排名 | 开源 LLM 评测结果与按任务的社区榜单                                         | huggingface.co/docs/leaderboards                    |
+| 5      | **Artificial Analysis**                    | 评测排名 | 速度/质量/价格三维对比                                                      | artificial.ai                                       |
+| 6      | **Roboflow VLM Benchmark**                 | 评测排名 | VLM 视觉能力实测排名（25+ 模型，按月更新）                                  | playground.roboflow.com/models/task/vision-language |
+| 7      | **ModelScope**                             | 模型仓库 | 中国团队模型首发地                                                          | modelscope.cn                                       |
+| 8      | **Ollama Cheat Sheet** (computingforgeeks) | 速查     | 按 VRAM/场景排序的 Ollama 模型速查表                                        | computingforgeeks.com/ollama-models-cheat-sheet     |
 
 **来源分类**（四层，避免混淆）：
 
-| 分类 | 说明 | 示例 | 证据类型 |
-|------|------|------|----------|
-| **模型目录**（发现与分发） | 浏览、搜索、一键安装 | Ollama Library、LM Studio 目录 | 第一方事实（模型卡、LICENSE） |
-| **权重仓库**（获取与模型卡） | 下载权重、看模型卡和许可证 | HuggingFace、ModelScope | 第一方事实 + 发行与安装 |
-| **评测结果**（能力证据） | 质量/速度/成本对比 | HF Eval Results、Artificial Analysis、Roboflow Benchmark | 独立评估 |
-| **运行时**（执行与本机验证） | 实际运行模型推理 | Ollama、llama.cpp、mlx-vlm、vLLM | 本机决策 |
+| 分类                         | 说明                       | 示例                                                     | 证据类型                      |
+| ---------------------------- | -------------------------- | -------------------------------------------------------- | ----------------------------- |
+| **模型目录**（发现与分发）   | 浏览、搜索、一键安装       | Ollama Library、LM Studio 目录                           | 第一方事实（模型卡、LICENSE） |
+| **权重仓库**（获取与模型卡） | 下载权重、看模型卡和许可证 | HuggingFace、ModelScope                                  | 第一方事实 + 发行与安装       |
+| **评测结果**（能力证据）     | 质量/速度/成本对比         | HF Eval Results、Artificial Analysis、Roboflow Benchmark | 独立评估                      |
+| **运行时**（执行与本机验证） | 实际运行模型推理           | Ollama、llama.cpp、mlx-vlm、vLLM                         | 本机决策                      |
 
 > **注意**：Ollama 同时是模型目录（Library）和运行时（serve）。在选模型阶段查 Library，在验证阶段用 serve。
 >
@@ -174,23 +179,23 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 ### 权重容器（文件格式）
 
-| 格式 | 推理引擎 | 跨引擎？ | Apple Silicon | 说明 |
-|------|---------|---------|--------------|------|
-| **GGUF** | llama.cpp / Ollama / LM Studio | ✅ | ✅ Metal | llama.cpp **创建**的格式（替代旧 GGML），现为本地推理通用标准 |
-| **MLX** | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生 | Apple Silicon 原生格式 |
-| **safetensors** | transformers / vLLM | ✅ | ✅ MPS | 全精度源格式，量化前的基础 |
+| 格式            | 推理引擎                          | 跨引擎？      | Apple Silicon | 说明                                                          |
+| --------------- | --------------------------------- | ------------- | ------------- | ------------------------------------------------------------- |
+| **GGUF**        | llama.cpp / Ollama / LM Studio    | ✅            | ✅ Metal      | llama.cpp **创建**的格式（替代旧 GGML），现为本地推理通用标准 |
+| **MLX**         | mlx-lm / mlx-vlm / Ollama (macOS) | ❌ Apple only | ✅ 原生       | Apple Silicon 原生格式                                        |
+| **safetensors** | transformers / vLLM               | ✅            | ✅ MPS        | 全精度源格式，量化前的基础                                    |
 
 > **性能说明**：不同格式间的性能对比必须以目标模型、量化等级、上下文长度、运行时版本和目标机器的可复现实测为准，不存在普遍适用的百分比结论。
 
 ### 量化方法
 
-| 方法 | 适用引擎 | 硬件 | 量化位宽 | 说明 |
-|------|---------|------|---------|------|
-| **K-quants** | llama.cpp / Ollama | ✅ Metal | Q2-Q8 | GGUF 的量化方式 |
-| **MLX 量化** | mlx-lm / mlx-vlm | ✅ 原生 | 2-8 bit | MLX 原生量化 |
-| **GPTQ** | vLLM / transformers | ❌ NVIDIA | 4-bit | 量化算法，权重存为 safetensors |
-| **AWQ** | vLLM / transformers | ❌ NVIDIA | 4-bit | 量化算法，质量通常优于 GPTQ |
-| **EXL2** | ExLlamaV2 | ❌ NVIDIA | 2-8 bpw | 可变比特率，精确填满 VRAM 预算 |
+| 方法         | 适用引擎            | 硬件      | 量化位宽 | 说明                           |
+| ------------ | ------------------- | --------- | -------- | ------------------------------ |
+| **K-quants** | llama.cpp / Ollama  | ✅ Metal  | Q2-Q8    | GGUF 的量化方式                |
+| **MLX 量化** | mlx-lm / mlx-vlm    | ✅ 原生   | 2-8 bit  | MLX 原生量化                   |
+| **GPTQ**     | vLLM / transformers | ❌ NVIDIA | 4-bit    | 量化算法，权重存为 safetensors |
+| **AWQ**      | vLLM / transformers | ❌ NVIDIA | 4-bit    | 量化算法，质量通常优于 GPTQ    |
+| **EXL2**     | ExLlamaV2           | ❌ NVIDIA | 2-8 bpw  | 可变比特率，精确填满 VRAM 预算 |
 
 **Apple Silicon 决策**：有 MLX 版优先 MLX，没有则用 GGUF。`safetensors` 用于全精度或 fine-tuning。
 
@@ -202,13 +207,13 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 ### 3.1 检查 CUDA 硬依赖
 
-| 检查项 | 在哪里看 | CUDA 专用信号 |
-|--------|---------|-------------|
-| `requirements.txt` | repo 根目录 | `onnxruntime-gpu`, `xformers`, `bitsandbytes`, `ninja`, `mmcv-full` |
-| `docker-compose.yml` | `deploy/` 目录 | `runtime: nvidia`, `capabilities: [gpu]` |
-| 推理代码 | `grep -r "cuda\|\.to(device)" *.py` | `device = "cuda"` 硬编码 |
-| 训练代码 | `train.py` | 通常更难移植 |
-| README | 安装/硬件要求章节 | "Requires NVIDIA GPU" |
+| 检查项               | 在哪里看                            | CUDA 专用信号                                                       |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------- |
+| `requirements.txt`   | repo 根目录                         | `onnxruntime-gpu`, `xformers`, `bitsandbytes`, `ninja`, `mmcv-full` |
+| `docker-compose.yml` | `deploy/` 目录                      | `runtime: nvidia`, `capabilities: [gpu]`                            |
+| 推理代码             | `grep -r "cuda\|\.to(device)" *.py` | `device = "cuda"` 硬编码                                            |
+| 训练代码             | `train.py`                          | 通常更难移植                                                        |
+| README               | 安装/硬件要求章节                   | "Requires NVIDIA GPU"                                               |
 
 ### 3.2 MPS 兼容性判断
 
@@ -221,14 +226,14 @@ grep -r "cuda\|device" inference.py | head -20
 
 ### 3.3 常见 CUDA 专用包替代方案
 
-| CUDA 专用包 | macOS 替代 |
-|------------|-----------|
-| `onnxruntime-gpu` | `onnxruntime-silicon` 或 `onnxruntime`（CPU） |
-| `xformers` | 无直接替代，需跳过或用 PyTorch 原生 attention |
-| `bitsandbytes` | 无 macOS 版本 |
-| `mmcv-full` | `mmcv`（可能功能受限） |
-| `ninja` | `brew install ninja` |
-| `mmpose` + `mmdet` | 可用但需 MPS 后端 |
+| CUDA 专用包        | macOS 替代                                    |
+| ------------------ | --------------------------------------------- |
+| `onnxruntime-gpu`  | `onnxruntime-silicon` 或 `onnxruntime`（CPU） |
+| `xformers`         | 无直接替代，需跳过或用 PyTorch 原生 attention |
+| `bitsandbytes`     | 无 macOS 版本                                 |
+| `mmcv-full`        | `mmcv`（可能功能受限）                        |
+| `ninja`            | `brew install ninja`                          |
+| `mmpose` + `mmdet` | 可用但需 MPS 后端                             |
 
 ---
 
@@ -311,31 +316,31 @@ Step 8: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 
 状态为「可验证」且证据卡（见 §4 Step 7a）完整的候选，按四维度各打 1-5 分，加权求和：
 
-| 维度 | 权重 | 5 分 | 3 分 | 1 分 |
-|------|------|------|------|------|
-| Apple Silicon 加速成熟度 | 30% | MLX 原生 | Metal / CoreML | MPS only / CPU |
-| 许可证宽松度 | 20% | MIT / Apache-2.0 | BSD / MPL-2.0 / CC-BY-4.0 | NC 许可证（需法务确认） |
-| 精度/质量 | 30% | 业界 SOTA | 可用 | 一般 |
-| 社区与工具链 | 20% | 活跃维护 + 完善工具链 | 有更新 | 停更 / 无工具链 |
+| 维度                     | 权重 | 5 分                  | 3 分                      | 1 分                    |
+| ------------------------ | ---- | --------------------- | ------------------------- | ----------------------- |
+| Apple Silicon 加速成熟度 | 30%  | MLX 原生              | Metal / CoreML            | MPS only / CPU          |
+| 许可证宽松度             | 20%  | MIT / Apache-2.0      | BSD / MPL-2.0 / CC-BY-4.0 | NC 许可证（需法务确认） |
+| 精度/质量                | 30%  | 业界 SOTA             | 可用                      | 一般                    |
+| 社区与工具链             | 20%  | 活跃维护 + 完善工具链 | 有更新                    | 停更 / 无工具链         |
 
 **完成标准**：选定一个模型，记录四维度评分和总分到调研报告中。总分相同看精度。
 
 ### 领域推荐索引
 
-| 领域 | 详细对比见 |
-|------|-----------|
-| ASR | 下表 |
-| TTS | `docs/research/voice-cloning-solutions-m2-pro.md` |
+| 领域         | 详细对比见                                        |
+| ------------ | ------------------------------------------------- |
+| ASR          | 下表                                              |
+| TTS          | `docs/research/voice-cloning-solutions-m2-pro.md` |
 | VLM / 数字人 | `docs/research/digital-human-solutions-m2-pro.md` |
 
 ### ASR 速查
 
-| 工具 | 许可证 | 加速 | 推荐模型 | 总分 | 状态 |
-|------|--------|------|----------|------|------|
-| whisper.cpp | MIT | Metal + CoreML | large-v3-turbo | **4.7** | ⭐ 首选 |
-| mlx-whisper | MIT | MLX | large-v3 | **4.6** | ⭐ 备选 |
-| Parakeet MLX | Apache-2.0 | MLX | 0.6B | **4.0** | ⚠️ 英文为主 |
-| whisperx | BSD-4 | CPU | base | **2.7** | ⚠️ 仅 alignment |
-| Canary-Qwen | CC-BY-NC | ❌ CUDA | — | — | ⚠️ NC + 无加速，未评分 |
+| 工具         | 许可证     | 加速           | 推荐模型       | 总分    | 状态                   |
+| ------------ | ---------- | -------------- | -------------- | ------- | ---------------------- |
+| whisper.cpp  | MIT        | Metal + CoreML | large-v3-turbo | **4.7** | ⭐ 首选                |
+| mlx-whisper  | MIT        | MLX            | large-v3       | **4.6** | ⭐ 备选                |
+| Parakeet MLX | Apache-2.0 | MLX            | 0.6B           | **4.0** | ⚠️ 英文为主            |
+| whisperx     | BSD-4      | CPU            | base           | **2.7** | ⚠️ 仅 alignment        |
+| Canary-Qwen  | CC-BY-NC   | ❌ CUDA        | —              | —       | ⚠️ NC + 无加速，未评分 |
 
 > 评分明细：whisper.cpp 加速5/许可5/精度4/社区5；mlx-whisper 5/5/5/3；Parakeet 5/5/3/3；whisperx 1/3/3/4。Canary-Qwen 两个门槛均未通过（NC + CUDA only），未进入评分。

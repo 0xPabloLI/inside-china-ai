@@ -11,6 +11,7 @@
 ## Solution
 
 Add `ensureCdpProxy()` to `cdp-client.mjs` that:
+
 1. Checks if proxy already running (GET `/targets`)
 2. If not, finds and starts `cdp-proxy.mjs` as a detached background process
 3. Waits for health with retry
@@ -25,6 +26,7 @@ Replace `process.exit(1)` in `search-sources.mjs main()` with `ensureCdpProxy()`
 
 **D2: Multi-path search for cdp-proxy.mjs.**
 The proxy script lives in the web-access skill directory (`~/.agents/skills/web-access/scripts/cdp-proxy.mjs`). We search candidate paths in order:
+
 1. `~/.agents/skills/web-access/scripts/cdp-proxy.mjs` (global skill install)
 2. `<project>/.cursor/skills/web-access/scripts/cdp-proxy.mjs` (project-local skill)
 3. `<project>/scripts/short-video/lib/cdp-proxy.mjs` (future project-local copy)
@@ -33,12 +35,14 @@ If none found, return `false` (graceful degradation — API/MCP sources continue
 
 **D3: Graceful degradation, no hard-fail.**
 When proxy can't start (script not found, Chrome not running, timeout):
+
 - Set `cdpAvailable = false`
 - Print actionable warning (how to enable CDP)
 - CDP-only sources are skipped (existing `collectFromCdp` checks `if (!cdpAvailable) return []`)
 - API and MCP sources continue collecting
 
 **D4: Configurable via environment.**
+
 - `CDP_PROXY_PORT` (default 3456) — override proxy port
 - `CDP_PROXY_START_RETRIES` (default 10) — max health check retries
 - `CDP_PROXY_START_INTERVAL_MS` (default 1000) — interval between retries
@@ -69,6 +73,7 @@ export async function ensureCdpProxy(opts) { ... }
 ### Modified logic in `search-sources.mjs main()`
 
 **Before** (lines ~434-453):
+
 ```javascript
 cdpAvailable = false;
 try {
@@ -85,6 +90,7 @@ try {
 ```
 
 **After**:
+
 ```javascript
 cdpAvailable = await ensureCdpProxy();
 if (!cdpAvailable) {
@@ -109,25 +115,25 @@ if (!cdpAvailable) {
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk Level | Assessment |
-|------|-------------|------------|------------|
-| `scripts/short-video/lib/cdp-client.mjs` | Add `findCdpProxyScript()` + `ensureCdpProxy()` (pure additions, no modification to existing functions) | Low | New functions only; existing `cdpNewTab`/`cdpEval`/etc unchanged |
-| `scripts/short-video/search-sources.mjs` | Replace CDP check block (L434-453) with `ensureCdpProxy()` call + graceful warning instead of `process.exit(1)` | Medium | Changes main() control flow at one location; existing `collectFromCdp` already handles `cdpAvailable=false`; fallback chain (API→CDP→googleSite→MCP) unaffected because CDP step already returns `[]` when unavailable |
-| `scripts/short-video/__tests__/cdp-client.test.mjs` | Add test suite for `findCdpProxyScript` + `ensureCdpProxy` | Low | Pure additions to test file |
+| File                                                | Modification                                                                                                    | Risk Level | Assessment                                                                                                                                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/cdp-client.mjs`            | Add `findCdpProxyScript()` + `ensureCdpProxy()` (pure additions, no modification to existing functions)         | Low        | New functions only; existing `cdpNewTab`/`cdpEval`/etc unchanged                                                                                                                                                       |
+| `scripts/short-video/search-sources.mjs`            | Replace CDP check block (L434-453) with `ensureCdpProxy()` call + graceful warning instead of `process.exit(1)` | Medium     | Changes main() control flow at one location; existing `collectFromCdp` already handles `cdpAvailable=false`; fallback chain (API→CDP→googleSite→MCP) unaffected because CDP step already returns `[]` when unavailable |
+| `scripts/short-video/__tests__/cdp-client.test.mjs` | Add test suite for `findCdpProxyScript` + `ensureCdpProxy`                                                      | Low        | Pure additions to test file                                                                                                                                                                                            |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | CDP proxy already running (`/targets` returns ok) | Return `true` immediately, no spawn | Low | Check-first-before-spawn pattern |
-| 2 | Proxy not running, cdp-proxy.mjs found in skill dir | `spawn` detached → retry `/targets` → return `true` | Low | Detached + unref; health check with retry |
-| 3 | cdp-proxy.mjs not found in any candidate path | Return `false`, print warning with actionable message | Medium | Multi-path search; graceful degradation; API/MCP sources continue |
-| 4 | Proxy spawned but health check times out (Chrome not running) | Exhaust retries → return `false` → degrade | Medium | Configurable retries; warning tells user to enable remote debugging |
-| 5 | All sources are MCP/API (research mode, no CDP sources) | `ensureCdpProxy` returns false → pipeline continues normally | Low | Check `mcpOrApiSources === sources.length` |
-| 6 | Mixed sources (some CDP, some API) + proxy start fails | CDP sources return `[]` (existing `collectFromCdp` guard), API sources continue | Low | `cdpAvailable=false` already handled in `collectFromCdp` |
-| 7 | Proxy spawned successfully, `/targets` returns array | Return `true` → `cdpAvailable=true` → CDP sources work | Low | Standard happy path |
-| 8 | Proxy running but Chrome disconnected (proxy alive, /targets returns error) | `/targets` fails → attempt to start new proxy → port conflict or new proxy starts | Medium | If existing proxy process holds port, spawn fails; caught in retry; worst case degrade |
-| 9 | `CDP_PROXY_PORT` env var set to non-default | Functions use configured port | Low | Read from env at module level |
+| #   | Scenario                                                                    | Expected Behavior                                                                 | Risk   | Mitigation                                                                             |
+| --- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------- |
+| 1   | CDP proxy already running (`/targets` returns ok)                           | Return `true` immediately, no spawn                                               | Low    | Check-first-before-spawn pattern                                                       |
+| 2   | Proxy not running, cdp-proxy.mjs found in skill dir                         | `spawn` detached → retry `/targets` → return `true`                               | Low    | Detached + unref; health check with retry                                              |
+| 3   | cdp-proxy.mjs not found in any candidate path                               | Return `false`, print warning with actionable message                             | Medium | Multi-path search; graceful degradation; API/MCP sources continue                      |
+| 4   | Proxy spawned but health check times out (Chrome not running)               | Exhaust retries → return `false` → degrade                                        | Medium | Configurable retries; warning tells user to enable remote debugging                    |
+| 5   | All sources are MCP/API (research mode, no CDP sources)                     | `ensureCdpProxy` returns false → pipeline continues normally                      | Low    | Check `mcpOrApiSources === sources.length`                                             |
+| 6   | Mixed sources (some CDP, some API) + proxy start fails                      | CDP sources return `[]` (existing `collectFromCdp` guard), API sources continue   | Low    | `cdpAvailable=false` already handled in `collectFromCdp`                               |
+| 7   | Proxy spawned successfully, `/targets` returns array                        | Return `true` → `cdpAvailable=true` → CDP sources work                            | Low    | Standard happy path                                                                    |
+| 8   | Proxy running but Chrome disconnected (proxy alive, /targets returns error) | `/targets` fails → attempt to start new proxy → port conflict or new proxy starts | Medium | If existing proxy process holds port, spawn fails; caught in retry; worst case degrade |
+| 9   | `CDP_PROXY_PORT` env var set to non-default                                 | Functions use configured port                                                     | Low    | Read from env at module level                                                          |
 
 ## Out of Scope
 

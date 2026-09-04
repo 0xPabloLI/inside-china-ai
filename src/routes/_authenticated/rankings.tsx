@@ -18,10 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/rankings")({
   head: () => ({
-    meta: [
-      { title: "Keyword Rankings — Admin" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Keyword Rankings — Admin" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: RankingsPage,
 });
@@ -99,8 +96,7 @@ function RankingsPage() {
     queryFn: () => list(),
   });
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["tracked-keywords"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["tracked-keywords"] });
 
   const refreshMutation = useMutation({
     mutationFn: () => refresh(),
@@ -149,8 +145,8 @@ function RankingsPage() {
             </Link>
             <h1 className="mt-2 font-serif text-3xl">Keyword Rankings</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Google positions and demand for chinaai.news, from Semrush. Snapshots are stored
-              once per day so you can see the trend.
+              Google positions and demand for chinaai.news, from Semrush. Snapshots are stored once
+              per day so you can see the trend.
             </p>
           </div>
           <Button
@@ -264,9 +260,7 @@ function RankingsPage() {
                       <Delta row={row} />
                     </td>
                     <td className="px-4 py-3">
-                      {row.searchVolume === null
-                        ? "—"
-                        : row.searchVolume.toLocaleString("en-US")}
+                      {row.searchVolume === null ? "—" : row.searchVolume.toLocaleString("en-US")}
                     </td>
                     <td className="px-4 py-3">
                       {row.difficulty === null ? "—" : Math.round(row.difficulty)}

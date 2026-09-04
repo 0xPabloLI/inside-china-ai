@@ -48,6 +48,7 @@ After `asset-sourcer.mjs` completes in Step 1.5, read `output/<contentDir>/media
 ### Cross-Step Interface Contract
 
 `media-patch.json` entries (produced by `asset-sourcer.mjs`):
+
 ```
 { sceneId: number, sceneName: string, visualType: string,
   media: { type, path, source?, animation, overlay, fit?, volume? },
@@ -68,33 +69,33 @@ After `asset-sourcer.mjs` completes in Step 1.5, read `output/<contentDir>/media
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `lib/subtitles/cues.mjs` | `HOLD_OUT_GAP_THRESHOLD` 0.6 → 2.0 | Medium | Changes subtitle timing for all videos. Existing tests don't cover holdOutExtension directly — new tests required. |
-| `lib/verify-subtitles.mjs` | coverage gaps: warnings → errors | Medium | Changes pipeline pass/fail behavior. Could cause previously passing videos to fail. Mitigated: fix A ensures gaps are filled, so coverage should be 100%. |
-| `main.mjs` | Add Step 1.5c: apply media-patch to scenes | Low | Pure addition — new code block after existing Step 1.5. Doesn't modify existing logic. |
-| `__tests__/subtitle-cues.test.mjs` | New holdOutExtension gap tests | Low | Pure addition. |
-| `__tests__/verify-subtitles.test.mjs` | New coverage gate tests | Low | Pure addition. |
+| File                                  | Modification                               | Risk   | Assessment                                                                                                                                                |
+| ------------------------------------- | ------------------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/subtitles/cues.mjs`              | `HOLD_OUT_GAP_THRESHOLD` 0.6 → 2.0         | Medium | Changes subtitle timing for all videos. Existing tests don't cover holdOutExtension directly — new tests required.                                        |
+| `lib/verify-subtitles.mjs`            | coverage gaps: warnings → errors           | Medium | Changes pipeline pass/fail behavior. Could cause previously passing videos to fail. Mitigated: fix A ensures gaps are filled, so coverage should be 100%. |
+| `main.mjs`                            | Add Step 1.5c: apply media-patch to scenes | Low    | Pure addition — new code block after existing Step 1.5. Doesn't modify existing logic.                                                                    |
+| `__tests__/subtitle-cues.test.mjs`    | New holdOutExtension gap tests             | Low    | Pure addition.                                                                                                                                            |
+| `__tests__/verify-subtitles.test.mjs` | New coverage gate tests                    | Low    | Pure addition.                                                                                                                                            |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Inter-cue gap 1.5s (scene transition silence) | holdOutExtension fills gap: earlier cue end → next cue start - CHAIN_GAP | Coverage gap was 1.56s in doubao-work | Threshold raised to 2.0s |
-| 2 | Inter-cue gap 2.5s (long silence, e.g. music intro) | holdOutExtension does NOT fill gap | Over-filling would show stale text too long | 2.0s threshold caps fill range |
-| 3 | Inter-cue gap 0.3s (normal) | holdOutExtension fills (existing behavior unchanged) | None | Already covered by existing logic |
-| 4 | Coverage 100% (no gaps) | buildReport: errors=0, passed=true | None | Happy path |
-| 5 | Coverage 97.9% (1.56s gap, pre-fix) | buildReport: errors=1, passed=false | Pipeline fails until Fix A applied | Fix A raises threshold so gap is filled |
-| 6 | Trailing gap 0.5s at video end | buildReport: warning (not error) | CTA scene ends before video | Exception: trailing < 1.0s = warning |
-| 7 | Trailing gap 1.5s at video end | buildReport: error | Real coverage issue | Must FAIL |
-| 8 | media-patch.json has 8 assigned entries | Step 1.5c applies 8 media to scenes, prints summary | None | Happy path |
-| 9 | media-patch.json has 0 assigned, 10 unassigned | Step 1.5c prints WARNING, continues with CSS fallback | Same as current behavior | Graceful degradation |
-| 10 | media-patch.json does not exist | Step 1.5c skips silently | None | asset-sourcer wasn't triggered |
-| 11 | Scene already has media.path declared | Step 1.5c skips that scene | Manual curation preserved | `if (!scene.media)` guard |
-| 12 | Scene has media.path but file missing | Step 1.5 tries asset-sourcer → patch generated → Step 1.5c applies | Full round-trip | Existing Step 1.5 logic + new 1.5c |
-| 13 | Empty cues array | holdOutExtension returns [], coverage=0% → error | Edge case | `holdOutExtension` already handles: `if (cues.length < 2) return cues` |
-| 14 | Single cue spanning entire video | coverage=100%, no gaps | Edge case | Happy path |
-| 15 | patch.media.path is absolute path | Step 1.5c normalizes to relative | Path traversal risk | `normalizePathForPatch` already used by asset-sourcer |
+| #   | Scenario                                            | Expected Behavior                                                        | Risk                                        | Mitigation                                                             |
+| --- | --------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------- |
+| 1   | Inter-cue gap 1.5s (scene transition silence)       | holdOutExtension fills gap: earlier cue end → next cue start - CHAIN_GAP | Coverage gap was 1.56s in doubao-work       | Threshold raised to 2.0s                                               |
+| 2   | Inter-cue gap 2.5s (long silence, e.g. music intro) | holdOutExtension does NOT fill gap                                       | Over-filling would show stale text too long | 2.0s threshold caps fill range                                         |
+| 3   | Inter-cue gap 0.3s (normal)                         | holdOutExtension fills (existing behavior unchanged)                     | None                                        | Already covered by existing logic                                      |
+| 4   | Coverage 100% (no gaps)                             | buildReport: errors=0, passed=true                                       | None                                        | Happy path                                                             |
+| 5   | Coverage 97.9% (1.56s gap, pre-fix)                 | buildReport: errors=1, passed=false                                      | Pipeline fails until Fix A applied          | Fix A raises threshold so gap is filled                                |
+| 6   | Trailing gap 0.5s at video end                      | buildReport: warning (not error)                                         | CTA scene ends before video                 | Exception: trailing < 1.0s = warning                                   |
+| 7   | Trailing gap 1.5s at video end                      | buildReport: error                                                       | Real coverage issue                         | Must FAIL                                                              |
+| 8   | media-patch.json has 8 assigned entries             | Step 1.5c applies 8 media to scenes, prints summary                      | None                                        | Happy path                                                             |
+| 9   | media-patch.json has 0 assigned, 10 unassigned      | Step 1.5c prints WARNING, continues with CSS fallback                    | Same as current behavior                    | Graceful degradation                                                   |
+| 10  | media-patch.json does not exist                     | Step 1.5c skips silently                                                 | None                                        | asset-sourcer wasn't triggered                                         |
+| 11  | Scene already has media.path declared               | Step 1.5c skips that scene                                               | Manual curation preserved                   | `if (!scene.media)` guard                                              |
+| 12  | Scene has media.path but file missing               | Step 1.5 tries asset-sourcer → patch generated → Step 1.5c applies       | Full round-trip                             | Existing Step 1.5 logic + new 1.5c                                     |
+| 13  | Empty cues array                                    | holdOutExtension returns [], coverage=0% → error                         | Edge case                                   | `holdOutExtension` already handles: `if (cues.length < 2) return cues` |
+| 14  | Single cue spanning entire video                    | coverage=100%, no gaps                                                   | Edge case                                   | Happy path                                                             |
+| 15  | patch.media.path is absolute path                   | Step 1.5c normalizes to relative                                         | Path traversal risk                         | `normalizePathForPatch` already used by asset-sourcer                  |
 
 ## Out of Scope
 

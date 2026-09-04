@@ -55,13 +55,13 @@ unavailable. Network interception only if API method fails.
   ```js
   // 1. Get video metadata (itemId from short URL redirect)
   const detail = await fetch(
-    'https://www.tiktok.com/aweme/v1/web/item/detail/?itemId=VIDEO_ID&aid=1988',
-    {credentials:'include'}
-  ).then(r => r.json());
+    "https://www.tiktok.com/aweme/v1/web/item/detail/?itemId=VIDEO_ID&aid=1988",
+    { credentials: "include" },
+  ).then((r) => r.json());
   // 2. Extract playAddr
   const playAddr = detail.itemInfo.item.video.playAddr;
   // 3. Download video (returns Blob)
-  const blob = await fetch(playAddr, {credentials:'include'}).then(r => r.blob());
+  const blob = await fetch(playAddr, { credentials: "include" }).then((r) => r.blob());
   // 4. Convert to base64 or save via CDP download handler
   ```
 
@@ -92,13 +92,13 @@ unavailable. Network interception only if API method fails.
 The `item/detail` → `playAddr` approach is the most common TikTok
 reverse-engineering method in the open-source community. Key projects:
 
-| Project | Approach | Stars | Relevance to us |
-|---------|----------|-------|-----------------|
-| **TikTokApi** (davidteather) | Python, calls TikTok API + extracts playAddr | ~10K+ | Same concept as our Method A, but needs signature signing |
-| **Cobalt** (imputnet) | Node.js service, parses rehydration JSON for playAddr | ~3K+ | Self-deployable HTTP API; overkill for our low-frequency use |
-| **Douyin_TikTok_Download_API** (Evil0ctal) | Python FastAPI, handles `a_bogus` signing | 19K | Most popular but requires reversing X-Bogus/X-Argus signature |
-| **tiktok-api-dl** (TobyG74) | Node.js wrapper around ssstik.io + musicaldown.com | — | Depends on third-party scraping services (privacy risk) |
-| **yt-dlp** | Attempts HTML rehydration JSON extraction | — | Blocked by TikTok JS challenge |
+| Project                                    | Approach                                              | Stars | Relevance to us                                               |
+| ------------------------------------------ | ----------------------------------------------------- | ----- | ------------------------------------------------------------- |
+| **TikTokApi** (davidteather)               | Python, calls TikTok API + extracts playAddr          | ~10K+ | Same concept as our Method A, but needs signature signing     |
+| **Cobalt** (imputnet)                      | Node.js service, parses rehydration JSON for playAddr | ~3K+  | Self-deployable HTTP API; overkill for our low-frequency use  |
+| **Douyin_TikTok_Download_API** (Evil0ctal) | Python FastAPI, handles `a_bogus` signing             | 19K   | Most popular but requires reversing X-Bogus/X-Argus signature |
+| **tiktok-api-dl** (TobyG74)                | Node.js wrapper around ssstik.io + musicaldown.com    | —     | Depends on third-party scraping services (privacy risk)       |
+| **yt-dlp**                                 | Attempts HTML rehydration JSON extraction             | —     | Blocked by TikTok JS challenge                                |
 
 **Why CDP over third-party:** no signature reversing (browser carries cookies +
 signed headers), no external dependency (privacy risk on ssstik.io etc.). Only
@@ -148,6 +148,7 @@ $FFMPEG -i output/reference-videos/reference.mp4 -vf "fps=1" \
 ## When to start
 
 Prerequisites (all currently met):
+
 - ✅ Pipeline has 5 animation presets + overlay system + media field
 - ✅ `asset-sourcer.mjs` handles automated asset acquisition
 - ✅ `source-registry.mjs` has TikTok Creator Center search (used by search-sources.mjs)
@@ -171,6 +172,7 @@ to find a reference video, and which one.
 
 This path is part of the Analytics workflow (see
 `docs/analytics-workflow.md`). Trigger conditions:
+
 - ⬜ Enough published videos (>10) with analytics data accumulated
 - ⬜ Per-scene retention correlation shows a specific visual pattern
   (e.g., media-heavy scenes retain better for product demos)

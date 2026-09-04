@@ -27,37 +27,37 @@
 
 ## Model Releases
 
-| Date | Model | Type | Key Metrics | Source |
-|------|-------|------|-------------|--------|
-| 2024 | DeepSeek-V3 | LLM (671B total, 37B active MoE) | Flagship reasoning model. Trained on Nvidia chips without CUDA ecosystem (using TileLang). | [Hugging Face](https://huggingface.co/deepseek-ai) |
-| 2024 | DeepSeek-Coder | Code-specialized LLM | 16K context, $0.07/$0.14 per 1M tokens | [DeepSeek API](https://www.deepseek.com/) |
-| Jan 2025 | **DeepSeek-R1** | Reasoning model | Strong reasoning at remarkably low reported training costs. Shocked Silicon Valley. | [Wikipedia](https://en.wikipedia.org/wiki/DeepSeek) |
-| 2026 | DeepSeek-V3.2 Flash | Fast inference LLM | 64K context, $0.01/$0.02 per 1M tokens. Price cut to 1/4 of original — team cheered. | [DeepSeek API](https://www.deepseek.com/) |
-| Jul 31, 2026 | **DeepSeek-V4-Flash** | LLM | Official version launched. Price increase announced same day as Zhang Yiming's anti-distillation statement. | [The Paper](https://m.thepaper.cn/newsDetail_forward_33732502) |
-| ~End of 2026 (optimistic) | Next-gen (150-250B activation) | LLM | Targeting frontier-level performance. Training may start end of 2026. | Investor meeting transcript |
+| Date                      | Model                          | Type                             | Key Metrics                                                                                                 | Source                                                         |
+| ------------------------- | ------------------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 2024                      | DeepSeek-V3                    | LLM (671B total, 37B active MoE) | Flagship reasoning model. Trained on Nvidia chips without CUDA ecosystem (using TileLang).                  | [Hugging Face](https://huggingface.co/deepseek-ai)             |
+| 2024                      | DeepSeek-Coder                 | Code-specialized LLM             | 16K context, $0.07/$0.14 per 1M tokens                                                                      | [DeepSeek API](https://www.deepseek.com/)                      |
+| Jan 2025                  | **DeepSeek-R1**                | Reasoning model                  | Strong reasoning at remarkably low reported training costs. Shocked Silicon Valley.                         | [Wikipedia](https://en.wikipedia.org/wiki/DeepSeek)            |
+| 2026                      | DeepSeek-V3.2 Flash            | Fast inference LLM               | 64K context, $0.01/$0.02 per 1M tokens. Price cut to 1/4 of original — team cheered.                        | [DeepSeek API](https://www.deepseek.com/)                      |
+| Jul 31, 2026              | **DeepSeek-V4-Flash**          | LLM                              | Official version launched. Price increase announced same day as Zhang Yiming's anti-distillation statement. | [The Paper](https://m.thepaper.cn/newsDetail_forward_33732502) |
+| ~End of 2026 (optimistic) | Next-gen (150-250B activation) | LLM                              | Targeting frontier-level performance. Training may start end of 2026.                                       | Investor meeting transcript                                    |
 
 ## Funding History
 
-| Date | Round | Amount | Valuation | Investors | Source |
-|------|-------|--------|-----------|-----------|--------|
-| Jul 2023 | Founding | N/A (self-funded by High-Flyer) | No external valuation | High-Flyer Quant (幻方量化) | [Wikipedia](https://en.wikipedia.org/wiki/DeepSeek) |
-| Apr 2026 | Fundraising launched | Target ~$10B | Pure RMB structure. Min commitment 5B RMB/fund (later 1.5B). | Whitelist funds | [elsewhere](https://elsewhere.news/en/elsewhere/deepseek) + [The Information](https://theinformation.com) |
-| May 2026 | Valuation jump | — | Target ~$45B (up from $10B) | 4-hour investor meeting via Tencent Meeting | [The Silicon Review](https://thesiliconreview.com) + [elsewhere](https://elsewhere.news/en/elsewhere) |
-| Jun 2026 | **First external round closed** | ~$7.4B (~50B RMB) | Post-money ~$50B | Monolith (3B RMB), IDG Capital (3B RMB), CATL ecosystem (Puquan Capital), Loyal Valley Capital, Guozhi Investment (980M RMB), ~100 institutions total. Hillhouse/HSG absent. | [elsewhere](https://elsewhere.news/en/elsewhere/deepseek) + [TechStartups](https://techstartups.com) |
-| Jul 14, 2026 | Round 2 target | — | Pre-money ~$71B (+42%) | TBD | [Financial Times](https://ft.com) + [Cryptonomist](https://en.cryptonomist.ch/2026/07/14/deepseek-new-funding/) |
-| Jul 25, 2026 | **Round 2 paused** | — | $71B target (paused) | — | [Bloomberg](https://fortune.com/2026/07/25/deepseek-liang-wenfeng-backers-fundraising-pause-viral-posts-investors/) (Haze Fan & Pei Li) |
+| Date         | Round                           | Amount                          | Valuation                                                    | Investors                                                                                                                                                                    | Source                                                                                                                                  |
+| ------------ | ------------------------------- | ------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Jul 2023     | Founding                        | N/A (self-funded by High-Flyer) | No external valuation                                        | High-Flyer Quant (幻方量化)                                                                                                                                                  | [Wikipedia](https://en.wikipedia.org/wiki/DeepSeek)                                                                                     |
+| Apr 2026     | Fundraising launched            | Target ~$10B                    | Pure RMB structure. Min commitment 5B RMB/fund (later 1.5B). | Whitelist funds                                                                                                                                                              | [elsewhere](https://elsewhere.news/en/elsewhere/deepseek) + [The Information](https://theinformation.com)                               |
+| May 2026     | Valuation jump                  | —                               | Target ~$45B (up from $10B)                                  | 4-hour investor meeting via Tencent Meeting                                                                                                                                  | [The Silicon Review](https://thesiliconreview.com) + [elsewhere](https://elsewhere.news/en/elsewhere)                                   |
+| Jun 2026     | **First external round closed** | ~$7.4B (~50B RMB)               | Post-money ~$50B                                             | Monolith (3B RMB), IDG Capital (3B RMB), CATL ecosystem (Puquan Capital), Loyal Valley Capital, Guozhi Investment (980M RMB), ~100 institutions total. Hillhouse/HSG absent. | [elsewhere](https://elsewhere.news/en/elsewhere/deepseek) + [TechStartups](https://techstartups.com)                                    |
+| Jul 14, 2026 | Round 2 target                  | —                               | Pre-money ~$71B (+42%)                                       | TBD                                                                                                                                                                          | [Financial Times](https://ft.com) + [Cryptonomist](https://en.cryptonomist.ch/2026/07/14/deepseek-new-funding/)                         |
+| Jul 25, 2026 | **Round 2 paused**              | —                               | $71B target (paused)                                         | —                                                                                                                                                                            | [Bloomberg](https://fortune.com/2026/07/25/deepseek-liang-wenfeng-backers-fundraising-pause-viral-posts-investors/) (Haze Fan & Pei Li) |
 
 **Liang's key funding requirement**: "Don't poach DeepSeek's people." Team stability is the #1 non-negotiable.
 
 ## Key People
 
-| Name | Role | Notes | Source |
-|------|------|-------|--------|
-| **Liang Wenfeng (梁文锋)** | Founder & CEO | Also CEO of High-Flyer Quant. No KPIs, no org chart philosophy. Vision-driven management. | Investor meeting transcript |
-| Luo Fuli (罗福莉) | V2 Core Contributor | Left for Xiaomi (Lei Jun, 10M+ RMB/yr, 2025) | Widget data — `src/components/widgets/deepseek/data/people.ts` |
-| Wang Bingxuan (王炳宣) | First-gen LLM Core Author | Left for Tencent (H2 2025, est. 8-fig package) | Widget data |
-| Guo Daya (郭达雅) | R1 Core Researcher / Coder / Math | Left for ByteDance Seed Team (Agent Lead, Mar 2026) | Widget data |
-| Wei Haoran (魏浩然) | OCR Series Core Author | Left for Baidu (suspected, around CNY 2026) | Widget data |
+| Name                       | Role                              | Notes                                                                                     | Source                                                         |
+| -------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Liang Wenfeng (梁文锋)** | Founder & CEO                     | Also CEO of High-Flyer Quant. No KPIs, no org chart philosophy. Vision-driven management. | Investor meeting transcript                                    |
+| Luo Fuli (罗福莉)          | V2 Core Contributor               | Left for Xiaomi (Lei Jun, 10M+ RMB/yr, 2025)                                              | Widget data — `src/components/widgets/deepseek/data/people.ts` |
+| Wang Bingxuan (王炳宣)     | First-gen LLM Core Author         | Left for Tencent (H2 2025, est. 8-fig package)                                            | Widget data                                                    |
+| Guo Daya (郭达雅)          | R1 Core Researcher / Coder / Math | Left for ByteDance Seed Team (Agent Lead, Mar 2026)                                       | Widget data                                                    |
+| Wei Haoran (魏浩然)        | OCR Series Core Author            | Left for Baidu (suspected, around CNY 2026)                                               | Widget data                                                    |
 
 > **Talent retention note**: Despite departures, Liang states turnover is historically low. First funding round significantly reduced retention risk via substantial employee equity. "As long as the team stays, we'll build AGI."
 

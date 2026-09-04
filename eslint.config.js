@@ -23,6 +23,10 @@ export default tseslint.config(
       // Spike/experiment workspace incl. vendored third-party repos with Python
       // site-packages (.venv) — linting these stalls the full-repo run.
       "scripts/short-video/experiments/**",
+      // Tool temp workspace (session artifacts) — not repo code (#177).
+      ".codeartsdoer/**",
+      // Markdown spec content with a .mjs extension — JS parser cannot parse.
+      "docs/archive/spec-text-overflow-verify.mjs",
     ],
   },
   {

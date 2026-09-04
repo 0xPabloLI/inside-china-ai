@@ -9,6 +9,7 @@
 用户在对比测试 `web_fetch` vs Jina vs CDP 后，确认需要更多免费 API 源补充管线。用户明确要求："你刚才列的可以考虑的那些源都可以加呀，不止加这三个。"
 
 当前 `source-registry.mjs` 已有的 API 直连源：
+
 - arXiv API（学术搜索）
 - Reddit JSON API
 - Hacker News Algolia API
@@ -24,15 +25,16 @@
 
 ### 已测试验证可用的（对比测试 2026-08-20）
 
-| API | URL Pattern | Auth | 成功率 | 内容质量 | 适合 Pipeline |
-|-----|-------------|------|--------|----------|---------------|
-| **Bing News Search** | `https://www.bing.com/news/search?q=...` | 无 | web_fetch ✅ | 高（列表+摘要） | ✅ 已在 registry，CDP 模式 |
-| **Sogou Weixin** | `https://weixin.sogou.com/weixin?type=2&query=...` | 无 | web_fetch ✅ | 中（标题+链接） | ✅ 已在 registry，CDP 模式 |
-| **Baidu Search** | `https://www.baidu.com/s?wd=...` | 无 | jina ✅ | 中 | ✅ 已在 registry，CDP 模式 |
+| API                  | URL Pattern                                        | Auth | 成功率       | 内容质量        | 适合 Pipeline              |
+| -------------------- | -------------------------------------------------- | ---- | ------------ | --------------- | -------------------------- |
+| **Bing News Search** | `https://www.bing.com/news/search?q=...`           | 无   | web_fetch ✅ | 高（列表+摘要） | ✅ 已在 registry，CDP 模式 |
+| **Sogou Weixin**     | `https://weixin.sogou.com/weixin?type=2&query=...` | 无   | web_fetch ✅ | 中（标题+链接） | ✅ 已在 registry，CDP 模式 |
+| **Baidu Search**     | `https://www.baidu.com/s?wd=...`                   | 无   | jina ✅      | 中              | ✅ 已在 registry，CDP 模式 |
 
 ### 新增候选（需要评估+接入）
 
 #### 1. DevNews API (dev.to)
+
 - URL: `https://dev.to/api/articles?tag=ai&per_page=10`
 - Auth: 无
 - 格式: JSON（title, url, description, published_at, cover_image）
@@ -40,6 +42,7 @@
 - 接入方式: `apiSearch` direct-connect
 
 #### 2. NewsAPI.org (有免费层)
+
 - URL: `https://newsapi.org/v2/everything?q=...&apiKey=...`
 - Auth: API Key（免费层 100 req/day，仅开发环境）
 - 格式: JSON
@@ -49,6 +52,7 @@
 - **注意**: 需要先走 4 步评估流程（见 `docs/tools-catalog.md`）
 
 #### 3. The Guardian API
+
 - URL: `https://content.guardianapis.com/search?q=AI&api-key=...`
 - Auth: API Key（免费，需注册）
 - 格式: JSON
@@ -57,6 +61,7 @@
 - 接入方式: `apiSearch` direct-connect
 
 #### 4. New York Times API
+
 - URL: `https://api.nytimes.com/svc/search/v2/articlesearch.json?q=...&api-key=...`
 - Auth: API Key（免费，需注册）
 - 格式: JSON
@@ -65,6 +70,7 @@
 - 接入方式: `apiSearch` direct-connect
 
 #### 5. MediaStack
+
 - URL: `https://api.mediastack.com/v1/news?keywords=...&access_key=...`
 - Auth: API Key（免费层 500 req/month）
 - 格式: JSON
@@ -73,10 +79,12 @@
 - 接入方式: `apiSearch` with `paidApi: true`（免费层有限）
 
 #### 6. GNews (已在 registry 但可增强)
+
 - 已有: `https://gnews.io/api/v4/search?q=...&apikey=...`
 - 可增强: 增加 `category=technology` 参数
 
 #### 7. RSS2JSON Proxy
+
 - URL: `https://api.rss2json.com/v1/api.json?rss_url=...`
 - Auth: 无（免费层 5000 req/day）
 - 格式: JSON（RSS → JSON 转换）
@@ -84,6 +92,7 @@
 - 接入方式: `apiSearch` direct-connect
 
 #### 8. Wikipedia REST API (Reference Source)
+
 - URL: `https://en.wikipedia.org/api/rest_v1/page/summary/DeepSeek`
 - Auth: 无
 - 格式: JSON（title, extract, thumbnail）
@@ -93,6 +102,7 @@
 - 接入方式: `apiSearch` direct-connect, `accessMethod.primary: "api"`, 无 fallback
 
 #### 9. Semantic Scholar API
+
 - URL: `https://api.semanticscholar.org/graph/v1/paper/search?query=...&limit=10`
 - Auth: 无（有速率限制）
 - 格式: JSON（title, url, abstract, authors, year）
@@ -100,6 +110,7 @@
 - 接入方式: `apiSearch` direct-connect
 
 #### 10. Crossref API
+
 - URL: `https://api.crossref.org/works?query=...&rows=10`
 - Auth: 无（推荐加mailto参数）
 - 格式: JSON（title, DOI, authors, published date）
@@ -107,6 +118,7 @@
 - 接入方式: `apiSearch` direct-connect
 
 #### 11. Docker Hub Search (技术类)
+
 - URL: `https://hub.docker.com/v2/search/repositories?query=...&page_size=10`
 - Auth: 无
 - 格式: JSON
@@ -114,6 +126,7 @@
 - 接入方式: `apiSearch` direct-connect
 
 #### 12. Product Hunt API
+
 - URL: `https://api.producthunt.com/v2/api/graphql`
 - Auth: Bearer token（免费，需注册 OAuth app）
 - 格式: GraphQL
@@ -122,6 +135,7 @@
 - **注意**: GraphQL 格式与现有 parser 不兼容，需特殊处理
 
 #### 13. Brave Search API
+
 - URL: `https://api.search.brave.com/res/v1/web/search?q=...&count=10`
 - Auth: API Key（`X-Subscription-Token` header）
 - 格式: JSON（web results + news results）
@@ -133,12 +147,14 @@
 - **注意**: Brave 同时也是 Search API Pool 的成员（Issue #65），但在 source-registry 中作为独立 source（`brave_search`），通过 `apiSearch` 直接 HTTP 调用。两种角色不冲突——source-registry 的 brave_search 是关键词搜索 source，Pool 中的 Brave 是 fallback 层。
 
 #### 14. Hacker News Search (Algolia, 已在 registry)
+
 - 已有: `https://hn.algolia.com/api/v1/search?query=...`
 - 可增强: 增加 `tags=story` 和 `numericFilters=created_at_i>...` 时间过滤
 
 ## Implementation Scope
 
 ### 改动文件
+
 1. `scripts/short-video/lib/source-registry.mjs`
    - 在对应 category 数组中添加新 source 定义
    - 每个新 source 需要：`name`, `label`, `category`, `supportsKeyword`, `accessMethod`, `apiSearch` (url, parser, authRequired)
@@ -156,6 +172,7 @@
    - 更新 API 清单
 
 ### 接入原则
+
 - **先评估再接入**：每个 API 走 `docs/tools-catalog.md` 的 4 步评估流程
 - **免费优先**：无 auth 或 free tier 够用的优先
 - **JSON 格式优先**：现有 `apiSearch.parser` 框架支持 JSON，非 JSON（如 RSS/XML）需额外解析器

@@ -27,28 +27,33 @@
 ## 新 session 下一步
 
 ### 方案 1（推荐）：等 Colab T4 可用后运行 v3 脚本
+
 ```bash
 # 检查 T4 是否可用
 HTTPS_PROXY=http://127.0.0.1:7897 colab --auth=adc run --gpu T4 --timeout 36000 \
   scripts/colab/infinitetalk-test/run_infinitetalk_colab.py
 ```
+
 - Colab `/content` 有 ~70-100GB 磁盘，足够 42GB 模型
 - v3 脚本已修复所有已知问题（`Popen` 实时输出 + `--quant fp8` + 跳过 LoRA + 修复 `hf download`）
 - T4 通常在非高峰时段（北京时间凌晨/早上）更容易分配
 
 ### 方案 2：Modal T4（$30/月 free credits）
+
 - 参考 `scripts/short-video/experiments/modal-echomimicv3-nf4.py`
 - Modal Volume 可以持久化模型文件，不用每次下载
 - 定价：$0.59/h T4（[[memory:17867091779830351596]]）
 - 不需要代理，直连 HuggingFace
 
 ### 方案 3：本地下载 + Kaggle Dataset 上传
+
 - 在本地 Mac 上用 `hf download` 下载所有 42GB 模型文件
 - 用 `kaggle datasets create` 上传为 Kaggle Dataset
 - 然后在 Kaggle kernel 中从 `/kaggle/input/` 读取模型运行推理
 - 缺点：42GB 上传时间长
 
 ## 快速检查命令
+
 ```bash
 # 检查 Colab T4 是否可用
 HTTPS_PROXY=http://127.0.0.1:7897 colab --auth=adc run --gpu T4 --timeout 36000 \
@@ -58,12 +63,15 @@ HTTPS_PROXY=http://127.0.0.1:7897 colab --auth=adc run --gpu T4 --timeout 36000 
 ## v3 修复详情（Colab 脚本）
 
 ### 根因：`capture_output=True` 吞掉输出
+
 v2 脚本的 `run()` 函数用 `subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)`：
+
 - 所有 stdout/stderr 被 Python 捕获，不直接输出到 console
 - `hf download` 下载 42GB 模型时长时间无 stdout 输出
 - Colab CLI 的 WebSocket 看不到任何数据 → idle timeout → 连接断开
 
 ### v3 修复：`subprocess.Popen` 实时输出
+
 ```python
 proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                         text=True, bufsize=1, universal_newlines=True)
@@ -81,6 +89,7 @@ for line in proc.stdout:
 ### 1. 必须用 `--quant fp8`（不是 int8）
 
 T5 量化加载代码（`wan/modules/t5.py`）：
+
 ```python
 if quant is not None:
     model_state_dict = load_file(os.path.join(quant_dir, f"t5_{quant}.safetensors"))
@@ -102,37 +111,37 @@ Pipeline 代码：`if lora_dir is not None and quant is None:` → LoRA 只在�
 
 ### Kaggle Dataset Creator
 
-| 版本 | 方法 | 结果 | 根因 |
-|------|------|------|------|
-| v1 | `hf download` CLI | ERROR | Kaggle script 模式无 KAGGLE_USERNAME/KAGGLE_KEY |
-| v2 | `hf download` CLI + `capture_output=True` + `HF_HUB_ENABLE_HF_TRANSFER=1` | COMPLETE 但 0B | `capture_output` 吞输出 + `hf_transfer` 导致 LFS 0B |
-| v3 | `hf download` CLI + `Popen` + timeout 3600s | COMPLETE 但 0B | CLI 保留 repo 路径结构 → 路径重复 + LFS 0B |
-| v4 | `hf_hub_download()` + `shutil.move` | ERROR | symlink 跨文件系统 `shutil.move` 失败 |
-| v5 | `hf_hub_download()` + `shutil.copy2` + `os.path.realpath()` | ERROR | HF cache blob 0B（`hf_hub_download` 在 Kaggle 上 LFS 0B） |
-| v6 | `requests.get()` 直接 HTTP | COMPLETE 但 0B | HF LFS CDN 在 Kaggle 网络中返回 0B |
+| 版本 | 方法                                                                      | 结果           | 根因                                                      |
+| ---- | ------------------------------------------------------------------------- | -------------- | --------------------------------------------------------- |
+| v1   | `hf download` CLI                                                         | ERROR          | Kaggle script 模式无 KAGGLE_USERNAME/KAGGLE_KEY           |
+| v2   | `hf download` CLI + `capture_output=True` + `HF_HUB_ENABLE_HF_TRANSFER=1` | COMPLETE 但 0B | `capture_output` 吞输出 + `hf_transfer` 导致 LFS 0B       |
+| v3   | `hf download` CLI + `Popen` + timeout 3600s                               | COMPLETE 但 0B | CLI 保留 repo 路径结构 → 路径重复 + LFS 0B                |
+| v4   | `hf_hub_download()` + `shutil.move`                                       | ERROR          | symlink 跨文件系统 `shutil.move` 失败                     |
+| v5   | `hf_hub_download()` + `shutil.copy2` + `os.path.realpath()`               | ERROR          | HF cache blob 0B（`hf_hub_download` 在 Kaggle 上 LFS 0B） |
+| v6   | `requests.get()` 直接 HTTP                                                | COMPLETE 但 0B | HF LFS CDN 在 Kaggle 网络中返回 0B                        |
 
 | **v7** | **`curl -L` (LFS) + `hf_hub_download` (small)** | **✅ 下载成功, ❌ 上传失败** | **Kaggle CLI --dir-mode=skip 跳过子目录** |
 | **v8** | **v7 + `--dir-mode zip`** | **✅ 部分成功** | **下载成功, 上传成功但分批 version push 只成功 2/4** |
 
 ### Colab
 
-| 版本 | 问题 | 根因 |
-|------|------|------|
-| v1 | Session 被回收 | pip install `-q` 静默模式导致 WebSocket 超时 |
-| v2 | WebSocket 断开（TCP CLOSED），进程变僵尸 | `hf download` 的 `capture_output=True` 吞掉输出 → WebSocket idle 超时 |
-| v3 | 修复 `run()` Popen 实时输出 | T4 GPU `Service Unavailable`（Google 侧资源不足，非脚本问题） |
+| 版本 | 问题                                     | 根因                                                                  |
+| ---- | ---------------------------------------- | --------------------------------------------------------------------- |
+| v1   | Session 被回收                           | pip install `-q` 静默模式导致 WebSocket 超时                          |
+| v2   | WebSocket 断开（TCP CLOSED），进程变僵尸 | `hf download` 的 `capture_output=True` 吞掉输出 → WebSocket idle 超时 |
+| v3   | 修复 `run()` Popen 实时输出              | T4 GPU `Service Unavailable`（Google 侧资源不足，非脚本问题）         |
 
 ## 平台对比
 
-| 特性 | Kaggle | Colab | Modal |
-|------|--------|-------|-------|
-| 磁盘空间 | ~20GB（/kaggle/working） | ~70-100GB（/content） | Volume 持久化 |
-| GPU 时间限制 | 9h（T4） | 90min 空闲限制 | 按需 |
-| 模型持久化 | Dataset（需上传） | 无（每次重下） | Volume ✅ |
-| HF LFS 下载 | ❌ 0B 文件 | ✅ 正常 | ✅ 正常 |
-| 代理 | Kaggle 内置网络 | Clash Verge 7897 ✅ | 直连 |
-| 成本 | 免费 | 免费 | $0.59/h T4（$30/月 free credits） |
-| 适用性 | ❌ LFS 下载失败 | ✅ 磁盘够用（等 T4 可用） | ✅ 最佳但需付费 |
+| 特性         | Kaggle                   | Colab                     | Modal                             |
+| ------------ | ------------------------ | ------------------------- | --------------------------------- |
+| 磁盘空间     | ~20GB（/kaggle/working） | ~70-100GB（/content）     | Volume 持久化                     |
+| GPU 时间限制 | 9h（T4）                 | 90min 空闲限制            | 按需                              |
+| 模型持久化   | Dataset（需上传）        | 无（每次重下）            | Volume ✅                         |
+| HF LFS 下载  | ❌ 0B 文件               | ✅ 正常                   | ✅ 正常                           |
+| 代理         | Kaggle 内置网络          | Clash Verge 7897 ✅       | 直连                              |
+| 成本         | 免费                     | 免费                      | $0.59/h T4（$30/月 free credits） |
+| 适用性       | ❌ LFS 下载失败          | ✅ 磁盘够用（等 T4 可用） | ✅ 最佳但需付费                   |
 
 ## Clash Verge 代理注意事项
 

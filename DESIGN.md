@@ -145,6 +145,7 @@ A cool, blue-tinted neutral foundation with one saturated brand accent. The pale
 - **Dark Status Muted** (`oklch(0.28 0.05 ...)`): Success/warning/danger muted surfaces at L=0.28 — above card (0.25), below muted (0.31), with semantic chroma.
 
 **Dark mode content overrides** (in `src/styles.css`):
+
 - Blockquote text uses `--foreground` (not `--muted-foreground`) — blockquote is content, not metadata.
 - Prose `line-height` increases from 1.75 to 1.85 — light text on dark backgrounds needs more breathing room.
 
@@ -176,7 +177,7 @@ A cool, blue-tinted neutral foundation with one saturated brand accent. The pale
 
 ## 4. Elevation
 
-This system is **flat by default**. Depth is conveyed through tonal layering (background → card → muted) rather than elevation shadows. The single *surface* exception is the subscribe card, which uses a soft shadow (`shadow-sm`) to lift it above the page surface as a focal CTA.
+This system is **flat by default**. Depth is conveyed through tonal layering (background → card → muted) rather than elevation shadows. The single _surface_ exception is the subscribe card, which uses a soft shadow (`shadow-sm`) to lift it above the page surface as a focal CTA.
 
 ### Shadow Vocabulary
 
@@ -185,7 +186,7 @@ This system is **flat by default**. Depth is conveyed through tonal layering (ba
 - **Floating layers**: popovers, dropdowns, context menus, sheets, toasts carry `shadow-md`/`shadow-lg` to separate them from the page (shadcn standard).
 - **Widget micro-shadows**: small separation details — timeline/phase dots, callout chips (`shadow-sm`/`shadow-md`).
 
-**The Flat-By-Default Rule.** Page surfaces are flat at rest; the only *surface* shadow is the subscribe card. If a new component needs elevation, use a background tint change (card > muted > background) or a border, not a shadow. New decorative elevation shadows require a design review; the shadcn control/floating-layer vocabulary above is the baseline.
+**The Flat-By-Default Rule.** Page surfaces are flat at rest; the only _surface_ shadow is the subscribe card. If a new component needs elevation, use a background tint change (card > muted > background) or a border, not a shadow. New decorative elevation shadows require a design review; the shadcn control/floating-layer vocabulary above is the baseline.
 
 ## 5. Components
 

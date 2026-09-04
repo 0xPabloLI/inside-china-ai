@@ -466,9 +466,9 @@ describe("slotCharBudget (#153 review: contract-derived budget single source)", 
   it("derives the advisory char budget from measured width / preferredSize", () => {
     // narrative.media-overlay.result: 692px, preferredSize 56 →
     // floor(692 / (56 * 0.55)) = 22
-    expect(slotCharBudget({ visualType: "narrative", layout: "media-overlay", field: "result" })).toBe(
-      Math.floor(692 / (56 * 0.55)),
-    );
+    expect(
+      slotCharBudget({ visualType: "narrative", layout: "media-overlay", field: "result" }),
+    ).toBe(Math.floor(692 / (56 * 0.55)));
   });
 
   it("returns null for an unmeasured slot (never guess)", () => {
@@ -485,8 +485,8 @@ describe("slotCharBudget (#153 review: contract-derived budget single source)", 
 
   it("agrees with getSlot's maxWidth for the same slot", () => {
     const slot = getSlot("narrative.media-split.result");
-    expect(slotCharBudget({ visualType: "narrative", layout: "media-split", field: "result" })).toBe(
-      Math.floor(slot.maxWidth / (SLOT_FIELDS.result.preferredSize * 0.55)),
-    );
+    expect(
+      slotCharBudget({ visualType: "narrative", layout: "media-split", field: "result" }),
+    ).toBe(Math.floor(slot.maxWidth / (SLOT_FIELDS.result.preferredSize * 0.55)));
   });
 });

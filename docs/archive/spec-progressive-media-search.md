@@ -39,6 +39,7 @@ A new module `lib/progressive-search.mjs` handles tier evaluation and stop/conti
 ### 1. New module: `lib/progressive-search.mjs`
 
 Responsibilities:
+
 - `shouldTriggerTier3(totalAssets, scenesNeedingMedia)` — returns boolean. Trigger condition: `totalAssets < scenesNeedingMedia`
 - `searchBraveImages(keyword, apiKey, { count, quotaTracker })` — calls Brave Image Search API, parses response into candidates: `{ url, title, type: "image", resolution, source: "brave_image" }`
 - `searchSearXngImages(keyword, { baseUrl, count })` — calls SearXNG image search, parses response into candidates: `{ url: img_src, title, type: "image", resolution, source: "searxng_image" }`
@@ -49,11 +50,13 @@ Responsibilities:
 Add two new entries to `STOCK_MEDIA_SOURCES` (or a new `OPEN_SEARCH_SOURCES` array — see decision below):
 
 **Brave Image Search:**
+
 - `name: "brave_image"`
 - `capabilities.images`: `{ method: "api", requiresApiKey: true, apiKeyEnv: "BRAVE_SEARCH_API_KEY", searchUrl: (kw, key) => \`https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(kw)}&count=20&safesearch=strict\`, authHeader: "X-Subscription-Token", parseResponse: (data, kw) => ... }`
 - `parseResponse` maps `data.results` → `{ url: r.properties.url, title: r.title, type: "image", resolution: r.properties.width && r.properties.height ? \`${r.properties.width}x${r.properties.height}\` : undefined, source: "brave_image" }`
 
 **SearXNG Image Search:**
+
 - `name: "searxng_image"`
 - `capabilities.images`: `{ method: "api", requiresApiKey: false, searchUrl: (kw) => \`http://localhost:8888/search?q=${encodeURIComponent(kw)}&format=json&categories=images\`, parseResponse: (data, kw) => ... }`
 - `parseResponse` maps `data.results` → `{ url: r.img_src, title: r.title, type: "image", resolution: r.resolution, source: "searxng_image" }`
@@ -69,6 +72,7 @@ Insert Tier 3 search after CDP sources (Tier 2) and before AI Analysis:
 ```
 
 Integration point in main():
+
 1. After CDP sources complete and `searchCacheDirty` is persisted
 2. Calculate `scenesNeedingMedia = scenes.filter(s => !NO_MEDIA_TYPES.has(s.visualType) && !s.media).length`
 3. Call `shouldTriggerTier3(allAssets.length, scenesNeedingMedia)`
@@ -78,6 +82,7 @@ Integration point in main():
 ### 4. Attribution handling
 
 Add to `SOURCE_ATTRIBUTIONS`:
+
 - `brave_image`: `{ text: () => "Image source: Brave Search (copyright unverified)", license: "Copyright unverified — manual review required", logoRequired: false, attributionRequired: true }`
 - `searxng_image`: `{ text: () => "Image source: SearXNG (copyright unverified)", license: "Copyright unverified — manual review required", logoRequired: false, attributionRequired: true }`
 
@@ -105,30 +110,30 @@ Prior art: `asset-sourcer.test.mjs` already tests `searchApiSource` with mock fe
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/progressive-search.mjs` | 新建文件：tier 评估 + Brave/SearXNG 搜索 + quota tracker | Low | 纯新建，不修改现有逻辑 |
-| `scripts/short-video/lib/source-registry.mjs` | 在 STOCK_MEDIA_SOURCES 末尾追加 brave_image + searxng_image 源定义 + SOURCE_ATTRIBUTIONS 追加两个条目 | Low | 追加，不修改现有源定义。ALL_SOURCES filter 自动包含新源 |
-| `scripts/short-video/lib/asset-sourcer.mjs` | main() 中在 CDP 搜索后插入 Tier 3 progressive search 调用 | Medium | 修改 main() 控制流。插入点在 CDP 之后、AI Analysis 之前，是纯追加，不修改现有 API/yt-dlp/CDP 逻辑 |
-| `scripts/short-video/__tests__/asset-sourcer.test.mjs` | 新增 progressive search 测试 | Low | 纯追加测试 |
+| 文件                                                   | 修改内容                                                                                              | 风险等级 | 评估                                                                                              |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/progressive-search.mjs`       | 新建文件：tier 评估 + Brave/SearXNG 搜索 + quota tracker                                              | Low      | 纯新建，不修改现有逻辑                                                                            |
+| `scripts/short-video/lib/source-registry.mjs`          | 在 STOCK_MEDIA_SOURCES 末尾追加 brave_image + searxng_image 源定义 + SOURCE_ATTRIBUTIONS 追加两个条目 | Low      | 追加，不修改现有源定义。ALL_SOURCES filter 自动包含新源                                           |
+| `scripts/short-video/lib/asset-sourcer.mjs`            | main() 中在 CDP 搜索后插入 Tier 3 progressive search 调用                                             | Medium   | 修改 main() 控制流。插入点在 CDP 之后、AI Analysis 之前，是纯追加，不修改现有 API/yt-dlp/CDP 逻辑 |
+| `scripts/short-video/__tests__/asset-sourcer.test.mjs` | 新增 progressive search 测试                                                                          | Low      | 纯追加测试                                                                                        |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Tier 1+2 返回足够 assets (totalAssets >= scenesNeedingMedia) | Tier 3 不触发，main() 直接进入 AI Analysis | 数量足够但质量低的 assets 可能不理想 | 后置报告标注 avg VLM score，用户可手动审查 |
-| 2 | Tier 1+2 返回不足 assets (totalAssets < scenesNeedingMedia) | Tier 3 触发，Brave + SearXNG 并行搜索 | API 超时或不可用 | Promise.allSettled，一个失败不影响另一个 |
-| 3 | BRAVE_SEARCH_API_KEY 未配置 | Brave source 被 skip，SearXNG 单独运行 Tier 3 | Tier 3 结果可能不够 | 记录到 skipped[]，报告显示原因 |
-| 4 | Brave API 返回 429 (quota 用尽) | Brave 返回空数组，SearXNG 继续 | Brave quota 被其他工具用尽 | BraveQuotaTracker 记录调用次数，429 被 catch 返回空 |
-| 5 | SearXNG localhost:8888 不可达 | SearXNG 返回空数组，Brave 单独运行 Tier 3 | 单点故障 | fetch 超时 5s，catch 网络错误 |
-| 6 | Brave Image 返回 `properties.url` 为 null/undefined | 该 candidate 被 filter 掉（url 为空的 candidate 不下载） | 下载 null URL crash | downloadAsset 已有 `candidate.url` 检查 |
-| 7 | SearXNG 返回 `img_src` 为空字符串 | 该 candidate 被 filter 掉 | 空字符串 URL 传入 downloadAsset | parseResponse 中 filter `!r.img_src` |
-| 8 | scenes 为空 (scenes.length = 0) | scenesNeedingMedia = 0，shouldTriggerTier3 返回 false | 无意义搜索 | shouldTriggerTier3 中 `scenesNeedingMedia <= 0` 返回 false |
-| 9 | Brave Image Search 返回空 results 数组 | 正常处理，candidates 为空，继续 SearXNG | 无风险 | Promise.allSettled 正常处理空结果 |
-| 10 | Tier 3 下载的图片来自 Brave/SearXNG | attribution 标记 `attributionRequired: true`，出现在 credits 中 | 用户不知需手动审查 | attribution text 明确标注 "copyright unverified" |
-| 11 | search-cache 中已有 Brave/SearXNG 的结果 | cache hit，不重复 API 调用 | 缓存过期导致过时结果 | 与现有 API_SOURCES 一致，cache 按 source+keyword 命中 |
-| 12 | 多个 keyword 场景 | 每个 keyword 独立触发 Brave/SearXNG 搜索，结果累加 | API 调用次数 = keywords.length × sources.length | search-cache 缓存，BraveQuotaTracker 追踪 |
-| 13 | Brave 返回的图片 URL 403/404 | downloadAsset 返回 `{success: false}`，记录到 failed[] | 部分图片不可下载 | 与现有 stock API 下载行为一致 |
+| #   | Scenario                                                     | Expected Behavior                                               | Risk                                            | Mitigation                                                 |
+| --- | ------------------------------------------------------------ | --------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------- |
+| 1   | Tier 1+2 返回足够 assets (totalAssets >= scenesNeedingMedia) | Tier 3 不触发，main() 直接进入 AI Analysis                      | 数量足够但质量低的 assets 可能不理想            | 后置报告标注 avg VLM score，用户可手动审查                 |
+| 2   | Tier 1+2 返回不足 assets (totalAssets < scenesNeedingMedia)  | Tier 3 触发，Brave + SearXNG 并行搜索                           | API 超时或不可用                                | Promise.allSettled，一个失败不影响另一个                   |
+| 3   | BRAVE_SEARCH_API_KEY 未配置                                  | Brave source 被 skip，SearXNG 单独运行 Tier 3                   | Tier 3 结果可能不够                             | 记录到 skipped[]，报告显示原因                             |
+| 4   | Brave API 返回 429 (quota 用尽)                              | Brave 返回空数组，SearXNG 继续                                  | Brave quota 被其他工具用尽                      | BraveQuotaTracker 记录调用次数，429 被 catch 返回空        |
+| 5   | SearXNG localhost:8888 不可达                                | SearXNG 返回空数组，Brave 单独运行 Tier 3                       | 单点故障                                        | fetch 超时 5s，catch 网络错误                              |
+| 6   | Brave Image 返回 `properties.url` 为 null/undefined          | 该 candidate 被 filter 掉（url 为空的 candidate 不下载）        | 下载 null URL crash                             | downloadAsset 已有 `candidate.url` 检查                    |
+| 7   | SearXNG 返回 `img_src` 为空字符串                            | 该 candidate 被 filter 掉                                       | 空字符串 URL 传入 downloadAsset                 | parseResponse 中 filter `!r.img_src`                       |
+| 8   | scenes 为空 (scenes.length = 0)                              | scenesNeedingMedia = 0，shouldTriggerTier3 返回 false           | 无意义搜索                                      | shouldTriggerTier3 中 `scenesNeedingMedia <= 0` 返回 false |
+| 9   | Brave Image Search 返回空 results 数组                       | 正常处理，candidates 为空，继续 SearXNG                         | 无风险                                          | Promise.allSettled 正常处理空结果                          |
+| 10  | Tier 3 下载的图片来自 Brave/SearXNG                          | attribution 标记 `attributionRequired: true`，出现在 credits 中 | 用户不知需手动审查                              | attribution text 明确标注 "copyright unverified"           |
+| 11  | search-cache 中已有 Brave/SearXNG 的结果                     | cache hit，不重复 API 调用                                      | 缓存过期导致过时结果                            | 与现有 API_SOURCES 一致，cache 按 source+keyword 命中      |
+| 12  | 多个 keyword 场景                                            | 每个 keyword 独立触发 Brave/SearXNG 搜索，结果累加              | API 调用次数 = keywords.length × sources.length | search-cache 缓存，BraveQuotaTracker 追踪                  |
+| 13  | Brave 返回的图片 URL 403/404                                 | downloadAsset 返回 `{success: false}`，记录到 failed[]          | 部分图片不可下载                                | 与现有 stock API 下载行为一致                              |
 
 ## Out of Scope
 

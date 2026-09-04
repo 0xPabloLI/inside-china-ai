@@ -36,7 +36,7 @@
 
 - 解码终片音轨为 **4kHz** PCM；对每个 scene，用 **FFT 互相关**在其源音频（`audio/scene-{id}.mp3`，同样解码到 4kHz）中定位实际起点。
   （修订：原写 16kHz。4kHz 精度 0.25ms，远低于 80ms 容差，FFT 规模小 4 倍；两侧统一采样率，单位换算一致。）
-- 断言 `|measured − timelineOffset| ≤ 80ms`（与字幕同步同一容差，单一常量源 `AUDIO_SYNC_TOLERANCE`，字幕侧 `SYNC_TOLERANCE`  re-export 之），**FAIL 类**——失败则 `summary.passed === false`，管线的"红着退出"逻辑自动生效。
+- 断言 `|measured − timelineOffset| ≤ 80ms`（与字幕同步同一容差，单一常量源 `AUDIO_SYNC_TOLERANCE`，字幕侧 `SYNC_TOLERANCE` re-export 之），**FAIL 类**——失败则 `summary.passed === false`，管线的"红着退出"逻辑自动生效。
 - scene 音频文件缺失 → 跳过该 scene 并 WARN（fail-open 于缺失数据，fail-closed 于时序错误）。
   文件**存在但解码失败** → 计入 `failedScenes` 并判 FAIL。（修订：审查发现原实现对此 fail-open，与"fail-closed 于时序错误"自相矛盾。）
 - `verification-report.json` 新增 `audioSync` 字段。
@@ -49,17 +49,17 @@
 
 ## 接口契约（跨 step）
 
-| Step | 产物 | 变更 |
-|---|---|---|
-| Step 4 字幕生成 | `subtitles.ass` | 无变化 |
-| 装配（改） | `scene-{id}_final.mp4` | **语义变更：纯视频（无音频流）**。消费者仅 concat（同文件内）。concat demuxer 按容器时长偏移，无音频流也成立 |
-| 装配（新） | `output/{id}/voiceover.wav` | 新产物：44.1k mono s16 PCM，长度 == Σ clipDuration |
-| 装配（改） | 最终 MP4 | 音频轨连续无间隙；`ffprobe` packet 无 >0.1s 跳变 |
-| Step 6 验证（改） | `verification-report.json` | 新增 `audioSync` 字段；无代码消费者（grep 确认），纯追加 |
-| `assembleVideo()` 签名 | 7 参不变 | `infra-paths.test.mjs` 断言 `length >= 3` 仍满足 |
-| `verifySubtitles()` 签名 | 对象参数不变 | scene 音频路径由 `outputDir/audio/scene-{id}.mp3` 派生 |
-| `recordScenes()` 返回值 | `{sceneId, videoPath, audioPath, duration}` | 不变（`audioPath` 已透传） |
-| CLI `verify-subtitles.mjs` | 可选第 5 参 `output-dir` | 不传则行为不变；传则启用 audioSync（修订：审查补登记，原表遗漏） |
+| Step                       | 产物                                        | 变更                                                                                                         |
+| -------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Step 4 字幕生成            | `subtitles.ass`                             | 无变化                                                                                                       |
+| 装配（改）                 | `scene-{id}_final.mp4`                      | **语义变更：纯视频（无音频流）**。消费者仅 concat（同文件内）。concat demuxer 按容器时长偏移，无音频流也成立 |
+| 装配（新）                 | `output/{id}/voiceover.wav`                 | 新产物：44.1k mono s16 PCM，长度 == Σ clipDuration                                                           |
+| 装配（改）                 | 最终 MP4                                    | 音频轨连续无间隙；`ffprobe` packet 无 >0.1s 跳变                                                             |
+| Step 6 验证（改）          | `verification-report.json`                  | 新增 `audioSync` 字段；无代码消费者（grep 确认），纯追加                                                     |
+| `assembleVideo()` 签名     | 7 参不变                                    | `infra-paths.test.mjs` 断言 `length >= 3` 仍满足                                                             |
+| `verifySubtitles()` 签名   | 对象参数不变                                | scene 音频路径由 `outputDir/audio/scene-{id}.mp3` 派生                                                       |
+| `recordScenes()` 返回值    | `{sceneId, videoPath, audioPath, duration}` | 不变（`audioPath` 已透传）                                                                                   |
+| CLI `verify-subtitles.mjs` | 可选第 5 参 `output-dir`                    | 不传则行为不变；传则启用 audioSync（修订：审查补登记，原表遗漏）                                             |
 
 ## Testing Decisions
 
@@ -77,40 +77,40 @@ FFmpeg 容器行为（无间隙、单次编码正确性）进 Runtime Verify：�
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/assemble.mjs` | scene 纯视频 + voiceover 构建 + 最终单次编码 | Medium | 影响所有 pipeline 产物。缓解：重渲染 + 终检（互相关）断言逐段起点 ≤80ms + packet 无间隙。 |
-| `scripts/short-video/lib/audio/wav.mjs`（新） | s16 mono WAV 读写 + `decodeToWavFile`（唯一 ffmpeg 解码桥） | Low | 纯函数 + 单一解码入口，单测覆盖。 |
-| `scripts/short-video/lib/audio/fft.mjs`（新） | radix-2 FFT + 互相关 | Low | 纯函数，合成信号单测。 |
-| `scripts/short-video/lib/audio/track.mjs`（新） | PCM 拼接 `assembleTrackPcm` + 母带构建 | Low | 数学为纯函数；解码行为由集成测试 + Runtime Verify 覆盖。 |
-| `scripts/short-video/lib/audio/sync.mjs`（新） | 终片终检（解码 + 互相关 + 判定） | Low | 只读验证，不写产物（除临时 wav）。 |
-| `scripts/short-video/lib/verify-subtitles.mjs` | report 增加 `audioSync` FAIL 类门禁 | Medium | 新门禁可能卡管线。缓解：容差 80ms 与字幕对齐；scene 音频缺失 fail-open（WARN）。 |
-| `scripts/short-video/verify-subtitles.mjs`（CLI） | 可选第 5 参 `output-dir` | Low | 不传则行为不变（修订：审查补登记，原表遗漏）。 |
-| `__tests__/audio-wav.test.mjs`、`audio-fft.test.mjs`、`audio-track.test.mjs`、`audio-sync.test.mjs`（新）、`infra-paths.test.mjs`（扩） | 新增/扩展单测 | Low | audio-sync 含真实 ffmpeg 集成测试（场景 6/8/9/16）。 |
-| `docs/video-workflow.md`、`docs/spec-gapless-audio-track.md`、`docs/tickets-gapless-audio-track.md` | 文档 | Low | |
+| 文件                                                                                                                                    | 修改内容                                                    | 风险等级 | 评估                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/assemble.mjs`                                                                                                  | scene 纯视频 + voiceover 构建 + 最终单次编码                | Medium   | 影响所有 pipeline 产物。缓解：重渲染 + 终检（互相关）断言逐段起点 ≤80ms + packet 无间隙。 |
+| `scripts/short-video/lib/audio/wav.mjs`（新）                                                                                           | s16 mono WAV 读写 + `decodeToWavFile`（唯一 ffmpeg 解码桥） | Low      | 纯函数 + 单一解码入口，单测覆盖。                                                         |
+| `scripts/short-video/lib/audio/fft.mjs`（新）                                                                                           | radix-2 FFT + 互相关                                        | Low      | 纯函数，合成信号单测。                                                                    |
+| `scripts/short-video/lib/audio/track.mjs`（新）                                                                                         | PCM 拼接 `assembleTrackPcm` + 母带构建                      | Low      | 数学为纯函数；解码行为由集成测试 + Runtime Verify 覆盖。                                  |
+| `scripts/short-video/lib/audio/sync.mjs`（新）                                                                                          | 终片终检（解码 + 互相关 + 判定）                            | Low      | 只读验证，不写产物（除临时 wav）。                                                        |
+| `scripts/short-video/lib/verify-subtitles.mjs`                                                                                          | report 增加 `audioSync` FAIL 类门禁                         | Medium   | 新门禁可能卡管线。缓解：容差 80ms 与字幕对齐；scene 音频缺失 fail-open（WARN）。          |
+| `scripts/short-video/verify-subtitles.mjs`（CLI）                                                                                       | 可选第 5 参 `output-dir`                                    | Low      | 不传则行为不变（修订：审查补登记，原表遗漏）。                                            |
+| `__tests__/audio-wav.test.mjs`、`audio-fft.test.mjs`、`audio-track.test.mjs`、`audio-sync.test.mjs`（新）、`infra-paths.test.mjs`（扩） | 新增/扩展单测                                               | Low      | audio-sync 含真实 ffmpeg 集成测试（场景 6/8/9/16）。                                      |
+| `docs/video-workflow.md`、`docs/spec-gapless-audio-track.md`、`docs/tickets-gapless-audio-track.md`                                     | 文档                                                        | Low      |                                                                                           |
 
 ### Section 2: Behavioral Scenarios
 
 矩阵每一行 = 一个测试用例。
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | 正常 11 场景装配 | `voiceover.wav` 总样本数 == Σ round(clipDuration×44100)；终片音频无 >0.1s 间隙 | 回归到间隙表达 | 逐段起点断言 + packet dump |
-| 2 | 单场景视频 | 拼接正常，track 长度 == 该 scene clipDuration | 单段退化 | `assembleTrackPcm` 单段测试 |
-| 3 | scene PCM 超过目标长度（数据异常） | 抛出明确错误，不静默截断 | 静默丢字 | 构造上不可能（clip ≥ tts+0.467s），防回归断言 + 测试 |
-| 4 | 空 scenes / scene 无 `audioPath` | 抛出明确错误 | 无声视频 | 显式抛错 + 守卫测试 |
-| 5 | scene mp3 带前导静音 | 互相关起点 = 实际采样起点，仍以 timeline 偏移判定 | 起点误判 | findOnset 全信号互相关测试 |
-| 6 | 验证：音频被人为平移 +200ms | `audioSync` FAIL，`summary.passed === false` | 静默发错位视频 | evaluateAudioSync 合成测试 + 集成测试（1.2s 谎报时长装配） |
-| 7 | 验证：恒定偏移 +24ms | PASS（≤80ms 容差） | 过度敏感 | 容差测试 |
-| 8 | 验证：某 scene 音频文件缺失 | 该 scene 跳过并计入 skipped，不 crash，不判 FAIL | 误卡管线 | fail-open 集成测试（真实 ffmpeg） |
-| 9 | 验证：终片无音频轨 | 解码失败 → 计入错误（FAIL）而非静默跳过 | 无声视频放行 | 集成测试（无音频轨 mp4） |
-| 10 | BGM 开启 | amix 在连续音轨上运行，输出仍连续；终检在混音后文件上 PASS（voiceover 主导） | BGM 引入断层 | Runtime Verify 一档 --bgm（已执行：11/11 场景 0ms 漂移 PASS） |
-| 11 | 浮点：clipDuration×44100 非整数 | 每段 ±0.5 样本（round），全程 <0.1ms | 累积误差 | 整数样本断言 |
-| 12 | 容差边界恰为 80ms | PASS（≤）；80.1ms FAIL | 边界闪烁 | 边界值测试（+1e-9 epsilon） |
-| 13 | 互相关性能：74s×4k 长音轨 | 11 段互相关总耗时 <5s | 验证过慢 | 基准（Runtime Verify 观察，实测亚秒级） |
-| 14 | FFT 长度非 2 幂 | 补零到下一 2 幂，峰值位置不变 | 算法错误 | 非 2 幂长度测试 |
-| 15 | 终片与 scene 采样率不同 | 统一解码到 4kHz，单位换算为秒，判定不受采样率影响 | 单位错误 | 统一解码约定 + 测试 |
-| 16 | 验证：scene 音频文件存在但无法解码 | 计入 `failedScenes`，errors+1，判 FAIL（fail-closed） | 验证责任静默落空 | 集成测试（损坏 mp3）（修订：审查新增行） |
+| #   | Scenario                           | Expected Behavior                                                              | Risk             | Mitigation                                                    |
+| --- | ---------------------------------- | ------------------------------------------------------------------------------ | ---------------- | ------------------------------------------------------------- |
+| 1   | 正常 11 场景装配                   | `voiceover.wav` 总样本数 == Σ round(clipDuration×44100)；终片音频无 >0.1s 间隙 | 回归到间隙表达   | 逐段起点断言 + packet dump                                    |
+| 2   | 单场景视频                         | 拼接正常，track 长度 == 该 scene clipDuration                                  | 单段退化         | `assembleTrackPcm` 单段测试                                   |
+| 3   | scene PCM 超过目标长度（数据异常） | 抛出明确错误，不静默截断                                                       | 静默丢字         | 构造上不可能（clip ≥ tts+0.467s），防回归断言 + 测试          |
+| 4   | 空 scenes / scene 无 `audioPath`   | 抛出明确错误                                                                   | 无声视频         | 显式抛错 + 守卫测试                                           |
+| 5   | scene mp3 带前导静音               | 互相关起点 = 实际采样起点，仍以 timeline 偏移判定                              | 起点误判         | findOnset 全信号互相关测试                                    |
+| 6   | 验证：音频被人为平移 +200ms        | `audioSync` FAIL，`summary.passed === false`                                   | 静默发错位视频   | evaluateAudioSync 合成测试 + 集成测试（1.2s 谎报时长装配）    |
+| 7   | 验证：恒定偏移 +24ms               | PASS（≤80ms 容差）                                                             | 过度敏感         | 容差测试                                                      |
+| 8   | 验证：某 scene 音频文件缺失        | 该 scene 跳过并计入 skipped，不 crash，不判 FAIL                               | 误卡管线         | fail-open 集成测试（真实 ffmpeg）                             |
+| 9   | 验证：终片无音频轨                 | 解码失败 → 计入错误（FAIL）而非静默跳过                                        | 无声视频放行     | 集成测试（无音频轨 mp4）                                      |
+| 10  | BGM 开启                           | amix 在连续音轨上运行，输出仍连续；终检在混音后文件上 PASS（voiceover 主导）   | BGM 引入断层     | Runtime Verify 一档 --bgm（已执行：11/11 场景 0ms 漂移 PASS） |
+| 11  | 浮点：clipDuration×44100 非整数    | 每段 ±0.5 样本（round），全程 <0.1ms                                           | 累积误差         | 整数样本断言                                                  |
+| 12  | 容差边界恰为 80ms                  | PASS（≤）；80.1ms FAIL                                                         | 边界闪烁         | 边界值测试（+1e-9 epsilon）                                   |
+| 13  | 互相关性能：74s×4k 长音轨          | 11 段互相关总耗时 <5s                                                          | 验证过慢         | 基准（Runtime Verify 观察，实测亚秒级）                       |
+| 14  | FFT 长度非 2 幂                    | 补零到下一 2 幂，峰值位置不变                                                  | 算法错误         | 非 2 幂长度测试                                               |
+| 15  | 终片与 scene 采样率不同            | 统一解码到 4kHz，单位换算为秒，判定不受采样率影响                              | 单位错误         | 统一解码约定 + 测试                                           |
+| 16  | 验证：scene 音频文件存在但无法解码 | 计入 `failedScenes`，errors+1，判 FAIL（fail-closed）                          | 验证责任静默落空 | 集成测试（损坏 mp3）（修订：审查新增行）                      |
 
 ## Out of Scope
 

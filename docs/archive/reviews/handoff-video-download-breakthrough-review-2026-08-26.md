@@ -13,14 +13,14 @@
 
 > **建议决策：** 保留“统一下载层”的目标，但先将交接文档改写为一个可验证的下载器契约：每种策略须声明发现方式、下载适配器、前置会话、输出限制、降级条件和可观测结果。Cobalt 应作为经过实例能力探测的公共 URL 解析器，而非无条件的首个下载调用。随后以一个独立的端到端 adapter 作为最小交付，再逐个平台扩展。
 
-| 评审维度 | 结论 | 实施前必须完成的处置 |
-|---|---|---|
-| 问题定义 | **成立**。现有下载实现确实没有抖音、小红书、微博与 TikTok 的专用下载器。 | 保留，但区分“发现 URL”与“下载媒体”两类问题。 |
-| “已验证”状态 | **不成立**。抖音方案在维护参考中仍标为未验证，Cobalt 没有本仓库验收证据。 | 将状态按平台和环境拆分；没有可复现验收记录不得标为已验证。 |
-| Cobalt 集成 | **阻塞性不完整**。只处理了两种成功状态，也没有健康检查、鉴权、限流与文件验证。 | 以完整响应状态机和实例 preflight 重写。 |
-| source registry 标注 | **阻塞性不匹配**。拟议的 `method: "cdp"` 不能表达不同下载器，也没有对应的视频 CDP 扁平化/执行器。 | 引入显式的下载适配器配置，不要用 `cdp` 作为下载器同义词。 |
-| 运行与合规 | **不完整**。cookie、地区限制、第三方服务与版权归属缺少操作边界。 | 增加会话隔离、公开 URL 限定、数据留存、归属和故障处理要求。 |
-| 验收与发布 | **缺失**。没有 fixture、模拟响应或失败矩阵。 | 将下方行为矩阵转为测试与 staged rollout 的准入门槛。 |
+| 评审维度             | 结论                                                                                              | 实施前必须完成的处置                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 问题定义             | **成立**。现有下载实现确实没有抖音、小红书、微博与 TikTok 的专用下载器。                          | 保留，但区分“发现 URL”与“下载媒体”两类问题。                |
+| “已验证”状态         | **不成立**。抖音方案在维护参考中仍标为未验证，Cobalt 没有本仓库验收证据。                         | 将状态按平台和环境拆分；没有可复现验收记录不得标为已验证。  |
+| Cobalt 集成          | **阻塞性不完整**。只处理了两种成功状态，也没有健康检查、鉴权、限流与文件验证。                    | 以完整响应状态机和实例 preflight 重写。                     |
+| source registry 标注 | **阻塞性不匹配**。拟议的 `method: "cdp"` 不能表达不同下载器，也没有对应的视频 CDP 扁平化/执行器。 | 引入显式的下载适配器配置，不要用 `cdp` 作为下载器同义词。   |
+| 运行与合规           | **不完整**。cookie、地区限制、第三方服务与版权归属缺少操作边界。                                  | 增加会话隔离、公开 URL 限定、数据留存、归属和故障处理要求。 |
+| 验收与发布           | **缺失**。没有 fixture、模拟响应或失败矩阵。                                                      | 将下方行为矩阵转为测试与 staged rollout 的准入门槛。        |
 
 ## 阻塞性发现
 
@@ -30,13 +30,13 @@
 
 这一差异会直接影响实现顺序。#75 期望先为未标注平台集成下载器并补回归测试；#77 则要求审计现有 59 个 source 的能力标注和 fallback 链。交接文档不能以一个笼统的“verified”跳过这两个 gate。[5] [6]
 
-| 平台/策略 | 交接文档表述 | 维护参考或上游证据 | 本次评审的状态要求 |
-|---|---|---|---|
-| 抖音 / `iesdouyin` | 无 cookie、无登录、可无水印下载。 | 维护参考仍标为下载未验证；上游 Chubby Skills 将其描述为转录工作流中的 URL 解析步骤，而不是本项目的下载器验收。[4] [9] [10] | **候选方案**。必须以固定的公开样本完成解析、下载、探测和清理测试后才可升级。 |
-| 小红书 / RedNote-MCP | 已测试。 | 维护参考指出 MCP 需要显式 init 和人工登录，cookie 由工具保存。[4] | **条件可用**。将登录态存在性与失效视为运行时前置条件。 |
-| 微博 / visitor cookie | 已测试。 | 维护参考仅确认 cookie 获取/API 路径；搜索与下载的会话条件不同。[4] | **条件可用**。要求固定 status fixture 与访客 cookie 失效测试。 |
-| TikTok / CDP `item/detail` | 已验证。 | 参考实现确实记录了这一浏览器会话内方案，但同时说明地区限制和手动兜底。[11] | **条件可用**。要求 cookie、地区与 URL 规范化失败都可观测。 |
-| Cobalt 自部署 | 推荐的 P0 通用 fallback。 | 官方 API 文档定义了五种响应状态；本仓库没有实例配置或验收证据。[7] [8] | **未验证**。先完成 isolated instance smoke test，再决定是否提升为 P0。 |
+| 平台/策略                  | 交接文档表述                      | 维护参考或上游证据                                                                                                         | 本次评审的状态要求                                                           |
+| -------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 抖音 / `iesdouyin`         | 无 cookie、无登录、可无水印下载。 | 维护参考仍标为下载未验证；上游 Chubby Skills 将其描述为转录工作流中的 URL 解析步骤，而不是本项目的下载器验收。[4] [9] [10] | **候选方案**。必须以固定的公开样本完成解析、下载、探测和清理测试后才可升级。 |
+| 小红书 / RedNote-MCP       | 已测试。                          | 维护参考指出 MCP 需要显式 init 和人工登录，cookie 由工具保存。[4]                                                          | **条件可用**。将登录态存在性与失效视为运行时前置条件。                       |
+| 微博 / visitor cookie      | 已测试。                          | 维护参考仅确认 cookie 获取/API 路径；搜索与下载的会话条件不同。[4]                                                         | **条件可用**。要求固定 status fixture 与访客 cookie 失效测试。               |
+| TikTok / CDP `item/detail` | 已验证。                          | 参考实现确实记录了这一浏览器会话内方案，但同时说明地区限制和手动兜底。[11]                                                 | **条件可用**。要求 cookie、地区与 URL 规范化失败都可观测。                   |
+| Cobalt 自部署              | 推荐的 P0 通用 fallback。         | 官方 API 文档定义了五种响应状态；本仓库没有实例配置或验收证据。[7] [8]                                                     | **未验证**。先完成 isolated instance smoke test，再决定是否提升为 P0。       |
 
 ### 2. `capabilities.videos.method = "cdp"` 不能表达拟议的实现
 
@@ -46,12 +46,12 @@
 
 建议将两种职责拆分。`videoDiscovery` 描述如何获得候选 URL，`videoDownload` 描述如何把候选 URL 变成可用媒体；CDP 只能是其中某个 discovery 或 runtime transport，而不是下载器类型。下载器应具有稳定 adapter ID，例如 `direct-http`、`ytdlp`、`cobalt`、`douyin-share`、`rednote-mcp`、`weibo-visitor-api`、`tiktok-cdp-detail` 和 `cdp-generic`。每个 adapter 都必须声明是否需要登录态、允许的平台、最大尺寸/时长、返回的 provenance 字段与不可恢复失败类别。
 
-| 现有对象 | 当前含义 | 交接文档的问题 | 替代契约 |
-|---|---|---|---|
-| `capabilities.videos` | 供 `asset-sourcer` 生成候选与选择已有 API/`yt-dlp` 路径。 | 将“可发现视频”和“可下载 URL”混为一谈。 | 保留为发现层；新增显式 `videoDownload.adapters` 或独立 adapter registry。 |
-| `method: "cdp"` | 当前只在图片 CDP 来源中被消费。 | 不能告诉系统是执行 `fetch`、调用 MCP、使用 visitor API，还是运行页面资源扫描。 | 使用具名 adapter；仅在 adapter 内标注 `transport: "cdp"`。 |
-| `source` 参数 | 目前是 registry source name。 | 伪代码假定它总能映射为下载平台，未知 iframe/重定向 URL 则不能可靠匹配。 | 先 canonicalize URL、解析最终域名与嵌入来源，再选择策略。 |
-| `downloadAsset()` | 直接 HTTP 下载，带最小文件大小检查。 | Cobalt 分支绕过统一的文件验证与 provenance 记录。 | 所有 adapter 产出统一 `DownloadResult`，最终由一个写入器执行文件验证与落盘。 |
+| 现有对象              | 当前含义                                                  | 交接文档的问题                                                                 | 替代契约                                                                     |
+| --------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `capabilities.videos` | 供 `asset-sourcer` 生成候选与选择已有 API/`yt-dlp` 路径。 | 将“可发现视频”和“可下载 URL”混为一谈。                                         | 保留为发现层；新增显式 `videoDownload.adapters` 或独立 adapter registry。    |
+| `method: "cdp"`       | 当前只在图片 CDP 来源中被消费。                           | 不能告诉系统是执行 `fetch`、调用 MCP、使用 visitor API，还是运行页面资源扫描。 | 使用具名 adapter；仅在 adapter 内标注 `transport: "cdp"`。                   |
+| `source` 参数         | 目前是 registry source name。                             | 伪代码假定它总能映射为下载平台，未知 iframe/重定向 URL 则不能可靠匹配。        | 先 canonicalize URL、解析最终域名与嵌入来源，再选择策略。                    |
+| `downloadAsset()`     | 直接 HTTP 下载，带最小文件大小检查。                      | Cobalt 分支绕过统一的文件验证与 provenance 记录。                              | 所有 adapter 产出统一 `DownloadResult`，最终由一个写入器执行文件验证与落盘。 |
 
 ### 3. Cobalt 的 API 契约、部署前置与失败模型被过度简化
 
@@ -99,56 +99,56 @@ CDP 通用 adapter 最小范围应只覆盖：公开页面、单一可下载 HTT
 
 ## 文档一致性与指针检查
 
-| 检查 | 结果 | 证据与必要修正 |
-|---|---|---|
-| 跨章节一致性 | **失败**。正文称专用方案用于已知平台，但优先级和流程又让全部 URL 先经过 Cobalt。 | 选择并论证一个策略选择规则，删除相互竞争的线性顺序。[1] |
-| 活跃文档一致性 | **失败**。交接文档的“all methods verified”与快速参考中的抖音“未测试”冲突。 | 按 adapter 维护单一状态表；以可复现 smoke run 更新状态。[1] [4] |
-| #75 / #77 约束覆盖 | **部分通过**。文档提及分工，但没有将 #75 的回归测试、许可证审查及 SVE 目标写入验收，也没有遵守 #77 的“先验证再标注”边界。 | 在范围中声明：哪些是 #75 adapter 集成，哪些必须等待 #77 的 source capability 调研。[5] [6] |
-| 指针目标完整性 | **部分通过**。相关研究文件存在，TikTok 细节也能追溯。 | 将 Cobalt 的官方 API、部署文档、版本/实例配置和测试证据作为新指针；不要只引用 star 数和第三方部署页。[7] [8] |
-| 文件存在性 | **通过**。交接文档列出的 registry、sourcer 和两份研究文档均存在。 | 将新增 adapter、测试和运行配置列入影响图，防止实现时遗漏。 |
+| 检查               | 结果                                                                                                                      | 证据与必要修正                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 跨章节一致性       | **失败**。正文称专用方案用于已知平台，但优先级和流程又让全部 URL 先经过 Cobalt。                                          | 选择并论证一个策略选择规则，删除相互竞争的线性顺序。[1]                                                      |
+| 活跃文档一致性     | **失败**。交接文档的“all methods verified”与快速参考中的抖音“未测试”冲突。                                                | 按 adapter 维护单一状态表；以可复现 smoke run 更新状态。[1] [4]                                              |
+| #75 / #77 约束覆盖 | **部分通过**。文档提及分工，但没有将 #75 的回归测试、许可证审查及 SVE 目标写入验收，也没有遵守 #77 的“先验证再标注”边界。 | 在范围中声明：哪些是 #75 adapter 集成，哪些必须等待 #77 的 source capability 调研。[5] [6]                   |
+| 指针目标完整性     | **部分通过**。相关研究文件存在，TikTok 细节也能追溯。                                                                     | 将 Cobalt 的官方 API、部署文档、版本/实例配置和测试证据作为新指针；不要只引用 star 数和第三方部署页。[7] [8] |
+| 文件存在性         | **通过**。交接文档列出的 registry、sourcer 和两份研究文档均存在。                                                         | 将新增 adapter、测试和运行配置列入影响图，防止实现时遗漏。                                                   |
 
 ## 必需的文件影响图
 
-| 文件或模块 | 必须完成的修改 | 风险与验证 |
-|---|---|---|
-| `scripts/short-video/lib/source-registry.mjs` | 将视频发现配置与下载 adapter 配置分离；禁止用泛化 `cdp` 标签承载不同下载器。 | **高**。schema fixture 应验证每个 source 的 adapter ID、前置条件与发现方式。 |
-| `scripts/short-video/lib/video-downloaders.mjs`（新增，建议） | 实现策略选择器、统一 `DownloadResult`、Cobalt 状态机、平台 adapter 接口和限制执行器。 | **高**。以 mock HTTP/CDP/MCP 边界完成单元测试，不在测试中请求真实平台。 |
-| `scripts/short-video/lib/asset-sourcer.mjs` | 仅调用下载器和统一落盘/归属管道；保留现有 review-first、不直接修改 scene-data 的原则。 | **高**。验证既有 stock、YouTube 和 B 站行为不回归。 |
-| `scripts/short-video/lib/cdp-client.mjs` | 仅在决定实现最小 CDP generic adapter 后，添加受限的页面/iframe/资源读取契约。 | **高**。验证 tab 清理、超时、MSE/DRM/跨域拒绝的明确失败。 |
-| `scripts/short-video/__tests__/video-downloaders.test.mjs`（新增） | 覆盖策略选择、Cobalt 全响应状态、文件限制、provenance 与错误分类。 | **高**。不依赖真实 cookie、外部服务或实时网页。 |
-| `scripts/short-video/__tests__/source-registry*.test.mjs` | 覆盖新 video discovery/download schema 与 #77 要求的 source capability 一致性。 | **高**。每个新增视频 source 都有回归 fixture。 |
-| `.env.example`、运行文档或受控部署配置 | 文档化 `COBALT_API_URL`、可选鉴权、安全隔离和不入库的 cookie 路径；实例配置不提交秘密。 | **中**。空配置、无鉴权、需要 API key 和服务不可达均可安全降级。 |
-| `docs/research/asset-source-quick-reference.md` 与被审阅交接文档 | 把状态、前置条件和最终 adapter 路由收敛到一个权威表；标记被替换的方案。 | **中**。文档三查：跨章节一致、指针逐字段覆盖、引用文件存在。 |
+| 文件或模块                                                         | 必须完成的修改                                                                          | 风险与验证                                                                   |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `scripts/short-video/lib/source-registry.mjs`                      | 将视频发现配置与下载 adapter 配置分离；禁止用泛化 `cdp` 标签承载不同下载器。            | **高**。schema fixture 应验证每个 source 的 adapter ID、前置条件与发现方式。 |
+| `scripts/short-video/lib/video-downloaders.mjs`（新增，建议）      | 实现策略选择器、统一 `DownloadResult`、Cobalt 状态机、平台 adapter 接口和限制执行器。   | **高**。以 mock HTTP/CDP/MCP 边界完成单元测试，不在测试中请求真实平台。      |
+| `scripts/short-video/lib/asset-sourcer.mjs`                        | 仅调用下载器和统一落盘/归属管道；保留现有 review-first、不直接修改 scene-data 的原则。  | **高**。验证既有 stock、YouTube 和 B 站行为不回归。                          |
+| `scripts/short-video/lib/cdp-client.mjs`                           | 仅在决定实现最小 CDP generic adapter 后，添加受限的页面/iframe/资源读取契约。           | **高**。验证 tab 清理、超时、MSE/DRM/跨域拒绝的明确失败。                    |
+| `scripts/short-video/__tests__/video-downloaders.test.mjs`（新增） | 覆盖策略选择、Cobalt 全响应状态、文件限制、provenance 与错误分类。                      | **高**。不依赖真实 cookie、外部服务或实时网页。                              |
+| `scripts/short-video/__tests__/source-registry*.test.mjs`          | 覆盖新 video discovery/download schema 与 #77 要求的 source capability 一致性。         | **高**。每个新增视频 source 都有回归 fixture。                               |
+| `.env.example`、运行文档或受控部署配置                             | 文档化 `COBALT_API_URL`、可选鉴权、安全隔离和不入库的 cookie 路径；实例配置不提交秘密。 | **中**。空配置、无鉴权、需要 API key 和服务不可达均可安全降级。              |
+| `docs/research/asset-source-quick-reference.md` 与被审阅交接文档   | 把状态、前置条件和最终 adapter 路由收敛到一个权威表；标记被替换的方案。                 | **中**。文档三查：跨章节一致、指针逐字段覆盖、引用文件存在。                 |
 
 ## 必需的行为验收矩阵
 
-| ID | 场景 | 预期结果 |
-|---|---|---|
-| VD-01 | 现有 Pexels/Coverr 直接视频候选。 | 继续经 HTTP 下载、文件验证、provenance 与资产报告；无行为回归。 |
-| VD-02 | YouTube 或 B 站候选。 | 仍通过受白名单保护的 `yt-dlp` 适配器，保持 20 MB / 8 秒等现有约束。 |
-| VD-03 | Cobalt 不可达、未配置或实例 `services` 不包含 URL 平台。 | 策略选择器跳过 Cobalt，记录具名原因，继续尝试适用的已配置 adapter。 |
-| VD-04 | Cobalt 返回 `tunnel` 或 `redirect`。 | 经统一下载器落盘；验证 HTTP 状态、MIME/魔数、大小、时长和原子清理。 |
-| VD-05 | Cobalt 返回 `picker`、`local-processing` 或 `error`。 | 不把响应误写成 MP4；返回 `needs-selection`、`unsupported` 或可分类失败。 |
-| VD-06 | 小红书 adapter 缺少登录态，或 TikTok 因地区/会话失败。 | 返回 `requires-session` / `region-blocked`，不泄露 cookie，不隐式转发私有链接。 |
-| VD-07 | 抖音 `iesdouyin` 方案的固定公开样本。 | 解析到可下载媒体、产出合规文件并通过探测；失败时有可重试类别。此项通过前状态保持“未验证”。 |
-| VD-08 | 通用 CDP 扫描得到 `blob:`、MSE/HLS/DRM、跨域错误或无视频页面。 | 不尝试伪造直接文件；返回明确 `unsupported`，确保 tab/临时文件清理。 |
-| VD-09 | 上游返回 HTML 登录页、重定向页面、非视频 MIME 或小于最小阈值的内容。 | 拒绝写入资产目录，原因记录在 report，已有有效文件不受影响。 |
-| VD-10 | 同一 canonical URL、短链重定向与 iframe 最终 URL 重复出现。 | 在最终规范化 URL / 内容哈希层去重，并保留可追溯 source URL。 |
-| VD-11 | 所有 adapter 都失败。 | 资产报告记录每个已尝试策略及最终理由；管线继续处理其他候选。 |
-| VD-12 | 新增 source capability。 | registry schema、策略选择和回归 fixture 同时通过；未完成 #77 所需调研的 source 不得声明可下载。 |
+| ID    | 场景                                                                 | 预期结果                                                                                        |
+| ----- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| VD-01 | 现有 Pexels/Coverr 直接视频候选。                                    | 继续经 HTTP 下载、文件验证、provenance 与资产报告；无行为回归。                                 |
+| VD-02 | YouTube 或 B 站候选。                                                | 仍通过受白名单保护的 `yt-dlp` 适配器，保持 20 MB / 8 秒等现有约束。                             |
+| VD-03 | Cobalt 不可达、未配置或实例 `services` 不包含 URL 平台。             | 策略选择器跳过 Cobalt，记录具名原因，继续尝试适用的已配置 adapter。                             |
+| VD-04 | Cobalt 返回 `tunnel` 或 `redirect`。                                 | 经统一下载器落盘；验证 HTTP 状态、MIME/魔数、大小、时长和原子清理。                             |
+| VD-05 | Cobalt 返回 `picker`、`local-processing` 或 `error`。                | 不把响应误写成 MP4；返回 `needs-selection`、`unsupported` 或可分类失败。                        |
+| VD-06 | 小红书 adapter 缺少登录态，或 TikTok 因地区/会话失败。               | 返回 `requires-session` / `region-blocked`，不泄露 cookie，不隐式转发私有链接。                 |
+| VD-07 | 抖音 `iesdouyin` 方案的固定公开样本。                                | 解析到可下载媒体、产出合规文件并通过探测；失败时有可重试类别。此项通过前状态保持“未验证”。      |
+| VD-08 | 通用 CDP 扫描得到 `blob:`、MSE/HLS/DRM、跨域错误或无视频页面。       | 不尝试伪造直接文件；返回明确 `unsupported`，确保 tab/临时文件清理。                             |
+| VD-09 | 上游返回 HTML 登录页、重定向页面、非视频 MIME 或小于最小阈值的内容。 | 拒绝写入资产目录，原因记录在 report，已有有效文件不受影响。                                     |
+| VD-10 | 同一 canonical URL、短链重定向与 iframe 最终 URL 重复出现。          | 在最终规范化 URL / 内容哈希层去重，并保留可追溯 source URL。                                    |
+| VD-11 | 所有 adapter 都失败。                                                | 资产报告记录每个已尝试策略及最终理由；管线继续处理其他候选。                                    |
+| VD-12 | 新增 source capability。                                             | registry schema、策略选择和回归 fixture 同时通过；未完成 #77 所需调研的 source 不得声明可下载。 |
 
 ## 对原交接文档的修订请求（Track Changes 风格）
 
-| 操作 | 位置 | 原始方向 | 请求替换或新增内容 |
-|---|---|---|---|
-| **Replace** | 页首状态，line 6 | “Ready for implementation — all methods verified”。 | 改为按 adapter 区分的状态表；抖音与 Cobalt 标为“候选/待验收”，并链接可复现 smoke evidence。 |
-| **Replace** | Cobalt，lines 89–110 | “所有 URL 先走”“Docker 一行”“`tunnel/redirect` 即下载”。 | 写入实例 preflight、完整响应状态机、鉴权/限流、文件验证、`picker`/`local-processing` 策略与部署前置。 |
-| **Replace** | 优先级与下载链路，lines 172–199 | 无条件 Cobalt-first 线性链路。 | 采用按 URL 可公开性、已配置会话、实例服务能力和 adapter 验证状态选择的策略路由。 |
-| **Replace** | registry 示例，lines 201–230 | 所有新增平台均标为 `videos.method: 'cdp'`。 | 定义 discovery 与 download adapter 两层 schema；每个平台写入具名 adapter 和前置条件。 |
-| **Replace** | `downloadVideo()` 伪代码，lines 233–280 | Cobalt 返回 ArrayBuffer，失败后以 source switch 分派。 | 使用统一 `DownloadResult`、独立 adapter registry、受控写入器和可观测失败代码。 |
-| **Add** | 新节：“安全、隐私与资源限制”。 | 无。 | 公开 URL 限定、cookie 路径/不入库要求、超时、最大大小、最大时长、临时文件清理、日志脱敏和版权/provenance 规则。 |
-| **Add** | 新节：“验证证据与 Acceptance Matrix”。 | 无。 | 把 VD-01–VD-12 作为实现测试清单；每个平台的 live smoke 明确 opt-in 并记录版本与日期。 |
-| **Reconcile** | 相关文档及 issues。 | 仅列出 #75、#77 和研究文档。 | 说明哪些 adapter 属于 #75，哪些 capability 声明必须由 #77 先验收；同步快速参考的状态。 |
+| 操作          | 位置                                    | 原始方向                                                 | 请求替换或新增内容                                                                                              |
+| ------------- | --------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Replace**   | 页首状态，line 6                        | “Ready for implementation — all methods verified”。      | 改为按 adapter 区分的状态表；抖音与 Cobalt 标为“候选/待验收”，并链接可复现 smoke evidence。                     |
+| **Replace**   | Cobalt，lines 89–110                    | “所有 URL 先走”“Docker 一行”“`tunnel/redirect` 即下载”。 | 写入实例 preflight、完整响应状态机、鉴权/限流、文件验证、`picker`/`local-processing` 策略与部署前置。           |
+| **Replace**   | 优先级与下载链路，lines 172–199         | 无条件 Cobalt-first 线性链路。                           | 采用按 URL 可公开性、已配置会话、实例服务能力和 adapter 验证状态选择的策略路由。                                |
+| **Replace**   | registry 示例，lines 201–230            | 所有新增平台均标为 `videos.method: 'cdp'`。              | 定义 discovery 与 download adapter 两层 schema；每个平台写入具名 adapter 和前置条件。                           |
+| **Replace**   | `downloadVideo()` 伪代码，lines 233–280 | Cobalt 返回 ArrayBuffer，失败后以 source switch 分派。   | 使用统一 `DownloadResult`、独立 adapter registry、受控写入器和可观测失败代码。                                  |
+| **Add**       | 新节：“安全、隐私与资源限制”。          | 无。                                                     | 公开 URL 限定、cookie 路径/不入库要求、超时、最大大小、最大时长、临时文件清理、日志脱敏和版权/provenance 规则。 |
+| **Add**       | 新节：“验证证据与 Acceptance Matrix”。  | 无。                                                     | 把 VD-01–VD-12 作为实现测试清单；每个平台的 live smoke 明确 opt-in 并记录版本与日期。                           |
+| **Reconcile** | 相关文档及 issues。                     | 仅列出 #75、#77 和研究文档。                             | 说明哪些 adapter 属于 #75，哪些 capability 声明必须由 #77 先验收；同步快速参考的状态。                          |
 
 ## 批准门槛
 

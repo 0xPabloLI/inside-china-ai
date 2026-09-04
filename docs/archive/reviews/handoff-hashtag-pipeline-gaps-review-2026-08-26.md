@@ -14,14 +14,14 @@
 
 本次复核确认，工作副本中 `caption-utils.mjs` 已实现规范化、层级选择、趋势标签最多一个、满容量替换、primary entity 保护和人工覆盖锁定；`generate-caption.mjs` 也已输出 `hashtagStrategy.trending`。现有针对 caption utility 的测试命令执行成功，结果为 **61/61 通过**。因此，原审阅中针对缺口 A 的 P0 建议均已被实现并有独立归档审阅佐证。[归档 A 修复审阅](../archive/reviews/hashtag-trending-fix-review-2026-08-26.md)
 
-| 项目 | 更新前结论 | 当前复核 | 状态 |
-|---|---|---|---|
-| `trendingHashtags` 未被消费 | P0：输入路径断裂 | 自动派生路径消费最多 1 个趋势标签 | 已关闭 |
-| 满 5 个标签时的替换 | P0：趋势标签可能永远被忽略 | 优先替换 secondary vertical，其次替换 pad | 已关闭 |
-| `metadata.hashtags` 语义 | P0：需定义人工覆盖 | 非空时锁定，趋势标签不隐式注入 | 已关闭 |
-| 输入规范化 | P0：需统一 trim / 去 `#` / 小写 / 去重 | `normalizeHashtag()` 已覆盖并有单测 | 已关闭 |
-| `hashtagStrategy` 可观测性 | 未单独验证 | 已增加 `trending` 分类；仍有来源归属边界需澄清 | P2，见下文 |
-| Apify 调研客户端 | P1：范围与实际 Actor 能力不一致 | handoff 已吸收修订；尚未实现 | 保持待办 |
+| 项目                        | 更新前结论                             | 当前复核                                       | 状态       |
+| --------------------------- | -------------------------------------- | ---------------------------------------------- | ---------- |
+| `trendingHashtags` 未被消费 | P0：输入路径断裂                       | 自动派生路径消费最多 1 个趋势标签              | 已关闭     |
+| 满 5 个标签时的替换         | P0：趋势标签可能永远被忽略             | 优先替换 secondary vertical，其次替换 pad      | 已关闭     |
+| `metadata.hashtags` 语义    | P0：需定义人工覆盖                     | 非空时锁定，趋势标签不隐式注入                 | 已关闭     |
+| 输入规范化                  | P0：需统一 trim / 去 `#` / 小写 / 去重 | `normalizeHashtag()` 已覆盖并有单测            | 已关闭     |
+| `hashtagStrategy` 可观测性  | 未单独验证                             | 已增加 `trending` 分类；仍有来源归属边界需澄清 | P2，见下文 |
+| Apify 调研客户端            | P1：范围与实际 Actor 能力不一致        | handoff 已吸收修订；尚未实现                   | 保持待办   |
 
 > **验证记录。** 在用户工作副本执行 `npx vitest run --config scripts/short-video/vitest.config.mjs scripts/short-video/__tests__/caption-utils.test.mjs`，得到 1 个测试文件、61 个测试通过。Vitest 仍报告 `poolOptions` 废弃警告；该配置告警与 hashtag 功能无直接因果关系，应独立排期。
 
@@ -33,15 +33,15 @@
 
 人工 `metadata.hashtags` 仍是锁定式覆盖，因而不会被 `metadata.trendingHashtags` 隐式修改。该选择保留了 A/B 实验、人工编辑与发布复盘的可追溯性：编辑者希望采用趋势标签时，必须把它显式写入 `metadata.hashtags`。
 
-| 已确认的场景 | 实现 / 测试证据 | 结果 |
-|---|---|---|
-| 常规趋势标签加入 | `T3-2`、`T3-3` | 3–4 个标签时加入，保持总数 3–5。 |
-| 满容量替换 secondary vertical | `T3-4` | 趋势标签进入最终集合，低优先级 secondary 被替换。 |
-| 满容量替换 pad | `T3-5` | 没有 secondary 时替换 pad。 |
-| primary entity 保护 | `T3-12` | `companies[0]` 对应的标签不会被趋势标签置换。 |
-| 输入质量与去重 | `T1`、`T3-8`、`T3-9`、`T3-10` | 大小写、空白、前导 `#`、非法值和重复输入均按预期处理。 |
-| 人工覆盖锁定 | `T3-11` | 有 `metadata.hashtags` 时不自动注入趋势标签。 |
-| `#creatorsearchinsights` 的新政策 | `T2`、`T3-13` | 不再处于程序黑名单；只能由 Agent 人工通过 `metadata.hashtags` 采用。 |
+| 已确认的场景                      | 实现 / 测试证据               | 结果                                                                 |
+| --------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
+| 常规趋势标签加入                  | `T3-2`、`T3-3`                | 3–4 个标签时加入，保持总数 3–5。                                     |
+| 满容量替换 secondary vertical     | `T3-4`                        | 趋势标签进入最终集合，低优先级 secondary 被替换。                    |
+| 满容量替换 pad                    | `T3-5`                        | 没有 secondary 时替换 pad。                                          |
+| primary entity 保护               | `T3-12`                       | `companies[0]` 对应的标签不会被趋势标签置换。                        |
+| 输入质量与去重                    | `T1`、`T3-8`、`T3-9`、`T3-10` | 大小写、空白、前导 `#`、非法值和重复输入均按预期处理。               |
+| 人工覆盖锁定                      | `T3-11`                       | 有 `metadata.hashtags` 时不自动注入趋势标签。                        |
+| `#creatorsearchinsights` 的新政策 | `T2`、`T3-13`                 | 不再处于程序黑名单；只能由 Agent 人工通过 `metadata.hashtags` 采用。 |
 
 ## 更新后仍需处理的问题
 
@@ -53,12 +53,12 @@ handoff、`caption-utils.mjs` 与 `tiktok-best-practices.md` 已共同采用新�
 
 **建议。** 在同一文档维护提交中更新上述两个文件：保留“2 条视频、存在误导搜索词”的原始观测，但将结论降级为“待重新验证的历史信号”，并明确它不能支持单标签因果归因。补上新决策的适用条件：仅当内容确实源于 Creator Search Insights 的 gap 发现时才由人工 metadata 加入，绝不作为自动候选。这样可同时保留证据与修复策略层的唯一权威来源。
 
-| 文档 | 当前冲突 | 建议状态 |
-|---|---|---|
-| `docs/analytics-workflow.md` | 写明已禁用、为黑名单 | 改为历史观察 / 待验证；链接到最佳实践中的当前决策。 |
-| `docs/research/tiktok-competitor-intelligence.md` | 写明“有害，应在管线禁用” | 保留样本与搜索词，撤销强制禁用结论，注明样本量与不可归因限制。 |
-| `docs/tiktok/tiktok-best-practices.md` | 已表达新策略，但仍位于“去掉的标签”表 | 保留，但应明确该表项是“禁止自动候选”而非“程序黑名单”。 |
-| `caption-utils.mjs` | `BLACKLISTED_HASHTAGS = []` | 与新策略一致，无需修改。 |
+| 文档                                              | 当前冲突                             | 建议状态                                                       |
+| ------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------- |
+| `docs/analytics-workflow.md`                      | 写明已禁用、为黑名单                 | 改为历史观察 / 待验证；链接到最佳实践中的当前决策。            |
+| `docs/research/tiktok-competitor-intelligence.md` | 写明“有害，应在管线禁用”             | 保留样本与搜索词，撤销强制禁用结论，注明样本量与不可归因限制。 |
+| `docs/tiktok/tiktok-best-practices.md`            | 已表达新策略，但仍位于“去掉的标签”表 | 保留，但应明确该表项是“禁止自动候选”而非“程序黑名单”。         |
+| `caption-utils.mjs`                               | `BLACKLISTED_HASHTAGS = []`          | 与新策略一致，无需修改。                                       |
 
 ### P2：`hashtagStrategy.trending` 不能严格表达“来源”
 
@@ -76,41 +76,41 @@ handoff 写“新增 19 个测试（normalize 8 个 + 黑名单 2 个 + trending
 
 更新后的 handoff 已吸收上一版审阅的核心修正，方向正确：Apify 是季度或触发式的调研工具，而不是逐视频运行时依赖；通用 TikTok Scraper 应首先提供归一化视频样本；聚合 hashtag 指标应在 POC 确认 Actor schema 后才承诺字段。该顺序降低了把“视频样本数据”误写为“平台 hashtag 总指标”的风险。
 
-| B 的关键点 | 当前 handoff 方案 | 审阅结论 |
-|---|---|---|
-| 低层 API | `runActor(actorRef, input, options)` | 可接受；需统一处理 token、JSON shape、网络、408/429/5xx 和超时。 |
-| 视频样本 | `fetchHashtagVideos()` 使用 `clockworks~tiktok-scraper` | 可接受；与 Python 参考实现的 `_video()` 输出对齐。 |
-| 聚合指标 | `fetchHashtagMetrics()` 先不实现 | 正确；应以 POC 的真实响应 schema 为准，不能预设 `posts` / `related` 字段。 |
-| 批量查询 | POC 后再决定 | 正确；需验证 Actor 的批量输入与计费语义。 |
-| REST 路径 | `POST /v2/actors/:actorId/run-sync-get-dataset-items` | 正确；Actor 人类可读 ID 使用 `owner~actor-name`。[1] |
-| 认证 | `Authorization: Bearer <token>` | 正确且优于 query token，避免凭据进入 URL / 日志。[2] |
-| 同步执行 | 配置不高于 300 秒并处理 408 | 正确；官方端点在超过 300 秒时返回 408。[1] |
-| 成本 | `maxTotalChargeUsd`、dry-run/mock、显式远端开关 | 必须作为 POC 与生产实现的验收条件。[1] |
-| 数据落盘 | 写调研工件，人工确认后再更新映射 | 正确；不要让远端抓取直接写入 `ENTITY_HASHTAG_MAP`。 |
+| B 的关键点 | 当前 handoff 方案                                       | 审阅结论                                                                   |
+| ---------- | ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 低层 API   | `runActor(actorRef, input, options)`                    | 可接受；需统一处理 token、JSON shape、网络、408/429/5xx 和超时。           |
+| 视频样本   | `fetchHashtagVideos()` 使用 `clockworks~tiktok-scraper` | 可接受；与 Python 参考实现的 `_video()` 输出对齐。                         |
+| 聚合指标   | `fetchHashtagMetrics()` 先不实现                        | 正确；应以 POC 的真实响应 schema 为准，不能预设 `posts` / `related` 字段。 |
+| 批量查询   | POC 后再决定                                            | 正确；需验证 Actor 的批量输入与计费语义。                                  |
+| REST 路径  | `POST /v2/actors/:actorId/run-sync-get-dataset-items`   | 正确；Actor 人类可读 ID 使用 `owner~actor-name`。[1]                       |
+| 认证       | `Authorization: Bearer <token>`                         | 正确且优于 query token，避免凭据进入 URL / 日志。[2]                       |
+| 同步执行   | 配置不高于 300 秒并处理 408                             | 正确；官方端点在超过 300 秒时返回 408。[1]                                 |
+| 成本       | `maxTotalChargeUsd`、dry-run/mock、显式远端开关         | 必须作为 POC 与生产实现的验收条件。[1]                                     |
+| 数据落盘   | 写调研工件，人工确认后再更新映射                        | 正确；不要让远端抓取直接写入 `ENTITY_HASHTAG_MAP`。                        |
 
 ### B 的最小可实施范围
 
 下一 session 应只完成一个**受费用约束的 schema POC**，而不是直接创建功能完整的批量客户端。POC 应以一个或少量公开测试 tag 运行，使用显式 opt-in、`Authorization` header、`maxTotalChargeUsd`、短超时与单次批次上限；它必须把原始 response schema、标准化视频样本、actor/build、时间、参数、错误和成本上限写入调研工件。只有在此基础上，才可以决定是否新增 `fetchHashtagMetrics()`，以及它的准确字段、Actor 和批量策略。
 
-| POC 验收项 | 通过标准 |
-|---|---|
-| 凭据安全 | 无 token 时本地失败；token 不出现在 URL、日志或错误文本。 |
-| URL 与 Actor ID | 使用 `actors/:actorId/run-sync-get-dataset-items` 与编码后的 `clockworks~tiktok-scraper`。 |
-| 响应验证 | 非数组 dataset 触发 schema error；原始 item 不被静默伪造为 metrics。 |
-| 失败处理 | 网络、429、5xx 与 408 有可识别错误及有限重试策略。 |
-| 成本与可重复性 | 默认不触发真实远端请求；真实调用需 opt-in 与费用上限。 |
-| 落盘 | 工件带 hashtag、actor、actor build、fetchedAt、input、rawItemCount、normalizedResult、error 与 costCapUsd。 |
-| CI 隔离 | mock 测试不依赖 `APIFY_TOKEN`，不会产生外部费用。 |
+| POC 验收项      | 通过标准                                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| 凭据安全        | 无 token 时本地失败；token 不出现在 URL、日志或错误文本。                                                   |
+| URL 与 Actor ID | 使用 `actors/:actorId/run-sync-get-dataset-items` 与编码后的 `clockworks~tiktok-scraper`。                  |
+| 响应验证        | 非数组 dataset 触发 schema error；原始 item 不被静默伪造为 metrics。                                        |
+| 失败处理        | 网络、429、5xx 与 408 有可识别错误及有限重试策略。                                                          |
+| 成本与可重复性  | 默认不触发真实远端请求；真实调用需 opt-in 与费用上限。                                                      |
+| 落盘            | 工件带 hashtag、actor、actor build、fetchedAt、input、rawItemCount、normalizedResult、error 与 costCapUsd。 |
+| CI 隔离         | mock 测试不依赖 `APIFY_TOKEN`，不会产生外部费用。                                                           |
 
 ## 推荐执行顺序
 
-| 顺序 | 工作 | 完成标准 |
-|---:|---|---|
-| 1 | 修正 P1 文档矛盾与 P3 测试计数 | 当前政策只有一个权威结论；历史数据保留但不再被表述为强制禁用。 |
-| 2 | 决定 P2 分类字段是否承载来源语义 | 若承载，补充来源模型与 `generate-caption` 集成测试；若不承载，在字段说明中标记限制。 |
-| 3 | 完成 B 的 schema POC | 有匿名化样例与实际 schema / 费用 / 失败模式记录。 |
-| 4 | 产出 B 的小型规格与场景矩阵 | 仅暴露 POC 证实的字段，明确缓存、超时、并发、工件和费用边界。 |
-| 5 | TDD 实现 B | mock 单测与 opt-in smoke test 通过；逐视频 caption 管线不依赖 Apify。 |
+| 顺序 | 工作                             | 完成标准                                                                             |
+| ---: | -------------------------------- | ------------------------------------------------------------------------------------ |
+|    1 | 修正 P1 文档矛盾与 P3 测试计数   | 当前政策只有一个权威结论；历史数据保留但不再被表述为强制禁用。                       |
+|    2 | 决定 P2 分类字段是否承载来源语义 | 若承载，补充来源模型与 `generate-caption` 集成测试；若不承载，在字段说明中标记限制。 |
+|    3 | 完成 B 的 schema POC             | 有匿名化样例与实际 schema / 费用 / 失败模式记录。                                    |
+|    4 | 产出 B 的小型规格与场景矩阵      | 仅暴露 POC 证实的字段，明确缓存、超时、并发、工件和费用边界。                        |
+|    5 | TDD 实现 B                       | mock 单测与 opt-in smoke test 通过；逐视频 caption 管线不依赖 Apify。                |
 
 ## 本次更新边界
 

@@ -37,38 +37,38 @@
 
 ### 本地模型
 
-| # | 模型 | 技术路线 | 分辨率 | 发布 | MPS | 商用 | 状态 | 日期 |
-|---|------|---------|--------|------|-----|------|------|------|
-| 1 | ~~MuseTalk 1.5 MLX~~ | VAE 替换 | 256px | — | ✅ MLX | ✅ MIT | ❌ 放弃 | 2026-08-09 |
-| 2 | ~~SadTalker~~ | 3DMM | — | — | ✅ | ❌ | ❌ 效果差 | 2026-08-09 |
-| 3 | ~~LatentSync 1.5~~ | 扩散+SyncNet | 256px | — | ✅ (需 patch) | ✅ OpenRAIL++ | ❌ 效果差 | 2026-08-10 |
-| 4 | ~~LatentSync 1.6~~ | 扩散+SyncNet | 512px | — | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ OOM | 2026-08-10 |
-| 5 | ~~Sonic~~ | SVD 扩散 | — | — | ❌ 不可用 | ❌ 非商用 | ❌ 不可用 | 2026-08-10 |
-| 6 | ~~Hallo2~~ | 分层扩散 | 256px | — | ✅ MPS | ✅ MIT | ❌ 256px 太低 | 2026-08-10 |
-| 7 | ~~LivePortrait~~ | Warping | 826×1062 | — | ✅ MPS | ✅ | ❌ 无音频驱动 | 2026-08-10 |
-| 8 | ~~V-Express~~ | 渐进式扩散 | — | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
-| 9 | **PersonaLive** | 流式扩散 | — | 2025-11 | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
-| 10 | ~~LongCat-VA-1.5 MLX~~ | MLX 扩散 | 432×256 | 2025-12 | ✅ MLX | ✅ MIT | ❌ **不可用**（不像本人+唇同步错位） | 2026-08-19 |
-| 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | 2025-12 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
-| 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | 2025-07 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
-| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | 2025-12 | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0） | 2026-09-02 |
-| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | 2025-08 | ✅ Modal A100 | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
-| 12 | ~~**Hallo3**~~ | Transformer DiT | 720×480 | 2024-11 | ✅ Modal A100-80GB | ✅ MIT | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好） | 2026-09-03 |
-| 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | 2025-07 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
-| 14 | **FeatherTalk** | 轻量级框架 | — | 2026-07 | ⚠️ 待测 | ✅ Apache 2.0 | ⏸️ **等用户录口播视频**（3-5min 25fps，需训练个性化模型；5.46M 可本地 CPU 跑） | — |
-| 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
-| 16 | ~~**LeapTalk**~~ | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | 2026-07 | ⚠️ Kaggle T4 | ✅ Apache 2.0 | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产） | 2026-09-03 |
-| 17 | **SoulX-FlashHead (Model_Pro)** | Wan2.1 DiT 1.3B 基座（未蒸馏） | 512×512 | 2026-02 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座） | 2026-09-04 |
-| 18 | **SoulX-FlashHead (Model_Lite)** | LTX-VAE 轻量基座 | 512×512 | 2026-02 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（197.5s/3.08s段；嘴部有动态，画质略逊 Pro——稍平滑；实时路线 96 FPS on RTX4090） | 2026-09-04 |
-| 19 | **SoulX-FlashTalk 14B** | Wan+InfiniteTalk talking body | 416×720 | 2025-12 | ✅ Modal A100-80GB | ✅ Apache 2.0 | ✅ **最佳 Talking Body**（350s/5.2s段, $0.20, 手指细节好, 2026-09-04 用户确认） | 2026-09-04 |
+| #   | 模型                               | 技术路线                             | 分辨率   | 发布    | MPS                    | 商用                                            | 状态                                                                                                                                                                       | 日期       |
+| --- | ---------------------------------- | ------------------------------------ | -------- | ------- | ---------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | ~~MuseTalk 1.5 MLX~~               | VAE 替换                             | 256px    | —       | ✅ MLX                 | ✅ MIT                                          | ❌ 放弃                                                                                                                                                                    | 2026-08-09 |
+| 2   | ~~SadTalker~~                      | 3DMM                                 | —        | —       | ✅                     | ❌                                              | ❌ 效果差                                                                                                                                                                  | 2026-08-09 |
+| 3   | ~~LatentSync 1.5~~                 | 扩散+SyncNet                         | 256px    | —       | ✅ (需 patch)          | ✅ OpenRAIL++                                   | ❌ 效果差                                                                                                                                                                  | 2026-08-10 |
+| 4   | ~~LatentSync 1.6~~                 | 扩散+SyncNet                         | 512px    | —       | ❌ MPS OOM             | ✅ OpenRAIL++                                   | ❌ OOM                                                                                                                                                                     | 2026-08-10 |
+| 5   | ~~Sonic~~                          | SVD 扩散                             | —        | —       | ❌ 不可用              | ❌ 非商用                                       | ❌ 不可用                                                                                                                                                                  | 2026-08-10 |
+| 6   | ~~Hallo2~~                         | 分层扩散                             | 256px    | —       | ✅ MPS                 | ✅ MIT                                          | ❌ 256px 太低                                                                                                                                                              | 2026-08-10 |
+| 7   | ~~LivePortrait~~                   | Warping                              | 826×1062 | —       | ✅ MPS                 | ✅                                              | ❌ 无音频驱动                                                                                                                                                              | 2026-08-10 |
+| 8   | ~~V-Express~~                      | 渐进式扩散                           | —        | —       | ❌ MPS 太慢            | ❓                                              | ❌ 17min/sub-step                                                                                                                                                          | 2026-08-11 |
+| 9   | **PersonaLive**                    | 流式扩散                             | —        | 2025-11 | ⚠️ 待验证              | ❌ 非商用                                       | 📋 待测                                                                                                                                                                    | —          |
+| 10  | ~~LongCat-VA-1.5 MLX~~             | MLX 扩散                             | 432×256  | 2025-12 | ✅ MLX                 | ✅ MIT                                          | ❌ **不可用**（不像本人+唇同步错位）                                                                                                                                       | 2026-08-19 |
+| 10b | ~~LongCat-VA-1.5 MLX 480×832~~     | MLX 扩散                             | 480×832  | 2025-12 | ✅ MLX                 | ✅ MIT                                          | ❌ **全黑输出**                                                                                                                                                            | 2026-08-18 |
+| 11  | ~~EchoMimicV3 Flash~~              | Wan2.1 扩散                          | 624×816  | 2025-07 | ✅ Kaggle P100         | ✅ Apache 2.0                                   | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段）                                                                                                                        | 2026-08-22 |
+| 10  | **LongCat-Video-Avatar-1.5**       | DiT + 音频驱动                       | 480p     | 2025-12 | ✅ **Modal A100-80GB** | ✅ MIT                                          | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0）    | 2026-09-02 |
+| 11  | **InfiniteTalk**                   | 稀疏帧视频配音(talking body)         | 576×704  | 2025-08 | ✅ Modal A100          | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
+| 12  | ~~**Hallo3**~~                     | Transformer DiT                      | 720×480  | 2024-11 | ✅ Modal A100-80GB     | ✅ MIT                                          | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好）                                         | 2026-09-03 |
+| 13  | ~~EchoMimicV3 Flash (Modal)~~      | 多任务扩散                           | 512×512  | 2025-07 | ✅ Modal T4 NF4        | ✅ Apache 2.0                                   | ✅ NF4 量化已测（5min/段, talking head）                                                                                                                                   | 2026-08-23 |
+| 14  | **FeatherTalk**                    | 轻量级框架                           | —        | 2026-07 | ⚠️ 待测                | ✅ Apache 2.0                                   | ⏸️ **等用户录口播视频**（3-5min 25fps，需训练个性化模型；5.46M 可本地 CPU 跑）                                                                                             | —          |
+| 15  | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA                           | —        | —       | ❌ 22B 需大显存        | ✅ OpenRAIL                                     | 📋 低优先级                                                                                                                                                                | —          |
+| 16  | ~~**LeapTalk**~~                   | 桥蒸馏（Brownian bridge 数据到数据） | 512×512  | 2026-07 | ⚠️ Kaggle T4           | ✅ Apache 2.0                                   | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产）                           | 2026-09-03 |
+| 17  | **SoulX-FlashHead (Model_Pro)**    | Wan2.1 DiT 1.3B 基座（未蒸馏）       | 512×512  | 2026-02 | ✅ Kaggle T4           | ✅ Apache 2.0                                   | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座）                                                                 | 2026-09-04 |
+| 18  | **SoulX-FlashHead (Model_Lite)**   | LTX-VAE 轻量基座                     | 512×512  | 2026-02 | ✅ Kaggle T4           | ✅ Apache 2.0                                   | ✅ **基座可用**（197.5s/3.08s段；嘴部有动态，画质略逊 Pro——稍平滑；实时路线 96 FPS on RTX4090）                                                                            | 2026-09-04 |
+| 19  | **SoulX-FlashTalk 14B**            | Wan+InfiniteTalk talking body        | 416×720  | 2025-12 | ✅ Modal A100-80GB     | ✅ Apache 2.0                                   | ✅ **最佳 Talking Body**（350s/5.2s段, $0.20, 手指细节好, 2026-09-04 用户确认）                                                                                            | 2026-09-04 |
 
 ### 云端 API
 
-| # | 平台 | 端点 | 输入 | 状态 | 测试文件 | 日期 |
-|---|------|------|------|------|---------|------|
-| 1 | **D-ID** | `/talks` | 照片 + 音频 | ✅ 已验证 | `did-pablo-weixin-f5tts.mp4` (1.5MB) | 2026-08-10 |
-| 2 | **D-ID** | `/clips` | 预置 Presenter + TTS | ✅ 已验证 | `did-clip-jack-test.mp4` (1.7MB) | 2026-08-10 |
-| 3 | **HeyGen** | v2/generate | Custom Avatar + TTS | ✅ 已验证 | `heygen-pablo-test.mp4` (467KB) | 2026-08-10 |
+| #   | 平台       | 端点        | 输入                 | 状态      | 测试文件                             | 日期       |
+| --- | ---------- | ----------- | -------------------- | --------- | ------------------------------------ | ---------- |
+| 1   | **D-ID**   | `/talks`    | 照片 + 音频          | ✅ 已验证 | `did-pablo-weixin-f5tts.mp4` (1.5MB) | 2026-08-10 |
+| 2   | **D-ID**   | `/clips`    | 预置 Presenter + TTS | ✅ 已验证 | `did-clip-jack-test.mp4` (1.7MB)     | 2026-08-10 |
+| 3   | **HeyGen** | v2/generate | Custom Avatar + TTS  | ✅ 已验证 | `heygen-pablo-test.mp4` (467KB)      | 2026-08-10 |
 
 > **API 平台调研存档**：#`docs/research/talking-head-api-platforms.md`（fal.ai / Replicate / HF Spaces / NVIDIA NIM / ModelScope / 火山引擎 / 国内 12 平台，含定价、覆盖矩阵、免费额度性质）
 > **结论**：一次性免费额度（fal.ai $10 / Replicate 试用 / NVIDIA 1000 credits / ModelScope 36h GPU）不持续，已从测试表移除仅存档。持续免费仅 HF ZeroGPU（5min/天 Free / 40min/天 PRO $9/月），量太少。Talking head 测试走 **Kaggle T4（每周 30h 免费）** 或 **AutoDL（ cheapest paid）**。
@@ -347,10 +347,10 @@
 
 #### v28 A/B 对比测试结果（2026-08-17）
 
-| Test Case | 参考图 | 大小 | 推理时间 | 说明 |
-|-----------|--------|------|---------|------|
-| A-weixin | Weixin 照片（正面，光照均匀，827×1063） | 421.4 KB | 24.3 min | VLM 评估"perfectly frontal" |
-| B-video-frame | 视频截图（微上仰+侧偏，1080×1920） | 203.2 KB | 24.8 min | FFmpeg 从视频截帧（Lavc62.28.102） |
+| Test Case     | 参考图                                  | 大小     | 推理时间 | 说明                               |
+| ------------- | --------------------------------------- | -------- | -------- | ---------------------------------- |
+| A-weixin      | Weixin 照片（正面，光照均匀，827×1063） | 421.4 KB | 24.3 min | VLM 评估"perfectly frontal"        |
+| B-video-frame | 视频截图（微上仰+侧偏，1080×1920）      | 203.2 KB | 24.8 min | FFmpeg 从视频截帧（Lavc62.28.102） |
 
 - **总时间**：62.1 min（含环境安装 + 模型下载 + 两次推理）
 - **Prompt**：`A person is speaking.`（简化版，不限制头部运动）
@@ -361,10 +361,10 @@
 
 #### v30 5步 vs 8步对比测试结果（2026-08-18）
 
-| Test Case | 参考图 | 步数 | 推理时间 | 文件大小 | 说明 |
-|-----------|--------|------|---------|---------|------|
-| A-weixin-5steps | Weixin 照片 | 5 | 22.4 min | 432.7 KB | 官方推荐 talking-head 步数 |
-| B-weixin-8steps | Weixin 照片 | 8 | 24.1 min | 421.4 KB | Flash 默认步数 |
+| Test Case       | 参考图      | 步数 | 推理时间 | 文件大小 | 说明                       |
+| --------------- | ----------- | ---- | -------- | -------- | -------------------------- |
+| A-weixin-5steps | Weixin 照片 | 5    | 22.4 min | 432.7 KB | 官方推荐 talking-head 步数 |
+| B-weixin-8steps | Weixin 照片 | 8    | 24.1 min | 421.4 KB | Flash 默认步数             |
 
 - **总时间**：57.4 min（含环境安装 + 模型下载 + 两次推理）
 - **时间差异**：仅 1.7 min（-7.1%），不是有效的时间优化手段
@@ -375,6 +375,7 @@
 #### v30 推理时间分析
 
 5 步 vs 8 步时间差异极小（1.7 min），原因分析：
+
 - TeaCache 已启用（`--enable_teacache --teacache_threshold 0.1 --num_skip_start_steps 5`），会缓存和跳过部分去噪步骤
 - sequential_cpu_offload 的瓶颈在于 CPU→GPU 数据搬运，而非 GPU 计算本身
 - 步数从 8 减到 5 只少了 3 步 GPU 计算，但每步的 CPU-GPU 传输开销不变
@@ -382,10 +383,10 @@
 
 #### v31 Max Effort 15步/25步测试结果（2026-08-18，log 通过 kagglehub 获取）
 
-| Test Case | 步数 | 推理时间 | offload 模式 | 备注 |
-|-----------|------|---------|-------------|------|
-| A-weixin-15steps | 15 | 29.4 min (1765.7s) | sequential_cpu_offload | audio_guidance_scale=3.0 |
-| B-weixin-25steps | 25 | 31.4 min (1882.7s) | sequential_cpu_offload | audio_guidance_scale=3.0 |
+| Test Case        | 步数 | 推理时间           | offload 模式           | 备注                     |
+| ---------------- | ---- | ------------------ | ---------------------- | ------------------------ |
+| A-weixin-15steps | 15   | 29.4 min (1765.7s) | sequential_cpu_offload | audio_guidance_scale=3.0 |
+| B-weixin-25steps | 25   | 31.4 min (1882.7s) | sequential_cpu_offload | audio_guidance_scale=3.0 |
 
 - **总时间**：71.5 min（4291.7s，含环境安装 + 模型下载 + 两次推理）
 - **log 获取方法**：`pip install kagglehub` → `kagglehub.notebook_output_download('xpabloli/echomimicv3-flash-test/versions/31', path='debug_log.txt', output_dir='/tmp/v31')`
@@ -394,13 +395,13 @@
 
 #### v33 最终配置固化（2026-08-18）
 
-| 配置项 | 值 | 变更说明 |
-|--------|-----|---------|
-| PYTORCH_CUDA_ALLOC_CONF | expandable_segments:True | v32 新增，解决内存碎片 |
-| GPU_memory_mode | model_cpu_offload | v32 验证成功，替代 sequential |
-| audio_guidance_scale | 2.0 | 从 3.0 降至 2.0，减少眨眼 |
-| num_inference_steps | 8 | Flash 默认值 |
-| 模型来源 | Kaggle Dataset `echomimicv3-flash` | 从 /kaggle/input/ 直接读取，省 12min |
+| 配置项                  | 值                                 | 变更说明                             |
+| ----------------------- | ---------------------------------- | ------------------------------------ |
+| PYTORCH_CUDA_ALLOC_CONF | expandable_segments:True           | v32 新增，解决内存碎片               |
+| GPU_memory_mode         | model_cpu_offload                  | v32 验证成功，替代 sequential        |
+| audio_guidance_scale    | 2.0                                | 从 3.0 降至 2.0，减少眨眼            |
+| num_inference_steps     | 8                                  | Flash 默认值                         |
+| 模型来源                | Kaggle Dataset `echomimicv3-flash` | 从 /kaggle/input/ 直接读取，省 12min |
 
 - **v33 实测推理时间**：A-weixin 23.9min (1434.6s)，B-video-frame 24.2min (1453.7s)
 - **总时间**：51.5 min（3093.0s，含环境安装 + Dataset 读取 + 两次推理）
@@ -411,13 +412,14 @@
 
 **结果**：3 个 test case 全部成功，总时间 81.2 min。
 
-| Test Case | 素材 | 步数 | 推理时间 | 输出大小 | 状态 |
-|-----------|------|------|---------|---------|------|
-| A: `weixin-8steps-appmm` | 微信照片 + 中文音频 | 8 | **24.1 min** (1445.5s) | 415.3 KB | ✅ |
-| B: `weixin-20steps-appmm` | 微信照片 + 中文音频 | 20 | **29.1 min** (1746.0s) | 405.5 KB | ✅ |
-| C: `demo-ch-man-8steps-appmm` | 官方 demo 照片+音频+prompt | 8 | **24.6 min** (1473.8s) | 361.6 KB | ✅ |
+| Test Case                     | 素材                       | 步数 | 推理时间               | 输出大小 | 状态 |
+| ----------------------------- | -------------------------- | ---- | ---------------------- | -------- | ---- |
+| A: `weixin-8steps-appmm`      | 微信照片 + 中文音频        | 8    | **24.1 min** (1445.5s) | 415.3 KB | ✅   |
+| B: `weixin-20steps-appmm`     | 微信照片 + 中文音频        | 20   | **29.1 min** (1746.0s) | 405.5 KB | ✅   |
+| C: `demo-ch-man-8steps-appmm` | 官方 demo 照片+音频+prompt | 8    | **24.6 min** (1473.8s) | 361.6 KB | ✅   |
 
 **关键发现**：
+
 - app_mm.py 参数组合（guidance=4.5, audio=2.5, neg=1.5/2, dynamic_cfg/acfg, Flow_DPM++）与 v33 默认参数（guidance=6.0, audio=2.0, neg=1.0/0, Flow_Unipc）推理时间几乎一致
 - 8步 A (24.1min) vs v33 8步 (23.9min) → 参数变化对推理时间无影响
 - 20步 B (29.1min) 对比 v31 25步 (31.4min) → 步数越多越慢，线性关系
@@ -428,6 +430,7 @@
 #### v34 后续待测（EchoMimicV3 原始版测完后）
 
 原始版（`infer_flash.py`）测完 v34 后，EchoMimicV3 的下一步是**量化版测试**：
+
 - app_mm.py 用 mmgp FP8 量化 + `offload.profile()` + `profile_type.LowRAM_HighVRAM`
 - 需要写独立脚本（app_mm.py 是 Gradio UI，不能直接命令行调用）
 - 量化版 VRAM 需求 8-12GB，可能不需要 CPU offload → 推理更快
@@ -445,27 +448,28 @@
 
 **测试结果**：
 
-| 测试 | 模式 | 推理时间 | 8步平均 | 输出大小 | 状态 |
-|------|------|---------|---------|---------|------|
-| NF4 + model_cpu_offload | nf4_bnb | **5.0 min** (301s) | 13.8s/step | 1542.2 KB | ✅ 第3次运行 |
-| Baseline (sequential_cpu_offload) | sequential_cpu_offload | **5.9 min** (352s) | 24.2s/step | 372.0 KB | ✅ 第1次运行 |
+| 测试                              | 模式                   | 推理时间           | 8步平均    | 输出大小  | 状态         |
+| --------------------------------- | ---------------------- | ------------------ | ---------- | --------- | ------------ |
+| NF4 + model_cpu_offload           | nf4_bnb                | **5.0 min** (301s) | 13.8s/step | 1542.2 KB | ✅ 第3次运行 |
+| Baseline (sequential_cpu_offload) | sequential_cpu_offload | **5.9 min** (352s) | 24.2s/step | 372.0 KB  | ✅ 第1次运行 |
 
 > **数据来源说明**：NF4 和 baseline 数据来自同一天不同运行（环境完全相同：同一台 Modal T4、同一个 Volume 缓存、同样的 512×512 分辨率）。NF4 来自第 3 次运行（shell-308），baseline 来自第 1 次运行（shell-283），因为第 3 次运行中 baseline 被 kill 掉了（exit_code=143）。两个测试用的是**同一个模型权重**，唯一区别是：NF4 量化了 462 个 Linear 层为 4-bit + 用 `model_cpu_offload`，baseline 不量化 + 用 `sequential_cpu_offload`。
 
 **逐步耗时对比**：
 
-| Step | NF4 (s) | Baseline (s) | 加速比 |
-|------|---------|-------------|--------|
-| 1 | 23.75 | 41.72 | 43% |
-| 2 | 22.33 | 38.74 | 42% |
-| 3 | 17.12 | 29.13 | 41% (TeaCache) |
-| 4 | 跳过 | 跳过 | TeaCache |
-| 5 | 跳过 | 跳过 | TeaCache |
-| 6 | 14.44 | 23.02 | 37% |
-| 7 | 16.87 | 25.93 | 35% |
-| 8 | 14.94 | 22.78 | 34% |
+| Step | NF4 (s) | Baseline (s) | 加速比         |
+| ---- | ------- | ------------ | -------------- |
+| 1    | 23.75   | 41.72        | 43%            |
+| 2    | 22.33   | 38.74        | 42%            |
+| 3    | 17.12   | 29.13        | 41% (TeaCache) |
+| 4    | 跳过    | 跳过         | TeaCache       |
+| 5    | 跳过    | 跳过         | TeaCache       |
+| 6    | 14.44   | 23.02        | 37%            |
+| 7    | 16.87   | 25.93        | 35%            |
+| 8    | 14.94   | 22.78        | 34%            |
 
 **关键结论**：
+
 1. **NF4 推理速度比 baseline 快 43%**（13.8s vs 24.2s per step），总时间 5.0min vs 5.9min
 2. **NF4 需要 model_cpu_offload**：直接 `pipeline.to(device)` 会 OOM（T4 14.6GB VRAM 不够放 VAE + wav2vec2 + text_encoder + transformer）
 3. **NF4 输出文件更大**（1542KB vs 372KB），可能是量化后的模型生成的高频细节更多或噪声模式不同——**质量评估需人工对比视频**
@@ -475,6 +479,7 @@
    - > ⚠️ **以官方文档为准，不以记忆为准**：Modal 定价、资源分配等事实性信息，必须查 [modal.com/pricing](https://modal.com/pricing) 官方文档确认，不能以 agent 记忆为准。
 
 **Modal 成本**（2026-08-24 billing report 明细验证 ✅ 完全对上）：
+
 - **官方定价**（来源 [modal.com/pricing](https://modal.com/pricing)，2026-08-24 抓取）：
   - GPU T4: **$0.5904/h**（$0.000164/s）
   - CPU: **$0.0472/core/h**（$0.0000131/core/s）—— 不是 $0.142（那是 Sandbox 定价）
@@ -486,12 +491,12 @@
   - 总计 **$0.7586**（GPU $0.488 + CPU $0.060 + Memory $0.210）
   - 共 22 个 container 生命周期（含 image build、冷启动、推理、失败的 OOM kill 等）
   - **4 个主要运行**（实际 NF4/baseline 推理）：
-    | App ID | GPU 时间 | GPU 费用 | CPU 费用 | Memory 费用 | 总计 | 对应运行 |
-    |--------|---------|---------|---------|------------|------|---------|
-    | ap-8VTytKy | 716s (11.9min) | $0.117 | $0.010 | $0.051 | $0.179 | Run #2 baseline 成功 |
-    | ap-eomao9u | 674s (11.2min) | $0.110 | $0.010 | $0.048 | $0.168 | Run #3 NF4 成功 |
-    | ap-AFWZ9w3 | 517s (8.6min) | $0.085 | $0.010 | $0.037 | $0.131 | Run #1（OOM 失败）|
-    | ap-SPjSOFl | 355s (5.9min) | $0.058 | $0.003 | $0.025 | $0.086 | 可能是 image build |
+    | App ID     | GPU 时间       | GPU 费用 | CPU 费用 | Memory 费用 | 总计   | 对应运行             |
+    | ---------- | -------------- | -------- | -------- | ----------- | ------ | -------------------- |
+    | ap-8VTytKy | 716s (11.9min) | $0.117   | $0.010   | $0.051      | $0.179 | Run #2 baseline 成功 |
+    | ap-eomao9u | 674s (11.2min) | $0.110   | $0.010   | $0.048      | $0.168 | Run #3 NF4 成功      |
+    | ap-AFWZ9w3 | 517s (8.6min)  | $0.085   | $0.010   | $0.037      | $0.131 | Run #1（OOM 失败）   |
+    | ap-SPjSOFl | 355s (5.9min)  | $0.058   | $0.003   | $0.025      | $0.086 | 可能是 image build   |
   - **反推验证**：billing 中的 Memory 费用反推出 **32.1 GiB**（不是 186GB！）→ Modal 按请求的 `memory=32768` 计费
   - **反推 CPU**：~1.1 cores（Modal 自动分配）
   - **验证结果**：用官方定价 × 反推的秒数/GiB/cores 重新计算，与 billing 完全一致（零误差）
@@ -504,20 +509,22 @@
   - **关键优势**：L4 24GB 可以放下整个 pipeline（~19GB FP16），不需要 CPU offload → 消除 I/O 瓶颈 → 预计 2-3x 推理加速
   - **Breakeven**：L4 只要比 T4 快 **1.13x**（16GB RAM）就比 T4 划算。消除 offload 后预期 2-3x，远超 breakeven。
   - 估算对比：
-    | 场景 | GPU 时间 | 单次费用 | vs T4 | $30/月可跑 |
-    |------|---------|---------|-------|-----------|
-    | T4 + NF4（实测） | 11.2min | $0.168 | 基准 | 179 次 |
-    | L4 conservative（2x加速, 16GB RAM） | 5.8min | $0.095 | 56% | 317 次 |
-    | L4 aggressive（3x加速, 8GB RAM） | 3.9min | $0.059 | 35% | 509 次 |
-    | L4 无量化 pipeline.to(device)（2.5x加速） | 4.6min | $0.076 | 45% | 395 次 |
+    | 场景                                      | GPU 时间 | 单次费用 | vs T4 | $30/月可跑 |
+    | ----------------------------------------- | -------- | -------- | ----- | ---------- |
+    | T4 + NF4（实测）                          | 11.2min  | $0.168   | 基准  | 179 次     |
+    | L4 conservative（2x加速, 16GB RAM）       | 5.8min   | $0.095   | 56%   | 317 次     |
+    | L4 aggressive（3x加速, 8GB RAM）          | 3.9min   | $0.059   | 35%   | 509 次     |
+    | L4 无量化 pipeline.to(device)（2.5x加速） | 4.6min   | $0.076   | 45%   | 395 次     |
   - **结论：L4 性价比远超 T4**——单次成本降 44-65%，速度提升 2-3x，还不需要 NF4 量化（避免质量损失风险）。bf16 支持也提升数值稳定性。
 
 **后续方向**（2026-08-24 用户确认，按优先级排序）：
+
 1. ~~Modal L4 测试~~ → **暂不测**——L4 用的是同一个 EchoMimicV3 模型，billing 数据已证明性价比优势，但用户决定先看其他模型。L4 推导数据已存档，将来需要时可直接用
 2. **下一个模型：InfiniteTalk**（⭐⭐⭐⭐，Apache 2.0，无限长度 + 中文，14B Wan2.1 基座）→ Kaggle T4 测试
 3. 其他候选：MultiTalk INT8（已发布 INT8 + SageAttention）、EchoMimic V2（Apache 2.0，4279 stars）
 4. 在 Modal 上测试 720p 分辨率（当前测试用 512×512）——低优先级
 5. ~~torch.compile 在 Modal T4/L4 上是否有效~~ → **不需要单独测**：torch.compile 是 PyTorch 级别的 JIT 编译优化，效果取决于 GPU 架构（sm_75 T4 vs sm_89 L4）和算子覆盖。在 Kaggle T4 上已验证 13% 加速（v47/v49）。Modal T4 用的是同型号 GPU（Tesla T4, sm_75），torch.compile 效果应基本一致。L4（Ampere, sm_89）的 torch.compile 效果可能略好（更多算子支持），但差异不大——不是值得单独测的维度
+
 - **Volume 存储费用**：$0.09/GiB/月，含 1TB/月免费。模型缓存 ~17GB + 输出 mp4 几 MB，远低于免费额度，不产生额外费用。用 `modal volume get` 下载输出不收费（只算本地带宽）
 - **模型缓存策略**：Volume 上的模型缓存不需要一直在——如果不用了可以 `modal volume rm` 删除释放空间，但只要还在 1TB 免费额度内就不产生费用。下次运行时如果缓存还在就省下载时间（~5min），删了就重新下载。**建议保留**（17GB 远低于 1TB 免费额度）
 
@@ -525,18 +532,18 @@
 
 优化方案对比详见 `docs/research/echomimicv3-optimization-options.md`。摘要：
 
-| 方案 | 收益 | 代价 | 状态 |
-|------|------|------|------|
-| model_cpu_offload | 3-5x 加速 | 可能 OOM | ✅ v32+v33 已验证可用（需 expandable_segments） |
-| 减少步数(5步) | -7% 时间 | 质量下降 | ❌ v30 已验证，时间差 1.7min 不值得 |
-| PYTORCH_CUDA_ALLOC_CONF | 减少碎片 | 无 | ✅ v32 已验证，使 model_cpu_offload 可用 |
-| app_mm.py 参数组合 | 质量提升 | 无时间代价 | ✅ v34 已验证：推理时间与默认参数一致 |
-| 模型打包 Dataset | -12min 下载 | 一次性上传 | ✅ v33 已完成 |
-| Kaggle T4 替代 P100 | 脚本简化+Tensor Core | VRAM 少1.4GB | 📋 待测试（`machine_shape: NvidiaTeslaT4`） |
-| NF4 (bitsandbytes) 量化 | 43% 推理加速 | 质量损失待评估 | ✅ Modal T4 已验证：5.0min vs 5.9min，需 model_cpu_offload |
-| mmgp FP8 量化 | 最大加速 | 质量损失+P100 兼容未知 | 📋 量化版测试（app_mm.py） |
-| Colab L4/A100 | 全 GPU 推理+bf16 | 付费 | 备选 |
-| AutoDL 4090 | 24GB 不需 offload | ¥1.88/h 付费 | 备选 |
+| 方案                    | 收益                 | 代价                   | 状态                                                       |
+| ----------------------- | -------------------- | ---------------------- | ---------------------------------------------------------- |
+| model_cpu_offload       | 3-5x 加速            | 可能 OOM               | ✅ v32+v33 已验证可用（需 expandable_segments）            |
+| 减少步数(5步)           | -7% 时间             | 质量下降               | ❌ v30 已验证，时间差 1.7min 不值得                        |
+| PYTORCH_CUDA_ALLOC_CONF | 减少碎片             | 无                     | ✅ v32 已验证，使 model_cpu_offload 可用                   |
+| app_mm.py 参数组合      | 质量提升             | 无时间代价             | ✅ v34 已验证：推理时间与默认参数一致                      |
+| 模型打包 Dataset        | -12min 下载          | 一次性上传             | ✅ v33 已完成                                              |
+| Kaggle T4 替代 P100     | 脚本简化+Tensor Core | VRAM 少1.4GB           | 📋 待测试（`machine_shape: NvidiaTeslaT4`）                |
+| NF4 (bitsandbytes) 量化 | 43% 推理加速         | 质量损失待评估         | ✅ Modal T4 已验证：5.0min vs 5.9min，需 model_cpu_offload |
+| mmgp FP8 量化           | 最大加速             | 质量损失+P100 兼容未知 | 📋 量化版测试（app_mm.py）                                 |
+| Colab L4/A100           | 全 GPU 推理+bf16     | 付费                   | 备选                                                       |
+| AutoDL 4090             | 24GB 不需 offload    | ¥1.88/h 付费           | 备选                                                       |
 
 ### 📋 PersonaLive（未测，低优先级）
 
@@ -579,13 +586,13 @@
 
 #### LongCat 各版本对比
 
-| 版本 | 来源 | 量化方式 | 磁盘 | 本地/云端 | 状态 |
-|------|------|---------|------|----------|------|
-| bf16-dmd-merged (MLX) | mlx-community | bf16 | 43GB | 本地（需64GB+ Mac） | 📋 待测 |
-| q4-dmd-merged (MLX) | mlx-community | 4-bit | 24GB | ✅ **本地已测** | ✅ 成功但分辨率低 |
-| q8-dmd-merged (MLX) | mlx-community | 8-bit | 31GB | 本地 | 📋 待测（质量接近bf16） |
-| **GPU INT8 量化** | meituan-longcat | `--use_int8` | ~15GB | **云 GPU** | 📋 待测（官方支持） |
-| GPU bf16 原始版 | meituan-longcat | 无 | ~23GB | 云 GPU | 📋 待测 |
+| 版本                  | 来源            | 量化方式     | 磁盘  | 本地/云端           | 状态                    |
+| --------------------- | --------------- | ------------ | ----- | ------------------- | ----------------------- |
+| bf16-dmd-merged (MLX) | mlx-community   | bf16         | 43GB  | 本地（需64GB+ Mac） | 📋 待测                 |
+| q4-dmd-merged (MLX)   | mlx-community   | 4-bit        | 24GB  | ✅ **本地已测**     | ✅ 成功但分辨率低       |
+| q8-dmd-merged (MLX)   | mlx-community   | 8-bit        | 31GB  | 本地                | 📋 待测（质量接近bf16） |
+| **GPU INT8 量化**     | meituan-longcat | `--use_int8` | ~15GB | **云 GPU**          | 📋 待测（官方支持）     |
+| GPU bf16 原始版       | meituan-longcat | 无           | ~23GB | 云 GPU              | 📋 待测                 |
 
 - **MLX 版不打包到 Kaggle Dataset**——MLX 是 Apple Silicon 专用，CUDA GPU 无法运行
 - **GPU 版动画风格问题**：LongCat 官方设计支持"realistic humans, anime, virtual idols, and animals"。MLX q4 测试生成的是动画风格，可能原因：(1) q4 量化损失真实感 (2) 256×432 分辨率太低 (3) prompt 未强调真实感。GPU bf16 版应该能更好地处理真实人像
@@ -634,32 +641,32 @@
 
 #### InfiniteTalk / MultiTalk 各版本对比
 
-| 版本 | 来源 | 量化方式 | 大小 | 说明 |
-|------|------|---------|------|------|
-| **InfiniteTalk 原始版** | MeiGen-AI | 无 | ~20GB | 14B Wan2.1 基座 + InfiniteTalk LoRA |
-| **InfiniteTalk FP8 量化** | MeiGen-AI | `--quant fp8` | ~26GB(19.5+6.7) | ✅ **已发布**！DiT FP8 + T5 FP8，用 `--quant fp8` |
-| InfiniteTalk INT8 量化 | MeiGen-AI | `--quant int8` | — | ⚠️ DiT INT8 已发布，但 **T5 INT8 不存在**，实际不可用 |
-| **Wan2GP InfiniteTalk** | deepbeepmeep | int8/fp8/gguf | 6GB+ | ✅ 已集成 InfiniteTalk，6GB VRAM 可跑 |
-| ComfyUI InfiniteTalk | Kijai | 标准 | — | ✅ ComfyUI 工作流已支持 |
-| **lightX2V LoRA 加速** | 社区 | LoRA 蒸馏 | — | 4-8 步推理（vs 标准 40 步） |
-| TeaCache | 官方 | 缓存加速 | — | ✅ 已支持，2-3x 加速 |
+| 版本                      | 来源         | 量化方式       | 大小            | 说明                                                  |
+| ------------------------- | ------------ | -------------- | --------------- | ----------------------------------------------------- |
+| **InfiniteTalk 原始版**   | MeiGen-AI    | 无             | ~20GB           | 14B Wan2.1 基座 + InfiniteTalk LoRA                   |
+| **InfiniteTalk FP8 量化** | MeiGen-AI    | `--quant fp8`  | ~26GB(19.5+6.7) | ✅ **已发布**！DiT FP8 + T5 FP8，用 `--quant fp8`     |
+| InfiniteTalk INT8 量化    | MeiGen-AI    | `--quant int8` | —               | ⚠️ DiT INT8 已发布，但 **T5 INT8 不存在**，实际不可用 |
+| **Wan2GP InfiniteTalk**   | deepbeepmeep | int8/fp8/gguf  | 6GB+            | ✅ 已集成 InfiniteTalk，6GB VRAM 可跑                 |
+| ComfyUI InfiniteTalk      | Kijai        | 标准           | —               | ✅ ComfyUI 工作流已支持                               |
+| **lightX2V LoRA 加速**    | 社区         | LoRA 蒸馏      | —               | 4-8 步推理（vs 标准 40 步）                           |
+| TeaCache                  | 官方         | 缓存加速       | —               | ✅ 已支持，2-3x 加速                                  |
 
 #### 参数矩阵（按 artifact 组合，2026-08-31 建立）
 
 > **规则**：不同 artifact 组合用不同参数，禁止跨组合套用（依据 AGENTS.md Proposal Self-Review #5）。有官方值的维度用官方值；组合维度无官方值时，取两个 artifact 各自官方默认作起点。来源必须标注；`作废` 的值禁止回用。
 
-| 参数 | ① base + fp8 量化（v10.11/10.16 已测） | ② bf16 非量化 + FusionX I2V LoRA（✅ v10.17 已验证） | ③ bf16 非量化 + lightx2v LoRA（✅ v10.18 已验证） | 来源 |
-|------|------|------|------|------|
-| sample_steps | 40 | 8 | 4 | ②: FusionX 卡（6-8，实践 8-10）；③: lightx2v 官方 4 步（官方 LoRA 章节注明 4-8） |
-| sample_text_guide_scale | 5.0 | 1.0 | 1.0 | ②③: 蒸馏 LoRA 硬性要求 CFG=1；①: InfiniteTalk README |
-| sample_audio_guide_scale | 4.0 | 2.0（官方 LoRA 章节；lip sync 不足上探 3-4） | 2.0（官方 LoRA 章节同一配方） | 官方 README tips：非 LoRA 最优 4，LoRA 后推荐 2 |
-| sample_shift | 7 | 2（官方 LoRA 命令原值；非 LoRA 默认 7） | 2 | 官方源码/README：shift 默认随分辨率，LoRA 命令传 2 |
-| lora_scale | — | 1.0 | 1.0 | 官方 LoRA 命令原值（参数默认 1.2，2.0 仅草稿降步数用） |
-| use_teacache | 0.1（thresh） | **禁用**（跳步与蒸馏冲突） | **禁用**（同 ②） | — |
-| quant | fp8 | 无（LoRA 与 fp8 格式冲突） | 无（同 ②） | — |
-| frame_num / max_frame_num | 81 / 81 | 81 / 81 | 81 / 81 | 官方默认（frame_num 13 是 v10.15 遗留，作废） |
-| GPU | T4 16GB / A100 40GB | A100 80GB（40GB 贴线 OOM 风险） | A100 80GB（同 ②） | Modal 定价 2026-08-31 |
-| 状态 | ✅ 可跑（40 步单卡 A100 超时不可行） | ⏸️ **停测**（2026-09-02 用户裁决：NC 许可不可商用，不再花测试费；结论保留作质量基线：12.2min/3s 段，$0.56，lip sync + 表情均最佳） | ✅ lip sync 达标（2026-09-02 用户人眼确认），表情略僵不如 ②；9.3min/3s 段，$0.42；可商用，许可标注待核实 | |
+| 参数                      | ① base + fp8 量化（v10.11/10.16 已测） | ② bf16 非量化 + FusionX I2V LoRA（✅ v10.17 已验证）                                                                               | ③ bf16 非量化 + lightx2v LoRA（✅ v10.18 已验证）                                                        | 来源                                                                             |
+| ------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| sample_steps              | 40                                     | 8                                                                                                                                  | 4                                                                                                        | ②: FusionX 卡（6-8，实践 8-10）；③: lightx2v 官方 4 步（官方 LoRA 章节注明 4-8） |
+| sample_text_guide_scale   | 5.0                                    | 1.0                                                                                                                                | 1.0                                                                                                      | ②③: 蒸馏 LoRA 硬性要求 CFG=1；①: InfiniteTalk README                             |
+| sample_audio_guide_scale  | 4.0                                    | 2.0（官方 LoRA 章节；lip sync 不足上探 3-4）                                                                                       | 2.0（官方 LoRA 章节同一配方）                                                                            | 官方 README tips：非 LoRA 最优 4，LoRA 后推荐 2                                  |
+| sample_shift              | 7                                      | 2（官方 LoRA 命令原值；非 LoRA 默认 7）                                                                                            | 2                                                                                                        | 官方源码/README：shift 默认随分辨率，LoRA 命令传 2                               |
+| lora_scale                | —                                      | 1.0                                                                                                                                | 1.0                                                                                                      | 官方 LoRA 命令原值（参数默认 1.2，2.0 仅草稿降步数用）                           |
+| use_teacache              | 0.1（thresh）                          | **禁用**（跳步与蒸馏冲突）                                                                                                         | **禁用**（同 ②）                                                                                         | —                                                                                |
+| quant                     | fp8                                    | 无（LoRA 与 fp8 格式冲突）                                                                                                         | 无（同 ②）                                                                                               | —                                                                                |
+| frame_num / max_frame_num | 81 / 81                                | 81 / 81                                                                                                                            | 81 / 81                                                                                                  | 官方默认（frame_num 13 是 v10.15 遗留，作废）                                    |
+| GPU                       | T4 16GB / A100 40GB                    | A100 80GB（40GB 贴线 OOM 风险）                                                                                                    | A100 80GB（同 ②）                                                                                        | Modal 定价 2026-08-31                                                            |
+| 状态                      | ✅ 可跑（40 步单卡 A100 超时不可行）   | ⏸️ **停测**（2026-09-02 用户裁决：NC 许可不可商用，不再花测试费；结论保留作质量基线：12.2min/3s 段，$0.56，lip sync + 表情均最佳） | ✅ lip sync 达标（2026-09-02 用户人眼确认），表情略僵不如 ②；9.3min/3s 段，$0.42；可商用，许可标注待核实 |                                                                                  |
 
 > **License 门禁（2026-09-02 用户规则）**：任何候选模型/LoRA **商用许可不明确或 NC（非商用）的一律不测试**——测试费是真金白银，NC 结论再好也用不上。筛选阶段（读 license 文件/模型卡）就把 NC 候选标注为「不测」，只测可商用或许可已核实的。FusionX 是本规则前最后一个 NC 测试项，已停测。
 
@@ -691,12 +698,12 @@
 - **结果**：✅ 25.3min，720×480/25fps/5.24s，`hallo3/hallo3_selfportrait.mp4`（0.4 MB）
 - **A/B 对比 EchoMimicV3 v50_merged**（624×816/5.2s，同照片+同音频）：
 
-  | 维度 | Hallo3 (3s帧) | EchoMimicV3 (3s帧) |
-  |------|---------------|---------------------|
-  | 唇部 | 张开说话，口型自然，轮廓清晰 | 张开说话，轻微僵硬，唇边缘平滑缺微纹理 |
-  | 伪影 | 无明显（眼镜清晰、胡须无毛边） | 下颌糊边、颈部锯齿、牙齿缺失 |
-  | 唇内 | 略模糊 | 缺牙齿/舌细节 |
-  | 综合 | 4.5/5 | 可接受非电影级 |
+  | 维度 | Hallo3 (3s帧)                  | EchoMimicV3 (3s帧)                     |
+  | ---- | ------------------------------ | -------------------------------------- |
+  | 唇部 | 张开说话，口型自然，轮廓清晰   | 张开说话，轻微僵硬，唇边缘平滑缺微纹理 |
+  | 伪影 | 无明显（眼镜清晰、胡须无毛边） | 下颌糊边、颈部锯齿、牙齿缺失           |
+  | 唇内 | 略模糊                         | 缺牙齿/舌细节                          |
+  | 综合 | 4.5/5                          | 可接受非电影级                         |
 
 - **结论**：同素材下 Hallo3 与 EchoMimicV3 质量接近，说话中帧 Hallo3 略优（更自然、更少伪影）
 
@@ -753,26 +760,26 @@
 
 #### EchoMimicV3 各版本对比
 
-| 版本 | 来源 | 量化方式 | VRAM | 说明 |
-|------|------|---------|------|------|
-| **原始版 (infer_flash.py)** | 官方 | 无量化 | 12-16GB + offload | ✅ v33 当前在用 |
-| **NF4 量化版 (bitsandbytes)** | 自测 | NF4 (4-bit) + model_cpu_offload | T4 14.6GB | ✅ Modal T4 已验证：5.0min/段，43% 加速 |
-| **Gradio 量化版 (app_mm.py)** | 官方 | mmgp FP8 + model_cpu_offload | 8-12GB | 📋 待测——参数更优化 |
-| **ComfyUI 版 (smthemex)** | 社区 | mmgp FP8 + LCM + lightX2V LoRA | 8GB+ | 📋 12G可跑65帧，16G跑97帧 |
-| **Wan2GP 版** | deepbeepmeep | int8/fp8/gguf/NV FP4 | 6GB+ | 📋 集成 InfiniteTalk，低 VRAM 优化 |
+| 版本                          | 来源         | 量化方式                        | VRAM              | 说明                                    |
+| ----------------------------- | ------------ | ------------------------------- | ----------------- | --------------------------------------- |
+| **原始版 (infer_flash.py)**   | 官方         | 无量化                          | 12-16GB + offload | ✅ v33 当前在用                         |
+| **NF4 量化版 (bitsandbytes)** | 自测         | NF4 (4-bit) + model_cpu_offload | T4 14.6GB         | ✅ Modal T4 已验证：5.0min/段，43% 加速 |
+| **Gradio 量化版 (app_mm.py)** | 官方         | mmgp FP8 + model_cpu_offload    | 8-12GB            | 📋 待测——参数更优化                     |
+| **ComfyUI 版 (smthemex)**     | 社区         | mmgp FP8 + LCM + lightX2V LoRA  | 8GB+              | 📋 12G可跑65帧，16G跑97帧               |
+| **Wan2GP 版**                 | deepbeepmeep | int8/fp8/gguf/NV FP4            | 6GB+              | 📋 集成 InfiniteTalk，低 VRAM 优化      |
 
 #### app_mm.py 关键参数对比（vs 当前 v33 配置）
 
-| 参数 | infer_flash.py (v33) | app_mm.py (量化版) | 影响 |
-|------|---------------------|-------------------|------|
-| `guidance_scale` | 6.0 | **4.5** | 视觉更自然 |
-| `audio_guidance_scale` | 2.0 | **2.5** | 唇同步更好但可能眨眼 |
-| `neg_scale` | 1.0 | **1.5** | 减少伪影 |
-| `neg_steps` | 0 | **2** | 前2步负向引导 |
-| `use_dynamic_cfg` | False | **True** | 动态 CFG 更自然 |
-| `use_dynamic_acfg` | False | **True** | 动态 audio CFG |
-| `sampler_name` | Flow_Unipc | **Flow_DPM++** | 不同采样器 |
-| `num_inference_steps` | 8 | 20 | 更多步数（但用 mmgp 加速） |
+| 参数                   | infer_flash.py (v33) | app_mm.py (量化版) | 影响                       |
+| ---------------------- | -------------------- | ------------------ | -------------------------- |
+| `guidance_scale`       | 6.0                  | **4.5**            | 视觉更自然                 |
+| `audio_guidance_scale` | 2.0                  | **2.5**            | 唇同步更好但可能眨眼       |
+| `neg_scale`            | 1.0                  | **1.5**            | 减少伪影                   |
+| `neg_steps`            | 0                    | **2**              | 前2步负向引导              |
+| `use_dynamic_cfg`      | False                | **True**           | 动态 CFG 更自然            |
+| `use_dynamic_acfg`     | False                | **True**           | 动态 audio CFG             |
+| `sampler_name`         | Flow_Unipc           | **Flow_DPM++**     | 不同采样器                 |
+| `num_inference_steps`  | 8                    | 20                 | 更多步数（但用 mmgp 加速） |
 
 ### 📋 FeatherTalk
 
@@ -805,10 +812,10 @@
 
 #### 测试结果
 
-| 变体 | VAE | FID（论文） | T4 耗时 | T4 FPS | RTX4090 FPS | VRAM | 画质 | 嘴部动态 |
-|------|-----|-----------|---------|--------|-------------|------|------|---------|
-| Model_Pro | WanVAE | 21 | 675.7s (11.3min) / 3s段 | 0.11 | 10.8 | ~15GB | 清晰，无伪影 | ✅ 有变化 |
-| Model_Lite | TAEHV | 38 | 197.5s (3.3min) / 3s段 | 0.39 | **96** | **6.4GB** | 稍平滑，略逊 Pro | ✅ 有变化 |
+| 变体       | VAE    | FID（论文） | T4 耗时                 | T4 FPS | RTX4090 FPS | VRAM      | 画质             | 嘴部动态  |
+| ---------- | ------ | ----------- | ----------------------- | ------ | ----------- | --------- | ---------------- | --------- |
+| Model_Pro  | WanVAE | 21          | 675.7s (11.3min) / 3s段 | 0.11   | 10.8        | ~15GB     | 清晰，无伪影     | ✅ 有变化 |
+| Model_Lite | TAEHV  | 38          | 197.5s (3.3min) / 3s段  | 0.39   | **96**      | **6.4GB** | 稍平滑，略逊 Pro | ✅ 有变化 |
 
 - 输出：512×512, 77 帧, 25fps, 3.08s, h264+aac
 - 产物：`scripts/short-video/experiments/digital-human/soulx-flashhead/`（mp4 + 关键帧）
@@ -882,56 +889,56 @@
 
 > 全部为官方代码默认值，非推测。`inference.py` 的 argparse 即权威来源；`inf.sh` 是官方推荐运行配置。按「文档规则：参数信源标注」逐条标注。
 
-| 参数 | 官方默认 | 信源 |
-|------|---------|------|
-| `num_inference_steps` | **1**（单步） | `inference.py` `default=1` |
-| `height` / `width` | 512 / 512 | `inference.py` `default=512` |
-| `frame_num`（每块总帧） | 33 | `inference.py` `default=33` |
-| `motion_frames_latent_num` | 2 | `inference.py` `default=2` |
-| `fps` | 25 | `inference.py` `default=25` |
-| `guidance_scale`（Audio CFG） | 1.0（=1.0 即禁用引导） | `inference.py` `default=1.0` |
-| `audio_encode_mode` | `stream` | `inference.py` `default="stream"` |
-| `cached_audio_duration` | 8 s | `inference.py` `default=8` |
-| `max_chunks` | 0（跑全部块） | `inference.py` `default=0` |
-| `history_update_mode` | `roundtrip` | `inference.py` `default="roundtrip"` |
-| `dtype` | `bf16` | `inference.py` `default="bf16"` |
-| `lite`（Lite TAE 后端） | `True`（启用 TAE） | `inference.py` `default=True` |
-| `tae_model_type` | `wan21` | `inference.py` `default="wan21"` |
-| `compile` | `off` | `inference.py` `default="off"` |
-| `noise_scale` | 1.0 | `inference.py` `default=1.0` |
-| `shift_gamma` | 5.0 | `inference.py` `default=5.0` |
-| `seed` | 42 | `inference.py` `default=42` |
-| `device` | `cuda` | `inference.py` `default="cuda"` |
-| `usp`（多卡序列并行） | `on` | `inference.py` `default="on"` |
-| `model_type` | `pro` | `inference.py` `default="pro"` |
-| 基座 `CKPT_DIR` | `SoulX-FlashHead-1_3B` | README `inf.sh` |
-| `WAV2VEC_DIR` | `facebook/wav2vec2-base-960h` | README `inf.sh` |
-| `LORA_DIR` + `AUDIO_PROJ` | `z-rx/leaptalk` / `audio_proj_step_10400.pt` | README `inf.sh` |
+| 参数                          | 官方默认                                     | 信源                                 |
+| ----------------------------- | -------------------------------------------- | ------------------------------------ |
+| `num_inference_steps`         | **1**（单步）                                | `inference.py` `default=1`           |
+| `height` / `width`            | 512 / 512                                    | `inference.py` `default=512`         |
+| `frame_num`（每块总帧）       | 33                                           | `inference.py` `default=33`          |
+| `motion_frames_latent_num`    | 2                                            | `inference.py` `default=2`           |
+| `fps`                         | 25                                           | `inference.py` `default=25`          |
+| `guidance_scale`（Audio CFG） | 1.0（=1.0 即禁用引导）                       | `inference.py` `default=1.0`         |
+| `audio_encode_mode`           | `stream`                                     | `inference.py` `default="stream"`    |
+| `cached_audio_duration`       | 8 s                                          | `inference.py` `default=8`           |
+| `max_chunks`                  | 0（跑全部块）                                | `inference.py` `default=0`           |
+| `history_update_mode`         | `roundtrip`                                  | `inference.py` `default="roundtrip"` |
+| `dtype`                       | `bf16`                                       | `inference.py` `default="bf16"`      |
+| `lite`（Lite TAE 后端）       | `True`（启用 TAE）                           | `inference.py` `default=True`        |
+| `tae_model_type`              | `wan21`                                      | `inference.py` `default="wan21"`     |
+| `compile`                     | `off`                                        | `inference.py` `default="off"`       |
+| `noise_scale`                 | 1.0                                          | `inference.py` `default=1.0`         |
+| `shift_gamma`                 | 5.0                                          | `inference.py` `default=5.0`         |
+| `seed`                        | 42                                           | `inference.py` `default=42`          |
+| `device`                      | `cuda`                                       | `inference.py` `default="cuda"`      |
+| `usp`（多卡序列并行）         | `on`                                         | `inference.py` `default="on"`        |
+| `model_type`                  | `pro`                                        | `inference.py` `default="pro"`       |
+| 基座 `CKPT_DIR`               | `SoulX-FlashHead-1_3B`                       | README `inf.sh`                      |
+| `WAV2VEC_DIR`                 | `facebook/wav2vec2-base-960h`                | README `inf.sh`                      |
+| `LORA_DIR` + `AUDIO_PROJ`     | `z-rx/leaptalk` / `audio_proj_step_10400.pt` | README `inf.sh`                      |
 
 - **官方速度口径**：论文摘要 "up to **200 FPS** in the Lite setting"（arXiv 2608.00079）；基座 README "Lite **96 FPS** on single RTX 4090"（Soul-AILab/SoulX-FlashHead）。两者均为官方口径，200 FPS 为论文最优-case，96 FPS 为 RTX4090 实测。
   - **200 FPS 的硬件口径已确认**：论文 Appendix F 原文 "Note that the **200 fps in the main manuscript is measured on H200**"；Implementation Details "all experiments are performed on a **single NVIDIA H200 GPU** with a batch size of 1"。→ T4 上 1.41 FPS 与论文数字不构成矛盾，是硬件差距。
 
 #### 官方推荐配置（2026-09-02 补齐，此前标 `待验证` 的项已有官方值）
 
-| 参数 | 官方值 | 信源（原文引用） |
-|---|---|---|
-| **`guidance_scale`（α）** | **1.6** | 论文 §Parameter Sensitivity Analysis："a moderate value around **1.6** achieves the best balance. ... We therefore use **α=1.6** and λ_perc=4.0 as default settings." |
-| `num_inference_steps` | 1 | README `inf.sh` `NUM_INFERENCE_STEPS="1"` |
-| 分辨率 | 512×512 | 论文 Appendix F："**All main experiments were conducted at 512×512 resolution.**" |
-| Pro 的 VAE | **WanVAE**（3D Conv） | 论文 Table 1 `OURS (Pro)`：HDTF FID **21** / FVD 197 / CelebV-HQ FID 42 / 55 FPS |
-| Lite 的 VAE | **TAEHV**（2D Conv） | 论文 Table 1 `OURS (Lite)`：HDTF FID **38** / FVD 285 / CelebV-HQ FID 47 / **200 FPS** |
-| teacher 分支 CFG | 3.0（硬编码） | `flash_head_pipeline.py:166` `self.audio_guide_scale = 3.0` |
+| 参数                      | 官方值                | 信源（原文引用）                                                                                                                                                      |
+| ------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`guidance_scale`（α）** | **1.6**               | 论文 §Parameter Sensitivity Analysis："a moderate value around **1.6** achieves the best balance. ... We therefore use **α=1.6** and λ_perc=4.0 as default settings." |
+| `num_inference_steps`     | 1                     | README `inf.sh` `NUM_INFERENCE_STEPS="1"`                                                                                                                             |
+| 分辨率                    | 512×512               | 论文 Appendix F："**All main experiments were conducted at 512×512 resolution.**"                                                                                     |
+| Pro 的 VAE                | **WanVAE**（3D Conv） | 论文 Table 1 `OURS (Pro)`：HDTF FID **21** / FVD 197 / CelebV-HQ FID 42 / 55 FPS                                                                                      |
+| Lite 的 VAE               | **TAEHV**（2D Conv）  | 论文 Table 1 `OURS (Lite)`：HDTF FID **38** / FVD 285 / CelebV-HQ FID 47 / **200 FPS**                                                                                |
+| teacher 分支 CFG          | 3.0（硬编码）         | `flash_head_pipeline.py:166` `self.audio_guide_scale = 3.0`                                                                                                           |
 
 **⚠️ 关键矛盾（v4 质量问题的根因）**：`inf.sh` 的 `guidance_scale` 默认 **1.0 = 关闭音频 CFG**，而论文默认 **α=1.6**。README 自己也写明 CFG 的作用——"Audio-driven classifier-free guidance **strengthens mouth motion and speech alignment**"。即官方脚本默认跑的是**关闭唇同步增强**的形态。
 
 **CFG 消融（论文 Appendix D, Table 7, HDTF）**：
 
-| CFG Scale | Avg Std（运动多样性） | BAS（音频-运动对齐） |
-|---|---|---|
-| **1.0**（v4 所用） | **1.655** | 0.723 |
-| 3.0 | 3.394 | 0.658 |
-| 5.0 | 5.000 | 0.696 |
-| 7.0 | 6.323 | 0.650 |
+| CFG Scale          | Avg Std（运动多样性） | BAS（音频-运动对齐） |
+| ------------------ | --------------------- | -------------------- |
+| **1.0**（v4 所用） | **1.655**             | 0.723                |
+| 3.0                | 3.394                 | 0.658                |
+| 5.0                | 5.000                 | 0.696                |
+| 7.0                | 6.323                 | 0.650                |
 
 论文解读原文："pose diversity (Avg Std) increases with CFG scale, proving CFG effectively **enhances motion and avoids static behavior**. However, BAS gradually drops as CFG grows, indicating over-strong guidance can hurt audio-motion alignment."
 → **CFG 1.0 的 Avg Std 为全部测试点最低**（1.655），升到 3.0 即翻倍（3.394）。这直接解释 v4 产物"接近静态"。
@@ -954,18 +961,18 @@
 
 以下均为**读源码/日志所得**，用于后续任何平台复用（Kaggle/Modal 通用）：
 
-| 项 | 结论 | 信源 |
-|---|---|---|
-| 代码布局 | 单仓库自带 `flash_head/`、`vibt/`、`utils/`，**无需克隆第二个代码仓库** | README + `inference.py` 顶部 `sys.path` 注释（`SOULX_ROOT` 为遗留死代码） |
-| `--ckpt_dir` 结构 | `--model_type pro` → `<ckpt_dir>/**Model_Pro/**`；`lite` → `Model_Lite/` + `VAE_LTX/` | `flash_head_pipeline.py:167-169` |
-| 基座卡子目录 | `SoulX-FlashHead-1_3B` **同时含 `Model_Pro` 与 `Model_Lite`** | Soul-AILab README "Released" 链接（HF tree/main/Model_Pro、Model_Lite） |
-| Lite TAE 查找顺序 | `--lora_dir` → 其父目录 → `<ckpt_dir>/VAE_Wan`，匹配 `taew2_1.pth` 等 | `inference.py:_resolve_lite_tae_path` |
-| `VAE_Wan` 是否必需 | **否**（`--lite` 走 TAEHV）。但 **`VAE_Wan/Wan2.1_VAE.pth` 确实在权重卡里，484.1 MB** —— 即「治糊」的 `--no_lite` 变体**无需任何额外下载** | `flash_head_pipeline.py:141-165` + v4 运行日志 `[TREE]` 实测 |
-| `--lite` 的真实形态 | `store_true, default=**True**` —— 默认就是 Lite；要画质**必须显式传 `--no_lite`**（另有 `--use_tae`/`--no_tae` 隐藏别名） | `inference.py` argparse |
-| 权重卡实测体积 | `Model_Pro` 5751.5 MB / `Model_Lite` 5824.6 MB / `VAE_LTX` 1599.1 MB / `VAE_Wan/Wan2.1_VAE.pth` 484.1 MB / `leaptalk/lora` 180.1 MB / `audio_proj_step_10400.pt` 165.6 MB / `taew2_1.pth` 21.6 MB（共 37 files） | v4 运行日志 `[TREE]` |
-| 推理必需依赖闭包 | xfuser、pyloudnorm、mediapipe、diffusers、einops、accelerate、omegaconf、cv2 等 | 用 AST 解析 `flash_head/`、`vibt/`、`utils/`、`inference.py` 全部 import 得出 |
-| 可选依赖（已跳过） | `flash_attn` / `sageattention` / `torch_xla` / `yunchang` —— 均在 `try:` 或函数内，非单卡 Lite 路径 | `flash_head_model.py:19,25,31,206`（try 内） |
-| MediaPipe | **非致命**（v4 实测修正）：`flash_head_pipeline.py:16` → `facecrop.py:10` → `cpu_face_handler.py:1` 顶层 `import mediapipe`，但 `--use_face_crop` 默认关闭且 `process_image()` 被 `try/except` 包住。v4 实测 `MEDIAPIPE_STATUS=UNAVAILABLE`，**推理照常完成** | 同左 + v4 日志 |
+| 项                  | 结论                                                                                                                                                                                                                                                          | 信源                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 代码布局            | 单仓库自带 `flash_head/`、`vibt/`、`utils/`，**无需克隆第二个代码仓库**                                                                                                                                                                                       | README + `inference.py` 顶部 `sys.path` 注释（`SOULX_ROOT` 为遗留死代码）     |
+| `--ckpt_dir` 结构   | `--model_type pro` → `<ckpt_dir>/**Model_Pro/**`；`lite` → `Model_Lite/` + `VAE_LTX/`                                                                                                                                                                         | `flash_head_pipeline.py:167-169`                                              |
+| 基座卡子目录        | `SoulX-FlashHead-1_3B` **同时含 `Model_Pro` 与 `Model_Lite`**                                                                                                                                                                                                 | Soul-AILab README "Released" 链接（HF tree/main/Model_Pro、Model_Lite）       |
+| Lite TAE 查找顺序   | `--lora_dir` → 其父目录 → `<ckpt_dir>/VAE_Wan`，匹配 `taew2_1.pth` 等                                                                                                                                                                                         | `inference.py:_resolve_lite_tae_path`                                         |
+| `VAE_Wan` 是否必需  | **否**（`--lite` 走 TAEHV）。但 **`VAE_Wan/Wan2.1_VAE.pth` 确实在权重卡里，484.1 MB** —— 即「治糊」的 `--no_lite` 变体**无需任何额外下载**                                                                                                                    | `flash_head_pipeline.py:141-165` + v4 运行日志 `[TREE]` 实测                  |
+| `--lite` 的真实形态 | `store_true, default=**True**` —— 默认就是 Lite；要画质**必须显式传 `--no_lite`**（另有 `--use_tae`/`--no_tae` 隐藏别名）                                                                                                                                     | `inference.py` argparse                                                       |
+| 权重卡实测体积      | `Model_Pro` 5751.5 MB / `Model_Lite` 5824.6 MB / `VAE_LTX` 1599.1 MB / `VAE_Wan/Wan2.1_VAE.pth` 484.1 MB / `leaptalk/lora` 180.1 MB / `audio_proj_step_10400.pt` 165.6 MB / `taew2_1.pth` 21.6 MB（共 37 files）                                              | v4 运行日志 `[TREE]`                                                          |
+| 推理必需依赖闭包    | xfuser、pyloudnorm、mediapipe、diffusers、einops、accelerate、omegaconf、cv2 等                                                                                                                                                                               | 用 AST 解析 `flash_head/`、`vibt/`、`utils/`、`inference.py` 全部 import 得出 |
+| 可选依赖（已跳过）  | `flash_attn` / `sageattention` / `torch_xla` / `yunchang` —— 均在 `try:` 或函数内，非单卡 Lite 路径                                                                                                                                                           | `flash_head_model.py:19,25,31,206`（try 内）                                  |
+| MediaPipe           | **非致命**（v4 实测修正）：`flash_head_pipeline.py:16` → `facecrop.py:10` → `cpu_face_handler.py:1` 顶层 `import mediapipe`，但 `--use_face_crop` 默认关闭且 `process_image()` 被 `try/except` 包住。v4 实测 `MEDIAPIPE_STATUS=UNAVAILABLE`，**推理照常完成** | 同左 + v4 日志                                                                |
 
 #### 首测记录
 
@@ -999,44 +1006,45 @@
   - **「糊」→ 根因是 Lite TAEHV，官方给了两条缓解路径**：① 换 WanVAE（Table 1 FID 38→21）；② 步数 1→2（§Effect of different Autoencoders 原文）。但 v5 实测**这两条在 T4 上都不成立**——见下"v5 实测结果"（D 步数翻倍后清晰度仍 49.8、C 换 WanVAE 清晰度 49.8 < A 的 52.0；B 单纯 CFG 3.0 把唇同步 r 从 0.41 拉到 0.68 + 嘴部清晰度 52→181）。
 - **v5（2026-09-02，已执行）**：把上面 A/B/C 三条**合并成一次 GPU 周期的参数矩阵**（权重已下完，边际成本只有推理时间）。按「最便宜 + 信息量最大」排序，即使中途超时也已拿到决定性对比：
 
-  | 变体 | CFG | VAE | steps | 直击问题 | 官方信源 |
-  |---|---|---|---|---|---|
-  | A | **1.6** | TAEHV（lite） | 1 | 唇同步（最小改动） | 论文 §Parameter Sensitivity α=1.6 |
-  | B | 3.0 | TAEHV（lite） | 1 | CFG 是否 1.6 不够 | 论文消融：幅度 1.655→3.394 |
-  | C | 1.6 | **WanVAE**（`--no_lite`） | 1 | 糊（收益最大，FID 21） | 论文 Table 1 |
-  | D | 1.6 | WanVAE | **2** | 糊（论文官方缓解法） | §Effect of different Autoencoders |
+  | 变体 | CFG     | VAE                       | steps | 直击问题               | 官方信源                          |
+  | ---- | ------- | ------------------------- | ----- | ---------------------- | --------------------------------- |
+  | A    | **1.6** | TAEHV（lite）             | 1     | 唇同步（最小改动）     | 论文 §Parameter Sensitivity α=1.6 |
+  | B    | 3.0     | TAEHV（lite）             | 1     | CFG 是否 1.6 不够      | 论文消融：幅度 1.655→3.394        |
+  | C    | 1.6     | **WanVAE**（`--no_lite`） | 1     | 糊（收益最大，FID 21） | 论文 Table 1                      |
+  | D    | 1.6     | WanVAE                    | **2** | 糊（论文官方缓解法）   | §Effect of different Autoencoders |
 
   其余全部钉死在官方 `inf.sh` 基线（`--model_type pro`、512×512、fps 25、`--compile off`、`--max_chunks 4`），保证变量唯一。每个变体独立 `torchrun` 进程 + `check=False`，**单变体 OOM 不影响其余三个**。
 
 - **⏱️ 单次运行耗时基线（v4 实测，用于预估后续每轮成本）**：
 
-  | 阶段 | 实测耗时 | 备注 |
-  |---|---|---|
-  | clone + 装 torch 2.7.1 + 依赖 | ~5.7 min | 大头是 821 MB torch wheel + cuDNN 571 MB |
-  | 预检（含 CUDA/LoRA 注入用例） | ~0.3 min | |
-  | 下载三套权重 | 含在上项内 | Kaggle 出网到 HF 很快 |
-  | **推理（单变体，lite/1 步）** | **~1.5-1.8 min** | 3 chunks × ~20s + pipeline init ~25s |
-  | **v4 总 wall** | **511s ≈ 8.5 min** | 两个 lite 变体 |
-  | **v5 预估** | **~25-30 min** | 4 变体：A/B 各 ~2.5 min（CFG 双 forward），C ~4 min，D ~8 min（WanVAE 解码更重 + 2 步） |
-  | **v5 实测** | **1819s ≈ 30.3 min** | 见下"v5 实测结果"，预估偏短（漏算 WanVAE 首块冷启动） |
+  | 阶段                          | 实测耗时             | 备注                                                                                    |
+  | ----------------------------- | -------------------- | --------------------------------------------------------------------------------------- |
+  | clone + 装 torch 2.7.1 + 依赖 | ~5.7 min             | 大头是 821 MB torch wheel + cuDNN 571 MB                                                |
+  | 预检（含 CUDA/LoRA 注入用例） | ~0.3 min             |                                                                                         |
+  | 下载三套权重                  | 含在上项内           | Kaggle 出网到 HF 很快                                                                   |
+  | **推理（单变体，lite/1 步）** | **~1.5-1.8 min**     | 3 chunks × ~20s + pipeline init ~25s                                                    |
+  | **v4 总 wall**                | **511s ≈ 8.5 min**   | 两个 lite 变体                                                                          |
+  | **v5 预估**                   | **~25-30 min**       | 4 变体：A/B 各 ~2.5 min（CFG 双 forward），C ~4 min，D ~8 min（WanVAE 解码更重 + 2 步） |
+  | **v5 实测**                   | **1819s ≈ 30.3 min** | 见下"v5 实测结果"，预估偏短（漏算 WanVAE 首块冷启动）                                   |
 
   **注意**：模型存在 `/tmp`，而 Kaggle 每次运行是全新容器，**权重每轮都要重下**——这是固定成本，不因变体数增加而增加。把权重存成 Kaggle Dataset 可省掉这部分（待办）。
+
 - **v5 实测结果（2026-09-02 19:12 CST 完赛 · T4 4 变体单跑 30.3 min）**：
 
   4 个变体均产出 512×512 / 25fps / 77 帧 / 3.08s 的 mp4。所有量化数据在 `/tmp/leaptalk_out/`（`metrics_v5.json` + `lipsync_evidence2.png`），分析脚本 `analyze.py`+`sync2.py` 同目录。
 
-  | 指标 | A TAEHV α=1.6 s=1 | B TAEHV α=3.0 s=1 | C WanVAE α=1.6 s=1 | D WanVAE α=1.6 s=2 |
-  |---|---|---|---|---|
-  | **唇同步 r@lag0**（嘴部暗度信号 vs 音频 RMS 包络） | 0.409 | **0.677** | 0.344 | 0.046 |
-  | 嘴部帧间运动 mean | 12.6 | **20.5** | 13.1 | 13.0 |
-  | 上脸运动（jitter 代理） | 10.2 | 14.2 | 10.7 | 9.7 |
-  | 背景闪烁 | 3.74 | 5.88 | 3.79 | 3.09 |
-  | 嘴部 Laplacian（清晰度） | 52.0 | **180.8** | 49.8 | 49.8 |
-  | 上脸 Laplacian | 172.5 | **462.5** | 131.1 | 113.2 |
-  | 身份相关性（眼区） | 0.60 | 0.49 | 0.59 | 0.62 |
-  | **单变体 wall** | 165s | 168s | **508s** | **627s** |
-  | 生成 FPS | 0.66 | 0.60 | 0.28 | 0.19 |
-  | VAE decode（s/chunk） | 2.0 | 2.5 | **149/51/51** | 142/51/51 |
+  | 指标                                               | A TAEHV α=1.6 s=1 | B TAEHV α=3.0 s=1 | C WanVAE α=1.6 s=1 | D WanVAE α=1.6 s=2 |
+  | -------------------------------------------------- | ----------------- | ----------------- | ------------------ | ------------------ |
+  | **唇同步 r@lag0**（嘴部暗度信号 vs 音频 RMS 包络） | 0.409             | **0.677**         | 0.344              | 0.046              |
+  | 嘴部帧间运动 mean                                  | 12.6              | **20.5**          | 13.1               | 13.0               |
+  | 上脸运动（jitter 代理）                            | 10.2              | 14.2              | 10.7               | 9.7                |
+  | 背景闪烁                                           | 3.74              | 5.88              | 3.79               | 3.09               |
+  | 嘴部 Laplacian（清晰度）                           | 52.0              | **180.8**         | 49.8               | 49.8               |
+  | 上脸 Laplacian                                     | 172.5             | **462.5**         | 131.1              | 113.2              |
+  | 身份相关性（眼区）                                 | 0.60              | 0.49              | 0.59               | 0.62               |
+  | **单变体 wall**                                    | 165s              | 168s              | **508s**           | **627s**           |
+  | 生成 FPS                                           | 0.66              | 0.60              | 0.28               | 0.19               |
+  | VAE decode（s/chunk）                              | 2.0               | 2.5               | **149/51/51**      | 142/51/51          |
 
   **5 个反直觉结论（v5 阶段，依据代理指标，2026-09-02 22:39 已重新肉眼复核，结论 1/2/3 大幅修正）**：
 
@@ -1063,65 +1071,68 @@
 
 **1. 路线：WanVAE（`--no_lite`）—— 推翻了 v5-v7 的全部 TAEHV 隐含推荐**
 
-| 信源 | 性质 | 结论 |
-|---|---|---|
-| `/tmp/leaptalk_out/C_05.png` vs `B_05.png`（2026-09-02 22:39 肉眼复核） | **直接证据（ground truth）** | C/D 视觉干净（无色块），A/B 有明显油画/水彩伪影 |
-| `scripts/kaggle/leaptalk-test/leaptalk_inference.py` v7 commit | 间接 | `--lite` 默认走 TAEHV；切 WanVAE 必须 `--no_lite` |
-| LeapTalk 论文 Table 1（arXiv 2608.00079） | 官方 | Pro+WanVAE **FID 21** vs Pro+TAEHV **FID 38** |
+| 信源                                                                    | 性质                         | 结论                                              |
+| ----------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------- |
+| `/tmp/leaptalk_out/C_05.png` vs `B_05.png`（2026-09-02 22:39 肉眼复核） | **直接证据（ground truth）** | C/D 视觉干净（无色块），A/B 有明显油画/水彩伪影   |
+| `scripts/kaggle/leaptalk-test/leaptalk_inference.py` v7 commit          | 间接                         | `--lite` 默认走 TAEHV；切 WanVAE 必须 `--no_lite` |
+| LeapTalk 论文 Table 1（arXiv 2608.00079）                               | 官方                         | Pro+WanVAE **FID 21** vs Pro+TAEHV **FID 38**     |
 
 **2. 步数：1 步（不变）—— 不是被官方禁止多步，是 v5 已证多步无收益**
 
-| 信源 | 结论 |
-|---|---|
-| `/tmp/leaptalk_out/C_05.png` vs `D_05.png`（v5） | **C/D 视觉几乎一致**，2 步没让画质提升，只是嘴动略弱（v5 metrics：r 0.344→0.046） |
-| LeapTalk README Highlights | "One-step inference, 200 FPS"（设计目标 1 步） |
-| 论文 §Effect of different Autoencoders | "TAEHV blur can be alleviated by increasing 1→2 steps"（**仅对 TAE**，WanVAE 无数据；v5 验证在 WanVAE 上无视觉收益） |
+| 信源                                             | 结论                                                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `/tmp/leaptalk_out/C_05.png` vs `D_05.png`（v5） | **C/D 视觉几乎一致**，2 步没让画质提升，只是嘴动略弱（v5 metrics：r 0.344→0.046）                                    |
+| LeapTalk README Highlights                       | "One-step inference, 200 FPS"（设计目标 1 步）                                                                       |
+| 论文 §Effect of different Autoencoders           | "TAEHV blur can be alleviated by increasing 1→2 steps"（**仅对 TAE**，WanVAE 无数据；v5 验证在 WanVAE 上无视觉收益） |
 
 **3. CFG 范围：α ∈ {1.6, 2.0, 2.5, 3.0}**
 
-| 边界 | 信源 | 理由 |
-|---|---|---|
-| 下限 1.6 | 论文默认 α=1.6（README + Table 7） | 官方起点，可作为基线 |
-| 上限 3.0 | v6 7 点 CFG 扫描（`metrics_v6_sweep.json`）+ 22:39 肉眼复核 | v6 B=α3.0 唇同步峰 r=0.677（TAEHV 路线）；但 TAEHV 在 α≥3 已视觉毁容，**WanVAE 未知**，先保守到 3.0，避免重蹈 v7 α=4.0 视觉变差的覆辙 |
-| 跳过 3.5/4.0/5.0 | 22:39 肉眼复核（v6 H/I + v7） | TAEHV 在 α≥3.5 已视觉毁容；WanVAE 还没数据，先不探 |
+| 边界             | 信源                                                        | 理由                                                                                                                                  |
+| ---------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 下限 1.6         | 论文默认 α=1.6（README + Table 7）                          | 官方起点，可作为基线                                                                                                                  |
+| 上限 3.0         | v6 7 点 CFG 扫描（`metrics_v6_sweep.json`）+ 22:39 肉眼复核 | v6 B=α3.0 唇同步峰 r=0.677（TAEHV 路线）；但 TAEHV 在 α≥3 已视觉毁容，**WanVAE 未知**，先保守到 3.0，避免重蹈 v7 α=4.0 视觉变差的覆辙 |
+| 跳过 3.5/4.0/5.0 | 22:39 肉眼复核（v6 H/I + v7）                               | TAEHV 在 α≥3.5 已视觉毁容；WanVAE 还没数据，先不探                                                                                    |
 
 **4. 分辨率：512×512（不变）**
 
-| 信源 | 结论 |
-|---|---|
+| 信源                                             | 结论                                                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------- |
 | v7 实测 `/tmp/leaptalk_v7_out/leaptalk-test.log` | 768×768 直接 OOM（28.7s 失败），T4 15GB 撑不住；512 是 T4 唯一可行尺寸 |
 
 **5. 复用 v5 C（α=1.6 + WanVAE + 1 步）**
 
-| 信源 | 结论 |
-|---|---|
+| 信源                                                | 结论                                                                |
+| --------------------------------------------------- | ------------------------------------------------------------------- |
 | `/tmp/leaptalk_out/leaptalk_C_cfg1.6_wanvae_s1.mp4` | 已存在且帧数=77，时长=3.08s，与 v8 规格一致，**不重跑**节约 8.5 min |
 
 **6. 决策准则（三层验证，不再被 Laplacian 等代理骗）**
 
 **Round 1（粗筛，仅用不被证伪的代理）**：
+
 - ✅ 嘴部 ROI（y 0.59-0.74）× 灰度暗度-时间序列的 std（`/tmp/leaptalk_out/sync2.py` 已实现）—— **口动强度代理**，与 Table 7 Avg Std 同向
 - ✅ 音视频对齐：ffprobe 检查 `start_time=0`、`duration≈3.08s`
 - ❌ **Laplacian 方差**：被 22:39 推翻（色块伪影被当"清晰"），**本轮禁用**
 - ➕ 整帧颜色 std（多帧间方差）：粗略的颜色稳定度代理
 
 **Round 2（必须，肉眼复核）**：
+
 - 每变体抽 5 帧：第 10/25/40/55/70 帧（与 v5 比较基准一致）
 - 网格图 4 列 × 5 行摆一排，一眼看出逐帧稳定性
 - **逐帧逐变体盯**：色块、锐化环、毛刺、肤色跳变、嘴形清晰度
 
 **Round 3（最终验收）**：
+
 - 4 变体 mp4 **拼成 1×4 带音频对照视频**（已有 `grid2.py` 改 4 列），**你的耳朵+眼睛**判哪格最佳
 - 提交顺序：选定的最佳变体 → 写文档 → 推送最终结论
 
 **7. 预计时长**
 
-| 阶段 | 时长 |
-|---|---|
-| 权重重下 | ~6 min |
+| 阶段                              | 时长                    |
+| --------------------------------- | ----------------------- |
+| 权重重下                          | ~6 min                  |
 | K (α=2.0) + L (α=2.5) + M (α=3.0) | 3 × ~8.5 min ≈ 25.5 min |
-| 抽帧 + 量化 + 网格图 | ~3 min |
-| **总 wall** | **~35 min** |
+| 抽帧 + 量化 + 网格图              | ~3 min                  |
+| **总 wall**                       | **~35 min**             |
 
 **8. 数据/参考的时效声明**
 
@@ -1130,16 +1141,15 @@
 - HuggingFace 权重卡：`z-rx/leaptalk`（若权重更新需重测）
 - 引用脚本基线：`scripts/kaggle/leaptalk-test/leaptalk_inference.py`（v7 commit，本次将改为 v8 commit）
 
-
   **v5+v6 合并 CFG 响应曲线**（Pro DiT + TAEHV + 1 步，512×512，77 帧，同素材）：
 
-  | α | 1.6(A) | 2.0(E) | 2.5(F) | 3.0(B) | 3.5(G) | 4.0(H) | 5.0(I) |
-  |---|---|---|---|---|---|---|---|
-  | **唇同步 r@lag0** | 0.409 | 0.613 | 0.661 | **0.677** ←峰 | 0.662 | 0.639 | 0.673 |
-  | 嘴部运动 | 13.5 | 16.2 | 18.8 | 20.7 | 22.3 | 23.8 | **25.5** |
-  | 嘴部清晰度 | 69.6 | 114.3 | 175.6 | 219.4 | 295.1 | 359.8 | **555.0** |
-  | 上脸清晰度 | 187.2 | 315.7 | 443.2 | 525.0 | 583.1 | 615.3 | **813.7** |
-  | 口腔开合动态 ap_std | 0.033 | 0.045 | 0.062 | 0.076 | 0.085 | 0.094 | **0.100** |
+  | α                   | 1.6(A) | 2.0(E) | 2.5(F) | 3.0(B)        | 3.5(G) | 4.0(H) | 5.0(I)    |
+  | ------------------- | ------ | ------ | ------ | ------------- | ------ | ------ | --------- |
+  | **唇同步 r@lag0**   | 0.409  | 0.613  | 0.661  | **0.677** ←峰 | 0.662  | 0.639  | 0.673     |
+  | 嘴部运动            | 13.5   | 16.2   | 18.8   | 20.7          | 22.3   | 23.8   | **25.5**  |
+  | 嘴部清晰度          | 69.6   | 114.3  | 175.6  | 219.4         | 295.1  | 359.8  | **555.0** |
+  | 上脸清晰度          | 187.2  | 315.7  | 443.2  | 525.0         | 583.1  | 615.3  | **813.7** |
+  | 口腔开合动态 ap_std | 0.033  | 0.045  | 0.062  | 0.076         | 0.085  | 0.094  | **0.100** |
 
   （数据信源：`output/leaptalk-v6/metrics_v6_sweep.json`，分析脚本 `/tmp/leaptalk_v6_out/sweep.py`；曲线图 `cfg_sweep_chart.png`，嘴部特写+信号叠加 `cfg_sweep_mouths.png`，带音频 2×2 对照 `cfg_sweep_2x2_labeled.mp4`）
 
@@ -1274,25 +1284,26 @@
 
 ## 本地清理记录
 
-| 日期 | 清理项 | 释放空间 | 原因 |
-|------|--------|---------|------|
-| 2026-08-09 | MuseTalk 安装目录 + 模型 | ~2GB | VAE 架构问题 |
-| 2026-08-10 | LatentSync 1.5 checkpoint | 3.2GB | 256px 效果差 |
-| 2026-08-10 | LatentSync 1.6 checkpoint | 4.7GB | 512px OOM |
-| 2026-08-10 | SadTalker 目录 | 3.5GB | 效果差 |
-| 2026-08-10 | — | — | Sonic 保留安装（ComfyUI 可复用），待决定是否清理 |
-| 2026-08-10 | ComfyUI + Sonic + SVD | 18GB | fp16 死锁 + fp32 崩溃 |
-| 2026-08-10 | LatentSync repo | 2.3GB | 两个版本均失败 |
-| 2026-08-11 | Hallo2 | 14GB | 256px 太低，512px 不可用 |
-| 2026-08-11 | LivePortrait | 3.3GB | 无音频驱动，D-ID 转接效果差 |
-| 2026-08-11 | SadTalker（重装尝试） | 5.6GB | Python 3.13 不兼容，已删 |
-| 2026-08-11 | V-Express | 7GB | 17min/sub-step，完全不可用 |
+| 日期       | 清理项                    | 释放空间 | 原因                                             |
+| ---------- | ------------------------- | -------- | ------------------------------------------------ |
+| 2026-08-09 | MuseTalk 安装目录 + 模型  | ~2GB     | VAE 架构问题                                     |
+| 2026-08-10 | LatentSync 1.5 checkpoint | 3.2GB    | 256px 效果差                                     |
+| 2026-08-10 | LatentSync 1.6 checkpoint | 4.7GB    | 512px OOM                                        |
+| 2026-08-10 | SadTalker 目录            | 3.5GB    | 效果差                                           |
+| 2026-08-10 | —                         | —        | Sonic 保留安装（ComfyUI 可复用），待决定是否清理 |
+| 2026-08-10 | ComfyUI + Sonic + SVD     | 18GB     | fp16 死锁 + fp32 崩溃                            |
+| 2026-08-10 | LatentSync repo           | 2.3GB    | 两个版本均失败                                   |
+| 2026-08-11 | Hallo2                    | 14GB     | 256px 太低，512px 不可用                         |
+| 2026-08-11 | LivePortrait              | 3.3GB    | 无音频驱动，D-ID 转接效果差                      |
+| 2026-08-11 | SadTalker（重装尝试）     | 5.6GB    | Python 3.13 不兼容，已删                         |
+| 2026-08-11 | V-Express                 | 7GB      | 17min/sub-step，完全不可用                       |
 
 ## 本地模型最终结论
 
 **已测的 9 个本地模型在 M2 Pro 32GB 上均无法达到商用质量。**
 
 核心限制：
+
 1. **扩散模型**：MPS 内存限制只能跑 256px，嘴部细节不足
 2. **非扩散模型**：效果不够好（恐怖谷/模糊/无音频驱动）
 3. **512px 扩散**：在 M2 Pro 上不实用（235s/step）
@@ -1309,6 +1320,7 @@
 3. **🥉 InfiniteTalk** — Apache 2.0，支持中文，无限长度。基于 WAN 2.1，需验证显存需求。
 
 **推荐路径**（更新）：
+
 - **优先测试**：LongCat-Video-Avatar-1.5 MLX 移植版（q4 量化先试，bf16 后试）
 - **日常过渡**：D-ID API（便宜）或 HeyGen API（质量高但贵）
 - **高质量批量**：云 GPU + 新模型（LongCat-Video-Avatar-1.5 / Hallo3 / EchoMimicV3）
@@ -1320,6 +1332,7 @@
 ## 云 GPU 测试计划（2026-08-15 新增）
 
 **云 GPU 已配置完成**：
+
 - ✅ Kaggle CLI v2.2.4 + API 配置（全链路验证通过，P100 16GB，自动化 push → status → output）
 - ✅ Colab CLI v0.6.0 已安装（`pip3 install --break-system-packages google-colab-cli`）— 全链路验证通过：`colab --auth=adc run --gpu T4 script.py` → Tesla T4 14.6GB ✅
 - ⚠️ 兼容性修复：需降级 `jupyter-kernel-client<1.0`（v1.0.1 API 变更导致 `KernelClient` 找不到）
@@ -1329,16 +1342,17 @@
 
 **云 GPU 可跑的模型（之前在 M2 Pro 上失败的）**：
 
-| 优先级 | 模型 | VRAM | Kaggle P100 16GB | Colab T4 16GB | 商用 | 之前失败原因 |
-|--------|------|------|-----------------|--------------|------|------------|
-| ⭐⭐⭐⭐⭐ | **EchoMimicV3** | 12GB | ✅ | ✅ | ✅ Apache 2.0 | 下载阻塞 + 代码兼容 |
-| ⭐⭐⭐⭐ | **InfiniteTalk** | ~12GB | ✅ 可能 | ✅ 可能 | ✅ Apache 2.0 | 未测 |
-| ⭐⭐⭐⭐ | **LatentSync 1.6** | 18GB | ⚠️ 省内存模式 | ⚠️ 省内存模式 | ✅ OpenRAIL++ | M2 Pro OOM |
-| ⭐⭐⭐ | **Sonic** | 12GB | ✅ | ✅ | ❌ 非商用 | M2 Pro fp16 死锁 |
-| ⭐⭐⭐ | **V-Express** | ~8GB | ✅ | ✅ | ❓ | M2 Pro 17min/sub-step |
-| ⭐⭐ | **Hallo2** | 20GB+ | ❌ 16GB 不够 | ❌ 16GB 不够 | ✅ MIT | M2 Pro 256px 太低 |
+| 优先级     | 模型               | VRAM  | Kaggle P100 16GB | Colab T4 16GB | 商用          | 之前失败原因          |
+| ---------- | ------------------ | ----- | ---------------- | ------------- | ------------- | --------------------- |
+| ⭐⭐⭐⭐⭐ | **EchoMimicV3**    | 12GB  | ✅               | ✅            | ✅ Apache 2.0 | 下载阻塞 + 代码兼容   |
+| ⭐⭐⭐⭐   | **InfiniteTalk**   | ~12GB | ✅ 可能          | ✅ 可能       | ✅ Apache 2.0 | 未测                  |
+| ⭐⭐⭐⭐   | **LatentSync 1.6** | 18GB  | ⚠️ 省内存模式    | ⚠️ 省内存模式 | ✅ OpenRAIL++ | M2 Pro OOM            |
+| ⭐⭐⭐     | **Sonic**          | 12GB  | ✅               | ✅            | ❌ 非商用     | M2 Pro fp16 死锁      |
+| ⭐⭐⭐     | **V-Express**      | ~8GB  | ✅               | ✅            | ❓            | M2 Pro 17min/sub-step |
+| ⭐⭐       | **Hallo2**         | 20GB+ | ❌ 16GB 不够     | ❌ 16GB 不够  | ✅ MIT        | M2 Pro 256px 太低     |
 
 **推荐测试顺序**（从最高性价比开始）：
+
 1. **EchoMimicV3**（Apache 2.0 + 12GB + 768px + 蚂蚁出品）→ Kaggle 自动化脚本
 2. **Sonic**（效果最好但非商用，可做质量基准）→ Kaggle/Colab
 3. **InfiniteTalk**（Apache 2.0 + 无限长度 + 中文）→ Kaggle
@@ -1358,6 +1372,7 @@
 > 此列表汇总所有待测模型/版本，按优先级排序。下文每个模型详情章节包含各版本对比表。
 >
 > **GPU 选择指南**（2026-08-18 新增）：Kaggle `kernel-metadata.json` 通过 `machine_shape` 字段可选 GPU 类型：
+>
 > - `"machine_shape": "NvidiaTeslaT4"` → T4 x2（2张T4，每张15GB，sm_75，Tensor Core，默认 PyTorch 兼容）
 > - `"machine_shape": "NvidiaTeslaP100"` → P100（16GB，sm_60，无 Tensor Core，需手动降级 PyTorch）
 > - 不设该字段 → 默认 P100（9/15 后自动变 T4 x2）
@@ -1415,4 +1430,3 @@
 ## 云 GPU 平台分析（已 offload）
 
 > **双 T4 多 GPU 可行性分析、Kaggle vs Colab 平台对比、Colab Pro vs AutoDL 等价对比、GPU 硬件差异（bf16/VRAM）、免费 GPU 平台深度调研**见 `docs/research/cloud-gpu-options.md` — 从 §"双 T4 多 GPU 可行性分析" 开始到文档末尾。
-

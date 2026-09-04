@@ -72,10 +72,12 @@ Two-step deletion:
 - **Step B (stale trailing chunks):** For each identity in the current set, delete rows where `content_type = X AND source_id = Y AND chunk_index > maxChunkIndex`.
 
 PostgREST query construction:
+
 - Step A: `DELETE FROM content_embeddings WHERE NOT (content_type = 'X' AND source_id = 'Y') OR (...)` — use `.not("content_type", "in", "(...)")` combined with `.not("source_id", "in", "(...)")` is insufficient because it's AND not OR. Instead, use `.or()` filter or a composite approach.
 - Practical approach: Fetch all distinct `(content_type, source_id)` pairs from DB, compare to current set, delete the difference. This is two queries (SELECT + DELETE) but correct.
 
 Alternative (simpler PostgREST-compatible approach):
+
 - Step A: For each `(content_type, source_id)` pair that exists in DB but NOT in current set: `DELETE WHERE content_type = X AND source_id = Y`.
 - Step B: For each current identity: `DELETE WHERE content_type = X AND source_id = Y AND chunk_index > maxChunkIndex`.
 
@@ -98,6 +100,7 @@ The Map key is already `content_type:source_id:chunk_index`, so cross-type colli
 ### Test seam: `scripts/rag/lib/collectors.mjs` (new module)
 
 Unit-test `collectMarkdownSource` in isolation:
+
 - Use real fixture files under `scripts/rag/__tests__/fixtures/research/`.
 - No Ollama or Supabase needed — `collectMarkdownSource` only does file I/O and chunking.
 
@@ -116,32 +119,32 @@ Update existing `cleanupOrphans` tests to use the new signature. Mock client tra
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `scripts/rag/lib/supabase-client.mjs` | `cleanupOrphans` signature + logic change | **High** | Core RAG cleanup path. All callers must update. Existing tests must be rewritten for new signature. Worst case: orphan cleanup deletes wrong rows or fails to delete stale ones. Mitigated by: comprehensive test coverage for cross-type safety, stale chunk deletion, and empty-set handling. |
-| `scripts/rag/index.mjs` | Extract `collectMarkdownSource` + `findFilesRecursive` to `lib/collectors.mjs`; add research collection; change `cleanupOrphans` call to pass identities; add summary line | **Medium** | Orchestrator file. Extraction changes import paths. `main()` flow changes for identity construction. Mitigated by: preserving existing collector call signatures (backward compatible), incremental testing. |
-| `scripts/rag/__tests__/supabase-client.test.mjs` | Rewrite `cleanupOrphans` tests for new signature | **Low** | Test-only file. Tests must cover new contract. |
-| `scripts/rag/__tests__/collectors.test.mjs` | New file — test `collectMarkdownSource` with research fixtures | **Low** | New test file, no existing impact. |
+| File                                             | Modification                                                                                                                                                               | Risk       | Assessment                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/rag/lib/supabase-client.mjs`            | `cleanupOrphans` signature + logic change                                                                                                                                  | **High**   | Core RAG cleanup path. All callers must update. Existing tests must be rewritten for new signature. Worst case: orphan cleanup deletes wrong rows or fails to delete stale ones. Mitigated by: comprehensive test coverage for cross-type safety, stale chunk deletion, and empty-set handling. |
+| `scripts/rag/index.mjs`                          | Extract `collectMarkdownSource` + `findFilesRecursive` to `lib/collectors.mjs`; add research collection; change `cleanupOrphans` call to pass identities; add summary line | **Medium** | Orchestrator file. Extraction changes import paths. `main()` flow changes for identity construction. Mitigated by: preserving existing collector call signatures (backward compatible), incremental testing.                                                                                    |
+| `scripts/rag/__tests__/supabase-client.test.mjs` | Rewrite `cleanupOrphans` tests for new signature                                                                                                                           | **Low**    | Test-only file. Tests must cover new contract.                                                                                                                                                                                                                                                  |
+| `scripts/rag/__tests__/collectors.test.mjs`      | New file — test `collectMarkdownSource` with research fixtures                                                                                                             | **Low**    | New test file, no existing impact.                                                                                                                                                                                                                                                              |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | `docs/research/` has 36 .md files | All collected as `content_type="research"`, source_id = relative path without `.md` | Low | Fixture-based unit test |
-| 2 | `docs/research/` does not exist | `collectMarkdownSource` returns `[]` (graceful, no error) | Low | Unit test with non-existent dir |
-| 3 | Research file with no `##` headings | Whole file = one chunk, `chunk_title = null` | Low | Covered by existing `chunkMarkdown` tests |
-| 4 | Research file is empty (0 bytes) | `chunkMarkdown` returns `[]`, no chunks produced | Low | Covered by existing `chunkMarkdown` tests |
-| 5 | INDEX.md or README.md in `docs/research/` | Excluded from collection | Low | Unit test with fixture |
-| 6 | Incremental reindex with unchanged research files | Hashes match DB → skipped, no embedding | Low | Covered by existing incremental logic |
-| 7 | Research file content modified | Hash changes → re-embedded + upserted | Low | Covered by existing incremental logic |
-| 8 | Research file deleted | Orphan cleanup removes all chunks for that `(content_type="research", source_id)` | Medium | New cleanupOrphans test |
-| 9 | Research file shortened (fewer chunks) | Stale trailing chunks (`chunk_index > new max`) deleted | Medium | New cleanupOrphans test |
-| 10 | `source_id` collision: research and source-material both have "cloud-gpu-options" | Cleanup of research type does NOT touch source-material rows | **High** | Cross-type safety test in cleanupOrphans |
-| 11 | `currentIdentities` is empty (no content at all) | All rows deleted (clean slate) | Medium | cleanupOrphans empty-set test |
-| 12 | Existing source-materials collector still uses basename source_id | No change to existing behavior | Low | Regression: existing source-material tests pass unchanged |
-| 13 | Existing tiktok-refs collector still uses basename source_id | No change to existing behavior | Low | Regression: existing tiktok-refs collection works |
-| 14 | `useRelativePath=true` with nested subdirectory `docs/research/subdir/report.md` | `source_id = "docs/research/subdir/report"` (no collision with `docs/research/report.md`) | Low | Unit test with nested fixture |
-| 15 | Collector can be imported and tested without Ollama/Supabase running | Tests pass with no external services | Low | CI validation |
+| #   | Scenario                                                                          | Expected Behavior                                                                         | Risk     | Mitigation                                                |
+| --- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- |
+| 1   | `docs/research/` has 36 .md files                                                 | All collected as `content_type="research"`, source_id = relative path without `.md`       | Low      | Fixture-based unit test                                   |
+| 2   | `docs/research/` does not exist                                                   | `collectMarkdownSource` returns `[]` (graceful, no error)                                 | Low      | Unit test with non-existent dir                           |
+| 3   | Research file with no `##` headings                                               | Whole file = one chunk, `chunk_title = null`                                              | Low      | Covered by existing `chunkMarkdown` tests                 |
+| 4   | Research file is empty (0 bytes)                                                  | `chunkMarkdown` returns `[]`, no chunks produced                                          | Low      | Covered by existing `chunkMarkdown` tests                 |
+| 5   | INDEX.md or README.md in `docs/research/`                                         | Excluded from collection                                                                  | Low      | Unit test with fixture                                    |
+| 6   | Incremental reindex with unchanged research files                                 | Hashes match DB → skipped, no embedding                                                   | Low      | Covered by existing incremental logic                     |
+| 7   | Research file content modified                                                    | Hash changes → re-embedded + upserted                                                     | Low      | Covered by existing incremental logic                     |
+| 8   | Research file deleted                                                             | Orphan cleanup removes all chunks for that `(content_type="research", source_id)`         | Medium   | New cleanupOrphans test                                   |
+| 9   | Research file shortened (fewer chunks)                                            | Stale trailing chunks (`chunk_index > new max`) deleted                                   | Medium   | New cleanupOrphans test                                   |
+| 10  | `source_id` collision: research and source-material both have "cloud-gpu-options" | Cleanup of research type does NOT touch source-material rows                              | **High** | Cross-type safety test in cleanupOrphans                  |
+| 11  | `currentIdentities` is empty (no content at all)                                  | All rows deleted (clean slate)                                                            | Medium   | cleanupOrphans empty-set test                             |
+| 12  | Existing source-materials collector still uses basename source_id                 | No change to existing behavior                                                            | Low      | Regression: existing source-material tests pass unchanged |
+| 13  | Existing tiktok-refs collector still uses basename source_id                      | No change to existing behavior                                                            | Low      | Regression: existing tiktok-refs collection works         |
+| 14  | `useRelativePath=true` with nested subdirectory `docs/research/subdir/report.md`  | `source_id = "docs/research/subdir/report"` (no collision with `docs/research/report.md`) | Low      | Unit test with nested fixture                             |
+| 15  | Collector can be imported and tested without Ollama/Supabase running              | Tests pass with no external services                                                      | Low      | CI validation                                             |
 
 ---
 

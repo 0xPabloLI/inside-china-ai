@@ -69,32 +69,32 @@ Change hashtag derivation from full-text keyword matching to `meta.keyEntities` 
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `lib/caption-utils.mjs` | Delete comment hook templates, simplify `derivePinnedComment`, change `deriveHashtags` to keyEntities-only, remove comment hook from `deriveDescription` | High | Core logic change affects all captions. Existing 35 tests will break — must update + add. |
-| `generate-caption.mjs` | Merge title into description, per-content output path, pass keyEntities to deriveHashtags | Medium | Output format change + path change. |
-| `__tests__/caption-utils.test.mjs` | Update broken tests, add new tests | Low | Pure test changes. |
-| `content/doubao-work/scene-data.mjs` | Add `metadata.commentHook` (Agent-generated) | Low | Per-content, non-code. |
+| File                                 | Modification                                                                                                                                             | Risk   | Assessment                                                                                |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------- |
+| `lib/caption-utils.mjs`              | Delete comment hook templates, simplify `derivePinnedComment`, change `deriveHashtags` to keyEntities-only, remove comment hook from `deriveDescription` | High   | Core logic change affects all captions. Existing 35 tests will break — must update + add. |
+| `generate-caption.mjs`               | Merge title into description, per-content output path, pass keyEntities to deriveHashtags                                                                | Medium | Output format change + path change.                                                       |
+| `__tests__/caption-utils.test.mjs`   | Update broken tests, add new tests                                                                                                                       | Low    | Pure test changes.                                                                        |
+| `content/doubao-work/scene-data.mjs` | Add `metadata.commentHook` (Agent-generated)                                                                                                             | Low    | Per-content, non-code.                                                                    |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Caption output format | Single block: hook line + description + hashtags, no title separator | User can't copy-paste separate title | Merge title into description |
-| 2 | Comment hook from metadata | `derivePinnedComment` returns `metadata.commentHook` | None | Read from metadata |
-| 3 | No comment hook in metadata | `derivePinnedComment` returns empty string | Pinned comment file is empty | Acceptable — Agent should always provide |
-| 4 | Description has no comment hook | `deriveDescription` output ends with CTA only | Old behavior appended hook | Remove hook appending |
-| 5 | Hashtag from keyEntities only | `deriveHashtags` matches `bytedance` from keyEntities → `#bytedance` | None | Lookup table |
-| 6 | Competitor in voiceover only | `#alibaba` NOT matched (not in keyEntities) | Old behavior would match | Stop full-text scanning |
-| 7 | `doubao` in keyEntities | `#doubao` matched | New mapping | Add to ENTITY_HASHTAG_MAP |
-| 8 | `feishu`/`lark` in keyEntities | `#feishu` matched | New mapping | Add to ENTITY_HASHTAG_MAP |
-| 9 | Only 1 company in keyEntities → 1 entity hashtag + #ainews + #chinaai = 3 | 3 hashtags total, no padding needed | Min 3 satisfied | Existing pad logic |
-| 10 | 0 companies in keyEntities | #ainews + #chinaai + pad #technews = 3 | Edge case | Existing pad logic |
-| 11 | Per-content output | `output/doubao-work/tiktok-caption.txt` | Old global output overwritten | New path when --content |
-| 12 | Existing 35 tests | Tests referencing deleted functions (deriveCommentHook templates) must be removed/updated | Test breakage | Update in TDD step |
-| 13 | `deriveTitle` still works | Title generated for metadata.json | None | No change to deriveTitle |
-| 14 | Caption ≤ 2200 chars | Still enforced | None | Existing truncation |
-| 15 | Hashtags 3-5 count | Still enforced | None | Existing count constraint |
+| #   | Scenario                                                                  | Expected Behavior                                                                         | Risk                                 | Mitigation                               |
+| --- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------- |
+| 1   | Caption output format                                                     | Single block: hook line + description + hashtags, no title separator                      | User can't copy-paste separate title | Merge title into description             |
+| 2   | Comment hook from metadata                                                | `derivePinnedComment` returns `metadata.commentHook`                                      | None                                 | Read from metadata                       |
+| 3   | No comment hook in metadata                                               | `derivePinnedComment` returns empty string                                                | Pinned comment file is empty         | Acceptable — Agent should always provide |
+| 4   | Description has no comment hook                                           | `deriveDescription` output ends with CTA only                                             | Old behavior appended hook           | Remove hook appending                    |
+| 5   | Hashtag from keyEntities only                                             | `deriveHashtags` matches `bytedance` from keyEntities → `#bytedance`                      | None                                 | Lookup table                             |
+| 6   | Competitor in voiceover only                                              | `#alibaba` NOT matched (not in keyEntities)                                               | Old behavior would match             | Stop full-text scanning                  |
+| 7   | `doubao` in keyEntities                                                   | `#doubao` matched                                                                         | New mapping                          | Add to ENTITY_HASHTAG_MAP                |
+| 8   | `feishu`/`lark` in keyEntities                                            | `#feishu` matched                                                                         | New mapping                          | Add to ENTITY_HASHTAG_MAP                |
+| 9   | Only 1 company in keyEntities → 1 entity hashtag + #ainews + #chinaai = 3 | 3 hashtags total, no padding needed                                                       | Min 3 satisfied                      | Existing pad logic                       |
+| 10  | 0 companies in keyEntities                                                | #ainews + #chinaai + pad #technews = 3                                                    | Edge case                            | Existing pad logic                       |
+| 11  | Per-content output                                                        | `output/doubao-work/tiktok-caption.txt`                                                   | Old global output overwritten        | New path when --content                  |
+| 12  | Existing 35 tests                                                         | Tests referencing deleted functions (deriveCommentHook templates) must be removed/updated | Test breakage                        | Update in TDD step                       |
+| 13  | `deriveTitle` still works                                                 | Title generated for metadata.json                                                         | None                                 | No change to deriveTitle                 |
+| 14  | Caption ≤ 2200 chars                                                      | Still enforced                                                                            | None                                 | Existing truncation                      |
+| 15  | Hashtags 3-5 count                                                        | Still enforced                                                                            | None                                 | Existing count constraint                |
 
 ## Out of Scope
 

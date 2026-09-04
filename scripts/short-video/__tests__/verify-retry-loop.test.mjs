@@ -8,10 +8,16 @@ function makeReport(passed, errors = 0, audioSyncErrors = 0) {
   return {
     summary: { passed, errors, warnings: 0 },
     wordSequence: { matches: true },
-    audioSync: audioSyncErrors > 0
-      ? { passed: false, errors: audioSyncErrors, checked: 5, skipped: 0,
-          scenes: [{ sceneId: 1, ok: false, drift: -0.157, expected: 0, measured: -0.157 }] }
-      : { passed: true, errors: 0, checked: 5, skipped: 0, scenes: [] },
+    audioSync:
+      audioSyncErrors > 0
+        ? {
+            passed: false,
+            errors: audioSyncErrors,
+            checked: 5,
+            skipped: 0,
+            scenes: [{ sceneId: 1, ok: false, drift: -0.157, expected: 0, measured: -0.157 }],
+          }
+        : { passed: true, errors: 0, checked: 5, skipped: 0, scenes: [] },
     gaps: { violations: [] },
   };
 }
@@ -34,8 +40,8 @@ describe("verifyWithRetry — FAIL then PASS after repair", () => {
   it("retries on FAIL and passes when repair reduces errors", async () => {
     const mockVerify = vi
       .fn()
-      .mockReturnValueOnce(makeReport(false, 3, 3))  // FAIL: 3 errors
-      .mockReturnValueOnce(makeReport(true, 0));      // PASS after repair
+      .mockReturnValueOnce(makeReport(false, 3, 3)) // FAIL: 3 errors
+      .mockReturnValueOnce(makeReport(true, 0)); // PASS after repair
 
     const mockRepair = vi.fn().mockReturnValue({ success: true });
 
@@ -57,8 +63,8 @@ describe("verifyWithRetry — rollback on non-decreasing errors", () => {
   it("rolls back when repair doesn't reduce errors", async () => {
     const mockVerify = vi
       .fn()
-      .mockReturnValueOnce(makeReport(false, 2, 2))  // FAIL: 2 errors
-      .mockReturnValueOnce(makeReport(false, 2, 2))  // Still 2 after repair → rollback
+      .mockReturnValueOnce(makeReport(false, 2, 2)) // FAIL: 2 errors
+      .mockReturnValueOnce(makeReport(false, 2, 2)) // Still 2 after repair → rollback
       .mockReturnValueOnce(makeReport(false, 2, 2)); // Still 2 after 2nd repair → exhaust
 
     const mockRepair = vi.fn().mockReturnValue({ success: false });

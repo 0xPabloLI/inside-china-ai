@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 Files to move:
+
 - `docs/spec-asset-sourcer.md` → `docs/archive/spec-asset-sourcer.md`
 - `docs/spec-media-fullscreen-mode.md` → `docs/archive/spec-media-fullscreen-mode.md`
 - `docs/spec-voice-prosody-optimization.md` → `docs/archive/spec-voice-prosody-optimization.md`

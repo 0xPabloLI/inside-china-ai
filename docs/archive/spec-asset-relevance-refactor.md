@@ -141,50 +141,50 @@ qwen4-preview 的 HITL 审阅暴露：自动分配的素材与 scene 主张零�
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/asset-sourcer.mjs` | main() 编排重构（claim 搜索 + fallback 保留）、assignAssetsToScenes 绑定/gate/cap、报告字段 | **High** | 核心路径。缓解：纯函数层先 TDD；fallback 行为回归测试锁定；真实数据 smoke（qwen4-preview）。最坏后果：自动分配全空 → CSS fallback，视频仍可渲染（graceful degradation 是现状既有能力） |
-| `scripts/short-video/lib/vlm_analyzer.py` | prompt 可选 claim 上下文 + `## Relevance` 输出与解析 | Medium | `claim=None` 走旧 prompt，现有调用方（analyzeAssets 无 claim 场景）不受影响；parse 单测覆盖。最坏后果：解析失败 → relevance null → fail-closed 排除素材（保守方向） |
-| `scripts/short-video/lib/visual-analyzer.mjs` | `analyzeAssetSemantics` 透传 claim、返回 relevance 字段 | Medium | 向后兼容（无 claim 时返回值新增字段为 null）；调用方 asset-sourcer 同步更新 |
-| `scripts/short-video/main.mjs` | Step 1.5 不再传 `--keywords companies[0]` | Medium | fallback 行为保留在 asset-sourcer 内部；Step 1.5c 不动。最坏后果： sourcing 触发参数错误 → 素材缺失 → CSS fallback |
-| `scripts/short-video/lib/scene-rules.mjs` | 新增 `checkAssetNeedAnnotation`（voiceover ban）+ 注册 | Low | 纯追加；现有 126 测试回归 |
-| `scripts/short-video/lib/base-styles.mjs` | 字体栈改显式衬线 | Medium | 与已发布成片渲染一致（现状即衬线）；帧审计回归验证 |
-| `scripts/short-video/remotion/src/`（全局样式挂载点） | 显式衬线字体栈 | Medium | 显式声明与现状浏览器默认一致；帧审计回归验证 |
-| `scripts/rag/index.mjs` | `allSourceIds` 作用域提升 + summary 行修复 | Low | 单行修复，逻辑无变化 |
-| `scripts/short-video/lib/claim-keywords.mjs`（新） | claim 提取 + 确定性分词 | Low | 新建纯函数模块 |
-| `scripts/short-video/lib/used-asset-index.mjs`（新） | used-asset 索引构建与匹配 | Low | 新建模块，fs 可注入 |
-| `docs/content-pipeline.md`、`docs/video-script-writing-guide.md`、`docs/media-asset-management.md`、`docs/brand-system.md`、`CONTEXT.md` | 约定同步（assetNeed、used-index、衬线基准、新词条） | Low | 按 writing-for-agents 门槛执行；改 docs 前加载 skill |
+| 文件                                                                                                                                     | 修改内容                                                                                    | 风险等级 | 评估                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/asset-sourcer.mjs`                                                                                              | main() 编排重构（claim 搜索 + fallback 保留）、assignAssetsToScenes 绑定/gate/cap、报告字段 | **High** | 核心路径。缓解：纯函数层先 TDD；fallback 行为回归测试锁定；真实数据 smoke（qwen4-preview）。最坏后果：自动分配全空 → CSS fallback，视频仍可渲染（graceful degradation 是现状既有能力） |
+| `scripts/short-video/lib/vlm_analyzer.py`                                                                                                | prompt 可选 claim 上下文 + `## Relevance` 输出与解析                                        | Medium   | `claim=None` 走旧 prompt，现有调用方（analyzeAssets 无 claim 场景）不受影响；parse 单测覆盖。最坏后果：解析失败 → relevance null → fail-closed 排除素材（保守方向）                    |
+| `scripts/short-video/lib/visual-analyzer.mjs`                                                                                            | `analyzeAssetSemantics` 透传 claim、返回 relevance 字段                                     | Medium   | 向后兼容（无 claim 时返回值新增字段为 null）；调用方 asset-sourcer 同步更新                                                                                                            |
+| `scripts/short-video/main.mjs`                                                                                                           | Step 1.5 不再传 `--keywords companies[0]`                                                   | Medium   | fallback 行为保留在 asset-sourcer 内部；Step 1.5c 不动。最坏后果： sourcing 触发参数错误 → 素材缺失 → CSS fallback                                                                     |
+| `scripts/short-video/lib/scene-rules.mjs`                                                                                                | 新增 `checkAssetNeedAnnotation`（voiceover ban）+ 注册                                      | Low      | 纯追加；现有 126 测试回归                                                                                                                                                              |
+| `scripts/short-video/lib/base-styles.mjs`                                                                                                | 字体栈改显式衬线                                                                            | Medium   | 与已发布成片渲染一致（现状即衬线）；帧审计回归验证                                                                                                                                     |
+| `scripts/short-video/remotion/src/`（全局样式挂载点）                                                                                    | 显式衬线字体栈                                                                              | Medium   | 显式声明与现状浏览器默认一致；帧审计回归验证                                                                                                                                           |
+| `scripts/rag/index.mjs`                                                                                                                  | `allSourceIds` 作用域提升 + summary 行修复                                                  | Low      | 单行修复，逻辑无变化                                                                                                                                                                   |
+| `scripts/short-video/lib/claim-keywords.mjs`（新）                                                                                       | claim 提取 + 确定性分词                                                                     | Low      | 新建纯函数模块                                                                                                                                                                         |
+| `scripts/short-video/lib/used-asset-index.mjs`（新）                                                                                     | used-asset 索引构建与匹配                                                                   | Low      | 新建模块，fs 可注入                                                                                                                                                                    |
+| `docs/content-pipeline.md`、`docs/video-script-writing-guide.md`、`docs/media-asset-management.md`、`docs/brand-system.md`、`CONTEXT.md` | 约定同步（assetNeed、used-index、衬线基准、新词条）                                         | Low      | 按 writing-for-agents 门槛执行；改 docs 前加载 skill                                                                                                                                   |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | scene `assetNeed` 为空字符串/纯空白 | 视为无标注，走公司实体 fallback | Low | trim 判断，单测 |
-| 2 | scene 无 `assetNeed` 且 meta 无 keyEntities | fallback 池为空 → 不发起搜索，scene 无 media（CSS fallback），不报错 | Low | 单测 |
-| 3 | voiceover 含 `[ASSET NEEDED` | scene-rules FAIL（B13） | Low | 单测 |
-| 4 | `mediaOptOut: true` + 有 `assetNeed` | optOut 优先，不参与 claim 搜索与分配 | Medium | 单测（防回归） |
-| 5 | claim 分词后全部命中停用词 | claim 搜索跳过；素材走 fallback 池 + overlap gate | Low | 单测 |
-| 6 | claim 搜索 0 结果 | scene 无 media，CSS fallback，管线不中断 | Low | 单测（graceful 回归） |
-| 7 | VLM 输出缺 `## Relevance` 或非法值（claim 绑定候选） | relevance=null → fail-closed 排除，asset-report 标注 | Medium | parse 单测 |
-| 8 | VLM 调用失败/超时 | fail-closed 排除该候选 | Medium | analyzeAssets 异常路径单测 |
-| 9 | relevance 恰等于阈值 60 | 通过（>= 语义） | Low | 边界单测 |
-| 10 | 同一 URL 被两个 claim 同时命中 | 先到先得（downloadedUrls），后者跳过 | Low | 单测 |
-| 11 | used-index 扫描遇到当前 slug 自身 assets | 排除，不算 reused | Medium | 单测 |
-| 12 | 历史内容无 assets 目录 / media-cache.json 缺失或损坏 | 对应集合为空，不误判、不中断 | Medium | 单测 |
-| 13 | 单个文件 hash 计算失败 | 跳过该文件，索引构建继续 | Low | 单测 |
-| 14 | claim 绑定候选的绑定 scene 已有手工 media | unassigned（不 spill 到其他 scene） | Medium | 单测 |
-| 15 | fallback 候选对所有 scene 的 overlap 均低于阈值 | unassigned + reason，patch 无该条目 | Medium | 单测 |
-| 16 | reused 接受将使 (reused+1)/(total+1) > 0.4 | 跳过该 reused 候选，后续 fresh 候选继续接受 | Medium | 贪心公式单测 |
-| 17 | 全部候选均为 reused | assigned 为 0（首 reused 即 1/1>0.4 被拒），CSS fallback | Medium | 单测；宁缺毋滥 |
-| 18 | hook scene 自动分配 | score≥60 + fit=cover 双 gate 之上叠加 relevance gate | Medium | 回归单测 |
-| 19 | NO_MEDIA_TYPES（cta/data/stat-reveal）scene | 永不分配（现状回归） | Low | 回归单测 |
-| 20 | scene 已有手工 media | 不覆盖（现状回归） | Low | 回归单测 |
-| 21 | `--keywords "foo"` + scenes 带 claims | claim 搜索照跑；"foo" 覆盖 fallback 池 | Low | 单测 |
-| 22 | RAG full rebuild 路径 | allSourceIds hoist 后行为不变 | Low | 代码审查 + smoke |
-| 23 | RAG incremental 路径 summary | 打印真实 active source 数，不再 NameError | Low | smoke |
-| 24 | Remotion 渲染（字体声明后） | DOM 计算字体为 Times 栈，与既有成片视觉一致；帧审计通过 | Medium | parity/帧审计回归 + 真实帧对比 |
-| 25 | Playwright 路径渲染（base-styles 字体变更后） | 显式衬线，与成片一致 | Medium | 真实数据 smoke |
-| 26 | asset-report 顶层 reuseStats | reusedCount/freshCount/reusedRatio/perSource 正确统计 | Low | 单测 |
+| #   | Scenario                                             | Expected Behavior                                                    | Risk   | Mitigation                     |
+| --- | ---------------------------------------------------- | -------------------------------------------------------------------- | ------ | ------------------------------ |
+| 1   | scene `assetNeed` 为空字符串/纯空白                  | 视为无标注，走公司实体 fallback                                      | Low    | trim 判断，单测                |
+| 2   | scene 无 `assetNeed` 且 meta 无 keyEntities          | fallback 池为空 → 不发起搜索，scene 无 media（CSS fallback），不报错 | Low    | 单测                           |
+| 3   | voiceover 含 `[ASSET NEEDED`                         | scene-rules FAIL（B13）                                              | Low    | 单测                           |
+| 4   | `mediaOptOut: true` + 有 `assetNeed`                 | optOut 优先，不参与 claim 搜索与分配                                 | Medium | 单测（防回归）                 |
+| 5   | claim 分词后全部命中停用词                           | claim 搜索跳过；素材走 fallback 池 + overlap gate                    | Low    | 单测                           |
+| 6   | claim 搜索 0 结果                                    | scene 无 media，CSS fallback，管线不中断                             | Low    | 单测（graceful 回归）          |
+| 7   | VLM 输出缺 `## Relevance` 或非法值（claim 绑定候选） | relevance=null → fail-closed 排除，asset-report 标注                 | Medium | parse 单测                     |
+| 8   | VLM 调用失败/超时                                    | fail-closed 排除该候选                                               | Medium | analyzeAssets 异常路径单测     |
+| 9   | relevance 恰等于阈值 60                              | 通过（>= 语义）                                                      | Low    | 边界单测                       |
+| 10  | 同一 URL 被两个 claim 同时命中                       | 先到先得（downloadedUrls），后者跳过                                 | Low    | 单测                           |
+| 11  | used-index 扫描遇到当前 slug 自身 assets             | 排除，不算 reused                                                    | Medium | 单测                           |
+| 12  | 历史内容无 assets 目录 / media-cache.json 缺失或损坏 | 对应集合为空，不误判、不中断                                         | Medium | 单测                           |
+| 13  | 单个文件 hash 计算失败                               | 跳过该文件，索引构建继续                                             | Low    | 单测                           |
+| 14  | claim 绑定候选的绑定 scene 已有手工 media            | unassigned（不 spill 到其他 scene）                                  | Medium | 单测                           |
+| 15  | fallback 候选对所有 scene 的 overlap 均低于阈值      | unassigned + reason，patch 无该条目                                  | Medium | 单测                           |
+| 16  | reused 接受将使 (reused+1)/(total+1) > 0.4           | 跳过该 reused 候选，后续 fresh 候选继续接受                          | Medium | 贪心公式单测                   |
+| 17  | 全部候选均为 reused                                  | assigned 为 0（首 reused 即 1/1>0.4 被拒），CSS fallback             | Medium | 单测；宁缺毋滥                 |
+| 18  | hook scene 自动分配                                  | score≥60 + fit=cover 双 gate 之上叠加 relevance gate                 | Medium | 回归单测                       |
+| 19  | NO_MEDIA_TYPES（cta/data/stat-reveal）scene          | 永不分配（现状回归）                                                 | Low    | 回归单测                       |
+| 20  | scene 已有手工 media                                 | 不覆盖（现状回归）                                                   | Low    | 回归单测                       |
+| 21  | `--keywords "foo"` + scenes 带 claims                | claim 搜索照跑；"foo" 覆盖 fallback 池                               | Low    | 单测                           |
+| 22  | RAG full rebuild 路径                                | allSourceIds hoist 后行为不变                                        | Low    | 代码审查 + smoke               |
+| 23  | RAG incremental 路径 summary                         | 打印真实 active source 数，不再 NameError                            | Low    | smoke                          |
+| 24  | Remotion 渲染（字体声明后）                          | DOM 计算字体为 Times 栈，与既有成片视觉一致；帧审计通过              | Medium | parity/帧审计回归 + 真实帧对比 |
+| 25  | Playwright 路径渲染（base-styles 字体变更后）        | 显式衬线，与成片一致                                                 | Medium | 真实数据 smoke                 |
+| 26  | asset-report 顶层 reuseStats                         | reusedCount/freshCount/reusedRatio/perSource 正确统计                | Low    | 单测                           |
 
 ### 跨 Step 接口契约
 

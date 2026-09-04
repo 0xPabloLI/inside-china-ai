@@ -6,11 +6,13 @@
 ---
 
 ## T1: Shared Layer Foundation
+
 **Phase**: 1
 **Depends on**: (none)
 **Blocks**: T2, T3, T4, T5
 
 ### Scope
+
 - [x] Add `SPACING` constant to `remotion/src/components/shared.ts`
 - [x] Make `Slot` accept optional `top`/`height` props in `visuals.tsx`
 - [x] Weaken `GridBg` opacity (0.04 → 0.015) in `visuals.tsx`
@@ -22,6 +24,7 @@
 - [x] Validate: `npx remotion still` — pending T2-T6 (will validate after all changes)
 
 ### Tests
+
 - [x] SPACING values match 4pt scale (xs=4, sm=8, md=12, lg=16, xl=24, 2xl=32, 3xl=48, 4xl=64, 5xl=96)
 - [x] Slot with custom top/height accepts props
 - [x] Slot without custom top/height uses defaults
@@ -33,11 +36,13 @@
 ---
 
 ## T2: @remotion/media Migration + CanvasImage
+
 **Phase**: 2
 **Depends on**: T1
 **Blocks**: T3, T4
 
 ### Scope
+
 - [x] `MediaBackground.tsx`: `Img`→`CanvasImage`, `Video`→`@remotion/media` `Video`, `Audio`→`@remotion/media` `Audio`
 - [x] `visuals.tsx`: `Img`→`CanvasImage` in BrandBar and Watermark
 - [x] `HookScene.tsx`: `Img`→`CanvasImage` for subjectLogo
@@ -47,6 +52,7 @@
 - [x] Add `effects` prop support to MediaBackground (for T4 `@remotion/effects`)
 
 ### Tests
+
 - [x] CanvasImage renders at same dimensions as previous Img in BrandBar
 - [x] @remotion/media Video plays with staticFile() source
 - [x] @remotion/media Audio plays with staticFile() source
@@ -55,11 +61,13 @@
 ---
 
 ## T3: Layout Variants — NarrativeScene Rewrite
+
 **Phase**: 2
 **Depends on**: T1, T2
 **Blocks**: T5
 
 ### Scope
+
 - [x] Add `layout` field to `types.ts` SceneData interface
 - [x] Rewrite `NarrativeScene.tsx` to dispatch by `layout`:
   - [x] `media-bottom-bar`: media top 70%, text bar bottom 30%, SlideUp-from-bottom entrance
@@ -72,6 +80,7 @@
 - [x] GridBg NOT rendered when scene has media (all media layouts)
 
 ### Tests
+
 - [x] `layout: "media-bottom-bar"` renders media in top 70%, text in bottom 30%
 - [x] `layout: "media-split"` renders media left, text right
 - [x] `layout: "media-overlay"` renders fullscreen media with text overlay
@@ -83,11 +92,13 @@
 ---
 
 ## T4: Other Scene Templates + Rough-Notation + Effects
+
 **Phase**: 2
 **Depends on**: T1, T2
 **Blocks**: T5
 
 ### Scope
+
 - [x] Rewrite `HookScene.tsx`: layout=hero-center, Interactive.Div on hookText/revealText/bigNumber/numberLabel, rough-notation Circle on bigNumber
 - [x] Rewrite `DataScene.tsx`: Interactive.Div on stat/statLabel, rough-notation Circle on stat, weakened GridBg
 - [x] Rewrite `ContrastScene.tsx`: SPACING, Interactive.Div on title, weakened GridBg
@@ -99,6 +110,7 @@
 - [x] Add `@remotion/effects` usage to MediaBackground: `vignette()` on media-overlay layout, `blur()` optional (effects prop added in T2, ready for use)
 
 ### Tests
+
 - [x] HookScene renders bigNumber with rough-notation Circle
 - [x] HookScene uses Interactive.Div on hookText, revealText, bigNumber, numberLabel
 - [x] DataScene renders stat with rough-notation Circle
@@ -111,11 +123,13 @@
 ---
 
 ## T5: Composition Transitions + Types + Validation
+
 **Phase**: 3
 **Depends on**: T1, T2, T3, T4
 **Blocks**: T6
 
 ### Scope
+
 - [x] `ShortVideo.tsx`: diversify transitions per spec table (slide/wipe/fade by scene boundary)
 - [x] Transition duration: 6 → 10 frames
 - [x] `types.ts`: add `layout` to SceneData (required for non-cta, optional for cta) — done in T3
@@ -125,6 +139,7 @@
 - [ ] Update `remotion-timeline.test.mjs` for new transition types (pending — existing tests still pass)
 
 ### Tests
+
 - [x] Hook→S2 transition uses `slide({ direction: "from-right" })`
 - [x] Data scene boundary uses `wipe()`
 - [x] Last content→CTA uses `slide({ direction: "from-bottom" })`
@@ -137,11 +152,13 @@
 ---
 
 ## T6: Content Update + Final Integration Test
+
 **Phase**: 3
 **Depends on**: T5
 **Blocks**: (none — final ticket)
 
 ### Scope
+
 - [x] Update `content/doubao-work/scene-data.mjs`: add `layout` field to each scene per Q13 table
 - [x] Add `highlight` field to scenes with key terms (e.g. "OPERATES" in hookText)
 - [x] Run `node scripts/short-video/verify-video.mjs --pre --content doubao-work` — must pass (58 pass, 2 warn, 0 fail)
@@ -152,6 +169,7 @@
 - [ ] Visual check: video has diverse layouts, animations, transitions (pending — post-render)
 
 ### Tests (integration)
+
 - [x] doubao-work scene-data has `layout` field on all non-cta scenes
 - [ ] Pipeline completes without error (pending — requires TTS generation)
 - [ ] Output MP4 is non-empty and > 30s duration (pending)

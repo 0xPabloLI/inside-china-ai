@@ -32,10 +32,9 @@ const FOCUS_SCRIPT = join(process.cwd(), "scripts/short-video/lib/focus_detector
 // so the suite must skip rather than fail — probe the API we actually use.
 function opencvUsable() {
   try {
-    execSync(
-      `"${PYTHON_BIN}" -c "import cv2; assert hasattr(cv2, 'CascadeClassifier')"`,
-      { stdio: "ignore" },
-    );
+    execSync(`"${PYTHON_BIN}" -c "import cv2; assert hasattr(cv2, 'CascadeClassifier')"`, {
+      stdio: "ignore",
+    });
     return true;
   } catch {
     return false;
@@ -44,10 +43,7 @@ function opencvUsable() {
 
 // Skip entire suite if Python or OpenCV not available
 const shouldRun =
-  existsSync(PYTHON_BIN) &&
-  existsSync(FOCUS_SCRIPT) &&
-  existsSync(TEST_IMAGE) &&
-  opencvUsable();
+  existsSync(PYTHON_BIN) && existsSync(FOCUS_SCRIPT) && existsSync(TEST_IMAGE) && opencvUsable();
 
 // P2: Serial execution enforced by vitest.config.mjs (subprocess project: fileParallelism=false, singleFork=true)
 const maybeDescribe = shouldRun ? describe : describe.skip;

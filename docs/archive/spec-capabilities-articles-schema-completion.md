@@ -38,12 +38,12 @@ capabilities.articles = {
 
 ### `apiKeyEnv` mapping
 
-| Source | apiKeyEnv | requiresApiKey | paidApi |
-|--------|-----------|----------------|---------|
-| tiktok_creator | SCRAPECREATORS_API_KEY | true | true |
-| gnews | GNEWS_API_KEY | true | false |
-| currents | CURRENTS_API_KEY | true | false |
-| All other API sources | null | false | false |
+| Source                | apiKeyEnv              | requiresApiKey | paidApi |
+| --------------------- | ---------------------- | -------------- | ------- |
+| tiktok_creator        | SCRAPECREATORS_API_KEY | true           | true    |
+| gnews                 | GNEWS_API_KEY          | true           | false   |
+| currents              | CURRENTS_API_KEY       | true           | false   |
+| All other API sources | null                   | false          | false   |
 
 Sources without `apiSearch` (30 CDP-only + MCP-only): `requiresApiKey = false`, `apiKeyEnv = null`, `paidApi = false`.
 
@@ -78,10 +78,12 @@ Not inside `apiSearch`. These are source-level properties (affect source selecti
 ### 4. Consumer migration: read capability, fallback to top-level
 
 `collectFromCdp`, `collectFromApi`, `collectFromMcp`, `collectFromSource`, and `main` filter in `search-sources.mjs` switch to:
+
 ```
 const cap = source.capabilities?.articles;
 const url = cap?.url ?? source.url;
 ```
+
 This pattern ensures backward compat if any source somehow lacks capabilities.
 
 ### 5. `apiKeyEnv` hard-coded mapping
@@ -120,29 +122,29 @@ Tests verify the **capability object structure** (not runtime behavior). Externa
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `scripts/short-video/lib/source-registry.mjs` | `enrichWithCapabilities()` adds `method`, `apiSearch`, `requiresApiKey`, `apiKeyEnv`, `paidApi`, `cdpFallback`, `mcpFallback` to `capabilities.articles` | Medium | Core registry function. All fields are direct references (no cloning). Verified: 53 article sources, 0 missing `accessMethod`. Existing 322 tests validate structural integrity. |
-| `scripts/short-video/search-sources.mjs` | `collectFromCdp`, `collectFromApi`, `collectFromMcp`, `collectFromSource`, `main` filter switch to reading `capabilities.articles` with top-level fallback | High | Primary consumer. All 4 collection functions + filter logic change. If a field is missed, that collection path breaks silently (returns empty array). Mitigated by compat-layer fallback pattern `cap?.x ?? source.x`. |
-| `scripts/short-video/__tests__/source-registry-capabilities.test.mjs` | Add test groups for `method`, `apiSearch`, `requiresApiKey`/`apiKeyEnv`/`paidApi`, `cdpFallback`/`mcpFallback` in capability | Low | Pure addition — new test groups, no modification to existing tests. |
-| `scripts/short-video/__tests__/source-registry.test.mjs` | Research-mode filter tests verify `capabilities.articles.cdpFallback` is now set | Low | Line 1138 already references this field; it will now return data instead of empty. |
+| File                                                                  | Modification                                                                                                                                               | Risk   | Assessment                                                                                                                                                                                                             |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/source-registry.mjs`                         | `enrichWithCapabilities()` adds `method`, `apiSearch`, `requiresApiKey`, `apiKeyEnv`, `paidApi`, `cdpFallback`, `mcpFallback` to `capabilities.articles`   | Medium | Core registry function. All fields are direct references (no cloning). Verified: 53 article sources, 0 missing `accessMethod`. Existing 322 tests validate structural integrity.                                       |
+| `scripts/short-video/search-sources.mjs`                              | `collectFromCdp`, `collectFromApi`, `collectFromMcp`, `collectFromSource`, `main` filter switch to reading `capabilities.articles` with top-level fallback | High   | Primary consumer. All 4 collection functions + filter logic change. If a field is missed, that collection path breaks silently (returns empty array). Mitigated by compat-layer fallback pattern `cap?.x ?? source.x`. |
+| `scripts/short-video/__tests__/source-registry-capabilities.test.mjs` | Add test groups for `method`, `apiSearch`, `requiresApiKey`/`apiKeyEnv`/`paidApi`, `cdpFallback`/`mcpFallback` in capability                               | Low    | Pure addition — new test groups, no modification to existing tests.                                                                                                                                                    |
+| `scripts/short-video/__tests__/source-registry.test.mjs`              | Research-mode filter tests verify `capabilities.articles.cdpFallback` is now set                                                                           | Low    | Line 1138 already references this field; it will now return data instead of empty.                                                                                                                                     |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Source with `method: "cdp"` and no fallbacks | `capabilities.articles.cdpFallback === undefined`, `mcpFallback === undefined`. `collectFromSource` skips fallback steps. | Low | `?.` chain + `if (articles.length === 0 && cap?.cdpFallback)` handles undefined. |
-| 2 | Source with `method: "api"` and `apiSearch` | `capabilities.articles.apiSearch` is the same object reference as top-level `source.apiSearch`. `collectFromApi` reads `cap.apiSearch.url`. | Medium | Direct reference ensures consistency. Compat fallback `cap?.apiSearch ?? source.apiSearch`. |
-| 3 | Source with `cdpFallback` (x_search) | `capabilities.articles.cdpFallback` is set. Research-mode filter correctly includes x_search. Bug fix. | Medium | Test verifies `cap.articles.cdpFallback` is defined for x_search. |
-| 4 | Source with `mcpFallback` (12 sources) | `capabilities.articles.mcpFallback` is set. `collectFromMcp` reads from capability. | Medium | Test verifies all 12 sources have `cap.articles.mcpFallback` defined. |
-| 5 | API source with `requiresApiKey: true` (gnews) | `capabilities.articles.requiresApiKey === true`, `apiKeyEnv === "GNEWS_API_KEY"`. Filter can gate on `cap.requiresApiKey` without checking `apiSearch.authRequired`. | Low | Hard-coded lookup map. Test verifies specific values. |
-| 6 | Paid API source (tiktok_creator) | `capabilities.articles.paidApi === true`. Filter reads `cap.paidApi` instead of `source.apiSearch?.paidApi`. | Low | Test verifies `cap.paidApi === true` for tiktok_creator. |
-| 7 | API source without auth (arxiv, reddit, etc.) | `capabilities.articles.requiresApiKey === false`, `apiKeyEnv === null`, `paidApi === false`. | Low | Test verifies defaults for 20 non-auth API sources. |
-| 8 | CDP-only source (no apiSearch, no fallback) | `capabilities.articles.apiSearch === undefined`, `requiresApiKey === false`, `paidApi === false`. `collectFromApi` returns `[]` (no apiSearch). | Low | 30 CDP-only sources. Test verifies. |
-| 9 | `collectFromSource` reads capability | All 4 collection functions read from `cap = source.capabilities?.articles`. If `cap` is undefined (shouldn't happen), fallback to top-level via `??`. | High | Compat fallback pattern. Test with mock source. |
-| 10 | Research-mode filter uses `cap.cdpFallback` | Filter reads `s.capabilities?.articles?.cdpFallback` (existing line 339). After migration, x_search is correctly included. | Medium | Existing test at line 1138 now returns non-empty. |
-| 11 | Paid-source filter uses `cap.paidApi` | Filter reads `s.capabilities?.articles?.paidApi` instead of `s.apiSearch?.paidApi`. | Medium | New filter line. Test verifies paid sources are filtered. |
-| 12 | `apiSearch` reference identity | `source.capabilities.articles.apiSearch === source.apiSearch` (same object). Mutating one reflects in the other. | Low | Direct reference assignment. Test verifies identity. |
+| #   | Scenario                                       | Expected Behavior                                                                                                                                                    | Risk   | Mitigation                                                                                  |
+| --- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
+| 1   | Source with `method: "cdp"` and no fallbacks   | `capabilities.articles.cdpFallback === undefined`, `mcpFallback === undefined`. `collectFromSource` skips fallback steps.                                            | Low    | `?.` chain + `if (articles.length === 0 && cap?.cdpFallback)` handles undefined.            |
+| 2   | Source with `method: "api"` and `apiSearch`    | `capabilities.articles.apiSearch` is the same object reference as top-level `source.apiSearch`. `collectFromApi` reads `cap.apiSearch.url`.                          | Medium | Direct reference ensures consistency. Compat fallback `cap?.apiSearch ?? source.apiSearch`. |
+| 3   | Source with `cdpFallback` (x_search)           | `capabilities.articles.cdpFallback` is set. Research-mode filter correctly includes x_search. Bug fix.                                                               | Medium | Test verifies `cap.articles.cdpFallback` is defined for x_search.                           |
+| 4   | Source with `mcpFallback` (12 sources)         | `capabilities.articles.mcpFallback` is set. `collectFromMcp` reads from capability.                                                                                  | Medium | Test verifies all 12 sources have `cap.articles.mcpFallback` defined.                       |
+| 5   | API source with `requiresApiKey: true` (gnews) | `capabilities.articles.requiresApiKey === true`, `apiKeyEnv === "GNEWS_API_KEY"`. Filter can gate on `cap.requiresApiKey` without checking `apiSearch.authRequired`. | Low    | Hard-coded lookup map. Test verifies specific values.                                       |
+| 6   | Paid API source (tiktok_creator)               | `capabilities.articles.paidApi === true`. Filter reads `cap.paidApi` instead of `source.apiSearch?.paidApi`.                                                         | Low    | Test verifies `cap.paidApi === true` for tiktok_creator.                                    |
+| 7   | API source without auth (arxiv, reddit, etc.)  | `capabilities.articles.requiresApiKey === false`, `apiKeyEnv === null`, `paidApi === false`.                                                                         | Low    | Test verifies defaults for 20 non-auth API sources.                                         |
+| 8   | CDP-only source (no apiSearch, no fallback)    | `capabilities.articles.apiSearch === undefined`, `requiresApiKey === false`, `paidApi === false`. `collectFromApi` returns `[]` (no apiSearch).                      | Low    | 30 CDP-only sources. Test verifies.                                                         |
+| 9   | `collectFromSource` reads capability           | All 4 collection functions read from `cap = source.capabilities?.articles`. If `cap` is undefined (shouldn't happen), fallback to top-level via `??`.                | High   | Compat fallback pattern. Test with mock source.                                             |
+| 10  | Research-mode filter uses `cap.cdpFallback`    | Filter reads `s.capabilities?.articles?.cdpFallback` (existing line 339). After migration, x_search is correctly included.                                           | Medium | Existing test at line 1138 now returns non-empty.                                           |
+| 11  | Paid-source filter uses `cap.paidApi`          | Filter reads `s.capabilities?.articles?.paidApi` instead of `s.apiSearch?.paidApi`.                                                                                  | Medium | New filter line. Test verifies paid sources are filtered.                                   |
+| 12  | `apiSearch` reference identity                 | `source.capabilities.articles.apiSearch === source.apiSearch` (same object). Mutating one reflects in the other.                                                     | Low    | Direct reference assignment. Test verifies identity.                                        |
 
 ## Further Notes
 

@@ -19,13 +19,13 @@
 
 ### Scenario coverage
 
-| Scenario | Test |
-|----------|------|
-| 1 (proxy running) | mock fetch `/targets` → ok → return true, no spawn |
-| 2 (start success) | mock fetch fail → mock existsSync → mock spawn → mock /targets ok → true |
-| 3 (script not found) | mock existsSync all false → return false |
-| 4 (timeout) | mock fetch fail → spawn → /targets always fail → return false |
-| 8 (proxy running but /targets error) | mock /targets non-ok → attempt start |
+| Scenario                             | Test                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| 1 (proxy running)                    | mock fetch `/targets` → ok → return true, no spawn                       |
+| 2 (start success)                    | mock fetch fail → mock existsSync → mock spawn → mock /targets ok → true |
+| 3 (script not found)                 | mock existsSync all false → return false                                 |
+| 4 (timeout)                          | mock fetch fail → spawn → /targets always fail → return false            |
+| 8 (proxy running but /targets error) | mock /targets non-ok → attempt start                                     |
 
 ## Ticket 2: Wire `ensureCdpProxy()` into `search-sources.mjs main()`
 
@@ -42,8 +42,8 @@
 
 ### Scenario coverage
 
-| Scenario | Verification |
-|----------|-------------|
-| 5 (all MCP/API) | ensureCdpProxy false → mcpOrApiSources check → continue |
+| Scenario              | Verification                                                   |
+| --------------------- | -------------------------------------------------------------- |
+| 5 (all MCP/API)       | ensureCdpProxy false → mcpOrApiSources check → continue        |
 | 6 (mixed, proxy fail) | cdpAvailable=false → collectFromCdp returns [] → API continues |
-| 7 (proxy success) | cdpAvailable=true → CDP sources work normally |
+| 7 (proxy success)     | cdpAvailable=true → CDP sources work normally                  |

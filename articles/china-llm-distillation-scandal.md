@@ -3,9 +3,22 @@ title: "The Distillation Storm: Inside China's LLM Distillation Controversy"
 slug: "china-llm-distillation-storm"
 excerpt: "Between January and July 2026, a series of events swept through China's LLM industry, from encrypted chain-of-thought extraction to Anthropic's public accusations to benchmark controversies. This article cross-references an insider account with public reporting."
 published: true
-topics: ["distillation", "china-llm", "anthropic", "openai", "kimi", "moonshot", "bytedance", "minimax", "encryption", "benchmarks"]
+topics:
+  [
+    "distillation",
+    "china-llm",
+    "anthropic",
+    "openai",
+    "kimi",
+    "moonshot",
+    "bytedance",
+    "minimax",
+    "encryption",
+    "benchmarks",
+  ]
 entities:
-  companies: ["anthropic", "openai", "moonshot", "bytedance", "minimax", "tencent", "alibaba", "deepseek"]
+  companies:
+    ["anthropic", "openai", "moonshot", "bytedance", "minimax", "tencent", "alibaba", "deepseek"]
   people: ["yang_zhilin"]
   models: ["kimi_k3", "kimi_k26", "claude_opus_5"]
 sources:

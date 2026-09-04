@@ -43,7 +43,7 @@ media: {
 export interface MediaField {
   type: "image" | "video";
   path: string;
-  mode?: "background" | "fullscreen";  // 新增，默认 "background"
+  mode?: "background" | "fullscreen"; // 新增，默认 "background"
   source?: string;
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;
@@ -81,14 +81,16 @@ export const FullscreenMedia: React.FC<{
       {/* 无遮罩 — fullscreen 模式下 overlay 强制为 0 */}
       {/* 可选：左下角来源标注 */}
       {media.source && (
-        <div style={{
-          position: "absolute",
-          bottom: 60,
-          left: 60,
-          fontSize: 20,
-          color: "rgba(203,213,225,0.6)",
-          letterSpacing: "2px",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            bottom: 60,
+            left: 60,
+            fontSize: 20,
+            color: "rgba(203,213,225,0.6)",
+            letterSpacing: "2px",
+          }}
+        >
           SOURCE: {media.source}
         </div>
       )}
@@ -143,14 +145,14 @@ const overlay = media.mode === "fullscreen" ? 0 : (media.overlay ?? 0.7);
 
 ## 影响面
 
-| 文件 | 改动 |
-|------|------|
-| `remotion/src/types.ts` | 加 `mode` 字段 |
-| `remotion/src/ShortVideo.tsx` | renderScene 里加 fullscreen 分支 |
-| `remotion/src/scenes/FullscreenMedia.tsx` | 新组件 |
-| `remotion/src/components/MediaBackground.tsx` | overlay 强制 0 when fullscreen |
-| `scripts/short-video/verify-video.mjs` | 加 fullscreen 规则检查 |
-| `scripts/short-video/content/*/scene-data.mjs` | 可选：现有 media 加 mode 字段 |
+| 文件                                           | 改动                             |
+| ---------------------------------------------- | -------------------------------- |
+| `remotion/src/types.ts`                        | 加 `mode` 字段                   |
+| `remotion/src/ShortVideo.tsx`                  | renderScene 里加 fullscreen 分支 |
+| `remotion/src/scenes/FullscreenMedia.tsx`      | 新组件                           |
+| `remotion/src/components/MediaBackground.tsx`  | overlay 强制 0 when fullscreen   |
+| `scripts/short-video/verify-video.mjs`         | 加 fullscreen 规则检查           |
+| `scripts/short-video/content/*/scene-data.mjs` | 可选：现有 media 加 mode 字段    |
 
 ## 不改的部分
 

@@ -50,7 +50,9 @@ async function main() {
     console.log(`  Found ${data.photos.length} photos`);
     for (const photo of data.photos.slice(0, 5)) {
       const ratio = photo.width / photo.height;
-      console.log(`    [${photo.id}] ${photo.width}x${photo.height} ratio=${ratio.toFixed(2)} alt="${photo.alt?.slice(0, 80)}"`);
+      console.log(
+        `    [${photo.id}] ${photo.width}x${photo.height} ratio=${ratio.toFixed(2)} alt="${photo.alt?.slice(0, 80)}"`,
+      );
     }
 
     // Pick the first portrait image (height > width)
@@ -62,7 +64,9 @@ async function main() {
 
     const destPath = join(contentDir, search.filename);
     const url = portrait.src.large2x || portrait.src.large || portrait.src.original;
-    console.log(`  Downloading [${portrait.id}] ${portrait.width}x${portrait.height} → ${search.filename}`);
+    console.log(
+      `  Downloading [${portrait.id}] ${portrait.width}x${portrait.height} → ${search.filename}`,
+    );
     const bytes = await downloadImage(url, destPath);
     console.log(`  Saved: ${(bytes / 1024).toFixed(0)} KB`);
   }

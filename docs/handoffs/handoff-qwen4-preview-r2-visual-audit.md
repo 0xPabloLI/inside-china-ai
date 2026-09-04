@@ -26,10 +26,10 @@
 
 `sceneClipFrames(d) = ceil((d + 0.5) * 30)`，来自 `lib/timeline.mjs`：
 
-| 场景 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10(CTA) | Σ |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| TTS(s) | 5.687 | 5.271 | 6.700 | 7.415 | 4.759 | 6.188 | 6.081 | 6.551 | 6.188 | 5.121 | 59.96 |
-| clipFrames | 186 | 174 | 216 | 238 | 158 | 201 | 198 | 212 | 201 | 169 | **1953** |
+| 场景       | 1     | 2     | 3     | 4     | 5     | 6     | 7     | 8     | 9     | 10(CTA) | Σ        |
+| ---------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ------- | -------- |
+| TTS(s)     | 5.687 | 5.271 | 6.700 | 7.415 | 4.759 | 6.188 | 6.081 | 6.551 | 6.188 | 5.121   | 59.96    |
+| clipFrames | 186   | 174   | 216   | 238   | 158   | 201   | 198   | 212   | 201   | 169     | **1953** |
 
 - 成片 1953 帧 = 65.1s（与 `verification-report.json` 一致）
 - 9 个转场 × `TRANSITION_FRAMES=10` = 90 帧
@@ -42,18 +42,18 @@
 ```js
 if (prev) {
   duration = prev.props.timing.getDurationInFrames({ fps });
-  resolvedTransitionOffsets -= duration;   // ← 从后续序列起点里扣掉
+  resolvedTransitionOffsets -= duration; // ← 从后续序列起点里扣掉
 }
 ```
 
 所以场景 i 的**真实视觉起点** `actualStart_i = Σ(clipFrames[0..i-1]) − 10·i`：
 
-| 场景 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 视觉起点(帧) | 0 | 176 | 340 | 546 | 774 | 922 | 1113 | 1301 | 1503 | **1694** |
-| 视觉终点(帧) | 186 | 350 | 556 | 784 | 932 | 1123 | 1311 | 1513 | 1704 | **1863** |
-| 音频/字幕起点(帧) | 0 | 186 | 360 | 576 | 814 | 972 | 1173 | 1371 | 1583 | **1784** |
-| **音画偏差(帧)** | 0 | 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | **90** |
+| 场景              | 1   | 2   | 3   | 4   | 5   | 6    | 7    | 8    | 9    | 10       |
+| ----------------- | --- | --- | --- | --- | --- | ---- | ---- | ---- | ---- | -------- |
+| 视觉起点(帧)      | 0   | 176 | 340 | 546 | 774 | 922  | 1113 | 1301 | 1503 | **1694** |
+| 视觉终点(帧)      | 186 | 350 | 556 | 784 | 932 | 1123 | 1311 | 1513 | 1704 | **1863** |
+| 音频/字幕起点(帧) | 0   | 186 | 360 | 576 | 814 | 972  | 1173 | 1371 | 1583 | **1784** |
+| **音画偏差(帧)**  | 0   | 10  | 20  | 30  | 40  | 50   | 60   | 70   | 80   | **90**   |
 
 最后一行是 R1 完全没发现的**系统性音画漂移**：音频/字幕用 `Σ` 坐标，视觉用 `Σ−10i` 坐标，
 每个场景累积滞后 10 帧，到 CTA 时已达 **3.0s**。
@@ -64,13 +64,13 @@ if (prev) {
 
 ### 现象（抽帧实证，`ffmpeg -ss` 逐帧抽取）
 
-| 时刻 | 文件大小 | 画面 |
-|---|---|---|
-| 60.0s | 432 KB | CTA 完整可见 |
-| **62.0s** | 433 KB | CTA 完整可见（"CHINA AI NEWS / CHINA AI, DECODED / FOLLOW FOR MORE / QWEN4 IS COMING"） |
-| **62.5s** | 35 KB | **近全黑**，仅剩字幕 "blueprint." |
-| 63.5s | 24 KB | 近全黑，字幕仍在 |
-| 64.5s | 31 KB | 近全黑，字幕 "Follow for more." |
+| 时刻      | 文件大小 | 画面                                                                                    |
+| --------- | -------- | --------------------------------------------------------------------------------------- |
+| 60.0s     | 432 KB   | CTA 完整可见                                                                            |
+| **62.0s** | 433 KB   | CTA 完整可见（"CHINA AI NEWS / CHINA AI, DECODED / FOLLOW FOR MORE / QWEN4 IS COMING"） |
+| **62.5s** | 35 KB    | **近全黑**，仅剩字幕 "blueprint."                                                       |
+| 63.5s     | 24 KB    | 近全黑，字幕仍在                                                                        |
+| 64.5s     | 31 KB    | 近全黑，字幕 "Follow for more."                                                         |
 
 ### 根因
 
@@ -92,12 +92,12 @@ CTA 现在是"提前 3s 上屏、又提前 3s 消失"：
 
 ### 修复方向（Grill 阶段在 A / A2 之间定夺，初判 A2 更优）
 
-| 方案 | 做法 | 评价 |
-|---|---|---|
+| 方案                                                 | 做法                                                                                                                                   | 评价                                                                                                                                                                                                                                      |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A2. 非末幕补转场帧（二轮 review 提出，初判推荐）** | 除最后一幕外，每幕 `visualDuration = clipFrames + TRANSITION_FRAMES`；TransitionSeries 重叠扣除后，每幕视觉起点自然回到 `Σ clipFrames` | **音频/字幕/`Root.tsx` 全部零改动**，总时长仍 1953 帧；CTA 视觉 1784→1953（169 帧 = 5.63s），与音频同起点、正好占屏到最后一帧，无需 CTA_HOLD。代价：每幕视觉多显示 10 帧（转场吃进 buffer 区），场景组件收到的 `duration` prop 需同步延长 |
-| A. 统一时间轴 + CTA_HOLD（初版提出） | 音频/字幕改用视觉坐标 `actualStart_i`；总时长 = `actualStart_last + clipFrames_last + CTA_HOLD` | 同时修漂移与黑帧；但 CTA 总占屏 169+90=259 帧 = **8.63s**（初版误写 5.6–6.6s），偏长；要动 `sceneTimeline()` 且需保证 Playwright 路径不受影响 |
-| B. `calculateMetadata` 直接减转场 | 总时长 = 1863（62.1s） | 会截断最后一句 "Follow for more."，不可接受 |
-| C. 末尾显式 Hold Sequence | 1863 帧后补 CTA 持帧 | 音画漂移仍在（CTA 前 3s 还是场景 9 语音），治标 |
+| A. 统一时间轴 + CTA_HOLD（初版提出）                 | 音频/字幕改用视觉坐标 `actualStart_i`；总时长 = `actualStart_last + clipFrames_last + CTA_HOLD`                                        | 同时修漂移与黑帧；但 CTA 总占屏 169+90=259 帧 = **8.63s**（初版误写 5.6–6.6s），偏长；要动 `sceneTimeline()` 且需保证 Playwright 路径不受影响                                                                                             |
+| B. `calculateMetadata` 直接减转场                    | 总时长 = 1863（62.1s）                                                                                                                 | 会截断最后一句 "Follow for more."，不可接受                                                                                                                                                                                               |
+| C. 末尾显式 Hold Sequence                            | 1863 帧后补 CTA 持帧                                                                                                                   | 音画漂移仍在（CTA 前 3s 还是场景 9 语音），治标                                                                                                                                                                                           |
 
 两个可行方案（A / A2）都满足用户硬性要求"CTA 到最后一帧、零黑帧"。
 **初判 A2 更优**（改动面小一个数量级：只改 `ShortVideo.tsx` 序列时长），
@@ -147,12 +147,12 @@ return {
 
 ### 修复方向（推荐 A+C：`box="inside"` + 降字号）
 
-| 方案 | 做法 | 评价 |
-|---|---|---|
-| **A. `box="inside"`** | `<Circle box="inside" ...>` → 椭圆内切于文字包围盒（1.0× 而非 1.414×），紧贴文字不外扩 | 一行改动，根治尺寸失控；但圆会变"扁"（贴着 6B 的宽扁包围盒），手绘感减弱 |
-| **B. 加大间隙** | `subject` 的 `marginBottom` 32→96；`numberLabel` 的 `marginTop` 16→96 | 保留视觉张力，但要检查总高度是否溢出安全区（`SAFE_ZONES` y∈[220,1150]） |
-| C. 降字号（推荐组合中的 C） | 300px → **240px** | 配合 `box="inside"` 进一步缩小外扩的绝对量，同时保留 Hook 的数字冲击感。⚠️ 旧稿此处曾写 220px（对齐 StatReveal），**统一为 240px**——本文与 Proposal 不得并存两个值 |
-| D. 显式 `padding` | 给 `<Circle>` 传负 padding 抵消 √2 外扩 | 依赖库实现细节，脆弱，不推荐 |
+| 方案                        | 做法                                                                                   | 评价                                                                                                                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A. `box="inside"`**       | `<Circle box="inside" ...>` → 椭圆内切于文字包围盒（1.0× 而非 1.414×），紧贴文字不外扩 | 一行改动，根治尺寸失控；但圆会变"扁"（贴着 6B 的宽扁包围盒），手绘感减弱                                                                                           |
+| **B. 加大间隙**             | `subject` 的 `marginBottom` 32→96；`numberLabel` 的 `marginTop` 16→96                  | 保留视觉张力，但要检查总高度是否溢出安全区（`SAFE_ZONES` y∈[220,1150]）                                                                                            |
+| C. 降字号（推荐组合中的 C） | 300px → **240px**                                                                      | 配合 `box="inside"` 进一步缩小外扩的绝对量，同时保留 Hook 的数字冲击感。⚠️ 旧稿此处曾写 220px（对齐 StatReveal），**统一为 240px**——本文与 Proposal 不得并存两个值 |
+| D. 显式 `padding`           | 给 `<Circle>` 传负 padding 抵消 √2 外扩                                                | 依赖库实现细节，脆弱，不推荐                                                                                                                                       |
 
 **推荐 A + C**：`box="inside"`（内切，椭圆不再 √2 外扩）+ 字号 300→240，
 既消除遮挡又保留冲击力；再把 `ANNOTATION.circle`
@@ -209,11 +209,11 @@ return {
 
 受影响的 3 个场景（本次 6 个 narrative 场景中占一半）：
 
-| 场景 | 丢失的 action | 丢失的 context |
-|---|---|---|
-| 6 hybrid-attention | "3 LAYERS REMEMBER, 1 LAYER LOOKS UP" | "GATED RESIDUAL + N-GRAM EMBEDDING + MUON" |
-| 8 long-context | "PREFILL THROUGHPUT VS QWEN3.7-PLUS" | "QSA KERNEL: PREFILL 7.6X, DECODE 4.9X" |
-| 9 loop-closure | "CAPACITY GROWTH, COMPUTE FLAT" | "51B EMBEDDINGS SIT IN REGULAR RAM, NOT VRAM" |
+| 场景               | 丢失的 action                         | 丢失的 context                                |
+| ------------------ | ------------------------------------- | --------------------------------------------- |
+| 6 hybrid-attention | "3 LAYERS REMEMBER, 1 LAYER LOOKS UP" | "GATED RESIDUAL + N-GRAM EMBEDDING + MUON"    |
+| 8 long-context     | "PREFILL THROUGHPUT VS QWEN3.7-PLUS"  | "QSA KERNEL: PREFILL 7.6X, DECODE 4.9X"       |
+| 9 loop-closure     | "CAPACITY GROWTH, COMPUTE FLAT"       | "51B EMBEDDINGS SIT IN REGULAR RAM, NOT VRAM" |
 
 抽帧实证：`at-33.0.png`(s6) / `at-46.0.png`(s8) / `at-54.0.png`(s9)
 —— 都只有顶部 badge+company、底部 result+source，中间大片留白，action/context 不见踪影。
@@ -255,12 +255,12 @@ WARN "narrative scene missing media"——但 (1) WARN 不阻断；(2) 它对所
 `main.mjs:155+`（Step 1.5 自动素材搜索，其注释明确会在 media 路径指向缺失文件时触发
 asset-sourcer）。若在 preflight 直接 FAIL，自动 sourcing 就没有机会补回媒体：
 
-| 阶段 | 判定 |
-|---|---|
-| preflight（`scene-rules`） | 缺媒体 = **pending / WARN**（可修复，留给 sourcing），不阻断 |
-| Step 1.5c 之后（sourcing 完成） | 按**最终场景** + 文件实际存在性 **硬 FAIL** |
-| `mediaOptOut=true` 与 media 依赖型布局（`media-overlay` / `media-bottom-bar` / `media-split`）组合 | **立即 FAIL**（逻辑矛盾：布局依赖 media 却声明不用） |
-| `stacked-cards`（CSS-only）+ `mediaOptOut=true` | **PASS**，不应继续 WARN |
+| 阶段                                                                                               | 判定                                                         |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| preflight（`scene-rules`）                                                                         | 缺媒体 = **pending / WARN**（可修复，留给 sourcing），不阻断 |
+| Step 1.5c 之后（sourcing 完成）                                                                    | 按**最终场景** + 文件实际存在性 **硬 FAIL**                  |
+| `mediaOptOut=true` 与 media 依赖型布局（`media-overlay` / `media-bottom-bar` / `media-split`）组合 | **立即 FAIL**（逻辑矛盾：布局依赖 media 却声明不用）         |
+| `stacked-cards`（CSS-only）+ `mediaOptOut=true`                                                    | **PASS**，不应继续 WARN                                      |
 
 其余（与原来一致）：
 
@@ -286,16 +286,16 @@ asset-sourcer）。若在 preflight 直接 FAIL，自动 sourcing 就没有机�
 
 ## 4. 影响面与优先级
 
-| # | 问题 | 严重度 | 影响范围 | 建议 |
-|---|---|---|---|---|
-| 1 | 结尾 3s 黑帧 | **P0 阻断发布** | 所有 Remotion 路径视频（含 doubao-work） | **方案 A2（已定）**：CTA 视觉 1784→1953 与总时长一致，音/字幕/Root 零改动（§1） |
-| 2 | 音画累积漂移（最大 3s） | **P0** | 同上 | 随 #1 一起修 |
-| 3 | `media-overlay` 丢 action/context | **P1 内容损失** | 所有用 `media-overlay` 的场景 | 补渲染 + 高度回归 |
-| 4 | s9 "…POINT" 截断 | P1 | 长 result 文本 | **见 Proposal（真实几何 Fit/Assert）**，本文不重复给方案 |
-| 5 | Hook 橙色圆压字 | P2（用户存疑） | 所有带 `bigNumber` 的 hook 场景 | `box="inside"` + 降字号；验收 = fixture F7（§2） |
-| 6 | `highlight` 字段语义错配 | P3 | 所有带 `highlight` 的 narrative 场景 | 子串校验 + 单行缩放（Proposal §6.4） |
-| 7 | s6 "GDN" 左缘裁切 | P3 | 边缘 | 观察，可并入 #4 |
-| 8 | `media-overlay` 缺 `media` → 近黑底大空洞 | **P1 内容损失** | s9；所有 media 依赖型布局场景 | **阶段化门控**（§3.5：preflight WARN → Step 1.5c 后 FAIL）+ s9 补素材/改 layout |
+| #   | 问题                                      | 严重度          | 影响范围                                 | 建议                                                                            |
+| --- | ----------------------------------------- | --------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
+| 1   | 结尾 3s 黑帧                              | **P0 阻断发布** | 所有 Remotion 路径视频（含 doubao-work） | **方案 A2（已定）**：CTA 视觉 1784→1953 与总时长一致，音/字幕/Root 零改动（§1） |
+| 2   | 音画累积漂移（最大 3s）                   | **P0**          | 同上                                     | 随 #1 一起修                                                                    |
+| 3   | `media-overlay` 丢 action/context         | **P1 内容损失** | 所有用 `media-overlay` 的场景            | 补渲染 + 高度回归                                                               |
+| 4   | s9 "…POINT" 截断                          | P1              | 长 result 文本                           | **见 Proposal（真实几何 Fit/Assert）**，本文不重复给方案                        |
+| 5   | Hook 橙色圆压字                           | P2（用户存疑）  | 所有带 `bigNumber` 的 hook 场景          | `box="inside"` + 降字号；验收 = fixture F7（§2）                                |
+| 6   | `highlight` 字段语义错配                  | P3              | 所有带 `highlight` 的 narrative 场景     | 子串校验 + 单行缩放（Proposal §6.4）                                            |
+| 7   | s6 "GDN" 左缘裁切                         | P3              | 边缘                                     | 观察，可并入 #4                                                                 |
+| 8   | `media-overlay` 缺 `media` → 近黑底大空洞 | **P1 内容损失** | s9；所有 media 依赖型布局场景            | **阶段化门控**（§3.5：preflight WARN → Step 1.5c 后 FAIL）+ s9 补素材/改 layout |
 
 【历史判断，已被 supersede】初版曾写 "#1/#2 与 R1 Backlog #2（字体衬线回退）叠加，
 建议一并排期"——衬线基准化（spec #130，`BRAND_FONT_STACK` 显式 Times 栈）后
@@ -348,12 +348,12 @@ review 轨迹：v1 Request changes → v2 修订 → v2 仍 Request changes（�
 二轮 review 原文存档：`docs/handoffs/review-text-overflow-fix-proposal-2026-08-30.md`。
 下表为初版摘要，【历史判断】——A/B/C/D 的最终定位以 Proposal v3 为准：
 
-| 初版方案 | v3 现状 |
-|---|---|
+| 初版方案                | v3 现状                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | A. FitText 渲染时自适应 | 升级为 **Fit/Assert 双层验证**（布局盒 fit + 标注绘制 bbox assert，含 `useCurrentScale()` 校正）+ `cancelRender` 失败闭环 |
-| B. 预算表升维 | **降级为内容创作提示（WARN）**，不再作为放行门槛；最终判定 = 真实几何 |
-| C. 启发式扩展 | 维持观察项 |
-| D. 打包品牌字体 | **移出本批**，独立 backlog（触发条件：渲染离开本机） |
+| B. 预算表升维           | **降级为内容创作提示（WARN）**，不再作为放行门槛；最终判定 = 真实几何                                                     |
+| C. 启发式扩展           | 维持观察项                                                                                                                |
+| D. 打包品牌字体         | **移出本批**，独立 backlog（触发条件：渲染离开本机）                                                                      |
 
 ## 5c. 后续待办（进入 Grill → Spec → Tickets 流程）
 
@@ -375,11 +375,11 @@ review 轨迹：v1 Request changes → v2 修订 → v2 仍 Request changes（�
    带标注的**任何字段**（不限 result）单行缩放。存量 **17 处**迁移表见
    Proposal §6.4b（qwen4 7 / doubao 9 / light-society 1，后者需改写为
    `{field:"quote", text:"4M beliefs"}`）
-3b. **缺媒体门控阶段化已定**（三轮 review）：见 §3.5 表——preflight WARN/pending →
+   3b. **缺媒体门控阶段化已定**（三轮 review）：见 §3.5 表——preflight WARN/pending →
    Step 1.5c 后硬 FAIL → `mediaOptOut` + media 依赖布局立即 FAIL →
    `stacked-cards` + `mediaOptOut` PASS。**本文是此规则的单一真源**，
    Proposal 只定义与 slot 契约的接口（§6.9）
-3c. **圆标注碰撞验收**：由 Proposal 确定性 fixture **F7** 自动验收
+   3c. **圆标注碰撞验收**：由 Proposal 确定性 fixture **F7** 自动验收
    （重叠面积 ≤ 被比较文本 AABB 的 2%，排除被标注目标本身）；本文 §2 阈值同步
 4. 其余待办（实施级，非 Grill）：Fixture 设计（**Proposal v3.3 §6.8，F1–F9**）、
    slot 注册协议细节、缩字 floor 语义（minSize 为硬下限，已取消 ×0.9 降级）

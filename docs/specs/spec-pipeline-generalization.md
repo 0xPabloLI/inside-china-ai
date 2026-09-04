@@ -129,41 +129,41 @@ The short-video pipeline has 10 systemic issues that affect every video, not jus
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `lib/scene-rules.mjs` | Modify `checkSubjectVisibility`, `checkPrimaryGoal`, `checkLoopClose`; add `checkCurrencyDualAnnotation`, `checkTextConcatenation` | Medium | Core verification module. All changes are additive (new params, new checks). Existing checks unchanged in behavior. Tests lock expected behavior. |
-| `lib/tiktok-rules.mjs` | Narrow goal regex patterns | Medium | Shared constant file. Goal patterns only affect `checkPrimaryGoal`. Other consumers (CTA_PATTERN, etc.) unaffected. |
-| `lib/subtitles/cues.mjs` | Add hold-out extension pass in `buildCues()` | Medium | Core subtitle generation. New pass is additive — only extends cue end times, doesn't change start times or text. If hold-out fails, cues remain as-is (graceful degradation). |
-| `main.mjs` | Add Step 0 normalize-currency, Step 1.5 asset-sourcer + upscale, change default renderer | High | Main pipeline orchestrator. Each new step is sequential and wrapped in try/catch (non-blocking). Default renderer change affects all content without `meta.renderer` set. |
-| `lib/scene-layout.mjs` | Change `justify-content` from `center` to `space-evenly` | Medium | Layout affects all scenes visually. `space-evenly` is strictly more distributed than `center` — no content can get worse. DOM verifier still checks bounds. |
-| `lib/scene-templates.mjs` | Add space in title+highlight spans | Low | Pure string fix. Only adds a space character. |
-| Per-content `scenes.mjs` | Same space fix in per-content templates | Low | Same fix, replicated. |
-| `lib/normalize-currency.mjs` (new) | New module | Low | New file, no existing consumers to break. |
-| `lib/upscale.mjs` | No code change, just pipeline integration | Low | Existing code, new call site. |
-| `verify-video.mjs` | Pass `meta` to `runAllSceneDataChecks` | Low | Adding one parameter pass-through. |
+| File                               | Modification                                                                                                                       | Risk   | Assessment                                                                                                                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/scene-rules.mjs`              | Modify `checkSubjectVisibility`, `checkPrimaryGoal`, `checkLoopClose`; add `checkCurrencyDualAnnotation`, `checkTextConcatenation` | Medium | Core verification module. All changes are additive (new params, new checks). Existing checks unchanged in behavior. Tests lock expected behavior.                             |
+| `lib/tiktok-rules.mjs`             | Narrow goal regex patterns                                                                                                         | Medium | Shared constant file. Goal patterns only affect `checkPrimaryGoal`. Other consumers (CTA_PATTERN, etc.) unaffected.                                                           |
+| `lib/subtitles/cues.mjs`           | Add hold-out extension pass in `buildCues()`                                                                                       | Medium | Core subtitle generation. New pass is additive — only extends cue end times, doesn't change start times or text. If hold-out fails, cues remain as-is (graceful degradation). |
+| `main.mjs`                         | Add Step 0 normalize-currency, Step 1.5 asset-sourcer + upscale, change default renderer                                           | High   | Main pipeline orchestrator. Each new step is sequential and wrapped in try/catch (non-blocking). Default renderer change affects all content without `meta.renderer` set.     |
+| `lib/scene-layout.mjs`             | Change `justify-content` from `center` to `space-evenly`                                                                           | Medium | Layout affects all scenes visually. `space-evenly` is strictly more distributed than `center` — no content can get worse. DOM verifier still checks bounds.                   |
+| `lib/scene-templates.mjs`          | Add space in title+highlight spans                                                                                                 | Low    | Pure string fix. Only adds a space character.                                                                                                                                 |
+| Per-content `scenes.mjs`           | Same space fix in per-content templates                                                                                            | Low    | Same fix, replicated.                                                                                                                                                         |
+| `lib/normalize-currency.mjs` (new) | New module                                                                                                                         | Low    | New file, no existing consumers to break.                                                                                                                                     |
+| `lib/upscale.mjs`                  | No code change, just pipeline integration                                                                                          | Low    | Existing code, new call site.                                                                                                                                                 |
+| `verify-video.mjs`                 | Pass `meta` to `runAllSceneDataChecks`                                                                                             | Low    | Adding one parameter pass-through.                                                                                                                                            |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Hook has `texts.subject = "UNITREE"` but company not in `KNOWN_COMPANIES` | Pass (subject field is present) | False negative if both subject and meta missing | Fallback to KNOWN_COMPANIES list |
-| 2 | Hook has no subject field, no meta.keyEntities | Warn (no company identifiable) | — | — |
-| 3 | Voiceover contains "see" in narration context | Not counted as goal signal | — | Removed "completion" category |
-| 4 | CTA contains "follow" only (1 goal) | Pass (≤2 signals) | — | — |
-| 5 | CTA contains "follow" + hook number "629" | Loop-close: pass | — | — |
-| 6 | CTA contains no hook number reference | Loop-close: warn | — | — |
-| 7 | Two scenes with 0.5s gap between voiceover end and next start | Cue extended to fill gap | Subtitle stays on screen slightly longer | Within Netflix hold-out allowance |
-| 8 | Scene with media.path pointing to non-existent file | Asset-sourcer triggered, searches and downloads | Network failure | try/catch, scene renders without media if search fails |
-| 9 | Media file is 640×360 (below 720p) | Auto-upscaled to 720p before rendering | Real-ESRGAN not installed | Graceful degradation to original |
-| 10 | Voiceover contains "445 billion yuan" without USD | Auto-fixed to "$63 billion (445 billion yuan)" before TTS | Exchange rate outdated | Rate in single constant, semi-annual review |
-| 11 | Voiceover already has "$63 billion (445 billion yuan)" | No modification (dual annotation present) | — | — |
-| 12 | `texts.title = "STRATEGIC"` + `texts.titleHighlight = "BACKERS"` | Rendered as "STRATEGIC BACKERS" with space | — | — |
-| 13 | Content without `meta.renderer` field | Defaults to Remotion | Remotion deps not installed | Auto-install in render-remotion.mjs already handles this |
-| 14 | Content with `meta.renderer = "playwright"` | Uses Playwright | — | Opt-out preserved |
-| 15 | Scene with `visualType: "chart"` | Renders CSS bar chart from chartData | Missing chartData field | Template renders empty chart with source only |
-| 16 | `meta.keyEntities.companies` is empty array | Falls back to KNOWN_COMPANIES list | — | — |
-| 17 | Currency normalization encounters "¥1100 per share" (small amount) | Converts to "$154 (¥1100)" | Precision for small amounts | Use Math.round for amounts < $1M |
-| 18 | Upscale called on already-720p file | Returns original path (no upscale needed) | — | Existing behavior in autoUpscaleIfNeeded |
+| #   | Scenario                                                                  | Expected Behavior                                         | Risk                                            | Mitigation                                               |
+| --- | ------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| 1   | Hook has `texts.subject = "UNITREE"` but company not in `KNOWN_COMPANIES` | Pass (subject field is present)                           | False negative if both subject and meta missing | Fallback to KNOWN_COMPANIES list                         |
+| 2   | Hook has no subject field, no meta.keyEntities                            | Warn (no company identifiable)                            | —                                               | —                                                        |
+| 3   | Voiceover contains "see" in narration context                             | Not counted as goal signal                                | —                                               | Removed "completion" category                            |
+| 4   | CTA contains "follow" only (1 goal)                                       | Pass (≤2 signals)                                         | —                                               | —                                                        |
+| 5   | CTA contains "follow" + hook number "629"                                 | Loop-close: pass                                          | —                                               | —                                                        |
+| 6   | CTA contains no hook number reference                                     | Loop-close: warn                                          | —                                               | —                                                        |
+| 7   | Two scenes with 0.5s gap between voiceover end and next start             | Cue extended to fill gap                                  | Subtitle stays on screen slightly longer        | Within Netflix hold-out allowance                        |
+| 8   | Scene with media.path pointing to non-existent file                       | Asset-sourcer triggered, searches and downloads           | Network failure                                 | try/catch, scene renders without media if search fails   |
+| 9   | Media file is 640×360 (below 720p)                                        | Auto-upscaled to 720p before rendering                    | Real-ESRGAN not installed                       | Graceful degradation to original                         |
+| 10  | Voiceover contains "445 billion yuan" without USD                         | Auto-fixed to "$63 billion (445 billion yuan)" before TTS | Exchange rate outdated                          | Rate in single constant, semi-annual review              |
+| 11  | Voiceover already has "$63 billion (445 billion yuan)"                    | No modification (dual annotation present)                 | —                                               | —                                                        |
+| 12  | `texts.title = "STRATEGIC"` + `texts.titleHighlight = "BACKERS"`          | Rendered as "STRATEGIC BACKERS" with space                | —                                               | —                                                        |
+| 13  | Content without `meta.renderer` field                                     | Defaults to Remotion                                      | Remotion deps not installed                     | Auto-install in render-remotion.mjs already handles this |
+| 14  | Content with `meta.renderer = "playwright"`                               | Uses Playwright                                           | —                                               | Opt-out preserved                                        |
+| 15  | Scene with `visualType: "chart"`                                          | Renders CSS bar chart from chartData                      | Missing chartData field                         | Template renders empty chart with source only            |
+| 16  | `meta.keyEntities.companies` is empty array                               | Falls back to KNOWN_COMPANIES list                        | —                                               | —                                                        |
+| 17  | Currency normalization encounters "¥1100 per share" (small amount)        | Converts to "$154 (¥1100)"                                | Precision for small amounts                     | Use Math.round for amounts < $1M                         |
+| 18  | Upscale called on already-720p file                                       | Returns original path (no upscale needed)                 | —                                               | Existing behavior in autoUpscaleIfNeeded                 |
 
 ## Out of Scope
 

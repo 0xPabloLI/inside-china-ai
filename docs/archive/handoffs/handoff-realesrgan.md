@@ -41,10 +41,10 @@ unzip realesrgan-ncnn-vulkan-20220424-macos.zip -d ~/.local/realesrgan/
 
 ### 模型选择
 
-| 模型 | 用途 | 大小 | 速度 |
-|------|------|------|------|
-| `realesr-animevideov3` | 视频专用（默认选这个） | 小 | 快 |
-| `RealESRGAN_x4plus` | 通用图片超分 | 大 | 慢 |
+| 模型                   | 用途                   | 大小 | 速度 |
+| ---------------------- | ---------------------- | ---- | ---- |
+| `realesr-animevideov3` | 视频专用（默认选这个） | 小   | 快   |
+| `RealESRGAN_x4plus`    | 通用图片超分           | 大   | 慢   |
 
 ### 资源消耗（480→720, 15s 视频）
 
@@ -88,6 +88,7 @@ if (dlResult.success) {
 ### 同时修改: yt-dlp 下载参数
 
 当前 `downloadYtdlp()` 参数：
+
 ```js
 '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
 "--max-filesize 20M",
@@ -95,6 +96,7 @@ if (dlResult.success) {
 ```
 
 建议改为（下载完整视频，不截取，不限制 720p——因为超分辨率可以处理低分辨率）：
+
 ```js
 '-f "best[height<=1080][ext=mp4]/best[height<=1080]/bestvideo[height<=1080]+bestaudio/best"',
 "--max-filesize 50M",
@@ -112,6 +114,7 @@ if (dlResult.success) {
 ## AGENTS.md 工作流
 
 此改动涉及 `scripts/short-video/lib/` 下代码，属于 Substantial implementation，需走 mandatory workflow：
+
 1. Grill → 2. Spec → 3. Tickets → 4. TDD → 5. Code Review → 6. Runtime Verify → 7. Commit
 
 ## 相关上下文

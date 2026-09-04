@@ -16,82 +16,82 @@ HashtagRadar (tiktokhashtags.com) is an independent hashtag discovery platform u
 
 ### Tier 1: Big Tech AI Labs
 
-| Company | Key Products / Models | Founder / Lead | TikTok Hashtag |
-|---------|----------------------|----------------|----------------|
-| Alibaba | Qwen (通义千问), Wan (万相), Z-Image, HappyHorse, Quark, DingTalk | Jack Ma (马云, founder), Eddie Wu (吴泳铭, CEO) | `#alibaba`, `#qwen`, `#alibabacloud` |
+| Company   | Key Products / Models                                                                                                                  | Founder / Lead                                           | TikTok Hashtag                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------- |
+| Alibaba   | Qwen (通义千问), Wan (万相), Z-Image, HappyHorse, Quark, DingTalk                                                                      | Jack Ma (马云, founder), Eddie Wu (吴泳铭, CEO)          | `#alibaba`, `#qwen`, `#alibabacloud`                                |
 | ByteDance | Doubao (豆包), Seed/Seedance (video), Seedream (image), Dreamina, Jimeng (即梦), CapCut, Feishu/Lark (飞书), Volcano Engine (火山引擎) | Zhang Yiming (张一鸣, founder), Liang Rubo (梁汝波, CEO) | `#bytedance`, `#doubao`, `#feishu`, `#lark`, `#capcut`, `#dreamina` |
-| Baidu | ERNIE (文心一言), Apollo (robotaxi) | Robin Li (李彦宏, founder/CEO) | `#baidu`, `#ernie` |
-| Tencent | Hunyuan (混元), Yuanbao (元宝) | Pony Ma (马化腾, founder/CEO) | `#tencent`, `#hunyuan` |
-| Huawei | Pangu (盘古), Ascend (昇腾) | Ren Zhengfei (任正非, founder) | `#huawei`, `#pangu` |
-| Xiaomi | MiMo | Lei Jun (雷军, founder/CEO) | `#xiaomi` |
-| Kuaishou | Kling (可灵) | Su Hua (宿华, founder) | `#kuaishou`, `#kling` |
-| iFlytek | Spark (讯飞星火) | Liu Qingfeng (刘庆峰, founder/CEO) | `#iflytek` |
+| Baidu     | ERNIE (文心一言), Apollo (robotaxi)                                                                                                    | Robin Li (李彦宏, founder/CEO)                           | `#baidu`, `#ernie`                                                  |
+| Tencent   | Hunyuan (混元), Yuanbao (元宝)                                                                                                         | Pony Ma (马化腾, founder/CEO)                            | `#tencent`, `#hunyuan`                                              |
+| Huawei    | Pangu (盘古), Ascend (昇腾)                                                                                                            | Ren Zhengfei (任正非, founder)                           | `#huawei`, `#pangu`                                                 |
+| Xiaomi    | MiMo                                                                                                                                   | Lei Jun (雷军, founder/CEO)                              | `#xiaomi`                                                           |
+| Kuaishou  | Kling (可灵)                                                                                                                           | Su Hua (宿华, founder)                                   | `#kuaishou`, `#kling`                                               |
+| iFlytek   | Spark (讯飞星火)                                                                                                                       | Liu Qingfeng (刘庆峰, founder/CEO)                       | `#iflytek`                                                          |
 
 ### Tier 2: AI Startups (Six Tigers + DeepSeek)
 
-| Company | Key Products / Models | Founder | TikTok Hashtag |
-|---------|----------------------|---------|----------------|
-| DeepSeek | V4, R1 | Liang Wenfeng (梁文锋) | `#deepseek` |
-| Zhipu AI (Z.ai) | GLM series | Tang Jie (唐杰), Zhang Peng (张鹏) | `#zhipu`, `#zai` |
-| Moonshot AI | Kimi (K3) | Yang Zhilin (杨植麟) | `#kimi`, `#moonshot` |
-| MiniMax | M2.x, Hailuo (海螺), Talkie | Yan Juncong (闫俊杰) | `#minimax`, `#hailuo` |
-| Baichuan | Baichuan models | Wang Xiaochuan (王小川) | `#baichuan` |
-| StepFun | Step-2, Step3 | (ex-Microsoft exec) | `#stepfun` |
-| 01.AI | Yi models, Wanzhi | Kai-Fu Lee (李开复) | `#01ai`, `#yimodel` |
+| Company         | Key Products / Models       | Founder                            | TikTok Hashtag        |
+| --------------- | --------------------------- | ---------------------------------- | --------------------- |
+| DeepSeek        | V4, R1                      | Liang Wenfeng (梁文锋)             | `#deepseek`           |
+| Zhipu AI (Z.ai) | GLM series                  | Tang Jie (唐杰), Zhang Peng (张鹏) | `#zhipu`, `#zai`      |
+| Moonshot AI     | Kimi (K3)                   | Yang Zhilin (杨植麟)               | `#kimi`, `#moonshot`  |
+| MiniMax         | M2.x, Hailuo (海螺), Talkie | Yan Juncong (闫俊杰)               | `#minimax`, `#hailuo` |
+| Baichuan        | Baichuan models             | Wang Xiaochuan (王小川)            | `#baichuan`           |
+| StepFun         | Step-2, Step3               | (ex-Microsoft exec)                | `#stepfun`            |
+| 01.AI           | Yi models, Wanzhi           | Kai-Fu Lee (李开复)                | `#01ai`, `#yimodel`   |
 
 ### Tier 3: AI Chips
 
-| Company | Key Products | Founders | TikTok Hashtag |
-|---------|-------------|----------|----------------|
-| Cambricon (寒武纪) | Siyuan 590/690 | Chen Yunji & Chen Tianshi (陈云霁, 陈天石) | `#cambricon` |
-| Horizon Robotics (地平线) | Journey series | Yu Kai (余凯) | `#horizonrobotics` |
+| Company                   | Key Products   | Founders                                   | TikTok Hashtag     |
+| ------------------------- | -------------- | ------------------------------------------ | ------------------ |
+| Cambricon (寒武纪)        | Siyuan 590/690 | Chen Yunji & Chen Tianshi (陈云霁, 陈天石) | `#cambricon`       |
+| Horizon Robotics (地平线) | Journey series | Yu Kai (余凯)                              | `#horizonrobotics` |
 
 ### Tier 4: Robotics
 
-| Company | Key Products | TikTok Hashtag |
-|---------|-------------|----------------|
-| Unitree (宇树) | Go2, H1 humanoid | `#unitree` |
-| UBTECH (优必选) | Walker S2 | `#ubtech` |
-| AgiBot (智元) | Agibot X1 | `#agibot` |
-| Fourier Intelligence (傅利叶) | therapeutic robots | `#fourier` |
+| Company                       | Key Products       | TikTok Hashtag |
+| ----------------------------- | ------------------ | -------------- |
+| Unitree (宇树)                | Go2, H1 humanoid   | `#unitree`     |
+| UBTECH (优必选)               | Walker S2          | `#ubtech`      |
+| AgiBot (智元)                 | Agibot X1          | `#agibot`      |
+| Fourier Intelligence (傅利叶) | therapeutic robots | `#fourier`     |
 
 ### Tier 5: Autonomous Driving
 
-| Company | Key Products | Founder | TikTok Hashtag |
-|---------|-------------|---------|----------------|
-| Pony.ai (小马智行) | robotaxi | James Peng (彭军) | `#ponyai` |
-| WeRide (文远知行) | robotaxi | Tony Han (韩旭) | `#weride` |
-| Momenta | ADAS/robotaxi | Cao Xudong (曹旭东) | `#momenta` |
-| Baidu Apollo | robotaxi | (Baidu subsidiary) | `#apollo` |
+| Company            | Key Products  | Founder             | TikTok Hashtag |
+| ------------------ | ------------- | ------------------- | -------------- |
+| Pony.ai (小马智行) | robotaxi      | James Peng (彭军)   | `#ponyai`      |
+| WeRide (文远知行)  | robotaxi      | Tony Han (韩旭)     | `#weride`      |
+| Momenta            | ADAS/robotaxi | Cao Xudong (曹旭东) | `#momenta`     |
+| Baidu Apollo       | robotaxi      | (Baidu subsidiary)  | `#apollo`      |
 
 ### Tier 6: International Competitors (frequently mentioned in comparisons)
 
-| Company | Key Products | TikTok Hashtag |
-|---------|-------------|----------------|
-| OpenAI | ChatGPT, Sora | `#chatgpt`, `#openai`, `#sora` |
-| Google | Gemini, Veo | `#gemini`, `#google` |
-| Meta | Llama | `#meta`, `#llama` |
-| Anthropic | Claude | `#claude`, `#anthropic` |
-| Mistral | Mistral models | `#mistral` |
-| Nvidia | GPU, CUDA | `#nvidia` |
+| Company   | Key Products   | TikTok Hashtag                 |
+| --------- | -------------- | ------------------------------ |
+| OpenAI    | ChatGPT, Sora  | `#chatgpt`, `#openai`, `#sora` |
+| Google    | Gemini, Veo    | `#gemini`, `#google`           |
+| Meta      | Llama          | `#meta`, `#llama`              |
+| Anthropic | Claude         | `#claude`, `#anthropic`        |
+| Mistral   | Mistral models | `#mistral`                     |
+| Nvidia    | GPU, CUDA      | `#nvidia`                      |
 
 ### Tier 7: Product/Platform Brands (subsidiary products)
 
-| Product | Parent Company | TikTok Hashtag |
-|---------|---------------|----------------|
-| Feishu/Lark (飞书) | ByteDance | `#feishu`, `#lark` |
-| CapCut | ByteDance | `#capcut` |
-| Dreamina | ByteDance | `#dreamina` |
-| Volcano Engine (火山引擎) | ByteDance | `#volcanoengine` |
-| DingTalk (钉钉) | Alibaba | `#dingtalk` |
-| Quark (夸克) | Alibaba | `#quark` |
-| Yuanbao (元宝) | Tencent | `#yuanbao` |
-| Seedance | ByteDance | `#seedance` |
-| Kling (可灵) | Kuaishou | `#kling` |
-| Hailuo (海螺) | MiniMax | `#hailuo` |
-| Talkie | MiniMax | `#talkie` |
-| Sora | OpenAI | `#sora` |
-| Veo | Google | `#veo` |
+| Product                   | Parent Company | TikTok Hashtag     |
+| ------------------------- | -------------- | ------------------ |
+| Feishu/Lark (飞书)        | ByteDance      | `#feishu`, `#lark` |
+| CapCut                    | ByteDance      | `#capcut`          |
+| Dreamina                  | ByteDance      | `#dreamina`        |
+| Volcano Engine (火山引擎) | ByteDance      | `#volcanoengine`   |
+| DingTalk (钉钉)           | Alibaba        | `#dingtalk`        |
+| Quark (夸克)              | Alibaba        | `#quark`           |
+| Yuanbao (元宝)            | Tencent        | `#yuanbao`         |
+| Seedance                  | ByteDance      | `#seedance`        |
+| Kling (可灵)              | Kuaishou       | `#kling`           |
+| Hailuo (海螺)             | MiniMax        | `#hailuo`          |
+| Talkie                    | MiniMax        | `#talkie`          |
+| Sora                      | OpenAI         | `#sora`            |
+| Veo                       | Google         | `#veo`             |
 
 ## HashtagRadar (tiktokhashtags.com) Analysis
 
@@ -111,6 +111,7 @@ HashtagRadar is an independent research and discovery platform that turns a larg
 **Methodology: Yes.** Their approach of comparing hashtags by views, posts, and average views per post is sound and we already use it.
 
 **Data: As reference only.** We should not rely on HashtagRadar as our sole data source because:
+
 1. Data is historical, not real-time
 2. Coverage is incomplete — many Chinese AI company hashtags have no data on HashtagRadar
 3. TikTok's own `/tag/` pages and Creative Center are more current
@@ -128,13 +129,13 @@ const ENTITY_HASHTAG_MAP = {
   // Tier 1: Big Tech
   alibaba: "#alibaba",
   qwen: "#qwen",
-  tongyi: "#qwen",          // 通义
-  wan: "#wan",               // 万相 video model
+  tongyi: "#qwen", // 通义
+  wan: "#wan", // 万相 video model
   bytedance: "#bytedance",
   doubao: "#doubao",
   seedance: "#seedance",
   dreamina: "#dreamina",
-  jimeng: "#dreamina",       // 即梦 = Dreamina CN
+  jimeng: "#dreamina", // 即梦 = Dreamina CN
   seedream: "#seedream",
   feishu: "#feishu",
   lark: "#feishu",
@@ -142,7 +143,7 @@ const ENTITY_HASHTAG_MAP = {
   "volcano engine": "#volcanoengine",
   baidu: "#baidu",
   ernie: "#ernie",
-  wenxin: "#ernie",          // 文心 = ERNIE CN
+  wenxin: "#ernie", // 文心 = ERNIE CN
   apollo: "#apollo",
   tencent: "#tencent",
   hunyuan: "#hunyuan",
@@ -150,11 +151,11 @@ const ENTITY_HASHTAG_MAP = {
   huawei: "#huawei",
   pangu: "#pangu",
   xiaomi: "#xiaomi",
-  mimo: "#xiaomi",           // MiMo → parent company hashtag
+  mimo: "#xiaomi", // MiMo → parent company hashtag
   kuaishou: "#kuaishou",
   kling: "#kling",
   iflytek: "#iflytek",
-  spark: "#iflytek",         // Spark → parent company hashtag
+  spark: "#iflytek", // Spark → parent company hashtag
 
   // Tier 2: Startups
   deepseek: "#deepseek",
@@ -169,7 +170,7 @@ const ENTITY_HASHTAG_MAP = {
   baichuan: "#baichuan",
   stepfun: "#stepfun",
   "01.ai": "#01ai",
-  yi: "#01ai",                // Yi models → 01.AI
+  yi: "#01ai", // Yi models → 01.AI
 
   // Tier 3: AI Chips
   cambricon: "#cambricon",

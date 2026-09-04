@@ -11,6 +11,7 @@
 用户要跑数字人模型（LatentSync 1.6, Sonic, Hallo2/3），本地设备（M2 Pro 32GB + GTX 1080 8GB）无法满足。已调研完成免费/付费云 GPU 方案，文档在 `docs/research/cloud-gpu-options.md`（已更新）。
 
 **最终状态**：
+
 - Kaggle：✅ 已配置（CLI v2.2.4 + API token，全链路验证通过，P100 16GB）
 - Colab CLI：✅ 已配置（CLI v0.6.0 + ADC 认证，全链路验证通过，T4 16GB）
 - Colab CDP：✅ 已验证（Google 账号 qingshun.li@gmail.com 已登录，CDP 可控制）
@@ -26,6 +27,7 @@
 **为什么 Kaggle 是主力**：30h/周免费 GPU（T4 ×2 16GB 或 P100），**每周刷新**，长期可用。
 
 **完成情况**：
+
 - 用户已自行注册 Kaggle（username: `xPabloLI`）
 - API token 已在 `~/.zshrc` 中：`export KAGGLE_API_TOKEN=<KGAT_ token>`（脱敏，实际值在 ~/.zshrc）
 - Agent 安装了 Kaggle CLI：`pip3 install --break-system-packages kaggle`（v2.2.4）
@@ -34,6 +36,7 @@
 - `kaggle config view` 确认：username=bpabloli, auth_method=ACCESS_TOKEN
 
 **Kaggle 自动化能力**：
+
 - `kaggle kernels push -p <dir>` — 推送 Notebook 到 Kaggle（可指定 GPU accelerator）
 - `kaggle kernels status <username/kernel-name>` — 查看运行状态
 - `kaggle kernels output <username/kernel-name> -p <dir>` — 下载输出
@@ -41,6 +44,7 @@
 - `kaggle datasets download -d <username/dataset-name>` — 下载数据集
 
 **自动化跑数字人推理的流程**：
+
 1. 本地准备 Notebook（.py script）：安装依赖 → clone 代码 → 下载模型权重 → 运行推理 → 输出结果
 2. `kaggle kernels push -p .`（`kernel-metadata.json` 中 `enable_gpu: true`）
 3. `kaggle kernels status` 轮询等待完成
@@ -53,12 +57,14 @@
 ### 2. ✅ Colab 验证（已完成）
 
 **完成情况**：
+
 - 用户手动验证 T4 GPU 可用（Untitled0.ipynb）
 - Agent 通过 CDP 验证：Google 账号 qingshun.li@gmail.com 已登录，能创建 Notebook、读写 cell、执行代码
 - Colab 有内置 terminal（左侧工具栏 → 终端），可执行命令行操作
 - **CDP 自动化可用**：Agent 可通过 web-access skill 自动操作 Colab（创建 Notebook → 写代码 → 执行 → 读输出）
 
 **Colab CLI（已验证可用）**：
+
 - `google-colab-cli` v0.6.0（`pip3 install --break-system-packages google-colab-cli`）
 - ⚠️ 兼容性修复：需降级 `jupyter-kernel-client<1.0`（v1.0.1 API 变更导致 `KernelClient` 找不到）
 - ADC 认证已完成（`gcloud auth application-default login --scopes=openid,cloud-platform,userinfo.email,colaboratory`）
@@ -68,11 +74,13 @@
 - Colab MCP 已配置在 CatPaw 全局 MCP 设置中
 
 **Colab 限制**：
+
 - 免费版 T4 16GB，不固定时长，空闲 90min 断连
 - Pro $10/月 还是 16GB（T4+P100）；Pro+ $50/月 才有 A100 40GB
 - Pro ($10/月) 和 Gemini Advanced ($20/月) 是不同产品，Gemini 不含 Colab Pro+
 
 **Colab vs Kaggle 分工**：
+
 - **Colab CLI**：一键运行单脚本（`colab run --gpu T4 script.py`），自动 provision → execute → teardown
 - **Colab CDP/手动**：交互式调试、参数调优（通过浏览器或 web-access skill）
 - **Kaggle**：自动化批量推理（CLI push → status → output），30h/周
@@ -82,21 +90,24 @@
 **为什么 AutoDL 是付费首选**：国内最便宜，按分钟计费，支付宝支付，国内访问快。
 
 **价格对比**（24GB GPU，跑数字人足够）：
-| 平台 | GPU | 价格 | 折合人民币 |
-|------|-----|------|-----------|
-| **AutoDL** | RTX 4090 24GB | ¥1.88/h | ¥1.88/h |
-| **AutoDL** | RTX 3090 24GB | ¥1.32/h | ¥1.32/h |
-| Vast.ai | RTX 4090 24GB | ~$0.35/h | ~¥2.5/h |
-| Lightning AI | L4 24GB | $0.48/h | ~¥3.4/h |
-| RunPod | RTX 4090 24GB | $0.69/h | ~¥4.9/h |
+
+| 平台         | GPU           | 价格     | 折合人民币 |
+| ------------ | ------------- | -------- | ---------- |
+| **AutoDL**   | RTX 4090 24GB | ¥1.88/h  | ¥1.88/h    |
+| **AutoDL**   | RTX 3090 24GB | ¥1.32/h  | ¥1.32/h    |
+| Vast.ai      | RTX 4090 24GB | ~$0.35/h | ~¥2.5/h    |
+| Lightning AI | L4 24GB       | $0.48/h  | ~¥3.4/h    |
+| RunPod       | RTX 4090 24GB | $0.69/h  | ~¥4.9/h    |
 
 **AutoDL GPU 质量不比 Lightning AI 差**：
+
 - AutoDL RTX 4090 半精算力 165.2 TFLOPS > Lightning AI L4 ~120 TFLOPS
 - AutoDL RTX 4090 带宽 1008 GB/s > Lightning AI L4 ~300 GB/s
 - AutoDL 是独享物理机，Lightning AI 是虚拟化实例
 - 两者都完整支持 CUDA 12.x，数字人模型兼容性无差异
 
 **AutoDL 步骤**：
+
 1. 访问 https://www.autodl.com/ → 手机号注册
 2. 支付宝充值（最低 ¥10 起充）
 3. 算力市场 → 选 RTX 4090 → 创建实例
@@ -107,28 +118,31 @@
 ### 4. Lightning AI 账户问题
 
 **当前问题**：
+
 - "Cannot create new app. Please, contact support. Support code: 03920104"
 - 用户反映登录不上去
 
 **分析**：
+
 - CDP 操作不会导致 ban（只是正常的页面导航和点击）
 - "Cannot create new app" 在 CDP 操作前就存在（免费方案限制）
 - 登录不上去可能是：session 过期 / Chrome 重启后 cookie 丢失 / 平台临时问题
 
 **建议操作**：
+
 1. 用户自己发邮件给 support@lightning.ai（Agent 不应代发）
 2. 邮件内容模板：
    ```
    Hi Lightning AI Support,
 
-   I'm getting "Cannot create new app. Support code: 03920104" 
+   I'm getting "Cannot create new app. Support code: 03920104"
    when trying to create a new app. I'm on the free tier with 5 credits.
-   
+
    Also having trouble logging in today.
-   
+
    My username: <redacted>
    Email: [user's email]
-   
+
    Could you help?
    ```
 3. 如果 Lightning AI 不回复或不解决，直接用 Kaggle + AutoDL 替代
@@ -158,6 +172,7 @@
 ## 下一步
 
 Handoff 任务已全部完成（3 个 ✅ + 2 个 ⏸️），本文档可归档。新 session 应参考：
+
 - `docs/research/cloud-gpu-options.md` — GPU 方案对比（已更新含 Colab Pro/Pro+ 说明）
 - `docs/research/digital-human-test-progress.md` — 测试进度追踪（末尾有云 GPU 测试计划 + 推荐优先级）
 - `scripts/kaggle/test-gpu/` — Kaggle 自动化测试脚本模板
@@ -172,22 +187,24 @@ Handoff 任务已全部完成（3 个 ✅ + 2 个 ⏸️），本文档可归档
 
 **测试 Kernel**：`xpabloli/test-gpu-availability`（3 个版本迭代）
 
-| 项目 | 结果 |
-|------|------|
-| GPU 分配 | Tesla P100-PCIE-16GB (16GB VRAM) |
-| NVIDIA Driver | 580.159.04, CUDA 13.0 |
-| 默认 PyTorch | 2.10.0+cu128（**不兼容 P100 sm_60**） |
-| 兼容 PyTorch | 2.4.1+cu121（手动安装，~142s） |
-| Compute test | ✅ 100x matrix multiply (2000×2000), 5.86 TFLOPS FP32 |
-| 全链路验证 | ✅ push → status 轮询 → output 下载 |
+| 项目          | 结果                                                  |
+| ------------- | ----------------------------------------------------- |
+| GPU 分配      | Tesla P100-PCIE-16GB (16GB VRAM)                      |
+| NVIDIA Driver | 580.159.04, CUDA 13.0                                 |
+| 默认 PyTorch  | 2.10.0+cu128（**不兼容 P100 sm_60**）                 |
+| 兼容 PyTorch  | 2.4.1+cu121（手动安装，~142s）                        |
+| Compute test  | ✅ 100x matrix multiply (2000×2000), 5.86 TFLOPS FP32 |
+| 全链路验证    | ✅ push → status 轮询 → output 下载                   |
 
 **关键发现**：
+
 1. Kaggle 当前给免费用户分配 **P100**（非 T4），GPU 型号不可指定
 2. P100 算力 sm_60，需手动安装 PyTorch 2.4.1+cu121（默认 2.10 只支持 sm_70+）
 3. 自动化全链路（CLI push → status polling → output download）工作正常
 4. 测试脚本保存在 `scripts/kaggle/test-gpu/`
 
 **对数字人模型的影响**：
+
 - P100 16GB 可跑 LatentSync（需 ~12GB）、Sonic（需 ~8GB），但 Hallo2/3 可能不够（需 24GB+）
 - 16GB 显存可能需要用 `torch.cuda.amp` 混合精度优化
 - 如需 24GB+ GPU，等 Kaggle 分配到 T4×2 或使用 AutoDL

@@ -57,13 +57,17 @@ for (let i = 0; i < Math.min(timingData.length, voiceovers.length); i++) {
     baselinePass = false;
     console.log(`  Scene ${scene.sceneId}: MISMATCH`);
     console.log(`    VO:     ${voWords.slice(0, 10).join(" ")}${voWords.length > 10 ? "..." : ""}`);
-    console.log(`    Timing: ${timingWords.slice(0, 10).join(" ")}${timingWords.length > 10 ? "..." : ""}`);
+    console.log(
+      `    Timing: ${timingWords.slice(0, 10).join(" ")}${timingWords.length > 10 ? "..." : ""}`,
+    );
 
     // Find first mismatch
     const limit = Math.max(timingWords.length, voWords.length);
     for (let j = 0; j < limit; j++) {
       if (timingWords[j] !== voWords[j]) {
-        console.log(`    First diff at word ${j}: VO="${voWords[j]}" vs Timing="${timingWords[j]}"`);
+        console.log(
+          `    First diff at word ${j}: VO="${voWords[j]}" vs Timing="${timingWords[j]}"`,
+        );
         break;
       }
     }
@@ -79,7 +83,9 @@ console.log("─── Step 2: Simulated mismatch (scene-data changed, timing no
 
 // Simulate: change "ByteDance" to "Tencent" in scene 1's voiceover
 const modifiedVo = voiceovers[0].replace("ByteDance", "Tencent");
-const modifiedVoWords = modifiedVo.split(/\s+/).map((w) => w.toLowerCase().replace(/[.,!?;:"]/g, ""));
+const modifiedVoWords = modifiedVo
+  .split(/\s+/)
+  .map((w) => w.toLowerCase().replace(/[.,!?;:"]/g, ""));
 const timingWordsScene1 = (timingData[0].segments || [])
   .flatMap((seg) => (seg.words || []).map((w) => w.text))
   .map((w) => w.toLowerCase().replace(/[.,!?;:"]/g, ""));

@@ -7,6 +7,7 @@
 ## Context
 
 The short-video pipeline (`scripts/short-video/main.mjs`) currently does **single-shot verification** in Step 6:
+
 - `verifySubtitles()` runs after video assembly
 - If `!report.summary.passed` → `process.exit(1)` — pipeline stops, human must intervene
 - If audioSync skipped all scenes → passed silently as `true` (now fixed with a warning, but no retry)
@@ -49,6 +50,7 @@ All committed: `8acaaec`, `ae61baf`, `9b7307b`, `b025001`.
 ### Feature: Verify-Retry Loop
 
 Add a retry loop around Step 6 (subtitle verification) in `main.mjs` that:
+
 1. Runs `verifySubtitles()` as usual
 2. If `report.summary.passed === false`:
    a. Inspect the report to determine the failure category
@@ -59,13 +61,13 @@ Add a retry loop around Step 6 (subtitle verification) in `main.mjs` that:
 
 ### Failure categories and repair strategies
 
-| Failure | Report signal | Repair action | Re-run cost |
-|---------|--------------|---------------|------------|
-| Subtitle alignment missing/incomplete | `timingData` empty or `wordSequence.matches === false` | Re-run `runWhisperAlignment()` → regenerate `.ass` via `buildCues()`+`renderAss()` → re-burn subtitles | Low (no TTS re-render) |
-| Audio sync drift (>80ms per scene) | `audioSync.scenes` has `ok: false` | Re-run `assembleVideo()` (frame-aligned clip durations may vary on re-encode) → re-verify | Medium (re-assembly, no re-render) |
-| Cue gap violations | `gaps.violations.length > 0` | Re-run `buildCues()` with relaxed parameters → re-render `.ass` → re-burn | Low |
-| Audio sync all skipped | `audioSync.checked === 0 && skipped > 0` | Already fixed by `resolveSceneAudio()` — if still happening, WARN and don't retry (TTS output format issue, not a retry-fixable problem) | N/A |
-| Other/unknown FAIL | Any other | Don't retry — exit(1) with diagnostics | N/A |
+| Failure                               | Report signal                                          | Repair action                                                                                                                            | Re-run cost                        |
+| ------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Subtitle alignment missing/incomplete | `timingData` empty or `wordSequence.matches === false` | Re-run `runWhisperAlignment()` → regenerate `.ass` via `buildCues()`+`renderAss()` → re-burn subtitles                                   | Low (no TTS re-render)             |
+| Audio sync drift (>80ms per scene)    | `audioSync.scenes` has `ok: false`                     | Re-run `assembleVideo()` (frame-aligned clip durations may vary on re-encode) → re-verify                                                | Medium (re-assembly, no re-render) |
+| Cue gap violations                    | `gaps.violations.length > 0`                           | Re-run `buildCues()` with relaxed parameters → re-render `.ass` → re-burn                                                                | Low                                |
+| Audio sync all skipped                | `audioSync.checked === 0 && skipped > 0`               | Already fixed by `resolveSceneAudio()` — if still happening, WARN and don't retry (TTS output format issue, not a retry-fixable problem) | N/A                                |
+| Other/unknown FAIL                    | Any other                                              | Don't retry — exit(1) with diagnostics                                                                                                   | N/A                                |
 
 ### Key files
 
@@ -112,6 +114,7 @@ This is a quick validation run, not a code change task. Can be done before or af
 ## Remaining non-session items in git status
 
 These are from other sessions, not blocking:
+
 - `docs/DOCS-INDEX.md`, `docs/manual-ops.md`, `docs/tools-catalog.md` — modified by other work
 - `scripts/short-video/discover-trends.mjs`, `lib/mcp-client.mjs`, `lib/trend-sources.mjs` — modified by other work
 - `docs/handoffs/` — untracked handoff docs from other sessions

@@ -8,6 +8,7 @@
 > "我觉得你通过我们实际需要都下载下来，只是下载下来。如果你是遇到一些有风险的 license 你告诉我，但不要阻塞你正常的视频生成的管线。"
 
 核心原则：
+
 1. **下载不阻塞** — 不管什么 license 的素材都下载，管线继续运行
 2. **风险提醒** — 遇到有风险 license 时输出提醒（log + report），但不停下来
 3. **TikTok 描述区分** — 只有明确需要 attribution 的素材出现在 TikTok credits 中
@@ -16,32 +17,33 @@
 
 ### 可以用的（不提醒）
 
-| License | 说明 | TikTok Credits |
-|---------|------|----------------|
-| Public Domain (PD) | 无条件 | 不需要 |
-| CC0 | 无条件 | 不需要 |
-| CC-BY | 署名即可 | ✅ 需要 |
-| CC-BY-SA | 署名 + 相同许可证 | ✅ 需要 |
-| Pexels License | 免费商用 | 不需要 |
-| Unsplash License | 免费商用 | 不需要 |
-| Coverr License | 免费商用 | 不需要 |
-| Pixabay License | 需要显示 Logo | ✅ 需要 |
+| License            | 说明              | TikTok Credits |
+| ------------------ | ----------------- | -------------- |
+| Public Domain (PD) | 无条件            | 不需要         |
+| CC0                | 无条件            | 不需要         |
+| CC-BY              | 署名即可          | ✅ 需要        |
+| CC-BY-SA           | 署名 + 相同许可证 | ✅ 需要        |
+| Pexels License     | 免费商用          | 不需要         |
+| Unsplash License   | 免费商用          | 不需要         |
+| Coverr License     | 免费商用          | 不需要         |
+| Pixabay License    | 需要显示 Logo     | ✅ 需要        |
 
 ### 有风险的（提醒但不阻塞）
 
-| License | 风险 | 建议 |
-|---------|------|------|
-| CC-BY-ND | 禁止演绎（No Derivatives）— 我们的混剪是演绎 | 建议替换，但不阻塞 |
-| CC-BY-NC | 非商业 — 如果未来商业化有问题 | 建议替换，但不阻塞 |
-| CC-BY-NC-SA | 非商业 + 相同许可证 | 建议替换，但不阻塞 |
-| CC-BY-NC-ND | 非商业 + 禁止演绎 | 建议替换，但不阻塞 |
-| All Rights Reserved / News copyright | Fair use 短片段+评论 | 内部记录，不阻塞 |
+| License                              | 风险                                         | 建议               |
+| ------------------------------------ | -------------------------------------------- | ------------------ |
+| CC-BY-ND                             | 禁止演绎（No Derivatives）— 我们的混剪是演绎 | 建议替换，但不阻塞 |
+| CC-BY-NC                             | 非商业 — 如果未来商业化有问题                | 建议替换，但不阻塞 |
+| CC-BY-NC-SA                          | 非商业 + 相同许可证                          | 建议替换，但不阻塞 |
+| CC-BY-NC-ND                          | 非商业 + 禁止演绎                            | 建议替换，但不阻塞 |
+| All Rights Reserved / News copyright | Fair use 短片段+评论                         | 内部记录，不阻塞   |
 
 ## 当前代码状态
 
 ### 已实现（`asset-sourcer.mjs`）
 
 `buildAttribution(source, asset)` 函数已有动态 license 判断：
+
 - `SOURCE_ATTRIBUTIONS.wikimedia` 有 `dynamicAttribution: true` flag
 - 通过 `fetchWikimediaLicense(fileTitle)` 查询 Commons API 获取 `extmetadata.LicenseShortName`
 - CC-BY/CC-BY-SA → `attributionRequired=true`
@@ -62,19 +64,48 @@
 
 ```javascript
 export function classifyLicenseRisk(license) {
-  const lic = (license || '').toLowerCase();
-  
+  const lic = (license || "").toLowerCase();
+
   // 安全 — 可以用
-  const safe = ['public domain', 'cc0', 'cc by', 'cc-by', 'cc by-sa', 'cc-by-sa',
-    'pexels', 'unsplash', 'coverr', 'pixabay', 'gfdl'];
-  if (safe.some(s => lic.includes(s))) return { level: 'safe', usable: true };
-  
+  const safe = [
+    "public domain",
+    "cc0",
+    "cc by",
+    "cc-by",
+    "cc by-sa",
+    "cc-by-sa",
+    "pexels",
+    "unsplash",
+    "coverr",
+    "pixabay",
+    "gfdl",
+  ];
+  if (safe.some((s) => lic.includes(s))) return { level: "safe", usable: true };
+
   // 有风险 — 提醒但不阻塞
-  const risky = ['cc by-nd', 'cc-by-nd', 'cc by-nc', 'cc-by-nc', 'cc by-nc-nd', 'cc-by-nc-nd', 'cc by-nc-sa', 'cc-by-nc-sa'];
-  if (risky.some(s => lic.includes(s))) return { level: 'risky', usable: true, warning: `${license} has restrictions (ND/NC). Consider replacing this asset.` };
-  
+  const risky = [
+    "cc by-nd",
+    "cc-by-nd",
+    "cc by-nc",
+    "cc-by-nc",
+    "cc by-nc-nd",
+    "cc-by-nc-nd",
+    "cc by-nc-sa",
+    "cc-by-nc-sa",
+  ];
+  if (risky.some((s) => lic.includes(s)))
+    return {
+      level: "risky",
+      usable: true,
+      warning: `${license} has restrictions (ND/NC). Consider replacing this asset.`,
+    };
+
   // 未知 — 默认可用，但提醒
-  return { level: 'unknown', usable: true, warning: `Unknown license: ${license}. Verify usage rights.` };
+  return {
+    level: "unknown",
+    usable: true,
+    warning: `Unknown license: ${license}. Verify usage rights.`,
+  };
 }
 ```
 
@@ -108,15 +139,14 @@ export function buildAttribution(source, asset) {
       "attributionRequired": true
     }
   ],
-  "licenseWarnings": [
-    "Asset from Wikimedia: CC BY-NC 4.0 has NC restriction. Consider replacing."
-  ]
+  "licenseWarnings": ["Asset from Wikimedia: CC BY-NC 4.0 has NC restriction. Consider replacing."]
 }
 ```
 
 ### 4. Flickr 集成时的 license 过滤
 
 当未来集成 Flickr API 时，搜索参数加 `license=4,5,7,9,10,11,12`（排除 NC/ND）：
+
 - `4` = CC BY 2.0
 - `5` = CC BY-SA 2.0
 - `7` = No known copyright
@@ -129,6 +159,7 @@ export function buildAttribution(source, asset) {
 ## 影响面
 
 需要修改的文件：
+
 1. `scripts/short-video/lib/asset-sourcer.mjs` — 新增 `classifyLicenseRisk()` + 集成到 `buildAttribution()`
 2. `scripts/short-video/lib/asset-sourcer.test.mjs`（或对应测试文件）— 新增 `classifyLicenseRisk` 测试
 3. `docs/research/asset-source-quick-reference.md` — 更新 License 表

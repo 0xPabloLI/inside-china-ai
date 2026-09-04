@@ -9,12 +9,12 @@
 
 SVE 三层全部实现并通过验证（2026-08-27），运行时集成测试通过（2026-08-27）：
 
-| Layer | 文件 | 状态 |
-|-------|------|------|
-| Layer 1: `enrichWithMedia` | `search-sources.mjs` + `trends-utils.mjs` | ✅ 完成 |
+| Layer                        | 文件                                              | 状态    |
+| ---------------------------- | ------------------------------------------------- | ------- |
+| Layer 1: `enrichWithMedia`   | `search-sources.mjs` + `trends-utils.mjs`         | ✅ 完成 |
 | Layer 2: `extract-media.mjs` | `scripts/short-video/lib/extract-media.mjs`（新） | ✅ 完成 |
-| Layer 3: Phase 0b | `asset-sourcer.mjs` | ✅ 完成 |
-| 文档 | `content-pipeline.md` Stage 0 SVE 规则 | ✅ 完成 |
+| Layer 3: Phase 0b            | `asset-sourcer.mjs`                               | ✅ 完成 |
+| 文档                         | `content-pipeline.md` Stage 0 SVE 规则            | ✅ 完成 |
 
 **验证**：28 new tests，302 total passing，lint + tsc + build 全绿。
 **Spec/tickets/review**：已归档到 `docs/archive/`。
@@ -24,6 +24,7 @@ SVE 三层全部实现并通过验证（2026-08-27），运行时集成测试通
 ### Layer 1: enrichWithMedia（搜索结果页媒体提取）
 
 `search-sources.mjs` 中 `enrichWithImages` → `enrichWithMedia`：
+
 - 单次 CDP eval 同时提取 images + videos + metadata
 - 视频：`<video>` src, `<source>` child, `<iframe>` YouTube/Bilibili/Douyin/Youku embeds, `og:video` meta
 - Metadata：`og:image`, `og:title`, `article:published_time`
@@ -33,6 +34,7 @@ SVE 三层全部实现并通过验证（2026-08-27），运行时集成测试通
 ### Layer 2: extract-media.mjs（详情页媒体缓存）
 
 新脚本 `scripts/short-video/lib/extract-media.mjs`：
+
 - Agent 在 Stage 0 打开详情页后调用
 - CLI: `--url <url> --content <slug>` 或 `--tab <tabId> --content <slug>`（复用已开 tab）
 - CDP eval 提取所有 `<img>` (naturalWidth > 400), `<video>`, `<iframe>`, `og:image`
@@ -43,6 +45,7 @@ SVE 三层全部实现并通过验证（2026-08-27），运行时集成测试通
 ### Layer 3: asset-sourcer Phase 0b（缓存媒体消费）
 
 `asset-sourcer.mjs` 新增：
+
 - `loadCachedMedia(filePath, keywords)` — 读 `media-cache.json`，按 keyword 匹配
 - `toCachedMediaCandidate(candidate)` — 规范化为 score/filter/download pipeline
 - Phase 0b 在 Phase 0 (cached images) 和 Phase 1 (API sources) 之间运行
@@ -57,6 +60,7 @@ Stage 0 入口 1/2 加入 SVE 规则：Agent 打开详情页后必须调用 `ext
 ### 1. ✅ 运行时集成测试（已完成 2026-08-27）
 
 `extract-media.mjs` 端到端测试通过：
+
 1. ✅ CDP 打开微信公众号文章详情页（`https://mp.weixin.qq.com/s/YG4UPmy3M-zaJZjFrTSo0w`）
 2. ✅ 运行 `node scripts/short-video/lib/extract-media.mjs --url <url> --content doubao-work`
 3. ✅ `content/doubao-work/research/media-cache.json` 生成且内容正确（19 images, og:image, og:title）
@@ -65,6 +69,7 @@ Stage 0 入口 1/2 加入 SVE 规则：Agent 打开详情页后必须调用 `ext
 ### 2. ✅ enrichWithMedia 运行时验证（已完成 2026-08-27）
 
 `enrichWithMedia` 的 CDP eval 脚本在真实 Bing News 搜索结果页上验证通过：
+
 - 提取到 36 张图片（文章链接附近的 `<img>`）
 - 视频提取为 0（搜索结果页无 `<video>`/`<iframe>` embeds，合理）
 - Metadata 为空（搜索结果页无 `og:image` 等标签，合理）

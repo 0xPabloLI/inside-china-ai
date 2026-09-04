@@ -31,7 +31,9 @@ function getArg(name) {
 const videoPath = getArg("video");
 if (!videoPath) {
   console.error("❌ --video flag is required");
-  console.error("   Example: node mix-bgm.mjs --video output/kimi-sandbox/xxx-short.mp4 --pipeline-id kimi-sandbox");
+  console.error(
+    "   Example: node mix-bgm.mjs --video output/kimi-sandbox/xxx-short.mp4 --pipeline-id kimi-sandbox",
+  );
   process.exit(1);
 }
 
@@ -77,16 +79,26 @@ execFileSync(
   "ffmpeg",
   [
     "-y",
-    "-i", noBgmPath,
-    "-stream_loop", "-1",
-    "-i", bgmPath,
-    "-filter_complex", filterComplex,
-    "-map", "0:v",
-    "-map", "[aout]",
-    "-c:v", "copy",
-    "-c:a", "aac",
-    "-b:a", "192k",
-    "-ar", "44100",
+    "-i",
+    noBgmPath,
+    "-stream_loop",
+    "-1",
+    "-i",
+    bgmPath,
+    "-filter_complex",
+    filterComplex,
+    "-map",
+    "0:v",
+    "-map",
+    "[aout]",
+    "-c:v",
+    "copy",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "192k",
+    "-ar",
+    "44100",
     absVideoPath,
   ],
   { stdio: ["pipe", "pipe", "pipe"] },

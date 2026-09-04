@@ -111,8 +111,13 @@ const DEFAULT_CHAIN_GAP_FRAMES = 2;
  */
 export function relaxGapParams(attempt) {
   if (attempt < 0) return null;
-  if (attempt === 0) return { GAP_THRESHOLD: DEFAULT_GAP_THRESHOLD, CHAIN_GAP_FRAMES: DEFAULT_CHAIN_GAP_FRAMES };
-  if (attempt === 1) return { GAP_THRESHOLD: DEFAULT_GAP_THRESHOLD + 0.1, CHAIN_GAP_FRAMES: DEFAULT_CHAIN_GAP_FRAMES };
+  if (attempt === 0)
+    return { GAP_THRESHOLD: DEFAULT_GAP_THRESHOLD, CHAIN_GAP_FRAMES: DEFAULT_CHAIN_GAP_FRAMES };
+  if (attempt === 1)
+    return {
+      GAP_THRESHOLD: DEFAULT_GAP_THRESHOLD + 0.1,
+      CHAIN_GAP_FRAMES: DEFAULT_CHAIN_GAP_FRAMES,
+    };
   if (attempt === 2) return { GAP_THRESHOLD: DEFAULT_GAP_THRESHOLD + 0.2, CHAIN_GAP_FRAMES: 1 };
   return null;
 }
@@ -152,9 +157,7 @@ export async function verifyWithRetry({
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const category = classifyFailure(report);
-    console.log(
-      `  🔄 Retry ${attempt}/${maxRetries}: failure category "${category}"`,
-    );
+    console.log(`  🔄 Retry ${attempt}/${maxRetries}: failure category "${category}"`);
 
     if (category === "unknown" || category === "audio-sync-skipped") {
       console.log(`  ⏭️  ${category} — not retryable, skipping repair`);

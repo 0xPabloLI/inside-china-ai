@@ -18,8 +18,7 @@ export const scenes = [
       animation: "zoom",
       overlay: 0.65,
     },
-    voiceover:
-      "China's Zhipu AI just disclosed GLM-6.0. The next model will train itself.",
+    voiceover: "China's Zhipu AI just disclosed GLM-6.0. The next model will train itself.",
     texts: {
       badge: "BREAKING",
       subject: "ZHIPU AI",
@@ -118,8 +117,7 @@ export const scenes = [
       overlay: 0.65,
       volume: 0,
     },
-    voiceover:
-      "But the gains did not come from bigger parameters. They came from training.",
+    voiceover: "But the gains did not come from bigger parameters. They came from training.",
     texts: {
       badge: "PATTERN INTERRUPT",
       company: "NOT BIGGER PARAMETERS",
@@ -229,8 +227,7 @@ export const scenes = [
     visualType: "cta",
     layout: "hero-center",
     narrativeRole: "T-Tell",
-    voiceover:
-      "Follow China AI News for the AGI self-training race.",
+    voiceover: "Follow China AI News for the AGI self-training race.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

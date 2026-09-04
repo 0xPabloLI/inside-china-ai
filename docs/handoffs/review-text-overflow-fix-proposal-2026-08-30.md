@@ -1,6 +1,7 @@
 # Review 存档：text-overflow-fix-proposal 二轮 / 三轮 / 四轮 / 五轮意见（2026-08-30）
 
 > 本文按轮次追加存档：
+>
 > - **二轮**（针对 v2）→ Verdict: Request changes，核实见 Proposal §1.2
 > - **三轮**（针对 v3）→ Verdict: Request changes（接近可批准），核实见 Proposal §1.3
 > - **四轮**（针对 v3.1）→ Verdict: Request changes（非常接近可进入 Grill），核实见 Proposal §1.4
@@ -323,7 +324,7 @@ HTML 失败应抛结构化 TextFitError 并终止管线，只有 Remotion 使用
 正确水平外溢为：
 
 ```js
-leftOverhang  = Math.max(0, actualBoundingBoxLeft);
+leftOverhang = Math.max(0, actualBoundingBoxLeft);
 rightOverhang = Math.max(0, actualBoundingBoxRight - width);
 ```
 

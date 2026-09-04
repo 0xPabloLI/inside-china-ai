@@ -24,6 +24,7 @@ collectFromCdp(source, keyword):
 ## Implementation Scope
 
 ### 改动文件
+
 1. `scripts/short-video/search-sources.mjs`
    - `collectFromCdp()` — 新增 3 层 fallback（per-site → generic → /extract）+ warn + health 写入
    - 新增 `GENERIC_EXTRACT_SCRIPT` 常量（通用 CSS 选择器列表）
@@ -38,6 +39,7 @@ collectFromCdp(source, keyword):
      - 全失败 → 空数组 + health 记录
 
 ### Jina Reader fallback 层 (added 2026-08-20)
+
 Jina Reader (`r.jina.ai/{url}`) 在 per-site articleScript 失效后、generic eval 之前插入。它用自己的 headless Chrome + curl-impersonate 引擎重新请求同一 URL，返回 Markdown 内容，不依赖 DOM 选择器。
 
 - **调用方式**: `fetch("https://r.jina.ai/" + source.url(keyword))` + optional `X-With-Images-Summary: true` header
@@ -46,6 +48,7 @@ Jina Reader (`r.jina.ai/{url}`) 在 per-site articleScript 失效后、generic e
 - **Fallback 语义区分**: Jina Reader = "同一 URL 换种方式提取"；Grok (Issue #65) = "放弃 URL，用搜索引擎找替代内容"
 
 ### 不改动的文件
+
 - `lib/cdp-client.mjs` — CDP 传输层不变
 - `lib/source-registry.mjs` — per-site articleScript 不改（自动修复不是改选择器，而是 fallback）
 - `lib/mcp-client.mjs` — 不涉及
@@ -93,6 +96,7 @@ const GENERIC_EXTRACT_SCRIPT = `
 ## Health Report Format
 
 `output/extract-script-health.json`:
+
 ```json
 {
   "lastUpdated": "2026-08-20T05:30:00.000Z",
@@ -127,17 +131,21 @@ const GENERIC_EXTRACT_SCRIPT = `
 ## Design Clarifications (2026-08-20 补充)
 
 ### per-site articleScript 不删除
+
 per-site articleScript 返回**结构化数据**（`{title, url, imageUrl, snippet}`），精确匹配网站 DOM。Generic eval 和 /extract 返回的是**非结构化内容**（generic 返回 `{title, url}` 数组，/extract 返回整页 Markdown）。per-site 不删除，auto-fallback 使其从「必须维护」变为「有空再维护」——选择器失效时自动降级，不阻断管线。
 
 ### Generic eval vs /extract 的区别
+
 - **Generic eval**：用 30+ 通用 CSS 选择器列表，找到第一个有结果的就 break，返回 `{title, url}` 结构化数组。适合**搜索结果页**。
 - **/extract**：自动检测正文容器（`article`, `main` 等），转成整页 Markdown。适合**内容页**，对任何页面都能返回内容（>50 字符即算成功）。
 - 测试中 96% vs 64% 的差异源于此：/extract 对任何页面都有输出，generic eval 依赖选择器匹配。
 
 ### `accessMethod.fallbacks` 字段现状
+
 当前 `collectFromSource()` 的 fallback 链是**硬编码**的（apiSearch → CDP → googleSiteFallback → mcpFallback），不读 `accessMethod.fallbacks`。该字段目前是文档性的。实施时可考虑删除以简化，或让代码真正读它。
 
 ### TikTok Creator 和 mcp_grok_search 在测试中失败的原因
+
 - **TikTok Creator**：primary method 是 `api`（ScrapeCreators API），测试跳过 API 直接测 CDP → 需 login → 失败。管线正常走 API 层，不需要 CDP login。Analytics 数据通过 `publish-tiktok.mjs` 的 TikTok Analytics API 拉取，与 source-registry 无关。
 - **mcp_grok_search**：primary method 是 `mcp`，没有 URL（`url: () => ""`），没有 articleScript。测试对所有源都先 `cdpNewTab(url)`，但该源 URL 为空。管线代码 `collectFromSource` 正确处理：Step 1（API）跳过（无 apiSearch）→ Step 2（CDP）跳过（URL 空）→ Step 3（MCP fallback）执行。
 

@@ -234,8 +234,7 @@ preflight 只报 pending/WARN，sourcing 之后按最终场景与文件存在性
 - [x] **s9 视觉复测（决策 69 修正口径）✅ DONE (2026-09-03)**：新渲染 53.2s/53.5s/55.5s
       抽帧——无上一幕媒体透出；53.2s 观察到的「MEMBER/CITY 缺头」为 band 入场滑动
       中途帧（top/bottom band 先后入场，55.5s 稳定帧全部字段完整），非泄漏非裁剪
-- [x] s6/s8/s9 重渲染 ✅ DONE (2026-09-03)：qwen4 全管线 1953 帧（v2026-09-02T16-49-12）
-      + 文本 gate 零取消 + 71/71 帧检查 PASS；s6/s8 抽帧 action/context 上屏、band
+- [x] s6/s8/s9 重渲染 ✅ DONE (2026-09-03)：qwen4 全管线 1953 帧（v2026-09-02T16-49-12）+ 文本 gate 零取消 + 71/71 帧检查 PASS；s6/s8 抽帧 action/context 上屏、band
       无重叠；字幕 verification 仅存量 2 coverage gap（§6 已记录，非 T9）
 
 ---

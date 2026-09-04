@@ -84,4 +84,4 @@ GLM-6.0 has no release date and no parameter count. But the direction is clear: 
 
 ---
 
-*Source: Zhipu AI 2026 H1 earnings call transcript, published on WeChat by Baishu Chaozhi Wang, Sep 2, 2026. All quotes and data points are from the transcript. ([full transcript](https://mp.weixin.qq.com/s/u95WhpIZs3jB0RtyPGmw-Q))*
+_Source: Zhipu AI 2026 H1 earnings call transcript, published on WeChat by Baishu Chaozhi Wang, Sep 2, 2026. All quotes and data points are from the transcript. ([full transcript](https://mp.weixin.qq.com/s/u95WhpIZs3jB0RtyPGmw-Q))_

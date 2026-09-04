@@ -18,16 +18,16 @@
 
 ## 本轮已落地的管线修复（2026-08-29，全部有测试）
 
-| # | 问题 | 修复 | 验证 |
-|---|------|------|------|
-| 1 | symlink 功能移除后 verify 找不到视频 | `lib/assemble.mjs` 新增 `resolveOutputVideo()`（最新版本化文件优先），两个 verify 脚本改用 | 单测 4/4 |
-| 2 | render-only 硬编码 `.mp3`（F5 输出 `.wav`） | 双扩展名探测 | 真实数据跑通 |
-| 3 | render-only 无视 `meta.renderer`，对 Remotion 内容跑 Playwright DOM gate（7 场景误杀） | 镜像 main.mjs 的 renderer 分流 | 真实数据跑通 |
-| 4 | **文字截断**：`overflow:hidden` 裁切对帧分析不可见；media-split 半宽布局无字符预算；Remotion 字体回退衬线放大宽度 | ① `scene-rules.mjs` `checkTextWidthBudget`（按布局×字号×衬线系数的字符预算，FAIL 级）② `frame-analysis.mjs` `checkClippedText`（右边界亮→暗硬切滑动窗口启发式，WARN 级） | 预算单测 5 + 真实帧 2/2 阳性 6/6 阴性；启发式单测 3 |
-| 5 | **自定义 visualType 被 Remotion 静默降级**（"benchmark" 渲染成 narrative 丢字段） | `scene-rules.mjs` `checkVisualTypeWhitelist`（默认 renderer=remotion 时 FAIL；`meta.renderer="playwright"` 跳过） | 单测 3 |
-| 6 | **素材被重复自动分配**：撤掉媒体后 main.mjs 下次 run 又会自动塞回 | `main.mjs` Step 1.5 支持 `mediaOptOut: true`（scene-data 声明有意纯 CSS） | 代码审查（本轮真实跑通） |
-| 7 | caption 小数截断（"62.5"→"62"） | `lib/caption-utils.mjs` 句界切分改 lookbehind | caption 套件 66/66 |
-| 8 | TTS 卡死（HF etag 检查经系统代理挂起 9 分钟） | 文档化 + `HF_HUB_OFFLINE=1`：`docs/video-workflow.md` → TTS Engine Configuration → F5 缓存加载注记 | 真实跑通（30s 加载） |
+| #   | 问题                                                                                                              | 修复                                                                                                                                                                     | 验证                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| 1   | symlink 功能移除后 verify 找不到视频                                                                              | `lib/assemble.mjs` 新增 `resolveOutputVideo()`（最新版本化文件优先），两个 verify 脚本改用                                                                               | 单测 4/4                                            |
+| 2   | render-only 硬编码 `.mp3`（F5 输出 `.wav`）                                                                       | 双扩展名探测                                                                                                                                                             | 真实数据跑通                                        |
+| 3   | render-only 无视 `meta.renderer`，对 Remotion 内容跑 Playwright DOM gate（7 场景误杀）                            | 镜像 main.mjs 的 renderer 分流                                                                                                                                           | 真实数据跑通                                        |
+| 4   | **文字截断**：`overflow:hidden` 裁切对帧分析不可见；media-split 半宽布局无字符预算；Remotion 字体回退衬线放大宽度 | ① `scene-rules.mjs` `checkTextWidthBudget`（按布局×字号×衬线系数的字符预算，FAIL 级）② `frame-analysis.mjs` `checkClippedText`（右边界亮→暗硬切滑动窗口启发式，WARN 级） | 预算单测 5 + 真实帧 2/2 阳性 6/6 阴性；启发式单测 3 |
+| 5   | **自定义 visualType 被 Remotion 静默降级**（"benchmark" 渲染成 narrative 丢字段）                                 | `scene-rules.mjs` `checkVisualTypeWhitelist`（默认 renderer=remotion 时 FAIL；`meta.renderer="playwright"` 跳过）                                                        | 单测 3                                              |
+| 6   | **素材被重复自动分配**：撤掉媒体后 main.mjs 下次 run 又会自动塞回                                                 | `main.mjs` Step 1.5 支持 `mediaOptOut: true`（scene-data 声明有意纯 CSS）                                                                                                | 代码审查（本轮真实跑通）                            |
+| 7   | caption 小数截断（"62.5"→"62"）                                                                                   | `lib/caption-utils.mjs` 句界切分改 lookbehind                                                                                                                            | caption 套件 66/66                                  |
+| 8   | TTS 卡死（HF etag 检查经系统代理挂起 9 分钟）                                                                     | 文档化 + `HF_HUB_OFFLINE=1`：`docs/video-workflow.md` → TTS Engine Configuration → F5 缓存加载注记                                                                       | 真实跑通（30s 加载）                                |
 
 回归基线：`scene-rules.test.mjs` 126/126、`frame-analysis.test.mjs` 40/40。
 文档同步：`docs/content-pipeline.md` MRL-2 表新增 B11（宽度预算）/ B12（visualType 白名单），Blocker 总数 10→12。
@@ -39,7 +39,7 @@
 3. `node scripts/article/publish-article.mjs --file articles/qwen4-preview.md`（公开）+ `upload-attachments.mjs --post qwen4-preview --files docs/refs/source-materials/qwen4-preview-wechat-article.md`
 4. 访问 `/posts/qwen4-preview` 验证 widget/附件/TikTok embed
 5. `node scripts/short-video/publish-tiktok.mjs --slug qwen4-preview`（用户需先在 Publora 配置好）
-6. 清理旧版本 mp4 + `output/qwen4-preview/` 下 qa-*.png / audit-*.png / debug-*.png / final-*.png 审计产物
+6. 清理旧版本 mp4 + `output/qwen4-preview/` 下 qa-_.png / audit-_.png / debug-_.png / final-_.png 审计产物
 7. 手动操作（用户）：AIGC 标签、trending sound、地理标签、pinned comment、首小时回评——清单在 `docs/manual-ops.md`
 8. `node scripts/rag/index.mjs` 手动重跑（自动触发因 `currentSourceIds is not defined` 脚本 bug 失败——见 Backlog #4）
 

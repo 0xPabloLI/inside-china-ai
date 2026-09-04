@@ -23,6 +23,7 @@ GET /new?url=https://xhs.com/explore/x?a=1&b=2
 ```
 
 proxy 解析结果：
+
 - `q.url = "https://xhs.com/explore/x?a=1"` ← 被截断
 - `q.b = "2"` ← 被当成 proxy 自己的参数吃掉
 
@@ -34,16 +35,16 @@ v2.5.3 把 URL 改为通过 **POST body** 传入。HTTP body 是不透明字节�
 
 ### `/new`
 
-| 场景 | 旧（v2.5.2） | 新（v2.5.3） |
-|---|---|---|
-| 简单 URL | `curl ".../new?url=https://example.com"` | `curl -X POST --data-raw 'https://example.com' .../new` |
-| URL 含 query | `curl ".../new?url=https://xhs.com/explore/x?xsec_token=ABC"` ⚠️ token 丢失 | `curl -X POST --data-raw 'https://xhs.com/explore/x?xsec_token=ABC' .../new` ✓ |
-| URL 含 `#` fragment | `curl ".../new?url=https://app/page#sec"` ⚠️ fragment 丢失 | `curl -X POST --data-raw 'https://app/page#sec' .../new` ✓ |
+| 场景                | 旧（v2.5.2）                                                                | 新（v2.5.3）                                                                   |
+| ------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 简单 URL            | `curl ".../new?url=https://example.com"`                                    | `curl -X POST --data-raw 'https://example.com' .../new`                        |
+| URL 含 query        | `curl ".../new?url=https://xhs.com/explore/x?xsec_token=ABC"` ⚠️ token 丢失 | `curl -X POST --data-raw 'https://xhs.com/explore/x?xsec_token=ABC' .../new` ✓ |
+| URL 含 `#` fragment | `curl ".../new?url=https://app/page#sec"` ⚠️ fragment 丢失                  | `curl -X POST --data-raw 'https://app/page#sec' .../new` ✓                     |
 
 ### `/navigate`
 
-| 旧 | 新 |
-|---|---|
+| 旧                                      | 新                                                       |
+| --------------------------------------- | -------------------------------------------------------- |
 | `curl ".../navigate?target=ID&url=URL"` | `curl -X POST --data-raw 'URL' ".../navigate?target=ID"` |
 
 `target` 仍走 query（它是无特殊字符的不透明 ID，没有歧义问题）。

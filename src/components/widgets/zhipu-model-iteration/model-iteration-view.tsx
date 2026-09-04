@@ -32,10 +32,18 @@ export function ZhipuModelIterationView() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              <th className="py-2 pr-3 text-left font-medium text-muted-foreground">{t.columns.model}</th>
-              <th className="py-2 pr-3 text-left font-medium text-muted-foreground">{t.columns.params}</th>
-              <th className="py-2 pr-3 text-left font-medium text-muted-foreground">{t.columns.cost}</th>
-              <th className="py-2 text-left font-medium text-muted-foreground">{t.columns.change}</th>
+              <th className="py-2 pr-3 text-left font-medium text-muted-foreground">
+                {t.columns.model}
+              </th>
+              <th className="py-2 pr-3 text-left font-medium text-muted-foreground">
+                {t.columns.params}
+              </th>
+              <th className="py-2 pr-3 text-left font-medium text-muted-foreground">
+                {t.columns.cost}
+              </th>
+              <th className="py-2 text-left font-medium text-muted-foreground">
+                {t.columns.change}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -55,9 +63,7 @@ export function ZhipuModelIterationView() {
                     )}
                   </td>
                   <td className="py-2.5 pr-3 text-muted-foreground">
-                    {m.paramsMode === "same" && (
-                      <span className="italic">{t.params.same}</span>
-                    )}
+                    {m.paramsMode === "same" && <span className="italic">{t.params.same}</span>}
                     {m.paramsMode === "tbd" && t.params.tbd}
                     {m.paramsMode === "value" && (
                       <>

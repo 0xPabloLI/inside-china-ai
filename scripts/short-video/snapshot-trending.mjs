@@ -149,8 +149,7 @@ export function buildSnapshot(trendingTags, matchedTags, keywords, period, regio
  */
 export function writeSnapshot(snapshot, customPath) {
   const dateStr = new Date().toISOString().slice(0, 10);
-  const filePath =
-    customPath || join(OUTPUT_DIR, `trending-${dateStr}.json`);
+  const filePath = customPath || join(OUTPUT_DIR, `trending-${dateStr}.json`);
 
   const dir = dirname(filePath);
   if (!existsSync(dir)) {
@@ -183,16 +182,10 @@ export function formatForAgent(snapshot) {
       );
     }
     lines.push("");
-    lines.push(
-      "→ Add these to scene-data metadata.trendingHashtags field.",
-    );
+    lines.push("→ Add these to scene-data metadata.trendingHashtags field.");
   } else {
-    lines.push(
-      "⚠️  No trending tags matched video keywords.",
-    );
-    lines.push(
-      "→ Use curated hashtag pool (caption-utils.mjs deriveHashtags).",
-    );
+    lines.push("⚠️  No trending tags matched video keywords.");
+    lines.push("→ Use curated hashtag pool (caption-utils.mjs deriveHashtags).");
   }
 
   return lines.join("\n");
@@ -264,8 +257,12 @@ async function main() {
     console.log("2. Wait for hashtag list to render");
     console.log("3. Extract hashtag data from DOM");
     console.log("4. Pipe JSON array to this script:");
-    console.log("   echo '[{\"name\":\"#ai\",\"views\":\"100M\",\"posts\":\"5K\"}]' | node scripts/short-video/snapshot-trending.mjs --keywords \"ai,deepseek\"");
-    console.log("   OR: node scripts/short-video/snapshot-trending.mjs --keywords \"ai\" --trending-file /tmp/trending.json");
+    console.log(
+      '   echo \'[{"name":"#ai","views":"100M","posts":"5K"}]\' | node scripts/short-video/snapshot-trending.mjs --keywords "ai,deepseek"',
+    );
+    console.log(
+      '   OR: node scripts/short-video/snapshot-trending.mjs --keywords "ai" --trending-file /tmp/trending.json',
+    );
     console.log("");
     console.log("Expected JSON format per tag:");
     console.log('  {"name": "#aidigital", "views": "1.2B", "posts": "45K", "trend": "up"}');
@@ -287,9 +284,10 @@ async function main() {
 }
 
 // Run main() only when executed directly (not imported)
-const isMain = process.argv[1] &&
-  (process.argv[1].endsWith('snapshot-trending.mjs') ||
-   process.argv[1].includes('snapshot-trending'));
+const isMain =
+  process.argv[1] &&
+  (process.argv[1].endsWith("snapshot-trending.mjs") ||
+    process.argv[1].includes("snapshot-trending"));
 
 if (isMain) {
   main();

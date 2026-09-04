@@ -15,6 +15,7 @@
 - [ ] Error handling: file not found / corrupt / unsupported format → returns `{"description": "", "error": "reason"}`
 - [ ] Runs in `~/.video-tts-env` Python venv (shared with F5-TTS and whisperx)
 - [ ] ffmpeg path: `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`
+
 # 02 — Node.js library: ai-analyzer.mjs
 
 **What to build:** A Node.js module (`scripts/short-video/lib/ai-analyzer.mjs`) that exports `describeImage(imagePath)`, `describeVideo(videoPath)`, and `closeAnalyzer()`. The module manages a long-lived Python subprocess (from ticket 01) via `child_process.spawn`, communicating with line-delimited JSON over stdin/stdout. On first call, it spawns the Python process (using `~/.video-tts-env/bin/python3`). Subsequent calls reuse the running process. If the process has exited (crash or idle timeout), the next call respawns it. Requests are queued serially (one at a time, matching the serial analysis decision — Apple Silicon is memory-bandwidth-bound). `closeAnalyzer()` sends an exit command and kills the subprocess. When mlx-vlm is unavailable (Python not found, model fails to load, process exits immediately with error), the module logs a warning and returns empty descriptions — the pipeline continues with keyword-based scoring. Tests mock the subprocess (no actual model loading) and verify: request/response format, lifecycle (spawn/reuse/respawn/close), fallback behavior, and serial queuing.
@@ -33,6 +34,7 @@
 - [ ] Graceful degradation: video analysis fails → returns empty string (Python script handles internal fallback, but if entire process crashes, Node catches)
 - [ ] Unit tests mock subprocess (stdin/stdout) — no real model loading
 - [ ] Unit tests cover: normal describe, process crash + respawn, idle timeout + respawn, explicit close, unavailable VLM
+
 # 03 — scoreCandidate enhancement: AI description scoring
 
 **What to build:** Enhance `scoreCandidate()` in `scripts/short-video/lib/asset-sourcer.mjs` to accept an optional third parameter `aiDescription`. When `aiDescription` is present, add a content-match score (0-30 points) based on text similarity between the AI description and the scene's voiceover/narration text. The similarity check uses simple token overlap (number of meaningful word stems shared between description and keyword/voiceover, normalized to 0-30). When `aiDescription` is absent or empty, `scoreCandidate` behaves identically to the current implementation — zero behavior change, fully backward compatible. Existing tests must pass without modification.
@@ -47,6 +49,7 @@
 - [ ] Max score cap remains 100 (existing keyword 40 + duration 25 + size 20 + resolution 15 + new content 30, clamped to 100)
 - [ ] All existing `asset-sourcer.test.mjs` tests for `scoreCandidate` pass without modification
 - [ ] New test cases: `scoreCandidate` with `aiDescription` present (matching, non-matching, empty)
+
 # 04 — Asset sourcer integration: end-to-end AI analysis
 
 **What to build:** Wire the AI analyzer into the asset sourcer pipeline. After the download loop (API sources + yt-dlp + CDP sources) and before `assignAssetsToScenes()`, call `describeImage` or `describeVideo` on each downloaded asset. Store the result in `asset.aiDescription`. Pass `aiDescription` to the enhanced `scoreCandidate`. Add an `aiAnalysis` section to the JSON report (per-asset: description, analysis time, success/failure). At end of batch, call `closeAnalyzer()`. For accepted assets (those assigned to scenes), append `aiDescription` to their `catalog.yml` entry. When VLM is unavailable, log warning and skip — pipeline continues with keyword-only scoring. Log per-asset analysis progress (like the existing download progress logs).

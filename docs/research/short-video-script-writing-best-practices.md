@@ -14,13 +14,13 @@ After surveying 15+ sources across content marketing platforms, creator blogs, a
 
 ScriptStorm.ai's S.T.A.R.T. framework is the most cited script structure in the 2025-2026 short-form video space, appearing across 8+ of their articles and referenced by multiple other creators [1][2][3]. It maps cleanly onto our 6-10 scene structure:
 
-| Letter | Name | Job | Timing | Our Equivalent |
-|--------|------|------|--------|----------------|
-| **S** | Stop | Scroll-stopping first line. Pattern interrupt, bold claim, or visual shock. | 0-3s | Scene 1 (hook) |
-| **T** | Tease | Tease the payoff without revealing it. Create an open loop. | 3-8s | Scene 2 (early body) |
-| **A** | Authority | Add fast proof. Cite a source, show data, establish credibility. | 8-20s | Body scenes with data |
-| **R** | Relay | Deliver the value. Reveal the answer, tell the story. | 20-50s | Core body scenes |
-| **T** | Tell | Strong, specific CTA. Not "like and subscribe." | 50-60s | Last scene (CTA) |
+| Letter | Name      | Job                                                                         | Timing | Our Equivalent        |
+| ------ | --------- | --------------------------------------------------------------------------- | ------ | --------------------- |
+| **S**  | Stop      | Scroll-stopping first line. Pattern interrupt, bold claim, or visual shock. | 0-3s   | Scene 1 (hook)        |
+| **T**  | Tease     | Tease the payoff without revealing it. Create an open loop.                 | 3-8s   | Scene 2 (early body)  |
+| **A**  | Authority | Add fast proof. Cite a source, show data, establish credibility.            | 8-20s  | Body scenes with data |
+| **R**  | Relay     | Deliver the value. Reveal the answer, tell the story.                       | 20-50s | Core body scenes      |
+| **T**  | Tell      | Strong, specific CTA. Not "like and subscribe."                             | 50-60s | Last scene (CTA)      |
 
 **Key insight**: The "Tease" step is almost entirely missing from our current scripts. We go straight from Hook to Context/Paper details without teasing what the viewer will learn. This is the single biggest structural gap.
 
@@ -40,13 +40,13 @@ Three psychological techniques are repeatedly cited as the engines of retention 
 
 From the research, five hook formula types consistently appear across sources:
 
-| Formula | Pattern | Example (our domain) | When to use |
-|---------|---------|----------------------|-------------|
-| **Shocking Number** | "[Big number] + [unexpected context]" | "$118B poured into a robot company that admits its robots can't work." | Data-driven stories |
-| **Contradiction** | "[X] is happening, but [opposite of X] is also true" | "China's biggest AI simulation rewrote 4 million minds. The paper never mentions re-education." | Twist stories |
-| **Curiosity Gap** | "Don't [common action] until you see [this]" | "Don't dismiss Chinese humanoid robots until you see what their own filing admits." | Product/analysis |
-| **Problem/Solution** | "You're doing [X] wrong. Here's the fix." | Less applicable to news format | How-to content |
-| **Question** | "What if [assumption] was wrong?" | "What if the billion-agent simulation isn't about AI at all?" | Philosophical/analytical |
+| Formula              | Pattern                                              | Example (our domain)                                                                            | When to use              |
+| -------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ |
+| **Shocking Number**  | "[Big number] + [unexpected context]"                | "$118B poured into a robot company that admits its robots can't work."                          | Data-driven stories      |
+| **Contradiction**    | "[X] is happening, but [opposite of X] is also true" | "China's biggest AI simulation rewrote 4 million minds. The paper never mentions re-education." | Twist stories            |
+| **Curiosity Gap**    | "Don't [common action] until you see [this]"         | "Don't dismiss Chinese humanoid robots until you see what their own filing admits."             | Product/analysis         |
+| **Problem/Solution** | "You're doing [X] wrong. Here's the fix."            | Less applicable to news format                                                                  | How-to content           |
+| **Question**         | "What if [assumption] was wrong?"                    | "What if the billion-agent simulation isn't about AI at all?"                                   | Philosophical/analytical |
 
 **Our current hooks**: We use the Shocking Number formula almost exclusively. The Unitree hook ("$118B into a robot company that admits its robots can't work") is actually strong. But we should rotate formulas to avoid fatigue across videos.
 
@@ -73,6 +73,7 @@ Two ending strategies dominate the research:
 Example (our domain): If the hook is "China built a billion-agent simulation," the ending should reference "billion" or "simulation" in a new light: "One billion simulated humans. And we're the ones being simulated."
 
 **Specific CTA** [8][9]: Generic CTAs ("like and subscribe," "follow for more") are dead closers. Specific CTAs drive 3-5x more engagement:
+
 - "Comment which Chinese AI company I should cover next"
 - "Save this before your next AI investment"
 - "Follow for Part 2: what the simulation discovered about human behavior"
@@ -106,18 +107,18 @@ Synthesized from multiple sources, these are the most cited reasons scripts fail
 
 ### Diagnosis of Light Society Script
 
-| Scene | VO Words | Issue |
-|-------|----------|-------|
-| 1 (hook) | 14 | Good shocking number, but no open loop. States the fact, doesn't tease. |
-| 2 (tweet) | 15 | Context scene. No tension. Could be an open loop: "The tweet went viral. The truth is bigger." — but then doesn't deliver until Scene 8. |
-| 3 (paper) | 16 | Pure info delivery. No emotional hook. |
-| 4 (real-data) | 16 | Good contrast structure, but VO is a list of facts. |
-| 5 (scale) | 15 | Good comparison, but flat delivery. |
-| 6 (trust-games) | 15 | "The simulation mirrors real human behavior." — this is the emotional payoff, but it's buried in Scene 6 of 10. |
-| 7 (opinion-diffusion) | 15 | Good data, but no tension. |
-| 8 (real-story) | 14 | This is the twist — but it arrives too late and with no buildup. |
-| 9 (philosophy) | 14 | Good philosophical question, but disconnected from the narrative. |
-| 10 (cta) | 6 | Generic CTA. "One billion simulated humans. Follow for more China AI." — doesn't loop back meaningfully. |
+| Scene                 | VO Words | Issue                                                                                                                                    |
+| --------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 (hook)              | 14       | Good shocking number, but no open loop. States the fact, doesn't tease.                                                                  |
+| 2 (tweet)             | 15       | Context scene. No tension. Could be an open loop: "The tweet went viral. The truth is bigger." — but then doesn't deliver until Scene 8. |
+| 3 (paper)             | 16       | Pure info delivery. No emotional hook.                                                                                                   |
+| 4 (real-data)         | 16       | Good contrast structure, but VO is a list of facts.                                                                                      |
+| 5 (scale)             | 15       | Good comparison, but flat delivery.                                                                                                      |
+| 6 (trust-games)       | 15       | "The simulation mirrors real human behavior." — this is the emotional payoff, but it's buried in Scene 6 of 10.                          |
+| 7 (opinion-diffusion) | 15       | Good data, but no tension.                                                                                                               |
+| 8 (real-story)        | 14       | This is the twist — but it arrives too late and with no buildup.                                                                         |
+| 9 (philosophy)        | 14       | Good philosophical question, but disconnected from the narrative.                                                                        |
+| 10 (cta)              | 6        | Generic CTA. "One billion simulated humans. Follow for more China AI." — doesn't loop back meaningfully.                                 |
 
 **Rhythm**: 14, 15, 16, 16, 15, 15, 15, 14, 14, 6 — Too uniform. No punch lines. No 3-5 word lines in the body.
 
@@ -127,18 +128,18 @@ Synthesized from multiple sources, these are the most cited reasons scripts fail
 
 ### Diagnosis of Unitree Script
 
-| Scene | VO Words | Issue |
-|-------|----------|-------|
-| 1 (hook) | 17 | Strong hook with contradiction. But doesn't tease what's coming. |
-| 2 (ipo-details) | 16 | Pure context. No tension. |
-| 3 (oversubscription) | 16 | Good data, but flat delivery. |
-| 4 (company-background) | 17 | Founder bio. Filler. Could be cut or condensed. |
-| 5 (products) | 15 | "But their own IPO filing tells a different story." — Good tease! But it's in Scene 5, not Scene 2. |
-| 6 (the-catch) | 15 | The payoff. But it arrives too late — viewer may have left by Scene 6. |
-| 7 (deepseek-backing) | 14 | Context that doesn't advance the main narrative. |
-| 8 (agibot-rivalry) | 14 | Interesting but tangential. |
-| 9 (china-dominance) | 13 | Good data point. |
-| 10 (cta) | 12 | Better loop closure ("Robots that can't work, but investors don't care") but still generic CTA prefix. |
+| Scene                  | VO Words | Issue                                                                                                  |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| 1 (hook)               | 17       | Strong hook with contradiction. But doesn't tease what's coming.                                       |
+| 2 (ipo-details)        | 16       | Pure context. No tension.                                                                              |
+| 3 (oversubscription)   | 16       | Good data, but flat delivery.                                                                          |
+| 4 (company-background) | 17       | Founder bio. Filler. Could be cut or condensed.                                                        |
+| 5 (products)           | 15       | "But their own IPO filing tells a different story." — Good tease! But it's in Scene 5, not Scene 2.    |
+| 6 (the-catch)          | 15       | The payoff. But it arrives too late — viewer may have left by Scene 6.                                 |
+| 7 (deepseek-backing)   | 14       | Context that doesn't advance the main narrative.                                                       |
+| 8 (agibot-rivalry)     | 14       | Interesting but tangential.                                                                            |
+| 9 (china-dominance)    | 13       | Good data point.                                                                                       |
+| 10 (cta)               | 12       | Better loop closure ("Robots that can't work, but investors don't care") but still generic CTA prefix. |
 
 **Rhythm**: 17, 16, 16, 17, 15, 15, 14, 14, 13, 12 — Gradually decreasing, which is okay, but no punch lines.
 
@@ -153,10 +154,12 @@ Synthesized from multiple sources, these are the most cited reasons scripts fail
 After the hook, add a 2-3 second tease that creates an open loop. This is the single highest-impact change.
 
 **Before** (light-society):
+
 - Scene 1: "China built the first simulation of one billion AI humans. Four million had their beliefs rewritten in 14 hours."
 - Scene 2: "A viral tweet from Jason said China sent agents to camps. The real story is bigger."
 
 **After**:
+
 - Scene 1: "China built the first simulation of one billion AI humans. Four million had their beliefs rewritten in 14 hours."
 - Scene 2: "But the paper never mentions re-education. What it actually did is scarier." ← Open loop, doesn't close until Scene 8
 
@@ -165,9 +168,11 @@ After the hook, add a 2-3 second tease that creates an open loop. This is the si
 Insert 3-5 word punch lines between 15-word context lines.
 
 **Before**:
+
 - "Agent profiles come from the World Values Survey. 96,000 real respondents. Age, income, education, and values. Not random bots." (16 words)
 
 **After**:
+
 - "Real survey data. 96,000 respondents. Age, income, values." (8 words) ← Shorter, punchier
 - "Not random bots." (3 words) ← Punch line
 
@@ -187,6 +192,7 @@ Or loop-closure style: "One billion simulated minds. The question is: are we nex
 ### R5: Add Pattern Interrupts Every 2-3 Scenes
 
 A pattern interrupt can be:
+
 - A sudden question: "But here's the scary part."
 - A tonal shift: From data delivery to emotional reaction
 - A visual contradiction: Show one thing, say another
@@ -197,6 +203,7 @@ Insert one pattern interrupt around Scene 4-5 to re-engage attention after the i
 ### R6: Use Multiple Hook Formula Types
 
 Rotate between:
+
 - Shocking Number (current default)
 - Contradiction ("X happened, but Y is also true")
 - Curiosity Gap ("Don't dismiss X until you see Y")

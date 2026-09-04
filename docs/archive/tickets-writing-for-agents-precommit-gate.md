@@ -51,6 +51,7 @@ export function checkWritingForAgentsGate(stagedDiffs) { ... }
 8. 仅 context 行变化 → 无 WARN
 
 **Checklist**:
+
 - [x] 测试文件 `scripts/__tests__/lint-doc-hierarchy.test.mjs` 新增 8 个测试用例
 - [x] 测试先失败（red — 函数未实现）
 - [x] `checkWritingForAgentsGate()` 纯函数实现
@@ -68,16 +69,21 @@ export function checkWritingForAgentsGate(stagedDiffs) { ... }
 **lint-doc-hierarchy.mjs main() 改动**:
 
 新增获取 staged diff 的逻辑：
+
 ```js
 import { execSync } from "node:child_process";
 
 function getStagedDiffs() {
-  const stagedFiles = execSync("git diff --cached --name-only --diff-filter=ACM", { encoding: "utf-8" })
-    .trim().split("\n").filter(Boolean);
-  
-  const docsOrAgents = stagedFiles.filter(f => f.startsWith("docs/") || f === "AGENTS.md");
-  
-  return docsOrAgents.map(file => {
+  const stagedFiles = execSync("git diff --cached --name-only --diff-filter=ACM", {
+    encoding: "utf-8",
+  })
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+
+  const docsOrAgents = stagedFiles.filter((f) => f.startsWith("docs/") || f === "AGENTS.md");
+
+  return docsOrAgents.map((file) => {
     const diff = execSync(`git diff --cached -- "${file}"`, { encoding: "utf-8" });
     const diffLines = parseDiffLines(diff);
     return { filename: file, diffLines };
@@ -93,6 +99,7 @@ function getStagedDiffs() {
 ```
 
 **Checklist**:
+
 - [x] `getStagedDiffs()` 函数实现 + `parseDiffLines()` 辅助函数
 - [x] `main()` 调用 `checkWritingForAgentsGate(getStagedDiffs())`
 - [x] WARN 输出到 stderr

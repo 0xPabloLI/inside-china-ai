@@ -4,11 +4,11 @@ Minimal GPU verification for Kaggle and Colab — no model downloads, no inferen
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `smoke_gpu.py` | Minimal smoke test: Python/torch/CUDA/GPU info + matrix multiply |
-| `test_gpu.py` | Full test with PyTorch reinstall (for P100 sm_60 compatibility) |
-| `kernel-metadata.json` | Kaggle kernel configuration |
+| File                   | Purpose                                                          |
+| ---------------------- | ---------------------------------------------------------------- |
+| `smoke_gpu.py`         | Minimal smoke test: Python/torch/CUDA/GPU info + matrix multiply |
+| `test_gpu.py`          | Full test with PyTorch reinstall (for P100 sm_60 compatibility)  |
+| `kernel-metadata.json` | Kaggle kernel configuration                                      |
 
 ## Running on Kaggle
 

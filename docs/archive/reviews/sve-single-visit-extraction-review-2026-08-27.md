@@ -37,25 +37,25 @@
 
 ### Requirements checklist
 
-| Spec requirement | Status | Notes |
-|---|---|---|
-| `enrichWithImages` → `enrichWithMedia` | ✅ Done | Renamed, same call site updated |
-| Video extraction: `<video>` src, `<source>`, `<iframe>`, `og:video` | ✅ Done | All 4 sources covered in eval script |
-| Metadata: `og:image`, `og:title`, `article:published_time` | ✅ Done | All 3 meta tags extracted |
-| Articles get `videoUrls` + `metadata` fields | ✅ Done | Additive, backward compat |
-| `buildOutputJson` writes `videos[]` + `metadata{}` | ✅ Done | 7 tests cover present/absent/both |
-| `extract-media.mjs` with `--url` and `--tab` | ✅ Done | Both CLI options implemented |
-| `media-cache.json` versioned schema | ✅ Done | `MEDIA_CACHE_VERSION = 1` |
-| Merge by `sourceUrl` | ✅ Done | `mergeMediaCacheEntry` tested |
-| Logo/icon filtering | ✅ Done | `isLogoOrIcon()` reused |
-| `loadCachedMedia` file-missing → [], malformed → [] | ✅ Done | 3 tests cover |
-| `toCachedMediaCandidate` type preservation | ✅ Done | image stays image, video stays video |
-| Phase 0b between Phase 0 and Phase 1 | ✅ Done | Inserted in main function |
-| Uses `downloadCandidate()` | ✅ Done | No new download logic |
-| `downloadedUrls` Set cross-phase dedup | ✅ Done | Phase 0b checks before download |
-| `content-pipeline.md` updated | ✅ Done | SVE rule added to Stage 0 entries |
-| Non-fatal: media extraction failure doesn't block | ✅ Done | try/catch in enrichWithMedia and loadCachedMedia |
-| Scenario matrix rows 1-19 | ✅ Covered | Tests cover rows 1-6, 9-19 |
+| Spec requirement                                                    | Status     | Notes                                            |
+| ------------------------------------------------------------------- | ---------- | ------------------------------------------------ |
+| `enrichWithImages` → `enrichWithMedia`                              | ✅ Done    | Renamed, same call site updated                  |
+| Video extraction: `<video>` src, `<source>`, `<iframe>`, `og:video` | ✅ Done    | All 4 sources covered in eval script             |
+| Metadata: `og:image`, `og:title`, `article:published_time`          | ✅ Done    | All 3 meta tags extracted                        |
+| Articles get `videoUrls` + `metadata` fields                        | ✅ Done    | Additive, backward compat                        |
+| `buildOutputJson` writes `videos[]` + `metadata{}`                  | ✅ Done    | 7 tests cover present/absent/both                |
+| `extract-media.mjs` with `--url` and `--tab`                        | ✅ Done    | Both CLI options implemented                     |
+| `media-cache.json` versioned schema                                 | ✅ Done    | `MEDIA_CACHE_VERSION = 1`                        |
+| Merge by `sourceUrl`                                                | ✅ Done    | `mergeMediaCacheEntry` tested                    |
+| Logo/icon filtering                                                 | ✅ Done    | `isLogoOrIcon()` reused                          |
+| `loadCachedMedia` file-missing → [], malformed → []                 | ✅ Done    | 3 tests cover                                    |
+| `toCachedMediaCandidate` type preservation                          | ✅ Done    | image stays image, video stays video             |
+| Phase 0b between Phase 0 and Phase 1                                | ✅ Done    | Inserted in main function                        |
+| Uses `downloadCandidate()`                                          | ✅ Done    | No new download logic                            |
+| `downloadedUrls` Set cross-phase dedup                              | ✅ Done    | Phase 0b checks before download                  |
+| `content-pipeline.md` updated                                       | ✅ Done    | SVE rule added to Stage 0 entries                |
+| Non-fatal: media extraction failure doesn't block                   | ✅ Done    | try/catch in enrichWithMedia and loadCachedMedia |
+| Scenario matrix rows 1-19                                           | ✅ Covered | Tests cover rows 1-6, 9-19                       |
 
 ### Missing/partial
 

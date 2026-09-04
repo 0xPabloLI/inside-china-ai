@@ -6,13 +6,13 @@ The existing heuristic is a reasonable **first-pass technical-quality ranking**:
 
 ## Findings
 
-| Priority | Location | Finding | Impact and recommendation |
-|---|---|---|---|
-| **P1** | `scripts/short-video/lib/asset-sourcer.mjs:1614, 1751` | **Re-scoring uses the wrong keyword for many assets.** API candidates are flattened and scored with `keywords[0]`; after AI analysis, every downloaded asset is again scored using `keywords[0]`. The asset record does not retain the keyword that produced it. | With `--keywords "Unitree, ByteDance"`, a ByteDance asset may be compared to `Unitree` and receive no content credit despite a correct AI description. Preserve `searchKeyword` on every candidate/asset and call `scoreCandidate(asset, asset.searchKeyword, asset.aiDescription)`. For API results, retain the keyword-to-candidates association before flattening. |
-| **P1** | `scripts/short-video/lib/asset-sourcer.mjs:112-114, 203-210` | **The stated 0–30 AI score is mostly neutralized by the 100-point cap.** The original quality components already total 100; AI points are appended and the result is clamped. A 95-point candidate can only gain 5 points, while a 100-point candidate gains none. | The semantic signal cannot materially re-rank technically strong assets. If AI relevance should contribute up to 30 points, make the non-AI components total 70 and add AI relevance on top. Alternatively, document it as a capped tie-breaker and test that behavior. |
-| **P2** | `scripts/short-video/lib/asset-sourcer.mjs:185-206` | **The comparison uses one search keyword rather than a scene’s visual or narration context.** It can establish that a description mentions `Unitree`, but cannot distinguish a lab demo from a production-line scene. | Assignment is global and greedy: assets are sorted by score and assigned to the first available scene. Pass the relevant scene visual brief/voiceover and compute per-asset, per-scene relevance during assignment. |
-| **P2** | `scripts/short-video/lib/asset-sourcer.mjs:181-201` | **Matching is brittle and admits false positives.** `descLower.includes(kwLower)` is substring matching. For example, a keyword `AI` matches `train` and `painting`. The split pattern also does not split hyphenated words, so `Unitree-H1` does not match `Unitree`; it does not address whitespace-free CJK descriptions. | Normalize punctuation—including hyphens—and use token/phrase boundaries for Latin text. Use appropriate CJK segmentation or normalize the VLM output language. Apply a full-phrase bonus only when phrase boundaries match. |
-| **P3** | `scripts/short-video/lib/asset-sourcer.mjs:167-173` | **The 4K check is case-sensitive.** `res.includes("4k")` does not recognize common `4K` metadata. | Normalize once with `String(res).toLowerCase()` before checking it. Add regression coverage for `4K`, `2160p`, and unknown resolution text. |
+| Priority | Location                                                     | Finding                                                                                                                                                                                                                                                                                                                      | Impact and recommendation                                                                                                                                                                                                                                                                                                                                             |
+| -------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1**   | `scripts/short-video/lib/asset-sourcer.mjs:1614, 1751`       | **Re-scoring uses the wrong keyword for many assets.** API candidates are flattened and scored with `keywords[0]`; after AI analysis, every downloaded asset is again scored using `keywords[0]`. The asset record does not retain the keyword that produced it.                                                             | With `--keywords "Unitree, ByteDance"`, a ByteDance asset may be compared to `Unitree` and receive no content credit despite a correct AI description. Preserve `searchKeyword` on every candidate/asset and call `scoreCandidate(asset, asset.searchKeyword, asset.aiDescription)`. For API results, retain the keyword-to-candidates association before flattening. |
+| **P1**   | `scripts/short-video/lib/asset-sourcer.mjs:112-114, 203-210` | **The stated 0–30 AI score is mostly neutralized by the 100-point cap.** The original quality components already total 100; AI points are appended and the result is clamped. A 95-point candidate can only gain 5 points, while a 100-point candidate gains none.                                                           | The semantic signal cannot materially re-rank technically strong assets. If AI relevance should contribute up to 30 points, make the non-AI components total 70 and add AI relevance on top. Alternatively, document it as a capped tie-breaker and test that behavior.                                                                                               |
+| **P2**   | `scripts/short-video/lib/asset-sourcer.mjs:185-206`          | **The comparison uses one search keyword rather than a scene’s visual or narration context.** It can establish that a description mentions `Unitree`, but cannot distinguish a lab demo from a production-line scene.                                                                                                        | Assignment is global and greedy: assets are sorted by score and assigned to the first available scene. Pass the relevant scene visual brief/voiceover and compute per-asset, per-scene relevance during assignment.                                                                                                                                                   |
+| **P2**   | `scripts/short-video/lib/asset-sourcer.mjs:181-201`          | **Matching is brittle and admits false positives.** `descLower.includes(kwLower)` is substring matching. For example, a keyword `AI` matches `train` and `painting`. The split pattern also does not split hyphenated words, so `Unitree-H1` does not match `Unitree`; it does not address whitespace-free CJK descriptions. | Normalize punctuation—including hyphens—and use token/phrase boundaries for Latin text. Use appropriate CJK segmentation or normalize the VLM output language. Apply a full-phrase bonus only when phrase boundaries match.                                                                                                                                           |
+| **P3**   | `scripts/short-video/lib/asset-sourcer.mjs:167-173`          | **The 4K check is case-sensitive.** `res.includes("4k")` does not recognize common `4K` metadata.                                                                                                                                                                                                                            | Normalize once with `String(res).toLowerCase()` before checking it. Add regression coverage for `4K`, `2160p`, and unknown resolution text.                                                                                                                                                                                                                           |
 
 ## Primary Pipeline Issue
 
@@ -28,11 +28,7 @@ const scored = candidates.map((candidate) => ({
 }));
 
 // Later, after AI analysis
-asset.score = scoreCandidate(
-  asset,
-  asset.searchKeyword,
-  asset.aiDescription,
-);
+asset.score = scoreCandidate(asset, asset.searchKeyword, asset.aiDescription);
 ```
 
 For API sources, preserve the keyword alongside each candidate list rather than flattening the results first.
@@ -65,13 +61,13 @@ Absent or blank `aiDAbsent or blank `aiDAbsent or blank `aiDAbsent or blank `aiD
 
 ## Suggested Merge Bar
 
-| Requirement | Status |
-|---|---|
-| Preserve each asset’s originating search keyword | Required |
-| Re-score against that keyword or, preferably, per-scene context | Required |
-| Rebalance the score so AI relevance has its advertised influence | Required |
-| Add boundary, hyphen/CJK, and multi-keyword regression tests | Required |
-| Normalize resolution casing | Recommended |
-| Resolve existing formatter errors in the module | Required for a clean lint gate |
+| Requirement                                                      | Status                         |
+| ---------------------------------------------------------------- | ------------------------------ |
+| Preserve each asset’s originating search keyword                 | Required                       |
+| Re-score against that keyword or, preferably, per-scene context  | Required                       |
+| Rebalance the score so AI relevance has its advertised influence | Required                       |
+| Add boundary, hyphen/CJK, and multi-keyword regression tests     | Required                       |
+| Normalize resolution casing                                      | Recommended                    |
+| Resolve existing formatter errors in the module                  | Required for a clean lint gate |
 
 > **Bottom line:** Keep the baseline heuristic, but revise the AI extension and its provenance flow. In its current form, it is suitable only as a weak, single-keyword tie-breaker—not as a trustworthy semantic selector.

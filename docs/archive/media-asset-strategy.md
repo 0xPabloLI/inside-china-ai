@@ -6,15 +6,18 @@
 > **Section 4 status summary** (as of 2026-08-14):
 >
 > **Completed research (informs current practice):**
+>
 > - §4.2 (Visual Engagement Research) — ✅ Research complete. Findings inform scene-data authoring.
 > - §4.3 (Asset Source Catalog) — ✅ Research complete. 8 international + 5 Chinese news + 4 Chinese video sources documented. Download commands in §2.
 >
 > **Implemented in pipeline:**
+>
 > - §4.5 (Asset Directory Reorganization) — ✅ **Implemented 2026-08-14**. See `docs/media-asset-management.md` for authoritative structure.
 > - §4.6 (Background Audio Mixing) — ✅ Validated. `volume={0.08}` confirmed as industry-standard (-22dB). **Per-scene volume + envelope ducking: ✅ Implemented 2026-08-14** (commit 0822eb5). `MediaField.volume?: number` added; `MediaBackground.tsx` uses `videoVolume = baseVolume * opacity` for fade in/out; `validateMedia()` validates range [0,1].
 > - §4.7 (BGM) — ⚠️ Deprecated. Pipeline BGM was fully implemented (`lib/bgm.mjs` + `mixBgm()`) but user has stopped using it — adds TikTok music manually at upload time. Code retained but `--bgm` flag no longer recommended.
 >
 > **Future ideas (not implemented):**
+>
 > - §4.1 (Reference Video Extraction) — Conceptual workflow only. Priority: Low.
 > - §4.4 (Automated Asset Pipeline) — ✅ `asset-sourcer.mjs` **implemented** (commit 1198685 + 1501c69, 90 tests). Searches 10 sources, scores candidates, downloads top matches, outputs JSON report. **Auto-fill: ✅ Implemented 2026-08-14** (commit 0822eb5). `assignAssetsToScenes()` batch-assigns assets to scenes with volume recommendation; outputs `media-patch.json`; `apply-media-patch.mjs` formats patches as copy-paste code blocks for HITL review.
 > - §4.5 (SHA-256 Dedup) — Future: content hashing to prevent duplicate downloads. Directory reorganization is already done; dedup logic is the remaining piece. Priority: Low.
@@ -24,21 +27,21 @@
 
 ### What we have
 
-| Asset | Type | Size | Source | Used in (scenes) | Animation |
-|-------|------|------|--------|-------------------|-----------|
-| `unitree-demo.mp4` | video | 10MB | YouTube (yt-dlp + cookies) | S2, S5, S6 | fade, zoom, fade |
-| `unitree-building.jpg` | image | 11MB | Wikipedia (Node fetch + UA) | S4 | ken-burns |
+| Asset                  | Type  | Size | Source                      | Used in (scenes) | Animation        |
+| ---------------------- | ----- | ---- | --------------------------- | ---------------- | ---------------- |
+| `unitree-demo.mp4`     | video | 10MB | YouTube (yt-dlp + cookies)  | S2, S5, S6       | fade, zoom, fade |
+| `unitree-building.jpg` | image | 11MB | Wikipedia (Node fetch + UA) | S4               | ken-burns        |
 
 **Note**: `unitree-backflip.mp4` was listed in an earlier draft as "downloading" but the download was never completed and the file does not exist. Scene 5 reuses `unitree-demo.mp4` with `zoom` animation instead.
 
 ### Content coverage
 
-| Content | Scenes | Scenes with media | Media coverage | Unique assets |
-|---------|--------|-------------------|----------------|---------------|
-| `unitree` | 10 | 4 (S2, S4, S5, S6) | 40% | 2 (1 video + 1 image) |
-| `light-society` | 10 | 0 | 0% | 0 |
-| `deepseek` | 12 | 0 | 0% | 0 |
-| `distillation/pt1-3` | 8+9+9 | 0 | 0% | 0 |
+| Content              | Scenes | Scenes with media  | Media coverage | Unique assets         |
+| -------------------- | ------ | ------------------ | -------------- | --------------------- |
+| `unitree`            | 10     | 4 (S2, S4, S5, S6) | 40%            | 2 (1 video + 1 image) |
+| `light-society`      | 10     | 0                  | 0%             | 0                     |
+| `deepseek`           | 12     | 0                  | 0%             | 0                     |
+| `distillation/pt1-3` | 8+9+9  | 0                  | 0%             | 0                     |
 
 **Observation**: Only the Unitree content uses media backgrounds. All other content is CSS-only. The same `unitree-demo.mp4` is reused across 3 scenes with different animations and overlay values, which works but reduces visual variety.
 
@@ -66,6 +69,7 @@
 **Root cause of failures**: YouTube bot detection returns `LOGIN_REQUIRED` without cookies.
 
 **Working command**:
+
 ```bash
 yt-dlp --cookies-from-browser firefox \
   -f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best" \
@@ -76,6 +80,7 @@ yt-dlp --cookies-from-browser firefox \
 ```
 
 **Key flags**:
+
 - `--cookies-from-browser firefox` — **MANDATORY**. Without this, YouTube returns "Sign in to confirm you're not a bot". Firefox cookies are used because Chrome v127+ cookie encryption is broken on macOS
 - `--download-sections "*0:00-0:10"` — download only first 10 seconds (keeps file size small)
 - `--max-filesize 20M` — skip files that are too large
@@ -84,6 +89,7 @@ yt-dlp --cookies-from-browser firefox \
 **Parallel downloads fail**: Multiple yt-dlp instances with `--cookies-from-browser firefox` may conflict on Firefox's cookie database lock. **Run serially**.
 
 **Search for videos**:
+
 ```bash
 yt-dlp --cookies-from-browser firefox --flat-playlist \
   --print "%(id)s %(title)s %(duration)s" \
@@ -95,13 +101,17 @@ yt-dlp --cookies-from-browser firefox --flat-playlist \
 **Root cause of failures**: Wikipedia returns 403 Forbidden without a proper User-Agent header. `curl` and `web_fetch` both fail.
 
 **Working method** (Node.js fetch with UA):
+
 ```javascript
-fetch('https://upload.wikimedia.org/wikipedia/commons/path/to/image.jpg', {
-  headers: { 'User-Agent': 'ChinaAINews/1.0 (contact@china-ai.news)' }
-}).then(r => r.arrayBuffer()).then(/* write to file */)
+fetch("https://upload.wikimedia.org/wikipedia/commons/path/to/image.jpg", {
+  headers: { "User-Agent": "ChinaAINews/1.0 (contact@china-ai.news)" },
+})
+  .then((r) => r.arrayBuffer())
+  .then(/* write to file */);
 ```
 
 **Find image URLs** via Wikipedia REST API:
+
 ```bash
 curl -s "https://en.wikipedia.org/api/rest_v1/page/summary/Unitree_Robotics" \
   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['originalimage']['source'])"
@@ -110,6 +120,7 @@ curl -s "https://en.wikipedia.org/api/rest_v1/page/summary/Unitree_Robotics" \
 ### 2.3 News Images
 
 Google News RSS for finding articles with images:
+
 ```bash
 curl -s "https://news.google.com/rss/search?q=Unitree+robot+when:7d&hl=en-US" \
   | python3 -c "import xml.etree.ElementTree as ET; ..."
@@ -145,28 +156,29 @@ media: {
 
 Two rendering backends implement the same 5 presets with slightly different timing. The data contract (`MediaField` in `types.ts`) is shared; timing differences are implementation-level.
 
-| Preset | Entrance | Sustained | Exit | Best for |
-|--------|----------|-----------|------|----------|
-| fade | opacity 0→1 + scale 1.0→1.05 | slow zoom | opacity 1→0 + drift up 30px | General purpose, text-heavy scenes |
-| ken-burns | opacity 0→1 (1s) | zoom 1.0→1.12 + pan ±20px | opacity 1→0 | Static images (buildings, photos) |
-| slide | slide from right + blur 8px→0 | static | slide out left | Action shots, transitions |
-| zoom | scale 1.3→1.0 (easeOutExpo) | static | scale 1.0→1.15 | Dramatic reveals, viral moments |
-| none | instant | static | instant | When animation distracts |
+| Preset    | Entrance                      | Sustained                 | Exit                        | Best for                           |
+| --------- | ----------------------------- | ------------------------- | --------------------------- | ---------------------------------- |
+| fade      | opacity 0→1 + scale 1.0→1.05  | slow zoom                 | opacity 1→0 + drift up 30px | General purpose, text-heavy scenes |
+| ken-burns | opacity 0→1 (1s)              | zoom 1.0→1.12 + pan ±20px | opacity 1→0                 | Static images (buildings, photos)  |
+| slide     | slide from right + blur 8px→0 | static                    | slide out left              | Action shots, transitions          |
+| zoom      | scale 1.3→1.0 (easeOutExpo)   | static                    | scale 1.0→1.15              | Dramatic reveals, viral moments    |
+| none      | instant                       | static                    | instant                     | When animation distracts           |
 
 **Timing differences between backends** (seconds):
 
-| Preset | Remotion `MediaBackground.tsx` in/out | Playwright `media-bg.mjs` in/out |
-|--------|---------------------------------------|--------------------------------|
-| fade | 0.8 / 0.6 | 0.8 / 0.5 |
-| ken-burns | 1.0 / 0.6 | 0.8 / 0.5 |
-| slide | 0.7 / 0.5 | 0.6 / 0.4 |
-| zoom | 0.6 / 0.5 | 0.5 / 0.5 |
+| Preset    | Remotion `MediaBackground.tsx` in/out | Playwright `media-bg.mjs` in/out |
+| --------- | ------------------------------------- | -------------------------------- |
+| fade      | 0.8 / 0.6                             | 0.8 / 0.5                        |
+| ken-burns | 1.0 / 0.6                             | 0.8 / 0.5                        |
+| slide     | 0.7 / 0.5                             | 0.6 / 0.4                        |
+| zoom      | 0.6 / 0.5                             | 0.5 / 0.5                        |
 
 > **Auto-degrade rule**: `ken-burns` + video → auto-degrades to `fade` (ken-burns is image-only; panning a video frame-by-frame looks janky).
 
 ### 3.4 Overlay Strategy
 
 The dark overlay (`rgba(10,10,20,overlay)`) ensures text readability over media. Overlay also fades in/out slightly for smoother transitions:
+
 - **0.8** — heavy overlay (quote scenes, text is the focus) — used in Unitree S6
 - **0.75** — ken-burns images (photos need more darkening than video) — used in Unitree S4
 - **0.7** — standard (narrative scenes, media visible but text readable) — used in Unitree S2
@@ -176,11 +188,13 @@ The dark overlay (`rgba(10,10,20,overlay)`) ensures text readability over media.
 ### 3.5 When to Use Media vs CSS-Only
 
 **Use media when**:
+
 - Scene shows a product/demo (robot moving, CEO speaking)
 - Scene references a physical entity (building, factory)
 - Scene needs emotional impact (viral moment, dramatic stat)
 
 **Use CSS-only when**:
+
 - Pure data/stat scenes (big number reveal)
 - Abstract concepts (market share, comparison)
 - Quote scenes where text is the sole focus (though subtle video can enhance)
@@ -225,13 +239,13 @@ From Wikipedia [2]:
 
 #### Research findings
 
-| Question | Finding | Source | Confidence | Action |
-|----------|---------|--------|------------|--------|
+| Question                                                           | Finding                                                                                                                                                                                                                                                                                                                                                                                                                  | Source                           | Confidence              | Action                                                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Does media background increase or decrease retention vs text-only? | No direct A/B data found. However: (1) 66% of consumers say short-form video is most engaging format [1]; (2) pattern interrupts (media → CSS → media) re-engage attention every 10-15s [existing research]; (3) B-roll provides visual evidence that text-only cannot. **Hypothesis**: media backgrounds increase retention for product/demo scenes, but may decrease for data/stat scenes where numbers are the focus. | Sprout Social, existing research | Medium — needs A/B test | A/B test: same script, one with media backgrounds, one without. Compare 3-day retention in TikTok analytics |
-| Optimal B-roll clip duration in a 60s video? | No specific industry data on B-roll clip length for short-form. Our existing research shows 15-30s videos are easier to complete (70% threshold) [existing research]. Practical guidance: match clip duration to scene duration (5-8s), don't reuse the same clip across multiple scenes. | Existing research | Medium | Test 3s vs 5s vs 8s clips in the same scene position; avoid reusing same clip across >2 scenes |
-| Full-screen video vs picture-in-picture vs split screen? | No engagement comparison data found. Current approach (full-screen) is the TikTok norm. PiP could allow showing product demo + data simultaneously but may reduce visual impact. Split screen is common for comparison scenes (we handle these with CSS cards). | — | Low | Prototype PiP in Remotion for comparison/contrast scenes; A/B test engagement |
-| What visual elements drive engagement? | Dynamic visual changes every 2-3s (existing research). Animation presets provide entrance/sustained/exit motion. Overlay values calibrated for text readability. Color contrast (amber/blue/red against dark) provides visual hierarchy. | Existing research, codebase | Medium | Correlate TikTok analytics per-scene retention with media type/animation preset |
-| Does TikTok viewing happen with sound off? | **Yes** — Sprout Social confirms short-form video is consumed "often with sound off" [1]. This means: (1) captions/subtitles are mandatory; (2) visual engagement matters more than background audio; (3) background video audio is a nice-to-have, not a must. | Sprout Social [1] | High | Ensure subtitles always burned in; don't over-invest in background audio quality |
+| Optimal B-roll clip duration in a 60s video?                       | No specific industry data on B-roll clip length for short-form. Our existing research shows 15-30s videos are easier to complete (70% threshold) [existing research]. Practical guidance: match clip duration to scene duration (5-8s), don't reuse the same clip across multiple scenes.                                                                                                                                | Existing research                | Medium                  | Test 3s vs 5s vs 8s clips in the same scene position; avoid reusing same clip across >2 scenes              |
+| Full-screen video vs picture-in-picture vs split screen?           | No engagement comparison data found. Current approach (full-screen) is the TikTok norm. PiP could allow showing product demo + data simultaneously but may reduce visual impact. Split screen is common for comparison scenes (we handle these with CSS cards).                                                                                                                                                          | —                                | Low                     | Prototype PiP in Remotion for comparison/contrast scenes; A/B test engagement                               |
+| What visual elements drive engagement?                             | Dynamic visual changes every 2-3s (existing research). Animation presets provide entrance/sustained/exit motion. Overlay values calibrated for text readability. Color contrast (amber/blue/red against dark) provides visual hierarchy.                                                                                                                                                                                 | Existing research, codebase      | Medium                  | Correlate TikTok analytics per-scene retention with media type/animation preset                             |
+| Does TikTok viewing happen with sound off?                         | **Yes** — Sprout Social confirms short-form video is consumed "often with sound off" [1]. This means: (1) captions/subtitles are mandatory; (2) visual engagement matters more than background audio; (3) background video audio is a nice-to-have, not a must.                                                                                                                                                          | Sprout Social [1]                | High                    | Ensure subtitles always burned in; don't over-invest in background audio quality                            |
 
 #### Sources
 
@@ -254,141 +268,141 @@ From Wikipedia [2]:
 
 #### Tier 1: Validated in our pipeline
 
-| Source | Type | Access method | Download guide | License | Notes |
-|--------|------|---------------|---------------|---------|-------|
-| YouTube | Video | `yt-dlp --cookies-from-browser chrome` | §2.1 | Varies by uploader | Official channel uploads, demo videos. Run serially [[memory:17865489336644602134]] |
-| Wikipedia (article images) | Image | Node.js `fetch()` with `User-Agent` header | §2.2 | CC-BY-SA / Public Domain | Company buildings, product photos. Find URLs via Wikipedia REST API |
-| Google News RSS | Article URLs | `curl` + XML parse | §2.3 | N/A (articles) | Finds articles, but images are often behind paywalls |
+| Source                     | Type         | Access method                              | Download guide | License                  | Notes                                                                               |
+| -------------------------- | ------------ | ------------------------------------------ | -------------- | ------------------------ | ----------------------------------------------------------------------------------- |
+| YouTube                    | Video        | `yt-dlp --cookies-from-browser chrome`     | §2.1           | Varies by uploader       | Official channel uploads, demo videos. Run serially [[memory:17865489336644602134]] |
+| Wikipedia (article images) | Image        | Node.js `fetch()` with `User-Agent` header | §2.2           | CC-BY-SA / Public Domain | Company buildings, product photos. Find URLs via Wikipedia REST API                 |
+| Google News RSS            | Article URLs | `curl` + XML parse                         | §2.3           | N/A (articles)           | Finds articles, but images are often behind paywalls                                |
 
 #### Tier 2: Researched & verified — ready for integration
 
 **Pexels** — Free stock video & image API [1]
 
-| Field | Detail |
-|-------|--------|
-| Content | Photos + Videos (HD/4K) |
-| API base | `https://api.pexels.com/v1/` (photos), `https://api.pexels.com/v1/videos/` (videos) |
-| Auth | `Authorization: YOUR_API_KEY` header (free, instant registration) |
-| Rate limit | **200 requests/hour, 20,000 requests/month** (default). Contact api@pexels.com for unlimited free with attribution |
-| Photo search | `GET /v1/search?query=robot&orientation=portrait&per_page=15` → returns `src.original`, `src.large`, `src.portrait` (800×1200), etc. |
-| Video search | `GET /v1/videos/search?query=robot&orientation=portrait` → returns `video_files[]` with `quality` (sd/hd), `width`, `height`, `link` (direct MP4 URL) |
-| Video filters | `orientation`: landscape/portrait/square; `size`: large(4K)/medium(Full HD)/small(HD) |
-| Locale | Supports `zh-CN`, `zh-TW`, `ja-JP`, `ko-KR` and 25+ other locales |
-| Download | Direct HTTP download from `src.original` (images) or `video_files[].link` (videos). No hotlinking restriction |
-| License | Free for commercial and non-commercial use. **Attribution required** ("Photo by [Name] on Pexels" with link) |
-| Best for | Generic B-roll (nature, city, technology), abstract backgrounds. Not ideal for specific company/product footage |
-| Client libs | Official: Ruby, JavaScript (npm `pexels-javascript`), .NET |
-| **Our use case** | Vertical (`orientation=portrait`) videos for TikTok backgrounds; abstract tech footage for data/stat scenes |
+| Field            | Detail                                                                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content          | Photos + Videos (HD/4K)                                                                                                                               |
+| API base         | `https://api.pexels.com/v1/` (photos), `https://api.pexels.com/v1/videos/` (videos)                                                                   |
+| Auth             | `Authorization: YOUR_API_KEY` header (free, instant registration)                                                                                     |
+| Rate limit       | **200 requests/hour, 20,000 requests/month** (default). Contact api@pexels.com for unlimited free with attribution                                    |
+| Photo search     | `GET /v1/search?query=robot&orientation=portrait&per_page=15` → returns `src.original`, `src.large`, `src.portrait` (800×1200), etc.                  |
+| Video search     | `GET /v1/videos/search?query=robot&orientation=portrait` → returns `video_files[]` with `quality` (sd/hd), `width`, `height`, `link` (direct MP4 URL) |
+| Video filters    | `orientation`: landscape/portrait/square; `size`: large(4K)/medium(Full HD)/small(HD)                                                                 |
+| Locale           | Supports `zh-CN`, `zh-TW`, `ja-JP`, `ko-KR` and 25+ other locales                                                                                     |
+| Download         | Direct HTTP download from `src.original` (images) or `video_files[].link` (videos). No hotlinking restriction                                         |
+| License          | Free for commercial and non-commercial use. **Attribution required** ("Photo by [Name] on Pexels" with link)                                          |
+| Best for         | Generic B-roll (nature, city, technology), abstract backgrounds. Not ideal for specific company/product footage                                       |
+| Client libs      | Official: Ruby, JavaScript (npm `pexels-javascript`), .NET                                                                                            |
+| **Our use case** | Vertical (`orientation=portrait`) videos for TikTok backgrounds; abstract tech footage for data/stat scenes                                           |
 
 **Unsplash** — Free high-quality photo API [2]
 
-| Field | Detail |
-|-------|--------|
-| Content | Photos only (no videos) |
-| API base | `https://api.unsplash.com/` |
-| Auth | `Authorization: Client-ID YOUR_ACCESS_KEY` header (free, register app) |
-| Rate limit | **Demo mode: 50 req/hour** → apply for Production → **1000 req/hour**. Image requests (images.unsplash.com) do NOT count against limit |
-| Photo search | `GET /search/photos?query=robot+building&orientation=portrait&per_page=30` → returns `urls.full` (1920px), `urls.regular` (1080px), `urls.small` (400px) |
-| Random photo | `GET /photos/random?query=technology&orientation=portrait` → single random photo |
-| Dynamic resize | Image URLs support Imgix params: `?w=800&h=1200&fit=crop` for on-the-fly resize |
-| Pagination | Default 10/page, max 30/page. Headers: `X-Per-Page`, `X-Total`, `Link` (first/prev/next/last) |
-| Download | `GET /photos/:id/download` → triggers download tracking, returns download URL. Or direct `urls.full` HTTP download |
-| License | Free for commercial and non-commercial. **No attribution required** (though appreciated). Cannot sell unmodified images or replicate service |
-| **Our use case** | Company buildings, city skylines, product photos. `orientation=portrait` for vertical video backgrounds |
-| Limitation | **No video content**. Images only. For video B-roll, use Pexels or Pixabay |
+| Field            | Detail                                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content          | Photos only (no videos)                                                                                                                                  |
+| API base         | `https://api.unsplash.com/`                                                                                                                              |
+| Auth             | `Authorization: Client-ID YOUR_ACCESS_KEY` header (free, register app)                                                                                   |
+| Rate limit       | **Demo mode: 50 req/hour** → apply for Production → **1000 req/hour**. Image requests (images.unsplash.com) do NOT count against limit                   |
+| Photo search     | `GET /search/photos?query=robot+building&orientation=portrait&per_page=30` → returns `urls.full` (1920px), `urls.regular` (1080px), `urls.small` (400px) |
+| Random photo     | `GET /photos/random?query=technology&orientation=portrait` → single random photo                                                                         |
+| Dynamic resize   | Image URLs support Imgix params: `?w=800&h=1200&fit=crop` for on-the-fly resize                                                                          |
+| Pagination       | Default 10/page, max 30/page. Headers: `X-Per-Page`, `X-Total`, `Link` (first/prev/next/last)                                                            |
+| Download         | `GET /photos/:id/download` → triggers download tracking, returns download URL. Or direct `urls.full` HTTP download                                       |
+| License          | Free for commercial and non-commercial. **No attribution required** (though appreciated). Cannot sell unmodified images or replicate service             |
+| **Our use case** | Company buildings, city skylines, product photos. `orientation=portrait` for vertical video backgrounds                                                  |
+| Limitation       | **No video content**. Images only. For video B-roll, use Pexels or Pixabay                                                                               |
 
 **Pixabay** — Free stock video & image API [3]
 
-| Field | Detail |
-|-------|--------|
-| Content | Photos + Videos + Illustrations + Vectors |
-| API base | `https://pixabay.com/api/` (images), `https://pixabay.com/api/videos/` (videos) |
-| Auth | `key` query parameter (free, register account) |
-| Rate limit | **100 requests per 60 seconds** (associated with API key, not IP). Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` |
-| Image search | `GET /api/?key=KEY&q=robot&image_type=photo&orientation=vertical&min_width=1080` → returns `largeImageURL` (1280px), `fullHDURL` (1920px), `imageURL` (original) |
-| Video search | `GET /videos/?key=KEY&q=robot&video_type=film&per_page=10` → returns `videos` array with `large` (1280×720), `medium` (640×360), `small` (320×180) URL |
-| Image sizes | `previewURL` (150px), `webformatURL` (640px), `largeImageURL` (1280px), `fullHDURL` (1920px), `imageURL` (original) |
-| Filters | `image_type` (photo/illustration/vector), `orientation` (all/horizontal/vertical), `category` (21 categories incl. `science`, `technology`, `business`, `buildings`, `industry`, `computer`), `colors`, `safesearch`, `editors_choice` |
-| Lang | Supports `zh` (Chinese), `ja`, `ko` and 20+ other languages |
-| Cache | API requires **24-hour caching** of responses. Systematic mass downloads not allowed |
-| Download | Direct HTTP from `largeImageURL` / `imageURL` / `video.large.url`. **Permanent hotlinking of images NOT allowed** — must download to server |
-| License | Free for commercial and non-commercial. **No attribution required**. Cannot sell standalone content. Trademarks in content may require third-party consent |
-| **Our use case** | `orientation=vertical` + `category=technology` for tech B-roll. `zh` language support for Chinese keyword search |
+| Field            | Detail                                                                                                                                                                                                                                 |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content          | Photos + Videos + Illustrations + Vectors                                                                                                                                                                                              |
+| API base         | `https://pixabay.com/api/` (images), `https://pixabay.com/api/videos/` (videos)                                                                                                                                                        |
+| Auth             | `key` query parameter (free, register account)                                                                                                                                                                                         |
+| Rate limit       | **100 requests per 60 seconds** (associated with API key, not IP). Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`                                                                                          |
+| Image search     | `GET /api/?key=KEY&q=robot&image_type=photo&orientation=vertical&min_width=1080` → returns `largeImageURL` (1280px), `fullHDURL` (1920px), `imageURL` (original)                                                                       |
+| Video search     | `GET /videos/?key=KEY&q=robot&video_type=film&per_page=10` → returns `videos` array with `large` (1280×720), `medium` (640×360), `small` (320×180) URL                                                                                 |
+| Image sizes      | `previewURL` (150px), `webformatURL` (640px), `largeImageURL` (1280px), `fullHDURL` (1920px), `imageURL` (original)                                                                                                                    |
+| Filters          | `image_type` (photo/illustration/vector), `orientation` (all/horizontal/vertical), `category` (21 categories incl. `science`, `technology`, `business`, `buildings`, `industry`, `computer`), `colors`, `safesearch`, `editors_choice` |
+| Lang             | Supports `zh` (Chinese), `ja`, `ko` and 20+ other languages                                                                                                                                                                            |
+| Cache            | API requires **24-hour caching** of responses. Systematic mass downloads not allowed                                                                                                                                                   |
+| Download         | Direct HTTP from `largeImageURL` / `imageURL` / `video.large.url`. **Permanent hotlinking of images NOT allowed** — must download to server                                                                                            |
+| License          | Free for commercial and non-commercial. **No attribution required**. Cannot sell standalone content. Trademarks in content may require third-party consent                                                                             |
+| **Our use case** | `orientation=vertical` + `category=technology` for tech B-roll. `zh` language support for Chinese keyword search                                                                                                                       |
 
 **Wikimedia Commons** — Free media file repository [4]
 
-| Field | Detail |
-|-------|--------|
-| Content | Images, videos, audio — largest free media repository (100M+ files) |
-| API base | `https://commons.wikimedia.org/w/api.php` (MediaWiki API) |
-| Auth | **No auth required**. `User-Agent` header recommended per Wikimedia policy |
-| Search files | `GET /w/api.php?action=query&list=search&srsearch=Unitree+robot&srnamespace=6&format=json&srlimit=10` → returns `title` (e.g. `File:20260425 Unitree Headquarter 02.jpg`) |
-| Get image URL | `GET /w/api.php?action=query&titles=File:FILENAME&prop=imageinfo&iiprop=url|extmetadata&format=json` → returns `url` (direct download), `extmetadata.License` (CC-BY-SA etc.) |
-| Categories | Search within categories: `srsearch=incategory:Unitree` |
-| Geo search | `GET /w/api.php?action=query&list=geosearch&gscoord=30.2741|120.1551&gsradius=10000&gslimit=10` (photos near GPS coordinates) |
-| Download | Direct HTTP from `url` field. **Must include User-Agent** (`ChinaAINews/1.0 (contact@china-ai.news)`) |
-| License | Mixed: CC-BY-SA, CC-BY, Public Domain, GFDL. **Must check each file's `extmetadata.LicenseShortName`**. Attribution required for CC-licensed content |
-| **Our use case** | Company headquarters, product photos, historical/archival footage. Already validated via Wikipedia article API (same backend). GPS search for location-specific footage |
-| API test result | ✅ 2026-08-13: search for "Unitree robot" returned 46 results, imageinfo query returned full URL + metadata + GPS coordinates |
+| Field            | Detail                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content          | Images, videos, audio — largest free media repository (100M+ files)                                                                                                       |
+| API base         | `https://commons.wikimedia.org/w/api.php` (MediaWiki API)                                                                                                                 |
+| Auth             | **No auth required**. `User-Agent` header recommended per Wikimedia policy                                                                                                |
+| Search files     | `GET /w/api.php?action=query&list=search&srsearch=Unitree+robot&srnamespace=6&format=json&srlimit=10` → returns `title` (e.g. `File:20260425 Unitree Headquarter 02.jpg`) |
+| Get image URL    | `GET /w/api.php?action=query&titles=File:FILENAME&prop=imageinfo&iiprop=url                                                                                               | extmetadata&format=json`→ returns`url`(direct download),`extmetadata.License` (CC-BY-SA etc.) |
+| Categories       | Search within categories: `srsearch=incategory:Unitree`                                                                                                                   |
+| Geo search       | `GET /w/api.php?action=query&list=geosearch&gscoord=30.2741                                                                                                               | 120.1551&gsradius=10000&gslimit=10` (photos near GPS coordinates)                             |
+| Download         | Direct HTTP from `url` field. **Must include User-Agent** (`ChinaAINews/1.0 (contact@china-ai.news)`)                                                                     |
+| License          | Mixed: CC-BY-SA, CC-BY, Public Domain, GFDL. **Must check each file's `extmetadata.LicenseShortName`**. Attribution required for CC-licensed content                      |
+| **Our use case** | Company headquarters, product photos, historical/archival footage. Already validated via Wikipedia article API (same backend). GPS search for location-specific footage   |
+| API test result  | ✅ 2026-08-13: search for "Unitree robot" returned 46 results, imageinfo query returned full URL + metadata + GPS coordinates                                             |
 
 **Coverr** — Free stock video + API [5]
 
-| Field | Detail |
-|-------|--------|
-| Content | HD & 4K video clips, stock music, AI tools |
-| API base | `https://api.coverr.co/` (OpenAPI 3.0 spec at `https://coverr.co/api`) |
-| Endpoints | `GET /search_videos?query=QUERY`, `GET /videos` (latest), `GET /videos/{id}` (details), `GET /videos/filters?is_vertical=true` (vertical only) |
-| Video download | `GET /storage/videos/{base_filename}` → returns signed Google Cloud Storage URL (valid 15 minutes) |
-| Video object | `id`, `title`, `description`, `base_filename`, `is_vertical`, `full_image_path` (thumbnail), `duration`, `views`, `likes`, `downloads` |
-| Auth | Not specified in OpenAPI spec — appears to be open API |
-| Download | Via signed GCS URL (15-min validity). Must download promptly |
-| License | Free for personal and commercial use. **No attribution required**. No sign-up needed |
-| **Our use case** | `is_vertical=true` filter for TikTok-format clips. Free, no API key needed — lowest barrier to entry |
+| Field            | Detail                                                                                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content          | HD & 4K video clips, stock music, AI tools                                                                                                     |
+| API base         | `https://api.coverr.co/` (OpenAPI 3.0 spec at `https://coverr.co/api`)                                                                         |
+| Endpoints        | `GET /search_videos?query=QUERY`, `GET /videos` (latest), `GET /videos/{id}` (details), `GET /videos/filters?is_vertical=true` (vertical only) |
+| Video download   | `GET /storage/videos/{base_filename}` → returns signed Google Cloud Storage URL (valid 15 minutes)                                             |
+| Video object     | `id`, `title`, `description`, `base_filename`, `is_vertical`, `full_image_path` (thumbnail), `duration`, `views`, `likes`, `downloads`         |
+| Auth             | Not specified in OpenAPI spec — appears to be open API                                                                                         |
+| Download         | Via signed GCS URL (15-min validity). Must download promptly                                                                                   |
+| License          | Free for personal and commercial use. **No attribution required**. No sign-up needed                                                           |
+| **Our use case** | `is_vertical=true` filter for TikTok-format clips. Free, no API key needed — lowest barrier to entry                                           |
 
 **Mixkit** — Free stock video (no API) [6]
 
-| Field | Detail |
-|-------|--------|
-| Content | HD & 4K video clips, stock music, sound effects, video templates |
-| Owner | Envato (same company as Envato Elements) |
-| Access | **No API** — web browsing only. Direct download from website |
-| Download | `curl` or CDP scraping. Browse categories: nature, people, business, technology, aerial, etc. |
-| Vertical content | Has dedicated vertical video section: `https://mixkit.co/free-vertical-videos/` |
-| License | Free for commercial use. **No attribution required, no watermark**. Part of Envato ecosystem |
+| Field            | Detail                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Content          | HD & 4K video clips, stock music, sound effects, video templates                                                                                                   |
+| Owner            | Envato (same company as Envato Elements)                                                                                                                           |
+| Access           | **No API** — web browsing only. Direct download from website                                                                                                       |
+| Download         | `curl` or CDP scraping. Browse categories: nature, people, business, technology, aerial, etc.                                                                      |
+| Vertical content | Has dedicated vertical video section: `https://mixkit.co/free-vertical-videos/`                                                                                    |
+| License          | Free for commercial use. **No attribution required, no watermark**. Part of Envato ecosystem                                                                       |
 | **Our use case** | Manual browsing for B-roll. Could use CDP to scrape search results and download. `https://mixkit.co/free-stock-video/` + `https://mixkit.co/free-vertical-videos/` |
-| Limitation | No programmatic API — requires CDP scraping for automation |
+| Limitation       | No programmatic API — requires CDP scraping for automation                                                                                                         |
 
 **Internet Archive** — Public domain video & image [7]
 
-| Field | Detail |
-|-------|--------|
-| Content | Millions of items: videos, images, books, audio, software |
-| API base | `https://archive.org/advancedsearch.php` (search) + `https://archive.org/metadata/{identifier}` (item details) |
-| Search | `GET /advancedsearch.php?q=collection:(movies)+AND+(robot+OR+unitree)&fl[]=identifier&fl[]=title&fl[]=mediatype&rows=10&output=json` |
-| Item metadata | `GET /metadata/{identifier}` → returns `files` array with download URLs, `metadata` (license, description, date) |
-| Auth | No auth for search and download. Upload/modify requires `S3` API keys |
-| Download | Direct HTTP from `https://archive.org/download/{identifier}/{filename}` |
-| License | Public domain, CC-licensed, or various. Must check each item's `metadata.licenseurl` |
-| **Our use case** | Historical footage, news clips, public domain archival content. Not for current product/company footage |
-| API test result | ✅ 2026-08-13: search `collection:(movies) AND (unitree OR robot)` returned 5 results. JSON API fully functional |
-| Limitation | Content is mostly old/archival — not useful for current AI/tech company news |
+| Field            | Detail                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Content          | Millions of items: videos, images, books, audio, software                                                                            |
+| API base         | `https://archive.org/advancedsearch.php` (search) + `https://archive.org/metadata/{identifier}` (item details)                       |
+| Search           | `GET /advancedsearch.php?q=collection:(movies)+AND+(robot+OR+unitree)&fl[]=identifier&fl[]=title&fl[]=mediatype&rows=10&output=json` |
+| Item metadata    | `GET /metadata/{identifier}` → returns `files` array with download URLs, `metadata` (license, description, date)                     |
+| Auth             | No auth for search and download. Upload/modify requires `S3` API keys                                                                |
+| Download         | Direct HTTP from `https://archive.org/download/{identifier}/{filename}`                                                              |
+| License          | Public domain, CC-licensed, or various. Must check each item's `metadata.licenseurl`                                                 |
+| **Our use case** | Historical footage, news clips, public domain archival content. Not for current product/company footage                              |
+| API test result  | ✅ 2026-08-13: search `collection:(movies) AND (unitree OR robot)` returned 5 results. JSON API fully functional                     |
+| Limitation       | Content is mostly old/archival — not useful for current AI/tech company news                                                         |
 
 **Flickr** — Creative Commons photo search [8]
 
-| Field | Detail |
-|-------|--------|
-| Content | User-generated photos (billions). Videos also available but less common |
-| API base | `https://api.flickr.com/services/rest/` (REST) or `https://api.flickr.com/services/rest/?method=flickr.photos.search` |
-| Auth | `api_key` query parameter (free, register app at `flickr.com/services/api/`) |
-| Photo search | `GET /services/rest/?method=flickr.photos.search&api_key=KEY&text=unitree+robot&license=4,5,7,9,10&per_page=10&format=json&nojsoncallback=1` |
+| Field              | Detail                                                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content            | User-generated photos (billions). Videos also available but less common                                                                                                                                                         |
+| API base           | `https://api.flickr.com/services/rest/` (REST) or `https://api.flickr.com/services/rest/?method=flickr.photos.search`                                                                                                           |
+| Auth               | `api_key` query parameter (free, register app at `flickr.com/services/api/`)                                                                                                                                                    |
+| Photo search       | `GET /services/rest/?method=flickr.photos.search&api_key=KEY&text=unitree+robot&license=4,5,7,9,10&per_page=10&format=json&nojsoncallback=1`                                                                                    |
 | **License filter** | `license` parameter accepts comma-separated IDs: `4` (CC BY 2.0), `5` (CC BY-SA 2.0), `7` (No known copyright), `9` (CC0), `10` (Public Domain Mark), `11` (CC BY 4.0), `12` (CC BY-SA 4.0). **Avoid `1,2,3` (NC/ND licenses)** |
-| Photo URL | Construct from API response: `https://farm{farm}.staticflickr.com/{server}/{id}_{secret}_b.jpg` (1024px) or `_o.jpg` (original) |
-| Geo search | `bbox` parameter for bounding box search (min_lon, min_lat, max_lon, max_lat) |
-| Sort | `relevance`, `date-posted-desc`, `interestingness-desc` |
-| Download | Direct HTTP from constructed URL. No hotlinking restriction stated |
-| License | Mixed — must filter by `license` parameter. Use `4,5,9,10,11,12` for commercial-safe CC licenses |
-| **Our use case** | Real-world photos of companies/products that stock sites don't cover. Community photos from events, conferences, product launches |
-| API test result | ✅ 2026-08-13: `flickr.photos.licenses.getInfo` returned 17 license types. `flickr.photos.search` documented with full parameter list |
+| Photo URL          | Construct from API response: `https://farm{farm}.staticflickr.com/{server}/{id}_{secret}_b.jpg` (1024px) or `_o.jpg` (original)                                                                                                 |
+| Geo search         | `bbox` parameter for bounding box search (min_lon, min_lat, max_lon, max_lat)                                                                                                                                                   |
+| Sort               | `relevance`, `date-posted-desc`, `interestingness-desc`                                                                                                                                                                         |
+| Download           | Direct HTTP from constructed URL. No hotlinking restriction stated                                                                                                                                                              |
+| License            | Mixed — must filter by `license` parameter. Use `4,5,9,10,11,12` for commercial-safe CC licenses                                                                                                                                |
+| **Our use case**   | Real-world photos of companies/products that stock sites don't cover. Community photos from events, conferences, product launches                                                                                               |
+| API test result    | ✅ 2026-08-13: `flickr.photos.licenses.getInfo` returned 17 license types. `flickr.photos.search` documented with full parameter list                                                                                           |
 
 #### Tier 3: Chinese news & media sites — CDP-scraped, image extraction verified
 
@@ -398,148 +412,141 @@ From Wikipedia [2]:
 
 **Xinhua (新华网)** — Official state news agency [9]
 
-| Field | Detail |
-|-------|--------|
-| Content | News articles with high-quality images (92+ images per page), some video |
-| URL | `https://www.news.cn/` (homepage), `https://www.news.cn/tech/` (tech section) |
+| Field            | Detail                                                                                                                                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content          | News articles with high-quality images (92+ images per page), some video                                                                                                                                                   |
+| URL              | `https://www.news.cn/` (homepage), `https://www.news.cn/tech/` (tech section)                                                                                                                                              |
 | Image extraction | ✅ **Verified 2026-08-13**: CDP `document.querySelectorAll('img')` returned 92 images, 8+ with width > 200px. Image URLs follow pattern: `https://www.news.cn/20260813/{hash}/{hash}.jpg` — directly downloadable via HTTP |
-| Video | No `<video>` elements on homepage. Article pages may contain embedded video players (needs per-article check) |
-| Auth | None — fully public |
-| Anti-crawler | None detected. Standard HTTP headers sufficient |
-| License | ⚠️ Xinhua copyrighted content. Images are for editorial/news use. **Attribution required** ("Source: Xinhua") |
-| **Our use case** | Official photos of AI events (WAIC, conferences), government tech policy images, company photos from official events. Search tech section: `https://www.news.cn/tech/` |
-| CDP test | ✅ 2026-08-13: Page loaded successfully, 92 images extracted, tech section has AI-related articles (e.g. "物理AI：从WAIC展台，奔赴真实产业战场") |
+| Video            | No `<video>` elements on homepage. Article pages may contain embedded video players (needs per-article check)                                                                                                              |
+| Auth             | None — fully public                                                                                                                                                                                                        |
+| Anti-crawler     | None detected. Standard HTTP headers sufficient                                                                                                                                                                            |
+| License          | ⚠️ Xinhua copyrighted content. Images are for editorial/news use. **Attribution required** ("Source: Xinhua")                                                                                                              |
+| **Our use case** | Official photos of AI events (WAIC, conferences), government tech policy images, company photos from official events. Search tech section: `https://www.news.cn/tech/`                                                     |
+| CDP test         | ✅ 2026-08-13: Page loaded successfully, 92 images extracted, tech section has AI-related articles (e.g. "物理AI：从WAIC展台，奔赴真实产业战场")                                                                           |
 
 **CCTV (央视网)** — State TV broadcaster [10]
 
-| Field | Detail |
-|-------|--------|
-| Content | Video clips (news, documentaries), live streams, 308+ images per page |
-| URL | `https://www.cctv.com/` (homepage), `https://v.cctv.com/` (video section), `https://news.cctv.com/` (news) |
-| Image extraction | ✅ **Verified 2026-08-13**: 308 images extracted. Video thumbnails available as poster images |
+| Field            | Detail                                                                                                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Content          | Video clips (news, documentaries), live streams, 308+ images per page                                                                                                                                                    |
+| URL              | `https://www.cctv.com/` (homepage), `https://v.cctv.com/` (video section), `https://news.cctv.com/` (news)                                                                                                               |
+| Image extraction | ✅ **Verified 2026-08-13**: 308 images extracted. Video thumbnails available as poster images                                                                                                                            |
 | Video extraction | ⚠️ Homepage uses `<video>` with `blob:` URL (MSE streaming). Video section (`v.cctv.com`) may have direct MP4 links. Needs deeper CDP analysis — navigate to specific video page, inspect `<source>` or network requests |
-| Auth | None — fully public |
-| Anti-crawler | None detected |
-| License | ⚠️ CCTV copyrighted. Video clips are for editorial/reference use only |
-| **Our use case** | News video clips of AI events, product launches, tech demonstrations. Video URL extraction needs network-level CDP analysis (intercept media requests) |
-| CDP test | ✅ 2026-08-13: Page loaded, 1 `<video>` element found (blob URL), 308 images extracted. Video download requires further work — likely needs `yt-dlp` or network interception |
-| `yt-dlp` support | `yt-dlp` supports CCTV — can download video clips directly from `cctv.com` URLs |
+| Auth             | None — fully public                                                                                                                                                                                                      |
+| Anti-crawler     | None detected                                                                                                                                                                                                            |
+| License          | ⚠️ CCTV copyrighted. Video clips are for editorial/reference use only                                                                                                                                                    |
+| **Our use case** | News video clips of AI events, product launches, tech demonstrations. Video URL extraction needs network-level CDP analysis (intercept media requests)                                                                   |
+| CDP test         | ✅ 2026-08-13: Page loaded, 1 `<video>` element found (blob URL), 308 images extracted. Video download requires further work — likely needs `yt-dlp` or network interception                                             |
+| `yt-dlp` support | `yt-dlp` supports CCTV — can download video clips directly from `cctv.com` URLs                                                                                                                                          |
 
 **IT之家 (iThome)** — Chinese tech news [11]
 
-| Field | Detail |
-|-------|--------|
-| Content | Tech news articles with product photos, screenshots |
-| URL | `https://www.ithome.com/` (homepage), `https://www.ithome.com/ai/` (AI section) |
+| Field            | Detail                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content          | Tech news articles with product photos, screenshots                                                                                                                 |
+| URL              | `https://www.ithome.com/` (homepage), `https://www.ithome.com/ai/` (AI section)                                                                                     |
 | Image extraction | ✅ **Verified 2026-08-13**: 8 high-quality images extracted, URLs: `https://img.ithome.com/newsuploadfiles/focus/{uuid}.jpg`. Images directly downloadable via HTTP |
-| Auth | None |
-| Anti-crawler | None detected. Baidu CDN serves images (`x-bce-process` param for format conversion) |
-| License | ⚠️ iThome copyrighted. Editorial use with attribution |
-| **Our use case** | Best source for Chinese AI product news images — DeepSeek, Qwen, Unitree, Xiaomi, etc. Already in `trend-sources.mjs` for trend discovery |
-| Existing code | `trend-sources.mjs` → `NEWS_SOURCES` → `ithome` — CDP extract script exists for article titles/URLs. Can extend to also extract article images |
+| Auth             | None                                                                                                                                                                |
+| Anti-crawler     | None detected. Baidu CDN serves images (`x-bce-process` param for format conversion)                                                                                |
+| License          | ⚠️ iThome copyrighted. Editorial use with attribution                                                                                                               |
+| **Our use case** | Best source for Chinese AI product news images — DeepSeek, Qwen, Unitree, Xiaomi, etc. Already in `trend-sources.mjs` for trend discovery                           |
+| Existing code    | `trend-sources.mjs` → `NEWS_SOURCES` → `ithome` — CDP extract script exists for article titles/URLs. Can extend to also extract article images                      |
 
 **机器之心** — Chinese AI news [12]
 
-| Field | Detail |
-|-------|--------|
-| Content | AI-focused articles with cover images, product photos |
-| URL | `https://www.jiqizhixin.com/` |
+| Field            | Detail                                                                                                                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Content          | AI-focused articles with cover images, product photos                                                                                                                                                                                      |
+| URL              | `https://www.jiqizhixin.com/`                                                                                                                                                                                                              |
 | Image extraction | ✅ **Verified 2026-08-13**: 8 images extracted, URLs: `https://image.jiqizhixin.com/uploads/article/cover_image/{uuid}/{filename}.jpg?imageView2/1/w/243/h/162` — directly downloadable. Remove `?imageView2/...` params for original size |
-| Auth | None |
-| Anti-crawler | None detected |
-| License | ⚠️ 机器之心 copyrighted. Editorial use with attribution |
-| **Our use case** | AI-specific cover images — best source for Chinese AI company news. Already in `trend-sources.mjs` |
-| Existing code | `trend-sources.mjs` → `NEWS_SOURCES` → `jiqizhixin` — CDP extract script exists |
+| Auth             | None                                                                                                                                                                                                                                       |
+| Anti-crawler     | None detected                                                                                                                                                                                                                              |
+| License          | ⚠️ 机器之心 copyrighted. Editorial use with attribution                                                                                                                                                                                    |
+| **Our use case** | AI-specific cover images — best source for Chinese AI company news. Already in `trend-sources.mjs`                                                                                                                                         |
+| Existing code    | `trend-sources.mjs` → `NEWS_SOURCES` → `jiqizhixin` — CDP extract script exists                                                                                                                                                            |
 
 **澎湃新闻 (The Paper)** — Mainstream news with video section [13]
 
-| Field | Detail |
-|-------|--------|
-| Content | News articles, has dedicated video section ("视频") |
-| URL | `https://www.thepaper.cn/` |
+| Field            | Detail                                                                                                                 |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Content          | News articles, has dedicated video section ("视频")                                                                    |
+| URL              | `https://www.thepaper.cn/`                                                                                             |
 | Image extraction | ✅ **Verified 2026-08-13**: 51 images on homepage. No `<video>` elements on homepage (video section loads dynamically) |
-| Auth | None |
-| Anti-crawler | None detected |
-| License | ⚠️ 澎湃新闻 (上海东方报业) copyrighted |
-| **Our use case** | News images for AI policy, industry developments. Video section needs separate CDP navigation |
+| Auth             | None                                                                                                                   |
+| Anti-crawler     | None detected                                                                                                          |
+| License          | ⚠️ 澎湃新闻 (上海东方报业) copyrighted                                                                                 |
+| **Our use case** | News images for AI policy, industry developments. Video section needs separate CDP navigation                          |
 
 **Other Chinese news sources already in `trend-sources.mjs`** (CDP search verified, image extraction not yet tested):
 
-| Source | URL | needsAuth | Image extraction | Notes |
-|--------|-----|-----------|-----------------|-------|
-| 量子位 (qbitai) | `https://www.qbitai.com/` | false | Not tested | AI-focused media, likely has product photos |
-| 36氪 (36kr) | `https://36kr.com/` | false | Not tested | Tech/business news, stock photos |
-| 观察者网 (guancha) | `https://www.guancha.cn/` | false | Not tested | General news, may have tech section images |
+| Source             | URL                       | needsAuth | Image extraction | Notes                                       |
+| ------------------ | ------------------------- | --------- | ---------------- | ------------------------------------------- |
+| 量子位 (qbitai)    | `https://www.qbitai.com/` | false     | Not tested       | AI-focused media, likely has product photos |
+| 36氪 (36kr)        | `https://36kr.com/`       | false     | Not tested       | Tech/business news, stock photos            |
+| 观察者网 (guancha) | `https://www.guancha.cn/` | false     | Not tested       | General news, may have tech section images  |
 
 #### Tier 4: Chinese video platforms — CDP-based, high friction
 
-| Source | Type | Access method | Code location | Download tested | Notes |
-|--------|------|---------------|-------------|-----------------|-------|
-| Bilibili (B站) | Video | `yt-dlp` (native support) or CDP | `lib/trend-sources.mjs` (search only) | ❌ Not yet | CDP search extract exists. `yt-dlp` supports B站 natively — highest probability of working |
-| Douyin (抖音) | Video | CDP + download | `lib/trend-sources.mjs` (search only) | ❌ Not yet | `needsAuth: true` — requires login. MCP fallback to `douyin_mcp`. Most friction |
-| Xiaohongshu (小红书) | Image/Video | CDP + MCP fallback | `lib/trend-sources.mjs` (search only) | ❌ Not yet | `needsAuth: true`. MCP fallback to `xiaohongshu_mcp_server`. Good for product photos |
-| 搜狗微信 (sogou_weixin) | Article URLs | CDP + MCP fallback | `lib/trend-sources.mjs` (search only) | ❌ Not yet | Searches WeChat public account articles. May have images but URLs redirect to `mp.weixin.qq.com` |
+| Source                  | Type         | Access method                    | Code location                         | Download tested | Notes                                                                                            |
+| ----------------------- | ------------ | -------------------------------- | ------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------ |
+| Bilibili (B站)          | Video        | `yt-dlp` (native support) or CDP | `lib/trend-sources.mjs` (search only) | ❌ Not yet      | CDP search extract exists. `yt-dlp` supports B站 natively — highest probability of working       |
+| Douyin (抖音)           | Video        | CDP + download                   | `lib/trend-sources.mjs` (search only) | ❌ Not yet      | `needsAuth: true` — requires login. MCP fallback to `douyin_mcp`. Most friction                  |
+| Xiaohongshu (小红书)    | Image/Video  | CDP + MCP fallback               | `lib/trend-sources.mjs` (search only) | ❌ Not yet      | `needsAuth: true`. MCP fallback to `xiaohongshu_mcp_server`. Good for product photos             |
+| 搜狗微信 (sogou_weixin) | Article URLs | CDP + MCP fallback               | `lib/trend-sources.mjs` (search only) | ❌ Not yet      | Searches WeChat public account articles. May have images but URLs redirect to `mp.weixin.qq.com` |
 
 > **TikTok excluded**: We produce TikTok content — scraping TikTok for assets is not appropriate. TikTok is our distribution platform, not a source platform. The `competitor-intel.mjs` script exists for competitive analysis (search only), not for asset download.
 
 #### Not recommended
 
-| Source | Why |
-|--------|-----|
-| Google Images | Copyright issues, bot detection, no reliable download method |
+| Source                       | Why                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Google Images                | Copyright issues, bot detection, no reliable download method                                              |
 | News article images directly | Behind paywalls or JS-rendered pages. Use Google News RSS to find articles, then CDP for image extraction |
-| Videvo (videvo.net) | Redirected to Magnific/Freepik. Brand merged. No longer an independent source |
-| Mazwai (mazwai.com) | Redirected to Magnific/Freepik. Brand merged. No longer an independent source |
-| Videezy (videezy.com) | Still active (Eezy LLC) but mixed free/Pro content. Free selection limited compared to Pexels/Pixabay |
+| Videvo (videvo.net)          | Redirected to Magnific/Freepik. Brand merged. No longer an independent source                             |
+| Mazwai (mazwai.com)          | Redirected to Magnific/Freepik. Brand merged. No longer an independent source                             |
+| Videezy (videezy.com)        | Still active (Eezy LLC) but mixed free/Pro content. Free selection limited compared to Pexels/Pixabay     |
 
 #### Integration priority & recommended approach
 
 > **None of the 4 phases are implemented yet.** All phases are research-complete; `asset-sourcer.mjs` does not exist. The phases below are the recommended implementation order when development begins.
 
 **Phase 1 — Quick wins (no API key needed, no auth):**
+
 1. **Coverr API** — No auth required, vertical filter, free commercial use. Lowest barrier.
 2. **Wikimedia Commons** — Already partially validated (Wikipedia article images). Extend to full Commons search.
 3. **Chinese news sites (image extraction)** — Xinhua, iThome, 机器之心, 澎湃新闻: all verified ✅, no auth, no anti-crawler. CDP extract scripts already exist in `trend-sources.mjs`. **Highest ROI for China AI news content** — these are the only sources with real photos of Chinese AI companies/products.
 
-**Phase 2 — API key registration (store in `.env.local`):**
-4. **Pexels API** — Best stock video quality + search. 200 req/hour. `orientation=portrait` for vertical.
-5. **Pixabay API** — 100 req/60s, supports `zh` language. Good for Chinese keyword search.
-6. **Unsplash API** — Images only but highest quality. 50→1000 req/hour after Production approval.
+**Phase 2 — API key registration (store in `.env.local`):** 4. **Pexels API** — Best stock video quality + search. 200 req/hour. `orientation=portrait` for vertical. 5. **Pixabay API** — 100 req/60s, supports `zh` language. Good for Chinese keyword search. 6. **Unsplash API** — Images only but highest quality. 50→1000 req/hour after Production approval.
 
-**Phase 3 — Complex integration:**
-7. **Flickr API** — License filter critical (`license=4,5,9,10,11,12` for commercial-safe). Good for niche product photos.
-8. **Mixkit** — CDP scraping needed (no API). Browse `free-vertical-videos` section.
-9. **Internet Archive** — Search API works, but content is archival. Low priority for current news.
+**Phase 3 — Complex integration:** 7. **Flickr API** — License filter critical (`license=4,5,9,10,11,12` for commercial-safe). Good for niche product photos. 8. **Mixkit** — CDP scraping needed (no API). Browse `free-vertical-videos` section. 9. **Internet Archive** — Search API works, but content is archival. Low priority for current news.
 
-**Phase 4 — Chinese video platforms (CDP-based, high friction):**
-10. **Bilibili** — `yt-dlp` native support. CDP search already exists. **Best candidate for Chinese video content** — `yt-dlp` handles it directly.
-11. **CCTV** — `yt-dlp` supports CCTV. Video URL extraction needs network-level CDP analysis. Good for official event footage.
-12. **Douyin** — Requires login session. CDP search exists, download not tested.
-13. **Xiaohongshu** — Requires login. MCP fallback available. Good for product photos.
+**Phase 4 — Chinese video platforms (CDP-based, high friction):** 10. **Bilibili** — `yt-dlp` native support. CDP search already exists. **Best candidate for Chinese video content** — `yt-dlp` handles it directly. 11. **CCTV** — `yt-dlp` supports CCTV. Video URL extraction needs network-level CDP analysis. Good for official event footage. 12. **Douyin** — Requires login session. CDP search exists, download not tested. 13. **Xiaohongshu** — Requires login. MCP fallback available. Good for product photos.
 
 > **TikTok excluded**: TikTok is our distribution platform, not a source. The `competitor-intel.mjs` script is for competitive analysis only, not asset download.
 
 #### Download method patterns (for `asset-sourcer.mjs`)
 
-| Pattern | Sources | Implementation |
-|---------|---------|----------------|
-| API search + HTTP download | Pexels, Unsplash, Pixabay, Flickr | `fetch()` with API key header → parse JSON → `fetch()` download URL → write file |
-| Direct API + signed URL | Coverr | `fetch()` search → get `base_filename` → `GET /storage/videos/{base_filename}` → download signed URL (15-min validity) |
-| MediaWiki API + HTTP download | Wikimedia Commons | `fetch()` API search → get `imageinfo.url` → `fetch()` with `User-Agent` → write file |
-| Web scraping + HTTP download | Mixkit | CDP browse → extract video URL from DOM → `fetch()` download |
-| yt-dlp | YouTube, Bilibili, CCTV | `yt-dlp --cookies-from-browser chrome -f "best[height<=720]" --download-sections "*0:00-0:08" --max-filesize 20M` |
-| CDP + download | Douyin, Xiaohongshu | `lib/cdp-client.mjs` → extract URL → `fetch()` with login cookies |
-| Internet Archive API | archive.org | `fetch()` advancedsearch → `fetch()` metadata → `fetch()` download URL |
+| Pattern                       | Sources                           | Implementation                                                                                                         |
+| ----------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| API search + HTTP download    | Pexels, Unsplash, Pixabay, Flickr | `fetch()` with API key header → parse JSON → `fetch()` download URL → write file                                       |
+| Direct API + signed URL       | Coverr                            | `fetch()` search → get `base_filename` → `GET /storage/videos/{base_filename}` → download signed URL (15-min validity) |
+| MediaWiki API + HTTP download | Wikimedia Commons                 | `fetch()` API search → get `imageinfo.url` → `fetch()` with `User-Agent` → write file                                  |
+| Web scraping + HTTP download  | Mixkit                            | CDP browse → extract video URL from DOM → `fetch()` download                                                           |
+| yt-dlp                        | YouTube, Bilibili, CCTV           | `yt-dlp --cookies-from-browser chrome -f "best[height<=720]" --download-sections "*0:00-0:08" --max-filesize 20M`      |
+| CDP + download                | Douyin, Xiaohongshu               | `lib/cdp-client.mjs` → extract URL → `fetch()` with login cookies                                                      |
+| Internet Archive API          | archive.org                       | `fetch()` advancedsearch → `fetch()` metadata → `fetch()` download URL                                                 |
 
 #### API key management
 
 Store all API keys in `.env.local` (not in Git):
+
 ```
 PEXELS_API_KEY=...
 UNSPLASH_ACCESS_KEY=...
 PIXABAY_API_KEY=...
 FLICKR_API_KEY=...
 ```
+
 No key needed for: Coverr, Wikimedia Commons, Internet Archive, Mixkit (scraping).
 
 #### Sources
@@ -562,6 +569,7 @@ No key needed for: Coverr, Wikimedia Commons, Internet Archive, Mixkit (scraping
 **What it does NOT do**: Auto-modify `scene-data.mjs`. User reviews the JSON report and manually fills the `media` field. This is by design — human-in-the-loop for media selection.
 
 **Usage**:
+
 ```bash
 node scripts/short-video/lib/asset-sourcer.mjs --content unitree
 ```
@@ -602,6 +610,7 @@ NEW: scripts/short-video/lib/asset-sourcer.mjs  ← standalone module
 6. **Render**: existing pipeline handles the rest — `render-remotion.mjs` copies assets, `MediaBackground.tsx` renders with animation
 
 **Design constraints**:
+
 - **Never assign media to hook or CTA scenes** — `hookScene()` and `ctaScene()` delegate to shared templates that ignore the `media` field
 - **Never use `ken-burns` with video** — auto-degrades to `fade` in `MediaBackground.tsx`, but better to assign correctly upstream
 - **Deduplicate across content** — see §4.5
@@ -611,6 +620,7 @@ NEW: scripts/short-video/lib/asset-sourcer.mjs  ← standalone module
 **Status**: ✅ Directory reorganization complete. See `docs/media-asset-management.md` for the authoritative structure.
 
 **What was done**:
+
 - `assets/` cleaned to only contain **global shared production assets**: `brand/` (logos, marks), `logos/` (company logo registry), `bgm/` (background music).
 - `voice-samples/` created for TTS reference audio (personal, gitignored, binary).
 - `experiments/` created for disposable experiment outputs (gitignored).
@@ -619,6 +629,7 @@ NEW: scripts/short-video/lib/asset-sourcer.mjs  ← standalone module
 - Updated `.gitignore` to reflect new paths.
 
 **Current structure**:
+
 ```
 scripts/short-video/
   ├── assets/                    ← Global shared production assets (Git-tracked)
@@ -650,12 +661,12 @@ scripts/short-video/
 
 **1. Industry standard for background music relative to narration**
 
-| Standard | Level | Source | Applicability |
-|----------|-------|--------|---------------|
-| Film/TV background score | -20dB to -25dB relative to dialogue | Industry convention [1] | High — same principle applies |
-| EBU R128 (European broadcast) | -23 LUFS integrated loudness | EBU R128 (2010, rev. 2020) [2] | Medium — broadcast standard, short-form may differ |
-| Podcast background music | -16dB to -20dB relative to host voice | Podcast production convention [1] | High — similar format (voice + background) |
-| Our current setting | `volume={0.08}` ≈ -22dB | Codebase | — |
+| Standard                      | Level                                 | Source                            | Applicability                                      |
+| ----------------------------- | ------------------------------------- | --------------------------------- | -------------------------------------------------- |
+| Film/TV background score      | -20dB to -25dB relative to dialogue   | Industry convention [1]           | High — same principle applies                      |
+| EBU R128 (European broadcast) | -23 LUFS integrated loudness          | EBU R128 (2010, rev. 2020) [2]    | Medium — broadcast standard, short-form may differ |
+| Podcast background music      | -16dB to -20dB relative to host voice | Podcast production convention [1] | High — similar format (voice + background)         |
+| Our current setting           | `volume={0.08}` ≈ -22dB               | Codebase                          | —                                                  |
 
 **Analysis**: Our `volume={0.08}` setting corresponds to approximately -22dB attenuation (20×log₁₀(0.08) ≈ -22dB). This falls within the industry standard range of -20dB to -25dB for background audio relative to primary narration. **The current setting is well-calibrated and does not need adjustment.**
 
@@ -663,12 +674,12 @@ scripts/short-video/
 
 From Wikipedia [3]: Dynamic range compression "reduces the volume of loud sounds or amplifies quiet sounds, thus compressing an audio signal's dynamic range." Sidechain compression (ducking) uses one signal to control the volume of another — standard in podcast production where the host voice automatically ducks the background music.
 
-| Approach | Complexity | Benefit | Remotion support |
-|----------|-----------|---------|------------------|
-| Static volume (current) | None | None | `volume={0.08}` ✅ |
-| Envelope ducking | Low — fade in/out with scene | Smoother transitions | `interpolate()` per-frame ✅ |
-| Sidechain compression | High — needs TTS audio envelope | Automatic ducking when voice speaks | Not built-in; would need custom audio processing |
-| Per-scene volume | Low — `media.volume` field | Action scenes louder, narrated scenes quieter | Would need `MediaField` extension |
+| Approach                | Complexity                      | Benefit                                       | Remotion support                                 |
+| ----------------------- | ------------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| Static volume (current) | None                            | None                                          | `volume={0.08}` ✅                               |
+| Envelope ducking        | Low — fade in/out with scene    | Smoother transitions                          | `interpolate()` per-frame ✅                     |
+| Sidechain compression   | High — needs TTS audio envelope | Automatic ducking when voice speaks           | Not built-in; would need custom audio processing |
+| Per-scene volume        | Low — `media.volume` field      | Action scenes louder, narrated scenes quieter | Would need `MediaField` extension                |
 
 **Recommendation**: Start with **envelope ducking** (low complexity, high ROI). Per-scene volume as a quick win via `media.volume` field. Sidechain compression is overkill for short-form video where most viewing is sound-off.
 
@@ -677,6 +688,7 @@ From Wikipedia [3]: Dynamic range compression "reduces the volume of loud sounds
 From Sprout Social (2026-02-11) [4]: Short-form video is consumed **"often with sound off"** — viewers rely on captions/subtitles.
 
 **Implication**: Background video audio is a **nice-to-have, not a must-have**. The primary value of background video is **visual**, not audio. This means:
+
 - Don't over-invest in audio quality of B-roll clips
 - Subtitles must always be burned in (our pipeline does this via `burnSubtitles` in `post-process.mjs`)
 - The 8% volume setting is a reasonable ambiance level — lower is unnecessary, higher risks competing with TTS for the subset of viewers who do have sound on
@@ -695,9 +707,10 @@ From Sprout Social (2026-02-11) [4]: Short-form video is consumed **"often with 
 1. **Per-scene volume**: `volume?: number` added to `MediaField` in `types.ts`. `MediaBackground.tsx` uses `volume={media.volume ?? 0.08}`.
 
 2. **Envelope ducking**: Volume multiplied by the same `interpolate()` envelope used for opacity:
+
 ```typescript
 const baseVolume = media.volume ?? 0.08;
-const videoVolume = baseVolume * opacity;  // opacity already interpolates [0, 1, 1, 0]
+const videoVolume = baseVolume * opacity; // opacity already interpolates [0, 1, 1, 0]
 // <Video src={src} style={mediaStyle} volume={videoVolume} />
 ```
 
@@ -721,21 +734,23 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 
 **Pipeline BGM components** (all implemented):
 
-| Component | File | Function |
-|-----------|------|----------|
-| BGM pool | `scripts/short-video/assets/bgm/` | 14 MP3 files (9 auto-selectable, 5 manual-only) |
-| Auto-selection | `lib/bgm.mjs` → `selectBGM()` | Filters by instant-start + news-themed, deterministic FNV-1a hash pick |
-| Mixing | `lib/post-process.mjs` → `mixBgm()` | FFmpeg `amix`, 0.1s fade-in, 3s fade-out, infinite loop, 12% volume |
-| Procedural fallback | `lib/generate-bgm.mjs` → `generateBGM()` | FFmpeg sine wave synthesis (cyber-ambient), used when no MP3 pool exists |
-| Attribution | `remotion/public/assets/bgm/ATTRIBUTION.md` | CC-BY / royalty-free track registry |
+| Component           | File                                        | Function                                                                 |
+| ------------------- | ------------------------------------------- | ------------------------------------------------------------------------ |
+| BGM pool            | `scripts/short-video/assets/bgm/`           | 14 MP3 files (9 auto-selectable, 5 manual-only)                          |
+| Auto-selection      | `lib/bgm.mjs` → `selectBGM()`               | Filters by instant-start + news-themed, deterministic FNV-1a hash pick   |
+| Mixing              | `lib/post-process.mjs` → `mixBgm()`         | FFmpeg `amix`, 0.1s fade-in, 3s fade-out, infinite loop, 12% volume      |
+| Procedural fallback | `lib/generate-bgm.mjs` → `generateBGM()`    | FFmpeg sine wave synthesis (cyber-ambient), used when no MP3 pool exists |
+| Attribution         | `remotion/public/assets/bgm/ATTRIBUTION.md` | CC-BY / royalty-free track registry                                      |
 
 **BGM selection logic** (`lib/bgm.mjs`):
+
 1. Scan `assets/bgm/*.mp3` → analyze each with `ffprobe` + `volumedetect`
 2. Filter: instant-start (first 0.5s mean volume > -35dB) + news-themed (filename contains "news"/"breaking"/"urgent")
 3. Deterministic pick: `FNV-1a hash(pipelineId) % candidates.length`
 4. Override: `--bgm-file <path>` forces a specific track
 
 **BGM mixing** (`mixBgm()` in `post-process.mjs`):
+
 - Volume: 12% (≈ -18dB) — slightly louder than background video audio (8%) because BGM is full-track music, not atmospheric noise
 - Fade-in: 0.1s (instant start, matches the instant-start filter)
 - Fade-out: last 3s of video
@@ -743,6 +758,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 - Loudness normalization: applied after BGM mixing (EBU R128 -16 LUFS)
 
 **TrimmedMuse**: N/A in pipeline. The user's "TrimmedMuse" workflow is:
+
 - Pipeline outputs a video with TTS voiceover + optional low-volume BGM
 - At TikTok upload time, user manually selects a full track from TikTok's music library
 - The pipeline does not trim, select, or process TikTok library music — this is a manual in-app step
@@ -767,20 +783,21 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 
 ### 6.1 Summary Table
 
-| Source | License | Attribution Required? | How to Attribute | Logo/Watermark Required? |
-|--------|---------|----------------------|------------------|------------------------|
-| **Pexels** | Pexels License (free) | Optional but appreciated | "Photo by [author] on Pexels" | No logo required |
-| **Unsplash** | Unsplash License (free) | Optional but appreciated | "Photo by [author] on Unsplash" | No logo required |
-| **Pixabay** | Pixabay Content License (free) | **Yes — required by API terms** | "Source: Pixabay" or link to pixabay.com | **Yes — if API is used, must show Pixabay logo to users where search results are displayed** |
-| **Wikimedia Commons** | Varies (CC-BY, CC-BY-SA, PD) | **Yes — dynamically per file** | "Author: [name], via Wikimedia Commons, [license]" | No logo, but license text required for CC |
-| **Coverr** | Coverr License (free) | Optional | "Video from Coverr" | No logo required |
-| **YouTube (via yt-dlp)** | Varies (creator's copyright) | **Yes — required** | "Contains footage from [channel name], YouTube" | No logo, but credit required |
-| **B站 (via yt-dlp)** | Varies (creator's copyright) | **Yes — required** | "Contains footage from [UP主 name], B站" | No logo, but credit required |
-| **IT之家 / 机器之心 / 新华网 / 澎湃新闻** | News site copyright | **Yes — required** | "Image source: [site name]" | No logo, but credit required |
+| Source                                    | License                        | Attribution Required?           | How to Attribute                                   | Logo/Watermark Required?                                                                     |
+| ----------------------------------------- | ------------------------------ | ------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Pexels**                                | Pexels License (free)          | Optional but appreciated        | "Photo by [author] on Pexels"                      | No logo required                                                                             |
+| **Unsplash**                              | Unsplash License (free)        | Optional but appreciated        | "Photo by [author] on Unsplash"                    | No logo required                                                                             |
+| **Pixabay**                               | Pixabay Content License (free) | **Yes — required by API terms** | "Source: Pixabay" or link to pixabay.com           | **Yes — if API is used, must show Pixabay logo to users where search results are displayed** |
+| **Wikimedia Commons**                     | Varies (CC-BY, CC-BY-SA, PD)   | **Yes — dynamically per file**  | "Author: [name], via Wikimedia Commons, [license]" | No logo, but license text required for CC                                                    |
+| **Coverr**                                | Coverr License (free)          | Optional                        | "Video from Coverr"                                | No logo required                                                                             |
+| **YouTube (via yt-dlp)**                  | Varies (creator's copyright)   | **Yes — required**              | "Contains footage from [channel name], YouTube"    | No logo, but credit required                                                                 |
+| **B站 (via yt-dlp)**                      | Varies (creator's copyright)   | **Yes — required**              | "Contains footage from [UP主 name], B站"           | No logo, but credit required                                                                 |
+| **IT之家 / 机器之心 / 新华网 / 澎湃新闻** | News site copyright            | **Yes — required**              | "Image source: [site name]"                        | No logo, but credit required                                                                 |
 
 ### 6.2 Detailed Requirements
 
 #### Pixabay (API terms)
+
 - **API usage requirement**: "If you make use of the API, show your users where the images and videos are from, whenever search results are displayed."
 - **Rate limit**: 100 requests per 60 seconds (per API key)
 - **Hotlinking**: Not allowed for permanent use. Must download to own server.
@@ -788,6 +805,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 - **Action for pipeline**: When Pixabay assets are used in a video, include "Source: Pixabay" in the TikTok video description. If displaying search results in a UI, show Pixabay logo.
 
 #### Pexels (Pexels License)
+
 - Free for commercial and non-commercial use
 - Attribution not required but appreciated
 - No permission needed, though credit is appreciated: "Photo by [Author Name] from Pexels"
@@ -795,6 +813,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 - **Action for pipeline**: Add "Photo by [author] from Pexels" to video description when used
 
 #### Unsplash (Unsplash License)
+
 - Free for commercial and non-commercial use
 - Attribution not required but appreciated
 - No permission needed, though credit is appreciated: "Photo by [Author Name] on Unsplash"
@@ -802,6 +821,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 - **Action for pipeline**: Add "Photo by [author] on Unsplash" to video description when used
 
 #### Wikimedia Commons (CC licenses)
+
 - Each file has its own license (CC-BY, CC-BY-SA, Public Domain, etc.)
 - **Must check individual file license** before use
 - CC-BY requires attribution: "Author: [name], via Wikimedia Commons, [license name]"
@@ -810,12 +830,14 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 - **Action for pipeline**: Record license type per asset. For CC-BY/CC-BY-SA, include attribution in video description
 
 #### Coverr (Coverr License)
+
 - Free for commercial and non-commercial use
 - Attribution appreciated but not required
 - Cannot redistribute or sell videos as-is
 - **Action for pipeline**: Optional "Video from Coverr" in description
 
 #### YouTube / B站 (Creator copyright)
+
 - Downloading via yt-dlp does not grant copyright
 - Fair use may apply for short clips with commentary/transformative use
 - **Must credit original creator** in video description
@@ -823,6 +845,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 - **Action for pipeline**: Record channel/UP主 name, include "Contains footage from [creator] [platform]" in description
 
 #### Chinese News Sites (CDP extraction)
+
 - Images extracted from news sites are owned by the news organization
 - Fair use for commentary/news reporting
 - **Must credit source**: "Image source: IT之家" or "图片来源: 机器之心"
@@ -831,6 +854,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 ### 6.3 Pipeline Enforcement Plan
 
 `asset-sourcer.mjs` must be updated to:
+
 1. Record `attribution` field per asset in `output/asset-report.json`:
    ```json
    {
@@ -856,23 +880,25 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 
 ### 7.1 Platform Status Matrix
 
-| Platform | yt-dlp Search | yt-dlp URL Download | Cookies in Firefox? | Root Cause | Status |
-|----------|---------------|---------------------|---------------------|------------|--------|
-| **YouTube** | ✅ `ytsearch10:` works | ✅ Works | N/A | — | **Fully functional** |
-| **B站** | ⚠️ `bilisearch:` intermittent 412 errors; returns `av` IDs with NA metadata | ✅ Works with `av` ID (NOT `BV` ID!) | ✅ 352 cookies | `BV`号 triggers `KeyError('bvid')`; `av`号 works. Search returns `av` IDs. 412 errors on multi-word/Chinese queries. Single English word works sometimes. | **Working with av ID; search unstable** |
-| **抖音** | N/A (no search extractor) | ❌ "Fresh cookies needed" | ✅ 57 cookies + `s_v_web_id` found | `a_bogus` signature parameter not implemented in yt-dlp (PR #15627 closed, not merged) | **Blocked — yt-dlp limitation, not cookie issue** |
-| **小红书** | N/A (no search extractor) | ❌ "No video formats found" | ✅ 16 cookies extracted | Extractor loads webpage but can't parse video formats; XHS changed to rednote.com (issue #16519) | **Broken — extractor outdated** |
-| **微博** | N/A (no search extractor) | ❌ "Extractor failed to obtain id" | ✅ 20 cookies extracted | URL format mismatch or extractor bug | **Broken — needs valid URL format** |
+| Platform    | yt-dlp Search                                                               | yt-dlp URL Download                  | Cookies in Firefox?                | Root Cause                                                                                                                                                | Status                                            |
+| ----------- | --------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **YouTube** | ✅ `ytsearch10:` works                                                      | ✅ Works                             | N/A                                | —                                                                                                                                                         | **Fully functional**                              |
+| **B站**     | ⚠️ `bilisearch:` intermittent 412 errors; returns `av` IDs with NA metadata | ✅ Works with `av` ID (NOT `BV` ID!) | ✅ 352 cookies                     | `BV`号 triggers `KeyError('bvid')`; `av`号 works. Search returns `av` IDs. 412 errors on multi-word/Chinese queries. Single English word works sometimes. | **Working with av ID; search unstable**           |
+| **抖音**    | N/A (no search extractor)                                                   | ❌ "Fresh cookies needed"            | ✅ 57 cookies + `s_v_web_id` found | `a_bogus` signature parameter not implemented in yt-dlp (PR #15627 closed, not merged)                                                                    | **Blocked — yt-dlp limitation, not cookie issue** |
+| **小红书**  | N/A (no search extractor)                                                   | ❌ "No video formats found"          | ✅ 16 cookies extracted            | Extractor loads webpage but can't parse video formats; XHS changed to rednote.com (issue #16519)                                                          | **Broken — extractor outdated**                   |
+| **微博**    | N/A (no search extractor)                                                   | ❌ "Extractor failed to obtain id"   | ✅ 20 cookies extracted            | URL format mismatch or extractor bug                                                                                                                      | **Broken — needs valid URL format**               |
 
 ### 7.2 Root Cause Analysis
 
 **Chrome cookie issue** (resolved by switching to Firefox):
+
 - Chrome v127+ changed cookie encryption on macOS
 - `yt-dlp --cookies-from-browser chrome` fails with `cannot decrypt v10 cookies`
 - `yt-dlp --cookies-from-browser firefox` works — Firefox stores cookies in SQLite (`cookies.sqlite`), no encryption issue
 - Firefox profile: `~/Library/Application Support/Firefox/Profiles/4m5wba40.default-release/cookies.sqlite`
 
 **Douyin `a_bogus` signature** (the real blocker):
+
 - Douyin's web API (`/aweme/v1/web/aweme/detail/`) requires a valid `a_bogus` parameter in the query string
 - This is a dynamic signature generated by JavaScript on the client side
 - yt-dlp's Douyin extractor does NOT implement this algorithm
@@ -882,6 +908,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 - **Conclusion**: This is a yt-dlp code limitation, not a cookie problem. No amount of cookie exporting will fix it.
 
 **Xiaohongshu extractor outdated**:
+
 - Issue [#16519](https://github.com/yt-dlp/yt-dlp/issues/16519): XHS changed domain to `rednote.com`, extractor not updated
 - Issue [#10814](https://github.com/yt-dlp/yt-dlp/issues/10814): "No video formats found" — open
 - Issue [#13578](https://github.com/yt-dlp/yt-dlp/issues/13578): "Unable to extract initial state" — open
@@ -934,6 +961,7 @@ See `docs/archive/spec-media-volume-autofill.md` for full spec + scenario matrix
 ### 7.4 Firefox Remote Debugging (CDP for Firefox)
 
 Firefox supports remote debugging via the **CDP protocol** (not just its own RDP):
+
 - Start Firefox with: `firefox --remote-debugging-port 9222`
 - Or enable in `about:config`: `devtools.debugger.remote-enabled = true`
 - This allows the same CDP-based tools (web-access skill, asset-sourcer CDP) to work with Firefox tabs
@@ -955,25 +983,27 @@ Firefox supports remote debugging via the **CDP protocol** (not just its own RDP
 
 ### 8.1 API Key Status
 
-| Source | Key | Status | Tested |
-|--------|-----|--------|--------|
-| Pexels | `PEXELS_API_KEY` | ✅ Valid (returns photos) | Yes |
-| Unsplash | `UNSPLASH_ACCESS_KEY` | ✅ Valid (returns results) | Yes |
-| Pixabay | `PIXABAY_API_KEY=57136959-...` | ✅ Valid (760 results for "robot") | Yes |
-| Coverr | `COVERR_API_KEY=3e7cc90c...` | ✅ Valid (15 hits for "robot") | Yes |
-| Wikimedia | N/A | ✅ No key needed | Yes |
+| Source    | Key                            | Status                             | Tested |
+| --------- | ------------------------------ | ---------------------------------- | ------ |
+| Pexels    | `PEXELS_API_KEY`               | ✅ Valid (returns photos)          | Yes    |
+| Unsplash  | `UNSPLASH_ACCESS_KEY`          | ✅ Valid (returns results)         | Yes    |
+| Pixabay   | `PIXABAY_API_KEY=57136959-...` | ✅ Valid (760 results for "robot") | Yes    |
+| Coverr    | `COVERR_API_KEY=3e7cc90c...`   | ✅ Valid (15 hits for "robot")     | Yes    |
+| Wikimedia | N/A                            | ✅ No key needed                   | Yes    |
 
 ### 8.2 Coverr — AI Creative Platform + Stock Library (Updated 2026-08-14)
 
 Coverr (coverr.co) has evolved beyond a stock video platform. It is now a **comprehensive AI creative platform**:
 
 **AI Tools** (Coverr Studio):
+
 - **AI Video Generator** — models: Google Veo 3.1, OpenAI Sora 2 Pro, Kling 2.6 Pro, Seedance 1.5 Pro, Hailuo 2.3 Pro
 - **AI Images Generator** — models: Flux 2 Flex, Nano Banana Pro, ByteDance Seedream 5.0
 - **AI Audio Generator** — SFX, voiceover, audio generators
 - **AI Apps** — custom content creation from text or media
 
 **Stock Library** (original service):
+
 - Free HD/4K stock video footage for commercial use
 - API: `GET /videos?query={keyword}` with `Authorization: Bearer {token}`
 - Response: `{ hits: [...], params: { userToken: "..." } }`
@@ -982,17 +1012,18 @@ Coverr (coverr.co) has evolved beyond a stock video platform. It is now a **comp
 
 ### 8.3 New CDP Sources Added
 
-| Source | URL Pattern | Type |
-|--------|-------------|------|
-| Google News | `google.com/search?tbm=nws` | Search engine news |
-| Bing News | `bing.com/news/search` | Search engine news |
-| 雷锋网 (leiphone) | `leiphone.com/search?s=` | Chinese tech media |
-| 新智元 (xinzhiyuan) | `xinzhiyuan.com/?s=` | Chinese AI media |
-| 智东西 (zhidx) | `zhidx.com/?s=` | Chinese AI media |
+| Source              | URL Pattern                 | Type               |
+| ------------------- | --------------------------- | ------------------ |
+| Google News         | `google.com/search?tbm=nws` | Search engine news |
+| Bing News           | `bing.com/news/search`      | Search engine news |
+| 雷锋网 (leiphone)   | `leiphone.com/search?s=`    | Chinese tech media |
+| 新智元 (xinzhiyuan) | `xinzhiyuan.com/?s=`        | Chinese AI media   |
+| 智东西 (zhidx)      | `zhidx.com/?s=`             | Chinese AI media   |
 
 ### 8.4 Attribution System (Implemented)
 
 Pipeline auto-records attribution for each downloaded asset:
+
 - `buildAttribution(source, asset)` → per-asset attribution object stored in `output/asset-report.json`
 - `buildCreditsSection(assets)` → generates TikTok-visible credits for sources with `logoRequired=true` OR `attributionRequired=true`
 - `SOURCE_ATTRIBUTIONS` map: 20 sources with license + logo requirement
@@ -1016,4 +1047,3 @@ Pipeline auto-records attribution for each downloaded asset:
 - **微博**: **Broken extractor** — URL format issue
 - **Firefox cookies verified**: 57 Douyin cookies (incl. `s_v_web_id`), 16 XHS cookies, 20 Weibo cookies — all present in Firefox profile
 - **Root cause confirmed**: Cookie extraction works; Douyin failure is yt-dlp's missing `a_bogus` signing algorithm, not a cookie problem
-

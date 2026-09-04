@@ -63,13 +63,13 @@
 
 ### 4. AI Outline 消费映射表
 
-| AI Outline 段 | S.T.A.R.T. 对应 | 消费规则 |
-|---|---|---|
-| Intro suggestions | S — Stop | Hook 候选 → 对比 Agent 自己写的 hook，取更优者 |
-| Core talking points | A — Authority | 筛选最相关 2-3 个点 → 指导 S3-S4 内容 |
-| Highlight moment | R — Relay (前半) | 确认 Peak scene 位置 |
-| Climatic build | R — Relay (高潮) | 参考 S6-S7 情绪递进设计 |
-| Engagement-driven outro | T-Tell | 参考其 CTA 角度 → 指导最终 scene voiceover |
+| AI Outline 段           | S.T.A.R.T. 对应  | 消费规则                                       |
+| ----------------------- | ---------------- | ---------------------------------------------- |
+| Intro suggestions       | S — Stop         | Hook 候选 → 对比 Agent 自己写的 hook，取更优者 |
+| Core talking points     | A — Authority    | 筛选最相关 2-3 个点 → 指导 S3-S4 内容          |
+| Highlight moment        | R — Relay (前半) | 确认 Peak scene 位置                           |
+| Climatic build          | R — Relay (高潮) | 参考 S6-S7 情绪递进设计                        |
+| Engagement-driven outro | T-Tell           | 参考其 CTA 角度 → 指导最终 scene voiceover     |
 
 Title 和 Hashtags 直接取用（经过品牌一致性检查后）。
 
@@ -97,28 +97,28 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|---|---|---|---|
-| `docs/video-script-writing-guide.md` | S.T.A.R.T. 主框架改回；新增 AI Outline 消费映射表；Scene 模板增加 narrativeRole/retentionMechanism 字段说明 | Medium | 改变规则和章节结构，但被 content-pipeline.md 引用方式不变 |
-| `docs/content-pipeline.md` | Stage 3 Step 5 描述调整；脚本写作方法论指针描述更新 | Medium | 改变管线步骤描述但不改变执行流程 |
-| `scripts/short-video/lib/scene-rules.mjs` | 新增 3 个检查函数 + 在 runAllSceneDataChecks 中调用 | Low | 纯追加，不修改现有检查函数 |
-| `docs/DOCS-INDEX.md` | 更新描述文字 | Low | 纯文字更新 |
-| `docs/adr/0018-start-primary-framework.md` | 新建 ADR | Low | 新建文件 |
+| 文件                                       | 修改内容                                                                                                    | 风险等级 | 评估                                                      |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- |
+| `docs/video-script-writing-guide.md`       | S.T.A.R.T. 主框架改回；新增 AI Outline 消费映射表；Scene 模板增加 narrativeRole/retentionMechanism 字段说明 | Medium   | 改变规则和章节结构，但被 content-pipeline.md 引用方式不变 |
+| `docs/content-pipeline.md`                 | Stage 3 Step 5 描述调整；脚本写作方法论指针描述更新                                                         | Medium   | 改变管线步骤描述但不改变执行流程                          |
+| `scripts/short-video/lib/scene-rules.mjs`  | 新增 3 个检查函数 + 在 runAllSceneDataChecks 中调用                                                         | Low      | 纯追加，不修改现有检查函数                                |
+| `docs/DOCS-INDEX.md`                       | 更新描述文字                                                                                                | Low      | 纯文字更新                                                |
+| `docs/adr/0018-start-primary-framework.md` | 新建 ADR                                                                                                    | Low      | 新建文件                                                  |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|---|---|---|---|
-| 1 | 新 scene-data 有 narrativeRole 和 retentionMechanism 字段 | preflight 正确识别 W7/W8/W9 状态 | Low | 结构化字段检查 |
-| 2 | 旧 scene-data 无这两个字段 | preflight 跳过 W7/W8/W9（不产生新 Warning） | Medium | 检查函数先判断字段是否存在 |
-| 3 | scene-data 有 retentionMechanism 但缺少 open-loop | W7 Warning | Low | Warning 不 Blocker |
-| 4 | scene-data 有 retentionMechanism 但缺少 pattern-interrupt | W8 Warning | Low | Warning 不 Blocker |
-| 5 | scene-data 有 retentionMechanism 但倒数第二 scene 不是 loop-closure | W9 Warning | Low | Warning 不 Blocker |
-| 6 | narrativeRole 值不在枚举中 | 忽略无效值，等同于 null | Low | 值校验 |
-| 7 | 多集系列每集独立检查 narrativeRole | 每集独立 W7/W8/W9 | Low | scene-rules 按 scene 数组检查 |
-| 8 | AI Outline HITL 用户跳过 | Agent 自行按 S.T.A.R.T. 设计（降级逻辑不变） | Low | 现有降级逻辑保持 |
-| 9 | scenes.mjs dispatcher 读取 scene-data | 不读取 narrativeRole/retentionMechanism，只读 visualType | Low | 新字段对 dispatcher 透明 |
-| 10 | runAllSceneDataChecks 调用新函数 | 新函数返回 result 数组，与现有函数格式一致 | Low | 遵循现有返回格式 |
+| #   | Scenario                                                            | Expected Behavior                                        | Risk   | Mitigation                    |
+| --- | ------------------------------------------------------------------- | -------------------------------------------------------- | ------ | ----------------------------- |
+| 1   | 新 scene-data 有 narrativeRole 和 retentionMechanism 字段           | preflight 正确识别 W7/W8/W9 状态                         | Low    | 结构化字段检查                |
+| 2   | 旧 scene-data 无这两个字段                                          | preflight 跳过 W7/W8/W9（不产生新 Warning）              | Medium | 检查函数先判断字段是否存在    |
+| 3   | scene-data 有 retentionMechanism 但缺少 open-loop                   | W7 Warning                                               | Low    | Warning 不 Blocker            |
+| 4   | scene-data 有 retentionMechanism 但缺少 pattern-interrupt           | W8 Warning                                               | Low    | Warning 不 Blocker            |
+| 5   | scene-data 有 retentionMechanism 但倒数第二 scene 不是 loop-closure | W9 Warning                                               | Low    | Warning 不 Blocker            |
+| 6   | narrativeRole 值不在枚举中                                          | 忽略无效值，等同于 null                                  | Low    | 值校验                        |
+| 7   | 多集系列每集独立检查 narrativeRole                                  | 每集独立 W7/W8/W9                                        | Low    | scene-rules 按 scene 数组检查 |
+| 8   | AI Outline HITL 用户跳过                                            | Agent 自行按 S.T.A.R.T. 设计（降级逻辑不变）             | Low    | 现有降级逻辑保持              |
+| 9   | scenes.mjs dispatcher 读取 scene-data                               | 不读取 narrativeRole/retentionMechanism，只读 visualType | Low    | 新字段对 dispatcher 透明      |
+| 10  | runAllSceneDataChecks 调用新函数                                    | 新函数返回 result 数组，与现有函数格式一致               | Low    | 遵循现有返回格式              |
 
 ## Out of Scope
 

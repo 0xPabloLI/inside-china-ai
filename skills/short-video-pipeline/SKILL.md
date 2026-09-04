@@ -24,7 +24,7 @@ Unless the user specifies otherwise:
 
 ### 1. Research the topic
 
-Gather raw materials from the user (article URL, screenshots, tips, data points). 
+Gather raw materials from the user (article URL, screenshots, tips, data points).
 
 **For web research, load web-access skill** — Playwright headless fails on most sites (SSL errors, connection closed). web-access connects to the user's local Chrome with session/cookie, bypassing anti-bot detection. When you need to open a URL, extract content, or verify claims online, load web-access and follow its setup instructions.
 
@@ -44,6 +44,7 @@ Scene N+1:  CTA       — brand close, 3-5s
 ```
 
 **Rules**:
+
 - Each scene: 1-2 sentences of voiceover (drives TTS duration)
 - Total target: 60-70s for TikTok (default). YouTube Shorts can extend to 180s if user requests.
 - Use `brand-system` scene templates and color semantics
@@ -54,32 +55,38 @@ Scene N+1:  CTA       — brand close, 3-5s
 Before writing scene-data, review this checklist. Every item here will be verified by `verify-video.mjs` in Step 6. If you don't follow these rules, the loop will catch it and you'll have to fix it anyway.
 
 **Hook (Scene 1)**:
+
 - [ ] Voiceover contains a **number** ($1.4B, 20K GPUs, etc.) OR a **strong word** (leaked, paused, revealed, crisis, etc.)
 - [ ] Hook is **factual**, NOT clickbait (no "you won't believe", "shocking truth", etc.)
 - [ ] Hook delivers the core message, not a setup/intro
 - [ ] **Subject visibility** (soft check): Can viewers tell WHO this video is about within the first 3 seconds? If the hook text doesn't mention the company name, ensure the company logo + name are large enough (≥60px, white or brand color — not muted gray) to be readable at thumbnail scale
 
 **SEO Keywords**:
+
 - [ ] "China" appears in voiceover or on-screen text in **≥2 scenes**
 - [ ] "AI" appears in voiceover or on-screen text in **≥2 scenes**
 - [ ] "DeepSeek" (or the main subject) appears in **≥2 scenes**
 - [ ] Keywords appear **on-screen** (in `texts` array), not just in voiceover — TikTok reads on-screen text for categorization
 
 **Source Attribution**:
+
 - [ ] **≥2 scenes** mention a source ("Bloomberg reported", "Liang said", "according to Reuters", etc.)
 - [ ] **No** "sources say" without specific attribution — use named sources
 - [ ] Every number/data point in voiceover has a verifiable source
 
 **Share-worthy Content**:
+
 - [ ] **≥50% of scenes** contain concrete numbers/data points
 - [ ] Include surprising or counterintuitive data that viewers would want to share
 
 **Algorithm Safety**:
+
 - [ ] No cross-platform references (@instagram, @youtube, watermarks, etc.)
 - [ ] No clickbait patterns in any scene
 - [ ] No unverified claims
 
 **De-AI Voice Rules (TTS scripts must pass)**:
+
 - [ ] No em dashes (`—`), en dashes (`–`), or double dashes (`--`) in any voiceover or on-screen text
 - [ ] No AI vocabulary blacklist words (see `tiktok-rules.mjs` for full ~40 word list: leverage, utilize, facilitate, streamline, robust, seamless, delve, navigate, unlock, harness, foster, cultivate, fundamentally, essentially, ultimately, moreover, furthermore, notably, myriad, paradigm, ecosystem, landscape, realm, tapestry, journey, game-changer, deep dive, at the end of the day, dive in, it's not just, in today's fast-paced world, hey guys, what's up everyone, without further ado, oaicite, contentreference, turn0search0, as of my last update, i cannot browse, [your name], [insert hook], [brand], certainly!, sure here is, i hope this helps)
 - [ ] No written-style openers ("In this video I will...", "Today I want to talk about...")
@@ -95,12 +102,12 @@ Before writing scene-data, review this checklist. Every item here will be verifi
 
 Pick a hook pattern based on content type. Patterns are _scaffolds_ — fill in the blanks for 80% of videos, but adapt freely when the story demands it. The preflight checks (number/strong word, VO≠text, focal contract) enforce structure regardless of which pattern you use.
 
-| Content type | Pattern | Core idea |
-|-------------|---------|----------|
-| Breaking news | **P1** Result-First | Lead with the specific number or outcome |
-| Deep analysis | **P5** Expert Explainer / **P2** Contrarian | Authority signal or bold reframe |
-| Data reveal | **P1** Result-First / **P6** Listicle | Number-first or ranked payoff |
-| Explainer | **P3** Curiosity Gap | Open a gap, close it at the end |
+| Content type  | Pattern                                     | Core idea                                |
+| ------------- | ------------------------------------------- | ---------------------------------------- |
+| Breaking news | **P1** Result-First                         | Lead with the specific number or outcome |
+| Deep analysis | **P5** Expert Explainer / **P2** Contrarian | Authority signal or bold reframe         |
+| Data reveal   | **P1** Result-First / **P6** Listicle       | Number-first or ranked payoff            |
+| Explainer     | **P3** Curiosity Gap                        | Open a gap, close it at the end          |
 
 Full fill-in-the-blank templates (P1a-P6b): `docs/research/tiktok-hook-patterns-best-practices.md` → "6 个核心句式模式 + 填空模板". Pick a variant, fill in real data, then check:
 
@@ -116,11 +123,11 @@ Full fill-in-the-blank templates (P1a-P6b): `docs/research/tiktok-hook-patterns-
 
 The TikTok Hook is three things firing in the first 1-3 seconds:
 
-| Layer | Job | Rule |
-|-------|-----|------|
-| **Spoken line** | Land promise for sound-on viewers (~70%) | One breath; contraction + fragment > full sentence; say the number out loud |
-| **On-screen text** | Carry promise for muted viewers | 3-7 words; different words from spoken line; no em dashes |
-| **Opening visual** | Stop the thumb with motion/result/interrupt | Show result or tension in frame one; no logo/greeting/slow zoom |
+| Layer              | Job                                         | Rule                                                                        |
+| ------------------ | ------------------------------------------- | --------------------------------------------------------------------------- |
+| **Spoken line**    | Land promise for sound-on viewers (~70%)    | One breath; contraction + fragment > full sentence; say the number out loud |
+| **On-screen text** | Carry promise for muted viewers             | 3-7 words; different words from spoken line; no em dashes                   |
+| **Opening visual** | Stop the thumb with motion/result/interrupt | Show result or tension in frame one; no logo/greeting/slow zoom             |
 
 **Timing budget**: Frame one (0.0s) -> Spoken line (0.0-1.5s) -> On-screen text (0.0-2.0s) -> Turn by 3.0s. If a reason to stay is not on screen by second 3, the video is already losing viewers.
 
@@ -128,16 +135,16 @@ The TikTok Hook is three things firing in the first 1-3 seconds:
 
 #### First Frame Best Practices (TikTok / YouTube Shorts / Reels)
 
-| Principle | Rule | Why |
-|-----------|------|-----|
-| **One core message** | First frame conveys ONE number/word/claim, not a menu | Users scroll ~1/sec; multi-item frames = "too much work" |
-| **Text ≥ 32px** | Minimum 32px on 1080×1920 canvas; titles ≥ 60px; hero numbers ≥ 200px | At thumbnail size in-feed, < 32px invisible |
-| **Three-zone layout** | Top (220–640px) = hook text/title/badge; Middle (640–1150px) = main subject/data viz; Below y≈1188 = subtitle lane (y≈1188–1350) + TikTok caption UI (y≥1500) | Visual hierarchy flows top→bottom: grab attention → deliver content → read captions. **Not a size constraint** — describes placement priority. All content must stay inside the safe-zone band x[60,880] × y[220,1150] (SAFE_ZONES in `lib/safe-zones.mjs`; enforced by TextGate in `remotion/src/` + `lib/text-geometry.mjs`). Hook scenes: hero number may span top + middle |
-| **No dead space** | Fill full 1920px height — no > 200px gaps | Blank zones signal "no content" → scroll past |
-| **Bold color blocks** | Use solid-color areas (not gradients) for contrast | Gradients compress poorly at thumbnail size |
-| **Max 2 stat cards** | Don't stack 3+ data points on hook frame | Users can't parse 3+ numbers in 1 second |
-| **Asymmetric layout** | Offset main element left or right of center | Centered layouts read as AI-generated |
-| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse) | Static frame in autoplay feed looks like a still image |
+| Principle              | Rule                                                                                                                                                          | Why                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **One core message**   | First frame conveys ONE number/word/claim, not a menu                                                                                                         | Users scroll ~1/sec; multi-item frames = "too much work"                                                                                                                                                                                                                                                                                                                       |
+| **Text ≥ 32px**        | Minimum 32px on 1080×1920 canvas; titles ≥ 60px; hero numbers ≥ 200px                                                                                         | At thumbnail size in-feed, < 32px invisible                                                                                                                                                                                                                                                                                                                                    |
+| **Three-zone layout**  | Top (220–640px) = hook text/title/badge; Middle (640–1150px) = main subject/data viz; Below y≈1188 = subtitle lane (y≈1188–1350) + TikTok caption UI (y≥1500) | Visual hierarchy flows top→bottom: grab attention → deliver content → read captions. **Not a size constraint** — describes placement priority. All content must stay inside the safe-zone band x[60,880] × y[220,1150] (SAFE_ZONES in `lib/safe-zones.mjs`; enforced by TextGate in `remotion/src/` + `lib/text-geometry.mjs`). Hook scenes: hero number may span top + middle |
+| **No dead space**      | Fill full 1920px height — no > 200px gaps                                                                                                                     | Blank zones signal "no content" → scroll past                                                                                                                                                                                                                                                                                                                                  |
+| **Bold color blocks**  | Use solid-color areas (not gradients) for contrast                                                                                                            | Gradients compress poorly at thumbnail size                                                                                                                                                                                                                                                                                                                                    |
+| **Max 2 stat cards**   | Don't stack 3+ data points on hook frame                                                                                                                      | Users can't parse 3+ numbers in 1 second                                                                                                                                                                                                                                                                                                                                       |
+| **Asymmetric layout**  | Offset main element left or right of center                                                                                                                   | Centered layouts read as AI-generated                                                                                                                                                                                                                                                                                                                                          |
+| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)                                                                                                               | Static frame in autoplay feed looks like a still image                                                                                                                                                                                                                                                                                                                         |
 
 #### Subtitle Best Practices
 
@@ -216,6 +223,7 @@ node scripts/short-video/verify-video.mjs --tiktok    # TikTok mode (60-70s chec
 ```
 
 **The loop is agent-driven.** When `verify-video.mjs` reports failures:
+
 1. **Agent reads** each failure item and its `→ FIX` suggestion
 2. **Agent analyzes** the root cause (is it scene-data? pipeline config? missing file?)
 3. **Agent fixes** the issue directly — edit scene-data.mjs, re-run text-align.py, adjust pipeline, etc.
@@ -224,6 +232,7 @@ node scripts/short-video/verify-video.mjs --tiktok    # TikTok mode (60-70s chec
 6. **Repeat** until exit code 0 (0 failures)
 
 **Do NOT ask the user to fix code/data issues.** The agent handles all automated failures. Only present results to the user when:
+
 - All automated checks pass → present the manual publishing checklist (Step 7)
 - A failure cannot be auto-fixed (requires user decision, e.g. "cut which scenes?") → present options to user
 
@@ -234,6 +243,7 @@ node scripts/short-video/verify-video.mjs --tiktok    # TikTok mode (60-70s chec
 After all automated checks pass, the agent generates a complete publishing package for the user:
 
 **Agent generates** (from scene-data content):
+
 - **Caption** (≤2,200 chars): topic summary + SEO keywords ("China AI" / "DeepSeek") + one specific ask + 3-5 hashtags at the end
   - Broad: `#chinaai #ai #technews`
   - Niche: `#deepseek #chinatech`
@@ -273,19 +283,19 @@ After all automated checks pass, the agent generates a complete publishing packa
 
 This pipeline covers all dimensions that community TikTok skills cover, adapted for a news channel. Full reference: `docs/tiktok-best-practices.md` and `docs/refs/tiktok-skills/`.
 
-| Dimension | Community Skill | How This Pipeline Covers It | Where |
-|-----------|----------------|---------------------------|-------|
-| **Hook Scripting** | tt-hook-scripter (10 formulas + goal tags) | Step 2: Hook Pattern Selection (P1-P6 scaffolds) + Hook Anatomy | This SKILL.md |
-| **De-AI / Humanizing** | tt-humanizer (3-tier scrub) | Step 2: De-AI Voice Rules + verify-video.mjs blockers | This SKILL.md + verify-video.mjs |
-| **Caption & Hashtags** | tt-caption-writer | Step 7: Manual Publishing Checklist | This SKILL.md |
-| **Content Planning** | tt-content-planner (pillar mix) | News Content Calendar (below) | This SKILL.md |
-| **Trend Mapping** | tt-trend-mapper (trending sound fit-check) | News Trend Discovery (below) | This SKILL.md |
-| **Content Repurposing** | tt-repurposer (article to script) | Article-to-Video Workflow (below) | This SKILL.md |
-| **Profile Optimization** | tt-profile-optimizer | Brand Profile Setup (below) | This SKILL.md |
-| **Audience Insights** | tt-audience-insights (Apify) | Competitive Intelligence (below) | This SKILL.md |
-| **Algorithm Heuristics** | references/algorithm-heuristics.md | Signal weights + pre-publish checklist | `docs/tiktok-best-practices.md` |
-| **Voice Rules** | references/voice-rules.md | De-AI Voice Rules + vocabulary blacklist | This SKILL.md + verify-video.mjs |
-| **Audit Checklist** | references/audit-checklist.md | verify-video.mjs blockers + warnings | verify-video.mjs |
+| Dimension                | Community Skill                            | How This Pipeline Covers It                                     | Where                            |
+| ------------------------ | ------------------------------------------ | --------------------------------------------------------------- | -------------------------------- |
+| **Hook Scripting**       | tt-hook-scripter (10 formulas + goal tags) | Step 2: Hook Pattern Selection (P1-P6 scaffolds) + Hook Anatomy | This SKILL.md                    |
+| **De-AI / Humanizing**   | tt-humanizer (3-tier scrub)                | Step 2: De-AI Voice Rules + verify-video.mjs blockers           | This SKILL.md + verify-video.mjs |
+| **Caption & Hashtags**   | tt-caption-writer                          | Step 7: Manual Publishing Checklist                             | This SKILL.md                    |
+| **Content Planning**     | tt-content-planner (pillar mix)            | News Content Calendar (below)                                   | This SKILL.md                    |
+| **Trend Mapping**        | tt-trend-mapper (trending sound fit-check) | News Trend Discovery (below)                                    | This SKILL.md                    |
+| **Content Repurposing**  | tt-repurposer (article to script)          | Article-to-Video Workflow (below)                               | This SKILL.md                    |
+| **Profile Optimization** | tt-profile-optimizer                       | Brand Profile Setup (below)                                     | This SKILL.md                    |
+| **Audience Insights**    | tt-audience-insights (Apify)               | Competitive Intelligence (below)                                | This SKILL.md                    |
+| **Algorithm Heuristics** | references/algorithm-heuristics.md         | Signal weights + pre-publish checklist                          | `docs/tiktok-best-practices.md`  |
+| **Voice Rules**          | references/voice-rules.md                  | De-AI Voice Rules + vocabulary blacklist                        | This SKILL.md + verify-video.mjs |
+| **Audit Checklist**      | references/audit-checklist.md              | verify-video.mjs blockers + warnings                            | verify-video.mjs                 |
 
 ### Article-to-Video Workflow (adapted from tt-repurposer)
 
@@ -302,15 +312,16 @@ The community skill turns LinkedIn/blog posts into TikTok scripts. Our pipeline'
 
 News channels do not ride trending sounds. Instead, monitor which China AI topics are trending and decide which to cover:
 
-| Source | What to check | Frequency |
-|--------|--------------|----------|
-| X/Twitter | #ChinaAI #DeepSeek trending posts | Daily |
-| 36Kr / QbitAI / Jiqizhixin | Headline articles | Daily |
-| TechCrunch / Bloomberg / Reuters | China AI tag | Daily |
-| TikTok search | "China AI" search heat + top videos | Weekly |
-| Tianyancha / Qichacha | Funding events | Weekly |
+| Source                           | What to check                       | Frequency |
+| -------------------------------- | ----------------------------------- | --------- |
+| X/Twitter                        | #ChinaAI #DeepSeek trending posts   | Daily     |
+| 36Kr / QbitAI / Jiqizhixin       | Headline articles                   | Daily     |
+| TechCrunch / Bloomberg / Reuters | China AI tag                        | Daily     |
+| TikTok search                    | "China AI" search heat + top videos | Weekly    |
+| Tianyancha / Qichacha            | Funding events                      | Weekly    |
 
 **Decision framework**:
+
 - Topic is breaking (24h, multi-source) -> **Breaking News** (P1 hook, 30-45s)
 - Topic is developing (48h+, multi-angle analysis) -> **Deep Analysis** (P5/P2 hook, 60-70s)
 - Ranking/comparison data available -> **Data Reveal** (P1/P6 hook, 45-60s)
@@ -320,43 +331,43 @@ News channels do not ride trending sounds. Instead, monitor which China AI topic
 
 News is event-driven, but you can still build a rhythm:
 
-| Content type | Frequency | Production window | Duration |
-|-------------|-----------|-------------------|----------|
-| Breaking News | 2-3/week (event-driven) | Within 6h of event | 30-45s |
-| Deep Analysis | 1-2/week | 24-48h after event | 60-70s |
-| Data Reveal | 1/week | Weekend / data release day | 45-60s |
-| Explainer | 0-1/month | During slow news periods | 60-90s |
+| Content type  | Frequency               | Production window          | Duration |
+| ------------- | ----------------------- | -------------------------- | -------- |
+| Breaking News | 2-3/week (event-driven) | Within 6h of event         | 30-45s   |
+| Deep Analysis | 1-2/week                | 24-48h after event         | 60-70s   |
+| Data Reveal   | 1/week                  | Weekend / data release day | 45-60s   |
+| Explainer     | 0-1/month               | During slow news periods   | 60-90s   |
 
 **Hook batching**: During slow news periods, pre-draft 3-5 evergreen scene-data stubs (unicorn lists, tech explainers, industry comparisons). When an event hits, only the hook needs rewriting for fast publication.
 
 ### Brand Profile Setup (adapted from tt-profile-optimizer)
 
-| Element | Recommendation |
-|---------|---------------|
-| Photo | Brand logo mark (`china-ai-news-mark.svg`), high contrast, readable as small circle |
-| Name (searchable) | "China AI News" indexed by TikTok search |
-| Username | @chinaainews short, sayable, no throwaway numbers |
-| Bio (80 chars) | "China AI news, data, and analysis. Follow for what Western media misses." |
-| Link | Pre-1k: CTA in bio + pinned video comment. 1k+: website URL |
-| Pinned videos | Top 3: 1 breaking news, 1 deep analysis, 1 data reveal |
-| Positioning | "We cover what Western media misses about China AI" |
+| Element           | Recommendation                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| Photo             | Brand logo mark (`china-ai-news-mark.svg`), high contrast, readable as small circle |
+| Name (searchable) | "China AI News" indexed by TikTok search                                            |
+| Username          | @chinaainews short, sayable, no throwaway numbers                                   |
+| Bio (80 chars)    | "China AI news, data, and analysis. Follow for what Western media misses."          |
+| Link              | Pre-1k: CTA in bio + pinned video comment. 1k+: website URL                         |
+| Pinned videos     | Top 3: 1 breaking news, 1 deep analysis, 1 data reveal                              |
+| Positioning       | "We cover what Western media misses about China AI"                                 |
 
 ### Competitive Intelligence (adapted from tt-audience-insights)
 
-| Monitor | Method | Frequency |
-|--------|--------|----------|
-| Competitor TikTok accounts | Search "China AI" / "Chinese tech" accounts, note high-play videos | Weekly |
-| Popular hashtags | TikTok search "China AI" see recommended hashtags | Weekly |
-| High-play video structure | Study top videos' first 3s, duration, subtitle style | Monthly |
-| Comment-section demand | Mine high-frequency questions from competitor comments then make videos | Monthly |
+| Monitor                    | Method                                                                  | Frequency |
+| -------------------------- | ----------------------------------------------------------------------- | --------- |
+| Competitor TikTok accounts | Search "China AI" / "Chinese tech" accounts, note high-play videos      | Weekly    |
+| Popular hashtags           | TikTok search "China AI" see recommended hashtags                       | Weekly    |
+| High-play video structure  | Study top videos' first 3s, duration, subtitle style                    | Monthly   |
+| Comment-section demand     | Mine high-frequency questions from competitor comments then make videos | Monthly   |
 
 ## Platform Limits
 
-| Platform | Max Duration | Optimal | Note |
-|----------|-------------|---------|------|
-| **TikTok (default)** | 10min | **60-70s** | Default target. `verify-video.mjs --tiktok` |
-| YouTube Shorts | 3min | 60-180s | If user requests, extend scenes |
-| Instagram Reels | 90s | 15-30s | Hard 90s limit |
+| Platform             | Max Duration | Optimal    | Note                                        |
+| -------------------- | ------------ | ---------- | ------------------------------------------- |
+| **TikTok (default)** | 10min        | **60-70s** | Default target. `verify-video.mjs --tiktok` |
+| YouTube Shorts       | 3min         | 60-180s    | If user requests, extend scenes             |
+| Instagram Reels      | 90s          | 15-30s     | Hard 90s limit                              |
 
 **DEFAULT: Write for TikTok (60-70s).** If user requests YouTube Shorts, extend to 180s max. Run `verify-video.mjs --tiktok` by default; use `verify-video.mjs` (without flag) for YouTube mode.
 
@@ -370,21 +381,21 @@ pip3 install pysubs2   # ASS subtitle generation
 
 ## Architecture
 
-| File | Role |
-|------|------|
-| `content/{article}/scene-data.mjs` | Scene definitions: voiceover + visual metadata. **Edit this first** to change content. |
-| `content/{article}/meta.mjs` | Pipeline metadata: `{ pipelineId, title }`. |
-| `lib/tts/registry.mjs` | TTS engine selector. Engine priority: F5-TTS-MLX > Qwen3-TTS > edge-tts > say. |
-| `lib/tts/f5-mlx.mjs` | F5-TTS-MLX engine adapter (default, best quality on Apple Silicon). |
-| `lib/tts/qwen-tts.mjs` | Qwen3-TTS engine adapter (backup). |
-| `lib/tts/post-process.mjs` | Runs `text-align.py` after TTS for subtitle timing. |
-| `text-align.py` | Forced alignment: wav2vec2 aligns KNOWN text to audio → per-word timestamps in `subtitle-timing.json`. Replaces Whisper (which tries to RECOGNIZE, not ALIGN). |
-| `lib/subtitles/cues.mjs` + `ass.mjs` | Subtitles: pixel-width chunking (cues; ≤720px hard, ≤6 words) + ASS render with `\kf` karaoke tags (ass.mjs). Values derive from `SUBTITLE_LANE`. |
-| `lib/generate-bgm.mjs` | Procedural cyber-ambient background music via FFmpeg audio synthesis (7-layer mix at 12% volume). |
-| `lib/render-remotion.mjs` | Remotion renderer: React scene components → frame-by-frame → final MP4 (single renderer; the HTML/Playwright path was retired, see `retired-html-path/`). |
-| `main.mjs` | Orchestrator: media gate → TTS → validate → (BGM) → ASS → Remotion render (TextGate enforced in-render) → verify. |
-| `lib/verify-subtitles.mjs` | Subtitle coverage + sync verification. |
-| `verify-video.mjs` | TikTok best practices compliance gate (MRL-3). |
+| File                                 | Role                                                                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content/{article}/scene-data.mjs`   | Scene definitions: voiceover + visual metadata. **Edit this first** to change content.                                                                         |
+| `content/{article}/meta.mjs`         | Pipeline metadata: `{ pipelineId, title }`.                                                                                                                    |
+| `lib/tts/registry.mjs`               | TTS engine selector. Engine priority: F5-TTS-MLX > Qwen3-TTS > edge-tts > say.                                                                                 |
+| `lib/tts/f5-mlx.mjs`                 | F5-TTS-MLX engine adapter (default, best quality on Apple Silicon).                                                                                            |
+| `lib/tts/qwen-tts.mjs`               | Qwen3-TTS engine adapter (backup).                                                                                                                             |
+| `lib/tts/post-process.mjs`           | Runs `text-align.py` after TTS for subtitle timing.                                                                                                            |
+| `text-align.py`                      | Forced alignment: wav2vec2 aligns KNOWN text to audio → per-word timestamps in `subtitle-timing.json`. Replaces Whisper (which tries to RECOGNIZE, not ALIGN). |
+| `lib/subtitles/cues.mjs` + `ass.mjs` | Subtitles: pixel-width chunking (cues; ≤720px hard, ≤6 words) + ASS render with `\kf` karaoke tags (ass.mjs). Values derive from `SUBTITLE_LANE`.              |
+| `lib/generate-bgm.mjs`               | Procedural cyber-ambient background music via FFmpeg audio synthesis (7-layer mix at 12% volume).                                                              |
+| `lib/render-remotion.mjs`            | Remotion renderer: React scene components → frame-by-frame → final MP4 (single renderer; the HTML/Playwright path was retired, see `retired-html-path/`).      |
+| `main.mjs`                           | Orchestrator: media gate → TTS → validate → (BGM) → ASS → Remotion render (TextGate enforced in-render) → verify.                                              |
+| `lib/verify-subtitles.mjs`           | Subtitle coverage + sync verification.                                                                                                                         |
+| `verify-video.mjs`                   | TikTok best practices compliance gate (MRL-3).                                                                                                                 |
 
 ### Data flow
 
@@ -404,14 +415,15 @@ pip3 install pysubs2   # ASS subtitle generation
 
 > Full configuration (max effort parameters, post-processing matrix, prosody) in `docs/video-workflow.md` → TTS Engine Configuration.
 
-| Priority | Engine | Venv | Notes |
-|----------|--------|------|-------|
-| 1 | F5-TTS-MLX | `~/.video-tts-env` (Python 3.12) | DEFAULT. Best quality on Apple Silicon. Internal duration control. |
-| 2 | Qwen3-TTS | `~/.video-tts-env` (Python 3.12) | BACKUP. Good emphasis on data points. No duration control. |
-| 3 | edge-tts | npm | Network-dependent, retry 3x; no voice cloning. |
-| 4 | macOS say | built-in | Last resort; no voice cloning. |
+| Priority | Engine     | Venv                             | Notes                                                              |
+| -------- | ---------- | -------------------------------- | ------------------------------------------------------------------ |
+| 1        | F5-TTS-MLX | `~/.video-tts-env` (Python 3.12) | DEFAULT. Best quality on Apple Silicon. Internal duration control. |
+| 2        | Qwen3-TTS  | `~/.video-tts-env` (Python 3.12) | BACKUP. Good emphasis on data points. No duration control.         |
+| 3        | edge-tts   | npm                              | Network-dependent, retry 3x; no voice cloning.                     |
+| 4        | macOS say  | built-in                         | Last resort; no voice cloning.                                     |
 
 **Environment variables**:
+
 - `TTS_ENGINE=f5-mlx` / `qwen-tts` / `edge-tts` / `say` — force specific engine
 - `TTS_ATEMPO=1.3` — override F5 atempo (default: none)
 
@@ -429,7 +441,8 @@ Read `docs/brand-system.md` for color tokens, typography, animation library, and
 
 **Logo embedding**: vtracer converts posterized PNG → vector SVG. Posterize first (classify pixels as pure colors), then vtracer → 867 paths (97% reduction from 1415).
 
-**Pipeline scripts**: 
+**Pipeline scripts**:
+
 - `main.mjs` — Full pipeline (TTS + HTML + Record + ASS + Assemble). `--content <dir>` selects content pipeline, `--bgm` enables BGM, `--skip-verify` skips subtitle verification.
 - `verify-video.mjs` — TikTok best practices compliance gate (MRL-3). `--tiktok` for 60-70s duration check. `--content <dir>` for content pipeline selection.
 

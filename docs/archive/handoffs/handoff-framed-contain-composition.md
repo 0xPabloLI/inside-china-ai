@@ -48,11 +48,13 @@ Review（`docs/reviews/handoff-vertical-cropping-pipeline-review-2026-08-26.md`�
 Review 说"quiet brand matte or restrained palette-derived gradient"。推荐方案：
 
 **方案 A（推荐）：品牌色径向渐变**
+
 - 中心 `#0a0a14` → 边缘更深 `#050508`
 - 添加微弱的品牌 accent 色辉光（如 `rgba(99, 102, 241, 0.05)` — indigo 微光）
 - 效果：深色但有层次感，不抢前景
 
 **方案 B：从图片采样的 palette gradient**
+
 - 需要在 Python 端提取图片主色（`PIL.Image.getcolors` → 取 top-3 颜色）
 - 写入 `asset-analysis.json` 的 `cropDecision` 或新字段 `palette`
 - 渲染时用这些颜色做 gradient
@@ -70,7 +72,7 @@ Review 说"quiet brand matte or restrained palette-derived gradient"。推荐方
 
 > （Issue #119 评论反馈 #2）
 >
-> ~~~~~
+> ```
 > 不新增 `containStyle?: "bare" | "branded"` 字段。
 >
 > `containStyle` 是共享 `media` 数据契约的一部分；若仅在 `types.ts` 新增而不同步更新
@@ -81,14 +83,15 @@ Review 说"quiet brand matte or restrained palette-derived gradient"。推荐方
 > 的渲染逻辑中即可，避免跨消费者契约扩张。如未来需要可配置，再走完整 spec 流程
 > 更新所有消费者。
 > ~~~~
+> ```
 
 ## Files to Modify
 
-| File | Change | Risk |
-|------|--------|------|
-| `remotion/src/components/MediaBackground.tsx` | 当 `media.type === "image" && fit === "contain"` 时，插入品牌渐变背景层 | Medium — 核心渲染路径，但只影响 image+contain 分支 |
-| ~~`remotion/src/types.ts`~~ | ~~新增 `containStyle` 字段~~ **不新增**（评论反馈 #2） | — |
-| ~~`scripts/short-video/__tests__/media-bg.test.mjs`~~ | ~~`containStyle` 验证~~ **不需要**（不新增字段） | — |
+| File                                                  | Change                                                                  | Risk                                               |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
+| `remotion/src/components/MediaBackground.tsx`         | 当 `media.type === "image" && fit === "contain"` 时，插入品牌渐变背景层 | Medium — 核心渲染路径，但只影响 image+contain 分支 |
+| ~~`remotion/src/types.ts`~~                           | ~~新增 `containStyle` 字段~~ **不新增**（评论反馈 #2）                  | —                                                  |
+| ~~`scripts/short-video/__tests__/media-bg.test.mjs`~~ | ~~`containStyle` 验证~~ **不需要**（不新增字段）                        | —                                                  |
 
 ## Implementation Notes
 
@@ -98,11 +101,11 @@ Review 说"quiet brand matte or restrained palette-derived gradient"。推荐方
 // 当前 return 结构：
 <>
   {media.type === "image" ? (
-    <CanvasImage src={src} style={mediaStyle} />  // mediaStyle.objectFit = "contain"
+    <CanvasImage src={src} style={mediaStyle} /> // mediaStyle.objectFit = "contain"
   ) : (
     <Video src={src} style={mediaStyle} volume={videoVolume} effects={effects} />
   )}
-  <div style={{ ... overlayOpacity }} />  // overlay 层
+  <div style={{ ...overlayOpacity }} /> // overlay 层
 </>
 ```
 
@@ -112,26 +115,29 @@ Review 说"quiet brand matte or restrained palette-derived gradient"。推荐方
 
 ```tsx
 const isContain = (media.fit ?? "cover") === "contain";
-const showBrandedMatte = media.type === "image" && isContain;  // 图片专用条件
+const showBrandedMatte = media.type === "image" && isContain; // 图片专用条件
 
 return (
   <>
     {showBrandedMatte && (
-      <AbsoluteFill style={{
-        background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
-      }} />
+      <AbsoluteFill
+        style={{
+          background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
+        }}
+      />
     )}
     {media.type === "image" ? (
       <CanvasImage src={src} style={mediaStyle} />
     ) : (
       <Video src={src} style={mediaStyle} volume={videoVolume} effects={effects} />
     )}
-    <div style={{ ... overlayOpacity }} />
+    <div style={{ ...overlayOpacity }} />
   </>
 );
 ```
 
 注意：
+
 - `cover` 模式不需要这层（图片填满整个画面，看不到背景）
 - **视频 `contain`**（包括手动配置）不需要这层——视频仍用朴素 `#0a0a14` 黑底
 
@@ -171,12 +177,12 @@ selectBestCrop → status: "unsafe" → asset.fit = "contain"
 
 用至少一个真实 16:9 图片 + `fit: "contain"` 渲染帧，人工验收以下场景，保留截图/帧文件：
 
-| # | 场景 | 验收点 |
-|---|------|--------|
-| 1 | 16:9 图片 `fit: "contain"` | 品牌渐变背景出现；完整源图可见；渐变不抢前景；动画未重新裁切 |
-| 2 | 16:9 图片 `fit: "cover"`（回归） | 无渐变背景层；行为与改动前一致 |
-| 3 | scene-data 无 `fit` 字段（默认 cover）（回归） | 无渐变背景层；行为与改动前一致 |
-| 4 | 视频 `fit: "contain"`（手动配置）（回归） | 无渐变背景层；朴素 `#0a0a14` 黑底；行为与改动前一致 |
+| #   | 场景                                           | 验收点                                                       |
+| --- | ---------------------------------------------- | ------------------------------------------------------------ |
+| 1   | 16:9 图片 `fit: "contain"`                     | 品牌渐变背景出现；完整源图可见；渐变不抢前景；动画未重新裁切 |
+| 2   | 16:9 图片 `fit: "cover"`（回归）               | 无渐变背景层；行为与改动前一致                               |
+| 3   | scene-data 无 `fit` 字段（默认 cover）（回归） | 无渐变背景层；行为与改动前一致                               |
+| 4   | 视频 `fit: "contain"`（手动配置）（回归）      | 无渐变背景层；朴素 `#0a0a14` 黑底；行为与改动前一致          |
 
 > 建议用 Alibaba 视频的素材（`scripts/short-video/content/alibaba-ai-megabet/assets/`）
 > 中 S4/S5 的 landscape 图片做场景 1 的验收 fixture（原始 Handoff 的 Alibaba 示例）。

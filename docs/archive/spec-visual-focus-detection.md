@@ -2,7 +2,7 @@
 
 > Status: **Revised v7 — v6 终审通过，P1 实现加固，进入实现**
 > Created: 2026-08-17
-> Revised: 2026-08-17 v2 (初审 P0-1~4 + P1-1~8), v3 (复审 P0-1~2 + P1-1~7), v4 (终审 P0-1~3 + P1-1~7), v5 (v4 复审 P0-1~2 + P1-1~5 + 消费者梳理), v6 (v5 复审 P1-1~4 + idle 统一 + exit 语义 + 输出边界 + golden 阻断), v7 (v6 终审 P1-1~2 + IdleTimer Event+Lock + 超时注入 + apply-media-patch 测试)
+> Revised: 2026-08-17 v2 (初审 P0-1~~4 + P1-1~~8), v3 (复审 P0-1~~2 + P1-1~~7), v4 (终审 P0-1~~3 + P1-1~~7), v5 (v4 复审 P0-1~~2 + P1-1~~5 + 消费者梳理), v6 (v5 复审 P1-1~~4 + idle 统一 + exit 语义 + 输出边界 + golden 阻断), v7 (v6 终审 P1-1~~2 + IdleTimer Event+Lock + 超时注入 + apply-media-patch 测试)
 > Supersedes: `docs/specs/spec-asset-first-hook-media-focus-detection.md` §5 (改动 C)
 > Related research: `docs/research/asset-focus-detection-alternatives.md` + `docs/research/asset-focus-detection-alternatives-review.md`
 > Review: `docs/specs/spec-visual-focus-detection-review.md` (初审 + 复审)
@@ -27,11 +27,11 @@
 
 三个独立改动，按审阅建议分 commit 实施：
 
-| 改动 | 描述 | 影响范围 | Commit |
-|------|------|----------|--------|
-| **A: 命名重构** | `ai-analyzer` → `visual-analyzer`（文件、模块、文档） | 全管线引用 | 独立 commit 1 |
-| **B: 视觉焦点检测（图片 only）** | 新增独立 OpenCV 子进程，输出结构化保护区域 | 新建 2 文件 + 改 3 文件 | 独立 commit 2 |
-| **C: analyzeFit 迁移策略** | 保留 fit 输出，停止把不稳定 focus 当真值 | `asset-sourcer.mjs` + `MediaField` 类型 | 合入 commit 2 |
+| 改动                             | 描述                                                  | 影响范围                                | Commit        |
+| -------------------------------- | ----------------------------------------------------- | --------------------------------------- | ------------- |
+| **A: 命名重构**                  | `ai-analyzer` → `visual-analyzer`（文件、模块、文档） | 全管线引用                              | 独立 commit 1 |
+| **B: 视觉焦点检测（图片 only）** | 新增独立 OpenCV 子进程，输出结构化保护区域            | 新建 2 文件 + 改 3 文件                 | 独立 commit 2 |
+| **C: analyzeFit 迁移策略**       | 保留 fit 输出，停止把不稳定 focus 当真值              | `asset-sourcer.mjs` + `MediaField` 类型 | 合入 commit 2 |
 
 ### 不做什么
 
@@ -49,22 +49,23 @@
 
 ### 3.2 重命名映射
 
-| 当前 | 重命名后 | 性质 |
-|------|---------|------|
-| `lib/ai-analyzer.mjs` | `lib/visual-analyzer.mjs` | Node API 网关 |
-| `lib/ai_analyzer.py` | `lib/vlm_analyzer.py` | VLM Python 子进程 |
-| `lib/focus_detector.py` | （新建） | OpenCV Python 子进程 |
-| `describeImage()` | 不变 | 公共 API |
-| `describeVideo()` | 不变 | 公共 API |
-| `analyzeFit()` | 保留（见改动 C） | 公共 API |
-| `detectFocus()` | （新增） | 公共 API |
-| `closeAnalyzer()` | `closeVisualAnalyzer()` | 同时关闭两个子进程 |
+| 当前                    | 重命名后                  | 性质                 |
+| ----------------------- | ------------------------- | -------------------- |
+| `lib/ai-analyzer.mjs`   | `lib/visual-analyzer.mjs` | Node API 网关        |
+| `lib/ai_analyzer.py`    | `lib/vlm_analyzer.py`     | VLM Python 子进程    |
+| `lib/focus_detector.py` | （新建）                  | OpenCV Python 子进程 |
+| `describeImage()`       | 不变                      | 公共 API             |
+| `describeVideo()`       | 不变                      | 公共 API             |
+| `analyzeFit()`          | 保留（见改动 C）          | 公共 API             |
+| `detectFocus()`         | （新增）                  | 公共 API             |
+| `closeAnalyzer()`       | `closeVisualAnalyzer()`   | 同时关闭两个子进程   |
 
 ### 3.3 影响文件清单
 
 **决策：一次性全量改完**（不保留兼容层）。审阅 P1-8 指出兼容层增加维护负担且无法回滚测试。重命名作为独立 commit，先于功能改动。
 
 实施前执行仓库级检索：
+
 ```bash
 grep -rn 'ai-analyzer\|ai_analyzer\|aiAnalyzer\|closeAnalyzer' \
   --include='*.mjs' --include='*.py' --include='*.ts' --include='*.tsx' --include='*.md' \
@@ -72,15 +73,18 @@ grep -rn 'ai-analyzer\|ai_analyzer\|aiAnalyzer\|closeAnalyzer' \
 ```
 
 **代码文件**（需改 import / 函数名）：
+
 - `lib/asset-sourcer.mjs` — `import("./ai-analyzer.mjs")` → `import("./visual-analyzer.mjs")`
 - `__tests__/ai-analyzer.test.mjs` → `__tests__/visual-analyzer.test.mjs`
 - `__tests__/asset-sourcer-ai-integration.test.mjs` → `__tests__/asset-sourcer-visual-integration.test.mjs`
 
 **文档文件**（需改引用）：
+
 - `scripts/short-video/README.md`
 - `README.md`（根目录）
 
 **活动文档**（非 archive，需改引用）：
+
 - `docs/specs/spec-asset-first-hook-media-focus-detection.md` — §5 引用了旧模块名
 - `docs/research/asset-focus-detection-alternatives.md` — §4.1 提到 `ai_analyzer.py`
 - `docs/content-pipeline.md` — Stage 3b 提到 AI analysis
@@ -109,10 +113,10 @@ scripts/short-video/lib/
 
 ### 4.2 两个子进程的生命周期
 
-| 子进程 | 脚本 | 内存（目标） | 启动时间（待测） | idle 超时 | 用途 |
-|--------|------|------------|----------------|-----------|------|
-| VLM | `vlm_analyzer.py` | ~11GB | 12-17s | 5min（已有） | description + analyzeFit |
-| Focus | `focus_detector.py` | ~200MB（待测） | <1s（待测） | 60s（新建） | protectedRegions + saliency |
+| 子进程 | 脚本                | 内存（目标）   | 启动时间（待测） | idle 超时    | 用途                        |
+| ------ | ------------------- | -------------- | ---------------- | ------------ | --------------------------- |
+| VLM    | `vlm_analyzer.py`   | ~11GB          | 12-17s           | 5min（已有） | description + analyzeFit    |
+| Focus  | `focus_detector.py` | ~200MB（待测） | <1s（待测）      | 60s（新建）  | protectedRegions + saliency |
 
 > 以上内存和速度数字均为**目标/待测值**，不是文档引用值。实施后需回填实测 P50/P95、冷/热启动与峰值 RSS。
 
@@ -138,6 +142,7 @@ Phase 2: describeImage/Video()   → 完成后 closeVisualAnalyzer() → 释放 
    ```
 
    Python 主循环协议（伪代码，v6 P1-1: idle timer 统一为 IdleTimer 单一状态源；v5 P0-2: dispatch 包装器保证每请求一个响应）：
+
    ```python
    import json, sys
 
@@ -246,7 +251,7 @@ ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
   },
   "protectedRegions": [
     {
-      "rect": [0.31, 0.10, 0.20, 0.42],
+      "rect": [0.31, 0.1, 0.2, 0.42],
       "kind": "face",
       "confidence": null,
       "confidenceKind": "not_provided"
@@ -271,12 +276,13 @@ ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
 
 - `errorCode` 统一枚举表（v5 P0-1/P0-2: 新增 `focus_internal_error` / `focus_dependency_not_available` / `pillow_not_available` / `numpy_not_available`）：
 
-  | `status` | 允许的 `errorCode` |
-  |---|---|
-  | `ok` / `low_information` | `null` |
-  | `partial` | `saliency_compute_failed` |
-  | `degraded` | `opencv_not_available`、`pillow_not_available`、`numpy_not_available`、`focus_dependency_not_available`、`classifier_load_failed`、`cannot_read_image`、`saliency_compute_failed`、`focus_timeout`、`focus_worker_reset`、`focus_protocol_error`、`focus_internal_error` |
-  | `unsupported` | `video_not_supported`、`unsupported_media_type` |
+  | `status`                 | 允许的 `errorCode`                                                                                                                                                                                                                                                       |
+  | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | `ok` / `low_information` | `null`                                                                                                                                                                                                                                                                   |
+  | `partial`                | `saliency_compute_failed`                                                                                                                                                                                                                                                |
+  | `degraded`               | `opencv_not_available`、`pillow_not_available`、`numpy_not_available`、`focus_dependency_not_available`、`classifier_load_failed`、`cannot_read_image`、`saliency_compute_failed`、`focus_timeout`、`focus_worker_reset`、`focus_protocol_error`、`focus_internal_error` |
+  | `unsupported`            | `video_not_supported`、`unsupported_media_type`                                                                                                                                                                                                                          |
+
 - `rect` = `[x, y, w, h]`，归一化 [0, 1]，相对于**原图（已规范化方向后）**
 - `kind` ∈ `"face"`（Phase 1a 只产出此值；`"body"` / `"text"` / `"object"` 为保留值，本期不会产生）
 - `confidence`：Phase 1a 始终为 `null`（Haar 无内置 confidence，不使用伪精度固定值）。`confidenceKind` = `"not_provided"`。Phase 2 切换 YuNet 后使用模型原生分数（`confidenceKind: "model"`）。
@@ -286,10 +292,10 @@ ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
 
 **算法选择**：
 
-| Step | 算法 | 来源 | 输出 |
-|------|------|------|------|
-| 1 | Haar Cascade Face Detection | OpenCV 自带 `haarcascade_frontalface_default.xml` | 人脸 bounding box（全部，不只第一个） |
-| 2 | Static Saliency Spectral Residual | `cv2.saliency.StaticSaliencySpectralResidual_create()` | 热力图 → centroid + dispersion |
+| Step | 算法                              | 来源                                                   | 输出                                  |
+| ---- | --------------------------------- | ------------------------------------------------------ | ------------------------------------- |
+| 1    | Haar Cascade Face Detection       | OpenCV 自带 `haarcascade_frontalface_default.xml`      | 人脸 bounding box（全部，不只第一个） |
+| 2    | Static Saliency Spectral Residual | `cv2.saliency.StaticSaliencySpectralResidual_create()` | 热力图 → centroid + dispersion        |
 
 **人脸 = 硬保护区；saliency = 始终计算的软信号**（审阅 P1-2 修正）。两者独立计算，不互斥。
 
@@ -585,9 +591,14 @@ export function closeVisualAnalyzer() { ... }
 
 ```javascript
 export async function analyzeAssets(assets) {
-  const { describeImage, describeVideo, analyzeFit, detectFocus,
-          closeFocusDetector, closeVisualAnalyzer } =
-    await import("./visual-analyzer.mjs");
+  const {
+    describeImage,
+    describeVideo,
+    analyzeFit,
+    detectFocus,
+    closeFocusDetector,
+    closeVisualAnalyzer,
+  } = await import("./visual-analyzer.mjs");
   const { checkResolution } = await import("./upscale.mjs");
 
   // ── Phase 1: Focus detection (fast, lightweight) ──
@@ -599,7 +610,7 @@ export async function analyzeAssets(assets) {
       asset.focusAnalysis = focus;
     }
   } finally {
-    await closeFocusDetector();  // always release focus subprocess
+    await closeFocusDetector(); // always release focus subprocess
   }
 
   // ── Phase 2: VLM description + analyzeFit (existing logic preserved) ──
@@ -638,7 +649,7 @@ export async function analyzeAssets(assets) {
         console.log(`  📐 Landscape asset (aspect ${aspect.toFixed(2)}), analyzing fit...`);
         const fitResult = await analyzeFit(absPath);
         if (fitResult.fit) {
-          asset.aiFit = fitResult.fit;       // 保留 — fit 相对稳定
+          asset.aiFit = fitResult.fit; // 保留 — fit 相对稳定
           // 不再回写 asset.aiFocus — focus 由 detectFocus() 的 protectedRegions 替代
           asset.aiFitReason = fitResult.reason || "";
           console.log(`     → fit: ${fitResult.fit}`);
@@ -686,7 +697,12 @@ export async function analyzeAssets(assets) {
         "orientationNormalized": true
       },
       "protectedRegions": [
-        {"rect": [0.31, 0.10, 0.20, 0.42], "kind": "face", "confidence": null, "confidenceKind": "not_provided"}
+        {
+          "rect": [0.31, 0.1, 0.2, 0.42],
+          "kind": "face",
+          "confidence": null,
+          "confidenceKind": "not_provided"
+        }
       ],
       "saliency": {
         "available": true,
@@ -705,18 +721,18 @@ export async function analyzeAssets(assets) {
 
 **Phase 1 消费者与行动规则**（v5 P1-4 + 消费者梳理）：
 
-| 消费者 | 渠道 | 行动规则 |
-|--------|------|---------|
-| **创作者（人工审阅）** | `media-patch.json` → `analysis.focusAnalysis` | `status=ok`：参考 `protectedRegions` 手动避开人脸/主体区域放置文字。`status=partial`：`protectedRegions` 可用但 `saliency` 不可用——依据人脸框放置，跳过 salience 辅助。`status=low_information`：无保护区域，正常放置。`status=degraded`：忽略 focusAnalysis，按默认位置放置。`status=unsupported`（视频素材）：不适用，按 VLM description 判断。 |
-| **`apply-media-patch.mjs`**（格式化输出工具） | 读取 `media-patch.json` | **v6 P1-3: 输出人工审阅摘要，不输出可复制的 `analysis` 字段**。在 `media: { ... }` 代码块上方输出注释形式的人工审阅摘要。`status=ok`/`partial`：输出可读摘要（status、protectedRegions rect 列表、saliency available/unavailable）。`status=degraded`/`unsupported`：输出 warning 行。复制的 `media` 对象保持既有 `MediaField` 合法形状，不含 `analysis` 或 `focusAnalysis`。 |
+| 消费者                                        | 渠道                                          | 行动规则                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **创作者（人工审阅）**                        | `media-patch.json` → `analysis.focusAnalysis` | `status=ok`：参考 `protectedRegions` 手动避开人脸/主体区域放置文字。`status=partial`：`protectedRegions` 可用但 `saliency` 不可用——依据人脸框放置，跳过 salience 辅助。`status=low_information`：无保护区域，正常放置。`status=degraded`：忽略 focusAnalysis，按默认位置放置。`status=unsupported`（视频素材）：不适用，按 VLM description 判断。                             |
+| **`apply-media-patch.mjs`**（格式化输出工具） | 读取 `media-patch.json`                       | **v6 P1-3: 输出人工审阅摘要，不输出可复制的 `analysis` 字段**。在 `media: { ... }` 代码块上方输出注释形式的人工审阅摘要。`status=ok`/`partial`：输出可读摘要（status、protectedRegions rect 列表、saliency available/unavailable）。`status=degraded`/`unsupported`：输出 warning 行。复制的 `media` 对象保持既有 `MediaField` 合法形状，不含 `analysis` 或 `focusAnalysis`。 |
 
 **Phase 2 消费者候选**（本 spec 不实施，列此供后续接入）：
 
-| 消费者 | 路径 | 接入方式 |
-|--------|------|---------|
+| 消费者                         | 路径                                          | 接入方式                                                                                                                                   |
+| ------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Remotion `MediaBackground.tsx` | `remotion/src/components/MediaBackground.tsx` | 读取 `protectedRegions` 做 slot 评分 + `objectPosition` 偏移。需做 source → 9:16 canvas 坐标变换（`objectFit: cover` + scale/translate）。 |
-| `verify-video.mjs` | `scripts/short-video/verify-video.mjs` | 帧分析检查文字是否遮挡 `protectedRegions`（需坐标变换到渲染帧坐标系）。 |
-| `scene-layout.mjs` | `lib/scene-layout.mjs` | `SLOTS` 布局可参考 `protectedRegions` 动态调整 slot 位置（当前为固定像素 slot）。 |
+| `verify-video.mjs`             | `scripts/short-video/verify-video.mjs`        | 帧分析检查文字是否遮挡 `protectedRegions`（需坐标变换到渲染帧坐标系）。                                                                    |
+| `scene-layout.mjs`             | `lib/scene-layout.mjs`                        | `SLOTS` 布局可参考 `protectedRegions` 动态调整 slot 位置（当前为固定像素 slot）。                                                          |
 
 **`assignAssetsToScenes()` 需新增字段映射**：在构造 patch 条目时，显式复制 `asset.focusAnalysis` 到 `analysis.focusAnalysis`。
 
@@ -725,6 +741,7 @@ export async function analyzeAssets(assets) {
 审阅 P0-2 指出 `MediaBackground.tsx` 仍消费 `media.fit` 和 `media.focus`。
 
 **决策**：
+
 - **保留 `analyzeFit()` 的 `fit` 输出**（cover vs contain）——fit 相对稳定，且 Remotion 需要它
 - **停止回写 `asset.aiFocus`**——focus 由 `detectFocus()` 的 `protectedRegions` 替代
 - **`analyzeFit()` 解析器解耦**（复审 P1-4 + 终审确认）：当前 `_parse_fit_output()` 和 `parseFitResponse()` 要求 fit 与 focus 同时有效才返回结果。修改为 `fit` 必填、`focus` 可选。解析器单独校验 `fit`，focus 缺失/无效时仍保留 fit。旧 scene-data 已有 `media.focus` 可继续渲染，但新自动分析不再写它。增加"fit 有效、focus 缺失仍保留 fit"的回归测试。
@@ -736,6 +753,7 @@ export async function analyzeAssets(assets) {
       return fit, focus, reason or ""
   return None, None, ""
   ```
+
 - **`MediaField.focus` 字段保留但标注为 deprecated**——现有 scene-data 中的 `focus` 值仍被渲染层使用，不做破坏性删除
 - **不修改 Remotion `MediaBackground.tsx`**——Phase 2 再接入 protectedRegions
 
@@ -760,11 +778,11 @@ export interface MediaField {
 
 ### 5.1 新增依赖
 
-| 包 | 安装位置 | 版本 | 大小 | 许可 |
-|----|---------|------|------|------|
-| `opencv-contrib-python` | `~/.video-tts-env` | **锁定版本**（安装时 `pip install opencv-contrib-python==4.10.0.84`，实测后回填到 requirements） | ~80MB | Apache 2.0 |
-| `numpy` | 已有 | — | — | — |
-| `Pillow` | 已有（VLM 代码已使用） | — | — | — |
+| 包                      | 安装位置               | 版本                                                                                             | 大小  | 许可       |
+| ----------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ | ----- | ---------- |
+| `opencv-contrib-python` | `~/.video-tts-env`     | **锁定版本**（安装时 `pip install opencv-contrib-python==4.10.0.84`，实测后回填到 requirements） | ~80MB | Apache 2.0 |
+| `numpy`                 | 已有                   | —                                                                                                | —     | —          |
+| `Pillow`                | 已有（VLM 代码已使用） | —                                                                                                | —     | —          |
 
 > 依赖版本**锁定精确版本号**，不使用 `latest`。安装后记录 Python 版本、平台、Haar XML 版本，纳入 preflight 检查。
 
@@ -793,66 +811,66 @@ numpy==1.26.4
 
 ### Section 1: Modified Files
 
-| 文件 | 修改内容 | 风险 | 评估 |
-|------|---------|------|------|
-| `lib/ai-analyzer.mjs` → `lib/visual-analyzer.mjs` | 重命名 + 新增 `detectFocus()` + `closeFocusDetector()` + `closeVisualAnalyzer()`。内部管理两个子进程。 | **Medium** | 独立 commit。缓解：全量改完，仓库级 grep 确认无遗漏。 |
-| `lib/ai_analyzer.py` → `lib/vlm_analyzer.py` | 纯重命名，内容不变。 | **Low** | 只影响 `visual-analyzer.mjs` 中的路径引用。 |
-| `lib/focus_detector.py` | 新建。OpenCV IPC 子进程。 | **Low** | 纯新增文件，不改现有代码。 |
-| `lib/requirements-focus.txt` | 新建。focus_detector.py 依赖版本锁定。 | **Low** | 纯新增文件（终审 P1-3）。 |
-| `lib/focus-detector-benchmark.mjs` | 新建。性能 benchmark 脚本。 | **Low** | 纯新增文件（终审 P1-4/P1-7）。输出到 `experiments/focus-benchmark/`（gitignored）。 |
-| `__tests__/fixtures/exif/` | 新建目录。EXIF 旋转 90°/180°/270° JPEG fixtures。 | **Low** | 测试素材（终审 P1-4）。 |
-| `__tests__/fixtures/benchmark/` | 新建目录。受控 benchmark fixture（已知人脸/无脸/纯色图）。 | **Low** | v5 P1-2。 |
-| `__tests__/fixtures/golden/` | 新建目录。golden fixture（人工标注的正面照/合照）。**v6 P1-4: 硬门槛阻断回归——不通过 = CI 红**。 | **Low** | v5 P1-5 + v6 P1-4。 |
-| `__tests__/fixtures/baseline/` | 新建目录。baseline observation fixture（遮挡/侧脸/低光样本）。记录命中/漏检率，不阻断回归。 | **Low** | v6 P1-4。 |
-| `apply-media-patch.mjs` | 新增人工审阅摘要输出（注释形式，不进入 `media` 代码块）。 | **Low** | v6 P1-3 消费者边界。 |
-| `__tests__/apply-media-patch.test.mjs` | 新建。输出边界测试（v7 P1-2）。断言：1) `ok`/`partial` 输出摘要注释含 status、保护框、saliency 可用性；2) `degraded`/`unsupported` 输出 warning；3) `media` 对象不含 `analysis`/`focusAnalysis`/`protectedRegions`/`saliency`；4) 无 `analysis.focusAnalysis` 的旧 patch 仍输出兼容的 media block。 | **Low** | v7 P1-2 实现稳健性。 |
-| `lib/asset-sourcer.mjs` | 1) import 路径改名 2) `analyzeAssets()` 新增 Phase 1 focus detection（前置）3) 保留现有 `analyzeFit` 调用 4) 停止回写 `aiFocus` 5) `assignAssetsToScenes()` 新增 `analysis.focusAnalysis` 映射 | **Medium** | 保留了既有 VLM/fit 路径。缓解：Phase 1 失败不阻塞 Phase 2（try/finally）。 |
-| `remotion/src/types.ts` | `MediaField.focus` 标注 deprecated 注释 | **Low** | 纯注释，不改类型结构。 |
-| `__tests__/ai-analyzer.test.mjs` → `__tests__/visual-analyzer.test.mjs` | 重命名 + 新增 detectFocus 测试 | **Low** | 测试文件。 |
-| `__tests__/asset-sourcer-ai-integration.test.mjs` | 重命名 + 适配两阶段流程 + 验证 analyzeFit 保留 | **Low** | 同上。 |
-| `scripts/short-video/README.md` | 更新模块名 + 新增 focus_detector 描述 | **Low** | 文档。 |
-| `README.md`（根目录） | 更新 AI 分析层描述 | **Low** | 文档。 |
+| 文件                                                                    | 修改内容                                                                                                                                                                                                                                                                                            | 风险       | 评估                                                                                |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------- |
+| `lib/ai-analyzer.mjs` → `lib/visual-analyzer.mjs`                       | 重命名 + 新增 `detectFocus()` + `closeFocusDetector()` + `closeVisualAnalyzer()`。内部管理两个子进程。                                                                                                                                                                                              | **Medium** | 独立 commit。缓解：全量改完，仓库级 grep 确认无遗漏。                               |
+| `lib/ai_analyzer.py` → `lib/vlm_analyzer.py`                            | 纯重命名，内容不变。                                                                                                                                                                                                                                                                                | **Low**    | 只影响 `visual-analyzer.mjs` 中的路径引用。                                         |
+| `lib/focus_detector.py`                                                 | 新建。OpenCV IPC 子进程。                                                                                                                                                                                                                                                                           | **Low**    | 纯新增文件，不改现有代码。                                                          |
+| `lib/requirements-focus.txt`                                            | 新建。focus_detector.py 依赖版本锁定。                                                                                                                                                                                                                                                              | **Low**    | 纯新增文件（终审 P1-3）。                                                           |
+| `lib/focus-detector-benchmark.mjs`                                      | 新建。性能 benchmark 脚本。                                                                                                                                                                                                                                                                         | **Low**    | 纯新增文件（终审 P1-4/P1-7）。输出到 `experiments/focus-benchmark/`（gitignored）。 |
+| `__tests__/fixtures/exif/`                                              | 新建目录。EXIF 旋转 90°/180°/270° JPEG fixtures。                                                                                                                                                                                                                                                   | **Low**    | 测试素材（终审 P1-4）。                                                             |
+| `__tests__/fixtures/benchmark/`                                         | 新建目录。受控 benchmark fixture（已知人脸/无脸/纯色图）。                                                                                                                                                                                                                                          | **Low**    | v5 P1-2。                                                                           |
+| `__tests__/fixtures/golden/`                                            | 新建目录。golden fixture（人工标注的正面照/合照）。**v6 P1-4: 硬门槛阻断回归——不通过 = CI 红**。                                                                                                                                                                                                    | **Low**    | v5 P1-5 + v6 P1-4。                                                                 |
+| `__tests__/fixtures/baseline/`                                          | 新建目录。baseline observation fixture（遮挡/侧脸/低光样本）。记录命中/漏检率，不阻断回归。                                                                                                                                                                                                         | **Low**    | v6 P1-4。                                                                           |
+| `apply-media-patch.mjs`                                                 | 新增人工审阅摘要输出（注释形式，不进入 `media` 代码块）。                                                                                                                                                                                                                                           | **Low**    | v6 P1-3 消费者边界。                                                                |
+| `__tests__/apply-media-patch.test.mjs`                                  | 新建。输出边界测试（v7 P1-2）。断言：1) `ok`/`partial` 输出摘要注释含 status、保护框、saliency 可用性；2) `degraded`/`unsupported` 输出 warning；3) `media` 对象不含 `analysis`/`focusAnalysis`/`protectedRegions`/`saliency`；4) 无 `analysis.focusAnalysis` 的旧 patch 仍输出兼容的 media block。 | **Low**    | v7 P1-2 实现稳健性。                                                                |
+| `lib/asset-sourcer.mjs`                                                 | 1) import 路径改名 2) `analyzeAssets()` 新增 Phase 1 focus detection（前置）3) 保留现有 `analyzeFit` 调用 4) 停止回写 `aiFocus` 5) `assignAssetsToScenes()` 新增 `analysis.focusAnalysis` 映射                                                                                                      | **Medium** | 保留了既有 VLM/fit 路径。缓解：Phase 1 失败不阻塞 Phase 2（try/finally）。          |
+| `remotion/src/types.ts`                                                 | `MediaField.focus` 标注 deprecated 注释                                                                                                                                                                                                                                                             | **Low**    | 纯注释，不改类型结构。                                                              |
+| `__tests__/ai-analyzer.test.mjs` → `__tests__/visual-analyzer.test.mjs` | 重命名 + 新增 detectFocus 测试                                                                                                                                                                                                                                                                      | **Low**    | 测试文件。                                                                          |
+| `__tests__/asset-sourcer-ai-integration.test.mjs`                       | 重命名 + 适配两阶段流程 + 验证 analyzeFit 保留                                                                                                                                                                                                                                                      | **Low**    | 同上。                                                                              |
+| `scripts/short-video/README.md`                                         | 更新模块名 + 新增 focus_detector 描述                                                                                                                                                                                                                                                               | **Low**    | 文档。                                                                              |
+| `README.md`（根目录）                                                   | 更新 AI 分析层描述                                                                                                                                                                                                                                                                                  | **Low**    | 文档。                                                                              |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| S1 | OpenCV 未安装 | `detectFocus()` 返回 `{status: "degraded", errorCode: "opencv_not_available", protectedRegions: []}` | Low | 优雅降级。`init_classifier()` 检测失败。 |
-| S2 | 图片读取失败 | 返回 `{status: "degraded", errorCode: "cannot_read_image"}` | Low | `cv2.imread` 返回 None 时处理。 |
-| S3 | 纯黑/纯白图片 | `saliency.dispersion` ≈ 0，`protectedRegions` 为空，`status: "low_information"` | Low | 方差阈值检测。 |
-| S4 | 单人正面照（golden fixture） | **v6 P1-4: 硬门槛阻断回归**——检出 ≥1 个 face protectedRegion，IoU ≥0.5 vs 人工标注框。不通过 = CI 红。Golden fixture = 稳定、正面、受控样本。 | Low | Haar Cascade 正面人脸检测可靠。golden fixture = 人工标注的受控 fixture。 |
-| S5 | 多人合照（golden fixture） | **v6 P1-4: 硬门槛阻断回归**——检出 ≥1 个 face protectedRegions，计数误差在人工标注 ±1 以内。不通过 = CI 红。Golden fixture = 稳定、正面、受控样本。 | Low | `detectMultiScale` 返回所有匹配。golden fixture + IoU + 计数容差。 |
-| S6 | 侧面/遮挡人脸（baseline observation fixture） | **v6 P1-4: 不阻断回归**——Haar Cascade 漏检 → `protectedRegions` 为空 → `status: "ok"` + saliency centroid 作为软信号。记录命中/漏检率与样例，不伪称稳定精度 | Medium | Phase 2 用 YuNet 替代。baseline observation fixture = 遮挡/侧脸/低光样本。 |
-| S7 | 产品/场景图（无人脸） | `protectedRegions` 为空，saliency centroid 作为软信号 | Low | 人脸=硬保护区；saliency=软信号。 |
-| S8 | 风景/天际线（saliency 均匀分布） | `saliency.dispersion` 低，`status: "low_information"` | Low | 方差阈值。 |
-| S9 | 横图（landscape） | `frame.orientation: "landscape"`，坐标归一化 | Low | 归一化坐标与方向无关。 |
-| S10 | 竖图（portrait） | `frame.orientation: "portrait"` | Low | 同上。 |
-| S11 | 视频文件（.mp4） | 返回 `{status: "unsupported", errorCode: "video_not_supported"}`，不调用 cv2.imread | Low | Phase 1a 只支持图片。 |
-| S12 | VLM 子进程先于 focus 子进程启动 | 两个子进程独立，启动顺序不影响 | Low | `visual-analyzer.mjs` 分别管理。 |
-| S13 | focus 子进程 idle 60s | `IdleTimer` Event+Lock watchdog 每 `poll_interval` 秒检查，退出上界 ≤ timeout + poll_interval（v7 P1-1） | Low | `IdleTimer` 类实现，复用 VLM 同模式。 |
-| S14 | focus 子进程崩溃 | `detectFocus()` 返回 `{status: "degraded"}`，不阻塞 VLM 阶段 | Low | `try/finally` 确保 `closeFocusDetector()`。子进程 exit → 重置状态 → 下次调用重新 spawn。 |
-| S15 | VLM 子进程崩溃 | Phase 2 失败，但 Phase 1 focusAnalysis 已保存 | Low | 两阶段独立，Phase 1 结果不丢。 |
-| S16 | `detectFocus()` 被外部模块调用（verify-video 等） | 返回相同结果，不依赖 asset-sourcer 上下文 | Low | `detectFocus` 是通用 API。 |
-| S17 | `closeVisualAnalyzer()` 关闭两个子进程 | VLM + focus 都被 SIGTERM | Low | 先发 exit 命令，100ms 后 kill。 |
-| S18 | 重命名后旧代码 `import("./ai-analyzer.mjs")` | 找不到模块 → 报错 | Medium | 一次性全量改完 + 仓库级 grep 确认。 |
-| S19 | `assignAssetsToScenes()` 构造 media-patch.json | `analysis.focusAnalysis` 显式映射，不被白名单丢弃 | Low | 新增字段映射代码。 |
-| S20 | `analyzeFit` 仍被调用（横图） | `asset.aiFit` 保留，`asset.aiFocus` 不再回写 | Low | 改动 C 迁移策略。 |
-| S21 | `detectFocus()` 返回 `unsupported`（视频素材） | asset.focusAnalysis 存入降级结果，VLM 阶段继续正常 describeVideo | Low | failure-safe 契约。 |
-| S22 | `handle_analyze()` 抛出未预期异常（v5 P0-2） | dispatch 包装器捕获异常，返回 `{status: "degraded", errorCode: "focus_internal_error"}`，子进程不崩溃 | Low | dispatch wrapper try/except + `focus_internal_error`。 |
-| S23 | focus 子进程 idle 60s（v5 P1-3） | `IdleTimer` Event+Lock watchdog（v7 P1-1: 轮询 `min(10, timeout/10)` 秒，退出上界 ≤ timeout + poll_interval）。CI 用 `IdleTimer(timeout=0.1, poll_interval=0.05)` 注入测试 | Low | `IdleTimer` 类实现。 |
-| S24 | 依赖 Pillow 缺失（v5 P0-1） | `load_deps()` 返回 None，返回 `{status: "degraded", errorCode: "pillow_not_available"}`，子进程不崩溃 | Low | 延迟加载 + errorCode 映射。 |
+| #   | Scenario                                          | Expected Behavior                                                                                                                                                          | Risk   | Mitigation                                                                               |
+| --- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| S1  | OpenCV 未安装                                     | `detectFocus()` 返回 `{status: "degraded", errorCode: "opencv_not_available", protectedRegions: []}`                                                                       | Low    | 优雅降级。`init_classifier()` 检测失败。                                                 |
+| S2  | 图片读取失败                                      | 返回 `{status: "degraded", errorCode: "cannot_read_image"}`                                                                                                                | Low    | `cv2.imread` 返回 None 时处理。                                                          |
+| S3  | 纯黑/纯白图片                                     | `saliency.dispersion` ≈ 0，`protectedRegions` 为空，`status: "low_information"`                                                                                            | Low    | 方差阈值检测。                                                                           |
+| S4  | 单人正面照（golden fixture）                      | **v6 P1-4: 硬门槛阻断回归**——检出 ≥1 个 face protectedRegion，IoU ≥0.5 vs 人工标注框。不通过 = CI 红。Golden fixture = 稳定、正面、受控样本。                              | Low    | Haar Cascade 正面人脸检测可靠。golden fixture = 人工标注的受控 fixture。                 |
+| S5  | 多人合照（golden fixture）                        | **v6 P1-4: 硬门槛阻断回归**——检出 ≥1 个 face protectedRegions，计数误差在人工标注 ±1 以内。不通过 = CI 红。Golden fixture = 稳定、正面、受控样本。                         | Low    | `detectMultiScale` 返回所有匹配。golden fixture + IoU + 计数容差。                       |
+| S6  | 侧面/遮挡人脸（baseline observation fixture）     | **v6 P1-4: 不阻断回归**——Haar Cascade 漏检 → `protectedRegions` 为空 → `status: "ok"` + saliency centroid 作为软信号。记录命中/漏检率与样例，不伪称稳定精度                | Medium | Phase 2 用 YuNet 替代。baseline observation fixture = 遮挡/侧脸/低光样本。               |
+| S7  | 产品/场景图（无人脸）                             | `protectedRegions` 为空，saliency centroid 作为软信号                                                                                                                      | Low    | 人脸=硬保护区；saliency=软信号。                                                         |
+| S8  | 风景/天际线（saliency 均匀分布）                  | `saliency.dispersion` 低，`status: "low_information"`                                                                                                                      | Low    | 方差阈值。                                                                               |
+| S9  | 横图（landscape）                                 | `frame.orientation: "landscape"`，坐标归一化                                                                                                                               | Low    | 归一化坐标与方向无关。                                                                   |
+| S10 | 竖图（portrait）                                  | `frame.orientation: "portrait"`                                                                                                                                            | Low    | 同上。                                                                                   |
+| S11 | 视频文件（.mp4）                                  | 返回 `{status: "unsupported", errorCode: "video_not_supported"}`，不调用 cv2.imread                                                                                        | Low    | Phase 1a 只支持图片。                                                                    |
+| S12 | VLM 子进程先于 focus 子进程启动                   | 两个子进程独立，启动顺序不影响                                                                                                                                             | Low    | `visual-analyzer.mjs` 分别管理。                                                         |
+| S13 | focus 子进程 idle 60s                             | `IdleTimer` Event+Lock watchdog 每 `poll_interval` 秒检查，退出上界 ≤ timeout + poll_interval（v7 P1-1）                                                                   | Low    | `IdleTimer` 类实现，复用 VLM 同模式。                                                    |
+| S14 | focus 子进程崩溃                                  | `detectFocus()` 返回 `{status: "degraded"}`，不阻塞 VLM 阶段                                                                                                               | Low    | `try/finally` 确保 `closeFocusDetector()`。子进程 exit → 重置状态 → 下次调用重新 spawn。 |
+| S15 | VLM 子进程崩溃                                    | Phase 2 失败，但 Phase 1 focusAnalysis 已保存                                                                                                                              | Low    | 两阶段独立，Phase 1 结果不丢。                                                           |
+| S16 | `detectFocus()` 被外部模块调用（verify-video 等） | 返回相同结果，不依赖 asset-sourcer 上下文                                                                                                                                  | Low    | `detectFocus` 是通用 API。                                                               |
+| S17 | `closeVisualAnalyzer()` 关闭两个子进程            | VLM + focus 都被 SIGTERM                                                                                                                                                   | Low    | 先发 exit 命令，100ms 后 kill。                                                          |
+| S18 | 重命名后旧代码 `import("./ai-analyzer.mjs")`      | 找不到模块 → 报错                                                                                                                                                          | Medium | 一次性全量改完 + 仓库级 grep 确认。                                                      |
+| S19 | `assignAssetsToScenes()` 构造 media-patch.json    | `analysis.focusAnalysis` 显式映射，不被白名单丢弃                                                                                                                          | Low    | 新增字段映射代码。                                                                       |
+| S20 | `analyzeFit` 仍被调用（横图）                     | `asset.aiFit` 保留，`asset.aiFocus` 不再回写                                                                                                                               | Low    | 改动 C 迁移策略。                                                                        |
+| S21 | `detectFocus()` 返回 `unsupported`（视频素材）    | asset.focusAnalysis 存入降级结果，VLM 阶段继续正常 describeVideo                                                                                                           | Low    | failure-safe 契约。                                                                      |
+| S22 | `handle_analyze()` 抛出未预期异常（v5 P0-2）      | dispatch 包装器捕获异常，返回 `{status: "degraded", errorCode: "focus_internal_error"}`，子进程不崩溃                                                                      | Low    | dispatch wrapper try/except + `focus_internal_error`。                                   |
+| S23 | focus 子进程 idle 60s（v5 P1-3）                  | `IdleTimer` Event+Lock watchdog（v7 P1-1: 轮询 `min(10, timeout/10)` 秒，退出上界 ≤ timeout + poll_interval）。CI 用 `IdleTimer(timeout=0.1, poll_interval=0.05)` 注入测试 | Low    | `IdleTimer` 类实现。                                                                     |
+| S24 | 依赖 Pillow 缺失（v5 P0-1）                       | `load_deps()` 返回 None，返回 `{status: "degraded", errorCode: "pillow_not_available"}`，子进程不崩溃                                                                      | Low    | 延迟加载 + errorCode 映射。                                                              |
 
 ## 7. 不做清单（Phase 2 候选）
 
-| 能力 | 审阅建议 | 不做原因 | Phase 2 触发条件 |
-|------|---------|---------|-----------------|
-| 候选 slot 评分（`cost(c)` 多目标优化） | P0 | 工程量大，需先验证 Phase 1 精度 | 接口、回归和手工 smoke 全通过后 |
-| source → 9:16 canvas 坐标变换 | P0 | 需接入 MediaBackground cover/scale/translate | Phase 1 验证后接入渲染层 |
-| 视频焦点检测（`samples[]` + 时间戳） | P0 | 需定义跨帧合并规则 | 图片质量合格后 |
-| YuNet 替代 Haar Cascade | P1 | Haar 够用作基线 | Haar 精度不达标 |
-| 时间平滑（temporal_jitter） | P0 | 视频不是 Phase 1 场景 | 视频遮挡率不达标 |
-| OCR 文字保护区 | 审阅建议 | 需额外依赖 | 素材含图表/海报文字遮挡 |
-| 分层素材集评测（80-120 张） | 审阅建议 | 需人工标注 | 接口+回归+手工 smoke 全通过后 |
+| 能力                                   | 审阅建议 | 不做原因                                     | Phase 2 触发条件                |
+| -------------------------------------- | -------- | -------------------------------------------- | ------------------------------- |
+| 候选 slot 评分（`cost(c)` 多目标优化） | P0       | 工程量大，需先验证 Phase 1 精度              | 接口、回归和手工 smoke 全通过后 |
+| source → 9:16 canvas 坐标变换          | P0       | 需接入 MediaBackground cover/scale/translate | Phase 1 验证后接入渲染层        |
+| 视频焦点检测（`samples[]` + 时间戳）   | P0       | 需定义跨帧合并规则                           | 图片质量合格后                  |
+| YuNet 替代 Haar Cascade                | P1       | Haar 够用作基线                              | Haar 精度不达标                 |
+| 时间平滑（temporal_jitter）            | P0       | 视频不是 Phase 1 场景                        | 视频遮挡率不达标                |
+| OCR 文字保护区                         | 审阅建议 | 需额外依赖                                   | 素材含图表/海报文字遮挡         |
+| 分层素材集评测（80-120 张）            | 审阅建议 | 需人工标注                                   | 接口+回归+手工 smoke 全通过后   |
 
 ## 8. 验证计划
 
@@ -860,33 +878,34 @@ numpy==1.26.4
 
 **自动契约测试**（审阅建议的分层测试）：
 
-| 测试层 | 样本/断言 | 通过条件 |
-|--------|---------|---------|
-| 单元测试 | 坏路径、纯黑图、无脸图、单脸图、多脸图、伪造 saliency 空图、**handler 异常 → `focus_internal_error`**（v5 S22）、**依赖缺失 → `pillow_not_available` / `numpy_not_available`**（v5 S24） | 每一响应都有完整 schema；空结果不抛异常；每个 `rect` 值在 [0,1]；dispatch 包装器不泄漏异常 |
+| 测试层       | 样本/断言                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 通过条件                                                                                                                                                                                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 单元测试     | 坏路径、纯黑图、无脸图、单脸图、多脸图、伪造 saliency 空图、**handler 异常 → `focus_internal_error`**（v5 S22）、**依赖缺失 → `pillow_not_available` / `numpy_not_available`**（v5 S24）                                                                                                                                                                                                                                                                                                                                                                                                        | 每一响应都有完整 schema；空结果不抛异常；每个 `rect` 值在 [0,1]；dispatch 包装器不泄漏异常                                                                                                                                                                                                                      |
 | 进程协议测试 | 连续请求、idle 自动退出（v7 P1-1: `IdleTimer` Event+Lock+轮询 10s，退出上界 ≤ timeout + poll_interval）、**可测试超时注入**（`IdleTimer(timeout=0.1, poll_interval=0.05)`，CI 不等 60s）、stderr 噪声、子进程非 0 退出、重启后请求、**请求 A 超时后晚到响应 + 请求 B 紧随其后**（复审 P0-1）、**两个并发请求在 worker exit 时均返回 schema 完整的 `focus_worker_reset` 降级结果**（终审 P0-1）、**handler 异常 → `focus_internal_error` 响应**（v5 S22）、**延迟加载依赖缺失 → 准确 errorCode 而非崩溃**（v5 S24）、**graceful exit: `timer.stop()` 后 watchdog 不调 `os._exit(0)`**（v7 P1-1） | request queue 不错配；B 绝不拿到 A 的结果；所有 Promise 在约定时间内 resolve；退出后可重新 spawn；worker exit 时所有 pending Promise 均结算为 schema 完整的降级结果；dispatch 异常被捕获；延迟加载返回准确 errorCode；**无活动时退出时间 ≤ timeout + poll_interval**；**持续活动时不退出**；**stop() 后不退出** |
-| 集成测试 | `analyzeAssets()` 中 Focus 任一资产失败、全阶段失败、VLM 失败、close 调用、**fit 有效但 focus 缺失仍保留 fit**（复审 P1-4）、**`apply-media-patch.mjs` 输出人工审阅摘要**（v6 P1-3） | Focus 失败仍完成 VLM；Focus 子进程必被关闭；现有 `aiFit` 行为保留；`analyzeFit` 解析器不要求 focus；`apply-media-patch.mjs` 输出注释形式摘要且 `media` 对象不含 `analysis`/`focusAnalysis` |
-| patch 测试 | 运行 `assignAssetsToScenes()` 后读取实际 `media-patch.json` | `analysis.focusAnalysis` 出现且符合**完整 schema**（含 `status`、`errorCode`、`frame`、`protectedRegions`、`saliency`） |
+| 集成测试     | `analyzeAssets()` 中 Focus 任一资产失败、全阶段失败、VLM 失败、close 调用、**fit 有效但 focus 缺失仍保留 fit**（复审 P1-4）、**`apply-media-patch.mjs` 输出人工审阅摘要**（v6 P1-3）                                                                                                                                                                                                                                                                                                                                                                                                            | Focus 失败仍完成 VLM；Focus 子进程必被关闭；现有 `aiFit` 行为保留；`analyzeFit` 解析器不要求 focus；`apply-media-patch.mjs` 输出注释形式摘要且 `media` 对象不含 `analysis`/`focusAnalysis`                                                                                                                      |
+| patch 测试   | 运行 `assignAssetsToScenes()` 后读取实际 `media-patch.json`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `analysis.focusAnalysis` 出现且符合**完整 schema**（含 `status`、`errorCode`、`frame`、`protectedRegions`、`saliency`）                                                                                                                                                                                         |
 
 **人工 smoke test**（审阅指出 4 张素材都无人脸，无法验证核心能力）。
 
 **v6 P1-4: fixture 分类**：golden fixture（稳定正面照/合照）= 硬门槛阻断回归，不通过 CI 红；baseline observation fixture（遮挡/侧脸/低光）= 记录命中/漏检率，不阻断。
 
-| 素材 | 期望 |
-|------|------|
-| 单人正面照（需新增） | 1 个 face protectedRegion，归一化坐标合理 |
-| 多人合照（需新增） | 多个 face protectedRegions |
-| 侧脸/遮挡（需新增） | Haar 可能漏检 → `protectedRegions` 为空 → `status: "ok"` + saliency centroid |
-| 横图（landscape） | `frame.orientation: "landscape"`，坐标归一化 |
-| 竖图（portrait） | `frame.orientation: "portrait"` |
+| 素材                                   | 期望                                                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 单人正面照（需新增）                   | 1 个 face protectedRegion，归一化坐标合理                                                                                                   |
+| 多人合照（需新增）                     | 多个 face protectedRegions                                                                                                                  |
+| 侧脸/遮挡（需新增）                    | Haar 可能漏检 → `protectedRegions` 为空 → `status: "ok"` + saliency centroid                                                                |
+| 横图（landscape）                      | `frame.orientation: "landscape"`，坐标归一化                                                                                                |
+| 竖图（portrait）                       | `frame.orientation: "portrait"`                                                                                                             |
 | EXIF 旋转 90°/180°/270° JPEG（需新增） | `frame.orientationNormalized: true`，规范化后的宽高正确（90°/270° → 宽高互换），人脸框在正确位置（与正向图对比 IoU ≥0.5）（终审 P0-2/P1-6） |
-| `shanghai-skyline.jpg` | 无人脸 → `status: "low_information"` 或 saliency 均匀 |
-| `ai-robot-hand.jpg` | 无人脸 → saliency centroid 在手部区域 |
-| `financial-chart.jpg` | 无人脸 → saliency 在图表区域 |
-| `data-center.jpg` | 无人脸 → saliency 在服务器排列区域 |
+| `shanghai-skyline.jpg`                 | 无人脸 → `status: "low_information"` 或 saliency 均匀                                                                                       |
+| `ai-robot-hand.jpg`                    | 无人脸 → saliency centroid 在手部区域                                                                                                       |
+| `financial-chart.jpg`                  | 无人脸 → saliency 在图表区域                                                                                                                |
+| `data-center.jpg`                      | 无人脸 → saliency 在服务器排列区域                                                                                                          |
 
 > 不把"质心正好居中"作为唯一成功标准。记录检测结果与手工期望对比。
 
 **验证指标**（全部为待测值）：
+
 - [ ] `focus_detector.py` 启动时间（目标 < 1s，实测后回填）
 - [ ] 单张分析延迟 P50/P95（目标 < 200ms，实测后回填）
 - [ ] 输出 JSON 结构符合完整契约（含 `status`、`errorCode`、`frame`、`protectedRegions`、`saliency`）
@@ -911,6 +930,7 @@ node scripts/short-video/lib/focus-detector-benchmark.mjs \
 输入目录：`scripts/short-video/__tests__/fixtures/benchmark/`（受控 fixture，含已知人脸/无脸/纯色图，避免随机抓取生产 `assets/`）。输出目录：`scripts/short-video/experiments/focus-benchmark/`（已 gitignored）。输出 JSON 结果写入该目录下。
 
 输出 JSON 结果字段：
+
 ```json
 {
   "machine": "MacBookPro M2 Pro",
@@ -919,8 +939,8 @@ node scripts/short-video/lib/focus-detector-benchmark.mjs \
   "opencv": "4.10.0",
   "inputSizes": ["1920×1080", "1080×1920"],
   "N": 20,
-  "coldStart": {"p50": 0, "p95": 0},
-  "warmStart": {"p50": 0, "p95": 0},
+  "coldStart": { "p50": 0, "p95": 0 },
+  "warmStart": { "p50": 0, "p95": 0 },
   "peakRSS_MB": 0,
   "failureRate": 0
 }

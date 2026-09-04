@@ -39,12 +39,12 @@
 
 选择能可靠完成任务的最低等级。代码量和目录不是判定标准。
 
-| 等级 | 判定 | 路线 |
-|------|------|------|
-| **S0 Read-only** | 未获实施授权，或任务仅为解释、review、调查 | 检查并汇报，不改文件 |
-| **S1 Single-session** | 决策和实施可在一个 context window 内完成 | 必要时 Grill，随后直接 Implement；可跳过独立 Spec/Tickets |
-| **S2 Multi-session, clear route** | 路线已清楚，但实施需多个 context windows | Grill（按需）→ Spec → Tickets → 每 ticket 独立 Implement |
-| **S3 Multi-session, foggy route** | 目的地可命名，但规划本身跨 session 且存在大量未决路径 | Wayfinder → 路线清晰后进入 S2 |
+| 等级                              | 判定                                                  | 路线                                                      |
+| --------------------------------- | ----------------------------------------------------- | --------------------------------------------------------- |
+| **S0 Read-only**                  | 未获实施授权，或任务仅为解释、review、调查            | 检查并汇报，不改文件                                      |
+| **S1 Single-session**             | 决策和实施可在一个 context window 内完成              | 必要时 Grill，随后直接 Implement；可跳过独立 Spec/Tickets |
+| **S2 Multi-session, clear route** | 路线已清楚，但实施需多个 context windows              | Grill（按需）→ Spec → Tickets → 每 ticket 独立 Implement  |
+| **S3 Multi-session, foggy route** | 目的地可命名，但规划本身跨 session 且存在大量未决路径 | Wayfinder → 路线清晰后进入 S2                             |
 
 ### S1 完成标准
 
@@ -72,12 +72,12 @@
 
 Planning Scale 与 Risk 独立判定。
 
-| 等级 | 判定 | Assurance Gate |
-|------|------|----------------|
-| **R0 Read-only** | 无文件修改 | 无实施 gate |
-| **R1 Low** | 不改变运行时行为、契约、数据流、授权或发布路径 | 定向检查 + diff 自审 |
-| **R2 Standard** | 有界的普通行为变化 | acceptance scenarios + 可测试行为 TDD + affected tests + review |
-| **R3 High** | 下列任一高风险触发 | impact/scenario analysis + observed, testable failure baseline + relevant full verification + runtime/real-data evidence |
+| 等级             | 判定                                           | Assurance Gate                                                                                                           |
+| ---------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **R0 Read-only** | 无文件修改                                     | 无实施 gate                                                                                                              |
+| **R1 Low**       | 不改变运行时行为、契约、数据流、授权或发布路径 | 定向检查 + diff 自审                                                                                                     |
+| **R2 Standard**  | 有界的普通行为变化                             | acceptance scenarios + 可测试行为 TDD + affected tests + review                                                          |
+| **R3 High**      | 下列任一高风险触发                             | impact/scenario analysis + observed, testable failure baseline + relevant full verification + runtime/real-data evidence |
 
 ### R3 触发
 
@@ -155,14 +155,14 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 
 所有代码改动至少运行 affected tests。按影响触发以下检查：
 
-| 改动 | 必需验证 |
-|------|---------|
-| 仅 Agent 文档 | `npm run lint:docs`、指针检查、`git diff --check` |
-| `src/`、Supabase、应用配置 | affected tests、`npm test`、`npm run lint`、`npm run build`、`npx tsc --noEmit` |
+| 改动                                 | 必需验证                                                                                                              |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| 仅 Agent 文档                        | `npm run lint:docs`、指针检查、`git diff --check`                                                                     |
+| `src/`、Supabase、应用配置           | affected tests、`npm test`、`npm run lint`、`npm run build`、`npx tsc --noEmit`                                       |
 | Python 代码或 Python/Node 跨进程边界 | affected Python tests（优先项目既有 `pytest`/runner）+ 对应 Node consumer tests；涉及真实模型、媒体或格式时再加 smoke |
-| UI 交互、布局或样式 | 上述相关检查 + dev server 浏览器核心路径；对齐测量同时记录 `width`、`left`、`right` |
-| 视频管线逻辑 | affected/full relevant tests + 至少一个已有 content 目录的 Real Data Smoke Test |
-| Remotion 视觉或时间线 | relevant tests + 实际 composition/still/render 检查 |
+| UI 交互、布局或样式                  | 上述相关检查 + dev server 浏览器核心路径；对齐测量同时记录 `width`、`left`、`right`                                   |
+| 视频管线逻辑                         | affected/full relevant tests + 至少一个已有 content 目录的 Real Data Smoke Test                                       |
+| Remotion 视觉或时间线                | relevant tests + 实际 composition/still/render 检查                                                                   |
 
 找不到真实数据时，明确报告“无真实数据可用”和原因，不得把 mock 全绿表述为真实数据通过。
 

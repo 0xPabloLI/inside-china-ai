@@ -9,23 +9,24 @@
 
 ### HeyGen
 
-| 属性 | 详情 |
-|------|------|
-| **定位** | "Create Realistic AI Videos of Yourself in Minutes" |
-| **核心功能** | 自定义 Avatar 克隆（从视频）、Photo Avatar（从照片）、文本转语音、多语言 |
-| **Avatar 类型** | Photo Avatar（单张照片生成）、Custom Avatar（视频克隆，最高质量）、Instant Avatar |
-| **API** | 有（v2/v3，Bearer `X-Api-Key` 认证） |
-| **账户状态** | Wallet 计费，余额 $3.60；API quota 216；TTS 免费 600 credits |
-| **已有 Avatar** | ✅ 自定义 Avatar "Pablo LI"（半身，avatar_id: `17b0de081a8b4a049284039a3fdac4ad`） |
-| **可用资源** | 1266 个 Avatar（含上半身变体），2454 个声音（含 23 个中文声音） |
-| **定价** | Free $0（3视频/月，≤1min）；Creator $29/月（600 credits，1080p）；Pro $49/月（1000 credits，4K）。Credit 用量：Avatar III 3 credits/min，Avatar IV/V 20 credits/min |
-| **test:true 参数** | ⚠️ API 有 `test:true` 参数，但**未经文档确认是否免费**。本 session 曾使用该参数生成视频，但不应假设其不扣费。使用 HeyGen API 前必须征得用户同意 |
-| **适合场景** | 专业视频制作、营销、自媒体 |
-| **优势** | 画质业界顶级，自定义 Avatar 极其逼真；已有个人 Avatar 可直接使用 |
-| **劣势** | API 调用费用高；不只改嘴部，会做全身动画（录制时需注意头部静止） |
-| **测试结果** | ✅ **已验证**：自定义 Avatar + 中文 TTS → 1920×1080 H.264 视频，4.0s，467KB。`test:true` 模式不消耗 credits |
+| 属性               | 详情                                                                                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **定位**           | "Create Realistic AI Videos of Yourself in Minutes"                                                                                                                 |
+| **核心功能**       | 自定义 Avatar 克隆（从视频）、Photo Avatar（从照片）、文本转语音、多语言                                                                                            |
+| **Avatar 类型**    | Photo Avatar（单张照片生成）、Custom Avatar（视频克隆，最高质量）、Instant Avatar                                                                                   |
+| **API**            | 有（v2/v3，Bearer `X-Api-Key` 认证）                                                                                                                                |
+| **账户状态**       | Wallet 计费，余额 $3.60；API quota 216；TTS 免费 600 credits                                                                                                        |
+| **已有 Avatar**    | ✅ 自定义 Avatar "Pablo LI"（半身，avatar_id: `17b0de081a8b4a049284039a3fdac4ad`）                                                                                  |
+| **可用资源**       | 1266 个 Avatar（含上半身变体），2454 个声音（含 23 个中文声音）                                                                                                     |
+| **定价**           | Free $0（3视频/月，≤1min）；Creator $29/月（600 credits，1080p）；Pro $49/月（1000 credits，4K）。Credit 用量：Avatar III 3 credits/min，Avatar IV/V 20 credits/min |
+| **test:true 参数** | ⚠️ API 有 `test:true` 参数，但**未经文档确认是否免费**。本 session 曾使用该参数生成视频，但不应假设其不扣费。使用 HeyGen API 前必须征得用户同意                     |
+| **适合场景**       | 专业视频制作、营销、自媒体                                                                                                                                          |
+| **优势**           | 画质业界顶级，自定义 Avatar 极其逼真；已有个人 Avatar 可直接使用                                                                                                    |
+| **劣势**           | API 调用费用高；不只改嘴部，会做全身动画（录制时需注意头部静止）                                                                                                    |
+| **测试结果**       | ✅ **已验证**：自定义 Avatar + 中文 TTS → 1920×1080 H.264 视频，4.0s，467KB。`test:true` 模式不消耗 credits                                                         |
 
 **API 调用示例**：
+
 ```bash
 # 生成视频（test 模式不扣费）
 curl -s -H "X-Api-Key: YOUR_KEY" -H "Content-Type: application/json" \
@@ -38,32 +39,34 @@ curl -s -H "X-Api-Key: YOUR_KEY" \
 ```
 
 **录制建议**：
+
 - 用后摄或大疆录制（前摄画质不足）
 - 保持头部尽量静止（减少不必要的身体动画）
 - 良好光线，正面朝向
 
 ### D-ID
 
-| 属性 | 详情 |
-|------|------|
-| **定位** | "The #1 Choice for AI Generated Video Creation Platform" |
-| **核心功能** | 照片 + 音频/文本 → 说话视频（几秒内完成）；Clips → 上半身动画视频 |
-| **两个端点** | `/talks`（照片→说话，仅头/面部）+ `/clips`（Presenter→说话，**含上半身动作**） |
-| **Avatar 类型** | `/talks`: 从照片直接生成；`/clips`: 使用 D-ID 预置 Presenter（jack/Amber/Adam 等）或训练自定义 Premium+ Avatar |
-| **API** | 有（REST API，广泛集成） |
-| **API 认证** | **Basic Auth**（`Authorization: Basic <base64(key)>`），**不是 Bearer** |
-| **账户状态** | Plan: `deid-trial`；Features: clips:write, stitch, scene, expressives, premium-plus |
-| **API 验证** | ✅ `/talks` + `/clips` 均已验证成功 |
-| **自定义照片+音频测试** | ✅ **已验证**（`/talks`）：Weixin 照片 + F5-TTS 音频 → 826×1062 视频，12.7s，1.55MB |
-| **Clips 测试** | ✅ **已验证**（`/clips`）：预置 Presenter "jack" + TTS → 1080×1080 视频，5.08s，1.7MB，**含上半身动作** |
-| **Clips 限制** | `/clips` 使用 D-ID 预置人物（非用户照片）；要用自定义面容需训练 Premium+ Avatar（从视频） |
-| **定价** | Trial $0（3分钟）；Lite $4.7/月（40 credits，10分钟）；Pro $16/月（60 credits，15分钟）；Advanced $108/月（400 credits，100分钟）|
-| **自定义 Avatar 训练** | 需两步：(1) consent 验证（录制读指定文本的视频）→ (2) 上传训练视频（V3 Instant ≥1分钟，Premium+ ≥3分钟）。trimedmuse.mov（30s）太短，不满足要求 |
-| **适合场景** | 快速生成、客服、教育 |
-| **优势** | `/talks` 最快速"照片→说话"；`/clips` 有上半身动作但需用 D-ID 人物 |
-| **劣势** | `/talks` 仅头/面部；`/clips` 不能用自己照片（除非训练 Premium+） |
+| 属性                    | 详情                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **定位**                | "The #1 Choice for AI Generated Video Creation Platform"                                                                                        |
+| **核心功能**            | 照片 + 音频/文本 → 说话视频（几秒内完成）；Clips → 上半身动画视频                                                                               |
+| **两个端点**            | `/talks`（照片→说话，仅头/面部）+ `/clips`（Presenter→说话，**含上半身动作**）                                                                  |
+| **Avatar 类型**         | `/talks`: 从照片直接生成；`/clips`: 使用 D-ID 预置 Presenter（jack/Amber/Adam 等）或训练自定义 Premium+ Avatar                                  |
+| **API**                 | 有（REST API，广泛集成）                                                                                                                        |
+| **API 认证**            | **Basic Auth**（`Authorization: Basic <base64(key)>`），**不是 Bearer**                                                                         |
+| **账户状态**            | Plan: `deid-trial`；Features: clips:write, stitch, scene, expressives, premium-plus                                                             |
+| **API 验证**            | ✅ `/talks` + `/clips` 均已验证成功                                                                                                             |
+| **自定义照片+音频测试** | ✅ **已验证**（`/talks`）：Weixin 照片 + F5-TTS 音频 → 826×1062 视频，12.7s，1.55MB                                                             |
+| **Clips 测试**          | ✅ **已验证**（`/clips`）：预置 Presenter "jack" + TTS → 1080×1080 视频，5.08s，1.7MB，**含上半身动作**                                         |
+| **Clips 限制**          | `/clips` 使用 D-ID 预置人物（非用户照片）；要用自定义面容需训练 Premium+ Avatar（从视频）                                                       |
+| **定价**                | Trial $0（3分钟）；Lite $4.7/月（40 credits，10分钟）；Pro $16/月（60 credits，15分钟）；Advanced $108/月（400 credits，100分钟）               |
+| **自定义 Avatar 训练**  | 需两步：(1) consent 验证（录制读指定文本的视频）→ (2) 上传训练视频（V3 Instant ≥1分钟，Premium+ ≥3分钟）。trimedmuse.mov（30s）太短，不满足要求 |
+| **适合场景**            | 快速生成、客服、教育                                                                                                                            |
+| **优势**                | `/talks` 最快速"照片→说话"；`/clips` 有上半身动作但需用 D-ID 人物                                                                               |
+| **劣势**                | `/talks` 仅头/面部；`/clips` 不能用自己照片（除非训练 Premium+）                                                                                |
 
 **API 调用示例**：
+
 ```bash
 # 认证（Basic Auth，不是 Bearer）
 curl -X GET "https://api.d-id.com/talks" \
@@ -87,35 +90,35 @@ curl -X POST "https://api.d-id.com/talks" \
 
 ### Synthesia
 
-| 属性 | 详情 |
-|------|------|
-| **定位** | "#1 AI Video Platform for Business" |
-| **核心功能** | 140+ 语言 TTS、预置 Avatar、Custom Avatar |
+| 属性            | 详情                                           |
+| --------------- | ---------------------------------------------- |
+| **定位**        | "#1 AI Video Platform for Business"            |
+| **核心功能**    | 140+ 语言 TTS、预置 Avatar、Custom Avatar      |
 | **Avatar 类型** | 230+ 预置 Avatar，Custom Avatar 需 studio 拍摄 |
-| **API** | 有 |
-| **适合场景** | 企业培训、内部沟通、多语言视频 |
-| **优势** | 语言覆盖最广，预置 Avatar 丰富 |
-| **劣势** | Custom Avatar 需专业拍摄，不能从照片直接生成 |
+| **API**         | 有                                             |
+| **适合场景**    | 企业培训、内部沟通、多语言视频                 |
+| **优势**        | 语言覆盖最广，预置 Avatar 丰富                 |
+| **劣势**        | Custom Avatar 需专业拍摄，不能从照片直接生成   |
 
 ### Sync.so
 
-| 属性 | 详情 |
-|------|------|
-| **定位** | "AI lipsync and visual dubbing" |
-| **核心功能** | 音频 + 视频 → 高质量唇形同步（Wav2Lip 商用版 lipsync-2） |
-| **API** | 有（Python SDK `syncsdk` + TypeScript SDK `@sync.so/sdk`） |
-| **适合场景** | 已有视频 + 想替换音频的场景（配音、多语言版本） |
-| **优势** | 唇形同步质量极高，API 简洁 |
-| **劣势** | 仅做唇形同步，不做 TTS 或 Avatar 创建 |
+| 属性         | 详情                                                       |
+| ------------ | ---------------------------------------------------------- |
+| **定位**     | "AI lipsync and visual dubbing"                            |
+| **核心功能** | 音频 + 视频 → 高质量唇形同步（Wav2Lip 商用版 lipsync-2）   |
+| **API**      | 有（Python SDK `syncsdk` + TypeScript SDK `@sync.so/sdk`） |
+| **适合场景** | 已有视频 + 想替换音频的场景（配音、多语言版本）            |
+| **优势**     | 唇形同步质量极高，API 简洁                                 |
+| **劣势**     | 仅做唇形同步，不做 TTS 或 Avatar 创建                      |
 
 ### 云端平台对比
 
-| 平台 | 照片→说话 | 上半身动作 | 视频克隆 | TTS | API | 认证方式 | 中文 | 价格 |
-|------|----------|---------|---------|-----|-----|---------|------|------|
-| **HeyGen** | ✅ Photo Avatar | ✅ Custom Avatar | ✅ Custom Avatar | ✅ | ✅ | Bearer | ✅ | ~$0.30-0.60/分钟 |
-| **D-ID** | ✅ `/talks` 最快 | ✅ `/clips`（预置人物） | ❌ 需训练 Premium+ | ✅ | ✅ | **Basic** | ✅ | Pro ~$29/月 |
-| **Synthesia** | ❌ 需 studio | ✅ | ✅ 140+语言 | ✅ | — | ✅ | $29+/月 |
-| **Sync.so** | ❌ 仅唇形同步 | ❌ | ❌ | ✅ | — | N/A | 按量付费 |
+| 平台          | 照片→说话        | 上半身动作              | 视频克隆           | TTS | API | 认证方式  | 中文     | 价格             |
+| ------------- | ---------------- | ----------------------- | ------------------ | --- | --- | --------- | -------- | ---------------- |
+| **HeyGen**    | ✅ Photo Avatar  | ✅ Custom Avatar        | ✅ Custom Avatar   | ✅  | ✅  | Bearer    | ✅       | ~$0.30-0.60/分钟 |
+| **D-ID**      | ✅ `/talks` 最快 | ✅ `/clips`（预置人物） | ❌ 需训练 Premium+ | ✅  | ✅  | **Basic** | ✅       | Pro ~$29/月      |
+| **Synthesia** | ❌ 需 studio     | ✅                      | ✅ 140+语言        | ✅  | —   | ✅        | $29+/月  |
+| **Sync.so**   | ❌ 仅唇形同步    | ❌                      | ❌                 | ✅  | —   | N/A       | 按量付费 |
 
 ---
 
@@ -129,13 +132,14 @@ curl -X POST "https://api.d-id.com/talks" \
 
 **Step 1：人脸嵌入提取**
 
-| 模型 | 维度 | macOS 支持 | HuggingFace | 说明 |
-|------|------|-----------|-------------|------|
-| **InsightFace (ArcFace)** | 512 | ✅ ONNX Runtime | `public-data/insightface` | 业界标准，最推荐 |
-| FaceNet | 512 | ✅ PyTorch MPS | `py-feat/facenet` | Google 经典方案 |
-| ArcFace (独立) | 512 | ✅ ONNX | `garavv/arcface-onnx` | 直接 ArcFace ONNX |
+| 模型                      | 维度 | macOS 支持      | HuggingFace               | 说明              |
+| ------------------------- | ---- | --------------- | ------------------------- | ----------------- |
+| **InsightFace (ArcFace)** | 512  | ✅ ONNX Runtime | `public-data/insightface` | 业界标准，最推荐  |
+| FaceNet                   | 512  | ✅ PyTorch MPS  | `py-feat/facenet`         | Google 经典方案   |
+| ArcFace (独立)            | 512  | ✅ ONNX         | `garavv/arcface-onnx`     | 直接 ArcFace ONNX |
 
 **推荐 InsightFace**：
+
 - ONNX Runtime 在 macOS 上原生支持（不需要 CUDA）
 - ArcFace backbone 提取 512 维人脸嵌入
 - 同时提供人脸检测、对齐、属性识别
@@ -162,11 +166,13 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 **Step 3：Avatar 模板库构建**
 
 预置 Avatar 模板来源：
+
 - HDTF 数据集（高清说话人脸视频）
 - 自己录制的基准视频（最佳质量）
 - 云端平台预置 Avatar（HeyGen/D-ID）
 
 对每个 Avatar 模板：
+
 1. 取首帧 → InsightFace 提取嵌入 → 存入 embedding DB
 2. 保存对应的基准视频/图片路径
 
@@ -174,12 +180,12 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 
 除了纯人脸嵌入相似度，可以组合多个维度：
 
-| 维度 | 方法 | 权重建议 |
-|------|------|---------|
-| 人脸特征 | InsightFace ArcFace 余弦相似度 | 0.6 |
-| 性别/年龄 | InsightFace 属性识别 | 0.2 |
-| 发型/发色 | 颜色直方图 + 简单分类 | 0.1 |
-| 体型/姿态 | DWPose 骨骼关键点 | 0.1 |
+| 维度      | 方法                           | 权重建议 |
+| --------- | ------------------------------ | -------- |
+| 人脸特征  | InsightFace ArcFace 余弦相似度 | 0.6      |
+| 性别/年龄 | InsightFace 属性识别           | 0.2      |
+| 发型/发色 | 颜色直方图 + 简单分类          | 0.1      |
+| 体型/姿态 | DWPose 骨骼关键点              | 0.1      |
 
 ---
 
@@ -236,6 +242,7 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 ## 参考来源
 
 ### 论文
+
 1. MuseTalk: Real-Time High-Fidelity Video Dubbing via Spatio-Temporal Sampling — arxiv 2410.10122
 2. SadTalker: Learning Realistic 3D Motion Coefficients for Stylized Audio-Driven Single Image Talking Face Animation — arxiv 2211.12194
 3. Hallo: Hierarchical Audio-Driven Visual Synthesis for Portrait Image Animation — arxiv 2406.08801
@@ -254,6 +261,7 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 16. **StyleSync: High-Fidelity Generative and Viseme-Aware Style Transfer** — CVPR 2023
 
 ### 代码仓库与模型
+
 17. ~~MuseTalk (PyTorch 原版): github.com/TMElyralab/MuseTalk~~ — 已放弃
 18. ~~MuseTalk MLX 移植: huggingface.co/mlx-community/MuseTalk-1.5-fp16~~ — 已放弃
 19. **LatentSync**: github.com/bytedance/LatentSync, HF: `ByteDance/LatentSync-1.5` / `ByteDance/LatentSync-1.6`
@@ -280,6 +288,7 @@ def find_most_similar_avatar(user_photo_path, avatar_db):
 40. **Linly-Talker**: github.com/Kedreamix/Linly-Talker (3424 stars)
 
 ### 云端平台
+
 41. HeyGen: heygen.com (API: api.heygen.com, Bearer X-Api-Key)
 42. D-ID: d-id.com (API: api.d-id.com, Basic Auth)
 43. Synthesia: synthesia.io

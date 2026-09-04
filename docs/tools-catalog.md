@@ -10,43 +10,43 @@
 
 ## 场景 → 工具决策表
 
-| 场景 | 工具 |
-|------|------|
-| 技术文档 | Context7 MCP |
-| 事实查询 / URL 抓取 | 按 Tavily 小节硬规则执行（fallback 链，本文件唯一权威） |
-| 深度研究 | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
-| 趋势发现 | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X） |
+| 场景                | 工具                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| 技术文档            | Context7 MCP                                                                           |
+| 事实查询 / URL 抓取 | 按 Tavily 小节硬规则执行（fallback 链，本文件唯一权威）                                |
+| 深度研究            | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
+| 趋势发现            | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X）                     |
 
 ## 速览表
 
-| 工具 | 分类 | 免费 | 状态 | 对本项目价值 |
-|------|------|------|------|-------------|
-| `web-access` | 联网/抓取 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
-| `web-deep-research` | 深度研究 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
-| `web_fetch` (内置) | 联网/抓取 | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
-| Context7 MCP | 技术文档查询 | ✅ 1,000/月 | ✅ 已集成 | ⭐⭐⭐ 技术事实验证 |
-| Tavily MCP | AI 搜索 | ✅ 1,000/月 | ✅ 已集成 | ⭐⭐⭐ fallback 链末位（硬规则见 Tavily 小节，本文件唯一权威） |
-| mcp-search-bridge | 搜索（Grok） | 按用量 | ✅ 已集成 | ⭐⭐ X/Twitter+全网 |
-| `search-sources.mjs` | 趋势发现（中文平台） | ✅ | ✅ 已集成 | ⭐⭐⭐ 核心 |
-| Jina Reader API | 联网/抓取 | ✅ 1M tokens/月 | ✅ 已集成(MCP) | ⭐⭐⭐ URL→Markdown |
-| `pdf-parse` (npm) | 文档解析 | ✅ | ✅ 已集成 | ⭐⭐ 够用 |
-| Firecrawl `parse` | 文档解析 | 注册免费 | 📋 待评估 | ⭐⭐⭐ 补充 |
-| Firecrawl `scrape` | 联网/抓取 | 注册免费 | 📋 待评估 | ⭐⭐ 英文站 |
-| Firecrawl 其他功能 | 多种 | 注册免费 | ❌ 不推荐 | ⭐ 不如现有 |
-| last30days-skill | 趋势发现（西方社媒+学术） | ✅ | ✅ 已集成(安全⚠️) | ⭐⭐⭐ 核心 |
-| vercel-labs/agent-skills | 开发/部署 | ✅ | 📋 待评估(安全✅) | ⭐⭐⭐ Vercel+React |
-| emilkowalski/skills (emil-design-eng) | UI/动画 | ✅ | 📋 备选(安全✅) | ⭐⭐ motion/细节 |
-| guizang-ppt-skill | 演示文稿 | ✅ | 📋 待评估(安全⚠️) | ⭐ 备用 |
-| vercel-labs/agent-browser | 浏览器自动化 | ✅ | 📋 待评估(安全⚠️) | ⭐⭐ CDP替代 |
-| anthropics/skills (frontend-design) | UI设计 | ✅ | ✅ 已集成 | ⭐⭐ 新模板美学 |
-| runcomfy-agent-skills (30 skills) | AI媒体 | ✅ | 📋 备选(安全✅) | ⭐⭐⭐ 数字人/B-roll |
-| VoltAgent/awesome-agent-skills | 目录索引 | ✅ | 📖 参考 | 查用目录 |
-| ComposioHQ/awesome-claude-skills | 目录索引 | ✅ | 📖 参考 | 查用目录 |
-| pbakaus/impeccable (24 commands) | 视觉设计 | ✅ | ✅ 已集成 | ⭐⭐⭐ 视觉打磨 |
-| leonxlnx/taste-skill (design-taste-frontend) | 设计推理 | ✅ | 📋 备选(安全✅) | ⭐ 设计决策 |
-| public-apis/public-apis | API 资源索引 | ✅ | 📖 参考 | 📖 查免费 API |
-| AutoVio | 视频管线（参考） | ✅ 自托管 | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考 |
-| VoiceStudio | 音频/TTS 聚合器（参考） | ✅ 自托管 | 📖 参考（不采用） | ⭐ GUI 试听底层引擎情感效果 |
+| 工具                                         | 分类                      | 免费            | 状态                 | 对本项目价值                                                   |
+| -------------------------------------------- | ------------------------- | --------------- | -------------------- | -------------------------------------------------------------- |
+| `web-access`                                 | 联网/抓取                 | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
+| `web-deep-research`                          | 深度研究                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
+| `web_fetch` (内置)                           | 联网/抓取                 | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
+| Context7 MCP                                 | 技术文档查询              | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ 技术事实验证                                            |
+| Tavily MCP                                   | AI 搜索                   | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ fallback 链末位（硬规则见 Tavily 小节，本文件唯一权威） |
+| mcp-search-bridge                            | 搜索（Grok）              | 按用量          | ✅ 已集成            | ⭐⭐ X/Twitter+全网                                            |
+| `search-sources.mjs`                         | 趋势发现（中文平台）      | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
+| Jina Reader API                              | 联网/抓取                 | ✅ 1M tokens/月 | ✅ 已集成(MCP)       | ⭐⭐⭐ URL→Markdown                                            |
+| `pdf-parse` (npm)                            | 文档解析                  | ✅              | ✅ 已集成            | ⭐⭐ 够用                                                      |
+| Firecrawl `parse`                            | 文档解析                  | 注册免费        | 📋 待评估            | ⭐⭐⭐ 补充                                                    |
+| Firecrawl `scrape`                           | 联网/抓取                 | 注册免费        | 📋 待评估            | ⭐⭐ 英文站                                                    |
+| Firecrawl 其他功能                           | 多种                      | 注册免费        | ❌ 不推荐            | ⭐ 不如现有                                                    |
+| last30days-skill                             | 趋势发现（西方社媒+学术） | ✅              | ✅ 已集成(安全⚠️)    | ⭐⭐⭐ 核心                                                    |
+| vercel-labs/agent-skills                     | 开发/部署                 | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ Vercel+React                                            |
+| emilkowalski/skills (emil-design-eng)        | UI/动画                   | ✅              | 📋 备选(安全✅)      | ⭐⭐ motion/细节                                               |
+| guizang-ppt-skill                            | 演示文稿                  | ✅              | 📋 待评估(安全⚠️)    | ⭐ 备用                                                        |
+| vercel-labs/agent-browser                    | 浏览器自动化              | ✅              | 📋 待评估(安全⚠️)    | ⭐⭐ CDP替代                                                   |
+| anthropics/skills (frontend-design)          | UI设计                    | ✅              | ✅ 已集成            | ⭐⭐ 新模板美学                                                |
+| runcomfy-agent-skills (30 skills)            | AI媒体                    | ✅              | 📋 备选(安全✅)      | ⭐⭐⭐ 数字人/B-roll                                           |
+| VoltAgent/awesome-agent-skills               | 目录索引                  | ✅              | 📖 参考              | 查用目录                                                       |
+| ComposioHQ/awesome-claude-skills             | 目录索引                  | ✅              | 📖 参考              | 查用目录                                                       |
+| pbakaus/impeccable (24 commands)             | 视觉设计                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 视觉打磨                                                |
+| leonxlnx/taste-skill (design-taste-frontend) | 设计推理                  | ✅              | 📋 备选(安全✅)      | ⭐ 设计决策                                                    |
+| public-apis/public-apis                      | API 资源索引              | ✅              | 📖 参考              | 📖 查免费 API                                                  |
+| AutoVio                                      | 视频管线（参考）          | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                        |
+| VoiceStudio                                  | 音频/TTS 聚合器（参考）   | ✅ 自托管       | 📖 参考（不采用）    | ⭐ GUI 试听底层引擎情感效果                                    |
 
 ---
 
@@ -220,15 +220,16 @@
 
 **为什么有用**：比 `pdf-parse` 支持更多格式、输出更干净。
 
-| 维度 | `pdf-parse`（现有） | `firecrawl parse` |
-|------|---------------------|-------------------|
-| 格式 | 仅 PDF | PDF、DOCX、DOC、ODT、RTF、XLSX、XLS、HTML |
-| 输出 | 原始文本 | clean markdown（保留结构、表格） |
-| AI 摘要 | 无 | `-S` 生成摘要、`-Q` 从文档回答问题 |
-| 费用 | 免费 | 1 credit/文件 |
-| 离线 | ✅ | ❌ 需联网 |
+| 维度    | `pdf-parse`（现有） | `firecrawl parse`                         |
+| ------- | ------------------- | ----------------------------------------- |
+| 格式    | 仅 PDF              | PDF、DOCX、DOC、ODT、RTF、XLSX、XLS、HTML |
+| 输出    | 原始文本            | clean markdown（保留结构、表格）          |
+| AI 摘要 | 无                  | `-S` 生成摘要、`-Q` 从文档回答问题        |
+| 费用    | 免费                | 1 credit/文件                             |
+| 离线    | ✅                  | ❌ 需联网                                 |
 
 **用法**：
+
 ```bash
 npx -y firecrawl-cli@latest init          # 安装 CLI（一次性）
 firecrawl parse ./report.pdf -o .firecrawl/report.md        # 基础解析
@@ -240,6 +241,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 **不适用**：纯文本 PDF（pdf-parse 够用）、保密文档（上传到云端）
 
 **配置步骤**（如决定使用）：
+
 1. 注册免费账号 → 获取 API key
 2. 存到 `.env.local`：`FIRECRAWL_API_KEY=fc-...`
 3. 安装 CLI：`npx -y firecrawl-cli@latest init`
@@ -252,6 +254,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 **劣势**：对中国平台不如 CDP（无登录态、云端 IP 易被反爬）
 
 **决策规则**：
+
 ```
 英文站点 + 不需要登录 → firecrawl scrape 或 web_fetch
 中国平台 或 需要登录  → web-access CDP
@@ -259,17 +262,18 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 #### 不推荐的功能
 
-| 功能 | 原因 |
-|------|------|
-| `firecrawl search` | 不如 `search-sources.mjs` + CDP，免费额度只有 250 次/月 |
-| `firecrawl interact` | 云端浏览器无登录态，不如本地 CDP |
-| `firecrawl crawl/map` | 免费额度 1000 页/月对整站抓取太少 |
-| `firecrawl monitor` | 持续消耗 credits，免费额度不够长期用 |
-| `firecrawl-deep-research` workflow | 与 `web-deep-research` 重叠且方法论更浅 |
+| 功能                               | 原因                                                    |
+| ---------------------------------- | ------------------------------------------------------- |
+| `firecrawl search`                 | 不如 `search-sources.mjs` + CDP，免费额度只有 250 次/月 |
+| `firecrawl interact`               | 云端浏览器无登录态，不如本地 CDP                        |
+| `firecrawl crawl/map`              | 免费额度 1000 页/月对整站抓取太少                       |
+| `firecrawl monitor`                | 持续消耗 credits，免费额度不够长期用                    |
+| `firecrawl-deep-research` workflow | 与 `web-deep-research` 重叠且方法论更浅                 |
 
 #### MCP 集成（可选）
 
 `.cursor/mcp.json` 可加（需 API key）：
+
 ```json
 "firecrawl": {
   "url": "https://mcp.firecrawl.dev/v2/mcp",
@@ -315,11 +319,11 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 #### source-registry MCP fallback（独立安装，不在全局 MCP settings 中）
 
-| 工具 | 安装命令 | source-registry 用途 | 安装状态 |
-|------|---------|---------------------|---------|
-| `rednote-mcp` | `npm install -g rednote-mcp` | 小红书 `search_notes`（source-registry `xiaohongshu` 源 mcpFallback） | ✅ 已安装 |
-| `douyin_mcp` | `pip install douyin_mcp`（待确认包名） | 抖音 `search_videos`（source-registry `douyin` 源 mcpFallback） | ❌ 未安装 |
-| `mcp-search-bridge` | 自建 Node.js server（`~/mcp-search-bridge/server.js`） | X/Twitter + 5 个西方源 mcpFallback | ✅ 已安装 |
+| 工具                | 安装命令                                               | source-registry 用途                                                  | 安装状态  |
+| ------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- | --------- |
+| `rednote-mcp`       | `npm install -g rednote-mcp`                           | 小红书 `search_notes`（source-registry `xiaohongshu` 源 mcpFallback） | ✅ 已安装 |
+| `douyin_mcp`        | `pip install douyin_mcp`（待确认包名）                 | 抖音 `search_videos`（source-registry `douyin` 源 mcpFallback）       | ❌ 未安装 |
+| `mcp-search-bridge` | 自建 Node.js server（`~/mcp-search-bridge/server.js`） | X/Twitter + 5 个西方源 mcpFallback                                    | ✅ 已安装 |
 
 **确认**：这些 MCP 工具是 source-registry 中 `mcpFallback` 字段指向的抓取方案。`rednote-mcp` 和 `douyin_mcp` 分别用于小红书和抖音的视频搜索；`mcp-search-bridge` 用于 X/Twitter 等西方源的搜索 fallback。
 
@@ -610,13 +614,13 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 安全通过后，评估功能价值：
 
-| 维度 | 问题 |
-|------|------|
-| 填补空白 | 这个 skill 解决的问题，现有工具栈能解决吗？ |
-| 互补性 | 与现有工具是互补还是重叠？ |
-| 使用频率 | 日常用得到还是偶尔用？ |
-| 维护活跃度 | 最后更新时间？Stars 数？Issue 响应速度？ |
-| 兼容性 | 与项目技术栈（React 19 + TanStack Start + Supabase + TailwindCSS）兼容吗？ |
+| 维度       | 问题                                                                       |
+| ---------- | -------------------------------------------------------------------------- |
+| 填补空白   | 这个 skill 解决的问题，现有工具栈能解决吗？                                |
+| 互补性     | 与现有工具是互补还是重叠？                                                 |
+| 使用频率   | 日常用得到还是偶尔用？                                                     |
+| 维护活跃度 | 最后更新时间？Stars 数？Issue 响应速度？                                   |
+| 兼容性     | 与项目技术栈（React 19 + TanStack Start + Supabase + TailwindCSS）兼容吗？ |
 
 ### 第 3 步：试用验证
 
@@ -628,6 +632,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 ### 第 4 步：记录
 
 无论结果如何，更新本文档：
+
 - 速览表更新状态
 - 条目补充安全审计结果
 - 如采用，移到「已集成工具」分类
@@ -718,31 +723,31 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 
 这些 API 有固定搜索结构，加进去后每次搜索自动调用，值得写进代码。
 
-| API | Auth | 集成到 | 端点 | 补充什么 | 状态 |
-|-----|------|--------|------|---------|------|
-| DataCube AI | No | source-registry WESTERN_SOURCES | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言 | ✅ 已集成 |
-| Noozra | No | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=` | 200+ RSS 源新闻头条 | ✅ 已集成 |
-| GNews | apiKey | source-registry WESTERN_SOURCES | `https://gnews.io/api/v4/search` | 新闻搜索，多语言，100 req/天 | ✅ 已集成 |
-| Currents | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search` | 实时全球新闻，200 req/天 | ✅ 已集成 |
-| OpenAlex | No | source-registry WESTERN_SOURCES | `https://api.openalex.org/works` | 学术作品开放目录（2.4 亿作品） | ✅ 已集成 |
-| CORE | No | source-registry WESTERN_SOURCES | `https://api.core.ac.uk/v3/search/works/` | 开放获取论文（2.6 亿+），5 req/10s，无需注册 | ✅ 已集成 |
-| Lorem Picsum | No | asset-sourcer API_SOURCES | `https://picsum.photos/` | Unsplash 随机图，fallback 占位图 | ✅ 已集成 |
+| API          | Auth   | 集成到                                 | 端点                                            | 补充什么                                     | 状态      |
+| ------------ | ------ | -------------------------------------- | ----------------------------------------------- | -------------------------------------------- | --------- |
+| DataCube AI  | No     | source-registry WESTERN_SOURCES        | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言                     | ✅ 已集成 |
+| Noozra       | No     | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条                          | ✅ 已集成 |
+| GNews        | apiKey | source-registry WESTERN_SOURCES        | `https://gnews.io/api/v4/search`                | 新闻搜索，多语言，100 req/天                 | ✅ 已集成 |
+| Currents     | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search`    | 实时全球新闻，200 req/天                     | ✅ 已集成 |
+| OpenAlex     | No     | source-registry WESTERN_SOURCES        | `https://api.openalex.org/works`                | 学术作品开放目录（2.4 亿作品）               | ✅ 已集成 |
+| CORE         | No     | source-registry WESTERN_SOURCES        | `https://api.core.ac.uk/v3/search/works/`       | 开放获取论文（2.6 亿+），5 req/10s，无需注册 | ✅ 已集成 |
+| Lorem Picsum | No     | asset-sourcer API_SOURCES              | `https://picsum.photos/`                        | Unsplash 随机图，fallback 占位图             | ✅ 已集成 |
 
 ### B 类：按需使用（Agent 研究时手动调用，不常驻代码）
 
 这些 API 在写文章/做研究时偶尔用到，写死在管线里反而浪费。Agent 需要时直接 fetch 调用。
 
-| API | Auth | 端点 | 何时用 | 状态 |
-|-----|------|------|--------|------|
-| Alpha Vantage | apiKey | `https://www.alphavantage.co/` | 写 IPO/财务文章时查股价（25 req/天） | 📋 按需 |
-| Econdb | No | `https://www.econdb.com/api/` | 需要宏观经济数据（GDP/CPI/PMI）时 | 📋 按需 |
-| Flickr | OAuth | `https://www.flickr.com/services/api/` | Pexels/Unsplash 找不到合适图时（尤其中国城市场景） | 📋 按需 |
-| LibreTranslate | No | `https://libretranslate.com/docs` | 偶尔需要中英互译 fallback 时 | 📋 按需 |
-| Groq | apiKey | `https://console.groq.com/docs/quickstart` | 评估是否替代本地 Ollama 做 RAG embedding | 📋 按需 |
-| Jina AI | apiKey | `https://jina.ai` | 评估是否替代 bge-m3 做云端 embedding | 📋 按需 |
-| OpenVisionAPI | No | `https://openvisionapi.com` | Qwen3-VL 不可用时做 image tagging fallback | 📋 按需 |
-| Lowy Asia Power Index | No | `https://github.com/0x0is1/lowy-index-api-docs` | 写地缘政治文章时的背景数据 | 📋 按需 |
-| Archive.org | No | `https://archive.readme.io/docs` | 需要新闻/网页历史快照时 | 📋 按需 |
+| API                   | Auth   | 端点                                            | 何时用                                             | 状态    |
+| --------------------- | ------ | ----------------------------------------------- | -------------------------------------------------- | ------- |
+| Alpha Vantage         | apiKey | `https://www.alphavantage.co/`                  | 写 IPO/财务文章时查股价（25 req/天）               | 📋 按需 |
+| Econdb                | No     | `https://www.econdb.com/api/`                   | 需要宏观经济数据（GDP/CPI/PMI）时                  | 📋 按需 |
+| Flickr                | OAuth  | `https://www.flickr.com/services/api/`          | Pexels/Unsplash 找不到合适图时（尤其中国城市场景） | 📋 按需 |
+| LibreTranslate        | No     | `https://libretranslate.com/docs`               | 偶尔需要中英互译 fallback 时                       | 📋 按需 |
+| Groq                  | apiKey | `https://console.groq.com/docs/quickstart`      | 评估是否替代本地 Ollama 做 RAG embedding           | 📋 按需 |
+| Jina AI               | apiKey | `https://jina.ai`                               | 评估是否替代 bge-m3 做云端 embedding               | 📋 按需 |
+| OpenVisionAPI         | No     | `https://openvisionapi.com`                     | Qwen3-VL 不可用时做 image tagging fallback         | 📋 按需 |
+| Lowy Asia Power Index | No     | `https://github.com/0x0is1/lowy-index-api-docs` | 写地缘政治文章时的背景数据                         | 📋 按需 |
+| Archive.org           | No     | `https://archive.readme.io/docs`                | 需要新闻/网页历史快照时                            | 📋 按需 |
 
 ---
 
@@ -768,7 +773,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 
 ## Design Decisions & References
 
-| Topic | Reference | Content |
-|-------|-----------|---------|
-| Skill evaluation process | `docs/agents/` (L1) | Issue tracker, triage labels, domain docs setup |
-| Web scraping strategy | `docs/research/` (L2) | Source-specific research (media assets, voice cloning, etc.) |
+| Topic                    | Reference             | Content                                                      |
+| ------------------------ | --------------------- | ------------------------------------------------------------ |
+| Skill evaluation process | `docs/agents/` (L1)   | Issue tracker, triage labels, domain docs setup              |
+| Web scraping strategy    | `docs/research/` (L2) | Source-specific research (media assets, voice cloning, etc.) |

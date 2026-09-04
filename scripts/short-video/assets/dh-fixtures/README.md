@@ -6,20 +6,20 @@ instead of keeping private duplicates.
 
 ## Portraits
 
-| File | Dimensions | Source | Notes |
-|------|-----------|--------|-------|
-| `portrait-face.jpg` | 827×1063 | WeChat half-body photo (cropped) | Primary test portrait — used by EchoMimicV3, InfiniteTalk, SoulX-FlashHead, LeapTalk |
-| `portrait-fullbody.jpg` | 1080×1920 | D-ID frame extraction | Vertical full-body frame — used by EchoMimicV3 half-body tests |
-| `portrait-original-4k.jpg` | 3072×4096 | HUAWEI Pura X Max, 2026-08-18 | Original uncropped photo — downsample before use |
-| `portrait-small.jpg` | 240×308 | Self portrait (small) | Low-res fallback for quick tests |
+| File                       | Dimensions | Source                           | Notes                                                                                |
+| -------------------------- | ---------- | -------------------------------- | ------------------------------------------------------------------------------------ |
+| `portrait-face.jpg`        | 827×1063   | WeChat half-body photo (cropped) | Primary test portrait — used by EchoMimicV3, InfiniteTalk, SoulX-FlashHead, LeapTalk |
+| `portrait-fullbody.jpg`    | 1080×1920  | D-ID frame extraction            | Vertical full-body frame — used by EchoMimicV3 half-body tests                       |
+| `portrait-original-4k.jpg` | 3072×4096  | HUAWEI Pura X Max, 2026-08-18    | Original uncropped photo — downsample before use                                     |
+| `portrait-small.jpg`       | 240×308    | Self portrait (small)            | Low-res fallback for quick tests                                                     |
 
 ## Audio
 
-| File | Duration | Format | Notes |
-|------|----------|--------|-------|
-| `audio.wav` | ~10s | WAV 16kHz mono PCM | Primary test audio (InfiniteTalk format) |
-| `audio.mp3` | ~10s | MP3 44.1kHz mono 192kbps | EchoMimicV3 format |
-| `audio-10s.mp3` | ~10s | MP3 44.1kHz mono 128kbps | EchoMimicV3 short clip |
+| File            | Duration | Format                   | Notes                                    |
+| --------------- | -------- | ------------------------ | ---------------------------------------- |
+| `audio.wav`     | ~10s     | WAV 16kHz mono PCM       | Primary test audio (InfiniteTalk format) |
+| `audio.mp3`     | ~10s     | MP3 44.1kHz mono 192kbps | EchoMimicV3 format                       |
+| `audio-10s.mp3` | ~10s     | MP3 44.1kHz mono 128kbps | EchoMimicV3 short clip                   |
 
 ## Usage
 

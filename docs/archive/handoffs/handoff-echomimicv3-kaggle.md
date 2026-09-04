@@ -27,15 +27,15 @@
 
 ### 已解决的 7 个环境问题
 
-| # | 问题 | 修复版本 | 修复方法 |
-|---|------|---------|---------|
-| 1 | P100 (sm_60) 不兼容 cu128 | v1 | 降级 PyTorch 2.10→2.4.1+cu121 |
-| 2 | diffusers 0.37 依赖 PyTorch 2.6+ API | v20 | 安装 diffusers 0.31.0 到自定义目录 + PYTHONPATH |
-| 3 | transformers 5.0 移除 FLAX_WEIGHTS_NAME | v20 | try/except patch pipeline_loading_utils.py |
-| 4 | transformers 5.0 check_torch_load_is_safe 阻止 .bin 加载 | v22 | 逐行替换函数体为 pass |
-| 5 | tokenizer 文件 curl 下载为 LFS 指针 (15 bytes) | v23 | 改用 huggingface_hub.hf_hub_download |
-| 6 | CUDA OOM (19GB 模型 → 16GB GPU) | v24 | patch pipeline.to(device) → enable_sequential_cpu_offload() |
-| 7 | patch 缩进错误 (IndentationError) | v25 | 逐行扫描检测原始缩进 + 应用到所有替换行 |
+| #   | 问题                                                     | 修复版本 | 修复方法                                                    |
+| --- | -------------------------------------------------------- | -------- | ----------------------------------------------------------- |
+| 1   | P100 (sm_60) 不兼容 cu128                                | v1       | 降级 PyTorch 2.10→2.4.1+cu121                               |
+| 2   | diffusers 0.37 依赖 PyTorch 2.6+ API                     | v20      | 安装 diffusers 0.31.0 到自定义目录 + PYTHONPATH             |
+| 3   | transformers 5.0 移除 FLAX_WEIGHTS_NAME                  | v20      | try/except patch pipeline_loading_utils.py                  |
+| 4   | transformers 5.0 check_torch_load_is_safe 阻止 .bin 加载 | v22      | 逐行替换函数体为 pass                                       |
+| 5   | tokenizer 文件 curl 下载为 LFS 指针 (15 bytes)           | v23      | 改用 huggingface_hub.hf_hub_download                        |
+| 6   | CUDA OOM (19GB 模型 → 16GB GPU)                          | v24      | patch pipeline.to(device) → enable_sequential_cpu_offload() |
+| 7   | patch 缩进错误 (IndentationError)                        | v25      | 逐行扫描检测原始缩进 + 应用到所有替换行                     |
 
 ### 关键文件
 
@@ -47,14 +47,14 @@
 
 ### 模型权重（20GB，下载到 /tmp）
 
-| 组件 | 大小 | 来源 |
-|------|------|------|
-| VAE | 484MB | `huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP` |
-| umT5 text encoder | 10.8GB | 同上 |
-| CLIP image encoder | 4.4GB | 同上 |
-| Flash transformer | 3.5GB | `huggingface.co/BadToBest/EchoMimicV3/echomimicv3-flash-pro` |
-| Chinese wav2vec2 | 362MB | `modelscope.cn/models/TencentGameMate/chinese-wav2vec2-base` |
-| Tokenizer | 21MB | `huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/google/umt5-xxl/` |
+| 组件               | 大小   | 来源                                                                   |
+| ------------------ | ------ | ---------------------------------------------------------------------- |
+| VAE                | 484MB  | `huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP`                  |
+| umT5 text encoder  | 10.8GB | 同上                                                                   |
+| CLIP image encoder | 4.4GB  | 同上                                                                   |
+| Flash transformer  | 3.5GB  | `huggingface.co/BadToBest/EchoMimicV3/echomimicv3-flash-pro`           |
+| Chinese wav2vec2   | 362MB  | `modelscope.cn/models/TencentGameMate/chinese-wav2vec2-base`           |
+| Tokenizer          | 21MB   | `huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP/google/umt5-xxl/` |
 
 ### 核心问题：sequential_cpu_offload 太慢
 
@@ -156,12 +156,12 @@ pipeline.enable_model_cpu_offload()  # 整模块搬运（快一些但需要更�
 
 ## 云 GPU 资源
 
-| 平台 | 命令 | GPU | 免费额度 | 适用场景 |
-|------|------|-----|---------|---------|
-| **Kaggle** | `kaggle kernels push -p .` | P100/T4 16GB | 30h/周 | 自动化批量推理 |
-| **Colab CLI** | `colab run --gpu T4 script.py` | T4 16GB | 不固定 | 一键运行单脚本 |
-| **Colab CDP** | web-access skill | T4 16GB | 同 Colab | 交互式调试 |
-| **AutoDL** | 手动租用 | RTX 4090 24GB | ¥1.88/h | 16GB 不够时 |
+| 平台          | 命令                           | GPU           | 免费额度 | 适用场景       |
+| ------------- | ------------------------------ | ------------- | -------- | -------------- |
+| **Kaggle**    | `kaggle kernels push -p .`     | P100/T4 16GB  | 30h/周   | 自动化批量推理 |
+| **Colab CLI** | `colab run --gpu T4 script.py` | T4 16GB       | 不固定   | 一键运行单脚本 |
+| **Colab CDP** | web-access skill               | T4 16GB       | 同 Colab | 交互式调试     |
+| **AutoDL**    | 手动租用                       | RTX 4090 24GB | ¥1.88/h  | 16GB 不够时    |
 
 ---
 

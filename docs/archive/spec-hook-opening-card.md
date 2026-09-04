@@ -9,13 +9,13 @@
 
 每个视频的 Hook 开场页（Scene 1，前 3 秒决定 70% 完播）已 drift 成 4 套手写实现、3 种数据形状——与 CTA 结尾页标准化前完全同构：
 
-| 视频 | 数据形状 | 视觉型 | 备注 |
-|---|---|---|---|
-| bytedance-distillation | `subject`+`hookText`+`revealText`+`source` | 断言型 | 手写绝对定位魔数（340/560/820/1020） |
-| restraint pt1 | 同上 | 断言型 | 主体行 `top:160px` **压入顶部 220px 禁区**（验证器不查顶部，无人发现） |
-| deepseek | `badge`+`subject`+`bigNumber`+`subtitle`+`stats[]` | 数字型 | scene1 内联复制 brand-bar/breaking-badge/stat-card CSS，不走共享 templateCss |
-| distillation pt1/pt2/pt3 | `badge`+`line1`+`line2` | 警报型 | alert-bar `top:80px` 压入顶部禁区 |
-| evergreen ×5 / batch-generate | `line1`+`line2`（第 3 种形状） | — | 数据生产者，产出即落后 |
+| 视频                          | 数据形状                                           | 视觉型 | 备注                                                                         |
+| ----------------------------- | -------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
+| bytedance-distillation        | `subject`+`hookText`+`revealText`+`source`         | 断言型 | 手写绝对定位魔数（340/560/820/1020）                                         |
+| restraint pt1                 | 同上                                               | 断言型 | 主体行 `top:160px` **压入顶部 220px 禁区**（验证器不查顶部，无人发现）       |
+| deepseek                      | `badge`+`subject`+`bigNumber`+`subtitle`+`stats[]` | 数字型 | scene1 内联复制 brand-bar/breaking-badge/stat-card CSS，不走共享 templateCss |
+| distillation pt1/pt2/pt3      | `badge`+`line1`+`line2`                            | 警报型 | alert-bar `top:80px` 压入顶部禁区                                            |
+| evergreen ×5 / batch-generate | `line1`+`line2`（第 3 种形状）                     | —      | 数据生产者，产出即落后                                                       |
 
 问题：
 
@@ -88,11 +88,11 @@ texts: {
 
 契约规则（`checkHookContract`，FAIL 级，进 `runAllSceneDataChecks`）：
 
-| 条件 | 结果 |
-|---|---|
-| `bigNumber` 与 `hookText` 同现 | fail「focal 二选一，不可同现」 |
-| 两者皆无 | fail「缺 focal：bigNumber 或 hookText 必给其一」+ 迁移指引 |
-| 其余组合 | pass |
+| 条件                           | 结果                                                       |
+| ------------------------------ | ---------------------------------------------------------- |
+| `bigNumber` 与 `hookText` 同现 | fail「focal 二选一，不可同现」                             |
+| 两者皆无                       | fail「缺 focal：bigNumber 或 hookText 必给其一」+ 迁移指引 |
+| 其余组合                       | pass                                                       |
 
 对现有内容的预估影响（无 CI，verify 均为手动按 dir 运行）：bytedance ✓ / restraint ✓ / deepseek ✓（bigNumber 在场即合规）意外通过；distillation pt1/pt2/pt3（line1/line2）✗——与 safe-zones spec D4 防回退机制同哲学（这些视频重跑 pipeline 本就会被 bottom=1340 阻断，报错附迁移指引）。
 
@@ -111,48 +111,48 @@ texts: {
 
 ### Section 1: Modified Files Impact（修改影响评估）
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| scripts/short-video/lib/scene-layout.mjs | 新增 SLOTS/slotCss/sceneFrame | Low | 纯追加；首个消费者是 hookScene；数值与 safe-zones 同源由测试锁定 |
-| scripts/short-video/lib/scene-templates.mjs | 新增 hookScene/logoSvg + .s-hook CSS | Medium | 纯追加函数与 CSS 类，不改既有导出；templateCss 被全部场景消费——只追加不改既有类，由既有场景测试 + drift 等值测试兜底。最坏后果：CSS 类名碰撞 → 类名加 .s-hook 作用域前缀规避 |
-| scripts/short-video/lib/scene-rules.mjs | 新增 checkHookContract 并注册 | Medium | 新 FAIL 级规则改变 preflight 退出码：distillation pt1/pt2/pt3 的 hook（line1/line2）将 fail。可接受：无 CI 自动跑旧内容；这些视频重跑本就被 bottom=1340 防回退阻断（D4 刻意设计）；报错含迁移指引。验证：scene-rules 测试全组合 |
-| scripts/short-video/verify-scene-dom.mjs | 新增顶部带 FAIL 检查 | Medium | 旧 3 视频新增 FAIL 行（它们已因 bottom 带 FAIL）。这是本 spec 的目标行为而非回归。验证：hook-standard 夹具 PASS + 含故意越界元素的用例 FAIL |
-| scripts/short-video/evergreen-templates/*.mjs ×5 | hook texts 键改名 line1/line2→hookText/revealText | Low | 数据模板，未进 pipeline；检查：evergreen 契约断言 |
-| scripts/short-video/batch-generate.mjs | 脚手架 hook texts 换契约 | Low | 只影响未来生成的草稿；检查：脚手架断言 |
-| scripts/short-video/__tests__/scene-drift.test.mjs | keyframes 规则修正（D-4）+ hook 守卫块 | Low | 测试文件自身；规则修正是放宽模板文件约束（内容文件的 SHARED 重声明禁令不变） |
-| scripts/short-video/__tests__/scene-templates.test.mjs / scene-rules.test.mjs | hookScene / checkHookContract 测试块 | Low | 追加 |
-| scripts/short-video/content/_test-fixtures/hook-standard/ | 新增夹具 | Low | 纯追加，不进任何生产路径 |
-| docs/brand-system.md / docs/video-workflow.md / docs/tickets/tickets-video-layout-safe-zones.md | 文档对齐 | Low | 文档 |
+| 文件                                                                                            | 修改内容                                          | 风险等级 | 评估                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| scripts/short-video/lib/scene-layout.mjs                                                        | 新增 SLOTS/slotCss/sceneFrame                     | Low      | 纯追加；首个消费者是 hookScene；数值与 safe-zones 同源由测试锁定                                                                                                                                                                |
+| scripts/short-video/lib/scene-templates.mjs                                                     | 新增 hookScene/logoSvg + .s-hook CSS              | Medium   | 纯追加函数与 CSS 类，不改既有导出；templateCss 被全部场景消费——只追加不改既有类，由既有场景测试 + drift 等值测试兜底。最坏后果：CSS 类名碰撞 → 类名加 .s-hook 作用域前缀规避                                                    |
+| scripts/short-video/lib/scene-rules.mjs                                                         | 新增 checkHookContract 并注册                     | Medium   | 新 FAIL 级规则改变 preflight 退出码：distillation pt1/pt2/pt3 的 hook（line1/line2）将 fail。可接受：无 CI 自动跑旧内容；这些视频重跑本就被 bottom=1340 防回退阻断（D4 刻意设计）；报错含迁移指引。验证：scene-rules 测试全组合 |
+| scripts/short-video/verify-scene-dom.mjs                                                        | 新增顶部带 FAIL 检查                              | Medium   | 旧 3 视频新增 FAIL 行（它们已因 bottom 带 FAIL）。这是本 spec 的目标行为而非回归。验证：hook-standard 夹具 PASS + 含故意越界元素的用例 FAIL                                                                                     |
+| scripts/short-video/evergreen-templates/*.mjs ×5                                                | hook texts 键改名 line1/line2→hookText/revealText | Low      | 数据模板，未进 pipeline；检查：evergreen 契约断言                                                                                                                                                                               |
+| scripts/short-video/batch-generate.mjs                                                          | 脚手架 hook texts 换契约                          | Low      | 只影响未来生成的草稿；检查：脚手架断言                                                                                                                                                                                          |
+| scripts/short-video/**tests**/scene-drift.test.mjs                                              | keyframes 规则修正（D-4）+ hook 守卫块            | Low      | 测试文件自身；规则修正是放宽模板文件约束（内容文件的 SHARED 重声明禁令不变）                                                                                                                                                    |
+| scripts/short-video/**tests**/scene-templates.test.mjs / scene-rules.test.mjs                   | hookScene / checkHookContract 测试块              | Low      | 追加                                                                                                                                                                                                                            |
+| scripts/short-video/content/_test-fixtures/hook-standard/                                       | 新增夹具                                          | Low      | 纯追加，不进任何生产路径                                                                                                                                                                                                        |
+| docs/brand-system.md / docs/video-workflow.md / docs/tickets/tickets-video-layout-safe-zones.md | 文档对齐                                          | Low      | 文档                                                                                                                                                                                                                            |
 
 不改动的文件（显式声明）：4 个已实现视频的 scenes.mjs / scene-data.mjs 一字不动；`base-styles.mjs` 不动（scanSweep 不进共享，见 D-4）；`compile-series*.mjs` 不动（hook 识别逻辑与本契约无交集）。
 
 ### Section 2: Behavioral Scenarios（行为场景矩阵）
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | 断言型完整渲染（badge+subject+logo+hookText+revealText+stats+source） | 各元素落各自槽位；hookText 无动画延迟（首帧可见）；revealText 1.5s stampIn | 视觉回归 | 单测断言各元素 + 槽位容器归属 |
-| 2 | 数字型渲染（bigNumber+numberLabel+stats） | amber 大数字（bigNumberAnchor）+ label；numberLabel 的 highlight 子串包 .hl | 渲染 bug | 单测 |
-| 3 | focal 同现（bigNumber + hookText） | 模板层 bigNumber 优先确定性渲染；数据层 checkHookContract → fail | 契约模糊 | 两侧单测 |
-| 4 | focal 缺失 | checkHookContract → fail，报错含迁移指引 | 漏检 | 单测 |
-| 5 | texts {} 全空 | 输出骨架无 undefined、无业务文案（copy-free） | 降级路径 | 单测 + copy-free 断言 |
-| 6 | 可选槽位缺失（badge/subject/stats/source/logo 各组合） | 对应元素整体不渲染，不留空壳 | 条件渲染 bug | 单测逐槽位断言 |
-| 7 | subject 无 subjectLogo | 纯文字主体行，名字 ≥80px/900 | 品牌规则弱化 | 单测断言字号 |
-| 8 | logoSvg 非法 key（`../../etc`）/ 不存在 key | 返回 ""，降级纯文字；不读任意路径 | 路径穿越 | 单测（非法 key + 缺失 key） |
-| 9 | color="red"（警报型） | glow 红调 + revealText 红色静态 text-shadow，**不挂 glowPulse**（蓝专用） | 红字蓝辉光 | 单测断言 animation 属性 |
-| 10 | color 缺省 | 默认 blue，revealText 挂 glowPulse | 回归 | 单测 |
-| 11 | withWatermark 注入 hookScene 输出 | 因 brand-bar 跳过，无双重品牌 | 双重品牌 | 单测（既有机制复用） |
-| 12 | hookScene 的 keyframes | 输出仅声明一次模板局部 scanSweep；12 个 SHARED_KEYFRAMES 零重声明 | drift | scene-drift 修正后规则 |
-| 13 | SLOTS 与 SAFE_ZONES 同源 | kicker.top ≥ 220；support.bottom ≤ 1340；槽位互不重叠；x ∈ [60,920] | 数值漂移 | scene-layout 不变式测试 |
-| 14 | hook-standard 夹具过 verify-scene-dom | 全场景 PASS（含新顶部检查）；水印 EXPECTATIONS 正确 | 几何越界 | CLI 运行验证（Playwright 实测） |
-| 15 | 顶部带检查：brandBar(80)/水印(60) | PASS（豁免表命中） | 误伤品牌 chrome | 用例覆盖 |
-| 16 | 顶部带检查：内容元素 top=160 | FAIL，报错含元素类名 + 实测 y | 漏检 | 用例覆盖 |
-| 17 | checkHookContract 对 4 旧视频 | bytedance/restraint/deepseek pass；distillation 系 fail（预期，见 §3） | 误报/漏报 | 单测按现状断言 |
-| 18 | evergreen ×5 迁移后 | 每个 hook 有合法 focal（hookText 或 bigNumber） | 漏迁移 | drift 契约断言 |
-| 19 | batch-generate 脚手架 | hook texts 用 hookText/revealText 键，注释引用契约 | 生产者漏改 | drift 脚手架断言 |
-| 20 | HOOK_PIPELINES 等值守卫 | 列表内 content 的 hook 输出与 hookScene 字节级一致（初始空列表 + 登记约定注释） | drift 回归 | scene-drift 测试 |
-| 21 | 旧视频源文件零改动 | 现有 drift/模板/规则测试不红（scene1 未动 → 无连带失败） | 误触旧内容 | 全量 vitest |
-| 22 | CTA 既有契约 | ctaScene 相关测试全绿（不回归） | 回归 | 既有测试不动 |
-| 23 | 编译/构建 | lint + tsc + build 通过 | CI | Runtime Verify |
+| #   | Scenario                                                              | Expected Behavior                                                               | Risk            | Mitigation                      |
+| --- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------- | ------------------------------- |
+| 1   | 断言型完整渲染（badge+subject+logo+hookText+revealText+stats+source） | 各元素落各自槽位；hookText 无动画延迟（首帧可见）；revealText 1.5s stampIn      | 视觉回归        | 单测断言各元素 + 槽位容器归属   |
+| 2   | 数字型渲染（bigNumber+numberLabel+stats）                             | amber 大数字（bigNumberAnchor）+ label；numberLabel 的 highlight 子串包 .hl     | 渲染 bug        | 单测                            |
+| 3   | focal 同现（bigNumber + hookText）                                    | 模板层 bigNumber 优先确定性渲染；数据层 checkHookContract → fail                | 契约模糊        | 两侧单测                        |
+| 4   | focal 缺失                                                            | checkHookContract → fail，报错含迁移指引                                        | 漏检            | 单测                            |
+| 5   | texts {} 全空                                                         | 输出骨架无 undefined、无业务文案（copy-free）                                   | 降级路径        | 单测 + copy-free 断言           |
+| 6   | 可选槽位缺失（badge/subject/stats/source/logo 各组合）                | 对应元素整体不渲染，不留空壳                                                    | 条件渲染 bug    | 单测逐槽位断言                  |
+| 7   | subject 无 subjectLogo                                                | 纯文字主体行，名字 ≥80px/900                                                    | 品牌规则弱化    | 单测断言字号                    |
+| 8   | logoSvg 非法 key（`../../etc`）/ 不存在 key                           | 返回 ""，降级纯文字；不读任意路径                                               | 路径穿越        | 单测（非法 key + 缺失 key）     |
+| 9   | color="red"（警报型）                                                 | glow 红调 + revealText 红色静态 text-shadow，**不挂 glowPulse**（蓝专用）       | 红字蓝辉光      | 单测断言 animation 属性         |
+| 10  | color 缺省                                                            | 默认 blue，revealText 挂 glowPulse                                              | 回归            | 单测                            |
+| 11  | withWatermark 注入 hookScene 输出                                     | 因 brand-bar 跳过，无双重品牌                                                   | 双重品牌        | 单测（既有机制复用）            |
+| 12  | hookScene 的 keyframes                                                | 输出仅声明一次模板局部 scanSweep；12 个 SHARED_KEYFRAMES 零重声明               | drift           | scene-drift 修正后规则          |
+| 13  | SLOTS 与 SAFE_ZONES 同源                                              | kicker.top ≥ 220；support.bottom ≤ 1340；槽位互不重叠；x ∈ [60,920]             | 数值漂移        | scene-layout 不变式测试         |
+| 14  | hook-standard 夹具过 verify-scene-dom                                 | 全场景 PASS（含新顶部检查）；水印 EXPECTATIONS 正确                             | 几何越界        | CLI 运行验证（Playwright 实测） |
+| 15  | 顶部带检查：brandBar(80)/水印(60)                                     | PASS（豁免表命中）                                                              | 误伤品牌 chrome | 用例覆盖                        |
+| 16  | 顶部带检查：内容元素 top=160                                          | FAIL，报错含元素类名 + 实测 y                                                   | 漏检            | 用例覆盖                        |
+| 17  | checkHookContract 对 4 旧视频                                         | bytedance/restraint/deepseek pass；distillation 系 fail（预期，见 §3）          | 误报/漏报       | 单测按现状断言                  |
+| 18  | evergreen ×5 迁移后                                                   | 每个 hook 有合法 focal（hookText 或 bigNumber）                                 | 漏迁移          | drift 契约断言                  |
+| 19  | batch-generate 脚手架                                                 | hook texts 用 hookText/revealText 键，注释引用契约                              | 生产者漏改      | drift 脚手架断言                |
+| 20  | HOOK_PIPELINES 等值守卫                                               | 列表内 content 的 hook 输出与 hookScene 字节级一致（初始空列表 + 登记约定注释） | drift 回归      | scene-drift 测试                |
+| 21  | 旧视频源文件零改动                                                    | 现有 drift/模板/规则测试不红（scene1 未动 → 无连带失败）                        | 误触旧内容      | 全量 vitest                     |
+| 22  | CTA 既有契约                                                          | ctaScene 相关测试全绿（不回归）                                                 | 回归            | 既有测试不动                    |
+| 23  | 编译/构建                                                             | lint + tsc + build 通过                                                         | CI              | Runtime Verify                  |
 
 ## 6. 测试映射
 

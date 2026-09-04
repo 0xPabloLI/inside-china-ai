@@ -13,21 +13,21 @@
 
 ## Comparison Matrix
 
-| 维度 | DuckDuckGo | SearXNG (self-hosted) | Brave Search API | Mojeek API | Startpage |
-|------|-----------|----------------------|-------------------|-----------|-----------|
-| **接入方式** | **CDP only**（直接 fetch 触发 anomaly） | API (JSON) / CDP | REST API (JSON) | REST API (JSON) | CDP scraping only |
-| **URL** | `html.duckduckgo.com/html/?q=` | `localhost:8888/search?q=&format=json` | `api.search.brave.com/res/v1/web/search?q=` | `api.mojeek.com/search?q=` | `startpage.com/sp/search?q=` |
-| **需要 JS 渲染** | ❌ HTML 版本不需要 | ❌ JSON API 不需要 | ❌ API 返回 JSON | ❌ API 返回 JSON | ✅ 需要 JS |
-| **需要 API key** | ❌ | ❌ | ✅ `BRAVE_SEARCH_API_KEY` | ✅ `MOJEEK_API_KEY` | ❌ |
-| **独立索引** | ✅ 独立 + Bing 混合 | ❌ 聚合其他引擎 | ✅ 40B+ 页面独立索引 | ✅ 独立爬虫索引 | ❌ Google 结果代理 |
-| **免费额度** | 无限（有 rate limit） | 无限（自托管） | $5/mo credit ≈ 1,000 次 | 500 credits 试用 | 无限（有 CAPTCHA 风险） |
-| **Rate limit** | 10 req/s | 无（自托管） | 1 req/s (free), 50 req/s (paid) | 未明确 | 未明确 |
-| **CAPTCHA 风险** | 低（CDP），**高**（直接 fetch 触发 anomaly-modal） | 无 | 无 | 无 | 中（Google CAPTCHA） |
-| **中文支持** | ✅ | ✅ 取决于后端引擎 | ✅ `search_lang=zh` | ⚠️ 英文为主 | ✅ |
-| **结果质量** | 中-高（Bing 混合） | 高（多引擎聚合） | 高（独立索引） | 中（小索引） | = Google 质量 |
-| **响应延迟** | ~500ms | ~1-3s（取决于后端引擎） | ~300-800ms | ~500ms | ~1-2s |
-| **部署成本** | 零 | Docker 容器 | 零（API key 已有） | 注册获取 key | 零 |
-| **适合场景** | CDP 搜索源（不能直接 fetch） | 长期搜索基础设施 | API 搜索源 | 英文学术搜索 | Google 替代 |
+| 维度             | DuckDuckGo                                         | SearXNG (self-hosted)                  | Brave Search API                            | Mojeek API                 | Startpage                    |
+| ---------------- | -------------------------------------------------- | -------------------------------------- | ------------------------------------------- | -------------------------- | ---------------------------- |
+| **接入方式**     | **CDP only**（直接 fetch 触发 anomaly）            | API (JSON) / CDP                       | REST API (JSON)                             | REST API (JSON)            | CDP scraping only            |
+| **URL**          | `html.duckduckgo.com/html/?q=`                     | `localhost:8888/search?q=&format=json` | `api.search.brave.com/res/v1/web/search?q=` | `api.mojeek.com/search?q=` | `startpage.com/sp/search?q=` |
+| **需要 JS 渲染** | ❌ HTML 版本不需要                                 | ❌ JSON API 不需要                     | ❌ API 返回 JSON                            | ❌ API 返回 JSON           | ✅ 需要 JS                   |
+| **需要 API key** | ❌                                                 | ❌                                     | ✅ `BRAVE_SEARCH_API_KEY`                   | ✅ `MOJEEK_API_KEY`        | ❌                           |
+| **独立索引**     | ✅ 独立 + Bing 混合                                | ❌ 聚合其他引擎                        | ✅ 40B+ 页面独立索引                        | ✅ 独立爬虫索引            | ❌ Google 结果代理           |
+| **免费额度**     | 无限（有 rate limit）                              | 无限（自托管）                         | $5/mo credit ≈ 1,000 次                     | 500 credits 试用           | 无限（有 CAPTCHA 风险）      |
+| **Rate limit**   | 10 req/s                                           | 无（自托管）                           | 1 req/s (free), 50 req/s (paid)             | 未明确                     | 未明确                       |
+| **CAPTCHA 风险** | 低（CDP），**高**（直接 fetch 触发 anomaly-modal） | 无                                     | 无                                          | 无                         | 中（Google CAPTCHA）         |
+| **中文支持**     | ✅                                                 | ✅ 取决于后端引擎                      | ✅ `search_lang=zh`                         | ⚠️ 英文为主                | ✅                           |
+| **结果质量**     | 中-高（Bing 混合）                                 | 高（多引擎聚合）                       | 高（独立索引）                              | 中（小索引）               | = Google 质量                |
+| **响应延迟**     | ~500ms                                             | ~1-3s（取决于后端引擎）                | ~300-800ms                                  | ~500ms                     | ~1-2s                        |
+| **部署成本**     | 零                                                 | Docker 容器                            | 零（API key 已有）                          | 注册获取 key               | 零                           |
+| **适合场景**     | CDP 搜索源（不能直接 fetch）                       | 长期搜索基础设施                       | API 搜索源                                  | 英文学术搜索               | Google 替代                  |
 
 ## Per-Engine Deep Analysis
 
@@ -53,15 +53,16 @@ URL: https://html.duckduckgo.com/html/?q={keyword}
 
 **CSS Selectors（静态 HTML 版本）**：
 
-| 字段 | CSS Selector | 说明 |
-|------|-------------|------|
-| 结果容器 | `#links .result` 或 `.result` | 每个搜索结果的容器 |
-| 标题链接 | `.result__a` | 标题 + URL（href 是 protocol-relative `//...`） |
-| 显示 URL | `.result__url` | 展示的 URL 文本 |
-| 摘要 | `.result__snippet` | 结果摘要文本 |
-| 下一页 | `.nav-link form input` | 翻页参数（隐藏 form） |
+| 字段     | CSS Selector                  | 说明                                            |
+| -------- | ----------------------------- | ----------------------------------------------- |
+| 结果容器 | `#links .result` 或 `.result` | 每个搜索结果的容器                              |
+| 标题链接 | `.result__a`                  | 标题 + URL（href 是 protocol-relative `//...`） |
+| 显示 URL | `.result__url`                | 展示的 URL 文本                                 |
+| 摘要     | `.result__snippet`            | 结果摘要文本                                    |
+| 下一页   | `.nav-link form input`        | 翻页参数（隐藏 form）                           |
 
 **注意事项**：
+
 - URL 是 protocol-relative（`//example.com/path`），需要加 `https:` 前缀
 - 不带 `User-Agent` header 返回 403 Forbidden
 - 30 条结果/页，支持翻页
@@ -120,7 +121,7 @@ SearXNG 是开源元搜索引擎，不维护自己的索引，而是将查询**�
 search:
   formats:
     - html
-    - json    # ← 必须添加
+    - json # ← 必须添加
 ```
 
 **Docker Compose**：
@@ -166,6 +167,7 @@ GET http://localhost:8888/search?q=DeepSeek+China+AI&format=json&categories=gene
 ```
 
 **关键字段**：
+
 - `results[]` — 结果数组
 - `results[].url` — 结果 URL
 - `results[].title` — 标题
@@ -231,8 +233,8 @@ GET http://localhost:8888/search?q=DeepSeek+China+AI&format=json&categories=gene
 // REST API
 const url = "https://api.search.brave.com/res/v1/web/search";
 const headers = {
-  "Accept": "application/json",
-  "X-Subscription-Token": process.env.BRAVE_SEARCH_API_KEY
+  Accept: "application/json",
+  "X-Subscription-Token": process.env.BRAVE_SEARCH_API_KEY,
 };
 const params = { q: keyword, country: "US", search_lang: "en" };
 
@@ -335,27 +337,27 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 
 ### 搜索质量排序（来源：searchenginewatch 2026 12-query 测试 [Tier 2], Reddit r/duckduckgo [Tier 3]）
 
-| 排名 | 搜索引擎 | 质量 | 备注 |
-|------|---------|------|------|
-| 1 | Google | ⭐⭐⭐⭐⭐ | 金标准，但反爬最严 |
-| 2 | Brave Search | ⭐⭐⭐⭐ | 独立索引，英文结果接近 Google |
-| 3 | SearXNG (多引擎聚合) | ⭐⭐⭐⭐ | 质量取决于后端引擎配置 |
-| 4 | Bing | ⭐⭐⭐⭐ | 有 CAPTCHA + rate limit |
-| 5 | DuckDuckGo | ⭐⭐⭐ | Bing 混合索引，2024 后质量下降报告 |
-| 6 | Mojeek | ⭐⭐ | 小索引，英文为主 |
-| 7 | Startpage | ⭐⭐⭐⭐⭐ | = Google 质量，但有 CAPTCHA 风险 |
+| 排名 | 搜索引擎             | 质量       | 备注                               |
+| ---- | -------------------- | ---------- | ---------------------------------- |
+| 1    | Google               | ⭐⭐⭐⭐⭐ | 金标准，但反爬最严                 |
+| 2    | Brave Search         | ⭐⭐⭐⭐   | 独立索引，英文结果接近 Google      |
+| 3    | SearXNG (多引擎聚合) | ⭐⭐⭐⭐   | 质量取决于后端引擎配置             |
+| 4    | Bing                 | ⭐⭐⭐⭐   | 有 CAPTCHA + rate limit            |
+| 5    | DuckDuckGo           | ⭐⭐⭐     | Bing 混合索引，2024 后质量下降报告 |
+| 6    | Mojeek               | ⭐⭐       | 小索引，英文为主                   |
+| 7    | Startpage            | ⭐⭐⭐⭐⭐ | = Google 质量，但有 CAPTCHA 风险   |
 
 ### 反爬友好度排序
 
-| 排名 | 搜索引擎 | 友好度 | 原因 |
-|------|---------|--------|------|
-| 1 | SearXNG (self-hosted) | ⭐⭐⭐⭐⭐ | 自托管，无限制 |
-| 2 | DuckDuckGo (HTML) | ⭐⭐⭐⭐ | 宽松 rate limit，无 CAPTCHA |
-| 3 | Brave Search API | ⭐⭐⭐⭐ | API 调用，无反爬检测 |
-| 4 | Mojeek API | ⭐⭐⭐⭐ | API 调用，无反爬检测 |
-| 5 | Startpage | ⭐⭐ | Google CAPTCHA 风险 |
-| 6 | Bing | ⭐⭐ | CAPTCHA + rate limit |
-| 7 | Google | ⭐ | 最高反爬，CAPTCHA + TLS + rate limit |
+| 排名 | 搜索引擎              | 友好度     | 原因                                 |
+| ---- | --------------------- | ---------- | ------------------------------------ |
+| 1    | SearXNG (self-hosted) | ⭐⭐⭐⭐⭐ | 自托管，无限制                       |
+| 2    | DuckDuckGo (HTML)     | ⭐⭐⭐⭐   | 宽松 rate limit，无 CAPTCHA          |
+| 3    | Brave Search API      | ⭐⭐⭐⭐   | API 调用，无反爬检测                 |
+| 4    | Mojeek API            | ⭐⭐⭐⭐   | API 调用，无反爬检测                 |
+| 5    | Startpage             | ⭐⭐       | Google CAPTCHA 风险                  |
+| 6    | Bing                  | ⭐⭐       | CAPTCHA + rate limit                 |
+| 7    | Google                | ⭐         | 最高反爬，CAPTCHA + TLS + rate limit |
 
 ## 实测对比（2026-08-21）
 
@@ -366,14 +368,14 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 
 ### 结果总览（最终修复后）
 
-| 引擎 | 结果数 | 耗时 | snippet | 状态 | 接入方式 |
-|------|--------|------|---------|------|---------|
-| **Brave Search API** | 20 | 2.6s | ✅ 完整 | ✅ 最快最多 | REST API (curl --resolve) |
-| **DuckDuckGo (HTML)** | 10 | 6.2s | ✅ 完整 | ✅ 稳定 | CDP only |
-| **Google (CDP)** | 7 | 7.0s | ⚠️ 有但含杂质 | ✅ | CDP |
-| **Bing Search (CDP)** | 10 | 6.9s | ✅ 完整 | ✅ 修复成功 | CDP |
-| **Baidu (CDP)** | 9 | 6.4s | ✅ 完整 | ✅ 修复成功 | CDP |
-| **SearXNG** | 28-37 | ~2s | ✅ 完整 | ✅ 已部署 | 自托管 JSON API |
+| 引擎                  | 结果数 | 耗时 | snippet       | 状态        | 接入方式                  |
+| --------------------- | ------ | ---- | ------------- | ----------- | ------------------------- |
+| **Brave Search API**  | 20     | 2.6s | ✅ 完整       | ✅ 最快最多 | REST API (curl --resolve) |
+| **DuckDuckGo (HTML)** | 10     | 6.2s | ✅ 完整       | ✅ 稳定     | CDP only                  |
+| **Google (CDP)**      | 7      | 7.0s | ⚠️ 有但含杂质 | ✅          | CDP                       |
+| **Bing Search (CDP)** | 10     | 6.9s | ✅ 完整       | ✅ 修复成功 | CDP                       |
+| **Baidu (CDP)**       | 9      | 6.4s | ✅ 完整       | ✅ 修复成功 | CDP                       |
+| **SearXNG**           | 28-37  | ~2s  | ✅ 完整       | ✅ 已部署   | 自托管 JSON API           |
 
 ### 关键发现（修复后）
 
@@ -402,7 +404,8 @@ const params = { q: keyword, country: "US", search_lang: "en" };
    - 修复策略：以 `h3` 为锚点，向上遍历 4 层父元素，依次尝试 `.c-abstract`、`[class*="summary"]`、`[class*="desc"]`、`[class*="content"]`、`[class*="main-info"]` 等 selector
    - 9 条结果，全部有 snippet ✅
 
-5. **Brave Search API 修复**：`curl --resolve` workaround 绕过 TUN fake-ip bug
+6. **Brave Search API 修复**：`curl --resolve` workaround 绕过 TUN fake-ip bug
+
 - `api.search.brave.com` 解析到 fake-ip `198.18.1.251`（TUN 模式）
 - Node.js `fetch()` 无法连接（TCP 超时），`curl --resolve` 指定 fake-ip 后连接成功
 - **修复方案**：在代理 config 中添加 `api.search.brave.com` 走代理（不走 DIRECT），或用 `curl --resolve` workaround
@@ -416,7 +419,7 @@ const params = { q: keyword, country: "US", search_lang: "en" };
    - 但多引擎聚合的优势在于：即使部分引擎挂了，其他引擎仍能返回结果
    - 响应延迟 ~2s（比直接 CDP 快 3-4 倍，因为不需要等页面加载）
 
-6. **速度对比**
+7. **速度对比**
    - Google: 6.3s ✅ 最快
    - Baidu: 6.3s ✅ 持平
    - DuckDuckGo: 6.4s ✅ 持平
@@ -427,6 +430,7 @@ const params = { q: keyword, country: "US", search_lang: "en" };
 首次测试时（非 CDP），DuckDuckGo HTML 端点返回了 `anomaly-modal`（异常验证弹窗），DOM 全是 `anomaly-modal__*` class。通过 CDP（Chrome 真实 session + 本地代理）访问时未触发。
 
 **结论**：DuckDuckGo 的 anomaly detection 基于：
+
 - TLS 指纹（Node fetch vs Chrome 不同）
 - Cookie / session（CDP 有 Chrome 的 session）
 - IP 信誉（本地代理 IP vs 直连）
@@ -446,18 +450,21 @@ Brave API 的 `fetch failed` 不是 Brave 服务问题，是 TUN 路由问题。
 ## 推荐集成路线图
 
 ### Phase 1: DuckDuckGo（立即，零成本）
+
 - 添加 `duckduckgo_search` 到 `source-registry.mjs`
 - 使用 HTML 端点，CDP 方式抓取
 - rate limiter 配置：3s 基础延迟，2-5s 随机
 - **预期效果**：减少 Google 搜索请求量 ~20-30%
 
 ### Phase 2: Brave Search（立即，已有 key）
+
 - 添加 `brave_search` 到 `source-registry.mjs`（issue #64 范围）
 - 使用 `apiSearch` 方式，无需 CDP
 - rate limit：API 自带 1 req/s 限制
 - **预期效果**：独立索引结果补充，不依赖 Google/Bing
 
 ### Phase 3: SearXNG（中期，需 Docker 部署）
+
 - 本地 Docker 部署 SearXNG
 - 启用 JSON 格式
 - 添加 `searxng_search` 到 `source-registry.mjs`

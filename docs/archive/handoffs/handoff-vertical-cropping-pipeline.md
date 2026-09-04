@@ -6,11 +6,11 @@ The pipeline renders images in a 9:16 (1080×1920) vertical video using `object-
 
 ### Concrete Example (Alibaba video)
 
-| Scene | Image | Original Size | Cropping Result |
-|-------|-------|--------------|-----------------|
-| S4 | searxng_image-alibaba-01.jpg | 3840×2160 (16:9) | 9:16 cover crops left/right — "Alibaba" text partially lost |
-| S5 | searxng_image-alibaba-02.jpg | 1920×1080 (16:9) | Same issue — logo near edges cropped |
-| S7 | brave_image-alibaba-01.jpg | 1080×608 (16:9) | "Alibaba" building sign may be cropped |
+| Scene | Image                        | Original Size    | Cropping Result                                             |
+| ----- | ---------------------------- | ---------------- | ----------------------------------------------------------- |
+| S4    | searxng_image-alibaba-01.jpg | 3840×2160 (16:9) | 9:16 cover crops left/right — "Alibaba" text partially lost |
+| S5    | searxng_image-alibaba-02.jpg | 1920×1080 (16:9) | Same issue — logo near edges cropped                        |
+| S7    | brave_image-alibaba-01.jpg   | 1080×608 (16:9)  | "Alibaba" building sign may be cropped                      |
 
 ### Root Cause
 
@@ -49,7 +49,7 @@ def simulate_9_16_crop(img_path):
     img = Image.open(img_path)
     w, h = img.size
     target_ratio = 9 / 16  # 0.5625
-    
+
     if w / h > target_ratio:
         # Image is wider than 9:16 — crop sides
         new_w = int(h * target_ratio)
@@ -58,7 +58,7 @@ def simulate_9_16_crop(img_path):
     else:
         # Image is taller than 9:16 — no horizontal crop needed
         return img_path, None
-    
+
     # Save cropped version
     fd, tmp = tempfile.mkstemp(suffix=".jpg")
     os.close(fd)
@@ -67,6 +67,7 @@ def simulate_9_16_crop(img_path):
 ```
 
 Then in the analysis flow:
+
 1. Analyze original image (for fit/criticalEdgeText)
 2. Also analyze 9:16-cropped image (for "does cropped version lose important content?")
 3. If VLM says cropped version loses content → set `fit: "contain"` instead of `"cover"`
@@ -101,12 +102,14 @@ When VLM analysis says the image is landscape AND cover crop would lose importan
 ```
 
 This is the "blur background" technique used by many video editors:
+
 1. Clone the image, scale to fill 9:16, apply heavy blur (e.g., `blur(20px)`)
 2. Overlay the original image at natural aspect ratio, centered
 
 ### Phase 4: Content-Aware Resizing (Alternative to Cropping)
 
 For images with long horizontal text (e.g., "Alibaba Group" logo wall), instead of cropping:
+
 - Resize image to fit 9:16 width
 - Pad top/bottom with brand-colored gradient or solid color
 - This preserves 100% of content
@@ -120,32 +123,32 @@ def fit_to_vertical(img_path, bg_color="#0a0a14"):
     w, h = img.size
     target_w = 1080
     target_h = 1920
-    
+
     # Scale image to target width
     scale = target_w / w
     new_w = target_w
     new_h = int(h * scale)
     img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-    
+
     # Create canvas with bg color
     canvas = Image.new("RGB", (target_w, target_h), bg_color)
     # Paste centered vertically
     top = (target_h - new_h) // 2
     canvas.paste(img, (0, top))
-    
+
     return canvas
 ```
 
 ## Files to Modify
 
-| File | Change | Phase |
-|------|--------|-------|
-| `lib/vlm_analyzer.py` | Add `simulate_9_16_crop()` + dual analysis | Phase 1 |
-| `lib/visual-analyzer.mjs` | Add `computeObjectPosition()` from saliency | Phase 2 |
-| `lib/asset-sourcer.mjs` | Write `media.focus` from saliency data | Phase 2 |
-| `remotion/src/components/MediaBackground.tsx` | Replace `FOCUS_MAP` with dynamic positioning | Phase 2 |
-| `remotion/src/components/MediaBackground.tsx` | Add blurred-background fallback for `fit: "contain"` | Phase 3 |
-| `lib/vlm_analyzer.py` or new `lib/image-preprocessor.py` | Add `fit_to_vertical()` padding | Phase 4 |
+| File                                                     | Change                                               | Phase   |
+| -------------------------------------------------------- | ---------------------------------------------------- | ------- |
+| `lib/vlm_analyzer.py`                                    | Add `simulate_9_16_crop()` + dual analysis           | Phase 1 |
+| `lib/visual-analyzer.mjs`                                | Add `computeObjectPosition()` from saliency          | Phase 2 |
+| `lib/asset-sourcer.mjs`                                  | Write `media.focus` from saliency data               | Phase 2 |
+| `remotion/src/components/MediaBackground.tsx`            | Replace `FOCUS_MAP` with dynamic positioning         | Phase 2 |
+| `remotion/src/components/MediaBackground.tsx`            | Add blurred-background fallback for `fit: "contain"` | Phase 3 |
+| `lib/vlm_analyzer.py` or new `lib/image-preprocessor.py` | Add `fit_to_vertical()` padding                      | Phase 4 |
 
 ## Suggested Skills
 

@@ -4,12 +4,12 @@
 
 ## Skill Loading Matrix（按任务类型，非互斥）
 
-| 任务 | 加载的 Skill | 用途 |
-|------|-------------|------|
-| 写 scene-data / 跑管线 / 发布 | `short-video-pipeline` + `brand-system` | 管线流程 + 品牌一致性 |
-| 改 `remotion/src/` React 组件代码 | `remotion-markup`（主入口 `remotion-best-practices`） | Remotion API 最佳实践：`Interactive.Div` 结构、`@remotion/media` 组件、`@remotion/transitions` 转场、`@remotion/rough-notation` 文本标注、`@remotion/effects` 视觉效果、`perceptual-scale` 动画、`calculateMetadata` 动态时长 |
-| 改视频模板视觉设计（间距/排版/层次/动画） | `impeccable` | `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨 |
-| 新建场景模板 | `frontend-design` | 选择美学方向 |
+| 任务                                      | 加载的 Skill                                          | 用途                                                                                                                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 写 scene-data / 跑管线 / 发布             | `short-video-pipeline` + `brand-system`               | 管线流程 + 品牌一致性                                                                                                                                                                                                         |
+| 改 `remotion/src/` React 组件代码         | `remotion-markup`（主入口 `remotion-best-practices`） | Remotion API 最佳实践：`Interactive.Div` 结构、`@remotion/media` 组件、`@remotion/transitions` 转场、`@remotion/rough-notation` 文本标注、`@remotion/effects` 视觉效果、`perceptual-scale` 动画、`calculateMetadata` 动态时长 |
+| 改视频模板视觉设计（间距/排版/层次/动画） | `impeccable`                                          | `critique` 审查问题，`layout` 修间距，`typeset` 修字体，`polish` 做最终打磨                                                                                                                                                   |
+| 新建场景模板                              | `frontend-design`                                     | 选择美学方向                                                                                                                                                                                                                  |
 
 > **`remotion-markup` vs `impeccable` 分工**：`remotion-markup` 管"Remotion 代码怎么写"（API 正确用法、组件结构、转场模式、动画 timing）；`impeccable` 管"画面该怎么排"（间距节奏、视觉层次、动画多样性、可读性、AI slop 检测）。改 `remotion/src/` 时两个都加载——先 `remotion-markup` 确保 API 正确，再 `impeccable` 确保视觉质量。
 
@@ -30,16 +30,16 @@ The first 3 seconds determine 70% of completion rate. Rules:
 
 #### First Frame Best Practices (TikTok / YouTube Shorts / Reels)
 
-| Principle              | Rule                                                  | Why                                                                         |
-| ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
-| **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"    |
-| **Text ≥ 32px**        | Minimum 32px on a 1080×1920 canvas; titles ≥ 60px     | At thumbnail size in-feed, < 32px is invisible                              |
+| Principle              | Rule                                                  | Why                                                                                       |
+| ---------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"                  |
+| **Text ≥ 32px**        | Minimum 32px on a 1080×1920 canvas; titles ≥ 60px     | At thumbnail size in-feed, < 32px is invisible                                            |
 | **Upper 2/3 rule**     | Critical content above y=1150 (safe-zone bottom edge) | Below y=1150 sits the subtitle lane (y≈1188–1350) + TikTok caption UI (buttons, captions) |
-| **No dead space**      | Fill the full 1920px height — no > 200px gaps         | Blank zones signal "no content" → scroll past                               |
-| **Bold color blocks**  | Use solid-color areas (not gradients) for contrast    | Gradients compress poorly at thumbnail size; solid blocks pop               |
-| **Asymmetric layout**  | Offset the main element left or right of center       | Centered layouts read as "AI-generated"; asymmetry feels human-designed     |
-| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)       | A static frame in autoplay feed looks like a still image, not a video       |
-| **Max 2 stat cards**   | Don't stack 3+ data points on the hook frame          | Users can't parse 3+ numbers in 1 second; 2 is the limit                    |
+| **No dead space**      | Fill the full 1920px height — no > 200px gaps         | Blank zones signal "no content" → scroll past                                             |
+| **Bold color blocks**  | Use solid-color areas (not gradients) for contrast    | Gradients compress poorly at thumbnail size; solid blocks pop                             |
+| **Asymmetric layout**  | Offset the main element left or right of center       | Centered layouts read as "AI-generated"; asymmetry feels human-designed                   |
+| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)       | A static frame in autoplay feed looks like a still image, not a video                     |
+| **Max 2 stat cards**   | Don't stack 3+ data points on the hook frame          | Users can't parse 3+ numbers in 1 second; 2 is the limit                                  |
 
 **Standard hook template**: Scene 1 MUST use the shared HookScene opening card (`remotion/src/scenes/HookScene.tsx`) — fixed skeleton (badge → subject → focal → stats/source in the `lib/scene-layout.mjs` slot grid), two focal variants (number-led `bigNumber` / claim-led `hookText`+`revealText`). The focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`. Data contract in the HookScene docblock (spec: `docs/specs/spec-hook-opening-card.md`). The claim or number renders on frame 1 with no animation delay — the thumbnail itself must carry the hook.
 
@@ -107,12 +107,12 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),
 > the agent must explicitly notify the user and mark the run as degraded.
 
-| Priority | Engine      | Max Effort Parameters            | Venv                        | Notes                                                              |
-| -------- | ----------- | ------------------------------- | --------------------------- | ------------------------------------------------------------------ |
+| Priority | Engine         | Max Effort Parameters                                            | Venv                             | Notes                                                                                                           |
+| -------- | -------------- | ---------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
-| 2        | Qwen3-TTS   | `do_sample=False`, `repetition_penalty=1.3` (greedy search) | `~/.video-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine. |
-| 3        | edge-tts    | en-US-BrianNeural               | npm                         | Network-dependent, retry 3x; no voice cloning. Template voice only. |
-| 4        | macOS say   | Daniel, 190 wpm                 | built-in                    | Last resort; no voice cloning                                      |
+| 2        | Qwen3-TTS      | `do_sample=False`, `repetition_penalty=1.3` (greedy search)      | `~/.video-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine.                       |
+| 3        | edge-tts       | en-US-BrianNeural                                                | npm                              | Network-dependent, retry 3x; no voice cloning. Template voice only.                                             |
+| 4        | macOS say      | Daniel, 190 wpm                                                  | built-in                         | Last resort; no voice cloning                                                                                   |
 
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 
@@ -121,6 +121,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 ```
 
 **F5-TTS-MLX** (DEFAULT):
+
 - Voice cloning via reference audio + reference text (zero-shot)
 - Ref audio: `voice-samples/voice-sample-24k.wav`（24kHz mono WAV）
 - Ref text: `voice-samples/voice-sample-ref-text.txt`（必须精确匹配 ref audio）
@@ -139,6 +140,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 - **Prosody DISABLED** — rubberband introduces mechanical artifacts on F5's natural output.
 
 **Qwen3-TTS** (BACKUP):
+
 - Model: `~/.qwen-tts-model` (Qwen3-TTS-12Hz-0.6B-Base)
 
 - Post-processing: **silenceremove DISABLED**. Only resample applied.
@@ -149,27 +151,26 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Per-Scene Prosody Enhancement**（基于 `visualType`，FFmpeg `rubberband` 滤镜）:
 
-| visualType | Pitch | Tempo | Volume | Label |
-| ---------- | ----- | ----- | ------ | ----- |
-| `hook` | +4% | +6% | +15% | hook (urgent/energetic + louder) |
-| `data` | -2% | -2% | 0% | data (authoritative) |
-| `quote` | 0% | -3% | 0% | quote (deliberate/emphasis) |
-| `cta` | -2% | -5% | 0% | cta (warm/inviting) |
-| 其他 | 无变化 | 无变化 | 无变化 | baseline |
-
+| visualType | Pitch  | Tempo  | Volume | Label                            |
+| ---------- | ------ | ------ | ------ | -------------------------------- |
+| `hook`     | +4%    | +6%    | +15%   | hook (urgent/energetic + louder) |
+| `data`     | -2%    | -2%    | 0%     | data (authoritative)             |
+| `quote`    | 0%     | -3%    | 0%     | quote (deliberate/emphasis)      |
+| `cta`      | -2%    | -5%    | 0%     | cta (warm/inviting)              |
+| 其他       | 无变化 | 无变化 | 无变化 | baseline                         |
 
 - 参数推导：`docs/research/voice-prosody-hook-optimization.md`
 
 **Post-Processing** (applied to all engines):
 
-| Processing | F5 | Qwen | Notes |
-| ---------- | -- | ---- | ----- |
-| silenceremove | OFF | OFF | Compresses pauses >0.25s. Causes "bursting" at scene transitions. All engines disabled. |
-| highpass (80Hz) | ON | ON | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0` |
-| afftdn denoise (nr=5) | ON | ON | Removes noise floor. Disable: `TTS_DENOISE=0` |
-| rubberband prosody | OFF | ON | Per-scene pitch+tempo. F5 disabled (mechanical artifacts). |
-| atempo | OFF | OFF | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**. |
-| resample (44.1kHz) | ON | ON | Standardize sample rate for assembly |
+| Processing            | F5  | Qwen | Notes                                                                                   |
+| --------------------- | --- | ---- | --------------------------------------------------------------------------------------- |
+| silenceremove         | OFF | OFF  | Compresses pauses >0.25s. Causes "bursting" at scene transitions. All engines disabled. |
+| highpass (80Hz)       | ON  | ON   | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0`                                    |
+| afftdn denoise (nr=5) | ON  | ON   | Removes noise floor. Disable: `TTS_DENOISE=0`                                           |
+| rubberband prosody    | OFF | ON   | Per-scene pitch+tempo. F5 disabled (mechanical artifacts).                              |
+| atempo                | OFF | OFF  | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**.                  |
+| resample (44.1kHz)    | ON  | ON   | Standardize sample rate for assembly                                                    |
 
 **Force engine**: `export TTS_ENGINE=f5-mlx` / `qwen-tts` / `edge-tts` / `say`
 
@@ -205,12 +206,12 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 
 Scene-matched generated video backgrounds, on-device (FastVideo `FastMetal-1.3B-QAD` on MLX — see Checkpoint below). Opt-in per scene; a scene-data file using none of these fields behaves exactly as before.
 
-| Field | Value | Effect |
-| ----- | ----- | ------ |
-| `mediaStrategy` | absent or `"asset"` | stock sourcing only (default) |
-| | `"b-roll"` | skip sourcing, generate 2 candidates |
-| | `"asset-then-broll"` | source first; generate only if the scene ended up without media |
-| `aiVideo.prompt` | string | required whenever the strategy generates — 8 dimensions below |
+| Field            | Value                | Effect                                                          |
+| ---------------- | -------------------- | --------------------------------------------------------------- |
+| `mediaStrategy`  | absent or `"asset"`  | stock sourcing only (default)                                   |
+|                  | `"b-roll"`           | skip sourcing, generate 2 candidates                            |
+|                  | `"asset-then-broll"` | source first; generate only if the scene ended up without media |
+| `aiVideo.prompt` | string               | required whenever the strategy generates — 8 dimensions below   |
 
 `verify-video.mjs --pre` enforces the contract (rule `B-roll strategy contract` in `lib/scene-rules.mjs`): an unknown strategy value FAILs, a generating strategy with a missing or blank `aiVideo.prompt` FAILs, and `mediaOptOut: true` on a generating scene WARNs and skips — a deliberate CSS-only scene is a choice, not an error.
 
@@ -224,13 +225,13 @@ Scene-matched generated video backgrounds, on-device (FastVideo `FastMetal-1.3B-
 
 Defaults live in `lib/b-roll/runner.mjs`; what the code cannot say is why each one is fixed:
 
-| Parameter | Reason |
-| --------- | ------ |
+| Parameter                 | Reason                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------ |
 | 480×832, 81 frames, 16fps | portrait native — the spike's landscape clips lost both edges to the 9:16 crop |
-| int8 | baked into the checkpoint; there is no runtime quantization flag to set |
-| `taehv` decode | the decoder that fits this footprint |
-| 3-step DMD `1000,757,522` | the distilled schedule; the full one blows the time budget |
-| `maxSequenceLength 512` | the prompt's token budget — a longer prompt truncates silently |
+| int8                      | baked into the checkpoint; there is no runtime quantization flag to set        |
+| `taehv` decode            | the decoder that fits this footprint                                           |
+| 3-step DMD `1000,757,522` | the distilled schedule; the full one blows the time budget                     |
+| `maxSequenceLength 512`   | the prompt's token budget — a longer prompt truncates silently                 |
 
 Measured ≈235 s per clip on M3 Max (encode 28.6 + denoise 183.7 + decode 22.3); `EST_SECONDS_PER_CLIP = 240` is what the CLI estimate prints from.
 
@@ -240,12 +241,12 @@ In `mlx_wan_batch.py` every job denoises before anything decodes: `taehv` calls 
 
 ### Dependencies
 
-| Env var | Default |
-| ------- | ------- |
-| `FASTVIDEO_REPO` | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout) |
-| `FASTVIDEO_PYTHON` | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3` |
-| `BROLL_MODEL_ROOT` | unset → HF cache snapshot of `FastMetal-1.3B-QAD` |
-| `BROLL_MLX_CHECKPOINT` | unset → discovered under `BROLL_MODEL_ROOT` |
+| Env var                | Default                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `FASTVIDEO_REPO`       | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout) |
+| `FASTVIDEO_PYTHON`     | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3`         |
+| `BROLL_MODEL_ROOT`     | unset → HF cache snapshot of `FastMetal-1.3B-QAD`                            |
+| `BROLL_MLX_CHECKPOINT` | unset → discovered under `BROLL_MODEL_ROOT`                                  |
 
 The repo-local venv is the working interpreter — `~/.video-tts-env` lacks `cloudpickle`. A `FASTVIDEO_PYTHON` you set yourself is honored as given, with no fallback. When a dependency is missing the stage prints `⚠️ B-roll skipped: …` and the pipeline continues without generated media.
 
@@ -372,11 +373,11 @@ scripts/short-video/
 
 ### Key Paths & Environment
 
-| Item | Path / Value | Notes |
-|------|-------------|-------|
-| ffmpeg-full | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
-| Unified TTS venv | `~/.video-tts-env` (Python 3.12) | F5-TTS-MLX + Qwen3-TTS + whisperx |
-| Qwen3-TTS model | `~/.qwen-tts-model` | Qwen3-TTS-12Hz-0.6B-Base |
+| Item             | Path / Value                               | Notes                                                                    |
+| ---------------- | ------------------------------------------ | ------------------------------------------------------------------------ |
+| ffmpeg-full      | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
+| Unified TTS venv | `~/.video-tts-env` (Python 3.12)           | F5-TTS-MLX + Qwen3-TTS + whisperx                                        |
+| Qwen3-TTS model  | `~/.qwen-tts-model`                        | Qwen3-TTS-12Hz-0.6B-Base                                                 |
 
 ## Running the Pipeline
 
@@ -415,15 +416,15 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 
 ### Pipeline Steps
 
-| Step | Action | Output |
-|------|--------|--------|
-| 1 | Generate TTS voiceover (F5-TTS-MLX) | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
-| 1.6 | **Final media gate — hard FAIL** after sourcing/patch/upscale/b-roll (media layouts must have their media) | `lib/final-media-gate.mjs` failure list |
-| 2 | Validate every scene received a TTS result | fail-fast on missing voiceover |
-| 3 | Generate BGM (optional, `--bgm`) | `output/{id}/bgm.mp3` |
-| 4 | Generate ASS subtitles | `output/{id}/subtitles.ass` |
-| 5 | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]`) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4` |
-| 6 | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2) | `output/{id}/verification-report.json` |
+| Step | Action                                                                                                                                                                                                                                                                       | Output                                                   |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 1    | Generate TTS voiceover (F5-TTS-MLX)                                                                                                                                                                                                                                          | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
+| 1.6  | **Final media gate — hard FAIL** after sourcing/patch/upscale/b-roll (media layouts must have their media)                                                                                                                                                                   | `lib/final-media-gate.mjs` failure list                  |
+| 2    | Validate every scene received a TTS result                                                                                                                                                                                                                                   | fail-fast on missing voiceover                           |
+| 3    | Generate BGM (optional, `--bgm`)                                                                                                                                                                                                                                             | `output/{id}/bgm.mp3`                                    |
+| 4    | Generate ASS subtitles                                                                                                                                                                                                                                                       | `output/{id}/subtitles.ass`                              |
+| 5    | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]`) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4`                  |
+| 6    | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2)                                                                                                                                                                                | `output/{id}/verification-report.json`                   |
 
 ### Version Numbers
 
@@ -467,14 +468,14 @@ Do NOT start a second pipeline while the first is still running — check `ps au
 
 When modifying rules in this file, consult these reference docs for root cause and rationale:
 
-| Topic | Reference | Content |
-|-------|-----------|---------|
-| TTS engine selection | ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey |
-| Audio drift fix | `docs/research/audio-drift-fix.md` | Root cause analysis, fix implementation, sync verification, diagnostics |
-| Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md` | 15 sources, per-parameter rationale, research citations |
-| TikTok best practices | `docs/tiktok/tiktok-best-practices.md` | Signal weights, voice rules, hook formulas, audit checklist |
-| A/B testing methodology | `docs/tiktok/ab-testing-methodology.md` | Element iteration method, single-variable testing philosophy |
-| Multi-video splitting | `docs/series-production-guide.md` (L1) | Episode splitting strategy, inter-episode linking, compilation |
-| New content scaffold | `docs/content-scaffold-guide.md` (L1) | Directory structure, file templates, CSS overflow checklist |
-| Analytics & optimization | `docs/analytics-workflow.md` (L1) | Analytics export, A/B test tracking, optimization loop |
-| Brand visual identity | `docs/brand-system.md` | Color tokens, typography, animation library, scene templates |
+| Topic                           | Reference                                                   | Content                                                                 |
+| ------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| TTS engine selection            | ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey                                  |
+| Audio drift fix                 | `docs/research/audio-drift-fix.md`                          | Root cause analysis, fix implementation, sync verification, diagnostics |
+| Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md`          | 15 sources, per-parameter rationale, research citations                 |
+| TikTok best practices           | `docs/tiktok/tiktok-best-practices.md`                      | Signal weights, voice rules, hook formulas, audit checklist             |
+| A/B testing methodology         | `docs/tiktok/ab-testing-methodology.md`                     | Element iteration method, single-variable testing philosophy            |
+| Multi-video splitting           | `docs/series-production-guide.md` (L1)                      | Episode splitting strategy, inter-episode linking, compilation          |
+| New content scaffold            | `docs/content-scaffold-guide.md` (L1)                       | Directory structure, file templates, CSS overflow checklist             |
+| Analytics & optimization        | `docs/analytics-workflow.md` (L1)                           | Analytics export, A/B test tracking, optimization loop                  |
+| Brand visual identity           | `docs/brand-system.md`                                      | Color tokens, typography, animation library, scene templates            |

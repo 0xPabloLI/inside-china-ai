@@ -12,6 +12,7 @@ The short-video pipeline currently downloads all image/video assets manually via
 ## Solution
 
 A standalone script `scripts/short-video/lib/asset-sourcer.mjs` that:
+
 1. Extracts keywords from scene-data (`meta.keyEntities`, `voiceover` text) or CLI arguments
 2. Searches multiple sources (API + CDP + yt-dlp) for matching images/videos
 3. Scores and ranks candidates by keyword match, duration, file size, resolution
@@ -133,6 +134,7 @@ Each source is a pluggable definition (same pattern as `trend-sources.mjs`):
 ```
 
 Source types:
+
 - **API sources** (Pexels, Unsplash, Pixabay, Wikimedia Commons, Coverr, Flickr, Internet Archive): `fetch()` search + `fetch()` download
 - **yt-dlp sources** (YouTube, Bilibili search, CCTV): `execSync("yt-dlp ...")` download
 - **CDP sources** (IT之家, 机器之心, 新华网, 澎湃新闻): `cdpNewTab` → `extractFromTab` with fixed JS script → `fetch()` download image URLs
@@ -140,6 +142,7 @@ Source types:
 ### Scoring algorithm
 
 Score (0-100) = weighted sum of:
+
 - Keyword match in title (0-40): exact match = 40, partial = 20, no match = 0
 - Duration fitness (0-25): video 3-8s = 25, 8-15s = 15, <3s or >60s = 5, image = 20
 - File size fitness (0-20): video <20MB = 20, <50MB = 10, >50MB = 0; image <5MB = 20, <10MB = 10
@@ -148,6 +151,7 @@ Score (0-100) = weighted sum of:
 ### Scene recommendation logic
 
 Based on `visualType`:
+
 - `narrative` → `fade` or `zoom`, overlay 0.7
 - `info-card` → `ken-burns` (images only), overlay 0.75
 - `quote` → `fade`, overlay 0.8
@@ -164,6 +168,7 @@ Based on `visualType`:
 ### CDP image extraction pattern
 
 Each Chinese news site has:
+
 1. Primary extract script (site-specific selectors) — matches `trend-sources.mjs` pattern
 2. Fallback extract script (generic `img[src]` > 200px width)
 3. Retry once on empty results (same as `discover-trends.mjs`)
@@ -218,35 +223,35 @@ Test external behavior of pure functions. Mock external calls (fetch, execSync, 
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `scripts/short-video/lib/asset-sourcer.mjs` | New file | N/A | No existing files affected |
-| `scripts/short-video/__tests__/asset-sourcer.test.mjs` | New file | N/A | No existing files affected |
-| `docs/research/media-asset-strategy.md` | Update §4.4 status only | Low | Text-only status update, no logic change |
-| `.env.local` | Add API keys | Low | Already done, keys are in `.gitignore` |
+| File                                                   | Modification            | Risk | Assessment                               |
+| ------------------------------------------------------ | ----------------------- | ---- | ---------------------------------------- |
+| `scripts/short-video/lib/asset-sourcer.mjs`            | New file                | N/A  | No existing files affected               |
+| `scripts/short-video/__tests__/asset-sourcer.test.mjs` | New file                | N/A  | No existing files affected               |
+| `docs/research/media-asset-strategy.md`                | Update §4.4 status only | Low  | Text-only status update, no logic change |
+| `.env.local`                                           | Add API keys            | Low  | Already done, keys are in `.gitignore`   |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | scene-data not found / import fails | Error message, exit(1) | Low | File existence check before import |
-| 2 | meta.keyEntities is empty/undefined | Fallback to CLI --keywords, then voiceover extraction | Medium | 3-tier keyword source chain |
-| 3 | CDP proxy unreachable (localhost:3456) | Error message "CDP proxy not available", exit(1) | Medium | Pre-flight check at startup |
-| 4 | API key missing (.env.local) | Skip that source, log warning, continue | Low | Read key, if undefined → skip |
-| 5 | API source returns 0 results | Skip source, mark "no results" in report | Low | Per-source try/catch |
-| 6 | yt-dlp download fails (invalid URL/timeout) | Mark URL as failed, continue to next candidate | Medium | Per-URL try/catch + 60s timeout |
-| 7 | Multiple yt-dlp downloads requested | Serial execution (for...of + await) | Medium | Never use Promise.all for yt-dlp |
-| 8 | content/{slug}/assets/ directory missing | Auto-create with mkdirSync recursive | Low | Standard pattern |
-| 9 | Same-name file already exists | Skip download, mark "already exists" | Low | existsSync check |
-| 10 | Multiple candidates match keyword | Sort by score, download top-3 | Low | sort + slice |
-| 11 | Video duration unknown before download | Score uses yt-dlp --print duration first | Medium | Two-phase: search → metadata → download |
-| 12 | Downloaded file is 0 bytes / <1KB | Delete file, mark as failed | Medium | statSync check post-download |
-| 13 | API returns unexpected JSON format | Parse fails → skip item, continue | Medium | Per-item try/catch in parsing |
-| 14 | CDP page load timeout (no readyState) | Retry once, then skip source | Medium | waitForPageLoad + 1 retry |
-| 15 | CDP extract script returns 0 (DOM changed) | Fallback to generic img extraction, then skip | Medium | Two-layer extraction |
-| 16 | B站 bilisearch returns error | Mark failed, continue other sources | Low | yt-dlp error caught |
-| 17 | Douyin/XHS requires login | Skip, mark "needs auth" | Low | yt-dlp error message detection |
-| 18 | Report JSON output | Fixed schema, user manually consumes | Low | Strict schema in buildReport() |
+| #   | Scenario                                    | Expected Behavior                                     | Risk   | Mitigation                              |
+| --- | ------------------------------------------- | ----------------------------------------------------- | ------ | --------------------------------------- |
+| 1   | scene-data not found / import fails         | Error message, exit(1)                                | Low    | File existence check before import      |
+| 2   | meta.keyEntities is empty/undefined         | Fallback to CLI --keywords, then voiceover extraction | Medium | 3-tier keyword source chain             |
+| 3   | CDP proxy unreachable (localhost:3456)      | Error message "CDP proxy not available", exit(1)      | Medium | Pre-flight check at startup             |
+| 4   | API key missing (.env.local)                | Skip that source, log warning, continue               | Low    | Read key, if undefined → skip           |
+| 5   | API source returns 0 results                | Skip source, mark "no results" in report              | Low    | Per-source try/catch                    |
+| 6   | yt-dlp download fails (invalid URL/timeout) | Mark URL as failed, continue to next candidate        | Medium | Per-URL try/catch + 60s timeout         |
+| 7   | Multiple yt-dlp downloads requested         | Serial execution (for...of + await)                   | Medium | Never use Promise.all for yt-dlp        |
+| 8   | content/{slug}/assets/ directory missing    | Auto-create with mkdirSync recursive                  | Low    | Standard pattern                        |
+| 9   | Same-name file already exists               | Skip download, mark "already exists"                  | Low    | existsSync check                        |
+| 10  | Multiple candidates match keyword           | Sort by score, download top-3                         | Low    | sort + slice                            |
+| 11  | Video duration unknown before download      | Score uses yt-dlp --print duration first              | Medium | Two-phase: search → metadata → download |
+| 12  | Downloaded file is 0 bytes / <1KB           | Delete file, mark as failed                           | Medium | statSync check post-download            |
+| 13  | API returns unexpected JSON format          | Parse fails → skip item, continue                     | Medium | Per-item try/catch in parsing           |
+| 14  | CDP page load timeout (no readyState)       | Retry once, then skip source                          | Medium | waitForPageLoad + 1 retry               |
+| 15  | CDP extract script returns 0 (DOM changed)  | Fallback to generic img extraction, then skip         | Medium | Two-layer extraction                    |
+| 16  | B站 bilisearch returns error                | Mark failed, continue other sources                   | Low    | yt-dlp error caught                     |
+| 17  | Douyin/XHS requires login                   | Skip, mark "needs auth"                               | Low    | yt-dlp error message detection          |
+| 18  | Report JSON output                          | Fixed schema, user manually consumes                  | Low    | Strict schema in buildReport()          |
 
 ## Out of Scope
 

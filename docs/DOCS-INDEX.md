@@ -8,12 +8,12 @@
 
 ### Layer Definitions
 
-| Layer | What goes here | What does NOT go here | Who reads it |
-|-------|---------------|----------------------|-------------|
-| **L0: AGENTS.md** (必读) | Pointers + top-level rules only | No technical details | Agent every session start |
-| **L1: Execution reference** | Execution instructions: what to do, what params to use, how to configure. Loaded on-demand when doing that workflow | Research rationale, parameter derivation, multi-source comparison, methodology — push to L2, pointer from L1 bottom | Agent loaded on-demand when doing that workflow |
-| **L2: Deep research** | Research rationale: why this was chosen, how params were derived, what sources were surveyed, methodology comparison | Execution instructions — extract to L1 as pointer targets | Agent only when deep-diving into specific topic |
-| **L3: Archive** | Completed work: specs, tickets, plans, roadmaps — retained for reference, no longer maintained | No active reference material | Historical reference only |
+| Layer                       | What goes here                                                                                                       | What does NOT go here                                                                                               | Who reads it                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| **L0: AGENTS.md** (必读)    | Pointers + top-level rules only                                                                                      | No technical details                                                                                                | Agent every session start                       |
+| **L1: Execution reference** | Execution instructions: what to do, what params to use, how to configure. Loaded on-demand when doing that workflow  | Research rationale, parameter derivation, multi-source comparison, methodology — push to L2, pointer from L1 bottom | Agent loaded on-demand when doing that workflow |
+| **L2: Deep research**       | Research rationale: why this was chosen, how params were derived, what sources were surveyed, methodology comparison | Execution instructions — extract to L1 as pointer targets                                                           | Agent only when deep-diving into specific topic |
+| **L3: Archive**             | Completed work: specs, tickets, plans, roadmaps — retained for reference, no longer maintained                       | No active reference material                                                                                        | Historical reference only                       |
 
 ### Layer Placement Rules
 
@@ -28,121 +28,121 @@
 
 ### Root — Active reference (AGENTS.md pointers)
 
-| Document | Purpose | Referenced by |
-|----------|---------|---------------|
-| `brand-system.md` | Brand visual identity — tokens, templates, rules | `brand-system` skill |
-| `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV/CDP 导出、A/B 测试、hashtag 效果追踪、Analytics→Pipeline 联动机制、竞品参考视频分析 | `content-pipeline.md` Stage 0 + Stage 5, `video-workflow.md` |
-| `article-humanize-patterns-2026-09-04.md` | Article humanize 模式来源与阈值依据（MRL-1 B9/W7/W8/W9、W1 阈值）— Wikipedia "Signs of AI writing" 35 条清单等；执行规则唯一权威版本在 `article-production-guide.md` MRL-1 |
-| `article-production-guide.md` | Article generation rules — Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation | `content-pipeline.md` Stage 1/2 |
-| `content-pipeline.md` | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references | AGENTS.md |
-| `manual-ops.md` | Manual operations checklist, sorted by frequency | `content-pipeline.md` |
-| `media-asset-management.md` | Media asset placement rules + asset catalog & RAG integration | AGENTS.md |
-| `tools-catalog.md` | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates; scenario→tool decision table (Tavily fallback authority lives in AGENTS.md) | AGENTS.md |
-| `installed-skills.md` | Agent skills overview — sources, invocation modes, MCP list, install commands | AGENTS.md |
-| `tanstack-lovable-conventions.md` | Stack-level conventions for publishable build | AGENTS.md |
-| `series-production-guide.md` | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing | `content-pipeline.md` Stage 3, `video-workflow.md` |
-| `content-scaffold-guide.md` | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style | `video-workflow.md` |
-| `video-workflow.md` | Regular video-production runbook — preflight, TTS/audio conversion, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy, skill loading matrix | AGENTS.md |
-| `video-script-writing-guide.md` | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3 |
-| `archive/handoff-video-layout-standard.md` | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节） | — |
-| `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽） | — |
-| `archive/spec-cta-end-card-standard.md` | 标准 CTA 结尾页设计（已归档） | video pipeline |
-| `archive/spec-video-layout-safe-zones.md` | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md） | video pipeline |
+| Document                                                       | Purpose                                                                                                                                                                                     | Referenced by                                                |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `brand-system.md`                                              | Brand visual identity — tokens, templates, rules                                                                                                                                            | `brand-system` skill                                         |
+| `analytics-workflow.md`                                        | TikTok Analytics 独立工作流 — CSV/CDP 导出、A/B 测试、hashtag 效果追踪、Analytics→Pipeline 联动机制、竞品参考视频分析                                                                       | `content-pipeline.md` Stage 0 + Stage 5, `video-workflow.md` |
+| `article-humanize-patterns-2026-09-04.md`                      | Article humanize 模式来源与阈值依据（MRL-1 B9/W7/W8/W9、W1 阈值）— Wikipedia "Signs of AI writing" 35 条清单等；执行规则唯一权威版本在 `article-production-guide.md` MRL-1                  |
+| `article-production-guide.md`                                  | Article generation rules — Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation                                                                   | `content-pipeline.md` Stage 1/2                              |
+| `content-pipeline.md`                                          | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references                                                                          | AGENTS.md                                                    |
+| `manual-ops.md`                                                | Manual operations checklist, sorted by frequency                                                                                                                                            | `content-pipeline.md`                                        |
+| `media-asset-management.md`                                    | Media asset placement rules + asset catalog & RAG integration                                                                                                                               | AGENTS.md                                                    |
+| `tools-catalog.md`                                             | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates; scenario→tool decision table (Tavily fallback authority lives in AGENTS.md)     | AGENTS.md                                                    |
+| `installed-skills.md`                                          | Agent skills overview — sources, invocation modes, MCP list, install commands                                                                                                               | AGENTS.md                                                    |
+| `tanstack-lovable-conventions.md`                              | Stack-level conventions for publishable build                                                                                                                                               | AGENTS.md                                                    |
+| `series-production-guide.md`                                   | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing                                                                                       | `content-pipeline.md` Stage 3, `video-workflow.md`           |
+| `content-scaffold-guide.md`                                    | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style                                                                                   | `video-workflow.md`                                          |
+| `video-workflow.md`                                            | Regular video-production runbook — preflight, TTS/audio conversion, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy, skill loading matrix                 | AGENTS.md                                                    |
+| `video-script-writing-guide.md`                                | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3                                |
+| `archive/handoff-video-layout-standard.md`                     | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节）                                                                                                    | —                                                            |
+| `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽）                                                                                                                        | —                                                            |
+| `archive/spec-cta-end-card-standard.md`                        | 标准 CTA 结尾页设计（已归档）                                                                                                                                                               | video pipeline                                               |
+| `archive/spec-video-layout-safe-zones.md`                      | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md）                                                                                                                  | video pipeline                                               |
 
 ### `adr/` — Architecture Decision Records
 
 Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 
-| ADR | Title | Status |
-|-----|-------|--------|
-| 0001 | Widget inline embedding via HTML comment markers | Active |
-| 0002 | Supabase admin auth for programmatic DB writes | Active |
-| 0003 | Widget registry as extension point | Active |
-| 0004 | Env file strategy | Active |
-| 0005 | Lovable file structure constraints | Active |
-| 0006 | ~~Architecture deepening completed~~ | Moved to `archive/` |
-| 0007 | RAG pipeline decisions | Active |
-| 0008 | TTS engine: F5-TTS-MLX | Active |
-| 0009 | VLM analysis layer: Qwen3-VL-2B via mlx-vlm | Active |
-| 0010 | Remotion replaces Playwright | Active |
-| 0011 | Unified venv | Active |
-| 0012 | Cloud GPU: Kaggle + Colab | Active |
-| 0013 | Asset sourcing three-layer | Active |
-| 0014 | Git LFS strategy | Active |
-| 0015 | Visual focus detection: OpenCV subprocess | Active |
-| 0016 | Cascade filtering & signal density | Active |
-| 0017 | Widget breakout layout | Active |
-| 0018 | S.T.A.R.T. as primary script framework, AI Outline as HITL tool | Active |
+| ADR  | Title                                                           | Status              |
+| ---- | --------------------------------------------------------------- | ------------------- |
+| 0001 | Widget inline embedding via HTML comment markers                | Active              |
+| 0002 | Supabase admin auth for programmatic DB writes                  | Active              |
+| 0003 | Widget registry as extension point                              | Active              |
+| 0004 | Env file strategy                                               | Active              |
+| 0005 | Lovable file structure constraints                              | Active              |
+| 0006 | ~~Architecture deepening completed~~                            | Moved to `archive/` |
+| 0007 | RAG pipeline decisions                                          | Active              |
+| 0008 | TTS engine: F5-TTS-MLX                                          | Active              |
+| 0009 | VLM analysis layer: Qwen3-VL-2B via mlx-vlm                     | Active              |
+| 0010 | Remotion replaces Playwright                                    | Active              |
+| 0011 | Unified venv                                                    | Active              |
+| 0012 | Cloud GPU: Kaggle + Colab                                       | Active              |
+| 0013 | Asset sourcing three-layer                                      | Active              |
+| 0014 | Git LFS strategy                                                | Active              |
+| 0015 | Visual focus detection: OpenCV subprocess                       | Active              |
+| 0016 | Cascade filtering & signal density                              | Active              |
+| 0017 | Widget breakout layout                                          | Active              |
+| 0018 | S.T.A.R.T. as primary script framework, AI Outline as HITL tool | Active              |
 
 ### `conventions/` — Engineering conventions
 
-| Document | Purpose |
-|----------|---------|
-| `scenario-enumeration-checklist.md` | Boundary scenario enumeration checklist |
-| `scenario-matrix.md` | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios) |
-| `fact-verification.md` | Operational procedures for proposal-review §3/§4 (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |
-| `visual-design-loop.md` | Visual design iteration loop — impeccable skill workflow for video template polish |
+| Document                            | Purpose                                                                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `scenario-enumeration-checklist.md` | Boundary scenario enumeration checklist                                                                                                |
+| `scenario-matrix.md`                | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios)                                                             |
+| `fact-verification.md`              | Operational procedures for proposal-review §3/§4 (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |
+| `visual-design-loop.md`             | Visual design iteration loop — impeccable skill workflow for video template polish                                                     |
 
 ### `agents/` — Agent execution references
 
-| Document | Purpose |
-|----------|---------|
-| `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation |
-| `git-workflow.md` | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery + Session-Id provenance (hook-enforced) |
-| `git-concurrent-recovery.md` | 竞态应急配方（git-workflow §9 指向）：临时 index 隔离提交、孤儿提交找回、单文件恢复；含试点收尾复评触发条款 |
-| `proposal-review.md` | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks |
-| `issue-tracker.md` | GitHub Issues operations and roadmap pointer |
-| `triage-labels.md` | Canonical issue category and state labels |
-| `domain.md` | Domain context and ADR layout |
+| Document                     | Purpose                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation                                                                                  |
+| `git-workflow.md`            | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery + Session-Id provenance (hook-enforced) |
+| `git-concurrent-recovery.md` | 竞态应急配方（git-workflow §9 指向）：临时 index 隔离提交、孤儿提交找回、单文件恢复；含试点收尾复评触发条款                                                        |
+| `proposal-review.md`         | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks                                                                                |
+| `issue-tracker.md`           | GitHub Issues operations and roadmap pointer                                                                                                                       |
+| `triage-labels.md`           | Canonical issue category and state labels                                                                                                                          |
+| `domain.md`                  | Domain context and ADR layout                                                                                                                                      |
 
 ### `tiktok/` — TikTok guides
 
-| Document | Purpose |
-|----------|---------|
-| `tiktok-best-practices.md` | 2025-2026 best practices (signal weights, voice rules, hooks, audit checklist) |
-| `tiktok-developer-setup.md` | TikTok API publishing setup guide |
-| `tiktok-do-dont.md` | Do/Don't comparison guide |
-| `tiktok-profile-setup.md` | Brand profile setup (one-time reference) |
-| `ab-testing-methodology.md` | Element iteration method — single-variable A/B testing philosophy |
-| `tiktok-analytics-review.md` | TikTok Analytics 定期复盘模板 — 周期性复制模板、CDP 抓取数据、制定行动计划 |
+| Document                     | Purpose                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| `tiktok-best-practices.md`   | 2025-2026 best practices (signal weights, voice rules, hooks, audit checklist) |
+| `tiktok-developer-setup.md`  | TikTok API publishing setup guide                                              |
+| `tiktok-do-dont.md`          | Do/Don't comparison guide                                                      |
+| `tiktok-profile-setup.md`    | Brand profile setup (one-time reference)                                       |
+| `ab-testing-methodology.md`  | Element iteration method — single-variable A/B testing philosophy              |
+| `tiktok-analytics-review.md` | TikTok Analytics 定期复盘模板 — 周期性复制模板、CDP 抓取数据、制定行动计划     |
 
 ### `video/` — Video roadmap
 
-| Document | Purpose |
-|----------|---------|
+| Document                      | Purpose                                       |
+| ----------------------------- | --------------------------------------------- |
 | `video-automation-roadmap.md` | Video automation phased roadmap (ISSUE-01~14) |
 
 ### Root-level tracking docs
 
-| Document | Purpose |
-|----------|---------|
+| Document           | Purpose                                                                |
+| ------------------ | ---------------------------------------------------------------------- |
 | `issue-tracker.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
 
 ### `handoffs/` — Session handoffs
 
 Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 
-| Document | Purpose |
-|----------|---------|
-| `handoff-add-free-api-sources.md` | Adding free API sources (Guardian, NYT, Semantic Scholar, etc.) to source-registry (Issue #64 OPEN) |
-| `handoff-extractscript-autofix.md` | articleScript 自动修复 + warn + health 追踪 (Issue #66 OPEN) |
-| `handoff-on-demand-audit.md` | On-Demand Content Audit feature design (Issue #60/#61 OPEN) |
-| `handoff-search-api-pool.md` | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN) |
-| `handoff-vlm-cascade-router-2026-08-27.md` | VLM Cascade Router 调研完成 (Issue #127 OPEN) |
-| `handoff-infinitetalk-modal-2026-08-28.md` | InfiniteTalk Modal 推理 handoff（状态：推理运行中） |
-| `handoff-token-audit-impl-2026-09-02.md` | Agent 文档 token 审计实施总结 — 5 commits/省 5,105B/7 项遗留（2 待裁决+3 可选补做+2 不做） |
-| `handoff-agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计（状态：待新 session 执行只读审计） |
+| Document                                      | Purpose                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `handoff-add-free-api-sources.md`             | Adding free API sources (Guardian, NYT, Semantic Scholar, etc.) to source-registry (Issue #64 OPEN) |
+| `handoff-extractscript-autofix.md`            | articleScript 自动修复 + warn + health 追踪 (Issue #66 OPEN)                                        |
+| `handoff-on-demand-audit.md`                  | On-Demand Content Audit feature design (Issue #60/#61 OPEN)                                         |
+| `handoff-search-api-pool.md`                  | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN)                                              |
+| `handoff-vlm-cascade-router-2026-08-27.md`    | VLM Cascade Router 调研完成 (Issue #127 OPEN)                                                       |
+| `handoff-infinitetalk-modal-2026-08-28.md`    | InfiniteTalk Modal 推理 handoff（状态：推理运行中）                                                 |
+| `handoff-token-audit-impl-2026-09-02.md`      | Agent 文档 token 审计实施总结 — 5 commits/省 5,105B/7 项遗留（2 待裁决+3 可选补做+2 不做）          |
+| `handoff-agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计（状态：待新 session 执行只读审计）                                    |
 
 ### `reviews/` — Active review records
 
 Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸收后归档到 `archive/reviews/`。以下为对应 issue 仍开着的 review。
 
-| Document | Purpose |
-|----------|---------|
-| `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
-| `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
-| `session-id-provenance-review-brief-2026-09-04.md` | Session-Id 关联标识交付的第三方独立复核材料 **v4（已吸收两轮复核）** — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、并发 reset 事故与单 id 错误归因证据、atlas 调研、reference-transaction 门控与并发方案 A/B/C、两轮裁决落实回执、未解决事项 |
-| `ponytail-adoption-review-brief-2026-09-04.md` | ponytail 改造的第三方独立复核材料 **v3** — 上游分层体积实测（固定 SHA，合计闭合）、适配器逐目录层级表（4 注入 + 9 指令层）、三处落地文本与统一字节口径、逐 tag 拒绝理由、证据分级与自我反驳、两轮复核（Q1–Q7、R1–R6）裁决落实 |
+| Document                                                 | Purpose                                                                                                                                                                                                                                            |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source-registry-capability-audit-2026-08-19.md`         | #77 Source registry capability 标注核查报告（W3 待做）                                                                                                                                                                                             |
+| `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV)                                                                                                                                                                                                      |
+| `session-id-provenance-review-brief-2026-09-04.md`       | Session-Id 关联标识交付的第三方独立复核材料 **v4（已吸收两轮复核）** — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、并发 reset 事故与单 id 错误归因证据、atlas 调研、reference-transaction 门控与并发方案 A/B/C、两轮裁决落实回执、未解决事项 |
+| `ponytail-adoption-review-brief-2026-09-04.md`           | ponytail 改造的第三方独立复核材料 **v3** — 上游分层体积实测（固定 SHA，合计闭合）、适配器逐目录层级表（4 注入 + 9 指令层）、三处落地文本与统一字节口径、逐 tag 拒绝理由、证据分级与自我反驳、两轮复核（Q1–Q7、R1–R6）裁决落实                      |
 
 ### `archive/` — Completed work
 
@@ -150,23 +150,23 @@ Historical specs, tickets, plans, and roadmaps. Retained for reference, no longe
 
 ### `specs/` — Active specs
 
-| Document | Purpose |
-|----------|---------|
-| `specs/adr-0008-0014-remediation-tracker.md` | ADR 0008–0014 修复执行追踪器 |
-| `specs/spec-asset-first-hook-media-focus-detection.md` | 素材先行 + Hook 场景 Media 支持 + OpenCV 焦点检测提案 |
-| `specs/spec-media-patch-apply.md` | Media-patch apply workflow spec |
-| `specs/spec-pipeline-generalization.md` | Pipeline generalization — verification intelligence, media upscale, currency auto-fix, layout & chart template |
-| `specs/spec-research-evidence-pipeline.md` | Research evidence pipeline spec |
-| `specs/spec-vlm-semantic-merge-remediation.md` | VLM semantic merge remediation (P0 + P1) spec |
-| `specs/spec-wechat2rss-source-tracking.md` | Wechat2RSS 第三方公众号追踪接入规格 |
+| Document                                               | Purpose                                                                                                        |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `specs/adr-0008-0014-remediation-tracker.md`           | ADR 0008–0014 修复执行追踪器                                                                                   |
+| `specs/spec-asset-first-hook-media-focus-detection.md` | 素材先行 + Hook 场景 Media 支持 + OpenCV 焦点检测提案                                                          |
+| `specs/spec-media-patch-apply.md`                      | Media-patch apply workflow spec                                                                                |
+| `specs/spec-pipeline-generalization.md`                | Pipeline generalization — verification intelligence, media upscale, currency auto-fix, layout & chart template |
+| `specs/spec-research-evidence-pipeline.md`             | Research evidence pipeline spec                                                                                |
+| `specs/spec-vlm-semantic-merge-remediation.md`         | VLM semantic merge remediation (P0 + P1) spec                                                                  |
+| `specs/spec-wechat2rss-source-tracking.md`             | Wechat2RSS 第三方公众号追踪接入规格                                                                            |
 
 ### Root-level active specs & tickets
 
-| Document | Purpose |
-|----------|---------|
-| `spec-vlm-fit-focus.md` | VLM-driven fit/focus for landscape assets in vertical video spec |
-| `spec-issue-56-84-pr102-refresh.md` | Refresh PR #102 on current asset sourcer spec |
-| `tickets-issue-56-84-pr102-refresh.md` | Tickets for PR #102 refresh |
+| Document                               | Purpose                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `spec-vlm-fit-focus.md`                | VLM-driven fit/focus for landscape assets in vertical video spec |
+| `spec-issue-56-84-pr102-refresh.md`    | Refresh PR #102 on current asset sourcer spec                    |
+| `tickets-issue-56-84-pr102-refresh.md` | Tickets for PR #102 refresh                                      |
 
 ### `refs/` — Reference materials
 
@@ -176,57 +176,57 @@ External reference repos and source materials. Not project documentation.
 
 Deep research reports with citations.
 
-| Document | Purpose |
-|----------|---------|
-| `agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计 — 9 份文档逐句发现（sediment/no-ops/duplication/下沉）、预估节省、skill 目录统计与卸载候选；实施需用户批准 |
-| `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
-| `anti-bot-scraping-solutions.md` | Anti-bot scraping solutions — bypass strategies and alternative search engines |
-| `article-humanize-patterns-2026-09-04.md` | 文章人味化模式依据 — Wikipedia "Signs of AI writing" 35 模式采纳/拒绝清单、10 篇语料实测、MRL-1 B9/W7/W8/W9 与 W1（3000→2500）阈值推导、外部改写工具对 widget 标记的风险 |
-| `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
-| `vlm-model-selection-benchmark.md` | VLM model selection benchmark — Qwen3-VL 2B/4B/8B comparison with local test data |
-| `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
-| `atomgit-ai-platform-research.md` | AtomGit AI 平台调研（2026-09-03）— 昇腾模型平台（ai.atomgit.com）：NPU 910B 硬件（无 GPU）、200 万 Token/月推理额度（月度刷新）+ 1000 核时/月 NPU 算力、AtomCode CodingPlan（编码助手，独立于推理 Token）、OpenAI 兼容 API（`/v1/chat_completions` 等 4 端点）、15 种 Token 任务类型、竞品对比（ModelScope/OpenXLab/模力方舟/Replicate）、数字人模型 NPU 适配限制（CUDA 硬依赖模型不可跑）、可替代本地小模型评估 |
-| `audio-drift-fix.md` | Audio drift root cause analysis, fix implementation, sync verification, diagnostics |
-| `china-ai-article-pipeline-2026.md` | Article pipeline research — content strategy, widget design, SEO |
-| `china-ai-hashtag-mapping.md` | China AI entity → TikTok hashtag mapping (60+ entities, 7 tiers: Big Tech, startups, AI chips, robotics, autonomous driving, international competitors, product brands) | `caption-utils.mjs` ENTITY_HASHTAG_MAP, `tiktok-best-practices.md` Hashtag 策略 |
-| `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
-| `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) + HuggingFace LFS 下载策略（curl -L vs hf_hub_download, Kaggle CLI --dir-mode 陷阱, Colab WebSocket 超时） |
-| `colab-cli-guide.md` | Google Colab CLI guide — gcloud setup, kernel push/pull, GPU smoke test |
-| `commit-session-association-id-proposal.md` | Commit Session-Id 关联标识提案 **v5（已结项 + 第三方复核修订）** — tool-agnostic 方案：精确匹配查询（separator=%x2C）、Session-Id 唯一性、compact 恢复规则、6hex id、strict 登记门控（common-dir 登记表，fail-closed）；操作规则在 `git-workflow.md` §8，验收在 `scripts/test-commit-msg-hook.sh`，复核材料 `docs/reviews/session-id-provenance-review-brief-2026-09-04.md` |
-| `digital-human-references.md` | Offloaded reference material — papers, code repos, cloud platforms, market research for digital human models |
-| `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options |
-| `echomimicv3-optimization-options.md` | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning |
-| `friendly-search-engines-comparison.md` | Friendly search engines comparison — CDP vs API, anti-bot resistance, result quality |
-| `free-llm-api-options.md` | 免费 LLM API 方案对比 — 合规的程序化 LLM 调用路径（官方 API / Puter.js User-Pays / 免费替代平台）+ 实测吞吐量数据 |
-| `digital-human-test-progress.md` | Digital human model test progress tracking — pointers to cloud-gpu-options for detailed analysis |
-| `leaptalk-v8-params-review.md` | LeapTalk v8 方案参数合理性评估 — arXiv 2608.00079 论文 + 源码 + v4-v7 实测逐项核对 |
-| `media-asset-strategy.md` | Media asset strategy — acquisition, integration, animation (1000+ lines) |
-| `golden-asset-evaluation.md` | Golden asset evaluation — benchmark criteria for media asset quality scoring |
-| ~~`issue-tracker-review.md`~~ | ✅ 已归档至 `docs/archive/reviews/issue-tracker-review-2026-08-26.md` — 19/19 项全部修复后归档 |
-| `model-sources-reference.md` | Model search sources reference — sources, format guide, GPU compat checklist, search flow, admission criteria & scoring |
-| `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
-| `open-source-video-generation-landscape-2026.md` | Open-source video generation landscape 2026 — model/engine comparison, local Apple Silicon viability |
-| `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
-| `ponytail-minimal-code-adoption-proposal.md` | Ponytail 最小实现规则引入提案 **v6（已批准试点，0/5）** — A-lite/D → implementation-workflow §6、B-lite → §8、试点路由 → §9；**裁决门槛真相源在试点记录** `docs/reviews/ponytail-lite-pilot-2026-09.md`（v3：正向证据门槛 + "保留"取代"转正"、保留结论不得附带收益量级声明；hard gate 六项） |
-| `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
-| `source-layer-comparison.md` | Source layer CDP vs MCP vs API, capability matrix per source |
-| `talking-head-api-platforms.md` | Talking Head 模型 API 平台调研（2026-09-03）— NVIDIA NIM / Replicate / fal.ai / HF Spaces / 硅基流动等 8 平台 CDP 实测，免费低价 API 路线 |
-| `safe-zone-calibration-log.md` | Safe zone calibration log with FYP screenshot evidence |
-| `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
-| `video-background-coverage-audit-2026-08-21.md` | 视频背景视觉承载审查结论 — 现状覆盖率、实现缺口与场景级视觉意图建议 |
-| `wechat-rss-tracking-mechanisms.md` | WeChat RSS tracking mechanisms — Wechat2RSS, third-party feeds, verified sources |
-| `tailscale-remote-gpu-setup.md` | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide |
-| `text-auto-fit-landscape-research.md` | 文本自动适配两轮 deep research — 官方 layout-utils 边界、行业方案对比、官方能力利用审计；spec 决策 57–62（T6 pivot）的决策依据 |
-| `tiktok-color-scheme-research.md` | TikTok video color scheme — dark vs bright impact on engagement |
-| `tiktok-competitor-intelligence.md` | TikTok competitor intelligence — 16 competitor videos + hashtag frequency, description patterns, self-video analytics (§3) |
-| `tiktok-creator-tools.md` | TikTok Creator Tools evaluation — Creator Academy + Research API integration assessment for pipeline and analytics |
-| `tiktok-hook-patterns-best-practices.md` | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design |
-| `tiktok-hook-patterns-wide-research-assessment.md` | TikTok hook patterns research — wide assessment and source evaluation |
-| `tiktok-practical-guide-2026.md` | TikTok practical methodology 2026 |
-| `voice-cloning-solutions-m2-pro.md` | Voice cloning / TTS model research for Apple M2 Pro 32GB |
-| `voice-prosody-hook-optimization.md` | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale |
-| `windows-gpu-analysis.md` | Windows device digital human model feasibility analysis & upgrade plan |
-| `windows-gpu-test-progress.md` | Windows digital human model test progress tracking |
+| Document                                           | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-doc-token-audit-2026-09-02.md`              | Agent-reached 文档 token 审计 — 9 份文档逐句发现（sediment/no-ops/duplication/下沉）、预估节省、skill 目录统计与卸载候选；实施需用户批准                                                                                                                                                                                                                                                                         |
+| `agent-driven-video-editing-research.md`           | Agent-driven video editing automation research                                                                                                                                                                                                                                                                                                                                                                   |
+| `anti-bot-scraping-solutions.md`                   | Anti-bot scraping solutions — bypass strategies and alternative search engines                                                                                                                                                                                                                                                                                                                                   |
+| `article-humanize-patterns-2026-09-04.md`          | 文章人味化模式依据 — Wikipedia "Signs of AI writing" 35 模式采纳/拒绝清单、10 篇语料实测、MRL-1 B9/W7/W8/W9 与 W1（3000→2500）阈值推导、外部改写工具对 widget 标记的风险                                                                                                                                                                                                                                         |
+| `asset-focus-detection-alternatives.md`            | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比                                                                                                                                                                                                                                                                                                                                               |
+| `vlm-model-selection-benchmark.md`                 | VLM model selection benchmark — Qwen3-VL 2B/4B/8B comparison with local test data                                                                                                                                                                                                                                                                                                                                |
+| `asset-source-quick-reference.md`                  | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses                                                                                                                                                                                                                                                                                                                           |
+| `atomgit-ai-platform-research.md`                  | AtomGit AI 平台调研（2026-09-03）— 昇腾模型平台（ai.atomgit.com）：NPU 910B 硬件（无 GPU）、200 万 Token/月推理额度（月度刷新）+ 1000 核时/月 NPU 算力、AtomCode CodingPlan（编码助手，独立于推理 Token）、OpenAI 兼容 API（`/v1/chat_completions` 等 4 端点）、15 种 Token 任务类型、竞品对比（ModelScope/OpenXLab/模力方舟/Replicate）、数字人模型 NPU 适配限制（CUDA 硬依赖模型不可跑）、可替代本地小模型评估 |
+| `audio-drift-fix.md`                               | Audio drift root cause analysis, fix implementation, sync verification, diagnostics                                                                                                                                                                                                                                                                                                                              |
+| `china-ai-article-pipeline-2026.md`                | Article pipeline research — content strategy, widget design, SEO                                                                                                                                                                                                                                                                                                                                                 |
+| `china-ai-hashtag-mapping.md`                      | China AI entity → TikTok hashtag mapping (60+ entities, 7 tiers: Big Tech, startups, AI chips, robotics, autonomous driving, international competitors, product brands)                                                                                                                                                                                                                                          | `caption-utils.mjs` ENTITY_HASHTAG_MAP, `tiktok-best-practices.md` Hashtag 策略 |
+| `china-digital-human-api-alternatives.md`          | Digital human API alternatives in mainland China                                                                                                                                                                                                                                                                                                                                                                 |
+| `cloud-gpu-options.md`                             | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) + HuggingFace LFS 下载策略（curl -L vs hf_hub_download, Kaggle CLI --dir-mode 陷阱, Colab WebSocket 超时）                                                                                                                                                                                                                     |
+| `colab-cli-guide.md`                               | Google Colab CLI guide — gcloud setup, kernel push/pull, GPU smoke test                                                                                                                                                                                                                                                                                                                                          |
+| `commit-session-association-id-proposal.md`        | Commit Session-Id 关联标识提案 **v5（已结项 + 第三方复核修订）** — tool-agnostic 方案：精确匹配查询（separator=%x2C）、Session-Id 唯一性、compact 恢复规则、6hex id、strict 登记门控（common-dir 登记表，fail-closed）；操作规则在 `git-workflow.md` §8，验收在 `scripts/test-commit-msg-hook.sh`，复核材料 `docs/reviews/session-id-provenance-review-brief-2026-09-04.md`                                      |
+| `digital-human-references.md`                      | Offloaded reference material — papers, code repos, cloud platforms, market research for digital human models                                                                                                                                                                                                                                                                                                     |
+| `digital-human-solutions-m2-pro.md`                | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options                                                                                                                                                                                                                                                                                                                     |
+| `echomimicv3-optimization-options.md`              | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning                                                                                                                                                                                                                                                                                                                                        |
+| `friendly-search-engines-comparison.md`            | Friendly search engines comparison — CDP vs API, anti-bot resistance, result quality                                                                                                                                                                                                                                                                                                                             |
+| `free-llm-api-options.md`                          | 免费 LLM API 方案对比 — 合规的程序化 LLM 调用路径（官方 API / Puter.js User-Pays / 免费替代平台）+ 实测吞吐量数据                                                                                                                                                                                                                                                                                                |
+| `digital-human-test-progress.md`                   | Digital human model test progress tracking — pointers to cloud-gpu-options for detailed analysis                                                                                                                                                                                                                                                                                                                 |
+| `leaptalk-v8-params-review.md`                     | LeapTalk v8 方案参数合理性评估 — arXiv 2608.00079 论文 + 源码 + v4-v7 实测逐项核对                                                                                                                                                                                                                                                                                                                               |
+| `media-asset-strategy.md`                          | Media asset strategy — acquisition, integration, animation (1000+ lines)                                                                                                                                                                                                                                                                                                                                         |
+| `golden-asset-evaluation.md`                       | Golden asset evaluation — benchmark criteria for media asset quality scoring                                                                                                                                                                                                                                                                                                                                     |
+| ~~`issue-tracker-review.md`~~                      | ✅ 已归档至 `docs/archive/reviews/issue-tracker-review-2026-08-26.md` — 19/19 项全部修复后归档                                                                                                                                                                                                                                                                                                                   |
+| `model-sources-reference.md`                       | Model search sources reference — sources, format guide, GPU compat checklist, search flow, admission criteria & scoring                                                                                                                                                                                                                                                                                          |
+| `multi-video-splitting-best-practices.md`          | Video splitting strategy, inter-episode linking, auto-evaluator                                                                                                                                                                                                                                                                                                                                                  |
+| `open-source-video-generation-landscape-2026.md`   | Open-source video generation landscape 2026 — model/engine comparison, local Apple Silicon viability                                                                                                                                                                                                                                                                                                             |
+| `pipeline-simplification-discussion.md`            | Pipeline simplification discussion — Stage 0 unification, category rename, locale field                                                                                                                                                                                                                                                                                                                          |
+| `ponytail-minimal-code-adoption-proposal.md`       | Ponytail 最小实现规则引入提案 **v6（已批准试点，0/5）** — A-lite/D → implementation-workflow §6、B-lite → §8、试点路由 → §9；**裁决门槛真相源在试点记录** `docs/reviews/ponytail-lite-pilot-2026-09.md`（v3：正向证据门槛 + "保留"取代"转正"、保留结论不得附带收益量级声明；hard gate 六项）                                                                                                                     |
+| `reference-video-extraction.md`                    | Reference video extraction — long-term backlog task                                                                                                                                                                                                                                                                                                                                                              |
+| `source-layer-comparison.md`                       | Source layer CDP vs MCP vs API, capability matrix per source                                                                                                                                                                                                                                                                                                                                                     |
+| `talking-head-api-platforms.md`                    | Talking Head 模型 API 平台调研（2026-09-03）— NVIDIA NIM / Replicate / fal.ai / HF Spaces / 硅基流动等 8 平台 CDP 实测，免费低价 API 路线                                                                                                                                                                                                                                                                        |
+| `safe-zone-calibration-log.md`                     | Safe zone calibration log with FYP screenshot evidence                                                                                                                                                                                                                                                                                                                                                           |
+| `short-video-script-writing-best-practices.md`     | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources                                                                                                                                                                                                                                                                                     |
+| `video-background-coverage-audit-2026-08-21.md`    | 视频背景视觉承载审查结论 — 现状覆盖率、实现缺口与场景级视觉意图建议                                                                                                                                                                                                                                                                                                                                              |
+| `wechat-rss-tracking-mechanisms.md`                | WeChat RSS tracking mechanisms — Wechat2RSS, third-party feeds, verified sources                                                                                                                                                                                                                                                                                                                                 |
+| `tailscale-remote-gpu-setup.md`                    | NVIDIA machine deployment — Tailscale + SSH + WSL2 setup guide                                                                                                                                                                                                                                                                                                                                                   |
+| `text-auto-fit-landscape-research.md`              | 文本自动适配两轮 deep research — 官方 layout-utils 边界、行业方案对比、官方能力利用审计；spec 决策 57–62（T6 pivot）的决策依据                                                                                                                                                                                                                                                                                   |
+| `tiktok-color-scheme-research.md`                  | TikTok video color scheme — dark vs bright impact on engagement                                                                                                                                                                                                                                                                                                                                                  |
+| `tiktok-competitor-intelligence.md`                | TikTok competitor intelligence — 16 competitor videos + hashtag frequency, description patterns, self-video analytics (§3)                                                                                                                                                                                                                                                                                       |
+| `tiktok-creator-tools.md`                          | TikTok Creator Tools evaluation — Creator Academy + Research API integration assessment for pipeline and analytics                                                                                                                                                                                                                                                                                               |
+| `tiktok-hook-patterns-best-practices.md`           | TikTok hook P1-P6 pattern system + fill-in-the-blank templates — CDP research, pattern occurrence matrix, scaffold design                                                                                                                                                                                                                                                                                        |
+| `tiktok-hook-patterns-wide-research-assessment.md` | TikTok hook patterns research — wide assessment and source evaluation                                                                                                                                                                                                                                                                                                                                            |
+| `tiktok-practical-guide-2026.md`                   | TikTok practical methodology 2026                                                                                                                                                                                                                                                                                                                                                                                |
+| `voice-cloning-solutions-m2-pro.md`                | Voice cloning / TTS model research for Apple M2 Pro 32GB                                                                                                                                                                                                                                                                                                                                                         |
+| `voice-prosody-hook-optimization.md`               | Per-scene pitch/tempo prosody enhancement — 15 sources, parameter rationale                                                                                                                                                                                                                                                                                                                                      |
+| `windows-gpu-analysis.md`                          | Windows device digital human model feasibility analysis & upgrade plan                                                                                                                                                                                                                                                                                                                                           |
+| `windows-gpu-test-progress.md`                     | Windows digital human model test progress tracking                                                                                                                                                                                                                                                                                                                                                               |
 
 ## Spec/Ticket/Review Lifecycle
 

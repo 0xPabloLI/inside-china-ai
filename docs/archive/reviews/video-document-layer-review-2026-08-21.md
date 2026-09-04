@@ -20,14 +20,14 @@ No offload may restore the obsolete public-article-before-video ordering.
 
 ## Baseline
 
-| Document | Current size | Intended L1 role | Review finding |
-|---|---:|---|---|
-| `content-pipeline.md` | 1,060 lines / 66,819 bytes | Route the entire content package from shared material to release | Contains routing, article production, release commands, video-script craft, RAG lifecycle, verification, TikTok operations, and explanations of method choices. |
-| `video-workflow.md` | 821 lines / 47,904 bytes | Regular video-production runbook | Contains normal render/TTS operations, but also post-publication analytics, series/compilation branches, scaffold templates, strategy explanation, and implementation rationale. |
-| `video-script-writing-guide.md` | 186 lines / 11,606 bytes | Script-craft canonical reference | Already owns narrative and hook/CTA methodology; parent workflow must point here rather than restate it. |
-| `media-asset-management.md` | 150 lines / 12,714 bytes | Asset placement, catalog, and RAG integration | Already owns asset and reindex decisions; parent workflow should retain only stage triggers. |
-| `manual-ops.md` | 158 lines / 7,884 bytes | User-only publishing actions | Already owns TikTok App actions; parent workflow should link rather than repeat the manual checklist. |
-| `analytics-workflow.md` | 149 lines / 5,728 bytes | Post-publication review and optimization | Already owns Analytics; it should not be loaded during routine video rendering. |
+| Document                        |               Current size | Intended L1 role                                                 | Review finding                                                                                                                                                                   |
+| ------------------------------- | -------------------------: | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content-pipeline.md`           | 1,060 lines / 66,819 bytes | Route the entire content package from shared material to release | Contains routing, article production, release commands, video-script craft, RAG lifecycle, verification, TikTok operations, and explanations of method choices.                  |
+| `video-workflow.md`             |   821 lines / 47,904 bytes | Regular video-production runbook                                 | Contains normal render/TTS operations, but also post-publication analytics, series/compilation branches, scaffold templates, strategy explanation, and implementation rationale. |
+| `video-script-writing-guide.md` |   186 lines / 11,606 bytes | Script-craft canonical reference                                 | Already owns narrative and hook/CTA methodology; parent workflow must point here rather than restate it.                                                                         |
+| `media-asset-management.md`     |   150 lines / 12,714 bytes | Asset placement, catalog, and RAG integration                    | Already owns asset and reindex decisions; parent workflow should retain only stage triggers.                                                                                     |
+| `manual-ops.md`                 |    158 lines / 7,884 bytes | User-only publishing actions                                     | Already owns TikTok App actions; parent workflow should link rather than repeat the manual checklist.                                                                            |
+| `analytics-workflow.md`         |    149 lines / 5,728 bytes | Post-publication review and optimization                         | Already owns Analytics; it should not be loaded during routine video rendering.                                                                                                  |
 
 ## Placement Decision
 
@@ -41,27 +41,27 @@ The project rules define L1 as executable instructions and L2 as rationale, comp
 
 ### `docs/content-pipeline.md`
 
-| Current responsibility | Target treatment | Canonical destination | Trigger after migration |
-|---|---|---|---|
-| Stage 0 shared material, track inputs/outputs, MRL/HITL, cross-output consistency, release ordering | **Keep, condensed** | `content-pipeline.md` | Every content-package request |
-| Article drafting details, MRL-1 checklist, widget production | **Keep only contract and pointer** | Article-production reference or the existing article-specific command/documentation source | Article track is active |
-| Public article release, source attachments, TikTok App actions | **Move / point** | `manual-ops.md` for human actions; article publisher and Stage 5 contract for automation | HITL approved |
-| Script narrative templates, hook/CTA explanation, beat-level methodology | **Remove duplicate and point** | `video-script-writing-guide.md` | Writing or revising scene-data |
-| Asset placement, catalog fields, reindex mechanics | **Move / point** | `media-asset-management.md` | New/changed media asset or reindex trigger |
-| Research justification for series length, platform behavior, or writing methods | **Move to L2 pointer** | Existing `docs/research/` documents | Only when reassessing the chosen rule |
-| Analytics process | **Point only** | `analytics-workflow.md` | 24–48 hours after publication |
+| Current responsibility                                                                              | Target treatment                   | Canonical destination                                                                      | Trigger after migration                    |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| Stage 0 shared material, track inputs/outputs, MRL/HITL, cross-output consistency, release ordering | **Keep, condensed**                | `content-pipeline.md`                                                                      | Every content-package request              |
+| Article drafting details, MRL-1 checklist, widget production                                        | **Keep only contract and pointer** | Article-production reference or the existing article-specific command/documentation source | Article track is active                    |
+| Public article release, source attachments, TikTok App actions                                      | **Move / point**                   | `manual-ops.md` for human actions; article publisher and Stage 5 contract for automation   | HITL approved                              |
+| Script narrative templates, hook/CTA explanation, beat-level methodology                            | **Remove duplicate and point**     | `video-script-writing-guide.md`                                                            | Writing or revising scene-data             |
+| Asset placement, catalog fields, reindex mechanics                                                  | **Move / point**                   | `media-asset-management.md`                                                                | New/changed media asset or reindex trigger |
+| Research justification for series length, platform behavior, or writing methods                     | **Move to L2 pointer**             | Existing `docs/research/` documents                                                        | Only when reassessing the chosen rule      |
+| Analytics process                                                                                   | **Point only**                     | `analytics-workflow.md`                                                                    | 24–48 hours after publication              |
 
 ### `docs/video-workflow.md`
 
-| Current responsibility | Target treatment | Canonical destination | Trigger after migration |
-|---|---|---|---|
-| Preflight, TTS, rendering, retry, verification, critical paths, output conventions | **Keep, condensed** | `video-workflow.md` | Normal video production |
-| Brand voice and narrative content standards | **Point** | `brand-system.md` and `video-script-writing-guide.md` | Branding or scripting work |
-| Publishing strategy and manual TikTok actions | **Point** | `manual-ops.md` and `docs/tiktok/` | HITL-approved release |
-| Post-publish analytics and optimization | **Move / point** | `analytics-workflow.md` | Analytics review |
-| Multi-video series, compilation video, series release sequence | **Extract to narrow L1** | New series/compilation runbook only if the migration map confirms no existing canonical home | Episode evaluator recommends multiple parts or user requests a compilation |
-| Creating a new content pipeline from scratch, directory tree, `meta.mjs` / `scene-data.mjs` / `scenes.mjs` templates | **Extract to narrow L1** | New content-scaffold runbook or a single code-template source | Creating a new content slug, not normal rendering |
-| VLM/TTS/platform trade-offs, historical experiment results, model limits | **Move to L2 / ADR pointer** | Existing ADRs and `docs/research/` | Reconsidering a technical choice |
+| Current responsibility                                                                                               | Target treatment             | Canonical destination                                                                        | Trigger after migration                                                    |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Preflight, TTS, rendering, retry, verification, critical paths, output conventions                                   | **Keep, condensed**          | `video-workflow.md`                                                                          | Normal video production                                                    |
+| Brand voice and narrative content standards                                                                          | **Point**                    | `brand-system.md` and `video-script-writing-guide.md`                                        | Branding or scripting work                                                 |
+| Publishing strategy and manual TikTok actions                                                                        | **Point**                    | `manual-ops.md` and `docs/tiktok/`                                                           | HITL-approved release                                                      |
+| Post-publish analytics and optimization                                                                              | **Move / point**             | `analytics-workflow.md`                                                                      | Analytics review                                                           |
+| Multi-video series, compilation video, series release sequence                                                       | **Extract to narrow L1**     | New series/compilation runbook only if the migration map confirms no existing canonical home | Episode evaluator recommends multiple parts or user requests a compilation |
+| Creating a new content pipeline from scratch, directory tree, `meta.mjs` / `scene-data.mjs` / `scenes.mjs` templates | **Extract to narrow L1**     | New content-scaffold runbook or a single code-template source                                | Creating a new content slug, not normal rendering                          |
+| VLM/TTS/platform trade-offs, historical experiment results, model limits                                             | **Move to L2 / ADR pointer** | Existing ADRs and `docs/research/`                                                           | Reconsidering a technical choice                                           |
 
 ## Guardrails for #103
 

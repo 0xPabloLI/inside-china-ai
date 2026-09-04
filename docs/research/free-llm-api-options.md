@@ -36,17 +36,17 @@ OpenAI 提供 REST API（`api.openai.com/v1/chat/completions` 等），是唯一
 
 如果不一定要用 ChatGPT 本身，多个平台提供免费 GPT 级 API：
 
-| 平台 | 模型 | 免费额度 | 限制 |
-|------|------|----------|------|
-| Google AI Studio | Gemini 3.7 Flash / 3.5 Flash-Lite | ~1,500 req/day | 5-15 RPM，仅 Flash 系列（Pro 已移到付费）；2026-03 起新用户可能被要求 Prepay |
-| Groq | GPT-OSS 120B, Llama 3.3 70B, Qwen3-32B 等 | ~14,400 req/day | 30 RPM，所有模型免费 |
-| SiliconFlow (硅基流动) | GLM-4-9B, Qwen3-8B, GLM-Z1-9B 等 | 免费模型按模型计 | 中国平台，中文好，无公开 pricing API |
-| Cloudflare Workers AI | Llama-3.1-70B-Instruct-BF16、Llama-3-8B-Instruct、Mixtral-8x7B、Mistral-7B-Instruct、Gemma-7B、Qwen 1.5 (0.5B/7B/14B)、Hermes-3-Llama-3.1-70B | 10K req/day | 模型较小、速度快，仅限文本生成 |
-| **GitHub Models** | Llama-3.3-70B-Instruct-FP8-Fast、Phi-4、GPT-2、Whisper-Large-V3、Phi-4-Mini-Reasoning | 15 req/min；150 req/day；50K tokens/min；不可商用 | 免费层有 RPM 限制；模型适合 demo；需要 GitHub 账户 |
-| **AtomGit (昇腾模型平台)** | **实测仅 12 个模型 API 可调用**：Qwen3-30B-A3B、Qwen3-32B、Qwen2-VL-72B、DeepSeek-V4-Flash/Pro、GLM-5.2、Kimi-K2.6、openPangu-2.0 等 | **200 万 Token/月**（月度刷新）| 昇腾 NPU 平台，OpenAI 端点兼容但**认证用 `PRIVATE-TOKEN` header**（非 Bearer）；模型库 39k+ 但大部分不可 API 调用；额外 1000 核时/月 NPU 算力；**定位为备选**——当前无我们需要的数字人/ASR/TTS 模型，详见 atomgit-ai-platform-research.md |
-| **ModelScope (魔搭)** | Qwen 全系、DeepSeek 全系、InternVL、InternLM、CosyVoice、Qwen2-Audio 等 17 万+ 模型 | **2000 次/天**，DeepSeek-R1 限 200 次/天 | 国内下载速度快（30-100MB/s CDN）；接入阿里云 DashScope 全面；免费额度按 App/模型对应不同；最直接的"中国版 Hugging Face"；需阿里云实名认证 |
-| DeepSeek | DeepSeek V4 (1.6T MoE) | 已转付费（2026 年 8 月） | 审查敏感话题 |
-| Microsoft Copilot | GPT-5.x | 每日限制 | 非标准 API |
+| 平台                       | 模型                                                                                                                                          | 免费额度                                          | 限制                                                                                                                                                                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Google AI Studio           | Gemini 3.7 Flash / 3.5 Flash-Lite                                                                                                             | ~1,500 req/day                                    | 5-15 RPM，仅 Flash 系列（Pro 已移到付费）；2026-03 起新用户可能被要求 Prepay                                                                                                                                                             |
+| Groq                       | GPT-OSS 120B, Llama 3.3 70B, Qwen3-32B 等                                                                                                     | ~14,400 req/day                                   | 30 RPM，所有模型免费                                                                                                                                                                                                                     |
+| SiliconFlow (硅基流动)     | GLM-4-9B, Qwen3-8B, GLM-Z1-9B 等                                                                                                              | 免费模型按模型计                                  | 中国平台，中文好，无公开 pricing API                                                                                                                                                                                                     |
+| Cloudflare Workers AI      | Llama-3.1-70B-Instruct-BF16、Llama-3-8B-Instruct、Mixtral-8x7B、Mistral-7B-Instruct、Gemma-7B、Qwen 1.5 (0.5B/7B/14B)、Hermes-3-Llama-3.1-70B | 10K req/day                                       | 模型较小、速度快，仅限文本生成                                                                                                                                                                                                           |
+| **GitHub Models**          | Llama-3.3-70B-Instruct-FP8-Fast、Phi-4、GPT-2、Whisper-Large-V3、Phi-4-Mini-Reasoning                                                         | 15 req/min；150 req/day；50K tokens/min；不可商用 | 免费层有 RPM 限制；模型适合 demo；需要 GitHub 账户                                                                                                                                                                                       |
+| **AtomGit (昇腾模型平台)** | **实测仅 12 个模型 API 可调用**：Qwen3-30B-A3B、Qwen3-32B、Qwen2-VL-72B、DeepSeek-V4-Flash/Pro、GLM-5.2、Kimi-K2.6、openPangu-2.0 等          | **200 万 Token/月**（月度刷新）                   | 昇腾 NPU 平台，OpenAI 端点兼容但**认证用 `PRIVATE-TOKEN` header**（非 Bearer）；模型库 39k+ 但大部分不可 API 调用；额外 1000 核时/月 NPU 算力；**定位为备选**——当前无我们需要的数字人/ASR/TTS 模型，详见 atomgit-ai-platform-research.md |
+| **ModelScope (魔搭)**      | Qwen 全系、DeepSeek 全系、InternVL、InternLM、CosyVoice、Qwen2-Audio 等 17 万+ 模型                                                           | **2000 次/天**，DeepSeek-R1 限 200 次/天          | 国内下载速度快（30-100MB/s CDN）；接入阿里云 DashScope 全面；免费额度按 App/模型对应不同；最直接的"中国版 Hugging Face"；需阿里云实名认证                                                                                                |
+| DeepSeek                   | DeepSeek V4 (1.6T MoE)                                                                                                                        | 已转付费（2026 年 8 月）                          | 审查敏感话题                                                                                                                                                                                                                             |
+| Microsoft Copilot          | GPT-5.x                                                                                                                                       | 每日限制                                          | 非标准 API                                                                                                                                                                                                                               |
 
 来源：[TokenMix 分析](https://tokenmix.ai/blog/chatgpt-api-alternative-free) — Tier 2；[serverspace 对比](https://serverspace.io/about/blog/the-best-chatgpt-alternatives-free-in-2026-15-ai-tools-for-text-code-and-productivity/) — Tier 2；[Google AI 定价](https://ai.google.dev/gemini-api/docs/pricing) — Tier 1；[Groq 文档](https://console.groq.com/docs/models) — Tier 1
 
@@ -85,11 +85,11 @@ OpenAI 还提供了 Apps SDK / ChatGPT 第三方应用路径。你的应用作�
 
 ## 方案推荐总结
 
-| 方案 | 合规性 | 稳定性 | 成本 | 推荐度 |
-|------|--------|--------|------|--------|
-| 官方 API | ✅ 完全合规 | ✅ 最稳定 | 💰 按 token 付费 | ⭐⭐⭐⭐⭐ |
-| Puter.js | ✅ 通过 Puter 合法代理 | ✅ 稳定 | 🔄 用户付费 | ⭐⭐⭐⭐（前端应用） |
-| 免费替代（Gemini Flash / Groq GPT-OSS / SiliconFlow） | ✅ 各平台合规 | ✅ 稳定 | 🆓 免费额度 | ⭐⭐⭐⭐⭐（非必须 GPT） |
+| 方案                                                  | 合规性                 | 稳定性    | 成本             | 推荐度                   |
+| ----------------------------------------------------- | ---------------------- | --------- | ---------------- | ------------------------ |
+| 官方 API                                              | ✅ 完全合规            | ✅ 最稳定 | 💰 按 token 付费 | ⭐⭐⭐⭐⭐               |
+| Puter.js                                              | ✅ 通过 Puter 合法代理 | ✅ 稳定   | 🔄 用户付费      | ⭐⭐⭐⭐（前端应用）     |
+| 免费替代（Gemini Flash / Groq GPT-OSS / SiliconFlow） | ✅ 各平台合规          | ✅ 稳定   | 🆓 免费额度      | ⭐⭐⭐⭐⭐（非必须 GPT） |
 
 ## Sources
 
@@ -111,32 +111,32 @@ OpenAI 还提供了 Apps SDK / ChatGPT 第三方应用路径。你的应用作�
 
 ### API Key 可用性测试
 
-| API | 模型 | 状态 | 备注 |
-|-----|------|------|------|
-| Google AI Studio | Gemini 3.7 Flash | ⚠️ 503 临时高负载 | 免费层已通（非 Prepay 报错） |
-| Google AI Studio | Gemini 3.6 Flash | ✅ 但默认开思维链导致极慢（66s） | 92 thinking tokens / 4 output tokens |
-| Google AI Studio | Gemini 3.5 Flash-Lite | ✅ 稳定，2.8s | 最快的 Gemini 免费选项 |
-| Groq | GPT-OSS 120B | ✅ 1.05s | ~470 tokens/s |
-| SiliconFlow | GLM-4-9B-0414 | ✅ ~4.7s | ~40 tokens/s，中文好 |
+| API              | 模型                  | 状态                             | 备注                                 |
+| ---------------- | --------------------- | -------------------------------- | ------------------------------------ |
+| Google AI Studio | Gemini 3.7 Flash      | ⚠️ 503 临时高负载                | 免费层已通（非 Prepay 报错）         |
+| Google AI Studio | Gemini 3.6 Flash      | ✅ 但默认开思维链导致极慢（66s） | 92 thinking tokens / 4 output tokens |
+| Google AI Studio | Gemini 3.5 Flash-Lite | ✅ 稳定，2.8s                    | 最快的 Gemini 免费选项               |
+| Groq             | GPT-OSS 120B          | ✅ 1.05s                         | ~470 tokens/s                        |
+| SiliconFlow      | GLM-4-9B-0414         | ✅ ~4.7s                         | ~40 tokens/s，中文好                 |
 
 ### 吞吐量对比（同一段 200 词摘要 prompt）
 
-| 平台 | 模型 | 输出 tokens | 推理耗时 | 吞吐量 (tokens/s) |
-|------|------|------------|---------|-------------------|
-| Groq | GPT-OSS 120B | 500 (含 498 推理) | 1.05s | **~470** |
-| Gemini AI Studio | 3.5 Flash-Lite | 260 | 2.8s | **~93** |
-| SiliconFlow | GLM-4-9B-0414 | 185 | 4.7s | **~40** |
-| 本地 (MPS) | Qwen3-VL-2B-4bit | — | ~8-10s/图 | ~20-30 (VLM，不同任务) |
+| 平台             | 模型             | 输出 tokens       | 推理耗时  | 吞吐量 (tokens/s)      |
+| ---------------- | ---------------- | ----------------- | --------- | ---------------------- |
+| Groq             | GPT-OSS 120B     | 500 (含 498 推理) | 1.05s     | **~470**               |
+| Gemini AI Studio | 3.5 Flash-Lite   | 260               | 2.8s      | **~93**                |
+| SiliconFlow      | GLM-4-9B-0414    | 185               | 4.7s      | **~40**                |
+| 本地 (MPS)       | Qwen3-VL-2B-4bit | —                 | ~8-10s/图 | ~20-30 (VLM，不同任务) |
 
 ### Gemini 三层级说明
 
 Google 将 Gemini 分为三个独立版本线的层级（版本号不统一）：
 
-| 层级 | 当前最新 | 定位 | 免费层 |
-|------|---------|------|--------|
-| Pro | Gemini 3.1 Pro (2026-02) | 旗舰推理，最难关题 | ❌ 2026-04 移到付费 |
-| Flash | Gemini 3.7 Flash (2026-08) | 快速日常主力，agentic workflow | ✅ |
-| Flash-Lite | Gemini 3.5 Flash-Lite (2026-07) | 最便宜，高吞吐低延迟 | ✅ |
+| 层级       | 当前最新                        | 定位                           | 免费层              |
+| ---------- | ------------------------------- | ------------------------------ | ------------------- |
+| Pro        | Gemini 3.1 Pro (2026-02)        | 旗舰推理，最难关题             | ❌ 2026-04 移到付费 |
+| Flash      | Gemini 3.7 Flash (2026-08)      | 快速日常主力，agentic workflow | ✅                  |
+| Flash-Lite | Gemini 3.5 Flash-Lite (2026-07) | 最便宜，高吞吐低延迟           | ✅                  |
 
 Flash 3.7 在 agentic 和编码基准上已超过 Pro 3.1。Flash-Lite 在 MMLU-Pro 上 83%，但 AIME 2025 仅 16.7%——不擅长复杂推理。
 
@@ -152,6 +152,7 @@ Flash 3.7 在 agentic 和编码基准上已超过 Pro 3.1。Flash-Lite 在 MMLU-
 ### AI Studio Prepay 陷阱
 
 2026-03-23 起 Google 引入 Prepay/Postpay 计费：
+
 - 绑定 Billing Account 的项目被分配为 Prepay，余额 $0 时所有 API 调用返回 429
 - Prepay → Postpay 不可逆
 - **解法**：disable billing on project → 降回 Free Tier；或新建不绑 billing 的 project + 新 key
@@ -159,14 +160,14 @@ Flash 3.7 在 agentic 和编码基准上已超过 Pro 3.1。Flash-Lite 在 MMLU-
 
 ### SiliconFlow vs Groq 选型
 
-| 维度 | SiliconFlow (GLM-4-9B) | Groq (GPT-OSS 120B) |
-|------|----------------------|---------------------|
-| 参数量 | 9B | 120B (MoE, 激活 5.1B/token) |
-| 智能等级 | 小模型，简单任务够用 | ≈ Claude 4 Sonnet |
-| 推理速度 | ~40 tokens/s | ~470 tokens/s (11x) |
-| 上下文窗口 | 8K | 128K (16x) |
-| 中文能力 | ✅ 好（清华系） | 一般 |
-| 训练数据截止 | 较新 | 2024-04（旧） |
-| 适合场景 | 简单分类/格式化 | 复杂推理/长文档 |
+| 维度         | SiliconFlow (GLM-4-9B) | Groq (GPT-OSS 120B)         |
+| ------------ | ---------------------- | --------------------------- |
+| 参数量       | 9B                     | 120B (MoE, 激活 5.1B/token) |
+| 智能等级     | 小模型，简单任务够用   | ≈ Claude 4 Sonnet           |
+| 推理速度     | ~40 tokens/s           | ~470 tokens/s (11x)         |
+| 上下文窗口   | 8K                     | 128K (16x)                  |
+| 中文能力     | ✅ 好（清华系）        | 一般                        |
+| 训练数据截止 | 较新                   | 2024-04（旧）               |
+| 适合场景     | 简单分类/格式化        | 复杂推理/长文档             |
 
 **结论**：简单窄任务（如分类/格式化）用 SiliconFlow GLM-4-9B 即可；复杂推理/长文档用 Groq GPT-OSS 120B；需要最新知识或多模态用 Gemini Flash。三个平台做 fallback 链最稳。

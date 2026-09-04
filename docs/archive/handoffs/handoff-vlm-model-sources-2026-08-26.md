@@ -9,6 +9,7 @@
 ## 背景
 
 在 VLM 选型过程中发现：
+
 1. mlx-vlm 0.6.16 的 Qwen3VLVideoProcessor（numpy 实现）可用——此前因测试代码用错误 API 调用方式（`apply_chat_template(num_images=0) + generate(video=)` 而非 `generate(prompt=, video=)`）导致 `broadcast_shapes` error，误报为「所有平台都有 bug」。验证日期 2026-08-26；环境 `~/.video-tts-env`（Python 3.12, mlx-vlm 0.6.16, transformers 5.15.1）；模型 `mlx-community/Qwen3-VL-2B-Instruct-4bit`；输入 `unitree-demo.mp4`（1.7s）；正确调用 `generate(prompt=, video=, fps=, max_frames=, temperature=0.0)`；结果 1.9s 内生成准确描述。证据：`scripts/short-video/lib/vlm_analyzer.py` L326-337（原生路径）+ L494-523（fallback），commit `445bf8e`。完整结论见 `docs/research/vlm-model-selection-benchmark.md` §4 视频分析 → 当前结论。此前误报结论见同章节 → 已废弃结论。失效条件：mlx-vlm 或 transformers 升级后需重新 smoke test。
 2. Qwen3.5/Qwen3.8 已发布（Ollama 模型目录标注 vision 能力，见 ollama.com/library/qwen3.5:4b 和 qwen3.8:27b）。视觉能力是否「全面超过 Qwen3-VL」需本机同 corpus A/B 验证——当前无公平对比数据。mlx-vlm 对 Qwen3.5 的图片 chat template 适配状态（截至 mlx-vlm 0.6.16, 2026-08-26）：图片处理报错，具体为 placeholder 不匹配。后续 mlx-vlm 升级后需重新验证。
 3. Ollama 上的 Qwen3.5:4b 图片处理可用（验证日期 2026-08-26，环境 Ollama + qwen3.5:4b 3.4GB，通过 chat API 调用）。38s/高分辨率图——注意此数据来自高分辨率原图，未做 resize 预处理，与 mlx-vlm 2B-4bit 的 3s/图（1280px resize 后）不可直接比较。公平 A/B 需统一 corpus、统一 resize、相同提示词、≥3 次运行。
@@ -20,29 +21,33 @@
 
 ### 当前状态
 
-| 模型 | 本地可用 | 图片 | 视频 | 速度 | 内存 |
-|------|---------|------|------|------|------|
-| Qwen3-VL-2B-4bit (mlx-vlm) | ✅ 生产中 | ✅ | ✅ 原生 1.7s | 3s/图 | 2.6GB |
-| Qwen3.5-4B-MLX-4bit (mlx-vlm 0.6.16) | ❌ 图片 placeholder 报错 | ❌ placeholder 报错 | 未测 | — | — |
-| Qwen3.5:4b (Ollama) | ✅ 已下载 (3.4GB) | ✅ 38s/高分辨率原图 | 未测 | — | 空闲 5min 自动卸载 |
-| Qwen3.8-27B (Ollama MLX 变体) | 未下载 | ✅ (Ollama 目录标注) | ✅ (Ollama 目录标注) | 需实际加载测量 | ~18GB Q4 |
+| 模型                                 | 本地可用                 | 图片                 | 视频                 | 速度           | 内存               |
+| ------------------------------------ | ------------------------ | -------------------- | -------------------- | -------------- | ------------------ |
+| Qwen3-VL-2B-4bit (mlx-vlm)           | ✅ 生产中                | ✅                   | ✅ 原生 1.7s         | 3s/图          | 2.6GB              |
+| Qwen3.5-4B-MLX-4bit (mlx-vlm 0.6.16) | ❌ 图片 placeholder 报错 | ❌ placeholder 报错  | 未测                 | —              | —                  |
+| Qwen3.5:4b (Ollama)                  | ✅ 已下载 (3.4GB)        | ✅ 38s/高分辨率原图  | 未测                 | —              | 空闲 5min 自动卸载 |
+| Qwen3.8-27B (Ollama MLX 变体)        | 未下载                   | ✅ (Ollama 目录标注) | ✅ (Ollama 目录标注) | 需实际加载测量 | ~18GB Q4           |
 
 ### 升级选项
 
 **选项 A: 保持 Qwen3-VL-2B-4bit（当前）**
+
 - 优势：已验证、1.8GB、3s/图、原生视频可用
 - 劣势：Qwen3-VL 是上一代，视觉能力不如 Qwen3.5
 
 **选项 B: 切换到 Ollama Qwen3.5:4b API**
+
 - 优势：图片完全可用、更强制觉能力、Ollama 自动管理内存
 - 劣势：需改 `vlm_analyzer.py` 从 Python subprocess → HTTP API 调用；38s/高分辨率图（比 mlx-vlm 慢）；HTTP 开销
 - 实现量：中等——改 `generate_response()` 函数，从 `mlx_vlm.generate()` 改成 `requests.post('http://localhost:11434/api/chat')`
 
 **选项 C: 等 mlx-vlm 适配 Qwen3.5 图片后升级**
+
 - 优势：保持 Python API 架构、MLX 原生速度
 - 劣势：等待时间不确定（mlx-vlm 社区维护，PR 无定期）
 
 **选项 D: Qwen3.8-27B（Ollama MLX 变体）**
+
 - 优势：本项目候选集内待验证的高容量候选、Apache-2.0、官方模型卡标注支持图像和视频（见 huggingface.co/Qwen/Qwen3.8-27B）
 - 劣势：~18GB Q4 变体、内存需求需实际加载测量（非 Ollama 标注值）、mlx-vlm 不支持 `qwen3_8` 架构（截至 0.6.16）、当前仅通过 Ollama 目录标注确认能力，未做本机 smoke test
 
@@ -57,6 +62,7 @@
 ### 已完成
 
 已在 `model-sources-reference.md` 中落盘（commit `522ac4d` + `679241d`）：
+
 - §1.8 General 模型选型信源（信源优先级表 + 信源分层使用表）
 - §2 模型格式速查表（已拆分为「权重容器」和「量化方法」两个子表）
 - §4 Step 7: 本地源码验证
@@ -75,11 +81,11 @@
 
 ### 工具定位参考
 
-| 工具 | 定位 | 做什么 |
-|------|------|--------|
-| Brave Search MCP | 搜索引擎 | 返回搜索结果（标题+URL+snippet） |
-| deep-research skill | 调研方法论 | 6-8 phase pipeline，多源交叉验证 + 报告 |
-| web-access skill | 浏览器自动化 | CDP 连接 Chrome，JS 渲染，登录态抓取 |
+| 工具                | 定位         | 做什么                                  |
+| ------------------- | ------------ | --------------------------------------- |
+| Brave Search MCP    | 搜索引擎     | 返回搜索结果（标题+URL+snippet）        |
+| deep-research skill | 调研方法论   | 6-8 phase pipeline，多源交叉验证 + 报告 |
+| web-access skill    | 浏览器自动化 | CDP 连接 Chrome，JS 渲染，登录态抓取    |
 
 ---
 
@@ -92,6 +98,7 @@
 ### 落实位置
 
 已落盘（commit `522ac4d` + `679241d`）：
+
 1. `model-sources-reference.md` §4 Step 7: 本地源码验证
 2. `vlm-model-selection-benchmark.md` §4 视频分析 → 已废弃结论（误报根因记录）
 3. `AGENTS.md` → Proposal Self-Review 第 4 条已有覆盖规则

@@ -14,7 +14,7 @@ FFmpeg concat with `-c copy` caused ~46ms/scene cumulative drift from AAC encode
 
 ### Bug 2: Timestamp Gaps from Padding (Drift Fix v2)
 
-The earlier fix removed AAC priming drift, but concat still expressed each scene's ~0.5s padding as timestamp *gaps* instead of real silence samples. The container played correctly, yet any decode→re-encode downstream (QuickTime, TikTok ingest, `ffmpeg` WAV extraction) compacted those gaps — audio ran ~0.5s/scene ahead of subtitles (~5s by scene 11).
+The earlier fix removed AAC priming drift, but concat still expressed each scene's ~0.5s padding as timestamp _gaps_ instead of real silence samples. The container played correctly, yet any decode→re-encode downstream (QuickTime, TikTok ingest, `ffmpeg` WAV extraction) compacted those gaps — audio ran ~0.5s/scene ahead of subtitles (~5s by scene 11).
 
 ## Fix
 
@@ -33,11 +33,11 @@ No timestamp gaps exist, so there is nothing for downstream transcoders to compa
 
 Each scene's voiceover is cross-correlated (FFT) against the SHIPPED video's audio track. A measured onset >80ms from its timeline offset is FAIL-class. This verifies the artifact itself, not the plans that produced it.
 
-| Condition | Class |
-|-----------|-------|
-| Scene audio missing | Skip (WARN) |
-| Scene audio present but undecodable | FAIL |
-| Final track undecodable | FAIL |
+| Condition                           | Class       |
+| ----------------------------------- | ----------- |
+| Scene audio missing                 | Skip (WARN) |
+| Scene audio present but undecodable | FAIL        |
+| Final track undecodable             | FAIL        |
 
 ## Failure Diagnostics
 
@@ -45,13 +45,13 @@ Each scene's voiceover is cross-correlated (FFT) against the SHIPPED video's aud
 
 When verification FAILs with an output-dir, the pipeline also drops `output/{id}/diagnostics/{timestamp}/` — a self-contained bundle for fixing the source:
 
-| File | Content |
-|------|---------|
-| `summary.txt` | Why it failed, per-scene drift table, packet gaps, stream durations, collection errors |
-| `drift.json` | Machine-readable per-scene drift data |
-| `packet-gaps.json` | Packet gap analysis |
-| `streams.json` | Stream duration information |
-| `verification-report.json` | Copy of the verification report |
+| File                       | Content                                                                                |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| `summary.txt`              | Why it failed, per-scene drift table, packet gaps, stream durations, collection errors |
+| `drift.json`               | Machine-readable per-scene drift data                                                  |
+| `packet-gaps.json`         | Packet gap analysis                                                                    |
+| `streams.json`             | Stream duration information                                                            |
+| `verification-report.json` | Copy of the verification report                                                        |
 
 The path is printed as `📦 Diagnostics bundle: <path>` right after the FAIL line.
 

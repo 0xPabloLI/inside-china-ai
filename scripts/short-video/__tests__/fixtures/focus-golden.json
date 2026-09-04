@@ -4,7 +4,10 @@
   "createdAt": "2026-08-18",
   "testImage": "scripts/short-video/assets/shanghai-skyline.jpg",
   "expectedSchema": {
-    "status": { "type": "string", "enum": ["ok", "partial", "low_information", "degraded", "unsupported"] },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "partial", "low_information", "degraded", "unsupported"]
+    },
     "errorCode": { "type": "string|null" },
     "frame": {
       "type": "object|null",

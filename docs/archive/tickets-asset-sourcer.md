@@ -26,6 +26,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 **Blocks**: AS-2, AS-3, AS-4, AS-5
 
 ### Scope
+
 - `extractKeywords(scenes, meta, cliKeywords)` — 3-tier keyword source chain
 - `scoreCandidate(candidate, keyword)` — weighted scoring algorithm
 - `recommendScene(asset, scenes)` — scene assignment recommendation
@@ -34,6 +35,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 - `buildReport(assets, failed, skipped)` — JSON report generation
 
 ### Tests (TDD — all must pass before implementation)
+
 - extractKeywords: scene-data with keyEntities → returns companies
 - extractKeywords: empty keyEntities → falls back to CLI keywords
 - extractKeywords: no CLI keywords → extracts from voiceover text
@@ -70,6 +72,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 **Blocks**: AS-5
 
 ### Scope
+
 - Source definition objects for each API source
 - `searchApiSource(source, keyword, apiKey)` — fetch search API → parse JSON → return candidates
 - `downloadApiAsset(candidate, destDir, filename)` — fetch URL → write file → verify size ≥1KB
@@ -77,6 +80,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 - Sources: Pexels (images+videos), Unsplash (images only), Wikimedia Commons (images), Coverr (videos)
 
 ### Tests (TDD)
+
 - Pexels source definition: has correct API base, auth header format
 - Pexels search: mock fetch → returns candidates with title, url, type
 - Pexels search: mock fetch error → returns empty array
@@ -100,6 +104,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 **Blocks**: AS-5
 
 ### Scope
+
 - Source definitions for yt-dlp sources
 - `searchYtdlp(keyword, platform)` — run yt-dlp search (B站 bilisearch, YouTube flat-playlist) → parse output → return candidates
 - `downloadYtdlp(url, destDir, filename)` — run yt-dlp with `--cookies-from-browser chrome` → verify file exists and ≥1KB
@@ -107,6 +112,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 - yt-dlp flags: `--cookies-from-browser chrome`, `-f "best[height<=720]"`, `--download-sections "*0:00-0:08"`, `--max-filesize 20M`
 
 ### Tests (TDD)
+
 - YouTube source definition: correct flags
 - YouTube search: mock execSync → parses yt-dlp output lines
 - YouTube search: mock execSync error → returns empty array
@@ -126,6 +132,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 **Blocks**: AS-5
 
 ### Scope
+
 - Source definitions for Chinese news sites (IT之家, 机器之心, 新华网, 澎湃新闻)
 - Each source: primary extract script (site-specific selectors) + fallback (generic img extraction)
 - `searchCdpSource(source, keyword)` — cdpNewTab → waitForPageLoad → extractFromTab → return image candidates
@@ -134,6 +141,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 - Retry once on empty extraction results
 
 ### Tests (TDD)
+
 - CDP check: mock fetch to localhost:3456/targets → available
 - CDP check: mock fetch error → throws "CDP proxy not available"
 - ithome extract script: contains site-specific selectors
@@ -156,6 +164,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 **Blocks**: nothing
 
 ### Scope
+
 - `main()` CLI entry point with `--content`, `--keywords`, `--max-per-source` flags
 - Dynamic import of scene-data from `content/{slug}/scenes.mjs`
 - Keyword extraction chain (scene-data → CLI → voiceover)
@@ -165,6 +174,7 @@ AS-1 has no dependencies and is the foundation. AS-2/AS-3/AS-4 depend on AS-1 an
 - `.env.local` loading via dotenv
 
 ### Tests (TDD)
+
 - main: --content flag → imports scene-data
 - main: --content not found → error + exit(1)
 - main: --keywords flag → uses CLI keywords when no scene-data

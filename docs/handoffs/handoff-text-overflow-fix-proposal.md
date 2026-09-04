@@ -21,62 +21,62 @@
 
 ### 1.1 一轮（v1 → v2，全部成立）
 
-| 断言 | 证据 |
-|---|---|
+| 断言                                                     | 证据                                                          |
+| -------------------------------------------------------- | ------------------------------------------------------------- |
 | Highlight 用 `inline-block; white-space:pre`，不自然换行 | `rough-notation/dist/esm/index.mjs:2538-2554`（Tracker span） |
-| Remotion 版本混用 4.0.508 / 4.0.517 | node_modules 实测 |
-| 字体基线已显式 `'Times New Roman', Times, serif` | `lib/safe-zones.mjs:112`；`docs/brand-system.md:99-103` |
-| v1 几何重复扣 padding（content 宽 756px 非 692px） | `NarrativeScene.tsx:260`；帧证据 x≈848 = 60+32+756 |
-| HTML 路径不能延期 | 采纳 |
+| Remotion 版本混用 4.0.508 / 4.0.517                      | node_modules 实测                                             |
+| 字体基线已显式 `'Times New Roman', Times, serif`         | `lib/safe-zones.mjs:112`；`docs/brand-system.md:99-103`       |
+| v1 几何重复扣 padding（content 宽 756px 非 692px）       | `NarrativeScene.tsx:260`；帧证据 x≈848 = 60+32+756            |
+| HTML 路径不能延期                                        | 采纳                                                          |
 
 ### 1.2 二轮（v2 → v3）
 
-| 断言 | 核实 | 证据 |
-|---|---|---|
-| CTA 时间换算错误（1694 帧 = 56.47s；CTA+HOLD = 259 帧 = 8.63s） | ✅ 成立 | R2 §1 已修正 |
-| 新时间轴方案 A2（非末幕 `clipFrames + TRANSITION_FRAMES`） | ✅ 重算成立 | R2 §1；Grill 定夺，初判 A2 |
-| `remotion-timeline.test.mjs` 假绿 | ✅ 成立 | `__tests__/remotion-timeline.test.mjs:52-56` 断言恒真 |
-| rough-notation SVG `overflow:visible`，绘制可越界 | ✅ 成立 | `rough-notation/dist/esm/index.mjs:2620` |
-| `useCurrentScale()` 需用于校正 | ✅ API 存在 | `remotion/dist/esm/index.mjs:12112` |
-| verify-video 仅在 `renderer === "remotion"` 时跑帧检查 | ✅ 成立 | `verify-video.mjs:394` |
-| 回归样本不稳（s5 已改 stacked-cards） | ✅ 成立 | §6.8 fixture 方案 |
+| 断言                                                            | 核实        | 证据                                                  |
+| --------------------------------------------------------------- | ----------- | ----------------------------------------------------- |
+| CTA 时间换算错误（1694 帧 = 56.47s；CTA+HOLD = 259 帧 = 8.63s） | ✅ 成立     | R2 §1 已修正                                          |
+| 新时间轴方案 A2（非末幕 `clipFrames + TRANSITION_FRAMES`）      | ✅ 重算成立 | R2 §1；Grill 定夺，初判 A2                            |
+| `remotion-timeline.test.mjs` 假绿                               | ✅ 成立     | `__tests__/remotion-timeline.test.mjs:52-56` 断言恒真 |
+| rough-notation SVG `overflow:visible`，绘制可越界               | ✅ 成立     | `rough-notation/dist/esm/index.mjs:2620`              |
+| `useCurrentScale()` 需用于校正                                  | ✅ API 存在 | `remotion/dist/esm/index.mjs:12112`                   |
+| verify-video 仅在 `renderer === "remotion"` 时跑帧检查          | ✅ 成立     | `verify-video.mjs:394`                                |
+| 回归样本不稳（s5 已改 stacked-cards）                           | ✅ 成立     | §6.8 fixture 方案                                     |
 
 ### 1.3 三轮（v3 → v3.1，含对我方上一轮两条错误反驳的纠正）
 
-| 断言 | 核实 | 证据 / 修正 |
-|---|---|---|
-| **`remotion add` 存在**，正确流程是 `upgrade --version <target>` 后再 `remotion add <pkg>` | ✅ **成立——我方上一轮反驳错误** | `npx remotion --help` 完整输出含 `remotion add <package-name...>`（"Add Remotion packages with the correct version."），CLI dist 含 `add.js`。我方上一轮用 `head -40` 截断输出导致漏见，已纠正（§6.0） |
+| 断言                                                                                               | 核实                            | 证据 / 修正                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`remotion add` 存在**，正确流程是 `upgrade --version <target>` 后再 `remotion add <pkg>`         | ✅ **成立——我方上一轮反驳错误** | `npx remotion --help` 完整输出含 `remotion add <package-name...>`（"Add Remotion packages with the correct version."），CLI dist 含 `add.js`。我方上一轮用 `head -40` 截断输出导致漏见，已纠正（§6.0）                                                                             |
 | **生产目录实为 15 个 `content/**/scenes.mjs`，14 个含 font-size/fontSize；renderer 声明 5 个正确** | ✅ **成立——我方上一轮数字错误** | 递归实测 `find content -name scenes.mjs` = 16（含 `_test-fixtures/hook-standard`，剔除后 15）；`grep -lE "font-size\|fontSize"` = 14。我方上一轮用深度 1 的 shell 循环（漏 `distillation/pt1-3`、`restraint/pt1,pt3`）且只 grep `fontSize`（漏 HTML 侧 `font-size`）。已纠正（§8） |
-| 缺媒体 FAIL 放在 preflight 会阻断自动 sourcing（preflight 在 Step 1.5 之前） | ✅ 成立 | `main.mjs:114-131`（Step 0 调 `verify-video.mjs --pre`）早于 `main.mjs:155+`（Step 1.5 asset sourcing）；且 Step 1.5 注释明确 "Triggers asset-sourcer when … has media path pointing to a missing file" |
-| F6 用 scene-templates 复现 media-split 不成立（HTML 模板无此布局） | ✅ 成立 | `grep -c "media-split" lib/scene-templates.mjs` = **0**；真实 420px media-split 在 `NarrativeScene.tsx:165-203`（`width: 420` / `maxWidth: 420-2*SPACING.xl = 372`）。F6 改为渲染真实 Remotion NarrativeScene（§6.8） |
-| Assert 重复计算随机余量；需统一坐标系 | ✅ 成立 | 随机偏移已烘焙进最终 SVG path `d`，取实际 path bbox 后不应再加 `maxRandomnessOffset`；只另算 stroke paint margin（§6.2） |
-| 圆标注碰撞需可计算阈值 + 排除被标注目标本身 | ✅ 成立 | 新增 F7（§6.8）；阈值定义见 §6.8 F7 与 R2 §2 |
-| Proposal 必须自包含，不得写"v2 不变" | ✅ 成立 | 本文所有最终决策完整写回 |
+| 缺媒体 FAIL 放在 preflight 会阻断自动 sourcing（preflight 在 Step 1.5 之前）                       | ✅ 成立                         | `main.mjs:114-131`（Step 0 调 `verify-video.mjs --pre`）早于 `main.mjs:155+`（Step 1.5 asset sourcing）；且 Step 1.5 注释明确 "Triggers asset-sourcer when … has media path pointing to a missing file"                                                                            |
+| F6 用 scene-templates 复现 media-split 不成立（HTML 模板无此布局）                                 | ✅ 成立                         | `grep -c "media-split" lib/scene-templates.mjs` = **0**；真实 420px media-split 在 `NarrativeScene.tsx:165-203`（`width: 420` / `maxWidth: 420-2*SPACING.xl = 372`）。F6 改为渲染真实 Remotion NarrativeScene（§6.8）                                                              |
+| Assert 重复计算随机余量；需统一坐标系                                                              | ✅ 成立                         | 随机偏移已烘焙进最终 SVG path `d`，取实际 path bbox 后不应再加 `maxRandomnessOffset`；只另算 stroke paint margin（§6.2）                                                                                                                                                           |
+| 圆标注碰撞需可计算阈值 + 排除被标注目标本身                                                        | ✅ 成立                         | 新增 F7（§6.8）；阈值定义见 §6.8 F7 与 R2 §2                                                                                                                                                                                                                                       |
+| Proposal 必须自包含，不得写"v2 不变"                                                               | ✅ 成立                         | 本文所有最终决策完整写回                                                                                                                                                                                                                                                           |
 
 ### 1.4 四轮（v3.1 → v3.2）
 
-| 断言 | 核实 | 证据 / 处置 |
-|---|---|---|
-| `minSize` 自相矛盾（§5/F2 要求 ≥ minSize，§6.1 允许 ×0.9） | ✅ 成立 | **取消 0.9 降级**，`minSize` 为硬下限（§6.1） |
+| 断言                                                                            | 核实    | 证据 / 处置                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `minSize` 自相矛盾（§5/F2 要求 ≥ minSize，§6.1 允许 ×0.9）                      | ✅ 成立 | **取消 0.9 降级**，`minSize` 为硬下限（§6.1）                                                                                                                                                                                                                               |
 | HTML 路径假绿：main 写 HTML，verifier 重新 `generateScene`，recorder 录落盘文件 | ✅ 成立 | `main.mjs:286-288`（generate + writeFileSync）、`verify-scene-dom.mjs:114-123`（重新 import + `generateScene(scene, 8)`，连 duration 都不同）、`lib/record-scenes.mjs:30`（`page.goto(file://${scene.htmlPath})`）。处置：Fit 内联落盘 + verifier/recorder 同一产物（§6.2） |
-| DOM 几何 ≠ 文字 ink 边界（Times 斜体 T/f 可超 advance box 5–11px） | ✅ 采纳 | 新增 ink-bound / 像素回归机制（§6.2 第 7 条） |
-| GDN+QSA 的 G 未测出左 overhang，R2 §3.2 负 bearing 根因不成立 | ✅ 采纳 | R2 §3.2 降为"待调查现象"（本次修） |
-| Highlight 契约与实现/数据冲突（s6 的 "LOOKS UP" 在 action 不在 result） | ✅ 成立 | 定为**结构化 `{field, text}` 局部标注** + 渲染器真正实现子串切分 + 存量迁移表（§6.4） |
-| final media gate 未覆盖 `render-only.mjs`（无 sourcing 阶段） | ✅ 成立 | `render-only.mjs` Step 2/2.5/3 确无 sourcing；抽共享 final-media gate（§6.9 / R2 §5c.6） |
-| `FullscreenMedia.tsx` 渲染动态 `media.source`，未纳入契约 | ✅ 成立 | `FullscreenMedia.tsx:22,34`；纳入 slot 契约，动态文本来源 9 → 10（§6.1、§8） |
-| StampIn 从 2× 缩放，transient SAFE_ZONES 保证需定义逐帧采样 | ✅ 成立 | `entrance.tsx:97-105` `scale [2,1]`；逐帧采样口径（§6.2 第 6 条） |
-| F6 "历史长文案"不可恢复，应写死确定性 fixture 文案 | ✅ 成立 | F6 文案全文写死（§6.8） |
+| DOM 几何 ≠ 文字 ink 边界（Times 斜体 T/f 可超 advance box 5–11px）              | ✅ 采纳 | 新增 ink-bound / 像素回归机制（§6.2 第 7 条）                                                                                                                                                                                                                               |
+| GDN+QSA 的 G 未测出左 overhang，R2 §3.2 负 bearing 根因不成立                   | ✅ 采纳 | R2 §3.2 降为"待调查现象"（本次修）                                                                                                                                                                                                                                          |
+| Highlight 契约与实现/数据冲突（s6 的 "LOOKS UP" 在 action 不在 result）         | ✅ 成立 | 定为**结构化 `{field, text}` 局部标注** + 渲染器真正实现子串切分 + 存量迁移表（§6.4）                                                                                                                                                                                       |
+| final media gate 未覆盖 `render-only.mjs`（无 sourcing 阶段）                   | ✅ 成立 | `render-only.mjs` Step 2/2.5/3 确无 sourcing；抽共享 final-media gate（§6.9 / R2 §5c.6）                                                                                                                                                                                    |
+| `FullscreenMedia.tsx` 渲染动态 `media.source`，未纳入契约                       | ✅ 成立 | `FullscreenMedia.tsx:22,34`；纳入 slot 契约，动态文本来源 9 → 10（§6.1、§8）                                                                                                                                                                                                |
+| StampIn 从 2× 缩放，transient SAFE_ZONES 保证需定义逐帧采样                     | ✅ 成立 | `entrance.tsx:97-105` `scale [2,1]`；逐帧采样口径（§6.2 第 6 条）                                                                                                                                                                                                           |
+| F6 "历史长文案"不可恢复，应写死确定性 fixture 文案                              | ✅ 成立 | F6 文案全文写死（§6.8）                                                                                                                                                                                                                                                     |
 
 ### 1.5 五轮（v3.2 → v3.3）
 
-| 断言 | 核实 | 处置 |
-|---|---|---|
-| `generateScene()` 是同步字符串生成，无法等 `fonts.ready` / 测 DOM | ✅ 成立 | HTML Fit 改为 raw → Chromium materialize/fit → inject → final 五步管线；**HTML 抛 `TextFitError` 终止管线，只有 Remotion 用 `cancelRender()`**（§6.2） |
-| ink-bound 公式符号写反（`-actualLeft` 漏掉左外溢） | ✅ 成立（实测 Times italic f `actualBoundingBoxLeft = 9.76px`，旧公式得 0） | 改为四方向分别计算：`left = max(0, actualBoundingBoxLeft)`；`right = max(0, actualBoundingBoxRight − width)`（§6.2 第 7 条） |
-| 方案 B 无法捕获静默裁切（`overflow:hidden` 已删像素） | ✅ 成立 | B 降级为**差分**辅助（诊断帧 vs 正常帧），不作阻断 gate（§6.2、§9.2） |
-| highlight 迁移实为 **17 处**而非 7 处 | ✅ 成立 | 复核：`grep -rn "highlight:" content/*/scene-data.mjs` → qwen4-preview 7 / doubao-work 9 / light-society 1 = 17。逐处字段归属已盘点，light-society `4M beliefs rewritten` 非 `quote` 子串 → 改写 `{field:"quote", text:"4M beliefs"}`（§6.4b 完整表） |
-| 文档未体现"只剩三项"；标题/正文版本不一致；F8 后仍写 F1–F7 | ✅ 成立 | 全文同步（§9、§8、§10、标题） |
-| 生产最宽 Hook 数字 `"+629%"` 在 240px 下约 687px | ⚠️ 采信（reviewer 实测，待 F7/F9 复核） | 记录于 §6.1 与 §9.2，作为"纳入 Fit 不伤视觉"的依据 |
+| 断言                                                              | 核实                                                                        | 处置                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `generateScene()` 是同步字符串生成，无法等 `fonts.ready` / 测 DOM | ✅ 成立                                                                     | HTML Fit 改为 raw → Chromium materialize/fit → inject → final 五步管线；**HTML 抛 `TextFitError` 终止管线，只有 Remotion 用 `cancelRender()`**（§6.2）                                                                                                |
+| ink-bound 公式符号写反（`-actualLeft` 漏掉左外溢）                | ✅ 成立（实测 Times italic f `actualBoundingBoxLeft = 9.76px`，旧公式得 0） | 改为四方向分别计算：`left = max(0, actualBoundingBoxLeft)`；`right = max(0, actualBoundingBoxRight − width)`（§6.2 第 7 条）                                                                                                                          |
+| 方案 B 无法捕获静默裁切（`overflow:hidden` 已删像素）             | ✅ 成立                                                                     | B 降级为**差分**辅助（诊断帧 vs 正常帧），不作阻断 gate（§6.2、§9.2）                                                                                                                                                                                 |
+| highlight 迁移实为 **17 处**而非 7 处                             | ✅ 成立                                                                     | 复核：`grep -rn "highlight:" content/*/scene-data.mjs` → qwen4-preview 7 / doubao-work 9 / light-society 1 = 17。逐处字段归属已盘点，light-society `4M beliefs rewritten` 非 `quote` 子串 → 改写 `{field:"quote", text:"4M beliefs"}`（§6.4b 完整表） |
+| 文档未体现"只剩三项"；标题/正文版本不一致；F8 后仍写 F1–F7        | ✅ 成立                                                                     | 全文同步（§9、§8、§10、标题）                                                                                                                                                                                                                         |
+| 生产最宽 Hook 数字 `"+629%"` 在 240px 下约 687px                  | ⚠️ 采信（reviewer 实测，待 F7/F9 复核）                                     | 记录于 §6.1 与 §9.2，作为"纳入 Fit 不伤视觉"的依据                                                                                                                                                                                                    |
 
 ---
 
@@ -84,38 +84,38 @@
 
 ### 2.1 v3 → v3.1
 
-| # | 变更 |
-|---|---|
-| 1 | **全文自包含**：布局契约、字号 floor、换行策略、HTML Fit 时机、预算降级、Highlight 策略、media-overlay 补字段——全部完整写回，无"v2 不变"引用 |
-| 2 | **版本流程修正**：`upgrade --version <target>` + `remotion add @remotion/layout-utils`（§6.0） |
-| 3 | **Assert 几何算法可执行化**：统一坐标系、`getBBox()`→`getScreenCTM()` 四角变换、不重复计随机余量、只加 stroke paint margin、settled frame 与 transient 越界策略（§6.2） |
-| 4 | **F6 修正**为渲染真实 Remotion `NarrativeScene` media-split；**新增 F7** Hook 稳定帧圆标注碰撞（可计算阈值、排除被标注目标） |
-| 5 | 影响面数字修正为 15 内容包 / 14 含字号（§8） |
-| 6 | 缺媒体门控阶段化 → 单一真源在 **R2 §3.5**，本文只定义与 slot 契约的接口（§6.9） |
+| #   | 变更                                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **全文自包含**：布局契约、字号 floor、换行策略、HTML Fit 时机、预算降级、Highlight 策略、media-overlay 补字段——全部完整写回，无"v2 不变"引用                            |
+| 2   | **版本流程修正**：`upgrade --version <target>` + `remotion add @remotion/layout-utils`（§6.0）                                                                          |
+| 3   | **Assert 几何算法可执行化**：统一坐标系、`getBBox()`→`getScreenCTM()` 四角变换、不重复计随机余量、只加 stroke paint margin、settled frame 与 transient 越界策略（§6.2） |
+| 4   | **F6 修正**为渲染真实 Remotion `NarrativeScene` media-split；**新增 F7** Hook 稳定帧圆标注碰撞（可计算阈值、排除被标注目标）                                            |
+| 5   | 影响面数字修正为 15 内容包 / 14 含字号（§8）                                                                                                                            |
+| 6   | 缺媒体门控阶段化 → 单一真源在 **R2 §3.5**，本文只定义与 slot 契约的接口（§6.9）                                                                                         |
 
 ### 2.2 v3.1 → v3.2
 
-| # | 变更 |
-|---|---|
-| 1 | **取消 `minSize × 0.9` 降级**，`minSize` 统一为硬下限，§5/F2/§6.1 三处口径一致 |
-| 2 | **HTML 路径去假绿**：Fit 结果内联落盘 → verifier 与 recorder 消费同一产物；新增 HTML 回归 fixture **F8**；定义 HTML 模板 → slot 契约映射（按 `visualType`，因 HTML renderer 不消费 `scene.layout`） |
-| 3 | **ink overhang 机制**：DOM 几何测不到字形墨迹外溢，补 ink-bound（`actualBoundingBox*`）或像素回归 |
-| 4 | **transient 越界采样口径**：入场窗口逐帧计算 AABB，越 SAFE_ZONES 即 FAIL |
-| 5 | **Highlight 定为结构化 `{field, text}` 局部标注** + 渲染器实现子串切分 + 存量 7 处迁移表 |
-| 6 | **final-media gate 抽为共享函数**：main 在 sourcing 后调、render-only 在渲染前调 |
-| 7 | **`FullscreenMedia` 的动态 `media.source` 纳入契约**；动态文本来源 9 → 10 |
-| 8 | **F6 确定性文案写死**（不依赖不可恢复的历史产物） |
+| #   | 变更                                                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **取消 `minSize × 0.9` 降级**，`minSize` 统一为硬下限，§5/F2/§6.1 三处口径一致                                                                                                                      |
+| 2   | **HTML 路径去假绿**：Fit 结果内联落盘 → verifier 与 recorder 消费同一产物；新增 HTML 回归 fixture **F8**；定义 HTML 模板 → slot 契约映射（按 `visualType`，因 HTML renderer 不消费 `scene.layout`） |
+| 3   | **ink overhang 机制**：DOM 几何测不到字形墨迹外溢，补 ink-bound（`actualBoundingBox*`）或像素回归                                                                                                   |
+| 4   | **transient 越界采样口径**：入场窗口逐帧计算 AABB，越 SAFE_ZONES 即 FAIL                                                                                                                            |
+| 5   | **Highlight 定为结构化 `{field, text}` 局部标注** + 渲染器实现子串切分 + 存量 7 处迁移表                                                                                                            |
+| 6   | **final-media gate 抽为共享函数**：main 在 sourcing 后调、render-only 在渲染前调                                                                                                                    |
+| 7   | **`FullscreenMedia` 的动态 `media.source` 纳入契约**；动态文本来源 9 → 10                                                                                                                           |
+| 8   | **F6 确定性文案写死**（不依赖不可恢复的历史产物）                                                                                                                                                   |
 
 ### 2.3 v3.2 → v3.3
 
-| # | 变更 |
-|---|---|
-| 1 | **HTML Fit 时序重写**为可执行的 `generateScene(raw)` → Chromium materialize/fit → inject 字号 → 写 final HTML；verifier 与 recorder 都 `page.goto(final)`；HTML 抛 `TextFitError` 终止管线，**只有 Remotion 用 `cancelRender()`** |
-| 2 | **ink-bound 公式符号修正**为四方向分别计算；B 降级为差分辅助；新增 **F9** |
-| 3 | **highlight 迁移补全为 17 处**（qwen4 7 / doubao 9 / light-society 1），含 light-society 非子串改写 |
-| 4 | 新增 **bigNumber 焦点数字契约**（240/180、Fit→Circle→F7 顺序、碰撞即 FAIL） |
-| 5 | §7 删除"放弃 canvas measureText"旧结论，改为"DOM 管布局盒 + canvas 管 ink，互补" |
-| 6 | 全文版本/F1–F9 编号同步；§9 收敛为**只剩 3 项 Grill 输入**，已拍板项单独列出 |
+| #   | 变更                                                                                                                                                                                                                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **HTML Fit 时序重写**为可执行的 `generateScene(raw)` → Chromium materialize/fit → inject 字号 → 写 final HTML；verifier 与 recorder 都 `page.goto(final)`；HTML 抛 `TextFitError` 终止管线，**只有 Remotion 用 `cancelRender()`** |
+| 2   | **ink-bound 公式符号修正**为四方向分别计算；B 降级为差分辅助；新增 **F9**                                                                                                                                                         |
+| 3   | **highlight 迁移补全为 17 处**（qwen4 7 / doubao 9 / light-society 1），含 light-society 非子串改写                                                                                                                               |
+| 4   | 新增 **bigNumber 焦点数字契约**（240/180、Fit→Circle→F7 顺序、碰撞即 FAIL）                                                                                                                                                       |
+| 5   | §7 删除"放弃 canvas measureText"旧结论，改为"DOM 管布局盒 + canvas 管 ink，互补"                                                                                                                                                  |
+| 6   | 全文版本/F1–F9 编号同步；§9 收敛为**只剩 3 项 Grill 输入**，已拍板项单独列出                                                                                                                                                      |
 
 ---
 
@@ -127,11 +127,11 @@
 
 **实测锚点**（三处事故，几何数字以三轮 review 实测为准）：
 
-| 案例 | 场景 | 实测 | 裁掉 |
-|---|---|---|---|
-| 1 | qwen4 v1, media-split（Remotion `NarrativeScene:165-203`，栏宽 420/maxWidth 372） | 长文案超出半栏 | 尾部 ~8 字符 |
-| 2 | qwen4 final, media-overlay s9 | 文本 766.67px vs content **756px** → 溢出 **10.67px** | 尾字母 "T" |
-| 3 | qwen4 final, media-overlay s6/s8/s9 | action/context 字段未渲染 | 每屏主张句 |
+| 案例 | 场景                                                                              | 实测                                                  | 裁掉         |
+| ---- | --------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------ |
+| 1    | qwen4 v1, media-split（Remotion `NarrativeScene:165-203`，栏宽 420/maxWidth 372） | 长文案超出半栏                                        | 尾部 ~8 字符 |
+| 2    | qwen4 final, media-overlay s9                                                     | 文本 766.67px vs content **756px** → 溢出 **10.67px** | 尾字母 "T"   |
+| 3    | qwen4 final, media-overlay s6/s8/s9                                               | action/context 字段未渲染                             | 每屏主张句   |
 
 ---
 
@@ -178,18 +178,18 @@ Assert 层（标注绘制边界、多字段组合、slot 总高）它不覆盖�
 
 **契约字段**（`lib/text-slots.mjs`，single source of truth）：
 
-| 字段 | 含义 | 示例（`media-overlay.result`） |
-|---|---|---|
-| `container` | 布局变体 × 字段 → 容器几何 | `"media-overlay.result"` |
-| `maxWidth` | **content box** 宽度（不得重复扣 padding） | 756 |
-| `maxHeight` | 该 slot 可占最大高度（参与多字段组合） | 220 |
-| `preferredSize` / `minSize` | 字号首选值 / 下限 | 56 / 40 |
-| `maxLines` / `lineHeight` | 行数上限 / 行高 | 1 / 1.1 |
-| `fontFamily` / `fontWeight` / `letterSpacing` | 字体度量三要素 | `BRAND_FONT_STACK` / 900 / 0 |
-| `wrapPolicy` | `"none"`（单行缩字）或 `"wrap"` | `"none"`（带标注字段强制） |
-| `annotationPolicy` | 标注类型，决定是否参与 Assert 绘制边界 | `"highlight-box"` \| `"circle"` \| `"none"` |
-| `settledFrame` | 该模板动画与标注完全稳定的帧号 | 40（见 §6.2） |
-| `required` | 是否必渲染 | true |
+| 字段                                          | 含义                                       | 示例（`media-overlay.result`）              |
+| --------------------------------------------- | ------------------------------------------ | ------------------------------------------- |
+| `container`                                   | 布局变体 × 字段 → 容器几何                 | `"media-overlay.result"`                    |
+| `maxWidth`                                    | **content box** 宽度（不得重复扣 padding） | 756                                         |
+| `maxHeight`                                   | 该 slot 可占最大高度（参与多字段组合）     | 220                                         |
+| `preferredSize` / `minSize`                   | 字号首选值 / 下限                          | 56 / 40                                     |
+| `maxLines` / `lineHeight`                     | 行数上限 / 行高                            | 1 / 1.1                                     |
+| `fontFamily` / `fontWeight` / `letterSpacing` | 字体度量三要素                             | `BRAND_FONT_STACK` / 900 / 0                |
+| `wrapPolicy`                                  | `"none"`（单行缩字）或 `"wrap"`            | `"none"`（带标注字段强制）                  |
+| `annotationPolicy`                            | 标注类型，决定是否参与 Assert 绘制边界     | `"highlight-box"` \| `"circle"` \| `"none"` |
+| `settledFrame`                                | 该模板动画与标注完全稳定的帧号             | 40（见 §6.2）                               |
+| `required`                                    | 是否必渲染                                 | true                                        |
 
 **字段默认值表**（契约未显式声明时的兜底，避免逐模板硬编码）：
 
@@ -203,12 +203,12 @@ Assert 层（标注绘制边界、多字段组合、slot 总高）它不覆盖�
 - 数组/卡片/行等重复文本用带索引的 slot ID：`stacked-cards.card[0].value`
 - 每个 `visualType + layout` 声明字段四分类：
 
-| 分类 | 含义 | 校验行为 |
-|---|---|---|
-| `rendered` | 必渲染 | 缺失 → FAIL |
-| `control` | 控制渲染行为（如 `highlight`、`numberHighlight`） | 不参与几何校验，校验取值合法性 |
-| `optional` | 有值才渲染 | 有值则渲染 + 过几何校验 |
-| `intentionallyOmitted` | 明确不渲染（逐字段声明 + 理由） | 出现在 DOM → FAIL |
+| 分类                   | 含义                                              | 校验行为                       |
+| ---------------------- | ------------------------------------------------- | ------------------------------ |
+| `rendered`             | 必渲染                                            | 缺失 → FAIL                    |
+| `control`              | 控制渲染行为（如 `highlight`、`numberHighlight`） | 不参与几何校验，校验取值合法性 |
+| `optional`             | 有值才渲染                                        | 有值则渲染 + 过几何校验        |
+| `intentionallyOmitted` | 明确不渲染（逐字段声明 + 理由）                   | 出现在 DOM → FAIL              |
 
 - scene-data 出现**未识别字段**（不在四分类内）→ FAIL
 - `mediaOptOut` 是媒体控制开关，**不得**用作 `intentionallyOmitted` 的例子
@@ -302,11 +302,12 @@ slot: {
    ```js
    const m = ctx.measureText(text);
    // canvas 的 actualBoundingBoxLeft 是"对齐点向左"的距离，正值即左外溢
-   leftOverhang   = Math.max(0, m.actualBoundingBoxLeft);
-   rightOverhang  = Math.max(0, m.actualBoundingBoxRight - m.width);
+   leftOverhang = Math.max(0, m.actualBoundingBoxLeft);
+   rightOverhang = Math.max(0, m.actualBoundingBoxRight - m.width);
    ascentOverhang = Math.max(0, m.actualBoundingBoxAscent - fontAscent);
-   descentOverhang= Math.max(0, m.actualBoundingBoxDescent - fontDescent);
+   descentOverhang = Math.max(0, m.actualBoundingBoxDescent - fontDescent);
    ```
+
    ⚠️ v3.2 写的 `inkPad = max(0, actualRight − width, −actualLeft)` **符号写反**：
    `-actualLeft` 会把真实左外溢算成 0（实测 Times italic f 的
    `actualBoundingBoxLeft = 9.76px` → 旧公式得 0，漏检）。已按上式修正。
@@ -415,25 +416,25 @@ rough-notation Tracker 是 `inline-block + white-space:pre`
 盘点命令：`grep -rn "highlight:" content/*/scene-data.mjs`
 → **qwen4-preview 7 / doubao-work 9 / light-society 1**。字段归属按实际包含关系确定：
 
-| 内容包 | 场景 | highlight | 归属 field | 子串校验 |
-|---|---|---|---|---|
-| qwen4-preview | s2 | QWEN4 | result（"QWEN4 PREVIEWED"） | ✅ |
-| qwen4-preview | s3 | FREE | result（"FREE TO DOWNLOAD"） | ✅ |
-| qwen4-preview | s4 | 6B | result（"6B ACTIVE PER TOKEN"） | ✅ |
-| qwen4-preview | s5 | 1/9 | result（"1/9 THE TRAINING COST"） | ✅ |
-| **qwen4-preview** | **s6** | **LOOKS UP** | **action**（"3 LAYERS REMEMBER, 1 LAYER LOOKS UP"） | ✅ |
-| qwen4-preview | s8 | 8.6X | result（"8.6X FASTER"） | ✅ |
-| qwen4-preview | s9 | POINT | result（"THAT'S THE WHOLE POINT"） | ✅ |
-| doubao-work | s1 | OPERATES | **hookText**（"AI THAT OPERATES"） | ✅ |
-| doubao-work | s2 | WHY | result（"WHY?"） | ✅ |
-| doubao-work | s3 | BUILDS | result（"EVEN BUILDS APPS"） | ✅ |
-| doubao-work | s4 | SLEEP | result（"WORKS WHILE YOU SLEEP"） | ✅ |
-| doubao-work | s5 | MEETINGS | result（"CHATS, DOCS, MEETINGS"） | ✅ |
-| doubao-work | s6 | SMARTER | result（"AGENT GETS SMARTER"） | ✅ |
-| doubao-work | s7 | $28B | result（"AI SPEND: $28B/YEAR"） | ✅ |
-| doubao-work | s8 | ALIBABA | result（"ALIBABA QIANWEN OFFICE"） | ✅ |
-| doubao-work | s9 | STRATEGY | result（"NOT A PRODUCT. A STRATEGY."） | ✅ |
-| **light-society** | callout | **4M beliefs rewritten** | quote（"…it did rewrite 4M beliefs at scale."） | ❌ **非子串** → 改写为 `{ field: "quote", text: "4M beliefs" }` |
+| 内容包            | 场景    | highlight                | 归属 field                                          | 子串校验                                                        |
+| ----------------- | ------- | ------------------------ | --------------------------------------------------- | --------------------------------------------------------------- |
+| qwen4-preview     | s2      | QWEN4                    | result（"QWEN4 PREVIEWED"）                         | ✅                                                              |
+| qwen4-preview     | s3      | FREE                     | result（"FREE TO DOWNLOAD"）                        | ✅                                                              |
+| qwen4-preview     | s4      | 6B                       | result（"6B ACTIVE PER TOKEN"）                     | ✅                                                              |
+| qwen4-preview     | s5      | 1/9                      | result（"1/9 THE TRAINING COST"）                   | ✅                                                              |
+| **qwen4-preview** | **s6**  | **LOOKS UP**             | **action**（"3 LAYERS REMEMBER, 1 LAYER LOOKS UP"） | ✅                                                              |
+| qwen4-preview     | s8      | 8.6X                     | result（"8.6X FASTER"）                             | ✅                                                              |
+| qwen4-preview     | s9      | POINT                    | result（"THAT'S THE WHOLE POINT"）                  | ✅                                                              |
+| doubao-work       | s1      | OPERATES                 | **hookText**（"AI THAT OPERATES"）                  | ✅                                                              |
+| doubao-work       | s2      | WHY                      | result（"WHY?"）                                    | ✅                                                              |
+| doubao-work       | s3      | BUILDS                   | result（"EVEN BUILDS APPS"）                        | ✅                                                              |
+| doubao-work       | s4      | SLEEP                    | result（"WORKS WHILE YOU SLEEP"）                   | ✅                                                              |
+| doubao-work       | s5      | MEETINGS                 | result（"CHATS, DOCS, MEETINGS"）                   | ✅                                                              |
+| doubao-work       | s6      | SMARTER                  | result（"AGENT GETS SMARTER"）                      | ✅                                                              |
+| doubao-work       | s7      | $28B                     | result（"AI SPEND: $28B/YEAR"）                     | ✅                                                              |
+| doubao-work       | s8      | ALIBABA                  | result（"ALIBABA QIANWEN OFFICE"）                  | ✅                                                              |
+| doubao-work       | s9      | STRATEGY                 | result（"NOT A PRODUCT. A STRATEGY."）              | ✅                                                              |
+| **light-society** | callout | **4M beliefs rewritten** | quote（"…it did rewrite 4M beliefs at scale."）     | ❌ **非子串** → 改写为 `{ field: "quote", text: "4M beliefs" }` |
 
 迁移脚本需对 16 处 ✅ 自动填 `field`，对 light-society 按人工改写值处理；
 迁移后跑子串校验，全部通过才算完成。
@@ -471,17 +472,17 @@ F1–F7、F9 用固定输入 + Remotion still 渲染，完全确定性、不依�
 （s5 已改 stacked-cards，无法用重渲染复现历史事故）；
 **F8 走 HTML 路径**（§6.2 的 raw → materialize/fit → inject → final 管线）。
 
-| Fixture | 输入 | 断言 |
-|---|---|---|
-| **F1** 历史 fail 样本 | s9 文案 + 固定 56px（**绕过 Fit**） | 新 Assert gate **必须 FAIL**（证明假绿链路闭合；同一输入对旧 gate 会 PASS——证明 gate 变化真实） |
-| **F2** Fit 吸收样本 | 同 F1 输入 + Fit 启用 | PASS，且帧上无裁切、字号 ≥ `minSize` |
-| **F3** 触底样本 | 超长文案（minSize 仍放不下） | **cancelRender** + 机器可读错误，非静默非硬裁 |
-| **F4** 标注越界样本 | 文字合法但标注 SVG stroke 越 slot 边界 | Assert FAIL（scroll 指标合法——专测二层验证必要性） |
-| **F5** 字段完整性样本 | 未识别字段 / `rendered` 字段缺失 | 注册协议 FAIL |
-| **F6** media-split 形态 | 真实 Remotion `NarrativeScene` 的 MediaSplit（`NarrativeScene.tsx:165-203`，栏宽 420 / `maxWidth: 372`），绕过 Fit。**确定性 fixture 文案全文写死**（不依赖不可恢复的 v1/v2 产物）：`layout: "media-split"`、`result: "1/9 THE TRAINING COST"`、`fontSize: 52`、`fontWeight: 900`、`fontFamily: BRAND_FONT_STACK`、`company: "THE COST"`、`action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)"` | Assert gate FAIL（HTML 路径 `scene-templates.mjs` 无 media-split 布局，grep -c = 0，不可用 HTML 复现；若将来要做 HTML 等价布局，需先实现布局等价性并另立 fixture） |
-| **F8** HTML 路径 Fit 持久化（新增） | ① 生成后落盘 HTML → ② `verify-scene-dom` **只读**落盘文件跑 DOM gate → ③ 断言 recorder `page.goto` 的是同一文件；并用超长文案验证 Fit 结果**出现在落盘 HTML 的内联字号中** | 旧实现红（verifier 重新 `generateScene` → Fit 未落盘也能绿）；新实现绿（Fit 内联落盘 + 单一产物） |
-| **F7** Hook 圆标注碰撞 | Hook settled frame；**先 Fit 数字 → 再生成 Circle → 最后 F7** | **每个文字元素分别** ≤ 2%：圆标注绘制 AABB 与 subject 的重叠面积 ≤ subject AABB 的 2%，与 numberLabel 的重叠面积 ≤ numberLabel AABB 的 2%——**分开计算、不合并分母**；**被标注目标本身（bigNumber）不计入**（圆本就该覆盖它），但 bigNumber 自身必须完整可读（不越安全区、不被压字）。**记录实际 overlap ratio** 供 Grill 查看。碰撞失败 → FAIL，不偷偷继续缩字 |
-| **F9** ink overhang（新增） | 覆盖：italic `f` / `T`、`letter-spacing`、混合 span、多行文本 | 采用 ink-bound（A）时必须检出左/右/上/下四方向外溢；每个渲染行、每个样式 text run 单独测量；ctx 属性（font / letterSpacing / fontKerning / fontStretch）与被测元素同步。旧的错误公式（`-actualLeft`）必须让本 fixture 变红 |
+| Fixture                             | 输入                                                                                                                                                                                                                                                                                                                                                                                          | 断言                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F1** 历史 fail 样本               | s9 文案 + 固定 56px（**绕过 Fit**）                                                                                                                                                                                                                                                                                                                                                           | 新 Assert gate **必须 FAIL**（证明假绿链路闭合；同一输入对旧 gate 会 PASS——证明 gate 变化真实）                                                                                                                                                                                                                                                                |
+| **F2** Fit 吸收样本                 | 同 F1 输入 + Fit 启用                                                                                                                                                                                                                                                                                                                                                                         | PASS，且帧上无裁切、字号 ≥ `minSize`                                                                                                                                                                                                                                                                                                                           |
+| **F3** 触底样本                     | 超长文案（minSize 仍放不下）                                                                                                                                                                                                                                                                                                                                                                  | **cancelRender** + 机器可读错误，非静默非硬裁                                                                                                                                                                                                                                                                                                                  |
+| **F4** 标注越界样本                 | 文字合法但标注 SVG stroke 越 slot 边界                                                                                                                                                                                                                                                                                                                                                        | Assert FAIL（scroll 指标合法——专测二层验证必要性）                                                                                                                                                                                                                                                                                                             |
+| **F5** 字段完整性样本               | 未识别字段 / `rendered` 字段缺失                                                                                                                                                                                                                                                                                                                                                              | 注册协议 FAIL                                                                                                                                                                                                                                                                                                                                                  |
+| **F6** media-split 形态             | 真实 Remotion `NarrativeScene` 的 MediaSplit（`NarrativeScene.tsx:165-203`，栏宽 420 / `maxWidth: 372`），绕过 Fit。**确定性 fixture 文案全文写死**（不依赖不可恢复的 v1/v2 产物）：`layout: "media-split"`、`result: "1/9 THE TRAINING COST"`、`fontSize: 52`、`fontWeight: 900`、`fontFamily: BRAND_FONT_STACK`、`company: "THE COST"`、`action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)"` | Assert gate FAIL（HTML 路径 `scene-templates.mjs` 无 media-split 布局，grep -c = 0，不可用 HTML 复现；若将来要做 HTML 等价布局，需先实现布局等价性并另立 fixture）                                                                                                                                                                                             |
+| **F8** HTML 路径 Fit 持久化（新增） | ① 生成后落盘 HTML → ② `verify-scene-dom` **只读**落盘文件跑 DOM gate → ③ 断言 recorder `page.goto` 的是同一文件；并用超长文案验证 Fit 结果**出现在落盘 HTML 的内联字号中**                                                                                                                                                                                                                    | 旧实现红（verifier 重新 `generateScene` → Fit 未落盘也能绿）；新实现绿（Fit 内联落盘 + 单一产物）                                                                                                                                                                                                                                                              |
+| **F7** Hook 圆标注碰撞              | Hook settled frame；**先 Fit 数字 → 再生成 Circle → 最后 F7**                                                                                                                                                                                                                                                                                                                                 | **每个文字元素分别** ≤ 2%：圆标注绘制 AABB 与 subject 的重叠面积 ≤ subject AABB 的 2%，与 numberLabel 的重叠面积 ≤ numberLabel AABB 的 2%——**分开计算、不合并分母**；**被标注目标本身（bigNumber）不计入**（圆本就该覆盖它），但 bigNumber 自身必须完整可读（不越安全区、不被压字）。**记录实际 overlap ratio** 供 Grill 查看。碰撞失败 → FAIL，不偷偷继续缩字 |
+| **F9** ink overhang（新增）         | 覆盖：italic `f` / `T`、`letter-spacing`、混合 span、多行文本                                                                                                                                                                                                                                                                                                                                 | 采用 ink-bound（A）时必须检出左/右/上/下四方向外溢；每个渲染行、每个样式 text run 单独测量；ctx 属性（font / letterSpacing / fontKerning / fontStretch）与被测元素同步。旧的错误公式（`-actualLeft`）必须让本 fixture 变红                                                                                                                                     |
 
 **阈值说明**：R2 §2 的"重叠面积 ≈ 0"改为本条的可计算阈值（2%），
 并在 R2 §2 / §4 同步；F7 是 Hook 圆修复（R2 §2）的自动验收。
@@ -500,7 +501,7 @@ F1–F7、F9 用固定输入 + Remotion still 渲染，完全确定性、不依�
 - `render-only.mjs`：**渲染前**调用（它只有 Step 2 生成 HTML / 2.5 DOM 校验 /
   3 录制 / 5 Remotion 渲染，**没有 sourcing 阶段**）
 - 两处调用同一函数，判定口径一致
-本文与该门控的接口约定：
+  本文与该门控的接口约定：
 
 - slot 契约的 `rendered` 字段判定发生在**渲染时**，与 media 门控的阶段无关；
 - `mediaOptOut` 只表示"该场景有意不使用媒体"，**不表示任何文本字段可省略**；
@@ -511,16 +512,16 @@ F1–F7、F9 用固定输入 + Remotion still 渲染，完全确定性、不依�
 
 ## 7. 考虑过并放弃的替代方案
 
-| 替代 | 放弃原因 |
-|---|---|
-| 只靠 scroll 指标做 Assert | rough-notation SVG `overflow:visible`，绘制越界对 scroll 不可见 |
-| 移除 `overflow:hidden` 让溢出可见 | 侵入字幕道 / TikTok UI 安全区 |
-| 字符预算继续当门槛 | 平均字宽原理性不足，s9 假绿已证 |
-| 逐行标注 / 替换标注结构 | 复杂度与需求不匹配，未来扩展 |
-| 字体打包混入本批 | 根因已过时；跨机确定性独立决策 |
+| 替代                                    | 放弃原因                                                                                                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 只靠 scroll 指标做 Assert               | rough-notation SVG `overflow:visible`，绘制越界对 scroll 不可见                                                                                                                                                                                                        |
+| 移除 `overflow:hidden` 让溢出可见       | 侵入字幕道 / TikTok UI 安全区                                                                                                                                                                                                                                          |
+| 字符预算继续当门槛                      | 平均字宽原理性不足，s9 假绿已证                                                                                                                                                                                                                                        |
+| 逐行标注 / 替换标注结构                 | 复杂度与需求不匹配，未来扩展                                                                                                                                                                                                                                           |
+| 字体打包混入本批                        | 根因已过时；跨机确定性独立决策                                                                                                                                                                                                                                         |
 | ~~用 canvas measureText 取代 DOM 测量~~ | **（五轮删除）**该结论针对"以 canvas 替代 DOM 测量"，与本方案用法不同：canvas `measureText` 的 `actualBoundingBox*` 是**唯一能拿到 ink overhang 的渠道**，DOM 指标拿不到。现定位：**DOM 测量管布局盒，canvas ink-bound 管墨迹外溢，两者互补**（§6.2 第 7 条，F9 覆盖） |
-| 只修 Remotion 路径 | HTML 路径不能延期 |
-| 缺媒体门控写进本文 | 属管线门控，单一真源应在 R2 §3.5，本文只定义接口 |
+| 只修 Remotion 路径                      | HTML 路径不能延期                                                                                                                                                                                                                                                      |
+| 缺媒体门控写进本文                      | 属管线门控，单一真源应在 R2 §3.5，本文只定义接口                                                                                                                                                                                                                       |
 
 ---
 
@@ -557,14 +558,14 @@ F1–F7、F9 用固定输入 + Remotion still 渲染，完全确定性、不依�
 
 ### 9.1 已拍板（五轮，不再进 Grill）
 
-| 项 | 决定 |
-|---|---|
-| 时间轴方案 | **A2**（非末幕 `clipFrames + TRANSITION_FRAMES`；CTA 视觉 1784→1953，与总时长完全一致；音/字幕/`Root.tsx` 零改动）—— R2 §1 |
-| Remotion 版本 | 统一到 **4.0.517**（`upgrade --version 4.0.517` + `remotion add`） |
-| s9 布局 | 改 **stacked-cards**（R2 §3.5，配合缺媒体门控） |
-| Q4 校准维护契约 | 随预算降为 WARN 提示，spec 细化（实施级事项，非 Grill） |
-| Q7 存量内容处理 | 回归职责由 **F1–F9** fixture 承担；15 个生产内容包批量校验只出决策清单 |
-| 换行 / floor / HTML 时机 / 方案 C / highlight 语义 | ✅ 已定（§6.3–6.5、§6.4b、§6.7） |
+| 项                                                 | 决定                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 时间轴方案                                         | **A2**（非末幕 `clipFrames + TRANSITION_FRAMES`；CTA 视觉 1784→1953，与总时长完全一致；音/字幕/`Root.tsx` 零改动）—— R2 §1 |
+| Remotion 版本                                      | 统一到 **4.0.517**（`upgrade --version 4.0.517` + `remotion add`）                                                         |
+| s9 布局                                            | 改 **stacked-cards**（R2 §3.5，配合缺媒体门控）                                                                            |
+| Q4 校准维护契约                                    | 随预算降为 WARN 提示，spec 细化（实施级事项，非 Grill）                                                                    |
+| Q7 存量内容处理                                    | 回归职责由 **F1–F9** fixture 承担；15 个生产内容包批量校验只出决策清单                                                     |
+| 换行 / floor / HTML 时机 / 方案 C / highlight 语义 | ✅ 已定（§6.3–6.5、§6.4b、§6.7）                                                                                           |
 
 ### 9.2 Grill 三项
 

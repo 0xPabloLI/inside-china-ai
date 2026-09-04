@@ -26,6 +26,7 @@ asset-sourcer.mjs 的视频下载能力存在三个层面的问题：
 - **Smoke Test：** YouTube ✅ tunnel 成功 / Streamable ✅ redirect 成功 / 其他平台因 Cobalt parser 过期或代理 IP 被封而失败（不影响 VDL 架构）
 
 **VDL 架构：**
+
 ```
 URL → canonicalizeUrl → selectStrategy → adapter.download → DownloadResult
                                               ↓
@@ -56,6 +57,7 @@ URL → canonicalizeUrl → selectStrategy → adapter.download → DownloadResu
 **实现：** `dedupByUrl()` in `trends-utils.mjs`，复用 `canonicalizeUrl()` from `url-normalizer.mjs`。在 `search-sources.mjs` `allArticles.push(...)` 后调用。12 tests covering 13 scenario matrix rows。57/57 tests passing。
 
 **做了什么：**
+
 - 在 `trends-utils.mjs` 新增 `dedupByUrl(articles)` 函数（Set-based dedup，空 URL 跳过，保留第一条）
 - 在 `search-sources.mjs` 的 `allArticles.push(...)` 循环后调用 `dedupByUrl(allArticles)` + 日志
 - 复用 `canonicalizeUrl()` from `url-normalizer.mjs`（未重写）
@@ -70,12 +72,14 @@ URL → canonicalizeUrl → selectStrategy → adapter.download → DownloadResu
 **实现：** 创建 `lib/download-candidate.mjs` helper，包装 VDL `downloadVideo()` + 文件 I/O + DownloadResult status 映射。扩展 VDL 支持图片（`.jpg/.png/.webp/.gif` + `image/*` MIME + headers 传递）。替换 `asset-sourcer.mjs` 5 个重复下载块为 `downloadCandidate()` 调用。67 新测试 + 2111 既有测试全通过。Spec/tickets 已归档到 `docs/archive/`。
 
 **做什么：**
+
 1. 创建 `lib/download-candidate.mjs`，提取 `asset-sourcer.mjs` 中 5 个重复的下载块为统一的 `downloadCandidate()` helper
 2. 在 `downloadCandidate()` 内部调用 VDL `downloadVideo()` 而不是旧的 `downloadAsset()`/`downloadYtdlp()`
 3. 替换 `asset-sourcer.mjs` 的 5 个下载块为 `downloadCandidate()` 调用
 4. 测试：验证既有 stock/YouTube/B站 行为不回归
 
 **集成后的流程：**
+
 ```
 asset-sourcer.mjs main()
   → downloadCandidate(candidate, ...)   ← #115 提取的 helper
@@ -88,6 +92,7 @@ asset-sourcer.mjs main()
 ```
 
 **不做什么：**
+
 - 不新增平台 adapter（douyin/weibo/xhs 专用 adapter 仍是 #75 第二批遗留）
 - 不修改 source-registry.mjs schema（等 #77）
 - 不自动调配 Clash Verge 节点（属于未来 enhancement）
@@ -101,6 +106,7 @@ asset-sourcer.mjs main()
 **状态：** OPEN, 非阻塞，#115 完成后的上游消费者
 
 **做什么：**
+
 - 当 CDP 打开一个 URL 时，同时提取 articles + images + videos（当前只提取 articles + images）
 - 提取到的视频 URL 喂给 VDL `downloadVideo()` 下载
 
@@ -108,12 +114,12 @@ asset-sourcer.mjs main()
 
 ## 非阻塞性的相关 Issue
 
-| Issue | 关系 | 是否阻塞？ |
-|-------|------|-----------|
-| **#77** (Source type labeling audit) | 审计 59 个 source 的 capabilities 标注。#75 第二批「source-registry capabilities.videos 标注」等 #77 结果 | 否 — #115 集成 VDL 不需要等 #77 |
-| **#76** (SSOT violations audit) | 数据结构类型定义审计。#115 的 `downloadCandidate` 输入输出 schema 理想情况应被 #76 覆盖 | 否 — 不阻塞，但 #76 做完后可以回头补类型 |
-| **#88** (Rename CDP script fields) | 清理工作，提到 "delete after #63 SVE"。但 #63 现在只是 URL dedup，SVE 在 #114 | 否 — #88 的清理不阻塞 #63/#115 |
-| **#116** (Pipeline auto-start CDP proxy) | 让 search-sources.mjs 自启动 CDP proxy | 否 — 独立 issue |
+| Issue                                    | 关系                                                                                                      | 是否阻塞？                               |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **#77** (Source type labeling audit)     | 审计 59 个 source 的 capabilities 标注。#75 第二批「source-registry capabilities.videos 标注」等 #77 结果 | 否 — #115 集成 VDL 不需要等 #77          |
+| **#76** (SSOT violations audit)          | 数据结构类型定义审计。#115 的 `downloadCandidate` 输入输出 schema 理想情况应被 #76 覆盖                   | 否 — 不阻塞，但 #76 做完后可以回头补类型 |
+| **#88** (Rename CDP script fields)       | 清理工作，提到 "delete after #63 SVE"。但 #63 现在只是 URL dedup，SVE 在 #114                             | 否 — #88 的清理不阻塞 #63/#115           |
+| **#116** (Pipeline auto-start CDP proxy) | 让 search-sources.mjs 自启动 CDP proxy                                                                    | 否 — 独立 issue                          |
 
 ## 前置阻塞检查结论
 
@@ -128,6 +134,7 @@ asset-sourcer.mjs main()
 ## Cobalt 维护状态 ⚠️
 
 Cobalt 项目（imputnet/cobalt）处于「有活动但更新极慢」状态：
+
 - repo 未 archived，42K stars，issues 仍活跃
 - 但 main 分支最后一次 commit 是 2026-04-06（4 个多月无新代码）
 - B站/Twitter/Reddit parser 已失效，无人修复
@@ -139,23 +146,23 @@ Cobalt 项目（imputnet/cobalt）处于「有活动但更新极慢」状态：
 
 ## 本 session 的代码改动
 
-| Commit | 描述 | 文件 |
-|--------|------|------|
-| a99e14c | VDL 第一批：策略选择器 + 3 个 adapter + 42 个测试 | `video-downloaders.mjs`, `url-normalizer.mjs`, test |
-| dfa98ad | Cobalt 默认端口 3000→9000 | `video-downloaders.mjs`, test, `.env.example` |
-| c566033 | AGENTS.md 维护状态检查规则 | `AGENTS.md` |
-| 80f5a13 | #63 URL dedup | `trends-utils.mjs`, `search-sources.mjs`, test |
-| cc699e6 | #115 downloadCandidate helper + VDL 集成 | `download-candidate.mjs` (new), `video-downloaders.mjs`, `asset-sourcer.mjs`, test |
-| e38d5e8 | 归档 spec/tickets | `docs/archive/` |
-| 82eff65 | 清理 moved 文件 | 删除 `docs/spec-download-candidate-*.md`, `docs/tickets-download-candidate-*.md` |
+| Commit  | 描述                                              | 文件                                                                               |
+| ------- | ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| a99e14c | VDL 第一批：策略选择器 + 3 个 adapter + 42 个测试 | `video-downloaders.mjs`, `url-normalizer.mjs`, test                                |
+| dfa98ad | Cobalt 默认端口 3000→9000                         | `video-downloaders.mjs`, test, `.env.example`                                      |
+| c566033 | AGENTS.md 维护状态检查规则                        | `AGENTS.md`                                                                        |
+| 80f5a13 | #63 URL dedup                                     | `trends-utils.mjs`, `search-sources.mjs`, test                                     |
+| cc699e6 | #115 downloadCandidate helper + VDL 集成          | `download-candidate.mjs` (new), `video-downloaders.mjs`, `asset-sourcer.mjs`, test |
+| e38d5e8 | 归档 spec/tickets                                 | `docs/archive/`                                                                    |
+| 82eff65 | 清理 moved 文件                                   | 删除 `docs/spec-download-candidate-*.md`, `docs/tickets-download-candidate-*.md`   |
 
 ## Issue body 更新记录
 
-| Issue | 更新内容 |
-|-------|---------|
-| #63 | scope 第 3 项改为 reuse `url-normalizer.mjs`；新增 Code Reuse 章节 |
-| #75 | Cobalt 部署状态 + smoke test 结果 + 维护评估 + 集成方案（合并到 #115） |
-| #115 | scope 加第 4 项 VDL 集成 + 与 #75 的关系 + 集成后流程图 |
+| Issue | 更新内容                                                               |
+| ----- | ---------------------------------------------------------------------- |
+| #63   | scope 第 3 项改为 reuse `url-normalizer.mjs`；新增 Code Reuse 章节     |
+| #75   | Cobalt 部署状态 + smoke test 结果 + 维护评估 + 集成方案（合并到 #115） |
+| #115  | scope 加第 4 项 VDL 集成 + 与 #75 的关系 + 集成后流程图                |
 
 ## Review 整合
 
@@ -166,6 +173,7 @@ Manus AI 对旧版 handoff（`handoff-video-download-breakthrough.md`，已归�
 **总结：** Review 总体合理且高质量。5 个阻塞性发现中，3 个已被代码完全解决（Cobalt 状态机、策略选择器、状态标注），1 个部分解决（registry schema 等 #77），1 个不适用（CDP adapter 不在 scope）。12 个验收矩阵中 7 个已完全覆盖，2 个将在 #115 补全，3 个不在当前 scope。
 
 **遗留要求需在后续 issue 中处理：**
+
 - #77：`source-registry.mjs` schema 拆分 discovery + download adapter；`asset-source-quick-reference.md` 更新 Cobalt smoke test 结果
 - ~~#115：VD-02 集成测试（yt-dlp 不回归）；VD-06 专用 adapter 路径~~ — ✅ VD-02 已在 T3 回归测试中覆盖（2111 tests passing）；VD-06 专用 adapter 路径属 #75 第二批
 - #75 第二批：VD-07 抖音 iesdouyin 固定样本测试；专用 platform adapter（douyin/weibo/xhs）

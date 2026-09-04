@@ -43,7 +43,14 @@
  * § T12 Implementation, decisions 57, 63.
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { cancelRender, Composition, delayRender, interpolate, registerRoot, useCurrentFrame } from "remotion";
+import {
+  cancelRender,
+  Composition,
+  delayRender,
+  interpolate,
+  registerRoot,
+  useCurrentFrame,
+} from "remotion";
 import { Circle, Highlight, Underline } from "@remotion/rough-notation";
 import { ANNOTATION, BRAND_FONT_STACK, FPS } from "./components/shared";
 import { annotationDrawnBox, collectInkOverhangs, TextGate } from "./components/text-gate";

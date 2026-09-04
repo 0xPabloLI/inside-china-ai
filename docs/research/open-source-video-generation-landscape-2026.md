@@ -29,41 +29,50 @@
 ## Detailed Analysis
 
 ### 类别拆解：base model vs 加速框架
+
 把"开源视频生成"切成两层才不会排错队：
+
 - **基础模型层**：Wan 2.2、HunyuanVideo 1.5、LTXVideo/LTX-2、CogVideoX、Mochi 1、SkyReels、Step-Video、MiniMax Hailuo、Vidu 等。决定画质上限、许可、生态。
 - **加速/工程层**：FastVideo、以及各家的量化/蒸馏方案（city96 的 GGUF 量化、各 ComfyUI 节点、TensorRT/OneDiff 加速等）。决定"跑多快、在哪跑"。
 
 FastVideo 的独特之处是把"推理加速 + 后训练（LoRA/蒸馏/序列并行）+ 多硬件（CUDA/MLX/ARM64）"做成了**统一框架**而非单点优化，这是它相对散装加速方案的整合价值。但整合度 ≠ 成熟度：973 commits、2026 年才起量，社区规模远小于 Wan/HunyuanVideo 各自的生态。
 
 ### 对你的"生成 B-roll"用途的映射
+
 你的管线（`scripts/short-video/`）是口播解说视频，画面来自 asset-sourcer 联网搜图/视频。引入生成能力的接入口是：**把"逐 scene 的 assetNeed"的一部分改为"本地生成 B-roll"**。此时：
+
 - 画面质量取决于你选的 base model（Wan 2.2 照片级真实、HunyuanVideo 1.5 运动自然、LTX 风格化）。
 - FastVideo 若作为后端，给你"Mac 本地 + 快"的可能，但小模型（1.3B）画质可能不够 B-roll 用，5B/14B 在 Mac 统一内存上可跑但慢。
 - I2V（图生视频）能力很关键：FastWan2.2-TI2V-5B 支持图生视频，可从分镜参考帧生成，比纯 T2V 更可控、更贴合叙事 [4]。
 
 ### 反面视角（Contrarian / Risks）
+
 - **FastVideo 太新未经验证**：两篇 2026 横评都不含它，"生产就绪"标签只给了 Wan/HunyuanVideo/LTX。押注 FastVideo = 押一个 3 个月大的框架。
 - **"1.8s"是营销数字**：基于 1.3B 极小模型，画质代价未公开对标。真要可用画质得 5B+，时延会大幅上升。
 - **版权/真实性双刃**：生成"未发生过的画面" depicting 真实公司/产品，对新闻频道有误导风险，且 TikTok 必须标 AIGC（`docs/manual-ops.md` 已要求）。生成素材未必比"合规抓取+授权"更省心。
 - **维护状态待查**：引入任何新框架前须查 GitHub archived/最近 commit/issue 活跃度（AGENTS.md「引入新工具前检查维护状态」）。FastVideo 目前活跃，但是否 >6 个月持续维护未知（今日即 2026-08-30，仅观察 3 个月）。
 
 ## Contrarian Views & Risks
+
 - 主流意见把 FastVideo 当"加速 Wan 的工具"；反方认为它可能是首个把"后训练+推理+多硬件"真正统一的开源视频框架，长期价值被低估。但此判断需时间验证。
 - "开源=免费商用"是常见误解：代码 Apache 2.0 ≠ 权重可商用，须确认每个蒸馏权重的许可（MAGI-1 就是 Research 非商用反例 [1]）。
 
 ## Open Questions
+
 1. FastWan / FastHunyuan / FastMochi 各蒸馏权重的**具体许可**是否均为 Apache 2.0 可商用？（需逐一查 HuggingFace model card）
 2. FastMetal 5B/14B 在 Apple Silicon（如 M4 Max 统一内存）上的**真实时延与画质**——社区实测样本太少。
 3. 生成 B-roll 与现有品牌动画（brand-system 统一配色/字体）的**视觉融合度**——需 spike 实测，非调研可答。
 4. TikTok 对"AI 生成 B-roll + AIGC 标签"的**流量/合规影响**——需 Analytics 验证。
 
 ## Implications for this pipeline（直接决策建议）
+
 - **不要问"FastVideo 排第几"，要问"用 FastVideo 加速的 Wan/HunyuanVideo 做 B-roll 是否值得"。**
 - 若你已有/愿用云 GPU：直接上 **Wan 2.2（要真实感）或 HunyuanVideo 1.5（要运动）**，FastVideo 作为加速可选件，不必强绑。
 - 若你想**Mac 本地零 GPU 成本**生成：FastVideo + FastMetal 是当前唯一有证据的开源路径，但先用 1.3B 跑通 spike、再评估 5B 画质。
 - 短期建议：把"生成素材"作为 asset-sourcer 的**可选 mediaMode**（与抓取并列），先 spike 验证画质/品牌融合/AIGC 合规，再决定是否纳入主线。
 
 ## Sources
+
 1. https://www.sevenlabs.site/blogs/best-open-source-video-generation-models-2026 — Seven Labs 工程横评（Wan/HunyuanVideo/LTX/Mochi/SkyReels/CogVideoX/MAGI-1，无 FastVideo）— Tier 3
 2. https://www.aimagicx.com/blog/open-source-ai-video-models-comparison-2026 — AI Magicx "2026 三大领先开源：Wan2.2/HunyuanVideo1.5/LTXVideo13B"，Apache 2.0 商用 — Tier 3
 3. https://github.com/hao-ai-lab/FastVideo — 官方仓库：unified inference+post-training framework，Apache-2.0，MLX 2026-08-19 — Tier 1

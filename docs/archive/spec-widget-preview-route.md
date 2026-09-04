@@ -45,30 +45,30 @@ cloud / talent / benchmark / identity / minimax 等 11 个 widget 只能靠静�
 
 ## Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险 | 评估 |
-|------|---------|------|------|
-| scripts/verify-widget-a11y.mjs | 增加 --preview 分支 | Medium | 修改已有验证脚本；文章模式路径不变（回归验证），仅新增分支 |
-| src/routes/widgets.tsx | 新建 | Low | 新路由，无下游；route 名 /widgets 无冲突（已核查） |
-| src/routes/widgets.$name.tsx | 新建 | Low | 同上；只 import registry 现有导出 |
-| docs/spec-widget-preview-route.md / docs/tickets-widget-preview-route.md | 新建 | Low | 文档 |
+| 文件                                                                     | 修改内容            | 风险   | 评估                                                       |
+| ------------------------------------------------------------------------ | ------------------- | ------ | ---------------------------------------------------------- |
+| scripts/verify-widget-a11y.mjs                                           | 增加 --preview 分支 | Medium | 修改已有验证脚本；文章模式路径不变（回归验证），仅新增分支 |
+| src/routes/widgets.tsx                                                   | 新建                | Low    | 新路由，无下游；route 名 /widgets 无冲突（已核查）         |
+| src/routes/widgets.$name.tsx                                             | 新建                | Low    | 同上；只 import registry 现有导出                          |
+| docs/spec-widget-preview-route.md / docs/tickets-widget-preview-route.md | 新建                | Low    | 文档                                                       |
 
 不触碰: 文章路由、registry、任何 widget 组件、parallel session 文件。
 
 ## Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected | Risk | Mitigation |
-|---|----------|----------|------|------------|
-| R1 | GET /widgets (dev) | 200 + 14 个 widget 链接 | Low | Playwright 断言 |
-| R2 | GET /widgets/deepseek-funding (dev) | 200 + bg-card wrapper + max-w-none（breakout） | Low | Playwright |
-| R3 | GET /widgets/deepseek-talent (dev) | 200 + max-w-prose（非 breakout）+ 容器检查过 | Low | Playwright |
-| R4 | GET /widgets/not-a-widget (dev) | 404 (notFound) | Low | Playwright 断言 status |
-| R5 | 生产构建访问 /widgets* | 404（import.meta.env.DEV=false 静态替换） | Medium | 构建产物 SSR；逻辑一行，评审确认 |
-| R6 | 14 个 widget 逐个预览 | 容器 probe 全过（bg-card+my-10+px-4 sm:px-6、无 my-6、内层配方、无 purple） | Low | --preview 模式全量跑 |
-| R7 | 5 个交互 widget 预览 | a11y probe 全过（aria + 点击切换 + focus） | Low | 专属 probe 映射 |
-| R8 | 键盘可达 | 每个预览页 Tab 到带 focus-visible 的控件 | Low | probeKeyboard |
-| R9 | 预览访问数 | visited === 列表数（0 漏） | Low | 脚本结束断言 |
-| R10 | 文章模式回归 | 15P/0F 不变 | Medium | 全量重跑两种模式 |
-| R11 | lint/tsc/build | 0 error | Low | 工作流 Step 6 |
+| #   | Scenario                            | Expected                                                                    | Risk   | Mitigation                       |
+| --- | ----------------------------------- | --------------------------------------------------------------------------- | ------ | -------------------------------- |
+| R1  | GET /widgets (dev)                  | 200 + 14 个 widget 链接                                                     | Low    | Playwright 断言                  |
+| R2  | GET /widgets/deepseek-funding (dev) | 200 + bg-card wrapper + max-w-none（breakout）                              | Low    | Playwright                       |
+| R3  | GET /widgets/deepseek-talent (dev)  | 200 + max-w-prose（非 breakout）+ 容器检查过                                | Low    | Playwright                       |
+| R4  | GET /widgets/not-a-widget (dev)     | 404 (notFound)                                                              | Low    | Playwright 断言 status           |
+| R5  | 生产构建访问 /widgets*              | 404（import.meta.env.DEV=false 静态替换）                                   | Medium | 构建产物 SSR；逻辑一行，评审确认 |
+| R6  | 14 个 widget 逐个预览               | 容器 probe 全过（bg-card+my-10+px-4 sm:px-6、无 my-6、内层配方、无 purple） | Low    | --preview 模式全量跑             |
+| R7  | 5 个交互 widget 预览                | a11y probe 全过（aria + 点击切换 + focus）                                  | Low    | 专属 probe 映射                  |
+| R8  | 键盘可达                            | 每个预览页 Tab 到带 focus-visible 的控件                                    | Low    | probeKeyboard                    |
+| R9  | 预览访问数                          | visited === 列表数（0 漏）                                                  | Low    | 脚本结束断言                     |
+| R10 | 文章模式回归                        | 15P/0F 不变                                                                 | Medium | 全量重跑两种模式                 |
+| R11 | lint/tsc/build                      | 0 error                                                                     | Low    | 工作流 Step 6                    |
 
 ## 测试接缝
 

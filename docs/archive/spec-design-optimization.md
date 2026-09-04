@@ -11,12 +11,12 @@
 
 ## 决策记录（用户确认）
 
-| # | 决策点 | 确认结果 |
-|---|--------|---------|
-| D1 | 底部死区元素（bottom:120px 的 source 脚注 + CTA 静音行） | **移除**（内容 VO 已覆盖 / 与琥珀色主 CTA 重复） |
-| D2 | 共享模板层迁移范围 | **restraint 全量迁移**；deepseek/distillation 只做硬编码文案数据化 + 安全区修复 |
-| D3 | 水印位置 | **左上角 top:60 left:60**，且场景已含品牌栏时跳过注入 |
-| D4 | 网站 widget 容器 | **文章页渲染点统一包卡片**（非 breakout 用 max-w-prose，全部包 rounded-lg border bg-card） |
+| #   | 决策点                                                   | 确认结果                                                                                   |
+| --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| D1  | 底部死区元素（bottom:120px 的 source 脚注 + CTA 静音行） | **移除**（内容 VO 已覆盖 / 与琥珀色主 CTA 重复）                                           |
+| D2  | 共享模板层迁移范围                                       | **restraint 全量迁移**；deepseek/distillation 只做硬编码文案数据化 + 安全区修复            |
+| D3  | 水印位置                                                 | **左上角 top:60 left:60**，且场景已含品牌栏时跳过注入                                      |
+| D4  | 网站 widget 容器                                         | **文章页渲染点统一包卡片**（非 breakout 用 max-w-prose，全部包 rounded-lg border bg-card） |
 
 ## 变更设计
 
@@ -119,56 +119,56 @@
 
 ## Section 1: Modified Files Impact（修改影响评估）
 
-| 文件 | 修改内容 | 风险 | 评估 |
-|------|---------|------|------|
-| scripts/short-video/lib/safe-zones.mjs | **新建**，纯常量 | Low | 无消费者风险；drift 测试锁定 |
-| scripts/short-video/lib/scene-templates.mjs | **新建**，场景原语 | Low | 首批消费者仅 restraint（V2 同批验收） |
-| scripts/short-video/lib/base-styles.mjs | 水印位置/注入逻辑 + keyframes 归集 + re-export | Medium | 影响全部 3 个 pipeline 的渲染输出；用帧对比 + withWatermark 单测缓解。最坏后果：水印错位 —— 视觉瑕疵，可回滚 |
-| scripts/short-video/lib/tiktok-rules.mjs | THRESHOLDS 追加 1 key | Low | 纯追加；确认 tiktok-rules-sync.test.mjs 无 key 穷举断言（implement 时核对） |
-| scripts/short-video/lib/scene-rules.mjs | 追加 checkBodyTextVoRedundancy | Medium | 进入所有 preflight 报告；仅 warn 不阻塞；先跑 3 个 pipeline preflight 确认零 fail 新增 |
-| content/restraint/pt1/scene-data.mjs | 新增 texts 字段 | Medium | verify-video --pre 必须全绿；字段缺失时 t() 回退空串不崩 |
-| content/restraint/pt1/scenes.mjs | 迁移模板 + 删脚注 + 修复断词 | Medium | 视觉回归风险最高；帧对比验收（S1/S3/S4/S6/S9/S11） |
-| content/deepseek/scenes.mjs + scene-data.mjs | 删 S1/S12 底注 | Low | 视觉删减；帧抽验 S1/S12 |
-| content/distillation/pt1/scenes.mjs + scene-data.mjs | 文案数据化 + 删底注 | Medium | 布局元素增减；post-render 校验 + 帧抽验 |
-| scripts/short-video/__tests__/scene-drift.test.mjs | **新建** | Low | 纯测试 |
-| scripts/short-video/__tests__/scene-rules-redundancy.test.mjs | **新建**（或并入既有文件） | Low | 纯测试 |
-| docs/brand-system.md | 实施路径/网站语言/Safe Zones/模板章节 | Low | 文档，无代码影响；brand-system skill 消费它 |
-| docs/video-workflow.md | 过期引用修正 | Low | 文档 |
-| src/components/header-nav.tsx + .test.tsx | **新建** | Low | 新组件，SiteHeader 消费 |
-| src/components/site-header.tsx | nav 抽离为 HeaderNav | Medium | 全站 header 视觉不变（桌面路径不变）；Playwright 桌面+移动验收；最坏：导航布局回归，快速回滚 |
-| src/components/widgets/**（字号/颜色） | text-[10px]/[11px]→text-xs，原生色→token | Medium | 视觉批量微调；lint+build+tsc + 文章页截屏抽验；token 语义在 light/dark 均有定义 |
-| src/routes/posts.$slug.tsx | widget 卡片包装 + 正文 token | Medium | 文章页布局变化；breakout 宽度不受影响；dev server 截屏对比 |
-| src/styles.css | blockquote + global reduced-motion | Medium | 全局 CSS；prose-article 引用块视觉变化（符合 design 意图）；reduced-motion 规则业内标准写法 |
-| src/components/subscribe-form.tsx | border 透明度 | Low | 像素级差异 |
-| src/routes/companies.tsx | URL/字号/FAQ h3 | Low | canonical/OG 变更对外可见（指向正式域名，正确方向）；无 SEO 风险 |
-| docs/specs/spec-design-optimization.md / docs/tickets/tickets-design-optimization.md | **新建** | Low | 文档 |
+| 文件                                                                                 | 修改内容                                       | 风险   | 评估                                                                                                         |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------ |
+| scripts/short-video/lib/safe-zones.mjs                                               | **新建**，纯常量                               | Low    | 无消费者风险；drift 测试锁定                                                                                 |
+| scripts/short-video/lib/scene-templates.mjs                                          | **新建**，场景原语                             | Low    | 首批消费者仅 restraint（V2 同批验收）                                                                        |
+| scripts/short-video/lib/base-styles.mjs                                              | 水印位置/注入逻辑 + keyframes 归集 + re-export | Medium | 影响全部 3 个 pipeline 的渲染输出；用帧对比 + withWatermark 单测缓解。最坏后果：水印错位 —— 视觉瑕疵，可回滚 |
+| scripts/short-video/lib/tiktok-rules.mjs                                             | THRESHOLDS 追加 1 key                          | Low    | 纯追加；确认 tiktok-rules-sync.test.mjs 无 key 穷举断言（implement 时核对）                                  |
+| scripts/short-video/lib/scene-rules.mjs                                              | 追加 checkBodyTextVoRedundancy                 | Medium | 进入所有 preflight 报告；仅 warn 不阻塞；先跑 3 个 pipeline preflight 确认零 fail 新增                       |
+| content/restraint/pt1/scene-data.mjs                                                 | 新增 texts 字段                                | Medium | verify-video --pre 必须全绿；字段缺失时 t() 回退空串不崩                                                     |
+| content/restraint/pt1/scenes.mjs                                                     | 迁移模板 + 删脚注 + 修复断词                   | Medium | 视觉回归风险最高；帧对比验收（S1/S3/S4/S6/S9/S11）                                                           |
+| content/deepseek/scenes.mjs + scene-data.mjs                                         | 删 S1/S12 底注                                 | Low    | 视觉删减；帧抽验 S1/S12                                                                                      |
+| content/distillation/pt1/scenes.mjs + scene-data.mjs                                 | 文案数据化 + 删底注                            | Medium | 布局元素增减；post-render 校验 + 帧抽验                                                                      |
+| scripts/short-video/**tests**/scene-drift.test.mjs                                   | **新建**                                       | Low    | 纯测试                                                                                                       |
+| scripts/short-video/**tests**/scene-rules-redundancy.test.mjs                        | **新建**（或并入既有文件）                     | Low    | 纯测试                                                                                                       |
+| docs/brand-system.md                                                                 | 实施路径/网站语言/Safe Zones/模板章节          | Low    | 文档，无代码影响；brand-system skill 消费它                                                                  |
+| docs/video-workflow.md                                                               | 过期引用修正                                   | Low    | 文档                                                                                                         |
+| src/components/header-nav.tsx + .test.tsx                                            | **新建**                                       | Low    | 新组件，SiteHeader 消费                                                                                      |
+| src/components/site-header.tsx                                                       | nav 抽离为 HeaderNav                           | Medium | 全站 header 视觉不变（桌面路径不变）；Playwright 桌面+移动验收；最坏：导航布局回归，快速回滚                 |
+| src/components/widgets/**（字号/颜色）                                               | text-[10px]/[11px]→text-xs，原生色→token       | Medium | 视觉批量微调；lint+build+tsc + 文章页截屏抽验；token 语义在 light/dark 均有定义                              |
+| src/routes/posts.$slug.tsx                                                           | widget 卡片包装 + 正文 token                   | Medium | 文章页布局变化；breakout 宽度不受影响；dev server 截屏对比                                                   |
+| src/styles.css                                                                       | blockquote + global reduced-motion             | Medium | 全局 CSS；prose-article 引用块视觉变化（符合 design 意图）；reduced-motion 规则业内标准写法                  |
+| src/components/subscribe-form.tsx                                                    | border 透明度                                  | Low    | 像素级差异                                                                                                   |
+| src/routes/companies.tsx                                                             | URL/字号/FAQ h3                                | Low    | canonical/OG 变更对外可见（指向正式域名，正确方向）；无 SEO 风险                                             |
+| docs/specs/spec-design-optimization.md / docs/tickets/tickets-design-optimization.md | **新建**                                       | Low    | 文档                                                                                                         |
 
 ## Section 2: Behavioral Scenarios（场景矩阵 → 测试用例）
 
-| # | 场景 | 预期行为 | 风险 | 缓解 |
-|---|------|---------|------|------|
-| V1 | scene-data 某 texts 字段缺失/undefined | t() 回退空串，场景正常渲染 | Low | 既有 t() 模式；V2 全字段过 preflight |
-| V2 | withWatermark 输入含 brand-bar | 不注入水印 | Low | 单测 |
-| V3 | withWatermark 输入无 brand-bar | 注入左上角（WATERMARK_POS）水印 | Low | 单测 + 帧验证 |
-| V4 | 正文文本含 ≥3 词归一化 VO 碎片 | warn（非阻塞） | Low | 单测（多行：短碎片/pass/空 texts/hook/CTA 跳过） |
-| V5 | 3 个 pipeline 跑 verify --pre | 全部 pass，新 warn 可见但不阻塞 | Medium | 实施后立即执行 |
-| V6 | scenes.mjs 出现裸大写文案 | drift 测试 fail | Low | 单测白名单 |
-| V7 | scenes.mjs 出现 bottom:1xxpx 锚点 | drift 测试 fail | Low | 单测 |
-| V8 | SAFE_ZONES/WATERMARK_POS 常量 | 顺序/正值 sanity | Low | 单测 |
-| V9 | restraint S3 长词卡片 | 整词换行，无 mid-word 断词 | Medium | 帧抽验 14s 附近 |
-| V10 | restraint S4 | "PRICE CUT" 只出现一次 | Medium | 帧抽验 |
-| V11 | 全部视频渲染管线 | 组装/字幕/验证步骤不受模板层影响 | Medium | 全量视频测试套件 + render-only 帧抽验 |
-| V12 | distillation 文案数据化后 | S1-S6 同帧信息不变（除移除项） | Medium | 帧抽验 + preflight |
-| W1 | 桌面 viewport | HeaderNav 横排链接，无汉堡 | Low | 静态渲染单测 + Playwright |
-| W2 | 移动 viewport | 汉堡可见，点击展开菜单，链接可达 | Medium | Playwright |
-| W3 | isAdmin=false | 无 Admin 链接 | Low | 单测 |
-| W4 | isAdmin=true | Admin 链接可见 | Low | 单测 |
-| W5 | 首页点 Articles | 触发 onArticlesClick（滚动） | Low | 单测（prop 透传） |
-| W6 | widget 渲染 | 非 breakout 限 max-w-prose；全部有统一卡片壳；unknown widget 占位不变 | Medium | 静态类断言（widgetWrapperClass 单测）+ dev 截屏 |
-| W7 | widgets 目录扫描 | 无 text-[10px]/[11px]、无 Tailwind 原生色类 | Low | drift 单测 |
-| W8 | prefers-reduced-motion | 全局动画/过渡禁用 | Low | CSS 存在性 + 人工检查 |
-| W9 | 文章正文渲染 | body-large token（1.125rem/1.6），prose 段 line-height 1.75 不变 | Low | dev 截屏 |
-| W10 | companies 页 | canonical/OG = chinaai.news/companies；badge 12px；FAQ h3 sans | Low | 静态断言/人工检查 |
+| #   | 场景                                   | 预期行为                                                              | 风险   | 缓解                                             |
+| --- | -------------------------------------- | --------------------------------------------------------------------- | ------ | ------------------------------------------------ |
+| V1  | scene-data 某 texts 字段缺失/undefined | t() 回退空串，场景正常渲染                                            | Low    | 既有 t() 模式；V2 全字段过 preflight             |
+| V2  | withWatermark 输入含 brand-bar         | 不注入水印                                                            | Low    | 单测                                             |
+| V3  | withWatermark 输入无 brand-bar         | 注入左上角（WATERMARK_POS）水印                                       | Low    | 单测 + 帧验证                                    |
+| V4  | 正文文本含 ≥3 词归一化 VO 碎片         | warn（非阻塞）                                                        | Low    | 单测（多行：短碎片/pass/空 texts/hook/CTA 跳过） |
+| V5  | 3 个 pipeline 跑 verify --pre          | 全部 pass，新 warn 可见但不阻塞                                       | Medium | 实施后立即执行                                   |
+| V6  | scenes.mjs 出现裸大写文案              | drift 测试 fail                                                       | Low    | 单测白名单                                       |
+| V7  | scenes.mjs 出现 bottom:1xxpx 锚点      | drift 测试 fail                                                       | Low    | 单测                                             |
+| V8  | SAFE_ZONES/WATERMARK_POS 常量          | 顺序/正值 sanity                                                      | Low    | 单测                                             |
+| V9  | restraint S3 长词卡片                  | 整词换行，无 mid-word 断词                                            | Medium | 帧抽验 14s 附近                                  |
+| V10 | restraint S4                           | "PRICE CUT" 只出现一次                                                | Medium | 帧抽验                                           |
+| V11 | 全部视频渲染管线                       | 组装/字幕/验证步骤不受模板层影响                                      | Medium | 全量视频测试套件 + render-only 帧抽验            |
+| V12 | distillation 文案数据化后              | S1-S6 同帧信息不变（除移除项）                                        | Medium | 帧抽验 + preflight                               |
+| W1  | 桌面 viewport                          | HeaderNav 横排链接，无汉堡                                            | Low    | 静态渲染单测 + Playwright                        |
+| W2  | 移动 viewport                          | 汉堡可见，点击展开菜单，链接可达                                      | Medium | Playwright                                       |
+| W3  | isAdmin=false                          | 无 Admin 链接                                                         | Low    | 单测                                             |
+| W4  | isAdmin=true                           | Admin 链接可见                                                        | Low    | 单测                                             |
+| W5  | 首页点 Articles                        | 触发 onArticlesClick（滚动）                                          | Low    | 单测（prop 透传）                                |
+| W6  | widget 渲染                            | 非 breakout 限 max-w-prose；全部有统一卡片壳；unknown widget 占位不变 | Medium | 静态类断言（widgetWrapperClass 单测）+ dev 截屏  |
+| W7  | widgets 目录扫描                       | 无 text-[10px]/[11px]、无 Tailwind 原生色类                           | Low    | drift 单测                                       |
+| W8  | prefers-reduced-motion                 | 全局动画/过渡禁用                                                     | Low    | CSS 存在性 + 人工检查                            |
+| W9  | 文章正文渲染                           | body-large token（1.125rem/1.6），prose 段 line-height 1.75 不变      | Low    | dev 截屏                                         |
+| W10 | companies 页                           | canonical/OG = chinaai.news/companies；badge 12px；FAQ h3 sans        | Low    | 静态断言/人工检查                                |
 
 ## 验证计划
 

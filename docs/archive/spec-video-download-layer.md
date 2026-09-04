@@ -78,6 +78,7 @@ URL → canonicalizeUrl(url)
 #### Preflight (GET /)
 
 On first use, calls `GET /` to retrieve:
+
 - `cobalt.services[]` — supported platform list
 - `cobalt.version` — for provenance
 - `cobalt.url` — instance URL
@@ -86,24 +87,24 @@ If preflight fails (network error, non-200), adapter marks itself `unavailable` 
 
 #### POST / response handling (complete state machine)
 
-| Response status | Action | DownloadResult.status |
-|----------------|--------|---------------------|
-| `tunnel` | Download `data.url` via HTTP fetch | `downloaded` (with buffer) |
-| `redirect` | Download `data.url` via HTTP fetch | `downloaded` (with buffer) |
-| `picker` | Do not auto-select | `needs-selection` |
+| Response status    | Action                                  | DownloadResult.status                                    |
+| ------------------ | --------------------------------------- | -------------------------------------------------------- |
+| `tunnel`           | Download `data.url` via HTTP fetch      | `downloaded` (with buffer)                               |
+| `redirect`         | Download `data.url` via HTTP fetch      | `downloaded` (with buffer)                               |
+| `picker`           | Do not auto-select                      | `needs-selection`                                        |
 | `local-processing` | Not implemented (requires FFmpeg remux) | `unsupported` (reason: `local-processing-not-supported`) |
-| `error` | Classify error code | `failed` (with retryable flag) |
+| `error`            | Classify error code                     | `failed` (with retryable flag)                           |
 
 #### Error classification
 
-| Error code pattern | Category | retryable |
-|-------------------|----------|-----------|
-| `error.api.rate_exceeded` | rate-limited | true |
-| `error.api.auth.*` | requires-auth | false |
-| `error.api.fetch.*` | fetch-error | false |
-| `error.api.link.*` | invalid-url | false |
-| `error.api.content.*` | content-unavailable | false |
-| other | unknown-error | false |
+| Error code pattern        | Category            | retryable |
+| ------------------------- | ------------------- | --------- |
+| `error.api.rate_exceeded` | rate-limited        | true      |
+| `error.api.auth.*`        | requires-auth       | false     |
+| `error.api.fetch.*`       | fetch-error         | false     |
+| `error.api.link.*`        | invalid-url         | false     |
+| `error.api.content.*`     | content-unavailable | false     |
+| other                     | unknown-error       | false     |
 
 #### Preflight services matching
 
@@ -124,6 +125,7 @@ url-normalizer.mjs
 ```
 
 Sync `canonicalizeUrl`:
+
 - Normalize `http://` → `https://`
 - Strip query string (`?utm_source=...&from=...`)
 - Strip fragment (`#section`)
@@ -135,12 +137,14 @@ Async `resolveRedirects`: stub that returns input unchanged. Real implementation
 ### 2.6 Existing function wrappers
 
 `DirectHttpAdapter` wraps `downloadAsset()` from `asset-sourcer.mjs`:
+
 - Calls `downloadAsset(url, destPath, headers)` with a temp path
 - Reads the file into a Buffer
 - Returns `DownloadResult` with `status: "downloaded"`
 - On failure, returns `{status: "failed", reason: error.message}`
 
 `YtdlpAdapter` wraps `downloadYtdlp()` from `asset-sourcer.mjs`:
+
 - Calls `downloadYtdlp(url, destPath)` with a temp path
 - Same Buffer read pattern
 - On `error.includes("login")`, returns `{status: "failed", reason: "needs-auth", retryable: false}`
@@ -151,41 +155,41 @@ Both wrappers accept `fetchFn` parameter for dependency injection (used by Cobal
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `scripts/short-video/lib/asset-sourcer.mjs` | **None** — wrappers import `downloadAsset`/`downloadYtdlp` but do not modify them | Low | No behavior change. Verified by existing tests still passing. |
-| `scripts/short-video/lib/source-registry.mjs` | **None** — independent adapter registry | Low | No schema change. #77 audit unaffected. |
-| `.env.example` | Add `COBALT_API_URL` and `COBALT_API_KEY` entries | Low | Pure addition, no existing env vars changed. |
-| `docs/research/asset-source-quick-reference.md` | Add VDL section documenting adapter layer + Cobalt status | Low | Documentation update only. |
+| File                                            | Modification                                                                      | Risk | Assessment                                                    |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------- |
+| `scripts/short-video/lib/asset-sourcer.mjs`     | **None** — wrappers import `downloadAsset`/`downloadYtdlp` but do not modify them | Low  | No behavior change. Verified by existing tests still passing. |
+| `scripts/short-video/lib/source-registry.mjs`   | **None** — independent adapter registry                                           | Low  | No schema change. #77 audit unaffected.                       |
+| `.env.example`                                  | Add `COBALT_API_URL` and `COBALT_API_KEY` entries                                 | Low  | Pure addition, no existing env vars changed.                  |
+| `docs/research/asset-source-quick-reference.md` | Add VDL section documenting adapter layer + Cobalt status                         | Low  | Documentation update only.                                    |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| VD-01 | Direct media URL (`https://cdn.pexels.com/videos/xxx.mp4`) | DirectHttpAdapter downloads via HTTP, validates >1KB, returns DownloadResult with buffer + mimeType | Low | Wrapper preserves existing downloadAsset() behavior |
-| VD-02 | YouTube/B站 URL | YtdlpAdapter wraps downloadYtdlp(), returns buffer or failed with reason | Low | No change to yt-dlp params (20MB/8s limits preserved) |
-| VD-03 | Cobalt not running (connection refused) | Preflight GET / fails, adapter marks unavailable, returns {status:"skipped", reason:"cobalt-unavailable"} | Low | Strategy selector continues to other adapters or returns unsupported |
-| VD-04 | Cobalt returns `tunnel` or `redirect` | Download data.url via fetch, validate MIME/size, return {status:"downloaded"} with buffer | Medium | Validate response is video (MIME check), reject HTML/auth pages |
-| VD-05 | Cobalt returns `picker` | Return {status:"needs-selection"} — no auto-select | Low | Caller knows to skip or prompt |
-| VD-05b | Cobalt returns `local-processing` | Return {status:"unsupported", reason:"local-processing-not-supported"} | Low | Strategy selector can fallback to ytdlp adapter |
-| VD-05c | Cobalt returns `error` with `error.api.rate_exceeded` | Return {status:"failed", retryable:true, reason:"rate-limited"} | Low | Strategy selector knows to try different adapter, not retry Cobalt |
-| VD-05d | Cobalt returns `error` with `error.api.auth.*` | Return {status:"failed", retryable:false, reason:"requires-auth"} | Low | No retry, record in report |
-| VD-06 | Cobalt preflight succeeds but URL platform not in services[] | Return {status:"skipped", reason:"platform-not-supported-by-cobalt"} | Low | Skip POST, save a failed request |
-| VD-07 | Cobalt returns non-JSON or HTML (auth page, 500 error page) | Parse fails, return {status:"failed", reason:"invalid-response", retryable:false} | Medium | Catch JSON.parse error, check Content-Type header |
-| VD-08 | Cobalt returns `tunnel` but data.url fetch returns HTML (auth page) | Detect via Content-Type header, return {status:"failed", reason:"non-video-response"} | Medium | Check Content-Type before accepting buffer |
-| VD-09 | URL is `null`, `undefined`, or empty string | canonicalizeUrl returns "", strategy selector returns {status:"skipped", reason:"empty-url"} | Low | Guard at entry point |
-| VD-10 | Same canonical URL appears twice (query params differ) | canonicalizeUrl normalizes both to same string, caller deduplicates | Low | URL-level dedup at strategy selector |
-| VD-11 | All adapters fail or skip | Strategy selector returns last failed result with all attempted strategies in reason | Low | Caller (future asset-sourcer integration) records in report |
-| VD-12 | Cobalt preflight returns `turnstileSitekey` (challenge required) | Return {status:"unsupported", reason:"cobalt-requires-turnstile"} | Low | Cannot solve challenge programmatically, skip |
-| VD-13 | Downloaded buffer > 20MB (existing yt-dlp limit) | Reject, return {status:"skipped", reason:"exceeds-size-limit"} | Low | Enforce consistent size limit across all adapters |
-| VD-14 | Downloaded buffer MIME is not video/* | Reject, return {status:"skipped", reason:"non-video-mime"} | Low | Magic-number or Content-Type check |
+| #      | Scenario                                                            | Expected Behavior                                                                                         | Risk   | Mitigation                                                           |
+| ------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------- |
+| VD-01  | Direct media URL (`https://cdn.pexels.com/videos/xxx.mp4`)          | DirectHttpAdapter downloads via HTTP, validates >1KB, returns DownloadResult with buffer + mimeType       | Low    | Wrapper preserves existing downloadAsset() behavior                  |
+| VD-02  | YouTube/B站 URL                                                     | YtdlpAdapter wraps downloadYtdlp(), returns buffer or failed with reason                                  | Low    | No change to yt-dlp params (20MB/8s limits preserved)                |
+| VD-03  | Cobalt not running (connection refused)                             | Preflight GET / fails, adapter marks unavailable, returns {status:"skipped", reason:"cobalt-unavailable"} | Low    | Strategy selector continues to other adapters or returns unsupported |
+| VD-04  | Cobalt returns `tunnel` or `redirect`                               | Download data.url via fetch, validate MIME/size, return {status:"downloaded"} with buffer                 | Medium | Validate response is video (MIME check), reject HTML/auth pages      |
+| VD-05  | Cobalt returns `picker`                                             | Return {status:"needs-selection"} — no auto-select                                                        | Low    | Caller knows to skip or prompt                                       |
+| VD-05b | Cobalt returns `local-processing`                                   | Return {status:"unsupported", reason:"local-processing-not-supported"}                                    | Low    | Strategy selector can fallback to ytdlp adapter                      |
+| VD-05c | Cobalt returns `error` with `error.api.rate_exceeded`               | Return {status:"failed", retryable:true, reason:"rate-limited"}                                           | Low    | Strategy selector knows to try different adapter, not retry Cobalt   |
+| VD-05d | Cobalt returns `error` with `error.api.auth.*`                      | Return {status:"failed", retryable:false, reason:"requires-auth"}                                         | Low    | No retry, record in report                                           |
+| VD-06  | Cobalt preflight succeeds but URL platform not in services[]        | Return {status:"skipped", reason:"platform-not-supported-by-cobalt"}                                      | Low    | Skip POST, save a failed request                                     |
+| VD-07  | Cobalt returns non-JSON or HTML (auth page, 500 error page)         | Parse fails, return {status:"failed", reason:"invalid-response", retryable:false}                         | Medium | Catch JSON.parse error, check Content-Type header                    |
+| VD-08  | Cobalt returns `tunnel` but data.url fetch returns HTML (auth page) | Detect via Content-Type header, return {status:"failed", reason:"non-video-response"}                     | Medium | Check Content-Type before accepting buffer                           |
+| VD-09  | URL is `null`, `undefined`, or empty string                         | canonicalizeUrl returns "", strategy selector returns {status:"skipped", reason:"empty-url"}              | Low    | Guard at entry point                                                 |
+| VD-10  | Same canonical URL appears twice (query params differ)              | canonicalizeUrl normalizes both to same string, caller deduplicates                                       | Low    | URL-level dedup at strategy selector                                 |
+| VD-11  | All adapters fail or skip                                           | Strategy selector returns last failed result with all attempted strategies in reason                      | Low    | Caller (future asset-sourcer integration) records in report          |
+| VD-12  | Cobalt preflight returns `turnstileSitekey` (challenge required)    | Return {status:"unsupported", reason:"cobalt-requires-turnstile"}                                         | Low    | Cannot solve challenge programmatically, skip                        |
+| VD-13  | Downloaded buffer > 20MB (existing yt-dlp limit)                    | Reject, return {status:"skipped", reason:"exceeds-size-limit"}                                            | Low    | Enforce consistent size limit across all adapters                    |
+| VD-14  | Downloaded buffer MIME is not video/*                               | Reject, return {status:"skipped", reason:"non-video-mime"}                                                | Low    | Magic-number or Content-Type check                                   |
 
 ## 4. Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `COBALT_API_URL` | No | `http://localhost:3000` | Cobalt instance URL |
-| `COBALT_API_KEY` | No | (none) | Optional API key for auth-enabled instances |
+| Variable         | Required | Default                 | Description                                 |
+| ---------------- | -------- | ----------------------- | ------------------------------------------- |
+| `COBALT_API_URL` | No       | `http://localhost:3000` | Cobalt instance URL                         |
+| `COBALT_API_KEY` | No       | (none)                  | Optional API key for auth-enabled instances |
 
 Stored in `.env.local` (gitignored). `.env.example` documents the keys with placeholder values.
 

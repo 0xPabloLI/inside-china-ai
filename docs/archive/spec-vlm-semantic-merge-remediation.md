@@ -27,14 +27,14 @@ Fix all 5 issues in dependency order: P0-1 first (unblocks the patch pipeline), 
 
 ### Decision Summary (from Grill Round 1)
 
-| ID | Decision |
-|----|----------|
-| P0-1 | Use local `absolutePath` variable for VLM/Focus calls; keep `asset.path` relative. Add defensive `relative()` normalization before writing patch. |
-| P1-1 (score) | Change `scoreCandidate` signature to `(candidate, keyword, { description, subjects })`. Subjects exact match = 0-20, description boundary match = 0-10. |
+| ID           | Decision                                                                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0-1         | Use local `absolutePath` variable for VLM/Focus calls; keep `asset.path` relative. Add defensive `relative()` normalization before writing patch.              |
+| P1-1 (score) | Change `scoreCandidate` signature to `(candidate, keyword, { description, subjects })`. Subjects exact match = 0-20, description boundary match = 0-10.        |
 | P1-1 (scene) | Add `contentKind → preferred visualType` mapping in `recommendScene`. `product_demo → narrative`, `talking_head → quote`. Unknown types keep current fallback. |
-| P1-2 | Keep hard-skip behavior. Change archived Spec text from "soft gate" to "hard gate". Spec, code, log, and tests all say "hard gate". |
-| P1-3 | Use content slug for isolation: `output/{contentSlug}/asset-analysis.json`. Overwrite on re-run is acceptable (P3 has no caching). |
-| P1-4 | Mark `vlm-focus-test-results.json` as legacy (add a header comment). Current validation evidence is in `experiments/vlm-p3-validation/`. |
+| P1-2         | Keep hard-skip behavior. Change archived Spec text from "soft gate" to "hard gate". Spec, code, log, and tests all say "hard gate".                            |
+| P1-3         | Use content slug for isolation: `output/{contentSlug}/asset-analysis.json`. Overwrite on re-run is acceptable (P3 has no caching).                             |
+| P1-4         | Mark `vlm-focus-test-results.json` as legacy (add a header comment). Current validation evidence is in `experiments/vlm-p3-validation/`.                       |
 
 ## User Stories
 
@@ -61,6 +61,7 @@ Fix all 5 issues in dependency order: P0-1 first (unblocks the patch pipeline), 
 ### 1. P0-1: Path isolation — local `absolutePath`, keep `asset.path` relative
 
 In `asset-sourcer.mjs` `main()`:
+
 - Remove the loop that mutates `asset.path` to absolute (lines ~1952-1955).
 - In `analyzeAssets()`: use a local `absolutePath` variable computed from `asset.path` (resolved against content dir passed via opts) for VLM/Focus calls. `asset.path` stays relative.
 - Before writing `media-patch.json`: add a normalization pass — `relative(contentDir, asset.path)` for any path that is absolute. If the result starts with `..`, throw (path escape detected).
@@ -72,6 +73,7 @@ Old: `scoreCandidate(candidate, keyword, aiDescription)`
 New: `scoreCandidate(candidate, keyword, semantics)` where `semantics = { description?: string, subjects?: string[] }`
 
 Scoring logic:
+
 - **Subjects match (0-20)**: for each keyword, check if keyword appears in `subjects` array (case-insensitive exact match, not substring). Full keyword match = 20 pts. Per-token match (keyword is multi-word, tokens match subjects) = proportional.
 - **Description match (0-10)**: keyword boundary match in description string (existing logic).
 - `relevanceScore = min(subjectsScore + descriptionScore, 30)`.
@@ -80,6 +82,7 @@ Scoring logic:
 ### 3. P1-1b: `recommendScene` contentKind mapping
 
 Add a mapping table:
+
 ```
 CONTENT_KIND_PREFERENCE = {
   product_demo: "narrative",
@@ -99,6 +102,7 @@ In `recommendScene`: if `asset.contentKind` has a preferred `visualType`, scan s
 ### 5. P1-3: Artifact isolation by content slug
 
 In `asset-sourcer.mjs` `main()`:
+
 - Change `outputDir` from `join(__dirname, "..", "output")` to `join(__dirname, "..", "output", contentSlug)`.
 - `asset-analysis.json` and `media-patch.json` both go to `output/{contentSlug}/`.
 - `review-media-patch.mjs` default analysis path also updates to `output/{contentSlug}/asset-analysis.json` (via CLI `--content` arg or `--analysis` arg).
@@ -122,37 +126,37 @@ In `asset-sourcer.mjs` `main()`:
 
 #### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `asset-sourcer.mjs` | Remove path mutation loop; add `contentDir` to `analyzeAssets`; add relative-path normalization before patch write; change `scoreCandidate` signature; add contentKind mapping to `recommendScene`; change output dir to content-slug-scoped | **High** | Core orchestration changes. `scoreCandidate` signature change affects all callers. Path change affects VLM/Focus calls. Worst case: VLM can't find file → degraded result (same as current). Patch normalization prevents path escape. |
-| `review-media-patch.mjs` | Default analysis path changes to content-slug-scoped | **Low** | Presentation-only. Reads fields, formats for human. |
-| `asset-sourcer.test.mjs` | Update `scoreCandidate` tests for new signature; add subjects/contentKind tests; add end-to-end path contract tests | **Medium** | Score values change due to subjects scoring. All expected values recalculated. |
-| `asset-sourcer-visual-integration.test.mjs` | Update mocks for `contentDir` option; add relative-path preservation tests; add artifact isolation tests | **Medium** | Mock interface changes. |
-| `docs/archive/spec-vlm-semantic-merge.md` | Change "soft gate" to "hard gate" | **Low** | Archived doc, no code impact. |
-| `experiments/vlm-focus-test-results.legacy.json` | Rename from `.json` to `.legacy.json` | **Low** | Gitignored, no code impact. |
+| File                                             | Modification                                                                                                                                                                                                                                 | Risk       | Assessment                                                                                                                                                                                                                             |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `asset-sourcer.mjs`                              | Remove path mutation loop; add `contentDir` to `analyzeAssets`; add relative-path normalization before patch write; change `scoreCandidate` signature; add contentKind mapping to `recommendScene`; change output dir to content-slug-scoped | **High**   | Core orchestration changes. `scoreCandidate` signature change affects all callers. Path change affects VLM/Focus calls. Worst case: VLM can't find file → degraded result (same as current). Patch normalization prevents path escape. |
+| `review-media-patch.mjs`                         | Default analysis path changes to content-slug-scoped                                                                                                                                                                                         | **Low**    | Presentation-only. Reads fields, formats for human.                                                                                                                                                                                    |
+| `asset-sourcer.test.mjs`                         | Update `scoreCandidate` tests for new signature; add subjects/contentKind tests; add end-to-end path contract tests                                                                                                                          | **Medium** | Score values change due to subjects scoring. All expected values recalculated.                                                                                                                                                         |
+| `asset-sourcer-visual-integration.test.mjs`      | Update mocks for `contentDir` option; add relative-path preservation tests; add artifact isolation tests                                                                                                                                     | **Medium** | Mock interface changes.                                                                                                                                                                                                                |
+| `docs/archive/spec-vlm-semantic-merge.md`        | Change "soft gate" to "hard gate"                                                                                                                                                                                                            | **Low**    | Archived doc, no code impact.                                                                                                                                                                                                          |
+| `experiments/vlm-focus-test-results.legacy.json` | Rename from `.json` to `.legacy.json`                                                                                                                                                                                                        | **Low**    | Gitignored, no code impact.                                                                                                                                                                                                            |
 
 #### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Asset with relative path `assets/img.jpg` → `analyzeAssets` with `contentDir` | VLM/Focus receives `join(contentDir, 'assets/img.jpg')`; `asset.path` stays `assets/img.jpg` | Low | Local `absolutePath` variable, no mutation of `asset.path` |
-| 2 | `media-patch.json` after `assignAssetsToScenes` | `media.path` is relative (`assets/img.jpg`) | Medium | Defensive `relative()` normalization before write |
-| 3 | Asset path is already absolute (edge case) | `relative(contentDir, path)` normalizes it; if result starts with `..`, throw | Medium | Path escape guard |
-| 4 | `scoreCandidate` with `{ description: "robot lab", subjects: ["unitree"] }`, keyword `"Unitree"` | subjects exact match (case-insensitive) = 20 pts; description has no "unitree" → 0 pts; total relevance = 20 | Low | New scoring logic tested in pure function seam |
-| 5 | `scoreCandidate` with `{ description: "Unitree robot", subjects: [] }`, keyword `"Unitree"` | subjects empty → 0 pts; description boundary match = 10 pts; total = 10 | Low | Per-field independence |
-| 6 | `scoreCandidate` called with string (backward compat) | Treats as `{ description: string }`; subjects = 0 pts; works as before | Medium | Type check: `typeof semantics === 'string'` → wrap |
-| 7 | `recommendScene` with `contentKind: "product_demo"` | Prefers `narrative` scene over `info-card` | Low | Mapping table + fallback |
-| 8 | `recommendScene` with `contentKind: "talking_head"` | Prefers `quote` scene | Low | Mapping table |
-| 9 | `recommendScene` with `contentKind: null` or unknown | Falls back to current logic (no preference) | Low | Unknown types = no preference |
-| 10 | `recommendScene` with `contentKind: "product_demo"` but all narrative scenes taken | Falls through to current logic (next available scene) | Low | Graceful degradation |
-| 11 | Pre-filter: `lowConfidence = true` asset | Hard-skipped from VLM analysis (not in `analyzableAssets`) | Low | Already current behavior; just Spec text update |
-| 12 | `asset-analysis.json` output path | Written to `output/{contentSlug}/asset-analysis.json` | Low | Content slug in path |
-| 13 | `media-patch.json` output path | Written to `output/{contentSlug}/media-patch.json` | Low | Same content slug |
-| 14 | Re-run same content slug | Overwrites previous artifacts (acceptable for P3) | Low | No caching in P3 |
-| 15 | Different content slug runs | Separate directories, no overwrite | Low | Path isolation |
-| 16 | `review-media-patch.mjs --content foo` | Reads `output/foo/asset-analysis.json` | Low | CLI arg plumbing |
-| 17 | `scoreCandidate` with subjects containing keyword as substring (not exact) | No match (subjects match is exact, case-insensitive) | Medium | Exact match, not `includes()` |
-| 18 | Multi-word keyword `"Alibaba Cloud"` with subjects `["alibaba", "cloud", "infrastructure"]` | Per-token match: 2/2 tokens match = proportional score | Low | Tokenized subjects matching |
+| #   | Scenario                                                                                         | Expected Behavior                                                                                            | Risk   | Mitigation                                                 |
+| --- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------- |
+| 1   | Asset with relative path `assets/img.jpg` → `analyzeAssets` with `contentDir`                    | VLM/Focus receives `join(contentDir, 'assets/img.jpg')`; `asset.path` stays `assets/img.jpg`                 | Low    | Local `absolutePath` variable, no mutation of `asset.path` |
+| 2   | `media-patch.json` after `assignAssetsToScenes`                                                  | `media.path` is relative (`assets/img.jpg`)                                                                  | Medium | Defensive `relative()` normalization before write          |
+| 3   | Asset path is already absolute (edge case)                                                       | `relative(contentDir, path)` normalizes it; if result starts with `..`, throw                                | Medium | Path escape guard                                          |
+| 4   | `scoreCandidate` with `{ description: "robot lab", subjects: ["unitree"] }`, keyword `"Unitree"` | subjects exact match (case-insensitive) = 20 pts; description has no "unitree" → 0 pts; total relevance = 20 | Low    | New scoring logic tested in pure function seam             |
+| 5   | `scoreCandidate` with `{ description: "Unitree robot", subjects: [] }`, keyword `"Unitree"`      | subjects empty → 0 pts; description boundary match = 10 pts; total = 10                                      | Low    | Per-field independence                                     |
+| 6   | `scoreCandidate` called with string (backward compat)                                            | Treats as `{ description: string }`; subjects = 0 pts; works as before                                       | Medium | Type check: `typeof semantics === 'string'` → wrap         |
+| 7   | `recommendScene` with `contentKind: "product_demo"`                                              | Prefers `narrative` scene over `info-card`                                                                   | Low    | Mapping table + fallback                                   |
+| 8   | `recommendScene` with `contentKind: "talking_head"`                                              | Prefers `quote` scene                                                                                        | Low    | Mapping table                                              |
+| 9   | `recommendScene` with `contentKind: null` or unknown                                             | Falls back to current logic (no preference)                                                                  | Low    | Unknown types = no preference                              |
+| 10  | `recommendScene` with `contentKind: "product_demo"` but all narrative scenes taken               | Falls through to current logic (next available scene)                                                        | Low    | Graceful degradation                                       |
+| 11  | Pre-filter: `lowConfidence = true` asset                                                         | Hard-skipped from VLM analysis (not in `analyzableAssets`)                                                   | Low    | Already current behavior; just Spec text update            |
+| 12  | `asset-analysis.json` output path                                                                | Written to `output/{contentSlug}/asset-analysis.json`                                                        | Low    | Content slug in path                                       |
+| 13  | `media-patch.json` output path                                                                   | Written to `output/{contentSlug}/media-patch.json`                                                           | Low    | Same content slug                                          |
+| 14  | Re-run same content slug                                                                         | Overwrites previous artifacts (acceptable for P3)                                                            | Low    | No caching in P3                                           |
+| 15  | Different content slug runs                                                                      | Separate directories, no overwrite                                                                           | Low    | Path isolation                                             |
+| 16  | `review-media-patch.mjs --content foo`                                                           | Reads `output/foo/asset-analysis.json`                                                                       | Low    | CLI arg plumbing                                           |
+| 17  | `scoreCandidate` with subjects containing keyword as substring (not exact)                       | No match (subjects match is exact, case-insensitive)                                                         | Medium | Exact match, not `includes()`                              |
+| 18  | Multi-word keyword `"Alibaba Cloud"` with subjects `["alibaba", "cloud", "infrastructure"]`      | Per-token match: 2/2 tokens match = proportional score                                                       | Low    | Tokenized subjects matching                                |
 
 ## Out of Scope
 

@@ -9,6 +9,7 @@
 **结论：无硬性违规。** 脚本层（`.mjs`）不适用 TS/React 栈约定；2-space indent、`export function`、JSDoc（helper 均有完整 `@param`/`@returns`）、`console.log` 前缀（✅/⏭️/❌）、`// ───` 区块注释均与文件既有风格一致。测试文件符合 vitest `describe/it` 惯例。
 
 判断项（judgement calls）：
+
 1. **Duplicated Code（已修复）**：`downloadAndRecord` 原有两个连续 `if (dl.success)`（`downloadedUrls.add` + 成功块），已合并为单条件块，行为等价。
 2. **Data Clumps（保留，刻意设计）**：`downloadAndRecord` 的 `opts` 反复携带 `downloadedUrls/allAssets/failed/skipped` 四个可变数组——共享 helper 的 mutation-context 设计，非反模式。
 3. **范围**：下载循环重构 + relevance 封装 + `keywords[0]` ReferenceError 修复合入同一改动，轻微超出单一关注点；建议 commit 分离（见下）。

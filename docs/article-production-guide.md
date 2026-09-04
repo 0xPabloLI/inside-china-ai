@@ -81,6 +81,7 @@ Widget 有两个层级，**补充数据优先**：
 **Breakout Widget**：少数 widget 因布局需要（如双列图表、宽矩阵）标记为 breakout，渲染时使用文章全宽（`max-w-4xl` ≈ 896px）。在 `registry.ts` 的 `BREAKOUT_WIDGETS` 集合中注册。
 
 判断标准：
+
 - widget 含双列并排布局（如图表 + 图例）且在 65ch 内会换行挤压 → breakout
 - widget 含宽表格/矩阵且 `min-w` > 600px → breakout
 - 单列、卡片列表、柱状图等 → 默认 65ch
@@ -205,32 +206,32 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blo
 
 **Blockers（任一 FAIL = 必须修复后重新检查）：**
 
-| #   | 检查项           | 阈值 / 规则                                                                                       | 修复方式                      |
-| --- | ---------------- | ------------------------------------------------------------------------------------------------- | ----------------------------- |
-| B1  | Frontmatter 格式 | 必须有 `title`, `slug`, `excerpt`, `published: true`                                              | 补全缺失字段                  |
-| B2  | 语言             | 文章 body 必须为英文（不允许中文字符出现在正文中，中文人名/公司名除外）                           | 翻译中文段落为英文            |
-| B3  | Widget 注册     | 所有 `<!-- widget:xxx -->` 的 ID 必须在 `registry.ts` 中已注册                                    | 修正 ID 或创建+注册新 widget  |
-| B3a | Widget 可视化  | Widget 必须使用图表、图形等可视化方式呈现，纯文本链接列表不通过（至少使用柱状图、矩阵、流程图等任一） | 重设计 widget 为可视化形式  |
-| B4  | 源引用           | 每个数据点（金额、日期、比例、引用语）必须有内联来源标注（媒体名+日期 或 URL）                    | 补充来源                      |
-| B5  | 链接完整性       | 所有 URL 必须指向具体文章/页面，禁止域名根链接（如 ❌ `https://bloomberg.com`）                   | 替换为完整 URL 或换可访问来源 |
-| B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注。Inline 标注是未来结构化 evidence 数据的来源（#61）；audit 非阻塞，仅输出 warning                                          | 补充标注                      |
-| B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                    | 删除 My Take                  |
-| B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等） | 替换为口语化表达              |
+| #   | 检查项           | 阈值 / 规则                                                                                                                                                 | 修复方式                      |
+| --- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| B1  | Frontmatter 格式 | 必须有 `title`, `slug`, `excerpt`, `published: true`                                                                                                        | 补全缺失字段                  |
+| B2  | 语言             | 文章 body 必须为英文（不允许中文字符出现在正文中，中文人名/公司名除外）                                                                                     | 翻译中文段落为英文            |
+| B3  | Widget 注册      | 所有 `<!-- widget:xxx -->` 的 ID 必须在 `registry.ts` 中已注册                                                                                              | 修正 ID 或创建+注册新 widget  |
+| B3a | Widget 可视化    | Widget 必须使用图表、图形等可视化方式呈现，纯文本链接列表不通过（至少使用柱状图、矩阵、流程图等任一）                                                       | 重设计 widget 为可视化形式    |
+| B4  | 源引用           | 每个数据点（金额、日期、比例、引用语）必须有内联来源标注（媒体名+日期 或 URL）                                                                              | 补充来源                      |
+| B5  | 链接完整性       | 所有 URL 必须指向具体文章/页面，禁止域名根链接（如 ❌ `https://bloomberg.com`）                                                                             | 替换为完整 URL 或换可访问来源 |
+| B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注。Inline 标注是未来结构化 evidence 数据的来源（#61）；audit 非阻塞，仅输出 warning                  | 补充标注                      |
+| B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                                                                              | 删除 My Take                  |
+| B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等）                                                           | 替换为口语化表达              |
 | B9  | Chatbot 残留     | 正文出现对话体残留（"Let's dive in" / "I hope this helps" / "Great question" 类）、拟人开场（"Honestly?..."）、知识截止免责声明，或为无人提出的反对意见辩护 | 删除残留，直接陈述论点        |
 
 **Warnings（列出但不阻塞 HITL）：**
 
-| #   | 检查项       | 阈值                             |
-| --- | ------------ | -------------------------------- |
-| W1  | 正文字数     | < 800 或 > 2500 词               |
-| W2  | Excerpt 长度 | > 160 字符                       |
-| W3  | Widget 数量  | > 5 个（可能信息过载）           |
-| W4  | 章节数量     | < 6 或 > 10                      |
-| W5  | SEO 关键词   | slug 或 excerpt 中缺少核心关键词 |
-| W6  | 无 Widget    | 文章含结构化数据章节但 0 个 Widget — Agent 应设计至少 1 个，补充数据类优先 |
-| W7  | Em-dash 密度 | 正文散文段装饰性 em-dash（—）> 3 个/千字；直接引语与 Sources 列表「媒体 — 标题」引用格式豁免 |
+| #   | 检查项         | 阈值                                                                                                                                                                                    |
+| --- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W1  | 正文字数       | < 800 或 > 2500 词                                                                                                                                                                      |
+| W2  | Excerpt 长度   | > 160 字符                                                                                                                                                                              |
+| W3  | Widget 数量    | > 5 个（可能信息过载）                                                                                                                                                                  |
+| W4  | 章节数量       | < 6 或 > 10                                                                                                                                                                             |
+| W5  | SEO 关键词     | slug 或 excerpt 中缺少核心关键词                                                                                                                                                        |
+| W6  | 无 Widget      | 文章含结构化数据章节但 0 个 Widget — Agent 应设计至少 1 个，补充数据类优先                                                                                                              |
+| W7  | Em-dash 密度   | 正文散文段装饰性 em-dash（—）> 3 个/千字；直接引语与 Sources 列表「媒体 — 标题」引用格式豁免                                                                                            |
 | W8  | 内容层 AI 套路 | 拔高意义（"pivotal moment" 类）、name-dropping、浅层 -ing 分析串（symbolizing/reflecting/showcasing）、销售腔、同一实体同义换名、连续短句假高潮、无信源模糊归因（"Experts believe" 类） |
-| W9  | 信息密度     | 出现整段无新事实、新数据或新分析的段落（判定：逐句问「这句提供了什么前文没有的信息」，答不出的句子删除） |
+| W9  | 信息密度       | 出现整段无新事实、新数据或新分析的段落（判定：逐句问「这句提供了什么前文没有的信息」，答不出的句子删除）                                                                                |
 
 **循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → **保存 article draft，并继续与视频轨并行推进（不暂停）**。
 
@@ -238,10 +239,10 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blo
 
 ## Design Decisions & References
 
-| Topic | Reference | Content |
-|-------|-----------|---------|
-| Article humanize patterns | `docs/research/article-humanize-patterns-2026-09-04.md` (L2) | MRL-1 B9/W7/W8/W9 与 W1 阈值（3000→2500）的模式来源、10 篇语料实测与阈值推导 |
-| Article pipeline research | `docs/research/china-ai-article-pipeline-2026.md` (L2) | Content strategy, widget design, SEO methodology |
-| Widget registry architecture | ADR-0003 | Widget registry as extension point |
-| Widget embedding mechanism | ADR-0001 | HTML comment markers for inline embedding |
-| Widget breakout layout | ADR-0017 | Breakout widget width rules |
+| Topic                        | Reference                                                    | Content                                                                      |
+| ---------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Article humanize patterns    | `docs/research/article-humanize-patterns-2026-09-04.md` (L2) | MRL-1 B9/W7/W8/W9 与 W1 阈值（3000→2500）的模式来源、10 篇语料实测与阈值推导 |
+| Article pipeline research    | `docs/research/china-ai-article-pipeline-2026.md` (L2)       | Content strategy, widget design, SEO methodology                             |
+| Widget registry architecture | ADR-0003                                                     | Widget registry as extension point                                           |
+| Widget embedding mechanism   | ADR-0001                                                     | HTML comment markers for inline embedding                                    |
+| Widget breakout layout       | ADR-0017                                                     | Breakout widget width rules                                                  |

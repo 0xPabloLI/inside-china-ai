@@ -25,11 +25,11 @@ Execute 4 RAG pre-work packages (WP-4, WP-7, WP-8, WP-11) plus a pre-task to fix
 
 ### 2.1 Problem
 
-| Article | File slug | DB slug | Scene-data article | Issue |
-|---------|----------|---------|-------------------|-------|
-| DeepSeek | `deepseek-art-of-restraint` | `deepseek-leaked-investor-meeting` | `deepseek-art-of-restraint` | DB has stale slug |
-| Distillation | `china-llm-distillation-storm` | `china-llm-distillation-storm` | `china-llm-distillation-scandal` | Scene-data mismatches |
-| ByteDance | `bytedance-zhang-yiming-no-distillation` | same | same | ✅ OK |
+| Article      | File slug                                | DB slug                            | Scene-data article               | Issue                 |
+| ------------ | ---------------------------------------- | ---------------------------------- | -------------------------------- | --------------------- |
+| DeepSeek     | `deepseek-art-of-restraint`              | `deepseek-leaked-investor-meeting` | `deepseek-art-of-restraint`      | DB has stale slug     |
+| Distillation | `china-llm-distillation-storm`           | `china-llm-distillation-storm`     | `china-llm-distillation-scandal` | Scene-data mismatches |
+| ByteDance    | `bytedance-zhang-yiming-no-distillation` | same                               | same                             | ✅ OK                 |
 
 ### 2.2 Fix
 
@@ -47,6 +47,7 @@ Execute 4 RAG pre-work packages (WP-4, WP-7, WP-8, WP-11) plus a pre-task to fix
 ### 3.2 Content
 
 Entities extracted from existing content (3 articles, 7 scene-data, 3 source materials, 13 widget data files). Three categories:
+
 - **companies**: DeepSeek, ByteDance, Moonshot, MiniMax, Alibaba, Baidu, Huawei, Tencent, OpenAI, Anthropic, Google, xAI, Xiaomi, Zhipu
 - **people**: Liang Wenfeng, Zhang Yiming, Yang Zhilin, etc.
 - **models**: DeepSeek V3/R1/V4-Flash/V4-Pro, Seed 2 Pro/Evolving, Kimi K3, etc.
@@ -63,18 +64,18 @@ snake_case: `deepseek`, `liang_wenfeng`, `deepseek_r1`
 
 ### 4.1 Modified Files
 
-| File | Changes |
-|------|---------|
-| `articles/deepseek-art-of-restraint.md` | Add `topics`, `entities`, `sources` to frontmatter |
-| `articles/china-llm-distillation-scandal.md` | Add `topics`, `entities`, `sources` to frontmatter |
+| File                                                 | Changes                                            |
+| ---------------------------------------------------- | -------------------------------------------------- |
+| `articles/deepseek-art-of-restraint.md`              | Add `topics`, `entities`, `sources` to frontmatter |
+| `articles/china-llm-distillation-scandal.md`         | Add `topics`, `entities`, `sources` to frontmatter |
 | `articles/bytedance-zhang-yiming-no-distillation.md` | Add `topics`, `entities`, `sources` to frontmatter |
 
 ### 4.2 Field Format (must match spec-rag.md §2.3)
 
 ```yaml
-topics: ["deepseek", "funding", "agi"]           # lowercase
+topics: ["deepseek", "funding", "agi"] # lowercase
 entities:
-  companies: ["deepseek", "nvidia"]               # snake_case IDs from WP-4
+  companies: ["deepseek", "nvidia"] # snake_case IDs from WP-4
   people: ["liang_wenfeng"]
   models: ["deepseek_v3", "deepseek_r1"]
 sources:
@@ -145,36 +146,36 @@ top-5 hit rate ≥ 80% (for RAG implementation phase, not this pre-work)
 
 ### 7.1 Modified Files Impact
 
-| File | Modification | Risk | Mitigation |
-|------|-------------|------|------------|
-| `articles/deepseek-art-of-restraint.md` | Frontmatter only (add fields) | Low — gray-matter ignores unknown fields | Verified 2026-08-07 |
-| `articles/china-llm-distillation-scandal.md` | Frontmatter only (add fields) | Low — same as above | Same |
-| `articles/bytedance-zhang-yiming-no-distillation.md` | Frontmatter only (add fields) | Low — same as above | Same |
-| `scripts/short-video/content/distillation/pt1/meta.mjs` | `article` field value change | Low — meta.mjs is metadata only | Verify scene-data still loads |
-| `scripts/short-video/content/distillation/pt2/meta.mjs` | `article` field value change | Low — same | Same |
-| `scripts/short-video/content/distillation/pt3/meta.mjs` | `article` field value change | Low — same | Same |
-| Supabase `posts` table | slug update for 1 record | Medium — changes URL | Old slug redirects not needed (low traffic); article already published under new slug in frontmatter |
+| File                                                    | Modification                  | Risk                                     | Mitigation                                                                                           |
+| ------------------------------------------------------- | ----------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `articles/deepseek-art-of-restraint.md`                 | Frontmatter only (add fields) | Low — gray-matter ignores unknown fields | Verified 2026-08-07                                                                                  |
+| `articles/china-llm-distillation-scandal.md`            | Frontmatter only (add fields) | Low — same as above                      | Same                                                                                                 |
+| `articles/bytedance-zhang-yiming-no-distillation.md`    | Frontmatter only (add fields) | Low — same as above                      | Same                                                                                                 |
+| `scripts/short-video/content/distillation/pt1/meta.mjs` | `article` field value change  | Low — meta.mjs is metadata only          | Verify scene-data still loads                                                                        |
+| `scripts/short-video/content/distillation/pt2/meta.mjs` | `article` field value change  | Low — same                               | Same                                                                                                 |
+| `scripts/short-video/content/distillation/pt3/meta.mjs` | `article` field value change  | Low — same                               | Same                                                                                                 |
+| Supabase `posts` table                                  | slug update for 1 record      | Medium — changes URL                     | Old slug redirects not needed (low traffic); article already published under new slug in frontmatter |
 
 ### 7.2 Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk Level | Test Method |
-|---|----------|-------------------|------------|-------------|
-| S1 | Frontmatter with new fields → `publish-article.mjs` | New fields ignored; only title/slug/excerpt/content/published synced to DB | Low | Run `npx tsc --noEmit` + verify build |
-| S2 | Scene-data meta.mjs with updated article slug | Scene-data loads correctly; `verify-video.mjs --pre` passes | Low | Run preflight check on distillation content |
-| S3 | DB slug updated → article accessible at new URL | Article resolves at `/posts/deepseek-art-of-restraint/` | Medium | Verify via Supabase query post-update |
-| S4 | Entity registry YAML → RAG indexer consumption (future) | Entity IDs match frontmatter `entities` field values | Low | Cross-check entity IDs between YAML and frontmatter |
-| S5 | Golden queries reference content that exists | All `expected_sources` map to actual files | Low | Verify file paths exist |
-| S6 | TikTok PDF extraction → markdown with `##` sections | Output has multiple `##` headings for RAG chunking | Low | Verify heading count in output |
+| #   | Scenario                                                | Expected Behavior                                                          | Risk Level | Test Method                                         |
+| --- | ------------------------------------------------------- | -------------------------------------------------------------------------- | ---------- | --------------------------------------------------- |
+| S1  | Frontmatter with new fields → `publish-article.mjs`     | New fields ignored; only title/slug/excerpt/content/published synced to DB | Low        | Run `npx tsc --noEmit` + verify build               |
+| S2  | Scene-data meta.mjs with updated article slug           | Scene-data loads correctly; `verify-video.mjs --pre` passes                | Low        | Run preflight check on distillation content         |
+| S3  | DB slug updated → article accessible at new URL         | Article resolves at `/posts/deepseek-art-of-restraint/`                    | Medium     | Verify via Supabase query post-update               |
+| S4  | Entity registry YAML → RAG indexer consumption (future) | Entity IDs match frontmatter `entities` field values                       | Low        | Cross-check entity IDs between YAML and frontmatter |
+| S5  | Golden queries reference content that exists            | All `expected_sources` map to actual files                                 | Low        | Verify file paths exist                             |
+| S6  | TikTok PDF extraction → markdown with `##` sections     | Output has multiple `##` headings for RAG chunking                         | Low        | Verify heading count in output                      |
 
 ### 7.3 Cross-Step Interface Contract
 
-| Producer | Field | Consumer | Format Match? |
-|----------|-------|----------|---------------|
-| WP-4 entity-registry.yaml | `entities.<id>.aliases` | WP-7 frontmatter `entities.companies/people/models` | ✅ WP-7 uses entity IDs as values |
-| WP-7 frontmatter `topics` | lowercase string array | spec-rag.md indexer `metadata.topics` | ✅ Q5: lowercase normalization |
-| WP-7 frontmatter `entities` | snake_case IDs | spec-rag.md indexer `metadata.entities` | ✅ Matches §2.3 |
-| WP-11 golden-queries.yaml | `expected_sources.content_type` | spec-rag.md `content_embeddings.content_type` | ✅ Same enum values |
-| Slug fix (scene-data) | `article` field = frontmatter slug | RAG indexer article↔scene-data join | ✅ After fix |
+| Producer                    | Field                              | Consumer                                            | Format Match?                     |
+| --------------------------- | ---------------------------------- | --------------------------------------------------- | --------------------------------- |
+| WP-4 entity-registry.yaml   | `entities.<id>.aliases`            | WP-7 frontmatter `entities.companies/people/models` | ✅ WP-7 uses entity IDs as values |
+| WP-7 frontmatter `topics`   | lowercase string array             | spec-rag.md indexer `metadata.topics`               | ✅ Q5: lowercase normalization    |
+| WP-7 frontmatter `entities` | snake_case IDs                     | spec-rag.md indexer `metadata.entities`             | ✅ Matches §2.3                   |
+| WP-11 golden-queries.yaml   | `expected_sources.content_type`    | spec-rag.md `content_embeddings.content_type`       | ✅ Same enum values               |
+| Slug fix (scene-data)       | `article` field = frontmatter slug | RAG indexer article↔scene-data join                 | ✅ After fix                      |
 
 ---
 

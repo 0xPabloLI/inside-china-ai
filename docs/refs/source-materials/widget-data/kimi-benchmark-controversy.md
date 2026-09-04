@@ -9,21 +9,21 @@
 
 ### Model Metadata
 
-| Key | Name | Color |
-|-----|------|-------|
-| k3 | Kimi K3 | #3b82f6 |
-| k26 | Kimi K2.6 | #93c5fd |
-| claude | Claude | #f59e0b |
+| Key    | Name      | Color   |
+| ------ | --------- | ------- |
+| k3     | Kimi K3   | #3b82f6 |
+| k26    | Kimi K2.6 | #93c5fd |
+| claude | Claude    | #f59e0b |
 
 ### Benchmark Metrics (5 dimensions)
 
-| Dimension | K3 | K2.6 | Claude | Unit | Higher is Better? | Note |
-|-----------|-----|------|--------|------|-------------------|------|
-| Accuracy (AA-Omniscience) | 46 | 33 | 72 | % | ✅ | K3 improved from K2.6's 33% but remains far behind Claude's 72%. |
-| Hallucination Rate | 51 | 39 | 14 | % | ❌ | K3's hallucination rate climbed to 51% — worse than K2.6 and far above Claude's 14%. |
-| Arena Frontend Code Rank | 1 | 18 | 2 | # | ❌ | K3 jumped 17 places to claim #1 on Arena. But Moonshot's own report shows K3 below Claude on coding. |
-| Coding (SWE-bench) | 51.5 | 40 | 69 | % | ✅ | K3 trails Claude by ~18 points on frontier SWE benchmarks. |
-| Security Testing | 30 | 35 | 85 | % | ✅ | SCMP: K3 'significantly below' US rivals in security. Score is a rough composite. |
+| Dimension                 | K3   | K2.6 | Claude | Unit | Higher is Better? | Note                                                                                                 |
+| ------------------------- | ---- | ---- | ------ | ---- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| Accuracy (AA-Omniscience) | 46   | 33   | 72     | %    | ✅                | K3 improved from K2.6's 33% but remains far behind Claude's 72%.                                     |
+| Hallucination Rate        | 51   | 39   | 14     | %    | ❌                | K3's hallucination rate climbed to 51% — worse than K2.6 and far above Claude's 14%.                 |
+| Arena Frontend Code Rank  | 1    | 18   | 2      | #    | ❌                | K3 jumped 17 places to claim #1 on Arena. But Moonshot's own report shows K3 below Claude on coding. |
+| Coding (SWE-bench)        | 51.5 | 40   | 69     | %    | ✅                | K3 trails Claude by ~18 points on frontier SWE benchmarks.                                           |
+| Security Testing          | 30   | 35   | 85     | %    | ✅                | SCMP: K3 'significantly below' US rivals in security. Score is a rough composite.                    |
 
 ### Key Findings
 

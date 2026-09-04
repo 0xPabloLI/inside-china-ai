@@ -44,6 +44,7 @@ The `file` field value (e.g., `content/unitree/assets/unitree-demo.mp4`). Each e
 ### metadata
 
 Normalized via existing `normalizeMetadata()` in `normalizer.mjs`:
+
 ```json
 {
   "media_type": "video",
@@ -77,26 +78,26 @@ No changes to `query.mjs` — `--type asset-catalog` works via existing `match_c
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `scripts/rag/index.mjs` | Add `collectAssetCatalog()` + add to `allChunks` | Low | Pure addition, no modification to existing functions |
-| `scripts/rag/lib/chunker.mjs` | Add `chunkCatalog()` function | Low | Pure addition, no modification to existing functions |
-| `scripts/rag/lib/normalizer.mjs` | No change needed — existing `normalizeMetadata` passes through arbitrary fields | Low | Verified: normalizer is generic |
+| File                             | Modification                                                                    | Risk | Assessment                                           |
+| -------------------------------- | ------------------------------------------------------------------------------- | ---- | ---------------------------------------------------- |
+| `scripts/rag/index.mjs`          | Add `collectAssetCatalog()` + add to `allChunks`                                | Low  | Pure addition, no modification to existing functions |
+| `scripts/rag/lib/chunker.mjs`    | Add `chunkCatalog()` function                                                   | Low  | Pure addition, no modification to existing functions |
+| `scripts/rag/lib/normalizer.mjs` | No change needed — existing `normalizeMetadata` passes through arbitrary fields | Low  | Verified: normalizer is generic                      |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | catalog.yml does not exist | collectAssetCatalog() returns [], no error | Low | existsSync check |
-| 2 | catalog.yml exists but empty array | Returns [], no error | Low | YAML parse returns [] |
-| 3 | Entry missing `license` field | chunk_text omits license line, metadata omits license | Low | Optional field via `?.` |
-| 4 | Entry missing `keywords` field | chunk_text omits keywords line | Low | Same |
-| 5 | YAML syntax error | console.warn, skip file, don't block index | Medium | try/catch around yaml.load |
-| 6 | Normal 2 entries | 2 chunks, content_type=asset-catalog, correct source_id | Low | Standard path |
-| 7 | Entry file path doesn't exist on disk | Still indexed (catalog may precede file) | Low | No file existence check |
-| 8 | Rebuild index after deleting a catalog entry | cleanupOrphans removes stale embedding | Low | Existing mechanism covers |
-| 9 | query.mjs --type asset-catalog | Returns only asset-catalog chunks | Low | Existing RPC filter |
-| 10 | Entry with `used_in` array | metadata.used_in = array, chunk_text includes "Used in:" line | Low | Array handling in chunk text |
+| #   | Scenario                                     | Expected Behavior                                             | Risk   | Mitigation                   |
+| --- | -------------------------------------------- | ------------------------------------------------------------- | ------ | ---------------------------- |
+| 1   | catalog.yml does not exist                   | collectAssetCatalog() returns [], no error                    | Low    | existsSync check             |
+| 2   | catalog.yml exists but empty array           | Returns [], no error                                          | Low    | YAML parse returns []        |
+| 3   | Entry missing `license` field                | chunk_text omits license line, metadata omits license         | Low    | Optional field via `?.`      |
+| 4   | Entry missing `keywords` field               | chunk_text omits keywords line                                | Low    | Same                         |
+| 5   | YAML syntax error                            | console.warn, skip file, don't block index                    | Medium | try/catch around yaml.load   |
+| 6   | Normal 2 entries                             | 2 chunks, content_type=asset-catalog, correct source_id       | Low    | Standard path                |
+| 7   | Entry file path doesn't exist on disk        | Still indexed (catalog may precede file)                      | Low    | No file existence check      |
+| 8   | Rebuild index after deleting a catalog entry | cleanupOrphans removes stale embedding                        | Low    | Existing mechanism covers    |
+| 9   | query.mjs --type asset-catalog               | Returns only asset-catalog chunks                             | Low    | Existing RPC filter          |
+| 10  | Entry with `used_in` array                   | metadata.used_in = array, chunk_text includes "Used in:" line | Low    | Array handling in chunk text |
 
 ## Out of Scope
 

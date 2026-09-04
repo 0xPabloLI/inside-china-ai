@@ -20,10 +20,12 @@
 **测试盲区**：`__tests__/audio-sync.test.mjs` 的 fixture 也硬编码 `.mp3`，测试验证了一个与实际 TTS 引擎输出脱节的路径。
 
 **修复**：
+
 - `sync.mjs` 改为 fallback 探测：先试 `.wav`，再试 `.mp3`，两种都不存在才 skip
 - 测试 fixture 增加 `.wav` 场景，确保两种格式都能被 sync 验证
 
 **防再犯机制**：
+
 - 在 `sync.mjs` 顶部写注释，列出所有 TTS 引擎的输出格式清单
 - 提取 `resolveSceneAudio(audioDir, sceneId)` helper 函数，统一路径解析逻辑，禁止再硬编码扩展名
 - 测试覆盖两种格式 + 两种都不存在的场景
@@ -83,30 +85,30 @@
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `lib/audio/sync.mjs` | 新增 `resolveSceneAudio()` helper，修改 `verifyAudioSync()` 内的路径解析 | Medium | 修改核心验证路径。但改动是纯路径解析（探测文件存在性），不改变验证逻辑。现有测试覆盖回归。 |
-| `__tests__/audio-sync.test.mjs` | 新增 `.wav` fixture 和测试用例 | Low | 纯追加，不修改现有测试 |
-| `content/sensetime-latest/scene-data.mjs` | 修改所有金额文本为双标注 | Low | 纯文本内容修改，不涉及代码逻辑 |
-| `docs/video-workflow.md` | 新增货币标注规则 | Low | 纯文档追加 |
+| 文件                                      | 修改内容                                                                 | 风险等级 | 评估                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------ |
+| `lib/audio/sync.mjs`                      | 新增 `resolveSceneAudio()` helper，修改 `verifyAudioSync()` 内的路径解析 | Medium   | 修改核心验证路径。但改动是纯路径解析（探测文件存在性），不改变验证逻辑。现有测试覆盖回归。 |
+| `__tests__/audio-sync.test.mjs`           | 新增 `.wav` fixture 和测试用例                                           | Low      | 纯追加，不修改现有测试                                                                     |
+| `content/sensetime-latest/scene-data.mjs` | 修改所有金额文本为双标注                                                 | Low      | 纯文本内容修改，不涉及代码逻辑                                                             |
+| `docs/video-workflow.md`                  | 新增货币标注规则                                                         | Low      | 纯文档追加                                                                                 |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | TTS 输出 `.wav`，sync 验证运行 | `resolveSceneAudio` 找到 `.wav`，sync 正常执行 | — | 测试覆盖 |
-| 2 | TTS 输出 `.mp3`，sync 验证运行 | `resolveSceneAudio` 找到 `.mp3`，sync 正常执行 | 回归 | 现有测试覆盖 |
-| 3 | `.wav` 和 `.mp3` 都存在 | 优先 `.wav` | 选择错误文件 | 测试断言 `.wav` 被使用 |
-| 4 | 两种格式都不存在 | skip + 报告 `skippedScenes` | 静默失效 | 测试断言 skip 计数 |
-| 5 | `resolveSceneAudio` 传入 null/undefined sceneId | 不 crash，返回 null | 边界 | 测试覆盖 |
-| 6 | `resolveSceneAudio` 传入不存在的 sceneId | 返回 null，sync skip | 与现有行为一致 | 测试覆盖 |
-| 7 | scene-data 中 `voiceover` 含 "5 billion RMB" | 改为 "$700M (¥5B)" | — | 人工验证 |
-| 8 | scene-data 中 `hookText` 含 "5 BILLION RMB" | 改为 "$700M (¥5B)" | — | 人工验证 |
-| 9 | scene-data 中 `result` 含 "3.6B RMB" | 改为 "$500M (¥3.6B)" | — | 人工验证 |
-| 10 | scene-data 中 `context` 含 "380M RMB" | 改为 "$53M (¥380M)" | — | 人工验证 |
-| 11 | scene-data 中 `context` 含 "10.9B CASH RESERVES" | 改为 "$1.5B (¥10.9B) CASH RESERVES" | — | 人工验证 |
-| 12 | scene-data 中不含金额的文本 | 不变 | — | 人工验证 |
-| 13 | `meta.mjs` title 含 RMB | 保留原样（不面向视频观众） | — | 人工验证 |
+| #   | Scenario                                         | Expected Behavior                              | Risk           | Mitigation             |
+| --- | ------------------------------------------------ | ---------------------------------------------- | -------------- | ---------------------- |
+| 1   | TTS 输出 `.wav`，sync 验证运行                   | `resolveSceneAudio` 找到 `.wav`，sync 正常执行 | —              | 测试覆盖               |
+| 2   | TTS 输出 `.mp3`，sync 验证运行                   | `resolveSceneAudio` 找到 `.mp3`，sync 正常执行 | 回归           | 现有测试覆盖           |
+| 3   | `.wav` 和 `.mp3` 都存在                          | 优先 `.wav`                                    | 选择错误文件   | 测试断言 `.wav` 被使用 |
+| 4   | 两种格式都不存在                                 | skip + 报告 `skippedScenes`                    | 静默失效       | 测试断言 skip 计数     |
+| 5   | `resolveSceneAudio` 传入 null/undefined sceneId  | 不 crash，返回 null                            | 边界           | 测试覆盖               |
+| 6   | `resolveSceneAudio` 传入不存在的 sceneId         | 返回 null，sync skip                           | 与现有行为一致 | 测试覆盖               |
+| 7   | scene-data 中 `voiceover` 含 "5 billion RMB"     | 改为 "$700M (¥5B)"                             | —              | 人工验证               |
+| 8   | scene-data 中 `hookText` 含 "5 BILLION RMB"      | 改为 "$700M (¥5B)"                             | —              | 人工验证               |
+| 9   | scene-data 中 `result` 含 "3.6B RMB"             | 改为 "$500M (¥3.6B)"                           | —              | 人工验证               |
+| 10  | scene-data 中 `context` 含 "380M RMB"            | 改为 "$53M (¥380M)"                            | —              | 人工验证               |
+| 11  | scene-data 中 `context` 含 "10.9B CASH RESERVES" | 改为 "$1.5B (¥10.9B) CASH RESERVES"            | —              | 人工验证               |
+| 12  | scene-data 中不含金额的文本                      | 不变                                           | —              | 人工验证               |
+| 13  | `meta.mjs` title 含 RMB                          | 保留原样（不面向视频观众）                     | —              | 人工验证               |
 
 ## Out of Scope
 

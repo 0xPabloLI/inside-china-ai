@@ -239,7 +239,15 @@ export function parseDiffLines(diffOutput) {
   const lines = diffOutput.split("\n");
   const result = [];
   for (const line of lines) {
-    if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("@@") || line.startsWith("\\ No newline")) continue;
+    if (
+      line.startsWith("+++") ||
+      line.startsWith("---") ||
+      line.startsWith("diff ") ||
+      line.startsWith("index ") ||
+      line.startsWith("@@") ||
+      line.startsWith("\\ No newline")
+    )
+      continue;
     if (line.startsWith("+")) {
       result.push({ type: "add", content: line.slice(1) });
     } else if (line.startsWith("-")) {
@@ -261,14 +269,15 @@ export function getStagedDiffs() {
     stagedFiles = execSync("git diff --cached --name-only --diff-filter=ACM", {
       encoding: "utf-8",
       cwd: PROJECT_ROOT,
-    }).trim().split("\n").filter(Boolean);
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
   } catch {
     return [];
   }
 
-  const docsOrAgents = stagedFiles.filter(
-    (f) => f.startsWith("docs/") || f === "AGENTS.md",
-  );
+  const docsOrAgents = stagedFiles.filter((f) => f.startsWith("docs/") || f === "AGENTS.md");
 
   return docsOrAgents.map((file) => {
     const diff = execSync(`git diff --cached -- "${file}"`, {

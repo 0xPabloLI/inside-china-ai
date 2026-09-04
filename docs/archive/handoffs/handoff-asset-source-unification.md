@@ -6,6 +6,7 @@
 ## 背景
 
 项目有两套素材源系统：
+
 - **多媒体素材源**（`scripts/short-video/lib/asset-sourcer.mjs`）— 22 个来源，搜图片/视频/音频
 - **文字素材源**（`scripts/short-video/lib/trend-sources.mjs`）— 16 个来源，搜文章标题/URL
 
@@ -13,19 +14,20 @@
 
 ## 问题 1：命名不一致
 
-| 来源 | asset-sourcer.mjs | trend-sources.mjs | 问题 |
-|------|-------------------|-------------------|------|
-| 小红书 | `xiaohongshu` | `xhs` | **不一致** |
-| 微博 | `weibo` | `weibo_hot` | **语义混淆**（一个下载媒体，一个获取热搜） |
-| 微信公众号 | 无 | `sogou_weixin` + `wechat_dongchabeating` | **旧名未清理** |
-| 机器之心 | `jiqizhixin` | `jiqizhixin` | ✅ 一致 |
-| IT之家 | `ithome` | `ithome` | ✅ 一致 |
-| B站 | `bilibili` | `bilibili` | ✅ 一致 |
-| 抖音 | `douyin` | `douyin` | ✅ 一致 |
+| 来源       | asset-sourcer.mjs | trend-sources.mjs                        | 问题                                       |
+| ---------- | ----------------- | ---------------------------------------- | ------------------------------------------ |
+| 小红书     | `xiaohongshu`     | `xhs`                                    | **不一致**                                 |
+| 微博       | `weibo`           | `weibo_hot`                              | **语义混淆**（一个下载媒体，一个获取热搜） |
+| 微信公众号 | 无                | `sogou_weixin` + `wechat_dongchabeating` | **旧名未清理**                             |
+| 机器之心   | `jiqizhixin`      | `jiqizhixin`                             | ✅ 一致                                    |
+| IT之家     | `ithome`          | `ithome`                                 | ✅ 一致                                    |
+| B站        | `bilibili`        | `bilibili`                               | ✅ 一致                                    |
+| 抖音       | `douyin`          | `douyin`                                 | ✅ 一致                                    |
 
 ## 问题 2：重复获取
 
 同一个来源（如 `ithome`、`jiqizhixin`、`bilibili`、`douyin`）在两个文件中都有定义：
+
 - `asset-sourcer.mjs` 中的 `CDP_SOURCES` 定义了从 IT之家/机器之心提取图片的脚本
 - `trend-sources.mjs` 中的 `NEWS_SOURCES` 定义了从 IT之家/机器之心提取文章标题的脚本
 
@@ -48,10 +50,14 @@ export const SOURCES = {
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
     // 多用途脚本
     purposes: {
-      media: { /* CDP extract script for images */ },
-      trend: { /* CDP extract script for article titles */ }
+      media: {/* CDP extract script for images */},
+      trend: {/* CDP extract script for article titles */},
     },
-    attribution: { text: () => `图片来源: IT之家 (ithome.com)`, license: 'News copyright', logoRequired: false }
+    attribution: {
+      text: () => `图片来源: IT之家 (ithome.com)`,
+      license: "News copyright",
+      logoRequired: false,
+    },
   },
   // ...
 };
@@ -64,6 +70,7 @@ export const SOURCES = {
 ## 影响面
 
 需要修改的文件：
+
 1. `scripts/short-video/lib/asset-sourcer.mjs` — `CDP_SOURCES` 数组
 2. `scripts/short-video/lib/trend-sources.mjs` — `NEWS_SOURCES` + `SELF_MEDIA_SOURCES` 数组
 3. `scripts/short-video/lib/discover-trends.mjs` — 消费 `trend-sources.mjs`
@@ -81,6 +88,7 @@ export const SOURCES = {
 ## 安全审计状态
 
 本 session 已对所有三方方案做了安全审计（详见 Q1 答复）。关键结论：
+
 - **RedNote-MCP**: 用 Playwright 浏览器自动化，cookie 存 `~/.mcp/rednote/cookies.json`，无网络外传。安全。
 - **weibo-downloader-skill**: 纯 Python + requests，访客 cookie 系统，无网络外传。安全。
 - **bilibili-api-python**: 直接调 B站官方 API，无中间服务器。安全。

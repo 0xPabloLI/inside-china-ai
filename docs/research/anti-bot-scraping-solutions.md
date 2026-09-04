@@ -16,6 +16,7 @@
 ### 1. 搜索引擎反爬机制（Per-Engine Analysis）
 
 #### Google Search / Google News
+
 - **反爬等级**：极高 ⭐⭐⭐⭐⭐
 - **检测手段**：
   - IP rate limiting：约 **100 次请求/小时/IP** 后开始 throttle（来源：scrapebadger.com 2026 指南 [Tier 2]）
@@ -32,6 +33,7 @@
 - **项目现状**：`google_search`、`google_news`、`techmeme_search`、`wechat_*` 都通过 Google 搜索。这些 source 共享同一 IP，如果同时跑会叠加请求量
 
 #### Bing Search / Bing News
+
 - **反爬等级**：高 ⭐⭐⭐⭐
 - **检测手段**：
   - CAPTCHA + IP rate limiting（来源：scrapingbee.com 2026 指南 [Tier 2]）
@@ -46,6 +48,7 @@
 - **项目现状**：`bing_news` 使用 CDP 抓取 Bing News Search 页面
 
 #### DuckDuckGo
+
 - **反爬等级**：中 ⭐⭐⭐（实测修正：对非浏览器请求为 ⭐⭐⭐⭐）
 - **检测手段**：
   - **Anomaly detection（实测发现，2026-08-21）**：直接 `fetch()` 或 `curl` 访问 `html.duckduckgo.com` 会触发 `anomaly-modal`（异常验证弹窗），返回全 CAPTCHA 页面而非搜索结果。DOM 全是 `anomaly-modal__*` class，0 条搜索结果。
@@ -62,6 +65,7 @@
 - **项目现状**：当前 source-registry 中未配置 DuckDuckGo。**推荐添加**为 CDP 搜索源（accessMethod: cdp only）
 
 #### 百度搜索
+
 - **反爬等级**：高 ⭐⭐⭐⭐
 - **检测手段**：
   - 验证码触发：频繁请求后弹出滑块验证码或图形验证码
@@ -78,26 +82,27 @@
 
 ### 2. 中文新闻站反爬机制（Per-Site Analysis）
 
-| Source | 反爬等级 | 检测手段 | 绕过方案 | 当前方案 |
-|--------|---------|---------|---------|---------|
-| 量子位 (qbitai) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP homepage |
-| 机器之心 (jiqizhixin) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP search |
-| 36氪 (36kr) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP homepage |
-| TechCrunch | 中 ⭐⭐ | Cloudflare 保护 | CDP + 完整 headers | CDP category |
-| Bloomberg | 中 ⭐⭐ | Paywall + Cloudflare | CDP（已登录 session 可突破） | CDP tech section |
-| 观察者网 (guancha) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP homepage |
-| iThome | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP search |
-| 新华社 (xinhua) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP search |
-| 澎湃新闻 (thepaper) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP search |
-| 雷锋网 (leiphone) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP search |
-| 新智元 (xinzhiyuan) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP search |
-| 智东西 (zhidx) | 低 ⭐ | 基本无反爬 | CDP 直接抓取 | CDP search |
+| Source                | 反爬等级 | 检测手段             | 绕过方案                     | 当前方案         |
+| --------------------- | -------- | -------------------- | ---------------------------- | ---------------- |
+| 量子位 (qbitai)       | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP homepage     |
+| 机器之心 (jiqizhixin) | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP search       |
+| 36氪 (36kr)           | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP homepage     |
+| TechCrunch            | 中 ⭐⭐  | Cloudflare 保护      | CDP + 完整 headers           | CDP category     |
+| Bloomberg             | 中 ⭐⭐  | Paywall + Cloudflare | CDP（已登录 session 可突破） | CDP tech section |
+| 观察者网 (guancha)    | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP homepage     |
+| iThome                | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP search       |
+| 新华社 (xinhua)       | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP search       |
+| 澎湃新闻 (thepaper)   | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP search       |
+| 雷锋网 (leiphone)     | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP search       |
+| 新智元 (xinzhiyuan)   | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP search       |
+| 智东西 (zhidx)        | 低 ⭐    | 基本无反爬           | CDP 直接抓取                 | CDP search       |
 
 **新闻站总结**：中文 AI 新闻站（量子位/机器之心/36氪等）基本没有反爬保护，CDP 方案完全足够。TechCrunch 和 Bloomberg 有 Cloudflare 保护，但 CDP 使用真实浏览器 session 通常能通过。新闻站不需要特殊 rate limiting，但仍建议 **1-2 次请求/秒** 上限。
 
 ### 3. 社交/自媒体平台反爬机制（Per-Site Analysis）
 
 #### B站 (Bilibili)
+
 - **反爬等级**：高 ⭐⭐⭐⭐
 - **检测手段**：
   - **HTTP 412 Precondition Failed**：最常见反爬信号，表示触发 rate limit 或反 bot 策略（来源：GitHub yt-dlp #5083, #14830 [Tier 2]）
@@ -113,6 +118,7 @@
 - **项目现状**：`bilibili` source notes 中已标注 "Has 412 anti-bot intermittent issues"，有 MCP fallback
 
 #### 知乎 (Zhihu)
+
 - **反爬等级**：高 ⭐⭐⭐⭐
 - **检测手段**：
   - **Login wall**：搜索页要求登录才能查看结果
@@ -126,6 +132,7 @@
 - **项目现状**：`zhihu` source 已配置 `loginCheckScript` 检测登录状态
 
 #### 小红书 (Xiaohongshu / RedNote)
+
 - **反爬等级**：极高 ⭐⭐⭐⭐⭐
 - **检测手段**：
   - **AuthSigning 问题**：API 请求需要签名验证（来源：dev.to 2026 Xiaohongshu scraping 指南 [Tier 2]）
@@ -141,6 +148,7 @@
 - **项目现状**：`xhs` source 已配置 `needsAuth: true` + `loginCheckScript` + MCP fallback
 
 #### 微博 (Weibo)
+
 - **反爬等级**：高 ⭐⭐⭐⭐
 - **检测手段**：
   - 搜索页需要登录
@@ -153,6 +161,7 @@
 - **项目现状**：`weibo_hot` source 使用 CDP 抓取热搜页
 
 #### X / Twitter
+
 - **反爬等级**：极高 ⭐⭐⭐⭐⭐
 - **检测手段**：
   - API 完全付费化（Free tier 仅 1500 tweets/月，只读 v2 API）
@@ -167,6 +176,7 @@
 - **项目现状**：`x_search` source 有三层 fallback：CDP → Google site: → MCP/Grok
 
 #### 微信公众号 (WeChat / Sogou)
+
 - **反爬等级**：极高 ⭐⭐⭐⭐⭐
 - **检测手段**：
   - Sogou 微信搜索（`weixin.sogou.com`）有极强反爬，CDP 返回空结果
@@ -180,16 +190,16 @@
 
 ### 4. API/低风险源（无需特殊反爬处理）
 
-| Source | 方法 | 备注 |
-|--------|------|------|
-| Reddit (`reddit_search`) | JSON API | 免费，需 User-Agent header |
-| Hacker News (`hackernews_search`) | Algolia API | 免费，无 auth |
-| arXiv | API | 免费，无 auth |
-| GitHub | API | 免费，rate limit 60/h 无 token |
-| OpenAlex | API | 免费，无 auth |
-| Currents | API | 免费 200 req/day |
-| Noozra | API | 免费 100 req/day |
-| Grok (`mcp_grok_search`) | MCP | mcp-search-bridge |
+| Source                            | 方法        | 备注                           |
+| --------------------------------- | ----------- | ------------------------------ |
+| Reddit (`reddit_search`)          | JSON API    | 免费，需 User-Agent header     |
+| Hacker News (`hackernews_search`) | Algolia API | 免费，无 auth                  |
+| arXiv                             | API         | 免费，无 auth                  |
+| GitHub                            | API         | 免费，rate limit 60/h 无 token |
+| OpenAlex                          | API         | 免费，无 auth                  |
+| Currents                          | API         | 免费 200 req/day               |
+| Noozra                            | API         | 免费 100 req/day               |
+| Grok (`mcp_grok_search`)          | MCP         | mcp-search-bridge              |
 
 这些 API 源不需要 CDP，不会被反爬检测。只需遵守各自的 API rate limit。
 
@@ -198,6 +208,7 @@
 基于 35+ 个搜索结果的综合分析，以下是**系统化的模拟人类行为策略**：
 
 #### 5.1 请求间隔随机化（最重要）
+
 - **核心原则**：永远不要使用固定间隔。人类不会精确每 5 秒搜索一次。
 - **推荐策略**：
   ```
@@ -208,21 +219,22 @@
   ```
 - **Per-site 推荐延迟**：
 
-  | 站点类型 | 基础延迟 | 随机范围 | 每小时上限 |
-  |---------|---------|---------|-----------|
-  | Google 搜索 | 8s | 5-15s | 30-50 |
-  | Bing 搜索 | 5s | 3-8s | 50-80 |
-  | 百度搜索 | 7s | 5-10s | 40-60 |
-  | DuckDuckGo | 3s | 2-5s | 80-120 |
-  | B站 | 5s | 3-8s | 40-60 |
-  | 知乎 | 7s | 5-10s | 30-50 |
-  | 小红书 | 15s | 10-20s | 20-30 |
-  | 微博 | 7s | 5-10s | 30-50 |
-  | X/Twitter | 15s | 10-30s | 15-25 |
-  | 新闻站 | 1s | 0.5-2s | 100-200 |
-  | API 源 | 0.5s | 0.3-1s | 不限 |
+  | 站点类型    | 基础延迟 | 随机范围 | 每小时上限 |
+  | ----------- | -------- | -------- | ---------- |
+  | Google 搜索 | 8s       | 5-15s    | 30-50      |
+  | Bing 搜索   | 5s       | 3-8s     | 50-80      |
+  | 百度搜索    | 7s       | 5-10s    | 40-60      |
+  | DuckDuckGo  | 3s       | 2-5s     | 80-120     |
+  | B站         | 5s       | 3-8s     | 40-60      |
+  | 知乎        | 7s       | 5-10s    | 30-50      |
+  | 小红书      | 15s      | 10-20s   | 20-30      |
+  | 微博        | 7s       | 5-10s    | 30-50      |
+  | X/Twitter   | 15s      | 10-30s   | 15-25      |
+  | 新闻站      | 1s       | 0.5-2s   | 100-200    |
+  | API 源      | 0.5s     | 0.3-1s   | 不限       |
 
 #### 5.2 Header 完整性
+
 - **核心原则**：不要只设置 `User-Agent`。反爬系统检测 header 的**完整性**和**顺序**。
 - **CDP 优势**：CDP 使用真实 Chrome，headers 自动正确——这是 CDP 相比 Puppeteer/Playwright 的最大优势
 - **如果用 HTTP 请求**，需要完整 header set：
@@ -238,12 +250,14 @@
 - **Header 顺序**：现代反爬系统检查 header 顺序是否匹配真实浏览器（来源：scrapingbee.com PerimeterX bypass 指南 [Tier 2]）
 
 #### 5.3 TLS / JA3 Fingerprinting
+
 - **检测原理**：每个 TLS 客户端的 ClientHello 消息有独特的指纹（JA3 hash），不同 HTTP 库的指纹与真实浏览器不同
 - **CDP 优势**：CDP 连接真实 Chrome，TLS fingerprint 天然正确
 - **HTTP 请求风险**：`fetch()` / `requests` / `axios` 的 TLS fingerprint 与 Chrome 不同，可被检测
 - **Node.js fetch 注意**：项目 `collectFromApi()` 用的 `fetch()` 有 TLS fingerprint 差异风险，但仅对 API 源（Reddit/HN/arXiv）来说这些 API 不检测 TLS
 
 #### 5.4 CDP 检测向量与规避
+
 - **CDP 可被检测**：虽然 CDP 使用真实 Chrome，但 CDP 连接本身会留下痕迹（来源：octobrowser.net [Tier 2], datadome.co [Tier 2]）
 - **已知检测向量**：
   1. `navigator.webdriver` 属性（CDP 连接时可能为 `true`）
@@ -254,6 +268,7 @@
 - **残余风险**：CDP eval 调用的 timing pattern 仍可被高级反爬检测，但对本项目抓取的站点（新闻站为主）影响极低
 
 #### 5.5 行为模拟（鼠标/滚动）
+
 - **高级反爬系统检测**：鼠标移动轨迹（直线移动 = 机器人）、滚动行为、点击模式
 - **实现方式**：
   - 贝塞尔曲线鼠标轨迹模拟（来源：ResearchGate 2025 论文 [Tier 1]）
@@ -263,6 +278,7 @@
 - **项目适用性**：对于搜索页面抓取（只需打开 URL → 等待加载 → 提取 DOM），鼠标行为模拟**非必需**。只有在需要点击/滚动加载更多结果的场景才需要
 
 #### 5.6 指数退避重试
+
 - 当收到 429 (Too Many Requests) 或 503 (Service Unavailable) 时：
   ```
   retry_delay = base_delay * 2^retry_count + random_jitter(0-1000ms)
@@ -273,6 +289,7 @@
 ### 6. Google 搜索请求量管理（最关键风险点）
 
 项目中有多个 source 都走 Google 搜索：
+
 - `google_search` — 通用搜索
 - `google_news` — 新闻搜索
 - `techmeme_search` — `site:techmeme.com` 搜索
@@ -281,6 +298,7 @@
 **风险**：如果 trend 模式同时跑这些 source，Google 看到的是同一 IP 在短时间内发起多次搜索，**请求量叠加**。
 
 **建议**：
+
 1. **Google 搜索源串行化**：所有走 Google 的 source 串行执行，之间间隔 5-15 秒随机延迟
 2. **Google 搜索总量上限**：单次 trend/research 运行中，Google 搜索总次数不超过 **20 次**（保守）
 3. **区分 Google 搜索变体**：`google_search` + `google_news` 可合并为一次搜索 + `tbm=nws` 切换
@@ -311,7 +329,9 @@
 ### 推荐改进方案（优先级排序）
 
 #### P0：Rate Limiter 模块（必须）
+
 新建 `scripts/short-video/lib/rate-limiter.mjs`：
+
 - Per-site 配置：`baseDelay`, `jitterRange`, `maxPerHour`
 - 请求间随机延迟：`await rateLimiter.wait(sourceName)`
 - 每小时请求计数 + 超限自动暂停
@@ -319,53 +339,71 @@
 
 ```javascript
 const SITE_RATE_CONFIG = {
-  'google.com': { baseDelay: 8000, jitter: [0.5, 1.5], maxPerHour: 30 },
-  'bing.com': { baseDelay: 5000, jitter: [0.6, 1.4], maxPerHour: 60 },
-  'baidu.com': { baseDelay: 7000, jitter: [0.7, 1.3], maxPerHour: 40 },
-  'bilibili.com': { baseDelay: 5000, jitter: [0.6, 1.4], maxPerHour: 50 },
-  'zhihu.com': { baseDelay: 7000, jitter: [0.7, 1.3], maxPerHour: 40 },
-  'xiaohongshu.com': { baseDelay: 15000, jitter: [0.6, 1.4], maxPerHour: 20 },
+  "google.com": { baseDelay: 8000, jitter: [0.5, 1.5], maxPerHour: 30 },
+  "bing.com": { baseDelay: 5000, jitter: [0.6, 1.4], maxPerHour: 60 },
+  "baidu.com": { baseDelay: 7000, jitter: [0.7, 1.3], maxPerHour: 40 },
+  "bilibili.com": { baseDelay: 5000, jitter: [0.6, 1.4], maxPerHour: 50 },
+  "zhihu.com": { baseDelay: 7000, jitter: [0.7, 1.3], maxPerHour: 40 },
+  "xiaohongshu.com": { baseDelay: 15000, jitter: [0.6, 1.4], maxPerHour: 20 },
   // news sites: 默认配置
-  '_default': { baseDelay: 1000, jitter: [0.5, 2.0], maxPerHour: 200 },
+  _default: { baseDelay: 1000, jitter: [0.5, 2.0], maxPerHour: 200 },
 };
 ```
 
 #### P1：指数退避重试（重要）
+
 修改 `cdp-client.mjs` 的重试逻辑：
+
 - 第 1 次重试：3-5s 随机
 - 第 2 次重试：6-10s 随机
 - 第 3 次重试：12-20s 随机 + 放弃
 - 如果收到 429/503，自动退避到更长延迟
 
 #### P2：CAPTCHA 检测通用化（重要）
+
 当前只有少数 source 有 `loginCheckScript`。添加通用 CAPTCHA/反爬检测：
+
 ```javascript
 const GENERIC_ANTI_BOT_INDICATORS = [
-  'unusual traffic', 'captcha', 'robot', '验证码', '人机验证',
-  'access denied', 'blocked', '429', 'precondition failed'
+  "unusual traffic",
+  "captcha",
+  "robot",
+  "验证码",
+  "人机验证",
+  "access denied",
+  "blocked",
+  "429",
+  "precondition failed",
 ];
 ```
+
 在 `collectFromCdp()` 中，提取结果前先检测页面文本是否包含这些指标。
 
 #### P3：添加 DuckDuckGo 搜索源（推荐）
+
 DuckDuckGo 是最友好的搜索引擎，可作为 Google/Bing 的补充：
+
 - URL: `https://html.duckduckgo.com/html/?q={keyword}`（非 JS 版本，轻量）
 - Rate limit 宽松：10 req/s 上限
 - 无 CAPTCHA 风险
 - 可作为 Google 的 fallback source
 
 #### P4：Google 搜索源合并（优化）
+
 将 `google_search` + `google_news` 合并为一个 source，通过参数控制搜索类型，减少 Google 请求总量。
 
 ## Contrarian Views & Risks
 
 ### 1. CDP 并非万能
+
 虽然 CDP 连接真实 Chrome 有很多优势，但高级反爬系统（DataDome、Cloudflare Bot Management）仍可通过 CDP 的 timing analysis 和 Runtime.evaluate 调用模式检测自动化（来源：octobrowser.net [Tier 2], datadome.co [Tier 2]）。然而，本项目抓取的站点中**没有使用 DataDome 级别反爬的**，所以这个风险在当前 scope 下不成立。
 
 ### 2. 过度保守的 rate limiting 可能导致效率过低
+
 如果对所有站点都施加严格的 rate limiting，trend discovery 一次完整运行可能需要 10-20 分钟。但考虑到本项目每天最多运行 1-2 次 trend discovery，这是可接受的。
 
 ### 3. 免费替代方案的可持续性
+
 DuckDuckGo 的 HTML endpoint 目前免费且宽松，但 DuckDuckGo 可能随时收紧（如 2024 年 10 月已有用户报告新的 rate limit，来源：Reddit r/duckduckgo [Tier 3]）。Google Custom Search API 已对新客户关闭。不要过度依赖免费服务的持续可用性。
 
 ## Open Questions

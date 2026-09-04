@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 
-
 /** Admin controls for when ranking alerts fire and who receives them. */
 export function RankingAlertSettings() {
   const queryClient = useQueryClient();
@@ -26,7 +25,6 @@ export function RankingAlertSettings() {
   const addRecipient = useServerFn(addAlertRecipient);
   const removeRecipient = useServerFn(deleteAlertRecipient);
   const sendTest = useServerFn(sendTestAlertNotification);
-
 
   const { data, isLoading } = useQuery({
     queryKey: ["ranking-alert-config"],
@@ -61,11 +59,7 @@ export function RankingAlertSettings() {
       from >= 1 &&
       (to === null || (Number.isInteger(to) && to >= 1));
     const wouldAlert = valid ? isDrop(to, from, previewThreshold!, lostRanking) : false;
-    const alertType: "drop" | "lost" | null = !wouldAlert
-      ? null
-      : to === null
-        ? "lost"
-        : "drop";
+    const alertType: "drop" | "lost" | null = !wouldAlert ? null : to === null ? "lost" : "drop";
     const reason = !valid
       ? "Incomplete input"
       : !wouldAlert
@@ -80,7 +74,6 @@ export function RankingAlertSettings() {
   const firing = evaluated.filter((e) => e.wouldAlert);
   const dropCount = firing.filter((e) => e.alertType === "drop").length;
   const lostCount = firing.filter((e) => e.alertType === "lost").length;
-
 
   // Query data arrives after mount, so sync the form once it lands.
   useEffect(() => {
@@ -138,12 +131,10 @@ export function RankingAlertSettings() {
           })),
         },
       }),
-    onSuccess: (res) =>
-      toast.success(`Test notification sent to ${res.recipient}.`),
+    onSuccess: (res) => toast.success(`Test notification sent to ${res.recipient}.`),
     onError: (err) =>
       toast.error(err instanceof Error ? err.message : "Could not send the test email"),
   });
-
 
   return (
     <section className="mt-10 rounded-lg border border-border/60 p-6">
@@ -187,11 +178,7 @@ export function RankingAlertSettings() {
             <div className="space-y-2">
               <Label htmlFor="lost-ranking">Leaving the top 100</Label>
               <div className="flex items-center gap-3">
-                <Switch
-                  id="lost-ranking"
-                  checked={lostRanking}
-                  onCheckedChange={setLostRanking}
-                />
+                <Switch id="lost-ranking" checked={lostRanking} onCheckedChange={setLostRanking} />
                 <span className="text-sm text-muted-foreground">
                   {lostRanking ? "Raises an alert" : "Ignored"}
                 </span>
@@ -265,8 +252,8 @@ export function RankingAlertSettings() {
           <div className="mt-8 border-t border-border/60 pt-6">
             <h3 className="text-sm font-medium">Preview a notification</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Simulate several keywords at once to see which ones the settings above would
-              alert on. Leave “new position” empty to simulate leaving the top 100.
+              Simulate several keywords at once to see which ones the settings above would alert on.
+              Leave “new position” empty to simulate leaving the top 100.
             </p>
 
             <ul className="mt-4 space-y-3">
@@ -339,10 +326,7 @@ export function RankingAlertSettings() {
             >
               {firing.length === 0 ? (
                 <span className="flex items-start gap-2">
-                  <BellOff
-                    className="mt-0.5 h-4 w-4 text-muted-foreground"
-                    aria-hidden="true"
-                  />
+                  <BellOff className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <span>
                     <strong>No alert would fire.</strong>{" "}
                     {evaluated.some((e) => e.valid)
@@ -426,7 +410,6 @@ export function RankingAlertSettings() {
               {firing.length === 1 ? "1 simulated alert" : `${firing.length} simulated alerts`}{" "}
               listed above — only to an existing recipient or admin address.
             </p>
-
           </div>
         </>
       )}

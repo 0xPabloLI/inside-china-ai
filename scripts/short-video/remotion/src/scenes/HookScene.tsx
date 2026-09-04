@@ -147,7 +147,11 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
         {/* Focal — number-led preferred (contract bigNumber 240, amber) */}
         {txt.bigNumber ? (
           <div style={{ textAlign: "center" }}>
-            <TextGate sceneId={sceneId} slotId="hook.hero-center.bigNumber" expectAnnotation={circleAroundNumber}>
+            <TextGate
+              sceneId={sceneId}
+              slotId="hook.hero-center.bigNumber"
+              expectAnnotation={circleAroundNumber}
+            >
               {(fontSize) => (
                 <Interactive.Div
                   name="bigNumber"
@@ -174,7 +178,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                         {txt.bigNumber as string}
                       </Circle>
                     ) : (
-                      txt.bigNumber as string
+                      (txt.bigNumber as string)
                     )}
                   </NumberPulse>
                 </Interactive.Div>

@@ -117,25 +117,25 @@ text-align.py 强制对齐（scene-data voiceover → wav2vec2 → subtitle-timi
 
 **两条渲染路径的覆盖：**
 
-| 路径 | ASS 处理方式 | 门 1 位置 | 门 2 位置 |
-|------|-------------|----------|----------|
+| 路径     | ASS 处理方式                                    | 门 1 位置                             | 门 2 位置                 |
+| -------- | ----------------------------------------------- | ------------------------------------- | ------------------------- |
 | Remotion | 渲染后 post-process 阶段 `burnSubtitles()` 烧录 | ASS 生成后、`renderRemotion()` 调用前 | `renderRemotion()` 完成后 |
-| FFmpeg | 合成时 `burnSubtitles()` 烧录 | ASS 生成后、`assembleVideo()` 调用前 | `assembleVideo()` 完成后 |
+| FFmpeg   | 合成时 `burnSubtitles()` 烧录                   | ASS 生成后、`assembleVideo()` 调用前  | `assembleVideo()` 完成后  |
 
 **改动范围（完整影响面）：**
 
-| 文件 | 改动类型 | 改动内容 |
-|------|---------|---------|
-| `scripts/short-video/main.mjs` | 修改 | Step 4-5 间插入门 1；补全 `subtitle-alignment` 的 repairFn |
-| `scripts/short-video/lib/verify-subtitles.mjs` | 修改 | 新增 canonical-text 校验函数（scene-data vs timing） |
-| `scripts/short-video/lib/verify-retry.mjs` | 修改 | 新增 canonical-text 修复策略（重做 text-align.py） |
-| `scripts/short-video/lib/tts/post-process.mjs` | 修改 | `runWhisperAlignment` 函数重命名；manifest 增加 scene-data hash |
-| `scripts/short-video/text-align.py` | 修改 | 输出中增加 source text hash 和 manifest hash |
-| `scripts/short-video/lib/subtitles/generate.mjs` | 修改 | 无逻辑改动，但作为门 1 的验证对象 |
-| `scripts/short-video/lib/render-remotion.mjs` | 无改动 | 门 1 在调用前执行；门 2 在完成后执行 |
-| `scripts/short-video/lib/assemble.mjs` | 无改动 | 同上 |
-| `scripts/short-video/lib/post-process.mjs` | 无改动 | `burnSubtitles` 不变 |
-| 现有测试 | 修改 | `verify-subtitles.test.mjs`、`verify-retry.test.mjs` 需新增 canonical-text 场景 |
+| 文件                                             | 改动类型 | 改动内容                                                                        |
+| ------------------------------------------------ | -------- | ------------------------------------------------------------------------------- |
+| `scripts/short-video/main.mjs`                   | 修改     | Step 4-5 间插入门 1；补全 `subtitle-alignment` 的 repairFn                      |
+| `scripts/short-video/lib/verify-subtitles.mjs`   | 修改     | 新增 canonical-text 校验函数（scene-data vs timing）                            |
+| `scripts/short-video/lib/verify-retry.mjs`       | 修改     | 新增 canonical-text 修复策略（重做 text-align.py）                              |
+| `scripts/short-video/lib/tts/post-process.mjs`   | 修改     | `runWhisperAlignment` 函数重命名；manifest 增加 scene-data hash                 |
+| `scripts/short-video/text-align.py`              | 修改     | 输出中增加 source text hash 和 manifest hash                                    |
+| `scripts/short-video/lib/subtitles/generate.mjs` | 修改     | 无逻辑改动，但作为门 1 的验证对象                                               |
+| `scripts/short-video/lib/render-remotion.mjs`    | 无改动   | 门 1 在调用前执行；门 2 在完成后执行                                            |
+| `scripts/short-video/lib/assemble.mjs`           | 无改动   | 同上                                                                            |
+| `scripts/short-video/lib/post-process.mjs`       | 无改动   | `burnSubtitles` 不变                                                            |
+| 现有测试                                         | 修改     | `verify-subtitles.test.mjs`、`verify-retry.test.mjs` 需新增 canonical-text 场景 |
 
 ### 3.2 Status Dimension Separation（状态维度分离）
 
@@ -181,15 +181,16 @@ text-align.py 强制对齐（scene-data voiceover → wav2vec2 → subtitle-timi
 
 **维度定义：**
 
-| 维度 | 含义 | 合法值 | 对应检查 |
-|------|------|--------|---------|
-| `render` | 视频是否已渲染且可解码 | `pending` / `in-progress` / `rendered` / `passed` / `failed` | ffprobe + `ffmpeg -v error` |
-| `subtitle` | 字幕是否通过 AIL 门 | `pending` / `in-progress` / `passed` / `failed` | 门 1 + 门 2 |
-| `audio` | 音频质检是否通过 | `pending` / `in-progress` / `passed` / `failed` | loudnorm + volumedetect |
-| `creative` | 品牌/视觉是否合规 | `pending` / `in-progress` / `passed` / `failed` / `n/a` | brand-system 检查 |
-| `publish` | 发布状态 | `pending` / `in-progress` / `published` / `failed` / `n/a` | TikTok + 文章发布回读 |
+| 维度       | 含义                   | 合法值                                                       | 对应检查                    |
+| ---------- | ---------------------- | ------------------------------------------------------------ | --------------------------- |
+| `render`   | 视频是否已渲染且可解码 | `pending` / `in-progress` / `rendered` / `passed` / `failed` | ffprobe + `ffmpeg -v error` |
+| `subtitle` | 字幕是否通过 AIL 门    | `pending` / `in-progress` / `passed` / `failed`              | 门 1 + 门 2                 |
+| `audio`    | 音频质检是否通过       | `pending` / `in-progress` / `passed` / `failed`              | loudnorm + volumedetect     |
+| `creative` | 品牌/视觉是否合规      | `pending` / `in-progress` / `passed` / `failed` / `n/a`      | brand-system 检查           |
+| `publish`  | 发布状态               | `pending` / `in-progress` / `published` / `failed` / `n/a`   | TikTok + 文章发布回读       |
 
 **改动范围：**
+
 - `main.mjs` — 在每个 step 完成后原子更新对应维度状态
 - `pipeline-status.json` schema 扩展 + 向后兼容读取
 - `docs/content-pipeline.md` — 更新管线进度追踪章节
@@ -204,6 +205,7 @@ text-align.py 强制对齐（scene-data voiceover → wav2vec2 → subtitle-timi
 **当前行动：** 记录这个设计认知到 `docs/video-workflow.md`，不做代码改动。
 
 **触发扩展条件（需写明）：**
+
 - 扩展到视频号平台时（视频号封面槽 3:4，成片 9:16）
 - 封面资产责任方：`lov-channels-cover` 或等效的封面生成能力
 - 触发前需按仓库规则做双源验证（TikTok 普通发布 vs 创作者工具 vs API 是否有独立封面槽位）
@@ -247,6 +249,7 @@ import { seriesConfig } from "../_series.mjs";
 ```
 
 **改动范围：**
+
 - 新增 `content/{series}/_series.mjs` 约定（非强制——新系列可选使用）
 - `docs/video-workflow.md` — 新增系列复用章节
 - 已有系列（如 `distillation/`）不强制迁移
@@ -282,6 +285,7 @@ import { seriesConfig } from "../_series.mjs";
 ```
 
 **改动范围：**
+
 - 新增 `scripts/short-video/pipeline-profile.json`（gitignored，本地偏好）
 - `main.mjs` 启动时读取 profile，用默认值填充未指定的参数
 - `docs/video-workflow.md` — 新增 Profile 章节
@@ -291,26 +295,26 @@ import { seriesConfig } from "../_series.mjs";
 
 **P0 收敛为可验收缺口：** canonical-text 溯源、渲染前门、alignment 修复策略。状态 schema 和 profile 应与字幕修复解耦，待各自的迁移、依赖及回滚策略明确后单独排期。
 
-| # | 改进 | 优先级 | 改动量 | 依赖 |
-|---|------|--------|--------|------|
-| 1 | Subtitle AIL Gate（门 1 + 门 2 补全） | P0 | 中 | 无 |
-| 2 | Status Dimension Separation | P1 | 中（需 schema 契约 + 迁移） | 独立排期 |
-| 3 | Series Template Reuse | P2 | 中（需接口契约） | 独立排期 |
-| 4 | Profile Persistence | P3 | 中（需发现路径 + 回退） | 独立排期 |
-| 5 | Cover vs Opening Still | P3 | 无（仅文档） | 无 |
+| #   | 改进                                  | 优先级 | 改动量                      | 依赖     |
+| --- | ------------------------------------- | ------ | --------------------------- | -------- |
+| 1   | Subtitle AIL Gate（门 1 + 门 2 补全） | P0     | 中                          | 无       |
+| 2   | Status Dimension Separation           | P1     | 中（需 schema 契约 + 迁移） | 独立排期 |
+| 3   | Series Template Reuse                 | P2     | 中（需接口契约）            | 独立排期 |
+| 4   | Profile Persistence                   | P3     | 中（需发现路径 + 回退）     | 独立排期 |
+| 5   | Cover vs Opening Still                | P3     | 无（仅文档）                | 无       |
 
 ## 5. What We Explicitly Do NOT Adopt
 
-| lov-media-creator 设计 | 不采用原因 |
-|----------------------|-----------|
-| 两阶段 MKV 审校交付 | 我们的字幕文本来自 scene-data（已知正确），不需要人类在 Subtitle Edit 中校对 |
-| Subtitle Edit 工作流 | 不适用——我们没有人类字幕编辑环节 |
-| 开场静帧画幅门禁 | TikTok 第一帧即封面，不需要 3:4 vs 9:16 分离（视频号扩展时再考虑） |
-| 作者字幕所有权 | 不适用——我们的"作者"是 Agent 自身 |
-| `lov-channels-cover` 封面生成 | 不适用——我们用 Remotion hook scene 第一帧 |
-| `lov-video-chapter` 章节条 | 已有自己的章节进度条设计 |
-| HITL 字幕批准 | **明确拒绝**——改为 AIL 自审 |
-| 6 种状态分步记录 | 简化为 5 维度，去掉"字幕已批准"这个 HITL 状态 |
+| lov-media-creator 设计        | 不采用原因                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| 两阶段 MKV 审校交付           | 我们的字幕文本来自 scene-data（已知正确），不需要人类在 Subtitle Edit 中校对 |
+| Subtitle Edit 工作流          | 不适用——我们没有人类字幕编辑环节                                             |
+| 开场静帧画幅门禁              | TikTok 第一帧即封面，不需要 3:4 vs 9:16 分离（视频号扩展时再考虑）           |
+| 作者字幕所有权                | 不适用——我们的"作者"是 Agent 自身                                            |
+| `lov-channels-cover` 封面生成 | 不适用——我们用 Remotion hook scene 第一帧                                    |
+| `lov-video-chapter` 章节条    | 已有自己的章节进度条设计                                                     |
+| HITL 字幕批准                 | **明确拒绝**——改为 AIL 自审                                                  |
+| 6 种状态分步记录              | 简化为 5 维度，去掉"字幕已批准"这个 HITL 状态                                |
 
 ## 6. Design Principles
 
@@ -323,38 +327,38 @@ import { seriesConfig } from "../_series.mjs";
 
 ### Modified Files Impact（完整影响面）
 
-| 文件 | 改动类型 | 改动内容 |
-|------|---------|---------|
-| `scripts/short-video/main.mjs` | 修改 | Step 4-5 间插入门 1；补全 `subtitle-alignment` 的 repairFn；pipeline-status.json 更新维度（P1 排期后） |
-| `scripts/short-video/lib/verify-subtitles.mjs` | 修改 | 新增 canonical-text 校验函数 |
-| `scripts/short-video/lib/verify-retry.mjs` | 修改 | 新增 canonical-text 修复策略 |
-| `scripts/short-video/lib/tts/post-process.mjs` | 修改 | `runWhisperAlignment` 重命名；manifest 增加 scene-data hash |
-| `scripts/short-video/text-align.py` | 修改 | 输出中增加 source text hash 和 manifest hash |
-| `scripts/short-video/lib/subtitles/generate.mjs` | 修改 | 作为门 1 的验证对象（无逻辑改动） |
-| `scripts/short-video/lib/render-remotion.mjs` | 无改动 | 门 1 在调用前执行 |
-| `scripts/short-video/lib/assemble.mjs` | 无改动 | 同上 |
-| `scripts/short-video/lib/post-process.mjs` | 无改动 | `burnSubtitles` 不变 |
-| `scripts/short-video/__tests__/verify-subtitles.test.mjs` | 修改 | 新增 canonical-text 场景测试 |
-| `scripts/short-video/__tests__/verify-retry.test.mjs` | 修改 | 新增 canonical-text 修复策略测试 |
+| 文件                                                      | 改动类型 | 改动内容                                                                                               |
+| --------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `scripts/short-video/main.mjs`                            | 修改     | Step 4-5 间插入门 1；补全 `subtitle-alignment` 的 repairFn；pipeline-status.json 更新维度（P1 排期后） |
+| `scripts/short-video/lib/verify-subtitles.mjs`            | 修改     | 新增 canonical-text 校验函数                                                                           |
+| `scripts/short-video/lib/verify-retry.mjs`                | 修改     | 新增 canonical-text 修复策略                                                                           |
+| `scripts/short-video/lib/tts/post-process.mjs`            | 修改     | `runWhisperAlignment` 重命名；manifest 增加 scene-data hash                                            |
+| `scripts/short-video/text-align.py`                       | 修改     | 输出中增加 source text hash 和 manifest hash                                                           |
+| `scripts/short-video/lib/subtitles/generate.mjs`          | 修改     | 作为门 1 的验证对象（无逻辑改动）                                                                      |
+| `scripts/short-video/lib/render-remotion.mjs`             | 无改动   | 门 1 在调用前执行                                                                                      |
+| `scripts/short-video/lib/assemble.mjs`                    | 无改动   | 同上                                                                                                   |
+| `scripts/short-video/lib/post-process.mjs`                | 无改动   | `burnSubtitles` 不变                                                                                   |
+| `scripts/short-video/__tests__/verify-subtitles.test.mjs` | 修改     | 新增 canonical-text 场景测试                                                                           |
+| `scripts/short-video/__tests__/verify-retry.test.mjs`     | 修改     | 新增 canonical-text 修复策略测试                                                                       |
 
 ### Behavioral Scenarios
 
-| # | 场景 | 预期行为 | 风险 |
-|---|------|---------|------|
-| 1 | scene-data voiceover 中的专有名词（如 "DeepSeek"）在 text-align.py 输出中被分段为 "Deep" + "Seek" | 门 1 canonical-text 校验检测到失配 → 重做 text-align.py → 重验 → 如果仍失配 → 硬失败 | 规范化规则需覆盖专有名词；text-align.py 的分词可能不受我们控制 |
-| 2 | 字幕所有检查通过 | 门 1 PASS → 进入渲染/合成 | 无 |
-| 3 | 渲染后字幕时间轴 drift 超过 80ms | 门 2 verify-retry drift 补偿 → 重验证 | 无（已有逻辑） |
-| 4 | pipeline-status.json 被新 session 读取 | Agent 看到维度级状态，知道哪一步没完成 | 无 |
-| 5 | 系列第二集使用 _series.mjs | import 复用版式常量 | 如果 _series.mjs 不存在，降级为独立定义 |
-| 6 | pipeline-profile.json 不存在 | 使用 AGENTS.md 中的默认值 | 无 |
-| 7 | pipeline-profile.json 存在但字段缺失 | 缺失字段用默认值填充 | 无 |
-| 8 | 用户修改了 scene-data voiceover 后重跑 | 门 1 检测到 timing hash 不匹配 → 重做 text-align.py → 重验 | 如果 TTS 音频也已变更需重做 TTS |
-| 9 | scene-data 变更但 TTS 未重建 | 门 1 检测到 TTS 音频 hash 与 timing 不匹配 → 拒绝复用旧 timing → 要求重做 TTS | 如果 TTS 引擎不可用则硬失败 |
-| 10 | text-align.py 产出空词或部分词 | 门 1 检测到空 segments → 硬失败 | 需区分"scene 无 voiceover"（合法）和"对齐失败"（错误） |
-| 11 | Remotion 和 FFmpeg 两条渲染路径行为差异 | 门 1 在两条路径前执行；门 2 在两条路径后执行 | 需测试两条路径的 canonical-text 一致性 |
-| 12 | 修复后旧成片未替换 | 原子写入规则保证替换；门 2 重新验证新成片 | 需确保 burnSubtitles 后旧文件被清理 |
-| 13 | pipeline-status.json 写入中断 | 原子写入（先写临时文件再 rename） | 需实现原子写入 |
-| 14 | pipeline-profile.json 含未知字段 | 忽略未知字段，用默认值填充已知缺失 | 需 JSON schema 校验 |
+| #   | 场景                                                                                              | 预期行为                                                                             | 风险                                                           |
+| --- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| 1   | scene-data voiceover 中的专有名词（如 "DeepSeek"）在 text-align.py 输出中被分段为 "Deep" + "Seek" | 门 1 canonical-text 校验检测到失配 → 重做 text-align.py → 重验 → 如果仍失配 → 硬失败 | 规范化规则需覆盖专有名词；text-align.py 的分词可能不受我们控制 |
+| 2   | 字幕所有检查通过                                                                                  | 门 1 PASS → 进入渲染/合成                                                            | 无                                                             |
+| 3   | 渲染后字幕时间轴 drift 超过 80ms                                                                  | 门 2 verify-retry drift 补偿 → 重验证                                                | 无（已有逻辑）                                                 |
+| 4   | pipeline-status.json 被新 session 读取                                                            | Agent 看到维度级状态，知道哪一步没完成                                               | 无                                                             |
+| 5   | 系列第二集使用 _series.mjs                                                                        | import 复用版式常量                                                                  | 如果 _series.mjs 不存在，降级为独立定义                        |
+| 6   | pipeline-profile.json 不存在                                                                      | 使用 AGENTS.md 中的默认值                                                            | 无                                                             |
+| 7   | pipeline-profile.json 存在但字段缺失                                                              | 缺失字段用默认值填充                                                                 | 无                                                             |
+| 8   | 用户修改了 scene-data voiceover 后重跑                                                            | 门 1 检测到 timing hash 不匹配 → 重做 text-align.py → 重验                           | 如果 TTS 音频也已变更需重做 TTS                                |
+| 9   | scene-data 变更但 TTS 未重建                                                                      | 门 1 检测到 TTS 音频 hash 与 timing 不匹配 → 拒绝复用旧 timing → 要求重做 TTS        | 如果 TTS 引擎不可用则硬失败                                    |
+| 10  | text-align.py 产出空词或部分词                                                                    | 门 1 检测到空 segments → 硬失败                                                      | 需区分"scene 无 voiceover"（合法）和"对齐失败"（错误）         |
+| 11  | Remotion 和 FFmpeg 两条渲染路径行为差异                                                           | 门 1 在两条路径前执行；门 2 在两条路径后执行                                         | 需测试两条路径的 canonical-text 一致性                         |
+| 12  | 修复后旧成片未替换                                                                                | 原子写入规则保证替换；门 2 重新验证新成片                                            | 需确保 burnSubtitles 后旧文件被清理                            |
+| 13  | pipeline-status.json 写入中断                                                                     | 原子写入（先写临时文件再 rename）                                                    | 需实现原子写入                                                 |
+| 14  | pipeline-profile.json 含未知字段                                                                  | 忽略未知字段，用默认值填充已知缺失                                                   | 需 JSON schema 校验                                            |
 
 ## 8. Next Steps
 

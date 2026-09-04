@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { chunkMarkdown, chunkSceneData, chunkCatalog, estimateTokens, MAX_TOKENS } from "../lib/chunker.mjs";
+import {
+  chunkMarkdown,
+  chunkSceneData,
+  chunkCatalog,
+  estimateTokens,
+  MAX_TOKENS,
+} from "../lib/chunker.mjs";
 
 // ─── estimateTokens ───
 

@@ -91,8 +91,7 @@ export const scenes = [
     id: 6,
     name: "cta",
     visualType: "cta",
-    voiceover:
-      "The takeaway: the next China AI story may ride a school bus, not just a chatbot.",
+    voiceover: "The takeaway: the next China AI story may ride a school bus, not just a chatbot.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

@@ -55,7 +55,10 @@ const CHECKS = [
   // Focal number-label margin-top
   {
     name: "focal-number-label margin-top",
-    react: extractValue(TSCENE, /letterSpacing: "3px",\s*\n\s*marginTop: (\d+),\s*\n\s*textAlign: "center"/),
+    react: extractValue(
+      TSCENE,
+      /letterSpacing: "3px",\s*\n\s*marginTop: (\d+),\s*\n\s*textAlign: "center"/,
+    ),
     html: extractValue(THTML, /\.focal-number-label \{[^}]*margin-top: (\d+)px/),
   },
   // Stats row gap

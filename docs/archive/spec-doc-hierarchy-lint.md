@@ -56,6 +56,7 @@ Three checks:
 3. **L2 command-line heuristic** (WARN): For each `.md` file in `docs/research/`, count lines matching command patterns (`npm run`, `node scripts/`, `git `). ≥5 matches = WARN with `l2-execution-instructions: <filename> has N command-line references (≥5 threshold)`.
 
 Checked directories:
+
 - L1 = `docs/*.md` (root-level only, not recursing into subdirectories)
 - L2 = `docs/research/*.md` (research only)
 
@@ -102,53 +103,53 @@ The check functions are pure functions taking file content strings and returning
 
 ### Test cases (from scenario matrix)
 
-| # | Scenario | Expected |
-|---|----------|----------|
-| 1 | L1 doc in DOCS-INDEX | PASS |
-| 2 | L1 doc NOT in DOCS-INDEX | FAIL |
-| 3 | L1 doc with L2 ref + has Design Decisions | PASS |
-| 4 | L1 doc with L2 ref + no Design Decisions | FAIL |
-| 5 | L1 doc without L2 ref + no Design Decisions | PASS |
-| 6 | L2 doc with 0 command lines | PASS |
-| 7 | L2 doc with 3 command lines | PASS (below threshold) |
-| 8 | L2 doc with 5 command lines | WARN |
-| 9 | L2 doc with 10 command lines | WARN |
-| 10 | Empty docs/ directory | PASS |
-| 11 | DOCS-INDEX with file in handoffs/ (not checked) | PASS |
-| 12 | L1 doc with `docs/tiktok/` ref + no Design Decisions | FAIL |
-| 13 | Multiple findings in one run | All reported |
-| 14 | Exit code = 0 when only WARNs | PASS |
-| 15 | Exit code = 1 when any FAIL | FAIL |
+| #   | Scenario                                             | Expected               |
+| --- | ---------------------------------------------------- | ---------------------- |
+| 1   | L1 doc in DOCS-INDEX                                 | PASS                   |
+| 2   | L1 doc NOT in DOCS-INDEX                             | FAIL                   |
+| 3   | L1 doc with L2 ref + has Design Decisions            | PASS                   |
+| 4   | L1 doc with L2 ref + no Design Decisions             | FAIL                   |
+| 5   | L1 doc without L2 ref + no Design Decisions          | PASS                   |
+| 6   | L2 doc with 0 command lines                          | PASS                   |
+| 7   | L2 doc with 3 command lines                          | PASS (below threshold) |
+| 8   | L2 doc with 5 command lines                          | WARN                   |
+| 9   | L2 doc with 10 command lines                         | WARN                   |
+| 10  | Empty docs/ directory                                | PASS                   |
+| 11  | DOCS-INDEX with file in handoffs/ (not checked)      | PASS                   |
+| 12  | L1 doc with `docs/tiktok/` ref + no Design Decisions | FAIL                   |
+| 13  | Multiple findings in one run                         | All reported           |
+| 14  | Exit code = 0 when only WARNs                        | PASS                   |
+| 15  | Exit code = 1 when any FAIL                          | FAIL                   |
 
 ## Scenario & Risk Verification Matrix
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `docs/DOCS-INDEX.md` | Add rule 5 to Layer Placement Rules | Low | Pure addition, one line. No existing rules modified. |
-| `scripts/lint-doc-hierarchy.mjs` | New file | Low | New file, no existing consumers. |
-| `scripts/__tests__/lint-doc-hierarchy.test.mjs` | New file | Low | New test file. |
-| `scripts/__tests__/fixtures/doc-hierarchy/` | New fixture directory | Low | Test fixtures only. |
-| `package.json` | Add `lint:docs` script entry | Low | Pure addition to scripts section. |
-| `scripts/pre-commit.sh` | Append doc-hierarchy check section | Medium | Modifying existing hook. If the hook breaks, all commits are blocked. Mitigation: the new section is additive (after existing checks, before final echo), wrapped in its own if/then, and tested. |
+| File                                            | Modification                        | Risk   | Assessment                                                                                                                                                                                        |
+| ----------------------------------------------- | ----------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/DOCS-INDEX.md`                            | Add rule 5 to Layer Placement Rules | Low    | Pure addition, one line. No existing rules modified.                                                                                                                                              |
+| `scripts/lint-doc-hierarchy.mjs`                | New file                            | Low    | New file, no existing consumers.                                                                                                                                                                  |
+| `scripts/__tests__/lint-doc-hierarchy.test.mjs` | New file                            | Low    | New test file.                                                                                                                                                                                    |
+| `scripts/__tests__/fixtures/doc-hierarchy/`     | New fixture directory               | Low    | Test fixtures only.                                                                                                                                                                               |
+| `package.json`                                  | Add `lint:docs` script entry        | Low    | Pure addition to scripts section.                                                                                                                                                                 |
+| `scripts/pre-commit.sh`                         | Append doc-hierarchy check section  | Medium | Modifying existing hook. If the hook breaks, all commits are blocked. Mitigation: the new section is additive (after existing checks, before final echo), wrapped in its own if/then, and tested. |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Agent creates `docs/research/new-topic.md`, forgets DOCS-INDEX | Lint FAILs: `docs-index-missing: new-topic.md` | Agent skips lint | Pre-commit hook blocks commit |
-| 2 | Agent creates `docs/research/new-topic.md`, adds to DOCS-INDEX | Lint PASSes | — | — |
-| 3 | Agent adds `docs/research/` ref to `docs/content-pipeline.md`, no Design Decisions | Lint FAILs: `l1-missing-design-decisions` | Agent already has the section (added in prior work) | Existing section satisfies check |
-| 4 | Agent writes L2 doc with 6 `npm run` lines | Lint WARNs but allows commit | WARN ignored | Pre-commit prints warning, Agent can self-review |
-| 5 | Agent writes L2 doc with 2 `node scripts/` lines | Lint PASSes (below threshold) | — | — |
-| 6 | Commit with no `docs/` files staged | Pre-commit skips doc-hierarchy check | — | `grep -q '^docs/'` gate |
-| 7 | Commit with `docs/research/foo.md` staged | Pre-commit runs full scan | Full scan is slow on large repos | docs/ is small (~30 files), scan takes <100ms |
-| 8 | Pre-commit hook itself errors (node not found) | Hook should not block commit on infrastructure failure | Node not installed | Use `command -v node` guard; if missing, skip with warning |
-| 9 | DOCS-INDEX has file listed as `research/foo.md` but actual file is `docs/research/foo.md` | Lint matches by filename, not path — should match | False positive | Use `includes(filename)` matching, not path matching |
-| 10 | L1 doc has `docs/tiktok/` reference but no Design Decisions | Lint FAILs (tiktok/ counts as L2 ref) | — | Rule applies to both research/ and tiktok/ |
-| 11 | `docs/handoffs/foo.md` exists, not in DOCS-INDEX | Lint does not check handoffs/ | — | Only docs/*.md and docs/research/*.md are scanned |
-| 12 | Multiple FAILs in one run | All FAILs printed, exit 1 | — | Findings array accumulated, all reported at end |
+| #   | Scenario                                                                                  | Expected Behavior                                      | Risk                                                | Mitigation                                                 |
+| --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | Agent creates `docs/research/new-topic.md`, forgets DOCS-INDEX                            | Lint FAILs: `docs-index-missing: new-topic.md`         | Agent skips lint                                    | Pre-commit hook blocks commit                              |
+| 2   | Agent creates `docs/research/new-topic.md`, adds to DOCS-INDEX                            | Lint PASSes                                            | —                                                   | —                                                          |
+| 3   | Agent adds `docs/research/` ref to `docs/content-pipeline.md`, no Design Decisions        | Lint FAILs: `l1-missing-design-decisions`              | Agent already has the section (added in prior work) | Existing section satisfies check                           |
+| 4   | Agent writes L2 doc with 6 `npm run` lines                                                | Lint WARNs but allows commit                           | WARN ignored                                        | Pre-commit prints warning, Agent can self-review           |
+| 5   | Agent writes L2 doc with 2 `node scripts/` lines                                          | Lint PASSes (below threshold)                          | —                                                   | —                                                          |
+| 6   | Commit with no `docs/` files staged                                                       | Pre-commit skips doc-hierarchy check                   | —                                                   | `grep -q '^docs/'` gate                                    |
+| 7   | Commit with `docs/research/foo.md` staged                                                 | Pre-commit runs full scan                              | Full scan is slow on large repos                    | docs/ is small (~30 files), scan takes <100ms              |
+| 8   | Pre-commit hook itself errors (node not found)                                            | Hook should not block commit on infrastructure failure | Node not installed                                  | Use `command -v node` guard; if missing, skip with warning |
+| 9   | DOCS-INDEX has file listed as `research/foo.md` but actual file is `docs/research/foo.md` | Lint matches by filename, not path — should match      | False positive                                      | Use `includes(filename)` matching, not path matching       |
+| 10  | L1 doc has `docs/tiktok/` reference but no Design Decisions                               | Lint FAILs (tiktok/ counts as L2 ref)                  | —                                                   | Rule applies to both research/ and tiktok/                 |
+| 11  | `docs/handoffs/foo.md` exists, not in DOCS-INDEX                                          | Lint does not check handoffs/                          | —                                                   | Only docs/_.md and docs/research/_.md are scanned          |
+| 12  | Multiple FAILs in one run                                                                 | All FAILs printed, exit 1                              | —                                                   | Findings array accumulated, all reported at end            |
 
 ## Out of Scope
 

@@ -9,11 +9,11 @@
 
 真实证据（`content/qwen4-preview/scene-data.mjs`，当前全项目仅有的 3 条 b-roll prompt）：
 
-| Scene | NEGATIVE 实际写法 | 缺失 |
-|-------|------------------|------|
-| 5 | `no text, no letters, no hands` | watermark 防护 |
-| 6 | `no hands` | 文字防护 + watermark 防护 |
-| 8 | `no text, no watermark, no hands` | 无 |
+| Scene | NEGATIVE 实际写法                 | 缺失                      |
+| ----- | --------------------------------- | ------------------------- |
+| 5     | `no text, no letters, no hands`   | watermark 防护            |
+| 6     | `no hands`                        | 文字防护 + watermark 防护 |
+| 8     | `no text, no watermark, no hands` | 无                        |
 
 三条 prompt 的 NEGATIVE 互不一致，其中两条不完整。NEGATIVE 在本模板中是**固定默认值**（每个场景都该一样），是最不该出现人工差异的一维。
 
@@ -56,15 +56,16 @@ warn 而非 fail：维度不完整不阻断渲染，但必须出现在 HITL 审�
 - **空 prompt 不重复报错**。空或纯空白的 prompt 已由既有的 contract check 判为 fail，新检查直接跳过，避免同一问题两条输出。
 - **NEGATIVE 分三个语义组**，每组命中任一同义词即算覆盖：
 
-  | 组 | 代表词 | 同义词表 |
-  |----|--------|---------|
-  | TEXT | `no text` | `no letters`, `no words`, `no captions`, `no labels`, `no writing`, `no typography`, `no lettering`, `no signage` |
-  | HANDS | `no hands` | `no hand`, `no fingers`, `no people`, `no person` |
-  | ARTIFACT | `no watermark` | `no logo`, `no signature`, `no overlay` |
+  | 组       | 代表词         | 同义词表                                                                                                          |
+  | -------- | -------------- | ----------------------------------------------------------------------------------------------------------------- |
+  | TEXT     | `no text`      | `no letters`, `no words`, `no captions`, `no labels`, `no writing`, `no typography`, `no lettering`, `no signage` |
+  | HANDS    | `no hands`     | `no hand`, `no fingers`, `no people`, `no person`                                                                 |
+  | ARTIFACT | `no watermark` | `no logo`, `no signature`, `no overlay`                                                                           |
 
   `no watermark text` 不单独列入——`\bno watermark\b` 已经覆盖它，重复词条只会让词表看起来比实际更长。
 
   **不含 FACE 组**。当前三条真实 prompt 全部未声明 `no face`，若纳入则条条报警，warn 一旦成为常态即被忽略。FACE 留待真出现人脸问题时再加。
+
 - **匹配方式**：对 prompt 做小写归一，再按 `\b` 词边界匹配每个同义词。词边界是必需的——子串匹配会让 `no texture` 被误判为已覆盖 TEXT 组。
 - **数字检测**：对 prompt 做 `/\d/` 检测，命中即记为一个问题。不做「数据型 vs 数量型」的语义区分——边界模糊且规则脆弱；改为在 fix 文案里同时说明两种可能，把最终判断留给人。
 - **每 scene 一条输出**，detail 合并列出该 scene 的全部问题（缺失的组名 + 是否含数字）。不按问题拆成多条，避免刷屏。
@@ -103,12 +104,12 @@ warn 而非 fail：维度不完整不阻断渲染，但必须出现在 HITL 审�
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/scene-rules.mjs` | 新增一个纯函数校验 + 追加为 check 注册表数组最后一项 | Low | 纯追加，不改动任何既有检查的逻辑；注册表追加一项会改变 `runAllSceneDataChecks` 的返回内容，但下游 `verify-video.mjs` 按 level 处理任意 check 名，不感知新增。最坏后果：preflight 多出 warn 行，不阻断（exit code 只看 fail）。验证方式：全量单测 + `verify-video.mjs --pre` 跑真实 content 目录。 |
-| `scripts/short-video/__tests__/scene-rules.test.mjs` | 新增一个 describe 块 | Low | 追加到既有文件末尾区域，不修改任何现有断言。最坏后果：新测试失败，不影响被测代码。 |
-| `docs/video-workflow.md` | §“The 8-dimension prompt” 补充校验说明 | Low | Agent 消费文档，改动前按 AGENTS Workflow Router → Agent documents 加载 `writing-for-agents`。只追加一句约束说明，不改变既有规则的唯一权威来源。 |
-| `docs/issue-tracker.md` | Tier 3 表新增 #166 行；Conflict Matrix 的 `scene-rules.mjs` 行补登记 #166；对齐 #159 的 GitHub 实际状态 | Low | 文档状态同步，无代码影响。按 Triage Protocol 铁律：先更新 Tier/Matrix，再同步 Wave。 |
+| 文件                                                 | 修改内容                                                                                                | 风险等级 | 评估                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/scene-rules.mjs`            | 新增一个纯函数校验 + 追加为 check 注册表数组最后一项                                                    | Low      | 纯追加，不改动任何既有检查的逻辑；注册表追加一项会改变 `runAllSceneDataChecks` 的返回内容，但下游 `verify-video.mjs` 按 level 处理任意 check 名，不感知新增。最坏后果：preflight 多出 warn 行，不阻断（exit code 只看 fail）。验证方式：全量单测 + `verify-video.mjs --pre` 跑真实 content 目录。 |
+| `scripts/short-video/__tests__/scene-rules.test.mjs` | 新增一个 describe 块                                                                                    | Low      | 追加到既有文件末尾区域，不修改任何现有断言。最坏后果：新测试失败，不影响被测代码。                                                                                                                                                                                                                |
+| `docs/video-workflow.md`                             | §“The 8-dimension prompt” 补充校验说明                                                                  | Low      | Agent 消费文档，改动前按 AGENTS Workflow Router → Agent documents 加载 `writing-for-agents`。只追加一句约束说明，不改变既有规则的唯一权威来源。                                                                                                                                                   |
+| `docs/issue-tracker.md`                              | Tier 3 表新增 #166 行；Conflict Matrix 的 `scene-rules.mjs` 行补登记 #166；对齐 #159 的 GitHub 实际状态 | Low      | 文档状态同步，无代码影响。按 Triage Protocol 铁律：先更新 Tier/Matrix，再同步 Wave。                                                                                                                                                                                                              |
 
 冲突检查（改前已查 Conflict Risk Matrix）：本次只碰 `scene-rules.mjs`，该行现有登记为 #94（可能）+ #155，风险 🟢 低。**不碰 `lib/b-roll/*`**，因此与 #155 / #156 / #157 / #158 无文件冲突。
 
@@ -116,26 +117,26 @@ warn 而非 fail：维度不完整不阻断渲染，但必须出现在 HITL 审�
 
 每行都是 verification obligation，并明确 evidence 类型；确定且可自动验证的行为走 TDD，真实管线组合使用 runtime/real-data smoke。
 
-| # | Scenario | Expected Behavior | Risk | Evidence | Mitigation |
-|---|----------|-------------------|------|----------|------------|
-| 1 | `b-roll` scene，prompt 三组齐全且无数字 | 无输出（静默通过） | 过严会刷屏 | automated test | 用例断言返回空数组 |
-| 2 | `b-roll` scene，prompt 缺 ARTIFACT 组（真实 scene 5） | warn，detail 点名 `ARTIFACT` | — | automated test | 断言 detail 含组名与 scene id |
-| 3 | `asset-then-broll` scene，prompt 缺 TEXT + ARTIFACT（真实 scene 6） | warn，detail 同时点名两组 | 多组缺失的拼接可读性 | automated test | 每组逗号分隔，固定顺序 TEXT→HANDS→ARTIFACT |
-| 4 | `b-roll` scene，prompt 三组齐全且无数字（真实 scene 8） | 无输出 | — | automated test (real fixture) | 真实 fixture 断言 |
-| 5 | prompt 完全不含任何 NEGATIVE 词 | warn，列出全部三个缺失组 | — | automated test | 断言三个组名都在 detail 中 |
-| 6 | prompt 只含 HANDS 组 | warn，列出 TEXT + ARTIFACT | — | automated test | 同上 |
-| 7 | 无 `mediaStrategy` 且无 `aiVideo` 的普通 scene | 静默，不产生任何输出 | 违反 engaged 原则会污染所有内容的 preflight | automated test | 用不含 b-roll 字段的 mock scene 列表断言空 |
-| 8 | `mediaStrategy: "asset"` 但带 `aiVideo.prompt` | 静默（永不生成，不审） | 与既有 contract check 的语义保持一致 | automated test | 断言返回空 |
-| 9 | 生成策略但 `aiVideo.prompt` 为空串 | 跳过（交由既有 contract check 报 fail） | 同一问题两条输出会让人忽略 warn | automated test | 断言返回空，并加注释说明不重复报错的理由 |
-| 10 | 生成策略但 prompt 为纯空白 `"   "` | 同上，跳过 | trim 前判断会导致误报 | automated test | 先 trim 再判空 |
-| 11 | prompt 含 `no texture` | 不得计为 TEXT 组已覆盖 | 子串匹配误报，掩盖真实缺口 | automated test | 词边界匹配 `\bno text\b`；专门用例保护 |
-| 12 | prompt 含大写 `No Hands` | 识别为 HANDS 组已覆盖 | 大小写敏感导致误报 | automated test | 匹配前小写归一；专门用例保护 |
-| 13 | prompt 含 `no hand`（单数） | 识别为 HANDS 组已覆盖 | 词表单数复数不全 | automated test | 同义词表含单复数 |
-| 14 | prompt 含阿拉伯数字（如 `8.6x faster`） | warn，提示数据值应进 `texts` 层 | — | automated test | 断言 detail 提到数字 |
-| 15 | prompt 含元素数量的阿拉伯数字（如 `3 glowing layers`） | warn（提示级，文案说明可忽略） | 误报训练人忽略 warn | automated test | 已接受该代价；fix 文案同时说明两种可能 |
-| 16 | prompt 用英文数词（`Two parallel lanes`） | 不报数字问题 | 过度检测会误伤合法视觉描述 | automated test | 只检测 `\d`，不检测英文数词；真实 scene 8 覆盖此例 |
-| 17 | 同一 prompt 既缺组又含数字 | **一条** warn，detail 合并两类问题 | 拆多条会刷屏 | automated test | 断言结果数组长度为 1 且 detail 同时含两类信息 |
-| 18 | 多个 scene 各自有问题 | 每个 scene 一条 warn，互不干扰 | 结果顺序影响快照类断言 | automated test | 按 scene 在数组中的原顺序输出 |
-| 19 | 新检查注册进共享入口 | 调用该入口即可获得新检查结果 | 忘记注册则检查永不生效 | automated integration test | 沿用既有「is wired into runAllSceneDataChecks」测试模式 |
-| 20 | 真实 `qwen4-preview` scene 列表全量跑 | scene 5 warn / scene 6 warn / scene 8 静默 | prompt 被补全后此断言会失效 | automated test (real fixture) | 断言时写明这是当前状态的固化，补全 prompt 时需同步更新预期 |
-| 21 | `verify-video.mjs --pre` 跑 `qwen4-preview` | 新增 2 条 warn，exit code 仍为 0 | warn 若意外阻断会卡住管线 | runtime/real-data smoke | 运行时验证 exit code 与 WARN 计数 |
+| #   | Scenario                                                            | Expected Behavior                          | Risk                                        | Evidence                      | Mitigation                                                 |
+| --- | ------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------- | ----------------------------- | ---------------------------------------------------------- |
+| 1   | `b-roll` scene，prompt 三组齐全且无数字                             | 无输出（静默通过）                         | 过严会刷屏                                  | automated test                | 用例断言返回空数组                                         |
+| 2   | `b-roll` scene，prompt 缺 ARTIFACT 组（真实 scene 5）               | warn，detail 点名 `ARTIFACT`               | —                                           | automated test                | 断言 detail 含组名与 scene id                              |
+| 3   | `asset-then-broll` scene，prompt 缺 TEXT + ARTIFACT（真实 scene 6） | warn，detail 同时点名两组                  | 多组缺失的拼接可读性                        | automated test                | 每组逗号分隔，固定顺序 TEXT→HANDS→ARTIFACT                 |
+| 4   | `b-roll` scene，prompt 三组齐全且无数字（真实 scene 8）             | 无输出                                     | —                                           | automated test (real fixture) | 真实 fixture 断言                                          |
+| 5   | prompt 完全不含任何 NEGATIVE 词                                     | warn，列出全部三个缺失组                   | —                                           | automated test                | 断言三个组名都在 detail 中                                 |
+| 6   | prompt 只含 HANDS 组                                                | warn，列出 TEXT + ARTIFACT                 | —                                           | automated test                | 同上                                                       |
+| 7   | 无 `mediaStrategy` 且无 `aiVideo` 的普通 scene                      | 静默，不产生任何输出                       | 违反 engaged 原则会污染所有内容的 preflight | automated test                | 用不含 b-roll 字段的 mock scene 列表断言空                 |
+| 8   | `mediaStrategy: "asset"` 但带 `aiVideo.prompt`                      | 静默（永不生成，不审）                     | 与既有 contract check 的语义保持一致        | automated test                | 断言返回空                                                 |
+| 9   | 生成策略但 `aiVideo.prompt` 为空串                                  | 跳过（交由既有 contract check 报 fail）    | 同一问题两条输出会让人忽略 warn             | automated test                | 断言返回空，并加注释说明不重复报错的理由                   |
+| 10  | 生成策略但 prompt 为纯空白 `"   "`                                  | 同上，跳过                                 | trim 前判断会导致误报                       | automated test                | 先 trim 再判空                                             |
+| 11  | prompt 含 `no texture`                                              | 不得计为 TEXT 组已覆盖                     | 子串匹配误报，掩盖真实缺口                  | automated test                | 词边界匹配 `\bno text\b`；专门用例保护                     |
+| 12  | prompt 含大写 `No Hands`                                            | 识别为 HANDS 组已覆盖                      | 大小写敏感导致误报                          | automated test                | 匹配前小写归一；专门用例保护                               |
+| 13  | prompt 含 `no hand`（单数）                                         | 识别为 HANDS 组已覆盖                      | 词表单数复数不全                            | automated test                | 同义词表含单复数                                           |
+| 14  | prompt 含阿拉伯数字（如 `8.6x faster`）                             | warn，提示数据值应进 `texts` 层            | —                                           | automated test                | 断言 detail 提到数字                                       |
+| 15  | prompt 含元素数量的阿拉伯数字（如 `3 glowing layers`）              | warn（提示级，文案说明可忽略）             | 误报训练人忽略 warn                         | automated test                | 已接受该代价；fix 文案同时说明两种可能                     |
+| 16  | prompt 用英文数词（`Two parallel lanes`）                           | 不报数字问题                               | 过度检测会误伤合法视觉描述                  | automated test                | 只检测 `\d`，不检测英文数词；真实 scene 8 覆盖此例         |
+| 17  | 同一 prompt 既缺组又含数字                                          | **一条** warn，detail 合并两类问题         | 拆多条会刷屏                                | automated test                | 断言结果数组长度为 1 且 detail 同时含两类信息              |
+| 18  | 多个 scene 各自有问题                                               | 每个 scene 一条 warn，互不干扰             | 结果顺序影响快照类断言                      | automated test                | 按 scene 在数组中的原顺序输出                              |
+| 19  | 新检查注册进共享入口                                                | 调用该入口即可获得新检查结果               | 忘记注册则检查永不生效                      | automated integration test    | 沿用既有「is wired into runAllSceneDataChecks」测试模式    |
+| 20  | 真实 `qwen4-preview` scene 列表全量跑                               | scene 5 warn / scene 6 warn / scene 8 静默 | prompt 被补全后此断言会失效                 | automated test (real fixture) | 断言时写明这是当前状态的固化，补全 prompt 时需同步更新预期 |
+| 21  | `verify-video.mjs --pre` 跑 `qwen4-preview`                         | 新增 2 条 warn，exit code 仍为 0           | warn 若意外阻断会卡住管线                   | runtime/real-data smoke       | 运行时验证 exit code 与 WARN 计数                          |

@@ -12,7 +12,7 @@ The following areas are **immutable** — do not move, rename, or restructure wi
 
 ### 1. Route files — `src/routes/`
 
-TanStack Start uses **file-based routing**. The file tree under `src/routes/` *is* the route tree.
+TanStack Start uses **file-based routing**. The file tree under `src/routes/` _is_ the route tree.
 
 - `src/routes/__root.tsx` — root layout, must render `<Outlet />`
 - `src/routes/_authenticated/` — auth-gated layout route; `route.tsx` inside it handles `requireSupabaseAuth`
@@ -20,6 +20,7 @@ TanStack Start uses **file-based routing**. The file tree under `src/routes/` *i
 - `src/routes/api/public/*` — public API routes that bypass auth
 
 Do **not**:
+
 - Introduce `react-router-dom`, `BrowserRouter`, or Next.js/Remix routing
 - Hand-edit the generated `src/routeTree.gen.ts`
 - Move route files to a different directory

@@ -18,10 +18,7 @@ export function ZhipuFinancialsView() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {METRICS.map((m) => (
-          <div
-            key={m.label}
-            className="rounded-lg border border-border/50 bg-muted/30 p-3"
-          >
+          <div key={m.label} className="rounded-lg border border-border/50 bg-muted/30 p-3">
             <div className="flex items-baseline justify-between">
               <span className="text-xs text-muted-foreground">{m.label}</span>
               {m.trend !== "—" && (

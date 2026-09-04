@@ -10,6 +10,7 @@
 
 VLM 选型已完成多轮测试（R1-R6）。当前生产用 Qwen3-VL-2B-4bit (mlx-vlm)。
 用户提出两个方向：
+
 1. **Cascade Router**: 复杂图片路由到 GLM-4.1V-9B 做深度分析
 2. **Qwen3.5 多尺寸测试**: 验证 Qwen3.5 系列是否有更好的选项
 
@@ -17,42 +18,43 @@ VLM 选型已完成多轮测试（R1-R6）。当前生产用 Qwen3-VL-2B-4bit (m
 
 ### GLM-4.1V-9B-Thinking-4bit（已测，R6）
 
-| 维度 | 值 |
-|------|-----|
-| 许可证 | **MIT**（完全开源，可商用） |
-| 架构 | glm4v（mlx-vlm 原生支持） |
-| 参数量 | 9B |
-| 4bit 磁盘 | 6.6GB |
-| 加载时间 | 7.4s |
-| 推理速度 | 28.5s/image (avg) |
-| 峰值内存 | 1.1GB |
-| Thinking 链 | ✅ 完整推理过程 |
-| 中文识别 | ✅ 识别品牌名 |
-| 视频支持 | ✅ 架构支持（未实测） |
+| 维度        | 值                          |
+| ----------- | --------------------------- |
+| 许可证      | **MIT**（完全开源，可商用） |
+| 架构        | glm4v（mlx-vlm 原生支持）   |
+| 参数量      | 9B                          |
+| 4bit 磁盘   | 6.6GB                       |
+| 加载时间    | 7.4s                        |
+| 推理速度    | 28.5s/image (avg)           |
+| 峰值内存    | 1.1GB                       |
+| Thinking 链 | ✅ 完整推理过程             |
+| 中文识别    | ✅ 识别品牌名               |
+| 视频支持    | ✅ 架构支持（未实测）       |
 
 ### GLM-5.3-Flash（最新，但不可用）
 
-| 维度 | 值 |
-|------|-----|
-| 许可证 | MIT（完全开源） |
-| 架构 | glm5_next（**mlx-vlm 不支持**） |
-| 类型 | MoE 大模型（62 个 shard） |
-| 2-bit 量化 | **135GB**（不可能在 32GB Mac 上跑） |
-| MLX 版 | orcarouter/GLM-5.3-Flash-MLX（有 2/3/4/6-bit 变体） |
-| 状态 | ❌ 等 mlx-vlm 支持 glm5_next 架构 |
+| 维度       | 值                                                  |
+| ---------- | --------------------------------------------------- |
+| 许可证     | MIT（完全开源）                                     |
+| 架构       | glm5_next（**mlx-vlm 不支持**）                     |
+| 类型       | MoE 大模型（62 个 shard）                           |
+| 2-bit 量化 | **135GB**（不可能在 32GB Mac 上跑）                 |
+| MLX 版     | orcarouter/GLM-5.3-Flash-MLX（有 2/3/4/6-bit 变体） |
+| 状态       | ❌ 等 mlx-vlm 支持 glm5_next 架构                   |
 
 ### GLM-5.2-Vision
 
-| 维度 | 值 |
-|------|-----|
-| 许可证 | MIT |
-| 架构 | glm5v（**mlx-vlm 不支持**） |
+| 维度   | 值                                                           |
+| ------ | ------------------------------------------------------------ |
+| 许可证 | MIT                                                          |
+| 架构   | glm5v（**mlx-vlm 不支持**）                                  |
 | 量化版 | baseten/GLM-5.2-Vision-NVFP4（NVFP4 格式，需 Blackwell GPU） |
-| 状态 | ❌ 不适用 Apple Silicon |
+| 状态   | ❌ 不适用 Apple Silicon                                      |
 
 ### 结论
 
 GLM 全系列都是 **MIT 许可证**，完全开源。但最新的 GLM-5 系列：
+
 1. 是 MoE 大模型，2-bit 量化都 135GB，不可能在 32GB Mac 上跑
 2. 使用 `glm5_next` / `glm5v` 架构，mlx-vlm 不支持
 3. MLX 量化版（orcarouter）存在但无法加载
@@ -60,6 +62,7 @@ GLM 全系列都是 **MIT 许可证**，完全开源。但最新的 GLM-5 系列
 ### GLM-4.5V 补充调研（2026-08-27）
 
 GLM-4.5V 是比 4.1V 更新的视觉版本，mlx-vlm 有完整 `glm4v_moe` 实现：
+
 - 架构：`glm4v_moe`（MoE，激活 8 专家/token）
 - mlx-vlm 支持：✅ 完整（`mlx_vlm/models/glm4v_moe/` 有 config + language + vision + processing）
 - 最小量化：3-bit MLX = **45.2GB**
@@ -72,10 +75,10 @@ GLM-4.5V 是比 4.1V 更新的视觉版本，mlx-vlm 有完整 `glm4v_moe` 实�
 
 ### 核心思路
 
-| 路径 | 模型 | 速度 | 适用场景 |
-|------|------|------|---------|
-| Fast | Qwen3-VL-2B-4bit | ~3s/image | 标准图片（product demo, skyline, chart） |
-| Deep | GLM-4.1V-9B-Thinking-4bit | ~28s/image | Router 标记的复杂图片 |
+| 路径 | 模型                      | 速度       | 适用场景                                 |
+| ---- | ------------------------- | ---------- | ---------------------------------------- |
+| Fast | Qwen3-VL-2B-4bit          | ~3s/image  | 标准图片（product demo, skyline, chart） |
+| Deep | GLM-4.1V-9B-Thinking-4bit | ~28s/image | Router 标记的复杂图片                    |
 
 ### Router 信号（should_escalate）
 
@@ -110,12 +113,12 @@ Ollama 跑视觉模型比 mlx-vlm 慢 5-7 倍且不支持视频 API。**不适�
 
 用 mlx-vlm 框架做公平对比（同一 corpus、同一预处理、同一 prompt）。详见 benchmark §11。
 
-| 维度 | Qwen3-VL-2B-4bit | Qwen3.5-4B-MLX-4bit | 结论 |
-|------|-----------------|---------------------|------|
-| 推理速度 | **4.7s/图** | 39.0s/图 | 8.3x 慢 |
-| Thinking 链 | ❌ 直接输出 | ✅ 但对 fit 判断无用 | 冗余 |
-| 内存 | 0.5GB | 0.6GB | 无差异 |
-| 质量 | 足够 | 不优于 2B | 无优势 |
+| 维度        | Qwen3-VL-2B-4bit | Qwen3.5-4B-MLX-4bit  | 结论    |
+| ----------- | ---------------- | -------------------- | ------- |
+| 推理速度    | **4.7s/图**      | 39.0s/图             | 8.3x 慢 |
+| Thinking 链 | ❌ 直接输出      | ✅ 但对 fit 判断无用 | 冗余    |
+| 内存        | 0.5GB            | 0.6GB                | 无差异  |
+| 质量        | 足够             | 不优于 2B            | 无优势  |
 
 **结论**：Qwen3.5-4B 不适合生产替换，也不适合 Cascade Router deep path（比 GLM-4.1V 更慢且无质量优势）。
 
@@ -126,14 +129,15 @@ Ollama 跑视觉模型比 mlx-vlm 慢 5-7 倍且不支持视频 API。**不适�
 
 ### Qwen3.5 其他尺寸
 
-| 尺寸 | 评估 |
-|------|------|
-| 2B | 与 Qwen3-VL-2B 同参数量，但 Qwen3.5 统一了 text+VL（不再有独立 VL 模型），MLX VLM 版只有第三方转换 |
-| 9B-MLX | 下载中未完成测试，但 R7 已确认 4B 比 GLM-4.1V 更慢（39s vs 28.5s），9B 只会更慢 |
+| 尺寸   | 评估                                                                                               |
+| ------ | -------------------------------------------------------------------------------------------------- |
+| 2B     | 与 Qwen3-VL-2B 同参数量，但 Qwen3.5 统一了 text+VL（不再有独立 VL 模型），MLX VLM 版只有第三方转换 |
+| 9B-MLX | 下载中未完成测试，但 R7 已确认 4B 比 GLM-4.1V 更慢（39s vs 28.5s），9B 只会更慢                    |
 
 ### 冒牌模型风险
 
 `QwennAI/Qwen3.9-245B-A29B` 是冒牌模型（author 是 `QwennAI` 不是 `Qwen`）：
+
 - 201 downloads, 2 likes
 - `pipeline_tag: text-generation`（不支持视觉）
 - 安装冒牌模型的风险：
@@ -149,6 +153,7 @@ Ollama 跑视觉模型比 mlx-vlm 慢 5-7 倍且不支持视频 API。**不适�
 从 R6 + R7 已有输出做结构化对比。LLM-as-Judge 盲评因 Ollama thinking chain 问题失败，改为手动分析。详见 benchmark §12。
 
 **关键发现**：
+
 1. **中文识别 GLM 明显更强**：GLM 识别中文原文"恒生"、"中国农业银行"、"宇树科技"、"峰达创意园"；Qwen3.5 用英文翻译"SRCB"、"China Agricultural Bank"或遗漏中文
 2. **描述精度相当**，Fit 判断一致
 3. **Thinking chain 风格不同但功能类似**
@@ -161,12 +166,12 @@ Ollama 跑视觉模型比 mlx-vlm 慢 5-7 倍且不支持视频 API。**不适�
 
 ### 新候选评估
 
-| 模型 | 类型 | 中文识别 | 结论 |
-|------|------|---------|------|
-| MiniMax H3 | 视频生成模型 | N/A | ❌ 不是 VLM，不做图像理解 |
-| FastVLM (Apple) | VLM 0.5-7B | ❌ 无数据 | ⚠️ 无中文支持数据 |
-| Moondream3 | VLM 9.27B MoE | ❌ 无数据 | ⚠️ 无中文支持数据 |
-| Phi-4 Multimodal | VLM 5.6B | ❌ 无数据 | ⚠️ MMMU 极低 (24.0) |
+| 模型             | 类型          | 中文识别  | 结论                      |
+| ---------------- | ------------- | --------- | ------------------------- |
+| MiniMax H3       | 视频生成模型  | N/A       | ❌ 不是 VLM，不做图像理解 |
+| FastVLM (Apple)  | VLM 0.5-7B    | ❌ 无数据 | ⚠️ 无中文支持数据         |
+| Moondream3       | VLM 9.27B MoE | ❌ 无数据 | ⚠️ 无中文支持数据         |
+| Phi-4 Multimodal | VLM 5.6B      | ❌ 无数据 | ⚠️ MMMU 极低 (24.0)       |
 
 **结论**：4 个新候选均不适合替代 GLM-4.1V-9B。pipeline 核心需求之一是中文品牌识别，只有 GLM-4.1V 在公开 benchmark 和实测中都验证了中文能力。详见 benchmark §13。
 

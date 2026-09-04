@@ -111,43 +111,43 @@ Store a `tiktok_url` on the post record. When present, the article page renders 
 
 ### Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `supabase/migrations/20260810120000_add_tiktok_url.sql` (NEW) | ADD COLUMN tiktok_url TEXT | Low | Pure additive, nullable, reversible |
-| `src/integrations/supabase/types.ts` | Add tiktok_url to posts types | Low | Optional field, no breaking |
-| `src/lib/posts.functions.ts` | Add tiktok_url to select, postInput, savePost | Medium | Server fn interface change. TS types auto-derive |
-| `src/components/tiktok-embed.tsx` (NEW) | TikTok embed component | Low | New file |
-| `src/routes/posts.$slug.tsx` | Delete video rendering, add TikTok embed | High | Core render path. Legacy video attachments no longer render (by design) |
-| `src/components/post-editor.tsx` | Add tiktokUrl field | Medium | Form interface change |
-| `scripts/short-video/publish-tiktok.mjs` | Add --slug, auto-save URL | Medium | Network polling, non-blocking |
-| `docs/content-pipeline.md` | Remove Stage 5a | Low | Documentation |
-| `docs/manual-ops.md` | Update references | Low | Documentation |
+| File                                                          | Modification                                  | Risk   | Assessment                                                              |
+| ------------------------------------------------------------- | --------------------------------------------- | ------ | ----------------------------------------------------------------------- |
+| `supabase/migrations/20260810120000_add_tiktok_url.sql` (NEW) | ADD COLUMN tiktok_url TEXT                    | Low    | Pure additive, nullable, reversible                                     |
+| `src/integrations/supabase/types.ts`                          | Add tiktok_url to posts types                 | Low    | Optional field, no breaking                                             |
+| `src/lib/posts.functions.ts`                                  | Add tiktok_url to select, postInput, savePost | Medium | Server fn interface change. TS types auto-derive                        |
+| `src/components/tiktok-embed.tsx` (NEW)                       | TikTok embed component                        | Low    | New file                                                                |
+| `src/routes/posts.$slug.tsx`                                  | Delete video rendering, add TikTok embed      | High   | Core render path. Legacy video attachments no longer render (by design) |
+| `src/components/post-editor.tsx`                              | Add tiktokUrl field                           | Medium | Form interface change                                                   |
+| `scripts/short-video/publish-tiktok.mjs`                      | Add --slug, auto-save URL                     | Medium | Network polling, non-blocking                                           |
+| `docs/content-pipeline.md`                                    | Remove Stage 5a                               | Low    | Documentation                                                           |
+| `docs/manual-ops.md`                                          | Update references                             | Low    | Documentation                                                           |
 
 ### Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | tiktok_url null | No embed, no embed.js loaded | Low | Conditional render |
-| 2 | tiktok_url empty string | Treated as null | Low | trim() check |
-| 3 | tiktok_url valid | Embed renders + embed.js loads | Low | Normal path |
-| 4 | tiktok_url invalid (non-TikTok) | Fallback link only | Medium | extractTikTokVideoId returns null |
-| 5 | embed.js network failure | Fallback link visible | Low | TikTok official design |
-| 6 | TikTok video deleted | Fallback link clickable (may 404) | Medium | Acceptable degradation |
-| 7 | tiktok_url + non-video attachments | Both sections render | Low | Independent conditional |
-| 8 | tiktok_url + old video attachments | Only TikTok embed renders | Low | isVideo() deleted |
-| 9 | No tiktok_url + non-video attachments | Only Attachments section | Low | Normal path |
-| 10 | No tiktok_url + no attachments | Neither section renders | Low | Normal path |
-| 11 | Admin sets tiktok_url → save → publish | DB stores, page shows embed | Low | savePost accepts tiktokUrl |
-| 12 | Admin clears tiktok_url → save | DB stores null, no embed | Low | Empty → null |
-| 13 | publish-tiktok --slug, published within 2.5min | Auto-save URL to DB | Medium | Poll 5×30s |
-| 14 | publish-tiktok --slug, timeout | Warning printed, non-blocking | Medium | Acceptable |
-| 15 | publish-tiktok without --slug | Normal publish, no auto-save | Low | --slug optional |
-| 16 | Supabase REST fail during auto-save | Warning, publish succeeds | Medium | try/catch non-blocking |
-| 17 | postedId null after publish | Skip save, warning | Medium | Check before construct |
-| 18 | Concurrent auto-save + manual set | last-write-wins | Low | Acceptable |
-| 19 | SSR conditional embed.js | Only loads when tiktok_url exists | Medium | head() scripts conditional push |
-| 20 | getPublishedPost returns tiktok_url | Frontend consumes correctly | Low | TS auto-derive |
-| 21 | Manual TikTok upload | Admin pastes URL → embed shows | Low | Q5 path |
+| #   | Scenario                                       | Expected Behavior                 | Risk   | Mitigation                        |
+| --- | ---------------------------------------------- | --------------------------------- | ------ | --------------------------------- |
+| 1   | tiktok_url null                                | No embed, no embed.js loaded      | Low    | Conditional render                |
+| 2   | tiktok_url empty string                        | Treated as null                   | Low    | trim() check                      |
+| 3   | tiktok_url valid                               | Embed renders + embed.js loads    | Low    | Normal path                       |
+| 4   | tiktok_url invalid (non-TikTok)                | Fallback link only                | Medium | extractTikTokVideoId returns null |
+| 5   | embed.js network failure                       | Fallback link visible             | Low    | TikTok official design            |
+| 6   | TikTok video deleted                           | Fallback link clickable (may 404) | Medium | Acceptable degradation            |
+| 7   | tiktok_url + non-video attachments             | Both sections render              | Low    | Independent conditional           |
+| 8   | tiktok_url + old video attachments             | Only TikTok embed renders         | Low    | isVideo() deleted                 |
+| 9   | No tiktok_url + non-video attachments          | Only Attachments section          | Low    | Normal path                       |
+| 10  | No tiktok_url + no attachments                 | Neither section renders           | Low    | Normal path                       |
+| 11  | Admin sets tiktok_url → save → publish         | DB stores, page shows embed       | Low    | savePost accepts tiktokUrl        |
+| 12  | Admin clears tiktok_url → save                 | DB stores null, no embed          | Low    | Empty → null                      |
+| 13  | publish-tiktok --slug, published within 2.5min | Auto-save URL to DB               | Medium | Poll 5×30s                        |
+| 14  | publish-tiktok --slug, timeout                 | Warning printed, non-blocking     | Medium | Acceptable                        |
+| 15  | publish-tiktok without --slug                  | Normal publish, no auto-save      | Low    | --slug optional                   |
+| 16  | Supabase REST fail during auto-save            | Warning, publish succeeds         | Medium | try/catch non-blocking            |
+| 17  | postedId null after publish                    | Skip save, warning                | Medium | Check before construct            |
+| 18  | Concurrent auto-save + manual set              | last-write-wins                   | Low    | Acceptable                        |
+| 19  | SSR conditional embed.js                       | Only loads when tiktok_url exists | Medium | head() scripts conditional push   |
+| 20  | getPublishedPost returns tiktok_url            | Frontend consumes correctly       | Low    | TS auto-derive                    |
+| 21  | Manual TikTok upload                           | Admin pastes URL → embed shows    | Low    | Q5 path                           |
 
 ### Cross-Step Interface Contracts
 

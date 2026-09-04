@@ -8,11 +8,13 @@
 **Dependencies**: None (foundation)
 
 **Deliverables**:
+
 - [ ] `scripts/short-video/lib/url-normalizer.mjs` — `canonicalizeUrl(url)` sync function
 - [ ] `scripts/short-video/lib/video-downloaders.mjs` — module skeleton with DownloadResult JSDoc typedef + exports
 - [ ] `scripts/short-video/__tests__/video-downloaders.test.mjs` — test file created
 
 **Tests (red → green)**:
+
 - [ ] `canonicalizeUrl` strips query string and fragment
 - [ ] `canonicalizeUrl` normalizes http:// to https://
 - [ ] `canonicalizeUrl` normalizes trailing slash
@@ -26,12 +28,14 @@
 **Dependencies**: T-VDL-1 (needs canonicalizeUrl + DownloadResult)
 
 **Deliverables**:
+
 - [ ] `selectStrategy(url, options)` function in `video-downloaders.mjs`
 - [ ] Priority routing: direct-media → ytdlp → cobalt → unsupported
 - [ ] Direct media URL detection (`.mp4` extension + known CDN domains)
 - [ ] YouTube/B站 URL detection
 
 **Tests**:
+
 - [ ] Direct media URL (.mp4) → selects direct-http strategy (VD-01)
 - [ ] YouTube URL → selects ytdlp strategy (VD-02)
 - [ ] B站 URL → selects ytdlp strategy
@@ -44,12 +48,14 @@
 **Dependencies**: T-VDL-1 (needs DownloadResult), T-VDL-2 (needs strategy selector)
 
 **Deliverables**:
+
 - [ ] `DirectHttpAdapter.download(url, {fetchFn})` — wraps downloadAsset pattern
 - [ ] `YtdlpAdapter.download(url)` — wraps downloadYtdlp pattern
 - [ ] Buffer validation: >1KB check, <20MB check (VD-13)
 - [ ] MIME validation: reject non-video/* (VD-14)
 
 **Tests**:
+
 - [ ] DirectHttp downloads .mp4 → returns {status:"downloaded"} with buffer (VD-01)
 - [ ] DirectHttp file <1KB → returns {status:"failed", reason:"file-too-small"}
 - [ ] DirectHttp file >20MB → returns {status:"skipped", reason:"exceeds-size-limit"} (VD-13)
@@ -62,6 +68,7 @@
 **Dependencies**: T-VDL-1 (needs DownloadResult), T-VDL-2 (needs strategy selector)
 
 **Deliverables**:
+
 - [ ] `CobaltAdapter` class with `preflight()` and `download()` methods
 - [ ] `GET /` preflight: fetch services list, version, turnstile check
 - [ ] `POST /` with full response state machine
@@ -70,6 +77,7 @@
 - [ ] Platform-in-services check before POST
 
 **Tests**:
+
 - [ ] Preflight success → adapter available, services cached (VD-04)
 - [ ] Preflight connection refused → adapter unavailable, returns skipped (VD-03)
 - [ ] Preflight returns turnstileSitekey → returns unsupported (VD-12)
@@ -91,6 +99,7 @@
 **Dependencies**: T-VDL-2, T-VDL-3, T-VDL-4
 
 **Deliverables**:
+
 - [ ] `downloadVideo(url, options)` — top-level orchestrator: canonicalize → selectStrategy → adapter.download → return DownloadResult
 - [ ] All adapters fail → return last failed result with attempted strategies (VD-11)
 - [ ] `.env.example` — add COBALT_API_URL + COBALT_API_KEY
@@ -98,6 +107,7 @@
 - [ ] Run full test suite — all tests green
 
 **Tests**:
+
 - [ ] downloadVideo(direct-media-url) → DirectHttpAdapter path (VD-01)
 - [ ] downloadVideo(youtube-url) → YtdlpAdapter path (VD-02)
 - [ ] downloadVideo(unknown-url, cobalt unavailable) → cobalt skipped, returns unsupported (VD-03, VD-11)

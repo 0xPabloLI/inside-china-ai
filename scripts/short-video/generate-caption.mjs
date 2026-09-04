@@ -87,7 +87,12 @@ async function main() {
     }
   }
   // Enrich metadata with primary entity + keyEntities + manual hashtag override
-  metadata = { ...(metadata || {}), primaryEntity, keyEntitiesCompanies, ...(metaHashtags ? { hashtags: metaHashtags } : {}) };
+  metadata = {
+    ...(metadata || {}),
+    primaryEntity,
+    keyEntitiesCompanies,
+    ...(metaHashtags ? { hashtags: metaHashtags } : {}),
+  };
 
   if (!scenes || scenes.length === 0) {
     console.error("❌ No scenes found in scene-data.mjs");

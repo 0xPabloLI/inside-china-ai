@@ -6,10 +6,13 @@
 ## FC-T1: Add branded matte layer to MediaBackground.tsx
 
 ### Dependencies
+
 - None (standalone change)
 
 ### Scope
+
 Modify `scripts/short-video/remotion/src/components/MediaBackground.tsx`:
+
 - [x] Add `AbsoluteFill` to imports from `"remotion"`
 - [x] Add `showBrandedMatte` computation: `media.type === "image" && isContain`
 - [x] Insert branded matte `AbsoluteFill` before `CanvasImage`/`Video`, using `opacity`
@@ -18,6 +21,7 @@ Modify `scripts/short-video/remotion/src/components/MediaBackground.tsx`:
 - [x] Matte is static (no scale/translate/filter)
 
 ### Acceptance Criteria (from Spec Scenario Matrix)
+
 - [x] FC-01: `image + contain` → brand gradient matte visible
 - [x] FC-02: `image + cover` (regression) → no matte
 - [x] FC-03: `image` no `fit` (default cover) (regression) → no matte
@@ -29,4 +33,5 @@ Modify `scripts/short-video/remotion/src/components/MediaBackground.tsx`:
 - [x] Pre-render: `verify-video.mjs --pre` passes for existing content
 
 ### Verification
+
 - [x] Render frame manual acceptance (scenarios 1-3 verified via pixel analysis; scenario 4 verified via code logic)

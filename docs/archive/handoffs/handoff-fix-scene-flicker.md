@@ -12,10 +12,10 @@ Almost every scene transition in the generated video has a visible "flicker" or 
 
 ## Files to Modify
 
-| File | Section | Change |
-|------|---------|--------|
-| `remotion/src/components/MediaBackground.tsx` | Line 75, opacity interpolation | Change exit fade: `[0, 1, 1, 1]` instead of `[0, 1, 1, 0]` — remove exit opacity ramp |
-| `remotion/src/ShortVideo.tsx` | Lines 65-90, `getTransition()` | Consider changing default from `fade()` to `none` for narrative→narrative, or keep `fade()` but reduce `TRANSITION_FRAMES` |
+| File                                          | Section                        | Change                                                                                                                     |
+| --------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `remotion/src/components/MediaBackground.tsx` | Line 75, opacity interpolation | Change exit fade: `[0, 1, 1, 1]` instead of `[0, 1, 1, 0]` — remove exit opacity ramp                                      |
+| `remotion/src/ShortVideo.tsx`                 | Lines 65-90, `getTransition()` | Consider changing default from `fade()` to `none` for narrative→narrative, or keep `fade()` but reduce `TRANSITION_FRAMES` |
 
 ## Recommended Fix
 

@@ -67,6 +67,7 @@ After #54 + #55 + #58: #59.
 ## Grilling decisions reference
 
 13 questions across 2 rounds, all settled:
+
 - Q1: Full merge (A)
 - Q2: Stock APIs join registry (A)
 - Q3: Both thumbnail + detail-page extraction (C)

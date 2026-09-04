@@ -48,25 +48,25 @@ collect all sources → allArticles.push(...)
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/trends-utils.mjs` | 新增 `dedupByUrl()` 函数 + import `canonicalizeUrl` | **Low** | 纯追加，不修改现有函数逻辑。`canonicalizeUrl` 是已有稳定函数（42 个 VDL 测试覆盖）。 |
-| `scripts/short-video/search-sources.mjs` | 在 `allArticles.push(...)` 循环后插入 `dedupByUrl()` 调用 + 日志 | **Medium** | 修改了数据流——`allArticles` 在进入 mode 分支前被去重。三个消费者（trend filterChinaAI / research scoped discovery / research legacy output）都会拿到更少的 article。但这是预期行为（去重是目的）。验证方式：现有测试不应回归。 |
+| 文件                                       | 修改内容                                                         | 风险等级   | 评估                                                                                                                                                                                                                           |
+| ------------------------------------------ | ---------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/short-video/lib/trends-utils.mjs` | 新增 `dedupByUrl()` 函数 + import `canonicalizeUrl`              | **Low**    | 纯追加，不修改现有函数逻辑。`canonicalizeUrl` 是已有稳定函数（42 个 VDL 测试覆盖）。                                                                                                                                           |
+| `scripts/short-video/search-sources.mjs`   | 在 `allArticles.push(...)` 循环后插入 `dedupByUrl()` 调用 + 日志 | **Medium** | 修改了数据流——`allArticles` 在进入 mode 分支前被去重。三个消费者（trend filterChinaAI / research scoped discovery / research legacy output）都会拿到更少的 article。但这是预期行为（去重是目的）。验证方式：现有测试不应回归。 |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | 2 articles, same URL, different sources | 1 article kept (first one) | Low | Set-based dedup by canonical URL |
-| 2 | 2 articles, same URL, different titles | 1 article kept (first one) | Low | URL dedup runs before title dedup; same URL = same article |
-| 3 | 2 articles, different URLs, same title | 2 articles kept | Low | URL dedup only removes exact URL matches; title dedup handles semantic dupes |
-| 4 | 2 articles, same URL with different query params | 1 article kept | Low | `canonicalizeUrl` strips query string |
-| 5 | 2 articles, same URL, one http:// one https:// | 1 article kept | Low | `canonicalizeUrl` normalizes http→https |
-| 6 | 2 articles, same URL, one with trailing slash one without | 1 article kept | Low | `canonicalizeUrl` normalizes trailing slash |
-| 7 | 2 articles, same URL, one with fragment (#section) | 1 article kept | Low | `canonicalizeUrl` strips fragment |
-| 8 | Article with empty/undefined URL | Kept, not deduped against other empty URLs | Medium | Empty URL → `canonicalizeUrl` returns `""` → skip dedup for this article |
-| 9 | All articles from one source, no URL duplicates | All kept, no change | Low | Set only removes exact canonical URL matches |
-| 10 | 0 articles | Empty array returned, no crash | Low | `dedupByUrl([])` returns `[]` |
-| 11 | Articles with same hostname but different paths | All kept | Low | Canonical URL includes path; different paths = different canonical |
-| 12 | Research mode: resultsBySource still has per-source counts | Per-source counts unchanged | Medium | `resultsBySource` built inside loop with per-source `articles`, not `allArticles` |
-| 13 | Trend mode: filterChinaAI receives deduped array | Yes — dedup runs before filter | Low | Single insertion point, all downstream consumers get deduped data |
+| #   | Scenario                                                   | Expected Behavior                          | Risk   | Mitigation                                                                        |
+| --- | ---------------------------------------------------------- | ------------------------------------------ | ------ | --------------------------------------------------------------------------------- |
+| 1   | 2 articles, same URL, different sources                    | 1 article kept (first one)                 | Low    | Set-based dedup by canonical URL                                                  |
+| 2   | 2 articles, same URL, different titles                     | 1 article kept (first one)                 | Low    | URL dedup runs before title dedup; same URL = same article                        |
+| 3   | 2 articles, different URLs, same title                     | 2 articles kept                            | Low    | URL dedup only removes exact URL matches; title dedup handles semantic dupes      |
+| 4   | 2 articles, same URL with different query params           | 1 article kept                             | Low    | `canonicalizeUrl` strips query string                                             |
+| 5   | 2 articles, same URL, one http:// one https://             | 1 article kept                             | Low    | `canonicalizeUrl` normalizes http→https                                           |
+| 6   | 2 articles, same URL, one with trailing slash one without  | 1 article kept                             | Low    | `canonicalizeUrl` normalizes trailing slash                                       |
+| 7   | 2 articles, same URL, one with fragment (#section)         | 1 article kept                             | Low    | `canonicalizeUrl` strips fragment                                                 |
+| 8   | Article with empty/undefined URL                           | Kept, not deduped against other empty URLs | Medium | Empty URL → `canonicalizeUrl` returns `""` → skip dedup for this article          |
+| 9   | All articles from one source, no URL duplicates            | All kept, no change                        | Low    | Set only removes exact canonical URL matches                                      |
+| 10  | 0 articles                                                 | Empty array returned, no crash             | Low    | `dedupByUrl([])` returns `[]`                                                     |
+| 11  | Articles with same hostname but different paths            | All kept                                   | Low    | Canonical URL includes path; different paths = different canonical                |
+| 12  | Research mode: resultsBySource still has per-source counts | Per-source counts unchanged                | Medium | `resultsBySource` built inside loop with per-source `articles`, not `allArticles` |
+| 13  | Trend mode: filterChinaAI receives deduped array           | Yes — dedup runs before filter             | Low    | Single insertion point, all downstream consumers get deduped data                 |

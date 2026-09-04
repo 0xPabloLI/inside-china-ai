@@ -68,7 +68,7 @@ transcript（那是 Atlas 检查点的功能），也不能证明归因正确（
 9. **amend 产生双 Session-Id 并使 commit 隐身**：对已含 `Session-Id: A` 的 commit 执行
    `--amend --no-edit --trailer "Session-Id: B"`（模拟 fresh context 修复未 push 的同任务
    commit），落库 message 含**两条** Session-Id；`%(trailers:key=Session-Id,valueonly,
-   separator=%x2C)` 输出 `A,B`，导致 §3.3 精确查询对 A 与 B **均返回空**——该 commit 对两个
+separator=%x2C)` 输出 `A,B`，导致 §3.3 精确查询对 A 与 B **均返回空**——该 commit 对两个
    会话都不可见，且不会报错。→ §3.5 新增唯一性硬规则。
 10. **compact 恢复命令并发歧义**：按日期取最新 commit 的恢复命令（`--grep <日期> ... -1`）
     返回的是**最新** commit 的 id，在上述测试仓库中返回了另一会话的 `beeff00d` 而非本会话的
@@ -82,14 +82,15 @@ transcript（那是 Atlas 检查点的功能），也不能证明归因正确（
     本轮隔离 clone 实测复核（新建一个源仓库忠实复刻本仓库结构：`.githooks/`、
     `scripts/pre-commit.sh`、安装脚本；再从源仓库 clone 出目标仓库）：
 
-    | 场景 | `core.hooksPath` | 安装脚本目标 `.git/hooks/pre-commit` | 实际生效的 hook |
-    |---|---|---|---|
-    | 当前 checkout（已配置） | `.githooks` | 写入但**从不执行** | `.githooks/` |
-    | 新 clone（未配置） | 空 | 写入且**正是生效路径** | `.git/hooks/` |
+    | 场景                    | `core.hooksPath` | 安装脚本目标 `.git/hooks/pre-commit` | 实际生效的 hook |
+    | ----------------------- | ---------------- | ------------------------------------ | --------------- |
+    | 当前 checkout（已配置） | `.githooks`      | 写入但**从不执行**                   | `.githooks/`    |
+    | 新 clone（未配置）      | 空               | 写入且**正是生效路径**               | `.git/hooks/`   |
 
     真实问题不是"新 clone 失效"，而是**同一仓库有两套互斥机制**：`.githooks/` 随仓库分发但需
     手动激活，`scripts/install-git-hooks.sh` 自动激活但安装到不随仓库分发的 `.git/hooks/`，
     且两套机制互相遮蔽。→ §6 统一为单一入口。
+
 13. **`.githooks/` 被 `.gitignore` 整体忽略，只分发了 1/5 个 hook（v4 新增，实测）**：
     `.gitignore:135` 为 `.githooks/`；`ls-files` 在该目录仅返回 `.githooks/pre-commit`
     （force-add 遗留），`post-checkout`、`post-commit`、`post-merge`、`pre-push` 四个既未被
@@ -99,35 +100,37 @@ transcript（那是 Atlas 检查点的功能），也不能证明归因正确（
 14. **commit-msg hook 触发矩阵（v4 新增，实测；决定 §3.5/§7.2 的豁免范围）**：
     在 `core.hooksPath=.githooks` 且 `commit-msg` 校验"恰好一个 Session-Id"的测试仓库中：
 
-    | 操作 | commit-msg 是否触发 | 后果 |
-    |---|---|---|
-    | 普通 commit（带/不带 trailer） | 触发 | 按规则校验 |
-    | `commit --amend` | **触发**（实测 1 次；带 trailer 时通过） | 受约束，双 id 可被拦下 |
-    | revert 子命令（`--no-edit`） | **不触发** | 生成的 commit 无 Session-Id（实测确认为空） |
-    | revert 子命令（默认，开编辑器） | **不触发** | 同上——revert 从不调用 commit-msg |
-    | 本地 `merge --no-ff -m` | **触发** | 无 trailer 时**被拦截，merge 中止并留下 MERGE_HEAD** |
-    | cherry-pick（默认提交） | **不触发** | 新 commit **沿用原提交的 id**——归因错配且校验被跳过（v5 实测修正：v4 此处误记为"触发"；S19 已锁定该行为） |
-    | `cherry-pick --no-commit` 后普通 commit | 触发 | 正确路径：新 commit 归到本 session，正常校验 |
+    | 操作                                    | commit-msg 是否触发                      | 后果                                                                                                      |
+    | --------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+    | 普通 commit（带/不带 trailer）          | 触发                                     | 按规则校验                                                                                                |
+    | `commit --amend`                        | **触发**（实测 1 次；带 trailer 时通过） | 受约束，双 id 可被拦下                                                                                    |
+    | revert 子命令（`--no-edit`）            | **不触发**                               | 生成的 commit 无 Session-Id（实测确认为空）                                                               |
+    | revert 子命令（默认，开编辑器）         | **不触发**                               | 同上——revert 从不调用 commit-msg                                                                          |
+    | 本地 `merge --no-ff -m`                 | **触发**                                 | 无 trailer 时**被拦截，merge 中止并留下 MERGE_HEAD**                                                      |
+    | cherry-pick（默认提交）                 | **不触发**                               | 新 commit **沿用原提交的 id**——归因错配且校验被跳过（v5 实测修正：v4 此处误记为"触发"；S19 已锁定该行为） |
+    | `cherry-pick --no-commit` 后普通 commit | 触发                                     | 正确路径：新 commit 归到本 session，正常校验                                                              |
 
     结论：revert、cherry-pick（默认提交）与"平台服务端生成的 merge commit"是**绕过点**
     （不经过 hook；cherry-pick 还会把新 commit 错归到源 session）；但**本地
     生成的 merge commit 不豁免**——它经过 hook 且会被拦死。v3 §7.2 把 merge commit 笼统列为
     排除项，在启用 hook 后会直接卡住本地 merge，v4 已在 §7.2 区分。
+
 15. **校验口径：原始行匹配会误判，结构化解析不会（v4 新增，实测）**：对同一段 commit message，
     两种口径结果不同（`interpret-trailers --parse` vs `grep -c '^Session-Id: '`）：
 
-    | 用例 | 结构化解析 | 原始行匹配 | 判定 |
-    |---|---|---|---|
-    | 合法单值 | 1 条 | 1 | 一致 |
-    | 正文伪 trailer（`Session-Id: xxx` 未与末尾空行分隔） | **0 条（正确排除）** | **1（误判为合规）** | 行匹配**假阳性** |
-    | 空值 `Session-Id: `（带尾随空格） | 1 条、值为空 | **1（接受空值）** | 行匹配**假阳性** |
-    | 空值 `Session-Id:`（无空格） | 1 条、值为空 | 0 | 行匹配漏检（判为缺失而非非法） |
-    | 双值 | 2 条 | 2 | 一致 |
-    | prose 中出现 `Session-Id: was missing before` | 0 条 | 0 | 一致 |
+    | 用例                                                 | 结构化解析           | 原始行匹配          | 判定                           |
+    | ---------------------------------------------------- | -------------------- | ------------------- | ------------------------------ |
+    | 合法单值                                             | 1 条                 | 1                   | 一致                           |
+    | 正文伪 trailer（`Session-Id: xxx` 未与末尾空行分隔） | **0 条（正确排除）** | **1（误判为合规）** | 行匹配**假阳性**               |
+    | 空值 `Session-Id: `（带尾随空格）                    | 1 条、值为空         | **1（接受空值）**   | 行匹配**假阳性**               |
+    | 空值 `Session-Id:`（无空格）                         | 1 条、值为空         | 0                   | 行匹配漏检（判为缺失而非非法） |
+    | 双值                                                 | 2 条                 | 2                   | 一致                           |
+    | prose 中出现 `Session-Id: was missing before`        | 0 条                 | 0                   | 一致                           |
 
     两种假阳性都会让"应被拦下"的 commit 通过，直接架空 §7.4 的零容忍门槛。→ §3.5 改为结构化解析。
+
 16. **查询路径对上述边界用例是安全的（v4 新增，实测）**：§3.3 的 `%(trailers:key=Session-Id,
-    valueonly)` 属结构化提取，对事实 15 的全部用例均返回空——伪 trailer 与空值 commit 在任何
+valueonly)` 属结构化提取，对事实 15 的全部用例均返回空——伪 trailer 与空值 commit 在任何
     精确查询中都不可见，不会污染结果（实测查询伪 id 命中 0 行）。推论：空值/伪 trailer 的
     危害是**静默缺失**（与事实 9 的双 id 同型），要靠 §3.5 的写入端校验拦住，查询端补不回来。
 
@@ -243,10 +246,10 @@ commit 明确豁免（事实 14）——v3 表述为"每个 commit 必须且只�
 
 ## 4. 依赖模型（回应"无依赖"目标）
 
-| 环节 | 依赖 | 说明 |
-|---|---|---|
-| 查询端 | **零** | 查询用 log 子命令，与工具无关；历史在 Git 对象里，不依赖任何工具的会话存储存活 |
-| 写入端（软） | 工具遵守 AGENTS.md | ZCode 已实测读取；主流工具文献支持（"原生支持或经配置支持"，事实 7）；**中文/长尾工具未验证，逐个 smoke test**。不遵守的工具只是不写 trailer，优雅退化为现状 |
+| 环节                   | 依赖                                                                                                      | 说明                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 查询端                 | **零**                                                                                                    | 查询用 log 子命令，与工具无关；历史在 Git 对象里，不依赖任何工具的会话存储存活                                                                                                                                                                                                                                                                                                     |
+| 写入端（软）           | 工具遵守 AGENTS.md                                                                                        | ZCode 已实测读取；主流工具文献支持（"原生支持或经配置支持"，事实 7）；**中文/长尾工具未验证，逐个 smoke test**。不遵守的工具只是不写 trailer，优雅退化为现状                                                                                                                                                                                                                       |
 | 写入端（硬，可选升级） | 本机 `.git/config` 的 `core.hooksPath=.githooks` **且**未使用 `--no-verify` **且**该操作会调用 commit-msg | 只为**已配置 hooksPath、未加 `--no-verify`、且经过 commit-msg 的**操作提供**客户端级**校验。三重限制均有实测：`--no-verify` 可绕过（事实 11）；配置不随 clone 继承（事实 11）；revert 子命令根本不调用 commit-msg（事实 14）。它是纪律放大器，**不是安全边界、不是"任何人都绕不开"**。另注：hook 文件本身也只分发了 1/5（事实 13），在 §6.0 修好前连"clone 后手动激活即可"都不成立 |
 
 与 Atlas 的依赖对比：Atlas 依赖 ACP 协议 + 客户端托管运行 + 私有 SQLite；本方案查询端
@@ -263,15 +266,15 @@ commit 明确豁免（事实 14）——v3 表述为"每个 commit 必须且只�
 
 ## 6. 影响面
 
-| 文件 | 改动 | 下游影响 |
-|---|---|---|
-| `docs/agents/git-workflow.md` | §4.2 +1 例外条款（amend 只限本会话 id 的 commit）；新增写入/查询/恢复命令段；§8 +1 句（记录 id） | 所有会话 commit 行为（经 AGENTS.md 读取链，覆盖以 §7.1 实测为准） |
-| （仅当启用 hook）`.githooks/commit-msg` | 新增校验脚本，按 §3.5 的结构化口径校验"恰好一个且值合法" | 所有未加 `--no-verify` 且经过 commit-msg 的 commit（不含 revert，事实 14） |
-| （仅当启用 hook）`package.json` | 新增 `setup:hooks` 脚本，作为**唯一** hook 安装入口 | 替换现有两套互斥机制（事实 12） |
-| （仅当启用 hook）`scripts/install-git-hooks.sh` | 收敛为 `setup:hooks` 的实现体：改为设置 `core.hooksPath=.githooks`（幂等），**不再写入 `.git/hooks/`** | 消除"写入但不生效"的静默失败 |
-| （仅当启用 hook）`README.md` | §Install 的 hook 安装段改为统一入口；现行 `bash scripts/install-git-hooks.sh` 指引在**已配置 hooksPath 的 checkout 无效**（事实 12） | 新克隆环境与现有 checkout |
-| （仅当启用 hook）`.gitignore:135` | 移除 `.githooks/` 忽略规则（或改为只忽略非跟踪项），使 5 个 hook 全部随仓库分发 | 事实 13：当前只分发 1/5 |
-| （仅当启用 hook）hook 安装/校验测试 | 新增：验证 hooksPath 生效、§3.5 四个测试用例的判定、本地 merge 不被误拦 | CI 与本机 |
+| 文件                                            | 改动                                                                                                                                 | 下游影响                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `docs/agents/git-workflow.md`                   | §4.2 +1 例外条款（amend 只限本会话 id 的 commit）；新增写入/查询/恢复命令段；§8 +1 句（记录 id）                                     | 所有会话 commit 行为（经 AGENTS.md 读取链，覆盖以 §7.1 实测为准）          |
+| （仅当启用 hook）`.githooks/commit-msg`         | 新增校验脚本，按 §3.5 的结构化口径校验"恰好一个且值合法"                                                                             | 所有未加 `--no-verify` 且经过 commit-msg 的 commit（不含 revert，事实 14） |
+| （仅当启用 hook）`package.json`                 | 新增 `setup:hooks` 脚本，作为**唯一** hook 安装入口                                                                                  | 替换现有两套互斥机制（事实 12）                                            |
+| （仅当启用 hook）`scripts/install-git-hooks.sh` | 收敛为 `setup:hooks` 的实现体：改为设置 `core.hooksPath=.githooks`（幂等），**不再写入 `.git/hooks/`**                               | 消除"写入但不生效"的静默失败                                               |
+| （仅当启用 hook）`README.md`                    | §Install 的 hook 安装段改为统一入口；现行 `bash scripts/install-git-hooks.sh` 指引在**已配置 hooksPath 的 checkout 无效**（事实 12） | 新克隆环境与现有 checkout                                                  |
+| （仅当启用 hook）`.gitignore:135`               | 移除 `.githooks/` 忽略规则（或改为只忽略非跟踪项），使 5 个 hook 全部随仓库分发                                                      | 事实 13：当前只分发 1/5                                                    |
+| （仅当启用 hook）hook 安装/校验测试             | 新增：验证 hooksPath 生效、§3.5 四个测试用例的判定、本地 merge 不被误拦                                                              | CI 与本机                                                                  |
 
 不改动应用代码与现有 hooks。最坏后果：会话漏写 trailer，退化为现状。
 
@@ -319,15 +322,15 @@ v4 仍保持 2 处命令块（§3.2 写入、§3.3 查询）：§3.5 的结构�
 2. **eligible commit 定义**（v3 新增，v4 按事实 14 重排豁免边界）：试点只统计最终落库、由
    人或 agent 主动创建的普通 commit。
 
-   | 类别 | 是否 eligible | 依据（实测） |
-   |---|---|---|
-   | 普通 commit（人工或 agent） | ✅ 是 | commit-msg 会触发，可控 |
-   | `commit --amend` | ✅ 是 | commit-msg 会触发（事实 14） |
-   | cherry-pick 落地的 commit（默认提交） | ❌ 否 | **不触发 commit-msg** 且沿用原提交的 id——归因错配（v5 实测修正）；规则：`cherry-pick --no-commit` 后正常提交 |
-   | **revert commit** | ❌ 豁免 | revert 子命令**从不调用 commit-msg**（`--no-edit` 与编辑器模式实测均不触发），生成的 commit 无 Session-Id，无法也无需合规 |
-   | **平台服务端生成的 merge commit** | ❌ 豁免 | GitHub UI / PR merge 在服务端创建，不经过本地 hook |
-   | **本地 `merge --no-ff`** | ⚠️ **不豁免，需显式决策** | 实测 commit-msg **会触发**；无 trailer 时 merge 被拦死并留下 MERGE_HEAD。v3 把它笼统列为排除项是错的——启用 hook 后本地 merge 会直接卡住 |
-   | squash 前的中间 commit | ❌ 排除 | 不最终落库 |
+   | 类别                                  | 是否 eligible             | 依据（实测）                                                                                                                            |
+   | ------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+   | 普通 commit（人工或 agent）           | ✅ 是                     | commit-msg 会触发，可控                                                                                                                 |
+   | `commit --amend`                      | ✅ 是                     | commit-msg 会触发（事实 14）                                                                                                            |
+   | cherry-pick 落地的 commit（默认提交） | ❌ 否                     | **不触发 commit-msg** 且沿用原提交的 id——归因错配（v5 实测修正）；规则：`cherry-pick --no-commit` 后正常提交                            |
+   | **revert commit**                     | ❌ 豁免                   | revert 子命令**从不调用 commit-msg**（`--no-edit` 与编辑器模式实测均不触发），生成的 commit 无 Session-Id，无法也无需合规               |
+   | **平台服务端生成的 merge commit**     | ❌ 豁免                   | GitHub UI / PR merge 在服务端创建，不经过本地 hook                                                                                      |
+   | **本地 `merge --no-ff`**              | ⚠️ **不豁免，需显式决策** | 实测 commit-msg **会触发**；无 trailer 时 merge 被拦死并留下 MERGE_HEAD。v3 把它笼统列为排除项是错的——启用 hook 后本地 merge 会直接卡住 |
+   | squash 前的中间 commit                | ❌ 排除                   | 不最终落库                                                                                                                              |
 
    **本地 merge 决策（2026-09-03 用户已确认，选 (a)）**：hook 白名单放行自动生成的 merge
    message，本地 merge 与平台 merge 同为豁免。理由：merge 命令无法直接附加 trailer（事后
@@ -337,6 +340,7 @@ v4 仍保持 2 处命令块（§3.2 写入、§3.3 查询）：§3.5 的结构�
 
    **包含人工 commit**——人工与 agent 分列两栏统计，用于区分"工具覆盖率"与"人工合规率"，
    不合并成一个数字。
+
 3. **试点指标**（每会话统计）：eligible commit 总数（人工/agent 分列）、有效 trailer 数、
    **多 id commit 数**（应恒为 0，见 §3.3 违规检测）、**空值/伪 trailer commit 数**（应恒为 0，
    按 §3.5 结构化口径判定）、查询误命中数（按 §3.3 应为 0）、compact 后 id 恢复成功/失败次数。
@@ -359,14 +363,14 @@ v4 仍保持 2 处命令块（§3.2 写入、§3.3 查询）：§3.5 的结构�
    作为过渡兜底仍被 hook 接受。读仓库规则链的工具开工时按本节路径自行登记；不读规则链的
    工具由用户在开工时口头告知路径与规则，并代其登记。
 
-   | 字段 | 说明 |
-   |---|---|
-   | `tool` | 本次会话使用的 coding tool（用于 §7.1 覆盖表） |
-   | `Session-Id` | 本会话 id（含"恢复失败后新建"的情况） |
-   | `baseline` | 会话开始时的 baseline SHA |
-   | `commit_sha_list` | **本会话实际创建的全部 commit SHA**（无论是否带 trailer） |
-   | `eligible_count` | 上述列表中按 §7.2 判定为 eligible 的数量 |
-   | `compact_before` / `compact_after` | compact 前后的 id 状态（用于指标 5） |
+   | 字段                               | 说明                                                      |
+   | ---------------------------------- | --------------------------------------------------------- |
+   | `tool`                             | 本次会话使用的 coding tool（用于 §7.1 覆盖表）            |
+   | `Session-Id`                       | 本会话 id（含"恢复失败后新建"的情况）                     |
+   | `baseline`                         | 会话开始时的 baseline SHA                                 |
+   | `commit_sha_list`                  | **本会话实际创建的全部 commit SHA**（无论是否带 trailer） |
+   | `eligible_count`                   | 上述列表中按 §7.2 判定为 eligible 的数量                  |
+   | `compact_before` / `compact_after` | compact 前后的 id 状态（用于指标 5）                      |
 
    分母 = `eligible_count` 的合计（会话自报），分子 = 按 Session-Id 查询到的 commit 数。
    两者必须对得上：若某 SHA 在 `commit_sha_list` 中却查不到，即为漏写/多 id/空值之一，
@@ -436,6 +440,6 @@ v4 仍保持 2 处命令块（§3.2 写入、§3.3 查询）：§3.5 的结构�
    eligible commit，§3.1、§3.5、§7.2）；2 项 P2——hook 改用结构化解析（§3.5，事实 15/16）、
    试点漏写分母需采集方法（§7.6）。另据实测补充事实 13（hook 分发不全）、事实 14（commit-msg
    触发矩阵）与 §8 R8/R9/R10。
-7. 仓库内现状：`AGENTS.md`（Workflow Router 第 8 条）、`docs/agents/git-workflow.md`
+8. 仓库内现状：`AGENTS.md`（Workflow Router 第 8 条）、`docs/agents/git-workflow.md`
    （§4.2/§6/§8）、`README.md:131`、`.githooks/`（core.hooksPath 已配置）、
    `scripts/install-git-hooks.sh`、`docs/agents/proposal-review.md` §6。

@@ -30,16 +30,16 @@
 
 ### Requirements Coverage (Scenario Matrix)
 
-| ID | Spec Requirement | Implementation | Status |
-|----|-----------------|----------------|--------|
-| FC-01 | `image + contain` → brand gradient matte | `showBrandedMatte = media.type === "image" && isContain` → `AbsoluteFill` with `radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)` | ✅ |
-| FC-02 | `image + cover` (regression) → no matte | `isContain = false` when `fit === "cover"` | ✅ |
-| FC-03 | no `fit` field (default cover) (regression) → no matte | `media.fit ?? "cover"` → `isContain = false` | ✅ |
-| FC-04 | `video + contain` (regression) → no matte, bare `#0a0a14` | `showBrandedMatte = media.type === "image" && ...` → `false` for video | ✅ |
-| FC-06 | matte fades with image during transitions | `opacity` variable shared between `mediaStyle.opacity` and matte `AbsoluteFill` | ✅ |
-| FC-07/08 | matte is static (no scale/translate/filter) | matte `AbsoluteFill` only sets `background` + `opacity`, no `transform` | ✅ |
-| FC-09 | three-layer structure: matte → CanvasImage → overlay | JSX order: matte `AbsoluteFill` → `CanvasImage`/`Video` → overlay `div` | ✅ |
-| FC-10 | `mode:"fullscreen"` (overlay=0) → matte still renders | `showBrandedMatte` does not depend on `overlay` or `mode` | ✅ |
+| ID       | Spec Requirement                                          | Implementation                                                                                                                                | Status |
+| -------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| FC-01    | `image + contain` → brand gradient matte                  | `showBrandedMatte = media.type === "image" && isContain` → `AbsoluteFill` with `radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)` | ✅     |
+| FC-02    | `image + cover` (regression) → no matte                   | `isContain = false` when `fit === "cover"`                                                                                                    | ✅     |
+| FC-03    | no `fit` field (default cover) (regression) → no matte    | `media.fit ?? "cover"` → `isContain = false`                                                                                                  | ✅     |
+| FC-04    | `video + contain` (regression) → no matte, bare `#0a0a14` | `showBrandedMatte = media.type === "image" && ...` → `false` for video                                                                        | ✅     |
+| FC-06    | matte fades with image during transitions                 | `opacity` variable shared between `mediaStyle.opacity` and matte `AbsoluteFill`                                                               | ✅     |
+| FC-07/08 | matte is static (no scale/translate/filter)               | matte `AbsoluteFill` only sets `background` + `opacity`, no `transform`                                                                       | ✅     |
+| FC-09    | three-layer structure: matte → CanvasImage → overlay      | JSX order: matte `AbsoluteFill` → `CanvasImage`/`Video` → overlay `div`                                                                       | ✅     |
+| FC-10    | `mode:"fullscreen"` (overlay=0) → matte still renders     | `showBrandedMatte` does not depend on `overlay` or `mode`                                                                                     | ✅     |
 
 ### Non-Goals Compliance
 

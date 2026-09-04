@@ -57,9 +57,7 @@ describe("bigsong-api direct client (#90)", () => {
     const result = await searchXhs("AI芯片");
 
     const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://key.bigsong.site/v1/chat/completions",
-    );
+    expect(fetchMock.mock.calls[0][0]).toBe("https://key.bigsong.site/v1/chat/completions");
     expect(payload.model).toBe("dots-chat");
     expect(result.success).toBe(true);
   });

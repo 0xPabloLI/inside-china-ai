@@ -23,11 +23,11 @@
 
 ## Stage 0 补充的一手来源
 
-| 来源 | URL | 用途 |
-|------|-----|------|
-| Qwen 官方博客 | https://qwen.ai/blog?id=qwen3.8-flash-next | 所有数字的一手来源 |
-| Hugging Face 模型卡 | https://huggingface.co/Qwen/Qwen3.8-Flash-Next | 架构规格表 + 基准测试（2026-08-26T12:32 发布） |
-| GitHub 仓库 | https://github.com/QwenLM/Qwen3.8-Flash-Next | README + tech_report.pdf |
-| TechNode | https://technode.com/2026/08/26/alibabas-qwen-to-open-source-qwen3-8-flash-next-previewing-qwen4-architecture/ | 英文媒体佐证 |
-| The Decoder | https://the-decoder.com/alibaba-releases-qwen3-8-flash-next-targeting-ultimate-cost-efficiency/ | 英文媒体佐证 |
-| marktechpost | https://www.marktechpost.com/2026/08/26/alibabas-qwen-team-releases-qwen3-8-flash-next-a-125b-multimodal-moe-with-6b-active-parameters-previewing-the-qwen4-architecture/ | 英文媒体佐证 |
+| 来源                | URL                                                                                                                                                                       | 用途                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Qwen 官方博客       | https://qwen.ai/blog?id=qwen3.8-flash-next                                                                                                                                | 所有数字的一手来源                             |
+| Hugging Face 模型卡 | https://huggingface.co/Qwen/Qwen3.8-Flash-Next                                                                                                                            | 架构规格表 + 基准测试（2026-08-26T12:32 发布） |
+| GitHub 仓库         | https://github.com/QwenLM/Qwen3.8-Flash-Next                                                                                                                              | README + tech_report.pdf                       |
+| TechNode            | https://technode.com/2026/08/26/alibabas-qwen-to-open-source-qwen3-8-flash-next-previewing-qwen4-architecture/                                                            | 英文媒体佐证                                   |
+| The Decoder         | https://the-decoder.com/alibaba-releases-qwen3-8-flash-next-targeting-ultimate-cost-efficiency/                                                                           | 英文媒体佐证                                   |
+| marktechpost        | https://www.marktechpost.com/2026/08/26/alibabas-qwen-team-releases-qwen3-8-flash-next-a-125b-multimodal-moe-with-6b-active-parameters-previewing-the-qwen4-architecture/ | 英文媒体佐证                                   |

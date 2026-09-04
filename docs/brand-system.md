@@ -36,6 +36,7 @@ The website offers a user-toggleable dark mode (`ThemeToggle` component, persist
 **Physical scene**: A reader catching up on China AI dispatches at night, in a dim room, on a phone — the same reader who reads in daylight, now needs a low-light variant of the same magazine surface. Dark mode is a reading comfort feature, not an aesthetic choice.
 
 **Shared principles (both light + dark website)**:
+
 - Off-white foreground, never pure `#ffffff` — reduces glare on dark backgrounds (same rationale as video `#f5f5f5`)
 - Blue-tinted neutrals (hue 260) throughout — no warm drift in dark mode
 - Brand blue ≤10% of any surface — unchanged in dark mode
@@ -43,15 +44,15 @@ The website offers a user-toggleable dark mode (`ThemeToggle` component, persist
 
 **Dark mode palette** (defined in `src/styles.css`, `.dark` block; full token list in `DESIGN.md`):
 
-| Token | OKLCH | Semantic | WCAG AA |
-|-------|-------|----------|---------|
-| `--background` | `oklch(0.18 0.015 260)` | Dark Ink — blue-tinted near-black | — |
-| `--foreground` | `oklch(0.96 0.01 260)` | Off-white text | 16.75:1 vs bg |
-| `--card` | `oklch(0.25 0.02 260)` | Dark Card surface | ΔL 0.07 from bg |
-| `--muted` | `oklch(0.31 0.02 260)` | Code blocks, table headers | ΔL 0.06 from card |
-| `--muted-foreground` | `oklch(0.78 0.02 255)` | Secondary text, metadata | 9.41:1 vs bg |
-| `--border` | `oklch(1 0 0 / 20%)` | White at 20% opacity | — |
-| `--brand-foreground` | `oklch(0.78 0.15 260)` | Brand-colored text | 9.04:1 vs bg |
+| Token                | OKLCH                   | Semantic                          | WCAG AA           |
+| -------------------- | ----------------------- | --------------------------------- | ----------------- |
+| `--background`       | `oklch(0.18 0.015 260)` | Dark Ink — blue-tinted near-black | —                 |
+| `--foreground`       | `oklch(0.96 0.01 260)`  | Off-white text                    | 16.75:1 vs bg     |
+| `--card`             | `oklch(0.25 0.02 260)`  | Dark Card surface                 | ΔL 0.07 from bg   |
+| `--muted`            | `oklch(0.31 0.02 260)`  | Code blocks, table headers        | ΔL 0.06 from card |
+| `--muted-foreground` | `oklch(0.78 0.02 255)`  | Secondary text, metadata          | 9.41:1 vs bg      |
+| `--border`           | `oklch(1 0 0 / 20%)`    | White at 20% opacity              | —                 |
+| `--brand-foreground` | `oklch(0.78 0.15 260)`  | Brand-colored text                | 9.04:1 vs bg      |
 
 > **Why `oklch(0.78)` for muted-foreground, not `0.7`?** The previous value (L=0.7) passed WCAG AA mathematically (7.05:1) but felt perceptually dim on a near-black background. The impeccable design audit identified this as the dark-mode equivalent of "light gray for elegance" — the most common readability failure. L=0.78 gives 9.41:1 and a perceptually brighter secondary text without approaching foreground (0.96).
 
@@ -60,6 +61,7 @@ The website offers a user-toggleable dark mode (`ThemeToggle` component, persist
 > **Why ΔL 0.07 between background and card?** The previous ΔL of 0.04 was below the perceptible threshold (~0.05). Cards blended into the background, making the page feel "all black." ΔL 0.07 is above the threshold while maintaining the flat-elevation principle.
 
 **Content rules (dark mode overrides)**:
+
 - Blockquote text uses `--foreground` (not `--muted-foreground`) — blockquote is content, not metadata
 - Prose line-height increases from 1.75 to 1.85 — light text on dark backgrounds needs more breathing room (impeccable brand register guidance)
 
@@ -113,27 +115,28 @@ Font stack: `'Times New Roman', Times, serif`（**衬线渲染基准**）
 
 Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word highlighting using `\kf` tags. All values in actual pixels (PlayResX=1080, PlayResY=1920).
 
-| Property       | Value                                   |
-| -------------- | --------------------------------------- |
-| Font           | Helvetica Neue                          |
-| Font size      | 60px (matches TikTok native ~60px em, ≈3.1% of frame height) |
-| Weight         | Bold                                    |
-| Primary color  | Dispatch Blue (#4d8bff, ASS: &H00FF8B4D) — spoken words |
-| Secondary color| White (#F5F5F5, ASS: &H00F5F5F5) — unspoken words |
-| Outline        | Black, 3px (ASS: &H66000000, semi-transparent) |
-| Shadow         | 1px                                     |
-| Position       | Bottom-center (Alignment=2), in the 62–70% native-caption band |
-| Margin from bottom | 570px (cue bottom edge y=1350, above the TikTok caption zone) |
-| Margins L/R    | 110/250 (left-shifted to match content band center; cue right edge x=830, clears the action rail by 50px) |
-| Max lines      | 2 (single line preferred; worst-case wrap stays inside the reserved lane) |
-| Background     | None (transparent, text outline only)  |
-| Style          | Karaoke `\kt` + `\kf` (word-by-word highlight, absolute per-word anchors) |
-| Timing         | wav2vec2 forced alignment (`text-align.py`), per-word timestamps |
-| Generation     | `lib/subtitles/` (JS, see docs/video-workflow.md) |
+| Property           | Value                                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------- |
+| Font               | Helvetica Neue                                                                                            |
+| Font size          | 60px (matches TikTok native ~60px em, ≈3.1% of frame height)                                              |
+| Weight             | Bold                                                                                                      |
+| Primary color      | Dispatch Blue (#4d8bff, ASS: &H00FF8B4D) — spoken words                                                   |
+| Secondary color    | White (#F5F5F5, ASS: &H00F5F5F5) — unspoken words                                                         |
+| Outline            | Black, 3px (ASS: &H66000000, semi-transparent)                                                            |
+| Shadow             | 1px                                                                                                       |
+| Position           | Bottom-center (Alignment=2), in the 62–70% native-caption band                                            |
+| Margin from bottom | 570px (cue bottom edge y=1350, above the TikTok caption zone)                                             |
+| Margins L/R        | 110/250 (left-shifted to match content band center; cue right edge x=830, clears the action rail by 50px) |
+| Max lines          | 2 (single line preferred; worst-case wrap stays inside the reserved lane)                                 |
+| Background         | None (transparent, text outline only)                                                                     |
+| Style              | Karaoke `\kt` + `\kf` (word-by-word highlight, absolute per-word anchors)                                 |
+| Timing             | wav2vec2 forced alignment (`text-align.py`), per-word timestamps                                          |
+| Generation         | `lib/subtitles/` (JS, see docs/video-workflow.md)                                                         |
 
 All subtitle values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them. The subtitle lane (y≈1188–1350) is structurally separated from the content band (ends y=1150), so burned subtitles can never overlap scene content.
 
 ASS Style line:
+
 ```
 Style: Default,Helvetica Neue,60,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,110,250,570,1
 ```
@@ -159,6 +162,7 @@ All animations: `opacity: 0` initial, `forwards` fill mode. Stagger delays 0.3-0
 | `slideLeft` | 0.4-0.5s | cubic-bezier(0.16,1,0.3,1) | Cards, list items     |
 | `scaleIn`   | 0.5-0.6s | ease-out                   | Big numbers, key data |
 | `stampIn`   | 0.3-0.5s | ease-out                   | Verdicts (scale 2→1)  |
+
 ## Color Usage Guide (60-30-10 Principle)
 
 Based on TikTok color best practices research (2025-2026):
@@ -181,12 +185,12 @@ Based on TikTok color best practices research (2025-2026):
 
 ### Sizing Rules
 
-| Context | Logo (SVG container) | Company Name (text) | Weight | Color | Rationale |
-|---------|---------------------|---------------------|--------|-------|-----------|
-| **Hook scene (Scene 1)** | ≥ 120px | ≥ 80px | 900 | `--white` with brand-color glow | First 3s = 70% of completion. Logo must be readable at feed thumbnail size (~200px wide on phone). 120px on 1080px canvas = ~22px at thumbnail scale — minimum for recognition. |
-| **Featured scenes** (company is the topic) | ≥ 100px | ≥ 48px | 800 | `--white` or entity color | Mid-video reinforcement. Slightly smaller is OK since viewer already committed. |
-| **Comparison scenes** (company vs another) | ≥ 80px | ≥ 40px | 800 | Entity color | Two logos side by side, each can be slightly smaller. |
-| **Channel brand bar** (top-left, all scenes) | 48px | 24px ("CHINA AI NEWS") | 900 | `--white`, "AI" in `--blue` | Channel identity, not subject. Small and consistent — doesn't compete with content. |
+| Context                                      | Logo (SVG container) | Company Name (text)    | Weight | Color                           | Rationale                                                                                                                                                                       |
+| -------------------------------------------- | -------------------- | ---------------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hook scene (Scene 1)**                     | ≥ 120px              | ≥ 80px                 | 900    | `--white` with brand-color glow | First 3s = 70% of completion. Logo must be readable at feed thumbnail size (~200px wide on phone). 120px on 1080px canvas = ~22px at thumbnail scale — minimum for recognition. |
+| **Featured scenes** (company is the topic)   | ≥ 100px              | ≥ 48px                 | 800    | `--white` or entity color       | Mid-video reinforcement. Slightly smaller is OK since viewer already committed.                                                                                                 |
+| **Comparison scenes** (company vs another)   | ≥ 80px               | ≥ 40px                 | 800    | Entity color                    | Two logos side by side, each can be slightly smaller.                                                                                                                           |
+| **Channel brand bar** (top-left, all scenes) | 48px                 | 24px ("CHINA AI NEWS") | 900    | `--white`, "AI" in `--blue`     | Channel identity, not subject. Small and consistent — doesn't compete with content.                                                                                             |
 
 ### Placement Rules
 
@@ -199,18 +203,19 @@ Based on TikTok color best practices research (2025-2026):
 
 Same as color tokens — each company has a consistent semantic color:
 
-| Entity | Color | Token |
-|--------|-------|-------|
-| DeepSeek | Blue | `--blue` `#4d8bff` |
-| Huawei | Red | `--red` `#ef4444` |
-| Zhipu | Blue | `--blue` `#4d8bff` |
-| Baidu | Blue | `--blue` `#4d8bff` |
-| Alibaba | Amber | `--amber` `#f59e0b` |
-| Tencent | Green | `--green` `#34d399` |
+| Entity   | Color | Token               |
+| -------- | ----- | ------------------- |
+| DeepSeek | Blue  | `--blue` `#4d8bff`  |
+| Huawei   | Red   | `--red` `#ef4444`   |
+| Zhipu    | Blue  | `--blue` `#4d8bff`  |
+| Baidu    | Blue  | `--blue` `#4d8bff`  |
+| Alibaba  | Amber | `--amber` `#f59e0b` |
+| Tencent  | Green | `--green` `#34d399` |
 
 ### Compliance Check
 
 `verify-video.mjs` checks subject visibility in `checkSubjectVisibility()` (from `lib/scene-rules.mjs`):
+
 - **Warn** if no known company name appears in Scene 1's on-screen text
 - The warning is non-blocking (scene may use logo-only design), but if warned, the logo MUST meet the ≥120px sizing rule above
 
@@ -227,12 +232,12 @@ TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover c
 
 Calibrated against real FYP playback screenshots cross-checked with 2026 research. Full calibration history and OCR evidence: `docs/research/safe-zone-calibration-log.md`.
 
-| Zone | Inset (px, 1080×1920 canvas) | Content edge | Meaning |
-|------|------------------------------|--------------|---------|
-| Top | 220 | y ≥ 220 | Below this: top tabs/search overlays stay clear. Brand chrome (brandBar top:140, watermark top:60) is exempt. |
-| Right | 200 | x ≤ 880 | Right action rail (avatar/like/comment/save/share/music, y≈655–1775). brandBar right:200 matches. |
-| Bottom | 770 | y ≤ 1150 | Bottom UI: caption, progress bar; also clears the subtitle lane |
-| Left | 60 | x ≥ 60 | Left margin (no overlay, but content breathes here) |
+| Zone   | Inset (px, 1080×1920 canvas) | Content edge | Meaning                                                                                                       |
+| ------ | ---------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------- |
+| Top    | 220                          | y ≥ 220      | Below this: top tabs/search overlays stay clear. Brand chrome (brandBar top:140, watermark top:60) is exempt. |
+| Right  | 200                          | x ≤ 880      | Right action rail (avatar/like/comment/save/share/music, y≈655–1775). brandBar right:200 matches.             |
+| Bottom | 770                          | y ≤ 1150     | Bottom UI: caption, progress bar; also clears the subtitle lane                                               |
+| Left   | 60                           | x ≥ 60       | Left margin (no overlay, but content breathes here)                                                           |
 
 Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350, left-shifted to x∈[110,830]); the TikTok caption UI starts ~y1500.
 
@@ -380,7 +385,7 @@ When changing brand specs, update this file first, then update the implementatio
 
 ## Design Decisions & References
 
-| Topic | Reference | Content |
-|-------|-----------|---------|
-| Safe zone calibration | `docs/research/safe-zone-calibration-log.md` | FYP screenshot evidence, OCR measurements, calibration history |
-| TikTok color scheme | `docs/research/tiktok-color-scheme-research.md` | Dark vs bright palette engagement comparison |
+| Topic                 | Reference                                       | Content                                                        |
+| --------------------- | ----------------------------------------------- | -------------------------------------------------------------- |
+| Safe zone calibration | `docs/research/safe-zone-calibration-log.md`    | FYP screenshot evidence, OCR measurements, calibration history |
+| TikTok color scheme   | `docs/research/tiktok-color-scheme-research.md` | Dark vs bright palette engagement comparison                   |

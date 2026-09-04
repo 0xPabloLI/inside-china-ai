@@ -7,12 +7,14 @@
 **Status:** ready-for-agent
 
 动画组件（`src/components/animations/`）：
+
 - FadeIn, SlideUp, SlideLeft, ScaleIn, StampIn, SlideDown — 入场动画，props: `delay`（秒）、`duration`（秒）、`children`
 - PulseDot, NumberPulse, LogoPulse — 循环动画，props: `interval`（秒）、`children`
 - ScanSweep — 扫描线，props: `duration`（秒）
 - GlitchFlash — 多段 keyframe，用 `interpolate()` 的 `outputRange` 数组映射 0%→10%→20%→30%→40%→100%
 
 视觉组件（`src/components/`）：
+
 - BrandBar — 品牌栏（top:140, left:60, right:200，import BRAND_MARK_SVG via staticFile）
 - BreakingBadge — BREAKING 徽章 + 脉冲点
 - StatCard — 统计卡片（flex:1, border-top 色彩, slideUp 入场）

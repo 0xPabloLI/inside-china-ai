@@ -466,11 +466,9 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     // onto data-annotation-collision once it has evaluated the settled frame —
     // surfaced here so the hook-circle ratios can be pinned by tests.
     const measuredCollisionRatios: Record<string, unknown> = {};
-    for (
-      const el of Array.from(
-        document.querySelectorAll("[data-annotation-collision-source]"),
-      ) as HTMLElement[]
-    ) {
+    for (const el of Array.from(
+      document.querySelectorAll("[data-annotation-collision-source]"),
+    ) as HTMLElement[]) {
       const source = el.dataset.annotationCollisionSource;
       if (source && el.dataset.annotationCollision) {
         measuredCollisionRatios[source] = JSON.parse(el.dataset.annotationCollision);

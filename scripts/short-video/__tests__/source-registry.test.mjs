@@ -691,7 +691,8 @@ describe("MCP fallback configuration", () => {
 
   it("apiFallback resultMapper normalizes Bigsong list text", () => {
     const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    const text = '1. **Full text**: "DeepSeek新模型发布" **Author**: demo\n   **URL**: https://xhs.com/1\n2. **Full text**: "AI芯片突破" **Author**: demo\n   **URL**: https://xhs.com/2';
+    const text =
+      '1. **Full text**: "DeepSeek新模型发布" **Author**: demo\n   **URL**: https://xhs.com/1\n2. **Full text**: "AI芯片突破" **Author**: demo\n   **URL**: https://xhs.com/2';
     const mapped = xhs.apiFallback.resultMapper(text);
     expect(mapped).toHaveLength(2);
     expect(mapped[0].title).toContain("DeepSeek新模型");

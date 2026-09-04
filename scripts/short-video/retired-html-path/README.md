@@ -12,14 +12,14 @@ move**. The live pipeline fails fast on any attempt to opt back in
 (`--playwright` flag or `meta.renderer = "playwright"` — see
 `lib/renderer-guard.mjs`).
 
-| File                    | Former role                                                                |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `scene-templates.mjs`   | HTML scene templates (hook/cta/narrative/…) + shared brand chrome           |
-| `base-styles.mjs`       | Shared CSS bundle: keyframes, watermark, brand bar                          |
-| `record-scenes.mjs`     | Playwright headless recording of each scene HTML to WebM                    |
-| `verify-scene-dom.mjs`  | Step 2.5 DOM geometry gate (safe zones, overflow) — superseded by TextGate  |
-| `load-dom-config.mjs`   | Per-content `dom-config.mjs` loader for the DOM verifier                    |
-| `verify-template-sync.mjs` | CSS parity diff between HookScene.tsx and the HTML template              |
+| File                       | Former role                                                                |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `scene-templates.mjs`      | HTML scene templates (hook/cta/narrative/…) + shared brand chrome          |
+| `base-styles.mjs`          | Shared CSS bundle: keyframes, watermark, brand bar                         |
+| `record-scenes.mjs`        | Playwright headless recording of each scene HTML to WebM                   |
+| `verify-scene-dom.mjs`     | Step 2.5 DOM geometry gate (safe zones, overflow) — superseded by TextGate |
+| `load-dom-config.mjs`      | Per-content `dom-config.mjs` loader for the DOM verifier                   |
+| `verify-template-sync.mjs` | CSS parity diff between HookScene.tsx and the HTML template                |
 
 Remotion-side geometry enforcement now lives in `remotion/src/` TextGate +
 `lib/text-geometry.mjs` (T4/T5 of the text-overflow hardening epic); scene

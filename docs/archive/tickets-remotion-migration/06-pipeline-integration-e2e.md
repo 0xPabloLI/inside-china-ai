@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 路径检测逻辑：
+
 ```javascript
 const remotionDir = join(contentPath, "remotion");
 const useRemotion = existsSync(remotionDir);

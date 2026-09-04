@@ -47,12 +47,12 @@ Replace the single-model + Fallback architecture with a **Cascade Router**: Qwen
 
 A pure function that inspects the 2B model's parsed output and returns `True`/`False`. Signals (any one triggers escalation):
 
-| Signal | Condition | Rationale |
-|--------|-----------|-----------|
-| Short output | `len(description or "") < 100` characters | 2B often produces 1-2 words for complex images it can't parse |
-| Missing fit | `fit is None` (for images) | 2B sometimes skips fit entirely when confused |
-| Empty description | `not description or not description.strip()` | Complete failure to describe |
-| Repetition | Same word/phrase repeated ≥3 times in description | 2B loop symptom on hard images |
+| Signal            | Condition                                         | Rationale                                                     |
+| ----------------- | ------------------------------------------------- | ------------------------------------------------------------- |
+| Short output      | `len(description or "") < 100` characters         | 2B often produces 1-2 words for complex images it can't parse |
+| Missing fit       | `fit is None` (for images)                        | 2B sometimes skips fit entirely when confused                 |
+| Empty description | `not description or not description.strip()`      | Complete failure to describe                                  |
+| Repetition        | Same word/phrase repeated ≥3 times in description | 2B loop symptom on hard images                                |
 
 **Note**: `contentKind == "other"` was considered but dropped — "other" is a valid classification for abstract images, not necessarily a low-confidence signal.
 
@@ -152,36 +152,36 @@ The escalation logic is a pure function `should_escalate(parsed_result: dict) ->
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `scripts/short-video/lib/vlm_analyzer.py` | Delete `FALLBACK_MODEL_ID` + fallback logic; add `DEEP_MODEL_ID`, `should_escalate()`, `check_ram_available()`, cascade flow in `handle_analyze_semantics()`, `escalated` field in response, module-level GLM state | **Medium** | Core VLM analysis path. Existing tests mock the IPC layer (Node-side), so Python changes are covered by integration tests. New pure functions (`should_escalate`, `check_ram_available`) get dedicated unit tests. Risk: if cascade logic breaks, 2B result still returns (graceful degradation). Worst case: GLM fails to load → 2B result returned with `escalated: False` — same as current behavior. |
-| `scripts/short-video/lib/visual-analyzer.mjs` | **No changes** | N/A | IPC contract unchanged. `escalated` field passes through via object spread. |
-| `scripts/short-video/lib/asset-sourcer.mjs` | **No changes** | N/A | Consumes `analyzeAssetSemantics()` output. `escalated` field is optional metadata — existing code doesn't reference it. |
-| `docs/adr/0009-vlm-qwen3-vl-mlx.md` | Add Cascade Router section; remove fallback reference | **Low** | Documentation only. No runtime impact. |
-| `scripts/short-video/__tests__/visual-analyzer.test.mjs` | **No changes** to existing tests; new tests are Python-side | N/A | Existing tests verify IPC contract which is unchanged. |
+| File                                                     | Modification                                                                                                                                                                                                        | Risk       | Assessment                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/vlm_analyzer.py`                | Delete `FALLBACK_MODEL_ID` + fallback logic; add `DEEP_MODEL_ID`, `should_escalate()`, `check_ram_available()`, cascade flow in `handle_analyze_semantics()`, `escalated` field in response, module-level GLM state | **Medium** | Core VLM analysis path. Existing tests mock the IPC layer (Node-side), so Python changes are covered by integration tests. New pure functions (`should_escalate`, `check_ram_available`) get dedicated unit tests. Risk: if cascade logic breaks, 2B result still returns (graceful degradation). Worst case: GLM fails to load → 2B result returned with `escalated: False` — same as current behavior. |
+| `scripts/short-video/lib/visual-analyzer.mjs`            | **No changes**                                                                                                                                                                                                      | N/A        | IPC contract unchanged. `escalated` field passes through via object spread.                                                                                                                                                                                                                                                                                                                              |
+| `scripts/short-video/lib/asset-sourcer.mjs`              | **No changes**                                                                                                                                                                                                      | N/A        | Consumes `analyzeAssetSemantics()` output. `escalated` field is optional metadata — existing code doesn't reference it.                                                                                                                                                                                                                                                                                  |
+| `docs/adr/0009-vlm-qwen3-vl-mlx.md`                      | Add Cascade Router section; remove fallback reference                                                                                                                                                               | **Low**    | Documentation only. No runtime impact.                                                                                                                                                                                                                                                                                                                                                                   |
+| `scripts/short-video/__tests__/visual-analyzer.test.mjs` | **No changes** to existing tests; new tests are Python-side                                                                                                                                                         | N/A        | Existing tests verify IPC contract which is unchanged.                                                                                                                                                                                                                                                                                                                                                   |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Simple image, 2B produces full output (>100 chars, fit present) | `escalated: False`, 2B result returned | Low | Normal path, well-tested |
-| 2 | Complex image (Chinese text), 2B produces <100 chars | `escalated: True`, GLM result returned | Medium | GLM load may fail → 2B result returned (graceful) |
-| 3 | Complex image, 2B returns `fit: None` | `escalated: True`, GLM result returned | Medium | Same as #2 |
-| 4 | Complex image, 2B returns empty description | `escalated: True`, GLM result returned | Medium | Same as #2 |
-| 5 | Complex image, 2B repeats same word 3+ times | `escalated: True`, GLM result returned | Medium | Same as #2 |
-| 6 | Video asset, 2B produces short description | `escalated: True`, GLM re-analyzes video via native video path | Medium | GLM video path verified via smoke test. If GLM video fails, 2B result returned. |
-| 7 | Video asset, 2B produces full description | `escalated: False`, 2B result returned | Low | Normal video path |
-| 8 | 2B model fails to load at startup | Process exits with code 1 + error JSON | Medium | No silent fallback. Node-side handles error JSON → degraded result. |
-| 9 | GLM fails to load on first escalation | Warning logged, 2B result returned with `escalated: False` | Medium | Graceful degradation. Future escalations will retry GLM load. |
-| 10 | GLM loaded but generation fails | Warning logged, 2B result returned with `escalated: False` | Medium | Exception caught in try/except, 2B result preserved. |
-| 11 | Insufficient RAM for GLM (<16GB free) | Warning logged, 2B result returned with `escalated: False` | Low | `check_ram_available()` gates GLM load. Fail-open if psutil unavailable. |
-| 12 | Multiple escalations in sequence (2nd, 3rd, etc.) | GLM is already loaded → reused, no re-load | Low | Module-level cache `_deep_model` / `_deep_processor`. |
-| 13 | 2B output has `fit: None` but it's a video (no fit field expected) | `should_escalate` does NOT trigger on missing fit for videos | Medium | `should_escalate` checks `is_video` flag or fit field absence is expected for video prompt. |
-| 14 | `escalated` field in response JSON | Node-side passes it through via object spread | Low | `visual-analyzer.mjs` `handleResponse()` already spreads all fields. |
-| 15 | GLM Thinking chain in raw output | `parse_markdown_to_dict()` extracts `## Section` headers, ignores Thinking prose | Low | Parser already handles arbitrary pre-header text. |
-| 16 | 20 assets, 3 flagged as complex | 17×3s + 3×28s ≈ 144s total | Low | Performance projection from R6 benchmark data. |
-| 17 | 2B produces normal output but `contentKind: "other"` | `should_escalate` returns `False` (no longer a signal) | Low | Removed from signals per grill decision. |
-| 18 | GLM model files not on disk (not downloaded) | `load_model()` raises exception → caught → 2B result returned | Medium | Graceful degradation. stderr log: "GLM model not found". |
+| #   | Scenario                                                           | Expected Behavior                                                                | Risk   | Mitigation                                                                                  |
+| --- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
+| 1   | Simple image, 2B produces full output (>100 chars, fit present)    | `escalated: False`, 2B result returned                                           | Low    | Normal path, well-tested                                                                    |
+| 2   | Complex image (Chinese text), 2B produces <100 chars               | `escalated: True`, GLM result returned                                           | Medium | GLM load may fail → 2B result returned (graceful)                                           |
+| 3   | Complex image, 2B returns `fit: None`                              | `escalated: True`, GLM result returned                                           | Medium | Same as #2                                                                                  |
+| 4   | Complex image, 2B returns empty description                        | `escalated: True`, GLM result returned                                           | Medium | Same as #2                                                                                  |
+| 5   | Complex image, 2B repeats same word 3+ times                       | `escalated: True`, GLM result returned                                           | Medium | Same as #2                                                                                  |
+| 6   | Video asset, 2B produces short description                         | `escalated: True`, GLM re-analyzes video via native video path                   | Medium | GLM video path verified via smoke test. If GLM video fails, 2B result returned.             |
+| 7   | Video asset, 2B produces full description                          | `escalated: False`, 2B result returned                                           | Low    | Normal video path                                                                           |
+| 8   | 2B model fails to load at startup                                  | Process exits with code 1 + error JSON                                           | Medium | No silent fallback. Node-side handles error JSON → degraded result.                         |
+| 9   | GLM fails to load on first escalation                              | Warning logged, 2B result returned with `escalated: False`                       | Medium | Graceful degradation. Future escalations will retry GLM load.                               |
+| 10  | GLM loaded but generation fails                                    | Warning logged, 2B result returned with `escalated: False`                       | Medium | Exception caught in try/except, 2B result preserved.                                        |
+| 11  | Insufficient RAM for GLM (<16GB free)                              | Warning logged, 2B result returned with `escalated: False`                       | Low    | `check_ram_available()` gates GLM load. Fail-open if psutil unavailable.                    |
+| 12  | Multiple escalations in sequence (2nd, 3rd, etc.)                  | GLM is already loaded → reused, no re-load                                       | Low    | Module-level cache `_deep_model` / `_deep_processor`.                                       |
+| 13  | 2B output has `fit: None` but it's a video (no fit field expected) | `should_escalate` does NOT trigger on missing fit for videos                     | Medium | `should_escalate` checks `is_video` flag or fit field absence is expected for video prompt. |
+| 14  | `escalated` field in response JSON                                 | Node-side passes it through via object spread                                    | Low    | `visual-analyzer.mjs` `handleResponse()` already spreads all fields.                        |
+| 15  | GLM Thinking chain in raw output                                   | `parse_markdown_to_dict()` extracts `## Section` headers, ignores Thinking prose | Low    | Parser already handles arbitrary pre-header text.                                           |
+| 16  | 20 assets, 3 flagged as complex                                    | 17×3s + 3×28s ≈ 144s total                                                       | Low    | Performance projection from R6 benchmark data.                                              |
+| 17  | 2B produces normal output but `contentKind: "other"`               | `should_escalate` returns `False` (no longer a signal)                           | Low    | Removed from signals per grill decision.                                                    |
+| 18  | GLM model files not on disk (not downloaded)                       | `load_model()` raises exception → caught → 2B result returned                    | Medium | Graceful degradation. stderr log: "GLM model not found".                                    |
 
 ## Out of Scope
 

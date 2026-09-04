@@ -3,6 +3,7 @@ domain: tiktok.com
 aliases: [TikTok, tiktok, TT]
 updated: 2026-08-26
 ---
+
 ## 平台特征
 
 - CSI (Creator Search Insights) 桌面版 URL: `tiktok.com/inspiration` → 重定向到 `tiktok.com/csi`
@@ -19,6 +20,7 @@ updated: 2026-08-26
 ### CSI 话题列表 DOM 结构
 
 话题列表是 HTML `<table>` 结构：
+
 - 每行是一个 `<tr>`，含 4 个 `<td class="...TdCell">`：
   - `tds[0]`: 话题名（纯文本，如 "starters ai"）
   - `tds[1]`: 搜索热度 + 增长率（合并文本，如 "148K1000%+"）
@@ -28,6 +30,7 @@ updated: 2026-08-26
 ### 正则分离搜索热度和增长率
 
 从 `tds[1].textContent`（如 "148K1000%+"）中分离：
+
 - 搜索热度: `/^(\d[\d.]*[KM]?)/` → "148K"
 - 增长率: `/(\d[\d.]*%\+?)$/` → "1000%+"
 

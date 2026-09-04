@@ -6,6 +6,7 @@
 ## 1. 目标
 
 修复 `caption-utils.mjs` 中 `deriveHashtags()` 的两个缺口：
+
 1. **trendingHashtags 未被消费** — 注释声明会读取 `metadata.trendingHashtags`，但代码没有实现
 2. **#creatorsearchinsights 黑名单不当** — 基于样本量不足的误判，应移除
 
@@ -29,14 +30,14 @@
 
 ### 3.1 标签优先级分层
 
-| 层级 | 来源 | 可替换? | 示例 |
-|------|------|---------|------|
-| core | `CORE_TRAFFIC_HASHTAGS` | 否 | `#ainews` |
-| brand | `AUXILIARY_TRAFFIC_HASHTAGS` 中的 `#chinaai` | 否 | `#chinaai` |
-| primary vertical | `keyEntitiesCompanies[0]` 对应的 `ENTITY_HASHTAG_MAP` 值 | 否 | `#deepseek` |
-| secondary vertical | `keyEntitiesCompanies[1+]` 对应的 `ENTITY_HASHTAG_MAP` 值 | **是** | `#chatgpt` |
-| traffic pad | `PAD_CANDIDATES` | **是** | `#ai`, `#artificialintelligence` |
-| trending | `metadata.trendingHashtags` | 替换者（最多 1 个） | `#aiviral` |
+| 层级               | 来源                                                      | 可替换?             | 示例                             |
+| ------------------ | --------------------------------------------------------- | ------------------- | -------------------------------- |
+| core               | `CORE_TRAFFIC_HASHTAGS`                                   | 否                  | `#ainews`                        |
+| brand              | `AUXILIARY_TRAFFIC_HASHTAGS` 中的 `#chinaai`              | 否                  | `#chinaai`                       |
+| primary vertical   | `keyEntitiesCompanies[0]` 对应的 `ENTITY_HASHTAG_MAP` 值  | 否                  | `#deepseek`                      |
+| secondary vertical | `keyEntitiesCompanies[1+]` 对应的 `ENTITY_HASHTAG_MAP` 值 | **是**              | `#chatgpt`                       |
+| traffic pad        | `PAD_CANDIDATES`                                          | **是**              | `#ai`, `#artificialintelligence` |
+| trending           | `metadata.trendingHashtags`                               | 替换者（最多 1 个） | `#aiviral`                       |
 
 - core + brand 是固定 always-include（当前代码已是如此）
 - primary vertical = `companies[0]` 的映射标签，不可被 trending 替换
@@ -63,6 +64,7 @@
 ### 3.3 人工覆盖语义
 
 `metadata.hashtags` 非空时 = 锁定式人工覆盖：
+
 - 过滤黑名单（移除后的新黑名单为空，但保留机制）
 - 截断到 5
 - 补位到 3
@@ -77,7 +79,7 @@ function normalizeHashtag(value) {
   let s = value.trim();
   if (s.length === 0) return null;
   s = s.replace(/^#/, ""); // 移除前导 #
-  s = s.toLowerCase();       // 全小写
+  s = s.toLowerCase(); // 全小写
   if (s.length === 0 || /\s/.test(s)) return null; // 拒绝空值和含空白
   return `#${s}`;
 }
@@ -117,7 +119,7 @@ function normalizeHashtag(value) {
 
 ```javascript
 // 不变：string[] of 3-5 hashtags，全小写
-["#ainews", "#chinaai", "#deepseek", "#aiviral"]
+["#ainews", "#chinaai", "#deepseek", "#aiviral"];
 ```
 
 ### 4.3 generate-caption.mjs hashtagStrategy 输出
@@ -139,32 +141,32 @@ hashtagStrategy: {
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/lib/caption-utils.mjs` | 新增 `normalizeHashtag()`；重写 `deriveHashtags()` 的自动派生路径；移除 `#creatorsearchinsights` 从黑名单 | **Medium** | 修改了核心 hashtag 派生逻辑，影响每条视频的最终 caption。通过 36 个既有测试 + 新测试覆盖场景矩阵验证。人工覆盖路径保持不变（除黑名单移除）。 |
-| `scripts/short-video/generate-caption.mjs` | `hashtagStrategy` 新增 `trending` 分类 | **Low** | 纯追加分类逻辑，不修改 caption 生成或约束检查。 |
-| `scripts/short-video/__tests__/caption-utils.test.mjs` | 新增 ~12 个测试用例 | **Low** | 纯追加测试，不修改既有测试。 |
-| `docs/tiktok/tiktok-best-practices.md` | 更新黑名单说明 + trending 消费机制 | **Low** | 文档更新，不修改代码逻辑。 |
+| 文件                                                   | 修改内容                                                                                                  | 风险等级   | 评估                                                                                                                                         |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/caption-utils.mjs`            | 新增 `normalizeHashtag()`；重写 `deriveHashtags()` 的自动派生路径；移除 `#creatorsearchinsights` 从黑名单 | **Medium** | 修改了核心 hashtag 派生逻辑，影响每条视频的最终 caption。通过 36 个既有测试 + 新测试覆盖场景矩阵验证。人工覆盖路径保持不变（除黑名单移除）。 |
+| `scripts/short-video/generate-caption.mjs`             | `hashtagStrategy` 新增 `trending` 分类                                                                    | **Low**    | 纯追加分类逻辑，不修改 caption 生成或约束检查。                                                                                              |
+| `scripts/short-video/__tests__/caption-utils.test.mjs` | 新增 ~12 个测试用例                                                                                       | **Low**    | 纯追加测试，不修改既有测试。                                                                                                                 |
+| `docs/tiktok/tiktok-best-practices.md`                 | 更新黑名单说明 + trending 消费机制                                                                        | **Low**    | 文档更新，不修改代码逻辑。                                                                                                                   |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | 无 `trendingHashtags` | 与当前自动派生结果一致 | Low | 基础回归测试（既有 36 个测试保持通过） |
-| 2 | `trendingHashtags: ["#aiviral"]`，tags.length=4 | 输出包含 `#aiviral`，总数 5 | Low | 直接加入测试 |
-| 3 | `trendingHashtags: ["#aiviral"]`，tags.length=3 | 输出包含 `#aiviral`，总数 4 | Low | 直接加入测试 |
-| 4 | `trendingHashtags: ["#aiviral"]`，tags.length=5（2 core+brand + 1 primary + 2 secondary） | 输出包含 `#aiviral`，替换最后一个 secondary vertical | Medium | 满容量替换测试 |
-| 5 | `trendingHashtags: ["#aiviral"]`，tags.length=5（2 core+brand + 1 primary + 0 secondary + 2 pad） | 输出包含 `#aiviral`，替换最后一个 pad | Medium | 替换 pad 测试 |
-| 6 | `trendingHashtags: ["#aiviral"]`，tags.length=5（2 core+brand + 1 primary + 0 secondary + 0 pad + 2 extra core/brand） | 丢弃 trending，保留原 5 个 | Low | 无可替换标签测试 |
-| 7 | `trendingHashtags: ["#aiviral", "#aitechtrends"]`，tags.length=3 | 只取 1 个 trending，输出 4 个标签 | Low | 最多 1 个测试 |
-| 8 | `trendingHashtags: ["#deepseek"]`（已存在） | 不重复，输出不含重复 | Low | 去重测试 |
-| 9 | `trendingHashtags: ["CreatorSearchInsights"]` | 规范化为 `#creatorsearchinsights`，不被黑名单过滤 | Low | 规范化+黑名单移除测试 |
-| 10 | `trendingHashtags: ["  #AiViral "]` | 规范化为 `#aiviral` | Low | 规范化测试 |
-| 11 | `trendingHashtags: ["", "  ", null, 123]` | 全部被 `normalizeHashtag` 拒绝，不影响原逻辑 | Low | 非法值测试 |
-| 12 | `metadata.hashtags: ["#deepseek", "#chinaai"]` + `trendingHashtags: ["#aiviral"]` | 仅返回人工覆盖结果，不注入 trending | Medium | 人工覆盖锁定测试 |
-| 13 | `metadata.hashtags: ["#creatorsearchinsights", "#deepseek"]` | `#creatorsearchinsights` 不被过滤，保留在输出中 | Low | 黑名单移除测试 |
-| 14 | `trendingHashtags: ["#aiviral"]`，primary entity 有映射，secondary 也有映射，满 5 | primary entity 标签保留，secondary 被替换 | Medium | primary 保护测试 |
-| 15 | 既有 36 个测试全部通过 | 无回归 | High | `npx vitest run` 全绿 |
+| #   | Scenario                                                                                                               | Expected Behavior                                    | Risk   | Mitigation                             |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------ | -------------------------------------- |
+| 1   | 无 `trendingHashtags`                                                                                                  | 与当前自动派生结果一致                               | Low    | 基础回归测试（既有 36 个测试保持通过） |
+| 2   | `trendingHashtags: ["#aiviral"]`，tags.length=4                                                                        | 输出包含 `#aiviral`，总数 5                          | Low    | 直接加入测试                           |
+| 3   | `trendingHashtags: ["#aiviral"]`，tags.length=3                                                                        | 输出包含 `#aiviral`，总数 4                          | Low    | 直接加入测试                           |
+| 4   | `trendingHashtags: ["#aiviral"]`，tags.length=5（2 core+brand + 1 primary + 2 secondary）                              | 输出包含 `#aiviral`，替换最后一个 secondary vertical | Medium | 满容量替换测试                         |
+| 5   | `trendingHashtags: ["#aiviral"]`，tags.length=5（2 core+brand + 1 primary + 0 secondary + 2 pad）                      | 输出包含 `#aiviral`，替换最后一个 pad                | Medium | 替换 pad 测试                          |
+| 6   | `trendingHashtags: ["#aiviral"]`，tags.length=5（2 core+brand + 1 primary + 0 secondary + 0 pad + 2 extra core/brand） | 丢弃 trending，保留原 5 个                           | Low    | 无可替换标签测试                       |
+| 7   | `trendingHashtags: ["#aiviral", "#aitechtrends"]`，tags.length=3                                                       | 只取 1 个 trending，输出 4 个标签                    | Low    | 最多 1 个测试                          |
+| 8   | `trendingHashtags: ["#deepseek"]`（已存在）                                                                            | 不重复，输出不含重复                                 | Low    | 去重测试                               |
+| 9   | `trendingHashtags: ["CreatorSearchInsights"]`                                                                          | 规范化为 `#creatorsearchinsights`，不被黑名单过滤    | Low    | 规范化+黑名单移除测试                  |
+| 10  | `trendingHashtags: ["  #AiViral "]`                                                                                    | 规范化为 `#aiviral`                                  | Low    | 规范化测试                             |
+| 11  | `trendingHashtags: ["", "  ", null, 123]`                                                                              | 全部被 `normalizeHashtag` 拒绝，不影响原逻辑         | Low    | 非法值测试                             |
+| 12  | `metadata.hashtags: ["#deepseek", "#chinaai"]` + `trendingHashtags: ["#aiviral"]`                                      | 仅返回人工覆盖结果，不注入 trending                  | Medium | 人工覆盖锁定测试                       |
+| 13  | `metadata.hashtags: ["#creatorsearchinsights", "#deepseek"]`                                                           | `#creatorsearchinsights` 不被过滤，保留在输出中      | Low    | 黑名单移除测试                         |
+| 14  | `trendingHashtags: ["#aiviral"]`，primary entity 有映射，secondary 也有映射，满 5                                      | primary entity 标签保留，secondary 被替换            | Medium | primary 保护测试                       |
+| 15  | 既有 36 个测试全部通过                                                                                                 | 无回归                                               | High   | `npx vitest run` 全绿                  |
 
 ## 6. 实施顺序
 

@@ -18,6 +18,7 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
 ## Tickets
 
 ### T1: base-styles — 背景微调 + glow/grid 透明度 + frame-glow CSS + flashFrame keyframe
+
 - **依赖**: 无
 - **文件**: `scripts/short-video/lib/base-styles.mjs`
 - **改动**:
@@ -30,6 +31,7 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
 - **验证**: `npx vitest run scripts/short-video/__tests__/base-styles.test.mjs`（预期红——expected output 变了，T6 修）
 
 ### T2: base-styles — withWatermark() 注入 frame-glow div
+
 - **依赖**: T1
 - **文件**: `scripts/short-video/lib/base-styles.mjs`
 - **改动**:
@@ -38,6 +40,7 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
 - **验证**: 检查 hook preview HTML 含 frame-glow div
 
 ### T3: scene-templates — focal-number + badge-pill + statCard + bigNumberAnchor + fadeToBlack
+
 - **依赖**: 无
 - **文件**: `scripts/short-video/lib/scene-templates.mjs`
 - **改动**:
@@ -50,6 +53,7 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
 - **验证**: `npx vitest run scripts/short-video/__tests__/scene-templates.test.mjs`（预期红）
 
 ### T4: scene-templates — hookScene() 内部注入 flash-frame div
+
 - **依赖**: T1, T3
 - **文件**: `scripts/short-video/lib/scene-templates.mjs`
 - **改动**:
@@ -57,6 +61,7 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
 - **验证**: hook preview HTML 含 flash-frame div 作为首个子元素
 
 ### T5: verify-scene-dom — EXEMPT_SELECTORS 新增
+
 - **依赖**: T1, T4
 - **文件**: `scripts/short-video/verify-scene-dom.mjs`
 - **改动**:
@@ -64,6 +69,7 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
 - **验证**: `node scripts/short-video/verify-scene-dom.mjs --content _test-fixtures/hook-standard`
 
 ### T6: 测试 — 更新 scene-drift.test.mjs hook/CTA expected output
+
 - **依赖**: T1-T5
 - **文件**: `scripts/short-video/__tests__/scene-drift.test.mjs`
 - **改动**:
@@ -72,6 +78,7 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
 - **验证**: `npx vitest run scripts/short-video/__tests__/scene-drift.test.mjs`
 
 ### T7: 验证 — verify-scene-dom.mjs safe zone 合规
+
 - **依赖**: T1-T5
 - **文件**: 无（运行验证脚本）
 - **验证**:
@@ -81,10 +88,12 @@ T3 ─┼─→ T4 ──→ T5 ──→ T6 ──→ T7
   4. 确认 frame-glow / flash-frame 豁免不误报
 
 ### T8: CTA 场景 frame-glow.blue 验证
+
 - **依赖**: T2
 - **验证**: 确认 ctaScene 输出含 `<div class="frame-glow blue">`
 
 ### T9: brand-system.md 同步更新
+
 - **依赖**: T1-T8
 - **文件**: `docs/brand-system.md`
 - **改动**: 按 Spec §5 同步表更新 8 个值

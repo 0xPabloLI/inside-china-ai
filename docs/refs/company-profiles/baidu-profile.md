@@ -23,32 +23,32 @@
 
 ## Model Releases
 
-| Date | Model | Type | Key Details | Source |
-|------|-------|------|-------------|--------|
-| 2019 | ERNIE 1.0/2.0 | LLM | Foundation models, knowledge-enhanced | [Wikipedia](https://en.wikipedia.org/wiki/Ernie_Bot) |
-| 2021 | ERNIE 3.0 | LLM | Large-scale pre-training | Baidu announcements |
-| Mar 16, 2023 | **ERNIE Bot** (文心一言) | Chatbot | First launched for invited testing | [Wikipedia](https://en.wikipedia.org/wiki/Ernie_Bot) |
+| Date         | Model                    | Type    | Key Details                                                  | Source                                               |
+| ------------ | ------------------------ | ------- | ------------------------------------------------------------ | ---------------------------------------------------- |
+| 2019         | ERNIE 1.0/2.0            | LLM     | Foundation models, knowledge-enhanced                        | [Wikipedia](https://en.wikipedia.org/wiki/Ernie_Bot) |
+| 2021         | ERNIE 3.0                | LLM     | Large-scale pre-training                                     | Baidu announcements                                  |
+| Mar 16, 2023 | **ERNIE Bot** (文心一言) | Chatbot | First launched for invited testing                           | [Wikipedia](https://en.wikipedia.org/wiki/Ernie_Bot) |
 | Aug 31, 2023 | ERNIE Bot public release | Chatbot | Released to general public after Chinese regulatory approval | [Wikipedia](https://en.wikipedia.org/wiki/Ernie_Bot) |
-| 2023 | ERNIE 4.0 | LLM | Major capability upgrade | Baidu announcements |
-| 2024 | ERNIE 4.5 | LLM | Further improvements | Baidu announcements |
-| Apr 2024 | ERNIE Bot milestone | — | 200+ million users reported | [Wikipedia](https://en.wikipedia.org/wiki/Ernie_Bot) |
+| 2023         | ERNIE 4.0                | LLM     | Major capability upgrade                                     | Baidu announcements                                  |
+| 2024         | ERNIE 4.5                | LLM     | Further improvements                                         | Baidu announcements                                  |
+| Apr 2024     | ERNIE Bot milestone      | —       | 200+ million users reported                                  | [Wikipedia](https://en.wikipedia.org/wiki/Ernie_Bot) |
 
 ## Funding History
 
 Baidu is publicly listed (NASDAQ since 2005, HKEX since 2021). AI division funded internally.
 
-| Date | Event | Notes |
-|------|-------|-------|
-| Aug 2005 | NASDAQ IPO | — |
-| Mar 2021 | HKEX secondary listing | — |
-| 2023-2026 | Heavy AI investment | ERNIE Bot development, Apollo (autonomous driving), cloud infrastructure |
+| Date      | Event                  | Notes                                                                    |
+| --------- | ---------------------- | ------------------------------------------------------------------------ |
+| Aug 2005  | NASDAQ IPO             | —                                                                        |
+| Mar 2021  | HKEX secondary listing | —                                                                        |
+| 2023-2026 | Heavy AI investment    | ERNIE Bot development, Apollo (autonomous driving), cloud infrastructure |
 
 ## Key People
 
-| Name | Role | Notes | Source |
-|------|------|-------|--------|
-| **Robin Li (李彦宏)** | Co-founder & CEO | AI-first strategy advocate. Has led Baidu's pivot from search to AI. | Industry reports |
-| Wei Haoran (魏浩然) | OCR Series Core Author | Joined from DeepSeek (suspected, around CNY 2026) | Widget data — `src/components/widgets/deepseek/data/people.ts` |
+| Name                  | Role                   | Notes                                                                | Source                                                         |
+| --------------------- | ---------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Robin Li (李彦宏)** | Co-founder & CEO       | AI-first strategy advocate. Has led Baidu's pivot from search to AI. | Industry reports                                               |
+| Wei Haoran (魏浩然)   | OCR Series Core Author | Joined from DeepSeek (suspected, around CNY 2026)                    | Widget data — `src/components/widgets/deepseek/data/people.ts` |
 
 ## Compute Infrastructure
 
@@ -69,6 +69,7 @@ Baidu is publicly listed (NASDAQ since 2005, HKEX since 2021). AI division funde
 ### Regulatory Compliance
 
 ERNIE Bot operates in China and is subject to censorship regulations:
+
 - Refuses answers to politically sensitive questions
 - Approved by Chinese regulators before public release
 - One of the first chatbots to receive regulatory approval

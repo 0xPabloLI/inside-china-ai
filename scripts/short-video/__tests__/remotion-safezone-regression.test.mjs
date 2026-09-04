@@ -58,7 +58,9 @@ describe("Safe Zone regression: all scene files use SAFE_ZONES", () => {
         const value = parseInt(match.match(/\d+/)[0]);
         // bottom < 770 means content edge is below y=1150 (in subtitle/TikTok zone)
         // SAFE_ZONES.bottom = 770 is the minimum
-        expect(value, `bottom:${value} is below SAFE_ZONES.bottom (770)`).toBeGreaterThanOrEqual(770);
+        expect(value, `bottom:${value} is below SAFE_ZONES.bottom (770)`).toBeGreaterThanOrEqual(
+          770,
+        );
       }
     }
   });

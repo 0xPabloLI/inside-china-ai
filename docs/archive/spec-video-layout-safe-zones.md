@@ -40,17 +40,17 @@
 
 1080×1920 画布的最终分区：
 
-| y 区间 | 区域 | 规则 |
-|---|---|---|
-| 0–220 | TikTok 顶部 UI 区 | 仅品牌 chrome（水印 top:60 / brandBar top:80，靠边避开居中标签） |
-| 220–400 | `kickerTitle` 槽 | 徽章/标题 |
-| 400–950 | `hero` 槽 | 主视觉（大数字/卡片/对比），内容居中 |
-| 950–1150 | `support` 槽 | 来源/结论/补充 |
-| 1150–1188 | 空隙带 | 无内容（呼吸区） |
-| 1188–1350 | **字幕专用带** | 场景内容禁止进入；60px Bold，bottom-center，单行优先 |
-| 1350–1500 | 干净边距 | 无内容 |
-| 1500–1920 | TikTok 底部 UI 区 | 我方内容归零（caption 最高 ~1500，tab 栏 1790–1905） |
-| x 方向 | 左 60 / 右 200 | 内容网格 x∈[60,880]，宽 820px；右栏 y>640 为 FAIL 级 |
+| y 区间    | 区域              | 规则                                                             |
+| --------- | ----------------- | ---------------------------------------------------------------- |
+| 0–220     | TikTok 顶部 UI 区 | 仅品牌 chrome（水印 top:60 / brandBar top:80，靠边避开居中标签） |
+| 220–400   | `kickerTitle` 槽  | 徽章/标题                                                        |
+| 400–950   | `hero` 槽         | 主视觉（大数字/卡片/对比），内容居中                             |
+| 950–1150  | `support` 槽      | 来源/结论/补充                                                   |
+| 1150–1188 | 空隙带            | 无内容（呼吸区）                                                 |
+| 1188–1350 | **字幕专用带**    | 场景内容禁止进入；60px Bold，bottom-center，单行优先             |
+| 1350–1500 | 干净边距          | 无内容                                                           |
+| 1500–1920 | TikTok 底部 UI 区 | 我方内容归零（caption 最高 ~1500，tab 栏 1790–1905）             |
+| x 方向    | 左 60 / 右 200    | 内容网格 x∈[60,880]，宽 820px；右栏 y>640 为 FAIL 级             |
 
 常量定义：
 
@@ -125,43 +125,43 @@
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `lib/safe-zones.mjs` | bottom 450→580；新增 SUBTITLE_LANE | Medium | 下游消费者：base-styles（水印位置，仅读 top/left 不受影响）、verify-scene-dom（BAND 重算，预期行为变化=本 spec 目标）、2 个测试文件（断言同步更新）。最坏后果：常量错误导致全场景 FAIL — 由不变式测试锁定，可接受 |
-| `lib/subtitles/ass.mjs` | marginV 450→390（引用 SUBTITLE_LANE） | Medium | 影响所有视频字幕位置（上移 60px）。验证：subtitle-ass 测试 + render-only 抽帧。最坏后果：字幕压内容 — 字幕带与内容区已结构性分离，不可能 |
-| `lib/subtitles/cues.mjs` | 分块改像素宽度（SOFT_PX/HARD_PX） | Medium | 影响所有视频字幕分块。时间轴逻辑不动。验证：cues 测试全量 + verify-subtitles（端到端对齐校验在 pipeline 内）。最坏后果：某句超宽折行 — 字幕带按两行预留，不压内容 |
-| `lib/scene-templates.mjs` | BRAND_MARK_SVG 换读 mark-video.svg | Medium | 影响 brandBar/水印/CTA 三处品牌位。验证：模板测试（含 BRAND_MARK_SVG 引用）+ 渲染可见性抽帧。最坏后果：SVG 仍不可见 — 构建脚本测试锁 viewBox + fill |
-| `lib/base-styles.mjs` | 水印 opacity 0.18→0.35 | Low | 纯样式常量，无逻辑变化 |
-| `lib/scene-layout.mjs` | 新增（SLOTS/slotCss/sceneFrame） | Low | 纯追加，无现有逻辑受影响 |
-| `scripts/short-video/build-mark-svg.mjs` + `assets/china-ai-news-mark-video.svg` | 新增 | Low | 纯追加 |
-| `verify-scene-dom.mjs` | BAND.bottom 1470→1340；EXPECTATIONS 加 bytedance | Medium | 老 content 会被 FAIL 阻断（刻意防回退，见 D4）。bytedance 迁移后 PASS。最坏后果：误伤合规场景 — 由迁移样本全绿验证 |
-| `main.mjs` / `render-only.mjs` | Step 2 后接入 DOM 校验（FAIL 中止） | Medium | 修改核心出片路径。缓解：校验是独立进程调用，失败信息明确；`--skip-preflight` 不影响此校验（它是渲染级不是数据级）— 提供 `--skip-dom-check` 逃生口 |
-| `content/bytedance-distillation/scenes.mjs` | 迁移槽位组装 | Medium | 内容 copy 不动（scene-data 不变，drift 测试锁）；视觉布局变化由 DOM 校验 + 抽帧 HITL 验收 |
-| `__tests__/scene-drift.test.mjs` / `scene-templates.test.mjs` / `subtitle-cues.test.mjs` / `subtitle-ass.test.mjs` | 断言适配新常量 | Low | 测试文件自身 |
-| `docs/brand-system.md` / `docs/video-workflow.md` | 区域表/字幕表/Logo 段落 | Low | 文档 |
+| 文件                                                                                                               | 修改内容                                         | 风险等级 | 评估                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/safe-zones.mjs`                                                                                               | bottom 450→580；新增 SUBTITLE_LANE               | Medium   | 下游消费者：base-styles（水印位置，仅读 top/left 不受影响）、verify-scene-dom（BAND 重算，预期行为变化=本 spec 目标）、2 个测试文件（断言同步更新）。最坏后果：常量错误导致全场景 FAIL — 由不变式测试锁定，可接受 |
+| `lib/subtitles/ass.mjs`                                                                                            | marginV 450→390（引用 SUBTITLE_LANE）            | Medium   | 影响所有视频字幕位置（上移 60px）。验证：subtitle-ass 测试 + render-only 抽帧。最坏后果：字幕压内容 — 字幕带与内容区已结构性分离，不可能                                                                          |
+| `lib/subtitles/cues.mjs`                                                                                           | 分块改像素宽度（SOFT_PX/HARD_PX）                | Medium   | 影响所有视频字幕分块。时间轴逻辑不动。验证：cues 测试全量 + verify-subtitles（端到端对齐校验在 pipeline 内）。最坏后果：某句超宽折行 — 字幕带按两行预留，不压内容                                                 |
+| `lib/scene-templates.mjs`                                                                                          | BRAND_MARK_SVG 换读 mark-video.svg               | Medium   | 影响 brandBar/水印/CTA 三处品牌位。验证：模板测试（含 BRAND_MARK_SVG 引用）+ 渲染可见性抽帧。最坏后果：SVG 仍不可见 — 构建脚本测试锁 viewBox + fill                                                               |
+| `lib/base-styles.mjs`                                                                                              | 水印 opacity 0.18→0.35                           | Low      | 纯样式常量，无逻辑变化                                                                                                                                                                                            |
+| `lib/scene-layout.mjs`                                                                                             | 新增（SLOTS/slotCss/sceneFrame）                 | Low      | 纯追加，无现有逻辑受影响                                                                                                                                                                                          |
+| `scripts/short-video/build-mark-svg.mjs` + `assets/china-ai-news-mark-video.svg`                                   | 新增                                             | Low      | 纯追加                                                                                                                                                                                                            |
+| `verify-scene-dom.mjs`                                                                                             | BAND.bottom 1470→1340；EXPECTATIONS 加 bytedance | Medium   | 老 content 会被 FAIL 阻断（刻意防回退，见 D4）。bytedance 迁移后 PASS。最坏后果：误伤合规场景 — 由迁移样本全绿验证                                                                                                |
+| `main.mjs` / `render-only.mjs`                                                                                     | Step 2 后接入 DOM 校验（FAIL 中止）              | Medium   | 修改核心出片路径。缓解：校验是独立进程调用，失败信息明确；`--skip-preflight` 不影响此校验（它是渲染级不是数据级）— 提供 `--skip-dom-check` 逃生口                                                                 |
+| `content/bytedance-distillation/scenes.mjs`                                                                        | 迁移槽位组装                                     | Medium   | 内容 copy 不动（scene-data 不变，drift 测试锁）；视觉布局变化由 DOM 校验 + 抽帧 HITL 验收                                                                                                                         |
+| `__tests__/scene-drift.test.mjs` / `scene-templates.test.mjs` / `subtitle-cues.test.mjs` / `subtitle-ass.test.mjs` | 断言适配新常量                                   | Low      | 测试文件自身                                                                                                                                                                                                      |
+| `docs/brand-system.md` / `docs/video-workflow.md`                                                                  | 区域表/字幕表/Logo 段落                          | Low      | 文档                                                                                                                                                                                                              |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | bytedance 任一场景内容底边 ≤1150 | DOM check PASS | — | 迁移后全场景验证 |
-| 2 | 场景内容元素底边 >1150（侵入字幕带） | DOM check FAIL，pipeline 中止 | 误伤 | bytedance 样本全绿后才算完成；报错含元素类名+实测 y |
-| 3 | 字幕 cue ≤720px | 单行渲染在字幕带内 | — | cues 像素分块测试 |
-| 4 | 字幕文案实测 >720px | 分块在 HARD_PX=720 强制断词，保持单行 | 断词点生硬 | 软断 612px 优先在词边界；句子边界规则保留 |
-| 5 | 极端折行（libass WrapStyle 0 仍折行） | 落在两行预留带（y≤1350），不压内容（内容 ≤1150） | 低 | 带高度测试锁定 |
-| 6 | 内容元素右边 >880 且底边 y>640（操作栏内） | FAIL（操作栏为不透明遮挡，内容不可读） | 误伤顶部 chrome | y≤640 才降级为 WARN；bytedance S1 曾因 reveal-text 越界被此规则捕获并修复 |
-| 6b | 内容元素右边 >880 但底边 y≤640（顶部 chrome 区） | WARN（不阻断，顶部无操作栏遮挡） | 低 | 分级行为 |
-| 7 | brandBar / 水印 / CTA logo 渲染 | SVG 真实可见（viewBox 生效，品牌色 fill） | 修复无效 | 构建脚本测试 + 抽帧 HITL 目视确认 |
-| 8 | CTA 场景输出 | 与共享 ctaScene byte-identical（现有契约） | 回归 | 现有 drift 测试保持 |
-| 9 | withWatermark 跳过逻辑 | brand-bar/brand-logo-large 场景不注水水印（现有契约） | 回归 | 现有测试保持 |
-| 10 | 老 content（deepseek/distillation/restraint）跑 pipeline | DOM check FAIL 阻断，报错指引迁移 | 体验中断 | 刻意设计（Q4 确认）；报错信息含迁移指引；`--skip-dom-check` 逃生口 |
-| 11 | render-only 无 subtitle-timing.json | 不生成 ass，流程不变（现有行为） | 回归 | 现有条件分支不动 |
-| 12 | Hook 场景首帧 | brandBar 保留（品牌早期曝光符合 TikTok 最佳实践），首帧不出现 logo-only 画面 | 低 | 现有结构不变 |
-| 13 | 空 texts / 缺失 key 的场景 | t() 访问器返回 ""，不渲染 undefined（现有契约） | 回归 | 现有测试保持 |
-| 14 | Reels/Shorts 跨平台复用 | 字幕底 1350 对 Reels 底部 UI（~1570 起）留 220px；右 200/顶 220 兼容 | 低 | 一套布局三平台通用，无需分支 |
-| 15 | 字幕时间轴（lead-in/hold-out/gap/合并） | 不回归 | 中 | cues 既有时间测试不动 + verify-subtitles 端到端校验 |
-| 16 | 对比/VS 场景（S6/S7/S8）竖向堆叠 | A/VS/B 自上而下，无横向多列；右缘 ≤880 | 横屏硬塞竖屏 | scene-drift 禁用 side-by-side class；DOM 校验右栏 FAIL 兜底 |
-| 17 | CTA 行动框进入字幕带（y>1150） | ctaScene 走槽位系统，action-box 落在 support 槽（≤1150） | 共享模板回归 | bytedance S9 曾因 action-box B1194 被捕获并修复（ctaScene 接入 sceneFrame） |
+| #   | Scenario                                                 | Expected Behavior                                                            | Risk            | Mitigation                                                                  |
+| --- | -------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------- |
+| 1   | bytedance 任一场景内容底边 ≤1150                         | DOM check PASS                                                               | —               | 迁移后全场景验证                                                            |
+| 2   | 场景内容元素底边 >1150（侵入字幕带）                     | DOM check FAIL，pipeline 中止                                                | 误伤            | bytedance 样本全绿后才算完成；报错含元素类名+实测 y                         |
+| 3   | 字幕 cue ≤720px                                          | 单行渲染在字幕带内                                                           | —               | cues 像素分块测试                                                           |
+| 4   | 字幕文案实测 >720px                                      | 分块在 HARD_PX=720 强制断词，保持单行                                        | 断词点生硬      | 软断 612px 优先在词边界；句子边界规则保留                                   |
+| 5   | 极端折行（libass WrapStyle 0 仍折行）                    | 落在两行预留带（y≤1350），不压内容（内容 ≤1150）                             | 低              | 带高度测试锁定                                                              |
+| 6   | 内容元素右边 >880 且底边 y>640（操作栏内）               | FAIL（操作栏为不透明遮挡，内容不可读）                                       | 误伤顶部 chrome | y≤640 才降级为 WARN；bytedance S1 曾因 reveal-text 越界被此规则捕获并修复   |
+| 6b  | 内容元素右边 >880 但底边 y≤640（顶部 chrome 区）         | WARN（不阻断，顶部无操作栏遮挡）                                             | 低              | 分级行为                                                                    |
+| 7   | brandBar / 水印 / CTA logo 渲染                          | SVG 真实可见（viewBox 生效，品牌色 fill）                                    | 修复无效        | 构建脚本测试 + 抽帧 HITL 目视确认                                           |
+| 8   | CTA 场景输出                                             | 与共享 ctaScene byte-identical（现有契约）                                   | 回归            | 现有 drift 测试保持                                                         |
+| 9   | withWatermark 跳过逻辑                                   | brand-bar/brand-logo-large 场景不注水水印（现有契约）                        | 回归            | 现有测试保持                                                                |
+| 10  | 老 content（deepseek/distillation/restraint）跑 pipeline | DOM check FAIL 阻断，报错指引迁移                                            | 体验中断        | 刻意设计（Q4 确认）；报错信息含迁移指引；`--skip-dom-check` 逃生口          |
+| 11  | render-only 无 subtitle-timing.json                      | 不生成 ass，流程不变（现有行为）                                             | 回归            | 现有条件分支不动                                                            |
+| 12  | Hook 场景首帧                                            | brandBar 保留（品牌早期曝光符合 TikTok 最佳实践），首帧不出现 logo-only 画面 | 低              | 现有结构不变                                                                |
+| 13  | 空 texts / 缺失 key 的场景                               | t() 访问器返回 ""，不渲染 undefined（现有契约）                              | 回归            | 现有测试保持                                                                |
+| 14  | Reels/Shorts 跨平台复用                                  | 字幕底 1350 对 Reels 底部 UI（~1570 起）留 220px；右 200/顶 220 兼容         | 低              | 一套布局三平台通用，无需分支                                                |
+| 15  | 字幕时间轴（lead-in/hold-out/gap/合并）                  | 不回归                                                                       | 中              | cues 既有时间测试不动 + verify-subtitles 端到端校验                         |
+| 16  | 对比/VS 场景（S6/S7/S8）竖向堆叠                         | A/VS/B 自上而下，无横向多列；右缘 ≤880                                       | 横屏硬塞竖屏    | scene-drift 禁用 side-by-side class；DOM 校验右栏 FAIL 兜底                 |
+| 17  | CTA 行动框进入字幕带（y>1150）                           | ctaScene 走槽位系统，action-box 落在 support 槽（≤1150）                     | 共享模板回归    | bytedance S9 曾因 action-box B1194 被捕获并修复（ctaScene 接入 sceneFrame） |
 
 ## Out of Scope
 

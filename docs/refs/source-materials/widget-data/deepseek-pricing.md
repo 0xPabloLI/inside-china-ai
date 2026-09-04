@@ -9,22 +9,22 @@
 
 ### DeepSeek Pricing (3 models)
 
-| Model | Input ($/M tokens) | Output ($/M tokens) | Context | Notes |
-|-------|--------------------|--------------------|---------|-------|
-| DeepSeek-V3 | 0.14 | 0.28 | 128K | Flagship reasoning model |
-| DeepSeek-Coder | 0.07 | 0.14 | 16K | Code-specialized model |
-| DeepSeek-V3.2 Flash | 0.01 | 0.02 | 64K | Fast inference, cost-optimized |
+| Model               | Input ($/M tokens) | Output ($/M tokens) | Context | Notes                          |
+| ------------------- | ------------------ | ------------------- | ------- | ------------------------------ |
+| DeepSeek-V3         | 0.14               | 0.28                | 128K    | Flagship reasoning model       |
+| DeepSeek-Coder      | 0.07               | 0.14                | 16K     | Code-specialized model         |
+| DeepSeek-V3.2 Flash | 0.01               | 0.02                | 64K     | Fast inference, cost-optimized |
 
 ### Competitor Pricing (4 vendors, 6 models)
 
-| Vendor | Model | Input ($/M tokens) | Output ($/M tokens) | Context | Notes |
-|--------|-------|--------------------|--------------------|---------|-------|
-| OpenAI | GPT-4o | 2.50 | 10.00 | 128K | Frontier model |
-| OpenAI | GPT-4o-mini | 0.15 | 0.60 | 128K | Cost-optimized |
-| Anthropic | Claude 3.5 Sonnet | 3.00 | 15.00 | 200K | Balanced performance |
-| Anthropic | Claude 3 Haiku | 0.25 | 1.25 | 200K | Fast, low-cost |
-| Moonshot AI (Kimi) | Kimi K3 | 0.12 | 0.24 | 1M | Long-context specialist |
-| Alibaba (Qwen) | Qwen2.5-72B | 0.08 | 0.16 | 32K | Open-source available |
+| Vendor             | Model             | Input ($/M tokens) | Output ($/M tokens) | Context | Notes                   |
+| ------------------ | ----------------- | ------------------ | ------------------- | ------- | ----------------------- |
+| OpenAI             | GPT-4o            | 2.50               | 10.00               | 128K    | Frontier model          |
+| OpenAI             | GPT-4o-mini       | 0.15               | 0.60                | 128K    | Cost-optimized          |
+| Anthropic          | Claude 3.5 Sonnet | 3.00               | 15.00               | 200K    | Balanced performance    |
+| Anthropic          | Claude 3 Haiku    | 0.25               | 1.25                | 200K    | Fast, low-cost          |
+| Moonshot AI (Kimi) | Kimi K3           | 0.12               | 0.24                | 1M      | Long-context specialist |
+| Alibaba (Qwen)     | Qwen2.5-72B       | 0.08               | 0.16                | 32K     | Open-source available   |
 
 ### Price Comparison Highlights
 

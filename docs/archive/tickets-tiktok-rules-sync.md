@@ -29,6 +29,7 @@ T5 (文档同步 — tiktok-best-practices.md + video-workflow.md + SKILL.md)
 **Covers scenarios**: S1, S15
 
 Tasks:
+
 - 新建 `scripts/short-video/lib/tiktok-rules.mjs`
 - 从 `scene-rules.mjs` 搬移所有常量（AI_BLACKLIST、所有 PATTERN、TARGET_KEYWORDS、KNOWN_COMPANIES）
 - AI_BLACKLIST 补全至 ~40 个词（B+C 类全加）
@@ -49,6 +50,7 @@ Tasks:
 **Covers scenarios**: S2, S3, S4, S5, S6, S7, S13, S14
 
 Tasks:
+
 - 删除 `scene-rules.mjs` 中所有本地常量定义
 - 改为 `import { ... } from "./tiktok-rules.mjs"`
 - `AI_BLACKLIST` 保持 re-export（`export { AI_BLACKLIST } from "./tiktok-rules.mjs"`）
@@ -78,6 +80,7 @@ Tasks:
 **Covers scenarios**: S8, S9, S10
 
 Tasks:
+
 - `generate-caption.mjs`：约束违反从 `console.warn` 改为 `console.error` + `process.exit(1)`
 - `verify-video.mjs`：修改 generate-caption.mjs 调用的 catch 逻辑：
   - 检测 exit code != 0 时，将 caption 生成失败记为 FAIL（`results.fail.push(...)`）
@@ -97,6 +100,7 @@ Tasks:
 **Covers scenarios**: S11, S12
 
 Tasks:
+
 - 新建 `scripts/short-video/__tests__/tiktok-rules-sync.test.mjs`
 - 测试不变式：
   - `AI_BLACKLIST` 包含各类别代表词（leverage、moreover、landscape、game-changer、oaicite、certainly!）
@@ -116,6 +120,7 @@ Tasks:
 **Covers scenarios**: 无行为场景（纯文档）
 
 Tasks:
+
 - `tiktok-best-practices.md` 审计清单更新：
   - B2 → Blocker（部分自动化：问候语 by code；logo/慢推 by agent）
   - B4 → Blocker ≥80% / WARN 50-80% / PASS <50%

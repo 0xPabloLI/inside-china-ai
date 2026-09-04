@@ -16,21 +16,21 @@
 
 **当前推荐路径**（按优先级排序）：
 
-| 优先级 | 方案 | 类型 | 质量 | M2 Pro 兼容 | 商用 | 测试状态 |
-|--------|------|------|------|------------|------|---------|
-| 1 | **F5-TTS-MLX**（管线默认） | 本地 | ⭐⭐⭐⭐ | ✅ MLX 原生 | ⚠️ 权重 CC-BY-NC | ✅ **已部署，默认引擎** |
-| 2 | **Qwen3-TTS**（备选） | 本地 | ⭐⭐⭐⭐⭐ | ✅ **MPS 已验证** | ✅ Apache-2.0 | ✅ **已采用** |
-| — | **CosyVoice 3.0** | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ MPS RTF 39.8x | ✅ Apache-2.0 | ❌ 未集成进管线（实测过慢） |
-| 4 | **Zonos**（已测试） | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ CPU only（MPS 有 bug） | ✅ Apache-2.0 | ✅ 已测试 |
-| 5 | **Sesame CSM** | 本地 | ⭐⭐⭐⭐ | ❌ MPS 卡死，CPU RTF 120x | ✅ Apache-2.0 | ✅ **已测试** |
-| 5b | **Spark-TTS** | 本地 | ⭐⭐⭐⭐ | ✅ **MPS 已验证** | ⚠️ 模型 CC-BY-NC-SA | ✅ **已测试** |
-| 5c | **GPT-SoVITS** | 本地 | ⭐⭐⭐⭐ | ❌ CPU RTF 321x | ✅ MIT | ✅ **已测试** |
-| 6 | **VoxCPM2** | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA 12.0+ | ✅ Apache-2.0 | 不兼容 |
-| 6 | **Fish Speech S2** | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA | ❌ 非商用 | 不兼容 |
-| 7 | **ElevenLabs API** | 云端 | ⭐⭐⭐⭐⭐ | ✅ 无需 GPU | ✅ | 业界 SOTA |
-| 8 | **OpenAI TTS API** | 云端 | ⭐⭐⭐⭐ | ✅ 无需 GPU | ✅ | 无克隆 |
-| 9 | **XTTS v2** | 本地 | ⭐⭐⭐ | ✅ MPS hybrid | ✅ MPL-2.0 | ❌ 已从 registry 移除 |
-| 10 | **Kokoro** | 本地 | ⭐⭐⭐ | ✅ CPU 原生 | ✅ Apache-2.0 | ❌ 已从 registry 移除 |
+| 优先级 | 方案                       | 类型 | 质量       | M2 Pro 兼容               | 商用                | 测试状态                    |
+| ------ | -------------------------- | ---- | ---------- | ------------------------- | ------------------- | --------------------------- |
+| 1      | **F5-TTS-MLX**（管线默认） | 本地 | ⭐⭐⭐⭐   | ✅ MLX 原生               | ⚠️ 权重 CC-BY-NC    | ✅ **已部署，默认引擎**     |
+| 2      | **Qwen3-TTS**（备选）      | 本地 | ⭐⭐⭐⭐⭐ | ✅ **MPS 已验证**         | ✅ Apache-2.0       | ✅ **已采用**               |
+| —      | **CosyVoice 3.0**          | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ MPS RTF 39.8x          | ✅ Apache-2.0       | ❌ 未集成进管线（实测过慢） |
+| 4      | **Zonos**（已测试）        | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ CPU only（MPS 有 bug） | ✅ Apache-2.0       | ✅ 已测试                   |
+| 5      | **Sesame CSM**             | 本地 | ⭐⭐⭐⭐   | ❌ MPS 卡死，CPU RTF 120x | ✅ Apache-2.0       | ✅ **已测试**               |
+| 5b     | **Spark-TTS**              | 本地 | ⭐⭐⭐⭐   | ✅ **MPS 已验证**         | ⚠️ 模型 CC-BY-NC-SA | ✅ **已测试**               |
+| 5c     | **GPT-SoVITS**             | 本地 | ⭐⭐⭐⭐   | ❌ CPU RTF 321x           | ✅ MIT              | ✅ **已测试**               |
+| 6      | **VoxCPM2**                | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA 12.0+          | ✅ Apache-2.0       | 不兼容                      |
+| 6      | **Fish Speech S2**         | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA                | ❌ 非商用           | 不兼容                      |
+| 7      | **ElevenLabs API**         | 云端 | ⭐⭐⭐⭐⭐ | ✅ 无需 GPU               | ✅                  | 业界 SOTA                   |
+| 8      | **OpenAI TTS API**         | 云端 | ⭐⭐⭐⭐   | ✅ 无需 GPU               | ✅                  | 无克隆                      |
+| 9      | **XTTS v2**                | 本地 | ⭐⭐⭐     | ✅ MPS hybrid             | ✅ MPL-2.0          | ❌ 已从 registry 移除       |
+| 10     | **Kokoro**                 | 本地 | ⭐⭐⭐     | ✅ CPU 原生               | ✅ Apache-2.0       | ❌ 已从 registry 移除       |
 
 ---
 
@@ -40,19 +40,20 @@
 
 ### 2.1 五种技术路线
 
-| 技术路线 | 原理 | 质量上限 | 推理速度 | 代表模型 | M2 Pro 可行性 |
-|---------|------|---------|---------|---------|-------------|
-| **Flow Matching** | ODE 流匹配生成 mel → vocoder → 波形 | ⭐⭐⭐⭐⭐ | 中等 | F5-TTS, CosyVoice | ✅ MLX 移植已有 |
-| **LLM-based AR** | 大语言模型自回归预测离散音频 token | ⭐⭐⭐⭐⭐ | 慢 | GPT-SoVITS, ChatTTS, Qwen3-TTS, Fish Speech, Index-TTS | ⚠️ 多需 CUDA |
-| **Diffusion** | 扩散去噪生成语音表征 | ⭐⭐⭐⭐ | 慢 | StyleTTS2, VoxCPM2, Parler-TTS | ⚠️ 部分可 MPS |
-| **GAN/VITS** | 生成对抗网络 / 变分推断，非自回归 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ 快 | Kokoro, MeloTTS, OpenVoice, Piper | ✅ CPU 友好 |
-| **Dual-AR** | 双自回归：语义 AR + 声学 AR | ⭐⭐⭐⭐⭐ | 中等 | Fish Speech S2 | ❌ 需 CUDA |
+| 技术路线          | 原理                                | 质量上限   | 推理速度      | 代表模型                                               | M2 Pro 可行性   |
+| ----------------- | ----------------------------------- | ---------- | ------------- | ------------------------------------------------------ | --------------- |
+| **Flow Matching** | ODE 流匹配生成 mel → vocoder → 波形 | ⭐⭐⭐⭐⭐ | 中等          | F5-TTS, CosyVoice                                      | ✅ MLX 移植已有 |
+| **LLM-based AR**  | 大语言模型自回归预测离散音频 token  | ⭐⭐⭐⭐⭐ | 慢            | GPT-SoVITS, ChatTTS, Qwen3-TTS, Fish Speech, Index-TTS | ⚠️ 多需 CUDA    |
+| **Diffusion**     | 扩散去噪生成语音表征                | ⭐⭐⭐⭐   | 慢            | StyleTTS2, VoxCPM2, Parler-TTS                         | ⚠️ 部分可 MPS   |
+| **GAN/VITS**      | 生成对抗网络 / 变分推断，非自回归   | ⭐⭐⭐     | ⭐⭐⭐⭐⭐ 快 | Kokoro, MeloTTS, OpenVoice, Piper                      | ✅ CPU 友好     |
+| **Dual-AR**       | 双自回归：语义 AR + 声学 AR         | ⭐⭐⭐⭐⭐ | 中等          | Fish Speech S2                                         | ❌ 需 CUDA      |
 
 ### 2.2 Flow Matching 详解（F5-TTS 的技术基础）
 
 **Flow Matching** 是 Normalizing Flow 和 Diffusion 的统一视角。核心思想：学习一个从噪声分布到数据分布的连续变换（ODE 轨迹）。
 
 **F5-TTS 的流程**：
+
 1. 参考音频 → 文本编码（对比式语义模型）+ 音频编码
 2. 目标文本 → 文本编码
 3. DiT（Diffusion Transformer）+ ConvNeXt V2 在 mel 频谱域做 Flow Matching 去噪
@@ -66,6 +67,7 @@
 **核心思路**：把语音离散化为 token 序列，让 LLM 像生成文本一样"生成"语音。
 
 **典型架构**：
+
 ```
 文本 → 文本 tokenizer → LLM (Qwen2.5/Llama/etc.) → 离散音频 token → Vocoder/Codec → 波形
 参考音频 → 音频编码器 → speaker embedding → ↑
@@ -73,13 +75,14 @@
 
 **token 化方案对比**：
 
-| 方案 | 帧率 | 代表 | 特点 |
-|------|------|------|------|
-| RVQ (Residual Vector Quantization) | ~21-50 Hz | Fish Speech, Sesame CSM | 多 codebook 残差编码 |
-| 语义+声学分离 | ~7.5-12 Hz | VibeVoice, Qwen3-TTS | 语义 token 理解内容，声学 token 恢复音质 |
-| 连续表征（无 tokenizer） | — | VoxCPM2 | 直接生成连续语音表征，跳过离散化 |
+| 方案                               | 帧率       | 代表                    | 特点                                     |
+| ---------------------------------- | ---------- | ----------------------- | ---------------------------------------- |
+| RVQ (Residual Vector Quantization) | ~21-50 Hz  | Fish Speech, Sesame CSM | 多 codebook 残差编码                     |
+| 语义+声学分离                      | ~7.5-12 Hz | VibeVoice, Qwen3-TTS    | 语义 token 理解内容，声学 token 恢复音质 |
+| 连续表征（无 tokenizer）           | —          | VoxCPM2                 | 直接生成连续语音表征，跳过离散化         |
 
 **为什么 LLM-based 是主流**：
+
 1. **可扩展性**：LLM backbone 随参数量增加质量提升
 2. **上下文理解**：LLM 天然理解文本语义，prosody 更自然
 3. **多语言**：LLM 预训练已覆盖大量语言
@@ -118,82 +121,86 @@
 
 ### 3.1 ✅ F5-TTS-MLX — 已部署，管线默认引擎
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | 上海交大 X-LANCE 实验室，arxiv 2410.06885 |
-| **GitHub** | github.com/SWivid/F5-TTS（15,090 stars） |
-| **MLX 移植** | github.com/lucasnewman/f5-tts-mlx（644 stars） |
-| **HuggingFace** | `SWivid/F5-TTS`（742K downloads, 1,191 likes） |
-| **技术原理** | Flow Matching + DiT (Diffusion Transformer) + ConvNeXt V2 |
-| **参数量** | 0.3B |
-| **采样率** | 24kHz |
-| **许可证** | 代码 MIT；**模型权重 CC-BY-NC-4.0**（非商用）⚠️ 见下方深度分析 |
-| **M2 Pro 兼容** | ✅ MLX 原生支持，已在 `~/.f5-tts-env` 部署 |
-| **性能** | 约 2-3x 实时（MLX 加速），峰值 ~7GB 内存 |
-| **评估结论** | ✅ **已部署**，管线默认 TTS 引擎，已在数十个视频中验证 |
+| 属性            | 详情                                                           |
+| --------------- | -------------------------------------------------------------- |
+| **来源**        | 上海交大 X-LANCE 实验室，arxiv 2410.06885                      |
+| **GitHub**      | github.com/SWivid/F5-TTS（15,090 stars）                       |
+| **MLX 移植**    | github.com/lucasnewman/f5-tts-mlx（644 stars）                 |
+| **HuggingFace** | `SWivid/F5-TTS`（742K downloads, 1,191 likes）                 |
+| **技术原理**    | Flow Matching + DiT (Diffusion Transformer) + ConvNeXt V2      |
+| **参数量**      | 0.3B                                                           |
+| **采样率**      | 24kHz                                                          |
+| **许可证**      | 代码 MIT；**模型权重 CC-BY-NC-4.0**（非商用）⚠️ 见下方深度分析 |
+| **M2 Pro 兼容** | ✅ MLX 原生支持，已在 `~/.f5-tts-env` 部署                     |
+| **性能**        | 约 2-3x 实时（MLX 加速），峰值 ~7GB 内存                       |
+| **评估结论**    | ✅ **已部署**，管线默认 TTS 引擎，已在数十个视频中验证         |
 
 **⚠️ 许可证深度分析（2026-08-10 新发现）**：
 
 管线实际使用的模型是 `lucasnewman/f5-tts-mlx`（HuggingFace 标注 MIT），而非原作者的 `SWivid/F5-TTS`（CC-BY-NC-4.0）。但通过文件 hash 比对发现：
 
-| 模型仓库 | HF 许可证标签 | 1.3GB 权重文件 hash |
-|---------|-------------|-------------------|
-| `SWivid/F5-TTS`（原作者） | **CC-BY-NC-4.0** | `670900fd14e6...` |
-| `lucasnewman/f5-tts-mlx`（管线使用） | MIT | `670900fd14e6...`（**同一文件**） |
+| 模型仓库                             | HF 许可证标签    | 1.3GB 权重文件 hash               |
+| ------------------------------------ | ---------------- | --------------------------------- |
+| `SWivid/F5-TTS`（原作者）            | **CC-BY-NC-4.0** | `670900fd14e6...`                 |
+| `lucasnewman/f5-tts-mlx`（管线使用） | MIT              | `670900fd14e6...`（**同一文件**） |
 
 **结论**：`lucasnewman` 将原作者 CC-BY-NC-4.0 的权重转成 MLX 格式后重新标注为 MIT 发布，但 1.3GB 权重文件 hash 完全相同。CC-BY-NC-4.0 是版权许可，不允许第三方通过重新托管改变许可条款。格式转换（PyTorch → MLX）一般不构成转换性使用（transformative use），原始 CC-BY-NC-4.0 仍然适用。实际风险低（开源 ML 社区普遍如此），但正式商业化时需注意。**Qwen3-TTS (Apache-2.0) 完全无此问题。**
 
 **实战教训**（来自 [[memory:17857691344010182898]]）：
+
 1. **duration 参数必须显式设置** — F5 generate() 的 duration 是总时长（ref + target），不设会生成 0.03s 音频。公式：`duration = ref_dur + word_count / 2.5`
 2. **ref-text 必须精确匹配 ref-audio** — 不匹配时 F5 会把参考文本泄漏到生成语音中
 3. **跳过 silenceremove** — F5 音频振幅低于 -35dB 阈值，silenceremove 会全删
 4. **estimate_duration=True 不可靠** — 基于参考音频语速估算，参考音频说得慢会过长
 
 **Benchmark 表现**（来自 CosyVoice 评测）：
+
 - 中文 CER 1.52%, 说话人相似度 74.1%
 - 英文 WER 2.00%, 说话人相似度 64.7%
 - 困难集 CER 8.67%, SS 71.3%
 
 ### 3.2 🔥 Zonos — 44kHz 高质量，支持 macOS（新发现）
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | Zyphra, Inc. |
-| **GitHub** | github.com/Zyphra/Zonos（7,235 stars） |
-| **HuggingFace** | `Zyphra/Zonos-v0.1-transformer`（67K downloads, 435 likes） |
-| **技术原理** | eSpeak 音素化 → DAC token 预测 → Transformer/Hybrid backbone |
-| **采样率** | **44kHz**（原生，远高于 F5-TTS 的 24kHz） |
-| **许可证** | **Apache-2.0**（商用 OK） |
-| **M2 Pro 兼容** | ✅ **README 明确支持 macOS**（`brew install espeak-ng`） |
-| **VRAM 需求** | 6GB+（Hybrid 需要 NVIDIA 3000+，Transformer 可纯 CPU/MPS） |
-| **语音克隆** | 10-30s 参考音频即可克隆 |
-| **可控参数** | 语速、音调、音频质量、情感（喜/怒/哀/惧） |
-| **多语言** | 英语、日语、中文、法语、德语 |
-| **推理速度** | RTF ~2x on RTX 4090 |
+| 属性            | 详情                                                         |
+| --------------- | ------------------------------------------------------------ |
+| **来源**        | Zyphra, Inc.                                                 |
+| **GitHub**      | github.com/Zyphra/Zonos（7,235 stars）                       |
+| **HuggingFace** | `Zyphra/Zonos-v0.1-transformer`（67K downloads, 435 likes）  |
+| **技术原理**    | eSpeak 音素化 → DAC token 预测 → Transformer/Hybrid backbone |
+| **采样率**      | **44kHz**（原生，远高于 F5-TTS 的 24kHz）                    |
+| **许可证**      | **Apache-2.0**（商用 OK）                                    |
+| **M2 Pro 兼容** | ✅ **README 明确支持 macOS**（`brew install espeak-ng`）     |
+| **VRAM 需求**   | 6GB+（Hybrid 需要 NVIDIA 3000+，Transformer 可纯 CPU/MPS）   |
+| **语音克隆**    | 10-30s 参考音频即可克隆                                      |
+| **可控参数**    | 语速、音调、音频质量、情感（喜/怒/哀/惧）                    |
+| **多语言**      | 英语、日语、中文、法语、德语                                 |
+| **推理速度**    | RTF ~2x on RTX 4090                                          |
 
 **测试优先级**：⭐⭐⭐⭐⭐（最高 — Apache-2.0 + macOS 原生支持 + 44kHz）
 
 **两个变体**：
+
 - `Zonos-v0.1-transformer`：纯 Transformer，可在 macOS 运行
 - `Zonos-v0.1-hybrid`：混合架构，需要 NVIDIA 3000+ GPU
 
 ### 3.3 🔥 Fun-CosyVoice 3.0 — 阿里，Flow Matching + RL（最新）
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | 阿里巴巴 FunAudioLLM |
-| **GitHub** | github.com/FunAudioLLM/CosyVoice（22,659 stars） |
-| **HuggingFace** | `FunAudioLLM/Fun-CosyVoice3-0.5B-2512` |
-| **技术原理** | LLM (Qwen) 预测语义 token + Flow Matching 生成声学特征 |
-| **版本** | v1.0 (300M, 2024.07) → v2.0 (0.5B, 2024.12) → Fun-CosyVoice3 (0.5B, 2025.12) |
-| **采样率** | 24kHz |
-| **许可证** | **Apache-2.0**（商用 OK） |
-| **M2 Pro 兼容** | ⚠️ MPS 可用但极慢（RTF 39.8x），CPU 更慢 |
-| **语言支持** | 9 种语言（中/英/日/韩/德/西/法/意/俄）+ 18 种中文方言 |
-| **M2 Pro 测试结果** | MPS RTF 39.83x（不可用），内存 1616 MB，加载 112.2s，输出 11.0s |
-| **特色** | 发音纠正（拼音/CMU 音素）、文本归一化、双向流式、指令控制 |
+| 属性                | 详情                                                                         |
+| ------------------- | ---------------------------------------------------------------------------- |
+| **来源**            | 阿里巴巴 FunAudioLLM                                                         |
+| **GitHub**          | github.com/FunAudioLLM/CosyVoice（22,659 stars）                             |
+| **HuggingFace**     | `FunAudioLLM/Fun-CosyVoice3-0.5B-2512`                                       |
+| **技术原理**        | LLM (Qwen) 预测语义 token + Flow Matching 生成声学特征                       |
+| **版本**            | v1.0 (300M, 2024.07) → v2.0 (0.5B, 2024.12) → Fun-CosyVoice3 (0.5B, 2025.12) |
+| **采样率**          | 24kHz                                                                        |
+| **许可证**          | **Apache-2.0**（商用 OK）                                                    |
+| **M2 Pro 兼容**     | ⚠️ MPS 可用但极慢（RTF 39.8x），CPU 更慢                                     |
+| **语言支持**        | 9 种语言（中/英/日/韩/德/西/法/意/俄）+ 18 种中文方言                        |
+| **M2 Pro 测试结果** | MPS RTF 39.83x（不可用），内存 1616 MB，加载 112.2s，输出 11.0s              |
+| **特色**            | 发音纠正（拼音/CMU 音素）、文本归一化、双向流式、指令控制                    |
 
 **Benchmark 表现**（来自官方评测，Fun-CosyVoice3-0.5B-RL）：
+
 - 中文 CER **0.81%**, SS 77.4%
 - 英文 WER 1.68%, SS 69.5%
 - 困难集 CER **5.44%**, SS 75.0%
@@ -203,40 +210,41 @@
 
 ### 3.4 🔥 Sesame CSM — Llama backbone，MPS 代码已有
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | Sesame AI Labs |
-| **GitHub** | github.com/SesameAILabs/csm（14,716 stars） |
-| **HuggingFace** | `Sesame/csm-1b`（185K downloads, 2,424 likes） |
-| **技术原理** | Llama-3.2-1B backbone + Mimi 音频 codec → RVQ token 预测 |
-| **参数量** | 1B |
-| **采样率** | 24kHz |
-| **许可证** | **Apache-2.0**（商用 OK） |
-| **M2 Pro 兼容** | ❌ **MPS 生成卡死**（进程挂起，CPU 0%），CPU 可用但极慢 |
-| **HF Transformers** | ✅ 已集成到 HuggingFace Transformers v4.52.1+ |
-| **特色** | 对话式语音生成（支持上下文多轮对话）、2 说话人对话 |
-| **GPU 需求** | 官方推荐 CUDA，但代码支持 MPS/CPU |
+| 属性                | 详情                                                         |
+| ------------------- | ------------------------------------------------------------ |
+| **来源**            | Sesame AI Labs                                               |
+| **GitHub**          | github.com/SesameAILabs/csm（14,716 stars）                  |
+| **HuggingFace**     | `Sesame/csm-1b`（185K downloads, 2,424 likes）               |
+| **技术原理**        | Llama-3.2-1B backbone + Mimi 音频 codec → RVQ token 预测     |
+| **参数量**          | 1B                                                           |
+| **采样率**          | 24kHz                                                        |
+| **许可证**          | **Apache-2.0**（商用 OK）                                    |
+| **M2 Pro 兼容**     | ❌ **MPS 生成卡死**（进程挂起，CPU 0%），CPU 可用但极慢      |
+| **HF Transformers** | ✅ 已集成到 HuggingFace Transformers v4.52.1+                |
+| **特色**            | 对话式语音生成（支持上下文多轮对话）、2 说话人对话           |
+| **GPU 需求**        | 官方推荐 CUDA，但代码支持 MPS/CPU                            |
 | **M2 Pro 测试结果** | CPU RTF 120.26x（19分钟生成9.5s），内存 3577 MB，加载 292.3s |
 
 **测试优先级**：⭐⭐⭐⭐（Apache-2.0 + MPS 明确支持 + HF 集成）
 
 ### 3.5 ⚠️ VoxCPM2 — OpenBMB，Tokenizer-Free 扩散 AR（不兼容 M2 Pro）
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | OpenBMB（面壁智能），基于 MiniCPM-4 backbone |
-| **GitHub** | github.com/OpenBMB/VoxCPM（35,135 stars） |
-| **HuggingFace** | `OpenBMB/VoxCPM2`（688K downloads, 1,522 likes） |
-| **技术原理** | **Tokenizer-Free** 扩散自回归 — 直接生成连续语音表征，跳过离散化 |
-| **参数量** | 2B |
-| **训练数据** | 200 万小时+ 多语言语音 |
-| **采样率** | **48kHz**（接受 16kHz 参考音频，内置超分辨率） |
-| **许可证** | **Apache-2.0**（商用 OK） |
-| **M2 Pro 兼容** | ❌ **需要 CUDA 12.0+**（PyTorch ≥ 2.5.0, CUDA ≥ 12.0） |
-| **语言支持** | 30 种语言 + 9 种中文方言 |
-| **特色** | 语音设计、可控克隆、终极克隆（保留所有声音细节）、RTF ~0.13（vLLM 加速） |
+| 属性            | 详情                                                                     |
+| --------------- | ------------------------------------------------------------------------ |
+| **来源**        | OpenBMB（面壁智能），基于 MiniCPM-4 backbone                             |
+| **GitHub**      | github.com/OpenBMB/VoxCPM（35,135 stars）                                |
+| **HuggingFace** | `OpenBMB/VoxCPM2`（688K downloads, 1,522 likes）                         |
+| **技术原理**    | **Tokenizer-Free** 扩散自回归 — 直接生成连续语音表征，跳过离散化         |
+| **参数量**      | 2B                                                                       |
+| **训练数据**    | 200 万小时+ 多语言语音                                                   |
+| **采样率**      | **48kHz**（接受 16kHz 参考音频，内置超分辨率）                           |
+| **许可证**      | **Apache-2.0**（商用 OK）                                                |
+| **M2 Pro 兼容** | ❌ **需要 CUDA 12.0+**（PyTorch ≥ 2.5.0, CUDA ≥ 12.0）                   |
+| **语言支持**    | 30 种语言 + 9 种中文方言                                                 |
+| **特色**        | 语音设计、可控克隆、终极克隆（保留所有声音细节）、RTF ~0.13（vLLM 加速） |
 
 **Benchmark 表现**（来自 CosyVoice 评测）：
+
 - 中文 CER **0.93%**, SS **77.2%**（开源模型中文最佳之一）
 - 英文 WER 1.85%, SS **72.9%**（开源模型英文 SS 最佳）
 - 困难集 CER 8.87%, SS 73.0%
@@ -245,19 +253,20 @@
 
 ### 3.6 ⚠️ Fish Speech S2 Pro — Dual-AR + RL（不兼容 M2 Pro）
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | Fish Audio |
-| **GitHub** | github.com/fishaudio/fish-speech（32,113 stars） |
-| **HuggingFace** | `fishaudio/s2-pro`（767 likes） |
-| **技术原理** | **Dual-AR 架构**：Slow AR (4B, 语义) + Fast AR (400M, 声学 9 codebooks) + GRPO RL 对齐 |
-| **参数量** | 4B（Slow）+ 400M（Fast） |
-| **训练数据** | 1000 万小时+，80+ 语言 |
-| **许可证** | ❌ **FISH AUDIO RESEARCH LICENSE**（非商用） |
-| **M2 Pro 兼容** | ❌ 需 NVIDIA GPU（SGLang 推理） |
-| **特色** | 子词级 `[tag]` 情感控制（15000+ tags）、多说话人、多轮对话、流式 RTF 0.195 |
+| 属性            | 详情                                                                                   |
+| --------------- | -------------------------------------------------------------------------------------- |
+| **来源**        | Fish Audio                                                                             |
+| **GitHub**      | github.com/fishaudio/fish-speech（32,113 stars）                                       |
+| **HuggingFace** | `fishaudio/s2-pro`（767 likes）                                                        |
+| **技术原理**    | **Dual-AR 架构**：Slow AR (4B, 语义) + Fast AR (400M, 声学 9 codebooks) + GRPO RL 对齐 |
+| **参数量**      | 4B（Slow）+ 400M（Fast）                                                               |
+| **训练数据**    | 1000 万小时+，80+ 语言                                                                 |
+| **许可证**      | ❌ **FISH AUDIO RESEARCH LICENSE**（非商用）                                           |
+| **M2 Pro 兼容** | ❌ 需 NVIDIA GPU（SGLang 推理）                                                        |
+| **特色**        | 子词级 `[tag]` 情感控制（15000+ tags）、多说话人、多轮对话、流式 RTF 0.195             |
 
 **Benchmark 表现**（来自 Fish Audio 官方）：
+
 - Seed-TTS Eval WER: 中文 **0.54%**（所有模型最佳），英文 **0.99%**（所有模型最佳）
 - Audio Turing Test: **0.515** 后验均值（超越 Seed-TTS 24%，超越 MiniMax 33%）
 - EmergentTTS-Eval 胜率: **81.88%**（所有模型最高）
@@ -266,65 +275,67 @@
 
 ### 3.7 ⚠️ Qwen3-TTS — 阿里通义，多码书 LM（需 CUDA）
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | 阿里云 Qwen 团队 |
-| **GitHub** | github.com/QwenLM/Qwen3-TTS（12,878 stars） |
-| **技术原理** | 离散多码书 LM（Discrete Multi-Codebook LM），非 DiT 架构，Qwen3-TTS-Tokenizer-12Hz |
-| **参数量** | 0.6B / 1.7B |
-| **许可证** | **Apache-2.0**（商用 OK） |
-| **M2 Pro 兼容** | ⚠️ 官方推荐 FlashAttention 2 + CUDA，但底层是 HF Transformers，MPS 可能可行 |
-| **语言支持** | 10 种语言（中/英/日/韩/德/法/俄/葡/西/意） |
-| **特色** | 语音克隆（3 秒参考）、语音设计、自然语言声音控制、双轨流式（延迟 97ms） |
-| **变体** | Base（克隆）、CustomVoice（9 预置音色）、VoiceDesign（文本描述生成音色） |
+| 属性            | 详情                                                                               |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **来源**        | 阿里云 Qwen 团队                                                                   |
+| **GitHub**      | github.com/QwenLM/Qwen3-TTS（12,878 stars）                                        |
+| **技术原理**    | 离散多码书 LM（Discrete Multi-Codebook LM），非 DiT 架构，Qwen3-TTS-Tokenizer-12Hz |
+| **参数量**      | 0.6B / 1.7B                                                                        |
+| **许可证**      | **Apache-2.0**（商用 OK）                                                          |
+| **M2 Pro 兼容** | ⚠️ 官方推荐 FlashAttention 2 + CUDA，但底层是 HF Transformers，MPS 可能可行        |
+| **语言支持**    | 10 种语言（中/英/日/韩/德/法/俄/葡/西/意）                                         |
+| **特色**        | 语音克隆（3 秒参考）、语音设计、自然语言声音控制、双轨流式（延迟 97ms）            |
+| **变体**        | Base（克隆）、CustomVoice（9 预置音色）、VoiceDesign（文本描述生成音色）           |
 
 **Benchmark 表现**（来自 Fish Audio 评测）：
+
 - Seed-TTS Eval WER: 中文 0.77%, 英文 1.24%
 
 **测试优先级**：⭐⭐⭐（Apache-2.0 + 10 语言 + 低延迟，但 MPS 兼容不确定）
 
 ### 3.8 ⚠️ ChatTTS — 对话 TTS（非商用）
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | 2noise |
-| **GitHub** | github.com/2noise/ChatTTS（39,757 stars） |
-| **HuggingFace** | `2Noise/ChatTTS`（1,665 likes） |
-| **技术原理** | LLM-based 自回归，专为对话场景优化 |
-| **训练数据** | 10 万小时中英文（开源版为 4 万小时预训练版） |
-| **许可证** | 代码 AGPL-3.0；**模型 CC-BY-NC-4.0**（非商用） |
-| **M2 Pro 兼容** | ⚠️ PyTorch，MPS 可能可行 |
-| **特色** | 细粒度 prosody 控制（笑声、停顿、语气词）、多说话人 |
-| **限制** | 开源版有高频噪声 + MP3 压缩（防滥用），学术用途 |
+| 属性            | 详情                                                |
+| --------------- | --------------------------------------------------- |
+| **来源**        | 2noise                                              |
+| **GitHub**      | github.com/2noise/ChatTTS（39,757 stars）           |
+| **HuggingFace** | `2Noise/ChatTTS`（1,665 likes）                     |
+| **技术原理**    | LLM-based 自回归，专为对话场景优化                  |
+| **训练数据**    | 10 万小时中英文（开源版为 4 万小时预训练版）        |
+| **许可证**      | 代码 AGPL-3.0；**模型 CC-BY-NC-4.0**（非商用）      |
+| **M2 Pro 兼容** | ⚠️ PyTorch，MPS 可能可行                            |
+| **特色**        | 细粒度 prosody 控制（笑声、停顿、语气词）、多说话人 |
+| **限制**        | 开源版有高频噪声 + MP3 压缩（防滥用），学术用途     |
 
 ### 3.9 ⚠️ GPT-SoVITS — 少样本克隆（60K stars 最热门）
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | RVC-Boss |
-| **GitHub** | github.com/RVC-Boss/GPT-SoVITS（**60,627 stars**，TTS 领域最高） |
-| **技术原理** | GPT 预测语义 token + SoVITS 声码器 |
-| **许可证** | **MIT**（商用 OK） |
-| **M2 Pro 兼容** | ⚠️ CPU 可用（`is_half=False`），MPS 未测试 |
-| **特色** | **1 分钟参考音频即可克隆**，中英双语，WebUI，支持微调 |
-| **优势** | 社区最大、文档最全、工具链最完善 |
-| **劣势** | 质量不如 Fish Speech S2 / CosyVoice 3.0 / VoxCPM2 等新一代模型 |
-| **M2 Pro 测试结果** | CPU RTF 321.86x（495.7s 生成 1.5s），内存 422 MB，加载 363.3s，32kHz |
-| **macOS 依赖问题** | NLTK `averaged_perceptron_tagger_eng` 需手动下载、`fast_langdetect` 模型需手动下载、`torchcodec` 需安装、`torch.distributed` 需手动初始化 |
+| 属性                | 详情                                                                                                                                      |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **来源**            | RVC-Boss                                                                                                                                  |
+| **GitHub**          | github.com/RVC-Boss/GPT-SoVITS（**60,627 stars**，TTS 领域最高）                                                                          |
+| **技术原理**        | GPT 预测语义 token + SoVITS 声码器                                                                                                        |
+| **许可证**          | **MIT**（商用 OK）                                                                                                                        |
+| **M2 Pro 兼容**     | ⚠️ CPU 可用（`is_half=False`），MPS 未测试                                                                                                |
+| **特色**            | **1 分钟参考音频即可克隆**，中英双语，WebUI，支持微调                                                                                     |
+| **优势**            | 社区最大、文档最全、工具链最完善                                                                                                          |
+| **劣势**            | 质量不如 Fish Speech S2 / CosyVoice 3.0 / VoxCPM2 等新一代模型                                                                            |
+| **M2 Pro 测试结果** | CPU RTF 321.86x（495.7s 生成 1.5s），内存 422 MB，加载 363.3s，32kHz                                                                      |
+| **macOS 依赖问题**  | NLTK `averaged_perceptron_tagger_eng` 需手动下载、`fast_langdetect` 模型需手动下载、`torchcodec` 需安装、`torch.distributed` 需手动初始化 |
 
 ### 3.10 ⚠️ Index-TTS — 工业级零样本 TTS
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | Bilibili（哔哩哔哩），Index-TTS Team |
-| **GitHub** | github.com/index-tts/index-tts（22,490 stars） |
-| **技术原理** | 工业级可控零样本 TTS，主打情感/表现力控制 |
-| **参数量** | 1.5B |
-| **许可证** | 模型为 **Bilibili 自有许可**（非标准开源许可，商用前需单独确认；2026-09-03 经 VoiceStudio README 证实） |
-| **M2 Pro 兼容** | ⚠️ 工业级系统，可能需 CUDA |
-| **ComfyUI** | ✅ `chenpipi0807/ComfyUI-Index-TTS`（731 stars） |
+| 属性            | 详情                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------- |
+| **来源**        | Bilibili（哔哩哔哩），Index-TTS Team                                                                    |
+| **GitHub**      | github.com/index-tts/index-tts（22,490 stars）                                                          |
+| **技术原理**    | 工业级可控零样本 TTS，主打情感/表现力控制                                                               |
+| **参数量**      | 1.5B                                                                                                    |
+| **许可证**      | 模型为 **Bilibili 自有许可**（非标准开源许可，商用前需单独确认；2026-09-03 经 VoiceStudio README 证实） |
+| **M2 Pro 兼容** | ⚠️ 工业级系统，可能需 CUDA                                                                              |
+| **ComfyUI**     | ✅ `chenpipi0807/ComfyUI-Index-TTS`（731 stars）                                                        |
 
 **Benchmark 表现**（来自 CosyVoice 评测，Index-TTS2）：
+
 - 中文 CER 1.03%, SS 76.5%
 - 英文 WER 2.23%, SS 70.6%
 - 困难集 CER 7.12%, SS 75.5%
@@ -333,81 +344,81 @@
 
 #### 3.11.1 Bark — Suno，文本提示生成音频
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | Suno AI |
-| **GitHub** | github.com/suno-ai/bark（39,235 stars） |
-| **HuggingFace** | `suno/bark`（1,549 likes） |
-| **技术原理** | Text-prompted generative audio model（Transformer-based） |
-| **许可证** | **MIT**（商用 OK） |
-| **M2 Pro 兼容** | ✅ CPU/MPS 可用（Transformer 推理） |
-| **特色** | 可生成语音、音乐、音效、笑声等；多语言 |
-| **劣势** | 推理慢、质量不如专用 TTS、最后更新 2024.08 |
+| 属性            | 详情                                                      |
+| --------------- | --------------------------------------------------------- |
+| **来源**        | Suno AI                                                   |
+| **GitHub**      | github.com/suno-ai/bark（39,235 stars）                   |
+| **HuggingFace** | `suno/bark`（1,549 likes）                                |
+| **技术原理**    | Text-prompted generative audio model（Transformer-based） |
+| **许可证**      | **MIT**（商用 OK）                                        |
+| **M2 Pro 兼容** | ✅ CPU/MPS 可用（Transformer 推理）                       |
+| **特色**        | 可生成语音、音乐、音效、笑声等；多语言                    |
+| **劣势**        | 推理慢、质量不如专用 TTS、最后更新 2024.08                |
 
 #### 3.11.2 OpenVoice V2 — MIT+MyShell，即时克隆
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | MIT + MyShell.ai |
-| **GitHub** | github.com/myshell-ai/OpenVoice（37,113 stars） |
-| **技术原理** | 音色克隆 + 风格控制（情感/口音/节奏/停顿/语调） |
-| **许可证** | **MIT**（商用 OK） |
-| **M2 Pro 兼容** | ✅ CPU 可用 |
-| **特色** | 零样本跨语言克隆、灵活风格控制 |
-| **劣势** | V2 质量不如新一代 LLM-TTS，但克隆能力强 |
+| 属性            | 详情                                            |
+| --------------- | ----------------------------------------------- |
+| **来源**        | MIT + MyShell.ai                                |
+| **GitHub**      | github.com/myshell-ai/OpenVoice（37,113 stars） |
+| **技术原理**    | 音色克隆 + 风格控制（情感/口音/节奏/停顿/语调） |
+| **许可证**      | **MIT**（商用 OK）                              |
+| **M2 Pro 兼容** | ✅ CPU 可用                                     |
+| **特色**        | 零样本跨语言克隆、灵活风格控制                  |
+| **劣势**        | V2 质量不如新一代 LLM-TTS，但克隆能力强         |
 
 #### 3.11.3 MeloTTS — MyShell，多语言 VITS
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | MyShell.ai |
-| **GitHub** | github.com/myshell-ai/MeloTTS（7,570 stars） |
-| **技术原理** | VITS2-based，非自回归 |
-| **许可证** | **MIT**（商用 OK） |
-| **M2 Pro 兼容** | ✅ CPU 友好 |
-| **特色** | 英/西/法/中/日/韩多语言，CPU 实时推理 |
-| **劣势** | 无语音克隆（固定音色），质量中等 |
+| 属性            | 详情                                         |
+| --------------- | -------------------------------------------- |
+| **来源**        | MyShell.ai                                   |
+| **GitHub**      | github.com/myshell-ai/MeloTTS（7,570 stars） |
+| **技术原理**    | VITS2-based，非自回归                        |
+| **许可证**      | **MIT**（商用 OK）                           |
+| **M2 Pro 兼容** | ✅ CPU 友好                                  |
+| **特色**        | 英/西/法/中/日/韩多语言，CPU 实时推理        |
+| **劣势**        | 无语音克隆（固定音色），质量中等             |
 
 #### 3.11.4 Piper — rhasspy，ONNX CPU 优化
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | rhasspy (Home Assistant) |
-| **GitHub** | github.com/rhasspy/piper（11,276 stars） |
-| **技术原理** | VITS-based，ONNX Runtime 推理 |
-| **许可证** | **MIT**（商用 OK） |
-| **M2 Pro 兼容** | ✅ **CPU 原生，ONNX 优化**，最轻量 |
-| **特色** | 极低延迟（CPU 实时）、多语言多音色、嵌入式可用 |
-| **劣势** | 无语音克隆（固定音色），质量较低 |
+| 属性            | 详情                                           |
+| --------------- | ---------------------------------------------- |
+| **来源**        | rhasspy (Home Assistant)                       |
+| **GitHub**      | github.com/rhasspy/piper（11,276 stars）       |
+| **技术原理**    | VITS-based，ONNX Runtime 推理                  |
+| **许可证**      | **MIT**（商用 OK）                             |
+| **M2 Pro 兼容** | ✅ **CPU 原生，ONNX 优化**，最轻量             |
+| **特色**        | 极低延迟（CPU 实时）、多语言多音色、嵌入式可用 |
+| **劣势**        | 无语音克隆（固定音色），质量较低               |
 
 #### 3.11.5 Chatterbox — Resemble AI，SOTA 开源 TTS
 
-| 属性 | 详情 |
-|------|------|
-| **来源** | Resemble AI |
+| 属性            | 详情                                                   |
+| --------------- | ------------------------------------------------------ |
+| **来源**        | Resemble AI                                            |
 | **HuggingFace** | `ResembleAI/chatterbox`（2.1M downloads, 1,732 likes） |
-| **GitHub** | 搜索结果 25,928 stars（resemble-ai/chatterbox） |
-| **技术原理** | 开源 SOTA TTS（具体架构待查） |
-| **许可证** | 待确认 |
-| **M2 Pro 兼容** | ⚠️ 待验证 |
-| **特色** | 声称超越 ElevenLabs 的开源 TTS |
+| **GitHub**      | 搜索结果 25,928 stars（resemble-ai/chatterbox）        |
+| **技术原理**    | 开源 SOTA TTS（具体架构待查）                          |
+| **许可证**      | 待确认                                                 |
+| **M2 Pro 兼容** | ⚠️ 待验证                                              |
+| **特色**        | 声称超越 ElevenLabs 的开源 TTS                         |
 
 ### 3.12 其他已发现模型（简要列表）
 
-| 模型 | 来源 | 技术 | 参数 | Stars | 许可证 | 备注 |
-|------|------|------|------|-------|--------|------|
-| **GLM-TTS** | 智谱 AI | LLM-based AR | 1.5B | 1,048 | Apache | 多奖励 RL 对齐 |
-| **FireRedTTS2** | FireRedTeam | LLM | 1.5B | 1,421 | — | 长篇流式多说话人 |
-| **VibeVoice** | Microsoft | Next-token Diffusion | 1.5B/0.5B | 52,272 | Apache | ICLR 2026 Oral；⚠️ TTS 代码已撤回 |
-| **HiggsAudio v2** | 阿里达摩院 | — | 3B | — | — | 多模态 TTS |
-| **Spark-TTS** | 港科大+出门问问 | LLM (Qwen2.5) | 0.5B | 11,008 | Apache(代码)/CC-BY-NC-SA(模型) | 单流解耦语音 token |
-| **StyleTTS2** | — | Style Diffusion + 对抗训练 | — | 6,328 | MIT | 人类级别 TTS |
-| **Parler-TTS** | HuggingFace | 文本条件扩散 | — | 5,588 | Apache | 文本描述控制语音风格 |
-| **Orpheus-TTS** | Canopy Labs | Llama-3b backbone | 3B | 6,284 | Apache | 零样本克隆 + 情感 tag |
-| **OmniVoice** | k2-fsa | — | — | 8,870 | Apache | 600+ 语言 |
-| **MockingBird** | babysor | SV2TTS | — | 36,919 | — | 中文克隆，RTVC 仿制 |
-| **RTVC** | CorentinJ | SV2TTS | — | 60,083 | — | 2019 经典，已过时 |
-| **VoiceStudio** | debpalash | 聚合器（HF 模型 + Tauri 桌面壳） | — | 14,623 | — | 开源本地 ElevenLabs 替代品；克隆/配音/转录/播客，646 语言，可离线。Apple Silicon 可用（MPS+MLX，macOS 13.3+）。Instruct 情感控制仅限部分底层引擎（OmniVoice/CosyVoice3/VoxCPM2/IndexTTS 2.5）。应用 AGPL-3.0；默认 OmniVoice 权重 CC-BY-NC。⚠️ 它封装底层模型（多为 CUDA 系），不替代 M2 Pro 上的独立引擎选型 |
+| 模型              | 来源            | 技术                             | 参数      | Stars  | 许可证                         | 备注                                                                                                                                                                                                                                                                                                          |
+| ----------------- | --------------- | -------------------------------- | --------- | ------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GLM-TTS**       | 智谱 AI         | LLM-based AR                     | 1.5B      | 1,048  | Apache                         | 多奖励 RL 对齐                                                                                                                                                                                                                                                                                                |
+| **FireRedTTS2**   | FireRedTeam     | LLM                              | 1.5B      | 1,421  | —                              | 长篇流式多说话人                                                                                                                                                                                                                                                                                              |
+| **VibeVoice**     | Microsoft       | Next-token Diffusion             | 1.5B/0.5B | 52,272 | Apache                         | ICLR 2026 Oral；⚠️ TTS 代码已撤回                                                                                                                                                                                                                                                                             |
+| **HiggsAudio v2** | 阿里达摩院      | —                                | 3B        | —      | —                              | 多模态 TTS                                                                                                                                                                                                                                                                                                    |
+| **Spark-TTS**     | 港科大+出门问问 | LLM (Qwen2.5)                    | 0.5B      | 11,008 | Apache(代码)/CC-BY-NC-SA(模型) | 单流解耦语音 token                                                                                                                                                                                                                                                                                            |
+| **StyleTTS2**     | —               | Style Diffusion + 对抗训练       | —         | 6,328  | MIT                            | 人类级别 TTS                                                                                                                                                                                                                                                                                                  |
+| **Parler-TTS**    | HuggingFace     | 文本条件扩散                     | —         | 5,588  | Apache                         | 文本描述控制语音风格                                                                                                                                                                                                                                                                                          |
+| **Orpheus-TTS**   | Canopy Labs     | Llama-3b backbone                | 3B        | 6,284  | Apache                         | 零样本克隆 + 情感 tag                                                                                                                                                                                                                                                                                         |
+| **OmniVoice**     | k2-fsa          | —                                | —         | 8,870  | Apache                         | 600+ 语言                                                                                                                                                                                                                                                                                                     |
+| **MockingBird**   | babysor         | SV2TTS                           | —         | 36,919 | —                              | 中文克隆，RTVC 仿制                                                                                                                                                                                                                                                                                           |
+| **RTVC**          | CorentinJ       | SV2TTS                           | —         | 60,083 | —                              | 2019 经典，已过时                                                                                                                                                                                                                                                                                             |
+| **VoiceStudio**   | debpalash       | 聚合器（HF 模型 + Tauri 桌面壳） | —         | 14,623 | —                              | 开源本地 ElevenLabs 替代品；克隆/配音/转录/播客，646 语言，可离线。Apple Silicon 可用（MPS+MLX，macOS 13.3+）。Instruct 情感控制仅限部分底层引擎（OmniVoice/CosyVoice3/VoxCPM2/IndexTTS 2.5）。应用 AGPL-3.0；默认 OmniVoice 权重 CC-BY-NC。⚠️ 它封装底层模型（多为 CUDA 系），不替代 M2 Pro 上的独立引擎选型 |
 
 ### 3.13 全球模型综合排名与技术标注
 
@@ -415,62 +426,62 @@
 
 #### T0 — 顶会 SOTA / 工业级最强（2025-2026）
 
-| 排名 | 模型 | 技术路线 | 参数 | NVIDIA 必需 | M2 Pro | 商用 | 采样率 | 质量 | GitHub Stars |
-|------|------|---------|------|-----------|--------|------|--------|------|-------------|
-| 1 | **Fish Speech S2** | Dual-AR + RL | 4B+0.4B | ✅ | ❌ | ❌ 非商用 | — | ⭐⭐⭐⭐⭐ | 32,113 |
-| 2 | **Fun-CosyVoice3 RL** | Flow Matching + RL | 0.5B | ⚠️ MPS 待验证 | ⚠️ | ✅ Apache | 24kHz | ⭐⭐⭐⭐⭐ | 22,659 |
-| 3 | **VoxCPM2** | Diffusion AR (无 tokenizer) | 2B | ✅ CUDA 12+ | ❌ | ✅ Apache | **48kHz** | ⭐⭐⭐⭐⭐ | 35,135 |
-| 4 | **Qwen3-TTS** | Multi-Codebook LM | 0.6B/1.7B | ⚠️ FA2 推荐 | ⚠️ | ✅ Apache | — | ⭐⭐⭐⭐⭐ | 12,878 |
-| 5 | **VibeVoice** | Next-token Diffusion | 1.5B/0.5B | ✅ | ❌ | ✅ Apache | — | ⭐⭐⭐⭐⭐ | 52,272 |
-| 6 | **GLM-TTS RL** | LLM-based AR + RL | 1.5B | ✅ | ❌ | ✅ Apache | — | ⭐⭐⭐⭐⭐ | 1,048 |
+| 排名 | 模型                  | 技术路线                    | 参数      | NVIDIA 必需   | M2 Pro | 商用      | 采样率    | 质量       | GitHub Stars |
+| ---- | --------------------- | --------------------------- | --------- | ------------- | ------ | --------- | --------- | ---------- | ------------ |
+| 1    | **Fish Speech S2**    | Dual-AR + RL                | 4B+0.4B   | ✅            | ❌     | ❌ 非商用 | —         | ⭐⭐⭐⭐⭐ | 32,113       |
+| 2    | **Fun-CosyVoice3 RL** | Flow Matching + RL          | 0.5B      | ⚠️ MPS 待验证 | ⚠️     | ✅ Apache | 24kHz     | ⭐⭐⭐⭐⭐ | 22,659       |
+| 3    | **VoxCPM2**           | Diffusion AR (无 tokenizer) | 2B        | ✅ CUDA 12+   | ❌     | ✅ Apache | **48kHz** | ⭐⭐⭐⭐⭐ | 35,135       |
+| 4    | **Qwen3-TTS**         | Multi-Codebook LM           | 0.6B/1.7B | ⚠️ FA2 推荐   | ⚠️     | ✅ Apache | —         | ⭐⭐⭐⭐⭐ | 12,878       |
+| 5    | **VibeVoice**         | Next-token Diffusion        | 1.5B/0.5B | ✅            | ❌     | ✅ Apache | —         | ⭐⭐⭐⭐⭐ | 52,272       |
+| 6    | **GLM-TTS RL**        | LLM-based AR + RL           | 1.5B      | ✅            | ❌     | ✅ Apache | —         | ⭐⭐⭐⭐⭐ | 1,048        |
 
 #### T1 — 高质量开源（可部署或可测试）
 
-| 排名 | 模型 | 技术路线 | 参数 | NVIDIA 必需 | M2 Pro | 商用 | 采样率 | 质量 | GitHub Stars |
-|------|------|---------|------|-----------|--------|------|--------|------|-------------|
-| 7 | **Zonos** | Transformer/DAC | ~1B | ❌ macOS ✅ | ✅ | ✅ Apache | **44kHz** | ⭐⭐⭐⭐⭐ | 7,235 |
-| 8 | **F5-TTS** | Flow Matching + DiT | 0.3B | ❌ MLX ✅ | ✅ | ⚠️ 权重非商用 | 24kHz | ⭐⭐⭐⭐ | 15,090 |
-| 9 | **Sesame CSM** | Llama + Mimi codec | 1B | ❌ MPS ✅ | ✅ | ✅ Apache | 24kHz | ⭐⭐⭐⭐ | 14,716 |
-| 10 | **Chatterbox** | — | — | ⚠️ | ⚠️ | ✅ | — | ⭐⭐⭐⭐ | 25,928 |
-| 11 | **Index-TTS2** | LLM-based AR | 1.5B | ⚠️ | ⚠️ | ❓ | — | ⭐⭐⭐⭐ | 22,490 |
-| 12 | **Spark-TTS** | LLM (Qwen2.5) | 0.5B | ⚠️ | ⚠️ | ⚠️ 模型非商用 | — | ⭐⭐⭐⭐ | 11,008 |
-| 13 | **CosyVoice 2.0** | Flow Matching | 0.5B | ⚠️ MPS 待验证 | ⚠️ | ✅ Apache | 24kHz | ⭐⭐⭐⭐ | 22,659 |
-| 14 | **GPT-SoVITS** | GPT + SoVITS | — | ⚠️ | ⚠️ | ✅ MIT | — | ⭐⭐⭐⭐ | 60,627 |
-| 15 | **Orpheus-TTS** | Llama-3b | 3B | ✅ vLLM | ⚠️ | ✅ Apache | 24kHz | ⭐⭐⭐⭐ | 6,284 |
-| 16 | **FireRedTTS2** | LLM | 1.5B | ⚠️ | ⚠️ | ❓ | — | ⭐⭐⭐⭐ | 1,421 |
+| 排名 | 模型              | 技术路线            | 参数 | NVIDIA 必需   | M2 Pro | 商用          | 采样率    | 质量       | GitHub Stars |
+| ---- | ----------------- | ------------------- | ---- | ------------- | ------ | ------------- | --------- | ---------- | ------------ |
+| 7    | **Zonos**         | Transformer/DAC     | ~1B  | ❌ macOS ✅   | ✅     | ✅ Apache     | **44kHz** | ⭐⭐⭐⭐⭐ | 7,235        |
+| 8    | **F5-TTS**        | Flow Matching + DiT | 0.3B | ❌ MLX ✅     | ✅     | ⚠️ 权重非商用 | 24kHz     | ⭐⭐⭐⭐   | 15,090       |
+| 9    | **Sesame CSM**    | Llama + Mimi codec  | 1B   | ❌ MPS ✅     | ✅     | ✅ Apache     | 24kHz     | ⭐⭐⭐⭐   | 14,716       |
+| 10   | **Chatterbox**    | —                   | —    | ⚠️            | ⚠️     | ✅            | —         | ⭐⭐⭐⭐   | 25,928       |
+| 11   | **Index-TTS2**    | LLM-based AR        | 1.5B | ⚠️            | ⚠️     | ❓            | —         | ⭐⭐⭐⭐   | 22,490       |
+| 12   | **Spark-TTS**     | LLM (Qwen2.5)       | 0.5B | ⚠️            | ⚠️     | ⚠️ 模型非商用 | —         | ⭐⭐⭐⭐   | 11,008       |
+| 13   | **CosyVoice 2.0** | Flow Matching       | 0.5B | ⚠️ MPS 待验证 | ⚠️     | ✅ Apache     | 24kHz     | ⭐⭐⭐⭐   | 22,659       |
+| 14   | **GPT-SoVITS**    | GPT + SoVITS        | —    | ⚠️            | ⚠️     | ✅ MIT        | —         | ⭐⭐⭐⭐   | 60,627       |
+| 15   | **Orpheus-TTS**   | Llama-3b            | 3B   | ✅ vLLM       | ⚠️     | ✅ Apache     | 24kHz     | ⭐⭐⭐⭐   | 6,284        |
+| 16   | **FireRedTTS2**   | LLM                 | 1.5B | ⚠️            | ⚠️     | ❓            | —         | ⭐⭐⭐⭐   | 1,421        |
 
 #### T2 — GAN/VITS 方案（2023-2024，速度快但质量中等）
 
-| 排名 | 模型 | 技术路线 | 参数 | NVIDIA 必需 | M2 Pro | 商用 | 质量 | GitHub Stars |
-|------|------|---------|------|-----------|--------|------|------|-------------|
-| 17 | **XTTS v2**（已有） | GPT AR + HiFi-GAN | — | ❌ MPS ✅ | ✅ | ✅ MPL-2.0 | ⭐⭐⭐ | 45,870 |
-| 18 | **Kokoro**（已有） | StyleTTS-based | **82M** | ❌ CPU ✅ | ✅ | ✅ Apache | ⭐⭐⭐ | 6666 likes |
-| 19 | **OpenVoice V2** | 音色克隆 + VITS | — | ❌ CPU ✅ | ✅ | ✅ MIT | ⭐⭐⭐ | 37,113 |
-| 20 | **MeloTTS** | VITS2 | — | ❌ CPU ✅ | ✅ | ✅ MIT | ⭐⭐⭐ | 7,570 |
-| 21 | **StyleTTS2** | Style Diffusion + GAN | — | ⚠️ | ⚠️ | ✅ MIT | ⭐⭐⭐ | 6,328 |
-| 22 | **Piper** | VITS + ONNX | — | ❌ CPU ✅ | ✅ | ✅ MIT | ⭐⭐ | 11,276 |
-| 23 | **Bark** | Transformer | — | ❌ MPS ✅ | ✅ | ✅ MIT | ⭐⭐⭐ | 39,235 |
+| 排名 | 模型                | 技术路线              | 参数    | NVIDIA 必需 | M2 Pro | 商用       | 质量   | GitHub Stars |
+| ---- | ------------------- | --------------------- | ------- | ----------- | ------ | ---------- | ------ | ------------ |
+| 17   | **XTTS v2**（已有） | GPT AR + HiFi-GAN     | —       | ❌ MPS ✅   | ✅     | ✅ MPL-2.0 | ⭐⭐⭐ | 45,870       |
+| 18   | **Kokoro**（已有）  | StyleTTS-based        | **82M** | ❌ CPU ✅   | ✅     | ✅ Apache  | ⭐⭐⭐ | 6666 likes   |
+| 19   | **OpenVoice V2**    | 音色克隆 + VITS       | —       | ❌ CPU ✅   | ✅     | ✅ MIT     | ⭐⭐⭐ | 37,113       |
+| 20   | **MeloTTS**         | VITS2                 | —       | ❌ CPU ✅   | ✅     | ✅ MIT     | ⭐⭐⭐ | 7,570        |
+| 21   | **StyleTTS2**       | Style Diffusion + GAN | —       | ⚠️          | ⚠️     | ✅ MIT     | ⭐⭐⭐ | 6,328        |
+| 22   | **Piper**           | VITS + ONNX           | —       | ❌ CPU ✅   | ✅     | ✅ MIT     | ⭐⭐   | 11,276       |
+| 23   | **Bark**            | Transformer           | —       | ❌ MPS ✅   | ✅     | ✅ MIT     | ⭐⭐⭐ | 39,235       |
 
 #### T3 — 闭源 / 商用 API
 
-| 排名 | 平台 | 技术 | 语音克隆 | 商用 | 价格 | 特点 |
-|------|------|------|---------|------|------|------|
-| 1 | **ElevenLabs** | 专有 | ✅ 即时/专业克隆 | ✅ | ~$0.17-0.36/分钟 | 业界 SOTA，prosody 最接近人类 |
-| 2 | **OpenAI TTS** | 专有 | ❌ 固定音色 | ✅ | $0.015-0.030/1K chars | 6 预置音色，质量高但无克隆 |
-| 3 | **MiniMax Speech-02** | 专有 | ✅ | ✅ | — | 中文 TTS 顶级 |
-| 4 | **Azure TTS** | 专有 | ❌ 固定音色 | ✅ | 按量计费 | 400+ 音色，企业级 |
-| 5 | **Fish Audio API** | S2 模型 | ✅ | ✅ | — | S2 模型的 API 服务 |
+| 排名 | 平台                  | 技术    | 语音克隆         | 商用 | 价格                  | 特点                          |
+| ---- | --------------------- | ------- | ---------------- | ---- | --------------------- | ----------------------------- |
+| 1    | **ElevenLabs**        | 专有    | ✅ 即时/专业克隆 | ✅   | ~$0.17-0.36/分钟      | 业界 SOTA，prosody 最接近人类 |
+| 2    | **OpenAI TTS**        | 专有    | ❌ 固定音色      | ✅   | $0.015-0.030/1K chars | 6 预置音色，质量高但无克隆    |
+| 3    | **MiniMax Speech-02** | 专有    | ✅               | ✅   | —                     | 中文 TTS 顶级                 |
+| 4    | **Azure TTS**         | 专有    | ❌ 固定音色      | ✅   | 按量计费              | 400+ 音色，企业级             |
+| 5    | **Fish Audio API**    | S2 模型 | ✅               | ✅   | —                     | S2 模型的 API 服务            |
 
 ### 3.14 技术路线标注总结
 
-| 技术路线 | 先进性 | 代表模型 | 数量 | 趋势 |
-|---------|--------|---------|------|------|
-| **LLM-based AR** | ✅ 最先进 | Fish Speech S2, Qwen3-TTS, GPT-SoVITS, ChatTTS, Sesame CSM, Index-TTS, GLM-TTS, Orpheus | 10+ | 2025-2026 绝对主流 |
-| **Flow Matching** | ✅ 高质量 | F5-TTS, CosyVoice 2/3 | 3 | 2024 兴起，与 LLM 结合 |
-| **Diffusion** | ✅ 高质量 | StyleTTS2, VoxCPM2, Parler-TTS, VibeVoice | 4 | 2023-2026 持续演进 |
-| **Dual-AR** | ✅ 最前沿 | Fish Speech S2 | 1 | 2026 新趋势 |
-| **GAN/VITS** | ⚠️ 成熟但渐被替代 | Kokoro, XTTS v2, MeloTTS, Piper, OpenVoice | 5+ | 2020-2023，推理快但质量有上限 |
-| **专有/闭源** | ✅ 实用 | ElevenLabs, OpenAI TTS, MiniMax | 3 | 质量好但付费 |
+| 技术路线          | 先进性            | 代表模型                                                                                | 数量 | 趋势                          |
+| ----------------- | ----------------- | --------------------------------------------------------------------------------------- | ---- | ----------------------------- |
+| **LLM-based AR**  | ✅ 最先进         | Fish Speech S2, Qwen3-TTS, GPT-SoVITS, ChatTTS, Sesame CSM, Index-TTS, GLM-TTS, Orpheus | 10+  | 2025-2026 绝对主流            |
+| **Flow Matching** | ✅ 高质量         | F5-TTS, CosyVoice 2/3                                                                   | 3    | 2024 兴起，与 LLM 结合        |
+| **Diffusion**     | ✅ 高质量         | StyleTTS2, VoxCPM2, Parler-TTS, VibeVoice                                               | 4    | 2023-2026 持续演进            |
+| **Dual-AR**       | ✅ 最前沿         | Fish Speech S2                                                                          | 1    | 2026 新趋势                   |
+| **GAN/VITS**      | ⚠️ 成熟但渐被替代 | Kokoro, XTTS v2, MeloTTS, Piper, OpenVoice                                              | 5+   | 2020-2023，推理快但质量有上限 |
+| **专有/闭源**     | ✅ 实用           | ElevenLabs, OpenAI TTS, MiniMax                                                         | 3    | 质量好但付费                  |
 
 ---
 
@@ -478,18 +489,19 @@
 
 ### 4.1 ElevenLabs — 业界 SOTA
 
-| 属性 | 详情 |
-|------|------|
-| **定位** | "The most realistic voice AI platform" |
-| **核心功能** | TTS、即时语音克隆、专业语音克隆、声音设计、多语言配音 |
-| **语音克隆** | Instant Cloning（几秒音频）、Professional Cloning（分钟级音频，最高质量） |
-| **API** | 有（REST API，广泛集成） |
-| **定价** | Free $0（10K credits）；Starter $6/mo；Creator $22/mo（~121 min）；Pro $99/mo（~600 min） |
-| **音质** | 44.1kHz, 128-192 kbps |
-| **多语言** | 30+ 语言 |
+| 属性         | 详情                                                                                          |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| **定位**     | "The most realistic voice AI platform"                                                        |
+| **核心功能** | TTS、即时语音克隆、专业语音克隆、声音设计、多语言配音                                         |
+| **语音克隆** | Instant Cloning（几秒音频）、Professional Cloning（分钟级音频，最高质量）                     |
+| **API**      | 有（REST API，广泛集成）                                                                      |
+| **定价**     | Free $0（10K credits）；Starter $6/mo；Creator $22/mo（~121 min）；Pro $99/mo（~600 min）     |
+| **音质**     | 44.1kHz, 128-192 kbps                                                                         |
+| **多语言**   | 30+ 语言                                                                                      |
 | **学术评价** | Cambridge 研究表明 ElevenLabs 在 prosody 措施上最接近人类语音 [[memory:17857691344010182898]] |
 
 **定价细节**：
+
 - 1 credit = 1 character（V2 Multilingual 模型）
 - V2 Flash/Turbo: 0.5-1 credit/character（更便宜）
 - Creator ($22/mo): ~121 分钟 TTS
@@ -497,35 +509,35 @@
 
 ### 4.2 OpenAI TTS
 
-| 属性 | 详情 |
-|------|------|
-| **定位** | OpenAI API 内置 TTS |
+| 属性         | 详情                                                                 |
+| ------------ | -------------------------------------------------------------------- |
+| **定位**     | OpenAI API 内置 TTS                                                  |
 | **核心功能** | 文本 → 语音，6 种预置音色（alloy, echo, fable, onyx, nova, shimmer） |
-| **语音克隆** | ❌ 不支持 |
-| **API** | 有（`/v1/audio/speech`） |
-| **定价** | tts-1: $0.015/1K chars; tts-1-hd: $0.030/1K chars |
-| **音质** | 24kHz, MP3/FLAC/PCM/WAV |
-| **优势** | 集成简单、延迟低、质量稳定 |
-| **劣势** | 无语音克隆、仅 6 音色、无情感控制 |
+| **语音克隆** | ❌ 不支持                                                            |
+| **API**      | 有（`/v1/audio/speech`）                                             |
+| **定价**     | tts-1: $0.015/1K chars; tts-1-hd: $0.030/1K chars                    |
+| **音质**     | 24kHz, MP3/FLAC/PCM/WAV                                              |
+| **优势**     | 集成简单、延迟低、质量稳定                                           |
+| **劣势**     | 无语音克隆、仅 6 音色、无情感控制                                    |
 
 ### 4.3 MiniMax Speech-02
 
-| 属性 | 详情 |
-|------|------|
-| **定位** | 中文 TTS 顶级平台 |
-| **语音克隆** | ✅ 支持 |
-| **API** | 有 |
+| 属性          | 详情                                                              |
+| ------------- | ----------------------------------------------------------------- |
+| **定位**      | 中文 TTS 顶级平台                                                 |
+| **语音克隆**  | ✅ 支持                                                           |
+| **API**       | 有                                                                |
 | **Benchmark** | Seed-TTS Eval WER: 中文 0.83%, 英文 1.65%（闭源中仅次于 Fish S2） |
 
 ### 4.4 云端平台对比
 
-| 平台 | 语音克隆 | 多语言 | API | 中文支持 | 价格/分钟 | 质量 |
-|------|---------|--------|-----|---------|----------|------|
-| **ElevenLabs** | ✅ 最强 | ✅ 30+ | ✅ | ✅ | ~$0.17-0.36 | ⭐⭐⭐⭐⭐ |
-| **OpenAI TTS** | ❌ | ✅ 50+ | ✅ | ✅ | ~$0.02-0.04 | ⭐⭐⭐⭐ |
-| **MiniMax** | ✅ | ✅ | ✅ | ✅ 最强 | — | ⭐⭐⭐⭐⭐ |
-| **Azure TTS** | ❌ | ✅ 400+ | ✅ | ✅ | 按量计费 | ⭐⭐⭐⭐ |
-| **Fish Audio** | ✅ | ✅ 80+ | ✅ | ✅ | — | ⭐⭐⭐⭐⭐ |
+| 平台           | 语音克隆 | 多语言  | API | 中文支持 | 价格/分钟   | 质量       |
+| -------------- | -------- | ------- | --- | -------- | ----------- | ---------- |
+| **ElevenLabs** | ✅ 最强  | ✅ 30+  | ✅  | ✅       | ~$0.17-0.36 | ⭐⭐⭐⭐⭐ |
+| **OpenAI TTS** | ❌       | ✅ 50+  | ✅  | ✅       | ~$0.02-0.04 | ⭐⭐⭐⭐   |
+| **MiniMax**    | ✅       | ✅      | ✅  | ✅ 最强  | —           | ⭐⭐⭐⭐⭐ |
+| **Azure TTS**  | ❌       | ✅ 400+ | ✅  | ✅       | 按量计费    | ⭐⭐⭐⭐   |
+| **Fish Audio** | ✅       | ✅ 80+  | ✅  | ✅       | —           | ⭐⭐⭐⭐⭐ |
 
 ---
 
@@ -533,29 +545,29 @@
 
 ### 5.1 Seed-TTS Eval（来自 Fish Audio 官方）
 
-| 模型 | 类型 | 中文 WER ↓ | 英文 WER ↓ | 备注 |
-|------|------|-----------|-----------|------|
-| **Fish Audio S2** | 开源 | **0.54%** | **0.99%** | 所有模型最佳 |
-| **Qwen3-TTS** | 开源 | 0.77% | 1.24% | |
-| **MiniMax Speech-02** | 闭源 | 0.99% | 1.90% | |
-| **Seed-TTS** | 闭源 | 1.12% | 2.25% | |
+| 模型                  | 类型 | 中文 WER ↓ | 英文 WER ↓ | 备注         |
+| --------------------- | ---- | ---------- | ---------- | ------------ |
+| **Fish Audio S2**     | 开源 | **0.54%**  | **0.99%**  | 所有模型最佳 |
+| **Qwen3-TTS**         | 开源 | 0.77%      | 1.24%      |              |
+| **MiniMax Speech-02** | 闭源 | 0.99%      | 1.90%      |              |
+| **Seed-TTS**          | 闭源 | 1.12%      | 2.25%      |              |
 
 ### 5.2 CosyVoice 综合评测（来自 CosyVoice 官方）
 
-| 模型 | 开源 | 参数 | 中文 CER ↓ | 中文 SS ↑ | 英文 WER ↓ | 英文 SS ↑ | 困难 CER ↓ | 困难 SS ↑ |
-|------|------|------|-----------|----------|-----------|----------|-----------|----------|
-| Human | — | — | 1.26 | 75.5 | 2.14 | 73.4 | — | — |
-| **Fun-CV3 RL** | ✅ | 0.5B | **0.81** | **77.4** | **1.68** | 69.5 | **5.44** | **75.0** |
-| **VoxCPM** | ✅ | 0.5B | 0.93 | **77.2** | 1.85 | **72.9** | 8.87 | 73.0 |
-| GLM-TTS RL | ✅ | 1.5B | 0.89 | 76.4 | — | — | — | — |
-| Index-TTS2 | ✅ | 1.5B | 1.03 | 76.5 | 2.23 | 70.6 | 7.12 | 75.5 |
-| Spark-TTS | ✅ | 0.5B | 1.2 | 66.0 | 1.98 | 57.3 | — | — |
-| CosyVoice2 | ✅ | 0.5B | 1.45 | 75.7 | 2.57 | 65.9 | 6.83 | 72.4 |
-| **F5-TTS** | ✅ | 0.3B | 1.52 | 74.1 | 2.00 | 64.7 | 8.67 | 71.3 |
-| FireRedTTS2 | ✅ | 1.5B | 1.14 | 73.2 | 1.95 | 66.5 | — | — |
-| HiggsAudio-v2 | ✅ | 3B | 1.50 | 74.0 | 2.44 | 67.7 | — | — |
-| VibeVoice-1.5B | ✅ | 1.5B | 1.16 | 74.4 | 3.04 | 68.9 | — | — |
-| VibeVoice-Realtime | ✅ | 0.5B | — | — | 2.05 | 63.3 | — | — |
+| 模型               | 开源 | 参数 | 中文 CER ↓ | 中文 SS ↑ | 英文 WER ↓ | 英文 SS ↑ | 困难 CER ↓ | 困难 SS ↑ |
+| ------------------ | ---- | ---- | ---------- | --------- | ---------- | --------- | ---------- | --------- |
+| Human              | —    | —    | 1.26       | 75.5      | 2.14       | 73.4      | —          | —         |
+| **Fun-CV3 RL**     | ✅   | 0.5B | **0.81**   | **77.4**  | **1.68**   | 69.5      | **5.44**   | **75.0**  |
+| **VoxCPM**         | ✅   | 0.5B | 0.93       | **77.2**  | 1.85       | **72.9**  | 8.87       | 73.0      |
+| GLM-TTS RL         | ✅   | 1.5B | 0.89       | 76.4      | —          | —         | —          | —         |
+| Index-TTS2         | ✅   | 1.5B | 1.03       | 76.5      | 2.23       | 70.6      | 7.12       | 75.5      |
+| Spark-TTS          | ✅   | 0.5B | 1.2        | 66.0      | 1.98       | 57.3      | —          | —         |
+| CosyVoice2         | ✅   | 0.5B | 1.45       | 75.7      | 2.57       | 65.9      | 6.83       | 72.4      |
+| **F5-TTS**         | ✅   | 0.3B | 1.52       | 74.1      | 2.00       | 64.7      | 8.67       | 71.3      |
+| FireRedTTS2        | ✅   | 1.5B | 1.14       | 73.2      | 1.95       | 66.5      | —          | —         |
+| HiggsAudio-v2      | ✅   | 3B   | 1.50       | 74.0      | 2.44       | 67.7      | —          | —         |
+| VibeVoice-1.5B     | ✅   | 1.5B | 1.16       | 74.4      | 3.04       | 68.9      | —          | —         |
+| VibeVoice-Realtime | ✅   | 0.5B | —          | —         | 2.05       | 63.3      | —          | —         |
 
 ### 5.3 关键发现
 
@@ -580,34 +592,34 @@ F5-TTS-MLX (priority 1) ──失败──→ Qwen3-TTS (priority 2)
 
 ### 6.2 F5-TTS-MLX 实战教训
 
-| # | 教训 | 影响 | 解决方案 |
-|---|------|------|---------|
-| 1 | **duration 参数必须显式设置** | 不设会生成 0.03s 音频 | `duration = ref_dur + word_count / 2.5` |
-| 2 | **ref-text 必须精确匹配 ref-audio** | 不匹配时参考文本泄漏到生成语音 | 用 Whisper 识别 ref-text 有误差也会出问题 |
-| 3 | **跳过 silenceremove** | F5 音频振幅低，-35dB 阈值会全删 | F5 后处理只用 atempo |
-| 4 | **estimate_duration=True 不可靠** | 参考音频说得慢会生成过长音频（38s） | 手动计算 duration |
-| 5 | **M4A 不被 Python 音频库支持** | `LibsndfileError: Format not recognised` | ffmpeg 转 WAV |
-| 6 | **权重 CC-BY-NC-4.0** | 非商用许可 | 项目为非商用内容创作，暂可使用 |
+| #   | 教训                                | 影响                                     | 解决方案                                  |
+| --- | ----------------------------------- | ---------------------------------------- | ----------------------------------------- |
+| 1   | **duration 参数必须显式设置**       | 不设会生成 0.03s 音频                    | `duration = ref_dur + word_count / 2.5`   |
+| 2   | **ref-text 必须精确匹配 ref-audio** | 不匹配时参考文本泄漏到生成语音           | 用 Whisper 识别 ref-text 有误差也会出问题 |
+| 3   | **跳过 silenceremove**              | F5 音频振幅低，-35dB 阈值会全删          | F5 后处理只用 atempo                      |
+| 4   | **estimate_duration=True 不可靠**   | 参考音频说得慢会生成过长音频（38s）      | 手动计算 duration                         |
+| 5   | **M4A 不被 Python 音频库支持**      | `LibsndfileError: Format not recognised` | ffmpeg 转 WAV                             |
+| 6   | **权重 CC-BY-NC-4.0**               | 非商用许可                               | 项目为非商用内容创作，暂可使用            |
 
 ### 6.3 XTTS v2 实战教训
 
-| # | 教训 | 解决方案 |
-|---|------|---------|
-| 1 | **XTTS 只克隆音色，不克隆发音** | XTTS 的发音来自语言模型，标准英语 |
-| 2 | **MPS hybrid 模式** | GPT on MPS, HiFi-GAN on CPU，需 patch `tts/models/xtts.py` |
-| 3 | **PyTorch 2.5.1 必须** | 2.13.0 breaks `weights_only` default |
-| 4 | **COQUI_TOS_AGREED=1** | 需设此环境变量才能下载模型 |
+| #   | 教训                            | 解决方案                                                   |
+| --- | ------------------------------- | ---------------------------------------------------------- |
+| 1   | **XTTS 只克隆音色，不克隆发音** | XTTS 的发音来自语言模型，标准英语                          |
+| 2   | **MPS hybrid 模式**             | GPT on MPS, HiFi-GAN on CPU，需 patch `tts/models/xtts.py` |
+| 3   | **PyTorch 2.5.1 必须**          | 2.13.0 breaks `weights_only` default                       |
+| 4   | **COQUI_TOS_AGREED=1**          | 需设此环境变量才能下载模型                                 |
 
 ### 6.4 Prosody 优化经验
 
 已有 prosody 后处理方案（`docs/research/voice-prosody-hook-optimization.md`）：
 
-| visualType | Pitch | Tempo | 场景 |
-|-----------|-------|-------|------|
-| `hook` | +8% (132 cents) | +12% | 开场 hook |
-| `data` | -3% (-52 cents) | -3% | 数据展示 |
-| `quote` | 0% | -5% | 引述 |
-| `cta` | -4% (-70 cents) | -8% | 行动号召 |
+| visualType | Pitch           | Tempo | 场景      |
+| ---------- | --------------- | ----- | --------- |
+| `hook`     | +8% (132 cents) | +12%  | 开场 hook |
+| `data`     | -3% (-52 cents) | -3%   | 数据展示  |
+| `quote`    | 0%              | -5%   | 引述      |
+| `cta`      | -4% (-70 cents) | -8%   | 行动号召  |
 
 通过 FFmpeg rubberband 滤镜实现，已修复 pitch 参数传递 bug [[memory:17862429060283302855]]。
 
@@ -626,6 +638,7 @@ F5-TTS-MLX (priority 1) ──失败──→ Qwen3-TTS (priority 2)
 ### 7.1 短期（不需改代码）：保持 F5-TTS-MLX
 
 **理由**：
+
 - 已验证、已部署、已在管线中稳定运行
 - MLX 原生支持，Apple Silicon 最优
 - 质量足够用于 TikTok/YouTube Shorts 旁白
@@ -635,22 +648,23 @@ F5-TTS-MLX (priority 1) ──失败──→ Qwen3-TTS (priority 2)
 
 **测试优先级**：
 
-| # | 模型 | 理由 | M2 Pro | 商用 |
-|---|------|------|--------|------|
-| 1 | **Zonos** | Apache-2.0 + macOS 原生 + 44kHz + 情感控制 | ✅ | ✅ |
-| 2 | **Sesame CSM** | Apache-2.0 + MPS 代码已有 + HF Transformers 集成 | ✅ | ✅ |
-| 3 | **CosyVoice 3.0** | Apache-2.0 + RL 对齐 + 9 语言 + 方言 + benchmark SOTA | ⚠️ | ✅ |
-| 4 | **GPT-SoVITS** | MIT + 60K stars + 1 分钟克隆 + 社区最大 | ⚠️ | ✅ |
-| 5 | **Index-TTS 2.5** | Bilibili 出品 + 情感/表现力控制主打 | ⚠️ 待验证 | ⚠️ Bilibili 自有许可 |
-| 6 | **Fish Speech S2**（远程 GPU） | 情感控制最强（子词级 15000+ tags，EmergentTTS 胜率 81.9%）+ WER 全场最佳 | ❌ 需 CUDA | ❌ 非商用 |
-| 7 | **VoxCPM2**（远程 GPU） | Apache-2.0 + 48kHz + 30 语言 + 英文 SS 顶级 | ❌ 需 CUDA | ✅ |
-| 8 | **Fun-CosyVoice3 RL**（远程 GPU） | Apache-2.0 + RL 对齐 + 中文 CER/困难集开源最佳（MPS 上 RTF 39.8x 已排除本地） | ❌ 建议远程 GPU | ✅ |
+| #   | 模型                              | 理由                                                                          | M2 Pro          | 商用                 |
+| --- | --------------------------------- | ----------------------------------------------------------------------------- | --------------- | -------------------- |
+| 1   | **Zonos**                         | Apache-2.0 + macOS 原生 + 44kHz + 情感控制                                    | ✅              | ✅                   |
+| 2   | **Sesame CSM**                    | Apache-2.0 + MPS 代码已有 + HF Transformers 集成                              | ✅              | ✅                   |
+| 3   | **CosyVoice 3.0**                 | Apache-2.0 + RL 对齐 + 9 语言 + 方言 + benchmark SOTA                         | ⚠️              | ✅                   |
+| 4   | **GPT-SoVITS**                    | MIT + 60K stars + 1 分钟克隆 + 社区最大                                       | ⚠️              | ✅                   |
+| 5   | **Index-TTS 2.5**                 | Bilibili 出品 + 情感/表现力控制主打                                           | ⚠️ 待验证       | ⚠️ Bilibili 自有许可 |
+| 6   | **Fish Speech S2**（远程 GPU）    | 情感控制最强（子词级 15000+ tags，EmergentTTS 胜率 81.9%）+ WER 全场最佳      | ❌ 需 CUDA      | ❌ 非商用            |
+| 7   | **VoxCPM2**（远程 GPU）           | Apache-2.0 + 48kHz + 30 语言 + 英文 SS 顶级                                   | ❌ 需 CUDA      | ✅                   |
+| 8   | **Fun-CosyVoice3 RL**（远程 GPU） | Apache-2.0 + RL 对齐 + 中文 CER/困难集开源最佳（MPS 上 RTF 39.8x 已排除本地） | ❌ 建议远程 GPU | ✅                   |
 
 **情感/声调优先子集**：Index-TTS 2.5 > Fish Speech S2 > Zonos > CosyVoice 3（instruct）> CSM（对话表现力）。
 
 > 注：VoiceStudio 不列入本表——它是聚合器应用（封装 16 个 TTS 引擎的 GUI 壳，配音/有声书/听写 workflow），不产生引擎层面的测试结论，仅作 §3.12 发现记录。
 
 **测试标准**：
+
 1. 安装可行性 — M2 Pro 上能否成功安装
 2. 推理速度 — 生成 30 秒音频需要多长时间
 3. 语音质量 — 对比 F5-TTS-MLX 的输出
@@ -682,6 +696,7 @@ F5-TTS-MLX (priority 1) ──失败──→ Qwen3-TTS (priority 2)
 ```
 
 新增引擎只需：
+
 1. 创建 `lib/tts/<engine-name>.mjs`，导出 `create<Engine>Engine()` 工厂函数
 2. 在 `registry.mjs` 的 `ENGINE_FACTORIES` 和 `PRIORITY` 中注册
 3. 设置 `TTS_ENGINE=<name>` 环境变量即可强制使用
@@ -699,20 +714,20 @@ F5-TTS-MLX (priority 1) ──失败──→ Qwen3-TTS (priority 2)
 
 ### 8.2 横向对比表（7 个模型）
 
-| 指标 | F5-TTS-MLX (T1) | Qwen3-TTS (T0) | Zonos (T1) | Spark-TTS (T1) | CosyVoice 3.0 (T0) | CSM (T1) | GPT-SoVITS (T1) |
-|------|-----------------|----------------|------------|----------------|---------------------|----------|-----------------|
-| **梯队** | T1 | **T0** | T1 | T1 | **T0** | T1 | T1 |
-| **技术路线** | Flow Matching | Multi-Codebook LM | Transformer/DAC | LLM (Qwen2.5) | Flow Matching + LLM | Llama + Mimi codec | GPT + SoVITS |
-| **设备** | ✅ MLX 原生 | ✅ **MPS 原生** | ❌ CPU only | ✅ MPS | ✅ MPS | ❌ CPU only | ❌ CPU only |
-| **模型大小** | ~1.5 GB | 2.3 GB | 3.0 GB | ~1 GB | ~2 GB | ~7 GB | ~1.5 GB |
-| **模型加载** | ~2s | 64.8s | 24.6s | 255.6s | 112.2s | 292.3s | 363.3s |
-| **生成时间** | 71.0s (修复后 ~16s) | **34.6s** | ~112s | 100.9s | 436.5s | 1144.9s | 495.7s |
-| **输出时长** | 9.2s (修复后) | 10.8s | 9.6s | 9.5s | 11.0s | 9.5s | 1.5s ⚠️ |
-| **RTF** | **1.78x** (修复后 ~1.7x) | **3.20x** | 11.65x | 10.60x | 39.83x | 120.26x | 321.86x |
-| **采样率** | 24 kHz | 24 kHz | **44.1 kHz** | 24 kHz | 24 kHz | 24 kHz | 32 kHz |
-| **内存** | ~7 GB | **330 MB** | 7.1 GB | **351 MB** | 1616 MB | 3577 MB | **422 MB** |
-| **许可证** | ⚠️ CC-BY-NC | ✅ Apache-2.0 | ✅ Apache-2.0 | ⚠️ CC-BY-NC-SA | ✅ Apache-2.0 | ✅ Apache-2.0 | ✅ MIT |
-| **M2 Pro 可用** | ✅ 已部署 | ✅ **MPS 加速** | ⚠️ CPU 可用 | ✅ MPS 可用 | ⚠️ 极慢 | ❌ 极慢 | ❌ 极慢 + 输出异常 |
+| 指标            | F5-TTS-MLX (T1)          | Qwen3-TTS (T0)    | Zonos (T1)      | Spark-TTS (T1) | CosyVoice 3.0 (T0)  | CSM (T1)           | GPT-SoVITS (T1)    |
+| --------------- | ------------------------ | ----------------- | --------------- | -------------- | ------------------- | ------------------ | ------------------ |
+| **梯队**        | T1                       | **T0**            | T1              | T1             | **T0**              | T1                 | T1                 |
+| **技术路线**    | Flow Matching            | Multi-Codebook LM | Transformer/DAC | LLM (Qwen2.5)  | Flow Matching + LLM | Llama + Mimi codec | GPT + SoVITS       |
+| **设备**        | ✅ MLX 原生              | ✅ **MPS 原生**   | ❌ CPU only     | ✅ MPS         | ✅ MPS              | ❌ CPU only        | ❌ CPU only        |
+| **模型大小**    | ~1.5 GB                  | 2.3 GB            | 3.0 GB          | ~1 GB          | ~2 GB               | ~7 GB              | ~1.5 GB            |
+| **模型加载**    | ~2s                      | 64.8s             | 24.6s           | 255.6s         | 112.2s              | 292.3s             | 363.3s             |
+| **生成时间**    | 71.0s (修复后 ~16s)      | **34.6s**         | ~112s           | 100.9s         | 436.5s              | 1144.9s            | 495.7s             |
+| **输出时长**    | 9.2s (修复后)            | 10.8s             | 9.6s            | 9.5s           | 11.0s               | 9.5s               | 1.5s ⚠️            |
+| **RTF**         | **1.78x** (修复后 ~1.7x) | **3.20x**         | 11.65x          | 10.60x         | 39.83x              | 120.26x            | 321.86x            |
+| **采样率**      | 24 kHz                   | 24 kHz            | **44.1 kHz**    | 24 kHz         | 24 kHz              | 24 kHz             | 32 kHz             |
+| **内存**        | ~7 GB                    | **330 MB**        | 7.1 GB          | **351 MB**     | 1616 MB             | 3577 MB            | **422 MB**         |
+| **许可证**      | ⚠️ CC-BY-NC              | ✅ Apache-2.0     | ✅ Apache-2.0   | ⚠️ CC-BY-NC-SA | ✅ Apache-2.0       | ✅ Apache-2.0      | ✅ MIT             |
+| **M2 Pro 可用** | ✅ 已部署                | ✅ **MPS 加速**   | ⚠️ CPU 可用     | ✅ MPS 可用    | ⚠️ 极慢             | ❌ 极慢            | ❌ 极慢 + 输出异常 |
 
 ### 8.3 速度排序（RTF，越低越快）
 
@@ -801,25 +816,25 @@ Zonos       █████████████████████ 7100
 
 ### 8.6 推荐结论（更新后）
 
-| 场景 | 推荐模型 | 理由 |
-|------|---------|------|
-| **当前管线（不变）** | F5-TTS-MLX | 最快 RTF 1.78x、已验证、MLX 原生 |
-| **商用迁移首选** | Qwen3-TTS | T0 梯队 + Apache-2.0 + MPS 原生 + 330MB 低内存 + RTF 3.2x |
-| **低资源备选** | Spark-TTS | MPS 可用 + 351MB 低内存 + RTF 10.6x，但权重非商用 |
-| **不推荐** | CosyVoice 3.0 / CSM / GPT-SoVITS | M2 Pro 上 RTF 39.8x / 120.3x / 321.9x，实用性为零 |
-| **远程 GPU** | VoxCPM2 / Fish Speech S2 | T0 顶级 + 48kHz + 多语言 |
+| 场景                 | 推荐模型                         | 理由                                                      |
+| -------------------- | -------------------------------- | --------------------------------------------------------- |
+| **当前管线（不变）** | F5-TTS-MLX                       | 最快 RTF 1.78x、已验证、MLX 原生                          |
+| **商用迁移首选**     | Qwen3-TTS                        | T0 梯队 + Apache-2.0 + MPS 原生 + 330MB 低内存 + RTF 3.2x |
+| **低资源备选**       | Spark-TTS                        | MPS 可用 + 351MB 低内存 + RTF 10.6x，但权重非商用         |
+| **不推荐**           | CosyVoice 3.0 / CSM / GPT-SoVITS | M2 Pro 上 RTF 39.8x / 120.3x / 321.9x，实用性为零         |
+| **远程 GPU**         | VoxCPM2 / Fish Speech S2         | T0 顶级 + 48kHz + 多语言                                  |
 
 ### 8.7 测试脚本位置
 
-| 模型 | 测试脚本 | Python 环境 | 模型缓存 |
-|------|---------|------------|---------|
-| F5-TTS-MLX | `/tmp/test-f5-comparison.py` | `~/.f5-tts-env` | 内置 |
-| Qwen3-TTS | `/tmp/test-qwen-tts-local.py` | `~/.qwen-tts-env` | `/tmp/qwen-tts-model/` |
-| Zonos | `/tmp/test-zonos-local.py` | `~/.zonos-env` | `/tmp/zonos-model/` |
-| Spark-TTS | `/tmp/test-spark-tts.py` | `~/.spark-tts-env` | HF cache |
-| CosyVoice 3.0 | `/tmp/test-cosyvoice3.py` | `~/.cosyvoice-env` | `/tmp/CosyVoice/` |
-| CSM | `/tmp/test-csm-fixed.py` | `~/.csm-env` | `/tmp/csm-model/` |
-| GPT-SoVITS | `/tmp/test-gpt-sovits-cn.py` | `~/.gpt-sovits-env` | `/tmp/GPT-SoVITS/` |
+| 模型          | 测试脚本                      | Python 环境         | 模型缓存               |
+| ------------- | ----------------------------- | ------------------- | ---------------------- |
+| F5-TTS-MLX    | `/tmp/test-f5-comparison.py`  | `~/.f5-tts-env`     | 内置                   |
+| Qwen3-TTS     | `/tmp/test-qwen-tts-local.py` | `~/.qwen-tts-env`   | `/tmp/qwen-tts-model/` |
+| Zonos         | `/tmp/test-zonos-local.py`    | `~/.zonos-env`      | `/tmp/zonos-model/`    |
+| Spark-TTS     | `/tmp/test-spark-tts.py`      | `~/.spark-tts-env`  | HF cache               |
+| CosyVoice 3.0 | `/tmp/test-cosyvoice3.py`     | `~/.cosyvoice-env`  | `/tmp/CosyVoice/`      |
+| CSM           | `/tmp/test-csm-fixed.py`      | `~/.csm-env`        | `/tmp/csm-model/`      |
+| GPT-SoVITS    | `/tmp/test-gpt-sovits-cn.py`  | `~/.gpt-sovits-env` | `/tmp/GPT-SoVITS/`     |
 
 - 音频输出：`scripts/short-video/assets/tts-comparison/`
 - 注：表中 venv 为 2026-08-10 测试时的独立环境；此后管线已统一为 `~/.video-tts-env`（Python 3.12，F5 + Qwen + whisperx 共用），见 `scripts/short-video/lib/tts/registry.mjs`。
@@ -828,20 +843,21 @@ Zonos       █████████████████████ 7100
 
 ## 9. 风险与注意事项
 
-| 风险 | 影响 | 缓解 |
-|------|------|------|
-| F5-TTS 权重非商用 | CC-BY-NC-4.0 限制商用 | 如需商用，迁移到 Zonos (Apache) 或 CosyVoice (Apache) |
-| MPS 兼容性 | Zonos MPS 已确认不可用；Qwen3-TTS MPS 已确认可用 | Zonos 用 CPU 降级；Qwen3-TTS 优先 |
-| LLM-TTS 推理慢 | 自回归生成比 GAN/VITS 慢很多 | 接受非实时，目标是质量 |
-| 新引擎集成成本 | 需要编写 adapter + 测试 | 接口已抽象，集成成本低 |
-| VibeVoice TTS 代码撤回 | 微软因"负责任 AI"撤回了 TTS 代码 | 不可用，仅 ASR 部分可用 |
-| ChatTTS 非商用 | 模型 CC-BY-NC + 代码 AGPL-3.0 | 不适合商用场景 |
+| 风险                   | 影响                                             | 缓解                                                  |
+| ---------------------- | ------------------------------------------------ | ----------------------------------------------------- |
+| F5-TTS 权重非商用      | CC-BY-NC-4.0 限制商用                            | 如需商用，迁移到 Zonos (Apache) 或 CosyVoice (Apache) |
+| MPS 兼容性             | Zonos MPS 已确认不可用；Qwen3-TTS MPS 已确认可用 | Zonos 用 CPU 降级；Qwen3-TTS 优先                     |
+| LLM-TTS 推理慢         | 自回归生成比 GAN/VITS 慢很多                     | 接受非实时，目标是质量                                |
+| 新引擎集成成本         | 需要编写 adapter + 测试                          | 接口已抽象，集成成本低                                |
+| VibeVoice TTS 代码撤回 | 微软因"负责任 AI"撤回了 TTS 代码                 | 不可用，仅 ASR 部分可用                               |
+| ChatTTS 非商用         | 模型 CC-BY-NC + 代码 AGPL-3.0                    | 不适合商用场景                                        |
 
 ---
 
 ## 9. 参考来源
 
 ### 论文
+
 1. **F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching** — arxiv 2410.06885
 2. **E2 TTS** — arxiv 2406.18009
 3. **CosyVoice / Fun-CosyVoice3** — arxiv 2412.10117, 2505.17589
@@ -855,6 +871,7 @@ Zonos       █████████████████████ 7100
 11. **Bakkouche et al., "What determines the success of AI voice-cloned speech?"** — Phonetica, June 2026
 
 ### 代码仓库与模型
+
 12. **F5-TTS**: github.com/SWivid/F5-TTS (15,090 stars), HF: `SWivid/F5-TTS`
 13. **F5-TTS-MLX**: github.com/lucasnewman/f5-tts-mlx (644 stars)
 14. **GPT-SoVITS**: github.com/RVC-Boss/GPT-SoVITS (60,627 stars)
@@ -883,6 +900,7 @@ Zonos       █████████████████████ 7100
 37. **OmniVoice**: github.com/k2-fsa/OmniVoice (8,870 stars)
 
 ### 云端平台
+
 38. ElevenLabs: elevenlabs.io — Free ~$990/mo
 39. OpenAI TTS: platform.openai.com — $0.015-0.030/1K chars
 40. MiniMax Speech: minimax.io

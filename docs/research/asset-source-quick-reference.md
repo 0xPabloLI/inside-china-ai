@@ -7,30 +7,30 @@
 
 ## Quick Status Table
 
-| # | Source | Type | API Key Needed? | Auth Method | Status | Best For |
-|---|--------|------|-----------------|-------------|--------|----------|
-| 1 | **YouTube** | Video | ❌ No | Firefox cookies (`--cookies-from-browser firefox`) | ✅ Working | Product demos, company videos |
-| 2 | **B站 (Bilibili)** | Video | ❌ No | `bilibili-api-python` (search) + `yt-dlp --cookies-from-browser firefox` (download) | ✅ **Search + Download tested** | Chinese tech content, UP主 videos |
-| 3 | **抖音 (Douyin)** | Video | ❌ No | [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) (19K stars) | ⚠️ Not tested yet | Chinese viral content, short clips |
-| 4 | **小红书 (XHS)** | Image/Video | ❌ No | [RedNote-MCP](https://github.com/iFurySt/RedNote-MCP) (npm) or [XHS-Downloader](https://github.com/JoeanAmier/XHS-Downloader) (12K stars) | ✅ MCP tested (needs init) | Product photos, lifestyle shots |
-| 5 | **微博 (Weibo)** | Image/Video | ❌ No | [weibo-downloader-skill](https://github.com/belingud/weibo-downloader-skill) (visitor cookie, no login) | ✅ API tested | News clips, trending topics |
-| 6 | **Pexels** | Image+Video | ✅ `PEXELS_API_KEY` | `Authorization: KEY` header | ✅ Working | Generic B-roll, abstract backgrounds |
-| 7 | **Unsplash** | Image | ✅ `UNSPLASH_ACCESS_KEY` | `Authorization: Client-ID KEY` | ✅ Working | High-quality photos, city/buildings |
-| 8 | **Pixabay** | Image+Video | ✅ `PIXABAY_API_KEY` | `key` query param | ✅ Working | Tech B-roll, Chinese keyword search |
-| 9 | **Coverr** | Video | ✅ `COVERR_API_KEY` | `Authorization: Bearer KEY` | ✅ Working | Vertical stock video, AI tools |
-| 10 | **Wikimedia Commons** | Image/Video | ❌ No | User-Agent header | ✅ Working | Company HQ, historical photos, PD content |
-| 11 | **Flickr** | Image | ✅ `FLICKR_API_KEY` | `api_key` query param | 📋 Researched, not integrated | Niche product photos, CC-licensed |
-| 12 | **Mixkit** | Video | ❌ No | CDP scraping | 📋 Researched, not integrated | Free vertical videos, no API |
-| 13 | **Internet Archive** | Video/Image | ❌ No | None | 📋 Researched, not integrated | Archival footage, public domain |
-| 14 | **Google News** | Article URLs | ❌ No | CDP | ✅ Working (in pipeline) | Finding articles with images |
-| 15 | **Bing News** | Article URLs | ❌ No | CDP | ✅ Working (in pipeline) | Alternative news search |
-| 16 | **IT之家** | Image | ❌ No | CDP | ✅ Working (in pipeline) | Chinese AI product news images |
-| 17 | **机器之心** | Image | ❌ No | CDP | ✅ Working (in pipeline) | AI-specific cover images |
-| 18 | **新华网** | Image | ❌ No | CDP | ✅ Working (in pipeline) | Official event photos |
-| 19 | **澎湃新闻** | Image | ❌ No | CDP | ✅ Working (in pipeline) | Mainstream news images |
-| 20 | **雷锋网** | Image | ❌ No | CDP | ✅ Working (in pipeline) | Tech media images |
-| 21 | **新智元** | Image | ❌ No | CDP | ✅ Working (in pipeline) | AI media images |
-| 22 | **智东西** | Image | ❌ No | CDP | ✅ Working (in pipeline) | AI media images |
+| #   | Source                | Type         | API Key Needed?          | Auth Method                                                                                                                               | Status                          | Best For                                  |
+| --- | --------------------- | ------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------- |
+| 1   | **YouTube**           | Video        | ❌ No                    | Firefox cookies (`--cookies-from-browser firefox`)                                                                                        | ✅ Working                      | Product demos, company videos             |
+| 2   | **B站 (Bilibili)**    | Video        | ❌ No                    | `bilibili-api-python` (search) + `yt-dlp --cookies-from-browser firefox` (download)                                                       | ✅ **Search + Download tested** | Chinese tech content, UP主 videos         |
+| 3   | **抖音 (Douyin)**     | Video        | ❌ No                    | [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) (19K stars)                                         | ⚠️ Not tested yet               | Chinese viral content, short clips        |
+| 4   | **小红书 (XHS)**      | Image/Video  | ❌ No                    | [RedNote-MCP](https://github.com/iFurySt/RedNote-MCP) (npm) or [XHS-Downloader](https://github.com/JoeanAmier/XHS-Downloader) (12K stars) | ✅ MCP tested (needs init)      | Product photos, lifestyle shots           |
+| 5   | **微博 (Weibo)**      | Image/Video  | ❌ No                    | [weibo-downloader-skill](https://github.com/belingud/weibo-downloader-skill) (visitor cookie, no login)                                   | ✅ API tested                   | News clips, trending topics               |
+| 6   | **Pexels**            | Image+Video  | ✅ `PEXELS_API_KEY`      | `Authorization: KEY` header                                                                                                               | ✅ Working                      | Generic B-roll, abstract backgrounds      |
+| 7   | **Unsplash**          | Image        | ✅ `UNSPLASH_ACCESS_KEY` | `Authorization: Client-ID KEY`                                                                                                            | ✅ Working                      | High-quality photos, city/buildings       |
+| 8   | **Pixabay**           | Image+Video  | ✅ `PIXABAY_API_KEY`     | `key` query param                                                                                                                         | ✅ Working                      | Tech B-roll, Chinese keyword search       |
+| 9   | **Coverr**            | Video        | ✅ `COVERR_API_KEY`      | `Authorization: Bearer KEY`                                                                                                               | ✅ Working                      | Vertical stock video, AI tools            |
+| 10  | **Wikimedia Commons** | Image/Video  | ❌ No                    | User-Agent header                                                                                                                         | ✅ Working                      | Company HQ, historical photos, PD content |
+| 11  | **Flickr**            | Image        | ✅ `FLICKR_API_KEY`      | `api_key` query param                                                                                                                     | 📋 Researched, not integrated   | Niche product photos, CC-licensed         |
+| 12  | **Mixkit**            | Video        | ❌ No                    | CDP scraping                                                                                                                              | 📋 Researched, not integrated   | Free vertical videos, no API              |
+| 13  | **Internet Archive**  | Video/Image  | ❌ No                    | None                                                                                                                                      | 📋 Researched, not integrated   | Archival footage, public domain           |
+| 14  | **Google News**       | Article URLs | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | Finding articles with images              |
+| 15  | **Bing News**         | Article URLs | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | Alternative news search                   |
+| 16  | **IT之家**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | Chinese AI product news images            |
+| 17  | **机器之心**          | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | AI-specific cover images                  |
+| 18  | **新华网**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | Official event photos                     |
+| 19  | **澎湃新闻**          | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | Mainstream news images                    |
+| 20  | **雷锋网**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | Tech media images                         |
+| 21  | **新智元**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | AI media images                           |
+| 22  | **智东西**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)        | AI media images                           |
 
 ## API Keys
 
@@ -49,29 +49,29 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 
 ### Rate Limits
 
-| Source | Free Tier Limit | Renewal | Notes |
-|--------|----------------|---------|-------|
-| **Pexels** | 200 req/hour, 20,000 req/month | Hourly + Monthly | Unlimited if platform eligible (contact api@pexels.com) |
-| **Unsplash** | 50 req/hour (demo mode) | Hourly | 5,000 req/hour after production approval |
-| **Pixabay** | 100 req/60s | Per 60s | No daily/monthly cap documented; 5,000 req/hour per some sources |
-| **Coverr** | Undocumented | Unknown | API has "downloads quota" but no public rate limit info |
+| Source       | Free Tier Limit                | Renewal          | Notes                                                            |
+| ------------ | ------------------------------ | ---------------- | ---------------------------------------------------------------- |
+| **Pexels**   | 200 req/hour, 20,000 req/month | Hourly + Monthly | Unlimited if platform eligible (contact api@pexels.com)          |
+| **Unsplash** | 50 req/hour (demo mode)        | Hourly           | 5,000 req/hour after production approval                         |
+| **Pixabay**  | 100 req/60s                    | Per 60s          | No daily/monthly cap documented; 5,000 req/hour per some sources |
+| **Coverr**   | Undocumented                   | Unknown          | API has "downloads quota" but no public rate limit info          |
 
 ## License & Attribution Summary
 
-| Source | License | Attribution Required? | Logo Required? | TikTok Credits? |
-|--------|---------|----------------------|-----------------|-----------------|
-| YouTube/B站/抖音/微博 | Creator copyright | Yes (fair use) | No | Internal only |
-| Pexels | Pexels License | Optional | No | Internal only |
-| Unsplash | Unsplash License | Optional | No | Internal only |
-| **Pixabay** | Pixabay Content License | **Yes (API terms)** | **Yes** | **✅ Shows in TikTok** |
-| Wikimedia Commons | Varies (CC-BY, CC-BY-SA, PD) | **Dynamic per-file** | No (but license text for CC) | Dynamic — CC-BY/CC-BY-SA yes, PD no |
-| Coverr | Coverr License | Optional | No | Internal only |
-| Mixkit | Mixkit/Envato License | Optional | No | Internal only |
-| Internet Archive | Varies (PD, CC, custom) | **Per-item check** | No | If CC-BY → yes, if PD → no |
-| **Flickr** | CC licenses (filterable) | **Yes for CC-BY/CC-BY-SA** | No | If used → yes (license-dependent) |
-| CCTV | CCTV copyright | Yes (editorial) | No | Internal only |
-| Chinese news sites | News copyright | Yes | No | Internal only |
-| Google News / Bing News | Varies (depends on source) | Yes (follow original source) | No | Internal only |
+| Source                  | License                      | Attribution Required?        | Logo Required?               | TikTok Credits?                     |
+| ----------------------- | ---------------------------- | ---------------------------- | ---------------------------- | ----------------------------------- |
+| YouTube/B站/抖音/微博   | Creator copyright            | Yes (fair use)               | No                           | Internal only                       |
+| Pexels                  | Pexels License               | Optional                     | No                           | Internal only                       |
+| Unsplash                | Unsplash License             | Optional                     | No                           | Internal only                       |
+| **Pixabay**             | Pixabay Content License      | **Yes (API terms)**          | **Yes**                      | **✅ Shows in TikTok**              |
+| Wikimedia Commons       | Varies (CC-BY, CC-BY-SA, PD) | **Dynamic per-file**         | No (but license text for CC) | Dynamic — CC-BY/CC-BY-SA yes, PD no |
+| Coverr                  | Coverr License               | Optional                     | No                           | Internal only                       |
+| Mixkit                  | Mixkit/Envato License        | Optional                     | No                           | Internal only                       |
+| Internet Archive        | Varies (PD, CC, custom)      | **Per-item check**           | No                           | If CC-BY → yes, if PD → no          |
+| **Flickr**              | CC licenses (filterable)     | **Yes for CC-BY/CC-BY-SA**   | No                           | If used → yes (license-dependent)   |
+| CCTV                    | CCTV copyright               | Yes (editorial)              | No                           | Internal only                       |
+| Chinese news sites      | News copyright               | Yes                          | No                           | Internal only                       |
+| Google News / Bing News | Varies (depends on source)   | Yes (follow original source) | No                           | Internal only                       |
 
 > **Rule**: Only sources with `logoRequired=true` (Pixabay) OR `attributionRequired=true` (Wikimedia CC-BY/CC-BY-SA) appear in TikTok video description credits.
 > All other sources are tracked internally in `output/asset-report.json` with full attribution metadata.
@@ -80,6 +80,7 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 ## Source Categories
 
 ### Stock Media (Generic B-roll)
+
 - **Pexels** — Best stock video quality, portrait orientation
 - **Unsplash** — Highest quality images, no video
 - **Pixabay** — Chinese keyword support, images + videos
@@ -88,6 +89,7 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 - **Flickr** — CC-licensed photos, license filter critical
 
 ### Encyclopedia (Factual)
+
 - **Wikimedia Commons** — 100M+ files, mixed licenses, per-file check
 - **Internet Archive** — Archival footage, public domain
 
@@ -95,14 +97,14 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 
 搜索方法 = `search-sources.mjs` 如何发现内容；下载方法 = `asset-sourcer.mjs` 如何获取媒体文件。
 
-| Platform | Search Method | Download Method | Login? | Status |
-|----------|--------------|-----------------|--------|--------|
-| **YouTube** | MCP fallback (search) | `yt-dlp --cookies-from-browser firefox` | No | ✅ Search + Download working |
-| **B站** | `bilibili-api-python` (search) + CDP fallback | `yt-dlp --cookies-from-browser firefox` | No | ✅ Search + Download tested |
-| **抖音** | CDP (needs login) → MCP fallback | CDP `iesdouyin.com/share/video/` → `video.currentSrc` → curl with Referer | Search: yes, Download: yes | ✅ Download verified 2026-09-03 |
-| **小红书** | CDP (needs login) → MCP fallback (RedNote-MCP) | RedNote-MCP or XHS-Downloader | Yes (both) | ⚠️ MCP tested, needs `rednote-mcp init` |
-| **微博** | CDP (search needs login) → Google site: fallback | weibo-downloader-skill (visitor cookie, no login) | Search: yes, Download: no | ✅ Download API tested |
-| **TikTok** | ScrapeCreators API (primary, no login) | CDP `item/detail` API (default) → manual (fallback) | No (search) | ✅ Search + Download verified |
+| Platform    | Search Method                                    | Download Method                                                           | Login?                     | Status                                  |
+| ----------- | ------------------------------------------------ | ------------------------------------------------------------------------- | -------------------------- | --------------------------------------- |
+| **YouTube** | MCP fallback (search)                            | `yt-dlp --cookies-from-browser firefox`                                   | No                         | ✅ Search + Download working            |
+| **B站**     | `bilibili-api-python` (search) + CDP fallback    | `yt-dlp --cookies-from-browser firefox`                                   | No                         | ✅ Search + Download tested             |
+| **抖音**    | CDP (needs login) → MCP fallback                 | CDP `iesdouyin.com/share/video/` → `video.currentSrc` → curl with Referer | Search: yes, Download: yes | ✅ Download verified 2026-09-03         |
+| **小红书**  | CDP (needs login) → MCP fallback (RedNote-MCP)   | RedNote-MCP or XHS-Downloader                                             | Yes (both)                 | ⚠️ MCP tested, needs `rednote-mcp init` |
+| **微博**    | CDP (search needs login) → Google site: fallback | weibo-downloader-skill (visitor cookie, no login)                         | Search: yes, Download: no  | ✅ Download API tested                  |
+| **TikTok**  | ScrapeCreators API (primary, no login)           | CDP `item/detail` API (default) → manual (fallback)                       | No (search)                | ✅ Search + Download verified           |
 
 > **抖音下载** (verified 2026-09-03) — CDP 访问 `https://www.iesdouyin.com/share/video/{video_id}`（无需 cookie/登录），从 `<video>` 元素的 `currentSrc` 提取 CDN 下载链接，用 `curl -H "Referer: https://www.douyin.com/"` 下载。注意：chubbyskills 的 SSR 方案（从 `window._ROUTER_DATA` 提取 `videoInfoRes`）已失效——页面结构变化，`videoInfoRes` 不再存在；但 CDP 方案（客户端 JS 渲染后从 video 元素提取）可用。测试样本：video ID `7680095489249536842`（滴滴自动驾驶 R2），下载 327KB MP4 成功。
 
@@ -115,22 +117,24 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 
 统一视频下载层 `scripts/short-video/lib/video-downloaders.mjs`，策略选择器路由到 adapter：
 
-| Adapter ID | 覆盖平台 | 状态 | 备注 |
-|------------|---------|------|------|
-| `direct-http` | 直接媒体 URL（`.mp4`、已知 CDN） | ✅ Working | 包装 HTTP fetch |
-| `ytdlp` | YouTube、B站 | ✅ Working | 包装 yt-dlp + Firefox cookies |
-| `cobalt` | 30+ 平台（含抖音/TikTok/微博/Instagram/X） | ⚠️ Adapter ready, Cobalt 已部署（v11.7.1, localhost:9000, Watchtower 自动更新）。Smoke test: YouTube ✅ tunnel / Streamable ✅ redirect / 其他平台因 Cobalt parser 过期或代理 IP 被封而失败。**不作为核心依赖**，有 ytdlp + direct-http fallback |
+| Adapter ID    | 覆盖平台                                   | 状态                                                                                                                                                                                                                                             | 备注                          |
+| ------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
+| `direct-http` | 直接媒体 URL（`.mp4`、已知 CDN）           | ✅ Working                                                                                                                                                                                                                                       | 包装 HTTP fetch               |
+| `ytdlp`       | YouTube、B站                               | ✅ Working                                                                                                                                                                                                                                       | 包装 yt-dlp + Firefox cookies |
+| `cobalt`      | 30+ 平台（含抖音/TikTok/微博/Instagram/X） | ⚠️ Adapter ready, Cobalt 已部署（v11.7.1, localhost:9000, Watchtower 自动更新）。Smoke test: YouTube ✅ tunnel / Streamable ✅ redirect / 其他平台因 Cobalt parser 过期或代理 IP 被封而失败。**不作为核心依赖**，有 ytdlp + direct-http fallback |
 
 **DownloadResult 契约**：所有 adapter 返回统一 `DownloadResult` 对象（status / strategy / buffer / mimeType / byteLength / provenance / retryable）。
 
 **Cobalt 状态机**：`tunnel`→下载、`redirect`→下载、`picker`→needs-selection、`local-processing`→unsupported、`error`→分类（retryable/non-retryable）。
 
 **后续扩展**（留在 issue 追踪：#75 第二批 + #115 集成 + #77 schema 更新）：
+
 - 平台 adapter：douyin-share、tiktok-cdp-detail、weibo-visitor-api、rednote-mcp、cdp-generic（#75 第二批）
 - `asset-sourcer.mjs` 集成 `downloadVideo()`（#115）
 - `source-registry.mjs` schema 拆分 discovery + download adapter（#77）
 
 ### Chinese News Media (CDP)
+
 - **IT之家** — Best for Chinese AI product news
 - **机器之心** — AI-focused cover images
 - **新华网** — Official state event photos
@@ -140,6 +144,7 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 - **智东西** — AI media
 
 ### Search Engines (CDP)
+
 - **Google News** — International news search
 - **Bing News** — Alternative news search
 
@@ -149,34 +154,34 @@ Text sources collect article titles + URLs for trend discovery and script writin
 
 ### News Media (CDP, no auth)
 
-| # | Source | Type | Auth? | Status | Best For |
-|---|--------|------|-------|--------|----------|
-| T1 | **量子位** (qbitai) | Article URLs | No | ✅ Working | Chinese AI news |
-| T2 | **机器之心** (jiqizhixin) | Article URLs | No | ✅ Working | AI-focused articles |
-| T3 | **36氪** (36kr) | Article URLs | No | ✅ Working | Tech/startup news |
-| T4 | **TechCrunch AI** | Article URLs | No | ✅ Working | English AI news |
-| T5 | **Bloomberg Tech** | Article URLs | No | ✅ Working | Finance/tech news |
-| T6 | **观察者网** (guancha) | Article URLs | No | ✅ Working | Mainstream Chinese news |
-| T7 | **IT之家** (ithome) | Article URLs | No | ✅ Working | Chinese tech product news |
+| #   | Source                    | Type         | Auth? | Status     | Best For                  |
+| --- | ------------------------- | ------------ | ----- | ---------- | ------------------------- |
+| T1  | **量子位** (qbitai)       | Article URLs | No    | ✅ Working | Chinese AI news           |
+| T2  | **机器之心** (jiqizhixin) | Article URLs | No    | ✅ Working | AI-focused articles       |
+| T3  | **36氪** (36kr)           | Article URLs | No    | ✅ Working | Tech/startup news         |
+| T4  | **TechCrunch AI**         | Article URLs | No    | ✅ Working | English AI news           |
+| T5  | **Bloomberg Tech**        | Article URLs | No    | ✅ Working | Finance/tech news         |
+| T6  | **观察者网** (guancha)    | Article URLs | No    | ✅ Working | Mainstream Chinese news   |
+| T7  | **IT之家** (ithome)       | Article URLs | No    | ✅ Working | Chinese tech product news |
 
 ### Self-Media & Social (CDP)
 
-| # | Source | Type | Auth? | Status | Best For |
-|---|--------|------|-------|--------|----------|
-| T8 | **小红书** (xhs) | Article URLs | Yes (login) | ⚠️ Needs login | Trending topics, product buzz |
-| T9 | **搜狗微信** (sogou_weixin) | Article URLs | No | ✅ Working | WeChat公众号文章搜索 |
-| T10 | **微博热搜** (weibo_hot) | Hot topics | No | ✅ Working | Trending topics, public sentiment |
-| T11 | **B站搜索** (bilibili) | Video URLs | No | ⚠️ 412 intermittent | Tech video search |
-| T12 | **抖音搜索** (douyin) | Video URLs | Yes (login) | ⚠️ Needs login | Viral content discovery |
-| T13 | **TikTok Creator** | Video URLs | Yes (login) | ⚠️ Needs login | International TikTok trends |
-| T14 | **知乎** (zhihu) | Q&A URLs | No | ✅ Working | Deep-dive discussions |
-| T15 | **X (Twitter)** | Posts | Yes (login) | ⚠️ Needs login | International AI discourse |
+| #   | Source                      | Type         | Auth?       | Status              | Best For                          |
+| --- | --------------------------- | ------------ | ----------- | ------------------- | --------------------------------- |
+| T8  | **小红书** (xhs)            | Article URLs | Yes (login) | ⚠️ Needs login      | Trending topics, product buzz     |
+| T9  | **搜狗微信** (sogou_weixin) | Article URLs | No          | ✅ Working          | WeChat公众号文章搜索              |
+| T10 | **微博热搜** (weibo_hot)    | Hot topics   | No          | ✅ Working          | Trending topics, public sentiment |
+| T11 | **B站搜索** (bilibili)      | Video URLs   | No          | ⚠️ 412 intermittent | Tech video search                 |
+| T12 | **抖音搜索** (douyin)       | Video URLs   | Yes (login) | ⚠️ Needs login      | Viral content discovery           |
+| T13 | **TikTok Creator**          | Video URLs   | Yes (login) | ⚠️ Needs login      | International TikTok trends       |
+| T14 | **知乎** (zhihu)            | Q&A URLs     | No          | ✅ Working          | Deep-dive discussions             |
+| T15 | **X (Twitter)**             | Posts        | Yes (login) | ⚠️ Needs login      | International AI discourse        |
 
 ### WeChat Official Accounts
 
-| # | Source | Type | Auth? | Status | Best For |
-|---|--------|------|-------|--------|----------|
-| T16 | **搜狗微信** (republished) | Article URLs | No | ✅ Working | 公众号文章 via Google search |
+| #   | Source                     | Type         | Auth? | Status     | Best For                     |
+| --- | -------------------------- | ------------ | ----- | ---------- | ---------------------------- |
+| T16 | **搜狗微信** (republished) | Article URLs | No    | ✅ Working | 公众号文章 via Google search |
 
 > **Note**: WeChat Platform API (direct account crawling) is disabled — `appmsg?action=list_ex` endpoint was blocked by WeChat. Use 搜狗微信 (Google search for republished articles) instead. See `source-registry.mjs` → `WECHAT_API_CONFIG` for details.
 

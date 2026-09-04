@@ -16,21 +16,21 @@
 
 实测校准来源：用户真实 FYP 播放截图（576×1024，×1.875 放大到 1080×1920）+ 2026 研究（quso/Moda 17 万帖、Kreatli、vSubtitle、Blitzcut）交叉验证。
 
-| 区域 | 实测 UI | 我方安全区 |
-|---|---|---|
-| 顶部 nav | y 0–165 | 内容 y ≥ 220 |
-| **右操作栏**（头像/点赞/评论/收藏/分享/音乐碟） | **x 880–1080, y 655–1775** | 内容右缘 ≤ x880（`right: 200`） |
-| 底部 caption+用户名 | 最高 y≈1500 | 内容底 ≤ y1150（`bottom: 770`） |
-| 底部 tab 栏 | y 1790–1905 | 我方内容归零 |
-| TikTok 原生字幕 | ~60px em（≈屏高 3.1%），位于 62–70% 高度 | 字幕 60px，带 y1188–1350 |
+| 区域                                            | 实测 UI                                  | 我方安全区                      |
+| ----------------------------------------------- | ---------------------------------------- | ------------------------------- |
+| 顶部 nav                                        | y 0–165                                  | 内容 y ≥ 220                    |
+| **右操作栏**（头像/点赞/评论/收藏/分享/音乐碟） | **x 880–1080, y 655–1775**               | 内容右缘 ≤ x880（`right: 200`） |
+| 底部 caption+用户名                             | 最高 y≈1500                              | 内容底 ≤ y1150（`bottom: 770`） |
+| 底部 tab 栏                                     | y 1790–1905                              | 我方内容归零                    |
+| TikTok 原生字幕                                 | ~60px em（≈屏高 3.1%），位于 62–70% 高度 | 字幕 60px，带 y1188–1350        |
 
 **常量**（被测试锁定，改数值会红）：
 
 ```js
-SAFE_ZONES = { top: 220, right: 200, bottom: 770, left: 60 }
+SAFE_ZONES = { top: 220, right: 200, bottom: 770, left: 60 };
 // 内容带 = x[60,880] 宽 820 · y[220,1150]
 
-SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, maxWidth: 720 }
+SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, maxWidth: 720 };
 // 字幕带 y1188–1350（62–70% 可读带）· marginL/R = 110/250（左移匹配内容区中心，右缘 x830 清开操作栏 50px）
 // 派生: SUBTITLE_LANE_BOTTOM = 1350, SUBTITLE_LANE_TOP = 1188
 ```
@@ -39,12 +39,12 @@ SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, max
 
 ## 3. 槽位布局系统（`lib/scene-layout.mjs`）— 所有场景必须走它
 
-| 槽 | y 范围 | 用途 |
-|---|---|---|
-| brandHeader | 60–200 | 品牌 chrome（brandBar/水印），非内容 |
-| kickerTitle | 220–400 | 徽章/标题 |
-| hero | 400–950 | 主视觉 |
-| support | 950–1150 | 来源/结论/补充 |
+| 槽          | y 范围   | 用途                                 |
+| ----------- | -------- | ------------------------------------ |
+| brandHeader | 60–200   | 品牌 chrome（brandBar/水印），非内容 |
+| kickerTitle | 220–400  | 徽章/标题                            |
+| hero        | 400–950  | 主视觉                               |
+| support     | 950–1150 | 来源/结论/补充                       |
 
 - 组装方式：`sceneFrame({ kicker, hero, support, align })`，横向 `SLOT_X.left=60 / right=880`（宽 820）。
 - **禁止**：手写全屏 `flex + justify-content: space-between` + 底部 padding（三岛布局的根源）。
@@ -72,14 +72,15 @@ SUBTITLE_LANE = { marginV: 570, fontSize: 60, maxLines: 2, lineHeight: 1.35, max
 
 ## 6. 强制执行链（未来视频怎么被约束）
 
-| 层 | 机制 | 位置 |
-|---|---|---|
-| 1 常量 | 测试锁定 | `safe-zones.test.mjs` / `scene-drift.test.mjs` |
-| 2 数据级 | `verify-video.mjs --pre`（SKILL.md 规则） | pipeline Step 0 |
-| 3 **渲染级硬门** | `verify-scene-dom.mjs` 自动跑在 **Step 2.5**（HTML 生成后、录制前），FAIL 即中止 | `main.mjs` / `render-only.mjs` |
-| 4 源码级 | side-by-side class 禁令 + 共享模板 byte-identical | `scene-drift.test.mjs` |
+| 层               | 机制                                                                             | 位置                                           |
+| ---------------- | -------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 1 常量           | 测试锁定                                                                         | `safe-zones.test.mjs` / `scene-drift.test.mjs` |
+| 2 数据级         | `verify-video.mjs --pre`（SKILL.md 规则）                                        | pipeline Step 0                                |
+| 3 **渲染级硬门** | `verify-scene-dom.mjs` 自动跑在 **Step 2.5**（HTML 生成后、录制前），FAIL 即中止 | `main.mjs` / `render-only.mjs`                 |
+| 4 源码级         | side-by-side class 禁令 + 共享模板 byte-identical                                | `scene-drift.test.mjs`                         |
 
 **DOM 校验规则**（`verify-scene-dom.mjs`，per-pipeline 配置在 `content/<dir>/dom-config.mjs`，无则用默认值）：
+
 - 顶/底越界（y<220 或 y>1150）→ **FAIL**（豁免：背景层 `grid-bg`/`glow-red`/`glow-blue`/`glow-amber`/`glow-tint`/`scanlines`/`scan-sweep`/`glitch`/`glitch-flash`/`fade-to-black`/`frame-glow`/`flash-frame`、brand-chrome `brand-bar`/`brand-logo-large`/`brand-watermark` 及其子元素）
 - 右缘 > x880：**底边 y>640（操作栏内）→ FAIL**；y≤640（顶部 chrome）→ WARN
 - 水平溢出（scrollWidth）、`undefined`、mid-word break → FAIL

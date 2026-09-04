@@ -33,11 +33,5 @@ export const meta = {
     "2,436 vulnerabilities found",
     "7.4M registered users",
   ],
-  hashtags: [
-    "#ainews",
-    "#chinaainews",
-    "#zhipu",
-    "#glm",
-    "#agi",
-  ],
+  hashtags: ["#ainews", "#chinaainews", "#zhipu", "#glm", "#agi"],
 };

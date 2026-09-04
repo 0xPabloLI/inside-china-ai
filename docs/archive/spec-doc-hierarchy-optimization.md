@@ -65,15 +65,15 @@
 
 将以下 7 个文件从 `docs/` 根级别移动到 `docs/archive/`：
 
-| 文件 | 对应功能 | 实现状态 |
-|------|---------|---------|
-| `spec-asset-sourcer.md` | asset-sourcer.mjs | ✅ 已实现 |
-| `spec-media-fullscreen-mode.md` | media-bg.mjs VALID_MODES | ✅ 已实现 |
-| `spec-voice-prosody-optimization.md` | F5 prosody post-processing | ✅ 已实现 |
-| `tickets-asset-sourcer.md` | — | ✅ 配套 spec 已完成 |
-| `tickets-media-fullscreen-mode.md` | — | ✅ 配套 spec 已完成 |
-| `tickets-tickets-remotion-frame-verification.md` | — | ✅ 已完成（文件名修正为 `tickets-remotion-frame-verification.md`） |
-| `tickets-voice-prosody-optimization.md` | — | ✅ 配套 spec 已完成 |
+| 文件                                             | 对应功能                   | 实现状态                                                           |
+| ------------------------------------------------ | -------------------------- | ------------------------------------------------------------------ |
+| `spec-asset-sourcer.md`                          | asset-sourcer.mjs          | ✅ 已实现                                                          |
+| `spec-media-fullscreen-mode.md`                  | media-bg.mjs VALID_MODES   | ✅ 已实现                                                          |
+| `spec-voice-prosody-optimization.md`             | F5 prosody post-processing | ✅ 已实现                                                          |
+| `tickets-asset-sourcer.md`                       | —                          | ✅ 配套 spec 已完成                                                |
+| `tickets-media-fullscreen-mode.md`               | —                          | ✅ 配套 spec 已完成                                                |
+| `tickets-tickets-remotion-frame-verification.md` | —                          | ✅ 已完成（文件名修正为 `tickets-remotion-frame-verification.md`） |
+| `tickets-voice-prosody-optimization.md`          | —                          | ✅ 配套 spec 已完成                                                |
 
 移动后更新 `docs/archive/README.md` 归档清单。
 
@@ -83,28 +83,28 @@
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `docs/DOCS-INDEX.md` | 新增 "What does NOT go here" 列 + Layer Placement Rules 子章节 | Low | 纯追加内容，不修改现有表格行，不影响现有指针引用 |
-| `docs/video-workflow.md` | 抽离 Gapless Audio Track 章节（~30 行 → 3 行指针） | Medium | 修改现有章节内容。下游消费者：Agent 排查音频问题时读此章节。风险：Agent 可能找不到完整故障排查叙述。缓解：指针明确指向 `docs/research/audio-drift-fix.md`，且底部 Design Decisions & References 表格也添加了入口 |
-| `docs/video-workflow.md` | Design Decisions & References 表格新增一行 | Low | 纯追加 |
-| `docs/research/audio-drift-fix.md` | 新建文件 | Low | 新文件，无现有消费者受影响 |
-| `AGENTS.md` | Coding Conventions 末尾追加 1 行指针 | Low | 纯追加，不修改现有规则 |
-| `docs/archive/README.md` | 新增 7 条归档记录 | Low | 纯追加 |
-| 7 个 spec/tickets 文件 | 从 `docs/` 移动到 `docs/archive/`（1 个改名） | Low | 文件移动，无内容修改。下游影响：如有其他文档引用这些文件路径，需更新。 |
-| `docs/tickets-tickets-remotion-frame-verification.md` | 改名为 `tickets-remotion-frame-verification.md` | Low | 文件名修正（去除重复前缀） |
+| File                                                  | Modification                                                   | Risk   | Assessment                                                                                                                                                                                                       |
+| ----------------------------------------------------- | -------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/DOCS-INDEX.md`                                  | 新增 "What does NOT go here" 列 + Layer Placement Rules 子章节 | Low    | 纯追加内容，不修改现有表格行，不影响现有指针引用                                                                                                                                                                 |
+| `docs/video-workflow.md`                              | 抽离 Gapless Audio Track 章节（~30 行 → 3 行指针）             | Medium | 修改现有章节内容。下游消费者：Agent 排查音频问题时读此章节。风险：Agent 可能找不到完整故障排查叙述。缓解：指针明确指向 `docs/research/audio-drift-fix.md`，且底部 Design Decisions & References 表格也添加了入口 |
+| `docs/video-workflow.md`                              | Design Decisions & References 表格新增一行                     | Low    | 纯追加                                                                                                                                                                                                           |
+| `docs/research/audio-drift-fix.md`                    | 新建文件                                                       | Low    | 新文件，无现有消费者受影响                                                                                                                                                                                       |
+| `AGENTS.md`                                           | Coding Conventions 末尾追加 1 行指针                           | Low    | 纯追加，不修改现有规则                                                                                                                                                                                           |
+| `docs/archive/README.md`                              | 新增 7 条归档记录                                              | Low    | 纯追加                                                                                                                                                                                                           |
+| 7 个 spec/tickets 文件                                | 从 `docs/` 移动到 `docs/archive/`（1 个改名）                  | Low    | 文件移动，无内容修改。下游影响：如有其他文档引用这些文件路径，需更新。                                                                                                                                           |
+| `docs/tickets-tickets-remotion-frame-verification.md` | 改名为 `tickets-remotion-frame-verification.md`                | Low    | 文件名修正（去除重复前缀）                                                                                                                                                                                       |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Agent 写新文档前检查层次 | 先加载 `writing-for-agents` skill，然后按 Layer Placement Rules 判定属于 L1 还是 L2 | Agent 跳过层次判定直接写 | AGENTS.md 已有"硬性前置条件"措辞；DOCS-INDEX.md 的 Layer Placement Rules 显式提醒 |
-| 2 | Agent 修改 L1 文档时检查 L2 内容混入 | 按 Layer Placement Rules 第 4 条，检查是否有研究依据混入 | Agent 不做此检查 | 规则明确"如有，抽离到 L2 并添加指针"——checkable + exhaustive |
-| 3 | Agent 搜索音频漂移问题 | 通过 `video-workflow.md` 的指针到达 `docs/research/audio-drift-fix.md` | 指针不够显眼 | 指针放在 Gapless Audio Track 标题正下方 + 底部 Design Decisions 表格双入口 |
-| 4 | Agent 访问已移动的 spec/tickets | 在 `docs/archive/` 下找到（而非 `docs/` 根） | 其他文档引用了旧路径 | grep 检查是否有文档引用这些文件的旧路径，如有则更新 |
-| 5 | Agent 访问改名后的 tickets 文件 | 文件名从 `tickets-tickets-*` 改为 `tickets-*` | 旧文件名被引用 | grep 检查引用，改名后更新所有引用 |
-| 6 | Agent 读 DOCS-INDEX.md 的 L1/L2 表格 | 看到语义标签 "Execution reference" / "Deep research" + "What does NOT go here" 列 | 无 | 纯追加信息 |
-| 7 | Agent 从 AGENTS.md 跳转到 DOCS-INDEX.md 层次规则 | AGENTS.md Coding Conventions 的指针指向 DOCS-INDEX.md → Layer Placement Rules | 指针不够显眼 | 指针放在已有 `writing-for-agents 强制加载` 条目末尾，条件触发一致 |
+| #   | Scenario                                         | Expected Behavior                                                                   | Risk                     | Mitigation                                                                        |
+| --- | ------------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| 1   | Agent 写新文档前检查层次                         | 先加载 `writing-for-agents` skill，然后按 Layer Placement Rules 判定属于 L1 还是 L2 | Agent 跳过层次判定直接写 | AGENTS.md 已有"硬性前置条件"措辞；DOCS-INDEX.md 的 Layer Placement Rules 显式提醒 |
+| 2   | Agent 修改 L1 文档时检查 L2 内容混入             | 按 Layer Placement Rules 第 4 条，检查是否有研究依据混入                            | Agent 不做此检查         | 规则明确"如有，抽离到 L2 并添加指针"——checkable + exhaustive                      |
+| 3   | Agent 搜索音频漂移问题                           | 通过 `video-workflow.md` 的指针到达 `docs/research/audio-drift-fix.md`              | 指针不够显眼             | 指针放在 Gapless Audio Track 标题正下方 + 底部 Design Decisions 表格双入口        |
+| 4   | Agent 访问已移动的 spec/tickets                  | 在 `docs/archive/` 下找到（而非 `docs/` 根）                                        | 其他文档引用了旧路径     | grep 检查是否有文档引用这些文件的旧路径，如有则更新                               |
+| 5   | Agent 访问改名后的 tickets 文件                  | 文件名从 `tickets-tickets-*` 改为 `tickets-*`                                       | 旧文件名被引用           | grep 检查引用，改名后更新所有引用                                                 |
+| 6   | Agent 读 DOCS-INDEX.md 的 L1/L2 表格             | 看到语义标签 "Execution reference" / "Deep research" + "What does NOT go here" 列   | 无                       | 纯追加信息                                                                        |
+| 7   | Agent 从 AGENTS.md 跳转到 DOCS-INDEX.md 层次规则 | AGENTS.md Coding Conventions 的指针指向 DOCS-INDEX.md → Layer Placement Rules       | 指针不够显眼             | 指针放在已有 `writing-for-agents 强制加载` 条目末尾，条件触发一致                 |
 
 ## Testing Decisions
 

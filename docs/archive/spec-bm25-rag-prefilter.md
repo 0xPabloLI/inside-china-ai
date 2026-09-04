@@ -57,32 +57,32 @@ BM25 after noise filter, before reranker. Does NOT change vector ordering of sur
 
 ### Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| scripts/rag/lib/bm25.mjs (NEW) | New pure-function module | Low | Pure addition |
-| scripts/rag/query.mjs | Insert BM25 step + 2 CLI args | Medium | Additive step, downstream gets same shape. Worst case: discards relevant result. Mitigated by --bm25-top-k and --no-bm25. |
-| scripts/rag/__tests__/bm25.test.mjs (NEW) | Unit tests | Low | Pure addition |
-| scripts/rag/__tests__/query.test.mjs | Integration tests | Low | Pure addition |
+| File                                      | Modification                  | Risk   | Assessment                                                                                                                |
+| ----------------------------------------- | ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| scripts/rag/lib/bm25.mjs (NEW)            | New pure-function module      | Low    | Pure addition                                                                                                             |
+| scripts/rag/query.mjs                     | Insert BM25 step + 2 CLI args | Medium | Additive step, downstream gets same shape. Worst case: discards relevant result. Mitigated by --bm25-top-k and --no-bm25. |
+| scripts/rag/**tests**/bm25.test.mjs (NEW) | Unit tests                    | Low    | Pure addition                                                                                                             |
+| scripts/rag/**tests**/query.test.mjs      | Integration tests             | Low    | Pure addition                                                                                                             |
 
 ### Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | 15 results, top-k=10 | Returns top-10 by BM25, vector order preserved | Low | Truncation only |
-| 2 | 5 results, top-k=10 | Returns all 5 | Low | top-k is max |
-| 3 | Empty result set | Returns empty array | Low | Nothing to score |
-| 4 | Empty query string | All scores=0, original order, truncated to top-k | Low | tokenize returns [] |
-| 5 | null chunk_text | Score=0, no crash | Medium | Guard with default empty string |
-| 6 | --no-bm25 | BM25 skipped | Low | Boolean gate |
-| 7 | --bm25-top-k 0 | Returns empty array | Low | Edge case |
-| 8 | top-k=20 with 15 results | Returns all 15 | Low | top-k is max |
-| 9 | BM25 + --rerank | BM25 first, then reranker on top-k | Medium | Order matters |
-| 10 | BM25 + --include-noise | BM25 processes all including noise | Low | After noise filter |
-| 11 | BM25 error | Warning, original results returned | Medium | try/catch |
-| 12 | Mixed CN-EN query | Both languages contribute | Low | tokenize handles mixed |
-| 13 | All same chunk_text | Equal scores, original order | Low | Stable sort |
-| 14 | Single result | Returned as-is | Low | Edge case |
-| 15 | --include-noise, no --rerank | Noise with 0 overlap gets BM25=0, truncated | Low | Intended |
+| #   | Scenario                     | Expected Behavior                                | Risk   | Mitigation                      |
+| --- | ---------------------------- | ------------------------------------------------ | ------ | ------------------------------- |
+| 1   | 15 results, top-k=10         | Returns top-10 by BM25, vector order preserved   | Low    | Truncation only                 |
+| 2   | 5 results, top-k=10          | Returns all 5                                    | Low    | top-k is max                    |
+| 3   | Empty result set             | Returns empty array                              | Low    | Nothing to score                |
+| 4   | Empty query string           | All scores=0, original order, truncated to top-k | Low    | tokenize returns []             |
+| 5   | null chunk_text              | Score=0, no crash                                | Medium | Guard with default empty string |
+| 6   | --no-bm25                    | BM25 skipped                                     | Low    | Boolean gate                    |
+| 7   | --bm25-top-k 0               | Returns empty array                              | Low    | Edge case                       |
+| 8   | top-k=20 with 15 results     | Returns all 15                                   | Low    | top-k is max                    |
+| 9   | BM25 + --rerank              | BM25 first, then reranker on top-k               | Medium | Order matters                   |
+| 10  | BM25 + --include-noise       | BM25 processes all including noise               | Low    | After noise filter              |
+| 11  | BM25 error                   | Warning, original results returned               | Medium | try/catch                       |
+| 12  | Mixed CN-EN query            | Both languages contribute                        | Low    | tokenize handles mixed          |
+| 13  | All same chunk_text          | Equal scores, original order                     | Low    | Stable sort                     |
+| 14  | Single result                | Returned as-is                                   | Low    | Edge case                       |
+| 15  | --include-noise, no --rerank | Noise with 0 overlap gets BM25=0, truncated      | Low    | Intended                        |
 
 ## Testing Decisions
 

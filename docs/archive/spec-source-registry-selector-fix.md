@@ -3,6 +3,7 @@
 ## Problem Statement
 
 Three bugs in `source-registry.mjs` cause search sources to silently return 0 results:
+
 1. XHS extractScript uses `[data-v-*]` — invalid CSS selector (CSS doesn't support wildcard attribute names)
 2. XHS mcpFallback references `python -m xiaohongshu_mcp_server` — package was never installed
 3. X cdpFallback extractScript uses `div.g, .Gx5Zad, .fP1Qef` — Google frontend redesign broke these class selectors
@@ -37,23 +38,23 @@ Fix all three selector/config issues, update tests to match, verify with 10-roun
 
 ### Section 1: Modified Files Impact
 
-| File | Change | Risk | Assessment |
-|------|--------|------|------------|
-| `scripts/short-video/lib/source-registry.mjs` | 3 selector/config fixes (XHS extractScript, XHS mcpFallback, X cdpFallback) | Medium | Modifies existing source configs used by search-sources.mjs fallback chain. Verified: XHS CDP 10/10 success, X Google 10/10 success. mcpFallback change is config-only (rednote-mcp not functional yet, but config is correct for when it works). |
-| `scripts/short-video/__tests__/source-registry.test.mjs` | Update 3 assertions + add 3 new | Low | Test-only change, no runtime impact. |
+| File                                                     | Change                                                                      | Risk   | Assessment                                                                                                                                                                                                                                        |
+| -------------------------------------------------------- | --------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/source-registry.mjs`            | 3 selector/config fixes (XHS extractScript, XHS mcpFallback, X cdpFallback) | Medium | Modifies existing source configs used by search-sources.mjs fallback chain. Verified: XHS CDP 10/10 success, X Google 10/10 success. mcpFallback change is config-only (rednote-mcp not functional yet, but config is correct for when it works). |
+| `scripts/short-video/__tests__/source-registry.test.mjs` | Update 3 assertions + add 3 new                                             | Low    | Test-only change, no runtime impact.                                                                                                                                                                                                              |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | XHS CDP search with valid keyword | Returns 40 items (section.note-item selector) | Low | Tested 10/10, 40 items/round |
-| 2 | XHS CDP when user not logged in | loginCheckScript detects "请先登录" | Low | loginCheckScript unchanged |
-| 3 | XHS mcpFallback invoked (CDP fails) | Spawns `rednote-mcp --stdio`, calls `search_notes` with `keywords` param | Medium | rednote-mcp search currently times out (upstream issue), but config is correct |
-| 4 | X cdpFallback invoked (CDP fails) | Opens Google site:x.com, extracts via h3 selector, returns 9 x.com links | Low | Tested 10/10, 9 items/round |
-| 5 | X cdpFallback when Google shows captcha | extractScript returns 0 results (no h3 found) | Low | Falls through to mcpFallback (Grok) |
-| 6 | Test CI runs with updated assertions | All tests pass (existing + updated + new) | Low | Will run `npm test` to verify |
-| 7 | search-sources.mjs calls collectFromSource for xhs | Reads updated extractScript, gets 40 results | Low | search-sources.mjs reads source.extractScript dynamically, no hardcoded selectors |
-| 8 | search-sources.mjs calls collectFromSource for x_search | Reads updated cdpFallback, gets 9 results when CDP fails | Low | search-sources.mjs reads source.cdpFallback.extractScript dynamically |
+| #   | Scenario                                                | Expected Behavior                                                        | Risk   | Mitigation                                                                        |
+| --- | ------------------------------------------------------- | ------------------------------------------------------------------------ | ------ | --------------------------------------------------------------------------------- |
+| 1   | XHS CDP search with valid keyword                       | Returns 40 items (section.note-item selector)                            | Low    | Tested 10/10, 40 items/round                                                      |
+| 2   | XHS CDP when user not logged in                         | loginCheckScript detects "请先登录"                                      | Low    | loginCheckScript unchanged                                                        |
+| 3   | XHS mcpFallback invoked (CDP fails)                     | Spawns `rednote-mcp --stdio`, calls `search_notes` with `keywords` param | Medium | rednote-mcp search currently times out (upstream issue), but config is correct    |
+| 4   | X cdpFallback invoked (CDP fails)                       | Opens Google site:x.com, extracts via h3 selector, returns 9 x.com links | Low    | Tested 10/10, 9 items/round                                                       |
+| 5   | X cdpFallback when Google shows captcha                 | extractScript returns 0 results (no h3 found)                            | Low    | Falls through to mcpFallback (Grok)                                               |
+| 6   | Test CI runs with updated assertions                    | All tests pass (existing + updated + new)                                | Low    | Will run `npm test` to verify                                                     |
+| 7   | search-sources.mjs calls collectFromSource for xhs      | Reads updated extractScript, gets 40 results                             | Low    | search-sources.mjs reads source.extractScript dynamically, no hardcoded selectors |
+| 8   | search-sources.mjs calls collectFromSource for x_search | Reads updated cdpFallback, gets 9 results when CDP fails                 | Low    | search-sources.mjs reads source.cdpFallback.extractScript dynamically             |
 
 ## Out of Scope
 

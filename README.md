@@ -74,17 +74,17 @@ Stage 6  Analytics tracking         — TikTok metrics, A/B testing, optimizatio
 
 ## Tech stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Web app | React 19 + TanStack Start + TypeScript | Website, articles, admin editor |
-| Database | Supabase (PostgreSQL + Auth + RLS) | Articles, subscribers, auth |
-| UI | Tailwind CSS v4 + shadcn/ui | Component system |
-| Video rendering | Remotion (React → frame-by-frame) | Scene generation |
-| TTS | F5-TTS-MLX (Apple Silicon) | Voiceover generation |
-| VLM | Qwen3-VL-8B-Instruct-8bit via mlx-vlm | Asset analysis & visual decision-making |
-| Video assembly | FFmpeg (full build with rubberband + libass) | Concatenation, subtitles, BGM, loudness |
-| RAG | Ollama bge-m3 + pgvector | Content retrieval for research & asset search |
-| Trend discovery | Chrome CDP + MCP search bridge | 28 sources across Chinese & Western platforms |
+| Layer           | Technology                                   | Purpose                                       |
+| --------------- | -------------------------------------------- | --------------------------------------------- |
+| Web app         | React 19 + TanStack Start + TypeScript       | Website, articles, admin editor               |
+| Database        | Supabase (PostgreSQL + Auth + RLS)           | Articles, subscribers, auth                   |
+| UI              | Tailwind CSS v4 + shadcn/ui                  | Component system                              |
+| Video rendering | Remotion (React → frame-by-frame)            | Scene generation                              |
+| TTS             | F5-TTS-MLX (Apple Silicon)                   | Voiceover generation                          |
+| VLM             | Qwen3-VL-8B-Instruct-8bit via mlx-vlm        | Asset analysis & visual decision-making       |
+| Video assembly  | FFmpeg (full build with rubberband + libass) | Concatenation, subtitles, BGM, loudness       |
+| RAG             | Ollama bge-m3 + pgvector                     | Content retrieval for research & asset search |
+| Trend discovery | Chrome CDP + MCP search bridge               | 28 sources across Chinese & Western platforms |
 
 ## Project structure
 
@@ -151,36 +151,36 @@ node scripts/short-video/verify-video.mjs --content deepseek
 node scripts/short-video/lib/asset-sourcer.mjs --content unitree
 ```
 
-Or just tell the agent: *"用「华为 AI 芯片突破」这个话题做一条内容"* — and it
+Or just tell the agent: _"用「华为 AI 芯片突破」这个话题做一条内容"_ — and it
 handles everything from research to final video.
 
 ### Common commands
 
-| Command | Purpose |
-|---------|---------|
-| `npm run dev` | Local development server |
-| `npm run lint` | ESLint |
-| `npm run build` | Production build |
-| `npm run format` | Prettier write |
-| `npx tsc --noEmit` | Type check (no emit) |
-| `npm test` | Run test suite (vitest) |
-| `node scripts/short-video/main.mjs --content <slug> --bgm` | Produce a video |
+| Command                                                    | Purpose                  |
+| ---------------------------------------------------------- | ------------------------ |
+| `npm run dev`                                              | Local development server |
+| `npm run lint`                                             | ESLint                   |
+| `npm run build`                                            | Production build         |
+| `npm run format`                                           | Prettier write           |
+| `npx tsc --noEmit`                                         | Type check (no emit)     |
+| `npm test`                                                 | Run test suite (vitest)  |
+| `node scripts/short-video/main.mjs --content <slug> --bgm` | Produce a video          |
 
 ## Documentation
 
 Start with `AGENTS.md` (agent operating instructions), then `docs/DOCS-INDEX.md`
 for the full document map. Key documents:
 
-| Document | Purpose |
-|----------|---------|
-| `docs/content-pipeline.md` | End-to-end pipeline: article → video → publish |
-| `docs/video-workflow.md` | TTS engines, publishing, file paths |
-| `docs/brand-system.md` | Brand identity, logo, color tokens |
-| `docs/tiktok/tiktok-best-practices.md` | TikTok algorithm & content rules |
-| `docs/tanstack-lovable-conventions.md` | Stack-level conventions |
-| `docs/installed-skills.md` | Agent skills overview & install guide |
-| `docs/tools-catalog.md` | External tools/APIs catalog & decision table |
-| `scripts/short-video/README.md` | Video pipeline architecture details |
+| Document                               | Purpose                                        |
+| -------------------------------------- | ---------------------------------------------- |
+| `docs/content-pipeline.md`             | End-to-end pipeline: article → video → publish |
+| `docs/video-workflow.md`               | TTS engines, publishing, file paths            |
+| `docs/brand-system.md`                 | Brand identity, logo, color tokens             |
+| `docs/tiktok/tiktok-best-practices.md` | TikTok algorithm & content rules               |
+| `docs/tanstack-lovable-conventions.md` | Stack-level conventions                        |
+| `docs/installed-skills.md`             | Agent skills overview & install guide          |
+| `docs/tools-catalog.md`                | External tools/APIs catalog & decision table   |
+| `scripts/short-video/README.md`        | Video pipeline architecture details            |
 
 ## Built with
 

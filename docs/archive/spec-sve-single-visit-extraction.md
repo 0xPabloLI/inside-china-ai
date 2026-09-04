@@ -108,9 +108,9 @@ Stage 4 Step 1.5 (main.mjs → asset-sourcer.mjs):
       {
         "sourceUrl": "https://example.com/article-1",
         "scrapedAt": "2026-08-27T...",
-        "images": [{"url": "https://...", "alt": "..."}],
-        "videos": [{"url": "https://...", "platform": "youtube"}],
-        "metadata": {"ogImage": "https://...", "ogTitle": "...", "publishedTime": "..."}
+        "images": [{ "url": "https://...", "alt": "..." }],
+        "videos": [{ "url": "https://...", "platform": "youtube" }],
+        "metadata": { "ogImage": "https://...", "ogTitle": "...", "publishedTime": "..." }
       }
     ]
   }
@@ -145,36 +145,36 @@ Stage 4 Step 1.5 (main.mjs → asset-sourcer.mjs):
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `search-sources.mjs` | `enrichWithImages` → `enrichWithMedia`, add video+metadata extraction | Medium | Modifies existing function behavior. Non-fatal try/catch preserves article extraction. CDP tab already open, zero additional requests. |
-| `trends-utils.mjs` | `buildOutputJson` add `videos[]` + `metadata{}` to topic entries | Medium | New fields, doesn't modify existing `images[]` logic. Backward compatible — old consumers ignore new fields. |
-| `asset-sourcer.mjs` | New `loadCachedMedia` + `toCachedMediaCandidate` + Phase 0b | Low | Pure addition (new function + new phase), doesn't modify existing Phase 0/1/2/3 logic. |
-| `content-pipeline.md` | Stage 0 Step 2 description updated | Low | Documentation change, Agent behavior rule. |
+| File                  | Modification                                                          | Risk   | Assessment                                                                                                                             |
+| --------------------- | --------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `search-sources.mjs`  | `enrichWithImages` → `enrichWithMedia`, add video+metadata extraction | Medium | Modifies existing function behavior. Non-fatal try/catch preserves article extraction. CDP tab already open, zero additional requests. |
+| `trends-utils.mjs`    | `buildOutputJson` add `videos[]` + `metadata{}` to topic entries      | Medium | New fields, doesn't modify existing `images[]` logic. Backward compatible — old consumers ignore new fields.                           |
+| `asset-sourcer.mjs`   | New `loadCachedMedia` + `toCachedMediaCandidate` + Phase 0b           | Low    | Pure addition (new function + new phase), doesn't modify existing Phase 0/1/2/3 logic.                                                 |
+| `content-pipeline.md` | Stage 0 Step 2 description updated                                    | Low    | Documentation change, Agent behavior rule.                                                                                             |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | Search result page has `<video>` tag | `enrichWithMedia` extracts video src, article gets `videoUrls[]` | Low | Non-fatal try/catch; missing video = no videoUrls field |
-| 2 | Search result page has `<iframe>` YouTube embed | `enrichWithMedia` extracts embed URL, identifies platform as "youtube" | Low | Regex pattern match; non-YouTube iframe = skipped |
-| 3 | Search result page has no videos | Article has no `videoUrls` field (or empty array) | Low | Same as current `imageUrl: null` behavior |
-| 4 | `enrichWithMedia` eval throws error | Articles returned without media fields (non-fatal) | Low | Existing try/catch pattern from `enrichWithImages` |
-| 5 | `buildOutputJson` receives article with `videoUrls` | Topic entry gets `videos[]` array | Low | Pure additive — existing `images[]` unaffected |
-| 6 | `buildOutputJson` receives article without `videoUrls` | Topic entry has no `videos` field (or empty) | Low | Same as current `imageUrl` absent behavior |
-| 7 | Article has `metadata.ogImage` | `ogImage` URL added to images array as additional source | Medium | Dedup by URL; ogImage may duplicate thumbnail URL |
-| 8 | Article has `metadata.publishedTime` | Stored in metadata field | Low | Optional field, missing = not stored |
-| 9 | `extract-media.mjs` called on URL that's already in cache | Entry updated (merged by sourceUrl) | Medium | Merge logic: replace entry with same sourceUrl, keep others |
-| 10 | `extract-media.mjs` CDP tab fails to open | Script exits with error message, no cache file written | Low | Agent can retry or skip; asset-sourcer Phase 0b handles missing file |
-| 11 | `media-cache.json` doesn't exist | `loadCachedMedia` returns empty array | Low | Same pattern as `loadCachedImages` |
-| 12 | `media-cache.json` is malformed | `loadCachedMedia` returns empty array | Low | try/catch, same as `loadCachedImages` |
-| 13 | `media-cache.json` has entries but none match keywords | `loadCachedMedia` returns empty array | Low | Same as `loadCachedImages` keyword matching |
-| 14 | Cached video URL already downloaded by Phase 0 | Phase 0b skips it (downloadedUrls Set dedup) | Low | Existing cross-phase dedup mechanism |
-| 15 | Cached video URL fails to download via VDL | Failed entry recorded, other cached media still processed | Low | Same error handling as Phase 0 |
-| 16 | `enrichWithMedia` called on non-CDP source (API, MCP) | Not called — only called inside `collectFromCdp` | Low | No change to API/MCP paths |
-| 17 | og:image URL is a logo/icon | Filtered by `isLogoOrIcon()` in extract-media.mjs | Low | Reuses existing filter |
-| 18 | `<img>` has naturalWidth < 400 in extract-media.mjs | Skipped (below quality threshold) | Low | Reuses existing threshold from CDP fallback scripts |
-| 19 | media-cache.json has entries from multiple URLs | All entries processed, candidates flattened and deduped | Low | Flatten + downloadedUrls dedup |
+| #   | Scenario                                                  | Expected Behavior                                                      | Risk   | Mitigation                                                           |
+| --- | --------------------------------------------------------- | ---------------------------------------------------------------------- | ------ | -------------------------------------------------------------------- |
+| 1   | Search result page has `<video>` tag                      | `enrichWithMedia` extracts video src, article gets `videoUrls[]`       | Low    | Non-fatal try/catch; missing video = no videoUrls field              |
+| 2   | Search result page has `<iframe>` YouTube embed           | `enrichWithMedia` extracts embed URL, identifies platform as "youtube" | Low    | Regex pattern match; non-YouTube iframe = skipped                    |
+| 3   | Search result page has no videos                          | Article has no `videoUrls` field (or empty array)                      | Low    | Same as current `imageUrl: null` behavior                            |
+| 4   | `enrichWithMedia` eval throws error                       | Articles returned without media fields (non-fatal)                     | Low    | Existing try/catch pattern from `enrichWithImages`                   |
+| 5   | `buildOutputJson` receives article with `videoUrls`       | Topic entry gets `videos[]` array                                      | Low    | Pure additive — existing `images[]` unaffected                       |
+| 6   | `buildOutputJson` receives article without `videoUrls`    | Topic entry has no `videos` field (or empty)                           | Low    | Same as current `imageUrl` absent behavior                           |
+| 7   | Article has `metadata.ogImage`                            | `ogImage` URL added to images array as additional source               | Medium | Dedup by URL; ogImage may duplicate thumbnail URL                    |
+| 8   | Article has `metadata.publishedTime`                      | Stored in metadata field                                               | Low    | Optional field, missing = not stored                                 |
+| 9   | `extract-media.mjs` called on URL that's already in cache | Entry updated (merged by sourceUrl)                                    | Medium | Merge logic: replace entry with same sourceUrl, keep others          |
+| 10  | `extract-media.mjs` CDP tab fails to open                 | Script exits with error message, no cache file written                 | Low    | Agent can retry or skip; asset-sourcer Phase 0b handles missing file |
+| 11  | `media-cache.json` doesn't exist                          | `loadCachedMedia` returns empty array                                  | Low    | Same pattern as `loadCachedImages`                                   |
+| 12  | `media-cache.json` is malformed                           | `loadCachedMedia` returns empty array                                  | Low    | try/catch, same as `loadCachedImages`                                |
+| 13  | `media-cache.json` has entries but none match keywords    | `loadCachedMedia` returns empty array                                  | Low    | Same as `loadCachedImages` keyword matching                          |
+| 14  | Cached video URL already downloaded by Phase 0            | Phase 0b skips it (downloadedUrls Set dedup)                           | Low    | Existing cross-phase dedup mechanism                                 |
+| 15  | Cached video URL fails to download via VDL                | Failed entry recorded, other cached media still processed              | Low    | Same error handling as Phase 0                                       |
+| 16  | `enrichWithMedia` called on non-CDP source (API, MCP)     | Not called — only called inside `collectFromCdp`                       | Low    | No change to API/MCP paths                                           |
+| 17  | og:image URL is a logo/icon                               | Filtered by `isLogoOrIcon()` in extract-media.mjs                      | Low    | Reuses existing filter                                               |
+| 18  | `<img>` has naturalWidth < 400 in extract-media.mjs       | Skipped (below quality threshold)                                      | Low    | Reuses existing threshold from CDP fallback scripts                  |
+| 19  | media-cache.json has entries from multiple URLs           | All entries processed, candidates flattened and deduped                | Low    | Flatten + downloadedUrls dedup                                       |
 
 ## Out of Scope
 

@@ -9,7 +9,11 @@ import { SPACING } from "../components/shared";
 import { TextGate } from "../components/text-gate";
 import { MediaBackground } from "../components/MediaBackground";
 
-export const ContextScene: React.FC<{ scene: SceneData; duration: number; contentDir: string }> = ({ scene, duration, contentDir }) => {
+export const ContextScene: React.FC<{ scene: SceneData; duration: number; contentDir: string }> = ({
+  scene,
+  duration,
+  contentDir,
+}) => {
   const txt = scene.texts || {};
   const sceneId = `context-${scene.id}`;
   const hasMedia = !!scene.media;

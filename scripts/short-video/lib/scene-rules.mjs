@@ -1415,11 +1415,8 @@ export function checkTextWidthBudget(scenes) {
     // Narrative without an explicit layout runs the runtime default
     // (text-slots DEFAULT_NARRATIVE_LAYOUT); other types are hero-center only.
     const layout =
-      scene.visualType === "narrative"
-        ? (scene.layout ?? DEFAULT_NARRATIVE_LAYOUT)
-        : "hero-center";
-    const declared =
-      REMOTION_SLOT_MAP[scene.visualType]?.[layout] ?? null;
+      scene.visualType === "narrative" ? (scene.layout ?? DEFAULT_NARRATIVE_LAYOUT) : "hero-center";
+    const declared = REMOTION_SLOT_MAP[scene.visualType]?.[layout] ?? null;
     if (!declared) continue;
     const checkable = new Set([...declared.rendered, ...declared.optional]);
     for (const field of checkable) {

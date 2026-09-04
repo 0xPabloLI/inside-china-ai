@@ -7,6 +7,7 @@
 **Status:** ready-for-agent
 
 `ShortVideo.tsx`：
+
 - 接收 props: `{ scenes: SceneData[], audioPaths: string[], durations: number[] }`
 - 用 `<TransitionSeries>` 排列场景，hook 场景硬切（无 transition in），其他场景 6 帧 fade
 - 每个场景放 `<Audio src={staticFile(audioPath)} />`，`durationInFrames` 从 `sceneClipFrames(duration)` 计算
@@ -14,9 +15,11 @@
 - 总 `durationInFrames` = Σ `sceneClipFrames(duration)`
 
 `Root.tsx`：
+
 - 注册 `<Composition id="ShortVideo" component={ShortVideo} durationInFrames={...} fps={30} width={1080} height={1920} />`
 
 `render-remotion.mjs`（`scripts/short-video/lib/render-remotion.mjs`）：
+
 - 输入：scenes, audioPaths, durations, outputDir, pipelineId, subtitlesPath?, bgmPath?
 - 检测 `remotion/node_modules` 不存在 → `execSync('npm install', { cwd: remotionDir })`
 - 构造 props JSON → 写入 `remotion/props.json`

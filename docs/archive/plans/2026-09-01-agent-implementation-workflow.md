@@ -13,6 +13,7 @@
 ### Task 1: Create the L1 implementation workflow
 
 **Files:**
+
 - Create: `docs/agents/implementation-workflow.md`
 - Reference: `docs/archive/plans/2026-09-01-agent-implementation-workflow-design.md`
 - Reference: `.agents/skills/ask-matt/SKILL.md`
@@ -85,6 +86,7 @@ Stage only `docs/agents/implementation-workflow.md` together with the related ro
 ### Task 2: Reduce AGENTS.md to an L0 router
 
 **Files:**
+
 - Modify: `AGENTS.md`
 - Create: `docs/agents/git-workflow.md`
 - Create: `docs/agents/proposal-review.md`
@@ -141,6 +143,7 @@ Commit Task 1 and Task 2 as one atomic documentation-hierarchy change.
 ### Task 3: Align supporting contracts
 
 **Files:**
+
 - Modify: `docs/conventions/scenario-enumeration-checklist.md`
 - Modify: `docs/conventions/scenario-matrix.md`
 - Modify: `docs/installed-skills.md`
@@ -196,6 +199,7 @@ Commit the supporting-contract alignment separately.
 ### Task 4: Repair lifecycle contradictions and run final verification
 
 **Files:**
+
 - Modify: `docs/DOCS-INDEX.md`
 - Review: all files changed by Tasks 1-3
 

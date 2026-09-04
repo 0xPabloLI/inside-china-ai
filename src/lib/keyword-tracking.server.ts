@@ -10,11 +10,7 @@ export type AlertSettings = {
   alertOnLostRanking: boolean;
 };
 
-function isDrop(
-  current: number | null,
-  previous: number | null,
-  settings: AlertSettings,
-): boolean {
+function isDrop(current: number | null, previous: number | null, settings: AlertSettings): boolean {
   if (previous === null) return false;
   if (current === null) return settings.alertOnLostRanking;
   return current - previous >= settings.dropThreshold;
@@ -46,7 +42,6 @@ export async function refreshSnapshots(): Promise<RefreshResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { fetchKeywordMetrics } = await import("@/lib/semrush.server");
   const settings = await loadAlertSettings();
-
 
   const { data: keywords, error } = await supabaseAdmin
     .from("tracked_keywords")

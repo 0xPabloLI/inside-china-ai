@@ -49,11 +49,14 @@ async function loadKeywords() {
       const meta = metaMod.meta;
       if (meta.title) {
         // Extract meaningful words from title
-        meta.title.toLowerCase().split(/\s+/).forEach((w) => {
-          if (w.length > 2 && !["the", "and", "for", "with", "from"].includes(w)) {
-            keywords.add(w);
-          }
-        });
+        meta.title
+          .toLowerCase()
+          .split(/\s+/)
+          .forEach((w) => {
+            if (w.length > 2 && !["the", "and", "for", "with", "from"].includes(w)) {
+              keywords.add(w);
+            }
+          });
       }
       if (meta.subject) keywords.add(meta.subject.toLowerCase());
     } catch {}
@@ -74,8 +77,18 @@ function getBGMSearchTerms() {
   const pool = scanBGMPool();
   const terms = new Set();
   const meaningfulWords = new Set([
-    "news", "breaking", "urgent", "headline", "crime", "investigative",
-    "broadcast", "alert", "flash", "report", "intro", "theme",
+    "news",
+    "breaking",
+    "urgent",
+    "headline",
+    "crime",
+    "investigative",
+    "broadcast",
+    "alert",
+    "flash",
+    "report",
+    "intro",
+    "theme",
   ]);
 
   for (const bgm of pool) {

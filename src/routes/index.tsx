@@ -131,7 +131,6 @@ function Index() {
             in China, including the latest Chinese AI model releases and China AI regulation. Leave
             your email and I'll send one new piece a week.
           </p>
-
         </section>
 
         <section className="mb-20">

@@ -5,6 +5,7 @@
 短视频管线的 `generate-scenes.mjs` 是一个 1006 行的巨型文件，混合了：共享基础设施（CSS、SVG 资产、动画）、DeepSeek 专属场景模板（硬编码所有显示文字）、已废弃的字幕函数（`splitSubtitles`/`alignWithWhisper`/`buildSubtitleHTML` — 字幕已改用 FFmpeg ASS 烧录）、visualType 注册表。
 
 这导致：
+
 - 其他文章（如蒸馏系列）无法拥有自己的视觉设计，只能 fallback 到 DeepSeek 模板
 - DeepSeek 模板里硬编码了 `$1.4B`、`LEAKED MEETING` 等文字，蒸馏视频跑出来显示的是 DeepSeek 的内容
 - 基础设施文件（TTS、录制、拼接）散落在根目录，不符合 spec-pipeline-isolation.md 定义的目标架构
@@ -57,6 +58,7 @@
 ### 3. 字幕死代码删除
 
 删除 `generate-scenes.mjs` 中的：
+
 - `splitSubtitles(voiceover, duration, sceneId)` — 已被 `generate-srt.mjs` 替代
 - `alignWithWhisper(segments, duration)` — 同上
 - `buildSubtitleHTML(subtitles, duration)` — 同上
@@ -66,13 +68,13 @@
 
 ### 4. 基础设施迁移到 `lib/`
 
-| 原路径 | 新路径 | `__dirname` 修复 |
-|--------|--------|-----------------|
-| `generate-tts.mjs` | `lib/generate-tts.mjs` | 8 处：`join(__dirname, "x")` → `join(__dirname, "..", "x")` |
-| `assemble.mjs` | `lib/assemble.mjs` | 无（不用 `__dirname`） |
-| `generate-srt.mjs` | `lib/generate-srt.mjs` | 无 |
-| `record-scenes.mjs` | `lib/record-scenes.mjs` | 无 |
-| `generate-bgm.mjs` | `lib/generate-bgm.mjs` | 1 处 + 修复输出路径 |
+| 原路径              | 新路径                  | `__dirname` 修复                                            |
+| ------------------- | ----------------------- | ----------------------------------------------------------- |
+| `generate-tts.mjs`  | `lib/generate-tts.mjs`  | 8 处：`join(__dirname, "x")` → `join(__dirname, "..", "x")` |
+| `assemble.mjs`      | `lib/assemble.mjs`      | 无（不用 `__dirname`）                                      |
+| `generate-srt.mjs`  | `lib/generate-srt.mjs`  | 无                                                          |
+| `record-scenes.mjs` | `lib/record-scenes.mjs` | 无                                                          |
+| `generate-bgm.mjs`  | `lib/generate-bgm.mjs`  | 1 处 + 修复输出路径                                         |
 
 ### 5. `main.mjs` import 路径更新
 
@@ -122,6 +124,7 @@ export function generateBGM(duration, outputDir) {
 ### 8. 蒸馏 pt1 stub
 
 `content/distillation/pt1/scenes.mjs` 改为：
+
 ```javascript
 // TODO: Create distillation-specific visual scenes (Task 3)
 throw new Error("Distillation pt1 scenes not yet implemented.");
@@ -144,6 +147,7 @@ throw new Error("Distillation pt1 scenes not yet implemented.");
 ### 测试接缝（Seams）
 
 **主接缝：场景生成输出** — 测试 `generateScene(scene, duration)` 返回的 HTML 包含预期结构元素。这是最高价值测试点，因为：
+
 - 验证了场景函数正确导出和分发
 - 验证了 `scene.texts` 数据被正确消费
 - 验证了共享视觉系统被正确引用
@@ -155,14 +159,14 @@ throw new Error("Distillation pt1 scenes not yet implemented.");
 
 ### 测试模块
 
-| 模块 | 测试内容 | 类型 |
-|------|---------|------|
-| `lib/base-styles.mjs` | `baseStyles()` 返回含 CSS 变量和 keyframes 的字符串；`withWatermark()` 注入 watermark div；UI 组件返回正确 HTML 结构 | 单元 |
-| `content/deepseek/scenes.mjs` | `generateScene(scene, duration)` 对每个 scene 返回有效 HTML；HTML 含品牌水印、CSS 变量引用、`scene.texts` 中的文字 | 单元 |
-| `content/distillation/pt1/scenes.mjs` | 调用 `generateScene` 抛出明确错误 | 单元 |
-| `lib/assemble.mjs` | `assembleVideo` 使用 `pipelineId` 命名输出文件（mock exec） | 单元 |
-| 路径解析 | `lib/generate-tts.mjs` 引用的 `f5_mlx_batch_tts.py`、`voice-sample-24k.wav`、`text-align.py` 路径存在 | 单元 |
-| `lib/generate-bgm.mjs` | `generateBGM` 使用传入的 `outputDir` 而非硬编码路径（mock exec） | 单元 |
+| 模块                                  | 测试内容                                                                                                             | 类型 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---- |
+| `lib/base-styles.mjs`                 | `baseStyles()` 返回含 CSS 变量和 keyframes 的字符串；`withWatermark()` 注入 watermark div；UI 组件返回正确 HTML 结构 | 单元 |
+| `content/deepseek/scenes.mjs`         | `generateScene(scene, duration)` 对每个 scene 返回有效 HTML；HTML 含品牌水印、CSS 变量引用、`scene.texts` 中的文字   | 单元 |
+| `content/distillation/pt1/scenes.mjs` | 调用 `generateScene` 抛出明确错误                                                                                    | 单元 |
+| `lib/assemble.mjs`                    | `assembleVideo` 使用 `pipelineId` 命名输出文件（mock exec）                                                          | 单元 |
+| 路径解析                              | `lib/generate-tts.mjs` 引用的 `f5_mlx_batch_tts.py`、`voice-sample-24k.wav`、`text-align.py` 路径存在                | 单元 |
+| `lib/generate-bgm.mjs`                | `generateBGM` 使用传入的 `outputDir` 而非硬编码路径（mock exec）                                                     | 单元 |
 
 ### 测试风格
 
@@ -191,37 +195,37 @@ throw new Error("Distillation pt1 scenes not yet implemented.");
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `generate-scenes.mjs` | 删除整个文件（内容全部提取到其他位置） | High | 核心文件删除。验证：DeepSeek pipeline 完整跑通产出视频。下游消费者：`main.mjs`（不再 import）、`content/*/scenes.mjs`（不再 re-export）。最坏后果：pipeline 报错无法运行。缓解：所有内容先搬走再删文件 |
-| `content/deepseek/scenes.mjs` | 从 re-export 改为完整 s1-s12 场景函数 | High | 新实现替代旧逻辑。验证：HTML 输出与重构前对比。下游消费者：`main.mjs` 通过 `import` 调用。最坏后果：场景 HTML 不正确，视频视觉错误。缓解：逐场景对比重构前后 HTML |
-| `lib/base-styles.mjs` | 新建 — 共享视觉系统 | Low | 纯新建文件，不修改现有逻辑。验证：import 成功，函数返回预期值 |
-| `main.mjs` | 更新 5 个 import 路径 + 传 `pipelineId` 给 `assembleVideo` + 传 `outputDir` 给 `generateBGM` | Medium | 入口文件修改。验证：pipeline 启动无 import 错误。下游消费者：无（main 是顶层入口）。最坏后果：pipeline 启动失败。缓解：import 路径修改是机械操作 |
-| `generate-tts.mjs` → `lib/` | 移动 + 8 处 `__dirname` 路径修复 | Medium | 路径引用修改。验证：TTS 能找到 Python 脚本和参考音频。下游消费者：`main.mjs`。最坏后果：TTS 报 "file not found"。缓解：路径修复是 `join(__dirname, "..", "x")` 机械模式 |
-| `assemble.mjs` → `lib/` | 移动 + 输出文件名修复 + 新增 `pipelineId` 参数 | Medium | 接口变更 + 移动。验证：输出文件名正确。下游消费者：`main.mjs`。最坏后果：输出文件名错误或 pipeline 报错。缓解：`pipelineId` 参数已在 `main.mjs` 可用 |
-| `generate-srt.mjs` → `lib/` | 移动 | Low | 无 `__dirname` 引用，无接口变更。验证：import 成功 |
-| `record-scenes.mjs` → `lib/` | 移动 | Low | 无 `__dirname` 引用，无接口变更。验证：import 成功 |
-| `generate-bgm.mjs` → `lib/` | 移动 + 1 处 `__dirname` 修复 + 输出路径修复 | Medium | 路径 + 接口变更（新增 `outputDir` 参数）。验证：BGM 写到管线隔离目录。下游消费者：`main.mjs`。最坏后果：BGM 写到错误位置。缓解：`outputDir` 已在 `main.mjs` 可用 |
-| `content/distillation/pt1/scenes.mjs` | 从 re-export 改为 stub throw | Low | 当前已 broken（显示 DeepSeek 文字）。验证：调用时抛出明确错误 |
-| `assets/deepseek-logo.svg` → `assets/logos/deepseek.svg` | 文件移动 | Low | 纯文件移动。验证：新路径可读取。下游消费者：`content/deepseek/scenes.mjs` |
-| `content/deepseek/scene-data.mjs` | 补全 `texts` 字段 | Medium | 数据 schema 变更。验证：模板函数能从 `texts` 读取所有显示文字。最坏后果：缺失字段导致 `undefined` 显示在视频中。缓解：缺失字段安全降级（不渲染该元素） |
+| 文件                                                     | 修改内容                                                                                     | 风险等级 | 评估                                                                                                                                                                                                   |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `generate-scenes.mjs`                                    | 删除整个文件（内容全部提取到其他位置）                                                       | High     | 核心文件删除。验证：DeepSeek pipeline 完整跑通产出视频。下游消费者：`main.mjs`（不再 import）、`content/*/scenes.mjs`（不再 re-export）。最坏后果：pipeline 报错无法运行。缓解：所有内容先搬走再删文件 |
+| `content/deepseek/scenes.mjs`                            | 从 re-export 改为完整 s1-s12 场景函数                                                        | High     | 新实现替代旧逻辑。验证：HTML 输出与重构前对比。下游消费者：`main.mjs` 通过 `import` 调用。最坏后果：场景 HTML 不正确，视频视觉错误。缓解：逐场景对比重构前后 HTML                                      |
+| `lib/base-styles.mjs`                                    | 新建 — 共享视觉系统                                                                          | Low      | 纯新建文件，不修改现有逻辑。验证：import 成功，函数返回预期值                                                                                                                                          |
+| `main.mjs`                                               | 更新 5 个 import 路径 + 传 `pipelineId` 给 `assembleVideo` + 传 `outputDir` 给 `generateBGM` | Medium   | 入口文件修改。验证：pipeline 启动无 import 错误。下游消费者：无（main 是顶层入口）。最坏后果：pipeline 启动失败。缓解：import 路径修改是机械操作                                                       |
+| `generate-tts.mjs` → `lib/`                              | 移动 + 8 处 `__dirname` 路径修复                                                             | Medium   | 路径引用修改。验证：TTS 能找到 Python 脚本和参考音频。下游消费者：`main.mjs`。最坏后果：TTS 报 "file not found"。缓解：路径修复是 `join(__dirname, "..", "x")` 机械模式                                |
+| `assemble.mjs` → `lib/`                                  | 移动 + 输出文件名修复 + 新增 `pipelineId` 参数                                               | Medium   | 接口变更 + 移动。验证：输出文件名正确。下游消费者：`main.mjs`。最坏后果：输出文件名错误或 pipeline 报错。缓解：`pipelineId` 参数已在 `main.mjs` 可用                                                   |
+| `generate-srt.mjs` → `lib/`                              | 移动                                                                                         | Low      | 无 `__dirname` 引用，无接口变更。验证：import 成功                                                                                                                                                     |
+| `record-scenes.mjs` → `lib/`                             | 移动                                                                                         | Low      | 无 `__dirname` 引用，无接口变更。验证：import 成功                                                                                                                                                     |
+| `generate-bgm.mjs` → `lib/`                              | 移动 + 1 处 `__dirname` 修复 + 输出路径修复                                                  | Medium   | 路径 + 接口变更（新增 `outputDir` 参数）。验证：BGM 写到管线隔离目录。下游消费者：`main.mjs`。最坏后果：BGM 写到错误位置。缓解：`outputDir` 已在 `main.mjs` 可用                                       |
+| `content/distillation/pt1/scenes.mjs`                    | 从 re-export 改为 stub throw                                                                 | Low      | 当前已 broken（显示 DeepSeek 文字）。验证：调用时抛出明确错误                                                                                                                                          |
+| `assets/deepseek-logo.svg` → `assets/logos/deepseek.svg` | 文件移动                                                                                     | Low      | 纯文件移动。验证：新路径可读取。下游消费者：`content/deepseek/scenes.mjs`                                                                                                                              |
+| `content/deepseek/scene-data.mjs`                        | 补全 `texts` 字段                                                                            | Medium   | 数据 schema 变更。验证：模板函数能从 `texts` 读取所有显示文字。最坏后果：缺失字段导致 `undefined` 显示在视频中。缓解：缺失字段安全降级（不渲染该元素）                                                 |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | `--content deepseek` 完整管线运行 | 产出 `output/deepseek/deepseek-short.mp4`，含 TTS + 视觉 + 字幕 + BGM | High | 端到端运行验证 |
-| 2 | 每个 scene HTML 含品牌水印 | `withWatermark()` 注入 `.brand-watermark` div | Medium | 单元测试验证 HTML 包含 watermark |
-| 3 | 每个 scene HTML 引用共享 CSS 变量 | HTML 中含 `var(--blue)` 等，来自 `baseStyles()` | Medium | 单元测试验证 HTML 包含 `baseStyles` 输出 |
-| 4 | `--content distillation/pt1` | 抛出 `Error("Distillation pt1 scenes not yet implemented.")` | Low | 单元测试验证 stub 抛错 |
-| 5 | `assembleVideo` 输出文件名 | 文件名为 `{pipelineId}-short.mp4`，非硬编码 `deepseek-short.mp4` | Medium | 单元测试 mock exec 验证文件名 |
-| 6 | BGM 生成在管线隔离目录 | BGM 路径为 `output/{pipelineId}/audio/bgm.wav` | Medium | 单元测试 mock 验证路径参数 |
-| 7 | TTS 找到 `f5_mlx_batch_tts.py` | 脚本路径解析到 `scripts/short-video/f5_mlx_batch_tts.py` | High | 路径存在性检查测试 |
-| 8 | TTS 找到 `voice-sample-24k.wav` | 资产路径解析到 `scripts/short-video/assets/voice-sample-24k.wav` | High | 路径存在性检查测试 |
-| 9 | TTS 找到 `text-align.py` | 脚本路径解析到 `scripts/short-video/text-align.py` | High | 路径存在性检查测试 |
-| 10 | DeepSeek scene 1 含公司 logo | HTML 包含 `deepseek-logo.svg` 的 SVG 内容 | Medium | 单元测试验证 HTML 含 SVG |
-| 11 | lib/ 中无字幕死代码 | `splitSubtitles`/`alignWithWhisper`/`buildSubtitleHTML` 不存在于任何文件 | Low | grep 验证 |
-| 12 | 两个管线并行跑 BGM 不冲突 | 各自 `output/{pipelineId}/audio/bgm.wav` 独立 | Medium | 验证 `generateBGM` 使用传入 `outputDir` |
-| 13 | scene.texts 缺失字段安全降级 | 缺失的 `texts` 字段不渲染对应元素，不显示 `undefined` | Medium | 单元测试验证缺失字段场景 |
-| 14 | `generate-scenes.mjs` 已删除 | 文件不存在，无 import 引用它 | Low | grep 验证无残留 import |
-| 15 | `main.mjs` import 路径正确 | 5 个 import 指向 `./lib/` 目录 | Medium | 启动时 import 失败会立即报错 |
+| #   | Scenario                          | Expected Behavior                                                        | Risk   | Mitigation                               |
+| --- | --------------------------------- | ------------------------------------------------------------------------ | ------ | ---------------------------------------- |
+| 1   | `--content deepseek` 完整管线运行 | 产出 `output/deepseek/deepseek-short.mp4`，含 TTS + 视觉 + 字幕 + BGM    | High   | 端到端运行验证                           |
+| 2   | 每个 scene HTML 含品牌水印        | `withWatermark()` 注入 `.brand-watermark` div                            | Medium | 单元测试验证 HTML 包含 watermark         |
+| 3   | 每个 scene HTML 引用共享 CSS 变量 | HTML 中含 `var(--blue)` 等，来自 `baseStyles()`                          | Medium | 单元测试验证 HTML 包含 `baseStyles` 输出 |
+| 4   | `--content distillation/pt1`      | 抛出 `Error("Distillation pt1 scenes not yet implemented.")`             | Low    | 单元测试验证 stub 抛错                   |
+| 5   | `assembleVideo` 输出文件名        | 文件名为 `{pipelineId}-short.mp4`，非硬编码 `deepseek-short.mp4`         | Medium | 单元测试 mock exec 验证文件名            |
+| 6   | BGM 生成在管线隔离目录            | BGM 路径为 `output/{pipelineId}/audio/bgm.wav`                           | Medium | 单元测试 mock 验证路径参数               |
+| 7   | TTS 找到 `f5_mlx_batch_tts.py`    | 脚本路径解析到 `scripts/short-video/f5_mlx_batch_tts.py`                 | High   | 路径存在性检查测试                       |
+| 8   | TTS 找到 `voice-sample-24k.wav`   | 资产路径解析到 `scripts/short-video/assets/voice-sample-24k.wav`         | High   | 路径存在性检查测试                       |
+| 9   | TTS 找到 `text-align.py`          | 脚本路径解析到 `scripts/short-video/text-align.py`                       | High   | 路径存在性检查测试                       |
+| 10  | DeepSeek scene 1 含公司 logo      | HTML 包含 `deepseek-logo.svg` 的 SVG 内容                                | Medium | 单元测试验证 HTML 含 SVG                 |
+| 11  | lib/ 中无字幕死代码               | `splitSubtitles`/`alignWithWhisper`/`buildSubtitleHTML` 不存在于任何文件 | Low    | grep 验证                                |
+| 12  | 两个管线并行跑 BGM 不冲突         | 各自 `output/{pipelineId}/audio/bgm.wav` 独立                            | Medium | 验证 `generateBGM` 使用传入 `outputDir`  |
+| 13  | scene.texts 缺失字段安全降级      | 缺失的 `texts` 字段不渲染对应元素，不显示 `undefined`                    | Medium | 单元测试验证缺失字段场景                 |
+| 14  | `generate-scenes.mjs` 已删除      | 文件不存在，无 import 引用它                                             | Low    | grep 验证无残留 import                   |
+| 15  | `main.mjs` import 路径正确        | 5 个 import 指向 `./lib/` 目录                                           | Medium | 启动时 import 失败会立即报错             |

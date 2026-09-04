@@ -12,19 +12,19 @@ OpenCV Focus worker 的独立进程、requestId 路由、generation 概念与失
 
 但目前**不能将视觉分析层视为生产就绪**。VLM worker 的超时路径会导致后续请求拿到前一个请求的迟到响应，造成资产语义错配；这会直接影响评分、场景分配和输出 artifact。应在合并更多 P4–P8 能力或用于批处理前修复。
 
-| 结论 | 数量 |
-|---|---:|
-| 阻断/高优先级问题 | 1 |
-| 中优先级问题 | 3 |
-| 低优先级问题 | 1 |
-| 已通过的目标测试 | 67 |
-| 完整测试套件失败 | 27 个断言，集中在 1 个 source-registry 测试文件 |
+| 结论              |                                            数量 |
+| ----------------- | ----------------------------------------------: |
+| 阻断/高优先级问题 |                                               1 |
+| 中优先级问题      |                                               3 |
+| 低优先级问题      |                                               1 |
+| 已通过的目标测试  |                                              67 |
+| 完整测试套件失败  | 27 个断言，集中在 1 个 source-registry 测试文件 |
 
 ---
 
 ## 审查发现
 
-### R1 — 高优先级：VLM 超时后会将迟到响应错配给下一项资产  ✅ 已修复
+### R1 — 高优先级：VLM 超时后会将迟到响应错配给下一项资产 ✅ 已修复
 
 **位置：**`scripts/short-video/lib/visual-analyzer.mjs`，`processQueue()` 第 250–258 行与 `handleResponse()` 第 187–215 行。
 
@@ -41,7 +41,7 @@ VLM 通信协议没有 requestId，Node 端依赖严格 FIFO：`handleResponse()
 
 必须增加回归测试：A 超时 → A 在超时后输出迟到响应 → B 正常输出；断言 A、B 的 Promise 均不能拿到对方结果。
 
-### R2 — 中优先级：FFmpeg 回退在 VLM 生成抛错时泄漏临时帧目录  ✅ 已修复
+### R2 — 中优先级：FFmpeg 回退在 VLM 生成抛错时泄漏临时帧目录 ✅ 已修复
 
 **位置：**`scripts/short-video/lib/vlm_analyzer.py`，`handle_analyze_semantics()` 第 436–443 行。
 
@@ -49,7 +49,7 @@ VLM 通信协议没有 requestId，Node 端依赖严格 FIFO：`handleResponse()
 
 **建议修复：**将 frames 变量置于 `try/finally`：无论 `generate_response()` 成功、失败、解析失败或被中断，均执行 `_cleanup_frames(frames)`。添加一个 mock `generate_response` 抛错的测试，断言临时目录被删除。
 
-### R3 — 中优先级：Focus worker 的 timeout 只结算请求，没有按 ADR 预期重置卡死 worker  ✅ 已修复
+### R3 — 中优先级：Focus worker 的 timeout 只结算请求，没有按 ADR 预期重置卡死 worker ✅ 已修复
 
 **位置：**`scripts/short-video/lib/visual-analyzer.mjs`，`detectFocus()` 第 557–562 行。
 
@@ -59,7 +59,7 @@ Focus timeout 当前只从 `focusPending` 删除该请求并返回 `focus_timeou
 
 **建议修复：**新增 `resetFocusWorker(generation, errorCode)`。发生 timeout 时：终止当前 worker、递增 generation、将同 generation 的 pending 请求全部以 `focus_worker_reset`（或首次请求保留 `focus_timeout`）结算；下一请求惰性 spawn 新 worker。对应测试应覆盖“timeout 后第二个请求使用新 process”。
 
-### R4 — 中优先级：P4–P8 仍未落地，当前实现只完成 P3 语义合并  ✅ 已修复（标注）
+### R4 — 中优先级：P4–P8 仍未落地，当前实现只完成 P3 语义合并 ✅ 已修复（标注）
 
 代码库中未发现以下实现符号：`analyzeVideoWindow`、`transcribeAudioWindow`、`fuseMediaTimeline`、`probeMedia`、`analyzePosterFocus`、`transformFocus`、`analyzeTemporalFocus`。
 
@@ -68,12 +68,13 @@ Focus timeout 当前只从 `focusPending` 删除该请求并返回 `focus_timeou
 **建议：**在 handoff/status 中明确标示"P3 implemented；P4–P8 planned"，避免调用方误以为已具备长视频可追溯时间线或 ASR 融合。下一步优先 P4，先把视频输入改成显式窗口而不是直接进入 ASR。
 
 **修复详情 (R1-R4, 2026-08-19)：**
+
 - **R1 已修复**：VLM worker 加入 `requestId` + `vlmWorkerGeneration` 路由。超时后 kill worker、递增 generation、settle 同 generation 的 pending。Python `vlm_analyzer.py` echo `requestId`。FIFO fallback 保留向后兼容。回归测试：A 超时 → A 迟到响应 → B 正常 → 断言 B 不拿到 A 的结果。
 - **R2 已修复**：`vlm_analyzer.py` 中 `extract_frames` → `generate_response` 包裹在 `try/finally` 中，确保 `_cleanup_frames(frames)` 在异常时也执行。
 - **R3 已修复**：Focus timeout handler 现在 kill worker、递增 `focusWorkerGeneration`、`settlePendingFocus(myGen, "focus_worker_reset")`。第二个请求惰性 spawn 新 worker。回归测试：timeout → kill → 新 process → 正常响应。
 - **R4 已修复**：`docs/handoffs/handoff-visual-focus-detection.md` 顶部已加 implementation status 标注："P3 implemented; P4-P8 planned"，明确列出不存在的符号。
 
-### R5 — 低优先级：模块重复加载会累计 `process.on("exit")` 监听器，测试已出现警告  ✅ 已修复
+### R5 — 低优先级：模块重复加载会累计 `process.on("exit")` 监听器，测试已出现警告 ✅ 已修复
 
 **位置：**`scripts/short-video/lib/visual-analyzer.mjs` 第 625 行。
 
@@ -85,15 +86,15 @@ Focus timeout 当前只从 `focusPending` 删除该请求并返回 `focus_timeou
 
 ## 验证结果
 
-| 检查 | 结果 | 备注 |
-|---|---:|---|
-| `visual-analyzer.test.mjs` | 通过 | 28 个测试；但有 MaxListeners warning。 |
-| `asset-sourcer-visual-integration.test.mjs` | 通过 | 32 个测试。 |
-| `focus_detector.test.mjs` | 通过 | 7 个测试。 |
-| 三个目标测试合计 | **67 passed** | 覆盖当前语义合并和 Focus 基础路径。 |
-| `npm test` 完整套件 | **失败** | 88 个文件通过、1 个失败；1830 tests passed、27 tests failed。失败集中在 `source-registry-capabilities.test.mjs`，缺少 `ALL_SOURCES`、`STOCK_API_SOURCES`、`SOURCE_ATTRIBUTIONS` 等导出/数据。该失败看起来不属于视觉分析提交，但 CI 当前不绿。 |
-| `npm run lint` | 未完成 | 运行 180 秒无输出后被终止；需单独排查 lint 卡住原因或限制检查范围。 |
-| `git diff --check` | 有问题 | 两个不相关 research 文档存在 EOF 空白行；视觉分析变更未发现空白错误。 |
+| 检查                                        |          结果 | 备注                                                                                                                                                                                                                                          |
+| ------------------------------------------- | ------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `visual-analyzer.test.mjs`                  |          通过 | 28 个测试；但有 MaxListeners warning。                                                                                                                                                                                                        |
+| `asset-sourcer-visual-integration.test.mjs` |          通过 | 32 个测试。                                                                                                                                                                                                                                   |
+| `focus_detector.test.mjs`                   |          通过 | 7 个测试。                                                                                                                                                                                                                                    |
+| 三个目标测试合计                            | **67 passed** | 覆盖当前语义合并和 Focus 基础路径。                                                                                                                                                                                                           |
+| `npm test` 完整套件                         |      **失败** | 88 个文件通过、1 个失败；1830 tests passed、27 tests failed。失败集中在 `source-registry-capabilities.test.mjs`，缺少 `ALL_SOURCES`、`STOCK_API_SOURCES`、`SOURCE_ATTRIBUTIONS` 等导出/数据。该失败看起来不属于视觉分析提交，但 CI 当前不绿。 |
+| `npm run lint`                              |        未完成 | 运行 180 秒无输出后被终止；需单独排查 lint 卡住原因或限制检查范围。                                                                                                                                                                           |
+| `git diff --check`                          |        有问题 | 两个不相关 research 文档存在 EOF 空白行；视觉分析变更未发现空白错误。                                                                                                                                                                         |
 
 ---
 
@@ -109,14 +110,14 @@ Focus timeout 当前只从 `focusPending` 删除该请求并返回 `focus_timeou
 
 原始审查发现保留为历史证据；以下记录后续代码、测试和任务跟踪状态。
 
-| 项目 | 当前状态 | 处理结果 |
-|---|---|---|
-| R1：VLM timeout 后迟到响应错配 | 已修复 | VLM IPC 使用 `requestId` 与 `vlmWorkerGeneration`；timeout 后终止旧 worker 并结算旧 generation。回归测试覆盖 A 超时、A 迟到、B 正确响应。 |
-| R2：frames fallback 临时文件泄漏 | 已修复 | `vlm_analyzer.py` 通过 `try/finally` 清理临时帧。 |
-| R3：Focus timeout 后复用卡死 worker | 已修复 | timeout 后终止 Focus worker、递增 generation，并由后续请求惰性启动新 worker。 |
-| R4：P4 仅为计划 | 已修复 | [Issue #69](https://github.com/0xPabloLI/inside-china-ai/issues/69) 已完成 P4：`probeMedia()`、窗口元数据和 native/frames 同窗口回退已经实现。 |
-| R5：重复模块加载累计 exit listener | 已修复 | `Symbol.for("visualAnalyzerExitHandler")` 防止重复注册；新增 reload 后 `process.listenerCount("exit")` 不增长的回归测试。 |
-| Focus IPC 测试超时 | 已修复 | 测试 stdout 处理保留未闭合的 NDJSON chunk，避免子进程响应跨 chunk 时被静默丢弃。 |
+| 项目                                | 当前状态 | 处理结果                                                                                                                                       |
+| ----------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1：VLM timeout 后迟到响应错配      | 已修复   | VLM IPC 使用 `requestId` 与 `vlmWorkerGeneration`；timeout 后终止旧 worker 并结算旧 generation。回归测试覆盖 A 超时、A 迟到、B 正确响应。      |
+| R2：frames fallback 临时文件泄漏    | 已修复   | `vlm_analyzer.py` 通过 `try/finally` 清理临时帧。                                                                                              |
+| R3：Focus timeout 后复用卡死 worker | 已修复   | timeout 后终止 Focus worker、递增 generation，并由后续请求惰性启动新 worker。                                                                  |
+| R4：P4 仅为计划                     | 已修复   | [Issue #69](https://github.com/0xPabloLI/inside-china-ai/issues/69) 已完成 P4：`probeMedia()`、窗口元数据和 native/frames 同窗口回退已经实现。 |
+| R5：重复模块加载累计 exit listener  | 已修复   | `Symbol.for("visualAnalyzerExitHandler")` 防止重复注册；新增 reload 后 `process.listenerCount("exit")` 不增长的回归测试。                      |
+| Focus IPC 测试超时                  | 已修复   | 测试 stdout 处理保留未闭合的 NDJSON chunk，避免子进程响应跨 chunk 时被静默丢弃。                                                               |
 
 ### 本次验证
 

@@ -11,12 +11,12 @@
 
 ### Formal follow-up tracking
 
-| Work | Status | GitHub Issue | Dependencies |
-|---|---|---|---|
-| P5 — Local ASR worker with windowed WhisperX timestamps | Planned | [#98](https://github.com/0xPabloLI/inside-china-ai/issues/98) | P4 / #69 |
-| P6 — Deterministic VLM + ASR media timeline fusion | Planned | [#99](https://github.com/0xPabloLI/inside-china-ai/issues/99) | P4, P5 |
-| P7 — Content-addressed cache and heavy-model scheduler | Planned | [#100](https://github.com/0xPabloLI/inside-china-ai/issues/100) | P3; parallel with P5/P6 |
-| P8b — Temporal Focus for video backgrounds and safe layout inputs | Planned | [#101](https://github.com/0xPabloLI/inside-china-ai/issues/101) | P4, P7 |
+| Work                                                              | Status  | GitHub Issue                                                    | Dependencies            |
+| ----------------------------------------------------------------- | ------- | --------------------------------------------------------------- | ----------------------- |
+| P5 — Local ASR worker with windowed WhisperX timestamps           | Planned | [#98](https://github.com/0xPabloLI/inside-china-ai/issues/98)   | P4 / #69                |
+| P6 — Deterministic VLM + ASR media timeline fusion                | Planned | [#99](https://github.com/0xPabloLI/inside-china-ai/issues/99)   | P4, P5                  |
+| P7 — Content-addressed cache and heavy-model scheduler            | Planned | [#100](https://github.com/0xPabloLI/inside-china-ai/issues/100) | P3; parallel with P5/P6 |
+| P8b — Temporal Focus for video backgrounds and safe layout inputs | Planned | [#101](https://github.com/0xPabloLI/inside-china-ai/issues/101) | P4, P7                  |
 
 Issue #32 remains the future business consumer for AI segment selection; it should consume P5/P6 outputs rather than reimplement their infrastructure. Issue #94 may later consume P8b visual geometry in scene-level media decisions.
 
@@ -29,6 +29,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 **Change A: Rename** — `ai-analyzer` → `visual-analyzer` (files, modules, docs). `ai_analyzer.py` → `vlm_analyzer.py`. `closeAnalyzer()` → `closeVisualAnalyzer()`.
 
 **Change B: Focus Detection** — New OpenCV subprocess (`focus_detector.py`) for deterministic spatial analysis:
+
 - Haar Cascade face detection → `protectedRegions` (normalized `[x, y, w, h]` bounding boxes)
 - Spectral Residual saliency → `dispersion` + `centroid` as soft signal
 - EXIF normalization via Pillow `ImageOps.exif_transpose()`
@@ -44,12 +45,14 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 > Spec: `docs/archive/spec-visual-focus-detection-remediation.md`
 
 **P0-1 FIXED** ✅ — `parseFitResponse()` fit/focus decoupling:
+
 - `parseFitResponse()` now only validates `fit` (required); `focus` is optional
 - `handleResponse()` resolves when `response.fit` exists regardless of focus
 - 3 regression tests added: `{fit:"cover"}` → `{fit:"cover", reason:""}`; `{fit:"contain", focus:"left"}` → `{fit:"contain"}`; `{fit:"contain", focus:null}` → `{fit:"contain", reason:"..."}`
 - 2 handleResponse integration tests added: fit-only response, fit+invalid focus
 
 **P0-2 FIXED** ✅ — Smoke golden fixture assertions corrected:
+
 - `focus-golden.json` `real-image-ok` renamed to `real-image-ok-no-faces`, `minProtectedRegions` changed to 0
 - Runtime evidence: Haar Cascade detects **10 false-positive "faces"** on `shanghai-skyline.jpg` (building windows/signs)
 - Removed face-count hard assertion; kept schema completeness validation for any detected regions
@@ -57,15 +60,18 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - Golden fixtures (real face IoU ≥ 0.5) deferred to P1-1
 
 **P1-3a FIXED** ✅ — Integration test assertions added:
+
 - 4 new tests in `asset-sourcer-visual-integration.test.mjs`
 - Asserts `analysis.focusAnalysis` complete schema (status, errorCode, frame, protectedRegions, saliency)
 - Asserts `media.fit` written from `asset.aiFit`; `media.focus` NOT written (deprecated)
 
 **P1-3b FIXED** ✅ — CLI rename:
+
 - `lib/apply-media-patch.mjs` → `lib/review-media-patch.mjs`
 - Updated: import path in test, `isMainModule` check, `README.md` reference
 
 **P1-2 FIXED** ✅ — Parallel test isolation:
+
 - `describe.serial` API not available in current vitest version (returns `undefined`)
 - Fix: added serial execution comments + recommend `--maxWorkers=1` CLI flag for real subprocess tests
 - All 81 tests pass with `--maxWorkers=1`
@@ -81,6 +87,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 > Review doc: `docs/archive/reviews/ai-visual-analysis-code-review-2026-08-19.md` (archived)
 
 **R1 FIXED** ✅ — VLM timeout late-response mismatch:
+
 - VLM worker now uses `requestId` + `vlmWorkerGeneration` routing (same pattern as Focus worker)
 - On timeout: kill worker, increment generation, settle all pending from old generation
 - `vlm_analyzer.py` echoes `requestId` back in response
@@ -88,14 +95,17 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - Regression test: A times out → A's late response discarded → B gets correct result
 
 **R2 FIXED** ✅ — `vlm_analyzer.py` frame cleanup leak:
+
 - `extract_frames` → `generate_response` wrapped in `try/finally`, ensuring `_cleanup_frames(frames)` runs even on exception
 
 **R3 FIXED** ✅ — Focus timeout worker reset:
+
 - Focus timeout handler now kills stuck worker, increments `focusWorkerGeneration`, settles pending from old generation
 - Next request lazily spawns new worker
 - Regression test: timeout → kill → new process → normal response
 
 **R4 FIXED** ✅ — Handoff P4-P8 status annotation:
+
 - This document's top-level status annotation added (see blockquote at top)
 
 **Test results**: 30/30 `visual-analyzer.test.mjs` passing ✅, no linter errors ✅
@@ -113,6 +123,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 ## Key files
 
 ### Code
+
 - `scripts/short-video/lib/visual-analyzer.mjs` — Node.js gateway (VLM + focus)
 - `scripts/short-video/lib/vlm_analyzer.py` — VLM Python subprocess
 - `scripts/short-video/lib/focus_detector.py` — OpenCV Python subprocess
@@ -122,6 +133,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - `scripts/short-video/remotion/src/types.ts` — `MediaField.focus` marked `@deprecated`
 
 ### Tests (30+ in visual-analyzer, 81+ total across 5 files)
+
 - `scripts/short-video/__tests__/visual-analyzer.test.mjs` — 30 tests (VLM + Focus unit/protocol, including R1/R3 regression)
 - `scripts/short-video/__tests__/apply-media-patch.test.mjs` — 14 tests (review formatter)
 - `scripts/short-video/__tests__/asset-sourcer-visual-integration.test.mjs` — 13 tests (integration)
@@ -130,6 +142,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - `scripts/short-video/__tests__/fixtures/focus-golden.json` — Golden fixture data
 
 ### Documentation
+
 - `docs/adr/0009-vlm-qwen3-vl-mlx.md` — VLM architecture
 - `docs/adr/0015-opencv-focus-detection.md` — Focus detection ADR
 - `docs/archive/spec-visual-focus-detection.md` — Full spec (v7, archived)
@@ -141,6 +154,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 ## Current state
 
 ### Git
+
 - **Branch**: `main` — diverged (24 local vs 31 remote commits)
 - **Latest commit**: `612f042` (R1-R4 review fix) — local only, **not pushed**
 - **Prior local commits**: `2861e28` (unified source registry), `f6d0a81` (P2 stability), `8f4d7dd` (P0/P1 fix), `fec2353` (archive)
@@ -148,6 +162,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - **Action needed**: User must resolve divergence manually (`git pull --rebase` or clean workspace first), then push
 
 ### Runtime verified
+
 - OpenCV 4.10.0.84 installed in `~/.video-tts-env`
 - 81/81 tests passing (5 files, `--maxWorkers=1` serial execution) ✅
 - `npm run lint` — no new errors in modified files ✅
@@ -156,6 +171,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 - Cold start: ~8s (OpenCV import), warm: ~180ms
 
 ### Known issues — non-blocking
+
 - `objc` warnings from `av`/`cv2` library class duplication (cosmetic)
 - Haar Cascade misses side/occluded faces — Phase 2 will use YuNet
 - Haar Cascade produces false positives on building windows/signs (10 false "faces" on skyline image)
@@ -167,13 +183,13 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 
 > Marked as follow-up task. Needs image assets + benchmark script.
 
-| Item | Status | Notes |
-|------|--------|-------|
-| `fixtures/exif/` — EXIF 90°/180°/270° JPEG samples | Not created | Need real images with EXIF orientation tags |
+| Item                                                      | Status      | Notes                                                                      |
+| --------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| `fixtures/exif/` — EXIF 90°/180°/270° JPEG samples        | Not created | Need real images with EXIF orientation tags                                |
 | `fixtures/golden/` — Real face images + human annotations | Not created | Need stable front-facing single + group photos with IoU ≥ 0.5 ground truth |
-| `fixtures/baseline/` — Side face / occluded / low light | Not created | Record hit/miss rate, don't block |
-| `fixtures/benchmark/` — Benchmark output (gitignored) | Not created | Store P50/P95, cold/hot start, peak RSS |
-| `focus-detector-benchmark.mjs` — Benchmark script | Not created | Runs batch analysis, outputs timing/memory metrics |
+| `fixtures/baseline/` — Side face / occluded / low light   | Not created | Record hit/miss rate, don't block                                          |
+| `fixtures/benchmark/` — Benchmark output (gitignored)     | Not created | Store P50/P95, cold/hot start, peak RSS                                    |
+| `focus-detector-benchmark.mjs` — Benchmark script         | Not created | Runs batch analysis, outputs timing/memory metrics                         |
 
 **Why deferred**: Creating golden fixtures requires real human face images with manually annotated bounding boxes — this is a data collection task, not a code task. The current smoke test validates schema completeness without asserting face count, which is the correct interim behavior given Haar's known false-positive limitation.
 
@@ -195,6 +211,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 > **注意**：本节融合了两个视角——原 session 的初步方向 + 后续 session 的架构建议（Addendum）。统一优先级见下方表格。
 
 ### Current VLM state (ADR-0009)
+
 - Model: `Qwen3-VL-8B-Instruct-8bit` (9.2GB) via mlx-vlm 0.6.13
 - Performance: image ~20-30s, video ~100-120s, batch 20 assets ~40min+
 - Strengths: semantic analysis (descriptions, brand recognition, Chinese content)
@@ -204,14 +221,14 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 
 ### 统一优先级表（P3-P8）
 
-| 优先级 | 工作 | 核心价值 | 验收标准 | 依赖 |
-|--------|------|---------|---------|------|
-| **P3** ✅ | `analyzeAssetSemantics` — 一次 VLM 调用替代 description + fit 双调用 | 横图推理时间减半（20-30s → 不再 ×2） | 横图只启动一次 VLM 推理；结果通过 JSON Schema 校验；`analyzeFit` 旧接口保留兼容 | 无 — **已完成** |
-| **P4** ✅ | 视频窗口 + FFmpeg/ffprobe 窗口基础设施 | 原生与 fallback 路径语义范围一致 | `probeMedia()` 与 `analyzeAssetSemantics(path, window)` 已提供同窗口元数据和回退 | P3；[Issue #69](https://github.com/0xPabloLI/inside-china-ai/issues/69) 已关闭 |
-| **P5** | 本地 ASR worker — 复用已有 whisperx | 视频/音频对白时间线 | 已知中文素材句级时间码可回放核验；失败返回结构化错误 | P4；[Issue #98](https://github.com/0xPabloLI/inside-china-ai/issues/98) |
-| **P6** | `fuseMediaTimeline()` — 确定性时间融合 | 视觉+音频事件按毫秒对齐 | 每条融合事件可追溯至视觉窗口、ASR 区间和原视频时间码 | P4, P5；[Issue #99](https://github.com/0xPabloLI/inside-china-ai/issues/99) |
-| **P7** | 内容寻址缓存 + 批量排程 | 重复资产不跑 20-120s 推理 | 第二次分析同一资产命中缓存；默认不并行加载多个 8B VLM | P3；[Issue #100](https://github.com/0xPabloLI/inside-china-ai/issues/100) |
-| **P8b** | Focus Phase 2 — 视频多帧 + slot scoring 输入 | 动态背景文字不遮挡保护区域 | 时间窗口内输出聚合保护区域与动态主体风险 | P4, P7；[Issue #101](https://github.com/0xPabloLI/inside-china-ai/issues/101) |
+| 优先级    | 工作                                                                 | 核心价值                             | 验收标准                                                                         | 依赖                                                                           |
+| --------- | -------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **P3** ✅ | `analyzeAssetSemantics` — 一次 VLM 调用替代 description + fit 双调用 | 横图推理时间减半（20-30s → 不再 ×2） | 横图只启动一次 VLM 推理；结果通过 JSON Schema 校验；`analyzeFit` 旧接口保留兼容  | 无 — **已完成**                                                                |
+| **P4** ✅ | 视频窗口 + FFmpeg/ffprobe 窗口基础设施                               | 原生与 fallback 路径语义范围一致     | `probeMedia()` 与 `analyzeAssetSemantics(path, window)` 已提供同窗口元数据和回退 | P3；[Issue #69](https://github.com/0xPabloLI/inside-china-ai/issues/69) 已关闭 |
+| **P5**    | 本地 ASR worker — 复用已有 whisperx                                  | 视频/音频对白时间线                  | 已知中文素材句级时间码可回放核验；失败返回结构化错误                             | P4；[Issue #98](https://github.com/0xPabloLI/inside-china-ai/issues/98)        |
+| **P6**    | `fuseMediaTimeline()` — 确定性时间融合                               | 视觉+音频事件按毫秒对齐              | 每条融合事件可追溯至视觉窗口、ASR 区间和原视频时间码                             | P4, P5；[Issue #99](https://github.com/0xPabloLI/inside-china-ai/issues/99)    |
+| **P7**    | 内容寻址缓存 + 批量排程                                              | 重复资产不跑 20-120s 推理            | 第二次分析同一资产命中缓存；默认不并行加载多个 8B VLM                            | P3；[Issue #100](https://github.com/0xPabloLI/inside-china-ai/issues/100)      |
+| **P8b**   | Focus Phase 2 — 视频多帧 + slot scoring 输入                         | 动态背景文字不遮挡保护区域           | 时间窗口内输出聚合保护区域与动态主体风险                                         | P4, P7；[Issue #101](https://github.com/0xPabloLI/inside-china-ai/issues/101)  |
 
 ### 各优先级详情
 
@@ -220,6 +237,7 @@ Implemented complete visual focus detection per `docs/specs/spec-visual-focus-de
 当前 `asset-sourcer.mjs` 对横图先调 `describeImage`（20-30s），再调 `analyzeFit`（20-30s）= 40-60s。`focus` 已被 OpenCV 接管，`analyzeFit` 只剩 `fit`（cover/contain）有价值，可合入一次结构化调用。
 
 新 action `analyzeAssetSemantics` 返回已校验 JSON：
+
 ```json
 {
   "description": "嘉宾手持产品并展示屏幕功能。",
@@ -245,6 +263,7 @@ Python 端用 JSON Schema / Pydantic 校验，Node 层不再从自由文本正�
 **重要**：项目已有 whisperx + `facebook/wav2vec2-large-960h-lv60-self` 安装在 `~/.video-tts-env`，`text-align.py` 已在使用。不是新建路线，是**复用已有依赖**封装为独立 worker。
 
 遵循 Focus worker 模式：独立 Python 子进程、requestId、generation isolation、schema-complete 错误结果。接口：
+
 ```text
 transcribeAudioWindow(videoOrAudioPath, { startMs, endMs, languageHint })
 ```
@@ -266,16 +285,17 @@ transcribeAudioWindow(videoOrAudioPath, { startMs, endMs, languageHint })
 
 **四层 Focus 分离**：
 
-| 层级 | 输入 | 产物 | 触发时机 |
-|------|------|------|----------|
-| `baseFocus` | 静态图片原文件 | EXIF 归一化尺寸、人脸框、saliency、protectedRegions、low-information 状态 | 图片入库时预计算；键为 `assetHash + focusAnalyzerVersion` |
-| `mediaProbe` / `posterFocus` | 视频原文件 | 时长、帧率、音轨、旋转、poster 帧的 baseFocus | 视频入库时预计算；ffprobe |
-| `transformedFocus` | baseFocus + targetCanvas + cropPolicy | 9:16/16:9/1:1 裁切后坐标系中的保护区域 | 消费端首次请求指定画布时计算 |
-| `temporalFocus` | video + timeWindow + samplingProfile | 多帧保护区域、移动焦点风险、时间聚合 | 视频剪辑/动态背景/QA 需要时才计算 |
+| 层级                         | 输入                                  | 产物                                                                      | 触发时机                                                  |
+| ---------------------------- | ------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `baseFocus`                  | 静态图片原文件                        | EXIF 归一化尺寸、人脸框、saliency、protectedRegions、low-information 状态 | 图片入库时预计算；键为 `assetHash + focusAnalyzerVersion` |
+| `mediaProbe` / `posterFocus` | 视频原文件                            | 时长、帧率、音轨、旋转、poster 帧的 baseFocus                             | 视频入库时预计算；ffprobe                                 |
+| `transformedFocus`           | baseFocus + targetCanvas + cropPolicy | 9:16/16:9/1:1 裁切后坐标系中的保护区域                                    | 消费端首次请求指定画布时计算                              |
+| `temporalFocus`              | video + timeWindow + samplingProfile  | 多帧保护区域、移动焦点风险、时间聚合                                      | 视频剪辑/动态背景/QA 需要时才计算                         |
 
 > `layoutDecision` 不属于 Focus 基础设施——它由消费端根据 transformed/temporalFocus + 模板 + 文字框 + safe zones 生成。
 
 **推荐接口形态**：
+
 ```text
 analyzeBaseFocus(imagePath)      // = 当前 detectFocus() 的正式命名
 probeMedia(videoPath)            // ffprobe 媒体探测
@@ -299,6 +319,7 @@ resolveLayout({ focus, template, textBoxes, safeZones, businessGoal })
 - 不要把视频 Focus Detection、ASR、VLM 长视频分析一次性混进当前已稳定的静态 Focus 版本
 
 ### Key references for the new session
+
 - ADR-0009: `docs/adr/0009-vlm-qwen3-vl-mlx.md` — current VLM architecture
 - ADR-0015: `docs/adr/0015-opencv-focus-detection.md` — focus detection (complements VLM)
 - Spec (archived): `docs/archive/spec-visual-focus-detection.md` — full spec with Phase 2 candidates (§7)
@@ -311,6 +332,7 @@ resolveLayout({ focus, template, textBoxes, safeZones, businessGoal })
 - Memory: VLM smoke test results (image 41.5s, video 120.3s on M2 Pro)
 
 ### Suggested skills for next session
+
 - `/grill-with-docs` — to stress-test the optimization plan
 - `/to-spec` — to synthesize findings into a spec
 - `/research` — if deep research into VLM alternatives is needed

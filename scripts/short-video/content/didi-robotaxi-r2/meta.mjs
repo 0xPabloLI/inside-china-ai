@@ -4,15 +4,7 @@ export const meta = {
   title: "Didi R2 Robotaxi Driverless Service",
   article: "didi-robotaxi-r2",
   createdAt: "2026-09-02",
-  topics: [
-    "didi",
-    "robotaxi",
-    "autonomous-driving",
-    "pony-ai",
-    "baidu",
-    "waymo",
-    "china-ai",
-  ],
+  topics: ["didi", "robotaxi", "autonomous-driving", "pony-ai", "baidu", "waymo", "china-ai"],
   keyEntities: {
     companies: ["didi", "pony-ai", "baidu", "waymo", "gac-aion", "tesla"],
     people: [],

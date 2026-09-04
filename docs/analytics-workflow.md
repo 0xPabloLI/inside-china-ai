@@ -92,7 +92,7 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 ### 数据量门槛
 
 - **>10 个已发布视频**且有完整 analytics 数据时，Agent 开始做跨视频
- 对比分析
+  对比分析
 - **<10 个**时只做单视频数据录入，不做模式分析（样本太小不可靠）
 
 ### Agent 能做的事
@@ -134,7 +134,18 @@ Agent 输出类似这样的分析报告：
 `output/hashtag-effect-tracker.jsonl` — 每行一条 JSON 记录，格式：
 
 ```json
-{"videoTitle":"","publishedAt":"","hashtags":[],"views":0,"likes":0,"comments":0,"searchQueries":[],"fypPercent":0,"searchPercent":0,"recordedAt":""}
+{
+  "videoTitle": "",
+  "publishedAt": "",
+  "hashtags": [],
+  "views": 0,
+  "likes": 0,
+  "comments": 0,
+  "searchQueries": [],
+  "fypPercent": 0,
+  "searchPercent": 0,
+  "recordedAt": ""
+}
 ```
 
 ### Agent 操作步骤
@@ -146,12 +157,12 @@ Agent 输出类似这样的分析报告：
 
 ### 已知结论（2026-08-25，4 条视频）
 
-| Hashtag | 状态 | 证据 |
-|---------|------|------|
+| Hashtag                  | 状态                     | 证据                                                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `#creatorsearchinsights` | **待重新验证的历史信号** | 2 条视频样本（#2, #3）引来搜索词 "creator insights part 3 4 5"。样本量不足以单标签归因 hashtag 效果。2026-08-26 决策：从 `BLACKLISTED_HASHTAGS` 移除，不自动黑名单。Agent 在使用 Creator Search Insights 发现内容 gap 时可手动通过 `metadata.hashtags` 加入。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略 |
-| `#deepseek` | 有效 | 搜索词 "deepseek" 占 22% 搜索流量 |
-| `#ai` | 待验证 | 竞品 9/16 使用，我们仅在视频 #1 使用，播放 247（最高），但无法单独归因 |
-| `#chinaai` | 基准 | 每条必带，无法单独归因 |
+| `#deepseek`              | 有效                     | 搜索词 "deepseek" 占 22% 搜索流量                                                                                                                                                                                                                                                                                       |
+| `#ai`                    | 待验证                   | 竞品 9/16 使用，我们仅在视频 #1 使用，播放 247（最高），但无法单独归因                                                                                                                                                                                                                                                  |
+| `#chinaai`               | 基准                     | 每条必带，无法单独归因                                                                                                                                                                                                                                                                                                  |
 
 ### Analytics 粒度限制
 
@@ -185,11 +196,11 @@ Hashtag 库维护（季度级别 或 触发式）
 
 ### 触发条件
 
-| 触发条件 | 频率 | 示例 |
-|---------|------|------|
-| 季度定期 | 每 3 个月 | 季度 hashtag 库审查 |
-| 新实体发现 | 即时 | 视频中出现 map 中没有的公司/产品/模型 |
-| Analytics 结论 | 即时 | analytics 发现某 tag 有害或某 tag 超预期 |
+| 触发条件       | 频率      | 示例                                     |
+| -------------- | --------- | ---------------------------------------- |
+| 季度定期       | 每 3 个月 | 季度 hashtag 库审查                      |
+| 新实体发现     | 即时      | 视频中出现 map 中没有的公司/产品/模型    |
+| Analytics 结论 | 即时      | analytics 发现某 tag 有害或某 tag 超预期 |
 
 ### 操作步骤
 
@@ -215,14 +226,14 @@ Agent 扫描 `content/*/meta.mjs` 中的 `keyEntities.companies`，逐个检查�
 
 **Step 3: 更新代码和文档**
 
-| 更新位置 | 更新内容 |
-|---------|---------|
-| `caption-utils.mjs` → `ENTITY_HASHTAG_MAP` | 新增实体 → hashtag 映射 |
-| `caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` | 更新 views/posts 数据（如有新数据） |
-| `caption-utils.mjs` → `BLACKLISTED_HASHTAGS` | 加入 analytics 发现的有害标签（2026-08-26: `BLACKLISTED_HASHTAGS` 当前为空数组，`#creatorsearchinsights` 已移除，因样本量不足以归因。如未来 analytics 积累 >10 条样本且某标签效果持续低效，可重新评估加入） |
-| `tiktok-best-practices.md` → 标签池表格 | 更新浏览量/帖子数数据 |
-| `tiktok-best-practices.md` → 垂直标签表 | 新增实体行 |
-| `docs/research/china-ai-hashtag-mapping.md` | 更新映射表（新实体 + 来源） |
+| 更新位置                                      | 更新内容                                                                                                                                                                                                    |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `caption-utils.mjs` → `ENTITY_HASHTAG_MAP`    | 新增实体 → hashtag 映射                                                                                                                                                                                     |
+| `caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` | 更新 views/posts 数据（如有新数据）                                                                                                                                                                         |
+| `caption-utils.mjs` → `BLACKLISTED_HASHTAGS`  | 加入 analytics 发现的有害标签（2026-08-26: `BLACKLISTED_HASHTAGS` 当前为空数组，`#creatorsearchinsights` 已移除，因样本量不足以归因。如未来 analytics 积累 >10 条样本且某标签效果持续低效，可重新评估加入） |
+| `tiktok-best-practices.md` → 标签池表格       | 更新浏览量/帖子数数据                                                                                                                                                                                       |
+| `tiktok-best-practices.md` → 垂直标签表       | 新增实体行                                                                                                                                                                                                  |
+| `docs/research/china-ai-hashtag-mapping.md`   | 更新映射表（新实体 + 来源）                                                                                                                                                                                 |
 
 **Step 4: 测试验证**
 
@@ -286,16 +297,19 @@ Analytics 复盘
 # Analytics Conclusions — 2026-08-25
 
 ## Hashtag 策略
+
 - ✅ #deepseek: 搜索流量驱动（22% 搜索词匹配）
 - ⚠️ #creatorsearchinsights: 待重新验证的历史信号（2 条视频样本不足以归因，已从黑名单移除；Agent 使用 Creator Search Insights 发现 gap 时可手动加入）
 - ⚠️ #ai: 竞品高频使用但未验证效果，下轮 A/B 测试
 
 ## 内容策略
+
 - 叙事类视频（DeepSeek #1）播放最高（247），但完播率仅 1.2%
 - 短视频（67s，Unitree）FYP 占比升到 86%，但总播放仍低
 - 搜索词跟随最新视频变化 → 需保持发布频率
 
 ## 下轮 Pipeline 建议
+
 - 优先选有具体数字/公司名的话题（搜索词匹配）
 - hashtag 不超过 5 个（#creatorsearchinsights 不再自动黑名单，但仅在内容确实来源于 Creator Search Insights gap 发现时才手动加入）
 - 继续缩短视频时长到 60-70s 目标
@@ -339,14 +353,14 @@ Analytics 复盘
 
 ## 文件参考
 
-| 文件 | 用途 |
-|------|------|
-| `output/pending-analysis.json` | 待分析视频记录（publish-tiktok.mjs 自动写入） |
-| `output/analytics-export.json` | 标准化分析数据（fetch-tiktok-analytics.mjs 输出） |
-| `output/ab-test-results.json` | A/B 测试追踪（ab-test-tracker.mjs） |
-| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（Agent CDP 抓取后追加） |
-| `output/analytics-conclusions.md` | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取） |
-| `output/reference-videos/` | 用户手动下载的竞品参考视频（按需） |
+| 文件                                  | 用途                                                   |
+| ------------------------------------- | ------------------------------------------------------ |
+| `output/pending-analysis.json`        | 待分析视频记录（publish-tiktok.mjs 自动写入）          |
+| `output/analytics-export.json`        | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）      |
+| `output/ab-test-results.json`         | A/B 测试追踪（ab-test-tracker.mjs）                    |
+| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（Agent CDP 抓取后追加）           |
+| `output/analytics-conclusions.md`     | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取） |
+| `output/reference-videos/`            | 用户手动下载的竞品参考视频（按需）                     |
 
 ## 相关文档
 
@@ -361,9 +375,9 @@ Analytics 复盘
 
 ## Design Decisions & References
 
-| Decision | Rationale | Source |
-|----------|-----------|--------|
-| Analytics 独立为单独工作流 | 发布后需等 48h 数据沉淀，与 1-2 天的 Content Pipeline 周期不同频 | 独立判断 |
-| 数据量门槛 >10 视频才开始模式分析 | <10 样本太小，模式不可靠 | 独立判断 |
-| 竞品参考视频由用户手动下载 | TikTok 搜索受地区限制，yt-dlp 无法下载 TikTok 视频 | `docs/research/reference-video-extraction.md` |
-| Vision model 逐帧分析参考视频 | 60s 视频提取 ~60 帧（1fps），足以捕捉视觉风格变化 | 独立判断 |
+| Decision                          | Rationale                                                        | Source                                        |
+| --------------------------------- | ---------------------------------------------------------------- | --------------------------------------------- |
+| Analytics 独立为单独工作流        | 发布后需等 48h 数据沉淀，与 1-2 天的 Content Pipeline 周期不同频 | 独立判断                                      |
+| 数据量门槛 >10 视频才开始模式分析 | <10 样本太小，模式不可靠                                         | 独立判断                                      |
+| 竞品参考视频由用户手动下载        | TikTok 搜索受地区限制，yt-dlp 无法下载 TikTok 视频               | `docs/research/reference-video-extraction.md` |
+| Vision model 逐帧分析参考视频     | 60s 视频提取 ~60 帧（1fps），足以捕捉视觉风格变化                | 独立判断                                      |

@@ -53,16 +53,16 @@
 
 ### Modules
 
-| 模块 | 角色 |
-|---|---|
-| `lib/timeline.mjs`（新） | 时间轴单一真相源：`FPS`、`SCENE_BUFFER`、帧对齐、scene clip 时长/帧数、scene 起始偏移 |
-| `lib/subtitles/cues.mjs`（新） | 纯函数：对齐数据 + scene 时长 → 绝对时间轴的 cue 列表（分块 + 时序规则） |
-| `lib/subtitles/ass.mjs`（新） | ASS 序列化 + 反序列化（`renderAss` / `parseAss`），含 `\kt`/`\kf` 语义 |
-| `lib/verify-subtitles.mjs`（重写） | 回读 `.ass` 产物做断言，输出报告 |
-| `lib/assemble.mjs`（改） | 从 `timeline.mjs` 取帧对齐后的 clip 帧数/时长 |
-| `main.mjs`（改） | Step 4 直接调 JS 生成器，删除 Python 调用与 fallback 分支 |
-| `render-only.mjs`（改） | 支持 `--content`，复用同一字幕生成路径 |
-| `generate-ass.py`、`lib/generate-srt.mjs` | 删除 |
+| 模块                                      | 角色                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| `lib/timeline.mjs`（新）                  | 时间轴单一真相源：`FPS`、`SCENE_BUFFER`、帧对齐、scene clip 时长/帧数、scene 起始偏移 |
+| `lib/subtitles/cues.mjs`（新）            | 纯函数：对齐数据 + scene 时长 → 绝对时间轴的 cue 列表（分块 + 时序规则）              |
+| `lib/subtitles/ass.mjs`（新）             | ASS 序列化 + 反序列化（`renderAss` / `parseAss`），含 `\kt`/`\kf` 语义                |
+| `lib/verify-subtitles.mjs`（重写）        | 回读 `.ass` 产物做断言，输出报告                                                      |
+| `lib/assemble.mjs`（改）                  | 从 `timeline.mjs` 取帧对齐后的 clip 帧数/时长                                         |
+| `main.mjs`（改）                          | Step 4 直接调 JS 生成器，删除 Python 调用与 fallback 分支                             |
+| `render-only.mjs`（改）                   | 支持 `--content`，复用同一字幕生成路径                                                |
+| `generate-ass.py`、`lib/generate-srt.mjs` | 删除                                                                                  |
 
 ### 时间轴（`timeline.mjs`）
 
@@ -82,13 +82,13 @@
 
 时序规则（Netflix Timed Text，30fps 换算）：
 
-| 规则 | 值 |
-|---|---|
-| 入点提前（lead-in） | 2 帧（0.0667s），首条 clamp 到 0 |
-| 最短显示时长 | 0.8s |
-| 出点保持（hold-out） | 语音结束后 +0.5s |
-| 相邻间隔 | 若原始间隔 < 0.5s → 收紧到恰好 2 帧（chaining）；否则保留。横跨 scene 切换点的间隔豁免此规则——cue 被刻意 clamp 到镜头边界，画面切换本身掩盖了间隔 |
-| 冲突优先级 | 不重叠 > 最短时长；无法两全时尝试与下一条合并（borrowing time），合并会超限则接受短 cue 并在验证中告警 |
+| 规则                 | 值                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 入点提前（lead-in）  | 2 帧（0.0667s），首条 clamp 到 0                                                                                                                  |
+| 最短显示时长         | 0.8s                                                                                                                                              |
+| 出点保持（hold-out） | 语音结束后 +0.5s                                                                                                                                  |
+| 相邻间隔             | 若原始间隔 < 0.5s → 收紧到恰好 2 帧（chaining）；否则保留。横跨 scene 切换点的间隔豁免此规则——cue 被刻意 clamp 到镜头边界，画面切换本身掩盖了间隔 |
+| 冲突优先级           | 不重叠 > 最短时长；无法两全时尝试与下一条合并（borrowing time），合并会超限则接受短 cue 并在验证中告警                                            |
 
 降级路径：segment 无 `words`（对齐失败）时，产出一条无 karaoke 的静态 cue，文本取 `segment.text`，时间取 segment 级 start/end。文本不丢。
 
@@ -106,14 +106,14 @@
 
 从"重算输入"改为"回读产物"。输入 `.ass` 路径 + 对齐数据 + scene 时长，断言：
 
-| 检查 | 判定 |
-|---|---|
-| 词序列完整性 | 解析 `.ass` 得到的词序列 === 对齐数据词序列（顺序与文本全等） | FAIL |
-| 逐词同步 | 每个词的高亮起点（cue start + `\kt`）与期望绝对时刻偏差 ≤ 80ms | FAIL |
-| 相邻间隔 | 每个间隔 ∈ {2 帧 ±11ms} ∪ [0.489s, ∞)；横跨 scene 切换点的间隔豁免 | FAIL |
-| 最短时长 | 每条 ≥ 0.8s | WARN |
-| 每行词数 | ≤ 6 | WARN |
-| 覆盖率 | 沿用现有 gap 检测，但数据源改为解析后的 cue | WARN |
+| 检查         | 判定                                                               |
+| ------------ | ------------------------------------------------------------------ |
+| 词序列完整性 | 解析 `.ass` 得到的词序列 === 对齐数据词序列（顺序与文本全等）      | FAIL |
+| 逐词同步     | 每个词的高亮起点（cue start + `\kt`）与期望绝对时刻偏差 ≤ 80ms     | FAIL |
+| 相邻间隔     | 每个间隔 ∈ {2 帧 ±11ms} ∪ [0.489s, ∞)；横跨 scene 切换点的间隔豁免 | FAIL |
+| 最短时长     | 每条 ≥ 0.8s                                                        | WARN |
+| 每行词数     | ≤ 6                                                                | WARN |
+| 覆盖率       | 沿用现有 gap 检测，但数据源改为解析后的 cue                        | WARN |
 
 间隔门禁的容差由来：`.ass` 时间戳是厘秒量化，间隔两端各 ±5ms 舍入，测量天然 ±10ms，门禁再放 1ms 余量到 ±11ms；0.5s 端同理（0.5 − 0.011 = 0.489s）。
 
@@ -145,45 +145,45 @@ FFmpeg 相关的行为（帧数是否真的等于 `-frames:v`）不进单测，�
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `scripts/short-video/generate-ass.py` | 删除 | Low | 唯一消费者是 `main.mjs` Step 4，同批替换。最坏后果：删早了导致无字幕，被 Step 6 验证拦截。 |
-| `scripts/short-video/lib/generate-srt.mjs` | 删除 | Medium | 消费者是 `main.mjs` 的 fallback 分支（同批删除）。它本身产出的是无 karaoke、按词数比例分配时间的劣化字幕——保留反而是风险。已 grep 确认无其他 import。 |
-| `scripts/short-video/main.mjs` | Step 4 改为 JS 调用，去掉 try/fallback | Medium | 主发布路径。失败后果：字幕缺失或管线中断。缓解：Step 6 验证门禁 + 实跑验证。 |
-| `scripts/short-video/lib/assemble.mjs` | clip 时长改为帧对齐 + `-frames:v` | Medium | 影响所有 pipeline 产物，每段时长变化 0-33ms，总时长变化 <0.2s。下游只有 concat 与 BGM 混音（按实测时长计算，自适应）。验证：ffprobe 断言每个 clip 帧数 == 期望值。 |
-| `scripts/short-video/lib/verify-subtitles.mjs` | 重写为回读 `.ass` | Medium | 导出函数签名变更；消费者 `main.mjs` + `verify-subtitles.mjs` CLI + 单测，全部同批更新。最坏后果：验证误报导致管线卡住（可 `--skip-verify` 绕过）。 |
-| `scripts/short-video/verify-subtitles.mjs`（CLI） | 适配新签名，新增 `.ass` 参数 | Low | 独立工具，无下游。 |
-| `scripts/short-video/render-only.mjs` | 支持 `--content`，接入字幕生成 | Low | 独立脚本，当前已损坏（硬编码 deepseek + 不产字幕），只会变好。 |
-| `scripts/short-video/__tests__/verify-subtitles.test.mjs` | 重写 | Low | 旧用例断言的是被删除的 `-0.3` 语义，保留即误导。 |
-| `docs/video-workflow.md`、`docs/brand-system.md` | 更新字幕章节 | Low | 纯文档。 |
+| 文件                                                      | 修改内容                               | 风险等级 | 评估                                                                                                                                                               |
+| --------------------------------------------------------- | -------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/short-video/generate-ass.py`                     | 删除                                   | Low      | 唯一消费者是 `main.mjs` Step 4，同批替换。最坏后果：删早了导致无字幕，被 Step 6 验证拦截。                                                                         |
+| `scripts/short-video/lib/generate-srt.mjs`                | 删除                                   | Medium   | 消费者是 `main.mjs` 的 fallback 分支（同批删除）。它本身产出的是无 karaoke、按词数比例分配时间的劣化字幕——保留反而是风险。已 grep 确认无其他 import。              |
+| `scripts/short-video/main.mjs`                            | Step 4 改为 JS 调用，去掉 try/fallback | Medium   | 主发布路径。失败后果：字幕缺失或管线中断。缓解：Step 6 验证门禁 + 实跑验证。                                                                                       |
+| `scripts/short-video/lib/assemble.mjs`                    | clip 时长改为帧对齐 + `-frames:v`      | Medium   | 影响所有 pipeline 产物，每段时长变化 0-33ms，总时长变化 <0.2s。下游只有 concat 与 BGM 混音（按实测时长计算，自适应）。验证：ffprobe 断言每个 clip 帧数 == 期望值。 |
+| `scripts/short-video/lib/verify-subtitles.mjs`            | 重写为回读 `.ass`                      | Medium   | 导出函数签名变更；消费者 `main.mjs` + `verify-subtitles.mjs` CLI + 单测，全部同批更新。最坏后果：验证误报导致管线卡住（可 `--skip-verify` 绕过）。                 |
+| `scripts/short-video/verify-subtitles.mjs`（CLI）         | 适配新签名，新增 `.ass` 参数           | Low      | 独立工具，无下游。                                                                                                                                                 |
+| `scripts/short-video/render-only.mjs`                     | 支持 `--content`，接入字幕生成         | Low      | 独立脚本，当前已损坏（硬编码 deepseek + 不产字幕），只会变好。                                                                                                     |
+| `scripts/short-video/__tests__/verify-subtitles.test.mjs` | 重写                                   | Low      | 旧用例断言的是被删除的 `-0.3` 语义，保留即误导。                                                                                                                   |
+| `docs/video-workflow.md`、`docs/brand-system.md`          | 更新字幕章节                           | Low      | 纯文档。                                                                                                                                                           |
 
 ### Section 2: Behavioral Scenarios
 
 矩阵每一行 = 一个测试用例。
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | segment 以句尾词结尾（`DeepSeek has no KPIs.`） | 渲染文本包含 `KPIs.`，且它有自己的 `\kt/\kf` | 漏词回归 | `text` 由 `words` 派生，测试断言词序列全等 |
-| 2 | 分块后尾部只剩 1 个词 | 并回前一块，`words` 同步合并，无词丢失 | 漏词回归 | 断言合并后 words 数 == 输入 words 数 |
-| 3 | segment 有 `text` 无 `words`（对齐失败） | 产出静态 cue（无 karaoke tag），文本保留 | 文本丢失 / crash | 降级分支 + 测试 |
-| 4 | segment 为空数组 / scene 无 segments | 不产出 cue，不 crash，后续 scene 偏移仍正确 | 时间轴错位 | 断言下一 scene 的 cue 绝对时间 |
-| 5 | 词时间倒挂（`end < start`） | `\kf` 不为负，clamp 到 0；不影响后续词锚点 | ASS 解析异常 | clamp + 测试 |
-| 6 | 词结束时间超出 scene 时长 | clamp 到 scene 尾，不越界进下一 scene | 跨 scene 串台 | clamp + 测试 |
-| 7 | 两条 cue 原始间隔 0.14s（<0.5s） | 收紧到恰好 2 帧 | 3-14 帧禁区闪烁 | chaining 规则 + 测试 |
-| 8 | 两条 cue 原始间隔 1.2s（≥0.5s） | 前一条 hold 到语音结束 +0.5s，间隔保留 | 字幕悬挂过久 | hold-out 规则 + 测试 |
-| 9 | cue 语音仅 0.3s 且下一条紧邻 | 优先不重叠；能合并则合并，否则接受短 cue 并 WARN | 重叠 / 闪烁 | 优先级规则 + 测试 |
-| 10 | 首条 cue 语音从 0.04s 开始（lead-in 会变负） | cue start clamp 到 0，`\kt` 相应变大，词锚点仍准 | 负时间戳 | clamp + 测试 |
-| 11 | 一行 9 词 / 55 字符 | 拆成 ≤6 词且 ≤49 字符的多行 | 高亮扫描过快 | 分块上限 + 测试 |
-| 12 | 跨 scene 累加 | 第 N 个 scene 的偏移 == 前 N-1 段帧对齐 clip 时长之和 | 累积漂移 | `timeline.mjs` 单一派生 + ffprobe 实测断言 |
-| 13 | 文本含 `{` `}` `\` | 正确转义，libass 不解析为 tag | 渲染破损 | 转义 + round-trip 测试 |
-| 14 | 一行 7 个词的 `\kt` 锚点 | 第 7 个词的 onset 与源时间戳偏差 ≤1ms（不累积） | 行内漂移回归 | round-trip 解析后逐词断言 |
-| 15 | 时间值需量化到厘秒 | `\kt` 基于量化后的 cue start 计算 | ≤10ms 系统偏差 | 测试用非整厘秒的 cue start |
-| 16 | 验证：`.ass` 少了一个词 | 报告 FAIL，`summary.passed === false` | 静默发坏视频 | 词序列断言 + 测试 |
-| 17 | 验证：某词偏差 120ms | 报告 FAIL 并指出词与偏差值 | 静默发不同步视频 | 阈值断言 + 测试 |
-| 18 | 验证：间隔 0.14s | 报告 FAIL | 禁区间隔漏网 | 间隔断言 + 测试 |
-| 19 | `TTS_ATEMPO` 变速开启 | 对齐在变速后音频上运行，时间轴一致（现状行为不变） | 回归 | Runtime Verify 时不启用；契约不变 |
-| 20 | `scene-durations.json` 缺某 sceneId | 抛出明确错误而非静默按 0 处理 | 时间轴静默错位 | 显式报错 + 测试 |
-| 21 | 验证：间隔落在禁区但横跨 scene 切换点 | 豁免，不判违规 | 镜头边界误报 | `analyzeGaps(cues, sceneBoundaries)` + 测试 |
+| #   | Scenario                                        | Expected Behavior                                     | Risk             | Mitigation                                  |
+| --- | ----------------------------------------------- | ----------------------------------------------------- | ---------------- | ------------------------------------------- |
+| 1   | segment 以句尾词结尾（`DeepSeek has no KPIs.`） | 渲染文本包含 `KPIs.`，且它有自己的 `\kt/\kf`          | 漏词回归         | `text` 由 `words` 派生，测试断言词序列全等  |
+| 2   | 分块后尾部只剩 1 个词                           | 并回前一块，`words` 同步合并，无词丢失                | 漏词回归         | 断言合并后 words 数 == 输入 words 数        |
+| 3   | segment 有 `text` 无 `words`（对齐失败）        | 产出静态 cue（无 karaoke tag），文本保留              | 文本丢失 / crash | 降级分支 + 测试                             |
+| 4   | segment 为空数组 / scene 无 segments            | 不产出 cue，不 crash，后续 scene 偏移仍正确           | 时间轴错位       | 断言下一 scene 的 cue 绝对时间              |
+| 5   | 词时间倒挂（`end < start`）                     | `\kf` 不为负，clamp 到 0；不影响后续词锚点            | ASS 解析异常     | clamp + 测试                                |
+| 6   | 词结束时间超出 scene 时长                       | clamp 到 scene 尾，不越界进下一 scene                 | 跨 scene 串台    | clamp + 测试                                |
+| 7   | 两条 cue 原始间隔 0.14s（<0.5s）                | 收紧到恰好 2 帧                                       | 3-14 帧禁区闪烁  | chaining 规则 + 测试                        |
+| 8   | 两条 cue 原始间隔 1.2s（≥0.5s）                 | 前一条 hold 到语音结束 +0.5s，间隔保留                | 字幕悬挂过久     | hold-out 规则 + 测试                        |
+| 9   | cue 语音仅 0.3s 且下一条紧邻                    | 优先不重叠；能合并则合并，否则接受短 cue 并 WARN      | 重叠 / 闪烁      | 优先级规则 + 测试                           |
+| 10  | 首条 cue 语音从 0.04s 开始（lead-in 会变负）    | cue start clamp 到 0，`\kt` 相应变大，词锚点仍准      | 负时间戳         | clamp + 测试                                |
+| 11  | 一行 9 词 / 55 字符                             | 拆成 ≤6 词且 ≤49 字符的多行                           | 高亮扫描过快     | 分块上限 + 测试                             |
+| 12  | 跨 scene 累加                                   | 第 N 个 scene 的偏移 == 前 N-1 段帧对齐 clip 时长之和 | 累积漂移         | `timeline.mjs` 单一派生 + ffprobe 实测断言  |
+| 13  | 文本含 `{` `}` `\`                              | 正确转义，libass 不解析为 tag                         | 渲染破损         | 转义 + round-trip 测试                      |
+| 14  | 一行 7 个词的 `\kt` 锚点                        | 第 7 个词的 onset 与源时间戳偏差 ≤1ms（不累积）       | 行内漂移回归     | round-trip 解析后逐词断言                   |
+| 15  | 时间值需量化到厘秒                              | `\kt` 基于量化后的 cue start 计算                     | ≤10ms 系统偏差   | 测试用非整厘秒的 cue start                  |
+| 16  | 验证：`.ass` 少了一个词                         | 报告 FAIL，`summary.passed === false`                 | 静默发坏视频     | 词序列断言 + 测试                           |
+| 17  | 验证：某词偏差 120ms                            | 报告 FAIL 并指出词与偏差值                            | 静默发不同步视频 | 阈值断言 + 测试                             |
+| 18  | 验证：间隔 0.14s                                | 报告 FAIL                                             | 禁区间隔漏网     | 间隔断言 + 测试                             |
+| 19  | `TTS_ATEMPO` 变速开启                           | 对齐在变速后音频上运行，时间轴一致（现状行为不变）    | 回归             | Runtime Verify 时不启用；契约不变           |
+| 20  | `scene-durations.json` 缺某 sceneId             | 抛出明确错误而非静默按 0 处理                         | 时间轴静默错位   | 显式报错 + 测试                             |
+| 21  | 验证：间隔落在禁区但横跨 scene 切换点           | 豁免，不判违规                                        | 镜头边界误报     | `analyzeGaps(cues, sceneBoundaries)` + 测试 |
 
 ## Out of Scope
 

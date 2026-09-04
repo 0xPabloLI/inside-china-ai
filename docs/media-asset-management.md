@@ -7,13 +7,13 @@
 
 Place by purpose, not by file extension:
 
-| File type | Directory | Git tracked? | Example |
-|-----------|-----------|-------------|---------|
-| Brand logo/mark/avatar | `scripts/short-video/assets/` (under `brand/`, `logos/`) | ✅ | `deepseek.svg` → `assets/logos/` |
-| BGM music | `scripts/short-video/assets/bgm/` | ✅ | `news-cc-theme01.mp3` |
-| Content-specific media (rendered into video) | `scripts/short-video/content/{slug}/assets/` | ✅ | `unitree-demo.mp4` → `content/unitree/assets/` |
-| TTS reference audio (voice profile to clone) | `scripts/short-video/voice-samples/` | ❌ | `voice-sample-24k.wav` |
-| Experiment outputs (digital human, TTS comparison) | `scripts/short-video/experiments/` | ❌ | `hallo2-test.mp4` → `experiments/digital-human/` |
+| File type                                          | Directory                                                | Git tracked? | Example                                          |
+| -------------------------------------------------- | -------------------------------------------------------- | ------------ | ------------------------------------------------ |
+| Brand logo/mark/avatar                             | `scripts/short-video/assets/` (under `brand/`, `logos/`) | ✅           | `deepseek.svg` → `assets/logos/`                 |
+| BGM music                                          | `scripts/short-video/assets/bgm/`                        | ✅           | `news-cc-theme01.mp3`                            |
+| Content-specific media (rendered into video)       | `scripts/short-video/content/{slug}/assets/`             | ✅           | `unitree-demo.mp4` → `content/unitree/assets/`   |
+| TTS reference audio (voice profile to clone)       | `scripts/short-video/voice-samples/`                     | ❌           | `voice-sample-24k.wav`                           |
+| Experiment outputs (digital human, TTS comparison) | `scripts/short-video/experiments/`                       | ❌           | `hallo2-test.mp4` → `experiments/digital-human/` |
 
 **Decision rule**: Is it rendered into a video? → `content/{slug}/assets/`. Is it a global brand asset? → `assets/`. Is it a voice profile for TTS? → `voice-samples/`. Unsure if temporary? → `experiments/`.
 
@@ -51,13 +51,14 @@ Each entry becomes one RAG chunk with `content_type: "asset-catalog"`. The chunk
 
 Text assets (articles, scene-data) have auto-triggers in the content pipeline (Stage 2d, Stage 3b). Multimedia assets need a manual trigger — **Agent does this as a natural step** when assets change:
 
-| Trigger point | What Agent does | Command |
-|---------------|-----------------|---------|
-| After downloading new assets (via `asset-sourcer.mjs` or manual) | Write catalog.yml entries (description, keywords, source, license), then reindex | `node scripts/rag/index.mjs` |
-| After video pipeline completes (Stage 4 → Stage 5) | If assets were added/modified during production, reindex | `node scripts/rag/index.mjs` |
-| After HITL video modification (adding/replacing assets in Stage 5) | Update catalog.yml if new assets, then reindex | `node scripts/rag/index.mjs` |
+| Trigger point                                                      | What Agent does                                                                  | Command                      |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------- |
+| After downloading new assets (via `asset-sourcer.mjs` or manual)   | Write catalog.yml entries (description, keywords, source, license), then reindex | `node scripts/rag/index.mjs` |
+| After video pipeline completes (Stage 4 → Stage 5)                 | If assets were added/modified during production, reindex                         | `node scripts/rag/index.mjs` |
+| After HITL video modification (adding/replacing assets in Stage 5) | Update catalog.yml if new assets, then reindex                                   | `node scripts/rag/index.mjs` |
 
 **Unified flow** — text and multimedia use the same reindex mechanism (incremental by default):
+
 - Text: `publish-article.mjs` → `triggerRagReindex()` (auto, incremental) → `index.mjs`
 - Multimedia: download → write catalog.yml entry → `triggerRagReindex()` or manual `node scripts/rag/index.mjs`
 - Full rebuild: `node scripts/rag/index.mjs --full`
@@ -74,15 +75,15 @@ asset-sourcer 构建跨内容已用素材索引（扫描各内容包 `assets/` �
 
 These are environment facts — the code is the source of truth, this table is a cache for quick lookup:
 
-| What | Path pattern | Set in |
-|------|-------------|--------|
-| TTS ref audio | `voice-samples/voice-sample-24k.wav` | `lib/tts/{qwen-tts,f5-mlx}.mjs` via `ROOT_DIR` |
-| TTS ref text | `voice-samples/voice-sample-ref-text.txt` | same |
-| Company logo SVG | `assets/logos/{key}.svg` | `remotion/src/scenes/HookScene.tsx` (staticFile) |
-| Brand mark SVG | `assets/china-ai-news-mark-video.svg` | `build-mark-svg.mjs`（生成）；`remotion/src`（CtaScene / visuals.tsx 消费） |
-| BGM library | `assets/bgm/*.mp3` | `lib/bgm.mjs` |
-| Content media | `content/{slug}/assets/*` | `scene-data.mjs` `media.path` field |
-| Remotion static | `remotion/public/assets/` (symlink → `../../assets/`) | `render-remotion.mjs` copies content media here at render time |
+| What             | Path pattern                                          | Set in                                                                      |
+| ---------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| TTS ref audio    | `voice-samples/voice-sample-24k.wav`                  | `lib/tts/{qwen-tts,f5-mlx}.mjs` via `ROOT_DIR`                              |
+| TTS ref text     | `voice-samples/voice-sample-ref-text.txt`             | same                                                                        |
+| Company logo SVG | `assets/logos/{key}.svg`                              | `remotion/src/scenes/HookScene.tsx` (staticFile)                            |
+| Brand mark SVG   | `assets/china-ai-news-mark-video.svg`                 | `build-mark-svg.mjs`（生成）；`remotion/src`（CtaScene / visuals.tsx 消费） |
+| BGM library      | `assets/bgm/*.mp3`                                    | `lib/bgm.mjs`                                                               |
+| Content media    | `content/{slug}/assets/*`                             | `scene-data.mjs` `media.path` field                                         |
+| Remotion static  | `remotion/public/assets/` (symlink → `../../assets/`) | `render-remotion.mjs` copies content media here at render time              |
 
 ## Design Decisions & References
 
@@ -103,11 +104,11 @@ Agent writes catalog.yml entries (description + keywords) for each new asset. Wo
 
 ### Three upgrade paths
 
-| Path | What it does | Local models | Integration effort | When to adopt |
-|------|-------------|--------------|-------------------|---------------|
-| **A. VLM-assisted description** (recommended) | VLM watches extracted frames → writes description → Agent reviews → catalog.yml → bge-m3 embedding (existing pipeline unchanged) | moondream2 (1.9GB), MiniCPM-V 8B (5GB), Llava-llama3 8B (4.7GB), Qwen2.5-VL 3B/7B | Low: add `ffmpeg` frame extraction + `ollama run` call before catalog entry | >50 assets or description quality drops |
-| **B. CLIP direct embedding** | CLIP encodes image → 512/768-dim vector → separate pgvector column → hybrid text+image search | CLIP ViT-B/32 (350MB, ONNX), OpenCLIP ViT-L/14 (1.7GB) | High: new embedding pipeline, new DB column, hybrid query logic | >200 assets, zero-human-touch pipeline |
-| **C. Unified multimodal embedding** | One model embeds both text and images into the same vector space | Jina CLIP v2 (text+image, 768-dim), Nomic Embed Vision (text+image) | Medium: replaces bge-m3 for all content, single table | >500 assets + proven need for cross-modal |
+| Path                                          | What it does                                                                                                                     | Local models                                                                      | Integration effort                                                          | When to adopt                             |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------- |
+| **A. VLM-assisted description** (recommended) | VLM watches extracted frames → writes description → Agent reviews → catalog.yml → bge-m3 embedding (existing pipeline unchanged) | moondream2 (1.9GB), MiniCPM-V 8B (5GB), Llava-llama3 8B (4.7GB), Qwen2.5-VL 3B/7B | Low: add `ffmpeg` frame extraction + `ollama run` call before catalog entry | >50 assets or description quality drops   |
+| **B. CLIP direct embedding**                  | CLIP encodes image → 512/768-dim vector → separate pgvector column → hybrid text+image search                                    | CLIP ViT-B/32 (350MB, ONNX), OpenCLIP ViT-L/14 (1.7GB)                            | High: new embedding pipeline, new DB column, hybrid query logic             | >200 assets, zero-human-touch pipeline    |
+| **C. Unified multimodal embedding**           | One model embeds both text and images into the same vector space                                                                 | Jina CLIP v2 (text+image, 768-dim), Nomic Embed Vision (text+image)               | Medium: replaces bge-m3 for all content, single table                       | >500 assets + proven need for cross-modal |
 
 ### CLIP vs VLM — fundamental distinction
 
@@ -116,6 +117,7 @@ Agent writes catalog.yml entries (description + keywords) for each new asset. Wo
 **VLM** (Vision-Language Model) is a broader category: any model that takes images as input and produces text (or takes text+image and produces text). GPT-4o, Qwen-VL, Llava, moondream are VLMs. A large multimodal LLM's vision capabilities are VLM capabilities. CLIP is **not** a VLM — it doesn't generate text, it only embeds.
 
 **Key difference for our use case**:
+
 - VLM → generates description text → feeds into existing `bge-m3` text pipeline (no infra change)
 - CLIP → generates image vectors directly → needs separate vector storage and hybrid query
 
@@ -129,13 +131,13 @@ For the catalog upgrade path, any Qwen3-VL variant can be used — the 2B-4bit i
 
 If Ollama models are insufficient, these run locally via `transformers` / `mlx-vlm`:
 
-| Model | Runtime | Size | Notes |
-|-------|---------|------|-------|
-| **Jina CLIP v2** | `transformers` (PyTorch/ONNX) | 600MB | Text + image in same 768-dim space — could replace bge-m3 entirely |
-| **Nomic Embed Vision** | `transformers` | 300MB | Paired with nomic-embed-text — text+image unified |
-| **OpenCLIP ViT-L/14** | `transformers`/ONNX | 1.7GB | Classic CLIP, widest community support |
-| **Llama 3.2 Vision (11B/90B)** | Ollama or `transformers` | 7-60GB | Meta's VLM, 11B runs on M2 Pro |
-| **Qwen-VL-Max (cloud)** | API only | — | Alibaba's SOTA VLM, API with Chinese optimization |
+| Model                          | Runtime                       | Size   | Notes                                                              |
+| ------------------------------ | ----------------------------- | ------ | ------------------------------------------------------------------ |
+| **Jina CLIP v2**               | `transformers` (PyTorch/ONNX) | 600MB  | Text + image in same 768-dim space — could replace bge-m3 entirely |
+| **Nomic Embed Vision**         | `transformers`                | 300MB  | Paired with nomic-embed-text — text+image unified                  |
+| **OpenCLIP ViT-L/14**          | `transformers`/ONNX           | 1.7GB  | Classic CLIP, widest community support                             |
+| **Llama 3.2 Vision (11B/90B)** | Ollama or `transformers`      | 7-60GB | Meta's VLM, 11B runs on M2 Pro                                     |
+| **Qwen-VL-Max (cloud)**        | API only                      | —      | Alibaba's SOTA VLM, API with Chinese optimization                  |
 
 ### Decision criteria
 

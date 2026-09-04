@@ -22,28 +22,28 @@
 
 ## Model Releases
 
-| Date | Model | Type | Key Details | Source |
-|------|-------|------|-------------|--------|
-| 2025 | MiniMax-01 | LLM | Lightning Attention, MoE architecture | Industry reports |
-| Jul 2026 | **M3** | LLM | Launched; permanent price cut within one week of launch | [Google Finance](https://www.google.com/finance/quote/0100:HKG) |
-| 2026 | Hailuo AI | Video generation | Commercial video generation service | [Wikipedia](https://en.wikipedia.org/wiki/MiniMax_(company)) |
+| Date     | Model      | Type             | Key Details                                             | Source                                                          |
+| -------- | ---------- | ---------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
+| 2025     | MiniMax-01 | LLM              | Lightning Attention, MoE architecture                   | Industry reports                                                |
+| Jul 2026 | **M3**     | LLM              | Launched; permanent price cut within one week of launch | [Google Finance](https://www.google.com/finance/quote/0100:HKG) |
+| 2026     | Hailuo AI  | Video generation | Commercial video generation service                     | [Wikipedia](<https://en.wikipedia.org/wiki/MiniMax_(company)>)  |
 
 ## Funding History (Stock-Based)
 
-| Date | Event | Stock Price (HK$) | Notes | Source |
-|------|-------|-------------------|-------|--------|
-| Jan 2026 | HKEX IPO | — | Listed as MiniMax Group Inc (0100.HK) | [Wikipedia](https://en.wikipedia.org/wiki/MiniMax_(company)) |
-| Feb 2026 | Anthropic accusation | — | 13M+ exchanges with Claude (largest volume among named labs) | [Anthropic Blog](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks) |
-| Mar 2026 | **Peak** | 1,330 | All-time high, riding AI boom | [Google Finance](https://www.google.com/finance/quote/0100:HKG) |
-| Jul 9, 2026 | Lock-up expiry | 1,090 → 18% drop | ~153M shares released (~48.9% of capital) | [HKEX filings](https://www.google.com/finance/quote/0100:HKG) |
-| Jul 2026 | M3 price cut + capital raise | ~600 | Emergency HK$16B capital raise amid collapse | [Google Finance](https://www.google.com/finance/quote/0100:HKG) |
-| Late Jul 2026 | **Low** | 186 | -86% from peak. Drivers: distillation accusations, M3 price cut, low margins, AI companion regulations, annual losses | [Google Finance](https://www.google.com/finance/quote/0100:HKG) |
-| Aug 3, 2026 | Partial recovery | 247 | -81% below peak. Moonshot IPO preparations added pressure | [Google Finance](https://www.google.com/finance/quote/0100:HKG) |
+| Date          | Event                        | Stock Price (HK$) | Notes                                                                                                                 | Source                                                                                         |
+| ------------- | ---------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Jan 2026      | HKEX IPO                     | —                 | Listed as MiniMax Group Inc (0100.HK)                                                                                 | [Wikipedia](<https://en.wikipedia.org/wiki/MiniMax_(company)>)                                 |
+| Feb 2026      | Anthropic accusation         | —                 | 13M+ exchanges with Claude (largest volume among named labs)                                                          | [Anthropic Blog](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks) |
+| Mar 2026      | **Peak**                     | 1,330             | All-time high, riding AI boom                                                                                         | [Google Finance](https://www.google.com/finance/quote/0100:HKG)                                |
+| Jul 9, 2026   | Lock-up expiry               | 1,090 → 18% drop  | ~153M shares released (~48.9% of capital)                                                                             | [HKEX filings](https://www.google.com/finance/quote/0100:HKG)                                  |
+| Jul 2026      | M3 price cut + capital raise | ~600              | Emergency HK$16B capital raise amid collapse                                                                          | [Google Finance](https://www.google.com/finance/quote/0100:HKG)                                |
+| Late Jul 2026 | **Low**                      | 186               | -86% from peak. Drivers: distillation accusations, M3 price cut, low margins, AI companion regulations, annual losses | [Google Finance](https://www.google.com/finance/quote/0100:HKG)                                |
+| Aug 3, 2026   | Partial recovery             | 247               | -81% below peak. Moonshot IPO preparations added pressure                                                             | [Google Finance](https://www.google.com/finance/quote/0100:HKG)                                |
 
 ## Key People
 
-| Name | Role | Notes | Source |
-|------|------|-------|--------|
+| Name                    | Role    | Notes                                                | Source           |
+| ----------------------- | ------- | ---------------------------------------------------- | ---------------- |
 | **Yan Junjie (闫俊杰)** | Founder | Former SenseTime executive. Founded MiniMax in 2021. | Industry reports |
 
 ## Compute Infrastructure
@@ -72,7 +72,7 @@
 
 ## Sources
 
-- [Wikipedia — MiniMax (company)](https://en.wikipedia.org/wiki/MiniMax_(company))
+- [Wikipedia — MiniMax (company)](<https://en.wikipedia.org/wiki/MiniMax_(company)>)
 - [Google Finance — 0100.HK](https://www.google.com/finance/quote/0100:HKG) — Stock price data
 - [Anthropic Blog](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks) — Distillation accusations
 - Project article: `articles/china-llm-distillation-scandal.md`

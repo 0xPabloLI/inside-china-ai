@@ -3,9 +3,21 @@ title: "ByteDance Founder's Rare Directive: No Distillation, Even at the Cost of
 slug: "bytedance-zhang-yiming-no-distillation"
 excerpt: "ByteDance founder Zhang Yiming rejects AI distillation from rivals, accepting temporary defeat for long-term breakthroughs. Policy survived three internal battles since 2023."
 published: true
-topics: ["bytedance", "distillation", "zhang-yiming", "seed", "doubao", "no-distillation", "long-termism"]
+topics:
+  ["bytedance", "distillation", "zhang-yiming", "seed", "doubao", "no-distillation", "long-termism"]
 entities:
-  companies: ["bytedance", "openai", "anthropic", "google", "deepseek", "moonshot", "minimax", "alibaba", "tencent"]
+  companies:
+    [
+      "bytedance",
+      "openai",
+      "anthropic",
+      "google",
+      "deepseek",
+      "moonshot",
+      "minimax",
+      "alibaba",
+      "tencent",
+    ]
   people: ["zhang_yiming"]
   models: ["seed_2_pro", "seed_evolving"]
 sources:
@@ -41,13 +53,13 @@ ByteDance's Seed team is the company's internal AI research division, responsibl
 
 The Seed team's model releases form a rapid cadence:
 
-| Date | Model | Type | Significance |
-|------|-------|------|-------------|
-| May 2025 | Seed1.5-VL | Vision-language | 20B parameter multimodal model with thinking capabilities ([GitHub](https://github.com/ByteDance-Seed/Seed1.5-VL)) |
-| Feb 2026 | **Seed 2.0** (Doubao 2.0) | LLM family | Pro, Lite, Mini, Code variants. Pro scores 98.3 on AIME 2025, 3020 Codeforces. Priced ~73-84% cheaper than GPT-5.2. _(✅ Verified: [ThursdAI](https://thursdai.news/companies/bytedance), [EvoLink](https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing))_ |
-| Feb 2026 | **Seedance 2.0** | Video generation | Unified multimodal model, 15-second multi-shot clips with native stereo audio. ~80 ELO above next competitor on Arena. _(✅ Verified: [ThursdAI](https://thursdai.news/companies/bytedance))_ |
-| Jun 2026 | **Seed 2.1** (Doubao 2.1) | Agent-focused LLM | Shifted from chatbot to general agent: multi-step workflows, project planning, end-to-end coding. _(✅ Verified: [AITraining2U](https://www.aitraining2u.com/bytedance-doubao-seed-explained-2026.html), [ByteDance Seed](https://seed.bytedance.com/en/seed2_1))_ |
-| Jul 2026 | **Seedream 5.0 Pro** | Image generation | Precision editing, layer separation, 10+ language native text rendering. _(✅ Verified: [ThursdAI](https://thursdai.news/companies/bytedance))_ |
+| Date     | Model                     | Type              | Significance                                                                                                                                                                                                                                                             |
+| -------- | ------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| May 2025 | Seed1.5-VL                | Vision-language   | 20B parameter multimodal model with thinking capabilities ([GitHub](https://github.com/ByteDance-Seed/Seed1.5-VL))                                                                                                                                                       |
+| Feb 2026 | **Seed 2.0** (Doubao 2.0) | LLM family        | Pro, Lite, Mini, Code variants. Pro scores 98.3 on AIME 2025, 3020 Codeforces. Priced ~73-84% cheaper than GPT-5.2. _(✅ Verified: [ThursdAI](https://thursdai.news/companies/bytedance), [EvoLink](https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing))_ |
+| Feb 2026 | **Seedance 2.0**          | Video generation  | Unified multimodal model, 15-second multi-shot clips with native stereo audio. ~80 ELO above next competitor on Arena. _(✅ Verified: [ThursdAI](https://thursdai.news/companies/bytedance))_                                                                            |
+| Jun 2026 | **Seed 2.1** (Doubao 2.1) | Agent-focused LLM | Shifted from chatbot to general agent: multi-step workflows, project planning, end-to-end coding. _(✅ Verified: [AITraining2U](https://www.aitraining2u.com/bytedance-doubao-seed-explained-2026.html), [ByteDance Seed](https://seed.bytedance.com/en/seed2_1))_       |
+| Jul 2026 | **Seedream 5.0 Pro**      | Image generation  | Precision editing, layer separation, 10+ language native text rendering. _(✅ Verified: [ThursdAI](https://thursdai.news/companies/bytedance))_                                                                                                                          |
 
 Seed 2.0 Pro's benchmarks are competitive on paper: 98.3 on AIME 2025, 3020 Codeforces rating, 89.5 on VideoMME (surpassing the human benchmark of 73%). On the LMSYS Chatbot Arena, it climbed to 6th overall for text and 3rd for vision. _(✅ Verified: [EvoLink](https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing))_
 
@@ -143,11 +155,11 @@ The real test is coming. If Seed produces a frontier-level language model within
 
 ### Verification Summary
 
-| Status | Count | Notes |
-|--------|-------|-------|
-| ✅ Verified | 14 | Public sources with URLs confirmed |
-| ⚠️ Partially verified | 1 | TikTok motivation angle (The Information vs Guixinren contradiction) |
-| ❌ Unverified | 0 | — |
-| 🔴 Contradicts | 0 | — |
+| Status                | Count | Notes                                                                |
+| --------------------- | ----- | -------------------------------------------------------------------- |
+| ✅ Verified           | 14    | Public sources with URLs confirmed                                   |
+| ⚠️ Partially verified | 1     | TikTok motivation angle (The Information vs Guixinren contradiction) |
+| ❌ Unverified         | 0     | —                                                                    |
+| 🔴 Contradicts        | 0     | —                                                                    |
 
 All key claims are sourced from named publications with accessible URLs. The Guixinren report is based on anonymous people familiar with ByteDance's internal deliberations; its claims are marked accordingly.

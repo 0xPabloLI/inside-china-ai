@@ -43,7 +43,7 @@ The "revenue up, profit down" dynamic in H1 2026 reflects rising R&D spending (u
 Unitree makes both quadruped (robot dog) and humanoid robots. According to Robozaps and the company's official store as of July 2026:
 
 - **Go2 robot dog**: 1,600 to 4,500 yuan ($220 to $625)
-- **G1 humanoid**: ~99,000 yuan (~$13,500)
+- **G1 humanoid**: ~~99,000 yuan (~~$13,500)
 - **H1 humanoid**: ~$90,000
 - **"Superman" (new, launched August 17)**: legs 0.85m, can jump 2 meters from a standstill, top speed 12.66 m/s, both surpassing human records. Developed in just over 3 months.
 
@@ -78,14 +78,14 @@ Founder Wang Xingxing responded in the prospectus that compared to peers, Unitre
 
 Unitree's IPO is the first time a pure-play humanoid robotics company has received a market-set price on a major exchange. Globally, the competitive landscape is:
 
-| Company | Status | Valuation |
-|---------|--------|-----------|
-| Figure AI | Private (Series C) | ~$39B |
-| 1X Technologies | Private | ~$10B |
+| Company          | Status                             | Valuation                  |
+| ---------------- | ---------------------------------- | -------------------------- |
+| Figure AI        | Private (Series C)                 | ~$39B                      |
+| 1X Technologies  | Private                            | ~$10B                      |
 | Unitree Robotics | **Public (STAR Market, Aug 2026)** | ~$9B at IPO, ~$62B at open |
-| Apptronik | Private (Series A ext.) | ~$5.3B |
-| Agility Robotics | SPAC pending (Nasdaq) | ~$2.5B |
-| Tesla Optimus | Division of Tesla | No standalone value |
+| Apptronik        | Private (Series A ext.)            | ~$5.3B                     |
+| Agility Robotics | SPAC pending (Nasdaq)              | ~$2.5B                     |
+| Tesla Optimus    | Division of Tesla                  | No standalone value        |
 
 China holds 97% of global humanoid robot shipments in H1 2026, according to U.S. research firm SAG data cited by China Business Journal. However, the commercial reality remains challenging: in the first 9 months of 2025, 73.6% of Unitree's humanoid revenue came from research and education scenarios, not industrial or consumer use.
 

@@ -10,9 +10,9 @@
 
 > 管线设 1 个强制人工确认点。Agent 到达时必须暂停，等待用户确认后才继续。
 
-| 检查点                  | 位置                           | 审阅内容                                         | 确认语              |
-| ----------------------- | ------------------------------ | ------------------------------------------------ | ------------------- |
-| **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 markdown + 场景概览 | 「视频 OK，发布」   |
+| 检查点                | 位置                           | 审阅内容                                                        | 确认语            |
+| --------------------- | ------------------------------ | --------------------------------------------------------------- | ----------------- |
+| **HITL** 视频成品审阅 | Stage 5 内部（验证后、发布前） | 视频成品 mp4 + verify-video.mjs 报告 + 文章 markdown + 场景概览 | 「视频 OK，发布」 |
 
 **用户审阅要点**：
 
@@ -29,14 +29,14 @@
 > **前置条件**：HITL 已通过（用户确认「视频 OK，发布」）。Agent 发布流程详见 `docs/content-pipeline.md` Stage 5。
 > 以下为 TikTok App 中需要手动完成的操作。
 
-| #   | 操作               | 说明                                     | 为什么                                  |
-| --- | ------------------ | ---------------------------------------- | --------------------------------------- |
-| 1   | **AIGC 标签**      | 发布界面打开 "AI-generated content"      | TikTok 要求标注 AI 内容，不标注会被降权 |
+| #   | 操作               | 说明                                                      | 为什么                                        |
+| --- | ------------------ | --------------------------------------------------------- | --------------------------------------------- |
+| 1   | **AIGC 标签**      | 发布界面打开 "AI-generated content"                       | TikTok 要求标注 AI 内容，不标注会被降权       |
 | 2   | **背景音乐**       | 使用 HITL 推荐的 BGM 或 TikTok trending sound，音量 5-12% | BGM 增加视频氛围，trending sound 算法加权更高 |
-| 3   | **地理标签**       | 添加 China/US 位置标签                   | 本地内容算法优先推同区域用户            |
-| 4   | **Pinned comment** | 发布后置顶含文章 URL 的评论              | 引导流量到网站                          |
-| 5   | **回复评论**       | 发布后 1 小时内回复所有评论              | 首小时互动信号影响算法推荐              |
-| 6   | **非高峰时段**     | 查看粉丝活跃时间，选低峰发布             | 竞争少，算法更容易推                    |
+| 3   | **地理标签**       | 添加 China/US 位置标签                                    | 本地内容算法优先推同区域用户                  |
+| 4   | **Pinned comment** | 发布后置顶含文章 URL 的评论                               | 引导流量到网站                                |
+| 5   | **回复评论**       | 发布后 1 小时内回复所有评论                               | 首小时互动信号影响算法推荐                    |
+| 6   | **非高峰时段**     | 查看粉丝活跃时间，选低峰发布                              | 竞争少，算法更容易推                          |
 
 ### BGM 两种方案
 
@@ -146,13 +146,13 @@ TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下�
 | `output/ab-test-results.json`  | A/B 测试追踪（ab-test-tracker.mjs）                  |
 | `output/tiktok-caption.txt`    | TikTok 发布用的 caption（verify-video.mjs 自动生成） |
 | `output/tiktok-metadata.json`  | TikTok 发布用的元数据（verify-video.mjs 自动生成）   |
-| `output/reference-videos/`     | 用户手动下载的竞品参考视频（按需）                    |
+| `output/reference-videos/`     | 用户手动下载的竞品参考视频（按需）                   |
 
 ## Design Decisions & References
 
-| Decision | Rationale | Source |
-|----------|-----------|--------|
-| HITL 检查点设在视频成品审阅（发布前） | 文章+视频一旦发布难以撤回，在发布前设置唯一强制确认点 | `docs/content-pipeline.md` HITL 章节 |
-| TikTok AIGC 标签必须手动开启 | TikTok App 发布界面无 API，Agent 无法自动标注 | TikTok 政策要求 |
+| Decision                                 | Rationale                                                | Source                                         |
+| ---------------------------------------- | -------------------------------------------------------- | ---------------------------------------------- |
+| HITL 检查点设在视频成品审阅（发布前）    | 文章+视频一旦发布难以撤回，在发布前设置唯一强制确认点    | `docs/content-pipeline.md` HITL 章节           |
+| TikTok AIGC 标签必须手动开启             | TikTok App 发布界面无 API，Agent 无法自动标注            | TikTok 政策要求                                |
 | BGM 两方案并存（混入 vs trending sound） | trending sound 有算法加权但不可控，混入 BGM 可控但无加权 | `docs/research/tiktok-practical-guide-2026.md` |
-| 竞品参考视频手动下载 | TikTok 视频无法 yt-dlp 下载，YouTube 可以 | `docs/research/reference-video-extraction.md` |
+| 竞品参考视频手动下载                     | TikTok 视频无法 yt-dlp 下载，YouTube 可以                | `docs/research/reference-video-extraction.md`  |

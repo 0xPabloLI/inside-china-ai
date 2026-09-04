@@ -68,7 +68,10 @@ describe("classifyFailure — subtitle-alignment", () => {
   it("returns 'subtitle-alignment' when wordSequence.matches is false", () => {
     const report = {
       summary: { passed: false, errors: 1 },
-      wordSequence: { matches: false, firstMismatch: { index: 0, expected: "Hello", rendered: null } },
+      wordSequence: {
+        matches: false,
+        firstMismatch: { index: 0, expected: "Hello", rendered: null },
+      },
       audioSync: null,
       gaps: { violations: [] },
     };

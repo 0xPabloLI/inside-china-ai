@@ -5,7 +5,13 @@ export const meta = {
   article: "sensetime-saudi-school-bus",
   renderer: "remotion",
   createdAt: "2026-08-15",
-  topics: ["sensetime", "saudi-arabia", "smart-school-bus", "ai-infrastructure", "china-ai-exports"],
+  topics: [
+    "sensetime",
+    "saudi-arabia",
+    "smart-school-bus",
+    "ai-infrastructure",
+    "china-ai-exports",
+  ],
   keyEntities: {
     companies: ["sensetime"],
     people: [],

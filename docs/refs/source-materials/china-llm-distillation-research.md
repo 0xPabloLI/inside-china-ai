@@ -135,66 +135,66 @@
 
 ### Anthropic Accusation Summary
 
-| Company | Fake Accounts | Conversations | Target Area | Response |
-|---------|--------------|---------------|-------------|----------|
-| DeepSeek | ~24,000 | 16M+ | Basic logic, alignment (censorship bypass) | — |
-| Moonshot (Kimi) | — | 3.4M+ | Agentic reasoning, tool use, coding, vision | Never responded |
-| MiniMax | — | 13M+ (largest) | Agentic coding, tool orchestration | — |
-| Alibaba | — | — | Not accused | — |
-| ByteDance | — | — | Not accused | — |
+| Company         | Fake Accounts | Conversations  | Target Area                                 | Response        |
+| --------------- | ------------- | -------------- | ------------------------------------------- | --------------- |
+| DeepSeek        | ~24,000       | 16M+           | Basic logic, alignment (censorship bypass)  | —               |
+| Moonshot (Kimi) | —             | 3.4M+          | Agentic reasoning, tool use, coding, vision | Never responded |
+| MiniMax         | —             | 13M+ (largest) | Agentic coding, tool orchestration          | —               |
+| Alibaba         | —             | —              | Not accused                                 | —               |
+| ByteDance       | —             | —              | Not accused                                 | —               |
 
 ### Model Capability Comparison
 
-| Model | Approximate Level | Notes |
-|-------|------------------|-------|
-| Fable (Claude) | Reference (top) | Distillation source |
-| DeepSeek V4 | Fable >> V4 ≥ 3.5 | Relative strongest among Chinese |
-| Kimi K3 | ~70 (claimed ~78) | Hallucination ~40%, slow |
-| Qwen 3 Max | Inconsistent | Sometimes strong, sometimes weak |
-| GLM | — | First to crack CoT |
-| MiniMax M1 | Marginalized | Caught cheating early |
+| Model          | Approximate Level | Notes                            |
+| -------------- | ----------------- | -------------------------------- |
+| Fable (Claude) | Reference (top)   | Distillation source              |
+| DeepSeek V4    | Fable >> V4 ≥ 3.5 | Relative strongest among Chinese |
+| Kimi K3        | ~70 (claimed ~78) | Hallucination ~40%, slow         |
+| Qwen 3 Max     | Inconsistent      | Sometimes strong, sometimes weak |
+| GLM            | —                 | First to crack CoT               |
+| MiniMax M1     | Marginalized      | Caught cheating early            |
 
 ### Encrypted CoT Technical Details
 
-| Property | OpenAI (GPT) | Anthropic (Claude) |
-|----------|-------------|-------------------|
-| Historical Blob across turns | ❌ Discarded | ✅ Retained |
-| Model recites when injected | ❌ Refuses/corrects | ✅ Natural recitation |
-| Response to follow-up | Denies/rationalizes | Cooperates |
-| Sampling parameters | Locked (temp=0.6, top_p=0.9) | — |
-| Crypto implementation | Fernet (standard, well-implemented) | Fernet |
-| Anti-replay | No (valid 24h+, cross-session) | — |
-| Cross-model Blob sharing | No (isolated by model family) | No |
+| Property                     | OpenAI (GPT)                        | Anthropic (Claude)    |
+| ---------------------------- | ----------------------------------- | --------------------- |
+| Historical Blob across turns | ❌ Discarded                        | ✅ Retained           |
+| Model recites when injected  | ❌ Refuses/corrects                 | ✅ Natural recitation |
+| Response to follow-up        | Denies/rationalizes                 | Cooperates            |
+| Sampling parameters          | Locked (temp=0.6, top_p=0.9)        | —                     |
+| Crypto implementation        | Fernet (standard, well-implemented) | Fernet                |
+| Anti-replay                  | No (valid 24h+, cross-session)      | —                     |
+| Cross-model Blob sharing     | No (isolated by model family)       | No                    |
 
 ### Blob Structure
 
-| Field | Description |
-|-------|-------------|
-| Version | Encryption version byte |
-| Timestamp | Creation time |
-| IV | Initialization vector (16 bytes) |
-| Ciphertext | Encrypted CoT (length ∝ reasoning tokens) |
-| HMAC | Integrity check (SHA-256) |
-| Prefix | `gAAAAAB` (Fernet standard) |
+| Field             | Description                                                 |
+| ----------------- | ----------------------------------------------------------- |
+| Version           | Encryption version byte                                     |
+| Timestamp         | Creation time                                               |
+| IV                | Initialization vector (16 bytes)                            |
+| Ciphertext        | Encrypted CoT (length ∝ reasoning tokens)                   |
+| HMAC              | Integrity check (SHA-256)                                   |
+| Prefix            | `gAAAAAB` (Fernet standard)                                 |
 | Chars/Token ratio | ~3.5-5.5 (variable, but length correlates with token count) |
 
 ## Timeline
 
-| Date | Event |
-|------|-------|
-| Pre-2026 | OpenAI/Anthropic deploy encrypted CoT (thinking signatures) |
-| ~Jan-Feb 2026 | GLM (Zhipu) cracks Fernet CoT encryption, shares method publicly |
-| Feb 2026 | Anthropic publishes blog accusing DeepSeek, Moonshot, MiniMax of industrial-scale distillation |
-| ~Feb-Mar 2026 | Tencent (Hunyuan) follows in distillation |
-| ~Mar 2026 | Mass distillation begins across Chinese companies |
-| Late Jun 2026 | DeepSeek emails preview of July new model, but hasn't started large-scale fable distillation → delays |
-| Early Jul 2026 | DeepSeek ~3.5-level internal test |
-| Jul 2026 | Kimi K3 released (SFT-only, rush release after RL team cut) |
-| Jul 2026 | 猫老板 changes questions → K3 median drops 8 points |
-| Mid Jul 2026 | "V formal gray release" — actually routing to fable |
-| Jul 8, 2026 | MiniMax M1 model launched, price cut 60% after one week |
-| Aug 6, 2026 | Zhang Yiming (ByteDance) makes anti-distillation statement |
-| Aug 2026 | Moonshot announces Hong Kong IPO preparation; will open-source K3 weights |
+| Date           | Event                                                                                                 |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| Pre-2026       | OpenAI/Anthropic deploy encrypted CoT (thinking signatures)                                           |
+| ~Jan-Feb 2026  | GLM (Zhipu) cracks Fernet CoT encryption, shares method publicly                                      |
+| Feb 2026       | Anthropic publishes blog accusing DeepSeek, Moonshot, MiniMax of industrial-scale distillation        |
+| ~Feb-Mar 2026  | Tencent (Hunyuan) follows in distillation                                                             |
+| ~Mar 2026      | Mass distillation begins across Chinese companies                                                     |
+| Late Jun 2026  | DeepSeek emails preview of July new model, but hasn't started large-scale fable distillation → delays |
+| Early Jul 2026 | DeepSeek ~3.5-level internal test                                                                     |
+| Jul 2026       | Kimi K3 released (SFT-only, rush release after RL team cut)                                           |
+| Jul 2026       | 猫老板 changes questions → K3 median drops 8 points                                                   |
+| Mid Jul 2026   | "V formal gray release" — actually routing to fable                                                   |
+| Jul 8, 2026    | MiniMax M1 model launched, price cut 60% after one week                                               |
+| Aug 6, 2026    | Zhang Yiming (ByteDance) makes anti-distillation statement                                            |
+| Aug 2026       | Moonshot announces Hong Kong IPO preparation; will open-source K3 weights                             |
 
 ## Technical Appendix: CoT Extraction Method
 

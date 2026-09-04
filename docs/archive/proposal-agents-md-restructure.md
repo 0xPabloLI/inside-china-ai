@@ -1,12 +1,12 @@
 # Proposal: AGENTS.md 结构重构 — 路由三档分级 + 全局 PSR Gate + 分层瘦身
 
-| | |
-|---|---|
-| **状态** | **v3** — 第二轮 review 裁定「有条件通过」（2 项阻塞 + 3 项一致性），本版吸收全部意见；修完后可批准进入正式 Grill/Spec |
-| **日期** | 2026-09-01 |
+|              |                                                                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **状态**     | **v3** — 第二轮 review 裁定「有条件通过」（2 项阻塞 + 3 项一致性），本版吸收全部意见；修完后可批准进入正式 Grill/Spec                                                |
+| **日期**     | 2026-09-01                                                                                                                                                           |
 | **涉及文件** | `AGENTS.md`（主）、`docs/tools-catalog.md`、`docs/video-workflow.md`、`docs/conventions/fact-verification.md`（新建）、`docs/DOCS-INDEX.md`、rollout tracker（新建） |
-| **依据** | `writing-for-agents` skill（已加载，本 proposal 的方法论来源） |
-| **生命周期** | proposal 为 ephemeral 文档；**归档时机 = rollout 观察完成后**（见 §8/§9），不是实施完成即归档 |
+| **依据**     | `writing-for-agents` skill（已加载，本 proposal 的方法论来源）                                                                                                       |
+| **生命周期** | proposal 为 ephemeral 文档；**归档时机 = rollout 观察完成后**（见 §8/§9），不是实施完成即归档                                                                        |
 
 ## 0. 修订记录
 
@@ -50,10 +50,10 @@
 
 ### 3a. 与现行强制流程的同步修改（阻塞项）
 
-| 位置 | 现行 | 改为 |
-|------|------|------|
-| L41 | 「**每次改代码之前**必须走完以下工作流，不得跳步」 | 「**路由为 Substantial 时**，必须走完以下工作流，不得跳步。Trivial/Small 按各自档位执行对应检查，不进入本 workflow」 |
-| L62-72（Step 9） | 结束清单要求逐条确认 Step 1-8 | 标题与正文限定「**仅 Substantial session 适用**」；新增一行：「Trivial/Small session 的结束验证 = 档位对应检查（Trivial：最窄相关检查 + commit；Small：Runtime Verify + commit），逐条确认已完成」 |
+| 位置             | 现行                                               | 改为                                                                                                                                                                                               |
+| ---------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L41              | 「**每次改代码之前**必须走完以下工作流，不得跳步」 | 「**路由为 Substantial 时**，必须走完以下工作流，不得跳步。Trivial/Small 按各自档位执行对应检查，不进入本 workflow」                                                                               |
+| L62-72（Step 9） | 结束清单要求逐条确认 Step 1-8                      | 标题与正文限定「**仅 Substantial session 适用**」；新增一行：「Trivial/Small session 的结束验证 = 档位对应检查（Trivial：最窄相关检查 + commit；Small：Runtime Verify + commit），逐条确认已完成」 |
 
 ### 3b. Step 1 重写（替换 L34-38）
 
@@ -84,6 +84,7 @@
 **PSR 发布 Gate** — 方案/建议**发布给用户前**，产出完整 PSR 清单：五条逐条附证据，不适用条目标注「不适用 + 原因」。**清单未附 = 方案未发布**。
 
 **五条检查**：
+
 1. **因果依据**：…（本体保留）
 2. **设计决策不是免死金牌**：…（本体保留）
 3. **影响面核查**：…（本体保留）
@@ -97,35 +98,35 @@ Workflow 内指针（不展开内容，避免 duplication）：Step 1 Grill 入�
 
 ### 5a. T0 前置修复（外移目标先成为可靠权威）
 
-| Ticket | 文件 | 问题（已实测定位） | 修复 |
-|--------|------|---------------|------|
-| T0a | `docs/tools-catalog.md` | **3 处**规范性表述与拟议硬规则冲突：L112 主条目「容错」（Tavily 当主用）；**L100** Context7「何时不用：通用事实验证（用 Tavily…）」；**L101** Context7「容错：…→ Tavily 搜库名」 | 全部改为回指 AGENTS.md 硬规则（见下）；tools-catalog 只保留操作细节（费用/配置/credits/星评） |
-| T0b | `docs/video-workflow.md` L105、L350-351 | 残留根 `assets/voice-sample-*` 路径，与 voice-samples 规则冲突 | 按 `docs/media-asset-management.md` 权威修正 |
-| T0c | （并入 T3 指针措辞） | 「不要扔进 `assets/`」与「品牌资产放 `scripts/short-video/assets/`」两个 `assets` 未消歧 | 指针显式区分：仓库根/应用 `assets/` 是反模式倾倒场；`scripts/short-video/assets/` 是视频品牌资产的家 |
+| Ticket | 文件                                    | 问题（已实测定位）                                                                                                                                                               | 修复                                                                                                 |
+| ------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| T0a    | `docs/tools-catalog.md`                 | **3 处**规范性表述与拟议硬规则冲突：L112 主条目「容错」（Tavily 当主用）；**L100** Context7「何时不用：通用事实验证（用 Tavily…）」；**L101** Context7「容错：…→ Tavily 搜库名」 | 全部改为回指 AGENTS.md 硬规则（见下）；tools-catalog 只保留操作细节（费用/配置/credits/星评）        |
+| T0b    | `docs/video-workflow.md` L105、L350-351 | 残留根 `assets/voice-sample-*` 路径，与 voice-samples 规则冲突                                                                                                                   | 按 `docs/media-asset-management.md` 权威修正                                                         |
+| T0c    | （并入 T3 指针措辞）                    | 「不要扔进 `assets/`」与「品牌资产放 `scripts/short-video/assets/`」两个 `assets` 未消歧                                                                                         | 指针显式区分：仓库根/应用 `assets/` 是反模式倾倒场；`scripts/short-video/assets/` 是视频品牌资产的家 |
 
 **Tavily 单权威原则**（替代 v2 的「逐字一致」验收项）：fallback 硬规则（`web_fetch → web-access CDP → Tavily`，仅当前两者失败才用）**唯一活在 AGENTS.md**；tools-catalog 不得出现规范性 fallback 表述，只写费用/配置等操作细节并**回指** AGENTS.md。
 
 ### 5b. 章节处置表
 
-| 章节（现行号） | 行数 | 处置 | 去向 |
-|------|------|------|------|
-| Lovable 头部 L1-12 | 12 | **保留** | — |
-| Project Snapshot L16-22 | 7 | 压缩至 4 行 | — |
-| Core Commands L24-30 | 7 | **删除** | — |
-| Session Workflow L32-72 | 41 | 骨架保留；L41 限定 + Step 9 限定（§3a）；Step 1 重写（§3b）；两处 PSR 短指针 | — |
-| （改写）`## PSR` L94-102 | 9 → ~15 | 单章节合并（§4），净 +6 行 | 第 4 条操作程序 → `docs/conventions/fact-verification.md`（新建） |
-| Commit Cadence L74-85 | 12 | 删 TL;DR 段（与六条规则重复），保留一句话导语 | — |
-| Coding Conventions L104-111 | 8 | 保留 | — |
-| Git Safety / Cross-Branch / Session Boundary L113-124 | 12 | 保留 | — |
-| High-Risk Areas L126-131 | 6 | 保留；补「Agent 治理文件」条目 +2 行 | — |
-| Media Asset Placement L133-145 | 13 | 压成 2 行 pointer（含 T0c 消歧 + `LibsndfileError` 触发词） | `docs/media-asset-management.md` / `docs/video-workflow.md` |
-| Audio File Handling L147-149 | 3 | 并入 media pointer | `docs/video-workflow.md` |
-| Learned Preferences L151-156 | 6 | 保留 | — |
-| Model Selection L158-160 | 3 | 保留 | — |
-| Content Pipeline L162-177 | 16 | **不复制概述**：`docs/content-pipeline.md` 已有「管线概览」（L6）与「HITL 检查点」（L61），验证其覆盖 AGENTS.md 现有信息点（HITL 强制规则、preflight 验证、`--draft` 用法、RAG reindex 触发点）后，**仅改指针**；**skill 触发规则保留 in-file 3 行**（路由决定「加载什么」，不藏进长文档）；HITL 强制规则 + preflight 硬规则留 in-file；压缩后 ~7 行 | 概述缺口（如有）补进 content-pipeline.md |
-| Session Start Checklist L179-185 | 7 | 保留 | — |
-| Web Scraping L187-200 | 14 | **Tavily fallback 硬规则唯一保留 in-file**（单权威）；工具表 + 工具发现段外移；压成 ~4 行 | `docs/tools-catalog.md`（T0a 完成后） |
-| Agent skills L202-214 | 13 | 保留 | — |
+| 章节（现行号）                                        | 行数    | 处置                                                                                                                                                                                                                                                                                                                                                 | 去向                                                              |
+| ----------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Lovable 头部 L1-12                                    | 12      | **保留**                                                                                                                                                                                                                                                                                                                                             | —                                                                 |
+| Project Snapshot L16-22                               | 7       | 压缩至 4 行                                                                                                                                                                                                                                                                                                                                          | —                                                                 |
+| Core Commands L24-30                                  | 7       | **删除**                                                                                                                                                                                                                                                                                                                                             | —                                                                 |
+| Session Workflow L32-72                               | 41      | 骨架保留；L41 限定 + Step 9 限定（§3a）；Step 1 重写（§3b）；两处 PSR 短指针                                                                                                                                                                                                                                                                         | —                                                                 |
+| （改写）`## PSR` L94-102                              | 9 → ~15 | 单章节合并（§4），净 +6 行                                                                                                                                                                                                                                                                                                                           | 第 4 条操作程序 → `docs/conventions/fact-verification.md`（新建） |
+| Commit Cadence L74-85                                 | 12      | 删 TL;DR 段（与六条规则重复），保留一句话导语                                                                                                                                                                                                                                                                                                        | —                                                                 |
+| Coding Conventions L104-111                           | 8       | 保留                                                                                                                                                                                                                                                                                                                                                 | —                                                                 |
+| Git Safety / Cross-Branch / Session Boundary L113-124 | 12      | 保留                                                                                                                                                                                                                                                                                                                                                 | —                                                                 |
+| High-Risk Areas L126-131                              | 6       | 保留；补「Agent 治理文件」条目 +2 行                                                                                                                                                                                                                                                                                                                 | —                                                                 |
+| Media Asset Placement L133-145                        | 13      | 压成 2 行 pointer（含 T0c 消歧 + `LibsndfileError` 触发词）                                                                                                                                                                                                                                                                                          | `docs/media-asset-management.md` / `docs/video-workflow.md`       |
+| Audio File Handling L147-149                          | 3       | 并入 media pointer                                                                                                                                                                                                                                                                                                                                   | `docs/video-workflow.md`                                          |
+| Learned Preferences L151-156                          | 6       | 保留                                                                                                                                                                                                                                                                                                                                                 | —                                                                 |
+| Model Selection L158-160                              | 3       | 保留                                                                                                                                                                                                                                                                                                                                                 | —                                                                 |
+| Content Pipeline L162-177                             | 16      | **不复制概述**：`docs/content-pipeline.md` 已有「管线概览」（L6）与「HITL 检查点」（L61），验证其覆盖 AGENTS.md 现有信息点（HITL 强制规则、preflight 验证、`--draft` 用法、RAG reindex 触发点）后，**仅改指针**；**skill 触发规则保留 in-file 3 行**（路由决定「加载什么」，不藏进长文档）；HITL 强制规则 + preflight 硬规则留 in-file；压缩后 ~7 行 | 概述缺口（如有）补进 content-pipeline.md                          |
+| Session Start Checklist L179-185                      | 7       | 保留                                                                                                                                                                                                                                                                                                                                                 | —                                                                 |
+| Web Scraping L187-200                                 | 14      | **Tavily fallback 硬规则唯一保留 in-file**（单权威）；工具表 + 工具发现段外移；压成 ~4 行                                                                                                                                                                                                                                                            | `docs/tools-catalog.md`（T0a 完成后）                             |
+| Agent skills L202-214                                 | 13      | 保留                                                                                                                                                                                                                                                                                                                                                 | —                                                                 |
 
 **验收指标**：主指标 **words ≤ 1,330（基线 1,778 的 -25%）**，用 `wc -w` / `wc -c` 度量并记录 bytes 实际值；行数 ≤200 仅作粗护栏（长行可能是 token 大户，行数不进验收主判据）。
 
@@ -133,17 +134,17 @@ Workflow 内指针（不展开内容，避免 duplication）：Step 1 Grill 入�
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `AGENTS.md` | L41/Step 9 限定、Step 1 重写、PSR 章节合并改写、6 章节外移/压缩 | **High** | 规则源头；此类修改本身即 Substantial。缓解：行为矩阵逐行验收 + 三查 + 第三方复审 |
-| `docs/tools-catalog.md` | T0a：3 处规范性表述改为回指 + 接收工具表 | Medium | 修改「何时不用/容错」语义（L100/L101/L112）；实施时 grep 全文 Tavily 确认无遗漏规范性表述 |
-| `docs/video-workflow.md` | T0b 修过期路径 + 接收 skill 矩阵/分工注/M4A 细节 | Medium | 路径修正以 media-asset-management.md 为准 |
-| `docs/content-pipeline.md` | **仅验证覆盖 + 补缺口（如有）**，不复制概述 | Low | 已确认 L6 管线概览 + L61 HITL 存在；实施时逐信息点核对覆盖 |
-| `docs/conventions/fact-verification.md` | 新建 | Low | 新文件 |
-| `docs/media-asset-management.md` | 不改内容 | Low | 仅被指针引用 |
-| `docs/DOCS-INDEX.md` | 登记 pointer 关系 + 归档（T7b） | Low | |
-| rollout tracker（新建，随 T7a） | 记录观察期数据 + 回滚阈值 | Low | 形态实施时定（GitHub Issue 优先，符合 issue-tracker.md） |
-| `.agents/skills/*` | **不改** | — | git 未跟踪；如未来需要，先入库再改 |
+| 文件                                    | 修改内容                                                        | 风险等级 | 评估                                                                                      |
+| --------------------------------------- | --------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `AGENTS.md`                             | L41/Step 9 限定、Step 1 重写、PSR 章节合并改写、6 章节外移/压缩 | **High** | 规则源头；此类修改本身即 Substantial。缓解：行为矩阵逐行验收 + 三查 + 第三方复审          |
+| `docs/tools-catalog.md`                 | T0a：3 处规范性表述改为回指 + 接收工具表                        | Medium   | 修改「何时不用/容错」语义（L100/L101/L112）；实施时 grep 全文 Tavily 确认无遗漏规范性表述 |
+| `docs/video-workflow.md`                | T0b 修过期路径 + 接收 skill 矩阵/分工注/M4A 细节                | Medium   | 路径修正以 media-asset-management.md 为准                                                 |
+| `docs/content-pipeline.md`              | **仅验证覆盖 + 补缺口（如有）**，不复制概述                     | Low      | 已确认 L6 管线概览 + L61 HITL 存在；实施时逐信息点核对覆盖                                |
+| `docs/conventions/fact-verification.md` | 新建                                                            | Low      | 新文件                                                                                    |
+| `docs/media-asset-management.md`        | 不改内容                                                        | Low      | 仅被指针引用                                                                              |
+| `docs/DOCS-INDEX.md`                    | 登记 pointer 关系 + 归档（T7b）                                 | Low      |                                                                                           |
+| rollout tracker（新建，随 T7a）         | 记录观察期数据 + 回滚阈值                                       | Low      | 形态实施时定（GitHub Issue 优先，符合 issue-tracker.md）                                  |
+| `.agents/skills/*`                      | **不改**                                                        | —        | git 未跟踪；如未来需要，先入库再改                                                        |
 
 **统一影响评估**（按 `scenario-matrix.md` 三问）：
 
@@ -153,26 +154,26 @@ Workflow 内指针（不展开内容，避免 duplication）：Step 1 Grill 入�
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | `src/` 单文件 typo | Trivial：直接改 + 最窄检查 + commit | Low | |
-| 2 | `src/` ≤10 行**行为**修改 | **Small**，不是 Trivial | Low | 行数不作定档依据 |
-| 3 | 实现+测试双文件，无契约变化 | Small 正常 | Low | 判定看影响面 |
-| 4 | `admin.tsx` state 改动（High-Risk） | Substantial | Medium | |
-| 5 | `scripts/article/` 改动触及发布、持久化或跨阶段契约 | Substantial（旧行为：无 workflow） | Medium | 定档按影响面；「大」改为可执行条件（第三轮 review 裁定） |
-| 6 | 纯 AGENTS.md 规则修改 | **一律 Substantial**（即使一行） | Medium | |
-| 7 | Trivial/Small session 结束 | **不执行 Step 1-8 结束清单**；结束验证 = 档位对应检查 | Medium | §3a 同步修改消除冲突 |
-| 8 | Substantial session 结束 | 现行 Step 9 清单照常执行 | Low | |
-| 9 | 方案/建议未附 PSR 清单即输出 | 未发布：用户打回；**含事实/参数断言的建议**（模型选型等）同样被覆盖；纯解释/无断言对话不触发 | Medium | 发布 Gate + 收窄的触发范围 |
-| 10 | 方案进入 Grill，证据未齐 | Preflight 已列证据需求，Grill 补齐，发布 Gate 在 Grill 后 | Low | 两段式消除顺序倒置 |
-| 11 | Small 中途触及 schema | **停止编辑；不 stash、不丢弃、不提交未完成工作**；补齐 Grill/Spec/Tickets 后继续；仅已验证的原子改动保留 commit | Medium | 升级协议写进 Step 1 |
-| 12 | 混合任务（文案+逻辑） | 取最高档或拆分 | Low | |
-| 13 | Small 中 Runtime Verify 失败 | 修复重验；需结构性改动则走升级协议 | Low | |
-| 14 | 依赖/CI/部署变更 | Substantial | Medium | |
-| 15 | PSR 清单某条不适用 | 标注「不适用 + 原因」，不跳过整张清单 | Low | |
-| 16 | 做视频任务 | content-pipeline；skill 触发规则 in-file | Low | |
-| 17 | Agent 抓网页倾向 Tavily | in-file 硬规则：fallback 链未走完不用；tools-catalog 无规范性表述可绕过 | **High**（付费） | 单权威：规则唯一活在 AGENTS.md |
-| 18 | 创建媒体文件 | pointer → 权威文档 → 正确位置 | Medium | T0c 消歧 + 走查 |
+| #   | Scenario                                            | Expected Behavior                                                                                               | Risk             | Mitigation                                               |
+| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------- |
+| 1   | `src/` 单文件 typo                                  | Trivial：直接改 + 最窄检查 + commit                                                                             | Low              |                                                          |
+| 2   | `src/` ≤10 行**行为**修改                           | **Small**，不是 Trivial                                                                                         | Low              | 行数不作定档依据                                         |
+| 3   | 实现+测试双文件，无契约变化                         | Small 正常                                                                                                      | Low              | 判定看影响面                                             |
+| 4   | `admin.tsx` state 改动（High-Risk）                 | Substantial                                                                                                     | Medium           |                                                          |
+| 5   | `scripts/article/` 改动触及发布、持久化或跨阶段契约 | Substantial（旧行为：无 workflow）                                                                              | Medium           | 定档按影响面；「大」改为可执行条件（第三轮 review 裁定） |
+| 6   | 纯 AGENTS.md 规则修改                               | **一律 Substantial**（即使一行）                                                                                | Medium           |                                                          |
+| 7   | Trivial/Small session 结束                          | **不执行 Step 1-8 结束清单**；结束验证 = 档位对应检查                                                           | Medium           | §3a 同步修改消除冲突                                     |
+| 8   | Substantial session 结束                            | 现行 Step 9 清单照常执行                                                                                        | Low              |                                                          |
+| 9   | 方案/建议未附 PSR 清单即输出                        | 未发布：用户打回；**含事实/参数断言的建议**（模型选型等）同样被覆盖；纯解释/无断言对话不触发                    | Medium           | 发布 Gate + 收窄的触发范围                               |
+| 10  | 方案进入 Grill，证据未齐                            | Preflight 已列证据需求，Grill 补齐，发布 Gate 在 Grill 后                                                       | Low              | 两段式消除顺序倒置                                       |
+| 11  | Small 中途触及 schema                               | **停止编辑；不 stash、不丢弃、不提交未完成工作**；补齐 Grill/Spec/Tickets 后继续；仅已验证的原子改动保留 commit | Medium           | 升级协议写进 Step 1                                      |
+| 12  | 混合任务（文案+逻辑）                               | 取最高档或拆分                                                                                                  | Low              |                                                          |
+| 13  | Small 中 Runtime Verify 失败                        | 修复重验；需结构性改动则走升级协议                                                                              | Low              |                                                          |
+| 14  | 依赖/CI/部署变更                                    | Substantial                                                                                                     | Medium           |                                                          |
+| 15  | PSR 清单某条不适用                                  | 标注「不适用 + 原因」，不跳过整张清单                                                                           | Low              |                                                          |
+| 16  | 做视频任务                                          | content-pipeline；skill 触发规则 in-file                                                                        | Low              |                                                          |
+| 17  | Agent 抓网页倾向 Tavily                             | in-file 硬规则：fallback 链未走完不用；tools-catalog 无规范性表述可绕过                                         | **High**（付费） | 单权威：规则唯一活在 AGENTS.md                           |
+| 18  | 创建媒体文件                                        | pointer → 权威文档 → 正确位置                                                                                   | Medium           | T0c 消歧 + 走查                                          |
 
 ## 7. 风险与缓解
 
@@ -209,10 +210,10 @@ Workflow 内指针（不展开内容，避免 duplication）：Step 1 Grill 入�
 
 ## 附录：PSR 自查记录（v3 更新）
 
-| # | 条目 | 结论 |
-|---|------|------|
-| 1 | 因果依据 | 保持谨慎口径（观察到一次，待验证的贡献机制，引 handoff:74）；v3 各项修正均源自第二轮 review 可定位意见 |
-| 2 | 设计决策不是免死金牌 | 行数指标因 review 指出「行数≠context load」改为 words/bytes 主判据；基线 `wc` 实测 1,778 words / 23,427 bytes 与 review 数字一致；v2 两处估计（~176 行、「逐字一致」验收）被推翻即改 |
-| 3 | 影响面核查 | 新增 rollout tracker 进影响表；content-pipeline.md 处置从「接收概述」改为「验证覆盖+改指针」；T0a 范围经 `grep -i tavily tools-catalog.md` 实测扩至 L100/L101/L112 三处 |
-| 4 | 事实性陈述双源验证 | 本轮新增实测：`wc -w -c -l AGENTS.md`（基线吻合）；`grep -i tavily docs/tools-catalog.md`（3 处规范性表述确认）；`grep -n "^#" docs/content-pipeline.md`（L6 管线概览、L61 HITL 检查点确认存在）；此前已实测 tools-catalog 主条目、video-workflow L105/L350-351、`git ls-files .agents/skills/`=0、lint 扫描范围 |
-| 5 | 推理参数 | 不适用 |
+| #   | 条目                 | 结论                                                                                                                                                                                                                                                                                                             |
+| --- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 因果依据             | 保持谨慎口径（观察到一次，待验证的贡献机制，引 handoff:74）；v3 各项修正均源自第二轮 review 可定位意见                                                                                                                                                                                                           |
+| 2   | 设计决策不是免死金牌 | 行数指标因 review 指出「行数≠context load」改为 words/bytes 主判据；基线 `wc` 实测 1,778 words / 23,427 bytes 与 review 数字一致；v2 两处估计（~176 行、「逐字一致」验收）被推翻即改                                                                                                                             |
+| 3   | 影响面核查           | 新增 rollout tracker 进影响表；content-pipeline.md 处置从「接收概述」改为「验证覆盖+改指针」；T0a 范围经 `grep -i tavily tools-catalog.md` 实测扩至 L100/L101/L112 三处                                                                                                                                          |
+| 4   | 事实性陈述双源验证   | 本轮新增实测：`wc -w -c -l AGENTS.md`（基线吻合）；`grep -i tavily docs/tools-catalog.md`（3 处规范性表述确认）；`grep -n "^#" docs/content-pipeline.md`（L6 管线概览、L61 HITL 检查点确认存在）；此前已实测 tools-catalog 主条目、video-workflow L105/L350-351、`git ls-files .agents/skills/`=0、lint 扫描范围 |
+| 5   | 推理参数             | 不适用                                                                                                                                                                                                                                                                                                           |

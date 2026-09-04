@@ -18,8 +18,7 @@ export const scenes = [
     visualType: "hook",
     layout: "hero-center",
     mediaOptOut: true,
-    voiceover:
-      "50 billion dollars. Kimi's parent company is pushing for IPO at that valuation.",
+    voiceover: "50 billion dollars. Kimi's parent company is pushing for IPO at that valuation.",
     texts: {
       badge: "BREAKING",
       subject: "KIMI IPO",
@@ -147,8 +146,7 @@ export const scenes = [
     name: "cta",
     visualType: "cta",
     mediaOptOut: true,
-    voiceover:
-      "That 50 billion dollar IPO bet starts now. Follow China AI News for more.",
+    voiceover: "That 50 billion dollar IPO bet starts now. Follow China AI News for more.",
     texts: {
       brand: "CHINA AI NEWS",
       tagline: "KIMI'S $50B IPO",

@@ -61,10 +61,11 @@ function getStagedFiles() {
 function isLfsPointer(filePath) {
   try {
     // Read the staged blob content (first 200 bytes is enough)
-    const content = execSync(
-      `git cat-file -p :"${filePath}" 2>/dev/null | head -c 200`,
-      { cwd: repoRoot, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
-    );
+    const content = execSync(`git cat-file -p :"${filePath}" 2>/dev/null | head -c 200`, {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     // LFS pointer format:
     // version https://git-lfs.github.com/spec/v1
     // oid sha256:...
@@ -121,7 +122,9 @@ function main() {
     process.exit(1);
   }
 
-  console.log(`  [lfs-check] ✅ All ${lfsStagedFiles.length} LFS-tracked file(s) are valid pointers`);
+  console.log(
+    `  [lfs-check] ✅ All ${lfsStagedFiles.length} LFS-tracked file(s) are valid pointers`,
+  );
   process.exit(0);
 }
 

@@ -6,10 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const SCRIPT = join(process.cwd(), "scripts/short-video/lib/focus_detector.py");
-const VENV_PYTHON = join(
-  process.env.HOME || "/Users/pabloli",
-  ".video-tts-env/bin/python3",
-);
+const VENV_PYTHON = join(process.env.HOME || "/Users/pabloli", ".video-tts-env/bin/python3");
 
 const PYTHON_BIN = process.env.FOCUS_PYTHON || VENV_PYTHON;
 

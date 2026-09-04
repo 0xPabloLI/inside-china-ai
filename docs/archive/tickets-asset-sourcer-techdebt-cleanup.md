@@ -8,6 +8,7 @@
 **依赖**：无
 
 **内容**：
+
 - [x] 新增模块级 helper：`shouldSkipByPreFilter(candidate, keyword, sourceName, skipped)`、`shouldSkipByDedup(candidate, downloadedUrls, sourceName, skipped)`、`downloadAndRecord(candidate, opts)`
 - [x] 单测：矩阵行 1-10（三路分支、preFilter 顺序、dedup、source/keyword 记录、status 语义、onDownloaded 钩子）
 - [x] 改造 6 个 phase（Phase 0 / 0b / API / yt-dlp / CDP / Tier 3）使用 helper，保留各 phase 差异（preFilter 有无、顺序、text 特判、Tier 3 engineFailed）
@@ -20,6 +21,7 @@
 **依赖**：无（与 Ticket 1 无共享代码，可并行实施）
 
 **内容**：
+
 - [x] 新增 `RELEVANCE_SOURCE = { VLM: "vlm", OVERLAP: "overlap" }` 常量 + `makeRelevance({score, source, reason, reused})` 工厂
 - [x] `gatedEntryFields` 改调 `makeRelevance`（值不变：OVERLAP + token overlap reason）
 - [x] claim-bound entry 手写 4 字段改调 `makeRelevance`（值不变：VLM + `||` 语义在工厂内部归一化，**保持 `||`**）

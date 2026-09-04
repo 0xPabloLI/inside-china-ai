@@ -345,7 +345,9 @@ export function textExtentComposition(gate: HTMLElement): Box {
  * segments point in every direction and the union converges to the old
  * bbox+sw/2 box; for lines it stays tight to the true band.
  */
-function paintedBoxOfSvg(svg: SVGSVGElement): { x: number; y: number; width: number; height: number } | null {
+function paintedBoxOfSvg(
+  svg: SVGSVGElement,
+): { x: number; y: number; width: number; height: number } | null {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;

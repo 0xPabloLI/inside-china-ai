@@ -83,7 +83,14 @@ describe("checkFinalMedia", () => {
   it("FAILS when media is declared but the file is still absent after sourcing", () => {
     const dir = makeContentDir([]);
     const result = checkFinalMedia({
-      scenes: [{ id: 4, visualType: "narrative", layout: "stacked-cards", media: withMedia({ path: "assets/gone.jpg" }) }],
+      scenes: [
+        {
+          id: 4,
+          visualType: "narrative",
+          layout: "stacked-cards",
+          media: withMedia({ path: "assets/gone.jpg" }),
+        },
+      ],
       contentDir: dir,
     });
     expect(result.pass).toBe(false);

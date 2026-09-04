@@ -17,6 +17,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 **三集上限规则**：2-3 集为最佳，超过 3 集观众流失率显著上升。评估器输出 >3 时强制 cap 为 3。
 
 **Agent 行为**：
+
 - `recommendedParts === 1`：走单集流程
 - `recommendedParts > 1`：cap 为 3 后输出分集评估报告，等待用户确认后生成 N 份 scene-data
 
@@ -111,6 +112,6 @@ node scripts/short-video/main.mjs --content distillation-compilation
 
 ## Design Decisions & References
 
-| Topic | Reference | Content |
-|-------|-----------|---------|
+| Topic                          | Reference                                                    | Content                                                                        |
+| ------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
 | Multi-video splitting research | `docs/research/multi-video-splitting-best-practices.md` (L2) | 15 sources — TikTok algorithm analysis, episode linking, auto-evaluator design |

@@ -8,28 +8,28 @@
 
 ## 当前状态
 
-| 项目 | 结论 | 本轮证据 |
-|---|---|---|
-| Focus IPC、超时与降级 | **通过** | 相关 Vitest 范围在默认 worker 配置下通过；真实 smoke 显示当前 Skyline 样本响应约 154 ms。 |
-| `fit` 迁移 | **通过** | 旧 hook 测试已从 `aiFit` 更新为 `fit`，相关 suite 全绿。 |
-| Markdown 解析 | **通过** | `test_parse_markdown.py` 的 10 个边界用例全部通过。 |
-| artifact 写入测试 | **通过** | 先前缺少 `join` 导入的测试已修复，相关集成 suite 已通过。 |
-| 默认相关测试基线 | **通过，需持续观察** | `vitest run` 的 6 个相关文件：**216 / 216** 测试通过。运行仍出现一次 `MaxListenersExceededWarning`，不影响此次结果但应清理。 |
-| patch 生成 → 应用 | **P0 未通过** | 当前编排器生成绝对媒体路径，应用器仍拒绝绝对路径；构造端到端检查返回 `valid: false`。 |
-| subjects / contentKind 消费 | **P1 未通过** | 两个字段已持久化并显示给人工，但评分和场景推荐尚未按 Spec 使用它们。 |
-| pre-filter 行为 | **P1 待决** | Spec 的软门描述与当前硬跳过实现不一致，需要产品决策后统一。 |
-| artifact run 隔离 | **P1 未通过** | 分析与 patch 仍写入共享 `scripts/short-video/output/` 默认路径。 |
+| 项目                        | 结论                 | 本轮证据                                                                                                                     |
+| --------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Focus IPC、超时与降级       | **通过**             | 相关 Vitest 范围在默认 worker 配置下通过；真实 smoke 显示当前 Skyline 样本响应约 154 ms。                                    |
+| `fit` 迁移                  | **通过**             | 旧 hook 测试已从 `aiFit` 更新为 `fit`，相关 suite 全绿。                                                                     |
+| Markdown 解析               | **通过**             | `test_parse_markdown.py` 的 10 个边界用例全部通过。                                                                          |
+| artifact 写入测试           | **通过**             | 先前缺少 `join` 导入的测试已修复，相关集成 suite 已通过。                                                                    |
+| 默认相关测试基线            | **通过，需持续观察** | `vitest run` 的 6 个相关文件：**216 / 216** 测试通过。运行仍出现一次 `MaxListenersExceededWarning`，不影响此次结果但应清理。 |
+| patch 生成 → 应用           | **P0 未通过**        | 当前编排器生成绝对媒体路径，应用器仍拒绝绝对路径；构造端到端检查返回 `valid: false`。                                        |
+| subjects / contentKind 消费 | **P1 未通过**        | 两个字段已持久化并显示给人工，但评分和场景推荐尚未按 Spec 使用它们。                                                         |
+| pre-filter 行为             | **P1 待决**          | Spec 的软门描述与当前硬跳过实现不一致，需要产品决策后统一。                                                                  |
+| artifact run 隔离           | **P1 未通过**        | 分析与 patch 仍写入共享 `scripts/short-video/output/` 默认路径。                                                             |
 
 ## 已关闭事项
 
 以下是本轮验证已关闭的旧问题，不应再作为 blocker 重复提出。
 
-| 原问题 | 当前结论 | 证据 |
-|---|---|---|
-| `fit` 与废弃 `focus` 耦合 | **已关闭** | 语义合并接口取代 `analyzeFit`；hook 测试使用 `asset.fit = "cover"` 并通过。 |
-| artifact 集成测试的 `join` 未导入 | **已关闭** | 当前相关 Vitest 范围全绿。 |
-| 真实 Focus 测试本轮发生 timeout | **本轮未复现** | 默认 4 worker 的相关范围全部通过。测试仍仅以注释建议 `--maxWorkers=1`，因此保留为低优先级运行稳定性风险。 |
-| 天际线被视为人脸 golden | **已关闭为已知精度边界** | Smoke 只断言 saliency、frame 与 schema；不会把 Haar false positive 作为真实人脸能力证明。 |
+| 原问题                            | 当前结论                 | 证据                                                                                                      |
+| --------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `fit` 与废弃 `focus` 耦合         | **已关闭**               | 语义合并接口取代 `analyzeFit`；hook 测试使用 `asset.fit = "cover"` 并通过。                               |
+| artifact 集成测试的 `join` 未导入 | **已关闭**               | 当前相关 Vitest 范围全绿。                                                                                |
+| 真实 Focus 测试本轮发生 timeout   | **本轮未复现**           | 默认 4 worker 的相关范围全部通过。测试仍仅以注释建议 `--maxWorkers=1`，因此保留为低优先级运行稳定性风险。 |
+| 天际线被视为人脸 golden           | **已关闭为已知精度边界** | Smoke 只断言 saliency、frame 与 schema；不会把 Haar false positive 作为真实人脸能力证明。                 |
 
 ## 必须修复（P0）
 
@@ -71,9 +71,9 @@ Semantic Merge Spec 明确把 `subjects` 作为 0–20 分精确匹配信号，�
 
 **[建议修改]** 先作一个产品决策，再把代码、测试和归档说明对齐：
 
-| 选项 | 正向契约 |
-|---|---|
-| 保持成本优先 | 把 Spec 改为硬门；记录其可能漏掉元数据差但视觉相关的素材。 |
+| 选项         | 正向契约                                                                         |
+| ------------ | -------------------------------------------------------------------------------- |
+| 保持成本优先 | 把 Spec 改为硬门；记录其可能漏掉元数据差但视觉相关的素材。                       |
 | 保持召回优先 | 让 low-confidence 素材继续 VLM 分析，但设置独立预算/并发上限或只分析候选 top-N。 |
 
 当前不应同时保留“soft gate”文案和“hard skip”行为。
@@ -97,6 +97,7 @@ Semantic Merge Spec 明确把 `subjects` 作为 0–20 分精确匹配信号，�
 **[建议修改]** 把真实 subprocess runtime suite 变成明确脚本或配置，而不是调用约定；同时审查测试中模块重载或全局 process 监听器的清理。完成条件是连续多次默认运行无 timeout、无 listener warning。
 
 **[已修复 P2]**
+
 1. 创建 `scripts/short-video/vitest.config.mjs`：vitest 4 `projects` 配置，subprocess 文件（`focus-smoke.test.mjs` + `focus_detector.test.mjs`）自动走 `fileParallelism: false` + `pool: forks` + `singleFork: true`，不再依赖注释约定。
 2. `visual-analyzer.mjs` 的 `process.on("exit")` 加 `Symbol.for` guard：模块多次 import 时只注册一次，消除 `MaxListenersExceededWarning`。
 3. 两个测试文件中的注释从"run with --maxWorkers=1"改为指向 vitest.config.mjs。
@@ -106,13 +107,13 @@ Semantic Merge Spec 明确把 `subjects` 作为 0–20 分精确匹配信号，�
 
 当前实现已经满足观察与人工审阅用途，且相关单元与集成测试本轮全绿。它尚不满足把生成 patch 安全应用到 scene-data 的完成标准。
 
-| 顺序 | 工作项 | 通过门槛 |
-|---:|---|---|
-| 1 | 修复相对路径契约 | 端到端 dry-run 接受生成 patch。 |
-| 2 | 决定并实现 `subjects`/`contentKind` 消费 | 评分与推荐测试证明字段影响结果。 |
-| 3 | 统一 pre-filter 语义 | Spec、代码、日志和测试完全一致。 |
-| 4 | 隔离 per-run artifact 并刷新实验验证 | Review 不会读取其他 content 的旧分析；当前协议有可重跑实测证据。 |
-| 5 | 加固 runtime test harness | ✅ vitest.config.mjs + Symbol.for guard，连续默认测试稳定且无 listener warning。 |
+| 顺序 | 工作项                                   | 通过门槛                                                                         |
+| ---: | ---------------------------------------- | -------------------------------------------------------------------------------- |
+|    1 | 修复相对路径契约                         | 端到端 dry-run 接受生成 patch。                                                  |
+|    2 | 决定并实现 `subjects`/`contentKind` 消费 | 评分与推荐测试证明字段影响结果。                                                 |
+|    3 | 统一 pre-filter 语义                     | Spec、代码、日志和测试完全一致。                                                 |
+|    4 | 隔离 per-run artifact 并刷新实验验证     | Review 不会读取其他 content 的旧分析；当前协议有可重跑实测证据。                 |
+|    5 | 加固 runtime test harness                | ✅ vitest.config.mjs + Symbol.for guard，连续默认测试稳定且无 listener warning。 |
 
 ## References
 

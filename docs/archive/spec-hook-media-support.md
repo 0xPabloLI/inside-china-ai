@@ -42,6 +42,7 @@ Hook 场景的 media 决策遵循以下优先级：
 ### D2: CSS 路径修改（`hookScene()` in `lib/scene-templates.mjs`）
 
 在 `hookScene()` 的 HTML 输出中，当 `scene.media` 存在时：
+
 - 调用 `mediaLayer(scene.media, contentDir, duration)` 获取 `{css, html}`
 - media CSS 注入到 `<style>` 块（在 `templateCss()` 之后）
 - media HTML 插入到 `.scene` div 内的最前面（在 `<div class="grid-bg">` 之前），确保 media 在最底层
@@ -51,8 +52,13 @@ Hook 场景的 media 决策遵循以下优先级：
 ### D3: Remotion 路径修改（`HookScene.tsx`）
 
 在 `HookScene` 组件中，`<GridBg />` 之前加条件渲染：
+
 ```tsx
-{scene.media && <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />}
+{
+  scene.media && (
+    <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+  );
+}
 ```
 
 `MediaBackground` 组件本身不需要修改（已支持所有 media 字段）。更新注释删除"Hook/CTA scenes ignore media"。
@@ -72,6 +78,7 @@ Hook 场景的 media 决策遵循以下优先级：
 ### D5: Scene-rules 修改
 
 新增 `checkHookMediaWarning()`：
+
 - 检查 hook 场景（`scenes[0]`）是否有 `scene.media`
 - 无 media → W 级 warning："Hook scene has no media — visual impact may be insufficient for first 3 seconds"
 - 有 media → pass
@@ -80,6 +87,7 @@ Hook 场景的 media 决策遵循以下优先级：
 ### D6: verify-video.mjs 修改
 
 `printSummary()` 新增 warning 汇总区块：
+
 - 当 `results.warn.length > 0` 时，在 summary 后输出：
   ```
   ⚠️  WARNINGS (review before publishing):
@@ -97,40 +105,40 @@ Hook 场景的 media 决策遵循以下优先级：
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `lib/scene-templates.mjs` `hookScene()` | 插入 `mediaLayer()` 条件调用；签名加 `contentDir` 参数 | Medium | 向后兼容：无 media 时行为不变。已有 12 个视频的 hook scene-data 无 media 字段。 |
-| `remotion/src/scenes/HookScene.tsx` | 加 `{scene.media && <MediaBackground>}` 条件渲染；加 `contentDir` prop | Medium | 与 NarrativeScene 已有模式完全一致。 |
-| `remotion/src/components/MediaBackground.tsx` | 更新注释 | Low | 纯注释。 |
-| `lib/asset-sourcer.mjs` `NO_MEDIA_TYPES` | 移除 "hook" | High | 改变分配行为。缓解：双 gate + hook 优先 + fit 分流。 |
-| `lib/asset-sourcer.mjs` `recommendScene()` + `assignAssetsToScenes()` | hook 优先分配 + 双 gate + narrative 默认改 ken-burns | High | 公共接口修改。缓解：已有 scene-data 的 media 不被覆盖（`if (scene.media) continue`）。 |
-| `lib/scene-rules.mjs` | 新增 `checkHookMediaWarning()` | Low | 纯追加。 |
-| `lib/media-bg.mjs` | 更新注释 | Low | 纯注释。 |
-| `verify-video.mjs` `printSummary()` | 新增 warning 汇总区块 | Low | 纯追加。 |
-| `content/*/scenes.mjs` | `scene1()` 调用 `hookScene()` 时传入 `__dirname` | Medium | 每个内容的 scenes.mjs 都需更新。已有内容的 scenes.mjs 调用 `hookScene(scene, duration)` → 改为 `hookScene(scene, duration, __dirname)`。 |
+| 文件                                                                  | 修改内容                                                               | 风险等级 | 评估                                                                                                                                     |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/scene-templates.mjs` `hookScene()`                               | 插入 `mediaLayer()` 条件调用；签名加 `contentDir` 参数                 | Medium   | 向后兼容：无 media 时行为不变。已有 12 个视频的 hook scene-data 无 media 字段。                                                          |
+| `remotion/src/scenes/HookScene.tsx`                                   | 加 `{scene.media && <MediaBackground>}` 条件渲染；加 `contentDir` prop | Medium   | 与 NarrativeScene 已有模式完全一致。                                                                                                     |
+| `remotion/src/components/MediaBackground.tsx`                         | 更新注释                                                               | Low      | 纯注释。                                                                                                                                 |
+| `lib/asset-sourcer.mjs` `NO_MEDIA_TYPES`                              | 移除 "hook"                                                            | High     | 改变分配行为。缓解：双 gate + hook 优先 + fit 分流。                                                                                     |
+| `lib/asset-sourcer.mjs` `recommendScene()` + `assignAssetsToScenes()` | hook 优先分配 + 双 gate + narrative 默认改 ken-burns                   | High     | 公共接口修改。缓解：已有 scene-data 的 media 不被覆盖（`if (scene.media) continue`）。                                                   |
+| `lib/scene-rules.mjs`                                                 | 新增 `checkHookMediaWarning()`                                         | Low      | 纯追加。                                                                                                                                 |
+| `lib/media-bg.mjs`                                                    | 更新注释                                                               | Low      | 纯注释。                                                                                                                                 |
+| `verify-video.mjs` `printSummary()`                                   | 新增 warning 汇总区块                                                  | Low      | 纯追加。                                                                                                                                 |
+| `content/*/scenes.mjs`                                                | `scene1()` 调用 `hookScene()` 时传入 `__dirname`                       | Medium   | 每个内容的 scenes.mjs 都需更新。已有内容的 scenes.mjs 调用 `hookScene(scene, duration)` → 改为 `hookScene(scene, duration, __dirname)`。 |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | hook 无 media，asset-sourcer 未运行 | 纯 CSS 背景 + W 级 warning | Low | 向后兼容 |
-| 2 | hook 无 media，所有素材 score<60 | 不分配，CSS 背景 + warning | Low | 决策模型回退 |
-| 3 | hook 无 media，素材 score>=60 但 fit="contain" | 不分配给 hook，留给 narrative | Medium | fit gate 分流 |
-| 4 | hook 无 media，素材 score>=60 且 fit="cover" | 分配，ken-burns + overlay 0.5 | Medium | 理想路径 |
-| 5 | hook 有 media（agent 指定） | 直接使用，跳过 gate | Low | 信任 agent |
-| 6 | hook media 文件不存在 | mediaLayer 返回空，CSS 背景 + media warning | Low | 已有逻辑 |
-| 7 | hook media 是视频 | ken-burns 降级为 fade | Low | 已有降级逻辑 |
-| 8 | hook media overlay 未设置 | 默认 0.5 | Medium | asset-sourcer 层设好 |
-| 9 | hook 分配后 narrative 素材不够 | fit 分流：cover→hook, contain→narrative | Medium | 自然分流 |
-| 10 | 已有视频重跑 asset-sourcer | 已有 media 不被覆盖 | Low | `if (scene.media) continue` |
-| 11 | narrative 默认动画改为 ken-burns | 新分配用 ken-burns，已有不受影响 | Medium | 只改默认值 |
-| 12 | post-render 有 warnings | 输出汇总区块 | Low | 纯追加 |
-| 13 | post-render 0 warnings | 不输出汇总区块 | Low | 条件不满足 |
-| 14 | VLM 不可用时 | fit gate 无法验证，hook 不分配，CSS 背景 + warning | Medium | 优雅降级 |
-| 15 | hook media 与 CSS 背景层叠加 | media 在最底层，grid-bg 半透明叠加 | High | HTML 顺序：media → grid-bg → glow-tint |
-| 16 | overlay=0.5 时 focal-number 可读性 | text-shadow 保证可读 | Low | 视觉验证 |
-| 17 | ken-burns 与 scan-sweep 冲突 | 不同 DOM 元素，不同 CSS 属性 | Low | 无冲突 |
-| 18 | 跨 Step 接口契约 | asset-sourcer → media-patch → scene-data → hookScene → mediaLayer | Medium | 字段格式一致 |
+| #   | Scenario                                       | Expected Behavior                                                 | Risk   | Mitigation                             |
+| --- | ---------------------------------------------- | ----------------------------------------------------------------- | ------ | -------------------------------------- |
+| 1   | hook 无 media，asset-sourcer 未运行            | 纯 CSS 背景 + W 级 warning                                        | Low    | 向后兼容                               |
+| 2   | hook 无 media，所有素材 score<60               | 不分配，CSS 背景 + warning                                        | Low    | 决策模型回退                           |
+| 3   | hook 无 media，素材 score>=60 但 fit="contain" | 不分配给 hook，留给 narrative                                     | Medium | fit gate 分流                          |
+| 4   | hook 无 media，素材 score>=60 且 fit="cover"   | 分配，ken-burns + overlay 0.5                                     | Medium | 理想路径                               |
+| 5   | hook 有 media（agent 指定）                    | 直接使用，跳过 gate                                               | Low    | 信任 agent                             |
+| 6   | hook media 文件不存在                          | mediaLayer 返回空，CSS 背景 + media warning                       | Low    | 已有逻辑                               |
+| 7   | hook media 是视频                              | ken-burns 降级为 fade                                             | Low    | 已有降级逻辑                           |
+| 8   | hook media overlay 未设置                      | 默认 0.5                                                          | Medium | asset-sourcer 层设好                   |
+| 9   | hook 分配后 narrative 素材不够                 | fit 分流：cover→hook, contain→narrative                           | Medium | 自然分流                               |
+| 10  | 已有视频重跑 asset-sourcer                     | 已有 media 不被覆盖                                               | Low    | `if (scene.media) continue`            |
+| 11  | narrative 默认动画改为 ken-burns               | 新分配用 ken-burns，已有不受影响                                  | Medium | 只改默认值                             |
+| 12  | post-render 有 warnings                        | 输出汇总区块                                                      | Low    | 纯追加                                 |
+| 13  | post-render 0 warnings                         | 不输出汇总区块                                                    | Low    | 条件不满足                             |
+| 14  | VLM 不可用时                                   | fit gate 无法验证，hook 不分配，CSS 背景 + warning                | Medium | 优雅降级                               |
+| 15  | hook media 与 CSS 背景层叠加                   | media 在最底层，grid-bg 半透明叠加                                | High   | HTML 顺序：media → grid-bg → glow-tint |
+| 16  | overlay=0.5 时 focal-number 可读性             | text-shadow 保证可读                                              | Low    | 视觉验证                               |
+| 17  | ken-burns 与 scan-sweep 冲突                   | 不同 DOM 元素，不同 CSS 属性                                      | Low    | 无冲突                                 |
+| 18  | 跨 Step 接口契约                               | asset-sourcer → media-patch → scene-data → hookScene → mediaLayer | Medium | 字段格式一致                           |
 
 ## Testing Decisions
 

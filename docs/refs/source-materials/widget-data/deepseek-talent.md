@@ -9,13 +9,13 @@
 
 ### People (5 entries)
 
-| Name (ZH/EN) | Role | Tech Area | New Company | Departure | Salary | Salary Known? | Note |
-|-------------|------|-----------|-------------|-----------|--------|---------------|------|
-| 罗福莉 / Luo Fuli | V2 Core Contributor | Base Model | 小米 / Xiaomi | 2025 | ¥10M+/yr (~$1.4M+/yr) | ✅ | 雷军亲自挖角 |
-| 王炳宣 / Wang Bingxuan | First-Gen LLM Core Author | Base Model | 腾讯 / Tencent | H2 2025 | ¥10M+ (est.) | ❌ | Based on industry reports |
-| 郭达雅 / Guo Daya | R1 Core Researcher / Coder / Math | Reasoning | 字节跳动 / ByteDance | Mar 2026 | ¥10M+ (est.) | ❌ | Seed Team Agent Lead |
-| 魏浩然 / Wei Haoran | OCR Series Core Author | OCR | 百度(疑似) / Baidu (suspected) | Around CNY 2026 | ¥3-5M (est.) | ❌ | Inferred from 36kr |
-| 阮翀 / Ruan Chong | Multimodal Core Researcher | Multimodal | 元戎启行 / Deeproute.ai | Unspecified | ¥3-5M (est.) | ❌ | Autonomous driving company |
+| Name (ZH/EN)           | Role                              | Tech Area  | New Company                    | Departure       | Salary                | Salary Known? | Note                       |
+| ---------------------- | --------------------------------- | ---------- | ------------------------------ | --------------- | --------------------- | ------------- | -------------------------- |
+| 罗福莉 / Luo Fuli      | V2 Core Contributor               | Base Model | 小米 / Xiaomi                  | 2025            | ¥10M+/yr (~$1.4M+/yr) | ✅            | 雷军亲自挖角               |
+| 王炳宣 / Wang Bingxuan | First-Gen LLM Core Author         | Base Model | 腾讯 / Tencent                 | H2 2025         | ¥10M+ (est.)          | ❌            | Based on industry reports  |
+| 郭达雅 / Guo Daya      | R1 Core Researcher / Coder / Math | Reasoning  | 字节跳动 / ByteDance           | Mar 2026        | ¥10M+ (est.)          | ❌            | Seed Team Agent Lead       |
+| 魏浩然 / Wei Haoran    | OCR Series Core Author            | OCR        | 百度(疑似) / Baidu (suspected) | Around CNY 2026 | ¥3-5M (est.)          | ❌            | Inferred from 36kr         |
+| 阮翀 / Ruan Chong      | Multimodal Core Researcher        | Multimodal | 元戎启行 / Deeproute.ai        | Unspecified     | ¥3-5M (est.)          | ❌            | Autonomous driving company |
 
 ## Sources
 

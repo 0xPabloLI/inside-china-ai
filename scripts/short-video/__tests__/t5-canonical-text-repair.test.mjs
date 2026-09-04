@@ -82,11 +82,16 @@ describe("T5: canonical-text repair strategy", () => {
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    const result = await runCanonicalTextGateWithRepair(matchingTiming, modifiedScenes, keyEntities, {
-      label: "Gate 1",
-      realignFn,
-      reloadTimingFn,
-    });
+    const result = await runCanonicalTextGateWithRepair(
+      matchingTiming,
+      modifiedScenes,
+      keyEntities,
+      {
+        label: "Gate 1",
+        realignFn,
+        reloadTimingFn,
+      },
+    );
 
     expect(result.passed).toBe(true);
     expect(realignFn).toHaveBeenCalledTimes(1); // text-align.py was re-run

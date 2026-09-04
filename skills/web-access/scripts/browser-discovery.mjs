@@ -9,39 +9,88 @@
 // 不擅自降级：偏好不可用一律硬错，让用户介入。
 // 持久态只有 config.env 一处；override 是单次 spawn 通过命令行参数表达，不读 process.env。
 
-import fs from 'node:fs';
-import net from 'node:net';
-import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import fs from "node:fs";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CONFIG_PATH = path.join(SKILL_ROOT, 'config.env');
+const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const CONFIG_PATH = path.join(SKILL_ROOT, "config.env");
 
 // 已知支持 chrome://inspect#remote-debugging toggle 的浏览器
 // 加新浏览器：只改这里
 export function knownBrowsers() {
   const home = os.homedir();
-  const localAppData = process.env.LOCALAPPDATA || '';
+  const localAppData = process.env.LOCALAPPDATA || "";
   switch (os.platform()) {
-    case 'darwin':
+    case "darwin":
       return [
-        { id: 'chrome',        label: 'Chrome',         devToolsPath: path.join(home, 'Library/Application Support/Google/Chrome/DevToolsActivePort') },
-        { id: 'chrome-canary', label: 'Chrome Canary',  devToolsPath: path.join(home, 'Library/Application Support/Google/Chrome Canary/DevToolsActivePort') },
-        { id: 'chromium',      label: 'Chromium',       devToolsPath: path.join(home, 'Library/Application Support/Chromium/DevToolsActivePort') },
-        { id: 'edge',          label: 'Microsoft Edge', devToolsPath: path.join(home, 'Library/Application Support/Microsoft Edge/DevToolsActivePort') },
+        {
+          id: "chrome",
+          label: "Chrome",
+          devToolsPath: path.join(
+            home,
+            "Library/Application Support/Google/Chrome/DevToolsActivePort",
+          ),
+        },
+        {
+          id: "chrome-canary",
+          label: "Chrome Canary",
+          devToolsPath: path.join(
+            home,
+            "Library/Application Support/Google/Chrome Canary/DevToolsActivePort",
+          ),
+        },
+        {
+          id: "chromium",
+          label: "Chromium",
+          devToolsPath: path.join(home, "Library/Application Support/Chromium/DevToolsActivePort"),
+        },
+        {
+          id: "edge",
+          label: "Microsoft Edge",
+          devToolsPath: path.join(
+            home,
+            "Library/Application Support/Microsoft Edge/DevToolsActivePort",
+          ),
+        },
       ];
-    case 'linux':
+    case "linux":
       return [
-        { id: 'chrome',   label: 'Chrome',         devToolsPath: path.join(home, '.config/google-chrome/DevToolsActivePort') },
-        { id: 'chromium', label: 'Chromium',       devToolsPath: path.join(home, '.config/chromium/DevToolsActivePort') },
-        { id: 'edge',     label: 'Microsoft Edge', devToolsPath: path.join(home, '.config/microsoft-edge/DevToolsActivePort') },
+        {
+          id: "chrome",
+          label: "Chrome",
+          devToolsPath: path.join(home, ".config/google-chrome/DevToolsActivePort"),
+        },
+        {
+          id: "chromium",
+          label: "Chromium",
+          devToolsPath: path.join(home, ".config/chromium/DevToolsActivePort"),
+        },
+        {
+          id: "edge",
+          label: "Microsoft Edge",
+          devToolsPath: path.join(home, ".config/microsoft-edge/DevToolsActivePort"),
+        },
       ];
-    case 'win32':
+    case "win32":
       return [
-        { id: 'chrome',   label: 'Chrome',         devToolsPath: path.join(localAppData, 'Google/Chrome/User Data/DevToolsActivePort') },
-        { id: 'chromium', label: 'Chromium',       devToolsPath: path.join(localAppData, 'Chromium/User Data/DevToolsActivePort') },
-        { id: 'edge',     label: 'Microsoft Edge', devToolsPath: path.join(localAppData, 'Microsoft/Edge/User Data/DevToolsActivePort') },
+        {
+          id: "chrome",
+          label: "Chrome",
+          devToolsPath: path.join(localAppData, "Google/Chrome/User Data/DevToolsActivePort"),
+        },
+        {
+          id: "chromium",
+          label: "Chromium",
+          devToolsPath: path.join(localAppData, "Chromium/User Data/DevToolsActivePort"),
+        },
+        {
+          id: "edge",
+          label: "Microsoft Edge",
+          devToolsPath: path.join(localAppData, "Microsoft/Edge/User Data/DevToolsActivePort"),
+        },
       ];
     default:
       return [];
@@ -50,12 +99,22 @@ export function knownBrowsers() {
 
 // TCP 端口监听检测
 // 用 TCP connect 而非 WebSocket，避免触发浏览器的远程调试授权弹窗。
-export function checkPort(port, host = '127.0.0.1', timeoutMs = 2000) {
+export function checkPort(port, host = "127.0.0.1", timeoutMs = 2000) {
   return new Promise((resolve) => {
     const socket = net.createConnection(port, host);
-    const timer = setTimeout(() => { socket.destroy(); resolve(false); }, timeoutMs);
-    socket.once('connect', () => { clearTimeout(timer); socket.destroy(); resolve(true); });
-    socket.once('error',   () => { clearTimeout(timer); resolve(false); });
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, timeoutMs);
+    socket.once("connect", () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
   });
 }
 
@@ -64,12 +123,15 @@ export function checkPort(port, host = '127.0.0.1', timeoutMs = 2000) {
 function readConfig() {
   const cfg = {};
   let content;
-  try { content = fs.readFileSync(CONFIG_PATH, 'utf8'); }
-  catch { return cfg; }
+  try {
+    content = fs.readFileSync(CONFIG_PATH, "utf8");
+  } catch {
+    return cfg;
+  }
   for (const line of content.split(/\r?\n/)) {
     const t = line.trim();
-    if (!t || t.startsWith('#')) continue;
-    const i = t.indexOf('=');
+    if (!t || t.startsWith("#")) continue;
+    const i = t.indexOf("=");
     if (i === -1) continue;
     const k = t.slice(0, i).trim();
     const v = t.slice(i + 1).trim();
@@ -83,8 +145,11 @@ async function detectAll() {
   const result = [];
   for (const browser of knownBrowsers()) {
     let content;
-    try { content = fs.readFileSync(browser.devToolsPath, 'utf8'); }
-    catch { continue; }
+    try {
+      content = fs.readFileSync(browser.devToolsPath, "utf8");
+    } catch {
+      continue;
+    }
     const lines = content.trim().split(/\r?\n/).filter(Boolean);
     const port = parseInt(lines[0], 10);
     if (!(port > 0 && port < 65536)) continue;
@@ -108,23 +173,24 @@ export async function selectBrowser(override = null) {
 
   // 1. 命令行 override（最高优先，单次有效）
   if (override) {
-    const match = detected.find(b => b.id === override);
-    if (match) return { kind: 'ok', browser: match, source: 'override', detected, configured, override };
-    return { kind: 'mismatch', source: 'override', detected, configured, override };
+    const match = detected.find((b) => b.id === override);
+    if (match)
+      return { kind: "ok", browser: match, source: "override", detected, configured, override };
+    return { kind: "mismatch", source: "override", detected, configured, override };
   }
 
   // 2. config.env preference（持久）
   if (configured) {
-    const match = detected.find(b => b.id === configured);
-    if (match) return { kind: 'ok', browser: match, source: 'preference', detected, configured };
-    return { kind: 'mismatch', source: 'preference', detected, configured };
+    const match = detected.find((b) => b.id === configured);
+    if (match) return { kind: "ok", browser: match, source: "preference", detected, configured };
+    return { kind: "mismatch", source: "preference", detected, configured };
   }
 
   // 3. 无偏好 —— 一律询问用户（哪怕 detected 只有一个）
   if (detected.length === 0) {
-    return { kind: 'empty', detected, configured };
+    return { kind: "empty", detected, configured };
   }
-  return { kind: 'ambiguous', detected, configured };
+  return { kind: "ambiguous", detected, configured };
 }
 
 // 兜底：扫描常用固定端口

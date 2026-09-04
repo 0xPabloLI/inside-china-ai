@@ -6,6 +6,7 @@
 **Tracer bullet**: Yes — tests define the contract before implementation
 
 ### Checklist
+
 - [x] Create test file `scripts/short-video/__tests__/fix-scene-flicker.test.mjs`
 - [x] S1: Test — media opacity envelope has 3 stops (entrance only) for `fade` preset
 - [x] S2: Test — media opacity envelope has 3 stops for all non-none presets
@@ -23,6 +24,7 @@
 **Tracer bullet**: Yes — the core fix
 
 ### Checklist
+
 - [x] Change media opacity: `[0, inFrames, totalFrames] → [0, 1, 1]` (remove exit ramp)
 - [x] Change video volume: independent `interpolate([0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp)` × baseVolume
 - [x] Update JSDoc header comment to reflect exit opacity removal
@@ -35,6 +37,7 @@
 **Tracer bullet**: No — cleanup
 
 ### Checklist
+
 - [x] Verify no unused variables (e.g., `outStart` still used by transforms + volume)
 - [x] Verify `outFrames` still used (by `outStart` computation and transforms)
 - [x] Run full test suite → green (14 pre-existing failures unrelated to this change)

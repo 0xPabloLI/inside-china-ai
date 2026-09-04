@@ -13,18 +13,18 @@
 
 ## 实测基线（2026-09-02，字节）
 
-| 文档 | 大小 | 加载层级 |
-|---|---|---|
-| `AGENTS.md` | 6,536 | 常驻（harness 注入） |
-| `DESIGN.md` | 17,411 | 常驻（harness 注入） |
-| `CONTEXT.md` | 16,272 | 指针到达 |
-| `docs/DOCS-INDEX.md` | 18,679 | 指针到达（文档工作必读） |
-| `docs/agents/implementation-workflow.md` | 11,723 | 指针到达（实施必读） |
-| `docs/agents/git-workflow.md` | 3,583 | 指针到达（git 操作必读） |
-| `docs/tanstack-lovable-conventions.md` | 7,138 | 指针到达（应用代码必读） |
-| `docs/installed-skills.md` | 7,807 | 指针到达 |
-| `docs/content-pipeline.md` | 34,630 | 指针到达（内容 session） |
-| `docs/video-workflow.md` | 38,537 | 指针到达（内容 session） |
+| 文档                                     | 大小   | 加载层级                 |
+| ---------------------------------------- | ------ | ------------------------ |
+| `AGENTS.md`                              | 6,536  | 常驻（harness 注入）     |
+| `DESIGN.md`                              | 17,411 | 常驻（harness 注入）     |
+| `CONTEXT.md`                             | 16,272 | 指针到达                 |
+| `docs/DOCS-INDEX.md`                     | 18,679 | 指针到达（文档工作必读） |
+| `docs/agents/implementation-workflow.md` | 11,723 | 指针到达（实施必读）     |
+| `docs/agents/git-workflow.md`            | 3,583  | 指针到达（git 操作必读） |
+| `docs/tanstack-lovable-conventions.md`   | 7,138  | 指针到达（应用代码必读） |
+| `docs/installed-skills.md`               | 7,807  | 指针到达                 |
+| `docs/content-pipeline.md`               | 34,630 | 指针到达（内容 session） |
+| `docs/video-workflow.md`                 | 38,537 | 指针到达（内容 session） |
 
 另一项常驻成本在仓库之外：installed skills 目录（`.agents/skills/` 174 个 + `.claude/skills/` 173 个），每个 skill 的 description 都占据每个 session 的上下文。卸载建议可以写进提案，执行交给用户裁决。
 

@@ -46,6 +46,7 @@ node scripts/cloud-gpu/run-gpu.mjs echomimic-v3-infer.py --output ./output --tim
 ### 实现要点
 
 1. **Colab CLI 路径**：
+
    ```bash
    colab --auth=adc run --gpu T4 <script.py>
    ```
@@ -54,6 +55,7 @@ node scripts/cloud-gpu/run-gpu.mjs echomimic-v3-infer.py --output ./output --tim
    - 失败：捕获错误，进入 fallback
 
 2. **Kaggle 路径**：
+
    ```bash
    # 准备 kernel-metadata.json
    kaggle kernels push -p .

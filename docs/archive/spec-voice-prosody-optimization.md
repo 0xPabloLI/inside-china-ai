@@ -9,6 +9,7 @@
 ## Problem Statement
 
 TTS 生成的语音存在两个问题：
+
 1. **电磁底噪/金属 artifact** — F5 生成音频经双重 MP3 编码（Python MP3@192k → FFmpeg MP3@192k）后叠加 artifact，听感有持续电子底噪
 2. **Prosody 平淡** — F5 从单一参考音频学习 prosody，所有场景（hook/narrative/CTA）语调一致，缺乏层次变化，听感像机器人念稿
 
@@ -19,20 +20,24 @@ TTS 生成的语音存在两个问题：
 分 4 层逐步优化，每层做完用户听成品再继续：
 
 ### Phase 1: 替换参考音频 + 音频清洗 (D + A-extension)
+
 - 用用户录制的 `voice3.m4a`（prosody 更丰富）替换当前 `voice-sample-24k.wav`
 - 在 `buildFilter()` 中新增音频清洗链：highpass + afftdn 降噪
 - 消除双重 MP3 编码：Python 端输出 WAV，FFmpeg 端做最终 MP3 编码
 
 ### Phase 2: Rubberband 参数调优 (A-tune)
+
 - 根据 Phase 1 听感反馈调整 per-scene prosody 参数
 - 可能方向：如果 ref audio 自带 prosody 变化，rubberband 参数需减小
 
 ### Phase 3: 多参考音频系统 (B)
+
 - 3 种参考音频：hook(高能量) / narrative(稳定) / CTA(温暖)
 - F5 batch 脚本支持 per-scene ref audio（分组 batch）
 - scene-data 自动映射 visualType → refStyle，可选 `refStyle` 字段 override
 
 ### Phase 4: 引擎评估对比 (C)
+
 - 安装并测试 Kokoro、StyleTTS-V2（本地免费）
 - 注册并测试 ElevenLabs Free Tier（API，每月 10k chars）
 - 对比各引擎 prosody 控制能力，决定是否采用混合引擎策略
@@ -98,17 +103,20 @@ afftdn=nr=10:nf=-25,    // 自适应频域降噪，噪声底 -25dB
 ### 5. 多参考音频系统 (Phase 3 — B)
 
 **Ref audio 映射规则**（自动映射 + override）：
+
 - `visualType === "hook"` → `ref-hook-24k.wav`
 - `visualType === "cta"` 或 `scene.id === lastScene` → `ref-cta-24k.wav`
 - 其他 → `ref-narrative-24k.wav`（= Phase 1 的 voice3）
 - scene-data 可选 `refStyle: "hook" | "narrative" | "cta"` 字段 override
 
 **F5 batch 脚本改造**：
+
 - manifest 支持 per-scene `refAudio` + `refText` 字段
 - 脚本按 refAudio 分组，每组 batch 调用 F5（模型加载 N 次，N = ref 种类数）
 - 无 refAudio 字段的 scene 走默认 ref（env var）
 
 **文件结构**：
+
 ```
 assets/
   ref-hook-24k.wav      # 用户录制，高能量
@@ -122,17 +130,20 @@ assets/
 ### 6. 引擎评估对比 (Phase 4 — C)
 
 **安装**：
+
 - Kokoro: `pip install kokoro` → 新 venv `~/.kokoro-env`
 - StyleTTS-V2: `pip install StyleTTS2` → 新 venv `~/.styletts-env`
 - ElevenLabs: API key in `.env.local`，npm package `elevenlabs`
 
 **对比测试脚本**：
+
 - `scripts/short-video/lib/tts/eval-engines.mjs`
 - 输入：同一段 hook 文本
 - 输出：各引擎生成的音频 + prosody 分析报告（pitch variance、tempo variance）
 - 评估维度：prosody 自然度、声音克隆相似度、生成速度、成本
 
 **混合引擎策略**（如果评估支持）：
+
 - `registry.mjs` 支持 per-scene 引擎选择
 - scene-data 可选 `engine: "elevenlabs" | "f5-mlx" | "kokoro"` 字段
 - 默认：hook → ElevenLabs（如可用），其他 → F5-MLX
@@ -170,41 +181,41 @@ assets/
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|------|---------|---------|------|
-| `lib/tts/post-process.mjs` | buildFilter 增加清洗链 + 输出 320k | Medium | 核心后处理逻辑，所有引擎依赖。新增滤镜是追加式的，不影响现有 filter 链顺序。通过 env var 可禁用 |
-| `f5_mlx_batch_tts.py` | 输出 WAV 替代 MP3 | Medium | 改变中间文件格式。下游 postProcessBatch 需适配 .wav 后缀。风险：如果 post-process 跳过，最终输出可能为 WAV（需确保最终输出仍为 MP3） |
-| `lib/tts/f5-mlx.mjs` | 支持 per-scene ref audio + refStyle 映射 | Medium | 改变 generate() 内部逻辑。无 refStyle 字段时走默认 ref（向后兼容） |
-| `lib/tts/types.mjs` | TTSEngine 接口可能扩展 | Low | 纯类型定义，无运行时影响 |
-| `lib/tts/registry.mjs` | 支持 per-scene 引擎选择 (Phase 4) | Medium | 改变 generateTTS() 的引擎委派逻辑。无 engine 字段时走现有优先级（向后兼容） |
-| `assets/voice-sample-24k.wav` | 替换为 voice3 | Low | 文件替换，不改代码。旧文件备份 |
-| `assets/voice-sample-ref-text.txt` | 更新文本 | Low | 必须与新 wav 精确匹配 |
-| `docs/video-workflow.md` | 更新 TTS 引擎表 + prosody 参数表 | Low | 文档同步 |
+| 文件                               | 修改内容                                 | 风险等级 | 评估                                                                                                                                 |
+| ---------------------------------- | ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/tts/post-process.mjs`         | buildFilter 增加清洗链 + 输出 320k       | Medium   | 核心后处理逻辑，所有引擎依赖。新增滤镜是追加式的，不影响现有 filter 链顺序。通过 env var 可禁用                                      |
+| `f5_mlx_batch_tts.py`              | 输出 WAV 替代 MP3                        | Medium   | 改变中间文件格式。下游 postProcessBatch 需适配 .wav 后缀。风险：如果 post-process 跳过，最终输出可能为 WAV（需确保最终输出仍为 MP3） |
+| `lib/tts/f5-mlx.mjs`               | 支持 per-scene ref audio + refStyle 映射 | Medium   | 改变 generate() 内部逻辑。无 refStyle 字段时走默认 ref（向后兼容）                                                                   |
+| `lib/tts/types.mjs`                | TTSEngine 接口可能扩展                   | Low      | 纯类型定义，无运行时影响                                                                                                             |
+| `lib/tts/registry.mjs`             | 支持 per-scene 引擎选择 (Phase 4)        | Medium   | 改变 generateTTS() 的引擎委派逻辑。无 engine 字段时走现有优先级（向后兼容）                                                          |
+| `assets/voice-sample-24k.wav`      | 替换为 voice3                            | Low      | 文件替换，不改代码。旧文件备份                                                                                                       |
+| `assets/voice-sample-ref-text.txt` | 更新文本                                 | Low      | 必须与新 wav 精确匹配                                                                                                                |
+| `docs/video-workflow.md`           | 更新 TTS 引擎表 + prosody 参数表         | Low      | 文档同步                                                                                                                             |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | F5 生成 WAV → post-process 输出 MP3@320k | 最终输出为 MP3，无中间 MP3 | Medium | postProcessBatch 检测输入后缀，统一输出 MP3 |
-| 2 | TTS_DENOISE=0 | buildFilter 不包含 afftdn 滤镜 | Low | env var 条件判断 |
-| 3 | TTS_HIGHPASS=0 | buildFilter 不包含 highpass 滤镜 | Low | env var 条件判断 |
-| 4 | 默认清洗参数（未设 env） | highpass=80 + afftdn=nr=10 | Low | 合理默认值，可禁用 |
-| 5 | 清洗链 + silenceremove + rubberband + atempo 同时存在 | filter 链顺序正确：清洗 → silenceremove → rubberband → atempo | Medium | buildFilter 测试验证顺序 |
-| 6 | 清洗链 + rubberband（F5 path, 无 silenceremove） | filter 链：highpass → afftdn → rubberband → atempo | Medium | buildFilter 测试验证 |
-| 7 | 新 ref audio (voice3) 替换旧 ref | F5 生成的语音 prosody 有变化 | Low | 向后兼容，仅文件替换 |
-| 8 | ref-text 与 ref-audio 不匹配 | F5 生成语音有泄漏/质量下降 | High | ref-text 从文件读取，确保精确匹配。测试验证文件内容 |
-| 9 | Phase 3: scene 无 refStyle 字段 | 走 visualType 自动映射 | Low | 向后兼容 |
-| 10 | Phase 3: scene 有 refStyle="hook" | 使用 ref-hook-24k.wav | Low | override 逻辑 |
-| 11 | Phase 3: ref-hook-24k.wav 不存在 | fallback 到默认 ref + warning log | Medium | isAvailable 检查 + 优雅降级 |
-| 12 | Phase 3: 所有 scene 都是同一 visualType | 只加载 1 次 F5 模型 | Low | 分组逻辑自动合并 |
-| 13 | Phase 3: F5 batch manifest 有混合 refAudio/no-refAudio | 有 refAudio 的用指定 ref，无的用默认 | Medium | 分组逻辑正确处理 |
-| 14 | Phase 4: ElevenLabs API key 未配置 | 跳过 ElevenLabs，走 F5 fallback | Low | registry 现有 isAvailable 模式 |
-| 15 | Phase 4: scene 指定 engine="elevenlabs" 但引擎不可用 | fallback 到 F5 + warning | Medium | selectEngineForScene 降级逻辑 |
-| 16 | Phase 4: Kokoro venv 未安装 | 跳过 Kokoro，走优先级链 | Low | registry 现有 isAvailable 模式 |
-| 17 | postProcessBatch 输入 .wav 后缀（F5 新行为） | 正确处理，输出 .mp3 | Medium | 后缀检测逻辑 |
-| 18 | postProcessBatch 输入 .mp3 后缀（XTTS 旧行为） | 仍然正确工作 | Low | 向后兼容 |
-| 19 | 最终 MP3 比特率从 192k → 320k | 文件增大 ~67%，音质提升 | Low | 磁盘空间可接受 |
-| 20 | 清洗链 afftdn 过度降噪导致语音失真 | 语音听起来"水下" | Medium | nr=10 是保守值；TTS_DENOISE env 可调低；Phase 1 听感验证 |
+| #   | Scenario                                               | Expected Behavior                                             | Risk   | Mitigation                                               |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------- | ------ | -------------------------------------------------------- |
+| 1   | F5 生成 WAV → post-process 输出 MP3@320k               | 最终输出为 MP3，无中间 MP3                                    | Medium | postProcessBatch 检测输入后缀，统一输出 MP3              |
+| 2   | TTS_DENOISE=0                                          | buildFilter 不包含 afftdn 滤镜                                | Low    | env var 条件判断                                         |
+| 3   | TTS_HIGHPASS=0                                         | buildFilter 不包含 highpass 滤镜                              | Low    | env var 条件判断                                         |
+| 4   | 默认清洗参数（未设 env）                               | highpass=80 + afftdn=nr=10                                    | Low    | 合理默认值，可禁用                                       |
+| 5   | 清洗链 + silenceremove + rubberband + atempo 同时存在  | filter 链顺序正确：清洗 → silenceremove → rubberband → atempo | Medium | buildFilter 测试验证顺序                                 |
+| 6   | 清洗链 + rubberband（F5 path, 无 silenceremove）       | filter 链：highpass → afftdn → rubberband → atempo            | Medium | buildFilter 测试验证                                     |
+| 7   | 新 ref audio (voice3) 替换旧 ref                       | F5 生成的语音 prosody 有变化                                  | Low    | 向后兼容，仅文件替换                                     |
+| 8   | ref-text 与 ref-audio 不匹配                           | F5 生成语音有泄漏/质量下降                                    | High   | ref-text 从文件读取，确保精确匹配。测试验证文件内容      |
+| 9   | Phase 3: scene 无 refStyle 字段                        | 走 visualType 自动映射                                        | Low    | 向后兼容                                                 |
+| 10  | Phase 3: scene 有 refStyle="hook"                      | 使用 ref-hook-24k.wav                                         | Low    | override 逻辑                                            |
+| 11  | Phase 3: ref-hook-24k.wav 不存在                       | fallback 到默认 ref + warning log                             | Medium | isAvailable 检查 + 优雅降级                              |
+| 12  | Phase 3: 所有 scene 都是同一 visualType                | 只加载 1 次 F5 模型                                           | Low    | 分组逻辑自动合并                                         |
+| 13  | Phase 3: F5 batch manifest 有混合 refAudio/no-refAudio | 有 refAudio 的用指定 ref，无的用默认                          | Medium | 分组逻辑正确处理                                         |
+| 14  | Phase 4: ElevenLabs API key 未配置                     | 跳过 ElevenLabs，走 F5 fallback                               | Low    | registry 现有 isAvailable 模式                           |
+| 15  | Phase 4: scene 指定 engine="elevenlabs" 但引擎不可用   | fallback 到 F5 + warning                                      | Medium | selectEngineForScene 降级逻辑                            |
+| 16  | Phase 4: Kokoro venv 未安装                            | 跳过 Kokoro，走优先级链                                       | Low    | registry 现有 isAvailable 模式                           |
+| 17  | postProcessBatch 输入 .wav 后缀（F5 新行为）           | 正确处理，输出 .mp3                                           | Medium | 后缀检测逻辑                                             |
+| 18  | postProcessBatch 输入 .mp3 后缀（XTTS 旧行为）         | 仍然正确工作                                                  | Low    | 向后兼容                                                 |
+| 19  | 最终 MP3 比特率从 192k → 320k                          | 文件增大 ~67%，音质提升                                       | Low    | 磁盘空间可接受                                           |
+| 20  | 清洗链 afftdn 过度降噪导致语音失真                     | 语音听起来"水下"                                              | Medium | nr=10 是保守值；TTS_DENOISE env 可调低；Phase 1 听感验证 |
 
 ---
 

@@ -33,6 +33,7 @@
 位置：`scripts/short-video/lib/tiktok-rules.mjs`
 
 导出所有规则常量：
+
 - `AI_BLACKLIST`（~40 个词/短语，按类别分组带注释）
 - `DASH_PATTERN`、`DEAD_CLOSER_PATTERN`、`STRONG_WORD_PATTERN`、`NUMBER_PATTERN`
 - `WRITTEN_OPENER_PATTERN`、`SOURCE_PATTERN`、`CTA_PATTERN`、`CLICKBAIT_PATTERNS`
@@ -66,15 +67,15 @@
 
 ### 5. 更新 `tiktok-best-practices.md` 审计清单
 
-| 规则 | 文档原状 | 更新为 |
-|---|---|---|
-| B2 | Blocker（完全未实现） | Blocker（部分自动化：问候语检测 by code；logo/慢推 by agent） |
-| B4 | Blocker（两层完全相同词语） | Blocker ≥80% overlap / WARN 50-80% / PASS <50% |
-| B6 | Blocker（caption > 2200） | Blocker（由 generate-caption.mjs 执行，verify-video.mjs 检查 exit code） |
-| W1 | Warning（Hook 无数字） | **Blocker**（代码为 FAIL，文档同步） |
-| W2 | Warning（hashtag 6+） | Warning（由 generate-caption.mjs 限制 3-5） |
-| W5 | Warning（空三段式） | Warning（agent only，不可自动化） |
-| B7 | Blocker（AI 词汇） | Blocker（黑名单已补全至 ~40 个） |
+| 规则 | 文档原状                    | 更新为                                                                   |
+| ---- | --------------------------- | ------------------------------------------------------------------------ |
+| B2   | Blocker（完全未实现）       | Blocker（部分自动化：问候语检测 by code；logo/慢推 by agent）            |
+| B4   | Blocker（两层完全相同词语） | Blocker ≥80% overlap / WARN 50-80% / PASS <50%                           |
+| B6   | Blocker（caption > 2200）   | Blocker（由 generate-caption.mjs 执行，verify-video.mjs 检查 exit code） |
+| W1   | Warning（Hook 无数字）      | **Blocker**（代码为 FAIL，文档同步）                                     |
+| W2   | Warning（hashtag 6+）       | Warning（由 generate-caption.mjs 限制 3-5）                              |
+| W5   | Warning（空三段式）         | Warning（agent only，不可自动化）                                        |
+| B7   | Blocker（AI 词汇）          | Blocker（黑名单已补全至 ~40 个）                                         |
 
 ### 6. 更新 `video-workflow.md` 三层执行表
 
@@ -92,6 +93,7 @@
 ### 8. 新建 `tiktok-rules-sync.test.mjs`
 
 不变式约束测试（非 markdown 解析）：
+
 - `AI_BLACKLIST` 包含各类别代表词
 - `AI_BLACKLIST.length >= 40`
 - 所有 pattern 是有效 RegExp
@@ -129,34 +131,34 @@
 
 ### Section 1: Modified Files Impact
 
-| 文件 | 修改内容 | 风险等级 | 评估 |
-|---|---|---|---|
-| `scripts/short-video/lib/tiktok-rules.mjs` | 新建 — 抽取所有常量 | N/A | 纯新建文件，无现有逻辑影响 |
-| `scripts/short-video/lib/scene-rules.mjs` | 改为 import 常量；B4 三级化；新增 `checkNoGreeting()`；补全 AI_BLACKLIST | Medium | 修改现有检查函数行为。现有测试可能 break（B4 从 WARN 变三级、AI_BLACKLIST 扩大）。验证：现有测试全部跑一遍 |
-| `scripts/short-video/verify-video.mjs` | generate-caption exit code 检查改为 FAIL；post-render 增加 caption 文件检查 | Medium | 修改了 caption 生成失败时的行为（从 warn 变 fail）。影响：如果 caption 超 2200，verify 会 FAIL 而非 pass-with-warning |
-| `scripts/short-video/generate-caption.mjs` | 约束违反从 warn 改为 exit(1) | High | 修改了 exit 行为。verify-video.mjs 用 try/catch 捕获——需同时修改 catch 逻辑。影响范围：只在 caption 约束违反时触发 |
-| `docs/tiktok/tiktok-best-practices.md` | 更新审计清单 B1-B9/W1-W9 | Low | 纯文档更新 |
-| `docs/video-workflow.md` | 更新三层执行表 | Low | 纯文档更新 |
-| `~/.catpaw/skills/short-video-pipeline/SKILL.md` | 同步更新黑名单、新增 greeting 规则 | Low | 纯文档更新 |
-| `scripts/short-video/__tests__/tiktok-rules-sync.test.mjs` | 新建 — drift 检测测试 | N/A | 纯新建文件 |
-| `scripts/short-video/__tests__/scene-rules.test.mjs` | 更新现有测试适配 B4 三级化 + 新增 greeting 测试 + AI_BLACKLIST 扩大后的测试 | Medium | 修改现有测试期望值。验证：red→green |
+| 文件                                                       | 修改内容                                                                    | 风险等级 | 评估                                                                                                                  |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `scripts/short-video/lib/tiktok-rules.mjs`                 | 新建 — 抽取所有常量                                                         | N/A      | 纯新建文件，无现有逻辑影响                                                                                            |
+| `scripts/short-video/lib/scene-rules.mjs`                  | 改为 import 常量；B4 三级化；新增 `checkNoGreeting()`；补全 AI_BLACKLIST    | Medium   | 修改现有检查函数行为。现有测试可能 break（B4 从 WARN 变三级、AI_BLACKLIST 扩大）。验证：现有测试全部跑一遍            |
+| `scripts/short-video/verify-video.mjs`                     | generate-caption exit code 检查改为 FAIL；post-render 增加 caption 文件检查 | Medium   | 修改了 caption 生成失败时的行为（从 warn 变 fail）。影响：如果 caption 超 2200，verify 会 FAIL 而非 pass-with-warning |
+| `scripts/short-video/generate-caption.mjs`                 | 约束违反从 warn 改为 exit(1)                                                | High     | 修改了 exit 行为。verify-video.mjs 用 try/catch 捕获——需同时修改 catch 逻辑。影响范围：只在 caption 约束违反时触发    |
+| `docs/tiktok/tiktok-best-practices.md`                     | 更新审计清单 B1-B9/W1-W9                                                    | Low      | 纯文档更新                                                                                                            |
+| `docs/video-workflow.md`                                   | 更新三层执行表                                                              | Low      | 纯文档更新                                                                                                            |
+| `~/.catpaw/skills/short-video-pipeline/SKILL.md`           | 同步更新黑名单、新增 greeting 规则                                          | Low      | 纯文档更新                                                                                                            |
+| `scripts/short-video/__tests__/tiktok-rules-sync.test.mjs` | 新建 — drift 检测测试                                                       | N/A      | 纯新建文件                                                                                                            |
+| `scripts/short-video/__tests__/scene-rules.test.mjs`       | 更新现有测试适配 B4 三级化 + 新增 greeting 测试 + AI_BLACKLIST 扩大后的测试 | Medium   | 修改现有测试期望值。验证：red→green                                                                                   |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|---|---|---|---|
-| S1 | scene-rules.mjs import tiktok-rules.mjs 成功 | 所有常量正常可用 | Low | ESM import 是编译时检查 |
-| S2 | AI_BLACKLIST 扩大后，现有 scene-data 中有 "journey"/"realm" | verify-video.mjs FAIL | Low | 期望行为——这些词应被替换 |
-| S3 | B4 三级化：Hook 60% 词汇重叠 | WARN（50-80% 区间） | Low | 行为与之前相同（WARN） |
-| S4 | B4 三级化：Hook 90% 词汇重叠 | FAIL（≥80% 区间） | Medium | 新增 FAIL。正确行为——90% 重叠是 Blocker |
-| S5 | `checkNoGreeting()`：Hook VO 开头 "Hey guys" | FAIL | Low | 正确行为 |
-| S6 | `checkNoGreeting()`：Hook VO 含 "hi-tech" 不在开头 | PASS（不误报） | Medium | 只检查前 3 个词 + 词边界正则 |
-| S7 | `checkNoGreeting()`：Hook VO 开头 "A leaked memo" | PASS | Low | 无问候词 |
-| S8 | generate-caption.mjs caption 超 2200 | exit(1) → verify-video.mjs FAIL | High | 同时修改 verify-video.mjs catch 逻辑检测 exit code |
-| S9 | generate-caption.mjs caption 正常 | 正常生成，verify-video.mjs PASS | Low | 无变化 |
-| S10 | generate-caption.mjs hashtags 为 6 个 | exit(1) → verify-video.mjs FAIL | Low | generate-caption.mjs 已限制 3-5，超出则 exit |
-| S11 | drift 测试：AI_BLACKLIST 被删减到 <40 | tiktok-rules-sync.test.mjs FAIL | Low | 正确行为——不变式守住 |
-| S12 | drift 测试：THRESHOLDS.hookTextOverlapFailThreshold 被改为 0.9 | tiktok-rules-sync.test.mjs FAIL | Low | 正确行为 |
-| S13 | 现有 validScenes 通过所有新增检查 | 0 FAIL | Low | 已验证：无问候词、重叠率低、无黑名单词 |
-| S14 | `runAllSceneDataChecks` 包含 `checkNoGreeting` 结果 | 新增 1 条 pass/fail 结果 | Low | 纯追加，不影响现有结果 |
-| S15 | `AI_BLACKLIST` re-export 从 scene-rules.mjs 可正常 import | `import { AI_BLACKLIST } from "scene-rules.mjs"` 仍可用 | Low | re-export 保持接口不变 |
+| #   | Scenario                                                       | Expected Behavior                                       | Risk   | Mitigation                                         |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------- | ------ | -------------------------------------------------- |
+| S1  | scene-rules.mjs import tiktok-rules.mjs 成功                   | 所有常量正常可用                                        | Low    | ESM import 是编译时检查                            |
+| S2  | AI_BLACKLIST 扩大后，现有 scene-data 中有 "journey"/"realm"    | verify-video.mjs FAIL                                   | Low    | 期望行为——这些词应被替换                           |
+| S3  | B4 三级化：Hook 60% 词汇重叠                                   | WARN（50-80% 区间）                                     | Low    | 行为与之前相同（WARN）                             |
+| S4  | B4 三级化：Hook 90% 词汇重叠                                   | FAIL（≥80% 区间）                                       | Medium | 新增 FAIL。正确行为——90% 重叠是 Blocker            |
+| S5  | `checkNoGreeting()`：Hook VO 开头 "Hey guys"                   | FAIL                                                    | Low    | 正确行为                                           |
+| S6  | `checkNoGreeting()`：Hook VO 含 "hi-tech" 不在开头             | PASS（不误报）                                          | Medium | 只检查前 3 个词 + 词边界正则                       |
+| S7  | `checkNoGreeting()`：Hook VO 开头 "A leaked memo"              | PASS                                                    | Low    | 无问候词                                           |
+| S8  | generate-caption.mjs caption 超 2200                           | exit(1) → verify-video.mjs FAIL                         | High   | 同时修改 verify-video.mjs catch 逻辑检测 exit code |
+| S9  | generate-caption.mjs caption 正常                              | 正常生成，verify-video.mjs PASS                         | Low    | 无变化                                             |
+| S10 | generate-caption.mjs hashtags 为 6 个                          | exit(1) → verify-video.mjs FAIL                         | Low    | generate-caption.mjs 已限制 3-5，超出则 exit       |
+| S11 | drift 测试：AI_BLACKLIST 被删减到 <40                          | tiktok-rules-sync.test.mjs FAIL                         | Low    | 正确行为——不变式守住                               |
+| S12 | drift 测试：THRESHOLDS.hookTextOverlapFailThreshold 被改为 0.9 | tiktok-rules-sync.test.mjs FAIL                         | Low    | 正确行为                                           |
+| S13 | 现有 validScenes 通过所有新增检查                              | 0 FAIL                                                  | Low    | 已验证：无问候词、重叠率低、无黑名单词             |
+| S14 | `runAllSceneDataChecks` 包含 `checkNoGreeting` 结果            | 新增 1 条 pass/fail 结果                                | Low    | 纯追加，不影响现有结果                             |
+| S15 | `AI_BLACKLIST` re-export 从 scene-rules.mjs 可正常 import      | `import { AI_BLACKLIST } from "scene-rules.mjs"` 仍可用 | Low    | re-export 保持接口不变                             |

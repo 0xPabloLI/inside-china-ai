@@ -14,6 +14,7 @@
 **是什么**：TikTok 官方的搜索趋势工具，让创作者看到平台用户在搜什么话题。
 
 **核心功能**：
+
 - **Recommended topics**：基于你的内容niche和粉丝搜索行为，推荐热门搜索话题
 - **Content Gap**：高搜索量、低供给的话题（最值得做的内容机会）
 - **Search Analytics**：你自己视频在搜索维度的表现数据
@@ -24,11 +25,13 @@
 **粉丝门槛**：≥1,000 粉丝才能看 "searches by followers" 功能。
 
 **入口**：
+
 - **移动端**：TikTok App 搜索栏输入 "Creator Search Insights" → 点 View
 - **桌面端**：`https://www.tiktok.com/inspiration`（2025 年 7 月上线桌面版，需登录态）
 - **TikTok Studio**：Profile → 菜单(☰) → TikTok Studio → Creation inspirations → Recommended → Searched for
 
 **有 API 吗？** ❌ **没有面向商业用户的 API。**
+
 - TikTok Research API (`open.tiktokapis.com/v2/research/`) 仅限学术/非营利机构，FAQ 明确说 creators/advertisers/commercial users 不可申请
 - Phyllo 博客提到 2026 年 TikTok "扩展了 API surface" 含 "Creator Search Insights API"，但本质还是 Research API 体系下的，同样不面向商业用户
 - **CDP 是唯一可行路径**
@@ -38,12 +41,13 @@
 **是什么**：AI 驱动的内容创作工具，输入 prompt 或选择 CSI 话题 → 自动生成 video title、hashtags、hooks、六段式 script outline。
 
 **六段式结构**：
+
 1. Intro suggestions（开场建议）
 2. Core talking points（核心要点）
 3. A highlight moment for retention（留存亮点）
 4. A climatic build（高潮递进）
 5. Engagement-driven outro（互动结尾）
-（官方文档列了 5 个 section，部分第三方报道说是 "six parts"——实际是包含 title + 5 段内容结构）
+   （官方文档列了 5 个 section，部分第三方报道说是 "six parts"——实际是包含 title + 5 段内容结构）
 
 **可编辑操作**：refresh 获取新版本、缩短/加长、改风格（"Make this a tutorial"、"Refine the hook to be more engaging"）
 
@@ -93,11 +97,11 @@
 
 ### 2.1 CSI + AI Outline — 最高价值
 
-| 管线阶段 | 用途 | 数据/输出 | 接入方式 |
-|----------|------|-----------|---------|
-| Stage 0（选题） | Content Gap 话题发现 | 高搜索低供给的话题列表 JSON | CDP 抓取 `tiktok.com/inspiration` |
-| Stage 1（scene-data 生成后） | AI Outline 生成 description + hashtags 候选 | title 候选、hashtags、hooks | CDP 在 AI Outline 输入 prompt → 提取输出 |
-| Analytics Workflow ④b | Search Analytics 数据 | 搜索观看、搜索展示、CTR、搜索排名 | CDP 抓取 CSI 中的 Search Analytics 页面 |
+| 管线阶段                     | 用途                                        | 数据/输出                         | 接入方式                                 |
+| ---------------------------- | ------------------------------------------- | --------------------------------- | ---------------------------------------- |
+| Stage 0（选题）              | Content Gap 话题发现                        | 高搜索低供给的话题列表 JSON       | CDP 抓取 `tiktok.com/inspiration`        |
+| Stage 1（scene-data 生成后） | AI Outline 生成 description + hashtags 候选 | title 候选、hashtags、hooks       | CDP 在 AI Outline 输入 prompt → 提取输出 |
+| Analytics Workflow ④b        | Search Analytics 数据                       | 搜索观看、搜索展示、CTR、搜索排名 | CDP 抓取 CSI 中的 Search Analytics 页面  |
 
 ### 2.2 为什么 AI Outline 应在 scene-data 生成后使用
 
@@ -138,6 +142,7 @@ Stage 5: 发布
 AI Outline 的六段式结构（intro → core points → highlight → climatic build → outro）**不需要映射**到我们的 scene 类型（hook → narrative → data → cta）。
 
 **原因**：
+
 - AI Outline 生成的是 **description（帖文文字）和 hashtags**，不是视频结构
 - 我们的视频结构由 scene-data 的 `visualType` 字段决定，由 Remotion 模板渲染
 - description 是发布时写在帖文里的文字，观众在看视频时可能根本不读
@@ -152,20 +157,22 @@ AI Outline 的六段式结构（intro → core points → highlight → climatic
 
 **证据回顾**（`tiktok-competitor-intelligence.md` §3.2）：
 
-| 视频 | 使用 `#creatorsearchinsights`? | 播放 | 搜索词 |
-|------|-----|------|--------|
-| #1（DeepSeek v1） | ❌ 没用 | 247（最高） | "deepseek" 22% |
-| #2（DeepSeek v2） | ✅ 用了 | 119 | "creator insights part 3 4 5" |
-| #3（Seedance） | ✅ 用了 | 104 | — |
-| #4（Unitree） | ❌ 没用 | 98 | "robot seeks china" |
+| 视频              | 使用 `#creatorsearchinsights`? | 播放        | 搜索词                        |
+| ----------------- | ------------------------------ | ----------- | ----------------------------- |
+| #1（DeepSeek v1） | ❌ 没用                        | 247（最高） | "deepseek" 22%                |
+| #2（DeepSeek v2） | ✅ 用了                        | 119         | "creator insights part 3 4 5" |
+| #3（Seedance）    | ✅ 用了                        | 104         | —                             |
+| #4（Unitree）     | ❌ 没用                        | 98          | "robot seeks china"           |
 
 **分析**：
+
 - 使用 `#creatorsearchinsights` 的两条视频平均播放 112，未使用的平均 172
 - 更关键的是：使用该 tag 的视频 #2 的搜索词变成了 "creator insights part 3 4 5"——这说明这个 tag 把**想看 "Creator Search Insights 工具本身教程" 的用户**引到了我们的 DeepSeek 新闻视频里
 - 这些用户的完播率极低（因为内容不匹配），导致算法判定内容质量差，减少推荐
 - 这不是 tag 本身"有害"，而是 **tag 与内容不匹配** 导致受众错位
 
 **但需要注意**：
+
 - 样本量太小（4 条视频，2 条用了 tag），不能下统计学结论
 - `#creatorsearchinsights` 是 TikTok 官方推广的工具名，很多创作者用它来标记 CSI 相关内容
 - 如果我们做一条**关于 CSI 工具本身的教程视频**，用这个 tag 是合理的
@@ -177,36 +184,36 @@ AI Outline 的六段式结构（intro → core points → highlight → climatic
 
 当前 Analytics CSV 导出（`analytics-utils.mjs`）包含的字段：
 
-| 字段 | 来源 |
-|------|------|
-| title | CSV |
-| postedAt | CSV |
-| views | CSV |
-| avgWatchTime | CSV |
-| completionRate | CSV |
-| shares | CSV |
-| saves | CSV |
-| comments | CSV |
-| likes | CSV |
+| 字段           | 来源 |
+| -------------- | ---- |
+| title          | CSV  |
+| postedAt       | CSV  |
+| views          | CSV  |
+| avgWatchTime   | CSV  |
+| completionRate | CSV  |
+| shares         | CSV  |
+| saves          | CSV  |
+| comments       | CSV  |
+| likes          | CSV  |
 
 当前 CDP 抓取 TikTok Studio Analytics（`analytics-workflow.md` 步骤 ④b）追加的字段：
 
-| 字段 | 来源 |
-|------|------|
-| hashtags | tiktok-metadata.json |
+| 字段          | 来源                  |
+| ------------- | --------------------- |
+| hashtags      | tiktok-metadata.json  |
 | searchQueries | CDP 抓取 Top 5 搜索词 |
-| fypPercent | CDP 抓取流量来源分布 |
-| searchPercent | CDP 抓取流量来源分布 |
+| fypPercent    | CDP 抓取流量来源分布  |
+| searchPercent | CDP 抓取流量来源分布  |
 
 **CSI Search Analytics 能多的维度**：
 
-| 字段 | CSI 提供? | 当前有? | 价值 |
-|------|-----------|---------|------|
-| searchViews（搜索观看数） | ✅ | ❌ | 知道多少播放来自搜索 |
-| searchImpressions（搜索展示数） | ✅ | ❌ | 视频在搜索结果中出现了多少次 |
-| searchViewPercentage（搜索观看占比） | ✅ | ⚠️ 有 fypPercent/searchPercent 但不是 per-video | 每条视频的搜索流量占比 |
-| averageCTR（平均点击率） | ✅ | ❌ | 搜索结果中用户点击你视频的比例 |
-| searchRanking（搜索排名） | ✅ | ❌ | 视频在某个搜索词下的排名 |
+| 字段                                 | CSI 提供? | 当前有?                                         | 价值                           |
+| ------------------------------------ | --------- | ----------------------------------------------- | ------------------------------ |
+| searchViews（搜索观看数）            | ✅        | ❌                                              | 知道多少播放来自搜索           |
+| searchImpressions（搜索展示数）      | ✅        | ❌                                              | 视频在搜索结果中出现了多少次   |
+| searchViewPercentage（搜索观看占比） | ✅        | ⚠️ 有 fypPercent/searchPercent 但不是 per-video | 每条视频的搜索流量占比         |
+| averageCTR（平均点击率）             | ✅        | ❌                                              | 搜索结果中用户点击你视频的比例 |
+| searchRanking（搜索排名）            | ✅        | ❌                                              | 视频在某个搜索词下的排名       |
 
 **结论**：CSI Search Analytics 比当前方式多 5 个维度，其中 **searchViews + averageCTR + searchRanking** 是最有价值的——它们能直接回答"我的视频在搜索中表现如何"和"哪个搜索词给我带来最多流量"。
 
@@ -254,14 +261,14 @@ AI Outline 的六段式结构（intro → core points → highlight → climatic
 
 ### 3.2 CDP 自动化风险与缓解
 
-| 风险 | 严重性 | 缓解方案 |
-|------|--------|---------|
-| 页面 DOM 变化 | 中 | 用语义选择器 + 多个 fallback |
-| 需要登录态 | 低 | web-access CDP 已有用户 TikTok session |
-| 地区限制（AI Outline 可能不在我们地区可用） | 中 | 先手动检查可见性；CSI 23 国含美/加/新/日 |
-| 反爬检测 | 低 | CDP 用真实浏览器 + 真实 session |
-| AI Outline 生成质量不稳定 | 中 | 多次 refresh + 人工选择最佳 |
-| AI Outline 输出含 BLACKLISTED_HASHTAGS | 低 | `deriveHashtags()` 已有自动过滤 |
+| 风险                                        | 严重性 | 缓解方案                                 |
+| ------------------------------------------- | ------ | ---------------------------------------- |
+| 页面 DOM 变化                               | 中     | 用语义选择器 + 多个 fallback             |
+| 需要登录态                                  | 低     | web-access CDP 已有用户 TikTok session   |
+| 地区限制（AI Outline 可能不在我们地区可用） | 中     | 先手动检查可见性；CSI 23 国含美/加/新/日 |
+| 反爬检测                                    | 低     | CDP 用真实浏览器 + 真实 session          |
+| AI Outline 生成质量不稳定                   | 中     | 多次 refresh + 人工选择最佳              |
+| AI Outline 输出含 BLACKLISTED_HASHTAGS      | 低     | `deriveHashtags()` 已有自动过滤          |
 
 ### 3.3 CDP 前置验证结果（2026-08-26 已完成）
 
@@ -269,33 +276,33 @@ AI Outline 的六段式结构（intro → core points → highlight → climatic
 
 **验证结果**：
 
-| 验证项 | 结果 | 详情 |
-|--------|------|------|
-| CSI 可见 | ✅ 可见 | `tiktok.com/inspiration` 重定向到 `tiktok.com/csi`，话题列表正常加载 |
-| 话题列表 | ✅ 正常 | 每页 ~20 个话题，含搜索热度、增长率 |
-| Content Gap 过滤 | ✅ 可用 | 点击"内容缺口" chip 后过滤生效，返回高搜索低供给话题 |
-| 话题详情页 | ✅ 可用 | URL: `tiktok.com/csi/detail/{topicId}`，含搜索热度、地区分布、人口统计、相关视频 |
-| AI Outline | ❌ 桌面版不可用 | 话题详情页没有 AI Outline 交互组件。AI Outline 仅在移动端 App 内可用 |
-| Search Analytics | ❌ 即将上线 | `tiktok.com/csi/analytics` 显示"数据分析功能即将在电脑端上线" |
-| 用户登录态 | ✅ 已登录 | 页面显示中文界面，有通知、粉丝数据 |
+| 验证项           | 结果            | 详情                                                                             |
+| ---------------- | --------------- | -------------------------------------------------------------------------------- |
+| CSI 可见         | ✅ 可见         | `tiktok.com/inspiration` 重定向到 `tiktok.com/csi`，话题列表正常加载             |
+| 话题列表         | ✅ 正常         | 每页 ~20 个话题，含搜索热度、增长率                                              |
+| Content Gap 过滤 | ✅ 可用         | 点击"内容缺口" chip 后过滤生效，返回高搜索低供给话题                             |
+| 话题详情页       | ✅ 可用         | URL: `tiktok.com/csi/detail/{topicId}`，含搜索热度、地区分布、人口统计、相关视频 |
+| AI Outline       | ❌ 桌面版不可用 | 话题详情页没有 AI Outline 交互组件。AI Outline 仅在移动端 App 内可用             |
+| Search Analytics | ❌ 即将上线     | `tiktok.com/csi/analytics` 显示"数据分析功能即将在电脑端上线"                    |
+| 用户登录态       | ✅ 已登录       | 页面显示中文界面，有通知、粉丝数据                                               |
 
 **关键 DOM 结构**：
 
-| 元素 | 选择器 | 用途 |
-|------|--------|------|
-| 话题行 | `tr` (含 4 个 `td`) | 话题名 + 搜索热度 + AI tips + 操作 |
-| 话题名 | `td[class*=TdCell]` 第 1 列 | `tds[0].textContent` |
-| 搜索热度+增长率 | `td[class*=TdCell]` 第 2 列 | `tds[1].textContent`（如 `148K1000%+`） |
-| Content Gap chip | `[class*=Chip]` 文本含"内容缺口" | 点击切换过滤 |
-| 导航-数据分析 | `span.HeaderTuxText` 文本="数据分析" | Search Analytics 入口（暂不可用） |
+| 元素             | 选择器                               | 用途                                    |
+| ---------------- | ------------------------------------ | --------------------------------------- |
+| 话题行           | `tr` (含 4 个 `td`)                  | 话题名 + 搜索热度 + AI tips + 操作      |
+| 话题名           | `td[class*=TdCell]` 第 1 列          | `tds[0].textContent`                    |
+| 搜索热度+增长率  | `td[class*=TdCell]` 第 2 列          | `tds[1].textContent`（如 `148K1000%+`） |
+| Content Gap chip | `[class*=Chip]` 文本含"内容缺口"     | 点击切换过滤                            |
+| 导航-数据分析    | `span.HeaderTuxText` 文本="数据分析" | Search Analytics 入口（暂不可用）       |
 
 **方案调整**：
 
-| Phase | 原计划 | 调整后 | 状态 |
-|-------|--------|--------|------|
-| Phase 1 (AI Outline) | CDP 生成 description/hashtags | ❌ 桌面版无 AI Outline。改为：Agent 在移动端手动使用 AI Outline | 搁置 |
-| Phase 2 (Content Gap) | CDP 抓取话题列表 | ✅ 已实施 | `scripts/short-video/lib/tiktok-csi.mjs` |
-| Phase 3 (Search Analytics) | CDP 抓取 per-video 搜索数据 | ❌ 桌面版"即将上线"。搁置 | 待 TikTok 上线后实施 |
+| Phase                      | 原计划                        | 调整后                                                          | 状态                                     |
+| -------------------------- | ----------------------------- | --------------------------------------------------------------- | ---------------------------------------- |
+| Phase 1 (AI Outline)       | CDP 生成 description/hashtags | ❌ 桌面版无 AI Outline。改为：Agent 在移动端手动使用 AI Outline | 搁置                                     |
+| Phase 2 (Content Gap)      | CDP 抓取话题列表              | ✅ 已实施                                                       | `scripts/short-video/lib/tiktok-csi.mjs` |
+| Phase 3 (Search Analytics) | CDP 抓取 per-video 搜索数据   | ❌ 桌面版"即将上线"。搁置                                       | 待 TikTok 上线后实施                     |
 
 **已实现功能**（`scripts/short-video/lib/tiktok-csi.mjs`）：
 
@@ -317,29 +324,29 @@ node scripts/short-video/lib/tiktok-csi.mjs --detail <topicId>
 
 ## 4. 其他 Creator Tools 评估
 
-| 工具 | 功能 | 对我们的价值 | 接入方式 |
-|------|------|-------------|---------|
-| Smart Split | 长视频→短视频自动切片 | ❌ 不适合，我们已是竖屏短视频 | - |
-| Creator Assistant | AI 对话助手，帮写 captions/hashtags | ⚠️ 与 AI Outline 重叠，更偏聊天式 | CDP |
-| Trending Topics | 平台热门话题 | ⚠️ 补充 `search-sources.mjs` 的数据源 | CDP 可抓取 |
-| Creation Inspirations | 推荐内容创意 | ⚠️ 与 CSI 重叠 | CDP 可抓取 |
-| Symphony Creative Studio | AI 生成 TikTok 风格视频广告 | ❌ 面向广告主 | - |
-| Creator Weekly Report | 每周账号表现摘要 | ✅ Analytics Workflow 补充数据源 | CDP/邮件 |
-| Content Library (Film & TV) | 正版影视片段 | ❌ 非我们内容类型 | - |
-| TikTok Studio Analytics | 视频数据分析 | ✅ 已在用（CDP 抓取方式） | 已集成 |
+| 工具                        | 功能                                | 对我们的价值                          | 接入方式   |
+| --------------------------- | ----------------------------------- | ------------------------------------- | ---------- |
+| Smart Split                 | 长视频→短视频自动切片               | ❌ 不适合，我们已是竖屏短视频         | -          |
+| Creator Assistant           | AI 对话助手，帮写 captions/hashtags | ⚠️ 与 AI Outline 重叠，更偏聊天式     | CDP        |
+| Trending Topics             | 平台热门话题                        | ⚠️ 补充 `search-sources.mjs` 的数据源 | CDP 可抓取 |
+| Creation Inspirations       | 推荐内容创意                        | ⚠️ 与 CSI 重叠                        | CDP 可抓取 |
+| Symphony Creative Studio    | AI 生成 TikTok 风格视频广告         | ❌ 面向广告主                         | -          |
+| Creator Weekly Report       | 每周账号表现摘要                    | ✅ Analytics Workflow 补充数据源      | CDP/邮件   |
+| Content Library (Film & TV) | 正版影视片段                        | ❌ 非我们内容类型                     | -          |
+| TikTok Studio Analytics     | 视频数据分析                        | ✅ 已在用（CDP 抓取方式）             | 已集成     |
 
 ---
 
 ## 5. TikTok API 体系总结
 
-| API | 覆盖范围 | 对我们可用? | 原因 |
-|-----|---------|------------|------|
-| Research API (`open.tiktokapis.com/v2/research/`) | 公开视频/用户数据查询 | ❌ | 仅限学术/非营利，creators/commercial 不可申请，4周审核 |
-| Business API (`business-api.tiktok.com`) | 广告管理（campaign/ad 管理+分析） | ❌ | 只覆盖广告数据，不覆盖 CSI/AI Outline |
-| Content Posting API | 从第三方发布视频到 TikTok | ✅ 已用（通过 Publora） | 只管发布，不管 CSI/AI Outline |
-| Creator Marketplace API | 影响者营销数据 | ❌ | 面向广告主找 KOL |
-| Login & Identity / Share to TikTok | 第三方登录 + 分享 | ❌ | 不相关 |
-| CSI / AI Outline | 搜索趋势 + AI 生成内容 | ❌ 无 API | 只在 App/网页内交互 |
+| API                                               | 覆盖范围                          | 对我们可用?             | 原因                                                   |
+| ------------------------------------------------- | --------------------------------- | ----------------------- | ------------------------------------------------------ |
+| Research API (`open.tiktokapis.com/v2/research/`) | 公开视频/用户数据查询             | ❌                      | 仅限学术/非营利，creators/commercial 不可申请，4周审核 |
+| Business API (`business-api.tiktok.com`)          | 广告管理（campaign/ad 管理+分析） | ❌                      | 只覆盖广告数据，不覆盖 CSI/AI Outline                  |
+| Content Posting API                               | 从第三方发布视频到 TikTok         | ✅ 已用（通过 Publora） | 只管发布，不管 CSI/AI Outline                          |
+| Creator Marketplace API                           | 影响者营销数据                    | ❌                      | 面向广告主找 KOL                                       |
+| Login & Identity / Share to TikTok                | 第三方登录 + 分享                 | ❌                      | 不相关                                                 |
+| CSI / AI Outline                                  | 搜索趋势 + AI 生成内容            | ❌ 无 API               | 只在 App/网页内交互                                    |
 
 **结论**：TikTok 没有任何官方 API 提供 CSI 或 AI Outline 的数据。**CDP 是唯一可行的自动化路径。**
 

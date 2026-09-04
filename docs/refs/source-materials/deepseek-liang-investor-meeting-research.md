@@ -157,63 +157,63 @@
 
 ### Compute Resources
 
-| Resource | Quantity | Notes |
-|----------|----------|-------|
-| Current H-equivalent GPUs | ~20,000 | Most arrived in past 1-2 months |
-| Huawei 950 cards | 16,000 | Allocated by Huawei; ~4K B-series equivalent |
-| Needed for 800B model (Nvidia) | 50,000 GB300 | Training only, no research |
-| Needed for 800B model (Huawei) | 200,000 Huawei 950 | Training only, no research |
-| Huawei 950 vs GB300 ratio | 4:1 | 4 Huawei cards = 1 GB300 performance |
-| Huawei 950 time lag | 2 years | vs GB300 |
-| Huawei card depreciation | ~3 years | |
-| Nvidia card depreciation | ~5 years | |
+| Resource                       | Quantity           | Notes                                        |
+| ------------------------------ | ------------------ | -------------------------------------------- |
+| Current H-equivalent GPUs      | ~20,000            | Most arrived in past 1-2 months              |
+| Huawei 950 cards               | 16,000             | Allocated by Huawei; ~4K B-series equivalent |
+| Needed for 800B model (Nvidia) | 50,000 GB300       | Training only, no research                   |
+| Needed for 800B model (Huawei) | 200,000 Huawei 950 | Training only, no research                   |
+| Huawei 950 vs GB300 ratio      | 4:1                | 4 Huawei cards = 1 GB300 performance         |
+| Huawei 950 time lag            | 2 years            | vs GB300                                     |
+| Huawei card depreciation       | ~3 years           |                                              |
+| Nvidia card depreciation       | ~5 years           |                                              |
 
 ### Model Release Timeline
 
-| Timeframe | Model | Notes |
-|-----------|-------|-------|
-| End of April 2026 | Previous release | |
-| End of June 2026 | Next release (~2-3 month cadence) | |
-| Current | GCV4 (vision) | "Quite rough," needs time |
-| Current scale | ~50B activation | |
-| Next-gen target | 150-250B activation | Optimistic: start training end of 2026 |
-| Future | V4+ with native multimodality | Multimodal as component, not main line |
+| Timeframe         | Model                             | Notes                                  |
+| ----------------- | --------------------------------- | -------------------------------------- |
+| End of April 2026 | Previous release                  |                                        |
+| End of June 2026  | Next release (~2-3 month cadence) |                                        |
+| Current           | GCV4 (vision)                     | "Quite rough," needs time              |
+| Current scale     | ~50B activation                   |                                        |
+| Next-gen target   | 150-250B activation               | Optimistic: start training end of 2026 |
+| Future            | V4+ with native multimodality     | Multimodal as component, not main line |
 
 ### AGI Technical Roadmap
 
-| Step | Technology | Status | Description |
-|------|-----------|--------|-------------|
-| 1 | Language models | ✅ Completed | Foundation |
-| 2 | Chain of Thought (CoT) | ✅ Completed | "Last year's step" (2025) |
-| 3 | Agents | 🔄 Current | "This year's step" (2026) |
-| 4 | Continuous learning | ⏳ Next bottleneck | Not yet solved globally; "摸索阶段" |
-| 5 | Self-iteration singularity | 🔮 Future | AI develops own next versions |
-| 6 | Embodied AI | 🔮 Future | Enters physical world |
+| Step | Technology                 | Status             | Description                         |
+| ---- | -------------------------- | ------------------ | ----------------------------------- |
+| 1    | Language models            | ✅ Completed       | Foundation                          |
+| 2    | Chain of Thought (CoT)     | ✅ Completed       | "Last year's step" (2025)           |
+| 3    | Agents                     | 🔄 Current         | "This year's step" (2026)           |
+| 4    | Continuous learning        | ⏳ Next bottleneck | Not yet solved globally; "摸索阶段" |
+| 5    | Self-iteration singularity | 🔮 Future          | AI develops own next versions       |
+| 6    | Embodied AI                | 🔮 Future          | Enters physical world               |
 
 ### Pricing Economics
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Cost recovery period | 10 months | Equipment (GPU) cost |
-| Profit margin | ~6x | Considered "reasonable profit" |
-| Demand elasticity | None | Price doubling wouldn't change demand |
-| DDCP price cut | To 1/4 | Team cheered |
-| V3.2 Flash pricing | 10-month recovery | Same logic as all models |
-| Competitor cost ratio | "好几倍" (several times) higher | Alibaba, Tencent deployment costs |
+| Metric                | Value                           | Notes                                 |
+| --------------------- | ------------------------------- | ------------------------------------- |
+| Cost recovery period  | 10 months                       | Equipment (GPU) cost                  |
+| Profit margin         | ~6x                             | Considered "reasonable profit"        |
+| Demand elasticity     | None                            | Price doubling wouldn't change demand |
+| DDCP price cut        | To 1/4                          | Team cheered                          |
+| V3.2 Flash pricing    | 10-month recovery               | Same logic as all models              |
+| Competitor cost ratio | "好几倍" (several times) higher | Alibaba, Tencent deployment costs     |
 
 ## Timeline
 
-| Date | Event |
-|------|-------|
-| ~2023 | DeepSeek founded by Liang Wenfeng |
-| Spring 2025 | DeepSeek goes viral (C-end user surge); chose not to monetize |
-| May 20, 2026 | Investor meeting (this transcript) |
-| Late April 2026 | Previous model release |
-| ~June 2026 | Next model release expected |
-| ~End of 2026 | Optimistic: start training 150B activation model |
-| Within 1 year | Domestic chip ecosystem predicted viable |
-| Within 1 year | High-quality data problem significantly improved |
-| 5+ years | Domestic chip production capacity resolved (optimistic) |
+| Date            | Event                                                         |
+| --------------- | ------------------------------------------------------------- |
+| ~2023           | DeepSeek founded by Liang Wenfeng                             |
+| Spring 2025     | DeepSeek goes viral (C-end user surge); chose not to monetize |
+| May 20, 2026    | Investor meeting (this transcript)                            |
+| Late April 2026 | Previous model release                                        |
+| ~June 2026      | Next model release expected                                   |
+| ~End of 2026    | Optimistic: start training 150B activation model              |
+| Within 1 year   | Domestic chip ecosystem predicted viable                      |
+| Within 1 year   | High-quality data problem significantly improved              |
+| 5+ years        | Domestic chip production capacity resolved (optimistic)       |
 
 ## Cross-References
 

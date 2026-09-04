@@ -8,10 +8,10 @@
 
 ## 1. 本地设备现状
 
-| 设备 | GPU | 显存 | CUDA | 能跑模型 |
-|------|-----|------|------|---------|
-| MacBook Pro M2 Pro | Apple M2 Pro (MPS) | 32GB 统一内存 | ❌ 无 CUDA | Hallo2 (256px, MIT), LatentSync 1.5 (256px) |
-| Windows PC | NVIDIA GTX 1080 | 8GB GDDR5X | ✅ CUDA 11.x (算力 6.1) | LatentSync 1.5, HeyGem Lite, SadTalker, Wav2Lip |
+| 设备               | GPU                | 显存          | CUDA                    | 能跑模型                                        |
+| ------------------ | ------------------ | ------------- | ----------------------- | ----------------------------------------------- |
+| MacBook Pro M2 Pro | Apple M2 Pro (MPS) | 32GB 统一内存 | ❌ 无 CUDA              | Hallo2 (256px, MIT), LatentSync 1.5 (256px)     |
+| Windows PC         | NVIDIA GTX 1080    | 8GB GDDR5X    | ✅ CUDA 11.x (算力 6.1) | LatentSync 1.5, HeyGem Lite, SadTalker, Wav2Lip |
 
 > GTX 1080 是 2016 年 Pascal 架构，支持 CUDA 11.x 但不支持 CUDA 12.x。大多数数字人模型要求 CUDA 12.1+，需要检查兼容性。
 > **两台设备都无法运行高质量模型**（Sonic 12GB, LatentSync 1.6 18GB, Hallo2 20GB+ 等）。
@@ -24,44 +24,44 @@
 
 智星云是**非免费平台**，但 RTX 4090 价格全国最低。RTX 4090 24GB 仅 ¥1.65/h，低于 AutoDL 的 ¥1.98/h。RTX 3090 仅 ¥1.10/h，与 AutoDL RTX 3090 (¥1.32/h) 相比便宜约 17%。适合**数字人 pipeline 训练/推理的高性能场景**，支持 NVLink 8 卡互联，适合大模型 TP 并行。
 
-| 维度 | 智星云 | AutoDL | 差距 |
-|------|--------|--------|------|
-| RTX 4090/h | ¥1.65 | ¥1.98 | 智星云便宜 17% |
-| RTX 3090/h | ¥1.10 | ¥1.32 | 智星云便宜 17% |
-| NVLink 8卡 | ✅ 原生支持 | ❌ 无 | 智星云唯一优势 |
-| 自定义镜像 | ✅ 持久保存 | ✅ | 持平 |
-| 学生折扣 | 有 | 有 | 持平 |
-| 规模 | 8万+ 用户 | 更大 | AutoDL 略胜 |
+| 维度       | 智星云      | AutoDL | 差距           |
+| ---------- | ----------- | ------ | -------------- |
+| RTX 4090/h | ¥1.65       | ¥1.98  | 智星云便宜 17% |
+| RTX 3090/h | ¥1.10       | ¥1.32  | 智星云便宜 17% |
+| NVLink 8卡 | ✅ 原生支持 | ❌ 无  | 智星云唯一优势 |
+| 自定义镜像 | ✅ 持久保存 | ✅     | 持平           |
+| 学生折扣   | 有          | 有     | 持平           |
+| 规模       | 8万+ 用户   | 更大   | AutoDL 略胜    |
 
 ### 2.2 Google Colab
 
-| 项目 | 详情 |
-|------|------|
-| **网址** | https://colab.research.google.com/ |
-| **注册** | Google 账号即可，无需额外注册 |
-| **免费 GPU** | T4 16GB |
-| **免费时长** | 不固定，约 12h/天，随时可能断连 |
-| **限制** | 长时间不操作会回收；免费层无 A100 |
+| 项目         | 详情                               |
+| ------------ | ---------------------------------- |
+| **网址**     | https://colab.research.google.com/ |
+| **注册**     | Google 账号即可，无需额外注册      |
+| **免费 GPU** | T4 16GB                            |
+| **免费时长** | 不固定，约 12h/天，随时可能断连    |
+| **限制**     | 长时间不操作会回收；免费层无 A100  |
 
-| 层级 | 价格 | GPU | 显存 | 说明 |
-|------|------|-----|------|------|
-| Free | $0 | T4 | 16GB | 随时断连，~12h/天 |
-| Pro | $10/月 | T4 + P100 | 16GB | 更多时长，不超 16GB |
-| Pro+ | $50/月 | A100 | **40GB** | 优先排队，唯一超 16GB 的选项 |
+| 层级 | 价格   | GPU       | 显存     | 说明                         |
+| ---- | ------ | --------- | -------- | ---------------------------- |
+| Free | $0     | T4        | 16GB     | 随时断连，~12h/天            |
+| Pro  | $10/月 | T4 + P100 | 16GB     | 更多时长，不超 16GB          |
+| Pro+ | $50/月 | A100      | **40GB** | 优先排队，唯一超 16GB 的选项 |
 
 > **注意**：Colab Pro ($10/月) 和 Google One AI Premium / Gemini Advanced ($20/月) 是**不同产品**。Gemini Advanced 不包含 Colab Pro+，要超过 16GB VRAM 必须订阅 Colab Pro+ ($50/月)。
 
 ### 2.3 Kaggle ⭐⭐⭐ 最推荐（周期性刷新）
 
-| 项目 | 详情 |
-|------|------|
-| **网址** | https://www.kaggle.com/ |
-| **注册** | Google 账号 + 手机号验证 |
-| **免费 GPU** | T4 ×2 (16GB×2), P100 16GB |
-| **免费时长** | **30h/周**（每周刷新，长期可用） |
-| **限制** | 单次 Notebook 最长 12h；**无付费升级选项**，30h/周是硬上限 |
-| **自动化** | 有官方 API/CLI（`pip install kaggle`），可编程创建/推送 Notebook |
-| **当前状态** | ✅ 已配置（CLI v2.2.4 + kaggle.json），全链路验证通过 |
+| 项目         | 详情                                                             |
+| ------------ | ---------------------------------------------------------------- |
+| **网址**     | https://www.kaggle.com/                                          |
+| **注册**     | Google 账号 + 手机号验证                                         |
+| **免费 GPU** | T4 ×2 (16GB×2), P100 16GB                                        |
+| **免费时长** | **30h/周**（每周刷新，长期可用）                                 |
+| **限制**     | 单次 Notebook 最长 12h；**无付费升级选项**，30h/周是硬上限       |
+| **自动化**   | 有官方 API/CLI（`pip install kaggle`），可编程创建/推送 Notebook |
+| **当前状态** | ✅ 已配置（CLI v2.2.4 + kaggle.json），全链路验证通过            |
 
 ### 2.3b HuggingFace LFS 文件下载策略（Kaggle 专属）
 
@@ -70,6 +70,7 @@
 **问题根因**：`huggingface_hub` 1.x 默认使用 Xet 协议（HTTP/2 并行分块下载）传输 LFS 文件。该协议在 Kaggle 网络中挂起，返回 0B 文件不报错。`hf download` CLI、`hf_hub_download()`、`snapshot_download()`、`requests.get()` 全部受影响。`curl -L` 走 HTTP/1.1 + keepalive 不受影响。
 
 **LFS 大文件下载（.safetensors, .pth, .bin）**：
+
 ```python
 url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
 subprocess.run(["curl", "-L", "--max-time", "3600", "-o", dest_path, url], check=True)
@@ -78,6 +79,7 @@ if os.path.getsize(dest_path) == 0:
 ```
 
 **小文件 / Tokenizer 下载**：
+
 ```python
 os.environ["HF_HUB_DISABLE_XET"] = "1"        # 必须在 import 前设
 os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)  # 不要设为 0，要 pop 掉
@@ -91,11 +93,13 @@ shutil.copy2(os.path.realpath(cached), dest_path)  # 不要用 move，跨文件�
 **Colab 上的 WebSocket 超时**：Colab 没有下载问题，但 `subprocess.run(capture_output=True)` 会吞掉所有 stdout → WebSocket 无数据 → idle timeout → 连接断开。必须用 `Popen` 实时输出 + `sys.stdout.flush()`。
 
 **ModelScope 备选源**：部分模型在 ModelScope 有镜像，Kaggle 可直连：
+
 ```bash
 curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/master/pytorch_model.bin"
 ```
 
 **快速检查清单**：
+
 - LFS 文件用 `curl -L`？小文件用 `hf_hub_download`？
 - `HF_HUB_DISABLE_XET=1` 在 import 前设置？`HF_HUB_ENABLE_HF_TRANSFER` 已 pop？
 - 下载后验证文件大小 > 0？
@@ -104,25 +108,25 @@ curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/mas
 
 **失败版本历史**（InfiniteTalk Dataset Creator）：
 
-| 版本 | 方法 | 结果 | 根因 |
-|------|------|------|------|
-| v2-v3 | `hf download` CLI | 0B | Xet 协议在 Kaggle 上挂起 |
-| v4-v5 | `hf_hub_download()` | 0B / ERROR | HF cache blob 0B (Xet) + symlink 跨文件系统 |
-| v6 | `requests.get()` | 0B | CDN 返回空 body |
-| v7 | `curl -L` (LFS) + `hf_hub_download` (small) | ✅ 下载成功 | curl 走 HTTP/1.1 不受 Xet 影响 |
-| v8 | v7 + `--dir-mode zip` | ✅ 上传成功 | 修复 CLI 默认跳过子目录 |
+| 版本  | 方法                                        | 结果        | 根因                                        |
+| ----- | ------------------------------------------- | ----------- | ------------------------------------------- |
+| v2-v3 | `hf download` CLI                           | 0B          | Xet 协议在 Kaggle 上挂起                    |
+| v4-v5 | `hf_hub_download()`                         | 0B / ERROR  | HF cache blob 0B (Xet) + symlink 跨文件系统 |
+| v6    | `requests.get()`                            | 0B          | CDN 返回空 body                             |
+| v7    | `curl -L` (LFS) + `hf_hub_download` (small) | ✅ 下载成功 | curl 走 HTTP/1.1 不受 Xet 影响              |
+| v8    | v7 + `--dir-mode zip`                       | ✅ 上传成功 | 修复 CLI 默认跳过子目录                     |
 
 > 参考实现：`scripts/kaggle/infinitetalk-dataset/create_dataset_kernel.py`（v8）
 
 ### 2.4 轮流使用策略
 
-| 时间 | 平台 | GPU | 能跑模型 |
-|------|------|-----|---------|
-| 主力（自动化） | Kaggle P100/T4 | 16GB | EchoMimicV3, Sonic, V-Express, LatentSync 1.5 |
-| Kaggle 30h 用完 | Colab T4 | 16GB | 交互式调试、快速验证 |
-| 需要大显存（>16GB） | AutoDL RTX 4090 | 24GB | LatentSync 1.6, Hallo2（¥1.88/h） |
-| 需要 A100 40GB+ | Colab Pro+ | 40GB | Hallo2/3（$50/月） |
-| 需要长期高频 | AutoDL 付费 | RTX 4090 24GB | 全部 24GB 以下 |
+| 时间                | 平台            | GPU           | 能跑模型                                      |
+| ------------------- | --------------- | ------------- | --------------------------------------------- |
+| 主力（自动化）      | Kaggle P100/T4  | 16GB          | EchoMimicV3, Sonic, V-Express, LatentSync 1.5 |
+| Kaggle 30h 用完     | Colab T4        | 16GB          | 交互式调试、快速验证                          |
+| 需要大显存（>16GB） | AutoDL RTX 4090 | 24GB          | LatentSync 1.6, Hallo2（¥1.88/h）             |
+| 需要 A100 40GB+     | Colab Pro+      | 40GB          | Hallo2/3（$50/月）                            |
+| 需要长期高频        | AutoDL 付费     | RTX 4090 24GB | 全部 24GB 以下                                |
 
 ---
 
@@ -130,43 +134,44 @@ curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/mas
 
 ### 3.1 AutoDL（国内，最便宜）
 
-| 项目 | 详情 |
-|------|------|
+| 项目     | 详情                               |
+| -------- | ---------------------------------- |
 | **公司** | 视拓云（南京）科技有限公司（中国） |
-| **网址** | https://www.autodl.com/ |
-| **支付** | 支付宝/微信 |
-| **计费** | 按分钟，不需预付 |
+| **网址** | https://www.autodl.com/            |
+| **支付** | 支付宝/微信                        |
+| **计费** | 按分钟，不需预付                   |
 
 **GPU 价格**：
 
-| GPU | 显存 | 价格 | 能跑模型 |
-|-----|------|------|---------|
-| RTX 2080Ti | 11GB | ¥0.88/h | SadTalker |
-| RTX A4000 | 16GB | ¥0.92/h | EchoMimic V2 |
-| RTX 3080Ti | 12GB | ¥0.98/h | Sonic, PersonaLive |
-| RTX 3090 | 24GB | ¥1.32/h | 24GB 以下全部 |
-| RTX 4090 | 24GB | ¥1.88/h | 24GB 以下全部（更快） |
-| RTX 5090 | 32GB | ¥2.78/h | 32GB 以下 |
-| A800-80GB | 80GB | ¥4.98/h | 全部含 Hallo3 |
-| H800 80GB | 80GB | ¥8.88/h | 全部 |
+| GPU        | 显存 | 价格    | 能跑模型              |
+| ---------- | ---- | ------- | --------------------- |
+| RTX 2080Ti | 11GB | ¥0.88/h | SadTalker             |
+| RTX A4000  | 16GB | ¥0.92/h | EchoMimic V2          |
+| RTX 3080Ti | 12GB | ¥0.98/h | Sonic, PersonaLive    |
+| RTX 3090   | 24GB | ¥1.32/h | 24GB 以下全部         |
+| RTX 4090   | 24GB | ¥1.88/h | 24GB 以下全部（更快） |
+| RTX 5090   | 32GB | ¥2.78/h | 32GB 以下             |
+| A800-80GB  | 80GB | ¥4.98/h | 全部含 Hallo3         |
+| H800 80GB  | 80GB | ¥8.88/h | 全部                  |
 
 ### 3.2 AutoDL vs 智星云 vs Vast.ai vs RunPod（国内+海外付费 GPU 横评）
 
-> **价格从低到高**：AutoDL RTX 4090（¥1.98）< Vast.ai P2P（~¥2.5）< RunPod（~¥4.9）。
+> **价格从低到高**：AutoDL RTX 4090（¥1.98）< Vast.ai P2P（~~¥2.5）< RunPod（~~¥4.9）。
 > **智星云（未详细测试）** 标称 ¥1.65/h RTX 4090，低于 AutoDL，但规模较小（8万用户）。
 
-| 平台 | GPU | 价格 | 备注 |
-|------|-----|------|------|
-| Vast.ai (P2P) | RTX 3090 24GB | ~$0.20/h (~¥1.4) | 全球最低价，P2P 节点不稳定 |
-| Vast.ai | RTX 4090 24GB | ~$0.35/h (~¥2.5) | 无实名认证、全球多节点 |
-| RunPod | RTX 3090 24GB | $0.50/h (~¥3.5) | 稳定，Docker 预装 |
-| RunPod | RTX 4090 24GB | $0.69/h (~¥4.9) | 有 Serverless 模板、社区模板丰富 |
-| RunPod | A100 80GB | $1.39/h (~¥10) | |
-| RunPod | H100 80GB | $2.89/h (~¥20) | |
+| 平台          | GPU           | 价格               | 备注                             |
+| ------------- | ------------- | ------------------ | -------------------------------- |
+| Vast.ai (P2P) | RTX 3090 24GB | ~~$0.20/h (~~¥1.4) | 全球最低价，P2P 节点不稳定       |
+| Vast.ai       | RTX 4090 24GB | ~~$0.35/h (~~¥2.5) | 无实名认证、全球多节点           |
+| RunPod        | RTX 3090 24GB | $0.50/h (~¥3.5)    | 稳定，Docker 预装                |
+| RunPod        | RTX 4090 24GB | $0.69/h (~¥4.9)    | 有 Serverless 模板、社区模板丰富 |
+| RunPod        | A100 80GB     | $1.39/h (~¥10)     |                                  |
+| RunPod        | H100 80GB     | $2.89/h (~¥20)     |                                  |
 
-> 📌 **价格从低到高**：AutoDL RTX 4090（¥1.88）< Vast.ai RTX 4090（~¥2.5）< RunPod RTX 4090（~¥4.9）。AutoDL 是三者中最便宜的。
+> 📌 **价格从低到高**：AutoDL RTX 4090（¥1.88）< Vast.ai RTX 4090（~~¥2.5）< RunPod RTX 4090（~~¥4.9）。AutoDL 是三者中最便宜的。
 >
 > **Vast.ai 比 AutoDL 贵的价值**：
+>
 > - **无需实名认证**：AutoDL 需要手机号+支付宝实名，Vast.ai 只需邮箱
 > - **全球节点选择**：美/欧/亚/中东可选，适合海外部署和对延迟敏感场景
 > - **灵活配置**：可定制 GPU 数量、CPU、内存、磁盘，AutoDL 是套餐制
@@ -175,6 +180,7 @@ curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/mas
 > - **风险**：P2P 市场机器随时可能被房东回收，不适合长训练，适合临时跑推理
 >
 > **RunPod 的不可替代价值**（比前两者都贵）：
+>
 > - **Serverless 部署**：模型封装为 auto-scaling API，按请求计费，缩容到零不花钱
 > - **社区模板丰富**：一键部署 SD/ComfyUI/数字人等热门应用，Docker 顶装省心
 > - **适合场景**：把模型封装成 API 对外服务、海外用户低延迟访问、不想运维环境
@@ -183,24 +189,24 @@ curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/mas
 
 ### 3.3 显存不够时的选择（按需求选 GPU）
 
-| 需求 | 推荐 | 价格 |
-|------|------|------|
-| ≤12GB（Sonic, EchoMimic） | AutoDL RTX 3080Ti 12GB | ¥0.98/h |
-| ≤16GB（LatentSync 1.5, V-Express） | Kaggle T4 16GB（免费） | ¥0 |
-| ≤24GB（LatentSync 1.6, Hallo2） | AutoDL RTX 4090 24GB | ¥1.88/h |
-| ≤32GB（Hallo2 大分辨率） | AutoDL RTX 5090 32GB | ¥2.78/h |
-| ≤48GB（JoyVASA） | AutoDL PRO 6000 48GB | ¥5.98/h |
-| ≤80GB（Hallo3） | AutoDL A800-80GB | ¥4.98/h |
+| 需求                               | 推荐                   | 价格    |
+| ---------------------------------- | ---------------------- | ------- |
+| ≤12GB（Sonic, EchoMimic）          | AutoDL RTX 3080Ti 12GB | ¥0.98/h |
+| ≤16GB（LatentSync 1.5, V-Express） | Kaggle T4 16GB（免费） | ¥0      |
+| ≤24GB（LatentSync 1.6, Hallo2）    | AutoDL RTX 4090 24GB   | ¥1.88/h |
+| ≤32GB（Hallo2 大分辨率）           | AutoDL RTX 5090 32GB   | ¥2.78/h |
+| ≤48GB（JoyVASA）                   | AutoDL PRO 6000 48GB   | ¥5.98/h |
+| ≤80GB（Hallo3）                    | AutoDL A800-80GB       | ¥4.98/h |
 
 ### 3.4 成本估算（按每月 4 个视频，每个推理 20 分钟）
 
-| 方案 | 月成本 | 说明 |
-|------|--------|------|
-| 免费（Kaggle + Colab 轮换） | ¥0 | Kaggle 30h/周 + Colab ~12h/天 |
-| AutoDL RTX 4090 | ¥2.5 | 4 × 20min × ¥1.88/h |
-| Vast.ai RTX 3090 | ¥1.9 | 4 × 20min × $0.20/h |
-| D-ID API | ¥6.8 | 4 × 30s ≈ 2min × ¥3.4/min |
-| HeyGen API | ¥14 | 4 × 30s ≈ 2min × ¥7/min |
+| 方案                        | 月成本 | 说明                          |
+| --------------------------- | ------ | ----------------------------- |
+| 免费（Kaggle + Colab 轮换） | ¥0     | Kaggle 30h/周 + Colab ~12h/天 |
+| AutoDL RTX 4090             | ¥2.5   | 4 × 20min × ¥1.88/h           |
+| Vast.ai RTX 3090            | ¥1.9   | 4 × 20min × $0.20/h           |
+| D-ID API                    | ¥6.8   | 4 × 30s ≈ 2min × ¥3.4/min     |
+| HeyGen API                  | ¥14    | 4 × 30s ≈ 2min × ¥7/min       |
 
 > 云 GPU 比 API 便宜 3-7 倍，且完全可控。
 
@@ -212,19 +218,20 @@ curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/mas
 
 Lightning AI / Colab / Kaggle 提供的 T4、L4、P100、A100 等**都是 NVIDIA 产品**，不是 Google 自研芯片。
 
-| GPU | 厂商 | 架构 | 年份 | CUDA | 在哪些平台 |
-|-----|------|------|------|------|-----------|
-| T4 | NVIDIA | Turing | 2018 | ✅ 7.5+ | Colab, Kaggle, Lightning AI |
-| L4 | NVIDIA | Ada | 2023 | ✅ 8.9+ | Lightning AI |
-| P100 | NVIDIA | Pascal | 2016 | ✅ 6.0+ | Kaggle, Colab Pro |
-| A100 | NVIDIA | Ampere | 2020 | ✅ 11+ | Lightning AI, RunPod, AutoDL |
-| H100 | NVIDIA | Hopper | 2022 | ✅ 12+ | RunPod, Lightning AI |
+| GPU  | 厂商   | 架构   | 年份 | CUDA    | 在哪些平台                   |
+| ---- | ------ | ------ | ---- | ------- | ---------------------------- |
+| T4   | NVIDIA | Turing | 2018 | ✅ 7.5+ | Colab, Kaggle, Lightning AI  |
+| L4   | NVIDIA | Ada    | 2023 | ✅ 8.9+ | Lightning AI                 |
+| P100 | NVIDIA | Pascal | 2016 | ✅ 6.0+ | Kaggle, Colab Pro            |
+| A100 | NVIDIA | Ampere | 2020 | ✅ 11+  | Lightning AI, RunPod, AutoDL |
+| H100 | NVIDIA | Hopper | 2022 | ✅ 12+  | RunPod, Lightning AI         |
 
 Google TPU 是完全不同的芯片（专为 TensorFlow/JAX 设计，不支持 CUDA），Colab/Kaggle 免费层提供的是 NVIDIA GPU，不是 TPU。
 
 ### 4.2 GTX 1080 限制
 
 GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
+
 - ✅ 支持 CUDA 11.x
 - ❌ 不支持 CUDA 12.x（大部分新模型需要 12.1+）
 - ❌ 不支持 bf16
@@ -234,15 +241,15 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ## 5. DGX Spark
 
-| 项目 | 详情 |
-|------|------|
-| **芯片** | GB10 Grace Blackwell Superchip |
-| **统一内存** | 128GB LPDDR5x |
-| **算力** | ~1 PFLOPS (FP4) |
-| **功耗** | ~150W |
-| **价格** | $3,999 (~¥28,000) |
-| **OS** | Ubuntu 22.04 (NVIDIA DGX OS) |
-| **CUDA** | ✅ 完整支持 |
+| 项目         | 详情                           |
+| ------------ | ------------------------------ |
+| **芯片**     | GB10 Grace Blackwell Superchip |
+| **统一内存** | 128GB LPDDR5x                  |
+| **算力**     | ~1 PFLOPS (FP4)                |
+| **功耗**     | ~150W                          |
+| **价格**     | $3,999 (~¥28,000)              |
+| **OS**       | Ubuntu 22.04 (NVIDIA DGX OS)   |
+| **CUDA**     | ✅ 完整支持                    |
 
 **定位**：本地 AI 开发工作站，适合跑 LLM 推理（DeepSeek 70B、Llama 70B）、LoRA 微调、数字人模型推理。
 
@@ -260,24 +267,25 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 **RTX 3090 24GB**（2022年1月停产，无全新库存）：
 
-| 渠道 | 类型 | 价格 | 质保 | 风险 |
-|------|------|------|------|------|
-| 淘宝低价 | 魔改/翻新 | ¥1,700-2,700 | 店铺三包 | ⚠️ 高风险 |
-| 淘宝正规 | 品牌卡 | ¥2,000-2,700 | 店铺三包 | 可能是翻新 |
-| 闲鱼 | 品牌二手 | ¥7,000-8,000 | 无 | 看卖家信用 |
-| 闲鱼验货宝 | 品牌二手 | ¥7,400-7,900 | 验货宝验机 | ⭐ 推荐 |
+| 渠道       | 类型      | 价格         | 质保       | 风险       |
+| ---------- | --------- | ------------ | ---------- | ---------- |
+| 淘宝低价   | 魔改/翻新 | ¥1,700-2,700 | 店铺三包   | ⚠️ 高风险  |
+| 淘宝正规   | 品牌卡    | ¥2,000-2,700 | 店铺三包   | 可能是翻新 |
+| 闲鱼       | 品牌二手  | ¥7,000-8,000 | 无         | 看卖家信用 |
+| 闲鱼验货宝 | 品牌二手  | ¥7,400-7,900 | 验货宝验机 | ⭐ 推荐    |
 
 **RTX 4090 24GB**：
 
-| 渠道 | 类型 | 价格 |
-|------|------|------|
+| 渠道     | 类型        | 价格         |
+| -------- | ----------- | ------------ |
 | 淘宝拆机 | 七彩虹/华硕 | ¥4,400-4,500 |
-| 淘宝全新 | 公版 | ¥8,800-8,900 |
-| 闲鱼 | 微星魔龙 | ¥17,800 |
+| 淘宝全新 | 公版        | ¥8,800-8,900 |
+| 闲鱼     | 微星魔龙    | ¥17,800      |
 
 ### 6.2 GTX 1080 机器升级检查清单
 
 如果要换 GPU（比如 3090 24GB）：
+
 1. **电源**：GTX 1080 功耗 180W → 3090 功耗 350W，需要 **750W+ 电源**
 2. **机箱**：3090 三风扇卡长约 30-33cm，需要大机箱
 3. **供电接口**：1080 用 1×8pin → 3090 用 2×8pin
@@ -286,14 +294,14 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ### 6.3 二手 GPU 检测方法
 
-| 检测项 | 工具 | 判断标准 |
-|--------|------|---------|
-| GPU 核心健康 | GPU-Z | 参数正常 |
-| 显存测试 | MATS/MOD2SU | 无 ECC 错误 |
-| 烤机测试 | FurMark 30min | 温度 <85°C，不花屏 |
-| 3D 压力测试 | 3DMark Stress Test | 通过率 >97% |
-| 矿卡特征 | 肉眼 | PCB 发黄、散热垫干裂 |
-| SN 码查询 | 品牌官网 | 保修状态、出厂日期 |
+| 检测项       | 工具               | 判断标准             |
+| ------------ | ------------------ | -------------------- |
+| GPU 核心健康 | GPU-Z              | 参数正常             |
+| 显存测试     | MATS/MOD2SU        | 无 ECC 错误          |
+| 烤机测试     | FurMark 30min      | 温度 <85°C，不花屏   |
+| 3D 压力测试  | 3DMark Stress Test | 通过率 >97%          |
+| 矿卡特征     | 肉眼               | PCB 发黄、散热垫干裂 |
+| SN 码查询    | 品牌官网           | 保修状态、出厂日期   |
 
 ---
 
@@ -317,43 +325,44 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 - **3090 淘宝低价卡风险**：¥1,700-2,700 的"全新 3090"几乎都是魔改卡（笔记本核心魔改）或矿卡翻新。正规品牌卡在闲鱼 ¥7,000-8,000，选验货宝标签。
 - **DGX Spark 定位**：适合本地 LLM 推理（DeepSeek/Llama 70B），128GB 统一内存覆盖所有数字人模型。但 ¥28,000 成本高，免费云 GPU 验证效果后再决定。
 - **相关文档**：`docs/research/digital-human-solutions-m2-pro.md`（数字人模型完整评估），`docs/research/tailscale-remote-gpu-setup.md`（GPU 机器远程部署）
+
 ## 双 T4 多 GPU 可行性分析（2026-08-18 新增）
 
 > Kaggle 免费提供双 T4（每张 15GB），但两张卡的显存**不能自动合并**。以下分析哪些待测模型可以通过多 GPU 技术利用双卡超过单卡 15GB 限制。
 
 ### 多 GPU 技术方案对比
 
-| 方案 | 原理 | 适合推理？ | 通信开销 | 实现难度 |
-|------|------|----------|---------|---------|
-| **DataParallel** | 每卡跑完整模型的不同 batch | ❌ 推理只有 1 个 batch，无意义 | 低 | 低 |
-| **device_map="balanced"** (diffusers) | 不同组件放不同卡（text_encoder→GPU0, UNet→GPU1） | ✅ 适合 pipeline 模型 | 中 | 低 |
-| **Tensor Parallelism** | 把每层权重拆到不同卡 | ✅ 适合大模型 | 高（PCIe） | 高 |
-| **Pipeline Parallelism** | 不同层放不同卡 | ✅ 适合深模型 | 中 | 中 |
-| **FSDP** | 分片模型参数 | ✅ 适合大模型训练+推理 | 中 | 中 |
+| 方案                                  | 原理                                             | 适合推理？                     | 通信开销   | 实现难度 |
+| ------------------------------------- | ------------------------------------------------ | ------------------------------ | ---------- | -------- |
+| **DataParallel**                      | 每卡跑完整模型的不同 batch                       | ❌ 推理只有 1 个 batch，无意义 | 低         | 低       |
+| **device_map="balanced"** (diffusers) | 不同组件放不同卡（text_encoder→GPU0, UNet→GPU1） | ✅ 适合 pipeline 模型          | 中         | 低       |
+| **Tensor Parallelism**                | 把每层权重拆到不同卡                             | ✅ 适合大模型                  | 高（PCIe） | 高       |
+| **Pipeline Parallelism**              | 不同层放不同卡                                   | ✅ 适合深模型                  | 中         | 中       |
+| **FSDP**                              | 分片模型参数                                     | ✅ 适合大模型训练+推理         | 中         | 中       |
 
 ### 各待测模型双 T4 可行性
 
-| 模型 | 基座 | 多 GPU 支持 | 双 T4 可行？ | 原因 |
-|------|------|------------|-------------|------|
-| **InfiniteTalk** | Wan2.1 14B | ✅ **官方支持** `torchrun --nproc_per_node=8` + FSDP + Ulysses | ✅ **可行！** | 官方有多 GPU 推理命令，FSDP 可分片 14B 参数到双卡 |
-| **MultiTalk INT8** | Wan2.1 14B | ✅ 同 InfiniteTalk 架构 | ✅ **可能** | `--quant int8` + FSDP，14B INT8 ~7GB/卡，双卡绰绰有余 |
-| **EchoMimicV3** | Wan2.1 (1.3B) | ⚠️ diffusers pipeline 可能支持 device_map | ✅ 可能 | 1.3B 很小，单卡 + offload 已可跑；device_map 可进一步优化 |
-| **LongCat GPU** | LongCat-Video 13.6B DiT | ❌ **多 GPU 有 bug** | ❌ **不可行** | 官方有多 GPU 命令但实际 NCCL 死锁，只能单卡。INT8 后 ~15GB 单卡勉强 |
-| **LatentSync 1.6** | SD UNet + VAE | ⚠️ diffusers 支持 device_map | ⚠️ **困难** | OOM 在 VAE 解码，VAE 是单组件难以拆分到双卡 |
-| **LatentSync 1.5** | SD UNet + VAE | ⚠️ 同上 | ✅ 可行 | 仅需 8GB，T4 单卡足够，不需要多 GPU |
-| **Sonic** | SVD UNet | ❌ 无多 GPU 支持 | ❌ 不可行 | 官方仅支持单卡，ComfyUI 不支持多 GPU 推理 |
-| **Hallo3** | CogVideo DiT | ⚠️ 可能支持 FSDP | ❓ 未知 | Transformer 骨干理论上适合 tensor parallelism，但官方未实现 |
-| **Hallo (v1/v2/v4)** | 分层扩散 | ⚠️ 多 GPU 训练有，推理未确认 | ❓ 未知 | 训练脚本有 `finetune_multi_gpus_s1.sh`，但推理是单 GPU |
-| **Hallo-Live** | 扩散实时 | ❓ 未知 | ❓ 未知 | 实时版本，可能单卡优化 |
-| **EMO** | SD + Audio2Video | ❓ 未知 | ❓ 未知 | 官方未公开 weights，无法测试 |
-| **PersonaLive** | SD1.5 | ❓ 未知 | ❓ 未知 | 12GB VRAM，T4 单卡足够，不需要多 GPU |
-| **DICE-Talk** | 扩散+情感解耦 | ❓ 未知 | ❌ 不太可能 | 20GB+ VRAM 需求，T4 x2 无法合并显存 |
-| **V-Express** | SD 1.5 | ❓ 未知 | ✅ 可行 | ~12GB，T4 单卡足够 |
-| **JoyVASA** | 扩散+解耦 | ❓ 未知 | ❌ 不太可能 | A100 级别需求 |
-| **EchoMimic V2** | SD + 关键点 | ❓ 未知 | ✅ 可行 | ~16GB，T4 单卡可能够 |
-| **AniPortrait** | SD + 关键点 | ❓ 未知 | ✅ 可行 | ~12GB，T4 单卡足够 |
-| **DreamTalk** | 扩散 | ❓ 未知 | ✅ 可行 | VRAM 未标注，扩散模型通常 T4 可跑 |
-| **Wan2GP InfiniteTalk** | Wan2.1 (优化) | ❌ **不支持** | ❌ 不可行 | GitHub Issue #580 明确说 multi GPU 不支持 |
+| 模型                    | 基座                    | 多 GPU 支持                                                    | 双 T4 可行？  | 原因                                                                |
+| ----------------------- | ----------------------- | -------------------------------------------------------------- | ------------- | ------------------------------------------------------------------- |
+| **InfiniteTalk**        | Wan2.1 14B              | ✅ **官方支持** `torchrun --nproc_per_node=8` + FSDP + Ulysses | ✅ **可行！** | 官方有多 GPU 推理命令，FSDP 可分片 14B 参数到双卡                   |
+| **MultiTalk INT8**      | Wan2.1 14B              | ✅ 同 InfiniteTalk 架构                                        | ✅ **可能**   | `--quant int8` + FSDP，14B INT8 ~7GB/卡，双卡绰绰有余               |
+| **EchoMimicV3**         | Wan2.1 (1.3B)           | ⚠️ diffusers pipeline 可能支持 device_map                      | ✅ 可能       | 1.3B 很小，单卡 + offload 已可跑；device_map 可进一步优化           |
+| **LongCat GPU**         | LongCat-Video 13.6B DiT | ❌ **多 GPU 有 bug**                                           | ❌ **不可行** | 官方有多 GPU 命令但实际 NCCL 死锁，只能单卡。INT8 后 ~15GB 单卡勉强 |
+| **LatentSync 1.6**      | SD UNet + VAE           | ⚠️ diffusers 支持 device_map                                   | ⚠️ **困难**   | OOM 在 VAE 解码，VAE 是单组件难以拆分到双卡                         |
+| **LatentSync 1.5**      | SD UNet + VAE           | ⚠️ 同上                                                        | ✅ 可行       | 仅需 8GB，T4 单卡足够，不需要多 GPU                                 |
+| **Sonic**               | SVD UNet                | ❌ 无多 GPU 支持                                               | ❌ 不可行     | 官方仅支持单卡，ComfyUI 不支持多 GPU 推理                           |
+| **Hallo3**              | CogVideo DiT            | ⚠️ 可能支持 FSDP                                               | ❓ 未知       | Transformer 骨干理论上适合 tensor parallelism，但官方未实现         |
+| **Hallo (v1/v2/v4)**    | 分层扩散                | ⚠️ 多 GPU 训练有，推理未确认                                   | ❓ 未知       | 训练脚本有 `finetune_multi_gpus_s1.sh`，但推理是单 GPU              |
+| **Hallo-Live**          | 扩散实时                | ❓ 未知                                                        | ❓ 未知       | 实时版本，可能单卡优化                                              |
+| **EMO**                 | SD + Audio2Video        | ❓ 未知                                                        | ❓ 未知       | 官方未公开 weights，无法测试                                        |
+| **PersonaLive**         | SD1.5                   | ❓ 未知                                                        | ❓ 未知       | 12GB VRAM，T4 单卡足够，不需要多 GPU                                |
+| **DICE-Talk**           | 扩散+情感解耦           | ❓ 未知                                                        | ❌ 不太可能   | 20GB+ VRAM 需求，T4 x2 无法合并显存                                 |
+| **V-Express**           | SD 1.5                  | ❓ 未知                                                        | ✅ 可行       | ~12GB，T4 单卡足够                                                  |
+| **JoyVASA**             | 扩散+解耦               | ❓ 未知                                                        | ❌ 不太可能   | A100 级别需求                                                       |
+| **EchoMimic V2**        | SD + 关键点             | ❓ 未知                                                        | ✅ 可行       | ~16GB，T4 单卡可能够                                                |
+| **AniPortrait**         | SD + 关键点             | ❓ 未知                                                        | ✅ 可行       | ~12GB，T4 单卡足够                                                  |
+| **DreamTalk**           | 扩散                    | ❓ 未知                                                        | ✅ 可行       | VRAM 未标注，扩散模型通常 T4 可跑                                   |
+| **Wan2GP InfiniteTalk** | Wan2.1 (优化)           | ❌ **不支持**                                                  | ❌ 不可行     | GitHub Issue #580 明确说 multi GPU 不支持                           |
 
 ### 结论
 
@@ -369,16 +378,16 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ### 为什么 Kaggle 限制少而 Colab 限制多？
 
-| 维度 | Kaggle | Colab |
-|------|--------|-------|
-| **GPU 时间** | 30h/周（稳定刷新） | 不固定（"fluctuates over time"） |
-| **冷却期** | ❌ 无 | ✅ 有（免费版几小时到几天） |
-| **空闲断开** | 无限制 | ~90min（免费版） |
-| **最大运行时间** | 12h/session | 12h（免费）/ 24h（Pro） |
-| **GPU 型号** | P100 或 T4×2（可选） | T4（不保证型号） |
-| **显存** | P100 16GB / T4 15GB×2 | T4 15GB（共享） |
-| **同时实例** | 1 个 kernel | 2 个 notebook（免费） |
-| **资源保证** | ✅ 相对稳定 | ❌ "not guaranteed, not unlimited" |
+| 维度             | Kaggle                | Colab                              |
+| ---------------- | --------------------- | ---------------------------------- |
+| **GPU 时间**     | 30h/周（稳定刷新）    | 不固定（"fluctuates over time"）   |
+| **冷却期**       | ❌ 无                 | ✅ 有（免费版几小时到几天）        |
+| **空闲断开**     | 无限制                | ~90min（免费版）                   |
+| **最大运行时间** | 12h/session           | 12h（免费）/ 24h（Pro）            |
+| **GPU 型号**     | P100 或 T4×2（可选）  | T4（不保证型号）                   |
+| **显存**         | P100 16GB / T4 15GB×2 | T4 15GB（共享）                    |
+| **同时实例**     | 1 个 kernel           | 2 个 notebook（免费）              |
+| **资源保证**     | ✅ 相对稳定           | ❌ "not guaranteed, not unlimited" |
 
 **为什么差异？**
 
@@ -392,14 +401,14 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ### 不同 GPU 对你的实际区别
 
-| GPU | VRAM | bf16 | FP8 | Tensor Core | 能跑的模型 |
-|-----|------|------|-----|-------------|----------|
-| **P100** (Kaggle) | 16GB | ❌ | ❌ | ❌ | EchoMimicV3 ✅ / LatentSync 1.6 ❌ / InfiniteTalk ⚠️ |
-| **T4** (Colab/Kaggle) | 15GB | ❌ | ❌ | ✅ | 同 P100，Tensor Core 加速但 VRAM 少 1GB |
-| **L4** (Colab Pro) | 22.5GB | ✅ | ✅ | ✅ | + LatentSync 1.6 ✅ / LongCat GPU bf16 ✅ |
-| **A100** (Colab Pro+) | 40/80GB | ✅ | ❌ | ✅ | + Hallo3 ✅ / LTX-2.3 22B ✅ |
-| **RTX 4090** (AutoDL) | 24GB | ✅ | ❌ | ✅ | 同 L4 级别，VRAM 多 1.5GB |
-| **A800** (AutoDL) | 80GB | ✅ | ❌ | ✅ | 同 A100 80GB |
+| GPU                   | VRAM    | bf16 | FP8 | Tensor Core | 能跑的模型                                           |
+| --------------------- | ------- | ---- | --- | ----------- | ---------------------------------------------------- |
+| **P100** (Kaggle)     | 16GB    | ❌   | ❌  | ❌          | EchoMimicV3 ✅ / LatentSync 1.6 ❌ / InfiniteTalk ⚠️ |
+| **T4** (Colab/Kaggle) | 15GB    | ❌   | ❌  | ✅          | 同 P100，Tensor Core 加速但 VRAM 少 1GB              |
+| **L4** (Colab Pro)    | 22.5GB  | ✅   | ✅  | ✅          | + LatentSync 1.6 ✅ / LongCat GPU bf16 ✅            |
+| **A100** (Colab Pro+) | 40/80GB | ✅   | ❌  | ✅          | + Hallo3 ✅ / LTX-2.3 22B ✅                         |
+| **RTX 4090** (AutoDL) | 24GB    | ✅   | ❌  | ✅          | 同 L4 级别，VRAM 多 1.5GB                            |
+| **A800** (AutoDL)     | 80GB    | ✅   | ❌  | ✅          | 同 A100 80GB                                         |
 
 **bf16 的实际影响**：P100/T4 不支持 bf16 只能用 float16。大多数模型（EchoMimicV3、LatentSync）训练时用 bf16，推理时转 float16 可能轻微质量损失但不影响功能。Wan2.1 系列模型官方推荐 bf16，T4/P100 跑 float16 可能出现 NaN 或需要额外 patch。
 
@@ -412,29 +421,29 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ### 同等级 GPU 按小时费率对比（修正版）
 
-| GPU 等级 | Colab GPU | Colab CU/h | Colab ¥/h | AutoDL GPU | AutoDL ¥/h | 同价位月时长对比 |
-|---------|-----------|-----------|----------|-----------|-----------|---------------|
-| 16GB 入门 | T4 15GB | 1.19 | ¥0.81 | A4000 16GB | ¥0.92 | Colab 84h vs AutoDL 73h → **Colab 略胜** |
-| 22GB 中端 | L4 22.5GB | 1.71 | ¥1.15 | — (无同级) | — | AutoDL 无 L4 等价卡 |
-| 24GB 中端 | — (无) | — | — | RTX 4090 24GB | ¥1.88 | **AutoDL 独占**（Colab 不提供 24GB） |
-| 40GB 高端 | A100 40GB | 5.40 | ¥3.65 | A100 40GB | ¥3.45 | Colab 18.5h vs AutoDL 19.5h → **几乎持平** |
-| 80GB 旗舰 | A100 80GB | 7.52 | ¥5.08 | A800 80GB | ¥4.98 | Colab 13.3h vs AutoDL 13.6h → **几乎持平** |
+| GPU 等级  | Colab GPU | Colab CU/h | Colab ¥/h | AutoDL GPU    | AutoDL ¥/h | 同价位月时长对比                           |
+| --------- | --------- | ---------- | --------- | ------------- | ---------- | ------------------------------------------ |
+| 16GB 入门 | T4 15GB   | 1.19       | ¥0.81     | A4000 16GB    | ¥0.92      | Colab 84h vs AutoDL 73h → **Colab 略胜**   |
+| 22GB 中端 | L4 22.5GB | 1.71       | ¥1.15     | — (无同级)    | —          | AutoDL 无 L4 等价卡                        |
+| 24GB 中端 | — (无)    | —          | —         | RTX 4090 24GB | ¥1.88      | **AutoDL 独占**（Colab 不提供 24GB）       |
+| 40GB 高端 | A100 40GB | 5.40       | ¥3.65     | A100 40GB     | ¥3.45      | Colab 18.5h vs AutoDL 19.5h → **几乎持平** |
+| 80GB 旗舰 | A100 80GB | 7.52       | ¥5.08     | A800 80GB     | ¥4.98      | Colab 13.3h vs AutoDL 13.6h → **几乎持平** |
 
 ### ¥67.5/月 级别直接对比
 
-| 维度 | Colab Pro ($9.99=100CU, ¥67.5) | AutoDL (¥67.5 充值) |
-|------|-------------------------------|---------------------|
-| T4 级别 (16GB) | **84h** T4 | **73.4h** A4000 (¥0.92/h) |
-| L4 级别 (22.5GB) | **58h** L4 | — (AutoDL 无 L4) |
-| 4090 级别 (24GB) | ❌ 不提供 | **35.9h** RTX 4090 (¥1.88/h) |
-| A100 级别 (40GB) | **18.5h** A100 | **19.6h** A100 (¥3.45/h) |
-| bf16 支持 | ✅ L4/A100 | ✅ 4090/A100 |
-| GPU 型号保证 | ❌ 不保证 | ✅ 选什么就是什么 |
-| GPU 独占 | ❌ 共享/抢占式 | ✅ 独占 |
-| 冷却期 | ❌ Pro 无冷却期 | ❌ 无 |
-| 后台执行 | ❌ Pro 无 | ✅ SSH 持久 |
-| 管理 | 免管理（一键运行） | 需自行管理 VM |
-| 网络 | 需翻墙 | 国内直连 |
+| 维度             | Colab Pro ($9.99=100CU, ¥67.5) | AutoDL (¥67.5 充值)          |
+| ---------------- | ------------------------------ | ---------------------------- |
+| T4 级别 (16GB)   | **84h** T4                     | **73.4h** A4000 (¥0.92/h)    |
+| L4 级别 (22.5GB) | **58h** L4                     | — (AutoDL 无 L4)             |
+| 4090 级别 (24GB) | ❌ 不提供                      | **35.9h** RTX 4090 (¥1.88/h) |
+| A100 级别 (40GB) | **18.5h** A100                 | **19.6h** A100 (¥3.45/h)     |
+| bf16 支持        | ✅ L4/A100                     | ✅ 4090/A100                 |
+| GPU 型号保证     | ❌ 不保证                      | ✅ 选什么就是什么            |
+| GPU 独占         | ❌ 共享/抢占式                 | ✅ 独占                      |
+| 冷却期           | ❌ Pro 无冷却期                | ❌ 无                        |
+| 后台执行         | ❌ Pro 无                      | ✅ SSH 持久                  |
+| 管理             | 免管理（一键运行）             | 需自行管理 VM                |
+| 网络             | 需翻墙                         | 国内直连                     |
 
 ### 对你的实际意义
 
@@ -446,52 +455,53 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 4. **其他差异（FP8、NVLink 等）对你没有实际意义**——你的模型都是单卡推理，不需要 NVLink 互联
 
 **简化决策**：
+
 - 只需 16GB → Colab 免费版 T4 或 Kaggle P100（都不要钱）
 - 需 22.5GB+ 且要 bf16 → AutoDL RTX 4090 ¥1.88/h（最便宜的有 24GB + bf16 的选项）
 - 需要 A100 级别 → Colab Pro+ 和 AutoDL A800 差不多价格，AutoDL 更稳定
 
 ### Colab 付费方案完整对比
 
-| 特性 | 免费版 | Pro ($9.99/月) | Pro+ ($49.99/月) | Pay As You Go ($9.99/100CU) |
-|------|--------|---------------|-------------------|---------------------------|
-| **GPU** | T4 (共享) | T4/L4/A100 (优先) | T4/L4/A100/A100-80GB (高优先) | 同 Pro+ |
-| **GPU 保证** | ❌ 不保证 | ❌ 不保证（看供应量） | ❌ 不保证（但优先级最高） | ❌ 不保证 |
-| **VRAM** | 15 GB (T4) | 15 GB (T4) / 22.5 GB (L4) / 40 GB (A100) | 同 Pro + 80 GB (A100 80GB) | 同 Pro+ |
-| **系统 RAM** | ~12 GB | **32 GB** | **52 GB** | 同 Pro+ |
-| **磁盘空间** | 15 GB (Drive) | 100 GB (Drive) | 250 GB (Drive) | — |
-| **Compute Units** | 不固定 | 100 CU/月 | 500 CU/月 | 按 CU 计费 |
-| **最大运行时间** | 12h | 24h | 24h+ | 24h+ |
-| **后台执行** | ❌ | ❌ | ✅ (关闭浏览器仍运行) | ✅ |
-| **终端访问** | ❌ | ✅ | ✅ | ✅ |
-| **AI 辅助** | ❌ | ✅ | ✅ | ❌ |
-| **同时 notebooks** | 2 | 不限 | 不限 | 不限 |
-| **空闲断开** | ~90min | 不断开 | 不断开 | 不断开 |
-| **bf16 支持** | ❌ (T4) | ✅ (L4/A100) | ✅ (L4/A100) | ✅ (L4/A100) |
+| 特性               | 免费版        | Pro ($9.99/月)                           | Pro+ ($49.99/月)              | Pay As You Go ($9.99/100CU) |
+| ------------------ | ------------- | ---------------------------------------- | ----------------------------- | --------------------------- |
+| **GPU**            | T4 (共享)     | T4/L4/A100 (优先)                        | T4/L4/A100/A100-80GB (高优先) | 同 Pro+                     |
+| **GPU 保证**       | ❌ 不保证     | ❌ 不保证（看供应量）                    | ❌ 不保证（但优先级最高）     | ❌ 不保证                   |
+| **VRAM**           | 15 GB (T4)    | 15 GB (T4) / 22.5 GB (L4) / 40 GB (A100) | 同 Pro + 80 GB (A100 80GB)    | 同 Pro+                     |
+| **系统 RAM**       | ~12 GB        | **32 GB**                                | **52 GB**                     | 同 Pro+                     |
+| **磁盘空间**       | 15 GB (Drive) | 100 GB (Drive)                           | 250 GB (Drive)                | —                           |
+| **Compute Units**  | 不固定        | 100 CU/月                                | 500 CU/月                     | 按 CU 计费                  |
+| **最大运行时间**   | 12h           | 24h                                      | 24h+                          | 24h+                        |
+| **后台执行**       | ❌            | ❌                                       | ✅ (关闭浏览器仍运行)         | ✅                          |
+| **终端访问**       | ❌            | ✅                                       | ✅                            | ✅                          |
+| **AI 辅助**        | ❌            | ✅                                       | ✅                            | ❌                          |
+| **同时 notebooks** | 2             | 不限                                     | 不限                          | 不限                        |
+| **空闲断开**       | ~90min        | 不断开                                   | 不断开                        | 不断开                      |
+| **bf16 支持**      | ❌ (T4)       | ✅ (L4/A100)                             | ✅ (L4/A100)                  | ✅ (L4/A100)                |
 
 > ⚠️ **关键限制**：即使付费 Pro/Pro+，GPU 类型也不保证。Google FAQ 明确说"GPU 访问取决于可用性和使用模式"。付费后仍可能被分配 T4。Colab Pro 用户报告 A100 经常不可用，被自动降级到 L4（GitHub Issue #6013）。
 
 ### Compute Unit 消耗速率
 
-| GPU | VRAM | 架构 | CU/hour | 等效 $/hour | $10 可用时间 | bf16 | FP8 |
-|-----|------|------|---------|------------|-------------|------|-----|
-| T4 | 15 GB | Turing (sm_75) | 1.19 | $0.12 | 84h | ❌ | ❌ |
-| L4 | 22.5 GB | Ada (sm_89) | 1.71 | $0.17 | 58h | ✅ | ✅ |
-| A100 (40GB) | 40 GB | Ampere (sm_80) | 5.40 | $0.54 | 18.5h | ✅ | ❌ |
-| A100 (80GB) | 80 GB | Ampere (sm_80) | 7.52 | $0.75 | 13.3h | ✅ | ❌ |
-| G4 (PRO 6000) | 96 GB | Blackwell | 8.71 | $0.87 | 11.5h | ✅ | ✅ |
-| H100 | 80 GB | Hopper (sm_90) | ? | ? | ? | ✅ | ✅ |
+| GPU           | VRAM    | 架构           | CU/hour | 等效 $/hour | $10 可用时间 | bf16 | FP8 |
+| ------------- | ------- | -------------- | ------- | ----------- | ------------ | ---- | --- |
+| T4            | 15 GB   | Turing (sm_75) | 1.19    | $0.12       | 84h          | ❌   | ❌  |
+| L4            | 22.5 GB | Ada (sm_89)    | 1.71    | $0.17       | 58h          | ✅   | ✅  |
+| A100 (40GB)   | 40 GB   | Ampere (sm_80) | 5.40    | $0.54       | 18.5h        | ✅   | ❌  |
+| A100 (80GB)   | 80 GB   | Ampere (sm_80) | 7.52    | $0.75       | 13.3h        | ✅   | ❌  |
+| G4 (PRO 6000) | 96 GB   | Blackwell      | 8.71    | $0.87       | 11.5h        | ✅   | ✅  |
+| H100          | 80 GB   | Hopper (sm_90) | ?       | ?           | ?            | ✅   | ✅  |
 
 > 数据来源：mccormickml.com 2026 年 3 月实测。CU 消耗速率非 Google 官方公布。
 
 ### bf16 硬件支持表
 
-| GPU | 架构 | sm_版本 | bf16 | FP8 | Tensor Core | Colab 可用 |
-|-----|------|---------|------|-----|-------------|-----------|
-| P100 | Pascal | sm_60 | ❌ | ❌ | ❌ | Kaggle 免费 |
-| T4 | Turing | sm_75 | ❌ | ❌ | ✅ | Colab 免费 |
-| **L4** | Ada | sm_89 | ✅ | ✅ | ✅ | Colab Pro+ |
-| **A100** | Ampere | sm_80 | ✅ | ❌ | ✅ | Colab Pro+ |
-| H100 | Hopper | sm_90 | ✅ | ✅ | ✅ | Colab Pro+ |
+| GPU      | 架构   | sm_版本 | bf16 | FP8 | Tensor Core | Colab 可用  |
+| -------- | ------ | ------- | ---- | --- | ----------- | ----------- |
+| P100     | Pascal | sm_60   | ❌   | ❌  | ❌          | Kaggle 免费 |
+| T4       | Turing | sm_75   | ❌   | ❌  | ✅          | Colab 免费  |
+| **L4**   | Ada    | sm_89   | ✅   | ✅  | ✅          | Colab Pro+  |
+| **A100** | Ampere | sm_80   | ✅   | ❌  | ✅          | Colab Pro+  |
+| H100     | Hopper | sm_90   | ✅   | ✅  | ✅          | Colab Pro+  |
 
 **关键**：bf16 硬件支持从 Ampere (sm_80) 开始。T4 和 P100 都不支持 bf16，只能用 float16。L4 和 A100 支持 bf16，但需要 Colab Pro/Pro+ 付费。
 
@@ -505,35 +515,35 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ## AutoDL vs Colab 付费方案对比（2026-08-18）
 
-| 对比维度 | Colab Pro ($9.99/月) | Colab Pro+ ($49.99/月) | AutoDL (按需) |
-|---------|---------------------|------------------------|--------------|
-| **GPU 型号** | T4/L4/A100 (不保证) | T4/L4/A100/A100-80GB (不保证) | **自选指定** |
-| **GPU 保证** | ❌ 可能被分到 T4 | ❌ 优先级更高但仍不保证 | ✅ **选定即保证** |
-| **VRAM** | 15-40 GB | 15-80 GB | 按需选 24-80 GB |
-| **系统 RAM** | 32 GB | 52 GB | 按需选（通常 40-100+ GB） |
-| **磁盘空间** | 100 GB (Drive) | 250 GB (Drive) | 30 GB 系统盘 + 数据盘（按需） |
-| **运行时间限制** | 24h/session | 24h+/session | **无限制**（按量计费不停机） |
-| **后台执行** | ❌ | ✅ | ✅（SSH 持久连接） |
-| **同时实例** | 不限 | 不限 | 不限 |
-| **GPU 专属** | ❌ 共享/抢占式 | ❌ 共享/抢占式 | ✅ **独占** |
-| **计费方式** | 月费 + CU 消耗 | 月费 + CU 消耗 | **按秒计费** |
-| **网络** | 需翻墙 | 需翻墙 | **国内直连** |
-| **预装环境** | PyTorch/TensorFlow | 同 Pro | 镜像市场（含各种 ML 框架） |
+| 对比维度         | Colab Pro ($9.99/月) | Colab Pro+ ($49.99/月)        | AutoDL (按需)                 |
+| ---------------- | -------------------- | ----------------------------- | ----------------------------- |
+| **GPU 型号**     | T4/L4/A100 (不保证)  | T4/L4/A100/A100-80GB (不保证) | **自选指定**                  |
+| **GPU 保证**     | ❌ 可能被分到 T4     | ❌ 优先级更高但仍不保证       | ✅ **选定即保证**             |
+| **VRAM**         | 15-40 GB             | 15-80 GB                      | 按需选 24-80 GB               |
+| **系统 RAM**     | 32 GB                | 52 GB                         | 按需选（通常 40-100+ GB）     |
+| **磁盘空间**     | 100 GB (Drive)       | 250 GB (Drive)                | 30 GB 系统盘 + 数据盘（按需） |
+| **运行时间限制** | 24h/session          | 24h+/session                  | **无限制**（按量计费不停机）  |
+| **后台执行**     | ❌                   | ✅                            | ✅（SSH 持久连接）            |
+| **同时实例**     | 不限                 | 不限                          | 不限                          |
+| **GPU 专属**     | ❌ 共享/抢占式       | ❌ 共享/抢占式                | ✅ **独占**                   |
+| **计费方式**     | 月费 + CU 消耗       | 月费 + CU 消耗                | **按秒计费**                  |
+| **网络**         | 需翻墙               | 需翻墙                        | **国内直连**                  |
+| **预装环境**     | PyTorch/TensorFlow   | 同 Pro                        | 镜像市场（含各种 ML 框架）    |
 
 ### AutoDL 定价（2026 年 8 月实测）
 
-| GPU | VRAM | 按量 (普通) | 按量 (会员95折) | 包月估算 | 适用场景 |
-|-----|------|-----------|---------------|---------|---------|
-| RTX 3080Ti | 12 GB | ¥0.98/h | ¥0.93/h | ~¥600/月 | 轻量推理 |
-| RTX A4000 | 16 GB | ¥0.92/h | ¥0.87/h | ~¥600/月 | 同 T4 级别 |
-| RTX 2080Ti | 11 GB | ¥0.88/h | ¥0.84/h | ~¥550/月 | 轻量 |
-| **RTX 3090** | **24 GB** | **¥1.32/h** | **¥1.25/h** | **~¥800/月** | **性价比之王** |
-| **RTX 4090** | **24 GB** | **¥1.88/h** | **¥1.79/h** | **~¥1100/月** | **16GB 不够时的首选** |
-| V100 | 32 GB | ¥1.88/h | ¥1.79/h | ~¥1100/月 | 中量 |
-| RTX 5090 | 32 GB | ¥2.78/h | ¥2.64/h | ~¥1700/月 | 新品 |
-| A800-80GB | 80 GB | ¥4.98/h | ¥4.73/h | ~¥3000/月 | 大模型 |
-| PRO 6000 | 96 GB | ¥5.98/h | ¥5.68/h | ~¥3600/月 | 超大模型 |
-| H800 | 80 GB | ¥8.88/h | ¥8.44/h | ~¥5300/月 | 顶级 |
+| GPU          | VRAM      | 按量 (普通) | 按量 (会员95折) | 包月估算      | 适用场景              |
+| ------------ | --------- | ----------- | --------------- | ------------- | --------------------- |
+| RTX 3080Ti   | 12 GB     | ¥0.98/h     | ¥0.93/h         | ~¥600/月      | 轻量推理              |
+| RTX A4000    | 16 GB     | ¥0.92/h     | ¥0.87/h         | ~¥600/月      | 同 T4 级别            |
+| RTX 2080Ti   | 11 GB     | ¥0.88/h     | ¥0.84/h         | ~¥550/月      | 轻量                  |
+| **RTX 3090** | **24 GB** | **¥1.32/h** | **¥1.25/h**     | **~¥800/月**  | **性价比之王**        |
+| **RTX 4090** | **24 GB** | **¥1.88/h** | **¥1.79/h**     | **~¥1100/月** | **16GB 不够时的首选** |
+| V100         | 32 GB     | ¥1.88/h     | ¥1.79/h         | ~¥1100/月     | 中量                  |
+| RTX 5090     | 32 GB     | ¥2.78/h     | ¥2.64/h         | ~¥1700/月     | 新品                  |
+| A800-80GB    | 80 GB     | ¥4.98/h     | ¥4.73/h         | ~¥3000/月     | 大模型                |
+| PRO 6000     | 96 GB     | ¥5.98/h     | ¥5.68/h         | ~¥3600/月     | 超大模型              |
+| H800         | 80 GB     | ¥8.88/h     | ¥8.44/h         | ~¥5300/月     | 顶级                  |
 
 > AutoDL **有包月服务**：支持按日/按周/按月预付费租用 GPU，价格比按量计费便宜 30-40%。优势是关机后 GPU 保留不被抢，劣势是无论是否使用都计费。支持按量↔包月互转， unused 部分可退款。
 >
@@ -543,15 +553,16 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 **同等级 GPU 按小时费率对比**（以 $1 ≈ ¥7.25 换算）：
 
-| GPU 等级 | Colab GPU | Colab CU/h | Colab $/h | AutoDL GPU | AutoDL ¥/h | AutoDL $/h | 谁更划算 |
-|---------|-----------|-----------|----------|-----------|-----------|----------|---------|
-| 16GB 入门 | T4 15GB | 1.19 | $0.12 | A4000 16GB | ¥0.92 | $0.13 | **几乎一样** |
-| 24GB 中端 | L4 22.5GB | 1.71 | $0.17 | RTX 4090 24GB | ¥1.88 | $0.26 | **Colab L4 更便宜**（但 VRAM 少 1.5GB） |
-| 40GB 高端 | A100 40GB | 5.40 | $0.54 | A100 40GB | ¥3.45 | $0.48 | **AutoDL 略便宜** |
-| 80GB 旗舰 | A100 80GB | 7.52 | $0.75 | A800 80GB | ¥4.98 | $0.69 | **AutoDL 略便宜** |
-| 96GB 顶级 | G4 96GB | 8.71 | $0.87 | PRO 6000 96GB | ¥5.98 | $0.83 | **AutoDL 略便宜** |
+| GPU 等级  | Colab GPU | Colab CU/h | Colab $/h | AutoDL GPU    | AutoDL ¥/h | AutoDL $/h | 谁更划算                                |
+| --------- | --------- | ---------- | --------- | ------------- | ---------- | ---------- | --------------------------------------- |
+| 16GB 入门 | T4 15GB   | 1.19       | $0.12     | A4000 16GB    | ¥0.92      | $0.13      | **几乎一样**                            |
+| 24GB 中端 | L4 22.5GB | 1.71       | $0.17     | RTX 4090 24GB | ¥1.88      | $0.26      | **Colab L4 更便宜**（但 VRAM 少 1.5GB） |
+| 40GB 高端 | A100 40GB | 5.40       | $0.54     | A100 40GB     | ¥3.45      | $0.48      | **AutoDL 略便宜**                       |
+| 80GB 旗舰 | A100 80GB | 7.52       | $0.75     | A800 80GB     | ¥4.98      | $0.69      | **AutoDL 略便宜**                       |
+| 96GB 顶级 | G4 96GB   | 8.71       | $0.87     | PRO 6000 96GB | ¥5.98      | $0.83      | **AutoDL 略便宜**                       |
 
 > **关键发现**：
+>
 > - **T4 级别**：Colab 免费版 T4 $0.12/h vs AutoDL A4000 $0.13/h → **几乎一样**，但 Colab 免费版不要钱
 > - **L4 级别**：Colab Pro L4 $0.17/h vs AutoDL 4090 $0.26/h → **Colab 更便宜**，但 L4 只有 22.5GB 而 4090 有 24GB
 > - **A100 级别**：AutoDL 普遍便宜 ~10-15%，但 Colab 不保证分配到 A100
@@ -561,30 +572,30 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ### $10/月 Colab Pro vs ¥10 充值 AutoDL 直接对比
 
-| 维度 | Colab Pro $10/月 (100 CU) | AutoDL ¥10 充值 |
-|------|--------------------------|-----------------|
-| T4 级别 | 84h T4 | ~10.9h A4000 (¥0.92/h) |
-| L4 级别 | 58h L4 | — (AutoDL 无 L4) |
-| 4090 级别 | ❌ 不提供 | ~5.3h RTX 4090 (¥1.88/h) |
-| A100 级别 | 18.5h A100 | ~2h A800 (¥4.98/h) |
-| GPU 保证 | ❌ 不保证型号 | ✅ 选什么就是什么 |
-| 独占 | ❌ 共享/抢占式 | ✅ 独占 |
-| 冷却期 | Pro 无冷却期 | 无 |
-| 后台执行 | ❌ Pro 无 | ✅ SSH 持久 |
-| 管理 | 免管理（一键运行） | 需自行管理 VM |
+| 维度      | Colab Pro $10/月 (100 CU) | AutoDL ¥10 充值          |
+| --------- | ------------------------- | ------------------------ |
+| T4 级别   | 84h T4                    | ~10.9h A4000 (¥0.92/h)   |
+| L4 级别   | 58h L4                    | — (AutoDL 无 L4)         |
+| 4090 级别 | ❌ 不提供                 | ~5.3h RTX 4090 (¥1.88/h) |
+| A100 级别 | 18.5h A100                | ~2h A800 (¥4.98/h)       |
+| GPU 保证  | ❌ 不保证型号             | ✅ 选什么就是什么        |
+| 独占      | ❌ 共享/抢占式            | ✅ 独占                  |
+| 冷却期    | Pro 无冷却期              | 无                       |
+| 后台执行  | ❌ Pro 无                 | ✅ SSH 持久              |
+| 管理      | 免管理（一键运行）        | 需自行管理 VM            |
 
 > **结论**：$10/月 Colab Pro 在 **T4/L4 级别** 更划算（84h T4 vs AutoDL 的 10.9h），但如果需要 **24GB VRAM 或 A100 级别**，AutoDL 是唯一选择。
 
 ### 总结推荐
 
-| 使用强度 | 推荐方案 | 原因 |
-|---------|---------|------|
-| 偶尔测试 | Colab 免费 T4 | 零成本，一键运行 |
-| 每周几次 | Colab Pro $10/月 | T4 够用，方便 |
-| 需要 24GB+ VRAM | **AutoDL RTX 4090 ¥1.88/h** | Colab 没有 24GB GPU |
-| 需要 A100 但不常用 | **AutoDL A800 ¥4.98/h** | 按 CU 算 Colab Pro+ 更贵 |
-| 长期重度使用 | AutoDL 包月 | 包月比按量再低 30-40% |
-| 需要后台长时间运行 | Colab Pro+ 或 AutoDL | 都支持后台执行 |
+| 使用强度           | 推荐方案                    | 原因                     |
+| ------------------ | --------------------------- | ------------------------ |
+| 偶尔测试           | Colab 免费 T4               | 零成本，一键运行         |
+| 每周几次           | Colab Pro $10/月            | T4 够用，方便            |
+| 需要 24GB+ VRAM    | **AutoDL RTX 4090 ¥1.88/h** | Colab 没有 24GB GPU      |
+| 需要 A100 但不常用 | **AutoDL A800 ¥4.98/h**     | 按 CU 算 Colab Pro+ 更贵 |
+| 长期重度使用       | AutoDL 包月                 | 包月比按量再低 30-40%    |
+| 需要后台长时间运行 | Colab Pro+ 或 AutoDL        | 都支持后台执行           |
 
 > **核心差异**：Colab 是"共享/抢占式" GPU（可能被抢占），AutoDL 是"独占" GPU。Colab 不保证 GPU 型号，AutoDL 你选什么就是什么。Colab 优势是免管理（一键运行），AutoDL 优势是确定性 + 国内直连 + 24GB 级别 GPU。
 
@@ -596,25 +607,25 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ### 可用 GPU 完整清单
 
-| 平台 | 免费可选 GPU | 付费可选 GPU | CPU RAM | 选择方式 | 默认推荐 |
-|------|-------------|-------------|---------|---------|---------|
-| **Kaggle** | T4 x2 (15GB×2) / P100 (16GB) | — | **29 GB** | `kernel-metadata.json` → `"machine_shape": "NvidiaTeslaT4"` | **T4 x2** |
-| **Colab CLI** | T4 (14.6GB) | L4 / A100 / H100 | 12 GB (免费) / 32 GB (Pro) / 52 GB (Pro+) | `colab run --gpu T4` | **T4**（免费）/ L4（Pro）/ A100（Pro+） |
-| **Colab CDP** | T4 (14.6GB) | L4 / A100 | 同 Colab | 浏览器 Settings → Accelerator | T4 |
-| **AutoDL** | — | RTX 3090/4090/A800 等 | 按实例（通常 40-100+ GB） | 手动租用 | RTX 4090 (24GB) |
+| 平台          | 免费可选 GPU                 | 付费可选 GPU          | CPU RAM                                   | 选择方式                                                    | 默认推荐                                |
+| ------------- | ---------------------------- | --------------------- | ----------------------------------------- | ----------------------------------------------------------- | --------------------------------------- |
+| **Kaggle**    | T4 x2 (15GB×2) / P100 (16GB) | —                     | **29 GB**                                 | `kernel-metadata.json` → `"machine_shape": "NvidiaTeslaT4"` | **T4 x2**                               |
+| **Colab CLI** | T4 (14.6GB)                  | L4 / A100 / H100      | 12 GB (免费) / 32 GB (Pro) / 52 GB (Pro+) | `colab run --gpu T4`                                        | **T4**（免费）/ L4（Pro）/ A100（Pro+） |
+| **Colab CDP** | T4 (14.6GB)                  | L4 / A100             | 同 Colab                                  | 浏览器 Settings → Accelerator                               | T4                                      |
+| **AutoDL**    | —                            | RTX 3090/4090/A800 等 | 按实例（通常 40-100+ GB）                 | 手动租用                                                    | RTX 4090 (24GB)                         |
 
 > ⚠️ **Kaggle P100 退役公告**（2026-08-18 发现）：Kaggle 将于 **2026 年 9 月 15 日** 退役 P100，届时 P100 自动切换到 T4 x2。之后 Kaggle 只有 T4 x2 和 TPU 可选。详见 [Sunsetting P100 announcement](https://www.kaggle.com/discussions/product-announcements/735239)。
 
 ### 资源优先级（2026-08-20 更新）
 
-| 优先级 | 平台 | 命令 | GPU | 免费额度 | 适用场景 |
-|--------|------|------|-----|---------|--------|
-| 1️⃣ | **Kaggle (T4 x2)** | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4` | T4 x2 (15GB×2) | 30h/周刷新 | 自动化批量推理（默认） |
-| 2️⃣ | **Colab CLI (T4)** | `colab run --gpu T4 script.py` | T4 14.6GB | 不固定，空闲90min | 一键运行单脚本 |
-| 3️⃣ | **Colab CDP** | web-access skill | T4 14.6GB | 同 Colab | 交互式调试、参数调优 |
-| 4️⃣ | **Modal (T4)** | `modal run script.py` | T4 15GB | $30/月（纯 GPU ~50h，含 186GB RAM 实际 ~20-30h） | serverless 函数推理 |
-| 5️⃣ | **Lightning AI (L4)** | Studio + SSH | L4 22.5GB (bf16) | ~8h/月 | 16GB 不够时（付费后） |
-| 6️⃣ | **AutoDL** | 手动租用 | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
+| 优先级 | 平台                  | 命令                                                   | GPU              | 免费额度                                         | 适用场景               |
+| ------ | --------------------- | ------------------------------------------------------ | ---------------- | ------------------------------------------------ | ---------------------- |
+| 1️⃣     | **Kaggle (T4 x2)**    | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4` | T4 x2 (15GB×2)   | 30h/周刷新                                       | 自动化批量推理（默认） |
+| 2️⃣     | **Colab CLI (T4)**    | `colab run --gpu T4 script.py`                         | T4 14.6GB        | 不固定，空闲90min                                | 一键运行单脚本         |
+| 3️⃣     | **Colab CDP**         | web-access skill                                       | T4 14.6GB        | 同 Colab                                         | 交互式调试、参数调优   |
+| 4️⃣     | **Modal (T4)**        | `modal run script.py`                                  | T4 15GB          | $30/月（纯 GPU ~50h，含 186GB RAM 实际 ~20-30h） | serverless 函数推理    |
+| 5️⃣     | **Lightning AI (L4)** | Studio + SSH                                           | L4 22.5GB (bf16) | ~8h/月                                           | 16GB 不够时（付费后）  |
+| 6️⃣     | **AutoDL**            | 手动租用                                               | RTX 4090 24GB    | ¥1.88/h                                          | 长时间或 >22.5GB 时    |
 
 > Cloud Studio 和 Saturn Cloud 已从 GPU pool 移除（Cloud Studio 无免费 GPU；Saturn Cloud 无免费 GPU 且 markup 50%）。详见下方
 
@@ -676,6 +687,7 @@ for item in os.listdir(src):
 **验证状态**：✅ v45s 已验证 symlink 方式可行，模型通过链接正常加载和推理。
 
 **注意事项**：
+
 - Kaggle Dataset 路径是**只读**的，symlink 指向只读路径不影响推理（推理只读不写）
 - `os.path.exists(dst_path)` 检查避免重复创建 symlink
 - symlink 后模型路径与 `cp -r` 完全一致，推理脚本无需修改
@@ -683,6 +695,7 @@ for item in os.listdir(src):
 ### 使用方式
 
 Agent 在需要云 GPU 时：
+
 1. 准备 `.py` 脚本（安装依赖 → clone 代码 → 下载模型 → 推理 → 输出结果）
 2. 优先用 `colab run --gpu T4 script.py` 一键运行
 3. 失败则用 Kaggle（`kernel-metadata.json` + `kaggle kernels push`）
@@ -724,6 +737,7 @@ Kernel version 1 successfully pushed.
 ```
 
 输出日志确认双 T4：
+
 ```
 Tesla T4, 15360 MiB
 Tesla T4, 15360 MiB
@@ -744,32 +758,33 @@ GPU count: 2
 
 ### 定期更新的免费 GPU 平台（✅ 有意义）
 
-| 平台 | 免费 GPU | VRAM | 更新周期 | 月/周时长 | 限制 | 来源验证 |
-|------|---------|------|---------|---------|------|---------|
-| **Kaggle** ✅ 已用 | T4×2 / P100 | 15GB×2 / 16GB | **每周刷新**（周六） | 30h/周 | 12h/session, 1 kernel | 官方文档 [1] |
-| **Colab 免费版** ✅ 已用 | T4（不保证） | 15GB | **动态**（不固定） | 不固定 | 冷却期 + 90min 空闲 | 官方 FAQ [2] |
-| **Lightning AI** | T4/L4/A10G/L40S | 15-48GB | **月度刷新** | 15 credits/月 (~22h T4) | 4h studio 重启, 不累计 | 官方 + SaaSworthy + aicreditmart [3] |
-| **Hugging Face ZeroGPU** | H200（动态） | 48-96GB | **每日刷新** | 5 min/天, 3次/天 | 极短时间 | 官方文档 + 论坛 [4] |
-| **Modal** | T4 | 15GB | **月度刷新** | $30/月（纯 GPU ~50h，含 Memory 后实际 ~20-30h） | serverless 函数，冷启动慢 | Token 验证 ✅ + GPU T4 测试通过 ✅ + 官方定价页验证 ✅ |
+| 平台                     | 免费 GPU        | VRAM          | 更新周期             | 月/周时长                                       | 限制                      | 来源验证                                               |
+| ------------------------ | --------------- | ------------- | -------------------- | ----------------------------------------------- | ------------------------- | ------------------------------------------------------ |
+| **Kaggle** ✅ 已用       | T4×2 / P100     | 15GB×2 / 16GB | **每周刷新**（周六） | 30h/周                                          | 12h/session, 1 kernel     | 官方文档 [1]                                           |
+| **Colab 免费版** ✅ 已用 | T4（不保证）    | 15GB          | **动态**（不固定）   | 不固定                                          | 冷却期 + 90min 空闲       | 官方 FAQ [2]                                           |
+| **Lightning AI**         | T4/L4/A10G/L40S | 15-48GB       | **月度刷新**         | 15 credits/月 (~22h T4)                         | 4h studio 重启, 不累计    | 官方 + SaaSworthy + aicreditmart [3]                   |
+| **Hugging Face ZeroGPU** | H200（动态）    | 48-96GB       | **每日刷新**         | 5 min/天, 3次/天                                | 极短时间                  | 官方文档 + 论坛 [4]                                    |
+| **Modal**                | T4              | 15GB          | **月度刷新**         | $30/月（纯 GPU ~50h，含 Memory 后实际 ~20-30h） | serverless 函数，冷启动慢 | Token 验证 ✅ + GPU T4 测试通过 ✅ + 官方定价页验证 ✅ |
 
 ### 一次性的免费 GPU（❌ 对我们没有意义）
 
-| 平台 | 免费额度 | 性质 | 原因 |
-|------|---------|------|------|
-| **Google Cloud** | $300 credit | 一次性（90天过期） | 过期后不再补充 |
-| **AWS Activate** | $200K credit | 一次性 | 面向初创公司，非个人 |
-| **Azure 新用户** | $200 credit | 一次性（30天过期） | 30 天后失效 |
-| **Oracle Cloud** | $300 credit | 一次性（30天过期） | 之后只有 always-free CPU |
-| **RunPod** | $5-10 credit | 一次性 | 用完即止 |
-| **Paperspace Gradient** | 有限 GPU 时 | 一次性 | 免费层 M4000 8GB 不够用 |
-| **Saturn Cloud** | $5 credit | 一次性（$5 Pro upgrade 转换） | 用完即止，之后按量付费。详见下方 Saturn Cloud 条目 |
-| **Thunder Compute** | $20 (学生) | 一次性 | 仅美国学生 |
+| 平台                    | 免费额度     | 性质                          | 原因                                               |
+| ----------------------- | ------------ | ----------------------------- | -------------------------------------------------- |
+| **Google Cloud**        | $300 credit  | 一次性（90天过期）            | 过期后不再补充                                     |
+| **AWS Activate**        | $200K credit | 一次性                        | 面向初创公司，非个人                               |
+| **Azure 新用户**        | $200 credit  | 一次性（30天过期）            | 30 天后失效                                        |
+| **Oracle Cloud**        | $300 credit  | 一次性（30天过期）            | 之后只有 always-free CPU                           |
+| **RunPod**              | $5-10 credit | 一次性                        | 用完即止                                           |
+| **Paperspace Gradient** | 有限 GPU 时  | 一次性                        | 免费层 M4000 8GB 不够用                            |
+| **Saturn Cloud**        | $5 credit    | 一次性（$5 Pro upgrade 转换） | 用完即止，之后按量付费。详见下方 Saturn Cloud 条目 |
+| **Thunder Compute**     | $20 (学生)   | 一次性                        | 仅美国学生                                         |
 
 ### SageMaker Studio Lab 关闭详情
 
 **关闭时间**：2026-07-30 停止接受新用户
 
 **关闭原因**（来源：AWS 官方文档 [6]）：
+
 - AWS 官方公告说 "Amazon SageMaker Studio Lab is no longer open to new customers"
 - 这是 AWS **批量关闭 12 个服务/功能**的一部分（同一天关闭的还包括 Mechanical Turk、Ground Truth、Clarify、Debugger、GeoSpatial 等 9 个 SageMaker AI 子功能）
 - AWS 把 Studio Lab 定位为"maintenance mode"——现有用户可继续使用，但"不计划引入新功能"
@@ -787,13 +802,13 @@ GPU count: 2
 
 ### 推荐的 Fallback Pool 策略（2026-08-20 最终版）
 
-| 优先级 | 平台 | GPU | 月/周配额 | 用途 |
-|--------|------|-----|---------|------|
-| 1️⃣ | **Kaggle T4×2** | T4 15GB×2 | 30h/周 | 自动化批量推理（默认） |
-| 2️⃣ | **Colab 免费 T4** | T4 15GB | 不固定 | 一键运行单脚本 |
-| 3️⃣ | **Modal T4** | T4 15GB | $30/月（含 186GB RAM 实际 ~20-30h） | serverless 函数推理（冷启动慢，186GB RAM 适合 NF4 量化） |
-| ~~4️⃣~~ | ~~**Lightning AI L4**~~ | ~~L4 22.5GB (bf16)~~ | ~~8h/月~~ | ❌ 账号被封 |
-| 5️⃣ | **AutoDL 4090** | RTX 4090 24GB | ¥1.88/h | 长时间或 >22.5GB 时 |
+| 优先级 | 平台                    | GPU                  | 月/周配额                           | 用途                                                     |
+| ------ | ----------------------- | -------------------- | ----------------------------------- | -------------------------------------------------------- |
+| 1️⃣     | **Kaggle T4×2**         | T4 15GB×2            | 30h/周                              | 自动化批量推理（默认）                                   |
+| 2️⃣     | **Colab 免费 T4**       | T4 15GB              | 不固定                              | 一键运行单脚本                                           |
+| 3️⃣     | **Modal T4**            | T4 15GB              | $30/月（含 186GB RAM 实际 ~20-30h） | serverless 函数推理（冷启动慢，186GB RAM 适合 NF4 量化） |
+| ~~4️⃣~~ | ~~**Lightning AI L4**~~ | ~~L4 22.5GB (bf16)~~ | ~~8h/月~~                           | ❌ 账号被封                                              |
+| 5️⃣     | **AutoDL 4090**         | RTX 4090 24GB        | ¥1.88/h                             | 长时间或 >22.5GB 时                                      |
 
 > **关于多 Kaggle 账号 fallback pool**：技术上可行（维护多组 API key，轮询空闲账号），但 Kaggle TOS 禁止一人多账号，有封号风险。**更安全的替代方案是加入 Lightning AI 作为第二平台**——不同平台不违反 TOS，且 Lightning AI 的 L4 (22.5GB, bf16) 正好弥补 Kaggle T4 (15GB, 无 bf16) 的不足。
 
@@ -809,43 +824,45 @@ GPU count: 2
 
 **免费 CPU 机时来源**：
 
-| 免费来源 | 额度 | 更新周期 | 过期时间 |
-|---------|------|---------|---------|
-| 首次绑定腾讯云账号 | 20 机时 | 一次性 | 2027-08-20 到期 |
-| 每日签到领取 | 2 机时/天 | **每日刷新**（7天有效） | 7 日内有效 |
-| 合计 | **22 机时** | | |
+| 免费来源           | 额度        | 更新周期                | 过期时间        |
+| ------------------ | ----------- | ----------------------- | --------------- |
+| 首次绑定腾讯云账号 | 20 机时     | 一次性                  | 2027-08-20 到期 |
+| 每日签到领取       | 2 机时/天   | **每日刷新**（7天有效） | 7 日内有效      |
+| 合计               | **22 机时** |                         |                 |
 
 > ⚠️ **免费机时全是 CPU**，不是 GPU。签到只送 CPU 机时，GPU 需购买资源包或后付费。
 
 **GPU 规格**（来源：Cloud Studio 计费说明页，2026-08-20 CDP 实测）：
 
-| 规格 | 资源包价格（元/机时） | 抵扣因子（机时/h） | 后付费价格（元/h） |
-|------|---------------------|-------------------|-------------------|
-| CPU 1核2G | 1 | 0.1 | ¥0.1/h |
-| CPU 2核4G | 1 | 0.25 | ¥0.25/h |
-| CPU 4核8G | 1 | 0.5 | ¥0.5/h |
-| CPU 8核16G | 1 | 1 | ¥1/h |
-| CPU 16核32G | 1 | 2 | ¥2/h |
-| CPU 32核64G | 1 | 4 | ¥4/h |
-| CPU 64核128G | 1 | 7 | ¥7/h |
-| **GPU T4** | 1 | 1.2 | **¥1.2/h** |
-| **GPU V100** | 1 | 3.6 | **¥3.6/h** |
-| **GPU A10** | 1 | 3.3 | **¥3.3/h** |
-| **GPU L40** | 1 | 8 | **¥8/h** |
-| **GPU A800** | 1 | 14 | **¥14/h** |
-| **GPU A100** | 1 | 7 | **¥7/h** |
+| 规格         | 资源包价格（元/机时） | 抵扣因子（机时/h） | 后付费价格（元/h） |
+| ------------ | --------------------- | ------------------ | ------------------ |
+| CPU 1核2G    | 1                     | 0.1                | ¥0.1/h             |
+| CPU 2核4G    | 1                     | 0.25               | ¥0.25/h            |
+| CPU 4核8G    | 1                     | 0.5                | ¥0.5/h             |
+| CPU 8核16G   | 1                     | 1                  | ¥1/h               |
+| CPU 16核32G  | 1                     | 2                  | ¥2/h               |
+| CPU 32核64G  | 1                     | 4                  | ¥4/h               |
+| CPU 64核128G | 1                     | 7                  | ¥7/h               |
+| **GPU T4**   | 1                     | 1.2                | **¥1.2/h**         |
+| **GPU V100** | 1                     | 3.6                | **¥3.6/h**         |
+| **GPU A10**  | 1                     | 3.3                | **¥3.3/h**         |
+| **GPU L40**  | 1                     | 8                  | **¥8/h**           |
+| **GPU A800** | 1                     | 14                 | **¥14/h**          |
+| **GPU A100** | 1                     | 7                  | **¥7/h**           |
 
 > 资源包阶梯折扣：<100 机时 1 元/机时；100-2000 机时 0.95 元/机时；2000-5000 机时 0.9 元/机时；>5000 机时 0.9 元/机时。
 
 **GPU 模板**（创建应用 → 从模板创建）：Pytorch (CUDA 12.8, PyTorch 2.0.0)、ComfyUI (CUDA 12.8)、Tensorflow、vLLM、Ollama 等预装 CUDA 环境的模板。模板预装了 CUDA 工具链，但**不分配 GPU 硬件**——GPU 需要购买资源包或后付费。
 
 **免费 CPU 机时能干什么**：
+
 - **代码编写/调试**：Python/Node.js/前端等纯 CPU 开发环境
 - **TTS 推理**：F5-TTS-MLX 等 CPU 可跑的音频推理（但比 GPU 慢很多）
 - **轻量数据处理**：文本处理、HTML 渲染、脚本执行
 - **不能跑 GPU 模型推理**：EchoMimicV3、LatentSync 等数字人模型需要 CUDA GPU
 
 **关键特点**：
+
 - Cloud Studio 是**在线 IDE**（类 VS Code），不是 Jupyter Notebook
 - 签到自动化已配置：`scripts/cloud-studio/checkin.mjs` + macOS launchd 常驻（每 24h 自动签到，失败重试）
 - 需绑定腾讯云账号，CPU 机时用完后 GPU 需购买资源包或后付费扣款
@@ -859,44 +876,45 @@ GPU count: 2
 
 **Saturn Cloud 4 个 Cluster 选项**（创建 Workspace 时选择）：
 
-| Cluster | 特点 | 最便宜 GPU |
-|---------|------|-----------|
-| **Shadeform** | GPU 聚合器，30+ 云供应商，最便宜 GPU | A6000 $0.50/hr |
-| **AWS Ohio** | NVIDIA GPU + CPU，稳定 | T4 $0.80/hr |
-| **Nebius Finland** | H100，欧洲，容量有限 | — |
-| **Nebius KC** | H200/B200/RTX6000，美国，容量有限 | — |
+| Cluster            | 特点                                 | 最便宜 GPU     |
+| ------------------ | ------------------------------------ | -------------- |
+| **Shadeform**      | GPU 聚合器，30+ 云供应商，最便宜 GPU | A6000 $0.50/hr |
+| **AWS Ohio**       | NVIDIA GPU + CPU，稳定               | T4 $0.80/hr    |
+| **Nebius Finland** | H100，欧洲，容量有限                 | —              |
+| **Nebius KC**      | H200/B200/RTX6000，美国，容量有限    | —              |
 
 **Shadeform Cluster GPU 价格**（通过 Saturn Cloud 调用，2026-08-20 CDP 实测）：
 
-| GPU | 供应商 | 地区 | 价格 | VRAM | RAM | vCPUs |
-|-----|--------|------|------|-------|-----|-------|
-| A6000 | Hyperstack | Montreal | **$0.50/hr** | 48GB | 56Gi | 26 |
-| RTX 4090 | Excess Supply | Oslo | **$0.60/hr** | 24GB | 68Gi | 11 |
-| RTX 5090 | Excess Supply | Oslo | **$0.65/hr** | 32GB | 112Gi | 11 |
-| A4000 | Paperspace | NY | $0.80/hr | 16GB | 43Gi | 7 |
-| L40S | Massed Compute | DesMoines | $0.88/hr | 48GB | 69Gi | 12 |
-| L4 | Scaleway | Paris/Warsaw | $0.95/hr | 24GB | 46Gi | 7 |
-| RTX6000Ada | Massed Compute | DesMoines | $0.97/hr | 48GB | 78Gi | 11 |
-| A10 | Lambda | Dulles/SanJose | $1.29/hr | — | 184Gi | 28 |
-| A100 80GB | Hyperstack | Montreal | $1.35/hr | 80GB | 112Gi | 26 |
+| GPU        | 供应商         | 地区           | 价格         | VRAM | RAM   | vCPUs |
+| ---------- | -------------- | -------------- | ------------ | ---- | ----- | ----- |
+| A6000      | Hyperstack     | Montreal       | **$0.50/hr** | 48GB | 56Gi  | 26    |
+| RTX 4090   | Excess Supply  | Oslo           | **$0.60/hr** | 24GB | 68Gi  | 11    |
+| RTX 5090   | Excess Supply  | Oslo           | **$0.65/hr** | 32GB | 112Gi | 11    |
+| A4000      | Paperspace     | NY             | $0.80/hr     | 16GB | 43Gi  | 7     |
+| L40S       | Massed Compute | DesMoines      | $0.88/hr     | 48GB | 69Gi  | 12    |
+| L4         | Scaleway       | Paris/Warsaw   | $0.95/hr     | 24GB | 46Gi  | 7     |
+| RTX6000Ada | Massed Compute | DesMoines      | $0.97/hr     | 48GB | 78Gi  | 11    |
+| A10        | Lambda         | Dulles/SanJose | $1.29/hr     | —    | 184Gi | 28    |
+| A100 80GB  | Hyperstack     | Montreal       | $1.35/hr     | 80GB | 112Gi | 26    |
 
 **Shadeform 直销价格**（shadeform.com/prices，无 markup）：
 
-| GPU | 价格 |
-|-----|------|
-| RTX 4090 | **$0.40/hr** |
-| A6000 | $0.49/hr |
-| RTX 5090 | $0.65/hr |
-| L40S | $0.69/hr |
-| RTX PRO 6000 | $0.99/hr |
-| A100 80GB | $1.35/hr |
-| H100 | $1.66/hr |
-| H200 | $2.25/hr |
-| B200 | $3.74/hr |
+| GPU          | 价格         |
+| ------------ | ------------ |
+| RTX 4090     | **$0.40/hr** |
+| A6000        | $0.49/hr     |
+| RTX 5090     | $0.65/hr     |
+| L40S         | $0.69/hr     |
+| RTX PRO 6000 | $0.99/hr     |
+| A100 80GB    | $1.35/hr     |
+| H100         | $1.66/hr     |
+| H200         | $2.25/hr     |
+| B200         | $3.74/hr     |
 
 > **Shadeform 直销 vs Saturn 转售**：Shadeform 直销 RTX 4090 $0.40/hr，Saturn（通过 Shadeform cluster）$0.60/hr。Saturn 加了 ~50% markup。如需最便宜，直接用 Shadeform 平台（platform.shadeform.ai）。
 
 **Saturn Cloud $5 Credit 使用情况**：
+
 - $5.00 Saturn Cloud Credits（Pro upgrade 转换）
 - 用完 $5 后扣信用卡，满 $10 才实际扣款
 - $5 credit ≈ 6.25h T4 (AWS Ohio) 或 10h A6000 (Shadeform)
@@ -908,17 +926,18 @@ GPU count: 2
 
 **GPU 实例系列**（来源：[腾讯云 GPU 云服务器文档](https://cloud.tencent.com/document/product/560/19700)）：
 
-| 系列 | GPU 型号 | GPU 显存 | 最小配置 vCPU | 最小配置 RAM | 适用场景 |
-|------|---------|---------|-------------|------------|---------|
-| **GN7** | NVIDIA T4 | 16GB×1~4 | 8 核 | 32GB | 推理、视频编解码、图形处理 |
-| **GN10X** | NVIDIA V100 | 32GB×1~8 | 8 核 | 40GB | 深度学习训练、高性能计算 |
-| **GN10Xp** | NVIDIA V100 NVLink | 32GB×1~8 | 10 核 | 40GB | 大规模训练（NVLink 互联） |
-| **GNV4** | NVIDIA V100 | 16GB×? | 12 核 | 44GB | 计算型 |
-| **PNV4** | NVIDIA? | ? | 28 核 | 116GB | 计算型（PN 系列） |
-| **GT4** | NVIDIA A100 | 40GB×1~8 | 16 核 | 96GB | 大规模训练（A100 40GB） |
-| **BMGNV4** | NVIDIA? | ? | 208 核 | 768GB | 裸金属 GPU（BM 系列） |
+| 系列       | GPU 型号           | GPU 显存 | 最小配置 vCPU | 最小配置 RAM | 适用场景                   |
+| ---------- | ------------------ | -------- | ------------- | ------------ | -------------------------- |
+| **GN7**    | NVIDIA T4          | 16GB×1~4 | 8 核          | 32GB         | 推理、视频编解码、图形处理 |
+| **GN10X**  | NVIDIA V100        | 32GB×1~8 | 8 核          | 40GB         | 深度学习训练、高性能计算   |
+| **GN10Xp** | NVIDIA V100 NVLink | 32GB×1~8 | 10 核         | 40GB         | 大规模训练（NVLink 互联）  |
+| **GNV4**   | NVIDIA V100        | 16GB×?   | 12 核         | 44GB         | 计算型                     |
+| **PNV4**   | NVIDIA?            | ?        | 28 核         | 116GB        | 计算型（PN 系列）          |
+| **GT4**    | NVIDIA A100        | 40GB×1~8 | 16 核         | 96GB         | 大规模训练（A100 40GB）    |
+| **BMGNV4** | NVIDIA?            | ?        | 208 核        | 768GB        | 裸金属 GPU（BM 系列）      |
 
 **最小 GPU 实例（GN7.2XLARGE32）**：
+
 - GPU: NVIDIA T4 × 1（16GB）
 - CPU: Intel Xeon Platinum 8255C 2.5GHz, 8 vCPU
 - RAM: 32GB DDR4
@@ -931,12 +950,12 @@ GPU count: 2
 
 ### 国内 LLM API 免费额度对比（2026-08-19）
 
-| 平台 | 免费额度 | 刷新周期 | 模型 | 对项目有用？ |
-|------|---------|---------|------|------------|
-| 字节跳动（火山引擎） | 万级 token | **每月刷新** ✅ | 豆包 | 未来可能（内容分类/自动写稿） |
-| 阿里云百炼 | 100万 token | 一次性 | 通义千问 | 同上 |
-| 腾讯混元 | 50万 token | 一次性 | 混元 | 同上 |
-| 华为云 AgentArts | 200万 token | **一次性** | 盘古 | 同上 |
-| 百度 AI Studio | 文心一言 | 需积分 | ERNIE | 仅支持 PaddlePaddle |
+| 平台                 | 免费额度    | 刷新周期        | 模型     | 对项目有用？                  |
+| -------------------- | ----------- | --------------- | -------- | ----------------------------- |
+| 字节跳动（火山引擎） | 万级 token  | **每月刷新** ✅ | 豆包     | 未来可能（内容分类/自动写稿） |
+| 阿里云百炼           | 100万 token | 一次性          | 通义千问 | 同上                          |
+| 腾讯混元             | 50万 token  | 一次性          | 混元     | 同上                          |
+| 华为云 AgentArts     | 200万 token | **一次性**      | 盘古     | 同上                          |
+| 百度 AI Studio       | 文心一言    | 需积分          | ERNIE    | 仅支持 PaddlePaddle           |
 
 > **项目当前不需要外部 LLM API token**。VLM 使用本地 mlx-vlm（Qwen3-VL-8B），RAG 使用本地 Ollama（bge-m3），无外部 LLM API 调用。几百万 token 用起来很快，目前无需求。

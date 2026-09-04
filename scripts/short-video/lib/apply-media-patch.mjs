@@ -63,24 +63,32 @@ export function formatFocusSummary(focusAnalysis) {
       if (sal) {
         lines.push(
           `  // Saliency: ${sal.available ? "available" : "unavailable"}` +
-            (sal.available ? `, dispersion: ${sal.dispersion?.toFixed(3)}, centroid: [${(sal.centroid || []).map((n) => n.toFixed(3)).join(", ")}]` : ""),
+            (sal.available
+              ? `, dispersion: ${sal.dispersion?.toFixed(3)}, centroid: [${(sal.centroid || []).map((n) => n.toFixed(3)).join(", ")}]`
+              : ""),
         );
       }
       break;
     }
 
     case "low_information": {
-      lines.push(`  // Focus Analysis: low_information — no protected regions, place text normally.`);
+      lines.push(
+        `  // Focus Analysis: low_information — no protected regions, place text normally.`,
+      );
       break;
     }
 
     case "degraded": {
-      lines.push(`  // ⚠️ Focus Analysis: degraded (${errorCode || "unknown"}) — ignore focusAnalysis, use default text placement.`);
+      lines.push(
+        `  // ⚠️ Focus Analysis: degraded (${errorCode || "unknown"}) — ignore focusAnalysis, use default text placement.`,
+      );
       break;
     }
 
     case "unsupported": {
-      lines.push(`  // Focus Analysis: unsupported (${errorCode || "unknown"}) — video asset, not applicable.`);
+      lines.push(
+        `  // Focus Analysis: unsupported (${errorCode || "unknown"}) — video asset, not applicable.`,
+      );
       break;
     }
 
@@ -226,8 +234,7 @@ export function main(args = process.argv.slice(2)) {
 }
 
 // Auto-run if called directly
-const isMainModule =
-  process.argv[1] && process.argv[1].endsWith("apply-media-patch.mjs");
+const isMainModule = process.argv[1] && process.argv[1].endsWith("apply-media-patch.mjs");
 if (isMainModule) {
   main();
 }

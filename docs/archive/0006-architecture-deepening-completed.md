@@ -10,16 +10,16 @@ This ADR records what was done, the key decisions made during implementation, an
 
 ### Completed refactors
 
-| # | Candidate | Session | Commit | Tests |
-|---|-----------|---------|--------|-------|
-| 1 | `requireAdmin` middleware | S1 | `2eda390` | — |
-| 2 | `useIsAdmin` hook | S1 | `2eda390` | — |
-| 5 | TTS engine strategy (adapter + registry) | S2 | `cef738d` | 25 |
-| 6 | Publora API client extraction | S3 | `70541c9` | 16 |
-| 7 | CDP scraper extraction | S3 | `70541c9` | 21 |
-| 8 | PostEditor + AttachmentUploader extraction | S4 | `7ebc78f` | 14 |
-| 3 | Attachment upload server function | S4 | `7ebc78f` | 13 |
-| 4 | Supabase client factory consolidation | S4 | `7ebc78f` + `50e61fb` | 3 |
+| #   | Candidate                                  | Session | Commit                | Tests |
+| --- | ------------------------------------------ | ------- | --------------------- | ----- |
+| 1   | `requireAdmin` middleware                  | S1      | `2eda390`             | —     |
+| 2   | `useIsAdmin` hook                          | S1      | `2eda390`             | —     |
+| 5   | TTS engine strategy (adapter + registry)   | S2      | `cef738d`             | 25    |
+| 6   | Publora API client extraction              | S3      | `70541c9`             | 16    |
+| 7   | CDP scraper extraction                     | S3      | `70541c9`             | 21    |
+| 8   | PostEditor + AttachmentUploader extraction | S4      | `7ebc78f`             | 14    |
+| 3   | Attachment upload server function          | S4      | `7ebc78f`             | 13    |
+| 4   | Supabase client factory consolidation      | S4      | `7ebc78f` + `50e61fb` | 3     |
 
 Total: 92 new tests across all sessions.
 
@@ -45,6 +45,7 @@ Total: 92 new tests across all sessions.
 ### Dev server verification
 
 Local dev server cannot fully verify admin UI because `src/routes/lovable/email/events.ts` requires `LOVABLE_API_KEY` (only injected by Lovable Cloud at deploy time). This is a pre-existing environment limitation, not introduced by the refactors. Verification relied on:
+
 - `npm run build` passing (all modules compile and link correctly)
 - 92 unit tests covering all spec behavioral scenarios
 - `npx tsc --noEmit` zero new type errors

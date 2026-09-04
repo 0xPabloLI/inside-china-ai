@@ -27,22 +27,22 @@
 
 **检查结果**：通过（所有验收标准满足或将在后续 step 完成）
 
-| 验收标准 | 状态 |
-|---------|------|
-| PapersWithCode 入口删除，替换为 arXiv/HF Papers 发现流程 | ✅ |
-| HF Open LLM Leaderboard 标为归档，替换为 Eval Results | ✅ |
-| 硬性门槛矛盾修复（统一状态机） | ✅ |
-| NC 许可证段改为"需法务确认" | ✅ |
-| 格式表增加类别标注 | ✅ |
-| GitHub 搜索新增完成条件 | ✅ |
-| Ollama 分类重写，删除固定内存数 | ✅ |
-| 来源增加最小元数据（API 端点） | ✅ |
-| 新增 Step 6a 候选证据卡 | ✅ |
-| memory 指针替换为仓库内路径 | ✅ |
-| AGENTS.md 引用不破坏（grep 验证） | ✅ |
-| DOCS-INDEX 更新 | 待 Step 8 |
-| review 文件归档 | 待 Step 8 |
-| lint + build + tsc 通过 | 待 Step 6 |
+| 验收标准                                                 | 状态      |
+| -------------------------------------------------------- | --------- |
+| PapersWithCode 入口删除，替换为 arXiv/HF Papers 发现流程 | ✅        |
+| HF Open LLM Leaderboard 标为归档，替换为 Eval Results    | ✅        |
+| 硬性门槛矛盾修复（统一状态机）                           | ✅        |
+| NC 许可证段改为"需法务确认"                              | ✅        |
+| 格式表增加类别标注                                       | ✅        |
+| GitHub 搜索新增完成条件                                  | ✅        |
+| Ollama 分类重写，删除固定内存数                          | ✅        |
+| 来源增加最小元数据（API 端点）                           | ✅        |
+| 新增 Step 6a 候选证据卡                                  | ✅        |
+| memory 指针替换为仓库内路径                              | ✅        |
+| AGENTS.md 引用不破坏（grep 验证）                        | ✅        |
+| DOCS-INDEX 更新                                          | 待 Step 8 |
+| review 文件归档                                          | 待 Step 8 |
+| lint + build + tsc 通过                                  | 待 Step 6 |
 
 **发现**：无 Spec 偏差。所有文档修改已完成，剩余为归档和验证步骤。
 

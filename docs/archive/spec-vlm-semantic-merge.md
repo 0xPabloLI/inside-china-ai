@@ -51,42 +51,54 @@ asset-sourcer.mjs (orchestrator)
 ### VLM Output Format (Markdown)
 
 Image prompt produces:
+
 ```markdown
 ## Description
+
 A humanoid robot demonstrating household tasks in a kitchen setting.
 
 ## Subjects
+
 robot, kitchen, product
 
 ## Content Kind
+
 product_demo
 
 ## Fit
+
 contain
 
 ## Critical Edge Text
+
 yes — bottom edge has product label text
 
 ## Reason
+
 Bottom edge has product label text that would be cropped in vertical format.
 ```
 
 Video prompt produces (no Fit/Critical Edge Text sections):
+
 ```markdown
 ## Description
+
 A humanoid robot walking through a factory floor, demonstrating mobility.
 
 ## Subjects
+
 robot, factory, mobility
 
 ## Content Kind
+
 talking_head
 ```
 
 ### Python Markdown Parser
 
 `parse_markdown_to_dict(raw_text)` logic:
-1. Strip markdown code fences (```` ```markdown ... ``` ````) if present
+
+1. Strip markdown code fences (` ```markdown ... ``` `) if present
 2. Split by `## ` to get sections
 3. Key = first line of section → lowercase + snake_case
 4. Value = rest of section → trim
@@ -134,6 +146,7 @@ Degradation: any field that fails parsing → null. `description` is always pres
 ### 1. New VLM Action: `analyze_semantics`
 
 **Python side** (`vlm_analyzer.py`):
+
 - New `SEMANTICS_PROMPT_IMAGE` and `SEMANTICS_PROMPT_VIDEO` constants (Markdown-section format with few-shot examples)
 - New `handle_analyze_semantics(model, processor, path)` handler — dispatches to image or video prompt based on file extension
 - New `parse_markdown_to_dict(raw_text)` function — pure string parsing, no LLM
@@ -141,7 +154,8 @@ Degradation: any field that fails parsing → null. `description` is always pres
 - Main loop: `analyze_semantics` replaces `describe_image`, `describe_video`, `analyze_fit`
 
 **Node side** (`visual-analyzer.mjs`):
-- New `analyzeAssetSemantics(assetPath)` → `Promise<AssetSemantics>` 
+
+- New `analyzeAssetSemantics(assetPath)` → `Promise<AssetSemantics>`
 - Delete: `describeImage`, `describeVideo`, `analyzeFit`, `parseFitResponse`, `VALID_FITS`, `VALID_FOCUSES`
 - `requestQueue` entry: `action: "analyze_semantics"` (no `isFit` flag)
 - `handleResponse`: `JSON.parse(line)` → if `response.error` → resolve with degraded result; else → resolve with response object (minus `error` field)
@@ -149,14 +163,14 @@ Degradation: any field that fails parsing → null. `description` is always pres
 
 ### 2. VLM Output Fields
 
-| Field | Type | Image | Video | Consumers |
-|-------|------|-------|-------|-----------|
-| `description` | string | ✅ | ✅ | scoreCandidate, human review |
-| `subjects` | string[] | ✅ | ✅ | scoreCandidate (semantic match) |
-| `contentKind` | enum | ✅ | ✅ | recommendScene |
-| `fit` | "cover" \| "contain" | ✅ | ❌ | assignAssetsToScenes (media.fit) |
-| `criticalEdgeText` | string \| null | ✅ | ❌ | assignAssetsToScenes, layout |
-| `reason` | string | ✅ | ❌ | human review |
+| Field              | Type                 | Image | Video | Consumers                        |
+| ------------------ | -------------------- | ----- | ----- | -------------------------------- |
+| `description`      | string               | ✅    | ✅    | scoreCandidate, human review     |
+| `subjects`         | string[]             | ✅    | ✅    | scoreCandidate (semantic match)  |
+| `contentKind`      | enum                 | ✅    | ✅    | recommendScene                   |
+| `fit`              | "cover" \| "contain" | ✅    | ❌    | assignAssetsToScenes (media.fit) |
+| `criticalEdgeText` | string \| null       | ✅    | ❌    | assignAssetsToScenes, layout     |
+| `reason`           | string               | ✅    | ❌    | human review                     |
 
 `contentKind` enum values: `product_demo`, `talking_head`, `landscape`, `chart`, `text_screenshot`, `other`
 
@@ -183,6 +197,7 @@ Pre-filter gate: `technicalScore < 30` → skip VLM, mark `lowConfidence: true`.
 ### 4. Asset Analysis Artifact
 
 `output/{pipelineId}/asset-analysis.json`:
+
 ```json
 {
   "version": 1,
@@ -210,6 +225,7 @@ Pre-filter gate: `technicalScore < 30` → skip VLM, mark `lowConfidence: true`.
 ### 5. Phase 2c: Semantic Scoring
 
 After VLM analysis, re-score assets using VLM output:
+
 - `relevanceScore` = subjects match (0-20) + description match (0-10)
 - Subjects match: for each scene's keywords, check if keyword appears in `subjects` list (exact, not substring)
 - Description match: keyword appears in `description` with boundary matching
@@ -218,6 +234,7 @@ After VLM analysis, re-score assets using VLM output:
 ### 6. Deleted APIs (Q6 = option C)
 
 All deleted with their tests rewritten:
+
 - `describeImage(path)` → replaced by `analyzeAssetSemantics(path)`
 - `describeVideo(path)` → replaced by `analyzeAssetSemantics(path)`
 - `analyzeFit(path)` → replaced by `analyzeAssetSemantics(path)`
@@ -240,54 +257,54 @@ All deleted with their tests rewritten:
 
 ### Validation Plan (Test 5 / experiments)
 
-| Test | What | Input | Pass Criteria |
-|------|------|-------|---------------|
-| VLM Markdown stability | Format correctness rate | 5 images × 3 runs (temp 0.0) | ≥80% correct `## Section` format |
-| Python parser robustness | 10 boundary cases | Hand-crafted inputs | 10/10 no crash, ≥8/10 key fields present |
-| Pre-filter accuracy | False reject / false accept | 20 simulated candidates | 0 false rejects, ≤20% false accepts |
-| End-to-end latency | Single vs double call | 3 images through full pipeline | Single ≤ 60% of double-call time |
-| Semantic scoring (optional) | New vs old ranking | 10 assets + 3 scene contexts | New top-3 ≥ old top-3 |
+| Test                        | What                        | Input                          | Pass Criteria                            |
+| --------------------------- | --------------------------- | ------------------------------ | ---------------------------------------- |
+| VLM Markdown stability      | Format correctness rate     | 5 images × 3 runs (temp 0.0)   | ≥80% correct `## Section` format         |
+| Python parser robustness    | 10 boundary cases           | Hand-crafted inputs            | 10/10 no crash, ≥8/10 key fields present |
+| Pre-filter accuracy         | False reject / false accept | 20 simulated candidates        | 0 false rejects, ≤20% false accepts      |
+| End-to-end latency          | Single vs double call       | 3 images through full pipeline | Single ≤ 60% of double-call time         |
+| Semantic scoring (optional) | New vs old ranking          | 10 assets + 3 scene contexts   | New top-3 ≥ old top-3                    |
 
 ## Scenario & Risk Verification Matrix
 
 ### Section 1: Modified Files Impact
 
-| File | Modification | Risk | Assessment |
-|------|-------------|------|------------|
-| `vlm_analyzer.py` | Delete 3 handlers + 2 prompts + 1 parser; add 2 prompts + 1 handler + 1 parser | **High** | Core VLM subprocess. All 3 existing actions deleted. Tests rewritten. Worst case: VLM subprocess crashes on startup → graceful degradation returns empty results (same as current). |
-| `visual-analyzer.mjs` | Delete 4 exports + 2 constants; add 1 export; rewrite `handleResponse` + `requestQueue` | **High** | Node gateway. IPC protocol changes (new action name, new response shape). All consumers go through `asset-sourcer.mjs`. Worst case: IPC mismatch → timeout → empty result degradation. |
-| `asset-sourcer.mjs` | Rewrite `analyzeAssets()`; rebalance `scoreCandidate`; add pre-filter gate; add `asset-analysis.json` output | **Medium** | Orchestration logic changes. `scoreCandidate` is a pure function with 137 tests — rebalancing weights changes expected values but not structure. `assignAssetsToScenes` unchanged. |
-| `review-media-patch.mjs` | Update to consume `asset-analysis.json` instead of scattered fields | **Low** | Presentation-only. Reads fields, formats for human. |
-| `remotion/src/types.ts` | Add optional `contentKind` + `subjects` to `MediaField` | **Low** | Pure additive. Existing fields unchanged. |
-| `visual-analyzer.test.mjs` | Delete ~20 tests; add ~20 new tests | **Medium** | Test rewrite. Risk: missing a scenario. Mitigated by scenario matrix below. |
-| `asset-sourcer-visual-integration.test.mjs` | Update mock + assertions | **Medium** | Mock interface changes. 4 existing tests rewritten. |
-| `asset-sourcer.test.mjs` | Update `scoreCandidate` expected values + add boundary tests | **Medium** | Score values change due to rebalancing. All expected values recalculated. |
-| `README.md` | Update action table | **Low** | Documentation only. |
+| File                                        | Modification                                                                                                 | Risk       | Assessment                                                                                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vlm_analyzer.py`                           | Delete 3 handlers + 2 prompts + 1 parser; add 2 prompts + 1 handler + 1 parser                               | **High**   | Core VLM subprocess. All 3 existing actions deleted. Tests rewritten. Worst case: VLM subprocess crashes on startup → graceful degradation returns empty results (same as current).    |
+| `visual-analyzer.mjs`                       | Delete 4 exports + 2 constants; add 1 export; rewrite `handleResponse` + `requestQueue`                      | **High**   | Node gateway. IPC protocol changes (new action name, new response shape). All consumers go through `asset-sourcer.mjs`. Worst case: IPC mismatch → timeout → empty result degradation. |
+| `asset-sourcer.mjs`                         | Rewrite `analyzeAssets()`; rebalance `scoreCandidate`; add pre-filter gate; add `asset-analysis.json` output | **Medium** | Orchestration logic changes. `scoreCandidate` is a pure function with 137 tests — rebalancing weights changes expected values but not structure. `assignAssetsToScenes` unchanged.     |
+| `review-media-patch.mjs`                    | Update to consume `asset-analysis.json` instead of scattered fields                                          | **Low**    | Presentation-only. Reads fields, formats for human.                                                                                                                                    |
+| `remotion/src/types.ts`                     | Add optional `contentKind` + `subjects` to `MediaField`                                                      | **Low**    | Pure additive. Existing fields unchanged.                                                                                                                                              |
+| `visual-analyzer.test.mjs`                  | Delete ~20 tests; add ~20 new tests                                                                          | **Medium** | Test rewrite. Risk: missing a scenario. Mitigated by scenario matrix below.                                                                                                            |
+| `asset-sourcer-visual-integration.test.mjs` | Update mock + assertions                                                                                     | **Medium** | Mock interface changes. 4 existing tests rewritten.                                                                                                                                    |
+| `asset-sourcer.test.mjs`                    | Update `scoreCandidate` expected values + add boundary tests                                                 | **Medium** | Score values change due to rebalancing. All expected values recalculated.                                                                                                              |
+| `README.md`                                 | Update action table                                                                                          | **Low**    | Documentation only.                                                                                                                                                                    |
 
 ### Section 2: Behavioral Scenarios
 
-| # | Scenario | Expected Behavior | Risk | Mitigation |
-|---|----------|-------------------|------|------------|
-| 1 | VLM outputs perfect Markdown with all 6 sections | `parse_markdown_to_dict` returns dict with all fields populated | Low | Standard path, most common |
-| 2 | VLM wraps Markdown in ```` ```markdown ``` ```` fence | Parser strips fence, parses normally | Low | Strip code fence before parsing |
-| 3 | VLM adds extra sections (e.g., `## Mood`) | Extra sections kept as raw key-value, no error | Low | Unknown keys preserved, not dropped |
-| 4 | VLM outputs free text with no `## ` headers | Entire text becomes `description`, all other fields = null | Medium | Description always present, fit/contentKind null → scoreCandidate falls back to keyword match |
-| 5 | VLM outputs partial sections (e.g., Description + Subjects only, no Fit) | Present fields parsed, missing fields = null | Low | Per-field independence — each section parsed independently |
-| 6 | VLM outputs `subjects` as newline-separated instead of comma | Parser tries comma split → if only 1 element, try newline split | Medium | Parser handles both separators |
-| 7 | VLM outputs `contentKind` with non-standard value (e.g., "demo") | `contentKind` = raw string (not enum-validated), `recommendScene` treats unknown as "other" | Low | Enum validation is case-insensitive, unknown values kept as-is |
-| 8 | VLM outputs `fit` with non-standard value (e.g., "fill") | `fit` = null (invalid enum), asset uses default fit from `assignAssetsToScenes` | Medium | Enum validation rejects unknown; consumer has fallback |
-| 9 | VLM unavailable (Python not found / model load fails) | `analyzeAssetSemantics` resolves with degraded result (all fields null/empty) | Medium | Same graceful degradation as current. `scoreCandidate` uses keyword match only. |
-| 10 | VLM subprocess crashes mid-request | `handleResponse` timeout fires (180s), resolves with degraded result | Low | Existing timeout mechanism unchanged |
-| 11 | Asset has no `searchKeyword` (orphan from old pipeline) | `scoreCandidate` falls back to `keywords[0]` | Low | Backward compat: `asset.searchKeyword ?? keywords[0]` |
-| 12 | Pre-filter marks good asset as `lowConfidence` (false reject) | Asset skipped by VLM (hard gate), relies on keyword-only scoring | Low | Hard gate — trade-off: cost savings > occasional false reject. Re-run with higher-quality asset if needed. |
-| 13 | Pre-filter lets bad asset through (false accept) | VLM analyzes it, `scoreCandidate` gives low `relevanceScore`, asset not assigned to scenes | Low | VLM + scoring is the real filter; pre-filter is just cost optimization |
-| 14 | Video asset analyzed (no fit/criticalEdgeText in output) | `assignAssetsToScenes` skips `media.fit` for video assets | Low | `if (semantics.fit && asset.type !== 'video')` guard |
-| 15 | `asset-analysis.json` already exists (re-run pipeline) | Overwrite with new analysis (no caching in P3) | Low | P7 (caching) is separate. P3 always re-analyzes. |
-| 16 | Empty assets array passed to `analyzeAssets()` | Returns empty array, writes empty `asset-analysis.json` | Low | Guard: `if (assets.length === 0) return []` |
-| 17 | Asset file not found / corrupt | VLM returns error, `analyzeAssetSemantics` resolves with degraded result, asset skipped in assignment | Low | Existing file-existence check in Python handler |
-| 18 | VLM returns `description` but all other fields null | `scoreCandidate` uses description for token overlap (backward compat), `recommendScene` uses default visualType matching | Medium | Description-only path = current behavior (graceful) |
-| 19 | Multiple assets with same path | Each gets separate VLM call (no dedup in P3) | Low | P7 (caching) will dedup by asset hash |
-| 20 | `scoreCandidate` called with `aiDescription` from VLM + `subjects` from VLM | Relevance score uses both: subjects exact match (0-20) + description boundary match (0-10) | Medium | New scoring logic — tested in pure function seam |
+| #   | Scenario                                                                    | Expected Behavior                                                                                                        | Risk   | Mitigation                                                                                                 |
+| --- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------- |
+| 1   | VLM outputs perfect Markdown with all 6 sections                            | `parse_markdown_to_dict` returns dict with all fields populated                                                          | Low    | Standard path, most common                                                                                 |
+| 2   | VLM wraps Markdown in ` ```markdown ``` ` fence                             | Parser strips fence, parses normally                                                                                     | Low    | Strip code fence before parsing                                                                            |
+| 3   | VLM adds extra sections (e.g., `## Mood`)                                   | Extra sections kept as raw key-value, no error                                                                           | Low    | Unknown keys preserved, not dropped                                                                        |
+| 4   | VLM outputs free text with no `## ` headers                                 | Entire text becomes `description`, all other fields = null                                                               | Medium | Description always present, fit/contentKind null → scoreCandidate falls back to keyword match              |
+| 5   | VLM outputs partial sections (e.g., Description + Subjects only, no Fit)    | Present fields parsed, missing fields = null                                                                             | Low    | Per-field independence — each section parsed independently                                                 |
+| 6   | VLM outputs `subjects` as newline-separated instead of comma                | Parser tries comma split → if only 1 element, try newline split                                                          | Medium | Parser handles both separators                                                                             |
+| 7   | VLM outputs `contentKind` with non-standard value (e.g., "demo")            | `contentKind` = raw string (not enum-validated), `recommendScene` treats unknown as "other"                              | Low    | Enum validation is case-insensitive, unknown values kept as-is                                             |
+| 8   | VLM outputs `fit` with non-standard value (e.g., "fill")                    | `fit` = null (invalid enum), asset uses default fit from `assignAssetsToScenes`                                          | Medium | Enum validation rejects unknown; consumer has fallback                                                     |
+| 9   | VLM unavailable (Python not found / model load fails)                       | `analyzeAssetSemantics` resolves with degraded result (all fields null/empty)                                            | Medium | Same graceful degradation as current. `scoreCandidate` uses keyword match only.                            |
+| 10  | VLM subprocess crashes mid-request                                          | `handleResponse` timeout fires (180s), resolves with degraded result                                                     | Low    | Existing timeout mechanism unchanged                                                                       |
+| 11  | Asset has no `searchKeyword` (orphan from old pipeline)                     | `scoreCandidate` falls back to `keywords[0]`                                                                             | Low    | Backward compat: `asset.searchKeyword ?? keywords[0]`                                                      |
+| 12  | Pre-filter marks good asset as `lowConfidence` (false reject)               | Asset skipped by VLM (hard gate), relies on keyword-only scoring                                                         | Low    | Hard gate — trade-off: cost savings > occasional false reject. Re-run with higher-quality asset if needed. |
+| 13  | Pre-filter lets bad asset through (false accept)                            | VLM analyzes it, `scoreCandidate` gives low `relevanceScore`, asset not assigned to scenes                               | Low    | VLM + scoring is the real filter; pre-filter is just cost optimization                                     |
+| 14  | Video asset analyzed (no fit/criticalEdgeText in output)                    | `assignAssetsToScenes` skips `media.fit` for video assets                                                                | Low    | `if (semantics.fit && asset.type !== 'video')` guard                                                       |
+| 15  | `asset-analysis.json` already exists (re-run pipeline)                      | Overwrite with new analysis (no caching in P3)                                                                           | Low    | P7 (caching) is separate. P3 always re-analyzes.                                                           |
+| 16  | Empty assets array passed to `analyzeAssets()`                              | Returns empty array, writes empty `asset-analysis.json`                                                                  | Low    | Guard: `if (assets.length === 0) return []`                                                                |
+| 17  | Asset file not found / corrupt                                              | VLM returns error, `analyzeAssetSemantics` resolves with degraded result, asset skipped in assignment                    | Low    | Existing file-existence check in Python handler                                                            |
+| 18  | VLM returns `description` but all other fields null                         | `scoreCandidate` uses description for token overlap (backward compat), `recommendScene` uses default visualType matching | Medium | Description-only path = current behavior (graceful)                                                        |
+| 19  | Multiple assets with same path                                              | Each gets separate VLM call (no dedup in P3)                                                                             | Low    | P7 (caching) will dedup by asset hash                                                                      |
+| 20  | `scoreCandidate` called with `aiDescription` from VLM + `subjects` from VLM | Relevance score uses both: subjects exact match (0-20) + description boundary match (0-10)                               | Medium | New scoring logic — tested in pure function seam                                                           |
 
 ## Out of Scope
 
@@ -318,6 +335,7 @@ mlx-vlm (0.6.13) does **not** support guided decoding / structured output / resp
 Forcing JSON output via prompt alone is unreliable: the model wraps JSON in markdown code fences, adds explanatory text, or produces syntax errors. The current codebase has regex fallback chains (`_parse_fit_output`, `parseFitResponse`) as a workaround.
 
 Markdown output is more natural for language models:
+
 - `## Section` headers are a common pattern in training data
 - Each section is independently parseable (one missing section doesn't break others)
 - No syntax-critical characters (quotes, commas, brackets) that can break parsing
@@ -328,6 +346,7 @@ The Python parser (`parse_markdown_to_dict`) is pure string manipulation — no 
 ### Issue #44 Integration
 
 P3 directly fixes all 5 findings from `docs/reviews/scorecandidate-review.md`:
+
 - P1 (wrong keyword): preserve `searchKeyword` on every candidate
 - P1 (score cap): rebalance to 70+30
 - P2 (single keyword): use VLM `subjects` for per-scene semantic matching

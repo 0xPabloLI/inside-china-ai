@@ -7,17 +7,17 @@ published: true
 
 # Alibaba's $10B AI Megabet: 80 Billion HKD Mega-Offering
 
-Alibaba Group has launched an 80 billion HKD (approximately $10.2 billion) share placement, its first new equity offering since its 2019 Hong Kong listing. The entire proceeds, net of expenses totaling approximately 79.7 billion HKD, will go toward building full-stack AI capabilities and AI infrastructure. *(✅ Verified: [HKEX announcement, Aug 23, 2026](https://www1.hkexnews.hk/))*
+Alibaba Group has launched an 80 billion HKD (approximately $10.2 billion) share placement, its first new equity offering since its 2019 Hong Kong listing. The entire proceeds, net of expenses totaling approximately 79.7 billion HKD, will go toward building full-stack AI capabilities and AI infrastructure. _(✅ Verified: [HKEX announcement, Aug 23, 2026](https://www1.hkexnews.hk/))_
 
 ## The Numbers
 
-The placement involves 710 million new shares at HKD 112.7 per share, directed at professional and institutional investors outside the United States. According to reports, the offering attracted sovereign wealth funds and other long-line investors, achieving nearly 3x oversubscription. *(✅ Verified: [Science and Technology Innovation Board Daily, Aug 25, 2026](https://www.stcn.com/))*
+The placement involves 710 million new shares at HKD 112.7 per share, directed at professional and institutional investors outside the United States. According to reports, the offering attracted sovereign wealth funds and other long-line investors, achieving nearly 3x oversubscription. _(✅ Verified: [Science and Technology Innovation Board Daily, Aug 25, 2026](https://www.stcn.com/))_
 
-Bank of America Securities estimates the placement will boost Alibaba's net cash from $31 billion to over $41 billion, with total cash and cash equivalents reaching approximately $80 billion. BofA maintained its "Buy" rating with target prices of $172 (US) and HKD 168 (Hong Kong). *(✅ Verified: BofA Securities research note, reported by Science and Technology Innovation Board Daily)*
+Bank of America Securities estimates the placement will boost Alibaba's net cash from $31 billion to over $41 billion, with total cash and cash equivalents reaching approximately $80 billion. BofA maintained its "Buy" rating with target prices of $172 (US) and HKD 168 (Hong Kong). _(✅ Verified: BofA Securities research note, reported by Science and Technology Innovation Board Daily)_
 
 ## Insiders Are Buying Too
 
-The placement coincided with a wave of insider purchases. Founder Jack Ma bought Alibaba Hong Kong shares over multiple sessions totaling over 600 million HKD. Chairman Joe Tsai purchased 720,000 shares at approximately HKD 112 per share (~80 million HKD), while CEO Eddie Wu bought 350,000 shares at approximately HKD 111.6 per share (~40 million HKD). Combined insider buying reached approximately 120 million HKD alongside Ma's purchases. *(✅ Verified: Science and Technology Innovation Board Daily, Aug 25, 2026)*
+The placement coincided with a wave of insider purchases. Founder Jack Ma bought Alibaba Hong Kong shares over multiple sessions totaling over 600 million HKD. Chairman Joe Tsai purchased 720,000 shares at approximately HKD 112 per share (~80 million HKD), while CEO Eddie Wu bought 350,000 shares at approximately HKD 111.6 per share (~40 million HKD). Combined insider buying reached approximately 120 million HKD alongside Ma's purchases. _(✅ Verified: Science and Technology Innovation Board Daily, Aug 25, 2026)_
 
 ## Why AI, Why Now
 
@@ -25,7 +25,7 @@ The mega-offering comes as traditional e-commerce faces mounting pressure, while
 
 Alibaba's Q1 FY2027 results (quarter ended June 30, 2026), released on August 20, reveal the trajectory:
 
-- **Group revenue**: 268.95 billion RMB, up 9% year-over-year *(✅ Verified: [Alibaba investor relations, Aug 20, 2026](https://www.alibabagroup.com/en-US/ir))*
+- **Group revenue**: 268.95 billion RMB, up 9% year-over-year _(✅ Verified: [Alibaba investor relations, Aug 20, 2026](https://www.alibabagroup.com/en-US/ir))_
 - **Operating profit**: 15.16 billion RMB, down 57% year-over-year, reflecting heavy AI investment
 - **Alibaba Cloud external commercial revenue**: up 45% year-over-year, the fastest growth in 22 quarters
 - **AI-related product revenue**: 12.376 billion RMB, the 12th consecutive quarter of triple-digit year-over-year growth
@@ -37,9 +37,9 @@ The negative free cash flow tells the story: Alibaba is in an aggressive "invest
 
 ## CEO's Confidence: 3-Year Payback
 
-CEO Eddie Wu offered a striking claim about AI capex returns. He stated that AI computing capex investments have "very high certainty" of returns, with a three-year payback period. As AI-related product gross margins continue improving and the proportion of self-developed chips increases, Wu projected the payback could shorten to 2.5 or even 2 years. *(✅ Verified: Alibaba Q1 FY2027 earnings call, reported by Science and Technology Innovation Board Daily)*
+CEO Eddie Wu offered a striking claim about AI capex returns. He stated that AI computing capex investments have "very high certainty" of returns, with a three-year payback period. As AI-related product gross margins continue improving and the proportion of self-developed chips increases, Wu projected the payback could shorten to 2.5 or even 2 years. _(✅ Verified: Alibaba Q1 FY2027 earnings call, reported by Science and Technology Innovation Board Daily)_
 
-Wu also forecast that next quarter's AI-related product annualized revenue (ARR) will approach $10 billion. He expressed strong confidence in accelerating toward the goal of $100 billion in cloud external revenue by 2030. *(✅ Verified: Alibaba Q1 FY2027 earnings call)*
+Wu also forecast that next quarter's AI-related product annualized revenue (ARR) will approach $10 billion. He expressed strong confidence in accelerating toward the goal of $100 billion in cloud external revenue by 2030. _(✅ Verified: Alibaba Q1 FY2027 earnings call)_
 
 ## Full-Stack AI: Chips to Apps
 
@@ -52,18 +52,18 @@ The restructuring and capital deployment reflect Alibaba's ambition to build a c
 
 This stack spans every layer:
 
-| Layer | Asset | Market Position |
-|-------|-------|-----------------|
-| **Chips** | T-Head (Pingtouge) semiconductors | Supporting 650+ enterprises across 20+ industries |
-| **Cloud** | Alibaba Cloud | #1 in Asia-Pacific by scale, #2 globally by growth rate |
-| **Models** | Qwen (Tongyi Qianwen) open-source models | #1 globally by download count |
-| **Applications** | Qianwen Office, enterprise AI tools | Competing with ByteDance's Doubao Work and Tencent's WorkBuddy |
+| Layer            | Asset                                    | Market Position                                                |
+| ---------------- | ---------------------------------------- | -------------------------------------------------------------- |
+| **Chips**        | T-Head (Pingtouge) semiconductors        | Supporting 650+ enterprises across 20+ industries              |
+| **Cloud**        | Alibaba Cloud                            | #1 in Asia-Pacific by scale, #2 globally by growth rate        |
+| **Models**       | Qwen (Tongyi Qianwen) open-source models | #1 globally by download count                                  |
+| **Applications** | Qianwen Office, enterprise AI tools      | Competing with ByteDance's Doubao Work and Tencent's WorkBuddy |
 
 The Qwen open-source model family has become one of the world's most widely used LLM ecosystems, distributed under Apache 2.0 license with an active Hugging Face community. Alibaba Cloud remains China's largest cloud provider by market share, with growth that has now accelerated to the second-fastest globally.
 
 ## Market Reaction
 
-Alibaba shares (9988.HK) closed at HKD 114.20 on August 25, up 1.51%, giving the company a market capitalization of 2.19 trillion HKD. The previous day, the stock had fallen 8.54% following news of the placement. *(✅ Verified: Hong Kong Exchange data, Aug 25, 2026)*
+Alibaba shares (9988.HK) closed at HKD 114.20 on August 25, up 1.51%, giving the company a market capitalization of 2.19 trillion HKD. The previous day, the stock had fallen 8.54% following news of the placement. _(✅ Verified: Hong Kong Exchange data, Aug 25, 2026)_
 
 ## The Bigger Picture
 
