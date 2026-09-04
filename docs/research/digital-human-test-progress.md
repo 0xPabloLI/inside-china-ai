@@ -55,7 +55,7 @@
 | 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | 2025-08 | ✅ Modal A100 | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
 | 12 | ~~**Hallo3**~~ | Transformer DiT | 720×480 | 2024-11 | ✅ Modal A100-80GB | ✅ MIT | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好） | 2026-09-03 |
 | 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | 2025-07 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
-| 14 | **FeatherTalk** | 轻量级框架 | — | 2026-07 | ⚠️ 待测 | ✅ Apache 2.0 | 📋 待测 | — |
+| 14 | **FeatherTalk** | 轻量级框架 | — | 2026-07 | ⚠️ 待测 | ✅ Apache 2.0 | ⏸️ **等用户录口播视频**（3-5min 25fps，需训练个性化模型；5.46M 可本地 CPU 跑） | — |
 | 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
 | 16 | ~~**LeapTalk**~~ | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | 2026-07 | ⚠️ Kaggle T4 | ✅ Apache 2.0 | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产） | 2026-09-03 |
 | 17 | **SoulX-FlashHead (Model_Pro)** | Wan2.1 DiT 1.3B 基座（未蒸馏） | 512×512 | 2026-02 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座） | 2026-09-04 |
