@@ -37,29 +37,30 @@
 
 ### 本地模型
 
-| # | 模型 | 技术路线 | 分辨率 | MPS | 商用 | 状态 | 日期 |
-|---|------|---------|--------|-----|------|------|------|
-| 1 | ~~MuseTalk 1.5 MLX~~ | VAE 替换 | 256px | ✅ MLX | ✅ MIT | ❌ 放弃 | 2026-08-09 |
-| 2 | ~~SadTalker~~ | 3DMM | — | ✅ | ❌ | ❌ 效果差 | 2026-08-09 |
-| 3 | ~~LatentSync 1.5~~ | 扩散+SyncNet | 256px | ✅ (需 patch) | ✅ OpenRAIL++ | ❌ 效果差 | 2026-08-10 |
-| 4 | ~~LatentSync 1.6~~ | 扩散+SyncNet | 512px | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ OOM | 2026-08-10 |
-| 5 | ~~Sonic~~ | SVD 扩散 | — | ❌ 不可用 | ❌ 非商用 | ❌ 不可用 | 2026-08-10 |
-| 6 | ~~Hallo2~~ | 分层扩散 | 256px | ✅ MPS | ✅ MIT | ❌ 256px 太低 | 2026-08-10 |
-| 7 | ~~LivePortrait~~ | Warping | 826×1062 | ✅ MPS | ✅ | ❌ 无音频驱动 | 2026-08-10 |
-| 8 | ~~V-Express~~ | 渐进式扩散 | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
-| 9 | **PersonaLive** | 流式扩散 | — | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
-| 10 | ~~LongCat-VA-1.5 MLX~~ | MLX 扩散 | 432×256 | ✅ MLX | ✅ MIT | ❌ **不可用**（不像本人+唇同步错位） | 2026-08-19 |
-| 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
-| 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
-| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0） | 2026-09-02 |
-| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | ✅ Modal A100 | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
-| 12 | ~~**Hallo3**~~ | Transformer DiT | 720×480 | ✅ Modal A100-80GB | ✅ MIT | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好） | 2026-09-03 |
-| 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
-| 14 | **FeatherTalk** | 轻量级框架 | — | ⚠️ 待测 | ❓ | 📋 待测 | — |
-| 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
-| 16 | ~~**LeapTalk**~~ | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | ⚠️ Kaggle T4 | ✅ Apache 2.0 | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产） | 2026-09-03 |
-| 17 | **SoulX-FlashHead (Model_Pro)** | Wan2.1 DiT 1.3B 基座（未蒸馏） | 512×512 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座） | 2026-09-04 |
-| 18 | **SoulX-FlashHead (Model_Lite)** | LTX-VAE 轻量基座 | 512×512 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（197.5s/3.08s段；嘴部有动态，画质略逊 Pro——稍平滑；实时路线 96 FPS on RTX4090） | 2026-09-04 |
+| # | 模型 | 技术路线 | 分辨率 | 发布 | MPS | 商用 | 状态 | 日期 |
+|---|------|---------|--------|------|-----|------|------|------|
+| 1 | ~~MuseTalk 1.5 MLX~~ | VAE 替换 | 256px | — | ✅ MLX | ✅ MIT | ❌ 放弃 | 2026-08-09 |
+| 2 | ~~SadTalker~~ | 3DMM | — | — | ✅ | ❌ | ❌ 效果差 | 2026-08-09 |
+| 3 | ~~LatentSync 1.5~~ | 扩散+SyncNet | 256px | — | ✅ (需 patch) | ✅ OpenRAIL++ | ❌ 效果差 | 2026-08-10 |
+| 4 | ~~LatentSync 1.6~~ | 扩散+SyncNet | 512px | — | ❌ MPS OOM | ✅ OpenRAIL++ | ❌ OOM | 2026-08-10 |
+| 5 | ~~Sonic~~ | SVD 扩散 | — | — | ❌ 不可用 | ❌ 非商用 | ❌ 不可用 | 2026-08-10 |
+| 6 | ~~Hallo2~~ | 分层扩散 | 256px | — | ✅ MPS | ✅ MIT | ❌ 256px 太低 | 2026-08-10 |
+| 7 | ~~LivePortrait~~ | Warping | 826×1062 | — | ✅ MPS | ✅ | ❌ 无音频驱动 | 2026-08-10 |
+| 8 | ~~V-Express~~ | 渐进式扩散 | — | — | ❌ MPS 太慢 | ❓ | ❌ 17min/sub-step | 2026-08-11 |
+| 9 | **PersonaLive** | 流式扩散 | — | 2025-11 | ⚠️ 待验证 | ❌ 非商用 | 📋 待测 | — |
+| 10 | ~~LongCat-VA-1.5 MLX~~ | MLX 扩散 | 432×256 | 2025-12 | ✅ MLX | ✅ MIT | ❌ **不可用**（不像本人+唇同步错位） | 2026-08-19 |
+| 10b | ~~LongCat-VA-1.5 MLX 480×832~~ | MLX 扩散 | 480×832 | 2025-12 | ✅ MLX | ✅ MIT | ❌ **全黑输出** | 2026-08-18 |
+| 11 | ~~EchoMimicV3 Flash~~ | Wan2.1 扩散 | 624×816 | 2025-07 | ✅ Kaggle P100 | ✅ Apache 2.0 | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段） | 2026-08-22 |
+| 10 | **LongCat-Video-Avatar-1.5** | DiT + 音频驱动 | 480p | 2025-12 | ✅ **Modal A100-80GB** | ✅ MIT | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0） | 2026-09-02 |
+| 11 | **InfiniteTalk** | 稀疏帧视频配音(talking body) | 576×704 | 2025-08 | ✅ Modal A100 | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
+| 12 | ~~**Hallo3**~~ | Transformer DiT | 720×480 | 2024-11 | ✅ Modal A100-80GB | ✅ MIT | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好） | 2026-09-03 |
+| 13 | ~~EchoMimicV3 Flash (Modal)~~ | 多任务扩散 | 512×512 | 2025-07 | ✅ Modal T4 NF4 | ✅ Apache 2.0 | ✅ NF4 量化已测（5min/段, talking head） | 2026-08-23 |
+| 14 | **FeatherTalk** | 轻量级框架 | — | 2026-07 | ⚠️ 待测 | ✅ Apache 2.0 | 📋 待测 | — |
+| 15 | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA | — | — | ❌ 22B 需大显存 | ✅ OpenRAIL | 📋 低优先级 | — |
+| 16 | ~~**LeapTalk**~~ | 桥蒸馏（Brownian bridge 数据到数据） | 512×512 | 2026-07 | ⚠️ Kaggle T4 | ✅ Apache 2.0 | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产） | 2026-09-03 |
+| 17 | **SoulX-FlashHead (Model_Pro)** | Wan2.1 DiT 1.3B 基座（未蒸馏） | 512×512 | 2026-02 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座） | 2026-09-04 |
+| 18 | **SoulX-FlashHead (Model_Lite)** | LTX-VAE 轻量基座 | 512×512 | 2026-02 | ✅ Kaggle T4 | ✅ Apache 2.0 | ✅ **基座可用**（197.5s/3.08s段；嘴部有动态，画质略逊 Pro——稍平滑；实时路线 96 FPS on RTX4090） | 2026-09-04 |
+| 19 | **SoulX-FlashTalk 14B** | Wan+InfiniteTalk talking body | 416×720 | 2025-12 | ✅ Modal A100-80GB | ✅ Apache 2.0 | ✅ **最佳 Talking Body**（350s/5.2s段, $0.20, 手指细节好, 2026-09-04 用户确认） | 2026-09-04 |
 
 ### 云端 API
 
