@@ -1,6 +1,7 @@
 # Ponytail-lite 试点记录（2026-09）
 
-> 状态：**active**（试点期）。提案全文与裁决依据：`docs/research/ponytail-minimal-code-adoption-proposal.md`（L2）。试点裁决完成后本文件归档至 `docs/archive/reviews/`，并删除 `implementation-workflow.md` §9 中的试点路由步。
+> 状态：**active**（试点期）。提案全文与裁决依据：`docs/research/ponytail-minimal-code-adoption-proposal.md`（L2）。第三方复核材料：`docs/reviews/ponytail-adoption-review-brief-2026-09-04.md`。试点裁决完成后本文件归档至 `docs/archive/reviews/`，并删除 `implementation-workflow.md` §9 中的试点路由步。
+> **当前进度：0 / 5 任务**（2026-09-04）。本表为空，试点尚无本地证据。
 
 ## 范围
 

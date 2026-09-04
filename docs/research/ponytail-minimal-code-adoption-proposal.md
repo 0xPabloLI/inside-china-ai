@@ -3,7 +3,8 @@
 > 状态：**试点进行中（2026-09-03 启动）**。§5 文本已落地：A-lite/D → `implementation-workflow.md` §6 步骤 2，B-lite → §8 步骤 3，试点路由 → §9 步骤 3；试点记录 `docs/reviews/ponytail-lite-pilot-2026-09.md` 已创建。裁决按 §7 执行。
 > v3 → v4 变更（吸收批准意见）：§5 增加**试点期临时路由句**（新 session 知道要回写试点记录）；§7 改为 A/B/D **逐条裁决**并给出各自验证门槛，禁止一条有效带动三条转正；§1 与 §3 删除两处无落地对应的表述。
 > v2 → v3 变更：A-lite/根因规则前移到 TDD 之前（§6 步骤 1–2 之间）；B-lite 删除"可删除代码"残留；§3 证据表述改为"观察到同方向结果"并声明评测对象差异；§7 增加逐任务持久记录表与撤销门槛。
-> 来源：[DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)（MIT）。仓库事实基于本地克隆逐文件核对（2026-09-03）；独立评测已核到原文（§2.7）。
+> 来源：[DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)（MIT，v4.9.0）。仓库事实基于本地克隆逐文件核对（2026-09-03；2026-09-04 复测体积分层）；独立评测已核到原文（§2.7）。
+> **第三方复核材料**：`docs/reviews/ponytail-adoption-review-brief-2026-09-04.md`（上游分层体积实测、落地文本逐字引用、拒绝项证据、证据分级与自我反驳、吸收率三口径校准、Q1–Q7 待裁问题）。本提案是裁决依据的唯一真相源，brief 只引用不复制。
 
 ## 0. 评审裁决
 

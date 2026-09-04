@@ -141,6 +141,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
 | `ponytail-lite-pilot-2026-09.md` | Ponytail-lite 试点逐任务记录（active：5 任务或 4 周窗口；裁决后归档） |
+| `ponytail-adoption-review-brief-2026-09-04.md` | ponytail 改造的第三方独立复核材料 — 上游分层体积实测、三处落地文本、拒绝项与证据、证据分级、自我反驳、吸收率三口径校准、Q1–Q7 待裁问题 |
 
 ### `archive/` — Completed work
 
