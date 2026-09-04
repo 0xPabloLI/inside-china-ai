@@ -900,6 +900,13 @@ describe("parseYtdlpSearchOutput", () => {
     expect(out[0].url).toBe("https://www.bilibili.com/video/116985228695093");
   });
 
+  it("rejoins titles that contain a real tab", () => {
+    const out = parseYtdlpSearchOutput("n7J6dPuk6Ek\tWaymo\tZoox: Robotaxi\t664", "youtube");
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toBe("Waymo\tZoox: Robotaxi");
+    expect(out[0].duration).toBe(664);
+  });
+
   it("skips lines without a real tab separator (legacy literal-\\t output)", () => {
     expect(parseYtdlpSearchOutput("116985228695093\\tNA\\tNA", "bilibili")).toEqual([]);
   });
