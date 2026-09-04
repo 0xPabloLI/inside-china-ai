@@ -39,6 +39,7 @@
 推荐引入新工具、框架或服务前检查：
 
 - 官方仓库是否 archived；
+- **引用其他 repo（Acknowledgement、论文、README 提及）时，必须 `gh repo view` 或 webfetch 验证有实际内容（代码+权重），不得仅凭链接推断"已开源/未开源"——不确定时标"待验证"**；
 - 最近 commit 与 release 日期；
 - open/closed issue 活跃度；
 - license、商业使用限制和安全边界；

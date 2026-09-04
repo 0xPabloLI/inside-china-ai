@@ -824,7 +824,7 @@
 - `infer_params.yaml` 有 `height: 512` `width: 512`，**可改**（改 yaml），`generate_video.py` 无命令行覆盖
 - **比例可改**：height/width 独立设置，理论上可设竖版（如 512×910），但模型训练时为 512×512，超出训练分布可能变形/质量下降，**未测试**
 - **768×768 在 T4 OOM**（LeapTalk 测试已证），更大分辨率需 A100 80GB
-- **后处理超分可行**：可用 Real-ESRGAN / Topaz Video AI / waifu2x 将 512×512 超分到 1024×1024+
+- **后处理超分可行**：可用 Real-ESRGAN / Topaz Video AI / waifu2x 将 512×512 超分到 1024×1024+（但现有 `upscale.mjs` 是 B-roll 专用，需新写数字人 wrapper）
 
 #### 平台适配
 
@@ -843,7 +843,7 @@
 
 - SoulX-FlashHead Model_Pro vs EchoMimicV3 v51 同素材 A/B 对比（未做）
 - 竖版比例测试（改 yaml 设 512×910，未做）
-- 后处理超分测试：本地已有 `scripts/short-video/lib/upscale.mjs`（Real-ESRGAN ncnn-vulkan, Metal/Vulkan），但**未接入数字人 pipeline**——需整合后用 `autoUpscaleIfNeeded()` 将 512×512 输出超分到 1024×1024+
+- 后处理超分可行但需新写 wrapper：现有 `scripts/short-video/lib/upscale.mjs` 是 **B-roll pipeline 专用**（场景媒体素材 ≥720p 送 Remotion 渲染），不是数字人输出超分。底层 Real-ESRGAN ncnn-vulkan 二进制可复用，但需写新的数字人后处理 wrapper（512×512 → 1024×1024+）
 
 #### 测试素材
 
