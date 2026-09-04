@@ -15,7 +15,7 @@
  */
 
 import { createHash } from "crypto";
-import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, statSync } from "fs";
 import { join } from "path";
 
 /**
@@ -23,6 +23,16 @@ import { join } from "path";
  * results are no longer reproducible.
  */
 export const VLM_CACHE_PROMPT_VERSION = "v1-2026-09-04";
+
+/**
+ * Files larger than this use a size+mtime fingerprint instead of a full
+ * content hash (#189). Video assets can be hundreds of MB; reading them
+ * whole for a cache key would dwarf the VLM inference we are trying to
+ * skip. The cache is a performance optimization only, so the rare
+ * content change with identical size+mtime (false hit) is acceptable —
+ * it is overwritten on the next miss path.
+ */
+const LARGE_FILE_FULL_HASH_THRESHOLD = 16 * 1024 * 1024;
 
 /**
  * Deterministic JSON stringify (sorted keys, drops undefined) so identical
@@ -38,7 +48,11 @@ function stableStringify(value) {
   return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(",")}}`;
 }
 
-function fileSha256(filePath) {
+function fileFingerprint(filePath) {
+  const st = statSync(filePath);
+  if (st.size > LARGE_FILE_FULL_HASH_THRESHOLD) {
+    return `size:${st.size}:mtime:${Math.floor(st.mtimeMs)}`;
+  }
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
@@ -52,7 +66,7 @@ export async function computeCacheKey(req) {
   const h = createHash("sha256");
   h.update(VLM_CACHE_PROMPT_VERSION + "\n");
   h.update(String(req.model || "") + "\n");
-  h.update(fileSha256(req.filePath) + "\n");
+  h.update(fileFingerprint(req.filePath) + "\n");
   h.update(stableStringify({ window: req.window || null, claim: req.claim || null }));
   return h.digest("hex");
 }

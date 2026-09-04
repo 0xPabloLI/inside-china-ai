@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, readdirSync, readFileSync } from "fs";
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  readdirSync,
+  readFileSync,
+  utimesSync,
+  statSync,
+} from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import {
@@ -80,5 +88,19 @@ describe("vlm-cache (#189)", () => {
     const key = await computeCacheKey({ filePath: imgA, model: "m1" });
     await writeCachedSemantics(cacheDir, key, { description: "ok" });
     expect(readdirSync(cacheDir)).toEqual([`${key}.json`]);
+  });
+
+  it("uses size+mtime fingerprint for large files (skip full hash)", async () => {
+    const big = join(dir, "big.mp4");
+    writeFileSync(big, Buffer.alloc(20 * 1024 * 1024, 0)); // 20MB > 16MB threshold
+    const k1 = await computeCacheKey({ filePath: big, model: "m1" });
+    const k2 = await computeCacheKey({ filePath: big, model: "m1" });
+    expect(k1).toBe(k2);
+
+    // Same size, different mtime → different key (no false hit on re-download)
+    const st = statSync(big);
+    utimesSync(big, st.atime, new Date(st.mtimeMs + 5000));
+    const k3 = await computeCacheKey({ filePath: big, model: "m1" });
+    expect(k3).not.toBe(k1);
   });
 });

@@ -1214,12 +1214,14 @@ export async function analyzeAssets(assets, opts = {}) {
         ? { claim: claimInfo }
         : undefined;
 
-    // Cache lookup (#189): key = promptVersion + model + file hash + window/claim
+    // Cache lookup (#189): key = promptVersion + model + file fingerprint + window/claim.
+    // Key is computed once and reused for the write below (avoids hashing twice).
     let semantics = null;
     let cacheHit = false;
+    let cacheKey = null;
     if (cacheDir && !cacheDisabled) {
       try {
-        const cacheKey = await computeCacheKey({
+        cacheKey = await computeCacheKey({
           filePath: absPath,
           model: modelId,
           window: asset.window,
@@ -1259,14 +1261,8 @@ export async function analyzeAssets(assets, opts = {}) {
       }
       // Persist successful raw VLM output; failed/degraded runs are not cached
       // so a rerun retries inference instead of pinning the degraded result.
-      if (cacheDir && !cacheDisabled && success) {
+      if (cacheDir && !cacheDisabled && success && cacheKey) {
         try {
-          const cacheKey = await computeCacheKey({
-            filePath: absPath,
-            model: modelId,
-            window: asset.window,
-            claim: claimInfo,
-          });
           writeCachedSemantics(cacheDir, cacheKey, { ...semantics });
         } catch {
           // Cache write failures are warn-and-continue (see vlm-cache.mjs)
