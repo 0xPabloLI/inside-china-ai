@@ -34,9 +34,9 @@ import {
 } from "./search-results-cache.mjs";
 import {
   shouldTriggerTier3,
-  searchBraveImages,
-  searchSearXngImages,
+  IMAGE_SEARCH_ENGINES,
   BraveQuotaTracker,
+  searchCdpSource,
 } from "./progressive-search.mjs";
 import { downloadCandidate } from "./download-candidate.mjs";
 import {
@@ -1970,51 +1970,7 @@ export async function checkCdpAvailable() {
   }
 }
 
-/**
- * Search a CDP source for image candidates.
- *
- * Uses existing cdp-client.mjs functions.
- *
- * @param {Object} source - CDP source definition
- * @param {string} keyword - Search keyword
- * @returns {Promise<Array>} Candidates array
- */
-export async function searchCdpSource(source, keyword) {
-  // Dynamic import to avoid hard dependency when CDP not needed
-  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } =
-    await import("./cdp-client.mjs");
-
-  const url = source.url(keyword);
-  let tabId;
-  try {
-    tabId = await cdpNewTab(url);
-  } catch {
-    return [];
-  }
-
-  // Wait for page load
-  await new Promise((r) => setTimeout(r, 3000));
-  await waitForPageLoad(tabId);
-
-  // Primary extraction
-  let candidates = await extractFromTab(tabId, source.imageScript);
-
-  // Retry once if empty
-  if (candidates.length === 0) {
-    await new Promise((r) => setTimeout(r, 3000));
-    candidates = await extractFromTab(tabId, source.imageScript);
-  }
-
-  // Fallback to generic extraction
-  if (candidates.length === 0 && source.imageFallbackScript) {
-    candidates = await extractFromTab(tabId, source.imageFallbackScript);
-  }
-
-  // Close tab
-  await cdpCloseTab(tabId);
-
-  return candidates;
-}
+// searchCdpSource moved to progressive-search.mjs (#112) — imported at top.
 
 // ─── Env / API key loading ───
 
@@ -2675,9 +2631,11 @@ export async function main(args = process.argv.slice(2)) {
   }
 
   // ── Tier 3: Progressive (Open Search Engine) Image Search ──
-  // Issue #110: Only triggers when Tier 1 (stock API) + Tier 2 (CDP news)
-  // yield insufficient results. Searches Brave Image API + SearXNG image
-  // search in parallel. Results are copyright-unverified — attribution
+  // Issue #110/#112: Only triggers when Tier 1 (stock API) + Tier 2 (CDP news)
+  // yield insufficient results. Runs the pluggable IMAGE_SEARCH_ENGINES pool
+  // (brave_image, searxng_image, google_images, bing_images,
+  // duckduckgo_images, tavily_images) — engines in parallel, keywords serial
+  // within each engine. Results are copyright-unverified — attribution
   // marks them for manual review.
   const scenesNeedingMedia = scenes.filter(
     (s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media,
@@ -2689,14 +2647,11 @@ export async function main(args = process.argv.slice(2)) {
     );
 
     const tier3QuotaTracker = new BraveQuotaTracker();
-    const tier3Sources = API_SOURCES.filter(
-      (s) => s.name === "brave_image" || s.name === "searxng_image",
-    );
 
     // Engines in parallel (Promise.allSettled), each engine internally serial on keywords
     // to avoid anti-bot rate limiting from the same engine.
     const tier3Results = await Promise.allSettled(
-      tier3Sources.map(async (source) => {
+      IMAGE_SEARCH_ENGINES.map(async (source) => {
         const apiKey = source.apiKeyEnv ? getApiKey(env, source.apiKeyEnv) : null;
         const missingApiKey = source.requiresApiKey && !apiKey;
         if (missingApiKey) {
@@ -2712,16 +2667,7 @@ export async function main(args = process.argv.slice(2)) {
             const result = await getOrSearchResults(searchCache, {
               source: source.name,
               keyword,
-              search: () => {
-                if (source.name === "brave_image") {
-                  return searchBraveImages(keyword, apiKey, {
-                    count: 20,
-                    quotaTracker: tier3QuotaTracker,
-                  });
-                } else {
-                  return searchSearXngImages(keyword, { count: 20 });
-                }
-              },
+              search: () => source.search(keyword, { apiKey, quotaTracker: tier3QuotaTracker }),
             });
             const candidates = result.results;
             if (!result.cacheHit && candidates.length > 0) {

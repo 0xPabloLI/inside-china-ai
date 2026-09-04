@@ -329,6 +329,8 @@ node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 �
 
 视频制作的技术细节（TTS 引擎、渲染参数、文件位置）见 `docs/video-workflow.md`。
 
+> **Tier 3 图片搜索池（#112）**：asset-sourcer 在 Tier 1（stock API）+ Tier 2（CDP 新闻源）素材不足时，触发 Tier 3 开放搜索引擎图片搜索。引擎注册表在 `scripts/short-video/lib/progressive-search.mjs` → `IMAGE_SEARCH_ENGINES`，按序运行：Brave Image（`BRAVE_SEARCH_API_KEY`，无 key 跳过）→ SearXNG Image（localhost:8888，不可用跳过）→ Google Images（CDP `tbm=isch`）→ Bing Images（CDP，`a.iusc` murl 全分辨率）→ DuckDuckGo Images（纯 fetch，vqd token + `i.js` JSON，无 CDP）→ Tavily Images（`TAVILY_API_KEY`，`include_images` 兜底，末位）。引擎间 `Promise.allSettled` 并行、同引擎内关键词串行（防反爬；CDP 域名级限流由 `cdpNewTab` 的 rate-limiter 承担）。结果与 Brave/SearXNG 同管道：preFilter → 去重 → 下载 → 版权未验证标注。新增/调整引擎只改注册表，不动 asset-sourcer。
+
 > **云 GPU 资源**：当需要跑 CUDA 模型时，使用云 GPU 资源 pool。优先级和 fallback 规则见 `docs/research/digital-human-test-progress.md` → 「云 GPU 资源 Pool 与 Fallback」章节。
 
 ### 4b. RAG Reindex（多媒体素材）
