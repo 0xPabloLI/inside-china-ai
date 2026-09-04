@@ -142,7 +142,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
 | `session-id-provenance-review-brief-2026-09-04.md` | Session-Id 关联标识交付的第三方独立复核材料 v2 — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、复核裁决落实状态、未解决事项 |
-| `ponytail-adoption-review-brief-2026-09-04.md` | ponytail 改造的第三方独立复核材料 — 上游分层体积实测、三处落地文本、拒绝项与证据、证据分级、自我反驳、吸收率三口径校准、Q1–Q7 待裁问题 |
+| `ponytail-adoption-review-brief-2026-09-04.md` | ponytail 改造的第三方独立复核材料 **v2** — 上游分层体积实测（固定 SHA，合计闭合）、三处落地文本、逐 tag 拒绝理由、证据分级与自我反驳、吸收率三口径校准、第一轮 Q1–Q7 裁决落实、R1–R6 待裁 |
 
 ### `archive/` — Completed work
 
@@ -207,7 +207,7 @@ Deep research reports with citations.
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `open-source-video-generation-landscape-2026.md` | Open-source video generation landscape 2026 — model/engine comparison, local Apple Silicon viability |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
-| `ponytail-minimal-code-adoption-proposal.md` | Ponytail 最小实现规则引入提案 v4（已批准试点）— A-lite/D → implementation-workflow §6、B-lite → §8、试点路由 → §9；试点记录 `docs/reviews/ponytail-lite-pilot-2026-09.md`，裁决按 §7 |
+| `ponytail-minimal-code-adoption-proposal.md` | Ponytail 最小实现规则引入提案 **v5（已批准试点，0/5）** — A-lite/D → implementation-workflow §6、B-lite → §8、试点路由 → §9；**裁决门槛真相源在试点记录** `docs/reviews/ponytail-lite-pilot-2026-09.md`（v2 需正向证据：交付确认、spec parity、返工、误报、实际收益；hard gate 六项） |
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
 | `source-layer-comparison.md` | Source layer CDP vs MCP vs API, capability matrix per source |
 | `talking-head-api-platforms.md` | Talking Head 模型 API 平台调研（2026-09-03）— NVIDIA NIM / Replicate / fal.ai / HF Spaces / 硅基流动等 8 平台 CDP 实测，免费低价 API 路线 |
