@@ -2482,9 +2482,9 @@ export const STOCK_MEDIA_SOURCES = [
 // Each config has: method:"cdp", url(keyword), imageScript, imageFallbackScript
 
 // Generic CDP video extraction shared by Chinese news CDP sources (#183):
-// self-hosted <video> sources + B站/YouTube iframe embeds. Embed URLs are
-// emitted as-is; normalizeCdpVideoCandidates (asset-sourcer side) converts
-// them to canonical watch URLs for the yt-dlp download path.
+// self-hosted <video> sources + B站/YouTube iframe embeds. Player iframes are
+// converted to watch URLs here too (defense-in-depth) — normalizeCdpVideoCandidates
+// on the Node side handles any embed forms this script misses.
 const CDP_VIDEO_SCRIPT = `
   var results = [];
   document.querySelectorAll('video').forEach(function(v) {
