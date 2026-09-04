@@ -10,6 +10,9 @@ import { tmpdir } from "os";
 
 import {
   extractKeywords,
+  buildZhVideoKeywords,
+  pickVideoKeywordGroups,
+  parseYtdlpSearchOutput,
   scoreCandidate,
   preFilterCandidate,
   recommendScene,
@@ -813,6 +816,101 @@ describe("YTDLP_SOURCES", () => {
     expect(bili).toBeDefined();
     expect(bili.platform).toBe("bilibili");
     expect(bili.type).toBe("video");
+  });
+
+  it("bilibili carries zh-CN locale; youtube_search has none (#180)", () => {
+    const bili = YTDLP_SOURCES.find((s) => s.name === "bilibili");
+    const yt = YTDLP_SOURCES.find((s) => s.name === "youtube_search");
+    expect(bili.locale).toBe("zh-CN");
+    expect(yt.locale).toBeFalsy();
+  });
+});
+
+// ─── #180: zh video keyword routing ───
+
+describe("buildZhVideoKeywords", () => {
+  it("maps meta.keyEntities companies through COMPANY_NAME_ZH", () => {
+    const meta = { keyEntities: { companies: ["didi", "pony-ai", "waymo", "tesla"] } };
+    expect(buildZhVideoKeywords(meta, [])).toEqual(["滴滴", "小马智行", "Waymo", "特斯拉"]);
+  });
+
+  it("skips companies without a zh mapping and dedups", () => {
+    const meta = { keyEntities: { companies: ["openai", "didi", "didi"] } };
+    expect(buildZhVideoKeywords(meta, [])).toEqual(["滴滴"]);
+  });
+
+  it("returns [] when nothing maps (graceful fallback to existing groups)", () => {
+    expect(buildZhVideoKeywords({ keyEntities: { companies: ["openai"] } }, [])).toEqual([]);
+    expect(buildZhVideoKeywords(null, [])).toEqual([]);
+  });
+
+  it("derives zh names from voiceover-mentioned companies when meta absent", () => {
+    const scenes = [{ id: 1, voiceover: "Unitree unveiled a new robot" }];
+    expect(buildZhVideoKeywords(null, scenes)).toEqual(["宇树"]);
+  });
+});
+
+describe("pickVideoKeywordGroups", () => {
+  const groups = [{ keywords: ["autonomous vehicle interior"], claimSceneId: 3 }];
+
+  it("routes zh-CN sources to the zh pool", () => {
+    expect(pickVideoKeywordGroups({ locale: "zh-CN" }, groups, ["滴滴"])).toEqual([
+      { keywords: ["滴滴"], claimSceneId: null },
+    ]);
+  });
+
+  it("keeps existing groups when the zh pool is empty (graceful)", () => {
+    expect(pickVideoKeywordGroups({ locale: "zh-CN" }, groups, [])).toBe(groups);
+  });
+
+  it("keeps existing groups for non-zh sources (YouTube unchanged)", () => {
+    expect(pickVideoKeywordGroups({}, groups, ["滴滴"])).toBe(groups);
+    expect(pickVideoKeywordGroups(null, groups, ["滴滴"])).toBe(groups);
+  });
+});
+
+// ─── #180: yt-dlp search output parsing ───
+
+describe("parseYtdlpSearchOutput", () => {
+  it("splits real-tab lines into id/title/duration candidates", () => {
+    const out = parseYtdlpSearchOutput(
+      "BV1gJ5T6CEt7\t深圳街头L4级别自动驾驶车辆实测\t464.566\nn7J6dPuk6Ek\tWaymo, Zoox, Tesla: Robotaxi\t664",
+      "bilibili",
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({
+      id: "BV1gJ5T6CEt7",
+      title: "深圳街头L4级别自动驾驶车辆实测",
+      duration: 464.566,
+      type: "video",
+      url: "https://www.bilibili.com/video/BV1gJ5T6CEt7",
+    });
+    expect(out[1]).toMatchObject({
+      id: "n7J6dPuk6Ek",
+      title: "Waymo, Zoox, Tesla: Robotaxi",
+      duration: 664,
+    });
+  });
+
+  it("maps NA placeholders to empty title and drops non-numeric duration", () => {
+    const out = parseYtdlpSearchOutput("116985228695093\tNA\tNA", "bilibili");
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toBe("");
+    expect(out[0].duration).toBeUndefined();
+    expect(out[0].url).toBe("https://www.bilibili.com/video/116985228695093");
+  });
+
+  it("skips lines without a real tab separator (legacy literal-\\t output)", () => {
+    expect(parseYtdlpSearchOutput("116985228695093\\tNA\\tNA", "bilibili")).toEqual([]);
+  });
+
+  it("skips entries without a usable id", () => {
+    expect(parseYtdlpSearchOutput("NA\tSome Title\t10", "youtube")).toEqual([]);
+  });
+
+  it("returns [] for empty or invalid output", () => {
+    expect(parseYtdlpSearchOutput("", "bilibili")).toEqual([]);
+    expect(parseYtdlpSearchOutput(null, "bilibili")).toEqual([]);
   });
 });
 
@@ -1949,7 +2047,11 @@ describe("isLogoOrIcon", () => {
   });
 
   it("rejects data URI images (WeChat 1x1 SVG placeholders)", () => {
-    expect(isLogoOrIcon("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22")).toBe(true);
+    expect(
+      isLogoOrIcon(
+        "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22",
+      ),
+    ).toBe(true);
   });
 
   it("accepts normal image URLs", () => {

@@ -167,6 +167,57 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
 }
 
 /**
+ * Build the Chinese keyword pool for zh-CN video sources (Bilibili, #180).
+ *
+ * English claim phrases ("autonomous vehicle interior cabin") have near-zero
+ * recall on Bilibili and return generic stock videos that the VLM gate then
+ * rejects (didi-robotaxi-r2 baseline: 1 result per English keyword, all
+ * rejected). This pool maps known companies (meta.keyEntities → CLI →
+ * voiceover extraction, via extractKeywords) through COMPANY_NAME_ZH and
+ * keeps only mapped names. Empty result = no zh keywords derivable — the
+ * caller falls back to the existing keyword groups.
+ *
+ * @param {Object|null} meta - Metadata with keyEntities
+ * @param {Array} scenes - Scene data array (voiceover extraction tier)
+ * @param {string[]|null} [cliKeywords] - CLI keywords (mapped when they hit the table)
+ * @returns {string[]} Deduplicated Chinese company keyword array (may be empty)
+ */
+export function buildZhVideoKeywords(meta, scenes, cliKeywords) {
+  const keywords = extractKeywords(scenes, meta, cliKeywords ?? null);
+  const zh = [];
+  const seen = new Set();
+  for (const keyword of keywords) {
+    const mapped = COMPANY_NAME_ZH[keyword.toLowerCase()];
+    if (!mapped) continue;
+    const lower = mapped.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    zh.push(mapped);
+  }
+  return zh;
+}
+
+/**
+ * Pick the keyword groups for one yt-dlp video source (#180).
+ *
+ * zh-CN sources (bilibili, locale from source-registry) search the Chinese
+ * company pool instead of the English claim phrases. Empty pool → existing
+ * groups (graceful degradation). Non-zh sources (youtube_search) keep the
+ * existing behavior unchanged.
+ *
+ * @param {{locale?: string|null}} source - Flattened yt-dlp source
+ * @param {Array<{keywords: string[], claimSceneId: number|null}>} queryGroups - Existing groups
+ * @param {string[]} zhPool - Chinese keyword pool from buildZhVideoKeywords
+ * @returns {Array<{keywords: string[], claimSceneId: number|null}>}
+ */
+export function pickVideoKeywordGroups(source, queryGroups, zhPool) {
+  if (source?.locale === "zh-CN" && zhPool && zhPool.length > 0) {
+    return [{ keywords: zhPool, claimSceneId: null }];
+  }
+  return queryGroups;
+}
+
+/**
  * Extract keywords from scene-data, CLI args, or voiceover text.
  * 3-tier fallback: meta.keyEntities → CLI keywords → voiceover extraction.
  *
@@ -1465,6 +1516,46 @@ export async function downloadAsset(url, destPath, headers = {}) {
 // ─── yt-dlp search & download ───
 
 /**
+ * Parse yt-dlp --print search output into video candidates.
+ *
+ * Template: `%(id)s\t%(title)s\t%(duration)s` with REAL tab separators
+ * (yt-dlp 2026.07.04 emits the template's `\t` literally, #180 — the old
+ * parser split on tabs and every candidate degenerated into id=<whole line>,
+ * url=<...>\t<title> garbage, title=""). Missing fields print as "NA".
+ * Lines without a real tab separator (legacy literal-`\t` output) are
+ * skipped rather than smuggled into the id.
+ *
+ * @param {string|null} output - Raw yt-dlp stdout
+ * @param {string} platform - "bilibili" or "youtube"
+ * @returns {Array<{title: string, url: string, duration?: number, type: string, id: string}>}
+ */
+export function parseYtdlpSearchOutput(output, platform) {
+  if (!output || typeof output !== "string") return [];
+  const lines = output.trim().split("\n").filter(Boolean);
+  const out = [];
+  for (const line of lines) {
+    const parts = line.split("\t");
+    if (parts.length < 2) continue; // no real separator — legacy/garbage line
+    const [id, rawTitle, rawDuration] = parts;
+    if (!id || id === "NA") continue;
+    const title = rawTitle === "NA" ? "" : rawTitle;
+    const duration = Number.parseFloat(rawDuration);
+    const url =
+      platform === "bilibili"
+        ? `https://www.bilibili.com/video/${id}`
+        : `https://www.youtube.com/watch?v=${id}`;
+    out.push({
+      title,
+      url,
+      ...(Number.isFinite(duration) ? { duration } : {}),
+      type: "video",
+      id,
+    });
+  }
+  return out;
+}
+
+/**
  * Search for videos using yt-dlp.
  *
  * @param {string} keyword - Search keyword
@@ -1481,24 +1572,19 @@ export function searchYtdlp(keyword, platform) {
   }
 
   const searchUrl = platform === "bilibili" ? `bilisearch:${keyword}` : `ytsearch10:${keyword}`;
+  // Bilibili flat entries carry no title in yt-dlp 2026.07.04 (id/url only,
+  // #180) — the relevance gate would reject every candidate on an empty title.
+  // Non-flat search with an item cap returns real titles/durations at ~3s.
+  const modeArgs =
+    platform === "bilibili" ? "--playlist-items 1-6 --no-warnings" : "--flat-playlist";
 
   try {
     const output = execSync(
-      `yt-dlp --cookies-from-browser firefox --flat-playlist --print "%(id)s\\t%(title)s\\t%(duration)s" "${searchUrl}" 2>/dev/null`,
-      { encoding: "utf8", timeout: 60000 },
+      `yt-dlp --cookies-from-browser firefox ${modeArgs} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}" 2>/dev/null`,
+      { encoding: "utf8", timeout: 120000 },
     );
 
-    const lines = output.trim().split("\n").filter(Boolean);
-    return lines.map((line) => {
-      const [id, ...rest] = line.split("\t");
-      const title = rest.length > 1 ? rest.slice(0, -1).join("\t") : rest[0] || "";
-      const duration = rest.length > 1 ? parseFloat(rest[rest.length - 1]) : undefined;
-      const url =
-        platform === "bilibili"
-          ? `https://www.bilibili.com/video/${id}`
-          : `https://www.youtube.com/watch?v=${id}`;
-      return { title, url, duration, type: "video", id };
-    });
+    return parseYtdlpSearchOutput(output, platform);
   } catch {
     return [];
   }
@@ -1629,6 +1715,7 @@ function flattenYtdlpVideoSource(source) {
     name: source.name,
     label: source.label,
     platform: cap.platform,
+    locale: source.locale || null,
     type: "video",
     cookieRequired: cap.cookieRequired || false,
   };
@@ -2223,6 +2310,9 @@ export async function main(args = process.argv.slice(2)) {
   // assigned to the scene they were sourced for (spec #130 D3/D7).
   const cliKeywords = keywordsArg ? keywordsArg.split(",").map((k) => k.trim()) : null;
   const { queryGroups, allKeywords, claimCount } = buildQueryGroups(scenes, meta, cliKeywords);
+  // #180: Chinese company pool for zh-CN video sources (bilibili). Empty when
+  // no company maps — pickVideoKeywordGroups then keeps the existing groups.
+  const zhVideoKeywords = buildZhVideoKeywords(meta, scenes, cliKeywords);
   const sceneClaims = extractSceneClaims(scenes);
   const primaryKeyword = queryGroups[0]?.keywords[0] || "asset";
   console.log(
@@ -2489,8 +2579,14 @@ export async function main(args = process.argv.slice(2)) {
 
   // ── yt-dlp sources (serial) ──
   console.log("\n🎬 yt-dlp sources:");
-  for (const { keywords: groupKeywords, claimSceneId } of queryGroups) {
-    for (const source of YTDLP_SOURCES) {
+  for (const source of YTDLP_SOURCES) {
+    // #180: zh-CN sources (bilibili) route to the Chinese company pool;
+    // other sources keep the shared keyword groups.
+    for (const { keywords: groupKeywords, claimSceneId } of pickVideoKeywordGroups(
+      source,
+      queryGroups,
+      zhVideoKeywords,
+    )) {
       for (const keyword of groupKeywords) {
         console.log(`  🔍 ${source.label} search: "${keyword}"...`);
         const result = await getOrSearchResults(searchCache, {
