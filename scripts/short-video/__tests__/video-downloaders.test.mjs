@@ -4,6 +4,8 @@ import {
   selectStrategy,
   ADAPTER_IDS,
   downloadDirectHttp,
+  downloadDouyinCdp,
+  extractDouyinVideoId,
   downloadVideo,
   CobaltAdapter,
 } from "../lib/video-downloaders.mjs";
@@ -125,7 +127,8 @@ describe("selectStrategy", () => {
   });
 
   it("selects cobalt for unknown public URL", () => {
-    const result = selectStrategy("https://www.douyin.com/video/7234567890");
+    // douyin is no longer a cobalt specimen — it has its own douyin-cdp adapter (#182)
+    const result = selectStrategy("https://vimeo.com/123456789");
     expect(result.adapter).toBe(ADAPTER_IDS.COBALT);
   });
 
@@ -597,7 +600,7 @@ describe("downloadVideo", () => {
       throw new Error("ECONNREFUSED");
     };
     const cobalt = new CobaltAdapter();
-    const result = await downloadVideo("https://www.douyin.com/video/123", {
+    const result = await downloadVideo("https://vimeo.com/123456789", {
       fetchFn,
       cobaltAdapter: cobalt,
     });
@@ -725,5 +728,188 @@ describe("T1 — Image support in VDL", () => {
     await downloadDirectHttp("https://cdn.example.com/video.mp4", { fetchFn });
     // opts should be undefined when no headers
     expect(calls[0].opts).toBeUndefined();
+  });
+});
+
+// ─── #182: iesdouyin CDP download adapter ───
+
+describe("douyin-cdp adapter (#182)", () => {
+  const VIDEO_ID = "7680095489249536842";
+  const MEDIA_URL = "https://www.douyin.com/aweme/v1/play/?video_id=abc123";
+
+  /** Injectable cdp-client fakes following the cdpNewTab → waitForPageLoad → extractFromTab → cdpCloseTab flow. */
+  function makeCdpFakes({ currentSrc = MEDIA_URL, newTabError = null, extractError = null } = {}) {
+    const calls = { shareUrls: [], extractScripts: [], closedTabs: [] };
+    return {
+      calls,
+      cdpNewTabFn: async (url) => {
+        if (newTabError) throw newTabError;
+        calls.shareUrls.push(url);
+        return "tab-1";
+      },
+      waitForPageLoadFn: async () => true,
+      extractFn: async (tabId, script) => {
+        if (extractError) throw extractError;
+        calls.extractScripts.push(script);
+        return currentSrc;
+      },
+      cdpCloseTabFn: async (tabId) => {
+        calls.closedTabs.push(tabId);
+      },
+    };
+  }
+
+  describe("extractDouyinVideoId", () => {
+    it("extracts the id from a douyin.com video URL", () => {
+      expect(extractDouyinVideoId(`https://www.douyin.com/video/${VIDEO_ID}`)).toBe(VIDEO_ID);
+    });
+
+    it("extracts the id from an iesdouyin share URL", () => {
+      expect(extractDouyinVideoId(`https://www.iesdouyin.com/share/video/${VIDEO_ID}`)).toBe(
+        VIDEO_ID,
+      );
+    });
+
+    it("returns null for URLs without a video path", () => {
+      expect(extractDouyinVideoId("https://www.douyin.com/user/xyz")).toBeNull();
+      expect(extractDouyinVideoId("https://example.com/video/not-digits")).toBeNull();
+    });
+  });
+
+  describe("selectStrategy", () => {
+    it("routes douyin.com video URLs to douyin-cdp", () => {
+      const result = selectStrategy(`https://www.douyin.com/video/${VIDEO_ID}`);
+      expect(result.adapter).toBe(ADAPTER_IDS.DOUYIN_CDP);
+    });
+
+    it("routes iesdouyin.com share URLs to douyin-cdp", () => {
+      const result = selectStrategy(`https://www.iesdouyin.com/share/video/${VIDEO_ID}`);
+      expect(result.adapter).toBe(ADAPTER_IDS.DOUYIN_CDP);
+    });
+
+    it("keeps cobalt fallback for other unknown platforms", () => {
+      const result = selectStrategy("https://vk.com/video-123");
+      expect(result.adapter).toBe(ADAPTER_IDS.COBALT);
+    });
+  });
+
+  describe("downloadDouyinCdp", () => {
+    it("opens the iesdouyin share page, downloads media with douyin Referer, closes the tab", async () => {
+      const fakes = makeCdpFakes();
+      const fetchFn = makeMockFetch({
+        [MEDIA_URL]: mockResponse({ body: validBuffer }),
+      });
+
+      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
+        ...fakes,
+        fetchFn,
+      });
+
+      expect(fakes.calls.shareUrls).toEqual([
+        `https://www.iesdouyin.com/share/video/${VIDEO_ID}`,
+      ]);
+      expect(fetchFn.calls).toHaveLength(1);
+      expect(fetchFn.calls[0].opts.headers.Referer).toBe("https://www.douyin.com/");
+      expect(result.status).toBe("downloaded");
+      expect(result.strategy).toBe(ADAPTER_IDS.DOUYIN_CDP);
+      expect(result.source).toBe("douyin");
+      expect(result.sourceUrl).toBe(`https://www.douyin.com/video/${VIDEO_ID}`);
+      expect(result.finalUrl).toBe(MEDIA_URL);
+      expect(result.byteLength).toBe(validBuffer.length);
+      expect(result.buffer).toEqual(validBuffer);
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("fails retryable when the video element has no currentSrc, still closing the tab", async () => {
+      const fakes = makeCdpFakes({ currentSrc: "" });
+      const fetchFn = makeMockFetch({});
+
+      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
+        ...fakes,
+        fetchFn,
+      });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toBe("no-current-src");
+      expect(result.retryable).toBe(true);
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("treats extractFromTab's array contract as possibly empty or blank (real-data #182)", async () => {
+      // extractFromTab swallows non-array string returns to [] — the adapter
+      // must handle [] and whitespace-only entries as no-current-src.
+      for (const extracted of [[], ["   "], [""]]) {
+        const fakes = makeCdpFakes();
+        const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
+          ...fakes,
+          extractFn: async () => extracted,
+          fetchFn: makeMockFetch({}),
+        });
+        expect(result.status).toBe("failed");
+        expect(result.reason).toBe("no-current-src");
+        expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+      }
+    });
+
+    it("fails retryable as cdp-unavailable when the tab cannot be opened", async () => {
+      const fakes = makeCdpFakes({ newTabError: new Error("proxy dead") });
+      const fetchFn = makeMockFetch({});
+
+      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
+        ...fakes,
+        fetchFn,
+      });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toBe("cdp-unavailable");
+      expect(result.retryable).toBe(true);
+      expect(fakes.calls.closedTabs).toEqual([]);
+    });
+
+    it("closes the tab when extraction throws", async () => {
+      const fakes = makeCdpFakes({ extractError: new Error("eval failed") });
+      const fetchFn = makeMockFetch({});
+
+      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
+        ...fakes,
+        fetchFn,
+      });
+
+      expect(result.status).toBe("failed");
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("returns unsupported for douyin URLs without a video id", async () => {
+      const fakes = makeCdpFakes();
+      const result = await downloadDouyinCdp("https://www.douyin.com/user/xyz", {
+        ...fakes,
+        fetchFn: makeMockFetch({}),
+      });
+      expect(result.status).toBe("unsupported");
+      expect(result.reason).toBe("no-video-id");
+      expect(fakes.calls.shareUrls).toEqual([]);
+    });
+  });
+
+  describe("downloadVideo wiring", () => {
+    it("routes douyin URLs through douyin-cdp without touching Cobalt", async () => {
+      const fakes = makeCdpFakes();
+      const fetchFn = makeMockFetch({
+        [MEDIA_URL]: mockResponse({ body: validBuffer }),
+      });
+      const cobalt = new CobaltAdapter();
+      const preflightSpy = vi.spyOn(cobalt, "preflight");
+
+      const result = await downloadVideo(`https://www.douyin.com/video/${VIDEO_ID}`, {
+        ...fakes,
+        fetchFn,
+        cobaltAdapter: cobalt,
+      });
+
+      expect(preflightSpy).not.toHaveBeenCalled();
+      expect(result.status).toBe("downloaded");
+      expect(result.strategy).toBe(ADAPTER_IDS.DOUYIN_CDP);
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
   });
 });

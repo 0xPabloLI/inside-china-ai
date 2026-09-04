@@ -15,6 +15,7 @@
  */
 
 import { canonicalizeUrl } from "./url-normalizer.mjs";
+import { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } from "./cdp-client.mjs";
 import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
@@ -26,6 +27,7 @@ export const ADAPTER_IDS = {
   DIRECT_HTTP: "direct-http",
   YTDLP: "ytdlp",
   COBALT: "cobalt",
+  DOUYIN_CDP: "douyin-cdp",
 };
 
 /** Max file size: 20MB (matches existing yt-dlp --max-filesize 20M) */
@@ -111,6 +113,25 @@ const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "m.youtube.com"];
 /** B站 hostname patterns. */
 const BILIBILI_HOSTS = ["bilibili.com", "b23.tv", "m.bilibili.com"];
 
+/** 抖音/iesdouyin hostname patterns (download needs no login — share page). */
+const DOUYIN_HOSTS = ["douyin.com", "www.douyin.com", "iesdouyin.com", "www.iesdouyin.com"];
+
+/** Referer iesdouyin CDN requires for media downloads (verified 2026-09-03, issue #182). */
+const DOUYIN_REFERER = "https://www.douyin.com/";
+
+/** CDP eval script: the <video> element's currentSrc on the rendered share page.
+ *  Returns an array — extractFromTab's contract is array-shaped (it JSON-parses
+ *  string returns and swallows non-JSON strings to []).
+ *  Polls in-page: the share page redirects to douyin.com and hydrates the
+ *  xgplayer asynchronously — currentSrc only appears several seconds after
+ *  page load (observed ~6s on real data, issue #182 smoke). */
+const DOUYIN_CURRENT_SRC_SCRIPT = `let src = document.querySelector("video")?.currentSrc || "";
+for (let i = 0; i < 5 && !src.trim(); i++) {
+  await new Promise((r) => setTimeout(r, i === 0 ? 500 : 2000));
+  src = document.querySelector("video")?.currentSrc || "";
+}
+return [src];`;
+
 /**
  * Check if a canonical URL points to a direct media file.
  * @param {string} canonicalUrl
@@ -166,6 +187,37 @@ function isBilibiliUrl(canonicalUrl) {
   }
 }
 
+/**
+ * Check if a canonical URL is a 抖音/iesdouyin video page.
+ * @param {string} canonicalUrl
+ * @returns {boolean}
+ */
+function isDouyinUrl(canonicalUrl) {
+  try {
+    const host = new URL(canonicalUrl).hostname.toLowerCase();
+    return DOUYIN_HOSTS.some((h) => host === h || host.endsWith("." + h));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Extract the aweme video id from a douyin/iesdouyin video URL.
+ * Both forms carry it as the numeric segment after /video/:
+ *   douyin.com/video/{id} · iesdouyin.com/share/video/{id}
+ * @param {string} canonicalUrl
+ * @returns {string|null} numeric id, or null when absent
+ */
+export function extractDouyinVideoId(canonicalUrl) {
+  try {
+    const { pathname } = new URL(canonicalUrl);
+    const match = pathname.match(/\/video\/(\d+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Strategy selector ───
 
 /**
@@ -196,6 +248,11 @@ export function selectStrategy(url, options = {}) {
   // 2. YouTube / B站
   if (isYoutubeUrl(canonical) || isBilibiliUrl(canonical)) {
     return { adapter: ADAPTER_IDS.YTDLP, canonicalUrl: canonical };
+  }
+
+  // 2.5 抖音/iesdouyin → iesdouyin share page via CDP (no login needed for download)
+  if (isDouyinUrl(canonical)) {
+    return { adapter: ADAPTER_IDS.DOUYIN_CDP, canonicalUrl: canonical };
   }
 
   // 3. Unknown public URL → Cobalt
@@ -748,6 +805,96 @@ class CobaltAdapter {
   }
 }
 
+// ─── Adapter: DouyinCdp ───
+
+/**
+ * iesdouyin share-page download via CDP (issue #182, method verified 2026-09-03).
+ *
+ * Flow: cdpNewTab(share URL) → waitForPageLoad → extract <video>.currentSrc
+ * → downloadDirectHttp with `Referer: https://www.douyin.com/` → close tab.
+ * No douyin login needed for download (search is the login-gated half).
+ *
+ * All cdp-client functions are injectable for testing; production callers
+ * get the real ones by default.
+ *
+ * @param {string} url - douyin/iesdouyin video URL
+ * @param {Object} [opts]
+ * @param {typeof fetch} [opts.fetchFn] - injectable fetch (media download)
+ * @param {(url: string) => Promise<string>} [opts.cdpNewTabFn]
+ * @param {(tabId: string) => Promise<boolean>} [opts.waitForPageLoadFn]
+ * @param {(tabId: string, script: string) => Promise<string>} [opts.extractFn]
+ * @param {(tabId: string) => Promise<void>} [opts.cdpCloseTabFn]
+ * @returns {Promise<DownloadResult>}
+ */
+export async function downloadDouyinCdp(url, opts = {}) {
+  const cdpNewTabFn = opts.cdpNewTabFn || cdpNewTab;
+  const waitForPageLoadFn = opts.waitForPageLoadFn || waitForPageLoad;
+  const extractFn = opts.extractFn || extractFromTab;
+  const closeTabFn = opts.cdpCloseTabFn || cdpCloseTab;
+  const fetchFn = opts.fetchFn || globalThis.fetch;
+  const source = "douyin";
+
+  const videoId = extractDouyinVideoId(url);
+  if (!videoId) {
+    return makeResult({
+      status: "unsupported",
+      strategy: ADAPTER_IDS.DOUYIN_CDP,
+      source,
+      sourceUrl: url,
+      reason: "no-video-id",
+    });
+  }
+
+  const shareUrl = `https://www.iesdouyin.com/share/video/${videoId}`;
+  let tabId = null;
+  try {
+    tabId = await cdpNewTabFn(shareUrl);
+    await waitForPageLoadFn(tabId);
+    const extracted = await extractFn(tabId, DOUYIN_CURRENT_SRC_SCRIPT);
+    const currentSrc = ((Array.isArray(extracted) ? extracted[0] : extracted) || "").trim();
+
+    if (!currentSrc) {
+      return makeResult({
+        status: "failed",
+        strategy: ADAPTER_IDS.DOUYIN_CDP,
+        source,
+        sourceUrl: url,
+        reason: "no-current-src",
+        retryable: true,
+      });
+    }
+
+    const mediaResult = await downloadDirectHttp(currentSrc, {
+      fetchFn,
+      headers: { Referer: DOUYIN_REFERER },
+    });
+
+    // Re-shape the direct-http result onto this adapter's identity.
+    return {
+      ...mediaResult,
+      strategy: ADAPTER_IDS.DOUYIN_CDP,
+      source,
+      sourceUrl: url,
+    };
+  } catch (e) {
+    const message = e?.message?.substring(0, 200) || "cdp-error";
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.DOUYIN_CDP,
+      source,
+      sourceUrl: url,
+      reason: tabId === null ? "cdp-unavailable" : message,
+      retryable: true,
+    });
+  } finally {
+    if (tabId !== null) {
+      try {
+        await closeTabFn(tabId);
+      } catch {}
+    }
+  }
+}
+
 // ─── Top-level orchestrator ───
 
 /**
@@ -765,11 +912,6 @@ export async function downloadVideo(url, opts = {}) {
   const fetchFn = opts.fetchFn || globalThis.fetch;
   const cobalt = opts.cobaltAdapter || new CobaltAdapter();
 
-  // If Cobalt adapter is provided and preflight not done, do it
-  if (cobalt.available === null && !opts.skipCobaltPreflight) {
-    await cobalt.preflight(fetchFn);
-  }
-
   const { adapter, canonicalUrl, status, reason } = selectStrategy(url);
 
   // Empty URL
@@ -782,12 +924,20 @@ export async function downloadVideo(url, opts = {}) {
     });
   }
 
+  // Cobalt preflight only matters on the cobalt route
+  if (adapter === ADAPTER_IDS.COBALT && cobalt.available === null && !opts.skipCobaltPreflight) {
+    await cobalt.preflight(fetchFn);
+  }
+
   switch (adapter) {
     case ADAPTER_IDS.DIRECT_HTTP:
       return downloadDirectHttp(canonicalUrl, { fetchFn, headers: opts.headers });
 
     case ADAPTER_IDS.YTDLP:
       return downloadYtdlpAdapter(canonicalUrl);
+
+    case ADAPTER_IDS.DOUYIN_CDP:
+      return downloadDouyinCdp(canonicalUrl, opts);
 
     case ADAPTER_IDS.COBALT:
       return cobalt.download(canonicalUrl, { fetchFn });
