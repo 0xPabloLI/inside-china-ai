@@ -1,7 +1,7 @@
 ---
 title: "The Distillation Storm: Inside China's LLM Distillation Controversy"
 slug: "china-llm-distillation-storm"
-excerpt: "Between January and July 2026, a series of events swept through China's LLM industry — from encrypted chain-of-thought extraction, to Anthropic's public accusations, to benchmark controversies. This article cross-references an insider account with public reporting."
+excerpt: "Between January and July 2026, a series of events swept through China's LLM industry, from encrypted chain-of-thought extraction to Anthropic's public accusations to benchmark controversies. This article cross-references an insider account with public reporting."
 published: true
 topics: ["distillation", "china-llm", "anthropic", "openai", "kimi", "moonshot", "bytedance", "minimax", "encryption", "benchmarks"]
 entities:
@@ -25,19 +25,19 @@ sources:
 
 ## Prologue: Encrypted Chain-of-Thought
 
-The story begins with a technical discovery: the encrypted chain-of-thought (CoT) used by OpenAI and Anthropic could be extracted and replayed.
+The discovery that set off the storm: the encrypted chain-of-thought (CoT) used by OpenAI and Anthropic could be extracted and replayed.
 
-Chinese labs were distilling everything from frontier models — conversational outputs, agent trajectories, code generation, tool calls — all available through large-scale API queries. But one gap had long blocked perfect distillation: the model's raw chain-of-thought, its complete internal reasoning before arriving at an answer. Without it, distillation was like having answers without the worked solution.
+Chinese labs were already distilling frontier models through large-scale API queries: conversational outputs, agent trajectories, code generation, tool calls. One gap blocked a complete copy. A model's raw chain-of-thought, its full internal reasoning before the answer, never left the server. Distilling without it meant getting the answers with no worked solution.
 
 ### The "Thinking Signature"
 
-Both companies included a CoT summary in their streaming output, but also returned a Blob field — a "thinking signature" — containing the full raw CoT, encrypted with Fernet (AES-128-CBC + HMAC-SHA256, prefixed `gAAAAAB`). When sent back in a subsequent request, the server would decrypt it and append it to the model's context. Testing showed Blob length correlated with CoT length, confirming it contained the full encrypted reasoning. _(✅ Verified: [A Few Thoughts on Cryptographic Engineering](https://blog.cryptographyengineering.com/2026/05/29/lets-talk-about-encrypted-reasoning/) independently discussed encrypted reasoning, confirming base64 blobs, HMAC signing, and replay capability)_
+Both companies included a CoT summary in their streaming output, and both returned a Blob field, a "thinking signature" holding the full raw CoT encrypted with Fernet (AES-128-CBC + HMAC-SHA256, prefixed `gAAAAAB`). Sent back in a later request, the server decrypts it and appends it to the model's context. Testing showed Blob length correlated with CoT length, confirming the Blob held the full encrypted reasoning. _(✅ Verified: [A Few Thoughts on Cryptographic Engineering](https://blog.cryptographyengineering.com/2026/05/29/lets-talk-about-encrypted-reasoning/) independently discussed encrypted reasoning, confirming base64 blobs, HMAC signing, and replay capability)_
 
 ### Claude vs GPT
 
-According to the source, Claude's anti-injection training became an entry point — a forged thinking-signature prefix could trick Claude into outputting its full chain-of-thought. GPT was harder to crack, following hidden system prompts to only provide summaries. A key architectural difference: Anthropic reportedly retained historical reasoning Blobs across conversation turns, while OpenAI discarded them. _(❌ Unverified: these specific technical details about cross-turn retention and the anti-injection exploit are insider claims not confirmed by public sources)_
+Per the source, Claude's anti-injection training became the entry point: a forged thinking-signature prefix could trick Claude into outputting its full chain-of-thought. GPT was harder to crack, following hidden system prompts to return only summaries. The source also claims Anthropic retained historical reasoning Blobs across conversation turns while OpenAI discarded them. _(❌ Unverified: these specific technical details about cross-turn retention and the anti-injection exploit are insider claims not confirmed by public sources)_
 
-OpenAI locked sampling parameters (temperature, top_p non-modifiable), closing off deterministic-output reverse-engineering. The Fernet implementation was cryptographically sound; the only viable path was injecting the Blob into another request and letting the model recite its own thinking.
+OpenAI locked sampling parameters (temperature, top_p non-modifiable), closing off deterministic-output reverse-engineering. The Fernet implementation was cryptographically sound. The only viable path was injecting the Blob into another request and letting the model recite its own thinking.
 
 ---
 
@@ -53,9 +53,9 @@ The three labs used approximately 24,000 fraudulent accounts to generate over 16
 | **Moonshot AI (Kimi)** | 3,400,000+            | Agentic reasoning, tool use, coding, data analysis, computer-use agents, computer vision                           |
 | **MiniMax**            | 13,000,000+ (largest) | Agentic coding, tool use and orchestration                                                                         |
 
-The labs used commercial proxy services to bypass regional access restrictions. Anthropic attributed each campaign through IP correlation, request metadata, and infrastructure indicators. The company framed this as a **national security risk** — distilled models may lack safety guardrails. _(✅ Verified: all figures and quotes match Anthropic's official blog)_
+The labs used commercial proxy services to bypass regional access restrictions. Anthropic attributed each campaign through IP correlation, request metadata, and infrastructure indicators. The company framed this as a **national security risk**: distilled models may lack safety guardrails. _(✅ Verified: all figures and quotes match Anthropic's official blog)_
 
-Notably, Qwen (Alibaba) and Z.ai were not named. Moonshot never publicly responded. _(ℹ️ BBC reported on June 24, 2026 that Anthropic separately accused Alibaba in a later case)_
+Qwen (Alibaba) and Z.ai were not named. Moonshot never publicly responded. _(ℹ️ BBC reported on June 24, 2026 that Anthropic separately accused Alibaba in a later case)_
 
 <!-- widget:distillation-news-coverage -->
 
@@ -63,7 +63,7 @@ Notably, Qwen (Alibaba) and Z.ai were not named. Moonshot never publicly respond
 
 ## Act I: GLM Cracks It First, Then Shares
 
-Around March–April 2026, Zhipu AI (GLM) reportedly became the first to crack the frontier model's encrypted CoT, obtaining complete thinking-chain data. Rather than keeping it private, GLM shared both the method and data with other domestic labs. _(❌ Unverified: no public reporting confirms GLM was first to crack CoT or that it shared the method. The cost estimate of "tens of thousands of USD" is also unverified)_
+Around March–April 2026, Zhipu AI (GLM) reportedly became the first to crack the frontier model's encrypted CoT and obtain complete thinking-chain data. GLM then shared both the method and the data with other domestic labs. _(❌ Unverified: no public reporting confirms GLM was first to crack CoT or that it shared the method. The cost estimate of "tens of thousands of USD" is also unverified)_
 
 What is publicly known: GLM-5.2 is a 744B total / 40B active parameter MoE model with a 1-million-token context, [open-sourced in 2026](https://www.trendingtopics.eu/glm-5-2-chinas-zhipu-ai-beats-even-googles-top-models-with-its-new-open-llm/). Independent evaluations noted it approached frontier-model performance on select tasks.
 
@@ -79,11 +79,11 @@ With GLM's groundwork (per the source), distillation spread rapidly:
 | ~Apr–May 2026 | Hunyuan (Tencent)                                     | Followed with distillation         |
 | ~May–Jun 2026 | Kimi K3 (Moonshot), MiniMax, Qwen (Alibaba), DeepSeek | Began large-scale distillation     |
 
-_(✅ Tencent/Hunyuan verified: [The Information](https://www.theinformation.com/articles/tencents-new-model-shows-improvement-partly-thanks-anthropic) reported on April 28, 2026 that "Tencent's New Model Shows Improvement, Partly Thanks to Anthropic" — leaked records showed Tencent employees used Claude to evaluate and fine-tune internal models)_
+_(✅ Tencent/Hunyuan verified: [The Information](https://www.theinformation.com/articles/tencents-new-model-shows-improvement-partly-thanks-anthropic) reported on April 28, 2026 that "Tencent's New Model Shows Improvement, Partly Thanks to Anthropic": leaked records showed Tencent employees used Claude to evaluate and fine-tune internal models)_
 
 ### DeepSeek's Timeline
 
-DeepSeek previewed a July release in late June but hadn't yet begun large-scale distillation, causing a delay. An internal beta appeared in early July. Then a "V formal release gray test" appeared — but the source claims it was entirely routed to the frontier model, visible only in OpenCode. At DeepSeek's pricing, this made no economic sense. _(❌ Unverified: this specific routing claim is an insider allegation. Public sources show the opposite pattern — developers using DeepSeek as a cheaper Claude Code backend)_
+DeepSeek previewed a July release in late June but hadn't yet begun large-scale distillation, causing a delay. An internal beta appeared in early July. Then a "V formal release gray test" appeared. Per the source, it was entirely routed to the frontier model, visible only in OpenCode. At DeepSeek's pricing, that made no economic sense. _(❌ Unverified: this specific routing claim is an insider allegation. Public sources show the opposite pattern: developers use DeepSeek as a cheaper Claude Code backend)_
 
 ### Qwen's Two-Front Operation
 
@@ -101,9 +101,9 @@ The source claims that from K2.x onward, Kimi discontinued reinforcement learnin
 
 Per Moonshot's [official documentation](https://huggingface.co/blog/ResterChed/kimi-k3-model-overview) and Hugging Face, Kimi K3 is a 2.8T total / ~50B active parameter sparse MoE with 896 experts (16 active + 2 shared per token), native 1M context, and multimodal via MoonViT-V2. Released July 16, 2026; open weights July 27. _(✅ Verified)_
 
-_(ℹ️ The source stated "1T parameters" — public data confirms 2.8T. This appears to be a redaction error)_
+_(ℹ️ The source stated "1T parameters"; public data confirms 2.8T. This appears to be a redaction error)_
 
-Moonshot announced two architectural innovations:
+Moonshot announced four architectural innovations:
 
 | Technology                        | Description                                                   | Infra Challenge                       |
 | --------------------------------- | ------------------------------------------------------------- | ------------------------------------- |
@@ -114,7 +114,7 @@ Moonshot announced two architectural innovations:
 
 _(✅ Verified: all architectural features confirmed by Moonshot's official docs)_
 
-The source notes that these features carry Infra-unfriendly characteristics, creating a narrative where "architectural innovation" is the public story while distillation is cited as the performance source. _(⚠️ The observation about Infra challenges is an analytical judgment; the architectural features themselves are confirmed)_
+Per the source, these features are Infra-unfriendly. That supports a reading where "architectural innovation" is the public story while distillation is cited as the performance source. _(⚠️ The observation about Infra challenges is an analytical judgment; the architectural features themselves are confirmed)_
 
 ### Benchmark Controversies
 
@@ -133,7 +133,7 @@ Public data reflected this complexity. K3 jumped 17 places on Arena Frontend Cod
 
 Multiple users reported K3 identifying itself as "I'm Claude, an AI assistant created by Anthropic." [Hacker News](https://news.ycombinator.com/item?id=49076001) user testing showed this in ~15% of interactions. [LessWrong](https://www.lesswrong.com/posts/dQyKzHaGqvdqpekJr/does-distilling-claude-carry-the-persona-with-it) reported GLM 5.2 exhibited similar behavior. _(✅ Verified)_
 
-The technical community split on interpretation — some called it normal training data leakage ("models usually don't know their own name"), others viewed it as indirect evidence of distillation.
+The technical community split: some called it normal training data leakage ("models usually don't know their own name"); others read it as indirect evidence of distillation.
 
 <!-- widget:kimi-identity-bleed -->
 
@@ -145,13 +145,13 @@ The source claimed ~30% hallucination rate. Public data tells a different story:
 
 Kimi completed SFT and shipped quickly. Within 48 hours, demand forced Moonshot to [suspend new subscriptions](https://apnews.com/article/kimi-k3-china-ai-model) after GPU capacity hit limits (AP News, July 20). _(✅ Verified)_
 
-The source suggests this pressured other labs to accelerate, intensifying competition. _(⚠️ Analytical claim)_
+The source suggests the speed pressured other labs to accelerate. _(⚠️ Analytical claim)_
 
 ---
 
 ## Act IV: Industry Impact
 
-The distillation route meant any lab following the playbook could reach near-frontier performance. The source characterizes Kimi's approach as having disrupted this equilibrium — by shipping first with aggressive benchmark tactics, labs not optimizing for scores struggled for attention. Multiple independent sources — the evaluator, DeepSeek employees, former Kimi staff, Qwen employees — expressed concern. _(❌ Unverified: these specific employee sentiments are insider information)_
+The distillation route meant any lab following the playbook could reach near-frontier performance. Per the source, Kimi's shipping-first approach with aggressive benchmark tactics disrupted that equilibrium: labs not optimizing for scores struggled for attention. The evaluator, DeepSeek employees, former Kimi staff, and Qwen employees all expressed concern. _(❌ Unverified: these specific employee sentiments are insider information)_
 
 ---
 
@@ -181,7 +181,7 @@ First to crack the frontier model's CoT and share with others (per source). GLM-
 
 First accused of test set contamination; model performed poorly enough to be discovered. In Anthropic's accusations, MiniMax had the largest distillation volume (13M+ exchanges).
 
-**Stock**: MiniMax Group Inc (HKEX: 0100.HK) fell from a March peak of HK$1,330 to ~HK$186 — over 80% decline. On July 9, a lock-up expiry released ~153M shares (~48.9% of capital), triggering an 18% single-day drop. Emergency ~HK$16B capital raise launched. Stock recovered to ~HK$247 by August 3. _(✅ Verified: Google Finance confirms all figures)_
+**Stock**: MiniMax Group Inc (HKEX: 0100.HK) fell from a March peak of HK$1,330 to ~HK$186, over 80% decline. On July 9, a lock-up expiry released ~153M shares (~48.9% of capital), triggering an 18% single-day drop. Emergency ~HK$16B capital raise launched. Stock recovered to ~HK$247 by August 3. _(✅ Verified: Google Finance confirms all figures)_
 
 Drivers: Anthropic accusations, M3 permanent price cut, low consumer margins, AI companion regulations, significant annual losses. Moonshot's IPO preparations added competitive pressure.
 
@@ -195,7 +195,7 @@ Consistently under-resourced. European labs were largely absent from this story.
 
 ## Act VI: The Public Conversation
 
-Videos discussing distillation appeared on Bilibili. Comment sections became debate zones — some denied distillation, framing accusations as "smearing domestic tech." Others packaged results as evidence of "China's tech rise."
+Videos discussing distillation appeared on Bilibili. Comment sections became debate zones: some denied distillation and framed the accusations as "smearing domestic tech"; others packaged the results as evidence of "China's tech rise."
 
 The [original Reddit post](https://www.reddit.com/r/LocalLLM/comments/1v8fk6s/) in r/LocalLLM generated 110+ comments, cross-posted to r/MistralAI and r/LocalLLaMA.
 
@@ -205,7 +205,7 @@ One widely shared comment: "AI hallucination rates are going down, but human hal
 
 ## Act VII: The Benchmark-Driven Logic
 
-The source argues that domestic labs pushed benchmark gaming further than Western labs, in both degree and method. The deeper driver is structural: benchmark scores directly influence funding valuations and market attention. The core tension is between optimizing for "coding scores" versus "coding capability." _(⚠️ Analytical claim reflecting the source author's interpretation, not a verifiable fact)_
+The source argues domestic labs pushed benchmark gaming further than Western labs in both degree and method. The structural driver: benchmark scores directly influence funding valuations and market attention. The tension is between optimizing for "coding scores" and "coding capability." _(⚠️ Analytical claim reflecting the source author's interpretation, not a verifiable fact)_
 
 ---
 
@@ -250,7 +250,7 @@ The source observes that the industry rhythm has become "wait for the frontier l
 | K3 hallucination rate | ~30%                     | 51% ([Artificial Analysis](https://artificialanalysis.ai/articles/kimi-k3-achieves-3-in-the-artificial-analysis-intelligence-index-comparable-to-opus-4-8-and-gpt-5-5)) |
 | Kimi RL team layoffs  | Entire RL team dismissed | No public reports; Yang still described as leading RL ([Business Insider](https://www.businessinsider.com/who-is-yang-zhilin-ceo-founder-moonshot-ai-kimi-k3-2026-7))   |
 
-**Overall assessment**: The core narrative — Chinese labs engaging in large-scale distillation, Anthropic's public accusations, Kimi K3's benchmark controversies — is **well-supported by public reporting**. Many specific insider details (GLM cracking and sharing, RL team changes, test set contamination, specific routing allegations) **could not be independently verified**. Three factual details **contradict public data** and have been corrected in this article.
+**Overall assessment**: The core narrative (large-scale distillation by Chinese labs, Anthropic's public accusations, Kimi K3's benchmark controversies) is **well-supported by public reporting**. Many specific insider details (GLM cracking and sharing, RL team changes, test set contamination, specific routing allegations) **could not be independently verified**. Three factual details **contradict public data** and have been corrected in this article.
 
 ---
 

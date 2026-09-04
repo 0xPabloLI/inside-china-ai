@@ -19,7 +19,7 @@ sources:
 
 # ByteDance Founder's Rare Directive: No Distillation, Even at the Cost of Falling Behind
 
-On August 6, 2026, Zhang Yiming broke his silence. The ByteDance founder, who rarely speaks at the company's Seed AI research team meetings, delivered an unambiguous directive: ByteDance will not distill rival AI models, even if that means falling behind competitors.
+On August 6, 2026, Zhang Yiming spoke publicly. The ByteDance founder, who rarely attends the Seed AI research team's meetings, gave a clear directive: ByteDance will not distill rival AI models, even at the cost of falling behind.
 
 "AI model development requires long-termism and delayed gratification, rather than using others' output to achieve short-term leaderboard rankings," Zhang told a recent internal meeting, according to [The Paper](https://m.thepaper.cn/newsDetail_forward_33732502). He said ByteDance "should be willing to sacrifice some short-term gains for long-term goals." _(✅ Verified: [The Paper](https://m.thepaper.cn/newsDetail_forward_33732502), [Reuters](https://www.reuters.com/world/china/bytedance-founder-tells-staff-avoid-ai-distillation-paper-reports-2026-08-06/), [Beijing News](https://www.bjnews.com.cn/detail/1785995424129904.html))_
 
@@ -36,8 +36,6 @@ Google, OpenAI, and Amazon all use distillation as a standard practice. The tech
 But in 2026, distillation became one of the most charged terms in the US-China tech rivalry. The question is no longer just technical, it is geopolitical: when a Chinese company uses outputs from a US frontier model to train its own, is that legitimate learning or intellectual property theft?
 
 ## ByteDance's Seed: The Model Lineup
-
-To understand the pressure Zhang faces, it helps to know what Seed has built, and where it falls short.
 
 ByteDance's Seed team is the company's internal AI research division, responsible for both language and multimodal models. Its consumer-facing brand is **Doubao**, China's most-used AI chatbot with [155 million weekly active users](https://www.reuters.com/world/asia-pacific/chinas-bytedance-releases-doubao-20-ai-chatbot-2026-02-14/) as of early 2026. The enterprise API runs through **Volcano Engine**, ByteDance's cloud platform. _(✅ Verified: [Reuters](https://www.reuters.com/world/asia-pacific/chinas-bytedance-releases-doubao-20-ai-chatbot-2026-02-14/), [EvoLink](https://evolink.ai/blog/doubao-seed-2-0-review-benchmarks-pricing))_
 
@@ -58,8 +56,6 @@ But the gaps are real. On SWE-Bench Verified (real GitHub issue fixes), Seed 2.0
 More importantly, Doubao's flagship models are **closed and API-only**. Unlike DeepSeek, Qwen, or Kimi K3, which publish open weights, ByteDance releases only smaller models under the "Seed-OSS" banner. The frontier models cannot be downloaded, self-hosted, or independently evaluated by the open-source community. This means ByteDance's model capabilities are harder for outsiders to verify, and the company has limited visibility on international leaderboards where open-weight models dominate attention. _(✅ Verified: [AITraining2U](https://www.aitraining2u.com/bytedance-doubao-seed-explained-2026.html))_
 
 The compute constraint compounds the problem. ByteDance trained Seedance 2.0 using Nvidia H20 chips, the export-compliant alternative to the B200. The H20's training performance is only a fraction of the B200's, creating a structural disadvantage that grows wider with each new US chip generation. _(✅ Verified: [Pekingnology](https://www.pekingnology.com/p/bytedances-ban-on-distilling-rival))_
-
-This is the backdrop against which Zhang made his stand: a company with 155 million users, strong video generation, competitive-but-not-leading language models, no open-weight presence, and a compute gap that distillation could theoretically close.
 
 ## Three Internal Battles
 
@@ -131,7 +127,7 @@ The Guixinren account contradicts this. According to reporter Luo Yihang, TikTok
 
 On the same day Zhang's directive was reported, DeepSeek announced a significant API price increase. According to [The Paper](https://m.thepaper.cn/newsDetail_forward_33732502), DeepSeek told users it plans to raise API service pricing in the near future, with "a relatively large increase." This came just days after DeepSeek-V4-Flash's official version launched on July 31, with industry analysts predicting the price hike signals the imminent arrival of DeepSeek V4-Pro.
 
-The timing underscores the competitive pressure facing ByteDance. While DeepSeek raises prices on the strength of its model performance, ByteDance's Seed team is choosing the harder path: building frontier intelligence from scratch, without shortcuts.
+The timing shows the pressure on ByteDance: DeepSeek is raising prices on the strength of its performance, while Seed is building frontier intelligence from scratch without distillation.
 
 ## My Take: The Expensive Principle
 

@@ -7,9 +7,9 @@ published: true
 
 # Unitree's Historic IPO: 629% Pop Makes Founder a Billionaire Overnight
 
-On August 19, 2026, Unitree Robotics (688836.SH) officially listed on Shanghai's STAR Market, opening at 1,100 yuan per share, a 629.44% surge from its IPO price of 150.80 yuan. The opening pushed the company's market capitalization to 444.9 billion yuan, roughly $620 billion CNY or about $62 billion USD at face value, though exchange-rate conversions require context (see below).
+On August 19, 2026, Unitree Robotics (688836.SH) officially listed on Shanghai's STAR Market, opening at 1,100 yuan per share, a 629.44% surge from its IPO price of 150.80 yuan. The opening pushed the company's market capitalization to 444.9 billion yuan, roughly $620 billion CNY or about $62 billion USD at face value.
 
-This marks the first pure-play humanoid robotics company to trade on China's A-share market, and the debut was nothing short of explosive.
+This marks the first pure-play humanoid robotics company to trade on China's A-share market.
 
 ## The Numbers
 
@@ -27,7 +27,7 @@ According to World Journal, at the opening price of 1,100 yuan, Wang's personal 
 
 ## The Business
 
-Unitree's financials tell a story of hyper-growth with early signals of deceleration. According to the company's prospectus and China Business Journal:
+Unitree's financials show hyper-growth with early signals of deceleration. According to the company's prospectus and China Business Journal:
 
 - **2023 Revenue**: 159 million yuan (~$22M)
 - **2025 Revenue**: 1.708 billion yuan (~$237M), up 335% year-over-year
@@ -53,7 +53,7 @@ Unitree claims 60-70% global market share in quadruped robots and over 5,500 hum
 
 ## The Strategic Investors
 
-The strategic placement roster reads like a who's who of China's tech ecosystem. According to Value Add VC and Yahoo Finance HK:
+According to Value Add VC and Yahoo Finance HK:
 
 - **DeepSeek** (Hangzhou DeepSeek AI Basic Technology Research): allocated 933,399 shares, 36-month lock-up
 - **Tencent** (via Shanghai Qishan Investment): allocated 903,290 shares

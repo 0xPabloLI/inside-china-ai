@@ -170,10 +170,10 @@ More content...
 
 ## 源引用要求
 
-**所有参考过的资料必须作为 source attach 到文章中，并在文中注明出处。**
+**每条参考过的资料都必须可溯源，方式按素材类型分层：**
 
-1. **原始素材文件**（PDF、报告、录音转文本等）→ 通过 `upload-attachments.mjs` 上传到文章的 attachments
-2. **网页/外部文章引用** → 在文章正文中用 Markdown 链接 `[文字](URL)` 注明出处
+1. **有公开 URL 的资料**（网页文章、报道、博客）→ 文章正文用 Markdown 链接 `[文字](URL)` 注明出处，**不挂附件**（读者可点击验证，挂文件是重复存储）
+2. **无公开 URL 的资料**（用户提供的 PDF、内部报告、录音转文本等）→ 通过 `upload-attachments.mjs` 上传到文章 attachments，供读者下载验证
 3. **数据点引用** → 在数据附近标注来源（如「据 Bloomberg 2026 年 7 月 29 日报道」）
 4. **引用语句** → 使用 Markdown 引用块 `> 原话` 并注明说话人和来源
 5. **禁止域名级别链接** → 所有链接必须指向**具体文章/页面的完整 URL**，不允许只链接到域名根目录（如 ❌ `https://www.bloomberg.com`）。如果因付费墙无法获取完整 URL，改用报道相同数据的其他可访问来源
@@ -216,17 +216,21 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blo
 | B6  | 声明验证标注     | 如使用匿名/内部信源，每个关键声明必须有 ✅/⚠️/❌/🔴 标注。Inline 标注是未来结构化 evidence 数据的来源（#61）；audit 非阻塞，仅输出 warning                                          | 补充标注                      |
 | B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                    | 删除 My Take                  |
 | B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等） | 替换为口语化表达              |
+| B9  | Chatbot 残留     | 正文出现对话体残留（"Let's dive in" / "I hope this helps" / "Great question" 类）、拟人开场（"Honestly?..."）、知识截止免责声明，或为无人提出的反对意见辩护 | 删除残留，直接陈述论点        |
 
 **Warnings（列出但不阻塞 HITL）：**
 
 | #   | 检查项       | 阈值                             |
 | --- | ------------ | -------------------------------- |
-| W1  | 正文字数     | < 800 或 > 3000 词               |
+| W1  | 正文字数     | < 800 或 > 2500 词               |
 | W2  | Excerpt 长度 | > 160 字符                       |
 | W3  | Widget 数量  | > 5 个（可能信息过载）           |
 | W4  | 章节数量     | < 6 或 > 10                      |
 | W5  | SEO 关键词   | slug 或 excerpt 中缺少核心关键词 |
 | W6  | 无 Widget    | 文章含结构化数据章节但 0 个 Widget — Agent 应设计至少 1 个，补充数据类优先 |
+| W7  | Em-dash 密度 | 正文散文段装饰性 em-dash（—）> 3 个/千字；直接引语与 Sources 列表「媒体 — 标题」引用格式豁免 |
+| W8  | 内容层 AI 套路 | 拔高意义（"pivotal moment" 类）、name-dropping、浅层 -ing 分析串（symbolizing/reflecting/showcasing）、销售腔、同一实体同义换名、连续短句假高潮、无信源模糊归因（"Experts believe" 类） |
+| W9  | 信息密度     | 出现整段无新事实、新数据或新分析的段落（判定：逐句问「这句提供了什么前文没有的信息」，答不出的句子删除） |
 
 **循环流程**：Agent 逐项检查 → 发现 Blocker → 修复 → 从 B1 重新检查 → 全部 Blocker PASS → 输出 MRL-1 报告 → **保存 article draft，并继续与视频轨并行推进（不暂停）**。
 
@@ -236,6 +240,7 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blo
 
 | Topic | Reference | Content |
 |-------|-----------|---------|
+| Article humanize patterns | `docs/research/article-humanize-patterns-2026-09-04.md` (L2) | MRL-1 B9/W7/W8/W9 与 W1 阈值（3000→2500）的模式来源、10 篇语料实测与阈值推导 |
 | Article pipeline research | `docs/research/china-ai-article-pipeline-2026.md` (L2) | Content strategy, widget design, SEO methodology |
 | Widget registry architecture | ADR-0003 | Widget registry as extension point |
 | Widget embedding mechanism | ADR-0001 | HTML comment markers for inline embedding |

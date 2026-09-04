@@ -21,7 +21,7 @@ The placement coincided with a wave of insider purchases. Founder Jack Ma bought
 
 ## Why AI, Why Now
 
-The mega-offering comes at a critical inflection point for Alibaba. Traditional e-commerce faces mounting pressure, but AI has emerged as the company's fastest-growing segment.
+The mega-offering comes as traditional e-commerce faces mounting pressure, while AI has emerged as the company's fastest-growing segment.
 
 Alibaba's Q1 FY2027 results (quarter ended June 30, 2026), released on August 20, reveal the trajectory:
 
@@ -45,10 +45,10 @@ Wu also forecast that next quarter's AI-related product annualized revenue (ARR)
 
 The restructuring and capital deployment reflect Alibaba's ambition to build a complete, vertically integrated AI stack. The company has reorganized into four business groups:
 
-1. **Alibaba E-commerce Group** — traditional commerce
-2. **AI Cloud & Computing Services** — cloud, computing power, AI infrastructure
-3. **AI Lab & Applications** — research and consumer-facing AI products
-4. **All Others** — remaining businesses
+1. **Alibaba E-commerce Group**: traditional commerce
+2. **AI Cloud & Computing Services**: cloud, computing power, AI infrastructure
+3. **AI Lab & Applications**: research and consumer-facing AI products
+4. **All Others**: remaining businesses
 
 This stack spans every layer:
 

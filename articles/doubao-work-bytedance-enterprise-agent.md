@@ -11,13 +11,13 @@ ByteDance has officially launched Doubao Work (豆包工作), a new AI agent pro
 
 ## What Are Feishu and Lark?
 
-Feishu (飞书) is ByteDance's enterprise collaboration platform, first developed as an internal tool in 2016 and launched as a commercial product in 2019. Think of it as ByteDance's answer to Slack and Microsoft Teams — it combines messaging, shared calendars, cloud documents, video conferencing, and project management into one app.
+Feishu (飞书) is ByteDance's enterprise collaboration platform, first developed as an internal tool in 2016 and launched as a commercial product in 2019. Think of it as ByteDance's answer to Slack and Microsoft Teams. It combines messaging, shared calendars, cloud documents, video conferencing, and project management into one app.
 
 Lark is the international version of Feishu, launched in April 2019 with data stored in Singapore (Feishu stores data in Beijing). The two operate independently but share the same core features. Lark was banned in the United States in January 2025 under the same law that targeted TikTok. Feishu surpassed $100 million in annual recurring revenue in 2022, according to TechCrunch.
 
 ## What Is Doubao Work?
 
-Doubao Work is positioned as an agent product that goes beyond content generation to actually completing work. According to the official announcement, it can autonomously break down user goals into tasks, call tools, and sustain complex workflows.
+Doubao Work is positioned as an agent product that goes beyond content generation to completing work. According to the official announcement, it can autonomously break down user goals into tasks, call tools, and sustain complex workflows.
 
 The product integrates deeply with Feishu (known internationally as Lark), ByteDance's enterprise collaboration platform. Users who log in with a Feishu account inherit their enterprise knowledge and work context, enabling the agent to access chat records, documents, meeting notes, and schedules within their permission scope. This integration is also available to Lark users outside China.
 
@@ -33,7 +33,7 @@ The product integrates deeply with Feishu (known internationally as Lark), ByteD
 
 ## The Feishu Connection
 
-The deep Feishu integration is Doubao Work's most distinctive feature. Rather than relying solely on user prompts, the agent draws on real enterprise context from Feishu to understand goals, make judgments, and deliver results.
+The deep Feishu integration is what sets Doubao Work apart. Rather than relying solely on user prompts, the agent draws on real enterprise context from Feishu to understand goals, make judgments, and deliver results.
 
 Content created alongside Doubao Work flows back to Feishu as reusable enterprise knowledge, creating a feedback loop where the agent improves over time as context accumulates.
 
@@ -41,7 +41,7 @@ Content created alongside Doubao Work flows back to Feishu as reusable enterpris
 
 This launch follows a major ByteDance restructuring on July 30, 2026, when Feishu's product team was merged into the Doubao team. The new "Doubao Product Team" is led by Zhao Qi, with Feishu CEO Xie Xin reporting to him. Feishu's sales team was integrated with Volcano Engine, ByteDance's cloud platform.
 
-The restructuring aimed to align ByteDance's AI strategy around "model plus scenario" — embedding AI capabilities directly into high-frequency enterprise workflows rather than treating them as standalone products.
+The restructuring aimed to align ByteDance's AI strategy around "model plus scenario": embedding AI capabilities directly into high-frequency enterprise workflows rather than treating them as standalone products.
 
 ## Market Position
 

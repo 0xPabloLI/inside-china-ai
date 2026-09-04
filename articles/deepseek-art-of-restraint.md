@@ -43,7 +43,7 @@ DeepSeek is among the most aggressive open-source AI companies. Their reasoning:
 
 "In history, a software company might have a market of tens of billions of dollars. Without open source, it's gone — maybe tens or hundreds of millions left," Liang said. "But AI is different. It could eventually occupy 10% of global GDP. You can't monopolize that. If you try, history will abandon you."
 
-This isn't idealism — it's strategy. By keeping profits modest and models open, DeepSeek increases its chances of building AGI.
+This isn't idealism; it's strategy. By keeping profits modest and models open, DeepSeek increases its chances of building AGI.
 
 Liang compared this to Zhipu AI (GLM), which also open-sources models. "Their open source feels forced," Liang said. "For us, it's intentional. We believe the vision itself requires open source."
 
@@ -93,7 +93,7 @@ DeepSeek views AGI development as a series of steps, each building on the last:
 
 "We're at the Agent step now," Liang said. "The bottleneck we see is continuous learning — enabling models to learn incrementally, like humans."
 
-After that lies the "singularity": when AI can develop its own next versions. Then embodied AI — robots entering the physical world to handle daily tasks and elder care.
+After that lies the "singularity": when AI can develop its own next versions. Then embodied AI, robots entering the physical world to handle daily tasks and elder care.
 
 "We see this as the easiest path," Liang said. "Each step builds on the last. We don't need overtime. If we did it in reverse order — embodied AI first — it would be brutal work."
 
@@ -121,7 +121,7 @@ DeepSeek has only one core interest that cannot be compromised: **team stability
 
 "As long as the team stays, we'll build AGI. It's that simple," Liang said. "Money isn't an issue. Resources aren't an issue. Those are easy."
 
-This is both their greatest strength and greatest risk. Recent funding eased the pressure — key employees received substantial equity. When core veterans stay, others are less likely to leave.
+This is both their greatest strength and greatest risk. Recent funding eased the pressure; key employees received substantial equity. When core veterans stay, others are less likely to leave.
 
 "People join because they want to be part of building AGI," Liang said. "That's attractive."
 
@@ -135,14 +135,14 @@ DeepSeek's historically low employee turnover supports this. But maintaining it 
 
 DeepSeek's strategy challenges conventional AI startup wisdom:
 
-1. **Restraint isn't weakness** — it's a deliberate trade-off for long-term advantage
-2. **Open source as moat** — by not trying to own everything, they reduce resistance to adoption
-3. **Vision as coordination mechanism** — replaces org charts and KPIs with shared purpose
-4. **Commercialization as fuel, not destination** — funds the real mission (AGI) without distraction
+1. **Restraint isn't weakness**: it's a deliberate trade-off for long-term advantage
+2. **Open source as moat**: by not trying to own everything, they reduce resistance to adoption
+3. **Vision as coordination mechanism**: replaces org charts and KPIs with shared purpose
+4. **Commercialization as fuel, not destination**: funds the real mission (AGI) without distraction
 
 The 10-month pricing rule sends a powerful signal: "We're not here to maximize profit. We're here to maximize reach and impact." This attracts talent aligned with that mission and creates differentiation from competitors focused on ARR.
 
-The AGI roadmap shows clear thinking about technical dependencies. By sequencing CoT → Agents → Continuous Learning → Self-Iteration → Embodied AI, each step builds on the last. This isn't random — it's deliberate, achievable, and doesn't require overtime.
+The AGI roadmap shows clear thinking about technical dependencies. By sequencing CoT → Agents → Continuous Learning → Self-Iteration → Embodied AI, each step builds on the last. This isn't random; it's deliberate, achievable, and doesn't require overtime.
 
 Most telling is the "team stability as core interest" philosophy. In an industry where bidding wars and poaching are common, DeepSeek takes a different approach: create a mission so compelling people don't want to leave.
 

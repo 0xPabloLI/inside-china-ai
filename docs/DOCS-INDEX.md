@@ -32,6 +32,7 @@
 |----------|---------|---------------|
 | `brand-system.md` | Brand visual identity — tokens, templates, rules | `brand-system` skill |
 | `analytics-workflow.md` | TikTok Analytics 独立工作流 — CSV/CDP 导出、A/B 测试、hashtag 效果追踪、Analytics→Pipeline 联动机制、竞品参考视频分析 | `content-pipeline.md` Stage 0 + Stage 5, `video-workflow.md` |
+| `article-humanize-patterns-2026-09-04.md` | Article humanize 模式来源与阈值依据（MRL-1 B9/W7/W8/W9、W1 阈值）— Wikipedia "Signs of AI writing" 35 条清单等；执行规则唯一权威版本在 `article-production-guide.md` MRL-1 |
 | `article-production-guide.md` | Article generation rules — Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation | `content-pipeline.md` Stage 1/2 |
 | `content-pipeline.md` | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references | AGENTS.md |
 | `manual-ops.md` | Manual operations checklist, sorted by frequency | `content-pipeline.md` |
@@ -86,7 +87,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 
 | Document | Purpose |
 |----------|---------|
-| `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation；含 ponytail-lite 试点期规则（§6 步骤 2 A-lite/D、§8 步骤 3 B-lite、§9 步骤 3 回写，裁决后移除） |
+| `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation |
 | `git-workflow.md` | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery + Session-Id provenance (hook-enforced) |
 | `git-concurrent-recovery.md` | 竞态应急配方（git-workflow §9 指向）：临时 index 隔离提交、孤儿提交找回、单文件恢复；含试点收尾复评触发条款 |
 | `proposal-review.md` | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks |
@@ -140,7 +141,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 |----------|---------|
 | `source-registry-capability-audit-2026-08-19.md` | #77 Source registry capability 标注核查报告（W3 待做） |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV) |
-| `ponytail-lite-pilot-2026-09.md` | Ponytail-lite 试点逐任务记录（active：5 任务或 4 周窗口；裁决后归档） |
+| `session-id-provenance-review-brief-2026-09-04.md` | Session-Id 关联标识交付的第三方独立复核材料 v2 — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、复核裁决落实状态、未解决事项 |
 | `ponytail-adoption-review-brief-2026-09-04.md` | ponytail 改造的第三方独立复核材料 — 上游分层体积实测、三处落地文本、拒绝项与证据、证据分级、自我反驳、吸收率三口径校准、Q1–Q7 待裁问题 |
 
 ### `archive/` — Completed work
@@ -180,6 +181,7 @@ Deep research reports with citations.
 | `agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计 — 9 份文档逐句发现（sediment/no-ops/duplication/下沉）、预估节省、skill 目录统计与卸载候选；实施需用户批准 |
 | `agent-driven-video-editing-research.md` | Agent-driven video editing automation research |
 | `anti-bot-scraping-solutions.md` | Anti-bot scraping solutions — bypass strategies and alternative search engines |
+| `article-humanize-patterns-2026-09-04.md` | 文章人味化模式依据 — Wikipedia "Signs of AI writing" 35 模式采纳/拒绝清单、10 篇语料实测、MRL-1 B9/W7/W8/W9 与 W1（3000→2500）阈值推导、外部改写工具对 widget 标记的风险 |
 | `asset-focus-detection-alternatives.md` | 素材重点内容检测替代方案 — OpenCV Saliency vs VLM vs YOLO/SAM 对比 |
 | `vlm-model-selection-benchmark.md` | VLM model selection benchmark — Qwen3-VL 2B/4B/8B comparison with local test data |
 | `asset-source-quick-reference.md` | Quick reference for all content sources (multimedia + text) — API keys, auth, licenses |
@@ -190,7 +192,7 @@ Deep research reports with citations.
 | `china-digital-human-api-alternatives.md` | Digital human API alternatives in mainland China |
 | `cloud-gpu-options.md` | Cloud GPU options — free tier + paid rental (Kaggle, Colab, Lightning AI, AutoDL) + HuggingFace LFS 下载策略（curl -L vs hf_hub_download, Kaggle CLI --dir-mode 陷阱, Colab WebSocket 超时） |
 | `colab-cli-guide.md` | Google Colab CLI guide — gcloud setup, kernel push/pull, GPU smoke test |
-| `commit-session-association-id-proposal.md` | Commit Session-Id 关联标识提案 v4（三轮评审 9/10，待决项已裁决，待软试点）— tool-agnostic 方案：精确匹配查询、Session-Id 唯一性、compact 恢复规则、本地 merge 白名单豁免、试点表即 id→会话 登记处；试点期唯一操作手册为本文件 §3 |
+| `commit-session-association-id-proposal.md` | Commit Session-Id 关联标识提案 **v5（已结项 + 第三方复核修订）** — tool-agnostic 方案：精确匹配查询（separator=%x2C）、Session-Id 唯一性、compact 恢复规则、6hex id、strict 登记门控（common-dir 登记表，fail-closed）；操作规则在 `git-workflow.md` §8，验收在 `scripts/test-commit-msg-hook.sh`，复核材料 `docs/reviews/session-id-provenance-review-brief-2026-09-04.md` |
 | `digital-human-references.md` | Offloaded reference material — papers, code repos, cloud platforms, market research for digital human models |
 | `digital-human-solutions-m2-pro.md` | Digital human solutions for Apple M2 Pro 32GB — pointers to references and cloud-gpu-options |
 | `echomimicv3-optimization-options.md` | EchoMimicV3 optimization options — Kaggle GPU test results, config tuning |
@@ -205,9 +207,10 @@ Deep research reports with citations.
 | `multi-video-splitting-best-practices.md` | Video splitting strategy, inter-episode linking, auto-evaluator |
 | `open-source-video-generation-landscape-2026.md` | Open-source video generation landscape 2026 — model/engine comparison, local Apple Silicon viability |
 | `pipeline-simplification-discussion.md` | Pipeline simplification discussion — Stage 0 unification, category rename, locale field |
-| `ponytail-minimal-code-adoption-proposal.md` | Ponytail 最小实现规则引入提案（v4，已批准试点 2026-09-03）— A-lite/根因规则落 §6 步骤 2、B-lite 落 §8 步骤 3、试点路由落 §9；含 JetBrains 独立评测与 A/B/D 逐条裁决门槛 |
+| `ponytail-minimal-code-adoption-proposal.md` | Ponytail 最小实现规则引入提案 v4（已批准试点）— A-lite/D → implementation-workflow §6、B-lite → §8、试点路由 → §9；试点记录 `docs/reviews/ponytail-lite-pilot-2026-09.md`，裁决按 §7 |
 | `reference-video-extraction.md` | Reference video extraction — long-term backlog task |
-| `source-layer-comparison.md` | Source layer comparison — CDP vs MCP vs API, capability matrix per source |
+| `source-layer-comparison.md` | Source layer CDP vs MCP vs API, capability matrix per source |
+| `talking-head-api-platforms.md` | Talking Head 模型 API 平台调研（2026-09-03）— NVIDIA NIM / Replicate / fal.ai / HF Spaces / 硅基流动等 8 平台 CDP 实测，免费低价 API 路线 |
 | `safe-zone-calibration-log.md` | Safe zone calibration log with FYP screenshot evidence |
 | `short-video-script-writing-best-practices.md` | Short video script writing best practices — S.T.A.R.T. framework, psychological retention engines, hook formulas, 15 sources |
 | `video-background-coverage-audit-2026-08-21.md` | 视频背景视觉承载审查结论 — 现状覆盖率、实现缺口与场景级视觉意图建议 |
