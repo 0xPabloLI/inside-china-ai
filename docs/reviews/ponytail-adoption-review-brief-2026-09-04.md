@@ -1,16 +1,17 @@
-# 独立复核材料：ponytail 规则引入与改造（2026-09-04 session 交付，**v2**）
+# 独立复核材料：ponytail 规则引入与改造（2026-09-04 session 交付，**v3**）
 
 > 用途：交给未参与本工作的第三方 Agent 或人做独立 review。本文自包含——reviewer 不需要读对话历史。
 > 仓库：`inside-china-ai`｜分支：`main`｜上游：[DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)（MIT，210 commits）
-> **v2（2026-09-04）按第一轮第三方复核重写**。v1 有三处硬错已更正：① 错述 JetBrains 评测对象（不是 33 行内核，见 §4.1）；② 体积分层不闭合且不可复现（见 §1，现固定 SHA 且合计 100%）；③ hooks 证据引用了错误产品（写成了另一款工具，见 §6.3，现为当前宿主官方文档）。另按 Q1/Q3/Q5/Q7 裁决重写了试点门槛（§6.1）与 shrink 的拒绝理由（§2）。**变更清单见 §10。**
+> **v3（2026-09-04）按第二轮复核（R1–R6）修订**：① 更正 v2 新引入的适配器层级错误——13 个适配器目录中 **4 个**走 hook/插件注入（3 份 `plugin.json` 声明 `hooks` 字段 + `.opencode` server plugin），非"全部纯指令层"（§1、§6.3）；② 统一字节口径并修正数值漂移（715/157/298，规则合计 872，§2）；③ 行数口径校准（`wc -l` 32 行 = 31 content lines + 标题行，"33 行"作废，§1）；④ 按 R2 统一术语："保留"取代"转正"，期满结论不得附带收益量级声明。**变更清单见 §10。**
+> v2 已更正 v1 的三处硬错（评测对象 / 体积分层 / hooks 产品归属），复核确认全部到位。
 > 上游事实基于固定 commit `2ed6c52c9d7e5e56942508591085fd45dea277d3`（v4.9.0）实测，不是二手转述。
-> 相关文件：`docs/research/ponytail-minimal-code-adoption-proposal.md`（提案，规则文本与不采纳项的真相源）、`docs/reviews/ponytail-lite-pilot-2026-09.md`（试点记录与**裁决门槛的真相源**，当前 0/5 任务）。
+> 相关文件：`docs/research/ponytail-minimal-code-adoption-proposal.md`（提案 v6，规则文本与不采纳项的真相源）、`docs/reviews/ponytail-lite-pilot-2026-09.md`（试点记录与**裁决门槛的真相源**，当前 0/5 任务）。
 
 ---
 
 ## 0. 一句话摘要
 
-我们把上游 33 行指令内核中的 **3 条规则**（选择顺序 / bug 根因 / review 的 stdlib 重复检查）改编后内联进本仓库的实施 workflow，共 871 字节；**拒绝了它的分发层、度量层、包装层，以及 2 条有安全或证据问题的规则**。
+我们把上游指令内核（2,593 字节）中的 **3 条规则**（选择顺序 / bug 根因 / review 的 stdlib 重复检查）改编后内联进本仓库的实施 workflow，规则部分共 **872 字节**；**拒绝了它的分发层、度量层、包装层，以及 2 条有安全或证据问题的规则**。
 
 改动是纯文档、可逆、带 hard gate。**本仓库对这三条规则的本地证据为零——试点尚未开始**（§6.1）。
 
@@ -24,7 +25,7 @@
 
 | 层 | 内容 | 字节 | 占比 | 是否产生效果 |
 |---|---|---:|---:|---|
-| **指令内核** | `AGENTS.md` 33 行：7 档阶梯 + bug 根因 + 8 条 Rules + 豁免清单 | **2,593** | **0.16%** | ✅ 规则本体 |
+| **指令内核** | `AGENTS.md`：7 档阶梯 + bug 根因 + 8 条 Rules + 豁免清单。`wc -l` = **32 行**；JetBrains 原文称 "**31 content lines**"（即去掉标题行后的内容行数，两者自洽）。**v1/v2 写的"33 行"是错的**（那是含末尾空元素的 split 计数） | **2,593** | **0.16%** | ✅ 规则本体 |
 | **命令层** | `skills/` 6 个 skill（ponytail / review / audit / debt / gain / help）+ `commands/` | 21,550 | 1.32% | 承载内核的按需调用 + 3 个度量命令 |
 | **管道层** | `hooks/` 11 个文件（activate / mode-tracker / subagent / instructions / runtime / statusline） | 30,365 | 1.86% | 保证内核每轮与向子代理注入——只解决"送达" |
 | **分发层** | 13 个宿主适配器目录、MCP server、`pi-extension/`、`scripts/`、插件元数据 | 91,303 | 5.58% | 适配，不产生效果 |
@@ -55,17 +56,34 @@ Bug fix = root cause, not symptom: a report names a symptom. Grep every caller o
 Not lazy about: understanding the problem (...), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (...), anything explicitly requested.
 ```
 
-**一个实测发现（对 §6.3 很关键）**：13 个宿主适配器目录（`.agents` `.claude-plugin` `.clinerules` `.codex-plugin` `.cursor` `.devin-plugin` `.grok-plugin` `.kiro` `.openclaw` `.opencode` `.qoder` `.qoder-plugin` `.windsurf`）的内容**全部是 instruction-tier**（`rules/` `skills/` `steering/` `plugin.json`），**没有一个目录包含 hooks**。仓库里只有 3 份 hooks 配置：`hooks/claude-codex-hooks.json`、`hooks/copilot-hooks.json`、`hooks/qoder-hooks.json`。也就是说上游宣称的 20 个宿主里，走 hooks 注入的是少数，多数与我们一样是纯指令层路线。
+**宿主适配器的层级实测**（v2 曾在此犯错，v3 更正）：
+
+| 层级 | 适配器目录 | 数量 | 机制 |
+|---|---|---:|---|
+| **hook / 插件注入** | `.claude-plugin`、`.codex-plugin`、`.qoder-plugin` | 3 | `plugin.json` 声明 `"hooks"` 字段指向 `hooks/` 下的配置（前两者共用 `claude-codex-hooks.json`，后者用 `qoder-hooks.json`） |
+| **hook / 插件注入** | `.opencode` | 1 | `opencode.json` 注册 server plugin（`.opencode/plugins/ponytail.mjs`），源码自述"injects the ruleset into every chat's system prompt at the active intensity" |
+| **纯指令层** | `.agents` `.clinerules` `.cursor` `.devin-plugin` `.grok-plugin` `.kiro` `.openclaw` `.qoder` `.windsurf` | 9 | 仅 `rules/` `skills/` `steering/` `command/` 等指令文件 |
+
+此外 `docs/agent-portability.md` 还列出两个不在上述 13 目录内的宿主：**pi**（通过 `pi-extension/` + 共享 instruction builder 每轮注入）与 **Hermes**（`plugin.yaml`，经 `pre_llm_call` 注入）。
+
+**结论（v3 更正后）**：13 个适配器目录中 **4 个走 hook/插件注入，9 个为纯指令层**。v2 称"13 个全部是 instruction-tier"是错的——目录里确实没有 hook 文件，但 3 份 `plugin.json` 的 `hooks` 字段指向了仓库根的 `hooks/` 配置，`.opencode` 则是 server plugin，层级判断不能只看目录内文件。**按计数，"纯指令层是多数路线"（9/13）这个方向性结论仍然成立**，我们的选择与之兼容；但"多数与我们一样"不能说成"全部"。
 
 ---
 
-## 2. 我们吸收了什么（三处落地，共 871 字节）
+## 2. 我们吸收了什么（三处落地，规则部分共 872 字节）
 
-| # | 规则 | 落点 | 字节 |
-|---|---|---|---:|
-| A-lite + D | 选择顺序 + bug 根因 | `docs/agents/implementation-workflow.md` §6 步骤 2 | 713 |
-| B-lite | review 的 stdlib/native 重复检查 | 同文件 §8 步骤 3 | 158 |
-| （临时） | 试点回写路由 | 同文件 §9 步骤 3，裁决后删除 | 260 |
+> **字节口径（v3 统一；v2 混用了两种口径导致数值漂移）**：UTF-8 编码字节数，**不含行尾换行符**，即 `len(s.encode('utf-8'))`。整行条目**包含**列表编号前缀（`2. ` / `3. `）。
+> 若用 `wc -c`（计入行尾换行）复算，整行条目各 **+1**（即 716 / 299），句内条目取决于取法——**请以 §8 的脚本为准，不要手工 `wc -c`**。v2 的 713 / 260 系 Q4 措辞重写前的旧值且口径混杂，已作废。
+
+| # | 规则 | 落点 | 取数方式 | 字节 |
+|---|---|---|---|---:|
+| A-lite + D | 选择顺序 + bug 根因 | `docs/agents/implementation-workflow.md` §6 步骤 2（L142 整行） | 整行 | 715 |
+| B-lite | review 的 stdlib/native 重复检查 | 同文件 §8 步骤 3（L175，行内追加至第一个句号） | 句 | 157 |
+| （临时） | 试点回写路由 | 同文件 §9 步骤 3（L186 整行，裁决后删除） | 整行 | 298 |
+| | | | **两处长期规则合计** | **872** |
+| | | | 三处合计（含临时路由句） | 1,170 |
+
+注意：A-lite/D 的 715 字节是**替换后的整个步骤 2**，其中含原有的 seam 规则与 `codebase-design` 调用条件，不是纯增量；B-lite 的 157 字节才是净追加。这一点 v1 未说明，容易被误读为"我们只加了 872 字节就复刻了上游"。
 
 **已落地的实际文本**（逐字引用，reviewer 可直接核对）：
 
@@ -129,7 +147,7 @@ Not lazy about: understanding the problem (...), input validation at trust bound
 > "Arm B ponytail v4.8.4: skill installed *and* its ruleset injected, **byte-identical to the ruleset text its own `SessionStart` hook generates**... A close emulation of the shipped plugin's **full mode**, with three documented differences (no first-run statusline nudge, **no subagent re-injection**, ruleset appended after the task rather than before it)"
 > "**Provenance.** ponytail pinned at commit `16f2980` (v4.8.4, MIT); agent version pinned in both arms; the injected ruleset generated by ponytail's own hook code, **sha256 recorded**."
 
-**结论：评测注入的是钩子生成的 full-mode 规则集（含 persistence、output、intensity 等内容），不是紧凑的 `AGENTS.md` 33 行内核，更不是我们的三条改编规则。** 原文全文未出现 `AGENTS.md` 或 "33-line"字样。因此：
+**结论：评测注入的是钩子生成的 full-mode 规则集（含 persistence、output、intensity 等内容），不是紧凑的 `AGENTS.md` 内核（2,593 字节 / 31 content lines），更不是我们的三条改编规则。** 原文全文未出现 `AGENTS.md` 或 "33-line" 字样。因此：
 
 - ❌ v1 的"我们保留的 0.05% 是唯一被独立评测覆盖的层"**撤回**；
 - ❌ 该评测**不能**用于推断我们三条规则的效果量级——它是完整规则集 + 已审计注入的结果，我们的变体是它的子集且注入无保障；
@@ -180,9 +198,11 @@ v1 用过"5%"这个口语估算。三个可核对的口径：
 
 | 口径 | 计算 | 结果 |
 |---|---|---:|
-| 吸收量 / 上游全仓库字节 | 871 / 1,636,232 | **0.05%** |
-| 被吸收的原文 / 上游规则本体 | 760（`AGENTS.md` 的阶梯 9 行 + 根因 1 行）/ 2,593 | **29%** |
-| 增量 / 我们的 workflow | 871 / (14,148 − 871) | **6.6%** |
+| 吸收量 / 上游全仓库字节 | 872 / 1,636,232 | **0.053%** |
+| 被吸收的原文 / 上游规则本体 | 760（`AGENTS.md` 的阶梯 9 行 + 根因 1 行）/ 2,593 | **29.3%** |
+| 落地文本 / 我们的 workflow | 872 / (14,151 − 872) | **6.6%** |
+
+第三个口径里的 14,151 是 workflow 文件当前总字节（2026-09-04 实测；v2 写的 14,148 已因 Q4 措辞重写漂移 +3）。⚠️ 该口径的分子 872 含"替换后整行"的既有内容（见 §2 尾注），所以**它不是纯增量，偏高**；纯追加部分只有 B-lite 的 157 字节。
 
 **同一个改造，从 0.05% 到 29%，相差 580 倍——"百分比"本身是个陷阱。** 正确的问法不是"吸收了多少"，而是"砍掉的是否产生效果"：
 
@@ -195,11 +215,11 @@ v1 用过"5%"这个口语估算。三个可核对的口径：
 
 ## 6. 已知弱点与未解决事项
 
-### 6.1 试点数据为零，且 v1 的门槛不足以支撑转正（已按 Q1/Q5/Q6/Q7 重写）
+### 6.1 试点数据为零，且 v1 的门槛不足以支撑保留（已按 Q1/Q5/Q6/Q7 重写）
 
 `docs/reviews/ponytail-lite-pilot-2026-09.md` 的记录表**当前为空**（0/5）。因此本材料全部论证基于**外部证据 + 推理**，无一条本地实证。
 
-v1 的门槛有缺陷（复核 Q1 指出）：A-lite 只要求"改变选择"、D 只要求"实际触发"，**都不要求结果更好**；hard gate 只覆盖 A-lite/D 的部分回归。**据此转正会把"规则改变了行为"误当成"规则有价值"。**
+v1 的门槛有缺陷（复核 Q1 指出）：A-lite 只要求"改变选择"、D 只要求"实际触发"，**都不要求结果更好**；hard gate 只覆盖 A-lite/D 的部分回归。**据此保留会把"规则改变了行为"误当成"规则有价值"。**（v3 起本材料统一用"保留"而非"转正"，理由见 R2）
 
 v2 门槛（完整版在试点记录文件，此处不复制）：
 
@@ -231,7 +251,7 @@ v2 门槛（完整版在试点记录文件，此处不复制）：
 
 **为什么仍然暂缓**：钩子只解决"规则是否到达模型"，不回答"规则在本仓库是否有价值或有害"。二者正交。且 JetBrains 的质量结果是 null（p=0.61），安全性无法靠上游证据背书——这是我们必须自己跑试点的根本理由。
 
-**以及一个支持"规则不依赖钩子"的实测事实**（§1）：上游 13 个宿主适配器目录全部是 instruction-tier，只有 3 份 hooks 配置（Claude/Codex、Copilot、Qoder）。**我们选择的路线（纯文本指令层）与上游大多数宿主一致**，不是妥协。
+**以及一个支持"规则不依赖钩子"的实测事实**（§1，v3 已更正计数）：上游 13 个宿主适配器目录中 **4 个走 hook/插件注入，9 个是纯指令层**（逐目录清单见 §1）。**纯指令层是多数的适配方式，我们的选择属于多数路线，不是妥协**；同时也应看到上游为具备钩子能力的宿主确实做了额外的一层。
 
 ### 6.4 改动落点的两处顺序修正（已执行，供复核）
 1. **A-lite 与"选最高最稳定的 public seam"的顺序**——原 workflow 先讲 seam 选择，与 A-lite 首档"无需新增代码"直接冲突（不需要写代码时不存在 seam 选择）。落地文本把 seam 移到"若需新增代码"之后。
@@ -243,11 +263,11 @@ v2 门槛（完整版在试点记录文件，此处不复制）：
 
 | # | 复核裁决 | 落实 |
 |---|---|---|
-| **Q1** | 可试点，不可按当前门槛转正 | ✅ 门槛重写为"需正向证据"（§6.1 + 试点记录文件 v2）；hard gate 扩到六项 |
+| **Q1** | 可试点，不可按当前门槛转正 | ✅ 门槛重写为"需正向证据"（§6.1 + 试点记录文件 v2）；hard gate 扩到六项。**v3 补充**：统一术语为"保留"，且明确"保留"不得附带收益量级声明（R2） |
 | **Q2** | 同意删除"一行"横档 | ✅ 维持删除，理由不变（§2） |
 | **Q3** | 维持 stdlib/native，但重写 `shrink` 的拒绝理由 | ✅ §2 逐 tag 表重写：`shrink` 的理由改为"激励 code golf + 低价值噪音"，不再称被 Fowler 覆盖 |
 | **Q4** | 判据是改进，措辞改为"公共 seam 拥有该不变量" | ✅ §6 步骤 2 落地文本改为"仅当该不变量属于公共 seam 时在 seam 处修复根因，否则在各调用方分别修复"；提案 §5 文本源同步 |
-| **Q5** | 必须在首个任务前增加 delivery evidence | ✅ 试点表新增"规则是否到达（evidence）"栏 + 字段口径说明；转正门槛要求 ≥80% 任务有正向 evidence |
+| **Q5** | 必须在首个任务前增加 delivery evidence | ✅ 试点表新增"规则是否到达（evidence）"栏 + 字段口径说明；保留门槛要求 ≥80% 任务有正向 evidence |
 | **Q6** | 5 个任务只够 canary，不够采纳裁决 | ✅ §6.1 与试点文件范围段明示"不足以支撑采纳裁决"；未获正向证据时延长或标记未验证 |
 | **Q7** | 主文本基本足够，hard gate 应覆盖 spec parity、测试和可访问性 | ✅ hard gate 从 3 项扩到 6 项，新增 spec parity 缺失、测试被省略或弱化、可访问性回归 |
 
@@ -307,16 +327,39 @@ print(f"{'合计':10s} {s:>10,}  / 全仓 {grand:,}  未归类: {set(tot)-seen o
 PY
 
 # 规则内核全文 + review 镜头（B-lite 逐 tag 取舍依据）
-sed -n '1,33p' AGENTS.md
+cat AGENTS.md                        # 2,593 字节；wc -l = 32 行（31 content lines + 标题行）
 cat skills/ponytail-review/SKILL.md
 
-# 实测：13 个宿主适配器目录里没有一个含 hooks
-ls -A .claude-plugin .cursor .windsurf .kiro .opencode .agents
+# 实测：13 个宿主适配器目录的层级（v2 只 ls 了目录，遗漏了 manifest 声明层级 → 结论出错）
+for d in .agents .claude-plugin .clinerules .codex-plugin .cursor .devin-plugin \
+         .grok-plugin .kiro .openclaw .opencode .qoder .qoder-plugin .windsurf; do
+  h=$(grep -rl "hooks" "$d" 2>/dev/null | tr '\n' ' ')
+  printf "%-16s %s\n" "$d" "${h:-（纯指令层）}"
+done
+# 期望：.claude-plugin / .codex-plugin / .qoder-plugin（plugin.json 的 hooks 字段）
+#      + .opencode（server plugin）共 4 个非纯指令层；其余 9 个无 hooks 引用
+grep -n '"hooks"' .claude-plugin/plugin.json .codex-plugin/plugin.json .qoder-plugin/plugin.json
+head -8 .opencode/plugins/ponytail.mjs      # 自述 "injects the ruleset into every chat's system prompt"
+grep -n -i "pi\b\|hermes\|pre_llm_call" docs/agent-portability.md
 
 # 本仓库：三处落地文本
-sed -n '142p' docs/agents/implementation-workflow.md    # A-lite + D
-sed -n '175p' docs/agents/implementation-workflow.md    # B-lite（§8 步骤 3）
-sed -n '186p' docs/agents/implementation-workflow.md    # 试点路由（§9 步骤 3）
+sed -n '142p;175p;186p' docs/agents/implementation-workflow.md   # A-lite+D / B-lite / 试点路由
+
+# 字节数复算（§2 表的口径：UTF-8 字节，不含行尾换行）
+python3 - <<'PY'
+import re
+L = open('docs/agents/implementation-workflow.md', encoding='utf-8').read().split('\n')
+b = lambda s: len(s.encode('utf-8'))
+a, bl, r = L[141], L[174], L[185]
+bls = re.search(r'Standards 轴额外检查[^。]*。', bl).group(0)
+print('A-lite/D  整行 L142:', b(a))
+print('B-lite    追加句   :', b(bls))
+print('路由句    整行 L186:', b(r))
+print('两处规则合计       :', b(a) + b(bls))
+print('三处合计           :', b(a) + b(bls) + b(r))
+PY
+# 期望输出：715 / 157 / 298 / 872 / 1170
+# 注：wc -c 计入行尾换行，整行条目各 +1（716 / 299），不要用它对表
 
 # 试点记录与裁决门槛（当前 0/5）
 cat docs/reviews/ponytail-lite-pilot-2026-09.md
@@ -330,27 +373,40 @@ npm run lint:docs
 
 ---
 
-## 9. 第二轮复核结论（复核方填写）
+## 9. 第二轮复核结论（复核方填写，2026-09-04 已回填）
 
-| # | 裁决 | 落实状态 |
-|---|---|---|
-| R1 | v1 的三处事实性更正是否到位（评测对象 / 体积分层 / hooks 产品） | |
-| R2 | 新门槛是否足以支撑"转正"判断（是否仍可能把"改变了行为"当成"有价值"） | |
-| R3 | "规则是否到达"栏的 evidence 标准是否可执行（如何判定"到达"，谁填） | |
-| R4 | 在外部证据不适用于本变体的前提下，试点是否是唯一合理的验证路径 | |
-| R5 | 是否应现在就上 `SessionStart` / `UserPromptSubmit` 钩子（Q5 遗留：送达问题） | |
-| R6 | 其他 | |
+| # | 裁决 | 复核结论 | v3 落实 |
+|---|---|---|---|
+| R1 | v1 的三处事实性更正是否到位 | **到位**（评测对象逐字核对一致、体积分层闭合复算通过、hooks 归属消除），**但 v2 新引入一条中等级错误**：§1/§6.3 称"13 个适配器全部纯指令层"——实际 3 份 `plugin.json` 声明 `hooks` 字段、`.opencode` 是 server plugin，**4 个非纯指令层** | ✅ §1 重写为逐目录层级表（4 hook/插件注入 + 9 纯指令层），§6.3 同步，§8 复现命令改为逐目录 grep |
+| R2 | 新门槛是否足以支撑保留判断 | **基本足够**，正向证据化全部落实；残留张力：既有"5 任务不足以采纳裁决"又有"转正"档，易被读成采纳了收益量级 | ✅ 统一术语"**保留**"取代"转正"（试点记录 + 提案 v6），期满结论菜单限定五种，**保留结论不得附带任何收益量级声明** |
+| R3 | evidence 标准是否可执行 | **可执行**（"没有 evidence 就填无，不要推测"口径明确；自报偏差存在但可接受，已要求写证据来源供抽查） | ✅ 无需改动 |
+| R4 | 试点是否唯一合理验证路径 | **是**（外部证据不外推 + 装上游完整插件会引入宿主绑定混淆变量；试点 + 交付确认是当前成本下唯一能把"没效果"和"没读到"分开的设计） | ✅ 无需改动 |
+| R5 | 是否现在上 `SessionStart`/`UserPromptSubmit` 钩子 | **不上，同意暂缓**（钩子只解决送达不回答价值；Factory 无 SubagentStart，上游子代理注入路径本宿主做不到）。**触发条件**：试点前 2–3 个任务若交付确认 <80%，再评钩子 | ✅ 触发条件已写入试点记录"未达门槛时的处置" |
+| R6 | 其他 | 两处数值漂移（低）：§6 步骤 2 实测 716（表写 713）、路由句实测 299（表写 260）；行数口径 31 content lines / wc -l 32 ≠ "33 行" | ✅ 统一口径为 UTF-8 字节不含换行（715/157/298，§2 + §8 脚本）；行数口径校准（§1） |
+
+**第二轮总结论（复核方）**：v2 的三处事实性更正全部到位且经独立复算确认；修订有效。剩余问题均为表述级，**不影响试点启动**。试点本身（0/5）仍无本地证据——"有用吗"的答案要等试点；v3 的价值在于让这个答案可被观测而不是被声明。
+
+### 第三轮待裁问题
+
+复核方第二轮结论为"剩余问题均为表述级、不影响试点启动"，**无新增待裁问题**。下一轮复核的触发点：试点满 5 个任务（或 4 周）期满裁决时，携试点记录表再送审。
 
 ---
 
-## 10. v1 → v2 变更清单
+## 10. 变更清单
+
+**v1 → v2**（第一轮复核 Q1–Q7）：
 
 1. **撤回**"0.05% 是唯一被独立评测覆盖的层"（§0、§5）——评测对象是钩子生成的 full-mode 规则集。
 2. §4.1 逐字引用 JetBrains 的 Setup 与 Provenance 段落，标注评测版本 v4.8.4（commit `16f2980`）与仓库实测版本 v4.9.0 不同。
-3. §1 分层重算：固定 SHA、含 dotfiles、七层、合计闭合 100.00%；补入"13 个适配器目录均为 instruction-tier、仅 3 份 hooks 配置"的实测。
+3. §1 分层重算：固定 SHA、含 dotfiles、七层、合计闭合 100.00%。
 4. §6.3 hooks 段重写：改为当前宿主 Factory / Droid 的官方配置与事件表，补上"无 SubagentStart"约束。
 5. §2 新增逐 tag 表，`shrink` 的拒绝理由改为 code golf 与噪音。
 6. §6.1 与试点记录文件：门槛重写为需正向证据，新增五类字段，hard gate 三项扩到六项。
 7. §4.2 新增反驳 1（外部证据不适用于本变体）与反驳 6（子集推不出上界）。
 8. 统计措辞全面更正（时间 p 值、预期收益、置信区间、成本区间）。
-9. §7 填入第一轮 Q1–Q7 裁决与落实状态；§9 改为第二轮待裁问题。
+
+**v2 → v3**（第二轮复核 R1–R6，2026-09-04）：
+
+1. **更正 v2 新引入的层级错误**（R1）：§1 重写为逐目录层级表——13 个适配器中 **4 个**走 hook/插件注入（`.claude-plugin`/`.codex-plugin`/`.qoder-plugin` 的 `plugin.json` 声明 `hooks` 字段 + `.opencode` server plugin 每轮注入），9 个纯指令层；补 `agent-portability.md` 中 pi（每轮注入）与 Hermes（`pre_llm_call`）两个目录外宿主。"全部纯指令层"的说法撤回。
+2. **统一术语**（R2）："保留"取代"转正"（试点记录 + 提案 v6 同步），期满结论菜单限定为保留/延长后再裁/修订后再试/撤销/未验证五种，**保留结论不得附带收益量级声明**；R5 钩子升级触发条件写入试点记录。
+3. **数值与口径统一**（R6）：§2 明确字节口径（UTF-8 不含行尾换行），实测 715/157/298、规则合计 872、三处 1,170；§5 吸收率重算（0.053% / 29.3% / 6.6%）并标注"715 含替换行既有内容、非纯增量"的 caveat；§1 行数口径校准（`wc -l` 32 = 31 content lines + 标题行，"33 行"作废）；§8 增加字节复算脚本与适配器层级逐目录核查命令。
