@@ -26,6 +26,10 @@ export const SITE_RATE_CONFIG = {
   "bilibili.com": { baseDelay: 5000, jitter: [0.6, 1.4], maxPerHour: 50 },
   "zhihu.com": { baseDelay: 7000, jitter: [0.7, 1.3], maxPerHour: 40 },
   "xiaohongshu.com": { baseDelay: 15000, jitter: [0.6, 1.4], maxPerHour: 20 },
+  // Self-hosted services on the local machine (SearXNG #92) — no throttle:
+  // zero inter-request delay and no hourly cap. The host proxy carries the
+  // per-backend-engine limits, not the local frontend.
+  localhost: { baseDelay: 0, jitter: [1, 1], maxPerHour: Infinity },
   _default: { baseDelay: 1000, jitter: [0.5, 2.0], maxPerHour: 200 },
 };
 

@@ -1724,6 +1724,57 @@ export const GENERAL_SEARCH_SOURCES = [
     `,
   },
   {
+    name: "searxng_search",
+    label: "SearXNG (self-hosted)",
+    category: "general",
+    needsAuth: false,
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "api",
+      notes:
+        "Self-hosted SearXNG metasearch (Docker in colima, localhost:8888; #92). JSON API primary — no API key, no per-query cost, aggregates 269 engines. CDP HTML fallback for API outages. Backend engines sit behind the host proxy and may CAPTCHA/timeout; multi-engine redundancy covers.",
+    },
+    useCleanTitle: false,
+    // JSON API (fast-first layer, ~2s). Requires search.formats: [html, json]
+    // in the container's settings.yml and outgoing.proxies pointing at the
+    // host proxy — SearXNG's httpx client ignores proxy environment variables.
+    apiSearch: {
+      url: (keyword) =>
+        `http://localhost:8888/search?q=${encodeURIComponent(keyword + " China AI")}&format=json&categories=general&language=en`,
+      parser: (text) => {
+        const data = JSON.parse(text);
+        if (!Array.isArray(data.results)) return [];
+        return data.results
+          .filter((r) => r?.url)
+          .slice(0, 20)
+          .map((r) => ({
+            title: r.title || "",
+            url: r.url,
+            snippet: r.content ? String(r.content).substring(0, 200) : "",
+            publishedAt: r.publishedDate || "",
+          }));
+      },
+      authRequired: false,
+    },
+    // CDP fallback: same query against the HTML results page (simple theme).
+    url: (keyword) => `http://localhost:8888/search?q=${encodeURIComponent(keyword + " China AI")}`,
+    articleScript: `
+      var results = [];
+      document.querySelectorAll('article.result').forEach(function(el) {
+        var link = el.querySelector('h3 a');
+        var snippet = el.querySelector('p.content');
+        if (link && link.href) {
+          results.push({
+            title: link.textContent.trim(),
+            url: link.href,
+            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+          });
+        }
+      });
+      return results.slice(0, 20);
+    `,
+  },
+  {
     name: "mcp_grok_search",
     label: "Grok Web Search",
     category: "general",
@@ -2967,6 +3018,11 @@ export const SOURCE_ATTRIBUTIONS = {
   },
   duckduckgo_search: {
     text: (a) => `Source: ${a.sourceUrl || "DuckDuckGo"} (via DuckDuckGo Search)`,
+    license: "Varies",
+    logoRequired: false,
+  },
+  searxng_search: {
+    text: (a) => `Source: ${a.sourceUrl || "SearXNG"} (via SearXNG metasearch)`,
     license: "Varies",
     logoRequired: false,
   },

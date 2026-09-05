@@ -277,10 +277,11 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-  it("ALL_SOURCES has 63 sources (62 + baidu_news #64)", () => {
-    // 46 existing + 7 CDP image search + 8 stock_media + duckduckgo + baidu_news = 63
+  it("ALL_SOURCES has 64 sources (63 + searxng_search #92)", () => {
+    // 46 existing + 7 CDP image search + 8 stock_media + duckduckgo + baidu_news
+    // + searxng_search = 64
     // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
-    expect(ALL_SOURCES).toHaveLength(63);
+    expect(ALL_SOURCES).toHaveLength(64);
   });
 
   it("source names are still unique after merge", () => {

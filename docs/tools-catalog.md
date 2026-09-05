@@ -28,6 +28,7 @@
 | Tavily MCP                                   | AI 搜索                   | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ fallback 链末位（硬规则见 Tavily 小节，本文件唯一权威） |
 | mcp-search-bridge                            | 搜索（Grok）              | 按用量          | ✅ 已集成            | ⭐⭐ X/Twitter+全网                                            |
 | `search-sources.mjs`                         | 趋势发现（中文平台）      | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
+| SearXNG（自托管）                            | 搜索（metasearch）        | ✅ 自托管       | ✅ 已集成            | ⭐⭐⭐ 快速优先层，零限额                                      |
 | Jina Reader API                              | 联网/抓取                 | ✅ 1M tokens/月 | ✅ 已集成(MCP)       | ⭐⭐⭐ URL→Markdown                                            |
 | `pdf-parse` (npm)                            | 文档解析                  | ✅              | ✅ 已集成            | ⭐⭐ 够用                                                      |
 | Firecrawl `parse`                            | 文档解析                  | 注册免费        | 📋 待评估            | ⭐⭐⭐ 补充                                                    |
@@ -144,6 +145,20 @@
 - **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据访问），也是 5 个西方源的主要搜索方式。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`
 - **Fallback 链**：CDP → googleSiteFallback (Google site: 搜索) → mcpFallback (mcp-search-bridge/Grok)
 - **何时用**：做视频前找话题，或文章前找中文平台趋势
+
+### SearXNG — 自托管 metasearch（快速优先搜索层）
+
+- **分类**：搜索（自托管 metasearch，聚合最多 269 个引擎）
+- **费用**：免费（Docker 自托管，无 API key、无每查询成本、无前端层限额）
+- **状态**：✅ 已部署并接入管线（#92，2026-09-05）
+- **部署**：colima 里 `searxng/searxng:latest` 容器，宿主端口 `8888`；Watchtower 每 24h 自动更新；JSON API 已启用
+- **管线接入**：`source-registry.mjs` 的 `searxng_search` 源（GENERAL_SEARCH_SOURCES）——apiSearch 直连 JSON API（collectFromSource Layer 0），CDP HTML 结果页兜底；rate-limiter 对 `localhost` 零延迟、无小时上限（自托管前端不设限）
+- **搜索位置**：fast-first——SearXNG ~2s 返回聚合结果；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
+- **运维要点（2026-09-05 实测教训）**：
+  - `settings.yml` 必须含 `search.formats: [html, json]`，否则 JSON API 返回 403——容器 volume 里的配置可能被镜像更新回退，需复查
+  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`（当前指向宿主代理 `http://192.168.5.2:7897`；代理端口变化后要同步更新并重建容器）
+  - 后端引擎走宿主代理出口，公共出口可能 rate-limit/CAPTCHA（brave/DDG/startpage），Google CSE 通常可用——多引擎冗余兜住，单查询 20 条结果可稳定拿到
+- **何时用**：管线自动使用（trend/research 的 general 源之一）；人工调试用 `curl 'http://localhost:8888/search?q=<kw>&format=json'`
 
 ### pdf-parse (npm)
 

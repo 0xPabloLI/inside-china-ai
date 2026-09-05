@@ -26,9 +26,9 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 63 sources", () => {
-    // 62 + baidu_news (#64)
-    expect(ALL_SOURCES).toHaveLength(63);
+  it("ALL_SOURCES has 64 sources", () => {
+    // 63 + searxng_search (#92)
+    expect(ALL_SOURCES).toHaveLength(64);
   });
 
   it("each source has required fields", () => {
@@ -450,8 +450,8 @@ describe("Locale field", () => {
 // ─── General search sources ───
 
 describe("General search sources", () => {
-  it("GENERAL_SEARCH_SOURCES has 4 sources (currents/noozra moved to INTERNATIONAL_SOURCES #64)", () => {
-    expect(GENERAL_SEARCH_SOURCES).toHaveLength(4);
+  it("GENERAL_SEARCH_SOURCES has 5 sources (currents/noozra moved to INTERNATIONAL_SOURCES #64, +searxng_search #92)", () => {
+    expect(GENERAL_SEARCH_SOURCES).toHaveLength(5);
   });
 
   it("includes google_search (was web_grounding)", () => {
@@ -627,8 +627,8 @@ describe("supportsKeyword validation", () => {
     // tiktok_creator (via ScrapeCreators API)
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
-    // + duckduckgo_search (#91) + baidu_news (#64)
-    expect(keywordSources.length).toBe(43);
+    // + duckduckgo_search (#91) + baidu_news (#64) + searxng_search (#92)
+    expect(keywordSources.length).toBe(44);
   });
 });
 
@@ -1017,9 +1017,10 @@ describe("apiSearch configuration", () => {
       if (src.name === "tiktok_creator") continue;
       expect(src.apiSearch).toBeUndefined();
     }
-    // General search sources: none have apiSearch (currents/noozra_search
-    // were moved to INTERNATIONAL_SOURCES in #64)
+    // General search sources: only searxng_search has apiSearch (#92);
+    // currents/noozra_search were moved to INTERNATIONAL_SOURCES in #64
     for (const src of GENERAL_SEARCH_SOURCES) {
+      if (src.name === "searxng_search") continue;
       expect(src.apiSearch).toBeUndefined();
     }
     // youtube and threads don't have apiSearch
@@ -1029,9 +1030,9 @@ describe("apiSearch configuration", () => {
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("includes the 11 existing API sources and 12 public Wechat RSS sources", () => {
+  it("includes the 12 existing API sources and 12 public Wechat RSS sources", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(23);
+    expect(withApi).toHaveLength(24);
     const names = withApi.map((s) => s.name);
     expect(names).toEqual(
       expect.arrayContaining([
@@ -1045,6 +1046,7 @@ describe("apiSearch configuration", () => {
         "noozra_search",
         "openalex_search",
         "reddit_search",
+        "searxng_search",
         "tiktok_creator",
         ...WECHAT_RSS_SOURCES.map((source) => source.name),
       ]),
