@@ -111,12 +111,30 @@ fi
 wtpath="${1:-}"
 [ -n "$wtpath" ] || { echo "usage: session-launcher.sh stop <worktree-path>" >&2; exit 1; }
 WT_GITDIR=$(git -C "$wtpath" rev-parse --absolute-git-dir 2>/dev/null || true)
+session_id=""
 if [ -n "$WT_GITDIR" ] && [ -f "$WT_GITDIR/session-pilot/current-session" ]; then
+  session_id=$(head -n 1 "$WT_GITDIR/session-pilot/current-session" | tr -d '[:space:]')
   rm -f "$WT_GITDIR/session-pilot/current-session"
   echo "[session] state cleared (auto-fill off, ref-gate back to warn mode)"
 fi
 if git worktree remove "$wtpath" >/dev/null 2>&1; then
   echo "[session] worktree removed: $wtpath"
+  # #195: a removed worktree means the session ended — delete the session
+  # branch when it is fully merged. `git branch -d` (never -D) safely refuses
+  # unmerged branches, which is the auto-exemption for work that never
+  # landed on main. Deletion failure never blocks the stop flow.
+  if [ -n "$session_id" ]; then
+    if git branch -d "session/$session_id" >/dev/null 2>&1; then
+      echo "[session] merged session branch deleted: session/$session_id"
+    else
+      echo "[session] session branch kept (branch -d refused: unmerged or already merged elsewhere): session/$session_id"
+    fi
+  fi
 else
   echo "[session] worktree kept (dirty or locked). When done cleaning up: git worktree remove --force \"$wtpath\" (destructive — check first)"
+  # Dirty means the work never landed — the branch is the only entry point
+  # to it, so it must survive (#195).
+  if [ -n "$session_id" ]; then
+    echo "[session] session branch kept (worktree dirty): session/$session_id"
+  fi
 fi
