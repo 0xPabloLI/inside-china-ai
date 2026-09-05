@@ -616,18 +616,23 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 > ⚠️ **Kaggle P100 退役公告**（2026-08-18 发现）：Kaggle 将于 **2026 年 9 月 15 日** 退役 P100，届时 P100 自动切换到 T4 x2。之后 Kaggle 只有 T4 x2 和 TPU 可选。详见 [Sunsetting P100 announcement](https://www.kaggle.com/discussions/product-announcements/735239)。
 
-### 资源优先级（2026-08-20 更新）
+### 资源优先级（2026-09-05 更新）
 
-| 优先级 | 平台                  | 命令                                                   | GPU              | 免费额度                                         | 适用场景               |
-| ------ | --------------------- | ------------------------------------------------------ | ---------------- | ------------------------------------------------ | ---------------------- |
-| 1️⃣     | **Kaggle (T4 x2)**    | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4` | T4 x2 (15GB×2)   | 30h/周刷新                                       | 自动化批量推理（默认） |
-| 2️⃣     | **Colab CLI (T4)**    | `colab run --gpu T4 script.py`                         | T4 14.6GB        | 不固定，空闲90min                                | 一键运行单脚本         |
-| 3️⃣     | **Colab CDP**         | web-access skill                                       | T4 14.6GB        | 同 Colab                                         | 交互式调试、参数调优   |
-| 4️⃣     | **Modal (T4)**        | `modal run script.py`                                  | T4 15GB          | $30/月（纯 GPU ~50h，含 186GB RAM 实际 ~20-30h） | serverless 函数推理    |
-| 5️⃣     | **Lightning AI (L4)** | Studio + SSH                                           | L4 22.5GB (bf16) | ~8h/月                                           | 16GB 不够时（付费后）  |
-| 6️⃣     | **AutoDL**            | 手动租用                                               | RTX 4090 24GB    | ¥1.88/h                                          | 长时间或 >22.5GB 时    |
+> **用户指定顺序**（2026-09-05）：Kaggle → AtomGit → Modal → AMD 开发者平台 → ModelScope → 付费平台。理由：Kaggle/AtomGit 额度周期性刷新最可持续；Modal 余额少需省用；AMD 开发者平台/ModelScope 额度一次性但量大；付费平台最后。
+
+| 优先级 | 平台                  | 命令/入口                                               | GPU/NPU            | 免费额度                                         | 适用场景               |
+| ------ | --------------------- | ------------------------------------------------------- | ------------------ | ------------------------------------------------ | ---------------------- |
+| 1️⃣     | **Kaggle (T4 x2)**    | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4`  | T4 x2 (15GB×2)     | 30h/周刷新                                       | 自动化批量推理（默认） |
+| 2️⃣     | **AtomGit NPU 910B**  | ai.atomgit.com → 我的Notebook                            | NPU 910B (64GB)    | 1000 核时/月刷新                                 | 非 CUDA 模型/大显存需求 |
+| 3️⃣     | **Modal (T4)**        | `modal run script.py`                                   | T4 15GB            | $30/月（余额少，省用）                           | serverless 函数推理    |
+| 4️⃣     | **AMD 开发者平台**    | developer.amd.com.cn/radeon/                            | AMD GPU (ROCm)     | 待确认额度                                       | ROCm 生态/AMD GPU 验证 |
+| 5️⃣     | **ModelScope AMD GPU** | modelscope.cn → Notebook                                | AMD GPU (192GB)    | 100h 一次性                                      | 192GB 大显存一次性验证 |
+| 6️⃣     | **Colab CLI (T4)**    | `colab run --gpu T4 script.py`                          | T4 14.6GB          | 不固定，空闲90min                                | 一键运行单脚本         |
+| 7️⃣     | **Lightning AI (L4)** | Studio + SSH                                            | L4 22.5GB (bf16)   | ~8h/月                                           | 16GB 不够时（付费后）  |
+| 8️⃣     | **AutoDL**            | 手动租用                                                | RTX 4090 24GB      | ¥1.88/h                                          | 长时间或 >22.5GB 时    |
 
 > Cloud Studio 和 Saturn Cloud 已从 GPU pool 移除（Cloud Studio 无免费 GPU；Saturn Cloud 无免费 GPU 且 markup 50%）。详见下方
+> **ModelScope NVIDIA GPU**（36h 一次性）已从主列表移除，因 T4 需求走 Kaggle 更可持续；ModelScope AMD GPU 保留因 192GB 显存独特价值。
 
 ### 默认 GPU 策略（2026-08-18 确立）
 
@@ -959,3 +964,61 @@ GPU count: 2
 | 百度 AI Studio       | 文心一言    | 需积分          | ERNIE    | 仅支持 PaddlePaddle           |
 
 > **项目当前不需要外部 LLM API token**。VLM 使用本地 mlx-vlm（Qwen3-VL-8B），RAG 使用本地 Ollama（bge-m3），无外部 LLM API 调用。几百万 token 用起来很快，目前无需求。
+
+---
+
+## TTS 引擎 GPU 成本与节约策略（Issue #179, 2026-09-05）
+
+### 实测成本复盘
+
+Issue #179 测试 3 个远程 TTS 引擎时直接上 Modal A100-40GB ($2.10/h)，**违反了先用 Kaggle 免费的原则**。复盘：
+
+| 引擎 | 模型大小 | 实际显存需求 | A100 是否必要 | 估算浪费 |
+|------|---------|-------------|-------------|---------|
+| VoxCPM2 | 0.5B | ~4-6GB | ❌ T4 16GB 够用 | ~$0.35 |
+| CosyVoice3 | 0.5B | ~6-8GB | ❌ T4 16GB 够用 | ~$0.50 |
+| Fish S2 | 4B | ~16-20GB | ⚠️ L4 24GB 可能够 | ~$0.70 |
+| **合计浪费** | | | | **~$1.5** |
+
+### 正确的 GPU 调用顺序（必须遵守，2026-09-05 用户指定）
+
+```
+1. Kaggle T4 16GB（免费，30h/周刷新）      ← ≤16GB 显存需求首选
+2. AtomGit NPU 910B 64GB（免费，1000核时/月刷新） ← 非 CUDA 模型/16-64GB 显存需求
+3. Modal T4 15GB（$30/月，余额少省用）       ← Kaggle 不够/不方便时
+4. AMD 开发者平台（ROCm，待确认额度）        ← ROCm 生态验证
+5. ModelScope AMD GPU 192GB（100h 一次性）   ← 192GB 大显存一次性验证
+6. Modal L4/A10G/A100（付费，从便宜档开始）  ← 以上都不够时
+7. AutoDL RTX 4090（¥1.88/h）               ← 长时间或付费备选
+```
+
+**判断标准**：先估算模型显存（参数量 × 2 bytes for fp16 / × 4 for fp32 + 生成缓冲），≤16GB 必走 Kaggle；16-64GB 且非 CUDA 优先 AtomGit NPU。
+
+### TTS 引擎显存估算参考
+
+| 引擎 | 参数量 | fp16 显存 | fp32 显存 | 推荐 GPU |
+|------|--------|----------|----------|---------|
+| VoxCPM2 | 0.5B | ~2GB | ~4GB | Kaggle T4 ✅ |
+| CosyVoice3 | 0.5B | ~2GB | ~4GB | Kaggle T4 ✅ |
+| Qwen3-TTS | 0.6B | ~2.5GB | ~5GB | Kaggle T4 ✅ |
+| IndexTTS-2.5 | ~4B | ~8GB | ~16GB | Kaggle T4 ⚠️ |
+| Fish S2 | 4B | ~8GB | ~16GB | Kaggle T4 ⚠️ |
+| Zonos | ~3B | ~6GB | ~12GB | Kaggle T4 ✅ |
+
+### 本地硬件可行性
+
+| 硬件 | 显存 | bf16 | 可跑引擎 |
+|------|------|------|---------|
+| Apple M2 Pro (MPS) | 32GB 统一 | ✅ | F5-MLX ✅ Zonos ✅(fallback) IndexTTS ✅ Qwen3 ✅ |
+| GTX 1080 (Pascal) | 6GB | ❌ | VoxCPM2 ⚠️(fp32 勉强) CosyVoice3 ❌(需 bf16) |
+| Kaggle T4 (Turing) | 16GB | fp16 ✅ | VoxCPM2 ✅ CosyVoice3 ✅ Zonos ✅ Fish S2 ⚠️ |
+
+### 节约原则（2026-09-05 更新）
+
+1. **本地优先**：MPS 能跑的先本地跑（F5/Zonos/IndexTTS/Qwen3），零成本
+2. **Kaggle 其次**：远程 GPU 必先试 Kaggle T4（免费 30h/周刷新）
+3. **AtomGit NPU 第三**：非 CUDA 模型或 16-64GB 显存需求，1000 核时/月刷新
+4. **Modal 省用**：Kaggle/AtomGit 不够才上 Modal，余额少从最便宜档开始
+5. **AMD 开发者平台/ModelScope**：一次性额度，用于大显存验证（192GB）
+6. **批量串行**：同容器内串行跑多个段，摊销冷启动
+7. **权重持久化**：Modal Volume / Kaggle Dataset / AtomGit 持久化存储 存权重，避免重复下载
