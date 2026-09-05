@@ -96,6 +96,15 @@ export interface SceneData {
    * at runtime until removal.
    */
   mediaOptOut?: boolean;
+  /**
+   * Per-scene asset rejection ledger (#192). Entries match candidate URLs
+   * and local paths (exact or basename); asset-sourcer skips rejected
+   * candidates for this scene on rerun and the flag is cleared once a new
+   * asset is successfully assigned (main.mjs Step 1.5c). The VLM cache is
+   * deliberately not bypassed by rejections — same-bytes-different-URL
+   * collisions are rare and the rejection is a human judgment.
+   */
+  mediaReject?: { reason?: string; rejected: string[] };
 }
 
 /** Props passed to the ShortVideo Composition via renderMedia(). */

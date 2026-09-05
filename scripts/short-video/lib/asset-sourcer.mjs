@@ -706,6 +706,22 @@ export function makeRelevance({ score, source, reason, reused }) {
 }
 
 /**
+ * Whether the scene's `mediaReject` ledger (#192) rejects this asset.
+ * Matching: exact string always; basename fallback for LOCAL PATHS only —
+ * two unrelated CDN URLs sharing a basename must not both be rejected.
+ * Users reject from scene-data where they see the assigned path; the
+ * asset report exposes URLs.
+ */
+function isRejectedFor(asset, scene) {
+  const rejected = scene?.mediaReject?.rejected;
+  if (!Array.isArray(rejected) || rejected.length === 0) return false;
+  const candidates = [asset.url, asset.path].filter(Boolean).map(String);
+  return rejected.some((entry) =>
+    candidates.some((c) => c === entry || (!c.includes("://") && basename(c) === basename(entry))),
+  );
+}
+
+/**
  * Batch-assign downloaded assets to scenes using greedy matching.
  *
  * Assets are sorted by score descending. Each asset is assigned to the
@@ -825,6 +841,8 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
           reason = "VLM relevance missing — fail-closed (宁缺毋滥)";
         } else if (asset.relevanceScore < threshold) {
           reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold}`;
+        } else if (isRejectedFor(asset, target)) {
+          reason = `scene ${target.id} mediaReject rejected this asset`;
         } else if (
           assignedSceneIds.has(target.id) ||
           target.media ||
@@ -886,6 +904,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       if (assignedSceneIds.has(scene.id)) continue;
       if (scene.visualType !== "hook") continue;
       if (scene.media) continue;
+      if (isRejectedFor(asset, scene)) continue; // #192
 
       // Hook gate: score >= 60 AND fit === "cover"
       if ((asset.score || 0) < HOOK_MIN_SCORE) continue;
@@ -944,6 +963,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
       if (scene.visualType === "hook") continue; // already handled in pass 1
       if (scene.media) continue;
+      if (isRejectedFor(asset, scene)) continue; // #192
 
       // Relevance gate (gated mode): per-scene overlap check
       if (gated) {

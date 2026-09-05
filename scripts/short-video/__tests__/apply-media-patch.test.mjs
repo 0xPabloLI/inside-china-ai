@@ -6,14 +6,16 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execSync } from "child_process";
-import { writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, rmSync, existsSync, mkdtempSync } from "fs";
 import { join, dirname } from "path";
+import { tmpdir } from "os";
 import { fileURLToPath } from "url";
 import {
   formatFocusSummary,
   formatPatchEntry,
   formatMediaPatch,
 } from "../lib/review-media-patch.mjs";
+import { applyAssignedMedia } from "../lib/apply-media-patch.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -362,5 +364,83 @@ describe("review-media-patch CLI --content arg (Scenario #16)", () => {
         stdio: "pipe",
       });
     }).toThrow(); // Throws because output/media-patch.json doesn't exist
+  });
+});
+
+// ─── #192: applyAssignedMedia — patch application with mediaReject lifecycle ───
+
+describe("applyAssignedMedia (#192)", () => {
+  const makeDir = () => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-patch-"));
+    mkdirSync(join(dir, "assets"), { recursive: true });
+    writeFileSync(join(dir, "assets", "new.jpg"), "x");
+    return dir;
+  };
+
+  it("applies assigned media to scenes without media", () => {
+    const dir = makeDir();
+    const scenes = [{ id: 1, visualType: "narrative" }];
+    const r = applyAssignedMedia(
+      scenes,
+      [{ sceneId: 1, status: "assigned", media: { type: "image", path: "assets/new.jpg" } }],
+      dir,
+    );
+    expect(r.applied).toBe(1);
+    expect(scenes[0].media.path).toBe("assets/new.jpg");
+  });
+
+  it("clears mediaReject on successful re-assignment", () => {
+    const dir = makeDir();
+    const scenes = [
+      {
+        id: 1,
+        visualType: "narrative",
+        mediaReject: { reason: "irrelevant", rejected: ["assets/old.jpg"] },
+      },
+    ];
+    const r = applyAssignedMedia(
+      scenes,
+      [{ sceneId: 1, status: "assigned", media: { type: "image", path: "assets/new.jpg" } }],
+      dir,
+    );
+    expect(r.applied).toBe(1);
+    expect(r.clearedRejects).toEqual([1]);
+    expect(scenes[0].mediaReject).toBeUndefined();
+  });
+
+  it("does not overwrite existing media", () => {
+    const dir = makeDir();
+    const scenes = [
+      { id: 1, visualType: "narrative", media: { type: "image", path: "assets/keep.jpg" } },
+    ];
+    const r = applyAssignedMedia(
+      scenes,
+      [{ sceneId: 1, status: "assigned", media: { type: "image", path: "assets/new.jpg" } }],
+      dir,
+    );
+    expect(r.applied).toBe(0);
+    expect(scenes[0].media.path).toBe("assets/keep.jpg");
+  });
+
+  it("missing file → entry skipped, not applied", () => {
+    const dir = makeDir();
+    const scenes = [{ id: 1, visualType: "narrative" }];
+    const r = applyAssignedMedia(
+      scenes,
+      [{ sceneId: 1, status: "assigned", media: { type: "image", path: "assets/missing.jpg" } }],
+      dir,
+    );
+    expect(r.applied).toBe(0);
+    expect(r.skipped).toHaveLength(1);
+  });
+
+  it("exhausted mediaReject scene (still no media) produces a fallback warning", () => {
+    const dir = makeDir();
+    const scenes = [
+      { id: 5, visualType: "narrative", mediaReject: { rejected: ["assets/old.jpg"] } },
+      { id: 6, visualType: "narrative" },
+    ];
+    const r = applyAssignedMedia(scenes, [], dir);
+    expect(r.exhausted).toEqual([5]);
   });
 });

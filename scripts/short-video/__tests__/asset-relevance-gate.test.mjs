@@ -292,3 +292,67 @@ describe("makeRelevance — relevance field group factory", () => {
     expect(RELEVANCE_SOURCE).toEqual({ VLM: "vlm", OVERLAP: "overlap" });
   });
 });
+
+// ─── #192: mediaReject — per-scene asset rejection loop ───
+
+describe("assignAssetsToScenes — mediaReject (#192)", () => {
+  it("skips a rejected asset for the rejecting scene, assigns the next best", () => {
+    const assets = [
+      img({
+        path: "assets/rejected.jpg",
+        url: "https://x.example/r.jpg",
+        description: "stock office",
+      }),
+      img({
+        path: "assets/better.jpg",
+        url: "https://x.example/b.jpg",
+        description: "stock office",
+      }),
+    ];
+    const rejecting = {
+      ...scenes[1],
+      mediaReject: { reason: "irrelevant", rejected: ["assets/rejected.jpg"] },
+    };
+    const result = assignAssetsToScenes(assets, [scenes[0], rejecting, scenes[2]], {
+      relevanceThreshold: 0,
+    });
+    // assets/rejected.jpg must never land on scene 2 (the rejector)
+    const rejectedOnScene2 = result.find(
+      (r) => r.status === "assigned" && r.sceneId === 2 && r.media?.path === "assets/rejected.jpg",
+    );
+    expect(rejectedOnScene2).toBeUndefined();
+    // The scene still got media — the second asset
+    const scene2 = result.find((r) => r.status === "assigned" && r.sceneId === 2);
+    expect(scene2?.media?.path).toBe("assets/better.jpg");
+  });
+
+  it("matches rejections by URL as well as by path", () => {
+    const assets = [img({ path: "assets/a.jpg", url: "https://x.example/a.jpg" })];
+    const rejecting = { ...scenes[1], mediaReject: { rejected: ["https://x.example/a.jpg"] } };
+    const result = assignAssetsToScenes(assets, [scenes[0], rejecting], { relevanceThreshold: 0 });
+    const onScene2 = result.find((r) => r.status === "assigned" && r.sceneId === 2);
+    expect(onScene2).toBeUndefined();
+  });
+
+  it("a rejected-for-scene-A asset can still be assigned to scene B", () => {
+    const assets = [img({ path: "assets/rejected.jpg", description: "stock office" })];
+    const rejecting = { ...scenes[1], mediaReject: { rejected: ["assets/rejected.jpg"] } };
+    const result = assignAssetsToScenes(assets, [scenes[0], rejecting], { relevanceThreshold: 0 });
+    // Scene 1 (hook, score 80 fit cover) is eligible and has no reject flag
+    expect(result.find((r) => r.status === "assigned" && r.sceneId === 1)).toBeTruthy();
+  });
+
+  it("claim-bound asset rejected by its target scene → unassigned with a reject reason", () => {
+    const assets = [img({ claimSceneId: 2, relevanceScore: 90, path: "assets/rejected.jpg" })];
+    const rejecting = { ...scenes[1], mediaReject: { rejected: ["assets/rejected.jpg"] } };
+    const result = assignAssetsToScenes(assets, [scenes[0], rejecting], THRESHOLD);
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/mediaReject/i);
+  });
+
+  it("scenes without mediaReject are unaffected", () => {
+    const assets = [img({ path: "assets/ok.jpg", description: "stock office" })];
+    const result = assignAssetsToScenes(assets, scenes, { relevanceThreshold: 0 });
+    expect(result.filter((r) => r.status === "assigned").length).toBeGreaterThan(0);
+  });
+});

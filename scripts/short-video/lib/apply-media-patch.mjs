@@ -1,9 +1,13 @@
 /**
- * Apply Media Patch — formats media-patch.json for human review.
+ * Apply Media Patch — media-patch.json tooling.
  *
- * Reads media-patch.json and outputs:
- *   1. Human-readable review summary (focus analysis comments)
- *   2. Copyable media: { ... } code blocks (without analysis/focusAnalysis)
+ * Two concerns:
+ *   1. Formatting media-patch.json for human review (#spec §4.7): review
+ *      summary + copyable media blocks (applyAssignedMedia below is the
+ *      runtime counterpart — main.mjs Step 1.5c).
+ *   2. #192: applyAssignedMedia applies assigned entries to in-memory
+ *      scenes with the mediaReject lifecycle (clear on success, report
+ *      exhausted rejections).
  *
  * Spec §4.7: Output review summary as comments, NOT as copyable fields.
  * The media object keeps existing MediaField shape — no analysis or focusAnalysis.
@@ -231,6 +235,69 @@ export function main(args = process.argv.slice(2)) {
   } else {
     console.log(formatted);
   }
+}
+
+// ─── Patch application (#192) ───
+
+/**
+ * Apply assigned media-patch entries to in-memory scenes (main.mjs Step 1.5c).
+ *
+ * Semantics preserved from the original inline loop:
+ *   - never overwrites a scene that already has media.path
+ *   - entries whose media file is missing on disk are skipped with a reason
+ *
+ * #192 mediaReject lifecycle:
+ *   - a successful assignment to a scene carrying `mediaReject` clears the
+ *     flag (the rejection is satisfied)
+ *   - a mediaReject scene that still has no media afterwards is reported in
+ *     `exhausted` — its candidates were all rejected (or none matched);
+ *     the scene falls back to CSS-only until the search widens or the
+ *     flag is cleared. Note the VLM cache is deliberately NOT bypassed by
+ *     rejections: same-bytes-different-URL collisions are rare and the
+ *     rejection is a human judgment, not a VLM verdict correction.
+ *
+ * Memory-only: callers decide whether/how to persist (scene-data is
+ * authored content, the pipeline never writes it).
+ *
+ * @param {Array} scenes
+ * @param {Array} assignedEntries - media-patch entries with status "assigned"
+ * @param {string} contentDirAbs - absolute content dir for file existence
+ * @returns {{applied: number, appliedSceneIds: number[], skipped: Array,
+ *            clearedRejects: number[], exhausted: number[], scenes: Array}}
+ */
+export function applyAssignedMedia(scenes, assignedEntries, contentDirAbs) {
+  const appliedSceneIds = [];
+  const skipped = [];
+  const clearedRejects = [];
+  let applied = 0;
+
+  for (const entry of assignedEntries || []) {
+    const scene = scenes.find((s) => s.id === entry.sceneId);
+    if (!scene) continue;
+    if (scene.media?.path) {
+      skipped.push({ sceneId: entry.sceneId, reason: "existing media" });
+      continue;
+    }
+    if (!existsSync(join(contentDirAbs, entry.media.path))) {
+      skipped.push({
+        sceneId: entry.sceneId,
+        reason: "patched media not found",
+        path: entry.media.path,
+      });
+      continue;
+    }
+    scene.media = { ...scene.media, ...entry.media };
+    applied++;
+    appliedSceneIds.push(entry.sceneId);
+    if (scene.mediaReject) {
+      delete scene.mediaReject;
+      clearedRejects.push(entry.sceneId);
+    }
+  }
+
+  const exhausted = scenes.filter((s) => s.mediaReject && !s.media?.path).map((s) => s.id);
+
+  return { applied, appliedSceneIds, skipped, clearedRejects, exhausted };
 }
 
 // Auto-run if called directly

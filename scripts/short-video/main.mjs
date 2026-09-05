@@ -208,26 +208,21 @@ async function main() {
           ? patch.filter((p) => p.status === "assigned" && p.media?.path)
           : [];
         if (assigned.length > 0) {
-          let applied = 0;
-          const appliedScenes = [];
-          for (const entry of assigned) {
-            const scene = scenes.find((s) => s.id === entry.sceneId);
-            if (!scene) continue;
-            if (scene.media?.path) continue; // Don't overwrite existing media
-            const mediaPath = resolve(contentDirAbs, entry.media.path);
-            if (!existsSync(mediaPath)) {
-              console.warn(
-                `⚠️  Patched media not found: ${entry.media.path} (scene ${entry.sceneId})`,
-              );
-              continue;
-            }
-            scene.media = { ...scene.media, ...entry.media };
-            applied++;
-            appliedScenes.push(entry.sceneId);
+          const { applyAssignedMedia } = await import("./lib/apply-media-patch.mjs");
+          const r = applyAssignedMedia(scenes, assigned, contentDirAbs);
+          for (const skip of r.skipped) {
+            console.warn(
+              `⚠️  Patched media skipped (scene ${skip.sceneId}): ${skip.reason}${skip.path ? ` — "${skip.path}"` : ""}`,
+            );
           }
-          if (applied > 0) {
+          for (const id of r.exhausted) {
+            console.warn(
+              `⚠️  Scene ${id}: mediaReject set and still no media (candidates rejected or none matched) — CSS-only fallback. Widen the search or clear the flag.`,
+            );
+          }
+          if (r.applied > 0) {
             console.log(
-              `📦 Step 1.5c: Applied ${applied} media assignments to scenes: ${appliedScenes.join(", ")}\n`,
+              `📦 Step 1.5c: Applied ${r.applied} media assignments to scenes: ${r.appliedSceneIds.join(", ")}\n`,
             );
           } else {
             console.log(`📦 Step 1.5c: No new media to apply (all scenes already have media)\n`);
