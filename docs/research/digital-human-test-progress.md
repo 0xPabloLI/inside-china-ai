@@ -808,7 +808,9 @@
 - **训练视频片段**：`scripts/short-video/assets/dh-fixtures/feathertalk/train_30s_180s.mp4`（gitignored）
 - **A100 vs T4**：推理 11s vs 490s（44x 加速）；训练也有显著加速
 - **备注**：用 1029昆明南站.mp4 30-180s 片段训练，前 10s 音频驱动验证
-- **待确认**：用户需查看输出视频确认效果
+- **用户评价**：20 epochs"效果不好"，200 epochs"效果有点勉强"
+- **⏸️ 当前状态**：等用户按录制原则录更好的训练视频（1080p 25fps、头部不前后移动、清晰音频）后重训
+- **录制原则**：≥1080p 25fps、3-5min、头部基本正对镜头不前后移动、人脸完整可见、光照均匀、音频清晰无回声
 
 ### 📋 LTX-2.3 + AV-LoRA-talking-head（低优先级）
 
@@ -1241,7 +1243,7 @@
 - **风险**：代码/权重是否开源未确认；VRAM 需求未知
 - **测试重点**：确认代码/权重是否开源；如果开源则测质量
 
-### 📋 Wan2.2-S2V-14B
+### 📋 Wan2.2-S2V-14B ← **下一个测试目标**
 
 - **优先级**：⭐⭐⭐（Apache 2.0 ✅，Wan 官方 audio-to-video，但 14B 需量化）
 - **来源**：阿里 Wan 团队，2025-08-26
@@ -1416,7 +1418,7 @@
 | 12 | ~~Sonic (原始版)~~ | SVD UNet + Whisper-Tiny | 质量基准 | ❌ 非商用 | T4 | ❌ 不测 | — | 非商用，license 门禁不通过 |
 | 13 | ~~LatentSync 1.6 省内存模式~~ | SD UNet + VAE | 原始版 | OpenRAIL++ | L4/A100 | ❌ T4 OOM | — | T4 16GB 不够（需 18GB），已验证 |
 | 14 | ~~Hallo3 (原始版)~~ | CogVideo DiT | 原始版 | MIT | A100 | ❌ **否决** | — | self-portrait+deepseek A/B 与 EchoMimicV3 接近无优势；只能英文+只能 head |
-| 15 | FeatherTalk | 轻量 CNN | 轻量级 | ❓ | — | 本地 M2 Pro | ⭐⭐ | 超轻量，license 待确认 |
+| 15 | FeatherTalk | 轻量 CNN | 轻量级 | ✅ Apache 2.0 | — | Modal A100 | ⭐⭐ | 5.46M，已测 200 epochs，效果勉强，等更好训练视频 |
 | 16 | LTX-2.3 + AV-LoRA | LTX-Video 22B DiT | DiT+LoRA | OpenRAIL | L4/A100 | Colab Pro+ | ⭐⭐ | 22B 需大显存 + bf16 |
 | 17 | **EMO** | Stable Diffusion + Audio2Video | 原始版 | ❓ | A100 | 云 GPU | ⭐⭐⭐⭐⭐ | 阿里，ECCV 2024，7601 stars，未公开 weights |
 | 18 | ~~**PersonaLive**~~ | 扩散 (SD1.5 基座) | 原始版 | ❌ 非商用 | T4 | ❌ 不测 | — | 非商用，license 门禁不通过 |
