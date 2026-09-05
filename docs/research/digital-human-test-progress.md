@@ -55,7 +55,7 @@
 | 11  | **InfiniteTalk**                   | 稀疏帧视频配音(talking body)         | 576×704  | 2025-08 | ✅ Modal A100          | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
 | 12  | ~~**Hallo3**~~                     | Transformer DiT                      | 720×480  | 2024-11 | ✅ Modal A100-80GB     | ✅ MIT                                          | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好）                                         | 2026-09-03 |
 | 13  | ~~EchoMimicV3 Flash (Modal)~~      | 多任务扩散                           | 512×512  | 2025-07 | ✅ Modal T4 NF4        | ✅ Apache 2.0                                   | ✅ NF4 量化已测（5min/段, talking head）                                                                                                                                   | 2026-08-23 |
-| 14  | **FeatherTalk**                    | 轻量级框架                           | —        | 2026-07 | ⚠️ 待测                | ✅ Apache 2.0                                   | ⏸️ **等用户录口播视频**（3-5min 25fps，需训练个性化模型；5.46M 可本地 CPU 跑）                                                                                             | —          |
+| 14  | **FeatherTalk**                    | 轻量级框架                           | 1280×720 | 2026-07 | ✅ Modal A100-40GB    | ✅ Apache 2.0                                   | ✅ **已测**（200 epochs A100: train ~90min + infer 11s, 输出 1280×720=训练视频分辨率, 892KB/10s; 用 1029昆明南站.mp4 30-180s 训练, 前 10s 音频驱动; 144×144 是人脸内部处理尺寸非输出上限） | 2026-09-05 |
 | 15  | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA                           | —        | —       | ❌ 22B 需大显存        | ✅ OpenRAIL                                     | 📋 低优先级                                                                                                                                                                | —          |
 | 16  | ~~**LeapTalk**~~                   | 桥蒸馏（Brownian bridge 数据到数据） | 512×512  | 2026-07 | ⚠️ Kaggle T4           | ✅ Apache 2.0                                   | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产）                           | 2026-09-03 |
 | 17  | **SoulX-FlashHead (Model_Pro)**    | Wan2.1 DiT 1.3B 基座（未蒸馏）       | 512×512  | 2026-02 | ✅ Kaggle T4           | ✅ Apache 2.0                                   | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座）                                                                 | 2026-09-04 |
@@ -781,15 +781,34 @@
 | `sampler_name`         | Flow_Unipc           | **Flow_DPM++**     | 不同采样器                 |
 | `num_inference_steps`  | 8                    | 20                 | 更多步数（但用 mmgp 加速） |
 
-### 📋 FeatherTalk
+### ✅ FeatherTalk 测试（2026-09-05 完成）
 
-- **优先级**：⭐⭐⭐（超轻量，但许可证和效果待确认）
-- **来源**：anliyuan，55 GitHub stars
+- **优先级**：⭐⭐⭐（超轻量，Apache 2.0，已测）
+- **来源**：anliyuan，81 GitHub stars，2026-07-08 创建
 - **GitHub**：github.com/anliyuan/FeatherTalk
-- **MPS**：⚠️ 待验证（超轻量级，M2 Pro 可能性高）
-- **许可证**：❓ 待确认
-- **关键特点**：超轻量级音频驱动 talking-head 框架
-- **测试重点**：轻量级是否意味着质量妥协；M2 Pro 兼容性
+- **许可证**：✅ Apache 2.0
+- **参数量**：5.46M（视觉模型）+ FeatherHuBERT 音频编码器
+- **关键特点**：个性化 talking-head，需训练每人专属模型；144×144 是人脸内部处理尺寸，**输出分辨率 = 训练视频分辨率**
+- **训练数据**：从 `1029昆明南站.mp4` 截取 30-180s 片段（1280×720, 25fps, 150s, 3750 帧）
+- **测试音频**：训练视频前 10s 音频（用于验证模型训练是否成功）
+
+#### 测试结果（Modal A100-40GB GPU）
+
+| 步骤          | 耗时         | 说明                                    |
+| ------------- | ------------ | --------------------------------------- |
+| Preprocess    | 356s (5.9min) | 抽帧 3750 + 关键点 + 音频特征           |
+| Train 200 epochs | ~5400s (90min) | A100 GPU, batchsize 16             |
+| Audio feat    | 5s           | 提取测试音频特征                        |
+| Inference     | 11s          | A100 生成 10s 视频（T4 需 490s）       |
+| **总计**      | ~96min       |                                         |
+
+- **输出**：1280×720, 25fps, 9.96s, 249 帧, h264+aac, 892KB
+- **产物**：`scripts/short-video/experiments/digital-human/feathertalk/feathertalk_result.mp4`
+- **Modal 脚本**：`scripts/modal/feathertalk-test/run_feathertalk.py`（用 Volume 保存 checkpoint，支持 `--infer-only`）
+- **训练视频片段**：`scripts/short-video/assets/dh-fixtures/feathertalk/train_30s_180s.mp4`（gitignored）
+- **A100 vs T4**：推理 11s vs 490s（44x 加速）；训练也有显著加速
+- **备注**：用 1029昆明南站.mp4 30-180s 片段训练，前 10s 音频驱动验证
+- **待确认**：用户需查看输出视频确认效果
 
 ### 📋 LTX-2.3 + AV-LoRA-talking-head（低优先级）
 

@@ -160,3 +160,9 @@ scripts/kaggle/infinitetalk-dataset/output_*/
 # 本地凭据文件（.env 已跟踪，勿动；带后缀的本地变体一律不入库）
 .env.local
 .env.local.*
+
+# AtomCode local-scope configs (machine-specific)
+.atomcode/local/
+
+# FeatherTalk 训练视频片段（48MB，太大不入库）
+scripts/short-video/assets/dh-fixtures/feathertalk/train_30s_180s.mp4
