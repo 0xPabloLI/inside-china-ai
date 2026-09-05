@@ -91,6 +91,12 @@ export interface SceneData {
   /** Layout variant for scene rendering (required for non-cta scenes). */
   layout?: string;
   /**
+   * Original-language source material reference (#185). `sourceText` (the
+   * Chinese article excerpt the scene's claim came from) feeds the zh
+   * keyword pool for zh-CN sources; url/title ride along for attribution.
+   */
+  sourceRef?: { url?: string; title?: string; sourceText?: string };
+  /**
    * @deprecated (#191) — use `media: null` for "no media ever"; CSS-only
    * layouts (hero-center / stacked-cards) are auto-skipped. Still honored
    * at runtime until removal.

@@ -113,6 +113,9 @@ export function extractSceneClaims(scenes) {
       sceneId: scene.id,
       assetNeed: claim,
       voiceover: scene.voiceover || "",
+      // #185: original-language source material — zh keyword extraction
+      // consumes sourceText; url/title ride along for attribution/audit.
+      ...(scene.sourceRef ? { sourceRef: scene.sourceRef } : {}),
     });
   }
   return claims;
@@ -133,6 +136,102 @@ export function tokenizeClaimWords(text) {
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .split(/\s+/)
     .filter((t) => t.length > 0 && !STOPWORDS.has(t));
+}
+
+/**
+ * Chinese stopword characters — grams containing any of these are dropped.
+ * Single characters keep the filter cheap (no word segmentation needed).
+ */
+export const ZH_STOPWORD_CHARS = new Set([
+  "的",
+  "了",
+  "在",
+  "是",
+  "和",
+  "与",
+  "及",
+  "对",
+  "为",
+  "等",
+  "把",
+  "将",
+  "从",
+  "被",
+  "其",
+  "这",
+  "那",
+  "也",
+  "就",
+  "都",
+  "而",
+  "或",
+  "并",
+  "以",
+  "个",
+  "很",
+  "到",
+  "说",
+  "称",
+]);
+
+/**
+ * Extract Chinese search keywords from original-language source text
+ * (#185, approved direction B: no translation round-trip).
+ *
+ * No segmentation library (tool-admission avoided): punctuation splits the
+ * text into runs, then 2-4 character n-grams are scored by frequency.
+ * Grams containing stopword characters, digits or latin letters are
+ * dropped. Deterministic order: frequency desc, then first appearance.
+ * Grams must repeat ≥2 times — single-occurrence n-grams are noise.
+ *
+ * @param {string} text - Original Chinese source text (scene.sourceRef.sourceText)
+ * @param {{limit?: number}} [opts]
+ * @returns {string[]} Up to `limit` Chinese keywords (may be empty — callers
+ *   fall back to the existing keyword pools)
+ */
+export function extractZhKeywords(text, opts = {}) {
+  if (!text || typeof text !== "string") return [];
+  const limit = Math.max(1, Math.round(opts.limit ?? 8));
+  const runs = text.split(/[\s。！？；：，、“”‘’《》（）()\[\]【】—…·]+/).filter(Boolean);
+  const freq = new Map();
+  const firstPos = new Map();
+  let pos = 0;
+  for (const run of runs) {
+    for (let len = 2; len <= 4; len++) {
+      for (let i = 0; i + len <= run.length; i++) {
+        const gram = run.slice(i, i + len);
+        if (/[\dA-Za-z]/.test(gram)) continue;
+        let bad = false;
+        for (const ch of gram) {
+          if (ZH_STOPWORD_CHARS.has(ch)) {
+            bad = true;
+            break;
+          }
+        }
+        if (bad) continue;
+        freq.set(gram, (freq.get(gram) || 0) + 1);
+        if (!firstPos.has(gram)) firstPos.set(gram, pos);
+        pos++;
+      }
+    }
+  }
+  // Greedy substring dedup: a gram contained in an already-kept (higher or
+  // equal frequency) gram is the same concept — keep the longer form only.
+  const ranked = [...freq.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort(
+      (a, b) =>
+        b[1] - a[1] ||
+        b[0].length - a[0].length || // equal frequency: prefer the longer gram
+        firstPos.get(a[0]) - firstPos.get(b[0]),
+    );
+  const kept = [];
+  for (const [gram] of ranked) {
+    if (kept.some((k) => k.includes(gram))) continue;
+    kept.push(gram);
+    if (kept.length >= limit) break;
+  }
+  return kept;
 }
 
 /**

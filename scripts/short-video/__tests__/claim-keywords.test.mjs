@@ -3,6 +3,7 @@ import {
   extractSceneClaims,
   claimToKeywords,
   skipsMediaSourcing,
+  extractZhKeywords,
 } from "../lib/claim-keywords.mjs";
 import { buildQueryGroups } from "../lib/asset-sourcer.mjs";
 import { scenes as qwen4Scenes } from "../content/qwen4-preview/scene-data.mjs";
@@ -180,5 +181,60 @@ describe("skipsMediaSourcing (#191)", () => {
     ]);
     expect(claims).toHaveLength(1);
     expect(claims[0].sceneId).toBe(2);
+  });
+});
+
+// ─── #185: zh keyword extraction from sourceRef.sourceText ───
+
+describe("extractZhKeywords (#185)", () => {
+  it("extracts repeated CJK n-grams from Chinese source text, ordered by frequency then first appearance", () => {
+    const text =
+      "月之暗面发布了Kimi新一代模型，月之暗面称推理成本大幅下降。Kimi的上下文长度提升，推理成本降至一成。";
+    const kws = extractZhKeywords(text);
+    expect(kws).toContain("月之暗面");
+    expect(kws).toContain("推理成本");
+    // Sub-grams of a kept longer gram are the same concept — dropped
+    expect(kws).not.toContain("月之");
+    expect(kws).not.toContain("暗面");
+  });
+
+  it("drops grams containing stopwords, digits or latin letters", () => {
+    const kws = extractZhKeywords("Kimi的模型发布了，Kimi的模型很强。");
+    expect(kws.every((k) => !/[A-Za-z0-9的]/.test(k))).toBe(true);
+  });
+
+  it("returns [] for empty, latin-only or stopword-only text", () => {
+    expect(extractZhKeywords("")).toEqual([]);
+    expect(extractZhKeywords("DeepSeek V4 release notes")).toEqual([]);
+    expect(extractZhKeywords("的了在是和与及")).toEqual([]);
+  });
+
+  it("is deterministic and capped by limit", () => {
+    const text =
+      "大模型竞赛进入多模态时代，大模型厂商密集发布旗舰模型，多模态能力成为焦点，大模型价格战延续，多模态与智能体结合成为新方向，智能体框架密集开源。";
+    const a = extractZhKeywords(text);
+    const b = extractZhKeywords(text);
+    expect(a).toEqual(b);
+    expect(a.length).toBeGreaterThan(3);
+    expect(extractZhKeywords(text, { limit: 3 })).toHaveLength(3);
+  });
+});
+
+describe("extractSceneClaims — sourceRef passthrough (#185)", () => {
+  it("carries sourceRef on claims for zh keyword building", () => {
+    const claims = extractSceneClaims([
+      {
+        id: 1,
+        visualType: "narrative",
+        layout: "media-overlay",
+        assetNeed: "server room",
+        sourceRef: {
+          url: "https://example.cn/a",
+          title: "月之暗面发布",
+          sourceText: "月之暗面发布了Kimi。月之暗面称成本大降。",
+        },
+      },
+    ]);
+    expect(claims[0].sourceRef?.sourceText).toContain("月之暗面");
   });
 });

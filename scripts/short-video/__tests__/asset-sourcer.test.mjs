@@ -10,8 +10,10 @@ import { tmpdir } from "os";
 
 import {
   extractKeywords,
-  buildZhVideoKeywords,
+  buildQueryGroups,
+  mergeZhPools,
   pickVideoKeywordGroups,
+  buildZhVideoKeywords,
   parseYtdlpSearchOutput,
   scoreCandidate,
   preFilterCandidate,
@@ -2603,5 +2605,64 @@ describe("CDP_VIDEO_SOURCES", () => {
     expect(CDP_VIDEO_SOURCES.find((s) => s.name === "ithome")).toBeDefined();
     // ytdlp sources must not leak into the CDP video list
     expect(CDP_VIDEO_SOURCES.find((s) => s.name === "bilibili")).toBeUndefined();
+  });
+});
+
+// ─── #185: zh query groups from scene sourceRef ───
+
+describe("buildQueryGroups — zh pool from sourceRef (#185)", () => {
+  const scene = {
+    id: 1,
+    visualType: "narrative",
+    layout: "media-overlay",
+    assetNeed: "autonomous vehicle interior cabin",
+    sourceRef: {
+      url: "https://example.cn/didi",
+      title: "滴滴自动驾驶",
+      sourceText: "滴滴自动驾驶宣布新的量产车型。滴滴自动驾驶称成本下降一半。",
+    },
+  };
+
+  it("emits a zh query group bound to the claim scene when sourceText exists", () => {
+    const { queryGroups, zhQueryGroups } = buildQueryGroups([scene], null, null);
+    expect(queryGroups.length).toBeGreaterThan(0); // en group unchanged
+    expect(zhQueryGroups).toHaveLength(1);
+    expect(zhQueryGroups[0].claimSceneId).toBe(1);
+    // n-grams cap at 4 chars — the 6-char brand phrase surfaces as its 4-char heads
+    expect(zhQueryGroups[0].keywords).toContain("自动驾驶");
+  });
+
+  it("emits no zh group without sourceRef.sourceText", () => {
+    const { zhQueryGroups } = buildQueryGroups(
+      [{ id: 1, visualType: "narrative", layout: "media-overlay", assetNeed: "cabin" }],
+      null,
+      null,
+    );
+    expect(zhQueryGroups).toEqual([]);
+  });
+});
+
+describe("mergeZhPools — sourceRef leads, company names fallback (#185)", () => {
+  it("puts sourceRef zh keywords first, appends unseen company names, dedupes", () => {
+    expect(mergeZhPools(["滴滴自动驾驶", "月之暗面"], ["月之暗面", "小马智行"])).toEqual([
+      "滴滴自动驾驶",
+      "月之暗面",
+      "小马智行",
+    ]);
+  });
+
+  it("tolerates empty sides", () => {
+    expect(mergeZhPools([], ["月之暗面"])).toEqual(["月之暗面"]);
+    expect(mergeZhPools(["滴滴自动驾驶"], null)).toEqual(["滴滴自动驾驶"]);
+    expect(mergeZhPools(null, null)).toEqual([]);
+  });
+
+  it("zh-CN video sources search the merged pool; en sources keep en groups", () => {
+    const groups = [{ keywords: ["cabin"], claimSceneId: null }];
+    const pool = mergeZhPools(["滴滴自动驾驶"], []);
+    const zh = pickVideoKeywordGroups({ locale: "zh-CN" }, groups, pool);
+    expect(zh[0].keywords).toEqual(["滴滴自动驾驶"]);
+    const en = pickVideoKeywordGroups({ locale: null }, groups, pool);
+    expect(en).toBe(groups);
   });
 });

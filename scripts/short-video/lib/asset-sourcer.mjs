@@ -45,6 +45,7 @@ import {
   tokenizeClaimWords,
   extractSceneClaims,
   claimToKeywords,
+  extractZhKeywords,
   NO_MEDIA_TYPES as SHARED_NO_MEDIA_TYPES,
 } from "./claim-keywords.mjs";
 import { isReusedAsset } from "./used-asset-index.mjs";
@@ -152,10 +153,18 @@ const HOOK_REQUIRED_FIT = "cover";
 export function buildQueryGroups(scenes, meta, cliKeywords) {
   const claims = extractSceneClaims(scenes);
   const queryGroups = [];
+  const zhQueryGroups = [];
   for (const claimInfo of claims) {
     const kws = claimToKeywords(claimInfo.assetNeed);
     if (kws.length === 0) continue; // all stopwords → covered by fallback pool
     queryGroups.push({ keywords: kws, claimSceneId: claimInfo.sceneId });
+    // #185: zh pool from the scene's original-language source material
+    if (claimInfo.sourceRef?.sourceText) {
+      const zh = extractZhKeywords(claimInfo.sourceRef.sourceText);
+      if (zh.length > 0) {
+        zhQueryGroups.push({ keywords: zh, claimSceneId: claimInfo.sceneId });
+      }
+    }
   }
   const fallbackKeywords = extractKeywords(scenes, meta, cliKeywords);
   if (fallbackKeywords.length > 0) {
@@ -163,6 +172,7 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
   }
   return {
     queryGroups,
+    zhQueryGroups,
     allKeywords: queryGroups.flatMap((g) => g.keywords),
     claimCount: claims.length,
   };
@@ -209,9 +219,30 @@ export function buildZhVideoKeywords(meta, scenes, cliKeywords) {
  *
  * @param {{locale?: string|null}} source - Flattened yt-dlp source
  * @param {Array<{keywords: string[], claimSceneId: number|null}>} queryGroups - Existing groups
- * @param {string[]} zhPool - Chinese keyword pool from buildZhVideoKeywords
+ * @param {string[]} zhPool - Merged zh pool (mergeZhPools: sourceRef zh keywords lead, COMPANY_NAME_ZH fallback)
  * @returns {Array<{keywords: string[], claimSceneId: number|null}>}
  */
+/**
+ * Merge the #185 sourceRef-derived zh keywords with the #180 company-name
+ * fallback pool (#185 D5): sourceRef terms lead (scene-specific signal),
+ * unseen company names are appended (strong entity signal), duplicates
+ * dropped. Either side may be null/empty.
+ *
+ * @param {string[]|null} refKeywords - zh keywords from scene sourceRef
+ * @param {string[]|null} companyKeywords - COMPANY_NAME_ZH-mapped pool
+ * @returns {string[]}
+ */
+export function mergeZhPools(refKeywords, companyKeywords) {
+  const seen = new Set();
+  const out = [];
+  for (const keyword of [...(refKeywords ?? []), ...(companyKeywords ?? [])]) {
+    if (seen.has(keyword)) continue;
+    seen.add(keyword);
+    out.push(keyword);
+  }
+  return out;
+}
+
 export function pickVideoKeywordGroups(source, queryGroups, zhPool) {
   if (source?.locale === "zh-CN" && zhPool && zhPool.length > 0) {
     return [{ keywords: zhPool, claimSceneId: null }];
@@ -2389,10 +2420,23 @@ export async function main(args = process.argv.slice(2)) {
   // Claim-bound candidates are tagged with claimSceneId so they can only be
   // assigned to the scene they were sourced for (spec #130 D3/D7).
   const cliKeywords = keywordsArg ? keywordsArg.split(",").map((k) => k.trim()) : null;
-  const { queryGroups, allKeywords, claimCount } = buildQueryGroups(scenes, meta, cliKeywords);
+  const { queryGroups, zhQueryGroups, allKeywords, claimCount } = buildQueryGroups(
+    scenes,
+    meta,
+    cliKeywords,
+  );
+  // #185: international image/API sources append the zh sourceRef groups
+  // after the en groups (engines handle CJK; no locale field on these).
+  const sourceGroups = [...queryGroups, ...zhQueryGroups];
   // #180: Chinese company pool for zh-CN video sources (bilibili). Empty when
   // no company maps — pickVideoKeywordGroups then keeps the existing groups.
-  const zhVideoKeywords = buildZhVideoKeywords(meta, scenes, cliKeywords);
+  // #185: video zh pool = scene sourceRef zh keywords (scene-specific, lead)
+  // + COMPANY_NAME_ZH company names (fallback). Empty sourceRef pool →
+  // company names only (previous behavior unchanged).
+  const zhVideoKeywords = mergeZhPools(
+    zhQueryGroups.flatMap((g) => g.keywords),
+    buildZhVideoKeywords(meta, scenes, cliKeywords),
+  );
   const sceneClaims = extractSceneClaims(scenes);
   const primaryKeyword = queryGroups[0]?.keywords[0] || "asset";
   console.log(
@@ -2556,7 +2600,7 @@ export async function main(args = process.argv.slice(2)) {
       let skippedForMissingApiKey = false;
 
       const candidates = await Promise.all(
-        queryGroups.flatMap((group) =>
+        sourceGroups.flatMap((group) =>
           group.keywords.map(async (keyword) => {
             const result = await getOrSearchResults(searchCache, {
               source: source.name,
@@ -2905,7 +2949,7 @@ export async function main(args = process.argv.slice(2)) {
         const engineAssets = [];
         const engineFailed = [];
 
-        for (const { keywords: groupKeywords, claimSceneId } of queryGroups) {
+        for (const { keywords: groupKeywords, claimSceneId } of sourceGroups) {
           for (const keyword of groupKeywords) {
             console.log(`  🔍 ${source.label} search: "${keyword}"...`);
             const result = await getOrSearchResults(searchCache, {
