@@ -21,7 +21,7 @@
  *   - ken-burns + video → auto-degrade to fade
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
-import { AbsoluteFill, useCurrentFrame, staticFile, CanvasImage } from "remotion";
+import { AbsoluteFill, useCurrentFrame, staticFile, CanvasImage, Img } from "remotion";
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOut, easeOutExpo } from "./shared";
@@ -129,6 +129,9 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     inset: 0,
     width: "100%",
     height: "100%",
+    // #156: explicit stacking above the backdrop Video (CanvasImage's canvas
+    // compositing does not follow JSX/DOM order relative to <Video>)
+    zIndex: 1,
     objectFit: media.fit ?? "cover",
     objectPosition: media.cropFocus
       ? `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`
@@ -174,6 +177,16 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
 
   return (
     <>
+      {showBrandedMatte && (
+        <AbsoluteFill
+          style={{
+            background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
+            opacity,
+          }}
+        />
+      )}
+      {/* Backdrop sits ABOVE the matte (which is bare background) but BELOW
+          the primary media — visible in the letterbox/strip area around it. */}
       {backdropPath && (
         <Video
           src={backdropPath}
@@ -189,16 +202,16 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
           loop
         />
       )}
-      {showBrandedMatte && (
-        <AbsoluteFill
-          style={{
-            background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
-            opacity,
-          }}
-        />
-      )}
       {media.type === "image" ? (
-        <CanvasImage src={src} style={mediaStyle} />
+        // #156: with a backdrop present, the primary image must render as a
+        // regular <img> — CanvasImage's canvas compositing always paints
+        // beneath <Video> elements regardless of DOM order/z-index, which
+        // would hide the primary media behind the backdrop.
+        backdropPath ? (
+          <Img src={src} style={mediaStyle} />
+        ) : (
+          <CanvasImage src={src} style={mediaStyle} />
+        )
       ) : (
         // Background video is a texture, not a clip to be watched once: a
         // source shorter than the scene must keep moving (matches the `loop`
