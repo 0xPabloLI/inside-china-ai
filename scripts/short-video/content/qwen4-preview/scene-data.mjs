@@ -45,7 +45,6 @@ export const scenes = [
     narrativeRole: "T",
     retentionMechanism: "open-loop",
     layout: "stacked-cards",
-    mediaOptOut: true,
     voiceover:
       "It's called Qwen3.8-Flash-Next. Not Qwen4. So why is Alibaba publishing its blueprint early?",
     texts: {
@@ -65,7 +64,6 @@ export const scenes = [
     narrativeRole: "A",
     retentionMechanism: "curiosity-gap",
     layout: "stacked-cards",
-    mediaOptOut: true,
     voiceover:
       "According to Qwen's blog, it previews the architecture that will underpin Qwen4. Open weights, on Hugging Face.",
     texts: {
@@ -85,7 +83,6 @@ export const scenes = [
     narrativeRole: "A",
     retentionMechanism: null,
     layout: "stacked-cards",
-    mediaOptOut: true,
     voiceover:
       "Qwen stated the spec sheet: 125 billion total parameters, 51 billion in n-gram embeddings, 6 billion active per token.",
     texts: {
@@ -220,7 +217,6 @@ export const scenes = [
     // Was media-overlay with no media — which rendered an empty middle band
     // (R2 §3.5). stacked-cards is CSS-only, so the layout matches the data.
     layout: "stacked-cards",
-    mediaOptOut: true,
     voiceover:
       "Remember 6 billion? That tiny active footprint is the whole point. Capacity without the compute bill.",
     texts: {

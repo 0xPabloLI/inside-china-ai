@@ -35,6 +35,7 @@ import {
   checkLoopClosureNarrative,
   checkAssetNeedAnnotation,
   checkMediaStrategyContract,
+  checkMediaOptOutDeprecation,
   checkBrollPromptDimensions,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
@@ -1590,5 +1591,37 @@ describe("checkBrollPromptDimensions", () => {
   it("S19: is wired into runAllSceneDataChecks", () => {
     const result = runAllSceneDataChecks([broll("A glowing bar, no hands")], null);
     expect(result.warn.filter((r) => r.check === "B-roll prompt dimensions")).toHaveLength(1);
+  });
+});
+
+// ─── #191: mediaOptOut deprecation + explicit-null-on-media-layout ───
+
+describe("checkMediaOptOutDeprecation", () => {
+  it("warns on every scene still setting mediaOptOut", () => {
+    const result = checkMediaOptOutDeprecation([
+      { id: 1, visualType: "narrative", layout: "stacked-cards", mediaOptOut: true },
+      { id: 2, visualType: "hook", layout: "hero-center", mediaOptOut: true },
+      { id: 3, visualType: "narrative", layout: "media-overlay" },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("1, 2");
+    expect(result[0].detail).toContain("deprecated");
+  });
+
+  it("warns when media:null sits on a media-dependent layout (empty band)", () => {
+    const result = checkMediaOptOutDeprecation([
+      { id: 5, visualType: "narrative", layout: "media-split", media: null },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("5");
+    expect(result[0].detail).toContain("media-dependent");
+  });
+
+  it("no findings for clean scenes", () => {
+    expect(
+      checkMediaOptOutDeprecation([{ id: 1, visualType: "narrative", layout: "media-overlay" }]),
+    ).toEqual([]);
   });
 });

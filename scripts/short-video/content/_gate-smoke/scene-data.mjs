@@ -55,7 +55,6 @@ export const scenes = [
     name: "stacked-cards-narrative",
     visualType: "narrative",
     layout: "stacked-cards",
-    mediaOptOut: true,
     voiceover:
       "Meanwhile a cloud giant builds its own silicon and cuts the cost per token in half.",
     texts: {

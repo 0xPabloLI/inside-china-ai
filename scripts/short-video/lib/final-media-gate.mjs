@@ -14,6 +14,9 @@
 import { existsSync } from "fs";
 import { join } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
+import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
+// Re-export: existing consumers import NO_MEDIA_TYPES from this module.
+export { NO_MEDIA_TYPES };
 
 /** Layouts whose text placement assumes a media layer fills the frame. */
 export const MEDIA_DEPENDENT_LAYOUTS = new Set([
@@ -21,9 +24,6 @@ export const MEDIA_DEPENDENT_LAYOUTS = new Set([
   "media-bottom-bar",
   "media-split",
 ]);
-
-/** Scene types that never render media (kept in sync with main.mjs Step 1.5). */
-export const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
 
 /** Resolve the layout a scene will actually render with. */
 function effectiveLayout(scene) {
@@ -49,6 +49,13 @@ export function checkFinalMedia({ scenes, contentDir }) {
     const optOut = scene.mediaOptOut === true;
 
     if (MEDIA_DEPENDENT_LAYOUTS.has(layout)) {
+      // Explicit media:null is a deliberate "no media ever" declaration
+      // (#191): it passes, but the frame will render an empty band — warn so
+      // the choice stays visible.
+      if (scene.media === null) {
+        warnings.push({ sceneId: scene.id, layout, reason: "explicit-null-on-media-layout" });
+        continue;
+      }
       // Opting out of media on a layout that depends on it is a contradiction,
       // not a gap sourcing could fix — surface it as its own reason.
       if (optOut) {

@@ -136,3 +136,30 @@ describe("checkFinalMedia", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 });
+
+// ─── #191: explicit media:null and legacy mediaOptOut semantics ───
+
+describe("explicit media:null on media-dependent layouts (#191)", () => {
+  it("media:null on a media-dependent layout passes with a warning (explicit declaration)", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 1, visualType: "narrative", layout: "media-overlay", media: null }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.failures).toHaveLength(0);
+    expect(result.warnings).toEqual([
+      { sceneId: 1, layout: "media-overlay", reason: "explicit-null-on-media-layout" },
+    ]);
+  });
+
+  it("legacy mediaOptOut on a media-dependent layout still fails (existing contract)", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 2, visualType: "narrative", layout: "media-split", mediaOptOut: true }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0].reason).toBe("opt-out-on-media-layout");
+  });
+});

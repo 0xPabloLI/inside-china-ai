@@ -35,6 +35,7 @@ import {
   slotId,
   slotCharBudget,
 } from "./text-slots.mjs";
+import { MEDIA_DEPENDENT_LAYOUTS } from "./final-media-gate.mjs";
 
 // Re-export AI_BLACKLIST to maintain public API
 export const AI_BLACKLIST = _AI_BLACKLIST;
@@ -1530,6 +1531,49 @@ const GENERATING_STRATEGIES = new Set(["b-roll", "asset-then-broll"]);
  * Silent for content that uses neither field, so existing scene-data is
  * never judged by a rule it does not opt into.
  */
+/**
+ * #191 mediaOptOut deprecation + explicit-null placement audit.
+ *
+ * - `mediaOptOut` is deprecated: CSS-only layouts (hero-center /
+ *   stacked-cards) are auto-skipped by the sourcing filter, and
+ *   `media: null` is the explicit "no media ever" declaration. The flag is
+ *   still honored at runtime until removal.
+ * - `media: null` on a media-dependent layout renders an empty band — warn
+ *   so the deliberate contradiction stays visible at preflight.
+ */
+export function checkMediaOptOutDeprecation(scenes) {
+  const CHECK = "mediaOptOut deprecation";
+  const CATEGORY = "Media";
+  const optedOut = [];
+  const nullOnMediaLayout = [];
+  for (const scene of scenes) {
+    if (scene.mediaOptOut === true) optedOut.push(String(scene.id));
+    if (scene.media === null && MEDIA_DEPENDENT_LAYOUTS.has(scene.layout)) {
+      nullOnMediaLayout.push(String(scene.id));
+    }
+  }
+  const results = [];
+  if (optedOut.length > 0) {
+    results.push({
+      level: "warn",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${optedOut.join(", ")} set the deprecated mediaOptOut flag`,
+      fix: 'Remove mediaOptOut — CSS-only layouts (hero-center / stacked-cards) are auto-skipped; for "no media ever" set media: null',
+    });
+  }
+  if (nullOnMediaLayout.length > 0) {
+    results.push({
+      level: "warn",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${nullOnMediaLayout.join(", ")} set media: null on a media-dependent layout — the frame renders an empty band`,
+      fix: "Use a CSS-only layout (hero-center / stacked-cards) if the scene is meant to be text-only",
+    });
+  }
+  return results;
+}
+
 export function checkMediaStrategyContract(scenes) {
   const CHECK = "B-roll strategy contract";
   const CATEGORY = "Media";
@@ -1583,7 +1627,7 @@ export function checkMediaStrategyContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut with a b-roll strategy — generation will be skipped`,
-      fix: "Drop mediaOptOut to let the scene generate B-roll, or keep it for a deliberate CSS-only scene",
+      fix: "mediaOptOut is deprecated (#191) — drop it to let the scene generate B-roll, or use media: null for a deliberate no-media scene",
     });
   }
   if (missingStrategy.length > 0) {
@@ -1751,6 +1795,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkVisualTypeWhitelist(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaStrategyContract(scenes),
+    ...checkMediaOptOutDeprecation(scenes),
     ...checkBrollPromptDimensions(scenes),
   ];
 

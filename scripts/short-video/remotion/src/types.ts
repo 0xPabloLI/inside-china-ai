@@ -83,14 +83,17 @@ export interface SceneData {
   visualType: string;
   voiceover: string;
   texts?: SceneTexts;
-  media?: MediaField;
+  /**
+   * null is an explicit "no media ever" declaration (#191): the sourcing
+   * filter skips the scene on every rerun. Absent field = source it.
+   */
+  media?: MediaField | null;
   /** Layout variant for scene rendering (required for non-cta scenes). */
   layout?: string;
   /**
-   * Scene-level opt-out of auto media sourcing (a deliberate CSS-only scene).
-   * Read by scene-rules, final-media-gate and the b-roll orchestrator at the
-   * SCENE level — never a text field (decision 66: it was briefly misplaced
-   * in the texts contract, where the render layer now rejects it).
+   * @deprecated (#191) — use `media: null` for "no media ever"; CSS-only
+   * layouts (hero-center / stacked-cards) are auto-skipped. Still honored
+   * at runtime until removal.
    */
   mediaOptOut?: boolean;
 }

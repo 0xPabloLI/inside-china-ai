@@ -32,6 +32,7 @@ import { renderAss } from "./lib/subtitles/ass.mjs";
 import { burnSubtitles } from "./lib/post-process.mjs";
 import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
+import { skipsMediaSourcing } from "./lib/claim-keywords.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -167,12 +168,11 @@ async function main() {
   // ── Step 1.5: Asset sourcing (auto-search missing media) ──
   // Triggers asset-sourcer when any non-CTA scene lacks media OR has media path pointing to a missing file.
   // Non-blocking: if search fails, scene renders without media (graceful degradation).
-  const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
   const scenesNeedingMedia = scenes.filter((s) => {
-    if (NO_MEDIA_TYPES.has(s.visualType)) return false;
-    // Intentional CSS-only scene: scene-data opts out of auto-sourcing so a
-    // rerun cannot re-assign stock imagery to a scene that dropped it.
-    if (s.mediaOptOut === true) return false;
+    // #191: shared skip predicate — NO_MEDIA_TYPES, explicit media:null,
+    // deprecated mediaOptOut (legacy), CSS-only layouts (hero-center /
+    // stacked-cards).
+    if (skipsMediaSourcing(s)) return false;
     // A scene that chose pure b-roll must not spend the sourcing budget.
     if (broll && !broll.shouldSourceStock(s)) return false;
     if (!s.media?.path) return true; // No media field at all → needs sourcing

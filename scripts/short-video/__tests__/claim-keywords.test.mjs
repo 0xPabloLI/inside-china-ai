@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { extractSceneClaims, claimToKeywords } from "../lib/claim-keywords.mjs";
+import {
+  extractSceneClaims,
+  claimToKeywords,
+  skipsMediaSourcing,
+} from "../lib/claim-keywords.mjs";
 import { buildQueryGroups } from "../lib/asset-sourcer.mjs";
 import { scenes as qwen4Scenes } from "../content/qwen4-preview/scene-data.mjs";
 
@@ -139,5 +143,42 @@ describe("buildQueryGroups", () => {
   it("lets --keywords override the fallback pool", () => {
     const { queryGroups } = buildQueryGroups([], null, ["custom"]);
     expect(queryGroups[0].keywords).toEqual(["custom"]);
+  });
+});
+
+// ─── #191: shared media-sourcing skip predicate ───
+
+describe("skipsMediaSourcing (#191)", () => {
+  const base = { id: 1, visualType: "narrative", layout: "media-overlay" };
+
+  it("skips NO_MEDIA_TYPES (cta/data/stat-reveal)", () => {
+    expect(skipsMediaSourcing({ ...base, visualType: "cta" })).toBe(true);
+    expect(skipsMediaSourcing({ ...base, visualType: "stat-reveal" })).toBe(true);
+  });
+
+  it("skips explicit media:null — permanent no-media declaration", () => {
+    expect(skipsMediaSourcing({ ...base, media: null })).toBe(true);
+  });
+
+  it("still honors deprecated mediaOptOut (legacy content, #191)", () => {
+    expect(skipsMediaSourcing({ ...base, mediaOptOut: true })).toBe(true);
+  });
+
+  it("skips CSS-only layouts (hero-center / stacked-cards)", () => {
+    expect(skipsMediaSourcing({ ...base, layout: "hero-center" })).toBe(true);
+    expect(skipsMediaSourcing({ ...base, layout: "stacked-cards" })).toBe(true);
+  });
+
+  it("does not skip scenes that need sourcing", () => {
+    expect(skipsMediaSourcing(base)).toBe(false);
+  });
+
+  it("extractSceneClaims skips media:null scenes", () => {
+    const claims = extractSceneClaims([
+      { ...base, id: 1, assetNeed: "factory floor", media: null },
+      { ...base, id: 2, assetNeed: "server room" },
+    ]);
+    expect(claims).toHaveLength(1);
+    expect(claims[0].sceneId).toBe(2);
   });
 });

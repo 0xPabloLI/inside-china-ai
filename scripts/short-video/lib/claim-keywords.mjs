@@ -18,6 +18,30 @@
  */
 export const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
 
+/**
+ * Layouts that never auto-source media (#191): hero-center is forced for all
+ * non-narrative visualTypes whose templates are text-only; narrative +
+ * stacked-cards is designed to work without media (GridBg fallback).
+ */
+export const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
+
+/**
+ * Whether a scene is excluded from media sourcing (#191).
+ *
+ * Precedence: NO_MEDIA_TYPES → explicit `media: null` ("permanently no
+ * media", survives reruns) → deprecated `mediaOptOut` (legacy content,
+ * still honored) → CSS-only layouts. The b-roll budget check
+ * (shouldSourceStock) stays with the caller.
+ */
+export function skipsMediaSourcing(scene) {
+  if (!scene) return true;
+  if (NO_MEDIA_TYPES.has(scene.visualType)) return true;
+  if (scene.media === null) return true;
+  if (scene.mediaOptOut === true) return true; // deprecated (#191)
+  if (CSS_ONLY_LAYOUTS.has(scene.layout)) return true;
+  return false;
+}
+
 /** Small English stopword list for claim tokenization. */
 const STOPWORDS = new Set([
   "a",
@@ -80,8 +104,7 @@ export function extractSceneClaims(scenes) {
   const claims = [];
   for (const scene of scenes) {
     if (!scene) continue;
-    if (scene.mediaOptOut === true) continue;
-    if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
+    if (skipsMediaSourcing(scene)) continue;
 
     const claim = typeof scene.assetNeed === "string" ? scene.assetNeed.trim() : "";
     if (!claim) continue;
