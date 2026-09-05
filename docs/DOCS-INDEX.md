@@ -82,6 +82,7 @@ Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 | `scenario-matrix.md`                | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios)                                                             |
 | `fact-verification.md`              | Operational procedures for proposal-review §3/§4 (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |
 | `visual-design-loop.md`             | Visual design iteration loop — impeccable skill workflow for video template polish                                                     |
+| `test-env-baseline.md`              | Known environment-dependent test failures — rerun-in-isolation rule, per-suite env causes, node version drift                          |
 
 ### `agents/` — Agent execution references
 
