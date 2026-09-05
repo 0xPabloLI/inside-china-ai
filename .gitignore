@@ -157,7 +157,10 @@ scripts/kaggle/infinitetalk-dataset/output_*/
 .continue/
 .copilot/
 
-# 本地凭据文件（.env 已跟踪，勿动；带后缀的本地变体一律不入库）
+# 凭据文件规则：根 .env 已跟踪、只放可公开的值（VITE_* 与公共 Supabase 配置），
+# 密钥走 Lovable Secrets / .env.local（见 docs/tanstack-lovable-conventions.md §4）。
+# **/.env 拦截未来子项目（如 backend/）的裸 .env 入库；对已跟踪的根 .env 无影响。
+**/.env
 .env.local
 .env.local.*
 
