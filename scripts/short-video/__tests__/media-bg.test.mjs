@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import {
   resolveMediaPath,
   mediaExists,
@@ -536,5 +539,47 @@ describe("validateMedia — cropFocus field", () => {
     );
     expect(result.valid).toBe(true);
     expect(result.warnings.some((w) => w.includes("cropFocus"))).toBe(true);
+  });
+});
+
+// ─── #156: validateMedia backdrop awareness ───
+
+describe("validateMedia — backdrop (#156)", () => {
+  function dirWithBackdrop(withBackdropFile) {
+    const dir = mkdtempSync(join(tmpdir(), "media-validate-"));
+    mkdirSync(join(dir, "assets"), { recursive: true });
+    writeFileSync(join(dir, "assets", "chart.png"), "x");
+    if (withBackdropFile) {
+      mkdirSync(join(dir, "assets", "b-roll"), { recursive: true });
+      writeFileSync(join(dir, "assets", "b-roll", "scene-8.mp4"), "x");
+    }
+    return dir;
+  }
+
+  it("missing backdrop file → warning mentioning backdrop (same tier as missing media)", () => {
+    const dir = dirWithBackdrop(false);
+    const r = validateMedia(
+      {
+        type: "image",
+        path: "assets/chart.png",
+        backdrop: { type: "video", path: "assets/b-roll/scene-8.mp4", volume: 0 },
+      },
+      dir,
+    );
+    expect(r.valid).toBe(true);
+    expect(r.warnings.filter((w) => w.includes("backdrop"))).toHaveLength(1);
+  });
+
+  it("valid backdrop file produces no backdrop warning", () => {
+    const dir = dirWithBackdrop(true);
+    const r = validateMedia(
+      {
+        type: "image",
+        path: "assets/chart.png",
+        backdrop: { type: "video", path: "assets/b-roll/scene-8.mp4", volume: 0 },
+      },
+      dir,
+    );
+    expect(r.warnings.filter((w) => w.includes("backdrop"))).toHaveLength(0);
   });
 });

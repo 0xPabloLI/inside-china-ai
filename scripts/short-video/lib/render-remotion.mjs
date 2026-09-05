@@ -125,6 +125,29 @@ export function renderRemotion({
         delete scene.media;
       }
     }
+    // #156: copy the backdrop clip too (no upscale — generated clips set
+    // upscale:false; a missing backdrop file just drops the layer, which
+    // validateMedia already warns about).
+    if (scene.media?.backdrop?.path) {
+      const bdSrc = join(contentDir || ".", scene.media.backdrop.path);
+      if (existsSync(bdSrc)) {
+        const bdDest = join(publicAssetsDir, basename(bdSrc));
+        if (!existsSync(bdDest)) {
+          copyFileSync(bdSrc, bdDest);
+          console.log(`  📸 Copied backdrop: ${basename(bdSrc)}`);
+        }
+        scene.media = {
+          ...scene.media,
+          backdrop: { ...scene.media.backdrop, path: basename(bdSrc) },
+        };
+      } else {
+        console.warn(
+          `  ⚠️  Backdrop file not found: ${scene.media.backdrop.path} — dropping backdrop from scene ${scene.id}`,
+        );
+        const { backdrop: _dropped, ...mediaWithoutBackdrop } = scene.media;
+        scene.media = mediaWithoutBackdrop;
+      }
+    }
   }
 
   // ── 3. Construct props ──

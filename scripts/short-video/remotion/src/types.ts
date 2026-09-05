@@ -31,6 +31,21 @@ export interface MediaField {
     "product_demo" | "talking_head" | "landscape" | "chart" | "text_screenshot" | "other" | string;
   /** VLM key subject terms (P3). Used for semantic scoring in scoreCandidate. */
   subjects?: string[];
+  /**
+   * #156 backdrop layer: a generated clip rendered BENEATH the primary
+   * media (visible where the primary doesn't cover the frame). Muted by
+   * contract (volume 0); the primary media's overlay dims it, so text
+   * contrast is preserved. Written by the b-roll orchestrator when a
+   * scene that already has media wins generation.
+   */
+  backdrop?: {
+    type: "video";
+    path: string;
+    source?: string;
+    animation?: "fade";
+    volume?: number;
+    upscale?: boolean;
+  };
 }
 
 /** Texts object — varies by visualType, all fields optional. */

@@ -157,8 +157,38 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
           clamp,
         );
 
+  // ─── #156 backdrop layer ───
+  // A generated clip rendered BENEATH the primary media (visible where the
+  // primary doesn't cover the frame — e.g. contained charts, strips).
+  // Muted by contract; opacity held below 1 so the motion layer never
+  // competes with the primary media for attention. The primary media's
+  // overlay div (rendered above both) still governs text contrast.
+  const BACKDROP_OPACITY = 0.5;
+  const backdropPath = media.backdrop
+    ? staticFile(
+        media.backdrop.path.startsWith("assets/")
+          ? media.backdrop.path
+          : `assets/${media.backdrop.path}`,
+      )
+    : null;
+
   return (
     <>
+      {backdropPath && (
+        <Video
+          src={backdropPath}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: BACKDROP_OPACITY,
+          }}
+          volume={0}
+          loop
+        />
+      )}
       {showBrandedMatte && (
         <AbsoluteFill
           style={{

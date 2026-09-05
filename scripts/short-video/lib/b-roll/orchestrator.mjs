@@ -74,20 +74,36 @@ function seedsForScene(sceneIndex) {
   return Array.from({ length: CANDIDATES_PER_SCENE }, (_, i) => SEED_BASE + sceneIndex * 100 + i);
 }
 
+/**
+ * Land a generation winner on the scene (#156).
+ *
+ * @returns {"media"|"backdrop"|null} where the winner landed: "media" when
+ *   the scene had no media (winner becomes the primary), "backdrop" when
+ *   the scene already had media (winner becomes media.backdrop), or null
+ *   when a backdrop already exists (idempotent — never overwritten).
+ */
 function assignWinner(scene, winnerFile) {
-  if (scene.media) return false;
-  scene.media = {
+  const generated = {
     type: "video",
     path: `assets/b-roll/${winnerFile}`,
     source: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
     animation: "fade",
-    overlay: 0.7,
     volume: 0,
     // 480×832 trips the "short side < 720" heuristic in upscale.mjs, and
     // render-remotion.mjs would rerun per-frame Real-ESRGAN on it.
     upscale: false,
   };
-  return true;
+  // #156: a scene that already has media takes the winner as a BACKDROP
+  // layer (rendered beneath the real media) instead of discarding it —
+  // the GPU spend becomes output. No own overlay: the primary media's
+  // overlay dims the backdrop, so text contrast is preserved.
+  if (scene.media) {
+    if (scene.media.backdrop) return null; // idempotent
+    scene.media.backdrop = generated;
+    return "backdrop";
+  }
+  scene.media = { ...generated, overlay: 0.7 };
+  return "media";
 }
 
 /**
@@ -175,7 +191,7 @@ export async function runBrollStage(opts) {
       counts.escalated += 1;
       continue;
     }
-    toGenerate.push({ scene, sceneId, prompt, round });
+    toGenerate.push({ scene, sceneId, prompt, round, prevEntry: entry ?? null });
   }
 
   const limited = toGenerate.slice(0, maxScenes);
@@ -232,7 +248,7 @@ export async function runBrollStage(opts) {
 
   report.scenes = report.scenes ?? {};
   for (const item of limited) {
-    const { scene, sceneId, prompt, round } = item;
+    const { scene, sceneId, prompt, round, prevEntry } = item;
     const sceneJobs = jobsByScene.get(sceneId);
 
     const candidatesInput = [];
@@ -271,6 +287,7 @@ export async function runBrollStage(opts) {
       ...failedCandidates,
     ];
 
+    const landedOn = winner ? assignWinner(scene, basename(winner.file)) : null;
     report.scenes[sceneId] = {
       strategy: scene.mediaStrategy,
       promptHash: promptHash(prompt),
@@ -280,10 +297,12 @@ export async function runBrollStage(opts) {
       voiceover: scene.voiceover ?? "",
       candidates,
       winner: winner ? { seed: winner.seed, file: basename(winner.file) } : null,
+      // null (idempotent re-run over an existing backdrop) preserves the
+      // previous report's landing record.
+      landedOn: landedOn ?? prevEntry?.landedOn ?? null,
     };
 
     if (winner) {
-      assignWinner(scene, basename(winner.file));
       counts.generated += 1;
     } else {
       counts.failed += 1;

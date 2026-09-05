@@ -330,6 +330,15 @@ export function validateMedia(media, contentDir) {
     warnings.push(`Unknown animation preset: "${media.animation}". Will use "fade" instead.`);
   }
 
+  // #156 backdrop layer: missing file → warning (layer is skipped at render)
+  if (media.backdrop) {
+    if (!media.backdrop.path || !mediaExists(media.backdrop.path, contentDir)) {
+      warnings.push(
+        `Backdrop file not found: ${media.backdrop.path || "(none)"}. The backdrop layer will be skipped.`,
+      );
+    }
+  }
+
   // Mode validation
   if (media.mode && !VALID_MODES.includes(media.mode)) {
     warnings.push(`Unknown media mode: "${media.mode}". Will use "background" instead.`);

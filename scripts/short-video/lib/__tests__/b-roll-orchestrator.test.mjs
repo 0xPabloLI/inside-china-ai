@@ -455,12 +455,85 @@ describe("runBrollStage", () => {
     expect(calls[0].mlxCheckpoint).toBeNull();
   });
 
-  test("winner never overwrites existing scene.media", async () => {
+  test("#156 winner under existing media lands as backdrop (primary never overwritten)", async () => {
     const dirs = stageDirs();
     const { generate } = okGenerateMock();
     const existing = { type: "image", path: "assets/manual.png" };
     const scenes = [scene({ id: "7", mediaStrategy: "b-roll", media: { ...existing } })];
     await runBrollStage(baseOpts(dirs, { scenes, generate }));
-    expect(scenes[0].media).toEqual(existing);
+    expect(scenes[0].media.path).toBe(existing.path);
+    expect(scenes[0].media.type).toBe(existing.type);
+    expect(scenes[0].media.backdrop?.path).toMatch(/^assets\/b-roll\//);
+  });
+
+  // ─── #156: backdrop landing — a b-roll winner under real media is not discarded ───
+
+  test("#156 b-roll strategy + existing media: cached winner lands as media.backdrop", async () => {
+    const dirs = stageDirs();
+    const file = "scene-8-seed7777.mp4";
+    const report = emptyReport("demo", 60);
+    report.scenes["8"] = {
+      strategy: "b-roll",
+      promptHash: promptHash("cached prompt"),
+      round: 1,
+      status: "won",
+      prompt: "cached prompt",
+      voiceover: "v",
+      candidates: [{ seed: 7777, file, relevance: 90, reason: "ok" }],
+      winner: { seed: 7777, file },
+    };
+    writeReport(reportPath(dirs.outputDir), report);
+
+    const scenes = [
+      scene({
+        id: "8",
+        mediaStrategy: "b-roll",
+        aiVideo: { prompt: "cached prompt" },
+        media: { type: "image", path: "assets/qwen-throughput.png", source: "Pexels" },
+      }),
+    ];
+    const result = await runBrollStage(baseOpts(dirs, { scenes }));
+
+    expect(result.counts.cached).toBe(1);
+    // Primary media untouched; winner becomes the backdrop
+    expect(scenes[0].media.path).toBe("assets/qwen-throughput.png");
+    expect(scenes[0].media.backdrop).toEqual({
+      type: "video",
+      path: "assets/b-roll/scene-8-seed7777.mp4",
+      source: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
+      animation: "fade",
+      volume: 0,
+      upscale: false,
+    });
+  });
+
+  test("#156 fresh generation with existing media lands backdrop (not discarded)", async () => {
+    const dirs = stageDirs();
+    const scenes = [
+      scene({
+        id: "8",
+        mediaStrategy: "b-roll",
+        media: { type: "image", path: "assets/qwen-throughput.png" },
+      }),
+    ];
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate: okGenerateMock().generate,
+      }),
+    );
+    expect(result.counts.generated).toBe(1);
+    expect(scenes[0].media.path).toBe("assets/qwen-throughput.png");
+    expect(scenes[0].media.backdrop?.path).toMatch(/^assets\/b-roll\/scene-8-.*\.mp4$/);
+    // Report records where the winner landed
+    expect(readReport(reportPath(dirs.outputDir)).scenes["8"].landedOn).toBe("backdrop");
+  });
+
+  test("#156 scene without media still lands primary media (existing contract)", async () => {
+    const dirs = stageDirs();
+    const scenes = [scene({ id: "6", mediaStrategy: "b-roll" })];
+    await runBrollStage(baseOpts(dirs, { scenes, generate: okGenerateMock().generate }));
+    expect(scenes[0].media.backdrop).toBeUndefined();
+    expect(scenes[0].media.path).toMatch(/^assets\/b-roll\//);
   });
 });
