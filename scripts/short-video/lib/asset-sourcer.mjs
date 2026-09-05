@@ -1202,14 +1202,45 @@ export async function analyzeAssets(assets, opts = {}) {
   }
 
   // ── Phase 2: Focus detection (medium cost ~0.5s/asset) — only for survivors ──
-  // Resolve relative paths using contentDir when provided (P0-1 fix)
+  // Resolve relative paths using contentDir when provided (P0-1 fix).
+  // Results are content-addressed cached (#100): key = source fingerprint +
+  // analyzer version. Degraded results (transient dependency/read failures)
+  // are not cached so a rerun retries detection.
   if (analyzableAssets.length > 0) {
+    const { computeFocusCacheKey, getCachedFocusResult, writeCachedFocusResult } =
+      await import("./focus-cache.mjs");
+    const focusCacheDir = contentDir ? join(contentDir, ".focus-cache") : null;
+    const focusCacheDisabled = process.env.FOCUS_CACHE_DISABLED === "1";
     try {
       for (const asset of analyzableAssets) {
         if (!asset.path) continue;
         const absPath =
           contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
-        const focus = await detectFocus(absPath);
+        let focus = null;
+        let focusKey = null;
+        if (focusCacheDir && !focusCacheDisabled) {
+          try {
+            focusKey = await computeFocusCacheKey({ filePath: absPath });
+            const cached = getCachedFocusResult(focusCacheDir, focusKey);
+            if (cached) {
+              focus = cached.data;
+              console.log(`  💾 Focus cache hit: ${absPath}`);
+            }
+          } catch {
+            // Cache read problems never block detection (unreadable file → miss)
+          }
+        }
+        if (!focus) {
+          const focusStart = Date.now();
+          focus = await detectFocus(absPath);
+          // Failure policy (#100): never pin a transient degraded result.
+          if (focusCacheDir && !focusCacheDisabled && focus?.status !== "degraded" && focusKey) {
+            writeCachedFocusResult(focusCacheDir, focusKey, {
+              data: focus,
+              meta: { durationMs: Date.now() - focusStart },
+            });
+          }
+        }
         asset.focusAnalysis = focus;
       }
     } finally {
@@ -1245,8 +1276,7 @@ export async function analyzeAssets(assets, opts = {}) {
   const report = [];
 
   const { getVlmConcurrency } = await import("./visual-analyzer.mjs");
-  const { computeCacheKey, getCachedSemantics, writeCachedSemantics } =
-    await import("./vlm-cache.mjs");
+  const { computeCacheKey, getCachedResult, writeCachedResult } = await import("./vlm-cache.mjs");
 
   const vlmConcurrency = Math.max(1, getVlmConcurrency());
   const cacheDir = contentDir ? join(contentDir, ".vlm-cache") : null;
@@ -1280,11 +1310,13 @@ export async function analyzeAssets(assets, opts = {}) {
           window: asset.window,
           claim: claimInfo,
         });
-        const cached = getCachedSemantics(cacheDir, cacheKey);
+        const cached = getCachedResult(cacheDir, cacheKey);
         if (cached) {
-          semantics = cached;
+          semantics = cached.data;
           cacheHit = true;
-          console.log(`  💾 Cache hit: ${absPath}`);
+          console.log(
+            `  💾 Cache hit: ${absPath} (model=${cached.meta.model || "unknown"}, analyzed ${cached.meta.generatedAt || "unknown"})`,
+          );
         }
       } catch {
         // Cache read problems never block analysis (unreadable file → miss)
@@ -1314,12 +1346,21 @@ export async function analyzeAssets(assets, opts = {}) {
       }
       // Persist successful raw VLM output; failed/degraded runs are not cached
       // so a rerun retries inference instead of pinning the degraded result.
+      // #100: entries use the unified envelope — meta records model, duration,
+      // escalation and versions for observability (acceptance: scheduling
+      // order visible in logs/meta).
       if (cacheDir && !cacheDisabled && success && cacheKey) {
-        try {
-          writeCachedSemantics(cacheDir, cacheKey, { ...semantics });
-        } catch {
-          // Cache write failures are warn-and-continue (see vlm-cache.mjs)
-        }
+        // writeCachedResult warns-and-continues on file errors and refuses
+        // non-ok results internally, so no caller-side error handling.
+        writeCachedResult(cacheDir, cacheKey, {
+          data: { ...semantics },
+          meta: {
+            model: modelId,
+            durationMs: Date.now() - startTime,
+            escalated: semantics.escalated ?? null,
+            sourceMode: semantics.sourceMode ?? null,
+          },
+        });
       }
     }
 

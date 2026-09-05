@@ -113,10 +113,11 @@ describe("analyzeAssets VLM cache + concurrency wiring (#189)", () => {
     analyzeAssetSemantics.mockImplementation(async (p) => fakeSemantics(p));
     await analyzeAssets(assets(2), { outputDir: dir });
     expect(existsSync(join(dir, ".vlm-cache"))).toBe(false);
+    expect(existsSync(join(dir, ".focus-cache"))).toBe(false);
     expect(analyzeAssetSemantics).toHaveBeenCalledTimes(2);
   });
 
-  it("stores escalated flag from VLM result in cache value", async () => {
+  it("stores the escalated flag inside the v2 envelope's data (#100)", async () => {
     analyzeAssetSemantics.mockImplementation(async (p) => ({
       ...fakeSemantics(p),
       escalated: true,
@@ -125,6 +126,45 @@ describe("analyzeAssets VLM cache + concurrency wiring (#189)", () => {
     const cacheDir = join(contentDir, ".vlm-cache");
     const file = readdirSync(cacheDir)[0];
     const value = JSON.parse(readFileSync(join(cacheDir, file), "utf-8"));
-    expect(value.escalated).toBe(true);
+    expect(value.ok).toBe(true);
+    expect(value.data.escalated).toBe(true);
+    expect(value.meta.model).toBeTruthy();
+    expect(typeof value.meta.durationMs).toBe("number");
+    expect(value.meta.generatedAt).toBeTruthy();
+  });
+
+  it("caches focus analysis — detectFocus runs once across two runs (#100)", async () => {
+    analyzeAssetSemantics.mockImplementation(async (p) => fakeSemantics(p));
+    detectFocus.mockResolvedValue({
+      status: "ok",
+      errorCode: null,
+      frame: { width: 100, height: 50 },
+      protectedRegions: [],
+      saliency: { available: true, dispersion: 0.4, centroid: [0.5, 0.5] },
+    });
+    const opts = { outputDir: dir, contentDir, contentSlug: "f1" };
+    await analyzeAssets(assets(2), opts);
+    expect(detectFocus).toHaveBeenCalledTimes(2);
+    expect(existsSync(join(contentDir, ".focus-cache"))).toBe(true);
+
+    await analyzeAssets(assets(2), opts);
+    expect(detectFocus).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not cache degraded focus results — rerun retries detection (#100)", async () => {
+    analyzeAssetSemantics.mockImplementation(async (p) => fakeSemantics(p));
+    detectFocus.mockResolvedValue({
+      status: "degraded",
+      errorCode: "cannot_read_image",
+      frame: null,
+      protectedRegions: [],
+      saliency: { available: false, dispersion: 0, centroid: [0.5, 0.5] },
+    });
+    const opts = { outputDir: dir, contentDir, contentSlug: "f2" };
+    await analyzeAssets(assets(1), opts);
+    expect(existsSync(join(contentDir, ".focus-cache"))).toBe(false);
+
+    await analyzeAssets(assets(1), opts);
+    expect(detectFocus).toHaveBeenCalledTimes(2);
   });
 });
