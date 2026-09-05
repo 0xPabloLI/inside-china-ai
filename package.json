@@ -17,6 +17,11 @@
     "format": "prettier --write .",
     "verify:seo": "node scripts/seo/validate-jsonld.mjs",
     "verify:seo:online": "node scripts/seo/validate-jsonld.mjs --online",
+    "scan": "npm run scan:code && npm run scan:deps",
+    "scan:code": "semgrep scan --config p/default --metrics=off src/",
+    "scan:code:all": "semgrep scan --config p/default --metrics=off src/ scripts/",
+    "scan:mcp": "mcp-scanner --analyzers yara,prompt_defense --format summary config --config-path .mcp.json",
+    "scan:deps": "osv-scanner --lockfile ./package-lock.json",
     "prebuild": "node scripts/seo/validate-jsonld.mjs",
     "test": "vitest run"
   },
