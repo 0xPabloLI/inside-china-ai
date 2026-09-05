@@ -30,7 +30,9 @@
 
 > **Evidence 模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）保留但不接入管线。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。非阻塞审计可通过 `research-pipeline.mjs --audit-only` 手动触发（Issue #61）。
 >
-> 详细 spec 见 `docs/archive/spec-research-evidence-pipeline.md`。
+> **证据分组（issue #97）**：research 模式将 articles-capable 源分为三组——`direct-evidence`（关键词 capable 源，提供可搜索的 claim 证据）、`tracked-feed-context`（12 个 Wechat2RSS 固定公开 Feed，每 run 拉取一次作为 14 天窗口内的背景 context）、`environmental-signal`（homepage-only 源，登记为低优先级背景不拉取）。`discovery.json` 的 `evidenceGroups` 列出三组源名，每条 `sources[]` item 带 `sourceRole` 与真实 `collectionMethod`；`buildBrief` 将 `tracked-feed-context` 排除出 `candidateSources`，避免背景 context 污染 claim 直接证据排序。详见 `docs/archive/spec-wechat2rss-source-tracking.md`。
+>
+> 详细 spec 见 `docs/specs/spec-research-evidence-pipeline.md`。
 
 ### Stage 0 末尾：RAG 查询（已有内容检索）
 

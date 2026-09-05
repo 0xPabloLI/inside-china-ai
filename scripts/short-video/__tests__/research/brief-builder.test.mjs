@@ -313,4 +313,57 @@ describe("buildBrief", () => {
     );
     expect(result.brief.researchTier).toBe("standard");
   });
+
+  // Issue #97: tracked WeChat feed context must not contaminate direct-evidence
+  // ranking or claim support in the brief.
+  it("excludes tracked-feed-context sources from candidateSources", () => {
+    const result = buildBrief(
+      {
+        schemaVersion: DISCOVERY_SCHEMA_VERSION,
+        contentId: "x",
+        researchRunId: "r1",
+        sources: [
+          {
+            url: "https://mp.weixin.qq.com/s/rss-post",
+            title: "WeChat feed post",
+            sourceRole: "tracked-feed-context",
+            publishedAt: "2026-08-15",
+          },
+          {
+            url: "https://qbitai.com/post",
+            title: "Direct article",
+            sourceRole: "direct-evidence",
+            publishedAt: "2026-08-15",
+          },
+        ],
+        sourceCount: 2,
+      },
+      { researchQuestion: "test?" },
+    );
+    expect(result.valid).toBe(true);
+    const urls = result.brief.candidateSources.map((c) => c.url);
+    expect(urls).toContain("https://qbitai.com/post");
+    expect(urls).not.toContain("https://mp.weixin.qq.com/s/rss-post");
+  });
+
+  it("passes sourceRole through to candidateSources", () => {
+    const result = buildBrief(
+      {
+        schemaVersion: DISCOVERY_SCHEMA_VERSION,
+        contentId: "x",
+        researchRunId: "r1",
+        sources: [
+          {
+            url: "https://qbitai.com/post",
+            title: "Direct article",
+            sourceRole: "direct-evidence",
+            publishedAt: "2026-08-15",
+          },
+        ],
+        sourceCount: 1,
+      },
+      { researchQuestion: "test?" },
+    );
+    expect(result.brief.candidateSources[0].sourceRole).toBe("direct-evidence");
+  });
 });

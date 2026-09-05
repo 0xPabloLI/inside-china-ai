@@ -222,8 +222,16 @@ export function buildBrief(discovery, context) {
     return { valid: false, brief: null, errors: ["discovery.sources must be an array"] };
   }
 
+  // Step 0 (issue #97): exclude tracked-feed-context sources (fixed WeChat
+  // public feeds) — they are background context within their freshness window
+  // and must not contaminate direct-evidence ranking or claim support without
+  // explicit verification.
+  const eligibleSources = (discovery.sources || []).filter(
+    (src) => src.sourceRole !== "tracked-feed-context",
+  );
+
   // Step 1: Deduplicate
-  let candidates = deduplicateSources(discovery.sources);
+  let candidates = deduplicateSources(eligibleSources);
 
   // Step 2: Time-window filter (default 30 days)
   const daysBack = context.daysBack || 30;
@@ -238,6 +246,7 @@ export function buildBrief(discovery, context) {
     title: src.title || "",
     sourceType: src.sourceType || src.sourceCategory || "independent-secondary",
     publishedAt: src.publishedAt || null,
+    ...(src.sourceRole ? { sourceRole: src.sourceRole } : {}),
   }));
 
   // Step 5: Build brief

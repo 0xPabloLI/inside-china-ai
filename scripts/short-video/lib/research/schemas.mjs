@@ -11,7 +11,7 @@
 
 // ─── Schema Versions ───
 
-export const DISCOVERY_SCHEMA_VERSION = "1.0.0";
+export const DISCOVERY_SCHEMA_VERSION = "1.1.0";
 export const BRIEF_SCHEMA_VERSION = "1.0.0";
 export const EVIDENCE_PACK_SCHEMA_VERSION = "1.0.0";
 export const CLAIM_MAP_SCHEMA_VERSION = "1.0.0";
@@ -39,6 +39,13 @@ export const RESEARCH_TIERS = ["standard", "deep"];
 
 export const CLAIM_RISK_LEVELS = ["low", "medium", "high"];
 
+// Issue #97: evidence-group roles. Every articles-capable source belongs to
+// exactly one group: keyword-capable sources provide direct evidence for
+// claims, tracked public feeds (Wechat2RSS) provide background context within
+// their freshness window, and remaining homepage-only sources are
+// environmental signals that must never be presented as direct evidence.
+export const SOURCE_ROLES = ["direct-evidence", "tracked-feed-context", "environmental-signal"];
+
 // ─── Schema Definitions ───
 // Each schema describes:
 // - version: the current schemaVersion string
@@ -56,7 +63,7 @@ export const DISCOVERY_SCHEMA = {
     "sources",
     "sourceCount",
   ],
-  optional: ["failedSources", "runMetadata"],
+  optional: ["failedSources", "runMetadata", "evidenceGroups"],
   fields: {
     schemaVersion: { type: "string" },
     contentId: { type: "string" },
@@ -67,6 +74,7 @@ export const DISCOVERY_SCHEMA = {
     failedSources: { type: "array" },
     sourceCount: { type: "number" },
     runMetadata: { type: "object" },
+    evidenceGroups: { type: "object" },
   },
 };
 

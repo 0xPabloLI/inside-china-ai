@@ -10,7 +10,9 @@ import {
   RESEARCH_ARTIFACTS,
 } from "../../lib/research/workspace.mjs";
 import { validateDiscovery } from "../../lib/research/validate.mjs";
-import { DISCOVERY_SCHEMA_VERSION } from "../../lib/research/schemas.mjs";
+// Issue #97: use the real buildDiscoveryOutput from search-sources.mjs instead
+// of a local copy — the fixture used to drift from the implementation.
+import { buildDiscoveryOutput } from "../../search-sources.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,34 +21,17 @@ const __dirname = dirname(__filename);
 const TEST_SLUG = "test-scoped-search";
 const TEST_RUN = "run-scoped-001";
 
-function buildDiscoveryOutput(articles, failedSourceNames, keyword) {
-  return {
-    schemaVersion: DISCOVERY_SCHEMA_VERSION,
-    contentId: TEST_SLUG,
-    researchRunId: TEST_RUN,
-    timeWindow: { days: 7, until: new Date().toISOString().slice(0, 10) },
-    locale: "zh-CN",
-    sources: articles.map((a) => ({
-      url: a.url || "",
-      title: a.title || "",
-      snippet: a.snippet || "",
-      sourceName: a.source || "",
-      sourceCategory: a.category || "",
-      publishedAt: a.publishedAt || null,
-      collectionMethod: a.collectionMethod || "cdp",
-      collectionStatus: "ok",
-    })),
-    failedSources: failedSourceNames.map((name) => ({
-      name,
-      reason: "unknown",
-    })),
-    sourceCount: articles.length,
-    runMetadata: {
-      startedAt: new Date().toISOString(),
+function buildDiscovery(articles, failedSourceNames, keyword) {
+  return buildDiscoveryOutput(
+    articles,
+    failedSourceNames.map((name) => ({ name, reason: `source failed: ${name}` })),
+    {
+      contentId: TEST_SLUG,
+      runId: TEST_RUN,
       keyword,
-      mode: "research",
+      sources: [],
     },
-  };
+  );
 }
 
 // Clean up
@@ -64,7 +49,7 @@ describe("search-sources scoped mode: discovery output", () => {
       { url: "https://example.com/b", title: "Article B", source: "36kr", category: "news" },
     ];
 
-    const discovery = buildDiscoveryOutput(articles, [], "DeepSeek");
+    const discovery = buildDiscovery(articles, [], "DeepSeek");
 
     // Write it as search-sources.mjs would
     writeResearchArtifact(TEST_SLUG, TEST_RUN, RESEARCH_ARTIFACTS.DISCOVERY, discovery);
@@ -87,7 +72,7 @@ describe("search-sources scoped mode: discovery output", () => {
     ];
     const failed = ["bloomberg", "xiaohongshu"];
 
-    const discovery = buildDiscoveryOutput(articles, failed, "AI chip");
+    const discovery = buildDiscovery(articles, failed, "AI chip");
 
     expect(discovery.failedSources).toHaveLength(2);
     expect(discovery.failedSources[0].name).toBe("bloomberg");
@@ -102,13 +87,13 @@ describe("search-sources scoped mode: discovery output", () => {
       { url: "https://c.com", title: "C", source: "s3" },
     ];
 
-    const discovery = buildDiscoveryOutput(articles, [], "test");
+    const discovery = buildDiscovery(articles, [], "test");
     expect(discovery.sourceCount).toBe(3);
     expect(discovery.sources).toHaveLength(3);
   });
 
   it("discovery is schema-valid even with zero articles", () => {
-    const discovery = buildDiscoveryOutput([], ["all-sources-failed"], "test");
+    const discovery = buildDiscovery([], ["all-sources-failed"], "test");
     expect(discovery.sourceCount).toBe(0);
     expect(discovery.sources).toHaveLength(0);
     expect(discovery.failedSources).toHaveLength(1);
@@ -122,14 +107,14 @@ describe("search-sources scoped mode: discovery output", () => {
     const slugB = "concurrent-scoped-b";
 
     try {
-      const discoveryA = buildDiscoveryOutput(
+      const discoveryA = buildDiscovery(
         [{ url: "https://a.com", title: "A", source: "s1" }],
         [],
         "test-a",
       );
       discoveryA.contentId = slugA;
 
-      const discoveryB = buildDiscoveryOutput(
+      const discoveryB = buildDiscovery(
         [{ url: "https://b.com", title: "B", source: "s1" }],
         [],
         "test-b",
@@ -156,7 +141,7 @@ describe("search-sources scoped mode: discovery output", () => {
 
   it("each source item has required url or title field", () => {
     const articles = [{ url: "https://example.com/a", title: "Article A", source: "s1" }];
-    const discovery = buildDiscoveryOutput(articles, [], "test");
+    const discovery = buildDiscovery(articles, [], "test");
 
     for (const source of discovery.sources) {
       expect(source.url || source.title).toBeTruthy();

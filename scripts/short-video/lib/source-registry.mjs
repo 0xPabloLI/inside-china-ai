@@ -11,6 +11,12 @@
  * - category: "news" | "self_media" | "general" | "international" | "last30days" | "wechat"
  * - needsAuth: whether login is required
  * - supportsKeyword: whether the source supports keyword search (vs homepage-only)
+ * - sourceRole: evidence-group role (optional, issue #97) —
+ *     "tracked-feed-context" for fixed public feeds (Wechat2RSS): fetched once
+ *     per research run as background context within their freshness window,
+ *     never direct evidence for a claim without explicit verification.
+ *     Sources without the field default to direct-evidence or
+ *     environmental-signal via groupSourcesByEvidenceRole() in search-sources.mjs.
  * - accessMethod: how this source is collected
  *     { primary: "cdp" | "api" | "mcp",
  *       notes: "human-readable description of collection method" }
@@ -2105,6 +2111,9 @@ function createWechatRssSource(name, label, feedUrl) {
     supportsKeyword: false,
     needsAuth: false,
     useCleanTitle: false,
+    // Issue #97: evidence-group role — fixed public feeds are tracked context,
+    // never direct evidence for a claim without explicit verification.
+    sourceRole: "tracked-feed-context",
     accessMethod: {
       primary: "api",
       notes:

@@ -472,6 +472,130 @@ export async function collectFromSource(source, keyword) {
   return articles;
 }
 
+// ─── Evidence grouping (issue #97) ───
+
+/**
+ * Partitions articles-capable sources into the three evidence groups from
+ * issue #97:
+ *
+ * - directEvidence: keyword-capable sources (supportsKeyword or
+ *   googleSiteFallback) — provide searchable evidence for claims.
+ * - trackedFeedContext: fixed public feeds (sourceRole "tracked-feed-context",
+ *   the 12 Wechat2RSS feeds) — fetched once per research run as background
+ *   context within their freshness window, never direct evidence.
+ * - environmentalSignals: remaining homepage-only sources — low-priority
+ *   background, never presented as direct evidence.
+ *
+ * @param {Array<Object>} sources — articles-capable source definitions
+ * @returns {{ directEvidence: Object[], trackedFeedContext: Object[], environmentalSignals: Object[] }}
+ */
+export function groupSourcesByEvidenceRole(sources) {
+  const groups = { directEvidence: [], trackedFeedContext: [], environmentalSignals: [] };
+  for (const source of sources || []) {
+    if (source.sourceRole === "tracked-feed-context") {
+      groups.trackedFeedContext.push(source);
+      continue;
+    }
+    const cap = source.capabilities?.articles;
+    const keywordCapable =
+      (cap?.supportsKeyword ?? source.supportsKeyword) ||
+      (cap?.googleSiteFallback ?? source.googleSiteFallback);
+    if (keywordCapable) {
+      groups.directEvidence.push(source);
+    } else {
+      groups.environmentalSignals.push(source);
+    }
+  }
+  return groups;
+}
+
+/**
+ * Derives the collection method recorded per discovery item (issue #97).
+ * Tracked public feeds report their tracking.access ("public-rss") instead of
+ * the previously hardcoded "cdp" fallback.
+ *
+ * @param {Object|null} source — source definition (may be null)
+ * @returns {string} "public-rss" | "api" | "cdp" | "mcp" (default "cdp")
+ */
+export function deriveCollectionMethod(source) {
+  const access = source?.tracking?.access;
+  if (access) return access;
+  const primary = source?.accessMethod?.primary;
+  if (primary) return primary;
+  return "cdp";
+}
+
+/**
+ * Builds the scoped discovery.json object (issue #97 evidence-group layout).
+ *
+ * @param {Array<Object>} articles — collected articles (each has at least url/title + source)
+ * @param {Array<{name: string, reason: string}>} failedSources — per-source failure records
+ * @param {Object} options
+ * @param {string} options.contentId
+ * @param {string} options.runId
+ * @param {string|null} options.keyword
+ * @param {Array<Object>} options.sources — articles-capable sources for this universe
+ *   (used for evidenceGroups, per-item sourceRole, category and collectionMethod)
+ * @returns {Object} discovery document (schema 1.1.0)
+ */
+export function buildDiscoveryOutput(articles, failedSources, options) {
+  const { contentId, runId, keyword, sources } = options || {};
+  const groups = groupSourcesByEvidenceRole(sources || []);
+  const sourceByName = new Map((sources || []).map((s) => [s.name, s]));
+
+  const roleBySource = new Map();
+  for (const s of groups.directEvidence) roleBySource.set(s.name, "direct-evidence");
+  for (const s of groups.trackedFeedContext) roleBySource.set(s.name, "tracked-feed-context");
+  for (const s of groups.environmentalSignals) roleBySource.set(s.name, "environmental-signal");
+
+  // googleSiteFallback articles carry a "<name>_fallback" source (see
+  // collectFromSource Step 2) — strip the suffix to resolve the real source.
+  function resolveSource(articleSourceName) {
+    return (
+      sourceByName.get(articleSourceName) ||
+      sourceByName.get(String(articleSourceName || "").replace(/_fallback$/, "")) ||
+      null
+    );
+  }
+
+  return {
+    schemaVersion: DISCOVERY_SCHEMA_VERSION,
+    contentId,
+    researchRunId: runId,
+    timeWindow: { days: 7, until: new Date().toISOString().slice(0, 10) },
+    locale: "zh-CN",
+    sources: (articles || []).map((a) => {
+      const source = resolveSource(a.source);
+      return {
+        url: a.url || "",
+        title: a.title || "",
+        snippet: a.snippet || "",
+        sourceName: a.source || "",
+        sourceCategory: source?.category || "",
+        publishedAt: a.publishedAt || null,
+        collectionMethod: source ? deriveCollectionMethod(source) : "cdp",
+        collectionStatus: "ok",
+        sourceRole: roleBySource.get(source?.name) || null,
+      };
+    }),
+    failedSources: (failedSources || []).map((f) => ({
+      name: f.name,
+      reason: f.reason || "unknown",
+    })),
+    evidenceGroups: {
+      directEvidence: groups.directEvidence.map((s) => s.name),
+      trackedFeedContext: groups.trackedFeedContext.map((s) => s.name),
+      environmentalSignals: groups.environmentalSignals.map((s) => s.name),
+    },
+    sourceCount: (articles || []).length,
+    runMetadata: {
+      startedAt: new Date().toISOString(),
+      keyword,
+      mode: "research",
+    },
+  };
+}
+
 // ─── Main ───
 
 async function main() {
@@ -482,14 +606,15 @@ async function main() {
   // R2: Select sources based on mode — only sources with capabilities.articles
   // This excludes stock_media sources (Pexels, Unsplash, etc.) which only have
   // capabilities.images/videos and should not be used for article/trend discovery.
-  // Research mode includes sources with supportsKeyword=true OR googleSiteFallback
-  // (homepage-only sources can still contribute via Google site: fallback).
+  // Issue #97: research mode routes sources into evidence groups — direct
+  // evidence (keyword-capable) plus tracked-feed context (fixed public feeds,
+  // fetched once per run) are collected; environmental signals (homepage-only)
+  // are registered in the artifact as background only and never fetched here.
+  const articlesCapableSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+  const evidenceGroupsAll = groupSourcesByEvidenceRole(articlesCapableSources);
   let sources = isResearchMode
-    ? ALL_SOURCES.filter(
-        (s) =>
-          s.capabilities?.articles?.supportsKeyword || s.capabilities?.articles?.googleSiteFallback,
-      )
-    : ALL_SOURCES.filter((s) => s.capabilities?.articles);
+    ? [...evidenceGroupsAll.directEvidence, ...evidenceGroupsAll.trackedFeedContext]
+    : articlesCapableSources;
 
   // Filter out paid-API sources unless --include-paid is passed
   // #67: Read paidApi from capabilities.articles with top-level fallback
@@ -541,7 +666,7 @@ async function main() {
 
   // Collect from selected sources
   const allArticles = [];
-  const failedSources = [];
+  const failedSources = []; // { name, reason } — issue #97 real failure reasons
   const resultsBySource = {}; // For research mode
 
   for (const source of sources) {
@@ -559,13 +684,13 @@ async function main() {
       }
     } catch (e) {
       console.warn(`  ⚠️  ${source.label} failed: ${e.message}`);
-      failedSources.push(source.name);
+      failedSources.push({ name: source.name, reason: e.message || "unknown" });
     }
   }
 
   console.log(`\n📊 Total articles scraped: ${allArticles.length}`);
   if (failedSources.length > 0) {
-    console.warn(`⚠️  Failed sources: ${failedSources.join(", ")}`);
+    console.warn(`⚠️  Failed sources: ${failedSources.map((f) => f.name).join(", ")}`);
   }
 
   // #63: URL-level dedup — eliminate cross-source URL redundancy
@@ -584,33 +709,15 @@ async function main() {
     // ── Scoped mode: output discovery.json to content workspace ──
     if (isScopedMode) {
       const runId = researchRunIdArg || `run-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-      const discovery = {
-        schemaVersion: DISCOVERY_SCHEMA_VERSION,
+      // Issue #97: evidenceGroups covers the full articles-capable universe so
+      // the artifact registers environmental-signal background sources even
+      // though they are not fetched in research mode.
+      const discovery = buildDiscoveryOutput(allArticles, failedSources, {
         contentId: contentIdArg,
-        researchRunId: runId,
-        timeWindow: { days: 7, until: new Date().toISOString().slice(0, 10) },
-        locale: "zh-CN",
-        sources: allArticles.map((a) => ({
-          url: a.url || "",
-          title: a.title || "",
-          snippet: a.snippet || "",
-          sourceName: a.source || "",
-          sourceCategory: resultsBySource[a.source]?.category || "",
-          publishedAt: a.publishedAt || null,
-          collectionMethod: a.collectionMethod || "cdp",
-          collectionStatus: "ok",
-        })),
-        failedSources: failedSources.map((name) => ({
-          name,
-          reason: resultsBySource[name]?.error || "unknown",
-        })),
-        sourceCount: allArticles.length,
-        runMetadata: {
-          startedAt: new Date().toISOString(),
-          keyword: keywordArg,
-          mode: "research",
-        },
-      };
+        runId,
+        keyword: keywordArg,
+        sources: articlesCapableSources,
+      });
 
       writeResearchArtifact(contentIdArg, runId, RESEARCH_ARTIFACTS.DISCOVERY, discovery);
       const workspacePath = getResearchWorkspace(contentIdArg);
@@ -631,7 +738,7 @@ async function main() {
       timestamp: new Date().toISOString(),
       totalArticles: allArticles.length,
       sourceCount: sources.length,
-      failedSources,
+      failedSources: failedSources.map((f) => f.name),
       results: resultsBySource,
     };
 

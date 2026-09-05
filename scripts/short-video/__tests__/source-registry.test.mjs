@@ -72,6 +72,8 @@ describe("Wechat RSS sources", () => {
       expect(source.supportsKeyword).toBe(false);
       expect(source.needsAuth).toBe(false);
       expect(source.accessMethod.primary).toBe("api");
+      // Issue #97: tracked WeChat context role for evidence-group separation
+      expect(source.sourceRole).toBe("tracked-feed-context");
       expect(source.tracking).toEqual({
         provider: "wechat2rss",
         access: "public-rss",

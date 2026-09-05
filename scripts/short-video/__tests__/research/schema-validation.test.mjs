@@ -10,6 +10,7 @@ import {
   BRIEF_SCHEMA_VERSION,
   EVIDENCE_PACK_SCHEMA_VERSION,
   CLAIM_MAP_SCHEMA_VERSION,
+  SOURCE_ROLES,
 } from "../../lib/research/schemas.mjs";
 
 // ─── Fixtures ───
@@ -178,6 +179,38 @@ describe("validateDiscovery", () => {
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("name"))).toBe(true);
+  });
+
+  it("passes with evidenceGroups present (optional, issue #97)", () => {
+    const result = validateDiscovery({
+      ...validDiscovery,
+      evidenceGroups: {
+        directEvidence: ["qbitai"],
+        trackedFeedContext: ["wechat2rss_qbitai"],
+        environmentalSignals: [],
+      },
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("fails when evidenceGroups is not an object", () => {
+    const result = validateDiscovery({
+      ...validDiscovery,
+      evidenceGroups: ["qbitai"],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("evidenceGroups"))).toBe(true);
+  });
+});
+
+describe("SOURCE_ROLES enum", () => {
+  it("defines the three evidence-group roles", () => {
+    expect(SOURCE_ROLES).toEqual([
+      "direct-evidence",
+      "tracked-feed-context",
+      "environmental-signal",
+    ]);
   });
 });
 
