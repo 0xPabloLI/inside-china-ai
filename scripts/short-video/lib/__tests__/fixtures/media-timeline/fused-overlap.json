@@ -1,0 +1,84 @@
+{
+  "version": "v1-2026-09-05",
+  "meta": {
+    "mediaDurationMs": 60000,
+    "eventCount": 6,
+    "visualWindowCount": 2,
+    "asrSegmentCount": 2,
+    "minEventMs": 200
+  },
+  "events": [
+    {
+      "startMs": 0,
+      "endMs": 1000,
+      "fused": false,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "frames",
+      "confidence": null
+    },
+    {
+      "startMs": 1000,
+      "endMs": 3000,
+      "fused": true,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": ["s1"],
+      "transcripts": [
+        {
+          "id": "s1",
+          "text": "大家好",
+          "language": "zh"
+        }
+      ],
+      "sourceMode": "frames",
+      "confidence": null
+    },
+    {
+      "startMs": 3000,
+      "endMs": 8000,
+      "fused": false,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "frames",
+      "confidence": null
+    },
+    {
+      "startMs": 8000,
+      "endMs": 9000,
+      "fused": false,
+      "visualEvidence": ["w2"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "degraded",
+      "confidence": null
+    },
+    {
+      "startMs": 9000,
+      "endMs": 14000,
+      "fused": true,
+      "visualEvidence": ["w2"],
+      "transcriptEvidence": ["s2"],
+      "transcripts": [
+        {
+          "id": "s2",
+          "text": "今天讲宇树",
+          "language": "zh"
+        }
+      ],
+      "sourceMode": "degraded",
+      "confidence": null
+    },
+    {
+      "startMs": 14000,
+      "endMs": 16000,
+      "fused": false,
+      "visualEvidence": ["w2"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "degraded",
+      "confidence": null
+    }
+  ]
+}

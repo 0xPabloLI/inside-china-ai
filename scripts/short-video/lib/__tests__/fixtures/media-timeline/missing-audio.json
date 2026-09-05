@@ -1,0 +1,22 @@
+{
+  "version": "v1-2026-09-05",
+  "meta": {
+    "mediaDurationMs": 60000,
+    "eventCount": 1,
+    "visualWindowCount": 1,
+    "asrSegmentCount": 0,
+    "minEventMs": 200
+  },
+  "events": [
+    {
+      "startMs": 0,
+      "endMs": 8000,
+      "fused": false,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "frames",
+      "confidence": null
+    }
+  ]
+}

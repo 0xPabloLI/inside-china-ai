@@ -1,0 +1,28 @@
+{
+  "version": "v1-2026-09-05",
+  "meta": {
+    "mediaDurationMs": 60000,
+    "eventCount": 1,
+    "visualWindowCount": 0,
+    "asrSegmentCount": 1,
+    "minEventMs": 200
+  },
+  "events": [
+    {
+      "startMs": 0,
+      "endMs": 6000,
+      "fused": false,
+      "visualEvidence": [],
+      "transcriptEvidence": ["s1"],
+      "transcripts": [
+        {
+          "id": "s1",
+          "text": "纯音频素材",
+          "language": "zh"
+        }
+      ],
+      "sourceMode": null,
+      "confidence": null
+    }
+  ]
+}

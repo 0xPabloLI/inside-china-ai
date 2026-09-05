@@ -1,0 +1,84 @@
+{
+  "version": "v1-2026-09-05",
+  "meta": {
+    "mediaDurationMs": 60000,
+    "eventCount": 6,
+    "visualWindowCount": 2,
+    "asrSegmentCount": 2,
+    "minEventMs": 200
+  },
+  "events": [
+    {
+      "startMs": 0,
+      "endMs": 2000,
+      "fused": false,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "degraded",
+      "confidence": null
+    },
+    {
+      "startMs": 2000,
+      "endMs": 5000,
+      "fused": true,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": ["s1"],
+      "transcripts": [
+        {
+          "id": "s1",
+          "text": "回退窗口下的对白",
+          "language": "zh"
+        }
+      ],
+      "sourceMode": "degraded",
+      "confidence": null
+    },
+    {
+      "startMs": 5000,
+      "endMs": 8000,
+      "fused": false,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "degraded",
+      "confidence": null
+    },
+    {
+      "startMs": 8000,
+      "endMs": 9000,
+      "fused": false,
+      "visualEvidence": ["w2"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "frames",
+      "confidence": null
+    },
+    {
+      "startMs": 9000,
+      "endMs": 12000,
+      "fused": true,
+      "visualEvidence": ["w2"],
+      "transcriptEvidence": ["s2"],
+      "transcripts": [
+        {
+          "id": "s2",
+          "text": "正常窗口对白",
+          "language": "zh"
+        }
+      ],
+      "sourceMode": "frames",
+      "confidence": null
+    },
+    {
+      "startMs": 12000,
+      "endMs": 14000,
+      "fused": false,
+      "visualEvidence": ["w2"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "frames",
+      "confidence": null
+    }
+  ]
+}

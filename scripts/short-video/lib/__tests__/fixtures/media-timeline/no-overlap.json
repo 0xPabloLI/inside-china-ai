@@ -1,0 +1,38 @@
+{
+  "version": "v1-2026-09-05",
+  "meta": {
+    "mediaDurationMs": 60000,
+    "eventCount": 2,
+    "visualWindowCount": 1,
+    "asrSegmentCount": 1,
+    "minEventMs": 200
+  },
+  "events": [
+    {
+      "startMs": 0,
+      "endMs": 4000,
+      "fused": false,
+      "visualEvidence": ["w1"],
+      "transcriptEvidence": [],
+      "transcripts": [],
+      "sourceMode": "frames",
+      "confidence": null
+    },
+    {
+      "startMs": 10000,
+      "endMs": 14000,
+      "fused": false,
+      "visualEvidence": [],
+      "transcriptEvidence": ["s1"],
+      "transcripts": [
+        {
+          "id": "s1",
+          "text": "错开的语音",
+          "language": "zh"
+        }
+      ],
+      "sourceMode": null,
+      "confidence": null
+    }
+  ]
+}
