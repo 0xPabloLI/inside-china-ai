@@ -51,6 +51,15 @@
 
 ### `adr/` — Architecture Decision Records
 
+**Architecture Principles（#76 TODO ③，跨 ADR 索引）**：
+
+| 原则 | 记录位置 | 追踪 issue |
+| ---- | -------- | ---------- |
+| Cascade — cheap filters first, expensive processing last | ADR-0016 | ~~#51~~ ✅ |
+| Signal Density — one expensive call produces multiple signals | ADR-0016 + `docs/reviews/signal-density-audit-2026-09-06.md` | ~~#68~~ ✅ → #198 |
+| Single Source of Truth — registry/capabilities/schema 单一事实来源 | ADR-0013 + `docs/reviews/ssot-audit-2026-09-06.md` | #76 |
+| Single-Visit Extraction (SVE) — each URL visited once, extracts all resource types | `docs/archive/handoffs/handoff-sve-media-extraction.md`（epic 收官，spec/tickets 归档 docs/archive/spec-sve-single-visit-extraction.md） | ~~#62/#63~~ ✅ |
+
 Numbered sequence. Current: 0001–0018 (0006 moved to archive).
 
 | ADR  | Title                                                           | Status              |
@@ -140,7 +149,9 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 
 | Document                                                 | Purpose                                                                                                                                                                                                                                            |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source-registry-capability-audit-2026-08-19.md`         | #77 首轮审计（#67 schema 落地前，59 源时代；P0/P1 findings 已修复，被 research/ 2026-09-06 复核取代）                                                                                                                               |
+| `source-registry-capability-audit-2026-08-19.md`         | #77 首轮审计（#67 schema 落地前，59 源时代；P0/P1 findings 已修复，被 research/ 2026-09-06 复核取代）           
+| `signal-density-audit-2026-09-06.md`                     | Signal Density 审计（#68，ADR-0016 Rule 2）— 设计时调用点全面达标（5 条 Already applied 成立、VLM 8 信号）；6 项残留违规 → #198（render 4-pass ffmpeg、TTS 无跨 run 缓存、VLM crop hint 断层等）
+| `ssot-audit-2026-09-06.md`                               | SSOT 违规审计（#76）— 开票 5 项违规 4 项已解决（REMOTION_SLOT_MAP 双侧强制等）；2 项高影响（NO_MEDIA_TYPES 双份、validateDiscovery 无生产消费者）→ #199；types.mjs TODO 的不做判断；DOCS-INDEX Architecture Principles 表为本票 TODO ③ 交付                                                                                                                    |
 | `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV)                                                                                                                                                                                                      |
 | `session-id-provenance-review-brief-2026-09-04.md`       | Session-Id 关联标识交付的第三方独立复核材料 **v4（已吸收两轮复核）** — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、并发 reset 事故与单 id 错误归因证据、atlas 调研、reference-transaction 门控与并发方案 A/B/C、两轮裁决落实回执、未解决事项 |
 | `ponytail-adoption-review-brief-2026-09-04.md`           | ponytail 改造的第三方独立复核材料 **v3** — 上游分层体积实测（固定 SHA，合计闭合）、适配器逐目录层级表（4 注入 + 9 指令层）、三处落地文本与统一字节口径、逐 tag 拒绝理由、证据分级与自我反驳、两轮复核（Q1–Q7、R1–R6）裁决落实                      |
