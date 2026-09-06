@@ -132,6 +132,25 @@ if [ -n "$DOCS_STAGED" ]; then
   fi
 fi
 
+# --- Method 5: MCP supply-chain scan (#197) — only when .mcp.json changes ---
+# Scans configured MCP servers for prompt injection / tool poisoning (local
+# YARA + prompt_defense analyzers, no API keys). Scanning spawns the pinned
+# servers defined in .mcp.json — they are version-pinned public packages.
+if git diff --cached --name-only | grep -q '^\.mcp\.json$'; then
+  if command -v mcp-scanner >/dev/null 2>&1; then
+    echo -e "${YELLOW}[pre-commit] Running MCP supply-chain scan...${NC}"
+    if ! npm run --silent scan:mcp; then
+      echo ""
+      echo -e "${RED}[pre-commit] BLOCKED: MCP server scan failed — review findings above.${NC}"
+      echo -e "${YELLOW}Emergency bypass: git commit --no-verify${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}[pre-commit] mcp-scanner: completed${NC}"
+  else
+    echo -e "${YELLOW}[pre-commit] mcp-scanner not found, skipping MCP scan (install: uv tool install cisco-ai-mcp-scanner)${NC}"
+  fi
+fi
+
 # --- Method 4: LFS pointer verification (only when binary files are staged) ---
 LFS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -iE '\.(mp4|webm|mov|mp3|wav|flac|ogg|m4a|png|jpg|jpeg|gif|webp|bmp)$' || true)
 if [ -n "$LFS_STAGED" ]; then

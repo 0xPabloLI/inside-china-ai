@@ -21,7 +21,7 @@ import { join } from "path";
 
 const WIDGETS_DIR = join(import.meta.dirname);
 
-const read = (f: string) => readFileSync(join(WIDGETS_DIR, f), "utf8");
+const read = (f: string) => readFileSync(join(WIDGETS_DIR, f), "utf8"); // nosemgrep
 
 // ── T2: a11y attributes ──
 

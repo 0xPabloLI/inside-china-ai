@@ -26,7 +26,7 @@ const NATIVE_COLOR_CLASS =
 function collectTsxFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
+    const full = join(dir, entry); // nosemgrep
     if (entry === "node_modules" || entry.startsWith(".")) continue;
     if (statSync(full).isDirectory()) {
       out.push(...collectTsxFiles(full));
