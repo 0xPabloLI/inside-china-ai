@@ -29,6 +29,7 @@ import { SAFE_ZONES } from "./lib/safe-zones.mjs";
 import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./lib/timeline.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { runFrameAnalysis, checkFinalFrameHasContent } from "./lib/frame-analysis.mjs";
+import { extractFramesAtIndexes } from "./lib/frame-extract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -141,27 +142,30 @@ const schedule = sceneTimeline(
 );
 const totalFrames = scheduleTotalFrames(schedule);
 
+// Extract ALL target frames (scene midpoints + final frame) in ONE ffmpeg
+// pass (#198 Item 5). The per-frame `select=eq(n,X)` spawn used to decode the
+// whole video once per scene; eq(n,X) index semantics are unchanged.
+const lastFrame = totalFrames - 1;
+const midFrames = scenes.map((scene, i) => {
+  const entry = schedule[i];
+  return entry.visualStartFrames + Math.floor(entry.visualFrames / 2);
+});
+const { byFrame: extractedFrames } = await extractFramesAtIndexes({
+  videoPath,
+  frames: [...midFrames, lastFrame],
+  outDir: tempDir,
+  nameFor: (f) => `frame-${f}.png`,
+});
+
 for (let i = 0; i < scenes.length; i++) {
   const scene = scenes[i];
-  const entry = schedule[i];
-  const midFrame = entry.visualStartFrames + Math.floor(entry.visualFrames / 2);
+  const midFrame = midFrames[i];
 
   console.log(`Scene ${scene.id} (${scene.name || "scene"}): frame ${midFrame}`);
 
-  // Extract frame as PNG via ffmpeg
-  const framePath = join(tempDir, `scene-${scene.id}-frame-${midFrame}.png`);
-  try {
-    execSync(
-      `ffmpeg -i "${videoPath}" -vf "select=eq(n\\,${midFrame})" -vframes 1 -y "${framePath}" -loglevel quiet`,
-    );
-  } catch (e) {
-    console.log(`  ⚠️  Frame extraction failed for scene ${scene.id}: ${e.message?.slice(0, 100)}`);
-    results.warn++;
-    continue;
-  }
-
-  if (!existsSync(framePath)) {
-    console.log(`  ⚠️  Frame PNG not created for scene ${scene.id}`);
+  const framePath = extractedFrames.get(midFrame);
+  if (!framePath) {
+    console.log(`  ⚠️  Frame extraction failed for scene ${scene.id} (frame ${midFrame})`);
     results.warn++;
     continue;
   }
@@ -198,23 +202,16 @@ for (let i = 0; i < scenes.length; i++) {
 }
 
 // ─── Last frame: the CTA must hold to the very last frame ───
-const lastFrame = totalFrames - 1;
 console.log(`Final frame (${lastFrame}/${totalFrames}): CTA must still be on screen`);
 
-const lastFramePath = join(tempDir, `final-frame-${lastFrame}.png`);
-let lastFrameExtracted = true;
-try {
-  execSync(
-    `ffmpeg -i "${videoPath}" -vf "select=eq(n\\,${lastFrame})" -vframes 1 -y "${lastFramePath}" -loglevel quiet`,
-  );
-} catch (e) {
-  lastFrameExtracted = false;
-  console.log(`  ❌ Final frame extraction failed: ${String(e.message).slice(0, 120)}`);
+const lastFramePath = extractedFrames.get(lastFrame);
+if (!lastFramePath) {
+  console.log(`  ❌ Final frame extraction failed (frame ${lastFrame})`);
   results.fail++;
   failed++;
 }
 
-if (lastFrameExtracted && existsSync(lastFramePath)) {
+if (lastFramePath) {
   const buf = await new Promise((resolve, reject) => {
     createReadStream(lastFramePath)
       .pipe(new PNG())
