@@ -648,13 +648,11 @@ describe("Default keywords", () => {
 // ─── MCP fallback configuration (MF-T2) ───
 
 describe("MCP fallback configuration", () => {
-  it("xhs has apiFallback (direct dots-chat API, #90) and no mcpFallback", () => {
+  it("xhs is single-channel CDP — dots-chat apiFallback retired (#213 方案 A)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    expect(src.apiFallback).toBeDefined();
-    expect(src.apiFallback.type).toBe("http");
-    expect(src.apiFallback.model).toBe("dots-chat");
-    expect(typeof src.apiFallback.resultMapper).toBe("function");
+    expect(src.apiFallback).toBeUndefined();
     expect(src.mcpFallback).toBeUndefined();
+    expect(src.accessMethod.notes).toContain("#213");
   });
 
   it("sogou_weixin has mcpFallback", () => {
@@ -692,11 +690,11 @@ describe("MCP fallback configuration", () => {
     }
   });
 
-  it("apiFallback resultMapper normalizes Bigsong list text", () => {
-    const xhs = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
+  it("apiFallback resultMapper normalizes Bigsong list text (x_search, parser shared with retired xhs fallback)", () => {
+    const xSearch = ALL_SOURCES.find((s) => s.name === "x_search");
     const text =
       '1. **Full text**: "DeepSeek新模型发布" **Author**: demo\n   **URL**: https://xhs.com/1\n2. **Full text**: "AI芯片突破" **Author**: demo\n   **URL**: https://xhs.com/2';
-    const mapped = xhs.apiFallback.resultMapper(text);
+    const mapped = xSearch.apiFallback.resultMapper(text);
     expect(mapped).toHaveLength(2);
     expect(mapped[0].title).toContain("DeepSeek新模型");
     expect(mapped[0].url).toBe("https://xhs.com/1");
@@ -751,12 +749,6 @@ describe("CDP fallback configuration", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
     expect(src.articleScript).not.toContain("[data-v-*]");
     expect(src.articleScript).toContain("section.note-item");
-  });
-
-  it("xhs apiFallback carries the dots-chat model (#90)", () => {
-    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "xhs");
-    expect(src.apiFallback.model).toBe("dots-chat");
-    expect(src.mcpFallback).toBeUndefined();
   });
 
   it("sources without googleSiteFallback are unaffected", () => {
@@ -1346,8 +1338,8 @@ describe("#88 Part 2 — shouldAutoGenGoogleSiteFallback", () => {
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 
-  it("returns false for source with apiFallback (xhs, #90)", () => {
-    const src = ALL_SOURCES.find((s) => s.name === "xhs");
+  it("returns false for source with apiFallback (x_search, #90)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "x_search");
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 

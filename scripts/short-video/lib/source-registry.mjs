@@ -554,20 +554,16 @@ export const SELF_MEDIA_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes:
-        "CDP (requires login) → apiFallback (direct Bigsong dots-chat API, #90). needsAuth=true.",
+      // #213 方案 A: dots-chat apiFallback retired — the Bigsong backend was
+      // verified unreachable twice (session-19 0/10, #209 doctor-live probe),
+      // so xhs is an honest single-channel CDP source until a working backup
+      // route exists (rednote route repair is the only known candidate).
+      notes: "CDP (requires login). Single channel — dots-chat apiFallback retired (#213). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: true,
     url: (keyword) =>
       `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
-    // Issue #90: dots-chat lives on the same Bigsong upstream — direct API,
-    // no rednote-mcp subprocess (mcp-client.mjs retained for real-MCP servers).
-    apiFallback: {
-      type: "http",
-      model: "dots-chat",
-      resultMapper: parseTweetList,
-    },
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
       (body.includes('请先登录') || body.includes('扫码登录')) ? 'need_login' : 'ok'
