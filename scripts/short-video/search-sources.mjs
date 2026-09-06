@@ -110,6 +110,7 @@ import {
   extractFromTab,
   extractWithRetry,
   rateLimitBackoffDelayMs,
+  detectAntiBot,
   checkLogin,
   ensureCdpProxy,
   CDP_BASE,
@@ -262,6 +263,17 @@ async function collectFromCdp(source, keyword) {
 
   if (!loaded) {
     console.warn(`  ⚠️  Page did not finish loading, attempting extraction anyway...`);
+  }
+
+  // #89 P2: generic anti-bot / CAPTCHA detection for every CDP page — fail
+  // the CDP layer here rather than extracting garbage from an interstitial.
+  const antiBotHit = await detectAntiBot(tabId);
+  if (antiBotHit) {
+    console.warn(
+      `  ⚠️  ${source.label} anti-bot interstitial detected ("${antiBotHit}") — CDP layer fails, fallback chain takes over`,
+    );
+    await cdpCloseTab(tabId);
+    return { articles: [], status: "anti_bot" };
   }
 
   // Check login if needed

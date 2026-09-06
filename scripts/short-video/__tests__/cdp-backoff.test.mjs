@@ -12,6 +12,8 @@ import {
   backoffDelayMs,
   rateLimitBackoffDelayMs,
   extractWithRetry,
+  matchAntiBotIndicators,
+  detectAntiBot,
 } from "../lib/cdp-client.mjs";
 
 describe("backoffDelayMs", () => {
@@ -90,5 +92,52 @@ describe("extractWithRetry", () => {
     expect(articles).toEqual([]);
     expect(calls).toBe(4); // initial + 3 retries
     expect(sleeps).toHaveLength(3);
+  });
+});
+
+describe("matchAntiBotIndicators (#89 P2)", () => {
+  it("detects the issue's indicator set", () => {
+    expect(matchAntiBotIndicators("Unusual traffic from your computer network")).toBe(
+      "unusual traffic",
+    );
+    expect(matchAntiBotIndicators("请输入验证码继续")).toBe("验证码");
+    expect(matchAntiBotIndicators("完成人机验证以继续访问")).toBe("人机验证");
+    expect(matchAntiBotIndicators("Access Denied — you are blocked")).toBe("access denied");
+    expect(matchAntiBotIndicators("HTTP 429 Too Many Requests")).toBe("429");
+    expect(matchAntiBotIndicators("Error: precondition failed")).toBe("precondition failed");
+    expect(matchAntiBotIndicators("Solve this captcha to continue")).toBe("captcha");
+  });
+
+  it("matches 'robot' only on explicit interstitial phrases, not article prose", () => {
+    // False-positive guard: AI news legitimately discusses robots
+    expect(matchAntiBotIndicators("Robots learned to dance — OpenAI released a new model")).toBeNull();
+    expect(matchAntiBotIndicators("Are you a robot? Complete the check below")).toBe("robot");
+    expect(matchAntiBotIndicators("Robot check required")).toBe("robot");
+  });
+
+  it("returns null on clean pages and empty input", () => {
+    expect(matchAntiBotIndicators("DeepSeek 发布新模型，跑分超越前代")).toBeNull();
+    expect(matchAntiBotIndicators("")).toBeNull();
+    expect(matchAntiBotIndicators(undefined)).toBeNull();
+  });
+});
+
+describe("detectAntiBot (#89 P2)", () => {
+  it("returns the matched indicator from the CDP eval result", async () => {
+    const hit = await detectAntiBot("t1", {
+      evalFn: async () => ({ result: { value: "Unusual traffic from your network" } }),
+    });
+    expect(hit).toBe("unusual traffic");
+  });
+
+  it("fail-opens: eval errors and non-string values are treated as clean", async () => {
+    expect(
+      await detectAntiBot("t1", {
+        evalFn: async () => {
+          throw new Error("eval failed");
+        },
+      }),
+    ).toBeNull();
+    expect(await detectAntiBot("t1", { evalFn: async () => ({ result: { value: 42 } }) })).toBeNull();
   });
 });

@@ -198,6 +198,87 @@ export async function extractWithRetry(tabId, script, opts = {}) {
   return articles;
 }
 
+// ─── #89 P2: generic anti-bot / CAPTCHA detection ───
+
+/**
+ * Indicators from the #89 research report. `robot` is special-cased: as a
+ * bare substring it false-positives on AI news articles ("Robots learned to
+ * dance"), so it only matches explicit interstitial phrases — see
+ * ROBOT_PHRASES in matchAntiBotIndicators.
+ */
+export const GENERIC_ANTI_BOT_INDICATORS = [
+  "unusual traffic",
+  "captcha",
+  "robot",
+  "验证码",
+  "人机验证",
+  "access denied",
+  "blocked",
+  "429",
+  "precondition failed",
+];
+
+const ROBOT_PHRASES = [/are you a robot/i, /robot check/i, /robot or human/i];
+
+/**
+ * Match a page's text against the anti-bot indicators (pure, testable).
+ *
+ * @param {string|undefined} text - title + h1 + body head + DOM hints
+ * @returns {string|null} the matched indicator, or null when the page looks clean
+ */
+export function matchAntiBotIndicators(text) {
+  if (!text) return null;
+  const lower = String(text).toLowerCase();
+  for (const indicator of GENERIC_ANTI_BOT_INDICATORS) {
+    if (indicator === "robot") {
+      if (ROBOT_PHRASES.some((re) => re.test(text))) return indicator;
+      continue;
+    }
+    if (lower.includes(indicator)) return indicator;
+  }
+  return null;
+}
+
+// Evaluates cheap signals only: title, first heading, the first 600 chars of
+// body text, and well-known CAPTCHA containers. Full-page scans would
+// false-positive on legitimate article content.
+const ANTI_BOT_CHECK_SCRIPT = `
+  (() => {
+    const title = document.title || "";
+    const h1 = document.querySelector("h1")?.innerText || "";
+    const bodyHead = (document.body?.innerText || "").slice(0, 600);
+    const captchaDom = document.querySelector(
+      'iframe[src*="captcha"], .g-recaptcha, #captcha, [class*="captcha" i], [id*="captcha" i]'
+    )
+      ? " captcha-dom"
+      : "";
+    return title + " " + h1 + " " + bodyHead + captchaDom;
+  })()
+`;
+
+/**
+ * Detect generic anti-bot / CAPTCHA interstitials on a tab (#89 P2).
+ *
+ * Runs for every CDP page before extraction, complementing the per-source
+ * loginCheckScript. Fail-open: if the check itself errors, the page is
+ * treated as clean — a broken check must not block scraping.
+ *
+ * @param {string} tabId - Tab ID
+ * @param {object} [opts]
+ * @param {(tabId: string, script: string) => Promise<object>} [opts.evalFn] - eval seam (tests)
+ * @returns {Promise<string|null>} the matched indicator, or null when clean
+ */
+export async function detectAntiBot(tabId, opts = {}) {
+  const evalFn = opts.evalFn || cdpEval;
+  try {
+    const resp = await evalFn(tabId, ANTI_BOT_CHECK_SCRIPT);
+    const value = resp?.result?.value ?? resp?.value ?? "";
+    return typeof value === "string" ? matchAntiBotIndicators(value) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Extract content from a tab by evaluating an extraction script.
  *
