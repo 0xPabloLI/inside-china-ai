@@ -43,6 +43,14 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 - `anti_bot` 失败不修选择器——那是风控，归 #140 P1/P2 机制处理。
 - 一轮只修实测坏掉的源；"顺手优化"健康源的选择器是被禁止的（每个 healthy 源都是活体证据，别动它）。
 
+## Design Decisions
+
+- **修复是 agent 驱动，脚本只负责发现**：选择器修复需要读真实 DOM 并判断语义，脚本化重写不可靠；体检脚本与修复 runbook 分离，发现（可自动化）与修复（需判断）各司其职。
+- **health 覆盖双主通道**：apiSearch 化的源（如 zhidx/weibo_hot）从 CDP 体检转入 `checkApiSource`（fetch + parser），保证主通道变更不产生体检盲区。
+- **healthy 源禁止顺手优化**：每个 health 转绿的源都是活体证据；无症状重写选择器只会引入新回归。
+- **不可修 ≠ 删源**：上游死亡（xinzhiyuan/baidu_news）保留 registry 条目零成本观察，移除属用户裁决；修复手段优先于移除（zhidx/weibo_hot 均为 API 破局而非弃用）。
+- **Chrome 恢复阶梯**：代理是仓库自有工具可自由重启；Chrome 属用户资产，agent 永不代杀（见 Hard Safety Gates）。
+
 ## Chrome 安全规程（profile 守卫）
 
 - **绝对禁止**：`pkill -9 Chrome` / `killall Chrome`（unclean kill 可损坏 profile 的 LevelDB——锁文件与 session 数据）；`rm`/移动 `~/Library/Application Support/Google/Chrome/` 下任何内容；任何 "Reset/Cleanup" 类操作。杀进程不等于删 profile，但 unclean kill 是 profile 损坏的最常见来源。
@@ -56,10 +64,10 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 | 2026-09-07 | google_search | Google 新新闻垂直 SERP：结果块改 `div[data-ved][data-hveid]`，标题改 `div[role="heading"]`，`div.g`/`h3` 消失 | articleScript/imageScript 重写为新结构；缩略图为 base64 data URI，仅 http 图标记 type=image（可下载），data URI 降级 text；外链过滤 google 域 + URL 去重 | health --only 1/1 绿，10 条全结构（title/url/imageUrl） |
 | 2026-09-07 | leiphone | 搜索结果标题改为 `a.headTit` 链接，旧 `.article-list`/`article` 容器归零 | articleScript 改为 `a.headTit[href*=".html"]` 直取 | health --only 绿，16 条 |
 | 2026-09-07 | wechat_dongchabeating | Google 站内搜索同吃新 SERP 改版（`div.g` 归零） | 同 google_search 方案（新 DOM + 转载域白名单） | health --only 绿，1 条 |
-| 2026-09-07（不可修） | weibo_hot | `s.weibo.com` 重定向 Sina Visitor System——登录墙，非选择器 | 用户提供微博登录态后自愈；候选：P2 指标加 "visitor system" | — |
-| 2026-09-07（不可修） | xinzhiyuan | 站点不可达（连接被关闭） | 上游问题：观察数轮，持续不可达建议用户裁决移除该源 | — |
-| 2026-09-07（不可修） | zhidx | 搜索结果 XHR 渲染，滚动触发后仍 0 条 | 需找其 JSON 端点或更多交互；暂缓 | — |
-| 2026-09-07（不可修） | baidu_news | 资讯垂直连热词都「找到相关资讯 0 个」——索引疑似收缩 | 建议用户裁决：移除该源或换端点 | — |
+| 2026-09-07 | weibo_hot | 登录墙（Sina Visitor System） | **经调研破局**：切 60s 公共 API（60s.viki.moe/v2/weibo，开源可自托管），apiSearch 化 | health 绿，50 条/2.3s |
+| 2026-09-07 | zhidx | 搜索结果 XHR 渲染，CDP 抓不到 | **经调研破局**：站点是 WordPress，切 wp-json REST API，apiSearch 化 | health 绿，20 条/2.6s |
+| 2026-09-07（放弃） | xinzhiyuan | DNS 解析 overdue.aliyun.com——主机欠费停放 | 放弃；公众号内容已由 wechat2rss_zhinengyuan 覆盖 | — |
+| 2026-09-07（放弃） | baidu_news | 资讯索引功能性死亡（ns 端点空壳 218 字节，热词 0 结果） | 放弃；详见 docs/research/zh-source-recovery-research-2026-09.md | — |
 
 ## CDP 代理 wsPath 陈旧坑（2026-09-07 修复）
 
