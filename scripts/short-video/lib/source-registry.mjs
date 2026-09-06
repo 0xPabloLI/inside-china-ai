@@ -380,14 +380,11 @@ export const NEWS_SOURCES = [
     useCleanTitle: false,
     url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
     articleScript: `
-      var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
       var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
-        }
+      // 2026-09 leiphone search DOM: result titles are a.headTit links (#140 P5 runbook).
+      document.querySelectorAll('a.headTit[href*=".html"]').forEach(function(a) {
+        var txt = a.textContent.trim();
+        if (txt.length > 5) results.push({ title: txt, url: a.href, imageUrl: null });
       });
       return results;
     `,
@@ -1994,27 +1991,24 @@ export const WECHAT_ACCOUNT_SOURCES = [
       `https://www.google.com/search?q=${encodeURIComponent('"来自微信公众号" "动察Beating"')}`,
     articleScript: `
       var results = [];
-      // Google search results
-      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
+      // 2026-09 Google SERP DOM: blocks = div[data-ved][data-hveid], headings =
+      // div[role="heading"] — legacy div.g/.Gx5Zad/.fP1Qef markup is gone (#140 P5).
+      var allowed = ['mp.weixin.qq.com','huxiu.com','sina.com.cn','myzaker.com','qq.com','ifeng.com','bohaishibei.com','eastmoney.com','binance.com','t.me','x.com','ithome.com'];
+      document.querySelectorAll('div[data-ved][data-hveid]').forEach(function(el) {
+        var heading = el.querySelector('div[role="heading"]');
         var link = el.querySelector('a[href]');
-        var title = el.querySelector('h3, .LC20lb');
+        if (!heading || !link) return;
+        var url = link.href;
+        if (!url || url.indexOf('google.') !== -1) return;
+        var hit = allowed.some(function(d) { return url.indexOf(d) !== -1; });
+        if (!hit) return;
+        for (var i = 0; i < results.length; i++) { if (results[i].url === url) return; }
         var snippet = el.querySelector('.VwiC3b, .IsZvec, [data-sncf]');
-        if (link && title) {
-          var url = link.href;
-          // Only include articles from republish platforms or WeChat directly
-          if (url.includes('mp.weixin.qq.com') || url.includes('huxiu.com') ||
-              url.includes('sina.com.cn') || url.includes('myzaker.com') ||
-              url.includes('qq.com') || url.includes('ifeng.com') ||
-              url.includes('bohaishibei.com') || url.includes('eastmoney.com') ||
-              url.includes('binance.com') || url.includes('t.me') ||
-              url.includes('x.com') || url.includes('ithome.com')) {
-            results.push({
-              title: title.textContent.trim(),
-              url: url,
-              snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
-            });
-          }
-        }
+        results.push({
+          title: heading.textContent.trim(),
+          url: url,
+          snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+        });
       });
       return results;
     `,
