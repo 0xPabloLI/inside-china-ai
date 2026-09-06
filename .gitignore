@@ -165,7 +165,16 @@ scripts/kaggle/infinitetalk-dataset/output_*/
 .env.local.*
 
 # AtomCode local-scope configs (machine-specific)
-.atomcode/local/
+.atomcode/
+
+# 个人文件（简历等，含个人信息，不入库）
+/Resume_*.docx
+
+# Cookie 调试临时脚本（dump 登录态 cookie，敏感）
+scripts/short-video/.tmp-*
+
+# VLM 缓存（内容目录下的生成缓存，非内容本体）
+scripts/short-video/content/*/.vlm-cache/
 
 # FeatherTalk 训练视频片段（48MB，太大不入库）
 scripts/short-video/assets/dh-fixtures/feathertalk/train_30s_180s.mp4
