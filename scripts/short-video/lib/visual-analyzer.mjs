@@ -379,6 +379,7 @@ function sendRequest(worker, request) {
     path: request.path,
     ...(request.window ? { window: request.window } : {}),
     ...(request.claim ? { claim: request.claim } : {}),
+    ...(request.cropFocus ? { cropFocus: request.cropFocus } : {}),
   });
 
   try {
@@ -442,7 +443,7 @@ export function getVlmConcurrency() {
  * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
- * @param {{startMs?: number, endMs?: number, sampleFps?: number, claim?: {voiceover: string, assetNeed: string}}} [opts] - Optional time window (video only) and scene claim (relevance judging)
+ * @param {{startMs?: number, endMs?: number, sampleFps?: number, claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}}} [opts] - Optional time window (video only), scene claim (relevance judging), and crop hint (images only)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
  *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
  *   window?: {startMs: number, endMs: number, sampleFps: number},
@@ -459,6 +460,10 @@ export function analyzeAssetSemantics(assetPath, opts) {
   // Scene claim ({voiceover, assetNeed}) — routes through to the Python
   // prompt builder; absent claim keeps the legacy prompt untouched.
   const claim = opts?.claim || undefined;
+  // Crop hint ({x, y} normalized [0, 1], #198) — anchors the Python crop
+  // simulation so the VLM judges the framing the viewer will actually see.
+  // Absent hint keeps the historical center crop.
+  const cropFocus = opts?.cropFocus || undefined;
 
   return new Promise((resolve, reject) => {
     requestQueue.push({
@@ -468,6 +473,7 @@ export function analyzeAssetSemantics(assetPath, opts) {
       path: assetPath,
       window,
       claim,
+      cropFocus,
     });
     dispatchQueue();
   });

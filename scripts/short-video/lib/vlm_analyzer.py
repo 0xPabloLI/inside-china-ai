@@ -624,6 +624,25 @@ def _cleanup_frames(frame_paths):
 
 # ─── Image preprocessing ───
 
+def _parse_crop_focus(raw):
+    """Normalize a request's cropFocus hint into a (x, y) tuple.
+
+    Accepts {"x": float, "y": float} in normalized [0, 1] source space;
+    clamps components into range. Anything malformed (missing fields, wrong
+    types, junk from a stale caller) falls back to None so simulate_crop
+    keeps its historical center behavior — a broken hint must never break
+    analysis.
+    """
+    if not isinstance(raw, dict):
+        return None
+    x, y = raw.get("x"), raw.get("y")
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return None
+    if isinstance(x, bool) or isinstance(y, bool):
+        return None
+    return (max(0.0, min(1.0, float(x))), max(0.0, min(1.0, float(y))))
+
+
 def simulate_crop(img_path, target_ratio=9/16, focus=(0.5, 0.5)):
     """Crop image to target_ratio (simulating object-fit: cover) from a focus point.
 
@@ -723,12 +742,14 @@ def _unlink_quiet(path):
 
 
 def run_vlm_inference(model, processor, path, is_video, prompt_text,
-                      start_ms=None, end_ms=None, sample_fps=VIDEO_FPS):
+                      start_ms=None, end_ms=None, sample_fps=VIDEO_FPS,
+                      crop_focus=None):
     """Run one VLM generation pass over `path` with media-type preprocessing.
 
     Video: extract frames in the requested window → generate → cleanup frames.
-    Image: simulate the 9:16 cover crop → resize if > MAX_IMAGE_LONG_EDGE →
-    generate → unlink both temp files.
+    Image: simulate the 9:16 cover crop (anchored on crop_focus when supplied,
+    e.g. a saliency centroid or a prior cropFocus — #198) → resize if above
+    MAX_IMAGE_LONG_EDGE → generate → unlink both temp files.
 
     This is the single seam both cascade tiers go through, so the deep model
     sees exactly the same preprocessed pixels as the 2B model. Returns the raw
@@ -750,9 +771,11 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
         finally:
             _cleanup_frames(frames)
 
-    # Image — simulate 9:16 center crop (VLM sees what the viewer will see
-    # after cover crop), then resize large images to prevent hallucinations.
-    crop_path, crop_cleanup = simulate_crop(path, target_ratio=9/16, focus=(0.5, 0.5))
+    # Image — simulate the 9:16 cover crop the viewer will see, anchored on
+    # the supplied focus (center when no hint), then resize large images.
+    crop_path, crop_cleanup = simulate_crop(
+        path, target_ratio=9/16, focus=crop_focus or (0.5, 0.5),
+    )
     try:
         actual_path, temp_path = resize_image_if_needed(crop_path)
         try:
@@ -767,7 +790,8 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
 
 
 def deep_analyze(deep_model, deep_processor, path, is_video, prompt_text,
-                 start_ms=None, end_ms=None, sample_fps=VIDEO_FPS):
+                 start_ms=None, end_ms=None, sample_fps=VIDEO_FPS,
+                 crop_focus=None):
     """Deep-tier analysis with the GLM-4.1V-9B model.
 
     Runs the same inference seam as the 2B fast path and returns the parsed
@@ -777,6 +801,7 @@ def deep_analyze(deep_model, deep_processor, path, is_video, prompt_text,
     deep_raw = run_vlm_inference(
         deep_model, deep_processor, path, is_video, prompt_text,
         start_ms=start_ms, end_ms=end_ms, sample_fps=sample_fps,
+        crop_focus=crop_focus,
     )
     deep_result = parse_markdown_to_dict(deep_raw)
     if is_video:
@@ -787,7 +812,8 @@ def deep_analyze(deep_model, deep_processor, path, is_video, prompt_text,
 
 # ─── Request handler ───
 
-def handle_analyze_semantics(model, processor, path, window=None, claim=None):
+def handle_analyze_semantics(model, processor, path, window=None, claim=None,
+                             crop_focus=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -798,6 +824,10 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
 
     When claim ({voiceover, assetNeed}) is provided, the prompt gains a
     scene-claim block and the output gains Relevance/Relevance Reason.
+
+    When crop_focus ((x, y) in normalized [0, 1]) is provided, the image crop
+    simulation anchors on it so the VLM judges the framing the viewer will
+    actually see (#198).
 
     Returns (result_dict, error) tuple.
     """
@@ -833,6 +863,7 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
         raw = run_vlm_inference(
             model, processor, path, is_video, prompt_text,
             start_ms=start_ms, end_ms=end_ms, sample_fps=sample_fps,
+            crop_focus=crop_focus,
         )
     except Exception as e:
         return {}, f"VLM generation failed: {e}"
@@ -860,6 +891,7 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None):
                 deep_result = deep_analyze(
                     deep_model, deep_processor, path, is_video, prompt_text,
                     start_ms=start_ms, end_ms=end_ms, sample_fps=sample_fps,
+                    crop_focus=crop_focus,
                 )
                 return deep_result, None
 
@@ -934,7 +966,8 @@ def main():
                 path = request.get("path", "")
                 window = request.get("window")
                 claim = request.get("claim")
-                result, err = handle_analyze_semantics(model, processor, path, window=window, claim=claim)
+                crop_focus = _parse_crop_focus(request.get("cropFocus"))
+                result, err = handle_analyze_semantics(model, processor, path, window=window, claim=claim, crop_focus=crop_focus)
                 if err:
                     response = _degraded_result(err)
                 else:

@@ -1342,10 +1342,16 @@ export async function analyzeAssets(assets, opts = {}) {
     console.log(`  🔍 Analyzing: ${absPath}... (${i + 1}/${analyzableAssets.length})`);
 
     const claimInfo = asset.claimSceneId != null ? claimsMap.get(asset.claimSceneId) : null;
+    // Crop hint (#198 Item 3): a prior cropFocus (adopted asset) wins, else
+    // the Phase 2 saliency centroid when it would anchor the Phase 3b crop —
+    // so the VLM judges fit/criticalEdgeText on the framing the viewer will
+    // actually see instead of a center crop the crop decision may override.
+    const { saliencyCropHint } = await import("./crop-decision.mjs");
+    const cropHint = asset.cropFocus ?? saliencyCropHint(asset.focusAnalysis);
     const analyzeOpts = asset.window
-      ? { ...asset.window, ...(claimInfo ? { claim: claimInfo } : {}) }
-      : claimInfo
-        ? { claim: claimInfo }
+      ? { ...asset.window, ...(claimInfo ? { claim: claimInfo } : {}), ...(cropHint ? { cropFocus: cropHint } : {}) }
+      : claimInfo || cropHint
+        ? { ...(claimInfo ? { claim: claimInfo } : {}), ...(cropHint ? { cropFocus: cropHint } : {}) }
         : undefined;
 
     // Cache lookup (#189): key = promptVersion + model + file fingerprint + window/claim.
@@ -1360,6 +1366,7 @@ export async function analyzeAssets(assets, opts = {}) {
           model: modelId,
           window: asset.window,
           claim: claimInfo,
+          cropFocus: cropHint ?? null,
         });
         const cached = getCachedResult(cacheDir, cacheKey);
         if (cached) {

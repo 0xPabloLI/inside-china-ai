@@ -84,7 +84,8 @@ function stableStringify(value) {
  *
  * @param {{filePath: string, model: string, pipelineVersion?: string,
  *          window?: {startMs: number, endMs: number, sampleFps: number},
- *          claim?: {voiceover: string, assetNeed: string}}} req
+ *          claim?: {voiceover: string, assetNeed: string},
+ *          cropFocus?: {x: number, y: number} | null}} req
  * @returns {Promise<string>} 64-char hex sha256
  */
 export async function computeCacheKey(req) {
@@ -95,6 +96,8 @@ export async function computeCacheKey(req) {
   h.update(String(req.model || "") + "\n");
   h.update(fileFingerprint(req.filePath) + "\n");
   h.update(stableStringify({ window: req.window || null, claim: req.claim || null }));
+  // Crop hint changes the pixels the VLM sees — it is key material (#198).
+  h.update(stableStringify({ cropFocus: req.cropFocus ?? null }));
   return h.digest("hex");
 }
 

@@ -320,3 +320,31 @@ export function selectBestCrop({ sourceAspect, targetAspect, protectedRegions, s
     candidates,
   };
 }
+
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+/**
+ * Derive a crop-focus hint from Phase 2 focus analysis for the VLM's crop
+ * simulation (#198 Item 3).
+ *
+ * Uses the SAME saliency threshold as selectBestCrop: when the saliency map
+ * would anchor the Phase 3b crop, the VLM must judge fit/criticalEdgeText on
+ * that same saliency-anchored view, not a center crop. Returns null when the
+ * hint would be the center anyway (caller then sends no hint).
+ *
+ * @param {{saliency?: {available: boolean, dispersion: number, centroid: number[]} | null} | null} focusAnalysis
+ * @returns {{x: number, y: number} | null}
+ */
+export function saliencyCropHint(focusAnalysis) {
+  const sal = focusAnalysis?.saliency;
+  if (
+    sal?.available &&
+    sal.dispersion >= SALIENCY_LOW_THRESHOLD &&
+    Array.isArray(sal.centroid) &&
+    sal.centroid.length === 2 &&
+    sal.centroid.every((v) => typeof v === "number" && Number.isFinite(v))
+  ) {
+    return { x: clamp01(sal.centroid[0]), y: clamp01(sal.centroid[1]) };
+  }
+  return null;
+}
