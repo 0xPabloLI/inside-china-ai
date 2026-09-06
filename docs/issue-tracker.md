@@ -117,6 +117,14 @@ collectFromSource() 层次：
 
 ---
 
+## Triage Inbox
+
+新开 issue 的隔离区（2026-09-06 起）：新票带 `needs-triage` 标签开在 GitHub，并登记到本清单——**不进 Tier 表、不进 Wave**。维护者批量 `/triage` 分流后，票才迁入对应 Tier 表参与排期；marathon 模式与选票规则（规则 1）不从未分流票中选取。
+
+| # | 开票日 | 一句话 | 分流结果 |
+| - | ------ | ------ | -------- |
+| *(空 — 无待分流票；分流后本行删除)* | | | |
+
 ## Execution Tiers
 
 按对内容生产管线的实际推动力分层。同 tier 内标注依赖和冲突文件。
@@ -390,10 +398,10 @@ Issues closed across multiple triage/implementation sessions (code verified + PR
 
 ## Tracker Maintenance Protocol
 
-1. **New session start**: 读 Wave 表 → 从最早未完成的 Wave 中选 Tier 最高的无 hard blocker issue → 查 Conflict Matrix 确认文件不与进行中工作冲突 → 开工
+1. **New session start**: 读 Wave 表 → 从最早未完成的 Wave 中选 Tier 最高的无 hard blocker issue → 查 Conflict Matrix 确认文件不与进行中工作冲突 → 开工。选票只看 Tier/Wave 表——Triage Inbox 里的未分流票不可选取，即使看起来 ready
 2. **完成一个 issue**: 在对应 Tier 行标 ✅，移到 Closed Issues 表 → 同步更新 Wave 摘要和 Conflict Matrix
 3. **新发现已完成**: 代码验证 → `gh issue close` + 评论证据 → 更新本文档（先 Tier/Matrix，再 Wave）
-4. **新 issue 创建**: 先添加到对应 Tier 表格 + Conflict Matrix → 再同步到 Wave 摘要；如果属于已有 parent，标注 `Child of #N`
+4. **新 issue 创建**: 带 `needs-triage` 标签开票 → 登记到 **Triage Inbox** 清单（不进 Tier/Wave）→ 批量 `/triage` 分流后才迁入对应 Tier 表格 + Conflict Matrix → 同步 Wave 摘要；如果属于已有 parent，标注 `Child of #N`。分流权在维护者（`/triage` 是 maintainer 触发制）——agent 开票但不得让票变得可执行
 5. **依赖变化**: 先更新 Tier 表 Blocked by 列 → 再同步 Wave 中的依赖描述
 6. **冲突检查**: 改代码前查 Conflict Risk Matrix，确认没有并行 issue 在改同一文件
 7. **更新顺序铁律**: 任何 issue 状态变动，始终先更新 Tier/Dormant 和 Conflict Matrix，再同步 Wave 摘要——Wave 是执行摘要，不是状态维护源
