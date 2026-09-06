@@ -26,9 +26,9 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 64 sources", () => {
-    // 63 + searxng_search (#92)
-    expect(ALL_SOURCES).toHaveLength(64);
+  it("ALL_SOURCES has 65 sources", () => {
+    // 64 + telegram_aipost (#204)
+    expect(ALL_SOURCES).toHaveLength(65);
   });
 
   it("each source has required fields", () => {
@@ -619,7 +619,8 @@ describe("supportsKeyword validation", () => {
     // Existing homepage-only sources plus 12 fixed public Wechat RSS sources.
     // Stock API sources all support keyword search.
     // ithome and jiqizhixin now support keyword search (unified to search page).
-    expect(homepageSources.length).toBe(20);
+    // 20 + telegram_aipost fixed-feed channel (#204)
+    expect(homepageSources.length).toBe(21);
   });
 
   it("keyword-capable sources have supportsKeyword=true", () => {
@@ -1032,9 +1033,9 @@ describe("apiSearch configuration", () => {
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("includes the 12 existing API sources and 12 public Wechat RSS sources", () => {
+  it("includes the 12 existing API sources, 12 public Wechat RSS sources, and 1 Telegram channel (#204)", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(24);
+    expect(withApi).toHaveLength(25);
     const names = withApi.map((s) => s.name);
     expect(names).toEqual(
       expect.arrayContaining([

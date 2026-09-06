@@ -5,7 +5,7 @@ import {
   deriveCollectionMethod,
   buildDiscoveryOutput,
 } from "../search-sources.mjs";
-import { ALL_SOURCES, WECHAT_RSS_SOURCES } from "../lib/source-registry.mjs";
+import { ALL_SOURCES, WECHAT_RSS_SOURCES, TELEGRAM_SOURCES } from "../lib/source-registry.mjs";
 import { validateDiscovery } from "../lib/research/validate.mjs";
 
 // Articles-capable sources are the universe for evidence grouping
@@ -13,10 +13,10 @@ import { validateDiscovery } from "../lib/research/validate.mjs";
 const articlesCapableSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
 describe("groupSourcesByEvidenceRole", () => {
-  it("routes the 12 wechat2rss feeds to trackedFeedContext", () => {
+  it("routes the 12 wechat2rss feeds + telegram_aipost (#204) to trackedFeedContext", () => {
     const groups = groupSourcesByEvidenceRole(articlesCapableSources);
     expect(groups.trackedFeedContext.map((s) => s.name).sort()).toEqual(
-      WECHAT_RSS_SOURCES.map((s) => s.name).sort(),
+      [...WECHAT_RSS_SOURCES, ...TELEGRAM_SOURCES].map((s) => s.name).sort(),
     );
   });
 

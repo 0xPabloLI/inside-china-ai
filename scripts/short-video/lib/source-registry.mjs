@@ -2193,6 +2193,131 @@ export const WECHAT_RSS_SOURCES = [
   ),
 ];
 
+// ─── Telegram public channels (issue #204) ───
+//
+// t.me/s/<channel> web previews are public static HTML: no token, no login,
+// no CDP. Each message is a `div.tgme_widget_message` with data-post,
+// an ISO `<time datetime>` and (for text posts) a `tgme_widget_message_text`
+// body. Media-only posts and Telegram service messages ("Channel created",
+// "Channel name was changed") carry no usable text and are skipped.
+
+export function parseTelegramChannelHtml(text) {
+  const results = [];
+  if (!text || typeof text !== "string") return results;
+
+  // Split the page into per-message regions anchored on data-post, then
+  // extract fields within each region (message blocks never nest).
+  const postMarker = /data-post="([^"]+)"/g;
+  const posts = [];
+  let match;
+  while ((match = postMarker.exec(text)) !== null) {
+    posts.push({ id: match[1], index: match.index });
+  }
+
+  const SERVICE_MESSAGE_RE =
+    /^(?:Channel (?:created|name was changed|photo updated|comments were turned off|link was removed)|Edited \d? times?)/i;
+
+  for (let i = 0; i < posts.length; i++) {
+    const blockEnd = i + 1 < posts.length ? posts[i + 1].index : text.length;
+    const block = text.slice(posts[i].index, blockEnd);
+    const url = `https://t.me/${posts[i].id}`;
+    const timeMatch = block.match(/<time[^>]*datetime="([^"]+)"/);
+    const textStart = block.search(/<div class="tgme_widget_message_text[\s"]/);
+    if (textStart === -1) continue; // media-only post — no title to extract
+    const body = extractTelegramDivHtml(block, textStart);
+    if (!body) continue;
+    const cleaned = cleanTelegramText(body);
+    if (!cleaned || SERVICE_MESSAGE_RE.test(cleaned)) continue;
+    const title = cleaned.length > 160 ? `${cleaned.slice(0, 157)}...` : cleaned;
+    results.push({
+      title,
+      url,
+      snippet: cleaned.substring(0, 300),
+      publishedAt: timeMatch ? timeMatch[1] : undefined,
+    });
+  }
+  return results;
+}
+
+// Extract the inner HTML of the div whose tag opens exactly at `from`,
+// walking nested <div>...</div> pairs so a nested block (spoiler, collapsable
+// "more" fold) can't truncate the extraction at the first closing tag.
+function extractTelegramDivHtml(html, from) {
+  const openEnd = html.indexOf(">", from);
+  if (openEnd === -1) return "";
+  let depth = 1;
+  const tagRe = /<div\b[^>]*>|<\/div>/g;
+  tagRe.lastIndex = openEnd + 1;
+  let tag;
+  while ((tag = tagRe.exec(html)) !== null) {
+    depth += tag[0].startsWith("</div>") ? -1 : 1;
+    if (depth === 0) return html.slice(openEnd + 1, tag.index);
+  }
+  return html.slice(openEnd + 1);
+}
+
+function cleanTelegramText(html) {
+  return html
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const TELEGRAM_TRACKING = Object.freeze({
+  provider: "t.me",
+  access: "public-rss",
+  official: false,
+  stability: "third-party",
+  freshnessWindowDays: 14,
+});
+
+function createTelegramChannelSource(name, label, channel) {
+  const previewUrl = `https://t.me/s/${channel}`;
+  return {
+    name,
+    label,
+    category: "international",
+    locale: "en",
+    supportsKeyword: false,
+    needsAuth: false,
+    useCleanTitle: false,
+    // Fixed public feeds are tracked context, never direct evidence for a
+    // claim without explicit verification (same role as #97 WeChat RSS).
+    sourceRole: "tracked-feed-context",
+    accessMethod: {
+      primary: "api",
+      notes:
+        "Public t.me/s/ web preview page. No Telegram account, bot token, or official API is used by this project.",
+    },
+    tracking: TELEGRAM_TRACKING,
+    apiSearch: {
+      url: () => previewUrl,
+      parser: parseTelegramChannelHtml,
+      authRequired: false,
+    },
+    url: () => previewUrl,
+    articleScript: "var results = []; return results;",
+  };
+}
+
+// Channel admission: public preview + ≥weekly updates + AI-news relevance.
+// Verified 2026-09-06. Rejected during the probe (dead or squatted handles):
+// artificialintelligencenews (2016-dead), ChatGPT_News, AI_Wire, ai_revolution,
+// ainear, machine_learning_news, theaiintern. ai_news_hq posts media-only
+// (no extractable titles); ai_daily_news is link-dump content whose latest
+// post predates the freshness window. List is config-driven — add/remove
+// entries freely; a candidate only needs a live preview page.
+export const TELEGRAM_SOURCES = [
+  createTelegramChannelSource("telegram_aipost", "AI Post (Telegram)", "aipost"),
+];
+
 // WeChat Platform API configuration (optional, for direct article list crawling)
 // Requires cookie + token from mp.weixin.qq.com login session.
 // See: https://github.com/mashukui/wechat_official_account_crawler
@@ -3257,6 +3382,11 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "Platform ToS",
     logoRequired: false,
   },
+  telegram_aipost: {
+    text: (a) => `Channel post: AI Post (t.me/aipost)`,
+    license: "Public web preview",
+    logoRequired: false,
+  },
   hackernews_search: {
     text: (a) => `Post source: Hacker News (news.ycombinator.com)`,
     license: "Public domain",
@@ -3496,6 +3626,7 @@ const _ENRICHED_GENERAL = enrichWithCapabilities(GENERAL_SEARCH_SOURCES);
 const _ENRICHED_LAST30DAYS = enrichWithCapabilities(LAST30DAYS_SOURCES);
 const _ENRICHED_WECHAT_ACCOUNT = enrichWithCapabilities(WECHAT_ACCOUNT_SOURCES);
 const _ENRICHED_WECHAT_RSS = enrichWithCapabilities(WECHAT_RSS_SOURCES);
+const _ENRICHED_TELEGRAM = enrichWithCapabilities(TELEGRAM_SOURCES);
 
 export const ALL_SOURCES = [
   ..._ENRICHED_NEWS,
@@ -3505,6 +3636,7 @@ export const ALL_SOURCES = [
   ..._ENRICHED_LAST30DAYS,
   ..._ENRICHED_WECHAT_ACCOUNT,
   ..._ENRICHED_WECHAT_RSS,
+  ..._ENRICHED_TELEGRAM,
   ...STOCK_MEDIA_SOURCES,
 ];
 

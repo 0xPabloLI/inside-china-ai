@@ -10,7 +10,9 @@
  *              research-results.json grouped by source.
  *
  * Sources are defined in lib/source-registry.mjs (single source of source).
- * 28 sources total (7 news + 8 self-media + 8 international + 5 general + 5 last30days + 1 wechat).
+ * 65 sources total — the per-category breakdown lives in source-registry.mjs
+ * (NEWS/SELF_MEDIA/INTERNATIONAL/GENERAL/LAST30DAYS/WECHAT_ACCOUNT/WECHAT_RSS/
+ * TELEGRAM/STOCK arrays).
  *
  * Fallback chain: apiSearch (if configured) → CDP → googleSiteFallback (Google site: search) → apiFallback (direct Bigsong API, #90) → search pool (Brave > Tavily > Jina, #65) → mcpFallback (mcp-search-bridge/Grok, generic web_search sources only; other MCPs go straight to mcpFallback)
  * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
