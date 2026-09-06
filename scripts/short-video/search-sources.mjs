@@ -108,10 +108,11 @@ import {
   cdpCloseTab,
   waitForPageLoad,
   extractFromTab,
+  extractWithRetry,
+  rateLimitBackoffDelayMs,
   checkLogin,
   ensureCdpProxy,
   CDP_BASE,
-  RETRY_WAIT_MS,
 } from "./lib/cdp-client.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -279,18 +280,11 @@ async function collectFromCdp(source, keyword) {
     }
   }
 
-  // Extract articles
+  // Extract articles — #89 P1: up to 3 escalating-backoff retries in
+  // extractWithRetry instead of a single fixed 3s retry.
   const articleScript = cap?.articleScript ?? source.articleScript;
-  let articles = await extractFromTab(tabId, articleScript);
+  let articles = await extractWithRetry(tabId, articleScript);
   console.log(`  📊 Extracted ${articles.length} articles`);
-
-  if (articles.length === 0) {
-    // Retry once
-    console.log("  ⏳ No articles found, retrying...");
-    await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
-    articles = await extractFromTab(tabId, articleScript);
-    console.log(`  📊 Retry extracted ${articles.length} articles`);
-  }
 
   // R1: Extract imageUrl from the same DOM — zero additional requests.
   // The tab is still open; we run a second eval to find images alongside
@@ -332,6 +326,24 @@ async function collectFromApi(source, keyword) {
     const resp = await fetch(url, fetchOptions);
 
     if (!resp.ok) {
+      // #89 P1: 429/503 mean "slow down" — back off an order of magnitude
+      // longer than normal retries and try once more before giving up.
+      if (resp.status === 429 || resp.status === 503) {
+        const delayMs = rateLimitBackoffDelayMs();
+        console.warn(
+          `  ⏳ API HTTP ${resp.status} for ${source.label} — backing off ${(delayMs / 1000).toFixed(0)}s, retrying once (#89 P1)`,
+        );
+        await new Promise((r) => setTimeout(r, delayMs));
+        const retryResp = await fetch(url, fetchOptions);
+        if (retryResp.ok) {
+          const text = await retryResp.text();
+          const articles = api.parser(text);
+          console.log(`  📊 API extracted ${articles.length} articles (after backoff)`);
+          return articles;
+        }
+        console.warn(`  ⚠️  API still HTTP ${retryResp.status} for ${source.label} — giving up`);
+        return [];
+      }
       console.warn(`  ⚠️  API returned HTTP ${resp.status} for ${source.label}`);
       return [];
     }

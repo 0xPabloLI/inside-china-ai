@@ -34,7 +34,6 @@ import { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } from "../lib/
 
 vi.mock("../lib/cdp-client.mjs", () => ({
   CDP_BASE: "http://localhost:3456",
-  RETRY_WAIT_MS: 3000,
   cdpNewTab: vi.fn(),
   cdpEval: vi.fn(),
   cdpCloseTab: vi.fn(),

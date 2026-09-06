@@ -17,7 +17,40 @@ import { fileURLToPath } from "node:url";
 import { createRateLimiter } from "./rate-limiter.mjs";
 
 export const CDP_BASE = "http://localhost:3456";
-export const RETRY_WAIT_MS = 3000;
+
+// #89 P1: escalating random backoff replaces the fixed 3s retry wait.
+// Deterministic ranges keep waits auditable; an attempt beyond the schedule
+// returns null (give up). 429/503 responses back off an order of magnitude
+// longer — the server told us to slow down, so a small jitter is pointless.
+export const BACKOFF_RANGES_MS = [
+  [3000, 5000], // retry 1
+  [6000, 10000], // retry 2
+  [12000, 20000], // retry 3 — give up after this
+];
+export const RATE_LIMIT_BACKOFF_MS = [30000, 60000];
+
+/**
+ * Delay before the given retry attempt (1-based), or null when retries are
+ * exhausted.
+ *
+ * @param {number} attempt - 1-based retry attempt number
+ * @param {() => number} [rand] - RNG seam (tests)
+ * @returns {number|null} milliseconds to wait, or null to give up
+ */
+export function backoffDelayMs(attempt, rand = Math.random) {
+  const range = BACKOFF_RANGES_MS[attempt - 1];
+  if (!range) return null;
+  return Math.round(range[0] + rand() * (range[1] - range[0]));
+}
+
+/**
+ * Longer delay for HTTP 429/503 (order of magnitude above normal retries).
+ */
+export function rateLimitBackoffDelayMs(rand = Math.random) {
+  return Math.round(
+    RATE_LIMIT_BACKOFF_MS[0] + rand() * (RATE_LIMIT_BACKOFF_MS[1] - RATE_LIMIT_BACKOFF_MS[0]),
+  );
+}
 
 // #89 P0: per-domain rate limiting for every CDP navigation.
 // Wired into cdpNewTab so all consumers (search-sources, asset-sourcer,
@@ -128,10 +161,41 @@ export async function waitForPageLoad(tabId, retries = 2) {
       // Tab not ready yet
     }
     if (i < retries) {
-      await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
+      // #89 P1: escalating wait instead of a fixed 3s between load polls
+      const delay = backoffDelayMs(i + 1);
+      await new Promise((r) => setTimeout(r, delay ?? 3000));
     }
   }
   return false;
+}
+
+/**
+ * Extract content from a tab, retrying with escalating backoff (#89 P1).
+ *
+ * Up to 3 retries (3-5s → 6-10s → 12-20s, randomized); gives up after that
+ * so the caller's fallback chain (googleSiteFallback → MCP) takes over.
+ *
+ * @param {string} tabId - Tab ID
+ * @param {string} script - JS expression that returns an array
+ * @param {object} [opts]
+ * @param {(tabId: string, script: string) => Promise<Array>} [opts.extractFn] - extraction seam (tests)
+ * @param {(ms: number) => Promise<void>} [opts.sleepFn] - sleep seam (tests)
+ * @returns {Promise<Array>} Extracted articles (empty array after exhaustion)
+ */
+export async function extractWithRetry(tabId, script, opts = {}) {
+  const extractFn = opts.extractFn || extractFromTab;
+  const sleepFn = opts.sleepFn || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  let articles = await extractFn(tabId, script);
+  for (let attempt = 1; articles.length === 0; attempt++) {
+    const delay = backoffDelayMs(attempt);
+    if (delay === null) break;
+    console.log(
+      `  ⏳ No articles found — retry ${attempt}/${BACKOFF_RANGES_MS.length} in ${(delay / 1000).toFixed(1)}s...`,
+    );
+    await sleepFn(delay);
+    articles = await extractFn(tabId, script);
+  }
+  return articles;
 }
 
 /**
