@@ -555,10 +555,9 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       // #213 方案 A: dots-chat apiFallback retired — the Bigsong backend was
-      // verified unreachable twice (session-19 0/10, #209 doctor-live probe),
-      // so xhs is an honest single-channel CDP source until a working backup
-      // route exists (rednote route repair is the only known candidate).
-      notes: "CDP (requires login). Single channel — dots-chat apiFallback retired (#213). needsAuth=true.",
+      // verified unreachable twice (session-19 0/10, #209 doctor-live probe).
+      // A #88 auto-generated googleSiteFallback remains as the generic backup.
+      notes: "CDP (requires login) → auto googleSiteFallback. dots-chat apiFallback retired (#213). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: true,
