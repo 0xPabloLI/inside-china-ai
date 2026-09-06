@@ -216,6 +216,7 @@
   last30days --emit=json → JSON（西方社媒 + 学术，API）
   Agent 读两个 JSON → 交叉比对 → 选 topic → 写文章 → 做视频
   ```
+  交叉比对执行固定的三步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）。产物须为每条留痕：去重组归属 + 分数 + 理由。
 - **安全审计**：⚠️ skills.sh Gen:Fail / Snyk:Fail / Socket:Warn（LAW 1-7 指令覆盖，Agent 语义审查通过——良性格式控制，非恶意行为）
 - **安装日期**：2026-08-12
 
