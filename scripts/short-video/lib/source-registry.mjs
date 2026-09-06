@@ -389,31 +389,9 @@ export const NEWS_SOURCES = [
       return results;
     `,
   },
-  {
-    name: "xinzhiyuan",
-    label: "新智元搜索",
-    category: "news",
-    supportsKeyword: true,
-    accessMethod: {
-      primary: "cdp",
-      notes: "CDP search page. Articles + images from same DOM.",
-    },
-    needsAuth: false,
-    useCleanTitle: false,
-    url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
-    articleScript: `
-      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link) {
-          results.push({ title: (el.querySelector('h2, h3, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
-        }
-      });
-      return results;
-    `,
-  },
+  // xinzhiyuan removed 2026-09-07 (#140 P5): DNS 解析 overdue.aliyun.com（主机欠费
+  // 停放，站点死亡；勿重新研究，详见 docs/research/zh-source-recovery-research-2026-09.md）。
+  // 公众号内容已由 wechat2rss_zhinengyuan 覆盖，信息无损失。
   {
     name: "zhidx",
     label: "智东西搜索",
@@ -483,46 +461,9 @@ export const NEWS_SOURCES = [
       return results;
     `,
   },
-  {
-    name: "baidu_news",
-    label: "百度新闻搜索",
-    category: "news",
-    locale: "zh-CN",
-    supportsKeyword: true,
-    accessMethod: {
-      primary: "cdp",
-      notes:
-        "CDP search page (news.baidu.com/ns). Articles + images from same DOM. No account, no API key.",
-    },
-    needsAuth: false,
-    useCleanTitle: false,
-    url: (keyword) =>
-      `https://www.baidu.com/ns?word=${encodeURIComponent(keyword)}&tn=news&rtt=4&medium=0`,
-    articleScript: `
-      var items = document.querySelectorAll('.result-op, .result, .news-result, article');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        var title = el.querySelector('h3, h2, .news-title-font_1xS-F, .title, a[aria-label]');
-        if (link && title) {
-          var titleText = title.textContent.trim();
-          if (titleText && titleText.length > 5) {
-            results.push({ title: titleText, url: link.href, imageUrl: img ? img.src : null });
-          }
-        }
-      });
-      if (results.length === 0) {
-        document.querySelectorAll('a[href]').forEach(function(a) {
-          var text = a.textContent.trim();
-          if (text.length > 10 && text.length < 200) {
-            results.push({ title: text, url: a.href, imageUrl: null });
-          }
-        });
-      }
-      return results;
-    `,
-  },
+  // baidu_news removed 2026-09-07 (#140 P5): 资讯搜索端点功能性死亡——ns 返回
+  // 218 字节空壳、热词 0 结果（详见 docs/research/zh-source-recovery-research-2026-09.md，
+  // 勿重新研究）。中文新闻覆盖由 wechat2rss 12 feed + sogou_weixin 承担。
 ];
 
 // ─── New self-media sources (TE-T2) ───
@@ -2688,46 +2629,8 @@ const CDP_VIDEO_SCRIPT = `
 `;
 
 const CDP_MEDIA_CAPABILITIES = {
-  // #75 Batch 1 (#77 疑点 1): baidu_news's notes claimed "Articles + images
-  // from same DOM" but no entry existed — the claim was unverifiable and the
-  // same-DOM video capability unexploited. imageScript derives from the
-  // articleScript's per-item img extraction; videoScript reuses the shared
-  // CDP_VIDEO_SCRIPT.
-  baidu_news: {
-    method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
-    url: (keyword) =>
-      `https://www.baidu.com/ns?word=${encodeURIComponent(keyword)}&tn=news&rtt=4&medium=0`,
-    imageScript: `
-      var items = document.querySelectorAll('.result-op, .result, .news-result, article');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        var title = el.querySelector('h3, h2, .news-title-font_1xS-F, .title, a[aria-label]');
-        if (link && title) {
-          var titleText = title.textContent.trim();
-          if (titleText && titleText.length > 5) {
-            if (img && img.src && !img.src.startsWith('data:')) {
-              results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: titleText.substring(0, 200) });
-            } else {
-              results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: titleText.substring(0, 200) });
-            }
-          }
-        }
-      });
-      return results;
-    `,
-    imageFallbackScript: `
-      var results = [];
-      document.querySelectorAll('img[src]').forEach(function(img) {
-        if ((img.naturalWidth > 200 || img.width > 200) && !img.src.startsWith('data:')) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
+  // baidu_news CDP media capability removed with the source (2026-09-07,
+  // #140 P5 — docs/research/zh-source-recovery-research-2026-09.md).
   qbitai: {
     method: "cdp",
     videoScript: CDP_VIDEO_SCRIPT,
@@ -2993,38 +2896,8 @@ const CDP_MEDIA_CAPABILITIES = {
       return results;
     `,
   },
-  xinzhiyuan: {
-    method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
-    url: (keyword) => `https://www.xinzhiyuan.com/?s=${encodeURIComponent(keyword)}`,
-    imageScript: `
-      var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        var title = (el.querySelector('h2, h3, .title')?.textContent || link?.textContent || '').trim();
-        var snippet = el.querySelector('.desc, .summary, .abstract, .excerpt, p:not(.title)');
-        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
-        if (link && img) {
-          results.push({ title: title, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
-        } else if (link && title) {
-          results.push({ title: title, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
-        }
-      });
-      return results;
-    `,
-    imageFallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          results.push({ title: img.alt || '', url: img.src, type: 'image' });
-        }
-      });
-      return results;
-    `,
-  },
+  // xinzhiyuan CDP media capability removed with the source (2026-09-07,
+  // #140 P5 — docs/research/zh-source-recovery-research-2026-09.md).
   zhidx: {
     method: "cdp",
     videoScript: CDP_VIDEO_SCRIPT,
@@ -3173,11 +3046,6 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "News copyright",
     logoRequired: false,
   },
-  xinzhiyuan: {
-    text: () => `图片来源: 新智元 (xinzhiyuan.com)`,
-    license: "News copyright",
-    logoRequired: false,
-  },
   zhidx: {
     text: () => `图片来源: 智东西 (zhidx.com)`,
     license: "News copyright",
@@ -3195,11 +3063,6 @@ export const SOURCE_ATTRIBUTIONS = {
   },
   bing_news: {
     text: (a) => `Image source: ${a.sourceUrl || "Bing News"}`,
-    license: "Varies",
-    logoRequired: false,
-  },
-  baidu_news: {
-    text: (a) => `文章来源: 百度新闻 (baidu.com)`,
     license: "Varies",
     logoRequired: false,
   },
@@ -3471,8 +3334,6 @@ export const SHARED_GOOGLE_SITE_SEARCH_SCRIPT = `
 export const AUTOGEN_EXCLUDED_SOURCES = new Set([
   // Search engines — they ARE search, no "own domain" to site:
   "bing_news",
-  "baidu_news",
-  "google_search",
   "baidu_search",
   "duckduckgo_search",
   "digg_search",

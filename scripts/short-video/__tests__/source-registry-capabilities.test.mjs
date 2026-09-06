@@ -277,11 +277,11 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-  it("ALL_SOURCES has 64 sources (google_news merged into google_search #140 P4)", () => {
+  it("ALL_SOURCES has 62 sources (google_news merged #140 P4; xinzhiyuan/baidu_news removed #140 P5)", () => {
     // 46 existing + 7 CDP image search + 8 stock_media + duckduckgo + baidu_news
     // + searxng_search = 64, + telegram_aipost (#204) = 65, − google_news (#140 P4) = 64
     // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
-    expect(ALL_SOURCES).toHaveLength(64);
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 
   it("source names are still unique after merge", () => {
@@ -528,9 +528,9 @@ describe("#67 — capabilities.articles fallbacks", () => {
       "xinhua",
       "thepaper",
       "leiphone",
-      "xinzhiyuan",
-      "zhidx",
       "zhihu",
+      // zhidx left the auto-gen set: WordPress REST apiSearch added (#140 P5),
+      // and shouldAutoGenGoogleSiteFallback skips apiSearch sources by design.
     ];
     for (const name of applicableNames) {
       const src = ALL_SOURCES.find((s) => s.name === name);

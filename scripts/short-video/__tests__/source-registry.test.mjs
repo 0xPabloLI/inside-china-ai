@@ -18,17 +18,17 @@ import {
 // ─── Source structure validation ───
 
 describe("Source structure", () => {
-  it("NEWS_SOURCES has 14 sources (google_news merged into google_search, #140 P4)", () => {
-    expect(NEWS_SOURCES).toHaveLength(14);
+  it("NEWS_SOURCES has 12 sources (google_news merged #140 P4; xinzhiyuan/baidu_news removed as dead upstream, #140 P5)", () => {
+    expect(NEWS_SOURCES).toHaveLength(12);
   });
 
   it("SELF_MEDIA_SOURCES has 8 sources", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 64 sources", () => {
-    // 64 — google_news merged into google_search (#140 P4)
-    expect(ALL_SOURCES).toHaveLength(64);
+  it("ALL_SOURCES has 62 sources", () => {
+    // 64 − xinzhiyuan/baidu_news (dead upstream, removed #140 P5)
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 
   it("each source has required fields", () => {
@@ -524,44 +524,10 @@ describe("General search sources", () => {
   });
 });
 
-// ─── Issue #64: baidu_news CDP source + Currents/Noozra reclassification ───
-
-describe("#64 — baidu_news CDP source", () => {
-  it("NEWS_SOURCES includes baidu_news", () => {
-    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
-    expect(src).toBeDefined();
-    expect(src.label).toBe("百度新闻搜索");
-    expect(src.category).toBe("news");
-    expect(src.locale).toBe("zh-CN");
-    expect(src.supportsKeyword).toBe(true);
-    expect(src.needsAuth).toBe(false);
-    expect(src.accessMethod.primary).toBe("cdp");
-  });
-
-  it("baidu_news mirrors the Google/Bing news CDP pattern (news.baidu.com/ns)", () => {
-    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
-    const url = src.url("DeepSeek");
-    expect(url).toContain("baidu.com/ns");
-    expect(url).toContain(encodeURIComponent("DeepSeek"));
-    // No account, no API key — CDP-only like bing_news
-    expect(src.apiSearch).toBeUndefined();
-    expect(src.mcpFallback).toBeUndefined();
-    expect(src.loginCheckScript).toBeUndefined();
-    expect(src.articleScript.length).toBeGreaterThan(50);
-    expect(src.articleScript).toContain("return results");
-    expect(src.useCleanTitle).toBe(false);
-  });
-
-  it("baidu_news is excluded from googleSiteFallback auto-gen (search engine)", () => {
-    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
-    expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
-  });
-
-  it("baidu_news has a SOURCE_ATTRIBUTIONS key", () => {
-    const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
-    expect(SOURCE_ATTRIBUTIONS[src.name]).toBeDefined();
-  });
-});
+// ─── Issue #64: Currents/Noozra reclassification ───
+// (The "#64 — baidu_news CDP source" describe was removed with the source
+// itself — dead upstream, 2026-09-07, #140 P5. See
+// docs/research/zh-source-recovery-research-2026-09.md — do not re-research.)
 
 describe("#64 — Currents/Noozra reclassified as news aggregation APIs", () => {
   it("GENERAL_SEARCH_SOURCES no longer contains currents or noozra_search", () => {
@@ -641,8 +607,8 @@ describe("supportsKeyword validation", () => {
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
     // + duckduckgo_search (#91) + baidu_news (#64) + searxng_search (#92)
-    // − google_news (merged into google_search, #140 P4)
-    expect(keywordSources.length).toBe(43);
+    // − google_news (merged #140 P4) − xinzhiyuan/baidu_news (dead upstream, #140 P5)
+    expect(keywordSources.length).toBe(41);
   });
 });
 
@@ -1015,12 +981,14 @@ describe("apiSearch configuration", () => {
   });
 
   it("sources without apiSearch are unaffected", () => {
+    // zhidx: WordPress REST apiSearch added (#140 P5 research)
     for (const src of NEWS_SOURCES) {
+      if (src.name === "zhidx") continue;
       expect(src.apiSearch).toBeUndefined();
     }
-    // Self-media sources: only tiktok_creator has apiSearch
+    // Self-media sources: tiktok_creator + weibo_hot (60s API, #140 P5) have apiSearch
     for (const src of SELF_MEDIA_SOURCES) {
-      if (src.name === "tiktok_creator") continue;
+      if (src.name === "tiktok_creator" || src.name === "weibo_hot") continue;
       expect(src.apiSearch).toBeUndefined();
     }
     // General search sources: only searxng_search has apiSearch (#92);
@@ -1036,9 +1004,9 @@ describe("apiSearch configuration", () => {
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("includes the 12 existing API sources, 12 public Wechat RSS sources, and 1 Telegram channel (#204)", () => {
+  it("includes the 12 existing API sources, 12 public Wechat RSS sources, 1 Telegram channel, and zhidx/weibo_hot API layers (#140 P5)", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(25);
+    expect(withApi).toHaveLength(27);
     const names = withApi.map((s) => s.name);
     expect(names).toEqual(
       expect.arrayContaining([

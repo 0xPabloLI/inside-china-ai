@@ -1,17 +1,15 @@
 /**
- * Tests for #75 Batch 1:
+ * Tests for #75 Batch 1 + #140 P5:
  *
- * 1. baidu_news CDP_MEDIA_CAPABILITIES entry (#77 疑点 1 修复): the source's
- *    notes claim "Articles + images from same DOM" but the entry was missing,
- *    so its media capability was unverifiable and its video capability
- *    unexploited. The entry reuses CDP_VIDEO_SCRIPT and derives imageScript
- *    from the articleScript's img extraction.
- * 2. Completeness guard: any source whose accessMethod.notes claims media
+ * 1. Completeness guard: any source whose accessMethod.notes claims media
  *    from the same DOM MUST have a CDP_MEDIA_CAPABILITIES entry — the exact
  *    class of contradiction the audit caught.
- * 3. Zero-fallback list lock: AUTOGEN_EXCLUDED_SOURCES is design-intentional
+ * 2. Zero-fallback list lock: AUTOGEN_EXCLUDED_SOURCES is design-intentional
  *    (search engines/image libraries get no site: fallback); a new source
  *    accidentally landing in the zero-fallback group must be caught.
+ *
+ * (The baidu_news capability block was removed with the source itself —
+ * dead upstream, see docs/research/zh-source-recovery-research-2026-09.md.)
  */
 import { describe, it, expect } from "vitest";
 import { join } from "path";
@@ -24,32 +22,6 @@ const byName = Object.fromEntries(ALL_SOURCES.map((s) => [s.name, s]));
 function capabilitiesOf(name) {
   return byName[name].capabilities;
 }
-
-describe("baidu_news media capabilities (#75 Batch 1)", () => {
-  it("has a CDP_MEDIA_CAPABILITIES entry wired into capabilities.images", () => {
-    const caps = capabilitiesOf("baidu_news");
-    expect(caps.images).toBeTruthy();
-    expect(caps.images.method).toBe("cdp");
-    expect(typeof caps.images.imageScript).toBe("string");
-    expect(caps.images.imageScript.length).toBeGreaterThan(50);
-  });
-
-  it("declares video capability reusing CDP_VIDEO_SCRIPT", () => {
-    const caps = capabilitiesOf("baidu_news");
-    expect(caps.videos).toBeTruthy();
-    expect(caps.videos.method).toBe("cdp");
-    expect(typeof caps.videos.videoScript).toBe("string");
-    expect(caps.videos.videoScript).toContain("video");
-    expect(typeof caps.videos.url).toBe("function");
-  });
-
-  it("imageScript keeps the article titles as provenance (sourceUrl)", () => {
-    const caps = capabilitiesOf("baidu_news");
-    // The entry must preserve the articleScript's per-item provenance shape.
-    expect(caps.images.imageScript).toContain("sourceUrl");
-    expect(caps.images.imageScript).toContain("type: 'image'");
-  });
-});
 
 describe("CDP_MEDIA_CAPABILITIES completeness guard", () => {
   it("every source claiming same-DOM media in its notes has a media entry", () => {
@@ -94,7 +66,6 @@ describe("zero-fallback list lock", () => {
       .map((s) => s.name)
       .sort();
     expect(zeroFallback).toEqual([
-      "baidu_news",
       "baidu_search",
       "bing_news",
       "digg_search",

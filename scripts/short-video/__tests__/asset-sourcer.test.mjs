@@ -1086,10 +1086,6 @@ describe("SOURCE_ATTRIBUTIONS", () => {
     expect(SOURCE_ATTRIBUTIONS.leiphone.license).toBe("News copyright");
   });
 
-  it("has attribution for xinzhiyuan", () => {
-    expect(SOURCE_ATTRIBUTIONS.xinzhiyuan).toBeDefined();
-  });
-
   it("has attribution for douyin", () => {
     expect(SOURCE_ATTRIBUTIONS.douyin).toBeDefined();
     expect(SOURCE_ATTRIBUTIONS.douyin.license).toBe("Fair use");
@@ -1331,12 +1327,6 @@ describe("CDP_SOURCES new additions", () => {
     const src = CDP_SOURCES.find((s) => s.name === "leiphone");
     expect(src).toBeDefined();
     expect(src.url("AI")).toContain("leiphone.com");
-  });
-
-  it("has xinzhiyuan source", () => {
-    const src = CDP_SOURCES.find((s) => s.name === "xinzhiyuan");
-    expect(src).toBeDefined();
-    expect(src.url("AI")).toContain("xinzhiyuan.com");
   });
 
   it("has zhidx source", () => {
@@ -2597,7 +2587,7 @@ describe("toCachedMediaCandidate", () => {
 
 describe("CDP_VIDEO_SOURCES", () => {
   it("derives cdp video sources from capabilities.videos", () => {
-    expect(CDP_VIDEO_SOURCES.length).toBeGreaterThanOrEqual(10);
+    expect(CDP_VIDEO_SOURCES.length).toBeGreaterThanOrEqual(9);
     for (const s of CDP_VIDEO_SOURCES) {
       expect(s.videoScript).toBeTruthy();
       expect(s.videoScript).toContain("iframe");
