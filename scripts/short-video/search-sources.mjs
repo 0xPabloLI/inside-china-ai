@@ -59,6 +59,33 @@ import {
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import {
+  updateSourceHealth,
+  deriveZeroResultSources,
+  REVIEW_THRESHOLD,
+} from "./lib/source-health.mjs";
+import { existsSync as _existsSync, readFileSync as _readFileSync } from "fs";
+
+/** Load output/source-health.json, fail-open to a fresh log (#200). */
+function loadSourceHealthLog(filePath) {
+  try {
+    if (!_existsSync(filePath)) return null;
+    const parsed = JSON.parse(_readFileSync(filePath, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist output/source-health.json — best effort, never breaks the run. */
+function saveSourceHealthLog(filePath, log) {
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, JSON.stringify(log, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`⚠️  source-health.json write failed: ${e.message}`);
+  }
+}
+import {
   createSearchResultsCache,
   loadSearchResultsCache,
   recordSearchResults,
@@ -195,12 +222,19 @@ async function enrichWithMedia(tabId, articles) {
   });
 }
 
+/**
+ * Collect articles from one source via CDP.
+ *
+ * Returns `{articles, status}` — status carries the non-zero-result outcome
+ * ("need_login" | "captcha" | null) so the collectFromSource trajectory
+ * recorder (#200) can label WHY a layer produced nothing.
+ */
 async function collectFromCdp(source, keyword) {
-  if (!cdpAvailable) return [];
+  if (!cdpAvailable) return { articles: [], status: null };
   // #67: Read from capabilities.articles with top-level fallback
   const cap = source.capabilities?.articles;
   const url = (cap?.url ?? source.url)(keyword || DEFAULT_KEYWORDS[0]);
-  if (!url) return [];
+  if (!url) return { articles: [], status: null };
   console.log(`\n🔍 Scraping ${source.label} (${source.name}) via CDP...`);
 
   let tabId;
@@ -209,7 +243,7 @@ async function collectFromCdp(source, keyword) {
     console.log(`  📑 Opened tab: ${tabId.substring(0, 12)}...`);
   } catch (e) {
     console.warn(`  ⚠️  Failed to open ${source.label}: ${e.message}`);
-    return [];
+    return { articles: [], status: null };
   }
 
   // Wait for page to load
@@ -228,11 +262,11 @@ async function collectFromCdp(source, keyword) {
     if (status === "need_login") {
       console.warn(`  ⚠️  ${source.label} requires login — CDP failed`);
       await cdpCloseTab(tabId);
-      return [];
+      return { articles: [], status: "need_login" };
     } else if (status === "captcha") {
       console.warn(`  ⚠️  ${source.label} 触发验证码，请在 Chrome 中手动通过验证码后重试`);
       await cdpCloseTab(tabId);
-      return [];
+      return { articles: [], status: "captcha" };
     }
   }
 
@@ -266,7 +300,7 @@ async function collectFromCdp(source, keyword) {
   await cdpCloseTab(tabId);
   console.log("  🚪 Tab closed");
 
-  return articles;
+  return { articles, status: null };
 }
 
 async function collectFromApi(source, keyword) {
@@ -413,8 +447,33 @@ export function recordCollectedArticles(cache, { source, keyword, articles }) {
   return recordSearchResults(cache, { source, keyword, results: articles });
 }
 
-export async function collectFromSource(source, keyword) {
-  // #67: Read from capabilities.articles with top-level fallback
+export async function collectFromSource(source, keyword, recorder = null, deps = {}) {
+  const {
+    collectApi = collectFromApi,
+    collectCdp = collectFromCdp,
+    collectBigsong = collectFromBigsong,
+    collectMcp = collectFromMcp,
+    searchPoolFn = searchPool,
+    isPoolEligibleFn = isPoolEligible,
+  } = deps;
+
+  // #200: per-layer outcome trajectory. Each event is
+  // {source, layer, count, reason?} — count null means the layer didn't run
+  // or failed structurally, and reason explains why ("zero-results",
+  // "need_login", "captcha", "api-parse-error", "skipped-same-url-as-api").
+  const record = (layer, count, reason = undefined) => {
+    try {
+      recorder?.({ source: source.name, layer, count, ...(reason ? { reason } : {}) });
+    } catch {
+      // a broken recorder must never break collection
+    }
+  };
+
+  // #67: Read from capabilities.articles with top-level fallback.
+  // Rule (#199 2.6): after enrichWithCapabilities() every source carries a
+  // capabilities object — read `cap.x` only from here down. The `?? source.x`
+  // fallbacks below exist for pre-enrich callers (registry literals, tests);
+  // new code must not add more of them.
   const cap = source.capabilities?.articles;
   const apiSearch = cap?.apiSearch ?? source.apiSearch;
   const googleSiteFallback = cap?.googleSiteFallback ?? source.googleSiteFallback;
@@ -425,14 +484,26 @@ export async function collectFromSource(source, keyword) {
   // Step 0: Try API direct-connect (if configured — Issue #34)
   let articles = [];
   if (apiSearch) {
-    articles = await collectFromApi(source, keyword);
+    try {
+      articles = await collectApi(source, keyword);
+    } catch (e) {
+      record("api", null, "api-parse-error");
+      throw e;
+    }
+    record("api", articles.length, articles.length === 0 ? "zero-results" : undefined);
   }
 
   // Step 0.5 (Issue #66): If API failed AND the CDP url is the same endpoint
   // as the API url, skip CDP — same URL, same result, pure browser waste.
   // Sources without an API are unaffected (shouldSkipCdpOnApiFail returns false).
   if (articles.length === 0 && !shouldSkipCdpOnApiFail(source, keyword)) {
-    articles = await collectFromCdp(source, keyword);
+    const { articles: cdpArticles, status } = await collectCdp(source, keyword);
+    articles = cdpArticles;
+    record("cdp", articles.length, status ?? (articles.length === 0 ? "zero-results" : undefined));
+  } else if (articles.length === 0 && apiSearch) {
+    // #200: same-endpoint skip — by design there is no next layer after the
+    // API; the explicit reason keeps this from reading as "all layers dead".
+    record("cdp", null, "skipped-same-url-as-api");
   }
 
   // Step 2: If CDP failed and CDP fallback is configured, try it
@@ -447,13 +518,20 @@ export async function collectFromSource(source, keyword) {
       loginCheckScript: null,
       needsAuth: false,
     };
-    articles = await collectFromCdp(fallbackSource, keyword);
+    const { articles: fbArticles, status } = await collectCdp(fallbackSource, keyword);
+    articles = fbArticles;
+    record(
+      "google-fallback",
+      articles.length,
+      status ?? (articles.length === 0 ? "zero-results" : undefined),
+    );
   }
 
   // Step 2.5 (Issue #90): If still failed and a direct Bigsong API fallback is
   // configured, call lib/bigsong-api.mjs directly — no subprocess, no JSON-RPC.
   if (articles.length === 0 && apiFallback) {
-    articles = await collectFromBigsong(source, keyword, apiFallback);
+    articles = await collectBigsong(source, keyword, apiFallback);
+    record("api-fallback", articles.length, articles.length === 0 ? "zero-results" : undefined);
   }
 
   // Step 3: If still failed and MCP fallback is configured, try MCP.
@@ -463,9 +541,9 @@ export async function collectFromSource(source, keyword) {
   // MCP fallbacks (xhs/sogou_weixin/weibo_hot/bilibili) keep the direct MCP
   // path — the pool does not replace them.
   if (articles.length === 0 && mcpFallback) {
-    if (isPoolEligible(source)) {
+    if (isPoolEligibleFn(source)) {
       console.log(`  🏊 Trying search pool for ${source.label}...`);
-      const poolResult = await searchPool(keyword || DEFAULT_KEYWORDS[0]);
+      const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0]);
       for (const attempt of poolResult.attempts) {
         console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
       }
@@ -473,11 +551,13 @@ export async function collectFromSource(source, keyword) {
         articles = poolResult.articles;
         console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
       } else {
-        articles = await collectFromMcp(source, keyword);
+        articles = await collectMcp(source, keyword);
       }
+      record("pool", articles.length, articles.length === 0 ? "zero-results" : undefined);
     } else {
-      const mcpArticles = await collectFromMcp(source, keyword);
+      const mcpArticles = await collectMcp(source, keyword);
       articles = mcpArticles;
+      record("mcp", articles.length, articles.length === 0 ? "zero-results" : undefined);
     }
   }
 
@@ -563,10 +643,14 @@ export function deriveCollectionMethod(source) {
  * @param {string|null} options.keyword
  * @param {Array<Object>} options.sources — articles-capable sources for this universe
  *   (used for evidenceGroups, per-item sourceRole, category and collectionMethod)
+ * @param {Array<{source: string, layer: string, count: number|null, reason?: string}>}
+ *   [options.sourceAttempts] — per-layer outcome trajectory from collectFromSource
+ *   (#200); when present, discovery.sourceHealth carries the full trajectory and
+ *   the zero-result source list for manual selector review
  * @returns {Object} discovery document (schema 1.1.0)
  */
 export function buildDiscoveryOutput(articles, failedSources, options) {
-  const { contentId, runId, keyword, sources } = options || {};
+  const { contentId, runId, keyword, sources, sourceAttempts } = options || {};
   const groups = groupSourcesByEvidenceRole(sources || []);
   const sourceByName = new Map((sources || []).map((s) => [s.name, s]));
 
@@ -620,6 +704,14 @@ export function buildDiscoveryOutput(articles, failedSources, options) {
       keyword,
       mode: "research",
     },
+    ...(sourceAttempts
+      ? {
+          sourceHealth: {
+            attempts: sourceAttempts,
+            zeroResultSources: deriveZeroResultSources(sourceAttempts),
+          },
+        }
+      : {}),
   };
 }
 
@@ -705,18 +797,29 @@ async function main() {
   const searchCache = searchCachePath ? loadSearchResultsCache(searchCachePath) : null;
   let searchCacheDirty = false;
 
+  // #200: per-layer trajectory + cross-run zero-result streak. Thrown
+  // failures still land in failedSources below; health tracking covers the
+  // silent class — sources that complete but return nothing.
+  const sourceAttempts = [];
+  const healthRunEntries = [];
+
   for (const source of sources) {
     try {
-      const fetchedArticles = await collectFromSource(source, keywordArg);
+      const fetchedArticles = await collectFromSource(source, keywordArg, (e) =>
+        sourceAttempts.push(e),
+      );
       const articles = filterRecentTrackedArticles(fetchedArticles, source.tracking);
-      if (recordCollectedArticles(searchCache, {
-        source: source.name,
-        keyword: keywordArg,
-        articles: fetchedArticles,
-      })) {
+      if (
+        recordCollectedArticles(searchCache, {
+          source: source.name,
+          keyword: keywordArg,
+          articles: fetchedArticles,
+        })
+      ) {
         searchCacheDirty = true;
       }
       allArticles.push(...articles);
+      healthRunEntries.push({ name: source.name, count: fetchedArticles.length });
       if (isResearchMode) {
         resultsBySource[source.name] = {
           label: source.label,
@@ -729,6 +832,29 @@ async function main() {
       console.warn(`  ⚠️  ${source.label} failed: ${e.message}`);
       failedSources.push({ name: source.name, reason: e.message || "unknown" });
     }
+  }
+
+  // #200: persist the streak log and surface review candidates.
+  const healthLogPath = join(OUTPUT_DIR, "source-health.json");
+  const healthLog = updateSourceHealth(loadSourceHealthLog(healthLogPath), healthRunEntries);
+  saveSourceHealthLog(healthLogPath, healthLog);
+  const zeroResultSources = deriveZeroResultSources(sourceAttempts);
+  if (zeroResultSources.length > 0) {
+    const detail = zeroResultSources
+      .map(
+        (z) =>
+          `${z.source} (${z.attempts.map((a) => a.layer + (a.reason ? `:${a.reason}` : "")).join(" → ")})`,
+      )
+      .join(", ");
+    console.warn(`⚠️  Zero-result sources: ${detail}`);
+  }
+  const reviewCandidates = Object.entries(healthLog.sources)
+    .filter(([, v]) => v.consecutiveZeroRuns >= REVIEW_THRESHOLD)
+    .map(([name, v]) => `${name} ×${v.consecutiveZeroRuns}`);
+  if (reviewCandidates.length > 0) {
+    console.warn(
+      `⚠️  Selector review suggested (${REVIEW_THRESHOLD}+ consecutive zero-result runs): ${reviewCandidates.join(", ")}`,
+    );
   }
 
   console.log(`\n📊 Total articles scraped: ${allArticles.length}`);
@@ -763,6 +889,7 @@ async function main() {
         runId,
         keyword: keywordArg,
         sources: articlesCapableSources,
+        sourceAttempts,
       });
 
       writeResearchArtifact(contentIdArg, runId, RESEARCH_ARTIFACTS.DISCOVERY, discovery);
