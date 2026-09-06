@@ -1205,6 +1205,7 @@ describe("XHS-Downloader adapter (#75 Batch 5)", () => {
     try {
       const { downloadXhsDownloader } = await import("../lib/video-downloaders.mjs");
       const r = await downloadXhsDownloader("https://www.xiaohongshu.com/explore/xyz", {
+        cookie: null, // force absence — the repo .env.local now carries a real XHS_COOKIE
         runner: () => {
           throw new Error("should not run");
         },

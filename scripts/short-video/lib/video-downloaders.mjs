@@ -31,6 +31,11 @@ import {
 import { join, dirname } from "path";
 import { execSync } from "child_process";
 import { tmpdir, homedir } from "os";
+import { fileURLToPath } from "url";
+import { dirname as _dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = _dirname(__filename);
 import { execFileSync } from "child_process";
 
 // ─── Constants ───
@@ -1227,15 +1232,30 @@ export async function downloadXhsCdp(url, opts = {}) {
  *   pythonPath, scriptDir, workPath, cookie
  * @returns {Promise<DownloadResult>}
  */
+/** Read XHS_COOKIE from the repo-root .env.local (same fallback as the
+ * apify token), so the cookie persists across shells without exporting. */
+function xhsCookieFromEnvLocal() {
+  try {
+    const envLocal = readFileSync(join(__dirname, "..", "..", "..", ".env.local"), "utf8");
+    const m = envLocal.match(/^XHS_COOKIE=(.+)$/m);
+    return m ? m[1].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function downloadXhsDownloader(url, opts = {}) {
-  const cookie = opts.cookie ?? process.env.XHS_COOKIE;
+  // opts.cookie === null forces the absence path (tests); otherwise env,
+  // then .env.local.
+  const cookie =
+    opts.cookie !== undefined ? opts.cookie : (process.env.XHS_COOKIE ?? xhsCookieFromEnvLocal());
   if (!cookie) {
     return makeResult({
       status: "failed",
       strategy: ADAPTER_IDS.XHS_DOWNLOADER,
       sourceUrl: url,
       reason:
-        "XHS_COOKIE env not configured — set it to a logged-in xiaohongshu cookie string (web_session required)",
+        "XHS_COOKIE not configured — set it in .env.local or the environment: a logged-in xiaohongshu cookie string (web_session required)",
       retryable: false,
     });
   }
@@ -1247,14 +1267,15 @@ export async function downloadXhsDownloader(url, opts = {}) {
   const scriptDir =
     opts.scriptDir ?? process.env.XHS_DOWNLOADER_HOME ?? join(homedir(), "tools", "XHS-Downloader");
   const workPath = opts.workPath ?? mkdtempSync(join(tmpdir(), "xhs-dl-"));
+  let cliOutput = "";
   const runner =
     opts.runner ??
     ((cmd) =>
-      execFileSync(cmd[0], cmd.slice(1), {
+      (cliOutput = execFileSync(cmd[0], cmd.slice(1), {
         encoding: "utf8",
         timeout: 180000,
         stdio: ["pipe", "pipe", "pipe"],
-      }));
+      })));
 
   try {
     const cmd = [
@@ -1280,12 +1301,12 @@ export async function downloadXhsDownloader(url, opts = {}) {
     };
     walk(workPath);
     if (files.length === 0) {
+      const tail = (cliOutput ?? "").trim().split("\n").slice(-3).join(" | ").slice(0, 200);
       return makeResult({
         status: "failed",
         strategy: ADAPTER_IDS.XHS_DOWNLOADER,
         sourceUrl: url,
-        reason:
-          "xhs-downloader produced no video file (image-only note, stale token, or anti-bot block)",
+        reason: `xhs-downloader produced no video file (image-only note, stale token, or anti-bot block) — cli: ${tail}`,
         retryable: true,
       });
     }
