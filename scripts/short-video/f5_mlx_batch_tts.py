@@ -110,6 +110,31 @@ def estimate_target_seconds(text):
     return estimated
 
 
+def resolve_item_ref(item, default_audio, default_text):
+    """Per-scene reference override (#35 方案 B): a manifest entry may carry
+    its own ref_audio (path) / ref_text (transcription) for emotion-specific
+    cloning; anything missing falls back to the run-level default pair."""
+    return (
+        item.get("ref_audio") or default_audio,
+        item.get("ref_text") or default_text,
+    )
+
+
+def ref_duration_seconds(path, cache=None):
+    """ffprobe a reference wav's duration (needed for F5's duration parameter),
+    memoized per path — per-item refs make repeated probes likely."""
+    if cache is not None and path in cache:
+        return cache[path]
+    result = subprocess.run(
+        ["ffprobe", "-i", path, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
+        capture_output=True, text=True
+    )
+    dur = float(result.stdout.strip()) if result.stdout.strip() else 10.0
+    if cache is not None:
+        cache[path] = dur
+    return dur
+
+
 def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
     from f5_tts_mlx.generate import generate as f5_generate
 
@@ -119,13 +144,7 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
 
     print(f"\nProcessing {len(scenes)} scenes with F5-TTS-MLX (speed={speed})...\n", file=sys.stderr)
 
-    # Get ref audio duration (needed for F5's duration parameter)
-    ref_dur_result = subprocess.run(
-        ["ffprobe", "-i", ref_audio, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
-        capture_output=True, text=True
-    )
-    ref_dur = float(ref_dur_result.stdout.strip()) if ref_dur_result.stdout.strip() else 10.0
-    print(f"  Ref audio duration: {ref_dur:.2f}s", file=sys.stderr)
+    ref_durations = {}
 
     results = []
     for scene in scenes:
@@ -133,6 +152,7 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
         text = scene["text"]
         output_name = scene.get("output", f"scene-{scene_id}.wav").replace(".mp3", ".wav")
         output_path = os.path.join(output_dir, output_name)
+        item_ref_audio, item_ref_text = resolve_item_ref(scene, ref_audio, ref_text)
 
         print(f"  Scene {scene_id}: generating {len(text)} chars...", file=sys.stderr)
         t2 = time.time()
@@ -144,7 +164,7 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
         # The old len(text.split())/2.8 formula treated a whole Chinese sentence
         # as one word, producing near-zero durations.
         target_dur = estimate_target_seconds(text)
-        total_dur = ref_dur + target_dur
+        total_dur = ref_duration_seconds(item_ref_audio, ref_durations) + target_dur
 
         # F5 model parameters (MAX EFFORT):
         # - steps=32: maximum inference steps → best quality (default 8)
@@ -153,8 +173,8 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
         f5_generate(
             generation_text=text,
             duration=total_dur,
-            ref_audio_path=ref_audio,
-            ref_audio_text=ref_text,
+            ref_audio_path=item_ref_audio,
+            ref_audio_text=item_ref_text,
             speed=speed,
             steps=32,
             cfg_strength=3.0,

@@ -29,6 +29,106 @@ const F5_MLX_SPEED = parseFloat(process.env.F5_SPEED) || 1.0;
 const F5_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const F5_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text.txt");
 
+// ── Per-visualType reference audio (#35, 方案 B) ──
+// Prosody is learned from the reference audio; different scene types deserve
+// different delivery. Reference clips are user-recorded into
+// voice-samples/ref-styles/ (gitignored) — a style participates only when
+// BOTH its wav and its ref-text exist, so an unrecorded or typo'd refStyle
+// always falls back to the default sample instead of failing the run.
+const REF_STYLES_DIR = join(ROOT_DIR, "voice-samples", "ref-styles");
+
+/**
+ * refStyle name → {audioPath, refTextPath}.
+ * @type {Record<string, {audioPath: string, refTextPath: string}>}
+ */
+export const REF_AUDIO_MAP = Object.fromEntries(
+  ["hook", "narrative", "data", "cta"].map((style) => [
+    style,
+    {
+      audioPath: join(REF_STYLES_DIR, `${style}.wav`),
+      refTextPath: join(REF_STYLES_DIR, `${style}-ref-text.txt`),
+    },
+  ]),
+);
+
+/**
+ * Resolve the reference audio for one scene (#35).
+ *
+ * F5 hard limit: reference audio ≤ 15s. The caller passes injectable
+ * `fileExists` for tests; production uses existsSync.
+ *
+ * @param {{refStyle?: string}} scene
+ * @param {object} [opts]
+ * @param {Record<string, {audioPath: string, refTextPath: string}>} [opts.map]
+ * @param {string} [opts.defaultRef]
+ * @param {string} [opts.defaultRefTextPath]
+ * @param {(p: string) => boolean} [opts.fileExists]
+ * @returns {{style: string, audioPath: string, refTextPath: string, warning?: string}}
+ */
+export function resolveRefForScene(
+  scene,
+  {
+    map = REF_AUDIO_MAP,
+    defaultRef = F5_REF_AUDIO,
+    defaultRefTextPath = F5_REF_TEXT_FILE,
+    fileExists = existsSync,
+  } = {},
+) {
+  const style = scene?.refStyle;
+  if (!style) {
+    return { style: "default", audioPath: defaultRef, refTextPath: defaultRefTextPath };
+  }
+  const entry = map[style];
+  if (!entry) {
+    return {
+      style: "default",
+      audioPath: defaultRef,
+      refTextPath: defaultRefTextPath,
+      warning: `unknown refStyle "${style}" — using default reference`,
+    };
+  }
+  if (!fileExists(entry.audioPath) || !fileExists(entry.refTextPath)) {
+    return {
+      style: "default",
+      audioPath: defaultRef,
+      refTextPath: defaultRefTextPath,
+      warning: `refStyle "${style}" not recorded yet (missing wav/ref-text) — using default reference`,
+    };
+  }
+  return { style, audioPath: entry.audioPath, refTextPath: entry.refTextPath };
+}
+
+/**
+ * Build the F5 batch manifest. Scenes whose resolved style is non-default
+ * carry `ref_audio` (path) and `ref_text` (transcription content) so the
+ * python script clones that style for the scene; default-only runs produce
+ * the exact pre-#35 manifest shape (no ref fields, python env defaults).
+ *
+ * @param {Array<{id: number, voiceover: string}>} scenes
+ * @param {(scene: object) => {style: string, audioPath: string, refTextPath: string, warning?: string}} resolve
+ * @param {(p: string) => string} [readText]
+ * @returns {Array<{sceneId: number, text: string, output: string, ref_audio?: string, ref_text?: string}>}
+ */
+export function buildF5Manifest(
+  scenes,
+  resolve,
+  readText = (p) => readFileSync(p, "utf-8").trim(),
+) {
+  return scenes.map((s) => {
+    const ref = resolve(s);
+    const entry = {
+      sceneId: s.id,
+      text: s.voiceover,
+      output: `scene-${s.id}.wav`,
+    };
+    if (ref.style !== "default") {
+      entry.ref_audio = ref.audioPath;
+      entry.ref_text = readText(ref.refTextPath);
+    }
+    return entry;
+  });
+}
+
 /**
  * Check if F5-TTS-MLX is available.
  * @returns {Promise<boolean>}
@@ -62,11 +162,15 @@ export async function createF5MLXEngine() {
 
     async generate(scenes, outputDir) {
       const manifestPath = join(outputDir, "f5-manifest.json");
-      const manifest = scenes.map((s) => ({
-        sceneId: s.id,
-        text: s.voiceover,
-        output: `scene-${s.id}.wav`,
-      }));
+      // Per-scene reference resolution (#35): styled scenes carry their own
+      // ref_audio/ref_text; default scenes keep the pre-#35 manifest shape.
+      const resolve = (s) => resolveRefForScene(s);
+      const manifest = buildF5Manifest(scenes, resolve);
+      for (const s of scenes) {
+        const r = resolve(s);
+        if (r.warning) console.log(`  ⚠️  Scene ${s.id}: ${r.warning}`);
+        else if (r.style !== "default") console.log(`  🎭 Scene ${s.id}: refStyle=${r.style}`);
+      }
       const { writeFileSync: writeSync } = await import("fs");
       writeSync(manifestPath, JSON.stringify(manifest));
 
