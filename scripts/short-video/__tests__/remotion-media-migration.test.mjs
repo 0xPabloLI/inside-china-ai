@@ -49,9 +49,12 @@ describe("T2: MediaBackground uses @remotion/media", () => {
 
   it("MediaBackground uses CanvasImage for image type", () => {
     const content = readFile("components/MediaBackground.tsx");
+    // #156 backdrop layering (bd8fa2c): when a backdrop layer exists the
+    // primary image renders via <Img> (CanvasImage canvas compositing always
+    // paints below <Video>, regardless of DOM order); via CanvasImage otherwise.
+    // Both paths must exist.
     expect(content).toMatch(/CanvasImage/);
-    // Should not use bare Img for image rendering
-    expect(content).not.toMatch(/<Img\s/);
+    expect(content).toMatch(/<Img\s/);
   });
 
   it("MediaBackground accepts optional effects prop", () => {
