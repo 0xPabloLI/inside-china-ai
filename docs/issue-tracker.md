@@ -3,7 +3,7 @@
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
 > 历史轮次（第十九 session 及更早）已下沉 `docs/archive/tracker-rotation-history-2026-09-06.md`（2026-09-06 第二十一 session 清理，沿 3a92094 先例）。
-Last inventory: 2026-09-06（第二十 session，agent marathon）— 用户授权马拉松模式（多 issue 连做、子代理并行、一般问题自决）。**#201 ✅ 交付并关闭**（commit `2c88ab4`）：渲染回归根因 = bd8fa2c 的 `zIndex:1` 把 primary media 抬到 dim overlay 之上，删除后 qwen4-preview 帧验证恢复 71/71；**#207 ✅ 交付并关闭**（commit `c071735`）：MuAPI 异步编排模式调研笔记落 docs/research/muapi-async-task-patterns.md（取舍表 4 可用/5 不抄，remote-task.mjs 落地建议待独立 issue）。**#204 进行中**（agent 实现 Telegram 源）。Commits `2c88ab4`/`c071735` 本地 main 未推送。字幕 verify 既有 2 error（旁白停顿）再次确认非回归。
+Last inventory: 2026-09-06（第二十一 session，tracker 沉积清理）— 沿 3a92094 先例的第二档清理落地（commit `b89ab81`）：inventory 旧 8 条下沉 archive、Tier 关票行 33 条一行化（237KB→198KB）、Triage Protocol 新增规则 8（关票行一行化）/9（inventory 轮换）防再沉积。**执行中修复一个自伤**：第二十 session 的置顶裸行 inventory 曾被脚本误下沉，已恢复置顶并修正 archive。并行 session 状态：#201/#207 已由第二十 session 关闭、#204 进行中（收尾时会再写 tracker——本清理先落，冲突面小）。
 
 Previous: 2026-09-06（第十八 session）及更早全部轮换历史（21 轮，#77/#68/#76/#87 审计马拉松等）已下沉 `docs/archive/tracker-rotation-history-2026-09-06.md`。
 

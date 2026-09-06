@@ -9,6 +9,9 @@ Last inventory: 2026-09-06（第十八 session）— **#77 ✅ 交付并关闭**
 
 # 下沉追加（2026-09-06 第二十一 session 清理）
 
+Last inventory: 2026-09-06（第二十 session，agent marathon）— 用户授权马拉松模式（多 issue 连做、子代理并行、一般问题自决）。**#201 ✅ 交付并关闭**（commit `2c88ab4`）：渲染回归根因 = bd8fa2c 的 `zIndex:1` 把 primary media 抬到 dim overlay 之上，删除后 qwen4-preview 帧验证恢复 71/71；**#207 ✅ 交付并关闭**（commit `c071735`）：MuAPI 异步编排模式调研笔记落 docs/research/muapi-async-task-patterns.md（取舍表 4 可用/5 不抄，remote-task.mjs 落地建议待独立 issue）。**#204 进行中**（agent 实现 Telegram 源）。Commits `2c88ab4`/`c071735` 本地 main 未推送。字幕 verify 既有 2 error（旁白停顿）再次确认非回归。
+
+
 Last inventory: 2026-09-06（第十九 session 收官·re-triage）— 账号安全风险评估落地：**xhs 下载 CDP 通道设为首选（低风险），XHS-Downloader 降为显式 fallback**（签名 API 调用检测面大，与 Auto-Redbook 红线对照）；护栏待设计进 #209。Re-triage 变更：#201 加 ready-for-agent（W2 高优先，回归阻塞质量验证）、#204/#207 ready-for-agent、#208/#210 → dormant、#140↔#209 互链（P1/P2/P6 待 #209 吸收）、#35 注记基础设施已交付、#60/#61 维持 triage 待用户。**新增入账**：#201/#204/#207/#209 补登 Tier 2 表（此前平行 session/本 session 创建未登记）。Agent 可执行前沿（按 wave）：#201（回归修复）→ #204/#207/#209 → #203。
 
 Last inventory: 2026-09-06（第十九 session 收官）— **#75 ✅ 交付并关闭**（GitHub #75 CLOSED；本 session commits `8b7e0ae`→`203766c` 全部已推送）：国内平台视频下载三平台集成完成（douyin/weibo/xhs 均实测下载成功）+ baidu_news 标注 + 审计测试缺口 3 项。grill 裁决落地：MCP Bridge 实测（SEARCH_TOOLS 多路由按工具名区分，后端无 xhs 通道）、XHS-Downloader 引入为主后端、`XHS_COOKIE` 已持久化 `.env.local`（gitignored）。**机制发现**：xsec_token 短时效绑定上下文。**session 遗留**：qwen4-preview 帧验证 6 FAIL → #201；三平台 capabilities.videos 标注待搜索侧验证（新票可开）；tiktok_creator 待配额授权。全量 vitest 2686 passed / 4 已知 env-flake。
