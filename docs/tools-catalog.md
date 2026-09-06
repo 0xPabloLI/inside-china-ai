@@ -363,6 +363,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 ## 待评估 / GitHub 候选 Skills
 
 > 以下 skills 来自 GitHub 搜索，已评估对项目价值但尚未安装。需要相关功能时先查这里。
+> 2026-09-06 自媒体十 skill 调研（Agent-Reach / Horizon / MediaCrawler / huashu-design / Auto-Redbook / Generative-Media-Skills / nuwa / guizang-social-card / social-auto-upload / linco-bridge）的源码级机制细节，见 `docs/research/selfmedia-skills-survey-2026-09.md`（关联 issue #203-#210）。
 
 ### last30days-skill — 跨平台社交媒体搜索 ⭐⭐⭐
 
