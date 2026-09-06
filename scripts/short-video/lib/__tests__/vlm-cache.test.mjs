@@ -297,3 +297,34 @@ describe("wrapAnalyzerWithCache (#198)", () => {
     expect(calls).toBe(4);
   });
 });
+
+// ─── Review fix (#198): flattened window opts must reach the cache key ───
+describe("wrapAnalyzerWithCache window normalization", () => {
+  it("keys a flattened {startMs,endMs,sampleFps} window separately from no window", async () => {
+    const { mkdtempSync, rmSync, writeFileSync } = await import("fs");
+    const { join } = await import("path");
+    const { tmpdir } = await import("os");
+    const dir = mkdtempSync(join(tmpdir(), "vlm-wrap-window-"));
+    const img = join(dir, "clip.mp4");
+    writeFileSync(img, "clip-bytes");
+    let calls = 0;
+    const fake = async () => {
+      calls += 1;
+      return { description: "d", subjects: [], contentKind: null, fit: null, criticalEdgeText: null };
+    };
+    const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
+    const wrapped = wrapAnalyzerWithCache(fake, {
+      cacheDir: join(dir, ".vlm-cache"),
+      model: "m",
+    });
+    const claim = { voiceover: "v", assetNeed: "n" };
+    await wrapped(img, { claim });
+    await wrapped(img, { claim, startMs: 0, endMs: 5000, sampleFps: 1 });
+    await wrapped(img, { claim, startMs: 0, endMs: 9000, sampleFps: 1 });
+    expect(calls).toBe(3);
+    // same flattened window again → cache hit
+    await wrapped(img, { claim, startMs: 0, endMs: 5000, sampleFps: 1 });
+    expect(calls).toBe(3);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});

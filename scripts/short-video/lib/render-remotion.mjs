@@ -28,6 +28,19 @@ const __dirname = dirname(__filename);
 const REMOTION_DIR = join(__dirname, "..", "remotion");
 
 /**
+ * Derive the raw (pre-finalize) render output path from a final video path.
+ * renderRemotion keeps the raw file when subtitles were burned so the
+ * verification repair path (main.mjs) can rebuild the shipped artifact from
+ * it — both sides must agree on the name, so the derivation lives here.
+ *
+ * @param {string} finalPath - e.g. ".../subject-pipeline-short.mp4"
+ * @returns {string} e.g. ".../subject-pipeline-raw.mp4"
+ */
+export function rawOutputPathFor(finalPath) {
+  return finalPath.replace("-short.mp4", "-raw.mp4");
+}
+
+/**
  * Render a video using Remotion.
  *
  * @param {object} options

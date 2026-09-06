@@ -55,7 +55,9 @@ export function writeSceneMeta(outputDir, sceneId, meta) {
 /**
  * Split scenes into cache hits (reuse existing audio) and pending (must be
  * generated). A hit requires a readable meta whose key matches AND whose
- * audio file still exists — anything else falls back to regeneration.
+ * audio file still exists — anything else falls back to regeneration. The
+ * audio filename comes from the meta (engines differ: F5/Qwen write .wav,
+ * edge-tts/say write .mp3), so every engine's output can be cached.
  *
  * @param {string} outputDir
  * @param {Array<{id: number, voiceover: string}>} scenes
@@ -70,7 +72,7 @@ export function planTtsScenes(outputDir, scenes, engine) {
     let hit = null;
     try {
       const meta = JSON.parse(readFileSync(sceneMetaPath(outputDir, scene.id), "utf8"));
-      const audioPath = join(outputDir, `scene-${scene.id}.wav`);
+      const audioPath = meta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
       if (meta.key === key && typeof meta.duration === "number" && existsSync(audioPath)) {
         hit = { sceneId: scene.id, audioPath, duration: meta.duration, cached: true };
       }

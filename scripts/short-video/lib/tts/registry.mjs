@@ -148,6 +148,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           key: computeSceneKey(engine, scene.voiceover),
           duration: r.duration,
           engine: engine.name,
+          audioPath: r.audioPath,
         });
       }
     }

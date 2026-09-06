@@ -7,7 +7,7 @@
  * and alignment by (scene text, audio content) signatures; repair paths
  * pass force:true so a retry genuinely retries.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { execSync } from "child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
 import { join } from "path";
@@ -279,5 +279,57 @@ describe("forced-alignment cache", () => {
 
     expect(alignmentCacheState(dir, computeAlignmentSignature(scenes, results))).toBe("stale");
     cleanup();
+  });
+});
+
+// ─── Review fixes (#198): mp3 engines must hit the cache too ───
+describe("planTtsScenes with mp3 engines (edge-tts / say)", () => {
+  let dirs = [];
+  const cleanup = () => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    dirs = [];
+  };
+  afterEach(cleanup);
+
+  it("hits the cache when meta records the actual (mp3) audio file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-cache-mp3-"));
+    dirs.push(dir);
+    const engine = { name: "edge-tts", info: "edge-tts (voice=zh-CN)" };
+    const scenes = [{ id: 1, voiceover: "第一句" }];
+    writeFileSync(join(dir, "scene-1.mp3"), "fake-mp3-bytes");
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, "第一句"),
+      duration: 2.0,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.mp3"),
+    });
+
+    const plan = planTtsScenes(dir, scenes, engine);
+    expect(plan.pending).toHaveLength(0);
+    expect(plan.cached[0].audioPath).toBe(join(dir, "scene-1.mp3"));
+  });
+
+  it("caches across runs when a fake engine writes mp3 output", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-cache-mp3run-"));
+    dirs.push(dir);
+    const engine = {
+      name: "edge-tts",
+      info: "edge-tts (voice=zh-CN)",
+      calls: 0,
+      async generate(scenes, outputDir) {
+        this.calls += 1;
+        return scenes.map((s) => {
+          const audioPath = join(outputDir, `scene-${s.id}.mp3`);
+          writeFileSync(audioPath, `mp3-for-${s.id}`);
+          return { sceneId: s.id, audioPath, duration: 2.0 };
+        });
+      },
+    };
+    const scenes = [{ id: 1, voiceover: "第一句" }];
+    const { generateTTSWithEngine } = await import("../lib/tts/registry.mjs");
+    await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
+    const second = await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
+    expect(engine.calls).toBe(1);
+    expect(second[0].audioPath).toBe(join(dir, "scene-1.mp3"));
   });
 });

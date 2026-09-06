@@ -73,8 +73,9 @@ export async function extractFramesAtIndexes({ videoPath, frames, outDir, nameFo
       ],
       { stdio: ["pipe", "pipe", "pipe"] },
     );
-  } catch {
-    // fall through — per-file existence decides missing below
+  } catch (e) {
+    // Keep the ffmpeg diagnostic — missing frames alone would hide why.
+    console.warn(`  ⚠️  Batched frame extraction failed: ${e.message?.slice(0, 200)}`);
   }
 
   unique.forEach((f, i) => {

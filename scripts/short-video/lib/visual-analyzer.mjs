@@ -425,8 +425,7 @@ export function getVlmConcurrency() {
 
 /**
  * The VLM model id used when callers don't override it. Exported as cache-key
- * material for wrappers around analyzeAssetSemantics (#198) — keep in sync
- * with asset-sourcer.mjs's inline default.
+ * material for wrappers around analyzeAssetSemantics (#198).
  */
 export const DEFAULT_VLM_MODEL_ID = "mlx-community/Qwen3-VL-8B-Instruct-8bit";
 

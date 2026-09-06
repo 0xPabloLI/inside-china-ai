@@ -20,7 +20,7 @@ import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
-import { renderRemotion } from "./lib/render-remotion.mjs";
+import { renderRemotion, rawOutputPathFor } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
 import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
@@ -436,7 +436,7 @@ async function main() {
         // Rebuild the shipped file from it with the corrected ASS — the full
         // single-pass chain (subs + BGM + loudnorm + #176 head trim), not a
         // bare re-burn, so the repaired artifact matches the shipped recipe.
-        const rawPath = result.path.replace("-short.mp4", "-raw.mp4");
+        const rawPath = rawOutputPathFor(result.path);
         if (!existsSync(rawPath)) return null;
         finalizeRenderedVideo({
           videoPath: rawPath,

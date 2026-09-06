@@ -174,10 +174,17 @@ export function writeCachedResult(cacheDir, key, opts) {
 export function wrapAnalyzerWithCache(analyzeFn, { cacheDir, model, disabled = false }) {
   return async (filePath, opts = {}) => {
     if (!cacheDir || disabled) return analyzeFn(filePath, opts);
+    // analyzeAssetSemantics accepts both a nested window object and flattened
+    // startMs/endMs/sampleFps — normalize so every spelling lands in the key.
+    const window =
+      opts?.window ??
+      (opts?.startMs != null || opts?.endMs != null
+        ? { startMs: opts.startMs, endMs: opts.endMs, sampleFps: opts.sampleFps }
+        : undefined);
     const key = await computeCacheKey({
       filePath,
       model,
-      window: opts?.window,
+      window,
       claim: opts?.claim,
       cropFocus: opts?.cropFocus ?? null,
     });

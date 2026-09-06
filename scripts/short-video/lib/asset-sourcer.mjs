@@ -1212,14 +1212,14 @@ async function mapWithConcurrency(items, limit, fn) {
 }
 
 export async function analyzeAssets(assets, opts = {}) {
-  const { analyzeAssetSemantics, detectFocus, closeFocusDetector } =
+  const { analyzeAssetSemantics, detectFocus, closeFocusDetector, DEFAULT_VLM_MODEL_ID } =
     await import("./visual-analyzer.mjs");
   const { probeMedia } = await import("./media-probe.mjs");
 
   if (!assets || assets.length === 0) return [];
 
   const outputDir = opts.outputDir || null;
-  const modelId = opts.model || "mlx-community/Qwen3-VL-8B-Instruct-8bit";
+  const modelId = opts.model || DEFAULT_VLM_MODEL_ID;
   const contentDir = opts.contentDir || null;
   const contentSlug = opts.contentSlug || null;
   // Claims map: sceneId -> { voiceover, assetNeed } — claim-bound assets are
