@@ -134,14 +134,8 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 
 | Document                                      | Purpose                                                                                             |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `handoff-add-free-api-sources.md`             | Adding free API sources (Guardian, NYT, Semantic Scholar, etc.) to source-registry (Issue #64 OPEN) |
-| `handoff-extractscript-autofix.md`            | articleScript 自动修复 + warn + health 追踪 (Issue #66 OPEN)                                        |
 | `handoff-on-demand-audit.md`                  | On-Demand Content Audit feature design (Issue #60/#61 OPEN)                                         |
-| `handoff-search-api-pool.md`                  | Search API Pool — 多搜索 API 轮转调度 (Issue #65 OPEN)                                              |
-| `handoff-vlm-cascade-router-2026-08-27.md`    | VLM Cascade Router 调研完成 (Issue #127 OPEN)                                                       |
-| `handoff-infinitetalk-modal-2026-08-28.md`    | InfiniteTalk Modal 推理 handoff（状态：推理运行中）                                                 |
-| `handoff-token-audit-impl-2026-09-02.md`      | Agent 文档 token 审计实施总结 — 5 commits/省 5,105B/7 项遗留（2 待裁决+3 可选补做+2 不做）          |
-| `handoff-agent-doc-token-audit-2026-09-02.md` | Agent-reached 文档 token 审计（状态：待新 session 执行只读审计）                                    |
+| `handoff-qwen4-preview-r2-visual-audit.md`     | qwen4-preview R2 视觉审计 — 仅诊断+方案设计未改代码，渲染 6 FAIL 待独立 triage（2026-09-06 补登） |
 
 ### `reviews/` — Active review records
 
@@ -149,12 +143,12 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 
 | Document                                                 | Purpose                                                                                                                                                                                                                                            |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source-registry-capability-audit-2026-08-19.md`         | #77 首轮审计（#67 schema 落地前，59 源时代；P0/P1 findings 已修复，被 research/ 2026-09-06 复核取代）           
+| ~~`source-registry-capability-audit-2026-08-19.md`~~     | ✅ 已归档至 `archive/reviews/`（#77 已关闭，被 research/source-capabilities-audit.md 取代）
 | `signal-density-audit-2026-09-06.md`                     | Signal Density 审计（#68，ADR-0016 Rule 2）— 设计时调用点全面达标（5 条 Already applied 成立、VLM 8 信号）；6 项残留违规 → #198（render 4-pass ffmpeg、TTS 无跨 run 缓存、VLM crop hint 断层等）
 | `ssot-audit-2026-09-06.md`                               | SSOT 违规审计（#76）— 开票 5 项违规 4 项已解决（REMOTION_SLOT_MAP 双侧强制等）；2 项高影响（NO_MEDIA_TYPES 双份、validateDiscovery 无生产消费者）→ #199；types.mjs TODO 的不做判断；DOCS-INDEX Architecture Principles 表为本票 TODO ③ 交付
 | `maintenance-audit-2026-09-06.md`                        | 88 项手工维护条目审计（#87，64 源时代重新盘点）— 5 类缺口 4 类翻绿（兜底链完整）；唯一仍成立痛点=静默 0 结果 → #200；新增维护面 5 项大多已在 #77 在案；结论「可接受人工」为主 |                                                                                                                    |
-| `source-registry-capability-audit-2026-08-19-matrix.csv` | Source registry capability audit matrix (CSV)                                                                                                                                                                                                      |
-| `session-id-provenance-review-brief-2026-09-04.md`       | Session-Id 关联标识交付的第三方独立复核材料 **v4（已吸收两轮复核）** — 8 commit 清单、试点 9 样本审计、实测 bypass 矩阵、并发 reset 事故与单 id 错误归因证据、atlas 调研、reference-transaction 门控与并发方案 A/B/C、两轮裁决落实回执、未解决事项 |
+| ~~`source-registry-capability-audit-2026-08-19-matrix.csv`~~ | ✅ 已归档至 `archive/reviews/`（随主报告）
+| ~~`session-id-provenance-review-brief-2026-09-04.md`~~ | ✅ 已归档至 `archive/reviews/`（提案 v5 已结项，复核意见全部吸收进 proposal 与 git-workflow.md §8）
 | `ponytail-adoption-review-brief-2026-09-04.md`           | ponytail 改造的第三方独立复核材料 **v3** — 上游分层体积实测（固定 SHA，合计闭合）、适配器逐目录层级表（4 注入 + 9 指令层）、三处落地文本与统一字节口径、逐 tag 拒绝理由、证据分级与自我反驳、两轮复核（Q1–Q7、R1–R6）裁决落实                      |
 
 ### `archive/` — Completed work
@@ -165,12 +159,12 @@ Historical specs, tickets, plans, and roadmaps. Retained for reference, no longe
 
 | Document                                               | Purpose                                                                                                        |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `specs/adr-0008-0014-remediation-tracker.md`           | ADR 0008–0014 修复执行追踪器                                                                                   |
-| `specs/spec-asset-first-hook-media-focus-detection.md` | 素材先行 + Hook 场景 Media 支持 + OpenCV 焦点检测提案                                                          |
-| `specs/spec-media-patch-apply.md`                      | Media-patch apply workflow spec                                                                                |
-| `specs/spec-pipeline-generalization.md`                | Pipeline generalization — verification intelligence, media upscale, currency auto-fix, layout & chart template |
-| `specs/spec-research-evidence-pipeline.md`             | Research evidence pipeline spec                                                                                |
-| `specs/spec-vlm-semantic-merge-remediation.md`         | VLM semantic merge remediation (P0 + P1) spec                                                                  |
+| ~~`specs/adr-0008-0014-remediation-tracker.md`~~       | ✅ 已归档至 `archive/specs/`（2026-09-06 裁决被事件超越：01–07 DONE，08 项由后续全量测试+审计实质覆盖）       |
+| ~~`specs/spec-asset-first-hook-media-focus-detection.md`~~ | ✅ 已归档至 `archive/specs/`（2026-08-17 三合一提案已被 NO_MEDIA_TYPES/hook media warning 落地拆解吸收）    |
+| ~~`specs/spec-media-patch-apply.md`~~                  | ✅ 已归档至 `archive/specs/`（实现完成：lib/apply-media-patch.mjs + #192 拒绝回路；archive 旧根快照为过期版已清除）|
+| ~~`specs/spec-pipeline-generalization.md`~~            | ✅ 已归档至 `archive/specs/`（10 项 systemic issues 分散交付于各 closed issue；含 2026-09-01 Playwright 退役注记）|
+| ~~`specs/spec-research-evidence-pipeline.md`~~         | ✅ 已归档至 `archive/specs/`（实现落地 research-pipeline.mjs + lib/research/*；活跃版与 archive 曾逐字节重复）  |
+| ~~`specs/spec-vlm-semantic-merge-remediation.md`~~     | ✅ 已归档至 `archive/specs/`（Status: implemented 2026-08-19）                                                  |
 
 
 ### Root-level active specs & tickets
@@ -191,7 +185,7 @@ Deep research reports with citations.
 
 | Document                                           | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent-doc-token-audit-2026-09-02.md`              | Agent-reached 文档 token 审计 — 9 份文档逐句发现（sediment/no-ops/duplication/下沉）、预估节省、skill 目录统计与卸载候选；实施需用户批准                                                                                                                                                                                                                                                                         |
+| ~~`agent-doc-token-audit-2026-09-02.md`~~          | ✅ 已归档至 `archive/research/`（审计建议已全部实施，AGENTS.md 24KB→6.5KB）
 | `agent-driven-video-editing-research.md`           | Agent-driven video editing automation research                                                                                                                                                                                                                                                                                                                                                                   |
 | `anti-bot-scraping-solutions.md`                   | Anti-bot scraping solutions — bypass strategies and alternative search engines                                                                                                                                                                                                                                                                                                                                   |
 | `article-humanize-patterns-2026-09-04.md`          | 文章人味化模式依据 — Wikipedia "Signs of AI writing" 35 模式采纳/拒绝清单、10 篇语料实测、MRL-1 B9/W7/W8/W9 与 W1（3000→2500）阈值推导、外部改写工具对 widget 标记的风险                                                                                                                                                                                                                                         |

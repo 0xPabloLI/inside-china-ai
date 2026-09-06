@@ -127,7 +127,7 @@
 
 | 文件                                   | 完成时间   | 说明                                                                                                                                                                                                                          |
 | -------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `adr-0008-0014-remediation-tracker.md` | 2026-08-18 | ADR 0008-0014 修复执行追踪器 — PR #45 合并 + Issue #46 延迟验收全部完成。8 个工作项全部 VERIFIED。覆盖 F5 TTS CJK 时长、Remotion 时间线统一、venv 锁定、LFS pointer 校验、Kaggle/Colab GPU smoke、VLM Golden Asset 评估方案。 |
+| `adr-0008-0014-remediation-tracker.md` → `specs/`（2026-09-06 重归档） | 2026-08-18 | ADR 0008-0014 修复执行追踪器 — 01–07 DONE；08（全局验收）2026-09-06 裁决被事件超越（后续全量测试 2500+ 绿 + #76/#77 审计覆盖 ADR 同步核对），见文件头部裁决注记。根目录旧快照「全部 VERIFIED」为中间态误记已清除。
 
 ### Source Registry Specs
 
@@ -158,14 +158,12 @@
 | `handoff-video-download-breakthrough.md`        | 2026-08-27 | 视频下载突破研究 — 旧版 handoff（伪代码 + Cobalt-first 方案）。已被 VDL 实际代码（`video-downloaders.mjs` + 42 tests）和新版 handoff（`handoff-video-download-pipeline-integration.md`）替代。保留作历史参考。                                                                                        |
 | `handoff-text-overflow-hardening-2026-08-31.md` | 2026-09-03 | 短视频文本溢出根治 epic 实施 handoff — T1–T12 进度追踪 + 逐 session 交付记录 + 下一 session 启动导航（12/12 完成，父票 #141 收官；spec/tickets 见 `docs/archive/spec-text-overflow-hardening.md`，最终契约在 `scripts/short-video/lib/text-slots.mjs` + TextGate 几何硬门）。余 #165 中文分词 dormant |
 
-> **未归档的 handoff**（`docs/handoffs/` 中仍活跃）：
+> **未归档的 handoff**（`docs/handoffs/` 中仍活跃，2026-09-06 梳理后仅 2 件）：
 >
-> - `handoff-asset-source-unification.md` — 素材源统一命名，待实施
-> - `handoff-license-risk-policy.md` — License 风险策略，待实施
-> - `handoff-realesrgan.md` — Real-ESRGAN 超分辨率集成，已完成（spec/tickets 已归档）
-> - `handoff-write-for-agents-enforcement.md` — write-for-agents 执行机制，已完成（spec/tickets 已归档为 `spec-writing-for-agents-enforcement.md`）
-> - `handoff-verify-retry-loop.md` — Verify-retry loop，已完成（spec/tickets 已归档为 `spec-verify-retry-loop.md`）
-> - `handoff-source-layer-comparison.md` — Source layer CDP/MCP/API 对比 + selector 修复，已完成（spec/tickets 已归档为 `spec-source-registry-selector-fix.md`）
+> - `handoff-on-demand-audit.md` — On-Demand Content Audit 设计（#60/#61 仍 OPEN）
+> - `handoff-qwen4-preview-r2-visual-audit.md` — qwen4-preview R2 视觉审计（渲染 6 FAIL 待独立 triage；2026-09-06 补登 DOCS-INDEX）
+>
+> 注：此前本节列出的 asset-source-unification / license-risk-policy / realesrgan / write-for-agents-enforcement / verify-retry-loop / source-layer-comparison 六件实际均已在 `archive/handoffs/`，属清单过期，已更正。
 
 ### Review Docs (Archived)
 
@@ -201,3 +199,28 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 > - `docs/reviews/video-document-layer-review-2026-08-21.md` — #103 docs offload（W0 待做）
 > - `docs/research/video-background-coverage-audit-2026-08-21.md` — #94 visual intent（W4 待做）
 > - `docs/tiktok/tiktok-analytics-review.md` — 周期性复盘模板（不是代码 review）
+
+### 2026-09-06 批量归档（文档梳理，第十八 session）
+
+活跃区 18 件已完成使命的文档下沉本目录；DOCS-INDEX 行已同步为划线归档注记。
+
+| 归档位置 | 文件 | 说明 |
+| --- | --- | --- |
+| `handoffs/` | `handoff-text-overflow-fix-proposal.md` | 文本溢出 epic 提案（T1–T12 已收官 2026-09-03；68KB 最大 handoff） |
+| `reviews/` | `review-text-overflow-fix-proposal-2026-08-30.md` | 上述提案的五轮 review 轨迹，结论已回写 proposal §1.2–1.5 |
+| `handoffs/` | `handoff-search-api-pool.md` | #65 Unified Search Pool，2026-09-04 CLOSED |
+| `handoffs/` | `handoff-extractscript-autofix.md` | #66 抓取 fallback 链，2026-09-03 CLOSED |
+| `handoffs/` | `handoff-agent-doc-token-audit-2026-09-02.md` + `handoff-token-audit-impl-2026-09-02.md` | token 审计全部实施完毕（AGENTS.md 24KB→6.5KB） |
+| `handoffs/` | `handoff-vlm-cascade-router-2026-08-27.md` | #127 CLOSED，交接物已转入 issue |
+| `handoffs/` | `handoff-add-free-api-sources.md` | 增源经 #67/#92 交付；评估流程沉淀 tools-catalog.md |
+| `handoffs/` | `handoff-infinitetalk-modal-2026-08-28.md` | 否定性死胡同结论已转入 cloud-gpu-options / test-progress |
+| `specs/` | `spec-research-evidence-pipeline.md` | 实现落地 research-pipeline.mjs + lib/research/*；活跃版与旧根快照逐字节相同 |
+| `specs/` | `spec-vlm-semantic-merge-remediation.md` | Status: implemented 2026-08-19 |
+| `specs/` | `spec-media-patch-apply.md` | 实现完成（apply-media-patch.mjs + #192 拒绝回路） |
+| `specs/` | `spec-pipeline-generalization.md` | 10 项 systemic issues 分散交付于各 closed issue |
+| `specs/` | `spec-asset-first-hook-media-focus-detection.md` | 三合一提案已被 NO_MEDIA_TYPES / hook media warning 落地拆解 |
+| `specs/` | `adr-0008-0014-remediation-tracker.md` | 08 项裁决被事件超越（见文件头部注记） |
+| `reviews/` | `source-registry-capability-audit-2026-08-19.md` + `-matrix.csv` | #77 已关闭，被 research/source-capabilities-audit.md 取代 |
+| `reviews/` | `session-id-provenance-review-brief-2026-09-04.md` | 提案 v5 已结项，复核意见全部吸收 |
+| `research/` | `agent-doc-token-audit-2026-09-02.md` | 审计实施完毕（新建 `archive/research/` 收纳） |
+| （tracker） | `tracker-rotation-history-2026-09-06.md` | issue-tracker.md 头部 21+ 轮 Last inventory/Previous 轮换历史从 51K 字符单行下沉（tracker 272KB→224KB）；Closed Issues 明细表仍留 tracker 正文 |

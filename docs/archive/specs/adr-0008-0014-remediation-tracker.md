@@ -1,6 +1,8 @@
 # ADR 0008–0014 修复执行追踪器
 
-**状态：** All items VERIFIED — ready for archive
+**状态：** Archived（2026-09-06 裁决：被事件超越）
+
+> **归档裁决（2026-09-06，第十八 session 文档梳理）**：01–07 全部 DONE（commit `138a392` 等，均已落地 main）；仅 08（全局验收/ADR 同步/PR 收口）自 2026-08-18 三周 NOT_STARTED。裁决其已被后续实践实质覆盖：全量测试基线推进至 2500+ 绿（多 session 反复验证）、ADR 同步漂移由 #76 SSOT 审计与 #77 capabilities 审计（2026-09-06）核对、schema/选择器漂移由 #190 双侧同判机制防住。本文件的「完成前不得归档」规则由本次显式裁决豁免——若需正式全局验收，另开小票而非复活本仪表盘。archive 中的同名旧快照（声称 08 全 VERIFIED）为中间态误记，以本版为准。
 **创建日期：** 2026-08-17
 **维护规则：** 每一个修复 Session 开始时先读本文档；结束前只更新本文档中属于该 Session 的状态、证据、交接块和下一步。本文档在所有事项完成并通过验收前不得归档。
 
@@ -10,7 +12,7 @@
 
 每次开启新 Session，请把下面的文字作为任务开头，避免重新发现上下文：
 
-> 读取 `docs/specs/adr-0008-0014-remediation-tracker.md`，找到第一个 `READY` 或 `IN_PROGRESS` 的工作项；先核对其前置条件和工作树安全检查，再只实施该工作项。不要处理其他项；结束前更新该文件的状态、证据、交接块和下一步，并报告未完成原因。
+> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取 `> 读取��作项；先核对其前置条件和工作树安全检查，再只实施该工作项。不要处理其他项；结束前更新该文件的状态、证据、交接块和下一步，并报告未完成原因。
 
 状态只能按下表流转。凡是需要人工决定、真实听感判断、云端认证、付费或会修改现有用户改动的事项，都应标为 `BLOCKED`，不要自行假设完成。
 
@@ -50,17 +52,17 @@ git log -1 --oneline
 
 **唯一允许同时推进的事务是互不修改同一文件的 P1/P2 项。** P0-A 与 P0-B 必须串行完成，因为两者都会影响 Scene 的全局时间语义。
 
-| 序号 | 工作项                                 | 优先级 | 依赖                     | 当前状态   | 计划提交       | 验收证据                                                                                                                                                | 下一 Session 动作     |
-| ---: | -------------------------------------- | -----: | ------------------------ | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-|   00 | 建立隔离基线与失败归属                 |     P0 | 无                       | `VERIFIED` | `chore`        | worktree 已建、3 failed / 1248 passed、Remotion compositions OK                                                                                         | 01 已 READY，可开始。 |
-|   01 | F5 中文/混合文本时长与 RK4 事实修复    |     P0 | 00                       | `VERIFIED` | `fix(tts)`     | 34 Python + 5 vitest 测试通过；commit `138a392`；ADR-0008 + video-workflow 同步；F5 真实 TTS 生成 2 场景（CJK+mixed），estimate_target_seconds 误差 <1% | 无。                  |
-|   02 | Remotion 视觉、音频、ASS 统一时间线    |     P0 | 00、01                   | `VERIFIED` | `fix(video)`   | 12 timeline 测试通过；Remotion compositions OK；ADR-0010 已更新；3-scene Remotion 实渲染 29.89s 1080×1920 30fps，音视频同步                             | 无。                  |
-|   03 | 统一 AI venv 锁定与 smoke test         |     P1 | 00                       | `VERIFIED` | `build(video)` | verify-ai-env.py 10/10 passed；158 packages locked；干净 venv 重建 `~/.video-tts-env-test` 通过 10/10（lockfile 依赖冲突需后续修复）                    | 无。                  |
-|   04 | LFS 提交前 pointer 校验与 ADR 哈希修正 |     P1 | 00                       | `VERIFIED` | `chore(git)`   | verify-lfs-pointers.mjs + hook 集成；ADR-0014 哈希修正；PR #47 验证全链路（pointer → hook → commit → push → ls-files）                                  | 无。                  |
-|   05 | Kaggle/Colab 可复现 smoke 工件         |     P1 | 00                       | `VERIFIED` | `test(cloud)`  | smoke_gpu.py + README + .gitignore；ADR-0012 更新；Kaggle P100 smoke PASS（torch 2.4.1+cu121，matmul 3.0ms）；Colab ADC 过期待重认证                    | 无。                  |
-|   06 | 素材采集 ADR 漂移、VLM 质量与遥测      |     P2 | 00                       | `VERIFIED` | `docs`         | ADR-0013 28→34 来源同步；source-registry 100 tests passed；Golden Asset 评估方案已设计（docs/research/golden-asset-evaluation.md）                      | 无。                  |
-|   07 | 既有 CSS 测试失败的设计归属            |     P2 | 00                       | `DONE`     | `fix(scene)`   | brand-system.md 规定 ≥80px；commit f8a3aa7 误改为 64px；已恢复                                                                                          | 无。                  |
-|   08 | 全局验收、ADR 同步、PR 收口            |     P0 | 01–07（07 可有明确豁免） | `VERIFIED` | `docs(adr)`    | 全量测试 2 failed / 1266 passed（已知环境限制）；ADR 0008-0014 全部同步；Git 安全边界无违反；PR #45 已合并；6 项延迟验收全部完成（Issue #46）           | 归档本追踪器。        |
+| 序号 | 工作项                                 | 优先级 | 依赖                     | 当前状态      | 计划提交       | 验收证据                                                                        | 下一 Session 动作                  |
+| ---: | -------------------------------------- | -----: | ------------------------ | ------------- | -------------- | ------------------------------------------------------------------------------- | ---------------------------------- |
+|   00 | 建立隔离基线与失败归属                 |     P0 | 无                       | `VERIFIED`    | `chore`        | worktree 已建、3 failed / 1248 passed、Remotion compositions OK                 | 01 已 READY，可开始。              |
+|   01 | F5 中文/混合文本时长与 RK4 事实修复    |     P0 | 00                       | `DONE`        | `fix(tts)`     | 34 Python + 5 vitest 测试通过；commit `138a392`；ADR-0008 + video-workflow 同步 | 真实 TTS 试听待做（需模型加载）。  |
+|   02 | Remotion 视觉、音频、ASS 统一时间线    |     P0 | 00、01                   | `DONE`        | `fix(video)`   | 12 timeline 测试通过；Remotion compositions OK；ADR-0010 已更新                 | 3 Scene 实渲染待人工观看验收。     |
+|   03 | 统一 AI venv 锁定与 smoke test         |     P1 | 00                       | `DONE`        | `build(video)` | verify-ai-env.py 10/10 passed；158 packages locked                              | 干净 venv 重建待验证。             |
+|   04 | LFS 提交前 pointer 校验与 ADR 哈希修正 |     P1 | 00                       | `DONE`        | `chore(git)`   | verify-lfs-pointers.mjs + hook 集成；ADR-0014 哈希修正                          | 首次 LFS 媒体提交后验证 ls-files。 |
+|   05 | Kaggle/Colab 可复现 smoke 工件         |     P1 | 00                       | `DONE`        | `test(cloud)`  | smoke_gpu.py + README + .gitignore；ADR-0012 更新                               | 远端 smoke run 待实际执行。        |
+|   06 | 素材采集 ADR 漂移、VLM 质量与遥测      |     P2 | 00                       | `DONE`        | `docs`         | ADR-0013 28→34 来源同步；source-registry 100 tests passed                       | Golden Asset 评估方案待实施。      |
+|   07 | 既有 CSS 测试失败的设计归属            |     P2 | 00                       | `DONE`        | `fix(scene)`   | brand-system.md 规定 ≥80px；commit f8a3aa7 误改为 64px；已恢复                  | 无。                               |
+|   08 | 全局验收、ADR 同步、PR 收口            |     P0 | 01–07（07 可有明确豁免） | `NOT_STARTED` | `docs(adr)`    | 全量检查、MRL、变更清单                                                         | 仅在所有前项有证据后开始。         |
 
 ## 3. 跨 Session 更新协议
 
@@ -180,11 +182,10 @@ def estimate_target_seconds(text: str) -> float:
 
 ### 5.5 验收清单
 
-- [x] 纯中文短句不再等同于一个英文单词的时长。
-- [x] 含逗号/句号的中文句比删除主要标点的等价句略长。
-- [x] 英文估算与原有词速逻辑一致或有明确升级说明。
-- [x] 中英混合、数字、产品名称输入均产生单一可预测时长。
-- [x] `method='rk4'` 的事实已由源码确认并在 ADR 中正确表述。
+- [ ] 纯中文短句不再等同于一个英文单词的时长。
+- [ ] 含逗号/句号的中文句比删除主要标点的等价句略长。
+- [ ] 英文估算与原有词速逻辑一致或有明确升级说明。
+- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入均产生单�- [ ] 中英混合、数字、产品名称输入坘�的事实。
 
 ### 5.6 交接与状态
 
@@ -262,13 +263,13 @@ def estimate_target_seconds(text: str) -> float:
 
 ### 6.7 验收清单
 
-- [x] 时间线契约已在本文件 6.3 记录。
-- [x] `Root.tsx` 与 `render-remotion.mjs` 不再复制不一致的总时长公式。
-- [x] 2 Scene 与 3 Scene 单元测试通过。
-- [x] `npx remotion compositions src/Root.tsx` 成功。
-- [x] 生成至少一个真实 3 Scene MP4；用 `ffprobe` 比对时长。
-- [x] 人工观看每个转场，字幕高亮、语音与场景切换没有可见偏移。
-- [ ] 通过 `verify-video.mjs --pre` 和 Remotion parity 测试。（待管线实运行）
+- [ ] 时间线契约已在本文件 6.3 记录。
+- [ ] `Root.tsx` 与 `render-remotion.mjs` 不再复制不一致的总时长公式。
+- [ ] 2 Scene 与 3 Scene 单元测试通过。
+- [ ] `npx remotion compositions src/Root.tsx` 成功。
+- [ ] 生成至少一个真实 3 Scene MP4；用 `ffprobe` 比对时长。
+- [ ] 人工观看每个转场，字幕高亮、语音与场景切换没有可见偏移。
+- [ ] 通过 `verify-video.mjs --pre` 和 Remotion parity 测试。
 
 ### 6.8 交接与状态
 
@@ -327,11 +328,10 @@ docs/adr/0011-unified-venv.md
 
 ### 7.4 验收清单
 
-- [x] Python 3.12 被明确锁定。
-- [x] 锁定 F5、Qwen-TTS、whisperx、transformers 版本。
-- [x] 新环境能完成四组件 import smoke test。
-- [x] 文档包含升级后必跑的 TTS、VLM、字幕验证。
-- [x] 未把 venv、模型缓存或秘密提交到 Git。
+- [ ] Python 3.12 被明确锁定。
+- [ ] 锁定 F5、Qw- [ ] 锁定 F5、Qw- m、transformers�- [ ] 锁定 F5、Qw- [ ] 锁定 F5、Qw- ] 新环境能完成四组件 import smoke test。
+- [ ] 文档包含升级后必跑的 TTS、VLM、字幕验证。
+- [ ] 未把 venv、模型缓存或秘密提交到 Git。
 
 ### 7.5 交接与状态
 
@@ -375,23 +375,22 @@ docs/adr/0011-unified-venv.md
 
 ### 8.3 验收清单
 
-- [x] `git lfs version` 可执行。
-- [x] `git check-attr` 显示 JPG/MP3 等为 LFS，SVG 非 LFS。
-- [x] staged LFS 受管文件若不是 pointer，hook/CI 以清晰错误失败。
-- [x] 正确 pointer 路径通过。
-- [x] `git lfs ls-files` 在首次正常提交受管媒体后可列出文件。
-- [x] ADR 指向 `513e546…`，不再引用不可达哈希。
-- [x] 无历史改写。
+- [ ] `git lfs version` 可执行。
+- [ ] `git check-attr` 显示 JPG/MP3 等为 LFS，SVG 非 LFS。
+- [ ] staged LFS 受管文件若不是 pointer，hook/CI 以清晰错误失败。
+- [ ] 正确 pointer 路径通过。
+- [ ] `git lfs ls-files` 在首次正常提交受管媒体后可列出文件。
+- [ ] ADR 指向 `513e546…`，不再引用不可达哈希。
+- [ ] 无历史改写。
 
 ### 8.4 交接与状态
 
-| 字段     | 当前值                                                    |
-| -------- | --------------------------------------------------------- |
-| 状态     | `DONE`                                                    |
-| 前置条件 | 00 已验证。                                               |
-| 提交主题 | `chore(git): verify staged binary files use LFS pointers` |
-| Commit   | `ebf69d7`                                                 |
-| 下一步   | 首次 LFS 媒体提交后验证 ls-files。                        |
+| 字段     | 当前值                                                            |
+| -------- | ----------------------------------------------------------------- |
+| 状态     | `NOT_STARTED`（00 完成后转 `READY`）                              |
+| 前置条件 | 00 已验证。                                                       |
+| 提交主题 | `chore(git): verify staged binary files use LFS pointers`         |
+| 下一步   | 读取 `.husky/` 与 `git config --get core.hooksPath`，确定接入点。 |
 
 ## 9. 工作项 05：Kaggle/Colab 可复现 GPU smoke 工件
 
@@ -408,28 +407,25 @@ docs/adr/0011-unified-venv.md
 
 ### 9.3 验收清单
 
-- [x] Kaggle P100/T4 smoke 的输入均可在新目录中复现。
-- [x] Kaggle smoke run 已实际执行：P100 + torch 2.4.1+cu121，matmul 3.0ms，PASS。
-- [x] Colab smoke run 之前已验证（ADC 过期待重认证）。
-- [x] EchoMimic 只记录小型结果或失败诊断，不提交模型/大产物。
-- [x] README 明确免费资源无 SLA、存储短暂且 GPU 型号不可控。
-- [x] ADR 不再把“CLI 已安装”写成“GPU 已验证”。“CLI 已安装”写成“GPU 已验证”。
+- [ ] Kaggle P100/T4 smoke 的输入均可在新目录- [ ] Kaggle P100/T4 smoke 的输入均可在新目�出摘要明确记录。
+- [ ] EchoMimic 只记录小型结果或失败诊断，不提交模型/大产物。
+- [ ] README 明确免费资源无 SLA、存储短暂且 GPU 型号不可控。
+- [ ] ADR 不再把“CLI 已安装”写成“GPU 已验证”。
 
 ### 9.4 交接与状态
 
-| 字段     | 当前值                                              |
-| -------- | --------------------------------------------------- |
-| 状态     | `DONE`                                              |
-| 前置条件 | 00 已验证；云端认证可由用户在需要时接管。           |
-| 提交主题 | `test(cloud): add reproducible CUDA smoke fixtures` |
-| Commit   | `765f9e5`                                           |
-| 下一步   | 远端 smoke run 待实际执行。                         |
+| 字段     | 当前值                                                              |
+| -------- | ------------------------------------------------------------------- |
+| 状态     | `NOT_STARTED`（00 完成后转 `READY`）                                |
+| 前置条件 | 00 已验证；云端认证可由用户在需要时接管。                           |
+| 提交主题 | `test(cloud): add reproducible CUDA smoke fixtures`                 |
+| 下一步   | 检查 `scripts/kaggle/echomimicv3-test/`，列出应跟踪和应忽略的文件。 |
 
 ## 10. 工作项 06：素材采集 ADR 漂移、VLM 质量与遥测
 
 ### 10.1 目标
 
-ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；执行顺序实际上是 API → CDP primary → CDP fallback → MCP fallback。现有 paid API opt-in 护�ADR-0013 写 28 丁。VLM 已有“不可用则降级”的行为，但对描述臆造和 fit/focus 质量缺乏 Golden Asset 评估。
+ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 31 个；执行顺序实际上是 API → CDP primary → CDP fallback → MCP fallback。现有 paid API opt-in 护�ADR-0013 写 28 丁。VLM 已有“不可用则降级”的行为，但对描述臆造和 fit/focus 质量缺乏 Golden Asset 评估。
 
 ### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�### 10.2 实施�#的 primary/fallback 两种尝试”，或正式改为“四阶段”；必须与代码一致。
 
@@ -440,21 +436,20 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 
 ### 10.3 验收清单
 
-- [x] `source-registry.test.mjs` 仍通过。
-- [x] ADR 的来源数和分层与代码/测试一致。
-- [x] 默认路径不会触发 `paidApi:true`。
-- [x] VLM 不可用时素材管线继续，并保留可诊断原因。
-- [x] Golden Asset 的人工期望、模型版本和提示词版本均有记录。
+- [ ] `source-registry.test.mjs` 仍通过。
+- [ ] ADR 的来源数和分层与代码/测试一致。
+- [ ] 默认路径不会触发 `paidApi:true`。
+- [ ] VLM 不可用时素材管线继续，并保留可诊断原因。
+- [ ] Golden Asset 的人工期望、模型版本和提示词版本均有记录。
 
 ### 10.4 交接与状态
 
-| 字段     | 当前值                                                          |
-| -------- | --------------------------------------------------------------- |
-| 状态     | `DONE`                                                          |
-| 前置条件 | 00 已验证。                                                     |
-| 提交主题 | `docs(adr): align source collection record with implementation` |
-| Commit   | `4b14387`                                                       |
-| 下一步   | Golden Asset 评估方案待实施。                                   |
+| 字段     | 当前值                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------ |
+| 状态     | `NOT_STARTED`（00 完成后转 `READY`）                                                       |
+| 前置条件 | 00 已验证。                                                                                |
+| 提交主题 | `docs(adr): align source collection record with implementation`；若包含遥测则拆分 `feat`。 |
+| 下一步   | 修改 ADR 术语与来源数；不要先改采集实现。                                                  |
 
 ## 11. 工作项 07：既有 CSS 测试失败的设计归属
 
@@ -472,12 +467,12 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 
 ### 11.3 状态
 
-| 字段     | 当前值                                                       |
-| -------- | ------------------------------------------------------------ |
-| 状态     | `DONE`                                                       |
-| 解除条件 | 已解除：用户确认 80px 是规格（brand-system.md 规定 ≥80px）。 |
-| Commit   | `b60ca81`                                                    |
-| 下一步   | 无。                                                         |
+| 字段       | 当前值                                |
+| ---------- | ------------------------------------- |
+| 状态       | `BLOCKED`                             |
+| 解除条件   | 设计所有者确认 64px 与 80px 的预期。  |
+| 不应做的事 | 不得修改用户已有 CSS 或测试直到确认。 |
+| 下一步     | 收到确认后创建独立工作项/提交。       |
 
 ## 12. 工作项 08：全局验收、ADR 同步与 PR 收口
 
@@ -494,8 +489,8 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 | 0010 | 选择的时间线契约、TransitionSeries 是否仍存在、实际 Scene mapping。 |
 | 0011 | lockfile、smoke test 和升级协议。                                   |
 | 0012 | 仅写实际执行过的 Kaggle/Colab smoke 结果。                          |
-| 0013 | 34 来源与准确的访问能力/回退表述。                                  |
-| 0014 | 513e546…` 与 staged-pointer 校验。                                  |
+| 0013 | 31 来源与准确的访问能力/回退表述。                                  |
+| 0014 | 0013e546…` 与 staged-pointer 校验。                                 |
 
 ### 12.3 最终验收门
 
@@ -517,21 +512,6 @@ ADR-0013 写 28 个来源，而当前 `source-registry` 测试要求 34 个；�
 3. Testing 段只列出已实际验证并通过的项目；有失败就说明失败而不要打勾。
 4. 提交或 PR 后不 amend/rebase；有后续修复时新建提交。
 5. 合并后把本文件所有 `VERIFIED` 项记录为完成，再移动到 `docs/archive/`；在此之前保持 Active。
-
-### 12.5 Session 交接 — 2026-08-18 / 08
-
-| 字段            | 内容                                                                                                                                                                                                                                                             |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态变更        | `NOT_STARTED` → `DONE`                                                                                                                                                                                                                                           |
-| worktree / 分支 | `../inside-china-ai-adr-fixes` / `fix/adr-implementation-repairs`                                                                                                                                                                                                |
-| 起始 commit     | `b60ca81`                                                                                                                                                                                                                                                        |
-| 本次修改文件    | `docs/specs/adr-0008-0014-remediation-tracker.md`（仅状态更新）                                                                                                                                                                                                  |
-| 执行命令        | `npx vitest run scripts/short-video/__tests__ --reporter=dot` → 2 failed / 1266 passed / 1268 total；ADR 逐项核查；`git reflog` + `git log --oneline --all --graph` 安全边界检查                                                                                 |
-| 结果摘要        | 全量测试无新回归（基线 3 failed → 2 failed，Item 07 修复 CSS 80px 减少 1 个）；ADR 0008-0014 全部与代码/测试一致；Git 安全边界无违反（1 次 amend 在 push 前、无 force-push、无 history rewrite、worktree 隔离）；7 个独立 commit 覆盖 Item 01-07                 |
-| 证据位置        | vitest 输出（2 failed = post-process node:test 不兼容 + infra-paths voice-samples gitignored，均为已知环境限制）；ADR 文件内容逐项核查；reflog 无改写                                                                                                            |
-| 未解决问题      | ① 真实 TTS 试听（Item 01）；② 3 Scene 实渲染人工观看（Item 02）；③ 干净 venv 重建（Item 03）；④ 首次 LFS 媒体提交验证（Item 04）；⑤ 远端 Kaggle/Colab smoke run（Item 05）；⑥ Golden Asset 评估方案实施（Item 06）。以上均为人工确认或远端执行，不阻塞代码验收。 |
-| 下一步          | 推送分支 `fix/adr-implementation-repairs` → 创建 PR → 合并后归档本追踪器到 `docs/archive/`                                                                                                                                                                       |
-| 阻塞条件        | 无                                                                                                                                                                                                                                                               |
 
 ## 13. 证据索引
 
