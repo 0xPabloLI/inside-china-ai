@@ -1,0 +1,29 @@
+#!/bin/sh
+# Security scan gate (#197): dependency CVEs + first-party SAST.
+# Tools are skipped gracefully when not installed (uv tool install semgrep /
+# cisco-ai-mcp-scanner, brew install osv-scanner). scan:mcp is manual-only
+# (config-mode connection issue upstream).
+if command -v osv-scanner >/dev/null 2>&1; then
+  printf "[pre-push] Running dependency vulnerability scan (osv-scanner)...\n"
+  osv-scanner --lockfile package-lock.json || {
+    printf >&2 "[pre-push] BLOCKED: known vulnerabilities in dependencies. Run 'npm run scan:deps' for details.\n"
+    exit 1
+  }
+  printf "[pre-push] osv-scanner: clean\n"
+else
+  printf "[pre-push] osv-scanner not found, skipping dependency scan\n"
+fi
+
+if command -v semgrep >/dev/null 2>&1; then
+  printf "[pre-push] Running SAST scan (semgrep, src/)...\n"
+  npm run --silent scan:code || {
+    printf >&2 "[pre-push] BLOCKED: semgrep scan failed. Run 'npm run scan:code' for details.\n"
+    exit 1
+  }
+  printf "[pre-push] semgrep: clean\n"
+else
+  printf "[pre-push] semgrep not found, skipping SAST scan\n"
+fi
+
+command -v git-lfs >/dev/null 2>&1 || { printf >&2 "\n%s\n\n" "This repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the 'pre-push' file in the hooks directory (set by 'core.hookspath'; usually '.git/hooks')."; exit 2; }
+git lfs pre-push "$@"
