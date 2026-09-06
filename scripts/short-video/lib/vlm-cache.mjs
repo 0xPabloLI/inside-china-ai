@@ -156,3 +156,37 @@ export function writeCachedResult(cacheDir, key, opts) {
     console.warn(`  ⚠️  VLM cache write failed: ${err.message}`);
   }
 }
+
+/**
+ * Wrap an analyzeAssetSemantics-style analyzer with the vlm-cache read/write
+ * path (#198 Item 4). Lets callers outside asset-sourcer (b-roll gate) reuse
+ * the same cache semantics: key = file fingerprint + model + window + claim +
+ * cropFocus; successful results (non-empty description) are cached, degraded
+ * or failing analyses are never pinned so a rerun retries.
+ *
+ * @param {(filePath: string, opts?: object) => Promise<object>} analyzeFn
+ * @param {object} opts
+ * @param {string|null} opts.cacheDir - null disables caching
+ * @param {string} opts.model - cache-key material (the VLM model id)
+ * @param {boolean} [opts.disabled] - env-level kill switch, bypasses cache
+ * @returns {(filePath: string, opts?: object) => Promise<object>}
+ */
+export function wrapAnalyzerWithCache(analyzeFn, { cacheDir, model, disabled = false }) {
+  return async (filePath, opts = {}) => {
+    if (!cacheDir || disabled) return analyzeFn(filePath, opts);
+    const key = await computeCacheKey({
+      filePath,
+      model,
+      window: opts?.window,
+      claim: opts?.claim,
+      cropFocus: opts?.cropFocus ?? null,
+    });
+    const cached = getCachedResult(cacheDir, key);
+    if (cached) return cached.data;
+    const result = await analyzeFn(filePath, opts);
+    if (result?.description && result.description.length > 0) {
+      writeCachedResult(cacheDir, key, { data: result });
+    }
+    return result;
+  };
+}

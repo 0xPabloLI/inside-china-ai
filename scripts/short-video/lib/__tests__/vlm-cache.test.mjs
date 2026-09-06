@@ -192,3 +192,108 @@ describe("vlm-cache envelope v2 (#100)", () => {
     expect(k2).not.toBe(k1);
   });
 });
+
+// ─── wrapAnalyzerWithCache (#198 Item 4): b-roll gate VLM caching ───
+//
+// The b-roll gate called analyzeAssetSemantics directly, so escalated reruns
+// re-paid 20-120s of VLM inference for the same file+claim. The wrapper gives
+// any analyzer the asset-sourcer cache semantics: keyed by file+model+
+// window+claim+cropFocus, successful results cached, degraded results not.
+
+describe("wrapAnalyzerWithCache (#198)", () => {
+  let dir;
+  let img;
+  let calls;
+  let fakeAnalyzer;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vlm-wrap-test-"));
+    img = join(dir, "clip.mp4");
+    writeFileSync(img, "clip-bytes");
+    calls = 0;
+    fakeAnalyzer = async (filePath, opts) => {
+      calls += 1;
+      if (opts?.claim?.fail) throw new Error("analyzer exploded");
+      return {
+        description: opts?.claim?.degraded ? "" : `desc for ${opts?.claim?.voiceover ?? ""}`,
+        subjects: [],
+        contentKind: null,
+        fit: null,
+        criticalEdgeText: null,
+        relevance: 80,
+        relevanceReason: "ok",
+      };
+    };
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("caches a successful analysis and skips the second underlying call", async () => {
+    const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
+    const wrapped = wrapAnalyzerWithCache(fakeAnalyzer, {
+      cacheDir: join(dir, ".vlm-cache"),
+      model: "test-model",
+    });
+    const claim = { voiceover: "v", assetNeed: "n" };
+
+    const first = await wrapped(img, { claim });
+    expect(calls).toBe(1);
+    const second = await wrapped(img, { claim });
+    expect(calls).toBe(1); // cache hit
+    expect(second).toEqual(first);
+    expect(second.description).toBe("desc for v");
+  });
+
+  it("does not cache degraded (empty description) or failing analyses", async () => {
+    const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
+    const wrapped = wrapAnalyzerWithCache(fakeAnalyzer, {
+      cacheDir: join(dir, ".vlm-cache"),
+      model: "test-model",
+    });
+    const degradedClaim = { voiceover: "v", degraded: true };
+
+    await wrapped(img, { claim: degradedClaim });
+    expect(calls).toBe(1);
+    await wrapped(img, { claim: degradedClaim });
+    expect(calls).toBe(2); // retry on every call — never pinned
+
+    const failClaim = { voiceover: "v", fail: true };
+    await expect(wrapped(img, { claim: failClaim })).rejects.toThrow("analyzer exploded");
+    expect(calls).toBe(3);
+  });
+
+  it("treats different window/claim/cropFocus as different keys", async () => {
+    const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
+    const wrapped = wrapAnalyzerWithCache(fakeAnalyzer, {
+      cacheDir: join(dir, ".vlm-cache"),
+      model: "test-model",
+    });
+    const claim = { voiceover: "v", assetNeed: "n" };
+
+    await wrapped(img, { claim });
+    await wrapped(img, { claim, window: { startMs: 0, endMs: 5000, sampleFps: 1 } });
+    await wrapped(img, { claim, cropFocus: { x: 0.3, y: 0.5 } });
+    expect(calls).toBe(3);
+  });
+
+  it("passes through untouched when the cache is disabled or absent", async () => {
+    const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
+    const claim = { voiceover: "v", assetNeed: "n" };
+
+    const noDir = wrapAnalyzerWithCache(fakeAnalyzer, { cacheDir: null, model: "m" });
+    await noDir(img, { claim });
+    await noDir(img, { claim });
+    expect(calls).toBe(2);
+
+    const disabled = wrapAnalyzerWithCache(fakeAnalyzer, {
+      cacheDir: join(dir, ".vlm-cache"),
+      model: "m",
+      disabled: true,
+    });
+    await disabled(img, { claim });
+    await disabled(img, { claim });
+    expect(calls).toBe(4);
+  });
+});

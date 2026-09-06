@@ -242,8 +242,17 @@ export async function runBrollStage(opts) {
 
   let gateAnalyzer = analyzer;
   if (!gateAnalyzer) {
-    const { analyzeAssetSemantics } = await import("../visual-analyzer.mjs");
-    gateAnalyzer = analyzeAssetSemantics;
+    const { analyzeAssetSemantics, DEFAULT_VLM_MODEL_ID } = await import(
+      "../visual-analyzer.mjs"
+    );
+    const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
+    // Gate scoring rides the same vlm-cache as asset sourcing (#198 Item 4):
+    // escalated reruns of an unchanged candidate skip the 20-120s VLM call.
+    gateAnalyzer = wrapAnalyzerWithCache(analyzeAssetSemantics, {
+      cacheDir: contentDir ? join(contentDir, ".vlm-cache") : null,
+      model: DEFAULT_VLM_MODEL_ID,
+      disabled: env.VLM_CACHE_DISABLED === "1",
+    });
   }
 
   report.scenes = report.scenes ?? {};

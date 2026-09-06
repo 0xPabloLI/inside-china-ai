@@ -424,6 +424,13 @@ export function getVlmConcurrency() {
 }
 
 /**
+ * The VLM model id used when callers don't override it. Exported as cache-key
+ * material for wrappers around analyzeAssetSemantics (#198) — keep in sync
+ * with asset-sourcer.mjs's inline default.
+ */
+export const DEFAULT_VLM_MODEL_ID = "mlx-community/Qwen3-VL-8B-Instruct-8bit";
+
+/**
  * Analyze an asset (image or video) using the VLM in a single call.
  *
  * Sends an `analyze_semantics` action to the Python subprocess. The VLM
