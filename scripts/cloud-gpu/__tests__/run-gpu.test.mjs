@@ -37,6 +37,8 @@ import {
   isKaggleQuotaExhausted,
   generateKernelMetadata,
   fallbackChain,
+  resumeKaggle,
+  REMOTE_TASKS_PATH,
   KAGGLE_USERNAME,
   DEFAULT_TIMEOUT_SEC,
   KAGGLE_POLL_INTERVAL_SEC,
@@ -207,6 +209,74 @@ describe("runColab", () => {
 });
 
 // ─── runKaggle ───
+
+describe("parseArgs --resume (#212)", () => {
+  it("parses resume mode without a script path", () => {
+    const result = parseArgs(["--resume", "xPabloLI/my-script-abc", "--output", "./r"]);
+    expect(result.resumeId).toBe("xPabloLI/my-script-abc");
+    expect(result.outputDir).toBe("./r");
+  });
+
+  it("normal runs have resumeId null", () => {
+    expect(parseArgs(["script.py"]).resumeId).toBeNull();
+  });
+
+  it("rejects --resume without an id", () => {
+    expect(() => parseArgs(["--resume"])).toThrow();
+  });
+});
+
+describe("remote task bookkeeping (#212)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    existsSync.mockReturnValue(true);
+    execSync.mockReturnValue("");
+  });
+
+  it("runKaggle records the kernel as running on push, complete after download", async () => {
+    const { recordTask, markTask } = await import("../lib/remote-task.mjs");
+    execSync.mockImplementation((cmd) => {
+      if (cmd.includes("kernels push")) return "";
+      if (cmd.includes("kernels status")) return "status complete";
+      if (cmd.includes("kernels output")) return "";
+      return "";
+    });
+
+    await runKaggle("test.py", {
+      timeoutSec: 300,
+      outputDir: "./kaggle-output",
+      pollIntervalSec: 0.01,
+    });
+
+    const pushRecord = writeFileSync.mock.calls.find(
+      ([f]) => String(f).includes("remote-tasks.json"),
+    );
+    expect(pushRecord).toBeTruthy();
+    expect(recordTask).toBeTruthy();
+    expect(markTask).toBeTruthy();
+  }, 10000);
+
+  it("resumeKaggle skips push and goes straight to status polling", async () => {
+    execSync.mockImplementation((cmd) => {
+      if (cmd.includes("kernels push")) return "";
+      if (cmd.includes("kernels status")) return "status complete";
+      if (cmd.includes("kernels output")) return "";
+      return "";
+    });
+
+    const result = await resumeKaggle("xPabloLI/some-kernel", {
+      timeoutSec: 300,
+      outputDir: "./kaggle-output",
+      pollIntervalSec: 0.01,
+    });
+
+    expect(result.resumed).toBe(true);
+    expect(result.success).toBe(true);
+    const pushed = execSync.mock.calls.filter(([c]) => String(c).includes("kernels push"));
+    expect(pushed).toHaveLength(0);
+    expect(execSync.mock.calls.some(([c]) => String(c).includes("kernels status xPabloLI/some-kernel"))).toBe(true);
+  }, 10000);
+});
 
 describe("runKaggle", () => {
   beforeEach(() => {

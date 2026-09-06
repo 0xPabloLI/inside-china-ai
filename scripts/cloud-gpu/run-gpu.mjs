@@ -10,6 +10,7 @@
  *
  * Usage:
  *   node scripts/cloud-gpu/run-gpu.mjs <script.py> [--output <dir>] [--timeout <sec>]
+ *   node scripts/cloud-gpu/run-gpu.mjs --resume <kernelId> [--output <dir>] [--timeout <sec>]
  *
  * Returns a JSON summary on stdout.
  */
@@ -21,6 +22,7 @@ import { basename, join, dirname, resolve } from "path";
 import { randomBytes } from "crypto";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
+import { recordTask, markTask } from "./lib/remote-task.mjs";
 
 const execAsync = promisify(exec);
 
@@ -31,6 +33,9 @@ const __dirname = dirname(__filename);
 
 /** Kaggle username from ~/.kaggle/kaggle.json */
 export const KAGGLE_USERNAME = "xPabloLI";
+
+/** Remote task bookkeeping (#212) — kernel ids outlive the driver process. */
+export const REMOTE_TASKS_PATH = join(__dirname, "output", "remote-tasks.json");
 
 /** Default timeout: 30 minutes (1800 seconds) */
 export const DEFAULT_TIMEOUT_SEC = 1800;
@@ -59,31 +64,43 @@ export const QUOTA_KEYWORDS = [
  */
 export function parseArgs(argv) {
   if (argv.length === 0) {
-    throw new Error("Usage: run-gpu.mjs <script.py> [--output <dir>] [--timeout <sec>]");
+    throw new Error(
+      "Usage: run-gpu.mjs <script.py> [--output <dir>] [--timeout <sec>] [--resume <kernelId>]",
+    );
   }
 
-  const scriptPath = argv[0];
+  // #212 resume mode: skip push, go straight to polling a kernel that was
+  // pushed by a previous (possibly dead) run. Script path not required.
+  let resumeId = null;
+  let rest = argv;
+  if (argv[0] === "--resume") {
+    if (argv.length < 2) throw new Error("--resume requires a kernelId");
+    resumeId = argv[1];
+    rest = ["resume"].concat(argv.slice(2));
+  }
 
-  if (!scriptPath.endsWith(".py")) {
+  const scriptPath = rest[0];
+
+  if (!resumeId && !scriptPath.endsWith(".py")) {
     throw new Error(`Script must be a .py file, got: ${scriptPath}`);
   }
 
   let outputDir = "./output";
   let timeoutSec = DEFAULT_TIMEOUT_SEC;
 
-  for (let i = 1; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === "--output" && i + 1 < argv.length) {
-      outputDir = argv[++i];
-    } else if (arg === "--timeout" && i + 1 < argv.length) {
-      timeoutSec = parseInt(argv[++i], 10);
+  for (let i = 1; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === "--output" && i + 1 < rest.length) {
+      outputDir = rest[++i];
+    } else if (arg === "--timeout" && i + 1 < rest.length) {
+      timeoutSec = parseInt(rest[++i], 10);
       if (isNaN(timeoutSec) || timeoutSec <= 0) {
-        throw new Error(`Invalid timeout: ${argv[i]}`);
+        throw new Error(`Invalid timeout: ${rest[i]}`);
       }
     }
   }
 
-  return { scriptPath, outputDir, timeoutSec };
+  return { scriptPath, outputDir, timeoutSec, resumeId };
 }
 
 // ─── Kaggle Metadata ───
@@ -272,78 +289,22 @@ export async function runKaggle(
 
     // Poll status
     const kernelId = `${KAGGLE_USERNAME}/${slug}`;
-    const deadlineMs = startTime + timeoutSec * 1000;
-    let finalStatus = "unknown";
-    let statusStdout = "";
-
-    while (Date.now() < deadlineMs) {
-      await sleep(pollIntervalSec * 1000);
-
-      try {
-        statusStdout = execSync(`kaggle kernels status ${kernelId}`, {
-          encoding: "utf-8",
-          timeout: 30000,
-          stdio: ["pipe", "pipe", "pipe"],
-        });
-      } catch {
-        // Status query failed, retry
-        continue;
-      }
-
-      const statusLower = statusStdout.toLowerCase();
-
-      if (statusLower.includes("complete")) {
-        finalStatus = "complete";
-        break;
-      } else if (statusLower.includes("error") || statusLower.includes("cancel")) {
-        finalStatus = "error";
-        break;
-      }
-      // Still running, continue polling
-    }
-
-    if (finalStatus !== "complete") {
-      return {
-        platform: "kaggle",
-        success: false,
-        outputDir,
-        stdout: statusStdout,
-        stderr:
-          finalStatus === "error"
-            ? `Kaggle kernel finished with status: ${finalStatus}`
-            : `Kaggle timeout after ${timeoutSec}s (last status: ${finalStatus})`,
-        elapsedSec: (Date.now() - startTime) / 1000,
-      };
-    }
-
-    // Download output
-    try {
-      execSync(`kaggle kernels output ${kernelId} -p "${outputDir}"`, {
-        encoding: "utf-8",
-        timeout: 120000,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-    } catch (e) {
-      // Output download failure is non-fatal — kernel succeeded
-      // but we couldn't retrieve results
-      return {
-        platform: "kaggle",
-        success: false,
-        outputDir,
-        stdout: statusStdout,
-        stderr: `Kaggle output download failed: ${e.message}`,
-        elapsedSec: (Date.now() - startTime) / 1000,
-      };
-    }
-
-    return {
-      platform: "kaggle",
-      success: true,
+    // #212: the kernel is now alive remotely — persist it so a dead driver
+    // process can resume harvesting later (resumeKaggle / --resume).
+    recordTask(REMOTE_TASKS_PATH, {
+      id: kernelId,
+      backend: "kaggle",
+      scriptPath,
       outputDir,
-      stdout: statusStdout,
-      stderr: "",
-      elapsedSec: (Date.now() - startTime) / 1000,
-    };
+      state: "running",
+    });
+
+    return harvestKaggleKernel(kernelId, {
+      timeoutSec,
+      outputDir,
+      pollIntervalSec,
+      startTime,
+    });
   } finally {
     // Clean up temp dir
     try {
@@ -352,6 +313,125 @@ export async function runKaggle(
       // Non-fatal cleanup failure
     }
   }
+}
+
+/**
+ * Poll a pushed kernel to completion and download its output. Shared by
+ * runKaggle (fresh push) and resumeKaggle (#212 — no push, kernel already
+ * running remotely). Task state transitions are recorded in
+ * REMOTE_TASKS_PATH: running → complete | failed | timeout.
+ *
+ * @param {string} kernelId - e.g. "xPabloLI/my-script-abc123"
+ * @param {{ timeoutSec: number, outputDir: string, pollIntervalSec?: number, startTime?: number }} options
+ * @returns {Promise<{ platform: string, success: boolean, outputDir: string, stdout: string, stderr: string, elapsedSec: number, quotaExhausted?: boolean }>}
+ */
+async function harvestKaggleKernel(
+  kernelId,
+  { timeoutSec, outputDir, pollIntervalSec = KAGGLE_POLL_INTERVAL_SEC, startTime = Date.now() },
+) {
+  const deadlineMs = startTime + timeoutSec * 1000;
+  let finalStatus = "unknown";
+  let statusStdout = "";
+
+  while (Date.now() < deadlineMs) {
+    await sleep(pollIntervalSec * 1000);
+
+    try {
+      statusStdout = execSync(`kaggle kernels status ${kernelId}`, {
+        encoding: "utf-8",
+        timeout: 30000,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch {
+      // Status query failed, retry
+      continue;
+    }
+
+    const statusLower = statusStdout.toLowerCase();
+
+    if (statusLower.includes("complete")) {
+      finalStatus = "complete";
+      break;
+    } else if (statusLower.includes("error") || statusLower.includes("cancel")) {
+      finalStatus = "error";
+      break;
+    }
+    // Still running, continue polling
+  }
+
+  if (finalStatus !== "complete") {
+    const stderr =
+      finalStatus === "error"
+        ? `Kaggle kernel finished with status: ${finalStatus}`
+        : `Kaggle timeout after ${timeoutSec}s (last status: ${finalStatus})`;
+    // #212: timeout keeps the task resumable; error is terminal.
+    markTask(REMOTE_TASKS_PATH, kernelId, finalStatus === "error" ? "failed" : "timeout", {
+      lastStatus: finalStatus,
+    });
+    return {
+      platform: "kaggle",
+      success: false,
+      outputDir,
+      stdout: statusStdout,
+      stderr,
+      elapsedSec: (Date.now() - startTime) / 1000,
+    };
+  }
+
+  // Download output
+  try {
+    execSync(`kaggle kernels output ${kernelId} -p "${outputDir}"`, {
+      encoding: "utf-8",
+      timeout: 120000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (e) {
+    // Output download failure is non-fatal — kernel succeeded
+    // but we couldn't retrieve results. Keep the record retrievable.
+    markTask(REMOTE_TASKS_PATH, kernelId, "complete", { downloadError: e.message });
+    return {
+      platform: "kaggle",
+      success: false,
+      outputDir,
+      stdout: statusStdout,
+      stderr: `Kaggle output download failed: ${e.message}`,
+      elapsedSec: (Date.now() - startTime) / 1000,
+    };
+  }
+
+  markTask(REMOTE_TASKS_PATH, kernelId, "complete");
+  return {
+    platform: "kaggle",
+    success: true,
+    outputDir,
+    stdout: statusStdout,
+    stderr: "",
+    elapsedSec: (Date.now() - startTime) / 1000,
+  };
+}
+
+/**
+ * Resume harvesting a kernel pushed by a previous run (#212). No push —
+ * the kernel is (or was) already running remotely; polling restarts with a
+ * fresh timeout window and the output lands in outputDir.
+ *
+ * @param {string} kernelId - e.g. "xPabloLI/my-script-abc123"
+ * @param {{ timeoutSec: number, outputDir: string, pollIntervalSec?: number }} options
+ * @returns {Promise<{ platform: string, success: boolean, outputDir: string, stdout: string, stderr: string, elapsedSec: number, resumed: boolean }>}
+ */
+export async function resumeKaggle(
+  kernelId,
+  { timeoutSec, outputDir, pollIntervalSec = KAGGLE_POLL_INTERVAL_SEC },
+) {
+  const startTime = Date.now();
+  mkdirSync(outputDir, { recursive: true });
+  const result = await harvestKaggleKernel(kernelId, {
+    timeoutSec,
+    outputDir,
+    pollIntervalSec,
+    startTime,
+  });
+  return { ...result, resumed: true };
 }
 
 // ─── Fallback Chain ───
@@ -432,7 +512,17 @@ function sleep(ms) {
 // ─── CLI Entry ───
 
 async function main() {
-  const { scriptPath, outputDir, timeoutSec } = parseArgs(process.argv.slice(2));
+  const { scriptPath, outputDir, timeoutSec, resumeId } = parseArgs(process.argv.slice(2));
+
+  // #212 resume mode: harvest a kernel pushed by a previous run
+  if (resumeId) {
+    console.log(`Resuming remote task: ${resumeId}`);
+    const result = await resumeKaggle(resumeId, { timeoutSec, outputDir });
+    console.log(
+      `  → ${result.success ? "✅ Success" : "❌ Failed"} (${result.elapsedSec.toFixed(1)}s)`,
+    );
+    process.exit(result.success ? 0 : 1);
+  }
 
   if (!existsSync(scriptPath)) {
     console.error(`Error: Script not found: ${scriptPath}`);
