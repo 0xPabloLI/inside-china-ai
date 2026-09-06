@@ -226,7 +226,7 @@ export function main(args = process.argv.slice(2)) {
     process.exit(1);
   }
 
-  const patches = JSON.parse(readFileSync(inputPath, "utf8"));
+  const patches = normalizeMediaPatch(JSON.parse(readFileSync(inputPath, "utf8")));
   const formatted = formatMediaPatch(patches);
 
   if (outputPath) {
@@ -235,6 +235,20 @@ export function main(args = process.argv.slice(2)) {
   } else {
     console.log(formatted);
   }
+}
+
+/**
+ * Normalize a media-patch.json payload to the entry array (#199 2.5).
+ * Accepts the new `{schemaVersion, patches}` envelope and the legacy
+ * top-level array, so files written before the envelope landed stay readable.
+ *
+ * @param {Object|Array} raw - parsed media-patch.json content
+ * @returns {Array} patch entries (empty when the payload is neither shape)
+ */
+export function normalizeMediaPatch(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.patches)) return raw.patches;
+  return [];
 }
 
 // ─── Patch application (#192) ───

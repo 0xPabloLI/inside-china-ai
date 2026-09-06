@@ -11,6 +11,11 @@ export interface StatItem {
 }
 
 /** Media background field (from lib/media-bg.mjs data contract). */
+/**
+ * Media object shape (#199 2.8). The validation-side enum constants
+ * (VALID_MODES/VALID_FITS/VALID_FOCUSES) live in lib/media-bg.mjs —
+ * TS/.mjs are written twice; update both together.
+ */
 export interface MediaField {
   type: "image" | "video";
   path: string;

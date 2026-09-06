@@ -21,6 +21,24 @@ const TEST_SLUG = "test-research-workspace";
 const TEST_RUN_ID = "run-test-001";
 const TEST_WORKSPACE = getResearchWorkspace(TEST_SLUG);
 
+/**
+ * Schema-valid discovery body (#199 1.2): writeResearchArtifact now
+ * schema-gates discovery.json, so tests must write real-shaped payloads.
+ * Overrides merge on top of the valid base.
+ */
+function validDiscovery(overrides = {}) {
+  return {
+    schemaVersion: "1.1.0",
+    contentId: TEST_SLUG,
+    researchRunId: TEST_RUN_ID,
+    timeWindow: { start: "2026-08-30", end: "2026-09-06" },
+    locale: "zh-CN",
+    sourceCount: 1,
+    sources: [{ title: "t", url: "https://example.com", sourceName: "qbitai" }],
+    ...overrides,
+  };
+}
+
 // Clean up before and after
 beforeEach(() => {
   if (existsSync(TEST_WORKSPACE)) {
@@ -86,7 +104,7 @@ describe("createResearchWorkspace", () => {
 
 describe("writeResearchArtifact & readResearchArtifact", () => {
   it("writes and reads a JSON artifact", () => {
-    const data = { test: "value", nested: { a: 1 } };
+    const data = validDiscovery({ test: "value", nested: { a: 1 } });
     writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, data);
 
     const read = readResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY);
@@ -106,36 +124,51 @@ describe("writeResearchArtifact & readResearchArtifact", () => {
   });
 
   it("overwrites existing artifact on re-write (same run)", () => {
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 1 });
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 2 });
+    writeResearchArtifact(
+      TEST_SLUG,
+      TEST_RUN_ID,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ v: 1 }),
+    );
+    writeResearchArtifact(
+      TEST_SLUG,
+      TEST_RUN_ID,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ v: 2 }),
+    );
     const read = readResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY);
     expect(read.v).toBe(2);
   });
 
   it("throws when artifact contentId does not match requested slug", () => {
     expect(() =>
-      writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
-        contentId: "different-slug",
-        researchRunId: TEST_RUN_ID,
-      }),
+      writeResearchArtifact(
+        TEST_SLUG,
+        TEST_RUN_ID,
+        RESEARCH_ARTIFACTS.DISCOVERY,
+        validDiscovery({ contentId: "different-slug" }),
+      ),
     ).toThrow("contentId");
   });
 
   it("throws when artifact researchRunId does not match requested run", () => {
     expect(() =>
-      writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
-        contentId: TEST_SLUG,
-        researchRunId: "different-run",
-      }),
+      writeResearchArtifact(
+        TEST_SLUG,
+        TEST_RUN_ID,
+        RESEARCH_ARTIFACTS.DISCOVERY,
+        validDiscovery({ researchRunId: "different-run" }),
+      ),
     ).toThrow("researchRunId");
   });
 
   it("returns null when reading from a non-existent run path", () => {
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
-      contentId: TEST_SLUG,
-      researchRunId: TEST_RUN_ID,
-      test: true,
-    });
+    writeResearchArtifact(
+      TEST_SLUG,
+      TEST_RUN_ID,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ test: true }),
+    );
     // wrong-run directory doesn't exist, so file not found → null
     const result = readResearchArtifact(TEST_SLUG, "wrong-run", RESEARCH_ARTIFACTS.DISCOVERY);
     expect(result).toBeNull();
@@ -149,8 +182,18 @@ describe("Same-slug multi-run isolation", () => {
     const runA = "run-isolation-a";
     const runB = "run-isolation-b";
 
-    writeResearchArtifact(TEST_SLUG, runA, RESEARCH_ARTIFACTS.DISCOVERY, { from: "a" });
-    writeResearchArtifact(TEST_SLUG, runB, RESEARCH_ARTIFACTS.DISCOVERY, { from: "b" });
+    writeResearchArtifact(
+      TEST_SLUG,
+      runA,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ researchRunId: runA, from: "a" }),
+    );
+    writeResearchArtifact(
+      TEST_SLUG,
+      runB,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ researchRunId: runB, from: "b" }),
+    );
 
     const readA = readResearchArtifact(TEST_SLUG, runA, RESEARCH_ARTIFACTS.DISCOVERY);
     const readB = readResearchArtifact(TEST_SLUG, runB, RESEARCH_ARTIFACTS.DISCOVERY);
@@ -174,8 +217,18 @@ describe("Same-slug multi-run isolation", () => {
     const slugA = "concurrent-a";
     const slugB = "concurrent-b";
 
-    writeResearchArtifact(slugA, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, { from: "a" });
-    writeResearchArtifact(slugB, "run-1", RESEARCH_ARTIFACTS.DISCOVERY, { from: "b" });
+    writeResearchArtifact(
+      slugA,
+      "run-1",
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ contentId: slugA, researchRunId: "run-1", from: "a" }),
+    );
+    writeResearchArtifact(
+      slugB,
+      "run-1",
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ contentId: slugB, researchRunId: "run-1", from: "b" }),
+    );
 
     const readA = readResearchArtifact(slugA, "run-1", RESEARCH_ARTIFACTS.DISCOVERY);
     const readB = readResearchArtifact(slugB, "run-1", RESEARCH_ARTIFACTS.DISCOVERY);
@@ -193,7 +246,7 @@ describe("Same-slug multi-run isolation", () => {
 
 describe("Manifest management", () => {
   it("creates a manifest on first artifact write", () => {
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { test: true });
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, validDiscovery());
 
     const manifestPath = join(TEST_WORKSPACE, RESEARCH_ARTIFACTS.MANIFEST);
     expect(existsSync(manifestPath)).toBe(true);
@@ -204,7 +257,7 @@ describe("Manifest management", () => {
   });
 
   it("getLatestRun returns the run ID after manifest is created", () => {
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { test: true });
+    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, validDiscovery());
     expect(getLatestRun(TEST_SLUG)).toBe(TEST_RUN_ID);
   });
 
@@ -241,26 +294,36 @@ describe("Manifest management", () => {
 
   // R2-1: manifest records artifact metadata
   it("manifest records artifact filename, schemaVersion, hash, and timestamp", () => {
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, {
-      schemaVersion: "1.0.0",
-      contentId: TEST_SLUG,
-      researchRunId: TEST_RUN_ID,
-      test: "data",
-    });
+    writeResearchArtifact(
+      TEST_SLUG,
+      TEST_RUN_ID,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ test: "data" }),
+    );
 
     const manifest = readManifest(TEST_SLUG);
     const run = manifest.runs.find((r) => r.researchRunId === TEST_RUN_ID);
     expect(run.artifacts).toHaveLength(1);
     expect(run.artifacts[0].filename).toBe(RESEARCH_ARTIFACTS.DISCOVERY);
-    expect(run.artifacts[0].schemaVersion).toBe("1.0.0");
+    expect(run.artifacts[0].schemaVersion).toBe("1.1.0");
     expect(run.artifacts[0].contentHash).toBeTruthy();
     expect(run.artifacts[0].contentHash).toHaveLength(12);
     expect(run.artifacts[0].writtenAt).toBeTruthy();
   });
 
   it("manifest deduplicates artifacts by filename on re-write", () => {
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 1 });
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { v: 2 });
+    writeResearchArtifact(
+      TEST_SLUG,
+      TEST_RUN_ID,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ v: 1 }),
+    );
+    writeResearchArtifact(
+      TEST_SLUG,
+      TEST_RUN_ID,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ v: 2 }),
+    );
 
     const manifest = readManifest(TEST_SLUG);
     const run = manifest.runs.find((r) => r.researchRunId === TEST_RUN_ID);
@@ -269,7 +332,12 @@ describe("Manifest management", () => {
   });
 
   it("manifest tracks multiple different artifacts per run", () => {
-    writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.DISCOVERY, { a: 1 });
+    writeResearchArtifact(
+      TEST_SLUG,
+      TEST_RUN_ID,
+      RESEARCH_ARTIFACTS.DISCOVERY,
+      validDiscovery({ a: 1 }),
+    );
     writeResearchArtifact(TEST_SLUG, TEST_RUN_ID, RESEARCH_ARTIFACTS.BRIEF, { b: 2 });
 
     const manifest = readManifest(TEST_SLUG);

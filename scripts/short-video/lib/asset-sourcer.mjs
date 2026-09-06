@@ -7,6 +7,12 @@
  * scene-data keywords, scores candidates, downloads top matches, and outputs
  * a JSON report with recommended scene assignments.
  *
+ * Candidate shape (#199 2.3): every search layer (registry articleScript CDP
+ * extraction, searchApiSource parseResponse, yt-dlp, image engines, caches)
+ * emits MediaCandidate-shaped objects. The producer field set is open —
+ * layers add their own extras — but these are the fields downstream
+ * scoring/download consumes. See @typedef MediaCandidate below.
+ *
  * T05: Pre-download filter gate (threshold 20) skips obviously bad candidates
  *     before downloading. Lower than post-download threshold (30) because
  *     pre-download metadata is sparser.
@@ -19,6 +25,28 @@
  * fills the `media` field in scene-data.mjs.
  *
  * @module asset-sourcer
+ */
+
+/**
+ * The candidate object every search layer emits and the scoring/download
+ * pipeline consumes. Producers may add extra fields; these are the ones
+ * downstream code reads. Earlier JSDoc that enumerated only a subset of
+ * these fields was the drift #199 2.3 called out — prefer referencing this
+ * typedef in @returns (e.g. `{MediaCandidate[]}`) over re-listing fields.
+ *
+ * @typedef {Object} MediaCandidate
+ * @property {string} title - candidate title ("" when the source had none)
+ * @property {string} url - media or article URL
+ * @property {"image"|"video"|"text"} type - text = article reference, not downloadable
+ * @property {string} [sourceUrl] - the page the candidate was extracted from
+ * @property {string} [snippet] - surrounding text from the source page
+ * @property {number} [duration] - seconds (videos)
+ * @property {string} [resolution] - e.g. "1920x1080"
+ * @property {number} [fileSize] - bytes, when the source reports it
+ * @property {number} [width] - pixels (images)
+ * @property {number} [height] - pixels (images)
+ * @property {string} [source] - source/engine name that produced the candidate
+ * @property {string} [id] - platform video id (yt-dlp results)
  */
 
 import { existsSync, writeFileSync, mkdirSync, statSync, readFileSync } from "fs";
@@ -41,6 +69,11 @@ import {
   normalizeCdpVideoCandidates,
 } from "./progressive-search.mjs";
 import { downloadCandidate } from "./download-candidate.mjs";
+// Artifact schema versions (#199 2.5) — bump on breaking shape changes so
+// consumers can branch. asset-analysis.json carries its own `version: 1`.
+export const ASSET_REPORT_SCHEMA_VERSION = 1;
+export const MEDIA_PATCH_SCHEMA_VERSION = 1;
+
 import {
   tokenizeClaimWords,
   extractSceneClaims,
@@ -55,7 +88,13 @@ export { SOURCE_ATTRIBUTIONS };
 
 // ─── Constants ───
 
-/** Known AI company names for voiceover keyword extraction. */
+/**
+ * Known AI company names for voiceover keyword extraction (#199 2.7).
+ * Distinct from tiktok-rules.mjs's exported KNOWN_COMPANIES (display-name
+ * matching against subtitle/hook text): this list is a search-keyword
+ * source — mixed-case brand names fed to media search, never rendered.
+ * Intentionally not unified; keep the two semantics separate.
+ */
 const KNOWN_COMPANIES = [
   "DeepSeek",
   "Unitree",
@@ -1143,6 +1182,7 @@ export function buildFilename(source, keyword, index, ext) {
  */
 export function buildReport(content, keywords, assets, failed, skipped, extra = {}) {
   const report = {
+    schemaVersion: ASSET_REPORT_SCHEMA_VERSION,
     searchedAt: new Date().toISOString(),
     content,
     keywords,
@@ -1349,9 +1389,16 @@ export async function analyzeAssets(assets, opts = {}) {
     const { saliencyCropHint } = await import("./crop-decision.mjs");
     const cropHint = asset.cropFocus ?? saliencyCropHint(asset.focusAnalysis);
     const analyzeOpts = asset.window
-      ? { ...asset.window, ...(claimInfo ? { claim: claimInfo } : {}), ...(cropHint ? { cropFocus: cropHint } : {}) }
+      ? {
+          ...asset.window,
+          ...(claimInfo ? { claim: claimInfo } : {}),
+          ...(cropHint ? { cropFocus: cropHint } : {}),
+        }
       : claimInfo || cropHint
-        ? { ...(claimInfo ? { claim: claimInfo } : {}), ...(cropHint ? { cropFocus: cropHint } : {}) }
+        ? {
+            ...(claimInfo ? { claim: claimInfo } : {}),
+            ...(cropHint ? { cropFocus: cropHint } : {}),
+          }
         : undefined;
 
     // Cache lookup (#189): key = promptVersion + model + file fingerprint + window/claim.
@@ -1628,7 +1675,7 @@ export async function downloadAsset(url, destPath, headers = {}) {
  *
  * @param {string|null} output - Raw yt-dlp stdout
  * @param {string} platform - "bilibili" or "youtube"
- * @returns {Array<{title: string, url: string, duration?: number, type: string, id: string}>}
+ * @returns {MediaCandidate[]}
  */
 export function parseYtdlpSearchOutput(output, platform) {
   if (!output || typeof output !== "string") return [];
@@ -2009,7 +2056,11 @@ export function loadCachedImages(filePath, keywords) {
     }
 
     return results;
-  } catch {
+  } catch (e) {
+    // #199 2.4: silent [] here used to hide a corrupt/renamed-schema cache —
+    // trend discovery (trends-utils.mjs buildOutputJson) owns this file's
+    // shape (topics[].images[].{url, sourceArticle}); surface why it was unusable.
+    console.warn(`⚠️  trending-topics.json unreadable, ignoring cached images: ${e.message}`);
     return [];
   }
 }
@@ -2042,7 +2093,7 @@ export function toCachedMediaCandidate(candidate) {
  *
  * @param {string} filePath - Path to media-cache.json
  * @param {string[]} keywords - Keywords to filter entries by
- * @returns {Array<{url, type, sourceArticle, sourceTitle}>}
+ * @returns {MediaCandidate[]}
  */
 export function loadCachedMedia(filePath, keywords) {
   if (!filePath || !existsSync(filePath)) return [];
@@ -3163,7 +3214,13 @@ export async function main(args = process.argv.slice(2)) {
   if (contentSlug) {
     mkdirSync(patchDir, { recursive: true });
   }
-  writeFileSync(patchPath, JSON.stringify(patches, null, 2) + "\n", "utf8");
+  // Envelope (#199 2.5): readers normalize via normalizeMediaPatch() —
+  // legacy top-level-array files stay readable.
+  writeFileSync(
+    patchPath,
+    JSON.stringify({ schemaVersion: MEDIA_PATCH_SCHEMA_VERSION, patches }, null, 2) + "\n",
+    "utf8",
+  );
   const assignedCount = patches.filter((p) => p.status === "assigned").length;
   const unassignedCount = patches.filter((p) => p.status === "unassigned").length;
 

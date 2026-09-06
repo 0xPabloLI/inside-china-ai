@@ -30,6 +30,7 @@ import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
 import { buildCues } from "./lib/subtitles/cues.mjs";
 import { renderAss } from "./lib/subtitles/ass.mjs";
 import { finalizeRenderedVideo } from "./lib/post-process.mjs";
+import { normalizeMediaPatch } from "./lib/apply-media-patch.mjs";
 import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { skipsMediaSourcing } from "./lib/claim-keywords.mjs";
@@ -204,9 +205,11 @@ async function main() {
     if (existsSync(patchPath)) {
       try {
         const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
-        const assigned = Array.isArray(patch)
-          ? patch.filter((p) => p.status === "assigned" && p.media?.path)
-          : [];
+        // #199 2.5: normalizeMediaPatch accepts the {schemaVersion, patches}
+        // envelope and the legacy top-level array.
+        const assigned = normalizeMediaPatch(patch).filter(
+          (p) => p.status === "assigned" && p.media?.path,
+        );
         if (assigned.length > 0) {
           const { applyAssignedMedia } = await import("./lib/apply-media-patch.mjs");
           const r = applyAssignedMedia(scenes, assigned, contentDirAbs);

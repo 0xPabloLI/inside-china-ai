@@ -16,6 +16,7 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
+import { validateDiscovery } from "./validate.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -101,6 +102,16 @@ function computeContentHash(data) {
  * @param {object} data — JSON-serializable data
  */
 export function writeResearchArtifact(contentSlug, researchRunId, filename, data) {
+  // Schema gate (#199 1.2): discovery.json's schema previously had only test
+  // consumers. Fail the write loudly on drift — an invalid discovery poisons
+  // every downstream reader (brief-builder, sourcing).
+  if (filename === RESEARCH_ARTIFACTS.DISCOVERY) {
+    const result = validateDiscovery(data);
+    if (!result.valid) {
+      throw new Error(`discovery.json schema validation failed:\n- ${result.errors.join("\n- ")}`);
+    }
+  }
+
   const runPath = getRunPath(contentSlug, researchRunId);
   if (!existsSync(runPath)) {
     mkdirSync(runPath, { recursive: true });

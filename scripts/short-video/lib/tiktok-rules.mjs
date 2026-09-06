@@ -125,7 +125,12 @@ export const NAMED_SOURCE_PATTERN =
  * own content and meta data. */
 export const TARGET_KEYWORDS = ["china", "ai"];
 
-/** Known China AI companies for subject visibility check */
+/**
+ * Known China AI companies for subject visibility check (#199 2.7).
+ * Lowercase display names matched against rendered copy — distinct from
+ * asset-sourcer.mjs's private KNOWN_COMPANIES (mixed-case search keywords
+ * extracted from voiceover). Intentionally not unified.
+ */
 export const KNOWN_COMPANIES = [
   "deepseek",
   "huawei",

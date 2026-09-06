@@ -22,6 +22,7 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { normalizeMediaPatch } from "./apply-media-patch.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -324,7 +325,7 @@ export function main(args = process.argv.slice(2)) {
     process.exit(1);
   }
 
-  const patches = JSON.parse(readFileSync(inputPath, "utf8"));
+  const patches = normalizeMediaPatch(JSON.parse(readFileSync(inputPath, "utf8")));
   const analysisMap = loadAssetAnalysis(analysisPath);
   const formatted = formatMediaPatch(patches, analysisMap);
 

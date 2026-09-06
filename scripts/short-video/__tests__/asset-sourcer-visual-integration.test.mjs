@@ -28,6 +28,7 @@ vi.mock("../lib/visual-analyzer.mjs", () => ({
   detectFocus: (...args) => mockDetectFocus(...args),
   closeFocusDetector: (...args) => mockCloseFocusDetector(...args),
   getVlmConcurrency: () => 2,
+  DEFAULT_VLM_MODEL_ID: "test-model",
 }));
 
 vi.mock("../lib/media-probe.mjs", () => ({

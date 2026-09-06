@@ -370,8 +370,10 @@ export function buildOutputJson(articles) {
         summary: "",
       };
 
-      // T03 (#55): Extract imageUrl from article for cross-stage image caching
-      // Asset sourcer (Stage 4) reads these cached URLs to skip redundant CDP requests
+      // T03 (#55): Extract imageUrl from article for cross-stage image caching.
+      // Asset sourcer (Stage 4) reads these cached URLs to skip redundant CDP
+      // requests — this file's image entry shape ({url, sourceArticle}) is the
+      // contract loadCachedImages() consumes (#199 2.4); keep both sides in step.
       if (article.imageUrl) {
         topicEntry.images = [
           {

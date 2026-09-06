@@ -17,6 +17,7 @@ vi.mock("../visual-analyzer.mjs", () => ({
   closeFocusDetector: vi.fn(),
   closeVisualAnalyzer: vi.fn(),
   getVlmConcurrency: vi.fn(() => 2),
+  DEFAULT_VLM_MODEL_ID: "test-model",
 }));
 
 import { analyzeAssets } from "../asset-sourcer.mjs";

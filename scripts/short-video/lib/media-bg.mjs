@@ -39,7 +39,10 @@ import { resolve } from "path";
 export const VALID_PRESETS = ["fade", "ken-burns", "slide", "zoom", "none"];
 
 /**
- * Valid media mode values.
+ * Valid media mode values (#199 2.8).
+ * TS twin: remotion/src/types.ts Media interface (mode/fit/focus enums are
+ * written twice — TS side for Remotion components, this side for validation).
+ * Update both together.
  */
 export const VALID_MODES = ["background", "fullscreen"];
 

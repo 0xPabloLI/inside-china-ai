@@ -35,7 +35,10 @@ import {
   slotId,
   slotCharBudget,
 } from "./text-slots.mjs";
-import { MEDIA_DEPENDENT_LAYOUTS } from "./final-media-gate.mjs";
+import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
+// SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
+// and re-exported through final-media-gate — scene-rules must not hold a copy.
+export { NO_MEDIA_TYPES };
 
 // Re-export AI_BLACKLIST to maintain public API
 export const AI_BLACKLIST = _AI_BLACKLIST;
@@ -1060,7 +1063,6 @@ export function checkHookMediaWarning(scenes) {
  *  where scene-data.mjs was created without media fields, ensuring the pipeline
  *  doesn't silently produce all-CSS videos with no background imagery.
  *  CTA / data / stat-reveal scenes are exempt (they don't use media). */
-const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
 export function checkNarrativeMediaWarning(scenes) {
   const missing = scenes.filter((s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media?.path);
   if (missing.length === 0) {
