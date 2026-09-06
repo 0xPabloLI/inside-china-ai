@@ -226,35 +226,46 @@ export function verifyAudioSync({ videoPath, outputDir, sceneDurations, toleranc
 }
 
 /**
- * Deterministic alignment fix for the shipped audio track.
+ * Measure the shipped track's constant head drift and turn it into an ffmpeg
+ * audio filter.
  *
  * Remotion's raw mp4 audio starts 86–101ms late (mp3 decoder delay + AAC
  * priming, varying per render — issue #176). The subtitles are burned into
  * video frames at timeline 0, so the voiceover lags every cue by that
  * constant. The delay is a global constant on the audio track (every scene
  * drifts by the same amount), so it can be removed by trimming (or padding,
- * for early audio) the track head after the final encode — ffmpeg's own
- * re-encode delay is edit-list-compensated, so the trim is exact.
+ * for early audio) the track head — ffmpeg's own re-encode delay is
+ * edit-list-compensated, so the trim is exact.
  *
- * Drift must be constant across scenes (spread ≤ REALIGN_MAX_SPREAD): a
- * per-scene-varying drift means inter-scene gaps were mangled and head
- * trimming would misalign everything after scene 1 — that class of bug is
- * left to fail the verifier loudly instead of being "fixed" here.
+ * Drift must be constant across scenes (spread ≤ 50ms): a per-scene-varying
+ * drift means inter-scene gaps were mangled and head trimming would misalign
+ * everything after scene 1 — that class of bug is left to fail the verifier
+ * loudly instead of being "fixed" here.
+ *
+ * The measurement only decodes audio, so it is cheap enough to run on the RAW
+ * render output before the finalize encode (post-processing chains that copy
+ * or re-encode audio preserve timestamps), letting the trim ride along in
+ * that single pass instead of costing its own re-encode (#198).
  *
  * @param {object} options - Same shape as verifyAudioSync.
- * @param {string} options.videoPath - The shipped video; realigned IN PLACE.
- * @returns {object} { realigned, driftMsBefore, reason?, filter? }
+ * @returns {object} { measured, driftMsBefore, filter, reason? } — filter is
+ *   an ffmpeg audio-filter string to prepend on [0:a], or null when no trim
+ *   should apply (below threshold, non-constant drift, or unmeasurable).
  */
-export function realignAudioToTimeline({ videoPath, outputDir, sceneDurations, audioPaths }) {
+export function measureAudioDrift({ videoPath, outputDir, sceneDurations, audioPaths }) {
   const THRESHOLD = 0.005; // 5ms — below AAC frame size, not worth a re-encode
   const MAX_SPREAD = 0.05; // 50ms — drift must be constant across scenes
 
   const result = verifyAudioSync({ videoPath, outputDir, sceneDurations, audioPaths });
   const drifts = (result.scenes ?? []).map((s) => s.drift).filter(Number.isFinite);
-  const base = { realigned: false, driftMsBefore: null };
 
   if (result.errored || drifts.length === 0) {
-    return { ...base, reason: "no measurable scenes — nothing to realign against" };
+    return {
+      measured: false,
+      driftMsBefore: null,
+      filter: null,
+      reason: "no measurable scenes — nothing to realign against",
+    };
   }
 
   const sorted = [...drifts].sort((a, b) => a - b);
@@ -264,22 +275,46 @@ export function realignAudioToTimeline({ videoPath, outputDir, sceneDurations, a
 
   if (spread > MAX_SPREAD) {
     return {
-      ...base,
+      measured: true,
       driftMsBefore,
+      filter: null,
       reason: `drift not constant across scenes (spread ${(spread * 1000).toFixed(1)}ms) — refusing head trim`,
     };
   }
 
   if (Math.abs(median) < THRESHOLD) {
-    return { ...base, driftMsBefore, reason: "drift below threshold" };
+    return { measured: true, driftMsBefore, filter: null, reason: "drift below threshold" };
   }
 
   // Early audio (negative drift) → pad the head; late audio (positive,
   // the #176 case) → cut the head. Video is never touched.
-  const af =
+  const filter =
     median < 0
       ? `adelay=${Math.round(-median * 1000)}:all=1`
       : `atrim=start=${median.toFixed(6)},asetpts=PTS-STARTPTS`;
+  return { measured: true, driftMsBefore, filter };
+}
+
+/**
+ * Deterministic alignment fix for the shipped audio track.
+ *
+ * Measures drift via measureAudioDrift() and, when a correction is warranted,
+ * re-encodes the audio track in place. Callers that already run their own
+ * encode should prefer measureAudioDrift() and fold the filter into that pass.
+ *
+ * @param {object} options - Same shape as verifyAudioSync.
+ * @param {string} options.videoPath - The shipped video; realigned IN PLACE.
+ * @returns {object} { realigned, driftMsBefore, reason?, filter? }
+ */
+export function realignAudioToTimeline({ videoPath, outputDir, sceneDurations, audioPaths }) {
+  const m = measureAudioDrift({ videoPath, outputDir, sceneDurations, audioPaths });
+  const base = { realigned: false, driftMsBefore: m.driftMsBefore };
+
+  if (!m.filter) {
+    return { ...base, reason: m.reason };
+  }
+
+  const af = m.filter;
   const tempPath = videoPath.replace(/(\.\w+)$/, "-realign$1");
   // Container-appropriate audio codec: the shipped artifact is mp4 (aac), but
   // wav fixtures (tests, diagnostics) must be re-encoded as PCM or the wav
@@ -299,8 +334,8 @@ export function realignAudioToTimeline({ videoPath, outputDir, sceneDurations, a
     try {
       unlinkSync(tempPath);
     } catch {}
-    return { ...base, driftMsBefore, reason: `ffmpeg realign failed: ${e.message}` };
+    return { ...base, reason: `ffmpeg realign failed: ${e.message}` };
   }
 
-  return { realigned: true, driftMsBefore, filter: af };
+  return { realigned: true, driftMsBefore: m.driftMsBefore, filter: af };
 }

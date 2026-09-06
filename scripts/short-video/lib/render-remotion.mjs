@@ -6,7 +6,7 @@
  *   1. Check remotion/node_modules exists → auto npm install if not
  *   2. Construct props JSON from scenes + audioPaths + durations
  *   3. Call `npx remotion render` via child process
- *   4. Post-process: burnSubtitles → mixBgm → normalizeLoudness
+ *   4. Finalize in one ffmpeg pass: subtitles + BGM + loudnorm + #176 head trim
  *   5. Return { path, duration }
  *
  * The Remotion project lives at scripts/short-video/remotion/.
@@ -14,20 +14,11 @@
  */
 
 import { execSync, execFileSync } from "child_process";
-import {
-  existsSync,
-  writeFileSync,
-  renameSync,
-  unlinkSync,
-  mkdirSync,
-  copyFileSync,
-  rmSync,
-} from "fs";
+import { existsSync, writeFileSync, unlinkSync, mkdirSync, copyFileSync, rmSync } from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
-import { burnSubtitles, mixBgm, normalizeLoudness } from "./post-process.mjs";
+import { finalizeRenderedVideo } from "./post-process.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
-import { realignAudioToTimeline } from "./audio/sync.mjs";
 import { autoUpscaleIfNeeded } from "./upscale.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -190,68 +181,35 @@ export function renderRemotion({
 
   console.log(`  ✅ Remotion render complete: ${rawPath}`);
 
-  // ── 5. Post-process ──
-  let currentPath = rawPath;
-
-  // Burn subtitles
-  if (subtitlesPath && existsSync(subtitlesPath)) {
-    const tempPath = rawPath.replace(".mp4", "-presubs.mp4");
-    renameSync(currentPath, tempPath);
-    burnSubtitles(tempPath, subtitlesPath, currentPath);
-  }
-
-  // Mix BGM
-  if (bgmPath) {
-    const tempPath = currentPath.replace(".mp4", "-prebgm.mp4");
-    renameSync(currentPath, tempPath);
-    mixBgm(tempPath, bgmPath, currentPath);
-  }
-
-  // Normalize loudness
-  {
-    const tempPath = currentPath.replace(".mp4", "-prenorm.mp4");
-    renameSync(currentPath, tempPath);
-    normalizeLoudness(tempPath, currentPath);
-    try {
-      unlinkSync(tempPath);
-    } catch {}
-  }
-
-  // ── 5b. Audio realignment (issue #176) ──
-  // Remotion's raw AAC track starts 86–101ms late (mp3 decoder delay + AAC
-  // priming, varies per render). Subtitles are burned into video frames at
-  // timeline 0, so the voiceover lags every cue by that constant. Measure the
-  // shipped track against the timeline and trim the constant head delay.
-  {
-    const realign = realignAudioToTimeline({
-      videoPath: currentPath,
+  // ── 5. Finalize in a single ffmpeg pass (#198) ──
+  // The former chain ran up to 4 sequential passes over the same mp4
+  // (burnSubtitles → mixBgm → normalizeLoudness → realignAudioToTimeline),
+  // costing 2-3 full re-encodes plus 3 generations of AAC loss per render.
+  // finalizeRenderedVideo folds subs + BGM + loudnorm + the #176 head trim
+  // into one -filter_complex pass; the head drift is measured on the RAW
+  // output (audio decode only — post-processing preserves timestamps) so the
+  // trim rides in the single encode instead of costing its own re-encode.
+  const hasSubs = Boolean(subtitlesPath && existsSync(subtitlesPath));
+  finalizeRenderedVideo({
+    videoPath: rawPath,
+    assPath: hasSubs ? subtitlesPath : null,
+    bgmPath: bgmPath || null,
+    outputPath: finalPath,
+    realign: {
       outputDir, // scene audio for measurement lives here
       sceneDurations: scenes.map((s, i) => ({
         sceneId: s.id ?? i + 1,
         duration: durations[i],
       })),
       audioPaths: audioPaths.map((p) => p.replace("file://", "")),
-    });
-    if (realign.realigned) {
-      console.log(
-        `  🔊 Audio realigned: trimmed ${realign.driftMsBefore.toFixed(1)}ms leading delay (#176)`,
-      );
-    } else if (realign.driftMsBefore != null && Math.abs(realign.driftMsBefore) > 20) {
-      // Measurable but not corrected — surface why instead of failing silently.
-      console.log(
-        `  ⚠️ Audio drift ${realign.driftMsBefore.toFixed(1)}ms NOT realigned: ${realign.reason}`,
-      );
-    }
-  }
+    },
+  });
 
-  // Rename raw → final if different
-  if (currentPath !== finalPath) {
-    renameSync(currentPath, finalPath);
-  }
-
-  // Clean up raw file if it still exists
+  // Keep the raw output when subtitles were burned: main.mjs's verification
+  // repair path rebuilds the shipped file from it with a corrected ASS.
+  // (Without subtitles there is no repair that needs a base.)
   try {
-    if (existsSync(rawPath) && rawPath !== finalPath) unlinkSync(rawPath);
+    if (!hasSubs && existsSync(rawPath)) unlinkSync(rawPath);
   } catch {}
 
   // ── 6. Get final duration ──

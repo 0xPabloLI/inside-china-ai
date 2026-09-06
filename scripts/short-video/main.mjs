@@ -29,7 +29,7 @@ import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
 import { buildCues } from "./lib/subtitles/cues.mjs";
 import { renderAss } from "./lib/subtitles/ass.mjs";
-import { burnSubtitles } from "./lib/post-process.mjs";
+import { finalizeRenderedVideo } from "./lib/post-process.mjs";
 import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { skipsMediaSourcing } from "./lib/claim-keywords.mjs";
@@ -432,15 +432,23 @@ async function main() {
     // Repair dispatch: maps failure categories to repair actions
     const repairFn = (category, report) => {
       const findBaseAndBurn = () => {
-        const presubsPath = result.path.replace("-short.mp4", "-short-presubs.mp4");
-        const rawPath = result.path.replace("-short.mp4", "-short-raw.mp4");
-        const basePath = existsSync(presubsPath)
-          ? presubsPath
-          : existsSync(rawPath)
-            ? rawPath
-            : null;
-        if (!basePath) return null;
-        burnSubtitles(basePath, subtitles.assPath, result.path);
+        // The finalize pass keeps the RAW render output as the repair base.
+        // Rebuild the shipped file from it with the corrected ASS — the full
+        // single-pass chain (subs + BGM + loudnorm + #176 head trim), not a
+        // bare re-burn, so the repaired artifact matches the shipped recipe.
+        const rawPath = result.path.replace("-short.mp4", "-raw.mp4");
+        if (!existsSync(rawPath)) return null;
+        finalizeRenderedVideo({
+          videoPath: rawPath,
+          assPath: subtitles.assPath,
+          bgmPath,
+          outputPath: result.path,
+          realign: {
+            outputDir,
+            sceneDurations,
+            audioPaths: ttsResults.map((t) => t.audioPath),
+          },
+        });
         return { success: true, videoPath: result.path, assPath: subtitles.assPath };
       };
 

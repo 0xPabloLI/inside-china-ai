@@ -10,6 +10,7 @@
 
 import { execSync, execFileSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
+import { measureAudioDrift } from "./audio/sync.mjs";
 
 /** Path to ffmpeg-full (has libass support for ASS subtitle burn-in). */
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
@@ -142,5 +143,160 @@ export function normalizeLoudness(videoPath, outputPath, target = -16) {
   );
 
   console.log(`  Loudness normalized to ${target} LUFS`);
+  return outputPath;
+}
+
+/**
+ * Build the argv for the single-pass finalize command (#198 Item 1).
+ *
+ * Collapses the former 4-pass chain (burnSubtitles → mixBgm →
+ * normalizeLoudness → realignAudioToTimeline) into one -filter_complex pass:
+ * ass burn + BGM amix + loudnorm + #176 head trim. Pure — no I/O — so the
+ * filter graph composition is unit-testable without ffmpeg.
+ *
+ * Video handling mirrors the old chain: subtitles force one video re-encode
+ * (default libx264, like burnSubtitles); without them the video stream is
+ * bit-copied, as mixBgm/normalizeLoudness did.
+ *
+ * @param {object} options
+ * @param {string} options.videoPath - Input MP4 (the raw render output)
+ * @param {string|null} options.assPath - ASS subtitle file, or null to skip
+ * @param {string|null} options.bgmPath - BGM audio file, or null to skip
+ * @param {string} options.outputPath - Output MP4
+ * @param {string|null} [options.audioFilter] - Head trim/pad filter prepended
+ *   on [0:a] (from measureAudioDrift), or null
+ * @param {number} [options.bgmFadeOutStart] - Seconds; required with bgmPath
+ * @param {number} [options.bgmVolume=0.12]
+ * @param {number} [options.loudnessTarget=-16]
+ * @returns {string[]} ffmpeg argv (without the binary)
+ */
+export function buildFinalizeArgs({
+  videoPath,
+  assPath,
+  bgmPath,
+  outputPath,
+  audioFilter = null,
+  bgmFadeOutStart,
+  bgmVolume = 0.12,
+  loudnessTarget = -16,
+}) {
+  const args = ["-y", "-i", videoPath];
+  const useBgm = Boolean(bgmPath);
+  if (useBgm) args.push("-stream_loop", "-1", "-i", bgmPath);
+
+  const chains = [];
+  if (assPath) chains.push(`[0:v]ass=${assPath}[vout]`);
+
+  // The TTS branch label: [0:a] passes through untouched when there is no
+  // head filter, otherwise the filter output feeds the mix.
+  const ttsIn = audioFilter ? "[tts]" : "[0:a]";
+  if (audioFilter) chains.push(`[0:a]${audioFilter}[tts]`);
+  const loudnorm = `loudnorm=I=${loudnessTarget}:TP=-1.5:LRA=11`;
+  if (useBgm) {
+    const fade =
+      `afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart.toFixed(2)}:d=3,volume=${bgmVolume}`;
+    chains.push(`[1:a]${fade}[bgm]`);
+    chains.push(`${ttsIn}[bgm]amix=inputs=2:duration=first:dropout_transition=0[mix]`);
+    chains.push(`[mix]${loudnorm}[aout]`);
+  } else {
+    chains.push(`${ttsIn}${loudnorm}[aout]`);
+  }
+
+  args.push("-filter_complex", chains.join(";"));
+  if (assPath) {
+    args.push("-map", "[vout]", "-map", "[aout]");
+  } else {
+    args.push("-map", "0:v", "-map", "[aout]", "-c:v", "copy");
+  }
+  args.push("-c:a", "aac", "-b:a", "192k", "-ar", "44100", outputPath);
+  return args;
+}
+
+/**
+ * Finalize the raw render output in a single ffmpeg pass.
+ *
+ * Subtitle burn-in, BGM mix, loudness normalization and the #176 audio head
+ * trim run as one -filter_complex command. When `realign` is supplied, the
+ * head drift is measured on the input (audio decode only — the post chain
+ * preserves timestamps) and folded into this pass, eliminating the separate
+ * realign re-encode.
+ *
+ * ASS burn-in requires ffmpeg-full (libass); other combinations use system
+ * ffmpeg, matching the binaries the old per-step chain picked.
+ *
+ * @param {object} options
+ * @param {string} options.videoPath - Input MP4 (the raw render output)
+ * @param {string|null} options.assPath - ASS subtitle file, or null to skip
+ * @param {string|null} options.bgmPath - BGM audio file, or null to skip
+ * @param {string} options.outputPath - Output MP4
+ * @param {object|null} [options.realign] - { outputDir, sceneDurations,
+ *   audioPaths } for measureAudioDrift; null to skip the head trim entirely
+ * @param {number} [options.bgmVolume=0.12]
+ * @param {number} [options.loudnessTarget=-16]
+ * @returns {string} outputPath
+ */
+export function finalizeRenderedVideo({
+  videoPath,
+  assPath,
+  bgmPath,
+  outputPath,
+  realign = null,
+  bgmVolume = 0.12,
+  loudnessTarget = -16,
+}) {
+  let audioFilter = null;
+  if (realign) {
+    const m = measureAudioDrift({
+      videoPath,
+      outputDir: realign.outputDir,
+      sceneDurations: realign.sceneDurations,
+      audioPaths: realign.audioPaths,
+    });
+    audioFilter = m.filter;
+    if (m.filter) {
+      console.log(
+        `  🔊 Head trim ${m.driftMsBefore.toFixed(1)}ms folded into finalize pass (#176)`,
+      );
+    } else if (m.driftMsBefore != null && Math.abs(m.driftMsBefore) > 20) {
+      // Measurable but not corrected — surface why instead of failing silently.
+      console.log(
+        `  ⚠️ Audio drift ${m.driftMsBefore.toFixed(1)}ms NOT corrected: ${m.reason}`,
+      );
+    }
+  }
+
+  const useAss = Boolean(assPath && existsSync(assPath));
+
+  let bgmFadeOutStart;
+  if (bgmPath) {
+    let videoDuration = 180;
+    try {
+      const info = execSync(
+        `ffprobe -i "${videoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
+      ).toString();
+      videoDuration = parseFloat(info.trim());
+    } catch {}
+    bgmFadeOutStart = Math.max(videoDuration - 3, 1);
+  }
+
+  const args = buildFinalizeArgs({
+    videoPath,
+    assPath: useAss ? assPath : null,
+    bgmPath: bgmPath || null,
+    outputPath,
+    audioFilter,
+    bgmFadeOutStart,
+    bgmVolume,
+    loudnessTarget,
+  });
+
+  const parts = [
+    useAss ? "subtitles burned" : null,
+    bgmPath ? "BGM mixed" : null,
+    "loudness normalized",
+    audioFilter ? "head trimmed" : null,
+  ].filter(Boolean);
+  execFileSync(useAss ? FFMPEG_FULL : "ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+  console.log(`  Finalized in 1 ffmpeg pass (${parts.join(" + ")})`);
   return outputPath;
 }
