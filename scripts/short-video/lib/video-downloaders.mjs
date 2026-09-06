@@ -17,10 +17,21 @@
 import { canonicalizeUrl } from "./url-normalizer.mjs";
 import { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } from "./cdp-client.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
-import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from "fs";
+import {
+  existsSync,
+  readFileSync,
+  mkdirSync,
+  writeFileSync,
+  unlinkSync,
+  readdirSync,
+  statSync,
+  rmSync,
+  mkdtempSync,
+} from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
-import { tmpdir } from "os";
+import { tmpdir, homedir } from "os";
+import { execFileSync } from "child_process";
 
 // ─── Constants ───
 
@@ -30,6 +41,8 @@ export const ADAPTER_IDS = {
   COBALT: "cobalt",
   DOUYIN_CDP: "douyin-cdp",
   REDNOTE_MCP: "rednote-mcp",
+  XHS_CDP: "xhs-cdp",
+  XHS_DOWNLOADER: "xhs-downloader",
 };
 
 /** Max file size: 20MB (matches existing yt-dlp --max-filesize 20M) */
@@ -276,11 +289,12 @@ export function selectStrategy(url, options = {}) {
   if (isYoutubeUrl(canonical) || isBilibiliUrl(canonical) || isWeiboUrl(canonical)) {
     return { adapter: ADAPTER_IDS.YTDLP, canonicalUrl: canonical };
   }
-  // #75 Batch 3: xhs notes have no yt-dlp/cobalt support — the RedNote-MCP
-  // adapter resolves the note's CDN mp4 (see downloadRednoteMcp). It is
-  // fallback-position by cost: every call spawns a fresh Chromium (>30s).
+  // #75 Batch 5: xhs primary backend is XHS-Downloader (battle-tested
+  // signing/token/anti-bot handling; cookie via XHS_COOKIE env). The CDP
+  // adapter is the in-process fallback; RedNote-MCP stays exported but
+  // unrouted (upstream detail scraping currently returns empty).
   if (isXhsUrl(canonical)) {
-    return { adapter: ADAPTER_IDS.REDNOTE_MCP, canonicalUrl: canonical };
+    return { adapter: ADAPTER_IDS.XHS_DOWNLOADER, canonicalUrl: canonical };
   }
 
   // 2.5 抖音/iesdouyin → iesdouyin share page via CDP (no login needed for download)
@@ -1084,6 +1098,232 @@ export async function downloadRednoteMcp(url, opts = {}) {
   });
 }
 
+/**
+ * Download an xiaohongshu note's video via the logged-session CDP browser
+ * (#75 Batch 4, the MediaCrawler-recommended pattern: reuse a real browser's
+ * login state through CDP to stay under the anti-bot radar).
+ *
+ * Chain: open the note URL (feed-harvested URLs carry xsec_token) in the CDP
+ * Chrome → wait for the detail page → extract `<video>` src (xhscdn direct
+ * link) → direct-http with the xhs Referer.
+ *
+ * Fail-closed with reason classification: a page that renders without a
+ * video element is reported as a login/anti-bot wall, never a silent empty.
+ *
+ * @param {string} url - xiaohongshu note URL (xsec_token included when known)
+ * @param {object} [opts] - injectable seams: cdpNewTab, waitForPageLoad,
+ *   extractFromTab, cdpCloseTab, downloader
+ * @returns {Promise<DownloadResult>}
+ */
+export async function downloadXhsCdp(url, opts = {}) {
+  const {
+    cdpNewTab: newTab = cdpNewTab,
+    extractFromTab: extract = extractFromTab,
+    cdpCloseTab: closeTab = cdpCloseTab,
+    downloader = downloadDirectHttp,
+  } = opts;
+
+  // Proven live mechanics (#75): open the feed first (session/context
+  // prewarm), then navigate THE SAME TAB to the note URL — xhscdn tokens are
+  // short-lived and context-bound, so a cold tab on the note URL alone lands
+  // on "你访问的页面不见了". Navigation + lazy-media wait + extraction run as
+  // one in-page async script.
+  const FEED_URL = "https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend";
+  let tabId;
+  try {
+    tabId = await newTab(FEED_URL);
+    await new Promise((r) => setTimeout(r, 4000));
+  } catch (e) {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.XHS_CDP,
+      sourceUrl: url,
+      reason: `cdp open failed: ${e.message}`,
+      retryable: true,
+    });
+  }
+
+  try {
+    const script = `
+      location.assign(${JSON.stringify(url)});
+      await new Promise(function(r) { setTimeout(r, 9000); });
+      var v = document.querySelector("video");
+      var src = v ? (v.src || (v.querySelector("source") ? v.querySelector("source").src : "")) : "";
+      var notFound = document.title.indexOf("页面不见了") >= 0;
+      var ogVideo = document.querySelector('meta[property="og:video:url"], meta[property="og:video"]');
+      JSON.stringify([{
+        videoSrc: src || (ogVideo ? ogVideo.content : "") || "",
+        notFound: notFound,
+        pageTitle: document.title.slice(0, 40),
+      }]);
+    `;
+    const parsed = await extract(tabId, script);
+    const info = Array.isArray(parsed) ? parsed[0] : null;
+
+    if (!info?.videoSrc) {
+      const reason = info?.notFound
+        ? "note unreachable — xsec_token stale or note gone (tokens are short-lived; consume them fresh from the same CDP session)"
+        : info
+          ? `note has no video element (title: ${info.pageTitle || "?"})`
+          : "note page extraction returned nothing";
+      return makeResult({
+        status: "failed",
+        strategy: ADAPTER_IDS.XHS_CDP,
+        sourceUrl: url,
+        reason,
+        retryable: true,
+      });
+    }
+
+    const dl = await downloader(info.videoSrc, {
+      headers: { Referer: "https://www.xiaohongshu.com/" },
+    });
+    if (dl.status !== "downloaded") {
+      return makeResult({
+        status: "failed",
+        strategy: ADAPTER_IDS.XHS_CDP,
+        sourceUrl: url,
+        finalUrl: info.videoSrc,
+        reason: dl.reason ?? "cdn download failed",
+        retryable: true,
+      });
+    }
+    return makeResult({
+      status: "downloaded",
+      strategy: ADAPTER_IDS.XHS_CDP,
+      sourceUrl: url,
+      finalUrl: info.videoSrc,
+      mimeType: dl.mimeType ?? "video/mp4",
+      extension: dl.extension ?? "mp4",
+      byteLength: dl.byteLength,
+      buffer: dl.buffer,
+    });
+  } catch (e) {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.XHS_CDP,
+      sourceUrl: url,
+      reason: `xhs cdp failed: ${e.message}`,
+      retryable: true,
+    });
+  } finally {
+    try {
+      await closeTab(tabId);
+    } catch {}
+  }
+}
+
+/**
+ * Download an xiaohongshu note's video via XHS-Downloader (#75 Batch 5, the
+ * primary xhs backend — battle-tested signing/token/anti-bot handling).
+ *
+ * Requires the `XHS_COOKIE` env: a full logged-in xiaohongshu cookie string
+ * (must contain web_session; refreshable from any logged-in browser). The
+ * CLI downloads into a temp work dir; the newest mp4 is the note video.
+ *
+ * @param {string} url - tokened xiaohongshu note URL (xsec_token required —
+ *   xhs rejects tokenless note access)
+ * @param {object} [opts] - injectable seams: runner (argv array → stdout),
+ *   pythonPath, scriptDir, workPath, cookie
+ * @returns {Promise<DownloadResult>}
+ */
+export async function downloadXhsDownloader(url, opts = {}) {
+  const cookie = opts.cookie ?? process.env.XHS_COOKIE;
+  if (!cookie) {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.XHS_DOWNLOADER,
+      sourceUrl: url,
+      reason:
+        "XHS_COOKIE env not configured — set it to a logged-in xiaohongshu cookie string (web_session required)",
+      retryable: false,
+    });
+  }
+
+  const pythonPath =
+    opts.pythonPath ??
+    process.env.XHS_DOWNLOADER_PYTHON ??
+    join(homedir(), "tools", "XHS-Downloader", ".venv", "bin", "python");
+  const scriptDir =
+    opts.scriptDir ?? process.env.XHS_DOWNLOADER_HOME ?? join(homedir(), "tools", "XHS-Downloader");
+  const workPath = opts.workPath ?? mkdtempSync(join(tmpdir(), "xhs-dl-"));
+  const runner =
+    opts.runner ??
+    ((cmd) =>
+      execFileSync(cmd[0], cmd.slice(1), {
+        encoding: "utf8",
+        timeout: 180000,
+        stdio: ["pipe", "pipe", "pipe"],
+      }));
+
+  try {
+    const cmd = [
+      pythonPath,
+      join(scriptDir, "main.py"),
+      "--url",
+      url,
+      "--cookie",
+      cookie,
+      "--work_path",
+      workPath,
+    ];
+    runner(cmd);
+
+    // The CLI writes into {workPath}/Download/ — pick the newest mp4.
+    const files = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.toLowerCase().endsWith(".mp4")) files.push(full);
+      }
+    };
+    walk(workPath);
+    if (files.length === 0) {
+      return makeResult({
+        status: "failed",
+        strategy: ADAPTER_IDS.XHS_DOWNLOADER,
+        sourceUrl: url,
+        reason:
+          "xhs-downloader produced no video file (image-only note, stale token, or anti-bot block)",
+        retryable: true,
+      });
+    }
+    files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+    const buffer = readFileSync(files[0]);
+    if (buffer.length < MIN_FILE_BYTES) {
+      return makeResult({
+        status: "failed",
+        strategy: ADAPTER_IDS.XHS_DOWNLOADER,
+        sourceUrl: url,
+        reason: "file-too-small",
+      });
+    }
+    return makeResult({
+      status: "downloaded",
+      strategy: ADAPTER_IDS.XHS_DOWNLOADER,
+      sourceUrl: url,
+      finalUrl: url,
+      mimeType: "video/mp4",
+      extension: "mp4",
+      byteLength: buffer.length,
+      buffer,
+    });
+  } catch (e) {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.XHS_DOWNLOADER,
+      sourceUrl: url,
+      reason: `xhs-downloader failed: ${e.message?.substring(0, 150)}`,
+      retryable: true,
+    });
+  } finally {
+    try {
+      rmSync(workPath, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 export async function downloadVideo(url, opts = {}) {
   const fetchFn = opts.fetchFn || globalThis.fetch;
   const cobalt = opts.cobaltAdapter || new CobaltAdapter();
@@ -1117,6 +1357,22 @@ export async function downloadVideo(url, opts = {}) {
 
     case ADAPTER_IDS.REDNOTE_MCP:
       return downloadRednoteMcp(canonicalUrl, opts);
+
+    case ADAPTER_IDS.XHS_CDP:
+      return downloadXhsCdp(canonicalUrl, opts);
+
+    case ADAPTER_IDS.XHS_DOWNLOADER: {
+      const r = await downloadXhsDownloader(canonicalUrl, {
+        runner: opts.xhsDownloaderRunner,
+        workPath: opts.xhsDownloaderWorkPath,
+      });
+      if (r.status === "downloaded") return r;
+      // Primary failed → the in-process CDP adapter is the fallback.
+      if (opts.skipXhsCdpFallback) return r;
+      console.log(`  ⚠️  xhs-downloader failed (${r.reason}) — falling back to xhs-cdp`);
+      if (opts.xhsCdpAdapter) return opts.xhsCdpAdapter(canonicalUrl, opts);
+      return downloadXhsCdp(canonicalUrl, opts);
+    }
 
     case ADAPTER_IDS.COBALT:
       return cobalt.download(canonicalUrl, { fetchFn });

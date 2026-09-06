@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { canonicalizeUrl } from "../lib/url-normalizer.mjs";
 import {
   selectStrategy,
@@ -977,11 +978,11 @@ describe("weibo routing (#75 Batch 2)", () => {
 
 // ─── #75 Batch 3: xhs via RedNote-MCP (fallback-position adapter) ───
 describe("RedNote-MCP adapter (#75 Batch 3)", () => {
-  it("routes xiaohongshu URLs to the rednote-mcp adapter", () => {
+  it("routes xiaohongshu URLs to the xhs-downloader adapter (primary)", () => {
     const result = selectStrategy("https://www.xiaohongshu.com/explore/65a1b2c3");
-    expect(result.adapter).toBe("rednote-mcp");
+    expect(result.adapter).toBe("xhs-downloader");
     const short = selectStrategy("https://xhslink.com/AbCdEf");
-    expect(short.adapter).toBe("rednote-mcp");
+    expect(short.adapter).toBe("xhs-downloader");
   });
 
   it("pulls the CDN mp4 via get_note_content and downloads with the xhs Referer", async () => {
@@ -1066,5 +1067,177 @@ describe("RedNote-MCP adapter (#75 Batch 3)", () => {
     expect(r.status).toBe("failed");
     expect(r.reason).toContain("MCP timeout");
     expect(r.retryable).toBe(true);
+  });
+});
+
+// ─── #75 Batch 4: downloadXhsCdp — logged-session CDP adapter ───
+describe("XhsCdp adapter (#75 Batch 4)", () => {
+  it("opens the note URL in CDP, extracts the video src, downloads with Referer", async () => {
+    const calls = { tab: [], extract: [], download: [] };
+    const fake = {
+      cdpNewTab: async (url) => {
+        calls.tab.push(url);
+        return "tid-1";
+      },
+      waitForPageLoad: async () => true,
+      extractFromTab: async (tid, script) => {
+        calls.extract.push({ tid, script });
+        return [{ videoSrc: "https://sns-video.xhscdn.com/v.mp4", noteId: "abc123" }];
+      },
+      cdpCloseTab: async () => {},
+      downloader: async (url, opts = {}) => {
+        calls.download.push({ url, headers: opts.headers });
+        return {
+          status: "downloaded",
+          strategy: "direct-http",
+          sourceUrl: url,
+          mimeType: "video/mp4",
+          extension: "mp4",
+          byteLength: 8000,
+          buffer: Buffer.alloc(8000),
+        };
+      },
+    };
+    const { downloadXhsCdp } = await import("../lib/video-downloaders.mjs");
+    const r = await downloadXhsCdp("https://www.xiaohongshu.com/explore/abc123?xsec_token=T", fake);
+    expect(r.status).toBe("downloaded");
+    expect(r.strategy).toBe("xhs-cdp");
+    // feed prewarm first, then same-tab navigation to the tokened note URL
+    expect(calls.tab[0]).toContain("channel_id=homefeed_recommend");
+    expect(calls.extract[0].script).toContain("xsec_token=T");
+    expect(calls.extract[0].script).toContain("location.assign");
+    expect(calls.download[0].url).toBe("https://sns-video.xhscdn.com/v.mp4");
+    expect(calls.download[0].headers.Referer).toContain("xiaohongshu.com");
+  });
+
+  it("reports login-wall when the page renders without a video element", async () => {
+    const fake = {
+      cdpNewTab: async () => "tid-2",
+      waitForPageLoad: async () => true,
+      extractFromTab: async () => [{ videoSrc: null, loginWall: true }],
+      cdpCloseTab: async () => {},
+      downloader: async () => {
+        throw new Error("should not download");
+      },
+    };
+    const { downloadXhsCdp } = await import("../lib/video-downloaders.mjs");
+    const r = await downloadXhsCdp("https://www.xiaohongshu.com/explore/abc", fake);
+    expect(r.status).toBe("failed");
+    expect(r.reason).toMatch(/login|no video/i);
+  });
+
+  it("cleans up the tab on extraction failure", async () => {
+    let closed = 0;
+    const fake = {
+      cdpNewTab: async () => "tid-3",
+      waitForPageLoad: async () => true,
+      extractFromTab: async () => {
+        throw new Error("extract exploded");
+      },
+      cdpCloseTab: async () => {
+        closed += 1;
+      },
+      downloader: async () => {
+        throw new Error("should not download");
+      },
+    };
+    const { downloadXhsCdp } = await import("../lib/video-downloaders.mjs");
+    const r = await downloadXhsCdp("https://www.xiaohongshu.com/explore/abc", fake);
+    expect(r.status).toBe("failed");
+    expect(closed).toBe(1);
+  });
+});
+
+// ─── #75 Batch 5: XHS-Downloader as the primary xhs backend ───
+describe("XHS-Downloader adapter (#75 Batch 5)", () => {
+  const fakeRun =
+    (writesFile = true) =>
+    (cmd) => {
+      if (writesFile) {
+        mkdirSync("/tmp/xhs-dl-fake/Download", { recursive: true });
+        writeFileSync("/tmp/xhs-dl-fake/Download/note.mp4", Buffer.alloc(6000));
+      }
+      return "下载成功";
+    };
+
+  it("routes xhs URLs to the xhs-downloader adapter (primary)", () => {
+    expect(selectStrategy("https://www.xiaohongshu.com/explore/xyz?xsec_token=T").adapter).toBe(
+      "xhs-downloader",
+    );
+  });
+
+  it("spawns the CLI with url/cookie/work_path and returns the downloaded mp4", async () => {
+    const { downloadXhsDownloader } = await import("../lib/video-downloaders.mjs");
+    const calls = [];
+    const r = await downloadXhsDownloader("https://www.xiaohongshu.com/explore/xyz?xsec_token=T", {
+      cookie: "web_session=s; a1=a",
+      pythonPath: "/fake/python",
+      scriptDir: "/fake/XHS-Downloader",
+      workPath: "/tmp/xhs-dl-fake",
+      runner: (cmd) => {
+        calls.push(cmd);
+        return fakeRun()("/fake/python");
+      },
+    });
+    expect(r.status).toBe("downloaded");
+    expect(r.strategy).toBe("xhs-downloader");
+    expect(r.byteLength).toBe(6000);
+    expect(calls[0]).toContain("--url");
+    expect(calls[0].some((a) => String(a).includes("xsec_token=T"))).toBe(true);
+    expect(calls[0].some((a) => String(a).includes("web_session=s; a1=a"))).toBe(true);
+    expect(calls[0]).toContain("/fake/python");
+  });
+
+  it("fails closed when the CLI produces no video file", async () => {
+    const { downloadXhsDownloader } = await import("../lib/video-downloaders.mjs");
+    const r = await downloadXhsDownloader("https://www.xiaohongshu.com/explore/xyz?xsec_token=T", {
+      cookie: "web_session=s",
+      workPath: "/tmp/xhs-dl-empty",
+      runner: () => "跳过 0 个，失败 1 个",
+    });
+    expect(r.status).toBe("failed");
+    expect(r.reason).toMatch(/no video file|failed/i);
+  });
+
+  it("fails closed with a config hint when XHS_COOKIE is absent", async () => {
+    const prev = process.env.XHS_COOKIE;
+    delete process.env.XHS_COOKIE;
+    try {
+      const { downloadXhsDownloader } = await import("../lib/video-downloaders.mjs");
+      const r = await downloadXhsDownloader("https://www.xiaohongshu.com/explore/xyz", {
+        runner: () => {
+          throw new Error("should not run");
+        },
+      });
+      expect(r.status).toBe("failed");
+      expect(r.reason).toMatch(/XHS_COOKIE/);
+      expect(r.retryable).toBe(false);
+    } finally {
+      if (prev !== undefined) process.env.XHS_COOKIE = prev;
+    }
+  });
+
+  it("downloadVideo falls back to the xhs-cdp adapter when XHS-Downloader fails", async () => {
+    const { downloadVideo } = await import("../lib/video-downloaders.mjs");
+    let cdpTried = false;
+    const result = await downloadVideo(
+      "https://www.xiaohongshu.com/explore/fallback?xsec_token=T",
+      {
+        xhsDownloaderRunner: () => "失败",
+        xhsDownloaderWorkPath: "/tmp/xhs-dl-empty2",
+        xhsCdpAdapter: async () => {
+          cdpTried = true;
+          return {
+            status: "failed",
+            strategy: "xhs-cdp",
+            sourceUrl: "x",
+            reason: "wall",
+          };
+        },
+        skipXhsCookieRequirement: true,
+      },
+    );
+    expect(cdpTried).toBe(true);
+    expect(result.strategy).toBe("xhs-cdp");
   });
 });
