@@ -2567,6 +2567,46 @@ const CDP_VIDEO_SCRIPT = `
 `;
 
 const CDP_MEDIA_CAPABILITIES = {
+  // #75 Batch 1 (#77 疑点 1): baidu_news's notes claimed "Articles + images
+  // from same DOM" but no entry existed — the claim was unverifiable and the
+  // same-DOM video capability unexploited. imageScript derives from the
+  // articleScript's per-item img extraction; videoScript reuses the shared
+  // CDP_VIDEO_SCRIPT.
+  baidu_news: {
+    method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
+    url: (keyword) =>
+      `https://www.baidu.com/ns?word=${encodeURIComponent(keyword)}&tn=news&rtt=4&medium=0`,
+    imageScript: `
+      var items = document.querySelectorAll('.result-op, .result, .news-result, article');
+      var results = [];
+      items.forEach(function(el) {
+        var link = el.querySelector('a[href]');
+        var img = el.querySelector('img[src]');
+        var title = el.querySelector('h3, h2, .news-title-font_1xS-F, .title, a[aria-label]');
+        if (link && title) {
+          var titleText = title.textContent.trim();
+          if (titleText && titleText.length > 5) {
+            if (img && img.src && !img.src.startsWith('data:')) {
+              results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: titleText.substring(0, 200) });
+            } else {
+              results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: titleText.substring(0, 200) });
+            }
+          }
+        }
+      });
+      return results;
+    `,
+    imageFallbackScript: `
+      var results = [];
+      document.querySelectorAll('img[src]').forEach(function(img) {
+        if ((img.naturalWidth > 200 || img.width > 200) && !img.src.startsWith('data:')) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
   qbitai: {
     method: "cdp",
     videoScript: CDP_VIDEO_SCRIPT,
@@ -3305,7 +3345,7 @@ export const SHARED_GOOGLE_SITE_SEARCH_SCRIPT = `
 /**
  * Sources excluded from auto-generated Google site: fallback.
  */
-const AUTOGEN_EXCLUDED_SOURCES = new Set([
+export const AUTOGEN_EXCLUDED_SOURCES = new Set([
   // Search engines — they ARE search, no "own domain" to site:
   "google_news",
   "bing_news",
@@ -3318,7 +3358,7 @@ const AUTOGEN_EXCLUDED_SOURCES = new Set([
   "polymarket_search",
   // Image/asset libraries — Google site: doesn't return images
   "pexels",
-  "pexels_video",
+  "pexels-video",
   "unsplash",
   "wikimedia",
   "coverr",
