@@ -385,7 +385,7 @@ async function main() {
         label: "Gate 1",
         realignFn: async () => {
           const { runForcedAlignment } = await import("./lib/tts/post-process.mjs");
-          await runForcedAlignment(scenes, ttsResults, audioDir);
+          await runForcedAlignment(scenes, ttsResults, audioDir, { force: true });
         },
         reloadTimingFn: () => {
           const timingPath = join(audioDir, "subtitle-timing.json");
@@ -478,7 +478,9 @@ async function main() {
 
         return (async () => {
           try {
-            await runForcedAlignment(scenes, ttsResults, join(outputDir, "audio"));
+            await runForcedAlignment(scenes, ttsResults, join(outputDir, "audio"), {
+              force: true,
+            });
           } catch {
             return { success: false };
           }

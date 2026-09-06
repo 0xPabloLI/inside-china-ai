@@ -21,6 +21,11 @@ import { writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
+import {
+  computeAlignmentSignature,
+  alignmentCacheState,
+  writeAlignmentMeta,
+} from "./cache.mjs";
 
 const execAsync = promisify(exec);
 
@@ -228,15 +233,33 @@ export async function postProcessBatch(audioPath, opts = {}) {
  * Output: {outputDir}/subtitle-timing.json — used by lib/subtitles/generate.mjs.
  * Gracefully skips if the alignment script is not found.
  *
+ * Cross-run cache (#198 Item 2): when subtitle-timing.json exists and its
+ * stored signature matches the current (scene text, scene audio bytes), the
+ * GPU alignment is skipped. Repair paths that intentionally retry a bad
+ * alignment pass {force:true} to recompute.
+ *
  * @param {Array} scenes
  * @param {TTSResult[]} ttsResults
  * @param {string} outputDir
+ * @param {object} [options]
+ * @param {boolean} [options.force=false] - skip the cache and realign
+ * @returns {Promise<{skipped: boolean, reason?: string}>}
  */
-export async function runForcedAlignment(scenes, ttsResults, outputDir) {
+export async function runForcedAlignment(scenes, ttsResults, outputDir, options = {}) {
+  const { force = false } = options;
   const alignScript = join(ROOT_DIR, "text-align.py");
+
+  if (!force) {
+    const signature = computeAlignmentSignature(scenes, ttsResults);
+    if (signature && alignmentCacheState(outputDir, signature) === "valid") {
+      console.log("  💾 Alignment cache hit — subtitle-timing.json reused (#198)");
+      return { skipped: true, reason: "cache hit" };
+    }
+  }
+
   if (!existsSync(alignScript)) {
     console.log("  ⚠️ text-align.py not found, skipping");
-    return;
+    return { skipped: true, reason: "text-align.py not found" };
   }
 
   console.log("  🎯 Running text-align subtitle timing...");
@@ -255,9 +278,12 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir) {
       `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ~/.video-tts-env/bin/python3 "${alignScript}" ` +
         `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
     );
+    writeAlignmentMeta(outputDir, computeAlignmentSignature(scenes, ttsResults));
     console.log("  ✅ Subtitle timing saved (wav2vec2-large-960h-lv60-self aligned)");
+    return { skipped: false };
   } catch (e) {
     console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
+    return { skipped: true, reason: `force-align failed: ${e.message.substring(0, 100)}` };
   }
 }
 

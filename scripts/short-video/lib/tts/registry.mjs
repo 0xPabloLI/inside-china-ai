@@ -21,6 +21,7 @@ import { createQwenTTSEngine } from "./qwen-tts.mjs";
 import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
+import { planTtsScenes, writeSceneMeta, computeSceneKey } from "./cache.mjs";
 
 /**
  * Engine factory map. Keys are both the canonical name and TTS_ENGINE aliases.
@@ -74,13 +75,34 @@ export async function selectEngine() {
  * Generate TTS voiceover for all scenes.
  *
  * Delegates to the selected engine, then runs subtitle alignment.
+ * Scene audio is cached across runs (see ./cache.mjs): scenes whose
+ * (engine, engine config, text) key already has cached audio skip GPU
+ * generation entirely. Set TTS_NO_CACHE=1 (or pass useCache:false) to
+ * regenerate everything.
  *
  * @param {Array} scenes - Scene objects with {id, voiceover}
  * @param {string} outputDir - Audio output directory
+ * @param {object} [options]
+ * @param {boolean} [options.useCache=true] - reuse cached scene audio
+ * @param {boolean} [options.runAlignment=true] - run forced alignment after TTS
  * @returns {Promise<TTSResult[]>}
  */
-export async function generateTTS(scenes, outputDir) {
+export async function generateTTS(scenes, outputDir, options = {}) {
   const engine = await selectEngine();
+  return generateTTSWithEngine(scenes, outputDir, engine, options);
+}
+
+/**
+ * generateTTS with an injected engine — the testable seam.
+ *
+ * @param {Array} scenes - Scene objects with {id, voiceover}
+ * @param {string} outputDir - Audio output directory
+ * @param {TTSEngine} engine
+ * @param {object} [options] - see generateTTS
+ * @returns {Promise<TTSResult[]>}
+ */
+export async function generateTTSWithEngine(scenes, outputDir, engine, options = {}) {
+  const { useCache = process.env.TTS_NO_CACHE !== "1", runAlignment = true } = options;
 
   const atempo = getAtempo();
   console.log(`  TTS engine: ${engine.info}`);
@@ -93,10 +115,57 @@ export async function generateTTS(scenes, outputDir) {
   steps.push("loudnorm (at assembly)");
   console.log(`  Post-process: ${steps.join(" + ")}`);
 
-  const results = await engine.generate(scenes, outputDir);
+  // Split into cache hits and pending scenes (#198 Item 2). Results must be
+  // reassembled in scene order — callers index-align ttsResults to scenes.
+  let toGenerate = scenes;
+  let cachedResults = [];
+  if (useCache) {
+    const plan = planTtsScenes(outputDir, scenes, engine);
+    if (plan.cached.length > 0) {
+      console.log(
+        `  💾 TTS cache: ${plan.cached.length}/${scenes.length} scenes reused (TTS_NO_CACHE=1 to force)`,
+      );
+    }
+    cachedResults = plan.cached.map(({ sceneId, audioPath, duration }) => ({
+      sceneId,
+      audioPath,
+      duration,
+    }));
+    toGenerate = plan.pending;
+  }
+  if (toGenerate.length === 0) {
+    return cachedResults;
+  }
+
+  const generatedResults = await engine.generate(toGenerate, outputDir);
+
+  // Persist cache meta for freshly generated scenes.
+  if (useCache) {
+    for (const r of generatedResults) {
+      const scene = scenes.find((s) => s.id === r.sceneId);
+      if (scene) {
+        writeSceneMeta(outputDir, r.sceneId, {
+          key: computeSceneKey(engine, scene.voiceover),
+          duration: r.duration,
+          engine: engine.name,
+        });
+      }
+    }
+  }
+
+  // Reassemble in scene order; drop scenes the engine skipped.
+  const byId = new Map(generatedResults.map((r) => [r.sceneId, r]));
+  const merged = [];
+  for (const scene of scenes) {
+    const hit = cachedResults.find((r) => r.sceneId === scene.id);
+    if (hit) merged.push(hit);
+    else if (byId.has(scene.id)) merged.push(byId.get(scene.id));
+  }
 
   // Run subtitle alignment for accurate timing
-  await runForcedAlignment(scenes, results, outputDir);
+  if (runAlignment) {
+    await runForcedAlignment(scenes, merged, outputDir);
+  }
 
-  return results;
+  return merged;
 }
