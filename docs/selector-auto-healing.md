@@ -54,8 +54,12 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 | 日期 | 源 | 失效原因 | 修复要点 | 验证 |
 | --- | --- | --- | --- | --- |
 | 2026-09-07 | google_search | Google 新新闻垂直 SERP：结果块改 `div[data-ved][data-hveid]`，标题改 `div[role="heading"]`，`div.g`/`h3` 消失 | articleScript/imageScript 重写为新结构；缩略图为 base64 data URI，仅 http 图标记 type=image（可下载），data URI 降级 text；外链过滤 google 域 + URL 去重 | health --only 1/1 绿，10 条全结构（title/url/imageUrl） |
-| 2026-09-07（待修） | baidu_news | 资讯垂直连热词都「找到相关资讯 0 个」——疑似百度资讯索引收缩（上游问题），非选择器 | 待定：先试资讯垂直其它端点；若上游确死 → 标注不可用或换端点 | — |
-| 2026-09-07（待修） | weibo_hot / leiphone / xinzhiyuan / zhidx / wechat_dongchabeating | zero_results，未逐个诊断 | 按 runbook 步骤 2 起做 | — |
+| 2026-09-07 | leiphone | 搜索结果标题改为 `a.headTit` 链接，旧 `.article-list`/`article` 容器归零 | articleScript 改为 `a.headTit[href*=".html"]` 直取 | health --only 绿，16 条 |
+| 2026-09-07 | wechat_dongchabeating | Google 站内搜索同吃新 SERP 改版（`div.g` 归零） | 同 google_search 方案（新 DOM + 转载域白名单） | health --only 绿，1 条 |
+| 2026-09-07（不可修） | weibo_hot | `s.weibo.com` 重定向 Sina Visitor System——登录墙，非选择器 | 用户提供微博登录态后自愈；候选：P2 指标加 "visitor system" | — |
+| 2026-09-07（不可修） | xinzhiyuan | 站点不可达（连接被关闭） | 上游问题：观察数轮，持续不可达建议用户裁决移除该源 | — |
+| 2026-09-07（不可修） | zhidx | 搜索结果 XHR 渲染，滚动触发后仍 0 条 | 需找其 JSON 端点或更多交互；暂缓 | — |
+| 2026-09-07（不可修） | baidu_news | 资讯垂直连热词都「找到相关资讯 0 个」——索引疑似收缩 | 建议用户裁决：移除该源或换端点 | — |
 
 ## CDP 代理 wsPath 陈旧坑（2026-09-07 修复）
 
