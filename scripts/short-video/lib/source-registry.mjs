@@ -420,12 +420,29 @@ export const NEWS_SOURCES = [
     category: "news",
     supportsKeyword: true,
     accessMethod: {
-      primary: "cdp",
-      notes: "CDP search page. Articles + images from same DOM.",
+      primary: "api",
+      notes:
+        "WordPress REST API (wp-json/wp/v2/posts, #140 P5 research) — the search page renders results via XHR that CDP scraping can't reach. CDP page kept as fallback layer.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
+    apiSearch: {
+      url: (keyword) =>
+        `https://www.zhidx.com/wp-json/wp/v2/posts?search=${encodeURIComponent(keyword)}&per_page=20`,
+      parser: (text) => {
+        const posts = JSON.parse(text);
+        if (!Array.isArray(posts)) return [];
+        const strip = (html) => String(html || "").replace(/<[^>]+>/g, "").replace(/&[#\w]+;/g, " ").trim();
+        return posts.map((p) => ({
+          title: strip(p?.title?.rendered),
+          url: p?.link || "",
+          snippet: strip(p?.excerpt?.rendered).substring(0, 200),
+          publishedAt: p?.date || undefined,
+        })).filter((a) => a.title && a.url);
+      },
+      authRequired: false,
+    },
     articleScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
       var results = [];
@@ -617,13 +634,28 @@ export const SELF_MEDIA_SOURCES = [
     locale: "zh-CN",
     supportsKeyword: false,
     accessMethod: {
-      primary: "cdp",
+      primary: "api",
       notes:
-        "CDP (hot search page) → MCP fallback (get_hot_search). No keyword search, homepage-only.",
+        "60s public hot-list API (open-source, #140 P5 research) — s.weibo.com redirects to Sina Visitor System without login. CDP (login) → MCP fallback (get_hot_search) kept behind it.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: () => "https://s.weibo.com/top/summary",
+    apiSearch: {
+      // Fixed public feed, keyword ignored. Third-party survival risk mitigated
+      // by the open-source 60s project (self-hostable) + source-health streaks.
+      url: () => "https://60s.viki.moe/v2/weibo",
+      parser: (text) => {
+        const data = JSON.parse(text);
+        if (!Array.isArray(data?.data)) return [];
+        return data.data.map((item) => ({
+          title: item?.title || "",
+          url: item?.link || "",
+          snippet: item?.hot_value ? `微博热搜 · 热度 ${item.hot_value}` : "微博热搜",
+        })).filter((a) => a.title && a.url);
+      },
+      authRequired: false,
+    },
     mcpFallback: {
       command: "python",
       args: ["-m", "mcp_server_weibo"],

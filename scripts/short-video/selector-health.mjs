@@ -43,9 +43,11 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`);
 }
 
-/** CDP sources that can be live-checked: have a page URL + articleScript. */
+/** Sources live-checkable via their primary channel: CDP (page + script)
+ * or API (apiSearch endpoint + parser). */
 export function selectCheckableSources(sources = ALL_SOURCES) {
   return sources.filter((s) => {
+    if (s.accessMethod?.primary === "api" && s.apiSearch?.url) return true;
     if (s.accessMethod?.primary !== "cdp") return false;
     const script = s.capabilities?.articles?.articleScript ?? s.articleScript;
     return Boolean(script && s.url);
@@ -56,6 +58,29 @@ export function selectCheckableSources(sources = ALL_SOURCES) {
  * "zero results" without being a selector failure. */
 export function keywordForSource(source, zhKeyword, enKeyword) {
   return (source.locale ?? "en") === "zh-CN" ? zhKeyword : enKeyword;
+}
+
+/** Live-test an apiSearch source: fetch + parser, count parsed results. */
+async function checkApiSource(source, keyword) {
+  const started = Date.now();
+  const api = source.capabilities?.articles?.apiSearch ?? source.apiSearch;
+  try {
+    const url = api.url(keyword);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!resp.ok) {
+      return { source: source.name, ok: false, count: 0, reason: `http_${resp.status}`, durationMs: Date.now() - started };
+    }
+    const articles = api.parser(await resp.text());
+    return {
+      source: source.name,
+      ok: articles.length > 0,
+      count: articles.length,
+      reason: articles.length === 0 ? "zero_results" : null,
+      durationMs: Date.now() - started,
+    };
+  } catch (e) {
+    return { source: source.name, ok: false, count: 0, reason: `error:${e.message}`, durationMs: Date.now() - started };
+  }
 }
 
 async function checkSource(source, keywords) {
@@ -114,7 +139,10 @@ async function main() {
 
   const results = [];
   for (const source of sources) {
-    const result = await checkSource(source, keywords);
+    const result =
+      source.accessMethod?.primary === "api"
+        ? await checkApiSource(source, keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh)
+        : await checkSource(source, keywords);
     results.push(result);
     const icon = result.ok ? "✅" : "❌";
     console.log(
