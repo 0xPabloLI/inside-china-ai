@@ -61,6 +61,16 @@ describe("T2: MediaBackground uses @remotion/media", () => {
     const content = readFile("components/MediaBackground.tsx");
     expect(content).toMatch(/effects\??\s*:/);
   });
+
+  it("MediaBackground primary media stays below the dim overlay (#201)", () => {
+    const content = readFile("components/MediaBackground.tsx");
+    // #201 regression (bd8fa2c): a positive zIndex on the primary media lifted
+    // it above the dim overlay, so cover media hit right-rail/subtitle-gap
+    // safe-zone brightness checks. Stacking must remain DOM-order based:
+    // backdrop < primary media < overlay. Text layers (zIndex 10+) live in
+    // the scene components, not here.
+    expect(content).not.toMatch(/zIndex:\s*\d/);
+  });
 });
 
 describe("T2: ShortVideo uses @remotion/media Audio", () => {

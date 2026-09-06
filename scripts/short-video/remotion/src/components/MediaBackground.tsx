@@ -129,9 +129,10 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     inset: 0,
     width: "100%",
     height: "100%",
-    // #156: explicit stacking above the backdrop Video (CanvasImage's canvas
-    // compositing does not follow JSX/DOM order relative to <Video>)
-    zIndex: 1,
+    // No zIndex here: stacking must stay DOM-order based (backdrop < primary
+    // < dim overlay). A positive zIndex lifts the media above the overlay and
+    // safe-zone brightness checks fail (#201). The backdrop-branch primary is
+    // a regular <Img> for the same reason — CanvasImage would paint below <Video>.
     objectFit: media.fit ?? "cover",
     objectPosition: media.cropFocus
       ? `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`
