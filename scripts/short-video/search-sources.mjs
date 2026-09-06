@@ -58,6 +58,12 @@ import {
   dedupByUrl,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
+import {
+  createSearchResultsCache,
+  loadSearchResultsCache,
+  recordSearchResults,
+  saveSearchResultsCache,
+} from "./lib/search-results-cache.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
 import { searchX, searchXhs } from "./lib/bigsong-api.mjs";
 import { searchPool, isPoolEligible } from "./lib/search-pool.mjs";
@@ -386,6 +392,27 @@ export function shouldSkipCdpOnApiFail(source, keyword) {
 }
 
 // Exported for tests/integration drivers (same pattern as shouldSkipCdpOnApiFail)
+/**
+ * Record one source's collected articles into the discovery-side search
+ * cache (#198 Item 6). Write-side only — discovery never READS the cache
+ * (news discovery needs fresh results); the downstream asset-sourcer process
+ * is the consumer, via its existing 24h-TTL getOrSearchResults path.
+ *
+ * @param {object|null} cache - live cache envelope, or null (unscoped mode)
+ * @param {object} opts
+ * @param {string} opts.source - source name (asset-sourcer's cache key half)
+ * @param {string|null} opts.keyword - search keyword; trend mode has none, and
+ *   the cache is keyword-scoped, so null records nothing
+ * @param {Array} opts.articles - collected candidates (registry articleScript
+ *   shape: {title, url, type, ...}) — empty sets record nothing, matching the
+ *   "failure indistinguishable from empty" policy of the cache module
+ * @returns {boolean} true when the cache was modified and needs saving
+ */
+export function recordCollectedArticles(cache, { source, keyword, articles }) {
+  if (!cache || !keyword || !articles || articles.length === 0) return false;
+  return recordSearchResults(cache, { source, keyword, results: articles });
+}
+
 export async function collectFromSource(source, keyword) {
   // #67: Read from capabilities.articles with top-level fallback
   const cap = source.capabilities?.articles;
@@ -669,10 +696,26 @@ async function main() {
   const failedSources = []; // { name, reason } — issue #97 real failure reasons
   const resultsBySource = {}; // For research mode
 
+  // #198 Item 6: in scoped mode, discovery records collected candidates to
+  // the content-local search-cache.json so the asset-sourcer process reuses
+  // them instead of re-opening the same CDP tab per source+keyword.
+  const searchCachePath = contentIdArg
+    ? join(__dirname, "content", contentIdArg, "search-cache.json")
+    : null;
+  const searchCache = searchCachePath ? loadSearchResultsCache(searchCachePath) : null;
+  let searchCacheDirty = false;
+
   for (const source of sources) {
     try {
       const fetchedArticles = await collectFromSource(source, keywordArg);
       const articles = filterRecentTrackedArticles(fetchedArticles, source.tracking);
+      if (recordCollectedArticles(searchCache, {
+        source: source.name,
+        keyword: keywordArg,
+        articles: fetchedArticles,
+      })) {
+        searchCacheDirty = true;
+      }
       allArticles.push(...articles);
       if (isResearchMode) {
         resultsBySource[source.name] = {
@@ -691,6 +734,9 @@ async function main() {
   console.log(`\n📊 Total articles scraped: ${allArticles.length}`);
   if (failedSources.length > 0) {
     console.warn(`⚠️  Failed sources: ${failedSources.map((f) => f.name).join(", ")}`);
+  }
+  if (searchCacheDirty && saveSearchResultsCache(searchCachePath, searchCache)) {
+    console.log("  💾 Search results cached for asset sourcing (24h TTL, #198)");
   }
 
   // #63: URL-level dedup — eliminate cross-source URL redundancy
