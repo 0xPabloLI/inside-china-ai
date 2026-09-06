@@ -974,3 +974,97 @@ describe("weibo routing (#75 Batch 2)", () => {
     expect(isWeiboUrl("https://www.youtube.com/watch?v=abc")).toBe(false);
   });
 });
+
+// ─── #75 Batch 3: xhs via RedNote-MCP (fallback-position adapter) ───
+describe("RedNote-MCP adapter (#75 Batch 3)", () => {
+  it("routes xiaohongshu URLs to the rednote-mcp adapter", () => {
+    const result = selectStrategy("https://www.xiaohongshu.com/explore/65a1b2c3");
+    expect(result.adapter).toBe("rednote-mcp");
+    const short = selectStrategy("https://xhslink.com/AbCdEf");
+    expect(short.adapter).toBe("rednote-mcp");
+  });
+
+  it("pulls the CDN mp4 via get_note_content and downloads with the xhs Referer", async () => {
+    const mcpCalls = [];
+    const downloadCalls = [];
+    const fakeMcp = async (opts) => {
+      mcpCalls.push(opts);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              title: "笔记",
+              videos: ["https://sns-video.xhscdn.com/abc.mp4"],
+              imgs: [],
+            }),
+          },
+        ],
+      };
+    };
+    const fakeDownload = async (url, opts = {}) => {
+      downloadCalls.push({ url, headers: opts.headers });
+      return {
+        status: "downloaded",
+        strategy: "direct-http",
+        sourceUrl: url,
+        finalUrl: url,
+        mimeType: "video/mp4",
+        extension: "mp4",
+        byteLength: 5000,
+        buffer: Buffer.alloc(5000),
+      };
+    };
+    const { downloadRednoteMcp } = await import("../lib/video-downloaders.mjs");
+    const r = await downloadRednoteMcp("https://www.xiaohongshu.com/explore/65a1b2c3", {
+      mcpCaller: fakeMcp,
+      downloader: fakeDownload,
+    });
+    expect(r.status).toBe("downloaded");
+    expect(r.strategy).toBe("rednote-mcp");
+    expect(mcpCalls[0].toolName).toBe("get_note_content");
+    expect(mcpCalls[0].toolArgs.url).toBe("https://www.xiaohongshu.com/explore/65a1b2c3");
+    expect(mcpCalls[0].timeoutMs).toBeGreaterThanOrEqual(90000);
+    expect(downloadCalls[0].url).toBe("https://sns-video.xhscdn.com/abc.mp4");
+    expect(downloadCalls[0].headers.Referer).toContain("xiaohongshu.com");
+  });
+
+  it("fails closed when the note has no video", async () => {
+    const fakeMcp = async () => ({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            title: "纯图文",
+            videos: [],
+            imgs: ["x.jpg"],
+          }),
+        },
+      ],
+    });
+    const { downloadRednoteMcp } = await import("../lib/video-downloaders.mjs");
+    const r = await downloadRednoteMcp("https://www.xiaohongshu.com/explore/xyz", {
+      mcpCaller: fakeMcp,
+      downloader: async () => {
+        throw new Error("should not download");
+      },
+    });
+    expect(r.status).toBe("failed");
+    expect(r.reason).toMatch(/no video/i);
+  });
+
+  it("fails closed when the MCP call errors or times out", async () => {
+    const { downloadRednoteMcp } = await import("../lib/video-downloaders.mjs");
+    const r = await downloadRednoteMcp("https://www.xiaohongshu.com/explore/xyz", {
+      mcpCaller: async () => {
+        throw new Error("MCP timeout");
+      },
+      downloader: async () => {
+        throw new Error("should not download");
+      },
+    });
+    expect(r.status).toBe("failed");
+    expect(r.reason).toContain("MCP timeout");
+    expect(r.retryable).toBe(true);
+  });
+});

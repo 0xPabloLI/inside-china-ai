@@ -16,6 +16,7 @@
 
 import { canonicalizeUrl } from "./url-normalizer.mjs";
 import { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } from "./cdp-client.mjs";
+import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
 import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
@@ -28,6 +29,7 @@ export const ADAPTER_IDS = {
   YTDLP: "ytdlp",
   COBALT: "cobalt",
   DOUYIN_CDP: "douyin-cdp",
+  REDNOTE_MCP: "rednote-mcp",
 };
 
 /** Max file size: 20MB (matches existing yt-dlp --max-filesize 20M) */
@@ -117,6 +119,9 @@ const BILIBILI_HOSTS = ["bilibili.com", "b23.tv", "m.bilibili.com"];
  * desktop and mobile URLs with its built-in visitor-cookie flow. */
 const WEIBO_HOSTS = ["weibo.com", "weibo.cn", "m.weibo.cn"];
 
+/** Xiaohongshu note hosts (#75 Batch 3) — explore pages and share shortlinks. */
+const XHS_HOSTS = ["xiaohongshu.com", "xhslink.com"];
+
 /** 抖音/iesdouyin hostname patterns (download needs no login — share page). */
 const DOUYIN_HOSTS = ["douyin.com", "www.douyin.com", "iesdouyin.com", "www.iesdouyin.com"];
 
@@ -182,6 +187,15 @@ function isYoutubeUrl(canonicalUrl) {
  * @param {string} canonicalUrl
  * @returns {boolean}
  */
+export function isXhsUrl(canonicalUrl) {
+  try {
+    const host = new URL(canonicalUrl).hostname;
+    return XHS_HOSTS.some((h) => host === h || host.endsWith("." + h));
+  } catch {
+    return false;
+  }
+}
+
 export function isWeiboUrl(canonicalUrl) {
   try {
     const host = new URL(canonicalUrl).hostname;
@@ -261,6 +275,12 @@ export function selectStrategy(url, options = {}) {
   // 2. YouTube / B站
   if (isYoutubeUrl(canonical) || isBilibiliUrl(canonical) || isWeiboUrl(canonical)) {
     return { adapter: ADAPTER_IDS.YTDLP, canonicalUrl: canonical };
+  }
+  // #75 Batch 3: xhs notes have no yt-dlp/cobalt support — the RedNote-MCP
+  // adapter resolves the note's CDN mp4 (see downloadRednoteMcp). It is
+  // fallback-position by cost: every call spawns a fresh Chromium (>30s).
+  if (isXhsUrl(canonical)) {
+    return { adapter: ADAPTER_IDS.REDNOTE_MCP, canonicalUrl: canonical };
   }
 
   // 2.5 抖音/iesdouyin → iesdouyin share page via CDP (no login needed for download)
@@ -984,6 +1004,86 @@ export async function downloadDouyinCdp(url, opts = {}) {
  * @param {CobaltAdapter} [opts.cobaltAdapter] - pre-configured Cobalt adapter
  * @returns {Promise<DownloadResult>}
  */
+/**
+ * Download an xiaohongshu note's video via RedNote-MCP (#75 Batch 3).
+ *
+ * Chain: `rednote-mcp get_note_content` (Playwright session → note detail
+ * page) → xhscdn mp4 direct link → direct-http with the xhs Referer. The
+ * MCP server spawns a fresh Chromium per call (>30s), so this adapter is
+ * fallback-position: it is only selected for xhs URLs, which no other
+ * adapter supports.
+ *
+ * Fail-closed: no video in the note, MCP error/timeout, or a failed CDN
+ * download all return failed results — never a partial buffer.
+ *
+ * @param {string} url - xiaohongshu note URL
+ * @param {object} [opts]
+ * @param {Function} [opts.mcpCaller] - injectable callMcpTool (tests)
+ * @param {Function} [opts.downloader] - injectable downloadDirectHttp (tests)
+ * @returns {Promise<DownloadResult>}
+ */
+export async function downloadRednoteMcp(url, opts = {}) {
+  const mcpCaller = opts.mcpCaller || callMcpTool;
+  const downloader = opts.downloader || downloadDirectHttp;
+
+  let note;
+  try {
+    const mcpResult = await mcpCaller({
+      command: "rednote-mcp",
+      args: ["--stdio"],
+      toolName: "get_note_content",
+      toolArgs: { url },
+      timeoutMs: 90000, // fresh Chromium per call — the default 30s is too tight
+    });
+    const parsed = parseMcpResult(mcpResult);
+    note = parsed[0];
+  } catch (e) {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.REDNOTE_MCP,
+      sourceUrl: url,
+      reason: `rednote-mcp failed: ${e.message}`,
+      retryable: true,
+    });
+  }
+
+  const videoUrl = Array.isArray(note?.videos) ? note.videos[0] : null;
+  if (!videoUrl) {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.REDNOTE_MCP,
+      sourceUrl: url,
+      reason: "note has no video",
+      retryable: false,
+    });
+  }
+
+  const dl = await downloader(videoUrl, {
+    headers: { Referer: "https://www.xiaohongshu.com/" },
+  });
+  if (dl.status !== "downloaded") {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.REDNOTE_MCP,
+      sourceUrl: url,
+      finalUrl: videoUrl,
+      reason: dl.reason ?? "cdn download failed",
+      retryable: true,
+    });
+  }
+
+  return makeResult({
+    status: "downloaded",
+    strategy: ADAPTER_IDS.REDNOTE_MCP,
+    sourceUrl: url,
+    finalUrl: videoUrl,
+    mimeType: dl.mimeType ?? "video/mp4",
+    extension: dl.extension ?? "mp4",
+    byteLength: dl.byteLength,
+    buffer: dl.buffer,
+  });
+}
+
 export async function downloadVideo(url, opts = {}) {
   const fetchFn = opts.fetchFn || globalThis.fetch;
   const cobalt = opts.cobaltAdapter || new CobaltAdapter();
@@ -1014,6 +1114,9 @@ export async function downloadVideo(url, opts = {}) {
 
     case ADAPTER_IDS.DOUYIN_CDP:
       return downloadDouyinCdp(canonicalUrl, opts);
+
+    case ADAPTER_IDS.REDNOTE_MCP:
+      return downloadRednoteMcp(canonicalUrl, opts);
 
     case ADAPTER_IDS.COBALT:
       return cobalt.download(canonicalUrl, { fetchFn });
