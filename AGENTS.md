@@ -41,6 +41,7 @@
 - Supabase schema changes live in `supabase/migrations/`; confirm before destructive or irreversible database operations.
 - Consequential external actions, including publishing, messaging, deployment and remote Issue changes, require user authorization for that action.
 - The content-pipeline HITL in `docs/content-pipeline.md` is mandatory. Do not publish the article or TikTok package before explicit approval.
+- **Remote GPU 优先级**：必须先试 MLX 本地 → MPS 本地 → Kaggle 免费 T4/P100 16GB（30h/周），不够才 Modal T4（$30/月包干）→ L4 → A100。绝不在未试 MLX/MPS/Kaggle 的情况下直接用 Modal A100。详见 `docs/research/cloud-gpu-options.md` §0 硬件路由优先级。
 
 ## Engineering References
 

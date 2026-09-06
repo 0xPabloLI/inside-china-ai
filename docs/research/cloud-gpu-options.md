@@ -1,8 +1,51 @@
-# 云 GPU 方案调研：免费额度 + 付费租用
+# 计算硬件路由：MLX → MPS → Cloud GPU
 
-> **调研日期**：2026-08-13（2026-08-15 更新：Lightning AI 免费额度性质修正）
-> **目标**：在 M2 Pro 32GB + GTX 1080 8GB 无法运行高质量数字人模型的情况下，寻找成本最低的 GPU 方案
-> **核心结论**：Kaggle（30h/周，周期性刷新）是主力免费方案；Lightning AI 免费额度是一次性的（用完就没了），作为备选；AutoDL 付费是最低成本方案
+> **调研日期**：2026-08-13（2026-09-06 更新：加入 MLX 本地优先级 + TTS 硬件路由）
+> **目标**：为 M2 Pro 32GB 上的 AI 推理（TTS、数字人、视频生成）选择成本最低的硬件路径
+> **核心结论**：**MLX 本地优先**（免费 + 最快）→ MPS 本地备选 → Kaggle 免费 GPU → Modal/AutoDL 付费。绝不在未试 MLX/MPS/Kaggle 的情况下直接用付费云 GPU。
+
+---
+
+## 0. 硬件路由优先级（决策树）
+
+```
+模型需要推理？
+├─ 1. MLX 原生？ → 本地 MLX（免费，最快）✅ 首选
+│   ├─ TTS: CosyVoice3-MLX (RTF 0.64x), F5-TTS-MLX (RTF 1.78x)
+│   ├─ LLM: mlx-lm 社区模型
+│   └─ VLM: mlx-vlm (Qwen3-VL 等)
+├─ 2. MPS 可用？ → 本地 MPS（免费，可能慢）
+│   ├─ TTS: Qwen3-TTS (RTF 2x), IndexTTS (RTF 4x), Spark-TTS (RTF 10x)
+│   └─ 数字人: Hallo2 256px, LatentSync 1.5
+├─ 3. Kaggle 免费 GPU？ → T4/P100 16GB（30h/周免费）
+│   ├─ 数字人: EchoMimicV3, LatentSync 1.5
+│   └─ Wan2.1: InfiniteTalk (FSDP 双 T4)
+├─ 4. Modal/AutoDL 付费？ → 按需租用
+│   ├─ Modal T4 ($30/月包干) → L4 → A100
+│   └─ AutoDL RTX 4090 (¥1.88/h) → A800 (¥4.98/h)
+└─ 5. 不可跑（需 CUDA 12+ / >80GB VRAM）
+    └─ AutoDL A800-80GB 或 Colab Pro+ A100
+```
+
+### TTS 硬件路由（2026-09-06 实测）
+
+| 引擎 | 最优硬件 | RTF | 成本 | 许可 | 来源 |
+|------|---------|-----|------|------|------|
+| **CosyVoice3-MLX** | **MLX 本地** | **0.64-0.87x** | 免费 | Apache-2.0 | `voice-cloning-solutions-m2-pro.md` §8.8 |
+| F5-TTS-MLX | MLX 本地 | 1.78x | 免费 | CC-BY-NC | 管线默认引擎 |
+| Qwen3-TTS | MPS 本地 | ~2x | 免费 | Apache-2.0 | MLX 版待测 |
+| CosyVoice3 (PyTorch) | Modal A100 | ~1x | $2.10/h | Apache-2.0 | 已不如 MLX 本地版 |
+| VoxCPM2 | Modal A100 | 0.33x | $2.10/h | Apache-2.0 | MLX 版不兼容 |
+
+> **规则**：TTS 优先 MLX 本地。仅当模型无 MLX 移植且 MPS 不可用/太慢时，才走 Kaggle → Modal。
+> **MLX 模型发现**：搜 `mlx-community` HuggingFace（见 `model-sources-reference.md` §1.2）。`mlx-audio` / `mlx-audio-plus` 库支持 cosyvoice3/qwen3/voxcpm/indextts/spark/bark/kokoro/chatterbox 等模型。
+
+### 交叉引用
+
+- **模型搜索来源**：`docs/research/model-sources-reference.md` — GitHub/HuggingFace/ModelScope 搜索方法，MLX 模型搜 `mlx-community`
+- **TTS 引擎选型**：`docs/research/voice-cloning-solutions-m2-pro.md` §8.8 — 8 引擎对比 + MLX 审计表
+- **数字人模型**：`docs/research/digital-human-solutions-m2-pro.md` — M2 Pro 可跑模型清单
+- **NPU 方案**：`docs/research/atomgit-ai-platform-research.md` — 昇腾 910B NPU（非 GPU，CUDA 模型不可跑）
 
 ---
 
@@ -10,11 +53,12 @@
 
 | 设备               | GPU                | 显存          | CUDA                    | 能跑模型                                        |
 | ------------------ | ------------------ | ------------- | ----------------------- | ----------------------------------------------- |
-| MacBook Pro M2 Pro | Apple M2 Pro (MPS) | 32GB 统一内存 | ❌ 无 CUDA              | Hallo2 (256px, MIT), LatentSync 1.5 (256px)     |
+| MacBook Pro M2 Pro | Apple M2 Pro (**MLX + MPS**) | 32GB 统一内存 | ❌ 无 CUDA              | **MLX**: F5-TTS, CosyVoice3, Qwen3-TTS, mlx-lm, mlx-vlm; **MPS**: Hallo2 256px, LatentSync 1.5 |
 | Windows PC         | NVIDIA GTX 1080    | 8GB GDDR5X    | ✅ CUDA 11.x (算力 6.1) | LatentSync 1.5, HeyGem Lite, SadTalker, Wav2Lip |
 
+> **M2 Pro MLX 是本地最优路径**：MLX 原生加速，TTS RTF 0.64-1.78x（比实时快或接近），LLM 推理也首选 mlx-lm。详见 §0 硬件路由优先级。
 > GTX 1080 是 2016 年 Pascal 架构，支持 CUDA 11.x 但不支持 CUDA 12.x。大多数数字人模型要求 CUDA 12.1+，需要检查兼容性。
-> **两台设备都无法运行高质量模型**（Sonic 12GB, LatentSync 1.6 18GB, Hallo2 20GB+ 等）。
+> **两台设备都无法运行高质量数字人模型**（Sonic 12GB, LatentSync 1.6 18GB, Hallo2 20GB+ 等）——这些走 §2 Kaggle 或 §3 付费云 GPU。
 
 ---
 
