@@ -1599,19 +1599,23 @@ export const GENERAL_SEARCH_SOURCES = [
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
     articleScript: `
       var results = [];
-      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
+      // 2026-09 Google news vertical DOM: result blocks are div[data-ved][data-hveid]
+      // with div[role="heading"] headlines — legacy div.g / h3 markup is gone (#140 P5).
+      document.querySelectorAll('div[data-ved][data-hveid]').forEach(function(el) {
+        var heading = el.querySelector('div[role="heading"]');
         var link = el.querySelector('a[href]');
-        var title = el.querySelector('h3, .LC20lb');
-        var img = el.querySelector('img[src]');
+        if (!heading || !link) return;
+        var url = link.href;
+        if (!url || url.indexOf('google.') !== -1) return;
+        for (var i = 0; i < results.length; i++) { if (results[i].url === url) return; }
         var snippet = el.querySelector('.VwiC3b, .IsZvec, [data-sncf]');
-        if (link && title) {
-          results.push({
-            title: title.textContent.trim(),
-            url: link.href,
-            imageUrl: img ? img.src : null,
-            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
-          });
-        }
+        var img = el.querySelector('img[src]');
+        results.push({
+          title: heading.textContent.trim(),
+          url: url,
+          imageUrl: img ? img.src : null,
+          snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
+        });
       });
       return results.slice(0, 20);
     `,
@@ -2799,19 +2803,19 @@ const CDP_MEDIA_CAPABILITIES = {
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
     imageScript: `
       var results = [];
-      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
+      // 2026-09 Google news vertical DOM (#140 P5): heading = div[role="heading"].
+      document.querySelectorAll('div[data-ved][data-hveid]').forEach(function(el) {
+        var heading = el.querySelector('div[role="heading"]');
         var link = el.querySelector('a[href]');
-        var title = el.querySelector('h3, .LC20lb');
+        if (!heading || !link || link.href.indexOf('google.') !== -1) return;
+        for (var i = 0; i < results.length; i++) { if (results[i].sourceUrl === link.href) return; }
+        var titleText = heading.textContent.trim();
         var img = el.querySelector('img[src]');
-        var snippet = el.querySelector('.VwiC3b, .IsZvec');
-        var titleText = title ? title.textContent.trim() : '';
-        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
-        if (link && titleText) {
-          if (img) {
-            results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
-          } else {
-            results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
-          }
+        // Thumbnails are base64 data URIs now — only http images are downloadable
+        if (img && img.src && img.src.indexOf('http') === 0) {
+          results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: '' });
+        } else {
+          results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: '' });
         }
       });
       return results;
