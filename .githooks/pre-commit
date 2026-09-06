@@ -113,6 +113,24 @@ fi
 
 echo -e "${GREEN}[pre-commit] All checks passed.${NC}"
 
+# --- Large file guard: warn >=10MB, block >=100MB (git/GitHub hard limit) ---
+_SIZE_SCAN=$(git diff --cached --name-only --diff-filter=ACM | while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  bytes=$(wc -c < "$f" | tr -d ' ')
+  if [ "$bytes" -ge 104857600 ]; then
+    echo "BLOCK ${f} ($((bytes / 1048576))MB)"
+  elif [ "$bytes" -ge 10485760 ]; then
+    echo "WARN ${f} ($((bytes / 1048576))MB)"
+  fi
+done)
+if echo "$_SIZE_SCAN" | grep -q '^BLOCK'; then
+  echo "$_SIZE_SCAN" | grep '^BLOCK' | while IFS= read -r line; do echo "  $line"; done
+  echo -e "${RED}[pre-commit] BLOCKED: files >= 100MB cannot be committed (git/GitHub limit).${NC}"
+  echo -e "${YELLOW}Large media belongs in external storage, not git.${NC}"
+  exit 1
+fi
+echo "$_SIZE_SCAN" | grep '^WARN' | while IFS= read -r line; do echo -e "${YELLOW}[pre-commit] large file: $line — confirm intentional${NC}"; done
+
 # --- Method 3: Doc hierarchy lint (only when docs/ files are staged) ---
 DOCS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/' || true)
 if [ -n "$DOCS_STAGED" ]; then
