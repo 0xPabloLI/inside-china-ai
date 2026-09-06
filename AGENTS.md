@@ -42,6 +42,7 @@
 - Consequential external actions, including publishing, messaging, deployment and remote Issue changes, require user authorization for that action.
 - The content-pipeline HITL in `docs/content-pipeline.md` is mandatory. Do not publish the article or TikTok package before explicit approval.
 - **Remote GPU 优先级**：必须先试 MLX 本地 → MPS 本地 → Kaggle 免费 T4/P100 16GB（30h/周），不够才 Modal T4（$30/月包干）→ L4 → A100。绝不在未试 MLX/MPS/Kaggle 的情况下直接用 Modal A100。详见 `docs/research/cloud-gpu-options.md` §0 硬件路由优先级。
+- **Chrome 进程与 profile 守卫**：禁止对 Chrome 用 `pkill -9`/`killall`（unclean kill 损坏 profile 数据）；禁止写入或删除 `~/Library/Application Support/Google/Chrome/` 下任何内容。CDP 连接故障的恢复阶梯：先重启仓库自有 CDP 代理（`skills/web-access/scripts/cdp-proxy.mjs`）→ 仍失败由用户优雅退出并重启 Chrome（操作细则见 `docs/selector-auto-healing.md`）。Agent 不得代替用户退出或杀 Chrome。
 
 ## Engineering References
 
