@@ -547,6 +547,139 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 ---
 
+### Horizon — AI 新闻雷达管线（机制参考，不安装）📖
+
+- **分类**：趋势发现
+- **费用**：免费开源（MIT）；AI 打分/去重按条目消耗 LLM token
+- **仓库**：`https://github.com/Thysrael/Horizon`（9,260 stars，2026-09-06 当天仍有 push，活跃未归档，Python）
+- **做什么**：RSS/HN/Reddit/Telegram/X/GitHub/OpenBB → 抓取 → 去重 → AI 打分过滤 → 背景补充 → 中英双语 Markdown 日报，分发到 Pages/邮件/webhook/MCP
+- **对本项目有用的机制**（调研深挖结论，源码级）：
+  - **双层去重**：URL 归一化 key（`src/scrapers` 上层 orchestrator）+ LLM"同事件判定"prompt（`src/ai/prompting/deduplication.py`，规则：同一现实事件才算重复，"发布"vs"越狱"算不同，不确定时保留，fail-open）——可直接移植到 search-sources.mjs → Agent 交叉比对环节
+  - **profile 阈值打分**：每条 0-10 分，rubric 见 `docs/scoring.md`（9-10 范式级/7-8 重要/5-6 增量/0-2 噪音），阈值按 profile 配置——可替代我们"Agent 当场目测"的筛选
+  - **Reddit 三级 fallback**：old.reddit HTML → JSON listing（Chrome UA）→ RSS，`RedditBlockedError` 专门处理
+  - **Telegram 公开频道抓取**：`t.me/s/` web 预览页解析，免 token——潜在免费新增源（AI 新闻 Telegram 频道多）
+  - X 抓取双模：Apify actor（$49/月起）或 Playwright + 多账号 cookie 轮询（风控风险）
+- **何时用**：不安装、不引入定时任务（用户决策 2026-09-06）；改进 trends 去重/打分时读上述源码文件
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：📖 机制参考（去重 prompt + 评分 rubric 待吸收进选题流程）
+
+### Agent-Reach — 多平台读取路由 CLI ⭐⭐
+
+- **分类**：联网/抓取
+- **费用**：免费开源（MIT）
+- **仓库**：`https://github.com/Panniantong/Agent-Reach`（78,294 stars，push 2026-09-01，Python）
+- **做什么**：13+ 平台的"免 API 费读取"路由层——每平台一个 channel 模块，底层直接调 yt-dlp/bili-cli/Jina Reader/gh 等，不包一层
+- **独特机制**：首选+备选多后端路由（某平台接入被封自动切换，如 yt-dlp 被 B 站风控封死→切 bili-cli）+ `agent-reach doctor` 自检各通道健康度
+- **为什么对本项目有用**：多后端 fallback 路由思路可借鉴到中文平台抓取（风控失效自动降级）；本身与 last30days/web-access 重叠，不安装
+- **红旗**：安装方式是"Agent 拉远程 install.md 并执行其中指令"（prompt 注入式供应链）；依赖平台登录态，ToS 风险
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：📖 机制参考（fallback 路由 + doctor 自检思路）
+
+### MediaCrawler — 中文多平台爬虫框架 ❌
+
+- **分类**：联网/抓取
+- **费用**：免费
+- **仓库**：`https://github.com/NanmiCoder/MediaCrawler`（64,492 stars，push 2026-08-14，Python）
+- **许可**：**非标准许可证（NON-COMMERCIAL LEARNING LICENSE 1.1）——仅限学习，禁商用，禁大规模爬取**
+- **做什么**：小红书/抖音/快手/B站/微博/贴吧/知乎的关键词搜索、帖子详情、二级评论、创作者主页采集
+- **机制**：Playwright CDP 模式复用真实 Chrome 登录态 + 在登录态页面内执行 JS 拿签名参数（不逆向算法）；扫码登录
+- **为什么对本项目有用**：❌ 不引入——许可证禁商用（内容生产属灰色地带）、README 自挂爬虫违法案例合集；机制上与我们 search-sources.mjs 的 CDP 登录态路线等价
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：❌ 不推荐（许可证 + 合规风险；机制与自建等价）
+
+### huashu-design — HTML 设计物生成（原型/信息图/演示）⭐⭐
+
+- **分类**：其他（设计产出）
+- **费用**：免费开源（MIT，2026-05 起商用免费）
+- **仓库**：`https://github.com/alchaincyf/huashu-design`（23,906 stars，push 2026-08-25，作者"花叔"）
+- **做什么**：单文件 HTML 交付物——交互原型（Playwright 自动点击验证）、HTML deck、信息图；核心资产是 60 种纯 CSS 风格库 + 设计哲学 prompt 库，零 API、零生图
+- **独特机制**：`html2pptx.js` 读 DOM computedStyle 逐元素翻译成 PowerPoint 真文本框（导出可编辑 PPTX）；自研动画引擎导出 MP4/GIF
+- **为什么对本项目有用**：当前视频管线非刚需；未来做其他频道（公众号图文、演示、信息图）时可用。与已收录的 guizang-ppt-skill 同作者生态
+- **何时不用**：视频/Remotion 相关工作
+- **安全审计**：未审计（未安装）
+- **调查日期**：2026-09-06
+- **状态**：📋 待评估（启用图文类频道时再评估）
+
+### guizang-social-card-skill — 小红书图文卡片/公众号封面生成 ⭐⭐
+
+- **分类**：其他（图文设计）
+- **费用**：免费开源
+- **仓库**：`https://github.com/op7418/guizang-social-card-skill`（6,862 stars，push 2026-07-01，作者"歸藏"）
+- **许可**：**AGPL-3.0**——原样使用做内容生产无碍；改编进闭源管线会触发开源义务
+- **做什么**：单文件 HTML/CSS 渲染 → Playwright 截图 PNG。2 套视觉系统、28 个版式、3 个画板（小红书 1080×1440、公众号 2100×900+1080×1080 封面对）；附 `validate-social-deck.mjs` 用 Playwright 做 DOM 测量校验溢出/字号
+- **为什么对本项目有用**：若启用小红书/公众号频道，封面与图文卡片可用它生成（HTML 排版而非 AI 生图，版权干净）；与 Remotion 视频管线互补不重叠
+- **何时不用**：当前 TikTok 视频管线
+- **安全审计**：未审计（未安装）
+- **调查日期**：2026-09-06
+- **状态**：📋 待评估（启用小红书/公众号频道时评估；注意 AGPL）
+
+### Auto-Redbook-Skills — 小红书文案+配图+发布 ⚠️
+
+- **分类**：其他（小红书管线）
+- **费用**：免费
+- **仓库**：`https://github.com/comeonzhj/Auto-Redbook-Skills`（2,251 stars，push 2026-08-13，Python + Node.js）
+- **许可**：**无 license 文件**（默认版权保留，不可合规复用代码）
+- **做什么**：三段式——agent 写笔记文案 → Playwright 渲 HTML 模板出 1080×1440 卡片（8 主题 + 自动分页）→ 纯 HTTP 发布
+- **独特机制**：发布不走浏览器自动化，而是 `vendor/` 内置逆向的小红书 Creator 签名 JS 链路 + 手工导出的 `XHS_CREATOR_COOKIE`，支持 `--dry-run`、默认仅自己可见
+- **红旗**：README 顶部自挂小红书官方 2026-03《打击 AI 托管运营账号治理公告》——使用方式正处平台打击范围；逆向签名随时失效；账号 Cookie 交脚本有风险
+- **为什么对本项目有用**：❌ 不采用发布部分；卡片渲染思路与 huashu-design 同类
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：📋 待评估（2026-09-06 用户决策：接受平台治理风险，先安全审计 + 小号 dry-run 试点，主账号不触达；每次真实发布仍走 HITL 硬门。见 issue #206）
+
+### social-auto-upload — 多平台自动发布 ⚠️
+
+- **分类**：其他（发布自动化）
+- **费用**：免费开源（MIT）
+- **仓库**：`https://github.com/dreammis/social-auto-upload`（14,793 stars，push 2026-09-02，Python）
+- **做什么**：Playwright 复放各平台创作者中心上传页，覆盖抖音/B站/小红书/快手/视频号/TikTok/YouTube 等，支持定时发布；已 CLI 化（`sau`）并带 Claude Code/Codex skills
+- **红旗**：作者自认方案可被平台检测（在"降低检测风险"路线上迭代）；需持各平台真实账号 cookie；2026 年初疏于维护后正密集重构、接口不稳；TikTok/YouTube 有官方 Content Posting API 却仍走浏览器模拟
+- **为什么对本项目有用**：❌ 不采用——与 content-pipeline 的发布 HITL 硬门直接冲突
+- **何时用**：不采用。若未来扩分发平台，优先研究官方 API 路线（如 TikTok Content Posting API）
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：⚠️ 不采用（HITL 冲突 + 封号风险）
+
+### Generative-Media-Skills — 云端生成 API 配方集 ❌
+
+- **分类**：AI 媒体
+- **费用**：**付费**（全部委托 muapi.ai 中转，按量计费）
+- **仓库**：`https://github.com/SamurAIGPT/Generative-Media-Skills`（4,224 stars，push 2026-08-27，Shell/MD）
+- **做什么**：约 50 个 SKILL.md 配方（Cinema Director、Nano-Banana、Seedance 视频等），编排 muapi-cli 调用 MuAPI 聚合 API（Midjourney v7/Flux/Kling/Veo 等云端模型）
+- **为什么对本项目有用**：❌ 不引入——本质是 MuAPI 的营销渠道（README 带 utm 追踪、关联仓库互链）；生成素材自动上传第三方 CDN；与本地 imagegen/speech + Remotion 管线重叠且引入付费依赖
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：❌ 不推荐（付费中转依赖 + 营销性质）
+
+### linco-bridge — Agent 远程入口桥接 ❌
+
+- **分类**：其他（远程接入）
+- **费用**：免费开源（MIT，桥接层）
+- **仓库**：`https://github.com/lincotalk/linco-bridge`（90 stars，Alpha 阶段，push 2026-09-04，JavaScript）
+- **做什么**：本机 connector 读取 Codex/Claude Code 会话文件与权限请求 → 认证 WebSocket 中继 → 手机 App/H5/微信小程序远程查看、审批、传文件
+- **红旗**：官方云频道非端到端加密（README 自声明），会话与文件过第三方服务器——对本项目含未发布稿件与 Supabase 凭证的工作目录不可接受；App 与官方云闭源；90 stars 极早期，bus factor 低
+- **为什么对本项目有用**：❌ 无场景（本机跑 agent，无远程值守需求）
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：❌ 不推荐（信任面 + 成熟度）
+
+### nuwa-skill — 账号文风/心智模型提炼 ⭐⭐⭐
+
+- **分类**：其他（内容方法论）
+- **费用**：免费开源（MIT）
+- **仓库**：`https://github.com/alchaincyf/nuwa-skill`（32,107 stars，push 2026-08-25，作者 AI 博主"AJ 胡钦"）
+- **做什么**：纯提示词四步管线：六路并行采集语料（著作/播客/社媒/批评者/决策/时间线）→ 三重验证提炼（跨 2+ 领域出现、有预测力、有排他性）→ 生成 SKILL.md（心智模型 + 决策启发式 + 表达 DNA + 反模式）→ 质量验证（答过的题测一致性，没答过的题测"适度不确定"）。零 API key，产出本地 SKILL.md
+- **为什么对本项目有用**：⭐ 理念已采纳——对本账号**已发布**的文章与视频脚本跑同构提炼，产出账号文风档案进 brand-system 体系，解决"每次产出风格漂移"。与外部工具无依赖关系
+- **何时不用**：语料不足时（新账号初期产出太少，提炼会过拟合）
+- **安全审计**：未审计（不安装本体；方法论移植）
+- **调查日期**：2026-09-06
+- **状态**：📋 待评估（理念采纳，落地为自有文风档案文档）
+
+---
+
 ## 评估流程
 
 > **强制规则**：任何工具在安装/集成前必须走完以下评估流程。未通过安全审计的工具不得安装。
