@@ -113,6 +113,10 @@ const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "m.youtube.com"];
 /** B站 hostname patterns. */
 const BILIBILI_HOSTS = ["bilibili.com", "b23.tv", "m.bilibili.com"];
 
+/** Weibo status hosts (#75 Batch 2) — yt-dlp's weibo extractor handles both
+ * desktop and mobile URLs with its built-in visitor-cookie flow. */
+const WEIBO_HOSTS = ["weibo.com", "weibo.cn", "m.weibo.cn"];
+
 /** 抖音/iesdouyin hostname patterns (download needs no login — share page). */
 const DOUYIN_HOSTS = ["douyin.com", "www.douyin.com", "iesdouyin.com", "www.iesdouyin.com"];
 
@@ -178,6 +182,15 @@ function isYoutubeUrl(canonicalUrl) {
  * @param {string} canonicalUrl
  * @returns {boolean}
  */
+export function isWeiboUrl(canonicalUrl) {
+  try {
+    const host = new URL(canonicalUrl).hostname;
+    return WEIBO_HOSTS.some((h) => host === h || host.endsWith("." + h));
+  } catch {
+    return false;
+  }
+}
+
 function isBilibiliUrl(canonicalUrl) {
   try {
     const host = new URL(canonicalUrl).hostname.toLowerCase();
@@ -246,7 +259,7 @@ export function selectStrategy(url, options = {}) {
   }
 
   // 2. YouTube / B站
-  if (isYoutubeUrl(canonical) || isBilibiliUrl(canonical)) {
+  if (isYoutubeUrl(canonical) || isBilibiliUrl(canonical) || isWeiboUrl(canonical)) {
     return { adapter: ADAPTER_IDS.YTDLP, canonicalUrl: canonical };
   }
 
@@ -363,9 +376,70 @@ export async function downloadDirectHttp(url, opts = {}) {
  * @param {string} url - YouTube/B站 video URL
  * @returns {DownloadResult}
  */
+/**
+ * Format a raw Cookie header string into yt-dlp Netscape cookie-file lines
+ * covering the weibo domains (#75 Batch 2). HttpOnly cookies never reach
+ * document.cookie, so only what a browser session exposes can be shared.
+ *
+ * @param {string} cookieStr - raw "k=v; k2=v2" cookie header value
+ * @returns {string} Netscape cookie file content
+ */
+export function weiboCookieNetscape(cookieStr) {
+  const lines = ["# Netscape HTTP Cookie File"];
+  for (const pair of (cookieStr ?? "").split(";")) {
+    const idx = pair.indexOf("=");
+    if (idx <= 0) continue;
+    const name = pair.slice(0, idx).trim();
+    const value = pair.slice(idx + 1).trim();
+    if (!name || !value) continue;
+    for (const domain of ["weibo.com", ".weibo.com", "weibo.cn", ".weibo.cn"]) {
+      // include-subdomains flag must match the leading dot, or python's
+      // cookiejar asserts on load (domain_specified == initial_dot)
+      const includeSub = domain.startsWith(".");
+      lines.push([domain, includeSub ? "TRUE" : "FALSE", "/", "TRUE", "0", name, value].join("\t"));
+    }
+  }
+  return lines.join("\n") + "\n";
+}
+
+/**
+ * Compose the yt-dlp argv string for one download (#75 Batch 2).
+ *
+ * Weibo-specific: `--playlist-items 1` pins mix_media statuses (one post,
+ * several videos) to the MAIN video — the pipeline wants one clip per
+ * candidate, not a playlist; and an optional `cookieFile` (written from the
+ * `WEIBO_COOKIE` env, see weiboCookieNetscape) guards against the
+ * visitor-cookie system changing again (the 2025 403 outage class).
+ * yt-dlp rejects Cookie headers outright, so the file is the only channel.
+ * Non-weibo URLs are byte-identical to the pre-#75 command.
+ *
+ * @param {string} url
+ * @param {{tmpPath: string, cookieFile?: string}} opts
+ * @returns {string} yt-dlp command string
+ */
+export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
+  const isWeibo = isWeiboUrl(url);
+  const parts = [
+    "yt-dlp",
+    "--cookies-from-browser firefox",
+    '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
+    "--max-filesize 20M",
+    '--download-sections "*0:00-0:08"',
+  ];
+  if (isWeibo) {
+    parts.push("--playlist-items 1");
+    if (cookieFile) {
+      parts.push(`--cookies "${cookieFile}"`);
+    }
+  }
+  parts.push(`-o "${tmpPath}"`, `"${url}"`);
+  return parts.join(" ");
+}
+
 export function downloadYtdlpAdapter(url) {
-  const source = isYoutubeUrl(url) ? "youtube" : "bilibili";
+  const source = isYoutubeUrl(url) ? "youtube" : isWeiboUrl(url) ? "weibo" : "bilibili";
   const tmpPath = join(tmpdir(), `vdl-ytdlp-${Date.now()}.mp4`);
+  const cookieFile = join(tmpdir(), `vdl-ytdlp-cookies-${Date.now()}.txt`);
 
   // Ensure dir exists
   const dir = dirname(tmpPath);
@@ -373,15 +447,11 @@ export function downloadYtdlpAdapter(url) {
     mkdirSync(dir, { recursive: true });
   }
 
-  const cmd = [
-    "yt-dlp",
-    "--cookies-from-browser firefox",
-    '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
-    "--max-filesize 20M",
-    '--download-sections "*0:00-0:08"',
-    `-o "${tmpPath}"`,
-    `"${url}"`,
-  ].join(" ");
+  let cmd = buildYtdlpCommand(url, { tmpPath });
+  if (isWeiboUrl(url) && process.env.WEIBO_COOKIE) {
+    writeFileSync(cookieFile, weiboCookieNetscape(process.env.WEIBO_COOKIE), "utf8");
+    cmd = buildYtdlpCommand(url, { tmpPath, cookieFile });
+  }
 
   try {
     execSync(cmd, { encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
@@ -398,9 +468,12 @@ export function downloadYtdlpAdapter(url) {
 
     const buffer = readFileSync(tmpPath);
 
-    // Cleanup temp file
+    // Cleanup temp files
     try {
       unlinkSync(tmpPath);
+    } catch {}
+    try {
+      unlinkSync(cookieFile);
     } catch {}
 
     if (buffer.length < MIN_FILE_BYTES) {
@@ -435,9 +508,12 @@ export function downloadYtdlpAdapter(url) {
       buffer,
     });
   } catch (e) {
-    // Cleanup temp file on error
+    // Cleanup temp files on error
     try {
       if (existsSync(tmpPath)) unlinkSync(tmpPath);
+    } catch {}
+    try {
+      if (existsSync(cookieFile)) unlinkSync(cookieFile);
     } catch {}
 
     const stderr = e.stderr?.toString()?.substring(0, 200) ?? "";

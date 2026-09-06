@@ -8,6 +8,9 @@ import {
   extractDouyinVideoId,
   downloadVideo,
   CobaltAdapter,
+  buildYtdlpCommand,
+  isWeiboUrl,
+  weiboCookieNetscape,
 } from "../lib/video-downloaders.mjs";
 
 // ─── Test helpers ───
@@ -805,9 +808,7 @@ describe("douyin-cdp adapter (#182)", () => {
         fetchFn,
       });
 
-      expect(fakes.calls.shareUrls).toEqual([
-        `https://www.iesdouyin.com/share/video/${VIDEO_ID}`,
-      ]);
+      expect(fakes.calls.shareUrls).toEqual([`https://www.iesdouyin.com/share/video/${VIDEO_ID}`]);
       expect(fetchFn.calls).toHaveLength(1);
       expect(fetchFn.calls[0].opts.headers.Referer).toBe("https://www.douyin.com/");
       expect(result.status).toBe("downloaded");
@@ -911,5 +912,65 @@ describe("douyin-cdp adapter (#182)", () => {
       expect(result.strategy).toBe(ADAPTER_IDS.DOUYIN_CDP);
       expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
     });
+  });
+});
+
+// ─── #75 Batch 2: weibo routing through the ytdlp adapter ───
+describe("weibo routing (#75 Batch 2)", () => {
+  it("routes weibo.com and m.weibo.cn status URLs to the ytdlp adapter", () => {
+    const result = selectStrategy("https://weibo.com/1234567/AbCdEfGh");
+    expect(result.adapter).toBe("ytdlp");
+    expect(result.canonicalUrl).toContain("weibo.com");
+
+    const mobile = selectStrategy("https://m.weibo.cn/status/5678901");
+    expect(mobile.adapter).toBe("ytdlp");
+  });
+
+  it("buildYtdlpCommand detects weibo and limits mix_media to the main video", () => {
+    const cmd = buildYtdlpCommand("https://weibo.com/1234567/AbCdEfGh", {
+      tmpPath: "/tmp/v.mp4",
+    });
+    expect(cmd).toContain("--playlist-items 1");
+    expect(cmd).not.toContain('--cookies "');
+  });
+
+  it("attaches the cookie FILE only for weibo URLs (yt-dlp rejects Cookie headers)", () => {
+    const weiboCmd = buildYtdlpCommand("https://m.weibo.cn/status/5678901", {
+      tmpPath: "/tmp/v.mp4",
+      cookieFile: "/tmp/ck.txt",
+    });
+    expect(weiboCmd).toContain('--cookies "/tmp/ck.txt"');
+    expect(weiboCmd).toContain("--playlist-items 1");
+
+    const ytCmd = buildYtdlpCommand("https://www.youtube.com/watch?v=abc", {
+      tmpPath: "/tmp/v.mp4",
+      cookieFile: "/tmp/ck.txt",
+    });
+    expect(ytCmd).not.toContain('--cookies "');
+    expect(ytCmd).not.toContain("--playlist-items");
+  });
+
+  it("weiboCookieNetscape formats a raw cookie header for the weibo domains", () => {
+    const content = weiboCookieNetscape("SUB=abc; SUBP=def");
+    const lines = content
+      .trim()
+      .split("\n")
+      .filter((l) => !l.startsWith("#"));
+    // 2 cookies × 4 domains
+    expect(lines).toHaveLength(8);
+    const subLine = lines.find((l) => l.includes("\tSUB\t"));
+    expect(subLine).toContain("weibo.com");
+    expect(subLine.split("\t")).toHaveLength(7);
+    expect(weiboCookieNetscape("")).toBe(content.split("\n")[0] + "\n");
+    expect(weiboCookieNetscape("junk")).toContain("# Netscape");
+  });
+
+  it("reports weibo as the source in adapter results source detection", () => {
+    const cmd = buildYtdlpCommand("https://weibo.com/1/x", { tmpPath: "/tmp/v.mp4" });
+    // source detection is embedded in the adapter; the command itself is
+    // URL-agnostic except for weibo-specific flags — assert via the exported
+    // detector instead.
+    expect(isWeiboUrl("https://weibo.com/1/x")).toBe(true);
+    expect(isWeiboUrl("https://www.youtube.com/watch?v=abc")).toBe(false);
   });
 });
