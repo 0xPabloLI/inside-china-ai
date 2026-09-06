@@ -80,8 +80,9 @@ describe("zero-fallback list lock", () => {
   it("zero-fallback articles sources stay inside the excluded set (snapshot)", () => {
     // A source is "zero-fallback" when no site: fallback was auto-generated
     // AND no explicit fallback layer exists. The audit counted 9 such sources
-    // (设计内——聚合/搜索类自为兜底)；a future source silently landing in this
-    // group must update the snapshot deliberately, not slip through.
+    // (设计内——聚合/搜索类自为兜底；#140 P4 后 google_news 并入 google_search，
+    // google_search 有 mcpFallback 不在此组，剩 8 个)；a future source silently
+    // landing in this group must update the snapshot deliberately, not slip through.
     const zeroFallback = articlesCapable
       .filter(
         (s) =>
@@ -98,7 +99,6 @@ describe("zero-fallback list lock", () => {
       "bing_news",
       "digg_search",
       "duckduckgo_search",
-      "google_news",
       "polymarket_search",
       "techmeme_search",
       "wechat_dongchabeating",

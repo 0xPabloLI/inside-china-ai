@@ -18,17 +18,17 @@ import {
 // ─── Source structure validation ───
 
 describe("Source structure", () => {
-  it("NEWS_SOURCES has 15 sources (7 original + 7 CDP image search + baidu_news #64)", () => {
-    expect(NEWS_SOURCES).toHaveLength(15);
+  it("NEWS_SOURCES has 14 sources (google_news merged into google_search, #140 P4)", () => {
+    expect(NEWS_SOURCES).toHaveLength(14);
   });
 
   it("SELF_MEDIA_SOURCES has 8 sources", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(8);
   });
 
-  it("ALL_SOURCES has 65 sources", () => {
-    // 64 + telegram_aipost (#204)
-    expect(ALL_SOURCES).toHaveLength(65);
+  it("ALL_SOURCES has 64 sources", () => {
+    // 64 — google_news merged into google_search (#140 P4)
+    expect(ALL_SOURCES).toHaveLength(64);
   });
 
   it("each source has required fields", () => {
@@ -456,12 +456,22 @@ describe("General search sources", () => {
     expect(GENERAL_SEARCH_SOURCES).toHaveLength(5);
   });
 
-  it("includes google_search (was web_grounding)", () => {
+  it("includes google_search (news vertical, #140 P4)", () => {
     const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "google_search");
     expect(src).toBeDefined();
-    expect(src.label).toBe("Google Search");
+    expect(src.label).toBe("Google Search (News)");
     expect(src.category).toBe("general");
     expect(src.supportsKeyword).toBe(true);
+  });
+
+  it("google_search points at the Google news vertical (tbm=nws, qdr:w, #140 P4)", () => {
+    const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "google_search");
+    const url = src.url("test");
+    expect(url).toContain("tbm=nws");
+    expect(url).toContain("tbs=qdr:w");
+    expect(url).toContain(encodeURIComponent("test"));
+    // Bare keyword — no "China AI" suffix (merged from google_news)
+    expect(url).not.toContain(encodeURIComponent(" China AI"));
   });
 
   it("includes baidu_search", () => {
@@ -528,12 +538,12 @@ describe("#64 — baidu_news CDP source", () => {
     expect(src.accessMethod.primary).toBe("cdp");
   });
 
-  it("baidu_news mirrors the google_news CDP pattern (news.baidu.com/ns)", () => {
+  it("baidu_news mirrors the Google/Bing news CDP pattern (news.baidu.com/ns)", () => {
     const src = NEWS_SOURCES.find((s) => s.name === "baidu_news");
     const url = src.url("DeepSeek");
     expect(url).toContain("baidu.com/ns");
     expect(url).toContain(encodeURIComponent("DeepSeek"));
-    // No account, no API key — CDP-only like google_news/bing_news
+    // No account, no API key — CDP-only like bing_news
     expect(src.apiSearch).toBeUndefined();
     expect(src.mcpFallback).toBeUndefined();
     expect(src.loginCheckScript).toBeUndefined();
@@ -631,7 +641,8 @@ describe("supportsKeyword validation", () => {
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
     // + duckduckgo_search (#91) + baidu_news (#64) + searxng_search (#92)
-    expect(keywordSources.length).toBe(44);
+    // − google_news (merged into google_search, #140 P4)
+    expect(keywordSources.length).toBe(43);
   });
 });
 
@@ -1343,8 +1354,8 @@ describe("#88 Part 2 — shouldAutoGenGoogleSiteFallback", () => {
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 
-  it("returns false for search engine (google_news)", () => {
-    const src = ALL_SOURCES.find((s) => s.name === "google_news");
+  it("returns false for search engine (google_search, #140 P4 — was google_news)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "google_search");
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 

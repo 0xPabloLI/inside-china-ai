@@ -277,11 +277,11 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-  it("ALL_SOURCES has 65 sources (64 + telegram_aipost #204)", () => {
+  it("ALL_SOURCES has 64 sources (google_news merged into google_search #140 P4)", () => {
     // 46 existing + 7 CDP image search + 8 stock_media + duckduckgo + baidu_news
-    // + searxng_search = 64, + telegram_aipost (#204) = 65
+    // + searxng_search = 64, + telegram_aipost (#204) = 65, − google_news (#140 P4) = 64
     // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
-    expect(ALL_SOURCES).toHaveLength(65);
+    expect(ALL_SOURCES).toHaveLength(64);
   });
 
   it("source names are still unique after merge", () => {
@@ -590,7 +590,7 @@ describe("#88 Part 2 — auto-gen googleSiteFallback in capabilities", () => {
     const excludedNames = [
       "arxiv_search",
       "youtube_search",
-      "google_news",
+      "google_search",
       "baidu_search",
       "pexels",
       "datacube_ai",

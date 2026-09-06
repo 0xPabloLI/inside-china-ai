@@ -1072,8 +1072,9 @@ describe("SOURCE_ATTRIBUTIONS", () => {
     expect(SOURCE_ATTRIBUTIONS.coverr.license).toBe("Coverr License");
   });
 
-  it("has attribution for google_news", () => {
-    expect(SOURCE_ATTRIBUTIONS.google_news).toBeDefined();
+  it("has attribution for google_search (merged from google_news, #140 P4)", () => {
+    expect(SOURCE_ATTRIBUTIONS.google_search).toBeDefined();
+    expect(SOURCE_ATTRIBUTIONS.google_news).toBeUndefined();
   });
 
   it("has attribution for bing_news", () => {
@@ -1311,10 +1312,11 @@ describe("fetchWikimediaLicense", () => {
 // ─── New CDP source tests ───
 
 describe("CDP_SOURCES new additions", () => {
-  it("has google_news source", () => {
-    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+  it("has google_search source (news vertical, merged from google_news #140 P4)", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_search");
     expect(src).toBeDefined();
     expect(src.url("AI")).toContain("google.com");
+    expect(src.url("AI")).toContain("tbm=nws");
     expect(src.imageScript).toContain("return results");
   });
 
@@ -2241,8 +2243,8 @@ describe("T1: preFilterCandidate misfilter prevention", () => {
 
 describe("T3 — CDP type handling", () => {
   // T3 original: CDP download loop must skip type='text' candidates from image download path
-  it("google_news imageScript pushes type='image' when img exists", () => {
-    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+  it("google_search imageScript pushes type='image' when img exists", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_search");
     expect(src).toBeDefined();
     expect(src.imageScript).toContain("'image'");
   });
@@ -2254,8 +2256,8 @@ describe("T3 — CDP type handling", () => {
   });
 
   // New: CDP scripts should also push type='text' when no img but link+title exist
-  it("google_news imageScript pushes type='text' for text-only results", () => {
-    const src = CDP_SOURCES.find((s) => s.name === "google_news");
+  it("google_search imageScript pushes type='text' for text-only results", () => {
+    const src = CDP_SOURCES.find((s) => s.name === "google_search");
     expect(src.imageScript).toContain("'text'");
   });
 

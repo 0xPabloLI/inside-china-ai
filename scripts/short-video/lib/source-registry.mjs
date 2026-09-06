@@ -443,38 +443,6 @@ export const NEWS_SOURCES = [
     `,
   },
   {
-    name: "google_news",
-    label: "Google News Search",
-    category: "international",
-    supportsKeyword: true,
-    accessMethod: {
-      primary: "cdp",
-      notes: "CDP search page. Articles + images from same DOM.",
-    },
-    needsAuth: false,
-    useCleanTitle: false,
-    url: (keyword) =>
-      `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
-    articleScript: `
-      var results = [];
-      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h3, .LC20lb');
-        var img = el.querySelector('img[src]');
-        var snippet = el.querySelector('.VwiC3b, .IsZvec');
-        if (link && title) {
-          results.push({
-            title: title.textContent.trim(),
-            url: link.href,
-            imageUrl: img ? img.src : null,
-            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
-          });
-        }
-      });
-      return results;
-    `,
-  },
-  {
     name: "bing_news",
     label: "Bing News Search",
     category: "international",
@@ -1617,27 +1585,30 @@ export const INTERNATIONAL_SOURCES = [
 export const GENERAL_SEARCH_SOURCES = [
   {
     name: "google_search",
-    label: "Google Search",
+    label: "Google Search (News)",
     category: "general",
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP (Google search) → MCP fallback (mcp-search-bridge/Grok). General web search.",
+      notes:
+        "#89 P4 整合 (#140): merged with google_news — CDP primary now points at the Google news vertical (tbm=nws, qdr:w), one Google navigation per run instead of two. → MCP fallback (mcp-search-bridge/Grok).",
     },
     useCleanTitle: false,
     url: (keyword) =>
-      `https://www.google.com/search?q=${encodeURIComponent(keyword + " China AI")}`,
+      `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
     articleScript: `
       var results = [];
-      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
+      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef, div[data-ved]').forEach(function(el) {
         var link = el.querySelector('a[href]');
         var title = el.querySelector('h3, .LC20lb');
+        var img = el.querySelector('img[src]');
         var snippet = el.querySelector('.VwiC3b, .IsZvec, [data-sncf]');
         if (link && title) {
           results.push({
             title: title.textContent.trim(),
             url: link.href,
+            imageUrl: img ? img.src : null,
             snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
           });
         }
@@ -2819,7 +2790,9 @@ const CDP_MEDIA_CAPABILITIES = {
       return results;
     `,
   },
-  google_news: {
+  // #89 P4 整合 (#140): google_search now serves the news vertical URL, so the
+  // former google_news image capability moved here (same news-vertical DOM).
+  google_search: {
     method: "cdp",
     videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) =>
@@ -3180,11 +3153,6 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "News copyright",
     logoRequired: false,
   },
-  google_news: {
-    text: (a) => `Image source: ${a.sourceUrl || "Google News"}`,
-    license: "Varies",
-    logoRequired: false,
-  },
   duckduckgo_search: {
     text: (a) => `Source: ${a.sourceUrl || "DuckDuckGo"} (via DuckDuckGo Search)`,
     license: "Varies",
@@ -3472,7 +3440,6 @@ export const SHARED_GOOGLE_SITE_SEARCH_SCRIPT = `
  */
 export const AUTOGEN_EXCLUDED_SOURCES = new Set([
   // Search engines — they ARE search, no "own domain" to site:
-  "google_news",
   "bing_news",
   "baidu_news",
   "google_search",
