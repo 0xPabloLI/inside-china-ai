@@ -65,7 +65,14 @@ import {
   deriveZeroResultSources,
   REVIEW_THRESHOLD,
 } from "./lib/source-health.mjs";
-import { existsSync as _existsSync, readFileSync as _readFileSync } from "fs";
+import {
+  deriveChannels,
+  classifyChannelRisk,
+  attachSourceHealth,
+  summarizeChannelInventory,
+  probeChannels,
+} from "./lib/channel-doctor.mjs";
+import { existsSync as _existsSync, readFileSync as _readFileSync, writeFileSync as _writeFileSync } from "fs";
 
 /** Load output/source-health.json, fail-open to a fresh log (#200). */
 function loadSourceHealthLog(filePath) {
@@ -987,13 +994,69 @@ async function main() {
   }
 }
 
+// ─── Channel doctor (#209) ───
+// One-command inventory of every articles-capable source's access channels,
+// cross-run health, and (with --doctor-live) cheap HTTP probes of API
+// channels. Browser channels are never probed here — they need a logged-in
+// CDP session and belong to real discovery runs, whose per-layer
+// trajectories already feed discovery.sourceHealth (#200).
+async function runChannelDoctor() {
+  const live = hasFlag("doctor-live");
+  const articlesCapable = ALL_SOURCES.filter((s) => s.capabilities?.articles);
+  const healthLogPath = join(OUTPUT_DIR, "source-health.json");
+  let inventory = attachSourceHealth(
+    articlesCapable.map((s) => ({
+      name: s.name,
+      label: s.label,
+      category: s.category,
+      riskClass: classifyChannelRisk(s),
+      channels: deriveChannels(s),
+    })),
+    loadSourceHealthLog(healthLogPath),
+  );
+  inventory = await Promise.all(inventory.map((entry) => probeChannels(entry, { live })));
+
+  const summary = summarizeChannelInventory(inventory);
+  console.log(`\n🩺 Channel Doctor — ${inventory.length} articles-capable sources${live ? " (live probes)" : ""}`);
+  console.log("=".repeat(60));
+  for (const entry of inventory) {
+    const health = entry.health.review ? ` ⚠️ ${entry.health.consecutiveZeroRuns} zero-result runs` : "";
+    const probes = entry.probes
+      .filter((p) => p.status !== "unprobed")
+      .map((p) => `${p.type}:${p.status}${p.blocked ? "(blocked)" : ""}`)
+      .join(", ");
+    const chain = entry.channels.map((c) => `${c.primary ? "*" : ""}${c.type}`).join(" → ");
+    console.log(`  [${entry.riskClass}] ${entry.name}: ${chain}${health}${probes ? ` | ${probes}` : ""}`);
+  }
+  console.log("=".repeat(60));
+  console.log(`  Totals: ${JSON.stringify(summary.totals)}`);
+  if (summary.review.length > 0) {
+    console.log(`  ⚠️ Review (≥${REVIEW_THRESHOLD} zero-result runs): ${summary.review.join(", ")}`);
+  }
+
+  const reportPath = join(OUTPUT_DIR, "channel-health.json");
+  try {
+    _writeFileSync(reportPath, JSON.stringify({ generatedAt: new Date().toISOString(), live, summary, sources: inventory }, null, 2) + "\n", "utf8");
+    console.log(`  📁 Report written: ${reportPath}`);
+  } catch (e) {
+    console.warn(`⚠️  channel-health.json write failed: ${e.message}`);
+  }
+}
+
 // Auto-run only when invoked directly as a CLI script (same pattern as
 // asset-sourcer.mjs). Required so tests can import collectFromSource /
 // shouldSkipCdpOnApiFail without triggering a live discovery run.
 const isMainModule = process.argv[1] && process.argv[1].endsWith("search-sources.mjs");
 if (isMainModule) {
-  main().catch((e) => {
-    console.error(`❌ ${e.message}`);
-    process.exit(1);
-  });
+  if (hasFlag("doctor")) {
+    runChannelDoctor().catch((e) => {
+      console.error(`❌ ${e.message}`);
+      process.exit(1);
+    });
+  } else {
+    main().catch((e) => {
+      console.error(`❌ ${e.message}`);
+      process.exit(1);
+    });
+  }
 }
