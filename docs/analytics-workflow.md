@@ -84,8 +84,9 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 > **TikTok 专用登录实例（默认路线，2026-09-07 起）**：TikTok 登录一律用全新 profile 启动的独立 Chrome 实例（指纹等效无痕）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动并让 proxy 指向该实例：
 >
 > ```bash
-> # 1. 启动全新 profile 实例（勿用默认 profile，Chrome 136+ 禁调试）
-> open -na "Google Chrome" --args --user-data-dir="$TMPDIR/tiktok-fresh-profile" \
+> # 1. 启动全新 profile 实例（勿用默认 profile，Chrome 136+ 禁调试；
+> #    profile 放稳定目录 —— 登录态落盘可复用，勿放 $TMPDIR 会被系统清理）
+> open -na "Google Chrome" --args --user-data-dir="/Users/pabloli/chrome-tiktok-profile" \
 >   --remote-debugging-port=9229 --no-first-run "https://www.tiktok.com/login"
 > # 2. 用户在该窗口登录 TikTok（登录态留在该 profile，可复用）
 > # 3. 重置 proxy 并指向 9229
