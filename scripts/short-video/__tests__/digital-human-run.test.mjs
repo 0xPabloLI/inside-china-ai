@@ -229,6 +229,20 @@ async function loadScenes(pkg) {
 
 // ─── executeApprove ───
 
+describe("buildUnitKernelScript", () => {
+  it("substitutes every __UNIT_CONFIG_JSON__ occurrence (docstring + code) with the unit config", async () => {
+    const { buildUnitKernelScript } = await import("../lib/digital-human.mjs");
+    const script = buildUnitKernelScript({ audioFile: "s10-u0.wav", outputFile: "scene-10-u0.mp4" });
+    // Regression: the template mentions the placeholder twice (docstring line
+    // 10 + code line 31); String.replace only swapped the first and shipped a
+    // kernel that died at import with JSONDecodeError (T6 E2E first run).
+    expect(script).not.toContain("__UNIT_CONFIG_JSON__");
+    const codeLine = script.split("\n").find((l) => l.trim().startsWith("UNIT_CONFIG ="));
+    expect(codeLine).toContain('"audio_file":"s10-u0.wav"');
+    expect(() => JSON.parse(codeLine.match(/'''.*?'''/s)[0].replaceAll("'''", ""))).not.toThrow();
+  });
+});
+
 describe("executeApprove", () => {
   afterEach(cleanup);
 

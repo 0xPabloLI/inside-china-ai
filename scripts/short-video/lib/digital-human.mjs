@@ -1181,7 +1181,14 @@ export function buildUnitKernelScript({ audioFile, outputFile }) {
   if (!template.includes("__UNIT_CONFIG_JSON__")) {
     throw new Error(`Kernel template missing __UNIT_CONFIG_JSON__ placeholder: ${KERNEL_TEMPLATE_PATH}`);
   }
-  return template.replace("__UNIT_CONFIG_JSON__", config);
+  // Replace ALL occurrences (the template mentions the placeholder in its
+  // docstring too — String.replace would only swap the first one and ship a
+  // kernel that dies at import).
+  const script = template.split("__UNIT_CONFIG_JSON__").join(config);
+  if (script.includes("__UNIT_CONFIG_JSON__")) {
+    throw new Error("Kernel script still contains __UNIT_CONFIG_JSON__ after substitution");
+  }
+  return script;
 }
 
 /**
