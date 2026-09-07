@@ -606,9 +606,9 @@ describe("digital-human.mjs CLI (plan)", () => {
     expect(existsSync(planPathFor(outputRoot, "avatar-declarations-fixture"))).toBe(false);
   });
 
-  it("run subcommand is not implemented yet (ticket 04)", () => {
+  it("run subcommand requires --plan (implemented by ticket 04)", () => {
     const res = spawnSync(process.execPath, [CLI, "run"], { encoding: "utf8" });
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain("ticket 04");
+    expect(res.stderr).toContain("--plan");
   });
 });

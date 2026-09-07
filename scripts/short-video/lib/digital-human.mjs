@@ -60,16 +60,26 @@
  *               generatedSeconds, estimatedMinutes, estimatedHours, costUsd }
  *   }
  *
- * Future exports (ticket 04): runPackage(), resumePackage() — they consume
- * this plan file after approval.approved === true; deliberately not stubbed
- * here.
+ * Ticket 04 exports (this file, "Run engine" section): approve/run/resume.
+ *   executeApprove(planPath)            — flip approval.approved (HITL gate)
+ *   runPlan({ planPath, ... })          — execute an approved plan
+ *   resumePlan({ planPath, ... })       — recover an interrupted run
+ * plus the scene-data writeback primitive (applyVideoPathToSceneData),
+ * the concat list builder and the unit task-key helpers. Remote interaction
+ * (Kaggle CLI), ffmpeg and dh-upscale are all injectable `deps` so the mock
+ * test layer never touches the network (see __tests__/digital-human-run.test.mjs).
  *
  * @module digital-human
  */
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { dirname, join, resolve } from "path";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
+import { basename, dirname, join, resolve } from "path";
 import { pathToFileURL, fileURLToPath } from "url";
+import { execSync, spawnSync } from "child_process";
+import { FFMPEG_PATH } from "./upscale.mjs";
+import { upscaleDigitalHuman } from "./dh-upscale.mjs";
+import { REMOTE_TASKS_PATH, KAGGLE_USERNAME, KAGGLE_POLL_INTERVAL_SEC } from "../../cloud-gpu/run-gpu.mjs";
+import { classifyTaskError, loadTaskLog, markTask, recordTask } from "../../cloud-gpu/lib/remote-task.mjs";
 
 // ─── Model tiers (facts: docs/research/digital-human-test-progress.md) ───
 
@@ -715,4 +725,886 @@ export async function executePlan({ contentSlug, contentRoot, outputRoot, tier =
   const planPath = planPathFor(outputBase, meta.pipelineId);
   writePlanFile(planPath, plan);
   return { outcome: "written", planPath, plan, avatarSceneCount };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ─── Run engine (#214 ticket 04) — approve / run / resume ─────────────────
+//
+// Contract (spec Behavioral Scenarios 3/4/5, ticket 04):
+//   * approval gate FIRST: an unapproved plan gets ZERO remote calls and
+//     ZERO fs writes (report/artifacts/scene-data all untouched);
+//   * one Kaggle kernel per generation unit, recorded in the shared
+//     remote-task state machine (scripts/cloud-gpu/output/remote-tasks.json)
+//     so a dead driver resumes without re-billing completed units;
+//   * per-scene post-processing (upscale 2x → ffmpeg concat in strict unit
+//     order → atomic scene-data writeback) happens only after ALL units of
+//     that scene succeeded — any failure leaves scene-data byte-identical;
+//   * report (耗时/平台/费用) written once, after full success.
+//
+// All remote/local side effects go through `deps` (transport / ffmpeg /
+// upscale / tasksPath) so tests inject fakes and never touch the network.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** Report file name inside output/{pipelineId}/ (beside the plan). */
+export const REPORT_FILE_NAME = "digital-human-report.json";
+/** remote-task `kind` marker for digital-human generation units. */
+export const UNIT_TASK_KIND = "digital-human-unit";
+/** EchoMimicV3 model weights dataset attached to every unit kernel. */
+export const MODEL_DATASET_SOURCE = "xpabloli/echomimicv3-flash";
+/** States of a unit task that may still be recoverable (never re-bill them). */
+const RESUMABLE_STATES = new Set(["running", "timeout", "download-failed"]);
+/** Default per-unit harvest window: ~14min inference + env setup headroom. */
+const DEFAULT_RUN_TIMEOUT_SEC = 2700;
+
+/** Deterministic remote-task key for one generation unit of one plan. */
+export function unitKeyFor(pipelineId, sceneId, unitIndex) {
+  return `${pipelineId}:${sceneId}:${unitIndex}`;
+}
+
+/** Deterministic Kaggle kernel slug for a unit (re-push = new kernel version). */
+function unitSlugFor(pipelineId, sceneId, unitIndex) {
+  const slugified = String(pipelineId).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return `dh-${slugified.slice(0, 30)}-s${sceneId}x${unitIndex}`;
+}
+
+/** Unit artifact paths (deterministic, mirrored into the task record). */
+function unitSlicePath(planDir, sceneId, unitIndex) {
+  return join(planDir, "avatar", "audio", `s${sceneId}-u${unitIndex}.wav`);
+}
+function unitOutputDir(planDir, sceneId, unitIndex) {
+  return join(planDir, "avatar", "generated", `s${sceneId}-u${unitIndex}`);
+}
+function unitUpscaledPath(planDir, sceneId, unitIndex) {
+  return join(planDir, "avatar", "upscaled", `s${sceneId}-u${unitIndex}.mp4`);
+}
+const UNIT_OUTPUT_EXT = ".mp4";
+
+// ─── Plan file reading (shared by approve/run/resume) ───
+
+function readPlanFile(planPath) {
+  let raw;
+  try {
+    raw = readFileSync(planPath, "utf8");
+  } catch (e) {
+    throw new Error(`Cannot read plan file ${planPath}: ${e.message}`);
+  }
+  let plan;
+  try {
+    plan = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`Plan file is not valid JSON: ${planPath} (${e.message})`);
+  }
+  if (plan?.kind !== "digital-human-plan") {
+    throw new Error(`Not a digital-human-plan file (kind=${JSON.stringify(plan?.kind)}): ${planPath}`);
+  }
+  if (plan.schemaVersion !== PLAN_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported plan schemaVersion ${plan.schemaVersion} in ${planPath} — expected ${PLAN_SCHEMA_VERSION}; regenerate with \`plan --content <dir>\``,
+    );
+  }
+  return plan;
+}
+
+/**
+ * HITL approval: flip `approval.approved` in the plan file after a human
+ * reviewed it. Atomic (tmp + rename) and schema-validated; the CLI exposes
+ * this as `approve --plan <file>` (safer than hand-editing the JSON — the
+ * approvedAt timestamp is stamped here).
+ *
+ * @param {string} planPath
+ * @param {{ now?: Date }} [options]
+ * @returns {{ outcome: "approved", planPath: string, plan: object }}
+ */
+export function executeApprove(planPath, { now = new Date() } = {}) {
+  const plan = readPlanFile(planPath);
+  plan.approval = { approved: true, approvedAt: now.toISOString() };
+  const tmpPath = `${planPath}.dh-approve-tmp`;
+  writeFileSync(tmpPath, JSON.stringify(plan, null, 2) + "\n", "utf8");
+  renameSync(tmpPath, planPath);
+  return { outcome: "approved", planPath, plan };
+}
+
+// ─── scene-data writeback (targeted string edit + backup + verify) ───
+
+/**
+ * Rewrite one scene's `avatar.videoPath` in scene-data.mjs TEXT (pure — no
+ * disk I/O). scene-data is hand-authored code, so the edit is a targeted
+ * string operation scoped to the scene's avatar block (brace-matching scan,
+ * string-literal aware) rather than a full-file regeneration — everything
+ * outside the avatar block stays byte-identical.
+ *
+ * @param {string} text - scene-data.mjs content
+ * @param {number} sceneId
+ * @param {string} videoPath - content-relative path, e.g. "assets/avatar/scene-1.mp4"
+ * @returns {{ text: string }} the modified text (verify before writing!)
+ * @throws when the scene is not found or declares no avatar (fail-closed)
+ */
+export function applyVideoPathToSceneData(text, sceneId, videoPath) {
+  // Region of the scene object: from its `id:` to the next scene's `id:`.
+  const idRe = new RegExp(`(^|[^\\w])id:\\s*${sceneId}\\b`);
+  const idMatch = text.match(idRe);
+  if (!idMatch) {
+    throw new Error(`Scene ${sceneId} not found in scene-data (no id: ${sceneId} declaration)`);
+  }
+  const regionStart = idMatch.index + idMatch[0].length;
+  const nextId = /(^|[^\w])id:\s*\d+/.exec(text.slice(regionStart));
+  const regionEnd = nextId ? regionStart + nextId.index : text.length;
+  const region = text.slice(regionStart, regionEnd);
+
+  const avatarIdx = region.search(/\bavatar\s*:/);
+  if (avatarIdx === -1) {
+    throw new Error(
+      `Scene ${sceneId}: no avatar declaration found in scene-data — write avatar: {} to declare it first`,
+    );
+  }
+  const braceOffset = region.indexOf("{", avatarIdx);
+  if (braceOffset === -1) {
+    throw new Error(`Scene ${sceneId}: avatar declaration has no { block`);
+  }
+  const closeOffset = matchBrace(region, braceOffset);
+  if (closeOffset === -1) {
+    throw new Error(`Scene ${sceneId}: avatar declaration braces are unbalanced`);
+  }
+
+  const inner = region.slice(braceOffset + 1, closeOffset);
+  const videoPathRe = /videoPath\s*:\s*(['"])(.*?)\1/;
+  let newInner;
+  if (videoPathRe.test(inner)) {
+    newInner = inner.replace(videoPathRe, `videoPath: "${videoPath}"`);
+  } else if (inner.trim() === "") {
+    newInner = ` videoPath: "${videoPath}" `;
+  } else {
+    newInner = ` videoPath: "${videoPath}",${inner}`;
+  }
+
+  return {
+    text: text.slice(0, regionStart) + region.slice(0, braceOffset + 1) + newInner + region.slice(closeOffset) + text.slice(regionEnd),
+  };
+}
+
+/** Find the matching `}` for the `{` at `openIdx`, skipping string literals. */
+function matchBrace(text, openIdx) {
+  let depth = 0;
+  let quote = null;
+  for (let i = openIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === "\\") i++;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") quote = ch;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Write `videoPath` back into content/<dir>/scene-data.mjs with the repo's
+ * media-patch guarantees: verify (import a temp copy and assert the value),
+ * backup (.bak, same convention as apply-media-patch), atomic rename.
+ * Any verification failure throws BEFORE the backup/write — the file stays
+ * byte-identical.
+ *
+ * @param {string} contentDir - package dir
+ * @param {number} sceneId
+ * @param {string} videoPath - content-relative
+ */
+async function writeBackVideoPath(contentDir, sceneId, videoPath) {
+  const sceneDataPath = join(contentDir, "scene-data.mjs");
+  const original = readFileSync(sceneDataPath, "utf8");
+  const { text: modified } = applyVideoPathToSceneData(original, sceneId, videoPath);
+
+  // Verify: the modified text must parse and carry the new videoPath. The
+  // temp file name must be UNIQUE per verification — Node caches ESM modules
+  // by URL, so a reused name would return the first scene's stale module.
+  let verifySeq = (writeBackVideoPath._seq = (writeBackVideoPath._seq ?? 0) + 1);
+  const verifyPath = join(contentDir, `.scene-data.dh-verify-${process.pid}-${verifySeq}.mjs`);
+  writeFileSync(verifyPath, modified, "utf8");
+  try {
+    const mod = await import(pathToFileURL(verifyPath).href);
+    const scene = (mod.scenes ?? []).find((s) => s.id === sceneId);
+    if (!scene?.avatar || scene.avatar.videoPath !== videoPath) {
+      throw new Error(`verification import shows videoPath not applied for scene ${sceneId}`);
+    }
+  } finally {
+    try {
+      rmSync(verifyPath, { force: true });
+    } catch {}
+  }
+
+  copyFileSync(sceneDataPath, `${sceneDataPath}.bak`);
+  const tmpPath = `${sceneDataPath}.dh-tmp`;
+  writeFileSync(tmpPath, modified, "utf8");
+  renameSync(tmpPath, sceneDataPath);
+}
+
+// ─── concat list ───
+
+/**
+ * ffmpeg concat-demuxer list. Entry order IS the playlist order — callers
+ * pass unit videos in (segmentIndex, from) order so the concatenated
+ * timeline matches the scene audio timeline.
+ *
+ * @param {string[]} paths
+ * @returns {string} list file content
+ */
+export function buildConcatList(paths) {
+  return paths.map((p) => `file '${p}'`).join("\n") + "\n";
+}
+
+// ─── Injectable side-effect seams (defaults = real CLI / binaries) ───
+
+/** Real ffmpeg seam: sample-accurate wav slicing + concat-demuxer re-encode. */
+function realFfmpeg() {
+  return {
+    async sliceAudio({ input, from, to, output }) {
+      mkdirSync(dirname(output), { recursive: true });
+      // Output-side -ss/-to with re-encode → sample-accurate cut.
+      const res = spawnSync(FFMPEG_PATH, ["-y", "-i", input, "-ss", String(from), "-to", String(to), output], {
+        encoding: "utf8",
+        timeout: 120000,
+      });
+      if (res.status !== 0) {
+        throw new Error(
+          `ffmpeg audio slice failed (${input} [${from}–${to}s]): ${(res.stderr || "").slice(-400)}`,
+        );
+      }
+    },
+    async concat({ listFile, output }) {
+      mkdirSync(dirname(output), { recursive: true });
+      // Re-encode (not -c copy) so timestamps/frames are strictly sequential
+      // across segment boundaries (ticket acceptance: 时间戳/帧序严格顺序).
+      const res = spawnSync(
+        FFMPEG_PATH,
+        [
+          "-y",
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          listFile,
+          "-c:v",
+          "libx264",
+          "-preset",
+          "fast",
+          "-crf",
+          "23",
+          "-pix_fmt",
+          "yuv420p",
+          output,
+        ],
+        { encoding: "utf8", timeout: 600000 },
+      );
+      if (res.status !== 0) {
+        throw new Error(`ffmpeg concat failed (${listFile}): ${(res.stderr || "").slice(-400)}`);
+      }
+    },
+  };
+}
+
+/** Default upscale dep: force the 2x digital-human default. */
+function defaultUpscale(inputPath, outputPath) {
+  return upscaleDigitalHuman(inputPath, outputPath, { scale: 2 });
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Real Kaggle transport — mirrors run-gpu.mjs's push→poll→download flow
+ * (same CLI, same status semantics), extended with the per-run input
+ * dataset (portrait + unit driver-audio slices) that unit kernels attach.
+ */
+export function createKaggleTransport() {
+  const kaggle = (cmd, timeoutMs = 60000) =>
+    execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
+
+  return {
+    /**
+     * Push (create-or-version) the staged input dataset. Returns the source
+     * id to attach in kernel metadata.
+     */
+    async pushDataset({ dir }) {
+      const metadata = JSON.parse(readFileSync(join(dir, "dataset-metadata.json"), "utf8"));
+      try {
+        kaggle(`kaggle datasets create -p "${dir}"`);
+      } catch (e) {
+        const msg = e.message || String(e);
+        if (!/already exists/i.test(msg)) {
+          throw new Error(`Kaggle dataset push failed: ${msg}`);
+        }
+        kaggle(`kaggle datasets version -p "${dir}" -m "digital-human unit inputs" --dir-mode zip`);
+      }
+      return { source: metadata.id.toLowerCase() };
+    },
+
+    /** Push one unit kernel (deterministic slug → re-push = new version). */
+    async submitUnit({ slug, script, datasetSources, workDir }) {
+      mkdirSync(workDir, { recursive: true });
+      const metadata = {
+        id: `${KAGGLE_USERNAME}/${slug}`,
+        title: slug,
+        code_file: "kernel.py",
+        language: "python",
+        kernel_type: "script",
+        is_private: true,
+        enable_gpu: true,
+        enable_tpu: false,
+        enable_internet: true,
+        dataset_sources: datasetSources,
+        kernel_sources: [],
+        competition_sources: [],
+      };
+      writeFileSync(join(workDir, "kernel-metadata.json"), JSON.stringify(metadata, null, 2));
+      writeFileSync(join(workDir, "kernel.py"), script);
+      kaggle(`kaggle kernels push -p "${workDir}"`);
+      return { kernelId: `${KAGGLE_USERNAME}/${slug}` };
+    },
+
+    /**
+     * Poll a pushed kernel to completion and download its output — the same
+     * semantics as run-gpu.mjs harvestKaggleKernel (status strings, timeout
+     * resumable vs error terminal, download failure non-terminal).
+     */
+    async harvestUnit({ kernelId, outputDir, timeoutSec, pollIntervalSec = KAGGLE_POLL_INTERVAL_SEC }) {
+      const startTime = Date.now();
+      let finalStatus = "unknown";
+      while (Date.now() < startTime + timeoutSec * 1000) {
+        await sleep(pollIntervalSec * 1000);
+        let status;
+        try {
+          status = kaggle(`kaggle kernels status ${kernelId}`, 30000);
+        } catch {
+          continue; // status query failed — retry
+        }
+        const lower = status.toLowerCase();
+        if (lower.includes("complete")) {
+          finalStatus = "complete";
+          break;
+        }
+        if (lower.includes("error") || lower.includes("cancel")) {
+          finalStatus = "error";
+          break;
+        }
+      }
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      if (finalStatus !== "complete") {
+        return {
+          success: false,
+          stage: finalStatus === "error" ? "execution" : "timeout",
+          elapsedSec,
+          stderr:
+            finalStatus === "error"
+              ? `Kaggle kernel finished with status: ${finalStatus}`
+              : `Kaggle timeout after ${timeoutSec}s (last status: ${finalStatus})`,
+        };
+      }
+      try {
+        mkdirSync(outputDir, { recursive: true });
+        kaggle(`kaggle kernels output ${kernelId} -p "${outputDir}"`, 120000);
+      } catch (e) {
+        return {
+          success: false,
+          stage: "download",
+          elapsedSec,
+          stderr: `Kaggle output download failed: ${e.message}`,
+        };
+      }
+      return { success: true, elapsedSec, stderr: "" };
+    },
+  };
+}
+
+function resolveDeps(deps = {}) {
+  return {
+    tasksPath: deps.tasksPath ?? REMOTE_TASKS_PATH,
+    transport: deps.transport ?? createKaggleTransport(),
+    ffmpeg: deps.ffmpeg ?? realFfmpeg(),
+    upscale: deps.upscale ?? defaultUpscale,
+    timeoutSec: deps.timeoutSec ?? DEFAULT_RUN_TIMEOUT_SEC,
+    pollIntervalSec: deps.pollIntervalSec ?? KAGGLE_POLL_INTERVAL_SEC,
+  };
+}
+
+// ─── Unit task records (remote-task state machine wiring) ───
+
+function findUnitRecord(log, unitKey, span) {
+  const candidates = Object.values(log.tasks)
+    .filter((t) => t.kind === UNIT_TASK_KIND && t.unitKey === unitKey)
+    .sort((a, b) => (b.pushedAt ?? 0) - (a.pushedAt ?? 0));
+  const spanMatch = (r) =>
+    !r.unitSpan ||
+    !span ||
+    (Math.abs((r.unitSpan.from ?? 0) - (span.from ?? 0)) < 0.01 &&
+      Math.abs((r.unitSpan.to ?? 0) - (span.to ?? 0)) < 0.01);
+  const matching = candidates.filter(spanMatch);
+  if (matching.length === 0) return null;
+  return (
+    matching.find((r) => RESUMABLE_STATES.has(r.state)) ??
+    matching.find((r) => r.state === "complete") ??
+    matching[0]
+  );
+}
+
+function unitOutputExists(record) {
+  return Boolean(record?.outputDir && record?.outputName && existsSync(join(record.outputDir, record.outputName)));
+}
+
+/** Mark a unit complete, accumulating elapsed seconds across sessions. */
+function markUnitComplete(tasksPath, kernelId, priorElapsedSec, sessionElapsedSec) {
+  markTask(tasksPath, kernelId, "complete", {
+    elapsedSec: Math.round(((priorElapsedSec ?? 0) + (sessionElapsedSec ?? 0)) * 1000) / 1000,
+  });
+}
+
+// ─── Per-unit Kaggle kernel script + input dataset staging (layout only —
+//    submission happens exclusively inside an approved runPlan) ───
+
+const KERNEL_TEMPLATE_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "kaggle", "dh-generate", "echomimicv3_unit_kernel.py");
+
+/**
+ * Build one unit's kernel script: the v51 EchoMimicV3 Flash template with a
+ * UNIT_CONFIG header naming this unit's driver audio + output file.
+ */
+export function buildUnitKernelScript({ audioFile, outputFile }) {
+  const template = readFileSync(KERNEL_TEMPLATE_PATH, "utf8");
+  const config = JSON.stringify({ audio_file: audioFile, output_file: outputFile });
+  if (!template.includes("__UNIT_CONFIG_JSON__")) {
+    throw new Error(`Kernel template missing __UNIT_CONFIG_JSON__ placeholder: ${KERNEL_TEMPLATE_PATH}`);
+  }
+  return template.replace("__UNIT_CONFIG_JSON__", config);
+}
+
+/**
+ * Stage the per-run Kaggle input dataset layout: dataset-metadata.json +
+ * portrait + one wav per submitted unit + manifest.json. Layout only —
+ * the actual `kaggle datasets create/version` happens via the transport.
+ */
+export function stageUnitDataset({ stageDir, portraitPath, items, pipelineId }) {
+  mkdirSync(stageDir, { recursive: true });
+  const datasetSlug = `dh-${String(pipelineId).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30)}`;
+  const datasetId = `${KAGGLE_USERNAME.toLowerCase()}/${datasetSlug}`;
+  writeFileSync(
+    join(stageDir, "dataset-metadata.json"),
+    JSON.stringify({ title: datasetSlug, id: datasetId, licenses: [{ name: "CC0-1.0" }] }, null, 2) + "\n",
+  );
+  copyFileSync(portraitPath, join(stageDir, "portrait.jpg"));
+  const manifest = [];
+  for (const item of items) {
+    const audioName = `s${item.sceneId}-u${item.unitIndex}.wav`;
+    copyFileSync(item.slicePath, join(stageDir, audioName));
+    manifest.push({ sceneId: item.sceneId, unitIndex: item.unitIndex, audio: audioName, output: item.outputName });
+  }
+  writeFileSync(join(stageDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+  return { datasetId, manifest };
+}
+
+// ─── Report ───
+
+/** Platform family for the report's 平台 field ("kaggle" / "modal"). */
+function platformFamily(platform) {
+  if (String(platform).startsWith("modal")) return "modal";
+  if (String(platform).startsWith("kaggle")) return "kaggle";
+  return String(platform);
+}
+
+function buildReport({ plan, planPath, workScenes, generatedAt }) {
+  const tierInfo = MODEL_TIERS[plan.tier] ?? MODEL_TIERS.free;
+  const family = platformFamily(plan.model?.platform ?? tierInfo.platform);
+  const scenes = workScenes.map(({ planScene, status, items }) => {
+    const generated = (items ?? []).map((item) => ({
+      unitKey: item.unitKey,
+      segmentIndex: item.unit.segmentIndex,
+      unitIndex: item.unitIndex,
+      kernelId: item.kernelId ?? item.record?.id ?? null,
+      elapsedSec: item.completedElapsedSec ?? 0,
+      status: item.status ?? "complete",
+    }));
+    const elapsedSeconds = round1(generated.reduce((a, u) => a + u.elapsedSec, 0));
+    return {
+      sceneId: planScene.sceneId,
+      status,
+      videoPath: status === "generated" ? `assets/avatar/scene-${planScene.sceneId}.mp4` : null,
+      elapsedSeconds,
+      platform: family,
+      costUsd: round1((status === "generated" ? generated.length : 0) * tierInfo.costPerSegmentUsd),
+      quotaMinutes: round1(elapsedSeconds / 60),
+      units: generated,
+    };
+  });
+  const generatedScenes = scenes.filter((s) => s.status === "generated");
+  const totalElapsed = round1(scenes.reduce((a, s) => a + s.elapsedSeconds, 0));
+  const units = generatedScenes.reduce((a, s) => a + s.units.length, 0);
+  return {
+    schemaVersion: 1,
+    kind: "digital-human-report",
+    pipelineId: plan.pipelineId,
+    planPath,
+    tier: plan.tier,
+    model: plan.model,
+    generatedAt,
+    scenes,
+    totals: {
+      elapsedSeconds: totalElapsed, // 耗时
+      platform: family, // 平台
+      costUsd: round1(generatedScenes.reduce((a, s) => a + s.costUsd, 0)), // 费用
+      quotaMinutes: round1(totalElapsed / 60),
+      units,
+      scenesGenerated: generatedScenes.length,
+      scenesSkipped: scenes.length - generatedScenes.length,
+    },
+  };
+}
+
+// ─── Scene finalization (upscale → concat → writeback) ───
+
+/**
+ * Post-process one fully-generated scene: 2x upscale every unit video,
+ * concat in strict unit order, copy the final video into the package's
+ * assets, and write `scene.avatar.videoPath` back (single atomic write).
+ * Throws on ANY failure — scene-data is only touched by the final writeback.
+ */
+async function finalizeScene({ plan, planScene, items, deps, planDir }) {
+  const sceneId = planScene.sceneId;
+  const upscaledPaths = [];
+
+  for (const item of items) {
+    const input = join(item.outputDir, item.outputName);
+    if (!existsSync(input)) {
+      throw new Error(`unit output missing after completion: ${input}`);
+    }
+    const output = unitUpscaledPath(planDir, sceneId, item.unitIndex);
+    mkdirSync(dirname(output), { recursive: true });
+    const up = await deps.upscale(input, output, { scale: 2 });
+    if (!up?.success) {
+      throw new Error(`upscale failed for unit ${item.unitKey}: ${up?.error ?? "unknown error"}`);
+    }
+    upscaledPaths.push(item.upscaledPath ?? output);
+  }
+
+  // concat in strict (segmentIndex, from) order — items are already sorted
+  const listFile = join(planDir, "avatar", `concat-s${sceneId}.txt`);
+  mkdirSync(dirname(listFile), { recursive: true });
+  writeFileSync(listFile, buildConcatList(upscaledPaths), "utf8");
+  const concatOut = join(planDir, "avatar", `scene-${sceneId}.avatar.mp4`);
+  await deps.ffmpeg.concat({ listFile, output: concatOut });
+
+  const videoRelPath = `assets/avatar/scene-${sceneId}.mp4`;
+  const destAbs = join(plan.contentDir, videoRelPath);
+  mkdirSync(dirname(destAbs), { recursive: true });
+  copyFileSync(concatOut, destAbs);
+
+  await writeBackVideoPath(plan.contentDir, sceneId, videoRelPath);
+  return videoRelPath;
+}
+
+// ─── runPlan / resumePlan ───
+
+async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode }) {
+  const d = resolveDeps(deps);
+  const plan = readPlanFile(planPath);
+
+  // Plan location sanity: output/{pipelineId}/digital-human-plan.json
+  const planDir = dirname(planPath);
+  const outputBase = dirname(planDir);
+  if (basename(planDir) !== plan.pipelineId) {
+    throw new Error(
+      `Plan file ${planPath} is not inside its package output dir (expected .../${plan.pipelineId}/${PLAN_FILE_NAME})`,
+    );
+  }
+  if (outputRoot && resolve(outputRoot) !== resolve(outputBase)) {
+    throw new Error(`--output-root ${outputRoot} does not match the plan's output dir ${outputBase}`);
+  }
+
+  // GATE 1 — approval (spec scenario 3): refuse before ANY remote call or write.
+  if (plan.approval?.approved !== true) {
+    return {
+      outcome: "refused",
+      reason:
+        "Plan is not approved (approval.approved !== true) — review output/" +
+        plan.pipelineId +
+        "/" +
+        PLAN_FILE_NAME +
+        " then run: node scripts/short-video/digital-human.mjs approve --plan <file>. Zero remote calls were made.",
+    };
+  }
+
+  // GATE 2 — quality-tier authorization re-check (spec scenario 8).
+  if (plan.tier === "quality" && !isQualityTierAuthorized(plan.contentDir)) {
+    return {
+      outcome: "refused",
+      reason:
+        `Modal quality tier (${plan.model?.name ?? "quality model"}) is not authorized for this package — ` +
+        `run refuses to execute (spec scenario 8).`,
+      authSwitch: qualityTierAuthorizationSwitch(plan.contentDir),
+    };
+  }
+
+  // Current scene-data state (stale-plan protection: scenes written back by an
+  // earlier session are skipped without re-billing).
+  const dataMod = await import(pathToFileURL(join(plan.contentDir, "scene-data.mjs")).href);
+  const currentScenes = Array.isArray(dataMod.scenes) ? dataMod.scenes : [];
+  const sceneById = new Map(currentScenes.map((s) => [s.id, s]));
+
+  const log = loadTaskLog(d.tasksPath);
+  const workScenes = [];
+  for (const planScene of plan.scenes) {
+    if (planScene.status !== "needs-generation") continue;
+    const current = sceneById.get(planScene.sceneId);
+    const alreadyGenerated =
+      current?.avatar && typeof current.avatar.videoPath === "string" && current.avatar.videoPath.trim() !== "";
+    if (alreadyGenerated) {
+      workScenes.push({ planScene, status: "skipped-already-generated" });
+      continue;
+    }
+    const items = (planScene.generationUnits ?? []).map((unit, unitIndex) => {
+      const unitKey = unitKeyFor(plan.pipelineId, planScene.sceneId, unitIndex);
+      const record = findUnitRecord(log, unitKey, unit);
+      return {
+        unit,
+        unitIndex,
+        unitKey,
+        record,
+        planScene,
+        sceneId: planScene.sceneId,
+        outputDir: unitOutputDir(planDir, planScene.sceneId, unitIndex),
+        outputName: `s${planScene.sceneId}-u${unitIndex}${UNIT_OUTPUT_EXT}`,
+      };
+    });
+    workScenes.push({ planScene, status: "pending", items });
+  }
+
+  const pendingItems = workScenes.flatMap((w) => w.items ?? []);
+
+  // GATE 3 (run mode) — live/resumable remote tasks exist → point at resume.
+  // All-or-nothing: nothing is submitted while recoverable units exist.
+  if (mode === "run") {
+    const live = pendingItems.filter(
+      (i) => i.record && (RESUMABLE_STATES.has(i.record.state) || (i.record.state === "complete" && !unitOutputExists(i.record))),
+    );
+    if (live.length > 0) {
+      return {
+        outcome: "interrupted",
+        reason:
+          `${live.length} unit(s) of plan ${plan.pipelineId} have recoverable remote tasks ` +
+          `(e.g. ${live[0].record.id} state=${live[0].record.state}) — run ` +
+          `\`node scripts/short-video/digital-human.mjs resume --plan ${planPath}\` to recover without re-billing them.`,
+        resumableUnits: live.map((i) => i.unitKey),
+      };
+    }
+  }
+
+  // Decide the action per unit.
+  for (const item of pendingItems) {
+    const record = item.record;
+    if (record?.state === "complete" && unitOutputExists(record)) {
+      item.action = "skip";
+    } else if (record?.state === "complete" && mode === "resume") {
+      item.action = "harvest"; // completed remotely, local output missing → re-download
+    } else if (mode === "resume" && record && RESUMABLE_STATES.has(record.state)) {
+      item.action = "harvest"; // kernel likely still alive / output retrievable
+    } else {
+      item.action = "submit"; // no record, failed record, or run-mode fresh unit
+    }
+    item.status = "complete";
+  }
+
+  const submitItems = pendingItems.filter((i) => i.action === "submit");
+
+  // Submission setup: portrait + driver-audio slices + input dataset.
+  let datasetSource = null;
+  if (submitItems.length > 0) {
+    const portraitPath = portrait ?? join(plan.contentDir, "assets", "avatar", "portrait.jpg");
+    if (!existsSync(portraitPath)) {
+      return {
+        outcome: "failed",
+        reason:
+          `Avatar portrait not found: ${portraitPath} — place the reference photo at ` +
+          `content/<dir>/assets/avatar/portrait.jpg (media-asset-management: private asset) or pass --portrait <path>`,
+      };
+    }
+    for (const item of submitItems) {
+      const audioPath = item.planScene.audioPath;
+      if (!audioPath || !existsSync(audioPath)) {
+        return {
+          outcome: "failed",
+          reason: `Scene ${item.sceneId}: TTS audio missing (${audioPath ?? "no audioPath in plan"}) — regenerate the voiceover before running`,
+        };
+      }
+      item.slicePath = unitSlicePath(planDir, item.sceneId, item.unitIndex);
+      await d.ffmpeg.sliceAudio({ input: audioPath, from: item.unit.from, to: item.unit.to, output: item.slicePath });
+    }
+    const stageDir = join(planDir, "avatar", "kaggle-input");
+    stageUnitDataset({ stageDir, portraitPath, items: submitItems, pipelineId: plan.pipelineId });
+    const pushed = await d.transport.pushDataset({ dir: stageDir });
+    datasetSource = pushed.source;
+  }
+
+  // Phase 1 — execute units scene by scene (submission order = plan order).
+  // All generation completes BEFORE any post-processing: kernels get in
+  // flight early and a scene-1 upscale failure must not orphan later scenes'
+  // generation (it is all recorded in remote-task state for resume).
+  const generatedAt = new Date().toISOString();
+  for (const work of workScenes) {
+    if (work.status !== "pending") continue;
+    for (const item of work.items) {
+      if (item.action === "submit") {
+        const slug = unitSlugFor(plan.pipelineId, item.sceneId, item.unitIndex);
+        const kernelId = `${KAGGLE_USERNAME}/${slug}`;
+        item.kernelId = kernelId;
+        item.priorElapsedSec = item.record?.elapsedSec ?? 0;
+        const script = buildUnitKernelScript({ audioFile: `s${item.sceneId}-u${item.unitIndex}.wav`, outputFile: item.outputName });
+        try {
+          await d.transport.submitUnit({
+            slug,
+            script,
+            datasetSources: [MODEL_DATASET_SOURCE, datasetSource],
+            workDir: join(planDir, "avatar", "kernels", slug),
+            unitKey: item.unitKey,
+            sceneId: item.sceneId,
+            unitIndex: item.unitIndex,
+          });
+        } catch (e) {
+          recordTask(d.tasksPath, {
+            id: kernelId,
+            backend: "kaggle",
+            kind: UNIT_TASK_KIND,
+            unitKey: item.unitKey,
+            pipelineId: plan.pipelineId,
+            planPath,
+            sceneId: item.sceneId,
+            unitIndex: item.unitIndex,
+            unitSpan: { from: item.unit.from, to: item.unit.to },
+            outputDir: item.outputDir,
+            outputName: item.outputName,
+            state: "failed",
+            error: e.message,
+            errorClass: classifyTaskError(e.message),
+            elapsedSec: item.priorElapsedSec,
+          });
+          return {
+            outcome: "failed",
+            reason: `Unit ${item.unitKey} submission failed: ${e.message}`,
+            failedUnit: item.unitKey,
+          };
+        }
+        recordTask(d.tasksPath, {
+          id: kernelId,
+          backend: "kaggle",
+          kind: UNIT_TASK_KIND,
+          unitKey: item.unitKey,
+          pipelineId: plan.pipelineId,
+          planPath,
+          sceneId: item.sceneId,
+          unitIndex: item.unitIndex,
+          unitSpan: { from: item.unit.from, to: item.unit.to },
+          outputDir: item.outputDir,
+          outputName: item.outputName,
+          state: "running",
+          elapsedSec: item.priorElapsedSec,
+        });
+      }
+
+      // Harvest (fresh or resumed) — skip units already complete locally.
+      if (item.action === "skip") {
+        item.kernelId = item.kernelId ?? item.record?.id ?? null;
+        item.completedElapsedSec = item.record?.elapsedSec ?? 0;
+        continue;
+      }
+      const harvestKernelId = item.action === "harvest" ? item.record.id : item.kernelId;
+      item.kernelId = harvestKernelId;
+      const res = await d.transport.harvestUnit({
+        kernelId: harvestKernelId,
+        outputDir: item.outputDir,
+        outputName: item.outputName,
+        timeoutSec: d.timeoutSec,
+        pollIntervalSec: d.pollIntervalSec,
+      });
+      if (!res.success) {
+        const state = res.stage === "timeout" ? "timeout" : res.stage === "download" ? "download-failed" : "failed";
+        markTask(d.tasksPath, harvestKernelId, state, { lastError: res.stderr });
+        return {
+          outcome: "failed",
+          reason: `Unit ${item.unitKey} failed: ${res.stderr}`,
+          failedUnit: item.unitKey,
+        };
+      }
+      if (!existsSync(join(item.outputDir, item.outputName))) {
+        markTask(d.tasksPath, harvestKernelId, "download-failed", {
+          lastError: `kernel output missing after download: ${join(item.outputDir, item.outputName)}`,
+        });
+        return {
+          outcome: "failed",
+          reason: `Unit ${item.unitKey}: kernel output missing after download (${join(item.outputDir, item.outputName)})`,
+          failedUnit: item.unitKey,
+        };
+      }
+      markUnitComplete(d.tasksPath, harvestKernelId, item.priorElapsedSec ?? item.record?.elapsedSec ?? 0, res.elapsedSec);
+      item.completedElapsedSec = (item.priorElapsedSec ?? item.record?.elapsedSec ?? 0) + (res.elapsedSec ?? 0);
+    }
+  }
+
+  // Phase 2 — per-scene post-processing: upscale + concat + atomic writeback.
+  const writtenBack = [];
+  for (const work of workScenes) {
+    if (work.status !== "pending") continue;
+    try {
+      const videoPath = await finalizeScene({ plan, planScene: work.planScene, items: work.items, deps: d, planDir });
+      work.status = "generated";
+      work.videoPath = videoPath;
+      writtenBack.push({ sceneId: work.planScene.sceneId, videoPath });
+    } catch (e) {
+      return {
+        outcome: "failed",
+        reason: `Scene ${work.planScene.sceneId} post-processing failed: ${e.message}`,
+        failedScene: work.planScene.sceneId,
+      };
+    }
+  }
+
+  // Report (耗时/平台/费用) — written once, only after full success.
+  const report = buildReport({ plan, planPath, workScenes, generatedAt });
+  const reportPath = join(planDir, REPORT_FILE_NAME);
+  writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+
+  return {
+    outcome: "completed",
+    planPath,
+    reportPath,
+    report,
+    writtenBack,
+  };
+}
+
+/**
+ * Execute an approved plan end-to-end (ticket 04 `run --plan`).
+ * See the "Run engine" section header for the contract.
+ *
+ * @param {object} p
+ * @param {string} p.planPath - output/{pipelineId}/digital-human-plan.json
+ * @param {string} [p.portrait] - reference photo override (default
+ *        content/<dir>/assets/avatar/portrait.jpg)
+ * @param {string} [p.outputRoot] - sanity-checked against the plan's location
+ * @param {object} [p.deps] - injectable seams: { tasksPath, transport, ffmpeg, upscale, timeoutSec, pollIntervalSec }
+ * @returns {Promise<object>} { outcome: "completed"|"refused"|"interrupted"|"failed", ... }
+ */
+export function runPlan(params) {
+  return executeRunPlan({ ...params, mode: "run" });
+}
+
+/**
+ * Recover an interrupted run (ticket 04 `resume --plan`): re-harvests units
+ * with live/timeout/download-failed remote tasks, re-downloads completed
+ * units whose local output vanished, resubmits only failed/never-submitted
+ * units. Completed units are never resubmitted or re-billed.
+ */
+export function resumePlan(params) {
+  return executeRunPlan({ ...params, mode: "resume" });
 }
