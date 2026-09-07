@@ -779,9 +779,11 @@ function unitUpscaledPath(planDir, sceneId, unitIndex) {
 }
 const UNIT_OUTPUT_EXT = ".mp4";
 
-// ─── Plan file reading (shared by approve/run/resume) ───
+// ─── Plan file reading (shared by approve/run/resume + T5 frame-audit CLI) ───
 
-function readPlanFile(planPath) {
+/** Parse + validate a plan file (kind/schemaVersion). Exported for the
+ *  ticket-05 frame-audit subcommand, which audits the plan's scene list. */
+export function readPlanFile(planPath) {
   let raw;
   try {
     raw = readFileSync(planPath, "utf8");

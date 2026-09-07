@@ -19,19 +19,27 @@
  *   resume  Recover an interrupted run: re-harvest live/timeout units under
  *           their existing kernel ids, resubmit only failed/never-submitted
  *           units. Completed units are never resubmitted or re-billed.
+ *   audit   Frame audit (ticket 05): run the three-gate avatar frame audit
+ *           (safe-zone compliance / lip movement / A/V sync) for every avatar
+ *           scene of a plan against the COMPOSED render. Any gate FAIL exits
+ *           non-zero and the package must NOT enter the publish chain; the
+ *           error names the failed gate + zone and cites evidence frames.
  *
  * Usage:
  *   node scripts/short-video/digital-human.mjs plan --content <dir> [--tier free|quality]
  *   node scripts/short-video/digital-human.mjs approve --plan <plan.json>
  *   node scripts/short-video/digital-human.mjs run --plan <plan.json> [--portrait <img>]
  *   node scripts/short-video/digital-human.mjs resume --plan <plan.json> [--portrait <img>]
+ *   node scripts/short-video/digital-human.mjs audit --plan <plan.json> [--video <render.mp4>]
  *
  * Quality tier (Modal A100, SoulX-FlashTalk 14B, $0.20/5.2s segment) requires
  * per-package authorization; without it plan AND run refuse (spec scenario 8).
  */
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
-import { executeApprove, executePlan, MODEL_TIERS, runPlan, resumePlan } from "./lib/digital-human.mjs";
+import { executeApprove, executePlan, MODEL_TIERS, readPlanFile, runPlan, resumePlan } from "./lib/digital-human.mjs";
+import { auditDigitalHumanPackage, FRAME_AUDIT_RESULT_NAME } from "./lib/avatar-frame-audit.mjs";
+import { resolveOutputVideo } from "./lib/assemble.mjs";
 
 const HELP = `Digital-human generation orchestration (#214)
 
@@ -61,6 +69,17 @@ approve/run/resume options:
   --portrait <img>     Reference photo override (run/resume only; default
                        content/<dir>/assets/avatar/portrait.jpg)
   --output-root <dir>  Sanity check: must match the plan's output dir
+
+audit options:
+  --plan <file>        Path to digital-human-plan.json (required) — supplies
+                       the avatar scene list, TTS audio paths and present windows
+  --video <file>       Composed render to audit (default: latest
+                       output/{pipelineId}/{prefix}-v*-short.mp4)
+  --output-root <dir>  Sanity check: must match the plan's output dir
+
+Audit outputs (T6 publish-chain wiring consumes the exit code + result JSON):
+  output/{pipelineId}/avatar/frame-audit-result.json   machine-readable gates
+  output/{pipelineId}/avatar/frame-audit/scene-<id>/   evidence frames
 
 Quality-tier authorization (per package):
   content/<dir>/avatar-quality.authorized   marker file (empty file = authorized), or
@@ -127,9 +146,9 @@ async function main() {
     process.exit(subcommand ? 0 : 1);
   }
 
-  if (!["plan", "approve", "run", "resume"].includes(subcommand)) {
+  if (!["plan", "approve", "run", "resume", "audit"].includes(subcommand)) {
     console.error(`❌ Unknown subcommand: ${subcommand}`);
-    console.error("   Available: plan | approve | run | resume");
+    console.error("   Available: plan | approve | run | resume | audit");
     process.exit(1);
   }
 
@@ -145,6 +164,11 @@ async function main() {
 
   if (subcommand === "plan") {
     await runPlanSubcommand(args);
+    return;
+  }
+
+  if (subcommand === "audit") {
+    await runAuditSubcommand(args);
     return;
   }
 
@@ -230,6 +254,80 @@ async function runPlanSubcommand(args) {
   console.log(
     `   Review the plan, then: node scripts/short-video/digital-human.mjs approve --plan ${result.planPath}`,
   );
+}
+
+async function runAuditSubcommand(args) {
+  const planPath = requirePlanPath(args, "audit");
+  const videoArg = getArg(args, "video");
+  const outputRoot = getArg(args, "output-root");
+
+  const plan = readPlanFile(resolve(planPath));
+  const planDir = resolve(planPath, "..");
+  const outputBase = resolve(planDir, "..");
+  if (outputRoot && resolve(outputRoot) !== outputBase) {
+    console.error(`❌ --output-root ${outputRoot} does not match the plan's output dir ${outputBase}`);
+    process.exit(1);
+  }
+
+  // Default video: the same resolution verify-video.mjs uses (latest -v*-short.mp4).
+  const videoPath = videoArg
+    ? resolve(videoArg)
+    : resolveOutputVideo(join(outputBase, plan.pipelineId), plan.pipelineId);
+
+  console.log(`🔍 Avatar frame audit (#214 ticket 05)`);
+  console.log(`   Plan: ${planPath}`);
+  console.log(`   Video: ${videoPath}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+  // Scene count for timeline offsets comes from the package's scene-data.
+  let totalSceneCount = 0;
+  try {
+    const dataMod = await import(`${resolve(plan.contentDir, "scene-data.mjs").replace(/\\/g, "/")}`);
+    totalSceneCount = (dataMod.scenes ?? []).length;
+  } catch {
+    // readSceneDurationsForTimeline still validates completeness against this count.
+  }
+  if (!totalSceneCount) {
+    console.error(`❌ Cannot read scenes from ${plan.contentDir}/scene-data.mjs — timeline offsets unavailable`);
+    process.exit(1);
+  }
+
+  let result;
+  try {
+    result = await auditDigitalHumanPackage({
+      plan,
+      videoPath,
+      outputDir: join(outputBase, plan.pipelineId),
+      totalSceneCount,
+    });
+  } catch (e) {
+    console.error(`❌ Frame audit could not run: ${e.message}`);
+    process.exit(1);
+  }
+
+  for (const scene of result.scenes) {
+    const mark = scene.ok ? "✅" : "❌";
+    console.log(`${mark} Scene ${scene.sceneId} — ${scene.gates.map((g) => g.gate).join(" / ")}`);
+    for (const gate of scene.gates) {
+      const icon = gate.status === "pass" ? "✅" : gate.status === "skip" ? "⏭️ " : "❌";
+      console.log(`   ${icon} [${gate.gate}] ${gate.status.toUpperCase()} — ${gate.detail}`);
+    }
+    if (!scene.ok) {
+      console.log(`   Evidence frames: ${scene.evidenceDir}/`);
+    }
+  }
+
+  console.log(`\n   Scenes: ${result.totals.scenesPassed}/${result.totals.scenes} passed`);
+  console.log(`📄 Result: ${result.resultPath}`);
+
+  if (!result.ok) {
+    console.error(
+      `\n⛔ Frame audit FAILED — the package must NOT enter the publish chain ` +
+        `(${result.totals.failedGates.length} failed gate(s); see evidence frames above).`,
+    );
+    process.exit(1);
+  }
+  console.log(`\n✅ All avatar scenes passed the frame audit — clear for the publish chain.`);
 }
 
 main().catch((err) => {
