@@ -115,6 +115,37 @@ async function main() {
   console.log(`   Renderer: Remotion (React → frame-by-frame)`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
+  // ── Avatar instrumentation (#214 ticket 02) ──
+  // Minimal fail-closed check ONLY: a declared avatar videoPath whose file is
+  // missing aborts here, before TTS spend. Generation itself is a separate
+  // CLI (lands with #214 T3) and is never triggered from main.mjs. The
+  // render layer re-checks at staging time (render-remotion.mjs), so
+  // render-only runs get the same fail-closed guarantee.
+  const avatarScenes = scenes.filter((s) => s.avatar && typeof s.avatar === "object");
+  if (avatarScenes.length > 0) {
+    for (const scene of avatarScenes) {
+      if (scene.avatar.videoPath) {
+        const avatarPath = resolve(__dirname, "content", contentDir, scene.avatar.videoPath);
+        if (!existsSync(avatarPath)) {
+          console.error(`❌ Avatar video missing for scene ${scene.id}: ${scene.avatar.videoPath}`);
+          console.error(
+            `   Fail-closed: the render will not silently drop the digital human.`,
+          );
+          console.error(
+            `   Restore the generated clip, or regenerate it (digital-human CLI, #214 T3), or remove scene.avatar from the scene.`,
+          );
+          process.exit(1);
+        }
+      }
+    }
+    const pending = avatarScenes.filter((s) => !s.avatar.videoPath).length;
+    console.log(
+      `🧑‍💼 Avatar declared on ${avatarScenes.length} scene(s)` +
+        (pending ? ` (${pending} pending generation — render will fail-closed)` : ""),
+    );
+    console.log("");
+  }
+
   // ── Pre-Render Verification (validates scene-data against SKILL.md rules) ──
   const skipPreflight = process.argv.includes("--skip-preflight");
   if (!skipPreflight) {

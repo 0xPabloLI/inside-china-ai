@@ -12,8 +12,9 @@ import { ScaleIn, StampIn, FadeIn } from "../components/animations/entrance";
 import { SPACING } from "../components/shared";
 import { LogoPulse } from "../components/animations/loops";
 import { TextGate } from "../components/text-gate";
+import { AvatarCard } from "../components/AvatarCard";
 
-export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
+export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene, duration }) => {
   const txt = scene.texts || {};
   const brand = (txt.brand as string) ?? "CHINA AI NEWS";
   const brandHighlight = (txt.brandHighlight as string) ?? "AI";
@@ -154,6 +155,11 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
           </FadeIn>
         )}
       </Slot>
+
+      {/* Digital-human foreground card (#214) — LAST child so DOM order keeps
+          it above every text layer (no zIndex; see AvatarCard's contract).
+          Returns null when the scene declares no avatar. */}
+      <AvatarCard avatar={scene.avatar} duration={duration} />
     </div>
   );
 };

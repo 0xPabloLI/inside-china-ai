@@ -110,3 +110,81 @@ export const WATERMARK_POS = { top: 60, left: 60 };
  * HTML templates read the brand SVG via fs — see retired-html-path/).
  */
 export const BRAND_FONT_STACK = "'Times New Roman', Times, serif";
+
+// ─── Avatar foreground card (#214, spec Implementation Decision 2) ───
+
+/**
+ * Digital-human foreground card geometry (variant 1′ "right-card", the only
+ * rendered position — see lib/scene-rules.mjs AVATAR_POSITIONS).
+ *
+ * Layout evidence: docs/research/dh-avatar-layout-best-practices.md (13
+ * sources) + the approved prototype (worktree prototype/dh-layout-templates
+ * variant 1′). The card is a PiP inset INSIDE the existing safe bands — it
+ * must clear the same platform dead zones everything else clears:
+ *
+ *   - Right edge at x = CANVAS.width − SAFE_ZONES.right = 880. The research
+ *     floor for the action rail is 180px; SAFE_ZONES.right (200) is the repo's
+ *     calibrated (stricter) value, so the card clears the rail with margin.
+ *   - Bottom edge at y = SUBTITLE_LANE_TOP − subtitleGap = 1148, i.e. ABOVE
+ *     the burned-subtitle lane with a declared gap. This constraint implies
+ *     the research bottom dead zone (≈400px → y ≤ 1520): any rect ending at
+ *     or above the lane top also ends far above 1520, so no separate constant
+ *     is needed and none is invented here (derive from existing zones only).
+ *   - Top/left edges stay inside the content band (SAFE_ZONES.top/left).
+ *
+ * Only additive: existing SAFE_ZONES / SUBTITLE_LANE consumers are unaffected.
+ */
+export const AVATAR_CARD = {
+  /** Card size @1080×1920 — matches the 624×816 → 2x-upscaled EchoMimicV3 output ratio. */
+  width: 420,
+  height: 550,
+  /** Right margin from the canvas edge (reuses SAFE_ZONES.right — rail clearance). */
+  rightMargin: SAFE_ZONES.right,
+  /** Declared gap between the card's bottom edge and the subtitle lane top. */
+  subtitleGap: 40,
+  /** Position id — mirrors AVATAR_POSITIONS[0] in lib/scene-rules.mjs. */
+  position: "right-card",
+};
+
+/** Default card rectangle on the canvas, in px: {x:460, y:598, w:420, h:550}. */
+export const AVATAR_CARD_RECT = {
+  x: CANVAS.width - SAFE_ZONES.right - AVATAR_CARD.width,
+  y: SUBTITLE_LANE_TOP - AVATAR_CARD.subtitleGap - AVATAR_CARD.height,
+  width: AVATAR_CARD.width,
+  height: AVATAR_CARD.height,
+};
+
+/**
+ * Assert that an avatar card rectangle does not intrude into any protected
+ * zone. Throws naming the intruded zone (spec Behavioral Scenario 6: the frame
+ * audit must name the zone, not just fail); returns the rect on success.
+ *
+ * @param {{x: number, y: number, width: number, height: number}} [rect]
+ *   Defaults to AVATAR_CARD_RECT. Future templates/positions pass their own
+ *   rect here (e.g. a scaled card — scale grows toward the bottom-right anchor,
+ *   so the rail/lane edges stay fixed).
+ */
+export function assertAvatarCardSafe(rect = AVATAR_CARD_RECT) {
+  const label = (edge) => `[AvatarCard safe-zone] card ${edge} intrudes`;
+  if (rect.x < SAFE_ZONES.left) {
+    throw new Error(`${label("left edge")} the left margin (SAFE_ZONES.left = ${SAFE_ZONES.left})`);
+  }
+  if (rect.y < SAFE_ZONES.top) {
+    throw new Error(`${label("top edge")} the top nav band (SAFE_ZONES.top = ${SAFE_ZONES.top})`);
+  }
+  if (rect.x + rect.width > CANVAS.width - SAFE_ZONES.right) {
+    throw new Error(
+      `${label("right edge")} the TikTok right action rail (SAFE_ZONES.right = ${SAFE_ZONES.right})`,
+    );
+  }
+  const laneLimit = SUBTITLE_LANE_TOP - AVATAR_CARD.subtitleGap;
+  if (rect.y + rect.height > laneLimit) {
+    throw new Error(
+      `${label("bottom edge")} the burned-subtitle lane (SUBTITLE_LANE_TOP = ${SUBTITLE_LANE_TOP}, declared gap ${AVATAR_CARD.subtitleGap}px)`,
+    );
+  }
+  if (rect.y + rect.height > CANVAS.height || rect.x + rect.width > CANVAS.width) {
+    throw new Error(`${label("edge")} the canvas bounds (${CANVAS.width}×${CANVAS.height})`);
+  }
+  return rect;
+}

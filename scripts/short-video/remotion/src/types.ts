@@ -96,6 +96,21 @@ export interface SceneTexts {
   [key: string]: string | StatItem[] | string[] | { field: string; text: string } | undefined; // allow visualType-specific fields + the structured highlight
 }
 
+/**
+ * #214 digital-human foreground card declaration. Schema owner:
+ * lib/scene-rules.mjs checkAvatarContract (fail-closed on unknown fields).
+ * videoPath is content-relative as authored; render-remotion.mjs
+ * stageAvatarVideos() relativizes it to the public/assets/ basename and
+ * fail-closes on missing/corrupt files before the render starts.
+ */
+export interface AvatarField {
+  videoPath?: string;
+  position?: "right-card"; // default; the only rendered variant (1′)
+  scale?: number;
+  /** On-screen seconds (scene-local); omitted = the card covers the whole scene. */
+  present?: { from: number; to: number }[];
+}
+
 /** A single scene definition (from scene-data.mjs). */
 export interface SceneData {
   id: number;
@@ -108,6 +123,8 @@ export interface SceneData {
    * filter skips the scene on every rerun. Absent field = source it.
    */
   media?: MediaField | null;
+  /** Digital-human foreground card (#214) — rendered by components/AvatarCard. */
+  avatar?: AvatarField;
   /** Layout variant for scene rendering (required for non-cta scenes). */
   layout?: string;
   /**
