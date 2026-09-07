@@ -82,7 +82,7 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
 
 ### Analytics 闭环
 
-> **TikTok 登录策略（2026-09-07 起）**：TikTok 登录一律用专用全新 profile Chrome 实例（指纹等效无痕，登录态可留存复用）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动与 proxy 路由步骤见 `docs/analytics-workflow.md`「风控登录态替代方案」。
+> **TikTok 登录策略（2026-09-07 起）**：TikTok 登录一律用专用全新 profile Chrome 实例（指纹等效无痕，登录态可留存复用）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动与 proxy 路由步骤见 `docs/analytics-workflow.md`「TikTok 专用登录实例（默认路线）」。
 
 ```
 ① 检查 pending-analysis.json
