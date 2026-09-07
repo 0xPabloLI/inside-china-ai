@@ -120,7 +120,10 @@ run(
 
 # diffusers 0.31.0 downgrade — CRITICAL on T4 too (v41/v42: 0.37.1 OOM-killed
 # during from_pretrained; v43/v51: 0.31.0 loads module-by-module).
-CUSTOM_DIR = "/kaggle/working/diffusers0310"
+# Install OUTSIDE /kaggle/working (v52 lesson): ~700 diffusers files blew
+# through Kaggle's kernel-output file-list cap and cut the harvested mp4 out
+# of the download listing. /kaggle/tmp is writable and not snapshotted.
+CUSTOM_DIR = "/kaggle/tmp/diffusers0310"
 os.makedirs(CUSTOM_DIR, exist_ok=True)
 run(f"{sys.executable} -m pip uninstall -y diffusers", timeout=60, check=False)
 run(f"{sys.executable} -m pip install --no-deps --target={CUSTOM_DIR} diffusers==0.31.0", timeout=120)
@@ -135,6 +138,57 @@ import diffusers
 
 print(f"diffusers: {diffusers.__version__}")
 assert diffusers.__version__ == "0.31.0", f"expected 0.31.0, got {diffusers.__version__}"
+
+# ── Step 1b: compat patches for diffusers 0.31.0 on the 2026-09 image ──────
+# Kaggle's preinstalled transformers is too new for diffusers 0.31.0:
+# 1. pipeline_loading_utils imports FLAX_WEIGHTS_NAME, removed from
+#    transformers.utils (v52 unit run: ImportError at pipeline import).
+# 2. check_torch_load_is_safe may reject torch-format checkpoints
+#    (v22-proven disable; v38 ran this exact pair successfully).
+_plu_path = os.path.join(CUSTOM_DIR, "diffusers", "pipelines", "pipeline_loading_utils.py")
+with open(_plu_path, "r") as f:
+    _plu = f.read()
+_FLAX_MARK = "TRANSFORMERS_FLAX_WEIGHTS_NAME = 'flax_model.msgpack'"
+if "from transformers.utils import FLAX_WEIGHTS_NAME" in _plu and _FLAX_MARK not in _plu:
+    for _line in _plu.split("\n"):
+        if "from transformers.utils import FLAX_WEIGHTS_NAME as TRANSFORMERS_FLAX_WEIGHTS_NAME" in _line:
+            _indent = " " * (len(_line) - len(_line.lstrip()))
+            _plu = _plu.replace(
+                _line,
+                f"{_indent}try:\n"
+                f"{_indent}    from transformers.utils import FLAX_WEIGHTS_NAME as TRANSFORMERS_FLAX_WEIGHTS_NAME\n"
+                f"{_indent}except ImportError:\n"
+                f"{_indent}    {_FLAX_MARK}",
+                1,
+            )
+            break
+    with open(_plu_path, "w") as f:
+        f.write(_plu)
+    print("[OK] patched diffusers pipeline_loading_utils (FLAX_WEIGHTS_NAME)")
+
+import transformers as _transformers
+print(f"transformers: {_transformers.__version__}")
+_iu_path = os.path.join(os.path.dirname(_transformers.__file__), "utils", "import_utils.py")
+with open(_iu_path, "r") as f:
+    _iu_lines = f.readlines()
+if any(l.strip().startswith("def check_torch_load_is_safe(") for l in _iu_lines):
+    _start = next(i for i, l in enumerate(_iu_lines) if l.strip().startswith("def check_torch_load_is_safe("))
+    _indent = len(_iu_lines[_start]) - len(_iu_lines[_start].lstrip())
+    _end = len(_iu_lines)
+    for j in range(_start + 1, len(_iu_lines)):
+        _l = _iu_lines[j]
+        if _l.strip() and (not _l[0].isspace() or (len(_l) - len(_l.lstrip()) <= _indent)) and _l.strip().startswith("def "):
+            _end = j
+            break
+    _iu_lines = (
+        _iu_lines[:_start]
+        + ['def check_torch_load_is_safe():\n', '    """Patched: disabled for offline kernel compat."""\n', "    pass\n", "\n"]
+        + _iu_lines[_end:]
+    )
+    with open(_iu_path, "w") as f:
+        f.writelines(_iu_lines)
+    run(f"find {os.path.dirname(_transformers.__file__)}/ -name '__pycache__' -exec rm -rf {{}} + 2>/dev/null; true", timeout=30, check=False)
+    print("[OK] patched transformers check_torch_load_is_safe")
 
 # ── Step 2: model weights (Kaggle dataset xpabloli/echomimicv3-flash) ──────
 import glob
@@ -171,27 +225,41 @@ unit_duration = wav_duration_seconds(DRIVER_WAV)
 print(f"Portrait: {PORTRAIT}")
 print(f"Driver wav: {DRIVER_WAV} ({unit_duration:.3f}s)")
 
-# ── Step 4: patch infer_flash.py — torch_compile branch (v51) ──────────────
+# ── Step 4: patch infer_flash.py — seq offload + torch.compile (v52) ───────
+# Upstream (2026-09) dropped all GPU_memory_mode branching and unconditionally
+# does pipeline.to(device=device) → every module on GPU at once → CUDA OOM on
+# T4 16GB (v52 first run died during pipeline.to). The v51 optimum documented
+# in docs/research/echomimicv3-optimization-options.md is sequential offload +
+# torch.compile(forward) — 14.3 min/segment on T4 (v43/v47/v49 proven).
+# Patch BOTH pipeline.to call sites the v38-proven way; guard the compile so
+# the second site does not recompile.
 infer_flash_path = os.path.join(WORK_DIR, "echomimic_v3", "infer_flash.py")
 with open(infer_flash_path, "r") as f:
     content = f.read()
-if 'GPU_memory_mode == "torch_compile"' not in content:
-    patched = content.replace(
-        'if GPU_memory_mode == "sequential_cpu_offload":',
-        'if GPU_memory_mode == "torch_compile":\n'
-        '    print("torch_compile: pipeline.to + torch.compile(transformer.forward)")\n'
-        "    pipeline.to(device=device)\n"
-        "    pipeline.transformer.forward = torch.compile(pipeline.transformer.forward, dynamic=True)\n"
-        'elif GPU_memory_mode == "sequential_cpu_offload":',
+if "torch.compile(pipeline.transformer.forward" not in content:
+    OFFLOAD_BLOCK = (
+        'if GPU_memory_mode == "sequential_cpu_offload":\n'
+        "        pipeline.enable_sequential_cpu_offload()\n"
+        '    elif GPU_memory_mode == "torch_compile":\n'
+        "        pipeline.enable_sequential_cpu_offload()\n"
+        '        if not getattr(pipeline.transformer, "_dh_torch_compiled", False):\n'
+        "            pipeline.transformer.forward = torch.compile(pipeline.transformer.forward, dynamic=True)\n"
+        '            pipeline.transformer._dh_torch_compiled = True\n'
+        "    else:\n"
+        "        pipeline.to(device=device)"
     )
-    if patched == content:
-        print("[ERROR] could not patch infer_flash.py for torch_compile")
+    n_sites = content.count("pipeline.to(device=device)")
+    if n_sites == 0:
+        print("[ERROR] could not patch infer_flash.py: no pipeline.to(device=device) found")
+        print("[DEBUG] file head:")
+        print(content[:1500])
         sys.exit(1)
+    content = content.replace("    pipeline.to(device=device)", "    " + OFFLOAD_BLOCK)
     with open(infer_flash_path, "w") as f:
-        f.write(patched)
-    print("[OK] patched infer_flash.py with torch_compile branch")
+        f.write(content)
+    print(f"[OK] patched infer_flash.py: {n_sites} call site(s) → seq offload + torch.compile")
 else:
-    print("[OK] torch_compile branch already present")
+    print("[OK] seq offload + torch.compile already present in infer_flash.py")
 
 # ── Step 5: v51 inference ──────────────────────────────────────────────────
 OUTPUT_DIR = os.path.join(WORK_DIR, "outputs", "unit")
