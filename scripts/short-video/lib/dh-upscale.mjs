@@ -24,8 +24,8 @@
  * @module dh-upscale
  */
 
-import { existsSync, mkdirSync, rmSync } from "fs";
-import { join } from "path";
+import { existsSync, mkdirSync, renameSync, rmSync } from "fs";
+import { extname, join } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
@@ -65,6 +65,9 @@ export function resolveUpscalePlan({
   if (!Number.isInteger(tile) || tile < 32) {
     throw new Error(`Invalid tile ${tile}: must be an integer >= 32`);
   }
+  if (shortSide !== null && (!Number.isInteger(shortSide) || shortSide < 16)) {
+    throw new Error(`Invalid shortSide ${shortSide}: must be a positive integer or null`);
+  }
   return {
     mode: isVideo ? "video" : "image",
     model: model ?? (isVideo ? "realesr-animevideov3" : "realesrgan-x4plus"),
@@ -77,34 +80,33 @@ export function resolveUpscalePlan({
 // ─── Upscale functions ───
 
 /**
- * Run the Real-ESRGAN binary over a directory of PNG frames.
+ * Run the Real-ESRGAN binary over a file or directory of frames.
  *
- * @param {string} framesDir - Input frame directory
- * @param {string} upscaledDir - Output frame directory
+ * @param {string} input - Input file or frame directory
+ * @param {string} output - Output file or directory
  * @param {{ model: string, scale: number, tile: number }} plan - From resolveUpscalePlan
+ * @param {string} [format] - Output format passed as -f (default "png",
+ *   required for directory batch mode; omit for single files to let the
+ *   binary pick the format from the output extension)
  * @returns {{ status: number, stderr: string, stdout: string }}
  */
-function runRealesrgan(framesDir, upscaledDir, plan) {
-  return spawnSync(
-    REALESRGAN_PATH,
-    [
-      "-i",
-      framesDir,
-      "-o",
-      upscaledDir,
-      "-n",
-      plan.model,
-      "-s",
-      String(plan.scale),
-      "-t",
-      String(plan.tile),
-      "-m",
-      REALESRGAN_MODELS_DIR,
-      "-f",
-      "png",
-    ],
-    { encoding: "utf8", timeout: 600000 },
-  );
+function runRealesrgan(input, output, plan, format = "png") {
+  const args = [
+    "-i",
+    input,
+    "-o",
+    output,
+    "-n",
+    plan.model,
+    "-s",
+    String(plan.scale),
+    "-t",
+    String(plan.tile),
+    "-m",
+    REALESRGAN_MODELS_DIR,
+  ];
+  if (format) args.push("-f", format);
+  return spawnSync(REALESRGAN_PATH, args, { encoding: "utf8", timeout: 600000 });
 }
 
 /**
@@ -251,24 +253,8 @@ export function upscaleDigitalHumanImage(inputPath, outputPath, options = {}) {
     return { success: false, error: e.message };
   }
 
-  const realesrganResult = spawnSync(
-    REALESRGAN_PATH,
-    [
-      "-i",
-      inputPath,
-      "-o",
-      outputPath,
-      "-n",
-      plan.model,
-      "-s",
-      String(plan.scale),
-      "-t",
-      String(plan.tile),
-      "-m",
-      REALESRGAN_MODELS_DIR,
-    ],
-    { encoding: "utf8", timeout: 300000 },
-  );
+  const tmpOutput = outputPath.replace(extname(outputPath), `-tmp${extname(outputPath)}`);
+  const realesrganResult = runRealesrgan(inputPath, tmpOutput, plan, null);
   if (realesrganResult.status !== 0) {
     return {
       success: false,
@@ -278,6 +264,35 @@ export function upscaleDigitalHumanImage(inputPath, outputPath, options = {}) {
       ),
     };
   }
+
+  // Optional short-side clamp (upscale.mjs's image path hardcodes 720; here
+  // the default keeps the native upscaled resolution).
+  if (plan.targetShortSide !== null) {
+    const scaleResult = spawnSync(
+      FFMPEG_PATH,
+      [
+        "-i",
+        tmpOutput,
+        "-vf",
+        `scale='if(gt(iw,ih),-1,${plan.targetShortSide})':'if(gt(iw,ih),${plan.targetShortSide},-1)'`,
+        "-y",
+        outputPath,
+      ],
+      { encoding: "utf8", timeout: 60000 },
+    );
+    try {
+      rmSync(tmpOutput, { force: true });
+    } catch {}
+    if (scaleResult.status !== 0) {
+      return {
+        success: false,
+        error: `Scale failed: ${(scaleResult.stderr || "").substring(0, 200)}`,
+      };
+    }
+    return { success: true, path: outputPath };
+  }
+
+  renameSync(tmpOutput, outputPath);
   return { success: true, path: outputPath };
 }
 
@@ -298,8 +313,12 @@ export function upscaleDigitalHuman(inputPath, outputPath, options = {}) {
   if (res.width === 0) {
     return { success: false, error: `Could not read resolution of ${inputPath}` };
   }
-  const plan = resolveUpscalePlan({ isVideo: res.isVideo, ...options });
-
+  let plan;
+  try {
+    plan = resolveUpscalePlan({ isVideo: res.isVideo, ...options });
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
   console.log(
     `  🎞️  dh-upscale: ${res.width}×${res.height} → ${plan.scale}× via ${plan.model}` +
       (plan.targetShortSide ? ` (short side → ${plan.targetShortSide})` : " (native size)"),

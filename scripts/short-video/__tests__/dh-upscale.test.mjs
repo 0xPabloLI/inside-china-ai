@@ -41,9 +41,10 @@ describe("dh-upscale resolveUpscalePlan", () => {
     expect(plan.targetShortSide).toBe(720);
   });
 
-  it("rejects upscale ratios the binary does not support", () => {
+  it("rejects upscale ratios and short-side clamps the binary path cannot honor", () => {
     expect(() => resolveUpscalePlan({ isVideo: true, scale: 3.5 })).toThrow();
     expect(() => resolveUpscalePlan({ isVideo: true, scale: 1 })).toThrow();
+    expect(() => resolveUpscalePlan({ isVideo: true, shortSide: -5 })).toThrow();
   });
 });
 
