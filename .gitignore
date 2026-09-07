@@ -178,3 +178,6 @@ scripts/short-video/content/*/.vlm-cache/
 
 # FeatherTalk 训练视频片段（48MB，太大不入库）
 scripts/short-video/assets/dh-fixtures/feathertalk/train_30s_180s.mp4
+
+# TTS 引擎对比实验产物（WAV/JSON，149MB+，不入库）
+scripts/short-video/assets/tts-comparison/
