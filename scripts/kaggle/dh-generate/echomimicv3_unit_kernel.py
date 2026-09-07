@@ -137,13 +137,22 @@ print(f"diffusers: {diffusers.__version__}")
 assert diffusers.__version__ == "0.31.0", f"expected 0.31.0, got {diffusers.__version__}"
 
 # ── Step 2: model weights (Kaggle dataset xpabloli/echomimicv3-flash) ──────
-DATASET_DIR = None
-for candidate in ["/kaggle/input/echomimicv3-flash/echomimicv3-models", "/kaggle/input/echomimicv3-flash"]:
-    if os.path.exists(os.path.join(candidate, "flash", "Wan2.1-Fun-V1.1-1.3B-InP")):
-        DATASET_DIR = candidate
-        break
+import glob
+# Kaggle mount convention drifts: kernels pushed via the API may see datasets
+# at /kaggle/input/<slug> (classic) or /kaggle/input/datasets/<slug> (observed
+# 2026-09, matches the /kaggle/input/datasets/xpabloli/... fallback v25 kept).
+# Detect by content, not by path: walk /kaggle/input for the model dir.
+MODEL_DIR_NAME = "Wan2.1-Fun-V1.1-1.3B-InP"
+model_matches = glob.glob(f"/kaggle/input/**/{MODEL_DIR_NAME}", recursive=True)
+if model_matches:
+    # found = .../<dataset>/flash/Wan2.1-Fun-V1.1-1.3B-InP → dataset root is 2 up
+    DATASET_DIR = os.path.dirname(os.path.dirname(model_matches[0]))
 if not DATASET_DIR:
     print("[ERROR] model dataset echomimicv3-flash not found")
+    try:
+        print("[DEBUG] /kaggle/input contents:", os.listdir("/kaggle/input"))
+    except Exception as e:
+        print(f"[DEBUG] listing /kaggle/input failed: {e}")
     sys.exit(1)
 BASE_MODEL_DIR = os.path.join(DATASET_DIR, "flash", "Wan2.1-Fun-V1.1-1.3B-InP")
 WAV2VEC_DIR = os.path.join(DATASET_DIR, "flash", "chinese-wav2vec2-base")
@@ -151,8 +160,6 @@ FLASH_SAFETENSORS = os.path.join(BASE_MODEL_DIR, "diffusion_pytorch_model.safete
 print(f"Models: {DATASET_DIR}")
 
 # ── Step 3: unit inputs (per-run dataset: portrait.jpg + driver wav) ───────
-import glob
-
 portrait_matches = glob.glob("/kaggle/input/**/portrait.jpg", recursive=True)
 audio_matches = glob.glob(f"/kaggle/input/**/{UNIT_CONFIG['audio_file']}", recursive=True)
 if not portrait_matches or not audio_matches:
