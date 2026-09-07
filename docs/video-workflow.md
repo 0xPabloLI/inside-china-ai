@@ -97,7 +97,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 ## Brand Voice
 
 - **Tone**: Intelligence briefing. Authoritative, fast, no fluff.
-- **Pace**: F5-TTS-MLX (cloned voice, steps=32, cfg_strength=3.0). Fallback engines below.
+- **Pace**: CosyVoice3-MLX (cloned voice + emotion instruct, speed=1.0). Fallback engines below.
 - **Visual**: Cyber Intelligence Briefing — dark, grid, glow, scanlines
 - **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (FOLLOW FOR MORE — the standard end-card action) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
 
@@ -107,12 +107,14 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),
 > the agent must explicitly notify the user and mark the run as degraded.
 
-| Priority | Engine         | Max Effort Parameters                                            | Venv                             | Notes                                                                                                           |
-| -------- | -------------- | ---------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 1        | **F5-TTS-MLX** | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12) | **DEFAULT**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control eliminates atempo. |
-| 2        | Qwen3-TTS      | `do_sample=False`, `repetition_penalty=1.3` (greedy search)      | `~/.video-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control. Backup engine.                       |
-| 3        | edge-tts       | en-US-BrianNeural                                                | npm                              | Network-dependent, retry 3x; no voice cloning. Template voice only.                                             |
-| 4        | macOS say      | Daniel, 190 wpm                                                  | built-in                         | Last resort; no voice cloning                                                                                   |
+| Priority | Engine                   | Max Effort Parameters                                            | Venv / Runtime                   | Notes                                                                                                                       |
+| -------- | ------------------------ | ---------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix          | Kaggle CLI + `~/.kaggle/kaggle.json` | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.                         |
+| 2        | **CosyVoice3-MLX**       | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12) | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB)            |
+| 3        | **F5-TTS-MLX**           | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12) | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.               |
+| 4        | Qwen3-TTS                | `do_sample=False`, `repetition_penalty=1.3` (greedy search)      | `~/.video-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control.                                                  |
+| 5        | edge-tts                 | en-US-BrianNeural                                                | npm                              | Network-dependent, retry 3x; no voice cloning. Template voice only.                                                         |
+| 6        | macOS say                | Daniel, 190 wpm                                                  | built-in                         | Last resort; no voice cloning                                                                                               |
 
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 
@@ -172,7 +174,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 | atempo                | OFF | OFF  | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**.                  |
 | resample (44.1kHz)    | ON  | ON   | Standardize sample rate for assembly                                                    |
 
-**Force engine**: `export TTS_ENGINE=f5-mlx` / `qwen-tts` / `edge-tts` / `say`
+**Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `qwen-tts` / `edge-tts` / `say`
 
 ### Reference Audio Format (M4A → WAV)
 
@@ -470,7 +472,7 @@ When modifying rules in this file, consult these reference docs for root cause a
 
 | Topic                           | Reference                                                   | Content                                                                 |
 | ------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| TTS engine selection            | ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey                                  |
+| TTS engine selection            | ADR-0019, ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey                                  |
 | Audio drift fix                 | `docs/research/audio-drift-fix.md`                          | Root cause analysis, fix implementation, sync verification, diagnostics |
 | Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md`          | 15 sources, per-parameter rationale, research citations                 |
 | TikTok best practices           | `docs/tiktok/tiktok-best-practices.md`                      | Signal weights, voice rules, hook formulas, audit checklist             |

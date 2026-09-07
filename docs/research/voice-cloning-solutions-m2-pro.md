@@ -2,7 +2,14 @@
 
 > **调研日期**：2026-08-10
 > **目标设备**：MacBook Pro (Mac14,10), Apple M2 Pro, 32 GB, macOS 26.5.1, Metal 4
-> **核心需求**：(1) 语音克隆 — 用少量参考音频生成目标说话人的语音；(2) 在 Apple Silicon 上本地推理；(3) 支持英文为主的视频旁白
+> **核心需求**（2026-09-07 用户澄清完整版）：
+> - **可商用 License** — 不限于 Apache，但必须可商用（排除 CC-BY-NC 等非商用许可）
+> - **语音克隆** — 用少量参考音频生成目标说话人的语音
+> - **情感控制** — 通过 instruct/参数控制情感、语速、风格
+> - **免费** — 最好有，但非必须
+> - **近实时** — 不要求（RTF 不是选型标准）
+> - **本地推理** — Apple Silicon 上可跑（优先），远程 GPU 作为备选
+> - **支持英文为主的视频旁白**
 > **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README/API、HuggingFace 模型页、CosyVoice/Fish Audio 官方 benchmark
 > **关联文档**：`docs/research/digital-human-solutions-m2-pro.md`（数字人）、`docs/research/voice-prosody-hook-optimization.md`（prosody 优化）、`docs/video-workflow.md`（管线配置）
 
@@ -1083,6 +1090,19 @@ Zonos v2 电音问题的深度研究（源码分析 + 官方文档 + 社区调�
 | Kaggle P100-16GB (CUDA) | ~1.0x | ✅ **与 A100 一致** | 免费 P100 即够，无需 Modal 付费 |
 
 **关键结论**：CUDA 环境emotion 与 A100 一致，MPS 差异根因是 Metal kernel 数值精度 + ONNX CPU EP。Kaggle 免费 P100 可作为 A100 替代。
+
+**MPS TF32 禁用 + CoreML EP 实验**（2026-09-07，验证 MPS 能否追上 CUDA）：
+
+| 实验项 | 结果 |
+|--------|------|
+| `torch.backends.mps.matmul.allow_tf32` | torch 2.3.1 不存在此属性 |
+| `torch.set_float32_matmul_precision('highest')` | 导致 MPS 尝试 float64（不支持），全部报错 |
+| `CoreMLExecutionProvider` for ONNX | 795/1367 节点用 CoreML，其余 CPU（部分改善） |
+| `PYTORCH_ENABLE_MPS_FALLBACK=1` for `torch.istft` | `aten::unfold_backward` MPS 不支持，需 CPU 回退 |
+| hifigan `float64 → float32` patch | f0_predictor 用 float64 精度，MPS 强制 float32 |
+| **最终结果** | 6/6 段生成成功，RTF ~3x，**但用户听音确认 emotion 仍明显不如 CUDA** |
+
+**结论**：MPS 在 torch 2.3.1 上无法通过任何 patch/配置追上 CUDA emotion 质量。根因是 Metal kernel 数值精度 + ONNX EP 差异 + float64 不支持的综合问题，非单一可修复项。**最终引擎决策：Kaggle P100 CUDA 为默认**（ADR-0019）。
 
 **MPS 采样参数调优**（top_p 递减，均不够）：
 

@@ -2,7 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mock all engine adapter modules ───
 // Each factory returns null (unavailable) by default; tests override per-scenario.
-// CosyVoice removed (2026-08-16): no longer in the registry.
+
+vi.mock("../lib/tts/cosyvoice3-kaggle-cuda.mjs", () => ({
+  createCosyVoice3KaggleCudaEngine: vi.fn(),
+}));
+
+vi.mock("../lib/tts/cosyvoice3-npu.mjs", () => ({
+  createCosyVoice3NPUEngine: vi.fn(),
+}));
+
+vi.mock("../lib/tts/cosyvoice3-mlx.mjs", () => ({
+  createCosyVoice3MLXEngine: vi.fn(),
+}));
 
 vi.mock("../lib/tts/f5-mlx.mjs", () => ({
   createF5MLXEngine: vi.fn(),
@@ -27,6 +38,9 @@ vi.mock("../lib/tts/post-process.mjs", () => ({
 }));
 
 import { selectEngine } from "../lib/tts/registry.mjs";
+import { createCosyVoice3KaggleCudaEngine } from "../lib/tts/cosyvoice3-kaggle-cuda.mjs";
+import { createCosyVoice3NPUEngine } from "../lib/tts/cosyvoice3-npu.mjs";
+import { createCosyVoice3MLXEngine } from "../lib/tts/cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "../lib/tts/f5-mlx.mjs";
 import { createQwenTTSEngine } from "../lib/tts/qwen-tts.mjs";
 import { createEdgeTTSEngine } from "../lib/tts/edge-tts.mjs";
@@ -39,9 +53,10 @@ function mockEngine(name, info = name) {
 }
 
 function resetAllMocks() {
-  // Clear call history from previous tests
   vi.clearAllMocks();
-  // Reset all factories to return null (unavailable) by default
+  vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+  vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
+  vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
   vi.mocked(createF5MLXEngine).mockResolvedValue(null);
   vi.mocked(createQwenTTSEngine).mockResolvedValue(null);
   vi.mocked(createEdgeTTSEngine).mockResolvedValue(null);
@@ -60,61 +75,61 @@ describe("TTS Engine Registry — selectEngine()", () => {
     delete process.env.TTS_ENGINE;
   });
 
-  // Scenario 1: F5-MLX available, no TTS_ENGINE set → Uses F5-MLX
-  it("S1: selects F5-MLX when available and no TTS_ENGINE env", async () => {
-    const f5 = mockEngine("f5-mlx", "F5-TTS-MLX (default)");
+  // S1: Kaggle CUDA available, no TTS_ENGINE set → Uses Kaggle CUDA (default)
+  it("S1: selects CosyVoice3-Kaggle-CUDA when available and no TTS_ENGINE env", async () => {
+    const kaggle = mockEngine("cosyvoice3-kaggle-cuda", "CosyVoice3-Kaggle-CUDA (default)");
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(kaggle);
+
+    const engine = await selectEngine();
+
+    expect(engine.name).toBe("cosyvoice3-kaggle-cuda");
+    expect(engine).toBe(kaggle);
+    expect(createCosyVoice3MLXEngine).not.toHaveBeenCalled();
+  });
+
+  // S2: Kaggle CUDA unavailable, CosyVoice3-MLX available → Falls back to MLX
+  it("S2: falls back to CosyVoice3-MLX when Kaggle CUDA unavailable", async () => {
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    const cv3 = mockEngine("cosyvoice3-mlx", "CosyVoice3-MLX (local fallback)");
+    vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(cv3);
+
+    const engine = await selectEngine();
+
+    expect(engine.name).toBe("cosyvoice3-mlx");
+    expect(engine).toBe(cv3);
+    expect(createF5MLXEngine).not.toHaveBeenCalled();
+  });
+
+  // S3: TTS_ENGINE=f5-mlx → Uses F5 regardless of priority
+  it("S3: uses F5-MLX when TTS_ENGINE=f5-mlx, even if Kaggle CUDA available", async () => {
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(
+      mockEngine("cosyvoice3-kaggle-cuda"),
+    );
+    vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(mockEngine("cosyvoice3-mlx"));
+    const f5 = mockEngine("f5-mlx", "F5-TTS-MLX (forced)");
     vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
 
+    process.env.TTS_ENGINE = "f5-mlx";
     const engine = await selectEngine();
 
     expect(engine.name).toBe("f5-mlx");
     expect(engine).toBe(f5);
-    // Qwen3 factory should NOT have been called (priority short-circuit)
-    expect(createQwenTTSEngine).not.toHaveBeenCalled();
+    expect(createCosyVoice3KaggleCudaEngine).not.toHaveBeenCalled();
   });
 
-  // Scenario 2: F5-MLX unavailable, Qwen3 available → Falls back to Qwen3
-  it("S2: falls back to Qwen3 when F5-MLX unavailable", async () => {
-    vi.mocked(createF5MLXEngine).mockResolvedValue(null);
-    const qwen = mockEngine("qwen-tts", "Qwen3-TTS (voice clone)");
-    vi.mocked(createQwenTTSEngine).mockResolvedValue(qwen);
-
-    const engine = await selectEngine();
-
-    expect(engine.name).toBe("qwen-tts");
-    expect(engine).toBe(qwen);
-    // edge-tts should NOT have been called
-    expect(createEdgeTTSEngine).not.toHaveBeenCalled();
-  });
-
-  // Scenario 3: TTS_ENGINE=qwen-tts → Uses Qwen3 regardless of priority
-  it("S3: uses Qwen3 when TTS_ENGINE=qwen-tts, even if F5-MLX available", async () => {
-    // F5-MLX is available — normally would be selected first
-    vi.mocked(createF5MLXEngine).mockResolvedValue(mockEngine("f5-mlx"));
-    // But Qwen3 is also available and forced
-    const qwen = mockEngine("qwen-tts", "Qwen3-TTS (forced)");
-    vi.mocked(createQwenTTSEngine).mockResolvedValue(qwen);
-
-    process.env.TTS_ENGINE = "qwen-tts";
-    const engine = await selectEngine();
-
-    expect(engine.name).toBe("qwen-tts");
-    expect(engine).toBe(qwen);
-    // F5-MLX factory should NOT have been called (forced engine takes priority)
-    expect(createF5MLXEngine).not.toHaveBeenCalled();
-  });
-
-  // Scenario 4: No engine available → Throws error with install hints
+  // S4: No engine available → Throws error with install hints
   it("S4: throws error with install hints when no engine available", async () => {
-    // All factories return null (default from resetAllMocks)
     await expect(selectEngine()).rejects.toThrow(/No TTS engine available/);
+    await expect(selectEngine()).rejects.toThrow(/Kaggle CLI/);
     await expect(selectEngine()).rejects.toThrow(/video-tts-env/);
-    await expect(selectEngine()).rejects.toThrow(/Qwen3-TTS/);
   });
 
-  // Extra: TTS_ENGINE=edge-tts forces edge-tts even when F5-MLX available
-  it("S3b: uses edge-tts when TTS_ENGINE=edge-tts, even if F5-MLX available", async () => {
-    vi.mocked(createF5MLXEngine).mockResolvedValue(mockEngine("f5-mlx"));
+  // S3b: TTS_ENGINE=edge-tts forces edge-tts even when Kaggle CUDA available
+  it("S3b: uses edge-tts when TTS_ENGINE=edge-tts, even if Kaggle CUDA available", async () => {
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(
+      mockEngine("cosyvoice3-kaggle-cuda"),
+    );
+    vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(mockEngine("cosyvoice3-mlx"));
     const edge = mockEngine("edge-tts", "edge-tts (Microsoft)");
     vi.mocked(createEdgeTTSEngine).mockResolvedValue(edge);
 
@@ -122,27 +137,30 @@ describe("TTS Engine Registry — selectEngine()", () => {
     const engine = await selectEngine();
 
     expect(engine.name).toBe("edge-tts");
-    expect(createF5MLXEngine).not.toHaveBeenCalled();
+    expect(createCosyVoice3KaggleCudaEngine).not.toHaveBeenCalled();
   });
 
-  // Extra: Forced engine unavailable → falls back to priority order
+  // S3d: Forced engine unavailable → falls back to priority order
   it("S3d: falls back to priority when forced engine unavailable", async () => {
-    // TTS_ENGINE=qwen-tts but Qwen3 not available
-    vi.mocked(createQwenTTSEngine).mockResolvedValue(null);
-    // F5-MLX available → should be selected after Qwen3 fails
-    const f5 = mockEngine("f5-mlx");
-    vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
+    vi.mocked(createF5MLXEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    const cv3 = mockEngine("cosyvoice3-mlx");
+    vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(cv3);
 
-    process.env.TTS_ENGINE = "qwen-tts";
+    process.env.TTS_ENGINE = "f5-mlx";
     const engine = await selectEngine();
 
-    expect(engine.name).toBe("f5-mlx");
-    expect(createQwenTTSEngine).toHaveBeenCalled();
+    expect(engine.name).toBe("cosyvoice3-mlx");
     expect(createF5MLXEngine).toHaveBeenCalled();
+    expect(createCosyVoice3KaggleCudaEngine).toHaveBeenCalled();
+    expect(createCosyVoice3MLXEngine).toHaveBeenCalled();
   });
 
-  // Extra: full fallback chain F5-MLX → Qwen3 → edge-tts → say
+  // S2b: full fallback chain Kaggle CUDA → NPU → CosyVoice3-MLX → F5 → Qwen3 → edge-tts → say
   it("S2b: falls through entire priority chain to say", async () => {
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
     vi.mocked(createF5MLXEngine).mockResolvedValue(null);
     vi.mocked(createQwenTTSEngine).mockResolvedValue(null);
     vi.mocked(createEdgeTTSEngine).mockResolvedValue(null);
@@ -152,6 +170,9 @@ describe("TTS Engine Registry — selectEngine()", () => {
     const engine = await selectEngine();
 
     expect(engine.name).toBe("say");
+    expect(createCosyVoice3KaggleCudaEngine).toHaveBeenCalled();
+    expect(createCosyVoice3NPUEngine).toHaveBeenCalled();
+    expect(createCosyVoice3MLXEngine).toHaveBeenCalled();
     expect(createF5MLXEngine).toHaveBeenCalled();
     expect(createQwenTTSEngine).toHaveBeenCalled();
     expect(createEdgeTTSEngine).toHaveBeenCalled();

@@ -1,5 +1,8 @@
 # TTS Engine Selection: F5-TTS-MLX as Default
 
+> **Status: SUPERSEDED (2026-09-07)** — Replaced by [ADR-0019](./0019-tts-engine-cosyvoice3-mlx.md).
+> F5-TTS-MLX is now the backup engine. CosyVoice3-MLX is the new default.
+
 The short video pipeline needs local TTS that clones a reference voice, controls duration, runs on Apple Silicon, and produces natural speech. After evaluating 6 engines through A/B testing (2026-07-30 to 2026-08-14), **F5-TTS-MLX is the default TTS engine**, with Qwen3-TTS as backup, edge-tts as fallback, and macOS `say` as last resort.
 
 F5-TTS-MLX won on natural pacing and intonation at Max Effort configuration (steps=32). The original F5-TTS (SJTU, PyTorch/CUDA) does not run on Apple Silicon; the MLX port by lucasnewman (MIT, HF: `lucasnewman/f5-tts-mlx`) provides native inference via Metal Performance Shaders. CosyVoice was used as default briefly but dropped for metronomic rhythm and Python 3.12 incompatibility.
