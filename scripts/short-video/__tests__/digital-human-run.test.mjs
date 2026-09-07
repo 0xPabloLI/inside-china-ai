@@ -240,6 +240,10 @@ describe("buildUnitKernelScript", () => {
     const codeLine = script.split("\n").find((l) => l.trim().startsWith("UNIT_CONFIG ="));
     expect(codeLine).toContain('"audio_file":"s10-u0.wav"');
     expect(() => JSON.parse(codeLine.match(/'''.*?'''/s)[0].replaceAll("'''", ""))).not.toThrow();
+    // Guard the v25-proven sys.path insert: PYTHONPATH env alone does not
+    // affect a running interpreter (ModuleNotFoundError at import diffusers,
+    // T6 E2E second run).
+    expect(script).toContain("sys.path.insert(0, CUSTOM_DIR)");
   });
 });
 

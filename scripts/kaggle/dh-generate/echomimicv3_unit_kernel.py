@@ -126,6 +126,9 @@ run(f"{sys.executable} -m pip uninstall -y diffusers", timeout=60, check=False)
 run(f"{sys.executable} -m pip install --no-deps --target={CUSTOM_DIR} diffusers==0.31.0", timeout=120)
 os.environ["PYTHONPATH"] = f"{CUSTOM_DIR}:{os.environ.get('PYTHONPATH', '')}"
 os.environ["PYTHONNOUSERSITE"] = "1"
+# PYTHONPATH is only read at process start — the running interpreter needs an
+# explicit sys.path insert (v25 proven pattern; missing it = ModuleNotFoundError).
+sys.path.insert(0, CUSTOM_DIR)
 for mod_name in [m for m in list(sys.modules) if "diffusers" in m]:
     del sys.modules[mod_name]
 import diffusers
