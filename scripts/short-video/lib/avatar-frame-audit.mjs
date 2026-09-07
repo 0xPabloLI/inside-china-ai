@@ -14,8 +14,8 @@
  *                   energy in the mouth region must show movement; a "static
  *                   face fake video" fails.
  *   3. av-sync    — the scene's TTS audio energy envelope vs the mouth-region
- *                   frame-difference signal: cross-correlation must align
- *                   within the documented tolerance.
+ *                   motion signal: speech onsets must align within the
+ *                   documented tolerance.
  *
  * ─── Detection approach (ticket: composition geometry + pixel verification) ───
  *
@@ -24,21 +24,41 @@
  * so the declared rect is lib/safe-zones.mjs AVATAR_CARD_RECT, itself locked
  * to the real Chromium render by the ticket-02 render probe. The audit then
  * verifies ACTUAL pixels on uniformly sampled frames (ffmpeg, one scaled pass
- * per window):
+ * per window). Per-pixel temporal standard deviation over the sampled frames
+ * builds a motion map with two thresholds:
  *
- *   - Per-pixel temporal standard deviation over the sampled frames builds a
- *     "dynamic content" map. A playing talking-head card is the only thing
- *     the pipeline composites with sustained motion inside the card rect.
- *   - Presence: enough dynamic pixels inside the expected rect → the card is
- *     actually rendered and playing (fail-closed: the user paid for it).
- *   - Zone sweep: for each protected zone, dynamic pixels BEYOND the expected
- *     rect (+ a small edge tolerance for card shadow/ringing) above a ratio →
- *     the card bleeds into that zone → FAIL naming the zone.
- *   - Subtitle-lane false-positive guard: burned karaoke subtitles legitimately
- *     move INSIDE the lane, so the lane only fires when motion also appears in
- *     the declared gap band ABOVE the lane (y ∈ [card-bottom-limit, lane-top]) —
- *     the signature of the card physically crossing into the lane. Subtitles
- *     never paint above the lane top, so this isolates card intrusion.
+ *   - weak (VARIANCE_DYNAMIC_THRESHOLD 8): "any playing video" — drives the
+ *     card PRESENCE check inside the declared rect.
+ *   - strong (STRONG_MOTION_THRESHOLD 25): "card-grade motion" — drives the
+ *     zone-intrusion checks. Evidence (first real E2E render, dh-pilot-qwen4
+ *     scene 10, an animated-gradient CTA background): background motion in
+ *     protected zones measures std ≤ 31 (bottom dead zone p99 29) while card
+ *     content measures median 33 with 62% of the rect above 25.
+ *
+ * SAFE-ZONE intrusion logic (the card div is clipped to the declared rect, so
+ * its content can only leave it as a CONNECTED extension):
+ *
+ *   - Containment: strong-motion pixels CONNECTED to the card's component
+ *     (flood-filled from seeds inside the eroded rect) must stay within the
+ *     rect + edge tolerance. Any connected pixel inside a protected zone
+ *     fails the gate naming that zone — this catches scale overrides and
+ *     lane crossings. Unconnected background motion in a zone is NOT card
+ *     content and never fires (measured: the ring around the compliant card
+ *     holds ≤2 strong px, connected 0).
+ *   - Displaced card: when presence fails (no playing card at the declared
+ *     rect) AND a zone holds a strong-motion blob above the intrusion ratio,
+ *     the card must have rendered elsewhere → the zone is named.
+ *
+ *   - lip-sync: mean TEMPORAL STD inside the mouth region (not mean
+ *     inter-frame diff — at 10Hz sampling a real talking head's diff mean
+ *     sits at 5.2, under the synthetic-fixture-calibrated 6.0 floor, while
+ *     its temporal std measures 35.6 vs ≤3 encoder noise: a 10× separation).
+ *   - av-sync: FIRST-ONSET alignment between the TTS energy envelope and the
+ *     mouth-motion series. The previous cross-correlation approach is not
+ *     viable on real content: the mouth series is dominated by sparse
+ *     head-movement spikes, producing a flat correlation landscape (real
+ *     render: peak 0.305 vs 0.280 at lag 0 — pass/fail decided by noise),
+ *     while onset alignment measures +33ms on the same data.
  *
  * Fixtures for deterministic tests are ffmpeg-synthesized (no model output):
  * see __tests__/avatar-frame-audit.test.mjs. Real-machine smoke with ticket-04
@@ -85,8 +105,24 @@ export const MIN_AUDIT_FRAMES = 4;
 
 /** Luminance std (across the window's frames) above which a pixel counts as
  *  "dynamic". x264 CRF-28 static-content noise measures ≤3 std; any playing
- *  video content measures ≫20. 8 ≈ 2.7× the measured noise ceiling. */
+ *  video content measures ≫20. 8 ≈ 2.7× the measured noise ceiling. Drives
+ *  the card PRESENCE check. */
 export const VARIANCE_DYNAMIC_THRESHOLD = 8;
+
+/** Luminance std above which a pixel counts as "card-grade motion" — the
+ *  STRONG threshold driving zone-intrusion checks. Rationale (real E2E
+ *  render, dh-pilot-qwen4 scene 10, animated-gradient background): background
+ *  motion inside protected zones stays ≤31 std (bottom dead zone p99 29) while
+ *  card content measures median 33 with 62% of the rect above 25; the ring
+ *  right outside the compliant card holds ≤2 strong px. 25 therefore separates
+ *  clipped card content (and anything CONNECTED to it) from animated
+ *  backgrounds, which the weak threshold cannot do. */
+export const STRONG_MOTION_THRESHOLD = 25;
+
+/** Seeds for the card's strong-motion component are taken from the expected
+ *  rect ERODED by this many canvas px, so encoder ringing at the card edge
+ *  cannot seed a component that bridges into background motion. */
+export const SEED_EROSION_PX = 8;
 
 /** Edge tolerance (canvas px) excluded around the expected card rect when
  *  scanning zones: the card's 30px blurred shadow is STATIC (no variance) but
@@ -103,10 +139,6 @@ export const ZONE_INTRUSION_RATIO = 0.02;
  *  the card; a missing/never-generated card yields ~0%. */
 export const CARD_PRESENCE_RATIO = 0.02;
 
-/** Dynamic-pixel fraction of the subtitle gap band (y between the card bottom
- *  limit and the lane top) that confirms the card crossed into the lane. */
-export const GAP_BAND_INTRUSION_RATIO = 0.01;
-
 /** Bottom dead zone height (canvas px) — TikTok caption/username climbs to
  *  y≈1500 worst case and the bottom nav bar starts ≈1790 (safe-zones.mjs
  *  header, calibrated against a real FYP screenshot). Zone top = 1920−400 =
@@ -122,16 +154,20 @@ export const BOTTOM_DEAD_ZONE_PX = 400;
 export const MOUTH_REGION_RATIO = { x0: 0.25, x1: 0.75, y0: 0.6, y1: 0.9 };
 
 /**
- * Lip gate: mean inter-frame luminance difference inside the mouth region
- * must reach this. Measured on fixtures: static-face card ≈ 0.0-1.0 (pure
- * encoder noise), moving-mouth card ≈ 30-160 depending on pattern. 6.0 sits
- * 6× above the measured noise ceiling and ≫5× below the weakest realistic
- * mouth signal (a real talking head has far more motion than the patch).
+ * Lip gate: mean TEMPORAL STD of luminance inside the mouth region must reach
+ * this. The earlier metric (mean inter-frame diff, floor 6.0) was calibrated
+ * on synthetic fixtures whose motion fires EVERY sampled interval; a real
+ * EchoMimicV3 talking head at 10Hz sampling measures meanDiff 5.2 (mouths are
+ * still between samples) yet temporal std 35.6 — sparse sampling suppresses
+ * per-interval diffs but not the per-pixel spread over the window. Evidence:
+ * real card mouth region 35.6; static-face/encoder noise ≤3; the synthetic
+ * moving-mouth fixture ≈9-15. 5.0 = 1.7× the noise ceiling, ~2× below the
+ * weakest fixture signal and 7× below the real card.
  */
-export const LIP_MIN_MEAN_DIFF = 6.0;
+export const LIP_MIN_TEMPORAL_STD = 5.0;
 
 /** Per-sample-interval energy above which the interval counts as "active"
- *  (metric only — the gate is the mean). Same noise-ceiling rationale. */
+ *  (metric only). Also the flatness floor for the sync gate's mouth series. */
 export const LIP_ACTIVE_DIFF = 4.0;
 
 /**
@@ -150,14 +186,14 @@ export const LIP_ACTIVE_DIFF = 4.0;
  */
 export const AV_SYNC_TOLERANCE_SECONDS = 0.15;
 
-/** Cross-correlation search range: 5× the tolerance — wide enough to always
- *  contain the true peak, narrow enough that a wrong-peak mismatch is
- *  impossible for a periodic envelope at the ~0.5s mouth rhythm. */
-export const AV_SYNC_MAX_LAG_SECONDS = 0.75;
-
-/** Envelope sample rate for the sync correlation (Hz) = AUDIT_SAMPLE_FPS so
- *  the mouth series and the audio envelope share one time grid. */
+/** Envelope sample rate for the sync check (Hz) = AUDIT_SAMPLE_FPS so the
+ *  mouth series and the audio envelope share one time grid. */
 export const SYNC_ENVELOPE_FPS = AUDIT_SAMPLE_FPS;
+
+/** Fraction of a series' max above which a sample counts as "on" for onset
+ *  detection. 0.2 sits above encoder/envelope noise and below any real speech
+ *  burst (real render: audio env max 0.29, noise ~0.01; mouth max 119, p90 2). */
+export const ONSET_RATIO = 0.2;
 
 /** Search expansion (canvas px) around the expected rect for the diagnostic
  *  detected-motion bounding box (metrics/evidence only, not gating). */
@@ -371,7 +407,70 @@ export function detectMotionBox(varGrid, region, threshold, lowPct = 0.02, highP
 }
 
 /**
+ * Flood-fill the STRONG-motion pixels connected to the card rect's eroded
+ * interior. The card div is clipped to its declared rect, so its content can
+ * only appear beyond the rect as a CONNECTED strong-motion extension (scale
+ * override, lane crossing); unconnected strong motion is scene background,
+ * which legitimately animates (real E2E render: bottom dead zone holds 8.6%
+ * strong-motion px, connected 0).
+ *
+ * @param {{width:number,height:number,lum:Float32Array}} varGrid - std-dev grid
+ * @param {{x:number,y:number,width:number,height:number}} expectedGrid - grid space
+ * @param {number} erosionGrid - seed erosion, grid px (skips edge ringing)
+ * @returns {{component: Uint8Array, size: number}} 1 = pixel in the card's component
+ */
+export function strongCardComponent(varGrid, expectedGrid, erosionGrid = 1) {
+  const { width, height, lum } = varGrid;
+  const isStrong = (i) => lum[i] > STRONG_MOTION_THRESHOLD;
+  const component = new Uint8Array(width * height);
+  const x0 = Math.max(0, expectedGrid.x + erosionGrid);
+  const y0 = Math.max(0, expectedGrid.y + erosionGrid);
+  const x1 = Math.min(width, expectedGrid.x + expectedGrid.width - erosionGrid);
+  const y1 = Math.min(height, expectedGrid.y + expectedGrid.height - erosionGrid);
+  const stack = [];
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = width * y + x;
+      if (isStrong(i) && !component[i]) {
+        component[i] = 1;
+        stack.push(i);
+      }
+    }
+  }
+  let size = 0;
+  while (stack.length > 0) {
+    const i = stack.pop();
+    size++;
+    const x = i % width;
+    const y = (i - x) / width;
+    if (x > 0 && isStrong(i - 1) && !component[i - 1]) {
+      component[i - 1] = 1;
+      stack.push(i - 1);
+    }
+    if (x < width - 1 && isStrong(i + 1) && !component[i + 1]) {
+      component[i + 1] = 1;
+      stack.push(i + 1);
+    }
+    if (y > 0 && isStrong(i - width) && !component[i - width]) {
+      component[i - width] = 1;
+      stack.push(i - width);
+    }
+    if (y < height - 1 && isStrong(i + width) && !component[i + width]) {
+      component[i + width] = 1;
+      stack.push(i + width);
+    }
+  }
+  return { component, size };
+}
+
+/**
  * SAFE-ZONE GATE (pure): presence + protected-zone sweep on a variance grid.
+ *
+ * Intrusion logic (see module header): (a) a card PRESENT at the declared
+ * rect must keep its connected strong-motion component inside rect+tolerance —
+ * any connected strong pixel in a zone fails naming that zone; (b) when the
+ * card is MISSING from the declared rect, a strong-motion blob ≥ the intrusion
+ * ratio inside a zone means the card rendered elsewhere → the zone is named.
  *
  * @param {object} p
  * @param {{width:number,height:number,lum:Float32Array}} p.varGrid
@@ -382,15 +481,17 @@ export function detectMotionBox(varGrid, region, threshold, lowPct = 0.02, highP
 export function evaluateSafeZoneGate({ varGrid, scale, expectedRect }) {
   const bounds = { width: varGrid.width, height: varGrid.height };
   const expectedGrid = scaleRect(expectedRect, scale);
-  const bandGrid = scaleRect(expectedRect, scale); // expanded exclusion band
   const pad = Math.round(EDGE_TOLERANCE_PX * scale);
   const expanded = expandRect(expectedGrid, pad, bounds);
+  const erosion = Math.max(1, Math.round(SEED_EROSION_PX * scale));
+  const zones = protectedZones();
   const findings = [];
   const zoneMetrics = {};
 
   // 1. Presence — the card must actually be playing at the declared rect.
   const presenceRatio = dynamicRatioInRect(varGrid, expectedGrid, VARIANCE_DYNAMIC_THRESHOLD);
-  if (presenceRatio < CARD_PRESENCE_RATIO) {
+  const cardPresent = presenceRatio >= CARD_PRESENCE_RATIO;
+  if (!cardPresent) {
     findings.push({
       zoneId: null,
       kind: "card-missing",
@@ -401,43 +502,61 @@ export function evaluateSafeZoneGate({ varGrid, scale, expectedRect }) {
     });
   }
 
-  // 2. Zone sweep — dynamic pixels beyond the expected rect (+ edge band).
-  for (const zone of protectedZones()) {
-    const zoneGrid = scaleRect(zone.rect, scale);
-    const fullyInsideExclusion =
-      zoneGrid.x >= expanded.x &&
-      zoneGrid.x + zoneGrid.width <= expanded.x + expanded.width &&
-      zoneGrid.y >= expanded.y &&
-      zoneGrid.y + zoneGrid.height <= expanded.y + expanded.height;
-    if (fullyInsideExclusion) {
-      // Whole zone inside the exclusion band — the expected rect already
-      // covers it; nothing outside the band to scan.
-      zoneMetrics[zone.id] = { ratio: 0, scanned: false };
-      continue;
-    }
-    // Scan the zone minus the expanded expected rect (column strips).
-    let dyn = 0;
+  // Per-zone scan of the area OUTSIDE the expanded expected rect.
+  const scanZone = (zoneGrid) => {
+    let strongCount = 0;
     let total = 0;
     for (let y = Math.max(0, zoneGrid.y); y < Math.min(zoneGrid.y + zoneGrid.height, varGrid.height); y++) {
       for (let x = Math.max(0, zoneGrid.x); x < Math.min(zoneGrid.x + zoneGrid.width, varGrid.width); x++) {
         const inExclusion =
           x >= expanded.x && x < expanded.x + expanded.width && y >= expanded.y && y < expanded.y + expanded.height;
         if (inExclusion) continue;
-        if (varGrid.lum[varGrid.width * y + x] > VARIANCE_DYNAMIC_THRESHOLD) dyn++;
         total++;
+        if (varGrid.lum[varGrid.width * y + x] > STRONG_MOTION_THRESHOLD) strongCount++;
       }
     }
-    const ratio = total > 0 ? dyn / total : 0;
-    zoneMetrics[zone.id] = { ratio, scanned: true };
-    if (ratio > ZONE_INTRUSION_RATIO) {
-      // Subtitle lane needs the crossing proof (karaoke subtitles move INSIDE
-      // the lane legitimately — only a card crossing the declared gap band is
-      // card intrusion).
-      if (zone.id.startsWith("burned-subtitle")) {
-        // Scan the UPPER part of the gap band (lane-adjacent rows): the rows
-        // next to the compliant card's bottom edge carry encoder ringing, so
-        // they must be excluded — a crossing card still covers the lane-side
-        // half of the band.
+    return { strongCount, total };
+  };
+  const pushIntrusion = (zone, ratio, kind) => {
+    findings.push({
+      zoneId: zone.id,
+      kind,
+      ratio,
+      detail:
+        `card content intrudes the ${zone.id} ` +
+        `(strong-motion ratio ${(ratio * 100).toFixed(2)}% of scanned zone area beyond the declared card rect)`,
+    });
+  };
+
+  if (cardPresent) {
+    // (a) Connected bleed — the clipped card's strong component must stay
+    // inside rect+tolerance. Unconnected background motion never fires.
+    const { component, size } = strongCardComponent(varGrid, expectedGrid, erosion);
+    if (size > 0) {
+      for (const zone of zones) {
+        const zoneGrid = scaleRect(zone.rect, scale);
+        let connected = 0;
+        let total = 0;
+        for (let y = Math.max(0, zoneGrid.y); y < Math.min(zoneGrid.y + zoneGrid.height, varGrid.height); y++) {
+          for (let x = Math.max(0, zoneGrid.x); x < Math.min(zoneGrid.x + zoneGrid.width, varGrid.width); x++) {
+            const inExclusion =
+              x >= expanded.x && x < expanded.x + expanded.width && y >= expanded.y && y < expanded.y + expanded.height;
+            if (inExclusion) continue;
+            total++;
+            if (component[varGrid.width * y + x]) connected++;
+          }
+        }
+        const ratio = total > 0 ? connected / total : 0;
+        zoneMetrics[zone.id] = { ratio, scanned: true };
+        if (connected > 0) {
+          pushIntrusion(zone, ratio, "zone-intrusion");
+        }
+      }
+      // Diagnostic for the subtitle lane: strong motion in the declared gap
+      // band above the lane (crossing signature). Non-gating since the
+      // connectivity check already catches a crossing card.
+      const lane = zones.find((z) => z.id.startsWith("burned-subtitle"));
+      if (lane) {
         const gapBand = scaleRect(subtitleGapBand().rect, scale);
         const gapAboveLane = {
           x: gapBand.x,
@@ -445,24 +564,30 @@ export function evaluateSafeZoneGate({ varGrid, scale, expectedRect }) {
           width: gapBand.width,
           height: Math.max(1, gapBand.height - pad),
         };
-        const gapRatio = dynamicRatioInRect(varGrid, gapAboveLane, VARIANCE_DYNAMIC_THRESHOLD);
-        zoneMetrics[zone.id].gapBandRatio = gapRatio;
-        if (gapRatio <= GAP_BAND_INTRUSION_RATIO) continue;
+        zoneMetrics[lane.id].gapBandRatio = dynamicRatioInRect(varGrid, gapAboveLane, STRONG_MOTION_THRESHOLD);
       }
-      findings.push({
-        zoneId: zone.id,
-        kind: "zone-intrusion",
-        ratio,
-        detail:
-          `card content intrudes the ${zone.id} ` +
-          `(dynamic ratio ${(ratio * 100).toFixed(2)}% of scanned zone area beyond the declared card rect)`,
-      });
+    } else {
+      // Subtle-motion card: no strong component to trace; presence and the
+      // lip gate own any failure here.
+      for (const zone of zones) zoneMetrics[zone.id] = { ratio: 0, scanned: false };
+    }
+  } else {
+    // (b) Displaced card — nothing playing at the declared rect, so a strong
+    // blob inside a zone IS the card (rendered elsewhere).
+    for (const zone of zones) {
+      const zoneGrid = scaleRect(zone.rect, scale);
+      const { strongCount, total } = scanZone(zoneGrid);
+      const ratio = total > 0 ? strongCount / total : 0;
+      zoneMetrics[zone.id] = { ratio, scanned: true };
+      if (ratio > ZONE_INTRUSION_RATIO) {
+        pushIntrusion(zone, ratio, "zone-intrusion");
+      }
     }
   }
 
   const detectedMotionBox = detectMotionBox(
     varGrid,
-    expandRect(bandGrid, Math.round(SEARCH_EXPANSION_PX * scale), bounds),
+    expandRect(scaleRect(expectedRect, scale), Math.round(SEARCH_EXPANSION_PX * scale), bounds),
     VARIANCE_DYNAMIC_THRESHOLD,
   );
 
@@ -504,7 +629,15 @@ export function mouthRectForCard(cardRect) {
 }
 
 /**
- * LIP GATE (pure): mean inter-frame diff energy in the mouth region.
+ * LIP GATE (pure): mean TEMPORAL STD of luminance inside the mouth region
+ * must reach LIP_MIN_TEMPORAL_STD — a "static face fake video" has nothing
+ * but encoder noise there (≤3 std), while any playing talking head spreads
+ * the mouth-region pixels far wider (real EchoMimicV3 card: 35.6).
+ *
+ * Temporal std (not mean inter-frame diff) because 10Hz sampling leaves the
+ * mouth still between most sample pairs: the real render's diff mean is 5.2 —
+ * under the old fixture-calibrated floor — while its window spread is 10×
+ * the noise ceiling.
  *
  * @param {Array<{width:number,height:number,lum:Float32Array}>} grids - sampled frames, time order
  * @param {{x:number,y:number,width:number,height:number}} mouthRectGrid - grid space
@@ -514,6 +647,22 @@ export function evaluateLipGate(grids, mouthRectGrid) {
   if (grids.length < 2) {
     return { status: "fail", detail: "fewer than 2 frames sampled — lip movement unverifiable", metrics: { samples: grids.length } };
   }
+  const acc = createVarianceAccumulator(grids[0].width, grids[0].height);
+  for (const g of grids) accumulateFrame(acc, g);
+  const varGrid = varianceGridOf(acc);
+  let sum = 0;
+  let count = 0;
+  const xEnd = Math.min(mouthRectGrid.x + mouthRectGrid.width, varGrid.width);
+  const yEnd = Math.min(mouthRectGrid.y + mouthRectGrid.height, varGrid.height);
+  for (let y = Math.max(0, mouthRectGrid.y); y < yEnd; y++) {
+    for (let x = Math.max(0, mouthRectGrid.x); x < xEnd; x++) {
+      sum += varGrid.lum[varGrid.width * y + x];
+      count++;
+    }
+  }
+  const meanStd = count > 0 ? sum / count : 0;
+
+  // Diff series kept as diagnostics (and the sync gate's raw material).
   const energies = [];
   for (let i = 1; i < grids.length; i++) {
     energies.push(meanAbsDiff(grids[i - 1], grids[i], mouthRectGrid));
@@ -521,13 +670,14 @@ export function evaluateLipGate(grids, mouthRectGrid) {
   const mean = energies.reduce((a, b) => a + b, 0) / energies.length;
   const max = Math.max(...energies);
   const activeRatio = energies.filter((e) => e > LIP_ACTIVE_DIFF).length / energies.length;
-  const ok = mean >= LIP_MIN_MEAN_DIFF;
+
+  const ok = meanStd >= LIP_MIN_TEMPORAL_STD;
   return {
     status: ok ? "pass" : "fail",
     detail: ok
-      ? `mouth-region movement present (mean inter-frame diff ${mean.toFixed(1)}, active intervals ${(activeRatio * 100).toFixed(0)}%)`
-      : `no lip movement detected — static-face video suspected (mean mouth-region inter-frame diff ${mean.toFixed(2)} < ${LIP_MIN_MEAN_DIFF})`,
-    metrics: { meanDiff: mean, maxDiff: max, activeRatio, intervals: energies.length },
+      ? `mouth-region movement present (temporal std ${meanStd.toFixed(1)}, mean inter-frame diff ${mean.toFixed(1)}, active intervals ${(activeRatio * 100).toFixed(0)}%)`
+      : `no lip movement detected — static-face video suspected (mouth-region temporal std ${meanStd.toFixed(2)} < ${LIP_MIN_TEMPORAL_STD}, mean inter-frame diff ${mean.toFixed(2)})`,
+    metrics: { meanStd, meanDiff: mean, maxDiff: max, activeRatio, intervals: energies.length },
   };
 }
 
@@ -552,21 +702,45 @@ export function audioEnvelope(pcm, fps) {
 }
 
 /**
- * A/V SYNC GATE (pure): cross-correlate the mouth frame-diff series against
- * the TTS audio energy envelope on a shared time grid.
+ * First onset of a series: first sample above ONSET_RATIO × max, as an INDEX
+ * on the shared grid (the grid's absolute t0 cancels in the onset difference).
+ * Returns null when the series never crosses (its max is 0).
+ */
+function firstOnsetIndex(arr) {
+  let max = 0;
+  for (const v of arr) if (v > max) max = v;
+  if (max <= 0) return null;
+  const thr = max * ONSET_RATIO;
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] > thr) return i;
+  }
+  return null;
+}
+
+/**
+ * A/V SYNC GATE (pure): compare the FIRST speech onset of the TTS audio
+ * energy envelope against the first sustained mouth-motion onset.
  *
- * Sign convention: offsetSeconds > 0 means the mouth signal occurs AFTER the
- * audio (mouth lags audio / audio leads); < 0 means audio lags mouth. The
- * magnitude is compared against AV_SYNC_TOLERANCE_SECONDS.
+ * Sign convention: offsetSeconds > 0 means the mouth onset occurs AFTER the
+ * audio onset (mouth lags audio / audio leads); < 0 means audio lags mouth.
+ *
+ * Why onsets, not cross-correlation: the real mouth series is dominated by
+ * sparse head-movement spikes over a near-silent baseline, which produces a
+ * FLAT correlation landscape (real E2E render: peak 0.305 vs 0.280 at lag 0 —
+ * pass/fail decided by noise), while the same data's onset alignment measures
+ * +33ms. The correlation approach was replaced after that evidence.
+ *
+ * Quantization: both series share one grid (SYNC_ENVELOPE_FPS), so bin
+ * rounding mostly cancels; the residual ±50ms is inside the tolerance budget
+ * (see AV_SYNC_TOLERANCE_SECONDS).
  *
  * @param {object} p
  * @param {Array<{time:number, energy:number}>} p.mouthSeries - video-time series (one per sampled frame ≥2nd)
- * @param {Array<{time:number, energy:number}>} p.audioSeries - video-time envelope
+ * @param {Array<{time:number, energy:number}>} p.audioSeries - video-time envelope (already trimmed to the mouth span by the caller when the card window starts mid-scene)
  * @param {number} [p.tolerance] - default AV_SYNC_TOLERANCE_SECONDS
- * @param {number} [p.maxLagSeconds]
  * @returns {{status:"pass"|"fail"|"skip", detail:string, metrics:object}}
  */
-export function evaluateSyncGate({ mouthSeries, audioSeries, tolerance = AV_SYNC_TOLERANCE_SECONDS, maxLagSeconds = AV_SYNC_MAX_LAG_SECONDS }) {
+export function evaluateSyncGate({ mouthSeries, audioSeries, tolerance = AV_SYNC_TOLERANCE_SECONDS }) {
   const n = Math.min(mouthSeries.length, audioSeries.length);
   if (n < 4) {
     return { status: "skip", detail: "too few aligned samples for a sync spot-check", metrics: { samples: n } };
@@ -581,22 +755,14 @@ export function evaluateSyncGate({ mouthSeries, audioSeries, tolerance = AV_SYNC
   for (const s of mouthSeries) m[index(s.time)] = Math.max(m[index(s.time)], s.energy);
   for (const s of audioSeries) a[index(s.time)] = Math.max(a[index(s.time)], s.energy);
 
-  const normalize = (arr) => {
-    let mean = 0;
-    for (const v of arr) mean += v;
-    mean /= arr.length;
-    let norm = 0;
-    for (let i = 0; i < arr.length; i++) {
-      arr[i] -= mean;
-      norm += arr[i] * arr[i];
-    }
-    norm = Math.sqrt(norm);
-    if (norm < 1e-9) return false;
-    for (let i = 0; i < arr.length; i++) arr[i] /= norm;
-    return true;
-  };
-  const mouthFlat = Math.max(...m) <= LIP_ACTIVE_DIFF;
-  if (mouthFlat) {
+  let aMax = 0;
+  for (const v of a) if (v > aMax) aMax = v;
+  if (aMax <= 0) {
+    return { status: "fail", detail: "audio envelope is flat — scene TTS audio has no usable energy", metrics: { samples: n } };
+  }
+  let mMax = 0;
+  for (const v of m) if (v > mMax) mMax = v;
+  if (mMax <= LIP_ACTIVE_DIFF) {
     return {
       status: "skip",
       detail:
@@ -605,34 +771,31 @@ export function evaluateSyncGate({ mouthSeries, audioSeries, tolerance = AV_SYNC
       metrics: { samples: n },
     };
   }
-  if (!normalize(a)) {
-    return { status: "fail", detail: "audio envelope is flat — scene TTS audio has no usable energy", metrics: { samples: n } };
-  }
-  normalize(m);
 
-  const maxLag = Math.round(maxLagSeconds / period);
-  let bestLag = 0;
-  let bestCorr = -Infinity;
-  for (let lag = -maxLag; lag <= maxLag; lag++) {
-    let c = 0;
-    for (let i = 0; i < gridLen; i++) {
-      const j = i + lag;
-      if (j >= 0 && j < gridLen) c += m[j] * a[i];
-    }
-    if (c > bestCorr) {
-      bestCorr = c;
-      bestLag = lag;
-    }
+  const mOnset = firstOnsetIndex(m);
+  const aOnset = firstOnsetIndex(a);
+  if (mOnset === null || aOnset === null) {
+    return {
+      status: "skip",
+      detail: "no measurable onset in the mouth/audio series — sync not measurable",
+      metrics: { samples: n },
+    };
   }
-  const offset = bestLag * period;
+  const offset = (mOnset - aOnset) * period;
   const ok = Math.abs(offset) <= tolerance + 1e-9;
   return {
     status: ok ? "pass" : "fail",
     detail: ok
-      ? `mouth movement aligns with TTS energy within tolerance (offset ${offset >= 0 ? "+" : ""}${offset.toFixed(3)}s, ±${tolerance}s)`
+      ? `mouth onset aligns with TTS onset within tolerance (offset ${offset >= 0 ? "+" : ""}${offset.toFixed(3)}s, ±${tolerance}s)`
       : `audio/mouth misalignment ${offset >= 0 ? "+" : ""}${offset.toFixed(3)}s ` +
         `(audio ${offset >= 0 ? "leads" : "lags"} mouth) beyond ±${tolerance}s tolerance`,
-    metrics: { offsetSeconds: offset, peakCorrelation: bestCorr, tolerance, maxLagSeconds, samples: n },
+    metrics: {
+      offsetSeconds: offset,
+      tolerance,
+      samples: n,
+      mouthOnsetSeconds: t0 + mOnset * period,
+      audioOnsetSeconds: t0 + aOnset * period,
+    },
   };
 }
 
@@ -839,7 +1002,16 @@ export async function auditScene({
       time: sceneStartSeconds + (i + 0.5) / SYNC_ENVELOPE_FPS,
       energy,
     }));
-    const sync = evaluateSyncGate({ mouthSeries, audioSeries });
+    // The sync gate compares FIRST onsets, so when the card's on-screen window
+    // starts mid-scene the audio must be trimmed to the same span — an onset
+    // from before the window would otherwise count as "audio leading".
+    const mFirst = mouthSeries[0].time;
+    const mLast = mouthSeries[mouthSeries.length - 1].time;
+    const audioInWindow = audioSeries.filter((s) => s.time >= mFirst - 0.5 / SYNC_ENVELOPE_FPS && s.time <= mLast + 0.5 / SYNC_ENVELOPE_FPS);
+    const sync = evaluateSyncGate({
+      mouthSeries,
+      audioSeries: audioInWindow.length >= 4 ? audioInWindow : audioSeries,
+    });
     gateSync = { gate: "av-sync", status: sync.status, detail: sync.detail, evidence: framePaths.slice(0, 6), metrics: sync.metrics };
   }
 

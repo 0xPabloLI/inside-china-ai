@@ -1110,7 +1110,9 @@ export function createKaggleTransport() {
       }
       try {
         mkdirSync(outputDir, { recursive: true });
-        kaggle(`kaggle kernels output ${kernelId} -p "${outputDir}"`, 120000);
+        // 10 min — Kaggle's download API is slow (~80KB/s effective); even a
+        // clean output took >2 min in practice (v52 E2E, 2026-09-08).
+        kaggle(`kaggle kernels output ${kernelId} -p "${outputDir}"`, 600000);
       } catch (e) {
         return {
           success: false,

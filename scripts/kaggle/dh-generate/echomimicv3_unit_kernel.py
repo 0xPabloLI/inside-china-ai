@@ -322,5 +322,10 @@ run(
 size_mb = os.path.getsize(final_video) / 1024 / 1024
 print(f"[OK] {UNIT_CONFIG['output_file']} ({size_mb:.1f} MB, trimmed to {unit_duration:.3f}s)")
 
+# Keep the kernel output tiny: the raw 720x720 inference mp4 (~150MB) would
+# make the harvest download blow past the orchestrator's timeout. The trimmed
+# unit mp4 + debug log are all the orchestrator needs.
+shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
+
 total_time = time.time() - total_start
 print(f"Unit complete in {total_time / 60:.1f} min")

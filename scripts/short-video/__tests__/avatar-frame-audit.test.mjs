@@ -5,8 +5,9 @@
 // A/V sync. Every fixture video is SYNTHESIZED at test time with ffmpeg
 // (same no-committed-binaries precedent as avatar-card-render.test.mjs):
 // a dark static 1080×1920 background + a 420×550 "card" whose content is
-// either fully dynamic (testsrc2), a static face, or a static face with an
-// irregular pulsed mouth patch (matched by an irregular TTS-envelope tone) —
+// either fully dynamic (spatiotemporal luminance oscillation, std ≈32 — above
+// the audit's strong-motion threshold), a static face, or a static face with
+// an irregular pulsed mouth patch (matched by an irregular TTS-envelope tone) —
 // no real model output, no network.
 //
 // The card overlay position encodes the scenario: AVATAR_CARD_RECT (compliant
@@ -32,7 +33,7 @@ import {
   AUDIT_FRAME_WIDTH,
   AV_SYNC_TOLERANCE_SECONDS,
   FRAME_AUDIT_RESULT_NAME,
-  LIP_MIN_MEAN_DIFF,
+  LIP_MIN_TEMPORAL_STD,
   auditDigitalHumanPackage,
   audioEnvelope,
   auditScene,
@@ -63,9 +64,9 @@ const CARD_H = 550;
 /**
  * Irregular speech-like on/off pattern shared by the moving mouth and the TTS
  * tone envelope: on-intervals 0.4s, 0.6s, 0.6s, 0.6s, 0.6s separated by 0.3s
- * gaps. All repetition periods are ≥0.9s > AV_SYNC_MAX_LAG_SECONDS (0.75s), so
- * the sync cross-correlation has a UNIQUE peak — a periodic square wave would
- * alias at its period and could misplace the measured offset.
+ * gaps. The sync gate compares FIRST onsets, so the irregular rhythm is not
+ * strictly required anymore — it is kept so a mis-detected onset can never
+ * alias onto a later, periodic one.
  */
 const MOUTH_ON = [
   [0, 0.4],
@@ -86,7 +87,18 @@ function buildCardClip(outPath, kind) {
   if (kind === "dynamic") {
     // Fully dynamic card content — the safe-zone fixtures use it so the whole
     // card rect (not just a mouth patch) shows up in the variance map.
-    args = ["-f", "lavfi", "-i", `testsrc2=s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR}`];
+    // IMPORTANT: the oscillation amplitude must put every card pixel's
+    // temporal std ABOVE the audit's STRONG_MOTION_THRESHOLD (25) — the
+    // zone-intrusion logic only traces strong-motion components. testsrc2 was
+    // tried here and is NOT suitable: much of its luminance varies by std
+    // 8-25 (weak-dynamic only), so the card never registers as strong motion
+    // and intrusion fixtures silently pass. 45/√2 ≈ 32 std mirrors the real
+    // E2E card (median 33); the (X+Y) phase term makes it read as moving
+    // texture rather than a uniform flicker.
+    args = [
+      "-f", "lavfi", "-i", `color=c=0x303030:s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR},format=gray`,
+      "-vf", "geq=lum='48+45*sin(N*0.9+(X+Y)*0.15)':cb=128:cr=128",
+    ];
   } else if (kind === "moving") {
     // Static gray "face" + a mouth patch whose luminance VARIES EVERY FRAME
     // while "speaking" (frame-number driven). Sustained per-frame motion is
@@ -254,7 +266,7 @@ describe("lip gate (fixtures)", () => {
     const lip = gate(r, "lip-sync");
     expect(lip.status).toBe("fail");
     expect(lip.detail).toContain("no lip movement");
-    expect(lip.metrics.meanDiff).toBeLessThan(LIP_MIN_MEAN_DIFF);
+    expect(lip.metrics.meanStd).toBeLessThan(LIP_MIN_TEMPORAL_STD);
     // A fully static card also means the safe-zone gate cannot see a playing card.
     expect(gate(r, "safe-zone").status).toBe("fail");
   });
@@ -263,7 +275,7 @@ describe("lip gate (fixtures)", () => {
     const r = await auditFixture("lip-moving");
     const lip = gate(r, "lip-sync");
     expect(lip.status).toBe("pass");
-    expect(lip.metrics.meanDiff).toBeGreaterThanOrEqual(LIP_MIN_MEAN_DIFF);
+    expect(lip.metrics.meanStd).toBeGreaterThanOrEqual(LIP_MIN_TEMPORAL_STD);
     expect(gate(r, "safe-zone").status).toBe("pass");
   });
 
@@ -414,7 +426,9 @@ describe("digital-human.mjs audit subcommand", () => {
 // ─── Pure-function units (no ffmpeg) ───
 
 /** Synthetic variance grid helper: 270×480 std grid with painted dynamic blobs.
- *  Blob rects accept either {w,h} or {width,height} (expectedGrid uses the latter). */
+ *  Blob rects accept either {w,h} or {width,height} (expectedGrid uses the latter).
+ *  The amp is written to ALL RGB channels — single-channel writes dilute the
+ *  luminance swing (0.299×) and undercut the strong-motion threshold. */
 function syntheticVarianceGrid(blobs) {
   const width = AUDIT_FRAME_WIDTH;
   const height = 480;
@@ -427,7 +441,10 @@ function syntheticVarianceGrid(blobs) {
       for (let yy = blob.y; yy < blob.y + bh; yy++) {
         for (let xx = blob.x; xx < blob.x + bw; xx++) {
           const i = (width * yy + xx) << 2;
-          data[i] = f % 2 === 0 ? 20 + blob.amp : 20; // alternating → std ≈ amp/2
+          const v = f % 2 === 0 ? 20 + blob.amp : 20; // alternating → std ≈ amp/2
+          data[i] = v;
+          data[i + 1] = v;
+          data[i + 2] = v;
         }
       }
     }
@@ -470,14 +487,17 @@ describe("safe-zone gate (pure)", () => {
     expect(g.status).toBe("pass");
   });
 
-  it("motion blob deep in the action rail fails naming the rail", () => {
+  it("DISPLACED card deep in the action rail fails naming the rail (card-missing + zone blob)", () => {
+    // Physical model: the card is ONE clipped rect — a displaced card leaves
+    // the declared rect EMPTY (no rect blob painted here) and shows up as a
+    // strong-motion blob inside the rail zone.
     const grid = syntheticVarianceGrid([
-      { ...expectedGrid, amp: 120 },
       { x: 240, y: 160, w: 20, h: 120, amp: 120 }, // grid x≥240 = canvas ≥960, well past rail edge 880
     ]);
     const g = evaluateSafeZoneGate({ varGrid: grid, scale: SCALE, expectedRect: AVATAR_CARD_RECT });
     expect(g.status).toBe("fail");
     expect(g.detail).toContain("TikTok right action rail");
+    expect(g.findings.some((f) => f.kind === "card-missing")).toBe(true);
   });
 
   it("karaoke-style motion INSIDE the lane (clean gap band) does NOT fail — subtitle false-positive guard", () => {
@@ -521,7 +541,7 @@ describe("lip gate (pure)", () => {
     const grids = [gridOf((x) => x), gridOf((x) => 100 - x)];
     const g = evaluateLipGate(grids, mouthGrid);
     expect(g.status).toBe("pass");
-    expect(g.metrics.meanDiff).toBeGreaterThanOrEqual(LIP_MIN_MEAN_DIFF);
+    expect(g.metrics.meanStd).toBeGreaterThanOrEqual(LIP_MIN_TEMPORAL_STD);
   });
 
   it("static mouth with background motion elsewhere still fails (motion ≠ lip movement)", () => {
@@ -530,7 +550,7 @@ describe("lip gate (pure)", () => {
     const grids = [gridOf((x, y) => (y < 50 ? 50 : x)), gridOf((x, y) => (y < 50 ? 50 : 100 - x))];
     const g = evaluateLipGate(grids, mouthGrid);
     expect(g.status).toBe("fail");
-    expect(g.metrics.meanDiff).toBeLessThan(LIP_MIN_MEAN_DIFF);
+    expect(g.metrics.meanStd).toBeLessThan(LIP_MIN_TEMPORAL_STD);
   });
 
   it("fewer than 2 frames fails closed", () => {

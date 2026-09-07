@@ -38,7 +38,10 @@
 5. **生成编排**：新独立 CLI（计划/批准/执行三态）：`plan` 输出 dry-run 计划文件；`run --plan` 经用户批准后执行——远端任务走 `run-gpu`（Kaggle kernel）+ `remote-task` 状态机（断点恢复沿用 `--resume` 机制）；产物经 `upscaleDigitalHuman()` 超分后回写 `scene.avatar.videoPath`。生成耗时/平台/费用落包内 report。
 6. **主流程接线**：Remotion 渲染前若 `scene.avatar.videoPath` 存在且文件存在 → 拷贝进 `remotion/public/`（同 media 路径改写机制）并启用卡片层；缺失/损坏 → fail-closed 报错（不静默降级为无数字人，因为用户已为该 scene 付费生成）。
 7. **段内切出（grill 定案 8）**：`scene.avatar.present?: [{from, to}]` 声明在屏区间（省略 = 满段在屏）；切出区间素材满屏。tickets 阶段验证 Remotion 序列裁切即可实现，不引入新渲染机制。
-8. ** HITL（grill 定案 6）**：双重门 = 生成前 plan 批准（必须，天然人审）+ 生成后帧审计自动检查（卡片 safe-zone 合规、唇动帧差、音画同步抽帧）。无硬 cap。
+8. ** HITL（grill 定案 6）**：双重门 = 生成前 plan 批准（必须，天然人审）+ 生成后帧审计自动检查（卡片 safe-zone 合规、唇动存在、音画同步）。无硬 cap。三道关卡统一建立在渲染帧逐像素**时间标准差**上（10Hz 抽样、270px 工作分辨率，`lib/avatar-frame-audit.mjs`）：
+   - **safe-zone**：强运动阈值（std>25）+ 连通域追溯——卡片被裁切在声明矩形内，其内容只能以连通的强运动延伸越界；无连通关系的背景动画（实测 std≤31）不触发（首版弱阈值全图判定被真实 E2E 的动画渐变背景误报，已由 dh-pilot-qwen4 scene 10 实测校准）。
+   - **唇动**：嘴部区域时间标准差 ≥5.0。帧差均值在真实模型输出上不可分（实测 5.2 < 合成 fixture 标定的 6.0 下限），而时间标准差 35.6 vs 噪声 ≤3（约 10× 分离度）。
+   - **音画同步**：TTS 能量包络与唇动序列的**首次起始点对齐**（±0.15s）。互相关在真实内容上被稀疏头部运动尖峰削平（峰 0.305 vs 滞后 0 处 0.280），起始点对齐同数据测得 +33ms。
 9. **形象资产**：用户本人照片，路径进包配置（不入 git 的私有资产目录按 media-asset-management 约定落位）。
 
 ## Modified Files Impact（R3 必备）
@@ -70,6 +73,7 @@
 - 先例：scene-rules 校验测试（`runAllSceneDataChecks` 既有测试面）、dh-upscale 5/5 单测 + 真机 smoke、remote-task 45/45、render 探针（official-fit-render 先例——真实 Chromium 帧证据）。
 - R3 失败基线（实现前实测修正）：scene-rules 当前对 `avatar` 字段**不可见**（fail-open——聚合结果逐字节不变），并非早先假设的「被既有校验拒绝」；template contract 只校验 `texts`。真实 red 起点 = 声明无校验（未知键被静默忽略），`checkAvatarContract`（票 01）据此建立 fail-closed。渲染层对未知字段的行为在票 02 实测。
 - Kaggle 真机验证沿用 `docs/video-workflow.md` preflight + 真实数据命令；mock 层只覆盖编排逻辑。
+- 帧审计：ffmpeg 合成 fixture 30 用例确定性覆盖（无网络、无模型输出；dynamic 卡片用时空亮度振荡，std≈32>强运动阈值——testsrc2 大部分区域仅弱动态，作 fixture 会静默漏检）；真实 E2E（dh-pilot-qwen4 scene 10，动画渐变背景 + 真模型卡片）三关通过：presence 70.4% / 唇动 std 35.6 / onset 偏移 +0.000s。
 
 ## Out of Scope
 
