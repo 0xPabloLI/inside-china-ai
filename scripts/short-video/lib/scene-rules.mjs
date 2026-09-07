@@ -1753,6 +1753,198 @@ export function checkBrollPromptDimensions(scenes) {
   return results;
 }
 
+// ─── Avatar declaration contract (#214 ticket 01) ───
+
+/**
+ * Optional `scene.avatar` foreground layer (digital human). Declaration state
+ * is `{}` — the generation step writes back `videoPath` after the package's
+ * plan is approved. Fail-closed: an unknown key or malformed interval must be
+ * caught HERE, before TTS spends money — not at render time.
+ *
+ * Schema (S2 spec, grill 定案 1/7):
+ *   avatar: {
+ *     videoPath?: string            — written back by the generation step
+ *     position?: "right-card"       — default; the only rendered variant (1′)
+ *     scale?: number > 0            — optional card scale override
+ *     present?: [{ from, to }]      — on-screen seconds; omitted = full scene
+ *   }
+ */
+export const AVATAR_POSITIONS = ["right-card"];
+const AVATAR_KEYS = ["videoPath", "position", "scale", "present"];
+
+// Present-interval overflow can only be estimated here (scene-rules runs
+// pre-TTS): 2.5 words/sec is the established voiceover pace
+// (checkVoiceoverWordCount). The generation step enforces the exact TTS
+// duration; this check only catches obviously wrong declarations.
+const AVATAR_WPS = 2.5;
+const AVATAR_DURATION_TOLERANCE = 2;
+
+function avatarIntervalProblems(scene, present) {
+  const problems = [];
+  if (!Array.isArray(present) || present.length === 0) {
+    return [`present must be a non-empty array of {from, to} intervals`];
+  }
+  const valid = [];
+  for (const iv of present) {
+    if (
+      iv === null ||
+      typeof iv !== "object" ||
+      Array.isArray(iv) ||
+      typeof iv.from !== "number" ||
+      typeof iv.to !== "number" ||
+      !Number.isFinite(iv.from) ||
+      !Number.isFinite(iv.to)
+    ) {
+      problems.push(`present interval ${JSON.stringify(iv)} must be {from: number, to: number}`);
+      continue;
+    }
+    if (iv.from < 0) {
+      problems.push(`present interval from=${iv.from} is negative`);
+      continue;
+    }
+    if (iv.from >= iv.to) {
+      problems.push(`present interval from=${iv.from} >= to=${iv.to}`);
+      continue;
+    }
+    valid.push(iv);
+  }
+  // Overlap is order-independent: sort by `from` before comparing adjacent pairs
+  const sorted = [...valid].sort((a, b) => a.from - b.from);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].from < sorted[i - 1].to) {
+      problems.push(
+        `present intervals overlap: [{from: ${sorted[i - 1].from}, to: ${sorted[i - 1].to}}, {from: ${sorted[i].from}, to: ${sorted[i].to}}]`,
+      );
+      break;
+    }
+  }
+  if (sorted.length > 0) {
+    const estSec = (scene.voiceover || "").split(/\s+/).filter(Boolean).length / AVATAR_WPS;
+    const maxTo = Math.max(...sorted.map((iv) => iv.to));
+    if (maxTo > estSec * AVATAR_DURATION_TOLERANCE) {
+      problems.push(
+        `present ends at ${maxTo}s but scene voiceover is ~${estSec.toFixed(1)}s (${AVATAR_WPS} wps estimate; exact check happens post-TTS in the generation step)`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * Avatar declaration contract check. Skips silently when no scene declares
+ * avatar (legacy scene-data compat — zero impact on existing packages).
+ */
+export function checkAvatarContract(scenes) {
+  const avatarScenes = scenes.filter((s) => s.avatar !== undefined);
+  if (avatarScenes.length === 0) return [];
+
+  const CHECK = "Avatar declaration contract";
+  const CATEGORY = "Structure";
+  const results = [];
+  for (const scene of avatarScenes) {
+    const avatar = scene.avatar;
+    if (avatar === null || typeof avatar !== "object" || Array.isArray(avatar)) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id}: avatar must be an object, got ${avatar === null ? "null" : Array.isArray(avatar) ? "array" : typeof avatar}`,
+        fix: "Write avatar: {} to declare (generation step fills videoPath), or remove the field",
+      });
+      continue;
+    }
+
+    const unknown = Object.keys(avatar).filter((k) => !AVATAR_KEYS.includes(k));
+    if (unknown.length > 0) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id}: unknown avatar field(s): ${unknown.join(", ")} — allowed: ${AVATAR_KEYS.join(", ")}`,
+        fix: "Fix the field name spelled above (fail-closed: an unknown key would otherwise be silently ignored)",
+      });
+      continue;
+    }
+
+    let sceneFailed = false;
+
+    if (avatar.position !== undefined && !AVATAR_POSITIONS.includes(avatar.position)) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id}: position="${avatar.position}" is not rendered — allowed: ${AVATAR_POSITIONS.join(", ")}`,
+        fix: `Remove position (defaults to "${AVATAR_POSITIONS[0]}") or set it to "${AVATAR_POSITIONS[0]}"`,
+      });
+      sceneFailed = true;
+    }
+
+    if (
+      avatar.scale !== undefined &&
+      (typeof avatar.scale !== "number" || !Number.isFinite(avatar.scale) || avatar.scale <= 0)
+    ) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id}: scale must be a positive number, got ${JSON.stringify(avatar.scale)}`,
+        fix: "Remove scale to use the card default, or set a positive multiplier",
+      });
+      sceneFailed = true;
+    }
+
+    if (avatar.videoPath !== undefined && (typeof avatar.videoPath !== "string" || avatar.videoPath.trim() === "")) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id}: videoPath must be a non-empty string, got ${JSON.stringify(avatar.videoPath)}`,
+        fix: "Remove videoPath (the generation step writes it back) or set the generated file path",
+      });
+      sceneFailed = true;
+    }
+
+    if (avatar.present !== undefined) {
+      for (const problem of avatarIntervalProblems(scene, avatar.present)) {
+        results.push({
+          level: "fail",
+          category: CATEGORY,
+          check: CHECK,
+          detail: `Scene ${scene.id}: ${problem}`,
+          fix: "Fix the present interval(s) — seconds within this scene's voiceover duration",
+        });
+        sceneFailed = true;
+      }
+    }
+
+    if (!sceneFailed) {
+      if (avatar.videoPath === undefined) {
+        results.push({
+          level: "pass",
+          category: CATEGORY,
+          check: CHECK,
+          detail: `Scene ${scene.id}: declared, pending generation`,
+        });
+        results.push({
+          level: "warn",
+          category: CATEGORY,
+          check: "Avatar pending generation",
+          detail: `Scene ${scene.id}: avatar declared but no videoPath yet`,
+          fix: "Run the digital-human generation CLI (plan → approve → run) for this package before rendering",
+        });
+      } else {
+        results.push({
+          level: "pass",
+          category: CATEGORY,
+          check: CHECK,
+          detail: `Scene ${scene.id}: videoPath="${avatar.videoPath}" (file existence checked at render time)`,
+        });
+      }
+    }
+  }
+  return results;
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const allChecks = [
@@ -1799,6 +1991,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkBrollPromptDimensions(scenes),
+    ...checkAvatarContract(scenes),
   ];
 
   return {
