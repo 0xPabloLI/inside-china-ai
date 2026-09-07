@@ -26,8 +26,13 @@
  *     TextGate's `document.fonts.ready` + timeout FAIL gate stays authoritative.
  *   - Official functions never verify their own result; verification lives in
  *     the gate (decision 58 untouched).
- *   - fitTextOnNLines tokenizes on spaces — Chinese copy would misjudge
- *     (#165, decision 60; current copy is English).
+ *   - fitTextOnNLines tokenizes on spaces (`text.split(' ')`), so space-less
+ *     CJK copy becomes one unbreakable word and the prediction collapses to a
+ *     single-line squeeze (#165, decision 60; measured 2026-09-07: seed 24 vs
+ *     truth 48). Wrapping text CONTAINING CJK is therefore routed through the
+ *     local grapheme-cluster wrap below, which mirrors the official binary
+ *     search but breaks each CJK grapheme individually; pure latin text keeps
+ *     the official path.
  *
  * Known approximations (all absorbed by the reordered lattice + terminal
  * validation): composite text measured per block container with the block's
@@ -137,6 +142,127 @@ function typographyOf(el: HTMLElement): {
 }
 
 /**
+ * CJK scripts (Han, kana, Hangul, Bopomofo) plus CJK punctuation and
+ * fullwidth forms: these break between any two graphemes in CSS line
+ * layout, so the wrap simulation below must treat each one as its own
+ * unit. Non-CJK runs (latin words, numbers) only break at whitespace.
+ */
+const CJK_GRAPHEME =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Bopomofo}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
+
+/** One wrap unit: the text chunk plus whether the original had a space before it. */
+type WrapUnit = { text: string; spaceBefore: boolean };
+
+/**
+ * Break `text` into wrap units for the grapheme-cluster wrap: each CJK
+ * grapheme is its own unit, whitespace-delimited non-CJK runs stay whole
+ * (mirroring the official `split(' ')` for latin), and the first unit of a
+ * whitespace-delimited token keeps `spaceBefore` so the simulation can
+ * reproduce the original inter-word space.
+ */
+function tokenizeForWrap(text: string): WrapUnit[] {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  const units: WrapUnit[] = [];
+  let run = "";
+  let pendingSpace = false;
+  const flush = (): void => {
+    if (!run) return;
+    const start = units.length;
+    let nonCjk = "";
+    for (const { segment } of segmenter.segment(run)) {
+      if (CJK_GRAPHEME.test(segment)) {
+        if (nonCjk) {
+          units.push({ text: nonCjk, spaceBefore: false });
+          nonCjk = "";
+        }
+        units.push({ text: segment, spaceBefore: false });
+      } else {
+        nonCjk += segment;
+      }
+    }
+    if (nonCjk) units.push({ text: nonCjk, spaceBefore: false });
+    if (pendingSpace && start < units.length) units[start].spaceBefore = true;
+    pendingSpace = false;
+    run = "";
+  };
+  for (const { segment } of segmenter.segment(text)) {
+    if (/\s/.test(segment)) {
+      flush();
+      pendingSpace = true;
+      continue;
+    }
+    run += segment;
+    if (CJK_GRAPHEME.test(segment)) flush();
+  }
+  flush();
+  return units;
+}
+
+/**
+ * `fitTextOnNLines` with grapheme-cluster tokenization (#165): same binary
+ * search over the same accept condition as the official implementation, but
+ * each unit joins the line under its own join rule (CJK units without a
+ * space, `spaceBefore` units with one) and the joined line is measured as a
+ * whole string — canvas kerning makes that closer to real DOM wrapping than
+ * the official per-chunk width sum.
+ */
+function fitTextOnNLinesByUnits(args: {
+  units: WrapUnit[];
+  maxLines: number;
+  maxWidth: number;
+  fontFamily: string;
+  fontWeight: string;
+  letterSpacing: string;
+  maxFontSize: number;
+}): number {
+  const measureWidth = (text: string, fontSize: number): number =>
+    measureText({
+      text,
+      fontFamily: args.fontFamily,
+      fontWeight: args.fontWeight,
+      fontSize,
+      letterSpacing: args.letterSpacing,
+    }).width;
+
+  // Same search grid as the official fitTextOnNLines (precision 0.01px).
+  const PRECISION = 100;
+  let left = Math.floor(0.1 * PRECISION);
+  let right = Math.floor(args.maxFontSize * PRECISION);
+  let optimal = 0.1;
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const fontSize = mid / PRECISION;
+    const lines: string[] = [""];
+    let exceedsBox = false;
+    for (const unit of args.units) {
+      const line = lines[lines.length - 1];
+      const candidate = line + (unit.spaceBefore && line.length > 0 ? " " : "") + unit.text;
+      if (Math.ceil(measureWidth(candidate, fontSize)) <= args.maxWidth) {
+        lines[lines.length - 1] = candidate;
+        continue;
+      }
+      // The unit cannot join this line: start a new one, unless this is the
+      // last line or the unit cannot even fill a line alone.
+      if (
+        lines.length === args.maxLines ||
+        Math.ceil(measureWidth(unit.text, fontSize)) > args.maxWidth
+      ) {
+        exceedsBox = true;
+        break;
+      }
+      lines.push(unit.text);
+    }
+    if (!exceedsBox && lines.length <= args.maxLines) {
+      optimal = fontSize;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  return optimal;
+}
+
+/**
  * Official prediction for ONE container, in the container's own font-size
  * units (convert to gate units by dividing by the container's font-size
  * ratio). Returns null when the container has no measurable text or the
@@ -182,18 +308,33 @@ function predictContainer(
       .fontSize;
   }
 
-  // Wrapping text: official greedy word-wrap simulation, capped at the
-  // contract's line budget and at the contract's preferred size (the
-  // official docs' "caller clamps" pattern).
-  const fitted = fitTextOnNLines({
-    text,
-    maxLines: args.maxLines,
-    maxBoxWidth: maxWidth,
-    fontFamily: typo.fontFamily,
-    fontWeight: typo.fontWeight,
-    letterSpacing: typo.letterSpacing,
-    maxFontSize: Math.max(1, args.preferredGateSize * args.fontRatio),
-  });
+  // Wrapping text: greedy wrap simulation, capped at the contract's line
+  // budget and at the contract's preferred size (the official docs' "caller
+  // clamps" pattern). Text containing CJK cannot go through the official
+  // fitTextOnNLines — it tokenizes on spaces, so space-less CJK copy becomes
+  // one unbreakable word and the prediction collapses (#165) — and takes the
+  // local grapheme-cluster wrap instead.
+  const fitted = CJK_GRAPHEME.test(text)
+    ? {
+        fontSize: fitTextOnNLinesByUnits({
+          units: tokenizeForWrap(text),
+          maxLines: args.maxLines,
+          maxWidth,
+          fontFamily: typo.fontFamily,
+          fontWeight: typo.fontWeight,
+          letterSpacing: typo.letterSpacing,
+          maxFontSize: Math.max(1, args.preferredGateSize * args.fontRatio),
+        }),
+      }
+    : fitTextOnNLines({
+        text,
+        maxLines: args.maxLines,
+        maxBoxWidth: maxWidth,
+        fontFamily: typo.fontFamily,
+        fontWeight: typo.fontWeight,
+        letterSpacing: typo.letterSpacing,
+        maxFontSize: Math.max(1, args.preferredGateSize * args.fontRatio),
+      });
   return fitted.fontSize;
 }
 

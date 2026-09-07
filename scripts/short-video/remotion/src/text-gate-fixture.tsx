@@ -197,6 +197,36 @@ const OfficialSeedProbe: React.FC<{ spec: ProbeSpec }> = ({ spec }) => {
       const widthAtSeed = await widthAt(seed);
       const widthAtTruth = full.size == null ? null : await widthAt(full.size);
 
+      // #165 wrap probes: the width-only walk above accepts ANY size for
+      // wrapping copy (extra lines absorb the width), so its truth is
+      // degenerate (= preferredSize). When the probe declares a line budget,
+      // also report the largest lattice size whose REAL render fits within
+      // that budget — the quantity the wrap seed actually predicts.
+      let maxLinesTruth: number | null = null;
+      if (spec.wrap && spec.maxLines) {
+        const countLines = async (size: number): Promise<number> => {
+          textEl.style.fontSize = `${size}px`;
+          await nextFrame();
+          const range = document.createRange();
+          range.selectNodeContents(textEl);
+          const tops = new Set(
+            Array.from(range.getClientRects())
+              .filter((r) => r.width > 0)
+              .map((r) => Math.round(r.top)),
+          );
+          return tops.size;
+        };
+        for (const size of fitCandidates(slot)) {
+          if (
+            (await widthAt(size)) <= available + PROBE_EPS &&
+            (await countLines(size)) <= spec.maxLines
+          ) {
+            maxLinesTruth = size;
+            break;
+          }
+        }
+      }
+
       const payload = {
         text: spec.text,
         available,
@@ -210,6 +240,7 @@ const OfficialSeedProbe: React.FC<{ spec: ProbeSpec }> = ({ spec }) => {
         seededProbes: seeded.probes,
         widthAtSeed,
         widthAtTruth,
+        maxLinesTruth,
       };
       cancelRender(new Error(`[OfficialFitProbe] ${JSON.stringify(payload)}`));
     })();

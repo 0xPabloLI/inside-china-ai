@@ -137,6 +137,51 @@ describe(
       expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
     });
 
+    it("CJK copy: grapheme-wrap seed lands within one ladder step of the line-budget truth", () => {
+      // #165: the official fitTextOnNLines tokenizes on spaces — space-less
+      // CJK copy becomes ONE unbreakable word, so the prediction collapses to
+      // a single-line squeeze (measured baseline 2026-09-07: seed 24 vs the
+      // maxLines=2 fit at 40). official-fit.ts routes CJK wrapping text
+      // through its own grapheme-cluster wrap; the seed must sit within one
+      // ladder step of maxLinesTruth — the largest size whose REAL render
+      // fits the probe's line budget (the width-only `truth` is degenerate
+      // for wrapping copy: extra lines absorb any width).
+      const p = probe({
+        text: "整个发布的核心在于算力在一年内翻倍而单位推理成本保持基本平稳",
+        boxWidth: 600,
+        preferredSize: 48,
+        minSize: 24,
+        wrap: true,
+        maxLines: 2,
+      });
+      expect(p.truth, JSON.stringify(p)).not.toBeNull();
+      expect(p.maxLinesTruth, JSON.stringify(p)).not.toBeNull();
+      expect(p.maxLinesTruth, JSON.stringify(p)).toBeLessThan(p.preferredSize);
+      expect(Math.abs(p.seed - p.maxLinesTruth), JSON.stringify(p)).toBeLessThanOrEqual(
+        LADDER_STEP,
+      );
+      expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
+    });
+
+    it("mixed latin+CJK copy: grapheme-wrap seed lands within one ladder step of the line-budget truth", () => {
+      // The mixed shape locks the tokenizer's join rule: the latin run stays
+      // one word, each CJK grapheme breaks individually.
+      const p = probe({
+        text: "QWEN3 发布：算力一年翻倍而成本平稳",
+        boxWidth: 600,
+        preferredSize: 48,
+        minSize: 24,
+        wrap: true,
+        maxLines: 2,
+      });
+      expect(p.truth, JSON.stringify(p)).not.toBeNull();
+      expect(p.maxLinesTruth, JSON.stringify(p)).not.toBeNull();
+      expect(Math.abs(p.seed - p.maxLinesTruth), JSON.stringify(p)).toBeLessThanOrEqual(
+        LADDER_STEP,
+      );
+      expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
+    });
+
     it("focus number GLM-6.0: reports the floor the 820px band can actually hold", () => {
       // Evidence for the bigNumber minSize contract (spec decisions 93/270
       // fixed the floor at 180; 7-character focus numbers are the case that
