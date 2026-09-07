@@ -265,14 +265,21 @@ SUBJECT · VISUAL METAPHOR · BRAND · REFERENCE · CAMERA · MOTION · LIGHTING
 
 Text belongs to the caption layer: `scene.texts` carries numbers and names, and the clip behind it carries none — T2V models garble glyphs. Keep the whole prompt inside the 512-token budget.
 
-`verify-video.mjs --pre` checks one of the eight mechanically — **NEGATIVE** — plus a numeral sweep, and warns without blocking (check `B-roll prompt dimensions`). A prompt must cover all three groups NEGATIVE guards against: TEXT (`no text` / `no letters`), HANDS (`no hands`), ARTIFACT (`no watermark` / `no logo`). These are fixed defaults, so they differ from prompt to prompt only by omission. The sweep also flags any Arabic numeral: a data value belongs in `texts`, though an element count (`3 layers`) is a legitimate thing to write. The other seven dimensions stay on the agent — they are the ones a template cannot write for you.
+**Code-owned dimensions (#166 layer 2)**: `lib/b-roll/prompt-injection.mjs` composes the prompt that reaches the generator. The agent declares SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / CAMERA / MOTION / LIGHTING; the code appends what is fixed:
+
+- **NEGATIVE** — always injected. Semantic groups missing from the declared prompt are appended (`no text` / `no hands` / `no watermark`), so agents stop hand-writing them. Existing clauses are never duplicated.
+- **BRAND** — the `#0a0a14` dark base and blue-cyan tech palette, plus the subject entity's accent color (DeepSeek blue, Huawei red, Alibaba/Qwen amber, Tencent green — `docs/brand-system.md` → Entity Color Mapping), appended only when the declared prompt does not already art-direct the scene (its own background/palette/color words win).
+- **CAMERA / MOTION / LIGHTING** — advisory defaults per `visualType` are exported (`dimensionDefaultsFor`); copy them into the prompt, override freely — never force-injected.
+- **Budget** — the composed prompt must stay under a 480-token estimate (encoder truncates at 512, silently, tail-first). Over-budget scenes are refused before any GPU time with a `token-budget` reason in the report.
+
+The report entry records both surfaces: `prompt` (declared) and `generationPrompt` (composed). `verify-video.mjs --pre` still sweeps the declared prompt for Arabic numerals and warns without blocking (check `B-roll prompt dimensions`) — a data value belongs in `texts`, though an element count (`3 layers`) is a legitimate thing to write. SUBJECT / VISUAL METAPHOR / REFERENCE stay 100% on the agent — they are the ones a template cannot write for you.
 
 ### Agent prompt-iteration protocol
 
 The agent rewrites prompts; a human does not. After any run leaves a scene short of `won`:
 
-1. Read the scene's report entry — the prompt, both candidate scores, and the VLM reason.
-2. Attack the dimension the reason points at: off-topic → SUBJECT / VISUAL METAPHOR; watermark or garbled text → NEGATIVE; static or flat → CAMERA / MOTION / LIGHTING.
+1. Read the scene's report entry — the declared prompt, the composed `generationPrompt`, both candidate scores, and the VLM reason.
+2. Attack the dimension the reason points at: off-topic → SUBJECT / VISUAL METAPHOR; watermark or garbled text → check `generationPrompt` actually carries the NEGATIVE clauses (and shorten the prompt if they were budget-truncated); static or flat → CAMERA / MOTION / LIGHTING (defaults live in `lib/b-roll/prompt-injection.mjs`).
 3. Re-run `generate-broll.mjs --content <dir> --scene <id>` and read the report again.
 4. `round` counts generations per scene. Past 3 the entry becomes `escalated` and the stage refuses to spend more time on it — surface the escalated scene, its candidates and scores to the user.
 

@@ -40,8 +40,10 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // Baseline counts — any unrelated check drift (added/removed check) breaks
     // these and forces a conscious update, keeping the avatar zero-impact
     // guarantee meaningful against future changes.
+    // #166 layer 2: warn went 5 → 3 — the two NEGATIVE-coverage warns on
+    // scenes 5/6 are gone because the constants are code-injected now.
     expect(before.pass).toHaveLength(47);
-    expect(before.warn).toHaveLength(5);
+    expect(before.warn).toHaveLength(3);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });
 });

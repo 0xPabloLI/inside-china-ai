@@ -18,7 +18,16 @@ import {
   shouldRefuse,
 } from "./report.mjs";
 import { buildClaim, scoreCandidates, pickWinner, GATE_THRESHOLD } from "./gate.mjs";
-import { resolveDependencies, runGeneration } from "./runner.mjs";
+import { resolveDependencies, runGeneration, MAX_SEQUENCE_LENGTH } from "./runner.mjs";
+import {
+  PROMPT_INJECTION_VERSION,
+  MAX_PROMPT_TOKENS,
+  composeGenerationPrompt,
+  declaresOwnArtDirection,
+  stripNegativeClauses,
+  tokenBudgetExceeded,
+} from "./prompt-injection.mjs";
+import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
 
 export const SEED_BASE = 1024;
 const CANDIDATES_PER_SCENE = 2;
@@ -72,6 +81,35 @@ export function scenesRequiringGeneration(scenes, sceneFilter = null, maxScenes 
 
 function seedsForScene(sceneIndex) {
   return Array.from({ length: CANDIDATES_PER_SCENE }, (_, i) => SEED_BASE + sceneIndex * 100 + i);
+}
+
+/**
+ * #166 migration: report entries written before constant injection hashed the
+ * raw declared prompt. Two legacy shapes stay cached instead of rerunning a
+ * ~235s clip:
+ * 1. declared prompt unchanged → re-hash against the composed prompt;
+ * 2. declared prompt changed only by dropping hand-written NEGATIVE clauses
+ *    the injection re-adds — the stored winner's generation input differed
+ *    from the composed prompt purely in those clauses (its prompt was
+ *    art-directed, so no BRAND delta), which is the exact edit #166 made to
+ *    the qwen4-preview prompts.
+ * Returns true when the entry was migrated (caller marks the report dirty).
+ */
+function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
+  if (!entry || entry.injectionVersion !== undefined) return false;
+  if (!rawPrompt || !entry.prompt) return false;
+  const prior = entry.prompt;
+  const legacySelfHash = entry.promptHash === promptHash(prior);
+  const unchanged = entry.promptHash === promptHash(rawPrompt);
+  const negativesOnly =
+    legacySelfHash &&
+    declaresOwnArtDirection(prior) &&
+    Object.keys(NEGATIVE_GROUPS).every((group) => coversNegativeGroup(prior, NEGATIVE_GROUPS[group])) &&
+    stripNegativeClauses(prior) === stripNegativeClauses(rawPrompt);
+  if (!unchanged && !negativesOnly) return false;
+  entry.injectionVersion = PROMPT_INJECTION_VERSION;
+  entry.promptHash = promptHash(generationPrompt);
+  return true;
 }
 
 /**
@@ -166,14 +204,19 @@ export async function runBrollStage(opts) {
   for (const plan of generatePlans) {
     const scene = plan.scene;
     const sceneId = String(scene.id);
-    const prompt = scene.aiVideo?.prompt ?? "";
+    // #166: the declared prompt stays the agent's surface (gate claim, report
+    // readability); generation receives the composed prompt with the injected
+    // constants.
+    const rawPrompt = scene.aiVideo?.prompt ?? "";
+    const generationPrompt = composeGenerationPrompt(scene);
     const entry = report.scenes?.[sceneId];
     const winnerFile = entry?.winner?.file;
 
     if (!force && entry) {
+      if (migrateLegacyEntry(entry, rawPrompt, generationPrompt)) reportDirty = true;
       const decision = decideCache(
         entry,
-        prompt,
+        generationPrompt,
         winnerFile ? fileExists(join(contentDir, "assets", "b-roll", winnerFile)) : false,
       );
       if (decision.reuse) {
@@ -181,6 +224,32 @@ export async function runBrollStage(opts) {
         counts.cached += 1;
         continue;
       }
+    }
+
+    // #166 constraint: the text encoder truncates silently at
+    // max_sequence_length — never feed it an over-budget prompt.
+    if (tokenBudgetExceeded(generationPrompt)) {
+      report.scenes = report.scenes ?? {};
+      report.scenes[sceneId] = {
+        ...(entry ?? {}),
+        strategy: scene.mediaStrategy,
+        promptHash: promptHash(generationPrompt),
+        injectionVersion: PROMPT_INJECTION_VERSION,
+        round: entry?.round ?? 1,
+        status: "failed",
+        prompt: rawPrompt,
+        generationPrompt,
+        candidates: [],
+        winner: null,
+        reason: `composed prompt exceeds the ${MAX_PROMPT_TOKENS}-token budget ` +
+          `(encoder truncates at ${MAX_SEQUENCE_LENGTH}) — shorten the declared prompt`,
+      };
+      reportDirty = true;
+      counts.failed += 1;
+      onProgress?.(
+        `scene ${sceneId}: composed prompt exceeds the ${MAX_PROMPT_TOKENS}-token budget — generation skipped`,
+      );
+      continue;
     }
 
     const round = nextRound(entry ?? null);
@@ -191,7 +260,7 @@ export async function runBrollStage(opts) {
       counts.escalated += 1;
       continue;
     }
-    toGenerate.push({ scene, sceneId, prompt, round, prevEntry: entry ?? null });
+    toGenerate.push({ scene, sceneId, rawPrompt, generationPrompt, round, prevEntry: entry ?? null });
   }
 
   const limited = toGenerate.slice(0, maxScenes);
@@ -215,7 +284,7 @@ export async function runBrollStage(opts) {
       const file = `scene-${item.sceneId}-seed${seed}.mp4`;
       return {
         label: `scene-${item.sceneId}-seed${seed}`,
-        prompt: item.prompt,
+        prompt: item.generationPrompt,
         output_path: join(contentDir, "assets", "b-roll", file),
         seed,
         file,
@@ -257,7 +326,7 @@ export async function runBrollStage(opts) {
 
   report.scenes = report.scenes ?? {};
   for (const item of limited) {
-    const { scene, sceneId, prompt, round, prevEntry } = item;
+    const { scene, sceneId, rawPrompt, generationPrompt, round, prevEntry } = item;
     const sceneJobs = jobsByScene.get(sceneId);
 
     const candidatesInput = [];
@@ -299,10 +368,12 @@ export async function runBrollStage(opts) {
     const landedOn = winner ? assignWinner(scene, basename(winner.file)) : null;
     report.scenes[sceneId] = {
       strategy: scene.mediaStrategy,
-      promptHash: promptHash(prompt),
+      promptHash: promptHash(generationPrompt),
+      injectionVersion: PROMPT_INJECTION_VERSION,
       round,
       status: winner ? "won" : "failed",
-      prompt,
+      prompt: rawPrompt,
+      generationPrompt,
       voiceover: scene.voiceover ?? "",
       candidates,
       winner: winner ? { seed: winner.seed, file: basename(winner.file) } : null,

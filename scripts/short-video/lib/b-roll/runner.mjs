@@ -106,6 +106,10 @@ export function resolveDependencies(env = process.env) {
  * Tier A (M3 Max safe) defaults: portrait 480x832, 81 frames, int8, taehv,
  * DMD 3-step schedule.
  */
+// Text-encoder token limit — the batch script truncates silently at this
+// length. prompt-injection.mjs derives its generation-side budget from it.
+export const MAX_SEQUENCE_LENGTH = 512;
+
 export function buildPythonArgs(opts) {
   const {
     repo,
@@ -117,7 +121,7 @@ export function buildPythonArgs(opts) {
     mlxQuantization = "int8",
     decodeBackend = "taehv",
     dmdDenoisingSteps = "1000,757,522",
-    maxSequenceLength = 512,
+    maxSequenceLength = MAX_SEQUENCE_LENGTH,
     modelRoot = null,
     mlxCheckpoint = null,
   } = opts;
