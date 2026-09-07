@@ -3,6 +3,7 @@
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
 > 历史轮次（第十九 session 及更早）已下沉 `docs/archive/tracker-rotation-history-2026-09-06.md`（2026-09-06 第二十一 session 清理，沿 3a92094 先例）。
+Last inventory: 2026-09-07（第二十 session 续·#35/#29 关闭 + #165 唤醒）— **#35 关闭（wontfix）**：多参考音频被 emotion 控制 TTS 取代（引擎对比定型），REF_AUDIO_MAP 冻结保留；**#29 关闭（wontfix）**：analytics 采集已自动化，CSV 路径作废。**#165 唤醒（ready-for-agent）**——休眠票中唯一零强依赖：自包含于 remotion/src，可独立实现测试；**唤醒依赖分析**：#155 需 T2I 后端选型、#194 需数字人管线整合落地、#166 需 b-roll 用量触发、#208/#210 需分发扩展——均不可直接唤醒。open 12 票，唯一 ready-for-agent = **#165（下一个任务）**。commits 全部已推送。
 Last inventory: 2026-09-07（第二十 session 续·批量裁决）— 用户"都按推荐来"批量执行：**关闭 wontfix** #117（多币种）/ #94（scene 视觉意图）/ #107（全组件审计）/ #85（Bloomberg 绕行）/ #32（yt-dlp 切段）/ #60（按需审计，由 #61 CLI 承载）；**转 dormant** #21 / #155 / #157 / #158。**#206/#205 确认非当前范围维持 parked；#140 已关（P6 暂缓，将来从 Clash 自有订阅节点轮换起步）；xinzhiyuan/baidu_news 已移除（ALL_SOURCES 62）**。open 票仅余：#29（等 CSV）、#35（等录音）、#165/#166/#208/#210/#194/#60 已关外全部 dormant/HITL——**agent 可执行前沿清空，tracker 进入维护态**。open 终态 14 票全部 dormant/HITL/等用户资源：#29（等 CSV）/ #35（等录音）/ #194（等数字人管线）/ #108（暂缓）/ #205/#206（非当前范围）/ #21+#155/#157/#158+#165/#166/#208/#210（dormant 长眠）。commits 全部已推送（origin/main 同步至 `9e60aff`+本行）。
 Last inventory: 2026-09-07（第二十 session 续·死源移除）— **xinzhiyuan + baidu_news 移除**（用户裁决"不可修就去掉"，`9e60aff`）：registry 原位 memo 注释指向调研报告防重复研究；ALL_SOURCES 64→62（NEWS 12、supportsKeyword 41、auto-gen 名单、CDP video 计数、zero-fallback snapshot 共 6 处对齐），doctor 实测 54 articles-capable = 34 resilient / 7 single-channel / 13 tracked-feed。12 测试文件 600/600。**#206/#205 用户确认非当前范围**（项目当前只有视频轨）——维持 parked 不动。commits 已全部推送（origin/main 同步至 `9e60aff`）。
 Last inventory: 2026-09-07（第二十 session 续·#61 交付）— **#61 非阻塞证据审计交付关闭**（`460e08c`）：lib/claim-audit.mjs（B6 四级标注解析 → classifyClaimRisk 确定性风险分级（七类硬触发+四维评分，v1 零 token）→ summary 交叉核对 → matchEvidence 证据匹配 → Coverage Report 附节）+ audit-claims.mjs CLI（非阻塞恒 exit 0）。真实验证：distillation 文章 13 条标注、抓到 Summary 计数不一致、9 条高风险定位行号。测试 16/16。票内设计问题定案：LLM 判断留增强。#140 已关闭（P6 暂缓，起点=Clash 自有订阅节点轮换，`7fc1f99` Chrome 守卫入 Hard Safety Gates）。commits `460e08c` 待推送（其余已推）。
@@ -251,8 +252,8 @@ collectFromSource() 层次：
 | #    | Issue                                                              | Trigger condition                                                                                                      |
 | ---- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | #21 | 多模态 RAG（等素材库规模） | — | — | dormant（2026-09-07 用户批量裁决转长眠）|
-| #29  | Analytics Workflow Part A + Part B                                 | >10 published videos with analytics。Part A: retention pattern analysis。Part B: reference video extraction            |
-| #165 | layout-utils 多行分词中文误判（`fitTextOnNLines` 的 `split(' ')`） | 引入中文/无空格语言文案且需多行适配时。2026-09-03 复核：契约期包零 CJK，`fitTextOnNLines` 仅 wrapping 分支，触发未满足 |
+| ~~#29~~ | ✅ Analytics Workflow — retention pattern analysis + reference video extraction | — | — | ✅ 关闭（2026-09-07，wontfix，用户裁决）。analytics 采集已自动化，CSV 手动路径作废；留存分析若启动改为消费自动化数据。详情：GitHub issue 关闭评论 |
+| **#165** | layout-utils 多行函数按空格分词，中文文案会误判溢出 | — | remotion/src（layout-utils 接入面） | **2026-09-07 唤醒（ready-for-agent）**——休眠票中唯一零强依赖（自包含修复，无需后端选型/管线整合/范围扩展）；其余 dormant 票依赖见 inventory |
 
 #### Dormant — project milestone
 
@@ -265,7 +266,7 @@ collectFromSource() 层次：
 | #   | Issue                          | Trigger condition                                        |
 | --- | ------------------------------ | -------------------------------------------------------- |
 | ~~#32~~ | ✅ yt-dlp: download full video + AI segment selection | — | — | ✅ 关闭（2026-09-07，wontfix，用户批量裁决）。批量裁决关闭（wontfix）：原需求（Real-ESRGAN 集成）已随管线演进消失。详情：GitHub issue 关闭评论 |
-| #35 | **暂缓（用户 2026-09-05：voice 测试独立 session 跟进，最低优先级）** — F5-TTS Multi-Reference Audio   | 用户录制 4 段参考音频                                    |
+| ~~#35~~ | ✅ F5-TTS Prosody Enhancement: Multi-Reference Audio Strategy | — | — | ✅ 关闭（2026-09-07，wontfix，用户裁决）。被 emotion 控制 TTS 路线取代（引擎对比已定型），REF_AUDIO_MAP 基础设施冻结保留。详情：GitHub issue 关闭评论 |
 
 #### Needs triage / design decision
 
