@@ -7,6 +7,8 @@ description: Enforce brand consistency across generated visual content (videos, 
 
 Enforce brand consistency by reading the project's brand spec and applying its tokens.
 
+**Text voice** (voiceover wording, article copy) is out of scope here — read `docs/brand-voice-profile.md` before writing or checking any copy.
+
 ## Locate the brand spec
 
 Read `docs/brand-system.md` in the project root. This is the **single source of truth** for all brand decisions — color tokens, typography, animation library, scene templates, content patterns.
