@@ -240,6 +240,21 @@ function getWebSocketUrl(port, wsPath) {
   return `ws://127.0.0.1:${port}/devtools/browser`;
 }
 
+// DevToolsActivePort 缓存可能陈旧（Chrome 每次启动换浏览器级 WS 路径，
+// 缓存文件不一定同步刷新）——从 /json/version 拿活值兜底。
+async function fetchLiveWsPath(port) {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    const data = await resp.json();
+    const match = String(data?.webSocketDebuggerUrl || "").match(/\/devtools\/browser\/.+/);
+    return match ? match[0] : null;
+  } catch {
+    return null;
+  }
+}
+
 // --- WebSocket 连接管理 ---
 let chromePort = null;
 let chromeWsPath = null;
@@ -263,77 +278,90 @@ async function connect() {
     chromeWsPath = discovered.wsPath;
   }
 
-  const wsUrl = getWebSocketUrl(chromePort, chromeWsPath);
-  if (!wsUrl) throw new Error("无法获取 Chrome WebSocket URL");
+  // 候选 wsPath：缓存值优先（省一次 HTTP），失败后用活值重试
+  const candidates = [...new Set([chromeWsPath, await fetchLiveWsPath(chromePort)].filter(Boolean))];
 
-  return (connectingPromise = new Promise((resolve, reject) => {
-    ws = new WS(wsUrl);
+  return (connectingPromise = (async () => {
+    let lastError = null;
+    for (const wsPath of candidates) {
+      try {
+        await new Promise((resolve, reject) => {
+          ws = new WS(getWebSocketUrl(chromePort, wsPath));
 
-    const onOpen = () => {
-      cleanup();
-      connectingPromise = null;
-      console.log(`[CDP Proxy] 已连接浏览器 (端口 ${chromePort})`);
-      resolve();
-    };
-    const onError = (e) => {
-      cleanup();
-      connectingPromise = null;
-      ws = null;
-      chromePort = null;
-      chromeWsPath = null;
-      const msg = e.message || e.error?.message || "连接失败";
-      console.error("[CDP Proxy] 连接错误:", msg, "（端口缓存已清除，下次将重新发现）");
-      reject(new Error(msg));
-    };
-    const onClose = () => {
-      console.log("[CDP Proxy] 连接断开");
-      ws = null;
-      chromePort = null; // 重置端口缓存，下次连接重新发现
-      chromeWsPath = null;
-      sessions.clear();
-      managedTabs.clear();
-    };
-    const onMessage = (evt) => {
-      const data = typeof evt === "string" ? evt : evt.data || evt;
-      const msg = JSON.parse(typeof data === "string" ? data : data.toString());
+          // function 声明保证提升——onOpen/cleanup 相互引用不踩 TDZ
+          function onOpen() {
+            cleanup();
+            console.log(`[CDP Proxy] 已连接浏览器 (端口 ${chromePort})`);
+            resolve();
+          }
+          function onError(e) {
+            cleanup();
+            ws = null;
+            const msg = e.message || e.error?.message || "连接失败";
+            console.error(`[CDP Proxy] 连接错误 (wsPath=${wsPath ? "缓存" : "默认"}):`, msg);
+            reject(new Error(msg));
+          }
+          function onClose() {
+            console.log("[CDP Proxy] 连接断开");
+            ws = null;
+            chromePort = null; // 重置端口缓存，下次连接重新发现
+            chromeWsPath = null;
+            sessions.clear();
+            managedTabs.clear();
+          }
+          function onMessage(evt) {
+            const data = typeof evt === "string" ? evt : evt.data || evt;
+            const msg = JSON.parse(typeof data === "string" ? data : data.toString());
 
-      if (msg.method === "Target.attachedToTarget") {
-        const { sessionId, targetInfo } = msg.params;
-        sessions.set(targetInfo.targetId, sessionId);
+            if (msg.method === "Target.attachedToTarget") {
+              const { sessionId, targetInfo } = msg.params;
+              sessions.set(targetInfo.targetId, sessionId);
+            }
+            // 拦截页面对 Chrome 调试端口的探测请求（反风控）
+            if (msg.method === "Fetch.requestPaused") {
+              const { requestId, sessionId: sid } = msg.params;
+              sendCDP("Fetch.failRequest", { requestId, errorReason: "ConnectionRefused" }, sid).catch(
+                () => {},
+              );
+            }
+            if (msg.id && pending.has(msg.id)) {
+              const { resolve: res, timer } = pending.get(msg.id);
+              clearTimeout(timer);
+              pending.delete(msg.id);
+              res(msg);
+            }
+          }
+          function cleanup() {
+            ws?.removeEventListener?.("open", onOpen);
+            ws?.removeEventListener?.("error", onError);
+          }
+
+          // 兼容 Node 原生 WebSocket 和 ws 模块的事件 API
+          if (ws.on) {
+            ws.on("open", onOpen);
+            ws.on("error", onError);
+            ws.on("close", onClose);
+            ws.on("message", onMessage);
+          } else {
+            ws.addEventListener("open", onOpen);
+            ws.addEventListener("error", onError);
+            ws.addEventListener("close", onClose);
+            ws.addEventListener("message", onMessage);
+          }
+        });
+        chromeWsPath = wsPath;
+        connectingPromise = null;
+        return;
+      } catch (e) {
+        lastError = e;
+        // 尝试下一个候选 wsPath（缓存值失效时用 /json/version 活值兜底）
       }
-      // 拦截页面对 Chrome 调试端口的探测请求（反风控）
-      if (msg.method === "Fetch.requestPaused") {
-        const { requestId, sessionId: sid } = msg.params;
-        sendCDP("Fetch.failRequest", { requestId, errorReason: "ConnectionRefused" }, sid).catch(
-          () => {},
-        );
-      }
-      if (msg.id && pending.has(msg.id)) {
-        const { resolve, timer } = pending.get(msg.id);
-        clearTimeout(timer);
-        pending.delete(msg.id);
-        resolve(msg);
-      }
-    };
-
-    function cleanup() {
-      ws.removeEventListener?.("open", onOpen);
-      ws.removeEventListener?.("error", onError);
     }
-
-    // 兼容 Node 原生 WebSocket 和 ws 模块的事件 API
-    if (ws.on) {
-      ws.on("open", onOpen);
-      ws.on("error", onError);
-      ws.on("close", onClose);
-      ws.on("message", onMessage);
-    } else {
-      ws.addEventListener("open", onOpen);
-      ws.addEventListener("error", onError);
-      ws.addEventListener("close", onClose);
-      ws.addEventListener("message", onMessage);
-    }
-  }));
+    connectingPromise = null;
+    chromePort = null;
+    chromeWsPath = null;
+    throw lastError || new Error("连接失败");
+  })());
 }
 
 function sendCDP(method, params = {}, sessionId = null) {
