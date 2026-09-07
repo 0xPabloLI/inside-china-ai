@@ -63,3 +63,5 @@ updated: 2026-08-26
 - CDP `eval` 的返回值如果是非 JSON 字符串（如 "not found"），直接 `JSON.parse()` 会报错。需要 try/catch 降级为原始字符串。
 - 话题行可能有 21 行（20 个话题 + 1 行表头），表头行 `tds[0]` 文本是"搜索主题"或"Search topic"。
 - Search Analytics 页面显示"即将在电脑端上线"——不是 bug，是功能尚未上线。
+- （2026-09-07）在全新 profile 的 Chrome 实例上，`/csi` 页 `document.body.innerText` 返回空串（analytics studio 页正常），但数据已渲染在 `#app` 容器里——用 `document.getElementById("app").innerText` 或直接查 `tr/td` 提取。`tiktok-csi.mjs` 因此抓 0 条。
+- （2026-09-07）TikTok 登录风控：常规/CDP profile 登录可能被拒，全新 profile（等效无痕）可登录。登录态保留在该 profile，配合 `WEB_ACCESS_CDP_PORT` env 让 proxy 指向该实例（如 9229）。analytics studio 抓取在该实例上工作正常。

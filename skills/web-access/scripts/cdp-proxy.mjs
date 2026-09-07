@@ -200,7 +200,12 @@ async function discoverChromePort() {
       label: result.browser.label,
       source: result.source,
     };
-    const tag = result.source === "override" ? "[--browser 指定]" : "[config.env 偏好]";
+    const tag =
+      result.source === "override"
+        ? "[--browser 指定]"
+        : result.source === "env-port"
+          ? "[WEB_ACCESS_CDP_PORT 指定]"
+          : "[config.env 偏好]";
     console.log(
       `[CDP Proxy] 选用 ${result.browser.label} (端口 ${result.browser.port}${result.browser.wsPath ? "，带 wsPath" : ""}) ${tag}`,
     );

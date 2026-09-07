@@ -159,15 +159,53 @@ async function detectAll() {
   return result;
 }
 
+// 显式端口覆盖（最高优先）：WEB_ACCESS_CDP_PORT=<port>
+// 适用场景：同一台机器跑多个 Chrome 实例（如全新 profile 承载风控平台的登录态），
+// config.env 的浏览器名选择无法表达"哪一个实例"。端口死亡时硬错而非静默降级，
+// 避免悄悄连到错误的浏览器实例。
+async function selectByEnvPort() {
+  const raw = process.env.WEB_ACCESS_CDP_PORT;
+  if (!raw) return null;
+  const port = parseInt(raw, 10);
+  if (!(port > 0 && port < 65536)) {
+    throw new Error(`WEB_ACCESS_CDP_PORT="${raw}" 不是合法端口`);
+  }
+  if (!(await checkPort(port))) {
+    throw new Error(`WEB_ACCESS_CDP_PORT=${port} 没有监听，无法连接。确认该 Chrome 实例已带 --remote-debugging-port=${port} 启动`);
+  }
+  let wsPath = null;
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    const data = await resp.json();
+    const match = String(data?.webSocketDebuggerUrl || "").match(/\/devtools\/browser\/.+/);
+    if (match) wsPath = match[0];
+  } catch {
+    // /json/version 可能被禁（仅允许 token wsPath）——回退默认路径，交给 proxy 连接时重试
+  }
+  return {
+    kind: "ok",
+    // id 沿用 "chrome"：check-deps 的 expected/actual 一致性校验按 id 比对
+    browser: { id: "chrome", label: `Chrome (CDP port ${port})`, port, wsPath },
+    source: "env-port",
+    detected: [],
+    configured: readConfig().WEB_ACCESS_BROWSER || null,
+  };
+}
+
 // 决策入口
 // 参数：override — 调用方解析自命令行 --browser 的值（null 表示未传）
 // 返回 { kind, browser?, source?, detected, configured, override? }
 //   kind ∈ 'ok' | 'ambiguous' | 'mismatch' | 'empty'
-//   source ∈ 'override' | 'preference' | undefined
+//   source ∈ 'override' | 'preference' | 'env-port' | undefined
 //   ambiguous = 没设偏好 + 至少一个浏览器开了 toggle，需问用户
 //   mismatch  = override/配偏好设了但未检测到对应 toggle，硬错
 //   empty     = 0 浏览器开 toggle 且未设偏好/override
 export async function selectBrowser(override = null) {
+  const envPort = await selectByEnvPort();
+  if (envPort) return envPort;
+
   const detected = await detectAll();
   const configured = readConfig().WEB_ACCESS_BROWSER || null;
 

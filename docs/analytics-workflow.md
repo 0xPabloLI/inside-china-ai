@@ -79,8 +79,21 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 3. 对比已发布视频的话题在 CSI 中的搜索热度，识别选题机会
 4. 记录到 `output/analytics-conclusions.md` 的 "CSI Content Gap 对比" 章节
 
-> **前置条件**：CDP proxy 已启动（`node ~/.agents/skills/web-access/scripts/check-deps.mjs`），用户已登录 TikTok。
-> CSI 桌面版可用功能：话题列表 ✅、Content Gap ✅、话题详情 ✅。AI Outline ❌（仅移动端）、Search Analytics ❌（桌面版即将上线）。详见 `docs/research/tiktok-creator-tools.md` §3.3。
+> **前置条件**：CDP proxy 已启动（`node ~/.agents/skills/web-access/scripts/check-deps.mjs`），用户已登录 TikTok。CSI 桌面版可用功能：话题列表 ✅、Content Gap ✅、话题详情 ✅。AI Outline ❌（仅移动端）、Search Analytics ❌（桌面版即将上线）。详见 `docs/research/tiktok-creator-tools.md` §3.3。
+>
+> **风控登录态替代方案**（2026-09-07 验证）：常规浏览器登录 TikTok 被风控拦截时，用全新 profile 启动独立 Chrome 实例登录（指纹等效无痕），再让 proxy 指向该实例：
+>
+> ```bash
+> # 1. 启动全新 profile 实例（勿用默认 profile，Chrome 136+ 禁调试）
+> open -na "Google Chrome" --args --user-data-dir="$TMPDIR/tiktok-fresh-profile" \
+>   --remote-debugging-port=9229 --no-first-run "https://www.tiktok.com/login"
+> # 2. 用户在该窗口登录 TikTok（登录态留在该 profile，可复用）
+> # 3. 重置 proxy 并指向 9229
+> pkill -f cdp-proxy.mjs
+> WEB_ACCESS_CDP_PORT=9229 node ~/.agents/skills/web-access/scripts/check-deps.mjs
+> ```
+>
+> 注意：`/csi` 页在新 profile 实例上 `body.innerText` 为空，需从 `#app` 容器提取（`tiktok-csi.mjs` 可能因此抓 0，手动 eval 提取 `tr/td` 即可）。见 `~/.agents/skills/web-access/references/site-patterns/tiktok.com.md`。
 
 ---
 
