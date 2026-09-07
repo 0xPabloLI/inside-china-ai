@@ -81,7 +81,7 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 
 > **前置条件**：CDP proxy 已启动（`node ~/.agents/skills/web-access/scripts/check-deps.mjs`），用户已登录 TikTok。CSI 桌面版可用功能：话题列表 ✅、Content Gap ✅、话题详情 ✅。AI Outline ❌（仅移动端）、Search Analytics ❌（桌面版即将上线）。详见 `docs/research/tiktok-creator-tools.md` §3.3。
 >
-> **风控登录态替代方案**（2026-09-07 验证）：常规浏览器登录 TikTok 被风控拦截时，用全新 profile 启动独立 Chrome 实例登录（指纹等效无痕），再让 proxy 指向该实例：
+> **TikTok 专用登录实例（默认路线，2026-09-07 起）**：TikTok 登录一律用全新 profile 启动的独立 Chrome 实例（指纹等效无痕）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动并让 proxy 指向该实例：
 >
 > ```bash
 > # 1. 启动全新 profile 实例（勿用默认 profile，Chrome 136+ 禁调试）

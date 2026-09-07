@@ -95,18 +95,23 @@ function evalPage(targetId, js) {
 
 /**
  * Wait for page to load (poll readyState + content check).
+ *
+ * 注意（2026-09-07）：在全新 profile 的 Chrome 实例上，/csi 页的
+ * `document.body.innerText` 恒为空串（数据实际渲染在 `#app` 容器），
+ * 因此加载检测与文本读取一律走 `#app || body` 内容根，两个实例通吃。
+ *
  * @param {string} targetId
- * @param {number} [timeoutMs=10000]
+ * @param {number} [timeoutMs=20000] CSI 是慢 SPA，首次渲染可达 15s+
  */
-function waitForLoad(targetId, timeoutMs = 10000) {
+function waitForLoad(targetId, timeoutMs = 20000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const info = execSync(`curl -s "${CDP_BASE}/info?target=${targetId}"`, { encoding: "utf8" });
     const data = JSON.parse(info);
     if (data.ready === "complete" || data.ready === "interactive") {
-      // Check if body has content
+      // Check content root has text (#app 容器优先，见函数注释)
       const bodyCheck = execSync(
-        `curl -s -X POST "${CDP_BASE}/eval?target=${targetId}" -d 'document.body ? document.body.innerText.length : 0'`,
+        `curl -s -X POST "${CDP_BASE}/eval?target=${targetId}" -d '(document.getElementById("app") || document.body).innerText.length'`,
         { encoding: "utf8" },
       );
       const bodyData = JSON.parse(bodyCheck);
@@ -152,14 +157,14 @@ export async function checkCsiAvailability() {
     targetId,
     `JSON.stringify({
       url: location.href,
-      bodyText: document.body ? document.body.innerText.substring(0, 500) : "",
+      bodyText: (document.getElementById("app") || document.body).innerText.substring(0, 500),
       hasContentGap: !![...document.querySelectorAll("[class*=Chip]")].find(c => {
         const t = c.textContent.trim();
         return t === "内容缺口" || t === "Content gap" || t.toLowerCase().includes("content gap");
       }),
-      hasAiOutline: document.body.innerText.includes("AI Outline") || document.body.innerText.includes("AI 大纲"),
-      hasSearchAnalytics: document.body.innerText.includes("数据分析") || document.body.innerText.includes("Search Analytics"),
-      loginRequired: !document.body || document.body.innerText.length < 50 || location.href.includes("login"),
+      hasAiOutline: (document.getElementById("app") || document.body).innerText.includes("AI Outline") || (document.getElementById("app") || document.body).innerText.includes("AI 大纲"),
+      hasSearchAnalytics: (document.getElementById("app") || document.body).innerText.includes("数据分析") || (document.getElementById("app") || document.body).innerText.includes("Search Analytics"),
+      loginRequired: !(document.getElementById("app") || document.body) || (document.getElementById("app") || document.body).innerText.length < 50 || location.href.includes("login"),
     })`,
   );
 
@@ -230,7 +235,7 @@ export async function fetchContentGapTopics(opts = {}) {
         const tds = row.querySelectorAll("td");
         if (tds.length < 2) continue;
         const topic = tds[0].textContent.trim();
-        if (!topic || topic === "搜索主题" || topic === "Search topic") continue;
+        if (!topic || /^(搜索主题|Search topics?)$/i.test(topic)) continue;
         // Second td contains volume + growth (e.g. "148K1000%+" or "6.30K1000%+")
         const volText = tds[1].textContent.trim();
         // Match volume: number with optional K/M suffix (e.g. "148K", "6.30K", "100")
@@ -278,7 +283,7 @@ export async function fetchTopicDetail(topicId) {
   const detail = evalPage(
     targetId,
     `(() => {
-      const text = document.body ? document.body.innerText : "";
+      const text = (document.getElementById("app") || document.body).innerText;
       // Parse topic name (first line after nav)
       const lines = text.split("\\n").filter(l => l.trim().length > 0);
       const topicIdx = lines.findIndex(l => l === "上传" || l.includes("搜索热度"));
@@ -350,7 +355,7 @@ export async function fetchRecommendedTopics(opts = {}) {
         const tds = row.querySelectorAll("td");
         if (tds.length < 2) continue;
         const topic = tds[0].textContent.trim();
-        if (!topic || topic === "搜索主题" || topic === "Search topic") continue;
+        if (!topic || /^(搜索主题|Search topics?)$/i.test(topic)) continue;
         const volText = tds[1].textContent.trim();
         const volumeMatch = volText.match(/^(\\d[\\d.]*[KM]?)/);
         const growthMatch = volText.match(/(\\d[\\d.]*%\\+?)$/);

@@ -82,14 +82,17 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
 
 ### Analytics 闭环
 
+> **TikTok 登录策略（2026-09-07 起）**：TikTok 登录一律用专用全新 profile Chrome 实例（指纹等效无痕，登录态可留存复用）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动与 proxy 路由步骤见 `docs/analytics-workflow.md`「风控登录态替代方案」。
+
 ```
 ① 检查 pending-analysis.json
    │  新 session 时 agent 自动检查
    │  超过 48h → 提醒导出 CSV
    │
-② 导出 TikTok Analytics CSV
-   │  登录 https://analytics.tiktok.com
-   │  → Content → 选时间范围 → Export
+② CDP 抓取（默认路径，无需手动 CSV）
+   │  TikTok Studio Analytics + CSI 直接抓取
+   │  → hashtag-effect-tracker.jsonl + analytics-conclusions.md
+   │  （手动导 CSV 为 fallback：登录 analytics.tiktok.com → Content → Export）
    │
 ③ 运行分析脚本
    │  node scripts/short-video/fetch-tiktok-analytics.mjs --csv <csv-path>
