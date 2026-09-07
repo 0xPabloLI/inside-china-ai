@@ -50,25 +50,22 @@ analytics"，但实际上 analytics 需要等数据沉淀。
       Agent 将 pending-analysis.json 的 status 改为 "done"
 ```
 
-### CSV 导出说明
+### 数据地图与最少路径（2026-09-07 实测校准）
 
-1. 用你的 TikTok 账号登录 `analytics.tiktok.com`（不需要开发者账号）
-2. 进入 Content 页面
-3. 选择时间范围（如最近 7 天）
-4. 点击 Export 下载 CSV
-5. CSV 包含：视频标题、发布时间、播放量、完成率、分享、收藏、评论、点赞
+| 数据 | 最少路径 | 单周期页数 |
+|---|---|---|
+| 账号级按日汇总（views/likes/search terms/流量来源） | overview 页 CDP 一次读取，或 Studio 快速导出 Overview.csv | 1 |
+| per-video 基础（播放/赞/评论/搜索词） | content 列表页 CDP 一次读取 | 1 |
+| 完播率 / 人均观看 / 留存洞察 / 单条流量拆分 | per-video 详情页 `tiktokstudio/analytics/<videoId>/overview`（`tiktok-video-details.mjs --fetch`） | 仅新增视频 |
+| 选题缺口 | CSI 双流程（`tiktok-csi.mjs --content-gap` / `--recommended`） | 2 |
 
-脚本使用模糊匹配解析列名，即使 TikTok 版本更新导致列名略有变化也能处理。
+路径选择原则（web-access SKILL.md ⑤）：官方批量导出能覆盖数据需求时优先于逐页抓取；**完播率类指标导出不覆盖**（Content.csv 实为按日聚合、无完播率/收藏/观看时长；`analytics.tiktok.com` 老门户已 404），唯一来源是 per-video 详情页 CDP 抓取。旧周期视频低频复检，每周期只对新增视频跑 `--fetch`。
 
-### CDP 抓取方式（替代/补充 CSV 导出）
+站点级怪癖与登录策略见 `skills/web-access/references/site-patterns/tiktok.com.md`。
 
-除了 CSV 导出，Agent 也可以通过 web-access CDP 直接抓取 TikTok Studio 页面数据：
+### CSV 导出说明（fallback）
 
-1. CDP 打开 `https://www.tiktok.com/tiktokstudio/analytics/overview` → 获取总览数据
-2. CDP 打开 `https://www.tiktok.com/tiktokstudio/content` → 获取每条视频的播放/赞/评论
-3. 提取搜索词 Top 5 和流量来源分布
-
-CDP 方式不需要用户手动导出 CSV，但需要用户的 TikTok 登录态。两种方式互补使用。
+手动导出仍可用但已降级：登录 TikTok Studio → Overview/Content 页头部 `Download data` → 选 CSV → ZIP 落 `~/Downloads/`。仅覆盖基础数据（按日聚合），`fetch-tiktok-analytics.mjs` 的模糊列名解析仍适用。历史入口 `analytics.tiktok.com` 已下线，勿再使用。
 
 ### CSI Content Gap 对比方式（CDP 抓取，步骤 ④c）
 
