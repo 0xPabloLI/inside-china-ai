@@ -38,7 +38,9 @@
  * validation): composite text measured per block container with the block's
  * own computed typography; px letter-spacing inside wrapping simulation not
  * corrected; CSS text-transform / font-variant-numeric not modelled (unused
- * in the templates).
+ * in the templates); grapheme wrap ignores CSS kinsoku line-break rules, so
+ * a boundary landing on a forbidden point (before "：" or a closing bracket)
+ * overshoots by one grapheme width.
  */
 import { fitText, fitTextOnNLines, measureText } from "@remotion/layout-utils";
 import { solveSingleLinePxLetterSpacing } from "../../../lib/official-fit-kernel.mjs";
@@ -143,9 +145,11 @@ function typographyOf(el: HTMLElement): {
 
 /**
  * CJK scripts (Han, kana, Hangul, Bopomofo) plus CJK punctuation and
- * fullwidth forms: these break between any two graphemes in CSS line
- * layout, so the wrap simulation below must treat each one as its own
- * unit. Non-CJK runs (latin words, numbers) only break at whitespace.
+ * fullwidth forms: CSS line layout may break between their graphemes, so
+ * the wrap simulation below treats each one as its own unit (kinsoku rules
+ * — no break before "：" or closing brackets — are NOT modelled; see the
+ * known approximations note). Non-CJK runs (latin words, numbers) only
+ * break at whitespace.
  */
 const CJK_GRAPHEME =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Bopomofo}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
@@ -314,28 +318,21 @@ function predictContainer(
   // fitTextOnNLines — it tokenizes on spaces, so space-less CJK copy becomes
   // one unbreakable word and the prediction collapses (#165) — and takes the
   // local grapheme-cluster wrap instead.
-  const fitted = CJK_GRAPHEME.test(text)
-    ? {
-        fontSize: fitTextOnNLinesByUnits({
-          units: tokenizeForWrap(text),
-          maxLines: args.maxLines,
-          maxWidth,
-          fontFamily: typo.fontFamily,
-          fontWeight: typo.fontWeight,
-          letterSpacing: typo.letterSpacing,
-          maxFontSize: Math.max(1, args.preferredGateSize * args.fontRatio),
-        }),
-      }
-    : fitTextOnNLines({
-        text,
-        maxLines: args.maxLines,
-        maxBoxWidth: maxWidth,
-        fontFamily: typo.fontFamily,
-        fontWeight: typo.fontWeight,
-        letterSpacing: typo.letterSpacing,
-        maxFontSize: Math.max(1, args.preferredGateSize * args.fontRatio),
-      });
-  return fitted.fontSize;
+  const wrapCommon = {
+    maxLines: args.maxLines,
+    fontFamily: typo.fontFamily,
+    fontWeight: typo.fontWeight,
+    letterSpacing: typo.letterSpacing,
+    maxFontSize: Math.max(1, args.preferredGateSize * args.fontRatio),
+  };
+  const fontSize = CJK_GRAPHEME.test(text)
+    ? fitTextOnNLinesByUnits({
+        units: tokenizeForWrap(text),
+        maxWidth,
+        ...wrapCommon,
+      })
+    : fitTextOnNLines({ text, maxBoxWidth: maxWidth, ...wrapCommon }).fontSize;
+  return fontSize;
 }
 
 /**
