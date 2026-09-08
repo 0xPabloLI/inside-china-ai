@@ -77,9 +77,9 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
         const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
         // #199 2.5: normalizeMediaPatch accepts the {schemaVersion, patches}
         // envelope and the legacy top-level array.
-        const mod = deps.applyMediaPatch ?? (await import("./apply-media-patch.mjs"));
-        const normalizeMediaPatch = deps.normalizeMediaPatch ?? mod.normalizeMediaPatch;
-        const applyAssignedMedia = deps.applyAssignedMedia ?? mod.applyAssignedMedia;
+        const { normalizeMediaPatch, applyAssignedMedia } = await import(
+          "./apply-media-patch.mjs"
+        );
         const assigned = normalizeMediaPatch(patch).filter(
           (p) => p.status === "assigned" && p.media?.path,
         );

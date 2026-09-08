@@ -167,7 +167,12 @@ describe("generateTTSWithEngine caching (fake engine, no GPU)", () => {
 
     const second = await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
     expect(engine.generatedSceneIds).toEqual([1, 2, 3]); // no new generation
-    expect(second).toEqual(first);
+    // Same payloads, and the second run is fully served from cache while the
+    // first is freshly generated (registry passes `cached: true` through).
+    const stripCached = (rs) => rs.map(({ cached, ...rest }) => rest);
+    expect(stripCached(second)).toEqual(stripCached(first));
+    expect(second.every((r) => r.cached === true)).toBe(true);
+    expect(first.some((r) => "cached" in r)).toBe(false);
     cleanup();
   });
 

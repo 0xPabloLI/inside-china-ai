@@ -226,10 +226,21 @@ async function main() {
   prof.mark("step-1-tts", { track: "voice" });
   let ttsResults;
   try {
-    [, ttsResults] = await Promise.all([
+    // allSettled, not all: on a voice-track failure the media track still
+    // runs to its natural end, so the failure-path profile records real
+    // durations instead of the finally block prematurely closing a live step.
+    const [mediaDone, ttsDone] = await Promise.allSettled([
       runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
       generateTTS(scenes, audioDir),
     ]);
+    if (mediaDone.status === "rejected") {
+      // The track's own contract is never-reject (every stage has its own
+      // try/catch); reaching here means an unexpected bug — surface it but
+      // keep a TTS failure authoritative for the abort below.
+      console.warn(`⚠️  Media track crashed unexpectedly: ${mediaDone.reason?.message}\n`);
+    }
+    if (ttsDone.status === "rejected") throw ttsDone.reason;
+    ttsResults = ttsDone.value;
   } finally {
     prof.end("media-track");
     prof.end("step-1-tts");

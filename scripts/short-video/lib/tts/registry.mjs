@@ -160,6 +160,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       sceneId,
       audioPath,
       duration,
+      cached: true,
     }));
     toGenerate = plan.pending;
   }
