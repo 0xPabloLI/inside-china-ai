@@ -16,7 +16,7 @@
  */
 
 import { writeFileSync, mkdirSync, readdirSync, existsSync, readFileSync } from "fs";
-import { join, dirname, resolve, relative } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
@@ -30,11 +30,10 @@ import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
 import { buildCues } from "./lib/subtitles/cues.mjs";
 import { renderAss } from "./lib/subtitles/ass.mjs";
 import { finalizeRenderedVideo } from "./lib/post-process.mjs";
-import { normalizeMediaPatch } from "./lib/apply-media-patch.mjs";
 import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
-import { skipsMediaSourcing } from "./lib/claim-keywords.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
+import { runMediaTrack } from "./lib/media-track.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -210,171 +209,35 @@ async function main() {
     console.warn(`⚠️  B-roll stage unavailable: ${e.message}\n`);
   }
 
-  // ── Step 1.5: Asset sourcing (auto-search missing media) ──
-  // Triggers asset-sourcer when any non-CTA scene lacks media OR has media path pointing to a missing file.
-  // Non-blocking: if search fails, scene renders without media (graceful degradation).
-  const scenesNeedingMedia = scenes.filter((s) => {
-    // #191: shared skip predicate — NO_MEDIA_TYPES, explicit media:null,
-    // deprecated mediaOptOut (legacy), CSS-only layouts (hero-center /
-    // stacked-cards).
-    if (skipsMediaSourcing(s)) return false;
-    // A scene that chose pure b-roll must not spend the sourcing budget.
-    if (broll && !broll.shouldSourceStock(s)) return false;
-    if (!s.media?.path) return true; // No media field at all → needs sourcing
-    const contentDirAbs = resolve(__dirname, "content", contentDir);
-    const mediaPath = resolve(contentDirAbs, s.media.path);
-    return !existsSync(mediaPath); // Media path set but file missing → needs sourcing
-  });
-  if (scenesNeedingMedia.length > 0) {
-    console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
-    prof.mark("step-1.5-sourcing", { track: "media" });
-    try {
-      // Per-scene claims (assetNeed) + company-entity fallback are consumed
-      // inside asset-sourcer from scene-data directly (spec #130 D3/D11) —
-      // main no longer narrows the search to companies[0].
-      const { main: sourcerMain } = await import("./lib/asset-sourcer.mjs");
-      await sourcerMain(["--content", contentDir]);
-      console.log();
-    } catch (e) {
-      console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
-    }
-    prof.end("step-1.5-sourcing");
-  }
+  // ── Isolated output directory (the voice track writes TTS audio here) ──
+  const outputDir = join(__dirname, "output", meta.pipelineId);
+  const audioDir = join(outputDir, "audio");
+  mkdirSync(audioDir, { recursive: true });
 
-  // ── Step 1.5c: Apply media-patch.json to scenes (auto-assign sourced assets) ──
-  // After asset-sourcer runs, it generates media-patch.json with scene assignments.
-  // This step reads the patch and applies assigned media to scenes that don't have media yet.
-  // Memory-only mutation — does NOT write back to scene-data.mjs.
-  {
-    const contentDirAbs = resolve(__dirname, "content", contentDir);
-    const patchPath = resolve(contentDirAbs, "..", "..", "output", contentDir, "media-patch.json");
-    prof.mark("step-1.5c-media-patch", { track: "media" });
-    if (existsSync(patchPath)) {
-      try {
-        const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
-        // #199 2.5: normalizeMediaPatch accepts the {schemaVersion, patches}
-        // envelope and the legacy top-level array.
-        const assigned = normalizeMediaPatch(patch).filter(
-          (p) => p.status === "assigned" && p.media?.path,
-        );
-        if (assigned.length > 0) {
-          const { applyAssignedMedia } = await import("./lib/apply-media-patch.mjs");
-          const r = applyAssignedMedia(scenes, assigned, contentDirAbs);
-          for (const skip of r.skipped) {
-            console.warn(
-              `⚠️  Patched media skipped (scene ${skip.sceneId}): ${skip.reason}${skip.path ? ` — "${skip.path}"` : ""}`,
-            );
-          }
-          for (const id of r.exhausted) {
-            console.warn(
-              `⚠️  Scene ${id}: mediaReject set and still no media (candidates rejected or none matched) — CSS-only fallback. Widen the search or clear the flag.`,
-            );
-          }
-          if (r.applied > 0) {
-            console.log(
-              `📦 Step 1.5c: Applied ${r.applied} media assignments to scenes: ${r.appliedSceneIds.join(", ")}\n`,
-            );
-          } else {
-            console.log(`📦 Step 1.5c: No new media to apply (all scenes already have media)\n`);
-          }
-        } else {
-          console.log(
-            `⚠️  Step 1.5c: 0 assets assigned in media-patch.json — continuing with CSS fallback\n`,
-          );
-        }
-      } catch (e) {
-        console.warn(`⚠️  Step 1.5c: Failed to apply media patch: ${e.message}\n`);
-      }
-    }
-    prof.end("step-1.5c-media-patch");
-  }
-
-  // ── Step 1.5b: Media upscale (auto-upscale sub-720p media) ──
-  // Only processes confirmed media files (Cascade: selected first, then enhanced).
-  // Non-blocking: if upscale fails, original file is used.
-  const scenesWithMedia = scenes.filter((s) => s.media?.path);
-  if (scenesWithMedia.length > 0) {
-    console.log("🖼️ Step 1.5b: Checking media resolution for upscale...\n");
-    prof.mark("step-1.5b-upscale", { track: "media" });
-    try {
-      const { autoUpscaleIfNeeded } = await import("./lib/upscale.mjs");
-      let upscaledCount = 0;
-      for (const scene of scenes) {
-        if (!scene.media?.path) continue;
-        const contentDirAbs = resolve(__dirname, "content", contentDir);
-        const mediaPath = resolve(contentDirAbs, scene.media.path);
-        const result = autoUpscaleIfNeeded(mediaPath);
-        if (result.upscaled) {
-          // Update scene to use the upscaled path (relative to content dir)
-          scene.media.path = relative(contentDirAbs, result.path);
-          upscaledCount++;
-          console.log(`  Scene ${scene.id}: upscaled to ${result.path.split("/").pop()}`);
-        }
-      }
-      if (upscaledCount === 0) {
-        console.log("  All media already ≥720p — no upscale needed");
-      }
-      console.log();
-    } catch (e) {
-      console.warn(`⚠️  Media upscale skipped: ${e.message}\n`);
-    }
-    prof.end("step-1.5b-upscale");
-  }
-
-  // ── Step 1.5d: B-roll generation (mediaStrategy opt-in scenes) ──
-  // Runs after upscale on purpose: Tier A clips are 480x832 and must not be
-  // handed to Real-ESRGAN. Winners are assigned in memory only — scene-data is
-  // never rewritten. Non-blocking: any failure leaves the scenes untouched.
-  if (broll) {
-    const pending = broll.scenesRequiringGeneration(scenes);
-    if (pending.length > 0) {
-      console.log(`🎬 Step 1.5d: Generating B-roll for ${pending.length} scene(s)...\n`);
-      prof.mark("step-1.5d-broll", { track: "media" });
-      try {
-        const { closeVisualAnalyzer } = await import("./lib/visual-analyzer.mjs");
-        let result;
-        try {
-          result = await broll.runBrollStage({
-            scenes,
-            contentSlug: contentDir,
-            contentDir: resolve(__dirname, "content", contentDir),
-            // Report lives beside media-patch.json, keyed by content dir (same
-            // convention the standalone generate-broll.mjs entrypoint uses).
-            outputDir: join(__dirname, "output", contentDir),
-            onProgress: (line) => console.log(line),
-          });
-        } finally {
-          await closeVisualAnalyzer();
-        }
-        if (result.depsError) {
-          console.warn(`⚠️  Step 1.5d: B-roll skipped — ${result.depsError}\n`);
-        } else {
-          const { counts } = result;
-          console.log(
-            `🎬 Step 1.5d: B-roll ${counts.generated} generated, ${counts.cached} cached, ` +
-              `${counts.failed} failed, ${counts.escalated} escalated, ${counts.skipped} skipped`,
-          );
-          if (result.reportFile)
-            console.log(`   Report: ${relative(__dirname, result.reportFile)}`);
-          if (counts.failed > 0 || counts.escalated > 0) {
-            console.log(
-              "   → Read the b-roll report, rewrite the failing prompts " +
-                "(aiVideo.prompt 8-dimension / aiImage.prompt 6-dimension template) and rerun.",
-            );
-          }
-          console.log();
-        }
-      } catch (e) {
-        console.warn(`⚠️  Step 1.5d: B-roll stage failed: ${e.message}\n`);
-      }
-      prof.end("step-1.5d-broll");
-    }
+  // ── Voice ∥ Media tracks (#225 optimization 1) ──
+  // The media track (sourcing 1.5 → patch 1.5c → upscale 1.5b → B-roll 1.5d,
+  // now in lib/media-track.mjs) only touches scene media fields; the voice
+  // track (TTS, Step 1) only reads scene text. No shared mutable state, so
+  // both run concurrently. The media gate (1.6) runs after the join: it
+  // needs the final media state the media track produces.
+  console.log("⚡ Tracks: [media: sourcing→patch→upscale→broll] ∥ [voice: TTS]\n");
+  console.log("📝 Step 1: Generating TTS voiceover (parallel with media track)...\n");
+  prof.mark("media-track", { track: "media" });
+  prof.mark("step-1-tts", { track: "voice" });
+  let ttsResults;
+  try {
+    [, ttsResults] = await Promise.all([
+      runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
+      generateTTS(scenes, audioDir),
+    ]);
+  } finally {
+    prof.end("media-track");
+    prof.end("step-1-tts");
   }
 
   // ── Step 1.6: Final media gate ──
-  // Runs here, after sourcing (1.5), patch application (1.5c), upscale
-  // (1.5b) and B-roll generation (1.5d) — everything that can still supply a
-  // missing file has had its turn.
+  // Runs after the join: sourcing (1.5), patch application (1.5c), upscale
+  // (1.5b) and B-roll generation (1.5d) have all had their turn.
   // Preflight cannot do this: it runs before Step 1.5 and would block sourcing.
   {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
@@ -391,26 +254,14 @@ async function main() {
     console.log("✅ Step 1.6: Final media check passed (all layouts have the media they need)\n");
   }
 
-  // ── Isolated output directory ──
-  const outputDir = join(__dirname, "output", meta.pipelineId);
-  const audioDir = join(outputDir, "audio");
-
-  mkdirSync(audioDir, { recursive: true });
-
-  // ── Step 1: Generate TTS ──
-  console.log("📝 Step 1: Generating TTS voiceover...\n");
-  prof.mark("step-1-tts", { track: "voice" });
-  const ttsResults = await generateTTS(scenes, audioDir);
-  prof.end("step-1-tts");
-  const totalDuration = ttsResults.reduce((s, t) => s + t.duration, 0);
-  const ttsCached = ttsResults.filter((r) => r.cached).length;
-  console.log(`\n  Total voiceover: ${totalDuration.toFixed(1)}s` + (ttsCached ? ` (${ttsCached}/${scenes.length} from cache)` : "") + "\n");
-
   // ── Step 2: Validate every scene received a TTS result ──
   for (const scene of scenes) {
     const tts = ttsResults.find((t) => t.sceneId === scene.id);
     if (!tts) throw new Error(`No TTS result for scene ${scene.id}`);
   }
+  const totalDuration = ttsResults.reduce((s, t) => s + t.duration, 0);
+  const ttsCached = ttsResults.filter((r) => r.cached).length;
+  console.log(`\n  Total voiceover: ${totalDuration.toFixed(1)}s` + (ttsCached ? ` (${ttsCached}/${scenes.length} from cache)` : "") + "\n");
 
   // ── Step 3: Select background music (optional, --bgm flag) ──
   const useBGM = process.argv.includes("--bgm");
