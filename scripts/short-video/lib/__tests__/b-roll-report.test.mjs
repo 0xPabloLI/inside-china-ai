@@ -222,6 +222,49 @@ describe("summarizeBrollReport", () => {
     expect(line.fix).toContain("prompt");
   });
 
+  test("#155 non-won image scene -> fix text names aiImage.prompt and the 6-dimension template", () => {
+    const [line] = summarizeBrollReport(
+      reportOf({
+        11: entry({
+          strategy: "ai-image",
+          status: "failed",
+          round: 1,
+          winner: null,
+          candidates: [
+            { seed: 1024, file: "scene-11-seed1024.png", relevance: 35, reason: "off-topic" },
+            { seed: 1025, file: "scene-11-seed1025.png", relevance: 48, reason: "generic diagram" },
+          ],
+        }),
+      }),
+    );
+    expect(line.level).toBe("warn");
+    expect(line.fix).toContain("aiImage.prompt");
+    expect(line.fix).toContain("6-dimension");
+    expect(line.fix).not.toContain("aiVideo.prompt");
+    expect(line.fix).toContain("--scene 11");
+  });
+
+  test("#155 asset-then-ai-image non-won scene also names aiImage.prompt", () => {
+    const [line] = summarizeBrollReport(
+      reportOf({
+        3: entry({ strategy: "asset-then-ai-image", status: "failed", winner: null }),
+      }),
+    );
+    expect(line.fix).toContain("aiImage.prompt");
+    expect(line.fix).toContain("6-dimension");
+  });
+
+  test("#155 non-won video scene keeps naming aiVideo.prompt and the 8-dimension template", () => {
+    const [line] = summarizeBrollReport(
+      reportOf({
+        6: entry({ strategy: "asset-then-broll", status: "failed", winner: null }),
+      }),
+    );
+    expect(line.fix).toContain("aiVideo.prompt");
+    expect(line.fix).toContain("8-dimension");
+    expect(line.fix).not.toContain("aiImage.prompt");
+  });
+
   test("#27 escalated scene -> warning naming the round and the escalation", () => {
     const [line] = summarizeBrollReport(reportOf({ 8: entry({ status: "escalated", round: 4 }) }));
     expect(line.level).toBe("warn");

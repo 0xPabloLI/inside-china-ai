@@ -20,7 +20,7 @@ import { isImageStrategy } from "./lib/scene-rules.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-const HELP = `B-roll generation (FastVideo FastMetal-1.3B-QAD, local MLX)
+const HELP = `B-roll generation (FastVideo FastMetal-1.3B-QAD + Z-Image Turbo, local MLX)
 
   node generate-broll.mjs --content <dir> [options]
 
@@ -37,9 +37,11 @@ Environment:
   FASTVIDEO_PYTHON         Interpreter override (honored strictly, no probing)
   BROLL_MODEL_ROOT         Pin the weights dir instead of re-resolving the HF cache
   BROLL_MLX_CHECKPOINT     Pin the packed MLX DiT dir (mlx_dit.json + mlx_dit.safetensors)
+  AI_IMAGE_BACKEND         T2I backend (default mflux-z-image-turbo; mflux-z-image / sd3.5)
+  MFLUX_BIN                mflux binary override (default probes ~/.video-t2i-env, then PATH)
 
-Candidates: 2 per scene, portrait 480x832, Tier A params. See
-docs/video-workflow.md for the agent prompt-iteration protocol.`;
+Candidates: 2 per scene, portrait 480x832 video / 832x1216 image, Tier A params.
+See docs/video-workflow.md for the agent prompt-iteration protocol.`;
 
 function getArg(argv, name) {
   const idx = argv.indexOf(`--${name}`);

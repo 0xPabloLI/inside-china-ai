@@ -338,7 +338,8 @@ async function main() {
             console.log(`   Report: ${relative(__dirname, result.reportFile)}`);
           if (counts.failed > 0 || counts.escalated > 0) {
             console.log(
-              "   → Rewrite the failing aiVideo prompts (8-dimension template) and rerun.",
+              "   → Read the b-roll report, rewrite the failing prompts " +
+                "(aiVideo.prompt 8-dimension / aiImage.prompt 6-dimension template) and rerun.",
             );
           }
           console.log();

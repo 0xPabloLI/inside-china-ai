@@ -74,7 +74,13 @@ function formatScore(relevance) {
  * B-roll surface HITL sees. Won scenes pass; anything else warns with the
  * scores and the prompt-iteration fix. Pass `fileExists` to also catch a
  * won clip that has since been deleted from disk (#19).
+ * #155: image entries share this summary — the non-won fix text names the
+ * prompt field the scene's strategy reads (aiImage.prompt + 6-dimension
+ * template for image strategies, aiVideo.prompt + 8-dimension otherwise).
  */
+const IMAGE_REPORT_STRATEGIES = new Set(["ai-image", "asset-then-ai-image"]);
+const isImageEntry = (strategy) => IMAGE_REPORT_STRATEGIES.has(strategy);
+
 export function summarizeBrollReport(report, { fileExists = null } = {}) {
   const scenes = report?.scenes;
   if (!scenes || typeof scenes !== "object") return [];
@@ -86,6 +92,7 @@ export function summarizeBrollReport(report, { fileExists = null } = {}) {
       const status = entry?.status ?? "pending";
       const head = `${entry?.strategy ?? "b-roll"} · ${status} · round ${entry?.round ?? 1}`;
       const check = `Scene ${id} B-roll`;
+      const imageEntry = isImageEntry(entry?.strategy);
 
       if (status === "won" && entry?.winner?.file) {
         const scored = (entry.candidates ?? []).find((c) => c.file === entry.winner.file);
@@ -112,11 +119,13 @@ export function summarizeBrollReport(report, { fileExists = null } = {}) {
       ]
         .filter(Boolean)
         .join(" · ");
+      const field = imageEntry ? "aiImage.prompt" : "aiVideo.prompt";
+      const dimensions = imageEntry ? "6-dimension" : "8-dimension";
       return {
         level: "warn",
         check,
         detail,
-        fix: `Rewrite aiVideo.prompt for scene ${id} with the 8-dimension template, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`,
+        fix: `Rewrite ${field} for scene ${id} with the ${dimensions} template, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`,
       };
     });
 }
