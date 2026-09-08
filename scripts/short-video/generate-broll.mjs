@@ -117,7 +117,8 @@ export async function runBrollCli({
   // #155: image candidates cost ~30s each, video clips ~240s — estimate per kind.
   const imageScenes = neededScenes.filter((s) => isImageStrategy(s.mediaStrategy)).length;
   const videoScenes = needed - imageScenes;
-  const estSeconds = imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * EST_SECONDS_PER_CLIP;
+  const estSeconds =
+    imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * EST_SECONDS_PER_CLIP;
   log(
     `🎞  B-roll: ${needed} scene(s) x 2 candidates = ${formatDuration(estSeconds)} ` +
       `(~${EST_SECONDS_PER_IMAGE}s/image, ~${EST_SECONDS_PER_CLIP}s/clip; cache hits reduce this)`,
