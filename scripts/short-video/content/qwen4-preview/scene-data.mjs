@@ -109,7 +109,7 @@ export const scenes = [
     mediaStrategy: "b-roll",
     aiVideo: {
       prompt:
-        "One tall glowing vertical bar shrinking down beside one short glowing bar, minimalist bar chart on a dark reflective studio floor, cinematic data visualization, slow push-in, high detail, no text, no letters, no hands.",
+        "One tall glowing vertical bar shrinking down beside one short glowing bar, minimalist bar chart on a dark reflective studio floor, cinematic data visualization, slow push-in, high detail.",
     },
     voiceover: "Here's the number that stings. Training cost just one ninth of Qwen3.7-Plus.",
     texts: {
@@ -136,7 +136,7 @@ export const scenes = [
     mediaStrategy: "asset-then-broll",
     aiVideo: {
       prompt:
-        "Abstract transformer layers compressing a stream of history, three wide glowing memory channels folding inward while one narrow spotlight channel scans for matches, dark blue tech aesthetic, cinematic slow dolly-in, high detail, no hands.",
+        "Abstract transformer layers compressing a stream of history, three wide glowing memory channels folding inward while one narrow spotlight channel scans for matches, dark blue tech aesthetic, cinematic slow dolly-in, high detail.",
     },
     media: {
       type: "image",
@@ -186,7 +186,7 @@ export const scenes = [
       // Round 2 — reason pointed at SUBJECT / VISUAL METAPHOR ("does not
       // directly depict the ... throughput visual elements").
       prompt:
-        "Two parallel lanes of glowing data particles flowing left to right across a dark studio: the upper lane a wide bright fast flood with long motion streaks, the lower lane a thin dim slow trickle, deep blue and cyan palette, cinematic side-tracking camera moving with the fast lane, high contrast rim lighting, subtle depth of field, no text, no watermark, no hands.",
+        "Two parallel lanes of glowing data particles flowing left to right across a dark studio: the upper lane a wide bright fast flood with long motion streaks, the lower lane a thin dim slow trickle, deep blue and cyan palette, cinematic side-tracking camera moving with the fast lane, high contrast rim lighting, subtle depth of field.",
     },
     layout: "media-overlay",
     media: {

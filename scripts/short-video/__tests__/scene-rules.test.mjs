@@ -35,6 +35,7 @@ import {
   checkLoopClosureNarrative,
   checkAssetNeedAnnotation,
   checkMediaStrategyContract,
+  MEDIA_STRATEGIES,
   checkMediaOptOutDeprecation,
   checkBrollPromptDimensions,
   runAllSceneDataChecks,
@@ -1425,7 +1426,9 @@ describe("checkMediaStrategyContract", () => {
   });
 });
 
-// ── B-roll prompt dimensions (spec S1-S20) ──
+// ── B-roll prompt dimensions (spec S1-S20; NEGATIVE coverage moved to
+//    code injection in #166 layer 2 — lib/b-roll/prompt-injection.mjs —
+//    so this check now owns only the numeral sweep) ──
 
 // Covers all three NEGATIVE groups and carries no digits.
 const FULL_NEGATIVE_PROMPT =
@@ -1442,51 +1445,18 @@ describe("checkBrollPromptDimensions", () => {
     ...overrides,
   });
 
-  it("S1/S4: stays silent when every NEGATIVE group is covered", () => {
+  it("S1/S4: stays silent when the prompt carries no Arabic numerals", () => {
     expect(checkBrollPromptDimensions([broll(FULL_NEGATIVE_PROMPT)])).toEqual([]);
   });
 
-  it("S2: warns and names the missing ARTIFACT group", () => {
-    const result = checkBrollPromptDimensions([
-      broll("A glowing bar shrinking slowly, no text, no hands"),
-    ]);
-    expect(result).toHaveLength(1);
-    expect(result[0].level).toBe("warn");
-    expect(result[0].category).toBe("Media");
-    expect(result[0].check).toBe("B-roll prompt dimensions");
-    expect(result[0].detail).toContain("5");
-    expect(result[0].detail).toContain("ARTIFACT");
-    expect(result[0].detail).not.toContain("HANDS");
-  });
-
-  it("S3/S6: names every missing group when only HANDS is covered", () => {
-    const result = checkBrollPromptDimensions([
-      broll("Abstract layers compressing a stream of history, high detail, no hands"),
-    ]);
-    expect(result).toHaveLength(1);
-    expect(result[0].detail).toContain("TEXT");
-    expect(result[0].detail).toContain("ARTIFACT");
-    expect(result[0].detail).not.toContain("HANDS");
-  });
-
-  it("S5: names all three groups when the prompt has no NEGATIVE clause at all", () => {
-    const result = checkBrollPromptDimensions([
-      broll("A glowing bar shrinking slowly on a dark floor"),
-    ]);
-    expect(result).toHaveLength(1);
-    expect(result[0].detail).toContain("TEXT");
-    expect(result[0].detail).toContain("HANDS");
-    expect(result[0].detail).toContain("ARTIFACT");
-  });
-
-  it("US3: suggests concrete replacement words in the fix hint", () => {
-    const result = checkBrollPromptDimensions([broll("A glowing bar, no hands")]);
-    expect(result[0].fix).toContain("no watermark");
+  it("#166: a prompt without any NEGATIVE clause is clean — the constants are injected", () => {
+    expect(
+      checkBrollPromptDimensions([broll("A glowing bar shrinking slowly, high detail")]),
+    ).toEqual([]);
   });
 
   it("S21: never fails, so preflight keeps exiting 0", () => {
     const result = checkBrollPromptDimensions(qwenScenes);
-    expect(result.length).toBeGreaterThan(0);
     expect(result.every((r) => r.level === "warn")).toBe(true);
   });
 
@@ -1506,8 +1476,8 @@ describe("checkBrollPromptDimensions", () => {
 
   it("S18: emits one warning per scene, in scene order", () => {
     const result = checkBrollPromptDimensions([
-      broll("A glowing bar, no hands", { id: 2 }),
-      broll("A flowing stream of data, no hands", { id: 7 }),
+      broll("A glowing bar at 3 meters wide", { id: 2 }),
+      broll("A flowing stream of data, 8.6 times faster", { id: 7 }),
     ]);
     expect(result).toHaveLength(2);
     expect(result[0].detail).toContain("2");
@@ -1539,57 +1509,24 @@ describe("checkBrollPromptDimensions", () => {
     expect(result).toEqual([]);
   });
 
-  it("S17: merges a missing group and a numeral into one warning", () => {
+  it("S17: one warning per scene even with multiple numerals", () => {
     const result = checkBrollPromptDimensions([
-      broll("A bar shrinking to 1/9 of its height, no hands"),
+      broll("A bar shrinking to 1/9 of its height, high detail"),
     ]);
     expect(result).toHaveLength(1);
-    expect(result[0].detail).toContain("ARTIFACT");
     expect(result[0].detail).toContain("1");
   });
 
-  it("S11: does not credit 'no texture' with text protection", () => {
-    const result = checkBrollPromptDimensions([
-      broll("A bar with no texture and a smooth surface, no hands, no watermark"),
-    ]);
-    expect(result).toHaveLength(1);
-    expect(result[0].detail).toContain("TEXT");
-  });
-
-  it("S12: matches NEGATIVE clauses regardless of case", () => {
-    const result = checkBrollPromptDimensions([
-      broll("A glowing bar, No Text, No Hands, No Watermark"),
-    ]);
-    expect(result).toEqual([]);
-  });
-
-  it("S13: matches the singular 'no hand'", () => {
-    const result = checkBrollPromptDimensions([
-      broll("A glowing bar, no text, no hand, no watermark"),
-    ]);
-    expect(result).toEqual([]);
-  });
-
   it("S20: pins the real qwen4-preview prompts", () => {
-    // This pins today's state, not a desired end state — the two incomplete
-    // prompts are the evidence this check exists for. If someone completes
-    // them, update the expectation here rather than treating the red as a
-    // regression.
-    const result = checkBrollPromptDimensions(qwenScenes);
-    const details = result.map((r) => r.detail);
-
-    // Scene 5 covers text/letters/hands but never mentions a watermark.
-    expect(details.some((d) => d.includes("Scene 5") && d.includes("ARTIFACT"))).toBe(true);
-    // Scene 6 declares only "no hands".
-    expect(details.some((d) => d.includes("Scene 6") && d.includes("TEXT"))).toBe(true);
-    expect(details.some((d) => d.includes("Scene 6") && d.includes("ARTIFACT"))).toBe(true);
-    // Scene 8 is the only prompt covering all three groups.
-    expect(details.some((d) => d.includes("Scene 8"))).toBe(false);
-    expect(result).toHaveLength(2);
+    // #166 layer 2: the hand-written NEGATIVE clauses were removed from the
+    // qwen4-preview prompts — the constants are injected at generation time.
+    // None of the three prompts carries an Arabic numeral, so the sweep is
+    // silent on today's state.
+    expect(checkBrollPromptDimensions(qwenScenes)).toEqual([]);
   });
 
   it("S19: is wired into runAllSceneDataChecks", () => {
-    const result = runAllSceneDataChecks([broll("A glowing bar, no hands")], null);
+    const result = runAllSceneDataChecks([broll("A glowing bar at 3 meters wide")], null);
     expect(result.warn.filter((r) => r.check === "B-roll prompt dimensions")).toHaveLength(1);
   });
 });
@@ -1622,6 +1559,91 @@ describe("checkMediaOptOutDeprecation", () => {
   it("no findings for clean scenes", () => {
     expect(
       checkMediaOptOutDeprecation([{ id: 1, visualType: "narrative", layout: "media-overlay" }]),
+    ).toEqual([]);
+  });
+});
+
+// ─── ai-image strategy contract (#155: T2I static image generation) ───
+
+describe("ai-image strategy (#155)", () => {
+  const imageScene = (overrides = {}) => ({
+    id: 11,
+    visualType: "narrative",
+    voiceover: "Every four layers, three compress history with Gated DeltaNet.",
+    mediaStrategy: "ai-image",
+    aiImage: { prompt: "abstract architecture diagram of memory channels, high detail" },
+    ...overrides,
+  });
+
+  it("MEDIA_STRATEGIES exposes the image tiers", () => {
+    expect(MEDIA_STRATEGIES).toContain("ai-image");
+    expect(MEDIA_STRATEGIES).toContain("asset-then-ai-image");
+  });
+
+  it("passes a well-formed ai-image scene", () => {
+    const result = checkMediaStrategyContract([imageScene()]);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("fails an ai-image scene with no aiImage.prompt (same semantics as aiVideo)", () => {
+    const result = checkMediaStrategyContract([imageScene({ aiImage: undefined })]);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].check).toBe("B-roll strategy contract");
+    expect(result[0].detail).toContain("11");
+    expect(result[0].detail).toContain("aiImage.prompt");
+  });
+
+  it("fails a blank aiImage.prompt", () => {
+    const result = checkMediaStrategyContract([imageScene({ aiImage: { prompt: "   " } })]);
+    expect(result[0].level).toBe("fail");
+  });
+
+  it("applies the same prompt requirement to asset-then-ai-image", () => {
+    const result = checkMediaStrategyContract([
+      imageScene({ mediaStrategy: "asset-then-ai-image", aiImage: undefined }),
+    ]);
+    expect(result[0].level).toBe("fail");
+  });
+
+  it("passes a well-formed asset-then-ai-image scene", () => {
+    const result = checkMediaStrategyContract([
+      imageScene({ mediaStrategy: "asset-then-ai-image" }),
+    ]);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("warns (not fails) on mediaOptOut with an ai-image strategy", () => {
+    const result = checkMediaStrategyContract([
+      imageScene({ mediaOptOut: true, aiImage: undefined }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+  });
+
+  it("rejects an unknown image-ish strategy value", () => {
+    const result = checkMediaStrategyContract([imageScene({ mediaStrategy: "aiimage" })]);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].fix).toContain("ai-image");
+  });
+
+  it("the numeral sweep reads aiImage.prompt on image strategies", () => {
+    const result = checkBrollPromptDimensions([
+      imageScene({ aiImage: { prompt: "A flow diagram with 8.6 times throughput, no text" } }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("8.6");
+  });
+
+  it("the numeral sweep stays silent for a clean aiImage.prompt", () => {
+    expect(checkBrollPromptDimensions([imageScene()])).toEqual([]);
+  });
+
+  it("the numeral sweep ignores an aiVideo.prompt on an ai-image scene", () => {
+    expect(
+      checkBrollPromptDimensions([
+        imageScene({ aiVideo: { prompt: "bars at 3 meters wide" }, aiImage: { prompt: "clean" } }),
+      ]),
     ).toEqual([]);
   });
 });

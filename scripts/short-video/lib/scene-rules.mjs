@@ -1525,8 +1525,32 @@ export function checkAssetNeedAnnotation(scenes) {
   ];
 }
 
-export const MEDIA_STRATEGIES = ["asset", "b-roll", "asset-then-broll"];
-const GENERATING_STRATEGIES = new Set(["b-roll", "asset-then-broll"]);
+export const MEDIA_STRATEGIES = [
+  "asset",
+  "b-roll",
+  "asset-then-broll",
+  "ai-image",
+  "asset-then-ai-image",
+];
+// Strategies whose prompt targets a still image (T2I, #155). Their contract
+// field is `aiImage.prompt` (6 dimensions = the video template minus
+// CAMERA/MOTION); every other generating strategy reads `aiVideo.prompt`.
+const IMAGE_GENERATING_STRATEGIES = new Set(["ai-image", "asset-then-ai-image"]);
+const GENERATING_STRATEGIES = new Set([
+  "b-roll",
+  "asset-then-broll",
+  ...IMAGE_GENERATING_STRATEGIES,
+]);
+
+/** True when the strategy generates a static image rather than a video clip. */
+export function isImageStrategy(strategy) {
+  return IMAGE_GENERATING_STRATEGIES.has(strategy);
+}
+
+// Single source of truth for the image strategy set. b-roll/report.mjs
+// imports it instead of mirroring the literal set — a third image strategy
+// must not require a "keep in sync" edit in the report layer.
+export { IMAGE_GENERATING_STRATEGIES };
 
 /**
  * Contract for the B-roll fields (`mediaStrategy` / `aiVideo.prompt`).
@@ -1600,7 +1624,10 @@ export function checkMediaStrategyContract(scenes) {
       continue;
     }
     if (generatingPrompt(scene) === null) {
-      missingPrompt.push(`${scene.id} (${strategy})`);
+      missingPrompt.push([
+        `${scene.id} (${strategy})`,
+        { image: IMAGE_GENERATING_STRATEGIES.has(strategy) },
+      ]);
     }
   }
 
@@ -1614,12 +1641,26 @@ export function checkMediaStrategyContract(scenes) {
       fix: `Use one of: ${MEDIA_STRATEGIES.join(" | ")} (omitting the field means 'asset')`,
     });
   }
-  if (missingPrompt.length > 0) {
+  // #155: image strategies fail on a missing aiImage.prompt with the same
+  // semantics the video strategies have for aiVideo.prompt — the detail names
+  // the field so the agent knows which prompt to write.
+  const missingImagePrompt = missingPrompt.filter(([, entry]) => entry.image);
+  const missingVideoPrompt = missingPrompt.filter(([, entry]) => !entry.image);
+  if (missingImagePrompt.length > 0) {
     results.push({
       level: "fail",
       category: CATEGORY,
       check: CHECK,
-      detail: `Scene(s) ${missingPrompt.join(", ")} request b-roll but have no aiVideo.prompt`,
+      detail: `Scene(s) ${missingImagePrompt.map(([id]) => id).join(", ")} request AI image generation but have no aiImage.prompt`,
+      fix: "Add aiImage.prompt using the 6-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / LIGHTING / NEGATIVE — the video template minus CAMERA/MOTION) — see docs/video-workflow.md → AI Image (T2I)",
+    });
+  }
+  if (missingVideoPrompt.length > 0) {
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${missingVideoPrompt.map(([id]) => id).join(", ")} request b-roll but have no aiVideo.prompt`,
       fix: "Add aiVideo.prompt using the 8-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / CAMERA / MOTION / LIGHTING / NEGATIVE) — see docs/video-workflow.md",
     });
   }
@@ -1628,8 +1669,8 @@ export function checkMediaStrategyContract(scenes) {
       level: "warn",
       category: CATEGORY,
       check: CHECK,
-      detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut with a b-roll strategy — generation will be skipped`,
-      fix: "mediaOptOut is deprecated (#191) — drop it to let the scene generate B-roll, or use media: null for a deliberate no-media scene",
+      detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut on a generating strategy (b-roll / ai-image) — generation will be skipped`,
+      fix: "mediaOptOut is deprecated (#191) — drop it to let the scene generate B-roll / ai-image, or use media: null for a deliberate no-media scene",
     });
   }
   if (missingStrategy.length > 0) {
@@ -1638,7 +1679,7 @@ export function checkMediaStrategyContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `Scene(s) ${missingStrategy.join(", ")} omit mediaStrategy (silently defaults to "asset" — B-roll generation is skipped, so a scene whose sourced image falls through will reuse another scene's media)`,
-      fix: 'Set mediaStrategy explicitly on every scene: "asset" (sourced image only) | "asset-then-broll" (source first, fall back to B-roll generation) | "b-roll" (always generate)',
+      fix: 'Set mediaStrategy explicitly on every scene: "asset" (sourced image only) | "asset-then-broll" (source first, fall back to B-roll generation) | "b-roll" (always generate) | "asset-then-ai-image" (source first, fall back to T2I image) | "ai-image" (always generate a still image)',
     });
   }
   if (results.length > 0) return results;
@@ -1650,7 +1691,9 @@ export function checkMediaStrategyContract(scenes) {
 
 /**
  * NEGATIVE clauses the 8-dimension template treats as fixed defaults, grouped
- * by what each one guards against. A prompt must cover every group.
+ * by what each one guards against. Since #166 layer 2 these groups are
+ * code-owned: lib/b-roll/prompt-injection.mjs injects a missing group's clause
+ * at generation time, so declared prompts no longer need to carry them.
  *
  * FACE is deliberately absent: no existing prompt declares it, so requiring it
  * would warn on every scene and train the reader to ignore the warning. Add it
@@ -1658,7 +1701,7 @@ export function checkMediaStrategyContract(scenes) {
  *
  * Key order is the reporting order, so a new group is a one-line change.
  */
-const NEGATIVE_GROUPS = {
+export const NEGATIVE_GROUPS = {
   TEXT: [
     "no text",
     "no letters",
@@ -1680,23 +1723,29 @@ const NUMERAL_PATTERN = /\d+(?:\.\d+)?/g;
 
 // Word boundaries matter: a plain substring match would credit "no texture"
 // with text protection.
-function coversNegativeGroup(prompt, phrases) {
+export function coversNegativeGroup(prompt, phrases) {
   return phrases.some((phrase) => new RegExp(`\\b${phrase}\\b`, "i").test(prompt));
 }
 
 // The prompt that will actually reach the generator, or null when the scene
 // never generates. Shared with the strategy-contract check so both agree on
-// which scenes they are talking about.
+// which scenes they are talking about. Image strategies (#155) declare
+// `aiImage.prompt`; video strategies declare `aiVideo.prompt`.
 function generatingPrompt(scene) {
   if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) return null;
-  const prompt = scene.aiVideo?.prompt;
+  const prompt = IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)
+    ? scene.aiImage?.prompt
+    : scene.aiVideo?.prompt;
   if (typeof prompt !== "string" || prompt.trim() === "") return null;
   return prompt;
 }
 
 /**
- * Check the two things about an opted-in b-roll prompt that a machine can
- * judge: NEGATIVE group coverage, and stray Arabic numerals. The other six
+ * Check the one thing about an opted-in b-roll prompt that a machine can
+ * still judge: stray Arabic numerals. NEGATIVE group coverage used to be
+ * warned here (first layer) — since #166 layer 2 the NEGATIVE constants are
+ * injected at generation time (lib/b-roll/prompt-injection.mjs), so a
+ * declared prompt without them is correct, not incomplete. The other seven
  * dimensions stay on the agent — a template cannot write them for you.
  *
  * Silent for scenes that never generate (no generating strategy, or a blank
@@ -1712,41 +1761,16 @@ export function checkBrollPromptDimensions(scenes) {
     const prompt = generatingPrompt(scene);
     if (prompt === null) continue;
 
-    const missing = Object.keys(NEGATIVE_GROUPS).filter(
-      (group) => !coversNegativeGroup(prompt, NEGATIVE_GROUPS[group]),
-    );
-
-    const problems = [];
-    const fixes = [];
-
-    if (missing.length > 0) {
-      const suggestions = missing
-        .map((group) => {
-          const words = NEGATIVE_GROUPS[group].slice(0, 2).map((w) => `"${w}"`);
-          return `${group}: ${words.join(" / ")}`;
-        })
-        .join("; ");
-      problems.push(`missing NEGATIVE coverage for: ${missing.join(", ")}`);
-      fixes.push(`Add a NEGATIVE clause for each missing group — ${suggestions}`);
-    }
-
     const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
-    if (numerals.length > 0) {
-      problems.push(`contains Arabic numerals (${numerals.join(", ")})`);
-      fixes.push(
-        "Move data values into texts — T2V garbles glyphs; " +
-          "an element count (e.g. '3 layers') is fine as-is",
-      );
-    }
-
-    if (problems.length === 0) continue;
+    if (numerals.length === 0) continue;
 
     results.push({
       level: "warn",
       category: CATEGORY,
       check: CHECK,
-      detail: `Scene ${scene.id} prompt ${problems.join("; ")}`,
-      fix: fixes.join(" "),
+      detail: `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
+      fix: "Move data values into texts — T2V/T2I garbles glyphs; " +
+        "an element count (e.g. '3 layers') is fine as-is",
     });
   }
 
