@@ -34,6 +34,7 @@ import { normalizeMediaPatch } from "./lib/apply-media-patch.mjs";
 import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { skipsMediaSourcing } from "./lib/claim-keywords.mjs";
+import { createProfiler } from "./lib/pipeline-profile.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -85,9 +86,21 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Version number (timestamp-based, for output file naming) ──
+  const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+  // ── Step profiler (#225) — wall-clock per step; written on process exit
+  // (happy path and failure paths alike) to output/<pipelineId>/profile-<version>.json
+  const profiler = createProfiler({
+    outputDir: join(__dirname, "output", meta.pipelineId),
+    version,
+  });
+  const prof = { mark: profiler.mark, end: profiler.end, wrap: profiler.wrap };
+
   // ── Step 0.5: Currency normalization (RMB → USD dual-annotation) ──
   // Auto-inserts $X (¥Y) format before TTS runs, enforcing the currency
   // rule by code. Non-blocking: if it fails, scenes pass through unchanged.
+  prof.mark("step-0.5-currency");
   try {
     const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
     normalizeSceneData(scenes, meta);
@@ -95,9 +108,7 @@ async function main() {
   } catch (e) {
     console.warn(`⚠️  Currency normalization skipped: ${e.message}\n`);
   }
-
-  // ── Version number (timestamp-based, for output file naming) ──
-  const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  prof.end("step-0.5-currency");
 
   console.log(`🎬 Short Video Pipeline`);
   console.log(`   Content: ${meta.title || contentDir}`);
@@ -150,6 +161,7 @@ async function main() {
   const skipPreflight = process.argv.includes("--skip-preflight");
   if (!skipPreflight) {
     console.log("🔍 Step 0: Pre-Render Verification...\n");
+    prof.mark("step-0-preflight");
     try {
       execSync(`node "${join(__dirname, "verify-video.mjs")}" --pre --content "${contentDir}"`, {
         stdio: "inherit",
@@ -161,6 +173,7 @@ async function main() {
       console.error("   (Use --skip-preflight to bypass, not recommended)");
       process.exit(1);
     }
+    prof.end("step-0-preflight");
     console.log();
   }
 
@@ -214,6 +227,7 @@ async function main() {
   });
   if (scenesNeedingMedia.length > 0) {
     console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
+    prof.mark("step-1.5-sourcing", { track: "media" });
     try {
       // Per-scene claims (assetNeed) + company-entity fallback are consumed
       // inside asset-sourcer from scene-data directly (spec #130 D3/D11) —
@@ -224,6 +238,7 @@ async function main() {
     } catch (e) {
       console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
     }
+    prof.end("step-1.5-sourcing");
   }
 
   // ── Step 1.5c: Apply media-patch.json to scenes (auto-assign sourced assets) ──
@@ -233,6 +248,7 @@ async function main() {
   {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     const patchPath = resolve(contentDirAbs, "..", "..", "output", contentDir, "media-patch.json");
+    prof.mark("step-1.5c-media-patch", { track: "media" });
     if (existsSync(patchPath)) {
       try {
         const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
@@ -270,6 +286,7 @@ async function main() {
         console.warn(`⚠️  Step 1.5c: Failed to apply media patch: ${e.message}\n`);
       }
     }
+    prof.end("step-1.5c-media-patch");
   }
 
   // ── Step 1.5b: Media upscale (auto-upscale sub-720p media) ──
@@ -278,6 +295,7 @@ async function main() {
   const scenesWithMedia = scenes.filter((s) => s.media?.path);
   if (scenesWithMedia.length > 0) {
     console.log("🖼️ Step 1.5b: Checking media resolution for upscale...\n");
+    prof.mark("step-1.5b-upscale", { track: "media" });
     try {
       const { autoUpscaleIfNeeded } = await import("./lib/upscale.mjs");
       let upscaledCount = 0;
@@ -300,6 +318,7 @@ async function main() {
     } catch (e) {
       console.warn(`⚠️  Media upscale skipped: ${e.message}\n`);
     }
+    prof.end("step-1.5b-upscale");
   }
 
   // ── Step 1.5d: B-roll generation (mediaStrategy opt-in scenes) ──
@@ -310,6 +329,7 @@ async function main() {
     const pending = broll.scenesRequiringGeneration(scenes);
     if (pending.length > 0) {
       console.log(`🎬 Step 1.5d: Generating B-roll for ${pending.length} scene(s)...\n`);
+      prof.mark("step-1.5d-broll", { track: "media" });
       try {
         const { closeVisualAnalyzer } = await import("./lib/visual-analyzer.mjs");
         let result;
@@ -347,6 +367,7 @@ async function main() {
       } catch (e) {
         console.warn(`⚠️  Step 1.5d: B-roll stage failed: ${e.message}\n`);
       }
+      prof.end("step-1.5d-broll");
     }
   }
 
@@ -357,6 +378,7 @@ async function main() {
   // Preflight cannot do this: it runs before Step 1.5 and would block sourcing.
   {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
+    prof.mark("step-1.6-media-gate", { track: "media" });
     const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
     if (!gate.pass) {
       console.error("❌ Step 1.6: Final media check FAILED\n");
@@ -365,6 +387,7 @@ async function main() {
       console.error("   Supply the media, or switch the scene to a CSS-only layout.");
       process.exit(1);
     }
+    prof.end("step-1.6-media-gate");
     console.log("✅ Step 1.6: Final media check passed (all layouts have the media they need)\n");
   }
 
@@ -376,9 +399,12 @@ async function main() {
 
   // ── Step 1: Generate TTS ──
   console.log("📝 Step 1: Generating TTS voiceover...\n");
+  prof.mark("step-1-tts", { track: "voice" });
   const ttsResults = await generateTTS(scenes, audioDir);
+  prof.end("step-1-tts");
   const totalDuration = ttsResults.reduce((s, t) => s + t.duration, 0);
-  console.log(`\n  Total voiceover: ${totalDuration.toFixed(1)}s\n`);
+  const ttsCached = ttsResults.filter((r) => r.cached).length;
+  console.log(`\n  Total voiceover: ${totalDuration.toFixed(1)}s` + (ttsCached ? ` (${ttsCached}/${scenes.length} from cache)` : "") + "\n");
 
   // ── Step 2: Validate every scene received a TTS result ──
   for (const scene of scenes) {
@@ -392,7 +418,9 @@ async function main() {
   let bgmPath = null;
   if (useBGM) {
     console.log("🎵 Step 3: Selecting background music...\n");
+    prof.mark("step-3-bgm");
     bgmPath = selectBGM(meta.pipelineId, bgmFileOverride);
+    prof.end("step-3-bgm");
     if (bgmPath) {
       console.log(`  🎵 BGM: ${bgmPath.split("/").pop()}`);
       console.log(`     (instant start, 12% volume, auto-looped)\n`);
@@ -404,6 +432,7 @@ async function main() {
   }
 
   // ── Step 4: Generate ASS subtitles from word-level timing ──
+  prof.mark("step-4-subtitles");
   const sceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
   const subtitles = regenerateSubtitles({ outputDir, sceneDurations });
   if (subtitles) {
@@ -412,6 +441,7 @@ async function main() {
     // ── Gate 1: Canonical Text verification (before rendering) ──
     console.log("  🔍 Gate 1: Canonical Text verification...");
     const audioDir = join(outputDir, "audio");
+    prof.mark("step-4-gate1-canonical");
     const gateResult = await runCanonicalTextGateWithRepair(
       subtitles.timingData,
       scenes,
@@ -432,11 +462,14 @@ async function main() {
     if (gateResult.timingData) {
       subtitles.timingData = gateResult.timingData;
     }
+    prof.end("step-4-gate1-canonical");
     console.log();
   }
+  prof.end("step-4-subtitles");
 
   // ── Step 5: Render final video ──
   console.log("🔧 Step 5: Rendering final video with Remotion...\n");
+  prof.mark("step-5-render");
   const result = renderRemotion({
     scenes,
     audioPaths: ttsResults.map((t) => t.audioPath),
@@ -449,6 +482,7 @@ async function main() {
     version,
     subject: meta.subject,
   });
+  prof.end("step-5-render");
 
   // ── Step 6: Verify subtitles with auto-retry (optional, --skip-verify to skip) ──
   const skipVerify = process.argv.includes("--skip-verify");
@@ -458,6 +492,7 @@ async function main() {
   } else if (!subtitles) {
     console.log("🔍 Step 6: Subtitle verification skipped (no subtitles generated)\n");
   } else {
+    prof.mark("step-6-verify", { maxRetries });
     console.log(
       "🔍 Step 6: Verifying rendered subtitles with auto-retry (max-retries=" +
         maxRetries +
@@ -561,8 +596,10 @@ async function main() {
       );
       process.exit(1);
     }
+    prof.end("step-6-verify");
   }
 
+  profiler.summary();
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`✅ Pipeline complete!`);
   console.log(`   📁 Output: ${result.path}`);
