@@ -10,6 +10,11 @@ import {
   shouldSourceStock,
 } from "../b-roll/orchestrator.mjs";
 import { writeReport, emptyReport, readReport, reportPath, promptHash } from "../b-roll/report.mjs";
+import {
+  BRAND_BASE_PROMPT,
+  PROMPT_INJECTION_VERSION,
+  composeGenerationPrompt,
+} from "../b-roll/prompt-injection.mjs";
 
 // ─── fixtures ───
 
@@ -233,7 +238,14 @@ describe("runBrollStage", () => {
     const entry = report.scenes["6"];
     expect(entry.status).toBe("won");
     expect(entry.round).toBe(1);
-    expect(entry.promptHash).toBe(promptHash("eight-dimension prompt"));
+    // #166: the hash covers the COMPOSED prompt (declared + injected
+    // constants); the entry records both surfaces plus the injection version
+    // so cache decisions can survive constant changes.
+    expect(entry.promptHash).toBe(promptHash(composeGenerationPrompt(scenes[0])));
+    expect(entry.prompt).toBe("eight-dimension prompt");
+    expect(entry.generationPrompt).toContain(BRAND_BASE_PROMPT);
+    expect(entry.generationPrompt).toContain("no text");
+    expect(entry.injectionVersion).toBe(PROMPT_INJECTION_VERSION);
     expect(entry.candidates.length).toBe(2);
     expect(entry.winner.file).toBe("scene-6-seed1024.mp4");
   });
@@ -535,5 +547,221 @@ describe("runBrollStage", () => {
     await runBrollStage(baseOpts(dirs, { scenes, generate: okGenerateMock().generate }));
     expect(scenes[0].media.backdrop).toBeUndefined();
     expect(scenes[0].media.path).toMatch(/^assets\/b-roll\//);
+  });
+});
+
+// ─── #166 constant injection wiring ───
+
+describe("runBrollStage #166 wiring", () => {
+  let root;
+  let caseIndex = 0;
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), "broll-inject-"));
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  function stageDirs() {
+    caseIndex += 1;
+    const contentDir = join(root, `case-${caseIndex}`, "content", "demo");
+    const outputDir = join(root, `case-${caseIndex}`, "output", "demo");
+    mkdirSync(contentDir, { recursive: true });
+    mkdirSync(outputDir, { recursive: true });
+    return { contentDir, outputDir };
+  }
+
+  function baseOpts(dirs, overrides = {}) {
+    return {
+      scenes: [],
+      contentSlug: "demo",
+      contentDir: dirs.contentDir,
+      outputDir: dirs.outputDir,
+      fileExists: () => true,
+      generate: async () => ({ ok: true, fatal: null, results: [] }),
+      resolveDeps: () => ({ ok: true, repo: "/repo", python: "/py", missing: [], message: null }),
+      analyzer: async () => ({ relevance: 99, relevanceReason: "great" }),
+      ...overrides,
+    };
+  }
+
+  test("generation jobs receive the COMPOSED prompt, the gate claim the RAW one", async () => {
+    const dirs = stageDirs();
+    const claims = [];
+    const { generate, calls } = okGenerateMock();
+    const scenes = [
+      scene({
+        id: "6",
+        mediaStrategy: "b-roll",
+        voiceover: "DeepSeek trained it for less.",
+        aiVideo: { prompt: "One tall glowing bar shrinking beside a short one" },
+      }),
+    ];
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate,
+        analyzer: async (path, opts) => {
+          claims.push(opts.claim.assetNeed);
+          return { relevance: 99, relevanceReason: "great" };
+        },
+      }),
+    );
+
+    // Jobs carry the injected constants (brand base + entity + negatives).
+    for (const job of calls[0]) {
+      expect(job.prompt).toContain(BRAND_BASE_PROMPT);
+      expect(job.prompt).toContain("#4d8bff");
+      expect(job.prompt).toContain("no text");
+      expect(job.prompt).toContain("no watermark");
+      expect(job.prompt).not.toBe(scenes[0].aiVideo.prompt);
+    }
+    // The VLM claim stays the declared prompt — negative clauses must not
+    // leak into the positive assetNeed.
+    expect(claims.length).toBe(2);
+    for (const assetNeed of claims) {
+      expect(assetNeed).toBe("One tall glowing bar shrinking beside a short one");
+    }
+  });
+
+  test("a prompt that covers every dimension generates unchanged (idempotent)", async () => {
+    const dirs = stageDirs();
+    const { generate, calls } = okGenerateMock();
+    const raw =
+      "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
+    await runBrollStage(
+      baseOpts(dirs, { scenes: [scene({ id: "8", mediaStrategy: "b-roll", aiVideo: { prompt: raw } })], generate }),
+    );
+    expect(calls[0].every((j) => j.prompt === raw)).toBe(true);
+  });
+
+  test("legacy won entry with unchanged declared prompt migrates in place and stays cached", async () => {
+    const dirs = stageDirs();
+    const raw = "eight-dimension prompt";
+    const legacy = {
+      strategy: "b-roll",
+      promptHash: promptHash(raw), // pre-injection: hash of the declared prompt
+      round: 1,
+      status: "won",
+      prompt: raw,
+      voiceover: "v",
+      candidates: [{ seed: 1024, file: "scene-6-seed1024.mp4", relevance: 72, reason: "ok" }],
+      winner: { seed: 1024, file: "scene-6-seed1024.mp4" },
+    };
+    writeReport(reportPath(dirs.outputDir), emptyReport("demo", 60));
+    writeReport(reportPath(dirs.outputDir), {
+      ...emptyReport("demo", 60),
+      scenes: { 6: legacy },
+    });
+
+    let generateCalled = 0;
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene({ id: "6", mediaStrategy: "b-roll", aiVideo: { prompt: raw } })],
+        generate: async () => {
+          generateCalled += 1;
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+
+    // The ~235s clip is NOT regenerated — the winner predates injection and
+    // already passed the gate; injection only changes future generations.
+    expect(generateCalled).toBe(0);
+    expect(result.counts.cached).toBe(1);
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
+    expect(entry.injectionVersion).toBe(PROMPT_INJECTION_VERSION);
+    expect(entry.promptHash).toBe(promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })));
+  });
+
+  test("legacy won entry whose prompt only dropped covered NEGATIVE clauses stays cached (#166 migration)", async () => {
+    const dirs = stageDirs();
+    // What a pre-#166 qwen4-preview scene-8 entry looked like: full
+    // hand-written NEGATIVE coverage, art-directed prompt.
+    const prior =
+      "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
+    const raw = "Two lanes of glowing particles, dark studio"; // #166 stripped the clauses
+    const legacy = {
+      strategy: "b-roll",
+      promptHash: promptHash(prior),
+      round: 2,
+      status: "won",
+      prompt: prior,
+      voiceover: "v",
+      candidates: [{ seed: 1124, file: "scene-8-seed1124.mp4", relevance: 81, reason: "ok" }],
+      winner: { seed: 1124, file: "scene-8-seed1124.mp4" },
+    };
+    writeReport(reportPath(dirs.outputDir), { ...emptyReport("demo", 60), scenes: { 8: legacy } });
+
+    let generateCalled = 0;
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene({ id: "8", mediaStrategy: "b-roll", aiVideo: { prompt: raw } })],
+        generate: async () => {
+          generateCalled += 1;
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(generateCalled).toBe(0);
+    expect(result.counts.cached).toBe(1);
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["8"];
+    expect(entry.injectionVersion).toBe(PROMPT_INJECTION_VERSION);
+    expect(entry.promptHash).toBe(promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })));
+  });
+
+  test("a legacy entry whose prompt changed beyond NEGATIVE stripping regenerates", async () => {
+    const dirs = stageDirs();
+    const prior = "A glowing bar, dark studio, no text, no watermark, no hands";
+    const raw = "A completely different subject, dark studio"; // art direction changed too
+    const legacy = {
+      strategy: "b-roll",
+      promptHash: promptHash(prior),
+      round: 1,
+      status: "won",
+      prompt: prior,
+      voiceover: "v",
+      candidates: [],
+      winner: { seed: 1024, file: "scene-6-seed1024.mp4" },
+    };
+    writeReport(reportPath(dirs.outputDir), { ...emptyReport("demo", 60), scenes: { 6: legacy } });
+
+    const { generate, calls } = okGenerateMock();
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene({ id: "6", mediaStrategy: "b-roll", aiVideo: { prompt: raw } })],
+        generate,
+      }),
+    );
+    expect(calls.length).toBe(1);
+    expect(result.counts.generated).toBe(1);
+  });
+
+  test("an over-budget composed prompt is refused before generation, not silently truncated", async () => {
+    const dirs = stageDirs();
+    let generateCalled = 0;
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [
+          scene({
+            id: "6",
+            mediaStrategy: "b-roll",
+            aiVideo: { prompt: "glowing bar ".repeat(600) },
+          }),
+        ],
+        generate: async () => {
+          generateCalled += 1;
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(generateCalled).toBe(0);
+    expect(result.counts.failed).toBe(1);
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
+    expect(entry.status).toBe("failed");
+    expect(entry.reason).toContain("token budget");
+    expect(entry.winner).toBeNull();
   });
 });

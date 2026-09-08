@@ -1650,7 +1650,9 @@ export function checkMediaStrategyContract(scenes) {
 
 /**
  * NEGATIVE clauses the 8-dimension template treats as fixed defaults, grouped
- * by what each one guards against. A prompt must cover every group.
+ * by what each one guards against. Since #166 layer 2 these groups are
+ * code-owned: lib/b-roll/prompt-injection.mjs injects a missing group's clause
+ * at generation time, so declared prompts no longer need to carry them.
  *
  * FACE is deliberately absent: no existing prompt declares it, so requiring it
  * would warn on every scene and train the reader to ignore the warning. Add it
@@ -1658,7 +1660,7 @@ export function checkMediaStrategyContract(scenes) {
  *
  * Key order is the reporting order, so a new group is a one-line change.
  */
-const NEGATIVE_GROUPS = {
+export const NEGATIVE_GROUPS = {
   TEXT: [
     "no text",
     "no letters",
@@ -1680,7 +1682,7 @@ const NUMERAL_PATTERN = /\d+(?:\.\d+)?/g;
 
 // Word boundaries matter: a plain substring match would credit "no texture"
 // with text protection.
-function coversNegativeGroup(prompt, phrases) {
+export function coversNegativeGroup(prompt, phrases) {
   return phrases.some((phrase) => new RegExp(`\\b${phrase}\\b`, "i").test(prompt));
 }
 
@@ -1695,8 +1697,11 @@ function generatingPrompt(scene) {
 }
 
 /**
- * Check the two things about an opted-in b-roll prompt that a machine can
- * judge: NEGATIVE group coverage, and stray Arabic numerals. The other six
+ * Check the one thing about an opted-in b-roll prompt that a machine can
+ * still judge: stray Arabic numerals. NEGATIVE group coverage used to be
+ * warned here (first layer) — since #166 layer 2 the NEGATIVE constants are
+ * injected at generation time (lib/b-roll/prompt-injection.mjs), so a
+ * declared prompt without them is correct, not incomplete. The other seven
  * dimensions stay on the agent — a template cannot write them for you.
  *
  * Silent for scenes that never generate (no generating strategy, or a blank
@@ -1712,41 +1717,16 @@ export function checkBrollPromptDimensions(scenes) {
     const prompt = generatingPrompt(scene);
     if (prompt === null) continue;
 
-    const missing = Object.keys(NEGATIVE_GROUPS).filter(
-      (group) => !coversNegativeGroup(prompt, NEGATIVE_GROUPS[group]),
-    );
-
-    const problems = [];
-    const fixes = [];
-
-    if (missing.length > 0) {
-      const suggestions = missing
-        .map((group) => {
-          const words = NEGATIVE_GROUPS[group].slice(0, 2).map((w) => `"${w}"`);
-          return `${group}: ${words.join(" / ")}`;
-        })
-        .join("; ");
-      problems.push(`missing NEGATIVE coverage for: ${missing.join(", ")}`);
-      fixes.push(`Add a NEGATIVE clause for each missing group — ${suggestions}`);
-    }
-
     const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
-    if (numerals.length > 0) {
-      problems.push(`contains Arabic numerals (${numerals.join(", ")})`);
-      fixes.push(
-        "Move data values into texts — T2V garbles glyphs; " +
-          "an element count (e.g. '3 layers') is fine as-is",
-      );
-    }
-
-    if (problems.length === 0) continue;
+    if (numerals.length === 0) continue;
 
     results.push({
       level: "warn",
       category: CATEGORY,
       check: CHECK,
-      detail: `Scene ${scene.id} prompt ${problems.join("; ")}`,
-      fix: fixes.join(" "),
+      detail: `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
+      fix: "Move data values into texts — T2V garbles glyphs; " +
+        "an element count (e.g. '3 layers') is fine as-is",
     });
   }
 
