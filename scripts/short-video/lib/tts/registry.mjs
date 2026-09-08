@@ -7,23 +7,26 @@
  *
  * Engine priority (updated 2026-09-08):
  *   1. CosyVoice3-Kaggle-CUDA (DEFAULT — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch)
- *   2. CosyVoice3-NPU (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA similar to MPS, RTF ~2.2x, no Kaggle quota needed)
- *   3. CosyVoice3-MLX (LOCAL FALLBACK — emotion regression vs CUDA, but fast RTF 0.64-0.87x)
- *   4. F5-TTS-MLX (BACKUP — good rhythm, natural pacing, internal duration control, CC-BY-NC)
- *   5. Qwen3-TTS (good emphasis on data points, no duration control)
- *   6. edge-tts (Microsoft neural TTS, no cloning)
- *   7. macOS `say` (last resort, no cloning)
+ *   2. CosyVoice3-Modal-CUDA (PAID FALLBACK — A100 GPU, same CUDA emotion as Kaggle, ~$0.20-0.50/batch, used when Kaggle quota exhausted)
+ *   3. CosyVoice3-NPU (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA similar to MPS, RTF ~2.2x, no Kaggle/Modal quota needed)
+ *   4. CosyVoice3-MLX (LOCAL FALLBACK — emotion regression vs CUDA, but fast RTF 0.64-0.87x)
+ *   5. F5-TTS-MLX (BACKUP — good rhythm, natural pacing, internal duration control, CC-BY-NC)
+ *   6. Qwen3-TTS (good emphasis on data points, no duration control)
+ *   7. edge-tts (Microsoft neural TTS, no cloning)
+ *   8. macOS `say` (last resort, no cloning)
  *
- * Why Kaggle CUDA is default: MPS/MLX/NPU emotion regression verified 2026-09-08 —
+ * Why CUDA engines first: MPS/MLX/NPU emotion regression verified 2026-09-08 —
  * CoreML EP + float32 patches + MPS fallback did NOT close the emotion gap vs
  * CUDA. NPU (Ascend 910B) emotion is similar to MPS (slightly flat hook/shock).
- * Kaggle P100 CUDA matches A100 emotion baseline exactly.
+ * Kaggle P100 CUDA matches A100 emotion baseline exactly. Modal A100 is the same
+ * CUDA EP — used when Kaggle's 30h/week quota runs out (Modal ~$30/mo).
  *
  * All local models run at MAX EFFORT by default (see docs/video-workflow.md).
  * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + Qwen + whisperx all in one.
  */
 
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
+import { createCosyVoice3ModalCudaEngine } from "./cosyvoice3-modal-cuda.mjs";
 import { createCosyVoice3NPUEngine } from "./cosyvoice3-npu.mjs";
 import { createCosyVoice3MLXEngine } from "./cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "./f5-mlx.mjs";
@@ -40,6 +43,7 @@ import { planTtsScenes, writeSceneMeta, computeSceneKey } from "./cache.mjs";
 const ENGINE_FACTORIES = {
   "cosyvoice3-kaggle-cuda": createCosyVoice3KaggleCudaEngine,
   "cosyvoice3-cuda": createCosyVoice3KaggleCudaEngine,
+  "cosyvoice3-modal-cuda": createCosyVoice3ModalCudaEngine,
   "cosyvoice3-npu": createCosyVoice3NPUEngine,
   npu: createCosyVoice3NPUEngine,
   "cosyvoice3-mlx": createCosyVoice3MLXEngine,
@@ -56,6 +60,7 @@ const ENGINE_FACTORIES = {
 /** Priority order for automatic selection (no TTS_ENGINE env). */
 const PRIORITY = [
   "cosyvoice3-kaggle-cuda",
+  "cosyvoice3-modal-cuda",
   "cosyvoice3-npu",
   "cosyvoice3-mlx",
   "f5-mlx",
@@ -92,7 +97,7 @@ export async function selectEngine() {
   }
 
   throw new Error(
-    "No TTS engine available. Install Kaggle CLI (~/.kaggle/kaggle.json), CosyVoice3-MLX + F5-TTS-MLX + Qwen3-TTS (~/.video-tts-env), edge-tts, or run on macOS.",
+    "No TTS engine available. Install Kaggle CLI (~/.kaggle/kaggle.json) or Modal CLI (modal token new), CosyVoice3-MLX + F5-TTS-MLX + Qwen3-TTS (~/.video-tts-env), edge-tts, or run on macOS.",
   );
 }
 

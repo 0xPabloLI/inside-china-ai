@@ -92,19 +92,26 @@ comparable to or better than larger models (IndexTTS2 1.5B: 76.5, HiggsAudio
 
 ## Decision
 
-**CosyVoice3-Kaggle-CUDA is the default TTS engine**, with CosyVoice3-NPU
-as free fallback, CosyVoice3-MLX as local fallback, F5-TTS-MLX as backup,
-Qwen3-TTS as secondary fallback, edge-tts as cloud fallback, and macOS `say`
-as last resort.
+**CosyVoice3-Kaggle-CUDA is the default TTS engine**, with CosyVoice3-Modal-CUDA
+as paid CUDA fallback (same emotion quality, used when Kaggle quota exhausted),
+CosyVoice3-NPU as free fallback, CosyVoice3-MLX as local fallback, F5-TTS-MLX as
+backup, Qwen3-TTS as secondary fallback, edge-tts as cloud fallback, and macOS
+`say` as last resort.
 
 Engine priority:
 1. **CosyVoice3-Kaggle-CUDA** (DEFAULT — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch)
-2. **CosyVoice3-NPU** (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA, RTF ~2.2x, no Kaggle quota)
-3. **CosyVoice3-MLX** (LOCAL FALLBACK — emotion regression, but fast RTF 0.64-0.87x)
-4. **F5-TTS-MLX** (BACKUP — good rhythm, CC-BY-NC, no emotion control)
-5. Qwen3-TTS (good emphasis, clone+emotion cannot coexist)
-6. edge-tts (Microsoft neural TTS, no cloning)
-7. macOS `say` (last resort, no cloning)
+2. **CosyVoice3-Modal-CUDA** (PAID FALLBACK — A100 GPU, same CUDA emotion as Kaggle, ~$0.20-0.50/batch, used when Kaggle 30h/week quota exhausted)
+3. **CosyVoice3-NPU** (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA, RTF ~2.2x, no Kaggle/Modal quota)
+4. **CosyVoice3-MLX** (LOCAL FALLBACK — emotion regression, but fast RTF 0.64-0.87x)
+5. **F5-TTS-MLX** (BACKUP — good rhythm, CC-BY-NC, no emotion control)
+6. Qwen3-TTS (good emphasis, clone+emotion cannot coexist)
+7. edge-tts (Microsoft neural TTS, no cloning)
+8. macOS `say` (last resort, no cloning)
+
+CUDA engines (Kaggle + Modal) are prioritized above NPU/MLX because emotion
+fidelity is the primary selection criterion — NPU and MLX both have emotion
+regression vs CUDA baseline (verified 2026-09-08). Kaggle is free (30h/week),
+Modal is paid (~$30/mo) but has no weekly quota limit.
 
 ### Emotion mapping
 
@@ -122,18 +129,22 @@ MLX version auto-appends it — do NOT include it in instruct_text for MLX.
 
 - `lib/tts/cosyvoice3-kaggle-cuda.mjs` — new remote engine adapter (Kaggle CLI)
 - `kaggle/cosyvoice3_cuda_kernel.py` — Kaggle kernel template (deps + inference)
+- `lib/tts/cosyvoice3-modal-cuda.mjs` — Modal A100 remote engine adapter (Modal CLI)
+- `modal/cosyvoice3_cuda_modal.py` — Modal script (deps + inference + volume cache)
 - `lib/tts/cosyvoice3-npu.mjs` — NPU remote engine adapter (AtomGit Jupyter)
 - `npu/cosyvoice3_npu_kernel.py` — NPU kernel template (deps + inference + istft CPU fallback)
 - `lib/tts/cosyvoice3-mlx.mjs` — local fallback engine adapter
 - `cosyvoice3_mlx_batch_tts.py` — local fallback Python batch script
 - `registry.mjs` — PRIORITY updated, all CosyVoice3 variants registered
 - `tts-registry.test.mjs` — 7 test scenarios updated
-- `.env.local.example` — CosyVoice3 env vars documented (Kaggle + NPU)
+- `.env.local.example` — CosyVoice3 env vars documented (Kaggle + Modal + NPU)
 - Model (Kaggle): downloaded fresh per kernel run (~9GB, cached in kernel session)
+- Model (Modal): cached in Modal volume `cosyvoice3-cuda` (first run ~10min, subsequent ~1min)
 - Model (NPU): cached at `/tmp/cosyvoice3-model` in Notebook session
 - Model (MLX fallback): `~/.cosyvoice3-mlx-model` (1.7GB, mlx-audio format)
 - Venv (MLX fallback): `~/.video-tts-env` (shared with F5 + Qwen, Python 3.12)
 - Kaggle CLI: `~/.kaggle/kaggle.json` required
+- Modal CLI: `modal token new` required (paid, ~$30/mo)
 - AtomGit Notebook: NPU 910B + 32GB CPU tier required
 - ADR-0008 superseded
 
@@ -143,6 +154,11 @@ Kaggle CUDA (default):
 - Kaggle CLI installed (`pip install kaggle`)
 - `~/.kaggle/kaggle.json` with API credentials
 - Internet + GPU enabled on kernel
+
+Modal CUDA (paid fallback, same emotion quality):
+- Modal CLI installed + authenticated (`modal token new`)
+- A100 GPU access (included in Modal paid plan)
+- First run downloads model to volume (~10min), cached after
 
 NPU fallback (free, in-China):
 - AtomGit Notebook with NPU 910B + 32GB CPU tier

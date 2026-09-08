@@ -7,6 +7,10 @@ vi.mock("../lib/tts/cosyvoice3-kaggle-cuda.mjs", () => ({
   createCosyVoice3KaggleCudaEngine: vi.fn(),
 }));
 
+vi.mock("../lib/tts/cosyvoice3-modal-cuda.mjs", () => ({
+  createCosyVoice3ModalCudaEngine: vi.fn(),
+}));
+
 vi.mock("../lib/tts/cosyvoice3-npu.mjs", () => ({
   createCosyVoice3NPUEngine: vi.fn(),
 }));
@@ -39,6 +43,7 @@ vi.mock("../lib/tts/post-process.mjs", () => ({
 
 import { selectEngine } from "../lib/tts/registry.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "../lib/tts/cosyvoice3-kaggle-cuda.mjs";
+import { createCosyVoice3ModalCudaEngine } from "../lib/tts/cosyvoice3-modal-cuda.mjs";
 import { createCosyVoice3NPUEngine } from "../lib/tts/cosyvoice3-npu.mjs";
 import { createCosyVoice3MLXEngine } from "../lib/tts/cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "../lib/tts/f5-mlx.mjs";
@@ -55,6 +60,7 @@ function mockEngine(name, info = name) {
 function resetAllMocks() {
   vi.clearAllMocks();
   vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+  vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
   vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
   vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
   vi.mocked(createF5MLXEngine).mockResolvedValue(null);
@@ -87,9 +93,38 @@ describe("TTS Engine Registry — selectEngine()", () => {
     expect(createCosyVoice3MLXEngine).not.toHaveBeenCalled();
   });
 
-  // S2: Kaggle CUDA unavailable, CosyVoice3-MLX available → Falls back to MLX
-  it("S2: falls back to CosyVoice3-MLX when Kaggle CUDA unavailable", async () => {
+  // S2: Kaggle CUDA unavailable, Modal CUDA available → Falls back to Modal CUDA
+  it("S2: falls back to CosyVoice3-Modal-CUDA when Kaggle CUDA unavailable", async () => {
     vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    const modal = mockEngine("cosyvoice3-modal-cuda", "CosyVoice3-Modal-CUDA (A100)");
+    vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(modal);
+
+    const engine = await selectEngine();
+
+    expect(engine.name).toBe("cosyvoice3-modal-cuda");
+    expect(engine).toBe(modal);
+    expect(createCosyVoice3NPUEngine).not.toHaveBeenCalled();
+  });
+
+  // S2a: Kaggle + Modal unavailable, NPU available → Falls back to NPU
+  it("S2a: falls back to CosyVoice3-NPU when Kaggle + Modal CUDA unavailable", async () => {
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
+    const npu = mockEngine("cosyvoice3-npu", "CosyVoice3-NPU (Ascend 910B)");
+    vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(npu);
+
+    const engine = await selectEngine();
+
+    expect(engine.name).toBe("cosyvoice3-npu");
+    expect(engine).toBe(npu);
+    expect(createCosyVoice3MLXEngine).not.toHaveBeenCalled();
+  });
+
+  // S2c: Kaggle + Modal + NPU unavailable, CosyVoice3-MLX available → Falls back to MLX
+  it("S2c: falls back to CosyVoice3-MLX when Kaggle + Modal + NPU unavailable", async () => {
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
     const cv3 = mockEngine("cosyvoice3-mlx", "CosyVoice3-MLX (local fallback)");
     vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(cv3);
 
@@ -121,6 +156,7 @@ describe("TTS Engine Registry — selectEngine()", () => {
   it("S4: throws error with install hints when no engine available", async () => {
     await expect(selectEngine()).rejects.toThrow(/No TTS engine available/);
     await expect(selectEngine()).rejects.toThrow(/Kaggle CLI/);
+    await expect(selectEngine()).rejects.toThrow(/Modal CLI/);
     await expect(selectEngine()).rejects.toThrow(/video-tts-env/);
   });
 
@@ -156,9 +192,10 @@ describe("TTS Engine Registry — selectEngine()", () => {
     expect(createCosyVoice3MLXEngine).toHaveBeenCalled();
   });
 
-  // S2b: full fallback chain Kaggle CUDA → NPU → CosyVoice3-MLX → F5 → Qwen3 → edge-tts → say
+  // S2b: full fallback chain Kaggle CUDA → Modal CUDA → NPU → CosyVoice3-MLX → F5 → Qwen3 → edge-tts → say
   it("S2b: falls through entire priority chain to say", async () => {
     vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
     vi.mocked(createF5MLXEngine).mockResolvedValue(null);
@@ -171,6 +208,7 @@ describe("TTS Engine Registry — selectEngine()", () => {
 
     expect(engine.name).toBe("say");
     expect(createCosyVoice3KaggleCudaEngine).toHaveBeenCalled();
+    expect(createCosyVoice3ModalCudaEngine).toHaveBeenCalled();
     expect(createCosyVoice3NPUEngine).toHaveBeenCalled();
     expect(createCosyVoice3MLXEngine).toHaveBeenCalled();
     expect(createF5MLXEngine).toHaveBeenCalled();
