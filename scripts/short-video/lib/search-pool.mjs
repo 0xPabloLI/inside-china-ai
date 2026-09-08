@@ -13,9 +13,11 @@
  * remains the last resort but stays wired in search-sources.mjs Step 3 via
  * the existing collectFromMcp path — this module is pure REST.
  *
- * Engine priority: Brave (2000 q/mo, best quality) > Tavily (1000 credits/mo,
- * AI-optimized) > Jina (1M tokens/mo). Engines whose API key is missing are
- * skipped without a network call. Credentials live in repo-root .env.local.
+ * Engine priority: Serper (2500 q/mo, Google results) > Brave (2000 q/mo,
+ * best quality) > Tavily (1000 credits/mo, AI-optimized) > Jina (1M tokens/mo).
+ * GoogleCSE is NOT in the pool — it is site-scoped (50 AI news domains) and
+ * belongs in the content pipeline, not general web search. Engines whose API
+ * key is missing are skipped without a network call. Credentials live in repo-root .env.local.
  *
  * Known environment constraint (scripts/short-video/test-search-engines.mjs,
  * 2026-08 observation): Node fetch can fail DNS resolution for
@@ -73,6 +75,32 @@ async function searchTavily(keyword, apiKey, timeoutMs) {
   return { ok: true, articles: parseArticles(data?.results) };
 }
 
+/** Serper.dev: POST with X-API-KEY header, results under organic[].link. */
+async function searchSerper(keyword, apiKey, timeoutMs) {
+  const resp = await fetch("https://google.serper.dev/search", {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-API-KEY": apiKey },
+    body: JSON.stringify({ q: keyword, num: 20 }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!resp.ok) return { ok: false, error: `Serper HTTP ${resp.status}` };
+  const data = await resp.json();
+  return { ok: true, articles: parseArticles(data?.organic) };
+}
+
+/** Google CSE: GET with key+cx params, results under items[].link. */
+async function searchGoogleCse(keyword, apiKey, timeoutMs) {
+  const cx = process.env.GOOGLE_CSE_ID || "";
+  if (!cx) return { ok: false, error: "missing GOOGLE_CSE_ID" };
+  const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(keyword)}&num=20`;
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!resp.ok) return { ok: false, error: `GoogleCSE HTTP ${resp.status}` };
+  const data = await resp.json();
+  return { ok: true, articles: parseArticles(data?.items) };
+}
+
 /** Jina Search: GET s.jina.ai/{query}, results under data[].description. */
 async function searchJina(keyword, apiKey, timeoutMs) {
   const url = `https://s.jina.ai/${encodeURIComponent(keyword)}`;
@@ -85,8 +113,11 @@ async function searchJina(keyword, apiKey, timeoutMs) {
   return { ok: true, articles: parseArticles(data?.data) };
 }
 
-/** Fixed priority order — Brave > Tavily > Jina (see issue #65). */
+/** Fixed priority order — Serper (2500/mo, Google results) > Brave (2000/mo) > Tavily (1000/mo) > Jina.
+ *  GoogleCSE removed from pool: it is site-scoped (50 AI news domains), not general web search.
+ *  CSE lives in the content pipeline as a dedicated site-scoped source instead. */
 const POOL_ENGINES = [
+  { name: "serper", apiKeyEnv: "SERPER_API_KEY", search: searchSerper },
   { name: "brave", apiKeyEnv: "BRAVE_SEARCH_API_KEY", search: searchBrave },
   { name: "tavily", apiKeyEnv: "TAVILY_API_KEY", search: searchTavily },
   { name: "jina", apiKeyEnv: "JINA_API_KEY", search: searchJina },
@@ -114,15 +145,23 @@ export function isPoolEligible(source) {
  * @param {string} keyword - Search keyword
  * @param {Object} [opts]
  * @param {Array} [opts.engines] - Engine override (test seam); defaults to the
- *   fixed Brave > Tavily > Jina order
+ *   fixed Serper > Brave > Tavily > Jina order
  * @param {number} [opts.timeoutMs] - Per-engine fetch timeout (default 15s)
+ * @param {string} [opts.mode] - "parallel" runs all engines simultaneously and
+ *   merges/deduplicates results by URL; default (serial) returns first success
  * @returns {Promise<{articles: Array, engine: string|null, attempts: Array}>}
- *   articles from the first engine that returned any; engine is null and
- *   attempts records every failure when all engines fail or return empty
+ *   serial: articles from the first engine that returned any; engine is null
+ *   when all fail. parallel: merged deduplicated articles from all engines;
+ *   engine is "serper+brave+tavily" etc. attempts records every failure
  */
 export async function searchPool(keyword, opts = {}) {
   const engines = opts.engines ?? POOL_ENGINES;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  if (opts.mode === "parallel") {
+    return searchPoolParallel(keyword, engines, timeoutMs);
+  }
+
   const attempts = [];
 
   for (const engine of engines) {
@@ -157,4 +196,60 @@ export async function searchPool(keyword, opts = {}) {
   }
 
   return { articles: [], engine: null, attempts };
+}
+
+/**
+ * Parallel mode: fire all engines simultaneously, merge + deduplicate by URL.
+ * Best for deep research where coverage matters more than quota efficiency.
+ */
+async function searchPoolParallel(keyword, engines, timeoutMs) {
+  const attempts = [];
+
+  const activeEngines = engines.filter((engine) => {
+    const apiKey = process.env[engine.apiKeyEnv] || "";
+    if (!apiKey) {
+      attempts.push({ engine: engine.name, ok: false, error: `missing ${engine.apiKeyEnv}` });
+      return false;
+    }
+    return true;
+  });
+
+  const results = await Promise.allSettled(
+    activeEngines.map(async (engine) => {
+      const apiKey = process.env[engine.apiKeyEnv];
+      const result = await engine.search(keyword, apiKey, timeoutMs);
+      return { name: engine.name, result };
+    }),
+  );
+
+  const seenUrls = new Set();
+  const merged = [];
+  const contributors = [];
+
+  for (const settled of results) {
+    if (settled.status === "rejected") {
+      attempts.push({ engine: "unknown", ok: false, error: settled.reason?.message || "rejected" });
+      continue;
+    }
+
+    const { name, result } = settled.value;
+    if (!result.ok) {
+      attempts.push({ engine: name, ok: false, error: result.error });
+      continue;
+    }
+    if (result.articles.length === 0) {
+      attempts.push({ engine: name, ok: false, error: "0 results" });
+      continue;
+    }
+
+    contributors.push(name);
+    for (const article of result.articles) {
+      if (!seenUrls.has(article.url)) {
+        seenUrls.add(article.url);
+        merged.push(article);
+      }
+    }
+  }
+
+  return { articles: merged, engine: contributors.join("+") || null, attempts };
 }

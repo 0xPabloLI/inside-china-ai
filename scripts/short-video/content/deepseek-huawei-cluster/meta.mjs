@@ -1,0 +1,25 @@
+export const meta = {
+  subject: "deepseek",
+  pipelineId: "deepseek-huawei-cluster",
+  title: "DeepSeek Orders 160,000 Huawei Ascend Chips for Gigawatt Data Center",
+  article: "deepseek-huawei-cluster",
+  renderer: "remotion",
+  createdAt: "2026-09-08",
+  topics: ["deepseek", "huawei", "ascend", "china-ai", "chips", "data-center", "export-controls"],
+  keyEntities: {
+    companies: ["deepseek", "huawei", "nvidia", "cxmt"],
+    people: [],
+    models: ["ascend-950dt"],
+  },
+  dataPoints: [
+    "At least 160,000 Huawei Ascend 950DT chips planned (Bloomberg, Sep 4, 2026)",
+    "Ulanqab, Inner Mongolia data center, roughly one gigawatt, ~350 km from Beijing",
+    "Inference only; DeepSeek still trains on Nvidia hardware",
+    "Ascend 950DT: 1 PFLOPS FP8, 144GB self-developed HiZQ 2.0 HBM, roadmap Q4 2026",
+    "Huawei cannot fill the full order for over a year (production limits, HBM shortage)",
+    "CXMT producing first small HBM3E batches, 3-5 years behind Samsung/SK Hynix/Micron",
+    "Partial operations late 2027 or early 2028; largest known Huawei chip cluster",
+    "Beijing $295 billion AI buildout target with 80% domestic chips",
+  ],
+  hashtags: ["#ainews", "#chinaai", "#deepseek", "#huawei", "#chips"],
+};

@@ -1,6 +1,6 @@
 # 数字人模型测试进度追踪
 
-> **最后更新**：2026-09-05（Wan2.2-S2V-14B 优化方向 A/C 已否决、B1 部分测试（Modal 余额用完）；非 NVIDIA 硬件可行性新发现：attention.py 有 SDPA fallback，AtomGit NPU 910B + ModelScope AMD GPU 均理论可行；SoulX-FlashTalk 14B ✅ Modal A100-80GB 测试成功；SoulX-FlashHead 基座测试完成 + 全平台适配搜索 + 测试素材整理到 `dh-fixtures/`；超分工具已有但未接入数字人 pipeline）
+> **最后更新**：2026-09-07（**AtomGit NPU 910B 64GB ✅ 成功！** Wan2.2-S2V-14B 在 NPU 910B 上跑通，device_map='auto' + max_memory=15GB + 10 个 patch，5 步推理 9.2 分钟，输出 480×832 40 帧 1.8MB MP4；Kaggle T4/P100 ❌ 不可行；Wan2.2-S2V-14B 亦 ✅ Modal A100-80GB；SoulX-FlashTalk 14B ✅ Modal A100-80GB）
 > **设备**：MacBook Pro M2 Pro 32GB, macOS 26.5.1 + **Kaggle T4×2 15GB×2（✅ 已验证）** + **Colab T4 15GB**
 > **配套文档**：`docs/research/digital-human-solutions-m2-pro.md`（模型调研与技术分析）
 > **云 GPU 文档**：`docs/research/cloud-gpu-options.md`、`docs/handoffs/cloud-gpu-kaggle-setup.md`
@@ -51,17 +51,115 @@
 | 10  | ~~LongCat-VA-1.5 MLX~~             | MLX 扩散                             | 432×256  | 2025-12 | ✅ MLX                 | ✅ MIT                                          | ❌ **不可用**（不像本人+唇同步错位）                                                                                                                                       | 2026-08-19 |
 | 10b | ~~LongCat-VA-1.5 MLX 480×832~~     | MLX 扩散                             | 480×832  | 2025-12 | ✅ MLX                 | ✅ MIT                                          | ❌ **全黑输出**                                                                                                                                                            | 2026-08-18 |
 | 11  | ~~EchoMimicV3 Flash~~              | Wan2.1 扩散                          | 624×816  | 2025-07 | ✅ Kaggle P100         | ✅ Apache 2.0                                   | ✅ v51 最优配置（talking head, 8步蒸馏, ~14min/段）                                                                                                                        | 2026-08-22 |
-| 10  | **LongCat-Video-Avatar-1.5**       | DiT + 音频驱动                       | 480p     | 2025-12 | ✅ **Modal A100-80GB** | ✅ MIT                                          | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0）    | 2026-09-02 |
+| 10  | **LongCat-Video-Avatar-1.5**       | DiT + 音频驱动 (talking body)        | 480p     | 2025-12 | ✅ **Modal A100-80GB** | ✅ MIT                                          | ✅ **v11.1 bf16+DMD 8步可用**（2026-09-02 用户确认：唇同步基本正常但**口型幅度偏大偏夸张**；镜片绿色为反光非伪影；4.3min/3.2s 段，$0.18；调优方向：audio CFG 下探 3.0）    | 2026-09-02 |
 | 11  | **InfiniteTalk**                   | 稀疏帧视频配音(talking body)         | 576×704  | 2025-08 | ✅ Modal A100          | ✅ lightx2v LoRA 可商用 / ~~FusionX NC 已停测~~ | ✅ **v10.18 lightx2v 4步可用**（9.3min/3s 段，$0.42，lip sync 达标但表情偏僵，2026-09-02 用户确认）——可商用备选；v10.17 FusionX 8 步 $0.56 表情最佳仅作质量基线（NC 停测） | 2026-09-02 |
 | 12  | ~~**Hallo3**~~                     | Transformer DiT                      | 720×480  | 2024-11 | ✅ Modal A100-80GB     | ✅ MIT                                          | ❌ **否决**（self-portrait+deepseek 同素材 A/B：与 EchoMimicV3 接近但无显著优势；只能英文+只能 head+25min/5.2s，用户判定效果不好）                                         | 2026-09-03 |
 | 13  | ~~EchoMimicV3 Flash (Modal)~~      | 多任务扩散                           | 512×512  | 2025-07 | ✅ Modal T4 NF4        | ✅ Apache 2.0                                   | ✅ NF4 量化已测（5min/段, talking head）                                                                                                                                   | 2026-08-23 |
-| 14  | **FeatherTalk**                    | 轻量级框架                           | 1280×720 | 2026-07 | ✅ Modal A100-40GB    | ✅ Apache 2.0                                   | ✅ **已测**（200 epochs A100: train ~90min + infer 11s, 输出 1280×720=训练视频分辨率, 892KB/10s; 用 1029昆明南站.mp4 30-180s 训练, 前 10s 音频驱动; 144×144 是人脸内部处理尺寸非输出上限） | 2026-09-05 |
+| 14  | **FeatherTalk**                    | 轻量级框架 (talking head)            | 1280×720 | 2026-07 | ✅ Modal A100-40GB    | ✅ Apache 2.0                                   | ✅ **已测**（200 epochs A100: train ~90min + infer 11s, 输出 1280×720=训练视频分辨率, 892KB/10s; 用 1029昆明南站.mp4 30-180s 训练, 前 10s 音频驱动; 144×144 是人脸内部处理尺寸非输出上限） | 2026-09-05 |
 | 15  | **LTX-2.3 + AV-LoRA-talking-head** | DiT + LoRA                           | —        | —       | ❌ 22B 需大显存        | ✅ OpenRAIL                                     | 📋 低优先级                                                                                                                                                                | —          |
-| 16  | ~~**LeapTalk**~~                   | 桥蒸馏（Brownian bridge 数据到数据） | 512×512  | 2026-07 | ⚠️ Kaggle T4           | ✅ Apache 2.0                                   | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产）                           | 2026-09-03 |
+| 16  | ~~**LeapTalk**~~                   | 桥蒸馏 (talking head)                | 512×512  | 2026-07 | ⚠️ Kaggle T4           | ✅ Apache 2.0                                   | ❌ **否决**（v4-v8 五轮穷尽参数空间，画质远不及 InfiniteTalk/EchoMimicV3；音视频不同步是架构固有问题；设计取向为实时流式换画质，不适合离线生产）                           | 2026-09-03 |
 | 17  | **SoulX-FlashHead (Model_Pro)**    | Wan2.1 DiT 1.3B 基座（未蒸馏）       | 512×512  | 2026-02 | ✅ Kaggle T4           | ✅ Apache 2.0                                   | ✅ **基座可用**（675.7s/3.08s段；嘴部有动态变化，画质清晰无伪影；验证 LeapTalk 差是1步桥蒸馏造成而非基座）                                                                 | 2026-09-04 |
 | 18  | **SoulX-FlashHead (Model_Lite)**   | LTX-VAE 轻量基座                     | 512×512  | 2026-02 | ✅ Kaggle T4           | ✅ Apache 2.0                                   | ✅ **基座可用**（197.5s/3.08s段；嘴部有动态，画质略逊 Pro——稍平滑；实时路线 96 FPS on RTX4090）                                                                            | 2026-09-04 |
 | 19  | **SoulX-FlashTalk 14B**            | Wan+InfiniteTalk talking body        | 416×720  | 2025-12 | ✅ Modal A100-80GB     | ✅ Apache 2.0                                   | ✅ **最佳 Talking Body**（350s/5.2s段, $0.20, 手指细节好, 2026-09-04 用户确认）                                                                                            | 2026-09-04 |
-| 20  | **Wan2.2-S2V-14B**                 | Wan2.2 官方 audio-to-video           | 704×960  | 2025-08 | ✅ Modal A100-80GB     | ✅ Apache 2.0                                   | ✅ **已测**（3758s/5.4s段, offload 2 clips×40 steps, 42-46s/step, ~$2.19, 2026-09-05）                                                                                      | 2026-09-05 |
+| 20  | **Wan2.2-S2V-14B**                 | Wan2.2 官方 audio-to-video (talking body) | 704×960  | 2025-08 | ✅ Modal A100-80GB / **AtomGit NPU 910B** | ✅ Apache 2.0                             | ✅ **已测**（Modal: 3758s/5.4s段 $2.19；**NPU 910B 64GB 档: 550s/4.8s段 ~2.47 核时 免费**, 2026-09-07）                                                              | 2026-09-07 |
+
+#### 成本归一化对比（2026-09-07）
+
+> RTF = 耗时 / 视频时长（越低越快）；成本按"每秒视频"归一化。只含已测可用模型。
+
+| 模型 | 类型 | 平台 | 耗时 | 视频时长 | RTF | 成本/段 | 成本/s视频 | 免费 |
+|------|------|------|------|----------|-----|---------|-----------|------|
+| **FeatherTalk** | Head | Modal A100-40 | 11s | 10s | **1.1x** | ~$0.02 | **$0.002** | ❌ |
+| **SoulX-FlashHead Lite** | Head | Kaggle T4 | 198s | 3.08s | 64x | 免费 | 免费 | ✅ |
+| **SoulX-FlashTalk 14B** | Body | Modal A100-80 | 350s | 5.2s | 67x | $0.20 | $0.038 | ❌ |
+| **LongCat-VA-1.5** | Body | Modal A100-80 | 258s | 3.2s | 81x | $0.18 | $0.056 | ❌ |
+| **Wan2.2-S2V (NPU)** | Body | AtomGit NPU | 550s | 4.8s | 115x | 2.47核时 | 0.51核时/s | ✅ |
+| **EchoMimicV3 Flash** | Head | Kaggle P100 | 840s | ~5s | 168x | 免费 | 免费 | ✅ |
+| **InfiniteTalk** | Body | Modal A100 | 558s | 3s | 186x | $0.42 | $0.14 | ❌ |
+| **SoulX-FlashHead Pro** | Head | Kaggle T4 | 676s | 3.08s | 219x | 免费 | 免费 | ✅ |
+| **Hallo3** | Head | Modal A100-80 | 1500s | 5.2s | 288x | ~$1.5 | ~$0.29 | ❌ |
+| **Wan2.2-S2V (Modal)** | Body | Modal A100-80 | 3758s | 5.4s | **696x** | $2.19 | $0.41 | ❌ |
+
+> **结论**：FeatherTalk 最快（1.1x RTF）但需训练；免费方案中 SoulX-FlashHead Lite 最快（64x）；Wan2.2-S2V NPU 免费且 talking body 质量好（115x RTF，~2.47 核时/次）；Wan2.2-S2V Modal 极慢（696x）且贵（$0.41/s），NPU 方案优势明显。
+
+#### 筛选后推荐表（2026-09-07）
+
+> 筛选条件：商业 license OK + 效果 OK（排除否决）+ 价格 OK（排除太贵）。Talking Head 与 Talking Body 统一排列。
+>
+> **排除**：Hallo3（否决，效果不好）、LeapTalk（否决，画质远不及其他）、Wan2.2-S2V Modal（$2.19/段 696x RTF 太贵，NPU 免费版完全替代）。
+
+| # | 模型 | 类型 | License | 平台 | 收费 | 成本/段 | RTF | 质量备注 |
+|---|------|------|---------|------|------|---------|-----|----------|
+| 1 | **SoulX-FlashTalk 14B** | Body | Apache 2.0 | Modal A100-80 | 付费 | $0.20 | 67x | ⭐ **最佳 Talking Body**，手指细节好 |
+| 2 | **Wan2.2-S2V-14B (NPU)** | Body | Apache 2.0 | AtomGit NPU 910B | **免费** | 2.47核时 | 115x | 备选，免费 talking body |
+| 3 | **LongCat-VA-1.5** | Body | MIT | Modal A100-80 | 付费 | $0.18 | 81x | 口型偏大偏夸张 |
+| 4 | **InfiniteTalk** | Body | Apache 2.0 | Modal A100 | 付费 | $0.42 | 186x | 表情偏僵，lip sync 达标 |
+| 5 | **FeatherTalk** | Head | Apache 2.0 | Modal A100-40 | 付费 | $0.02 | **1.1x** | 最快，需训练（~90min） |
+| 6 | **SoulX-FlashHead Lite** | Head | Apache 2.0 | Kaggle T4 | **免费** | 免费 | 64x | 免费最快 head |
+| 7 | **SoulX-FlashHead Pro** | Head | Apache 2.0 | Kaggle T4 | **免费** | 免费 | 219x | 画质优于 Lite |
+| 8 | **EchoMimicV3 Flash** | Head | Apache 2.0 | Kaggle P100 | **免费** | 免费 | 168x | v51 最优配置 |
+
+> **选型建议**：
+> - **Talking Body 首选**：SoulX-FlashTalk 14B（质量最佳 $0.20/段）→ 免费备选 Wan2.2-S2V NPU
+> - **Talking Head 首选**：FeatherTalk（最快 1.1x RTF，但需训练）→ 免费备选 SoulX-FlashHead Lite
+> - **全免费方案**：Wan2.2-S2V NPU (body) + SoulX-FlashHead Lite (head)
+
+#### 最终选定模型与参数配置（2026-09-08）
+
+> **决策**：SoulX-FlashHead Lite 为数字人**第一方案**（talking head），其余推荐表模型作为 backup 资源池。
+> **决策依据**：免费（Kaggle T4 30h/周）+ Apache 2.0 可商用 + 64x RTF（免费方案中最快）+ 画质清晰无伪影 + 无需训练（vs FeatherTalk 需 90min train）+ 6.4GB VRAM 门槛低。
+
+**⭐ 第一方案：SoulX-FlashHead Lite（Talking Head）**
+
+| 参数 | 值 | 信源 |
+|------|-----|------|
+| 模型 | `Soul-AILab/SoulX-FlashHead-1_3B` → Model_Lite 子目录 | 官方仓库 README |
+| 基座 | LTX-VAE 轻量基座（1.3B 参数） | 官方 README |
+| VAE | TAEHV（Lite 专用，FID 38） | 官方论文 Table 1 |
+| 分辨率 | 512×512 | `infer_params.yaml` height/width |
+| 帧数 | 77 帧 @ 25fps → 3.08s | 官方默认 |
+| 推理步数 | 官方默认（未蒸馏基座，非 1 步） | `generate_video.py` |
+| 平台 | Kaggle T4 15GB（免费 30h/周） | 已验证 2026-09-04 |
+| VRAM | ~6.4GB | 官方 README（RTX4090 96 FPS 实测） |
+| 耗时 | 197.5s（3.3min）/ 3.08s 段 | 实测 |
+| RTF | 64x | 实测 |
+| License | Apache 2.0（全栈） | 官方 LICENSE + 基座 HF 标注 |
+| 成本 | 免费 | Kaggle 免费额度 |
+| 脚本 | `scripts/kaggle/soulx-test/` | 已验证 |
+| 输入照片 | `scripts/short-video/assets/dh-fixtures/portrait-face.jpg`（827×1063） | dh-fixtures 规范 |
+| 输入音频 | `audio.wav`（16kHz mono） | dh-fixtures 规范 |
+| 输出 | 512×512 H264+AAC MP4，77 帧，3.08s | 实测 |
+| 画质评价 | 稍平滑（略逊 Pro），嘴部有动态变化，无伪影 | 实测用户评价 |
+| 产物路径 | `scripts/short-video/experiments/digital-human/soulx-flashhead/` | — |
+
+**Backup 资源池（按优先级排列）**
+
+| 优先级 | 模型 | 类型 | 用途 | 关键参数 | 平台 | 成本/段 |
+|--------|------|------|------|----------|------|---------|
+| 1 | SoulX-FlashTalk 14B | Body | **Talking Body 首选** | 416×720, `--audio_encode_mode stream`, wav2vec2 monkey-patch, 350s/5.2s段 | Modal A100-80 | $0.20 |
+| 2 | Wan2.2-S2V-14B (NPU) | Body | **免费 Talking Body** | 480×832, 5步, `device_map='auto'`+`max_memory={0:'15GB','cpu':'60GB'}`, 10 patch, 550s/4.8s段 | AtomGit NPU 910B 64GB | 免费（2.47核时） |
+| 3 | SoulX-FlashHead Pro | Head | 画质优于 Lite 的免费备选 | 512×512, WanVAE（FID 21）, 675.7s/3.08s段 | Kaggle T4 | 免费 |
+| 4 | FeatherTalk | Head | 极速备选（需训练） | 1280×720, 200 epochs train ~90min + infer 11s, 144×144 内部处理 | Modal A100-40 | $0.02 |
+| 5 | LongCat-VA-1.5 | Body | Talking Body 备选 | 480p, bf16+DMD 8步, text/audio CFG=4.0/4.0, 258s/3.2s段 | Modal A100-80 | $0.18 |
+| 6 | InfiniteTalk | Body | Talking Body 备选 | 576×704, lightx2v 4步 LoRA, audio CFG=2.0, shift=2, 558s/3s段 | Modal A100 | $0.42 |
+| 7 | EchoMimicV3 Flash | Head | Talking Head 备选 | 720p, 8步蒸馏, TeaCache on+torch.compile on, sequential_cpu_offload, ~14min/段 | Kaggle P100/T4 | 免费 |
+
+**选型决策树**
+
+```
+需要 Talking Body（全身/手势）？
+├─ 是 → 预算付费？
+│   ├─ 是 → SoulX-FlashTalk 14B（$0.20/段，质量最佳，手指细节好）
+│   └─ 否 → Wan2.2-S2V-14B NPU（免费，AtomGit 910B 64GB 档，~2.47 核时/次）
+└─ 否（Talking Head 头肩）→ SoulX-FlashHead Lite（免费，Kaggle T4，197.5s/段）
+```
+
+**NPU 适配成果分享**（2026-09-07，Wan2.2-S2V-14B NPU 910B patch + 文档）
+- GitHub PR：`https://github.com/Wan-Video/Wan2.2/pull/385`
+- HuggingFace：`https://huggingface.co/0xpabloli/Wan2.2-S2V-14B-NPU`
+- ModelScope：`https://modelscope.cn/models/pabloli/Wan2.2-S2V-14B-NPU`
+- AtomGit（代码）：`https://atomgit.com/gcw_GGihkrEm/Wan2.2-S2V-14B-NPU`
+- 关键文件：`patch_npu.py`（10 个 patch）+ `NPU_SUPPORT.md`（适配文档）+ `wan22_s2v_allinone.py`（一体化脚本）
 
 ### 云端 API
 
@@ -1301,15 +1399,30 @@ else:
 
 **Caveat**：SDPA fallback 不支持 varlen padding mask（代码会 warn），可能影响性能/正确性。
 
-**① AtomGit NPU 910B — ⚠️ 可行，适配中等**
-- 硬件：64GB HBM2e，CANN 8.5，PyTorch 2.8 + torch_npu
-- 显存：✅ 64GB 够装 14B bf16（~28GB），不需要 offload
-- 模型：✅ AtomGit 上有 Wan2.2-S2V-14B 页面（`ai.atomgit.com/Wan-AI/Wan2.2-S2V-14B`），权重可下载到 NPU Notebook
-- 额度：1000 核时/月（**月度刷新，非一次性**）
-- 适配：需 `import torch_npu` + CANN 自动迁移（~90% 算子，损耗 14-38%）+ 可能改 `torch.cuda.synchronize()` → `torch.npu.synchronize()`
-- 预期性能：比 A100 慢 2-3x（SDPA 比 flash_attn 慢 + CANN 损耗）
+**① AtomGit NPU 910B 64GB 档 — ✅ 成功！（2026-09-07 实测确认）**
+- 硬件：910B4，**31.7GB HBM**，**64GB CPU cgroup**（16vCPU/64GB 档），CANN 8.5，PyTorch 2.9 + torch_npu 2.9
+- **关键配置**：`device_map='auto'` + `max_memory={0: '15GB', 'cpu': '60GB'}` + `offload_model=True` + 分阶段加载（T5→释放→diffusion）
+- **10 个 patch**：cuda→npu（21 文件）、分阶段加载（`__init__` 跳过 diffusion + `generate` 延迟加载）、`_configure_model(None)` 守卫、`.to(device)`/`.cpu()` 跳过 accelerate 模型、VAE dtype fix（`vae2_1.py` encode `.float()`）、dtype assert→`.float()` cast、flash attention→SDPA、`max_memory=15GB`、VAE decode 前 `empty_cache`
+- **推理**：5 步，~38s/step，总 550s（9.2 min），**~2.47 核时**（16 核 × 9.2 min / 60）
+- **输出**：512×704 H264，77 帧，4.8s，1.8MB MP4（`scripts/atomgit/s2v_npu_test_output.mp4`）
+- **T5 仅占 0.70 GB NPU**（非预期 11GB——accelerate 自动 offload 到 CPU）
+- **diffusion model**：`device_map='auto'` 自动将部分参数 offload 到 CPU（"Some parameters are on the meta device because they were offloaded to the cpu"）
+- **⚠️ 唯一问题**：Notebook 缺 `ffmpeg`，视频生成成功但 audio merge 失败（`merge_video_audio failed: No such file or directory: 'ffmpeg'`）。输出为**纯视频无音频**。修复：`pip install imageio-ffmpeg` 或 `apt install ffmpeg`
+- **历史**：8GB 档 4 次失败（cgroup OOM / device bug / Notebook 过期），64GB 档 15 次 fix 迭代后成功
+- **核时成本**：1000 核时/月 ÷ 2.47 核时/次 ≈ **405 次/月**免费推理
+- **脚本**：`scripts/atomgit/wan22_s2v_allinone.py`（一体化）、`scripts/atomgit/wan22_s2v_fix15.py`（最终成功配置）
 
-**② ModelScope AMD GPU — ✅ 可行，适配低**
+**② AMD Radeon Cloud — ✅ 可行，credits 可重复获取（2026-09-07 调研）**
+- URL：`developer.amd.com.cn/radeon/`（中国站）/ `radeon-global.anruicloud.com`（全球站）
+- 文档：`amd-aim.github.io/radeon-cloud-docs/`
+- **GPU 实例**：1/2/4 GPU，JupyterLab 或 SSH 访问，Persistent (PVC) 存储可选
+- **Credits 系统**：AMD AI Developer Program 赚 points → 兑换 coupon → 兑换 credits。**可重复获取**（参与开发者活动赚 points），优于 ModelScope 100h 一次性
+- **ROCm 兼容**：`torch.cuda.*` 在 ROCm build 上工作，高层 PyTorch 代码几乎不用改。手写 CUDA kernel 需 HIP 移植
+- **限制**：每账号 1 个活跃实例；实例运行时消耗 credits（按 GPU 数量）；4 GPU 需至少 4 credits
+- **GPU 型号/显存**：待登录平台确认（文档未明确，需看创建模板时的选项）
+- **vs ModelScope AMD GPU**：Radeon Cloud credits 可重复获取（ModelScope 100h 一次性），优先级更高
+
+**③ ModelScope AMD GPU — ✅ 可行，适配低**
 - 硬件：**192GB 显存**（ROCm 7.2.3），8核 200G RAM，PyTorch 2.11
 - 显存：✅ 192GB 远超需求，不需要 offload
 - `torch.cuda` 兼容：✅ **ROCm 原生复用 `torch.cuda` 接口**，几乎不用改代码
@@ -1317,10 +1430,7 @@ else:
 - 适配：不装 flash_attn → SDPA fallback，基本只需装 ROCm 版 PyTorch
 - 预期性能：SDPA 比 flash_attn 慢 ~1.5-2x
 
-**③ AMD Radeon Cloud — ⏳ 待调研**
-- URL：`developer.amd.com.cn/radeon/`，文档：`amd-aim.github.io/radeon-cloud-docs/`
-
-**推荐优先级**：AtomGit NPU（月度刷新额度）> ModelScope AMD GPU（一次性但 192GB 最简单）> AMD Radeon Cloud（待调研）
+**推荐优先级**（2026-09-07 更新）：**AtomGit NPU 64GB 档**（✅ 已验证，~2.47 核时/次，405 次/月）> **AMD Radeon Cloud**（credits 可重复获取）> ModelScope AMD GPU（一次性但 192GB 最简单）> ~~AtomGit NPU 8GB 档~~（❌ cgroup 不足）
 
 ### 📋 SoulX-LiveAct
 

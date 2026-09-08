@@ -26,7 +26,7 @@
 | `name`                         | 稳定 ASCII 标识，例如 `wechat2rss_jiqizhixin`   | 统计、去重来源标签与测试断言。                |
 | `label`                        | 公众号可读名称                                  | 日志和趋势输出。                              |
 | `category`                     | `wechat`                                        | 语义分类。                                    |
-| `supportsKeyword`              | `false`                                         | 研究模式不请求这些固定 Feed。                 |
+| `supportsKeyword`              | `false`                                         | 固定 Feed 不支持关键词；研究模式将其作为 `tracked-feed-context` 组每 run 拉取一次（issue #97）。 |
 | `accessMethod.primary`         | `api`                                           | 复用现有无认证 HTTP 拉取路径。                |
 | `apiSearch.url`                | 固定的 `https://wechat2rss.xlab.app/feed/*.xml` | 指向公共 RSS 输出。                           |
 | `apiSearch.parser`             | RSS 2.0 解析器                                  | 产出 `{ title, url, snippet, publishedAt }`。 |
@@ -57,7 +57,9 @@ RSS 解析器必须读取每个 `<item>` 的 `<title>`、`<link>`、`<descriptio
 
 ## 行为
 
-趋势模式将这些固定 Feed 与现有来源一起通过既有 `apiSearch` 路径拉取。解析后的 Wechat RSS 文章仅在 `publishedAt` 可解析且不早于执行时刻前 14 天时进入中国 AI 过滤、分类和标题去重。其他来源不受该规则影响。研究模式仍只选择 `supportsKeyword: true` 的来源，故不拉取这组固定 Feed。
+趋势模式将这些固定 Feed 与现有来源一起通过既有 `apiSearch` 路径拉取。解析后的 Wechat RSS 文章仅在 `publishedAt` 可解析且不早于执行时刻前 14 天时进入中国 AI 过滤、分类和标题去重。其他来源不受该规则影响。
+
+研究模式（issue #97 闭环）将这组固定 Feed 作为 `tracked-feed-context` 证据组每 run 拉取一次，与 `direct-evidence` 组（关键词 capable 源）并列采集；`environmental-signal` 组（homepage-only 源）在 `discovery.json` 的 `evidenceGroups` 中登记为背景但不拉取。三组在 artifact 中分离：每条 `sources[]` item 带 `sourceRole` 与真实 `collectionMethod`（`public-rss` 来自 `tracking.access`，不再恒为 `cdp`），`failedSources` 记录真实失败原因。`buildBrief` 将 `tracked-feed-context` 条目排除出 `candidateSources`——它们是背景 context，不作为 claim 的直接证据，需显式验证才能引用。
 
 每次趋势运行会重新读取最近 14 天的公开 Feed；现有趋势脚本没有跨运行的文章状态库，因此本规格不承诺“只读取自上次运行以来的新文章”。同一次运行内继续复用既有标题相似度去重。建立跨运行原始收件箱是独立功能，需在未来需求中单独设计。
 
@@ -89,7 +91,7 @@ RSS 解析器必须读取每个 `<item>` 的 `<title>`、`<link>`、`<descriptio
 |   5 | 非 Wechat 来源没有新追踪标记 | 不执行新增日期过滤，保持现有行为。                                             | High   | 回归测试已有 API 来源的结果。                      |
 |   6 | 某个 Feed 超时/5xx/XML 损坏  | 该源返回空集；其余来源与最终输出继续产生。                                     | Medium | 沿用既有 `collectFromApi` 错误捕获并添加故障测试。 |
 |   7 | 多个来源报道同一主题         | 标题相似度去重合并来源与 URL，保持现有主题输出结构。                           | Medium | 集成夹具验证来源合并。                             |
-|   8 | 研究模式运行                 | 固定 Wechat Feed 不会被拉取。                                                  | Low    | 断言 `supportsKeyword: false` 的既有筛选行为。     |
+|   8 | 研究模式运行                 | 固定 Wechat Feed 作为 `tracked-feed-context` 组每 run 拉取一次，但不进入 brief 的 `candidateSources`。 | Low    | `groupSourcesByEvidenceRole` + `buildBrief` 过滤断言。 |
 
 ## 非目标与后续
 

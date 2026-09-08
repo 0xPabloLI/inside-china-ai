@@ -72,6 +72,14 @@ function toolDefinition() {
       type: "object",
       properties: {
         query: { type: "string", description: "Search keyword or question" },
+        mode: {
+          type: "string",
+          enum: ["serial", "parallel"],
+          description:
+            "serial (default): first successful engine wins, quota-efficient. " +
+            "parallel: fire all engines simultaneously, merge + dedupe by URL — " +
+            "best for deep research where coverage matters.",
+        },
       },
       required: ["query"],
     },
@@ -87,9 +95,11 @@ async function toolCall(arguments_, deps) {
     };
   }
 
+  const mode = arguments_?.mode === "parallel" ? "parallel" : "serial";
+
   let pool;
   try {
-    pool = await deps.searchPool(query.trim());
+    pool = await deps.searchPool(query.trim(), { mode });
   } catch (err) {
     return { isError: true, content: [{ type: "text", text: `pool error: ${err.message}` }] };
   }

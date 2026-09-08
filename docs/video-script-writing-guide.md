@@ -25,12 +25,12 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 
 根据素材内容选择叙事结构：
 
-| 内容类型 | 叙事结构 | 适用场景 |
-|---------|---------|---------|
-| **深度分析** | 钩子 → 共情 → 获得感 → 升华 | 技术解读、行业趋势、战略分析 |
-| **突发新闻** | 事实冲击 → 背景 → 影响 → 下一步 | 融资、发布、人事变动 |
-| **数据对比** | 数字冲击 → 对比 → 解读 → 结论 | 定价、性能、市场份额 |
-| **争议事件** | 钩子 → 各方观点 → 核心矛盾 → 可能走向 | 基准测试争议、安全辩论 |
+| 内容类型     | 叙事结构                              | 适用场景                     |
+| ------------ | ------------------------------------- | ---------------------------- |
+| **深度分析** | 钩子 → 共情 → 获得感 → 升华           | 技术解读、行业趋势、战略分析 |
+| **突发新闻** | 事实冲击 → 背景 → 影响 → 下一步       | 融资、发布、人事变动         |
+| **数据对比** | 数字冲击 → 对比 → 解读 → 结论         | 定价、性能、市场份额         |
+| **争议事件** | 钩子 → 各方观点 → 核心矛盾 → 可能走向 | 基准测试争议、安全辩论       |
 
 ---
 
@@ -44,25 +44,25 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 
 ### S.T.A.R.T. 5 段概览
 
-| 段 | 名称 | 时间 | 职责 |
-|----|------|------|------|
-| S | Stop | 0-3s | Hook：shocking number / contradiction / curiosity gap / question |
-| T | Tease | 3-8s | Open loop：开始一个想法，不结束它 |
-| A | Authority | 8-20s | 引用源、数据，建立权威 |
-| R | Relay | 20-50s | 揭示答案、高潮、pattern interrupt |
-| T-Tell | Tell | 50-60s | CTA：具体、回扣 Hook |
+| 段     | 名称      | 时间   | 职责                                                             |
+| ------ | --------- | ------ | ---------------------------------------------------------------- |
+| S      | Stop      | 0-3s   | Hook：shocking number / contradiction / curiosity gap / question |
+| T      | Tease     | 3-8s   | Open loop：开始一个想法，不结束它                                |
+| A      | Authority | 8-20s  | 引用源、数据，建立权威                                           |
+| R      | Relay     | 20-50s | 揭示答案、高潮、pattern interrupt                                |
+| T-Tell | Tell      | 50-60s | CTA：具体、回扣 Hook                                             |
 
 ### AI Outline 消费映射表
 
 用户在手机端跑完 AI Outline 后，将输出抄回给 Agent。Agent 按下表消费：
 
-| AI Outline 段 | S.T.A.R.T. 对应 | 消费规则 |
-|---|---|---|
-| Intro suggestions | S — Stop | Hook 候选：对比 Agent 自己写的 hook，取更优者 |
-| Core talking points | A — Authority | 筛选最相关 2-3 个点，指导 S3-S4 内容 |
-| Highlight moment | R — Relay (前半) | 确认 Peak scene 位置 |
-| Climatic build | R — Relay (高潮) | 参考 S6-S7 情绪递进设计 |
-| Engagement-driven outro | T-Tell | 参考其 CTA 角度，指导最终 scene voiceover |
+| AI Outline 段           | S.T.A.R.T. 对应  | 消费规则                                      |
+| ----------------------- | ---------------- | --------------------------------------------- |
+| Intro suggestions       | S — Stop         | Hook 候选：对比 Agent 自己写的 hook，取更优者 |
+| Core talking points     | A — Authority    | 筛选最相关 2-3 个点，指导 S3-S4 内容          |
+| Highlight moment        | R — Relay (前半) | 确认 Peak scene 位置                          |
+| Climatic build          | R — Relay (高潮) | 参考 S6-S7 情绪递进设计                       |
+| Engagement-driven outro | T-Tell           | 参考其 CTA 角度，指导最终 scene voiceover     |
 
 Title 和 Hashtags 直接取用（经过品牌一致性检查后）。用户跳过 AI Outline 时，Agent 自行按 S.T.A.R.T. 设计（降级逻辑不变）。
 
@@ -71,6 +71,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。用户跳�
 以 S.T.A.R.T. 5 段为骨架。每个 scene 填写 `narrativeRole`（声明 S.T.A.R.T. 角色）和 `retentionMechanism`（声明留存机制）。留存机制只在特定 scene 叠加。
 
 **字段说明**：
+
 - `narrativeRole`: 枚举 `"S"` | `"T"` | `"A"` | `"R"` | `"T-Tell"`。声明此 scene 在 S.T.A.R.T. 中的角色。
 - `retentionMechanism`: 枚举 `null` | `"open-loop"` | `"pattern-interrupt"` | `"loop-closure"` | `"curiosity-gap"` | `"approaching-closure"`。声明此 scene 的留存机制。
 
@@ -168,16 +169,16 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 ## Step 4: 应用写作风格规则
 
-| 规则 | 怎么做 |
-|------|--------|
-| **Write for the ear** | 缩写（don't, can't, it's）、句子片段、口语化 |
-| **短句** | Hook ≤10 词；body ≤25 词（一口气） |
-| **Vary line length** | 在 15 词的 context 行之间插入 3-5 词 punch line |
-| **No hedging** | 删除 maybe, sort of, kinda, perhaps |
-| **No written openers** | 不以 "In this video," "Today we'll" 开头 |
-| **One idea per line** | 每个 VO 行只承载一个想法 |
-| **No em-dashes** | 不用 em/en/double dashes |
-| **No AI vocabulary** | 不用 leverage, delve, utilize 等 |
+| 规则                   | 怎么做                                          |
+| ---------------------- | ----------------------------------------------- |
+| **Write for the ear**  | 缩写（don't, can't, it's）、句子片段、口语化    |
+| **短句**               | Hook ≤10 词；body ≤25 词（一口气）              |
+| **Vary line length**   | 在 15 词的 context 行之间插入 3-5 词 punch line |
+| **No hedging**         | 删除 maybe, sort of, kinda, perhaps             |
+| **No written openers** | 不以 "In this video," "Today we'll" 开头        |
+| **One idea per line**  | 每个 VO 行只承载一个想法                        |
+| **No em-dashes**       | 不用 em/en/double dashes                        |
+| **No AI vocabulary**   | 不用 leverage, delve, utilize 等                |
 
 > scene-rules.mjs 已强制部分规则。此处补足 scene-rules 未覆盖的写作风格。
 
@@ -187,33 +188,12 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 从 4 种 hook 公式中**轮换使用**（不要只用 shocking number）：
 
-| 公式 | 模式 | 我们的领域示例 | 适用内容类型 |
-|------|------|---------------|-------------|
-| **Shocking Number** | "[大数字] + [意外语境]" | "$10B for AI. Not e-commerce. Not logistics. Just AI." | 数据驱动 |
-| **Contradiction** | "[X] 发生了，但 [X 的反面] 也是真的" | "382M users. Daily revenue under $140K." | 反转/争议 |
-| **Curiosity Gap** | "别急着 [常见行为]，先看 [这个]" | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析 |
-| **Question** | "如果 [假设] 是错的呢？" | "What if China's biggest AI bet isn't a model at all?" | 哲学/分析 |
-
-### bigNumber 选择规则
-
-bigNumber 是 hook scene 最大的视觉焦点。**优先用抓得住眼球的具体内容（产品名/品牌名/事件名），而不是抽象数字公式。**
-
-| ❌ 差 | ✅ 好 | 原因 |
-|-------|-------|------|
-| "0" + "DRIVERS NEEDED" | "ROBOTAXI" + "R2 NOW LIVE" | "0 驾驶员"是抽象公式；"ROBOTAXI" 一看就知道是什么 |
-| "R2" + "DIDI ROBOTAXI" | "ROBOTAXI" + "R2 NOW LIVE" | "R2" 是陌生型号名，无信息量；"ROBOTAXI" 自解释 |
-| "V3" | "691%" + "REVENUE SURGE" | 型号号无信息量；百分比直接传达增长规模 |
-| "Pro" | "$10B" + "FOR AI ONLY" | 产品线名无冲击力；金额+限定词传达规模 |
-
-**选择优先级**：自解释产品类型词（如 ROBOTAXI）> 有冲击力的数字 > 反直觉概念 > 行业术语 > 型号名（最后选）
-
-**关键规则**：当视频是新产品/新事件发布时，hook 必须用**观众一看就懂的词**（如 "ROBOTAXI"），而不是陌生型号名（如 "R2"）或抽象数字（如 "0"）。型号名对不熟悉品牌的观众无意义；自解释词（ROBOTAXI = robot + taxi）立刻传达内容。
-
-**经验来源**：
-- didi-robotaxi-r2 v1 用 "R2" 作 bigNumber，用户反馈"开头只写个 R2 谁知道是什么"
-- didi-robotaxi-r2 v2 改用 "0" + "DRIVERS NEEDED"，用户反馈"用 0 开头没有意义，用抓得住眼球的内容"
-- didi-robotaxi-r2 v3 用 "R2" + "DIDI ROBOTAXI"，用户反馈"R2 是陌生型号，用 ROBOTAXI 一看就知道"
-- didi-robotaxi-r2 v4 用 "ROBOTAXI" + "R2 NOW LIVE"，自解释词做主视觉焦点
+| 公式                | 模式                                 | 我们的领域示例                                                               | 适用内容类型 |
+| ------------------- | ------------------------------------ | ---------------------------------------------------------------------------- | ------------ |
+| **Shocking Number** | "[大数字] + [意外语境]"              | "$10B for AI. Not e-commerce. Not logistics. Just AI."                       | 数据驱动     |
+| **Contradiction**   | "[X] 发生了，但 [X 的反面] 也是真的" | "382M users. Daily revenue under $140K."                                     | 反转/争议    |
+| **Curiosity Gap**   | "别急着 [常见行为]，先看 [这个]"     | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析    |
+| **Question**        | "如果 [假设] 是错的呢？"             | "What if China's biggest AI bet isn't a model at all?"                       | 哲学/分析    |
 
 ---
 
@@ -221,16 +201,18 @@ bigNumber 是 hook scene 最大的视觉焦点。**优先用抓得住眼球的�
 
 CTA 公式：`[Action Verb] + [What They Get]`
 
-| 类型 | 示例 | 效果 |
-|------|------|------|
-| ❌ 通用 CTA | "Follow for more China AI." | Dead closer，无具体收益 |
-| ✅ 具体 CTA | "Follow for Part 2: what happens when 382M users get an AI agent." | 告诉观众关注后能得到什么 |
-| ✅ Loop-closure CTA | "ByteDance put an AI agent inside every Feishu. Will your boss notice?" | 制造重看冲动 |
-| ✅ Specific ask | "Comment which Chinese AI company I should cover next." | 驱动评论互动 |
+| 类型                | 示例                                                                    | 效果                     |
+| ------------------- | ----------------------------------------------------------------------- | ------------------------ |
+| ❌ 通用 CTA         | "Follow for more China AI."                                             | Dead closer，无具体收益  |
+| ✅ 具体 CTA         | "Follow for Part 2: what happens when 382M users get an AI agent."      | 告诉观众关注后能得到什么 |
+| ✅ Loop-closure CTA | "ByteDance put an AI agent inside every Feishu. Will your boss notice?" | 制造重看冲动             |
+| ✅ Specific ask     | "Comment which Chinese AI company I should cover next."                 | 驱动评论互动             |
 
 **规则**：CTA 回扣 Hook 的关键词或主题。系列视频 CTA 预告下一集。
 
 **视觉约定**：CTA scene 的所有文字（brand、tagline、action、topic）必须居中对齐。`CtaScene.tsx` 中每个文字 div 都需要 `textAlign: "center"`——外层容器的对齐不会穿透到内层 block div。漏加会导致 topic 或 action 文字左对齐，破坏 end card 的视觉对称。
+
+---
 
 ## 数字人（scene.avatar）使用策略
 
@@ -258,8 +240,6 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 ---
 
----
-
 ## Step 7: 运行 MRL-2 自审
 
 写完全部 scene 后，运行 `content-pipeline.md` Stage 3 的 MRL-2 检查循环（10 Blockers + 11 Warnings）。W7 检查 open loop、W8 检查 pattern interrupt、W9 检查 loop closure。三项都是 Warning 级别——缺失不阻塞渲染，但提示 Agent 补充。0 Blockers 后进入 Stage 4。
@@ -270,28 +250,28 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 按优先级排序（最高优先级在前）：
 
-| # | 检查项 | 怎么诊断 | 怎么修 |
-|---|--------|---------|--------|
-| 1 | **没有 open loop** | Scene 2 是否制造了未解悬念？ | Scene 2 加 tease |
-| 2 | **没有 pattern interrupt** | Scene 4-5 是否都是同质的数据陈述？ | 加一个 tonal shift |
-| 3 | **没有 loop closure** | 最后内容 scene 是否回扣 Hook？ | 让收尾引用 Hook 中的关键词/数字 |
-| 4 | **Teleprompter rhythm** | 统计每个 scene 的 VO 词数，标准差是否 <15%？ | 在 15 词行之间插入 3-5 词 punch line |
-| 5 | **Show 段没有视觉证据** | Show scene 是否只有文字描述？ | 找产品截图/演示视频 |
-| 6 | **Peak 不突出** | Peak scene 视觉上和其他 narrative 一样？ | 用不同的 layout 或 badge |
-| 7 | **通用 CTA** | 最后一个 scene 的 CTA 是否是 "Follow for more"？ | 换成具体 ask 或 loop-closure |
-| 8 | **Hook 只用一种公式** | 最近几个视频的 hook 是否都是 shocking number？ | 轮换到 contradiction / curiosity gap / question |
+| #   | 检查项                     | 怎么诊断                                         | 怎么修                                          |
+| --- | -------------------------- | ------------------------------------------------ | ----------------------------------------------- |
+| 1   | **没有 open loop**         | Scene 2 是否制造了未解悬念？                     | Scene 2 加 tease                                |
+| 2   | **没有 pattern interrupt** | Scene 4-5 是否都是同质的数据陈述？               | 加一个 tonal shift                              |
+| 3   | **没有 loop closure**      | 最后内容 scene 是否回扣 Hook？                   | 让收尾引用 Hook 中的关键词/数字                 |
+| 4   | **Teleprompter rhythm**    | 统计每个 scene 的 VO 词数，标准差是否 <15%？     | 在 15 词行之间插入 3-5 词 punch line            |
+| 5   | **Show 段没有视觉证据**    | Show scene 是否只有文字描述？                    | 找产品截图/演示视频                             |
+| 6   | **Peak 不突出**            | Peak scene 视觉上和其他 narrative 一样？         | 用不同的 layout 或 badge                        |
+| 7   | **通用 CTA**               | 最后一个 scene 的 CTA 是否是 "Follow for more"？ | 换成具体 ask 或 loop-closure                    |
+| 8   | **Hook 只用一种公式**      | 最近几个视频的 hook 是否都是 shocking number？   | 轮换到 contradiction / curiosity gap / question |
 
 ---
 
 ## 与现有规则的关系
 
-| 规则来源 | 管什么 | 和本指南的关系 |
-|---------|--------|--------------|
-| `scene-rules.mjs` | 硬性结构检查 | **不替代**——本指南在 scene-rules 之上提供叙事方法论 |
-| `scene-templates.mjs` | 视觉模板实现 | **不替代**——本指南指导写什么文字，模板决定怎么渲染 |
-| `tiktok-rules.mjs` | TikTok 平台规则 | **不替代**——本指南关注叙事质量，tiktok-rules 关注平台合规 |
-| `content-pipeline.md` Stage 3 | 操作流程 | **被引用**——本指南是 Stage 3 Step 2-5 的方法论 |
-| `docs/research/short-video-script-writing-best-practices.md` | 研究依据 | **引用**——本指南是研究结论的操作化 |
+| 规则来源                                                     | 管什么          | 和本指南的关系                                            |
+| ------------------------------------------------------------ | --------------- | --------------------------------------------------------- |
+| `scene-rules.mjs`                                            | 硬性结构检查    | **不替代**——本指南在 scene-rules 之上提供叙事方法论       |
+| `scene-templates.mjs`                                        | 视觉模板实现    | **不替代**——本指南指导写什么文字，模板决定怎么渲染        |
+| `tiktok-rules.mjs`                                           | TikTok 平台规则 | **不替代**——本指南关注叙事质量，tiktok-rules 关注平台合规 |
+| `content-pipeline.md` Stage 3                                | 操作流程        | **被引用**——本指南是 Stage 3 Step 2-5 的方法论            |
+| `docs/research/short-video-script-writing-best-practices.md` | 研究依据        | **引用**——本指南是研究结论的操作化                        |
 
 ---
 
@@ -304,6 +284,7 @@ CTA 公式：`[Action Verb] + [What They Get]`
 **assetNeed 约定（Stage 3 必填实践）**：scene 的素材需求写入结构化字段 `assetNeed: "一句英文视觉描述"`（不是 voiceover 里的文字标注——TTS 会把内嵌 `[ASSET NEEDED` 标注读出来，scene-rules B13 会 FAIL）。asset-sourcer 消费 `assetNeed` 做 per-scene claim 搜索并绑定到该 scene；VLM 对照 voiceover 主张做相关性审查，低于阈值的素材宁缺毋滥（scene 保持纯 CSS 是合法结果）。公司实体关键词仅作为无 `assetNeed` scene 的 fallback。
 
 **asset-sourcer 当前限制（2026-09-03 实测）**：
+
 - 中文新闻 CDP 源（如量子位 `qbitai`）`supportsKeyword=false` 且未在 `CDP_MEDIA_CAPABILITIES` 中注册 → asset-sourcer 无法按关键词搜索这些源，只能全量抓取最新文章列表
 - `claimToKeywords` 只从 `assetNeed` 生成英文视觉概念短语，不包含中文产品名/公司名 → 搜不到中文新闻站点的官方图片
 - 量子位等站点图片有 Referer 保护，下载链路不发送 Referer header → 403 AccessDenied
@@ -311,6 +292,7 @@ CTA 公式：`[Action Verb] + [What They Get]`
 - **改进方向**（未实现）：给中文新闻 CDP 源添加 `supportsKeyword=true` + 搜索 URL；`claimToKeywords` 融合 scene 的公司实体中文名；下载链路按源域名添加 Referer header
 
 **视频素材搜索限制（2026-09-03 实测）**：
+
 - 抖音、小红书、微博的 yt-dlp 下载被禁用（`YTDLP_VIDEO_CAPABILITIES` 只允许 bilibili 和 youtube）→ 中文社交平台视频无法自动获取
 - 中文新闻 CDP 源只有 `imageScript`，没有 `videoScript` → 无法从新闻站点抓取视频
 - Pexels/Coverr/YouTube/B站 搜英文关键词返回通用 stock 视频，VLM 相关性审查通常全部拒绝

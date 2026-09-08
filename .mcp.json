@@ -3,6 +3,11 @@
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp@4.0.5"]
+    },
+    "search-pool": {
+      "command": "node",
+      "args": ["scripts/short-video/lib/search-pool-server.mjs"],
+      "cwd": "/Users/pabloli/Documents/code/inside-china-ai"
     }
   }
 }

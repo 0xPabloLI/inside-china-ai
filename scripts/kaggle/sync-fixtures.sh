@@ -21,6 +21,14 @@ sync_infinitetalk() {
   cp "$FIXTURES/audio.wav"         "$dir/audio.wav"
 }
 
+sync_wan22_s2v() {
+  local dir="$(dirname "$0")/wan22-s2v-test/input"
+  echo "[sync] wan22-s2v-test/input"
+  cp "$FIXTURES/portrait-face.jpg" "$dir/portrait.jpg"
+  cp "$FIXTURES/audio.wav"         "$dir/audio.wav"
+}
+
 sync_echomimicv3
 sync_infinitetalk
+sync_wan22_s2v
 echo "[sync] done. Now run: kaggle datasets push -p scripts/kaggle/<test>/input/"

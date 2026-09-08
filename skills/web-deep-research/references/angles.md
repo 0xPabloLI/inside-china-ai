@@ -92,6 +92,25 @@ Use when researching 国内 AI 编程工具、AI IDE、Coding Agent、模型 cre
 - 新模型跑分多为厂商自选基准，等 Artificial Analysis 收录（通常 1–2 周）才算第三方验证
 - 社区评测（CSDN/头条/公众号）常带厂商倾向，需 T1 交叉验证
 
+## 小红书图文 / XHS Image-Text Content
+
+Use when researching 小红书图文笔记、知识卡片类内容、XHS 分发策略。2026-09-08 首次验证
+（产出 docs/research/image-text-content-research.md）。
+
+| Angle                | Search queries（已验证有效）                                                  | Key sources                                             |
+| -------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **算法与流量机制**   | "小红书图文笔记 流量机制 CES 评分 点击率 最佳实践 2025"                        | Hashmeta、jzl、新榜                                       |
+| **格式规格与 SEO**   | "小红书图文 图片数量 3:4 尺寸 正文字数 标签 SEO 搜索流量"                       | Canva 尺寸页、Hashmeta、focalflow                          |
+| **知识类内容结构**   | "小红书 知识类图文 爆款结构 信息密度 一图一知识点"                              | 知乎运营专栏、woshipm、Reditor                            |
+| **图文 vs 视频**     | "小红书图文 vs 视频笔记 流量对比 数据 2025"                                    | 千瓜数据、36氪                                            |
+| **AI 内容合规**      | "小红书 AI生成内容 标注 限流 政策 合成内容声明"（网信办 cac.gov.cn 为 Tier 1） | 网信办、新浪财经/南都转薯管家公告                          |
+| **生产工具链**       | "小红书 图片卡片 生成 开源 GitHub satori puppeteer 知识卡片"（结果须 GitHub API 复核星数/维护状态） | github.com/topics、各仓库 README |
+
+**Verified pitfalls**:
+- CES/CTR 具体权重数字均为社区逆向，无官方背书——结论一律降级标注，不做确定陈述
+- 单源数据（如"视频曝光权重 1.8x"）常见于单一营销机构，必须标注 Low
+- 开源卡片项目普遍 ≤100★ 且多数无 license/停更，博客转述的星数不可信，须 API 核实
+
 ## General / Cross-Domain
 
 For topics that don't fit a specific template above. Generate angles from these
