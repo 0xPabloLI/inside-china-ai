@@ -1547,6 +1547,11 @@ export function isImageStrategy(strategy) {
   return IMAGE_GENERATING_STRATEGIES.has(strategy);
 }
 
+// Single source of truth for the image strategy set. b-roll/report.mjs
+// imports it instead of mirroring the literal set — a third image strategy
+// must not require a "keep in sync" edit in the report layer.
+export { IMAGE_GENERATING_STRATEGIES };
+
 /**
  * Contract for the B-roll fields (`mediaStrategy` / `aiVideo.prompt`).
  * Silent for content that uses neither field, so existing scene-data is
@@ -1664,8 +1669,8 @@ export function checkMediaStrategyContract(scenes) {
       level: "warn",
       category: CATEGORY,
       check: CHECK,
-      detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut with a b-roll strategy — generation will be skipped`,
-      fix: "mediaOptOut is deprecated (#191) — drop it to let the scene generate B-roll, or use media: null for a deliberate no-media scene",
+      detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut on a generating strategy (b-roll / ai-image) — generation will be skipped`,
+      fix: "mediaOptOut is deprecated (#191) — drop it to let the scene generate B-roll / ai-image, or use media: null for a deliberate no-media scene",
     });
   }
   if (missingStrategy.length > 0) {

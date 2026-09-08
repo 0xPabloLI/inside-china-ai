@@ -157,7 +157,7 @@ export async function runBrollCli({
   if (result.reportFile) log(`   report: ${result.reportFile}`);
   if (counts.failed > 0 || counts.escalated > 0) {
     log(
-      "   → Agent iteration: read the report, rewrite failing prompts (8-dimension template), rerun. Max 3 rounds per scene.",
+      "   → Agent iteration: read the report, rewrite the failing prompt (8-dimension video template or its 6-dimension image variant), rerun. Max 3 rounds per scene.",
     );
   }
   return { exitCode: 0, result };

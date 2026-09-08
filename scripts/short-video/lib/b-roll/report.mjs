@@ -78,8 +78,9 @@ function formatScore(relevance) {
  * prompt field the scene's strategy reads (aiImage.prompt + 6-dimension
  * template for image strategies, aiVideo.prompt + 8-dimension otherwise).
  */
-const IMAGE_REPORT_STRATEGIES = new Set(["ai-image", "asset-then-ai-image"]);
-const isImageEntry = (strategy) => IMAGE_REPORT_STRATEGIES.has(strategy);
+// Single source of truth: scene-rules.mjs exports the image strategy set
+// (#155) — never mirror the literal set here.
+import { IMAGE_GENERATING_STRATEGIES } from "../scene-rules.mjs";
 
 export function summarizeBrollReport(report, { fileExists = null } = {}) {
   const scenes = report?.scenes;
@@ -92,7 +93,7 @@ export function summarizeBrollReport(report, { fileExists = null } = {}) {
       const status = entry?.status ?? "pending";
       const head = `${entry?.strategy ?? "b-roll"} · ${status} · round ${entry?.round ?? 1}`;
       const check = `Scene ${id} B-roll`;
-      const imageEntry = isImageEntry(entry?.strategy);
+      const imageEntry = IMAGE_GENERATING_STRATEGIES.has(entry?.strategy);
 
       if (status === "won" && entry?.winner?.file) {
         const scored = (entry.candidates ?? []).find((c) => c.file === entry.winner.file);
