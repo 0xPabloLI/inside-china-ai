@@ -1942,6 +1942,43 @@ export function checkAvatarContract(scenes) {
       }
     }
   }
+
+  // Usage-strategy warnings (docs/research/dh-presenter-usage-strategy-research.md,
+  // executed as the guide's whitelist/blacklist subset that is mechanically
+  // checkable). Warn-only — the semantic judgment stays with the script agent
+  // and the plan dry-run HITL, never a fail.
+  const WARN_CHECK = "Avatar usage strategy";
+  if (scenes[0]?.avatar !== undefined && scenes[0]?.visualType === "hook") {
+    results.push({
+      level: "warn",
+      category: CATEGORY,
+      check: WARN_CHECK,
+      detail: `Scene ${scenes[0].id} (hook) declares an avatar — hook is on the declaration blacklist: a face in the first seconds adds little retention (30s retention turns negative; a human-voice hook is an order of magnitude stronger)`,
+      fix: "Remove this avatar declaration, or scope present to exclude the first ~3s of the hook",
+    });
+  }
+  if (avatarScenes.length > 4) {
+    results.push({
+      level: "warn",
+      category: CATEGORY,
+      check: WARN_CHECK,
+      detail: `${avatarScenes.length} scenes declare avatars — the evidence-based band for a 30-60s package is 2-4 on-screen segments (AI presenter is an accent, not the channel's backbone; news-explainer has the LOWEST AI-presenter acceptance)`,
+      fix: "Trim to CTA / key-payoff / data-moment scenes per the script guide's avatar strategy section",
+    });
+  }
+  for (const scene of avatarScenes) {
+    for (const iv of scene.avatar?.present ?? []) {
+      if (iv.to - iv.from > 8) {
+        results.push({
+          level: "warn",
+          category: CATEGORY,
+          check: WARN_CHECK,
+          detail: `Scene ${scene.id}: present interval ${iv.from}-${iv.to}s holds the avatar on screen for ${(iv.to - iv.from).toFixed(0)}s continuously — evidence supports cutting away within a few seconds (pattern-interrupt cadence)`,
+          fix: "Split the interval or let the background run full-bleed mid-segment",
+        });
+      }
+    }
+  }
   return results;
 }
 

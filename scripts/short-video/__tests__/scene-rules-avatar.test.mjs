@@ -108,6 +108,47 @@ describe("checkAvatarContract — accept matrix", () => {
   });
 });
 
+describe("checkAvatarContract — usage-strategy warnings (research-backed, warn-only)", () => {
+  const strategyWarns = (results) => results.filter((r) => r.check === "Avatar usage strategy");
+
+  it("no strategy warnings from a compliant single CTA declaration", () => {
+    const results = checkAvatarContract([ctaScene({ videoPath: "assets/scene-6.avatar.mp4" })]);
+    expect(strategyWarns(results)).toEqual([]);
+  });
+
+  it("hook scene (index 0, visualType hook) declaring an avatar warns (blacklist: voice hook beats a face)", () => {
+    const hook = { id: 0, name: "hook", visualType: "hook", voiceover: "x", texts: {}, avatar: {} };
+    const results = checkAvatarContract([hook]);
+    const warns = strategyWarns(results);
+    expect(warns).toHaveLength(1);
+    expect(warns[0].detail).toContain("hook");
+  });
+
+  it("a non-hook first scene with avatar does not trip the hook blacklist", () => {
+    const results = checkAvatarContract([ctaScene({ videoPath: "x.mp4" })]);
+    expect(strategyWarns(results)).toEqual([]);
+  });
+
+  it("more than 4 avatar scenes warns (2-4 segment band for 30-60s packages)", () => {
+    const scenes = Array.from({ length: 5 }, (_, i) => ctaScene({ videoPath: "x.mp4" }, "ok"))
+      .map((s, i) => ({ ...s, id: i }));
+    const warns = strategyWarns(checkAvatarContract(scenes));
+    expect(warns.some((w) => w.detail.includes("5 scenes declare avatars"))).toBe(true);
+  });
+
+  it("present interval longer than 8s warns (pattern-interrupt cadence)", () => {
+    const scene = ctaScene({ videoPath: "x.mp4", present: [{ from: 0, to: 9 }] }, "x");
+    const warns = strategyWarns(checkAvatarContract([scene]));
+    expect(warns).toHaveLength(1);
+    expect(warns[0].detail).toContain("9s continuously");
+  });
+
+  it("an 8s interval sits inside the band (no warning)", () => {
+    const scene = ctaScene({ videoPath: "x.mp4", present: [{ from: 0, to: 8 }] }, "x");
+    expect(strategyWarns(checkAvatarContract([scene]))).toEqual([]);
+  });
+});
+
 describe("checkAvatarContract — reject matrix (fail-closed)", () => {
   const expectFail = (avatar, detailPart) => {
     const results = checkAvatarContract([ctaScene(avatar)]);
