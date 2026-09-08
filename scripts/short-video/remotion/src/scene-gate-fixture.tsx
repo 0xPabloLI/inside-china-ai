@@ -240,10 +240,10 @@ const BASELINE_SCENES: Record<string, SceneData> = {
     voiceover: "fullscreen",
     media: {
       type: "image",
-      path: "assets/ai-robot-hand.jpg",
+      path: "assets/pexels-ai-chip.jpg",
       mode: "fullscreen",
       animation: "none",
-      source: "PEXELS / MART PRODUCTION",
+      source: "PEXELS",
     },
   },
 };

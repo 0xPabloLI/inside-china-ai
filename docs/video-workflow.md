@@ -86,6 +86,12 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 > 批量经验（启动开销摊销、结果尽早落盘、失败隔离，Modal/Kaggle/Colab 通用）：`docs/research/cloud-gpu-options.md` → "Batch-Running 经验"。
 
+## Pipeline Execution (#225)
+
+- **并行轨**：`main.mjs` 媒体轨（Step 1.5 sourcing → 1.5c media-patch → 1.5b upscale → 1.5d B-roll，`lib/media-track.mjs`）与语音轨（Step 1 TTS）`Promise.all` 并行，join 后过 1.6 media gate 再进字幕/渲染/verify。数据依赖：媒体轨只写 scene 媒体字段、TTS 只读 scene 文本——无共享可变状态。失败语义不变：媒体轨每阶段 warn 不阻塞；TTS 失败仍中止管线。
+- **步骤耗时 profile**：每次 run 结束（含失败路径）自动写 `output/<pipelineId>/profile-<version>.json`（另有稳定名 `last-profile.json`），并在末尾打印按耗时排序的 summary；失败时未结束 step 记 `unfinished: true`。管线提速决策以 profile 证据为准。
+- **TTS 缓存**（#198）：scene 音频按 `(engine, engine.info, text)` 键跨 run 复用，forced alignment 按 `(text + 音频字节)` 签名复用；`TTS_NO_CACHE=1` 强制冷跑（重生成全部音频）。
+
 ## Content Standards
 
 - **Information density**: every scene delivers a concrete fact or insight, not filler
