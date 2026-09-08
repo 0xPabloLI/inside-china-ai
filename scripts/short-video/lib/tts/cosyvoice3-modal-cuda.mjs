@@ -27,7 +27,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
-import { postProcessBatch } from "./post-process.mjs";
+import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 
 const execAsync = promisify(exec);
 
@@ -66,7 +66,7 @@ function buildManifest(scenes) {
   return scenes.map((s) => {
     const entry = {
       sceneId: s.id,
-      text: s.voiceover,
+      text: engineTtsText(s.voiceover),
       output: `scene-${s.id}.wav`,
     };
     const instruct = resolveInstructForScene(s);

@@ -22,6 +22,7 @@ import {
   postProcessBatch,
   getAtempo,
   getProsodyProfile,
+  engineTtsText,
 } from "../lib/tts/post-process.mjs";
 
 // ─── Tests ───
@@ -316,5 +317,57 @@ describe("TTS Post-Processing", () => {
       expect(duration).toBe(5.2);
       expect(execMock.mock.calls[0][0]).toContain("silenceremove");
     });
+  });
+});
+
+// ─── engineTtsText (#227 number-splitting guard) ───
+// CosyVoice's frontend falls back to spell_out_number (comma-splits digit
+// runs) when the wetext FST resource fails to download. Stripping thousands
+// separators keeps the number a single token in BOTH paths.
+
+describe("engineTtsText — thousands-separator stripping", () => {
+  it("strips thousands separators from plain numbers", () => {
+    expect(engineTtsText("buy 160,000 Huawei chips")).toBe("buy 160000 Huawei chips");
+  });
+
+  it("handles multi-group numbers (1,000,000)", () => {
+    expect(engineTtsText("over 1,000,000 users")).toBe("over 1000000 users");
+  });
+
+  it("handles 123,456-style groups", () => {
+    expect(engineTtsText("revenue hit 123,456 units")).toBe("revenue hit 123456 units");
+  });
+
+  it("leaves decimals untouched (62.5)", () => {
+    expect(engineTtsText("up 62.5 percent")).toBe("up 62.5 percent");
+  });
+
+  it("leaves $1.4B / percentages untouched (no digit-comma-digit)", () => {
+    expect(engineTtsText("$1.4B, up 12%")).toBe("$1.4B, up 12%");
+  });
+
+  it("leaves prose commas alone (comma not between digit groups)", () => {
+    expect(engineTtsText("However, DeepSeek plans, and ships")).toBe(
+      "However, DeepSeek plans, and ships",
+    );
+  });
+
+  it("does not strip when fewer than 3 digits follow the comma", () => {
+    expect(engineTtsText("scene 5, 2026 plans")).toBe("scene 5, 2026 plans");
+  });
+
+  it("does not strip when more than 3 digits follow (irregular group)", () => {
+    expect(engineTtsText("code 1,23456")).toBe("code 1,23456");
+  });
+
+  it("strips every separator in a mixed sentence (regression: issue package voiceover)", () => {
+    expect(
+      engineTtsText("DeepSeek plans to buy 160,000 Huawei chips for one giant data center."),
+    ).toBe("DeepSeek plans to buy 160000 Huawei chips for one giant data center.");
+  });
+
+  it("passes through non-string input unchanged", () => {
+    expect(engineTtsText(undefined)).toBe(undefined);
+    expect(engineTtsText(null)).toBe(null);
   });
 });

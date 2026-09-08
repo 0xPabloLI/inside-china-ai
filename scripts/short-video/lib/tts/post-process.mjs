@@ -97,6 +97,34 @@ export function getProsodyProfile(visualType) {
   return PROSODY_PROFILES[visualType] || null;
 }
 
+// ── Engine input text (#227 number-splitting guard) ──
+
+/**
+ * Rewrite voiceover text into the safe form for TTS engine input.
+ *
+ * Strips thousands separators: "160,000" → "160000". Why: CosyVoice's
+ * frontend normalizes English text through wetext, but when the wetext FST
+ * resource fails to download (Kaggle run 2026-09-08, modelscope auth error
+ * in the harvested log) it SILENTLY falls back to text_frontend='' and the
+ * text reaches spell_out_number un-normalized — which splits digit runs at
+ * the comma ("160" + "000") and reads them as separate numbers ("one
+ * hundred sixty, zero"). With the comma stripped, the digit run stays a
+ * single token: wetext TN reads it correctly when alive, and inflect's
+ * number_to_words produces the same words when TN is dead.
+ *
+ * Comma-stripping preserves the numeric value digit-for-digit, so on-screen
+ * texts and subtitles (built from scene.voiceover, NOT from this rewrite)
+ * keep "160,000". Non-thousands comma patterns (decimals "62.5", "$1.4B")
+ * contain no digit-comma-digit sequence and pass through untouched.
+ *
+ * @param {string} text - scene voiceover text
+ * @returns {string} engine-safe text
+ */
+export function engineTtsText(text) {
+  if (typeof text !== "string") return text;
+  return text.replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
+}
+
 // ── Filter construction ──
 
 /**
