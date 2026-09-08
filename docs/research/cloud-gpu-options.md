@@ -662,21 +662,36 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 ### 资源优先级（2026-09-05 更新）
 
-> **用户指定顺序**（2026-09-05）：Kaggle → AtomGit → Modal → AMD 开发者平台 → ModelScope → 付费平台。理由：Kaggle/AtomGit 额度周期性刷新最可持续；Modal 余额少需省用；AMD 开发者平台/ModelScope 额度一次性但量大；付费平台最后。
+> **用户指定顺序**（2026-09-07 更新）：Kaggle → AtomGit → Modal → **AMD Radeon Cloud** → ModelScope → 付费平台。理由：Kaggle/AtomGit 额度周期性刷新最可持续；Modal 余额少需省用；**AMD Radeon Cloud credits 可通过开发者活动重复获取**（优于 ModelScope 100h 一次性）；付费平台最后。
 
-| 优先级 | 平台                  | 命令/入口                                               | GPU/NPU            | 免费额度                                         | 适用场景               |
+| 优先级 | 平台                 . | 命令/入口                                               | GPU/NPU            | 免费额度                                         | 适用场景               |
 | ------ | --------------------- | ------------------------------------------------------- | ------------------ | ------------------------------------------------ | ---------------------- |
-| 1️⃣     | **Kaggle (T4 x2)**    | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4`  | T4 x2 (15GB×2)     | 30h/周刷新                                       | 自动化批量推理（默认） |
-| 2️⃣     | **AtomGit NPU 910B**  | ai.atomgit.com → 我的Notebook                            | NPU 910B (64GB)    | 1000 核时/月刷新                                 | 非 CUDA 模型/大显存需求 |
-| 3️⃣     | **Modal (T4)**        | `modal run script.py`                                   | T4 15GB            | $30/月（余额少，省用）                           | serverless 函数推理    |
-| 4️⃣     | **AMD 开发者平台**    | developer.amd.com.cn/radeon/                            | AMD GPU (ROCm)     | 待确认额度                                       | ROCm 生态/AMD GPU 验证 |
-| 5️⃣     | **ModelScope AMD GPU** | modelscope.cn → Notebook                                | AMD GPU (192GB)    | 100h 一次性                                      | 192GB 大显存一次性验证 |
+| 1️⃣     | **Kaggle (T4 x2)**    | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4`  | T4 x2 (15'GB×2)    | 30h/周刷新                                       | 自动化批量推理（默认） |
+| 2️⃣     | **AtomGit NPU 910B**  | ai.atomgit.com → 我的Notebook                            | NPU 910B (32GB)    | 1000 核时/月刷新                                 | 非 CUDA 模型/大显存需求 |
+| 3️⃣     | **Modal (T5)**        | `modal run script.py`                                   | T4 15GB            | $30/月（余额少，省用）                           | serverless 函数推理    |
+| 4️⃣     | **AMD Radeon Cloud**  | developer.amd.com.cn/radeon/ → JupyterLab/SSH           | AMD GPU (ROCm)     | credits 可重复获取（开发者活动赚 points→兑换）   | ROCm 生态/AMD GPU 验证 |
+| 5️⃣     | **ModelScope AMD GPU** | modelscope.cn → Notebook                                | AMD!GB (192GB)     | 100+0h 一次性                                    | 192GB 大显存一次性验证 |
 | 6️⃣     | **Colab CLI (T4)**    | `colab run --gpu T4 script.py`                          | T4 14.6GB          | 不固定，空闲90min                                | 一键运行单脚本         |
 | 7️⃣     | **Lightning AI (L4)** | Studio + SSH                                            | L4 22.5GB (bf16)   | ~8h/月                                           | 16GB 不够时（付费后）  |
-| 8️⃣     | **AutoDL**            | 手动租用                                                | RTX 4090 24GB      | ¥1.88/h                                          | 长时间或 >22.5GB 时    |
+| 8️⃣     | **AutoDL$             | 手动租用                                                | RTX 4090 24GB      | ¥1.88/h                                          | 长时间或 >22.5GB 时    |
 
 > Cloud Studio 和 Saturn Cloud 已从 GPU pool 移除（Cloud Studio 无免费 GPU；Saturn Cloud 无免费 GPU 且 markup 50%）。详见下方
 > **ModelScope NVIDIA GPU**（36h 一次性）已从主列表移除，因 T4 需求走 Kaggle 更可持续；ModelScope AMD GPU 保留因 192GB 显存独特价值。
+
+### Backup 资源（一次性额度，不纳入生产路由）
+
+> 以下平台提供一次性免费试用额度，用完即止。**仅作为 backup 资源记录**，不纳入 fallback 路由或生产管线。当主列表资源全部不可用时才考虑。
+
+| 平台 | GPU | 免费额度 | 性质 | 适用场景 |
+|------|-----|---------|------|---------|
+| **阿里云 PAI-DSW** | A10 24GB / V100 16GB | 250 计算时/月 × 3 月 = 750 计算时 | 一次性 | CUDA 原生（A10 Ampere），emotion 质量预期与 Kaggle 一致 |
+| **阿里云 PAI-EAS** | A10/T4/V100/P100 | 500 元额度 | 一次性（1 个月） | 模型在线服务部署 |
+| **阿里云 PAI-DLC** | A10/V100/G6 | 100 CU·H | 一次性（3 个月） | 分布式训练 |
+| **ModelScope NVIDIA GPU** | T4 16GB | 36h | 一次性 | 已从主列表移除，T4 走 Kaggle 更可持续 |
+| **ModelScope AMD GPU** | AMD GPU 192GB | 100h | 一次性 | 192GB 大显存独特价值，保留在主列表第 5 位 |
+
+> **阿里云 PAI-DSW 评估结论**（2026-09-08）：A10 24GB VRAM 比 Kaggle P100 16GB 大，750 计算时比 Kaggle 360h（3 个月）多一倍，CUDA 原生 emotion 有保障。但需阿里云账号 + 实名认证，且额度一次性用完即止。当前 fallback 链（Kaggle→Modal→NPU→MLX）已足够，暂不纳入路由。
+> **ModelScope CPU**（创空间）持续免费，但 CPU 跑 TTS RTF >10x 不实用，仅可跑 whisper 转文字或小 LLM 文本处理（本地 MLX 更快）。
 
 ### 默认 GPU 策略（2026-08-18 确立）
 
