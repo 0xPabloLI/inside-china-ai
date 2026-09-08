@@ -28,6 +28,7 @@ export const scenes = [
       animation: "ken-burns",
       overlay: 0.85,
     },
+    subjectLogo: "deepseek",
     voiceover:
       "DeepSeek plans to buy 160,000 Huawei chips for one giant data center in China.",
     texts: {
@@ -52,6 +53,7 @@ export const scenes = [
     mediaStrategy: "asset",
     voiceover:
       "Bloomberg broke the story September 4. The site is Ulanqab, Inner Mongolia, 350 kilometers from Beijing.",
+    media: { type: "image", path: "assets/pexels-dc-server.jpg", source: "Pexels", animation: "ken-burns", overlay: 0.78 },
     texts: {
       badge: "BLOOMBERG, SEP 4",
       company: "ONE GIGAWATT SITE",
@@ -72,6 +74,7 @@ export const scenes = [
     mediaStrategy: "asset",
     voiceover:
       "Here's the surprise. These chips only run models. Training stays Nvidia.",
+    media: { type: "image", path: "assets/pexels-processor-01.jpg", source: "Pexels", animation: "ken-burns", overlay: 0.8 },
     texts: {
       badge: "INFERENCE ONLY",
       company: "RUNS, DOESN'T TRAIN",
@@ -118,6 +121,7 @@ export const scenes = [
     mediaStrategy: "asset",
     voiceover:
       "Why go domestic? US export controls cut DeepSeek off from Nvidia's best chips.",
+    media: { type: "image", path: "assets/unsplash-nvidia-01.jpg", source: "Unsplash", animation: "ken-burns", overlay: 0.78 },
     texts: {
       badge: "WHY IT MATTERS",
       company: "US EXPORT CONTROLS",
@@ -136,6 +140,7 @@ export const scenes = [
     layout: "stacked-cards",
     voiceover:
       "But Bloomberg warns Huawei can't ship that many chips for over a year. Memory is the bottleneck.",
+    media: { type: "image", path: "assets/pexels-processor-02.jpg", source: "Pexels", animation: "ken-burns", overlay: 0.78 },
     mediaStrategy: "asset",
     texts: {
       badge: "THE BOTTLENECK",
@@ -184,6 +189,7 @@ export const scenes = [
     mediaStrategy: "asset",
     voiceover:
       "Beijing is backing 295 billion in AI spending. Four of five chips domestic.",
+    media: { type: "image", path: "assets/pexels-dc-dark.jpg", source: "Pexels", animation: "ken-burns", overlay: 0.8 },
     texts: {
       badge: "THE STAKES",
       company: "295 BILLION DOLLARS",
@@ -204,6 +210,7 @@ export const scenes = [
     mediaStrategy: "asset",
     voiceover:
       "Remember the 160,000 chips? If Huawei ships them, China runs AI without Nvidia.",
+    media: { type: "image", path: "assets/unsplash-close-up-advanced-ai-03.jpg", source: "Unsplash", animation: "ken-burns", overlay: 0.8 },
     texts: {
       badge: "LOOP CLOSURE",
       company: "REMEMBER THE 160,000?",
