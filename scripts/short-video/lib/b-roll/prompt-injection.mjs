@@ -180,11 +180,15 @@ function entityClause(entity) {
  * Compose the prompt that actually reaches the generator: declared prompt
  * first, then BRAND base, entity accent, and the missing NEGATIVE clauses —
  * in that order, comma-joined. Deterministic; never mutates the scene.
- * Returns "" when the scene declares no prompt (the contract check owns
+ * Returns "" for an empty declared prompt (the contract check owns
  * blank-prompt reporting; this module adds nothing to nothing).
+ *
+ * Shared by both generation surfaces (#155): video strategies compose from
+ * `aiVideo.prompt`, image strategies from `aiImage.prompt` — same BRAND /
+ * entity / NEGATIVE ownership, no CAMERA/MOTION involvement on either side
+ * (those dimensions were always advisory-only, never injected).
  */
-export function composeGenerationPrompt(scene) {
-  const declared = (scene?.aiVideo?.prompt ?? "").trim();
+function composePrompt(declared, scene) {
   if (!declared) return "";
   const parts = [declared];
 
@@ -208,6 +212,14 @@ export function composeGenerationPrompt(scene) {
   }
 
   return parts.join(", ");
+}
+
+export function composeGenerationPrompt(scene) {
+  return composePrompt((scene?.aiVideo?.prompt ?? "").trim(), scene);
+}
+
+export function composeImagePrompt(scene) {
+  return composePrompt((scene?.aiImage?.prompt ?? "").trim(), scene);
 }
 
 // ─── token budget (#166 constraint 2: no silent 512 truncation) ───
@@ -234,6 +246,16 @@ export function estimateTokens(text) {
   return cjkChars + Math.max(words, Math.ceil(rest.length / 2));
 }
 
-export function tokenBudgetExceeded(text) {
-  return estimateTokens(text) > MAX_PROMPT_TOKENS;
+export function tokenBudgetExceeded(text, limit = MAX_PROMPT_TOKENS) {
+  return estimateTokens(text) > limit;
 }
+
+// ─── image budget (#155) ───
+
+// Z-Image's text encoder is a Qwen3 LLM with a far larger native context than
+// UMT5's 512, and mflux exposes no per-model sequence constant to pin — so
+// the T2I path reuses the same conservative 480-token estimate. It over-
+// estimates and fails safe on every current and future backend (a FLUX-family
+// UMT5 backend truncates at exactly this limit, tail-first, where the injected
+// constants live), and image prompts are short diagram descriptions anyway.
+export const IMAGE_MAX_PROMPT_TOKENS = MAX_PROMPT_TOKENS;

@@ -8,11 +8,14 @@ import {
   ENTITY_COLORS,
   VISUAL_TYPE_DIMENSION_DEFAULTS,
   composeGenerationPrompt,
+  composeImagePrompt,
   dimensionDefaultsFor,
   estimateTokens,
   tokenBudgetExceeded,
   detectEntityColor,
   stripNegativeClauses,
+  MAX_PROMPT_TOKENS,
+  IMAGE_MAX_PROMPT_TOKENS,
 } from "../b-roll/prompt-injection.mjs";
 import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
 
@@ -273,5 +276,79 @@ describe("token budget", () => {
     expect(tokenBudgetExceeded("word ".repeat(100))).toBe(false);
     expect(tokenBudgetExceeded("word ".repeat(600))).toBe(true);
     expect(tokenBudgetExceeded("")).toBe(false);
+  });
+});
+
+// ─── image prompt composition (#155: T2I, 6 dimensions = 8 minus CAMERA/MOTION) ───
+
+describe("composeImagePrompt (#155)", () => {
+  function imageScene(overrides = {}) {
+    return {
+      id: 11,
+      visualType: "narrative",
+      voiceover: "Training cost just one ninth of Qwen3.7-Plus.",
+      mediaStrategy: "ai-image",
+      aiImage: { prompt: "abstract architecture diagram of memory channels, high detail." },
+      ...overrides,
+    };
+  }
+
+  test("reads aiImage.prompt (not aiVideo.prompt)", () => {
+    const scene = imageScene({ aiVideo: { prompt: "a video prompt" } });
+    const composed = composeImagePrompt(scene);
+    expect(composed).toContain("abstract architecture diagram");
+    expect(composed).not.toContain("a video prompt");
+  });
+
+  test("returns '' when the scene declares no aiImage.prompt", () => {
+    expect(composeImagePrompt(imageScene({ aiImage: undefined }))).toBe("");
+    expect(composeImagePrompt(imageScene({ aiImage: { prompt: "  " } }))).toBe("");
+  });
+
+  test("injects the same BRAND base and entity accent as the video path", () => {
+    const composed = composeImagePrompt(imageScene());
+    expect(composed).toContain(BRAND_BASE_PROMPT);
+    // voiceover mentions Qwen -> Alibaba amber
+    expect(composed).toContain("#f59e0b");
+  });
+
+  test("respects the agent's own art direction (no double injection)", () => {
+    const composed = composeImagePrompt(
+      imageScene({ aiImage: { prompt: "blueprint on deep navy backdrop, high detail" } }),
+    );
+    expect(composed).not.toContain(BRAND_BASE_PROMPT);
+  });
+
+  test("injects missing NEGATIVE clauses and never duplicates present ones", () => {
+    const bare = composeImagePrompt(imageScene());
+    expect(bare).toContain("no text");
+    expect(bare).toContain("no watermark");
+    expect(bare).toContain("no hands");
+
+    const covered = composeImagePrompt(
+      imageScene({ aiImage: { prompt: "memory channels, high detail, no text" } }),
+    );
+    expect(covered.match(/\bno text\b/g)).toHaveLength(1);
+    expect(covered).toContain("no watermark");
+  });
+
+  test("no CAMERA/MOTION language is ever injected (still images have neither)", () => {
+    const composed = composeImagePrompt(imageScene());
+    expect(composed).not.toMatch(/\bdolly\b|\bpush-in\b|\bpan\b|\bmotion\b/i);
+  });
+
+  test("video composition is untouched — composeGenerationPrompt still reads aiVideo.prompt", () => {
+    const scene = imageScene();
+    expect(composeGenerationPrompt(scene)).toBe("");
+    const videoScene = { id: 5, aiVideo: { prompt: "a video prompt" } };
+    expect(composeGenerationPrompt(videoScene)).toContain("a video prompt");
+  });
+
+  test("image budget: the same conservative 480-token estimate applies via the explicit limit", () => {
+    // Z-Image's text encoder has a larger native context than UMT5's 512, but
+    // the fail-safe budget is shared — the caller passes the image limit.
+    expect(tokenBudgetExceeded("word ".repeat(100), IMAGE_MAX_PROMPT_TOKENS)).toBe(false);
+    expect(tokenBudgetExceeded("word ".repeat(600), IMAGE_MAX_PROMPT_TOKENS)).toBe(true);
+    expect(IMAGE_MAX_PROMPT_TOKENS).toBe(MAX_PROMPT_TOKENS);
   });
 });

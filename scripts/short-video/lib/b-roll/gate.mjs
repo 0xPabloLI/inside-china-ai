@@ -7,15 +7,25 @@
  * pass the real one while tests substitute a fake.
  */
 
+import { isImageStrategy } from "../scene-rules.mjs";
+
 // Same yardstick as the sourcing-side relevance gate. asset-sourcer.mjs keeps
 // this as a CLI default (`--relevance-threshold`, default "60", not exported),
 // so the constant is mirrored here — keep the two in sync.
 export const GATE_THRESHOLD = 60;
 
+/**
+ * The VLM claim the candidates are scored against. #155: image strategies
+ * declare their asset need in `aiImage.prompt` — the raw declared prompt,
+ * never the composed one (a NEGATIVE clause must not leak into the gate's
+ * positive assetNeed).
+ */
 export function buildClaim(scene) {
   return {
     voiceover: scene.voiceover ?? "",
-    assetNeed: scene.aiVideo?.prompt ?? "",
+    assetNeed: (isImageStrategy(scene.mediaStrategy)
+      ? scene.aiImage?.prompt
+      : scene.aiVideo?.prompt) ?? "",
   };
 }
 

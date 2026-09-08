@@ -208,14 +208,17 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 
 Scene-matched generated video backgrounds, on-device (FastVideo `FastMetal-1.3B-QAD` on MLX — see Checkpoint below). Opt-in per scene; a scene-data file using none of these fields behaves exactly as before.
 
-| Field            | Value                | Effect                                                          |
-| ---------------- | -------------------- | --------------------------------------------------------------- |
-| `mediaStrategy`  | absent or `"asset"`  | stock sourcing only (default)                                   |
-|                  | `"b-roll"`           | skip sourcing, generate 2 candidates                            |
-|                  | `"asset-then-broll"` | source first; generate only if the scene ended up without media |
-| `aiVideo.prompt` | string               | required whenever the strategy generates — 8 dimensions below   |
+| Field            | Value                    | Effect                                                                     |
+| ---------------- | ------------------------ | -------------------------------------------------------------------------- |
+| `mediaStrategy`  | absent or `"asset"`      | stock sourcing only (default)                                              |
+|                  | `"b-roll"`               | skip sourcing, generate 2 video candidates                                 |
+|                  | `"asset-then-broll"`     | source first; generate video only if the scene ended up without media      |
+|                  | `"ai-image"`             | skip sourcing, generate 2 static-image candidates (T2I, #155 — see below)  |
+|                  | `"asset-then-ai-image"`  | source first; generate an image only if the scene ended up without media   |
+| `aiVideo.prompt` | string                   | required for the video strategies — 8 dimensions below                     |
+| `aiImage.prompt` | string                   | required for the image strategies — 6 dimensions (video template minus CAMERA/MOTION) |
 
-`verify-video.mjs --pre` enforces the contract (rule `B-roll strategy contract` in `lib/scene-rules.mjs`): an unknown strategy value FAILs, a generating strategy with a missing or blank `aiVideo.prompt` FAILs, and `mediaOptOut: true` on a generating scene WARNs and skips — a deliberate CSS-only scene is a choice, not an error.
+`verify-video.mjs --pre` enforces the contract (rule `B-roll strategy contract` in `lib/scene-rules.mjs`): an unknown strategy value FAILs, a video strategy with a missing or blank `aiVideo.prompt` FAILs, an image strategy with a missing or blank `aiImage.prompt` FAILs, and `mediaOptOut: true` on a generating scene WARNs and skips — a deliberate CSS-only scene is a choice, not an error.
 
 **Where it runs**: Step 1.5d of `main.mjs`, after upscale. A 480×832 clip trips the "short side < 720" rule, so the assigned media carries `upscale: false` — that covers both upscale boundaries (Step 1.5b and `render-remotion.mjs`'s copy-to-`public/` step), and a generated clip never reaches Real-ESRGAN. Standalone entrypoint: `node scripts/short-video/generate-broll.mjs --content <dir>` (`--help` lists the flags; `--force` regenerates past the cache, `--scene <id>` targets one scene while iterating on a prompt).
 
@@ -284,6 +287,32 @@ The agent rewrites prompts; a human does not. After any run leaves a scene short
 2. Attack the dimension the reason points at: off-topic → SUBJECT / VISUAL METAPHOR; watermark or garbled text → check `generationPrompt` actually carries the NEGATIVE clauses (and shorten the prompt if they were budget-truncated); static or flat → CAMERA / MOTION / LIGHTING (defaults live in `lib/b-roll/prompt-injection.mjs`).
 3. Re-run `generate-broll.mjs --content <dir> --scene <id>` and read the report again.
 4. `round` counts generations per scene. Past 3 the entry becomes `escalated` and the stage refuses to spend more time on it — surface the escalated scene, its candidates and scores to the user.
+
+### AI Image (T2I) generation — Z-Image Turbo (#155)
+
+Static-image counterpart of the video path above, for scenes that need a picture with no stock equivalent (architecture diagrams, throughput visuals, abstract concepts — the assets `qwen-architecture.png` / `qwen-throughput.png` were hand-made precisely because sourcing returns nothing on-topic for these). Strategies `ai-image` / `asset-then-ai-image` (see table at the top of this chapter) run through the same orchestrator, the same VLM gate, the same `b-roll-report.json`, and land winners in the same `content/<dir>/assets/b-roll/` directory — as `scene-<id>-seed<seed>.png`.
+
+**Backend**: mflux's **Z-Image Turbo** (Tongyi-MAI `Z-Image-Turbo`, 6B, **Apache-2.0**; mflux itself is **MIT**), run locally on MLX. Default checkpoint is the pre-quantized 4-bit `filipstrand/Z-Image-Turbo-mflux-4bit` — a fraction of the ~31 GB full-precision weights, and the variant measured at **~30 s per 832×1216 image on M3 Max**. Fallback路线 (no separate admission needed — same local-model rule): **Z-Image base** (`mflux-generate-z-image`, CFG=4, `--guidance 4`, `--steps 50`) and SD3.5 sit behind `AI_IMAGE_BACKEND`; both are CFG-capable, which matters for the negative prompt below.
+
+**Negative prompt reality (the load-bearing backend fact)**: Z-Image Turbo is guidance-distilled — CFG is disabled, so mflux accepts `--negative-prompt` on this path but never encodes it (the same architectural drop as FLUX schnell/dev, mflux issue #498). The runner therefore passes `--negative-prompt` **only** to CFG-capable backends (`mflux-z-image`, `sd3.5`) and omits it on the Turbo default. The NEGATIVE clauses still ride the composed prompt (`composeImagePrompt` injects them exactly as on the video side), where they act whenever a CFG backend is selected; on Turbo, quality is backstopped by the VLM relevance gate — a bad candidate simply fails the gate and costs a round, which is the accepted trade-off.
+
+**The 6-dimension prompt**: the 8-dimension video template minus CAMERA and MOTION — SUBJECT · VISUAL METAPHOR · BRAND · REFERENCE · LIGHTING · NEGATIVE. A still has no camera move and no motion, so those two agent dimensions disappear; everything else (code-owned BRAND/NEGATIVE injection, entity accent color, art-direction skip, numeral sweep via `checkBrollPromptDimensions`) behaves identically, composed by `composeImagePrompt` in `lib/b-roll/prompt-injection.mjs` on top of `scene.aiImage.prompt`.
+
+**Budget**: the composed image prompt reuses the same conservative 480-token estimate. Z-Image's text encoder (a Qwen3 LLM) has a far larger native context than UMT5's 512, but mflux exposes no per-model sequence constant to pin — the shared fail-safe budget over-estimates and holds for every current and future backend, and image prompts are short diagram descriptions anyway. Over-budget scenes are refused before any GPU time (`token-budget` reason in the report).
+
+**Dependencies**:
+
+| Env var            | Default                                                            |
+| ------------------ | ------------------------------------------------------------------ |
+| `AI_IMAGE_BACKEND` | `mflux-z-image-turbo` (also accepts `mflux-z-image`, `sd3.5`)       |
+| `MFLUX_BIN`        | probes `~/.video-t2i-env/bin/mflux-generate-z-image-turbo`, then `~/.video-tts-env/bin/…`, then PATH |
+| `AI_IMAGE_MODEL`   | `filipstrand/Z-Image-Turbo-mflux-4bit`                             |
+| `AI_IMAGE_WIDTH` / `AI_IMAGE_HEIGHT` | 832 / 1216 (portrait, matching the 9:16 frame)  |
+| `AI_IMAGE_STEPS`   | 9 (the distilled schedule)                                         |
+
+Install mflux in its **own venv** — `python3 -m venv ~/.video-t2i-env && ~/.video-t2i-env/bin/pip install mflux` (or `uv tool install mflux`). mflux's dependency floor (`huggingface-hub>=1.1.6`, `pillow>=12.3`, `torch`) conflicts with the TTS pins in the shared `~/.video-tts-env` (`mlx-audio` needs `transformers<5`, `pillow<12`), which is why the probe order prefers the dedicated venv; putting it in the shared venv breaks TTS. First run downloads the checkpoint to the HF cache — like the video runner, the child defaults to `HF_HUB_OFFLINE=1`, so a deliberate first download or model upgrade runs with `HF_HUB_OFFLINE=0`. When the binary is missing the stage prints `⚠️ B-roll skipped: …` for the image kind only and the pipeline continues; video generation on the same run is unaffected (each backend kind probes and fails independently).
+
+**Landing**: an image winner assigns `scene.media` with `type: "image"`, `source: "AI-generated (mflux Z-Image Turbo)"`, `animation: "fade"`, `upscale: false` (832×1216 clears the short-side < 720 heuristic, but an env-overridden smaller size must never reach Real-ESRGAN), and no `volume` — a still has nothing to attenuate. A winner under existing media lands as `media.backdrop`, exactly like the video path. Cache/round/escalation semantics are shared with video: same `promptHash` over the composed image prompt, same 3-round escalation, same `decideCache` reuse.
 
 ## Logo Handling
 

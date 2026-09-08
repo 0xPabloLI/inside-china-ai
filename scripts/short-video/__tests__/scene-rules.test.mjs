@@ -35,6 +35,7 @@ import {
   checkLoopClosureNarrative,
   checkAssetNeedAnnotation,
   checkMediaStrategyContract,
+  MEDIA_STRATEGIES,
   checkMediaOptOutDeprecation,
   checkBrollPromptDimensions,
   runAllSceneDataChecks,
@@ -1558,6 +1559,91 @@ describe("checkMediaOptOutDeprecation", () => {
   it("no findings for clean scenes", () => {
     expect(
       checkMediaOptOutDeprecation([{ id: 1, visualType: "narrative", layout: "media-overlay" }]),
+    ).toEqual([]);
+  });
+});
+
+// ─── ai-image strategy contract (#155: T2I static image generation) ───
+
+describe("ai-image strategy (#155)", () => {
+  const imageScene = (overrides = {}) => ({
+    id: 11,
+    visualType: "narrative",
+    voiceover: "Every four layers, three compress history with Gated DeltaNet.",
+    mediaStrategy: "ai-image",
+    aiImage: { prompt: "abstract architecture diagram of memory channels, high detail" },
+    ...overrides,
+  });
+
+  it("MEDIA_STRATEGIES exposes the image tiers", () => {
+    expect(MEDIA_STRATEGIES).toContain("ai-image");
+    expect(MEDIA_STRATEGIES).toContain("asset-then-ai-image");
+  });
+
+  it("passes a well-formed ai-image scene", () => {
+    const result = checkMediaStrategyContract([imageScene()]);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("fails an ai-image scene with no aiImage.prompt (same semantics as aiVideo)", () => {
+    const result = checkMediaStrategyContract([imageScene({ aiImage: undefined })]);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].check).toBe("B-roll strategy contract");
+    expect(result[0].detail).toContain("11");
+    expect(result[0].detail).toContain("aiImage.prompt");
+  });
+
+  it("fails a blank aiImage.prompt", () => {
+    const result = checkMediaStrategyContract([imageScene({ aiImage: { prompt: "   " } })]);
+    expect(result[0].level).toBe("fail");
+  });
+
+  it("applies the same prompt requirement to asset-then-ai-image", () => {
+    const result = checkMediaStrategyContract([
+      imageScene({ mediaStrategy: "asset-then-ai-image", aiImage: undefined }),
+    ]);
+    expect(result[0].level).toBe("fail");
+  });
+
+  it("passes a well-formed asset-then-ai-image scene", () => {
+    const result = checkMediaStrategyContract([
+      imageScene({ mediaStrategy: "asset-then-ai-image" }),
+    ]);
+    expect(result[0].level).toBe("pass");
+  });
+
+  it("warns (not fails) on mediaOptOut with an ai-image strategy", () => {
+    const result = checkMediaStrategyContract([
+      imageScene({ mediaOptOut: true, aiImage: undefined }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+  });
+
+  it("rejects an unknown image-ish strategy value", () => {
+    const result = checkMediaStrategyContract([imageScene({ mediaStrategy: "aiimage" })]);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].fix).toContain("ai-image");
+  });
+
+  it("the numeral sweep reads aiImage.prompt on image strategies", () => {
+    const result = checkBrollPromptDimensions([
+      imageScene({ aiImage: { prompt: "A flow diagram with 8.6 times throughput, no text" } }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("8.6");
+  });
+
+  it("the numeral sweep stays silent for a clean aiImage.prompt", () => {
+    expect(checkBrollPromptDimensions([imageScene()])).toEqual([]);
+  });
+
+  it("the numeral sweep ignores an aiVideo.prompt on an ai-image scene", () => {
+    expect(
+      checkBrollPromptDimensions([
+        imageScene({ aiVideo: { prompt: "bars at 3 meters wide" }, aiImage: { prompt: "clean" } }),
+      ]),
     ).toEqual([]);
   });
 });

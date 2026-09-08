@@ -1525,8 +1525,27 @@ export function checkAssetNeedAnnotation(scenes) {
   ];
 }
 
-export const MEDIA_STRATEGIES = ["asset", "b-roll", "asset-then-broll"];
-const GENERATING_STRATEGIES = new Set(["b-roll", "asset-then-broll"]);
+export const MEDIA_STRATEGIES = [
+  "asset",
+  "b-roll",
+  "asset-then-broll",
+  "ai-image",
+  "asset-then-ai-image",
+];
+// Strategies whose prompt targets a still image (T2I, #155). Their contract
+// field is `aiImage.prompt` (6 dimensions = the video template minus
+// CAMERA/MOTION); every other generating strategy reads `aiVideo.prompt`.
+const IMAGE_GENERATING_STRATEGIES = new Set(["ai-image", "asset-then-ai-image"]);
+const GENERATING_STRATEGIES = new Set([
+  "b-roll",
+  "asset-then-broll",
+  ...IMAGE_GENERATING_STRATEGIES,
+]);
+
+/** True when the strategy generates a static image rather than a video clip. */
+export function isImageStrategy(strategy) {
+  return IMAGE_GENERATING_STRATEGIES.has(strategy);
+}
 
 /**
  * Contract for the B-roll fields (`mediaStrategy` / `aiVideo.prompt`).
@@ -1600,7 +1619,10 @@ export function checkMediaStrategyContract(scenes) {
       continue;
     }
     if (generatingPrompt(scene) === null) {
-      missingPrompt.push(`${scene.id} (${strategy})`);
+      missingPrompt.push([
+        `${scene.id} (${strategy})`,
+        { image: IMAGE_GENERATING_STRATEGIES.has(strategy) },
+      ]);
     }
   }
 
@@ -1614,12 +1636,26 @@ export function checkMediaStrategyContract(scenes) {
       fix: `Use one of: ${MEDIA_STRATEGIES.join(" | ")} (omitting the field means 'asset')`,
     });
   }
-  if (missingPrompt.length > 0) {
+  // #155: image strategies fail on a missing aiImage.prompt with the same
+  // semantics the video strategies have for aiVideo.prompt — the detail names
+  // the field so the agent knows which prompt to write.
+  const missingImagePrompt = missingPrompt.filter(([, entry]) => entry.image);
+  const missingVideoPrompt = missingPrompt.filter(([, entry]) => !entry.image);
+  if (missingImagePrompt.length > 0) {
     results.push({
       level: "fail",
       category: CATEGORY,
       check: CHECK,
-      detail: `Scene(s) ${missingPrompt.join(", ")} request b-roll but have no aiVideo.prompt`,
+      detail: `Scene(s) ${missingImagePrompt.map(([id]) => id).join(", ")} request AI image generation but have no aiImage.prompt`,
+      fix: "Add aiImage.prompt using the 6-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / LIGHTING / NEGATIVE — the video template minus CAMERA/MOTION) — see docs/video-workflow.md → AI Image (T2I)",
+    });
+  }
+  if (missingVideoPrompt.length > 0) {
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${missingVideoPrompt.map(([id]) => id).join(", ")} request b-roll but have no aiVideo.prompt`,
       fix: "Add aiVideo.prompt using the 8-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / CAMERA / MOTION / LIGHTING / NEGATIVE) — see docs/video-workflow.md",
     });
   }
@@ -1638,7 +1674,7 @@ export function checkMediaStrategyContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `Scene(s) ${missingStrategy.join(", ")} omit mediaStrategy (silently defaults to "asset" — B-roll generation is skipped, so a scene whose sourced image falls through will reuse another scene's media)`,
-      fix: 'Set mediaStrategy explicitly on every scene: "asset" (sourced image only) | "asset-then-broll" (source first, fall back to B-roll generation) | "b-roll" (always generate)',
+      fix: 'Set mediaStrategy explicitly on every scene: "asset" (sourced image only) | "asset-then-broll" (source first, fall back to B-roll generation) | "b-roll" (always generate) | "asset-then-ai-image" (source first, fall back to T2I image) | "ai-image" (always generate a still image)',
     });
   }
   if (results.length > 0) return results;
@@ -1688,10 +1724,13 @@ export function coversNegativeGroup(prompt, phrases) {
 
 // The prompt that will actually reach the generator, or null when the scene
 // never generates. Shared with the strategy-contract check so both agree on
-// which scenes they are talking about.
+// which scenes they are talking about. Image strategies (#155) declare
+// `aiImage.prompt`; video strategies declare `aiVideo.prompt`.
 function generatingPrompt(scene) {
   if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) return null;
-  const prompt = scene.aiVideo?.prompt;
+  const prompt = IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)
+    ? scene.aiImage?.prompt
+    : scene.aiVideo?.prompt;
   if (typeof prompt !== "string" || prompt.trim() === "") return null;
   return prompt;
 }
@@ -1725,7 +1764,7 @@ export function checkBrollPromptDimensions(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
-      fix: "Move data values into texts — T2V garbles glyphs; " +
+      fix: "Move data values into texts — T2V/T2I garbles glyphs; " +
         "an element count (e.g. '3 layers') is fine as-is",
     });
   }

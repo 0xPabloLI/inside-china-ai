@@ -18,16 +18,24 @@ import {
   shouldRefuse,
 } from "./report.mjs";
 import { buildClaim, scoreCandidates, pickWinner, GATE_THRESHOLD } from "./gate.mjs";
-import { resolveDependencies, runGeneration, MAX_SEQUENCE_LENGTH } from "./runner.mjs";
+import { resolveDependencies, runGeneration } from "./runner.mjs";
+import {
+  resolveImageDependencies,
+  runImageGeneration,
+  DEFAULT_IMAGE_WIDTH,
+  DEFAULT_IMAGE_HEIGHT,
+} from "./t2i-runner.mjs";
 import {
   PROMPT_INJECTION_VERSION,
   MAX_PROMPT_TOKENS,
+  IMAGE_MAX_PROMPT_TOKENS,
   composeGenerationPrompt,
+  composeImagePrompt,
   declaresOwnArtDirection,
   stripNegativeClauses,
   tokenBudgetExceeded,
 } from "./prompt-injection.mjs";
-import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
+import { NEGATIVE_GROUPS, coversNegativeGroup, isImageStrategy } from "../scene-rules.mjs";
 
 export const SEED_BASE = 1024;
 const CANDIDATES_PER_SCENE = 2;
@@ -49,7 +57,9 @@ export function planScenes(scenes) {
     if (strategy === "asset") {
       return { scene, action: "skip", reason: "asset-strategy" };
     }
-    if (strategy === "asset-then-broll" && hasMedia(scene)) {
+    // asset-then-* strategies (video and image alike, #155) source first and
+    // only generate when sourcing left the scene without media.
+    if (strategy.startsWith("asset-then-") && hasMedia(scene)) {
       return { scene, action: "skip", reason: "has-media" };
     }
     return { scene, action: "generate", reason: `strategy-${strategy}` };
@@ -57,12 +67,13 @@ export function planScenes(scenes) {
 }
 
 /**
- * Step 1.5 sourcing rule: a scene that chose pure b-roll must not buy stock
- * assets; `asset-then-broll` still sources first and only falls back to
- * generation when sourcing left it without media.
+ * Step 1.5 sourcing rule: a scene that chose pure generation (b-roll or
+ * ai-image) must not buy stock assets; `asset-then-*` strategies still source
+ * first and only fall back to generation when sourcing left it without media.
  */
 export function shouldSourceStock(scene) {
-  return (scene.mediaStrategy ?? "asset") !== "b-roll";
+  const strategy = scene.mediaStrategy ?? "asset";
+  return strategy !== "b-roll" && strategy !== "ai-image";
 }
 
 /**
@@ -120,17 +131,29 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
  *   the scene already had media (winner becomes media.backdrop), or null
  *   when a backdrop already exists (idempotent — never overwritten).
  */
-function assignWinner(scene, winnerFile) {
-  const generated = {
-    type: "video",
-    path: `assets/b-roll/${winnerFile}`,
-    source: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
-    animation: "fade",
-    volume: 0,
-    // 480×832 trips the "short side < 720" heuristic in upscale.mjs, and
-    // render-remotion.mjs would rerun per-frame Real-ESRGAN on it.
-    upscale: false,
-  };
+function assignWinner(scene, winnerFile, isImage = false) {
+  // #155: image winners land with type "image" and no volume (a still has
+  // nothing to attenuate). Like the video clips, the output is a generated
+  // file that must never reach Real-ESRGAN: 832×1216 clears the short-side
+  // < 720 heuristic anyway, but an env-overridden smaller size would trip it.
+  const generated = isImage
+    ? {
+        type: "image",
+        path: `assets/b-roll/${winnerFile}`,
+        source: "AI-generated (mflux Z-Image Turbo)",
+        animation: "fade",
+        upscale: false,
+      }
+    : {
+        type: "video",
+        path: `assets/b-roll/${winnerFile}`,
+        source: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
+        animation: "fade",
+        volume: 0,
+        // 480×832 trips the "short side < 720" heuristic in upscale.mjs, and
+        // render-remotion.mjs would rerun per-frame Real-ESRGAN on it.
+        upscale: false,
+      };
   // #156: a scene that already has media takes the winner as a BACKDROP
   // layer (rendered beneath the real media) instead of discarding it —
   // the GPU spend becomes output. No own overlay: the primary media's
@@ -176,8 +199,9 @@ export async function runBrollStage(opts) {
     maxScenes = Number.POSITIVE_INFINITY,
     threshold = GATE_THRESHOLD,
     fileExists = existsSync,
-    generate = runGeneration,
+    generate = null,
     resolveDeps = resolveDependencies,
+    resolveImageDeps = resolveImageDependencies,
     analyzer,
     onProgress = null,
     env = process.env,
@@ -204,23 +228,27 @@ export async function runBrollStage(opts) {
   for (const plan of generatePlans) {
     const scene = plan.scene;
     const sceneId = String(scene.id);
+    const isImage = isImageStrategy(scene.mediaStrategy);
     // #166: the declared prompt stays the agent's surface (gate claim, report
     // readability); generation receives the composed prompt with the injected
-    // constants.
-    const rawPrompt = scene.aiVideo?.prompt ?? "";
-    const generationPrompt = composeGenerationPrompt(scene);
+    // constants. #155: image strategies compose from aiImage.prompt.
+    const rawPrompt = (isImage ? scene.aiImage?.prompt : scene.aiVideo?.prompt) ?? "";
+    const generationPrompt = isImage ? composeImagePrompt(scene) : composeGenerationPrompt(scene);
+    const tokenBudget = isImage ? IMAGE_MAX_PROMPT_TOKENS : MAX_PROMPT_TOKENS;
     const entry = report.scenes?.[sceneId];
     const winnerFile = entry?.winner?.file;
 
     if (!force && entry) {
-      if (migrateLegacyEntry(entry, rawPrompt, generationPrompt)) reportDirty = true;
+      // Legacy migration is video-only: image entries are new in #155, there
+      // is no pre-injection shape to migrate.
+      if (!isImage && migrateLegacyEntry(entry, rawPrompt, generationPrompt)) reportDirty = true;
       const decision = decideCache(
         entry,
         generationPrompt,
         winnerFile ? fileExists(join(contentDir, "assets", "b-roll", winnerFile)) : false,
       );
       if (decision.reuse) {
-        assignWinner(scene, winnerFile);
+        assignWinner(scene, winnerFile, isImage);
         counts.cached += 1;
         continue;
       }
@@ -228,7 +256,7 @@ export async function runBrollStage(opts) {
 
     // #166 constraint: the text encoder truncates silently at
     // max_sequence_length — never feed it an over-budget prompt.
-    if (tokenBudgetExceeded(generationPrompt)) {
+    if (tokenBudgetExceeded(generationPrompt, tokenBudget)) {
       report.scenes = report.scenes ?? {};
       report.scenes[sceneId] = {
         ...(entry ?? {}),
@@ -241,13 +269,13 @@ export async function runBrollStage(opts) {
         generationPrompt,
         candidates: [],
         winner: null,
-        reason: `composed prompt exceeds the ${MAX_PROMPT_TOKENS}-token budget ` +
-          `(encoder truncates at ${MAX_SEQUENCE_LENGTH}) — shorten the declared prompt`,
+        reason: `composed prompt exceeds the ${tokenBudget}-token budget ` +
+          "(the encoder truncates silently) — shorten the declared prompt",
       };
       reportDirty = true;
       counts.failed += 1;
       onProgress?.(
-        `scene ${sceneId}: composed prompt exceeds the ${MAX_PROMPT_TOKENS}-token budget — generation skipped`,
+        `scene ${sceneId}: composed prompt exceeds the ${tokenBudget}-token budget — generation skipped`,
       );
       continue;
     }
@@ -260,7 +288,7 @@ export async function runBrollStage(opts) {
       counts.escalated += 1;
       continue;
     }
-    toGenerate.push({ scene, sceneId, rawPrompt, generationPrompt, round, prevEntry: entry ?? null });
+    toGenerate.push({ scene, sceneId, isImage, rawPrompt, generationPrompt, round, prevEntry: entry ?? null });
   }
 
   const limited = toGenerate.slice(0, maxScenes);
@@ -270,44 +298,77 @@ export async function runBrollStage(opts) {
     return { counts, depsError: null, reportFile: reportDirty ? reportFile : null };
   }
 
-  const deps = resolveDeps(env);
-  if (!deps.ok) {
-    return { counts, depsError: deps.message, reportFile: null };
+  // #155: scenes batch per backend kind. Each kind probes its own
+  // dependencies and runs through its own runner — both speak the same
+  // { jobs } -> { ok, results[] } protocol, so the injected `generate`
+  // (when a caller provides one) serves either kind. A kind whose
+  // dependencies are missing is skipped without blocking the other (a
+  // machine without FastVideo can still generate images, and vice versa).
+  const imageItems = limited.filter((item) => item.isImage);
+  const videoItems = limited.filter((item) => !item.isImage);
+  const groups = [];
+  let depsError = null;
+  if (imageItems.length > 0) {
+    const deps = resolveImageDeps(env);
+    if (deps.ok) groups.push({ items: imageItems, deps, depsKind: "image" });
+    else depsError = deps.message;
+  }
+  if (videoItems.length > 0) {
+    const deps = resolveDeps(env);
+    if (deps.ok) groups.push({ items: videoItems, deps, depsKind: "video" });
+    else depsError = deps.message;
   }
 
-  // Assemble a single batch across all scenes (model loads once).
-  const jobs = [];
-  const jobsByScene = new Map();
-  limited.forEach((item, sceneIndex) => {
-    const seeds = seedsForScene(sceneIndex);
-    const sceneJobs = seeds.map((seed) => {
-      const file = `scene-${item.sceneId}-seed${seed}.mp4`;
-      return {
-        label: `scene-${item.sceneId}-seed${seed}`,
-        prompt: item.generationPrompt,
-        output_path: join(contentDir, "assets", "b-roll", file),
-        seed,
-        file,
-      };
+  // No kind can run: pure depsError path — nothing generated, nothing written
+  // (same behavior the stage had when the single backend was unavailable).
+  if (groups.length === 0 && depsError) {
+    return { counts, depsError, reportFile: null };
+  }
+
+  // Assemble one batch per kind (each backend loads its model once).
+  const resultsByLabel = new Map();
+  for (const group of groups) {
+    const jobs = [];
+    const jobsByScene = new Map();
+    group.items.forEach((item, sceneIndex) => {
+      const seeds = seedsForScene(sceneIndex);
+      const isImage = group.depsKind === "image";
+      const sceneJobs = seeds.map((seed) => {
+        // Image jobs carry the extension in the label so the two kinds can
+        // never collide in one report (scene-11-seed1024.png vs .mp4).
+        const file = `scene-${item.sceneId}-seed${seed}${isImage ? ".png" : ".mp4"}`;
+        return {
+          label: isImage ? file : `scene-${item.sceneId}-seed${seed}`,
+          prompt: item.generationPrompt,
+          output_path: join(contentDir, "assets", "b-roll", file),
+          seed,
+          file,
+        };
+      });
+      jobsByScene.set(item.sceneId, sceneJobs);
+      jobs.push(...sceneJobs);
     });
-    jobsByScene.set(item.sceneId, sceneJobs);
-    jobs.push(...sceneJobs);
-  });
 
-  const batch = await generate({
-    python: deps.python,
-    repo: deps.repo,
-    jobs,
-    workDir: join(outputDir, "b-roll-work"),
-    onProgress,
-    // Pinned weights (BROLL_MODEL_ROOT / BROLL_MLX_CHECKPOINT) or null, in
-    // which case the runner resolves the local HF cache snapshot.
-    modelRoot: deps.modelRoot ?? null,
-    mlxCheckpoint: deps.mlxCheckpoint ?? null,
-    env,
-  });
+    const batch = await (generate ??
+      (group.depsKind === "image" ? runImageGeneration : runGeneration))({
+      ...(group.depsKind === "image"
+        ? { bin: group.deps.bin, backend: group.deps.backend }
+        : { python: group.deps.python, repo: group.deps.repo }),
+      jobs,
+      workDir: join(outputDir, "b-roll-work"),
+      onProgress,
+      // Pinned weights (BROLL_MODEL_ROOT / BROLL_MLX_CHECKPOINT) or null, in
+      // which case the runner resolves the local HF cache snapshot.
+      modelRoot: group.deps.modelRoot ?? null,
+      mlxCheckpoint: group.deps.mlxCheckpoint ?? null,
+      env,
+    });
 
-  const resultsByLabel = new Map((batch.results ?? []).map((r) => [r.label, r]));
+    for (const r of batch.results ?? []) resultsByLabel.set(r.label, r);
+    group.jobsByScene = jobsByScene;
+    group.batchOk = Boolean(batch.ok);
+    group.batchFatal = batch.fatal ?? null;
+  }
 
   let gateAnalyzer = analyzer;
   if (!gateAnalyzer) {
@@ -325,70 +386,76 @@ export async function runBrollStage(opts) {
   }
 
   report.scenes = report.scenes ?? {};
-  for (const item of limited) {
-    const { scene, sceneId, rawPrompt, generationPrompt, round, prevEntry } = item;
-    const sceneJobs = jobsByScene.get(sceneId);
+  for (const group of groups) {
+    for (const item of group.items) {
+      const { scene, sceneId, isImage, rawPrompt, generationPrompt, round, prevEntry } = item;
+      const sceneJobs = group.jobsByScene.get(sceneId);
 
-    const candidatesInput = [];
-    const failedCandidates = [];
-    for (const job of sceneJobs) {
-      const result = resultsByLabel.get(job.label);
-      if (!batch.ok || !result || !result.ok) {
-        failedCandidates.push({
-          seed: job.seed,
-          file: job.file,
-          relevance: null,
-          reason: `generation failed: ${result?.error ?? batch.fatal ?? "unknown"}`,
-        });
-        continue;
+      const candidatesInput = [];
+      const failedCandidates = [];
+      for (const job of sceneJobs) {
+        const result = resultsByLabel.get(job.label);
+        if (!group.batchOk || !result || !result.ok) {
+          failedCandidates.push({
+            seed: job.seed,
+            file: job.file,
+            relevance: null,
+            reason: `generation failed: ${result?.error ?? group.batchFatal ?? "unknown"}`,
+          });
+          continue;
+        }
+        candidatesInput.push({ seed: job.seed, file: result.file });
       }
-      candidatesInput.push({ seed: job.seed, file: result.file });
-    }
 
-    let scored = [];
-    if (candidatesInput.length > 0) {
-      scored = await scoreCandidates(candidatesInput, {
-        analyzer: gateAnalyzer,
-        claim: buildClaim(scene),
-        threshold,
-      });
-    }
+      let scored = [];
+      if (candidatesInput.length > 0) {
+        scored = await scoreCandidates(candidatesInput, {
+          analyzer: gateAnalyzer,
+          claim: buildClaim(scene),
+          threshold,
+        });
+      }
 
-    const winner = pickWinner(scored);
-    const candidates = [
-      ...scored.map((c) => ({
-        seed: c.seed,
-        file: basename(c.file),
-        relevance: c.relevance,
-        reason: c.reason,
-      })),
-      ...failedCandidates,
-    ];
+      const winner = pickWinner(scored);
+      const candidates = [
+        ...scored.map((c) => ({
+          seed: c.seed,
+          file: basename(c.file),
+          relevance: c.relevance,
+          reason: c.reason,
+        })),
+        ...failedCandidates,
+      ];
 
-    const landedOn = winner ? assignWinner(scene, basename(winner.file)) : null;
-    report.scenes[sceneId] = {
-      strategy: scene.mediaStrategy,
-      promptHash: promptHash(generationPrompt),
-      injectionVersion: PROMPT_INJECTION_VERSION,
-      round,
-      status: winner ? "won" : "failed",
-      prompt: rawPrompt,
-      generationPrompt,
-      voiceover: scene.voiceover ?? "",
-      candidates,
-      winner: winner ? { seed: winner.seed, file: basename(winner.file) } : null,
-      // null (idempotent re-run over an existing backdrop) preserves the
-      // previous report's landing record.
-      landedOn: landedOn ?? prevEntry?.landedOn ?? null,
-    };
+      const landedOn = winner
+        ? assignWinner(scene, basename(winner.file), isImage)
+        : null;
+      report.scenes[sceneId] = {
+        strategy: scene.mediaStrategy,
+        promptHash: promptHash(generationPrompt),
+        injectionVersion: PROMPT_INJECTION_VERSION,
+        round,
+        status: winner ? "won" : "failed",
+        prompt: rawPrompt,
+        generationPrompt,
+        voiceover: scene.voiceover ?? "",
+        candidates,
+        winner: winner ? { seed: winner.seed, file: basename(winner.file) } : null,
+        // null (idempotent re-run over an existing backdrop) preserves the
+        // previous report's landing record.
+        landedOn: landedOn ?? prevEntry?.landedOn ?? null,
+      };
 
-    if (winner) {
-      counts.generated += 1;
-    } else {
-      counts.failed += 1;
+      if (winner) {
+        counts.generated += 1;
+      } else {
+        counts.failed += 1;
+      }
     }
   }
 
   writeReport(reportFile, report);
-  return { counts, depsError: null, reportFile };
+  // depsError is non-null when at least one kind's dependencies were missing
+  // (its scenes were skipped; the caller surfaces the message).
+  return { counts, depsError, reportFile };
 }

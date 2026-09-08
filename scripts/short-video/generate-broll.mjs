@@ -15,6 +15,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { runBrollStage, scenesRequiringGeneration } from "./lib/b-roll/orchestrator.mjs";
 import { EST_SECONDS_PER_CLIP } from "./lib/b-roll/runner.mjs";
+import { EST_SECONDS_PER_IMAGE } from "./lib/b-roll/t2i-runner.mjs";
+import { isImageStrategy } from "./lib/scene-rules.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -96,11 +98,12 @@ export async function runBrollCli({
 
   // Pre-count for the estimate; #24: zero needed scenes -> exit without
   // touching the stage, dependencies, or the report.
-  const needed = scenesRequiringGeneration(
+  const neededScenes = scenesRequiringGeneration(
     scenes,
     opts.sceneFilter,
     opts.maxScenes ?? Infinity,
-  ).length;
+  );
+  const needed = neededScenes.length;
 
   if (needed === 0) {
     log(
@@ -109,9 +112,13 @@ export async function runBrollCli({
     return { exitCode: 0 };
   }
 
+  // #155: image candidates cost ~30s each, video clips ~240s — estimate per kind.
+  const imageScenes = neededScenes.filter((s) => isImageStrategy(s.mediaStrategy)).length;
+  const videoScenes = needed - imageScenes;
+  const estSeconds = imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * EST_SECONDS_PER_CLIP;
   log(
-    `🎞  B-roll: ${needed} scene(s) x 2 candidates x ~${EST_SECONDS_PER_CLIP}s ` +
-      `= ${formatDuration(needed * 2 * EST_SECONDS_PER_CLIP)} (cache hits reduce this)`,
+    `🎞  B-roll: ${needed} scene(s) x 2 candidates = ${formatDuration(estSeconds)} ` +
+      `(~${EST_SECONDS_PER_IMAGE}s/image, ~${EST_SECONDS_PER_CLIP}s/clip; cache hits reduce this)`,
   );
 
   const result = await runStage({
