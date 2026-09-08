@@ -694,6 +694,7 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 > **阿里云 PAI-DSW 评估结论**（2026-09-08）：A10 24GB VRAM 比 Kaggle P100 16GB 大，750 计算时比 Kaggle 360h（3 个月）多一倍，CUDA 原生 emotion 有保障。但需阿里云账号 + 实名认证，且额度一次性用完即止。当前 fallback 链（Kaggle→Modal→NPU→MLX）已足够，暂不纳入路由。
 > **ModelScope CPU**（创空间）持续免费，但 CPU 跑 TTS RTF >10x 不实用，仅可跑 whisper 转文字或小 LLM 文本处理（本地 MLX 更快）。
+> **ModelScope xGPU**（创空间）：永久免费 GPU 应用托管服务，实时调度、availability 不定。用于部署 AI 应用（Gradio/Streamlit），不能预约/保留 GPU，不适合批量推理或训练。注册魔搭即可用。适合把模型托管为 API endpoint，不适合本项目数字人/TTS 推理管线。
 
 ### 默认 GPU 策略（2026-08-18 确立）
 
