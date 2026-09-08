@@ -37,6 +37,7 @@ import {
   planDigitalHumanPackage,
   writePlanFile,
   PLAN_FILE_NAME,
+  DEFAULT_PORTRAIT_PATH,
 } from "../lib/digital-human.mjs";
 import { loadTaskLog, recordTask } from "../../cloud-gpu/lib/remote-task.mjs";
 
@@ -350,18 +351,23 @@ describe("runPlan approval + authorization gates", () => {
     expect(calls.submitted).toHaveLength(0);
   });
 
-  it("missing avatar portrait (and units to submit) → fail-closed before any submission", async () => {
-    const { contentRoot, planPath } = makePackage();
-    rmSync(join(contentRoot, "dh-run-test", "assets", "avatar", "portrait.jpg"));
+  it("missing package portrait → falls back to the repo default presenter face and still submits", async () => {
+    const { contentRoot, planPath, plan } = makePackage();
+    const pkg = join(contentRoot, "dh-run-test");
+    rmSync(join(pkg, "assets", "avatar", "portrait.jpg"));
     executeApprove(planPath, { now: new Date("2026-09-07T12:00:00Z") });
 
     const { transport, calls } = makeTransport();
     const deps = makeDeps({ transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
     const res = await runPlan({ planPath, deps });
-    expect(res.outcome).toBe("failed");
-    expect(res.reason).toMatch(/portrait/i);
-    expect(calls.submitted).toHaveLength(0);
-    expect(calls.pushedDatasets).toHaveLength(0);
+
+    // The run completes using the shared fixture portrait, staged into the
+    // run dataset as portrait.jpg (kernel contract).
+    expect(res.outcome).toBe("completed");
+    expect(calls.submitted).toHaveLength(4);
+    const stagedPortrait = join(dirname(planPath), "avatar", "kaggle-input", "portrait.jpg");
+    expect(existsSync(stagedPortrait)).toBe(true);
+    expect(readFileSync(stagedPortrait)).toEqual(readFileSync(DEFAULT_PORTRAIT_PATH));
   });
 });
 
@@ -869,8 +875,9 @@ describe("digital-human.mjs CLI (run/approve/resume)", () => {
     // Approved plan proceeds past the approval gate; without kaggle CLI/network
     // it must fail at the remote layer, NOT at the approval gate. We assert the
     // failure is not an approval refusal by checking it got past approval —
-    // the run will fail on missing kaggle binary/portrait; either way the
-    // approval gate must not be the reason.
+    // the run fails on the missing kaggle binary (the deleted package portrait
+    // now falls back to the repo default presenter face); the approval gate
+    // must not be the reason.
     rmSync(join(contentRoot, "dh-run-test", "assets", "avatar", "portrait.jpg"));
     const env = { ...process.env, PATH: "/usr/bin:/bin" }; // no kaggle binary
     const res = spawnSync(process.execPath, [CLI, "run", "--plan", planPath], {

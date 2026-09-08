@@ -1173,6 +1173,14 @@ function markUnitComplete(tasksPath, kernelId, priorElapsedSec, sessionElapsedSe
 
 const KERNEL_TEMPLATE_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "kaggle", "dh-generate", "echomimicv3_unit_kernel.py");
 
+// Default presenter face for generation (user decision, 2026-09-08): packages
+// without their own content/<dir>/assets/avatar/portrait.jpg fall back to this
+// shared asset instead of failing. A package portrait, when present, always
+// wins; --portrait overrides both. Swap the default by replacing the fixture
+// or passing --portrait.
+const DEFAULT_PORTRAIT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "assets", "dh-fixtures", "portrait-face.jpg");
+export { DEFAULT_PORTRAIT_PATH };
+
 /**
  * Build one unit's kernel script: the v51 EchoMimicV3 Flash template with a
  * UNIT_CONFIG header naming this unit's driver audio + output file.
@@ -1432,13 +1440,17 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode }) {
   // Submission setup: portrait + driver-audio slices + input dataset.
   let datasetSource = null;
   if (submitItems.length > 0) {
-    const portraitPath = portrait ?? join(plan.contentDir, "assets", "avatar", "portrait.jpg");
+    // Resolution order: --portrait override (must exist) → package portrait
+    // (media-asset-management: private asset) → repo default presenter face.
+    const contentPortrait = portrait ?? join(plan.contentDir, "assets", "avatar", "portrait.jpg");
+    const portraitPath = existsSync(contentPortrait) ? contentPortrait : DEFAULT_PORTRAIT_PATH;
     if (!existsSync(portraitPath)) {
       return {
         outcome: "failed",
         reason:
-          `Avatar portrait not found: ${portraitPath} — place the reference photo at ` +
-          `content/<dir>/assets/avatar/portrait.jpg (media-asset-management: private asset) or pass --portrait <path>`,
+          `Avatar portrait not found: ${contentPortrait} and default presenter face missing at ` +
+          `${DEFAULT_PORTRAIT_PATH} — place a reference photo at content/<dir>/assets/avatar/portrait.jpg ` +
+          `or pass --portrait <path>`,
       };
     }
     for (const item of submitItems) {
@@ -1600,8 +1612,9 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode }) {
  *
  * @param {object} p
  * @param {string} p.planPath - output/{pipelineId}/digital-human-plan.json
- * @param {string} [p.portrait] - reference photo override (default
- *        content/<dir>/assets/avatar/portrait.jpg)
+ * @param {string} [p.portrait] - reference photo override (resolution order:
+ *        --portrait → content/<dir>/assets/avatar/portrait.jpg → repo default
+ *        presenter face assets/dh-fixtures/portrait-face.jpg)
  * @param {string} [p.outputRoot] - sanity-checked against the plan's location
  * @param {object} [p.deps] - injectable seams: { tasksPath, transport, ffmpeg, upscale, timeoutSec, pollIntervalSec }
  * @returns {Promise<object>} { outcome: "completed"|"refused"|"interrupted"|"failed", ... }

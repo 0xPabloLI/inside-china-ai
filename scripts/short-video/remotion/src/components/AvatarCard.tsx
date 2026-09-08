@@ -23,24 +23,41 @@
  * Stacking: DOM order only (no zIndex — see MediaBackground's #201 note).
  * Mount the card AFTER every text layer; the scene root must be positioned.
  */
-import { Sequence, staticFile } from "remotion";
+import { Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { Video } from "@remotion/media";
 import type { AvatarField } from "../types";
 import { AVATAR_CARD_RECT } from "../../../lib/safe-zones.mjs";
 import { secToFrames } from "./shared";
 
 /** Card styling — rounded corners + shadow per spec Implementation Decision 2,
- *  proportions from the approved variant 1′ prototype. */
+ *  proportions from the approved variant 1′ prototype. The thin border is the
+ *  evidence-backed anti-bleed measure (PiP guides: a thin white border
+ *  "separates the overlay from busy backgrounds" — dh-avatar-layout
+ *  best-practices shape research, 2026-09-08); border-box keeps the audited
+ *  420×550 geometry intact. */
 const CARD_STYLE = {
   borderRadius: 16,
+  border: "2px solid rgba(255,255,255,0.85)",
   boxShadow: "0 8px 30px rgba(0,0,0,0.55)",
   background: "#0a0a14",
+  boxSizing: "border-box",
 } as const;
+
+// Optional-enhancement follow-up (user request, 2026-09-08): 5-frame (~150ms
+// at 30fps) fade-in per present window softens the card "popping" onto the
+// frame. useCurrentFrame() is Sequence-relative, so each window fades at its
+// own start. Too short to disturb the frame audit's temporal-std sampling.
+const FADE_IN_FRAMES = 5;
 
 export const AvatarCard: React.FC<{ avatar?: AvatarField; duration: number }> = ({
   avatar,
   duration,
 }) => {
+  // Hook before the early return (rules of hooks).
+  const frame = useCurrentFrame();
+  const fadeInOpacity = interpolate(frame, [0, FADE_IN_FRAMES], [0, 1], {
+    extrapolateRight: "clamp",
+  });
   if (!avatar?.videoPath) return null;
 
   const fullScene = [{ from: 0, to: secToFrames(duration) }];
@@ -68,6 +85,7 @@ export const AvatarCard: React.FC<{ avatar?: AvatarField; duration: number }> = 
               left: AVATAR_CARD_RECT.x,
               width: AVATAR_CARD_RECT.width,
               height: AVATAR_CARD_RECT.height,
+              opacity: fadeInOpacity,
               overflow: "hidden",
               ...CARD_STYLE,
               scale: avatar.scale ?? 1,
