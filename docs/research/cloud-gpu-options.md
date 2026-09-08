@@ -672,7 +672,7 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 | 2️⃣     | **AtomGit NPU 910B**  | ai.atomgit.com → 我的Notebook                            | NPU 910B (32GB)    | 1000 核时/月刷新                                 | 非 CUDA 模型/大显存需求 |
 | 3️⃣     | **Modal (T5)**        | `modal run script.py`                                   | T4 15GB            | $30/月（余额少，省用）                           | serverless 函数推理    |
 | 4️⃣     | **AMD Radeon Cloud**  | developer.amd.com.cn/radeon/ → JupyterLab/SSH           | AMD GPU (ROCm)     | credits 可重复获取（开发者活动赚 points→兑换）   | ROCm 生态/AMD GPU 验证 |
-| 5️⃣     | **ModelScope AMD GPU** | modelscope.cn → Notebook                                | AMD!GB (192GB)     | 100+0h 一次性                                    | 192GB 大显存一次性验证 |
+| 5️⃣     | **ModelScope AMD GPU** | modelscope.cn → Notebook                                | AMD GPU (192GB)    | 100+0h 一次性                                    | 192GB 大显存一次性验证 |
 | 6️⃣     | **Colab CLI (T4)**    | `colab run --gpu T4 script.py`                          | T4 14.6GB          | 不固定，空闲90min                                | 一键运行单脚本         |
 | 7️⃣     | **Lightning AI (L4)** | Studio + SSH                                            | L4 22.5GB (bf16)   | ~8h/月                                           | 16GB 不够时（付费后）  |
 | 8️⃣     | **AutoDL$             | 手动租用                                                | RTX 4090 24GB      | ¥1.88/h                                          | 长时间或 >22.5GB 时    |
