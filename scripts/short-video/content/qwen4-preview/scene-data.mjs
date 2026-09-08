@@ -244,6 +244,34 @@ export const scenes = [
       topic: "QWEN4 IS COMING",
     },
   },
+  {
+    id: 11,
+    name: "t2i-fixture",
+    visualType: "narrative",
+    narrativeRole: "R",
+    retentionMechanism: null,
+    layout: "media-overlay",
+    // FIXTURE (#155): exercises the T2I image path end to end — compose
+    // aiImage.prompt (6 dimensions) → Z-Image Turbo → VLM gate → winner
+    // assigned in memory. Deliberately placed after the CTA so the real
+    // video's scene order is untouched. Not a content decision.
+    mediaStrategy: "ai-image",
+    aiImage: {
+      prompt:
+        "Abstract architecture diagram of a transformer memory system: three wide glowing memory channels folding inward into one narrow spotlight beam scanning for matches, isometric blue-cyan data visualization, high detail.",
+    },
+    voiceover:
+      "The blueprint matters because every layer of this design trades memory for precision.",
+    texts: {
+      badge: "T2I FIXTURE",
+      company: "ARCHITECTURE",
+      action: "MEMORY CHANNELS VISUALIZED",
+      result: "GENERATED, NOT SOURCED",
+      highlight: { field: "result", text: "GENERATED" },
+      context: "AI IMAGE PATH SMOKE TEST",
+      source: "CHINA AI NEWS ANALYSIS",
+    },
+  },
 ];
 
 export const metadata = {
