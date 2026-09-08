@@ -20,7 +20,7 @@
 4. As a 内容创作者, I want 生成前看到 dry-run 计划（哪些 scene、分几段、预估时长/成本）并批准, so that GPU 成本与耗时由我逐包控制。
 5. As a 内容创作者, I want 默认走 Kaggle 免费 T4, so that 不产生费用；需要更高质量时再显式授权 Modal 质量档。
 6. As a 内容创作者, I want 数字人以右中竖形卡片叠在最上层但不侵入平台 UI 死区/字幕带/CTA 区, so that TikTok 界面不遮人脸、人脸不遮关键信息。
-7. As a 内容创作者, I want 数字人段内允许切出素材满屏, so that AI 面孔不连续出镜过久（3 秒法），留存不受损。
+7. As a 内容创作者, I want 数字人段内允许切出素材满屏, so that AI 面孔不连续出镜过久（多源支持的定性方向 + ≤3-5s 构图节奏；"3 秒"精确数字为单源传言，见 dh-presenter-usage-strategy-research.md Key Finding #1），留存不受损。
 8. As a 内容创作者, I want 生成失败时可从断点恢复而不重跑全部段落, so that Kaggle 会话中断不浪费已完成段落。
 9. As a 内容创作者, I want 数字人 scene 的帧审计包含「卡片位置合规（safe zone）+ 唇动存在 + 音画同步」检查, so that 坏帧不进入发布链。
 10. As a Agent(管线执行者), I want scene-data 校验对未知 avatar 字段 fail-closed, so that 拼错的声明在 TTS 前就被拦截而不是渲染时才发现。
@@ -87,6 +87,7 @@
 ## Further Notes
 
 - 选型与平台测试证据链：`docs/research/digital-human-test-progress.md`（20 条模型横评、平台矩阵、已否决项 Hallo3/LeapTalk/LongCat/V-Express）。
+- 使用时机策略证据链（2026-09-08 deep research，85 源）：`docs/research/dh-presenter-usage-strategy-research.md`。核心结论：数字人定位=品牌符号/解读框架呈现者（非拟真记者）；声明白名单=CTA/payoff/程式化数据时刻，黑名单=hook 前 3 秒/高情感段/突发新闻；TTS 音色是第一杠杆、形象是第二杠杆；"3 秒法"精确数字为单源传言已降级。脚本 Agent 执行细则在 `docs/video-script-writing-guide.md`「数字人（scene.avatar）使用策略」节。
 - 版面证据链：`docs/research/dh-avatar-layout-best-practices.md`；视觉模板：worktree `prototype/dh-layout-templates`（`prototype/` 分支，定案后可清）。
 - 生成音频切段需要 scene 音频时长/静音边界信息——TTS 链已产 duration 与对齐数据，tickets T1 先核实其精度是否满足切段（不足则段边界放宽到标点静音处）。
 - 成本口径：Kaggle 免费（0 美元，耗 30h/周配额） vs Modal 质量档 $0.20/5.2s 段；report 记录平台+耗时+费用三字段。
