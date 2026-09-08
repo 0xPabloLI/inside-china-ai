@@ -81,14 +81,19 @@ def infer(manifest: list, ref_audio_b64: str) -> dict:
 
     if not os.path.exists(MODEL_DIR) or not os.path.exists(os.path.join(MODEL_DIR, "cosyvoice3.yaml")):
         print("Downloading model...", flush=True)
-        subprocess.run(["git", "lfs", "install"], check=True)
         try:
+            # Foreign cloud (Modal): HuggingFace primary — reliable from
+            # Modal's network (see modal/wan22-s2v-test for the same pattern).
+            from huggingface_hub import snapshot_download
+            snapshot_download("FunAudioLLM/Fun-CosyVoice3-0.5B-2512", local_dir=MODEL_DIR)
+            print("Model OK (HF)", flush=True)
+        except Exception as e:
+            print(f"HF download failed ({e}); falling back to ModelScope", flush=True)
+            subprocess.run(["git", "lfs", "install"], check=True)
             subprocess.run(["git", "clone", "--depth", "1",
                 "https://www.modelscope.cn/FunAudioLLM/Fun-CosyVoice3-0.5B-2512.git",
                 MODEL_DIR], check=True, timeout=1200)
-        except Exception:
-            from modelscope import snapshot_download
-            snapshot_download("FunAudioLLM/Fun-CosyVoice3-0.5B-2512", local_dir=MODEL_DIR)
+            print("Model OK (modelscope git)", flush=True)
         volume.commit()
 
     ref_path = "/tmp/ref_audio.wav"

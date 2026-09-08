@@ -664,6 +664,8 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 > **用户指定顺序**（2026-09-07 更新）：Kaggle → AtomGit → Modal → **AMD Radeon Cloud** → ModelScope → 付费平台。理由：Kaggle/AtomGit 额度周期性刷新最可持续；Modal 余额少需省用；**AMD Radeon Cloud credits 可通过开发者活动重复获取**（优于 ModelScope 100h 一次性）；付费平台最后。
 
+> **模型下载源选型**（2026-09-08 用户定则）：**国外云 GPU（Kaggle/Modal/Colab 等）主选 Hugging Face、备选 ModelScope；国内云 GPU（AtomGit/AMD Radeon Cloud/ModelScope Notebook 等）主选 ModelScope、备选 Hugging Face**。Kaggle 上拉 LFS 大文件必须用 `curl -L` 逐文件（`hf download`/`hf_hub_download` 产生 0 字节文件，见 `kaggle/infinitetalk-test` 踩坑记录）；2026-09-08 起已改：`short-video/kaggle/cosyvoice3_cuda_kernel.py`、`short-video/modal/cosyvoice3_cuda_modal.py`、`kaggle/wan22-s2v-test/wan22_s2v_inference.py`。
+
 | 优先级 | 平台                 . | 命令/入口                                               | GPU/NPU            | 免费额度                                         | 适用场景               |
 | ------ | --------------------- | ------------------------------------------------------- | ------------------ | ------------------------------------------------ | ---------------------- |
 | 1️⃣     | **Kaggle (T4 x2)**    | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4`  | T4 x2 (15'GB×2)    | 30h/周刷新                                       | 自动化批量推理（默认） |

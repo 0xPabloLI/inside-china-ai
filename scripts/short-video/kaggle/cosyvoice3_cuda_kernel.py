@@ -75,21 +75,47 @@ sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 
 log("\n=== Downloading model ===")
 model_dir = "/tmp/cosyvoice3-model"
+HF_REPO = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+# Foreign cloud (Kaggle): HuggingFace primary, ModelScope fallbacks.
+# curl -L per file is the Kaggle-verified way to pull LFS — hf_hub_download
+# and `hf download` yield 0-byte files on Kaggle LFS (see
+# kaggle/infinitetalk-test notes). modelscope.cn from Kaggle times out
+# (2026-09-08: git clone hit the 1200s cap), so it drops to fallback.
+def hf_tree_download(repo, dst):
+    import json as _json
+    api = f"https://huggingface.co/api/models/{repo}/tree/main?recursive=true"
+    r = subprocess.run(["curl", "-sL", api], capture_output=True, text=True,
+                       timeout=60, check=True)
+    for item in _json.loads(r.stdout):
+        if item.get("type") != "file":
+            continue
+        target = os.path.join(dst, item["path"])
+        os.makedirs(os.path.dirname(target) or dst, exist_ok=True)
+        subprocess.run(["curl", "-sL", "-o", target,
+            f"https://huggingface.co/{repo}/resolve/main/{item['path']}"],
+            check=True)
+    return dst
+
 try:
     if not os.path.exists(model_dir) or not os.path.exists(os.path.join(model_dir, "cosyvoice3.yaml")):
+        hf_tree_download(HF_REPO, model_dir)
+    log(f"Model OK (HF): {os.listdir(model_dir)[:5]}...")
+except Exception as e:
+    log(f"ERROR model HF: {e}"); traceback.print_exc()
+    try:
         subprocess.run(["git", "lfs", "install"], check=True)
         subprocess.run(["git", "clone", "--depth", "1",
             "https://www.modelscope.cn/FunAudioLLM/Fun-CosyVoice3-0.5B-2512.git",
             model_dir], check=True, timeout=1200)
-    log(f"Model OK: {os.listdir(model_dir)[:5]}...")
-except Exception as e:
-    log(f"ERROR model: {e}"); traceback.print_exc()
-    try:
-        from modelscope import snapshot_download
-        path = snapshot_download("FunAudioLLM/Fun-CosyVoice3-0.5B-2512", local_dir=model_dir)
-        log(f"Model OK (modelscope)")
+        log(f"Model OK (modelscope git)")
     except Exception as e2:
-        log(f"ERROR model fallback: {e2}"); traceback.print_exc(); sys.exit(1)
+        log(f"ERROR model MS git: {e2}"); traceback.print_exc()
+        try:
+            from modelscope import snapshot_download
+            snapshot_download("FunAudioLLM/Fun-CosyVoice3-0.5B-2512", local_dir=model_dir)
+            log(f"Model OK (modelscope SDK)")
+        except Exception as e3:
+            log(f"ERROR model fallback: {e3}"); traceback.print_exc(); sys.exit(1)
 
 log("\n=== Preparing ref audio ===")
 ref_path = "/kaggle/input/tts-ref-audio/voice-sample-24k.wav"
