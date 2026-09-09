@@ -207,7 +207,7 @@ export async function createCosyVoice3KaggleCudaEngine() {
             is_private: true,
             enable_gpu: true,
             enable_internet: true,
-            dataset_sources: ["xPabloLI/tts-ref-audio"],
+            dataset_sources: ["xPabloLI/tts-ref-audio", "xPabloLI/cosyvoice3-model"],
             competition_sources: [],
             kernel_sources: [],
           },

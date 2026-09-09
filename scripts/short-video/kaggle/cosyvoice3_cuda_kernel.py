@@ -76,11 +76,26 @@ sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 log("\n=== Downloading model ===")
 model_dir = "/tmp/cosyvoice3-model"
 HF_REPO = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
-# Foreign cloud (Kaggle): HuggingFace primary, ModelScope fallbacks.
-# curl -L per file is the Kaggle-verified way to pull LFS — hf_hub_download
-# and `hf download` yield 0-byte files on Kaggle LFS (see
-# kaggle/infinitetalk-test notes). modelscope.cn from Kaggle times out
-# (2026-09-08: git clone hit the 1200s cap), so it drops to fallback.
+# Primary: pre-seeded Kaggle dataset (xPabloLI/cosyvoice3-model) mounted
+# read-only at /kaggle/input/cosyvoice3-model — zero-minute cold start and
+# immune to upstream network drift (2026-09-08 incident: modelscope.cn
+# git clone timed out after 1200s). Online downloads stay as fallbacks.
+# Foreign cloud (Kaggle): HuggingFace primary among fallbacks — curl -L
+# per file is the Kaggle-verified way to pull LFS (hf_hub_download and
+# `hf download` yield 0-byte files on Kaggle LFS, see
+# kaggle/infinitetalk-test notes). modelscope.cn from Kaggle times out,
+# so it drops to last resort.
+DS_MODEL = "/kaggle/input/cosyvoice3-model"
+def find_input_dir(slug):
+    # Kaggle mount layout: older images use /kaggle/input/<slug>;
+    # newer (2026-09) images namespace under /kaggle/input/datasets/<user>/<slug>.
+    import glob
+    for c in (f"/kaggle/input/{slug}", f"/kaggle/input/datasets/xpabloli/{slug}"):
+        if os.path.exists(c):
+            return c
+    hits = glob.glob(f"/kaggle/input/**/{slug}", recursive=True)
+    return hits[0] if hits else None
+DS_MODEL = find_input_dir("cosyvoice3-model")
 def hf_tree_download(repo, dst):
     import json as _json
     api = f"https://huggingface.co/api/models/{repo}/tree/main?recursive=true"
@@ -96,12 +111,41 @@ def hf_tree_download(repo, dst):
             check=True)
     return dst
 
+def assemble_model_from_mount(src, dst):
+    # kaggle-cli >=2.2 uploads subdirectories only as .tar archives
+    # (dir_mode=skip ignores them entirely), so the dataset carries
+    # CosyVoice-BlankEN.tar / asset.tar alongside loose root weights.
+    # Assemble dst: symlink loose files, extract tarballs into subdirs.
+    import shutil
+    os.makedirs(dst, exist_ok=True)
+    for name in os.listdir(src):
+        s = os.path.join(src, name)
+        d = os.path.join(dst, name)
+        if os.path.isfile(s) and name.endswith(".tar"):
+            sub = os.path.join(dst, name[:-4])
+            os.makedirs(sub, exist_ok=True)
+            subprocess.run(["tar", "xf", s, "-C", sub], check=True)
+        elif os.path.isfile(s):
+            if not os.path.exists(d):
+                os.symlink(s, d)
+        elif os.path.isdir(s) and not os.path.exists(d):
+            os.symlink(s, d)
+    return dst
+
 try:
-    if not os.path.exists(model_dir) or not os.path.exists(os.path.join(model_dir, "cosyvoice3.yaml")):
-        hf_tree_download(HF_REPO, model_dir)
-    log(f"Model OK (HF): {os.listdir(model_dir)[:5]}...")
+    if DS_MODEL and os.path.exists(DS_MODEL):
+        assemble_model_from_mount(DS_MODEL, model_dir)
+        if os.path.exists(os.path.join(model_dir, "cosyvoice3.yaml")):
+            log(f"Model OK (Kaggle dataset mount {DS_MODEL}): {os.listdir(model_dir)[:8]}...")
+        else:
+            raise RuntimeError(f"mount assembled but cosyvoice3.yaml missing: {os.listdir(model_dir)}")
+    else:
+        log(f"Dataset mount not found (DS_MODEL={DS_MODEL}); falling back to online download")
+        if not os.path.exists(model_dir) or not os.path.exists(os.path.join(model_dir, "cosyvoice3.yaml")):
+            hf_tree_download(HF_REPO, model_dir)
+        log(f"Model OK (HF): {os.listdir(model_dir)[:5]}...")
 except Exception as e:
-    log(f"ERROR model HF: {e}"); traceback.print_exc()
+    log(f"ERROR model primary: {e}"); traceback.print_exc()
     try:
         subprocess.run(["git", "lfs", "install"], check=True)
         subprocess.run(["git", "clone", "--depth", "1",
@@ -118,11 +162,12 @@ except Exception as e:
             log(f"ERROR model fallback: {e3}"); traceback.print_exc(); sys.exit(1)
 
 log("\n=== Preparing ref audio ===")
-ref_path = "/kaggle/input/tts-ref-audio/voice-sample-24k.wav"
-if not os.path.exists(ref_path):
-    log(f"ERROR: ref audio not found at {ref_path}")
+_ref_dir = find_input_dir("tts-ref-audio")
+ref_path = os.path.join(_ref_dir, "voice-sample-24k.wav") if _ref_dir else None
+if not ref_path or not os.path.exists(ref_path):
+    log(f"ERROR: ref audio not found (tts-ref-audio mount missing, _ref_dir={_ref_dir})")
     sys.exit(1)
-log(f"Ref audio: {os.path.getsize(ref_path)} bytes")
+log(f"Ref audio: {os.path.getsize(ref_path)} bytes at {ref_path}")
 
 manifest = json.loads(MANIFEST_JSON)
 log(f"Manifest: {len(manifest)} segments")
@@ -134,8 +179,22 @@ sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 import torch, soundfile as sf
 from cosyvoice.cli.cosyvoice import AutoModel
 
+# Deterministic sampling: unfixed seeds let timbre/accent drift between runs
+# (2026-09-09 hook accent regression). Seed pinned to the day the user
+# approved the P100 emotion baseline; override via TTS_SEED env if needed.
+_seed = int(os.environ.get("TTS_SEED", "20260907"))
+torch.manual_seed(_seed)
+import random as _random
+_random.seed(_seed)
+import numpy as _np
+_np.random.seed(_seed)
+
 model_dir = "/tmp/cosyvoice3-model"
-ref_path = "/kaggle/input/tts-ref-audio/voice-sample-24k.wav"
+import glob as _glob
+_ref_hits = _glob.glob("/kaggle/input/**/tts-ref-audio", recursive=True)
+ref_path = os.path.join(_ref_hits[0], "voice-sample-24k.wav") if _ref_hits else None
+if not ref_path or not os.path.exists(ref_path):
+    raise RuntimeError(f"ref audio mount not found (hits={_ref_hits})")
 out_dir = "/kaggle/working/output"
 os.makedirs(out_dir, exist_ok=True)
 
@@ -156,11 +215,12 @@ for i, t in enumerate(manifest):
         seg_start = time.time()
         chunks = []
         instruct = t.get("instruct_text")
+        speed = t.get("speed", 1.0)
         if instruct:
-            for j in cosyvoice.inference_instruct2(t["text"], instruct, ref_path, stream=False):
+            for j in cosyvoice.inference_instruct2(t["text"], instruct, ref_path, stream=False, speed=speed):
                 chunks.append(j['tts_speech'])
         else:
-            for j in cosyvoice.inference(t["text"], ref_path, stream=False):
+            for j in cosyvoice.inference_vc(t["text"], ref_path, stream=False, speed=speed):
                 chunks.append(j['tts_speech'])
         full = torch.cat(chunks, dim=-1)
         gen_time = time.time() - seg_start
