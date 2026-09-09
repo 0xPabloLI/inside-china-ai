@@ -162,6 +162,7 @@ Historical specs, tickets, plans, and roadmaps. Retained for reference, no longe
 
 | Document                                               | Purpose                                                                                                        |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `specs/spec-platform-profile-isolation.md`             | Active spec（#219 平台 Profile 隔离）：窄隔离模型（Profile=发布包规则+发布方式+产物类型）、publish/{platform}/ 目录、per-platform 发布器与 HITL；tickets 在 `.scratch/platform-profile/issues/` |
 | ~~`specs/adr-0008-0014-remediation-tracker.md`~~       | ✅ 已归档至 `archive/specs/`（2026-09-06 裁决被事件超越：01–07 DONE，08 项由后续全量测试+审计实质覆盖）       |
 | ~~`specs/spec-asset-first-hook-media-focus-detection.md`~~ | ✅ 已归档至 `archive/specs/`（2026-08-17 三合一提案已被 NO_MEDIA_TYPES/hook media warning 落地拆解吸收）    |
 | ~~`specs/spec-media-patch-apply.md`~~                  | ✅ 已归档至 `archive/specs/`（实现完成：lib/apply-media-patch.mjs + #192 拒绝回路；archive 旧根快照为过期版已清除）|
