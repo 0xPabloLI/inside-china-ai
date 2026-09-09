@@ -761,10 +761,17 @@ export function unitKeyFor(pipelineId, sceneId, unitIndex) {
   return `${pipelineId}:${sceneId}:${unitIndex}`;
 }
 
-/** Deterministic Kaggle kernel slug for a unit (re-push = new kernel version). */
+/** Deterministic Kaggle kernel slug for a unit (re-push = new kernel version).
+ *
+ * `DH_KERNEL_TAG` (env, optional) appends a suffix so a forced regeneration
+ * gets FRESH kernel ids. Without it a re-push races the poller: the first
+ * `kaggle kernels status` after push can still report the previous version's
+ * COMPLETE, and the run harvests the old output instead of waiting for the
+ * new version (observed 2026-09-09 on dh-pilot-qwen4 scene-10). */
 function unitSlugFor(pipelineId, sceneId, unitIndex) {
   const slugified = String(pipelineId).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
-  return `dh-${slugified.slice(0, 30)}-s${sceneId}x${unitIndex}`;
+  const tag = process.env.DH_KERNEL_TAG ? `-${String(process.env.DH_KERNEL_TAG).replace(/[^a-z0-9-]+/gi, "").slice(0, 12)}` : "";
+  return `dh-${slugified.slice(0, 30)}-s${sceneId}x${unitIndex}${tag}`;
 }
 
 /** Unit artifact paths (deterministic, mirrored into the task record). */

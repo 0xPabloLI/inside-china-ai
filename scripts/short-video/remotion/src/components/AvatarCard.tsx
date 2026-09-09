@@ -101,8 +101,13 @@ export const AvatarCard: React.FC<{ avatar?: AvatarField; duration: number }> = 
               }}
               trimBefore={w.from}
               volume={0}
-              loop
             />
+            {/* No `loop`: the clip is generated against the scene's full TTS
+                audio, so it ends when the voiceover ends. Looping restarts the
+                clip over the scene's tail padding — the DH keeps lip-flapping
+                after the narration is done (user report 2026-09-09). Without
+                loop the video freezes on its last frame for any remaining
+                window (static presence, no motion). */}
           </div>
         </Sequence>
       ))}

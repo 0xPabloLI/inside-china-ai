@@ -131,6 +131,7 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 
 | Document                                      | Purpose                                                                                             |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `tts-indian-accent-handoff.md`                 | TTS 印度口音回归 handoff（CosyVoice3-Kaggle-CUDA deepseek-v41-flash；基线样本参数未记录，未解决待处理；issue #234） |
 | `handoff-on-demand-audit.md`                  | On-Demand Content Audit feature design (Issue #60/#61 OPEN)                                         |
 | `handoff-qwen4-preview-r2-visual-audit.md`     | qwen4-preview R2 视觉审计 — 仅诊断+方案设计未改代码，渲染 6 FAIL 待独立 triage（2026-09-06 补登） |
 
