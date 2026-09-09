@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import {
   ARTIFACT_TYPES,
   PUBLISH_METHODS,
@@ -6,7 +9,6 @@ import {
   validateProfileShape,
   getPlatformProfile,
   listPlatformProfiles,
-  listPlatformNames,
   getArtifactSpec,
   UnknownPlatformError,
 } from "../lib/platforms/index.mjs";
@@ -17,6 +19,9 @@ import { buildTiktokSettings } from "../lib/publish-utils.mjs";
 // Spec: docs/specs/spec-platform-profile-isolation.md (Implementation Decisions 2)
 // TikTok Profile values must be item-by-item equivalent to the pre-migration
 // rule set (zero behavior change), with drift guarded by independent literals.
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Verbatim copy of the pre-migration tiktok-rules.mjs THRESHOLDS — the
 // equivalence anchor. Kept as an independent literal so drift in either
@@ -54,10 +59,6 @@ describe("platform profile loader", () => {
     const profiles = listPlatformProfiles();
     expect(profiles.length).toBeGreaterThanOrEqual(1);
     expect(profiles.map((p) => p.platform)).toContain("tiktok");
-  });
-
-  it("lists platform names including tiktok", () => {
-    expect(listPlatformNames()).toContain("tiktok");
   });
 
   it("fails closed on unknown platform with diagnostic error", () => {
@@ -113,6 +114,58 @@ describe("profile shape contract", () => {
 
   it("tiktok publish method is manual-guide (default safe tier)", () => {
     expect(getPlatformProfile("tiktok").publishMethod).toBe("manual-guide");
+  });
+
+  it("shape validation fails closed on invalid video numerics and cover", () => {
+    const base = {
+      platform: "p",
+      artifactTypes: ["video"],
+      publishMethod: "manual-guide",
+      caption: { structure: "s", maxLength: 10, titleMaxLength: 5 },
+      hashtags: { min: 1, max: 2 },
+      aiDisclosure: { required: false },
+      manualGuide: { steps: [{ id: "s1", label: "step" }] },
+      video: { maxSizeBytes: 1, maxDurationSeconds: 1, containerFormats: ["mp4"], minFps: 1 },
+      cover: { width: 1080, height: 1920 },
+      privacy: {},
+      commerce: { commercialContentRequiresBrand: true },
+    };
+    expect(validateProfileShape(base)).toEqual([]);
+
+    const numericCases = [
+      { ...base, video: { ...base.video, minFps: 0 } },
+      { ...base, video: { ...base.video, minFps: -23 } },
+      { ...base, video: { ...base.video, minFps: undefined } },
+      { ...base, video: { ...base.video, maxSizeBytes: 0 } },
+      { ...base, video: { ...base.video, maxDurationSeconds: -1 } },
+    ];
+    for (const profile of numericCases) {
+      expect(validateProfileShape(profile).length).toBeGreaterThan(0);
+    }
+
+    const coverCases = [
+      { ...base, cover: undefined },
+      { ...base, cover: { height: 1920 } },
+      { ...base, cover: { width: 0, height: 1920 } },
+      { ...base, cover: { width: 1080, height: -1 } },
+    ];
+    for (const profile of coverCases) {
+      expect(validateProfileShape(profile).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("cover is not required for image-thread-only platforms (declaresVideo group)", () => {
+    const hypothetical = {
+      platform: "hypothetical-image-platform",
+      artifactTypes: ["image-thread"],
+      publishMethod: "manual-guide",
+      caption: { structure: "text", maxLength: 100, titleMaxLength: 10 },
+      hashtags: { min: 1, max: 2 },
+      aiDisclosure: { required: false },
+      manualGuide: { steps: [{ id: "open-app", label: "Open app" }] },
+      cover: { width: 0, height: 0 },
+    };
+    expect(validateProfileShape(hypothetical)).toEqual([]);
   });
 });
 
@@ -240,5 +293,42 @@ describe("artifact type consumption", () => {
 
   it("fails closed consuming an unknown artifact type", () => {
     expect(() => getArtifactSpec("tiktok", "stories")).toThrow(/artifact type/i);
+  });
+});
+
+// ─── Doc drift: profile numerics anchored to their source documents ───
+// Prior art: tiktok-rules-sync.test.mjs drift-detection style. Each Profile
+// value asserts (a) the anchor sentence still exists in the source document
+// and (b) the Profile value matches the anchor's semantics.
+
+const BEST_PRACTICES_MD = join(__dirname, "..", "..", "..", "docs", "tiktok", "tiktok-best-practices.md");
+const PUBLISH_UTILS_MJS = join(__dirname, "..", "lib", "publish-utils.mjs");
+const bestPracticesDoc = readFileSync(BEST_PRACTICES_MD, "utf8");
+const publishUtilsSrc = readFileSync(PUBLISH_UTILS_MJS, "utf8");
+
+describe("tiktok profile doc drift (docs/tiktok/tiktok-best-practices.md)", () => {
+  const profile = getPlatformProfile("tiktok");
+
+  it("video.maxDurationSeconds=600 matches the documented '视频 ≤ 10 分钟' API limit", () => {
+    expect(bestPracticesDoc).toContain("视频 ≤ 10 分钟");
+    expect(profile.video.maxDurationSeconds).toBe(10 * 60);
+  });
+
+  it("video.minFps=23 matches the documented '最低 23 FPS' API limit", () => {
+    expect(bestPracticesDoc).toContain("最低 23 FPS");
+    expect(profile.video.minFps).toBe(23);
+  });
+
+  it("cover 1080×1920 matches the documented '分辨率：1080×1920' 技术规格", () => {
+    expect(bestPracticesDoc).toContain("分辨率：1080×1920");
+    expect(profile.cover.width).toBe(1080);
+    expect(profile.cover.height).toBe(1920);
+  });
+
+  it("video.maxSizeBytes=150MB matches the Publora limit literal in publish-utils.mjs", () => {
+    // 150MB is the Publora publish-path cap, not a TikTok API limit (doc: ≤ 4GB),
+    // so its anchor lives in publish-utils.mjs validateVideoFile, not the doc.
+    expect(publishUtilsSrc).toContain("150 * 1024 * 1024");
+    expect(profile.video.maxSizeBytes).toBe(150 * 1024 * 1024);
   });
 });

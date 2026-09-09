@@ -7,7 +7,6 @@
  * Query surface:
  *   - getPlatformProfile(name)       — by platform name, fail-closed on unknown
  *   - listPlatformProfiles()         — all registered profiles
- *   - listPlatformNames()            — all registered platform names
  *   - getArtifactSpec(name, type)    — artifact-specific spec, fail-closed for
  *                                      unimplemented artifact types
  *
@@ -24,20 +23,33 @@ import {
   IMPLEMENTED_ARTIFACT_TYPES,
   InvalidProfileError,
   validateProfileShape,
-  deepFreeze,
 } from "./profile-model.mjs";
 
 export { ARTIFACT_TYPES, PUBLISH_METHODS, IMPLEMENTED_ARTIFACT_TYPES, validateProfileShape };
 
 export { InvalidProfileError };
 
+// ─── Immutability ───
+
+/**
+ * Deep-freeze a profile so declared values cannot be mutated at runtime.
+ */
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value)) {
+      deepFreeze(value[key]);
+    }
+  }
+  return value;
+}
+
 /** Thrown when a platform name has no registered profile (fail-closed). */
 export class UnknownPlatformError extends Error {
   constructor(platform, knownNames) {
     super(
-      `Unknown platform profile: "${platform}". Known platforms: ${
-        knownNames.length > 0 ? knownNames.join(", ") : "(none)"
-      }. Add a profile in scripts/short-video/lib/platforms/ to register a new platform ` +
+      `Unknown platform profile: "${platform}". Known platforms: ${knownNames.join(", ")}. ` +
+        `Add a profile in scripts/short-video/lib/platforms/ to register a new platform ` +
         `(spec: docs/specs/spec-platform-profile-isolation.md).`,
     );
     this.name = "UnknownPlatformError";
@@ -63,14 +75,9 @@ register(tiktokProfile);
 
 // ─── Queries ───
 
-/** All registered platform names (sorted). */
-export function listPlatformNames() {
-  return [...REGISTRY.keys()].sort();
-}
-
 /** All registered profiles (sorted by platform name). */
 export function listPlatformProfiles() {
-  return listPlatformNames().map((name) => REGISTRY.get(name));
+  return [...REGISTRY.keys()].sort().map((name) => REGISTRY.get(name));
 }
 
 /**
@@ -81,7 +88,7 @@ export function listPlatformProfiles() {
  */
 export function getPlatformProfile(platform) {
   if (typeof platform !== "string" || !REGISTRY.has(platform)) {
-    throw new UnknownPlatformError(String(platform), listPlatformNames());
+    throw new UnknownPlatformError(String(platform), [...REGISTRY.keys()].sort());
   }
   return REGISTRY.get(platform);
 }

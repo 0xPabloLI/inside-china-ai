@@ -44,9 +44,9 @@ export class InvalidProfileError extends Error {
  * Validate a profile against the declarative shape contract.
  * Pure function — returns an array of error strings (empty = valid).
  *
- * `video`/`privacy`/`commerce` field groups are required only when the profile
- * declares the `video` artifact type, so image-thread-only platforms can be
- * declared without video constraints.
+ * `video`/`cover`/`privacy`/`commerce` field groups are required only when the
+ * profile declares the `video` artifact type, so image-thread-only platforms
+ * can be declared without video constraints.
  */
 export function validateProfileShape(profile) {
   if (!profile || typeof profile !== "object") {
@@ -131,8 +131,22 @@ export function validateProfileShape(profile) {
       if (!Number.isInteger(profile.video.maxDurationSeconds) || profile.video.maxDurationSeconds <= 0) {
         errors.push("video.maxDurationSeconds: positive integer required");
       }
+      if (typeof profile.video.minFps !== "number" || !(profile.video.minFps > 0)) {
+        errors.push("video.minFps: positive number required");
+      }
       if (!Array.isArray(profile.video.containerFormats) || profile.video.containerFormats.length === 0) {
         errors.push("video.containerFormats: non-empty array required");
+      }
+
+      if (!profile.cover || typeof profile.cover !== "object") {
+        errors.push("cover: object required when artifactTypes includes 'video'");
+      } else {
+        if (typeof profile.cover.width !== "number" || !(profile.cover.width > 0)) {
+          errors.push("cover.width: positive number required");
+        }
+        if (typeof profile.cover.height !== "number" || !(profile.cover.height > 0)) {
+          errors.push("cover.height: positive number required");
+        }
       }
     }
 
@@ -148,19 +162,4 @@ export function validateProfileShape(profile) {
   }
 
   return errors;
-}
-
-// ─── Immutability ───
-
-/**
- * Deep-freeze a profile so declared values cannot be mutated at runtime.
- */
-export function deepFreeze(value) {
-  if (value && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const key of Object.keys(value)) {
-      deepFreeze(value[key]);
-    }
-  }
-  return value;
 }

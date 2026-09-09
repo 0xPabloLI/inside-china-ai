@@ -130,15 +130,6 @@ export const tiktokProfile = {
     note: "AI-generated content must be labeled in-app; unlabeled AI content is penalized.",
   },
 
-  // ─── Cover spec（#216 试点实测结论可直接落成规格）───
-
-  cover: {
-    /** 分辨率：1080×1920（9:16 竖屏）— tiktok-best-practices.md "技术规格" */
-    aspectRatio: "9:16",
-    width: 1080,
-    height: 1920,
-  },
-
   // ─── Video file constraints ───
 
   video: {
@@ -156,7 +147,19 @@ export const tiktokProfile = {
     minFps: 23,
   },
 
+  // ─── Cover spec（video 组条件字段，shape 契约在 declaresVideo 时要求）───
+  // #216 试点实测结论可直接落成规格
+
+  cover: {
+    /** 分辨率：1080×1920（9:16 竖屏）— tiktok-best-practices.md "技术规格" */
+    aspectRatio: "9:16",
+    width: 1080,
+    height: 1920,
+  },
+
   // ─── Privacy settings (Publora publish API defaults) ───
+  // NOTE: Publora may invert allow* booleans to TikTok's disable_* flags —
+  // test with SELF_ONLY before trusting values (publish-utils.mjs note).
 
   privacy: {
     defaultViewerSetting: "PUBLIC_TO_EVERYONE",
@@ -165,9 +168,6 @@ export const tiktokProfile = {
     allowDuet: false,
     /** Stitch disabled by default */
     allowStitch: false,
-    /** Publora may invert allow* booleans to TikTok's disable_* flags —
-     * test with SELF_ONLY before trusting values (publish-utils.mjs note). */
-    publoraBooleanInversionWarning: true,
   },
 
   // ─── Commerce constraints ───
