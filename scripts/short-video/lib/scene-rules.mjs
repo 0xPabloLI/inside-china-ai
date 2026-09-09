@@ -1652,7 +1652,7 @@ export function checkMediaStrategyContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `Scene(s) ${missingImagePrompt.map(([id]) => id).join(", ")} request AI image generation but have no aiImage.prompt`,
-      fix: "Add aiImage.prompt using the 6-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / LIGHTING / NEGATIVE — the video template minus CAMERA/MOTION) — see docs/video-workflow.md → AI Image (T2I)",
+      fix: "Add aiImage.prompt using the 6-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / LIGHTING / NEGATIVE — the video template minus CAMERA/MOTION) — see docs/video-production-runbook.md → AI Image (T2I)",
     });
   }
   if (missingVideoPrompt.length > 0) {
@@ -1661,7 +1661,7 @@ export function checkMediaStrategyContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `Scene(s) ${missingVideoPrompt.map(([id]) => id).join(", ")} request b-roll but have no aiVideo.prompt`,
-      fix: "Add aiVideo.prompt using the 8-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / CAMERA / MOTION / LIGHTING / NEGATIVE) — see docs/video-workflow.md",
+      fix: "Add aiVideo.prompt using the 8-dimension template (SUBJECT / VISUAL METAPHOR / BRAND / REFERENCE / CAMERA / MOTION / LIGHTING / NEGATIVE) — see docs/video-production-runbook.md",
     });
   }
   if (optedOut.length > 0) {

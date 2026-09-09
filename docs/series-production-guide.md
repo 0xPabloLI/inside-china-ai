@@ -1,7 +1,7 @@
 # Series Production Guide — 多集系列与合集制作
 
 > **创建于**: 2026-08-25
-> **被引用**: `docs/content-pipeline.md` Stage 3 Step 0（分集评估触发时加载）、`docs/video-workflow.md`（系列/合集操作时加载）
+> **被引用**: `docs/content-pipeline.md` Stage 3 Step 0（分集评估触发时加载）、`docs/video-production-runbook.md`（系列/合集操作时加载）
 > **研究依据**: `docs/research/multi-video-splitting-best-practices.md`（15 源，TikTok 算法分析、集间链接、自动评估器）
 
 ## When to Split

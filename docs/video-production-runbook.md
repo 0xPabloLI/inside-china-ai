@@ -1,4 +1,4 @@
-# China AI News — Video Production Workflow
+# China AI News — Video Production Runbook
 
 > The **workflow steps** (research → write scene-data → run pipeline → thumbnail → quality check) live in the `short-video-pipeline` skill. This document covers project-specific content: content standards, best practices, publishing strategy, and file locations.
 
@@ -88,9 +88,39 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 ## Pipeline Execution (#225)
 
+- **Step 0.2 CDP hard gate**（2026-09-09）: `main.mjs` 的第一步是 `lib/cdp-preflight.mjs` 的 `ensureCdpOrExit()`——探测 `localhost:3456/targets`；不通则自动拉起 `skills/web-access/scripts/cdp-proxy.mjs`（detached，日志 `output/cdp-proxy.log`）并轮询 ≤12s；仍不通 `process.exit(1)`。**禁止降级**：CDP 不可用时产出无背景媒体的视频（2026-09-08/09 事故），宁可早失败。代理通但 Chrome 调试端口（9222）不可达时给出用户操作指引——Agent 永远不代替用户重启 Chrome（AGENTS.md 守卫）。
 - **并行轨**：`main.mjs` 媒体轨（Step 1.5 sourcing → 1.5c media-patch → 1.5b upscale → 1.5d B-roll，`lib/media-track.mjs`）与语音轨（Step 1 TTS）`Promise.all` 并行，join 后过 1.6 media gate 再进字幕/渲染/verify。数据依赖：媒体轨只写 scene 媒体字段、TTS 只读 scene 文本——无共享可变状态。失败语义不变：媒体轨每阶段 warn 不阻塞；TTS 失败仍中止管线。
 - **步骤耗时 profile**：每次 run 结束（含失败路径）自动写 `output/<pipelineId>/profile-<version>.json`（另有稳定名 `last-profile.json`），并在末尾打印按耗时排序的 summary；失败时未结束 step 记 `unfinished: true`。管线提速决策以 profile 证据为准。
-- **TTS 缓存**（#198）：scene 音频按 `(engine, engine.info, text)` 键跨 run 复用，forced alignment 按 `(text + 音频字节)` 签名复用；`TTS_NO_CACHE=1` 强制冷跑（重生成全部音频）。
+- **TTS 缓存**（#198）：scene 音频按 `(engine, engine.info, text)` 键跨 run 复用，forced alignment 按 `(text + 音频字节)` 签名复用（ttsText 变化会触发重对齐）；`TTS_NO_CACHE=1` 强制冷跑（重生成全部音频）。
+- **长任务执行方式**：asset sourcing 全量 40+ 分钟，Agent 会话里**不要前台 `bash` 跑**（工具超时会杀进程）——用 `nohup ... > log 2>&1 &` 后台运行 + 轮询日志；搜索缓存已改为逐次增量落盘（见故障模式表），进程被杀也保留已完成搜索。
+
+### 双轨朗读文本（TTS spoken vs display）
+
+用户决策（2026-09-09）：**朗读可以改写，字幕/画面必须保持原文**。实现为三字段契约（`lib/normalize-tts-text.mjs`）：
+
+- `scene.voiceover` — 显示轨，永不被改写。字幕、审查、文章都用它。
+- `scene.voiceoverTts` — 内容生产时**手工标注的朗读形式**（语义在源头确定："0910" 是日期还是门牌号只有作者知道）。优先于规则。
+- `scene.ttsText` / `scene.ttsReplacements` — Step 0.6 兜底产物：正则规则（版本号/小数/日期）派生朗读形式并记录 `{original, spoken[]}` 替换对。**不写回 voiceover**。
+
+数据流：TTS manifest 与 forced alignment（text-align.py）读 `ttsText`（wav2vec2 词典无数字 token，必须用朗读形式才能对齐）；`lib/subtitles/restore-tokens.mjs` 在对齐结果落盘前把 spoken 词序列精确映射回 `original` 显示 token（匹配失败保留 spoken，绝不更差）。字幕因此显示 "V4.1 / 0910"，朗读读 "V four point one / September tenth"。
+
+### 已知故障模式与固化措施（2026-09-08/09 修复清单）
+
+修复固化在代码与本文档，不依赖会话记忆。回归时按表定位。
+
+| # | 故障 | 固化位置 |
+|---|------|----------|
+| 1 | HookScene `<Circle>` 遮住 bigNumber | `remotion/src/components/shared.ts` ANNOTATION.circle（strokeWidth:3 + padding）；HookScene 显式传参 |
+| 2 | TTS 读错版本号/小数/日期（"V four [停] one"） | 双轨文本（上文节）+ `lib/normalize-tts-text.mjs` + kernel 前端限制认知 |
+| 3 | sourcing 跳过所有 assetNeed 场景 | `lib/claim-keywords.mjs` skipsMediaSourcing 的 `&& !scene.assetNeed` 守卫 |
+| 4 | TTS prosody/speed 偏离认可基线 | adapter 默认 `prosody:null`+无 speed，`TTS_PROSODY=1` opt-in；kernel `torch.manual_seed(20260907)` |
+| 5 | 重叠字幕 chunk 被丢弃 | `text-align.py` group_chunks 重叠合并（never `continue`） |
+| 7 | media-patch.json 缺 `type` 字段 → 图片被当视频加载 | 每个条目必须 `"type":"image"|"video"`；`remotion/src/components/MediaBackground.tsx:206` 按 type 分派 |
+| 8 | 亮背景图透过 overlay 进右侧安全区 | media-patch 条目加 `"overlay":0.88`（亮图/图表类）；frame analysis 右安全区阈值 |
+| 9 | sourcing 被杀后搜索缓存全丢（"0 entries loaded"） | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘 |
+| 10 | Kaggle kernel 每次全量下载模型（10+ min） | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback |
+| 11 | CDP 中途才检查/静默降级 | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)` |
+
 
 ## Content Standards
 
@@ -158,6 +188,15 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 > Engine selection rationale, alternatives survey, and historical experiments: ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md`
 
 **Per-Scene Prosody Enhancement**（基于 `visualType`，FFmpeg `rubberband` 滤镜）:
+
+> **⚠️ CUDA 认可基线（2026-09-09）**: 用户认可的 P100 emotion 样本
+> （`scripts/short-video/assets/tts-comparison/cosyvoice3-kaggle-p100-cuda/`，2026-09-07 验证）
+> 是**纯 instruct2 输出**——无 inference `speed`、无 rubberband。两层叠加会改变音色/语速，
+> 偏离认可声音（hook 口音漂移、CTA 与认可版不一致的根因）。CosyVoice3-Kaggle-CUDA 默认
+> 关闭此表（kernel `torch.manual_seed(20260907)` 固定采样）；需要时显式 `TTS_PROSODY=1`
+> opt-in。全局语速用 `TTS_ATEMPO`（不改音高）。
+> 推理调用基线：`inference_instruct2(text, instruct_text, ref_path, stream=False)`，
+> instruct 用 `INSTRUCT_MAP`（`lib/tts/cosyvoice3-kaggle-cuda.mjs`）+ `<|endofprompt|>` 后缀。
 
 | visualType | Pitch  | Tempo  | Volume | Label                            |
 | ---------- | ------ | ------ | ------ | -------------------------------- |
@@ -365,7 +404,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 | Doc            | Path                     | Role                                                                                        |
 | -------------- | ------------------------ | ------------------------------------------------------------------------------------------- |
-| Video workflow | `docs/video-workflow.md` | ← **THIS FILE** — best practices, publishing strategy, file inventory, optimization lessons |
+| Video runbook | `docs/video-production-runbook.md` | ← **THIS FILE** — best practices, publishing strategy, file inventory, optimization lessons |
 | Brand system   | `docs/brand-system.md`   | Color tokens, typography, animation library, 9 scene templates, media strategy (Route C)    |
 
 ### AGENTS.md (1)

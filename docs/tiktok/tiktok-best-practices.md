@@ -632,7 +632,7 @@ TikTok 算法为每个账号建立「内容质量画像」。连续发布低完�
 
 - **HITL-3 质量门控**：`content-pipeline.md` HITL-3 已集成——Agent 在视频质量不达标时应建议用户不发布
 - **发布后追踪**：`scripts/short-video/publish-tiktok.mjs` 发布后写 `pending-analysis.json`，Agent 在后续 session 检查发布后 48h 的表现数据
-- **元素迭代法**：`video-workflow.md` 的 Element Iteration Method 提供科学的 A/B 测试方法论，避免盲目试错
+- **元素迭代法**：`video-production-runbook.md` 的 Element Iteration Method 提供科学的 A/B 测试方法论，避免盲目试错
 - **账号健康检查**：Agent 在 Session Start Checklist 中应提醒用户定期检查 TikTok Analytics 中的完成率和 For You 占比趋势
 
 ## Shadowban 完整指南

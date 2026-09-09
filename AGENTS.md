@@ -26,7 +26,7 @@
 2. **Implementation authorization**: do not change files until the user explicitly asks to implement, modify, fix or begin. Once authorized, proceed automatically except at a hard gate.
 3. **Implementation**: before changing code, scripts, migrations, test infrastructure or Agent behavior rules, and before high-risk, multi-session or Wayfinder work, read and follow `docs/agents/implementation-workflow.md`.
 4. **UI/UX design**: load `impeccable`; use `frontend-design` for a new visual direction. UI implementation still follows the implementation workflow.
-5. **Content production**: article, Scene Data, video rendering and publishing follow `docs/content-pipeline.md`; video execution details are in `docs/video-workflow.md`. Content production does not use the code Spec/Tickets/TDD route unless pipeline or application code changes.
+5. **Content production**: article, Scene Data, video rendering and publishing follow `docs/content-pipeline.md`; video execution details are in `docs/video-production-runbook.md`. Content production does not use the code Spec/Tickets/TDD route unless pipeline or application code changes.
 6. **Agent documents**: before creating, moving, deleting, renaming or structurally changing `AGENTS.md`, `docs/`, a skill or any Agent-reached document, load `writing-for-agents` and apply `docs/DOCS-INDEX.md` placement rules.
 7. **Proposals and external facts**: before recommending a code change, architecture, tool, service or model, follow `docs/agents/proposal-review.md`.
 8. **Git actions**: before staging, committing, pushing, opening a PR, working across branches or changing context with unfinished work, follow `docs/agents/git-workflow.md`.
@@ -50,9 +50,9 @@
 - **Risk and boundary scenario enumeration**: `docs/conventions/scenario-enumeration-checklist.md`
 - **Scenario and evidence format**: `docs/conventions/scenario-matrix.md`
 - **Media placement and lifecycle**: `docs/media-asset-management.md`
-- **Video/TTS/Remotion execution, including M4A conversion and real-data commands**: `docs/video-workflow.md`
+- **Video/TTS/Remotion execution, including M4A conversion and real-data commands**: `docs/video-production-runbook.md`
 - **Installed skills and task-to-skill routing**: `docs/installed-skills.md`
-- **Issue operations and roadmap**: `docs/agents/issue-tracker.md` and `docs/issue-tracker.md`
+- **Issue operations and roadmap**: `docs/agents/issue-tracker.md` and `docs/issue-roadmap.md`
 - **Available tools and tool-admission process**: `docs/tools-catalog.md`
 - **Model discovery, license and Apple Silicon admission**: `docs/research/model-sources-reference.md`
 
@@ -61,7 +61,7 @@
 - Default short-video platform is TikTok.
 - Before Scene Data, pipeline or publishing work, load the project `short-video-pipeline` and `brand-system` skills.
 - Remotion code changes use `remotion-markup` via `remotion-best-practices`; visual template changes also use `impeccable`.
-- Run the preflight required by `docs/video-workflow.md` before starting the video pipeline. Only an explicit user exception may bypass it.
+- Run the preflight required by `docs/video-production-runbook.md` before starting the video pipeline. Only an explicit user exception may bypass it.
 - Store new media according to `docs/media-asset-management.md`; do not use a generic root `assets/` dumping ground.
 
 ## Web and Research

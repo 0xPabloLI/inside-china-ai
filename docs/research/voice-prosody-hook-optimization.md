@@ -3,7 +3,7 @@
 > **Research Date**: 2026-08-08 (initial), 2026-08-17 (updated with F5-TTS prosody alternatives deep research)
 > **Sources**: 35+ sources (academic papers, TikTok creator content, TTS industry guides, social media marketing blogs, GitHub repos)
 > **Status**: Complete
-> **Related**: `docs/video-workflow.md`, `scripts/short-video/lib/tts/f5-mlx.mjs`, `scripts/short-video/lib/tts/post-process.mjs`
+> **Related**: `docs/video-production-runbook.md`, `scripts/short-video/lib/tts/f5-mlx.mjs`, `scripts/short-video/lib/tts/post-process.mjs`
 
 ---
 

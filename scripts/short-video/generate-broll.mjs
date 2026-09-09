@@ -41,7 +41,7 @@ Environment:
   MFLUX_BIN                mflux binary override (default probes ~/.video-t2i-env, then PATH)
 
 Candidates: 2 per scene, portrait 480x832 video / 832x1216 image, Tier A params.
-See docs/video-workflow.md for the agent prompt-iteration protocol.`;
+See docs/video-production-runbook.md for the agent prompt-iteration protocol.`;
 
 function getArg(argv, name) {
   const idx = argv.indexOf(`--${name}`);

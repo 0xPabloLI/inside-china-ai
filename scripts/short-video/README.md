@@ -194,7 +194,7 @@ node scripts/short-video/apply-media-patch.mjs
 | Document                                   | Purpose                                      |
 | ------------------------------------------ | -------------------------------------------- |
 | `docs/content-pipeline.md`                 | End-to-end pipeline stages, HITL, MRL        |
-| `docs/video-workflow.md`                   | TTS engines, publishing, file paths          |
+| `docs/video-production-runbook.md`                   | TTS engines, publishing, file paths          |
 | `docs/brand-system.md`                     | Brand identity, logo, color tokens           |
 | `docs/media-asset-management.md`           | Asset placement + RAG reindex triggers       |
 | `scripts/short-video/lib/safe-zones.mjs`   | TikTok safe zone constants (single source)   |

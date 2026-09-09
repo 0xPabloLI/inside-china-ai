@@ -1,7 +1,7 @@
 # Content Scaffold Guide — 新建视频内容管线
 
 > **创建于**: 2026-08-25
-> **被引用**: `docs/video-workflow.md`（创建新 content slug 时加载，非正常渲染时加载）
+> **被引用**: `docs/video-production-runbook.md`（创建新 content slug 时加载，非正常渲染时加载）
 > **研究依据**: `docs/brand-system.md`（scene templates、color tokens、animation library）
 
 ## When to Load This Guide
@@ -144,4 +144,4 @@ Fix all FAIL items before presenting to user. WARN items are acceptable.
 | Topic                     | Reference                     | Content                                                        |
 | ------------------------- | ----------------------------- | -------------------------------------------------------------- |
 | Brand visual identity     | `docs/brand-system.md` (L1)   | Color tokens, typography, animation library, 9 scene templates |
-| Video production workflow | `docs/video-workflow.md` (L1) | TTS engines, rendering, publishing strategy, file paths        |
+| Video production workflow | `docs/video-production-runbook.md` (L1) | TTS engines, rendering, publishing strategy, file paths        |

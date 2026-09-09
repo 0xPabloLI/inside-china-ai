@@ -32,7 +32,7 @@
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `brand-system.md`                                              | Brand visual identity — tokens, templates, rules                                                                                                                                            | `brand-system` skill                                         |
 | `brand-voice-profile.md`                                       | Brand text voice — 表达 DNA / 决策启发式 / 反模式 / 诚实边界四件套，逐条带语料例句 + 写作自检清单；结构层仍归 `video-script-writing-guide.md`                                                | `brand-system` / `writing-beats` / `copywriting` skills      |
-| `analytics-workflow.md`                                        | TikTok Analytics 独立工作流 — CSV/CDP 导出、A/B 测试、hashtag 效果追踪、Analytics→Pipeline 联动机制、竞品参考视频分析                                                                       | `content-pipeline.md` Stage 0 + Stage 5, `video-workflow.md` |
+| `analytics-workflow.md`                                        | TikTok Analytics 独立工作流 — CSV/CDP 导出、A/B 测试、hashtag 效果追踪、Analytics→Pipeline 联动机制、竞品参考视频分析                                                                       | `content-pipeline.md` Stage 0 + Stage 5, `video-production-runbook.md` |
 | `article-humanize-patterns-2026-09-04.md`                      | Article humanize 模式来源与阈值依据（MRL-1 B9/W7/W8/W9、W1 阈值）— Wikipedia "Signs of AI writing" 35 条清单等；执行规则唯一权威版本在 `article-production-guide.md` MRL-1                  |
 | `article-production-guide.md`                                  | Article generation rules — Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation                                                                   | `content-pipeline.md` Stage 1/2                              |
 | `content-pipeline.md`                                          | Unified content pipeline route map — Stage 0–5, MRL/HITL gates, inputs/outputs, pointers to specialized references                                                                          | AGENTS.md                                                    |
@@ -42,9 +42,9 @@
 | `tools-catalog.md`                                             | All available tools, services, APIs, and candidate skills — integrated, evaluated, pipeline API candidates; scenario→tool decision table (Tavily fallback authority lives in AGENTS.md)     | AGENTS.md                                                    |
 | `installed-skills.md`                                          | Agent skills overview — sources, invocation modes, MCP list, install commands                                                                                                               | AGENTS.md                                                    |
 | `tanstack-lovable-conventions.md`                              | Stack-level conventions for publishable build                                                                                                                                               | AGENTS.md                                                    |
-| `series-production-guide.md`                                   | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing                                                                                       | `content-pipeline.md` Stage 3, `video-workflow.md`           |
-| `content-scaffold-guide.md`                                    | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style                                                                                   | `video-workflow.md`                                          |
-| `video-workflow.md`                                            | Regular video-production runbook — preflight, TTS/audio conversion, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy, skill loading matrix                 | AGENTS.md                                                    |
+| `series-production-guide.md`                                   | Multi-video series strategy — split evaluation, inter-episode linking, compilation, series publishing                                                                                       | `content-pipeline.md` Stage 3, `video-production-runbook.md`           |
+| `content-scaffold-guide.md`                                    | New content pipeline scaffold — directory structure, file templates, CSS overflow checklist, visual style                                                                                   | `video-production-runbook.md`                                          |
+| `video-production-runbook.md`                                            | Regular video-production runbook — preflight, TTS/audio conversion, B-roll generation (FastVideo), rendering, verify, file paths, publishing strategy, skill loading matrix                 | AGENTS.md                                                    |
 | `video-script-writing-guide.md`                                | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3                                |
 | `archive/handoff-video-layout-standard.md`                     | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节）                                                                                                    | —                                                            |
 | `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽）                                                                                                                        | —                                                            |
@@ -119,17 +119,11 @@ Numbered sequence. Current: 0001–0019 (0006 moved to archive).
 | `ab-testing-methodology.md`  | Element iteration method — single-variable A/B testing philosophy              |
 | `tiktok-analytics-review.md` | TikTok Analytics 定期复盘模板 — 周期性复制模板、CDP 抓取数据、制定行动计划     |
 
-### `video/` — Video roadmap
-
-| Document                      | Purpose                                       |
-| ----------------------------- | --------------------------------------------- |
-| `video-automation-roadmap.md` | Video automation phased roadmap (ISSUE-01~14) |
-
 ### Root-level tracking docs
 
 | Document           | Purpose                                                                |
 | ------------------ | ---------------------------------------------------------------------- |
-| `issue-tracker.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
+| `issue-roadmap.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
 
 ### `handoffs/` — Session handoffs
 
@@ -176,8 +170,7 @@ Historical specs, tickets, plans, and roadmaps. Retained for reference, no longe
 | Document                               | Purpose                                                          |
 | -------------------------------------- | ---------------------------------------------------------------- |
 | `spec-vlm-fit-focus.md`                | VLM-driven fit/focus for landscape assets in vertical video spec |
-| `spec-issue-56-84-pr102-refresh.md`    | Refresh PR #102 on current asset sourcer spec                    |
-| `tickets-issue-56-84-pr102-refresh.md` | Tickets for PR #102 refresh                                      |
+
 
 ### `refs/` — Reference materials
 

@@ -21,7 +21,7 @@
  * Kaggle P100 CUDA matches A100 emotion baseline exactly. Modal A100 is the same
  * CUDA EP — used when Kaggle's 30h/week quota runs out (Modal ~$30/mo).
  *
- * All local models run at MAX EFFORT by default (see docs/video-workflow.md).
+ * All local models run at MAX EFFORT by default (see docs/video-production-runbook.md).
  * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + Qwen + whisperx all in one.
  */
 

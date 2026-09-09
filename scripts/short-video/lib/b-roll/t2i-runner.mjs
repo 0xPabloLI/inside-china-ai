@@ -17,7 +17,7 @@
  * composed prompt from prompt-injection.mjs, where they act on CFG-capable
  * backends (Z-Image base, SD3.5); on the Turbo default path image quality is
  * backstopped by the VLM relevance gate instead. This trade-off is recorded
- * in docs/video-workflow.md → "AI Image (T2I) generation".
+ * in docs/video-production-runbook.md → "AI Image (T2I) generation".
  */
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";

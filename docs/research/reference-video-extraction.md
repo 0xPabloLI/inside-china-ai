@@ -111,7 +111,7 @@ upgrade path — it wraps the same playAddr extraction into an HTTP API.
 
 > This task is `Backlog — not started`. The workflow below is the intended
 > design for when the task triggers. Execution instructions will migrate to
-> `docs/video-workflow.md` (L1) at implementation time.
+> `docs/video-production-runbook.md` (L1) at implementation time.
 
 ```bash
 # Step 1: Download reference video

@@ -131,7 +131,7 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Background         | None (transparent, text outline only)                                                                     |
 | Style              | Karaoke `\kt` + `\kf` (word-by-word highlight, absolute per-word anchors)                                 |
 | Timing             | wav2vec2 forced alignment (`text-align.py`), per-word timestamps                                          |
-| Generation         | `lib/subtitles/` (JS, see docs/video-workflow.md)                                                         |
+| Generation         | `lib/subtitles/` (JS, see docs/video-production-runbook.md)                                                         |
 
 All subtitle values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them. The subtitle lane (y≈1188–1350) is structurally separated from the content band (ends y=1150), so burned subtitles can never overlap scene content.
 

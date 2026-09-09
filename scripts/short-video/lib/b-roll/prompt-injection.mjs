@@ -1,6 +1,6 @@
 /**
  * Constant injection for the fixed dimensions of the 8-dimension b-roll
- * prompt (#166 layer 2). docs/video-workflow.md → "The 8-dimension prompt".
+ * prompt (#166 layer 2). docs/video-production-runbook.md → "The 8-dimension prompt".
  *
  * Ownership split:
  * - NEGATIVE — fully code-owned: semantic groups missing from the declared

@@ -198,7 +198,7 @@ Text sources collect article titles + URLs for trend discovery and script writin
 - **Full strategy**: `docs/archive/media-asset-strategy.md` — 1000+ lines, covers pipeline integration, animation presets, overlay strategy, BGM, audio mixing
 - **Video splitting**: `docs/research/multi-video-splitting-best-practices.md` — 15 sources, TikTok algorithm analysis
 - **Script writing**: `docs/research/short-video-script-writing-best-practices.md` — 15+ sources
-- **Pipeline docs**: `docs/content-pipeline.md`, `docs/video-workflow.md`
+- **Pipeline docs**: `docs/content-pipeline.md`, `docs/video-production-runbook.md`
 - **Asset management**: `docs/media-asset-management.md` — directory structure rules
 
 ## Design Decisions & References

@@ -202,7 +202,7 @@ text-align.py 强制对齐（scene-data voiceover → wav2vec2 → subtitle-timi
 
 **我们的适配：** TikTok 的"封面"就是视频第一帧（hook scene 第一帧），所以当前不需要分离。但如果将来扩展到视频号（需要 3:4 封面），需要这个分离。
 
-**当前行动：** 记录这个设计认知到 `docs/video-workflow.md`，不做代码改动。
+**当前行动：** 记录这个设计认知到 `docs/video-production-runbook.md`，不做代码改动。
 
 **触发扩展条件（需写明）：**
 
@@ -251,7 +251,7 @@ import { seriesConfig } from "../_series.mjs";
 **改动范围：**
 
 - 新增 `content/{series}/_series.mjs` 约定（非强制——新系列可选使用）
-- `docs/video-workflow.md` — 新增系列复用章节
+- `docs/video-production-runbook.md` — 新增系列复用章节
 - 已有系列（如 `distillation/`）不强制迁移
 
 ### 3.5 Profile Persistence（偏好持久化）
@@ -288,7 +288,7 @@ import { seriesConfig } from "../_series.mjs";
 
 - 新增 `scripts/short-video/pipeline-profile.json`（gitignored，本地偏好）
 - `main.mjs` 启动时读取 profile，用默认值填充未指定的参数
-- `docs/video-workflow.md` — 新增 Profile 章节
+- `docs/video-production-runbook.md` — 新增 Profile 章节
 - **独立排期：** Profile 与字幕修复解耦，待发现路径、优先级和回退策略明确后单独排期
 
 ## 4. Priority & Implementation Order

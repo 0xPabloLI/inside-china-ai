@@ -15,7 +15,7 @@ F5-TTS-MLX won on natural pacing and intonation at Max Effort configuration (ste
 
 ## Consequences
 
-- TTS engine parameters, post-processing rules, and priority chain: see `docs/video-workflow.md` → TTS Engine Configuration.
+- TTS engine parameters, post-processing rules, and priority chain: see `docs/video-production-runbook.md` → TTS Engine Configuration.
 - Engine evaluation and comparison details: see `docs/research/voice-cloning-solutions-m2-pro.md`.
 - F5-TTS-MLX requires `~/.video-tts-env` (Python 3.12) — see ADR-0011.
 - Future engine swap requires: (1) new adapter in `lib/tts/`, (2) register in `ENGINE_FACTORIES` + `PRIORITY`, (3) verify post-processing compatibility.

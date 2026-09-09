@@ -11,7 +11,7 @@
 > - **本地推理** — Apple Silicon 上可跑（优先），远程 GPU 作为备选
 > - **支持英文为主的视频旁白**
 > **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README/API、HuggingFace 模型页、CosyVoice/Fish Audio 官方 benchmark
-> **关联文档**：`docs/research/digital-human-solutions-m2-pro.md`（数字人）、`docs/research/voice-prosody-hook-optimization.md`（prosody 优化）、`docs/video-workflow.md`（管线配置）
+> **关联文档**：`docs/research/digital-human-solutions-m2-pro.md`（数字人）、`docs/research/voice-prosody-hook-optimization.md`（prosody 优化）、`docs/video-production-runbook.md`（管线配置）
 
 ---
 

@@ -15,7 +15,7 @@
 
 ## Key Findings
 
-1. **视频规格完全兼容（High）**。官方帮助中心：宽高比 0.33~3.0，推荐标准比例；时长手机端 3s~60min、电脑端 3s~8h [1]；格式 mp4/mov（本地核对：管线最终输出为 1080×1920 MP4，见 `docs/video-workflow.md` 渲染步骤表）。新榜称文件 ≤200MB [2]（Tier 3，未见官方条文确认，见 Open Questions）。现有 5-10 分钟高码率视频在网页端上传时需关注此限制，必要时降码率或分段。
+1. **视频规格完全兼容（High）**。官方帮助中心：宽高比 0.33~3.0，推荐标准比例；时长手机端 3s~60min、电脑端 3s~8h [1]；格式 mp4/mov（本地核对：管线最终输出为 1080×1920 MP4，见 `docs/video-production-runbook.md` 渲染步骤表）。新榜称文件 ≤200MB [2]（Tier 3，未见官方条文确认，见 Open Questions）。现有 5-10 分钟高码率视频在网页端上传时需关注此限制，必要时降码率或分段。
 
 2. **AIGC 声明是法定义务（High，Tier 1）**。《人工智能生成合成内容标识办法》（网信办等四部门，2025-03-07 印发、2025-09-01 施行）：用户发布 AI 生成合成内容须主动声明；不得删除、篡改、伪造、隐匿平台添加的 AI 标识 [6]。视频号等平台已落地发布页声明入口 [7][8]。对本管线的含义：**发布 checklist 必须新增"勾选 AI 生成声明"一步**，覆盖 TTS 配音、AI 生成 B-roll、数字人画面；漏标存在下架/限流风险 [8]。
 
@@ -87,4 +87,4 @@
 18. [海螺社：视频号发布后能修改吗](https://www.hailuoshe.com/blog/shipinhao-edit-after-publish) — 180 天 1 次修改、留痕 — Tier 3
 19. [人人都是产品经理：视频号话题标签引流](https://www.woshipm.com/operate/4436915.html) — `#` 话题添加方式 — Tier 3
 
-**本地代码核对（Tier 1）**：`docs/video-workflow.md` — 管线最终输出为 Remotion 渲染的 1080×1920 MP4（版本化文件 `{pipelineId}-v{ts}-short.mp4`），安全区规则按 1080×1920 画布定义。
+**本地代码核对（Tier 1）**：`docs/video-production-runbook.md` — 管线最终输出为 Remotion 渲染的 1080×1920 MP4（版本化文件 `{pipelineId}-v{ts}-short.mp4`），安全区规则按 1080×1920 画布定义。

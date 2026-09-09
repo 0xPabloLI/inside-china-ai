@@ -174,7 +174,7 @@ for the full document map. Key documents:
 | Document                               | Purpose                                        |
 | -------------------------------------- | ---------------------------------------------- |
 | `docs/content-pipeline.md`             | End-to-end pipeline: article → video → publish |
-| `docs/video-workflow.md`               | TTS engines, publishing, file paths            |
+| `docs/video-production-runbook.md`               | TTS engines, publishing, file paths            |
 | `docs/brand-system.md`                 | Brand identity, logo, color tokens             |
 | `docs/tiktok/tiktok-best-practices.md` | TikTok algorithm & content rules               |
 | `docs/tanstack-lovable-conventions.md` | Stack-level conventions                        |

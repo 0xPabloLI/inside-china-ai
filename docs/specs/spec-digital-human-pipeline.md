@@ -72,7 +72,7 @@
 - 只测外部行为：schema 校验的接受/拒绝矩阵、plan 文件内容、resume 幂等、回写原子性、safe-zone 断言判定、Remotion 组件对 avatar 存在/缺失的输出。
 - 先例：scene-rules 校验测试（`runAllSceneDataChecks` 既有测试面）、dh-upscale 5/5 单测 + 真机 smoke、remote-task 45/45、render 探针（official-fit-render 先例——真实 Chromium 帧证据）。
 - R3 失败基线（实现前实测修正）：scene-rules 当前对 `avatar` 字段**不可见**（fail-open——聚合结果逐字节不变），并非早先假设的「被既有校验拒绝」；template contract 只校验 `texts`。真实 red 起点 = 声明无校验（未知键被静默忽略），`checkAvatarContract`（票 01）据此建立 fail-closed。渲染层对未知字段的行为在票 02 实测。
-- Kaggle 真机验证沿用 `docs/video-workflow.md` preflight + 真实数据命令；mock 层只覆盖编排逻辑。
+- Kaggle 真机验证沿用 `docs/video-production-runbook.md` preflight + 真实数据命令；mock 层只覆盖编排逻辑。
 - 帧审计：ffmpeg 合成 fixture 30 用例确定性覆盖（无网络、无模型输出；dynamic 卡片用时空亮度振荡，std≈32>强运动阈值——testsrc2 大部分区域仅弱动态，作 fixture 会静默漏检）；真实 E2E（dh-pilot-qwen4 scene 10，动画渐变背景 + 真模型卡片）三关通过：presence 70.4% / 唇动 std 35.6 / onset 偏移 +0.000s。
 
 ## Out of Scope

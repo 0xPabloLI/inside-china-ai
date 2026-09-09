@@ -777,7 +777,7 @@ Agent 在需要云 GPU 时：
 
 ---
 
-## Batch-Running 经验（Modal / Kaggle / Colab 通用，自 video-workflow.md 迁入）
+## Batch-Running 经验（Modal / Kaggle / Colab 通用，自 video-production-runbook.md 迁入）
 
 按 session 或时长计费（或有限额）的云 GPU 都适用一条总原则：**启动开销摊销 + 结果尽早落盘 + 失败隔离**。
 

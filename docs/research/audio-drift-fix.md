@@ -2,7 +2,7 @@
 
 > Research report: root cause analysis, fix implementation, and sync verification for audio drift in assembled pipeline videos.
 >
-> Referenced by: `docs/video-workflow.md` → Pipeline Steps → Gapless Audio Track
+> Referenced by: `docs/video-production-runbook.md` → Pipeline Steps → Gapless Audio Track
 
 ## Problem
 

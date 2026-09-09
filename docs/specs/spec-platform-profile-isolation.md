@@ -40,7 +40,7 @@ Status: active（2026-09-09，第三十 session） · Parent issue: #219 · Plan
 
 - 新增：平台 Profile 模块目录（lib/platforms/）、发布包生成器（由 caption 生成器 Profile 化演化）。
 - 修改：caption 生成器（Profile 化 + 输出路径）、发布工具模块（TikTok 专属设置迁入 Profile）、verify-video（B6 per-platform 上限）、TikTok 发布器（读新路径 + 设置读 Profile）、main.mjs（publish 目录接线）。
-- 文档：video-workflow.md、content-pipeline.md、manual-ops.md 的平台段落；DOCS-INDEX 登记本 spec。
+- 文档：video-production-runbook.md、content-pipeline.md、manual-ops.md 的平台段落；DOCS-INDEX 登记本 spec。
 
 ⚠️ 实施门：main.mjs 当前有并行会话未提交改动（voice/content 会话）。实施开工前置 = 工作区干净（并行改动落地后），或经用户裁决用 worktree 隔离并在合入时处理 main.mjs 冲突。Conflict Matrix：#219 与 #225 同碰 main.mjs，串行。
 
