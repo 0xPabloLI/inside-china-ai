@@ -6,7 +6,16 @@
  *
  * Source: docs/tiktok/tiktok-best-practices.md (audit checklist B1-B9, W1-W9)
  *         docs/refs/tiktok-skills/ (community skill references)
+ *
+ * #219 ticket 01: numeric thresholds (THRESHOLDS) now live in the TikTok
+ * platform profile (lib/platforms/tiktok.mjs — spec
+ * docs/specs/spec-platform-profile-isolation.md) and are derived from it here,
+ * keeping this module's import surface unchanged for consumers.
  */
+
+import { getPlatformProfile } from "./platforms/index.mjs";
+
+const TIKTOK_PROFILE = getPlatformProfile("tiktok");
 
 // ─── AI Vocabulary Blacklist ───
 // Source: tiktok-best-practices.md "词汇黑名单" section
@@ -145,62 +154,8 @@ export const KNOWN_COMPANIES = [
 ];
 
 // ─── Thresholds ───
-// Centralized numeric thresholds for all checks.
-// Drift detection test validates these match documented values.
+// Numeric thresholds declared in the TikTok platform profile
+// (lib/platforms/tiktok.mjs) and derived from it — do not add numeric
+// literals here; edit the profile instead.
 
-export const THRESHOLDS = {
-  /** Max voiceover words for 60-70s target (2.5 wps) */
-  maxVoiceoverWords: 180,
-
-  /** Max words per sentence for one-breath check */
-  maxOneBreathWords: 25,
-
-  /** Min scene count */
-  minScenes: 6,
-
-  /** Max scene count */
-  maxScenes: 10,
-
-  /** B4: Hook VO vs text overlap — FAIL threshold (≥ this = Blocker) */
-  hookTextOverlapFailThreshold: 0.8,
-
-  /** Body-scene VO duplication: on-screen text repeating a verbatim VO
-      phrase of ≥ this many words (normalized) = three-tier repetition */
-  bodyTextDuplicateMinWords: 4,
-
-  /** B4: Hook VO vs text overlap — WARN threshold (≥ this, < fail = Warning) */
-  hookTextOverlapWarnThreshold: 0.5,
-
-  /** Min source attribution scenes */
-  minSourceScenes: 2,
-
-  /** Min SEO keyword scenes */
-  minKeywordScenes: 2,
-
-  /** Min ratio of scenes with data points */
-  minDataSceneRatio: 0.5,
-
-  /** Teleprompter rhythm: max deviation from average (fraction) */
-  teleprompterMaxDeviation: 0.15,
-
-  /** CTA stacking: count per scene that triggers warning */
-  ctaStackThreshold: 3,
-
-  /** Max goal signals before warning */
-  maxGoalSignals: 2,
-
-  /** Caption max length (API limit) */
-  maxCaptionLength: 2200,
-
-  /** Title max length */
-  maxTitleLength: 60,
-
-  /** Min hashtags */
-  minHashtags: 3,
-
-  /** Max hashtags */
-  maxHashtags: 5,
-
-  /** Hook greeting: max words to check from start */
-  greetingCheckWords: 3,
-};
+export const THRESHOLDS = TIKTOK_PROFILE.thresholds;

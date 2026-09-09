@@ -28,6 +28,12 @@ import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
+import { getPlatformProfile } from "./lib/platforms/index.mjs";
+
+// Caption constraints come from the TikTok platform profile (#219 ticket 01)
+const tiktokProfile = getPlatformProfile("tiktok");
+const CAPTION_MAX_CHARS = tiktokProfile.caption.maxLength;
+const TITLE_MAX_CHARS = tiktokProfile.caption.titleMaxLength;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -599,20 +605,20 @@ if (!preMode && results.fail.length === 0) {
       stdio: "inherit",
     });
 
-    // Verify caption file constraints (B6: caption ≤ 2200 chars)
+    // Verify caption file constraints (B6: caption ≤ 2,200 chars, from TikTok profile)
     // generate-caption.mjs writes to output/ (not output/{pipelineId}/)
     const captionPath = join(__dirname, "output", "tiktok-caption.txt");
     if (existsSync(captionPath)) {
       const captionContent = readFileSync(captionPath, "utf8");
-      if (captionContent.length > 2200) {
+      if (captionContent.length > CAPTION_MAX_CHARS) {
         fail(
           "Caption",
-          "Caption length ≤ 2,200 chars",
+          `Caption length ≤ ${CAPTION_MAX_CHARS.toLocaleString("en-US")} chars`,
           `${captionContent.length} chars`,
           "Trim caption content — remove redundant sentences or hashtags",
         );
       } else {
-        pass("Caption", "Caption length ≤ 2,200 chars", `${captionContent.length} chars`);
+        pass("Caption", `Caption length ≤ ${CAPTION_MAX_CHARS.toLocaleString("en-US")} chars`, `${captionContent.length} chars`);
       }
     }
   } catch (e) {
@@ -620,7 +626,7 @@ if (!preMode && results.fail.length === 0) {
       "Caption",
       "Caption generation succeeded",
       e.message,
-      "Check scene-data.mjs for issues that cause invalid caption (title > 60, caption > 2200, or hashtag count out of range)",
+      `Check scene-data.mjs for issues that cause invalid caption (title > ${TITLE_MAX_CHARS}, caption > ${CAPTION_MAX_CHARS}, or hashtag count out of range)`,
     );
   }
 }
