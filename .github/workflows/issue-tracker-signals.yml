@@ -1,0 +1,84 @@
+name: Issue tracker signals
+
+# 两条机器兜底，替代「靠自觉」：
+#   1. open 票收到任何新评论 → 自动打 comments-unread
+#      （信号出现在 `gh issue list` 的输出里 —— agent triage 时本来就会跑这条命令，
+#       零额外调用、零额外自觉；读完并把状态落进 roadmap 后由该 session 摘掉）
+#   2. 关票 → 校验存在交付记录评论；缺失则在原票留言提示，不改状态
+#
+# 规则出处：docs/agents/issue-tracker.md（Conventions 的 read-before-claim + Session cognitive offload）
+# 标签定义：docs/agents/triage-labels.md（Signal Labels，由 CI 管理，不计入 triage 的 category/state 约定）
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  mark-unread:
+    name: Mark new comment as unread state
+    if: github.event_name == 'issue_comment' && github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // 幂等：标签已存在时 addLabels 不报错
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['comments-unread'],
+            });
+            core.info(`comments-unread marked on #${context.issue.number}`);
+
+  check-delivery-record:
+    name: Check delivery record on close
+    if: github.event_name == 'issues' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            // 拒绝项没有交付记录可言
+            const rejected =
+              issue.state_reason === 'not_planned' ||
+              issue.labels.some((l) => l.name === 'wontfix');
+            if (rejected) {
+              core.info('closed as not-planned / wontfix — no delivery record expected');
+              return;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              per_page: 100,
+            });
+
+            // 交付记录的唯一 home 是评论（正文 write-once），以固定标记开头以便机器校验
+            const marker = /交付记录|Delivery record/i;
+            if (comments.some((c) => marker.test(c.body || ''))) {
+              core.info(`delivery record found on #${issue.number} (${comments.length} comments)`);
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: [
+                '⚠️ **交付记录缺失** —— 这张票已关闭，但没有任何评论带 `交付记录` / `Delivery record` 标记。',
+                '',
+                '按 `docs/agents/issue-tracker.md` 的 Session cognitive offload：per-issue 交付记录的**唯一 home 是评论**（正文是 write-once，不改）。',
+                '',
+                '请补一条**自包含**的交付记录评论——commit sha、验证证据（测试 / live evidence）、发现的机制、遗留项；标准是「没见过这个 session 的读者仅凭该评论就能恢复或审计这项工作」。',
+              ].join('\n'),
+            });
+            core.info(`delivery record missing on #${issue.number} — reminder posted`);
