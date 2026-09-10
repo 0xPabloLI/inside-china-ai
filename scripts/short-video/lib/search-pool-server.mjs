@@ -4,7 +4,7 @@
  * HOST_SEARCH_TOOL). Replaces the stale `brave-search:brave_web_search`
  * pointer, which no host ever registered.
  *
- * Engine chain: lib/search-pool.mjs (Brave > Tavily > Jina REST engines) with
+ * Engine chain: lib/search-pool.mjs (Serper > Brave > Tavily > Jina REST engines) with
  * the self-hosted mcp-search-bridge (Grok, unlimited) as the last resort —
  * the issue #65 pool design's 4th member. Credentials come from repo-root
  * .env.local (loaded here, because MCP hosts spawn this server with a bare
@@ -66,7 +66,7 @@ function toolDefinition() {
   return {
     name: TOOL_NAME,
     description:
-      "General web search across Brave, Tavily and Jina (round-robin fallback), " +
+      "General web search across Serper, Brave, Tavily and Jina (round-robin fallback), " +
       "with self-hosted Grok as last resort. Returns structured {title, url, snippet} results.",
     inputSchema: {
       type: "object",

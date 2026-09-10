@@ -58,7 +58,7 @@ describe("search-pool-server", () => {
       },
       deps,
     );
-    expect(deps.searchPool).toHaveBeenCalledWith("DeepSeek V4");
+    expect(deps.searchPool).toHaveBeenCalledWith("DeepSeek V4", { mode: "serial" });
     expect(deps.grokSearch).not.toHaveBeenCalled();
     expect(resp.result.isError).toBeUndefined();
     const payload = JSON.parse(resp.result.content[0].text);

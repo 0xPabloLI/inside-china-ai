@@ -115,8 +115,9 @@ async function searchJina(keyword, apiKey, timeoutMs) {
 
 /** Fixed priority order — Serper (2500/mo, Google results) > Brave (2000/mo) > Tavily (1000/mo) > Jina.
  *  GoogleCSE removed from pool: it is site-scoped (50 AI news domains), not general web search.
- *  CSE lives in the content pipeline as a dedicated site-scoped source instead. */
-const POOL_ENGINES = [
+ *  CSE lives in the content pipeline as a dedicated site-scoped source instead.
+ *  Exported so tests can pin an explicit engine list via the opts.engines seam. */
+export const POOL_ENGINES = [
   { name: "serper", apiKeyEnv: "SERPER_API_KEY", search: searchSerper },
   { name: "brave", apiKeyEnv: "BRAVE_SEARCH_API_KEY", search: searchBrave },
   { name: "tavily", apiKeyEnv: "TAVILY_API_KEY", search: searchTavily },
