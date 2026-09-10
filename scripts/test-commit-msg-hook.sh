@@ -321,6 +321,55 @@ check "S35b ref untouched after blocked reset" "$BEFORE35" "$AFTER35"
 ( cd "$RL" && bash scripts/session-launcher.sh stop "$WT_PATH" ) >/dev/null 2>&1
 check "S36 stop removes the state file" "no" "$([ -f "$STATE_ABS" ] && echo yes || echo no)"
 
+# --- Group J: round-2 residual gaps (real clone e2e + pathspec commit) ------
+
+# S37 real clone end-to-end: a fresh clone has no hooksPath (gate absent,
+# S37a-b); running the real installer turns the gate on (S37c-d). S12-S15
+# simulate the installer; this exercises it for real via git clone --no-local.
+REFTX="$REPO_ROOT/.githooks/reference-transaction"
+PCM="$REPO_ROOT/.githooks/prepare-commit-msg"
+ORIGIN37="$TMP_ROOT/origin37"
+mkdir -p "$ORIGIN37/.githooks" "$ORIGIN37/scripts"
+cp "$HOOK" "$ORIGIN37/.githooks/commit-msg"
+cp "$REFTX" "$ORIGIN37/.githooks/reference-transaction"
+cp "$PCM" "$ORIGIN37/.githooks/prepare-commit-msg"
+cp "$INSTALLER" "$ORIGIN37/scripts/install-git-hooks.sh"
+chmod +x "$ORIGIN37/.githooks/commit-msg" \
+         "$ORIGIN37/.githooks/reference-transaction" \
+         "$ORIGIN37/.githooks/prepare-commit-msg"
+( cd "$ORIGIN37"
+  git init -q -b main .
+  git config user.email t@t.local; git config user.name t; git config commit.gpgsign false
+  git add .githooks scripts
+  git commit -q -m "hooks"
+) >/dev/null 2>&1
+CLONE37="$TMP_ROOT/clone37"
+git clone -q --no-local "$ORIGIN37" "$CLONE37"
+check "S37a fresh clone has no hooksPath (gate absent)" "" "$(cd "$CLONE37" && git config core.hooksPath || true)"
+C37B="$( cd "$CLONE37" && git config user.email t@t.local && git config user.name t &&
+  git config commit.gpgsign false && echo one > a.txt && git add a.txt &&
+  git commit -q -m "pre-install" >/dev/null 2>&1; echo $? )"
+check "S37b trailer-less commit passes before install" 0 "$C37B"
+( cd "$CLONE37" && bash scripts/install-git-hooks.sh ) >/dev/null 2>&1
+C37C="$( cd "$CLONE37" && echo two > a.txt && git add a.txt &&
+  git commit -q -m "no trailer" >/dev/null 2>&1; echo $? )"
+check "S37c after real install, trailer-less commit is blocked" 1 "$C37C"
+CLONE_REG="$(cd "$CLONE37" && git rev-parse --absolute-git-dir)/session-pilot/pilot-log.md"
+printf -- '- **Session-Id**: `20260910-clone-cccccc`\n' >> "$CLONE_REG"
+C37D="$( cd "$CLONE37" && echo three > a.txt && git add a.txt &&
+  git commit -q -m "with trailer" --trailer "Session-Id: 20260910-clone-cccccc" >/dev/null 2>&1; echo $? )"
+check "S37d registered id with well-formed trailer passes after install" 0 "$C37D"
+
+# S38 pathspec commit: staged FOREIGN changes are not swept into a commit made
+# with explicit pathspecs (the §10 recovery technique).
+R38=$(new_repo "pathspec")
+( cd "$R38" && echo foreign > foreign.txt && git add foreign.txt ) >/dev/null 2>&1
+C38="$( cd "$R38" && echo own > own.txt && git add own.txt &&
+  git commit -q -m "own only" --trailer "Session-Id: 20260910-mine-bbbbbb" -- own.txt >/dev/null 2>&1; echo $? )"
+check "S38a pathspec commit succeeds with staged foreign file" 0 "$C38"
+check "S38b committed tree excludes the staged foreign file" 0 "$(cd "$R38" && git show --name-only --format= HEAD | grep -c foreign.txt || true)"
+check "S38c staged foreign file remains staged after the commit" 1 "$(cd "$R38" && git diff --cached --name-only | grep -c foreign.txt || true)"
+
 echo "---"
 echo "pass=$pass fail=$fail"
 [ "$fail" = "0" ]

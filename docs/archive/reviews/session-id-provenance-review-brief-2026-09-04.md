@@ -1,4 +1,4 @@
-# 独立复核材料：Session-Id 关联标识落地（2026-09-03 session 交付，v5 修订版）
+# 独立复核材料：Session-Id 关联标识落地（2026-09-03 session 交付，v6 修订版）
 
 > 用途：交给未参与本工作的第三方 Agent 做独立 review。本文自包含——reviewer 不需要读对话历史。
 > 交付方 Session-Id：`20260903-pilot1-384b29`｜仓库：`inside-china-ai`｜分支：`main`
@@ -14,6 +14,9 @@
 > 状态文件 + 登记）与 `.githooks/prepare-commit-msg`（trailer 自动填写）；ref-gate 状态文件改
 > per-worktree（`--absolute-git-dir`），worktree 内 hooks 需绝对 hooksPath（实测相对路径在
 > linked worktree 中静默失效）。验收 45/45。§12 回执同步更新。
+> **v6（2026-09-10）**：残项收尾——§6 证据计数更新为 52/52（新增真实 clone e2e 组 S37 与
+> pathspec commit 组 S38）、lint WARN 计数更正为 7≥5；§4/§9.1 merge 豁免复裁状态关闭
+> （第二轮复核已裁定维持豁免）；§9.7/§12 测试缺口两项补齐；§5 命令注释场景数改实跑口径。
 > 日期：2026-09-04。
 
 ---
@@ -100,7 +103,7 @@ git log --all --format='%h%x09%(trailers:key=Session-Id,valueonly,separator=%x2C
 | 路径                        | commit-msg 是否触发       | 结果与规则                                                                                                                                                                            |
 | --------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 普通 commit / amend         | ✅                        | 校验；amend 叠加第二个 id 会被拦                                                                                                                                                      |
-| `merge --no-ff`             | ✅（**v1 误报为不触发**） | **按裁决豁免**（MERGE_HEAD 检查）：merge 不含原创工作，拦截会挡住例行 pull-merge；代价是 merge commit 无 id，属设计行为。**此裁决基于"不触发"的错误前提做出，是否改强制留给下轮复裁** |
+| `merge --no-ff`             | ✅（**v1 误报为不触发**） | **按裁决豁免**（MERGE_HEAD 检查）：merge 不含原创工作，拦截会挡住例行 pull-merge；代价是 merge commit 无 id，属设计行为。**此裁决基于"不触发"的错误前提做出；第二轮复核已复裁维持豁免（v6 收尾注）** |
 | `revert`                    | ❌ 不触发                 | 规则：`revert --no-commit` 后正常提交（S18b 验证该路径被门控）                                                                                                                        |
 | `cherry-pick`               | ❌ 不触发                 | **沿用原提交 id → 归因错配**（比漏写更隐蔽）；规则：`--no-commit` 后正常提交                                                                                                          |
 | `commit-tree`               | ❌                        | runbook 配方要求手写 trailer + 事后精确查询复核                                                                                                                                       |
@@ -114,7 +117,8 @@ git log --all --format='%h%x09%(trailers:key=Session-Id,valueonly,separator=%x2C
 git log --all --format='%h%x09%(trailers:key=Session-Id,valueonly,separator=%x2C)%x09%s' \
   | awk -F '\t' -v id="20260903-pilot1-384b29" '$2 == id'
 
-# hook 实现 + 验收（27 scenarios，覆盖 trailer 校验 / strict 登记 / worktree / 安装器 / bypass / 双 id 查询 / update-ref 竞态）
+# hook 实现 + 验收（覆盖 trailer 校验 / strict 登记 / worktree / 安装器 / bypass / 双 id 查询 /
+# update-ref 竞态 / launcher 自动填 / 真实 clone e2e / pathspec commit——场景数以脚本实跑为准）
 cat .githooks/commit-msg
 bash scripts/test-commit-msg-hook.sh
 
@@ -126,11 +130,12 @@ npm run lint:docs
 
 **可复现（reviewer 可直接运行）**：
 
-- `bash scripts/test-commit-msg-hook.sh` → **35/35**（含 bypass 矩阵、worktree 共享登记表、
-  installer 行为、双 id 查询两侧均不可达、update-ref 带期望旧值拒绝对过期旧值写入、
-  登记 token 精确匹配、legacy 弃用警告、reference-transaction 门控组 S29–S31）；
+- `bash scripts/test-commit-msg-hook.sh` → **52/52**（v6 收尾后；含 bypass 矩阵、worktree
+  共享登记表、installer 行为、双 id 查询两侧均不可达、update-ref 带期望旧值拒绝对过期旧值
+  写入、登记 token 精确匹配、legacy 弃用警告、reference-transaction 门控组 S29–S31、launcher
+  与自动填组 S32–S36、真实 clone e2e 组 S37、pathspec commit 组 S38）；
 - `npm run lint:docs` → 通过（exit 0）但带 1 条**已接受的 WARN**：提案保留的命令示例达
-  L2 阈值（6≥5），已在提案 §6.1 写明接受稳态——完整命令已迁 `git-workflow.md` §8；
+  L2 阈值（7≥5），已在提案 §6.1 写明接受稳态——完整命令已迁 `git-workflow.md` §8；
 - §5 的查询命令与 trailer 一致性。
 
 **Session 报告（历史自报，非第三方可重复）**：
@@ -171,8 +176,8 @@ index（先 `git diff --cached --quiet` 检查）；`commit-tree` 手写 trailer
 
 ## 9. 已知未解决事项
 
-1. **merge 豁免待复裁**：实测 hook 会触发 merge commit-msg，v1 的豁免是基于错误前提的裁决；
-   维持豁免但留待下轮（改强制的代价：拦截例行 pull-merge）。
+1. **merge 豁免（v6 关闭）**：实测 hook 会触发 merge commit-msg，v1 的豁免是基于错误前提的
+   裁决；第二轮复核已复裁维持豁免（改强制的代价：拦截例行 pull-merge），不再待裁。
 2. bypass 面剩余：`--no-verify`、`commit-tree`、未安装 checkout——均为有意保留或结构性限制，
    无 hook 层解法。
 3. 登记表无稳定 session reference 映射（自由文本 tool 字段），Q8 的完整裁决未达成。
@@ -182,7 +187,8 @@ index（先 `git diff --cached --quiet` 检查）；`commit-tree` 手写 trailer
 6. **strict 的强度上限**：fail-closed 距离关闭只有一条命令——`git config --unset
 session.provenance`（hook 拒绝信息里如实印出）。作为本地 guardrail 这是诚实上限；
    服务端强制不在本方案范围内。
-7. 测试缺口：真实 clone 端到端（S12–15 为模拟安装）、pathspec commit 场景、登记表内容质量。
+7. 测试缺口（v6 收尾：前两项已补）：真实 clone e2e 入 S37（`git clone --no-local` + 真实
+   installer）、pathspec commit 场景入 S38；登记表内容质量仍无法用测试修复（见第 5 条）。
 
 ---
 
@@ -274,4 +280,4 @@ README 核对）：
 | lint 表述                                     | §6 写"PASS"不准；提案 §6.1 承诺的命令迁移未做                                                                                                                                                        | ✅ §6 已改为"通过 + 1 条已接受 WARN"；提案 §6.1 写明接受稳态                                                                                                                                                                                                                                                                                                                                                                  |
 | strict 强度上限                               | hook 拒绝信息印着 `git config --unset session.provenance`，应明示 fail-closed 只差一条命令                                                                                                           | ✅ 记入 §9 未解决事项 6                                                                                                                                                                                                                                                                                                                                                                                                       |
 | DOCS-INDEX 滞后                               | review 行还写 v2                                                                                                                                                                                     | ✅ 本批更新为 v4                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 测试缺口                                      | 真实 clone 端到端（S12–15 为模拟）、pathspec commit 场景、登记表内容质量                                                                                                                             | ⚠️ 已记录为后续补测项（不阻塞本轮）                                                                                                                                                                                                                                                                                                                                                                                           |
+| 测试缺口                                      | 真实 clone 端到端（S12–15 为模拟）、pathspec commit 场景、登记表内容质量                                                                                                                             | ✅ v6 收尾已补（S37 真实 clone e2e、S38 pathspec commit）；登记表内容质量除外（§9.5）                                                                                                                                                                                                                                                                                                                                                                                           |
