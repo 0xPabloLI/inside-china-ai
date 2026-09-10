@@ -175,8 +175,11 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
       "/output/audio/whisper-manifest.json",
       expect.any(String),
     );
-    expect(execMock).toHaveBeenCalledTimes(1);
     expect(execMock.mock.calls[0][0]).toContain("text-align.py");
+    // #232 guard pass runs after alignment: scene-1's fixture tail (3.5s audio
+    // vs 1.2s last word) is trimmed — one ffmpeg trim call (+ mv + ffprobe;
+    // cmd is quoted, hence matching "ffmpeg\"" not "ffmpeg ").
+    expect(execMock.mock.calls.filter(([cmd]) => cmd.includes("ffmpeg"))).toHaveLength(1);
   });
 
   // ─── generateSubtitles works with both formats ───

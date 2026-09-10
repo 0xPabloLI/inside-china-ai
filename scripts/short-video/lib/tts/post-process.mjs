@@ -21,6 +21,8 @@ import { writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
+import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
+import { runAlignmentGuards } from "./alignment-guards.mjs";
 import {
   computeAlignmentSignature,
   alignmentCacheState,
@@ -29,11 +31,9 @@ import {
 
 const execAsync = promisify(exec);
 
-// Use ffmpeg-full for rubberband/libass support (same as assemble.mjs)
-const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
-const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
-const ffmpegCmd = existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg";
-const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
+// getDuration moved to ./ffmpeg-cmd.mjs (#232) — re-exported for the
+// edge-tts / say adapters that import it from here.
+export { getDuration };
 
 // ── Prosody profiles (per scene visualType) ──
 //
@@ -192,18 +192,8 @@ export function getAtempo() {
 }
 
 // ── Duration probing ──
-
-/**
- * Get exact audio duration using ffprobe.
- * @param {string} audioPath
- * @returns {Promise<number>}
- */
-export async function getDuration(audioPath) {
-  const { stdout } = await execAsync(
-    `"${ffprobeCmd}" -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-  );
-  return parseFloat(stdout.trim());
-}
+// getDuration lives in ./ffmpeg-cmd.mjs now (shared with alignment-guards);
+// re-exported above for existing importers.
 
 // ── Post-processing ──
 
@@ -319,10 +309,16 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
     const { restoreTimingTokens } = await import("../subtitles/restore-tokens.mjs");
     const { readFileSync: rf } = await import("fs");
     const timingData = JSON.parse(rf(timingPath, "utf8"));
+    // Guards BEFORE restore + cache-meta (#232): the crushed-word check needs
+    // the RAW spoken-form words (restore replaces them with display tokens),
+    // and the tail cut changes the audio bytes, so the alignment signature
+    // must be computed over the cut files — the next run cache-hits instead
+    // of re-cutting.
+    const guards = await runAlignmentGuards(ttsResults, timingData);
     writeFileSync(timingPath, JSON.stringify(restoreTimingTokens(timingData, scenes), null, 2));
     writeAlignmentMeta(outputDir, computeAlignmentSignature(scenes, ttsResults));
     console.log("  ✅ Subtitle timing saved (wav2vec2-large-960h-lv60-self aligned)");
-    return { skipped: false };
+    return { skipped: false, guards };
   } catch (e) {
     console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
     return { skipped: true, reason: `force-align failed: ${e.message.substring(0, 100)}` };

@@ -262,7 +262,19 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
   // Run subtitle alignment for accurate timing
   if (runAlignment) {
-    await runForcedAlignment(scenes, merged, outputDir);
+    const alignment = await runForcedAlignment(scenes, merged, outputDir);
+    // #232: guards log per-scene detail during alignment; aggregate one line
+    // at generation end so the HITL listening pass knows which scenes to
+    // spot-check (crushed words) and that tail cuts were applied.
+    const guards = alignment?.guards;
+    if (guards && (guards.cuts.length > 0 || guards.crushedWords.length > 0)) {
+      const crushedScenes = [...new Set(guards.crushedWords.map((w) => w.sceneId))];
+      console.log(
+        `  🛡️ Alignment guards (#232): ${guards.cuts.length} tail cut(s), ` +
+          `${guards.crushedWords.length} crushed word(s)` +
+          (crushedScenes.length ? ` — spot-check scene(s) ${crushedScenes.join(", ")}` : ""),
+      );
+    }
   }
 
   return merged;
