@@ -148,6 +148,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | ~~`source-registry-capability-audit-2026-08-19-matrix.csv`~~ | ✅ 已归档至 `archive/reviews/`（随主报告）
 | ~~`session-id-provenance-review-brief-2026-09-04.md`~~ | ✅ 已归档至 `archive/reviews/`（提案 v5 已结项，复核意见全部吸收进 proposal 与 git-workflow.md §8）
 | `ponytail-adoption-review-brief-2026-09-04.md`           | ponytail 改造的第三方独立复核材料 **v3** — 上游分层体积实测（固定 SHA，合计闭合）、适配器逐目录层级表（4 注入 + 9 指令层）、三处落地文本与统一字节口径、逐 tag 拒绝理由、证据分级与自我反驳、两轮复核（Q1–Q7、R1–R6）裁决落实                      |
+| `issue-roadmap-review-2026-09-10.md`                     | Issue Roadmap 待做 issue 第三方方案 Review（2026-09-10）— 19 票逐票判定（前沿 #219/#235/#232/#229/#221 · HITL #225/#216/#230 · 深水区 #191/#192/#185/#186 · dormant 6 张）；结论已吸收进 `issue-roadmap.md` 各 Tier 行 + §推荐推进顺序（六项代码级断言核验通过；#229 运行时复现受沙箱 broker 限制未做） |
 
 ### `archive/` — Completed work
 
