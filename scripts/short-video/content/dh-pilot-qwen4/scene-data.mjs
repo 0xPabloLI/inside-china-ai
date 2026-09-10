@@ -161,6 +161,10 @@ export const scenes = [
     id: 7,
     name: "benchmarks",
     visualType: "stat-reveal",
+    // 2026-09-10 A/B evidence: with the narrative instruct this line gets a
+    // ~4s hallucinated pre-roll; with no instruct it truncates mid-"53.4" or
+    // loops. The data instruct (refStyle) reads it completely and cleanly.
+    refStyle: "data",
     narrativeRole: "R",
     retentionMechanism: null,
     layout: "hero-center",
