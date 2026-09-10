@@ -8,8 +8,12 @@
 import { existsSync, statSync } from "fs";
 import { resolve } from "path";
 import { validateSeriesMeta, getSeriesHashtag } from "./series-meta.mjs";
+import { getPlatformProfile } from "./platforms/index.mjs";
 
-const CAPTION_MAX = 2200;
+// Caption/file limits come from the TikTok platform profile (#219 T02 —
+// single-path convergence; no local literal copies).
+const CAPTION_MAX = getPlatformProfile("tiktok").caption.maxLength;
+const VIDEO_MAX_SIZE_BYTES = getPlatformProfile("tiktok").video.maxSizeBytes;
 
 /**
  * Truncate a string at sentence boundary.
@@ -120,12 +124,11 @@ export function validateVideoFile(videoPath) {
     return { valid: false, error: `Video file must be MP4 format (got: ${absPath})` };
   }
 
-  // Check size (Publora limit: 150MB for videos)
-  const MAX_SIZE = 150 * 1024 * 1024; // 150MB
-  if (stat.size > MAX_SIZE) {
+  // Check size (Publora limit — platform profile video.maxSizeBytes)
+  if (stat.size > VIDEO_MAX_SIZE_BYTES) {
     return {
       valid: false,
-      error: `Video file too large: ${(stat.size / 1024 / 1024).toFixed(1)}MB (limit: 150MB)`,
+      error: `Video file too large: ${(stat.size / 1024 / 1024).toFixed(1)}MB (limit: ${(VIDEO_MAX_SIZE_BYTES / 1024 / 1024).toFixed(0)}MB)`,
     };
   }
 

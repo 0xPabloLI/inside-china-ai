@@ -147,9 +147,11 @@ TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下�
 | `output/pending-analysis.json` | 待分析视频记录（publish-tiktok.mjs 自动写入）        |
 | `output/analytics-export.json` | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）    |
 | `output/ab-test-results.json`  | A/B 测试追踪（ab-test-tracker.mjs）                  |
-| `output/tiktok-caption.txt`    | TikTok 发布用的 caption（verify-video.mjs 自动生成） |
-| `output/tiktok-metadata.json`  | TikTok 发布用的元数据（verify-video.mjs 自动生成）   |
+| `output/{pipelineId}/publish/tiktok/tiktok-caption.txt`    | TikTok 发布用的 caption（verify-video.mjs 自动生成，#219 T02 起按平台目录隔离） |
+| `output/{pipelineId}/publish/tiktok/tiktok-metadata.json`  | TikTok 发布用的元数据（verify-video.mjs 自动生成）   |
 | `output/reference-videos/`     | 用户手动下载的竞品参考视频（按需）                   |
+
+> 不带 `--content` 单跑 `generate-caption.mjs` 时，发布包落在 `output/publish/tiktok/`（无 pipelineId 段的 standalone 路径）。
 
 ## Design Decisions & References
 

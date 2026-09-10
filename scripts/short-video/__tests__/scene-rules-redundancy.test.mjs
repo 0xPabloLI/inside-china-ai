@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { checkBodyTextVoRedundancy } from "../lib/scene-rules.mjs";
-import { THRESHOLDS } from "../lib/tiktok-rules.mjs";
+import { tiktokProfile } from "../lib/platforms/tiktok.mjs";
+
+// THRESHOLDS live in the platform profile — tiktok-rules.mjs no longer
+// forwards them (#219 T02 Middle-Man removal).
+const THRESHOLDS = tiktokProfile.thresholds;
 
 // ── checkBodyTextVoRedundancy ──
 // Guards the "three-tier repetition" principle: on-screen text, subtitle and

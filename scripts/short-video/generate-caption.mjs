@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * TikTok Caption Generator
+ * Publish-package generator CLI (#219 ticket 02 — Profile-driven).
  *
- * Generates tiktok-caption.txt (human: paste into TikTok) and
- * tiktok-metadata.json (program: for ISSUE-01 API publishing).
+ * Generates one publish package per REGISTERED platform profile
+ * (caption txt + metadata json + pinned comment), landing in
+ * output/{pipelineId}/publish/{platform}/ — kernel artifacts are untouched.
  *
  * Usage:
  *   node scripts/short-video/generate-caption.mjs               # standalone (root scene-data)
@@ -11,20 +12,20 @@
  *   # or auto-called by verify-video.mjs when all checks pass
  *
  * Reads:  scripts/short-video/{scene-data.mjs | content/<dir>/scene-data.mjs}
- * Writes: output/tiktok-caption.txt, output/tiktok-metadata.json
+ *         + meta.mjs (keyEntities / manual hashtags)
+ * Writes: output/[{pipelineId}/]publish/{platform}/{platform}-caption.txt
+ *         output/[{pipelineId}/]publish/{platform}/{platform}-metadata.json
+ *         output/[{pipelineId}/]publish/{platform}/{platform}-pinned-comment.txt
+ *
+ * Caption/hashtag limits come from each platform's profile — no local copies
+ * (single-path convergence, review 缓议 #219 T02).
  */
 
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-
-import {
-  deriveTitle,
-  deriveDescription,
-  deriveHashtags,
-  derivePinnedComment,
-  classifyHashtags,
-} from "./lib/caption-utils.mjs";
+import { generatePublishPackages } from "./lib/platforms/generate-publish-package.mjs";
+import { listPlatformProfiles } from "./lib/platforms/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,27 +34,13 @@ const args = process.argv.slice(2);
 const contentFlag = args.indexOf("--content");
 const contentDir = contentFlag >= 0 ? args[contentFlag + 1] : "";
 
-// ─── Per-content output dir (when --content is used) ───
-const OUTPUT_DIR = contentDir ? join(__dirname, "output", contentDir) : join(__dirname, "output");
+const OUTPUT_ROOT = join(__dirname, "output");
 const SCENE_DATA_PATH = contentDir
   ? join(__dirname, "content", contentDir, "scene-data.mjs")
   : join(__dirname, "scene-data.mjs");
 const META_PATH = contentDir
   ? join(__dirname, "content", contentDir, "meta.mjs")
   : join(__dirname, "meta.mjs");
-const CAPTION_TXT_PATH = join(OUTPUT_DIR, "tiktok-caption.txt");
-const METADATA_JSON_PATH = join(OUTPUT_DIR, "tiktok-metadata.json");
-
-/**
- * Convert a raw entity string (e.g. "moonshot", "frontier_security")
- * to display format ("Moonshot", "Frontier Security").
- */
-function formatEntityName(raw) {
-  return raw
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
 
 async function main() {
   // ─── Load scene data ───
@@ -67,115 +54,43 @@ async function main() {
     process.exit(1);
   }
 
-  // ─── Load meta.mjs for primary entity + keyEntities ───
-  let primaryEntity = null;
-  let keyEntitiesCompanies = [];
-  let metaHashtags = null;
+  // ─── Load meta.mjs for primary entity + keyEntities + manual hashtags ───
+  let meta = null;
   if (existsSync(META_PATH)) {
     try {
       const metaMod = await import(`file://${META_PATH}`);
-      const meta = metaMod.meta || metaMod.default?.meta;
-      if (meta?.keyEntities?.companies?.length > 0) {
-        primaryEntity = formatEntityName(meta.keyEntities.companies[0]);
-        keyEntitiesCompanies = meta.keyEntities.companies;
-      }
-      if (meta?.hashtags && Array.isArray(meta.hashtags) && meta.hashtags.length > 0) {
-        metaHashtags = meta.hashtags;
-      }
+      meta = metaMod.meta || metaMod.default?.meta;
+      if (meta && !meta.keyEntities && !meta.hashtags) meta = null; // nothing usable
     } catch (e) {
       console.log(`  ⚠️ meta.mjs found but failed to load: ${e.message}`);
     }
   }
-  // Enrich metadata with primary entity + keyEntities + manual hashtag override
-  metadata = {
-    ...(metadata || {}),
-    primaryEntity,
-    keyEntitiesCompanies,
-    ...(metaHashtags ? { hashtags: metaHashtags } : {}),
-  };
 
-  if (!scenes || scenes.length === 0) {
-    console.error("❌ No scenes found in scene-data.mjs");
-    process.exit(1);
-  }
+  // ─── Generate one package per registered platform profile ───
+  const results = generatePublishPackages({
+    outputRoot: OUTPUT_ROOT,
+    ...(contentDir ? { pipelineId: contentDir } : {}),
+    scenes,
+    metadata,
+    meta,
+  });
 
-  // ─── Derive caption components ───
-  const title = deriveTitle(scenes, metadata);
-  const description = deriveDescription(scenes, metadata);
-  const hashtags = deriveHashtags(scenes, metadata);
-  const pinnedComment = derivePinnedComment(scenes, metadata);
-
-  // ─── Assemble caption text (one-block format for TikTok) ───
-  // TikTok has no title field — caption is a single text block.
-  // Title hook sentence is the first line of description.
-  const hashtagLine = hashtags.join(" ");
-  const captionText = `${description}\n\n${hashtagLine}\n`;
-
-  // ─── Assemble metadata JSON ───
-  // Categorize hashtags for transparency
-  // classifyHashtags returns {traffic, brand, vertical, trending, selectionMode}
-  // In manual override mode, trending is always [] (P2 fix, review 2026-08-26)
-  const {
-    traffic: trafficHashtags,
-    brand: brandHashtags,
-    vertical: verticalHashtags,
-    trending: trendingHashtags,
-    selectionMode,
-  } = classifyHashtags(hashtags, metadata);
-
-  const metadataJson = {
-    title,
-    description: `${description}\n\n${hashtagLine}`,
-    hashtags,
-    hashtagStrategy: {
-      total: hashtags.length,
-      traffic: trafficHashtags,
-      vertical: verticalHashtags,
-      brand: brandHashtags,
-      trending: trendingHashtags,
-      selectionMode,
-      rule: "3-5 hashtags, wrong tags → wrong audience → algorithm penalty",
-      researchedAt: "2026-08-08",
-      dataSource: "tiktokhashtags.com + TikTok Creative Center + competitor analysis",
-    },
-    pinnedComment,
-    generatedAt: new Date().toISOString(),
-    source: metadata ? "scene-data-metadata" : "auto-derived",
-  };
-
-  // ─── Ensure output directory exists ───
-  if (!existsSync(OUTPUT_DIR)) {
-    mkdirSync(OUTPUT_DIR, { recursive: true });
-  }
-
-  // ─── Write files ───
-  const PINNED_COMMENT_PATH = join(OUTPUT_DIR, "tiktok-pinned-comment.txt");
-
-  writeFileSync(CAPTION_TXT_PATH, captionText, "utf8");
-  writeFileSync(METADATA_JSON_PATH, JSON.stringify(metadataJson, null, 2) + "\n", "utf8");
-  writeFileSync(PINNED_COMMENT_PATH, pinnedComment, "utf8");
-
-  console.log("📝 Caption generated:");
-  console.log(`   Title (SEO): ${title} (${title.length} chars)`);
-  console.log(`   Description: ${description.length} chars (incl. CTA)`);
-  console.log(`   Hashtags:    ${hashtags.join(" ")} (${hashtags.length})`);
-  console.log(`   Total caption: ${captionText.length} chars (limit: 2200)`);
-  console.log(`   Pinned comment: ${pinnedComment || "(none — AITL not set)"}`);
-  console.log(`   Source:      ${metadataJson.source}`);
-  console.log(`\n📁 Files written:`);
-  console.log(`   ${CAPTION_TXT_PATH}`);
-  console.log(`   ${METADATA_JSON_PATH}`);
-
-  // ─── Validate constraints ───
+  // ─── Report ───
   const violations = [];
-  if (title.length > 60) {
-    violations.push(`Title exceeds 60 chars (${title.length})`);
-  }
-  if (captionText.length > 2200) {
-    violations.push(`Caption exceeds 2200 chars (${captionText.length})`);
-  }
-  if (hashtags.length < 3 || hashtags.length > 5) {
-    violations.push(`Hashtag count out of range [3-5] (${hashtags.length})`);
+  for (const { platform, paths, pkg, violations: v } of results) {
+    const profile = listPlatformProfiles().find((p) => p.platform === platform);
+    console.log(`📝 ${profile.displayName} package (${platform}):`);
+    console.log(`   Title (SEO): ${pkg.title} (${pkg.title.length} chars)`);
+    console.log(`   Description: ${pkg.description.length} chars (incl. CTA)`);
+    console.log(`   Hashtags:    ${pkg.hashtags.join(" ")} (${pkg.hashtags.length})`);
+    console.log(`   Total caption: ${pkg.captionText.length} chars (limit: ${profile.caption.maxLength})`);
+    console.log(`   Pinned comment: ${pkg.pinnedComment || "(none — AITL not set)"}`);
+    console.log(`   Source:      ${pkg.metadataJson.source}`);
+    console.log(`📁 Files written (${paths.dir}):`);
+    console.log(`   ${paths.caption}`);
+    console.log(`   ${paths.metadata}`);
+    console.log(`   ${paths.pinnedComment}`);
+    violations.push(...v.map((violation) => `[${platform}] ${violation}`));
   }
 
   if (violations.length > 0) {
@@ -184,9 +99,8 @@ async function main() {
       console.error(`   • ${v}`);
     }
     process.exit(1);
-  } else {
-    console.log("\n✅ All constraints satisfied (title ≤60, caption ≤2200, 3-5 hashtags)");
   }
+  console.log("\n✅ All platform packages satisfy their profile constraints");
 }
 
 main().catch((e) => {

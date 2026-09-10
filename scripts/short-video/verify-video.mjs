@@ -28,7 +28,8 @@ import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
-import { getPlatformProfile } from "./lib/platforms/index.mjs";
+import { getPlatformProfile, listPlatformProfiles } from "./lib/platforms/index.mjs";
+import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
 
 // Caption constraints come from the TikTok platform profile (#219 ticket 01)
 const tiktokProfile = getPlatformProfile("tiktok");
@@ -596,29 +597,39 @@ function printSummary() {
 
 printSummary();
 
-// ─── Post-render: Auto-generate caption if all checks pass ───
+// ─── Post-render: Auto-generate publish packages if all checks pass ───
 if (!preMode && results.fail.length === 0) {
-  console.log("\n📝 Generating TikTok caption...");
+  console.log("\n📝 Generating platform publish packages...");
   try {
     const contentArg = contentDir ? ` --content "${contentDir}"` : "";
     execSync(`node "${join(__dirname, "generate-caption.mjs")}"${contentArg}`, {
       stdio: "inherit",
     });
 
-    // Verify caption file constraints (B6: caption ≤ 2,200 chars, from TikTok profile)
-    // generate-caption.mjs writes to output/ (not output/{pipelineId}/)
-    const captionPath = join(__dirname, "output", "tiktok-caption.txt");
-    if (existsSync(captionPath)) {
-      const captionContent = readFileSync(captionPath, "utf8");
-      if (captionContent.length > CAPTION_MAX_CHARS) {
+    // B6 per-platform (#219 T02): each platform's caption is checked against
+    // ITS profile limit, at ITS publish/{platform}/ path.
+    for (const profile of listPlatformProfiles()) {
+      const paths = packageFilePaths({
+        outputRoot: join(__dirname, "output"),
+        pipelineId: contentDir,
+        profile,
+      });
+      if (!existsSync(paths.caption)) continue;
+      const captionContent = readFileSync(paths.caption, "utf8");
+      const maxChars = profile.caption.maxLength;
+      if (captionContent.length > maxChars) {
         fail(
           "Caption",
-          `Caption length ≤ ${CAPTION_MAX_CHARS.toLocaleString("en-US")} chars`,
+          `[${profile.platform}] Caption length ≤ ${maxChars.toLocaleString("en-US")} chars`,
           `${captionContent.length} chars`,
           "Trim caption content — remove redundant sentences or hashtags",
         );
       } else {
-        pass("Caption", `Caption length ≤ ${CAPTION_MAX_CHARS.toLocaleString("en-US")} chars`, `${captionContent.length} chars`);
+        pass(
+          "Caption",
+          `[${profile.platform}] Caption length ≤ ${maxChars.toLocaleString("en-US")} chars`,
+          `${captionContent.length} chars`,
+        );
       }
     }
   } catch (e) {

@@ -393,10 +393,10 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    ```
    📋 Caption（复制粘贴到 TikTok 发布界面）
-   [读取 output/tiktok-caption.txt 内容，原样输出]
+   [读取 output/{pipelineId}/publish/tiktok/tiktok-caption.txt 内容，原样输出]
 
    📌 Pinned Comment（发布后在评论区手动发这条，然后长按置顶）
-   [读取 output/tiktok-pinned-comment.txt 内容，原样输出]
+   [读取 output/{pipelineId}/publish/tiktok/tiktok-pinned-comment.txt 内容，原样输出]
    ```
 
 7. **BGM 选择与确认**（HITL 内）— Agent 自动执行：

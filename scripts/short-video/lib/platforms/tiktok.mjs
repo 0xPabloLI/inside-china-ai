@@ -63,18 +63,6 @@ const THRESHOLDS = {
   /** Max goal signals before warning */
   maxGoalSignals: 2,
 
-  /** Caption max length (API limit) */
-  maxCaptionLength: 2200,
-
-  /** Title max length */
-  maxTitleLength: 60,
-
-  /** Min hashtags */
-  minHashtags: 3,
-
-  /** Max hashtags */
-  maxHashtags: 5,
-
   /** Hook greeting: max words to check from start */
   greetingCheckWords: 3,
 };
@@ -101,20 +89,23 @@ export const tiktokProfile = {
     /** buildCaption format: title + "\n\n" + description (description includes hashtags) */
     structure: "title + blank line + description (hashtags appended)",
 
-    /** Caption ≤ 2,200 chars（API 限制）— tiktok-best-practices.md "API 限制" */
-    maxLength: THRESHOLDS.maxCaptionLength,
+    /** Caption ≤ 2,200 chars（API 限制）— tiktok-best-practices.md "API 限制"
+     *  THE single caption-limit path (#219 T02): thresholds no longer carry a
+     *  maxCaptionLength copy — consume profile.caption.maxLength. */
+    maxLength: 2200,
 
     /** Title max length */
-    titleMaxLength: THRESHOLDS.maxTitleLength,
+    titleMaxLength: 60,
   },
 
   // ─── Hashtag rules ───
 
   hashtags: {
     /** 3-5 个 hashtag，混合 reach（1 个大类 + niche + 视频特定）—
-     * tiktok-best-practices.md "Hashtag 策略"；堆砌在 2026 无效 */
-    min: THRESHOLDS.minHashtags,
-    max: THRESHOLDS.maxHashtags,
+     * tiktok-best-practices.md "Hashtag 策略"；堆砌在 2026 无效
+     * (single-path: thresholds no longer carry minHashtags/maxHashtags) */
+    min: 3,
+    max: 5,
   },
 
   // ─── AI disclosure（《标识办法》2025-09-01 起为法定义务）───

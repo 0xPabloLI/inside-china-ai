@@ -247,20 +247,31 @@ function hasSeoKeyword(text, primaryEntity) {
  *
  * @param {Array} scenes - Scene array from scene-data.mjs
  * @param {Object} [metadata] - Optional metadata { title, description, hashtags }
- * @returns {string} Title <= 60 chars
+ * @param {Object} limits - Platform caption limits (injected from the profile
+ *   by the publish-package generator — no local copies, #219 T02)
+ * @param {number} limits.maxLength - max title chars
+ * @returns {string} Title <= limits.maxLength chars
  */
-export function deriveTitle(scenes, metadata) {
+export function deriveTitle(scenes, metadata, limits) {
+  if (!limits || typeof limits.maxLength !== "number") {
+    throw new Error(
+      "deriveTitle: limits.maxLength (from the platform profile) is required — " +
+        "caption limits are platform rules, not hardcoded values (#219 T02)",
+    );
+  }
+  const maxLen = limits.maxLength;
+
   // Use metadata if provided and non-empty
   if (metadata?.title && metadata.title.trim().length > 0) {
     let title = metadata.title.trim();
 
-    // S6: truncate to <= 60 chars at word boundary
-    title = truncateAtWord(title, 60);
+    // S6: truncate to <= maxLen chars at word boundary
+    title = truncateAtWord(title, maxLen);
 
     // S14: append SEO keyword if missing
     if (!hasSeoKeyword(title, metadata?.primaryEntity)) {
       const suffix = " | China AI";
-      const truncated = truncateAtWord(title, 60 - suffix.length);
+      const truncated = truncateAtWord(title, maxLen - suffix.length);
       title = truncated + suffix;
     }
 
@@ -301,18 +312,18 @@ export function deriveTitle(scenes, metadata) {
   // Capitalize first letter
   title = title.charAt(0).toUpperCase() + title.slice(1);
 
-  // Truncate to 60 chars
-  title = truncateAtWord(title, 60);
+  // Truncate to maxLen chars
+  title = truncateAtWord(title, maxLen);
 
   // Ensure SEO keyword
   if (!hasSeoKeyword(title, metadata?.primaryEntity) && title.length > 0) {
     // Try to append SEO keyword
     const suffix = " | China AI";
-    if (title.length + suffix.length <= 60) {
+    if (title.length + suffix.length <= maxLen) {
       title = title + suffix;
     } else {
       // Replace last few words
-      const truncated = truncateAtWord(title, 60 - suffix.length);
+      const truncated = truncateAtWord(title, maxLen - suffix.length);
       title = truncated + suffix;
     }
   }
@@ -325,9 +336,19 @@ export function deriveTitle(scenes, metadata) {
  *
  * @param {Array} scenes - Scene array from scene-data.mjs
  * @param {Object} [metadata] - Optional metadata { title, description, hashtags }
- * @returns {string} Description <= 2200 chars (includes CTA, NOT hashtags)
+ * @param {Object} limits - Platform caption limits (injected from the profile)
+ * @param {number} limits.maxLength - max description chars
+ * @returns {string} Description <= limits.maxLength chars (includes CTA, NOT hashtags)
  */
-export function deriveDescription(scenes, metadata) {
+export function deriveDescription(scenes, metadata, limits) {
+  if (!limits || typeof limits.maxLength !== "number") {
+    throw new Error(
+      "deriveDescription: limits.maxLength (from the platform profile) is required — " +
+        "caption limits are platform rules, not hardcoded values (#219 T02)",
+    );
+  }
+  const maxLen = limits.maxLength;
+
   // Use metadata if provided and non-empty
   if (metadata?.description && metadata.description.trim().length > 0) {
     let desc = metadata.description.trim();
@@ -335,13 +356,13 @@ export function deriveDescription(scenes, metadata) {
     if (!/follow|subscribe/i.test(desc)) {
       desc = desc + "\nFollow for more China AI news.";
     }
-    // Truncate to 2200 chars at sentence boundary
-    return truncateAtSentence(desc, 2200);
+    // Truncate to maxLen chars at sentence boundary
+    return truncateAtSentence(desc, maxLen);
   }
 
   // S2: auto-derive from all scenes
   const CTA = "\nFollow for more China AI news.";
-  const MAX_DESC_LEN = 2200;
+  const MAX_DESC_LEN = maxLen;
 
   const sentences = [];
 
@@ -419,9 +440,18 @@ export function normalizeHashtag(value) {
  *
  * @param {Array} scenes - Scene array from scene-data.mjs
  * @param {Object} [metadata] - Optional metadata { title, description, hashtags, trendingHashtags, keyEntitiesCompanies }
- * @returns {string[]} Array of 3-5 hashtags
+ * @param {Object} limits - Platform hashtag limits (injected from the profile)
+ * @param {number} limits.min - min hashtag count
+ * @param {number} limits.max - max hashtag count
+ * @returns {string[]} Array of limits.min–limits.max hashtags
  */
-export function deriveHashtags(scenes, metadata) {
+export function deriveHashtags(scenes, metadata, limits) {
+  if (!limits || typeof limits.min !== "number" || typeof limits.max !== "number") {
+    throw new Error(
+      "deriveHashtags: limits.min/max (from the platform profile) are required — " +
+        "hashtag limits are platform rules, not hardcoded values (#219 T02)",
+    );
+  }
   // ─── Manual override (locked) ───
   if (metadata?.hashtags && Array.isArray(metadata.hashtags) && metadata.hashtags.length > 0) {
     let tags = metadata.hashtags
@@ -429,14 +459,14 @@ export function deriveHashtags(scenes, metadata) {
       .filter((t) => t !== null && !BLACKLISTED_HASHTAGS.includes(t));
     // Deduplicate
     tags = [...new Set(tags)];
-    if (tags.length > 5) tags = tags.slice(0, 5);
-    if (tags.length < 3) {
+    if (tags.length > limits.max) tags = tags.slice(0, limits.max);
+    if (tags.length < limits.min) {
       for (const broad of [...DEFAULT_HASHTAGS, ...PAD_CANDIDATES]) {
         if (!tags.includes(broad) && !BLACKLISTED_HASHTAGS.includes(broad)) tags.push(broad);
-        if (tags.length >= 3) break;
+        if (tags.length >= limits.min) break;
       }
     }
-    while (tags.length < 3) tags.push("#technews");
+    while (tags.length < limits.min) tags.push("#technews");
     return tags;
   }
 
@@ -476,16 +506,16 @@ export function deriveHashtags(scenes, metadata) {
 
   // Layer 5: Pad candidates (replaceable by trending)
   const padTagsAdded = [];
-  if (tags.length < 3) {
+  if (tags.length < limits.min) {
     for (const broad of [...DEFAULT_HASHTAGS, ...PAD_CANDIDATES]) {
       if (!tags.includes(broad) && !BLACKLISTED_HASHTAGS.includes(broad)) {
         tags.push(broad);
         padTagsAdded.push(broad);
       }
-      if (tags.length >= 3) break;
+      if (tags.length >= limits.min) break;
     }
   }
-  while (tags.length < 3) {
+  while (tags.length < limits.min) {
     tags.push("#technews");
     padTagsAdded.push("#technews");
   }
@@ -508,11 +538,11 @@ export function deriveHashtags(scenes, metadata) {
     }
 
     if (trendingTag) {
-      if (tags.length < 5) {
+      if (tags.length < limits.max) {
         // Room to add directly
         tags.push(trendingTag);
       } else {
-        // tags.length >= 5: need to replace a replaceable tag
+        // tags.length >= max: need to replace a replaceable tag
         // Priority for replacement: last secondary vertical, then last pad
         let replaceIdx = -1;
 
@@ -542,8 +572,8 @@ export function deriveHashtags(scenes, metadata) {
     }
   }
 
-  // Truncate to max 5
-  if (tags.length > 5) tags = tags.slice(0, 5);
+  // Truncate to max
+  if (tags.length > limits.max) tags = tags.slice(0, limits.max);
   // Filter blacklisted
   tags = tags.filter((t) => !BLACKLISTED_HASHTAGS.includes(t));
 

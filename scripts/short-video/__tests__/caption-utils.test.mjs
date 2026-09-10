@@ -8,6 +8,13 @@ import {
   classifyHashtags,
 } from "../lib/caption-utils.mjs";
 
+// Platform limits injected into every derive call (#219 T02): the limits are
+// platform rules read from the profile by the publish-package generator —
+// the literals here mirror the TikTok profile values as the test baseline.
+const TITLE_LIMITS = { maxLength: 60 };
+const DESCRIPTION_LIMITS = { maxLength: 2200 };
+const HASHTAGS_LIMITS = { min: 3, max: 5 };
+
 // ─── Mock scene data (mirrors real scene-data.mjs format) ───
 
 const mockScenes = [
@@ -68,13 +75,13 @@ const partialMetadata = {
 
 describe("S1: Full metadata", () => {
   it("uses metadata title when present", () => {
-    const result = deriveTitle(mockScenes, fullMetadata);
+    const result = deriveTitle(mockScenes, fullMetadata, TITLE_LIMITS);
     expect(result).toBe(fullMetadata.title);
     expect(result.length).toBeLessThanOrEqual(60);
   });
 
   it("uses metadata description when present (no comment hook appended)", () => {
-    const result = deriveDescription(mockScenes, fullMetadata);
+    const result = deriveDescription(mockScenes, fullMetadata, DESCRIPTION_LIMITS);
     // Should start with the metadata description
     expect(result).toContain(fullMetadata.description);
     // Should end with CTA
@@ -84,7 +91,7 @@ describe("S1: Full metadata", () => {
   });
 
   it("uses metadata hashtags when present", () => {
-    const result = deriveHashtags(mockScenes, fullMetadata);
+    const result = deriveHashtags(mockScenes, fullMetadata, HASHTAGS_LIMITS);
     expect(result).toEqual(fullMetadata.hashtags);
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.length).toBeLessThanOrEqual(5);
@@ -95,7 +102,7 @@ describe("S1: Full metadata", () => {
 
 describe("S2: No metadata → auto-derive", () => {
   it("derives title from scene 1 voiceover + texts", () => {
-    const result = deriveTitle(mockScenes, undefined);
+    const result = deriveTitle(mockScenes, undefined, TITLE_LIMITS);
     expect(result).toBeTruthy();
     expect(result.length).toBeLessThanOrEqual(60);
     // Should contain a key entity or keyword
@@ -103,7 +110,7 @@ describe("S2: No metadata → auto-derive", () => {
   });
 
   it("derives description from all scene voiceovers", () => {
-    const result = deriveDescription(mockScenes, undefined);
+    const result = deriveDescription(mockScenes, undefined, DESCRIPTION_LIMITS);
     expect(result).toBeTruthy();
     expect(result.length).toBeLessThanOrEqual(2200);
     // Should end with CTA
@@ -112,7 +119,7 @@ describe("S2: No metadata → auto-derive", () => {
 
   it("derives hashtags with #ainews and #chinaai always present", () => {
     const meta = { keyEntitiesCompanies: ["deepseek"] };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.length).toBeLessThanOrEqual(5);
     // #ainews is always included (best ROI: 68.7M views, low competition)
@@ -123,7 +130,7 @@ describe("S2: No metadata → auto-derive", () => {
 
   it("matches entity hashtags from keyEntities", () => {
     const meta = { keyEntitiesCompanies: ["deepseek"] };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     // mockScenes keyEntities has "deepseek" → should match #deepseek
     expect(result).toContain("#deepseek");
   });
@@ -133,14 +140,14 @@ describe("S2: No metadata → auto-derive", () => {
 
 describe("S3: Partial metadata (title only)", () => {
   it("uses metadata title, derives description and hashtags", () => {
-    const title = deriveTitle(mockScenes, partialMetadata);
+    const title = deriveTitle(mockScenes, partialMetadata, TITLE_LIMITS);
     expect(title).toBe(partialMetadata.title);
 
-    const desc = deriveDescription(mockScenes, partialMetadata);
+    const desc = deriveDescription(mockScenes, partialMetadata, DESCRIPTION_LIMITS);
     expect(desc).toBeTruthy();
     expect(desc).not.toBe(partialMetadata.description); // derived, not from metadata
 
-    const tags = deriveHashtags(mockScenes, { keyEntitiesCompanies: ["deepseek"] });
+    const tags = deriveHashtags(mockScenes, { keyEntitiesCompanies: ["deepseek"] }, HASHTAGS_LIMITS);
     expect(tags.length).toBeGreaterThanOrEqual(3);
   });
 });
@@ -150,7 +157,7 @@ describe("S3: Partial metadata (title only)", () => {
 describe("S4: Hashtags insufficient (< 3)", () => {
   it("pads hashtags to minimum 3", () => {
     const meta = { hashtags: ["#ai", "#deepseek"] };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result).toContain("#ai");
     expect(result).toContain("#deepseek");
@@ -164,7 +171,7 @@ describe("S5: Hashtags exceed 5", () => {
     const meta = {
       hashtags: ["#a", "#b", "#c", "#d", "#e", "#f", "#g"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result.length).toBeLessThanOrEqual(5);
   });
 });
@@ -177,7 +184,7 @@ describe("S6: Title too long", () => {
       title:
         "This is an extremely long title that definitely exceeds the sixty character limit of TikTok posts by a significant margin",
     };
-    const result = deriveTitle(mockScenes, meta);
+    const result = deriveTitle(mockScenes, meta, TITLE_LIMITS);
     expect(result.length).toBeLessThanOrEqual(60);
     // Should not end with trailing space (truncated at word boundary)
     expect(result).not.toMatch(/\s$/);
@@ -194,7 +201,7 @@ describe("S7: Description too long", () => {
         "This is a very long voiceover sentence about DeepSeek and China AI technology. It contains multiple pieces of information about the company and its strategic direction in the global AI landscape.",
       texts: { line: "DATA" },
     }));
-    const result = deriveDescription(longScenes, undefined);
+    const result = deriveDescription(longScenes, undefined, DESCRIPTION_LIMITS);
     expect(result.length).toBeLessThanOrEqual(2200);
     // Should end with CTA
     expect(result).toMatch(/follow|subscribe/i);
@@ -218,7 +225,7 @@ describe("S8: No entities found", () => {
       },
     ];
     const meta = { keyEntitiesCompanies: [] };
-    const result = deriveHashtags(genericScenes, meta);
+    const result = deriveHashtags(genericScenes, meta, HASHTAGS_LIMITS);
     expect(result.length).toBeGreaterThanOrEqual(3);
     // #ainews and #chinaai are always present
     expect(result).toContain("#ainews");
@@ -234,7 +241,7 @@ describe("S16: Entity hashtag from keyEntities", () => {
       { id: 1, voiceover: "OpenAI released GPT-5 today.", texts: { line1: "GPT-5" } },
     ];
     const meta = { keyEntitiesCompanies: ["openai"] };
-    const result = deriveHashtags(scenes, meta);
+    const result = deriveHashtags(scenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#chatgpt");
   });
 
@@ -243,7 +250,7 @@ describe("S16: Entity hashtag from keyEntities", () => {
       { id: 1, voiceover: "Moonshot AI updated Kimi model.", texts: { line1: "KIMI" } },
     ];
     const meta = { keyEntitiesCompanies: ["moonshot"] };
-    const result = deriveHashtags(scenes, meta);
+    const result = deriveHashtags(scenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#kimi");
   });
 
@@ -252,7 +259,7 @@ describe("S16: Entity hashtag from keyEntities", () => {
       { id: 1, voiceover: "Huawei released Pangu 5.0 model.", texts: { line1: "HUAWEI PANGU" } },
     ];
     const meta = { keyEntitiesCompanies: ["huawei"] };
-    const result = deriveHashtags(scenes, meta);
+    const result = deriveHashtags(scenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#huawei");
   });
 });
@@ -262,7 +269,7 @@ describe("S16: Entity hashtag from keyEntities", () => {
 describe("S14: Title missing SEO keyword", () => {
   it("appends SEO keyword to title if missing", () => {
     const meta = { title: "A leaked meeting paused the round" };
-    const result = deriveTitle(mockScenes, meta);
+    const result = deriveTitle(mockScenes, meta, TITLE_LIMITS);
     // Should contain China, AI, or DeepSeek
     expect(result).toMatch(/china|ai|deepseek/i);
   });
@@ -276,7 +283,7 @@ describe("S15: All short voiceovers", () => {
       { id: 1, voiceover: "Wow.", texts: { line1: "WOW" } },
       { id: 2, voiceover: "Really?", texts: { line1: "REALLY" } },
     ];
-    const result = deriveTitle(shortScenes, undefined);
+    const result = deriveTitle(shortScenes, undefined, TITLE_LIMITS);
     expect(result).toBeTruthy();
     expect(result.length).toBeGreaterThan(0);
   });
@@ -286,7 +293,7 @@ describe("S15: All short voiceovers", () => {
       { id: 1, voiceover: "Wow.", texts: {} },
       { id: 2, voiceover: "Really?", texts: {} },
     ];
-    const result = deriveDescription(shortScenes, undefined);
+    const result = deriveDescription(shortScenes, undefined, DESCRIPTION_LIMITS);
     expect(result).toBeTruthy();
     expect(result.length).toBeGreaterThan(0);
   });
@@ -296,24 +303,24 @@ describe("S15: All short voiceovers", () => {
 
 describe("Edge cases", () => {
   it("handles empty metadata object", () => {
-    const result = deriveTitle(mockScenes, {});
+    const result = deriveTitle(mockScenes, {}, TITLE_LIMITS);
     expect(result).toBeTruthy();
     expect(result.length).toBeLessThanOrEqual(60);
   });
 
   it("handles metadata with empty string title", () => {
-    const result = deriveTitle(mockScenes, { title: "" });
+    const result = deriveTitle(mockScenes, { title: "" }, TITLE_LIMITS);
     expect(result).toBeTruthy();
     expect(result.length).toBeGreaterThan(0);
   });
 
   it("handles metadata with empty hashtags array", () => {
-    const result = deriveHashtags(mockScenes, { hashtags: [] });
+    const result = deriveHashtags(mockScenes, { hashtags: [] }, HASHTAGS_LIMITS);
     expect(result.length).toBeGreaterThanOrEqual(3);
   });
 
   it("handles null metadata", () => {
-    const result = deriveTitle(mockScenes, null);
+    const result = deriveTitle(mockScenes, null, TITLE_LIMITS);
     expect(result).toBeTruthy();
   });
 });
@@ -327,7 +334,7 @@ describe("S17: Dynamic primary entity", () => {
       { id: 1, voiceover: "Kimi K3 just escaped its sandbox.", texts: { line1: "KIMI K3" } },
       { id: 2, voiceover: "Moonshot AI tested the model.", texts: { line1: "MOONSHOT" } },
     ];
-    const result = deriveDescription(kimiScenes, { primaryEntity: "Moonshot" });
+    const result = deriveDescription(kimiScenes, { primaryEntity: "Moonshot" }, DESCRIPTION_LIMITS);
     // "Moonshot" appears in scene 2 voiceover, so no prefix needed
     expect(result).not.toContain("Moonshot analysis.");
   });
@@ -338,13 +345,13 @@ describe("S17: Dynamic primary entity", () => {
       { id: 1, voiceover: "A new AI model broke containment.", texts: { line1: "BREAKING" } },
       { id: 2, voiceover: "The model escaped during testing.", texts: { line1: "ESCAPE" } },
     ];
-    const result = deriveDescription(genericScenes, { primaryEntity: "Moonshot" });
+    const result = deriveDescription(genericScenes, { primaryEntity: "Moonshot" }, DESCRIPTION_LIMITS);
     // "Moonshot" not in voiceover → should be prepended
     expect(result).toContain("Moonshot analysis.");
   });
 
   it("does NOT prepend anything when primaryEntity is absent", () => {
-    const result = deriveDescription(mockScenes, undefined);
+    const result = deriveDescription(mockScenes, undefined, DESCRIPTION_LIMITS);
     // Should NOT have "DeepSeek analysis." prefix (old behavior)
     expect(result).not.toMatch(/^DeepSeek analysis\./);
   });
@@ -352,14 +359,14 @@ describe("S17: Dynamic primary entity", () => {
   it("uses primaryEntity as SEO keyword in title check", () => {
     // Title with "Moonshot" should pass SEO check (no suffix appended)
     const meta = { title: "Moonshot K3 breaks out", primaryEntity: "Moonshot" };
-    const result = deriveTitle(mockScenes, meta);
+    const result = deriveTitle(mockScenes, meta, TITLE_LIMITS);
     expect(result).toBe("Moonshot K3 breaks out");
     expect(result).not.toContain("| China AI");
   });
 
   it("appends China AI suffix when title lacks both base keywords and primaryEntity", () => {
     const meta = { title: "A model escaped", primaryEntity: "Moonshot" };
-    const result = deriveTitle(mockScenes, meta);
+    const result = deriveTitle(mockScenes, meta, TITLE_LIMITS);
     // "A model escaped" doesn't contain china/ai/moonshot → suffix appended
     expect(result).toContain("China AI");
   });
@@ -390,7 +397,7 @@ describe("S7: Pinned Comment (AITL-driven)", () => {
   });
 
   it("comment hook is NOT included in description", () => {
-    const desc = deriveDescription(mockScenes, { commentHook: "Some question?" });
+    const desc = deriveDescription(mockScenes, { commentHook: "Some question?" }, DESCRIPTION_LIMITS);
     expect(desc).not.toContain("Some question?");
   });
 });
@@ -401,7 +408,7 @@ describe("S18: Hashtag from keyEntities only", () => {
   it("matches #bytedance from keyEntities, not #alibaba from voiceover", () => {
     const scenes = [{ id: 1, voiceover: "ByteDance and Alibaba compete in AI.", texts: {} }];
     const meta = { keyEntitiesCompanies: ["bytedance"] };
-    const result = deriveHashtags(scenes, meta);
+    const result = deriveHashtags(scenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#bytedance");
     expect(result).not.toContain("#alibaba");
   });
@@ -409,21 +416,21 @@ describe("S18: Hashtag from keyEntities only", () => {
   it("matches #doubao for doubao content", () => {
     const scenes = [{ id: 1, voiceover: "Doubao Work launched today.", texts: {} }];
     const meta = { keyEntitiesCompanies: ["doubao"] };
-    const result = deriveHashtags(scenes, meta);
+    const result = deriveHashtags(scenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#doubao");
   });
 
   it("matches #feishu for feishu/lark content", () => {
     const scenes = [{ id: 1, voiceover: "Feishu is the differentiator.", texts: {} }];
     const meta = { keyEntitiesCompanies: ["feishu"] };
-    const result = deriveHashtags(scenes, meta);
+    const result = deriveHashtags(scenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#feishu");
   });
 
   it("does not match any entity when keyEntities is empty", () => {
     const scenes = [{ id: 1, voiceover: "Some company did something.", texts: {} }];
     const meta = { keyEntitiesCompanies: [] };
-    const result = deriveHashtags(scenes, meta);
+    const result = deriveHashtags(scenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#ainews");
     expect(result).toContain("#chinaai");
     // No entity hashtags, just defaults
@@ -478,7 +485,7 @@ describe("T2: #creatorsearchinsights not blacklisted", () => {
     const meta = {
       hashtags: ["#creatorsearchinsights", "#deepseek", "#chinaai"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#creatorsearchinsights");
   });
 
@@ -487,7 +494,7 @@ describe("T2: #creatorsearchinsights not blacklisted", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["#creatorsearchinsights"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     // Should not be filtered out by blacklist
     expect(result).toContain("#creatorsearchinsights");
   });
@@ -498,7 +505,7 @@ describe("T2: #creatorsearchinsights not blacklisted", () => {
 describe("T3: trendingHashtags consumption", () => {
   it("T3-1: no trendingHashtags → same as before", () => {
     const meta = { keyEntitiesCompanies: ["deepseek"] };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#ainews");
     expect(result).toContain("#chinaai");
     expect(result).toContain("#deepseek");
@@ -511,7 +518,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["#aiviral"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#aiviral");
     expect(result.length).toBeLessThanOrEqual(5);
   });
@@ -521,7 +528,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: [],
       trendingHashtags: ["#aiviral"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#aiviral");
     expect(result.length).toBe(4);
   });
@@ -532,7 +539,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek", "openai", "nvidia"],
       trendingHashtags: ["#aiviral"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#aiviral");
     expect(result).toContain("#deepseek"); // primary preserved
     expect(result.length).toBe(5);
@@ -551,7 +558,7 @@ describe("T3: trendingHashtags consumption", () => {
     };
     // With 2 entities: ainews + chinaai + deepseek(primary) + nvidia(secondary) = 4
     // pad #ai to reach 3+ → actually 4 >= 3 so no pad, trending adds → 5
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#aiviral");
     expect(result).toContain("#deepseek"); // primary preserved
     expect(result.length).toBeLessThanOrEqual(5);
@@ -571,7 +578,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["#ainews"], // already in set
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     // #ainews should appear only once
     const ainewsCount = result.filter((t) => t === "#ainews").length;
     expect(ainewsCount).toBe(1);
@@ -582,7 +589,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: [],
       trendingHashtags: ["#aiviral", "#aitechtrends"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     // Only 1 trending should be included
     const trendingCount = result.filter((t) => t === "#aiviral" || t === "#aitechtrends").length;
     expect(trendingCount).toBe(1);
@@ -593,7 +600,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["#deepseek"], // already matched by entity
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     const deepseekCount = result.filter((t) => t === "#deepseek").length;
     expect(deepseekCount).toBe(1);
   });
@@ -603,7 +610,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["  #AiViral "],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#aiviral");
   });
 
@@ -612,7 +619,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["", "  ", null, 123, "#aiviral"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#aiviral");
     // No invalid values leaked
     expect(result).not.toContain("");
@@ -626,7 +633,7 @@ describe("T3: trendingHashtags consumption", () => {
       hashtags: ["#deepseek", "#chinaai"],
       trendingHashtags: ["#aiviral"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).not.toContain("#aiviral");
     // Manual override should only return the manual tags (+ pad if < 3)
     expect(result).toContain("#deepseek");
@@ -639,7 +646,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek", "openai"],
       trendingHashtags: ["#aiviral"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#deepseek"); // primary always preserved
     expect(result).toContain("#aiviral");
   });
@@ -649,7 +656,7 @@ describe("T3: trendingHashtags consumption", () => {
       hashtags: ["#creatorsearchinsights", "#deepseek", "#chinaai"],
       trendingHashtags: ["#aiviral"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#creatorsearchinsights");
     expect(result).not.toContain("#aiviral"); // trending not injected
   });
@@ -659,7 +666,7 @@ describe("T3: trendingHashtags consumption", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: [],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#deepseek");
     expect(result).toContain("#ainews");
     expect(result).toContain("#chinaai");
@@ -669,7 +676,7 @@ describe("T3: trendingHashtags consumption", () => {
     const meta = {
       keyEntitiesCompanies: ["deepseek"],
     };
-    const result = deriveHashtags(mockScenes, meta);
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     expect(result).toContain("#deepseek");
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.length).toBeLessThanOrEqual(5);
@@ -684,7 +691,7 @@ describe("classifyHashtags", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["#aiviral"],
     };
-    const hashtags = deriveHashtags(mockScenes, meta);
+    const hashtags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     const result = classifyHashtags(hashtags, meta);
     expect(result.selectionMode).toBe("auto");
     expect(result.trending).toContain("#aiviral");
@@ -695,7 +702,7 @@ describe("classifyHashtags", () => {
       hashtags: ["#deepseek", "#aiviral", "#technews"],
       trendingHashtags: ["#aiviral"],
     };
-    const hashtags = deriveHashtags(mockScenes, meta);
+    const hashtags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     const result = classifyHashtags(hashtags, meta);
     expect(result.selectionMode).toBe("manual");
     expect(result.trending).toEqual([]);
@@ -707,7 +714,7 @@ describe("classifyHashtags", () => {
     const meta = {
       keyEntitiesCompanies: ["deepseek"],
     };
-    const hashtags = deriveHashtags(mockScenes, meta);
+    const hashtags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     const result = classifyHashtags(hashtags, meta);
     expect(result.selectionMode).toBe("auto");
     expect(result.trending).toEqual([]);
@@ -718,7 +725,7 @@ describe("classifyHashtags", () => {
       keyEntitiesCompanies: ["deepseek"],
       trendingHashtags: ["#aiviral"],
     };
-    const hashtags = deriveHashtags(mockScenes, meta);
+    const hashtags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     const result = classifyHashtags(hashtags, meta);
     expect(result.traffic).toContain("#ainews");
     expect(result.brand).toContain("#chinaai");
@@ -731,7 +738,7 @@ describe("classifyHashtags", () => {
     const meta = {
       hashtags: ["#ainews", "#chinaai", "#deepseek"],
     };
-    const hashtags = deriveHashtags(mockScenes, meta);
+    const hashtags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
     const result = classifyHashtags(hashtags, meta);
     expect(result.selectionMode).toBe("manual");
     expect(result.traffic).toContain("#ainews");

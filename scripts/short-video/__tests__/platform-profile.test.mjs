@@ -12,7 +12,6 @@ import {
   getArtifactSpec,
   UnknownPlatformError,
 } from "../lib/platforms/index.mjs";
-import { THRESHOLDS } from "../lib/tiktok-rules.mjs";
 import { buildTiktokSettings } from "../lib/publish-utils.mjs";
 
 // ── Platform Profile model + loader (#219 ticket 01) ──
@@ -26,6 +25,8 @@ const __dirname = dirname(__filename);
 // Verbatim copy of the pre-migration tiktok-rules.mjs THRESHOLDS — the
 // equivalence anchor. Kept as an independent literal so drift in either
 // the profile or the derivation is caught.
+// #219 T02: maxCaptionLength/maxTitleLength/minHashtags/maxHashtags moved OUT
+// of thresholds — caption/hashtag limits live solely in caption./hashtags.
 const TIKTOK_THRESHOLDS_BASELINE = {
   maxVoiceoverWords: 180,
   maxOneBreathWords: 25,
@@ -40,10 +41,6 @@ const TIKTOK_THRESHOLDS_BASELINE = {
   teleprompterMaxDeviation: 0.15,
   ctaStackThreshold: 3,
   maxGoalSignals: 2,
-  maxCaptionLength: 2200,
-  maxTitleLength: 60,
-  minHashtags: 3,
-  maxHashtags: 5,
   greetingCheckWords: 3,
 };
 
@@ -178,8 +175,13 @@ describe("tiktok profile value equivalence", () => {
     expect(profile.thresholds).toEqual(TIKTOK_THRESHOLDS_BASELINE);
   });
 
-  it("tiktok-rules.mjs THRESHOLDS derive from the profile", () => {
-    expect(THRESHOLDS).toEqual(profile.thresholds);
+  it("caption limits are single-path: thresholds carry no duplicates (#219 T02)", () => {
+    // The limit is reachable ONLY as profile.caption.maxLength — a second
+    // path (thresholds.maxCaptionLength) is how the dual-path debt started.
+    expect(profile.thresholds.maxCaptionLength).toBeUndefined();
+    expect(profile.thresholds.maxTitleLength).toBeUndefined();
+    expect(profile.thresholds.minHashtags).toBeUndefined();
+    expect(profile.thresholds.maxHashtags).toBeUndefined();
   });
 
   it("caption limits: 2200 chars, title 60", () => {
@@ -302,8 +304,10 @@ describe("artifact type consumption", () => {
 // and (b) the Profile value matches the anchor's semantics.
 
 const BEST_PRACTICES_MD = join(__dirname, "..", "..", "..", "docs", "tiktok", "tiktok-best-practices.md");
+const PLATFORM_TIKTOK_MJS = join(__dirname, "..", "lib", "platforms", "tiktok.mjs");
 const PUBLISH_UTILS_MJS = join(__dirname, "..", "lib", "publish-utils.mjs");
 const bestPracticesDoc = readFileSync(BEST_PRACTICES_MD, "utf8");
+const platformTiktokSrc = readFileSync(PLATFORM_TIKTOK_MJS, "utf8");
 const publishUtilsSrc = readFileSync(PUBLISH_UTILS_MJS, "utf8");
 
 describe("tiktok profile doc drift (docs/tiktok/tiktok-best-practices.md)", () => {
@@ -325,10 +329,12 @@ describe("tiktok profile doc drift (docs/tiktok/tiktok-best-practices.md)", () =
     expect(profile.cover.height).toBe(1920);
   });
 
-  it("video.maxSizeBytes=150MB matches the Publora limit literal in publish-utils.mjs", () => {
-    // 150MB is the Publora publish-path cap, not a TikTok API limit (doc: ≤ 4GB),
-    // so its anchor lives in publish-utils.mjs validateVideoFile, not the doc.
-    expect(publishUtilsSrc).toContain("150 * 1024 * 1024");
+  it("video.maxSizeBytes=150MB matches the Publora limit literal in the profile", () => {
+    // 150MB is the Publora publish-path cap, not a TikTok API limit (doc: ≤ 4GB).
+    // The literal lives in the profile (with its Publora source comment);
+    // publish-utils validates against the profile value (#219 T02 migration).
+    expect(platformTiktokSrc).toContain("150 * 1024 * 1024");
+    expect(publishUtilsSrc).toContain("video.maxSizeBytes");
     expect(profile.video.maxSizeBytes).toBe(150 * 1024 * 1024);
   });
 });

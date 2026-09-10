@@ -7,9 +7,12 @@
  *
  * level: 'pass' | 'warn' | 'fail'
  *
- * All rule constants are imported from tiktok-rules.mjs (single source of truth).
+ * All rule constants are imported from tiktok-rules.mjs (patterns/lists) and
+ * the TikTok platform profile (numeric THRESHOLDS — #219 T02 removed the
+ * tiktok-rules forwarding layer, no Middle Man).
  */
 
+import { getPlatformProfile } from "./platforms/index.mjs";
 import {
   AI_BLACKLIST as _AI_BLACKLIST,
   DASH_PATTERN,
@@ -25,8 +28,11 @@ import {
   NAMED_SOURCE_PATTERN,
   TARGET_KEYWORDS,
   KNOWN_COMPANIES,
-  THRESHOLDS,
 } from "./tiktok-rules.mjs";
+
+// Numeric thresholds: profile is the single source (tiktok-rules.mjs no
+// longer re-exports them — #219 T02 Middle-Man removal).
+const THRESHOLDS = getPlatformProfile("tiktok").thresholds;
 import {
   REMOTION_SLOT_MAP,
   DEFAULT_NARRATIVE_LAYOUT,

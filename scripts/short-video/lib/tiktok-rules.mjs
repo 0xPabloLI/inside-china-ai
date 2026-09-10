@@ -1,21 +1,18 @@
 /**
  * TikTok Best Practices — Shared Rules Configuration (Single Source of Truth)
  *
- * All configurable rule constants for TikTok best practices compliance.
- * Consumed by scene-rules.mjs, verify-video.mjs, and tiktok-rules-sync.test.mjs.
+ * Rule CONTENT for TikTok best practices compliance: AI vocabulary blacklist,
+ * copy patterns, keyword lists. Consumed by scene-rules.mjs and
+ * tiktok-rules-sync.test.mjs.
  *
  * Source: docs/tiktok/tiktok-best-practices.md (audit checklist B1-B9, W1-W9)
  *         docs/refs/tiktok-skills/ (community skill references)
  *
- * #219 ticket 01: numeric thresholds (THRESHOLDS) now live in the TikTok
- * platform profile (lib/platforms/tiktok.mjs — spec
- * docs/specs/spec-platform-profile-isolation.md) and are derived from it here,
- * keeping this module's import surface unchanged for consumers.
+ * Numeric thresholds (THRESHOLDS) live ONLY in the TikTok platform profile
+ * (lib/platforms/tiktok.mjs — spec docs/specs/spec-platform-profile-isolation.md).
+ * #219 ticket 02 removed the re-export forwarding layer from here (Middle Man):
+ * import THRESHOLDS from the profile module directly.
  */
-
-import { getPlatformProfile } from "./platforms/index.mjs";
-
-const TIKTOK_PROFILE = getPlatformProfile("tiktok");
 
 // ─── AI Vocabulary Blacklist ───
 // Source: tiktok-best-practices.md "词汇黑名单" section
@@ -152,10 +149,3 @@ export const KNOWN_COMPANIES = [
   "tencent",
   "bytedance",
 ];
-
-// ─── Thresholds ───
-// Numeric thresholds declared in the TikTok platform profile
-// (lib/platforms/tiktok.mjs) and derived from it — do not add numeric
-// literals here; edit the profile instead.
-
-export const THRESHOLDS = TIKTOK_PROFILE.thresholds;

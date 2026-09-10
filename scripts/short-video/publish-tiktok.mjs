@@ -15,7 +15,9 @@
  *
  * Options:
  *   --video <path>      Video file (required)
- *   --metadata <path>   Metadata JSON (default: output/tiktok-metadata.json)
+ *   --content <dir>     Content pipeline ID — metadata default becomes
+ *                       output/{dir}/publish/tiktok/tiktok-metadata.json (#219 T02)
+ *   --metadata <path>   Metadata JSON (overrides --content default)
  *   --auto              Enable API auto-publish (bypasses algorithm signals)
  *   --schedule <iso>    Schedule time (ISO 8601, e.g. 2026-08-03T12:00:00Z) [--auto only]
  *   --draft             Leave as draft (don't schedule) [--auto only]
@@ -41,12 +43,13 @@ import {
   buildManualPublishGuide,
   buildAutoPublishWarning,
 } from "./lib/publish-utils.mjs";
+import { getPlatformProfile } from "./lib/platforms/index.mjs";
+import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const OUTPUT_DIR = join(__dirname, "output");
-const DEFAULT_METADATA = join(OUTPUT_DIR, "tiktok-metadata.json");
 
 // ─── CLI args ───
 
@@ -66,6 +69,14 @@ if (!videoPath) {
   );
   process.exit(1);
 }
+// Package path via the single-source builder (#219 T02): --content <dir> →
+// output/{dir}/publish/tiktok/…; standalone → output/publish/tiktok/…
+const contentDir = getArg("content");
+const DEFAULT_METADATA = packageFilePaths({
+  outputRoot: OUTPUT_DIR,
+  ...(contentDir ? { pipelineId: contentDir } : {}),
+  profile: getPlatformProfile("tiktok"),
+}).metadata;
 const metadataPath = getArg("metadata") || DEFAULT_METADATA;
 const isAuto = hasFlag("auto");
 const scheduleTime = getArg("schedule");

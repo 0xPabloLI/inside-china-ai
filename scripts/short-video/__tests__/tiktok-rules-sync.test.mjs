@@ -14,8 +14,12 @@ import {
   NAMED_SOURCE_PATTERN,
   TARGET_KEYWORDS,
   KNOWN_COMPANIES,
-  THRESHOLDS,
 } from "../lib/tiktok-rules.mjs";
+import { tiktokProfile } from "../lib/platforms/tiktok.mjs";
+
+// THRESHOLDS live in the platform profile — tiktok-rules.mjs no longer
+// forwards them (#219 T02 Middle-Man removal).
+const THRESHOLDS = tiktokProfile.thresholds;
 
 // ── Drift detection: verify tiktok-rules.mjs constants satisfy invariants ──
 // These tests guard against accidental changes that would cause drift
@@ -138,11 +142,13 @@ describe("tiktok-rules.mjs sync invariants", () => {
     expect(THRESHOLDS.teleprompterMaxDeviation).toBe(0.15);
     expect(THRESHOLDS.ctaStackThreshold).toBe(3);
     expect(THRESHOLDS.maxGoalSignals).toBe(2);
-    expect(THRESHOLDS.maxCaptionLength).toBe(2200);
-    expect(THRESHOLDS.maxTitleLength).toBe(60);
-    expect(THRESHOLDS.minHashtags).toBe(3);
-    expect(THRESHOLDS.maxHashtags).toBe(5);
     expect(THRESHOLDS.greetingCheckWords).toBe(3);
+    // Caption/hashtag limits moved to profile.caption / profile.hashtags
+    // (#219 T02 single-path convergence — no threshold duplicates).
+    expect(THRESHOLDS.maxCaptionLength).toBeUndefined();
+    expect(THRESHOLDS.maxTitleLength).toBeUndefined();
+    expect(THRESHOLDS.minHashtags).toBeUndefined();
+    expect(THRESHOLDS.maxHashtags).toBeUndefined();
   });
 
   // ── Keyword lists ──
