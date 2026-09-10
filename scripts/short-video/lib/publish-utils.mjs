@@ -60,39 +60,48 @@ export function buildCaption(metadata) {
 /**
  * Build TikTok platform settings for Publora API.
  *
+ * Defaults come from the TikTok platform profile (privacy/commerce groups) —
+ * the profile is the single source (#219 T03; the pre-T03 local literals were
+ * a mirror copy). Explicit options still win (e.g. SELF_ONLY for testing).
+ *
  * Note: Publora may invert allow* booleans to TikTok's disable_* flags.
  * Test with SELF_ONLY before trusting values.
  *
- * @param {Object} [options] - Override defaults
- * @param {string} [options.viewerSetting="PUBLIC_TO_EVERYONE"]
- * @param {boolean} [options.allowComments=true]
- * @param {boolean} [options.allowDuet=false]
- * @param {boolean} [options.allowStitch=false]
- * @param {boolean} [options.commercialContent=false]
- * @param {boolean} [options.brandOrganic=false]
- * @param {boolean} [options.brandedContent=false]
- * @returns {Object} { tiktok: { ... } }
+ * @param {Object} [options] - Override profile defaults
+ * @param {string} [options.viewerSetting]
+ * @param {boolean} [options.allowComments]
+ * @param {boolean} [options.allowDuet]
+ * @param {boolean} [options.allowStitch]
+ * @param {boolean} [options.commercialContent]
+ * @param {boolean} [options.brandOrganic]
+ * @param {boolean} [options.brandedContent]
+ * @param {Object} [profile] - Injected profile (defaults to the TikTok profile)
+ * @returns {Object} { [platform]: { ... } }
  */
-export function buildTiktokSettings(options = {}) {
+export function buildTiktokSettings(options = {}, profile = getPlatformProfile("tiktok")) {
   const {
-    viewerSetting = "PUBLIC_TO_EVERYONE",
-    allowComments = true,
-    allowDuet = false,
-    allowStitch = false,
-    commercialContent = false,
-    brandOrganic = false,
-    brandedContent = false,
+    viewerSetting = profile.privacy.defaultViewerSetting,
+    allowComments = profile.privacy.allowComments,
+    allowDuet = profile.privacy.allowDuet,
+    allowStitch = profile.privacy.allowStitch,
+    commercialContent = profile.commerce.defaultCommercialContent,
+    brandOrganic = profile.commerce.defaultBrandOrganic,
+    brandedContent = profile.commerce.defaultBrandedContent,
   } = options;
 
-  // TikTok commercial disclosure rule
-  if (commercialContent && !(brandOrganic || brandedContent)) {
+  // TikTok commercial disclosure rule — enforced from the profile declaration
+  if (
+    profile.commerce.commercialContentRequiresBrand &&
+    commercialContent &&
+    !(brandOrganic || brandedContent)
+  ) {
     throw new Error(
       "commercialContent=true requires brandOrganic or brandedContent to also be true (TikTok commercial disclosure rule).",
     );
   }
 
   return {
-    tiktok: {
+    [profile.platform]: {
       viewerSetting,
       allowComments,
       allowDuet,
@@ -102,6 +111,55 @@ export function buildTiktokSettings(options = {}) {
       brandedContent,
     },
   };
+}
+
+// ─── Publish method resolution (HITL gate, #219 T03) ───
+
+/**
+ * Resolve the publish method for a platform run, enforcing the profile's
+ * publish HITL gate (spec Implementation Decisions 4).
+ *
+ * - Default (no automation requested): the profile's publishMethod — for
+ *   TikTok `manual-guide`, where the human executes the checklist (the HITL
+ *   confirmation point itself).
+ * - Automation request ({auto:true}): allowed ONLY when the profile enables
+ *   that method — per-platform authorization + sandbox verification land
+ *   there before `api`/`cdp` can run. Fail-closed otherwise.
+ *
+ * @param {Object} profile - Platform profile
+ * @param {Object} [opts]
+ * @param {boolean} [opts.auto=false] - Automation path requested (--auto)
+ * @param {string} [opts.method] - Explicit method override (must be enabled)
+ * @returns {string} Resolved publish method
+ * @throws {Error} Fail-closed when the requested method is not enabled
+ */
+export function resolvePublishMethod(profile, opts = {}) {
+  if (opts.method !== undefined) {
+    if (!profile.enabledPublishMethods.includes(opts.method)) {
+      throw new Error(
+        `Publish method "${opts.method}" is not enabled for platform "${profile.platform}" ` +
+          `(enabled: ${profile.enabledPublishMethods.join(", ")}). ` +
+          `Automation paths require per-platform authorization ` +
+          `(spec: docs/specs/spec-platform-profile-isolation.md, Implementation Decisions 4).`,
+      );
+    }
+    return opts.method;
+  }
+
+  if (opts.auto) {
+    if (!profile.enabledPublishMethods.includes("api")) {
+      throw new Error(
+        `API auto-publish is not enabled for platform "${profile.platform}" ` +
+          `(enabled: ${profile.enabledPublishMethods.join(", ")}). ` +
+          `The default publish method is "${profile.publishMethod}". ` +
+          `Automation paths require per-platform authorization + sandbox verification ` +
+          `(spec: docs/specs/spec-platform-profile-isolation.md, Implementation Decisions 4).`,
+      );
+    }
+    return "api";
+  }
+
+  return profile.publishMethod;
 }
 
 /**
@@ -243,18 +301,24 @@ export function buildSeriesPinnedComment(seriesMeta) {
 // ─── Manual Publishing Guide (zero-views fix) ───
 
 /**
- * Build a comprehensive manual publishing guide for TikTok.
+ * Build the manual publishing guide for a platform.
  *
- * Replaces the default auto-publish via API with an in-app checklist.
- * API publishing bypasses AIGC label, trending audio, in-app editing,
- * and geographic tags — all of which are algorithm-favoring signals.
+ * The checklist is rendered FROM the platform profile's manualGuide.steps
+ * (#219 T03 — the profile is the single source; no mirror copy). `label` is
+ * the exact line template ({videoPath}/{slug} substituted); `detail` lines
+ * render indented beneath. Steps flagged `omitWithoutAIVoice` swap to the
+ * profile's aiDisclosure.noVoiceLabel line when no AI voice is detected.
+ *
+ * The intro (zero-views rationale), caption block and footer (posting time,
+ * analytics) are renderer framing.
  *
  * @param {Object} params
  * @param {string} params.videoPath - Absolute path to the MP4 file
  * @param {string} params.caption - Full caption text (<= 2200 chars)
  * @param {string} [params.articleSlug] - Post slug for pinned comment URL
- * @param {boolean} [params.hasAIvoice=true] - Whether AI-generated voice is used
+ * @param {boolean} [params.hasAIVoice=true] - Whether AI-generated voice is used
  * @param {string} [params.exampleEntity] - Primary entity for examples (e.g. "DeepSeek")
+ * @param {Object} [params.profile] - Injected profile (defaults to the TikTok profile)
  * @returns {string} Formatted manual publishing guide
  */
 export function buildManualPublishGuide({
@@ -263,11 +327,30 @@ export function buildManualPublishGuide({
   articleSlug,
   hasAIVoice = true,
   exampleEntity = "company",
+  profile = getPlatformProfile("tiktok"),
 }) {
+  const slug = articleSlug || `${exampleEntity.replace(/\s/g, "-")}-news`;
+  const substitutions = { videoPath, slug };
+  const fill = (text) => text.replace(/\{(videoPath|slug)\}/g, (_, key) => substitutions[key]);
+
+  const checklist = [];
+  let stepNumber = 0;
+  for (const step of profile.manualGuide.steps) {
+    stepNumber += 1;
+    if (step.omitWithoutAIVoice && !hasAIVoice) {
+      checklist.push(`  [ ] ${stepNumber}. ${profile.aiDisclosure.noVoiceLabel}`);
+      continue;
+    }
+    checklist.push(`  [ ] ${stepNumber}. ${fill(step.label)}`);
+    for (const detail of step.detail ?? []) {
+      checklist.push(`         ${fill(detail)}`);
+    }
+  }
+
   const lines = [
     "",
     "=".repeat(60),
-    "📤 TikTok Manual Publishing Guide",
+    `📤 ${profile.displayName} Manual Publishing Guide`,
     "=".repeat(60),
     "",
     "⚠️  API Auto-Publish is DISABLED (zero-views prevention).",
@@ -283,45 +366,14 @@ export function buildManualPublishGuide({
     "─".repeat(50),
     "",
     "✅ Manual Publishing Checklist:",
-    "  [ ] 1. Open TikTok app → Tap [+] to upload",
-    `  [ ] 2. Select video file: ${videoPath}`,
-  ];
-
-  if (hasAIVoice) {
-    lines.push(
-      '  [ ] 3. ⚠️  CRITICAL: Toggle "AI-generated content" ON',
-      "         TikTok requires AI content labeling. Not labeling = penalty.",
-      "         This is the #1 cause of zero views for AI-voiced videos.",
-    );
-  } else {
-    lines.push("  [ ] 3. (No AI voice detected — AIGC label not needed)");
-  }
-
-  lines.push(
-    "  [ ] 4. Paste caption above into description field",
-    '  [ ] 5. Tap "Edit" → Add a text sticker or effect (algorithm bonus)',
-    "         TikTok algorithm favors content edited within the app.",
-    '  [ ] 6. Tap "Add sound" → Pick a trending sound (set volume 5-10%)',
-    "         Trending audio boosts discoverability significantly.",
-    '  [ ] 7. Tap "Location" → Select "China" or "United States"',
-    "         Algorithm prioritizes local content.",
-    '  [ ] 8. Set privacy to "Public" (or "Friends" for testing)',
-    "  [ ] 9. Publish",
-    "  [ ] 10. First hour: Reply to EVERY comment (engagement signal)",
-    "  [ ] 11. Pin a comment with article link (when domain is live):",
-  );
-
-  const slug = articleSlug || `${exampleEntity.replace(/\s/g, "-")}-news`;
-  lines.push(`         https://chinaainews.com/posts/${slug}`);
-
-  lines.push(
+    ...checklist,
     "",
     "⏰  Best posting time: 2-4 PM or 10 PM-12 AM (off-peak hours)",
     "    Off-peak = less competition = algorithm more likely to test your video.",
     "",
     "📊 After 48h: Export analytics from https://analytics.tiktok.com",
     "=".repeat(60),
-  );
+  ];
 
   return lines.join("\n");
 }

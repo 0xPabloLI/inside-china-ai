@@ -36,6 +36,7 @@ import {
   buildSeriesCaption,
   buildSeriesPinnedComment,
   buildTiktokSettings,
+  resolvePublishMethod,
   validateVideoFile,
   buildPendingAnalysis,
   buildAnalyticsGuidance,
@@ -413,7 +414,15 @@ async function autoSaveTikTokUrl(postGroupId, slug, apiKey, publoraGet) {
 
 // ─── Entry point ───
 
-if (isAuto) {
+// Publish HITL gate (#219 T03): the requested mode must be enabled by the
+// platform profile. TikTok enables only `manual-guide` (the human publishes
+// in-app — the confirmation point itself); `api` stays closed until
+// per-platform authorization enables it (spec Implementation Decisions 4).
+// The resolved method drives the branch so future enablement of `api` only
+// flips the profile, not this entry point.
+const publishMethod = resolvePublishMethod(getPlatformProfile("tiktok"), { auto: isAuto });
+
+if (publishMethod === "api") {
   runAutoMode().catch((e) => {
     console.error(`❌ ${e.message}`);
     process.exit(1);

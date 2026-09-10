@@ -74,6 +74,32 @@ export function validateProfileShape(profile) {
     errors.push(`publishMethod: must be one of ${PUBLISH_METHODS.join(", ")}`);
   }
 
+  // Publish HITL gate (#219 T03): the enabled set controls which methods a
+  // platform may actually publish through — automation paths are closed until
+  // per-platform authorization enables them (spec Implementation Decisions 4).
+  if (
+    !Array.isArray(profile.enabledPublishMethods) ||
+    profile.enabledPublishMethods.length === 0
+  ) {
+    errors.push("enabledPublishMethods: non-empty array required");
+  } else {
+    for (const method of profile.enabledPublishMethods) {
+      if (!PUBLISH_METHODS.includes(method)) {
+        errors.push(
+          `enabledPublishMethods: unknown publish method "${method}" (allowed: ${PUBLISH_METHODS.join(", ")})`,
+        );
+      }
+    }
+    if (
+      PUBLISH_METHODS.includes(profile.publishMethod) &&
+      !profile.enabledPublishMethods.includes(profile.publishMethod)
+    ) {
+      errors.push(
+        `enabledPublishMethods: must include the default publishMethod "${profile.publishMethod}"`,
+      );
+    }
+  }
+
   if (!profile.caption || typeof profile.caption !== "object") {
     errors.push("caption: object required");
   } else {
