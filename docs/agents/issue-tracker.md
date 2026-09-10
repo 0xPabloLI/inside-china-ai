@@ -17,10 +17,18 @@ Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 - One issue = one atomic task or bug.
 - Link related issues in the body with `#number`.
 - **Issue body is write-once**: the body is authored at ticket creation and never rewritten. GitHub replaces the entire body on every `PATCH`, so even a "small addition" clobbers content another session wrote (2026-09-10 lesson: evidence handoff to open #235 went in as a comment for exactly this reason). Delivery records go in the closing comment (see Session cognitive offload); new evidence for an open ticket owned by another session goes in a comment too — appending never overwrites.
-- **Read the comments before claiming**: a ticket's body alone is not its full state — cross-session evidence, delivery records and user decisions accumulate in comments. Run `gh issue view <number> --comments` before triaging or starting work; a comment unread is a decision re-litigated.
+- **Read the comments before claiming**: a ticket's body alone is not its full state — cross-session evidence, delivery records and user decisions accumulate in comments. A comment unread is a decision re-litigated. Two guards make the miss **decidable instead of a memory test**: **(a) the body says so** — every issue body opens with the fixed notice in "Body notice" below, so a reader who sees only the body is told, inside the very text they are reading, that the body is not the state; **(b) the count is one call away** — `gh api repos/0xPabloLI/inside-china-ai/issues/<N>/comments --jq 'length'` returns a number, and a non-zero count on an open ticket means there is state the body does not carry. Full read: `gh issue view <N> --comments` (REST fallback per the GraphQL workaround above).
 - Close issues via commit message (`fixes #N` / `closes #N`) or manually after verification.
 - Closing a completed issue: keep its `enhancement` or `bug` category label, remove all state labels. Do not use `wontfix` for completed work — `wontfix` is for rejected items only.
 - **GraphQL timeout workaround**: `gh` CLI GraphQL calls (used by `gh issue view/edit/close`) intermittently time out through local proxy. Use REST API instead: `gh api repos/0xPabloLI/inside-china-ai/issues/<num>` for reads, `gh api .../issues/<num>/labels -X PUT` for label changes, `gh api .../issues/<num> -X PATCH -f state=closed` for closing. DELETE requests also time out — use PUT to overwrite the full label set instead.
+
+### Body notice
+
+Every issue body opens with this fixed block, written once at creation and never edited:
+
+> **正文是创建时的规格（write-once，永不改写）。** 当前状态、跨 session 证据与交付记录都在评论里——读票必须带评论（`gh issue view <N> --comments`），只读正文会把已决策的问题重新问一遍。
+
+Identical in every ticket and never rewritten, so the notice itself cannot race. Tickets created before this rule carry no notice — for those, guard (b) still applies.
 
 ## Wayfinding operations
 

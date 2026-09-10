@@ -66,7 +66,7 @@
 - 不顺手修复无关或非本 session 引入的问题。
 - 无法确认改动来源时停止，向用户报告。
 - session 结束时记录 commit hash、未 push 状态、验证证据和剩余 blocker。
-- **Issue 交付落档**：per-issue 交付记录按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 表执行——closing comment 落档，不改正文（body 编辑是整体替换，会覆盖其他 session 的内容）。
+- **Issue 交付落档与读票**：per-issue 交付记录按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 表执行——closing comment 落档，不改正文（body 编辑是整体替换，会覆盖其他 session 的内容）。读票同样按该文件的 read-before-claim 规则执行：正文不是票的完整状态，开工前必须读评论，判定方式与唯一读法见该文件。
 - **Session-Id 关联标识（安装了 hooks 的 checkout 强制，commit-msg hook 校验 trailer；strict 模式另校验登记）**：
   - 开工先确认已安装：`git config core.hooksPath` 应为 `.githooks`（新 clone 跑 `npm run setup:hooks`；它同时设置 strict 登记门控）。未安装时本规则仍是约定，只是无 hook 兜底。
   - session 开工生成 id（格式 `<yyyymmdd>-<task>-<6hex>`，如 `20260903-refactor-a1b2c3`）并登记 `$(git rev-parse --git-common-dir)/session-pilot/pilot-log.md`（所有 worktree 共享；tool / Session-Id / baseline / commit 清单 / compact 状态）。
@@ -87,12 +87,3 @@
 2. 竞态应急（你的提交被并行挤出、或必须在不动共享工作区与 index 的前提下提交）按 `docs/agents/git-concurrent-recovery.md` 的配方执行；该路径绕过 commit hooks 与 §4 校验，完成后须按配方对齐 index。可预判的并行任务直接按第 3 条用 worktree，不走应急路径。
 3. **写入者独占**是并行工作的默认规则：写入型并行 session 用 `npm run session:start <task>` 开工——一条命令建独立 worktree（含 worktree 专属的绝对 hooksPath，hooks 在其中正常生效）、生成并登记 Session-Id、写 per-session 状态文件。此后该 worktree 内 `git commit -m` 自动带 trailer（prepare-commit-msg 填写），ref-gate 对"丢弃外会话 commit"的非快进 ref 操作进入拦截模式。共享工作目录即共享 staging 区，是并行冲突的根因。launcher 不可用时退回手动 `git worktree add` + §8 手动 trailer；收尾 `npm run session:stop <worktree-path>`。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
 4. 目标文件已有非本 session 的未提交改动时，本 session 停止并报告，由用户决定落库顺序。应急配方的临时 index 只覆盖互不重叠的文件——同文件交叠时 `git add` 会把混合内容装进树。
-
-## 10. Issue 评论与正文同步
-
-对 issue 的任何评论（结论、决策、证据、状态变化、待授权项）必须**同步回写正文**，不得只存在于评论里。
-
-- **原因**：`gh issue view` 的 body 与 comments 是两个字段，后续 session 与其他模型常只读正文。只留评论会导致重复劳动、误判 issue 状态，甚至推翻已定决策。
-- **做法**：评论后立即编辑正文——把要点并入相关小节，或在正文末尾追加 `## 评论回写`（按日期倒序，每轮只放要点）。评论中注明「已回写正文」。
-- **与 §8 的关系**：认知卸载的完成标准不是「评论写了」，而是**只读正文也能重建状态**。评论是时间线，正文是当前状态。
-- **关票前检查**：正文含最终结论 + 交付证据索引；关闭原因写进正文，不留在关闭评论里。
