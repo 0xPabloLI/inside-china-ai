@@ -20,7 +20,7 @@
 - Hook 吸引力、叙事逻辑、数据准确性、场景数量和总时长、CTA 有效性
 - 实际观看视频、TTS 语音自然度、字幕准确性、视觉动画流畅度、有无渲染问题
 
-> HITL 确认后，Agent 依次执行：将已审阅的 article draft 公开发布 → 源素材附件上传 → TikTok 发布（自动保存 URL 到文章）。制作期间可使用 `publish-article.mjs --draft` 保存非公开文章；最终公开由本次唯一 HITL 控制。详见 `docs/content-pipeline.md` Stage 5。
+> HITL 确认后，Agent 依次执行：将已审阅的 article draft 公开发布 → 源素材附件上传 → TikTok 发布（manual-guide 档：用户按 checklist 在 App 内发布，Agent 提供 publish-tiktok.mjs 指南；发布后用 `set-tiktok-url.mjs` 回写 URL 到文章）。制作期间可使用 `publish-article.mjs --draft` 保存非公开文章；最终公开由本次唯一 HITL 控制。详见 `docs/content-pipeline.md` Stage 5。
 
 ---
 
@@ -59,7 +59,7 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
 
 ### 发布后自动提示
 
-`publish-tiktok.mjs` 发布成功后会：
+`publish-tiktok.mjs --auto`（Publora API 档，TikTok 当前默认关闭——启用需逐平台授权，见 `docs/content-pipeline.md` Stage 5）发布成功后会：
 
 1. 打印 24-48h 分析提醒
 2. 写入 `output/pending-analysis.json`（记录待分析状态）

@@ -358,15 +358,19 @@ node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 �
 
 ---
 
-## Stage 5: 视频验证 + TikTok 发布
+## Stage 5: 视频验证 + 平台发布（TikTok 为当前默认实例）
 
 > **前置条件**：Stage 4 已完成（视频已制作）。
+>
+> **两个身份，不要混淆**：TikTok 在管线中有两个身份——**输入端情报来源**（Stage 2/3 的 Creative Center trending 检查、AI Outline、`docs/tiktok/tiktok-best-practices.md` 写作规范）与**发布端 Profile**（`lib/platforms/tiktok.mjs` 声明的发布包规则、发布方式与 HITL）。发布端由平台 Profile 驱动：新平台接入只增一份 Profile 与发布入口，不改输入端做法（输入端方法是否复用另行立项）。
 
 ### 🔄 MRL-3: 视频自审（HITL 前置）
 
 ```bash
-node scripts/short-video/verify-video.mjs --tiktok  # TikTok 合规检查 = MRL-3
+node scripts/short-video/verify-video.mjs --tiktok  # 全量合规检查 = MRL-3；--tiktok 追加 TikTok 60-70s 时长档
 ```
+
+> Post-render 全部检查 PASS 后，verify-video.mjs 自动生成各平台发布包到 `output/{pipelineId}/publish/{platform}/`（内核产物原地不动），并按各平台 Profile 的 caption 上限逐平台校验（#219 T02）。
 
 > **Verify-retry loop**（`lib/verify-retry.mjs`）：Step 6 字幕验证失败后，自动分类失败类型并尝试对应修复。每次修复后重新验证，只接受严格减少 error 数的修复，否则回滚。`--max-retries N`（默认 2）控制重试上限。详见 `docs/archive/spec-verify-retry-loop.md`。
 
@@ -425,13 +429,17 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [<path
 
 公开发布使用与 Stage 2 相同的文章文件，但不带 `--draft`。文章公开完成后再发布 TikTok。
 
-#### 5b. TikTok 发布 + 自动保存 URL
+#### 5b. TikTok 发布（manual-guide 为当前唯一启用档）
 
 ```bash
-node scripts/short-video/publish-tiktok.mjs --slug <slug>
+node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipelineId> --slug <slug>
 ```
 
-> 发布后脚本自动轮询 Publora 获取 TikTok video ID，构造 URL 并保存到 `posts.tiktok_url`。
+> **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 只启用 `manual-guide` 档——发布动作由用户按 checklist 在 App 内人工执行（确认点=执行清单本身，结构上不可跳过）；Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
+>
+> ```bash
+> node scripts/article/set-tiktok-url.mjs --slug <slug> --url <tiktok-url>
+> ```
 
 #### 发布后验证
 

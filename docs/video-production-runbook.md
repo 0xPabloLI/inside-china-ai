@@ -391,7 +391,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 **Hashtag 手动覆盖**：在 `meta.mjs` 中设置 `hashtags` 数组（3-5 个）可锁定 hashtag 输出，跳过自动推导。`generate-caption.mjs` 读取 `meta.mjs.hashtags`（非空时优先于 `keyEntities` 自动匹配）。锁定模式下 trending hashtags 不隐式注入——如需 trending tag，手动加入数组。未设置时 `deriveHashtags()` 从 `keyEntities.companies` 自动匹配 + 默认流量标签。
 
-> Enforcement: `verify-video.mjs` runs automated checks after every video — do NOT publish until all checks pass. TikTok best practices, analytics, series strategy and scaffold guides: see "Design Decisions & References" at the bottom.
+> Enforcement: `verify-video.mjs` runs automated checks after every video — do NOT publish until all checks pass. Post-render PASS 也会自动生成各平台发布包到 `output/{pipelineId}/publish/{platform}/` 并按各平台 Profile 上限校验（#219）。TikTok best practices, analytics, series strategy and scaffold guides: see "Design Decisions & References" at the bottom.
 
 ## File Locations
 
