@@ -15,7 +15,7 @@
  */
 
 import { exec } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, symlinkSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
@@ -31,6 +31,29 @@ const CV3_MLX_MODEL_DIR =
   process.env.COSYVOICE3_MLX_MODEL_DIR || join(process.env.HOME || "", ".cosyvoice3-mlx-model");
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const CV3_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text.txt");
+
+// mlx_audio's S3TokenizerV3.from_pretrained() defaults to repo_id="/tmp/s3-tokenizer",
+// a LOCAL dir it does not create. When it is missing, the hand-patched fetch_from_hub
+// in the venv's model_v3.py crashes (NameError) and every scene silently renders as
+// 0.0s audio. /tmp is periodically cleaned by macOS, so ensure it exists before every
+// run, restoring from the HF cache snapshot (2026-09-10 incident).
+const S3_TOKENIZER_DIR = "/tmp/s3-tokenizer";
+const S3_TOKENIZER_HF_SNAPSHOT = join(
+  process.env.HOME || "",
+  ".cache/huggingface/hub/models--mlx-community--S3TokenizerV3/snapshots/main",
+);
+
+function ensureS3Tokenizer() {
+  if (existsSync(join(S3_TOKENIZER_DIR, "model.safetensors"))) return;
+  if (!existsSync(join(S3_TOKENIZER_HF_SNAPSHOT, "model.safetensors"))) {
+    throw new Error(
+      `S3 tokenizer missing at both ${S3_TOKENIZER_DIR} and ${S3_TOKENIZER_HF_SNAPSHOT} — ` +
+        `restore it (huggingface-cli download mlx-community/S3TokenizerV3) before running CosyVoice3-MLX.`,
+    );
+  }
+  symlinkSync(S3_TOKENIZER_HF_SNAPSHOT, S3_TOKENIZER_DIR, "dir");
+  console.log(`  🔗 Restored ${S3_TOKENIZER_DIR} → ${S3_TOKENIZER_HF_SNAPSHOT} (symlink)`);
+}
 
 // ── Emotion instructions per visualType/refStyle ──
 // Multi-dimensional best practice: Persona + Accent + Emotion + Pacing (#234)
@@ -127,6 +150,8 @@ export async function createCosyVoice3MLXEngine() {
       writeSync(manifestPath, JSON.stringify(manifest));
 
       const refText = readFileSync(CV3_REF_TEXT_FILE, "utf-8").trim();
+
+      ensureS3Tokenizer();
 
       console.log("  Loading CosyVoice3-MLX model (once for all scenes)...");
       const { stdout } = await execAsync(
