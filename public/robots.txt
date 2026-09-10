@@ -4,3 +4,4 @@ Disallow: /admin
 Disallow: /auth
 
 Sitemap: https://chinaai.news/sitemap.xml
+Sitemap: https://chinaai.news/news-sitemap.xml
