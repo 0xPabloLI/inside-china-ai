@@ -16,7 +16,7 @@ Qwen3.8-27B VLM Wrapper — 统一封装 MLX 和 Ollama 两个后端。
 
 视频不需要手动预处理：Qwen3 VL processor 内部 _smart_resize_video 会自动缩放
 （max_pixels=12.6M 是所有帧总和，帧越多每帧自动越小）。
-长视频可通过 fps 参数降帧率（帧少→每帧分辨率高）。
+长视频（>8s）自动分段处理：用 ffmpeg 无损切分成 8s 段，每段单独分析后合并结果。
 
 用法：
   from qwen38_vlm_wrapper import ask
@@ -34,6 +34,7 @@ Qwen3.8-27B VLM Wrapper — 统一封装 MLX 和 Ollama 两个后端。
 import os
 import base64
 import tempfile
+import subprocess
 import requests
 from PIL import Image
 
@@ -42,6 +43,10 @@ OLLAMA_GENERATE_URL = "http://localhost:11434/api/generate"
 OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
 OLLAMA_MODEL = "qwen3.8:27b-mlx"
 MLX_MODEL_PATH = os.path.expanduser("~/models/Qwen3.8-27B-4bit")
+
+VIDEO_SEGMENT_SECONDS = 8  # 每段最长 8 秒，超过则分段分析后合并
+FFPROBE_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
+FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 
 
 def preprocess_image(image_path, max_edge=MAX_IMAGE_EDGE):
@@ -62,6 +67,82 @@ def preprocess_image(image_path, max_edge=MAX_IMAGE_EDGE):
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     img.save(tmp.name)
     return tmp.name
+
+
+def get_video_duration(video_path):
+    """用 ffprobe 获取视频时长（秒），失败返回 0。"""
+    try:
+        result = subprocess.run(
+            [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
+             "-show_format", video_path],
+            capture_output=True, timeout=10, text=True,
+        )
+        import json
+        info = json.loads(result.stdout)
+        return float(info["format"]["duration"])
+    except Exception:
+        return 0.0
+
+
+def split_video_segments(video_path, segment_seconds=VIDEO_SEGMENT_SECONDS):
+    """把长视频分成多段，返回临时文件路径列表。
+
+    视频时长 ≤ segment_seconds 时返回 [video_path]（不切分）。
+    切分用 ffmpeg -ss/-t copy（无损快速切分）。
+    """
+    duration = get_video_duration(video_path)
+    if duration <= segment_seconds or duration == 0:
+        return [video_path]
+
+    segments = []
+    start = 0.0
+    while start < duration:
+        tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+        tmp.close()
+        cmd = [
+            FFMPEG_PATH, "-y",
+            "-ss", str(start),
+            "-i", video_path,
+            "-t", str(segment_seconds),
+            "-c", "copy",
+            tmp.name,
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=30, check=True)
+            segments.append(tmp.name)
+        except Exception:
+            os.unlink(tmp.name)
+            break
+        start += segment_seconds
+    return segments if segments else [video_path]
+
+
+def analyze_video_segmented(prompt, video_path, ask_fn, **kwargs):
+    """对长视频分段分析后合并结果。
+
+    短视频（≤8s）直接单次分析。
+    长视频切分成 N 段，每段单独分析，结果拼接。
+    """
+    segments = split_video_segments(video_path)
+    if len(segments) == 1:
+        return ask_fn(prompt, video=video_path, **kwargs)
+
+    results = []
+    for i, seg in enumerate(segments):
+        seg_prompt = f"{prompt}\n\n（这是视频第 {i+1}/{len(segments)} 段）"
+        try:
+            r = ask_fn(seg_prompt, video=seg, **kwargs)
+            results.append(r)
+        except Exception as e:
+            results.append(f"[段 {i+1} 分析失败: {e}]")
+        finally:
+            if seg != video_path:
+                try:
+                    os.unlink(seg)
+                except OSError:
+                    pass
+
+    return "\n\n---\n\n".join(results)
 
 
 # ─── MLX 后端 ───
@@ -285,6 +366,11 @@ def ask(prompt, image=None, video=None, tools=None, backend="auto",
         if _mlx_instance is None:
             _mlx_instance = Qwen38MLX()
         _active_backend = "mlx"
+        if video is not None and isinstance(video, str):
+            return analyze_video_segmented(
+                prompt, video, _mlx_instance.ask,
+                image=image, max_tokens=max_tokens, **kwargs,
+            )
         return _mlx_instance.ask(prompt, image=image, video=video,
                                  max_tokens=max_tokens, **kwargs)
     elif backend == "ollama":

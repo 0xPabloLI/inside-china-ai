@@ -64,6 +64,13 @@
 - Run the preflight required by `docs/video-production-runbook.md` before starting the video pipeline. Only an explicit user exception may bypass it.
 - Store new media according to `docs/media-asset-management.md`; do not use a generic root `assets/` dumping ground.
 
+## Local Models (M2 Pro 32GB)
+
+- **VLM wrapper**: `scripts/short-video/lib/qwen38_vlm_wrapper.py` — 统一封装 Qwen3.8-27B MLX + Ollama 双后端，自动切后端（video→MLX, tools→Ollama），图片自动 resize ≤512px，长视频自动分段（>8s 切分后合并）。用法：`from qwen38_vlm_wrapper import ask; ask("描述", video="path.mp4")`
+- **VLM venv**: `~/.venvs/mlx-vlm/` (Python 3.12, mlx-vlm 0.7.0rc0, mlx 0.32.2)
+- **T2V — FastVideo (Wan1.3B)**: `scripts/short-video/lib/b-roll/mlx_wan_batch.py` — 480×832 竖屏 81f，MLX int8 量化，用于 B-roll 生成
+- **T2V — Lance-3B-Video**: `~/lance-mlx/` (代码) + `~/models/Lance-3B-Video-bf16/` (权重 15GB)。768×768×9f 可跑（19min/clip, 22GB），768×768×13f 触发 Metal watchdog。pipeline 有 `embed_tokens` bug 不能复用实例，需每次重新加载。venv 用 `~/.venvs/mlx-vlm/`（lance-mlx 自带 venv 损坏无 pip）
+
 ## Web and Research
 
 - Technical library documentation uses Context7 when available.
