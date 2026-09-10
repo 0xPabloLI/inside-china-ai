@@ -13,7 +13,7 @@ The VLM layer (ADR-0009) excels at semantic analysis but is unreliable for spati
 
 ## Consequences
 
-- Architecture, performance, and API details: see `docs/video-workflow.md` → VLM Asset Analysis.
+- Architecture, performance, and API details: see `docs/video-production-runbook.md` → VLM Asset Analysis.
 - `focus_detector.py` runs in the shared unified venv (`~/.video-tts-env`, ADR-0011).
 - OpenCV 4.10.0.84 is pinned. Upgrading to 5.x requires migrating to a different face detector and saliency alternative.
 - Alternatives survey: `docs/research/asset-focus-detection-alternatives.md`.

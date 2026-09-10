@@ -2,7 +2,7 @@
 
 > Source: 自媒体实战方法论 (乱码老师). A systematic approach to content optimization — not random testing, but controlled single-variable experiments.
 >
-> **Purpose**: This document preserves the methodology behind the A/B testing approach used in the video pipeline. `video-workflow.md` contains the execution commands; this document explains WHY the methodology works and HOW to think about iteration.
+> **Purpose**: This document preserves the methodology behind the A/B testing approach used in the video pipeline. `video-production-runbook.md` contains the execution commands; this document explains WHY the methodology works and HOW to think about iteration.
 
 ## Core Principle
 
@@ -48,4 +48,4 @@ ab-test-tracker.mjs add --variable length --variant B --description "45s"
 ## Related
 
 - Title/Cover strategy principle: "封面给眼球，标题给算法。标题是给搜索和推荐算法看的，封面是给活人的眼睛看的。" (Source: 自媒体实战方法论)
-- Content Publishing Red Lines: see `video-workflow.md` → Content Publishing Red Lines section
+- Content Publishing Red Lines: see `video-production-runbook.md` → Content Publishing Red Lines section

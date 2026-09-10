@@ -7,5 +7,5 @@ The video pipeline uses four Python-based AI components (F5-TTS-MLX, Qwen3-TTS, 
 ## Consequences
 
 - All TTS/VLM/alignment scripts reference `~/.video-tts-env/bin/python3`.
-- Component list and venv path: see `docs/video-workflow.md` → Key Paths & Environment.
+- Component list and venv path: see `docs/video-production-runbook.md` → Key Paths & Environment.
 - Risk: shared `transformers`/`torch`/`numpy` dependency — a version mismatch could break one component when upgrading another. Mitigation: pin versions, test all components after upgrade.

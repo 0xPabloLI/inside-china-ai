@@ -42,7 +42,7 @@ const GATE_POINTER_PATTERNS = [/→/, LOCAL_MARKDOWN_LINK_PATTERN, BACKTICKED_LO
 // replacement is re-inventory, not an authoring decision (issue #178).
 // Net deletion — an inventory line removed with no replacement — is
 // still an authoring decision and still warns.
-const TRACKER_PATH = "docs/issue-tracker.md";
+const TRACKER_PATH = "docs/issue-roadmap.md";
 const LAST_INVENTORY_LINE_PATTERN = /^\s*Last inventory:?/i;
 
 // Files excluded from checks (index itself, ephemeral specs)

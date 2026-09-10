@@ -78,10 +78,10 @@ _Avoid_: Source config, source flags
 **TTS Engine Adapter**: A module in `lib/tts/` that implements a common interface (`isAvailable()`, `generate()`, `info`) for a specific TTS provider. Registered in `registry.mjs` via `ENGINE_FACTORIES` and selected by `PRIORITY` order or `TTS_ENGINE` env override. Current engines: F5-TTS-MLX (default), Qwen3-TTS (backup), edge-tts (fallback), macOS `say` (last resort).
 _Avoid_: TTS provider, voice generator
 
-**Reference Voice**: The paired WAV audio sample + matching transcript used by F5-TTS-MLX and Qwen3-TTS for zero-shot voice cloning. All videos use the same Reference Voice for brand consistency. Format (24kHz mono WAV) and path details: `docs/video-workflow.md` → F5-TTS-MLX.
+**Reference Voice**: The paired WAV audio sample + matching transcript used by F5-TTS-MLX and Qwen3-TTS for zero-shot voice cloning. All videos use the same Reference Voice for brand consistency. Format (24kHz mono WAV) and path details: `docs/video-production-runbook.md` → F5-TTS-MLX.
 _Avoid_: Voice sample, ref audio (use Reference Voice for the paired audio+text)
 
-**Max Effort**: The highest-quality configuration for a TTS engine (F5-TTS-MLX `steps=32`/`cfg_strength=3.0`/`wps=2.8`/`method='rk4'`; Qwen3 `do_sample=False`/`repetition_penalty=1.3`). Parameters and rationale: `docs/video-workflow.md` → TTS Engine Configuration.
+**Max Effort**: The highest-quality configuration for a TTS engine (F5-TTS-MLX `steps=32`/`cfg_strength=3.0`/`wps=2.8`/`method='rk4'`; Qwen3 `do_sample=False`/`repetition_penalty=1.3`). Parameters and rationale: `docs/video-production-runbook.md` → TTS Engine Configuration.
 _Avoid_: High quality, max settings (too generic)
 
 ## VLM & Asset Analysis

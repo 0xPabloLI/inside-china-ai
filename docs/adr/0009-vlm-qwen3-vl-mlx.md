@@ -25,7 +25,7 @@ GLM loads lazily on first escalation (7.4s load time). RAM check (`psutil`, ≥1
 
 ## Consequences
 
-- VLM architecture and known limitations: see `docs/video-workflow.md` → VLM Asset Analysis.
+- VLM architecture and known limitations: see `docs/video-production-runbook.md` → VLM Asset Analysis.
 - VLM is integrated into `asset-sourcer.mjs` — two-phase analysis (focus detection then VLM). See ADR-0015 for the focus detection subprocess.
 - Requires `~/.video-tts-env` (Python 3.12) with mlx-vlm installed — see ADR-0011.
 - Future model upgrade requires: (1) update `MODEL_ID` / `DEEP_MODEL_ID` in `vlm_analyzer.py`, (2) verify `apply_chat_template` compatibility, (3) re-run end-to-end validation.

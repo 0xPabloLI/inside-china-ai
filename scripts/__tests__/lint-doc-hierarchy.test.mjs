@@ -14,8 +14,8 @@ const messageOf = (findings, level = "WARN") =>
 
 describe("checkDocsIndexConsistency", () => {
   it("PASS: L1 doc listed in DOCS-INDEX", () => {
-    const docs = [{ filename: "video-workflow.md", content: "# Video Workflow" }];
-    const indexContent = "| `video-workflow.md` | Video production | AGENTS.md |";
+    const docs = [{ filename: "video-production-runbook.md", content: "# Video Workflow" }];
+    const indexContent = "| `video-production-runbook.md` | Video production | AGENTS.md |";
     const { findings } = checkDocsIndexConsistency(docs, indexContent);
     expect(failsOf(findings)).toHaveLength(0);
   });
@@ -74,7 +74,7 @@ describe("checkL1DesignDecisions", () => {
   it("PASS: L1 doc with L2 ref + has Design Decisions", () => {
     const files = [
       {
-        filename: "video-workflow.md",
+        filename: "video-production-runbook.md",
         content:
           "# Video Workflow\n\nSee docs/research/audio-drift-fix.md\n\n## Design Decisions & References\n\n| Topic | Reference |",
       },
@@ -358,7 +358,7 @@ describe("checkWritingForAgentsGate", () => {
   it("WARN: normative qualifier changed", () => {
     const stagedDiffs = [
       {
-        filename: "docs/video-workflow.md",
+        filename: "docs/video-production-runbook.md",
         diffLines: [
           { type: "del", content: "Agent may run preflight." },
           { type: "add", content: "Agent must run preflight." },
@@ -421,7 +421,7 @@ describe("checkWritingForAgentsGate", () => {
   it("WARN: section heading deleted", () => {
     const stagedDiffs = [
       {
-        filename: "docs/video-workflow.md",
+        filename: "docs/video-production-runbook.md",
         diffLines: [{ type: "del", content: "### Old Subsection" }],
       },
     ];
@@ -450,7 +450,7 @@ describe("checkWritingForAgentsGate", () => {
     // hit the pointer-line pattern and WARN.
     const stagedDiffs = [
       {
-        filename: "docs/issue-tracker.md",
+        filename: "docs/issue-roadmap.md",
         diffLines: [
           {
             type: "del",
@@ -472,7 +472,7 @@ describe("checkWritingForAgentsGate", () => {
   it("WARN: tracker Last-inventory line net-deleted (no replacement) (#178)", () => {
     const stagedDiffs = [
       {
-        filename: "docs/issue-tracker.md",
+        filename: "docs/issue-roadmap.md",
         diffLines: [
           {
             type: "del",
@@ -491,7 +491,7 @@ describe("checkWritingForAgentsGate", () => {
   it("WARN: inventory exemption is line-scoped, other changes still warn (#178)", () => {
     const stagedDiffs = [
       {
-        filename: "docs/issue-tracker.md",
+        filename: "docs/issue-roadmap.md",
         diffLines: [
           {
             type: "del",
