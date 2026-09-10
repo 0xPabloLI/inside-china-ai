@@ -2671,6 +2671,7 @@ export async function main(args = process.argv.slice(2)) {
               skippedForMissingApiKey = true;
             } else if (result.results.length > 0) {
               searchCacheDirty = true;
+              saveSearchResultsCache(searchCachePath, searchCache);
               console.log(`  💾 ${source.label} search cached: "${keyword}"`);
             }
             return result.results.map((c) => ({
@@ -2779,6 +2780,7 @@ export async function main(args = process.argv.slice(2)) {
         const candidates = result.results;
         if (!result.cacheHit && candidates.length > 0) {
           searchCacheDirty = true;
+          saveSearchResultsCache(searchCachePath, searchCache);
           console.log("     Live search result queued for cache");
         } else if (result.cacheHit) {
           console.log("     Reused cached search result");
@@ -2838,6 +2840,7 @@ export async function main(args = process.argv.slice(2)) {
         const candidates = result.results;
         if (!result.cacheHit && candidates.length > 0) {
           searchCacheDirty = true;
+          saveSearchResultsCache(searchCachePath, searchCache);
           console.log("     Live search result queued for cache");
         } else if (result.cacheHit) {
           console.log("     Reused cached search result");
@@ -2924,7 +2927,10 @@ export async function main(args = process.argv.slice(2)) {
             search: () => searchCdpVideoSource(source, keyword),
           });
           const candidates = result.results;
-          if (!result.cacheHit && candidates.length > 0) searchCacheDirty = true;
+          if (!result.cacheHit && candidates.length > 0) {
+            searchCacheDirty = true;
+            saveSearchResultsCache(searchCachePath, searchCache);
+          }
 
           const scored = normalizeCdpVideoCandidates(candidates, source.name, keyword)
             .map((c) => ({
@@ -3076,7 +3082,10 @@ export async function main(args = process.argv.slice(2)) {
         }
         allAssets.push(...assets);
         failed.push(...failedEntries);
-        if (result.value.cacheDirty) searchCacheDirty = true;
+        if (result.value.cacheDirty) {
+          searchCacheDirty = true;
+          saveSearchResultsCache(searchCachePath, searchCache);
+        }
       } else {
         console.log(`  ❌ Engine failed: ${result.reason?.message || "unknown error"}`);
       }

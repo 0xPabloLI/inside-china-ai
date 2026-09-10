@@ -96,6 +96,18 @@ async function main() {
   });
   const prof = { mark: profiler.mark, end: profiler.end, wrap: profiler.wrap };
 
+  // ── Step 0.2: CDP preflight (hard gate — fail fast, never degrade) ──
+  // Without the CDP proxy the CDP-backed media sources cannot search and the
+  // video ships without background media (2026-09-08/09 incidents). Check is
+  // the FIRST thing the pipeline does; on failure the process exits here so
+  // no time is wasted on a run that would produce a degraded video anyway.
+  prof.mark("step-0.2-cdp-gate");
+  {
+    const { ensureCdpOrExit } = await import("./lib/cdp-preflight.mjs");
+    await ensureCdpOrExit();
+  }
+  prof.end("step-0.2-cdp-gate");
+
   // ── Step 0.5: Currency normalization (RMB → USD dual-annotation) ──
   // Auto-inserts $X (¥Y) format before TTS runs, enforcing the currency
   // rule by code. Non-blocking: if it fails, scenes pass through unchanged.
