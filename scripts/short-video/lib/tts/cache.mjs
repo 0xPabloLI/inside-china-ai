@@ -18,6 +18,7 @@
 import { createHash } from "crypto";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+import { resolveSceneSpeed } from "./pacing.mjs";
 
 /**
  * Stable cache key for one scene's TTS audio.
@@ -26,14 +27,19 @@ import { join } from "path";
  * voice, speed, model) — hashing it alongside the name means any config change
  * invalidates the cached audio without a per-engine signature API.
  *
+ * The per-scene pacing speed (#235) joins the key only when it deviates from
+ * 1.0, so legacy 1.0 cache entries keep their keys and a speed change never
+ * replays 1.0x cached audio.
+ *
  * @param {{name: string, info: string}} engine
  * @param {string} text - scene voiceover text
+ * @param {number} [speed] - per-scene native speed (#235); omit for 1.0
  * @returns {string} sha1 hex
  */
-export function computeSceneKey(engine, text) {
-  return createHash("sha1")
-    .update(`${engine.name}|${engine.info}|${text}`)
-    .digest("hex");
+export function computeSceneKey(engine, text, speed = 1.0) {
+  const hash = createHash("sha1").update(`${engine.name}|${engine.info}|${text}`);
+  if (speed !== 1.0) hash.update(`|speed=${speed}`);
+  return hash.digest("hex");
 }
 
 /** Sidecar meta path for a scene's TTS result. */
@@ -69,7 +75,7 @@ export function planTtsScenes(outputDir, scenes, engine) {
   const pending = [];
   for (const scene of scenes) {
     const spokenText = scene.ttsText || scene.voiceover;
-    const key = computeSceneKey(engine, spokenText);
+    const key = computeSceneKey(engine, spokenText, resolveSceneSpeed(scene));
     let hit = null;
     try {
       const meta = JSON.parse(readFileSync(sceneMetaPath(outputDir, scene.id), "utf8"));

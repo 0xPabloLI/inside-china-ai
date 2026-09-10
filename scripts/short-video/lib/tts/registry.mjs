@@ -35,6 +35,7 @@ import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
 import { planTtsScenes, writeSceneMeta, computeSceneKey } from "./cache.mjs";
+import { resolveSceneSpeed } from "./pacing.mjs";
 
 /**
  * Engine factory map. Keys are both the canonical name and TTS_ENGINE aliases.
@@ -241,7 +242,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       const scene = scenes.find((s) => s.id === r.sceneId);
       if (scene) {
         writeSceneMeta(outputDir, r.sceneId, {
-          key: computeSceneKey(engine, scene.ttsText || scene.voiceover),
+          key: computeSceneKey(engine, scene.ttsText || scene.voiceover, resolveSceneSpeed(scene)),
           duration: r.duration,
           engine: engine.name,
           audioPath: r.audioPath,

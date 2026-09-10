@@ -21,6 +21,7 @@ import {
 } from "../lib/tts/cache.mjs";
 import { generateTTSWithEngine } from "../lib/tts/registry.mjs";
 import { runForcedAlignment } from "../lib/tts/post-process.mjs";
+import { resolveSceneSpeed } from "../lib/tts/pacing.mjs";
 
 describe("computeSceneKey", () => {
   const engine = { name: "f5-mlx", info: "F5-TTS-MLX (cloned from ref.wav, speed=1)" };
@@ -43,6 +44,16 @@ describe("computeSceneKey", () => {
       computeSceneKey({ ...engine, info: "...speed=1.2)" }, "文本"),
     );
   });
+
+  it("keeps the legacy key when speed is 1.0 or omitted (#235)", () => {
+    expect(computeSceneKey(engine, "同一句", 1.0)).toBe(computeSceneKey(engine, "同一句"));
+    expect(computeSceneKey(engine, "同一句")).toBe(computeSceneKey(engine, "同一句", 1.0));
+  });
+
+  it("changes when a non-1.0 speed is given (#235)", () => {
+    expect(computeSceneKey(engine, "同一句", 1.2)).not.toBe(computeSceneKey(engine, "同一句"));
+    expect(computeSceneKey(engine, "同一句", 1.2)).not.toBe(computeSceneKey(engine, "同一句", 1.15));
+  });
 });
 
 describe("planTtsScenes / writeSceneMeta", () => {
@@ -53,6 +64,25 @@ describe("planTtsScenes / writeSceneMeta", () => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
     dirs = [];
   };
+
+  it("pins the plan/write key invariant for speed-resolved EN scenes (#235)", () => {
+    // cache.mjs (planTtsScenes) and registry.mjs (writeSceneMeta) resolve the
+    // per-scene speed independently — this roundtrip fails if the two sites
+    // ever disagree: a 1.2-speed scene must hit the cache its own write wrote.
+    const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
+    dirs.push(dir);
+    const scene = { id: 1, visualType: "narrative", voiceover: "Alibaba revealed the weights for free." };
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, scene.voiceover, resolveSceneSpeed(scene)),
+      duration: 1.5,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.wav"),
+    });
+    writeFileSync(join(dir, "scene-1.wav"), "fake audio");
+    const plan = planTtsScenes(dir, [scene], engine);
+    expect(plan.cached).toHaveLength(1);
+    expect(plan.pending).toHaveLength(0);
+  });
 
   it("plans every scene as pending when no meta exists", () => {
     const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));

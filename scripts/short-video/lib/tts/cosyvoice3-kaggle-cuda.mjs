@@ -31,6 +31,7 @@ import { join, dirname } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
+import { resolveSceneSpeed } from "./pacing.mjs";
 
 const execAsync = promisify(exec);
 
@@ -77,11 +78,13 @@ export function resolveInstructForScene(scene) {
  *
  * Baseline = the user-approved Kaggle P100 emotion samples
  * (assets/tts-comparison/cosyvoice3-kaggle-p100-cuda/, verified 2026-09-07):
- * inference_instruct2 with INSTRUCT_MAP text and ref audio, NO speed, NO
- * rubberband post-processing. Both layers distort timbre/pace away from the
- * approved sound (hook accent drift, CTA mismatch). If a future video needs
- * per-scene pace control, opt in explicitly via TTS_PROSODY=1 rather than
- * re-enabling it here by default.
+ * inference_instruct2 with INSTRUCT_MAP text and ref audio, NO rubberband
+ * post-processing — it distorts timbre away from the approved sound (hook
+ * accent drift, CTA mismatch). Opt in via TTS_PROSODY=1.
+ *
+ * Per-scene native speed (#235): boost-eligible scenes (EN non-hook) carry a
+ * manifest `speed` entry the kernel applies as mel interpolation — native, no
+ * atempo step. Policy and clamp live in ./pacing.mjs; TTS_PROSODY=1 overrides.
  *
  * @param {Array<{id: number, voiceover?: string, ttsText?: string, visualType?: string, refStyle?: string}>} scenes
  * @returns {Array<{sceneId: number, text: string, output: string, instruct_text?: string, speed?: number}>}
@@ -99,9 +102,18 @@ export function buildCV3CudaManifest(scenes) {
       entry.instruct_text = instruct;
     }
     if (prosodyOptIn) {
+      // TTS_PROSODY=1 takes manual control of per-scene pace (legacy opt-in) —
+      // the pacing policy below does not apply in that mode.
       const prosody = getProsodyProfile(s.refStyle || s.visualType);
       if (prosody && prosody.tempo !== 1.0) {
         entry.speed = prosody.tempo;
+      }
+    } else {
+      // Per-scene native pacing (#235): ZH 1.0 / EN hook 1.0 / other EN 1.2,
+      // clamped ≤1.2. resolveSceneSpeed returns 1.0 for no-boost scenes.
+      const speed = resolveSceneSpeed(s);
+      if (speed !== 1.0) {
+        entry.speed = speed;
       }
     }
     return entry;

@@ -289,6 +289,22 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 | 引用语句      | 大字引用场景            |
 | Widget        | 不出现（视频无法交互）  |
 
+### 旁白语速预算（写稿规范，#235）
+
+> 依据：`docs/research/voiceover-pacing-research.md`（14 源 + STFT 频谱实测）。**写稿优先于拉伸**——语速偏慢先删词提密度（删词不拉音节，行业共识级），TTS 提速只做补差且 ≤1.2×。
+
+**写稿目标**（Step 6 设计 voiceover 时自检）：
+
+| 语言 | 目标语速 | 写稿规则 |
+| --- | --- | --- |
+| EN | ~2.4-2.5 词/秒净内容（对齐 150 wpm 甜点带 140-160） | filler/hedging 禁用清单：just / really / basically / actually / so 开场 / throat-clearers（"So, look…"） / 软限定词（somewhat / kind of）——逐句删 |
+| ZH | 维持现状（实测 236-288 字/分已是快节奏档） | 不追求提速；删除口头禅与重复铺垫 |
+
+**hook 前 3 秒密度**：核心价值必须在 hook 前 3 秒点出（Meta 研究：前 3 秒传达核心价值 → 完播 +47%）。hook 不堆铺垫句。
+
+**TTS 补差机制**（代码层已落地，写稿无需配置）：默认引擎按 scene 自动分流——EN hook 1.0（实测已 152-160 wpm，甜点上沿不加速）、EN 其余 visualType 1.2、ZH 恒 1.0（**严禁全局统一提速**，300 字/分播音上限）；clamp ≤1.2（1.5× native 频谱通量 −36%，瞬态抹平）；逃生门 `TTS_SPEED` env（真包发赶 → 1.15，显式覆盖含 hook 豁免）。**重抽优先、调参兜底**（#234 配对实验：同参数 take 间时长漂移 ±10-20%，抽样波动是主要来源）——真包 Gate 实测 WPM 超标先换 seed 重抽，多次重试仍偏快/偏慢才动 `speed` 名义值。验收以真包逐场景实测 WPM 为准（quality-gate 观察带 115-225）。
+
+
 ### AI Outline 话题描述规则（Step 5 细则）
 
 > TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。
