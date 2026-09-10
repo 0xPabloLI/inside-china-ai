@@ -6,7 +6,8 @@
 > 6hex 口径，原"合规"样本 `20260903-hallo3-ab-caf56c17` 为 8hex，实际不满足现行格式），超出
 > 零容忍门槛 → hook 决策为「加」；命令已迁入 `docs/agents/git-workflow.md` §8（本文件转为设计
 > 依据，不再是操作手册）；commit-msg gate 已落地并由
-> `scripts/test-commit-msg-hook.sh` 覆盖（27 scenarios）。
+> `scripts/test-commit-msg-hook.sh` 覆盖（trailer 校验、strict 登记、worktree、安装器、
+> bypass 矩阵、ref-gate 与 launcher 闭环——场景数以脚本实跑为准，不在此处固化）。
 > v5 相对 v4 的实质修正（第三方复核，2026-09-04）：id 统一为 6hex（与实现及在库 id 一致）；
 > §3.4 登记由"不强制"改为 strict 模式强制且 fail-closed；登记表迁至 git common dir（worktree
 > 共享）；安装链修复（`scripts/install-git-hooks.sh` 设置 hooksPath + strict，README 同步）；
