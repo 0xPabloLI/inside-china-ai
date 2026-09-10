@@ -46,12 +46,20 @@ try:
 except Exception as e:
     log(f"ERROR deps: {e}"); traceback.print_exc(); sys.exit(1)
 
+# Pinned dependencies for reproducible execution
+# onnxruntime-gpu 1.20.0 is officially released on PyPI for CUDA 12.x
+# NEVER silently fall back to CPU onnxruntime!
 try:
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "onnxruntime-gpu==1.20.1"], check=True)
-    log("onnxruntime-gpu 1.20.1 OK")
-except:
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "onnxruntime==1.20.1"], check=True)
-    log("onnxruntime CPU fallback OK")
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "onnxruntime-gpu==1.20.0"], check=True)
+    import onnxruntime as ort
+    providers = ort.get_available_providers()
+    log(f"onnxruntime-gpu 1.20.0 OK (providers: {providers})")
+    if "CUDAExecutionProvider" not in providers:
+        raise RuntimeError(f"FATAL: CUDAExecutionProvider not available in onnxruntime! Found: {providers}")
+except Exception as e:
+    log(f"FATAL deps onnxruntime-gpu: {e}")
+    traceback.print_exc()
+    sys.exit(1)
 
 try:
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "openai-whisper", "--no-deps"], check=True)
@@ -60,15 +68,36 @@ try:
 except Exception as e:
     log(f"ERROR whisper: {e}")
 
-log("\n=== Cloning CosyVoice ===")
+log("\n=== Setting up CosyVoice source ===")
+# Pin to known good commit (2026-09 baseline) to prevent upstream drift
+PINNED_COSYVOICE_COMMIT = "074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc"
 try:
     if not os.path.exists("/tmp/CosyVoice"):
-        subprocess.run(["git", "clone", "https://github.com/FunAudioLLM/CosyVoice.git", "/tmp/CosyVoice"], check=True)
-        os.chdir("/tmp/CosyVoice")
-        subprocess.run(["git", "submodule", "update", "--init", "--recursive"], check=True, timeout=120)
-    log("CosyVoice OK")
+        # Check if pre-frozen dataset mount exists (e.g. cosyvoice-code or cosyvoice-src)
+        ds_code_dir = None
+        for cand in ("/kaggle/input/cosyvoice-code", "/kaggle/input/cosyvoice-src"):
+            if os.path.exists(cand):
+                ds_code_dir = cand
+                break
+        if not ds_code_dir:
+            import glob
+            hits = glob.glob("/kaggle/input/**/cosyvoice-code", recursive=True) + glob.glob("/kaggle/input/**/cosyvoice-src", recursive=True)
+            if hits:
+                ds_code_dir = hits[0]
+
+        if ds_code_dir and os.path.exists(os.path.join(ds_code_dir, "cosyvoice")):
+            log(f"Found pre-frozen CosyVoice in dataset mount: {ds_code_dir}")
+            import shutil
+            shutil.copytree(ds_code_dir, "/tmp/CosyVoice", dirs_exist_ok=True)
+        else:
+            log(f"Cloning CosyVoice and locking to commit {PINNED_COSYVOICE_COMMIT[:10]}...")
+            subprocess.run(["git", "clone", "https://github.com/FunAudioLLM/CosyVoice.git", "/tmp/CosyVoice"], check=True)
+            os.chdir("/tmp/CosyVoice")
+            subprocess.run(["git", "checkout", PINNED_COSYVOICE_COMMIT], check=True)
+            subprocess.run(["git", "submodule", "update", "--init", "--recursive"], check=True, timeout=120)
+    log("CosyVoice source OK")
 except Exception as e:
-    log(f"ERROR clone: {e}"); traceback.print_exc(); sys.exit(1)
+    log(f"ERROR CosyVoice setup: {e}"); traceback.print_exc(); sys.exit(1)
 
 sys.path.insert(0, "/tmp/CosyVoice")
 sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
@@ -179,15 +208,16 @@ sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 import torch, soundfile as sf
 from cosyvoice.cli.cosyvoice import AutoModel
 
-# Deterministic sampling: unfixed seeds let timbre/accent drift between runs
-# (2026-09-09 hook accent regression). Seed pinned to the day the user
-# approved the P100 emotion baseline; override via TTS_SEED env if needed.
-_seed = int(os.environ.get("TTS_SEED", "20260907"))
-torch.manual_seed(_seed)
-import random as _random
-_random.seed(_seed)
-import numpy as _np
-_np.random.seed(_seed)
+if "TTS_SEED" in os.environ:
+    _seed = int(os.environ["TTS_SEED"])
+    torch.manual_seed(_seed)
+    import random as _random
+    _random.seed(_seed)
+    import numpy as _np
+    _np.random.seed(_seed)
+    print(f"Using fixed TTS_SEED={_seed}", flush=True)
+else:
+    print("Using natural random seed", flush=True)
 
 model_dir = "/tmp/cosyvoice3-model"
 import glob as _glob
@@ -215,12 +245,16 @@ for i, t in enumerate(manifest):
         seg_start = time.time()
         chunks = []
         instruct = t.get("instruct_text")
-        speed = t.get("speed", 1.0)
+        kwargs = {"stream": False}
+        if "speed" in t and t["speed"] is not None:
+            kwargs["speed"] = t["speed"]
+
         if instruct:
-            for j in cosyvoice.inference_instruct2(t["text"], instruct, ref_path, stream=False, speed=speed):
+            for j in cosyvoice.inference_instruct2(t["text"], instruct, ref_path, **kwargs):
                 chunks.append(j['tts_speech'])
         else:
-            for j in cosyvoice.inference_vc(t["text"], ref_path, stream=False, speed=speed):
+            for j in cosyvoice.inference(t["text"], ref_path, **kwargs):
+                chunks.append(j['tts_speech'])
                 chunks.append(j['tts_speech'])
         full = torch.cat(chunks, dim=-1)
         gen_time = time.time() - seg_start

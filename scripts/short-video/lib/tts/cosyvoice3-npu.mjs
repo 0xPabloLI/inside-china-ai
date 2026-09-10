@@ -55,7 +55,7 @@ export function buildCV3NpuManifest(scenes) {
   return scenes.map((s) => {
     const entry = {
       sceneId: s.id,
-      text: engineTtsText(s.voiceover),
+      text: s.ttsText || engineTtsText(s.voiceover),
       output: `scene-${s.id}.wav`,
     };
     const instruct = resolveInstructForScene(s);

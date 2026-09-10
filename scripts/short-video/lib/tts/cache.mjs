@@ -68,7 +68,8 @@ export function planTtsScenes(outputDir, scenes, engine) {
   const cached = [];
   const pending = [];
   for (const scene of scenes) {
-    const key = computeSceneKey(engine, scene.voiceover);
+    const spokenText = scene.ttsText || scene.voiceover;
+    const key = computeSceneKey(engine, spokenText);
     let hit = null;
     try {
       const meta = JSON.parse(readFileSync(sceneMetaPath(outputDir, scene.id), "utf8"));
@@ -97,7 +98,10 @@ export function planTtsScenes(outputDir, scenes, engine) {
 export function computeAlignmentSignature(scenes, ttsResults) {
   const hash = createHash("sha1");
   for (const r of ttsResults ?? []) {
-    const text = scenes.find((s) => s.id === r.sceneId)?.voiceover ?? "";
+    const scene = scenes.find((s) => s.id === r.sceneId);
+    // ttsText (spoken track) drives the alignment; fall back to voiceover
+    // for scenes that never got normalized.
+    const text = scene?.ttsText ?? scene?.voiceover ?? "";
     hash.update(`${r.sceneId}|${text}|`);
     try {
       hash.update(readFileSync(r.audioPath));

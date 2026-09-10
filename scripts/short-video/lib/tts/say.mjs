@@ -45,7 +45,7 @@ export async function createSayEngine() {
 
       for (const scene of scenes) {
         const tempFile = join(tmpdir(), `tts-scene-${scene.id}.txt`);
-        writeFileSync(tempFile, scene.voiceover);
+        writeFileSync(tempFile, scene.ttsText || scene.voiceover);
 
         const rawPath = join(outputDir, `scene-${scene.id}-raw.aiff`);
         const audioPath = join(outputDir, `scene-${scene.id}.mp3`);

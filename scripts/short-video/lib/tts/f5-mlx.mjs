@@ -118,7 +118,7 @@ export function buildF5Manifest(
     const ref = resolve(s);
     const entry = {
       sceneId: s.id,
-      text: s.voiceover,
+      text: s.ttsText || s.voiceover,
       output: `scene-${s.id}.wav`,
     };
     if (ref.style !== "default") {

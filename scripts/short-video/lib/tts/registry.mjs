@@ -170,13 +170,78 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
   const generatedResults = await engine.generate(toGenerate, outputDir);
 
+  // ── Step: TTS Quality Gate & Self-Healing Loop (#225, #230) ──
+  let validatedResults = generatedResults;
+  const isFakeEngine =
+    (engine.name && engine.name.toLowerCase().includes("fake")) ||
+    (engine.info && engine.info.toLowerCase().includes("fake"));
+  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || process.env.TTS_SKIP_QUALITY_GATE === "1");
+
+  if (!skipQualityGate && toGenerate.length > 0) {
+    try {
+      const { runTtsQualityGate } = await import("./quality-gate.mjs");
+      let gateReport = await runTtsQualityGate(toGenerate, validatedResults, options.qualityGateOptions);
+
+      // If any scene failed Quality Gate and retry is enabled
+      const maxRetries = options.maxRetries ?? parseInt(process.env.TTS_RETRY_COUNT || "2", 10);
+      let attempt = 1;
+      while (!gateReport.passed && attempt <= maxRetries) {
+        const failedSceneIds = new Set(gateReport.evaluations.filter((e) => !e.passed).map((e) => e.sceneId));
+        console.warn(`\n  🔄 [TTS Self-Healing Loop] Attempt ${attempt}/${maxRetries}: Regenerating ${failedSceneIds.size} failed scene(s)...`);
+        const retryScenes = toGenerate.filter((s) => failedSceneIds.has(s.id));
+
+        let retryResults = [];
+        try {
+          retryResults = await engine.generate(retryScenes, outputDir);
+        } catch (err) {
+          console.warn(`  ⚠️ Retry generation error: ${err.message}`);
+        }
+
+        if (retryResults.length > 0) {
+          const retryGate = await runTtsQualityGate(retryScenes, retryResults, options.qualityGateOptions);
+          for (const res of retryResults) {
+            const evalRes = retryGate.evaluations.find((e) => e.sceneId === res.sceneId);
+            if (evalRes && evalRes.passed) {
+              const idx = validatedResults.findIndex((g) => g.sceneId === res.sceneId);
+              if (idx >= 0) validatedResults[idx] = res;
+              else validatedResults.push(res);
+            }
+          }
+        }
+
+        gateReport = await runTtsQualityGate(toGenerate, validatedResults, options.qualityGateOptions);
+        if (gateReport.passed) {
+          console.log(`  🎉 [TTS Self-Healing Loop] All scenes healed and passed Quality Gate!`);
+          break;
+        }
+        attempt++;
+      }
+
+      if (!gateReport.passed) {
+        const failed = gateReport.evaluations.filter((e) => !e.passed);
+        const failSummary = failed.map((f) => `Scene ${f.sceneId} (${f.issues.join(", ")})`).join("; ");
+        const msg = `TTS Quality Gate failed after ${attempt} attempt(s): ${failSummary}`;
+        if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
+          throw new Error(msg);
+        } else {
+          console.warn(`  ⚠️ ${msg} (Continuing in non-strict mode)`);
+        }
+      }
+    } catch (gateErr) {
+      if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
+        throw gateErr;
+      }
+      console.warn(`  ⚠️ TTS Quality Gate encountered error: ${gateErr.message}`);
+    }
+  }
+
   // Persist cache meta for freshly generated scenes.
   if (useCache) {
-    for (const r of generatedResults) {
+    for (const r of validatedResults) {
       const scene = scenes.find((s) => s.id === r.sceneId);
       if (scene) {
         writeSceneMeta(outputDir, r.sceneId, {
-          key: computeSceneKey(engine, scene.voiceover),
+          key: computeSceneKey(engine, scene.ttsText || scene.voiceover),
           duration: r.duration,
           engine: engine.name,
           audioPath: r.audioPath,
@@ -186,7 +251,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   }
 
   // Reassemble in scene order; drop scenes the engine skipped.
-  const byId = new Map(generatedResults.map((r) => [r.sceneId, r]));
+  const byId = new Map(validatedResults.map((r) => [r.sceneId, r]));
   const merged = [];
   for (const scene of scenes) {
     const hit = cachedResults.find((r) => r.sceneId === scene.id);

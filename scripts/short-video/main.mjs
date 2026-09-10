@@ -109,6 +109,19 @@ async function main() {
   }
   prof.end("step-0.5-currency");
 
+  // ── Step 0.6: TTS text normalization (version numbers, decimals, dates) ──
+  // Rewrites voiceover-only fields so TTS reads "V four point one" instead of
+  // "v four [pause] one". On-screen texts are left untouched.
+  prof.mark("step-0.6-tts-normalize");
+  try {
+    const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
+    normalizeTtsText(scenes, meta);
+    console.log("🔤 Step 0.6: TTS text normalization complete (versions/decimals/dates)\n");
+  } catch (e) {
+    console.warn(`⚠️  TTS text normalization skipped: ${e.message}\n`);
+  }
+  prof.end("step-0.6-tts-normalize");
+
   console.log(`🎬 Short Video Pipeline`);
   console.log(`   Content: ${meta.title || contentDir}`);
   console.log(`   Pipeline ID: ${meta.pipelineId}`);

@@ -30,7 +30,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
-import { postProcessBatch, engineTtsText } from "./post-process.mjs";
+import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
 
 const execAsync = promisify(exec);
 
@@ -67,19 +67,35 @@ export function resolveInstructForScene(scene) {
 
 /**
  * Build the CosyVoice3 batch manifest for CUDA (with <|endofprompt|>).
- * @param {Array<{id: number, voiceover: string, visualType?: string, refStyle?: string}>} scenes
- * @returns {Array<{sceneId: number, text: string, output: string, instruct_text?: string}>}
+ *
+ * Baseline = the user-approved Kaggle P100 emotion samples
+ * (assets/tts-comparison/cosyvoice3-kaggle-p100-cuda/, verified 2026-09-07):
+ * inference_instruct2 with INSTRUCT_MAP text and ref audio, NO speed, NO
+ * rubberband post-processing. Both layers distort timbre/pace away from the
+ * approved sound (hook accent drift, CTA mismatch). If a future video needs
+ * per-scene pace control, opt in explicitly via TTS_PROSODY=1 rather than
+ * re-enabling it here by default.
+ *
+ * @param {Array<{id: number, voiceover?: string, ttsText?: string, visualType?: string, refStyle?: string}>} scenes
+ * @returns {Array<{sceneId: number, text: string, output: string, instruct_text?: string, speed?: number}>}
  */
 export function buildCV3CudaManifest(scenes) {
+  const prosodyOptIn = process.env.TTS_PROSODY === "1";
   return scenes.map((s) => {
     const entry = {
       sceneId: s.id,
-      text: engineTtsText(s.voiceover),
+      text: s.ttsText || engineTtsText(s.voiceover || ""),
       output: `scene-${s.id}.wav`,
     };
     const instruct = resolveInstructForScene(s);
     if (instruct) {
       entry.instruct_text = instruct;
+    }
+    if (prosodyOptIn) {
+      const prosody = getProsodyProfile(s.refStyle || s.visualType);
+      if (prosody && prosody.tempo !== 1.0) {
+        entry.speed = prosody.tempo;
+      }
     }
     return entry;
   });
@@ -265,10 +281,20 @@ export async function createCosyVoice3KaggleCudaEngine() {
         const { copyFileSync } = await import("fs");
         copyFileSync(srcPath, destPath);
 
+        // Rubberband prosody OFF by default: the user-approved P100 samples
+        // were plain instruct2 output. Pitch/tempo shifting audibly changes
+        // timbre (hook accent drift, CTA mismatch vs approved baseline).
+        // Opt back in with TTS_PROSODY=1; global pace stays available via
+        // TTS_ATEMPO (post-process.mjs) without touching pitch.
+        const scene = scenes.find((sc) => sc.id === s.sceneId);
+        const prosody =
+          process.env.TTS_PROSODY === "1" && scene
+            ? getProsodyProfile(scene.refStyle || scene.visualType)
+            : null;
         const duration = await postProcessBatch(destPath, {
           useSilenceFilter: false,
           resample: true,
-          prosody: null,
+          prosody,
         });
         finalResults.push({ sceneId: s.sceneId, audioPath: destPath, duration });
         console.log(`  Scene ${s.sceneId}: ${duration.toFixed(2)}s`);

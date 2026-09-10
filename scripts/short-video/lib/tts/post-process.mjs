@@ -292,11 +292,18 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
 
   console.log("  🎯 Running text-align subtitle timing...");
 
-  const manifest = ttsResults.map((r) => ({
-    sceneId: r.sceneId,
-    text: scenes.find((s) => s.id === r.sceneId)?.voiceover || "",
-    audioPath: r.audioPath,
-  }));
+  // Align against the SPOKEN track (ttsText): the audio reads the spoken form
+  // and wav2vec2's dictionary has no digit tokens, so "V4.1" cannot align.
+  // Display stays on the voiceover track — restore-tokens maps the aligned
+  // spoken words back to the original tokens before the timing is persisted.
+  const manifest = ttsResults.map((r) => {
+    const scene = scenes.find((s) => s.id === r.sceneId);
+    return {
+      sceneId: r.sceneId,
+      text: scene?.ttsText || scene?.voiceover || "",
+      audioPath: r.audioPath,
+    };
+  });
   const manifestPath = join(outputDir, "whisper-manifest.json");
   const timingPath = join(outputDir, "subtitle-timing.json");
   writeFileSync(manifestPath, JSON.stringify(manifest));
@@ -306,6 +313,13 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
       `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ~/.video-tts-env/bin/python3 "${alignScript}" ` +
         `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
     );
+    // Map spoken-form words back to display tokens (V four point one → V4.1)
+    // BEFORE persisting, so every downstream consumer (buildCues, verify,
+    // repair paths) reads display-correct timing.
+    const { restoreTimingTokens } = await import("../subtitles/restore-tokens.mjs");
+    const { readFileSync: rf } = await import("fs");
+    const timingData = JSON.parse(rf(timingPath, "utf8"));
+    writeFileSync(timingPath, JSON.stringify(restoreTimingTokens(timingData, scenes), null, 2));
     writeAlignmentMeta(outputDir, computeAlignmentSignature(scenes, ttsResults));
     console.log("  ✅ Subtitle timing saved (wav2vec2-large-960h-lv60-self aligned)");
     return { skipped: false };

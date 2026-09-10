@@ -61,7 +61,7 @@ export async function createQwenTTSEngine() {
       const manifestPath = join(outputDir, "qwen-manifest.json");
       const manifest = scenes.map((s) => ({
         sceneId: s.id,
-        text: s.voiceover,
+        text: s.ttsText || s.voiceover,
         output: `scene-${s.id}.wav`,
       }));
       writeSync(manifestPath, JSON.stringify(manifest));

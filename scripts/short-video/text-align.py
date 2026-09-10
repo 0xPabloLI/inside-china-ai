@@ -123,6 +123,19 @@ def group_chunks(word_ts, max_words=7, min_words=3):
     deduped = []
     for c in chunks:
         if deduped and c["start"] < deduped[-1]["end"]:
+            # Merge overlapping chunk instead of dropping it — wav2vec2
+            # can produce overlapping timing for numbers/punctuation, and
+            # dropping the chunk loses words from subtitles.
+            prev = deduped[-1]
+            prev["end"] = max(prev["end"], c["end"])
+            existing_words = {w["text"].lower() for w in prev["words"]}
+            for w in c["words"]:
+                if w["text"].lower() not in existing_words:
+                    prev["words"].append(w)
+                    existing_words.add(w["text"].lower())
+            merged_text = " ".join(w["text"] for w in prev["words"])
+            merged_text = re.sub(r"\s+([,.;:!?])", r"\1", merged_text)
+            prev["text"] = merged_text
             continue
         key = c["text"].lower().strip()
         if key in seen_text:
