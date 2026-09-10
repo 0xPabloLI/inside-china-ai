@@ -33,21 +33,27 @@ const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const CV3_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text.txt");
 
 // ── Emotion instructions per visualType/refStyle ──
+// Multi-dimensional best practice: Persona + Accent + Emotion + Pacing (#234)
 // CosyVoice3 MLX instruct format: "You are a helpful assistant. <emotion instruction>."
 // Do NOT add <|endofprompt|> — MLX version auto-appends it.
 const INSTRUCT_MAP = {
-  hook: "You are a helpful assistant. Speak with an excited and shocked tone, as if breaking incredible news.",
-  narrative: "You are a helpful assistant. Speak with a calm and measured tone, like a narrator.",
-  data: "You are a helpful assistant. Speak with a clear and informative tone, emphasizing key data points.",
-  cta: "You are a helpful assistant. Speak with an energetic and persuasive tone, encouraging the listener to act now.",
+  hook: "You are a helpful assistant. You are a tech news anchor on short video. Speak in standard American English with an energetic, clear, and confident tone, breaking major news.",
+  narrative:
+    "You are a helpful assistant. You are a tech documentary narrator. Speak in standard American English with a calm, engaging, and professional tone at a steady pace.",
+  data: "You are a helpful assistant. You are a tech analyst. Speak in standard American English with an authoritative, precise, and clear tone, emphasizing key metrics.",
+  cta: "You are a helpful assistant. You are a warm and engaging host. Speak in standard American English with an enthusiastic, persuasive, and welcoming tone.",
 };
 
 /**
  * Resolve instruct_text for a scene based on visualType or refStyle.
- * @param {{visualType?: string, refStyle?: string}} scene
+ * Supports explicit scene.instruct override.
+ * @param {{visualType?: string, refStyle?: string, instruct?: string}} scene
  * @returns {string|undefined} instruct_text, or undefined for plain clone.
  */
 export function resolveInstructForScene(scene) {
+  if (scene?.instruct) {
+    return scene.instruct.replace(/<\|endofprompt\|>/g, "").trim();
+  }
   const style = scene?.refStyle || scene?.visualType;
   if (!style) return undefined;
   return INSTRUCT_MAP[style];

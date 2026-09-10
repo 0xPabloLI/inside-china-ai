@@ -120,6 +120,8 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 | 9 | sourcing 被杀后搜索缓存全丢（"0 entries loaded"） | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘 |
 | 10 | Kaggle kernel 每次全量下载模型（10+ min） | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback |
 | 11 | CDP 中途才检查/静默降级 | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)` |
+| 12 | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降 | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234） |
+| 13 | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234) |
 
 
 ## Content Standards

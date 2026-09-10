@@ -45,21 +45,28 @@ const KAGGLE_POLL_INTERVAL_MS = 15000; // 15s
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
 // ── Emotion instructions per visualType/refStyle ──
+// Multi-dimensional best practice: Persona + Accent + Emotion + Pacing (#234)
 // CUDA (PyTorch) instruct format requires <|endofprompt|> suffix.
 const INSTRUCT_MAP = {
-  hook: "You are a helpful assistant. Speak with an excited and shocked tone, as if breaking incredible news.<|endofprompt|>",
+  hook: "You are a helpful assistant. You are a tech news anchor on short video. Speak in standard American English with an energetic, clear, and confident tone, breaking major news.<|endofprompt|>",
   narrative:
-    "You are a helpful assistant. Speak with a calm and measured tone, like a narrator.<|endofprompt|>",
-  data: "You are a helpful assistant. Speak with a clear and informative tone, emphasizing key data points.<|endofprompt|>",
-  cta: "You are a helpful assistant. Speak with an energetic and persuasive tone, encouraging the listener to act now.<|endofprompt|>",
+    "You are a helpful assistant. You are a tech documentary narrator. Speak in standard American English with a calm, engaging, and professional tone at a steady pace.<|endofprompt|>",
+  data: "You are a helpful assistant. You are a tech analyst. Speak in standard American English with an authoritative, precise, and clear tone, emphasizing key metrics.<|endofprompt|>",
+  cta: "You are a helpful assistant. You are a warm and engaging host. Speak in standard American English with an enthusiastic, persuasive, and welcoming tone.<|endofprompt|>",
 };
 
 /**
  * Resolve instruct_text for a scene based on visualType or refStyle.
- * @param {{visualType?: string, refStyle?: string}} scene
+ * Supports explicit scene.instruct override.
+ * @param {{visualType?: string, refStyle?: string, instruct?: string}} scene
  * @returns {string|undefined}
  */
 export function resolveInstructForScene(scene) {
+  if (scene?.instruct) {
+    return scene.instruct.endsWith("<|endofprompt|>")
+      ? scene.instruct
+      : `${scene.instruct}<|endofprompt|>`;
+  }
   const style = scene?.refStyle || scene?.visualType;
   if (!style) return undefined;
   return INSTRUCT_MAP[style];

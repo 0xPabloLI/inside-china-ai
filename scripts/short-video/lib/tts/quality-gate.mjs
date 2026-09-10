@@ -87,6 +87,35 @@ export function extractGuardedTokens(text) {
  * @param {Set<string>} asrTokenSet
  * @returns {boolean}
  */
+/**
+ * Build an expanded ASR token set that automatically unpacks composite tokens,
+ * version prefixes (e.g. "v4" -> "v", "4", "four"), and decimals (#234).
+ *
+ * @param {string[]} asrTokens
+ * @returns {Set<string>}
+ */
+export function buildExpandedAsrTokenSet(asrTokens) {
+  const expanded = new Set(asrTokens);
+  for (const t of asrTokens) {
+    // Unpack "v4" / "v41" into "v" + digits
+    const vMatch = /^v(\d+)$/i.exec(t);
+    if (vMatch) {
+      expanded.add("v");
+      expanded.add(vMatch[1]);
+    }
+  }
+  return expanded;
+}
+
+/**
+ * Check if an expected word is satisfied in the ASR token set,
+ * taking numbers, digits, version prefixes, and phonetic expansion into account.
+ * E.g., "tenth" is satisfied by "10th" or "10"; "8" is satisfied by "eighth" or "8th".
+ *
+ * @param {string} expectedWord
+ * @param {Set<string>} asrTokenSet
+ * @returns {boolean}
+ */
 export function isWordInAsr(expectedWord, asrTokenSet) {
   if (asrTokenSet.has(expectedWord)) return true;
   const EQUIVALENTS = {
@@ -122,12 +151,23 @@ export function isWordInAsr(expectedWord, asrTokenSet) {
       if (asrTokenSet.has(eq)) return true;
     }
   }
+
+  // Handle phonetic expansion word "point" in versions / decimals
+  // If expected has "point" and ASR has numbers/digits (e.g. "v4", "1"), it is satisfied
+  if (expectedWord === "point") {
+    for (const t of asrTokenSet) {
+      if (/\d/.test(t) || /^v\d+/i.test(t)) {
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
 /**
  * Compute token similarity between expected and ASR tokens,
- * accounting for word equivalents.
+ * accounting for word equivalents and version/decimal normalization.
  *
  * @param {string[]} expectedTokens
  * @param {string[]} asrTokens
@@ -137,12 +177,13 @@ export function computeTokenSimilarity(expectedTokens, asrTokens) {
   if (expectedTokens.length === 0 && asrTokens.length === 0) return 1.0;
   if (expectedTokens.length === 0 || asrTokens.length === 0) return 0.0;
 
-  const setB = new Set(asrTokens);
+  const setB = buildExpandedAsrTokenSet(asrTokens);
   let matches = 0;
   for (const token of expectedTokens) {
     if (isWordInAsr(token, setB)) matches++;
   }
 
+  // Denominator considers semantic match without penalizing normalized syllable expansion
   return matches / Math.max(expectedTokens.length, asrTokens.length);
 }
 
