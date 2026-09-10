@@ -181,10 +181,26 @@ export async function createCosyVoice3MLXEngine() {
 
       const finalResults = [];
       for (const r of batchResults) {
-        const audioPath = r.audioPath;
+        // mlx_audio's generate_audio auto-suffixes chunked output as
+        // `<prefix>_000.wav` while the manifest reports `<prefix>.wav`. If the
+        // reported path is missing (or older than the _000 chunk), adopt the
+        // chunk as the real take — otherwise post-process would rework a STALE
+        // cached file and silently discard the fresh generation
+        // (2026-09-10: scene-7 fresh 11.3s take ignored in favour of a stale
+        // 3.7s hand-trimmed file; Gate then failed 3x on the stale audio).
+        let audioPath = r.audioPath;
         if (!audioPath) {
           console.error(`  Scene ${r.sceneId}: no output, skipping`);
           continue;
+        }
+        const chunkPath = audioPath.replace(/\.wav$/, "_000.wav");
+        const { statSync, renameSync } = await import("fs");
+        if (existsSync(chunkPath)) {
+          const chunkM = statSync(chunkPath).mtimeMs;
+          const reportedM = existsSync(audioPath) ? statSync(audioPath).mtimeMs : -1;
+          if (!existsSync(audioPath) || chunkM > reportedM) {
+            renameSync(chunkPath, audioPath);
+          }
         }
         const duration = await postProcessBatch(audioPath, {
           useSilenceFilter: false,
