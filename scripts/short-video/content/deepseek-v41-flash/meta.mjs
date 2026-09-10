@@ -1,0 +1,25 @@
+export const meta = {
+  subject: "deepseek",
+  pipelineId: "deepseek-v41-flash",
+  title: "DeepSeek V4.1 Flash: New Architecture, Native Multimodal",
+  article: "deepseek-v41-flash",
+  renderer: "remotion",
+  createdAt: "2026-09-08",
+  topics: ["deepseek", "v4-1-flash", "multimodal", "china-ai", "llm", "api", "flash", "pro"],
+  keyEntities: {
+    companies: ["deepseek"],
+    people: [],
+    models: ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4-flash-vision-exp", "deepseek-v4-1-flash"],
+  },
+  dataPoints: [
+    "V4.1 Flash internal test opened Sep 8, 2026 (DeepSeek official group)",
+    "Model ID: deepseek-v4.1-flash-expires-on-0910 (temporary endpoint, expires Sep 10)",
+    "New model architecture with native multimodal support",
+    "Previous Vision Exp (Aug 21) was separate bolted-on model; V4.1 builds vision into base",
+    "V4 series timeline: V4 Apr 24, Flash Jul 31, Pro Aug 13, Vision Exp Aug 21, V4.1 Flash Sep 8",
+    "Flash $0.44/M input, $1.32/M output; Pro $1.32/M input, $3.96/M output (3x cheaper)",
+    "Same pricing as V4 Flash for the test, 20 concurrent per account",
+    "DeepSeek survey asks if V4.1 Flash can fully replace V4 Pro",
+  ],
+  hashtags: ["#chinaai", "#deepseek", "#ai", "#technews", "#chinatech"],
+};

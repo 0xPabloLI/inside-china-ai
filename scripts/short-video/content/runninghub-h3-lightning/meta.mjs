@@ -1,0 +1,26 @@
+export const meta = {
+  subject: "runninghub",
+  pipelineId: "runninghub-h3-lightning",
+  title: "RunningHub Makes MiniMax H3 12x Faster, Open Source",
+  article: "runninghub-h3-lightning",
+  renderer: "remotion",
+  createdAt: "2026-09-10",
+  topics: ["minimax", "h3", "runninghub", "video-generation", "open-source", "inference-acceleration", "china-ai"],
+  keyEntities: {
+    companies: ["minimax", "runninghub", "haimayun"],
+    people: [],
+    models: ["minimax-h3"],
+  },
+  dataPoints: [
+    "12x speedup: 348.8s to 28.7s for 5s 1344x768 video on 4x RTX 6000D (QbitAI, Sep 10 2026)",
+    "92% generation time reduction, BF16 precision retained",
+    "15s video on 8x RTX 6000D: text-to-video ~48s, dual-ref image-to-video ~73s",
+    "Step 1: RH post-training model, 50 steps to 9 steps (default 4), 348.8s to 43s, 8x speedup",
+    "Step 2: SageAttention2 + Cache-DiT + torch.compile, 43s to 28.7s",
+    "Step 3: TP2+Ulysses4 multi-GPU, 12% faster than TP4+Ulysses2, 14GiB less VRAM",
+    "Targets PCIe multi-GPU without NVLink, RTX 6000D commercially available",
+    "Open source: github.com/RH-RunningHub/MiniMax-H3-MultiGPU-Lightning",
+    "Haimayun: founded 2014, 60+ edge nodes, 20M+ MAU",
+  ],
+  hashtags: ["#chinaai", "#ai", "#minimax", "#opensource", "#videogen"],
+};

@@ -1,0 +1,32 @@
+export const meta = {
+  subject: "ant-lingbot-world",
+  pipelineId: "ant-lingbot-world-13b",
+  title: "China's 1.3B World Model Runs on One GPU",
+  article: "ant-lingbot-world-13b-open-source",
+  createdAt: "2026-09-10",
+  topics: [
+    "lingbot-world",
+    "world-model",
+    "ant-group",
+    "open-source",
+    "real-time",
+    "distillation",
+    "china-ai",
+    "consumer-gpu",
+  ],
+  keyEntities: {
+    companies: ["ant-group", "amd"],
+    people: ["jack-huynh"],
+    models: ["lingbot-world-2", "lingbot-world-2-13b"],
+  },
+  dataPoints: [
+    "1.3B parameters (lightweight version)",
+    "14B parameters (original July release)",
+    "720p/60fps real-time",
+    "Single consumer GPU",
+    "3 open-source releases (Jan, Jul, Sep 2026)",
+    "IFA Berlin AMD keynote demo",
+  ],
+  trendingChecked: true,
+  trendingHashtags: [],
+};

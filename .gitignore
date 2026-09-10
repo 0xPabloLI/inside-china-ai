@@ -34,6 +34,9 @@ src/routeTree.gen.ts
 # Short-video pipeline: outputs and binary assets
 scripts/short-video/output/
 
+# Per-content derived caches (focus-detection results — reproducible from scene media)
+scripts/short-video/content/*/.focus-cache/
+
 # Voice samples (TTS reference audio — personal, binary)
 scripts/short-video/voice-samples/
 
