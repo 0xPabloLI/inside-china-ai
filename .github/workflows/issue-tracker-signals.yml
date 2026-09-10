@@ -14,6 +14,14 @@ on:
     types: [created]
   issues:
     types: [closed]
+  # 手工触发。默认 backfill=false 只做冒烟（证明本 workflow 真的能跑），不写任何标签。
+  # 只有当存量票确实需要补信号时才用 backfill=true —— 见下方 manual job 的说明。
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: '给所有「已有评论」的 open 票补打 comments-unread（默认关；开着会把 -50% 的 open 票标记为未读，稀释信号）'
+        type: boolean
+        default: false
 
 permissions:
   issues: write
@@ -82,3 +90,75 @@ jobs:
               ].join('\n'),
             });
             core.info(`delivery record missing on #${issue.number} — reminder posted`);
+
+  manual:
+    name: Manual smoke test / backfill
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // 两种用法，由 backfill 开关区分：
+            //   false（默认）= 冒烟。跑通整条链、打印统计，不写任何标签。
+            //                  用途：证明「Actions 已启用且本 workflow 真的能执行」，
+            //                  以及随时复核还有多少 open 票带评论（存量信号覆盖率）。
+            //   true        = 回填。给所有「已有评论但还没打标」的 open 票补 comments-unread。
+            //  ⚠️ 回填是**一次性**动作，且是**有代价**的：它会把相当比例的 open 票标记为未读，
+            //     让「未读」这个信号从"罕见且可动作"退化成"常态噪音"，agent 会学着忽略它。
+            //     因此默认关。只有在明确接受这个代价时才开。
+            const backfill = String(context.payload.inputs?.backfill) === 'true';
+            const label = 'comments-unread';
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            let openTickets = 0;
+            let withComments = 0;
+            let alreadyTagged = 0;
+            let tagged = 0;
+
+            for (const issue of issues) {
+              if (issue.pull_request) continue; // issue list 会连 PR 一起返回
+              openTickets += 1;
+              if (!issue.comments) continue;    // 没有评论就没有未读状态可言
+              withComments += 1;
+
+              const has = issue.labels.some(
+                (l) => (typeof l === 'string' ? l : l.name) === label,
+              );
+              if (has) {
+                alreadyTagged += 1;
+                continue;
+              }
+              if (!backfill) continue;
+
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: [label],
+              });
+              tagged += 1;
+              core.info(`backfilled comments-unread on #${issue.number}`);
+            }
+
+            core.info(
+              [
+                `mode=${backfill ? 'backfill' : 'smoke'}`,
+                `open_tickets=${openTickets}`,
+                `with_comments=${withComments}`,
+                `already_tagged=${alreadyTagged}`,
+                `tagged_now=${tagged}`,
+              ].join(' '),
+            );
+
+            if (!backfill) {
+              core.info(
+                'smoke only — no labels written. Re-run with backfill=true to tag the with_comments tickets.',
+              );
+            }
