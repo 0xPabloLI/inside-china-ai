@@ -235,8 +235,10 @@ export const scenes = [
     visualType: "cta",
     narrativeRole: "T-Tell",
     retentionMechanism: null,
-    // #214 E2E pilot (ticket 06): avatar declared on the CTA scene — the
-    // generation step writes videoPath back after plan approval + Kaggle run.
+    // #214 E2E pilot (ticket 06): avatar declared on the CTA scene. videoPath
+    // cleared 2026-09-09 to force regeneration with the correct portrait
+    // (portrait-face.jpg — the fullbody variant had been copied in by mistake);
+    // the run writes the new path back atomically.
     avatar: { videoPath: "assets/avatar/scene-10.mp4" },
     voiceover: "Qwen4 is coming. Those 6 billion parameters are the blueprint. Follow for more.",
     texts: {
