@@ -174,7 +174,13 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                       // the number's own box — the circle must never cover the
                       // subject above or the numberLabel below. F7 asserts that
                       // contract on every settled frame (assert mounted below).
-                      <Circle color="#f59e0b" progress={circleProgress} box="inside">
+                      <Circle
+                        color="#f59e0b"
+                        strokeWidth={ANNOTATION.circle.strokeWidth}
+                        padding={ANNOTATION.circle.padding}
+                        progress={circleProgress}
+                        box="inside"
+                      >
                         {txt.bigNumber as string}
                       </Circle>
                     ) : (

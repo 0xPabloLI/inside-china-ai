@@ -56,6 +56,8 @@ export const ANNOTATION = {
     progressRange: [20, 40] as const,
   },
   circle: {
+    strokeWidth: 3,
+    padding: { top: 20, bottom: 20, left: 24, right: 24 },
     progressRange: [15, 30] as const,
   },
 } as const;

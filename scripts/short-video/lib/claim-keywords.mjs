@@ -38,7 +38,10 @@ export function skipsMediaSourcing(scene) {
   if (NO_MEDIA_TYPES.has(scene.visualType)) return true;
   if (scene.media === null) return true;
   if (scene.mediaOptOut === true) return true; // deprecated (#191)
-  if (CSS_ONLY_LAYOUTS.has(scene.layout)) return true;
+  // A scene that explicitly declares assetNeed wants media regardless of
+  // layout — both hero-center and stacked-cards render MediaBackground when
+  // scene.media is present. Only skip CSS-only layouts when no assetNeed.
+  if (CSS_ONLY_LAYOUTS.has(scene.layout) && !scene.assetNeed) return true;
   return false;
 }
 
