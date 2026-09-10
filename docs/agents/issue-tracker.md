@@ -16,6 +16,8 @@ Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 - Use labels for triage (see `triage-labels.md`).
 - One issue = one atomic task or bug.
 - Link related issues in the body with `#number`.
+- **Issue body is write-once**: the body is authored at ticket creation and never rewritten. GitHub replaces the entire body on every `PATCH`, so even a "small addition" clobbers content another session wrote (2026-09-10 lesson: evidence handoff to open #235 went in as a comment for exactly this reason). Delivery records go in the closing comment (see Session cognitive offload); new evidence for an open ticket owned by another session goes in a comment too — appending never overwrites.
+- **Read the comments before claiming**: a ticket's body alone is not its full state — cross-session evidence, delivery records and user decisions accumulate in comments. Run `gh issue view <number> --comments` before triaging or starting work; a comment unread is a decision re-litigated.
 - Close issues via commit message (`fixes #N` / `closes #N`) or manually after verification.
 - Closing a completed issue: keep its `enhancement` or `bug` category label, remove all state labels. Do not use `wontfix` for completed work — `wontfix` is for rejected items only.
 - **GraphQL timeout workaround**: `gh` CLI GraphQL calls (used by `gh issue view/edit/close`) intermittently time out through local proxy. Use REST API instead: `gh api repos/0xPabloLI/inside-china-ai/issues/<num>` for reads, `gh api .../issues/<num>/labels -X PUT` for label changes, `gh api .../issues/<num> -X PATCH -f state=closed` for closing. DELETE requests also time out — use PUT to overwrite the full label set instead.
@@ -60,13 +62,13 @@ The tracker is the session's external memory: a fresh session must be able to re
 | Produced state | Home | Done when |
 | --- | --- | --- |
 | Per-issue delivery record (commits, tests, live evidence, mechanisms discovered, leftovers) | Closing comment on the issue | A reader who never saw the session can resume or audit the work from the comment alone |
-| Roadmap state (tier, wave, blockers, labels) | `docs/issue-tracker.md` tier/wave rows | `gh issue list --state open` and the tables agree |
-| Session narrative (what ran, in order) | inventory line atop `docs/issue-tracker.md` + the pilot-log entry | The next session's "Last inventory" is the newest line and names the frontier |
+| Roadmap state (tier, wave, blockers, labels) | `docs/issue-roadmap.md` tier/wave rows | `gh issue list --state open` and the tables agree |
+| Session narrative (what ran, in order) | inventory line atop `docs/issue-roadmap.md` + the pilot-log entry | The next session's "Last inventory" is the newest line and names the frontier |
 | Commit provenance | `Session-Id` trailer + pilot-log registration | `git log --all --format=...trailers` resolves every session commit |
-| User decisions and constraints that outlive the task | `docs/issue-tracker.md` inventory, or agent memory for cross-task preferences | The next session does not re-ask a decided question |
+| User decisions and constraints that outlive the task | `docs/issue-roadmap.md` inventory, or agent memory for cross-task preferences | The next session does not re-ask a decided question |
 
 Completion criterion: close the terminal and imagine a colleague opens a fresh one — if they would need to ask you anything the tracker already could have answered, the offload is incomplete.
 
 ## Roadmap & execution order
 
-→ **[`docs/issue-tracker.md`](../issue-tracker.md)** — the single source of truth for open issues, execution waves, priority tiers, conflict matrix, and triage protocol.
+→ **[`docs/issue-roadmap.md`](../issue-roadmap.md)** — the single source of truth for open issues, execution waves, priority tiers, conflict matrix, and triage protocol.

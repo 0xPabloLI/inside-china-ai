@@ -66,6 +66,7 @@
 - 不顺手修复无关或非本 session 引入的问题。
 - 无法确认改动来源时停止，向用户报告。
 - session 结束时记录 commit hash、未 push 状态、验证证据和剩余 blocker。
+- **Issue 交付落档**：per-issue 交付记录按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 表执行——closing comment 落档，不改正文（body 编辑是整体替换，会覆盖其他 session 的内容）。
 - **Session-Id 关联标识（安装了 hooks 的 checkout 强制，commit-msg hook 校验 trailer；strict 模式另校验登记）**：
   - 开工先确认已安装：`git config core.hooksPath` 应为 `.githooks`（新 clone 跑 `npm run setup:hooks`；它同时设置 strict 登记门控）。未安装时本规则仍是约定，只是无 hook 兜底。
   - session 开工生成 id（格式 `<yyyymmdd>-<task>-<6hex>`，如 `20260903-refactor-a1b2c3`）并登记 `$(git rev-parse --git-common-dir)/session-pilot/pilot-log.md`（所有 worktree 共享；tool / Session-Id / baseline / commit 清单 / compact 状态）。
