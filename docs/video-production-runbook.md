@@ -122,6 +122,8 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 | 11 | CDP 中途才检查/静默降级 | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)` |
 | 12 | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降 | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234） |
 | 13 | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234) |
+| 14 | MRL-3 帧审计 final frame 提取越界误报 FAIL | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4） |
+| 15 | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械） | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48） |
 
 
 ## Content Standards
