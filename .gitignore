@@ -123,6 +123,9 @@ scripts/short-video/assets/pixabay-*
 scripts/short-video/assets/searxng_image-*
 scripts/short-video/assets/unsplash-*
 
+# Pipeline-generated B-roll clips (T2V output, regenerable, not source)
+scripts/short-video/assets/scene-*-seed*.mp4
+
 # Per-content generated assets and search cache (binary/cache, not source code)
 scripts/short-video/content/*/assets/
 scripts/short-video/content/*/search-cache.json
