@@ -11,6 +11,9 @@
  *   3. CosyVoice3-NPU (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA similar to MPS, RTF ~2.2x, no Kaggle/Modal quota needed)
  *   4. CosyVoice3-MLX (LOCAL FALLBACK — emotion regression vs CUDA, but fast RTF 0.64-0.87x)
  *   5. F5-TTS-MLX (BACKUP — good rhythm, natural pacing, internal duration control, CC-BY-NC)
+ *
+ * Manual opt-in only — NOT part of automatic fallback (user rule 2026-09-10):
+ * these engines never run unless TTS_ENGINE explicitly names them:
  *   6. Qwen3-TTS (good emphasis on data points, no duration control)
  *   7. edge-tts (Microsoft neural TTS, no cloning)
  *   8. macOS `say` (last resort, no cloning)
@@ -58,16 +61,18 @@ const ENGINE_FACTORIES = {
   say: createSayEngine,
 };
 
-/** Priority order for automatic selection (no TTS_ENGINE env). */
+/**
+ * Priority order for AUTOMATIC selection (no TTS_ENGINE env).
+ * Automatic fallback stops at f5-mlx — engines after it (qwen-tts, edge-tts,
+ * say) are manual opt-in only and must never be selected by this loop
+ * (user rule 2026-09-10).
+ */
 const PRIORITY = [
   "cosyvoice3-kaggle-cuda",
   "cosyvoice3-modal-cuda",
   "cosyvoice3-npu",
   "cosyvoice3-mlx",
   "f5-mlx",
-  "qwen-tts",
-  "edge-tts",
-  "say",
 ];
 
 /**
