@@ -142,10 +142,23 @@ const schedule = sceneTimeline(
 );
 const totalFrames = scheduleTotalFrames(schedule);
 
+// Clamp last frame to actual video frame count (TTS audio may be shorter than
+// scene duration budgets, so the rendered video can have fewer frames than the
+// schedule predicts — #MRL-3 final-frame false-fail).
+let actualFrames = totalFrames;
+try {
+  const probe = execSync(
+    `ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 "${videoPath}"`,
+    { encoding: "utf8", timeout: 60_000 },
+  ).trim();
+  const n = parseInt(probe, 10);
+  if (Number.isFinite(n) && n > 0) actualFrames = n;
+} catch { /* fall back to schedule total */ }
+
 // Extract ALL target frames (scene midpoints + final frame) in ONE ffmpeg
 // pass (#198 Item 5). The per-frame `select=eq(n,X)` spawn used to decode the
 // whole video once per scene; eq(n,X) index semantics are unchanged.
-const lastFrame = totalFrames - 1;
+const lastFrame = Math.min(totalFrames, actualFrames) - 1;
 const midFrames = scenes.map((scene, i) => {
   const entry = schedule[i];
   return entry.visualStartFrames + Math.floor(entry.visualFrames / 2);
@@ -202,7 +215,7 @@ for (let i = 0; i < scenes.length; i++) {
 }
 
 // ─── Last frame: the CTA must hold to the very last frame ───
-console.log(`Final frame (${lastFrame}/${totalFrames}): CTA must still be on screen`);
+console.log(`Final frame (${lastFrame}/${Math.min(totalFrames, actualFrames)}): CTA must still be on screen`);
 
 const lastFramePath = extractedFrames.get(lastFrame);
 if (!lastFramePath) {
