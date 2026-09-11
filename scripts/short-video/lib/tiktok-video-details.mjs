@@ -33,6 +33,54 @@ const DETAIL_URL_PREFIX = "https://www.tiktok.com/tiktokstudio/analytics/";
 
 const CRASH_MARKER = "Unexpected Application Error";
 
+/**
+ * TikTok Studio renders in the account's UI language and the scraped labels
+ * follow it. On 2026-09-11 the UI drifted to zh-Hans and the English-only
+ * regexes matched nothing: `--fetch` reported 5/5 "no metrics parsed" and
+ * still exited 0, so the whole analytics cycle silently produced no data.
+ * Every label therefore carries both spellings. Adding a third language is a
+ * line here — not a debugging session.
+ *
+ * Verified ground truth 2026-09-11 (zh-Hans, video 7683933255170559253):
+ *   播放量 305, 总播放时间 0h:51m:42s, 平均观看时间 9.1s,
+ *   已观看完整视频 2.4%, 新增粉丝数 5, 流量来源 推荐 78.5% / 搜索 19.4%.
+ */
+const LABELS = {
+  postedOn: ["Posted on", "发布于"],
+  views: ["Video views", "播放量"],
+  totalPlayTime: ["Total play time", "总播放时间"],
+  avgWatchTime: ["Average watch time", "平均观看时间"],
+  watchedFullVideo: ["Watched full video", "已观看完整视频"],
+  newFollowers: ["New followers", "新增粉丝数"],
+  retentionRate: ["Retention rate", "观众留存率"],
+  trafficSource: ["Traffic source", "流量来源"],
+  forYou: ["For You", "推荐"],
+  search: ["Search", "搜索"],
+};
+
+const escapeRe = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** `Video views|播放量` — the alternation every metric regex is built from. */
+function labelAlt(key) {
+  return LABELS[key].map(escapeRe).join("|");
+}
+
+/**
+ * True when the page shows the metrics block in any supported language.
+ *
+ * This is the render-readiness signal. It replaced a hardcoded
+ * `text.includes("Video views")` check, which made an unrecognized UI
+ * language look identical to "page not ready yet" — the poll then burned all
+ * its attempts and the run reported a plausible-sounding failure.
+ *
+ * @param {string|null} text
+ * @returns {boolean}
+ */
+export function hasMetrics(text) {
+  if (!text || text.includes(CRASH_MARKER)) return false;
+  return LABELS.views.some((label) => text.includes(label));
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Random 4-8s pacing between page loads (human-like). */
@@ -43,7 +91,10 @@ export function pacingDelayMs(rand = Math.random) {
 /**
  * Parse the innerText of a per-video analytics overview page.
  *
- * Real page text shape (2026-09-07):
+ * Real page text shape (2026-09-07, en-US). The same block renders in the
+ * account's UI language — zh-Hans swaps the labels (播放量 / 总播放时间 /
+ * 平均观看时间 / 已观看完整视频 / 新增粉丝数 / 观众留存率 / 流量来源 / 推荐 /
+ * 搜索) and reorders the posted date. See `LABELS`.
  * ```
  * #alibaba #qwen
  * Posted on 8/30/2026
@@ -78,26 +129,35 @@ export function parseVideoDetailText(text) {
   };
   if (!text || text.includes(CRASH_MARKER)) return result;
 
-  const posted = text.match(/Posted on (\d{1,2}\/\d{1,2}\/\d{4})/);
+  // Posted date differs by locale: en-US "8/30/2026" (M/D/Y), zh-Hans
+  // "2026/9/10" (Y/M/D) — accept either field width.
+  const posted = text.match(
+    new RegExp(`(?:${labelAlt("postedOn")})\\s*(\\d{1,4}\\/\\d{1,2}\\/\\d{1,4})`),
+  );
   if (posted) result.postedOn = posted[1];
 
-  const views = text.match(/Video views\n([\d,]+)/);
+  const views = text.match(new RegExp(`(?:${labelAlt("views")})\\n([\\d,]+)`));
   if (views) result.videoViews = parseInt(views[1].replace(/,/g, ""), 10);
 
-  const play = text.match(/Total play time\n([\dhms:]+)/);
+  const play = text.match(new RegExp(`(?:${labelAlt("totalPlayTime")})\\n([\\dhms:]+)`));
   if (play) result.totalPlayTime = play[1];
 
-  const avg = text.match(/Average watch time\n([\d.]+)s/);
+  const avg = text.match(new RegExp(`(?:${labelAlt("avgWatchTime")})\\n([\\d.]+)s`));
   if (avg) result.avgWatchTimeSec = parseFloat(avg[1]);
 
-  const full = text.match(/Watched full video\n([\d.]+)%/);
+  const full = text.match(new RegExp(`(?:${labelAlt("watchedFullVideo")})\\n([\\d.]+)%`));
   if (full) result.watchedFullVideoPct = parseFloat(full[1]);
 
-  const followers = text.match(/New followers\n([\d,]+)/);
+  const followers = text.match(new RegExp(`(?:${labelAlt("newFollowers")})\\n([\\d,]+)`));
   if (followers) result.newFollowers = parseInt(followers[1].replace(/,/g, ""), 10);
 
-  // Retention insight: free-text lines between "Retention rate" and "Traffic source"
-  const retMatch = text.match(/Retention rate\n([\s\S]*?)(?:\nTraffic source|\n*$)/);
+  // Retention insight: free-text lines between the retention-rate label and
+  // the traffic-source label.
+  const retMatch = text.match(
+    new RegExp(
+      `(?:${labelAlt("retentionRate")})\\n([\\s\\S]*?)(?:\\n(?:${labelAlt("trafficSource")})|\\n*$)`,
+    ),
+  );
   if (retMatch) {
     const insight = retMatch[1]
       .split("\n")
@@ -107,9 +167,15 @@ export function parseVideoDetailText(text) {
     result.retentionInsight = insight.length > 0 ? insight : null;
   }
 
-  const fyp = text.match(/Traffic source\nFor You\n([\d.]+)%/);
+  const fyp = text.match(
+    new RegExp(`(?:${labelAlt("trafficSource")})\\n(?:${labelAlt("forYou")})\\n([\\d.]+)%`),
+  );
   if (fyp) result.trafficSource.forYouPct = parseFloat(fyp[1]);
-  const search = text.match(/Traffic source\nFor You\n[\d.]+%\n(?:Search\n([\d.]+)%)/);
+  const search = text.match(
+    new RegExp(
+      `(?:${labelAlt("trafficSource")})\\n(?:${labelAlt("forYou")})\\n[\\d.]+%\\n(?:${labelAlt("search")})\\n([\\d.]+)%`,
+    ),
+  );
   if (search) result.trafficSource.searchPct = parseFloat(search[1]);
 
   return result;
@@ -178,7 +244,7 @@ export async function fetchDetailText(tabId, videoId, opts = {}) {
   let text = await read();
   let reloaded = false;
   for (let attempt = 0; attempt < 5; attempt++) {
-    if (text && text.includes("Video views")) return text;
+    if (hasMetrics(text)) return text;
     if (text && text.includes(CRASH_MARKER) && !reloaded) {
       // Single sanctioned reload — the SPA crash recovers on reload.
       await evalFn(tabId, "location.reload()");
@@ -248,7 +314,15 @@ export async function fetchVideoDetails(opts = {}) {
       }
       const details = parseVideoDetailText(text);
       if (details.videoViews === null) {
-        failed.push({ videoId, title, reason: "no metrics parsed (page not ready or crash)" });
+        // Carry a page sample: the 2026-09-11 language mismatch produced this
+        // very message for 5/5 videos, and without the sample there was no way
+        // to tell "page not ready" from "regex does not know this language".
+        failed.push({
+          videoId,
+          title,
+          reason: "no metrics parsed (page not ready, crash, or unsupported UI language)",
+          sample: text.slice(0, 240),
+        });
         continue;
       }
       videos.push({ videoId, title, ...details });
@@ -292,6 +366,20 @@ if (isMain) {
           console.log(`\n📁 Output: ${outPath}`);
         } else {
           console.log(json);
+        }
+        // Fail loud on a zero-yield run. Without this, a total parse failure
+        // exits 0 and the analytics cycle looks like it merely had no new
+        // videos (2026-09-11: 5/5 failed to parse, exit 0, caught by hand).
+        if (result.videos.length === 0) {
+          const cause = result.failed.length
+            ? `all ${result.failed.length} video page(s) failed to parse`
+            : "the content list returned no videos";
+          console.error(
+            `\n❌ Wrote no data: ${cause}.\n` +
+              "   If the pages did render, check the metrics labels in LABELS —\n" +
+              "   an unsupported Studio UI language looks exactly like this.",
+          );
+          process.exit(1);
         }
       })
       .catch((e) => {

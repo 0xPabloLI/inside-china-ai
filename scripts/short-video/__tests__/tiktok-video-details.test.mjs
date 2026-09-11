@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   parseVideoDetailText,
+  hasMetrics,
   fetchDetailText,
   fetchVideoDetails,
   pacingDelayMs,
@@ -49,6 +50,56 @@ const REAL_DETAIL_TEXT = [
   "8.9%",
   "Personal profile",
   "2.6%",
+].join("\n");
+
+/**
+ * Real page innerText captured 2026-09-11 via CDP eval — the zh-Hans Studio
+ * UI that silently broke every English-only regex (5/5 videos reported "no
+ * metrics parsed", exit 0). Video 7683933255170559253.
+ */
+const REAL_DETAIL_TEXT_ZH = [
+  "实时更新。",
+  "概览",
+  "观众",
+  "互动",
+  "DeepSeek just dropped V4.1 Flash with a new architecture and native multimodal. #chinaai #deepseek #ai #technews #chinatech",
+  "发布于 2026/9/10",
+  "305",
+  "5",
+  "0",
+  "0",
+  "1",
+  "播放量",
+  "305",
+  "总播放时间",
+  "0h:51m:42s",
+  "平均观看时间",
+  "9.1s",
+  "已观看完整视频",
+  "2.4%",
+  "新增粉丝数",
+  "5",
+  "观众留存率",
+  "大多数观众在 0:01 停止了观看。播放下方视频，看看大家失去兴趣的时间。",
+  "NaN:NaN (--)",
+  "NaN:NaN",
+  "流量来源",
+  "推荐",
+  "78.5%",
+  "搜索",
+  "19.4%",
+  "个人资料",
+  "2.1%",
+  "已关注",
+  "<0.1%",
+  "私信",
+  "<0.1%",
+  "音乐",
+  "<0.1%",
+  "其它",
+  "<0.1%",
+  "搜索查询",
+  "正在处理你的视频数据，请稍后查看。",
 ].join("\n");
 
 const immediateSleep = () => Promise.resolve();
@@ -102,6 +153,48 @@ describe("parseVideoDetailText", () => {
     const r = parseVideoDetailText(REAL_DETAIL_TEXT);
     expect(r.retentionInsight).not.toMatch(/NaN/);
     expect(r.retentionInsight).not.toMatch(/^\d/);
+  });
+});
+
+describe("parseVideoDetailText (zh-Hans UI, 2026-09-11 regression)", () => {
+  it("parses the real captured zh-Hans detail page", () => {
+    const r = parseVideoDetailText(REAL_DETAIL_TEXT_ZH);
+    expect(r.postedOn).toBe("2026/9/10");
+    expect(r.videoViews).toBe(305);
+    expect(r.totalPlayTime).toBe("0h:51m:42s");
+    expect(r.avgWatchTimeSec).toBe(9.1);
+    expect(r.watchedFullVideoPct).toBe(2.4);
+    expect(r.newFollowers).toBe(5);
+    expect(r.retentionInsight).toBe(
+      "大多数观众在 0:01 停止了观看。播放下方视频，看看大家失去兴趣的时间。",
+    );
+    expect(r.trafficSource).toEqual({ forYouPct: 78.5, searchPct: 19.4 });
+  });
+
+  it("drops the zh-Hans NaN chart noise lines", () => {
+    const r = parseVideoDetailText(REAL_DETAIL_TEXT_ZH);
+    expect(r.retentionInsight).not.toMatch(/NaN/);
+  });
+
+  it("handles a zh-Hans page with no Search row", () => {
+    const text = REAL_DETAIL_TEXT_ZH.split("\n流量来源")[0] + "\n流量来源\n推荐\n91.0%";
+    const r = parseVideoDetailText(text);
+    expect(r.trafficSource.forYouPct).toBe(91.0);
+    expect(r.trafficSource.searchPct).toBeNull();
+  });
+});
+
+describe("hasMetrics", () => {
+  it("accepts both UI languages", () => {
+    expect(hasMetrics(REAL_DETAIL_TEXT)).toBe(true);
+    expect(hasMetrics(REAL_DETAIL_TEXT_ZH)).toBe(true);
+  });
+
+  it("rejects crash pages, unrelated pages and empty reads", () => {
+    expect(hasMetrics("Unexpected Application Error! window.t is not a function")).toBe(false);
+    expect(hasMetrics("some page without metrics")).toBe(false);
+    expect(hasMetrics("")).toBe(false);
+    expect(hasMetrics(null)).toBe(false);
   });
 });
 
@@ -285,6 +378,56 @@ describe("fetchVideoDetails", () => {
     expect(explicit.videos).toHaveLength(1);
     expect(explicit.videos[0].videoId).toBe("999");
     expect(explicit.videos[0].title).toBe("");
+  });
+
+  it("yields data (not failures) when the Studio UI is zh-Hans", async () => {
+    // Baseline before the fix: both videos landed in failed[] with
+    // "no metrics parsed" and the run still looked successful.
+    const cdp = makeCdp({
+      list: [
+        { videoId: "111", title: "A" },
+        { videoId: "222", title: "B" },
+      ],
+      detailQueue: [REAL_DETAIL_TEXT_ZH, REAL_DETAIL_TEXT_ZH],
+    });
+
+    const result = await fetchVideoDetails({
+      renderWaitMs: 1,
+      sleepFn: immediateSleep,
+      rand: () => 0.5,
+      cdpNewTab: cdp.cdpNewTab,
+      cdpCloseTab: cdp.cdpCloseTab,
+      evalFn: cdp.evalFn,
+    });
+
+    expect(result.failed).toHaveLength(0);
+    expect(result.videos).toHaveLength(2);
+    expect(result.videos[0]).toMatchObject({
+      videoViews: 305,
+      avgWatchTimeSec: 9.1,
+      watchedFullVideoPct: 2.4,
+    });
+  });
+
+  it("carries a page sample when metrics cannot be parsed", async () => {
+    const evalFn = async (_tab, script) => {
+      if (script.includes('a[href*="/video/"]')) {
+        return { value: JSON.stringify([{ videoId: "111", title: "A" }]) };
+      }
+      return { value: "some page without metrics" };
+    };
+
+    const result = await fetchVideoDetails({
+      renderWaitMs: 1,
+      sleepFn: immediateSleep,
+      cdpNewTab: async () => "tab1",
+      cdpCloseTab: async () => {},
+      evalFn,
+    });
+
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0].reason).toMatch(/no metrics parsed/);
+    expect(result.failed[0].sample).toBe("some page without metrics");
   });
 
   it("closes the tab even when the list page fails", async () => {

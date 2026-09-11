@@ -63,6 +63,14 @@ analytics"，但实际上 analytics 需要等数据沉淀。
 
 站点级怪癖与登录策略见 `skills/web-access/references/site-patterns/tiktok.com.md`。
 
+### per-video 详情抓取的已知陷阱（2026-09-11 实测）
+
+`node scripts/short-video/lib/tiktok-video-details.mjs --fetch` 有三条必须知道的行为：
+
+1. **Studio 界面语言会漂移，标签本身就是抓取契约。** 解析器按页面上可见的标签取值（英文 `Video views` / 中文 `播放量`）。Studio 一旦切到解析器不认识的语言，旧版会**全部解析失败却静默退出 0** —— 2026-09-11 就这样丢掉一整轮数据：5/5 报 `no metrics parsed`，0 条成功率，而脚本认为自己成功了。现已内置中/英双标签（`LABELS`），并改为**零产出即 `exit 1`**；`failed[]` 每条带 `sample`（页面文本前 240 字符），用来区分「页面还没渲染」和「语言不认识」。**再加语言只改 `LABELS`，不要改各处正则。**
+2. **抓完必须验成功条数。** 别只看 exit code —— 即便现在会 fail loud，也要核对 `--out` 的 JSON 里 `videos.length` 与 `failed.length`。
+3. **content 列表页只保留最近 8 条。** 更早的视频会滑出列表，per-video 详情再也抓不到；历史数据只能靠 `output/tiktok-video-details-<date>.json` 快照，所以每轮抓完要把当次结果归档成带日期的文件。
+
 ### CSV 导出说明（fallback）
 
 手动导出仍可用但已降级：登录 TikTok Studio → Overview/Content 页头部 `Download data` → 选 CSV → ZIP 落 `~/Downloads/`。仅覆盖基础数据（按日聚合），`fetch-tiktok-analytics.mjs` 的模糊列名解析仍适用。历史入口 `analytics.tiktok.com` 已下线，勿再使用。
