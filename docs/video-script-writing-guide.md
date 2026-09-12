@@ -38,9 +38,9 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 
 ### 三层叠加模型
 
-**S.T.A.R.T. 5 段为主框架**（15 源验证的创作者社区共识）。留存引擎为微观机制，在特定 scene 强制插入。AI Outline 为 HITL 工具输入，用户从手机端拿到后按消费映射表（见下方）消费。
+**S.T.A.R.T. 5 段为主框架**（15 源验证的创作者社区共识）。留存引擎为微观机制，在特定 scene 强制插入。AI Outline 为 **opt-in 工具输入**（默认不启用，仅用户显式点名时使用），用户从手机端拿到后按消费映射表（见下方）消费。
 
-**AI Outline 是工具输入，不是结构参照**。Agent 按 S.T.A.R.T. 5 段设计 scene，用户可选地从 AI Outline 输出中提取内容建议填充到对应段。
+**AI Outline 是工具输入，不是结构参照**。Agent 按 S.T.A.R.T. 5 段设计 scene，opt-in 时可从 AI Outline 输出中提取内容建议填充到对应段。
 
 ### S.T.A.R.T. 5 段概览
 
@@ -54,6 +54,8 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 
 ### AI Outline 消费映射表
 
+> **默认不启用**（2026-09-10 用户裁决）：AI Outline 是 opt-in 工具——仅当用户在对话中显式点名（如"用 TikTok AI Outline"）时才进管线。本表只在 opt-in 后消费；默认路径 Agent 直接按 S.T.A.R.T. 设计，无此表。
+
 用户在手机端跑完 AI Outline 后，将输出抄回给 Agent。Agent 按下表消费：
 
 | AI Outline 段           | S.T.A.R.T. 对应  | 消费规则                                      |
@@ -64,7 +66,7 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 | Climatic build          | R — Relay (高潮) | 参考 S6-S7 情绪递进设计                       |
 | Engagement-driven outro | T-Tell           | 参考其 CTA 角度，指导最终 scene voiceover     |
 
-Title 和 Hashtags 直接取用（经过品牌一致性检查后）。用户跳过 AI Outline 时，Agent 自行按 S.T.A.R.T. 设计（降级逻辑不变）。
+Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（未 opt-in）时 Agent 自行按 S.T.A.R.T. 设计。
 
 ### Scene 模板（10-12 个 scene）
 
@@ -278,7 +280,7 @@ CTA 公式：`[Action Verb] + [What They Get]`
 ## Design Decisions & References
 
 - **为什么不创建独立 skill**：按 `writing-for-agents` 原则，新 skill 如果 model-invoked 会永久占 context load。此文档作为 disclosed reference 被 `content-pipeline.md` 引用，agent 只在 Stage 3 时加载。
-- **S.T.A.R.T. 为主框架的原因**：15 源验证的创作者社区共识最高框架。AI Outline 来自 TikTok 官方 Creator Search Insights（2026-08-27 实测验证），是平台数据的工具化输出，作为 HITL 工具输入消费——Agent 拿到用户抄回的 AI Outline 后按消费映射表提取内容建议，而非用其结构替代 S.T.A.R.T.。
+- **S.T.A.R.T. 为主框架的原因**：15 源验证的创作者社区共识最高框架。AI Outline 来自 TikTok 官方 Creator Search Insights（2026-08-27 实测验证），是平台数据的工具化输出，作为 **opt-in 工具输入**消费（默认不启用）——opt-in 时 Agent 拿到用户抄回的 AI Outline 后按消费映射表提取内容建议，而非用其结构替代 S.T.A.R.T.。
 - **为什么每个 scene 有素材要求**：之前 scene 的 media 字段是事后填充的——先写 voiceover 再找图。现在每个 scene 在设计时就定义素材需求，让脚本驱动素材收集，而不是素材适配脚本。
 
 **assetNeed 约定（Stage 3 必填实践）**：scene 的素材需求写入结构化字段 `assetNeed: "一句英文视觉描述"`（不是 voiceover 里的文字标注——TTS 会把内嵌 `[ASSET NEEDED` 标注读出来，scene-rules B13 会 FAIL）。asset-sourcer 消费 `assetNeed` 做 per-scene claim 搜索并绑定到该 scene；VLM 对照 voiceover 主张做相关性审查，低于阈值的素材宁缺毋滥（scene 保持纯 CSS 是合法结果）。公司实体关键词仅作为无 `assetNeed` scene 的 fallback。

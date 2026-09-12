@@ -247,7 +247,7 @@ node scripts/rag/query.mjs "logo" --type asset-catalog        # 只搜素材目�
 
 从 Stage 0 共享素材、文章 draft（如已就绪）与视频叙事目标形成独立视频脚本；视频脚本不是文章翻译。
 
-> **脚本写作方法论**：参照 `docs/video-script-writing-guide.md`（S.T.A.R.T. 主框架 + AI Outline HITL 工具 + 留存引擎 + per-scene 素材要求）。
+> **脚本写作方法论**：参照 `docs/video-script-writing-guide.md`（S.T.A.R.T. 主框架 + AI Outline opt-in 工具 + 留存引擎 + per-scene 素材要求）。
 
 ### Step 0: 分集评估
 
@@ -265,15 +265,17 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 **`main.mjs` 支持**：`node main.mjs --content <dir>`（如 `deepseek`、`distillation/pt1`、`restraint/pt1`；要求目录内 `meta.mjs` + `scene-data.mjs` 两者齐备）。
 
+> **默认声明（2026-09-10 用户裁决，长期约定）**：本 Stage **默认不调用 TikTok CSI / AI Outline**。默认路径 = 自有架构（S.T.A.R.T. 主框架 + 自有 hashtag/title/caption 策略），Agent 静默执行、不暂停、不询问。仅当用户在对话中**显式点名**（如"用 TikTok AI Outline"、"让 TikTok 帮我写 tag/caption/分镜"）时才启用 opt-in 路径（见步骤 5）。
+
 ### 步骤
 
 1. **读 Stage 0 素材** — 从 Stage 0 输出的素材集合（用户素材 + 互联网全文）中提取核心信息。文章 draft 如已就绪可作为一致性参考，但视频不是文章翻译。
 2. **RAG 查询（已有 scene-data 检索）** — 用叙事角度 + 公司名查 RAG（命令同 Stage 0 末尾，`--type scene-data` 与 `--type article` 各一次），检索已有视频场景和文章背景。Agent 读取结果后：避免重复已有场景的叙事结构和角度；在公司名出现时融入已有背景信息到 voiceover 脚本中。**非阻塞**：Ollama 不可用时跳过 + 输出警告 + 继续。
 3. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
 4. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）
-5. **生成 AI Outline 话题描述（HITL 检查点）** — Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中。**Agent 暂停**，等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。降级：用户跳过则 Agent 自行设计。
+5. **AI Outline 话题描述（opt-in 旁路，默认跳过）** — **默认整步跳过**（等价于旧的"用户跳过"降级分支）：不生成话题描述、不暂停、不询问。仅当用户显式点名启用时：Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中，**Agent 暂停**等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。
 6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
-7. **设计 SEO 标题**（≤60 chars）——对比 Agent 生成的 title 和 AI Outline 返回的 title，取更优者
+7. **设计 SEO 标题**（≤60 chars）——默认只用 Agent 自有生成的 title；仅当 opt-in 且已拿到 AI Outline 结果时才对比两者取更优者
 8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 填写 `assetNeed` 字段，asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限（见 `docs/video-script-writing-guide.md` → assetNeed 约定）。素材**生成**比采购更合适的 scene（抽象概念、无现成画面）声明 `mediaStrategy` + prompt：**动态画面**用 `aiVideo.prompt`（8 维模板），**静态图/架构图/数据图**用 `aiImage.prompt`（6 维 = 8 维去掉 CAMERA/MOTION；策略值 `ai-image` / `asset-then-ai-image`，#155）。字段契约、模板与 preflight 规则见 `docs/video-production-runbook.md` → B-roll Generation 与 AI Image (T2I) generation。
    8b. **VLM stock 图片相关性评判** — scene-data 写完后，对每个 `media.type === "image"` 的场景运行 VLM 相关性评判：`node scripts/short-video/evaluate-stock-relevance.mjs --content <dir>`。Qwen3-VL 对每张 stock 图片评分（0-100），检查与 voiceover + texts 的相关性。**完成标准**：所有图片 relevance ≥ 60。低于阈值的场景用 `search-replacement-images.mjs` 搜索 Pexels 替换，或声明 `mediaStrategy: "b-roll"` 转为 AI 生成。
    8c. **数字人声明评估（必须执行）** — scene-data 写完后，按 `docs/video-script-writing-guide.md` →「数字人（scene.avatar）使用策略」评估本包是否声明数字人：对照声明白名单（CTA / 关键论点 payoff / 程式化数据时刻）与黑名单（hook / 高情感段 / 突发新闻表述），**逐包给出显式结论**——符合白名单的 scene 写入 `scene.avatar: {}`（生成走 plan → approve → run，见 `docs/specs/spec-digital-human-pipeline.md`），不符合的在对话中说明"本包不加数字人及理由"。**完成标准**：对话中存在一次明确的加/不加结论（静默跳过 = 未完成此步）。`plan dry-run` 的机械警告（hook 声明 / 出镜段数 / 单段时长）会拦截明显违规，但语义判断在本步。
@@ -305,7 +307,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 **TTS 补差机制**（代码层已落地，写稿无需配置）：默认引擎按 scene 自动分流——EN hook 1.0（实测已 152-160 wpm，甜点上沿不加速）、EN 其余 visualType 1.2、ZH 恒 1.0（**严禁全局统一提速**，300 字/分播音上限）；clamp ≤1.2（1.5× native 频谱通量 −36%，瞬态抹平）；逃生门 `TTS_SPEED` env（真包发赶 → 1.15，显式覆盖含 hook 豁免）。**重抽优先、调参兜底**（#234 配对实验：同参数 take 间时长漂移 ±10-20%，抽样波动是主要来源）——真包 Gate 实测 WPM 超标先换 seed 重抽，多次重试仍偏快/偏慢才动 `speed` 名义值。验收以真包逐场景实测 WPM 为准（quality-gate 观察带 115-225）。
 
 
-### AI Outline 话题描述规则（Step 5 细则）
+### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）
 
 > TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。
 
@@ -475,7 +477,7 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 | Topic                          | Reference                                                         | Content                                                                                                                                            |
 | ------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Article production rules       | `docs/article-production-guide.md` (L1)                           | Widget decision tree, Frontmatter format, MRL-1 checklist, claim verification, source citation                                                     |
-| Script writing methodology     | `docs/video-script-writing-guide.md` (L1)                         | S.T.A.R.T. primary framework + AI Outline HITL tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks |
+| Script writing methodology     | `docs/video-script-writing-guide.md` (L1)                         | S.T.A.R.T. primary framework + AI Outline opt-in tool + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks |
 | Multi-video series             | `docs/series-production-guide.md` (L1)                            | Split strategy, inter-episode linking, compilation, series publishing                                                                              |
 | New content scaffold           | `docs/content-scaffold-guide.md` (L1)                             | Directory structure, file templates, CSS overflow checklist, visual style                                                                          |
 | Video production workflow      | `docs/video-production-runbook.md` (L1)                                     | TTS engines, rendering, publishing strategy, file paths                                                                                            |
