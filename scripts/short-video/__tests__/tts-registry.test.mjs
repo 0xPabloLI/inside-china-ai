@@ -192,28 +192,29 @@ describe("TTS Engine Registry — selectEngine()", () => {
     expect(createCosyVoice3MLXEngine).toHaveBeenCalled();
   });
 
-  // S2b: full fallback chain Kaggle CUDA → Modal CUDA → NPU → CosyVoice3-MLX → F5 → Qwen3 → edge-tts → say
-  it("S2b: falls through entire priority chain to say", async () => {
+  // S2b: automatic chain Kaggle CUDA → Modal CUDA → NPU → CosyVoice3-MLX → F5-MLX,
+  // then FAILS CLOSED. Qwen3 / edge-tts / say are manual opt-in only
+  // (user rule 2026-09-10, commit 2a36a48) — the loop must never reach them.
+  it("S2b: automatic chain stops at f5-mlx and throws without reaching manual-only engines", async () => {
     vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
     vi.mocked(createF5MLXEngine).mockResolvedValue(null);
-    vi.mocked(createQwenTTSEngine).mockResolvedValue(null);
-    vi.mocked(createEdgeTTSEngine).mockResolvedValue(null);
-    const say = mockEngine("say", "macOS say");
-    vi.mocked(createSayEngine).mockResolvedValue(say);
+    vi.mocked(createQwenTTSEngine).mockResolvedValue(mockEngine("qwen-tts"));
+    vi.mocked(createEdgeTTSEngine).mockResolvedValue(mockEngine("edge-tts", "edge"));
+    vi.mocked(createSayEngine).mockResolvedValue(mockEngine("say", "macOS say"));
 
-    const engine = await selectEngine();
+    await expect(selectEngine()).rejects.toThrow(/No TTS engine available/);
 
-    expect(engine.name).toBe("say");
     expect(createCosyVoice3KaggleCudaEngine).toHaveBeenCalled();
     expect(createCosyVoice3ModalCudaEngine).toHaveBeenCalled();
     expect(createCosyVoice3NPUEngine).toHaveBeenCalled();
     expect(createCosyVoice3MLXEngine).toHaveBeenCalled();
     expect(createF5MLXEngine).toHaveBeenCalled();
-    expect(createQwenTTSEngine).toHaveBeenCalled();
-    expect(createEdgeTTSEngine).toHaveBeenCalled();
-    expect(createSayEngine).toHaveBeenCalled();
+    // Manual-only engines stay out of the automatic fallback loop.
+    expect(createQwenTTSEngine).not.toHaveBeenCalled();
+    expect(createEdgeTTSEngine).not.toHaveBeenCalled();
+    expect(createSayEngine).not.toHaveBeenCalled();
   });
 });
