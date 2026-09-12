@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { createRateLimiter, SITE_RATE_CONFIG, WINDOW_MS } from "../lib/rate-limiter.mjs";
+import { createRateLimiter, SITE_RATE_CONFIG, WINDOW_MS, SKIP_WAIT_MS } from "../lib/rate-limiter.mjs";
 
 // ─── Helpers ───
 
@@ -155,19 +155,20 @@ describe("rate-limiter: hourly sliding window", () => {
     }
   }
 
-  it("scenario 8: cap reached — waits until oldest timestamp leaves the window, then proceeds", async () => {
+  it("scenario 8: cap reached — waits until oldest timestamp leaves the window when the wait is under the skip threshold, then proceeds", async () => {
     const { limiter, sleepCalls, advanceClock } = makeTestLimiter();
     await fillWindow(limiter);
     // Simulated time is now firstTs + 29×8000 = 1_232_000 (first request has
-    // no sleep). Advance so the oldest entry leaves the window in 60s.
-    advanceClock(WINDOW_MS - 60_000 - (GOOGLE.maxPerHour - 1) * GOOGLE.baseDelay);
+    // no sleep). Advance so the oldest entry leaves the window in 10s —
+    // under the #249 skip threshold, so the navigation still waits.
+    advanceClock(WINDOW_MS - 10_000 - (GOOGLE.maxPerHour - 1) * GOOGLE.baseDelay);
 
     const r = await limiter.wait(`${GOOGLE_URL}overflow`);
     expect(r.action).toBe("waited");
-    expect(sleepCalls.at(-1)).toBe(60_000);
+    expect(sleepCalls.at(-1)).toBe(10_000);
   });
 
-  it("scenario 9: cap reached and required wait exceeds 10min cap → skip, no navigation", async () => {
+  it("scenario 9: cap reached and required wait exceeds the hourly-cap wait budget (~55min) → skip, no navigation", async () => {
     const { limiter, sleepCalls } = makeTestLimiter();
     await fillWindow(limiter);
 
@@ -260,5 +261,70 @@ describe("rate-limiter: persistence", () => {
     await second.limiter.wait(GOOGLE_URL + "b");
     // Second instance waited based on the exact timestamp from the first
     expect(second.sleepCalls[0]).toBe(SITE_RATE_CONFIG["google.com"].baseDelay);
+  });
+});
+
+// ─── #249: hourly-cap waits over the skip threshold → skip, not block ───
+
+describe("rate-limiter: #249 cap-wait skip threshold", () => {
+  const GOOGLE = SITE_RATE_CONFIG["google.com"];
+  const GOOGLE_URL = "https://google.com/search?q=";
+
+  async function fillWindow(limiter) {
+    for (let i = 0; i < GOOGLE.maxPerHour; i++) {
+      await limiter.wait(`${GOOGLE_URL}${i}`);
+    }
+  }
+
+  it("skipWaitMs is 15s (issue threshold)", () => {
+    expect(SKIP_WAIT_MS).toBe(15_000);
+  });
+
+  it("cap wait of ~60s exceeds the threshold → skip without sleeping, warn logged", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { limiter, sleepCalls, advanceClock } = makeTestLimiter();
+    await fillWindow(limiter);
+    // Oldest entry leaves the window in ~60s
+    advanceClock(WINDOW_MS - 60_000 - (GOOGLE.maxPerHour - 1) * GOOGLE.baseDelay);
+
+    const r = await limiter.wait(`${GOOGLE_URL}overflow`);
+    expect(r.action).toBe("skip");
+    // No blocking sleep for the cap wait (only the 29 interval sleeps from filling)
+    expect(sleepCalls).toHaveLength(GOOGLE.maxPerHour - 1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("google.com"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("skipping"));
+    warn.mockRestore();
+  });
+
+  it("the observed 554s Google block is now a skip (regression on the issue evidence)", async () => {
+    const { limiter, advanceClock } = makeTestLimiter();
+    await fillWindow(limiter);
+    // Position so the oldest entry leaves the window in 554s
+    advanceClock(WINDOW_MS - 554_000 - (GOOGLE.maxPerHour - 1) * GOOGLE.baseDelay);
+
+    const r = await limiter.wait(`${GOOGLE_URL}overflow`);
+    expect(r.action).toBe("skip");
+  });
+
+  it("interval (baseDelay) waits are never skipped even when they exceed the threshold", async () => {
+    // xiaohongshu baseDelay 15s × jitter max 1.4 = 21s > 15s threshold —
+    // normal politeness waits must still happen, only cap waits are skipped.
+    const XHS_URL = "https://www.xiaohongshu.com/explore";
+    const cfg = SITE_RATE_CONFIG["xiaohongshu.com"];
+    const hi = makeTestLimiter({ random: () => 1 });
+    await hi.limiter.wait(XHS_URL);
+    const r = await hi.limiter.wait(XHS_URL);
+    expect(r.action).toBe("waited");
+    expect(hi.sleepCalls[0]).toBe(Math.round(cfg.baseDelay * cfg.jitter[1]));
+  });
+
+  it("skipWaitMs is injectable — a lower threshold skips smaller cap waits", async () => {
+    const { limiter, advanceClock } = makeTestLimiter({ skipWaitMs: 1000 });
+    await fillWindow(limiter);
+    // Oldest entry leaves the window in 10s — above the 1s injected threshold
+    advanceClock(WINDOW_MS - 10_000 - (GOOGLE.maxPerHour - 1) * GOOGLE.baseDelay);
+
+    const r = await limiter.wait(`${GOOGLE_URL}overflow`);
+    expect(r.action).toBe("skip");
   });
 });

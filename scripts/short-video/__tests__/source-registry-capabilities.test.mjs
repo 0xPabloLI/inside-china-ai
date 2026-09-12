@@ -610,3 +610,44 @@ describe("#88 Part 2 — auto-gen googleSiteFallback in capabilities", () => {
     }
   });
 });
+
+// ─── #249: baidu_search images + videos CDP capabilities ───
+
+describe("#249 — baidu_search media CDP capabilities", () => {
+  const baidu = ALL_SOURCES.find((s) => s.name === "baidu_search");
+
+  it("has a CDP images capability pointing at image.baidu.com", () => {
+    expect(baidu.capabilities.images).toBeDefined();
+    expect(baidu.capabilities.images.method).toBe("cdp");
+    expect(baidu.capabilities.images.url("DeepSeek")).toContain("image.baidu.com");
+    // 2026-09 image waterfall carries result metadata in data-show-ext JSON
+    expect(baidu.capabilities.images.imageScript).toContain("data-show-ext");
+    expect(typeof baidu.capabilities.images.imageFallbackScript).toBe("string");
+  });
+
+  it("has a CDP videos capability pointing at the baidu video vertical", () => {
+    expect(baidu.capabilities.videos).toBeDefined();
+    expect(baidu.capabilities.videos.method).toBe("cdp");
+    expect(typeof baidu.capabilities.videos.videoScript).toBe("string");
+    expect(baidu.capabilities.videos.url("DeepSeek")).toContain("baidu.com");
+    // The video vertical URL must differ from the image search URL
+    expect(baidu.capabilities.videos.url("kw")).not.toBe(baidu.capabilities.images.url("kw"));
+  });
+
+  it("keeps the article capability untouched (article search URL unchanged)", () => {
+    expect(baidu.capabilities.articles).toBeDefined();
+    expect(baidu.capabilities.articles.url("kw AI")).toContain("www.baidu.com/s");
+  });
+
+  it("sources without videoUrl keep the shared media URL for videos (regression)", () => {
+    const qbitai = ALL_SOURCES.find((s) => s.name === "qbitai");
+    expect(qbitai.capabilities.videos.url("kw")).toBe(qbitai.capabilities.images.url("kw"));
+  });
+
+  it("attributes media from baidu via the shared SOURCE_ATTRIBUTIONS entry", () => {
+    const attr = SOURCE_ATTRIBUTIONS.baidu_search;
+    expect(attr).toBeDefined();
+    expect(typeof attr.text).toBe("function");
+    expect(attr.text({})).toContain("baidu.com");
+  });
+});

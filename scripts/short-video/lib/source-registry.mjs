@@ -2631,6 +2631,51 @@ const CDP_VIDEO_SCRIPT = `
 const CDP_MEDIA_CAPABILITIES = {
   // baidu_news CDP media capability removed with the source (2026-09-07,
   // #140 P5 — docs/research/zh-source-recovery-research-2026-09.md).
+  // #249: baidu_search zh-CN backup media sources. The 2026-09 image
+  // waterfall (verified via CDP 2026-09-11) renders each tile with a
+  // data-show-ext attribute holding JSON: url (CDN thumbnail), objurl
+  // (original), title, fromurl, isAd. Videos live on the tn=vsearch web
+  // vertical with inline <video> players (direct mp4 on bdstatic.com) —
+  // the shared CDP_VIDEO_SCRIPT extracts those plus any B站/YouTube embeds.
+  baidu_search: {
+    method: "cdp",
+    videoScript: CDP_VIDEO_SCRIPT,
+    url: (keyword) =>
+      `https://image.baidu.com/search/index?tn=result&word=${encodeURIComponent(keyword)}`,
+    // #249: video vertical has a dedicated URL — enrichWithCapabilities
+    // prefers videoUrl over url for capabilities.videos.
+    videoUrl: (keyword) => `https://www.baidu.com/s?wd=${encodeURIComponent(keyword)}&tn=vsearch`,
+    imageScript: `
+      var results = [];
+      document.querySelectorAll('[data-show-ext]').forEach(function(el) {
+        var d;
+        try { d = JSON.parse(el.getAttribute('data-show-ext')); } catch (e) { return; }
+        if (!d || d.isAd) return;
+        var title = d.title || '';
+        var sourceUrl = (typeof d.fromurl === 'string' && d.fromurl.indexOf('http') === 0) ? d.fromurl : undefined;
+        var url = (typeof d.objurl === 'string' && d.objurl.indexOf('http') === 0) ? d.objurl : d.url;
+        if (!url || typeof url !== 'string' || url.indexOf('http') !== 0) {
+          // Tile without a usable image URL: keep the provenance as a text
+          // candidate so the source still contributes context (#249).
+          if (title && sourceUrl) {
+            results.push({ title: title, url: sourceUrl, type: 'text', sourceUrl: sourceUrl, snippet: title.substring(0, 200) });
+          }
+          return;
+        }
+        results.push({ title: title, url: url, type: 'image', sourceUrl: sourceUrl, snippet: title.substring(0, 200) });
+      });
+      return results;
+    `,
+    imageFallbackScript: `
+      var results = [];
+      document.querySelectorAll('img[src]').forEach(function(img) {
+        if ((img.naturalWidth > 200 || img.width > 200) && img.src.indexOf('data:') !== 0) {
+          results.push({ title: img.alt || '', url: img.src, type: 'image' });
+        }
+      });
+      return results;
+    `,
+  },
   qbitai: {
     method: "cdp",
     videoScript: CDP_VIDEO_SCRIPT,
@@ -3214,7 +3259,7 @@ export const SOURCE_ATTRIBUTIONS = {
     logoRequired: false,
   },
   baidu_search: {
-    text: (a) => `文章来源: 百度搜索 (baidu.com)`,
+    text: (a) => `媒体来源: 百度搜索 (baidu.com)`,
     license: "Varies",
     logoRequired: false,
   },
@@ -3452,11 +3497,13 @@ function enrichWithCapabilities(sources) {
       capabilities.images = CDP_MEDIA_CAPABILITIES[source.name];
     }
 
-    // Videos: CDP sources declaring a videoScript (#183)
+    // Videos: CDP sources declaring a videoScript (#183). videoUrl overrides
+    // the shared media URL when the video vertical lives on a different path
+    // (baidu_search, #249).
     if (CDP_MEDIA_CAPABILITIES[source.name]?.videoScript) {
       capabilities.videos = {
         method: "cdp",
-        url: CDP_MEDIA_CAPABILITIES[source.name].url,
+        url: CDP_MEDIA_CAPABILITIES[source.name].videoUrl || CDP_MEDIA_CAPABILITIES[source.name].url,
         videoScript: CDP_MEDIA_CAPABILITIES[source.name].videoScript,
       };
     }

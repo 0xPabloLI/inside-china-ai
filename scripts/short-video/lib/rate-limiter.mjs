@@ -35,8 +35,15 @@ export const SITE_RATE_CONFIG = {
 
 // Sliding window: requests newer than this count toward maxPerHour.
 export const WINDOW_MS = 60 * 60 * 1000;
-// If the required wait exceeds this, skip instead of blocking the pipeline.
-export const MAX_WAIT_MS = 10 * 60 * 1000;
+// #249: when the hourly-cap wait exceeds this, skip the navigation entirely
+// instead of blocking the pipeline (the 554s Google block observed in Stage 4
+// B-roll search was under the old 10min budget and stalled the whole run).
+// Only cap waits are skipped — interval (baseDelay) politeness waits are
+// always affordable and never skipped, so the skip threshold must stay above
+// every configured jitter×baseDelay ceiling (largest: xiaohongshu ≈ 21s).
+// Callers (cdp-client → asset-sourcer / search-sources) catch the resulting
+// skip and move on to the next source in their fallback chain.
+export const SKIP_WAIT_MS = 15 * 1000;
 
 /**
  * Match a URL to its rate-limit domain key.
@@ -74,6 +81,8 @@ export function matchDomain(url) {
  * @param {() => number} [deps.random] - RNG in [0, 1) for jitter
  * @param {() => Object|null} [deps.loadState] - Load persisted window state
  * @param {(state: Object) => void} [deps.saveState] - Persist window state
+ * @param {number} [deps.skipWaitMs] - Hourly-cap wait above which the
+ *   navigation is skipped instead of blocking (default SKIP_WAIT_MS)
  * @param {boolean} [deps.disabled] - Escape hatch (also via RATE_LIMITER_DISABLED=1)
  * @returns {{ wait(url: string): Promise<{action: string, waitedMs: number, domain: string}> }}
  *   wait() returns { action: "pass" | "waited" | "skip", waitedMs, domain }.
@@ -85,6 +94,7 @@ export function createRateLimiter({
   random = Math.random,
   loadState = () => null,
   saveState = () => {},
+  skipWaitMs = SKIP_WAIT_MS,
   disabled = process.env.RATE_LIMITER_DISABLED === "1",
 } = {}) {
   // domain -> array of request timestamps (ascending), pruned to the window.
@@ -135,30 +145,37 @@ export function createRateLimiter({
 
     const entries = prune(domain, ts);
 
-    // 1. Interval since last request (first request: no wait)
-    let waitMs = 0;
+    // 1. Interval since last request (first request: no wait) — politeness
+    //    jitter, always affordable (bounded by jitter×baseDelay ≈ 21s max).
+    let intervalWaitMs = 0;
     const last = entries[entries.length - 1];
     if (last !== undefined) {
       const [min, max] = cfg.jitter;
       const factor = min + random() * (max - min);
       const interval = Math.round(cfg.baseDelay * factor);
-      waitMs = Math.max(0, last + interval - ts);
+      intervalWaitMs = Math.max(0, last + interval - ts);
     }
 
     // 2. Hourly cap: wait until the oldest timestamp leaves the window
+    let capWaitMs = 0;
     if (entries.length >= cfg.maxPerHour && entries.length > 0) {
-      const outAt = entries[0] + WINDOW_MS;
-      waitMs = Math.max(waitMs, outAt - ts);
+      capWaitMs = Math.max(0, entries[0] + WINDOW_MS - ts);
     }
 
-    // 3. Over-cap wait → skip the navigation entirely
-    if (waitMs > MAX_WAIT_MS) {
+    // 3. Over-cap wait → skip the navigation entirely (#249). The source is
+    //    temporarily exhausted; callers switch to their next source instead
+    //    of blocking the whole pipeline (previously up to 10min, observed
+    //    554s for google.com in Stage 4 B-roll search).
+    if (capWaitMs > skipWaitMs) {
       console.warn(
         `🚫 Rate limiter: ${domain} hourly cap reached (${entries.length}/${cfg.maxPerHour}), ` +
-          `required wait ${Math.round(waitMs / 1000)}s exceeds ${MAX_WAIT_MS / 60000}min cap — skipping`,
+          `required wait ${Math.round(capWaitMs / 1000)}s exceeds ${Math.round(skipWaitMs / 1000)}s ` +
+          `skip threshold — skipping (caller should try other sources)`,
       );
       return { action: "skip", waitedMs: 0, domain };
     }
+
+    const waitMs = Math.max(intervalWaitMs, capWaitMs);
 
     let waitedMs = 0;
     if (waitMs > 0) {

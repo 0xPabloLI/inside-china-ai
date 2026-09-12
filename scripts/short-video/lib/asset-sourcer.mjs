@@ -69,6 +69,7 @@ import {
   normalizeCdpVideoCandidates,
 } from "./progressive-search.mjs";
 import { downloadCandidate } from "./download-candidate.mjs";
+import { RateLimitedSkipError } from "./cdp-client.mjs";
 // Artifact schema versions (#199 2.5) — bump on breaking shape changes so
 // consumers can branch. asset-analysis.json carries its own `version: 1`.
 export const ASSET_REPORT_SCHEMA_VERSION = 1;
@@ -2348,6 +2349,40 @@ export function shouldSkipByDedup(candidate, downloadedUrls, sourceName, skipped
 }
 
 /**
+ * #249: Handle a rate-limited CDP search failure.
+ *
+ * The rate limiter (rate-limiter.mjs) now skips navigations whose hourly-cap
+ * wait exceeds SKIP_WAIT_MS instead of blocking — cdpNewTab surfaces that as
+ * RateLimitedSkipError and the CDP search helpers rethrow it. This helper
+ * records "which source skipped which keyword" into the media report's
+ * skipped list and logs a visible line; the caller then continues with the
+ * next source.
+ *
+ * @param {unknown} err - Error caught around the search call
+ * @param {Object} ctx
+ * @param {string} ctx.sourceName - Source name recorded in skipped entries
+ * @param {string} ctx.keyword - Keyword that was being searched
+ * @param {Array} ctx.skipped - Skip record array (mutated on true)
+ * @param {Console} [ctx.logger] - Console seam (tests)
+ * @returns {boolean} true when err was a rate-limit skip (recorded), false
+ *   otherwise (caller must handle err itself)
+ */
+export function recordRateLimitSkip(err, { sourceName, keyword, skipped, logger = console } = {}) {
+  const isSkip = err instanceof RateLimitedSkipError || err?.name === "RateLimitedSkipError";
+  if (!isSkip) return false;
+  const domain = err.domain || "domain";
+  skipped.push({
+    source: sourceName,
+    keyword,
+    reason: `rate limited (${domain}) — skipped, other sources continue`,
+  });
+  logger.warn(
+    `  ⏭️  ${sourceName}: rate limited for "${keyword}" — skipped, trying other sources`,
+  );
+  return true;
+}
+
+/**
  * Download a scored candidate and record the outcome (success / skipped /
  * failed). Shared tri-branch record logic for every search phase in main().
  *
@@ -2832,11 +2867,19 @@ export async function main(args = process.argv.slice(2)) {
     for (const source of CDP_SOURCES) {
       for (const keyword of groupKeywords) {
         console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-        const result = await getOrSearchResults(searchCache, {
-          source: source.name,
-          keyword,
-          search: () => searchCdpSource(source, keyword),
-        });
+        // #249: a rate-limited source is skipped (not awaited) — the search
+        // throws RateLimitedSkipError when the limiter skips the navigation.
+        let result;
+        try {
+          result = await getOrSearchResults(searchCache, {
+            source: source.name,
+            keyword,
+            search: () => searchCdpSource(source, keyword),
+          });
+        } catch (err) {
+          if (!recordRateLimitSkip(err, { sourceName: source.name, keyword, skipped })) throw err;
+          continue; // next source keeps searching this keyword
+        }
         const candidates = result.results;
         if (!result.cacheHit && candidates.length > 0) {
           searchCacheDirty = true;
@@ -2921,11 +2964,18 @@ export async function main(args = process.argv.slice(2)) {
       for (const { keywords: groupKeywords, claimSceneId } of queryGroups) {
         for (const keyword of groupKeywords) {
           console.log(`  🎬 ${source.label} video search: "${keyword}"...`);
-          const result = await getOrSearchResults(searchCache, {
-            source: source.name,
-            keyword: `video:${keyword}`,
-            search: () => searchCdpVideoSource(source, keyword),
-          });
+          // #249: rate-limited source → record skip, continue with next source
+          let result;
+          try {
+            result = await getOrSearchResults(searchCache, {
+              source: source.name,
+              keyword: `video:${keyword}`,
+              search: () => searchCdpVideoSource(source, keyword),
+            });
+          } catch (err) {
+            if (!recordRateLimitSkip(err, { sourceName: source.name, keyword, skipped })) throw err;
+            continue;
+          }
           const candidates = result.results;
           if (!result.cacheHit && candidates.length > 0) {
             searchCacheDirty = true;
@@ -3014,13 +3064,29 @@ export async function main(args = process.argv.slice(2)) {
         const engineFailed = [];
 
         for (const { keywords: groupKeywords, claimSceneId } of sourceGroups) {
-          for (const keyword of groupKeywords) {
+          keywordLoop: for (const keyword of groupKeywords) {
             console.log(`  🔍 ${source.label} search: "${keyword}"...`);
-            const result = await getOrSearchResults(searchCache, {
-              source: source.name,
-              keyword,
-              search: () => source.search(keyword, { apiKey, quotaTracker: tier3QuotaTracker }),
-            });
+            // #249: rate-limited engine → record skip; remaining keywords of
+            // the same engine hit the same hourly cap, so stop the engine.
+            let result;
+            try {
+              result = await getOrSearchResults(searchCache, {
+                source: source.name,
+                keyword,
+                search: () => source.search(keyword, { apiKey, quotaTracker: tier3QuotaTracker }),
+              });
+            } catch (err) {
+              if (
+                !recordRateLimitSkip(err, {
+                  sourceName: source.name,
+                  keyword,
+                  skipped: engineFailed,
+                })
+              ) {
+                throw err;
+              }
+              break keywordLoop;
+            }
             const candidates = result.results;
             if (!result.cacheHit && candidates.length > 0) {
               console.log(`     Found ${candidates.length} candidates`);

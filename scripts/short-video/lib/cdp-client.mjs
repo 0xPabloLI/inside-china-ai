@@ -83,6 +83,26 @@ const rateLimiter = createRateLimiter({
 });
 
 /**
+ * Thrown by cdpNewTab when the rate limiter decides to skip a navigation
+ * (#249: hourly-cap wait over the skip threshold). Unlike a transport
+ * failure this means "this source is temporarily exhausted" — callers
+ * (search-sources fallback chains, asset-sourcer source loops) catch it,
+ * record which source/keyword was skipped, and continue with the next
+ * source instead of treating it as a broken source.
+ */
+export class RateLimitedSkipError extends Error {
+  /**
+   * @param {string} domain - Rate-limited domain key from the limiter
+   * @param {string} message - Human-readable reason
+   */
+  constructor(domain, message) {
+    super(message);
+    this.name = "RateLimitedSkipError";
+    this.domain = domain;
+  }
+}
+
+/**
  * Create a new browser tab via the CDP proxy.
  *
  * Rate-limited per domain (#89 P0): waits a randomized interval between
@@ -98,7 +118,10 @@ const rateLimiter = createRateLimiter({
 export async function cdpNewTab(url) {
   const limit = await rateLimiter.wait(url);
   if (limit.action === "skip") {
-    throw new Error(`Rate limited: ${limit.domain} hourly cap exceeded — navigation skipped`);
+    throw new RateLimitedSkipError(
+      limit.domain,
+      `Rate limited: ${limit.domain} hourly cap exceeded — navigation skipped`,
+    );
   }
 
   const resp = await fetch(`${CDP_BASE}/new`, {

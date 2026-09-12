@@ -205,6 +205,8 @@ export async function searchSearXngImages(keyword, options = {}) {
  * @param {string} keyword - Search keyword
  * @param {Object} [options] - { waitMs } page-load wait override (tests)
  * @returns {Promise<Array>} Raw candidates array (empty on failure)
+ * @throws {Error} RateLimitedSkipError when the rate limiter skips the
+ *   navigation (#249) — callers record the skip and switch sources
  */
 export async function searchCdpSource(source, keyword, options = {}) {
   const { waitMs = 3000 } = options;
@@ -216,7 +218,11 @@ export async function searchCdpSource(source, keyword, options = {}) {
   let tabId;
   try {
     tabId = await cdpNewTab(url);
-  } catch {
+  } catch (e) {
+    // #249: a limiter skip means "source exhausted — try the next source";
+    // rethrow so the caller can record the skip. Transport failures and
+    // other tab errors degrade to [] (caller keeps its fallback chain).
+    if (e?.name === "RateLimitedSkipError") throw e;
     return [];
   }
 
@@ -533,6 +539,8 @@ export async function searchTavilyImages(keyword, apiKey) {
  * @param {string} keyword - Search keyword
  * @param {Object} [options] - { waitMs }
  * @returns {Promise<Array>} Raw extraction output (empty on failure)
+ * @throws {Error} RateLimitedSkipError when the rate limiter skips the
+ *   navigation (#249)
  */
 export async function searchCdpVideoSource(source, keyword, options = {}) {
   const { waitMs = 3000 } = options;
@@ -542,7 +550,10 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
   let tabId;
   try {
     tabId = await cdpNewTab(source.url(keyword));
-  } catch {
+  } catch (e) {
+    // #249: rethrow limiter skips (name-based — see searchCdpSource);
+    // other tab errors degrade to [].
+    if (e?.name === "RateLimitedSkipError") throw e;
     return [];
   }
 

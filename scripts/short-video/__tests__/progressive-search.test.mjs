@@ -994,3 +994,64 @@ describe("normalizeCdpVideoCandidates", () => {
     expect(normalizeCdpVideoCandidates([], "ithome")).toEqual([]);
   });
 });
+
+// ─── #249: rate-limit skip propagation ───
+
+/**
+ * Build a duck-typed RateLimitedSkipError (the class lives in cdp-client.mjs,
+ * which is mocked in this file — the propagation contract is name-based).
+ */
+function rateLimitSkipError(domain) {
+  const e = new Error(`Rate limited: ${domain} hourly cap exceeded — navigation skipped`);
+  e.name = "RateLimitedSkipError";
+  e.domain = domain;
+  return e;
+}
+
+describe("searchCdpSource rate-limit skip propagation (#249)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rethrows RateLimitedSkipError so callers can record the skip and switch sources", async () => {
+    cdpNewTab.mockRejectedValue(rateLimitSkipError("google.com"));
+    await expect(searchGoogleImages("kw")).rejects.toThrow(/google\.com/);
+    await expect(searchGoogleImages("kw")).rejects.toMatchObject({
+      name: "RateLimitedSkipError",
+    });
+  });
+
+  it("generic tab-creation failures still degrade to [] (unchanged)", async () => {
+    cdpNewTab.mockRejectedValue(new Error("proxy down"));
+    await expect(searchGoogleImages("kw")).resolves.toEqual([]);
+  });
+});
+
+describe("searchCdpVideoSource rate-limit skip propagation (#249)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rethrows RateLimitedSkipError from cdpNewTab", async () => {
+    cdpNewTab.mockRejectedValue(rateLimitSkipError("baidu.com"));
+    const source = {
+      name: "baidu_search",
+      url: (kw) => `https://www.baidu.com/s?wd=${kw}&tn=vsearch`,
+      videoScript: "return results;",
+    };
+    await expect(searchCdpVideoSource(source, "kw")).rejects.toMatchObject({
+      name: "RateLimitedSkipError",
+      domain: "baidu.com",
+    });
+  });
+
+  it("generic tab-creation failures still degrade to [] (unchanged)", async () => {
+    cdpNewTab.mockRejectedValue(new Error("proxy down"));
+    const source = {
+      name: "x",
+      url: (kw) => `https://x.example/?q=${kw}`,
+      videoScript: "return results;",
+    };
+    await expect(searchCdpVideoSource(source, "kw")).resolves.toEqual([]);
+  });
+});
