@@ -154,6 +154,72 @@ describe("planTtsScenes / writeSceneMeta", () => {
     expect(plan.pending).toHaveLength(1);
     cleanup();
   });
+
+  it("reuses loop-compensated audio via meta.ttsSpeed when the scene resolves to baseline (#252)", () => {
+    // #252: the pacing loop writes compensated audio at ttsSpeed=1.2. A fresh
+    // scene object resolves to 1.0 — without the stored-speed fallback every
+    // re-run would regenerate the compensated take and re-compensate.
+    const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
+    dirs.push(dir);
+    const scene = { id: 1, visualType: "hook", voiceover: "China just dropped a model that beats GPT." };
+    writeFileSync(join(dir, "scene-1.wav"), "compensated-audio");
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, scene.voiceover, 1.2),
+      duration: 4.2,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.wav"),
+      ttsSpeed: 1.2,
+    });
+
+    const plan = planTtsScenes(dir, [scene], engine);
+    expect(plan.cached).toHaveLength(1);
+    expect(plan.pending).toHaveLength(0);
+  });
+
+  it("an explicit scene/env speed override beats the stored compensation speed (#252)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
+    dirs.push(dir);
+    const scene = { id: 1, visualType: "hook", voiceover: "China just dropped a model that beats GPT." };
+    writeFileSync(join(dir, "scene-1.wav"), "compensated-audio");
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, scene.voiceover, 1.2),
+      duration: 4.2,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.wav"),
+      ttsSpeed: 1.2,
+    });
+
+    // Operator override active → resolved ≠ 1.0 → stored speed must NOT win.
+    process.env.TTS_SPEED = "1.15";
+    try {
+      const plan = planTtsScenes(dir, [scene], engine);
+      expect(plan.pending).toHaveLength(1);
+      expect(plan.cached).toHaveLength(0);
+    } finally {
+      delete process.env.TTS_SPEED;
+    }
+
+    // Scene-level override likewise.
+    const withOverride = { ...scene, ttsSpeed: 1.1 };
+    const plan2 = planTtsScenes(dir, [withOverride], engine);
+    expect(plan2.pending).toHaveLength(1);
+  });
+
+  it("legacy meta without ttsSpeed keeps the baseline key behaviour (#252)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
+    dirs.push(dir);
+    const scene = { id: 1, visualType: "narrative", voiceover: "Alibaba revealed the weights for free." };
+    writeFileSync(join(dir, "scene-1.wav"), "legacy-audio");
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, scene.voiceover), // 1.0 → legacy key shape
+      duration: 4.2,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.wav"),
+    });
+
+    const plan = planTtsScenes(dir, [scene], engine);
+    expect(plan.cached).toHaveLength(1);
+  });
 });
 
 describe("generateTTSWithEngine caching (fake engine, no GPU)", () => {

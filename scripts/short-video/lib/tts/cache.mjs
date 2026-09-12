@@ -75,10 +75,18 @@ export function planTtsScenes(outputDir, scenes, engine) {
   const pending = [];
   for (const scene of scenes) {
     const spokenText = scene.ttsText || scene.voiceover;
-    const key = computeSceneKey(engine, spokenText, resolveSceneSpeed(scene));
     let hit = null;
     try {
       const meta = JSON.parse(readFileSync(sceneMetaPath(outputDir, scene.id), "utf8"));
+      // #252: meta.ttsSpeed records a pacing-loop compensation. A fresh scene
+      // object resolves to the 1.0 baseline, so without this fallback every
+      // re-run would regenerate and re-compensate the same scene. An explicit
+      // override (scene.ttsSpeed / TTS_SPEED env → resolved ≠ 1.0) beats the
+      // stored value; legacy meta without the field behaves exactly as before.
+      const storedSpeed = Number.isFinite(meta.ttsSpeed) ? meta.ttsSpeed : null;
+      const resolved = resolveSceneSpeed(scene);
+      const speed = resolved !== 1.0 || storedSpeed === null ? resolved : storedSpeed;
+      const key = computeSceneKey(engine, spokenText, speed);
       const audioPath = meta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
       if (meta.key === key && typeof meta.duration === "number" && existsSync(audioPath)) {
         hit = { sceneId: scene.id, audioPath, duration: meta.duration, cached: true };

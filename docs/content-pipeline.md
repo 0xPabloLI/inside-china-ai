@@ -302,9 +302,11 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 | EN | ~2.4-2.5 词/秒净内容（对齐 150 wpm 甜点带 140-160） | filler/hedging 禁用清单：just / really / basically / actually / so 开场 / throat-clearers（"So, look…"） / 软限定词（somewhat / kind of）——逐句删 |
 | ZH | 维持现状（实测 236-288 字/分已是快节奏档） | 不追求提速；删除口头禅与重复铺垫 |
 
-**hook 前 3 秒密度**：核心价值必须在 hook 前 3 秒点出（Meta 研究：前 3 秒传达核心价值 → 完播 +47%）。hook 不堆铺垫句。
+**hook 前 3 秒密度**：核心价值必须在 hook 前 3 秒点出（Meta 研究：前 3 秒传达核心价值 → 完播 +47%）。hook 不堆铺垫句。能量曲线方向（#252 调研）：hook 应是全片能量峰值、语速不慢于正文，中段衰减是流失点，cta 结尾加速属正常模式。
 
-**TTS 补差机制**（代码层已落地，写稿无需配置）：默认引擎按 scene 自动分流——EN hook 1.0（实测已 152-160 wpm，甜点上沿不加速）、EN 其余 visualType 1.2、ZH 恒 1.0（**严禁全局统一提速**，300 字/分播音上限）；clamp ≤1.2（1.5× native 频谱通量 −36%，瞬态抹平）；逃生门 `TTS_SPEED` env（真包发赶 → 1.15，显式覆盖含 hook 豁免）。**重抽优先、调参兜底**（#234 配对实验：同参数 take 间时长漂移 ±10-20%，抽样波动是主要来源）——真包 Gate 实测 WPM 超标先换 seed 重抽，多次重试仍偏快/偏慢才动 `speed` 名义值。验收以真包逐场景实测 WPM 为准（quality-gate 观察带 115-225）。
+**词密度预算（Stage 3 拦截，#252）**：行业高 WPM 靠写稿密度而非 TTS 拉速（1.2× 上限），在写稿阶段拦截比生成后重抽省远程 GPU 耗时。EN 场景自检公式：`词数 / 预估秒数`（预估秒数按该场景画面时长）。**基线预估 > 2.9 词/秒（≈175 WPM）→ 拦截并删减冗余词后再过 MRL-2**；目标仍为 2.4-2.5 词/秒。理由：场景基线密度差异大（实测 127-214 WPM）时，任何静态倍率都必然把高基线场景推出上限——预算在源头抹平基线差异，残余交给 TTS 闭环。
+
+**TTS 补差机制（#252 反馈闭环，代码层已落地，写稿无需配置）**：#235 静态分流（EN hook 1.0 / EN 其余 1.2）已**取消**——它使 narrative 实测快于 hook（ant-lingbot-world-13b：hook 157 vs 228/257 WPM，#246 能量倒挂）。现行机制：所有 EN 场景基线 1.0 生成 → Quality Gate 实测 WPM → 驱动逐场景修复（`planPacingResponses`）：实测 <135 → 该场景独立补差（`ttsSpeed` = 150/实测，clamp ≤1.2，cache key 兼容）；实测 >225 → 换 seed 重抽一次（take 漂移 ±10-20%，#234），重抽仍超标 → **`TTS_PACING_HARD_BLOCK` 硬阻断**（fail-closed，不产出 rushed audio）；带内 keep。ZH 恒 1.0（**严禁全局统一提速**，300 字/分播音上限）；clamp ≤1.2（1.5× native 频谱通量 −36%，瞬态抹平）；逃生门 `TTS_SPEED` env 与 `TTS_SKIP_QUALITY_GATE=1`。hook 与正文的相对关系由实测涌现（hook 仍为最慢场景时闭环给出写稿端 advisory）。验收以真包逐场景实测 WPM 为准（依据：`docs/research/hook-vs-narrative-pacing-2026-09.md`）。
 
 
 ### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）

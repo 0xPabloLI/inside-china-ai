@@ -129,6 +129,30 @@ export async function generateTTS(scenes, outputDir, options = {}) {
 }
 
 /**
+ * Replace (or append) a scene's result in the validated set — used by the
+ * pacing loop when a compensation/reroll take is accepted (#252).
+ */
+function replaceResult(results, res) {
+  const idx = results.findIndex((g) => g.sceneId === res.sceneId);
+  if (idx >= 0) results[idx] = res;
+  else results.push(res);
+}
+
+/**
+ * Build the #252 hard-block error: a scene still measures > 225 WPM after a
+ * reroll. Fail-closed — rushed audio must not flow into rendering (#246).
+ */
+function pacingHardBlockError(detail) {
+  const err = new Error(
+    `TTS_PACING_HARD_BLOCK: scene(s) exceed the ${225} WPM hard ceiling after reroll — ${detail}. ` +
+      `NOT shipping rushed audio (#246/#252). Fix: trim the script for these scenes ` +
+      `(docs/content-pipeline.md → 旁白语速预算 → 词密度预算), then re-run.`,
+  );
+  err.code = "TTS_PACING_HARD_BLOCK";
+  return err;
+}
+
+/**
  * generateTTS with an injected engine — the testable seam.
  *
  * @param {Array} scenes - Scene objects with {id, voiceover}
@@ -233,7 +257,92 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           console.warn(`  ⚠️ ${msg} (Continuing in non-strict mode)`);
         }
       }
+
+      // ── Pacing feedback loop (#252): measured WPM drives per-scene repair ──
+      // The #235 static pair (hook 1.0 / non-hook 1.2) inverted the energy
+      // curve (#246: hook 157 vs narrative 228/257 WPM) and let Scene 5 ship
+      // at 257 WPM as a mere warning. Now: gate-passed scenes are classified
+      // by MEASURED WPM — below 135 → compensate with scene.ttsSpeed (clamp
+      // ≤1.2); above 225 → one reroll (take drift ±10-20%, #234) then HARD
+      // BLOCK; in between → keep. Runs only over gate-passed scenes so it
+      // never races the self-heal loop above.
+      const { planPacingResponses, WPM_HARD_CEILING } = await import("./pacing.mjs");
+      const pacing = planPacingResponses(toGenerate, gateReport.evaluations);
+      for (const note of pacing.advisory) {
+        console.warn(`  💬 [Pacing] ${note}`);
+      }
+
+      const regenScenes = [
+        ...pacing.compensations.map((c) => {
+          c.scene.ttsSpeed = c.speed; // consumed by resolveSceneSpeed → engine manifest + cache key
+          return c.scene;
+        }),
+        ...pacing.rerolls.map((r) => r.scene),
+      ];
+      if (regenScenes.length > 0) {
+        const summary = [
+          ...pacing.compensations.map((c) => `scene ${c.scene.id} ${c.measuredWpm}→${Math.round(c.measuredWpm * c.speed)} WPM @ ${c.speed.toFixed(2)}x`),
+          ...pacing.rerolls.map((r) => `scene ${r.scene.id} ${r.measuredWpm} WPM > ${WPM_HARD_CEILING} → reroll`),
+        ].join("; ");
+        console.log(`  🔁 [Pacing Loop] Regenerating ${regenScenes.length} scene(s) from measured WPM: ${summary}`);
+
+        let regenResults = [];
+        try {
+          regenResults = await engine.generate(regenScenes, outputDir);
+        } catch (err) {
+          console.warn(`  ⚠️ [Pacing Loop] Regeneration error: ${err.message}`);
+        }
+
+        if (regenResults.length === 0) {
+          // No new takes: compensation overrides are meaningless without new
+          // audio — drop them; rerolled scenes keep their >225 audio, which
+          // is exactly what #252 forbids shipping.
+          for (const c of pacing.compensations) delete c.scene.ttsSpeed;
+          if (pacing.rerolls.length > 0) {
+            throw pacingHardBlockError(
+              pacing.rerolls.map((r) => `scene ${r.scene.id} (${r.measuredWpm} WPM, reroll produced no audio)`).join("; "),
+            );
+          }
+        } else {
+          const regenGate = await runTtsQualityGate(regenScenes, regenResults, options.qualityGateOptions);
+          for (const res of regenResults) {
+            const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
+            const scene = regenScenes.find((s) => s.id === res.sceneId);
+            const rerolled = pacing.rerolls.find((r) => r.scene.id === res.sceneId);
+            if (rerolled) {
+              const measured = evalRes?.wpm ?? rerolled.measuredWpm;
+              if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
+                replaceResult(validatedResults, res);
+                console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} reroll healed: ${measured} WPM ≤ ${WPM_HARD_CEILING}`);
+              } else {
+                throw pacingHardBlockError(
+                  `scene ${res.sceneId} still measures ${measured} WPM after a reroll ` +
+                    `(first take ${rerolled.measuredWpm} WPM)`,
+                );
+              }
+            } else if (evalRes?.passed) {
+              replaceResult(validatedResults, res);
+              console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} compensated take accepted`);
+            } else {
+              // Compensation take failed the gate (e.g. truncation) — keep the
+              // original audio and drop the override so the cache meta stays
+              // consistent with the audio actually shipped.
+              delete scene.ttsSpeed;
+              console.warn(
+                `  ⚠️ [Pacing Loop] Scene ${res.sceneId} compensation take failed the gate ` +
+                  `(${evalRes?.issues?.join(", ") || "unknown"}) — keeping the original take`,
+              );
+            }
+          }
+        }
+      }
     } catch (gateErr) {
+      if (gateErr?.code === "TTS_PACING_HARD_BLOCK") {
+        // #252 acceptance: >225 WPM is a hard block, never warning-and-continue
+        // (#246 shipped 257 WPM). Supersedes non-strict mode; the operator
+        // escape hatch is TTS_SKIP_QUALITY_GATE=1, which skips the loop above.
+        throw gateErr;
+      }
       if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
         throw gateErr;
       }
@@ -266,11 +375,16 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     for (const r of validatedResults) {
       const scene = scenes.find((s) => s.id === r.sceneId);
       if (scene) {
+        const resolvedSpeed = resolveSceneSpeed(scene);
         writeSceneMeta(outputDir, r.sceneId, {
-          key: computeSceneKey(engine, scene.ttsText || scene.voiceover, resolveSceneSpeed(scene)),
+          key: computeSceneKey(engine, scene.ttsText || scene.voiceover, resolvedSpeed),
           duration: r.duration,
           engine: engine.name,
           audioPath: r.audioPath,
+          // #252: records the compensation speed so planTtsScenes keeps a
+          // compensated take cache-stable on re-runs (baseline scenes store
+          // 1.0, matching the legacy key shape).
+          ttsSpeed: resolvedSpeed,
         });
       }
     }
