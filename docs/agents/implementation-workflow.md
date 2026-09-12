@@ -172,7 +172,7 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 
 1. 记录整个工作开始前的 baseline commit。
 2. 每个已验证 ticket 创建 atomic commit。
-3. review 开始前立即记录当前任务终点 `taskHead = git rev-parse HEAD`；对 `baseline...taskHead` 调用 `code-review`，分别输出 Standards 与 Spec。不得把会继续移动的裸 `HEAD` 当作 review 终点。Standards 轴额外检查 diff 是否用自定义代码或依赖重复标准库、平台原生能力；只报告存在行为等价且可验证替代的项。
+3. review 开始前立即记录当前任务终点 `taskHead = git rev-parse HEAD`；对 `baseline...taskHead` 调用 `code-review`，分别输出 Standards 与 Spec。不得把会继续移动的裸 `HEAD` 当作 review 终点。
 4. 每个 accepted finding 回到 Implement/TDD，修复并重新验证。
 5. 修复 commit 后记录新的 `taskHead`，重新审查 `baseline...taskHead` 受影响部分；已经发布的历史只追加 commit。
 6. 重复修复、验证与固定终点 review，直到没有阻塞 finding。
@@ -183,12 +183,11 @@ Review 报告不能只生成后忽略。
 
 1. 所有 ticket acceptance criteria 与 checklist 和实际验证结果一致。
 2. 运行最终 Verification Gate。
-3. 试点期间（ponytail-lite 试点：5 个实施任务或 4 周窗口）：将本次 A-lite 最终选择及放弃的替代、B-lite 独有 finding、D 是否实际触发的结果追加到 `docs/reviews/ponytail-lite-pilot-2026-09.md` 的逐任务记录表；试点裁决完成后删除本步。
-4. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
-5. 为归档和文档同步创建 final documentation commit。
-6. 只有用户已授权这次 push 时才 push。
-7. 只有存在对应 GitHub Issue 且用户已授权 tracker 写入时才更新或关闭 issue。
-8. 最终汇报 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。
+3. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
+4. 为归档和文档同步创建 final documentation commit。
+5. 只有用户已授权这次 push 时才 push。
+6. 只有存在对应 GitHub Issue 且用户已授权 tracker 写入时才更新或关闭 issue。
+7. 最终汇报 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。
 
 ## 10. Gate 语义
 
@@ -207,4 +206,4 @@ Review 报告不能只生成后忽略。
 
 ## 12. 设计依据
 
-- §6 步骤 2 的选择顺序（A-lite）与根因搜索（D）、§8 步骤 3 的 stdlib/native 重复检查（B-lite）：依据、上游证据与试点裁决门槛见 `docs/research/ponytail-minimal-code-adoption-proposal.md`（L2）。试点期规则随裁决结果保留或移除。
+- §6 步骤 2 的选择顺序（A-lite）与根因搜索（D）：依据与上游证据见 `docs/archive/reviews/ponytail-lite-pilot-2026-09.md`（2026-09-12 期满裁决「保留」，长期规范）。§8 原 B-lite stdlib/native 重复检查经同一裁决为「未验证」已移除（`docs/research/ponytail-minimal-code-adoption-proposal.md` L2 留档）。

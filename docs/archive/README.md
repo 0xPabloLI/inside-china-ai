@@ -226,3 +226,4 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/` | `session-id-provenance-review-brief-2026-09-04.md` | 提案 v5 已结项，复核意见全部吸收 |
 | `research/` | `agent-doc-token-audit-2026-09-02.md` | 审计实施完毕（新建 `archive/research/` 收纳） |
 | （tracker） | `tracker-rotation-history-2026-09-06.md` | issue-tracker.md 头部 21+ 轮 Last inventory/Previous 轮换历史从 51K 字符单行下沉（tracker 272KB→224KB）；Closed Issues 明细表仍留 tracker 正文 |
+| `reviews/` | `ponytail-lite-pilot-2026-09.md` | 试点期满结项（2026-09-12：A-lite 保留 / B-lite 未验证移除 / D 保留）——裁决已固化进 implementation-workflow.md §6/§8/§12，试点路由步已删 |
