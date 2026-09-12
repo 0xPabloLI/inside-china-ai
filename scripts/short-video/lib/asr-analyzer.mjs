@@ -35,6 +35,7 @@ import {
   writeCachedResult,
   VLM_CACHE_PIPELINE_VERSION,
 } from "./vlm-cache.mjs";
+import { DEFAULT_WHISPERX_MODEL } from "./asr-defaults.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -50,12 +51,11 @@ const RESPONSE_TIMEOUT_MS = Number(process.env.ASR_RESPONSE_TIMEOUT_MS) || 120_0
 export const ASR_VERSION = "v1-2026-09-05";
 
 /**
- * The WhisperX transcription model. "base" is in the local HF cache;
- * larger models (small/medium/large-v3) download on first use with
- * HF_HUB_OFFLINE=0.
+ * The WhisperX transcription model. Defaults to max-effort (ADR-0020);
+ * override via ASR_MODEL env.
  */
 export function getAsrModel() {
-  return process.env.ASR_MODEL || "base";
+  return process.env.ASR_MODEL || DEFAULT_WHISPERX_MODEL;
 }
 
 // ─── Resident worker (single — ASR is a heavy model, #98: "一个 worker") ───

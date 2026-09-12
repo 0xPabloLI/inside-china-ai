@@ -6,7 +6,7 @@ NDJSON IPC on stdin/stdout — same convention as vlm_analyzer.py:
              "languageHint": "zh" | null}
   response: {"requestId": "...", "segments": [{"startMs", "endMs", "text"}],
              "language": "zh", "meta": {"backend": "whisperx/faster-whisper",
-                                        "model": "base"}}
+                                        "model": "large-v3"}}
   failure:  {"requestId": "...", "error": "..."}
 
 Timestamps are relative to the extracted audio window; the Node gateway
@@ -14,8 +14,8 @@ offsets them back onto the media timeline.
 
 Backend: WhisperX transcription via faster-whisper (already installed in
 ~/.video-tts-env and used by text-align.py for forced alignment). Model is
-configurable via ASR_MODEL (default "base" — present in the local HF cache;
-larger models download on first use when HF_HUB_OFFLINE=0).
+configurable via ASR_MODEL (default "large-v3" per ADR-0020 max-effort;
+override only with documented performance justification).
 
 No word/char-level forced alignment here (#98 non-goal — that is the
 text-align.py enhancement path).
@@ -28,7 +28,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-MODEL_NAME = os.environ.get("ASR_MODEL", "base")
+MODEL_NAME = os.environ.get("ASR_MODEL", "large-v3")  # ADR-0020: max-effort default
 DEVICE = "cpu"
 COMPUTE_TYPE = "int8"
 

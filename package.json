@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:docs": "node scripts/lint-doc-hierarchy.mjs",
+    "lint:asr": "node scripts/lint-asr-model-defaults.mjs",
     "format": "prettier --write .",
     "verify:seo": "node scripts/seo/validate-jsonld.mjs",
     "verify:seo:online": "node scripts/seo/validate-jsonld.mjs --online",

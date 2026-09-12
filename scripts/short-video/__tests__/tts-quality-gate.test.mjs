@@ -10,6 +10,8 @@ import {
   detectPhoneticConfusion,
   evaluateSceneTts,
   runTtsQualityGate,
+  isWordInAsr,
+  buildExpandedAsrTokenSet,
 } from "../lib/tts/quality-gate.mjs";
 import { writeFileSync, unlinkSync, mkdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
@@ -215,5 +217,29 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
     expect(engineCalls).toBe(2);
 
     try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+  });
+});
+
+// ─── #251: roman-numeral version mishearing equivalence ───
+// Real repro (deepseek-v41-flash-report scene-1, whisper.cpp large-v3-turbo):
+// expected "DeepSeek V4.1" → ASR heard "DeepSeq VI 4.1" — the critical token
+// "v4" must be satisfied by version-letter evidence ("v" from "vi") + digit.
+
+describe("#251 roman-numeral version equivalence", () => {
+  it("critical token v4 is satisfied by ASR 'vi' + '4'", () => {
+    const asrSet = buildExpandedAsrTokenSet(tokenize("China's DeepSeq VI 4.1 flash beat the old Pro"));
+    expect(asrSet.has("v")).toBe(true); // "vi" unpacks to the version letter
+    expect(isWordInAsr("v4", asrSet)).toBe(true);
+  });
+
+  it("non-version roman words are not unpacked", () => {
+    // "vision" must not yield a bare "v" evidence token
+    const asrSet = buildExpandedAsrTokenSet(tokenize("vision pro"));
+    expect(asrSet.has("v")).toBe(false);
+  });
+
+  it("v4 is NOT satisfied without version-letter evidence", () => {
+    const asrSet = buildExpandedAsrTokenSet(tokenize("the 4 runners"));
+    expect(isWordInAsr("v4", asrSet)).toBe(false);
   });
 });

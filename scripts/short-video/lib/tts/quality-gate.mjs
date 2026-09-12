@@ -11,8 +11,10 @@
  * @module tts/quality-gate
  */
 
-import { existsSync, statSync } from "fs";
-import { transcribeAudioWindow, closeAsrAnalyzer } from "../asr-analyzer.mjs";
+import { existsSync, statSync, mkdtempSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { transcribeVideo } from "../video-understand.mjs";
 
 // Pacing boundaries for vertical short videos (English)
 export const MIN_ACCEPTABLE_WPM = 115; // Below 115 WPM indicates dragging / unnatural pause / accent drift
@@ -103,6 +105,14 @@ export function buildExpandedAsrTokenSet(asrTokens) {
       expanded.add("v");
       expanded.add(vMatch[1]);
     }
+    // #251: ASR hears version letters as roman numerals — "V4.1" transcribes
+    // as "VI 4.1". A short roman-numeral-looking token containing a leading
+    // "v" yields the version-letter evidence ("vi" → "v"), so a critical
+    // "v4" can be satisfied by "v" + the digit. Real words ("vision") are
+    // excluded by the strict roman alphabet + length cap.
+    if (/^v[ivx]{1,3}$/i.test(t)) {
+      expanded.add("v");
+    }
   }
   return expanded;
 }
@@ -118,6 +128,19 @@ export function buildExpandedAsrTokenSet(asrTokens) {
  */
 export function isWordInAsr(expectedWord, asrTokenSet) {
   if (asrTokenSet.has(expectedWord)) return true;
+
+  // #251: version tokens "v4" / "v41" are satisfied by version-letter
+  // evidence ("v", possibly unpacked from a roman-numeral mishearing "vi")
+  // plus the digit itself (either form, incl. inside a decimal "4.1" token).
+  const vVersion = /^v(\d+)$/i.exec(expectedWord);
+  if (vVersion) {
+    const digit = vVersion[1];
+    const digitEvidence =
+      asrTokenSet.has(digit) ||
+      [...asrTokenSet].some((t) => t.includes(digit) && /^\d+(\.\d+)?$/.test(t));
+    if (asrTokenSet.has("v") && digitEvidence) return true;
+  }
+
   const EQUIVALENTS = {
     "1": ["one", "first", "1st"],
     "one": ["1", "first", "1st"],
@@ -216,6 +239,46 @@ export function detectPhoneticConfusion(expected, asr) {
 }
 
 /**
+ * whisper.cpp ASR adapter — bridges transcribeVideo ({segments,fullText}|null)
+ * to the transcriber contract ({ok, segments}) expected by evaluateSceneTts.
+ * Uses a temp dir so concurrent scenes don't clobber audio.wav (ADR-0020).
+ */
+async function transcribeViaWhisperCpp(audioPath, { languageHint } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "qg-asr-"));
+  try {
+    const result = await transcribeVideo(audioPath, { outputDir: dir });
+    if (!result) {
+      return {
+        ok: false,
+        segments: [],
+        errorCode: "asr_null",
+        meta: { degraded: true, backend: "whisper.cpp" },
+      };
+    }
+    return {
+      ok: true,
+      segments: (result.segments || []).map((s) => ({
+        startMs: Math.round(s.start),
+        endMs: Math.round(s.end),
+        text: s.text || "",
+      })),
+      language: languageHint ?? null,
+      errorCode: null,
+      meta: { backend: "whisper.cpp", model: "large-v3-turbo", degraded: false },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      segments: [],
+      errorCode: "asr_error",
+      meta: { degraded: true, backend: "whisper.cpp", error: err.message },
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
  * Evaluate a single scene's generated audio against expected voiceover.
  *
  * @param {object} scene - { id, voiceover, ttsText, voiceoverTts }
@@ -226,7 +289,7 @@ export function detectPhoneticConfusion(expected, asr) {
  */
 export async function evaluateSceneTts(scene, audioPath, durationSec, options = {}) {
   const {
-    transcriber = transcribeAudioWindow,
+    transcriber = transcribeViaWhisperCpp,
     minWpm = MIN_ACCEPTABLE_WPM,
     maxWpm = MAX_ACCEPTABLE_WPM,
     minSimilarity = MIN_TEXT_SIMILARITY,
@@ -280,7 +343,11 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
 
   if (asrOk && asrText) {
     const asrTokens = tokenize(asrText);
-    const asrTokenSet = new Set(asrTokens);
+    // Expanded set (#251): version prefixes, decimals and roman-numeral
+    // mishearings unpack BEFORE the critical/tail guards — the raw token set
+    // would fail "v4" against an ASR "VI 4.1" and trip self-heal retries on
+    // pure recognition variance.
+    const asrTokenSet = buildExpandedAsrTokenSet(asrTokens);
 
     // 4. Critical Token & Tail Boundary Verification
     const { criticalWords, tailWords } = extractGuardedTokens(expectedSpokenText);
