@@ -67,3 +67,54 @@ describe("normalizeTtsText dual-track", () => {
     ]);
   });
 });
+
+describe("normalizeTtsText digit+unit splitting (#239)", () => {
+  it("splits resolution tokens so TTS does not swallow the trailing letter", () => {
+    const scenes = [
+      {
+        id: 10,
+        voiceover:
+          "It hit 720p at 60 frames per second, and the Pro does 1080p.",
+      },
+    ];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].voiceover).toBe(
+      "It hit 720p at 60 frames per second, and the Pro does 1080p.",
+    );
+    expect(scenes[0].ttsText).toBe(
+      "It hit 720 P at 60 frames per second, and the Pro does 1080 P.",
+    );
+    expect(scenes[0].ttsReplacements).toEqual([
+      { original: "720p", spoken: ["720", "P"] },
+      { original: "1080p", spoken: ["1080", "P"] },
+    ]);
+  });
+
+  it("splits spec units: 4K, 16GB, 120fps, 5nm, 32bit, 2TB", () => {
+    const scenes = [
+      {
+        id: 11,
+        voiceover:
+          "It renders 4K from 16GB of memory, pushes 120fps on 5nm silicon with 32bit color and 2TB storage.",
+      },
+    ];
+    normalizeTtsText(scenes);
+    expect(scenes[0].ttsText).toBe(
+      "It renders 4 K from 16 GB of memory, pushes 120 FPS on 5 NM silicon with 32 bit color and 2 TB storage.",
+    );
+  });
+
+  it("does not split chip codenames, hex, or B/X/letter-prefix tokens", () => {
+    const scenes = [
+      {
+        id: 12,
+        voiceover:
+          "H100 and B200 run 0x12a hex kernels; the API costs $1.4B and usage grew 10x.",
+      },
+    ];
+    normalizeTtsText(scenes);
+    expect(scenes[0].ttsText).toBeUndefined();
+    expect(scenes[0].ttsReplacements).toBeUndefined();
+  });
+});

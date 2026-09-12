@@ -225,6 +225,14 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `qwen-tts` / `edge-tts` / `say`
 
+**多管线并行与 Kaggle 排队协调（#250）**:
+
+- Kaggle 免费层同时只允许 **1 个 GPU session 运行**。多条 `main.mjs` 管线并行时，每条管线必须用独立的 `COSYVOICE3_KAGGLE_SLUG`（kernelId 隔离，防串台——共用 slug 会互相覆盖 kernel 源码）。第二个 kernel push 后进入 `QUEUED` 排队等待前一个结束，这是**预期行为**，不是卡死。
+- 轮询显式区分 `QUEUED` / `RUNNING` / `UNKNOWN`（CLI 非零退出，如 QUEUED 期间 404，不算 kernel 失败，继续等待）：日志形如 `[Kaggle] Kernel Status: QUEUED (waiting in line 3m0s, queue budget 40min)`。
+- 超时独立计量：排队预算 `COSYVOICE3_KAGGLE_QUEUE_TIMEOUT_MS`（默认 40min，前序任务约 10-15min + 启动 ~5min，勿设过低）；RUNNING 后运行预算 `COSYVOICE3_KAGGLE_TIMEOUT_MS`（默认 20min）。
+- 排队超时**不自动 fallback 到 F5**（ADR-0019 质量红线）：明确报错交人工决策——稍后重跑，或显式 `TTS_ENGINE` 覆盖。
+- 排队/运行状态同时写入 `output/{id}/audio/.kaggle-kernel/poll-status.json`（`{phase, queuedMs, runningMs, updatedAt}`），后台跑管线时可随时查看进度。
+
 ### Reference Audio Format (M4A → WAV)
 
 不要把 `.m4a` 参考音频直接传给本管线的 Python 音频读取路径。`soundfile` 和部分 `librosa`/TTS 路径会落到 libsndfile，并在这里拒绝 M4A。先转换为 24 kHz、mono、PCM 16-bit WAV：

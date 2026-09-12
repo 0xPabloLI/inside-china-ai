@@ -371,3 +371,29 @@ describe("engineTtsText — thousands-separator stripping", () => {
     expect(engineTtsText(null)).toBe(null);
   });
 });
+
+// ─── engineTtsText (#239 digit+unit splitting guard) ───
+// CosyVoice swallows the trailing letter of compact digit+unit tokens
+// ("720p" → "720"). The engine-input fallback splits the same curated
+// unit whitelist as step 0.6's normalize-tts-text (defense in depth for
+// runs where the normalize step fails or is bypassed).
+
+describe("engineTtsText — digit+unit splitting (#239)", () => {
+  it("splits trailing resolution/spec units", () => {
+    expect(engineTtsText("It hit 720p at launch")).toBe("It hit 720 P at launch");
+    expect(engineTtsText("4K video on 16GB RAM")).toBe("4 K video on 16 GB RAM");
+    expect(engineTtsText("120fps on 5nm")).toBe("120 FPS on 5 NM");
+  });
+
+  it("does not touch chip codenames, hex, or B/X suffixes", () => {
+    expect(engineTtsText("H100, B200, A17 and K2 ship today")).toBe(
+      "H100, B200, A17 and K2 ship today",
+    );
+    expect(engineTtsText("hex 0x12a and 10x growth")).toBe("hex 0x12a and 10x growth");
+    expect(engineTtsText("$1.4B, up 12%")).toBe("$1.4B, up 12%");
+  });
+
+  it("is idempotent on already-split text", () => {
+    expect(engineTtsText("720 P and 4 K stay split")).toBe("720 P and 4 K stay split");
+  });
+});

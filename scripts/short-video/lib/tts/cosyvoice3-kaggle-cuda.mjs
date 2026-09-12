@@ -41,7 +41,15 @@ const KAGGLE_KERNEL_SLUG = process.env.COSYVOICE3_KAGGLE_SLUG || "cosyvoice3-cud
 const KAGGLE_KERNEL_ID = process.env.COSYVOICE3_KAGGLE_USER
   ? `${process.env.COSYVOICE3_KAGGLE_USER}/${KAGGLE_KERNEL_SLUG}`
   : null; // auto-detect from kaggle.json if not set
-const KAGGLE_TIMEOUT_MS = parseInt(process.env.COSYVOICE3_KAGGLE_TIMEOUT_MS || "1200000", 10); // 20 min default
+const KAGGLE_TIMEOUT_MS = parseInt(process.env.COSYVOICE3_KAGGLE_TIMEOUT_MS || "1200000", 10); // 20 min RUNNING budget
+// Queue budget (#250): Kaggle free tier runs 1 GPU session at a time, so a
+// second pipeline's kernel waits in QUEUED while the first finishes
+// (~10-15min). The old single 20min timeout covered queue+run and killed
+// legitimately queued runs. 40min = reviewer-recommended 30-40min upper edge.
+const KAGGLE_QUEUE_TIMEOUT_MS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_QUEUE_TIMEOUT_MS || "2400000",
+  10,
+); // 40 min QUEUED/waiting budget
 const KAGGLE_POLL_INTERVAL_MS = 15000; // 15s
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
@@ -154,42 +162,173 @@ async function isAvailable() {
 }
 
 /**
- * Poll Kaggle kernel status until complete or timeout.
- * @param {string} kernelId - e.g. "username/cosyvoice3-cuda-batch"
- * @param {number} timeoutMs
- * @returns {Promise<void>}
- * @throws {Error} on timeout or kernel failure
+ * Classify a `kaggle kernels status` line into a poll phase (#250).
+ *
+ * @param {string} raw - stdout (or error text) from `kaggle kernels status`
+ * @returns {"complete"|"error"|"cancel"|"queued"|"running"|"unknown"}
  */
-async function pollKernelStatus(kernelId, timeoutMs) {
-  const startTime = Date.now();
+export function classifyKernelStatus(raw) {
+  const text = String(raw ?? "").toLowerCase();
+  if (text.includes("complete")) return "complete";
+  if (text.includes("error")) return "error";
+  if (text.includes("cancel")) return "cancel";
+  if (text.includes("queued")) return "queued";
+  if (text.includes("running")) return "running";
+  return "unknown";
+}
+
+/** Best-effort poll-status.json write — fail-open, bookkeeping never breaks a run. */
+function writeStatusFile(filePath, payload) {
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, JSON.stringify(payload, null, 2) + "\n", "utf8");
+  } catch {
+    // fail-open
+  }
+}
+
+function fmtDuration(ms) {
+  return `${Math.floor(ms / 60000)}m${Math.floor((ms % 60000) / 1000)}s`;
+}
+
+/**
+ * Poll Kaggle kernel status until complete, with explicit QUEUED/RUNNING
+ * phases and separate queue/run budgets (#250).
+ *
+ * Kaggle free tier allows 1 running GPU session: a kernel pushed while another
+ * pipeline's kernel holds the session stays QUEUED — that is expected, not a
+ * hang. Queue wait is metered against `queueTimeoutMs`; RUNNING time against
+ * `runTimeoutMs`. On CLI failure (e.g. 404 while QUEUED) the raw text cannot
+ * be trusted as kernel truth, so the phase becomes UNKNOWN and polling
+ * continues (queued budget applies) instead of misreading a crash.
+ *
+ * No automatic fallback on queue timeout (ADR-0019 quality red line): the
+ * error explicitly hands the decision back to the operator.
+ *
+ * @param {string} kernelId - e.g. "username/cosyvoice3-cuda-batch"
+ * @param {object} [opts]
+ * @param {number} [opts.runTimeoutMs] - budget for RUNNING state
+ * @param {number} [opts.queueTimeoutMs] - budget for QUEUED/UNKNOWN wait
+ * @param {number} [opts.pollIntervalMs]
+ * @param {string|null} [opts.statusFile] - poll-status.json path (visibility)
+ * @param {object} [deps] - injected exec/sleep/now/log for tests
+ * @returns {Promise<{queuedMs: number, runningMs: number}>}
+ * @throws {Error} on kernel failure, queue timeout, or run timeout
+ */
+export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
+  const {
+    runTimeoutMs = KAGGLE_TIMEOUT_MS,
+    queueTimeoutMs = KAGGLE_QUEUE_TIMEOUT_MS,
+    pollIntervalMs = KAGGLE_POLL_INTERVAL_MS,
+    statusFile = null,
+  } = opts;
+  const exec = deps.exec ?? ((cmd) => execAsync(cmd));
+  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const now = deps.now ?? Date.now;
+  const log = deps.log ?? ((msg) => console.log(msg));
+
+  let phase = null; // null until the first status lands (so the first poll logs a transition)
+  let waitStart = null; // fake-clock time the current QUEUED/UNKNOWN stretch began
+  let runStart = null; // fake-clock time the current RUNNING stretch began
+  let waitMs = 0;
+  let runMs = 0;
+
+  const snapshot = () => ({
+    queuedMs: waitMs + (waitStart !== null ? now() - waitStart : 0),
+    runningMs: runMs + (runStart !== null ? now() - runStart : 0),
+  });
+
   while (true) {
-    const elapsed = Date.now() - startTime;
-    if (elapsed > timeoutMs) {
-      throw new Error(`Kaggle kernel timed out after ${Math.round(timeoutMs / 1000)}s`);
-    }
-
-    let status;
+    let raw = "";
+    let execOk = false;
     try {
-      const { stdout } = await execAsync(`kaggle kernels status ${kernelId} 2>&1`);
-      status = stdout.trim();
+      const { stdout } = await exec(`kaggle kernels status ${kernelId} 2>&1`);
+      raw = stdout.trim();
+      execOk = true;
     } catch (e) {
-      status = e.stdout || e.message || "unknown";
+      raw = (e.stdout || e.message || "unknown").trim();
+    }
+    const firstLine = raw.split("\n")[0];
+    // Non-zero CLI exit (network hiccup, 404 while QUEUED) is not kernel truth
+    // (#250 review note) — downgrade to UNKNOWN and keep polling.
+    const next = execOk ? classifyKernelStatus(raw) : "unknown";
+
+    if (next !== phase) {
+      if (next === "running") {
+        if (waitStart !== null) {
+          waitMs += now() - waitStart;
+          waitStart = null;
+        }
+        runStart = now();
+      } else if (next === "queued" || next === "unknown") {
+        if (runStart !== null) {
+          runMs += now() - runStart;
+          runStart = null;
+        }
+        if (waitStart === null) waitStart = now();
+      } else {
+        if (runStart !== null) {
+          runMs += now() - runStart;
+          runStart = null;
+        }
+        if (waitStart !== null) {
+          waitMs += now() - waitStart;
+          waitStart = null;
+        }
+      }
+      log(`  [Kaggle] Kernel Status → ${next.toUpperCase()} (${firstLine || kernelId})`);
+      phase = next;
     }
 
-    if (status.toLowerCase().includes("complete")) {
-      console.log("  ✓ Kaggle kernel complete");
-      return;
-    }
-    if (status.toLowerCase().includes("error") || status.toLowerCase().includes("cancel")) {
-      throw new Error(`Kaggle kernel failed: ${status}`);
+    if (statusFile) {
+      writeStatusFile(statusFile, {
+        kernelId,
+        phase,
+        status: firstLine,
+        ...snapshot(),
+        updatedAt: new Date(now()).toISOString(),
+      });
     }
 
-    const mins = Math.floor(elapsed / 60000);
-    const secs = Math.floor((elapsed % 60000) / 1000);
-    console.log(
-      `  ⏳ Kaggle kernel running... ${mins}m${secs}s elapsed (${status.split("\n")[0]})`,
-    );
-    await new Promise((r) => setTimeout(r, KAGGLE_POLL_INTERVAL_MS));
+    if (phase === "complete") {
+      log("  ✓ Kaggle kernel complete");
+      return snapshot();
+    }
+    if (phase === "error" || phase === "cancel") {
+      throw new Error(`Kaggle kernel failed: ${firstLine}`);
+    }
+
+    if (waitStart !== null) {
+      const waited = now() - waitStart;
+      if (waited > queueTimeoutMs) {
+        throw new Error(
+          `Kaggle kernel waiting for ${fmtDuration(waited)} — exceeded queue timeout ` +
+            `(${Math.round(queueTimeoutMs / 60000)}min). Another kernel holds Kaggle's single ` +
+            `free-tier GPU session (${kernelId} still ${phase.toUpperCase()}). ` +
+            `NOT auto-falling back (ADR-0019 quality red line) — decide manually: ` +
+            `wait and re-run, or set TTS_ENGINE explicitly.`,
+        );
+      }
+      if (phase === "queued") {
+        log(
+          `  ⏳ [Kaggle] Kernel Status: QUEUED (waiting in line ${fmtDuration(waited)}, ` +
+            `queue budget ${Math.round(queueTimeoutMs / 60000)}min)`,
+        );
+      } else {
+        log(`  ⏳ [Kaggle] Kernel Status: ${phase.toUpperCase()} (${firstLine})`);
+      }
+    }
+    if (runStart !== null) {
+      const ran = now() - runStart;
+      if (ran > runTimeoutMs) {
+        throw new Error(
+          `Kaggle kernel timed out after ${fmtDuration(ran)} of RUNNING ` +
+            `(run timeout ${Math.round(runTimeoutMs / 60000)}min)`,
+        );
+      }
+      log(`  ⏳ [Kaggle] Kernel Status: RUNNING (${fmtDuration(ran)} elapsed)`);
+    }
+    await sleep(pollIntervalMs);
   }
 }
 
@@ -257,9 +396,11 @@ export async function createCosyVoice3KaggleCudaEngine() {
 
       // ── Poll status ──
       console.log(
-        `  ⏳ Waiting for Kaggle kernel (timeout ${Math.round(KAGGLE_TIMEOUT_MS / 60000)}min)...`,
+        `  ⏳ Waiting for Kaggle kernel (queue budget ${Math.round(KAGGLE_QUEUE_TIMEOUT_MS / 60000)}min, ` +
+          `run timeout ${Math.round(KAGGLE_TIMEOUT_MS / 60000)}min)...`,
       );
-      await pollKernelStatus(kernelId, KAGGLE_TIMEOUT_MS);
+      // poll-status.json: QUEUED/RUNNING phase + metering for background runs (#250)
+      await pollKernelStatus(kernelId, { statusFile: join(tempDir, "poll-status.json") });
 
       // ── Download output ──
       const kaggleOutputDir = join(tempDir, "kaggle-output");

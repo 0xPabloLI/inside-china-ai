@@ -96,6 +96,54 @@ function mmddToDateSpoken(mmdd) {
 }
 
 /**
+ * Digit + spec-unit tokens CosyVoice3 swallows (#239).
+ *
+ * Compact digit+letter tokens ("720p", "4K", "16GB") lose their trailing
+ * letter in CosyVoice3 speech ("720p" is read as "720" — ant-lingbot-world-13b
+ * Scene 3, Quality Gate "missing key token(s) [720p]"). Inserting a space
+ * forces the letter to be pronounced on its own.
+ *
+ * This is a curated unit WHITELIST, not a generic (\d+)([a-zA-Z]) rule
+ * (issue #239 review): a generic rule would mangle
+ *   - chip codenames / letter-prefixed models: H100, A100, B200, A17, K2
+ *     (letter BEFORE digits is never touched anyway, but the generic rule
+ *     would also hit future digit-first names),
+ *   - hex and multiplier tokens: 0x12a, 10x,
+ *   - suffix letters with their own semantics: B (billion, "$1.4B" — the
+ *     #227 regression test pins this), X ("50X cheaper").
+ */
+const UNIT_SPOKEN = {
+  // resolution / display
+  p: "P", k: "K",
+  // acronyms read letter-by-letter
+  fps: "FPS", nm: "NM", kb: "KB", mb: "MB", gb: "GB", tb: "TB", km: "KM", kg: "KG",
+  // Hz: TN expands to "hertz" when alive, letter-name fallback otherwise
+  hz: "Hz",
+  // "bit" stays a word (all-caps "BIT" risks letter-by-letter spelling)
+  bit: "bit",
+  // metric / magnitude letters
+  g: "G", t: "T", m: "M",
+};
+
+/** Longest-first alternation so "16GB" matches "gb", not "g". */
+const DIGIT_UNIT_RE = /\b(\d+)(fps|hz|nm|bit|kb|mb|gb|tb|km|kg|p|k|g|t|m)\b/gi;
+
+/**
+ * Split compact digit+unit tokens into spoken-safe form: "720p" → "720 P".
+ * Idempotent (already-split text has no digit+letter adjacency) and
+ * whitelist-only, so unknown suffixes pass through untouched.
+ *
+ * @param {string} str
+ * @returns {string}
+ */
+export function splitDigitUnits(str) {
+  if (typeof str !== "string") return str;
+  return str.replace(DIGIT_UNIT_RE, (match, digits, unit) => {
+    return `${digits} ${UNIT_SPOKEN[unit.toLowerCase()]}`;
+  });
+}
+
+/**
  * Normalize a single voiceover string.
  *
  * @param {string} str
@@ -161,6 +209,15 @@ function normalizeVoiceover(str, replacements) {
       return dateSpoken ? record(digits, dateSpoken) : match;
     },
   );
+
+  // 8. Digit + spec-unit splitting (#239): "720p" → "720 P".
+  //    Runs LAST so version rules (1-4) have already consumed "V4.1" /
+  //    "GPT-4o" style tokens. Each match is recorded as a replacement so
+  //    restore-tokens maps the spoken ["720","P"] run back to "720p" for
+  //    display subtitles.
+  str = str.replace(DIGIT_UNIT_RE, (match, digits, unit) => {
+    return record(match, `${digits} ${UNIT_SPOKEN[unit.toLowerCase()]}`);
+  });
 
   return str;
 }

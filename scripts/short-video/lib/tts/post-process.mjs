@@ -23,6 +23,7 @@ import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
 import { runAlignmentGuards } from "./alignment-guards.mjs";
+import { splitDigitUnits } from "../normalize-tts-text.mjs";
 import {
   computeAlignmentSignature,
   alignmentCacheState,
@@ -117,12 +118,19 @@ export function getProsodyProfile(visualType) {
  * keep "160,000". Non-thousands comma patterns (decimals "62.5", "$1.4B")
  * contain no digit-comma-digit sequence and pass through untouched.
  *
+ * #239 digit+unit splitting: compact digit+unit tokens ("720p", "4K",
+ * "16GB") lose their trailing letter in CosyVoice3 speech, so the same
+ * curated unit whitelist as step 0.6's normalize-tts-text (splitDigitUnits)
+ * is applied here too. This is defense in depth: the engine adapters call
+ * engineTtsText(voiceover) only when scene.ttsText is absent (normalize
+ * step failed or was bypassed), but the fallback must be safe on its own.
+ *
  * @param {string} text - scene voiceover text
  * @returns {string} engine-safe text
  */
 export function engineTtsText(text) {
   if (typeof text !== "string") return text;
-  return text.replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
+  return splitDigitUnits(text.replace(/(\d),(?=\d{3}(?!\d))/g, "$1"));
 }
 
 // ── Filter construction ──
