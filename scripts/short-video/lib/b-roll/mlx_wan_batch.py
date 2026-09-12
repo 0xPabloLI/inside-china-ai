@@ -10,6 +10,13 @@ Ported from experiments/fastvideo-spike/mlx_wan_batch.py with:
 Loads the DiT ONCE and generates many clips in a single process (avoids the
 ~150s mx.compile trace per call).
 
+#240 warm-up: before the DiT loads, all unique uncached prompts are encoded
+with ONE text-encoder load (the per-job inline path reloads UMT5 for every
+cache miss — 634s cold / 220s warm per reload). The encoder is freed again
+before the DiT loads, so peak memory drops from (DiT + UMT5) to
+max(UMT5, DiT). Any warm-up failure degrades to the previous per-job inline
+behavior without killing the batch.
+
 Usage:
     python mlx_wan_batch.py --repo /path/to/fastvideo/repo --jobs jobs.json
 jobs.json = [{"label": "scene-6-seed1024", "prompt": "...",
@@ -57,6 +64,149 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
+def unique_prompts_in_order(jobs: list) -> list:
+    """Unique job prompts in first-seen order. The orchestrator assembles
+    same-prompt seeds consecutively (scene by scene), so this keeps batch
+    order stable."""
+    seen = set()
+    ordered = []
+    for job in jobs:
+        prompt = job["prompt"]
+        if prompt not in seen:
+            seen.add(prompt)
+            ordered.append(prompt)
+    return ordered
+
+
+def plan_warmup(jobs: list, cache_exists=None) -> dict:
+    """Split unique prompts into warm-up encodes vs on-disk cache hits.
+
+    cache_exists(prompt) probes the persistent prompt-embeds cache; None when
+    --prompt-cache is off (nothing cached, everything encodes for in-memory
+    reuse only). An all-cached plan yields to_encode=[] — the signal main()
+    uses to skip the text-encoder load entirely, so escalated reruns over
+    unchanged prompts stay free.
+    """
+    unique = unique_prompts_in_order(jobs)
+    if cache_exists is None:
+        return {"unique": unique, "to_encode": list(unique), "cached": []}
+    to_encode = []
+    cached = []
+    for prompt in unique:
+        (cached if cache_exists(prompt) else to_encode).append(prompt)
+    return {"unique": unique, "to_encode": to_encode, "cached": cached}
+
+
+def preencode_prompts(prompts: list, *, open_encoder, cache_save=None) -> dict:
+    """Encode every prompt with ONE text-encoder load (#240).
+
+    open_encoder() -> object with encode(prompt) -> np.ndarray and close().
+    cache_save(prompt, embeds) persists an embed (best-effort — a write
+    failure must not drop the embed from the returned dict).
+
+    Returns {prompt: np.ndarray}. Per-prompt failures are isolated: the
+    failed prompt is absent and the job loop falls back to inline encode for
+    it. An encoder-load failure returns {} (the whole batch degrades to the
+    previous per-job inline behavior).
+    """
+    warm: dict = {}
+    if not prompts:
+        return warm
+    encoder = None
+    try:
+        encoder = open_encoder()
+        for i, prompt in enumerate(prompts):
+            try:
+                embeds = encoder.encode(prompt)
+            except Exception as exc:
+                print(f"[batch] warm-up encode {i + 1}/{len(prompts)} FAILED "
+                      f"(job falls back to inline encode): {exc}", file=sys.stderr)
+                continue
+            if cache_save is not None:
+                try:
+                    cache_save(prompt, embeds)
+                except Exception as exc:
+                    print(f"[batch] warm-up cache write skipped: {exc}", file=sys.stderr)
+            warm[prompt] = embeds
+            print(f"[batch] warm-up encode {i + 1}/{len(prompts)} done")
+    except Exception as exc:
+        print(f"[batch] warm-up encoder load FAILED -> per-job inline encode: {exc}",
+              file=sys.stderr)
+        return {}
+    finally:
+        if encoder is not None:
+            try:
+                encoder.close()
+            except Exception:
+                pass
+    return warm
+
+
+class _Umt5PromptEncoder:
+    """One-load UMT5 text encoder for the #240 warm-up phase.
+
+    Mirrors the vendored FastVideo repo's encode_prompt()
+    (examples/inference/basic/mlx_wan_prompt_to_video.py) tokenization and
+    output shaping exactly: warm embeds must match what the per-job inline
+    path would produce, or generation results drift.
+    """
+
+    def __init__(self, model_root: Path, device, dtype, max_sequence_length: int):
+        import torch
+        from transformers import AutoTokenizer, UMT5EncoderModel
+
+        self._torch = torch
+        self._device = device
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_root / "tokenizer", local_files_only=True)
+        self.model = UMT5EncoderModel.from_pretrained(
+            model_root / "text_encoder",
+            torch_dtype=dtype,
+            low_cpu_mem_usage=True,
+            local_files_only=True,
+        ).to(device)
+        self.model.eval()
+        self._max_sequence_length = max_sequence_length
+
+    def encode(self, prompt: str):
+        torch = self._torch
+        text_inputs = self.tokenizer(
+            [prompt],
+            padding="max_length",
+            max_length=self._max_sequence_length,
+            truncation=True,
+            add_special_tokens=True,
+            return_attention_mask=True,
+            return_tensors="pt",
+        )
+        text_input_ids = text_inputs.input_ids.to(self._device)
+        mask = text_inputs.attention_mask.to(self._device)
+        seq_lens = mask.gt(0).sum(dim=1).long()
+
+        with torch.no_grad():
+            prompt_embeds = self.model(text_input_ids, mask).last_hidden_state
+        prompt_embeds = [u[:v] for u, v in zip(prompt_embeds, seq_lens, strict=False)]
+        prompt_embeds = torch.stack(
+            [
+                torch.cat([u, u.new_zeros(self._max_sequence_length - u.size(0), u.size(1))])
+                for u in prompt_embeds
+            ],
+            dim=0,
+        )
+        if prompt_embeds.dtype == torch.bfloat16:
+            # NumPy (and the .npy cache) has no bfloat16; fp32 is exact for
+            # every bf16 value — same convention as the repo's encode_prompt.
+            prompt_embeds = prompt_embeds.float()
+        return prompt_embeds.cpu().contiguous().numpy()
+
+    def close(self):
+        del self.model, self.tokenizer
+        # Same cleanup as encode_prompt: free MPS before the DiT loads.
+        from fastvideo.mlx_runtime.memory import cleanup_torch_mps
+
+        cleanup_torch_mps()
+
+
 def main() -> None:
     args = parse_args()
 
@@ -73,7 +223,11 @@ def main() -> None:
             make_rotary_embeddings,
             get_prompt_embeds,
             _default_prompt_cache_path,
+            _prompt_cache_fingerprint,
+            _torch_device,
+            _torch_dtype,
             decode_latents_to_video,
+            save_prompt_cache,
         )
         from fastvideo.mlx_runtime.checkpoint_compat import resolve_mlx_checkpoint
         from fastvideo.mlx_runtime.memory import apply_memory_limits  # noqa
@@ -93,6 +247,56 @@ def main() -> None:
 
     model_root = resolve_model_root(args.model_root, include_transformer=args.mlx_checkpoint is None)
     mlx_checkpoint = resolve_mlx_checkpoint(args.mlx_checkpoint, model_root)
+
+    # --- #240 warm-up: pre-encode all unique prompts with ONE encoder load ---
+    # Placed BEFORE the DiT load: the encoder is the only big resident during
+    # warm-up, so peak memory is max(UMT5, DiT) instead of (DiT + UMT5) as
+    # with the old interleaved per-job inline encodes.
+    cache_path_for = None
+    if args.prompt_cache:
+
+        def cache_path_for(prompt: str) -> Path:
+            return _default_prompt_cache_path(
+                model_root=model_root, prompt=prompt,
+                max_sequence_length=args.max_sequence_length, dtype_arg=args.text_encoder_dtype,
+            )
+
+    plan = plan_warmup(
+        jobs,
+        cache_exists=(lambda p: cache_path_for(p).exists()) if cache_path_for else None,
+    )
+    warm_embeds: dict = {}
+    if plan["to_encode"]:
+        print(f"[batch] warm-up: encoding {len(plan['to_encode'])}/{len(plan['unique'])} "
+              f"unique prompt(s) with 1 text-encoder load "
+              f"({len(plan['cached'])} served from cache)")
+        t_warm = time.perf_counter()
+
+        def _open_encoder():
+            return _Umt5PromptEncoder(
+                model_root,
+                _torch_device(args.torch_device),
+                _torch_dtype(args.text_encoder_dtype),
+                args.max_sequence_length,
+            )
+
+        def _cache_save(prompt: str, embeds) -> None:
+            save_prompt_cache(
+                cache_path_for(prompt), embeds,
+                _prompt_cache_fingerprint(
+                    model_root=model_root, prompt=prompt,
+                    max_sequence_length=args.max_sequence_length, dtype_arg=args.text_encoder_dtype,
+                ),
+            )
+
+        warm_embeds = preencode_prompts(
+            plan["to_encode"], open_encoder=_open_encoder, cache_save=_cache_save,
+        )
+        print(f"[batch] warm-up encoded {len(warm_embeds)} prompt(s) "
+              f"in {time.perf_counter() - t_warm:.2f}s")
+    elif plan["unique"]:
+        print(f"[batch] warm-up: all {len(plan['unique'])} unique prompt(s) cached "
+              f"— no text-encoder load")
 
     import mlx.core as mx
     import torch
@@ -159,15 +363,22 @@ def main() -> None:
             print(f"[batch] prompt: {prompt}")
 
             t0 = time.perf_counter()
-            prompt_embeds = get_prompt_embeds(
-                model_root=model_root, prompt=prompt,
-                max_sequence_length=args.max_sequence_length, device_arg=args.torch_device,
-                dtype_arg=args.text_encoder_dtype, encode_mode="inline",
-                cache_path=(_default_prompt_cache_path(
+            if prompt in warm_embeds:
+                # #240 warm-up hit: embeds were pre-encoded with the single
+                # shared text-encoder load; no reload, no disk round-trip.
+                prompt_embeds = torch.from_numpy(warm_embeds[prompt])
+            else:
+                # Cache hit (warm-up skipped it) or warm-up fallback for a
+                # prompt whose pre-encode failed — the original inline path.
+                prompt_embeds = get_prompt_embeds(
                     model_root=model_root, prompt=prompt,
-                    max_sequence_length=args.max_sequence_length, dtype_arg=args.text_encoder_dtype,
-                ) if args.prompt_cache else None),
-            )
+                    max_sequence_length=args.max_sequence_length, device_arg=args.torch_device,
+                    dtype_arg=args.text_encoder_dtype, encode_mode="inline",
+                    cache_path=(_default_prompt_cache_path(
+                        model_root=model_root, prompt=prompt,
+                        max_sequence_length=args.max_sequence_length, dtype_arg=args.text_encoder_dtype,
+                    ) if args.prompt_cache else None),
+                )
             encode_time = time.perf_counter() - t0
 
             generator = torch.Generator(device="cpu").manual_seed(seed)

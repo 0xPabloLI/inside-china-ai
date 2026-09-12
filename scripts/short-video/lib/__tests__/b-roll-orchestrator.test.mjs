@@ -205,6 +205,79 @@ describe("runBrollStage", () => {
     expect(jobs.every((j) => j.output_path.startsWith(dirs.contentDir))).toBe(true);
   });
 
+  test("#240 same-prompt seeds stay scene-adjacent so one batch encode covers both", async () => {
+    // Reviewer scheduling rule (#240): jobs sharing a prompt must execute
+    // consecutively so the batch's prompt cache/dedup amortizes one text
+    // encoder pass over every seed of that prompt.
+    const dirs = stageDirs();
+    const { generate, calls } = okGenerateMock();
+    const scenes = [
+      scene({ id: "5", mediaStrategy: "b-roll", aiVideo: { prompt: "scene five visual" } }),
+      scene({ id: "6", mediaStrategy: "b-roll", aiVideo: { prompt: "scene six visual" } }),
+    ];
+    await runBrollStage(baseOpts(dirs, { scenes, generate }));
+    expect(calls.length).toBe(1);
+    const jobs = calls[0];
+    // Two seeds per scene share ONE composed prompt...
+    const scene5Prompts = new Set(jobs.filter((j) => j.label.startsWith("scene-5-")).map((j) => j.prompt));
+    const scene6Prompts = new Set(jobs.filter((j) => j.label.startsWith("scene-6-")).map((j) => j.prompt));
+    expect(scene5Prompts.size).toBe(1);
+    expect(scene6Prompts.size).toBe(1);
+    expect(scene5Prompts).not.toEqual(scene6Prompts);
+    // ...and the two seed jobs of each prompt are adjacent, so scanning the
+    // batch in order groups all work for a prompt before moving on.
+    const promptRun = jobs.map((j) => j.prompt);
+    expect(promptRun).toEqual([
+      jobs[0].prompt,
+      jobs[0].prompt,
+      jobs[2].prompt,
+      jobs[2].prompt,
+    ]);
+  });
+
+  test("#240 one scene's failed jobs do not drag down the other scenes", async () => {
+    // Fault-isolation contract across the whole stack: the python batch marks
+    // per-job failures in its results payload (the batch continues), and the
+    // orchestrator must land winners for the healthy scenes while recording
+    // the failed scene's candidates.
+    const dirs = stageDirs();
+    const generate = async ({ jobs }) => ({
+      ok: true,
+      fatal: null,
+      results: jobs.map((j) =>
+        j.label.startsWith("scene-7-")
+          ? { label: j.label, ok: false, file: j.output_path, error: "denoise: OOM" }
+          : { label: j.label, ok: true, file: j.output_path, error: null },
+      ),
+    });
+    const scenes = [
+      scene({ id: "6", mediaStrategy: "b-roll" }),
+      scene({ id: "7", mediaStrategy: "b-roll" }),
+    ];
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate,
+        analyzer: analyzerFor({
+          [join(dirs.contentDir, "assets/b-roll/scene-6-seed1024.mp4")]: 84,
+          [join(dirs.contentDir, "assets/b-roll/scene-6-seed1025.mp4")]: 40,
+        }),
+      }),
+    );
+    expect(result.counts.generated).toBe(1);
+    expect(result.counts.failed).toBe(1);
+    // Healthy scene landed its winner in memory.
+    expect(scenes[0].media?.path).toBe("assets/b-roll/scene-6-seed1024.mp4");
+    // Failed scene recorded per-candidate errors, no media assignment.
+    expect(scenes[1].media).toBeUndefined();
+    const report = readReport(reportPath(dirs.outputDir));
+    expect(report.scenes["6"].status).toBe("won");
+    expect(report.scenes["7"].status).toBe("failed");
+    expect(report.scenes["7"].winner).toBeNull();
+    expect(report.scenes["7"].candidates).toHaveLength(2);
+    expect(report.scenes["7"].candidates.every((c) => /OOM/.test(c.reason))).toBe(true);
+  });
+
   test("winner gets in-memory media per contract", async () => {
     const dirs = stageDirs();
     const { generate } = okGenerateMock();
