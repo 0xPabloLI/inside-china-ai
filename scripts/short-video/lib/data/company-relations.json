@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "updatedAt": "2026-09-12",
+  "source": "docs/research/china-ai-hashtag-mapping.md (2026-08-26, 60+ entities) + #242/#245 delivery evidence + #248 compilation. Overseas-awareness tiers are editorial judgments recorded in docs/research/company-relations.md.",
+  "fieldNotes": {
+    "entity": "canonical id (pipeline key)",
+    "parent": "parent company entity id, or null for top-level",
+    "hashtag": "the TikTok tag TO USE — own tag when the brand has one with traction, otherwise the parent's (#245 rule)",
+    "matchKeys": "lowercase keys that resolve to this record (meta keys, scene-text mentions)",
+    "aliases": "display names incl. Chinese",
+    "overseasAwareness": "high | mid | low — how recognizable to a US TikTok audience",
+    "presentation": "for low-awareness entities: how captions should introduce them ('Alibaba's Ant Group')",
+    "colorKey": "ENTITY_COLORS key for b-roll prompt color inheritance (null = not color-mapped)",
+    "tier": "china-ai-hashtag-mapping.md tier"
+  },
+  "entities": [
+    { "entity": "alibaba", "parent": null, "tier": 1, "hashtag": "alibaba", "matchKeys": ["alibaba"], "aliases": ["Alibaba", "阿里巴巴"], "overseasAwareness": "high", "presentation": null, "colorKey": "alibaba" },
+    { "entity": "qwen", "parent": "alibaba", "tier": 1, "hashtag": "qwen", "matchKeys": ["qwen"], "aliases": ["Qwen", "通义千问", "Tongyi Qianwen"], "overseasAwareness": "mid", "presentation": "Alibaba's Qwen", "colorKey": "alibaba" },
+    { "entity": "tongyi", "parent": "alibaba", "tier": 1, "hashtag": "qwen", "matchKeys": ["tongyi"], "aliases": ["Tongyi", "通义"], "overseasAwareness": "low", "presentation": "Alibaba's Qwen", "colorKey": "alibaba" },
+    { "entity": "wan", "parent": "alibaba", "tier": 1, "hashtag": "wan", "matchKeys": ["wan"], "aliases": ["Wan", "万相", "Wan Video"], "overseasAwareness": "low", "presentation": "Alibaba's Wan video model", "colorKey": "alibaba" },
+    { "entity": "z-image", "parent": "alibaba", "tier": 1, "hashtag": "alibaba", "matchKeys": ["z-image"], "aliases": ["Z-Image"], "overseasAwareness": "low", "presentation": "Alibaba's Z-Image", "colorKey": "alibaba" },
+    { "entity": "dingtalk", "parent": "alibaba", "tier": 7, "hashtag": "dingtalk", "matchKeys": ["dingtalk"], "aliases": ["DingTalk", "钉钉"], "overseasAwareness": "low", "presentation": "Alibaba's DingTalk", "colorKey": "alibaba" },
+    { "entity": "quark", "parent": "alibaba", "tier": 7, "hashtag": "quark", "matchKeys": ["quark"], "aliases": ["Quark", "夸克"], "overseasAwareness": "low", "presentation": "Alibaba's Quark", "colorKey": "alibaba" },
+    { "entity": "ant-group", "parent": "alibaba", "tier": 7, "hashtag": "alibaba", "matchKeys": ["ant-group", "ant group"], "aliases": ["Ant Group", "蚂蚁集团"], "overseasAwareness": "low", "presentation": "Alibaba's Ant Group", "colorKey": "alibaba" },
+
+    { "entity": "bytedance", "parent": null, "tier": 1, "hashtag": "bytedance", "matchKeys": ["bytedance"], "aliases": ["ByteDance", "字节跳动"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+    { "entity": "doubao", "parent": "bytedance", "tier": 1, "hashtag": "doubao", "matchKeys": ["doubao"], "aliases": ["Doubao", "豆包"], "overseasAwareness": "low", "presentation": "ByteDance's Doubao AI", "colorKey": null },
+    { "entity": "seedance", "parent": "bytedance", "tier": 7, "hashtag": "seedance", "matchKeys": ["seedance"], "aliases": ["Seedance"], "overseasAwareness": "mid", "presentation": "ByteDance's Seedance", "colorKey": null },
+    { "entity": "dreamina", "parent": "bytedance", "tier": 7, "hashtag": "dreamina", "matchKeys": ["dreamina", "jimeng"], "aliases": ["Dreamina", "即梦"], "overseasAwareness": "low", "presentation": "ByteDance's Dreamina", "colorKey": null },
+    { "entity": "seedream", "parent": "bytedance", "tier": 7, "hashtag": "seedream", "matchKeys": ["seedream"], "aliases": ["Seedream"], "overseasAwareness": "low", "presentation": "ByteDance's Seedream", "colorKey": null },
+    { "entity": "feishu", "parent": "bytedance", "tier": 7, "hashtag": "feishu", "matchKeys": ["feishu", "lark"], "aliases": ["Feishu", "Lark", "飞书"], "overseasAwareness": "low", "presentation": "ByteDance's Lark", "colorKey": null },
+    { "entity": "capcut", "parent": "bytedance", "tier": 7, "hashtag": "capcut", "matchKeys": ["capcut"], "aliases": ["CapCut", "剪映"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+    { "entity": "volcano-engine", "parent": "bytedance", "tier": 7, "hashtag": "volcanoengine", "matchKeys": ["volcano engine"], "aliases": ["Volcano Engine", "火山引擎"], "overseasAwareness": "low", "presentation": "ByteDance's Volcano Engine", "colorKey": null },
+
+    { "entity": "baidu", "parent": null, "tier": 1, "hashtag": "baidu", "matchKeys": ["baidu"], "aliases": ["Baidu", "百度"], "overseasAwareness": "high", "presentation": null, "colorKey": "baidu" },
+    { "entity": "ernie", "parent": "baidu", "tier": 1, "hashtag": "ernie", "matchKeys": ["ernie", "wenxin"], "aliases": ["ERNIE", "文心一言", "Wenxin"], "overseasAwareness": "mid", "presentation": "Baidu's ERNIE", "colorKey": "baidu" },
+    { "entity": "apollo", "parent": "baidu", "tier": 5, "hashtag": "apollo", "matchKeys": ["apollo"], "aliases": ["Apollo Go", "萝卜快跑"], "overseasAwareness": "mid", "presentation": "Baidu's Apollo robotaxi", "colorKey": "baidu" },
+
+    { "entity": "tencent", "parent": null, "tier": 1, "hashtag": "tencent", "matchKeys": ["tencent"], "aliases": ["Tencent", "腾讯"], "overseasAwareness": "high", "presentation": null, "colorKey": "tencent" },
+    { "entity": "hunyuan", "parent": "tencent", "tier": 1, "hashtag": "hunyuan", "matchKeys": ["hunyuan"], "aliases": ["Hunyuan", "混元"], "overseasAwareness": "low", "presentation": "Tencent's Hunyuan", "colorKey": "tencent" },
+    { "entity": "yuanbao", "parent": "tencent", "tier": 7, "hashtag": "yuanbao", "matchKeys": ["yuanbao"], "aliases": ["Yuanbao", "元宝"], "overseasAwareness": "low", "presentation": "Tencent's Yuanbao AI", "colorKey": "tencent" },
+
+    { "entity": "huawei", "parent": null, "tier": 1, "hashtag": "huawei", "matchKeys": ["huawei"], "aliases": ["Huawei", "华为"], "overseasAwareness": "high", "presentation": null, "colorKey": "huawei" },
+    { "entity": "pangu", "parent": "huawei", "tier": 1, "hashtag": "pangu", "matchKeys": ["pangu"], "aliases": ["Pangu", "盘古"], "overseasAwareness": "low", "presentation": "Huawei's Pangu model", "colorKey": "huawei" },
+    { "entity": "ascend", "parent": "huawei", "tier": 3, "hashtag": "huawei", "matchKeys": ["ascend"], "aliases": ["Ascend", "昇腾"], "overseasAwareness": "mid", "presentation": "Huawei Ascend chips", "colorKey": "huawei" },
+
+    { "entity": "xiaomi", "parent": null, "tier": 1, "hashtag": "xiaomi", "matchKeys": ["xiaomi"], "aliases": ["Xiaomi", "小米"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+    { "entity": "mimo", "parent": "xiaomi", "tier": 1, "hashtag": "xiaomi", "matchKeys": ["mimo"], "aliases": ["MiMo"], "overseasAwareness": "low", "presentation": "Xiaomi's MiMo model", "colorKey": null },
+
+    { "entity": "kuaishou", "parent": null, "tier": 1, "hashtag": "kuaishou", "matchKeys": ["kuaishou"], "aliases": ["Kuaishou", "快手"], "overseasAwareness": "mid", "presentation": "Kuaishou (Kwai)", "colorKey": null },
+    { "entity": "kling", "parent": "kuaishou", "tier": 7, "hashtag": "kling", "matchKeys": ["kling"], "aliases": ["Kling", "可灵"], "overseasAwareness": "mid", "presentation": "Kuaishou's Kling video AI", "colorKey": null },
+
+    { "entity": "iflytek", "parent": null, "tier": 1, "hashtag": "iflytek", "matchKeys": ["iflytek"], "aliases": ["iFlytek", "科大讯飞"], "overseasAwareness": "mid", "presentation": "China's iFlytek", "colorKey": null },
+    { "entity": "spark", "parent": "iflytek", "tier": 1, "hashtag": "iflytek", "matchKeys": ["spark"], "aliases": ["Spark", "讯飞星火"], "overseasAwareness": "low", "presentation": "iFlytek's Spark model", "colorKey": null },
+
+    { "entity": "deepseek", "parent": null, "tier": 2, "hashtag": "deepseek", "matchKeys": ["deepseek"], "aliases": ["DeepSeek", "深度求索"], "overseasAwareness": "high", "presentation": null, "colorKey": "deepseek" },
+    { "entity": "zhipu", "parent": null, "tier": 2, "hashtag": "zhipu", "matchKeys": ["zhipu", "z.ai"], "aliases": ["Zhipu AI", "Z.ai", "智谱"], "overseasAwareness": "mid", "presentation": "China's Zhipu AI", "colorKey": "zhipu" },
+    { "entity": "glm", "parent": "zhipu", "tier": 2, "hashtag": "zhipu", "matchKeys": ["glm"], "aliases": ["GLM", "GLM series"], "overseasAwareness": "low", "presentation": "Zhipu's GLM model", "colorKey": "zhipu" },
+    { "entity": "moonshot", "parent": null, "tier": 2, "hashtag": "kimi", "matchKeys": ["moonshot"], "aliases": ["Moonshot AI", "月之暗面"], "overseasAwareness": "low", "presentation": "China's Moonshot AI", "colorKey": null },
+    { "entity": "kimi", "parent": "moonshot", "tier": 2, "hashtag": "kimi", "matchKeys": ["kimi"], "aliases": ["Kimi"], "overseasAwareness": "mid", "presentation": "Moonshot AI's Kimi", "colorKey": null },
+    { "entity": "minimax", "parent": null, "tier": 2, "hashtag": "minimax", "matchKeys": ["minimax"], "aliases": ["MiniMax", "稀宇科技"], "overseasAwareness": "low", "presentation": "China's MiniMax", "colorKey": null },
+    { "entity": "hailuo", "parent": "minimax", "tier": 7, "hashtag": "hailuo", "matchKeys": ["hailuo"], "aliases": ["Hailuo", "海螺", "Hailuo AI"], "overseasAwareness": "mid", "presentation": "MiniMax's Hailuo video AI", "colorKey": null },
+    { "entity": "talkie", "parent": "minimax", "tier": 7, "hashtag": "talkie", "matchKeys": ["talkie"], "aliases": ["Talkie"], "overseasAwareness": "mid", "presentation": "MiniMax's Talkie", "colorKey": null },
+    { "entity": "baichuan", "parent": null, "tier": 2, "hashtag": "baichuan", "matchKeys": ["baichuan"], "aliases": ["Baichuan", "百川智能"], "overseasAwareness": "low", "presentation": "China's Baichuan AI", "colorKey": null },
+    { "entity": "stepfun", "parent": null, "tier": 2, "hashtag": "stepfun", "matchKeys": ["stepfun"], "aliases": ["StepFun", "阶跃星辰"], "overseasAwareness": "low", "presentation": "China's StepFun", "colorKey": null },
+    { "entity": "01-ai", "parent": null, "tier": 2, "hashtag": "01ai", "matchKeys": ["01.ai", "yi"], "aliases": ["01.AI", "零一万物", "Yi models"], "overseasAwareness": "low", "presentation": "Kai-Fu Lee's 01.AI", "colorKey": null },
+
+    { "entity": "cambricon", "parent": null, "tier": 3, "hashtag": "cambricon", "matchKeys": ["cambricon"], "aliases": ["Cambricon", "寒武纪"], "overseasAwareness": "low", "presentation": "China's Cambricon chips", "colorKey": null },
+    { "entity": "horizon-robotics", "parent": null, "tier": 3, "hashtag": "horizonrobotics", "matchKeys": ["horizon robotics", "horizon"], "aliases": ["Horizon Robotics", "地平线"], "overseasAwareness": "low", "presentation": "China's Horizon Robotics", "colorKey": null },
+    { "entity": "amd", "parent": null, "tier": 6, "hashtag": "amd", "matchKeys": ["amd"], "aliases": ["AMD"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+
+    { "entity": "unitree", "parent": null, "tier": 4, "hashtag": "unitree", "matchKeys": ["unitree"], "aliases": ["Unitree", "宇树科技"], "overseasAwareness": "mid", "presentation": "China's Unitree Robotics", "colorKey": null },
+    { "entity": "ubtech", "parent": null, "tier": 4, "hashtag": "ubtech", "matchKeys": ["ubtech"], "aliases": ["UBTECH", "优必选"], "overseasAwareness": "low", "presentation": "China's UBTECH Robotics", "colorKey": null },
+    { "entity": "agibot", "parent": null, "tier": 4, "hashtag": "agibot", "matchKeys": ["agibot"], "aliases": ["AgiBot", "智元机器人"], "overseasAwareness": "low", "presentation": "China's AgiBot Robotics", "colorKey": null },
+    { "entity": "fourier", "parent": null, "tier": 4, "hashtag": "fourier", "matchKeys": ["fourier"], "aliases": ["Fourier Intelligence", "傅利叶智能"], "overseasAwareness": "low", "presentation": "China's Fourier Intelligence", "colorKey": null },
+    { "entity": "lingbot", "parent": "ant-group", "tier": 7, "hashtag": "alibaba", "matchKeys": ["lingbot", "lingbot-world"], "aliases": ["LingBot", "LingBot-World", "蚂蚁灵波"], "overseasAwareness": "low", "presentation": "Alibaba's Ant Group LingBot", "colorKey": "alibaba" },
+
+    { "entity": "pony-ai", "parent": null, "tier": 5, "hashtag": "ponyai", "matchKeys": ["pony.ai", "ponyai"], "aliases": ["Pony.ai", "小马智行"], "overseasAwareness": "mid", "presentation": "Robotaxi startup Pony.ai", "colorKey": null },
+    { "entity": "weride", "parent": null, "tier": 5, "hashtag": "weride", "matchKeys": ["weride"], "aliases": ["WeRide", "文远知行"], "overseasAwareness": "low", "presentation": "China's WeRide robotaxi", "colorKey": null },
+    { "entity": "momenta", "parent": null, "tier": 5, "hashtag": "momenta", "matchKeys": ["momenta"], "aliases": ["Momenta"], "overseasAwareness": "low", "presentation": "China's Momenta", "colorKey": null },
+
+    { "entity": "openai", "parent": null, "tier": 6, "hashtag": "chatgpt", "matchKeys": ["openai", "chatgpt"], "aliases": ["OpenAI", "ChatGPT"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+    { "entity": "sora", "parent": "openai", "tier": 6, "hashtag": "sora", "matchKeys": ["sora"], "aliases": ["Sora"], "overseasAwareness": "high", "presentation": "OpenAI's Sora", "colorKey": null },
+    { "entity": "google", "parent": null, "tier": 6, "hashtag": "google", "matchKeys": ["google"], "aliases": ["Google"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+    { "entity": "gemini", "parent": "google", "tier": 6, "hashtag": "gemini", "matchKeys": ["gemini"], "aliases": ["Gemini"], "overseasAwareness": "high", "presentation": "Google's Gemini", "colorKey": null },
+    { "entity": "veo", "parent": "google", "tier": 6, "hashtag": "veo", "matchKeys": ["veo"], "aliases": ["Veo"], "overseasAwareness": "mid", "presentation": "Google's Veo video AI", "colorKey": null },
+    { "entity": "meta", "parent": null, "tier": 6, "hashtag": "meta", "matchKeys": ["meta"], "aliases": ["Meta"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+    { "entity": "llama", "parent": "meta", "tier": 6, "hashtag": "meta", "matchKeys": ["llama"], "aliases": ["Llama"], "overseasAwareness": "high", "presentation": "Meta's Llama", "colorKey": null },
+    { "entity": "anthropic", "parent": null, "tier": 6, "hashtag": "anthropic", "matchKeys": ["anthropic"], "aliases": ["Anthropic"], "overseasAwareness": "mid", "presentation": "Claude maker Anthropic", "colorKey": null },
+    { "entity": "claude", "parent": "anthropic", "tier": 6, "hashtag": "claude", "matchKeys": ["claude"], "aliases": ["Claude"], "overseasAwareness": "high", "presentation": "Anthropic's Claude", "colorKey": null },
+    { "entity": "mistral", "parent": null, "tier": 6, "hashtag": "mistral", "matchKeys": ["mistral"], "aliases": ["Mistral AI"], "overseasAwareness": "mid", "presentation": "Europe's Mistral AI", "colorKey": null },
+    { "entity": "nvidia", "parent": null, "tier": 6, "hashtag": "nvidia", "matchKeys": ["nvidia"], "aliases": ["Nvidia", "NVIDIA"], "overseasAwareness": "high", "presentation": null, "colorKey": null },
+
+    { "entity": "meituan", "parent": null, "tier": 1, "hashtag": "meituan", "matchKeys": ["meituan"], "aliases": ["Meituan", "美团"], "overseasAwareness": "mid", "presentation": "China's Meituan", "colorKey": null },
+    { "entity": "longcat", "parent": "meituan", "tier": 1, "hashtag": "meituan", "matchKeys": ["longcat"], "aliases": ["LongCat"], "overseasAwareness": "low", "presentation": "Meituan's LongCat model", "colorKey": null },
+    { "entity": "bilibili", "parent": null, "tier": 7, "hashtag": "bilibili", "matchKeys": ["bilibili"], "aliases": ["Bilibili", "哔哩哔哩"], "overseasAwareness": "mid", "presentation": "China's Bilibili", "colorKey": null },
+    { "entity": "xiaohongshu", "parent": null, "tier": 7, "hashtag": "rednote", "matchKeys": ["xiaohongshu", "rednote"], "aliases": ["Xiaohongshu", "小红书", "RedNote"], "overseasAwareness": "mid", "presentation": "China's RedNote", "colorKey": null }
+  ]
+}

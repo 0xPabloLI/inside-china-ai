@@ -14,6 +14,8 @@
  * Comment hooks are AITL-generated (Agent-in-the-Loop) during scene-data
  * production, not template-generated. See spec-caption-format-fix.md.
  */
+import { buildEntityHashtagMap } from "./company-relations.mjs";
+
 
 // ─── Curated Hashtag Pools (researched 2026-08-08, updated 2026-08-25) ───
 //
@@ -68,89 +70,14 @@ const BLACKLISTED_HASHTAGS = [];
  * international competitors, and product/platform brands.
  * See: docs/research/china-ai-hashtag-mapping.md
  */
-const ENTITY_HASHTAG_MAP = {
-  // Tier 1: Big Tech AI Labs
-  alibaba: "#alibaba",
-  qwen: "#qwen",
-  tongyi: "#qwen",
-  wan: "#wan",
-  // Ant Group is Alibaba's subsidiary — overseas audiences know Alibaba, so
-  // inherit the parent hashtag (#242/#245). Full company-relation graph: #248.
-  "ant-group": "#alibaba",
-  "ant group": "#alibaba",
-  amd: "#amd",
-  bytedance: "#bytedance",
-  doubao: "#doubao",
-  seedance: "#seedance",
-  dreamina: "#dreamina",
-  jimeng: "#dreamina",
-  seedream: "#seedream",
-  feishu: "#feishu",
-  lark: "#feishu",
-  capcut: "#capcut",
-  "volcano engine": "#volcanoengine",
-  baidu: "#baidu",
-  ernie: "#ernie",
-  wenxin: "#ernie",
-  apollo: "#apollo",
-  tencent: "#tencent",
-  hunyuan: "#hunyuan",
-  yuanbao: "#yuanbao",
-  huawei: "#huawei",
-  pangu: "#pangu",
-  xiaomi: "#xiaomi",
-  mimo: "#xiaomi",
-  kuaishou: "#kuaishou",
-  kling: "#kling",
-  iflytek: "#iflytek",
-  spark: "#iflytek",
-
-  // Tier 2: Startups (Six Tigers + DeepSeek)
-  deepseek: "#deepseek",
-  zhipu: "#zhipu",
-  "z.ai": "#zhipu",
-  glm: "#zhipu",
-  moonshot: "#kimi",
-  kimi: "#kimi",
-  minimax: "#minimax",
-  hailuo: "#hailuo",
-  talkie: "#talkie",
-  baichuan: "#baichuan",
-  stepfun: "#stepfun",
-  "01.ai": "#01ai",
-  yi: "#01ai",
-
-  // Tier 3: AI Chips
-  cambricon: "#cambricon",
-  "horizon robotics": "#horizonrobotics",
-  horizon: "#horizonrobotics",
-
-  // Tier 4: Robotics
-  unitree: "#unitree",
-  ubtech: "#ubtech",
-  agibot: "#agibot",
-  fourier: "#fourier",
-
-  // Tier 5: Autonomous Driving
-  "pony.ai": "#ponyai",
-  ponyai: "#ponyai",
-  weride: "#weride",
-  momenta: "#momenta",
-
-  // Tier 6: International Competitors
-  openai: "#chatgpt",
-  chatgpt: "#chatgpt",
-  sora: "#sora",
-  google: "#google",
-  gemini: "#gemini",
-  veo: "#veo",
-  meta: "#meta",
-  llama: "#llama",
-  anthropic: "#anthropic",
-  claude: "#claude",
-  mistral: "#mistral",
-  nvidia: "#nvidia",
-};
+/**
+ * Vertical / entity hashtags — precision targeting, derived from the
+ * company-relation SSOT (#248): lib/data/company-relations.json.
+ * Looked up from meta.keyEntities.companies (NOT from voiceover full-text).
+ * Graph sources: docs/research/china-ai-hashtag-mapping.md (2026-08-26)
+ * + docs/research/company-relations.md (#248).
+ */
+const ENTITY_HASHTAG_MAP = buildEntityHashtagMap();
 
 /**
  * Pad candidates used when entity-matched tags are insufficient.

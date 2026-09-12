@@ -19,6 +19,7 @@
  */
 import { MAX_SEQUENCE_LENGTH } from "./runner.mjs";
 import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
+import { buildEntityColorAliases } from "../company-relations.mjs";
 
 // Bumped whenever the injected constants change shape: report entries record
 // it so cache decisions can tell pre-injection winners from post-injection
@@ -64,22 +65,10 @@ export const ENTITY_COLORS = {
 
 // Model names inherit their parent company's entity color (Qwen → Alibaba).
 // Values are ENTITY_COLORS keys.
-const ENTITY_ALIASES = {
-  deepseek: "deepseek",
-  huawei: "huawei",
-  zhipu: "zhipu",
-  glm: "zhipu",
-  baidu: "baidu",
-  ernie: "baidu",
-  alibaba: "alibaba",
-  qwen: "alibaba",
-  // Ant Group inherits Alibaba's entity color (#245), same parent-subsidiary
-  // rule as Qwen. Both spellings: meta keys use the hyphen, free text the space.
-  "ant-group": "alibaba",
-  "ant group": "alibaba",
-  tencent: "tencent",
-  hunyuan: "tencent",
-};
+// Entity → ENTITY_COLORS key, derived from the company-relation SSOT (#248):
+// a record inherits its parent-chain color (Qwen → Alibaba, GLM → Zhipu…).
+// Locked against the graph by company-relations.test.mjs.
+const ENTITY_ALIASES = buildEntityColorAliases();
 
 // No trailing \b: "Qwen3.7-Plus" must match, so the boundary sits at the
 // start only. Leftmost mention wins (the earliest entity named is the
