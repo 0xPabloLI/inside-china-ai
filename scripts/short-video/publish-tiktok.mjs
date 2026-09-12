@@ -39,6 +39,7 @@ import {
   resolvePublishMethod,
   validateVideoFile,
   buildPendingAnalysis,
+  buildManualPendingAnalysis,
   buildAnalyticsGuidance,
   buildTikTokUrl,
   buildManualPublishGuide,
@@ -181,6 +182,21 @@ function runManualMode() {
     console.log(`   node scripts/article/set-tiktok-url.mjs --slug ${postSlug} --url <tiktok-url>`);
   } else {
     console.log("   node scripts/article/set-tiktok-url.mjs --slug <slug> --url <tiktok-url>");
+  }
+
+  // Write pending-analysis.json (#260): manual-guide publishes in-app, so the
+  // guide-generation time is the best available publish-time estimate. The
+  // analytics workflow flips status to "done" once the video is analyzed.
+  if (!isDraft) {
+    const pending = buildManualPendingAnalysis({
+      slug: postSlug || null,
+      videoPath: resolve(videoPath),
+      publishedAt: new Date().toISOString(),
+    });
+    const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
+    if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+    writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
+    console.log(buildAnalyticsGuidance(OUTPUT_DIR));
   }
 }
 

@@ -221,6 +221,33 @@ export function buildPendingAnalysis(postGroupId, publishedAt) {
 }
 
 /**
+ * Build the pending-analysis.json content for a manual-guide publish (#260).
+ * The human publishes in-app, so there is no Publora postGroupId — the field
+ * stays present (null) to keep the schema stable for consumers that read
+ * publishedAt/status. publishedAt is the guide-generation time, the best
+ * available estimate of the actual publish moment.
+ *
+ * suggestedAnalysisTime = publishedAt + 48 hours.
+ *
+ * @param {{ slug?: string|null, videoPath?: string|null, publishedAt: string }} opts
+ * @returns {{ postGroupId: null, slug: string|null, videoPath: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string, publishMethod: string }}
+ */
+export function buildManualPendingAnalysis({ slug = null, videoPath = null, publishedAt }) {
+  const publishedDate = new Date(publishedAt);
+  const suggestedDate = new Date(publishedDate.getTime() + 48 * 60 * 60 * 1000); // +48h
+
+  return {
+    postGroupId: null,
+    slug,
+    videoPath,
+    publishedAt,
+    suggestedAnalysisTime: suggestedDate.toISOString(),
+    status: "pending",
+    publishMethod: "manual-guide",
+  };
+}
+
+/**
  * Build the analytics guidance message printed after successful publish.
  */
 export function buildAnalyticsGuidance(outputDir) {

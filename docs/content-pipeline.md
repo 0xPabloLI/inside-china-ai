@@ -449,7 +449,7 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 发布后需要用户在 TikTok App 中手动完成：AIGC 标签、趋势音频、地理标签、pinned comment、回复评论。完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
 
-发布成功后，脚本自动写入 `output/pending-analysis.json` 记录待分析状态。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
+发布步骤运行时，脚本自动写入 `output/pending-analysis.json` 记录待分析状态——当前默认 `manual-guide` 档在生成发布指南时写入（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null，`publishMethod: "manual-guide"`），`api` 档在排期成功后写入。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
 
 ---
 

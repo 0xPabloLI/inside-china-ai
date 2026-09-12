@@ -20,6 +20,8 @@ analytics"，但实际上 analytics 需要等数据沉淀。
 ```
 ① 检查 pending-analysis.json
    │  新 session 时 agent 被动检查
+   │  发布步骤运行时脚本自动写入（manual-guide 档 = 发布指南生成时，
+   │  publishedAt 为真实发布时间的最佳估计）
    │  超过 48h → 提醒导出 CSV
    │
 ② 导出 TikTok Analytics CSV
@@ -374,7 +376,7 @@ Analytics 复盘
 
 | 文件                                  | 用途                                                   |
 | ------------------------------------- | ------------------------------------------------------ |
-| `output/pending-analysis.json`        | 待分析视频记录（publish-tiktok.mjs 自动写入）          |
+| `output/pending-analysis.json`        | 待分析视频记录（publish-tiktok.mjs 发布步骤运行时写入；manual-guide 档在指南生成时写，`postGroupId` 为 null） |
 | `output/analytics-export.json`        | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）      |
 | `output/ab-test-results.json`         | A/B 测试追踪（ab-test-tracker.mjs）                    |
 | `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（Agent CDP 抓取后追加）           |

@@ -7,6 +7,7 @@ import {
   buildTiktokSettings,
   validateVideoFile,
   buildPendingAnalysis,
+  buildManualPendingAnalysis,
   buildAnalyticsGuidance,
   buildTikTokUrl,
   buildManualPublishGuide,
@@ -129,6 +130,42 @@ describe("validateVideoFile", () => {
     const result = validateVideoFile(tmpPath);
     expect(result.valid).toBe(true);
     rmSync(tmpPath);
+  });
+});
+
+// ─── buildManualPendingAnalysis (#260) ───
+
+describe("buildManualPendingAnalysis", () => {
+  const publishedAt = "2026-09-12T00:00:00.000Z";
+
+  it("builds a manual-guide record without a Publora postGroupId", () => {
+    const result = buildManualPendingAnalysis({
+      slug: "deepseek-v41-flash-report",
+      videoPath: "/tmp/video.mp4",
+      publishedAt,
+    });
+
+    // Manual-guide has no Publora draft — the api-only field stays present but null
+    // so consumers reading publishedAt/status keep a stable schema.
+    expect(result.postGroupId).toBeNull();
+    expect(result.slug).toBe("deepseek-v41-flash-report");
+    expect(result.videoPath).toBe("/tmp/video.mp4");
+    expect(result.publishedAt).toBe(publishedAt);
+    expect(result.status).toBe("pending");
+    expect(result.publishMethod).toBe("manual-guide");
+  });
+
+  it("suggestedAnalysisTime is publishedAt +48h", () => {
+    const result = buildManualPendingAnalysis({ publishedAt });
+    const diffHours =
+      (new Date(result.suggestedAnalysisTime) - new Date(publishedAt)) / (1000 * 60 * 60);
+    expect(diffHours).toBe(48);
+  });
+
+  it("accepts missing slug/videoPath", () => {
+    const result = buildManualPendingAnalysis({ publishedAt });
+    expect(result.slug).toBeNull();
+    expect(result.videoPath).toBeNull();
   });
 });
 

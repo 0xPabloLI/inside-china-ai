@@ -143,7 +143,7 @@ _Avoid_: Lint, validation (those are too narrow)
 **Pipeline Status**: A JSON file (`scripts/short-video/output/pipeline-status.json`) tracking the current stage, per-stage completion, MRL results, and next action for an in-progress content pipeline run.
 _Avoid_: Progress tracker, state file
 
-**Pending Analysis**: A JSON file (`scripts/short-video/output/pending-analysis.json`) written after TikTok publishing, recording that analytics data is not yet available. Checked at session start; if >48h since publish, the user is prompted to export the analytics CSV.
+**Pending Analysis**: A JSON file (`scripts/short-video/output/pending-analysis.json`) written when the TikTok publish step runs — for the default `manual-guide` method at guide-generation time (publishedAt is the best available estimate of the actual publish moment; `publishMethod: "manual-guide"`, no Publora postGroupId), for the closed-by-default `api` method after scheduling. It records that analytics data is not yet available. Checked at session start; if >48h since publish, the user is prompted to export the analytics CSV.
 _Avoid_: Analytics tracker, metrics file
 
 ## RAG Pipeline
