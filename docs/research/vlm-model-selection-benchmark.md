@@ -612,3 +612,38 @@ GLM-4.1V-9B 在 **中文品牌识别** 上明显优于 Qwen3.5-4B-MLX（识别�
 1. **MiniMax H3** 不是 VLM（是视频生成模型）
 2. **FastVLM / Moondream3 / Phi-4-MM** 都缺少中文识别能力数据，而 pipeline 核心需求之一是识别中国 AI 公司品牌名（如"宇树科技"、"恒生"、"峰达创意园"）
 3. GLM-4.1V-9B 在公开 benchmark（MMBench-CN 84.7）和实测中文识别上都验证了其中文能力
+
+## 14. R9 #264 新候选实测：MiniCPM-V 4.6 / Gemma 4 E2B（#262 调研的实测轮）
+
+> **测试日期**：2026-09-12
+> **环境**：MacBook Pro M2 Pro 32GB, mlx-vlm 0.7.0rc0（`~/.venvs/mlx-vlm`）, Python 3.12
+> **方法**：同一 corpus（6 张图片 + 1 视频），相同 prompt，1 run/image，temperature=0.0, max_tokens=500 —— 与 R1-R6 口径一致
+> **模型**：`mlx-community/MiniCPM-V-4.6-4bit`（2.16GB）、`mlx-community/gemma-4-e2b-it-5bit`（4.13GB）——均 hf-mirror curl 直下（huggingface_hub 被 Clash TUN 劫持）
+> **数据文件**：`scripts/short-video/experiments/vlm-new-candidates-benchmark.json`
+> **脚本**：`scripts/short-video/experiments/vlm-benchmark-r5.py`
+> **下载勘误**：票面估 MiniCPM ~0.7GB 实为 2.16GB（4bit 含完整 vision tower）；Gemma E2B 无 4bit 官方转换，closest = 5bit（票面 4bit 估计作废）
+
+### 性能对比
+
+| 维度 | Qwen3-VL-2B-4bit (基线 R1) | GLM-4.1V-9B (Deep R6) | MiniCPM-V 4.6 4bit | Gemma 4 E2B 5bit |
+| ---- | -------------------------- | ---------------------- | -------------------- | ------------------ |
+| 加载时间 | 2.0s | 7.4s | 1.7s | 4s |
+| 图片平均推理 | 3.5s | 28.5s | 5.9s | **2.7s** |
+| 视频（unitree-demo.mp4） | 31.4s (R5) | — | 107.4s | **4.2s** |
+| 峰值内存 | 1.8GB | 1.1GB | 2.8GB | 1.3GB |
+| 磁盘 | 1.8GB | ~5GB | 2.16GB | 4.13GB |
+
+### 质量对比
+
+| 维度 | Qwen3-VL-2B-4bit | MiniCPM-V 4.6 | Gemma 4 E2B |
+| ---- | ---------------- | --------------- | ------------- |
+| 中文品牌识别（unitree-building.jpg） | ✅ "Unitree" + "宇树科技" + "峰达创意园" 全识别（R1） | ❌ 纯泛化描述（"modern building with trees and people"），零品牌识别 | ⚠️ 识别 "Unitree"（拉丁招牌），**无中文**（宇树科技/峰达创意园缺失） |
+| 输出格式合规 | ✅ 4 段 Markdown | ❌ Fit 字段输出成段落而非枚举值；`<think>` 标签泄漏进正文 | ✅ 4 段全合规 |
+| Content Kind 判定 | ✅ | ⚠️ financial-chart 判成 "product_demo, chart" 双值 | ✅ chart / product_demo 判定正确 |
+| 视频描述 | ✅（R5 口径 31.4s） | 107.4s 且质量未审（太慢无实用价值） | 4.2s，质量合格 |
+
+### 结论
+
+1. **MiniCPM-V 4.6 → 淘汰**：全部维度不敌现有 Qwen3-VL-2B——图片更慢（5.9 vs 3.5s）、视频慢 31 倍（107.4s）、内存更高（2.8GB）、无中文品牌识别、输出格式崩坏（枚举字段跑成段落 + `<think>` 泄漏）。桌面榜 MMBench-CN 87.2 与本 corpus 实测表现严重不符（1.3B 量化 + 本管线 prompt 口径下的真实能力远低于公开榜）。
+2. **Gemma 4 E2B → 留观察位，不替换**：速度全面领先（图片 2.7s 比基线快 23%、**视频 4.2s 比基线快 7.5 倍**）、内存 1.3GB、格式合规——但**中文品牌识别缺失**是生产硬伤（管线核心需求 = 中国 AI 公司品牌名识别）。适用场景留存：纯英文素材分析、B-roll 素材粗筛（无需中文品牌、只要画面内容粗判）时可作为速度备选。
+3. **选型裁决：维持现有 cascade（Qwen3-VL-2B-4bit Fast + GLM-4.1V-9B-Thinking-4bit Deep）不变**。#262 调研的"替换潜力"经实测证伪——公开 benchmark 分数与本管线真实口径（中文品牌 + 格式遵从 + 视频耗时）相关性有限，再次验证 ADR-0009 的"本地同口径实测为准"原则。
