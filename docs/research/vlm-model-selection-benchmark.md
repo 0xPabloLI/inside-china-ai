@@ -648,6 +648,6 @@ GLM-4.1V-9B 在 **中文品牌识别** 上明显优于 Qwen3.5-4B-MLX（识别�
 2. **Gemma 4 E2B → 留观察位，不替换**：速度全面领先（图片 2.7s 比基线快 23%、**视频 4.2s 比基线快 7.5 倍**）、内存 1.3GB、格式合规——但**中文品牌识别缺失**是生产硬伤（管线核心需求 = 中国 AI 公司品牌名识别）。适用场景留存：纯英文素材分析、B-roll 素材粗筛（无需中文品牌、只要画面内容粗判）时可作为速度备选。
 3. **选型裁决：维持现有 cascade（Qwen3-VL-2B-4bit Fast + GLM-4.1V-9B-Thinking-4bit Deep）不变**。#262 调研的"替换潜力"经实测证伪——公开 benchmark 分数与本管线真实口径（中文品牌 + 格式遵从 + 视频耗时）相关性有限，再次验证 ADR-0009 的"本地同口径实测为准"原则。
 
-### R9 补充：InternVL3.5-1B-4bit 加载失败（不可测）
+### R9 补充：InternVL3.5-1B-4bit 三层抢救均失败（不可测，终态）
 
-`mlx-community/InternVL3_5-1B-4bit`（1.0GB 已下载）load 失败：config 引用 `mlx_vlm.speculative.drafters.internvl`，该 drafter 在 mlx-vlm 0.7.0rc0 与最新 main（drafters 含 gemma4/deepseek_v4/qwen3_5/qwen4_exp 等 20 个）均不存在——转换源自非主线 fork，属**坏转换**，任何本地环境不可加载。同档位扫描其余候选（Ovis2 / Jina-VLM）无 MLX 转换；SmolVLM2 中文弱无测试价值。**结论：1-4B 快速档没有比已测模型更快更好的可测新模型，R9 裁决（cascade 维持）即终态。**
+`mlx-community/InternVL3_5-1B-4bit`（1.0GB 已下载）加载失败，逐层排查：① model_type "internvl" 在任何 mlx-vlm（0.7.0rc0 与最新 main）的 models/ 与 speculative.drafters/ 都不存在；② 改标 `internvl_chat` 后 vision_config.model_type "internvl_vision" 不被支持（实现只认 siglip_vision_model / intern_vit_6b）；③ 再改标 `intern_vit_6b` 后报「1153 个 checkpoint 参数与模型结构不匹配」——InternVL3.5 的新视觉塔结构与现有 internvl_chat 实现不同层，**需要 upstream 实现 InternVL3.5 架构才能真正加载**，配置层无法修复。同档位其余候选（Ovis2 / Jina-VLM）无 MLX 转换；SmolVLM2 中文弱无测试价值。**结论：1-4B 快速档没有比已测模型更快更好的可测新模型，R9 裁决（cascade 维持）即终态；InternVL3.5 待 upstream 支持后可重测。**
