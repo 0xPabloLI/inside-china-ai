@@ -27,7 +27,7 @@
 
 import { exec } from "child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
+import { basename, join, dirname } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
@@ -37,10 +37,6 @@ const execAsync = promisify(exec);
 
 // ── Config ──
 const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.py");
-const KAGGLE_KERNEL_SLUG = process.env.COSYVOICE3_KAGGLE_SLUG || "cosyvoice3-cuda-batch";
-const KAGGLE_KERNEL_ID = process.env.COSYVOICE3_KAGGLE_USER
-  ? `${process.env.COSYVOICE3_KAGGLE_USER}/${KAGGLE_KERNEL_SLUG}`
-  : null; // auto-detect from kaggle.json if not set
 // 30min RUNNING budget (#241: the 20min default tripped on slow torch/model
 // downloads even though pure inference is ~64s for a 10-scene batch; #250
 // keeps queue wait in a separate budget).
@@ -145,6 +141,96 @@ function getKaggleUsername() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Kaggle slug charset/length constraints. Kernel slugs allow lowercase
+ * letters, digits, `-` and `_`, max 50 chars.
+ */
+const KAGGLE_SLUG_MAX_LENGTH = 50;
+const KAGGLE_SLUG_PREFIX = "cosyvoice3-cuda";
+
+/** Simple deterministic 32-bit FNV-1a hash (hex) — disambiguates truncated slugs. */
+function fnv1aHex(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * Normalize a raw content id into a Kaggle-safe slug part: lowercase,
+ * illegal characters → `-`, collapsed separators, trimmed edges.
+ * @param {string} raw
+ * @returns {string} sanitized slug part ("" if nothing survives)
+ */
+export function sanitizeKaggleSlugPart(raw) {
+  return String(raw ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+
+/**
+ * Derive the content/pipeline id from the TTS output directory. All callers
+ * pass `output/<pipelineId>/audio` (main.mjs, rerender-full.mjs), so the
+ * pipeline id is the audio dir's parent; any other basename is used as-is.
+ * @param {string} outputDir
+ * @returns {string|null} content id, or null when none can be derived
+ */
+export function deriveContentIdFromOutputDir(outputDir) {
+  if (!outputDir) return null;
+  const base = basename(outputDir);
+  if (base === "audio") {
+    const parent = basename(dirname(outputDir));
+    return parent || null;
+  }
+  return base || null;
+}
+
+/**
+ * Resolve the Kaggle kernel slug for a TTS batch (#267).
+ *
+ * Priority: explicit `COSYVOICE3_KAGGLE_SLUG` env > semantic derivation from
+ * the content id (`cosyvoice3-cuda-<contentId>`) > fail-fast. The old
+ * hardcoded "cosyvoice3-cuda-batch" default made a forgotten env silently
+ * cross-contaminate parallel pipelines — pushing to the same slug OVERWRITES
+ * the kernel source instead of queueing (#250), so a shared slug is always a
+ * bug, never a queue.
+ *
+ * @param {object} [opts]
+ * @param {string|null} [opts.envSlug] - raw COSYVOICE3_KAGGLE_SLUG value
+ * @param {string|null} [opts.contentId] - content/pipeline id for derivation
+ * @returns {string} Kaggle-safe kernel slug
+ * @throws {Error} when neither an env slug nor a content id is available
+ */
+export function resolveKernelSlug({ envSlug, contentId } = {}) {
+  const explicit = typeof envSlug === "string" ? envSlug.trim() : "";
+  if (explicit) return explicit;
+
+  const id = sanitizeKaggleSlugPart(contentId);
+  if (!id) {
+    throw new Error(
+      "COSYVOICE3_KAGGLE_SLUG is not set and no content id could be derived for " +
+        "the Kaggle kernel slug. Parallel pipelines MUST use distinct slugs — " +
+        "pushing kernels under the same slug overwrites (not queues, #250) and " +
+        "silently cross-contaminates runs. Fix: run via main.mjs (slug derives " +
+        "from the content id) or set COSYVOICE3_KAGGLE_SLUG explicitly.",
+    );
+  }
+
+  const prefix = `${KAGGLE_SLUG_PREFIX}-`;
+  if (prefix.length + id.length <= KAGGLE_SLUG_MAX_LENGTH) {
+    return `${prefix}${id}`;
+  }
+  // Truncate but stay unique per pipeline: a deterministic hash of the full
+  // sanitized id disambiguates ids that only differ past the cut.
+  const hash = fnv1aHex(id);
+  const keep = KAGGLE_SLUG_MAX_LENGTH - prefix.length - 1 - hash.length;
+  return `${prefix}${id.slice(0, keep)}-${hash}`;
 }
 
 /**
@@ -353,7 +439,6 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   if (!(await isAvailable())) return null;
 
   const username = getKaggleUsername();
-  const kernelId = `${username}/${KAGGLE_KERNEL_SLUG}`;
   const runCmd = deps.exec ?? ((cmd) => execAsync(cmd));
   const poll = deps.poll ?? pollKernelStatus;
   const postProcess = deps.postProcess ?? postProcessBatch;
@@ -365,6 +450,14 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
     resample: true,
 
     async generate(scenes, outputDir) {
+      // Kernel slug resolved per call (#267): env override > content-id
+      // derivation (output/<pipelineId>/audio) > fail-fast. Never a shared
+      // default — same slug overwrite, not queue (#250).
+      const kernelSlug = resolveKernelSlug({
+        envSlug: process.env.COSYVOICE3_KAGGLE_SLUG || null,
+        contentId: deriveContentIdFromOutputDir(outputDir),
+      });
+      const kernelId = `${username}/${kernelSlug}`;
       const manifest = buildCV3CudaManifest(scenes);
 
       for (const s of scenes) {
@@ -390,7 +483,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         JSON.stringify(
           {
             id: kernelId,
-            title: KAGGLE_KERNEL_SLUG,
+            title: kernelSlug,
             code_file: "cosyvoice3_cuda_kernel.py",
             language: "python",
             kernel_type: "script",
