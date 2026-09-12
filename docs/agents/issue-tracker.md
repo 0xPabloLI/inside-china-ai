@@ -2,6 +2,8 @@
 
 Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 
+**Terminology**: this document uses *issue* exclusively for a GitHub Issue (a tracker entry). *Ticket* is reserved for the implementation tickets that `to-tickets` splits from a Spec in the S2 flow — the single definition source is `docs/DOCS-INDEX.md` §Spec/Ticket/Review Lifecycle. The two are not synonyms.
+
 ## Workflow
 
 - **Create issue**: `gh issue create` with title, body, labels
@@ -16,9 +18,9 @@ Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 - Use labels for triage (see `triage-labels.md`).
 - One issue = one atomic task or bug.
 - Link related issues in the body with `#number`.
-- **Check the model-decision history before triaging or claiming a frontier ticket**: a ticket's premise can be stale — a model/approach named in the body may already have been demoted or superseded by a later user verdict recorded in `docs/research/` tables and inventory lines (2026-09-11 lesson: #221 proposed testing InfiniteTalk on NPU three days after the user confirmed 表情偏僵 → demoted to backup, then SoulX-FlashTalk won best talking body; ticket triage and frontier pick both validated environment feasibility but nobody re-checked whether the model line was still wanted — the session worked through preparation before the user caught it). Before starting work on a ticket that recommends a specific model/tool, grep `docs/research/` for that name's current verdict (✅ 最佳 / 备选 / ❌ 否决).
-- **Issue body is write-once**: the body is authored at ticket creation and never rewritten. GitHub replaces the entire body on every `PATCH`, so even a "small addition" clobbers content another session wrote (2026-09-10 lesson: evidence handoff to open #235 went in as a comment for exactly this reason). Delivery records go in the closing comment (see Session cognitive offload); new evidence for an open ticket owned by another session goes in a comment too — appending never overwrites.
-- **Read the comments before claiming**: a ticket's body alone is not its full state — cross-session evidence, delivery records and user decisions accumulate in comments. A comment unread is a decision re-litigated. Three guards make the miss **decidable instead of a memory test**: **(a) the body says so** — every issue body opens with the fixed notice in "Body notice" below, so a reader who sees only the body is told, inside the very text they are reading, that the body is not the state; **(b) the count is one call away** — `gh api repos/0xPabloLI/inside-china-ai/issues/<N>/comments --jq 'length'` returns a number, and a non-zero count on an open ticket means there is state the body does not carry. **(c) the label shows it** — CI auto-sets `comments-unread` on an open ticket whenever a comment lands, so the signal rides in the `gh issue list` output triage already runs (see `triage-labels.md` → Signal Labels); clear it once the new state is incorporated. Full read: `gh issue view <N> --comments` (REST fallback per the GraphQL workaround above).
+- **Check the model-decision history before triaging or claiming a frontier issue**: an issue's premise can be stale — a model/approach named in the body may already have been demoted or superseded by a later user verdict recorded in `docs/research/` tables and inventory lines (2026-09-11 lesson: #221 proposed testing InfiniteTalk on NPU three days after the user confirmed 表情偏僵 → demoted to backup, then SoulX-FlashTalk won best talking body; issue triage and frontier pick both validated environment feasibility but nobody re-checked whether the model line was still wanted — the session worked through preparation before the user caught it). Before starting work on an issue that recommends a specific model/tool, grep `docs/research/` for that name's current verdict (✅ 最佳 / 备选 / ❌ 否决).
+- **Issue body is write-once**: the body is authored at issue creation and never rewritten. GitHub replaces the entire body on every `PATCH`, so even a "small addition" clobbers content another session wrote (2026-09-10 lesson: evidence handoff to open #235 went in as a comment for exactly this reason). Delivery records go in the closing comment (see Session cognitive offload); new evidence for an open issue owned by another session goes in a comment too — appending never overwrites.
+- **Read the comments before claiming**: an issue's body alone is not its full state — cross-session evidence, delivery records and user decisions accumulate in comments. A comment unread is a decision re-litigated. Three guards make the miss **decidable instead of a memory test**: **(a) the body says so** — every issue body opens with the fixed notice in "Body notice" below, so a reader who sees only the body is told, inside the very text they are reading, that the body is not the state; **(b) the count is one call away** — `gh api repos/0xPabloLI/inside-china-ai/issues/<N>/comments --jq 'length'` returns a number, and a non-zero count on an open issue means there is state the body does not carry. **(c) the label shows it** — CI auto-sets `comments-unread` on an open issue whenever a comment lands, so the signal rides in the `gh issue list` output triage already runs (see `triage-labels.md` → Signal Labels); clear it once the new state is incorporated. Full read: `gh issue view <N> --comments` (REST fallback per the GraphQL workaround above).
 - Close issues via commit message (`fixes #N` / `closes #N`) or manually after verification.
 - Closing a completed issue: keep its `enhancement` or `bug` category label, remove all state labels. Do not use `wontfix` for completed work — `wontfix` is for rejected items only.
 - **GraphQL timeout workaround**: `gh` CLI GraphQL calls (used by `gh issue view/edit/close`) intermittently time out through local proxy. Use REST API instead: `gh api repos/0xPabloLI/inside-china-ai/issues/<num>` for reads, `gh api .../issues/<num>/labels -X PUT` for label changes, `gh api .../issues/<num> -X PATCH -f state=closed` for closing. DELETE requests also time out — use PUT to overwrite the full label set instead.
@@ -29,19 +31,19 @@ Every issue body opens with this fixed block, written once at creation and never
 
 > **正文是创建时的规格（write-once，永不改写）。** 当前状态、跨 session 证据与交付记录都在评论里——读票必须带评论（`gh issue view <N> --comments`），只读正文会把已决策的问题重新问一遍。
 
-Identical in every ticket and never rewritten, so the notice itself cannot race. Tickets created before this rule carry no notice — for those, guard (b) still applies.
+Identical in every issue and never rewritten, so the notice itself cannot race. Issues created before this rule carry no notice — for those, guard (b) still applies.
 
 ## Wayfinding operations
 
-Wayfinder is only for S3 work defined in `docs/agents/implementation-workflow.md`. Because its map and decision tickets live in GitHub Issues, creating, editing, assigning, labelling or closing them requires user authorization for those remote writes. Without authorization, prepare a local draft or stop at the gate; do not claim that a tracker map exists.
+Wayfinder is only for S3 work defined in `docs/agents/implementation-workflow.md`. Because its map and decision issues live in GitHub Issues (the wayfinder skill calls them "decision tickets"; they are child issues on this tracker, not implementation tickets), creating, editing, assigning, labelling or closing them requires user authorization for those remote writes. Without authorization, prepare a local draft or stop at the gate; do not claim that a tracker map exists.
 
-### Map and decision tickets
+### Map and decision issues
 
-- Create one map issue labelled `wayfinder:map`. Its body holds Destination, Notes, Decisions so far, Not yet specified and Out of scope. It is an index, not a duplicate store of ticket detail.
+- Create one map issue labelled `wayfinder:map`. Its body holds Destination, Notes, Decisions so far, Not yet specified and Out of scope. It is an index, not a duplicate store of issue detail.
 - Create one child issue per answerable decision, sized for one context. Add exactly one type label: `wayfinder:research`, `wayfinder:prototype`, `wayfinder:grilling` or `wayfinder:task`.
-- Keep the normal category/state labels from `triage-labels.md`. `research` or well-specified `task` tickets may be `ready-for-agent`; HITL `grilling` and `prototype` tickets are not AFK work.
-- Fog stays in the map's Not yet specified section until it can be phrased as a decision question. Do not create vague placeholder tickets.
-- Claim a ticket before work by assigning it to the active developer (`gh issue edit <number> --add-assignee "@me"` is supported by the installed CLI). Concurrent sessions skip assigned tickets.
+- Keep the normal category/state labels from `triage-labels.md`. `research` or well-specified `task` issues may be `ready-for-agent`; HITL `grilling` and `prototype` issues are not AFK work.
+- Fog stays in the map's Not yet specified section until it can be phrased as a decision question. Do not create vague placeholder issues.
+- Claim an issue before work by assigning it to the active developer (`gh issue edit <number> --add-assignee "@me"` is supported by the installed CLI). Concurrent sessions skip assigned issues.
 
 Prefer GitHub's native sub-issue and blocking relationships when the available UI/API supports them. The installed `gh` 2.62.0 `issue create/edit` commands do not expose parent or blocking flags, so do not invent CLI options. If native relationships cannot be set through an authorized supported surface, use this body fallback:
 
@@ -50,15 +52,15 @@ Parent map: <map issue URL>
 Blocked by: #<issue>, #<issue>
 ```
 
-Use `Blocked by: None` for an edge-free ticket. In fallback mode, find children by their Parent map link and calculate the **frontier** as open, unassigned children whose listed blockers are all closed.
+Use `Blocked by: None` for an edge-free issue. In fallback mode, find children by their Parent map link and calculate the **frontier** as open, unassigned children whose listed blockers are all closed.
 
 ### Resolving the map
 
-1. Choose one frontier ticket and claim it.
-2. Record the decision, evidence and implications in that ticket; the decision has one detailed home.
-3. Close the ticket, then add only a one-line linked gist under the map's Decisions so far.
-4. Promote newly answerable fog into decision tickets and recalculate the frontier.
-5. When fog is empty and no unresolved decision ticket remains, synthesize the resulting route into the S2 Spec/Tickets flow. Do not hand decision tickets directly to implementation.
+1. Choose one frontier issue and claim it.
+2. Record the decision, evidence and implications in that issue; the decision has one detailed home.
+3. Close the issue, then add only a one-line linked gist under the map's Decisions so far.
+4. Promote newly answerable fog into decision issues and recalculate the frontier.
+5. When fog is empty and no unresolved decision issue remains, synthesize the resulting route into the S2 Spec/Tickets flow. Do not hand decision issues directly to implementation.
 
 ## Querying current state
 

@@ -255,6 +255,8 @@ Deep research reports with citations.
 
 Specs, tickets, and durable review records are **active execution artifacts**, not permanent reference docs. They exist only when the Planning Scale or an explicit user request requires them.
 
+**Terminology (single definition source)**: *issue* always means a GitHub Issue on this repo's tracker (see `docs/agents/issue-tracker.md`); *ticket* / *Tickets* always means an implementation ticket produced by `to-tickets` from a Spec. They are not synonyms — `Roadmap(issue) → Spec → Tickets`. Wayfinder "decision tickets" are child issues on the tracker, not implementation tickets.
+
 1. S1 work normally keeps its contract in the current context and does not create standalone Spec/Tickets solely for ceremony.
 2. S2/S3 runs `to-spec` and `to-tickets` by reference. Active artifacts follow the repository's established location for that effort (`docs/`, `docs/specs/`, or a feature-specific ticket directory) and must be listed in this index.
 3. Each implementation ticket follows the TDD/evidence rules in `docs/agents/implementation-workflow.md`.
