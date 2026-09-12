@@ -129,6 +129,14 @@ Cross-reference claims across sources. For each key claim:
 - How many independent sources confirm it?
 - Are they truly independent (not all citing the same origin)?
 - Any contradictions? Record both sides.
+- **Authoritative reports (official PDF / white paper / regulatory filing)**:
+  download and parse the primary document — web versions and secondhand summaries
+  omit specifics, which reads as "exaggeration" when checked against them. For
+  100+ page PDFs, extract the target section by page range with pdfplumber/pypdf,
+  not a full dump (#266).
+- **Cross-language triangulation**: search both directions — zh→en (proper nouns,
+  model/author names) to locate the primary source; en→zh (case keywords) to
+  trace the propagation chain and quoting drift.
 - **Code-vs-web contradictions**: If a web source claims a library behaves a
   certain way but the local source code shows otherwise, flag it explicitly.
   Use the code as ground truth. Common cases: API was renamed/removed in a newer
