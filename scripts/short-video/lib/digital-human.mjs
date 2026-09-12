@@ -891,6 +891,30 @@ export function applyVideoPathToSceneData(text, sceneId, videoPath) {
   };
 }
 
+/**
+ * Does the scene's `avatar` block (scanned over raw scene-data TEXT — the
+ * in-process module may be stale after a writeback) carry a non-empty
+ * videoPath? Same region scan as applyVideoPathToSceneData.
+ */
+export function sceneHasVideoPath(text, sceneId) {
+  const idRe = new RegExp(`(^|[^\\w])id:\\s*${sceneId}\\b`);
+  const idMatch = text.match(idRe);
+  if (!idMatch) return false;
+  const regionStart = idMatch.index + idMatch[0].length;
+  const nextId = /(^|[^\w])id:\s*\d+/.exec(text.slice(regionStart));
+  const regionEnd = nextId ? regionStart + nextId.index : text.length;
+  const region = text.slice(regionStart, regionEnd);
+  const avatarIdx = region.search(/\bavatar\s*:/);
+  if (avatarIdx === -1) return false;
+  const braceOffset = region.indexOf("{", avatarIdx);
+  if (braceOffset === -1) return false;
+  const closeOffset = matchBrace(region, braceOffset);
+  if (closeOffset === -1) return false;
+  const inner = region.slice(braceOffset + 1, closeOffset);
+  const m = /videoPath\s*:\s*(['"])(.*?)\1/.exec(inner);
+  return Boolean(m && m[2].trim() !== "");
+}
+
 /** Find the matching `}` for the `{` at `openIdx`, skipping string literals. */
 function matchBrace(text, openIdx) {
   let depth = 0;
@@ -1333,7 +1357,7 @@ async function finalizeScene({ plan, planScene, items, deps, planDir }) {
 
 // ─── runPlan / resumePlan ───
 
-async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode }) {
+async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, force = false }) {
   const d = resolveDeps(deps);
   const plan = readPlanFile(planPath);
 
@@ -1378,6 +1402,65 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode }) {
   const dataMod = await import(pathToFileURL(join(plan.contentDir, "scene-data.mjs")).href);
   const currentScenes = Array.isArray(dataMod.scenes) ? dataMod.scenes : [];
   const sceneById = new Map(currentScenes.map((s) => [s.id, s]));
+
+  // --force (#233): clear BOTH state layers that make an already-generated
+  // scene look done — the scene-data `avatar.videoPath` writeback and the
+  // remote-task complete records — then tag this run's kernels so a
+  // same-name re-push can never read a stale COMPLETE (2026-09-09 incident,
+  // DH_KERNEL_TAG workaround made automatic here). Refuses while any matching
+  // remote task is still "running": deleting its record would orphan live
+  // billable work.
+  let forceReset = null;
+  if (force) {
+    const forceScenes = plan.scenes.filter((s) => s.status === "needs-generation");
+    const forceUnitKeys = new Set(
+      forceScenes.flatMap((s) =>
+        (s.generationUnits ?? []).map((_, unitIndex) => unitKeyFor(plan.pipelineId, s.sceneId, unitIndex)),
+      ),
+    );
+    const log = loadTaskLog(d.tasksPath);
+    const blocked = Object.values(log.tasks).filter(
+      (r) => forceUnitKeys.has(r.unitKey) && r.state === "running",
+    );
+    if (blocked.length > 0) {
+      return {
+        outcome: "refused",
+        reason:
+          `--force refuses to clear ${blocked.length} running remote task(s) ` +
+          `(${blocked.map((r) => r.id).join(", ")}) — resume or wait for them before forcing`,
+      };
+    }
+    const removedRecords = [];
+    for (const [id, record] of Object.entries(log.tasks)) {
+      if (forceUnitKeys.has(record.unitKey)) {
+        removedRecords.push({ id, state: record.state });
+        delete log.tasks[id];
+      }
+    }
+    if (removedRecords.length > 0) {
+      mkdirSync(dirname(d.tasksPath), { recursive: true });
+      writeFileSync(d.tasksPath, JSON.stringify(log, null, 2) + "\n", "utf8");
+    }
+    const resetScenes = [];
+    const sceneDataText = readFileSync(join(plan.contentDir, "scene-data.mjs"), "utf8");
+    for (const planScene of forceScenes) {
+      const sceneId = planScene.sceneId;
+      const hadVideoPath = sceneHasVideoPath(sceneDataText, sceneId);
+      if (hadVideoPath) {
+        await writeBackVideoPath(plan.contentDir, sceneId, "");
+      }
+      const cachedMp4 = join(plan.contentDir, "assets", "avatar", `scene-${sceneId}.mp4`);
+      const hadLocalMp4 = existsSync(cachedMp4);
+      if (hadLocalMp4) rmSync(cachedMp4, { force: true });
+      resetScenes.push({ sceneId, clearedVideoPath: hadVideoPath, removedLocalMp4: hadLocalMp4 });
+    }
+    if (!process.env.DH_KERNEL_TAG) {
+      // 12 chars total so unitSlugFor's own slice(0, 12) never truncates it —
+      // the reported tag must equal the suffix actually present in kernel ids.
+      process.env.DH_KERNEL_TAG = `f${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 11)}`;
+    }
+    forceReset = { scenes: resetScenes, removedRecords, kernelTag: process.env.DH_KERNEL_TAG };
+  }
 
   const log = loadTaskLog(d.tasksPath);
   const workScenes = [];
@@ -1610,6 +1693,7 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode }) {
     reportPath,
     report,
     writtenBack,
+    forceReset,
   };
 }
 
@@ -1628,6 +1712,20 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode }) {
  */
 export function runPlan(params) {
   return executeRunPlan({ ...params, mode: "run" });
+}
+
+/**
+ * Force regeneration (ticket #233 `run --force`): clears the scene-data
+ * `avatar.videoPath` writeback and the remote-task records for every
+ * needs-generation scene in the plan, removes the cached local mp4, and
+ * auto-stamps a fresh DH_KERNEL_TAG — then runs exactly like `run`. Refuses
+ * while matching remote tasks are still "running". The plan file must still
+ * list the scenes as needs-generation: re-running `plan` after a successful
+ * generation marks them already-generated, so keep the original approved
+ * plan for forced regeneration.
+ */
+export function runPlanForce(params) {
+  return executeRunPlan({ ...params, mode: "run", force: true });
 }
 
 /**

@@ -30,6 +30,7 @@ import { tmpdir } from "os";
 import {
   executeApprove,
   runPlan,
+  runPlanForce,
   resumePlan,
   applyVideoPathToSceneData,
   buildConcatList,
@@ -902,5 +903,74 @@ describe("digital-human.mjs CLI (run/approve/resume)", () => {
     const res = spawnSync(process.execPath, [CLI, "resume"], { encoding: "utf8" });
     expect(res.status).toBe(1);
     expect(res.stderr).toMatch(/--plan/);
+  });
+});
+
+// ─── runPlanForce (#233) ───
+
+describe("runPlan --force (#233)", () => {
+  afterEach(() => {
+    cleanup();
+    delete process.env.DH_KERNEL_TAG;
+  });
+
+  it("clears videoPath + remote-task records of completed scenes and resubmits with a fresh kernel tag", async () => {
+    const { planPath, pkg } = makePackage();
+    executeApprove(planPath, { now: new Date("2026-09-07T12:00:00Z") });
+
+    const first = makeDeps({ transport: makeTransport().transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
+    const run1 = await runPlan({ planPath, deps: first });
+    expect(run1.outcome).toBe("completed");
+    const scenesAfterRun1 = await loadScenes(pkg);
+    expect(scenesAfterRun1.find((s) => s.id === 1).avatar.videoPath).toBeTruthy();
+
+    // Second run with the SAME plan + force: everything looks done, force must reset it.
+    const { transport, calls } = makeTransport();
+    const deps2 = makeDeps({ transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
+    deps2.tasksPath = first.tasksPath; // same remote-task log as run 1 (real-world single log)
+    const run2 = await runPlanForce({ planPath, deps: deps2 });
+    expect(run2.outcome).toBe("completed");
+
+    // All four units resubmitted under freshly tagged kernel slugs.
+    expect(calls.submitted).toHaveLength(4);
+    for (const s of calls.submitted) {
+      expect(s.slug).toMatch(/-f\d+$/);
+    }
+    // forceReset report names the cleared state.
+    expect(run2.forceReset.scenes).toHaveLength(2);
+    expect(run2.forceReset.removedRecords).toHaveLength(4);
+    expect(run2.forceReset.kernelTag).toMatch(/^f\d+$/);
+    // New videoPaths written back and no leftover stale tag records.
+    const scenesAfterRun2 = await loadScenes(pkg);
+    expect(scenesAfterRun2.find((s) => s.id === 1).avatar.videoPath).toBe("assets/avatar/scene-1.mp4");
+    const log = loadTaskLog(deps2.tasksPath);
+    const tagged = Object.values(log.tasks).filter((t) => t.kind === "digital-human-unit");
+    expect(tagged).toHaveLength(4);
+    expect(tagged.every((r) => r.id.includes(`-${run2.forceReset.kernelTag}`))).toBe(true);
+  });
+
+  it("refuses to force while a matching remote task is still running", async () => {
+    const { planPath, plan } = makePackage();
+    executeApprove(planPath, { now: new Date("2026-09-07T12:00:00Z") });
+    const deps = makeDeps({ transport: makeTransport().transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
+    const run1 = await runPlan({ planPath, deps });
+    expect(run1.outcome).toBe("completed");
+    // Simulate a live kernel for one of the plan's units.
+    const liveKey = unitKeyFor("dh-run-test", 1, 0);
+    recordTask(deps.tasksPath, {
+      id: `${plan.pipelineId}-live-kernel`,
+      backend: "kaggle",
+      kind: "digital-human-unit",
+      unitKey: liveKey,
+      state: "running",
+    });
+
+    const { transport, calls } = makeTransport();
+    const deps2 = makeDeps({ transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
+    deps2.tasksPath = deps.tasksPath; // same remote-task log (real-world single log)
+    const res = await runPlanForce({ planPath, deps: deps2 });
+    expect(res.outcome).toBe("refused");
+    expect(res.reason).toMatch(/running remote task/);
+    expect(calls.submitted).toHaveLength(0);
   });
 });

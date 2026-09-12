@@ -54,6 +54,7 @@ Subcommands:
             submit one kernel per generation unit, harvest, 2x upscale, concat,
             write scene.avatar.videoPath back atomically, write the report.
             Refuses unapproved plans and quality tier without authorization.
+            --force clears prior-generation state first (see options below).
   resume    Recover an interrupted run: re-harvest live/timeout kernels, resubmit
             only failed/never-submitted units (completed units are never re-billed).
 
@@ -69,6 +70,13 @@ approve/run/resume options:
   --portrait <img>     Reference photo override (run/resume only; default
                        content/<dir>/assets/avatar/portrait.jpg)
   --output-root <dir>  Sanity check: must match the plan's output dir
+  --force              run only: regenerate scenes the plan lists as
+                       needs-generation even when state says they are done —
+                       clears scene-data avatar.videoPath + cached mp4 and the
+                       matching remote-task records, auto-stamps a fresh
+                       DH_KERNEL_TAG. Refuses while matching kernels are
+                       still running. Use the ORIGINAL approved plan (a
+                       re-planned file marks scenes already-generated).
 
 audit options:
   --plan <file>        Path to digital-human-plan.json (required) — supplies
@@ -176,14 +184,20 @@ async function main() {
   const planPath = requirePlanPath(args, subcommand);
   const portrait = getArg(args, "portrait");
   const outputRoot = getArg(args, "output-root");
+  const force = args.includes("--force");
+  if (force && subcommand !== "run") {
+    console.error("❌ --force is only valid for the run subcommand");
+    process.exit(1);
+  }
   const execute = subcommand === "run" ? runPlan : resumePlan;
   console.log(`🧑‍💼 Digital-human ${subcommand}`);
   console.log(`   Plan: ${planPath}`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
   const result = await execute({
     planPath: resolve(planPath),
     portrait: portrait ? resolve(portrait) : undefined,
     outputRoot: outputRoot ? resolve(outputRoot) : undefined,
+    force,
   });
   printRunOutcome(result, subcommand);
 }
