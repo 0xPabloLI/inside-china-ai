@@ -1,4 +1,18 @@
 /**
+ * DEPRECATED (#265, 2026-09-12) — do not register this MCP server anymore.
+ *
+ * The search pool is now consumed on demand via the thin CLI:
+ *
+ *   node scripts/short-video/lib/search-pool.mjs "<query>" \
+ *     [--engine <serper|brave|tavily|jina>] [--max-results <n>]
+ *
+ * stdout is pure JSON ({articles, engine, attempts}); see
+ * skills/search-pool/SKILL.md for the agent-facing decision tree. The
+ * `.mcp.json` `search-pool` entry has been removed. This file is kept only
+ * for reference (and its tests); no new callers should be added.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ *
  * Search Pool MCP server (#65 / #109) — stdio JSON-RPC exposing the general
  * search pool as a single `web_search` tool for agent hosts (web-access skill
  * HOST_SEARCH_TOOL). Replaces the stale `brave-search:brave_web_search`

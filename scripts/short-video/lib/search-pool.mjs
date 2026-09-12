@@ -23,7 +23,16 @@
  * 2026-08 observation): Node fetch can fail DNS resolution for
  * api.search.brave.com under TUN fake-ip routing. The chain degrades to the
  * next engine on that failure; the Grok bridge remains the final fallback.
+ *
+ * CLI entry (#265): direct execution exposes an on-demand search CLI
+ * (stdout = pure JSON, logs on stderr) — see the "CLI entry (#265)" section
+ * at the bottom. skills/search-pool/SKILL.md documents agent-facing usage;
+ * the resident MCP stdio server (search-pool-server.mjs) is deprecated.
  */
+
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_SNIPPET_LENGTH = 200;
@@ -253,4 +262,139 @@ async function searchPoolParallel(keyword, engines, timeoutMs) {
   }
 
   return { articles: merged, engine: contributors.join("+") || null, attempts };
+}
+
+// ─── CLI entry (#265) ───
+//
+// Thin on-demand CLI over searchPool(), replacing the resident MCP stdio
+// server (lib/search-pool-server.mjs, now deprecated). stdout carries ONLY
+// the pure JSON result ({articles, engine, attempts}); every log or debug
+// line goes to stderr. Exit code: 0 on success or empty result set, 1 on
+// fatal errors (bad args, unknown engine, unexpected exception).
+//
+// Usage:
+//   node scripts/short-video/lib/search-pool.mjs "<query>" \
+//     [--engine <serper|brave|tavily|jina>] [--max-results <n>]
+
+/** Minimal repo-root .env.local loader so the CLI works when spawned bare. */
+function loadCliDotEnv() {
+  try {
+    const here = fileURLToPath(import.meta.url);
+    const envPath = join(dirname(here), "..", "..", "..", ".env.local");
+    for (const line of readFileSync(envPath, "utf8").split("\n")) {
+      const match = line.match(/^(\w+)=(.+)$/);
+      if (match && !process.env[match[1]]) {
+        process.env[match[1]] = match[2].replace(/^["']|["']$/g, "").trim();
+      }
+    }
+  } catch {
+    // No .env.local — engines will report missing keys per engine.
+  }
+}
+
+/**
+ * Parse CLI argv into {query, engine, maxResults}. Throws Error on usage
+ * mistakes — the caller turns that into exit code 1 + stderr message.
+ * Exported as a test seam (#265); not part of the searchPool API surface.
+ *
+ * @param {string[]} argv - process.argv.slice(2)
+ */
+export function parseSearchPoolCliArgs(argv) {
+  const parsed = { query: "", engine: null, maxResults: null };
+  const positional = [];
+
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if (token === "--engine") {
+      const value = argv[++i];
+      if (value === undefined) throw new Error("--engine requires a value");
+      parsed.engine = value;
+    } else if (token.startsWith("--engine=")) {
+      parsed.engine = token.slice("--engine=".length);
+    } else if (token === "--max-results") {
+      const value = argv[++i];
+      if (value === undefined) throw new Error("--max-results requires a value");
+      const n = Number(value);
+      if (!Number.isInteger(n) || n <= 0) {
+        throw new Error(`--max-results must be a positive integer, got "${value}"`);
+      }
+      parsed.maxResults = n;
+    } else if (token.startsWith("--max-results=")) {
+      const value = token.slice("--max-results=".length);
+      const n = Number(value);
+      if (!Number.isInteger(n) || n <= 0) {
+        throw new Error(`--max-results must be a positive integer, got "${value}"`);
+      }
+      parsed.maxResults = n;
+    } else if (token.startsWith("--")) {
+      throw new Error(`unknown option: ${token}`);
+    } else {
+      positional.push(token);
+    }
+  }
+
+  parsed.query = positional.join(" ").trim();
+  return parsed;
+}
+
+/**
+ * Run the CLI with the given argv. Returns the process exit code (0 or 1).
+ * deps is a test seam: searchPool override and an `out` line collector keep
+ * tests off the network and off the real stdout.
+ *
+ * @param {string[]} argv - process.argv.slice(2)
+ * @param {Object} [deps]
+ * @param {Function} [deps.searchPool] - defaults to the real searchPool
+ * @param {Function} [deps.out] - line sink, defaults to process.stdout.write
+ * @param {Function} [deps.log] - stderr sink, defaults to process.stderr.write
+ * @returns {Promise<number>} exit code
+ */
+export async function runSearchPoolCli(argv, deps = {}) {
+  const search = deps.searchPool ?? searchPool;
+  const out = deps.out ?? ((line) => process.stdout.write(line + "\n"));
+  const log = deps.log ?? ((line) => process.stderr.write(line + "\n"));
+  const usage =
+    'usage: node scripts/short-video/lib/search-pool.mjs "<query>" ' +
+    "[--engine <serper|brave|tavily|jina>] [--max-results <n>]";
+
+  let cliArgs;
+  try {
+    cliArgs = parseSearchPoolCliArgs(argv);
+  } catch (err) {
+    log(`error: ${err.message}`);
+    log(usage);
+    return 1;
+  }
+
+  if (!cliArgs.query) {
+    log("error: query is required");
+    log(usage);
+    return 1;
+  }
+
+  let engineList;
+  if (cliArgs.engine) {
+    engineList = POOL_ENGINES.filter((e) => e.name === cliArgs.engine);
+    if (engineList.length === 0) {
+      log(`error: unknown engine "${cliArgs.engine}" (available: ${POOL_ENGINE_NAMES.join(", ")})`);
+      return 1;
+    }
+  }
+
+  try {
+    const pool = await search(cliArgs.query, engineList ? { engines: engineList } : {});
+    const articles = cliArgs.maxResults ? pool.articles.slice(0, cliArgs.maxResults) : pool.articles;
+    out(JSON.stringify({ articles, engine: pool.engine, attempts: pool.attempts }));
+    return 0;
+  } catch (err) {
+    log(`error: ${err.message}`);
+    return 1;
+  }
+}
+
+/** ESM direct-execution guard: only run main() when invoked as a script. */
+const isMainModule = process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url);
+if (isMainModule) {
+  loadCliDotEnv();
+  process.exitCode = await runSearchPoolCli(process.argv.slice(2));
 }

@@ -7,7 +7,7 @@
 
 | Source                                           | Install method                                                   | Git tracked?             | Count |
 | ------------------------------------------------ | ---------------------------------------------------------------- | ------------------------ | ----- |
-| **Repo skills** (`skills/`)                      | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo)            | 4     |
+| **Repo skills** (`skills/`)                      | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo)            | 5     |
 | **Matt Pocock skills**                           | `npx skills add mattpocock/skills`                               | ❌ No (local `.agents/`) | 22    |
 | **last30days** (3rd party)                       | Symlink to `~/last30days-skill/`                                 | ❌ No                    | 1     |
 | **Other 3rd party** (Vercel/Anthropic/community) | Various (`npx skills add` from other repos)                      | ❌ No                    | ~134  |
@@ -24,6 +24,7 @@ These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 | `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency     |
 | `brand-system`         | Brand consistency enforcement for generated visual content                  | `short-video-pipeline` skill             |
 | `short-video-pipeline` | Video production pipeline orchestration                                     | AGENTS.md "Content and Video"            |
+| `search-pool`          | 3-route search dispatch: pool CLI / SearXNG / web-access CDP (#265)         | Agent search routing; `docs/tools-catalog.md` |
 
 ## Matt Pocock Skills
 
@@ -195,7 +196,7 @@ npx skills update
 
 # Repo skills are already in the repo (skills/), just ensure symlinks exist:
 for dir in .cursor/skills .agents/skills; do
-  for s in web-deep-research web-access brand-system short-video-pipeline; do
+  for s in web-deep-research web-access brand-system short-video-pipeline search-pool; do
     [ ! -e "${dir}/${s}" ] && ln -s "$(pwd)/skills/${s}" "${dir}/${s}"
   done
 done
