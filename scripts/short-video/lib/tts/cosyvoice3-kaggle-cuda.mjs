@@ -41,7 +41,10 @@ const KAGGLE_KERNEL_SLUG = process.env.COSYVOICE3_KAGGLE_SLUG || "cosyvoice3-cud
 const KAGGLE_KERNEL_ID = process.env.COSYVOICE3_KAGGLE_USER
   ? `${process.env.COSYVOICE3_KAGGLE_USER}/${KAGGLE_KERNEL_SLUG}`
   : null; // auto-detect from kaggle.json if not set
-const KAGGLE_TIMEOUT_MS = parseInt(process.env.COSYVOICE3_KAGGLE_TIMEOUT_MS || "1200000", 10); // 20 min RUNNING budget
+// 30min RUNNING budget (#241: the 20min default tripped on slow torch/model
+// downloads even though pure inference is ~64s for a 10-scene batch; #250
+// keeps queue wait in a separate budget).
+const KAGGLE_TIMEOUT_MS = parseInt(process.env.COSYVOICE3_KAGGLE_TIMEOUT_MS || "1800000", 10);
 // Queue budget (#250): Kaggle free tier runs 1 GPU session at a time, so a
 // second pipeline's kernel waits in QUEUED while the first finishes
 // (~10-15min). The old single 20min timeout covered queue+run and killed
@@ -334,13 +337,26 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
 
 /**
  * Create CosyVoice3 Kaggle CUDA engine instance.
+ *
+ * Batch semantics (#241): ONE kernel push carries the whole manifest — the
+ * ~5min kernel setup (pip install + model load) is the dominant cost, so all
+ * pending scenes go up in a single push; the self-heal retry (registry) then
+ * re-pushes only the failed scenes' manifest.
+ *
+ * @param {object} [deps] - injectable seams for tests (default: real CLI).
+ * @param {(cmd: string) => Promise<{stdout: string}>} [deps.exec] - shell command runner
+ * @param {typeof pollKernelStatus} [deps.poll] - kernel status poller
+ * @param {typeof postProcessBatch} [deps.postProcess] - per-scene audio post-process
  * @returns {Promise<TTSEngine|null>} null if not available.
  */
-export async function createCosyVoice3KaggleCudaEngine() {
+export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   if (!(await isAvailable())) return null;
 
   const username = getKaggleUsername();
   const kernelId = `${username}/${KAGGLE_KERNEL_SLUG}`;
+  const runCmd = deps.exec ?? ((cmd) => execAsync(cmd));
+  const poll = deps.poll ?? pollKernelStatus;
+  const postProcess = deps.postProcess ?? postProcessBatch;
 
   return {
     name: "cosyvoice3-kaggle-cuda",
@@ -390,9 +406,9 @@ export async function createCosyVoice3KaggleCudaEngine() {
         ),
       );
 
-      // ── Push kernel ──
-      console.log(`  📤 Pushing Kaggle kernel (${manifest.length} segments)...`);
-      await execAsync(`kaggle kernels push -p "${tempDir}" 2>&1`);
+      // ── Push kernel (single push for the whole manifest, #241) ──
+      console.log(`  📤 Pushing Kaggle kernel (${manifest.length} segments, 1 push)...`);
+      await runCmd(`kaggle kernels push -p "${tempDir}" 2>&1`);
 
       // ── Poll status ──
       console.log(
@@ -400,14 +416,14 @@ export async function createCosyVoice3KaggleCudaEngine() {
           `run timeout ${Math.round(KAGGLE_TIMEOUT_MS / 60000)}min)...`,
       );
       // poll-status.json: QUEUED/RUNNING phase + metering for background runs (#250)
-      await pollKernelStatus(kernelId, { statusFile: join(tempDir, "poll-status.json") });
+      await poll(kernelId, { statusFile: join(tempDir, "poll-status.json") });
 
       // ── Download output ──
       const kaggleOutputDir = join(tempDir, "kaggle-output");
       mkdirSync(kaggleOutputDir, { recursive: true });
       console.log("  📥 Downloading Kaggle kernel output...");
       try {
-        await execAsync(`kaggle kernels output ${kernelId} -p "${kaggleOutputDir}" 2>&1`);
+        await runCmd(`kaggle kernels output ${kernelId} -p "${kaggleOutputDir}" 2>&1`);
       } catch (e) {
         throw new Error(`Failed to download Kaggle output: ${e.message}`);
       }
@@ -451,7 +467,7 @@ export async function createCosyVoice3KaggleCudaEngine() {
           process.env.TTS_PROSODY === "1" && scene
             ? getProsodyProfile(scene.refStyle || scene.visualType)
             : null;
-        const duration = await postProcessBatch(destPath, {
+        const duration = await postProcess(destPath, {
           useSilenceFilter: false,
           resample: true,
           prosody,

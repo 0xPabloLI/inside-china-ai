@@ -241,6 +241,26 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     }
   }
 
+  // ── Missing-audio fail-closed guard (#241) ──
+  // A scene that ends up with NO audio after generation + self-heal retries
+  // must not be silently dropped: the video would render with a missing
+  // voiceover segment (ant-lingbot-world-13b run: kernel timeout → non-strict
+  // skip). Audio-present quality-gate failures keep the existing strict/
+  // non-strict semantics above; absence of audio is always fatal unless the
+  // operator explicitly opts out with TTS_ALLOW_PARTIAL_TTS=1.
+  if (process.env.TTS_ALLOW_PARTIAL_TTS !== "1") {
+    const generatedIds = new Set(validatedResults.map((r) => r.sceneId));
+    const missing = toGenerate.filter((s) => !generatedIds.has(s.id));
+    if (missing.length > 0) {
+      throw new Error(
+        `TTS produced no audio for scene(s) ${missing.map((s) => s.id).join(", ")} ` +
+          `after generation and self-heal retries. NOT continuing — a partial render ` +
+          `would silently drop voiceover. Fix the failing scene(s) (retry, shorten the ` +
+          `text, or set TTS_ENGINE) or set TTS_ALLOW_PARTIAL_TTS=1 to accept a partial run.`,
+      );
+    }
+  }
+
   // Persist cache meta for freshly generated scenes.
   if (useCache) {
     for (const r of validatedResults) {
