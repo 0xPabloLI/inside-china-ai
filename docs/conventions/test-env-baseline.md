@@ -23,3 +23,12 @@
 ### Node 版本漂移
 
 - node < 20.12 启动 vitest/vite 8 直接崩溃（`node:util does not provide an export named 'styleText'`，rolldown 要求 ≥20.12）。仓库无 `.nvmrc` / `engines` pin——用 nvm 的 node（≥24.12）跑。同一类漂移见 prettier 版本史（#177，已解决）。
+
+### git push 前置扫描（osv-scanner）
+
+- pre-push 跑 `npm run scan:deps`（osv-scanner 查 api.osv.dev）。本机直连 osv.dev 会 i/o timeout，扫描异常退出使 pre-push **fail-closed** 报 "known vulnerabilities"（实际 0 findings）。2026-09-12。
+- 处理：代理前缀 `HTTPS_PROXY=http://127.0.0.1:7897 git push ...`；或单独 `HTTPS_PROXY=... npm run scan:deps` 确认 "No issues found" 后再推。不要 `--no-verify` 绕过（会同时跳过 gitleaks）。
+
+### .nvmrc（#231，2026-09-12 新增）
+
+- 仓库根 `.nvmrc` = 22（Remotion 渲染需 arm64 Node ≥22，x64 缺 @rspack 绑定）；上条「Node 版本漂移」的 `无 .nvmrc` 表述已过时。
