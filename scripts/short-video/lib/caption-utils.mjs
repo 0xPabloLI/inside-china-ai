@@ -74,6 +74,11 @@ const ENTITY_HASHTAG_MAP = {
   qwen: "#qwen",
   tongyi: "#qwen",
   wan: "#wan",
+  // Ant Group is Alibaba's subsidiary — overseas audiences know Alibaba, so
+  // inherit the parent hashtag (#242/#245). Full company-relation graph: #248.
+  "ant-group": "#alibaba",
+  "ant group": "#alibaba",
+  amd: "#amd",
   bytedance: "#bytedance",
   doubao: "#doubao",
   seedance: "#seedance",

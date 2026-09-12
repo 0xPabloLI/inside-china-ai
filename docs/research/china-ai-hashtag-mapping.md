@@ -85,6 +85,7 @@ HashtagRadar (tiktokhashtags.com) is an independent hashtag discovery platform u
 | Volcano Engine (火山引擎) | ByteDance      | `#volcanoengine`   |
 | DingTalk (钉钉)           | Alibaba        | `#dingtalk`        |
 | Quark (夸克)              | Alibaba        | `#quark`           |
+| Ant Group (蚂蚁集团)      | Alibaba        | `#alibaba`         |
 | Yuanbao (元宝)            | Tencent        | `#yuanbao`         |
 | Seedance                  | ByteDance      | `#seedance`        |
 | Kling (可灵)              | Kuaishou       | `#kling`           |
@@ -131,6 +132,8 @@ const ENTITY_HASHTAG_MAP = {
   qwen: "#qwen",
   tongyi: "#qwen", // 通义
   wan: "#wan", // 万相 video model
+  "ant-group": "#alibaba", // Ant Group → parent Alibaba (#242/#245)
+  "ant group": "#alibaba",
   bytedance: "#bytedance",
   doubao: "#doubao",
   seedance: "#seedance",
@@ -176,6 +179,7 @@ const ENTITY_HASHTAG_MAP = {
   cambricon: "#cambricon",
   "horizon robotics": "#horizonrobotics",
   horizon: "#horizonrobotics",
+  amd: "#amd",
 
   // Tier 4: Robotics
   unitree: "#unitree",
@@ -209,13 +213,15 @@ const ENTITY_HASHTAG_MAP = {
 
 1. **Product → Parent hashtag**: For products without their own TikTok hashtag presence (e.g., MiMo, Spark, Wenxin), map to the parent company's hashtag. This ensures the hashtag actually exists on TikTok and has meaningful content.
 
-2. **Multiple keys → same hashtag**: Both company name and product name map to the same hashtag when they're the same entity on TikTok (e.g., `moonshot` and `kimi` both → `#kimi`).
+2. **Subsidiary → Parent hashtag (#242/#245)**: When the subsidiary itself has low overseas recognition (e.g., Ant Group → `#alibaba`), inherit the parent company's hashtag — the parent name carries the reach. The full parent/subsidiary company-relation graph (`company-relations.json`) is tracked in #248; until then these mappings are hardcoded here and in `prompt-injection.mjs` `ENTITY_ALIASES` (entity color inheritance).
 
-3. **Chinese name aliases**: Common Chinese names that Western audiences might use are included (e.g., `wenxin` → `#ernie`, `tongyi` → `#qwen`).
+3. **Multiple keys → same hashtag**: Both company name and product name map to the same hashtag when they're the same entity on TikTok (e.g., `moonshot` and `kimi` both → `#kimi`).
 
-4. **No founder hashtags**: Founders (Liang Wenfeng, Kai-Fu Lee, etc.) are not mapped to hashtags — TikTok hashtags for individuals are not part of the entity hashtag strategy. Founders are mentioned in voiceover and description text for SEO, not as hashtags.
+4. **Chinese name aliases**: Common Chinese names that Western audiences might use are included (e.g., `wenxin` → `#ernie`, `tongyi` → `#qwen`).
 
-5. **Per-content `keyEntities.companies`**: The scene-data `meta.mjs` should list the primary companies (not products or founders) in `keyEntities.companies`. The expanded map then handles product-name lookups automatically.
+5. **No founder hashtags**: Founders (Liang Wenfeng, Kai-Fu Lee, etc.) are not mapped to hashtags — TikTok hashtags for individuals are not part of the entity hashtag strategy. Founders are mentioned in voiceover and description text for SEO, not as hashtags.
+
+6. **Per-content `keyEntities.companies`**: The scene-data `meta.mjs` should list the primary companies (not products or founders) in `keyEntities.companies`. The expanded map then handles product-name lookups automatically.
 
 ## Bibliography
 

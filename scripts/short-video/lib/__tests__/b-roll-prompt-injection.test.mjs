@@ -154,6 +154,23 @@ describe("entity color detection and injection", () => {
     expect(entity).toMatchObject({ label: "DeepSeek", color: "blue", hex: "#4d8bff" });
   });
 
+  test("detects Ant Group (spaced and hyphenated) via alias and maps it to Alibaba amber (#245)", () => {
+    const spaced = detectEntityColor(
+      scene({
+        voiceover: "It runs in real time on one consumer GPU.",
+        texts: { line1: "ANT GROUP LINGBOT-WORLD" },
+      }),
+    );
+    expect(spaced).toMatchObject({ label: "Alibaba", color: "amber", hex: "#f59e0b" });
+    const hyphenated = detectEntityColor(
+      scene({
+        voiceover: "It runs in real time on one consumer GPU.",
+        texts: { line1: "ANT-GROUP" },
+      }),
+    );
+    expect(hyphenated).toMatchObject({ label: "Alibaba", color: "amber", hex: "#f59e0b" });
+  });
+
   test("returns null when no known entity appears in the scene", () => {
     expect(
       detectEntityColor(scene({ voiceover: "Layers compress history.", texts: {} })),

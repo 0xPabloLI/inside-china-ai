@@ -73,6 +73,10 @@ const ENTITY_ALIASES = {
   ernie: "baidu",
   alibaba: "alibaba",
   qwen: "alibaba",
+  // Ant Group inherits Alibaba's entity color (#245), same parent-subsidiary
+  // rule as Qwen. Both spellings: meta keys use the hyphen, free text the space.
+  "ant-group": "alibaba",
+  "ant group": "alibaba",
   tencent: "tencent",
   hunyuan: "tencent",
 };

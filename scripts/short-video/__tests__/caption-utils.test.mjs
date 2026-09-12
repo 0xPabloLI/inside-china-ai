@@ -136,6 +136,34 @@ describe("S2: No metadata → auto-derive", () => {
   });
 });
 
+// ─── S2b: entity hashtag inheritance (#242/#245) ───
+
+describe("S2b: missing entity hashtag mappings (#242/#245)", () => {
+  it("maps ant-group to #alibaba (Ant Group is Alibaba's subsidiary — overseas audience knows Alibaba)", () => {
+    const meta = { keyEntitiesCompanies: ["ant-group"] };
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(result).toContain("#alibaba");
+  });
+
+  it("maps the spaced 'ant group' spelling to #alibaba too", () => {
+    const meta = { keyEntitiesCompanies: ["ant group"] };
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(result).toContain("#alibaba");
+  });
+
+  it("maps amd to #amd", () => {
+    const meta = { keyEntitiesCompanies: ["amd"] };
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(result).toContain("#amd");
+  });
+
+  it("ant-lingbot-world-13b shape: ant-group primary → #alibaba, amd secondary → #amd", () => {
+    const meta = { keyEntitiesCompanies: ["ant-group", "amd"] };
+    const result = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(result).toEqual(["#ainews", "#chinaai", "#alibaba", "#amd"]);
+  });
+});
+
 // ─── S3: Partial metadata → mixed ───
 
 describe("S3: Partial metadata (title only)", () => {
