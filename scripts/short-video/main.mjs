@@ -34,6 +34,7 @@ import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
+import { closeAsrAnalyzer } from "./lib/asr-analyzer.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -496,6 +497,14 @@ async function main() {
   console.log(`   🏷  Pipeline: ${meta.pipelineId}`);
   console.log(`   🔖 Version: ${version}`);
   console.log("");
+
+  // #254: the pipeline leaves live handles behind (the resident ASR worker
+  // child process at minimum), so node never exits on its own and background
+  // runs accumulate zombie processes. Close what we own gracefully, then
+  // force the exit — the deferred exitCode keeps stdout flushing a beat.
+  closeAsrAnalyzer();
+  console.log("Exiting main.mjs...");
+  setTimeout(() => process.exit(0), 300).unref();
 }
 
 main().catch((err) => {
