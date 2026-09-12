@@ -15,6 +15,8 @@
  * Pure function tests — no Kaggle calls.
  */
 import { describe, expect, it } from "vitest";
+import { join } from "path";
+import { ROOT_DIR } from "../lib/tts/types.mjs";
 import {
   deriveContentIdFromOutputDir,
   resolveKernelSlug,
@@ -22,18 +24,20 @@ import {
 
 describe("deriveContentIdFromOutputDir", () => {
   it("derives the pipeline id from an output/<pipelineId>/audio dir", () => {
-    expect(
-      deriveContentIdFromOutputDir("/repo/scripts/short-video/output/deepseek/audio"),
-    ).toBe("deepseek");
+    expect(deriveContentIdFromOutputDir(join(ROOT_DIR, "output", "deepseek", "audio"))).toBe(
+      "deepseek",
+    );
   });
 
-  it("handles nested content paths (output/distillation/pt1/audio)", () => {
+  it("keeps the full nested content id (output/<article>/pt1/audio) — tail-only derivation would re-introduce cross-contamination (#267 review)", () => {
     expect(
-      deriveContentIdFromOutputDir("/repo/output/distillation/pt1/audio"),
-    ).toBe("pt1");
+      deriveContentIdFromOutputDir(
+        join(ROOT_DIR, "output", "anthropic-distillation-7labs", "pt1", "audio"),
+      ),
+    ).toBe("anthropic-distillation-7labs/pt1");
   });
 
-  it("falls back to the dir basename when it is not an audio dir", () => {
+  it("falls back to the dir basename when it is not under the output root", () => {
     expect(deriveContentIdFromOutputDir("/tmp/some-output-dir")).toBe("some-output-dir");
   });
 });
@@ -47,16 +51,22 @@ describe("resolveKernelSlug", () => {
     expect(a).not.toBe(b);
   });
 
+  it("distinct nested pipelines with the same tail segment never share a slug", () => {
+    const a = resolveKernelSlug({ contentId: "anthropic-distillation-7labs/pt1" });
+    const b = resolveKernelSlug({ contentId: "some-other-article/pt1" });
+    expect(a).not.toBe(b);
+  });
+
   it("prefers an explicitly set env slug (behaviour preserved)", () => {
-    expect(
-      resolveKernelSlug({ envSlug: "my-custom-slug", contentId: "deepseek" }),
-    ).toBe("my-custom-slug");
+    expect(resolveKernelSlug({ envSlug: "my-custom-slug", contentId: "deepseek" })).toBe(
+      "my-custom-slug",
+    );
   });
 
   it("treats a whitespace-only env slug as unset", () => {
-    expect(
-      resolveKernelSlug({ envSlug: "   ", contentId: "deepseek" }),
-    ).toBe("cosyvoice3-cuda-deepseek");
+    expect(resolveKernelSlug({ envSlug: "   ", contentId: "deepseek" })).toBe(
+      "cosyvoice3-cuda-deepseek",
+    );
   });
 
   it("sanitizes uppercase, spaces and special characters", () => {

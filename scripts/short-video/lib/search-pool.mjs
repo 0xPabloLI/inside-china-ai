@@ -276,8 +276,12 @@ async function searchPoolParallel(keyword, engines, timeoutMs) {
 //   node scripts/short-video/lib/search-pool.mjs "<query>" \
 //     [--engine <serper|brave|tavily|jina>] [--max-results <n>]
 
-/** Minimal repo-root .env.local loader so the CLI works when spawned bare. */
-function loadCliDotEnv() {
+/**
+ * Load repo-root .env.local once (engines read keys from process.env).
+ * Exported as the single dotenv loader — the deprecated MCP server
+ * (search-pool-server.mjs) imports this instead of keeping its own copy.
+ */
+export function loadDotEnv() {
   try {
     const here = fileURLToPath(import.meta.url);
     const envPath = join(dirname(here), "..", "..", "..", ".env.local");
@@ -290,6 +294,15 @@ function loadCliDotEnv() {
   } catch {
     // No .env.local — engines will report missing keys per engine.
   }
+}
+
+/** Validate a positive-integer flag value, shared by both flag spellings. */
+function parsePositiveIntFlag(name, value) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error(`${name} must be a positive integer, got "${value}"`);
+  }
+  return n;
 }
 
 /**
@@ -314,18 +327,12 @@ export function parseSearchPoolCliArgs(argv) {
     } else if (token === "--max-results") {
       const value = argv[++i];
       if (value === undefined) throw new Error("--max-results requires a value");
-      const n = Number(value);
-      if (!Number.isInteger(n) || n <= 0) {
-        throw new Error(`--max-results must be a positive integer, got "${value}"`);
-      }
-      parsed.maxResults = n;
+      parsed.maxResults = parsePositiveIntFlag("--max-results", value);
     } else if (token.startsWith("--max-results=")) {
-      const value = token.slice("--max-results=".length);
-      const n = Number(value);
-      if (!Number.isInteger(n) || n <= 0) {
-        throw new Error(`--max-results must be a positive integer, got "${value}"`);
-      }
-      parsed.maxResults = n;
+      parsed.maxResults = parsePositiveIntFlag(
+        "--max-results",
+        token.slice("--max-results=".length),
+      );
     } else if (token.startsWith("--")) {
       throw new Error(`unknown option: ${token}`);
     } else {
@@ -383,7 +390,9 @@ export async function runSearchPoolCli(argv, deps = {}) {
 
   try {
     const pool = await search(cliArgs.query, engineList ? { engines: engineList } : {});
-    const articles = cliArgs.maxResults ? pool.articles.slice(0, cliArgs.maxResults) : pool.articles;
+    const articles = cliArgs.maxResults
+      ? pool.articles.slice(0, cliArgs.maxResults)
+      : pool.articles;
     out(JSON.stringify({ articles, engine: pool.engine, attempts: pool.attempts }));
     return 0;
   } catch (err) {
@@ -395,6 +404,6 @@ export async function runSearchPoolCli(argv, deps = {}) {
 /** ESM direct-execution guard: only run main() when invoked as a script. */
 const isMainModule = process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url);
 if (isMainModule) {
-  loadCliDotEnv();
+  loadDotEnv();
   process.exitCode = await runSearchPoolCli(process.argv.slice(2));
 }

@@ -27,7 +27,7 @@
 
 import { exec } from "child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { basename, join, dirname } from "path";
+import { basename, join, dirname, relative } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
@@ -176,13 +176,29 @@ export function sanitizeKaggleSlugPart(raw) {
 
 /**
  * Derive the content/pipeline id from the TTS output directory. All callers
- * pass `output/<pipelineId>/audio` (main.mjs, rerender-full.mjs), so the
- * pipeline id is the audio dir's parent; any other basename is used as-is.
+ * pass `output/<pipelineId>/audio` (main.mjs, rerender-full.mjs), so the id
+ * is the full path below `output/` — nested pipelines like
+ * `anthropic-distillation-7labs/pt1` keep their full prefix, otherwise two
+ * unrelated articles both named `pt1` would derive the same slug and
+ * silently cross-contaminate (the exact failure #267 removes). Outside the
+ * output root, fall back to the dir basename.
  * @param {string} outputDir
  * @returns {string|null} content id, or null when none can be derived
  */
 export function deriveContentIdFromOutputDir(outputDir) {
   if (!outputDir) return null;
+  const rel = relative(join(ROOT_DIR, "output"), outputDir);
+  if (rel && !rel.startsWith("..")) {
+    const stripped = rel
+      .replace(/(^|[\\/])audio([\\/])?$/, "")
+      .replace(/[\\/]+$/, "")
+      .trim();
+    if (stripped)
+      return stripped
+        .split(/[\\/]+/)
+        .filter(Boolean)
+        .join("/");
+  }
   const base = basename(outputDir);
   if (base === "audio") {
     const parent = basename(dirname(outputDir));
@@ -472,8 +488,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       const template = readFileSync(KAGGLE_KERNEL_TEMPLATE, "utf-8");
       const manifestJson = JSON.stringify(manifest);
 
-      const kernelScript = template
-        .replaceAll("__MANIFEST_JSON__", manifestJson);
+      const kernelScript = template.replaceAll("__MANIFEST_JSON__", manifestJson);
 
       const tempDir = join(outputDir, ".kaggle-kernel");
       mkdirSync(tempDir, { recursive: true });

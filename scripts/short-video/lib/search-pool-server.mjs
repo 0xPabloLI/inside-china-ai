@@ -28,33 +28,11 @@
  * implements the client side of the same protocol.
  */
 
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-import { searchPool } from "./search-pool.mjs";
+import { loadDotEnv, searchPool } from "./search-pool.mjs";
 import { ALL_SOURCES } from "./source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 export const TOOL_NAME = "web_search";
-
-/** Load repo-root .env.local once at startup (host spawns us without it). */
-function loadDotEnv() {
-  try {
-    const envContent = readFileSync(join(__dirname, "..", "..", "..", ".env.local"), "utf8");
-    for (const line of envContent.split("\n")) {
-      const match = line.match(/^(\w+)=(.+)$/);
-      if (match && !process.env[match[1]]) {
-        process.env[match[1]] = match[2].replace(/^["']|["']$/g, "").trim();
-      }
-    }
-  } catch {
-    // No .env.local — engines will report missing keys per engine.
-  }
-}
 
 /**
  * Grok last resort: spawn the self-hosted mcp-search-bridge (unlimited quota)

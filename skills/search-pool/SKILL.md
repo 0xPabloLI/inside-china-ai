@@ -32,6 +32,8 @@ metadata:
 
 质量优先的多源 fallback：Serper > Brave > Tavily > Jina，按序尝试，第一个返回非空结果的引擎胜出。引擎缺 key 或失败（HTTP 429/5xx、0 结果、超时）自动落到下一个。
 
+> Grok bridge（mcp-search-bridge）**不在 pool 链内**——它是 `search-sources.mjs` Layer 3 的独立 spawn 兜底（#265 明确不动该桥）。pool CLI 的 fallback 链只有上述 4 个 API 引擎，`--engine grok` 会报错。
+
 ```bash
 node scripts/short-video/lib/search-pool.mjs "<query>" [--engine <serper|brave|tavily|jina>] [--max-results <n>]
 ```
