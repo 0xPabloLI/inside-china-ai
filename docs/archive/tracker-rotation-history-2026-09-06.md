@@ -101,3 +101,5 @@ Last inventory: 2026-09-06（第二十 session 收官，agent marathon）— **�
 
 Last inventory: 2026-09-06（第二十一 session，tracker 沉积清理）— 沿 3a92094 先例的第二档清理落地（commit `b89ab81`）：inventory 旧 8 条下沉 archive、Tier 关票行 33 条一行化（237KB→198KB）、Tracker Maintenance Protocol 新增规则 8（关票行一行化）/9（inventory 轮换）防再沉积。**执行中修复一个自伤**：第二十 session 的置顶裸行 inventory 曾被脚本误下沉，已恢复置顶并修正 archive。并行 session 状态：#201/#207 已由第二十 session 关闭、#204 进行中（收尾时会再写 tracker——本清理先落，冲突面小）。
 
+
+Previous: 2026-09-12（第三十七 session 续·全量 Review/Triage 与历史下沉）— ① 闭环确认：用户澄清无其他并行线，此前在途工作已全部收编交付；② 全量审计：marathon 闭票（#249/#252/#243/#239/#258/#236/#241/#254/#264 等）无须重开；新入 #266（PDF 解析入库，ready-for-agent）、#265（CLI+技能决策树，ready-for-agent）、#263（30-45s vs 60-75s，ready-for-human）完成逐票评审回写与标签同步；新入 #267（Kaggle slug 串台隔离加固 #250，needs-triage）登记 Inbox；③ 治理落地：35 轮堆叠 inventory 依规则 9 下沉归档；已闭票依规则 8 全量一行化；当前 live open 26 票（Tier 1: 3 · Tier 2: 12 · Tier 3: 4 · Dormant: 6 · Inbox: 1 新增 #267）。
