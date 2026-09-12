@@ -195,7 +195,7 @@ collectFromSource() 层次：
 | **#240** | 2026-09-10 | B-roll 生成串行→并行化（18 jobs 占 90% 管线时间） | ✅ 分流 Tier 2 · `ready-for-agent`（与 #228 提速二期优化点⑥重叠——#228 子项，可先行独立做） |
 | **#241** | 2026-09-10 | TTS Kaggle 批量生成减少 kernel push 次数 | ✅ 分流 Tier 2 · `ready-for-agent`（与 #228 优化点②重叠——一次 push 生成所有 scene 省 9 次启动加载） |
 | **#242** | 2026-09-10 | ENTITY_HASHTAG_MAP 缺少 ant-group/amd 映射，tag 生成不全 | ✅ 分流 Tier 2 · `ready-for-agent`（简单修复：加 2 条映射；**#248 完成后关闭**——#248 为完整版） |
-| **#243** | 2026-09-10 | Visual analyzer 2B 判断准确性抽检验证 | ✅ 分流 Tier 3 · `ready-for-agent`（10% 抽检 9B 复验；误判率 >20% 提升级阈值，<5% 策略有效） |
+| ~~**#243**~~ | 2026-09-10 | Visual analyzer 2B 判断准确性抽检验证 | ✅ **交付关闭**（2026-09-12 R9 session：15 样本三档抽检，决策层准确率 93%、零假阴性、1 假阳性未影响成片 → 可接受，不换模型不调阈值；附带 `<think>` strip 兜底建议与 model 字段纠偏。详情：GitHub 关票评论 + experiments/vlm-2b-audit-2026-09-12.md） |
 | **#244** | 2026-09-10 | Hook scene emotion 不足，voiceover 缺乏冲击力 | ✅ 分流 Tier 2 · `ready-for-human`（涉及创意/听感判断 + ref audio 选型；与 #252/#253 相关） |
 | **#245** | 2026-09-10 | 公司关系知识库缺失：ant-group 未映射到 alibaba | ✅ 分流 Tier 2 · `ready-for-agent`（方案 A 立即修复加映射；**#248 完成后关闭**——#248 为完整版 web-deep-research） |
 | **#246** | 2026-09-10 | TTS narrative scenes 1.2x 加速导致超速（228/257 WPM 超 guideline） | ✅ 分流 Tier 1 · `ready-for-agent`（**#235 回归 bug**——hook 1.0 / narrative 1.2 导致 narrative 超 225 WPM；**#252 覆盖后关闭**） |
@@ -209,7 +209,7 @@ collectFromSource() 层次：
 | **#254** | 2026-09-11 | main.mjs Pipeline complete 后 node 进程不退出（僵尸进程积累） | ✅ 分流 Tier 1 · `ready-for-agent`（bug——未清理定时器/句柄保持 event loop 存活；完成态与运行态无法区分致 44min 空等） |
 | **#255** | 2026-09-11 | HookScene hero-center source slot safe-zone-breach（短文本仍触发 bottom 外溢） | ✅ 分流 Tier 2 · `ready-for-agent`（bug——inkPad 几何问题非文本长度；workaround 删 source 字段，修好后恢复） |
 | **#256** | 2026-09-11 | 数字人决策权变更：Agent 自主判断 + 理由义务 + 白/黑名单重审 | ✅ 分流 Tier 2 · `ready-for-human`（需 web-deep-research 白/黑名单重审；拿掉 Human approve 硬门 + 加/不加都必须给理由） |
-| **#257** | 2026-09-11 | TTS: Spark-TTS MLX 情绪能力验证（MIT 可商用候选） | ✅ 分流 Tier 3 · `ready-for-agent`（TTS 选型验证——MIT 可商用已知，情绪调节能力未验证是选型缺角；复用跨平台对比规范） |
+| **#257** | 2026-09-11 | TTS: Spark-TTS MLX 情绪能力验证（MIT 可商用候选） | ⏩ `ready-for-human`（2026-09-12 客观实验完成：社区 MLX 实现 huangyuan3h/Spark-TTS-MLX 可用（RTF 0.91-1.09），但情绪仅 ref 音频单通道且幅度弱于 CosyVoice3 instruct（f0 range 109-153 vs 192-240Hz）、长 ref>6s 退化、16kHz、无 instruct 通道——初步定位非情绪场景备选；**等用户听感 HITL 定去留**。音频与指标在 output/_spark-tts-test/） |
 | **#258** | 2026-09-11 | 研究：claim 前强制读评论 gate（A 脚本 + B CI + 业界调研） | ✅ 分流 Tier 2 · `ready-for-agent`（**Inbox 补登记（2026-09-11）**——开票时直接落 Tier 2 表，Inbox 未留行导致两张表口径不一致；Phase 0 = web deep research 业界 task-claiming preconditions；Phase 1 = 方案 A claim 脚本软 gate；Phase 2 = 方案 B `issues.assigned` CI unassign 准硬 gate） |
 | **#259** | 2026-09-11 | Analytics 本轮周期：完播率根因分诊（0:01 流失 vs 中段冗余）+「压缩时长」假设裁决 | ⏳ 待分流 · `needs-triage`（用户提问引出：完播率低是否该压时长。**2026-09-11 已执行一轮**（含 2 条新视频，共 8 条）→ 8/8 留存提示仍全为「0:01–0:02 停止观看」→ **分支 A（首秒钩子失败）**，压时长假设不成立（只改分母、不改行为，且账号级 play time 反降）。样本受 Studio 列表窗口限制上限为 8 条，未达 >10。遗留单列决策：MRL-3 把 8 条成片全钉在 60–81s（时长零方差）→ 时长档位该由内容体量决定。关联 #244/#247 钩子改造闭环。交付记录见票内评论） |
 | **#260** | 2026-09-11 | pending-analysis.json 断链：写入只在已关闭的 api 分支，manual-guide 下永不执行 | ⏳ 待分流 · `needs-triage` · `bug`（机制不可达——`AGENTS.md` Session Start ① 的 48h 提醒依赖该文件，但唯一写入点在 `runAutoMode()`（`publish-tiktok.mjs:306-312`），而 TikTok profile 经 `resolvePublishMethod` 恒解析为 `manual-guide`（`:423-432`），`runManualMode()` 无写入 → 文件停更在 2026-08-27。`CONTEXT.md:146`／`content-pipeline.md:452`／`analytics-workflow.md` 的「自动写入」声称全部与实现不符。待决策=脚本写 / agent 写 / 废弃三选一。关联 #219（manual-guide 引入方）、#259（发现方）） |
