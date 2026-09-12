@@ -41,7 +41,7 @@ export const scenes = [
         { num: "62.7", unit: "", label: "OLD PRO" },
         { num: "SEP 14", unit: "", label: "PRO API TO FLASH" },
       ],
-
+      source: "SOURCE: DeepSeek official",
     },
   },
   {

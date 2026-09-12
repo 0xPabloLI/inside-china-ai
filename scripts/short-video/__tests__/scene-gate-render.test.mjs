@@ -63,6 +63,7 @@ const GATE_TIMEOUT = 300_000;
 
 const BASELINES = [
   "baseline-hook",
+  "hook-source-descender",
   "baseline-narrative",
   "baseline-narrative-stacked",
   "baseline-stat-reveal",

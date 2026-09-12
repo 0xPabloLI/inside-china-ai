@@ -316,7 +316,13 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   // line-height makes the inline text rects poke below the
                   // gate box and false-fail the settled assert (T5).
                   lineHeight: 1.2,
-                  marginTop: stats.length > 0 ? 24 : 0,
+                  // #255: stats + source stack fills the support band almost
+                  // exactly, resting the source gate flush on the band's
+                  // bottom edge — which coincides with the content safe-zone
+                  // bottom — so a glyph ink descent ("p" in "DeepSeek")
+                  // overflowed the container by 0.277px. 12px keeps the gate
+                  // off that edge by half the freed space when centered.
+                  marginTop: stats.length > 0 ? 12 : 0,
                 }}
               >
                 {txt.source as string}

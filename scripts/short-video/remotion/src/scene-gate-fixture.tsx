@@ -152,6 +152,29 @@ const BASELINE_SCENES: Record<string, SceneData> = {
     },
   },
   "baseline-narrative": S9_SCENE,
+  // #255 incident replay: deepseek-v41-flash-report's real hook shape —
+  // two stat cards + a source line with lowercase DESCENDERS ("p" in
+  // "DeepSeek"). The support band's bottom edge coincides with the content
+  // safe-zone bottom (y=1150), so a flush-resting source gate + any ink
+  // descent breached by a sub-pixel amount, regardless of text WIDTH.
+  "hook-source-descender": {
+    id: 1,
+    visualType: "hook",
+    layout: "hero-center",
+    voiceover: "hook",
+    texts: {
+      badge: "BREAKING",
+      subject: "DEEPSEEK",
+      color: "amber",
+      bigNumber: "74.2",
+      numberLabel: "DEEPSWE v1.1",
+      stats: [
+        { num: "62.7", unit: "", label: "OLD PRO" },
+        { num: "SEP 14", unit: "", label: "PRO API TO FLASH" },
+      ],
+      source: "SOURCE: DeepSeek official",
+    },
+  },
   // qwen4 s9's real shape since the T7 relayout: same texts, stacked-cards.
   // Exercises the badge slot end to end (decision 65).
   "baseline-narrative-stacked": { ...S9_SCENE, layout: "stacked-cards" },
