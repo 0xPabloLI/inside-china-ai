@@ -143,6 +143,17 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 ## TTS Engine Configuration
 
+> **Environment pins (#231)**: local `~/.video-tts-env` reproduce with
+> `pip install -r scripts/short-video/requirements-tts-local.txt`
+> (torch 2.9.0 / torchaudio 2.9.0 / torchvision 0.24.0 — the 2026-09-08
+> wav2vec2 alignment crash came from drift). Remotion renders need **arm64
+> Node ≥ 22** (`.nvmrc`; x64 Node lacks the @rspack arm64 binding).
+> Kaggle offline installs: build the wheels dataset once with
+> `scripts/short-video/kaggle/build-wheels-dataset.sh` and attach
+> `xpabloli/cosyvoice3-wheels` in the kernel metadata — the kernel then
+> installs via `pip --no-index --find-links` and skips the ~10min online
+> install + drift risk (no mount → online path unchanged).
+
 > **Max Effort Rule** (2026-08-14): All local TTS models MUST run at max effort by default.
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),
 > the agent must explicitly notify the user and mark the run as degraded.

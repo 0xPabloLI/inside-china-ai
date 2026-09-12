@@ -30,18 +30,52 @@ except Exception as e:
     log(f"ERROR torch: {e}"); traceback.print_exc(); sys.exit(1)
 
 log("\n=== Installing deps ===")
+
+# #231: pre-frozen wheels dataset (xpabloli/cosyvoice3-wheels) makes the
+# dependency install offline and drift-immune — pip resolves strictly from
+# the mounted wheels with --no-index. Build the dataset once with
+# scripts/short-video/kaggle/build-wheels-dataset.sh; attach it in the
+# kernel metadata. No mount → the historical online path runs unchanged.
+_WHEELS_DIRS = [
+    c for c in ("/kaggle/input/cosyvoice3-wheels", "/kaggle/input/datasets/xpabloli/cosyvoice3-wheels")
+    if os.path.isdir(c)
+]
+if not _WHEELS_DIRS:
+    import glob as _wheels_glob
+    _WHEELS_DIRS = _wheels_glob.glob("/kaggle/input/**/cosyvoice3-wheels", recursive=True)
+_WHEELS_DIR = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+
+
+def _pip_install(args, online_extra=None):
+    """pip install via the frozen wheels mount when present, else online."""
+    if _WHEELS_DIR:
+        cmd = [sys.executable, "-m", "pip", "install", "-q", "--no-index", "--find-links", _WHEELS_DIR] + list(args)
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", "-q"] + list(online_extra or []) + list(args)
+    subprocess.run(cmd, check=True)
+
+
+if _WHEELS_DIR:
+    log(f"wheels dataset mount found: {_WHEELS_DIR} — offline install mode")
+else:
+    log("no cosyvoice3-wheels mount — online install (build the wheels dataset to skip ~10min)")
+
 try:
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "setuptools<81", "wheel", "Cython"], check=True)
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q",
-        "torch==2.4.0", "torchaudio==2.4.0", "torchvision==0.19.0",
-        "--index-url", "https://download.pytorch.org/whl/cu121"], check=True)
+    _pip_install(["setuptools<81", "wheel", "Cython"])
+    _pip_install(
+        ["torch==2.4.0", "torchaudio==2.4.0", "torchvision==0.19.0"],
+        online_extra=["--index-url", "https://download.pytorch.org/whl/cu121"],
+    )
     log("torch 2.4.0+cu121 installed")
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q",
-        "conformer==0.3.2", "hydra-core==1.3.2", "HyperPyYAML==1.2.3",
-        "inflect==7.3.1", "librosa==0.10.2", "modelscope==1.20.0", "omegaconf==2.3.0",
-        "onnx==1.16.0", "pyworld==0.3.4", "soundfile==0.12.1",
-        "wetext==0.0.4", "gdown==5.1.0", "wget==3.2",
-        "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24"], check=True)
+    _pip_install(
+        [
+            "conformer==0.3.2", "hydra-core==1.3.2", "HyperPyYAML==1.2.3",
+            "inflect==7.3.1", "librosa==0.10.2", "modelscope==1.20.0", "omegaconf==2.3.0",
+            "onnx==1.16.0", "pyworld==0.3.4", "soundfile==0.12.1",
+            "wetext==0.0.4", "gdown==5.1.0", "wget==3.2",
+            "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24",
+        ]
+    )
     log("Core deps OK")
 except Exception as e:
     log(f"ERROR deps: {e}"); traceback.print_exc(); sys.exit(1)
@@ -50,7 +84,7 @@ except Exception as e:
 # onnxruntime-gpu 1.20.0 is officially released on PyPI for CUDA 12.x
 # NEVER silently fall back to CPU onnxruntime!
 try:
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "onnxruntime-gpu==1.20.0"], check=True)
+    _pip_install(["onnxruntime-gpu==1.20.0"])
     import onnxruntime as ort
     providers = ort.get_available_providers()
     log(f"onnxruntime-gpu 1.20.0 OK (providers: {providers})")
@@ -62,8 +96,8 @@ except Exception as e:
     sys.exit(1)
 
 try:
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "openai-whisper", "--no-deps"], check=True)
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "tiktoken", "numba"], check=True)
+    _pip_install(["openai-whisper", "--no-deps"])
+    _pip_install(["tiktoken", "numba"])
     log("whisper (no-deps) + tiktoken + numba OK")
 except Exception as e:
     log(f"ERROR whisper: {e}")

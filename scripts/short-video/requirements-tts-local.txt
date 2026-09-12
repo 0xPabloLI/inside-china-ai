@@ -1,0 +1,11 @@
+# Local TTS venv (~/.video-tts-env) pinned versions — #231 section B.
+#
+# 2026-09-08 incident: the venv drifted to torch 3.14 + torchaudio 2.8 and
+# wav2vec2 forced alignment crashed (libtorchaudio.so load failure /
+# Wav2Vec2ForCTC pulling in torchvision). Reproduce with:
+#   pip install -r scripts/short-video/requirements-tts-local.txt
+#
+# Verified working set (Apple Silicon, Python 3.12):
+torch==2.9.0
+torchaudio==2.9.0
+torchvision==0.24.0
