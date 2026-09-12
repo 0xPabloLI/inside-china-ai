@@ -64,6 +64,12 @@ import {
   updateSourceHealth,
   deriveZeroResultSources,
   REVIEW_THRESHOLD,
+  QUARANTINE_THRESHOLD,
+  QUARANTINE_RECHECK_DAYS,
+  judgeUrlProbe,
+  judgeRelevance,
+  isQuarantined,
+  clearQuarantine,
 } from "./lib/source-health.mjs";
 import {
   deriveChannels,
@@ -72,7 +78,11 @@ import {
   summarizeChannelInventory,
   probeChannels,
 } from "./lib/channel-doctor.mjs";
-import { existsSync as _existsSync, readFileSync as _readFileSync, writeFileSync as _writeFileSync } from "fs";
+import {
+  existsSync as _existsSync,
+  readFileSync as _readFileSync,
+  writeFileSync as _writeFileSync,
+} from "fs";
 
 /** Load output/source-health.json, fail-open to a fresh log (#200). */
 function loadSourceHealthLog(filePath) {
@@ -480,6 +490,88 @@ export function recordCollectedArticles(cache, { source, keyword, articles }) {
   return recordSearchResults(cache, { source, keyword, results: articles });
 }
 
+// ─── #269 Phase 1: dead-source detection + quarantine skip ───
+
+/** Pre-flight probe timeout. Tunable: long enough for slow CN sites, short enough not to stall a 60-source run. */
+export const DEAD_URL_PROBE_TIMEOUT_MS = 8000;
+
+/**
+ * #269 Phase 1: lightweight pre-flight probe of a source's search URL.
+ *
+ * HEAD first; on statuses that commonly mean "HEAD is blocked but GET works"
+ * (403/405/429/501) retry once with GET before judging. Network errors fail
+ * open (httpStatus null → judgeUrlProbe keeps the source alive) — the probe
+ * must never break collection, only catch proven-dead URLs.
+ *
+ * @param {string} url - the registered search URL
+ * @param {{fetchFn?: typeof fetch, timeoutMs?: number}} [opts] - fetchFn injectable (tests)
+ * @returns {Promise<{httpStatus: number|null, finalUrl: string|null, error?: string}>}
+ */
+export async function probeSourceUrl(url, opts = {}) {
+  const fetchFn = opts.fetchFn ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? DEAD_URL_PROBE_TIMEOUT_MS;
+  const fetchOpts = (method) => ({
+    method,
+    redirect: "follow",
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ChinaAINews-discovery",
+    },
+  });
+  try {
+    let resp = await fetchFn(url, fetchOpts("HEAD"));
+    if ([403, 405, 429, 501].includes(resp.status)) {
+      resp = await fetchFn(url, fetchOpts("GET"));
+    }
+    return { httpStatus: resp.status, finalUrl: resp.url || url };
+  } catch (e) {
+    return { httpStatus: null, finalUrl: null, error: e?.message || String(e) };
+  }
+}
+
+/**
+ * Resolve a source's registered CDP search URL the same way collectFromCdp
+ * does (capabilities.articles.url with top-level fallback, default keyword).
+ *
+ * @param {Object} source - source definition
+ * @param {string|null} keyword
+ * @returns {string|null} search URL, or null when the source has none
+ */
+export function buildSourceSearchUrl(source, keyword) {
+  const cap = source?.capabilities?.articles;
+  const urlFn = cap?.url ?? source?.url;
+  if (typeof urlFn !== "function") return null;
+  try {
+    return urlFn(keyword || DEFAULT_KEYWORDS[0]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * #269 Phase 1: keyword relevance guard for one scraped result set.
+ *
+ * A large result set (>= RELEVANCE_MIN_RESULTS) with 0 keyword hits in
+ * title/url is a false positive — the demonstrated form is CDP being
+ * redirected to a site homepage where articleScript's link-grab fallback
+ * scrapes every link. Invalidated sets are discarded so the fallback chain
+ * still runs; small or keyword-hitting sets pass untouched (no over-killing).
+ * Trend mode (no keyword) always passes.
+ *
+ * @param {string|null} keyword
+ * @param {Array<{title?: string, url?: string}>} articles
+ * @param {string} sourceLabel - for the log line
+ * @returns {Array} the filtered articles (same array when passing)
+ */
+export function applyRelevanceGuard(keyword, articles, sourceLabel) {
+  const verdict = judgeRelevance(keyword, articles);
+  if (!verdict.invalid) return articles;
+  console.warn(
+    `  🚫 ${sourceLabel}: ${verdict.total} results but 0 keyword hits ("${keyword}") — discarding as false positive (#269)`,
+  );
+  return [];
+}
+
 export async function collectFromSource(source, keyword, recorder = null, deps = {}) {
   const {
     collectApi = collectFromApi,
@@ -488,19 +580,43 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     collectMcp = collectFromMcp,
     searchPoolFn = searchPool,
     isPoolEligibleFn = isPoolEligible,
+    probeFn = probeSourceUrl,
+    probeCache = new Map(),
   } = deps;
 
   // #200: per-layer outcome trajectory. Each event is
   // {source, layer, count, reason?} — count null means the layer didn't run
   // or failed structurally, and reason explains why ("zero-results",
   // "need_login", "captcha", "api-parse-error", "skipped-same-url-as-api").
-  const record = (layer, count, reason = undefined) => {
+  // #269 extras: "dead-url" (probe verdict), "invalid-relevance" (keyword
+  // guard) — plus optional `probe`/`extracted` fields, add-only.
+  const record = (layer, count, reason = undefined, extras = undefined) => {
     try {
-      recorder?.({ source: source.name, layer, count, ...(reason ? { reason } : {}) });
+      recorder?.({
+        source: source.name,
+        layer,
+        count,
+        ...(reason ? { reason } : {}),
+        ...(extras ?? {}),
+      });
     } catch {
       // a broken recorder must never break collection
     }
   };
+
+  // #269 Phase 1: pre-flight probe of the source's own search URL before the
+  // CDP layer opens a tab. Cached per URL within the run; verdicts are judged
+  // by judgeUrlProbe (fail-open on network errors). A dead URL skips the CDP
+  // layer with reason "dead-url" so googleSiteFallback/mcpFallback take over.
+  async function probeSearchUrlGate() {
+    const searchUrl = buildSourceSearchUrl(source, keyword);
+    if (!searchUrl) return null;
+    if (!probeCache.has(searchUrl)) {
+      const raw = await probeFn(searchUrl);
+      probeCache.set(searchUrl, { searchUrl, ...raw, ...judgeUrlProbe({ searchUrl, ...raw }) });
+    }
+    return probeCache.get(searchUrl);
+  }
 
   // #67: Read from capabilities.articles with top-level fallback.
   // Rule (#199 2.6): after enrichWithCapabilities() every source carries a
@@ -530,9 +646,48 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
   // as the API url, skip CDP — same URL, same result, pure browser waste.
   // Sources without an API are unaffected (shouldSkipCdpOnApiFail returns false).
   if (articles.length === 0 && !shouldSkipCdpOnApiFail(source, keyword)) {
-    const { articles: cdpArticles, status } = await collectCdp(source, keyword);
-    articles = cdpArticles;
-    record("cdp", articles.length, status ?? (articles.length === 0 ? "zero-results" : undefined));
+    // #269 Phase 1: pre-flight probe before Layer 1 CDP. Only meaningful when
+    // CDP is actually available (otherwise the layer no-ops anyway) and only
+    // for sources that register their own search URL.
+    let probeVerdict = null;
+    if (cdpAvailable) {
+      try {
+        probeVerdict = await probeSearchUrlGate();
+      } catch {
+        probeVerdict = null; // probe must never break collection
+      }
+    }
+    if (probeVerdict?.dead) {
+      console.warn(
+        `  🚫 ${source.label} search URL is dead (${probeVerdict.reason}: ${probeVerdict.detail}) — skipping CDP layer (#269)`,
+      );
+      record("cdp", null, "dead-url", {
+        probe: {
+          at: Date.now(),
+          url: probeVerdict.searchUrl,
+          httpStatus: probeVerdict.httpStatus,
+          finalUrl: probeVerdict.finalUrl,
+          reason: probeVerdict.reason,
+          detail: probeVerdict.detail,
+        },
+      });
+    } else {
+      const { articles: cdpArticles, status } = await collectCdp(source, keyword);
+      const extractedCount = cdpArticles.length;
+      articles = applyRelevanceGuard(keyword, cdpArticles, source.label);
+      const guardInvalidated = articles.length === 0 && extractedCount > 0;
+      record(
+        "cdp",
+        articles.length,
+        status ??
+          (articles.length === 0
+            ? guardInvalidated
+              ? "invalid-relevance"
+              : "zero-results"
+            : undefined),
+        guardInvalidated ? { extracted: extractedCount } : undefined,
+      );
+    }
   } else if (articles.length === 0 && apiSearch) {
     // #200: same-endpoint skip — by design there is no next layer after the
     // API; the explicit reason keeps this from reading as "all layers dead".
@@ -552,11 +707,23 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
       needsAuth: false,
     };
     const { articles: fbArticles, status } = await collectCdp(fallbackSource, keyword);
-    articles = fbArticles;
+    const fbExtractedCount = fbArticles.length;
+    // #269 Phase 1: the fallback uses the same scrape-anything collectCdp path
+    // (run-1 evidence: Google's consent/anti-bot page fed the shared script's
+    // link-grab fallback → 534 junk links), so the relevance guard applies here
+    // exactly as it does to the primary CDP layer.
+    articles = applyRelevanceGuard(keyword, fbArticles, `${source.label} (fallback)`);
+    const fbGuardInvalidated = articles.length === 0 && fbExtractedCount > 0;
     record(
       "google-fallback",
       articles.length,
-      status ?? (articles.length === 0 ? "zero-results" : undefined),
+      status ??
+        (articles.length === 0
+          ? fbGuardInvalidated
+            ? "invalid-relevance"
+            : "zero-results"
+          : undefined),
+      fbGuardInvalidated ? { extracted: fbExtractedCount } : undefined,
     );
   }
 
@@ -836,10 +1003,75 @@ async function main() {
   const sourceAttempts = [];
   const healthRunEntries = [];
 
+  // #269 Phase 1: load the health log BEFORE the loop so quarantined sources
+  // can be skipped, and keep one shared per-run probe cache across sources.
+  const healthLogPath = join(OUTPUT_DIR, "source-health.json");
+  const prevHealthLog = loadSourceHealthLog(healthLogPath);
+  const runNow = Date.now();
+  const probeCache = new Map();
+
   for (const source of sources) {
+    // #269 Phase 1: quarantine gate — quarantined sources are skipped outright
+    // until a manual clear (delete the entry/flag in source-health.json) or a
+    // passing probe recheck after QUARANTINE_RECHECK_DAYS (one per run).
+    const qState = isQuarantined(prevHealthLog?.sources?.[source.name], runNow);
+    if (qState.quarantined && !qState.recheckDue) {
+      console.log(
+        `⏭️  Skipping ${source.name} — quarantined since ${new Date(prevHealthLog.sources[source.name].quarantinedAt).toISOString().slice(0, 10)} (${prevHealthLog.sources[source.name].quarantineReason ?? "zero-results"}, #269)`,
+      );
+      sourceAttempts.push({
+        source: source.name,
+        layer: "skip",
+        count: null,
+        reason: "quarantined",
+      });
+      continue;
+    }
+    if (qState.quarantined && qState.recheckDue) {
+      const searchUrl = buildSourceSearchUrl(source, keywordArg);
+      const raw = searchUrl
+        ? await probeSourceUrl(searchUrl)
+        : { httpStatus: null, finalUrl: null, error: "no registered search url" };
+      const verdict = judgeUrlProbe({ searchUrl, ...raw });
+      const probe = {
+        at: Date.now(),
+        url: searchUrl,
+        ...raw,
+        reason: verdict.reason,
+        detail: verdict.detail,
+        recheck: true,
+      };
+      if (verdict.dead) {
+        console.log(
+          `⏭️  Skipping ${source.name} — quarantine recheck probe still dead (${verdict.detail}, #269)`,
+        );
+        sourceAttempts.push({
+          source: source.name,
+          layer: "probe-recheck",
+          count: null,
+          reason: "dead-url-recheck",
+          probe,
+        });
+        healthRunEntries.push({
+          name: source.name,
+          count: 0,
+          zeroReason: "dead-url-recheck",
+          probe,
+        });
+        continue;
+      }
+      console.log(
+        `✅ ${source.name} quarantine recheck probe passed (${verdict.detail}) — re-enabling (#269)`,
+      );
+      clearQuarantine(prevHealthLog, source.name);
+    }
+
     try {
-      const fetchedArticles = await collectFromSource(source, keywordArg, (e) =>
-        sourceAttempts.push(e),
+      const fetchedArticles = await collectFromSource(
+        source,
+        keywordArg,
+        (e) => sourceAttempts.push(e),
+        { probeCache },
       );
       const articles = filterRecentTrackedArticles(fetchedArticles, source.tracking);
       if (
@@ -852,7 +1084,15 @@ async function main() {
         searchCacheDirty = true;
       }
       allArticles.push(...articles);
-      healthRunEntries.push({ name: source.name, count: fetchedArticles.length });
+      // #269: persist this source's probe verdict (if any) into its health record.
+      const probeEvent = [...sourceAttempts]
+        .reverse()
+        .find((e) => e.source === source.name && e.probe);
+      healthRunEntries.push({
+        name: source.name,
+        count: fetchedArticles.length,
+        ...(probeEvent ? { probe: probeEvent.probe } : {}),
+      });
       if (isResearchMode) {
         resultsBySource[source.name] = {
           label: source.label,
@@ -868,8 +1108,7 @@ async function main() {
   }
 
   // #200: persist the streak log and surface review candidates.
-  const healthLogPath = join(OUTPUT_DIR, "source-health.json");
-  const healthLog = updateSourceHealth(loadSourceHealthLog(healthLogPath), healthRunEntries);
+  const healthLog = updateSourceHealth(prevHealthLog, healthRunEntries);
   saveSourceHealthLog(healthLogPath, healthLog);
   const zeroResultSources = deriveZeroResultSources(sourceAttempts);
   if (zeroResultSources.length > 0) {
@@ -887,6 +1126,15 @@ async function main() {
   if (reviewCandidates.length > 0) {
     console.warn(
       `⚠️  Selector review suggested (${REVIEW_THRESHOLD}+ consecutive zero-result runs): ${reviewCandidates.join(", ")}`,
+    );
+  }
+  // #269 Phase 1: newly quarantined sources will be skipped by the next run.
+  const newlyQuarantined = Object.entries(healthLog.sources)
+    .filter(([name, v]) => v.quarantined && !prevHealthLog?.sources?.[name]?.quarantined)
+    .map(([name]) => name);
+  if (newlyQuarantined.length > 0) {
+    console.warn(
+      `⛔  Newly quarantined (skipped from the next run, ${QUARANTINE_THRESHOLD}+ failing runs; delete the entry in source-health.json or wait ${QUARANTINE_RECHECK_DAYS}d for the probe recheck to clear): ${newlyQuarantined.join(", ")}`,
     );
   }
 
@@ -1041,26 +1289,42 @@ async function runChannelDoctor() {
   inventory = await Promise.all(inventory.map((entry) => probeChannels(entry, { live })));
 
   const summary = summarizeChannelInventory(inventory);
-  console.log(`\n🩺 Channel Doctor — ${inventory.length} articles-capable sources${live ? " (live probes)" : ""}`);
+  console.log(
+    `\n🩺 Channel Doctor — ${inventory.length} articles-capable sources${live ? " (live probes)" : ""}`,
+  );
   console.log("=".repeat(60));
   for (const entry of inventory) {
-    const health = entry.health.review ? ` ⚠️ ${entry.health.consecutiveZeroRuns} zero-result runs` : "";
+    const health = entry.health.review
+      ? ` ⚠️ ${entry.health.consecutiveZeroRuns} zero-result runs`
+      : "";
     const probes = entry.probes
       .filter((p) => p.status !== "unprobed")
       .map((p) => `${p.type}:${p.status}${p.blocked ? "(blocked)" : ""}`)
       .join(", ");
     const chain = entry.channels.map((c) => `${c.primary ? "*" : ""}${c.type}`).join(" → ");
-    console.log(`  [${entry.riskClass}] ${entry.name}: ${chain}${health}${probes ? ` | ${probes}` : ""}`);
+    console.log(
+      `  [${entry.riskClass}] ${entry.name}: ${chain}${health}${probes ? ` | ${probes}` : ""}`,
+    );
   }
   console.log("=".repeat(60));
   console.log(`  Totals: ${JSON.stringify(summary.totals)}`);
   if (summary.review.length > 0) {
-    console.log(`  ⚠️ Review (≥${REVIEW_THRESHOLD} zero-result runs): ${summary.review.join(", ")}`);
+    console.log(
+      `  ⚠️ Review (≥${REVIEW_THRESHOLD} zero-result runs): ${summary.review.join(", ")}`,
+    );
   }
 
   const reportPath = join(OUTPUT_DIR, "channel-health.json");
   try {
-    _writeFileSync(reportPath, JSON.stringify({ generatedAt: new Date().toISOString(), live, summary, sources: inventory }, null, 2) + "\n", "utf8");
+    _writeFileSync(
+      reportPath,
+      JSON.stringify(
+        { generatedAt: new Date().toISOString(), live, summary, sources: inventory },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
     console.log(`  📁 Report written: ${reportPath}`);
   } catch (e) {
     console.warn(`⚠️  channel-health.json write failed: ${e.message}`);
