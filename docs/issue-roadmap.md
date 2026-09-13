@@ -3,9 +3,9 @@
 GitHub Issues 依赖关系 + 执行顺序 + 父子分组 + 状态追踪。每次 triage 后更新。
 
 > 历史轮次（第三十七 session 前期及更早共 35 轮）已下沉 `docs/archive/tracker-rotation-history-2026-09-06.md`（2026-09-12 第三十七 session 清理，沿 3a92094/b89ab81 先例）。
-> Last inventory: 2026-09-12（第三十八 session·多票并行 marathon，Agents 工作流授权自主执行）— **① 评论全量扫**：28 张 open 票逐票读评论（Explore 代理 + 关键票主 agent 复核），吸收 #216 实测状态（账号未开通视频号 + 缺中文包 → #268 前置链，解锁路径改写）、#231 B/C 已交付（`997ec35`，余 Kaggle wheels 真机验收）、#235 余量被 #252 吸收；**② 交付关票 4 张**：#265（Search Pool CLI+skill，`948bb02` 合并 `83720c6`）、#266（PDF 核实 SOP 固化，`30a1128`，subagent 撞并发限额降级主 agent）、#267（Kaggle slug 派生防串台，`d7cbd92` 三方合并 `bb99899`，主树用户在途 hunk 以 index/worktree 分离保全）、#235（核销关票）；**③ 两轴 code-review**（Standards+Spec）：3 finding 修讫（dotenv loader 去重 / `--max-results` 校验提取 / **嵌套 content id 尾段碰撞回归**——只取尾段会重引入串台，改全路径派生 + 回归测试；Grok 桥不入 pool 链澄清），修复 `856372e`，全量 vitest **3715 passed / 6 skipped / 0 failed**；**④ 分流**：#267/#269 → ready-for-agent，#268 补 needs-triage 登记 Inbox（选题需用户拍板，未擅动）；**⑤ #269 实测定 scope**：ithome = Layer 1 搜索页 404/跳首页 + 假阳性逃逸监测（534 条首页垃圾记"成功"），**Phase 1 死源检测+quarantine 已交付**（`57b05ec`：URL 探针 + 相关性护栏 + quarantine 生命周期，真实 smoke 三连 run ithome 垃圾 647→0 入库，票 open 留 Phase 2 自动修复闭环）；**最终全量门禁 3738 passed / 6 skipped / 0 failed**；**当前 live open 24 票**（执行区余 #231 真机验收 + #269 Phase 2；HITL 区 #216(等#268+开通)/#257/#263/#256/#253/#244/#247；Dormant 区不变）。
+> Last inventory: 2026-09-13（#257 Spark-TTS 收口 session）— **① Kaggle kernel `spark-hook-cuda-verify` 4 版跑通双产物**：官方 Spark-TTS CUDA fp32 对照（同文本/同 ref/同参数 hook，RTF 1.496 @T4）+ #234 标准 instruct 重生成情绪 ref ×3 take；② **用户听感终裁 Spark-TTS 淘汰**（MLX≈CUDA 无硬件差异；Spark 无 instruct 情绪接口=架构上限），#257 附交付记录关票 + 实验资产 5.4GB 清理（含 HF 缓存条目）；③ **新开 #270**（TTS instruct 标准机制级化，enhancement/needs-triage，在 Inbox）；主树 TTS 引擎与 anthropic-distillation 内容 hunk 属并行 session，未触碰。产线维持 CosyVoice3-Kaggle-CUDA（ADR-0019）。
 
-Previous: 2026-09-12（第三十七 session 前期）及更早全部轮换历史（累计 56 轮）已下沉 `docs/archive/tracker-rotation-history-2026-09-06.md`。
+Previous: 2026-09-12 第三十八 session 及更早共 56 轮轮换历史已下沉 `docs/archive/tracker-rotation-history-2026-09-06.md`。
 
 **Tracker review**: `docs/archive/reviews/issue-tracker-review-2026-08-26.md` — 2026-08-26 全量逐项审阅（38 open issues），19 项通过 / 19 项 Comment（8 P1 + 11 P2）。**2026-08-28：19/19 项全部已修复，报告已归档。**
 
