@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   resolveSceneSpeed,
   planPacingResponse,
+  HOOK_MIN_SPEED,
   MAX_TTS_SPEED,
   WPM_TARGET,
   WPM_COMPENSATE_BELOW,
@@ -181,5 +182,54 @@ describe("buildCV3CudaManifest per-scene speed (#252)", () => {
     // hook profile tempo 1.06; narrative has no profile → no speed at all
     expect(manifest[0].speed).toBe(1.06);
     expect(manifest[1].speed).toBeUndefined();
+  });
+});
+
+describe("hook speed floor (#244, 2026-09-13 HITL verdict)", () => {
+  // Three A/B rounds (output/_hook_ab_test{,2,3}) measured with real ears:
+  // 1.0x hooks read slow AND carry the ref-audio accent residue; 1.1x takes
+  // read energetic and clean. The floor is a policy decision by the user —
+  // a finished hook never ships at 1.0. Upper bound is unchanged: 1.1x of a
+  // measured 205+ WPM hook would break the 225 hard ceiling, so those keep.
+  it("exposes the floor constant", () => {
+    expect(HOOK_MIN_SPEED).toBe(1.1);
+  });
+
+  it("compensates an in-band hook to the 1.1 floor instead of keeping", () => {
+    const plan = planPacingResponse(enHook, 150);
+    expect(plan.action).toBe("compensate");
+    expect(plan.speed).toBe(1.1);
+  });
+
+  it("keeps the floor for a fast-but-legal hook whose 1.1x stays under the ceiling", () => {
+    const plan = planPacingResponse(enHook, 204); // 204 × 1.1 = 224.4 ≤ 225
+    expect(plan.action).toBe("compensate");
+    expect(plan.speed).toBe(1.1);
+  });
+
+  it("keeps a hook whose 1.1x would break the 225 hard ceiling", () => {
+    expect(planPacingResponse(enHook, 205).action).toBe("keep"); // 205 × 1.1 = 225.5
+    expect(planPacingResponse(enHook, 220).action).toBe("keep");
+  });
+
+  it("reroll precedence is unchanged for a >225 hook", () => {
+    expect(planPacingResponse(enHook, 230).action).toBe("reroll");
+  });
+
+  it("still compensates a genuinely slow hook toward 150 WPM, not just the floor", () => {
+    const plan = planPacingResponse(enHook, 116);
+    expect(plan.action).toBe("compensate");
+    expect(plan.speed).toBe(1.2); // 150/116 = 1.29 → clamp; floor is not a ceiling
+  });
+
+  it("does not floor non-hook scenes — the narrative keep band is unchanged", () => {
+    expect(planPacingResponse(enNarrative, 150).action).toBe("keep");
+    expect(planPacingResponse(enNarrative, 204).action).toBe("keep");
+  });
+
+  it("honors refStyle like visualType when applying the floor", () => {
+    expect(planPacingResponse({ ...enNarrative, visualType: "narrative", refStyle: "hook" }, 150).action).toBe(
+      "compensate",
+    );
   });
 });

@@ -110,18 +110,36 @@ describe("pacing feedback loop (#252)", () => {
     return engine;
   }
 
-  it("in-range scenes generate exactly once — no compensation, no reroll", async () => {
+  it("in-band narrative generates exactly once — no compensation, no reroll", async () => {
     const engine = engineReturningAudio();
-    stubGate((id) => (id === 1 ? 150 : 145));
+    stubGate(() => 145);
+
+    await generateTTSWithEngine([makeNarrative()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
+
+    expect(engine.generate).toHaveBeenCalledTimes(1);
+    expect(runTtsQualityGate).toHaveBeenCalledTimes(1);
+  });
+
+  it("floors an in-band hook at ttsSpeed 1.1 (#244) — single-scene regeneration, no re-plan loop", async () => {
+    const engine = engineReturningAudio();
+    // First pass: hook 150 (in band), narrative 145 (in band). The floor
+    // compensates the hook; the floored take re-measures 150 and is accepted
+    // as-is (the loop never re-plans a compensated take, so no infinite floor).
+    stubGate((id, call) => (id === 1 ? (call === 0 ? 150 : 150) : 145));
 
     await generateTTSWithEngine([makeHook(), makeNarrative()], dir, engine, {
       useCache: false,
       runAlignment: false,
     });
 
-    expect(engine.generate).toHaveBeenCalledTimes(1);
-    expect(engine.generate.mock.calls[0][0].map((s) => s.id)).toEqual([1, 2]);
-    expect(runTtsQualityGate).toHaveBeenCalledTimes(1);
+    expect(engine.generate).toHaveBeenCalledTimes(2);
+    // The retry call carries ONLY the hook, mutated with the floor override.
+    const retryScenes = engine.generate.mock.calls[1][0];
+    expect(retryScenes.map((s) => s.id)).toEqual([1]);
+    expect(retryScenes[0].ttsSpeed).toBe(1.1);
   });
 
   it("compensates a slow hook (116 WPM) with a single-scene regeneration at ttsSpeed 1.2", async () => {

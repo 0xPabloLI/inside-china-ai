@@ -17,7 +17,9 @@
  *   (speed = 150/measured, clamp ≤1.2); above 225 reroll once (take drift
  *   ±10-20%, #234) and hard-block if the reroll still overshoots; in between
  *   keep. Hook vs narrative relative pace is an emergent property of
- *   measurement, not a static rule.
+ *   measurement, not a static rule — with one user-mandated exception
+ *   (#244, 2026-09-13): an in-band hook compensates to the HOOK_MIN_SPEED
+ *   1.1 floor, because 1.0x hooks read slow and carry accent residue.
  * - TTS_SPEED env overrides the English baseline (escape hatch: 真包发赶 → 1.15).
  *   It never lifts the Chinese 1.0. An explicit scene.ttsSpeed (written by the
  *   loop, or set by hand in scene-data) beats the env.
@@ -34,6 +36,15 @@
 
 /** Hard speed ceiling — spectral-flux and industry-product bound. */
 export const MAX_TTS_SPEED = 1.2;
+
+/**
+ * Hook speed floor (#244, 2026-09-13 HITL verdict). Three A/B rounds
+ * (output/_hook_ab_test{,2,3}) with real ears established that 1.0x hooks
+ * read slow AND carry the ref-audio accent residue, while 1.1x takes read
+ * energetic and clean. A finished hook never ships at 1.0: the loop floors
+ * every in-band hook at 1.1 unless flooring would push it past the ceiling.
+ */
+export const HOOK_MIN_SPEED = 1.1;
 
 /** EN sweet-spot centre the loop compensates toward (#235 research: 140-160). */
 export const WPM_TARGET = 150;
@@ -129,10 +140,16 @@ export function resolveSceneSpeed(scene) {
  *   measured <  WPM_COMPENSATE_BELOW   → "compensate" (speed = 150/measured)
  *   otherwise                          → "keep"
  *
+ * Hook exception (#244 HITL): an in-band hook compensates to HOOK_MIN_SPEED
+ * (1.1) instead of keeping — 1.0x hooks measured slow and accented across
+ * three A/B rounds. The floor yields when it would break the ceiling:
+ * 1.1x of a measured >225/1.1 WPM hook overshoots 225, so those keep (the
+ * reroll ladder above still applies first).
+ *
  * Only English scenes participate: whitespace WPM is not the ZH metric
  * (the Quality Gate likewise skips pacing checks for non-EN text).
  *
- * @param {{voiceover?: string, ttsText?: string}} scene
+ * @param {{voiceover?: string, ttsText?: string, refStyle?: string, visualType?: string}} scene
  * @param {number} measuredWpm - gate-measured WPM (expected words / audio duration)
  * @returns {{action: "keep"|"compensate"|"reroll", speed?: number, measuredWpm: number, reason: string}}
  */
@@ -142,6 +159,8 @@ export function planPacingResponse(scene, measuredWpm) {
   if (!isEnglishText(text) || !Number.isFinite(wpm) || wpm <= 0) {
     return { action: "keep", measuredWpm: wpm, reason: "no usable WPM measurement or non-EN scene" };
   }
+  const role = scene?.refStyle || scene?.visualType;
+  const isHook = role === "hook";
   if (wpm > WPM_HARD_CEILING) {
     return {
       action: "reroll",
@@ -155,6 +174,14 @@ export function planPacingResponse(scene, measuredWpm) {
       speed: clampSpeed(WPM_TARGET / wpm),
       measuredWpm: wpm,
       reason: `${wpm} WPM < ${WPM_COMPENSATE_BELOW} — native speed compensation toward ${WPM_TARGET}`,
+    };
+  }
+  if (isHook && wpm * HOOK_MIN_SPEED <= WPM_HARD_CEILING) {
+    return {
+      action: "compensate",
+      speed: HOOK_MIN_SPEED,
+      measuredWpm: wpm,
+      reason: `${wpm} WPM in band but hook floor ${HOOK_MIN_SPEED} applies (#244: 1.0x hooks read slow and accented)`,
     };
   }
   return { action: "keep", measuredWpm: wpm, reason: `${wpm} WPM inside the keep band` };
