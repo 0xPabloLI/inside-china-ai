@@ -232,4 +232,17 @@ describe("hook speed floor (#244, 2026-09-13 HITL verdict)", () => {
       "compensate",
     );
   });
+
+  it("is a floor, not a target — TTS_SPEED above 1.1 is not pulled down", () => {
+    process.env.TTS_SPEED = "1.15";
+    const plan = planPacingResponse(enHook, 150);
+    expect(plan.action).toBe("compensate");
+    expect(plan.speed).toBe(1.15); // max(1.1, env 1.15) — the floor never downgrades an operator override
+  });
+
+  it("clamps an extreme operator override at the 1.2 ceiling", () => {
+    process.env.TTS_SPEED = "1.5";
+    const plan = planPacingResponse(enHook, 150);
+    expect(plan.speed).toBe(1.2); // max(1.1, clamped 1.5→1.2)
+  });
 });

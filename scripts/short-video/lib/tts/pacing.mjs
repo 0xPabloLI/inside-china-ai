@@ -41,8 +41,11 @@ export const MAX_TTS_SPEED = 1.2;
  * Hook speed floor (#244, 2026-09-13 HITL verdict). Three A/B rounds
  * (output/_hook_ab_test{,2,3}) with real ears established that 1.0x hooks
  * read slow AND carry the ref-audio accent residue, while 1.1x takes read
- * energetic and clean. A finished hook never ships at 1.0: the loop floors
- * every in-band hook at 1.1 unless flooring would push it past the ceiling.
+ * energetic and clean. A finished hook never ships at 1.0 — the loop floors
+ * every in-band hook at ≥1.1 unless flooring would push it past the ceiling.
+ * Degradation edge: if the floored take itself fails the Quality Gate, the
+ * pre-existing compensation-failure policy keeps the original take rather
+ * than shipping nothing (registry pacing loop).
  */
 export const HOOK_MIN_SPEED = 1.1;
 
@@ -177,9 +180,13 @@ export function planPacingResponse(scene, measuredWpm) {
     };
   }
   if (isHook && wpm * HOOK_MIN_SPEED <= WPM_HARD_CEILING) {
+    // The floor is a lower bound, not a target: an operator/env speed above
+    // 1.1 (TTS_SPEED escape hatch, or a hand-set scene.ttsSpeed) must not be
+    // pulled back down to 1.1 by the floor — hence max(), then clamp.
+    const speed = clampSpeed(Math.max(HOOK_MIN_SPEED, resolveSceneSpeed(scene)));
     return {
       action: "compensate",
-      speed: HOOK_MIN_SPEED,
+      speed,
       measuredWpm: wpm,
       reason: `${wpm} WPM in band but hook floor ${HOOK_MIN_SPEED} applies (#244: 1.0x hooks read slow and accented)`,
     };
