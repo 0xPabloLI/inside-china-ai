@@ -192,10 +192,11 @@ collectFromSource() 层次：
 | **#265** | 2026-09-12 | Search Pool 消费方式从 MCP 常驻改为 skill + 按需 CLI（降本地资源占用） | ✅ 分流 Tier 2 · `ready-for-agent`（架构：薄 CLI 工具 + SKILL.md 决策树，不重构现有 skill 接口；已回写评审意见） |
 | **#266** | 2026-09-12 | 新闻核实 SOP 改进：权威报告必须解析 PDF 原文 + 中英文互译对比搜索 | ✅ 分流 Tier 2 · `ready-for-agent`（技术选型：pdfplumber 抽取 + 中英文关键词多路检索，不引入重量向量库；已回写评审意见） |
 | **#267** | 2026-09-12 | 多管线并行未设 COSYVOICE3_KAGGLE_SLUG 时静默串台——默认 slug 应 fail-fast 或从 content id 派生 | ✅ 分流 Tier 2 · `ready-for-agent`（2026-09-12 分流：采纳方案 B 语义派生 + env 覆盖 + fail-fast 兜底；加固 #250 防护前提；已开工实现） |
-| **#269** | 2026-09-12 | 搜索源失效后的自动修复闭环 + 确认死源的跳过策略（ithome search 失效触发） | ✅ 分流 Tier 2 · `ready-for-agent`（2026-09-12 实测定 scope：ithome 失效 = Layer 1 搜索页 404/跳首页 + 假阳性逃逸监测 → Phase 1 死源检测+quarantine 实现中，自动修复闭环放 Phase 2；证据见 issue 评论） |
+| **#269** | 2026-09-12 | 搜索源失效后的自动修复闭环 + 确认死源的跳过策略（ithome search 失效触发） | ✅ 分流 Tier 2 · `ready-for-agent`（**Phase 1 已交付**（2026-09-13，`57b05ec` 合并 `874eab1`：URL 探针 + 相关性护栏 + quarantine 生命周期，票 open 留 Phase 2 自动修复闭环）；实测证据见 issue 评论） |
 | **#268** | 2026-09-12 | 中文内容轨首包：产出首个 ZH voiceover 内容包（视频号/抖音试点素材，#216/#220 前置） | ⏳ 待 triage（内容生产票：选题属创意决策需用户拍板；发布仍受 HITL 约束；前置链 = 用户开通视频号 → 本包产出 → #216 五项实测；TTS 运行须等 #267 slug 修复落地防串台） |
 | **#275** | 2026-09-13 | search-sources 全链路不自载 .env.local——pool 引擎在管线内恒缺 key（CLI 正常），Layer 3 实际不可用 | ⏳ 待 triage（bug：#269 交付时核实；loadDotEnv 只在 search-pool CLI 直执入口触发；修法小，dotenv 归口位置待裁决） |
-| **#276** | 2026-09-13 | web-deep-research 检索路由接入 search-pool CLI——消掉 Brave/Tavily/Jina 双份路由分裂（保留 Grok 桥） | ⏳ 待 triage（enhancement：#265 后 pool 与 SEARCH_TOOLS 重复建设；倾向「增加路由+旧的降级」非整体替换；额度控制 open question） |
+| **#276** | 2026-09-13 | web-deep-research 检索路由接入 search-pool CLI——消掉 Brave/Tavily/Jina 双份路由分裂（保留 Grok 桥） | ⏳ 待 triage（enhancement：#265 后 pool 与 SEARCH_TOOLS 重复建设；倾向「增加路由+旧的降级」非整体替换；额度控制 open question；⚠️ 与 #277 相邻——#277 是 web-access 工具表加 pool 兜底行，web-deep-research RETRIEVE 委托该表，triage 时合并裁决避免重复施工） |
+| **#277** | 2026-09-13 | web-access 工具选择表加 search-pool CLI 兜底行：宿主 WebSearch 优先，不可用/连续无果时降级 | ⏳ 待 triage（enhancement：#265 后 agent 面两条搜索入口无串接，无 WebSearch 宿主（Catpaw 类）无兜底；纯指令零代码；⚠️ 与 #276 相邻——web-deep-research RETRIEVE 委托 web-access 表，若 #276 选择直接改 web-deep-research 路由则两票需对齐；已评论交叉引用） |
 
 ## Execution Tiers
 
