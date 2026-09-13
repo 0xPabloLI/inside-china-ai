@@ -195,8 +195,8 @@ collectFromSource() 层次：
 | **#269** | 2026-09-12 | 搜索源失效后的自动修复闭环 + 确认死源的跳过策略（ithome search 失效触发） | ✅ 分流 Tier 2 · `ready-for-agent`（**Phase 1 已交付**（2026-09-13，`57b05ec` 合并 `874eab1`：URL 探针 + 相关性护栏 + quarantine 生命周期，票 open 留 Phase 2 自动修复闭环）；实测证据见 issue 评论） |
 | **#268** | 2026-09-12 | 中文内容轨首包：产出首个 ZH voiceover 内容包（视频号/抖音试点素材，#216/#220 前置） | ⏳ 待 triage（内容生产票：选题属创意决策需用户拍板；发布仍受 HITL 约束；前置链 = 用户开通视频号 → 本包产出 → #216 五项实测；TTS 运行须等 #267 slug 修复落地防串台） |
 | **#275** | 2026-09-13 | search-sources 全链路不自载 .env.local——pool 引擎在管线内恒缺 key（CLI 正常），Layer 3 实际不可用 | ⏳ 待 triage（bug：#269 交付时核实；loadDotEnv 只在 search-pool CLI 直执入口触发；修法小，dotenv 归口位置待裁决） |
-| **#276** | 2026-09-13 | web-deep-research 检索路由接入 search-pool CLI——消掉 Brave/Tavily/Jina 双份路由分裂（保留 Grok 桥） | ⏳ 待 triage（enhancement：#265 后 pool 与 SEARCH_TOOLS 重复建设；倾向「增加路由+旧的降级」非整体替换；额度控制 open question；⚠️ 与 #277 相邻——#277 是 web-access 工具表加 pool 兜底行，web-deep-research RETRIEVE 委托该表，triage 时合并裁决避免重复施工） |
-| **#277** | 2026-09-13 | web-access 工具选择表加 search-pool CLI 兜底行：宿主 WebSearch 优先，不可用/连续无果时降级 | ⏳ 待 triage（enhancement：#265 后 agent 面两条搜索入口无串接，无 WebSearch 宿主（Catpaw 类）无兜底；纯指令零代码；⚠️ 与 #276 相邻——web-deep-research RETRIEVE 委托 web-access 表，若 #276 选择直接改 web-deep-research 路由则两票需对齐；已评论交叉引用） |
+| **#276** | 2026-09-13 | web-deep-research 检索路由接入 search-pool CLI——消掉 Brave/Tavily/Jina 双份路由分裂（保留 Grok 桥） | ⏳ 待 triage（enhancement：#265 后 pool 与 SEARCH_TOOLS 重复建设。**裁决（2026-09-13，#277 交付时）**：agent 面兜底串接已由 #277 在 web-access 工具表落地（web-deep-research RETRIEVE 委托该表自动跟随）；本票收敛为 SEARCH_TOOLS 多路由分裂 + 额度控制两个独有议题，择期分流） |
+| ~~**#277**~~ | ✅ web-access 工具选择表加 search-pool CLI 兜底行：宿主 WebSearch 优先，不可用/连续无果时降级 | — | — | ✅ 关闭（2026-09-13，`ef50781`：工具表兜底行 + RETRIEVE 否定句去冗余；纯指令零代码宿主无关。扩散链：harness `0c52ee8` 已同步（连带 cdp-proxy wsPath 修复等积压），各 adopting repo 待拷）。详情：GitHub 关票评论 |
 
 ## Execution Tiers
 
