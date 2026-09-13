@@ -15,11 +15,11 @@ metadata:
 
 ## 三路分流决策树
 
-| 目标 | 路由 |
-| --- | --- |
-| 主流新闻、论文、深度技术信息，质量优先，需要结构化结果 | **Route A — Search Pool CLI** |
-| 广度探索、多引擎聚合、无额度顾虑的快速扫描 | **Route B — curl SearXNG** |
-| 登录态/反爬站点：微信公众号、知乎、微博、小红书等；需要浏览器内交互 | **Route C — web-access CDP** |
+| 目标                                                                | 路由                          |
+| ------------------------------------------------------------------- | ----------------------------- |
+| 主流新闻、论文、深度技术信息，质量优先，需要结构化结果              | **Route A — Search Pool CLI** |
+| 广度探索、多引擎聚合、无额度顾虑的快速扫描                          | **Route B — curl SearXNG**    |
+| 登录态/反爬站点：微信公众号、知乎、微博、小红书等；需要浏览器内交互 | **Route C — web-access CDP**  |
 
 判断要点：
 
@@ -38,6 +38,10 @@ metadata:
 node scripts/short-video/lib/search-pool.mjs "<query>" [--engine <serper|brave|tavily|jina>] [--max-results <n>]
 ```
 
+**调用路径**：在本 repo（inside-china-ai）内直接用上面的相对路径。**从其他 repo 调用时**，先在本机 shell env 设一次 `export INSIDE_CHINA_AI_REPO=/path/to/inside-china-ai`（CLI 与 key 都在这个 checkout 里，单一来源），命令改用 `node "$INSIDE_CHINA_AI_REPO/scripts/short-video/lib/search-pool.mjs" ...`；变量未设时命令会得到空路径报错——先设变量再调。
+
+**首次使用自检**：key 从该 checkout 的仓库根 `.env.local` 读取（`.env.example` 底部有占位模板）。key 缺失不是错误——返回 `engine: null` + 空数组，`attempts` 里逐条写明 `missing <X>_API_KEY`，照着补 key 即可。
+
 stdout 是纯 JSON（所有日志走 stderr），直接 `JSON.parse`：
 
 ```bash
@@ -46,9 +50,7 @@ node scripts/short-video/lib/search-pool.mjs "中国 AI 芯片出口管制" --ma
 
 ```json
 {
-  "articles": [
-    { "title": "...", "url": "https://...", "snippet": "..." }
-  ],
+  "articles": [{ "title": "...", "url": "https://...", "snippet": "..." }],
   "engine": "serper",
   "attempts": []
 }

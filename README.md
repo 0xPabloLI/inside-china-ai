@@ -114,7 +114,7 @@ inside-china-ai/
 
 ### Prerequisites
 
-- Node.js 20+ and npm
+- Node.js 22 (arm64 — x64 lacks `@rspack` native bindings for Remotion; see `.nvmrc`) and npm
 - Python 3.12 (for TTS, VLM, whisperx) — use `~/.video-tts-env` venv
 - FFmpeg full build (`brew install ffmpeg` or `/opt/homebrew/opt/ffmpeg-full`)
 - Ollama with `bge-m3` model (for RAG)
@@ -130,6 +130,10 @@ npm install
 # Install git hooks: secret scanning (pre-commit) + Session-Id gate (commit-msg)
 # Equivalent to: npm run setup:hooks
 bash scripts/install-git-hooks.sh
+
+# Create your local env from the template, then fill in the keys you have
+# (search pool keys are SECRET — they live in .env.local, gitignored)
+cp .env.example .env.local
 
 # Start dev server
 npm run dev
@@ -156,15 +160,16 @@ handles everything from research to final video.
 
 ### Common commands
 
-| Command                                                    | Purpose                  |
-| ---------------------------------------------------------- | ------------------------ |
-| `npm run dev`                                              | Local development server |
-| `npm run lint`                                             | ESLint                   |
-| `npm run build`                                            | Production build         |
-| `npm run format`                                           | Prettier write           |
-| `npx tsc --noEmit`                                         | Type check (no emit)     |
-| `npm test`                                                 | Run test suite (vitest)  |
-| `node scripts/short-video/main.mjs --content <slug> --bgm` | Produce a video          |
+| Command                                                    | Purpose                                                                                                                                                                                |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                                              | Local development server                                                                                                                                                               |
+| `npm run lint`                                             | ESLint                                                                                                                                                                                 |
+| `npm run build`                                            | Production build                                                                                                                                                                       |
+| `npm run format`                                           | Prettier write                                                                                                                                                                         |
+| `npx tsc --noEmit`                                         | Type check (no emit)                                                                                                                                                                   |
+| `npm test`                                                 | Run test suite (vitest)                                                                                                                                                                |
+| `node scripts/short-video/main.mjs --content <slug> --bgm` | Produce a video                                                                                                                                                                        |
+| `node scripts/short-video/lib/search-pool.mjs "<query>"`   | Search pool CLI (multi-engine fallback; stdout JSON. From other repos: `node "$INSIDE_CHINA_AI_REPO/scripts/short-video/lib/search-pool.mjs" ...` — see `skills/search-pool/SKILL.md`) |
 
 ## Documentation
 
@@ -174,7 +179,7 @@ for the full document map. Key documents:
 | Document                               | Purpose                                        |
 | -------------------------------------- | ---------------------------------------------- |
 | `docs/content-pipeline.md`             | End-to-end pipeline: article → video → publish |
-| `docs/video-production-runbook.md`               | TTS engines, publishing, file paths            |
+| `docs/video-production-runbook.md`     | TTS engines, publishing, file paths            |
 | `docs/brand-system.md`                 | Brand identity, logo, color tokens             |
 | `docs/tiktok/tiktok-best-practices.md` | TikTok algorithm & content rules               |
 | `docs/tanstack-lovable-conventions.md` | Stack-level conventions                        |
