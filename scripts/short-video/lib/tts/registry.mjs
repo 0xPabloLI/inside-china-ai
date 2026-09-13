@@ -377,7 +377,15 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       if (scene) {
         const resolvedSpeed = resolveSceneSpeed(scene);
         writeSceneMeta(outputDir, r.sceneId, {
-          key: computeSceneKey(engine, scene.ttsText || scene.voiceover, resolvedSpeed),
+          // #244: the instruct must resolve identically here and in
+          // planTtsScenes' cache-hit check — a mismatch would make a freshly
+          // generated take miss its own cache entry on the next run.
+          key: computeSceneKey(
+            engine,
+            scene.ttsText || scene.voiceover,
+            resolvedSpeed,
+            engine.instructForScene?.(scene) ?? "",
+          ),
           duration: r.duration,
           engine: engine.name,
           audioPath: r.audioPath,

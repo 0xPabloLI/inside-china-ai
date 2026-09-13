@@ -56,7 +56,11 @@ const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 // Multi-dimensional best practice: Persona + Accent + Emotion + Pacing (#234)
 // CUDA (PyTorch) instruct format requires <|endofprompt|> suffix.
 const INSTRUCT_MAP = {
-  hook: "You are a helpful assistant. You are a tech news anchor on short video. Speak in standard American English with an energetic, clear, and confident tone, breaking major news.<|endofprompt|>",
+  // #244 (2026-09-13 HITL): anchor instruct won three A/B rounds — confident/
+  // dynamic reads clearly more energetic than "energetic, clear, confident",
+  // and the old "shocked" variant is banned (accent). Validated string from
+  // output/_hook_ab_test2 scene-303 / _hook_ab_test3 rounds.
+  hook: "You are a helpful assistant. Speak in standard American English with a confident, dynamic, and clear tone, as if breaking major tech news.<|endofprompt|>",
   narrative:
     "You are a helpful assistant. You are a tech documentary narrator. Speak in standard American English with a calm, engaging, and professional tone at a steady pace.<|endofprompt|>",
   data: "You are a helpful assistant. You are a tech analyst. Speak in standard American English with an authoritative, precise, and clear tone, emphasizing key metrics.<|endofprompt|>",
@@ -464,6 +468,9 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
     info: `CosyVoice3-Kaggle-CUDA (P100, cloned from ${CV3_REF_AUDIO})`,
     useSilenceFilter: false,
     resample: true,
+    // #244: exposed so the cache key folds the per-scene instruct in — an
+    // INSTRUCT_MAP edit must invalidate affected cached takes, not replay them.
+    instructForScene: resolveInstructForScene,
 
     async generate(scenes, outputDir) {
       // Kernel slug resolved per call (#267): env override > content-id

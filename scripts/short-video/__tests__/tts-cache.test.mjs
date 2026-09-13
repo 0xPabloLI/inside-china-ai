@@ -434,3 +434,61 @@ describe("planTtsScenes with mp3 engines (edge-tts / say)", () => {
     expect(second[0].audioPath).toBe(join(dir, "scene-1.mp3"));
   });
 });
+
+describe("per-scene instruct in the cache key (#244, 2026-09-13)", () => {
+  const engine = { name: "cosyvoice3-kaggle-cuda", info: "CosyVoice3-Kaggle-CUDA (P100, cloned from ref.wav)" };
+
+  it("mixes the per-scene emotion instruct into the key when provided", () => {
+    const a = computeSceneKey(engine, "same text", 1.0, "anchor instruct");
+    expect(computeSceneKey(engine, "same text", 1.0, "anchor instruct")).toBe(a);
+    // An INSTRUCT_MAP edit (e.g. #244 hook emotion swap) must not replay
+    // audio generated under the old instruct — same trap as the #235 speed key.
+    expect(computeSceneKey(engine, "same text", 1.0, "anchor instruct v2")).not.toBe(a);
+    expect(computeSceneKey(engine, "same text", 1.2, "anchor instruct")).not.toBe(a);
+  });
+
+  it("omitting the instruct keeps the legacy key shape (engines without instruct)", () => {
+    expect(computeSceneKey(engine, "同一句", 1.0, "")).toBe(computeSceneKey(engine, "同一句"));
+    expect(computeSceneKey(engine, "同一句", 1.0, undefined)).toBe(computeSceneKey(engine, "同一句"));
+  });
+
+  it("pins the plan/write key invariant for instruct-resolved scenes", () => {
+    const dirs = [];
+    try {
+      const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
+      dirs.push(dir);
+      const cv3 = {
+        ...engine,
+        instructForScene: (scene) => (scene.visualType === "hook" ? "anchor instruct" : undefined),
+      };
+      const scene = { id: 1, visualType: "hook", voiceover: "DeepSeek just dropped a bombshell!" };
+      const speed = resolveSceneSpeed(scene);
+      const instruct = cv3.instructForScene(scene) ?? "";
+      writeSceneMeta(dir, 1, {
+        key: computeSceneKey(cv3, scene.voiceover, speed, instruct),
+        duration: 1.5,
+        engine: cv3.name,
+        audioPath: join(dir, "scene-1.wav"),
+      });
+      writeFileSync(join(dir, "scene-1.wav"), "fake audio");
+      // Same instruct → hit.
+      expect(planTtsScenes(dir, [scene], cv3).cached).toHaveLength(1);
+      // Instruct change → miss (regenerate, never replay the stale emotion).
+      const changed = { ...cv3, instructForScene: () => "anchor instruct v2" };
+      expect(planTtsScenes(dir, [scene], changed).pending).toHaveLength(1);
+      // Engines without instructForScene (f5/edge/say) keep the legacy shape.
+      const legacy = { name: engine.name, info: engine.info };
+      const legacyScene = { id: 1, voiceover: "plain text" };
+      writeSceneMeta(dir, 1, {
+        key: computeSceneKey(legacy, legacyScene.voiceover),
+        duration: 1.5,
+        engine: legacy.name,
+        audioPath: join(dir, "scene-1.wav"),
+      });
+      writeFileSync(join(dir, "scene-1.wav"), "fake audio");
+      expect(planTtsScenes(dir, [legacyScene], legacy).cached).toHaveLength(1);
+    } finally {
+      for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    }
+  });
+});

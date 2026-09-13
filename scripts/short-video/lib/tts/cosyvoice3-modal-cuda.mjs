@@ -38,8 +38,11 @@ const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
 // ── Emotion instructions per visualType/refStyle ──
 // CUDA (PyTorch) instruct format requires <|endofprompt|> suffix.
+// #244 (2026-09-13): hook swapped off the banned "shocked" instruct (accent,
+// user verdict) onto the A/B-validated anchor instruct. The other entries
+// predate the kaggle-cuda 4D set — syncing them is out of scope here.
 const INSTRUCT_MAP = {
-  hook: "You are a helpful assistant. Speak with an excited and shocked tone, as if breaking incredible news.<|endofprompt|>",
+  hook: "You are a helpful assistant. Speak in standard American English with a confident, dynamic, and clear tone, as if breaking major tech news.<|endofprompt|>",
   narrative:
     "You are a helpful assistant. Speak with a calm and measured tone, like a narrator.<|endofprompt|>",
   data: "You are a helpful assistant. Speak with a clear and informative tone, emphasizing key data points.<|endofprompt|>",
@@ -104,6 +107,8 @@ export async function createCosyVoice3ModalCudaEngine() {
     info: `CosyVoice3-Modal-CUDA (A100, cloned from ${CV3_REF_AUDIO})`,
     useSilenceFilter: false,
     resample: true,
+    // #244: cache-key seam — see cosyvoice3-kaggle-cuda.mjs.
+    instructForScene: resolveInstructForScene,
 
     async generate(scenes, outputDir) {
       const manifest = buildManifest(scenes);

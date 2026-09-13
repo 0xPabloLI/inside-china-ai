@@ -36,9 +36,12 @@ const NPU_JUPYTER_TOKEN = process.env.COSYVOICE3_NPU_JUPYTER_TOKEN || "";
 const NPU_TIMEOUT_MS = parseInt(process.env.COSYVOICE3_NPU_TIMEOUT_MS || "1800000", 10); // 30 min
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
-// ── Emotion instructions (same as Kaggle CUDA — NPU uses PyTorch instruct format) ──
+// ── Emotion instructions (NPU uses PyTorch instruct format) ──
+// #244 (2026-09-13): hook swapped off the banned "shocked" instruct (accent,
+// user verdict) onto the A/B-validated anchor instruct. The other entries
+// predate the kaggle-cuda 4D set — syncing them is out of scope here.
 const INSTRUCT_MAP = {
-  hook: "You are a helpful assistant. Speak with an excited and shocked tone, as if breaking incredible news.<|endofprompt|>",
+  hook: "You are a helpful assistant. Speak in standard American English with a confident, dynamic, and clear tone, as if breaking major tech news.<|endofprompt|>",
   narrative:
     "You are a helpful assistant. Speak with a calm and measured tone, like a narrator.<|endofprompt|>",
   data: "You are a helpful assistant. Speak with a clear and informative tone, emphasizing key data points.<|endofprompt|>",
@@ -157,6 +160,8 @@ export async function createCosyVoice3NPUEngine() {
     info: `CosyVoice3-NPU (Ascend 910B, cloned from ${CV3_REF_AUDIO})`,
     useSilenceFilter: false,
     resample: true,
+    // #244: cache-key seam — see cosyvoice3-kaggle-cuda.mjs.
+    instructForScene: resolveInstructForScene,
 
     async generate(scenes, outputDir) {
       const manifest = buildCV3NpuManifest(scenes);

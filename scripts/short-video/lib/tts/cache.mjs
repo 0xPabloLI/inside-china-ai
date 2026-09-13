@@ -5,7 +5,8 @@
  * that touch one scene) used to re-run GPU TTS for ALL scenes and re-run the
  * wav2vec2 aligner over every scene even when the inputs were byte-identical.
  * The cache keys:
- *   - scene audio by sha1(engine name + engine config string + scene text),
+ *   - scene audio by sha1(engine name + engine config string + scene text
+ *     [+ per-scene speed / emotion instruct when present]),
  *     stored as a sidecar `scene-{id}.tts-meta.json` next to the audio file;
  *   - alignment by a signature over (scene text, scene audio bytes), stored
  *     as `subtitle-timing.meta.json` next to subtitle-timing.json.
@@ -31,14 +32,21 @@ import { resolveSceneSpeed } from "./pacing.mjs";
  * 1.0, so legacy 1.0 cache entries keep their keys and a speed change never
  * replays 1.0x cached audio.
  *
+ * The per-scene emotion instruct (#244) joins the key only when the engine
+ * exposes `instructForScene(scene)`. Same trap as speed: an INSTRUCT_MAP edit
+ * (e.g. the #244 hook emotion swap) must not replay audio generated under the
+ * old instruct. Engines without the hook keep the legacy key shape.
+ *
  * @param {{name: string, info: string}} engine
  * @param {string} text - scene voiceover text
  * @param {number} [speed] - per-scene native speed (#235); omit for 1.0
+ * @param {string} [instruct] - resolved emotion instruct (#244); omit/empty for legacy shape
  * @returns {string} sha1 hex
  */
-export function computeSceneKey(engine, text, speed = 1.0) {
+export function computeSceneKey(engine, text, speed = 1.0, instruct = "") {
   const hash = createHash("sha1").update(`${engine.name}|${engine.info}|${text}`);
   if (speed !== 1.0) hash.update(`|speed=${speed}`);
+  if (instruct) hash.update(`|inst=${createHash("sha1").update(instruct).digest("hex")}`);
   return hash.digest("hex");
 }
 
@@ -86,7 +94,10 @@ export function planTtsScenes(outputDir, scenes, engine) {
       const storedSpeed = Number.isFinite(meta.ttsSpeed) ? meta.ttsSpeed : null;
       const resolved = resolveSceneSpeed(scene);
       const speed = resolved !== 1.0 || storedSpeed === null ? resolved : storedSpeed;
-      const key = computeSceneKey(engine, spokenText, speed);
+      // #244: engines that resolve a per-scene emotion instruct fold it into
+      // the key so a map edit invalidates the affected scenes only.
+      const instruct = engine.instructForScene?.(scene) ?? "";
+      const key = computeSceneKey(engine, spokenText, speed, instruct);
       const audioPath = meta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
       if (meta.key === key && typeof meta.duration === "number" && existsSync(audioPath)) {
         hit = { sceneId: scene.id, audioPath, duration: meta.duration, cached: true };
