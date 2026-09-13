@@ -197,6 +197,9 @@ collectFromSource() 层次：
 | **#275** | 2026-09-13 | search-sources 全链路不自载 .env.local——pool 引擎在管线内恒缺 key（CLI 正常），Layer 3 实际不可用 | ⏳ 待 triage（bug：#269 交付时核实；loadDotEnv 只在 search-pool CLI 直执入口触发；修法小，dotenv 归口位置待裁决） |
 | **#276** | 2026-09-13 | web-deep-research 检索路由接入 search-pool CLI——消掉 Brave/Tavily/Jina 双份路由分裂（保留 Grok 桥） | ⏳ 待 triage（enhancement：#265 后 pool 与 SEARCH_TOOLS 重复建设。**裁决（2026-09-13，#277 交付时）**：agent 面兜底串接已由 #277 在 web-access 工具表落地（web-deep-research RETRIEVE 委托该表自动跟随）；本票收敛为 SEARCH_TOOLS 多路由分裂 + 额度控制两个独有议题，择期分流） |
 | ~~**#277**~~ | ✅ web-access 工具选择表加 search-pool CLI 兜底行：宿主 WebSearch 优先，不可用/连续无果时降级 | — | — | ✅ 关闭（2026-09-13，`ef50781`：工具表兜底行 + RETRIEVE 否定句去冗余；纯指令零代码宿主无关。扩散链：harness `0c52ee8` 已同步（连带 cdp-proxy wsPath 修复等积压），各 adopting repo 待拷）。详情：GitHub 关票评论 |
+| ~~**#280**~~ | 2026-09-13 | search-sources.mjs 不自载 .env.local——管线内 search pool 引擎恒缺 key（Layer 3 静默失效） | ✅ 关闭（dup of #275——同一定位已由并行 session 先行开票，以 #275 为单一 home） |
+| **#281** | 2026-09-13 | search pool 引擎可用性核查：Serper 恒 "0 results" / Brave TUN DNS fetch failed | ✅ 分流 Tier 3 · `ready-for-agent`（#265 smoke 顺带发现；每引擎单独复测定性，只核查记录不预先设计；无既有票覆盖，与 #276 路由收敛不重叠） |
+| ~~**#282**~~ | 2026-09-13 | search-pool skill 跨 repo 同步：agent-harness 旧 MCP 形态需更新为 #265 CLI 消费 + env 指路 | ✅ 关闭（已落地——本 repo SKILL.md env 指路 `6e8cf9d` + harness `bc2f001`/`0c52ee8` 同步，均先于本票存在；无剩余 scope） |
 
 ## Execution Tiers
 
@@ -320,6 +323,7 @@ collectFromSource() 层次：
 | # | Issue | Blocked by | Conflict files | Notes |
 | --- | --- | --- | --- | --- |
 | **#231** | TTS/渲染环境固化：Kaggle CosyVoice 依赖打包 Dataset + 本地 torch 锁版 + arm64 Node 约束 | —（等下次真实 TTS 任务做 A 真机验收） | requirements.txt, .nvmrc（新） | `ready-for-agent`。2026-09-11 triage：三片——A Kaggle Dataset 化（已由 #225 `e29ed9a` 交付）；B 本地 torch 锁版（torch 2.9.0 全家桶，防 wav2vec2 崩）；C arm64 Node ≥22 .nvmrc（防 @rspack arm64 缺失）。**B/C 已由 `997ec35` 交付（2026-09-12）；A 代码侧同 commit 交付**（`_pip_install` 挂载检测 + `build-wheels-dataset.sh`），**余 = 真机构建 wheels dataset（~2-3GB 上传）+ 挂载真跑一次验证**——挂下次真实 TTS 任务顺带执行（kernel log 应出现 `wheels dataset mount found`）；勿补写 package.json engines（并行线未提交改动禁区） |
+| **#281** | search pool 引擎可用性核查：Serper 恒 "0 results" / Brave TUN DNS fetch failed | — | `scripts/short-video/lib/search-pool.mjs` 注释, `skills/search-pool/SKILL.md` | `ready-for-agent`。2026-09-13 开票（#265 smoke 顺带发现）：每引擎单独 curl/CLI 复测定性（可用/修复方法/确认弃用）；确认弃用的在注释与 SKILL.md 注明。只核查记录，不预先设计 per-machine 配置 |
 | **#257** | TTS: Spark-TTS MLX 情绪能力验证（MIT 可商用候选） | — | scripts/short-video/lib/tts/ | `ready-for-human`。2026-09-12 客观实验完成：社区 MLX 实现 huangyuan3h/Spark-TTS-MLX 可用（RTF 0.91-1.09），但情绪仅 ref 音频单通道且幅度弱于 CosyVoice3 instruct（f0 range 109-153 vs 192-240Hz）、长 ref>6s 退化、16kHz、无 instruct 通道——初步定位非情绪场景备选；等用户听感 HITL 定去留。音频与指标在 output/_spark-tts-test/ |
 | **#228** | 管线提速二期：TTS scene batch / Remotion 增量渲染 / 模型 daemon / B-roll 并行（#225 优化点②③④⑥） | —（数据驱动：触发条件满足才唤醒） | main.mjs, remotion 渲染系, orchestrator.mjs | `dormant`。2026-09-09 triage：re-run 2.24min 渲染 124s 主导，四候选触发条件（冷跑占比↑/verify 重渲频繁/同包多次迭代/B-roll 主导）均未满足；动手前先取最近真实包 profile 只做主导项；质量红线同 #225 |
 | **#222** | 抽象短视频引擎为独立 repo（core 引擎 + 平台 profile 规则包），支持多项目复用（首发消费者：AI Email Assistant 产品视频） | —（前置顺序：①落地当前未提交并行工作 ②现有引擎跑通 Email POC 视频 ③基于 POC 证据开新 repo） | scripts/short-video/ 全量（80+ 文件） | `dormant`。2026-09-08 triage：已定决策——独立 repo；架构 = core（TTS 注册表/wav2vec2 强制对齐/safe-zones/gapless assemble/render-remotion/verify 框架）+ profiles 可插拔规则包；不做 MCP；不从头重写。POC 验收：Email POC 跑通（含录屏 scene）+ verify 误伤清单 + 新 repo 切分清单 |
