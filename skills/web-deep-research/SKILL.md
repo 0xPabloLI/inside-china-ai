@@ -69,8 +69,8 @@ Map each angle to 2-4 search queries.
 ## Phase 3 — RETRIEVE
 
 Load `web-access` skill and follow its tool selection table for all
-search and page fetching. web-access routes to the right tool based
-on the scenario. Do not reimplement its routing here.
+search and page fetching — routing is single-sourced in web-access's
+table, including its search-pool fallback row.
 
 **Before starting Phase 3**: Run `node ~/.agents/skills/web-access/scripts/check-deps.mjs`
 to verify CDP availability. If CDP is ready, the browser is
