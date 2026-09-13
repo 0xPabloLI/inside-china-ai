@@ -65,6 +65,14 @@ git commit <你的文件...> --trailer "Session-Id: <your-id>"   # 他方 staged
 注意：untracked 文件不能直接走 pathspec commit，先 `git add <file>` 再列入 pathspec。
 适用前提：你的文件与他方 staged 文件**不交叠**（同文件交叠回到配方 1）。
 
+交叠判定不能依赖开工时的 `git status`——并行 session 会在你工作期间持续修改共享文件，你提交一刻的 status 只反映快照。每次 pathspec 提交前，对每个列入的文件做逐 hunk 归属核查：
+
+```bash
+git diff <baseline>..HEAD -- <path>   # 或对未提交文件：git diff <baseline> -- <path>
+```
+
+确认每个 hunk 都属于本 session 的改动（ unfamiliar 内容 = 外来源 hunk = 同文件交叠，回到配方 1）。2026-09-13 事故：pathspec 提交夹带并行 session 的三文件在途改动（qwen-tts 下线 hunk 混入 #244 提交），事后靠临时 index plumbing 重写未推送历史修复（`.git/session-pilot/pilot-log.md` #20）；修复窗口被对方推进 ref 两次打断，靠 update-ref 期望旧值与 §9.1 停手避免恶化。
+
 ## 复评触发（不要遗忘项）
 
 本文件是应急路径，每次实际使用后复评一次：
