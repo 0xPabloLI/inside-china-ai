@@ -92,20 +92,37 @@ describe("loadEnv", () => {
 
 // ─── Library boundary (#275 invariant) ───
 
-describe("search-pool library boundary", () => {
+/** Child snippet: import a module as a library, then print the pool keys as JSON. */
+function probeLibraryImportKeys(modulePath) {
+  return `
+    await import(${JSON.stringify(modulePath)});
+    const keys = ${JSON.stringify(POOL_KEY_NAMES)};
+    console.log(JSON.stringify(Object.fromEntries(keys.map((k) => [k, process.env[k] ?? null]))));
+  `;
+}
+
+function expectPoolKeysUnset(stdout) {
+  const observed = JSON.parse(stdout);
+  for (const key of POOL_KEY_NAMES) {
+    expect(observed[key], `${key} must stay unset on library import`).toBeNull();
+  }
+}
+
+describe("library boundary (#275 invariant)", () => {
   it("importing search-pool.mjs as a library never loads .env.local", () => {
     // .env.local exists at the repo root with real pool keys; a sanitized
     // child proves they stay unset after a bare library import. Entries
     // (main.mjs / search-sources.mjs / the pool CLI guard) own env loading.
-    const child = `
-      await import(${JSON.stringify(POOL_LIB_PATH)});
-      const keys = ${JSON.stringify(POOL_KEY_NAMES)};
-      console.log(JSON.stringify(Object.fromEntries(keys.map((k) => [k, process.env[k] ?? null]))));
-    `;
-    const { stdout } = runNodeEsm(child);
-    const observed = JSON.parse(stdout);
-    for (const key of POOL_KEY_NAMES) {
-      expect(observed[key], `${key} must stay unset on library import`).toBeNull();
-    }
+    const { stdout } = runNodeEsm(probeLibraryImportKeys(POOL_LIB_PATH));
+    expectPoolKeysUnset(stdout);
+  });
+
+  it("importing search-pool-server.mjs never loads .env.local either", () => {
+    // search-pool-server.mjs lives in lib/ but is itself a process entry —
+    // its loadEnv() call sits inside main(), so a bare import must not
+    // touch process.env (review finding on the #287 boundary test gap).
+    const SERVER_LIB_PATH = fileURLToPath(new URL("../lib/search-pool-server.mjs", import.meta.url));
+    const { stdout } = runNodeEsm(probeLibraryImportKeys(SERVER_LIB_PATH));
+    expectPoolKeysUnset(stdout);
   });
 });
