@@ -50,4 +50,39 @@ describe("cdpNewTab + rate limiter", () => {
     await expect(cdpNewTab("https://google.com/search?q=DeepSeek")).rejects.toThrow(/google\.com/);
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  // #273 P0.2: the proxy refuses work when its concurrency guard is saturated
+  // (it protects the single Chrome instead of dying under N pipelines). That is
+  // "temporarily exhausted" — the same semantic as a limiter skip — so it must
+  // surface as RateLimitedSkipError, NOT as a broken-source error, otherwise a
+  // busy proxy would permanently drop CDP sources from the fallback chains.
+  it.each([["CDP_PROXY_QUEUE_FULL"], ["CDP_PROXY_QUEUE_TIMEOUT"]])(
+    "%s from the proxy surfaces as RateLimitedSkipError (temporary, not broken)",
+    async (code) => {
+      waitMock.mockResolvedValue({ action: "pass", waitedMs: 0, domain: "google.com" });
+      global.fetch.mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: "CDP proxy is saturated", code }),
+      });
+
+      await expect(cdpNewTab("https://google.com/search?q=DeepSeek")).rejects.toMatchObject({
+        name: "RateLimitedSkipError",
+        domain: "cdp-proxy",
+      });
+    },
+  );
+
+  it("a non-saturation proxy failure still surfaces as a plain error (source may be reported broken)", async () => {
+    waitMock.mockResolvedValue({ action: "pass", waitedMs: 0, domain: "google.com" });
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: "连接失败" }),
+    });
+
+    await expect(cdpNewTab("https://google.com/search?q=DeepSeek")).rejects.toThrow(
+      /Failed to create tab/,
+    );
+  });
 });

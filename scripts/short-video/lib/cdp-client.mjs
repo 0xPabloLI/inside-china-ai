@@ -129,6 +129,16 @@ export async function cdpNewTab(url) {
     body: url,
   });
   const data = await resp.json();
+  // #273 P0.2: the proxy refuses work when its concurrency guard is saturated
+  // (it protects the single Chrome instead of dying under N parallel
+  // pipelines). That is "temporarily exhausted", not "source broken" — map it
+  // onto the skip path so the caller's fallback chain carries on.
+  if (data.code === "CDP_PROXY_QUEUE_FULL" || data.code === "CDP_PROXY_QUEUE_TIMEOUT") {
+    throw new RateLimitedSkipError(
+      "cdp-proxy",
+      `CDP proxy saturated (${data.code}) — navigation skipped, retry later`,
+    );
+  }
   if (!data.targetId) {
     throw new Error(`Failed to create tab for ${url}`);
   }

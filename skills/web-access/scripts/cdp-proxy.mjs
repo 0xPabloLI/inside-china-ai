@@ -10,6 +10,7 @@ import path from "node:path";
 import os from "node:os";
 import net from "node:net";
 import { selectBrowser, findFallbackPort } from "./browser-discovery.mjs";
+import { createCdpScheduler, CdpSchedulerError } from "./cdp-concurrency.mjs";
 
 // --- /extract 端点：DOM → Markdown 转换函数（注入浏览器执行）---
 // selector 可选：传入则精确提取；不传则自动检测常见正文容器
@@ -160,6 +161,13 @@ const sessions = new Map(); // targetId -> sessionId
 const managedTabs = new Map(); // targetId -> { lastAccessed: number }
 const TAB_IDLE_TIMEOUT = parseInt(process.env.CDP_TAB_IDLE_TIMEOUT || "900000"); // 15 min default
 const CLEANUP_INTERVAL = 60000; // sweep every 60s
+
+// --- 并发守卫（#273 P0.2） ---
+// 一个 proxy 进程只对应一个 Chrome。多管线并行时（2026-09-12 实测：4 个
+// main.mjs 同时跑），每个都会并发发起十几个站点搜索，把这一个进程压到
+// SIGTERM——所有管线的 CDP 源同时失效。调度器限制在飞操作数、给等待请求
+// 排队，超时即以 503 拒绝，而不是把压力继续推给 Chrome。
+const scheduler = createCdpScheduler();
 
 // --- WebSocket 兼容层 ---
 let WS;
@@ -536,12 +544,38 @@ const server = http.createServer(async (req, res) => {
           sessions: sessions.size,
           managedTabs: managedTabs.size,
           chromePort,
+          scheduler: scheduler.stats(),
         }),
       );
       return;
     }
 
     await connect();
+
+    // #273 P0.2: 并发守卫从连接建立之后开始——所有浏览器操作都必须先拿到
+    // slot（同一 target 的操作还要等它空闲），响应结束或客户端断开时释放。
+    // 排队超限/超时 → 503，客户端按「稍后重试」处理，而不是当作源失效。
+    let release;
+    try {
+      release = await scheduler.acquire({ targetId: q.target || null });
+    } catch (e) {
+      if (e instanceof CdpSchedulerError) {
+        console.warn(`[CDP Proxy] ${e.code}: ${e.message}`);
+        res.statusCode = e.status;
+        res.end(
+          JSON.stringify({
+            error: e.message,
+            code: e.code,
+            reason: e.reason,
+            targetId: e.targetId,
+            ...scheduler.stats(),
+          }),
+        );
+        return;
+      }
+      throw e;
+    }
+    res.on("close", release);
 
     // GET /targets - 列出所有页面
     if (pathname === "/targets") {
@@ -953,6 +987,11 @@ async function main() {
 
   server.listen(PORT, "127.0.0.1", () => {
     console.log(`[CDP Proxy] 运行在 http://localhost:${PORT}`);
+    const s = scheduler.stats();
+    console.log(
+      `[CDP Proxy] 并发守卫: ${s.maxConcurrent} 并发 / 队列上限 ${s.maxQueued} / ` +
+        `排队超时 ${s.queueTimeoutMs}ms（CDP_PROXY_MAX_CONCURRENCY / CDP_PROXY_MAX_QUEUED / CDP_PROXY_QUEUE_TIMEOUT_MS）`,
+    );
     // 启动时尝试连接 Chrome（非阻塞）
     connect().catch((e) =>
       console.error("[CDP Proxy] 初始连接失败:", e.message, "（将在首次请求时重试）"),

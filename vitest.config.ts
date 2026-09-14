@@ -41,7 +41,14 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.{ts,tsx,mjs}"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "scripts/**/*.test.{ts,tsx,mjs}",
+      // #273: the CDP proxy concurrency scheduler lives in skills/web-access
+      // (it guards the proxy process, which is skill-owned), so its tests live
+      // beside it. Pure logic — no proxy, no Chrome — hence CI-safe.
+      "skills/**/*.test.{ts,tsx,mjs}",
+    ],
     // `experiments/` holds vendored spike repos (e.g. fastvideo-spike). Nothing
     // under the pipeline imports them, and their own suites were never ours to
     // keep green — including them just buries real failures in noise.
