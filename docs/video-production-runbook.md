@@ -94,6 +94,32 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - **TTS 缓存**（#198）：scene 音频按 `(engine, engine.info, text)` 键跨 run 复用，forced alignment 按 `(text + 音频字节)` 签名复用（ttsText 变化会触发重对齐）；`TTS_NO_CACHE=1` 强制冷跑（重生成全部音频）。
 - **长任务执行方式**：asset sourcing 全量 40+ 分钟，Agent 会话里**不要前台 `bash` 跑**（工具超时会杀进程）——用 `nohup ... > log 2>&1 &` 后台运行 + 轮询日志；搜索缓存已改为逐次增量落盘（见故障模式表），进程被杀也保留已完成搜索。
 
+### 多管线并行运行（#273）
+
+2026-09-12 制作 4 集系列时并行跑 4 个 `main.mjs` 的实测结论（完整经验见 issue #273）。
+
+**最优策略（默认）——先串行建立缓存，再并行吃缓存**：
+
+```bash
+# Step 1: 串行跑第一集（建立 asset cache，TTS 也完整跑一遍）
+node scripts/short-video/main.mjs --content series/pt1
+# Step 2: 其余各集并行（asset cache 命中跳过 sourcing；TTS 各内容独立仍需生成）
+node scripts/short-video/main.mjs --content series/pt2 &
+node scripts/short-video/main.mjs --content series/pt3 &
+node scripts/short-video/main.mjs --content series/pt4 &
+```
+
+**各阶段并行安全性**：
+
+| 阶段                       | 能否并行      | 依据                                                                                               |
+| -------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| TTS（Kaggle）              | ✅            | kernel slug 从 content id 派生（#267），互不覆盖；免费档单 GPU 会话自动排队（#250 的 QUEUED 预算） |
+| CDP 搜索（asset sourcing） | ✅（#273 起） | proxy 内置并发守卫（见下），不再要求串行                                                           |
+| Remotion 渲染 / 本地 VLM   | ⚠️ 争资源     | 可并行但抢 CPU/GPU，建议 ≤2 并发                                                                   |
+| Asset cache                | ⚠️ 首次串行   | 逐次增量落盘，并发写同一关键词有竞争；先串行跑一集可建立缓存                                       |
+
+**CDP proxy 并发守卫（#273 P0.2）**：`skills/web-access/scripts/cdp-proxy.mjs` 用 `lib` 侧调度器限制在飞浏览器操作数，超出排队，排队超限或超时以 **503** 拒绝（`code: CDP_PROXY_QUEUE_FULL` / `CDP_PROXY_QUEUE_TIMEOUT`），而不是把压力推给单个 Chrome（2026-09-12 四管线并行曾把 proxy 压到 SIGTERM，所有管线的 CDP 源同时失效）。同一 tab（target）的被占用期间，针对它的请求排队而不是交错导航状态。`cdp-client.mjs` 把这两个 503 映射为 `RateLimitedSkipError`——调用方按「本源暂时耗尽，走 fallback 链」处理，**不要当成源永久失效**。参数：`CDP_PROXY_MAX_CONCURRENCY`（默认 3）、`CDP_PROXY_MAX_QUEUED`（默认 8）、`CDP_PROXY_QUEUE_TIMEOUT_MS`（默认 30000）；`/health` 会带 `scheduler` 统计。
+
 ### 双轨朗读文本（TTS spoken vs display）
 
 用户决策（2026-09-09）：**朗读可以改写，字幕/画面必须保持原文**。实现为三字段契约（`lib/normalize-tts-text.mjs`）：
