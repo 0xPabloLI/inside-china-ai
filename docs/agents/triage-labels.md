@@ -9,6 +9,18 @@ The triage skill uses five canonical roles. Label strings match role names.
 | `bug`         | Something is broken        |
 | `enhancement` | New feature or improvement |
 
+## Priority Labels
+
+Set during triage. Exactly one per triaged issue; guides pick-up order for
+human and agent work.
+
+| Label | Meaning                                                              |
+| ----- | -------------------------------------------------------------------- |
+| `P0`  | Blocks publishing or the live site — drop everything                 |
+| `P1`  | Breaks a core pipeline path with a workaround; fix this week         |
+| `P2`  | Normal backlog work; fix in planned order                            |
+| `P3`  | Nice-to-have; pick up when idle or batch with related work           |
+
 ## State Labels
 
 | Label             | Meaning                                  |
@@ -39,7 +51,7 @@ needs-info + reporter replies → needs-triage
 
 ## Conventions
 
-- Every triaged issue carries exactly one category label and one state label. **Signal labels** (machine-managed, above) are exempt — they carry mechanical state, not triage status.
+- Every triaged issue carries exactly one category label and one state label. Once prioritized, it also carries exactly one priority label (`P0`–`P3`). **Signal labels** (machine-managed, above) are exempt — they carry mechanical state, not triage status.
 - Clear `comments-unread` once you have read the ticket's comments and incorporated the new state (roadmap row / delivery record / your own work). Labels are removed by PUTting the remaining set, per the DELETE workaround in `issue-tracker.md`.
 - `ready-for-agent` requires: (1) fully specified with acceptance criteria, (2) correct priority, (3) actionable by an agent without further human input.
 - `wontfix` issues should be closed with an explanation comment.
